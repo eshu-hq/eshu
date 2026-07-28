@@ -383,10 +383,25 @@ Dropping the CTE also removes a lock phase. It took row locks over the keep-set
 while the DELETE took them over the complement, and Postgres specifies no
 sub-statement ordering within a `WITH`, so two concurrent same-scope retires with
 crossed keep/delete sets — `r1` in keepA ∩ deleteB, `r2` in keepB ∩ deleteA,
-which is precisely the stalled-worker shape this fence exists for — could
-deadlock ABBA. An independent reproduction on the sibling branch measured it:
-`deadlock detected 4/4` with the CTE, clean `3/3` with it removed. A single
-`DELETE` scanning one index order cannot.
+which is precisely the stalled-worker shape this fence exists for — deadlocks
+ABBA. This branch did not measure that. The same statement shape was reproduced
+on the `5837-drift-reopen` sibling branch by two independent harnesses, on
+Postgres 16.14: `SQLSTATE 40P01 deadlock detected`, with a `ShareLock` cycle in
+both directions. The stricter of the two gave both passes a shared 2,000-row
+stale set so the plain `DELETE`s genuinely contend — verified by the survivors
+being exactly the 1,000 common keeps and by the second `DELETE` measurably
+waiting — with no lock primer, no enclosing transaction, and one autocommit
+`ExecContext` per pass, which is the writer's real shape.
+
+It is a race, so there is no fixed rate to quote and this doc does not quote one.
+What reproduces is the asymmetry: the CTE variant deadlocked in most trials of
+every run, while the plain fenced `DELETE` deadlocked in none of twenty. An
+earlier harness that primed a `SELECT ... FOR UPDATE` on each pass's kept row was
+discarded and its numbers retracted by its own author — it deadlocked the SHIPPED
+statement too, because the primer manufactured the crossing instead of measuring
+it. Any figure traceable to that harness is not evidence for this change.
+
+A single `DELETE` scanning one index order cannot deadlock this way.
 
 The retire is now a bare fenced `DELETE`.
 `TestContainerImageIdentityRetireQueryIsASingleDeleteAndNothingElse` rejects any
@@ -525,3 +540,103 @@ that records `eshu_dp_postgres_query_duration_seconds`, which is true and beside
 the point — that records that A write happened, never what was destroyed. The
 existing `eshu_dp_container_image_identity_decisions_total` counter and reducer
 run spans are unchanged.
+
+### What `RetiredMoreThanWritten` does not reach
+
+The partial-gap signal is `retired > CanonicalWrites`, so it only fires once the
+shrink outweighs the pass's own surviving write count. Swept against the
+production writer with the retire's `RowsAffected` driven directly:
+
+```
+canonical=6 retired=4  | blind=false moreThanWritten=false   <- 4 images lost, no warn, clean summary
+canonical=9 retired=1  | blind=false moreThanWritten=false
+canonical=5 retired=5  | blind=false moreThanWritten=false
+canonical=4 retired=6  | blind=false moreThanWritten=true
+canonical=1 retired=4  | blind=false moreThanWritten=true
+canonical=0 retired=10 | blind=true  moreThanWritten=true
+```
+
+The first row is a real four-image evidence-visibility gap that leaves both flags
+false and `EvidenceSummary` reading `retired_without_canonical_writes=false
+retired_more_than_written=false`. The sweep also confirms the warn exclusivity:
+`canonical=0 retired=10` sets BOTH struct fields but emits only the blind warn,
+because `partialRetire` is gated on `!blindRetire`.
+
+The coarser signal is accepted rather than widened, and the two comments now
+state the gap instead of implying full partial coverage. A fuller signal needs a
+baseline the writer does not hold: the partition's row count from BEFORE the
+write. Neither committed statement supplies it. The two candidate routes are a
+third statement (a pre-write `COUNT(*)`, which breaks the committed
+two-statement cost budget and adds a round-trip to the hot write path) or a
+`RETURNING` readback on `reducerFactBatchInsertQuery` to separate net-new rows
+from updated ones — but that statement is shared with six other callers, and
+adding a readback to it is exactly the change #4444 had to prove live on the
+collector path. Either would need its own live proof, its own concurrency
+argument, and its own cost-budget revision, none of which belong in a
+comment-accuracy pass. Not implemented; stated.
+
+### The single-DELETE guard was evadable on its own
+
+`TestContainerImageIdentityRetireQueryIsASingleDeleteAndNothingElse` ran its
+keyword scan against the raw statement text, which made every check in it
+case-sensitive, and it forbade only `UPDATE`, `INSERT` and `WITH `. Two evasions
+were measured by appending to the production constant in a throwaway worktree and
+running that test ALONE:
+
+```
+payload: ...AND fencing_token <= $5; update fact_records set fencing_token = 0
+  before: ok    (all three checks passed a lowercase second write statement)
+  after:  FAIL  "retire statement contains a `;` statement separator"
+
+payload: ...AND fencing_token <= $5 returning fact_id
+  before: ok    (no semicolon, lowercase, and RETURNING was not on the list)
+  after:  FAIL  "retire statement contains \"RETURNING\""
+```
+
+The composite was never actually broken:
+`TestContainerImageIdentityRetireQueryIsBoundedToItsOwnPartition` compares the
+normalized production constant byte-for-byte against
+`containerImageIdentityRetireStatement`, so both payloads redden the package. The
+problem was that the test whose NAME promises "a single DELETE and nothing else"
+was not the test holding the line, and the next person to touch the statement
+would read the name and believe otherwise.
+
+The scan now uppercases before matching, rejects a `;` statement separator
+outright (a keyword list cannot see what a second statement does), and adds
+`RETURNING`, `MERGE` and `TRUNCATE`. `isContainerImageIdentityRetireStatement`,
+the recognizer that decides which exec call IS the retire, was case-sensitive for
+the same reason and is now case-insensitive — a lowercased rewrite would have made
+the retire vanish from the call list rather than fail an assertion, which is the
+precise failure mode that recognizer's doc comment says it exists to prevent.
+
+What the hardened guard still cannot see is a side effect smuggled inside the one
+DELETE, such as a volatile function in the `WHERE` clause. Only the byte-exact
+frozen-text comparison catches that. The test comment now says so instead of
+implying the keyword scan is sufficient.
+
+### The transient no-DSN `internal/storage/postgres` failure
+
+The earlier best candidate was `deferred_maintenance_concurrency_test.go`, whose
+`t.Fatal`s sit behind 2-second wall-clock deadlines. That is disproven: 0 failures
+in 60 consecutive runs of the maintenance-concurrency tests under 20-way CPU
+saturation on a 10-core host.
+
+A different load-sensitive test in the same package reproduces instead. Running
+the whole package 30 times under 24-way CPU saturation:
+
+```
+=== ITER 16 FAILED ===
+--- FAIL: TestIdentityEpochCacheConcurrentSingleflight (0.25s)
+    identity_epoch_cache_test.go:278: probeCalls=64 loadCalls=1 elapsed=250.184666ms (probeDelay=20ms)
+    identity_epoch_cache_test.go:290: 32 concurrent callers took 250.184666ms, want <= 200ms
+        (mu must not serialize the epoch probe across callers)
+FAILS=1 / 30 under 24-way CPU load
+```
+
+It asserts a 200 ms wall-clock ceiling on 32 concurrent callers against a 20 ms
+probe delay — a 10x margin that a saturated scheduler can still eat. The same
+binary run without competing load passed 30/30. This branch touches neither that
+file nor the epoch cache, and the failure is a timing budget rather than a
+correctness assertion, so it is recorded here and left alone: retuning an
+unrelated package's timing test on the strength of one reproduction does not
+belong in this change.

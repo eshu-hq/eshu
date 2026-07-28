@@ -45,29 +45,58 @@ func containerImageIdentityFenceWrite(
 // same token on the INSERT that CTE became a proven no-op — and not a free one:
 // it rewrote every kept row on every execution (a measured second row version
 // per canonical decision) and, because it locked the keep-set while the DELETE
-// locked the complement with no specified ordering inside a `WITH`, it was a
-// measured ABBA deadlock source between two concurrent same-scope retires with
-// crossed keep/delete sets, the exact stalled-worker shape the fence exists for.
+// locked the complement with no specified ordering inside a `WITH`, it deadlocks
+// ABBA between two concurrent same-scope retires with crossed keep/delete sets,
+// the exact stalled-worker shape the fence exists for. The deadlock was
+// reproduced on the `5837-drift-reopen` sibling branch rather than here, by two
+// independent harnesses, and it is a race: the CTE variant deadlocked in most
+// trials of every run while the plain fenced DELETE deadlocked in none of twenty.
+// The asymmetry is what reproduces; there is no fixed rate to quote.
 //
 // This assertion is what stops a second write phase — a CTE, a chained UPDATE,
 // an INSERT — from being reintroduced. The frozen-text test would also catch it,
 // but this one names WHY in its failure message.
+//
+// # What this test does and does not cover on its own
+//
+// The keyword scan runs against the UPPERCASED statement. It used to run against
+// the raw text, which made every check below case-sensitive: appending
+// `; update fact_records set fencing_token = 0` passed all three, measured. The
+// same class of hole is why the separator check exists — a keyword list cannot
+// see a second statement that uses no listed keyword.
+//
+// What it still cannot see is a side effect smuggled INSIDE the single DELETE,
+// such as a volatile function in the WHERE clause. Only the byte-exact
+// comparison against containerImageIdentityRetireStatement catches that, and
+// that comparison — not this test — is what actually holds the line. This test
+// is the one that explains the consequence in its failure message.
 func TestContainerImageIdentityRetireQueryIsASingleDeleteAndNothingElse(t *testing.T) {
 	t.Parallel()
 
 	normalized := normalizeReducerSQL(containerImageIdentityRetireQuery)
-	if got := strings.Count(normalized, "DELETE"); got != 1 {
+	upper := strings.ToUpper(normalized)
+	if got := strings.Count(upper, "DELETE"); got != 1 {
 		t.Fatalf("DELETE keywords in retire statement = %d, want exactly 1:\n%s", got, normalized)
 	}
-	if !strings.HasPrefix(normalized, "DELETE FROM fact_records") {
+	if !strings.HasPrefix(upper, "DELETE FROM FACT_RECORDS") {
 		t.Fatalf("the retire must BE a DELETE against fact_records, with no preamble:\n%s", normalized)
 	}
-	for _, forbidden := range []string{"UPDATE", "INSERT", "WITH "} {
-		if strings.Contains(normalized, forbidden) {
+	if strings.Contains(normalized, ";") {
+		t.Fatalf(
+			"retire statement contains a `;` statement separator; it must be ONE statement. A keyword "+
+				"scan cannot see what a second statement does, so the separator itself is the "+
+				"assertion:\n%s",
+			normalized,
+		)
+	}
+	for _, forbidden := range []string{"UPDATE", "INSERT", "WITH ", "RETURNING", "MERGE", "TRUNCATE"} {
+		if strings.Contains(upper, forbidden) {
 			t.Fatalf(
 				"retire statement contains %q; it must stay a single DELETE. A second write phase "+
 					"re-stamps rows the INSERT already stamped (a no-op that still costs a row version) "+
-					"and reintroduces the measured ABBA deadlock between crossed keep/delete sets:\n%s",
+					"and reintroduces the ABBA deadlock between crossed keep/delete sets that the "+
+					"5837-drift-reopen branch reproduced on Postgres 16.14 (the CTE deadlocked in most "+
+					"trials of every run, the plain DELETE in none of twenty):\n%s",
 				forbidden, normalized,
 			)
 		}
@@ -139,12 +168,14 @@ func TestContainerImageIdentityWriterPassesFencingTokenToRetire(t *testing.T) {
 // TestContainerImageIdentityWriterStampsTheFencingTokenOnTheInsert is the unit
 // half of the born-unstamped hole.
 //
-// The retire's `stamped` CTE runs in a SEPARATE autocommit statement after the
-// insert. If the insert leaves the row at the fact_records default of 0, the row
-// is durable and visible at 0 for that whole window, and 0 is at or below every
-// other worker's token — so a stalled worker's fenced retire landing there
-// deletes the fresher row it was supposed to be fenced away from. The insert
-// therefore has to carry the token itself.
+// The retire runs in a SEPARATE autocommit statement after the insert, so
+// nothing the retire does can stamp the row in time — which is why the earlier
+// `stamped` CTE could not have closed this hole even had it stayed. If the
+// insert leaves the row at the fact_records default of 0, the row is durable and
+// visible at 0 for that whole window, and 0 is at or below every other worker's
+// token — so a stalled worker's fenced retire landing there deletes the fresher
+// row it was supposed to be fenced away from. The insert therefore has to carry
+// the token itself.
 //
 // This asserts the argument the writer actually sends; the live sibling
 // TestContainerImageIdentityFreshlyInsertedRowIsFencedBeforeItIsVisibleLive

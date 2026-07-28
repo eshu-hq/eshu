@@ -27,8 +27,12 @@ import (
 // `0 <= its own token` as true and DELETE the fresher row. Both writers can lose
 // their row that way — A's retire takes B's unstamped row, then B's retire takes
 // A's stamped one — which is strictly worse than the stale-row-beside-the-correct
-// -row shape the fence exists to prevent. Stamping in the retire's CTE alone does
-// not close that window; carrying the token on the insert does.
+// -row shape the fence exists to prevent. Stamping from the retire alone did not
+// close that window — the retire is a separate autocommit statement that runs
+// after the insert, so the row is durable and visible at 0 for the whole gap —
+// which is why the token is carried on the insert instead. (The retire briefly
+// carried a `WITH stamped AS (UPDATE ...)` CTE for that job; it was dropped once
+// the insert stamped, see containerImageIdentityRetireQuery.)
 //
 // The column is appended last rather than interleaved at its table position so
 // the existing $1..$15 bind mapping — which IS the column contract this statement
@@ -67,9 +71,27 @@ import (
 // proceeds exactly as before. That is a property of the SQL rather than of the
 // arguments, so it is proven against real Postgres by
 // TestReducerFactBatchInsertStaysInertForUnfencedWritersLive rather than
-// asserted. The shape matches upsertFactBatchSuffix
-// (go/internal/storage/postgres/facts_streaming.go, #4444), which already fences
-// the collector ingest path into this same table the same way.
+// asserted.
+//
+// The guard clause itself is the same one upsertFactBatchSuffix
+// (go/internal/storage/postgres/facts_streaming.go, #4444) uses to fence the
+// collector ingest path into this same table. The PAIRING differs, and the
+// difference is worth naming rather than glossing. There the guard is issued
+// through upsertFactBatchReturningAccepted, whose RETURNING reads back the
+// fact_ids the guard actually accepted, because that path derives downstream
+// work from the write and a fenced-out row must not feed it (#4444, codex P1).
+// Here the guard is taken WITHOUT that readback: the only thing derived from
+// this insert is keepFactIDs, and a fenced-out row is one the guard rejected
+// precisely because a FRESHER row already occupies that fact_id — keeping it out
+// of the retire's delete set is the correct outcome, not a leak.
+//
+// What the missing readback does cost is legibility. A pass fenced out in WHOLE
+// still reports CanonicalWrites=N with Retired=0 and both writer flags false,
+// which is byte-identical to a pass that landed normally against an unchanged
+// partition. The rows are right either way; the summary cannot tell an operator
+// which of the two happened. Adding the readback here would need its own live
+// proof and its own concurrency argument, so it is stated rather than assumed
+// away.
 const reducerFactBatchInsertQuery = `
 INSERT INTO fact_records (
     fact_id,

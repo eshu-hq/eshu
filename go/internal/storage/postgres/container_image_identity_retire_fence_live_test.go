@@ -99,12 +99,14 @@ func TestContainerImageIdentityRetireCannotDeleteFresherEvidenceRowsLive(t *test
 }
 
 // TestContainerImageIdentityFreshlyInsertedRowIsFencedBeforeItIsVisibleLive is
-// the regression for the hole the stamp-plus-delete CTE does NOT close on its
-// own.
+// the regression for the hole a retire-side stamp could NOT have closed on its
+// own — the reason the earlier `WITH stamped AS (UPDATE ...)` CTE was never the
+// answer here, quite apart from its being dropped as a no-op.
 //
-// The CTE stamps fact_records.fencing_token in the retire statement, which runs
-// AFTER the insert and in a separate autocommit. If the insert leaves the row at
-// the column default 0 — which it does whenever the insert's column list omits
+// Any retire-side stamp writes fact_records.fencing_token in the retire
+// statement, which runs AFTER the insert and in a separate autocommit. If the
+// insert leaves the row at the column default 0 — which it does whenever the
+// insert's column list omits
 // fencing_token — then between those two statements the row is COMMITTED and
 // VISIBLE carrying token 0. A stalled worker's fenced retire landing in that
 // window evaluates `0 <= $5` as true and deletes the fresher worker's row

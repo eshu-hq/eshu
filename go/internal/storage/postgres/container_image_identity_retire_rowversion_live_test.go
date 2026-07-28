@@ -52,10 +52,13 @@ func containerImageIdentityRowVersion(
 //
 // The retire used to lead with a `WITH stamped AS (UPDATE ... SET fencing_token
 // = $5 ... WHERE fact_id = ANY($4) AND fencing_token <= $5)` CTE. Once the
-// batched insert began binding the same token (`reducerFactBatchInsertQuery`,
-// raising it with `GREATEST` on conflict), that CTE became a proven no-op: the
-// keep-set is built from the exact rows just handed to the insert, so by retire
-// time every one of them already carries `fencing_token >= $5`, and the only
+// batched insert began binding the same token (`reducerFactBatchInsertQuery`
+// carries fencing_token as a bound column and keeps it under a
+// `fact_records.fencing_token <= EXCLUDED.fencing_token` conflict guard, which
+// rejects a lower-token upsert whole rather than merging it), that CTE became a
+// proven no-op: the keep-set is built from the exact rows just handed to the
+// insert, so by retire time every one of them already carries
+// `fencing_token >= $5`, and the only
 // rows the guard can still match are the ones already sitting at exactly `$5`,
 // which it then sets to `$5`.
 //

@@ -137,20 +137,43 @@ type ContainerImageIdentityWriteResult struct {
 	// silent. See containerImageIdentityRetireQuery.
 	RetiredWithoutCanonicalWrites bool
 	// RetiredMoreThanWritten marks a pass whose retire DELETED more durable
-	// decisions than the pass itself wrote — the partition shrank.
+	// decisions than the pass itself wrote — the partition shrank by more than
+	// this pass's own write count.
 	//
-	// RetiredWithoutCanonicalWrites is the total case; this is the partial one it
-	// cannot see. An evidence-visibility gap need not be total: a pass can see the
-	// cross-scope OCI observations for SOME images in a generation and not others
-	// (five canonical decisions before, one after) and retire the rest while still
-	// writing one, which is the same defect partially applied.
+	// RetiredWithoutCanonicalWrites is the total case; this reaches PART of the
+	// partial one it cannot see. An evidence-visibility gap need not be total: a
+	// pass can see the cross-scope OCI observations for SOME images in a
+	// generation and not others, and retire the rest while still writing the ones
+	// it did see. Five canonical decisions before and one after is that shape, and
+	// it does fire here (retired=4 against canonical_writes=1).
 	//
-	// The shrink is the discriminator. An ordinary re-classification retires at
-	// most one superseded row per image it rewrites, so it can never retire more
-	// rows than it wrote; retiring more means rows left the partition with no
-	// replacement. That is legitimate for a genuine demotion and is what a
-	// gap-induced one looks like too — indistinguishable from here, which is
-	// exactly why it is reported rather than judged.
+	// # What this signal does NOT reach
+	//
+	// It is `retired > CanonicalWrites`, so it fires only when the shrink exceeds
+	// this pass's OWN write count — in effect only when more than half the
+	// partition was lost. A partial gap smaller than the surviving set is
+	// invisible. Measured against the production writer:
+	//
+	//	canonical=6 retired=4  | blind=false moreThanWritten=false  <- 4 lost, silent
+	//	canonical=9 retired=1  | blind=false moreThanWritten=false
+	//	canonical=5 retired=5  | blind=false moreThanWritten=false
+	//	canonical=4 retired=6  | blind=false moreThanWritten=true
+	//	canonical=1 retired=4  | blind=false moreThanWritten=true
+	//	canonical=0 retired=10 | blind=true  moreThanWritten=true
+	//
+	// A ten-image partition that writes six and retires four is a real four-image
+	// evidence gap, and both flags read false while EvidenceSummary reads clean.
+	// Reaching it needs a baseline this writer does not have — the partition's
+	// count BEFORE the write — which the two committed statements cannot supply
+	// without a third statement or a readback on the shared batched insert. The
+	// coarse signal is what is claimed here; the gap below it is not covered.
+	//
+	// The shrink is the discriminator for the part that IS reached. An ordinary
+	// re-classification retires at most one superseded row per image it rewrites,
+	// so it can never retire more rows than it wrote; retiring more means rows left
+	// the partition with no replacement. That is legitimate for a genuine demotion
+	// and is what a gap-induced one looks like too — indistinguishable from here,
+	// which is exactly why it is reported rather than judged.
 	RetiredMoreThanWritten bool
 	// EvidenceSummary is a short operator-facing description of the write.
 	EvidenceSummary string

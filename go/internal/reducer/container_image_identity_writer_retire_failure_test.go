@@ -265,6 +265,13 @@ func TestContainerImageIdentityWriterDoesNotFlagAnEmptyRetire(t *testing.T) {
 // retire more rows than it wrote; retiring more than were written means rows
 // left the partition with no replacement, which is what a demotion — genuine or
 // gap-induced — looks like from here.
+//
+// The four-against-one ratio here is deliberate, and so is what it does NOT
+// cover. The comparison is `retired > CanonicalWrites`, so a partial gap SMALLER
+// than the surviving set stays invisible: canonical=6 retired=4 is a real
+// four-image gap that leaves both flags false. See
+// ContainerImageIdentityWriteResult.RetiredMoreThanWritten for the measured
+// matrix and why closing that needs a pre-write baseline this writer lacks.
 func TestContainerImageIdentityWriterFlagsAPartialEvidenceVisibilityGap(t *testing.T) {
 	t.Parallel()
 

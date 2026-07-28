@@ -111,13 +111,21 @@ func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisio
 	}
 
 	blindRetire := len(decisions) == 0 && retired > 0
-	// The partition shrank: rows left it with no replacement. An ordinary
-	// re-classification retires at most one superseded row per image it rewrites,
-	// so it can never exceed its own write count; exceeding it is the demotion
-	// shape — and a demotion is exactly what an evidence-visibility gap
-	// counterfeits. blindRetire is the TOTAL case of that; this is the partial one
-	// it cannot see, where a pass reads the cross-scope OCI facts for some images
-	// in the generation and not others.
+	// The partition shrank by more than this pass wrote: rows left it with no
+	// replacement. An ordinary re-classification retires at most one superseded
+	// row per image it rewrites, so it can never exceed its own write count;
+	// exceeding it is the demotion shape — and a demotion is exactly what an
+	// evidence-visibility gap counterfeits. blindRetire is the TOTAL case of that;
+	// this reaches part of the partial one, where a pass reads the cross-scope OCI
+	// facts for some images in the generation and not others.
+	//
+	// Only part. The comparison is against len(decisions), this pass's OWN write
+	// count, so it fires only once the shrink outweighs the surviving set —
+	// measured, canonical=1 retired=4 fires, and canonical=6 retired=4 does not,
+	// even though the second is a real four-image gap. Detecting that one needs
+	// the partition's count BEFORE the write, which neither the batched insert nor
+	// the retire reports today. See ContainerImageIdentityWriteResult.
+	// RetiredMoreThanWritten for the full measured matrix.
 	partialRetire := retired > len(decisions) && !blindRetire
 	if blindRetire {
 		// Loud on purpose. An empty canonical set is the correct answer for a

@@ -1723,11 +1723,16 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   at exactly `$5`. The no-op still cost a write: measured on Postgres 16, every
   intent execution produced a second row version per canonical decision (keep-set
   `xmin` 879 → 880, token unchanged), invisible to a cost budget that counts
-  STATEMENTS. It was also a measured ABBA deadlock source — the CTE locked the
-  keep-set while the DELETE locked the complement, with no ordering specified
-  inside a `WITH`, so two concurrent same-scope retires with crossed keep/delete
-  sets (the stalled-worker shape) deadlocked. The retire is now a single fenced
-  `DELETE`.
+  STATEMENTS. It was also an ABBA deadlock source — the CTE locked the keep-set
+  while the DELETE locked the complement, with no ordering specified inside a
+  `WITH`, so two concurrent same-scope retires with crossed keep/delete sets (the
+  stalled-worker shape) deadlock. This branch did not measure that; the same
+  statement shape was reproduced on the `5837-drift-reopen` sibling branch by two
+  independent harnesses, on Postgres 16.14, as `SQLSTATE 40P01` with a `ShareLock`
+  cycle in both directions. It is a race, so the honest form is the asymmetry
+  rather than a rate: the CTE variant deadlocked in most trials of every run,
+  while the plain fenced `DELETE` deadlocked in none of twenty. The retire is now
+  a single fenced `DELETE`.
 
   What the fence does not close: a stale pass can still INSERT its own row (that
   needs the #4233 `ProjectionState.BeginBuilding` pattern), and it cannot help a
@@ -1740,12 +1745,23 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   `slog.Warn` fire whenever a pass with zero canonical decisions retires a
   non-empty prior set. A visibility gap need not be TOTAL, though — a pass can
   see the cross-scope observations for some images in a generation and not
-  others — so `RetiredMoreThanWritten` and a second `slog.Warn` cover the partial
-  case, firing when the retire deleted more rows than the pass wrote. That
-  relation is the discriminator: an ordinary re-classification retires at most
-  one superseded row per image it rewrites and so can never exceed its own write
-  count, while exceeding it means rows left the partition with no replacement.
-  Exactly one of the two warns fires per pass.
+  others — so `RetiredMoreThanWritten` and a second `slog.Warn` reach part of the
+  partial case, firing when the retire deleted more rows than the pass wrote.
+  That relation is the discriminator: an ordinary re-classification retires at
+  most one superseded row per image it rewrites and so can never exceed its own
+  write count, while exceeding it means rows left the partition with no
+  replacement. Exactly one of the two warns fires per pass.
+
+  It is a COARSE signal, and the shortfall is worth knowing before relying on it:
+  the comparison is against the pass's own write count, so it only fires once the
+  shrink outweighs the surviving set. Measured against the production writer,
+  `canonical=1 retired=4` fires and `canonical=6 retired=4` does not — the second
+  is a genuine four-image evidence gap that leaves both flags false and
+  `EvidenceSummary` reading clean. Reaching it needs the partition's row count
+  from BEFORE the write, which neither of the two committed statements reports;
+  supplying it would take a third statement or a readback on the shared batched
+  insert, each of which needs its own live and concurrency proof. Until then,
+  treat a clean summary as "no shrink larger than this pass", not as "no gap".
 
   No-Regression Evidence: `go test ./internal/reducer
   ./internal/replay/costcounting ./cmd/bootstrap-index -count=1` covers the

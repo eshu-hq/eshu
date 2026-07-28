@@ -125,8 +125,12 @@ import (
 // specify sub-statement ordering within a `WITH`. Two concurrent same-scope
 // retires with crossed keep/delete sets — r1 in keepA and deleteB, r2 in keepB
 // and deleteA, which is exactly the stalled-worker shape this fence exists for —
-// could therefore deadlock ABBA. A single DELETE scanning one index order
-// cannot.
+// therefore deadlock ABBA. That was measured on the `5837-drift-reopen` sibling
+// branch rather than here, by two independent harnesses on Postgres 16.14
+// (`SQLSTATE 40P01`, `ShareLock` cycle both ways). It is a race, so the honest
+// summary is the asymmetry and not a rate: the CTE variant deadlocked in most
+// trials of every run, the plain fenced DELETE in none of twenty. A single
+// DELETE scanning one index order cannot deadlock this way.
 //
 // The token is a wall-clock microsecond reading, so it is monotonic across
 // reopens and retries without needing a durable counter — unlike the queue's

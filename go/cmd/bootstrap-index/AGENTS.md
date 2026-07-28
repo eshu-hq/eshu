@@ -121,12 +121,17 @@ watermark, and delete only rows at or below it. Three further traps:
   retire — the `WITH stamped AS (UPDATE ...)` shape — is redundant once the
   insert carries the token, and redundant is not free: Postgres has no in-place
   UPDATE, so a no-op stamp still writes a second row version per row per
-  execution (measured: keep-set `xmin` 879 → 880 with the token unchanged), and a
-  statement-counting cost budget sees none of it. It is also a measured ABBA
-  deadlock: the CTE locks the keep-set while the DELETE locks the complement,
-  `WITH` specifies no ordering between them, and two concurrent same-scope
-  retires with crossed keep/delete sets are exactly the stalled-worker shape the
-  fence exists to handle. Ship the fenced `DELETE` alone.
+  execution (measured on this branch: keep-set `xmin` 879 → 880 with the token
+  unchanged), and a statement-counting cost budget sees none of it. It is also an
+  ABBA deadlock: the CTE locks the keep-set while the DELETE locks the
+  complement, `WITH` specifies no ordering between them, and two concurrent
+  same-scope retires with crossed keep/delete sets are exactly the stalled-worker
+  shape the fence exists to handle. That deadlock was measured on the
+  `5837-drift-reopen` sibling branch, not here — two independent harnesses on
+  Postgres 16.14, `SQLSTATE 40P01` with a `ShareLock` cycle both ways. It is a
+  race, so quote the asymmetry and not a rate: the CTE variant deadlocked in most
+  trials of every run, the plain fenced `DELETE` in none of twenty. Ship the
+  fenced `DELETE` alone.
 
 ### Change NornicDB batch sizes or phase-group tuning
 

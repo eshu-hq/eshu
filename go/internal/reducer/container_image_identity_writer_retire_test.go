@@ -54,8 +54,16 @@ func normalizeReducerSQL(query string) string {
 // preamble. A preamble match is exactly what broke when the stamping CTE was
 // dropped, and a recognizer keyed on a fragment a rewrite can delete stops
 // recognizing the statement instead of failing on it.
+//
+// The match is case-insensitive for the same reason it is keyed on the DELETE: a
+// rewrite that lowercased the keyword would otherwise make the retire disappear
+// from the call list, which is the exact "no retire issued" confusion this
+// recognizer exists to prevent.
 func isContainerImageIdentityRetireStatement(query string) bool {
-	return strings.Contains(normalizeReducerSQL(query), "DELETE FROM fact_records")
+	return strings.Contains(
+		strings.ToUpper(normalizeReducerSQL(query)),
+		"DELETE FROM FACT_RECORDS",
+	)
 }
 
 // containerImageIdentityRetireCall returns the single retire statement issued by
