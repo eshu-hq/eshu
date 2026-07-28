@@ -5612,7 +5612,7 @@
         "minimum_results": 1
       },
       "GET /api/v0/supply-chain/impact/findings?limit=50&subject_digest=sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab&profile=comprehensive": {
-        "description": "#5452 non-vacuous runtime-observed cloud evidence proof: the scanned vulnerable supply-chain-demo image (subject digest abcdef...ab, CVE-2026-00010) is observed running on the live ECS task (its aws_resource running_image_digest equals the finding's subject digest), so the query-time CloudResource graph probe promotes its impact finding to deployment_truth_tier=runtime_confirmed and names the running task ARN in cloud_runtime_resource_refs -- runtime-observed cloud deployment evidence distinct from CI-declared correlation. The comprehensive profile is required because the finding is comprehensive-tier (the findings list defaults to precise). Reverting the probe (supply_chain_impact_cloud_runtime_probe.go) drops the finding back to provenance_ci_declared/config_only, failing this assertion.",
+        "description": "#5452 non-vacuous runtime-observed cloud evidence proof: the scanned vulnerable supply-chain-demo image (subject digest abcdef...ab, CVE-2026-00010) is observed running on the live ECS task (its aws_resource running_image_digest equals the finding's subject digest), so the query-time CloudResource graph probe promotes its impact finding to deployment_truth_tier=runtime_confirmed and names the running task ARN in cloud_runtime_resource_refs -- runtime-observed cloud deployment evidence distinct from CI-declared correlation. The comprehensive profile is required because the finding is comprehensive-tier (the findings list defaults to precise). Reverting the probe (supply_chain_impact_cloud_runtime_probe.go) drops the finding back to provenance_ci_declared/config_only, failing this assertion. #5469 pins the same finding's version_resolution_tier to runtime_confirmed (the tier the judged subject_digest was actually resolved from) plus a version_resolution_corroboration entry proving the co-present provenance_ci_declared evidence (the same finding's accepted reducer_ci_cd_run_correlation hop) corroborates the SAME digest with agrees:true -- the \"confirms\" case, not a fabricated disagreement.",
         "truth_class": "deterministic",
         "required_response_fields": [
           "findings",
@@ -5621,7 +5621,18 @@
         "minimum_results": 1,
         "required_json_values": {
           "findings[].deployment_truth_tier": "runtime_confirmed",
-          "findings[].cloud_runtime_resource_refs[]": "arn:aws:ecs:us-east-1:123456789012:task/supply-chain-demo/0000000000000000000000000000000a"
+          "findings[].cloud_runtime_resource_refs[]": "arn:aws:ecs:us-east-1:123456789012:task/supply-chain-demo/0000000000000000000000000000000a",
+          "findings[].version_resolution_tier": "runtime_confirmed"
+        },
+        "required_json_object_matches": {
+          "findings[].version_resolution_corroboration[]": [
+            {
+              "tier": "provenance_ci_declared",
+              "digest_or_version": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
+              "evidence_kind": "cicd_run_correlation",
+              "agrees": true
+            }
+          ]
         }
       },
       "POST /api/v0/aws/runtime-drift/findings": {
