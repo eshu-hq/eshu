@@ -1750,7 +1750,8 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   That relation is the discriminator: an ordinary re-classification retires at
   most one superseded row per image it rewrites and so can never exceed its own
   write count, while exceeding it means rows left the partition with no
-  replacement. Exactly one of the two warns fires per pass.
+  replacement. At most one of the two warns fires per pass; never both. On an
+  ordinary pass both predicates are false and neither warn fires.
 
   It is a COARSE signal, and the shortfall is worth knowing before relying on it:
   the comparison is against the pass's own write count, so it only fires once the

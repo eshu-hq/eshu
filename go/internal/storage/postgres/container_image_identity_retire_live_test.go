@@ -92,16 +92,15 @@ func (e *containerImageIdentityInterleavingExecer) ExecContext(
 // Schema setup and the proof itself get SEPARATE deadlines, and the returned
 // context's 90s budget starts AFTER ApplyBootstrap returns. They were one budget
 // before, which let one-time DDL spend the proof's time. On a fresh schema with
-// this host saturated — a load average near 200, from CPU load generators an
-// earlier session leaked and never reaped —
+// the host saturated — a 1-minute load average near 200 —
 // TestContainerImageIdentityRetireCannotDeleteFresherEvidenceRowsLive
 // failed at ~90.0s inside ApplyBootstrap, at a different bootstrap step each
 // time (webhook_refresh_triggers, then service_evidence_snapshots), while warm
 // re-runs against the same database passed.
 //
 // Cold DDL is not itself expensive, so the split is not about reclaiming time:
-// against fresh containers holding 0 tables on that same host once the leaked
-// load was reaped, ApplyBootstrap builds all 178 tables in ~0.85-1.0s, and the
+// against fresh containers holding 0 tables on that same host once it was back
+// to an idle load, ApplyBootstrap builds all 178 tables in ~0.85-1.0s, and the
 // whole test under the old single budget passes cold in ~0.87s. The budget was
 // never close to short — a first-time runner on an idle machine passes, and
 // only a first-time runner on a heavily loaded one sees that red.

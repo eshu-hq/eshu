@@ -92,7 +92,11 @@ at rest AND wrong on the wire.
 
 ## Verification of the assumptions the retire rests on
 
-Re-confirmed against this branch's `origin/main` base (`c23e30001`):
+Re-confirmed against `c23e30001`, the `origin/main` tip when these checks were
+run — not the branch's merge-base, which has since advanced to `76931f4d8`
+(`c23e30001` is an ancestor of it). Read the line numbers below at `c23e30001`;
+some have shifted since, so `git show c23e30001:<path>` is the way to resolve
+them:
 
 1. **One intent per (scope, generation).**
    `buildContainerImageIdentityReducerIntent` returns a single `ReducerIntent`
@@ -231,6 +235,23 @@ The stalled worker overwrote the fresher row's content and `GREATEST` left the
 fresher token on it, so the row advertised a freshness its payload did not have —
 and the retire's fence, reading that token, then protected the wrong row from
 correction.
+
+The shipped guarded form, same three live proofs, against a throwaway
+`postgres:16-alpine` (16.14) on 127.0.0.1:55901:
+
+```
+$ ESHU_POSTGRES_DSN=postgres://eshu:eshu@127.0.0.1:55901/eshu?sslmode=disable \
+    go test ./internal/storage/postgres -run 'ReducerFactBatchInsert.*Live' -count=1 -v
+--- PASS: TestReducerFactBatchInsertRejectsStaleContentUpsertLive (3.04s)
+--- PASS: TestReducerFactBatchInsertAppliesEqualTokenRetryLive (0.24s)
+--- PASS: TestReducerFactBatchInsertStaysInertForUnfencedWritersLive (0.23s)
+ok  github.com/eshu-hq/eshu/go/internal/storage/postgres  7.227s
+```
+
+That is the before/after pair for this section: the same first test that FAILs
+under the `GREATEST` form PASSes under the guarded one. Those are cold-schema
+times — the first test absorbs `ApplyBootstrap`, so a re-run against the warm
+container returns 0.32s/0.22s/0.18s.
 
 Two properties of the guard are pinned separately because both are easy to get
 wrong:
@@ -417,7 +438,12 @@ The retire is now a bare fenced `DELETE`.
 reintroduced `WITH`, `UPDATE`, or `INSERT`, and the frozen-statement test carries
 the new text.
 
-### Live proofs (all five)
+### Live proofs (the five retire proofs)
+
+The branch adds eight live tests in all. The five below cover the retire; the
+three `ReducerFactBatchInsert*Live` proofs cover the shared insert's conflict
+guard and are run and transcribed under
+[The conflict clause is guarded, not merged](#the-conflict-clause-is-guarded-not-merged).
 
 ```
 $ ESHU_POSTGRES_DSN=postgresql://eshu:change-me@localhost:55847/eshu \
@@ -671,15 +697,16 @@ step being broken. Warm re-runs against the same database passed 8/8.
 
 Cold schema alone does not cost that, and an earlier revision of this section
 said it did. Measured after the fact against fresh `postgres:18-alpine`
-containers holding 0 tables, on this same host once the leaked load was reaped
-(1-minute load average 3.6 to 13), `ApplyBootstrap` builds all 178 tables in
+containers holding 0 tables, on this same host once the CPU load generators
+described below were reaped (1-minute load average 3.6 to 13),
+`ApplyBootstrap` builds all 178 tables in
 **849.9 ms** and **1.00 s** across two separate containers, and the whole test
-under the old single shared budget — the unfixed helper at `1be62b58a` — passes
-cold in **0.87 s**:
+under the old single shared budget — the unfixed helper at `0e7c88a30`, the last
+commit before the split landed in `4a69b8769` — passes cold in **0.87 s**:
 
 ```
 # Isolated ApplyBootstrap cost, via an uncommitted timing shim in a throwaway
-# worktree at 1be62b58a, against a fresh container holding 0 tables:
+# worktree at 0e7c88a30, against a fresh container holding 0 tables:
 $ docker run -d --name cold5847-pg-a -p 127.0.0.1:54871:5432 postgres:18-alpine
 COLD_DDL_TABLES_BEFORE=0 COLD_DDL_TABLES_AFTER=178 COLD_DDL_ELAPSED=849.903625ms
 # repeated on a second fresh container (port 54873): COLD_DDL_ELAPSED=1.00118825s
