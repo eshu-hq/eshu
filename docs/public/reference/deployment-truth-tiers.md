@@ -182,6 +182,35 @@ weak match branch behind #5426) holds `deployment_truth_tier` at
 inventing one. `declared_ref` is fail-closed here too: #5393 has no evidence
 producer, so it is never emitted by either field.
 
+The mechanism (issue #5469 review): the reducer bakes the matched
+`cicd_run_correlation` deployment's OWN declared identity onto the finding as
+`ci_declared_artifact_digest`/`ci_declared_image_ref`
+(`bakeSupplyChainCIDeclaredArtifactIdentity`,
+`go/internal/reducer/supply_chain_impact_runtime.go`), but ONLY when that
+deployment matched through a strong branch (its own `artifact_digest` equals
+the finding's `subject_digest`, or its own `image_ref` equals the finding's
+`image_ref`) — never the weak branch. `version_resolution_tier`'s
+`provenance_ci_declared` claim reads exclusively from those baked fields, not
+from the finding's own `subject_digest`/`image_ref`. That distinction makes a
+real disagreement expressible: a strong image-ref match whose own declared
+digest contradicts the finding's subject digest (a tag that moved to a
+different build) bakes that contradicting digest, and
+`version_resolution_corroboration` discloses it against a stronger
+`runtime_confirmed` winner with `agrees: false` — a genuine same-axis
+digest-vs-digest disagreement, not only the digest-vs-version mismatch
+`config_only` corroboration can show.
+
+`version_resolution_tier` can also be **present** when `deployment_truth_tier`
+is **absent**: `deployment_truth_tier`'s `config_only` branch requires a
+deployment anchor (`workload_ids`, `deployment_ids`, `image_ref`, or
+`subject_digest`) or a config environment, while `version_resolution_tier`'s
+`config_only` claim only requires `observed_version` (or a fallback
+digest/ref). A finding whose only evidence is a static
+`observed_version` — for example an npm/PyPI dependency with no
+container image, workload, or environment evidence at all — reports
+`version_resolution_tier: config_only` while `deployment_truth_tier` is
+omitted entirely.
+
 ## Cross-references
 
 - [Truth label protocol](truth-label-protocol.md) — the truth-envelope

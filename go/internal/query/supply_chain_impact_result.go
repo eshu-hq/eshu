@@ -61,6 +61,16 @@ type SupplyChainImpactFindingResult struct {
 	// whether the strongest deployment evidence for that environment was
 	// "deploy_event" or "declared" (issue #5426). Omitted when empty.
 	EnvironmentEvidence map[string]string `json:"environment_evidence,omitempty"`
+	// CIDeclaredArtifactDigest and CIDeclaredImageRef carry the matched
+	// cicd_run_correlation deployment's OWN declared artifact identity
+	// (issue #5469), persisted only when that deployment matched through a
+	// strong artifact-identity branch (digest or image-ref equality), never
+	// the weak repository+environment+operational-anchor branch. This is
+	// the evidence version_resolution_corroboration's provenance_ci_declared
+	// entry (when present) discloses as digest_or_version. Omitted when no
+	// strong-branch CI/CD deployment evidence exists.
+	CIDeclaredArtifactDigest string `json:"ci_declared_artifact_digest,omitempty"`
+	CIDeclaredImageRef       string `json:"ci_declared_image_ref,omitempty"`
 	// CloudRuntimeResourceRefs names the observed cloud compute resources
 	// (running ECS task / image-package Lambda ARNs) whose running image digest
 	// matches this finding's subject digest — runtime-observed deployment

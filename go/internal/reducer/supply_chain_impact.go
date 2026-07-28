@@ -125,15 +125,35 @@ type SupplyChainImpactFinding struct {
 	// deploy_event always wins a collision. Environments itself is
 	// unchanged for wire compatibility; this is a sibling structure.
 	EnvironmentEvidence map[string]string
-	CatalogEntityRefs   []string
-	CatalogOwnerRefs    []string
-	DependencyPath      []string
-	DependencyDepth     int
-	DirectDependency    *bool
-	MissingEvidence     []string
-	EvidencePath        []string
-	EvidenceFactIDs     []string
-	CanonicalWrites     int
+	// CIDeclaredArtifactDigest and CIDeclaredImageRef persist the matched
+	// cicd_run_correlation deployment's OWN declared artifact identity
+	// (issue #5469), but only when the deployment matched through a STRONG
+	// identity branch (its artifact_digest equals SubjectDigest, or its
+	// image_ref equals ImageRef) rather than the weak
+	// repository+environment+operational-anchor branch (#5426's branch 3,
+	// see applySupplyChainRuntimeContext /
+	// bakeSupplyChainCIDeclaredArtifactIdentity). A weak-branch-only match
+	// bakes neither field: that branch makes no artifact-identity claim, so
+	// version-resolution corroboration must never invent one. Once a strong
+	// match is found, the deployment's FULL identity is baked (both fields,
+	// whichever it carries), not only the one that matched -- a deployment
+	// can match via image reference while its own artifact_digest genuinely
+	// contradicts the finding's subject digest, and that contradiction is
+	// real evidence, not an artifact of matching. Query-time consumers read
+	// these as the CI-declared version/digest claim instead of borrowing
+	// SubjectDigest, so a real digest disagreement between CI-declared and
+	// runtime-observed evidence becomes expressible.
+	CIDeclaredArtifactDigest string
+	CIDeclaredImageRef       string
+	CatalogEntityRefs        []string
+	CatalogOwnerRefs         []string
+	DependencyPath           []string
+	DependencyDepth          int
+	DirectDependency         *bool
+	MissingEvidence          []string
+	EvidencePath             []string
+	EvidenceFactIDs          []string
+	CanonicalWrites          int
 	// DetectionProfile records which tier this finding meets: precise for
 	// exact installed-version anchors, comprehensive for range-only,
 	// SBOM-derived, product-derived, malformed, or missing-version evidence.

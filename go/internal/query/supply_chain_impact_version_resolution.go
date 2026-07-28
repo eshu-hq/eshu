@@ -43,23 +43,31 @@ func supplyChainVersionResolutionClaim(
 		return row.SubjectDigest, "cloud_runtime_probe"
 
 	case truth.TierProvenanceCIDeclared:
-		if !rowHasCIDeclaredDeploymentEvidence(row) {
-			return "", ""
+		// The claim exists iff the reducer baked a CI-declared artifact
+		// identity (#5469, applySupplyChainRuntimeContext /
+		// bakeSupplyChainCIDeclaredArtifactIdentity): that only happens when
+		// the matched cicd_run_correlation deployment matched through a
+		// STRONG identity branch (its own artifact_digest or image_ref
+		// equalled the finding's), never the weak
+		// repository+environment+operational-anchor branch (#5426's branch
+		// 3). The claim's digest_or_version is the deployment's OWN declared
+		// value -- never row.SubjectDigest/ImageRef, which would silently
+		// borrow the finding's own identity and could never disagree with
+		// itself. Digest is preferred first (same axis as the digest-based
+		// runtime_confirmed and config_only claims), image ref only when the
+		// deployment carried no digest.
+		//
+		// A row whose only CI/CD evidence matched through the weak branch
+		// still drives deployment_truth_tier=provenance_ci_declared (see
+		// rowHasCIDeclaredDeploymentEvidence, supply_chain_impact_result.go)
+		// but makes no version/digest claim here, so it falls through to
+		// config_only instead of fabricating one.
+		if row.CIDeclaredArtifactDigest != "" {
+			return row.CIDeclaredArtifactDigest, "cicd_run_correlation"
 		}
-		if row.SubjectDigest != "" {
-			return row.SubjectDigest, "cicd_run_correlation"
+		if row.CIDeclaredImageRef != "" {
+			return row.CIDeclaredImageRef, "cicd_run_correlation"
 		}
-		if row.ImageRef != "" {
-			return row.ImageRef, "cicd_run_correlation"
-		}
-		// A cicdRunCorrelationFactKind hop is present, but the row carries no
-		// artifact identity. That happens when the reducer's
-		// repository+environment+operational-anchor match branch
-		// (supplyChainDeploymentMatchesFinding) linked a deployment without
-		// ever confirming digest or image reference (#5426's weak branch).
-		// The evidence is real and still drives deployment_truth_tier, but it
-		// asserts no version/digest, so disclose nothing rather than invent
-		// one.
 		return "", ""
 
 	case truth.TierDeclaredRef:

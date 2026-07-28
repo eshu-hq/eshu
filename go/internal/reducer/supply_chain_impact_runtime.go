@@ -117,6 +117,7 @@ func applySupplyChainRuntimeContext(
 		if finding.RepositoryID == "" {
 			finding.RepositoryID = deployment.repositoryID
 		}
+		bakeSupplyChainCIDeclaredArtifactIdentity(finding, deployment)
 	}
 	finding.EvidenceFactIDs = uniqueSortedStrings(finding.EvidenceFactIDs)
 	finding.EvidencePath = orderedUniqueStrings(finding.EvidencePath)
@@ -193,6 +194,50 @@ func supplyChainDeploymentMatchesFinding(
 		return true
 	}
 	return false
+}
+
+// bakeSupplyChainCIDeclaredArtifactIdentity persists the matched deployment's
+// OWN declared artifact identity onto CIDeclaredArtifactDigest/
+// CIDeclaredImageRef (issue #5469), but only for a STRONG-branch match --
+// deployment.artifactDigest equals finding.SubjectDigest, or
+// deployment.imageRef equals finding.ImageRef (mirroring
+// supplyChainDeploymentMatchesFinding's first two branches). The weak
+// repository+environment+operational-anchor branch (#5426's branch 3) makes
+// no artifact-identity claim at all, so it bakes nothing here -- fail closed,
+// per the #5469 binding design decision.
+//
+// Once a strong match is found, the deployment's FULL declared identity is
+// baked (both artifactDigest and imageRef, whichever it carries), not only
+// the field that matched: a deployment can match via image reference while
+// its own artifactDigest genuinely differs from the finding's subject digest
+// -- the same contradiction supplyChainDeploymentPromotesRuntimeReachability
+// below already treats as decisive for promotion -- and that contradiction is
+// exactly what #5469's version-resolution corroboration needs to disclose as
+// a real disagreement, instead of one that was previously architecturally
+// impossible to observe (the resolver could only ever borrow the finding's
+// own SubjectDigest).
+//
+// First qualifying strong-branch deployment wins per axis (digest, image
+// ref) and is never overwritten by a later match in the same call, mirroring
+// the "don't downgrade" precedent recordSupplyChainEnvironmentEvidence
+// already established for EnvironmentEvidence (#5426).
+func bakeSupplyChainCIDeclaredArtifactIdentity(
+	finding *SupplyChainImpactFinding,
+	deployment supplyChainDeploymentContext,
+) {
+	strongDigestMatch := finding.SubjectDigest != "" && deployment.artifactDigest != "" &&
+		deployment.artifactDigest == finding.SubjectDigest
+	strongImageRefMatch := finding.ImageRef != "" && deployment.imageRef != "" &&
+		deployment.imageRef == finding.ImageRef
+	if !strongDigestMatch && !strongImageRefMatch {
+		return
+	}
+	if finding.CIDeclaredArtifactDigest == "" && deployment.artifactDigest != "" {
+		finding.CIDeclaredArtifactDigest = deployment.artifactDigest
+	}
+	if finding.CIDeclaredImageRef == "" && deployment.imageRef != "" {
+		finding.CIDeclaredImageRef = deployment.imageRef
+	}
 }
 
 // supplyChainDeploymentPromotesRuntimeReachability reports whether one matched
