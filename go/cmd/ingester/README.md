@@ -134,9 +134,12 @@ cross-scope activation race kept its empty-join output indefinitely. Because
 this runs on every drain rather than once, the correlation listing is bounded by
 a per-scope replay floor: only work items on the scope's active generation or
 newer, falling back to its latest generation when there is no usable active one,
-and never a work item whose own generation terminally failed — that generation is
-the scope's latest, so the fallback picks it, yet nothing it re-decides can be
-read while the scope's active pointer is `NULL`.
+and never a work item whose own generation terminally failed — when that failed
+generation is the scope's latest the fallback picks it, yet nothing it re-decides
+can be read while the scope's active pointer is `NULL`; and in the mixed shape,
+where a newer generation fails while an older one stays active and the pointer is
+not `NULL`, the same predicate keeps the scope's active floor and replays it while
+the failed newer generation drops out.
 That keeps the pass O(active scopes) rather than O(active scopes x generations),
 and it is not free — the correlation half had no pre-change baseline at all. See
 the cross-scope correlation reopen section in
@@ -149,7 +152,19 @@ committed generation, and only a further commit re-arms the latch
 (`go/internal/collector/service.go:217`, cleared at `:222`-`:223`, set again at
 `:264`-`:265`); the `AfterEmptyBatchDrained` escape set here from
 `ESHU_REPO_SHARD_COUNT > 1` (`wiring.go:220`) adds one drain per process, not a
-recurring one. The reopen replays every domain in a single unordered
+recurring one.
+
+Drains do recur, once per commit-to-idle cycle, but that recurrence belongs to
+`committedSinceDrain` and is present with the escape disabled. The escape's own
+`emptyDrainObserved` latch re-arms on every commit (`:265`), which looks like
+recurrence and is not: the same commit sets `committedSinceDrain` (`:264`), so the
+next exhausted batch drains through that leg either way, leaving the escape leg
+decisive only before the first commit.
+`TestServiceRunEmptyBatchEscapeAddsExactlyOneDrainPerProcess` measures drain count
+with the escape on and off across ten commit-to-idle cycles and pins the
+difference at exactly one.
+
+The reopen replays every domain in a single unordered
 transaction, so a `container_image_identity` -> `ci_cd_run_correlation` ->
 `supply_chain_impact` chain advances by at most one link per drain: a corpus
 that goes quiet right after the head decision commits keeps the tail's

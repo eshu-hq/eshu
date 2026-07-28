@@ -349,19 +349,32 @@ rows (still at or above the lowered floor) churning AND starts the older
 generation's rows churning too — strictly worse, and equally unreadable while
 `active_generation_id` is `NULL`. The correct replay count for such a scope is
 zero. A failed generation is never the active one, so this cannot under-replay a
-query-visible generation.
+query-visible generation. That reasoning covers the failed-ACTIVE shape; the
+MIXED shape — a newer generation failing while an older one stays active, so the
+pointer is not `NULL` — is covered by the same predicate: the scope keeps its
+active floor and replays it, while the failed newer generation drops out.
 
 Measured in the same script and the same run, so the arms are directly
-comparable:
+comparable. Six consecutive runs on Postgres 16.14, listing `EXPLAIN ANALYZE`:
 
-| shape | listing `EXPLAIN ANALYZE` | rows listed per domain | failed scope's rows per drain |
-| --- | --- | --- | --- |
-| replay floor only | 20.5 ms | 903 | 1 (churns forever) |
-| replay floor + failed exclusion (shipped) | 20.8 ms | 902 | 0 |
+| shape | run 1 | run 2 | run 3 | run 4 | run 5 | run 6 | rows listed per domain | failed scope's rows per drain |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| replay floor only | 19.186 | 19.695 | 20.267 | 20.213 | 19.422 | 19.207 | 903 | 1 (churns forever) |
+| replay floor + failed exclusion (shipped) | 19.653 | 20.058 | 20.994 | 20.569 | 19.997 | 19.689 | 902 | 0 |
 
-A repeat run of the same script gave 21.1 ms and 21.4 ms for the same two arms —
-a constant +0.3 ms, i.e. no measurable cost: the predicate filters a row the
-`work_generation` join has already fetched. Same-run controls: `shipped ∖ unbounded = 0`, no kept row on a
+All times in ms. The exclusion costs nothing measurable, and the earlier reading
+of these arms as "a constant +0.3 ms" overstated what two same-machine pairs can
+establish. The per-run gap (0.356-0.727 ms) is smaller than either arm's own
+spread across runs (1.081 ms floor-only, 1.341 ms shipped), the two ranges
+overlap — floor-only's slowest run, 20.267 ms, is slower than four of the six
+shipped runs — and the sign flips outright on further runs: a seventh run of the
+same script on the same machine put floor-only at 20.262 ms against 20.053 ms
+shipped, and an independent run measured 22.836 ms floor-only against 22.031 ms
+shipped. The predicate arm is faster in both. The plans explain why there is
+nothing to measure: both arms report `Buffers: shared hit=3396` at the top,
+identical in all six runs, because the predicate filters a row the
+`work_generation` join has already fetched. Same-run controls, identical in all
+six runs: `shipped ∖ unbounded = 0`, no kept row on a
 superseded generation, no kept row on a failed generation, and the
 never-activated scope's row still kept (`1`). Regression proof:
 `TestRunDeferredRelationshipMaintenanceExcludesFailedGenerationsFromCorrelationReplay`,

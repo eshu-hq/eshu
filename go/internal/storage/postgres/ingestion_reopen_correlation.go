@@ -190,12 +190,16 @@ func CrossScopeCorrelationReopenDomains() []string {
 // 20.3 ms materialized, against 29.8 ms for the unbounded listing it replaces.
 //
 // The failed-generation exclusion costs nothing measurable. Both arms run in the
-// same script and the same run, so they are directly comparable: 20.5 ms for the
-// floor alone versus 20.8 ms with the predicate, and 21.1 versus 21.4 ms on a
-// repeat run — a constant +0.3 ms, because the predicate filters a row the
-// work_generation join has already fetched. Rows listed per domain go 903 -> 902
-// on that corpus, the whole difference being the failed scope's one
-// perpetually-churning row.
+// same script and the same run, so they are directly comparable: across six
+// consecutive runs the floor alone spans 19.2-20.3 ms and the floor plus the
+// predicate spans 19.7-21.0 ms. That difference is run-to-run noise rather than a
+// cost. The gap on any single run (0.4-0.7 ms) is smaller than either arm's own
+// spread across runs, the two ranges overlap, and further runs measured the
+// predicate arm FASTER. The mechanism agrees: both arms read exactly
+// the same pages — Buffers: shared hit=3396 at the top of both plans, identical in
+// every run — because the predicate filters a row the work_generation join has
+// already fetched. Rows listed per domain go 903 -> 902 on that corpus, the whole
+// difference being the failed scope's one perpetually-churning row.
 //
 // The work_generation join is inner, which is safe only because both of its
 // legs hold for every row.

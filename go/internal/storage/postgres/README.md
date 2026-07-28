@@ -1411,7 +1411,10 @@ rows churning and starts the older generation's rows churning too. Correct repla
 count for such a scope is zero. A failed generation is never the active one
 (`failProjectorWorkQuery` fails only `'pending'`/`'active'` generations and nulls
 the pointer in the same statement), so this cannot under-replay a query-visible
-generation.
+generation. That covers the failed-ACTIVE shape; the MIXED shape — a NEWER
+generation failing while an OLDER one stays active, so the pointer is NOT
+`NULL` — is covered by the same predicate: the scope keeps its active floor and
+replays it, while the failed newer generation drops out.
 
 Replaying below the floor cannot change query truth for the three fact-backed
 domains, which join `scope.active_generation_id = fact.generation_id`
@@ -1434,10 +1437,16 @@ superseded generation, and the never-activated scope's row kept. Script:
 `docs/internal/evidence/5426-reopen-bound-proof.sql`.
 
 Performance Evidence (failed-generation exclusion, PR #5850 P2): same script,
-same run, so the two arms are directly comparable — 20.5 ms floor-only versus
-20.8 ms with `work_generation.status <> 'failed'`, and 21.1 versus 21.4 ms on a
-repeat run. A constant +0.3 ms, i.e. no measurable cost, because the predicate
-filters a row the `work_generation` join already fetched.
+same run, so the two arms are directly comparable. Over six consecutive runs on
+Postgres 16.14, floor-only spans 19.2-20.3 ms and floor plus
+`work_generation.status <> 'failed'` spans 19.7-21.0 ms. Read that as run-to-run
+noise, not a cost: the gap on any single run (0.4-0.7 ms) is smaller than either
+arm's own spread across runs, the two ranges overlap, and further runs flip the
+sign — a seventh run on the same machine gave 20.053 ms with the predicate
+against 20.262 ms floor-only, and an independent run gave 22.031 against
+22.836 ms. The plans agree — both arms report `Buffers: shared hit=3396` at the
+top, identical in every run — because the predicate filters a row the
+`work_generation` join already fetched.
 Rows listed per domain drop 903 -> 902, all of the difference being the failed
 scope's one perpetually-churning row. Same-run controls: `shipped \ unbounded
 = 0`, no kept row on a superseded generation, no kept row on a failed
@@ -1472,7 +1481,19 @@ re-arms the latch (`committedSinceDrain || (AfterEmptyBatchDrained &&
 !emptyDrainObserved)` at `go/internal/collector/service.go:217`, cleared at
 `:222`-`:223`, set again at `:264`-`:265`); the `AfterEmptyBatchDrained` escape
 the ingester enables for `RepoShardCount > 1` (`go/cmd/ingester/wiring.go:220`)
-adds one drain per process, not a recurring one. All five domains reopen in one
+adds one drain per process, not a recurring one.
+
+Drains themselves do recur, once per commit-to-idle cycle, but that recurrence is
+`committedSinceDrain`'s and happens with the escape disabled. The escape's own
+`emptyDrainObserved` latch re-arms on every commit (`:265`), which reads as
+recurring and is not: the same commit sets `committedSinceDrain` (`:264`), so the
+next exhausted batch drains through the `committedSinceDrain` leg either way, and
+the escape leg decides a drain only in the initial state before any commit.
+`TestServiceRunEmptyBatchEscapeAddsExactlyOneDrainPerProcess` measures the drain
+count with the escape on and off over ten commit-to-idle cycles and pins the
+difference at exactly one.
+
+All five domains reopen in one
 unordered transaction, so a `container_image_identity` ->
 `ci_cd_run_correlation` -> `supply_chain_impact` chain advances by at most one
 link per drain — measured on the gate corpus, one maintenance pass leaves the

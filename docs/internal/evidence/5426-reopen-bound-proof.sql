@@ -338,10 +338,23 @@ CREATE VIEW shape_floor AS
 -- the floor to the newest non-failed generation would keep the failed
 -- generation's rows (still at or above the lowered floor) churning and start the
 -- older generation's rows churning too — see the per-scope table below.
+--
+-- This view must express the SHIPPED predicate, not an equivalent rewrite of it.
+-- It therefore reuses Shape 4's exact construction: the same inner join onto
+-- scope_generations on BOTH (scope_id, generation_id), carrying the same
+-- work_generation.status <> 'failed'. An earlier revision filtered with
+-- `generation_id NOT IN (SELECT generation_id FROM scope_generations WHERE
+-- status = 'failed')`, which happens to agree here only because generation_id is
+-- the primary key and so is never NULL — a nullable column would make NOT IN
+-- return zero rows silently — and which could drift from the shipped predicate
+-- independently.
 CREATE VIEW shape_shipped AS
-  SELECT work_item_id, scope_id, generation_id
-  FROM shape_floor
-  WHERE generation_id NOT IN (SELECT generation_id FROM scope_generations WHERE status = 'failed');
+  SELECT floor_rows.work_item_id, floor_rows.scope_id, floor_rows.generation_id
+  FROM shape_floor AS floor_rows
+  JOIN scope_generations AS work_generation
+    ON work_generation.scope_id = floor_rows.scope_id
+   AND work_generation.generation_id = floor_rows.generation_id
+  WHERE work_generation.status <> 'failed';
 
 SELECT (SELECT count(*) FROM shape_old)     AS old_rows,
        (SELECT count(*) FROM shape_guard)   AS guard_rows,
