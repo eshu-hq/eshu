@@ -991,16 +991,17 @@ was actually resolved from, using the same tier vocabulary as
 The two fields can diverge — a CI-declared hop with no confirmed artifact
 identity (the repository+environment+operational-anchor branch above) keeps
 `deployment_truth_tier=provenance_ci_declared` but drops
-`version_resolution_tier` to `config_only`, since that hop makes no
-version/digest claim to disclose.
+`version_resolution_tier` to `config_only` — or omits it entirely when the
+finding carries no `observed_version`, `subject_digest`, or `image_ref`
+either — since that hop makes no version/digest claim to disclose.
 
 The `provenance_ci_declared` claim is never borrowed from the finding's own
 `subject_digest`/`image_ref`. The reducer separately bakes
 `ci_declared_artifact_digest`/`ci_declared_image_ref` onto the finding — the
 matched deployment's OWN declared identity — but only when that deployment
 matched through a strong branch (digest or image-ref equality), never the
-weak one. `version_resolution_tier` reads exclusively from those baked
-fields. A strong image-ref match whose own declared digest contradicts the
+weak one. `version_resolution_tier`'s `provenance_ci_declared` claim reads
+exclusively from those baked fields. A strong image-ref match whose own declared digest contradicts the
 finding's subject digest (its tag moved to a different build) is real,
 disclosable evidence, but it is **never eligible to win**: crediting a
 foreign artifact's digest as the judged `version_resolution_tier` would
@@ -1020,6 +1021,31 @@ dpkg version string can never meaningfully equal a sha256 digest (`agreement`
 is a closed three-state vocabulary, not a boolean; review finding R6).
 `declared_ref` never appears in either field: #5393 has no evidence producer
 wired yet.
+
+Benchmark Evidence: `go test ./internal/query -run '^$' -bench
+'^BenchmarkBuildSupplyChainImpactFindingResult$' -benchtime=2s -count=5
+-benchmem` on go1.26.5 darwin/arm64 (Apple M5 Max), 5 runs each. BEFORE
+(origin/main parent commit, this same benchmark function copied alone into
+the package with `CIDeclaredArtifactDigest`/`CIDeclaredImageRef` deleted from
+the row literal, since those two fields do not exist on
+`SupplyChainImpactFindingRow` before #5469): 136.8-143.9 ns/op, 16 B/op, 1
+allocs/op. AFTER (this branch's HEAD): 292.3-314.3 ns/op, 208 B/op, 2
+allocs/op. That is roughly +166 ns/op (more than double, ~2.2x), 16→208 B/op,
+1→2 allocs/op per row — the cost of the read-time classifier walking the
+tier candidates plus the two reducer-baked
+`CIDeclaredArtifactDigest`/`CIDeclaredImageRef` fields threaded through the
+row, bounded at 4 tiers so it stays roughly constant per row rather than
+growing with corpus size. No new graph or Postgres query is added. At the
+200-row page-size limit that is roughly 61 microseconds and 42 KB of added
+per-page cost.
+
+No-Observability-Change: `version_resolution_tier`/`version_resolution_corroboration`
+are produced by a pure read-time classifier
+(`supplyChainVersionResolution`) plus two reducer-baked string fields threaded
+through the existing `SupplyChainImpactFindingRow`/`buildSupplyChainImpactFindingResult`
+assembly path. No new instrument, metric, span, log line, queue, worker, or
+runtime deployment knob is introduced; the change reuses the existing
+`query.supply_chain_impact_findings` request span and reducer counters.
 
 Withholding the promotion also changes the derived `reachability` block. That
 object is computed from `runtime_reachability`, and `deployed_image` maps onto

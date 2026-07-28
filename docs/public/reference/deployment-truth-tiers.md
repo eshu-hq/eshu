@@ -177,10 +177,11 @@ A finding's `version_resolution_tier` can be weaker than its
 no concrete artifact identity — for example a `provenance_ci_declared` hop
 that matched only through repository+environment+operational anchor (the
 weak match branch behind #5426) holds `deployment_truth_tier` at
-`provenance_ci_declared` but makes no version/digest claim, so
-`version_resolution_tier` falls through to `config_only` instead of
-inventing one. `declared_ref` is fail-closed here too: #5393 has no evidence
-producer, so it is never emitted by either field.
+`provenance_ci_declared` but drops `version_resolution_tier` to
+`config_only` — or omits it entirely when the finding carries no
+`observed_version`, `subject_digest`, or `image_ref` either — since that hop
+makes no version/digest claim to disclose. `declared_ref` is fail-closed here
+too: #5393 has no evidence producer, so it is never emitted by either field.
 
 The mechanism (issue #5469 review): the reducer bakes the matched
 `cicd_run_correlation` deployment's OWN declared identity onto the finding as

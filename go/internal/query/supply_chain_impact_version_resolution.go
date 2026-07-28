@@ -103,7 +103,9 @@ func supplyChainVersionResolutionClaim(
 		// still drives deployment_truth_tier=provenance_ci_declared (see
 		// rowHasCIDeclaredDeploymentEvidence, supply_chain_impact_result.go)
 		// but makes no version/digest claim here, so it falls through to
-		// config_only instead of fabricating one. A claim that DOES exist
+		// config_only instead of fabricating one -- or is omitted entirely
+		// if config_only itself has no claim either (no ObservedVersion,
+		// SubjectDigest, or ImageRef). A claim that DOES exist
 		// here may still be ineligible to win (see
 		// supplyChainCIDeclaredDigestContradictsFinding) when it contradicts
 		// the finding's own SubjectDigest -- that ineligibility is applied

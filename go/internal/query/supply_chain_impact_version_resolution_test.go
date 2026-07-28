@@ -267,14 +267,25 @@ func TestBuildSupplyChainImpactFindingResultSetsVersionResolution(t *testing.T) 
 
 // BenchmarkBuildSupplyChainImpactFindingResult measures result-assembly cost
 // per row for the #5469 performance proof: the resolver classifies fields the
-// row already carries with no new graph or Postgres query, so per-row cost
-// should stay a small, roughly constant addition over the pre-#5469 baseline.
+// row already carries with no new graph or Postgres query. Measured on
+// go1.26.5 darwin/arm64 (-benchtime=2s -count=5, 5 runs each): before #5469
+// (origin/main parent commit, this benchmark function copied alone into the
+// package with CIDeclaredArtifactDigest/CIDeclaredImageRef deleted from the
+// row literal, since those fields do not exist yet) 136.8-143.9 ns/op, 16
+// B/op, 1 allocs/op; after #5469 (this commit) 292.3-314.3 ns/op, 208 B/op, 2
+// allocs/op. That is roughly +166 ns/op (more than double, ~2.2x), 16->208
+// B/op, 1->2 allocs/op per row -- bounded at 4 tiers, so it stays roughly
+// constant per row rather than growing with corpus size, but it is not small
+// in relative terms. At the 200-row page-size limit that is roughly 61
+// microseconds and 42 KB of added per-page cost.
 //
-// Reproducing the before number takes one extra step. SupplyChainImpactFindingRow
-// gains CIDeclaredArtifactDigest and CIDeclaredImageRef in #5469, so this
-// benchmark does not compile against the parent commit as written. Run it there
-// with those two row fields deleted; everything else is unchanged, and the two
-// deleted assignments are outside the measured call.
+// This benchmark function alone compiles and runs unmodified at the parent
+// commit with the two row fields above deleted. The rest of this file does
+// not: it is entirely new in #5469, and its sibling tests in this file
+// reference #5469-only symbols (SupplyChainVersionResolutionCorroboration,
+// supplyChainVersionResolution, truth.TierProvenanceCIDeclared, and others),
+// so copying the whole file to the parent commit fails to compile. Copy only
+// this benchmark function into the package there.
 //
 // The row exercises every field the resolver reads, including enough tiers
 // present at once to walk the full candidate/corroboration loop.
