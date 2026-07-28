@@ -22,10 +22,13 @@ marked *(withdrawn retire)* describe measurements taken against the retire this
 branch no longer ships; they are retained because #5854 has to re-derive every
 one of them and should not pay for them twice.
 
-**On this file's length.** This record is 866 lines, over the
-general 500-line cap in `CLAUDE.md`. It grew from 790 lines at the PR head to
-825 when the retire was withdrawn, and to its current length with the
-scope corrections above. The enforced gate, `precommit-go.sh filecap-all`,
+**On this file's length.** This record runs well past the general 500-line cap
+in `CLAUDE.md` — comfortably over 800 lines, and growing with each correction
+it absorbs. An exact figure is not quoted here on purpose: the first draft of
+this paragraph quoted one, and the very edit that corrected the counts below
+invalidated it. A self-referential line count is stale the moment anyone edits
+the file, including whoever is editing it to fix the count. Run `wc -l` if you
+need the number. The enforced gate, `precommit-go.sh filecap-all`,
 applies that cap to Go sources only and passes here; the rule text is general,
 so the overage is real and is recorded rather than argued away. Five of the 80
 evidence records on `origin/main` already exceed 500 lines, the longest at 1011.
