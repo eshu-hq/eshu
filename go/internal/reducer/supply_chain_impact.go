@@ -51,6 +51,20 @@ type SupplyChainImpactFactFilter struct {
 	RepositoryIDs     []string
 	FileRepositoryIDs []string
 	ImageRefs         []string
+	// Environments, WorkloadIDs, and ServiceIDs (#5466) let the active-evidence
+	// query select a vulnerability.suppression fact scoped ONLY by
+	// environment/workload_id/service_id -- no cve_id/advisory_id/package_id/
+	// purl/subject_digest/repository_id at all. Populated in
+	// supplyChainImpactFilter from already-loaded deployment evidence
+	// (reducer_ci_cd_run_correlation's environment,
+	// reducer_workload_identity's workload IDs,
+	// reducer_service_catalog_correlation's service_id/workload_id), the same
+	// way RepositoryIDs is populated from repository-bearing facts. Without
+	// these, a suppression naming only these anchors could never be loaded by
+	// FactStore.ListActiveSupplyChainImpactFacts in production.
+	Environments []string
+	WorkloadIDs  []string
+	ServiceIDs   []string
 }
 
 // SupplyChainImpactFinding is one reducer-owned vulnerability impact finding.

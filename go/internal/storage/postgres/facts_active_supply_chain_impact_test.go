@@ -73,6 +73,28 @@ func TestListActiveSupplyChainImpactFactsQueryIncludesVulnerabilitySuppression(t
 	}
 }
 
+func TestListActiveSupplyChainImpactFactsQueryMatchesSuppressionByEnvironmentWorkloadService(t *testing.T) {
+	t.Parallel()
+
+	// #5466 P0 follow-up: a vulnerability.suppression fact scoped ONLY by
+	// environment/workload_id/service_id (no cve_id/advisory_id/package_id/
+	// purl/subject_digest/repository_id at all) must still be selectable by
+	// this query. Before this predicate existed, such a suppression could
+	// never enter the reducer's working set: the scope struct and matcher
+	// (go/internal/reducer/supply_chain_suppression*.go) would accept it, but
+	// nothing in this WHERE clause could ever match it.
+	for _, want := range []string{
+		"fact.fact_kind = 'vulnerability.suppression'",
+		"fact.payload->'scope'->>'workload_id' = ANY($12::text[])",
+		"fact.payload->'scope'->>'service_id' = ANY($13::text[])",
+		"fact.payload->'scope'->>'environment' = ANY($14::text[])",
+	} {
+		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
+			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
+		}
+	}
+}
+
 func TestListActiveSupplyChainImpactFactsQueryBoundsRepositoryFollowUp(t *testing.T) {
 	t.Parallel()
 

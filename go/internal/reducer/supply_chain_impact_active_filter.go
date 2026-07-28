@@ -49,6 +49,9 @@ func supplyChainImpactFollowUpFilter(
 		RepositoryIDs:     missingStringValues(current.RepositoryIDs, requested.RepositoryIDs),
 		FileRepositoryIDs: missingStringValues(current.FileRepositoryIDs, requested.FileRepositoryIDs),
 		ImageRefs:         missingStringValues(current.ImageRefs, requested.ImageRefs),
+		Environments:      missingStringValues(current.Environments, requested.Environments),
+		WorkloadIDs:       missingStringValues(current.WorkloadIDs, requested.WorkloadIDs),
+		ServiceIDs:        missingStringValues(current.ServiceIDs, requested.ServiceIDs),
 	}
 }
 
@@ -65,6 +68,9 @@ func mergeSupplyChainImpactFactFilters(filters ...SupplyChainImpactFactFilter) S
 		merged.RepositoryIDs = append(merged.RepositoryIDs, filter.RepositoryIDs...)
 		merged.FileRepositoryIDs = append(merged.FileRepositoryIDs, filter.FileRepositoryIDs...)
 		merged.ImageRefs = append(merged.ImageRefs, filter.ImageRefs...)
+		merged.Environments = append(merged.Environments, filter.Environments...)
+		merged.WorkloadIDs = append(merged.WorkloadIDs, filter.WorkloadIDs...)
+		merged.ServiceIDs = append(merged.ServiceIDs, filter.ServiceIDs...)
 	}
 	return SupplyChainImpactFactFilter{
 		PackageIDs:        uniqueSortedStrings(merged.PackageIDs),
@@ -77,6 +83,9 @@ func mergeSupplyChainImpactFactFilters(filters ...SupplyChainImpactFactFilter) S
 		RepositoryIDs:     uniqueSortedStrings(merged.RepositoryIDs),
 		FileRepositoryIDs: uniqueSortedStrings(merged.FileRepositoryIDs),
 		ImageRefs:         uniqueSortedStrings(merged.ImageRefs),
+		Environments:      uniqueSortedStrings(merged.Environments),
+		WorkloadIDs:       uniqueSortedStrings(merged.WorkloadIDs),
+		ServiceIDs:        uniqueSortedStrings(merged.ServiceIDs),
 	}
 }
 
@@ -100,6 +109,11 @@ func missingStringValues(current []string, initial []string) []string {
 
 func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFilter {
 	var packageIDs, purls, cveIDs, advisoryIDs, digests, documentIDs, productCriteria, repositoryIDs, imageRefs []string
+	// environments, workloadIDs, and serviceIDs (#5466) are collected from
+	// already-loaded deployment evidence so the active-evidence query can
+	// select a vulnerability.suppression fact scoped ONLY by
+	// environment/workload_id/service_id.
+	var environments, workloadIDs, serviceIDs []string
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
 		case facts.VulnerabilityCVEFactKind:
@@ -196,12 +210,27 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 			digests = append(digests, payloadStr(envelope.Payload, "artifact_digest"))
 			repositoryIDs = append(repositoryIDs, payloadStr(envelope.Payload, "repository_id"))
 			imageRefs = append(imageRefs, payloadStr(envelope.Payload, "image_ref"))
+			// The environment value is already canonicalized through
+			// environment.Canonical upstream (ci_cd_run_correlation.go) before
+			// it is written to this fact's payload, so no re-canonicalization
+			// is needed here -- matching how RepositoryIDs above is a plain
+			// pass-through of an already-normalized payload field.
+			if env := payloadStr(envelope.Payload, "environment"); env != "" {
+				environments = append(environments, env)
+			}
 		case platformMaterializationFactKind:
 			repositoryIDs = append(repositoryIDs, supplyChainWorkloadRepositoryID(envelope))
 		case workloadIdentityFactKind:
 			repositoryIDs = append(repositoryIDs, supplyChainWorkloadRepositoryID(envelope))
+			workloadIDs = append(workloadIDs, supplyChainWorkloadIDsFromPayload(envelope.Payload)...)
 		case serviceCatalogCorrelationFactKind:
 			repositoryIDs = append(repositoryIDs, supplyChainServiceRepositoryID(envelope))
+			if serviceID := payloadStr(envelope.Payload, "service_id"); serviceID != "" {
+				serviceIDs = append(serviceIDs, serviceID)
+			}
+			if workloadID := payloadStr(envelope.Payload, "workload_id"); workloadID != "" {
+				workloadIDs = append(workloadIDs, workloadID)
+			}
 		}
 	}
 	return SupplyChainImpactFactFilter{
@@ -215,6 +244,9 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 		RepositoryIDs:     supplyChainImpactRepositoryFilterIDs(repositoryIDs),
 		FileRepositoryIDs: supplyChainImpactParserFileRepositoryIDs(envelopes),
 		ImageRefs:         uniqueSortedStrings(imageRefs),
+		Environments:      uniqueSortedStrings(environments),
+		WorkloadIDs:       uniqueSortedStrings(workloadIDs),
+		ServiceIDs:        uniqueSortedStrings(serviceIDs),
 	}
 }
 
@@ -233,7 +265,8 @@ func supplyChainImpactRepositoryFilterIDs(repositoryIDs []string) []string {
 func (f SupplyChainImpactFactFilter) empty() bool {
 	return len(f.PackageIDs) == 0 && len(f.PURLs) == 0 && len(f.CVEIDs) == 0 && len(f.AdvisoryIDs) == 0 &&
 		len(f.SubjectDigests) == 0 && len(f.DocumentIDs) == 0 && len(f.ProductCriteria) == 0 &&
-		len(f.RepositoryIDs) == 0 && len(f.FileRepositoryIDs) == 0 && len(f.ImageRefs) == 0
+		len(f.RepositoryIDs) == 0 && len(f.FileRepositoryIDs) == 0 && len(f.ImageRefs) == 0 &&
+		len(f.Environments) == 0 && len(f.WorkloadIDs) == 0 && len(f.ServiceIDs) == 0
 }
 
 func supplyChainImpactParserFileRepositoryIDs(envelopes []facts.Envelope) []string {

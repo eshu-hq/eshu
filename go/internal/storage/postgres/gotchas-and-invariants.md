@@ -117,6 +117,55 @@ operational lessons that future storage changes still need to respect.
   keys; operators continue to diagnose the path through
   `eshu_dp_postgres_query_duration_seconds`, reducer run spans/counters, and
   durable supply-chain impact finding payloads.
+- `ListActiveSupplyChainImpactFacts` must be able to select a
+  `vulnerability.suppression` fact scoped ONLY by `environment`/`workload_id`/
+  `service_id` (#5466), not only by `cve_id`/`advisory_id`/`package_id`/
+  `purl`/`subject_digest`/`repository_id`. Before this fix, the SQL had no
+  predicate that could ever match such a suppression -- wired in the scope
+  struct and matcher (`go/internal/reducer/supply_chain_suppression*.go`) but
+  dead on the real load path: the fact was accepted and stored, but a reducer
+  intent that never happened to load it from the SAME scope/generation batch
+  would never see it, so the operator's suppression silently never applied.
+  The fix adds a dedicated `fact.fact_kind = 'vulnerability.suppression' AND
+  (payload->'scope'->>'workload_id' = ANY(...) OR ...->>'service_id' =
+  ANY(...) OR ...->>'environment' = ANY(...))` branch and three new
+  `SupplyChainImpactFactFilter` fields (`Environments`, `WorkloadIDs`,
+  `ServiceIDs`) populated in `supplyChainImpactFilter`
+  (`go/internal/reducer/supply_chain_impact_active_filter.go`) from
+  already-loaded `reducer_ci_cd_run_correlation` (environment),
+  `reducer_workload_identity`, and `reducer_service_catalog_correlation`
+  (workload_id/service_id) evidence -- the same "known anchor from already-
+  loaded evidence" pattern `RepositoryIDs` already uses, not a new lookup
+  mechanism.
+  No-Regression Evidence: `go test ./internal/storage/postgres -run
+  'TestListActiveSupplyChainImpactFactsQuery' -race -count=1` and `go test
+  ./internal/reducer -run
+  'TestSupplyChainImpactFilter|TestSupplyChainImpactFollowUpFilter' -race
+  -count=1` pass, including the pre-existing sibling-predicate assertions
+  unchanged. The REAL load-path proof (not a query-text assertion, and not a
+  hand-built envelope handed straight to the evaluator) is
+  `TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedOnlyByDeploymentContextLive`
+  (`facts_active_supply_chain_impact_scope_live_test.go`, build tag
+  `integration`): a real Postgres instance seeded with two
+  environment-scoped-only suppression facts (`stage`, `prod`) in their own
+  ingestion scopes proves `FactStore.ListActiveSupplyChainImpactFacts` with
+  `Environments: ["stage"]` returns exactly the `stage` fact and never the
+  `prod` one.
+  Index/sargability evidence: `EXPLAIN (ANALYZE, BUFFERS)` on a 300,000-row
+  seeded `vulnerability.suppression` table shows the new
+  `payload->'scope'->>'environment'` predicate and the pre-existing sibling
+  `payload->'scope'->>'cve_id'` predicate produce the IDENTICAL plan shape
+  (`Parallel Seq Scan` on `fact_records`, ~17-18ms, no index used by either)
+  -- this predicate has the same unindexed cost profile the four sibling
+  scope-key predicates already carry, not a new category of scan. No new
+  index was added; per this skill's Index Doctrine, adding one requires
+  evidence the query is hot enough for the predicate shape to benefit, and
+  this bounded, once-per-generation active-evidence expansion call (not a
+  per-finding hot loop) has no such evidence.
+  No-Observability-Change: same as the parser-file-follow-up entry above --
+  only the SQL predicate and reducer filter keys changed; the existing
+  Postgres query duration metric, reducer run spans/counters, and durable
+  suppression decision payload are unaffected.
 - Advisory evidence reads stay bounded by first-class advisory identity fields,
   package IDs, or PURLs before active-generation validation. Performance
   Evidence: issue #868 changed the read path from a broad active vulnerability

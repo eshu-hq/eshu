@@ -125,6 +125,14 @@ WHERE fact.fact_kind IN (
           )) IN ('javascript', 'jsx', 'typescript', 'tsx')
       )
       OR fact.payload->>'image_ref' = ANY($9::text[])
+      OR (
+          fact.fact_kind = 'vulnerability.suppression'
+          AND (
+              fact.payload->'scope'->>'workload_id' = ANY($13::text[])
+              OR fact.payload->'scope'->>'service_id' = ANY($14::text[])
+              OR fact.payload->'scope'->>'environment' = ANY($15::text[])
+          )
+      )
   )
   AND ($11 = '' OR fact.fact_id > $11)
 ORDER BY fact.fact_id ASC
@@ -150,11 +158,15 @@ func (s FactStore) ListActiveSupplyChainImpactFacts(
 	filter.RepositoryIDs = cleanStringFilterValues(filter.RepositoryIDs)
 	filter.FileRepositoryIDs = cleanStringFilterValues(filter.FileRepositoryIDs)
 	filter.ImageRefs = cleanStringFilterValues(filter.ImageRefs)
+	filter.WorkloadIDs = cleanStringFilterValues(filter.WorkloadIDs)
+	filter.ServiceIDs = cleanStringFilterValues(filter.ServiceIDs)
+	filter.Environments = cleanStringFilterValues(filter.Environments)
 	if len(filter.PackageIDs) == 0 && len(filter.PURLs) == 0 &&
 		len(filter.CVEIDs) == 0 && len(filter.AdvisoryIDs) == 0 && len(filter.SubjectDigests) == 0 &&
 		len(filter.DocumentIDs) == 0 && len(filter.ProductCriteria) == 0 &&
 		len(filter.RepositoryIDs) == 0 && len(filter.FileRepositoryIDs) == 0 &&
-		len(filter.ImageRefs) == 0 {
+		len(filter.ImageRefs) == 0 && len(filter.WorkloadIDs) == 0 &&
+		len(filter.ServiceIDs) == 0 && len(filter.Environments) == 0 {
 		return nil, nil
 	}
 
@@ -193,6 +205,9 @@ func (s FactStore) listActiveSupplyChainImpactFactsPage(
 		filter.FileRepositoryIDs,
 		cursorFactID,
 		listFactsByKindPageSize,
+		filter.WorkloadIDs,
+		filter.ServiceIDs,
+		filter.Environments,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list active supply chain impact facts: %w", err)

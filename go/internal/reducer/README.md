@@ -1940,7 +1940,17 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   (`suppressionAdjacent`/`suppressionScopeMatchesFinding`,
   `supply_chain_suppression_scope_match.go`) are the only touched surface;
   `decisionFromActiveOperatorSuppression` and the other decision-shape
-  functions are unchanged.
+  functions are unchanged. A suppression scoped this way must also be
+  reachable by the Postgres active-evidence prefilter, not only accepted by
+  the matcher: `SupplyChainImpactFactFilter` gained `Environments`,
+  `WorkloadIDs`, and `ServiceIDs`, populated in `supplyChainImpactFilter`
+  (`supply_chain_impact_active_filter.go`) from already-loaded
+  `reducer_ci_cd_run_correlation`/`reducer_workload_identity`/
+  `reducer_service_catalog_correlation` evidence, feeding a new
+  `FactStore.ListActiveSupplyChainImpactFacts` SQL branch; see
+  `go/internal/storage/postgres/gotchas-and-invariants.md` for the
+  failing-test-first proof at the real load path and the EXPLAIN/index
+  evidence.
   Performance Evidence: `PERF.md` at the worktree root benchmarks
   `EvaluateSupplyChainSuppression` on `darwin/arm64` (Apple M5 Max) with a
   50-suppression per-finding fan-out, OLD (`58f364f68f`) vs NEW on an

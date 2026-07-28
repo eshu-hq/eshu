@@ -97,3 +97,44 @@ cd <scratch-path>/go && go test ./internal/reducer/ -run xxx \
   -bench BenchmarkEvaluateSupplyChainSuppression_LegacyScopeOnly -benchmem -benchtime=500000x -count=5
 git worktree remove <scratch-path>
 ```
+
+## Addendum: Postgres active-evidence prefilter (index/sargability)
+
+A separate, non-hot-path SQL change was required as a follow-up: the
+in-memory matcher above only ever sees a `vulnerability.suppression` fact
+that `FactStore.ListActiveSupplyChainImpactFacts`
+(`go/internal/storage/postgres/facts_active_supply_chain_impact.go`) actually
+loads. Before this fix, a suppression scoped ONLY by
+environment/workload_id/service_id (no cve_id/advisory_id/package_id/purl/
+subject_digest/repository_id) could never be selected by that query's WHERE
+clause — the scope struct and matcher accepted it, but the loader never
+fetched it, so the suppression silently never applied in production. Full
+detail, the failing-test-first evidence, and the fix are in
+`go/internal/storage/postgres/gotchas-and-invariants.md`. Index/sargability
+summary, per eshu-postgres-rigor's Index Doctrine (add an index only with
+evidence the query is hot enough and the shape benefits):
+
+```
+-- 300,000-row vulnerability.suppression table, darwin/arm64, postgres:16 in Docker
+-- NEW predicate: payload->'scope'->>'environment'
+Gather (actual time=0.582..18.015 rows=60 loops=1)
+  Workers Launched: 2
+  -> Parallel Seq Scan on fact_records (actual time=0.283..14.879 rows=20 loops=3)
+     Filter: (... AND ((payload->'scope')->>'environment' = ANY ('{env-1}'::text[])))
+Execution Time: 18.031 ms
+
+-- EXISTING sibling predicate (already shipped): payload->'scope'->>'cve_id'
+Gather (actual time=0.138..17.418 rows=1 loops=1)
+  Workers Launched: 2
+  -> Parallel Seq Scan on fact_records (actual time=9.231..14.438 rows=0 loops=3)
+     Filter: (... AND ((payload->'scope')->>'cve_id' = ANY ('{CVE-2026-000001}'::text[])))
+Execution Time: 17.427 ms
+```
+
+Both predicates produce the identical plan shape (`Parallel Seq Scan`, no
+index, ~17-18ms at 300k rows) — the new predicate carries the same
+already-accepted unindexed cost as its four siblings, not a new category of
+scan. This is a bounded, once-per-generation active-evidence expansion call
+(paginated, not a per-finding hot loop), so no index was added; per Index
+Doctrine, that would need evidence this specific query is hot enough to
+justify one. No index change is proposed in this PR.
