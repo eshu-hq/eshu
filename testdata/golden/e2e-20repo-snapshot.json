@@ -5635,6 +5635,19 @@
           ]
         }
       },
+      "GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000&profile=comprehensive": {
+        "description": "#5469 non-vacuous config_only version-resolution proof: github_actions_workflows (a corpus fixture with no CI/CD run correlation and no cloud-runtime evidence at all) declares an exact-pinned npm dependency on supply-chain-demo-lib@1.2.2 via package.json/package-lock.json, matching CVE-2026-00000's affected_versions [1.2.2]. The finding carries no deployment_truth_tier evidence above config_only (no cicd_run_correlation hop, no CloudResource match), so version_resolution_tier resolves to config_only from the lockfile-resolved observed_version -- the floor tier a finding with any judged version always gets per #5469's binding decision 4. The comprehensive profile is not required for npm exact-lockfile matches but is passed for consistency with the other #5469 proof queries. Removing the lockfile (falling back to a manifest-only range) or reverting supplyChainVersionResolutionClaim's config_only branch drops this finding out of the required_json_values pin or empties version_resolution_tier, failing this assertion.",
+        "truth_class": "deterministic",
+        "required_response_fields": [
+          "findings",
+          "count"
+        ],
+        "minimum_results": 1,
+        "required_json_values": {
+          "findings[].cve_id": "CVE-2026-00000",
+          "findings[].version_resolution_tier": "config_only"
+        }
+      },
       "POST /api/v0/aws/runtime-drift/findings": {
         "description": "AWS runtime drift findings for the synthetic AWS account scope; proves the reducer-derived drift read surface is mounted and bounded without requiring positive drift rows.",
         "truth_class": "derived",
