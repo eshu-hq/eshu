@@ -21,9 +21,12 @@ BenchmarkEvaluateSupplyChainSuppression -benchmem -benchtime=500000x
 1. **OLD vs NEW, identical input shape.** `BenchmarkEvaluateSupplyChainSuppression_LegacyScopeOnly`
    uses a finding and suppressions that never touch Environment/WorkloadID/
    ServiceID (all zero value) — the literal pre-#5466 shape. Run once against
-   `origin/main` (commit `58f364f68f`, the commit this branch forked from) in
-   a throwaway worktree, and once against this branch, with the identical
-   benchmark source on both sides.
+   the historical pre-#5466 baseline commit `58f364f68f` (this is the commit
+   `#5466`'s branch was originally authored against; it is NOT current
+   `origin/main`, which has since advanced through unrelated merges and a
+   `#5466`-branch rebase — see the F-14 note under Results below for the
+   current `origin/main` SHA) in a throwaway worktree, and once against this
+   branch, with the identical benchmark source on both sides.
 2. **NEW with the new fields populated.** `BenchmarkEvaluateSupplyChainSuppression_WithEnvironmentWorkloadServiceScope`
    sets Environment/WorkloadID/ServiceID on every suppression and on the
    finding, so it measures the added fields' actual comparison cost, not only
@@ -38,9 +41,23 @@ below) but the byte/alloc counts are deterministic per run.
 
 | Benchmark | Commit | ns/op (mean of 5) | B/op | allocs/op |
 |---|---|---:|---:|---:|
-| `LegacyScopeOnly` (identical shape) | `58f364f68f` (origin/main, baseline) | 10,550.8 | 43,962.6 | 14 |
-| `LegacyScopeOnly` (identical shape) | `c9c780dbe8` (#5466 branch) | 11,152.6 | 49,727.2 | 14 |
-| `WithEnvironmentWorkloadServiceScope` (new fields populated) | `c9c780dbe8` (#5466 branch) | 11,529.2 | 49,728.6 | 14 |
+| `LegacyScopeOnly` (identical shape) | `58f364f68f` (historical pre-#5466 baseline) | 10,550.8 | 43,962.6 | 14 |
+| `LegacyScopeOnly` (identical shape) | `c9c780dbe8` (#5466 branch, pre-round-4-rebase) | 11,152.6 | 49,727.2 | 14 |
+| `WithEnvironmentWorkloadServiceScope` (new fields populated) | `c9c780dbe8` (#5466 branch, pre-round-4-rebase) | 11,529.2 | 49,728.6 | 14 |
+
+**F-14 note (round-5 review):** `origin/main` has since advanced from
+`58f364f68f` to `a2a5340a9e` (#5847) through unrelated merges — `58f364f68f`
+above is a historical baseline label, not current `origin/main`. Separately,
+`c9c780dbe8` is NOT an ancestor of the current branch HEAD
+(`git merge-base --is-ancestor c9c780dbe8 HEAD` fails): the round-4 review's
+rebase onto the advanced `origin/main` rewrote every commit on this branch,
+including the one this SHA identified ("split suppression scope matcher and
+tests under the 500-line cap"), which now lives at `30924bad3d`. The
+benchmark numbers themselves were not re-run for the rebase — nothing in the
+rebased diff touches `EvaluateSupplyChainSuppression` or
+`vulnerabilitySuppressionScope`'s field layout, so the measured ns/op/B/op/
+allocs/op figures still describe the current code; only the commit SHA used
+to label that measurement predates the rebase.
 
 Raw samples (ns/op), baseline `LegacyScopeOnly`: 12463, 12325, 9561, 9271, 9134.
 Raw samples (ns/op), branch `LegacyScopeOnly`: 10750, 10624, 12440, 11208, 10741.
@@ -89,7 +106,9 @@ Raw samples (ns/op), branch `WithEnvironmentWorkloadServiceScope`: 10275, 9809, 
 cd go && go test ./internal/reducer/ -run xxx \
   -bench BenchmarkEvaluateSupplyChainSuppression -benchmem -benchtime=500000x -count=5
 
-# baseline (throwaway worktree at origin/main 58f364f68f)
+# baseline (throwaway worktree at the historical pre-#5466 baseline
+# 58f364f68f -- NOT current origin/main, which has since advanced to
+# a2a5340a9e; see the F-14 note under Results above)
 git worktree add <scratch-path> 58f364f68f
 # copy in a LegacyScopeOnly-only variant of the bench file (the new-field
 # variant cannot compile against origin/main's struct)
@@ -305,16 +324,45 @@ predicate that could ever match a suppression scoped ONLY by `advisory_id`.
 
 **Corrected source-of-truth note** (an earlier draft of this investigation
 wrongly stated the only distinct raw source was `security_alert.repository_alert`'s
-`ghsa_id`/`ghsa_ids` -- that is WRONG and is corrected here):
-`vulnerability.cve`, `vulnerability.affected_package`, and
-`vulnerability.affected_product` each carry a raw, top-level `advisory_id`
-field, separately indexed by
-`fact_records_vulnerability_active_advisory_lookup_v2_idx ON fact_records
-((payload->>'advisory_id'), scope_id, generation_id, fact_kind, fact_id
-ASC) WHERE fact_kind IN ('vulnerability.cve', 'vulnerability.affected_package',
-'vulnerability.affected_product', 'vulnerability.epss_score',
-'vulnerability.known_exploited', 'vulnerability.reference')`
+`ghsa_id`/`ghsa_ids` -- that is WRONG and is corrected here; a SECOND wrong
+inference below was also caught and corrected in round-5 review F-12/F-13):
+`vulnerability.cve` and `vulnerability.affected_package` each carry a raw,
+top-level `advisory_id` field. **`vulnerability.affected_product` does
+NOT** -- the `AffectedProduct` struct
+(`sdk/go/factschema/vulnerability/v1/affected_product.go`) is
+CVEID/Criteria/MatchCriteriaID/Vulnerable only, its sole emitter
+`newNVDAffectedProductEnvelope`
+(`go/internal/collector/vulnerabilityintelligence/nvd_envelope.go`) builds
+no `advisory_id` key, and `sdk/go/factschema/vulnerability/v1/README.md`'s
+required-fields table lists `AdvisoryID` for `CVE`/`AffectedPackage` only.
+`vulnerability.epss_score` and `vulnerability.known_exploited` don't carry
+it either -- `EPSSScore` is CVEID/Probability/Percentile/ScoreDate,
+`KnownExploited` is CVEID plus KEV catalog fields, and neither struct nor
+either emitter sets an `advisory_id` key. `advisory_id` is separately
+indexed by:
+
+```
+CREATE INDEX IF NOT EXISTS fact_records_vulnerability_active_advisory_lookup_v2_idx
+    ON fact_records ((payload->>'advisory_id'), scope_id, generation_id, fact_kind, fact_id ASC)
+    WHERE fact_kind IN ('vulnerability.cve', 'vulnerability.affected_package', 'vulnerability.affected_product', 'vulnerability.epss_score', 'vulnerability.known_exploited', 'vulnerability.reference')
+      AND is_tombstone = FALSE;
+```
+
 (`go/internal/storage/postgres/schema_fact_records_vulnerability_indexes.go`).
+**Root cause of the wrong `affected_product`/`epss_score`/`known_exploited`
+inference (worth internalizing):** this index's `fact_kind IN (...)` list
+constrains which ROWS get indexed, not which payloads carry the
+`advisory_id` key -- nothing stops the index expression evaluating to
+`NULL` for a kind lacking the field. `vulnerability.reference` genuinely
+DOES carry an optional `advisory_id` (set by the OSV and GitLab Gemnasium
+emitters, never by NVD's;
+`sdk/go/factschema/vulnerability/v1/reference.go`), but that kind is not in
+`supplyChainImpactFactKinds()`
+(`go/internal/reducer/supply_chain_impact.go`) so this reducer never loads
+it at all -- it is not collected by this fix either. Payload-shape claims
+must come from `sdk/go/factschema` and the emitter, never from a DDL
+predicate list.
+
 `supplyChainCVEID` is `firstNonBlank(payload["cve_id"], payload["advisory_id"])`
 (`go/internal/reducer/supply_chain_impact_summary.go`), so whenever a fact
 already has a populated `cve_id` -- the common case -- its DISTINCT
@@ -326,18 +374,24 @@ the golden-corpus cassette:
 `ghsa_id`/`ghsa_ids` fields exist and are a REAL advisory-shaped field, but
 they are not the primary source this fix closes and are NOT collected by
 this fix -- only the raw `advisory_id` field on
-`vulnerability.cve`/`vulnerability.affected_package`/
-`vulnerability.affected_product` facts, plus `vulnerability.suppression`'s
-own `scope.advisory_id` (for suppression-to-suppression follow-up
-expansion, matching how the other five anchors already work).
+`vulnerability.cve`/`vulnerability.affected_package` facts, plus
+`vulnerability.suppression`'s own `scope.advisory_id` (for
+suppression-to-suppression follow-up expansion, matching how the other
+five anchors already work). The code line collecting `advisory_id` in the
+`vulnerability.affected_product` case of `supplyChainImpactFilter`'s switch
+(`supply_chain_impact_active_filter.go`) is a harmless no-op --
+`uniqueSortedStrings` drops empty strings -- kept as defensive coverage
+against a future emitter starting to set the field on that kind, not
+because the field exists today.
 
 Fix: a new `AdvisoryIDs []string` field on `SupplyChainImpactFactFilter`,
 collected in `supplyChainImpactFilter`
 (`go/internal/reducer/supply_chain_impact_active_filter.go`) SEPARATELY
-from `CVEIDs` for `vulnerability.cve`/`affected_package`/`affected_product`
-(so a distinct `advisory_id` is never dropped by `supplyChainCVEID`'s
-`firstNonBlank` preference for `cve_id`) and from `vulnerability.suppression`'s
-own `scope.advisory_id`; threaded through `SupplyChainImpactFactFilter.empty()`,
+from `CVEIDs` for `vulnerability.cve`/`affected_package` (and, as the
+harmless no-op above, `affected_product`) (so a distinct `advisory_id` is
+never dropped by `supplyChainCVEID`'s `firstNonBlank` preference for
+`cve_id`) and from `vulnerability.suppression`'s own `scope.advisory_id`;
+threaded through `SupplyChainImpactFactFilter.empty()`,
 `supplyChainImpactFollowUpFilter`, and `mergeSupplyChainImpactFactFilters`
 the same way `Environments`/`WorkloadIDs`/`ServiceIDs` were in P1-1. New SQL
 placeholder `$20`: `lower(btrim(fact.payload->'scope'->>'advisory_id', E'
@@ -346,9 +400,10 @@ the same normalization shape as `$15`-`$19`.
 
 **What this does NOT cover** (be precise, not exhaustive-sounding):
 `security_alert.repository_alert`'s `ghsa_id`/`ghsa_ids` are not collected
-into `AdvisoryIDs`; `vulnerability.epss_score`/`vulnerability.known_exploited`'s
-`advisory_id` field (also covered by the same index) is not collected
-either; and `SupplyChainImpactFinding.AdvisoryID` (the CLASSIFICATION-time,
+into `AdvisoryIDs`; `vulnerability.reference`'s optional `advisory_id` is
+not collected either (that fact kind is outside this reducer's fact-kind
+universe entirely, see the root-cause note above); and
+`SupplyChainImpactFinding.AdvisoryID` (the CLASSIFICATION-time,
 provenance-selected value used elsewhere, e.g.
 `firstNonBlank(cve.advisoryID, cve.cveID)` in
 `go/internal/reducer/supply_chain_impact_product.go`) is unrelated to and
@@ -443,6 +498,23 @@ class requires the repository-ID extractor to independently return empty
 for the same fact too — a materially rarer trigger than "any
 deployment-evidence-only intent," not the broader class the wording above
 could be read to imply.
+
+**Round-4 review F-10 / round-5 review F-15 addition:** `AdvisoryIDs`
+(#5466 round-4 review F-10) widens `empty()` identically -- a suppression
+scoped ONLY by `scope.advisory_id` now yields a non-empty follow-up filter
+where the load previously short-circuited to `nil, nil`, same 8-round bound
+as above, so this is a completeness gap, not a new perf risk. Unlike the
+Environments/WorkloadIDs/ServiceIDs case, the "also contributes
+RepositoryIDs" narrowing above does NOT apply here: `vulnerability.cve`/
+`affected_package` (the fact kinds `AdvisoryIDs` reads from) do not
+contribute `RepositoryIDs` in `supplyChainImpactFilter`, and a
+`vulnerability.cve`/`affected_package` fact with a populated `cve_id`
+already widens `empty()` via `CVEIDs` regardless of `AdvisoryIDs` (per
+`supplyChainCVEID`'s `firstNonBlank` preference), so the practical new
+class this adds is narrower still: an intent carrying ONLY an
+advisory-only-scoped `vulnerability.suppression` fact (`scope.advisory_id`
+set, every other scope key and every other anchor absent) -- the exact
+mirror of the environment-only-scoped-suppression scenario P1-1 introduced.
 
 The no-index CONCLUSION still stands regardless of this correction: the
 predicate is OR-ed into a query that already performs a `Parallel Seq Scan`

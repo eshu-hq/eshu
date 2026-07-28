@@ -22,30 +22,32 @@ func TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeSiblings
 	// strings.EqualFold, so a payload of {"cve_id":"cve-2026-1234"}
 	// (lowercase) or a whitespace-padded purl decodes and matches in Go but
 	// was never SELECTED by the original exact-match
-	// ->'scope'->>'X' = ANY($N) predicates. New placeholders ($15-$19)
-	// carry lower(btrim(...)) normalized copies of $1/$2/$3/$4/$7 so the
+	// ->'scope'->>'X' = ANY($N) predicates. New placeholders ($16-$20)
+	// carry lower(btrim(...)) normalized copies of $1/$2/$3/$5/$8 so the
 	// exact-match top-level (non-"scope") siblings serving other fact kinds
-	// keep their existing behavior unchanged.
+	// keep their existing behavior unchanged. (Placeholders are shifted by
+	// one relative to this branch's pre-rebase numbering because #5465's
+	// AdvisoryIDs predicate was inserted at $4.)
 	for _, want := range []string{
-		"lower(btrim(fact.payload->'scope'->>'package_id', E' \\t\\n\\v\\f\\r')) = ANY($15::text[])",
-		"lower(btrim(fact.payload->'scope'->>'purl', E' \\t\\n\\v\\f\\r')) = ANY($16::text[])",
-		"lower(btrim(fact.payload->'scope'->>'cve_id', E' \\t\\n\\v\\f\\r')) = ANY($17::text[])",
-		"lower(btrim(fact.payload->'scope'->>'subject_digest', E' \\t\\n\\v\\f\\r')) = ANY($18::text[])",
-		"lower(btrim(fact.payload->'scope'->>'repository_id', E' \\t\\n\\v\\f\\r')) = ANY($19::text[])",
+		"lower(btrim(fact.payload->'scope'->>'package_id', E' \\t\\n\\v\\f\\r')) = ANY($16::text[])",
+		"lower(btrim(fact.payload->'scope'->>'purl', E' \\t\\n\\v\\f\\r')) = ANY($17::text[])",
+		"lower(btrim(fact.payload->'scope'->>'cve_id', E' \\t\\n\\v\\f\\r')) = ANY($18::text[])",
+		"lower(btrim(fact.payload->'scope'->>'subject_digest', E' \\t\\n\\v\\f\\r')) = ANY($19::text[])",
+		"lower(btrim(fact.payload->'scope'->>'repository_id', E' \\t\\n\\v\\f\\r')) = ANY($20::text[])",
 	} {
 		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
 		}
 	}
-	// The exact-match top-level siblings sharing $1-$4/$7 must be
+	// The exact-match top-level siblings sharing $1/$2/$3/$5/$8 must be
 	// unchanged -- these serve non-suppression fact kinds and must not be
 	// normalized.
 	for _, want := range []string{
 		"fact.payload->>'package_id' = ANY($1::text[])",
 		"fact.payload->>'purl' = ANY($2::text[])",
 		"fact.payload->>'cve_id' = ANY($3::text[])",
-		"fact.payload->>'subject_digest' = ANY($4::text[])",
-		"fact.payload->>'repository_id' = ANY($7::text[])",
+		"fact.payload->>'subject_digest' = ANY($5::text[])",
+		"fact.payload->>'repository_id' = ANY($8::text[])",
 	} {
 		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing unchanged top-level sibling %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
@@ -57,9 +59,9 @@ func TestListActiveSupplyChainImpactFactsBindsNormalizedSuppressionScopeSiblings
 	t.Parallel()
 
 	// Hermetic (no DSN required) bind-position proof for F-6's five new
-	// placeholders: asserts the bound $15-$19 argument values directly,
+	// placeholders: asserts the bound $16-$20 argument values directly,
 	// mirroring TestListActiveSupplyChainImpactFactsBindsWorkloadAndServiceIDsToDistinctPlaceholders
-	// for $12/$13.
+	// for $13/$14.
 	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: nil}}}
 	store := NewFactStore(db)
 
@@ -77,17 +79,17 @@ func TestListActiveSupplyChainImpactFactsBindsNormalizedSuppressionScopeSiblings
 		t.Fatalf("query count = %d, want %d", got, want)
 	}
 
-	// args are 0-indexed; $15 is args[14] ... $19 is args[18].
+	// args are 0-indexed; $16 is args[15] ... $20 is args[19].
 	cases := []struct {
 		placeholder string
 		argIndex    int
 		want        []string
 	}{
-		{"$15 (package_id)", 14, []string{"pkg:npm/left-pad"}},
-		{"$16 (purl)", 15, []string{"pkg:npm/left-pad@1.3.0"}},
-		{"$17 (cve_id)", 16, []string{"cve-2026-1234"}},
-		{"$18 (subject_digest)", 17, []string{"sha256:abcdef"}},
-		{"$19 (repository_id)", 18, []string{"repo://acme/api"}},
+		{"$16 (package_id)", 15, []string{"pkg:npm/left-pad"}},
+		{"$17 (purl)", 16, []string{"pkg:npm/left-pad@1.3.0"}},
+		{"$18 (cve_id)", 17, []string{"cve-2026-1234"}},
+		{"$19 (subject_digest)", 18, []string{"sha256:abcdef"}},
+		{"$20 (repository_id)", 19, []string{"repo://acme/api"}},
 	}
 	for _, c := range cases {
 		got, ok := db.queries[0].args[c.argIndex].([]string)
@@ -107,9 +109,9 @@ func TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeAdvisory
 	// all -- unlike package_id/purl/cve_id/subject_digest/repository_id
 	// (F-6), which at least had a stale exact-match predicate before being
 	// normalized, advisory_id was a dead scope key from the start. New
-	// placeholder $20 closes it with the same lower(btrim(...)) treatment.
+	// placeholder $21 closes it with the same lower(btrim(...)) treatment.
 	for _, want := range []string{
-		"lower(btrim(fact.payload->'scope'->>'advisory_id', E' \\t\\n\\v\\f\\r')) = ANY($20::text[])",
+		"lower(btrim(fact.payload->'scope'->>'advisory_id', E' \\t\\n\\v\\f\\r')) = ANY($21::text[])",
 	} {
 		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
@@ -120,8 +122,8 @@ func TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeAdvisory
 func TestListActiveSupplyChainImpactFactsBindsNormalizedSuppressionScopeAdvisoryID(t *testing.T) {
 	t.Parallel()
 
-	// Hermetic (no DSN required) bind-position proof for F-10's $20
-	// placeholder, mirroring the $15-$19 bind-position test above.
+	// Hermetic (no DSN required) bind-position proof for F-10's $21
+	// placeholder, mirroring the $16-$20 bind-position test above.
 	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: nil}}}
 	store := NewFactStore(db)
 
@@ -135,12 +137,12 @@ func TestListActiveSupplyChainImpactFactsBindsNormalizedSuppressionScopeAdvisory
 		t.Fatalf("query count = %d, want %d", got, want)
 	}
 
-	// args are 0-indexed; $20 is args[19].
-	got, ok := db.queries[0].args[19].([]string)
+	// args are 0-indexed; $21 is args[20].
+	got, ok := db.queries[0].args[20].([]string)
 	if !ok {
-		t.Fatalf("$20 (index 19) arg type = %T, want []string", db.queries[0].args[19])
+		t.Fatalf("$21 (index 20) arg type = %T, want []string", db.queries[0].args[20])
 	}
 	if want := []string{"ghsa-demo-1111-2222"}; !slices.Equal(got, want) {
-		t.Fatalf("$20 (AdvisoryIDs) arg = %v, want %v", got, want)
+		t.Fatalf("$21 (AdvisoryIDs) arg = %v, want %v", got, want)
 	}
 }

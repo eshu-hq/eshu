@@ -67,10 +67,15 @@ type SupplyChainImpactFactFilter struct {
 	ServiceIDs   []string
 	// AdvisoryIDs (#5466 round-4 review F-10) lets the active-evidence query
 	// select a vulnerability.suppression fact scoped ONLY by advisory_id.
-	// vulnerability.cve/affected_package/affected_product facts carry a raw
-	// top-level advisory_id field (indexed by
-	// fact_records_vulnerability_active_advisory_lookup_v2_idx), but
-	// supplyChainCVEID prefers cve_id over advisory_id
+	// vulnerability.cve/affected_package facts carry a raw top-level
+	// advisory_id field (indexed by
+	// fact_records_vulnerability_active_advisory_lookup_v2_idx --
+	// vulnerability.affected_product is also in that index's fact_kind list
+	// but does NOT carry the field itself: a partial index's kind list
+	// constrains which rows get indexed, not which payloads have the key;
+	// see AffectedProduct in sdk/go/factschema/vulnerability/v1, #5466
+	// round-5 review F-12), but supplyChainCVEID prefers cve_id over
+	// advisory_id
 	// (firstNonBlank(cve_id, advisory_id)), so a distinct advisory_id
 	// (e.g. a GHSA ID alongside a populated cve_id) never reached CVEIDs.
 	// Populated in supplyChainImpactFilter alongside CVEIDs, not instead of

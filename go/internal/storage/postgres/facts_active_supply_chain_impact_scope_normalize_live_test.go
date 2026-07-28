@@ -22,7 +22,7 @@ import (
 // it -- the identical defect class P1-1/F-4 fixed for
 // environment/workload_id/service_id, now closed for the five sibling
 // suppression-scope anchors (package_id, purl, cve_id, subject_digest,
-// repository_id) via new placeholders $15-$19. This test proves two of the
+// repository_id) via new placeholders $16-$20. This test proves two of the
 // five on the real load path: a lowercase CVE ID and a whitespace-padded
 // PURL.
 func TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByLowercaseCVEIDAndPaddedPURLLive(t *testing.T) {
@@ -73,10 +73,13 @@ func TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByLowercaseCVEIDA
 // is the #5466 round-4 review F-10 fix proof: advisory_id had NO load-path
 // predicate at all before this fix -- not even a stale exact-match one, the
 // way package_id/purl/cve_id/subject_digest/repository_id did before F-6.
-// vulnerability.cve/affected_package/affected_product carry a raw top-level
-// advisory_id field (indexed by
-// fact_records_vulnerability_active_advisory_lookup_v2_idx), but
-// supplyChainCVEID prefers cve_id over advisory_id
+// vulnerability.cve/affected_package carry a raw top-level advisory_id
+// field (indexed by fact_records_vulnerability_active_advisory_lookup_v2_idx
+// -- vulnerability.affected_product shares that index's fact_kind list but
+// does NOT carry the field itself: a partial index's kind list constrains
+// which rows get indexed, not which payloads have the key; see
+// AffectedProduct in sdk/go/factschema/vulnerability/v1, #5466 round-5
+// review F-12), but supplyChainCVEID prefers cve_id over advisory_id
 // (firstNonBlank(cve_id, advisory_id)), so a suppression scoped ONLY by an
 // advisory_id distinct from any cve_id (e.g. a GHSA ID) was unreachable by
 // this query even though scopeAnchorMatches, suppressionScopeIsEmpty, and
@@ -84,10 +87,10 @@ func TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByLowercaseCVEIDA
 // advertise advisory_id as a sufficient sole anchor. This test covers ONLY
 // the raw advisory_id payload field on the vulnerability.suppression
 // fact's own scope; it does NOT cover deriving AdvisoryIDs from any other
-// fact kind's payload beyond vulnerability.cve/affected_package/
-// affected_product (see supplyChainImpactFilter), and it does NOT change
-// how AdvisoryID is derived on a SupplyChainImpactFinding at classification
-// time (that remains firstNonBlank(cve.advisoryID, cve.cveID) elsewhere).
+// fact kind's payload beyond vulnerability.cve/affected_package (see
+// supplyChainImpactFilter), and it does NOT change how AdvisoryID is
+// derived on a SupplyChainImpactFinding at classification time (that
+// remains firstNonBlank(cve.advisoryID, cve.cveID) elsewhere).
 func TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByAdvisoryIDOnlyLive(t *testing.T) {
 	db := newSupplyChainImpactScopeLiveTestDB(t, "eshu_5466_suppression_scope_advisory_live")
 

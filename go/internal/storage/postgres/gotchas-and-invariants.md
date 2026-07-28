@@ -291,12 +291,28 @@ operational lessons that future storage changes still need to respect.
   advertise it as a sufficient sole anchor, but this query's `WHERE` clause
   had no predicate for it at all. Corrected source-of-truth (an earlier
   investigation wrongly named `security_alert.repository_alert`'s
-  `ghsa_id` as the only distinct raw source -- that was wrong):
-  `vulnerability.cve`/`affected_package`/`affected_product` each carry a
-  raw, top-level `advisory_id` field, separately indexed by
+  `ghsa_id` as the only distinct raw source -- that was wrong, and a
+  SECOND wrong inference was caught and corrected below):
+  `vulnerability.cve`/`affected_package` each carry a raw, top-level
+  `advisory_id` field. `vulnerability.affected_product` does NOT -- the
+  `AffectedProduct` struct (`sdk/go/factschema/vulnerability/v1/affected_product.go`)
+  is CVEID/Criteria/MatchCriteriaID/Vulnerable only, its sole emitter
+  `newNVDAffectedProductEnvelope`
+  (`go/internal/collector/vulnerabilityintelligence/nvd_envelope.go`)
+  builds no `advisory_id` key, and
+  `sdk/go/factschema/vulnerability/v1/README.md`'s required-fields table
+  lists `AdvisoryID` for `CVE`/`AffectedPackage` only. `advisory_id` is
+  separately indexed by
   `fact_records_vulnerability_active_advisory_lookup_v2_idx`
-  (`schema_fact_records_vulnerability_indexes.go`). `supplyChainCVEID` is
-  `firstNonBlank(cve_id, advisory_id)`
+  (`schema_fact_records_vulnerability_indexes.go`) -- **root cause of the
+  wrong `affected_product` inference, worth internalizing:** that index's
+  `fact_kind IN (...)` predicate names six kinds (including
+  `affected_product`, `epss_score`, `known_exploited`, `reference`)
+  because it constrains which ROWS get indexed, not which payloads carry
+  the `advisory_id` key; nothing stops the index expression evaluating to
+  `NULL` for a kind lacking the field. Payload-shape claims must come from
+  `sdk/go/factschema` and the emitter, never from a DDL predicate list.
+  `supplyChainCVEID` is `firstNonBlank(cve_id, advisory_id)`
   (`go/internal/reducer/supply_chain_impact_summary.go`), so whenever a
   fact already has a populated `cve_id` (the common case), its DISTINCT
   `advisory_id` (e.g. a GHSA ID alongside an NVD CVE ID) never reached
@@ -304,7 +320,7 @@ operational lessons that future storage changes still need to respect.
   ONLY by `advisory_id` was unreachable. Fix: a new `AdvisoryIDs []string`
   field on `SupplyChainImpactFactFilter`, collected in
   `supplyChainImpactFilter` SEPARATELY from `CVEIDs` for
-  `vulnerability.cve`/`affected_package`/`affected_product` and from
+  `vulnerability.cve`/`affected_package` and from
   `vulnerability.suppression`'s own `scope.advisory_id`, threaded through
   `empty()`/`supplyChainImpactFollowUpFilter`/`mergeSupplyChainImpactFactFilters`
   the same way `Environments`/`WorkloadIDs`/`ServiceIDs` were in P1-1. New
@@ -342,12 +358,17 @@ operational lessons that future storage changes still need to respect.
   (`go/internal/reducer/supply_chain_impact_handler_helpers.go`) issues up
   to `maxSupplyChainImpactActiveEvidenceLoads = 8` paginated rounds per
   intent, not once. Separately, adding `Environments`/`WorkloadIDs`/
-  `ServiceIDs` to `SupplyChainImpactFactFilter` widened
+  `ServiceIDs`/`AdvisoryIDs` to `SupplyChainImpactFactFilter` widened
   `SupplyChainImpactFactFilter.empty()`
   (`go/internal/reducer/supply_chain_impact_active_filter.go`) to return
   `false` for a NEW class of intents: one carrying only deployment evidence
-  (environment/workload/service) and no package/CVE/digest/repository
-  anchor at all. Before #5466 that intent's derived filter was fully empty
+  (environment/workload/service) or only an advisory_id, with no
+  package/CVE/digest/repository anchor at all. `AdvisoryIDs` (#5466
+  round-4 review F-10) widens `empty()` identically to
+  `Environments`/`WorkloadIDs`/`ServiceIDs` (#5466 P1-1): an
+  advisory-only-scoped suppression intent now yields a non-empty follow-up
+  filter where the load previously short-circuited. Before #5466 that
+  intent's derived filter was fully empty
   and `loadActiveSupplyChainImpactFacts` short-circuited to `nil, nil`
   without issuing a query; after #5466 it issues a full paginated Seq Scan.
   This new-invocation class is UNMEASURED -- no benchmark or production

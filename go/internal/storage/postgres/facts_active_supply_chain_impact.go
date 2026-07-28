@@ -188,15 +188,18 @@ WHERE fact.fact_kind IN (
               -- $21 is the lower(btrim(...)) normalized REPLACEMENT for
               -- what was a dead scope key: advisory_id had NO load-path
               -- predicate at all before #5466 round-4 review F-10.
-              -- vulnerability.cve/affected_package/affected_product carry
-              -- a raw top-level advisory_id (indexed by
-              -- fact_records_vulnerability_active_advisory_lookup_v2_idx),
-              -- but supplyChainCVEID prefers cve_id over advisory_id
-              -- (firstNonBlank), so a suppression scoped ONLY by
-              -- advisory_id (e.g. a GHSA ID distinct from any cve_id) was
-              -- unreachable by this query even though scopeAnchorMatches
-              -- accepts it and suppressionScopeIsEmpty/the reasons string
-              -- both advertise advisory_id as a sufficient sole anchor.
+              -- vulnerability.cve/affected_package carry a raw top-level
+              -- advisory_id (indexed by
+              -- fact_records_vulnerability_active_advisory_lookup_v2_idx --
+              -- vulnerability.affected_product shares that index's
+              -- fact_kind list but does NOT carry the field itself, #5466
+              -- round-5 review F-12), but supplyChainCVEID prefers cve_id
+              -- over advisory_id (firstNonBlank), so a suppression scoped
+              -- ONLY by advisory_id (e.g. a GHSA ID distinct from any
+              -- cve_id) was unreachable by this query even though
+              -- scopeAnchorMatches accepts it and
+              -- suppressionScopeIsEmpty/the reasons string both advertise
+              -- advisory_id as a sufficient sole anchor.
               OR lower(btrim(fact.payload->'scope'->>'advisory_id', E' \t\n\v\f\r')) = ANY($21::text[])
           )
       )
