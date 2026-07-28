@@ -5612,7 +5612,7 @@
         "minimum_results": 1
       },
       "GET /api/v0/supply-chain/impact/findings?limit=50&subject_digest=sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab&profile=comprehensive": {
-        "description": "#5452 non-vacuous runtime-observed cloud evidence proof: the scanned vulnerable supply-chain-demo image (subject digest abcdef...ab, CVE-2026-00010) is observed running on the live ECS task (its aws_resource running_image_digest equals the finding's subject digest), so the query-time CloudResource graph probe promotes its impact finding to deployment_truth_tier=runtime_confirmed and names the running task ARN in cloud_runtime_resource_refs -- runtime-observed cloud deployment evidence distinct from CI-declared correlation. The comprehensive profile is required because the finding is comprehensive-tier (the findings list defaults to precise). Reverting the probe (supply_chain_impact_cloud_runtime_probe.go) drops the finding back to provenance_ci_declared/config_only, failing this assertion. #5469 pins the same finding's version_resolution_tier to runtime_confirmed (the tier the judged subject_digest was actually resolved from) plus a version_resolution_corroboration entry proving the co-present provenance_ci_declared evidence (the same finding's accepted reducer_ci_cd_run_correlation hop) corroborates the SAME digest with agrees:true -- the \"confirms\" case, not a fabricated disagreement.",
+        "description": "#5452 non-vacuous runtime-observed cloud evidence proof: the scanned vulnerable supply-chain-demo image (subject digest abcdef...ab, CVE-2026-00010) is observed running on the live ECS task (its aws_resource running_image_digest equals the finding's subject digest), so the query-time CloudResource graph probe promotes its impact finding to deployment_truth_tier=runtime_confirmed and names the running task ARN in cloud_runtime_resource_refs -- runtime-observed cloud deployment evidence distinct from CI-declared correlation. The comprehensive profile is required because the finding is comprehensive-tier (the findings list defaults to precise). Reverting the probe (supply_chain_impact_cloud_runtime_probe.go) drops the finding back to provenance_ci_declared/config_only, failing this assertion. #5469 pins the same finding's version_resolution_tier to runtime_confirmed (the tier the judged subject_digest was actually resolved from) plus two version_resolution_corroboration entries: provenance_ci_declared corroborates the SAME digest (the accepted reducer_ci_cd_run_correlation hop) with agrees:true -- the \"confirms\" case -- while config_only corroborates the Debian dpkg installed_version_raw (3.0.11-1~deb12u2, from the vulnerabilityintelligence cassette's scanner_worker.analysis fact) with agrees:false, because a dpkg version string never textually equals the winning sha256 digest. That disagreement entry needs no new fixture: it falls out of evidence this finding already carries for the #5464 repository-anchor floor, proving the disagreement code path (Agrees: c.value == winner.value in supplyChainVersionResolution) fires on real corpus data, not only in the unit-test matrix.",
         "truth_class": "deterministic",
         "required_response_fields": [
           "findings",
@@ -5631,6 +5631,12 @@
               "digest_or_version": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
               "evidence_kind": "cicd_run_correlation",
               "agrees": true
+            },
+            {
+              "tier": "config_only",
+              "digest_or_version": "3.0.11-1~deb12u2",
+              "evidence_kind": "config_materialization",
+              "agrees": false
             }
           ]
         }
