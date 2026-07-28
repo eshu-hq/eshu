@@ -268,11 +268,16 @@ func TestBuildSupplyChainImpactFindingResultSetsVersionResolution(t *testing.T) 
 // BenchmarkBuildSupplyChainImpactFindingResult measures result-assembly cost
 // per row for the #5469 performance proof: the resolver classifies fields the
 // row already carries with no new graph or Postgres query, so per-row cost
-// should stay a small, roughly constant addition over the pre-#5469 baseline
-// (see the same benchmark run against the origin/main parent commit for the
-// before number). The row exercises every field the resolver reads,
-// including enough tiers present at once to walk the full
-// candidate/corroboration loop.
+// should stay a small, roughly constant addition over the pre-#5469 baseline.
+//
+// Reproducing the before number takes one extra step. SupplyChainImpactFindingRow
+// gains CIDeclaredArtifactDigest and CIDeclaredImageRef in #5469, so this
+// benchmark does not compile against the parent commit as written. Run it there
+// with those two row fields deleted; everything else is unchanged, and the two
+// deleted assignments are outside the measured call.
+//
+// The row exercises every field the resolver reads, including enough tiers
+// present at once to walk the full candidate/corroboration loop.
 func BenchmarkBuildSupplyChainImpactFindingResult(b *testing.B) {
 	digest := "sha256:1111111111111111111111111111111111111111111111111111111111111111"
 	row := SupplyChainImpactFindingRow{
