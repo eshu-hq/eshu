@@ -106,6 +106,76 @@ func TestBuildSupplyChainImpactFindingsBakesContradictingDigestOnImageRefMatch(t
 	}
 }
 
+// TestBuildSupplyChainImpactFindingsBakesCIDeclaredArtifactIdentityAtomically
+// proves the round-3 P2-2 fix: baking must be atomic across the WHOLE
+// deployment, not per axis. Before this fix, CIDeclaredArtifactDigest and
+// CIDeclaredImageRef were each independently first-wins, so deployment A (a
+// strong image-ref match with no declared digest) could bake its ref while a
+// LATER deployment B (a strong digest match with a DIFFERENT declared image
+// ref) filled in the still-empty digest field -- producing a baked pair that
+// described two different deployments: a digest paired with a ref that does
+// not resolve to it. That is exactly the "never attribute evidence to a
+// source that did not declare it" defect the whole #5469 issue is about, one
+// level down.
+//
+// This test asserts the atomic contract: once the FIRST strong-matching
+// deployment (A, in fact-list order) is found, its OWN full identity is
+// baked and no later deployment (B) may contribute to either field, even
+// where A left a field empty. The expected pair is A's image ref with an
+// EMPTY digest (never B's digest), since A is first and A never declared a
+// digest.
+func TestBuildSupplyChainImpactFindingsBakesCIDeclaredArtifactIdentityAtomically(t *testing.T) {
+	t.Parallel()
+
+	findingImageRef := "registry.example/api@" + testImpactSubjectDigest
+	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
+		vulnerabilityCVEFact("cve-1", "CVE-2026-5472", 9.1),
+		vulnerabilityAffectedPackageFact("affected-1", "CVE-2026-5472", testImpactPackageID, "npm", "example", "1.2.3", "1.3.0"),
+		packageConsumptionFactWithChain("consume-1", testImpactPackageID, testImpactRepositoryID, "1.2.3", []string{"api", "example"}, 2, false),
+		sbomComponentImpactFact("component-1", "doc-1", testImpactPURL),
+		sbomAttachmentImpactFact("attachment-1", "doc-1", testImpactSubjectDigest),
+		containerImageIdentityImpactFactWithOutcome(
+			"image-1",
+			testImpactSubjectDigest,
+			testImpactRepositoryID,
+			findingImageRef,
+			string(ContainerImageIdentityExactDigest),
+		),
+		// Deployment A: strong image-ref match, but declares NO artifact
+		// digest of its own. First in fact-list order.
+		cicdRunCorrelationImpactFact(
+			"deploy-a",
+			"",
+			findingImageRef,
+			testImpactRepositoryID,
+			testImpactEnv,
+			string(CICDRunCorrelationExact),
+		),
+		// Deployment B: strong digest match (its own artifact_digest equals
+		// the finding's SubjectDigest), but declares a DIFFERENT image ref
+		// than A. Second in fact-list order. Under the pre-fix per-axis
+		// logic, B's digest would wrongly backfill the field A left empty,
+		// producing a digest/ref pair that describes two different
+		// deployments.
+		cicdRunCorrelationImpactFact(
+			"deploy-b",
+			testImpactSubjectDigest,
+			testImpactOtherImageRef,
+			testImpactRepositoryID,
+			testImpactEnv,
+			string(CICDRunCorrelationExact),
+		),
+	})
+
+	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-5472"]
+	if got.CIDeclaredImageRef != findingImageRef {
+		t.Fatalf("CIDeclaredImageRef = %q, want deployment A's ref %q (the first strong match)", got.CIDeclaredImageRef, findingImageRef)
+	}
+	if got.CIDeclaredArtifactDigest != "" {
+		t.Fatalf("CIDeclaredArtifactDigest = %q, want empty: deployment A (the first strong match) declared no digest, and deployment B's digest must never backfill a field from a different deployment", got.CIDeclaredArtifactDigest)
+	}
+}
+
 // TestBuildSupplyChainImpactFindingsWeakBranchBakesNoCIDeclaredArtifactIdentity
 // proves the fail-closed half of the #5469 baking rule: a deployment that
 // matches ONLY through the weak repository+environment+operational-anchor

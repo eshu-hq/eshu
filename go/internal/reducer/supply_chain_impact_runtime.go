@@ -117,8 +117,8 @@ func applySupplyChainRuntimeContext(
 		if finding.RepositoryID == "" {
 			finding.RepositoryID = deployment.repositoryID
 		}
-		bakeSupplyChainCIDeclaredArtifactIdentity(finding, deployment)
 	}
+	bakeSupplyChainCIDeclaredArtifactIdentity(finding, deployments)
 	finding.EvidenceFactIDs = uniqueSortedStrings(finding.EvidenceFactIDs)
 	finding.EvidencePath = orderedUniqueStrings(finding.EvidencePath)
 	finding.DeploymentIDs = uniqueSortedStrings(finding.DeploymentIDs)
@@ -206,37 +206,43 @@ func supplyChainDeploymentMatchesFinding(
 // no artifact-identity claim at all, so it bakes nothing here -- fail closed,
 // per the #5469 binding design decision.
 //
-// Once a strong match is found, the deployment's FULL declared identity is
-// baked (both artifactDigest and imageRef, whichever it carries), not only
-// the field that matched: a deployment can match via image reference while
-// its own artifactDigest genuinely differs from the finding's subject digest
-// -- the same contradiction supplyChainDeploymentPromotesRuntimeReachability
-// below already treats as decisive for promotion -- and that contradiction is
-// exactly what #5469's version-resolution corroboration needs to disclose as
-// a real disagreement, instead of one that was previously architecturally
+// The bake is ATOMIC (round-3 review finding P2-2): it scans deployments in
+// order and, on the FIRST strong-branch match, bakes that ONE deployment's
+// FULL declared identity -- both CIDeclaredArtifactDigest and
+// CIDeclaredImageRef, together, even where one of the two is empty -- and
+// then stops. No later deployment may contribute to either field, whether or
+// not the first match left a field empty. Baking per axis independently was
+// the bug: a later deployment could backfill whichever field the first match
+// left blank, producing a digest paired with a ref that does not resolve to
+// it -- attributing evidence to a source that never declared it, the same
+// defect class the whole #5469 issue exists to close, one level down. Once a
+// deployment is chosen, its own artifactDigest genuinely differing from the
+// finding's subject digest (an image-ref match whose digest contradicts) is
+// preserved as-is, not treated as missing: that contradiction is exactly what
+// #5469's version-resolution corroboration needs to disclose as a real
+// disagreement, instead of one that was previously architecturally
 // impossible to observe (the resolver could only ever borrow the finding's
 // own SubjectDigest).
 //
-// First qualifying strong-branch deployment wins per axis (digest, image
-// ref) and is never overwritten by a later match in the same call, mirroring
-// the "don't downgrade" precedent recordSupplyChainEnvironmentEvidence
-// already established for EnvironmentEvidence (#5426).
+// First qualifying strong-branch deployment wins, whole, and is never
+// overwritten by a later match in the same call, mirroring the "don't
+// downgrade" precedent recordSupplyChainEnvironmentEvidence already
+// established for EnvironmentEvidence (#5426).
 func bakeSupplyChainCIDeclaredArtifactIdentity(
 	finding *SupplyChainImpactFinding,
-	deployment supplyChainDeploymentContext,
+	deployments []supplyChainDeploymentContext,
 ) {
-	strongDigestMatch := finding.SubjectDigest != "" && deployment.artifactDigest != "" &&
-		deployment.artifactDigest == finding.SubjectDigest
-	strongImageRefMatch := finding.ImageRef != "" && deployment.imageRef != "" &&
-		deployment.imageRef == finding.ImageRef
-	if !strongDigestMatch && !strongImageRefMatch {
-		return
-	}
-	if finding.CIDeclaredArtifactDigest == "" && deployment.artifactDigest != "" {
+	for _, deployment := range deployments {
+		strongDigestMatch := finding.SubjectDigest != "" && deployment.artifactDigest != "" &&
+			deployment.artifactDigest == finding.SubjectDigest
+		strongImageRefMatch := finding.ImageRef != "" && deployment.imageRef != "" &&
+			deployment.imageRef == finding.ImageRef
+		if !strongDigestMatch && !strongImageRefMatch {
+			continue
+		}
 		finding.CIDeclaredArtifactDigest = deployment.artifactDigest
-	}
-	if finding.CIDeclaredImageRef == "" && deployment.imageRef != "" {
 		finding.CIDeclaredImageRef = deployment.imageRef
+		return
 	}
 }
 
