@@ -1688,20 +1688,46 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   gap: its in-flight exclusion requires a LIVE lease, while an expired lease is
   re-admitted — and an expired lease is exactly the stalled-worker case, because
   heartbeat loss is quarantined only after `Handle` returns. So the statement
-  stamps `fact_records.fencing_token` with the write's evidence-read watermark
+  deletes only rows at or below the write's evidence-read watermark
   (`ContainerImageIdentityWrite.EvidenceAsOf`, captured before the first fact
-  load) and deletes only rows at or below it. Evidence-read time, not write
-  time: write time ranks the stalled worker highest, which is the inversion the
-  fence exists to stop. A zero watermark is a hard error, never a defaulted
+  load, rendered into `fact_records.fencing_token`). Evidence-read time, not
+  write time: write time ranks the stalled worker highest, which is the inversion
+  the fence exists to stop. A zero watermark is a hard error, never a defaulted
   unfenced write, because `fencing_token <= 0` would match every row.
 
-  The token is carried on the **insert**, not only by the retire's stamping CTE.
-  A row left at the column default `0` between the two statements is durable and
-  visible at `0`, and `0` is at or below every other worker's token, so a
-  concurrent stalled worker's fenced retire would delete the fresher row anyway —
-  and both writers can lose their row that way. `reducerFactBatchInsertQuery`
-  therefore writes `fencing_token` and raises it with `GREATEST` on conflict, so
-  a stale re-upsert cannot downgrade a fresher row.
+  The token is stamped by the **insert**, and only by the insert.
+  `reducerFactBatchInsertQuery` binds `fencing_token`, so a row is never durable
+  at the column default `0` — which matters because `0` is at or below every
+  other worker's token, and a concurrent stalled worker's fenced retire landing
+  in that window would delete the fresher row anyway, potentially costing both
+  writers their row.
+
+  That insert's conflict update is **guarded**, not merged:
+  `WHERE fact_records.fencing_token <= EXCLUDED.fencing_token` rejects a stale
+  pass's upsert whole, content columns included. Raising only the token while
+  assigning content unconditionally protects the token and nothing else, which is
+  worse than no fence — the identity embeds only
+  `(scope, generation, image_ref, outcome)` while `source_revision` and
+  `build_provenance_repository_ids` are payload-only and come from cross-scope
+  enrichment, so two passes that agree on the outcome collide on one `fact_id`
+  with different payloads, and the row ends up carrying stale content behind a
+  fresh watermark that the retire's fence then protects. `<=` rather than `<`,
+  because a retry of the same pass carries the same evidence-read watermark. The
+  guard is inert for the six callers that bind `0` against rows at `0`, proven
+  live rather than assumed.
+
+  The retire deliberately does NOT re-stamp the keep-set. It used to, via a
+  `WITH stamped AS (UPDATE ...)` CTE, which the insert's binding made a proven
+  no-op — the keep-set is built from the exact rows just inserted, so every one
+  already carries `fencing_token >= $5` and the guard can only match rows already
+  at exactly `$5`. The no-op still cost a write: measured on Postgres 16, every
+  intent execution produced a second row version per canonical decision (keep-set
+  `xmin` 879 → 880, token unchanged), invisible to a cost budget that counts
+  STATEMENTS. It was also a measured ABBA deadlock source — the CTE locked the
+  keep-set while the DELETE locked the complement, with no ordering specified
+  inside a `WITH`, so two concurrent same-scope retires with crossed keep/delete
+  sets (the stalled-worker shape) deadlocked. The retire is now a single fenced
+  `DELETE`.
 
   What the fence does not close: a stale pass can still INSERT its own row (that
   needs the #4233 `ProjectionState.BeginBuilding` pattern), and it cannot help a
@@ -1712,7 +1738,14 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   those apart. It flags the shape instead:
   `ContainerImageIdentityWriteResult.RetiredWithoutCanonicalWrites` and a
   `slog.Warn` fire whenever a pass with zero canonical decisions retires a
-  non-empty prior set.
+  non-empty prior set. A visibility gap need not be TOTAL, though — a pass can
+  see the cross-scope observations for some images in a generation and not
+  others — so `RetiredMoreThanWritten` and a second `slog.Warn` cover the partial
+  case, firing when the retire deleted more rows than the pass wrote. That
+  relation is the discriminator: an ordinary re-classification retires at most
+  one superseded row per image it rewrites and so can never exceed its own write
+  count, while exceeding it means rows left the partition with no replacement.
+  Exactly one of the two warns fires per pass.
 
   No-Regression Evidence: `go test ./internal/reducer
   ./internal/replay/costcounting ./cmd/bootstrap-index -count=1` covers the
@@ -1729,10 +1762,18 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   before the load), and
   `TestContainerImageIdentityRetireQueryIsBoundedToItsOwnPartition`
   (full-text equality against the frozen statement, so a widened `DELETE` fails
-  rather than passing a substring check). The real-Postgres proofs live in
-  `go/internal/storage/postgres/container_image_identity_retire_live_test.go`
-  and run on `ESHU_POSTGRES_DSN` alone; they cover partition bounding, the
-  empty-keep-set clear, the stalled-worker fence, and the insert/stamp window.
+  rather than passing a substring check),
+  `TestContainerImageIdentityRetireQueryIsASingleDeleteAndNothingElse` (no second
+  write phase may be reintroduced), and
+  `TestContainerImageIdentityWriterFlagsAPartialEvidenceVisibilityGap` with its
+  ordinary-re-classification negative control. The real-Postgres proofs live in
+  `go/internal/storage/postgres/container_image_identity_retire_live_test.go` and
+  its two siblings, and run on `ESHU_POSTGRES_DSN` alone; they cover partition
+  bounding, the empty-keep-set clear, the stalled-worker fence, the insert/stamp
+  window, and — in
+  `container_image_identity_retire_rowversion_live_test.go` — that the retire
+  creates no row version for the keep-set, counted in `xmin` rather than in
+  statements.
   The write path gains exactly one bounded statement per intent execution, O(1)
   in decision count; the `container-image-identity` cost budget moves from 1
   statement to 2 and its N+1 negative control still costs 4.

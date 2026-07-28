@@ -151,16 +151,6 @@ Two further checks the retire needed on its own:
 `eshuSearchDocumentRetireQuery` and its `aws_cloud_runtime_drift` sibling:
 
 ```sql
-WITH stamped AS (
-    UPDATE fact_records
-    SET fencing_token = $5
-    WHERE fact_kind = $1
-      AND scope_id = $2
-      AND generation_id = $3
-      AND fact_id = ANY($4::text[])
-      AND fencing_token <= $5
-    RETURNING fact_id
-)
 DELETE FROM fact_records
 WHERE fact_kind = $1
   AND scope_id = $2
@@ -198,21 +188,69 @@ hard error, never a defaulted unfenced write: rows carry `fencing_token` 0 by
 table default, so `fencing_token <= 0` would still match everything and the
 retire would run completely unfenced with nothing saying so.
 
-The token is also carried on the **insert**
-(`reducerFactBatchInsertQuery` now writes `fencing_token` and raises it with
-`GREATEST` on conflict). The stamping CTE alone is not sufficient: it runs in a
-separate autocommit after the insert, so a freshly inserted row is committed and
-visible at the default `0` until the stamp lands, and `0` is at or below every
-other worker's token. A stalled worker's fenced retire arriving in that window
-deletes the fresher row anyway, and in the worst case BOTH rows vanish — A's
-retire takes B's unstamped row, then B's retire takes A's stamped one. That is
-strictly worse than main. Stamping at birth closes it; `GREATEST` additionally
-stops a stale re-upsert from downgrading a fresher row's token. Callers that
-leave `reducerFactRow.FencingToken` at zero insert `0`, the value the column
-default already gave them, and `GREATEST(existing, 0)` leaves an existing row
-alone, so this is a no-op for every other writer on that statement.
+The token is stamped by the **insert** (`reducerFactBatchInsertQuery` now writes
+`fencing_token`). Stamping it from the retire instead is not sufficient: the
+retire runs in a separate autocommit after the insert, so a freshly inserted row
+is committed and visible at the default `0` until the stamp lands, and `0` is at
+or below every other worker's token. A stalled worker's fenced retire arriving in
+that window deletes the fresher row anyway, and in the worst case BOTH rows
+vanish — A's retire takes B's unstamped row, then B's retire takes A's stamped
+one. That is strictly worse than main. Stamping at birth closes it.
 `reducerFactBatchInsertVersionedQuery` does NOT carry the column, and its doc
 comment now says a governed domain that grows a fenced retire must add it.
+
+### The conflict clause is guarded, not merged
+
+The insert's conflict update is gated on `fact_records.fencing_token <=
+EXCLUDED.fencing_token`, so a stale pass's upsert is rejected WHOLE.
+
+An earlier revision raised only the token
+(`fencing_token = GREATEST(existing, excluded)`) with the content columns
+assigned unconditionally. That protects the token and nothing else, and the
+combination is worse than no fence. The fact identity embeds only
+`(scope_id, generation_id, image_ref, outcome)`, while `source_revision`,
+`source_revision_provenance`, `build_provenance_repository_ids` and
+`evidence_fact_ids` are payload-only and are filled in by the cross-scope
+enrichment (`applyCIRunDigestRevision`/`applySLSADigestRevision`) whose
+visibility depends on which generations are active at load time. Two passes that
+agree on the outcome therefore collide on the SAME `fact_id` with DIFFERENT
+payloads, and the pass that read before the CI/SLSA generation activated carries
+the poorer one. This is the reachable stalled-holder shape, not a hypothetical:
+it is the same class as the #5426 failure where a persisted identity row named
+the building repository in `source_repository_ids` but carried nothing in
+`build_provenance_repository_ids`.
+
+Measured on Postgres 16, GREATEST form:
+
+```
+--- FAIL: TestReducerFactBatchInsertRejectsStaleContentUpsertLive
+    stored source_revision/provenance = ""/"", want "commit-fresh"/"ci_run_commit"
+```
+
+The stalled worker overwrote the fresher row's content and `GREATEST` left the
+fresher token on it, so the row advertised a freshness its payload did not have —
+and the retire's fence, reading that token, then protected the wrong row from
+correction.
+
+Two properties of the guard are pinned separately because both are easy to get
+wrong:
+
+- **`<=`, not `<`.** A retry, a redelivery, or a second chunk of the same pass
+  carries the SAME watermark, because the watermark is the evidence-read time and
+  a pass reads its evidence once. `<` would discard every one while reporting
+  success — `TestReducerFactBatchInsertAppliesEqualTokenRetryLive`.
+- **Inert for the six non-opted-in callers.** They bind `0` and their rows sit at
+  the column default `0`, so `0 <= 0` holds and the update proceeds exactly as
+  before. That is a property of the SQL, not of the arguments, so it is proven
+  against real Postgres by
+  `TestReducerFactBatchInsertStaysInertForUnfencedWritersLive` rather than
+  asserted; `decodeCloudInventoryBatchedRows` covers only the bind half.
+
+With the guard in place an explicit `GREATEST` would be dead text: no path can
+lower a token, so the surviving value is always the larger of the two. The shape
+matches `upsertFactBatchSuffix`
+(`go/internal/storage/postgres/facts_streaming.go`, #4444), which already fences
+the collector ingest path into this same table the same way.
 
 ### What the fence does not close
 
@@ -290,8 +328,9 @@ first runs worker A's ENTIRE write (insert plus fenced retire) at a watermark
 five minutes older. Both workers use the production writer and the production
 statements against real Postgres.
 
-With the token stamped only by the retire's CTE — the shape a verbatim port of
-the `aws_cloud_runtime_drift` fence produces — BOTH rows are lost:
+With the insert not binding the token, so that only a retire-side stamp could
+ever set it — the shape a verbatim port of the `aws_cloud_runtime_drift` fence
+produces — BOTH rows are lost:
 
 ```
 --- FAIL: TestContainerImageIdentityFreshlyInsertedRowIsFencedBeforeItIsVisibleLive
@@ -305,16 +344,66 @@ A's retire deleted B's row because it was still sitting at the column default
 below B's. That is strictly worse than main, which merely left a stale row
 beside a correct one. Carrying `fencing_token` on the insert closes it.
 
-### Live proofs (all four)
+### The keep-set stamp was a no-op that still rewrote every kept row
+
+The retire originally led with a `WITH stamped AS (UPDATE fact_records SET
+fencing_token = $5 ... WHERE fact_id = ANY($4) AND fencing_token <= $5)` CTE, on
+the reasoning that the partition should carry a durable record of how fresh each
+row's evidence was.
+
+Once the insert began binding the same token, that reasoning stopped holding.
+`keepFactIDs` is built from the exact rows just handed to
+`reducerBatchInsertFacts`, and that insert binds `fencing_token = $5` under a
+conflict guard that never lowers it, so by retire time every keep-set row carries
+`fencing_token >= $5`. The only rows `fencing_token <= $5` can still match are
+the ones sitting at exactly `$5`, which the UPDATE then sets to `$5`. Both
+properties the CTE existed for — the row is stamped, and a stale pass cannot
+downgrade a fresher row — already come from the insert.
+
+Postgres has no in-place UPDATE, so a no-op UPDATE is not a free UPDATE. Each
+match wrote a SECOND row version per canonical decision per intent execution:
+
+```
+$ ESHU_POSTGRES_DSN=... go test ./internal/storage/postgres \
+    -run TestContainerImageIdentityRetireDoesNotRewriteKeepSetRowsLive -count=1 -v
+--- FAIL: TestContainerImageIdentityRetireDoesNotRewriteKeepSetRowsLive
+    keep-set row xmin moved 879 -> 880: the retire rewrote a row it was only
+    meant to keep.
+```
+
+`fencing_token` was unchanged across that move — the row version was pure cost:
+doubled WAL, doubled dead tuples, and doubled vacuum pressure on this domain's
+hot write path. The committed cost budget counts STATEMENTS, and the count stayed
+at two, so no committed gate saw it. The new proof counts row VERSIONS via
+`xmin`, which is the unit the cost was actually paid in, and samples the keep-set
+row from inside the insert/retire window so the token assertion cannot be
+satisfied by the retire.
+
+Dropping the CTE also removes a lock phase. It took row locks over the keep-set
+while the DELETE took them over the complement, and Postgres specifies no
+sub-statement ordering within a `WITH`, so two concurrent same-scope retires with
+crossed keep/delete sets — `r1` in keepA ∩ deleteB, `r2` in keepB ∩ deleteA,
+which is precisely the stalled-worker shape this fence exists for — could
+deadlock ABBA. An independent reproduction on the sibling branch measured it:
+`deadlock detected 4/4` with the CTE, clean `3/3` with it removed. A single
+`DELETE` scanning one index order cannot.
+
+The retire is now a bare fenced `DELETE`.
+`TestContainerImageIdentityRetireQueryIsASingleDeleteAndNothingElse` rejects any
+reintroduced `WITH`, `UPDATE`, or `INSERT`, and the frozen-statement test carries
+the new text.
+
+### Live proofs (all five)
 
 ```
 $ ESHU_POSTGRES_DSN=postgresql://eshu:change-me@localhost:55847/eshu \
     go test ./internal/storage/postgres -run 'ContainerImageIdentity.*Live' -count=1 -v
---- PASS: TestContainerImageIdentityRetireCannotDeleteFresherEvidenceRowsLive (0.82s)
---- PASS: TestContainerImageIdentityFreshlyInsertedRowIsFencedBeforeItIsVisibleLive (1.24s)
---- PASS: TestContainerImageIdentityRetireBoundedToOwnPartitionLive (1.55s)
---- PASS: TestContainerImageIdentityRetireEmptyKeepSetClearsDemotedGenerationLive (1.67s)
-ok  github.com/eshu-hq/eshu/go/internal/storage/postgres  14.739s
+--- PASS: TestContainerImageIdentityRetireCannotDeleteFresherEvidenceRowsLive (0.44s)
+--- PASS: TestContainerImageIdentityFreshlyInsertedRowIsFencedBeforeItIsVisibleLive (0.16s)
+--- PASS: TestContainerImageIdentityRetireBoundedToOwnPartitionLive (0.22s)
+--- PASS: TestContainerImageIdentityRetireEmptyKeepSetClearsDemotedGenerationLive (0.16s)
+--- PASS: TestContainerImageIdentityRetireDoesNotRewriteKeepSetRowsLive (0.14s)
+ok  github.com/eshu-hq/eshu/go/internal/storage/postgres  4.895s
 ```
 
 They live in `go/internal/storage/postgres`, not `go/internal/reducer`, and are
@@ -379,27 +468,46 @@ superseded contradiction, which is exactly what a regressed retire produces.
 `go/internal/goldengate` (the query-shape counterpart to `RequiredNode`'s
 `MaximumNodePropertyCount`), covered by `TestEvaluateQueryShape`'s
 `maximum results ceiling` and `maximum results without an array result field`
-subtests. Exactly one row matches that narrowing today; see
-`docs/internal/evidence/5428-built-from-projection-rescinded.md`, which records
-that "narrowing selects the same single row".
+subtests.
+
+Exactly one row matches that narrowing today, and the on-point measurement is in
+the same snapshot file: the sibling `list_supply_chain_impact_findings`
+description records, from the live corpus and post-#5810, that this digest
+carries 16 `reducer_container_image_identity` rows and that "only ONE ... names
+the BUILDING repository (github.com/eshu-hq/supply-chain-demo,
+repository:r_69256c06)" — which is exactly the `source_repository_ids` value this
+assertion narrows on. The other fifteen name only the deploying repository and
+cannot match.
+
+That is the statement to cite, not
+`docs/internal/evidence/5428-built-from-projection-rescinded.md`'s "narrowing
+selects the same single row". The 5428 sentence is about the reducer-internal
+`cicdImageMatchesForRepository` narrowing, which is scoped to a single digest;
+the pinned MCP query filters on `source_repository_id` across all digests and
+scopes, so 5428 does not measure the set this ceiling bounds.
 
 ## Cost
 
 The `container-image-identity` cost budget moves from 1 statement to 2, and
-stays at 2 after the fence: the retire is a single set-based stamp-plus-delete
-CTE regardless of decision count, so the per-decision bound the budget actually
-guards is unchanged in shape. The N+1 negative control costs 4 and still exceeds
-the budget.
+stays at 2 after the fence: the retire is a single set-based `DELETE` regardless
+of decision count, so the per-decision bound the budget actually guards is
+unchanged in shape. The N+1 negative control costs 4 and still exceeds the
+budget.
+
+Note what that budget does NOT bound. It counts statements, so it was blind to
+the dropped stamping CTE's per-row cost — a second `fact_records` row version per
+canonical decision, on every intent execution, inside a statement count that
+never moved. Row-version cost is now pinned separately by
+`TestContainerImageIdentityRetireDoesNotRewriteKeepSetRowsLive`.
 
 The batched insert gains one bind array (`fencing_token`, 16 columns instead of
-15) and one `GREATEST` expression in its `ON CONFLICT` set-list. No extra
-statement, no extra round-trip. `reducerFactBatchSize` is unchanged at 1000, and
-1000 rows x 16 columns is still well under Postgres' 65535 bind-parameter
-ceiling. Callers that leave `reducerFactRow.FencingToken` at zero write `0`,
-which is the column default they already had, and `GREATEST(existing, 0)` leaves
-an existing row's token untouched — pinned by
-`decodeCloudInventoryBatchedRows`, which now asserts a non-opted-in domain binds
-`0` for every row.
+15) and one comparison in its `ON CONFLICT` clause. No extra statement, no extra
+round-trip. `reducerFactBatchSize` is unchanged at 1000, and 1000 rows x 16
+columns is still well under Postgres' 65535 bind-parameter ceiling. Callers that
+leave `reducerFactRow.FencingToken` at zero write `0`, which is the column
+default they already had, and `0 <= 0` admits their update unchanged — pinned by
+`decodeCloudInventoryBatchedRows` on the bind side and by
+`TestReducerFactBatchInsertStaysInertForUnfencedWritersLive` on the SQL side.
 
 Performance: the write path gains exactly one bounded statement per intent
 execution, O(1) in decision count. No hot-path Cypher, graph write, or query

@@ -110,11 +110,23 @@ its lease still writes, and an unfenced retire lets it DELETE the rows of the
 worker that overtook it: strictly worse than the stale row it was added to
 remove. Rank writers by when their evidence was READ (never by write time, which
 ranks the stalled worker highest), stamp `fact_records.fencing_token` with that
-watermark, and delete only rows at or below it. Two further traps: a zero
-watermark must be a hard error, because `fencing_token <= 0` matches everything;
-and the token must be carried on the INSERT, not only stamped by the retire — a
-row left at the column default `0` between the two statements is durable,
-visible, and deletable by any concurrent stalled worker.
+watermark, and delete only rows at or below it. Three further traps:
+
+- A zero watermark must be a hard error, because `fencing_token <= 0` matches
+  everything and the retire runs completely unfenced with nothing saying so.
+- The token must be stamped by the INSERT. A row left at the column default `0`
+  between the insert and the retire is durable, visible, and deletable by any
+  concurrent stalled worker, because `0` is at or below every token.
+- Stamp it on the INSERT and NOWHERE ELSE. Re-stamping the keep-set from the
+  retire — the `WITH stamped AS (UPDATE ...)` shape — is redundant once the
+  insert carries the token, and redundant is not free: Postgres has no in-place
+  UPDATE, so a no-op stamp still writes a second row version per row per
+  execution (measured: keep-set `xmin` 879 → 880 with the token unchanged), and a
+  statement-counting cost budget sees none of it. It is also a measured ABBA
+  deadlock: the CTE locks the keep-set while the DELETE locks the complement,
+  `WITH` specifies no ordering between them, and two concurrent same-scope
+  retires with crossed keep/delete sets are exactly the stalled-worker shape the
+  fence exists to handle. Ship the fenced `DELETE` alone.
 
 ### Change NornicDB batch sizes or phase-group tuning
 

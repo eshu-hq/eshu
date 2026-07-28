@@ -34,12 +34,42 @@ import (
 // the existing $1..$15 bind mapping — which IS the column contract this statement
 // is reviewed on — is untouched by the addition.
 //
-// On conflict the token is raised with GREATEST, never assigned: a stale pass
-// re-upserting a row that a fresher pass already wrote must not DOWNGRADE its
-// token, or the next stale retire would delete it. Callers that leave
-// reducerFactRow.FencingToken at its zero value insert 0, which is the column
-// default they relied on before, and GREATEST(existing, 0) leaves an existing
-// row's token alone — so this is a no-op for every writer that has not opted in.
+// # Why the conflict clause is guarded rather than merged
+//
+// The conflict update is gated on `fact_records.fencing_token <=
+// EXCLUDED.fencing_token`, so a stale pass's upsert is rejected WHOLE — content
+// columns included — rather than being merged into the existing row.
+//
+// Raising only the token (`fencing_token = GREATEST(existing, excluded)`) with
+// the content columns assigned unconditionally protects the token and nothing
+// else, and that combination is worse than no fence at all. This domain's fact
+// identity embeds only (scope_id, generation_id, image_ref, outcome), while
+// source_revision, source_revision_provenance, build_provenance_repository_ids
+// and evidence_fact_ids are payload-only and are filled in by cross-scope
+// enrichment (applyCIRunDigestRevision/applySLSADigestRevision) whose visibility
+// depends on which generations are active at load time. So two passes that agree
+// on the outcome collide on the same fact_id with DIFFERENT payloads — a pass
+// that read before the CI/SLSA generation activated carries a poorer one. Let the
+// stalled pass overwrite the content while GREATEST keeps the fresher token, and
+// the row advertises a freshness its payload does not have; the retire's fence
+// then reads that token and actively protects the wrong row from correction.
+// Measured on Postgres 16 by TestReducerFactBatchInsertRejectsStaleContentUpsertLive,
+// which is red on the GREATEST form.
+//
+// `<=`, not `<`. A retry, a redelivery, or a second chunk of the same pass
+// carries the SAME watermark, because the watermark is the evidence-read time
+// and a pass reads its evidence once; `<` would discard all of them while
+// reporting success. With the guard in place an explicit GREATEST would be dead
+// text — no path can lower a token, so the surviving value is always the larger.
+//
+// The guard is inert for the six callers that never opted in: they bind 0 and
+// their rows sit at the column default 0, so `0 <= 0` holds and the update
+// proceeds exactly as before. That is a property of the SQL rather than of the
+// arguments, so it is proven against real Postgres by
+// TestReducerFactBatchInsertStaysInertForUnfencedWritersLive rather than
+// asserted. The shape matches upsertFactBatchSuffix
+// (go/internal/storage/postgres/facts_streaming.go, #4444), which already fences
+// the collector ingest path into this same table the same way.
 const reducerFactBatchInsertQuery = `
 INSERT INTO fact_records (
     fact_id,
@@ -124,7 +154,8 @@ ON CONFLICT (fact_id) DO UPDATE SET
     ingested_at       = EXCLUDED.ingested_at,
     is_tombstone      = EXCLUDED.is_tombstone,
     payload           = EXCLUDED.payload,
-    fencing_token     = GREATEST(fact_records.fencing_token, EXCLUDED.fencing_token)
+    fencing_token     = EXCLUDED.fencing_token
+WHERE fact_records.fencing_token <= EXCLUDED.fencing_token
 `
 
 // reducerFactBatchSize bounds how many fact rows are sent per unnest statement.
@@ -223,9 +254,12 @@ func reducerBatchInsertFacts(
 //
 // This and execReducerFactVersionedChunk are deliberately kept as separate,
 // explicit parallel functions rather than unified behind a shared helper. Each
-// mirrors one distinct positional query (the 15-column unversioned insert vs the
-// 16-column versioned insert, which interleaves schema_version at position 6),
-// and the array order here IS the column↔bind-parameter contract. Collapsing
+// mirrors one distinct positional query. Both bind 16 columns and differ by
+// WHICH sixteenth, not by count: the unversioned insert appends fencing_token at
+// $16, the versioned insert interleaves schema_version at position 6 and shifts
+// every later parameter by one. Same arity, different mapping, is precisely the
+// shape a shared builder would silently get wrong — and the array order here IS
+// the column↔bind-parameter contract this change was reviewed on. Collapsing
 // them behind a generic argument builder would hide that mapping and reintroduce
 // exactly the column-misplacement risk this change was reviewed against on the
 // governed-fact path, for no runtime benefit; the duplication is intentional.

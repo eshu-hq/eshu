@@ -35,22 +35,42 @@ func containerImageIdentityFenceWrite(
 	}
 }
 
-// TestContainerImageIdentityRetireQueryDeletesOnlyFactRecords is the cheap
-// belt-and-braces companion to the frozen statement text: whatever the
-// statement says, exactly one DELETE targeting exactly fact_records may appear
-// in it. The stamp half is an UPDATE and must stay one.
-func TestContainerImageIdentityRetireQueryDeletesOnlyFactRecords(t *testing.T) {
+// TestContainerImageIdentityRetireQueryIsASingleDeleteAndNothingElse is the
+// cheap belt-and-braces companion to the frozen statement text: whatever the
+// statement says, it must be exactly one DELETE targeting exactly fact_records
+// and must contain no second write phase.
+//
+// The retire used to lead with a `WITH stamped AS (UPDATE ...)` CTE that
+// re-stamped the keep-set. Once reducerFactBatchInsertQuery began binding the
+// same token on the INSERT that CTE became a proven no-op — and not a free one:
+// it rewrote every kept row on every execution (a measured second row version
+// per canonical decision) and, because it locked the keep-set while the DELETE
+// locked the complement with no specified ordering inside a `WITH`, it was a
+// measured ABBA deadlock source between two concurrent same-scope retires with
+// crossed keep/delete sets, the exact stalled-worker shape the fence exists for.
+//
+// This assertion is what stops a second write phase — a CTE, a chained UPDATE,
+// an INSERT — from being reintroduced. The frozen-text test would also catch it,
+// but this one names WHY in its failure message.
+func TestContainerImageIdentityRetireQueryIsASingleDeleteAndNothingElse(t *testing.T) {
 	t.Parallel()
 
 	normalized := normalizeReducerSQL(containerImageIdentityRetireQuery)
 	if got := strings.Count(normalized, "DELETE"); got != 1 {
 		t.Fatalf("DELETE keywords in retire statement = %d, want exactly 1:\n%s", got, normalized)
 	}
-	if !strings.Contains(normalized, "DELETE FROM fact_records") {
-		t.Fatalf("the retire's only DELETE must target fact_records:\n%s", normalized)
+	if !strings.HasPrefix(normalized, "DELETE FROM fact_records") {
+		t.Fatalf("the retire must BE a DELETE against fact_records, with no preamble:\n%s", normalized)
 	}
-	if got := strings.Count(normalized, "UPDATE"); got != 1 {
-		t.Fatalf("UPDATE keywords in retire statement = %d, want exactly 1 (the stamp CTE):\n%s", got, normalized)
+	for _, forbidden := range []string{"UPDATE", "INSERT", "WITH "} {
+		if strings.Contains(normalized, forbidden) {
+			t.Fatalf(
+				"retire statement contains %q; it must stay a single DELETE. A second write phase "+
+					"re-stamps rows the INSERT already stamped (a no-op that still costs a row version) "+
+					"and reintroduces the measured ABBA deadlock between crossed keep/delete sets:\n%s",
+				forbidden, normalized,
+			)
+		}
 	}
 }
 

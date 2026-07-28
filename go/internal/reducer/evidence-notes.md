@@ -498,13 +498,15 @@ All four now build a `[]reducerFactRow` and call the new shared
 `reducerBatchInsertFacts` (`reducer_fact_batch_insert.go`), which sends rows in
 bounded chunks of `reducerFactBatchSize` (1000) via `reducerFactBatchInsertQuery`
 — a writer-local unnest `INSERT INTO fact_records` whose column list, conflict
-key, and `ON CONFLICT (fact_id) DO UPDATE` set are byte-equivalent to the shared
-`canonicalReducerFactInsertQuery`. The shared query is unchanged so its other
+key, and `ON CONFLICT (fact_id) DO UPDATE` set mirror the shared
+`canonicalReducerFactInsertQuery`. They were byte-equivalent when this batching
+landed; #5847 then appended `fencing_token` to the batched statement only, so
+that is now the one and only divergence. The shared query is unchanged so its other
 13 per-row callers are untouched. `cloud_inventory_admission` keeps its
 per-resource `collector_kind` (each resource can be a different provider) by
 setting `reducerFactRow.CollectorKind` per row inside the loop.
 
-The 1000-row chunk bounds the bind-parameter count: 15 columns × 1000 = 15000
+The 1000-row chunk bounds the bind-parameter count: 16 columns × 1000 = 16000
 parameters, well under the Postgres 65535 ceiling, and caps per-statement memory
 and lock footprint for a single scope. Each chunk is one statement on the same
 autocommit `*sql.DB` handle the writers already used — no transaction boundary

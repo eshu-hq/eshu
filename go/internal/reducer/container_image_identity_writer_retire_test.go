@@ -14,27 +14,23 @@ import (
 // retire statement. The bounding test compares the production constant against
 // this string in full, not by substring, so ANY widening of the DELETE — an
 // appended `OR TRUE`, a dropped predicate, a different target table — fails the
-// test. The `fencing_token <= $5` guard on BOTH halves is frozen here too: cut
-// it from the DELETE and a stalled worker's late retire deletes the rows a
-// fresher worker just wrote, which is a worse failure than the stale row this
-// retire exists to remove.
+// test. The `fencing_token <= $5` guard is frozen here too: cut it and a stalled
+// worker's late retire deletes the rows a fresher worker just wrote, which is a
+// worse failure than the stale row this retire exists to remove.
 //
 // A substring/`strings.Contains` check would NOT catch that: appending
 // `OR TRUE` leaves every original fragment present while turning the statement
 // into an unbounded `DELETE FROM fact_records`. That exact false green was found
 // on the sibling #5837 change, which is why this domain freezes the whole
 // statement instead.
-const containerImageIdentityRetireStatement = "WITH stamped AS ( " +
-	"UPDATE fact_records " +
-	"SET fencing_token = $5 " +
-	"WHERE fact_kind = $1 " +
-	"AND scope_id = $2 " +
-	"AND generation_id = $3 " +
-	"AND fact_id = ANY($4::text[]) " +
-	"AND fencing_token <= $5 " +
-	"RETURNING fact_id " +
-	") " +
-	"DELETE FROM fact_records " +
+//
+// The statement is a bare DELETE. It deliberately does NOT re-stamp the keep-set
+// — reducerFactBatchInsertQuery binds the same token on the INSERT, so a keep-set
+// stamp here is a no-op that still rewrites every kept row; see
+// containerImageIdentityRetireQuery, and
+// TestContainerImageIdentityRetireDoesNotRewriteKeepSetRowsLive for the
+// row-version proof.
+const containerImageIdentityRetireStatement = "DELETE FROM fact_records " +
 	"WHERE fact_kind = $1 " +
 	"AND scope_id = $2 " +
 	"AND generation_id = $3 " +
@@ -48,13 +44,18 @@ func normalizeReducerSQL(query string) string {
 	return strings.Join(strings.Fields(query), " ")
 }
 
-// isContainerImageIdentityRetireStatement recognizes the retire by its
-// stamp-plus-delete CTE preamble rather than by the constant identifier, so a
-// widened production statement is still recognized as "the retire" and fails the
-// assertion that inspects it, instead of vanishing from the call list and
-// turning a real regression into a confusing "no retire issued".
+// isContainerImageIdentityRetireStatement recognizes the retire by its DELETE
+// rather than by the constant identifier, so a widened production statement is
+// still recognized as "the retire" and fails the assertion that inspects it,
+// instead of vanishing from the call list and turning a real regression into a
+// confusing "no retire issued".
+//
+// The match is on the DELETE — which is what the retire IS — rather than on a
+// preamble. A preamble match is exactly what broke when the stamping CTE was
+// dropped, and a recognizer keyed on a fragment a rewrite can delete stops
+// recognizing the statement instead of failing on it.
 func isContainerImageIdentityRetireStatement(query string) bool {
-	return strings.HasPrefix(normalizeReducerSQL(query), "WITH stamped AS (")
+	return strings.Contains(normalizeReducerSQL(query), "DELETE FROM fact_records")
 }
 
 // containerImageIdentityRetireCall returns the single retire statement issued by

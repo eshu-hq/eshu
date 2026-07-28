@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -41,6 +42,45 @@ import (
 //	  go test ./internal/storage/postgres -run ContainerImageIdentityRetire.*Live -count=1
 
 const containerImageIdentityLiveFactKind = "reducer_container_image_identity"
+
+// containerImageIdentityRetireTrigger is the fragment that identifies the retire
+// statement inside an execer wrapper. It matches the statement's only DELETE,
+// which is what the retire IS, rather than a preamble that a future rewrite
+// could drop — an interleaving hook keyed on a vanished fragment never fires and
+// silently proves nothing.
+const containerImageIdentityRetireTrigger = "DELETE FROM fact_records"
+
+// containerImageIdentityInterleavingExecer runs a hook the first time the
+// wrapped writer issues a statement matching trigger, BEFORE that statement
+// reaches the database.
+//
+// It exists to make a two-worker interleaving deterministic against real
+// Postgres using the real production statements: the hook fires between worker
+// B's INSERT and worker B's retire, which is exactly the window a concurrent
+// stalled worker can land in — and, for the row-version proof, the only moment
+// at which the freshly inserted row can be observed before the retire touches
+// it.
+type containerImageIdentityInterleavingExecer struct {
+	db      *sql.DB
+	trigger string
+	hook    func()
+	fired   bool
+}
+
+// ExecContext fires the hook once, before the first statement containing the
+// trigger fragment reaches the database, then forwards every statement
+// unchanged.
+func (e *containerImageIdentityInterleavingExecer) ExecContext(
+	ctx context.Context,
+	query string,
+	args ...any,
+) (sql.Result, error) {
+	if !e.fired && e.hook != nil && strings.Contains(query, e.trigger) {
+		e.fired = true
+		e.hook()
+	}
+	return e.db.ExecContext(ctx, query, args...)
+}
 
 // containerImageIdentityRetireLiveDB opens the DSN-gated database and applies
 // the bootstrap schema, skipping the whole test when no DSN is configured.

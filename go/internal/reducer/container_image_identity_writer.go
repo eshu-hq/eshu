@@ -111,6 +111,14 @@ func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisio
 	}
 
 	blindRetire := len(decisions) == 0 && retired > 0
+	// The partition shrank: rows left it with no replacement. An ordinary
+	// re-classification retires at most one superseded row per image it rewrites,
+	// so it can never exceed its own write count; exceeding it is the demotion
+	// shape — and a demotion is exactly what an evidence-visibility gap
+	// counterfeits. blindRetire is the TOTAL case of that; this is the partial one
+	// it cannot see, where a pass reads the cross-scope OCI facts for some images
+	// in the generation and not others.
+	partialRetire := retired > len(decisions) && !blindRetire
 	if blindRetire {
 		// Loud on purpose. An empty canonical set is the correct answer for a
 		// genuine demotion, but classifyContainerImageRef returns the same
@@ -131,14 +139,33 @@ func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisio
 			"evidence_as_of", write.EvidenceAsOf.UTC(),
 		)
 	}
+	if partialRetire {
+		// One line per pass, and never both: blindRetire already covers the total
+		// case, so an operator sees exactly one signal for one partition shrink.
+		// canonical_writes is logged beside retired because the shrink is the
+		// RELATION between them — retired= alone has no baseline to be read
+		// against, which is why the count on its own was not a signal.
+		slog.Warn(
+			"container image identity retired more decisions than it wrote",
+			"domain", string(DomainContainerImageIdentity),
+			"intent_id", write.IntentID,
+			"scope_id", write.ScopeID,
+			"generation_id", write.GenerationID,
+			"retired", retired,
+			"canonical_writes", len(decisions),
+			"evidence_as_of", write.EvidenceAsOf.UTC(),
+		)
+	}
 
 	return ContainerImageIdentityWriteResult{
 		CanonicalWrites:               len(decisions),
 		Retired:                       retired,
 		RetiredWithoutCanonicalWrites: blindRetire,
+		RetiredMoreThanWritten:        retired > len(decisions),
 		EvidenceSummary: fmt.Sprintf(
-			"wrote container image identity decisions %d retired=%d retired_without_canonical_writes=%t",
-			len(decisions), retired, blindRetire,
+			"wrote container image identity decisions %d retired=%d retired_without_canonical_writes=%t "+
+				"retired_more_than_written=%t",
+			len(decisions), retired, blindRetire, retired > len(decisions),
 		),
 	}, nil
 }

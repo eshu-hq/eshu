@@ -4,10 +4,7 @@
 package postgres
 
 import (
-	"context"
-	"database/sql"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -16,7 +13,10 @@ import (
 
 // The #5847 FENCE proofs: who may retire, as opposed to which rows a retire may
 // touch. The partition-bounding and empty-keep-set proofs, plus the shared
-// helpers both files use, live in container_image_identity_retire_live_test.go.
+// helpers every file in this trio uses — including
+// containerImageIdentityInterleavingExecer — live in
+// container_image_identity_retire_live_test.go. The retire's write-amplification
+// proof lives in container_image_identity_retire_rowversion_live_test.go.
 
 // TestContainerImageIdentityRetireCannotDeleteFresherEvidenceRowsLive is the
 // #5847 fence proof, and the reason the fence exists at all.
@@ -98,33 +98,6 @@ func TestContainerImageIdentityRetireCannotDeleteFresherEvidenceRowsLive(t *test
 	}
 }
 
-// containerImageIdentityInterleavingExecer runs a hook the first time the
-// wrapped writer issues a statement matching trigger, BEFORE that statement
-// reaches the database.
-//
-// It exists to make a two-worker interleaving deterministic against real
-// Postgres using the real production statements: the hook fires between worker
-// B's INSERT and worker B's retire, which is exactly the window a concurrent
-// stalled worker can land in.
-type containerImageIdentityInterleavingExecer struct {
-	db      *sql.DB
-	trigger string
-	hook    func()
-	fired   bool
-}
-
-func (e *containerImageIdentityInterleavingExecer) ExecContext(
-	ctx context.Context,
-	query string,
-	args ...any,
-) (sql.Result, error) {
-	if !e.fired && e.hook != nil && strings.Contains(query, e.trigger) {
-		e.fired = true
-		e.hook()
-	}
-	return e.db.ExecContext(ctx, query, args...)
-}
-
 // TestContainerImageIdentityFreshlyInsertedRowIsFencedBeforeItIsVisibleLive is
 // the regression for the hole the stamp-plus-delete CTE does NOT close on its
 // own.
@@ -162,7 +135,7 @@ func TestContainerImageIdentityFreshlyInsertedRowIsFencedBeforeItIsVisibleLive(t
 	var staleErr error
 	interleaved := &containerImageIdentityInterleavingExecer{
 		db:      sqlDB,
-		trigger: "WITH stamped AS",
+		trigger: containerImageIdentityRetireTrigger,
 		hook: func() {
 			// Worker A, the stalled holder: it reads OLDER evidence and lands
 			// here, after worker B's row is committed but before B has stamped it.

@@ -247,3 +247,74 @@ func TestContainerImageIdentityWriterDoesNotFlagAnEmptyRetire(t *testing.T) {
 		t.Fatal("RetiredWithoutCanonicalWrites = true for a retire that deleted nothing")
 	}
 }
+
+// TestContainerImageIdentityWriterFlagsAPartialEvidenceVisibilityGap closes the
+// narrow half of the blind-retire signal.
+//
+// RetiredWithoutCanonicalWrites only fires when a pass produced ZERO canonical
+// decisions. An evidence-visibility gap does not have to be total: a pass can
+// see the cross-scope OCI observations for SOME images in a generation and not
+// others — five canonical decisions before, one after — and retire the four
+// remaining rows while still writing one. That is the same defect, partially
+// applied, and the total-gap flag cannot see it. Before this signal existed the
+// only trace was the raw retired= count, which an operator has no baseline to
+// compare against.
+//
+// The discriminator is that the partition SHRANK. An ordinary re-classification
+// retires at most one superseded row per image it rewrites, so it can never
+// retire more rows than it wrote; retiring more than were written means rows
+// left the partition with no replacement, which is what a demotion — genuine or
+// gap-induced — looks like from here.
+func TestContainerImageIdentityWriterFlagsAPartialEvidenceVisibilityGap(t *testing.T) {
+	t.Parallel()
+
+	db := &failingContainerImageIdentityExecer{retiredRows: 4}
+	writer := PostgresContainerImageIdentityWriter{DB: db}
+
+	result, err := writer.WriteContainerImageIdentityDecisions(
+		context.Background(),
+		containerImageIdentityFailureWrite(),
+	)
+	if err != nil {
+		t.Fatalf("WriteContainerImageIdentityDecisions() error = %v, want nil", err)
+	}
+	if got, want := result.CanonicalWrites, 1; got != want {
+		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
+	}
+	if result.RetiredWithoutCanonicalWrites {
+		t.Fatal("RetiredWithoutCanonicalWrites = true; this pass DID write a canonical decision")
+	}
+	if !result.RetiredMoreThanWritten {
+		t.Fatal("RetiredMoreThanWritten = false; a pass that retired 4 rows while writing 1 shrank " +
+			"the partition, which is what a partial evidence-visibility gap looks like from the writer")
+	}
+	if !strings.Contains(result.EvidenceSummary, "retired_more_than_written=true") {
+		t.Fatalf("EvidenceSummary = %q, want it to name the partition shrink", result.EvidenceSummary)
+	}
+}
+
+// TestContainerImageIdentityWriterDoesNotFlagAnOrdinaryReclassification keeps
+// the shrink signal off the common correct path: a replay that re-classifies the
+// image it just wrote retires exactly the one superseded row it replaced, so the
+// partition did not shrink and nothing is worth waking an operator for.
+func TestContainerImageIdentityWriterDoesNotFlagAnOrdinaryReclassification(t *testing.T) {
+	t.Parallel()
+
+	db := &failingContainerImageIdentityExecer{retiredRows: 1}
+	writer := PostgresContainerImageIdentityWriter{DB: db}
+
+	result, err := writer.WriteContainerImageIdentityDecisions(
+		context.Background(),
+		containerImageIdentityFailureWrite(),
+	)
+	if err != nil {
+		t.Fatalf("WriteContainerImageIdentityDecisions() error = %v, want nil", err)
+	}
+	if result.RetiredMoreThanWritten {
+		t.Fatalf(
+			"RetiredMoreThanWritten = true for retired=%d against %d canonical write(s); "+
+				"one-for-one replacement is the ordinary replay path, not a shrink",
+			result.Retired, result.CanonicalWrites,
+		)
+	}
+}

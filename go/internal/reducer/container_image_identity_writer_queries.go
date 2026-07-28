@@ -92,21 +92,41 @@ import (
 // (ContainerImageIdentityWrite.EvidenceAsOf, captured by the handler immediately
 // before its first fact load), not from when the write landed. Write time ranks
 // the stalled worker highest, which is backwards; evidence-read time ranks the
-// worker holding the stale view lowest, which is the whole point. The statement
-// does two things with it:
+// worker holding the stale view lowest, which is the whole point. The DELETE
+// removes only rows at or below this write's token, so rows written from fresher
+// evidence than ours survive us.
 //
-//   - the `stamped` CTE marks every row this execution just wrote with its own
-//     token, so the partition carries a durable record of how fresh each row's
-//     evidence was. The `fencing_token <= $5` guard on the UPDATE stops a stale
-//     pass from DOWNGRADING a fresher row's token.
-//   - the DELETE removes only rows at or below this write's token. Rows written
-//     from fresher evidence than ours survive us.
+// # Why the retire does NOT also stamp the keep-set
 //
-// The two sub-statements touch disjoint row sets by construction (`= ANY` vs
-// `<> ALL` on the same keep-set), so their concurrent execution inside one
-// statement is well-defined. Postgres runs a data-modifying CTE exactly once and
-// to completion whether or not the primary query reads its output, so the stamp
-// is not conditional on the DELETE matching anything.
+// An earlier shape led with a `WITH stamped AS (UPDATE ... SET fencing_token =
+// $5 ... WHERE fact_id = ANY($4) AND fencing_token <= $5)` CTE, on the reasoning
+// that the partition should carry a durable record of how fresh each row's
+// evidence was. It does — but the INSERT already supplies it. reducerFactRow
+// carries FencingToken and reducerFactBatchInsertQuery binds it, raising it with
+// GREATEST on conflict, so both properties the CTE was there for come from the
+// insert: the row is stamped, and a stale pass cannot downgrade a fresher row's
+// token.
+//
+// That left the CTE a proven no-op that still cost a write. keepFactIDs is built
+// from the exact rows just handed to reducerBatchInsertFacts, so by retire time
+// every keep-set row already carries `fencing_token >= $5`; the only rows
+// `fencing_token <= $5` can still match are the ones sitting at exactly `$5`,
+// which the UPDATE then sets to `$5`. Postgres has no in-place UPDATE, so each
+// match wrote a SECOND row version per canonical decision per intent execution —
+// doubled WAL, dead tuples, and vacuum pressure on this domain's hot write path
+// — while the committed cost budget, which counts STATEMENTS, stayed at two and
+// saw none of it. Measured on Postgres 16: keep-set `xmin` moved 879 -> 880 with
+// `fencing_token` unchanged. TestContainerImageIdentityRetireDoesNotRewriteKeep
+// SetRowsLive counts row versions rather than statements and is red on the CTE
+// shape.
+//
+// Dropping it also removes a lock phase. The CTE took row locks over the
+// keep-set while the DELETE took them over the complement, and Postgres does not
+// specify sub-statement ordering within a `WITH`. Two concurrent same-scope
+// retires with crossed keep/delete sets — r1 in keepA and deleteB, r2 in keepB
+// and deleteA, which is exactly the stalled-worker shape this fence exists for —
+// could therefore deadlock ABBA. A single DELETE scanning one index order
+// cannot.
 //
 // The token is a wall-clock microsecond reading, so it is monotonic across
 // reopens and retries without needing a durable counter — unlike the queue's
@@ -133,16 +153,6 @@ import (
 // writer flags that shape instead — see
 // ContainerImageIdentityWriteResult.RetiredWithoutCanonicalWrites.
 const containerImageIdentityRetireQuery = `
-WITH stamped AS (
-    UPDATE fact_records
-    SET fencing_token = $5
-    WHERE fact_kind = $1
-      AND scope_id = $2
-      AND generation_id = $3
-      AND fact_id = ANY($4::text[])
-      AND fencing_token <= $5
-    RETURNING fact_id
-)
 DELETE FROM fact_records
 WHERE fact_kind = $1
   AND scope_id = $2
