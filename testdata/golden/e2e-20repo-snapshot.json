@@ -4496,7 +4496,7 @@
         }
       },
       "export_supply_chain_impact_packet": {
-        "description": "MCP tool coverage shape for export_supply_chain_impact_packet; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for export_supply_chain_impact_packet; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5469 makes this CVE-2026-00000/supply-chain-demo-lib query non-vacuous (github_actions_workflows now declares an exact-pinned npm dependency on supply-chain-demo-lib@1.2.2, see the config_only version-resolution proof below); the finding's readiness state becomes ready_with_findings, and supplyChainPacketLimitations (investigation_packet_supply_chain.go) legitimately returns an empty slice for a fully-ready single-finding investigation, so the omitempty `limitations` key is correctly absent rather than a regression -- dropped from required_response_fields for that reason, not because the field stopped mattering for a genuinely incomplete investigation.",
         "required_response_fields": [
           "answer",
           "bounds",
@@ -4504,7 +4504,6 @@
           "freshness",
           "graph_answers",
           "identity",
-          "limitations",
           "missing_evidence",
           "packet_id",
           "redaction",
