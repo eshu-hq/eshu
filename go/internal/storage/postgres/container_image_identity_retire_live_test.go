@@ -106,14 +106,18 @@ func (e *containerImageIdentityInterleavingExecer) ExecContext(
 // never close to short — a first-time runner on an idle machine passes, and
 // only a first-time runner on a heavily loaded one sees that red.
 //
-// The split is about attribution. One shared deadline reports a slow SETUP as a
-// timeout in the PROOF, so the red above named the retire test while nothing in
-// the retire was slow. Separate deadlines make each failure name its own phase,
-// which is worth having at any DDL cost — and that cost only grows as migrations
-// are added. 90s remains the budget for what this test actually measures, so a
-// genuine hang in the retire path still trips it. ApplyBootstrap gets its own,
-// larger allowance sized for the loaded-host case that produced the red, and it
-// is amortized across every test in this file.
+// The split is about budget COUPLING, not about naming the failing phase: that
+// red was already labelled "apply bootstrap schema", by this same t.Fatalf,
+// before any split existed. What one shared deadline hides is a bootstrap that
+// is slow but FINITE — the old context was created BEFORE ApplyBootstrap ran, so
+// setup spending 30s left the proof 60s, and a retire that then timed out would
+// surface inside the retire with nothing in the retire being slow and no
+// bootstrap string to correct the reading. Starting the proof's clock after
+// ApplyBootstrap returns removes that coupling; 90s remains the budget for what
+// this test actually measures, so a genuine hang in the retire path still trips
+// it. ApplyBootstrap gets its own, larger allowance, amortized across every test
+// in this file: 5 minutes is headroom, not a derived size — its duration under
+// that near-200 load average was never measured.
 func containerImageIdentityRetireLiveDB(t *testing.T) (*sql.DB, context.Context) {
 	t.Helper()
 

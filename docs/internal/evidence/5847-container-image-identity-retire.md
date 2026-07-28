@@ -692,6 +692,17 @@ $ ESHU_POSTGRES_DSN=postgres://eshu:eshu@127.0.0.1:54872/eshu?sslmode=disable \
 --- PASS: TestContainerImageIdentityRetireCannotDeleteFresherEvidenceRowsLive (0.87s)
 ```
 
+That block pins `postgres:18-alpine`, while every other measurement in this
+document ran on Postgres 16 (the throwaway `eshu-cii-retire-pg` container, and
+the 16.14 that returned the `40P01`). 18 was used because it is what CI already
+stands up for this package's live tests:
+`.github/workflows/reducer-contention-gate.yml` runs
+`go test ./internal/storage/postgres/` under `ESHU_POSTGRES_DSN` against
+`image: postgres:18-alpine` — though that lane's `-run` regex selects only the
+contention, rank-once, and sign-in gates, not these retire proofs. The two sets
+are not being compared: these are schema-setup timings sizing a deadline, not a
+retire or deadlock result held against any Postgres 16 figure above.
+
 The budget was roughly 90x the cold-DDL cost, not short of it. What the first
 account left out is the machine: those reds were produced while this host sat at
 a load average near 200, from CPU load generators an earlier session leaked and
@@ -700,15 +711,29 @@ cold schema AND a saturated host, not cold schema alone. A first-time runner on
 an idle machine passes; a first-time runner on a heavily loaded one is the one
 who sees that red.
 
-The fix stands, but for attribution rather than for cost. One shared deadline
-reports a slow SETUP as a timeout in the PROOF: the red above names the retire
-test while nothing about the retire was slow, which is exactly the misreading a
-future reader would carry into a real retire hang. Splitting the deadlines makes
-each failure name its own phase, and that is worth having at any DDL cost —
-a cost that only grows as migrations are added. `ApplyBootstrap` runs under its
-own 5-minute allowance, sized for the loaded-host case that actually produced
-the red rather than for the sub-second idle one. The proof keeps exactly the 90
-seconds it had, so a genuine hang in the retire path still trips it.
+The fix stands, but for budget coupling rather than for cost or for attribution.
+The red above is not a mis-attributed failure: it is `apply bootstrap schema`,
+emitted by a `t.Fatalf` that predates the split — the same line is present at
+`d41b972b8`, `0cc4427b3`, `1eec626f3`, and `0e7c88a30` — so the pre-split helper
+already named the setup phase, and the `--- FAIL:` header names the retire test
+in both shapes because that is the test Go's runner had entered. That red is
+bootstrap exhausting the entire budget, correctly labelled as such.
+
+What one shared deadline does hide is a bootstrap that is slow but FINITE. The
+pre-split helper created its single 90-second context BEFORE calling
+`ApplyBootstrap`, so setup consuming 30 seconds left the proof 60, and a retire
+that then timed out would surface inside the retire with nothing about the
+retire being slow — that is the mis-attribution risk, and it never leaves a
+`bootstrap` string behind to correct the reading. Splitting removes the coupling:
+the proof's clock starts after `ApplyBootstrap` returns, so it gets its full 90
+seconds whatever setup cost, and a genuine hang in the retire path still trips
+it.
+
+`ApplyBootstrap` runs under its own 5-minute allowance. That number is headroom,
+not a derived size: `ApplyBootstrap`'s duration under the load average near 200
+that produced the red was never measured, so 5 minutes was chosen to sit far
+above the 0.85-1.0 s cost measured above at load 3.6-13, rather than fitted to
+the loaded-host case.
 
 ### The transient no-DSN `internal/storage/postgres` failure
 
