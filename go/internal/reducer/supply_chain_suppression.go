@@ -100,6 +100,19 @@ type vulnerabilitySuppressionScope struct {
 	RepositoryID  string
 	SubjectDigest string
 	EvidencePath  []string
+	// Environment, WorkloadID, and ServiceID narrow a suppression to one
+	// deployment context (#5466), e.g. "not exploitable in staging, still
+	// visible in prod" instead of digest-everywhere. All three are optional
+	// and additive: an empty value is a wildcard, matching every finding
+	// regardless of its environment/workload/service evidence, so an
+	// existing suppression that never sets them behaves exactly as before.
+	// Environment is canonicalized through environment.Canonical (the
+	// shared environment-alias contract, go/internal/environment) at decode
+	// time so alias forms like "production" match the canonical "prod" the
+	// finding's own deployment evidence already resolved to.
+	Environment string
+	WorkloadID  string
+	ServiceID   string
 }
 
 // vulnerabilitySuppression is a decoded VEX or operator-policy suppression
@@ -238,6 +251,15 @@ func suppressionAdjacent(finding SupplyChainImpactFinding, s vulnerabilitySuppre
 	if s.Scope.SubjectDigest != "" && strings.EqualFold(s.Scope.SubjectDigest, finding.SubjectDigest) {
 		return true
 	}
+	if s.Scope.Environment != "" && scopeListAnchorMatches(s.Scope.Environment, finding.Environments) {
+		return true
+	}
+	if s.Scope.WorkloadID != "" && scopeListAnchorMatches(s.Scope.WorkloadID, finding.WorkloadIDs) {
+		return true
+	}
+	if s.Scope.ServiceID != "" && scopeListAnchorMatches(s.Scope.ServiceID, finding.ServiceIDs) {
+		return true
+	}
 	return false
 }
 
@@ -270,10 +292,46 @@ func suppressionScopeMatchesFinding(finding SupplyChainImpactFinding, s vulnerab
 	if !scopeAnchorMatches(s.Scope.SubjectDigest, finding.SubjectDigest) {
 		return false
 	}
+	// Environment/WorkloadID/ServiceID match against the finding's
+	// multi-value evidence lists rather than a single field: a finding can
+	// carry more than one deployment's environment/workload/service. An
+	// empty scope value is a wildcard (scopeListAnchorMatches short-circuits
+	// true); a non-empty scope value against an empty finding list fails
+	// closed to no-match so a suppression can never hide a finding it has no
+	// evidence for (#5466 fail-closed rule -- ambiguity resolves to visible).
+	if !scopeListAnchorMatches(s.Scope.Environment, finding.Environments) {
+		return false
+	}
+	if !scopeListAnchorMatches(s.Scope.WorkloadID, finding.WorkloadIDs) {
+		return false
+	}
+	if !scopeListAnchorMatches(s.Scope.ServiceID, finding.ServiceIDs) {
+		return false
+	}
 	if !evidencePathContainsAll(finding.EvidencePath, s.Scope.EvidencePath) {
 		return false
 	}
 	return true
+}
+
+// scopeListAnchorMatches reports whether a scoped anchor value matches at
+// least one element of a finding's multi-value evidence field (Environments,
+// WorkloadIDs, or ServiceIDs). An empty scoped value is a wildcard and always
+// matches, including a finding with no evidence for that anchor. A non-empty
+// scoped value against an empty observed list fails closed to no-match: a
+// finding with no evidence for the anchor a suppression names is never
+// narrowed into by that suppression (#5466).
+func scopeListAnchorMatches(scoped string, observed []string) bool {
+	scoped = strings.TrimSpace(scoped)
+	if scoped == "" {
+		return true
+	}
+	for _, value := range observed {
+		if strings.EqualFold(scoped, strings.TrimSpace(value)) {
+			return true
+		}
+	}
+	return false
 }
 
 func scopeAnchorMatches(scoped, observed string) bool {
@@ -315,6 +373,9 @@ func suppressionScopeIsEmpty(scope vulnerabilitySuppressionScope) bool {
 		strings.TrimSpace(scope.PURL) == "" &&
 		strings.TrimSpace(scope.RepositoryID) == "" &&
 		strings.TrimSpace(scope.SubjectDigest) == "" &&
+		strings.TrimSpace(scope.Environment) == "" &&
+		strings.TrimSpace(scope.WorkloadID) == "" &&
+		strings.TrimSpace(scope.ServiceID) == "" &&
 		len(scope.EvidencePath) == 0
 }
 

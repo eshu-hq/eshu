@@ -37,7 +37,7 @@ func suppressionReasonOrDefault(s vulnerabilitySuppression, state SupplyChainSup
 func suppressionScopeMismatchReason(finding SupplyChainImpactFinding, s vulnerabilitySuppression) string {
 	if suppressionScopeIsEmpty(s.Scope) {
 		return fmt.Sprintf(
-			"suppression %s scope mismatch: empty scope; an applied scope MUST specify at least one of cve_id, advisory_id, package_id, purl, repository_id, subject_digest, or evidence_path so a malformed fact cannot hide every finding",
+			"suppression %s scope mismatch: empty scope; an applied scope MUST specify at least one of cve_id, advisory_id, package_id, purl, repository_id, subject_digest, evidence_path, environment, workload_id, or service_id so a malformed fact cannot hide every finding",
 			s.SuppressionID,
 		)
 	}
@@ -62,6 +62,15 @@ func suppressionScopeMismatchReason(finding SupplyChainImpactFinding, s vulnerab
 	}
 	if !evidencePathContainsAll(finding.EvidencePath, s.Scope.EvidencePath) {
 		diffs = append(diffs, fmt.Sprintf("evidence_path %v not satisfied by finding %v", s.Scope.EvidencePath, finding.EvidencePath))
+	}
+	if s.Scope.Environment != "" && !scopeListAnchorMatches(s.Scope.Environment, finding.Environments) {
+		diffs = append(diffs, fmt.Sprintf("environment=%q vs finding %v", s.Scope.Environment, finding.Environments))
+	}
+	if s.Scope.WorkloadID != "" && !scopeListAnchorMatches(s.Scope.WorkloadID, finding.WorkloadIDs) {
+		diffs = append(diffs, fmt.Sprintf("workload_id=%q vs finding %v", s.Scope.WorkloadID, finding.WorkloadIDs))
+	}
+	if s.Scope.ServiceID != "" && !scopeListAnchorMatches(s.Scope.ServiceID, finding.ServiceIDs) {
+		diffs = append(diffs, fmt.Sprintf("service_id=%q vs finding %v", s.Scope.ServiceID, finding.ServiceIDs))
 	}
 	if len(diffs) == 0 {
 		diffs = append(diffs, "scope anchors did not match the finding")
