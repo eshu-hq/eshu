@@ -47,3 +47,31 @@ covered by the live golden gate:
 Ifá materialized-edge coverage is **N/A**: no reducer/graph edge is produced for
 this fixture's external action target, and the detector adds no
 `reducer.MaterializedEdgeFamilies()` domain.
+
+## Second, unrelated purpose: #5469 config_only version-resolution pin
+
+`package.json` and `package-lock.json` in this directory are NOT part of the
+GitHub Actions workflow-relationship fixture above. They give this repository
+a second, independent role: it is the corpus fixture with **no CI/CD run
+correlation and no cloud-runtime evidence at all**, which #5469's tiered
+version-resolution feature needs to prove its `config_only` floor tier against
+a genuinely non-vacuous finding.
+
+`package.json` declares an exact-pinned npm dependency on
+`supply-chain-demo-lib@1.2.2`, matching `CVE-2026-00000`'s `affected_versions`
+(`[1.2.2]`). `package-lock.json` resolves that dependency to a concrete
+`observed_version`, so the finding has a judged version with no deployment
+evidence above `config_only` -- exactly the case the golden pin at
+`testdata/golden/e2e-20repo-snapshot.json`
+(`GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000&profile=comprehensive`,
+asserting `findings[].version_resolution_tier: config_only`) depends on.
+Removing either file, or removing the `supply-chain-demo-lib` dependency from
+them, empties `version_resolution_tier` for that finding and fails the pin.
+
+**Do not remove `package.json` or `package-lock.json` from this fixture** even
+though they are unrelated to the GitHub Actions detector fixture they sit
+alongside -- see [P3-5 in the P2/P3 disclosure notes](../../../../PR-NOTES.md)
+for the gap that makes a silent removal here dangerous: neither the golden
+gate's path filter nor `pre-pr.sh`'s change-detection watches
+`tests/fixtures/ecosystems/**`, so a fixture-only edit here would not
+automatically re-run the gate that would catch the break.
