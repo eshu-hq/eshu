@@ -6,7 +6,9 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/environment"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -128,9 +130,22 @@ WHERE fact.fact_kind IN (
       OR (
           fact.fact_kind = 'vulnerability.suppression'
           AND (
-              fact.payload->'scope'->>'workload_id' = ANY($13::text[])
-              OR fact.payload->'scope'->>'service_id' = ANY($14::text[])
-              OR fact.payload->'scope'->>'environment' = ANY($15::text[])
+              -- lower(trim(...)) matches the decode/matcher contract:
+              -- decodeVulnerabilitySuppressionScope only TrimSpaces
+              -- workload_id/service_id, and suppressionScopeMatchesFinding
+              -- compares them with strings.EqualFold (case-insensitive).
+              -- Exact-match SQL against a raw payload value would silently
+              -- drop a suppression whose payload casing/whitespace differs
+              -- from the filter's already-normalized anchors (#5466 P1-1).
+              lower(trim(fact.payload->'scope'->>'workload_id')) = ANY($13::text[])
+              OR lower(trim(fact.payload->'scope'->>'service_id')) = ANY($14::text[])
+              -- lower(...) plus alias expansion of $15 (see
+              -- expandEnvironmentAliasFilterValues) matches
+              -- environment.Canonical's alias contract: a suppression
+              -- payload authored as "production" must still be selected by
+              -- a canonical "prod" filter, not just an exact-canonical
+              -- payload (#5466 P1-1).
+              OR lower(fact.payload->'scope'->>'environment') = ANY($15::text[])
           )
       )
   )
@@ -205,9 +220,18 @@ func (s FactStore) listActiveSupplyChainImpactFactsPage(
 		filter.FileRepositoryIDs,
 		cursorFactID,
 		listFactsByKindPageSize,
-		filter.WorkloadIDs,
-		filter.ServiceIDs,
-		filter.Environments,
+		// $12/$13 are compared against lower(trim(payload)) in SQL, so the
+		// bind values must be lowercased/trimmed the same way -- otherwise a
+		// filter anchor with different case than the payload (both valid
+		// under the matcher's EqualFold contract) would never match.
+		lowerCleanedStringFilterValues(filter.WorkloadIDs),
+		lowerCleanedStringFilterValues(filter.ServiceIDs),
+		// $14 is compared against lower(payload) plus every known alias of
+		// each canonical filter environment (see
+		// expandEnvironmentAliasFilterValues), so a suppression payload
+		// authored with an alias form ("production") still matches a
+		// canonical "prod" filter.
+		expandEnvironmentAliasFilterValues(filter.Environments),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list active supply chain impact facts: %w", err)
@@ -228,4 +252,48 @@ func (s FactStore) listActiveSupplyChainImpactFactsPage(
 		return nil, fmt.Errorf("list active supply chain impact facts: %w", err)
 	}
 	return loaded, nil
+}
+
+// lowerCleanedStringFilterValues lowercases every value and re-runs
+// cleanStringFilterValues (trim, drop-empty, dedupe, sort) so the result is a
+// stable bind-ready set. Used for the workload_id/service_id suppression
+// scope anchors ($12/$13), which the SQL predicate compares against
+// lower(trim(payload)) to match decodeVulnerabilitySuppressionScope's
+// TrimSpace-only decode and the matcher's case-insensitive
+// (strings.EqualFold) comparison (#5466 P1-1).
+func lowerCleanedStringFilterValues(values []string) []string {
+	lowered := make([]string, 0, len(values))
+	for _, value := range values {
+		lowered = append(lowered, strings.ToLower(value))
+	}
+	return cleanStringFilterValues(lowered)
+}
+
+// expandEnvironmentAliasFilterValues expands each already-canonical
+// environment value in values (see environment.Canonical) into every alias
+// spelling from the shared environment.Aliases() table, plus the canonical
+// value itself. The suppression-scope environment predicate ($14) compares
+// against lower(payload), so a suppression payload authored with an alias
+// form ("production") still matches a filter built from the canonical form
+// ("prod") -- otherwise the filter and the payload could each independently
+// be "correct" under environment.Canonical and still never match in SQL
+// (#5466 P1-1). A value with no known alias entry (environment.Canonical
+// never rejects unknown tokens) passes through unexpanded.
+func expandEnvironmentAliasFilterValues(values []string) []string {
+	if len(values) == 0 {
+		return values
+	}
+	aliasesByCanonical := make(map[string][]string, len(environment.Aliases()))
+	for _, entry := range environment.Aliases() {
+		aliasesByCanonical[entry.Canonical] = entry.Aliases
+	}
+	expanded := make([]string, 0, len(values))
+	for _, value := range values {
+		if aliases, ok := aliasesByCanonical[value]; ok {
+			expanded = append(expanded, aliases...)
+			continue
+		}
+		expanded = append(expanded, value)
+	}
+	return cleanStringFilterValues(expanded)
 }

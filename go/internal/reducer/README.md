@@ -1951,8 +1951,8 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   `go/internal/storage/postgres/gotchas-and-invariants.md` for the
   failing-test-first proof at the real load path and the EXPLAIN/index
   evidence.
-  Performance Evidence: `PERF.md` at the worktree root benchmarks
-  `EvaluateSupplyChainSuppression` on `darwin/arm64` (Apple M5 Max) with a
+  Performance Evidence: `docs/internal/evidence/5466-env-scoped-suppression-scope.md`
+  benchmarks `EvaluateSupplyChainSuppression` on `darwin/arm64` (Apple M5 Max) with a
   50-suppression per-finding fan-out, OLD (`58f364f68f`) vs NEW on an
   identical zero-value input shape: ns/op is flat within machine noise
   (10,550.8 -> 11,152.6 mean of 5, ranges overlap), allocs/op is unchanged

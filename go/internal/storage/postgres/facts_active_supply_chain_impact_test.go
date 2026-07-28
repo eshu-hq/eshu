@@ -4,8 +4,12 @@
 package postgres
 
 import (
+	"context"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 func TestListActiveSupplyChainImpactFactsQueryIsPackageBoundedAndPaged(t *testing.T) {
@@ -85,13 +89,76 @@ func TestListActiveSupplyChainImpactFactsQueryMatchesSuppressionByEnvironmentWor
 	// nothing in this WHERE clause could ever match it.
 	for _, want := range []string{
 		"fact.fact_kind = 'vulnerability.suppression'",
-		"fact.payload->'scope'->>'workload_id' = ANY($12::text[])",
-		"fact.payload->'scope'->>'service_id' = ANY($13::text[])",
-		"fact.payload->'scope'->>'environment' = ANY($14::text[])",
+		"lower(trim(fact.payload->'scope'->>'workload_id')) = ANY($12::text[])",
+		"lower(trim(fact.payload->'scope'->>'service_id')) = ANY($13::text[])",
+		"lower(fact.payload->'scope'->>'environment') = ANY($14::text[])",
 	} {
 		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
 		}
+	}
+}
+
+func TestListActiveSupplyChainImpactFactsBindsWorkloadAndServiceIDsToDistinctPlaceholders(t *testing.T) {
+	t.Parallel()
+
+	// #5466 P2-1: $12 (WorkloadIDs) and $13 (ServiceIDs) have no other
+	// coverage that can catch a bind-order swap in
+	// listActiveSupplyChainImpactFactsPage --
+	// TestListActiveSupplyChainImpactFactsQueryMatchesSuppressionByEnvironmentWorkloadService
+	// only proves the SQL string mentions $12/$13, not that Go binds the
+	// right filter field to each placeholder. Swapping
+	// filter.WorkloadIDs/filter.ServiceIDs in that call would pass every
+	// other test in the repo and silently make both anchors inert.
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: nil}}}
+	store := NewFactStore(db)
+
+	_, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
+		WorkloadIDs: []string{"Workload:X"},
+		ServiceIDs:  []string{"Service:Y"},
+	})
+	if err != nil {
+		t.Fatalf("ListActiveSupplyChainImpactFacts() error = %v, want nil", err)
+	}
+	if got, want := len(db.queries), 1; got != want {
+		t.Fatalf("query count = %d, want %d", got, want)
+	}
+
+	// args are 0-indexed; $12 is args[11] and $13 is args[12].
+	workloadArg, ok := db.queries[0].args[11].([]string)
+	if !ok {
+		t.Fatalf("$12 (index 11) arg type = %T, want []string", db.queries[0].args[11])
+	}
+	if got, want := workloadArg, []string{"workload:x"}; !slices.Equal(got, want) {
+		t.Fatalf("$12 (WorkloadIDs) arg = %v, want %v", got, want)
+	}
+
+	serviceArg, ok := db.queries[0].args[12].([]string)
+	if !ok {
+		t.Fatalf("$13 (index 12) arg type = %T, want []string", db.queries[0].args[12])
+	}
+	if got, want := serviceArg, []string{"service:y"}; !slices.Equal(got, want) {
+		t.Fatalf("$13 (ServiceIDs) arg = %v, want %v", got, want)
+	}
+}
+
+func TestExpandEnvironmentAliasFilterValues(t *testing.T) {
+	t.Parallel()
+
+	got := expandEnvironmentAliasFilterValues([]string{"prod", "qa", "unknown-env"})
+	want := []string{"prod", "production", "qa", "unknown-env"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("expandEnvironmentAliasFilterValues() = %v, want %v", got, want)
+	}
+}
+
+func TestLowerCleanedStringFilterValues(t *testing.T) {
+	t.Parallel()
+
+	got := lowerCleanedStringFilterValues([]string{" Workload:X ", "workload:x", "SERVICE:Y"})
+	want := []string{"service:y", "workload:x"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("lowerCleanedStringFilterValues() = %v, want %v", got, want)
 	}
 }
 

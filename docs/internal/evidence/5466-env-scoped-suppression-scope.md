@@ -109,32 +109,112 @@ environment/workload_id/service_id (no cve_id/advisory_id/package_id/purl/
 subject_digest/repository_id) could never be selected by that query's WHERE
 clause — the scope struct and matcher accepted it, but the loader never
 fetched it, so the suppression silently never applied in production. Full
-detail, the failing-test-first evidence, and the fix are in
-`go/internal/storage/postgres/gotchas-and-invariants.md`. Index/sargability
-summary, per eshu-postgres-rigor's Index Doctrine (add an index only with
-evidence the query is hot enough and the shape benefits):
+detail, the failing-test-first evidence, and the fix (including the P1-1
+case/alias exact-match follow-up and the P2-1 bind-order/coverage follow-up
+below) are in `go/internal/storage/postgres/gotchas-and-invariants.md`.
+
+### P1-1 follow-up: exact-match vs. the decode/matcher's case-insensitive, alias-aware contract
+
+The first cut of the new predicate did an exact-match `= ANY(...)` against
+the raw payload value. `decodeVulnerabilitySuppressionScope`
+(`go/internal/reducer/supply_chain_suppression_decode.go`) canonicalizes
+`environment` through `environment.Canonical` (`"production"` maps to
+`"prod"`) and only `strings.TrimSpace`s `workload_id`/`service_id`, while the
+matcher compares all three with case-insensitive `strings.EqualFold`. A
+payload authored as `{"environment":"production"}` could therefore decode
+and match correctly once loaded, but could never be SELECTED by an
+exact-match `= ANY('{prod}')` predicate against a canonical `"prod"` filter
+— silently inert in production. The fix: `lower(payload->'scope'->>
+'environment') = ANY($14::text[])` with `$14` expanded through
+`environment.Aliases()` so a canonical filter value also binds every alias
+spelling, and `lower(trim(...))` for `workload_id`/`service_id` with the
+bind values lowercased the same way. Failing-test-first proof:
+`TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByEnvironmentAliasLive`
+(seeds the literal `"production"` payload, filters by `Environments:
+["prod"]`) failed against the pre-fix predicate (`len = 0, want 1`) and
+passes after the fix.
+
+### P2-1 follow-up: $12/$13 load-path coverage and bind-order
+
+`TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByWorkloadAndServiceIDsLive`
+adds real load-path proof for `$12` (WorkloadIDs) and `$13` (ServiceIDs),
+which no prior live test exercised, seeding two distinct
+mixed-case/whitespace-payload facts and querying with both filter fields
+populated at once. A hermetic (no DSN required)
+`TestListActiveSupplyChainImpactFactsBindsWorkloadAndServiceIDsToDistinctPlaceholders`
+asserts the bound argument values at their exact placeholder positions
+(`db.queries[0].args[11]`/`args[12]`), so a `filter.WorkloadIDs`/
+`filter.ServiceIDs` bind-order swap fails CI even without a live Postgres.
+
+### Index/sargability evidence (re-run with a realistic environment distribution)
 
 ```
--- 300,000-row vulnerability.suppression table, darwin/arm64, postgres:16 in Docker
--- NEW predicate: payload->'scope'->>'environment'
-Gather (actual time=0.582..18.015 rows=60 loops=1)
-  Workers Launched: 2
-  -> Parallel Seq Scan on fact_records (actual time=0.283..14.879 rows=20 loops=3)
-     Filter: (... AND ((payload->'scope')->>'environment' = ANY ('{env-1}'::text[])))
-Execution Time: 18.031 ms
+-- 300,000-row vulnerability.suppression table, darwin/arm64, postgres:16 in
+-- Docker. Environment values drawn from a realistic ~7-token closed domain
+-- (prod, production, qa, stage, staging, dev, uat -- environment.Aliases()'s
+-- token set), round-robin distributed, NOT a single low-cardinality
+-- synthetic value.
 
--- EXISTING sibling predicate (already shipped): payload->'scope'->>'cve_id'
-Gather (actual time=0.138..17.418 rows=1 loops=1)
+-- FIXED predicate: lower(payload->'scope'->>'environment') = ANY(alias-expanded ['prod','production'])
+Gather (actual time=0.375..25.202 rows=85715 loops=1)
   Workers Launched: 2
-  -> Parallel Seq Scan on fact_records (actual time=9.231..14.438 rows=0 loops=3)
+  -> Parallel Seq Scan on fact_records (actual time=0.019..20.091 rows=28572 loops=3)
+     Filter: (... AND (lower((payload->'scope')->>'environment') = ANY ('{prod,production}'::text[])))
+     Rows Removed by Filter: 71428
+Execution Time: 26.572 ms
+
+-- PRE-FIX predicate (exact match, single canonical value): payload->'scope'->>'environment' = ANY(['prod'])
+Gather (actual time=0.118..16.292 rows=42857 loops=1)
+  Workers Launched: 2
+  -> Parallel Seq Scan on fact_records (actual time=0.010..12.367 rows=14286 loops=3)
+     Filter: (... AND ((payload->'scope')->>'environment' = ANY ('{prod}'::text[])))
+     Rows Removed by Filter: 85714
+Execution Time: 17.015 ms
+
+-- EXISTING sibling predicate (already shipped, unchanged): payload->'scope'->>'cve_id'
+Gather (actual time=12.364..14.052 rows=0 loops=1)
+  Workers Launched: 2
+  -> Parallel Seq Scan on fact_records (actual time=9.489..9.489 rows=0 loops=3)
      Filter: (... AND ((payload->'scope')->>'cve_id' = ANY ('{CVE-2026-000001}'::text[])))
-Execution Time: 17.427 ms
+     Rows Removed by Filter: 100000
+Execution Time: 14.065 ms
 ```
 
-Both predicates produce the identical plan shape (`Parallel Seq Scan`, no
-index, ~17-18ms at 300k rows) — the new predicate carries the same
-already-accepted unindexed cost as its four siblings, not a new category of
-scan. This is a bounded, once-per-generation active-evidence expansion call
-(paginated, not a per-finding hot loop), so no index was added; per Index
-Doctrine, that would need evidence this specific query is hot enough to
-justify one. No index change is proposed in this PR.
+All three produce the IDENTICAL plan shape (`Parallel Seq Scan` on
+`fact_records`, no index used by any of them, 14-27ms at this scale). The
+`lower()` wrapper and the wider alias-expanded array do not change the scan
+strategy — they return a higher row count by construction (2/7 of rows for
+the 2-value alias-expanded array vs. 1/7 for the single-value exact match),
+bounded by the total suppression-fact count. This directly supersedes the
+prior version of this evidence, which used a single low-cardinality
+synthetic environment value (`env-1`, 60/300k rows) — real environment
+values are a small closed domain, so the realistic-distribution re-run above
+is the accurate selectivity picture, not the original strawman.
+
+### Frequency correction (P2-3)
+
+The original version of this evidence described the active-evidence call as
+"once-per-generation." That was wrong. `ListActiveSupplyChainImpactFacts` is
+reached **per supply-chain-impact intent**, and
+`loadActiveSupplyChainImpactFactsUntilStable`
+(`go/internal/reducer/supply_chain_impact_handler_helpers.go`) issues **up to
+`maxSupplyChainImpactActiveEvidenceLoads = 8` paginated rounds per intent**,
+not once — asserted by
+`TestSupplyChainImpactHandlerStopsActiveEvidenceExpansionConservatively`
+(`go/internal/reducer/supply_chain_impact_active_test.go`).
+
+Separately, adding `Environments`/`WorkloadIDs`/`ServiceIDs` to
+`SupplyChainImpactFactFilter` widened `SupplyChainImpactFactFilter.empty()`
+to return `false` for a NEW class of intents: one carrying only deployment
+evidence (environment/workload/service) and no package/CVE/digest/
+repository anchor at all. Before #5466 that intent's derived filter was
+fully empty and the load short-circuited to `nil, nil` with no query issued;
+after #5466 it issues a full paginated Seq Scan. **This new-invocation class
+is unmeasured** — no benchmark or production metric isolates it yet — but it
+is bounded the same way every other invocation is, by the same 8-round cap.
+
+The no-index CONCLUSION still stands regardless of this correction: the
+predicate is OR-ed into a query that already performs a `Parallel Seq Scan`
+for its other branches at this scale, so an index on this one predicate
+would not change the scan strategy chosen for the query as a whole. No index
+change is proposed in this PR.
