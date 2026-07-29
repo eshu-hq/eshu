@@ -75,23 +75,38 @@ the finished implementation with the former stable-sort algorithm across
 active, provider, expired, mismatch, timestamp-tie, ID-tie, and precedence
 cases.
 
-Final measurements, Apple M5 Max, `darwin/arm64`, five one-second samples:
+Final same-shape measurements, Apple M5 Max, `darwin/arm64`, five one-second
+samples:
 
-| Metric | Current main | #5466 legacy shape | #5466 deployment shape |
-| --- | ---: | ---: | ---: |
-| Mean ns/op | 9,106 | 3,656 | 3,750 |
-| Range ns/op | 9,059–9,144 | 3,637–3,692 | 3,738–3,767 |
-| B/op | 43,964 | 112 | 112 |
-| allocs/op | 14 | 4 | 4 |
+| Metric | Current main | #5466 legacy shape |
+| --- | ---: | ---: |
+| Mean ns/op | 9,106 | 3,694 |
+| Range ns/op | 9,059–9,144 | 3,646–3,721 |
+| B/op | 43,964 | 112 |
+| allocs/op | 14 | 4 |
 
 The legacy shape is about 60% faster than current main with 10 fewer
-allocations. The deployment shape performs the three new conjunct checks and
-is still about 59% faster than current main with 10 fewer allocations. Its
-setup includes the genuine `(service-0, workload-0)` pair and asserts the
-expected `not_affected` decision before the timer starts, so these numbers
-measure a successful deployment-scoped match rather than the cheaper
-scope-mismatch path. Accuracy is unchanged by the selection rewrite; the
-differential proof above pins exact decision equivalence.
+allocations. Accuracy is unchanged by the selection rewrite; the differential
+proof above pins exact decision equivalence.
+
+The new deployment predicates have no identical base shape, so they are
+reported separately rather than presented as a base speedup. Every candidate
+below matches all legacy identity anchors and reaches the environment plus
+correlated service/workload checks. Candidate zero matches the genuine
+`(service-0, workload-0)` pair; every other candidate rejects only on its
+unverified deployment pair. Both benchmarks assert the expected
+`not_affected` winner before timing.
+
+| Candidate shape | Mean ns/op | Range ns/op | B/op | allocs/op |
+| --- | ---: | ---: | ---: | ---: |
+| 50 identity-adjacent deployment candidates | 7,271 | 7,262–7,279 | 112 | 4 |
+| 2,000 identity-adjacent candidates (exact cap) | 285,192 | 284,343–286,623 | 112 | 4 |
+
+The exact-cap path remains below 0.3 ms per finding on this machine, uses no
+per-candidate allocation, and scales approximately linearly: 40 times as many
+candidates cost 39.2 times as much wall time. A sentinel beyond this exact cap
+does not evaluate an incomplete prefix; it triggers the whole-set fail-open
+behavior proved by the handler regression.
 
 The final real-Postgres proof seeded 100,000 active facts and took ten warm
 measurements against the exact query from base commit
@@ -125,7 +140,7 @@ GOCACHE=$PWD/../.gocache go test ./internal/reducer -run '^$' \
 
 # finished branch
 GOCACHE=$PWD/../.gocache go test ./internal/reducer -run '^$' \
-  -bench 'BenchmarkEvaluateSupplyChainSuppression_(LegacyScopeOnly|WithEnvironmentWorkloadServiceScope)$' \
+  -bench 'BenchmarkEvaluateSupplyChainSuppression_(LegacyScopeOnly|WithEnvironmentWorkloadServiceScope|AtCandidateCap)$' \
   -benchmem -benchtime=1s -count=5
 
 GOCACHE=$PWD/../.gocache go test ./internal/reducer \

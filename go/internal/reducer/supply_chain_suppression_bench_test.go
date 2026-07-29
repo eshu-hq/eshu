@@ -11,14 +11,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// benchmarkSuppressionSet builds a representative per-finding suppression
-// batch: 50 suppressions, most adjacent-but-scope-mismatched (the worst case
-// for suppressionAdjacent/suppressionScopeMatchesFinding, which must walk
-// every scope key before rejecting), one active match. withDeploymentScope
-// additionally sets Environment/WorkloadID/ServiceID on every suppression so
-// the benchmark also measures the #5466 fields' comparisons on the hot path,
-// not just their zero-value fast path.
-func benchmarkSuppressionSet(withDeploymentScope bool) []vulnerabilitySuppression {
+// benchmarkLegacySuppressionSet preserves the exact pre-#5466 input shape used
+// for the same-shape base/current comparison: 50 suppressions with no
+// deployment scope, most rejected on legacy identity fields, and one match.
+func benchmarkLegacySuppressionSet() []vulnerabilitySuppression {
 	const count = 50
 	suppressions := make([]vulnerabilitySuppression, 0, count)
 	for i := 0; i < count; i++ {
@@ -27,11 +23,6 @@ func benchmarkSuppressionSet(withDeploymentScope bool) []vulnerabilitySuppressio
 			PackageID:     "pkg:npm/bench-package",
 			RepositoryID:  "repo://example/bench",
 			SubjectDigest: fmt.Sprintf("sha256:bench-digest-%d", i),
-		}
-		if withDeploymentScope {
-			scope.Environment = "stage"
-			scope.WorkloadID = fmt.Sprintf("workload-%d", i)
-			scope.ServiceID = fmt.Sprintf("service-%d", i)
 		}
 		suppressions = append(suppressions, vulnerabilitySuppression{
 			SuppressionID: fmt.Sprintf("suppression-%d", i),
@@ -49,11 +40,6 @@ func benchmarkSuppressionSet(withDeploymentScope bool) []vulnerabilitySuppressio
 		RepositoryID:  "repo://example/bench",
 		SubjectDigest: "sha256:bench-digest-0",
 	}
-	if withDeploymentScope {
-		scope.Environment = "stage"
-		scope.WorkloadID = "workload-0"
-		scope.ServiceID = "service-0"
-	}
 	suppressions[0] = vulnerabilitySuppression{
 		SuppressionID: "suppression-0",
 		Source:        facts.VulnerabilitySuppressionSourcePolicy,
@@ -62,6 +48,48 @@ func benchmarkSuppressionSet(withDeploymentScope bool) []vulnerabilitySuppressio
 		Scope:         scope,
 	}
 	return suppressions
+}
+
+// benchmarkDeploymentSuppressionSet builds count identity-adjacent candidates.
+// Every candidate matches all legacy identity anchors and reaches the #5466
+// deployment checks. Candidate zero matches the genuine service/workload pair;
+// the rest fail only when that correlated deployment pair is checked.
+func benchmarkDeploymentSuppressionSet(count int) []vulnerabilitySuppression {
+	suppressions := make([]vulnerabilitySuppression, 0, count)
+	for i := 0; i < count; i++ {
+		suppressions = append(suppressions, vulnerabilitySuppression{
+			SuppressionID: fmt.Sprintf("suppression-%d", i),
+			Source:        facts.VulnerabilitySuppressionSourcePolicy,
+			Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+			AuthoredAt:    time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
+			Scope: vulnerabilitySuppressionScope{
+				CVEID:         "CVE-2026-00000",
+				PackageID:     "pkg:npm/bench-package",
+				RepositoryID:  "repo://example/bench",
+				SubjectDigest: "sha256:bench-digest-0",
+				Environment:   "stage",
+				WorkloadID:    fmt.Sprintf("workload-%d", i),
+				ServiceID:     fmt.Sprintf("service-%d", i),
+			},
+		})
+	}
+	return suppressions
+}
+
+func benchmarkDeploymentFinding() SupplyChainImpactFinding {
+	return SupplyChainImpactFinding{
+		CVEID:         "CVE-2026-00000",
+		PackageID:     "pkg:npm/bench-package",
+		RepositoryID:  "repo://example/bench",
+		SubjectDigest: "sha256:bench-digest-0",
+		Environments:  []string{"stage"},
+		WorkloadIDs:   []string{"workload-0"},
+		ServiceIDs:    []string{"service-0"},
+		ServiceWorkloadPairs: []SupplyChainServiceWorkloadPair{{
+			ServiceID:  "service-0",
+			WorkloadID: "workload-0",
+		}},
+	}
 }
 
 // BenchmarkEvaluateSupplyChainSuppression_LegacyScopeOnly measures the matcher
@@ -76,7 +104,7 @@ func BenchmarkEvaluateSupplyChainSuppression_LegacyScopeOnly(b *testing.B) {
 		RepositoryID:  "repo://example/bench",
 		SubjectDigest: "sha256:bench-digest-0",
 	}
-	suppressions := benchmarkSuppressionSet(false)
+	suppressions := benchmarkLegacySuppressionSet()
 	now := time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC)
 
 	b.ReportAllocs()
@@ -87,25 +115,30 @@ func BenchmarkEvaluateSupplyChainSuppression_LegacyScopeOnly(b *testing.B) {
 }
 
 // BenchmarkEvaluateSupplyChainSuppression_WithEnvironmentWorkloadServiceScope
-// measures the same matcher with every suppression AND the finding exercising
-// the new Environment/WorkloadID/ServiceID scope keys (#5466), so it captures
-// the added per-comparison cost when the new fields are actually populated,
-// not only their zero-value fast path.
+// measures 50 identity-adjacent candidates. Every candidate reaches the new
+// Environment/WorkloadID/ServiceID checks; 49 reject on their unverified
+// service/workload pair and one produces the asserted matching decision.
 func BenchmarkEvaluateSupplyChainSuppression_WithEnvironmentWorkloadServiceScope(b *testing.B) {
-	finding := SupplyChainImpactFinding{
-		CVEID:         "CVE-2026-00000",
-		PackageID:     "pkg:npm/bench-package",
-		RepositoryID:  "repo://example/bench",
-		SubjectDigest: "sha256:bench-digest-0",
-		Environments:  []string{"stage"},
-		WorkloadIDs:   []string{"workload-0"},
-		ServiceIDs:    []string{"service-0"},
-		ServiceWorkloadPairs: []SupplyChainServiceWorkloadPair{{
-			ServiceID:  "service-0",
-			WorkloadID: "workload-0",
-		}},
+	finding := benchmarkDeploymentFinding()
+	suppressions := benchmarkDeploymentSuppressionSet(50)
+	now := time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC)
+	if got, want := EvaluateSupplyChainSuppression(finding, suppressions, now).State, SupplyChainSuppressionStateNotAffected; got != want {
+		b.Fatalf("benchmark setup state = %q, want matching state %q", got, want)
 	}
-	suppressions := benchmarkSuppressionSet(true)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		EvaluateSupplyChainSuppression(finding, suppressions, now)
+	}
+}
+
+// BenchmarkEvaluateSupplyChainSuppression_AtCandidateCap measures the bounded
+// worst-case retained set: 2,000 identity-adjacent candidates that all reach
+// correlated deployment-pair evaluation before one winner is selected.
+func BenchmarkEvaluateSupplyChainSuppression_AtCandidateCap(b *testing.B) {
+	finding := benchmarkDeploymentFinding()
+	suppressions := benchmarkDeploymentSuppressionSet(2000)
 	now := time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC)
 	if got, want := EvaluateSupplyChainSuppression(finding, suppressions, now).State, SupplyChainSuppressionStateNotAffected; got != want {
 		b.Fatalf("benchmark setup state = %q, want matching state %q", got, want)

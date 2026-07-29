@@ -50,8 +50,7 @@ func TestSupplyChainImpactFilterAdvisoryIDOnlyIsNotEmpty(t *testing.T) {
 
 // TestSupplyChainImpactFollowUpFilterTracksAdvisoryIDs proves the
 // iterative until-stable expansion loop narrows AdvisoryIDs to only the
-// NOT-YET-REQUESTED values across passes, mirroring
-// TestSupplyChainImpactFollowUpFilterTracksEnvironmentWorkloadServiceAnchors.
+// not-yet-requested values across passes.
 func TestSupplyChainImpactFollowUpFilterTracksAdvisoryIDs(t *testing.T) {
 	t.Parallel()
 

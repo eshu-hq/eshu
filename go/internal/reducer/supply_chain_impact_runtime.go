@@ -3,7 +3,10 @@
 
 package reducer
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 // SupplyChainServiceWorkloadPair records one (ServiceID, WorkloadID) pair
 // exactly as it appeared together on a single reducer_service_catalog_
@@ -22,9 +25,9 @@ type SupplyChainServiceWorkloadPair struct {
 	WorkloadID string
 }
 
-// uniqueServiceWorkloadPairs deduplicates pairs (both fields trimmed) with a
-// stable order (first occurrence wins), matching uniqueSortedStrings'
-// contract for the finding's other evidence-derived lists. Deliberately does
+// uniqueServiceWorkloadPairs trims, deduplicates, and sorts pairs by ServiceID
+// and then WorkloadID, matching uniqueSortedStrings' canonical-output contract
+// for the finding's other evidence-derived lists. Deliberately does
 // NOT drop pairs with an empty ServiceID or WorkloadID: an empty field
 // records "this service-catalog record did not resolve that identity",
 // which suppressionServiceWorkloadPairMatches must still treat as
@@ -47,6 +50,12 @@ func uniqueServiceWorkloadPairs(pairs []SupplyChainServiceWorkloadPair) []Supply
 		seen[pair] = struct{}{}
 		out = append(out, pair)
 	}
+	slices.SortFunc(out, func(a, b SupplyChainServiceWorkloadPair) int {
+		if serviceOrder := strings.Compare(a.ServiceID, b.ServiceID); serviceOrder != 0 {
+			return serviceOrder
+		}
+		return strings.Compare(a.WorkloadID, b.WorkloadID)
+	})
 	return out
 }
 
