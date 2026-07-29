@@ -4,4 +4,5 @@
 CREATE INDEX CONCURRENTLY IF NOT EXISTS graph_node_owner_cloud_resource_runtime_digest_idx
     ON graph_node_owner (((winning_row->>'running_image_digest')), ((winning_row->>'arn')), uid)
     WHERE winning_row->>'resource_type' IS NOT NULL
-      AND winning_row->>'running_image_digest' IS NOT NULL;
+      AND NULLIF(BTRIM(winning_row->>'running_image_digest'), '') IS NOT NULL
+      AND NULLIF(BTRIM(winning_row->>'arn'), '') IS NOT NULL;

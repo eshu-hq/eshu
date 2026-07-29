@@ -28,16 +28,17 @@ import (
 const supplyChainCloudRuntimeProbeMaxDigests = 200
 
 // supplyChainCloudRuntimeProbeMaxResults bounds the total owner-ledger rows the
-// probe returns, so a single vulnerable image running on an
-// unusually large fleet can never return an unbounded row set. The query orders
-// by (running_image_digest, arn) before the LIMIT, so the returned set is
+// probe considers, so a single vulnerable image running on an
+// unusually large fleet can never trigger unbounded freshness or authorization
+// work. The query orders by (running_image_digest, arn, uid), materializes this
+// candidate limit, and only then applies freshness and caller grants, so the set is
 // DETERMINISTIC and reproducible run-to-run — a security evidence field must not
 // vary. The remaining bound is honest: when one findings page collectively
-// matches more than this many (digest, resource) rows, the rows for the
-// highest-sorted digests are truncated, so those findings keep their
-// CI-declared/config tier instead of runtime_confirmed. That is a deterministic,
-// bounded, scale-gated limitation; a per-digest bound that prevents one hot
-// digest from starving other findings' runtime evidence is tracked in #5789.
+// matches more than this many (digest, resource) candidates, authorized rows
+// after the cap are not considered, so those findings keep their CI-declared or
+// config tier instead of runtime_confirmed. That is a deterministic, bounded,
+// scale-gated limitation; a per-digest bound that prevents one hot digest from
+// starving other findings' runtime evidence is tracked in #5789.
 const supplyChainCloudRuntimeProbeMaxResults = 200
 
 // probeSupplyChainCloudRuntimeResources maps each given finding subject digest
@@ -80,7 +81,12 @@ func (h *SupplyChainHandler) probeSupplyChainCloudRuntimeResources(
 
 	ctx, span := queryHandlerTracer.Start(ctx, "supply_chain.cloud_runtime_probe")
 	defer span.End()
-	span.SetAttributes(attribute.Int("eshu.subject_digest_count", len(deduped)))
+	span.SetAttributes(
+		attribute.Int("eshu.subject_digest_count", len(deduped)),
+		attribute.Int("eshu.authorized_current_resource_count", 0),
+		attribute.Int("eshu.runtime_confirmed_digest_count", 0),
+		attribute.Int("eshu.runtime_resource_count", 0),
+	)
 
 	rows, err := resolver.CurrentAuthorizedCloudResourcesByDigest(
 		ctx,
@@ -96,7 +102,7 @@ func (h *SupplyChainHandler) probeSupplyChainCloudRuntimeResources(
 
 	type cloudRuntimeMatch struct{ digest, arn string }
 	byUID := make(map[string][]cloudRuntimeMatch, len(rows))
-	candidateUIDs := make([]string, 0, len(rows))
+	authorizedCurrentUIDs := make([]string, 0, len(rows))
 	for _, row := range rows {
 		uid := strings.TrimSpace(row.UID)
 		digest := strings.TrimSpace(row.Digest)
@@ -105,11 +111,11 @@ func (h *SupplyChainHandler) probeSupplyChainCloudRuntimeResources(
 			continue
 		}
 		if _, seen := byUID[uid]; !seen {
-			candidateUIDs = append(candidateUIDs, uid)
+			authorizedCurrentUIDs = append(authorizedCurrentUIDs, uid)
 		}
 		byUID[uid] = append(byUID[uid], cloudRuntimeMatch{digest: digest, arn: arn})
 	}
-	if len(candidateUIDs) == 0 {
+	if len(authorizedCurrentUIDs) == 0 {
 		return nil, nil
 	}
 
@@ -126,8 +132,7 @@ func (h *SupplyChainHandler) probeSupplyChainCloudRuntimeResources(
 		resourceCount += len(sorted)
 	}
 	span.SetAttributes(
-		attribute.Int("eshu.candidate_resource_count", len(candidateUIDs)),
-		attribute.Int("eshu.authorized_current_resource_count", len(candidateUIDs)),
+		attribute.Int("eshu.authorized_current_resource_count", len(authorizedCurrentUIDs)),
 		attribute.Int("eshu.runtime_confirmed_digest_count", len(byDigest)),
 		attribute.Int("eshu.runtime_resource_count", resourceCount),
 	)

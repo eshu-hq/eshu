@@ -7,6 +7,9 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 // stubCloudRuntimeGraph is a GraphQuery stub for the #5452 runtime-image probe.
@@ -94,6 +97,97 @@ func (s *stubCloudInventory) CurrentAuthorizedCloudResourcesByDigest(
 
 func cloudResourceGraphRow(uid, digest, arn string) map[string]any {
 	return map[string]any{"uid": uid, "digest": digest, "arn": arn}
+}
+
+func TestProbeSupplyChainCloudRuntimeResourcesRecordsTruthfulCounts(t *testing.T) {
+	tests := []struct {
+		name       string
+		inventory  *stubCloudInventory
+		wantCounts map[string]int64
+	}{
+		{
+			name: "zero authorized current resources",
+			inventory: &stubCloudInventory{
+				currentAuthorized: map[string]struct{}{},
+				rowsByDigest:      map[string][]map[string]any{},
+			},
+			wantCounts: map[string]int64{
+				"eshu.subject_digest_count":              1,
+				"eshu.authorized_current_resource_count": 0,
+				"eshu.runtime_confirmed_digest_count":    0,
+				"eshu.runtime_resource_count":            0,
+			},
+		},
+		{
+			name: "authorized current resources",
+			inventory: &stubCloudInventory{
+				currentAuthorized: map[string]struct{}{
+					"CloudResource:synthetic:runtime-a": {},
+					"CloudResource:synthetic:runtime-b": {},
+				},
+				rowsByDigest: map[string][]map[string]any{
+					"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": {
+						cloudResourceGraphRow(
+							"CloudResource:synthetic:runtime-a",
+							"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+							"arn:example:compute:::resource/runtime-a",
+						),
+						cloudResourceGraphRow(
+							"CloudResource:synthetic:runtime-b",
+							"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+							"arn:example:compute:::resource/runtime-b",
+						),
+					},
+				},
+			},
+			wantCounts: map[string]int64{
+				"eshu.subject_digest_count":              1,
+				"eshu.authorized_current_resource_count": 2,
+				"eshu.runtime_confirmed_digest_count":    1,
+				"eshu.runtime_resource_count":            2,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := tracetest.NewSpanRecorder()
+			provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+			t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+			previousTracer := queryHandlerTracer
+			queryHandlerTracer = provider.Tracer("supply-chain-cloud-runtime-probe-test")
+			t.Cleanup(func() { queryHandlerTracer = previousTracer })
+
+			handler := &SupplyChainHandler{CloudResourceInventory: tt.inventory}
+			_, err := handler.probeSupplyChainCloudRuntimeResources(
+				context.Background(),
+				repositoryAccessFilter{allScopes: true},
+				[]string{"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+			)
+			if err != nil {
+				t.Fatalf("probeSupplyChainCloudRuntimeResources() error = %v, want nil", err)
+			}
+
+			spans := recorder.Ended()
+			if got, want := len(spans), 1; got != want {
+				t.Fatalf("ended spans = %d, want %d", got, want)
+			}
+			if got, want := spans[0].Name(), "supply_chain.cloud_runtime_probe"; got != want {
+				t.Fatalf("span name = %q, want %q", got, want)
+			}
+			attributes := make(map[string]any)
+			for _, item := range spans[0].Attributes() {
+				attributes[string(item.Key)] = item.Value.AsInterface()
+			}
+			if _, exists := attributes["eshu.candidate_resource_count"]; exists {
+				t.Fatalf("span attributes contain false pre-authorization candidate count: %#v", attributes)
+			}
+			for key, want := range tt.wantCounts {
+				if got := attributes[key]; got != want {
+					t.Fatalf("span attribute %s = %#v, want %#v; attributes=%#v", key, got, want, attributes)
+				}
+			}
+		})
+	}
 }
 
 func TestApplySupplyChainCloudRuntimeEvidencePromotesRunningDigest(t *testing.T) {

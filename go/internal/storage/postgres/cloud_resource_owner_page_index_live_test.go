@@ -68,12 +68,20 @@ CREATE TABLE graph_node_owner (
 INSERT INTO graph_node_owner (uid, source_order_key, winning_row)
 SELECT 'uid-' || lpad(value::text, 6, '0'),
        lpad(value::text, 6, '0'),
-       jsonb_build_object(
-         'resource_type', 'type-' || lpad((value % 20)::text, 2, '0'),
-         'collector_kind', 'provider-' || lpad((value % 4)::text, 2, '0'),
-         'region', 'region-' || lpad((value % 8)::text, 2, '0'),
-         'account_id', 'account-' || lpad((value % 16)::text, 2, '0')
-       )
+	       jsonb_build_object(
+	         'resource_type', 'type-' || lpad((value % 20)::text, 2, '0'),
+	         'collector_kind', 'provider-' || lpad((value % 4)::text, 2, '0'),
+	         'region', 'region-' || lpad((value % 8)::text, 2, '0'),
+	         'account_id', 'account-' || lpad((value % 16)::text, 2, '0'),
+	         'running_image_digest', CASE
+	           WHEN value % 20 = 0 THEN 'sha256:' || lpad(to_hex(value), 64, '0')
+	           ELSE ''
+	         END,
+	         'arn', CASE
+	           WHEN value % 20 = 0 THEN 'arn:example:compute:::resource/' || lpad(value::text, 6, '0')
+	           ELSE ''
+	         END
+	       )
 FROM generate_series(1, 20000) AS value;
 `); err != nil {
 		t.Fatalf("seed populated graph owner ledger: %v", err)
@@ -99,6 +107,7 @@ ORDER BY c.relname
 		"graph_node_owner_cloud_resource_page_idx",
 		"graph_node_owner_cloud_resource_provider_page_idx",
 		"graph_node_owner_cloud_resource_region_page_idx",
+		"graph_node_owner_cloud_resource_runtime_digest_idx",
 	})
 	if err != nil {
 		t.Fatalf("inspect cloud resource page indexes: %v", err)
@@ -120,18 +129,101 @@ ORDER BY c.relname
 	if err := rows.Err(); err != nil {
 		t.Fatalf("iterate index state: %v", err)
 	}
-	if count != 4 {
-		t.Fatalf("cloud resource page indexes = %d, want 4", count)
+	if count != 5 {
+		t.Fatalf("cloud resource page indexes = %d, want 5", count)
 	}
+
+	restartDB, err := sql.Open("pgx", parsedDSN.String())
+	if err != nil {
+		t.Fatalf("open restart Postgres connection: %v", err)
+	}
+	restartDB.SetMaxOpenConns(1)
+	t.Cleanup(func() { _ = restartDB.Close() })
+	if err := ApplyDefinitions(ctx, SQLDB{DB: restartDB}, definitions); err != nil {
+		t.Fatalf("reapply cloud resource indexes after connection restart: %v", err)
+	}
+	assertIndexValidAndReady(
+		ctx,
+		t,
+		restartDB,
+		schema,
+		"graph_node_owner_cloud_resource_runtime_digest_idx",
+		true,
+	)
+
+	if _, err := restartDB.ExecContext(
+		ctx,
+		"DROP INDEX CONCURRENTLY IF EXISTS graph_node_owner_cloud_resource_runtime_digest_idx",
+	); err != nil {
+		t.Fatalf("rollback runtime digest index: %v", err)
+	}
+	assertIndexValidAndReady(
+		ctx,
+		t,
+		restartDB,
+		schema,
+		"graph_node_owner_cloud_resource_runtime_digest_idx",
+		false,
+	)
+
+	if _, err := restartDB.ExecContext(ctx, `
+CREATE UNIQUE INDEX CONCURRENTLY graph_node_owner_cloud_resource_runtime_digest_idx
+    ON graph_node_owner (((winning_row->>'resource_type')))
+`); err == nil {
+		t.Fatal("seed invalid same-name runtime digest index error = nil, want duplicate-key failure")
+	}
+	if valid := cloudResourceOwnerIndexValidity(
+		t,
+		ctx,
+		restartDB,
+		schema,
+		"graph_node_owner_cloud_resource_runtime_digest_idx",
+	); valid {
+		t.Fatal("failed same-name runtime digest index is valid, want invalid")
+	}
+	if err := ApplyDefinitions(ctx, SQLDB{DB: restartDB}, definitions); err != nil {
+		t.Fatalf("recover invalid runtime digest index through bootstrap definition: %v", err)
+	}
+	assertIndexValidAndReady(
+		ctx,
+		t,
+		restartDB,
+		schema,
+		"graph_node_owner_cloud_resource_runtime_digest_idx",
+		true,
+	)
+}
+
+func cloudResourceOwnerIndexValidity(
+	t *testing.T,
+	ctx context.Context,
+	db *sql.DB,
+	schema string,
+	indexName string,
+) bool {
+	t.Helper()
+	var valid bool
+	if err := db.QueryRowContext(ctx, `
+SELECT i.indisvalid
+FROM pg_index AS i
+JOIN pg_class AS c ON c.oid = i.indexrelid
+JOIN pg_namespace AS n ON n.oid = c.relnamespace
+WHERE n.nspname = $1
+  AND c.relname = $2
+`, schema, indexName).Scan(&valid); err != nil {
+		t.Fatalf("query index validity for %s.%s: %v", schema, indexName, err)
+	}
+	return valid
 }
 
 func cloudResourceOwnerPageIndexDefinitions(t *testing.T) []Definition {
 	t.Helper()
 	wanted := map[string]struct{}{
-		"cloud_resource_owner_page_index":          {},
-		"cloud_resource_owner_provider_page_index": {},
-		"cloud_resource_owner_region_page_index":   {},
-		"cloud_resource_owner_account_page_index":  {},
+		"cloud_resource_owner_page_index":           {},
+		"cloud_resource_owner_provider_page_index":  {},
+		"cloud_resource_owner_region_page_index":    {},
+		"cloud_resource_owner_account_page_index":   {},
+		"cloud_resource_owner_runtime_digest_index": {},
 	}
 	definitions := make([]Definition, 0, len(wanted))
 	for _, definition := range BootstrapDefinitions() {

@@ -150,9 +150,12 @@ skip-for-scoped limitation and the follow-up that was #5787.
 
 `probeSupplyChainCloudRuntimeResources` opens a dedicated
 `supply_chain.cloud_runtime_probe` child span (shared `queryHandlerTracer`)
-carrying `eshu.subject_digest_count`, `eshu.runtime_confirmed_digest_count`, and
-`eshu.runtime_resource_count`, plus `span.RecordError` on probe failure — an
-operator can read that span to see exactly why a finding's deployment truth tier
-was (or was not) promoted to `runtime_confirmed`, without reproducing the read.
-The underlying graph read is covered by the shared `GraphQuery` port's existing
-query telemetry.
+carrying `eshu.subject_digest_count`,
+`eshu.authorized_current_resource_count`,
+`eshu.runtime_confirmed_digest_count`, and `eshu.runtime_resource_count`, plus
+`span.RecordError` on probe failure. All three result counts remain present with
+zero values when the indexed owner-ledger read finds no authorized current
+resource. An operator can therefore distinguish an empty result from missing
+instrumentation while diagnosing why a finding was (or was not) promoted to
+`runtime_confirmed`. The underlying Postgres read is covered by the instrumented
+owner-ledger store's existing query telemetry.

@@ -318,6 +318,21 @@ The unshipped declared-ref tier contributes no claim. A CI-declared digest that
 contradicts the finding's subject digest remains corroboration and cannot win.
 Same-axis claims are labeled `agrees` or `disagrees`; digest, image-reference,
 and package-version claims on different axes are `not_comparable`.
+The cloud-runtime owner-ledger read materializes the deterministic first 200
+`(digest, ARN, uid)` candidates before active-generation and caller-grant
+checks. This preserves the former graph route's global evidence cap and bounds
+authorization work for hot or mostly denied digests. Authorized rows after the
+cap intentionally remain under-enriched rather than widening the request;
+#5789 tracks fair per-digest allocation. The matching migration 086 partial
+index excludes blank and whitespace-only digest or ARN values, so empty cloud
+inventory rows do not amplify storage or writes.
+Performance Evidence: on 100,000 same-digest rows with only candidate 201
+authorized, the prior late-limit form took 145.785 ms and 100,000
+authorization probes; the materialized form took 0.512 ms and exactly 200
+probes. The retained 20,000-row live route proof returned the bounded 200
+resources at a 636.833 microsecond median across 15 runs. Exact commands and
+index build/write measurements live in
+[`docs/internal/evidence/5469-tiered-version-resolution.md`](../../../docs/internal/evidence/5469-tiered-version-resolution.md).
 The administrative `POST /api/v0/supply-chain/impact/suppressions` route is
 deliberately outside the scoped-token allowlist. It requires an all-scopes
 authenticated subject, derives source and author server-side, validates a

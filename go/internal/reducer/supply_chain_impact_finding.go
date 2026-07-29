@@ -107,30 +107,41 @@ type SupplyChainImpactFinding struct {
 }
 
 // bakeSupplyChainCIDeclaredArtifactIdentity persists the declared artifact
-// identity from the first deployment that matches the finding by digest or
-// image reference. Repository, environment, and operational-anchor matches do
+// identity from the strongest matching deployment. An exact subject-digest
+// match outranks every image-reference match; fact order breaks ties within
+// each strength. Repository, environment, and operational-anchor matches do
 // not make an artifact identity claim, so they leave both fields blank.
 //
 // The selected deployment contributes both fields as one atomic pair, even
-// when one field is empty. A later deployment cannot fill the empty field,
-// because combining two deployments could associate a digest and image
-// reference that no source declared together. A deployment selected by image
-// reference may carry a digest that differs from the finding's subject digest;
-// preserving that disagreement lets query-time version resolution report it.
+// when one field is empty. No other deployment can fill that field, because
+// combining deployments could associate a digest and image reference that no
+// source declared together. A deployment selected by image reference may carry
+// a digest that differs from the finding's subject digest; preserving that
+// disagreement lets query-time version resolution report it.
 func bakeSupplyChainCIDeclaredArtifactIdentity(
 	finding *SupplyChainImpactFinding,
 	deployments []supplyChainDeploymentContext,
 ) {
+	var firstImageRefMatch supplyChainDeploymentContext
+	hasImageRefMatch := false
 	for _, deployment := range deployments {
 		strongDigestMatch := finding.SubjectDigest != "" && deployment.artifactDigest != "" &&
 			deployment.artifactDigest == finding.SubjectDigest
-		strongImageRefMatch := finding.ImageRef != "" && deployment.imageRef != "" &&
-			deployment.imageRef == finding.ImageRef
-		if !strongDigestMatch && !strongImageRefMatch {
-			continue
+		if strongDigestMatch {
+			finding.CIDeclaredArtifactDigest = deployment.artifactDigest
+			finding.CIDeclaredImageRef = deployment.imageRef
+			return
 		}
-		finding.CIDeclaredArtifactDigest = deployment.artifactDigest
-		finding.CIDeclaredImageRef = deployment.imageRef
-		return
+		if !hasImageRefMatch &&
+			finding.ImageRef != "" &&
+			deployment.imageRef != "" &&
+			deployment.imageRef == finding.ImageRef {
+			firstImageRefMatch = deployment
+			hasImageRefMatch = true
+		}
+	}
+	if hasImageRefMatch {
+		finding.CIDeclaredArtifactDigest = firstImageRefMatch.artifactDigest
+		finding.CIDeclaredImageRef = firstImageRefMatch.imageRef
 	}
 }

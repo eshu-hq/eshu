@@ -44,6 +44,23 @@ func TestCloudResourceOwnerPageIndexesMigration(t *testing.T) {
 	if strings.Contains(sql.String(), "INCLUDE (winning_row)") {
 		t.Fatal("migration must not duplicate every winning_row JSONB value into the page indexes")
 	}
+	runtimeDigestMigration := MigrationSQL("cloud_resource_owner_runtime_digest_index")
+	for _, want := range []string{
+		"NULLIF(BTRIM(winning_row->>'running_image_digest'), '') IS NOT NULL",
+		"NULLIF(BTRIM(winning_row->>'arn'), '') IS NOT NULL",
+	} {
+		if !strings.Contains(runtimeDigestMigration, want) {
+			t.Errorf("runtime digest migration missing selective predicate %q:\n%s", want, runtimeDigestMigration)
+		}
+	}
+	for _, broad := range []string{
+		"winning_row->>'running_image_digest' IS NOT NULL",
+		"winning_row->>'arn' IS NOT NULL",
+	} {
+		if strings.Contains(runtimeDigestMigration, broad) {
+			t.Errorf("runtime digest migration uses broad predicate %q:\n%s", broad, runtimeDigestMigration)
+		}
+	}
 }
 
 func TestBootstrapDefinitionsDoNotBundleConcurrentIndexStatements(t *testing.T) {

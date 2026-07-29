@@ -5624,8 +5624,8 @@
         "minimum_results": 1,
         "required_json_values": {
           "findings[].deployment_truth_tier": "runtime_confirmed",
-          "findings[].cloud_runtime_resource_refs[]": "arn:aws:ecs:us-east-1:123456789012:task/supply-chain-demo/0000000000000000000000000000000a",
-          "findings[].version_resolution_tier": "runtime_confirmed"
+          "findings[].version_resolution_tier": "runtime_confirmed",
+          "findings[].cloud_runtime_resource_refs[]": "arn:aws:ecs:us-east-1:123456789012:task/supply-chain-demo/0000000000000000000000000000000a"
         },
         "required_json_object_matches": {
           "findings[].version_resolution_corroboration[]": [

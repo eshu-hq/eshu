@@ -115,6 +115,14 @@ The incident context read route uses `query.incident_context` with stable
 `http.route` and `eshu.capability` span attributes so on-call lookups can be
 distinguished from generic service context or supply-chain reads.
 
+Supply-chain finding list and explain reads open
+`supply_chain.cloud_runtime_probe` when they resolve current runtime evidence.
+The child span records `eshu.subject_digest_count`,
+`eshu.authorized_current_resource_count`,
+`eshu.runtime_confirmed_digest_count`, and `eshu.runtime_resource_count`. The
+three result counts remain present at zero when the indexed owner-ledger read
+finds no authorized current resource.
+
 Semantic evidence list routes use `query.semantic_evidence` with stable
 `http.route` and `eshu.capability` span attributes. The underlying Postgres read
 uses `postgres.query` with `db.operation=list_semantic_evidence`, letting

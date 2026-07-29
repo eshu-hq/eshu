@@ -169,7 +169,7 @@ func TestReducerSupplyChainImpactFindingEnvironmentEvidenceSchemaShape(t *testin
 // claim unreadable by the query layer -- inert rather than failing.
 func TestReducerSupplyChainImpactFindingCIDeclaredIdentityRoundTrips(t *testing.T) {
 	digest := "sha256:1111111111111111111111111111111111111111111111111111111111111111"
-	imageRef := "registry.example/app@sha256:1111111111111111111111111111111111111111111111111111111111111111"
+	imageRef := "registry.example.com/app@sha256:1111111111111111111111111111111111111111111111111111111111111111"
 	finding := reducerderivedv1.SupplyChainImpactFinding{
 		FindingID:                "finding-ci-declared",
 		CVEID:                    "CVE-2026-00099",

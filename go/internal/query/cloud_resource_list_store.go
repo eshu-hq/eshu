@@ -130,9 +130,12 @@ func (s *PostgresCloudResourceListStore) CurrentAuthorizedCloudResourceUIDs(
 	return uids, nil
 }
 
-// CurrentAuthorizedCloudResourcesByDigest returns at most the runtime probe
-// result bound in deterministic digest, ARN, and uid order. Freshness and caller
-// authorization are checked in the same indexed owner-ledger read.
+// CurrentAuthorizedCloudResourcesByDigest examines at most the runtime probe
+// candidate bound in deterministic digest, ARN, and uid order. Freshness and
+// caller authorization are checked after that materialized bound in the same
+// indexed owner-ledger read, preserving the former graph route's global cap:
+// authorized rows beyond the first candidate page remain under-enriched rather
+// than widening hot-digest work.
 func (s *PostgresCloudResourceListStore) CurrentAuthorizedCloudResourcesByDigest(
 	ctx context.Context,
 	digests []string,
@@ -194,28 +197,36 @@ func buildCloudResourceRuntimeDigestQuery(
 	limit := bind(supplyChainCloudRuntimeProbeMaxResults)
 
 	return `
-SELECT owner.uid,
-       owner.winning_row->>'running_image_digest' AS digest,
-       owner.winning_row->>'arn' AS arn
-FROM graph_node_owner AS owner
-WHERE owner.winning_row->>'resource_type' IS NOT NULL
-  AND owner.winning_row->>'running_image_digest' IS NOT NULL
-  AND owner.winning_row->>'running_image_digest' = ANY(` + digestSet + `::text[])
-  AND COALESCE(owner.winning_row->>'arn', '') <> ''
-  AND COALESCE((
+WITH candidates AS MATERIALIZED (
+  SELECT owner.uid,
+         owner.winning_row->>'running_image_digest' AS digest,
+         owner.winning_row->>'arn' AS arn,
+         owner.winning_row->>'source_fact_id' AS source_fact_id
+  FROM graph_node_owner AS owner
+  WHERE owner.winning_row->>'resource_type' IS NOT NULL
+    AND NULLIF(BTRIM(owner.winning_row->>'running_image_digest'), '') IS NOT NULL
+    AND owner.winning_row->>'running_image_digest' = ANY(` + digestSet + `::text[])
+    AND NULLIF(BTRIM(owner.winning_row->>'arn'), '') IS NOT NULL
+  ORDER BY owner.winning_row->>'running_image_digest', owner.winning_row->>'arn', owner.uid
+  LIMIT ` + limit + `
+)
+SELECT candidate.uid,
+       candidate.digest,
+       candidate.arn
+FROM candidates AS candidate
+WHERE COALESCE((
         SELECT TRUE
         FROM fact_records AS fact
         JOIN ingestion_scopes AS scope ON scope.scope_id = fact.scope_id
         JOIN scope_generations AS generation ON generation.generation_id = fact.generation_id
-        WHERE fact.fact_id = owner.winning_row->>'source_fact_id'
+        WHERE fact.fact_id = candidate.source_fact_id
           AND scope.active_generation_id = fact.generation_id
           AND generation.scope_id = scope.scope_id
           AND generation.status = 'active'
           AND fact.is_tombstone = FALSE` + authorization + `
         LIMIT 1
       ), FALSE)
-ORDER BY owner.winning_row->>'running_image_digest', owner.winning_row->>'arn', owner.uid
-LIMIT ` + limit, args
+ORDER BY candidate.digest, candidate.arn, candidate.uid`, args
 }
 
 // buildCloudResourceCurrentInventoryQuery builds the candidate-keyed variant of

@@ -57,10 +57,12 @@
 // and PyPI PEP 440 exact-version evidence; unsupported or malformed ranges fail
 // closed with explicit missing evidence. For CI/CD deployment correlations,
 // the handler persists a declared digest and image reference only when one
-// deployment matches the finding by digest or image reference. It copies both
-// fields from that deployment as one pair; a weaker repository/environment
-// match leaves them absent, and a digest contradiction stays intact for
-// query-time corroboration. Exact repository-scoped service-catalog correlation
+// deployment matches the finding by digest or image reference. It selects the
+// first exact subject-digest match before any mutable image-reference match,
+// with fact order breaking equal-strength ties, and copies both fields from
+// that deployment as one pair. A weaker repository/environment match leaves
+// them absent, and a digest contradiction stays intact for query-time
+// corroboration. Exact repository-scoped service-catalog correlation
 // facts stay attached to the supply-chain evidence path, but they do not create
 // service or workload ids unless the catalog row carries those anchors; missing
 // anchors are reported as service/workload catalog anchor missing rather than

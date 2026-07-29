@@ -132,6 +132,93 @@ func TestCloudResourceRuntimeDigestProductionVariantLive(t *testing.T) {
 	}
 }
 
+func TestCloudResourceRuntimeDigestHotCandidateSetStaysBoundedLive(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
+	if dsn == "" {
+		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the live runtime-digest bound proof")
+	}
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open Postgres: %v", err)
+	}
+	db.SetMaxOpenConns(1)
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	seedCloudResourceListLiveCorpus(t, ctx, db)
+	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	if _, err := db.ExecContext(ctx, `
+UPDATE graph_node_owner
+SET winning_row = jsonb_set(winning_row, '{running_image_digest}', to_jsonb($1::text))
+WHERE uid BETWEEN 'uid-000001' AND 'uid-001000'
+`, digest); err != nil {
+		t.Fatalf("seed hot runtime digest: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+UPDATE fact_records
+SET is_tombstone = TRUE
+WHERE fact_id BETWEEN 'fact-000101' AND 'fact-000150'
+`); err != nil {
+		t.Fatalf("seed stale hot runtime facts: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+ANALYZE graph_node_owner;
+ANALYZE fact_records;
+`); err != nil {
+		t.Fatalf("analyze hot runtime-digest candidate set: %v", err)
+	}
+
+	query, args := buildCloudResourceRuntimeDigestQuery(
+		[]string{digest},
+		false,
+		[]string{"repository:allowed"},
+		[]string{"scope:allowed"},
+	)
+	plan := explainCloudResourceListLiveQuery(t, ctx, db, query, args)
+	for _, want := range []string{
+		"graph_node_owner_cloud_resource_runtime_digest_idx",
+		"CTE Scan",
+		`"Actual Rows": 200`,
+	} {
+		if !strings.Contains(plan, want) {
+			t.Fatalf("hot runtime-digest plan missing %q: %s", want, plan)
+		}
+	}
+
+	store := NewPostgresCloudResourceListStore(db)
+	start := time.Now()
+	got, err := store.CurrentAuthorizedCloudResourcesByDigest(
+		ctx,
+		[]string{digest},
+		false,
+		[]string{"repository:allowed"},
+		[]string{"scope:allowed"},
+	)
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("scoped hot runtime-digest read: %v", err)
+	}
+	if elapsed > cloudResourceListInteractiveSLO {
+		t.Fatalf("scoped hot runtime-digest duration = %s, want <= %s", elapsed, cloudResourceListInteractiveSLO)
+	}
+	want := make([]CloudResourceRuntimeDigestMatch, 0, 75)
+	for value := 1; value <= supplyChainCloudRuntimeProbeMaxResults; value += 2 {
+		if value >= 101 && value <= 150 {
+			continue
+		}
+		want = append(want, CloudResourceRuntimeDigestMatch{
+			UID:    fmt.Sprintf("uid-%06d", value),
+			Digest: digest,
+			ARN:    fmt.Sprintf("arn:example:compute:::resource/%06d", value),
+		})
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("scoped hot runtime-digest rows = %#v, want first-200 bounded rows %#v", got, want)
+	}
+	t.Logf("20,000-row hot runtime-digest duration = %s; candidates=200 authorized-current=%d", elapsed, len(got))
+}
+
 func cloudResourceListLiveDigest(value int) string {
 	return fmt.Sprintf("sha256:%064x", value)
 }
@@ -364,7 +451,8 @@ func seedCloudResourceListLiveCorpus(t *testing.T, ctx context.Context, db *sql.
 		`CREATE INDEX graph_node_owner_cloud_resource_runtime_digest_idx
            ON graph_node_owner (((winning_row->>'running_image_digest')), ((winning_row->>'arn')), uid)
            WHERE winning_row->>'resource_type' IS NOT NULL
-             AND winning_row->>'running_image_digest' IS NOT NULL`,
+             AND NULLIF(BTRIM(winning_row->>'running_image_digest'), '') IS NOT NULL
+             AND NULLIF(BTRIM(winning_row->>'arn'), '') IS NOT NULL`,
 		`ANALYZE ingestion_scopes`,
 		`ANALYZE scope_generations`,
 		`ANALYZE fact_records`,

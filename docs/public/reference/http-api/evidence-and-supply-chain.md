@@ -1043,14 +1043,27 @@ which did not perform the required runtime-evidence resolution on the base,
 performs the corrected read in 0.434 ms. The transformed investigation packet
 omits these enrichment fields and improved from 0.051 ms to 0.020 ms by
 skipping their reads.
+The production read materializes the deterministic first 200
+`(digest, ARN, uid)` candidates before freshness and authorization checks,
+preserving the previous global evidence cap while bounding hot-digest work. A
+100,000-row denied-first proof reduced authorization probes from 100,000 to 200
+and execution from 145.785 ms to 0.512 ms. The strict partial index excludes
+blank and whitespace-only anchors; on a mostly-empty 200,000-row ledger it was
+about 80 percent smaller and improved identical 20,000-row insert/update tests
+without changing table contents. The retained real-handler integration test
+completed 15 hot-digest list requests at a 636.833 microsecond median and
+returned exactly the 200-resource cap. Full commands and lifecycle proof are in
+`docs/internal/evidence/5469-tiered-version-resolution.md`.
 
 Observability: `version_resolution_tier`/`version_resolution_corroboration`
 are produced by `supplyChainVersionResolution` from the enriched finding row.
 The bounded owner-ledger lookup reuses the existing
 `supply_chain.cloud_runtime_probe` child span and records subject-digest,
-candidate-resource, authorized-current-resource, runtime-confirmed-digest, and
-runtime-resource counts. No new metric, log line, queue, worker, graph write,
-or runtime deployment knob is introduced.
+authorized-current-resource, runtime-confirmed-digest, and runtime-resource
+counts. The three result counts are present with zero values when the indexed
+read finds no authorized current resource, so an empty result is distinguishable
+from missing instrumentation. No new metric, log line, queue, worker, graph
+write, or runtime deployment knob is introduced.
 
 Withholding the promotion also changes the derived `reachability` block. That
 object is computed from `runtime_reachability`, and `deployed_image` maps onto

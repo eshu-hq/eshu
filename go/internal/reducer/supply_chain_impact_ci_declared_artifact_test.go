@@ -20,7 +20,7 @@ import (
 func TestBuildSupplyChainImpactFindingsBakesCIDeclaredArtifactDigestOnDigestMatch(t *testing.T) {
 	t.Parallel()
 
-	deploymentImageRef := "registry.example/api@" + testImpactSubjectDigest
+	deploymentImageRef := "registry.example.com/api@" + testImpactSubjectDigest
 	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
 		vulnerabilityCVEFact("cve-1", "CVE-2026-5469", 9.1),
 		vulnerabilityAffectedPackageFact("affected-1", "CVE-2026-5469", testImpactPackageID, "npm", "example", "1.2.3", "1.3.0"),
@@ -66,7 +66,7 @@ func TestBuildSupplyChainImpactFindingsBakesCIDeclaredArtifactDigestOnDigestMatc
 func TestBuildSupplyChainImpactFindingsBakesContradictingDigestOnImageRefMatch(t *testing.T) {
 	t.Parallel()
 
-	tagImageRef := "registry.example/api:v2"
+	tagImageRef := "registry.example.com/api:v2"
 	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
 		vulnerabilityCVEFact("cve-1", "CVE-2026-5470", 9.1),
 		vulnerabilityAffectedPackageFact("affected-1", "CVE-2026-5470", testImpactPackageID, "npm", "example", "1.2.3", "1.3.0"),
@@ -106,31 +106,158 @@ func TestBuildSupplyChainImpactFindingsBakesContradictingDigestOnImageRefMatch(t
 	}
 }
 
-// TestBuildSupplyChainImpactFindingsBakesCIDeclaredArtifactIdentityAtomically
-// proves the round-3 P2-2 fix: baking must be atomic across the WHOLE
-// deployment, not per axis. Before this fix, CIDeclaredArtifactDigest and
-// CIDeclaredImageRef were each independently first-wins, so deployment A (a
-// strong image-ref match with no declared digest) could bake its ref while a
-// LATER deployment B (a strong digest match with a DIFFERENT declared image
-// ref) filled in the still-empty digest field -- producing a baked pair that
-// described two different deployments: a digest paired with a ref that does
-// not resolve to it. That is exactly the "never attribute evidence to a
-// source that did not declare it" defect the whole #5469 issue is about, one
-// level down.
-//
-// This test asserts the atomic contract: once the FIRST strong-matching
-// deployment (A, in fact-list order) is found, its OWN full identity is
-// baked and no later deployment (B) may contribute to either field, even
-// where A left a field empty. The expected pair is A's image ref with an
-// EMPTY digest (never B's digest), since A is first and A never declared a
-// digest.
-func TestBuildSupplyChainImpactFindingsBakesCIDeclaredArtifactIdentityAtomically(t *testing.T) {
+// TestBuildSupplyChainImpactFindingsPrefersExactDigestAcrossFactPermutations
+// proves immutable subject-digest evidence outranks a mutable image-reference
+// match regardless of fact order. The selected digest and image reference must
+// still come from one deployment.
+func TestBuildSupplyChainImpactFindingsPrefersExactDigestAcrossFactPermutations(t *testing.T) {
 	t.Parallel()
 
-	findingImageRef := "registry.example/api@" + testImpactSubjectDigest
-	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
-		vulnerabilityCVEFact("cve-1", "CVE-2026-5472", 9.1),
-		vulnerabilityAffectedPackageFact("affected-1", "CVE-2026-5472", testImpactPackageID, "npm", "example", "1.2.3", "1.3.0"),
+	findingImageRef := "registry.example.com/api@" + testImpactSubjectDigest
+	imageRefOnly := cicdRunCorrelationImpactFact(
+		"deploy-image-ref",
+		testImpactOtherDigest,
+		findingImageRef,
+		testImpactRepositoryID,
+		testImpactEnv,
+		string(CICDRunCorrelationExact),
+	)
+	imageRefOnlyWithoutDigest := cicdRunCorrelationImpactFact(
+		"deploy-image-ref-no-digest",
+		"",
+		findingImageRef,
+		testImpactRepositoryID,
+		testImpactEnv,
+		string(CICDRunCorrelationExact),
+	)
+	exactDigest := cicdRunCorrelationImpactFact(
+		"deploy-digest",
+		testImpactSubjectDigest,
+		testImpactOtherImageRef,
+		testImpactRepositoryID,
+		testImpactEnv,
+		string(CICDRunCorrelationExact),
+	)
+
+	tests := []struct {
+		name        string
+		deployments []facts.Envelope
+	}{
+		{
+			name:        "conflicting mutable image reference first",
+			deployments: []facts.Envelope{imageRefOnly, exactDigest},
+		},
+		{
+			name:        "exact digest before conflicting mutable image reference",
+			deployments: []facts.Envelope{exactDigest, imageRefOnly},
+		},
+		{
+			name:        "digestless mutable image reference first",
+			deployments: []facts.Envelope{imageRefOnlyWithoutDigest, exactDigest},
+		},
+		{
+			name:        "exact digest before digestless mutable image reference",
+			deployments: []facts.Envelope{exactDigest, imageRefOnlyWithoutDigest},
+		},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := buildSupplyChainImpactFindingWithDeployments(
+				"CVE-2026-5472",
+				findingImageRef,
+				test.deployments,
+			)
+			if got.CIDeclaredArtifactDigest != testImpactSubjectDigest {
+				t.Fatalf("CIDeclaredArtifactDigest = %q, want exact subject digest %q", got.CIDeclaredArtifactDigest, testImpactSubjectDigest)
+			}
+			if got.CIDeclaredImageRef != testImpactOtherImageRef {
+				t.Fatalf("CIDeclaredImageRef = %q, want exact-digest deployment ref %q", got.CIDeclaredImageRef, testImpactOtherImageRef)
+			}
+		})
+	}
+}
+
+// TestBuildSupplyChainImpactFindingsUsesFactOrderWithinEqualMatchStrength
+// proves fact order is the deterministic tie-break only after match strength.
+func TestBuildSupplyChainImpactFindingsUsesFactOrderWithinEqualMatchStrength(t *testing.T) {
+	t.Parallel()
+
+	findingImageRef := "registry.example.com/api@" + testImpactSubjectDigest
+	thirdDigest := "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+	tests := []struct {
+		name        string
+		deployments []facts.Envelope
+		wantDigest  string
+		wantImage   string
+	}{
+		{
+			name: "first exact digest",
+			deployments: []facts.Envelope{
+				cicdRunCorrelationImpactFact("deploy-a", testImpactSubjectDigest, "registry.example.com/api:digest-a", testImpactRepositoryID, testImpactEnv, string(CICDRunCorrelationExact)),
+				cicdRunCorrelationImpactFact("deploy-b", testImpactSubjectDigest, "registry.example.com/api:digest-b", testImpactRepositoryID, testImpactEnv, string(CICDRunCorrelationExact)),
+			},
+			wantDigest: testImpactSubjectDigest,
+			wantImage:  "registry.example.com/api:digest-a",
+		},
+		{
+			name: "permuted exact digest",
+			deployments: []facts.Envelope{
+				cicdRunCorrelationImpactFact("deploy-b", testImpactSubjectDigest, "registry.example.com/api:digest-b", testImpactRepositoryID, testImpactEnv, string(CICDRunCorrelationExact)),
+				cicdRunCorrelationImpactFact("deploy-a", testImpactSubjectDigest, "registry.example.com/api:digest-a", testImpactRepositoryID, testImpactEnv, string(CICDRunCorrelationExact)),
+			},
+			wantDigest: testImpactSubjectDigest,
+			wantImage:  "registry.example.com/api:digest-b",
+		},
+		{
+			name: "first image reference",
+			deployments: []facts.Envelope{
+				cicdRunCorrelationImpactFact("deploy-c", testImpactOtherDigest, findingImageRef, testImpactRepositoryID, testImpactEnv, string(CICDRunCorrelationExact)),
+				cicdRunCorrelationImpactFact("deploy-d", thirdDigest, findingImageRef, testImpactRepositoryID, testImpactEnv, string(CICDRunCorrelationExact)),
+			},
+			wantDigest: testImpactOtherDigest,
+			wantImage:  findingImageRef,
+		},
+		{
+			name: "permuted image reference",
+			deployments: []facts.Envelope{
+				cicdRunCorrelationImpactFact("deploy-d", thirdDigest, findingImageRef, testImpactRepositoryID, testImpactEnv, string(CICDRunCorrelationExact)),
+				cicdRunCorrelationImpactFact("deploy-c", testImpactOtherDigest, findingImageRef, testImpactRepositoryID, testImpactEnv, string(CICDRunCorrelationExact)),
+			},
+			wantDigest: thirdDigest,
+			wantImage:  findingImageRef,
+		},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := buildSupplyChainImpactFindingWithDeployments(
+				"CVE-2026-5473",
+				findingImageRef,
+				test.deployments,
+			)
+			if got.CIDeclaredArtifactDigest != test.wantDigest {
+				t.Fatalf("CIDeclaredArtifactDigest = %q, want %q", got.CIDeclaredArtifactDigest, test.wantDigest)
+			}
+			if got.CIDeclaredImageRef != test.wantImage {
+				t.Fatalf("CIDeclaredImageRef = %q, want %q", got.CIDeclaredImageRef, test.wantImage)
+			}
+		})
+	}
+}
+
+func buildSupplyChainImpactFindingWithDeployments(
+	cveID string,
+	findingImageRef string,
+	deployments []facts.Envelope,
+) SupplyChainImpactFinding {
+	input := []facts.Envelope{
+		vulnerabilityCVEFact("cve-1", cveID, 9.1),
+		vulnerabilityAffectedPackageFact("affected-1", cveID, testImpactPackageID, "npm", "example", "1.2.3", "1.3.0"),
 		packageConsumptionFactWithChain("consume-1", testImpactPackageID, testImpactRepositoryID, "1.2.3", []string{"api", "example"}, 2, false),
 		sbomComponentImpactFact("component-1", "doc-1", testImpactPURL),
 		sbomAttachmentImpactFact("attachment-1", "doc-1", testImpactSubjectDigest),
@@ -141,39 +268,9 @@ func TestBuildSupplyChainImpactFindingsBakesCIDeclaredArtifactIdentityAtomically
 			findingImageRef,
 			string(ContainerImageIdentityExactDigest),
 		),
-		// Deployment A: strong image-ref match, but declares NO artifact
-		// digest of its own. First in fact-list order.
-		cicdRunCorrelationImpactFact(
-			"deploy-a",
-			"",
-			findingImageRef,
-			testImpactRepositoryID,
-			testImpactEnv,
-			string(CICDRunCorrelationExact),
-		),
-		// Deployment B: strong digest match (its own artifact_digest equals
-		// the finding's SubjectDigest), but declares a DIFFERENT image ref
-		// than A. Second in fact-list order. Under the pre-fix per-axis
-		// logic, B's digest would wrongly backfill the field A left empty,
-		// producing a digest/ref pair that describes two different
-		// deployments.
-		cicdRunCorrelationImpactFact(
-			"deploy-b",
-			testImpactSubjectDigest,
-			testImpactOtherImageRef,
-			testImpactRepositoryID,
-			testImpactEnv,
-			string(CICDRunCorrelationExact),
-		),
-	})
-
-	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-5472"]
-	if got.CIDeclaredImageRef != findingImageRef {
-		t.Fatalf("CIDeclaredImageRef = %q, want deployment A's ref %q (the first strong match)", got.CIDeclaredImageRef, findingImageRef)
 	}
-	if got.CIDeclaredArtifactDigest != "" {
-		t.Fatalf("CIDeclaredArtifactDigest = %q, want empty: deployment A (the first strong match) declared no digest, and deployment B's digest must never backfill a field from a different deployment", got.CIDeclaredArtifactDigest)
-	}
+	input = append(input, deployments...)
+	return supplyChainImpactFindingsByCVE(BuildSupplyChainImpactFindings(input))[cveID]
 }
 
 // TestBuildSupplyChainImpactFindingsWeakBranchBakesNoCIDeclaredArtifactIdentity

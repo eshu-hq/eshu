@@ -42,7 +42,7 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 
 	digest := "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
 	otherDigest := "sha256:99999999999999999999999999999999999999999999999999999999999999"
-	ecsARN := "arn:aws:ecs:us-east-1:123456789012:task/demo/bbbbbbbb"
+	ecsARN := "arn:example:compute:::resource/bbbbbbbb"
 
 	cases := []struct {
 		name              string
@@ -166,7 +166,7 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 			// every finding degrades to.
 			name: "config-only falls back to image_ref when no version or digest exists",
 			row: SupplyChainImpactFindingRow{
-				ImageRef:     "registry.example/app:v1",
+				ImageRef:     "registry.example.com/app:v1",
 				WorkloadIDs:  []string{"workload:example-api"},
 				Environments: []string{"prod"},
 			},
@@ -241,7 +241,7 @@ func TestSupplyChainVersionResolutionDeclaredRefNeverEmitted(t *testing.T) {
 
 	digest := "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
 	otherDigest := "sha256:88888888888888888888888888888888888888888888888888888888888888"
-	ecsARN := "arn:aws:ecs:us-east-1:123456789012:task/demo/cccccccc"
+	ecsARN := "arn:example:compute:::resource/cccccccc"
 
 	rows := []SupplyChainImpactFindingRow{
 		{},
@@ -303,7 +303,7 @@ func TestBuildSupplyChainImpactFindingResultAllocationBudget(t *testing.T) {
 		SubjectDigest:            digest,
 		ImageRef:                 "registry.example.com/demo/app:v1",
 		ObservedVersion:          "1.2.3",
-		CloudRuntimeResourceRefs: []string{"arn:aws:ecs:us-east-1:123456789012:task/demo/allocation-budget"},
+		CloudRuntimeResourceRefs: []string{"arn:example:compute:::resource/allocation-budget"},
 		CIDeclaredArtifactDigest: digest,
 		CIDeclaredImageRef:       "registry.example.com/demo/app:v1",
 		WorkloadIDs:              []string{"workload:example-api"},
@@ -349,7 +349,7 @@ func BenchmarkBuildSupplyChainImpactFindingResult(b *testing.B) {
 		SubjectDigest:            digest,
 		ImageRef:                 "registry.example.com/demo/app:v1",
 		ObservedVersion:          "1.2.3",
-		CloudRuntimeResourceRefs: []string{"arn:aws:ecs:us-east-1:123456789012:task/demo/bench"},
+		CloudRuntimeResourceRefs: []string{"arn:example:compute:::resource/bench"},
 		CIDeclaredArtifactDigest: digest,
 		CIDeclaredImageRef:       "registry.example.com/demo/app:v1",
 		WorkloadIDs:              []string{"workload:example-api"},

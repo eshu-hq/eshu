@@ -27,7 +27,7 @@ func TestSupplyChainListAndExplainReportSameDeploymentTruthForRuntimeConfirmedFi
 
 	runningDigest := "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
 	uid := "CloudResource:aws:ecs:task-parity"
-	ecsARN := "arn:aws:ecs:us-east-1:123456789012:task/demo/dddddddd"
+	ecsARN := "arn:example:compute:::resource/dddddddd"
 
 	graph := &stubCloudRuntimeGraph{
 		rowsByDigest: map[string][]map[string]any{
@@ -203,7 +203,7 @@ func TestSupplyChainPacketSkipsEnrichmentThatItsWireShapeCannotExpose(t *testing
 
 	runningDigest := "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
 	uid := "CloudResource:aws:ecs:task-packet-parity"
-	ecsARN := "arn:aws:ecs:us-east-1:123456789012:task/demo/eeeeeeee"
+	ecsARN := "arn:example:compute:::resource/eeeeeeee"
 	repositoryID := "repository:r_packet_parity"
 
 	graph := &stubCloudRuntimeGraph{
