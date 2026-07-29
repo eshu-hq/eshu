@@ -77,6 +77,21 @@ func TestVulnerabilityScannerReadContractIdentifiesFilters(t *testing.T) {
 		t.Fatalf("repository backing = %#v, want reducer read model", backing)
 	}
 
+	resultFields := scannerContractObjectListByName(t, data["response_fields"], "response_fields")
+	runtimeContext := resultFields["runtime_context"]
+	if runtimeContext == nil {
+		t.Fatalf("contract missing runtime_context result field; result_fields = %#v", resultFields)
+	}
+	notes, _ := runtimeContext["notes"].(string)
+	for _, want := range []string{
+		"findings list and impact explain routes",
+		"transformed investigation packet omits it",
+	} {
+		if !strings.Contains(notes, want) {
+			t.Errorf("runtime_context notes = %q, want %q", notes, want)
+		}
+	}
+
 	routes := scannerContractObjectListByName(t, data["routes"], "routes")
 	impactExplain := routes["impact_explain"]
 	if impactExplain == nil {

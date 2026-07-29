@@ -71,7 +71,7 @@ func TestSupplyChainDeploymentTruthTierDistinguishesRuntimeCIAndConfig(t *testin
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := buildSupplyChainImpactFindingResult(tc.row).DeploymentTruthTier
+			got := buildSupplyChainImpactFindingResult(&tc.row).DeploymentTruthTier
 			if got != string(tc.want) {
 				t.Fatalf("DeploymentTruthTier = %q, want %q", got, tc.want)
 			}

@@ -1,0 +1,10 @@
+{
+  "name": "github-actions-workflows-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Synthetic npm consumer for the #5469 config_only version-resolution golden proof: a config-materialized dependency anchor with no CI/runtime deployment evidence.",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "supply-chain-demo-lib": "1.2.2"
+  }
+}

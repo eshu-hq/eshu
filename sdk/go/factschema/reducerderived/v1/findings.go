@@ -54,22 +54,30 @@ type SupplyChainImpactFinding struct {
 	// whether the strongest deployment evidence observed for that
 	// environment was "deploy_event" or "declared" (issue #5426).
 	EnvironmentEvidence map[string]string `json:"environment_evidence,omitempty"`
-	CatalogEntityRefs   []string          `json:"catalog_entity_refs"`
-	CatalogOwnerRefs    []string          `json:"catalog_owner_refs"`
-	DetectionProfile    string            `json:"detection_profile"`
-	MissingEvidence     []string          `json:"missing_evidence"`
-	EvidencePath        []string          `json:"evidence_path"`
-	EvidenceFactIDs     []string          `json:"evidence_fact_ids"`
-	CanonicalWrites     int               `json:"canonical_writes"`
-	SourceLayers        []string          `json:"source_layers"`
-	DependencyPath      []string          `json:"dependency_path,omitempty"`
-	DependencyDepth     *int              `json:"dependency_depth,omitempty"`
-	DirectDependency    *bool             `json:"direct_dependency,omitempty"`
-	Reachability        map[string]any    `json:"reachability,omitempty"`
-	Provenance          map[string]any    `json:"provenance,omitempty"`
-	Suppression         map[string]any    `json:"suppression,omitempty"`
-	SuppressionState    *string           `json:"suppression_state,omitempty"`
-	Remediation         map[string]any    `json:"remediation,omitempty"`
+	// CIDeclaredArtifactDigest and CIDeclaredImageRef carry the matched
+	// cicd_run_correlation deployment's OWN declared artifact identity
+	// (issue #5469), persisted only when that deployment matched through a
+	// strong artifact-identity branch (digest or image-ref equality), never
+	// the weak repository+environment+operational-anchor branch. Absent when
+	// no strong-branch CI/CD deployment evidence exists.
+	CIDeclaredArtifactDigest *string        `json:"ci_declared_artifact_digest,omitempty"`
+	CIDeclaredImageRef       *string        `json:"ci_declared_image_ref,omitempty"`
+	CatalogEntityRefs        []string       `json:"catalog_entity_refs"`
+	CatalogOwnerRefs         []string       `json:"catalog_owner_refs"`
+	DetectionProfile         string         `json:"detection_profile"`
+	MissingEvidence          []string       `json:"missing_evidence"`
+	EvidencePath             []string       `json:"evidence_path"`
+	EvidenceFactIDs          []string       `json:"evidence_fact_ids"`
+	CanonicalWrites          int            `json:"canonical_writes"`
+	SourceLayers             []string       `json:"source_layers"`
+	DependencyPath           []string       `json:"dependency_path,omitempty"`
+	DependencyDepth          *int           `json:"dependency_depth,omitempty"`
+	DirectDependency         *bool          `json:"direct_dependency,omitempty"`
+	Reachability             map[string]any `json:"reachability,omitempty"`
+	Provenance               map[string]any `json:"provenance,omitempty"`
+	Suppression              map[string]any `json:"suppression,omitempty"`
+	SuppressionState         *string        `json:"suppression_state,omitempty"`
+	Remediation              map[string]any `json:"remediation,omitempty"`
 }
 
 // AWSCloudRuntimeDriftFinding is the schema-version-1 payload for

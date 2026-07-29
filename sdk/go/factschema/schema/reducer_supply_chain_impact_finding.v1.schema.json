@@ -30,6 +30,18 @@
     "cause": {
       "type": "string"
     },
+    "ci_declared_artifact_digest": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "ci_declared_image_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "confidence": {
       "type": "string"
     },

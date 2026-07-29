@@ -210,6 +210,12 @@ func supplyChainImpactTypedPayload(
 	if finding.DirectDependency != nil {
 		payload.DirectDependency = finding.DirectDependency
 	}
+	if digest := finding.CIDeclaredArtifactDigest; digest != "" {
+		payload.CIDeclaredArtifactDigest = &digest
+	}
+	if imageRef := finding.CIDeclaredImageRef; imageRef != "" {
+		payload.CIDeclaredImageRef = &imageRef
+	}
 	if reachability := supplyChainReachabilityPayload(finding.Reachability); reachability != nil {
 		payload.Reachability = reachability
 	}

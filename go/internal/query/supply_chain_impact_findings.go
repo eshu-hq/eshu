@@ -123,6 +123,20 @@ type SupplyChainImpactFindingRow struct {
 	// position as SupplyChainImpactFindingResult so the
 	// SupplyChainImpactFindingResult(row) conversion stays valid.
 	EnvironmentEvidence map[string]string
+	// CIDeclaredArtifactDigest and CIDeclaredImageRef carry the matched
+	// cicd_run_correlation deployment's OWN declared artifact identity
+	// (issue #5469), decoded from the persisted finding payload. The reducer
+	// bakes these only when that deployment matched through a strong
+	// artifact-identity branch (digest or image-ref equality), never the
+	// weak repository+environment+operational-anchor branch -- so a
+	// non-empty value here is a genuine CI-declared version/digest claim,
+	// not one inferred from the finding's own SubjectDigest/ImageRef. Empty
+	// for older rows written before #5469 landed, and for any row whose only
+	// CI/CD evidence matched through the weak branch. Kept in the same field
+	// position as SupplyChainImpactFindingResult so the
+	// SupplyChainImpactFindingResult(row) conversion stays valid.
+	CIDeclaredArtifactDigest string
+	CIDeclaredImageRef       string
 	// CloudRuntimeResourceRefs names the observed cloud compute resources
 	// (running ECS task / image-package Lambda ARNs) whose running image digest
 	// matches this finding's subject digest — runtime-observed deployment
@@ -174,6 +188,15 @@ type SupplyChainImpactFindingRow struct {
 	// DeploymentTruthTier classifies the strongest deployment evidence
 	// available for this finding's repository or workload context (#5471).
 	DeploymentTruthTier string
+	// VersionResolutionTier and VersionResolutionCorroboration are NOT
+	// decoded from the persisted finding payload. They are computed at read
+	// time by supplyChainVersionResolution (#5469) from this row's own
+	// fields, mirroring how DeploymentTruthTier is derived rather than
+	// stored. Kept in the same field position as
+	// SupplyChainImpactFindingResult so the
+	// SupplyChainImpactFindingResult(row) conversion stays valid.
+	VersionResolutionTier          string
+	VersionResolutionCorroboration []SupplyChainVersionResolutionCorroboration
 }
 
 // SupplyChainSuppressionDecisionRow is the API-shaped suppression decision

@@ -203,14 +203,14 @@ func BuildSupplyChainImpactExplanation(
 	row SupplyChainImpactExplanationRow,
 	readiness SupplyChainImpactReadinessEnvelope,
 ) SupplyChainImpactExplanationResult {
-	finding := buildSupplyChainImpactFindingResult(row.Finding)
+	finding := buildSupplyChainImpactFindingResult(&row.Finding)
 	advisory := buildSupplyChainAdvisoryExplanation(row)
 	component := buildSupplyChainComponentExplanation(row)
 	version := buildSupplyChainVersionExplanation(row, advisory, component)
 	anchors := buildSupplyChainExplanationAnchors(row)
 	dependencyChain := buildSupplyChainDependencyChain(row.Finding, row.EvidenceFacts)
 	missing := explanationMissingEvidence(row.Finding, readiness, advisory, component, version, dependencyChain, anchors)
-	impactPath := buildSupplyChainImpactPath(row, supplyChainImpactPathMissingEvidence(normalizedSupplyChainImpactMissingEvidence(row.Finding)))
+	impactPath := buildSupplyChainImpactPath(row, supplyChainImpactPathMissingEvidence(normalizedSupplyChainImpactMissingEvidence(&row.Finding)))
 	remediation := buildSupplyChainRemediationExplanation(row, advisory, version, component, dependencyChain)
 	return SupplyChainImpactExplanationResult{
 		Outcome:              "finding_explained",

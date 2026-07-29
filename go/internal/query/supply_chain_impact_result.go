@@ -61,6 +61,16 @@ type SupplyChainImpactFindingResult struct {
 	// whether the strongest deployment evidence for that environment was
 	// "deploy_event" or "declared" (issue #5426). Omitted when empty.
 	EnvironmentEvidence map[string]string `json:"environment_evidence,omitempty"`
+	// CIDeclaredArtifactDigest and CIDeclaredImageRef carry the matched
+	// cicd_run_correlation deployment's OWN declared artifact identity
+	// (issue #5469), persisted only when that deployment matched through a
+	// strong artifact-identity branch (digest or image-ref equality), never
+	// the weak repository+environment+operational-anchor branch. This is
+	// the evidence version_resolution_corroboration's provenance_ci_declared
+	// entry (when present) discloses as digest_or_version. Omitted when no
+	// strong-branch CI/CD deployment evidence exists.
+	CIDeclaredArtifactDigest string `json:"ci_declared_artifact_digest,omitempty"`
+	CIDeclaredImageRef       string `json:"ci_declared_image_ref,omitempty"`
 	// CloudRuntimeResourceRefs names the observed cloud compute resources
 	// (running ECS task / image-package Lambda ARNs) whose running image digest
 	// matches this finding's subject digest — runtime-observed deployment
@@ -103,6 +113,26 @@ type SupplyChainImpactFindingResult struct {
 	// shared truth.DeploymentTruthTier vocabulary (#5471). Omitted when the
 	// finding has no deployment anchor at all.
 	DeploymentTruthTier string `json:"deployment_truth_tier,omitempty"`
+	// VersionResolutionTier discloses which deployment-truth tier the
+	// judged version/digest for this finding was resolved from (#5469),
+	// reusing the shared truth.DeploymentTruthTier vocabulary verbatim. It
+	// can differ from DeploymentTruthTier: DeploymentTruthTier reports the
+	// strongest tier with ANY deployment evidence, while
+	// VersionResolutionTier requires that tier's evidence to also carry a
+	// concrete version/digest claim. Omitted when the finding has no
+	// version/digest evidence at all.
+	VersionResolutionTier string `json:"version_resolution_tier,omitempty"`
+	// VersionResolutionCorroboration lists every other deployment-truth tier
+	// that also makes a version/digest claim for this finding -- including a
+	// tier whose claim was ineligible to win (for example a CI-declared
+	// digest that contradicts the finding's own subject_digest, review
+	// finding R1) or whose claim disagrees with VersionResolutionTier's
+	// judged value. Each entry's agreement field is a closed three-state
+	// vocabulary (agrees/disagrees/not_comparable): a cross-axis comparison,
+	// such as a config-materialized version against a digest-based winner,
+	// is reported not_comparable rather than a misleading "disagrees"
+	// (review finding R6). Omitted when no other tier makes a claim.
+	VersionResolutionCorroboration []SupplyChainVersionResolutionCorroboration `json:"version_resolution_corroboration,omitempty"`
 }
 
 // SupplyChainImpactPriorityContribution explains one reducer priority input.
@@ -126,10 +156,11 @@ type SupplyChainReachabilityResult struct {
 	MissingEvidence  []string `json:"missing_evidence,omitempty"`
 }
 
-func buildSupplyChainImpactFindingResult(row SupplyChainImpactFindingRow) SupplyChainImpactFindingResult {
-	result := SupplyChainImpactFindingResult(row)
+func buildSupplyChainImpactFindingResult(row *SupplyChainImpactFindingRow) SupplyChainImpactFindingResult {
+	result := SupplyChainImpactFindingResult(*row)
 	result.MissingEvidence = normalizedSupplyChainImpactMissingEvidence(row)
 	result.DeploymentTruthTier = string(supplyChainDeploymentTruthTier(row))
+	result.VersionResolutionTier, result.VersionResolutionCorroboration = supplyChainVersionResolution(row)
 	return result
 }
 
@@ -152,7 +183,7 @@ func buildSupplyChainImpactFindingResult(row SupplyChainImpactFindingRow) Supply
 //     because no runtime tier existed on this surface.
 //   - config_only: only config-materialized deployment anchors or config
 //     environments exist, with no runtime or CI-declared evidence.
-func supplyChainDeploymentTruthTier(row SupplyChainImpactFindingRow) truth.DeploymentTruthTier {
+func supplyChainDeploymentTruthTier(row *SupplyChainImpactFindingRow) truth.DeploymentTruthTier {
 	if len(row.CloudRuntimeResourceRefs) > 0 {
 		return truth.ClassifyDeploymentTruthTier(true, false, false, false)
 	}
@@ -183,7 +214,7 @@ func supplyChainDeploymentTruthTier(row SupplyChainImpactFindingRow) truth.Deplo
 // deployment does not on its own raise runtime_reachability to deployed_image,
 // but it is still CI-declared deployment evidence and holds the row at
 // deployment_truth_tier=provenance_ci_declared rather than config_only.
-func rowHasCIDeclaredDeploymentEvidence(row SupplyChainImpactFindingRow) bool {
+func rowHasCIDeclaredDeploymentEvidence(row *SupplyChainImpactFindingRow) bool {
 	for _, hop := range row.EvidencePath {
 		if hop == cicdRunCorrelationFactKind {
 			return true
@@ -192,7 +223,11 @@ func rowHasCIDeclaredDeploymentEvidence(row SupplyChainImpactFindingRow) bool {
 	return false
 }
 
-func normalizedSupplyChainImpactMissingEvidence(row SupplyChainImpactFindingRow) []string {
+func normalizedSupplyChainImpactMissingEvidence(row *SupplyChainImpactFindingRow) []string {
+	if supplyChainImpactMissingEvidenceIsNormalized(row) {
+		return row.MissingEvidence
+	}
+
 	missing := make([]string, 0, len(row.MissingEvidence))
 	hasServiceCatalogEvidence := rowHasServiceCatalogEvidence(row)
 	hasResolvedServiceCatalogAnchor := rowHasResolvedServiceCatalogAnchor(row)
@@ -211,7 +246,32 @@ func normalizedSupplyChainImpactMissingEvidence(row SupplyChainImpactFindingRow)
 	return explanationUniqueStrings(missing)
 }
 
-func rowHasServiceCatalogEvidence(row SupplyChainImpactFindingRow) bool {
+// supplyChainImpactMissingEvidenceIsNormalized reports whether the existing
+// slice is already the exact trimmed, unique, sorted output and no
+// service-catalog reason needs rewriting. Reusing that slice avoids an
+// otherwise unconditional per-finding allocation; rows and results already
+// share the other immutable decoded slices.
+func supplyChainImpactMissingEvidenceIsNormalized(row *SupplyChainImpactFindingRow) bool {
+	hasServiceCatalogEvidence := rowHasServiceCatalogEvidence(row)
+	hasResolvedServiceCatalogAnchor := rowHasResolvedServiceCatalogAnchor(row)
+	for i, reason := range row.MissingEvidence {
+		if reason == serviceCatalogAnchorMissingReason && hasResolvedServiceCatalogAnchor {
+			return false
+		}
+		if reason == serviceCatalogCorrelationMissingReason && hasServiceCatalogEvidence {
+			return false
+		}
+		if reason == "" || strings.TrimSpace(reason) != reason {
+			return false
+		}
+		if i > 0 && row.MissingEvidence[i-1] >= reason {
+			return false
+		}
+	}
+	return true
+}
+
+func rowHasServiceCatalogEvidence(row *SupplyChainImpactFindingRow) bool {
 	for _, hop := range row.EvidencePath {
 		if hop == serviceCatalogCorrelationFactKind {
 			return true
@@ -226,7 +286,7 @@ func rowHasServiceCatalogEvidence(row SupplyChainImpactFindingRow) bool {
 	return false
 }
 
-func rowHasResolvedServiceCatalogAnchor(row SupplyChainImpactFindingRow) bool {
+func rowHasResolvedServiceCatalogAnchor(row *SupplyChainImpactFindingRow) bool {
 	if len(row.ServiceIDs) > 0 {
 		return true
 	}

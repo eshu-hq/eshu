@@ -933,9 +933,10 @@ Runtime context is evidence-only. Findings preserve reducer-owned
 `repository_id`, `subject_digest`, `image_ref`, `workload_ids[]`,
 `service_ids[]`, `environments[]`, `catalog_entity_refs[]`, and
 `catalog_owner_refs[]` when package/SBOM/image evidence joins to explicit
-deployment or service-catalog facts. The findings list also returns a labeled
-`runtime_context` block resolved from the repository's current active workload,
-service-catalog, platform, and CI/CD facts at read time. The `workload_id`,
+deployment or service-catalog facts. The findings list and impact explain route
+also return a labeled `runtime_context` block resolved from the repository's
+current active workload, service-catalog, platform, and CI/CD facts at read
+time. The transformed investigation packet omits this field. The `workload_id`,
 `service_id`, and `environment` filters use those same current repository
 mappings exclusively; reducer-baked arrays remain historical evidence but
 cannot satisfy a current-runtime filter after a redeploy, retraction, or
@@ -983,6 +984,86 @@ A declared-only deployment is still linked to the finding: it contributes its
 environment (labelled `declared`), its `cicd_run_correlation` evidence hop, and
 its correlation fact ID, so `deployment_truth_tier` stays
 `provenance_ci_declared`. Only the promotion to `deployed_image` is withheld.
+
+Each finding also discloses `version_resolution_tier` (issue #5469): which
+deployment-truth tier the judged `subject_digest`/`image_ref`/`observed_version`
+was actually resolved from, using the same tier vocabulary as
+`deployment_truth_tier` (see [Deployment Truth Tiers](../deployment-truth-tiers.md)).
+The two fields can diverge — a CI-declared hop with no confirmed artifact
+identity (the repository+environment+operational-anchor branch above) keeps
+`deployment_truth_tier=provenance_ci_declared` but drops
+`version_resolution_tier` to `config_only` — or omits it entirely when the
+finding carries no `observed_version`, `subject_digest`, or `image_ref`
+either — since that hop makes no version/digest claim to disclose.
+
+The `provenance_ci_declared` claim is never borrowed from the finding's own
+`subject_digest`/`image_ref`. The reducer separately bakes
+`ci_declared_artifact_digest`/`ci_declared_image_ref` onto the finding — the
+matched deployment's OWN declared identity — but only when that deployment
+matched through a strong branch (digest or image-ref equality), never the
+weak one. `version_resolution_tier`'s `provenance_ci_declared` claim reads
+exclusively from those baked fields. A strong image-ref match whose own declared digest contradicts the
+finding's subject digest (its tag moved to a different build) is real,
+disclosable evidence, but it is **never eligible to win**: crediting a
+foreign artifact's digest as the judged `version_resolution_tier` would
+directly conflict with `config_only`/`runtime_confirmed`, which still report
+the finding's own identity (review finding R1). Resolution instead falls
+through to the next tier with an eligible claim about the finding's own
+identity (typically `config_only`'s own `subject_digest`), and the
+contradicting claim appears in `version_resolution_corroboration[]` — a list
+of `{tier, digest_or_version, evidence_kind, agreement}` for every other tier
+that also makes a claim — with `agreement: disagrees`. That is a genuine
+same-axis digest-vs-digest disagreement between runtime-observed/config-owned
+and CI-declared evidence, distinct from the digest-vs-version mismatch a
+`config_only` corroboration entry shows when only a static `observed_version`
+disagrees with a digest-based winner: that cross-axis case reports
+`agreement: not_comparable` rather than a misleading `disagrees`, since a
+dpkg version string can never meaningfully equal a sha256 digest (`agreement`
+is a closed three-state vocabulary, not a boolean; review finding R6).
+`declared_ref` never appears in either field: #5393 has no evidence producer
+wired yet.
+
+Benchmark Evidence: `go test ./internal/query -run '^$' -bench
+'^BenchmarkBuildSupplyChainImpactFindingResult$' -benchtime=2s -count=5
+-benchmem` on go1.26.5 darwin/arm64 (Apple M5 Max), five runs each. The exact
+base (`ba2b7b80be85`) measured 143.3-144.5 ns/op, 16 B/op, and 1 allocation
+per result. The finished #5469 path measured 95.64-96.84 ns/op, 128 B/op, and
+1 allocation per result on the same common row shape and package-level result
+sink. CPU improves by about 30 percent and allocation count is maintained.
+The remaining 112 B/op delta is the two corroboration records returned by the
+new wire contract, not temporary candidate or normalization storage.
+Candidate work is bounded to the four closed truth tiers. The findings list and
+explain routes resolve current cloud-runtime evidence with one indexed
+Postgres owner-ledger read, including active-generation freshness and caller
+authorization in that read; they no longer scan the `CloudResource` graph
+label or make a second authorization query. On an isolated 50,000-node graph
+and 100,000-row owner ledger, the cold zero-match findings-list route improved
+from 173.516 ms on exact base `ba2b7b80be85` to 0.503 ms. The explain route,
+which did not perform the required runtime-evidence resolution on the base,
+performs the corrected read in 0.434 ms. The transformed investigation packet
+omits these enrichment fields and improved from 0.051 ms to 0.020 ms by
+skipping their reads.
+The production read materializes the deterministic first 200
+`(digest, ARN, uid)` candidates before freshness and authorization checks,
+preserving the previous global evidence cap while bounding hot-digest work. A
+100,000-row denied-first proof reduced authorization probes from 100,000 to 200
+and execution from 145.785 ms to 0.512 ms. The strict partial index excludes
+blank and whitespace-only anchors; on a mostly-empty 200,000-row ledger it was
+about 80 percent smaller and improved identical 20,000-row insert/update tests
+without changing table contents. The retained real-handler integration test
+completed 15 hot-digest list requests at a 636.833 microsecond median and
+returned exactly the 200-resource cap. Full commands and lifecycle proof are in
+`docs/internal/evidence/5469-tiered-version-resolution.md`.
+
+Observability: `version_resolution_tier`/`version_resolution_corroboration`
+are produced by `supplyChainVersionResolution` from the enriched finding row.
+The bounded owner-ledger lookup reuses the existing
+`supply_chain.cloud_runtime_probe` child span and records subject-digest,
+authorized-current-resource, runtime-confirmed-digest, and runtime-resource
+counts. The three result counts are present with zero values when the indexed
+read finds no authorized current resource, so an empty result is distinguishable
+from missing instrumentation. No new metric, log line, queue, worker, graph
+write, or runtime deployment knob is introduced.
 
 Withholding the promotion also changes the derived `reachability` block. That
 object is computed from `runtime_reachability`, and `deployed_image` maps onto

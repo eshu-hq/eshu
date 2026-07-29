@@ -139,4 +139,6 @@ var orderedBootstrapDefinitionNames = []string{
 	"supply_chain_impact_finding_id_index",
 	// migration 085 (#5465 failed suppression lineage retry lookup).
 	"vulnerability_suppression_lineage_index",
+	// migration 086 (#5469 indexed current runtime-image evidence lookup).
+	"cloud_resource_owner_runtime_digest_index",
 }

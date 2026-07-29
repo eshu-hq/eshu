@@ -32,6 +32,13 @@ The migration is incremental, family by family (Contract System v1 §7,
   deployment event was observed at the deploying run's commit) and `declared`
   (the CI-declared workflow job gate alone). The two collections are siblings,
   not a replacement: a reader that only knows `environments` keeps working.
+  It also carries `ci_declared_artifact_digest` and `ci_declared_image_ref`
+  (issue #5469), optional `*string` fields holding the matched
+  `cicd_run_correlation` deployment's OWN declared artifact identity — baked
+  only for a strong-branch match (digest or image-ref equality), never
+  borrowed from the finding's own `subject_digest`/`image_ref`. Both are
+  additive-optional: a finding written before #5469 carries neither key, and
+  decodes with both fields nil.
 - **vulnerabilitysuppression** — `vulnerabilitysuppression/v1`: the
   `vulnerability.suppression` payload shared by VEX, operator-policy, and
   provider-dismissal producers. Identity, source, justification, author,
@@ -208,9 +215,12 @@ load-bearing gets a named regression test alongside them;
 `decode_reducerderived_test.go` is the current example, pinning
 `reducer_supply_chain_impact_finding.environment_evidence` as an
 additive-optional string-valued map that round-trips, stays out of the schema's
-`required` set, and stays off the wire when empty. Add such a test in its own
-file rather than growing `decode_test.go`, which is already at its
-`//nolint:filelength` ceiling.
+`required` set, and stays off the wire when empty, plus
+`ci_declared_artifact_digest`/`ci_declared_image_ref` (issue #5469) as
+additive-optional string fields that round-trip, decode cleanly with both
+absent on a payload written before #5469 existed, and stay out of the
+schema's `required` set. Add such a test in its own file rather than growing
+`decode_test.go`, which is already at its `//nolint:filelength` ceiling.
 
 No-Observability-Change: this module has no runtime, network, queue, graph,
 or telemetry emission path, the same as `sdk/go/collector`. Runtime

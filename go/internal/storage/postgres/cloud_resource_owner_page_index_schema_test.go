@@ -17,6 +17,7 @@ func TestCloudResourceOwnerPageIndexesMigration(t *testing.T) {
 		"cloud_resource_owner_provider_page_index",
 		"cloud_resource_owner_region_page_index",
 		"cloud_resource_owner_account_page_index",
+		"cloud_resource_owner_runtime_digest_index",
 	} {
 		migration := MigrationSQL(name)
 		if strings.TrimSpace(migration) == "" {
@@ -29,10 +30,12 @@ func TestCloudResourceOwnerPageIndexesMigration(t *testing.T) {
 		"CREATE INDEX CONCURRENTLY IF NOT EXISTS graph_node_owner_cloud_resource_provider_page_idx",
 		"CREATE INDEX CONCURRENTLY IF NOT EXISTS graph_node_owner_cloud_resource_region_page_idx",
 		"CREATE INDEX CONCURRENTLY IF NOT EXISTS graph_node_owner_cloud_resource_account_page_idx",
+		"CREATE INDEX CONCURRENTLY IF NOT EXISTS graph_node_owner_cloud_resource_runtime_digest_idx",
 		"((winning_row->>'resource_type')), uid",
 		"((winning_row->>'collector_kind')), ((winning_row->>'resource_type')), uid",
 		"((winning_row->>'region')), ((winning_row->>'resource_type')), uid",
 		"((winning_row->>'account_id')), ((winning_row->>'resource_type')), uid",
+		"((winning_row->>'running_image_digest')), ((winning_row->>'arn')), uid",
 	} {
 		if !strings.Contains(sql.String(), want) {
 			t.Errorf("migration missing %q:\n%s", want, sql.String())
@@ -40,6 +43,23 @@ func TestCloudResourceOwnerPageIndexesMigration(t *testing.T) {
 	}
 	if strings.Contains(sql.String(), "INCLUDE (winning_row)") {
 		t.Fatal("migration must not duplicate every winning_row JSONB value into the page indexes")
+	}
+	runtimeDigestMigration := MigrationSQL("cloud_resource_owner_runtime_digest_index")
+	for _, want := range []string{
+		"NULLIF(BTRIM(winning_row->>'running_image_digest'), '') IS NOT NULL",
+		"NULLIF(BTRIM(winning_row->>'arn'), '') IS NOT NULL",
+	} {
+		if !strings.Contains(runtimeDigestMigration, want) {
+			t.Errorf("runtime digest migration missing selective predicate %q:\n%s", want, runtimeDigestMigration)
+		}
+	}
+	for _, broad := range []string{
+		"winning_row->>'running_image_digest' IS NOT NULL",
+		"winning_row->>'arn' IS NOT NULL",
+	} {
+		if strings.Contains(runtimeDigestMigration, broad) {
+			t.Errorf("runtime digest migration uses broad predicate %q:\n%s", broad, runtimeDigestMigration)
+		}
 	}
 }
 

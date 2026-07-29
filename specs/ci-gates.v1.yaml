@@ -1419,6 +1419,7 @@ gates:
       - "scripts/test-verify-golden-corpus-gate.sh"
       - "scripts/lib/golden-corpus-*.sh"
       - "scripts/lib/live-gate-lock.sh"
+      - "tests/fixtures/ecosystems/**"
     local:
       command: "bash scripts/test-verify-golden-corpus-gate.sh"
       test_command: ""
@@ -1443,6 +1444,7 @@ gates:
       - "sdk/go/factschema/**"
       - "testdata/golden/**"
       - "testdata/cassettes/**"
+      - "tests/fixtures/ecosystems/**"
       # The orchestrator and the libs it sources, including the live-gate mutex:
       # an edit to any of them changes what this gate does.
       - "scripts/verify-golden-corpus-gate.sh"

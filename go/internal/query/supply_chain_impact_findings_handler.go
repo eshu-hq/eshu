@@ -136,17 +136,11 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 	// #5452: promote findings whose subject digest is observed running on a
 	// live cloud resource (ECS task / image-package Lambda) to the
 	// runtime_confirmed deployment_truth_tier, naming the running resource. The
-	// probe is current-inventory + scope authorized through the owner ledger
-	// (stale or cross-scope resources never promote a finding) and bounded to
-	// the page's digests. A probe error is mapped to a bounded, retryable
-	// graph-availability envelope (503/504) rather than serving a false
-	// config_only tier for a vulnerability that is actually running — the
-	// findings tier is a security signal, so a wrong tier is worse than a
-	// retryable error. The raw graph error is never echoed to the client.
+	// indexed owner-ledger read is current-inventory + scope authorized (stale
+	// or cross-scope resources never promote a finding) and bounded to the
+	// page's digests. A probe error fails the request rather than serving a
+	// false config_only tier for a vulnerability that is actually running.
 	if err := h.applySupplyChainCloudRuntimeEvidence(r.Context(), access, rows); err != nil {
-		if WriteGraphReadError(w, r, err, supplyChainImpactFindingsCapability) {
-			return
-		}
 		WriteError(w, http.StatusInternalServerError, "supply-chain impact runtime evidence probe failed")
 		return
 	}
@@ -181,8 +175,8 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 		attribute.Int("eshu.query.runtime_context_workloads", resolvedWorkloadCount),
 	)
 	results := make([]SupplyChainImpactFindingResult, 0, len(rows))
-	for _, row := range rows {
-		results = append(results, buildSupplyChainImpactFindingResult(row))
+	for i := range rows {
+		results = append(results, buildSupplyChainImpactFindingResult(&rows[i]))
 	}
 	scope := SupplyChainImpactTargetScope{
 		CVEID:         filter.CVEID,

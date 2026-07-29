@@ -118,6 +118,7 @@ func applySupplyChainRuntimeContext(
 			finding.RepositoryID = deployment.repositoryID
 		}
 	}
+	bakeSupplyChainCIDeclaredArtifactIdentity(finding, deployments)
 	finding.EvidenceFactIDs = uniqueSortedStrings(finding.EvidenceFactIDs)
 	finding.EvidencePath = orderedUniqueStrings(finding.EvidencePath)
 	finding.DeploymentIDs = uniqueSortedStrings(finding.DeploymentIDs)

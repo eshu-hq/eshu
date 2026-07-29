@@ -444,6 +444,26 @@ hydration. The indexes intentionally do not `INCLUDE (winning_row)`: copying
 every JSONB document into four indexes would multiply write and storage cost for
 fields the page order does not need.
 
+Migration `086_cloud_resource_owner_runtime_digest_index.sql` adds the ordered
+`(running_image_digest, arn, uid)` read path used by supply-chain runtime
+evidence. Its strict partial predicate admits only CloudResource rows with
+nonblank, non-whitespace digest and ARN anchors. On a representative
+200,000-row, mostly-empty owner ledger this kept 10,000 entries instead of
+200,000, reduced index size from 8,536,064 B to 1,720,320 B, and reduced
+concurrent build time from 71.065 ms to 39.480 ms. Identical 20,000-row inserts
+improved from 61.638 ms to 44.413 ms and unrelated JSON updates from 78.884 ms
+to 50.167 ms, with `EXCEPT ALL` reporting `0/0` table differences. The query
+repeats the exact trim-aware predicate so Postgres can prove partial-index
+eligibility, then materializes at most 200 deterministic candidates before
+freshness and authorization checks.
+
+No-Regression Evidence: `TestCloudResourceOwnerPageIndexesMigration` pins the
+strict predicate. `TestCloudResourceOwnerPageIndexesApplyAndReapplyLive` uses
+the real migration 086 definition on a populated store and proves first apply,
+reapply, connection restart, clean rollback, invalid concurrent-build cleanup,
+and successful rebuild. Query and route proof commands are retained in
+`docs/internal/evidence/5469-tiered-version-resolution.md`.
+
 Migration `074_graph_node_owner_backfill_state.sql` records completion of the
 one-time CloudResource upgrade backfill. `GraphNodeOwnerBackfillStore` seeds
 graph rows written before migration 056 in 500-row transactions, using the same

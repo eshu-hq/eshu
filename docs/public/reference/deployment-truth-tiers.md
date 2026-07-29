@@ -161,6 +161,64 @@ The `runtime_confirmed` tier is calibrated at **0.95** — higher than the
 direct observation, not a config-derived inference. This calibration point
 is recorded in the [confidence calibration reference](confidence-calibration.md).
 
+## Version resolution reuse (#5469)
+
+`supply_chain_impact` findings also disclose `version_resolution_tier` and
+`version_resolution_corroboration[]` (`go/internal/query/supply_chain_impact_version_resolution.go`).
+These fields reuse the exact same closed `DeploymentTruthTier` vocabulary
+above — no new tier enum. They answer a narrower question than
+`deployment_truth_tier`: not "what is the strongest evidence that this
+workload was deployed at all", but "which tier's evidence backs the judged
+`subject_digest`/`image_ref`/`observed_version` on this finding, and which
+weaker tiers also made a version/digest claim (agreeing or not)".
+
+A finding's `version_resolution_tier` can be weaker than its
+`deployment_truth_tier` when the strongest tier's evidence exists but carries
+no concrete artifact identity — for example a `provenance_ci_declared` hop
+that matched only through repository+environment+operational anchor (the
+weak match branch behind #5426) holds `deployment_truth_tier` at
+`provenance_ci_declared` but drops `version_resolution_tier` to
+`config_only` — or omits it entirely when the finding carries no
+`observed_version`, `subject_digest`, or `image_ref` either — since that hop
+makes no version/digest claim to disclose. `declared_ref` is fail-closed here
+too: #5393 has no evidence producer, so it is never emitted by either field.
+
+The mechanism (issue #5469 review): the reducer bakes the matched
+`cicd_run_correlation` deployment's OWN declared identity onto the finding as
+`ci_declared_artifact_digest`/`ci_declared_image_ref`
+(`bakeSupplyChainCIDeclaredArtifactIdentity`,
+`go/internal/reducer/supply_chain_impact_runtime.go`), but ONLY when that
+deployment matched through a strong branch (its own `artifact_digest` equals
+the finding's `subject_digest`, or its own `image_ref` equals the finding's
+`image_ref`) — never the weak branch. `version_resolution_tier`'s
+`provenance_ci_declared` claim reads exclusively from those baked fields, not
+from the finding's own `subject_digest`/`image_ref`. A strong image-ref match
+whose own declared digest contradicts the finding's subject digest (a tag
+that moved to a different build) bakes that contradicting digest as real
+evidence — but a contradicting `provenance_ci_declared` claim is **never
+eligible to win** (review finding R1): crediting a foreign artifact's digest
+as the judged `version_resolution_tier` would put it in direct conflict with
+`config_only`/`runtime_confirmed`, which still report the finding's own
+identity. Resolution falls through to the next eligible tier (typically
+`config_only`'s own `subject_digest`), and the contradicting CI claim appears
+in `version_resolution_corroboration` with `agreement: disagrees` — a genuine
+same-axis digest-vs-digest disagreement, distinguished from the cross-axis
+digest-vs-version mismatch a `config_only` `observed_version` corroboration
+shows, which is reported `agreement: not_comparable` rather than a misleading
+`disagrees` (review finding R6; `agreement` is a closed three-state
+vocabulary — `agrees`, `disagrees`, `not_comparable` — not a plain boolean).
+
+`version_resolution_tier` can also be **present** when `deployment_truth_tier`
+is **absent**: `deployment_truth_tier`'s `config_only` branch requires a
+deployment anchor (`workload_ids`, `deployment_ids`, `image_ref`, or
+`subject_digest`) or a config environment, while `version_resolution_tier`'s
+`config_only` claim only requires `observed_version` (or a fallback
+digest/ref). A finding whose only evidence is a static
+`observed_version` — for example an npm/PyPI dependency with no
+container image, workload, or environment evidence at all — reports
+`version_resolution_tier: config_only` while `deployment_truth_tier` is
+omitted entirely.
+
 ## Cross-references
 
 - [Truth label protocol](truth-label-protocol.md) — the truth-envelope

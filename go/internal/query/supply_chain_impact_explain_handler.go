@@ -114,6 +114,34 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Resolve current, authorized runtime image evidence through the indexed
+	// owner ledger before assembling the finding, so explain and list select the
+	// same deployment and version-resolution tiers.
+	rows := []SupplyChainImpactFindingRow{row.Finding}
+	if err := h.applySupplyChainCloudRuntimeEvidence(r.Context(), access, rows); err != nil {
+		WriteError(w, http.StatusInternalServerError, "supply-chain impact runtime evidence probe failed")
+		return
+	}
+	// Same shape, same root cause as the cloud-runtime probe above:
+	// buildSupplyChainImpactFindingResult's SupplyChainImpactFindingResult(row)
+	// conversion carries row.RuntimeContext straight through to the
+	// runtime_context response field, but only the list route called
+	// applySupplyChainRuntimeContext before assembling results -- explain
+	// unconditionally omitted a finding's current workload/service/deployment
+	// context even when list would show it. This probe type-asserts
+	// h.ImpactFindings (the same store instance list uses, not
+	// h.ImpactExplanations) for the optional supplyChainImpactRuntimeContextReader
+	// capability and resolves at most one repository, well inside what list
+	// already resolves for a full page.
+	if err := h.applySupplyChainRuntimeContext(r.Context(), rows, access); err != nil {
+		if WriteGraphReadError(w, r, err, supplyChainImpactExplanationCapability) {
+			return
+		}
+		WriteError(w, http.StatusInternalServerError, "supply-chain impact runtime context probe failed")
+		return
+	}
+	row.Finding = rows[0]
+
 	scope := findingReadinessScope(row.Finding, filter)
 	findingResult := SupplyChainImpactFindingResult(row.Finding)
 	readiness := h.readSupplyChainImpactReadinessForScope(r, scope, []SupplyChainImpactFindingResult{findingResult}, false)

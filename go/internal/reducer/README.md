@@ -1811,7 +1811,34 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   image identity evidence. Package-registry version facts are upstream metadata
   and must not be treated as installed versions. CVSS, EPSS, and KEV stay risk
   signals; they never prove reachability without package or runtime evidence,
-  and missing deployment evidence remains visible. Exact repository-scoped
+  and missing deployment evidence remains visible. A matched
+  `reducer_ci_cd_run_correlation` contributes
+  `ci_declared_artifact_digest` and `ci_declared_image_ref` only when that one
+  deployment matches the finding by digest or image reference. The reducer
+  selects the first exact subject-digest match before considering mutable
+  image-reference matches. Fact order breaks ties within the same match
+  strength. It copies both values from that one deployment as a pair, including
+  an empty sibling value, so separate rows cannot assemble an identity no
+  deployment declared. A repository/environment/operational-anchor match
+  contributes deployment context but leaves both CI-declared identity fields
+  absent. When no digest match exists, the selected image-reference match may
+  carry a contradicting digest; the reducer preserves it so the query layer can
+  disclose the disagreement without selecting the foreign digest as the
+  finding's resolved identity.
+
+  No-Regression Evidence: `go test ./internal/reducer -run
+  'TestBuildSupplyChainImpactFindings(BakesCIDeclaredArtifact|PrefersExactDigestAcrossFactPermutations|UsesFactOrderWithinEqualMatchStrength|WeakBranchBakesNoCIDeclaredArtifact)'
+  -count=1` covers digest-first selection under both fact permutations,
+  deterministic fact-order ties within each strength, atomic pairs, weak
+  operational matches, and preserved digest disagreement.
+
+  No-Observability-Change: the helper still makes one in-process pass over
+  already matched deployment rows and adds no query, queue, graph write,
+  metric, span, log field, or runtime knob. The existing supply-chain reducer
+  execution metrics, durable finding payload, and query spans expose the
+  selected pair.
+
+  Exact repository-scoped
   `reducer_service_catalog_correlation` facts are attached to the finding
   evidence path, but they do not create `service_ids` or `workload_ids` unless
   the fact carries those anchors. Repository-only catalog facts preserve

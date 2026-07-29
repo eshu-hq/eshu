@@ -55,12 +55,19 @@
 // ambiguous branches remain explicit missing evidence. Supply-chain impact
 // version matching is ecosystem-aware for npm, Cargo, Pub, Swift, NuGet, Maven,
 // and PyPI PEP 440 exact-version evidence; unsupported or malformed ranges fail
-// closed with explicit missing evidence. Exact repository-scoped
-// service-catalog correlation facts stay attached to the supply-chain evidence
-// path, but they do not create service or workload ids unless the catalog row
-// carries those anchors; missing anchors are reported as service/workload
-// catalog anchor missing rather than treating the catalog correlation as
-// absent. Security-alert reconciliation facts are keyed by provider alert
+// closed with explicit missing evidence. For CI/CD deployment correlations,
+// the handler persists a declared digest and image reference only when one
+// deployment matches the finding by digest or image reference. It selects the
+// first exact subject-digest match before any mutable image-reference match,
+// with fact order breaking equal-strength ties, and copies both fields from
+// that deployment as one pair. A weaker repository/environment match leaves
+// them absent, and a digest contradiction stays intact for query-time
+// corroboration. Exact repository-scoped service-catalog correlation
+// facts stay attached to the supply-chain evidence path, but they do not create
+// service or workload ids unless the catalog row carries those anchors; missing
+// anchors are reported as service/workload catalog anchor missing rather than
+// treating the catalog correlation as absent. Security-alert reconciliation
+// facts are keyed by provider alert
 // identity, package identity, advisory ids, and provider evidence scope so
 // provider-only placeholders are replaced by later matched or stale rows while
 // preserving reason and evidence references for audit. They also carry the

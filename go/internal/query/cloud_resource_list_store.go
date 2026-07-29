@@ -57,6 +57,28 @@ type CloudResourceCurrentInventoryFilter interface {
 	) ([]string, error)
 }
 
+// CloudResourceRuntimeDigestMatch is one current, authorized cloud resource
+// whose reducer-owned winning row reports a requested running image digest.
+type CloudResourceRuntimeDigestMatch struct {
+	UID    string
+	Digest string
+	ARN    string
+}
+
+// CloudResourceRuntimeDigestResolver resolves current, authorized runtime image
+// evidence directly from the graph owner ledger. The ledger carries the exact
+// winning CloudResource row, so this avoids an unindexed graph label scan and a
+// second candidate-authorization round trip.
+type CloudResourceRuntimeDigestResolver interface {
+	CurrentAuthorizedCloudResourcesByDigest(
+		ctx context.Context,
+		digests []string,
+		allScopes bool,
+		allowedRepositoryIDs []string,
+		allowedScopeIDs []string,
+	) ([]CloudResourceRuntimeDigestMatch, error)
+}
+
 // PostgresCloudResourceListStore implements CloudResourceListStore against the
 // graph_node_owner ledger and the active source-fact generation tables.
 type PostgresCloudResourceListStore struct {
@@ -106,6 +128,105 @@ func (s *PostgresCloudResourceListStore) CurrentAuthorizedCloudResourceUIDs(
 		return nil, fmt.Errorf("iterate current authorized cloud resource uids: %w", err)
 	}
 	return uids, nil
+}
+
+// CurrentAuthorizedCloudResourcesByDigest examines at most the runtime probe
+// candidate bound in deterministic digest, ARN, and uid order. Freshness and
+// caller authorization are checked after that materialized bound in the same
+// indexed owner-ledger read, preserving the former graph route's global cap:
+// authorized rows beyond the first candidate page remain under-enriched rather
+// than widening hot-digest work.
+func (s *PostgresCloudResourceListStore) CurrentAuthorizedCloudResourcesByDigest(
+	ctx context.Context,
+	digests []string,
+	allScopes bool,
+	allowedRepositoryIDs []string,
+	allowedScopeIDs []string,
+) ([]CloudResourceRuntimeDigestMatch, error) {
+	if s == nil || s.db == nil {
+		return nil, fmt.Errorf("cloud resource list database is required")
+	}
+	if len(digests) == 0 {
+		return nil, nil
+	}
+	query, args := buildCloudResourceRuntimeDigestQuery(
+		digests,
+		allScopes,
+		allowedRepositoryIDs,
+		allowedScopeIDs,
+	)
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("select current authorized cloud resources by runtime digest: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	matches := make([]CloudResourceRuntimeDigestMatch, 0, supplyChainCloudRuntimeProbeMaxResults)
+	for rows.Next() {
+		var match CloudResourceRuntimeDigestMatch
+		if err := rows.Scan(&match.UID, &match.Digest, &match.ARN); err != nil {
+			return nil, fmt.Errorf("scan current authorized cloud resource runtime digest: %w", err)
+		}
+		matches = append(matches, match)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate current authorized cloud resource runtime digests: %w", err)
+	}
+	return matches, nil
+}
+
+func buildCloudResourceRuntimeDigestQuery(
+	digests []string,
+	allScopes bool,
+	allowedRepositoryIDs []string,
+	allowedScopeIDs []string,
+) (string, []any) {
+	args := make([]any, 0, 4)
+	bind := func(value any) string {
+		args = append(args, value)
+		return fmt.Sprintf("$%d", len(args))
+	}
+	digestSet := bind(digests)
+	authorization := ""
+	if !allScopes {
+		repositories := bind(allowedRepositoryIDs)
+		scopes := bind(allowedScopeIDs)
+		authorization = "\n          AND ((scope.scope_kind = 'repository' AND scope.source_key = ANY(" + repositories + "::text[]))" +
+			" OR fact.scope_id = ANY(" + scopes + "::text[]))"
+	}
+	limit := bind(supplyChainCloudRuntimeProbeMaxResults)
+
+	return `
+WITH candidates AS MATERIALIZED (
+  SELECT owner.uid,
+         owner.winning_row->>'running_image_digest' AS digest,
+         owner.winning_row->>'arn' AS arn,
+         owner.winning_row->>'source_fact_id' AS source_fact_id
+  FROM graph_node_owner AS owner
+  WHERE owner.winning_row->>'resource_type' IS NOT NULL
+    AND NULLIF(BTRIM(owner.winning_row->>'running_image_digest'), '') IS NOT NULL
+    AND owner.winning_row->>'running_image_digest' = ANY(` + digestSet + `::text[])
+    AND NULLIF(BTRIM(owner.winning_row->>'arn'), '') IS NOT NULL
+  ORDER BY owner.winning_row->>'running_image_digest', owner.winning_row->>'arn', owner.uid
+  LIMIT ` + limit + `
+)
+SELECT candidate.uid,
+       candidate.digest,
+       candidate.arn
+FROM candidates AS candidate
+WHERE COALESCE((
+        SELECT TRUE
+        FROM fact_records AS fact
+        JOIN ingestion_scopes AS scope ON scope.scope_id = fact.scope_id
+        JOIN scope_generations AS generation ON generation.generation_id = fact.generation_id
+        WHERE fact.fact_id = candidate.source_fact_id
+          AND scope.active_generation_id = fact.generation_id
+          AND generation.scope_id = scope.scope_id
+          AND generation.status = 'active'
+          AND fact.is_tombstone = FALSE` + authorization + `
+        LIMIT 1
+      ), FALSE)
+ORDER BY candidate.digest, candidate.arn, candidate.uid`, args
 }
 
 // buildCloudResourceCurrentInventoryQuery builds the candidate-keyed variant of
