@@ -5,6 +5,7 @@ package parser
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -189,6 +190,95 @@ func TestDefaultEngineParsePathHCLTerraformBackendAttributeLineNumbers(t *testin
 		if got := backend[tc.field]; got != tc.want {
 			t.Fatalf("terraform_backends[0].%s = %#v, want %#v", tc.field, got, tc.want)
 		}
+	}
+}
+
+// TestDefaultEngineParsePathHCLLocalBackendBareBlockOmitsPathAttribute is the
+// parser-layer regression for issue #5594: a bare `backend "local" {}` block
+// (no `path` attribute — the ordinary way to write a local backend, since
+// Terraform itself defaults path to "terraform.tfstate") must not emit a
+// local_path row field. The row's own "path" field (the source .tf file this
+// backend block was parsed from) must stay untouched.
+func TestDefaultEngineParsePathHCLLocalBackendBareBlockOmitsPathAttribute(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "env", "prod", "main.tf")
+	writeTestFile(
+		t,
+		filePath,
+		`terraform {
+  backend "local" {}
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	backend := findNamedBucketItem(t, got, "terraform_backends", "local")
+	if got, want := backend["backend_kind"], "local"; got != want {
+		t.Fatalf("terraform_backends[0].backend_kind = %#v, want %#v", got, want)
+	}
+	if _, ok := backend["local_path"]; ok {
+		t.Fatalf("terraform_backends[0].local_path = %#v, want omitted for a bare block", backend["local_path"])
+	}
+	if got, ok := backend["path"].(string); !ok || !strings.HasSuffix(got, filepath.Join("env", "prod", "main.tf")) {
+		t.Fatalf("terraform_backends[0].path = %#v, want the source file path (unchanged by the local backend fix)", backend["path"])
+	}
+}
+
+// TestDefaultEngineParsePathHCLLocalBackendCapturesPathAttributeSeparately
+// proves an explicit `path` attribute on a local backend is captured under
+// "local_path" (not "path", which already holds the source .tf file path for
+// every backend row) so both values survive without one silently overwriting
+// the other (issue #5594).
+func TestDefaultEngineParsePathHCLLocalBackendCapturesPathAttributeSeparately(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	filePath := filepath.Join(repoRoot, "env", "prod", "main.tf")
+	writeTestFile(
+		t,
+		filePath,
+		`terraform {
+  backend "local" {
+    path = "custom/terraform.tfstate"
+  }
+}
+`,
+	)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+
+	got, err := engine.ParsePath(repoRoot, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	backend := findNamedBucketItem(t, got, "terraform_backends", "local")
+	if got, want := backend["local_path"], "custom/terraform.tfstate"; got != want {
+		t.Fatalf("terraform_backends[0].local_path = %#v, want %#v", got, want)
+	}
+	if got, want := backend["local_path_is_literal"], true; got != want {
+		t.Fatalf("terraform_backends[0].local_path_is_literal = %#v, want %#v", got, want)
+	}
+	if got, want := backend["local_path_line_number"], 3; got != want {
+		t.Fatalf("terraform_backends[0].local_path_line_number = %#v, want %#v", got, want)
+	}
+	if got, ok := backend["path"].(string); !ok || !strings.HasSuffix(got, filepath.Join("env", "prod", "main.tf")) {
+		t.Fatalf("terraform_backends[0].path = %#v, want the source file path, not overwritten by the "+
+			"backend's own path attribute", backend["path"])
 	}
 }
 
