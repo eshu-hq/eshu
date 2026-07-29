@@ -85,12 +85,3 @@ CREATE INDEX IF NOT EXISTS scope_generations_scope_generation_idx
 -- reads within the cache TTL.
 ALTER TABLE scope_generations ALTER COLUMN generation_id SET STATISTICS 1000;
 ALTER TABLE scope_generations ALTER COLUMN scope_id SET STATISTICS 1000;
-
--- The operator suppression writer reads the latest pending, active, or failed
--- lineage head while holding the scope row lock. Keep that fixed-scope lookup
--- ordered and covering without adding entries for any other ingestion scope.
-CREATE INDEX IF NOT EXISTS scope_generations_vulnerability_suppression_lineage_idx
-    ON scope_generations (ingested_at DESC, generation_id DESC)
-    INCLUDE (status)
-    WHERE scope_id = 'operator:vulnerability_suppressions'
-      AND status IN ('pending', 'active', 'failed');

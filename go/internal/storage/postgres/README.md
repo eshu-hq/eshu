@@ -102,7 +102,11 @@ High-signal invariants for this package:
   of the stale active row while improving median latency by 9.6 percent; the
   candidate index occupied 16 kB. With PostgreSQL forced to a generic prepared
   plan, the production fixed-scope query still used the covering index and
-  completed in 0.013 ms with two shared-buffer hits.
+  completed in 0.013 ms with two shared-buffer hits. A populated pre-085
+  integration proof loaded 100,000 failed generations, ran the exact bootstrap
+  path, held an old snapshot while migration 085 built concurrently, and
+  confirmed a second connection could still insert a generation; bootstrap
+  then completed, reapplied as a no-op, and left the index valid and ready.
 - Canonical impact winners denormalize `suppression_expires_at` for
   operator-owned rows. Migration `083_supply_chain_suppression_expiry.sql`
   backfills only hidden operator winners, preserves `NULL` for timeless rows,
