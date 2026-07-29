@@ -83,10 +83,14 @@ type cloudInventoryReadModelStore interface {
 // account+region+service; see go/internal/collector/awscloud/awsruntime) that
 // is never literally equal to the raw provider account/project/subscription
 // number, and one account can fan out into many scope ids. An alias therefore
-// resolves against the raw identifier the collector recorded on the scope's
-// own metadata (ingestion_scopes.payload) rather than against scope_id itself
-// (#5238 -- the prior code compared the alias value directly to scope_id,
-// which silently matched zero rows for every real multi-shard account).
+// resolves against the canonical payload's normalized "account_id" field,
+// which the reducer populates from the resolving provider source fact's own
+// identity (aws_resource.account_id, gcp_cloud_resource.project_id,
+// azure_cloud_resource.subscription_id -- see
+// go/internal/reducer/cloud_inventory_admission_writer.go), rather than
+// against scope_id itself (#5238 -- the prior code compared the alias value
+// directly to scope_id, which silently matched zero rows for every real
+// multi-shard account on every provider).
 type cloudInventoryFilter struct {
 	Provider          string
 	ScopeID           string
@@ -266,20 +270,22 @@ func (h *CloudInventoryHandler) filterFromRequest(w http.ResponseWriter, r *http
 }
 
 // cloudInventoryAccountAliasKeys is the closed, ordered set of provider-flavored
-// account selector parameters. Each name doubles as the exact ingestion_scopes
-// metadata key the owning collector writes for that provider (verified for AWS:
-// go/internal/collector/awscloud/awsruntime/source.go writes
-// Metadata["account_id"]); a caller-supplied alias is never interpolated as
-// free-form SQL, only chosen from this fixed slice.
+// account selector query parameters (account_id, project_id, subscription_id).
+// Every alias resolves against the SAME normalized canonical payload field
+// ("account_id" -- see buildCloudInventoryIdentitiesSQL); this slice exists
+// only to recognize which request parameter the caller used, for the
+// scope_id-takes-precedence rule and for echoing the response scope object
+// back under the right key name. A caller-supplied alias name is never
+// interpolated as free-form SQL, only compared against this fixed slice.
 var cloudInventoryAccountAliasKeys = []string{"account_id", "project_id", "subscription_id"}
 
 // cloudInventoryScopeSelector resolves the request's scope filter. scope_id is
 // the literal canonical scope id and, when present, wins outright. Otherwise
 // the first non-empty provider-flavored alias (account_id, project_id,
 // subscription_id) is returned as (aliasKey, aliasValue) so the caller can
-// resolve it against the owning scope's raw provider metadata instead of
-// against scope_id -- see cloudInventoryFilter's doc comment for why the two
-// are not interchangeable (#5238).
+// resolve it against the canonical payload's normalized account_id field
+// instead of against scope_id -- see cloudInventoryFilter's doc comment for
+// why the two are not interchangeable (#5238).
 func cloudInventoryScopeSelector(r *http.Request) (scopeID string, aliasKey string, aliasValue string) {
 	if value := strings.TrimSpace(QueryParam(r, "scope_id")); value != "" {
 		return value, "", ""

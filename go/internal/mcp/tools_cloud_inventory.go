@@ -28,15 +28,15 @@ func cloudInventoryTools() []ToolDefinition {
 					},
 					"account_id": map[string]any{
 						"type":        "string",
-						"description": "Raw AWS account number. Matches every canonical scope recorded under that account, which can span multiple region/service partitions.",
+						"description": "Raw AWS account number. Matches every canonical resource whose admitting source fact carried this account_id, which can span multiple region/service partitions (scope ids).",
 					},
 					"project_id": map[string]any{
 						"type":        "string",
-						"description": "Raw GCP project id. Matches every canonical scope recorded under that project.",
+						"description": "Raw GCP project id. Matches every canonical resource whose admitting source fact carried this project_id.",
 					},
 					"subscription_id": map[string]any{
 						"type":        "string",
-						"description": "Raw Azure subscription id. Matches every canonical scope recorded under that subscription.",
+						"description": "Raw Azure subscription id. Matches every canonical resource whose admitting source fact carried this subscription_id.",
 					},
 					"management_origin": map[string]any{
 						"type":        "string",

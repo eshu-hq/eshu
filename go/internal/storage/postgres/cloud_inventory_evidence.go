@@ -46,6 +46,19 @@ type PostgresCloudInventoryEvidenceLoader struct {
 type cloudInventorySourceFactMapping struct {
 	provider        string
 	resourceTypeKey string
+	// accountIDKey is the payload key holding this provider's raw account/
+	// tenant identifier: "account_id" for aws_resource, "project_id" for
+	// gcp_cloud_resource, "subscription_id" for azure_cloud_resource. Each
+	// resource fact's emitter already validates and writes this field as part
+	// of its required identity contract (sdk/go/factschema/{aws,gcp,azure}/v1),
+	// so reading it here needs no new collector work -- issue #5238's
+	// GET /api/v0/cloud/inventory account_id/project_id/subscription_id
+	// selectors resolve against the value this key extracts, carried onto the
+	// canonical reducer_cloud_resource_identity payload as "account_id"
+	// uniformly across providers (mirroring the account_id field
+	// go/internal/reducer/{aws,gcp,azure}_resource_materialization.go already
+	// writes onto graph_node_owner.winning_row for GET /api/v0/cloud/resources).
+	accountIDKey string
 	// surfacesAttributes gates whether the loader carries the RAW payload
 	// attributes map onto the admission record, unfiltered beyond
 	// boundedCloudInventoryAttributes' type/cap bounding. Only GCP typed-depth
@@ -128,16 +141,19 @@ var cloudInventorySourceFactMappings = map[string]cloudInventorySourceFactMappin
 	facts.AWSResourceFactKind: {
 		provider:           cloudinventory.ProviderAWS,
 		resourceTypeKey:    "resource_type",
+		accountIDKey:       "account_id",
 		attributeAllowlist: &awsCloudInventoryAttributeAllowlist,
 	},
 	facts.GCPCloudResourceFactKind: {
 		provider:           cloudinventory.ProviderGCP,
 		resourceTypeKey:    "asset_type",
+		accountIDKey:       "project_id",
 		surfacesAttributes: true,
 	},
 	facts.AzureCloudResourceFactKind: {
 		provider:           cloudinventory.ProviderAzure,
 		resourceTypeKey:    "resource_type",
+		accountIDKey:       "subscription_id",
 		attributeAllowlist: &azureCloudInventoryAttributeAllowlist,
 	},
 }
@@ -221,6 +237,7 @@ func cloudInventoryRecordFromRow(
 		FactKind:     factKind,
 		RawIdentity:  rawIdentity,
 		ResourceType: strings.TrimSpace(coerceJSONString(decoded[mapping.resourceTypeKey])),
+		AccountID:    strings.TrimSpace(coerceJSONString(decoded[mapping.accountIDKey])),
 		// The three inventory source fact kinds are provider control-plane
 		// observations, so every loaded record is the observed evidence layer.
 		// Declared and applied layers arrive from IaC/state source fact kinds in

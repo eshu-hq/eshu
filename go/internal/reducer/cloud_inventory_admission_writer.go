@@ -187,16 +187,23 @@ func cloudInventoryAdmissionBasePayload(
 	resource AdmittedCloudResource,
 ) map[string]any {
 	return map[string]any{
-		"reducer_domain":        string(DomainCloudInventoryAdmission),
-		"intent_id":             write.IntentID,
-		"scope_id":              write.ScopeID,
-		"generation_id":         write.GenerationID,
-		"source_system":         write.SourceSystem,
-		"cause":                 write.Cause,
-		"cloud_resource_uid":    resource.CloudResourceUID,
-		"provider":              resource.Provider,
-		"raw_identity":          resource.RawIdentity,
-		"resource_type":         resource.ResourceType,
+		"reducer_domain":     string(DomainCloudInventoryAdmission),
+		"intent_id":          write.IntentID,
+		"scope_id":           write.ScopeID,
+		"generation_id":      write.GenerationID,
+		"source_system":      write.SourceSystem,
+		"cause":              write.Cause,
+		"cloud_resource_uid": resource.CloudResourceUID,
+		"provider":           resource.Provider,
+		"raw_identity":       resource.RawIdentity,
+		"resource_type":      resource.ResourceType,
+		// account_id is the raw provider account/project/subscription
+		// identifier (resource.AccountID; see AdmittedCloudResource's doc
+		// comment), persisted under one uniform key regardless of provider so
+		// the readback's account_id/project_id/subscription_id selectors can
+		// filter this payload directly without a provider-specific key or a
+		// join through ingestion scope metadata (#5238).
+		"account_id":            resource.AccountID,
 		"source_fact_kinds":     resource.FactKinds,
 		"management_origin":     string(resource.ManagementOrigin),
 		"has_declared_evidence": resource.HasDeclaredEvidence,

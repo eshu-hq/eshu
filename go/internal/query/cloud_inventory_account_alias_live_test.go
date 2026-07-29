@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-//go:build integration
-
 package query
 
 import (
@@ -35,19 +33,15 @@ import (
 //  3. A different account's rows never leak into the first account's page.
 //  4. limit is honored identically by both selectors (holding limit constant
 //     so a truncated 50-row default page is never mistaken for "empty").
+//
+// No build tag: this test must compile and run (skipping cleanly without a
+// DSN) in the default `go test ./...` lane CI actually runs, matching the
+// sibling live-proof precedent in this package (e.g.
+// supply_chain_impact_runtime_filter_live_test.go). An earlier revision of
+// this file carried `//go:build integration`, which no workflow, Makefile
+// target, or script in this repo ever passes -- the test never ran anywhere.
 func TestCloudInventoryAccountIDMatchesExactScopeIDLive(t *testing.T) {
-	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
-	if dsn == "" {
-		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the live cloud inventory account-alias proof")
-	}
-	db, err := sql.Open("pgx", dsn)
-	if err != nil {
-		t.Fatalf("open Postgres: %v", err)
-	}
-	db.SetMaxOpenConns(1)
-	t.Cleanup(func() { _ = db.Close() })
-
-	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	db, ctx, cancel := openCloudInventoryLiveDB(t)
 	defer cancel()
 	seedCloudInventoryAccountAliasLiveCorpus(t, ctx, db)
 	cr := NewContentReader(db)
@@ -107,8 +101,7 @@ func TestCloudInventoryAccountIDMatchesExactScopeIDLive(t *testing.T) {
 		t.Fatalf("multi-scope account_id rows = %v, want the union across both scopes %v", multiScopeUIDs, wantMultiScope)
 	}
 
-	// One scope alone must NOT see the other scope's resource (proves the fix
-	// unions by account metadata, not by loosening the join to all scopes).
+	// One scope alone must NOT see the other scope's resource.
 	oneOfTwoScopes, err := cr.cloudInventoryIdentities(ctx, cloudInventoryFilter{
 		AllScopes: true,
 		Provider:  "aws",
@@ -178,6 +171,89 @@ func TestCloudInventoryAccountIDMatchesExactScopeIDLive(t *testing.T) {
 	}
 }
 
+// TestCloudInventoryGCPAndAzureAccountAliasMatchExactScopeIDLive is the
+// per-provider counterpart the initial fix skipped: GCP's project_id and
+// Azure's subscription_id selectors must resolve non-vacuously too. Each
+// provider gets its own single-scope account (mirroring the AWS single-claim
+// shape above) so the alias and the exact scope_id selector must return the
+// identical row set for each, live against Postgres.
+func TestCloudInventoryGCPAndAzureAccountAliasMatchExactScopeIDLive(t *testing.T) {
+	db, ctx, cancel := openCloudInventoryLiveDB(t)
+	defer cancel()
+	seedCloudInventoryAccountAliasLiveCorpus(t, ctx, db)
+	cr := NewContentReader(db)
+
+	tests := []struct {
+		name      string
+		provider  string
+		aliasKey  string
+		accountID string
+		scopeID   string
+		wantUIDs  []string
+	}{
+		{
+			name: "gcp project_id", provider: "gcp", aliasKey: "project_id",
+			accountID: "eshu-prod", scopeID: "gcp:cloud:eshu-prod:us-central1",
+			wantUIDs: []string{"gcp:compute:vm-1", "gcp:compute:vm-2"},
+		},
+		{
+			name: "azure subscription_id", provider: "azure", aliasKey: "subscription_id",
+			accountID: "11111111-2222-3333-4444-555555555555", scopeID: "azure:cloud:11111111-2222-3333-4444-555555555555:eastus",
+			wantUIDs: []string{"azure:vm:vm-1"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			byAlias, err := cr.cloudInventoryIdentities(ctx, cloudInventoryFilter{
+				AllScopes:         true,
+				Provider:          tc.provider,
+				AccountAliasKey:   tc.aliasKey,
+				AccountAliasValue: tc.accountID,
+				Limit:             10,
+			})
+			if err != nil {
+				t.Fatalf("%s alias read: %v", tc.name, err)
+			}
+			byScope, err := cr.cloudInventoryIdentities(ctx, cloudInventoryFilter{
+				AllScopes: true,
+				Provider:  tc.provider,
+				ScopeID:   tc.scopeID,
+				Limit:     10,
+			})
+			if err != nil {
+				t.Fatalf("%s exact scope_id read: %v", tc.name, err)
+			}
+			aliasUIDs := cloudInventoryUIDs(t, byAlias.Resources)
+			scopeUIDs := cloudInventoryUIDs(t, byScope.Resources)
+			if !cloudInventoryEqualStringSets(aliasUIDs, tc.wantUIDs) {
+				t.Fatalf("%s: alias rows = %v, want %v", tc.name, aliasUIDs, tc.wantUIDs)
+			}
+			if !cloudInventoryEqualStringSets(aliasUIDs, scopeUIDs) {
+				t.Fatalf("%s: alias rows %v != exact scope_id rows %v", tc.name, aliasUIDs, scopeUIDs)
+			}
+		})
+	}
+}
+
+// openCloudInventoryLiveDB opens the live Postgres connection this file's
+// tests share, skipping cleanly when ESHU_POSTGRES_TEST_DSN is unset.
+func openCloudInventoryLiveDB(t *testing.T) (*sql.DB, context.Context, context.CancelFunc) {
+	t.Helper()
+	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
+	if dsn == "" {
+		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the live cloud inventory account-alias proof")
+	}
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open Postgres: %v", err)
+	}
+	db.SetMaxOpenConns(1)
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	return db, ctx, cancel
+}
+
 func cloudInventoryUIDs(t *testing.T, resources []map[string]any) []string {
 	t.Helper()
 	uids := make([]string, 0, len(resources))
@@ -212,18 +288,22 @@ func cloudInventoryEqualStringSets(a, b []string) bool {
 	return true
 }
 
-// seedCloudInventoryAccountAliasLiveCorpus seeds three ingestion scopes shaped
-// like real AWS collector output:
-//   - two scopes for account 111111111111 (one per account+region+service
+// seedCloudInventoryAccountAliasLiveCorpus seeds ingestion scopes and
+// canonical reducer_cloud_resource_identity facts shaped like real collector
+// output for all three providers:
+//   - AWS: two scopes for account 111111111111 (one per account+region+service
 //     partition, matching go/internal/collector/awscloud/awsruntime/source.go's
-//     scopeAndGeneration, which derives scope_id per claim target and stores the
-//     raw account_id only in the scope's own metadata payload)
-//   - one scope for account 222222222222, mirroring the issue's single-claim
-//     reproduction (one scheduled S3 claim, one scope, N canonical rows)
+//     scopeAndGeneration) plus one single-scope account 222222222222
+//     mirroring the issue's single-claim reproduction.
+//   - GCP: one single-scope project "eshu-prod".
+//   - Azure: one single-scope subscription.
 //
-// Every fact row is a reducer_cloud_resource_identity canonical identity
-// payload in the exact shape cloudInventoryAdmissionBasePayload
-// (go/internal/reducer/cloud_inventory_admission_writer.go) writes.
+// Every fact row's payload carries "account_id" -- the field
+// cloudInventoryAdmissionBasePayload (go/internal/reducer/
+// cloud_inventory_admission_writer.go) now writes uniformly across providers,
+// sourced from the resolving provider fact's own account_id/project_id/
+// subscription_id identity field (go/internal/storage/postgres/
+// cloud_inventory_evidence.go's cloudInventorySourceFactMapping.accountIDKey).
 func seedCloudInventoryAccountAliasLiveCorpus(t *testing.T, ctx context.Context, db *sql.DB) {
 	t.Helper()
 
@@ -277,29 +357,23 @@ func seedCloudInventoryAccountAliasLiveCorpus(t *testing.T, ctx context.Context,
 	}
 
 	type scopeSeed struct {
-		scopeID, generationID, accountID, region string
+		scopeID, generationID, provider string
 	}
 	scopes := []scopeSeed{
-		{"aws:cloud:111111111111:us-east-1:s3", "gen-1a", "111111111111", "us-east-1"},
-		{"aws:cloud:111111111111:us-west-2:s3", "gen-1b", "111111111111", "us-west-2"},
-		{"aws:cloud:222222222222:us-east-1:s3", "gen-2a", "222222222222", "us-east-1"},
+		{"aws:cloud:111111111111:us-east-1:s3", "gen-1a", "aws"},
+		{"aws:cloud:111111111111:us-west-2:s3", "gen-1b", "aws"},
+		{"aws:cloud:222222222222:us-east-1:s3", "gen-2a", "aws"},
+		{"gcp:cloud:eshu-prod:us-central1", "gen-3a", "gcp"},
+		{"azure:cloud:11111111-2222-3333-4444-555555555555:eastus", "gen-4a", "azure"},
 	}
 	for _, s := range scopes {
-		metadata, err := json.Marshal(map[string]string{
-			"account_id":   s.accountID,
-			"region":       s.region,
-			"service_kind": "s3",
-		})
-		if err != nil {
-			t.Fatalf("marshal scope metadata: %v", err)
-		}
 		if _, err := db.ExecContext(ctx, `
 INSERT INTO ingestion_scopes (
     scope_id, scope_kind, source_system, source_key, parent_scope_id,
     collector_kind, partition_key, observed_at, ingested_at, status,
     active_generation_id, payload
-) VALUES ($1, 'region', 'aws_cloud', $1, NULL, 'aws', $1, now(), now(), 'active', $2, $3::jsonb)
-`, s.scopeID, s.generationID, string(metadata)); err != nil {
+) VALUES ($1, 'region', $2, $1, NULL, $2, $1, now(), now(), 'active', $3, '{}'::jsonb)
+`, s.scopeID, s.provider, s.generationID); err != nil {
 			t.Fatalf("seed ingestion_scopes %s: %v", s.scopeID, err)
 		}
 		if _, err := db.ExecContext(ctx, `
@@ -311,17 +385,23 @@ VALUES ($1, $2, 'active', now(), now(), 'snapshot')
 	}
 
 	type factSeed struct {
-		factID, scopeID, generationID, uid string
+		factID, scopeID, generationID, uid, provider, resourceType, accountID string
 	}
 	facts := []factSeed{
-		{"f-1a-1", "aws:cloud:111111111111:us-east-1:s3", "gen-1a", "aws:s3:bucket-1a"},
-		{"f-1a-2", "aws:cloud:111111111111:us-east-1:s3", "gen-1a", "aws:s3:bucket-1b"},
-		{"f-1b-1", "aws:cloud:111111111111:us-west-2:s3", "gen-1b", "aws:s3:bucket-1c"},
-		{"f-2a-1", "aws:cloud:222222222222:us-east-1:s3", "gen-2a", "aws:s3:bucket-c1"},
-		{"f-2a-2", "aws:cloud:222222222222:us-east-1:s3", "gen-2a", "aws:s3:bucket-c2"},
-		{"f-2a-3", "aws:cloud:222222222222:us-east-1:s3", "gen-2a", "aws:s3:bucket-c3"},
-		{"f-2a-4", "aws:cloud:222222222222:us-east-1:s3", "gen-2a", "aws:s3:bucket-c4"},
-		{"f-2a-5", "aws:cloud:222222222222:us-east-1:s3", "gen-2a", "aws:s3:bucket-c5"},
+		{"f-1a-1", "aws:cloud:111111111111:us-east-1:s3", "gen-1a", "aws:s3:bucket-1a", "aws", "aws_s3_bucket", "111111111111"},
+		{"f-1a-2", "aws:cloud:111111111111:us-east-1:s3", "gen-1a", "aws:s3:bucket-1b", "aws", "aws_s3_bucket", "111111111111"},
+		{"f-1b-1", "aws:cloud:111111111111:us-west-2:s3", "gen-1b", "aws:s3:bucket-1c", "aws", "aws_s3_bucket", "111111111111"},
+		{"f-2a-1", "aws:cloud:222222222222:us-east-1:s3", "gen-2a", "aws:s3:bucket-c1", "aws", "aws_s3_bucket", "222222222222"},
+		{"f-2a-2", "aws:cloud:222222222222:us-east-1:s3", "gen-2a", "aws:s3:bucket-c2", "aws", "aws_s3_bucket", "222222222222"},
+		{"f-2a-3", "aws:cloud:222222222222:us-east-1:s3", "gen-2a", "aws:s3:bucket-c3", "aws", "aws_s3_bucket", "222222222222"},
+		{"f-2a-4", "aws:cloud:222222222222:us-east-1:s3", "gen-2a", "aws:s3:bucket-c4", "aws", "aws_s3_bucket", "222222222222"},
+		{"f-2a-5", "aws:cloud:222222222222:us-east-1:s3", "gen-2a", "aws:s3:bucket-c5", "aws", "aws_s3_bucket", "222222222222"},
+		{"f-3a-1", "gcp:cloud:eshu-prod:us-central1", "gen-3a", "gcp:compute:vm-1", "gcp", "compute.googleapis.com/Instance", "eshu-prod"},
+		{"f-3a-2", "gcp:cloud:eshu-prod:us-central1", "gen-3a", "gcp:compute:vm-2", "gcp", "compute.googleapis.com/Instance", "eshu-prod"},
+		{
+			"f-4a-1", "azure:cloud:11111111-2222-3333-4444-555555555555:eastus", "gen-4a", "azure:vm:vm-1",
+			"azure", "Microsoft.Compute/virtualMachines", "11111111-2222-3333-4444-555555555555",
+		},
 	}
 	for _, f := range facts {
 		payload, err := json.Marshal(map[string]any{
@@ -329,8 +409,9 @@ VALUES ($1, $2, 'active', now(), now(), 'snapshot')
 			"scope_id":              f.scopeID,
 			"generation_id":         f.generationID,
 			"cloud_resource_uid":    f.uid,
-			"provider":              "aws",
-			"resource_type":         "aws_s3_bucket",
+			"provider":              f.provider,
+			"resource_type":         f.resourceType,
+			"account_id":            f.accountID,
 			"management_origin":     "observed",
 			"has_declared_evidence": false,
 			"has_applied_evidence":  false,
@@ -344,11 +425,11 @@ INSERT INTO fact_records (
     fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version,
     collector_kind, fencing_token, source_confidence, source_system, source_fact_key,
     observed_at, ingested_at, is_tombstone, payload
-) VALUES ($1, $2, $3, 'reducer_cloud_resource_identity', $1, 1, 'aws', 0, 'inferred',
+) VALUES ($1, $2, $3, 'reducer_cloud_resource_identity', $1, 1, $5, 0, 'inferred',
     'reducer', $1, now(), now(), false, $4::jsonb)
-`, f.factID, f.scopeID, f.generationID, string(payload)); err != nil {
+`, f.factID, f.scopeID, f.generationID, string(payload), f.provider); err != nil {
 			t.Fatalf("seed fact_records %s: %v", f.factID, err)
 		}
 	}
-	fmt.Fprintf(os.Stderr, "seeded %d scopes / %d canonical AWS identity facts\n", len(scopes), len(facts))
+	fmt.Fprintf(os.Stderr, "seeded %d scopes / %d canonical identity facts across aws/gcp/azure\n", len(scopes), len(facts))
 }

@@ -104,19 +104,20 @@ func buildCloudInventoryIdentitiesSQL(filter cloudInventoryFilter) (string, []an
 			"(fact_records.scope_id = $%d OR fact_records.payload->>'scope_id' = $%d)",
 			len(args), len(args),
 		))
-	} else if aliasKey := strings.TrimSpace(filter.AccountAliasKey); aliasKey != "" {
-		if aliasValue := strings.TrimSpace(filter.AccountAliasValue); aliasValue != "" {
-			// aliasKey is drawn only from the closed cloudInventoryAccountAliasKeys
-			// set (account_id/project_id/subscription_id), never from raw request
-			// input, so interpolating it into the jsonb path is safe. The value
-			// itself is always bound as a parameter. This matches against the
-			// owning scope's raw provider metadata (ingestion_scopes.payload),
-			// not scope_id, because scope_id is a derived per-shard identifier
-			// that can differ from the account/project/subscription number even
-			// within one account (#5238).
-			args = append(args, aliasValue)
-			clauses = append(clauses, fmt.Sprintf("scope.payload->>'%s' = $%d", aliasKey, len(args)))
-		}
+	} else if filter.AccountAliasKey != "" {
+		// account_id/project_id/subscription_id all resolve against the SAME
+		// canonical payload key: the reducer normalizes whichever provider
+		// identity field admitted the resource (aws_resource.account_id,
+		// gcp_cloud_resource.project_id, azure_cloud_resource.subscription_id)
+		// onto one uniform "account_id" field
+		// (go/internal/reducer/cloud_inventory_admission_writer.go), mirroring
+		// the account_id field already written onto graph_node_owner.winning_row
+		// for GET /api/v0/cloud/resources. This is deliberately NOT scope_id: a
+		// canonical scope id is a derived, opaque per-collector-partition
+		// identifier that can differ from the account/project/subscription
+		// number even within one account, so comparing the alias value against
+		// scope_id previously matched zero rows for every real account (#5238).
+		addPayloadFilter("account_id", filter.AccountAliasValue)
 	}
 	if !filter.AllScopes {
 		args = append(args, pq.Array(filter.AllowedRepositoryIDs), pq.Array(filter.AllowedScopeIDs))

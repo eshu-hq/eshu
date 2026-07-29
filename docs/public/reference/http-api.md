@@ -472,10 +472,13 @@ The scope selector is one of:
 - `account_id` (AWS), `project_id` (GCP), or `subscription_id` (Azure) -- the
   raw provider account/tenant identifier. Unlike `scope_id` this is **not**
   compared against the scope id itself (#5238: earlier revisions did, which
-  silently matched zero rows for any real multi-scope account); it resolves
-  against the account/project/subscription value the collector recorded on
-  each scope's own metadata, and therefore returns every canonical row across
-  every scope that shares that identifier.
+  silently matched zero rows for any real multi-scope account, on every
+  provider); it resolves against the canonical payload's normalized
+  `account_id` field, which the reducer writes from the admitting source
+  fact's own identity field (AWS `account_id`, GCP `project_id`, Azure
+  `subscription_id` -- see `go/internal/reducer/cloud_inventory_admission_writer.go`),
+  and therefore returns every canonical row across every scope that shares
+  that identifier.
 
 Each resource item in the `resources` array carries:
 
