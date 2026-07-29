@@ -151,10 +151,21 @@
 // stays aligned with the version-agnostic state-snapshot scope ID — see
 // issue #203) so the resolver can deterministically pick the latest sealed
 // config commit owning a state snapshot. It shares the Terraform backend
-// candidate helper with graph discovery, including same-module literal
-// variable/local recovery and the fail-closed treatment of unresolved backend
-// expressions, so discovery and config-owner lookup cannot disagree on a
-// locator. The second performs the
+// candidate helper (terraformBackendCandidatesFromContext ->
+// terraformstate.EvaluateBackendConfig) with graph discovery, including
+// same-module literal variable/local recovery and the fail-closed treatment
+// of unresolved backend expressions, so discovery and config-owner lookup
+// cannot disagree on a locator. The two callers deliberately diverge on one
+// input: PostgresTerraformBackendQuery's query joins the repository fact's
+// local_path and threads it through as repoLocalPath so a bare
+// `backend "local" {}` block can resolve ownership against Terraform's own
+// default state-file location (issue #5594); the discovery-reading callers in
+// tfstate_backend_filter.go pass "" instead, because reading an arbitrary
+// local state file still requires explicit operator approval regardless of
+// backend-config content (see TerraformStateBackendFactReader's
+// localStateCandidates/ApprovedLocalCandidates gate) — EvaluateBackendConfig
+// treats a blank repoLocalPath as "no candidate", never a guess. The second
+// performs the
 // four-input join across
 // terraform_resources (config), the active terraform_state_resource rows,
 // the prior generation (skipping the prior lookup when current serial is

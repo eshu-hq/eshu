@@ -69,6 +69,7 @@ SELECT
     fact.scope_id                                             AS scope_id,
     fact.generation_id                                        AS generation_id,
     fact.observed_at                                          AS observed_at,
+    COALESCE(repository.payload->>'local_path', repository.source_uri, '') AS repo_local_path,
     jsonb_build_object(
         'terraform_backends', COALESCE(fact.payload->'parsed_file_data'->'terraform_backends', '[]'::jsonb),
         'terraform_variables', COALESCE(fact.payload->'parsed_file_data'->'terraform_variables', '[]'::jsonb),
@@ -79,6 +80,11 @@ JOIN fact_records AS fact
   ON fact.scope_id = backend.scope_id
  AND fact.generation_id = backend.generation_id
  AND fact.payload->>'repo_id' = backend.repo_id
+LEFT JOIN fact_records AS repository
+  ON repository.scope_id = backend.scope_id
+ AND repository.generation_id = backend.generation_id
+ AND repository.fact_kind = 'repository'
+ AND repository.source_system = 'git'
 WHERE fact.fact_kind = 'file'
   AND fact.source_system = 'git'
   AND (
@@ -167,8 +173,9 @@ func (q PostgresTerraformBackendQuery) ListTerraformBackendsByLocator(
 		var scopeID string
 		var generationID string
 		var observedAt time.Time
+		var repoLocalPath string
 		var rawContext []byte
-		if err := rows.Scan(&repoID, &scopeID, &generationID, &observedAt, &rawContext); err != nil {
+		if err := rows.Scan(&repoID, &scopeID, &generationID, &observedAt, &repoLocalPath, &rawContext); err != nil {
 			return nil, fmt.Errorf("scan terraform backend canonical row: %w", err)
 		}
 
@@ -187,10 +194,11 @@ func (q PostgresTerraformBackendQuery) ListTerraformBackendsByLocator(
 		group, seen := contexts[key]
 		if !seen {
 			group = &terraformBackendCanonicalContext{
-				repoID:       key.repoID,
-				scopeID:      key.scopeID,
-				generationID: key.generationID,
-				observedAt:   observedAt.UTC(),
+				repoID:        key.repoID,
+				scopeID:       key.scopeID,
+				generationID:  key.generationID,
+				observedAt:    observedAt.UTC(),
+				repoLocalPath: strings.TrimSpace(repoLocalPath),
 			}
 			contexts[key] = group
 			order = append(order, key)
@@ -208,7 +216,8 @@ func (q PostgresTerraformBackendQuery) ListTerraformBackendsByLocator(
 	for _, key := range order {
 		group := contexts[key]
 		matches := matchingBackendRowsFromContext(
-			group.repoID, group.scopeID, group.generationID, group.observedAt, group.context, backendKind, locatorHash,
+			group.repoID, group.scopeID, group.generationID, group.observedAt, group.repoLocalPath,
+			group.context, backendKind, locatorHash,
 		)
 		out = append(out, matches...)
 	}
@@ -222,27 +231,32 @@ type terraformBackendCanonicalContextKey struct {
 }
 
 type terraformBackendCanonicalContext struct {
-	repoID       string
-	scopeID      string
-	generationID string
-	observedAt   time.Time
-	context      terraformBackendFactContext
+	repoID        string
+	scopeID       string
+	generationID  string
+	observedAt    time.Time
+	repoLocalPath string
+	context       terraformBackendFactContext
 }
 
 // matchingBackendRowsFromContext converts one active repo-generation context
 // into canonical backend rows. Entries that fail the exact-attribute filter are
 // silently skipped because drift detection requires deterministic locator
-// hashes and cannot operate on ambiguous inputs.
+// hashes and cannot operate on ambiguous inputs. repoLocalPath is the
+// repository checkout root for this same generation (blank when no
+// `repository` fact was found), threaded through so a BackendLocal candidate
+// can compute an absolute locator (issue #5594).
 func matchingBackendRowsFromContext(
 	repoID string,
 	scopeID string,
 	generationID string,
 	observedAt time.Time,
+	repoLocalPath string,
 	contextValue terraformBackendFactContext,
 	backendKind string,
 	locatorHash string,
 ) []tfstatebackend.TerraformBackendRow {
-	candidates := terraformBackendCandidatesFromContext(repoID, contextValue)
+	candidates := terraformBackendCandidatesFromContext(repoID, repoLocalPath, contextValue)
 	return matchingBackendRowsFromCandidates(repoID, scopeID, generationID, observedAt, candidates, backendKind, locatorHash)
 }
 

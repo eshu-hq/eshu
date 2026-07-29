@@ -345,6 +345,7 @@ func TestPostgresTerraformBackendQueryResolvesVariableDefaultForLocatorHash(t *t
 			"repository:repo-infra",
 			"gen-abc",
 			observed,
+			"",
 			[]byte(`{
 				"terraform_variables":[{
 					"name":"state_bucket",
@@ -398,6 +399,7 @@ func TestPostgresTerraformBackendQueryResolvesVariableDefaultAcrossModuleFiles(t
 				"repository:repo-infra",
 				"gen-abc",
 				observed,
+				"",
 				[]byte(`{
 					"terraform_backends":[{
 						"backend_kind":"s3",
@@ -416,6 +418,7 @@ func TestPostgresTerraformBackendQueryResolvesVariableDefaultAcrossModuleFiles(t
 				"repository:repo-infra",
 				"gen-abc",
 				observed,
+				"",
 				[]byte(`{
 					"terraform_variables":[{
 						"name":"state_bucket",
