@@ -5,6 +5,8 @@ on:
     branches:
       - main
   pull_request:
+  merge_group:
+    types: [checks_requested]
   schedule:
     - cron: "30 18 * * *"
   workflow_dispatch:
@@ -28,15 +30,37 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      code: ${{ steps.filter.outputs.code }}
+      code: ${{ steps.filter.outputs.code || steps.merge_group_code.outputs.code }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
 
+      # merge_group (#5814): every downstream heavy-lane `if:` already runs
+      # unconditionally on any non-pull_request event (`github.event_name !=
+      # 'pull_request'`, see verify-contracts/go-core/go-race below), so the
+      # value of `code` is never actually consulted for a merge-queue entry.
+      # What DOES matter is that this job always SUCCEEDS on merge_group:
+      # go-core-complete and go-race-complete both require
+      # `needs.changes.result == 'success'`, and a `changes` job that fails
+      # (rather than cleanly skipping) marks its dependents `skipped`, which
+      # the umbrella's "skipped is pass" rule would then wrongly accept as a
+      # legitimate docs-only skip while nothing actually built or raced.
+      # dorny/paths-filter@v3 does document merge_group support (it seeds
+      # base/head from the event), but this job's shallow `fetch-depth: 2`
+      # checkout has never been proven against merge_group's synthetic
+      # merge-base lookup, so we do not depend on it: skip the diff outright
+      # on merge_group and report code=true directly, which costs nothing
+      # since it is already unused downstream.
+      - name: Force code=true on merge_group
+        id: merge_group_code
+        if: ${{ github.event_name == 'merge_group' }}
+        run: echo "code=true" >> "$GITHUB_OUTPUT"
+
       - name: Filter changed paths
         id: filter
+        if: ${{ github.event_name != 'merge_group' }}
         uses: dorny/paths-filter@v3
         with:
           # `code` is true when ANY changed file is outside the docs set. The

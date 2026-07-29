@@ -291,7 +291,7 @@ done
 
 # --- test.yml: heavy Go lanes gated; docs build stays always-on. ---
 t="${wf}/test.yml"
-if has "${t}" 'code: ${{ steps.filter.outputs.code }}' && has "${t}" 'dorny/paths-filter'; then
+if has "${t}" 'code: ${{ steps.filter.outputs.code || steps.merge_group_code.outputs.code }}' && has "${t}" 'dorny/paths-filter'; then
 	ok "test.yml has a changes job exporting the code filter"
 else
 	bad "test.yml exposes a changes.outputs.code from dorny/paths-filter"
@@ -308,6 +308,46 @@ if job_alwayson "${t}" docs-helm-hygiene; then
 else
 	bad "test.yml docs-helm-hygiene must NOT be code-gated (it is the docs build)"
 fi
+
+# --- test.yml: merge_group (#5814) — enabling a GitHub merge queue makes
+# every required status check report on the merge_group event too, or a
+# queued PR times out waiting for a check that never fires. Three things must
+# hold, in dependency order:
+#   1. the `on:` trigger block actually listens for merge_group;
+#   2. the `changes` job's own paths-filter step is SKIPPED on merge_group —
+#      dorny/paths-filter's merge_group support is real (it seeds base/head
+#      from the event) but has never been proven against this job's shallow
+#      `fetch-depth: 2` checkout, so the fix does not lean on it;
+#   3. `changes` instead reports code=true directly on merge_group, so the
+#      job always SUCCEEDS on that event and its output still resolves.
+# Item 3 is the one that actually matters: go-core-complete/go-race-complete
+# both require `needs.changes.result == 'success'` (checked below), and a
+# `changes` job that merely runs-but-fails on merge_group would jam both
+# umbrellas exactly like an unhandled failure does today.
+on_block="$(awk '/^on:$/{f=1;print;next} f&&/^[A-Za-z]/{exit} f{print}' "${t}")"
+if rg -qF 'merge_group:' <<<"${on_block}"; then
+	ok "test.yml on: block listens for merge_group"
+else
+	bad "test.yml on: block must add a merge_group trigger (required checks never report on a merge-queue entry otherwise)"
+fi
+
+changes_block="$(job_block "${t}" changes)"
+if rg -qF "if: \${{ github.event_name != 'merge_group' }}" <<<"${changes_block}"; then
+	ok "test.yml changes job skips the paths-filter diff on merge_group"
+else
+	bad "test.yml changes job's Filter changed paths step must guard if: \${{ github.event_name != 'merge_group' }} (do not depend on paths-filter's unproven merge_group behavior)"
+fi
+if rg -qF "if: \${{ github.event_name == 'merge_group' }}" <<<"${changes_block}" && rg -qF 'code=true' <<<"${changes_block}"; then
+	ok "test.yml changes job forces code=true on merge_group instead of depending on paths-filter"
+else
+	bad "test.yml changes job must have a step that sets code=true directly when github.event_name == 'merge_group'"
+fi
+if rg -qF 'steps.filter.outputs.code || steps.merge_group_code.outputs.code' <<<"${changes_block}"; then
+	ok "test.yml changes job output falls back to the merge_group step when the filter step is skipped"
+else
+	bad "test.yml changes job outputs.code must fall back to the merge_group step's output (steps.filter.outputs.code || steps.merge_group_code.outputs.code)"
+fi
+
 # --- test.yml: both umbrella gates (go-race-complete #5757, go-core-complete
 # #5814) are the names branch protection points at, so each must hold the same
 # three-part contract: always reports, accepts a genuine docs-only skip as pass,
