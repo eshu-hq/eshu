@@ -129,6 +129,10 @@ questions:
       # Live count = 2 (two k8s workload->image correlations for this cluster);
       # the gate fails if the correlations array regresses to empty.
       minimum_results: 2
+      # results_field names which required_response_fields entry minimum_results
+      # counts, explicitly (eshu-hq/eshu#5566) rather than inferring it from list
+      # order.
+      results_field: correlations
       demonstrates_correlations:
         - rc-4
     artifacts:
@@ -223,12 +227,14 @@ questions:
       before this spec was finalized (see PR body for the captured response).
     expected_answer:
       # correlations is the top-level result array, so it lives in
-      # required_response_fields (the gate counts the first array-valued one);
-      # the per-item paths stay in required_json_paths.
+      # required_response_fields; results_field names it explicitly
+      # (eshu-hq/eshu#5566) rather than inferring it from list order. The
+      # per-item paths stay in required_json_paths.
       required_response_fields:
         - collector_readiness
         - correlations
         - count
+      results_field: correlations
       required_json_paths:
         - correlations[].outcome
         - correlations[].relationship_kind
@@ -276,6 +282,10 @@ questions:
       # Live count = 2 tempo coverage correlations; require >= 1 so the
       # observability->workload coverage cannot silently regress to empty.
       minimum_results: 1
+      # results_field names which required_response_fields entry minimum_results
+      # counts, explicitly (eshu-hq/eshu#5566) rather than inferring it from list
+      # order.
+      results_field: correlations
       demonstrates_correlations:
         - rc-2
     artifacts:

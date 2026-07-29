@@ -200,11 +200,28 @@ type QueryShapes struct {
 
 // QueryShape declares the required response fields and minimum result count for
 // one canonical query. ResultItemRequiredFields, when set, are validated on each
-// element of the first array-valued required field.
+// element of the field ResultsField names.
 type QueryShape struct {
-	Description              string   `json:"description"`
-	RequiredResponseFields   []string `json:"required_response_fields"`
-	MinimumResults           int      `json:"minimum_results"`
+	Description            string   `json:"description"`
+	RequiredResponseFields []string `json:"required_response_fields"`
+	MinimumResults         int      `json:"minimum_results"`
+	// ResultsField names the exact entry of RequiredResponseFields that
+	// MinimumResults, MaximumResults, and ResultItemRequiredFields assert
+	// against. It is REQUIRED whenever any of those three is set: EvaluateQueryShape
+	// fails loudly if it is unset, or if it does not name a listed, array-valued
+	// field, rather than guessing.
+	//
+	// This replaces an earlier heuristic that picked the first array-valued
+	// field among RequiredResponseFields in list order (eshu-hq/eshu#5566): the
+	// asserted collection was a function of field order in the spec, not an
+	// explicit choice. A required_response_fields entry that echoes a caller's
+	// filter arguments back (empty unless the caller passed one) listed before
+	// the real result array made the gate silently assert on the echo field
+	// instead — passing regardless of the real collection's state, and flipping
+	// silently if the two fields were ever reordered. Every entry that sets
+	// MinimumResults, MaximumResults, or ResultItemRequiredFields must name its
+	// target explicitly here.
+	ResultsField             string   `json:"results_field,omitempty"`
 	ResultItemRequiredFields []string `json:"result_item_required_fields"`
 	// MaximumResults, when positive, CEILS the same result array MinimumResults
 	// floors, so a shape can pin an exact count (min == max) instead of only a
@@ -241,10 +258,10 @@ type QueryShape struct {
 	// from the tool result before assertion when Envelope is false. Set it to
 	// true to assert the wrapped shape via RequiredJSONValues/RequiredJSONPaths
 	// dotted into "data.*"; leave it false (and list the unwrapped field names
-	// directly in RequiredResponseFields) when the shape needs
-	// MinimumResults-based array counting, since EvaluateQueryShape only
-	// locates the first array-valued field among top-level
-	// RequiredResponseFields.
+	// directly in RequiredResponseFields, naming the result array in
+	// ResultsField) when the shape needs MinimumResults-based array counting,
+	// since EvaluateQueryShape only counts a top-level field named by
+	// ResultsField.
 	Envelope bool `json:"envelope,omitempty"`
 	// RequestBody is the JSON body for an HTTP query shape. Empty means the gate
 	// sends no body, which is the historical GET-only behaviour.
