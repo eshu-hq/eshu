@@ -40,6 +40,11 @@ type DriftHandlers struct {
 	AWSCloudRuntimeDriftEvidenceLoader AWSCloudRuntimeDriftEvidenceLoader
 	AWSCloudRuntimeDriftWriter         AWSCloudRuntimeDriftFindingWriter
 	AWSCloudRuntimeDriftLogger         *slog.Logger
+	// AWSCloudRuntimeDriftReadinessChecker gates the readiness defer (#5848).
+	// Optional: nil disables the gate and the handler always writes its
+	// best-available classification, matching pre-#5848 behavior. Not part of
+	// the required-adapter set above.
+	AWSCloudRuntimeDriftReadinessChecker AWSCloudRuntimeDriftReadinessChecker
 
 	// Multi-cloud runtime drift adapters (issues #1997, #1998). Both must be
 	// non-nil for the registry to register DomainMultiCloudRuntimeDrift; missing

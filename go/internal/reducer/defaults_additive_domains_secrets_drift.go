@@ -37,10 +37,11 @@ func appendSecretsAndDriftAdditiveDomains(definitions []DomainDefinition, handle
 		handlers.AWSCloudRuntimeDriftWriter != nil {
 		awsRuntimeDrift := awsCloudRuntimeDriftDomainDefinition()
 		awsRuntimeDrift.Handler = AWSCloudRuntimeDriftHandler{
-			EvidenceLoader: handlers.AWSCloudRuntimeDriftEvidenceLoader,
-			Writer:         handlers.AWSCloudRuntimeDriftWriter,
-			Instruments:    handlers.Instruments,
-			Logger:         handlers.AWSCloudRuntimeDriftLogger,
+			EvidenceLoader:   handlers.AWSCloudRuntimeDriftEvidenceLoader,
+			Writer:           handlers.AWSCloudRuntimeDriftWriter,
+			Instruments:      handlers.Instruments,
+			Logger:           handlers.AWSCloudRuntimeDriftLogger,
+			ReadinessChecker: handlers.AWSCloudRuntimeDriftReadinessChecker,
 		}
 		definitions = append(definitions, awsRuntimeDrift)
 	}

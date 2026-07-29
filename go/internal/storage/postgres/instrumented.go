@@ -204,13 +204,3 @@ func (db *InstrumentedDB) CopySearchIndexTerms(
 	}
 	return copied, err
 }
-
-// Begin proxies to the inner database if it implements Beginner.
-// This allows InstrumentedDB to satisfy the Beginner interface when the
-// underlying connection supports transactions (e.g. SQLDB).
-func (db *InstrumentedDB) Begin(ctx context.Context) (Transaction, error) {
-	if beginner, ok := db.Inner.(Beginner); ok {
-		return beginner.Begin(ctx)
-	}
-	return nil, fmt.Errorf("inner database does not support transactions")
-}

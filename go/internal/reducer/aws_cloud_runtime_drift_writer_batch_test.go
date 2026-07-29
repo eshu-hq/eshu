@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
@@ -36,6 +37,7 @@ func TestPostgresAWSCloudRuntimeDriftWriterPersistsBatchedFacts(t *testing.T) {
 		GenerationID: "generation-aws-drift-batch",
 		SourceSystem: "aws",
 		Cause:        "aws runtime facts observed",
+		EvidenceAsOf: time.Date(2026, time.July, 29, 12, 0, 0, 0, time.UTC),
 		Candidates: []model.Candidate{
 			{
 				ID:             "aws_cloud_runtime_drift:arn:aws:lambda:us-east-1:123456789012:function:orphan:orphaned_cloud_resource",
@@ -68,12 +70,14 @@ func TestPostgresAWSCloudRuntimeDriftWriterPersistsBatchedFacts(t *testing.T) {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
 
-	// One ExecContext call for two candidates: proves the batched path
-	// replaced the retired per-candidate loop.
-	if got, want := len(db.execs), 1; got != want {
-		t.Fatalf("ExecContext calls = %d, want %d (batched insert)", got, want)
+	// Two ExecContext calls: the #5848 insert-admission check, then one
+	// batched insert for both candidates (EvaluatedARNs is unset here, so the
+	// generation-authoritative retire short-circuits with no statement).
+	// This proves the batched path replaced the retired per-candidate loop.
+	if got, want := len(db.execs), 2; got != want {
+		t.Fatalf("ExecContext calls = %d, want %d (admission check + batched insert)", got, want)
 	}
-	rows := decodeBatchedVersionedFactCalls(t, db.execs)
+	rows := decodeBatchedVersionedFactCalls(t, db.execs[1:])
 	if got, want := len(rows), 2; got != want {
 		t.Fatalf("decoded rows = %d, want %d", got, want)
 	}
@@ -139,6 +143,7 @@ func TestWriteAWSCloudRuntimeDriftFindingsBoundedExecCount(t *testing.T) {
 		ScopeID:      "aws:123456789012:us-east-1",
 		GenerationID: "generation-batch",
 		SourceSystem: "aws",
+		EvidenceAsOf: time.Date(2026, time.July, 29, 12, 0, 0, 0, time.UTC),
 		Candidates:   candidates,
 	})
 	if err != nil {
@@ -148,11 +153,12 @@ func TestWriteAWSCloudRuntimeDriftFindingsBoundedExecCount(t *testing.T) {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
 
-	wantExecs := expectedBatchedExecCount(candidateCount)
+	// +1 for the #5848 insert-admission check ahead of the batched inserts.
+	wantExecs := 1 + expectedBatchedExecCount(candidateCount)
 	if got := len(db.execs); got != wantExecs {
-		t.Fatalf("ExecContext calls = %d for %d candidates, want %d (bounded batched inserts)", got, candidateCount, wantExecs)
+		t.Fatalf("ExecContext calls = %d for %d candidates, want %d (admission check + bounded batched inserts)", got, candidateCount, wantExecs)
 	}
-	if rows := decodeBatchedVersionedFactCalls(t, db.execs); len(rows) != candidateCount {
+	if rows := decodeBatchedVersionedFactCalls(t, db.execs[1:]); len(rows) != candidateCount {
 		t.Fatalf("decoded rows = %d, want %d", len(rows), candidateCount)
 	}
 }

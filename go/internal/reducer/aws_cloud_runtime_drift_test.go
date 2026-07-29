@@ -393,6 +393,7 @@ func TestPostgresAWSCloudRuntimeDriftWriterPersistsOneFactPerFinding(t *testing.
 		GenerationID: "generation-aws",
 		SourceSystem: "aws",
 		Cause:        "aws runtime facts observed",
+		EvidenceAsOf: now,
 		Candidates:   candidates,
 		Summary: cloudruntime.Summary{
 			OrphanedResources:  1,
@@ -405,12 +406,14 @@ func TestPostgresAWSCloudRuntimeDriftWriterPersistsOneFactPerFinding(t *testing.
 	if got, want := result.CanonicalWrites, 2; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
-	// One ExecContext call for two candidates: proves the batched path
-	// replaced the retired per-candidate loop.
-	if got, want := len(db.execs), 1; got != want {
-		t.Fatalf("ExecContext calls = %d, want %d (batched insert)", got, want)
+	// Two ExecContext calls: the #5848 insert-admission check, then one
+	// batched insert for both candidates. EvaluatedARNs is unset here, so the
+	// generation-authoritative retire short-circuits with no statement. This
+	// proves the batched path replaced the retired per-candidate loop.
+	if got, want := len(db.execs), 2; got != want {
+		t.Fatalf("ExecContext calls = %d, want %d (admission check + batched insert)", got, want)
 	}
-	rows := decodeBatchedVersionedFactCalls(t, db.execs)
+	rows := decodeBatchedVersionedFactCalls(t, db.execs[1:])
 	if got, want := len(rows), 2; got != want {
 		t.Fatalf("decoded rows = %d, want %d", got, want)
 	}
@@ -420,8 +423,8 @@ func TestPostgresAWSCloudRuntimeDriftWriterPersistsOneFactPerFinding(t *testing.
 	if got, want := rows[0].FactKind, awsCloudRuntimeDriftFactKind; got != want {
 		t.Fatalf("fact_kind = %v, want %v", got, want)
 	}
-	if !strings.Contains(db.execs[0].query, "schema_version") {
-		t.Fatalf("insert query missing schema_version column for governed reducer fact: %s", db.execs[0].query)
+	if !strings.Contains(db.execs[1].query, "schema_version") {
+		t.Fatalf("insert query missing schema_version column for governed reducer fact: %s", db.execs[1].query)
 	}
 	if got, want := rows[0].SchemaVersion, "1.0.0"; got != want {
 		t.Fatalf("schema_version = %v, want %v", got, want)

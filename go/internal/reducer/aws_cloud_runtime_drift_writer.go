@@ -5,7 +5,9 @@ package reducer
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -22,14 +24,36 @@ const awsCloudRuntimeDriftFactKind = facts.ReducerAWSCloudRuntimeDriftFindingFac
 
 // PostgresAWSCloudRuntimeDriftWriter persists admitted AWS runtime drift
 // findings into the shared fact store.
+//
+// The DB field is transaction-capable (#5848), not a bare execer: the
+// insert-admission check, the versioned upsert, and the generation-authoritative
+// retire must commit or roll back together, or a pass that failed admission
+// could still leave a partial retire applied, and a pass that passed admission
+// but crashed mid-write could leave the admission watermark raised with nothing
+// written under it.
 type PostgresAWSCloudRuntimeDriftWriter struct {
-	DB  workloadIdentityExecer
+	DB AWSCloudRuntimeDriftBeginner
+	// Now supplies the evidence-read watermark stamped on the durable rows and
+	// the admission table when the caller leaves AWSCloudRuntimeDriftWrite.EvidenceAsOf
+	// zero. Production callers set EvidenceAsOf explicitly (see
+	// AWSCloudRuntimeDriftHandler.Handle); this exists for older call sites and
+	// tests that have not been migrated.
 	Now func() time.Time
 }
 
 // WriteAWSCloudRuntimeDriftFindings stores one durable fact per admitted
-// finding. The fact id is stable by candidate identity so reducer retries and
-// replays upsert the same row instead of duplicating findings.
+// finding and retires any prior finding for an evaluated ARN that this pass's
+// evidence no longer supports (#5848). The whole operation runs as one
+// transaction, begun with an admission check: a pass whose evidence-read
+// watermark is older than one this (scope, generation) pair already admitted
+// is rejected before it inserts or retires anything, so a stalled worker's
+// stale reclassification can never land after a fresher worker's has already
+// committed.
+//
+// The fact id is stable by candidate identity so a retry or redelivery of the
+// SAME pass upserts the same rows instead of duplicating findings. A
+// RECLASSIFICATION (a different finding_kind for the same ARN) mints a
+// DIFFERENT fact id, which is exactly what the retire step exists to clean up.
 func (w PostgresAWSCloudRuntimeDriftWriter) WriteAWSCloudRuntimeDriftFindings(
 	ctx context.Context,
 	write AWSCloudRuntimeDriftWrite,
@@ -37,9 +61,54 @@ func (w PostgresAWSCloudRuntimeDriftWriter) WriteAWSCloudRuntimeDriftFindings(
 	if w.DB == nil {
 		return AWSCloudRuntimeDriftWriteResult{}, fmt.Errorf("aws cloud runtime drift database is required")
 	}
+	if err := validateAWSCloudRuntimeDriftFence(write.EvidenceAsOf); err != nil {
+		return AWSCloudRuntimeDriftWriteResult{}, err
+	}
 
 	now := reducerWriterNow(w.Now)
+	fencingToken := awsCloudRuntimeDriftFencingToken(write.EvidenceAsOf)
+
+	tx, err := w.DB.BeginAWSCloudRuntimeDriftTx(ctx)
+	if err != nil {
+		return AWSCloudRuntimeDriftWriteResult{}, fmt.Errorf("begin aws cloud runtime drift transaction: %w", err)
+	}
+	result, err := w.commit(ctx, tx, write, fencingToken, now)
+	if err != nil {
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			return AWSCloudRuntimeDriftWriteResult{}, fmt.Errorf("%w; rollback: %v", err, rbErr)
+		}
+		return AWSCloudRuntimeDriftWriteResult{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return AWSCloudRuntimeDriftWriteResult{}, fmt.Errorf("commit aws cloud runtime drift transaction: %w", err)
+	}
+	return result, nil
+}
+
+func (w PostgresAWSCloudRuntimeDriftWriter) commit(
+	ctx context.Context,
+	tx AWSCloudRuntimeDriftTx,
+	write AWSCloudRuntimeDriftWrite,
+	fencingToken int64,
+	now time.Time,
+) (AWSCloudRuntimeDriftWriteResult, error) {
+	// Begin-before-mutate (#5848): admitted MUST be checked before any other
+	// statement in this transaction. A rejection here means a fresher pass for
+	// this exact (scope, generation) already committed, so this pass must not
+	// insert or retire anything at all.
+	admitted, err := tryAdmitAWSCloudRuntimeDriftWrite(ctx, tx, write.ScopeID, write.GenerationID, fencingToken, now)
+	if err != nil {
+		return AWSCloudRuntimeDriftWriteResult{}, err
+	}
+	if !admitted {
+		return AWSCloudRuntimeDriftWriteResult{}, awsCloudRuntimeDriftWriteSupersededError{
+			scopeID:      write.ScopeID,
+			generationID: write.GenerationID,
+		}
+	}
+
 	canonicalIDs := make([]string, 0, len(write.Candidates))
+	keepFactIDs := make([]string, 0, len(write.Candidates))
 	rows := make([]reducerFactVersionedRow, 0, len(write.Candidates))
 	for _, candidate := range write.Candidates {
 		canonicalID := canonicalAWSCloudRuntimeDriftID(write, candidate)
@@ -54,8 +123,9 @@ func (w PostgresAWSCloudRuntimeDriftWriter) WriteAWSCloudRuntimeDriftFindings(
 			return AWSCloudRuntimeDriftWriteResult{}, fmt.Errorf("marshal aws cloud runtime drift payload: %w", err)
 		}
 
+		factID := awsCloudRuntimeDriftFactID(write, candidate)
 		rows = append(rows, reducerFactVersionedRow{
-			FactID:           awsCloudRuntimeDriftFactID(write, candidate),
+			FactID:           factID,
 			ScopeID:          write.ScopeID,
 			GenerationID:     write.GenerationID,
 			FactKind:         awsCloudRuntimeDriftFactKind,
@@ -68,19 +138,32 @@ func (w PostgresAWSCloudRuntimeDriftWriter) WriteAWSCloudRuntimeDriftFindings(
 			ObservedAt:       now,
 			IngestedAt:       now,
 			Payload:          string(payloadJSON),
+			FencingToken:     fencingToken,
 		})
 		canonicalIDs = append(canonicalIDs, canonicalID)
+		keepFactIDs = append(keepFactIDs, factID)
 	}
 	// Bounded chunked bulk insert: candidates are upserted in O(N/batchSize)
 	// round-trips rather than one ExecContext per candidate.
-	if err := reducerBatchInsertVersionedFacts(ctx, w.DB, rows); err != nil {
+	if err := reducerBatchInsertVersionedFacts(ctx, tx, rows); err != nil {
 		return AWSCloudRuntimeDriftWriteResult{}, fmt.Errorf("write aws cloud runtime drift fact: %w", err)
+	}
+
+	retired, err := retireAWSCloudRuntimeDriftFindings(
+		ctx, tx, write.ScopeID, write.GenerationID, write.EvaluatedARNs, keepFactIDs, fencingToken,
+	)
+	if err != nil {
+		return AWSCloudRuntimeDriftWriteResult{}, err
 	}
 
 	return AWSCloudRuntimeDriftWriteResult{
 		CanonicalIDs:    canonicalIDs,
 		CanonicalWrites: len(canonicalIDs),
-		EvidenceSummary: fmt.Sprintf("wrote aws cloud runtime drift findings %d", len(canonicalIDs)),
+		Retired:         retired,
+		EvidenceSummary: fmt.Sprintf(
+			"wrote aws cloud runtime drift findings %d, retired %d superseded",
+			len(canonicalIDs), retired,
+		),
 	}, nil
 }
 

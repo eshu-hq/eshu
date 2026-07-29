@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
 	"github.com/eshu-hq/eshu/go/internal/correlation/engine"
@@ -54,6 +55,17 @@ type AWSCloudRuntimeDriftWrite struct {
 	Cause        string
 	Candidates   []model.Candidate
 	Summary      cloudruntime.Summary
+	// EvidenceAsOf is the moment this write's evidence was read, captured
+	// BEFORE the evidence load in Handle (see AWSCloudRuntimeDriftHandler.Handle).
+	// The writer stamps it as the admission-check and fact_records fencing
+	// watermark (#5848): a worker that stalled inside a slow cross-scope load
+	// must not outrank a worker that read the evidence after it.
+	EvidenceAsOf time.Time
+	// EvaluatedARNs is every ARN this pass's evidence load covered, whether or
+	// not it produced an admitted candidate. The generation-authoritative
+	// retire uses it to bound which prior findings it may remove: an ARN
+	// outside this set is left untouched regardless of its fact_id.
+	EvaluatedARNs []string
 }
 
 // AWSCloudRuntimeDriftWriteResult summarizes durable AWS runtime drift
@@ -61,6 +73,9 @@ type AWSCloudRuntimeDriftWrite struct {
 type AWSCloudRuntimeDriftWriteResult struct {
 	CanonicalIDs    []string
 	CanonicalWrites int
+	// Retired counts the stale findings the generation-authoritative retire
+	// removed for a reclassified or converged ARN (#5848).
+	Retired         int
 	EvidenceSummary string
 }
 
@@ -71,6 +86,16 @@ type AWSCloudRuntimeDriftHandler struct {
 	Writer         AWSCloudRuntimeDriftFindingWriter
 	Instruments    *telemetry.Instruments
 	Logger         *slog.Logger
+	// ReadinessChecker reports whether a Terraform state_snapshot scope is still
+	// mid-ingestion, so Handle can defer a not-yet-final orphaned_cloud_resource
+	// classification instead of writing it as a durable verdict (#5848,
+	// #5837's root cause). Nil disables the gate: Handle always writes its
+	// best-available classification, matching pre-#5848 behavior.
+	ReadinessChecker AWSCloudRuntimeDriftReadinessChecker
+	// Now supplies the evidence-read watermark. Left nil it falls back to the
+	// process clock; tests inject a deterministic one. See
+	// AWSCloudRuntimeDriftWrite.EvidenceAsOf.
+	Now func() time.Time
 }
 
 // Handle executes one AWS runtime drift publication intent.
@@ -88,6 +113,12 @@ func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent Intent) 
 		return Result{}, fmt.Errorf("aws cloud runtime drift writer is required")
 	}
 
+	// Read the fencing watermark BEFORE the evidence load, not after. It must
+	// express "how fresh is the world this pass looked at", excluding however
+	// long the load, classification, and admission then took (#5848; mirrors
+	// containerImageIdentityEvidenceAsOf, #5847).
+	evidenceAsOf := reducerWriterNow(h.Now)
+
 	rows, err := h.EvidenceLoader.LoadAWSCloudRuntimeDriftEvidence(ctx, intent.ScopeID, intent.GenerationID)
 	if err != nil {
 		return Result{}, fmt.Errorf("load aws cloud runtime drift evidence: %w", err)
@@ -103,16 +134,30 @@ func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent Intent) 
 	admitted := admittedAWSCloudRuntimeDriftCandidates(evaluation)
 	summary := summarizeAWSCloudRuntimeDriftCandidates(admitted)
 
+	shouldDefer, err := h.shouldDeferForStatePending(ctx, intent, admitted)
+	if err != nil {
+		return Result{}, fmt.Errorf("check aws cloud runtime drift state readiness: %w", err)
+	}
+	if shouldDefer {
+		h.logStatePendingDefer(ctx, intent, admitted)
+		return Result{}, newAWSCloudRuntimeDriftStatePendingError(intent.ScopeID, intent.GenerationID)
+	}
+
 	writeResult, err := h.Writer.WriteAWSCloudRuntimeDriftFindings(ctx, AWSCloudRuntimeDriftWrite{
-		IntentID:     intent.IntentID,
-		ScopeID:      intent.ScopeID,
-		GenerationID: intent.GenerationID,
-		SourceSystem: intent.SourceSystem,
-		Cause:        intent.Cause,
-		Candidates:   admitted,
-		Summary:      summary,
+		IntentID:      intent.IntentID,
+		ScopeID:       intent.ScopeID,
+		GenerationID:  intent.GenerationID,
+		SourceSystem:  intent.SourceSystem,
+		Cause:         intent.Cause,
+		Candidates:    admitted,
+		Summary:       summary,
+		EvidenceAsOf:  evidenceAsOf,
+		EvaluatedARNs: evaluatedAWSCloudRuntimeDriftARNs(rows),
 	})
 	if err != nil {
+		if isAWSCloudRuntimeDriftWriteSuperseded(err) {
+			h.logWriteSuperseded(ctx, intent)
+		}
 		return Result{}, fmt.Errorf("write aws cloud runtime drift findings: %w", err)
 	}
 
