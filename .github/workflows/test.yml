@@ -284,6 +284,12 @@ jobs:
 
       - name: Set up Helm for race tests
         uses: azure/setup-helm@v5.0.0
+        with:
+          # Pinned: setup-helm installs latest by default, and a newer helm
+          # changed values-schema error text (JSON-pointer paths became
+          # dot-separated), spontaneously reddening the go/internal/runtime
+          # Helm contract tests with no code change. See eshu-hq/eshu#5566.
+          version: v4.2.3
 
       - name: Run Go tests with race detector (shard ${{ matrix.shard }}/${{ strategy.job-total }})
         working-directory: go
@@ -364,6 +370,12 @@ jobs:
 
       - name: Set up Helm
         uses: azure/setup-helm@v5.0.0
+        with:
+          # Pinned: setup-helm installs latest by default, and a newer helm
+          # changed values-schema error text (JSON-pointer paths became
+          # dot-separated), spontaneously reddening the go/internal/runtime
+          # Helm contract tests with no code change. See eshu-hq/eshu#5566.
+          version: v4.2.3
 
       - name: Lint Helm chart
         run: helm lint deploy/helm/eshu
