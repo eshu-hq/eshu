@@ -102,6 +102,9 @@ inherited_marker_with_new_evidence_repo="$(init_repo inherited-marker-with-new-e
 write_baseline "${inherited_marker_with_new_evidence_repo}"
 printf 'package cypher\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\nconst writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n' \
   >"${inherited_marker_with_new_evidence_repo}/go/internal/storage/cypher/writer.go"
+# Split across two heredocs (cat > then cat >>) so neither body exceeds the
+# repo's 512-byte heredoc budget; the concatenated file content is identical
+# to a single heredoc.
 cat >"${inherited_marker_with_new_evidence_repo}/go/internal/storage/cypher/README.md" <<'MD'
 # Cypher Storage
 
@@ -113,6 +116,8 @@ Performance Evidence: baseline writer benchmark stayed flat.
 
 No-Observability-Change: existing writer metrics already cover this path.
 
+MD
+cat >>"${inherited_marker_with_new_evidence_repo}/go/internal/storage/cypher/README.md" <<'MD'
 ## Current Evidence (this PR)
 
 Performance Evidence: writerQuery MERGE benchmarked flat vs baseline on the
@@ -261,6 +266,9 @@ parenthetical_marker_repo="$(init_repo parenthetical-marker)"
 write_baseline "${parenthetical_marker_repo}"
 printf 'package cypher\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\nconst writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n' \
   >"${parenthetical_marker_repo}/go/internal/storage/cypher/writer.go"
+# Split across two heredocs (cat > then cat >>) so neither body exceeds the
+# repo's 512-byte heredoc budget; the concatenated file content is identical
+# to a single heredoc.
 cat >"${parenthetical_marker_repo}/go/internal/storage/cypher/README.md" <<'MD'
 # Cypher Storage
 
@@ -272,6 +280,8 @@ Performance Evidence: baseline writer benchmark stayed flat.
 
 No-Observability-Change: existing writer metrics already cover this path.
 
+MD
+cat >>"${parenthetical_marker_repo}/go/internal/storage/cypher/README.md" <<'MD'
 ## Current Evidence (#5542 review round, parenthetical marker form)
 
 Performance Evidence (#5542): writerQuery MERGE benchmarked flat vs baseline
@@ -304,6 +314,9 @@ performance_colon_required_repo="$(init_repo performance-colon-required)"
 write_baseline "${performance_colon_required_repo}"
 printf 'package cypher\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\nconst writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n' \
   >"${performance_colon_required_repo}/go/internal/storage/cypher/writer.go"
+# Split across two heredocs (cat > then cat >>) so neither body exceeds the
+# repo's 512-byte heredoc budget; the concatenated file content is identical
+# to a single heredoc.
 cat >"${performance_colon_required_repo}/go/internal/storage/cypher/README.md" <<'MD'
 # Cypher Storage
 
@@ -315,6 +328,8 @@ Performance Evidence: baseline writer benchmark stayed flat.
 
 No-Observability-Change: existing writer metrics already cover this path.
 
+MD
+cat >>"${performance_colon_required_repo}/go/internal/storage/cypher/README.md" <<'MD'
 ## Current Evidence (this PR)
 
 No-Observability-Change (#5542): existing writer span/metric coverage
@@ -333,6 +348,9 @@ observability_colon_required_repo="$(init_repo observability-colon-required)"
 write_baseline "${observability_colon_required_repo}"
 printf 'package cypher\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\nconst writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n' \
   >"${observability_colon_required_repo}/go/internal/storage/cypher/writer.go"
+# Split across two heredocs (cat > then cat >>) so neither body exceeds the
+# repo's 512-byte heredoc budget; the concatenated file content is identical
+# to a single heredoc.
 cat >"${observability_colon_required_repo}/go/internal/storage/cypher/README.md" <<'MD'
 # Cypher Storage
 
@@ -344,6 +362,8 @@ Performance Evidence: baseline writer benchmark stayed flat.
 
 No-Observability-Change: existing writer metrics already cover this path.
 
+MD
+cat >>"${observability_colon_required_repo}/go/internal/storage/cypher/README.md" <<'MD'
 ## Current Evidence (this PR)
 
 Performance Evidence (#5542): writerQuery MERGE benchmarked flat vs baseline
