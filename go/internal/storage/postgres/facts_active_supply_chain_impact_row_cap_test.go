@@ -35,21 +35,17 @@ func suppressionRowCapFakePage(startIndex, count int, baseTime time.Time) [][]an
 			"",
 			baseTime.Add(time.Duration(startIndex+i) * time.Second),
 			false,
-			[]byte(`{"suppression_id":"` + factID + `","scope":{"environment":"prod"}}`),
+			[]byte(`{"suppression_id":"` + factID + `","scope":{"cve_id":"CVE-2026-0700"}}`),
 		}
 	}
 	return page
 }
 
 // TestListActiveSupplyChainImpactFactsCapsRowsPerCall is the #5466 round-7
-// review P1-B fix proof: a suppression scoped ONLY by a common
-// environment/workload/service/advisory value has no other WHERE-clause
-// constraint and paginates to EXHAUSTION of every matching row across ALL
-// ingestion scopes -- MEASURED at 85,715 rows / ~22.7s wall time for a
-// single Environments:["prod"] filter on a 300,000-row corpus (see
-// gotchas-and-invariants.md for the full measurement). This hermetic test
-// lowers maxSupplyChainImpactActiveEvidenceRowsPerCall to a small number so
-// it can prove the stop-early behavior without seeding thousands of rows:
+// review P1-B fix proof: even an unexpectedly broad identity filter cannot
+// paginate without a per-call ceiling. This hermetic test lowers
+// maxSupplyChainImpactActiveEvidenceRowsPerCall to a small number so it can
+// prove the stop-early behavior without seeding thousands of rows:
 // the fake queryer is primed with MORE pages than the lowered cap allows,
 // and the test asserts (a) the returned envelope count is capped, not the
 // full row count the fake could have produced, (b) the truncated bool is
@@ -79,7 +75,7 @@ func TestListActiveSupplyChainImpactFactsCapsRowsPerCall(t *testing.T) {
 	store := NewFactStore(db)
 
 	loaded, truncated, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
-		Environments: []string{"prod"},
+		CVEIDs: []string{"CVE-2026-0700"},
 	})
 	if err != nil {
 		t.Fatalf("ListActiveSupplyChainImpactFacts() error = %v, want nil", err)

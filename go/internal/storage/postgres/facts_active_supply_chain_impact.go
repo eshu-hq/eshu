@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/environment"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -66,11 +65,11 @@ WHERE fact.fact_kind IN (
   AND generation.status = 'active'
   AND (
       fact.payload->>'package_id' = ANY($1::text[])
-      -- $16-$20 (below and at L~repository_id) are lower(btrim(...))
+      -- $13-$17 (below and at repository_id) are lower(btrim(...))
       -- normalized REPLACEMENTS for what used to be exact-match
       -- ->'scope'->>'X' = ANY($N) predicates here (there is no exact-match
       -- fallback left for package_id/purl/cve_id/subject_digest/
-      -- repository_id under "scope" -- $16-$20 fully supersede them, added
+      -- repository_id under "scope" -- $13-$17 fully supersede them, added
       -- for #5466 round-3 review F-6: scopeAnchorMatches
       -- (go/internal/reducer/supply_chain_suppression_scope_match.go)
       -- compares every vulnerability.suppression scope anchor with
@@ -85,11 +84,11 @@ WHERE fact.fact_kind IN (
       -- (vulnerability.affected_package, sbom.component, ...) whose
       -- existing exact-match behavior must not change -- only the
       -- "scope"-nested comparisons were replaced.
-      OR lower(btrim(fact.payload->'scope'->>'package_id', E' \t\n\v\f\r')) = ANY($16::text[])
+      OR lower(btrim(fact.payload->'scope'->>'package_id', E' \t\n\v\f\r')) = ANY($13::text[])
       OR fact.payload->>'purl' = ANY($2::text[])
-      OR lower(btrim(fact.payload->'scope'->>'purl', E' \t\n\v\f\r')) = ANY($17::text[])
+      OR lower(btrim(fact.payload->'scope'->>'purl', E' \t\n\v\f\r')) = ANY($14::text[])
       OR fact.payload->>'cve_id' = ANY($3::text[])
-      OR lower(btrim(fact.payload->'scope'->>'cve_id', E' \t\n\v\f\r')) = ANY($18::text[])
+      OR lower(btrim(fact.payload->'scope'->>'cve_id', E' \t\n\v\f\r')) = ANY($15::text[])
       OR (
           cardinality($4::text[]) > 0
           AND (
@@ -97,7 +96,7 @@ WHERE fact.fact_kind IN (
           )
       )
       OR fact.payload->>'subject_digest' = ANY($5::text[])
-      OR lower(btrim(fact.payload->'scope'->>'subject_digest', E' \t\n\v\f\r')) = ANY($19::text[])
+      OR lower(btrim(fact.payload->'scope'->>'subject_digest', E' \t\n\v\f\r')) = ANY($16::text[])
       OR fact.payload->>'digest' = ANY($5::text[])
       OR fact.payload->>'artifact_digest' = ANY($5::text[])
       OR fact.payload->>'referrer_digest' = ANY($5::text[])
@@ -118,12 +117,12 @@ WHERE fact.fact_kind IN (
           AND (
               fact.payload->>'repository_id' = ANY($8::text[])
               OR fact.payload->>'repo_id' = ANY($8::text[])
-              -- $20 is the lower(btrim(...)) normalized replacement for
+              -- $17 is the lower(btrim(...)) normalized replacement for
               -- what was an exact-match ->'scope'->>'repository_id' =
               -- ANY($8) predicate here. It binds the same repository filter
               -- values after normalization, so it strictly supersedes the
               -- old exact-match comparison (#5466 round-3 review F-6).
-              OR lower(btrim(fact.payload->'scope'->>'repository_id', E' \t\n\v\f\r')) = ANY($20::text[])
+              OR lower(btrim(fact.payload->'scope'->>'repository_id', E' \t\n\v\f\r')) = ANY($17::text[])
               OR fact.scope_id = ANY($8::text[])
               OR fact.payload->>'scope_id' = ANY($8::text[])
               OR scope.source_key = ANY($8::text[])
@@ -152,85 +151,57 @@ WHERE fact.fact_kind IN (
       OR fact.payload->>'image_ref' = ANY($9::text[])
       OR (
           fact.fact_kind = 'vulnerability.suppression'
-          AND (
-              -- lower(btrim(x, E' \t\n\v\f\r')) approximates -- it does NOT
-              -- exactly match -- the decode/matcher contract:
-              -- decodeVulnerabilitySuppressionScope reads workload_id/
-              -- service_id through payloadStr, which TrimSpaces, and
-              -- environment through environment.Canonical, which
-              -- TrimSpace+ToLower+alias-resolves (payloadStr's TrimSpace
-              -- runs first, so environment is TrimSpace'd twice); the
-              -- matcher then compares all three with strings.EqualFold
-              -- (case-insensitive). Go's strings.TrimSpace strips the full
-              -- Unicode White_Space property (tab, newline, NBSP U+00A0,
-              -- the U+2000-200A run, U+2028/2029, U+202F, U+205F, U+3000,
-              -- ...); Postgres's trim()/btrim() only strips a literal
-              -- character set, with no built-in "trim Unicode whitespace"
-              -- primitive, so the explicit E' \t\n\v\f\r' class below only
-              -- covers the ASCII control-whitespace set (space, tab,
-              -- newline, vertical tab, form feed, carriage return) --
-              -- covers realistic operator-authored payloads (including
-              -- tab/newline padding, #5466 round-2 review F-4) but a
-              -- payload padded with an exotic non-ASCII Unicode space
-              -- character would still decode/match in Go and not be
-              -- selected here. This residual gap is accepted, not silently
-              -- assumed away.
-              lower(btrim(fact.payload->'scope'->>'workload_id', E' \t\n\v\f\r')) = ANY($13::text[])
-              OR lower(btrim(fact.payload->'scope'->>'service_id', E' \t\n\v\f\r')) = ANY($14::text[])
-              -- Same lower(btrim(...)) treatment plus alias expansion of
-              -- $15 (see expandEnvironmentAliasFilterValues): a payload
-              -- authored as " production " (ASCII whitespace padding,
-              -- alias spelling) must still be selected by a canonical
-              -- "prod" filter (#5466 P1-1, tightened by round-2 review
-              -- F-1/F-4 -- see the whitespace-class caveat above, which
-              -- applies here identically).
-              OR lower(btrim(fact.payload->'scope'->>'environment', E' \t\n\v\f\r')) = ANY($15::text[])
-              -- $21 is the lower(btrim(...)) normalized REPLACEMENT for
-              -- what was a dead scope key: advisory_id had NO load-path
-              -- predicate at all before #5466 round-4 review F-10.
-              -- vulnerability.cve/affected_package carry a raw top-level
-              -- advisory_id (indexed by
-              -- fact_records_vulnerability_active_advisory_lookup_v2_idx --
-              -- vulnerability.affected_product shares that index's
-              -- fact_kind list but does NOT carry the field itself, #5466
-              -- round-5 review F-12), but supplyChainCVEID prefers cve_id
-              -- over advisory_id (firstNonBlank), so a suppression scoped
-              -- ONLY by advisory_id (e.g. a GHSA ID distinct from any
-              -- cve_id) was unreachable by this query even though
-              -- scopeAnchorMatches accepts it and
-              -- suppressionScopeIsEmpty/the reasons string both advertise
-              -- advisory_id as a sufficient sole anchor.
-              OR lower(btrim(fact.payload->'scope'->>'advisory_id', E' \t\n\v\f\r')) = ANY($21::text[])
-          )
+          -- $18 is the normalized replacement for the formerly missing
+          -- advisory_id scope lookup. Deployment context is deliberately
+          -- absent here: environment, workload_id, and service_id only
+          -- narrow suppressions discovered through an identity anchor.
+          AND lower(btrim(fact.payload->'scope'->>'advisory_id', E' \t\n\v\f\r')) = ANY($18::text[])
       )
   )
-  AND ($11 = '' OR fact.fact_id > $11)
-ORDER BY fact.fact_id ASC
+  AND (
+      $11 = ''
+      OR (fact.fact_kind = 'vulnerability.suppression', fact.fact_id) > ($19::boolean, $11)
+  )
+-- #5466 round-8 review F-3: every non-suppression row sorts before every
+-- vulnerability.suppression row (the boolean ASC term), so the row cap
+-- below (ListActiveSupplyChainImpactFacts) can bound ONLY the suppression
+-- tail without ever truncating vulnerability.cve/affected_package/sbom.
+-- component/... evidence -- see that function's doc for the full
+-- reasoning. The compound keyset cursor ($19 + $11, a Postgres row-value
+-- comparison) is required to paginate correctly against this two-part
+-- ordering; a plain "fact.fact_id > $11" cursor would skip or repeat rows
+-- once pagination crosses from the non-suppression group into the
+-- suppression group.
+ORDER BY (fact.fact_kind = 'vulnerability.suppression') ASC, fact.fact_id ASC
 LIMIT $12
 `
 
-// maxSupplyChainImpactActiveEvidenceRowsPerCall bounds the total rows one
-// ListActiveSupplyChainImpactFacts call may return before it stops
-// paginating and reports truncation (#5466 round-7 review P1-B). Without
-// this cap, a suppression scoped ONLY by a common environment/workload/
-// service/advisory value (#5466 P1-1/F-10) has no other WHERE-clause
-// constraint and paginates to EXHAUSTION of every active
-// vulnerability.suppression fact matching that value across ALL ingestion
-// scopes: MEASURED (not estimated) at 85,715 rows and ~22.7s wall time for
-// a single Environments:["prod"] filter against a 300,000-row seeded
-// corpus, running the real Go code path end to end -- see
-// go/internal/storage/postgres/gotchas-and-invariants.md for the full
-// measurement. 2,000 rows (4 pages at the existing 500-row
-// listFactsByKindPageSize) is generous headroom for every OTHER anchor
-// this query serves: cve_id/package_id/purl/subject_digest/repository_id/
-// advisory_id anchors measured at 0 to a few hundred matching rows on the
-// same corpus (the round-3/round-6 EXPLAIN evidence), while bounding the
-// low-selectivity deployment-context-only worst case to a fraction of a
-// second. A truncated load fails OPEN (less suppression evidence loaded,
-// findings stay visible -- never the reverse) but is surfaced via the
-// returned bool rather than silently dropped, so it can OR into the same
-// truncation signal maxSupplyChainImpactActiveEvidenceLoads already
-// produces for the round cap
+// maxSupplyChainImpactActiveEvidenceRowsPerCall bounds the vulnerability.
+// suppression rows one ListActiveSupplyChainImpactFacts call may return
+// before it stops paginating and reports truncation (#5466 round-7 review
+// P1-B, round-8 review F-3). Without this cap, a suppression matching a
+// broad identity filter with no other constraint could paginate through a
+// large active set.
+//
+// This counts ONLY vulnerability.suppression rows, never core evidence
+// (vulnerability.cve/affected_package/sbom.component/...): the query orders
+// every non-suppression row before every suppression row (ORDER BY
+// (fact_kind = 'vulnerability.suppression') ASC, fact_id ASC), so by the
+// time this cap can possibly fire, every matching non-suppression row for
+// the call's filter has already been loaded in full -- core evidence for a
+// finding can never be crowded out of the result by suppression noise
+// sharing the same filter values, regardless of how many suppression rows
+// exist. The 2,000-row ceiling is four existing 500-row pages of
+// suppression evidence, generous headroom for the operator-authored
+// suppression counts this query realistically serves (round-3/round-6
+// EXPLAIN evidence, gotchas-and-invariants.md).
+//
+// A truncated load fails OPEN for the omitted TAIL of suppression evidence
+// only (less suppression evidence loaded past the cap, findings that would
+// have been suppressed by a row past it stay visible -- never the reverse)
+// but is surfaced via the returned bool rather than silently dropped, so it
+// can OR into the same truncation signal maxSupplyChainImpactActiveEvidenceLoads
+// already produces for the round cap
 // (go/internal/reducer/supply_chain_impact_handler_helpers.go). A `var`,
 // not a `const`, so hermetic tests can lower it without seeding thousands
 // of rows.
@@ -239,7 +210,9 @@ var maxSupplyChainImpactActiveEvidenceRowsPerCall = 2000
 // ListActiveSupplyChainImpactFacts loads active package, SBOM, image, and
 // risk evidence for one bounded supply-chain impact reducer intent. The
 // bool return reports whether maxSupplyChainImpactActiveEvidenceRowsPerCall
-// truncated the result before every matching row was loaded.
+// truncated the vulnerability.suppression tail before every matching
+// suppression row was loaded -- core (non-suppression) evidence is never
+// truncated by this cap; see that var's doc for why.
 func (s FactStore) ListActiveSupplyChainImpactFacts(
 	ctx context.Context,
 	filter reducer.SupplyChainImpactFactFilter,
@@ -257,33 +230,38 @@ func (s FactStore) ListActiveSupplyChainImpactFacts(
 	filter.RepositoryIDs = cleanStringFilterValues(filter.RepositoryIDs)
 	filter.FileRepositoryIDs = cleanStringFilterValues(filter.FileRepositoryIDs)
 	filter.ImageRefs = cleanStringFilterValues(filter.ImageRefs)
-	filter.WorkloadIDs = cleanStringFilterValues(filter.WorkloadIDs)
-	filter.ServiceIDs = cleanStringFilterValues(filter.ServiceIDs)
-	filter.Environments = cleanStringFilterValues(filter.Environments)
 	if len(filter.PackageIDs) == 0 && len(filter.PURLs) == 0 &&
 		len(filter.CVEIDs) == 0 && len(filter.AdvisoryIDs) == 0 && len(filter.SubjectDigests) == 0 &&
 		len(filter.DocumentIDs) == 0 && len(filter.ProductCriteria) == 0 &&
 		len(filter.RepositoryIDs) == 0 && len(filter.FileRepositoryIDs) == 0 &&
-		len(filter.ImageRefs) == 0 && len(filter.WorkloadIDs) == 0 &&
-		len(filter.ServiceIDs) == 0 && len(filter.Environments) == 0 {
+		len(filter.ImageRefs) == 0 {
 		return nil, false, nil
 	}
 
 	var loaded []facts.Envelope
+	var suppressionLoaded int
 	var cursorFactID string
+	var cursorIsSuppression bool
 	for {
-		page, err := s.listActiveSupplyChainImpactFactsPage(ctx, filter, cursorFactID)
+		page, err := s.listActiveSupplyChainImpactFactsPage(ctx, filter, cursorFactID, cursorIsSuppression)
 		if err != nil {
 			return nil, false, err
 		}
 		loaded = append(loaded, page...)
-		if len(loaded) >= maxSupplyChainImpactActiveEvidenceRowsPerCall {
+		for _, envelope := range page {
+			if envelope.FactKind == facts.VulnerabilitySuppressionFactKind {
+				suppressionLoaded++
+			}
+		}
+		if suppressionLoaded >= maxSupplyChainImpactActiveEvidenceRowsPerCall {
 			return loaded, true, nil
 		}
 		if len(page) < listFactsByKindPageSize {
 			return loaded, false, nil
 		}
-		cursorFactID = page[len(page)-1].FactID
+		last := page[len(page)-1]
+		cursorFactID = last.FactID
+		cursorIsSuppression = last.FactKind == facts.VulnerabilitySuppressionFactKind
 	}
 }
 
@@ -291,6 +269,7 @@ func (s FactStore) listActiveSupplyChainImpactFactsPage(
 	ctx context.Context,
 	filter reducer.SupplyChainImpactFactFilter,
 	cursorFactID string,
+	cursorIsSuppression bool,
 ) ([]facts.Envelope, error) {
 	rows, err := s.db.QueryContext(
 		ctx,
@@ -307,23 +286,7 @@ func (s FactStore) listActiveSupplyChainImpactFactsPage(
 		filter.FileRepositoryIDs,
 		cursorFactID,
 		listFactsByKindPageSize,
-		// $13/$14 are compared against lower(btrim(payload, ASCII
-		// whitespace)) in SQL (see the query text above for the exact
-		// character class and its residual-gap caveat), so the bind values
-		// -- already Unicode-TrimSpace'd on the Go side by
-		// lowerCleanedStringFilterValues -- must be lowercased the same way
-		// -- otherwise a filter anchor with different case than the payload
-		// (both valid under the matcher's EqualFold contract) would never
-		// match.
-		lowerCleanedStringFilterValues(filter.WorkloadIDs),
-		lowerCleanedStringFilterValues(filter.ServiceIDs),
-		// $15 is compared against lower(btrim(payload, ASCII whitespace))
-		// plus every known alias of each canonical filter environment (see
-		// expandEnvironmentAliasFilterValues), so a suppression payload
-		// authored with an alias form ("production") still matches a
-		// canonical "prod" filter.
-		expandEnvironmentAliasFilterValues(filter.Environments),
-		// $16-$20 are lower(btrim(...)) normalized siblings of the
+		// $13-$17 are lower(btrim(...)) normalized siblings of the
 		// exact-match ->'scope'->>'package_id'/'purl'/'cve_id'/
 		// 'subject_digest'/'repository_id' predicates bound to $1-$3/$5/$8
 		// (#5466 round-3 review F-6; no exact-match fallback remains for
@@ -337,10 +300,16 @@ func (s FactStore) listActiveSupplyChainImpactFactsPage(
 		lowerCleanedStringFilterValues(filter.CVEIDs),
 		lowerCleanedStringFilterValues(filter.SubjectDigests),
 		lowerCleanedStringFilterValues(filter.RepositoryIDs),
-		// $21 is the lower(btrim(...)) normalized replacement for what was
+		// $18 is the lower(btrim(...)) normalized replacement for what was
 		// a dead scope key -- advisory_id had no load-path predicate at all
 		// before #5466 round-4 review F-10 (see the query text above).
 		lowerCleanedStringFilterValues(filter.AdvisoryIDs),
+		// $19 is the second half of the compound keyset cursor (#5466
+		// round-8 review F-3): paired with $11 (cursorFactID), it resumes
+		// pagination correctly against the query's two-part ORDER BY
+		// (non-suppression rows before suppression rows, each fact_id-
+		// ordered). Ignored by the query when $11 = '' (first page).
+		cursorIsSuppression,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list active supply chain impact facts: %w", err)
@@ -365,55 +334,11 @@ func (s FactStore) listActiveSupplyChainImpactFactsPage(
 
 // lowerCleanedStringFilterValues lowercases every value and re-runs
 // cleanStringFilterValues (trim, drop-empty, dedupe, sort) so the result is a
-// stable bind-ready set. Used for the workload_id/service_id suppression
-// scope anchors ($13/$14), which the SQL predicate compares against
-// lower(btrim(payload, ASCII whitespace)) to approximate
-// decodeVulnerabilitySuppressionScope's TrimSpace-only decode and the
-// matcher's case-insensitive (strings.EqualFold) comparison (#5466 P1-1) --
-// see the query text's whitespace-class comment for the residual
-// non-ASCII-whitespace gap this does not close.
+// stable bind-ready set for normalized suppression identity predicates.
 func lowerCleanedStringFilterValues(values []string) []string {
 	lowered := make([]string, 0, len(values))
 	for _, value := range values {
 		lowered = append(lowered, strings.ToLower(value))
 	}
 	return cleanStringFilterValues(lowered)
-}
-
-// expandEnvironmentAliasFilterValues canonicalizes each environment value in
-// values through environment.Canonical, then expands it into every alias
-// spelling from the shared environment.Aliases() table (which always
-// includes the canonical spelling itself -- see the table in
-// environment.Aliases()). The suppression-scope environment predicate
-// ($15) compares against lower(btrim(payload, ASCII whitespace)), so a
-// suppression payload authored with an alias form ("production") or
-// different case/ASCII-whitespace ("Prod", " production ") still matches a
-// filter built from the canonical form ("prod") -- otherwise the filter and
-// the payload could each independently be "correct" under
-// environment.Canonical and still never match in SQL (#5466 P1-1;
-// non-ASCII Unicode whitespace padding is a documented residual gap, see
-// the query text's whitespace-class comment). Canonicalizing here rather
-// than trusting the caller already did so keeps this function correct
-// regardless of caller input, matching lowerCleanedStringFilterValues's
-// defensive normalization of its own input. A canonical value with no known
-// alias entry (environment.Canonical never rejects unknown tokens) passes
-// through as its canonicalized form.
-func expandEnvironmentAliasFilterValues(values []string) []string {
-	if len(values) == 0 {
-		return values
-	}
-	aliasesByCanonical := make(map[string][]string, len(environment.Aliases()))
-	for _, entry := range environment.Aliases() {
-		aliasesByCanonical[entry.Canonical] = entry.Aliases
-	}
-	expanded := make([]string, 0, len(values))
-	for _, value := range values {
-		canonical := environment.Canonical(value)
-		if aliases, ok := aliasesByCanonical[canonical]; ok {
-			expanded = append(expanded, aliases...)
-			continue
-		}
-		expanded = append(expanded, canonical)
-	}
-	return cleanStringFilterValues(expanded)
 }

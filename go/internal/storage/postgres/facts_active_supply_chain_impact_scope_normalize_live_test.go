@@ -22,7 +22,7 @@ import (
 // it -- the identical defect class P1-1/F-4 fixed for
 // environment/workload_id/service_id, now closed for the five sibling
 // suppression-scope anchors (package_id, purl, cve_id, subject_digest,
-// repository_id) via new placeholders $16-$20. This test proves two of the
+// repository_id) via normalized placeholders $13-$17. This test proves two of the
 // five on the real load path: a lowercase CVE ID and a whitespace-padded
 // PURL.
 func TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByLowercaseCVEIDAndPaddedPURLLive(t *testing.T) {
@@ -30,7 +30,7 @@ func TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByLowercaseCVEIDA
 
 	// SUP-LOWERCASE-CVE: payload names the CVE ID in lowercase, never the
 	// uppercase form vulnerability.cve facts conventionally carry (e.g.
-	// "CVE-2024-11001" in the golden corpus fixtures).
+	// "CVE-2026-11001").
 	seedSupplyChainImpactScopeLiveFact(t, db, "vuln-suppression:lowercase-cve", "lowercase-cve",
 		`{"suppression_id":"SUP-LOWERCASE-CVE","source":"eshu_policy","justification":"not_affected","author":"security-bot","authored_at":"2026-06-20T00:00:00Z","scope":{"cve_id":"cve-2026-1234"}}`)
 	// SUP-PADDED-PURL: payload names the PURL padded with leading/trailing
@@ -82,8 +82,8 @@ func TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByLowercaseCVEIDA
 // review F-12), but supplyChainCVEID prefers cve_id over advisory_id
 // (firstNonBlank(cve_id, advisory_id)), so a suppression scoped ONLY by an
 // advisory_id distinct from any cve_id (e.g. a GHSA ID) was unreachable by
-// this query even though scopeAnchorMatches, suppressionScopeIsEmpty, and
-// the reasons string in supply_chain_suppression_reasons.go all accept/
+// this query even though scopeAnchorMatches,
+// suppressionScopeHasDiscoverableAnchor, and the reasons string all accept/
 // advertise advisory_id as a sufficient sole anchor. This test covers ONLY
 // the raw advisory_id payload field on the vulnerability.suppression
 // fact's own scope; it does NOT cover deriving AdvisoryIDs from any other
@@ -96,7 +96,7 @@ func TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByAdvisoryIDOnlyL
 
 	// SUP-ADVISORY-ONLY: scoped PURELY by advisory_id -- no cve_id,
 	// package_id, purl, subject_digest, or repository_id at all. The exact
-	// shape scopeAnchorMatches/suppressionScopeIsEmpty already accept but
+	// shape scopeAnchorMatches/suppressionScopeHasDiscoverableAnchor accept but
 	// this query's WHERE clause had no predicate that could ever match.
 	seedSupplyChainImpactScopeLiveFact(t, db, "vuln-suppression:advisory-only", "advisory-only",
 		`{"suppression_id":"SUP-ADVISORY-ONLY","source":"eshu_policy","justification":"not_affected","author":"security-bot","authored_at":"2026-06-20T00:00:00Z","scope":{"advisory_id":"GHSA-demo-1111-2222"}}`)

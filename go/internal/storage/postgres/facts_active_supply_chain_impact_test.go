@@ -4,12 +4,8 @@
 package postgres
 
 import (
-	"context"
-	"slices"
 	"strings"
 	"testing"
-
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 func TestListActiveSupplyChainImpactFactsQueryIsPackageBoundedAndPaged(t *testing.T) {
@@ -65,9 +61,9 @@ func TestListActiveSupplyChainImpactFactsQueryIncludesVulnerabilitySuppression(t
 	// suppressions silently miss findings.
 	//
 	// The scope-nested predicates below are the round-3 review F-6
-	// lower(btrim(...)) normalized shape ($16-$19), which SUPERSEDES (not
+	// lower(btrim(...)) normalized shape ($13-$16), which SUPERSEDES (not
 	// supplements) the original exact-match ->'scope'->>'X' = ANY($1-$5)
-	// shape: $16-$19 bind lower(btrim(...)) of the SAME filter values
+	// shape: $13-$16 bind lower(btrim(...)) of the SAME filter values
 	// bound to $1/$2/$3/$5, so every row the old exact-match predicate
 	// could select, the normalized predicate also selects, plus payloads
 	// whose case/whitespace differs from the filter (see
@@ -76,133 +72,42 @@ func TestListActiveSupplyChainImpactFactsQueryIncludesVulnerabilitySuppression(t
 	// full F-6 predicate-shape and unchanged-sibling assertions). $4
 	// (AdvisoryIDs, #5465) started as scope-nested exact-match too, but
 	// round-4 review F-10 later superseded ITS scope-nested form the same
-	// way -- normalized at $21 (see
+	// way -- normalized at $18 (see
 	// TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeAdvisoryID) --
 	// so the old ->'scope'->>'advisory_id' = ANY($4) form no longer exists;
 	// only the top-level (non-"scope") $4 exact match remains, serving
 	// other fact kinds.
 	for _, want := range []string{
 		"'vulnerability.suppression'",
-		"lower(btrim(fact.payload->'scope'->>'package_id', E' \\t\\n\\v\\f\\r')) = ANY($16::text[])",
-		"lower(btrim(fact.payload->'scope'->>'purl', E' \\t\\n\\v\\f\\r')) = ANY($17::text[])",
-		"lower(btrim(fact.payload->'scope'->>'cve_id', E' \\t\\n\\v\\f\\r')) = ANY($18::text[])",
-		"lower(btrim(fact.payload->'scope'->>'subject_digest', E' \\t\\n\\v\\f\\r')) = ANY($19::text[])",
+		"lower(btrim(fact.payload->'scope'->>'package_id', E' \\t\\n\\v\\f\\r')) = ANY($13::text[])",
+		"lower(btrim(fact.payload->'scope'->>'purl', E' \\t\\n\\v\\f\\r')) = ANY($14::text[])",
+		"lower(btrim(fact.payload->'scope'->>'cve_id', E' \\t\\n\\v\\f\\r')) = ANY($15::text[])",
+		"lower(btrim(fact.payload->'scope'->>'subject_digest', E' \\t\\n\\v\\f\\r')) = ANY($16::text[])",
 	} {
 		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
 		}
 	}
 	if strings.Contains(listActiveSupplyChainImpactFactsQuery, "fact.payload->'scope'->>'advisory_id' = ANY($4::text[])") {
-		t.Fatalf("scope-nested advisory_id exact-match at $4 should be superseded by the $21 normalized predicate (round-4 review F-10):\n%s", listActiveSupplyChainImpactFactsQuery)
+		t.Fatalf("scope-nested advisory_id exact-match at $4 should be superseded by the $18 normalized predicate (round-4 review F-10):\n%s", listActiveSupplyChainImpactFactsQuery)
 	}
 }
 
-func TestListActiveSupplyChainImpactFactsQueryMatchesSuppressionByEnvironmentWorkloadService(t *testing.T) {
+func TestListActiveSupplyChainImpactFactsQueryDoesNotDiscoverSuppressionByDeploymentContext(t *testing.T) {
 	t.Parallel()
 
-	// #5466 P0 follow-up: a vulnerability.suppression fact scoped ONLY by
-	// environment/workload_id/service_id (no cve_id/advisory_id/package_id/
-	// purl/subject_digest/repository_id at all) must still be selectable by
-	// this query. Before this predicate existed, such a suppression could
-	// never enter the reducer's working set: the scope struct and matcher
-	// (go/internal/reducer/supply_chain_suppression*.go) would accept it, but
-	// nothing in this WHERE clause could ever match it.
-	for _, want := range []string{
-		"fact.fact_kind = 'vulnerability.suppression'",
-		"lower(btrim(fact.payload->'scope'->>'workload_id', E' \\t\\n\\v\\f\\r')) = ANY($13::text[])",
-		"lower(btrim(fact.payload->'scope'->>'service_id', E' \\t\\n\\v\\f\\r')) = ANY($14::text[])",
-		"lower(btrim(fact.payload->'scope'->>'environment', E' \\t\\n\\v\\f\\r')) = ANY($15::text[])",
+	// Deployment context narrows a suppression selected through a
+	// vulnerability identity. It must never become a broad discovery
+	// predicate that scans every suppression in a common environment,
+	// workload, or service.
+	for _, forbidden := range []string{
+		"fact.payload->'scope'->>'workload_id'",
+		"fact.payload->'scope'->>'service_id'",
+		"fact.payload->'scope'->>'environment'",
 	} {
-		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
-			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
+		if strings.Contains(listActiveSupplyChainImpactFactsQuery, forbidden) {
+			t.Fatalf("listActiveSupplyChainImpactFactsQuery contains deployment-only discovery predicate %q:\n%s", forbidden, listActiveSupplyChainImpactFactsQuery)
 		}
-	}
-}
-
-func TestListActiveSupplyChainImpactFactsBindsWorkloadAndServiceIDsToDistinctPlaceholders(t *testing.T) {
-	t.Parallel()
-
-	// #5466 P2-1: $13 (WorkloadIDs) and $14 (ServiceIDs) have no other
-	// coverage that can catch a bind-order swap in
-	// listActiveSupplyChainImpactFactsPage --
-	// TestListActiveSupplyChainImpactFactsQueryMatchesSuppressionByEnvironmentWorkloadService
-	// only proves the SQL string mentions $13/$14, not that Go binds the
-	// right filter field to each placeholder. Swapping
-	// filter.WorkloadIDs/filter.ServiceIDs in that call would pass every
-	// other test in the repo and silently make both anchors inert.
-	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: nil}}}
-	store := NewFactStore(db)
-
-	_, _, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
-		WorkloadIDs: []string{"Workload:X"},
-		ServiceIDs:  []string{"Service:Y"},
-	})
-	if err != nil {
-		t.Fatalf("ListActiveSupplyChainImpactFacts() error = %v, want nil", err)
-	}
-	if got, want := len(db.queries), 1; got != want {
-		t.Fatalf("query count = %d, want %d", got, want)
-	}
-
-	// args are 0-indexed; $13 is args[12] and $14 is args[13].
-	workloadArg, ok := db.queries[0].args[12].([]string)
-	if !ok {
-		t.Fatalf("$13 (index 12) arg type = %T, want []string", db.queries[0].args[12])
-	}
-	if got, want := workloadArg, []string{"workload:x"}; !slices.Equal(got, want) {
-		t.Fatalf("$13 (WorkloadIDs) arg = %v, want %v", got, want)
-	}
-
-	serviceArg, ok := db.queries[0].args[13].([]string)
-	if !ok {
-		t.Fatalf("$14 (index 13) arg type = %T, want []string", db.queries[0].args[13])
-	}
-	if got, want := serviceArg, []string{"service:y"}; !slices.Equal(got, want) {
-		t.Fatalf("$14 (ServiceIDs) arg = %v, want %v", got, want)
-	}
-}
-
-func TestExpandEnvironmentAliasFilterValues(t *testing.T) {
-	t.Parallel()
-
-	got := expandEnvironmentAliasFilterValues([]string{"prod", "qa", "unknown-env"})
-	want := []string{"prod", "production", "qa", "unknown-env"}
-	if !slices.Equal(got, want) {
-		t.Fatalf("expandEnvironmentAliasFilterValues() = %v, want %v", got, want)
-	}
-}
-
-// TestExpandEnvironmentAliasFilterValuesCanonicalizesNonCanonicalInput is
-// the #5466 round-2 review F-2 fix proof: the function must not assume its
-// input already went through environment.Canonical. A mixed-case value
-// ("Prod") or an alias spelling passed in directly ("production", not the
-// canonical "prod") must both canonicalize before the aliasesByCanonical
-// lookup and expand to the identical alias set -- otherwise either input
-// would miss the lookup, pass through unexpanded, and could then never
-// equal the lower(trim(payload)) side of the SQL predicate.
-func TestExpandEnvironmentAliasFilterValuesCanonicalizesNonCanonicalInput(t *testing.T) {
-	t.Parallel()
-
-	want := []string{"prod", "production"}
-	for _, in := range [][]string{
-		{"Prod"},
-		{"production"},
-		{" PRODUCTION "},
-	} {
-		got := expandEnvironmentAliasFilterValues(in)
-		if !slices.Equal(got, want) {
-			t.Fatalf("expandEnvironmentAliasFilterValues(%v) = %v, want %v", in, got, want)
-		}
-	}
-}
-
-func TestLowerCleanedStringFilterValues(t *testing.T) {
-	t.Parallel()
-
-	got := lowerCleanedStringFilterValues([]string{" Workload:X ", "workload:x", "SERVICE:Y"})
-	want := []string{"service:y", "workload:x"}
-	if !slices.Equal(got, want) {
-		t.Fatalf("lowerCleanedStringFilterValues() = %v, want %v", got, want)
 	}
 }
 
@@ -220,10 +125,10 @@ func TestListActiveSupplyChainImpactFactsQueryBoundsRepositoryFollowUp(t *testin
 		"fact.payload->>'repository_id' = ANY($8::text[])",
 		"fact.payload->>'repo_id' = ANY($8::text[])",
 		// Round-3 review F-6: this was ->'scope'->>'repository_id' = ANY($8)
-		// (exact match); $20 supersedes it with lower(btrim(...)) -- see
+		// (exact match); $17 supersedes it with lower(btrim(...)) -- see
 		// TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeSiblings
 		// (facts_active_supply_chain_impact_scope_normalize_test.go).
-		"lower(btrim(fact.payload->'scope'->>'repository_id', E' \\t\\n\\v\\f\\r')) = ANY($20::text[])",
+		"lower(btrim(fact.payload->'scope'->>'repository_id', E' \\t\\n\\v\\f\\r')) = ANY($17::text[])",
 		"fact.scope_id = ANY($8::text[])",
 		"fact.payload->>'scope_id' = ANY($8::text[])",
 		"scope.source_key = ANY($8::text[])",

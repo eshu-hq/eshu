@@ -243,7 +243,21 @@ SELECT
     WHEN n <= 500 THEN format('fact:cve:%06s', n)
     ELSE format('fact:other:%06s', n)
   END,
-  'scope:5465:sql-proof', 'generation:5465:sql-proof', 'vulnerability.cve',
+  'scope:5465:sql-proof', 'generation:5465:sql-proof',
+  -- rows 126-250 carry advisory_id nested under "scope", which only ever
+  -- appears on a vulnerability.suppression fact in production (no other
+  -- fact kind's schema has a "scope" sub-object -- see
+  -- sdk/go/factschema/vulnerability/v1); the query's normalized
+  -- scope-nested advisory_id predicate ($18, #5466 round-4 review F-10) is
+  -- gated to fact_kind = 'vulnerability.suppression' to match that reality,
+  -- unlike its package_id/purl/cve_id/subject_digest/repository_id
+  -- siblings (#5466 round-3 review F-6), which stay ungated because their
+  -- own JSON path is likewise only ever populated on a suppression fact --
+  -- gating changes nothing for them, so they were left as-is.
+  CASE
+    WHEN n > 125 AND n <= 250 THEN 'vulnerability.suppression'
+    ELSE 'vulnerability.cve'
+  END,
   format('stable:%06s', n), '1.0.0', 'synthetic', 1, 'reported',
   'synthetic', format('source:%06s', n),
   '2026-07-27T12:00:00Z', '2026-07-27T12:00:00Z',
@@ -278,20 +292,26 @@ func suppressionSQLProofLegacyQuery(t *testing.T) string {
 			"          cardinality($4::text[]) > 0\n"+
 			"          AND (\n"+
 			"              fact.payload->>'advisory_id' = ANY($4::text[])\n"+
-			"              OR fact.payload->'scope'->>'advisory_id' = ANY($4::text[])\n"+
 			"          )\n"+
 			"      )\n",
 		"",
 		1,
 	)
-	for parameter := 5; parameter <= 12; parameter++ {
+	// $4's whole cardinality block is removed above, but $18 (the SEPARATE,
+	// suppression-fact-kind-gated normalized advisory_id predicate, #5466
+	// round-4 review F-10) and $19 (the compound keyset cursor's boolean
+	// half, #5466 round-8 review F-3) are untouched by that removal -- both
+	// are different bind parameters, not part of the $4 block -- so every
+	// placeholder from $5 through $19 (not just through $12) must shift
+	// down by one to fill the $4 gap.
+	for parameter := 5; parameter <= 19; parameter++ {
 		query = strings.ReplaceAll(
 			query,
 			"$"+strconv.Itoa(parameter),
 			"__SUPPRESSION_PROOF_ARG_"+strconv.Itoa(parameter)+"__",
 		)
 	}
-	for parameter := 5; parameter <= 12; parameter++ {
+	for parameter := 5; parameter <= 19; parameter++ {
 		query = strings.ReplaceAll(
 			query,
 			"__SUPPRESSION_PROOF_ARG_"+strconv.Itoa(parameter)+"__",
@@ -304,19 +324,44 @@ func suppressionSQLProofLegacyQuery(t *testing.T) string {
 	return query
 }
 
+// suppressionSQLProofCurrentArgs binds against the current, full
+// listActiveSupplyChainImpactFactsQuery (19 placeholders). cveIDs and
+// advisoryIDs each feed BOTH their exact-match slot and their lower(btrim(...))
+// normalized sibling slot, mirroring exactly how
+// listActiveSupplyChainImpactFactsPage binds the same filter value twice in
+// production. The final `false` is the compound keyset cursor's boolean
+// half ($19, #5466 round-8 review F-3); its value is irrelevant here since
+// $11 (the cursor's fact_id half) is empty, which bypasses the cursor
+// predicate entirely (first page), but it must still be present and
+// well-typed for Postgres to plan the query.
 func suppressionSQLProofCurrentArgs(cveIDs, advisoryIDs []string) []any {
 	empty := []string{}
 	return []any{
 		empty, empty, cveIDs, advisoryIDs, empty, empty,
 		empty, empty, empty, empty, "", 1_000,
+		empty, empty,
+		lowerCleanedStringFilterValues(cveIDs),
+		empty, empty,
+		lowerCleanedStringFilterValues(advisoryIDs),
+		false,
 	}
 }
 
+// suppressionSQLProofLegacyArgs binds against the 18-placeholder legacy
+// query suppressionSQLProofLegacyQuery builds (the $4 advisory block
+// removed, $5-$19 shifted down to $4-$18). Only cveIDs is exercised (this
+// proof is about legacy CVE-filtering parity, not advisory matching), fed to
+// both its exact-match slot and its normalized sibling slot. The trailing
+// `false` is the shifted-down cursor boolean (see suppressionSQLProofCurrentArgs).
 func suppressionSQLProofLegacyArgs(cveIDs []string) []any {
 	empty := []string{}
 	return []any{
 		empty, empty, cveIDs, empty, empty, empty,
 		empty, empty, empty, "", 1_000,
+		empty, empty,
+		lowerCleanedStringFilterValues(cveIDs),
+		empty, empty, empty,
+		false,
 	}
 }
 
