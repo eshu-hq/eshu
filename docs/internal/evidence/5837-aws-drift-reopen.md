@@ -17,21 +17,51 @@ together, rather than reconstructing a design that was never landed.
 
 ## Cross-PR interactions
 
-**Migration-number collision, resolved.** This branch forked from `ba2b7b80b`.
-`origin/main` has since advanced by one commit, `f1fd95dbc` (#5469, "resolve the
-judged version from the strongest deployment-truth tier"), which also claimed
-migration number `086` (`086_cloud_resource_owner_runtime_digest_index.sql`) —
-the same number this branch first used for
-`086_aws_cloud_runtime_drift_write_admission.sql`. This branch was NOT rebased
-onto `f1fd95dbc`; the collision was found by diffing `origin/main...HEAD` (merge-base
-relative) against a fresh `git fetch origin main` and comparing changed-file
-sets, then confirmed by inspecting `f1fd95dbc`'s own migration directory diff.
-Resolved by renumbering this branch's migration to `087` (`git mv`, plus the
-matching `orderedBootstrapDefinitionNames` entry in `schema_order_test.go`) —
-a self-contained rename that does not require rebasing onto `f1fd95dbc` to
-verify, and removes the collision a future rebase would otherwise have to
-resolve by hand. Confirmed via `rg -n "086" go/internal/storage/postgres/migrations/087_aws_cloud_runtime_drift_write_admission.sql`
-(no hits) and a clean `go build ./...`/`go vet ./...` after the rename.
+**Migration-number collision, resolved, then rebased.** This branch forked
+from `ba2b7b80b`. `origin/main` advanced past that point with `f1fd95dbc`
+(#5469, "resolve the judged version from the strongest deployment-truth
+tier"), which claimed migration number `086`
+(`086_cloud_resource_owner_runtime_digest_index.sql`) — the same number this
+branch first used for `086_aws_cloud_runtime_drift_write_admission.sql`. The
+collision was found before rebasing, by diffing `origin/main...HEAD`
+(merge-base relative) against a fresh `git fetch origin main` and comparing
+changed-file sets, then confirmed by inspecting `f1fd95dbc`'s own migration
+directory diff. First resolved by renumbering this branch's migration to
+`087` in place (`git mv`, plus the matching `orderedBootstrapDefinitionNames`
+entry in `schema_order_test.go`), then the branch was actually rebased onto
+`origin/main` (`git fetch origin && git rebase origin/main`) once the
+coordinator confirmed the collision was real and requested it. The rebase
+conflicted exactly where expected — twice in
+`go/internal/storage/postgres/schema_order_test.go`, both times because both
+`origin/main` and this branch's own commits touch the tail of
+`orderedBootstrapDefinitionNames` — and was resolved by hand to keep `086`
+for #5469's `cloud_resource_owner_runtime_digest_index` and `087` for this
+branch's `aws_cloud_runtime_drift_write_admission`, consistently across the
+migration filename, `schema_order_test.go`, and this doc. The rebase
+preserved all 6 original commits (the renumber commit still does real work
+post-rebase: the actual `git mv` from `086_...` to `087_...` had not yet
+happened at the point the conflict was resolved, so that commit's rename is
+not a no-op).
+
+The transient shape where two DIFFERENT migration files briefly share the
+numeric prefix `086` across intermediate commits (before the renumber commit
+replays) is not a functional defect, even transiently: `BootstrapDefinitions()`
+sorts and derives each definition's name from the FULL filename minus its
+numeric prefix, and the codebase already has a documented precedent for
+exactly this shape —
+`schema_order_test.go`'s own comment on migration prefix `075`
+("a duplicate-number merge artifact from two independently-landed PRs...
+`BootstrapDefinitions()` sorts by migration filename, so
+'075_fact_records_active_container_image_slsa_idx' (f) deterministically
+precedes '075_kubernetes_live_pod_template_object_index' (k)"). The
+renumbering to `087` was still the right call for tidiness and to avoid
+ambiguity, not because a shared prefix breaks anything.
+
+Confirmed via `rg -n "086|087" go/internal/storage/postgres/` (every hit
+accounted for: `086` names #5469's index consistently, `087` names this
+branch's migration consistently, `evidence-5092-relationship-family-guard.md`'s
+hits are unrelated timing numbers containing the same digits) and a clean
+`go build ./...`/`go vet ./...` on the rebased head.
 
 **`container_image_identity` (#5847/#5851, `a2a5340a9`) is untouched, read-only
 reference.** `a2a5340a9` is in this branch's base (an ancestor of `ba2b7b80b`,
