@@ -211,22 +211,23 @@ GOCACHE=$PWD/.gocache ESHU_POSTGRES_PORT=25432 \
   bash scripts/verify-golden-corpus-gate.sh
 ```
 
-Comparable result:
+Comparable result, plus the required rerun after the preliminary review's
+description-only evidence correction:
 
-| Gate signal | Exact base | Finished #5469 |
-| --- | ---: | ---: |
-| Required assertions | 511 pass / 0 fail | 512 pass / 0 fail |
-| Pipeline wall | 106s | 105s |
-| Bootstrap | 3s | 3s |
-| Collect | 21s | 20s |
-| First drain | 65s | 64s |
-| Maintenance drains | 17s | 18s |
-| Graph/query | 24s | 23s |
-| Residual / dead letter | 0 / 0 | 0 / 0 |
+| Gate signal | Exact base | Finished #5469 source | Post-review evidence fix |
+| --- | ---: | ---: | ---: |
+| Required assertions | 511 pass / 0 fail | 512 pass / 0 fail | 512 pass / 0 fail |
+| Pipeline wall | 106s | 105s | 106s |
+| Bootstrap | 3s | 3s | 3s |
+| Collect | 21s | 20s | 21s |
+| First drain | 65s | 64s | 66s |
+| Maintenance drains | 17s | 18s | 16s |
+| Graph/query | 24s | 23s | 23s |
+| Residual / dead letter | 0 / 0 | 0 / 0 | 0 / 0 |
 
-The advisory was the graph-query wall-clock check at 23 seconds. The required
-pipeline wall time, bootstrap, collection, first drain, and maintenance drains
-all passed. Every suppression and reducer drain reported zero residual and
-zero dead-letter work. The live query assertions included the comprehensive
-OS-package profile and the #5466 suppression fields merged immediately before
-this rebase.
+Both branch runs had one advisory: the graph-query wall-clock check at 23
+seconds. The required pipeline wall time, bootstrap, collection, first drain,
+and maintenance drains all passed. Every suppression and reducer drain reported
+zero residual and zero dead-letter work. The live query assertions included the
+comprehensive OS-package profile and the #5466 suppression fields merged
+immediately before this rebase.
