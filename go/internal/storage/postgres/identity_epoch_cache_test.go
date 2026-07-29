@@ -179,18 +179,24 @@ func TestIdentityEpochCacheMissChangedCount(t *testing.T) {
 // returns a stable probe row on every probe call (idempotent, matching a
 // stable epoch) and fails loudly if the load-page query — which singleflight
 // must serialize to exactly one caller — is ever issued more than once.
-// probeDelay simulates a DB round-trip so the test can prove non-serialization:
-// under the P1-A bug (mu held across the probe), N concurrent callers would
-// each wait for their own probe behind the lock, so wall time would scale
-// with N x probeDelay; under the fix, concurrent probes overlap and the
-// whole batch completes in a small constant multiple of probeDelay.
+//
+// probeDelay simulates a DB round-trip. inFlightProbes/peakInFlightProbes
+// count, at every instant, how many probe calls are concurrently inside that
+// round-trip — a direct, wall-clock-free measurement of non-serialization
+// (issue #5849): under the P1-A bug, probes fully serialize behind mu,
+// pinning peakInFlightProbes at 1 regardless of host scheduling; under the
+// fix, mu is released before the probe, so 32 concurrent callers guarantee
+// overlap. This replaces a prior wall-clock bound that could fail under host
+// load even with fully correct, non-serialized behavior.
 type concurrentSingleflightQueryer struct {
-	mu         sync.Mutex
-	probeCalls int
-	loadCalls  int
-	probeDelay time.Duration
-	factRow    []any
-	probeRow   []any
+	mu                 sync.Mutex
+	probeCalls         int
+	loadCalls          int
+	inFlightProbes     int
+	peakInFlightProbes int
+	probeDelay         time.Duration
+	factRow            []any
+	probeRow           []any
 }
 
 func (q *concurrentSingleflightQueryer) ExecContext(context.Context, string, ...any) (sql.Result, error) {
@@ -209,13 +215,23 @@ func (q *concurrentSingleflightQueryer) QueryContext(_ context.Context, query st
 		return &queueFakeRows{rows: [][]any{q.factRow}}, nil
 	}
 
-	// Probe query: simulate a DB round-trip so concurrent probes overlap in
-	// wall time only if mu is genuinely released across the probe.
+	// Probe query: simulate a DB round-trip, tracking peak concurrency across
+	// the simulated round-trip so the test can assert non-serialization
+	// directly instead of inferring it from elapsed wall-clock time.
+	q.mu.Lock()
+	q.inFlightProbes++
+	if q.inFlightProbes > q.peakInFlightProbes {
+		q.peakInFlightProbes = q.inFlightProbes
+	}
+	q.mu.Unlock()
+
 	if q.probeDelay > 0 {
 		time.Sleep(q.probeDelay)
 	}
+
 	q.mu.Lock()
 	q.probeCalls++
+	q.inFlightProbes--
 	q.mu.Unlock()
 	return &queueFakeRows{rows: [][]any{q.probeRow}}, nil
 }
@@ -270,24 +286,27 @@ func TestIdentityEpochCacheConcurrentSingleflight(t *testing.T) {
 	}
 
 	q.mu.Lock()
-	loadCalls, probeCalls := q.loadCalls, q.probeCalls
+	loadCalls, probeCalls, peakInFlight := q.loadCalls, q.probeCalls, q.peakInFlightProbes
 	q.mu.Unlock()
 	if loadCalls != 1 {
 		t.Fatalf("load page queries = %d, want 1 (singleflight)", loadCalls)
 	}
-	t.Logf("probeCalls=%d loadCalls=%d elapsed=%v (probeDelay=%v)", probeCalls, loadCalls, elapsed, probeDelay)
+	t.Logf("probeCalls=%d loadCalls=%d peakInFlightProbes=%d elapsed=%v (probeDelay=%v, logged for diagnostics only, not asserted)",
+		probeCalls, loadCalls, peakInFlight, elapsed, probeDelay)
 
-	// Non-serialization proof (P1-A fix): 32 concurrent callers each need at
-	// least one probe. If mu were held across the probe (the bug), those
-	// probes would serialize behind the lock and wall time would scale
-	// with N x probeDelay (32 x 20ms = 640ms). With mu released across the
-	// probe (the fix), concurrent probes overlap, bounding wall time to a
-	// small constant multiple of probeDelay regardless of N. The bound below
-	// is generous enough to absorb scheduler jitter while still failing on
-	// real O(N) serialization.
-	maxAllowed := 10 * probeDelay
-	if elapsed > maxAllowed {
-		t.Fatalf("32 concurrent callers took %v, want <= %v (mu must not serialize the epoch probe across callers)", elapsed, maxAllowed)
+	// Non-serialization proof (issue #5849 fix): assert directly, via the
+	// observed peak in-flight probe count, that concurrent callers' epoch
+	// probes overlap — not by inferring it from elapsed wall-clock time. A
+	// busy host can delay every goroutine's wake-up by an unbounded amount
+	// regardless of whether mu serializes the probe, so any fixed multiple
+	// of probeDelay can fail on correct code (reproduced for #5849: a
+	// deliberately jittered but correct run hit >3x the prior 200ms bound
+	// with zero probes ever serialized). peakInFlightProbes is immune: if mu
+	// were held across the probe (the P1-A bug), every probe would run
+	// strictly one at a time, pinning the peak at 1 no matter the host
+	// scheduler; released, 32 concurrent callers guarantee overlap.
+	if peakInFlight <= 1 {
+		t.Fatalf("peak concurrent probes = %d, want > 1 (mu must not serialize the epoch probe across callers)", peakInFlight)
 	}
 }
 
