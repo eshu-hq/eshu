@@ -9,6 +9,49 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Bare `backend "local" {}` drift ownership resolution
+
+- **Apply Terraform's own default local-backend path when resolving
+  config-vs-state drift ownership** ([#5594](https://github.com/eshu-hq/eshu/issues/5594)).
+  A `backend "local" {}` block written with no `path` attribute — the
+  ordinary way to write a local backend, since Terraform itself defaults
+  `path` to `"terraform.tfstate"` relative to the root module directory
+  (https://developer.hashicorp.com/terraform/language/backend/local) —
+  produced no config-side `DiscoveryCandidate` at all:
+  `EvaluateBackendConfig`/`backendConfigCandidate`
+  (`go/internal/collector/terraformstate/backend_config.go`) only derived a
+  candidate for `s3` backends, so every drift candidate for a local backend
+  was rejected with `failure_class: no_config_repo_owns_backend`, with or
+  without an explicit `path`. `backendConfigCandidate` now also derives a
+  `BackendLocal` candidate, applying Terraform's default when the attribute
+  is absent. The HCL parser (`go/internal/parser/hcl/terraform_backend.go`)
+  now captures the local backend's `path` attribute under
+  `row["local_path"]` — a new key, since `row["path"]` already held the
+  source `.tf` file's own path for every backend row and would otherwise be
+  silently overwritten. A `BackendLocal` candidate's locator is an absolute
+  path matching the repository checkout root
+  (`BackendConfigContext.RepoLocalPath`, the durable `repository` fact's
+  `local_path`, threaded through
+  `go/internal/storage/postgres/tfstate_backend_canonical.go`'s ownership-join
+  query); without it, no candidate is produced rather than a guessed locator.
+  Backend kinds Eshu does not model (`gcs`, `azurerm`, `remote`, `http`, ...)
+  were audited and confirmed to still produce neither a candidate nor a
+  warning, unchanged.
+  - No-Regression Evidence: `go test ./internal/parser/ ./internal/collector/
+    ./internal/collector/terraformstate/... ./internal/storage/postgres/...
+    ./internal/relationships/tfstatebackend/... ./internal/reducer/ -count=1`
+    is green. `TestPostgresTerraformBackendQueryResolvesBareLocalBackendDefaultPath`,
+    `TestEvaluateBackendConfigDefaultsBareLocalBackendPath`, and the parser-level
+    `TestDefaultEngineParsePathHCLLocalBackendBareBlockOmitsPathAttribute` fail
+    before this change (zero candidates / no `local_path` field) and pass after.
+  - No-Observability-Change: the reducer's existing `"drift candidate
+    rejected"` structured log
+    (`go/internal/reducer/terraform_config_state_drift.go:logRejection`,
+    `failure_class`/`rejection.reason` fields) already covers this path; the
+    fix reduces how often `failure_class=no_config_repo_owns_backend` fires
+    for the ordinary bare-local-backend spelling, it does not add a stage,
+    query, worker, or metric.
+
 ### Route-fact-based Rails controller liveness
 
 - **Join the Rails controller dead-code-root verdict against real route facts**
