@@ -193,10 +193,52 @@ own `go test` invocation. That script is wired into
 `.github/workflows/e2e-tests.yml`'s "Run live backend conformance" step,
 which runs on every push to `main` and on every PR touching `go/**` (path
 filter), across the `nornicdb`/`neo4j` backend matrix — so this regression
-class now fails loud in CI, not just locally. Verified locally end to end
-against a bare (non-Compose) NornicDB container on private ports: the full
-`scripts/verify_backend_conformance_live.sh` run, including the new block,
-passed (`ok  go/internal/storage/cypher  1.111s` for the new test).
+class now fails loud in CI, not just locally.
+
+**Evidentiary correction**: an earlier version of this doc cited the bare
+`ok  github.com/eshu-hq/eshu/go/internal/storage/cypher  1.111s`
+package-level summary line as proof the live test ran. Without `-v`, `go
+test` prints that identical `ok <pkg> <duration>` shape whether the matched
+test PASSED or was `t.Skip`'d — a package-level `ok` cannot distinguish "ran
+and passed" from "silently skipped", so it was not actually falsifiable
+proof, in this doc or in any future CI log for this step (hostile-review
+finding F1). Both `go test` invocations in the NornicDB block
+(`scripts/verify_backend_conformance_live.sh` lines 43 and 47) now pass `-v`
+permanently, so every future CI run emits an explicit `--- PASS:`/`--- SKIP:`/
+`--- FAIL:` line per test name, not just a package summary. `-v` was added to
+BOTH invocations, not only the new one: line 43 bundles three test names
+behind one `-run` alternation, so the same package-level-`ok` ambiguity
+applied there too (arguably worse, since it covers three tests at once) —
+there is no reason to leave that sibling blind spot in place while fixing
+this one.
+
+Re-verified end to end with `-v`, reusing an already-running isolated
+NornicDB probe container from an earlier shim (`nornic-probe-old`, bolt port
+`7912`; did not start a new container, did not touch `eshu-pg-5848`):
+
+```
+$ cd go && ESHU_CLOUDRESOURCE_NODE_WRITER_LIVE=1 ESHU_GRAPH_BACKEND=nornicdb \
+  ESHU_NEO4J_URI=bolt://localhost:7912 ESHU_NEO4J_USERNAME=neo4j \
+  ESHU_NEO4J_PASSWORD=x ESHU_NEO4J_DATABASE=nornic \
+  go test ./internal/storage/cypher -run '^TestCloudResourceNodeWriterLiveHeterogeneousBatchNeverPersistsLiteral$' -count=1 -v
+
+=== RUN   TestCloudResourceNodeWriterLiveHeterogeneousBatchNeverPersistsLiteral
+--- PASS: TestCloudResourceNodeWriterLiveHeterogeneousBatchNeverPersistsLiteral (0.10s)
+PASS
+ok  	github.com/eshu-hq/eshu/go/internal/storage/cypher	0.733s
+```
+
+And the full script end to end against the same container, confirming all
+four live tests now emit their own `--- PASS:` line (`SCRIPT_EXIT:0`):
+
+```
+Running live NornicDB retry classification contracts and #5441 stale-attribute-removal regression
+--- PASS: TestLiveNornicDBRetryConflictClassificationContract (0.02s)
+--- PASS: TestLiveNornicDBRelationshipSnapshotConflictRetryContract (0.01s)
+--- PASS: TestTerraformResourceWriterLiveClearsStaleAttributeOnRefresh (0.01s)
+Running live NornicDB CloudResource heterogeneous-batch row-key-default regression (#5714/#5055)
+--- PASS: TestCloudResourceNodeWriterLiveHeterogeneousBatchNeverPersistsLiteral (0.01s)
+```
 
 (b) remains available as a follow-up if a future maintainer wants the
 non-vacuous corpus-level floor+ceiling assertion in addition to (a); it was
