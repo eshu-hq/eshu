@@ -3371,13 +3371,13 @@
         "results_field": "resources"
       },
       "list_cloud_runtime_drift_findings": {
-        "description": "MCP tool coverage shape for list_cloud_runtime_drift_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5759 wired buildMultiCloudRuntimeDriftReducerIntent into appendScopeGenerationReducerIntents (triggering on gcp_cloud_resource or azure_cloud_resource facts) and added MultiCloudRuntimeDriftHandler.Handle's excludeAWSOwnedRows provider-partition filter, so DomainMultiCloudRuntimeDrift is enqueued for GCP/Azure scopes and no longer collides with DomainAWSCloudRuntimeDrift's own findings for the same AWS resource -- closing the pre-existing registered-not-enqueued gap (domain built for #1997/#1998, predates #5453). STILL SHAPE-ONLY (minimum_results:0) pending a live-gate-verified fixture: this corpus's gcp_cloud_resource cassette (testdata/cassettes/gcpcloud/supply-chain-demo.json) is not yet proven to produce an admitted orphaned/unmanaged finding for the scoped resource below (that needs the same kind of Terraform-state fixture surgery #5453 did for the sibling AWS assertion, verified live). The orchestrator should run the live golden-corpus gate: if reducer_multi_cloud_runtime_drift_finding rows now materialize for a GCP or Azure scope, retarget scope_id/provider to that resource and raise minimum_results to 1 (non-vacuous, per #5759's acceptance criteria) instead of leaving this shape-only. #5453's image_version_drift value drift IS already proven non-vacuously through the sibling list_aws_runtime_drift_findings entry (reducer_aws_cloud_runtime_drift_finding, which is exclusively AWS-owned and unaffected by this change).",
+        "description": "MCP tool coverage shape for list_cloud_runtime_drift_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5759 wired buildMultiCloudRuntimeDriftReducerIntent into appendScopeGenerationReducerIntents (triggering on gcp_cloud_resource or azure_cloud_resource facts) and added MultiCloudRuntimeDriftHandler.Handle's excludeAWSOwnedRows provider-partition filter, so DomainMultiCloudRuntimeDrift is enqueued for GCP/Azure scopes and no longer collides with DomainAWSCloudRuntimeDrift's own findings for the same AWS resource -- closing the pre-existing registered-not-enqueued gap (domain built for #1997/#1998, predates #5453). Non-vacuous: a live golden-corpus-gate run returned 10 drift_findings for this GCP scope (bounded by the requested limit:10 below, the same convention the sibling list_aws_runtime_drift_findings entry uses -- this corpus's gcp_cloud_resource cassette carries 110 keyable resources and no Terraform state/config fixture anywhere in the corpus declares a matching google_* resource, so far more than 10 orphaned findings are admitted; the request just asks for one page of 10). minimum_results is 1 -- proven by a live golden-corpus-gate run, not shape-only. #5453's image_version_drift value drift is separately proven non-vacuously through the sibling list_aws_runtime_drift_findings entry (reducer_aws_cloud_runtime_drift_finding, exclusively AWS-owned and unaffected by this change).",
         "required_response_fields": [
           "drift_findings",
           "findings_count",
           "total_findings_count"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
         "arguments": {
           "scope_id": "gcp:project:supply-chain-demo-project",
           "provider": "gcp",
@@ -4569,15 +4569,16 @@
         }
       },
       "export_cloud_runtime_drift_packet": {
-        "description": "MCP tool coverage shape for export_cloud_runtime_drift_packet; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for export_cloud_runtime_drift_packet; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5759 follow-up: this entry was shape-only for a DIFFERENT reason than the sibling list_cloud_runtime_drift_findings gap -- getDriftPacket (investigation_packet_api_drift.go) reads the SAME ListActiveMultiCloudRuntimeDriftFindings store that route reads, exact-matching on scope_id, but the prior arguments.scope_id here was \"supply-chain-demo\", a git-repo-shaped id that can never equal a written finding's cloud ingestion scope_id (\"aws:...\", \"gcp:project:...\", \"azure:...\" -- see the handler's own #5167 W5 comment: drift findings key on a cloud scope, not a repository). No production code was broken or changed for this entry; retargeted arguments.scope_id to the same GCP scope the sibling list_cloud_runtime_drift_findings entry proved non-vacuous live so this packet's driftSourceFacts (investigation_packet_drift.go, one PacketSourceFact per finding with a non-blank FactID) has real findings to map.",
         "required_response_fields": [
           "identity",
           "source_facts",
           "reproduce"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
         "arguments": {
-          "scope_id": "supply-chain-demo",
+          "scope_id": "gcp:project:supply-chain-demo-project",
+          "provider": "gcp",
           "max_source_facts": 10
         }
       },
