@@ -899,23 +899,25 @@ type Instruments struct {
 	// to admit-phase outcome volume (this counter) per pack.
 	CorrelationDriftDetected metric.Int64Counter
 	// CorrelationDriftIntentsEnqueued counts config_state_drift reducer intents
-	// enqueued by the bootstrap-index Phase 3.5 trigger
-	// (IngestionStore.EnqueueConfigStateDriftIntents). The counter advances by
-	// the number of state_snapshot:* scopes with active generations at the
-	// time the trigger fires — so a single bootstrap run advances it by N for
-	// N active state-snapshot scopes (or by 0 when there are none, which is
-	// itself a useful "trigger ran but produced zero work" signal).
+	// enqueued by either of this domain's two producers: the bootstrap-index
+	// Phase 3.5 trigger (IngestionStore.EnqueueConfigStateDriftIntents) or the
+	// runtime delta-trigger (postgres.ConfigStateDriftRuntimeTrigger, issue
+	// #5593) fired from ProjectorQueue.Ack when a state_snapshot:* scope
+	// generation activates outside a bootstrap-index pass. The counter
+	// advances by 1 per enqueue attempt for the runtime trigger, and by the
+	// number of state_snapshot:* scopes with active generations at the time
+	// the bootstrap trigger fires (0 is itself a useful "trigger ran but
+	// produced zero work" signal for either producer).
 	//
 	// Pairing this with CorrelationDriftDetected lets operators decouple
 	// enqueue health (intents reaching the queue) from admission health
 	// (classifier admitted them). A drop in CorrelationDriftDetected with
 	// flat CorrelationDriftIntentsEnqueued points at the classifier or the
-	// loader; a drop in both points at the bootstrap trigger or the upstream
+	// loader; a drop in both points at the producing trigger or the upstream
 	// fact set.
 	//
 	// Labels: pack (frozen string "terraform_config_state_drift"), source
-	// (currently always "bootstrap_index"; reserved for a future ingester
-	// delta-trigger that would emit the same intent domain).
+	// ("bootstrap_index" or "ingester_runtime_trigger").
 	CorrelationDriftIntentsEnqueued metric.Int64Counter
 	// CorrelationOrphanDetected counts admitted AWS cloud-runtime candidates
 	// where an observed cloud resource has no Terraform-state backing for the

@@ -143,7 +143,7 @@ before assuming the whole write path is bottlenecked.
 | --- | --- | --- |
 | `eshu_dp_correlation_rule_matches_total` | counter | Match-phase activity by rule pack and rule. |
 | `eshu_dp_correlation_drift_detected_total` | counter | Admitted Terraform config/state drift by pack, rule, and drift kind. |
-| `eshu_dp_correlation_drift_intents_enqueued_total` | counter | `config_state_drift` reducer intents emitted by bootstrap-index Phase 3.5. |
+| `eshu_dp_correlation_drift_intents_enqueued_total` | counter | `config_state_drift` reducer intents, labeled `source=bootstrap_index` (bootstrap-index Phase 3.5) or `source=ingester_runtime_trigger` (the ingester's runtime delta-trigger, fired when a `terraform_state_snapshot` scope generation activates outside a bootstrap-index pass, issue #5593). |
 | `eshu_dp_correlation_orphan_detected_total` | counter | AWS runtime resources without Terraform-state backing. |
 | `eshu_dp_correlation_unmanaged_detected_total` | counter | AWS/Terraform-state resources missing current Terraform config backing. |
 | `eshu_dp_drift_unresolved_module_calls_total` | counter | Terraform module calls the drift loader could not resolve locally. |

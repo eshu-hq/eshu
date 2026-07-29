@@ -340,4 +340,18 @@
 // runCrossplaneRedriveHook triggers the sweep AFTER Ack's own transaction
 // commits — deliberately its own bounded, paged unit of work, never inline
 // inside Ack's fixed-size generation-activation transaction.
+//
+// ConfigStateDriftRuntimeTrigger closes the runtime delta-trigger gap
+// EnqueueConfigStateDriftIntents' doc comment anticipated (issue #5593): a
+// terraform_state_snapshot landing outside a bootstrap-index pass was never
+// drift-evaluated until the next bootstrap run, because bootstrap's Phase 3.5
+// sweep was the only producer of config_state_drift reducer intents. Wired
+// only on the ingester's ProjectorQueue (never bootstrap-index's — see
+// ProjectorQueue.ConfigStateDriftTrigger's doc comment), it enqueues one
+// config_state_drift intent through the same ReducerIntentWriter contract
+// immediately after a state_snapshot:* scope generation activates via Ack,
+// using the identical (scope_id, generation_id, domain) shape the bootstrap
+// sweep uses so the two producers dedupe against each other through the
+// reducer queue's existing ON CONFLICT DO NOTHING work_item_id fence rather
+// than racing to write different rows.
 package postgres

@@ -44,8 +44,9 @@ ORDER BY scope.scope_id ASC
 const driftIntentReason = "bootstrap_phase_3_5_drift_trigger"
 
 // driftIntentSourceSystem labels the producer of the intent for telemetry
-// purposes — distinguishes bootstrap-emitted drift intents from any future
-// runtime delta-trigger that emits the same domain.
+// purposes — distinguishes bootstrap-emitted drift intents from the runtime
+// delta-trigger (ConfigStateDriftRuntimeTrigger, issue #5593) that emits the
+// same domain from ProjectorQueue.Ack.
 const driftIntentSourceSystem = "bootstrap_index"
 
 // EnqueueConfigStateDriftIntents implements the Phase 3.5 trigger required by
@@ -83,7 +84,7 @@ func (s IngestionStore) EnqueueConfigStateDriftIntents(
 		return err
 	}
 	if len(intents) == 0 {
-		recordDriftEnqueueCounter(ctx, instruments, 0)
+		recordDriftEnqueueCounter(ctx, instruments, 0, driftIntentSourceSystem)
 		log.Printf("config_state_drift_intents_enqueued count=0 duration_s=%.2f", time.Since(start).Seconds())
 		return nil
 	}
@@ -104,7 +105,7 @@ func (s IngestionStore) EnqueueConfigStateDriftIntents(
 	// "trigger fired N intents" from "reducer admitted M drift candidates"
 	// downstream (CorrelationDriftDetected). See instruments.go for the
 	// label-set rationale.
-	recordDriftEnqueueCounter(ctx, instruments, len(intents))
+	recordDriftEnqueueCounter(ctx, instruments, len(intents), driftIntentSourceSystem)
 	log.Printf("config_state_drift_intents_enqueued count=%d duration_s=%.2f",
 		len(intents), time.Since(start).Seconds())
 
@@ -150,10 +151,13 @@ func listActiveStateSnapshotScopes(ctx context.Context, db ExecQueryer) ([]proje
 }
 
 // recordDriftEnqueueCounter advances the CorrelationDriftIntentsEnqueued
-// counter by `count` with the bounded label set `pack` +
-// `source=bootstrap_index`. Tolerates a nil instruments handle so callers
-// without telemetry wired (early bootstrap test paths) remain operable.
-func recordDriftEnqueueCounter(ctx context.Context, instruments *telemetry.Instruments, count int) {
+// counter by `count` with the bounded label set `pack` + `source`. `source`
+// is one of the two producers of this domain: driftIntentSourceSystem
+// (bootstrap Phase 3.5) or driftRuntimeTriggerSourceSystem
+// (ConfigStateDriftRuntimeTrigger, issue #5593). Tolerates a nil instruments
+// handle so callers without telemetry wired (early bootstrap test paths)
+// remain operable.
+func recordDriftEnqueueCounter(ctx context.Context, instruments *telemetry.Instruments, count int, source string) {
 	if instruments == nil || instruments.CorrelationDriftIntentsEnqueued == nil {
 		return
 	}
@@ -162,7 +166,7 @@ func recordDriftEnqueueCounter(ctx context.Context, instruments *telemetry.Instr
 		int64(count),
 		metric.WithAttributes(
 			attribute.String(telemetry.MetricDimensionPack, rules.TerraformConfigStateDriftPackName),
-			telemetry.AttrSource(driftIntentSourceSystem),
+			telemetry.AttrSource(source),
 		),
 	)
 }

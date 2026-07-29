@@ -288,6 +288,30 @@ shared-intent backlog/status queries and reducer code-call cycle logs.
   generation as invalidation state; and keep resource parents and page tokens
   out of telemetry labels.
 
+- **`config_state_drift` enqueue triggers (when drift gets evaluated, not how)**
+  → bootstrap's one-shot Phase 3.5 sweep is `drift_enqueue.go`
+  (`IngestionStore.EnqueueConfigStateDriftIntents`, scans every
+  `state_snapshot:*` scope with an active generation). The runtime delta-trigger
+  (issue #5593) is `drift_runtime_trigger.go`
+  (`ConfigStateDriftRuntimeTrigger.TriggerConfigStateDrift`), wired only onto
+  the ingester's `ProjectorQueue.ConfigStateDriftTrigger` in
+  `cmd/ingester/wiring.go` and fired from
+  `projector_queue_config_state_drift_trigger_hook.go`'s
+  `runConfigStateDriftTriggerHook` after `Ack` commits a `state_snapshot:*`
+  scope generation. Both producers build the reducer intent with the same
+  `(scope_id, generation_id, domain=config_state_drift)` shape and no
+  `EntityKey`, so `reducerWorkItemID` collapses them onto the same
+  `work_item_id` and the second producer's enqueue is a harmless
+  `ON CONFLICT DO NOTHING` no-op — do not add an `EntityKey` or other
+  differentiator to either producer without re-proving that de-dupe (see
+  `TestConfigStateDriftRuntimeTriggerAndBootstrapProduceSameConflictKey`).
+  Do NOT wire `ConfigStateDriftTrigger` onto bootstrap-index's own
+  `ProjectorQueue` (`cmd/bootstrap-index/wiring.go`) — bootstrap's Phase 3.5
+  deliberately runs after Phase 3 reopens `deployment_mapping` so the drift
+  handler's backend resolver has the cross-repo correlation it needs; firing
+  during bootstrap's own Phase 1 projector drain would freeze a premature
+  "no owner" result under the same de-dupe fence.
+
 - **State-attribute decoding or flattening** → edit
   `tfstate_drift_evidence_state_row.go`. `stateRowFromCollectorPayload`
   (`tfstate_drift_evidence_state_row.go:29`) decodes the collector payload and

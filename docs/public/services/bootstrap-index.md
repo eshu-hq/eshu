@@ -37,6 +37,17 @@ exit
 After bootstrap exits, the steady-state reducer drains the reducer work that
 needs cross-repository evidence or shared materialization.
 
+`enqueue config_state_drift reducer work` is a one-shot sweep over every
+`state_snapshot:*` scope active at the moment bootstrap runs; it does not
+repeat after exit. A `terraform_state_snapshot` that lands later — through
+`collector-terraform-state` and the ingester's steady-state projector, not
+through bootstrap-index — is drift-evaluated by a separate runtime
+delta-trigger the ingester fires when that scope's generation activates, so
+drift evaluation follows the data instead of waiting for the next
+bootstrap-index run (issue #5593). Both producers enqueue into the same
+`config_state_drift` reducer domain and dedupe against each other by
+`(scope_id, generation_id)`.
+
 ## Concurrency
 
 - Collection uses the shared repository sync and snapshot configuration.
