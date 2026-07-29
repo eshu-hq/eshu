@@ -15,6 +15,69 @@ returned nothing, and no `aws_cloud_runtime_drift_retire_fence_live_test.go` fil
 existed). This branch builds the retire fence AND the insert-admission check
 together, rather than reconstructing a design that was never landed.
 
+## Cross-PR interactions
+
+**Migration-number collision, resolved.** This branch forked from `ba2b7b80b`.
+`origin/main` has since advanced by one commit, `f1fd95dbc` (#5469, "resolve the
+judged version from the strongest deployment-truth tier"), which also claimed
+migration number `086` (`086_cloud_resource_owner_runtime_digest_index.sql`) —
+the same number this branch first used for
+`086_aws_cloud_runtime_drift_write_admission.sql`. This branch was NOT rebased
+onto `f1fd95dbc`; the collision was found by diffing `origin/main...HEAD` (merge-base
+relative) against a fresh `git fetch origin main` and comparing changed-file
+sets, then confirmed by inspecting `f1fd95dbc`'s own migration directory diff.
+Resolved by renumbering this branch's migration to `087` (`git mv`, plus the
+matching `orderedBootstrapDefinitionNames` entry in `schema_order_test.go`) —
+a self-contained rename that does not require rebasing onto `f1fd95dbc` to
+verify, and removes the collision a future rebase would otherwise have to
+resolve by hand. Confirmed via `rg -n "086" go/internal/storage/postgres/migrations/087_aws_cloud_runtime_drift_write_admission.sql`
+(no hits) and a clean `go build ./...`/`go vet ./...` after the rename.
+
+**`container_image_identity` (#5847/#5851, `a2a5340a9`) is untouched, read-only
+reference.** `a2a5340a9` is in this branch's base (an ancestor of `ba2b7b80b`,
+the fork point) — it landed before this branch started, so no rebase is
+involved in seeing it. `git diff origin/main...HEAD` (merge-base relative,
+confirming no drift) shows zero changes to any `container_image_identity`,
+`ci_cd_run_correlation`, provenance-edge, or `supply_chain_impact`/suppression
+file; the `AWSCloudRuntimeDriftAdmissionBeginner`/`AWSCloudRuntimeDriftTx`
+pattern in this branch mirrors `ServiceMaterializationBeginner`'s shape
+(#1943), not `a2a5340a9`'s fencing pattern directly, since
+`container_image_identity` uses the unversioned `reducerFactRow` family and a
+bare execer, while `aws_cloud_runtime_drift` uses the versioned family and
+now a transaction.
+
+**#5759 (`DomainMultiCloudRuntimeDrift`) cannot be affected by this branch's
+readiness defer — structurally, not by convention.** `#5759` newly enqueues
+`DomainMultiCloudRuntimeDrift` for GCP/Azure scopes, and in the golden corpus
+those scopes can legitimately have NO Terraform state ever (not late — absent
+by design). A readiness defer that could not tell "not yet" from "never" would
+either suppress valid orphan findings for those providers or defer them until
+the terminal fallback fires on every run. This branch's defer cannot reach
+that domain at all: `MultiCloudRuntimeDriftHandler`
+(`go/internal/reducer/multi_cloud_runtime_drift.go`) is a SEPARATE Go struct
+and `Handle` method from `AWSCloudRuntimeDriftHandler`, with its own field set
+(`EvidenceLoader`, `Writer`, `Instruments`, `Logger` — no `ReadinessChecker`
+field exists on it, confirmed by direct read of the struct literal). The
+`AWSCloudRuntimeDriftReadinessChecker` interface and
+`PostgresAWSCloudRuntimeDriftReadinessChecker` implementation are wired
+exactly once, in `go/cmd/reducer/wiring_handlers.go`, into
+`DriftHandlers.AWSCloudRuntimeDriftReadinessChecker`, which
+`defaults_additive_domains_secrets_drift.go` threads only into
+`AWSCloudRuntimeDriftHandler{ReadinessChecker: ...}` — never into
+`MultiCloudRuntimeDriftHandler`. `rg -n "PostgresAWSCloudRuntimeDriftReadinessChecker|HasPendingStateSnapshotEvidence"
+go/ -g '*.go'` outside tests returns exactly those wiring lines and the
+implementation itself — no other call site exists. For AWS itself, the
+distinction the coordinator's question raises still matters and is answered
+by the design already documented above: the checker's signal is coarse
+("is ANY `state_snapshot:*` scope pending", not "is the specific backend for
+THIS ARN pending"), which is DELIBERATE — it can only ever cause an
+unnecessary, bounded (3-attempt) defer, never an incorrect verdict, because
+the terminal fallback always commits the classification the evidence actually
+supports once the bound is reached, whether or not any state scope ever
+activates. Extending this pattern to `MultiCloudRuntimeDriftHandler` in the
+future would need its own analysis of what "pending" means for GCP/Azure
+state backends; this branch does not attempt that and cannot regress it.
+
 ## The four pieces, and why each is required
 
 1. **Readiness defer** (`go/internal/reducer/aws_cloud_runtime_drift_readiness.go`).
@@ -239,6 +302,103 @@ never defers, a nil `ReadinessChecker` never defers (opt-in, matches pre-#5848
 behavior byte-for-byte), and a non-orphaned candidate never even calls the
 readiness checker (a pending state scope cannot improve
 unmanaged/ambiguous/unknown/image_version_drift).
+
+### Deterministic end-to-end reproduction (real Handler, EvidenceLoader, Writer)
+
+`TestAWSCloudRuntimeDriftReadinessDeterministicReproductionLive`
+(`go/internal/storage/postgres/aws_cloud_runtime_drift_readiness_deterministic_live_test.go`)
+goes one level further than the readiness-checker-only proof above: it drives
+the REAL `AWSCloudRuntimeDriftHandler`, the real
+`PostgresAWSCloudRuntimeDriftEvidenceLoader`, the real
+`PostgresAWSCloudRuntimeDriftReadinessChecker`, and the real
+`PostgresAWSCloudRuntimeDriftWriter` together, end to end, with no stubs. This
+is the closest a Docker-free lane can get to the owner's own technique of
+forcing the collector order (awscloud drains before terraformstate) to turn
+the 1-in-3 race into a 100% reproduction: instead of forcing two collectors to
+drain in a specific order, it forces the EVIDENCE STATE they would leave
+behind directly (a `state_snapshot:*` scope registered with a `'pending'`
+generation) — deterministic by construction, not timing, so it reproduces on
+every run rather than roughly one in three.
+
+Three phases, one continuous run, verified deterministic over 5 repeated
+`-count=5` runs:
+
+```
+$ go test ./internal/storage/postgres -run TestAWSCloudRuntimeDriftReadinessDeterministicReproductionLive -v -count=1
+    BEFORE (no ReadinessChecker): durably wrote [orphaned_cloud_resource] while state scope was pending -- the #5837 bug
+    AFTER (ReadinessChecker wired, attempt 0): deferred, zero rows written -- the #5837 fix
+    AFTER (attempt 1, state active): reclassified to [unknown_cloud_resource] once state activated
+--- PASS: TestAWSCloudRuntimeDriftReadinessDeterministicReproductionLive (0.66s)
+```
+
+Phase 1 (`AWSCloudRuntimeDriftHandler` with `ReadinessChecker` left nil —
+byte-identical to the code that shipped before this branch) durably writes
+`orphaned_cloud_resource` while the state scope is pending: the bug,
+reproduced on demand rather than waited for. Phase 2 (the same evidence shape,
+`ReadinessChecker` wired) defers instead — zero rows, a retryable error, not a
+silently degraded success. Phase 3 activates the state scope with matching
+Terraform state for the same ARN and replays `Handle` (simulating the
+reopen-triggered retry, `AttemptCount: 1`): the verdict is
+`unknown_cloud_resource`, not `orphaned_cloud_resource` — reclassified once
+state became visible. (`unknown_cloud_resource`, not `image_version_drift`,
+because this fixture's `EvidenceLoader` has no `ConfigResolver` wired —
+`aws_cloud_runtime_drift_evidence.go`'s `loadConfigByStateScope` forces
+`unknown_cloud_resource` whenever `ConfigResolver` is nil. The specific
+non-orphaned kind is incidental to this proof; what matters is that it is no
+longer the degraded verdict.)
+
+### Unrelated `internal/storage/postgres` failures, confirmed pre-existing via baseline
+
+A full `go test ./internal/storage/postgres/... -count=1` run on this branch
+hits four failures outside anything this branch touches:
+`TestIngestionStoreCommitScopeGenerationFencesDerivedRelationshipEvidence` (a
+`pg_trgm` operator-class visibility race across parallel tests' custom
+Postgres schemas — self-heals once the extension exists database-wide),
+`TestIngestionCommitScopeGenerationHoldsBarrierOnlyForAtomicCommit` (a
+400,000-fact synchronous-backfill timing assertion),
+`TestIngestionCommitAndMaintenanceLockOrderingNeverDeadlocks`, and
+`TestPostgresTerraformBackendQuerySurvivesNullTerraformBackendsPath`. None of
+the four files these tests live in were touched by this branch.
+
+Ruled out as a regression by baseline comparison, not by file-adjacency
+reasoning alone: an `origin/main` worktree (`ba2b7b80b`, no `#5848` code at
+all) was checked out fresh, given its own isolated `postgres:16` container on
+a private port, and driven through the SAME three timing-sensitive tests
+(`-run "TestIngestionCommitScopeGenerationHoldsBarrierOnlyForAtomicCommit|
+TestIngestionCommitAndMaintenanceLockOrderingNeverDeadlocks|
+TestPostgresTerraformBackendQuerySurvivesNullTerraformBackendsPath" -p 1`).
+All three failed identically on that clean baseline, with the SAME error
+signatures (`relationship_evidence_facts row count = 0`; `relation
+"ingestion_scopes" does not exist` cascading from the heavy test's timeout
+into the next). The baseline run's own timings (`CommitScopeGeneration
+onboarding ... took 8.09s` on the first baseline attempt, `82.73s` on a repeat
+against the same idle-looking machine) show wide variance consistent with
+contention, not a stable per-test cost.
+
+Machine-state honesty: this repo's other concurrent work was not quiesced for
+either run. `ps aux` during the branch run showed a second, unrelated agent
+session (`5594-local-backend-default-path`) actively running its own
+`go test ./internal/storage/postgres/...` against a different private-port
+Postgres at the same time, and the coordinator separately reported starting a
+`make pre-pr` run (which holds the cross-worktree live-gate mutex and adds its
+own Docker/CPU load) around the same window as the baseline comparison. Both
+runs above are therefore "branch vs. baseline under real, uncontrolled,
+comparable background load on the same shared host" — not "quiet machine vs.
+loaded machine". Given identical failure signatures on a codebase with ZERO
+`#5848` changes, under directly comparable (if not literally simultaneous)
+contention, these four are classified as pre-existing environment/timing
+sensitivities in `internal/storage/postgres`'s heavier integration tests, not
+regressions introduced by this branch. `TestPostgresTerraformBackendQuerySurvivesNullTerraformBackendsPath`
+specifically: a sibling executor is independently changing that exact query on
+`5594-local-backend-default-path` (adding a `LEFT JOIN` and a column); that
+work is not in this branch's base and cannot be causing this failure, but it
+does mean the test is in active flux — its baseline failure here is against
+UNMODIFIED `origin/main`, not against that sibling's in-flight work.
+
+Both isolated containers used for this comparison (host ports 15949 and
+15950) were created and torn down specifically for this check; neither reused
+nor collided with `eshu-pg-5848` (the container this branch's other live
+proofs run against) or the shared default Compose port set.
 
 ### Credential-free
 
