@@ -46,32 +46,24 @@ job_block() { awk -v j="  $2:" '$0==j{f=1;print;next} f&&/^  [A-Za-z]/{exit} f{p
 job_gated()    { job_block "$1" "$2" | rg -qF 'needs: changes'; }
 job_alwayson() { ! job_gated "$1" "$2"; }
 
-# step_block <job_block_text> <step_id> — the YAML lines of the ONE step inside
-# a job block (as produced by job_block) whose `id: <step_id>` field appears in
-# it, from that step's "      - " list-item marker through the line before the
-# next step marker (or the end of the job). Steps are unkeyed YAML list items,
-# so — unlike job_block, which can match on a literal "  job:" header line —
-# isolating one requires buffering each item and checking which one contains
-# the id line. This exists so a caller can assert two substrings belong to the
-# SAME step rather than merely co-occurring anywhere in the job: two
-# independent `rg -qF` searches over a whole job block would false-pass if a
-# future unrelated step carried one of the two substrings on its own.
-step_block() {
-	local block="$1" needle="        id: $2"
-	awk -v needle="${needle}" '
-		BEGIN { cur = ""; found = 0 }
-		/^      - / {
-			if (found) { exit }
-			if (index(cur, needle) > 0) { printf "%s", cur; found = 1 }
-			cur = $0 "\n"
-			next
-		}
-		{ cur = cur $0 "\n" }
-		END {
-			if (!found && index(cur, needle) > 0) { printf "%s", cur }
-		}
-	' <<<"${block}"
-}
+# step_block and run_merge_group_checks (the merge_group / #5814 assertion
+# group) live in scripts/lib/ci-gate-merge-group-checks.sh — that seam is
+# self-contained (used only by the merge_group checks below) and moving it out
+# keeps this script under the repo's 500-line file rule.
+# shellcheck source=scripts/lib/ci-gate-merge-group-checks.sh
+. "${repo_root}/scripts/lib/ci-gate-merge-group-checks.sh"
+# This script has no `set -e` (many of its own checks deliberately rely on a
+# non-zero `rg`/test exit continuing to the next assertion), so a broken or
+# missing source line above would NOT stop the script — it would print
+# "command not found" for run_merge_group_checks at its call site below and
+# silently skip all four merge_group assertions while every OTHER assertion
+# still ran and the script still reported "wiring intact" with exit 0. That
+# false green was reproduced by hand while landing this split (source line
+# commented out => the script printed the command-not-found line to stderr,
+# skipped the four merge_group checks entirely, and still exited 0). Fail
+# loudly and immediately instead of letting that happen silently.
+declare -F run_merge_group_checks >/dev/null ||
+	{ printf 'verify-docs-only-ci-skip: ci-gate-merge-group-checks.sh did not define run_merge_group_checks (source missing or failed) — aborting\n' >&2; exit 1; }
 
 # code_filter_block <file> — the dorny/paths-filter `code:` key and its `- '...'`
 # negation list, verbatim (comments excluded), for byte-identity comparison
@@ -336,51 +328,9 @@ else
 	bad "test.yml docs-helm-hygiene must NOT be code-gated (it is the docs build)"
 fi
 
-# --- test.yml: merge_group (#5814) — enabling a GitHub merge queue makes
-# every required status check report on the merge_group event too, or a
-# queued PR times out waiting for a check that never fires. Three things must
-# hold, in dependency order:
-#   1. the `on:` trigger block actually listens for merge_group;
-#   2. the `changes` job's own paths-filter step is SKIPPED on merge_group —
-#      dorny/paths-filter's merge_group support is real (it seeds base/head
-#      from the event) but has never been proven against this job's shallow
-#      `fetch-depth: 2` checkout, so the fix does not lean on it;
-#   3. `changes` instead reports code=true directly on merge_group, so the
-#      job always SUCCEEDS on that event and its output still resolves.
-# Item 3 is the one that actually matters: go-core-complete/go-race-complete
-# both require `needs.changes.result == 'success'` (checked below), and a
-# `changes` job that merely runs-but-fails on merge_group would jam both
-# umbrellas exactly like an unhandled failure does today.
-on_block="$(awk '/^on:$/{f=1;print;next} f&&/^[A-Za-z]/{exit} f{print}' "${t}")"
-if rg -qF 'merge_group:' <<<"${on_block}"; then
-	ok "test.yml on: block listens for merge_group"
-else
-	bad "test.yml on: block must add a merge_group trigger (required checks never report on a merge-queue entry otherwise)"
-fi
-
-changes_block="$(job_block "${t}" changes)"
-if rg -qF "if: \${{ github.event_name != 'merge_group' }}" <<<"${changes_block}"; then
-	ok "test.yml changes job skips the paths-filter diff on merge_group"
-else
-	bad "test.yml changes job's Filter changed paths step must guard if: \${{ github.event_name != 'merge_group' }} (do not depend on paths-filter's unproven merge_group behavior)"
-fi
-# Scoped to the single step carrying `id: merge_group_code`, not the whole
-# job block: two independent whole-block substring searches would false-pass
-# if some future unrelated step carried a merge_group guard and a separate
-# step elsewhere in the job happened to contain the literal text "code=true".
-merge_group_code_step="$(step_block "${changes_block}" merge_group_code)"
-if [[ -n "${merge_group_code_step}" ]] \
-	&& rg -qF "if: \${{ github.event_name == 'merge_group' }}" <<<"${merge_group_code_step}" \
-	&& rg -qF 'code=true' <<<"${merge_group_code_step}"; then
-	ok "test.yml changes job forces code=true on merge_group instead of depending on paths-filter"
-else
-	bad "test.yml changes job must have a single step (id: merge_group_code) that sets code=true directly when github.event_name == 'merge_group'"
-fi
-if rg -qF 'steps.filter.outputs.code || steps.merge_group_code.outputs.code' <<<"${changes_block}"; then
-	ok "test.yml changes job output falls back to the merge_group step when the filter step is skipped"
-else
-	bad "test.yml changes job outputs.code must fall back to the merge_group step's output (steps.filter.outputs.code || steps.merge_group_code.outputs.code)"
-fi
+# --- test.yml: merge_group (#5814) checks — see
+# scripts/lib/ci-gate-merge-group-checks.sh for what this guards and why. ---
+run_merge_group_checks "${t}"
 
 # --- test.yml: both umbrella gates (go-race-complete #5757, go-core-complete
 # #5814) are the names branch protection points at, so each must hold the same

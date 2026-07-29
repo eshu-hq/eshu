@@ -30,8 +30,16 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "${tmp}"' EXIT
 
 # --- build the scratch tree: only the files verify-docs-only-ci-skip.sh reads. ---
-mkdir -p "${tmp}/scripts" "${tmp}/.github/workflows" "${tmp}/specs"
+mkdir -p "${tmp}/scripts/lib" "${tmp}/.github/workflows" "${tmp}/specs"
 cp "${repo_root}/${script_rel}" "${tmp}/scripts/verify-docs-only-ci-skip.sh"
+# The merge_group (#5814) checks live in this sourced lib, not inline (kept
+# verify-docs-only-ci-skip.sh under the 500-line cap). Omitting this copy is
+# exactly the "lib committed but never sourced by the scratch mirror" failure
+# mode a stale test harness would hide — reproduced by hand while writing this
+# copy: without it the scratch script aborts with a "did not define
+# run_merge_group_checks" error the first time run_scratch is called, and
+# every case below fails "for the wrong reason" instead of testing anything.
+cp "${repo_root}/scripts/lib/ci-gate-merge-group-checks.sh" "${tmp}/scripts/lib/ci-gate-merge-group-checks.sh"
 for wf in build.yml security-scan.yml mcp-schema-drift.yml test.yml; do
 	cp "${repo_root}/.github/workflows/${wf}" "${tmp}/.github/workflows/${wf}"
 done
