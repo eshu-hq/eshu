@@ -141,15 +141,37 @@ var orderedBootstrapDefinitionNames = []string{
 	"vulnerability_suppression_lineage_index",
 	// migration 086 (#5469 indexed current runtime-image evidence lookup).
 	"cloud_resource_owner_runtime_digest_index",
+	// migration 087 (#5848 begin-before-mutate insert-admission watermark for
+	// the aws_cloud_runtime_drift reducer writer). Numbered 087, not 086: #5469
+	// landed on origin/main after this branch forked and claimed 086 for
+	// cloud_resource_owner_runtime_digest_index above. This branch is rebased
+	// onto that commit, so both numbers are live in the same tree.
+	"aws_cloud_runtime_drift_write_admission",
 	// migration 087 (#5854 ordered cross-scope OCI warning safety load).
 	"fact_records_active_oci_warning_idx",
 	// migration 088 (#5854 old-binary compatibility fence after identity-key cutover).
 	"container_image_identity_cutover_guard",
+	// migration 088 (#5848/#5837 round-3 review): fact_work_items.reopened_at,
+	// a per-cycle readiness-defer anchor that ReopenSucceeded/ReplayDomain reset
+	// alongside attempt_count, so a maintenance-triggered reopen gets a fresh
+	// grace window instead of inheriting an already-elapsed one anchored on the
+	// immutable created_at.
+	"reducer_work_item_reopened_at",
+	// migration 089 (#5875 P1, round-5 review): a Postgres sequence replacing
+	// the host-wall-clock-derived aws_cloud_runtime_drift fencing token, so
+	// cross-reducer-replica clock skew can no longer invert the admission
+	// CAS's evidence-recency ordering.
+	"aws_cloud_runtime_drift_fencing_token_sequence",
+	// migration 090 (#5875 P2, round-6 review): the partial index migration
+	// 089's own seed query needs, split into its own file because
+	// CREATE INDEX CONCURRENTLY cannot share a multi-statement bootstrap file
+	// with 089's CREATE SEQUENCE / seeding DO block (ApplyBootstrap sends each
+	// file as one statement string; Postgres implicitly transaction-wraps a
+	// multi-statement string, and CONCURRENTLY cannot run inside one).
+	"fact_records_aws_cloud_runtime_drift_fencing_token_idx",
 	// migration 091 (#5593 bounded index for the reducer's config-state-drift
-	// catch-up sweep's recurring active state_snapshot scope scan). Numbered
-	// 091 on its original branch to stay above a sibling's reserved 087-090
-	// range. Migrations 087-088 now belong to #5854 after rebasing onto main;
-	// BootstrapDefinitions sorts by file path, not numeric contiguity, so the
-	// remaining gap has no runtime effect.
+	// catch-up sweep's recurring active state_snapshot scope scan). It was
+	// numbered 091 rather than the then-next-available 087 because this branch
+	// had already claimed 087-090; with both merged, the range is contiguous.
 	"ingestion_scopes_active_state_snapshot_index",
 }

@@ -129,6 +129,31 @@
   rows before querying; do not add unbounded fact-table scans for management
   APIs.
 
+- **AWS runtime drift write admission (#5848)** — the
+  `aws_cloud_runtime_drift_write_admission` begin-before-mutate check
+  (`AWSCloudRuntimeDriftAdmissionBeginner`,
+  `hasPendingStateSnapshotGenerationQuery`) MUST run as the FIRST statement in
+  `PostgresAWSCloudRuntimeDriftWriter`'s transaction, before the versioned
+  insert and the retire. A pass whose evidence-read watermark is older than one
+  already admitted for the same `(scope_id, generation_id)` must be rejected
+  before any other statement runs — checking admission after the insert, or in
+  a separate unwrapped transaction, reopens the exact race #5848 closed (a
+  reclassified ARN mints a different `fact_id`, so the insert's own
+  `ON CONFLICT` guard cannot catch it). Do not add a domain-wide exclusive lock
+  or reduce reducer worker/batch concurrency as a substitute; the conflict
+  domain is already partitioned by `(scope_id, generation_id)`.
+- **AWS runtime drift retire is bounded to evaluated ARNs** —
+  `retireAWSCloudRuntimeDriftFindings`'s `evaluatedARNs` argument must be every
+  ARN the CURRENT pass's evidence load covered, not only the ones that produced
+  an admitted candidate. Narrowing it to admitted-candidate ARNs would stop
+  retiring a converged (no-longer-drifted) ARN's stale prior finding.
+- **AWS runtime drift readiness defer is opt-in and bounded** —
+  `AWSCloudRuntimeDriftHandler.ReadinessChecker` being nil must leave `Handle`
+  writing its best-available classification unconditionally (pre-#5848
+  behavior). When wired, the defer must stay bounded by
+  `awsCloudRuntimeDriftStatePendingMaxAttempts`; an unbounded defer would starve
+  a genuine orphan (a resource with no Terraform state anywhere, ever) forever.
+
 ## Evidence notes
 
 No-Regression Evidence: #4444 review (codex P1) changes upsertStreamingFacts's
