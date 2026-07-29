@@ -206,6 +206,12 @@ is_evidence_file() {
     go/*/evidence-*.md|go/*/*/evidence-*.md|go/*/*/*/evidence-*.md|go/*/*/*/*/evidence-*.md|go/*/*/*/*/*/evidence-*.md) return 0 ;;
     go/*/README.md|go/*/*/README.md|go/*/*/*/README.md|go/*/*/*/*/README.md|go/*/*/*/*/*/README.md) return 0 ;;
     go/*/AGENTS.md|go/*/*/AGENTS.md|go/*/*/*/AGENTS.md|go/*/*/*/*/AGENTS.md|go/*/*/*/*/*/AGENTS.md) return 0 ;;
+    # #5786 splits the 4,495-line go/internal/reducer/README.md into topic-
+    # scoped sibling docs (cloud-projections.md, domain-catalog.md, etc.)
+    # directly in that directory. A general glob on the directory, not eight
+    # hardcoded filenames, so a ninth sibling doc is covered without a
+    # follow-up edit here (eshu-hq/eshu#5542 follow-up).
+    go/internal/reducer/*.md) return 0 ;;
     *) return 1 ;;
   esac
 }

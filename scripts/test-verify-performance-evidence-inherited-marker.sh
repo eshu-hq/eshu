@@ -125,4 +125,69 @@ git -C "${inherited_marker_with_new_evidence_repo}" add .
 git -C "${inherited_marker_with_new_evidence_repo}" commit -q -m 'add writerQuery MERGE with its own new evidence'
 expect_pass "${inherited_marker_with_new_evidence_repo}"
 
+# Regression coverage for the #5786 reducer README split (flagged during
+# that lane's own review): is_evidence_file() must recognize the new sibling
+# docs go/internal/reducer/*.md (e.g. gotchas-supply-chain-and-vulnerabilities.md)
+# as evidence locations, or a hot reducer change whose only evidence lives in
+# one of those docs is a false-red. This also proves the new location
+# composes correctly with the added-lines scoping above: a marker added in a
+# sibling doc's own added lines must pass, but an inherited pre-existing
+# marker in a sibling doc must still fail.
+reducer_sibling_doc_evidence_repo="$(init_repo reducer-sibling-doc-evidence)"
+mkdir -p "${reducer_sibling_doc_evidence_repo}/go/internal/reducer"
+printf 'package reducer\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\n' \
+  >"${reducer_sibling_doc_evidence_repo}/go/internal/reducer/container_image_identity.go"
+git -C "${reducer_sibling_doc_evidence_repo}" add .
+git -C "${reducer_sibling_doc_evidence_repo}" commit -q -m 'baseline reducer file, no evidence docs yet'
+printf 'package reducer\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\nconst writerQuery = "UNWIND $rows AS row MERGE (n:Image {uid: row.uid})"\n' \
+  >"${reducer_sibling_doc_evidence_repo}/go/internal/reducer/container_image_identity.go"
+cat >"${reducer_sibling_doc_evidence_repo}/go/internal/reducer/gotchas-supply-chain-and-vulnerabilities.md" <<'MD'
+# Reducer Gotchas: Supply Chain And Vulnerabilities
+
+## Current Evidence (this PR)
+
+Performance Evidence: container_image_identity MERGE benchmarked flat vs
+baseline on the 20-repo local NornicDB corpus; terminal queue depth 0.
+
+No-Observability-Change: existing reducer span/metric coverage already
+instruments this MERGE path.
+MD
+git -C "${reducer_sibling_doc_evidence_repo}" add .
+git -C "${reducer_sibling_doc_evidence_repo}" commit -q -m 'add MERGE (hot change) with evidence in new #5786 sibling doc'
+expect_pass "${reducer_sibling_doc_evidence_repo}"
+
+# Compose check: recognizing the new sibling-doc location must NOT let an
+# untouched, inherited marker in one satisfy the gate -- the added-lines
+# scoping from the first regression above still applies to this new
+# location too.
+reducer_sibling_doc_inherited_repo="$(init_repo reducer-sibling-doc-inherited)"
+mkdir -p "${reducer_sibling_doc_inherited_repo}/go/internal/reducer"
+printf 'package reducer\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\n' \
+  >"${reducer_sibling_doc_inherited_repo}/go/internal/reducer/container_image_identity.go"
+cat >"${reducer_sibling_doc_inherited_repo}/go/internal/reducer/gotchas-supply-chain-and-vulnerabilities.md" <<'MD'
+# Reducer Gotchas: Supply Chain and Vulnerabilities
+
+## Prior Evidence (an earlier, unrelated PR)
+
+Performance Evidence: baseline suppression benchmark stayed flat.
+
+No-Observability-Change: existing suppression metrics already cover this path.
+MD
+git -C "${reducer_sibling_doc_inherited_repo}" add .
+git -C "${reducer_sibling_doc_inherited_repo}" commit -q -m 'baseline reducer file + prior unrelated evidence marker in sibling doc'
+printf 'package reducer\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\nconst writerQuery = "UNWIND $rows AS row MERGE (n:Image {uid: row.uid})"\n' \
+  >"${reducer_sibling_doc_inherited_repo}/go/internal/reducer/container_image_identity.go"
+cat >"${reducer_sibling_doc_inherited_repo}/go/internal/reducer/gotchas-supply-chain-and-vulnerabilities.md" <<'MD'
+# Reducer Gotchas: Supply Chain And Vulnerabilities
+
+## Prior Evidence (an earlier, unrelated PR)
+
+Performance Evidence: baseline suppression benchmark stayed flat.
+
+No-Observability-Change: existing suppression metrics already cover this path.
+MD
+git -C "${reducer_sibling_doc_inherited_repo}" add .
+git -C "${reducer_sibling_doc_inherited_repo}" commit -q -m 'add MERGE (hot change, no new evidence of its own; unrelated heading typo fix)'
+expect_fail "${reducer_sibling_doc_inherited_repo}"
+
 printf 'verify-performance-evidence inherited-marker tests passed\n'
