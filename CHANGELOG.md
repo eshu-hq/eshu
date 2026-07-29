@@ -26,31 +26,96 @@ recent shipped work grouped by feature area.
   `BackendLocal` candidate, applying Terraform's default when the attribute
   is absent. The HCL parser (`go/internal/parser/hcl/terraform_backend.go`)
   now captures the local backend's `path` attribute under
-  `row["local_path"]` — a new key, since `row["path"]` already held the
-  source `.tf` file's own path for every backend row and would otherwise be
-  silently overwritten. A `BackendLocal` candidate's locator is an absolute
-  path matching the repository checkout root
-  (`BackendConfigContext.RepoLocalPath`, the durable `repository` fact's
-  `local_path`, threaded through
-  `go/internal/storage/postgres/tfstate_backend_canonical.go`'s ownership-join
-  query); without it, no candidate is produced rather than a guessed locator.
-  Backend kinds Eshu does not model (`gcs`, `azurerm`, `remote`, `http`, ...)
-  were audited and confirmed to still produce neither a candidate nor a
-  warning, unchanged.
+  `row["state_path"]` — a new key, since `row["path"]` already held the
+  source `.tf` file's own path for every backend row (and `"local_path"`
+  was rejected as a candidate name: the durable `repository` fact already
+  uses that key for a differently-scoped value, the repo checkout root).
+  A `BackendLocal` candidate's locator is an absolute path matching the
+  repository checkout root (`BackendConfigContext.RepoLocalPath`, the
+  durable `repository` fact's `local_path`), joined in
+  `go/internal/storage/postgres/tfstate_backend_canonical.go` by a
+  `repo_local_paths` CTE keyed on `(scope_id, generation_id, repo_id)` with
+  `DISTINCT ON` + latest-`observed_at`-wins, mirroring
+  `listTerraformBackendFactsQuery`'s existing `active_repositories`
+  convention — an earlier unfiltered, unordered version of this join could
+  cross-contaminate `local_path` across repos sharing one
+  `(scope_id, generation_id)` and could fan out duplicate rows (including
+  for the pre-existing `s3` path) when more than one `repository` fact
+  existed per repo; both are covered by a new
+  `ESHU_POSTGRES_DSN`-gated integration test proven against a real
+  Postgres 16 instance. Without a resolvable `repoLocalPath`, no candidate
+  is produced rather than a guessed locator. Backend kinds Eshu does not
+  model (`gcs`, `azurerm`, `remote`, `http`, ...) were audited and confirmed
+  to still produce neither a candidate nor a warning, unchanged. Terragrunt's
+  own `remote_state { backend = "local" }` config was investigated
+  separately and is NOT defaulted by this change — see the open question
+  below.
   - No-Regression Evidence: `go test ./internal/parser/ ./internal/collector/
     ./internal/collector/terraformstate/... ./internal/storage/postgres/...
     ./internal/relationships/tfstatebackend/... ./internal/reducer/ -count=1`
     is green. `TestPostgresTerraformBackendQueryResolvesBareLocalBackendDefaultPath`,
     `TestEvaluateBackendConfigDefaultsBareLocalBackendPath`, and the parser-level
     `TestDefaultEngineParsePathHCLLocalBackendBareBlockOmitsPathAttribute` fail
-    before this change (zero candidates / no `local_path` field) and pass after.
-  - No-Observability-Change: the reducer's existing `"drift candidate
-    rejected"` structured log
+    before this change (zero candidates / no `state_path` field) and pass after.
+    `TestPostgresTerraformBackendQueryRepoLocalPathJoinIsRepoScopedAndLatest`
+    (`go/internal/storage/postgres/tfstate_backend_canonical_repo_local_path_integration_test.go`)
+    was run against a real, freshly schema-migrated Postgres 16 container
+    (isolated, not the shared Compose stack): fails against the pre-fix join
+    (0 rows where 1 was expected), passes against the fix. The full
+    `TestPostgresTerraformBackendQuery*` and
+    `TestPostgresDriftEvidenceLoaderSurvivesNull*` set (22 tests) also passed
+    against that same live instance. `EXPLAIN (ANALYZE, BUFFERS)` on a
+    200-repo seeded corpus showed no measurable regression: 2.890 ms
+    (pre-fix) vs. 2.873 ms (fixed), both returning the correct 200 rows with
+    no duplication.
+  - No-Observability-Change (rejection path): the reducer's existing `"drift
+    candidate rejected"` structured log
     (`go/internal/reducer/terraform_config_state_drift.go:logRejection`,
     `failure_class`/`rejection.reason` fields) already covers this path; the
     fix reduces how often `failure_class=no_config_repo_owns_backend` fires
     for the ordinary bare-local-backend spelling, it does not add a stage,
     query, worker, or metric.
+  - Observability Evidence (success path): added
+    `DiscoveryCandidate.LocatorDefaulted`, threaded through
+    `TerraformBackendRow`/`CommitAnchor` unchanged, and a new info-level
+    `"drift candidate resolved via defaulted locator"` log
+    (`locator_defaulted=true`) in the reducer handler, gated so the ordinary
+    explicit-path and `s3` flows gain no new log volume — an operator could
+    not otherwise tell a defaulted resolution apart from an explicit one.
+    `TestDriftHandlerLogsDefaultedLocatorResolution` and
+    `TestDriftHandlerDoesNotLogDefaultedLocatorForExplicitResolution`
+    (`go/internal/reducer/terraform_config_state_drift_defaulted_locator_test.go`)
+    cover both cases.
+  - Adjacent fix found while proving the above against a live database:
+    `TestPostgresTerraformBackendQuerySurvivesNullTerraformBackendsPath`
+    computed its expected hash with `terraformstate.LocatorHash` instead of
+    the canonical adapter's `ScopeLocatorHash` — issue #203's exact
+    hash-mismatch class, in a test this time, not production code — so it
+    silently returned 0 rows every time it actually ran against Postgres,
+    masked locally because it is DSN-gated and skips without
+    `ESHU_POSTGRES_DSN` set. Fixed inline; verified green against the same
+    live instance.
+
+  **Open question for the maintainer:** Terragrunt's own `remote_state {
+  backend = "local" }` was investigated (not fixed) per hostile-review
+  follow-up. Terragrunt's docs (`docs.terragrunt.com/features/units/state-backend`)
+  state that `local` is not one of its specially-bootstrapped backend kinds
+  (only `s3`, `gcs`, `azurerm` are); for any other backend the `remote_state`
+  block "operates in the same manner as `generate`" — Terragrunt renders the
+  `config` map verbatim into a generated Terraform `backend "local" { ... }`
+  block and lets Terraform interpret it, rather than documenting any default
+  of its own. Terraform's own default would technically apply once that
+  block is generated — but the working directory it is generated into is
+  Terragrunt's per-unit `.terragrunt-cache` path, not the `terragrunt.hcl`
+  file's own directory, so Eshu's static parser (which never runs Terragrunt)
+  has no way to reproduce or observe that path. Applying "the same" default
+  here would mean guessing a working directory Eshu cannot see, which the
+  correlation-truth rules forbid without stronger evidence. Left unchanged:
+  `go/internal/collector/terraformstate/source_terragrunt.go`'s
+  `terragruntRemoteStateLocalCandidate` continues to require an explicit,
+  literal, absolute `path` for its (separately security-gated, operator-approval-required)
+  local-state-reading candidate; the ownership-join path never modeled
+  Terragrunt as its own backend kind and still does not.
 
 ### Route-fact-based Rails controller liveness
 
