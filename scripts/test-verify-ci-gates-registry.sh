@@ -145,8 +145,12 @@ selection="$(
 # Also legitimately selects heredoc-budget (its own "scripts/**/*.sh" trigger
 # covers every shell script, including this one) — that is correct, unrelated
 # behavior, not something this assertion should suppress or ignore.
-[[ "$(printf '%s\n' "${selection}" | rg --count '^SELECTED[[:space:]]+' || true)" == "2" ]] ||
-	fail "merge_group checks lib must select exactly two gates, docs-only-ci-skip and heredoc-budget (${merge_group_lib})"
+#
+# Deliberately membership-only, never an exact SELECTED count: a future
+# registry addition with a broad scripts/lib/** trigger would legitimately
+# select a third gate for this path, and an "exactly N" assertion here would
+# then fail for a reason unrelated to the wiring it guards. Assert the gates
+# that must be selected, and let unrelated ones come and go.
 printf '%s\n' "${selection}" |
 	rg --quiet '^SELECTED[[:space:]]+docs-only-ci-skip[[:space:]]' ||
 	fail "merge_group checks lib did not select docs-only-ci-skip (${merge_group_lib})"
@@ -156,6 +160,39 @@ printf '%s\n' "${selection}" |
 printf '%s\n' "${selection}" |
 	rg --quiet '^SELECTED[[:space:]]+heredoc-budget[[:space:]]' ||
 	fail "merge_group checks lib did not also select heredoc-budget (${merge_group_lib})"
+
+# #5814 class fix: four more gates source a scripts/lib helper their own
+# triggers omit, so a change touching only that helper selected NO gate and CI
+# became first discovery — the same unregistered-trigger false-green class as
+# the merge_group lib above. Membership assertions only, never an exact
+# SELECTED count: heredoc-budget's "scripts/**/*.sh" trigger legitimately also
+# matches every one of these paths, and other gates may come to match later.
+# The list is fed by heredoc (not a pipe) so `fail` exits this script rather
+# than a subshell; it is kept well under the 512-byte heredoc budget.
+while IFS='|' read -r sourced_gate sourced_lib sourced_tier; do
+	[[ -n "${sourced_gate}" ]] || continue
+	sourced_gate_block="$(
+		sed -n "/^  - id: ${sourced_gate}\$/,/^  - id: /p" "${registry}"
+	)"
+	require_path_line "${sourced_gate_block}" "${sourced_lib}" \
+		"${sourced_gate} registry triggers omit a scripts/lib helper it uses"
+	sourced_selection="$(
+		printf '%s\n' "${sourced_lib}" |
+			(cd "${repo_root}/go" && go run ./cmd/ci-gates select \
+				--registry "${registry}" --tier "${sourced_tier}" --paths-from - --explain)
+	)"
+	printf '%s\n' "${sourced_selection}" |
+		rg --quiet "^SELECTED[[:space:]]+${sourced_gate}[[:space:]]" ||
+		fail "${sourced_lib} did not select ${sourced_gate}"
+	printf '%s\n' "${sourced_selection}" |
+		rg --fixed-strings --quiet -- "matched trigger \"${sourced_lib}\" on path \"${sourced_lib}\"" ||
+		fail "${sourced_gate} selected for the wrong reason (${sourced_lib})"
+done <<'SOURCED_LIB_GATES'
+parser-relationship-kit|scripts/lib/parser_relationship_language_ledger.sh|pre-pr
+ifa-determinism|scripts/lib/ifa_sql_delta_live.sh|pre-pr
+ifa-fault-injection|scripts/lib/ifa_determinism_common.sh|pre-pr
+docs-build-changed|scripts/lib/test-verify-docs-build-changed-fake-uv.sh|pre-push
+SOURCED_LIB_GATES
 
 for sql_fixture in \
 	'scripts/lib/console-retained-create-proof-schema.sql' \

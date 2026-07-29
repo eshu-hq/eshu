@@ -540,6 +540,7 @@ gates:
       - "go/internal/parser/**"
       - "go/internal/relationships/**"
       - "specs/parser-backing-ledger.v1.yaml"
+      - "scripts/lib/parser_relationship_language_ledger.sh"
     local:
       command: "bash scripts/verify-parser-relationship-kit.sh"
       test_command: "bash scripts/test-verify-parser-relationship-kit.sh"
@@ -1068,6 +1069,7 @@ gates:
       - "AGENTS.md"
       - "CLAUDE.md"
       - "README.md"
+      - "scripts/lib/test-verify-docs-build-changed-fake-uv.sh"
     local:
       command: "bash scripts/verify-docs-build-changed.sh"
       test_command: "bash scripts/test-verify-docs-build-changed.sh"
@@ -1588,6 +1590,7 @@ gates:
       - "scripts/verify-ifa-determinism.sh"
       - "scripts/test-verify-ifa-determinism.sh"
       - "scripts/lib/ifa_determinism_common.sh"
+      - "scripts/lib/ifa_sql_delta_live.sh"
     local:
       command: "bash scripts/test-verify-ifa-determinism.sh"
       test_command: "bash scripts/test-verify-ifa-determinism.sh"
@@ -1642,6 +1645,7 @@ gates:
       - "scripts/verify-ifa-fault-injection.sh"
       - "scripts/test-verify-ifa-fault-injection.sh"
       - "scripts/lib/ifa_fault_injection_common.sh"
+      - "scripts/lib/ifa_determinism_common.sh"
     local:
       command: "bash scripts/test-verify-ifa-fault-injection.sh"
       test_command: "bash scripts/test-verify-ifa-fault-injection.sh"
