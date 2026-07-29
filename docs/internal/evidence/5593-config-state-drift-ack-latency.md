@@ -24,6 +24,10 @@ is the PR-specific record the gate's grep happened to accept without.
 
 ## Theory and measurement (Prove-The-Theory-First)
 
+Performance Evidence: this section is the OLD-shape-vs-NEW-shape proof the
+Prove-The-Theory-First gate requires, run on the same primitive
+(`ProjectorQueue.Ack`) before/after the hook's added work.
+
 Theory: `Ack`'s wall-clock return time for a `state_snapshot:*` scope is
 `baseline + deferrals * PollInterval`, where `deferrals` is however many
 admission-deferral cycles `reducerAdmissionWriter.Enqueue` runs before
@@ -76,8 +80,8 @@ one-time fixed cost). The theory is confirmed, not assumed.
 
 ## No-Regression Evidence
 
-The regression this measurement rules out is silent, unbounded `Ack` stalling
-for `state_snapshot:*` scopes. It is NOT unbounded:
+No-Regression Evidence: the regression this measurement rules out is silent,
+unbounded `Ack` stalling for `state_snapshot:*` scopes. It is NOT unbounded:
 
 - **Same admission policy every other reducer domain already lives under.**
   `reducerAdmissionWriter` already governs every intent the projector
@@ -114,8 +118,8 @@ own before/after, on the same primitive, with a stated worst-case shape
 
 ## Observability Evidence
 
-An operator diagnosing a slow ingester projector worker for `state_snapshot:*`
-scopes watches:
+Observability Evidence: an operator diagnosing a slow ingester projector
+worker for `state_snapshot:*` scopes watches:
 
 - `eshu_dp_reducer_admission_deferrals_total` (existing, by `reason`) —
   confirms admission is actively deferring and why (`graph_write_pressure` vs
@@ -129,8 +133,12 @@ scopes watches:
   #5593 P1-2) if the eventual `Enqueue` call errors outright rather than
   merely deferring.
 
-No-Observability-Change for the coupling itself: it reuses
-`reducerAdmissionWriter`'s existing deferral counter and log line verbatim: no
-new metric, span, or log field was needed to make the deferral state visible,
-because the SAME admission writer already reports it for every other call
-site.
+No-Observability-Change: the coupling itself reuses `reducerAdmissionWriter`'s
+existing deferral counter and log line verbatim -- no new metric, span, or
+log field was needed to make the deferral state visible, because the SAME
+admission writer already reports it for every other call site. (The one
+genuinely new metric this branch adds,
+`eshu_dp_config_state_drift_runtime_trigger_failures_total`, covers an
+outright `Enqueue` error, not the deferral/backpressure case this evidence
+file is about; see the P1-2 discussion in
+`go/internal/storage/postgres/projector_queue_config_state_drift_trigger_hook.go`.)
