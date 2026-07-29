@@ -177,10 +177,11 @@ WHERE fact.fact_kind IN (
       OR fact.payload->>'image_ref' = ANY($9::text[])
       OR (
           fact.fact_kind = 'vulnerability.suppression'
-          -- $18 is the normalized replacement for the formerly missing
-          -- advisory_id scope lookup. Deployment context is deliberately
-          -- absent here: environment, workload_id, and service_id only
-          -- narrow suppressions discovered through an identity anchor.
+          -- $18 replaces the exact nested advisory_id comparison with the
+          -- same case-folding and Unicode TrimSpace semantics the reducer
+          -- applies. Deployment context is deliberately absent here:
+          -- environment, workload_id, and service_id only narrow
+          -- suppressions discovered through an identity anchor.
           AND cardinality($18::text[]) > 0
           AND lower(btrim(fact.payload->'scope'->>'advisory_id', ` + suppressionScopeTrimCharactersSQL + `)) = ANY($18::text[])
       )
@@ -329,9 +330,9 @@ func (s FactStore) listActiveSupplyChainImpactFactsPage(
 		lowerCleanedStringFilterValues(filter.CVEIDs),
 		lowerCleanedStringFilterValues(filter.SubjectDigests),
 		lowerCleanedStringFilterValues(filter.RepositoryIDs),
-		// $18 is the lower(btrim(...)) normalized replacement for what was
-		// a dead scope key -- advisory_id had no load-path predicate at all
-		// before #5466 round-4 review F-10 (see the query text above).
+		// $18 is the lower(btrim(...)) normalized replacement for #5465's
+		// exact nested advisory_id comparison. The same AdvisoryIDs values
+		// still bind the top-level exact-match predicate at $4.
 		lowerCleanedStringFilterValues(filter.AdvisoryIDs),
 		// $19 is the second half of the compound keyset cursor (#5466
 		// round-8 review F-3): paired with $11 (cursorFactID), it resumes

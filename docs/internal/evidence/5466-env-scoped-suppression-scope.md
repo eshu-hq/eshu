@@ -87,14 +87,26 @@ selection rewrite; the differential proof above pins exact decision
 equivalence.
 
 The final real-Postgres proof seeded 100,000 active facts and took ten warm
-measurements. The legacy query median/p95 was 12.986/14.245 ms; the current
-identity-anchored query was 11.893/12.485 ms, within the enforced 10% ceiling
-at both boundaries and with an identical 250-row CVE result set. The new
-advisory-only identity path returned exactly its intended 250 rows at
-12.843/13.751 ms median/p95. The guarded Unicode-normalized shape is about 22%
-faster than the earlier 15.307 ms current-query median while matching the full
-Go `strings.TrimSpace` character set. The row-cap integration proof also
-passed without truncating core evidence or overstating exact-cap truncation.
+measurements against the exact query from base commit
+`37649ca04ad51408494af96955876a8c8ad49f22` and the current shipped query on
+the same isolated schema. The committed base fixture is byte-for-byte the
+query constant at that commit and is hash-guarded in the test.
+
+For the output-equivalent CVE filter, base and current both returned the same
+ordered 250 rows. Base median/p95 was 14.783/15.369 ms; current median/p95 was
+12.855/14.421 ms, improving both boundaries and satisfying the enforced 10%
+no-regression ceiling.
+
+For advisory normalization, the corpus deliberately gives 125 suppression
+rows a mixed-case advisory ID padded with Unicode non-breaking spaces.
+The exact base predicate returned only the 125 top-level exact matches.
+The current query returned all 250 intended advisory rows at
+12.980/13.598 ms median/p95. This is an explicit correctness delta rather
+than an output-equivalent speed comparison: #5466 replaces #5465's exact
+nested advisory comparison with the same case-folding and Unicode
+`strings.TrimSpace` semantics used by the reducer. The row-cap integration
+proof also passed without truncating core evidence or overstating exact-cap
+truncation.
 
 Commands:
 
@@ -111,6 +123,13 @@ GOCACHE=$PWD/../.gocache go test ./internal/reducer -run '^$' \
 
 GOCACHE=$PWD/../.gocache go test ./internal/reducer \
   -run 'OnlineSelectionMatchesStableSort|Suppression' -count=1
+
+# exact-base versus current SQL, same 100,000-row isolated Postgres schema
+ESHU_POSTGRES_TEST_DSN='postgresql://eshu:change-me@localhost:25432/eshu?sslmode=disable' \
+  GOCACHE=$PWD/../.gocache go test -tags=integration \
+  ./internal/storage/postgres \
+  -run 'TestSupplyChainImpactAdvisoryFilterPlanLive|TestListActiveSupplyChainImpactFactsNormalizesAdvisoryScopeLive' \
+  -count=1 -v
 ```
 
 ## Live golden proof

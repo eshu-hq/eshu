@@ -101,11 +101,9 @@ func TestListActiveSupplyChainImpactFactsBindsNormalizedSuppressionScopeSiblings
 func TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeAdvisoryID(t *testing.T) {
 	t.Parallel()
 
-	// #5466 round-4 review F-10: advisory_id had NO load-path predicate at
-	// all -- unlike package_id/purl/cve_id/subject_digest/repository_id
-	// (F-6), which at least had a stale exact-match predicate before being
-	// normalized, advisory_id was a dead scope key from the start. New
-	// placeholder $18 closes it with the same lower(btrim(...)) treatment.
+	// #5466 replaces #5465's exact scope-nested advisory_id predicate with
+	// placeholder $18's lower(btrim(...)) treatment. The top-level exact
+	// advisory predicate remains bound at $4.
 	for _, want := range []string{
 		"lower(btrim(fact.payload->'scope'->>'advisory_id', " + suppressionScopeTrimCharactersSQL + ")) = ANY($18::text[])",
 	} {

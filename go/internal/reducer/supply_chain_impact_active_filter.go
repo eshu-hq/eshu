@@ -100,11 +100,10 @@ func missingStringValues(current []string, initial []string) []string {
 
 func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFilter {
 	var packageIDs, purls, cveIDs, digests, documentIDs, productCriteria, repositoryIDs, imageRefs []string
-	// advisoryIDs (#5466 round-4 review F-10) is collected SEPARATELY from
-	// cveIDs: supplyChainCVEID prefers cve_id over advisory_id
-	// (firstNonBlank), so a fact's distinct advisory_id (e.g. a GHSA ID
-	// alongside a populated cve_id) would otherwise never reach any filter
-	// list, leaving a suppression scoped ONLY by advisory_id unreachable.
+	// advisoryIDs is collected separately from cveIDs because
+	// supplyChainCVEID prefers cve_id over advisory_id when both are
+	// present. The storage reader uses this independent list for both
+	// top-level exact matching and normalized suppression-scope matching.
 	var advisoryIDs []string
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {

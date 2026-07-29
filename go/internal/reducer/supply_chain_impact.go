@@ -44,13 +44,10 @@ type SupplyChainImpactFactFilter struct {
 	PackageIDs []string
 	PURLs      []string
 	CVEIDs     []string
-	// AdvisoryIDs binds both #5465's exact-match predicate ($4) and #5466
-	// F-10's normalized suppression-scope predicate ($18) -- one field, two
-	// predicates. F-10 exists because supplyChainCVEID prefers cve_id over
-	// advisory_id (firstNonBlank), leaving an advisory_id-only suppression
-	// unreachable without it (affected_product does NOT carry advisory_id
-	// despite sharing that lookup index's fact_kind list, #5466 F-12).
-	// Populated alongside CVEIDs, not instead of it.
+	// AdvisoryIDs binds both the top-level exact-match predicate and the
+	// normalized suppression-scope predicate. It is populated alongside
+	// CVEIDs because supplyChainCVEID prefers cve_id over advisory_id when
+	// both are present.
 	AdvisoryIDs       []string
 	SubjectDigests    []string
 	DocumentIDs       []string

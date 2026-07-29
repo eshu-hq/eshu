@@ -9,15 +9,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// TestSupplyChainImpactFilterCollectsAdvisoryIDsSeparatelyFromCVEIDs proves
-// the #5466 round-4 review F-10 fix: supplyChainImpactFilter must collect a
-// vulnerability.cve fact's raw advisory_id into AdvisoryIDs even when its
-// advisory_id is DISTINCT from cve_id (e.g. a GHSA ID). supplyChainCVEID
-// (firstNonBlank(cve_id, advisory_id)) already feeds cve_id into CVEIDs, so
-// without a separate AdvisoryIDs collection, a distinct advisory_id value
-// would never reach any filter list at all -- leaving a suppression scoped
-// ONLY by advisory_id unreachable by the active-evidence SQL prefilter.
-func TestSupplyChainImpactFilterCollectsAdvisoryIDsSeparatelyFromCVEIDs(t *testing.T) {
+// TestSupplyChainImpactFilterPreservesIndependentAdvisoryIDs protects the
+// existing filter contract: a vulnerability.cve fact contributes its raw
+// advisory_id independently of the preferred cve_id identity.
+func TestSupplyChainImpactFilterPreservesIndependentAdvisoryIDs(t *testing.T) {
 	t.Parallel()
 
 	envelopes := []facts.Envelope{

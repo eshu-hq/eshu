@@ -69,37 +69,19 @@ func TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByLowercaseCVEIDA
 	}
 }
 
-// TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByAdvisoryIDOnlyLive
-// is the #5466 round-4 review F-10 fix proof: advisory_id had NO load-path
-// predicate at all before this fix -- not even a stale exact-match one, the
-// way package_id/purl/cve_id/subject_digest/repository_id did before F-6.
-// vulnerability.cve/affected_package carry a raw top-level advisory_id
-// field (indexed by fact_records_vulnerability_active_advisory_lookup_v2_idx
-// -- vulnerability.affected_product shares that index's fact_kind list but
-// does NOT carry the field itself: a partial index's kind list constrains
-// which rows get indexed, not which payloads have the key; see
-// AffectedProduct in sdk/go/factschema/vulnerability/v1, #5466 round-5
-// review F-12), but supplyChainCVEID prefers cve_id over advisory_id
-// (firstNonBlank(cve_id, advisory_id)), so a suppression scoped ONLY by an
-// advisory_id distinct from any cve_id (e.g. a GHSA ID) was unreachable by
-// this query even though scopeAnchorMatches,
-// suppressionScopeHasDiscoverableAnchor, and the reasons string all accept/
-// advertise advisory_id as a sufficient sole anchor. This test covers ONLY
-// the raw advisory_id payload field on the vulnerability.suppression
-// fact's own scope; it does NOT cover deriving AdvisoryIDs from any other
-// fact kind's payload beyond vulnerability.cve/affected_package (see
-// supplyChainImpactFilter), and it does NOT change how AdvisoryID is
-// derived on a SupplyChainImpactFinding at classification time (that
-// remains firstNonBlank(cve.advisoryID, cve.cveID) elsewhere).
-func TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByAdvisoryIDOnlyLive(t *testing.T) {
+// TestListActiveSupplyChainImpactFactsNormalizesAdvisoryScopeLive proves the
+// #5466 replacement of #5465's exact nested advisory_id comparison. The SQL
+// must use the same case-folding and Unicode TrimSpace semantics as the
+// reducer while retaining advisory_id as a sufficient sole identity anchor.
+func TestListActiveSupplyChainImpactFactsNormalizesAdvisoryScopeLive(t *testing.T) {
 	db := newSupplyChainImpactScopeLiveTestDB(t, "eshu_5466_suppression_scope_advisory_live")
 
-	// SUP-ADVISORY-ONLY: scoped PURELY by advisory_id -- no cve_id,
-	// package_id, purl, subject_digest, or repository_id at all. The exact
-	// shape scopeAnchorMatches/suppressionScopeHasDiscoverableAnchor accept but
-	// this query's WHERE clause had no predicate that could ever match.
+	// SUP-ADVISORY-ONLY is scoped purely by advisory_id and deliberately
+	// differs from the filter by case plus Unicode whitespace. #5465's
+	// exact nested predicate misses this row; the normalized predicate must
+	// load it.
 	seedSupplyChainImpactScopeLiveFact(t, db, "vuln-suppression:advisory-only", "advisory-only",
-		`{"suppression_id":"SUP-ADVISORY-ONLY","source":"eshu_policy","justification":"not_affected","author":"security-bot","authored_at":"2026-06-20T00:00:00Z","scope":{"advisory_id":"GHSA-demo-1111-2222"}}`)
+		`{"suppression_id":"SUP-ADVISORY-ONLY","source":"eshu_policy","justification":"not_affected","author":"security-bot","authored_at":"2026-06-20T00:00:00Z","scope":{"advisory_id":"\u00a0ghsa-demo-1111-2222\u00a0"}}`)
 	// SUP-ADVISORY-NOISE: a different advisory ID entirely, must never
 	// match the filter below.
 	seedSupplyChainImpactScopeLiveFact(t, db, "vuln-suppression:advisory-noise", "advisory-noise",

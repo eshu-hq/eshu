@@ -72,9 +72,8 @@ func TestListActiveSupplyChainImpactFactsQueryIncludesVulnerabilitySuppression(t
 	// TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeSiblings,
 	// facts_active_supply_chain_impact_scope_normalize_test.go, for the
 	// full F-6 predicate-shape and unchanged-sibling assertions). $4
-	// (AdvisoryIDs, #5465) started as scope-nested exact-match too, but
-	// round-4 review F-10 later superseded ITS scope-nested form the same
-	// way -- normalized at $18 (see
+	// (AdvisoryIDs, #5465) also started as a scope-nested exact match.
+	// #5466 supersedes its nested form the same way -- normalized at $18 (see
 	// TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeAdvisoryID) --
 	// so the old ->'scope'->>'advisory_id' = ANY($4) form no longer exists;
 	// only the top-level (non-"scope") $4 exact match remains, serving
@@ -91,7 +90,7 @@ func TestListActiveSupplyChainImpactFactsQueryIncludesVulnerabilitySuppression(t
 		}
 	}
 	if strings.Contains(listActiveSupplyChainImpactFactsQuery, "fact.payload->'scope'->>'advisory_id' = ANY($4::text[])") {
-		t.Fatalf("scope-nested advisory_id exact-match at $4 should be superseded by the $18 normalized predicate (round-4 review F-10):\n%s", listActiveSupplyChainImpactFactsQuery)
+		t.Fatalf("scope-nested advisory_id exact-match at $4 should be superseded by the $18 normalized predicate:\n%s", listActiveSupplyChainImpactFactsQuery)
 	}
 }
 
