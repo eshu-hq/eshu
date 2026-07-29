@@ -5682,6 +5682,7 @@
           "count"
         ],
         "minimum_results": 1,
+        "results_field": "findings",
         "required_json_values": {
           "findings[].cve_id": "CVE-2026-00000",
           "findings[].version_resolution_tier": "config_only"
