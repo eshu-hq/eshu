@@ -17,4 +17,16 @@
 // still decodes and a finding with no corroboration is byte-identical to what
 // it was before. Environments is unchanged and remains the field readers
 // filter on; EnvironmentEvidence is a sibling, not a replacement.
+//
+// CIDeclaredArtifactDigest and CIDeclaredImageRef (issue #5469) carry the
+// matched cicd_run_correlation deployment's OWN declared artifact identity --
+// its own artifact_digest and image_ref, never SubjectDigest/ImageRef borrowed
+// from the finding itself. The reducer bakes these only when that deployment
+// matched through a strong identity branch (digest or image-ref equality,
+// never the weak repository+environment+operational-anchor branch), so their
+// presence signals a genuine, independently-declared artifact identity a
+// query-time resolver can compare against the finding's own claim. Both are
+// *string with omitempty, additive-optional like EnvironmentEvidence: a
+// payload written before #5469 carries neither key and decodes with both
+// fields nil.
 package v1
