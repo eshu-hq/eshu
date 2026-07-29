@@ -175,6 +175,12 @@ func TestBuildSupplyChainImpactFindingsUsesVendorAPKOSPackageEvidence(t *testing
 	if got.RuntimeReachability != "image_os_package" {
 		t.Fatalf("RuntimeReachability = %q, want image_os_package", got.RuntimeReachability)
 	}
+	if got.MatchReason != supplyChainVersionReasonAPKExactAffected {
+		t.Fatalf("MatchReason = %q, want %q", got.MatchReason, supplyChainVersionReasonAPKExactAffected)
+	}
+	if got.DetectionProfile != DetectionProfilePrecise {
+		t.Fatalf("DetectionProfile = %q, want precise", got.DetectionProfile)
+	}
 }
 
 func TestBuildSupplyChainImpactFindingsUsesCollectorShapedOSVDebianAndAPKRanges(t *testing.T) {

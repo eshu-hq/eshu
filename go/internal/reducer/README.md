@@ -2049,11 +2049,12 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   reasons; readers (API, MCP, parity gate) decide which tier they want.
 
   No-Regression Evidence (#5735): `go test ./internal/reducer -run
-  '^(TestSupplyChainImpactExactOSPackageReasonsQualifyForPreciseProfile|TestGoldenCassetteDebianOSPackageChainSynthesizesFinding|TestBuildSupplyChainImpactFindingsUsesCollectorShapedOSVDebianAndAPKRanges)$'
+  '^(TestSupplyChainImpactExactOSPackageReasonsQualifyForPreciseProfile|TestGoldenCassetteDebianOSPackageChainSynthesizesFinding|TestBuildSupplyChainImpactFindingsUsesCollectorShapedOSVDebianAndAPKRanges|TestBuildSupplyChainImpactFindingsUsesVendorAPKOSPackageEvidence|TestBuildSupplyChainImpactFindingsUsesExactAPKKnownFixedProfile)$'
   -count=1` proves exact affected-version and exact known-fixed DPKG/APK
-  decisions are precise. The golden cassette's exact DPKG affected-version
-  decision is precise, while the collector-shaped OSV matrix keeps DPKG/APK
-  range decisions comprehensive. On Go 1.26.5, darwin/arm64, the before/after
+  decisions are precise through the production dispatcher. The golden
+  cassette's exact DPKG affected-version decision is precise, while the
+  collector-shaped OSV matrix keeps DPKG/APK range decisions comprehensive.
+  On Go 1.26.5, darwin/arm64, the before/after
   `BenchmarkEvaluateOSPackageVersionMatchAndClassify` comparison remained
   allocation-free and within 2.1% on both measured paths (exact affected:
   415.9 ns to 421.9 ns; exact known-fixed: 273.6 ns to 279.4 ns), below the
