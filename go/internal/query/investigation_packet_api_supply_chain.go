@@ -124,6 +124,18 @@ func (h *SupplyChainHandler) getImpactPacket(w http.ResponseWriter, r *http.Requ
 	// shared assembler resolves deployment_truth_tier/version_resolution_tier,
 	// so this packet surface never disagrees with list/explain about which
 	// tier won for the same finding.
+	//
+	// This is NOT cheap because it is bounded to one finding: the probe's
+	// Cypher matches on CloudResource.running_image_digest
+	// (supply_chain_impact_cloud_runtime_probe.go), and that property has no
+	// graph index (go/internal/graph/schema_tables_indexes.go only indexes
+	// CloudResource.arn/resource_id/resource_type), so the read is a
+	// CloudResource label scan whose cost is independent of len($digests) --
+	// one digest pays the same scan as list's full page. The common explain
+	// case (a finding whose digest is not running) is the worst case: a full
+	// scan that returns zero rows, which LIMIT cannot short-circuit. Accepted
+	// deliberately anyway: a wrong security tier is worse than the scan cost,
+	// and list already pays this same cost on every request.
 	rows := []SupplyChainImpactFindingRow{row.Finding}
 	if err := h.applySupplyChainCloudRuntimeEvidence(r.Context(), access, rows); err != nil {
 		if WriteGraphReadError(w, r, err, supplyChainImpactExplanationCapability) {
