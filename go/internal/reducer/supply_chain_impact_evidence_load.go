@@ -23,6 +23,7 @@ type supplyChainImpactLoadedEvidence struct {
 	manifestDependencyFacts         int
 	activeEvidenceFacts             int
 	activeEvidenceTruncated         bool
+	suppressionEvidenceTruncated    bool
 	osPackageAdvisoryFacts          int
 	osPackageAdvisoryTargetsSkipped int
 	scannerAnalysisScopeFacts       int
@@ -99,6 +100,7 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 		return supplyChainImpactLoadedEvidence{}, timing, fmt.Errorf("load active supply chain impact facts: %w", err)
 	}
 	activeEvidenceFacts := len(envelopes) - activeEvidenceStartCount
+	suppressionEvidenceTruncated := activeEvidenceTruncated
 
 	osPackageAdvisoryStartCount := len(envelopes)
 	phaseStarted = time.Now()
@@ -130,6 +132,7 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, resolvedDigestEvidenceEnvelopes...)
 	resolvedDigestEvidenceFacts := len(envelopes) - resolvedDigestEvidenceStartCount
 	activeEvidenceTruncated = activeEvidenceTruncated || scannerAnalysisScopeTruncated || resolvedDigestTruncated
+	suppressionEvidenceTruncated = suppressionEvidenceTruncated || resolvedDigestTruncated
 
 	peerIdentityEnvelopes, peerIdentityTruncated, err := h.loadSupplyChainImpactPeerIdentityFacts(ctx, resolvedDigestEvidenceEnvelopes)
 	if err != nil {
@@ -137,6 +140,7 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 	}
 	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, peerIdentityEnvelopes...)
 	activeEvidenceTruncated = activeEvidenceTruncated || peerIdentityTruncated
+	suppressionEvidenceTruncated = suppressionEvidenceTruncated || peerIdentityTruncated
 
 	pythonReachabilityStartCount := len(envelopes)
 	phaseStarted = time.Now()
@@ -178,6 +182,7 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 		manifestDependencyFacts:         manifestDependencyFacts,
 		activeEvidenceFacts:             activeEvidenceFacts,
 		activeEvidenceTruncated:         activeEvidenceTruncated,
+		suppressionEvidenceTruncated:    suppressionEvidenceTruncated,
 		osPackageAdvisoryFacts:          osPackageAdvisoryFacts,
 		osPackageAdvisoryTargetsSkipped: osPackageAdvisorySkipped,
 		scannerAnalysisScopeFacts:       scannerAnalysisScopeFacts,

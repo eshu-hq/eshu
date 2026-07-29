@@ -233,6 +233,13 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent Intent) (Re
 		return Result{}, fmt.Errorf("build vulnerability suppressions: %w", err)
 	}
 	quarantinedVulnerabilityFacts = append(quarantinedVulnerabilityFacts, quarantinedSuppressions...)
+	if loaded.suppressionEvidenceTruncated {
+		// Selection is newest AuthoredAt and then SuppressionID across the
+		// complete adjacent candidate set. A bounded prefix cannot prove its
+		// retained winner is globally preferred, so discard every candidate
+		// and keep findings visible rather than persist a false audit winner.
+		suppressions = nil
+	}
 	// Per-fact isolation: a malformed vulnerability or suppression fact is
 	// quarantined as a visible input_invalid dead-letter while valid facts
 	// still contribute to findings and suppression decisions.

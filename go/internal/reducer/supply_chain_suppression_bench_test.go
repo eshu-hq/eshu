@@ -100,9 +100,16 @@ func BenchmarkEvaluateSupplyChainSuppression_WithEnvironmentWorkloadServiceScope
 		Environments:  []string{"stage"},
 		WorkloadIDs:   []string{"workload-0"},
 		ServiceIDs:    []string{"service-0"},
+		ServiceWorkloadPairs: []SupplyChainServiceWorkloadPair{{
+			ServiceID:  "service-0",
+			WorkloadID: "workload-0",
+		}},
 	}
 	suppressions := benchmarkSuppressionSet(true)
 	now := time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC)
+	if got, want := EvaluateSupplyChainSuppression(finding, suppressions, now).State, SupplyChainSuppressionStateNotAffected; got != want {
+		b.Fatalf("benchmark setup state = %q, want matching state %q", got, want)
+	}
 
 	b.ReportAllocs()
 	b.ResetTimer()

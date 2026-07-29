@@ -226,15 +226,13 @@ LIMIT $12
 // this many suppression rows, then reads one sentinel before reporting
 // truncation; an exact-cap result with no sentinel is complete.
 //
-// A truncated load fails OPEN for the omitted TAIL of suppression evidence
-// only (less suppression evidence loaded past the cap, findings that would
-// have been suppressed by a row past it stay visible -- never the reverse)
-// but is surfaced via the returned bool rather than silently dropped, so it
-// can OR into the same truncation signal maxSupplyChainImpactActiveEvidenceLoads
-// already produces for the round cap
-// (go/internal/reducer/supply_chain_impact_handler_helpers.go). A `var`,
-// not a `const`, so hermetic tests can lower it without seeding thousands
-// of rows.
+// A truncated load fails OPEN for the entire suppression candidate set: the
+// returned bool reaches SupplyChainImpactHandler, which discards the retained
+// prefix before evaluation because it cannot prove that prefix contains the
+// globally preferred AuthoredAt/ID winner. Core evidence remains usable and
+// the same bool surfaces through the active-evidence truncation signal. A
+// `var`, not a `const`, so hermetic tests can lower it without seeding
+// thousands of rows.
 var maxSupplyChainImpactActiveEvidenceRowsPerCall = 2000
 
 // ListActiveSupplyChainImpactFacts loads active package, SBOM, image, and

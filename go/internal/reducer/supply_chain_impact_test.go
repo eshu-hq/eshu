@@ -24,6 +24,7 @@ const (
 type stubSupplyChainImpactFactLoader struct {
 	scopeFacts      []facts.Envelope
 	active          []facts.Envelope
+	activeTruncated bool
 	activeCalls     [][]facts.Envelope
 	activeForFilter func(SupplyChainImpactFactFilter) []facts.Envelope
 	kindCalls       [][]string
@@ -61,7 +62,7 @@ func (s *stubSupplyChainImpactFactLoader) ListActiveSupplyChainImpactFacts(
 		s.activeCalls = s.activeCalls[1:]
 		return append([]facts.Envelope(nil), active...), false, nil
 	}
-	return append([]facts.Envelope(nil), s.active...), false, nil
+	return append([]facts.Envelope(nil), s.active...), s.activeTruncated, nil
 }
 
 type recordingSupplyChainImpactWriter struct {

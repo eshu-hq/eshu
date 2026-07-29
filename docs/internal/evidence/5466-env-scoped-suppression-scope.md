@@ -55,7 +55,11 @@ same 300,000-row synthetic Postgres corpus used during the branch
 investigation, the `prod` shape matched 85,715 rows and the real paginated Go
 loader took about 22.7 seconds. Removing deployment-only discovery eliminates
 that scan class. The existing 2,000-row per-call cap remains as fail-open
-defense in depth for unexpectedly broad identity filters.
+defense in depth for unexpectedly broad identity filters: when its sentinel
+proves the suppression candidate set is incomplete, the handler discards the
+entire retained suppression prefix before evaluation. It therefore keeps the
+finding active instead of persisting an older retained assertion when the
+globally preferred AuthoredAt/ID winner may be beyond the cap.
 
 Adding three strings widened each suppression value. The first benchmark
 against current `origin/main` exposed a legacy-shape regression: current main
@@ -75,16 +79,19 @@ Final measurements, Apple M5 Max, `darwin/arm64`, five one-second samples:
 
 | Metric | Current main | #5466 legacy shape | #5466 deployment shape |
 | --- | ---: | ---: | ---: |
-| Mean ns/op | 9,106 | 3,639 | 3,969 |
-| Range ns/op | 9,059–9,144 | 3,625–3,663 | 3,948–3,992 |
-| B/op | 43,964 | 112 | 689 |
-| allocs/op | 14 | 4 | 8 |
+| Mean ns/op | 9,106 | 3,656 | 3,750 |
+| Range ns/op | 9,059–9,144 | 3,637–3,692 | 3,738–3,767 |
+| B/op | 43,964 | 112 | 112 |
+| allocs/op | 14 | 4 | 4 |
 
 The legacy shape is about 60% faster than current main with 10 fewer
 allocations. The deployment shape performs the three new conjunct checks and
-is still about 56% faster than current main. Accuracy is unchanged by the
-selection rewrite; the differential proof above pins exact decision
-equivalence.
+is still about 59% faster than current main with 10 fewer allocations. Its
+setup includes the genuine `(service-0, workload-0)` pair and asserts the
+expected `not_affected` decision before the timer starts, so these numbers
+measure a successful deployment-scoped match rather than the cheaper
+scope-mismatch path. Accuracy is unchanged by the selection rewrite; the
+differential proof above pins exact decision equivalence.
 
 The final real-Postgres proof seeded 100,000 active facts and took ten warm
 measurements against the exact query from base commit
@@ -141,10 +148,12 @@ therefore prove the environment conjunct on the real producer, Postgres,
 queue, reducer, and query path: an inert or mismatched conjunct would produce
 `scope_mismatch`, not the asserted hidden and expired states.
 
-The final live gate passed with 511 checks, 0 required failures, and one
-advisory graph-query timing warning. Total wall time was 106 seconds, below the
-30-minute required ceiling. Every suppression drain reported zero residual and
-zero dead-letter work.
+The exact-head live gate passed with 510 checks, 0 required failures, and two
+advisory timing warnings. The graph-query check completed in 22 seconds against
+its 20-second advisory ceiling, and the maintenance drains completed in 20
+seconds against their 19-second advisory ceiling. Total wall time was 110
+seconds, below the 30-minute required ceiling. Every suppression drain
+reported zero residual and zero dead-letter work.
 
 Measured suppression-path timings:
 
