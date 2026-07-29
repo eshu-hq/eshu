@@ -206,6 +206,7 @@ nav:
       - Code Coverage Report: reference/code-coverage.md
       - Local Testing:
         - Overview: reference/local-testing.md
+        - Quick Verification Matrix: reference/local-testing/quick-verification-matrix.md
         - First Five Minutes Benchmark: reference/local-testing/first-five-minutes-benchmark.md
         - Answer Quality Scorecard: reference/local-testing/answer-quality-scorecard.md
         - Ask Eshu Local Proof: reference/local-testing/ask-eshu-local-proof.md
@@ -225,6 +226,7 @@ nav:
         - Verification Gates: reference/local-testing/verification-gates.md
         - Discovery Advisory: reference/local-testing/discovery-advisory.md
         - Profiling And Concurrency: reference/local-testing/profiling-and-concurrency.md
+        - Performance Evidence Gate: reference/local-testing/performance-evidence-gate.md
       - Cloud Validation: reference/cloud-validation.md
       - Remote E2E Runtime State: reference/remote-e2e-runtime-state.md
     - Local Host & Capabilities:
