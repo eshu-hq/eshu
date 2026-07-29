@@ -34,10 +34,14 @@
 // path/path-attribute collision the opposite way round: its row["path"] is
 // the parser provenance field (set first, for every backend block regardless
 // of kind) and the local backend's own "path" attribute is stored under
-// row["local_path"] instead, because row["path"] here was already the
+// row["state_path"] instead, because row["path"] here was already the
 // provenance field before backends carried a path attribute of their own
-// (issue #5594). The two buckets are independent and intentionally keep
-// their own established convention; do not "align" one to the other without
-// checking every existing consumer of the field each convention actually
-// uses for provenance.
+// (issue #5594). "state_path", not "local_path", because the durable
+// `repository` fact already has an established "local_path" payload field
+// meaning the repo checkout root; reusing that name for the backend's path
+// attribute would recreate the exact collision this split exists to avoid.
+// The two buckets are independent and intentionally keep their own
+// established convention; do not "align" one to the other without checking
+// every existing consumer of the field each convention actually uses for
+// provenance.
 package hcl

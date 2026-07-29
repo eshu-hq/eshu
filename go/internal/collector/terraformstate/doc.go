@@ -41,5 +41,9 @@
 // reports no candidate rather than guess a locator. Only BackendS3 and
 // BackendLocal produce candidates; any other Terraform backend kind (gcs,
 // azurerm, remote, http, ...) is unmodeled here and yields neither a
-// candidate nor a warning.
+// candidate nor a warning. DiscoveryCandidate.LocatorDefaulted marks the
+// implicit-default case so a downstream successful resolution can log
+// "resolved via default" distinctly from "resolved via explicit path"; it
+// flows through tfstatebackend.TerraformBackendRow and CommitAnchor to the
+// terraform_config_state_drift reducer handler.
 package terraformstate

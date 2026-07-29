@@ -29,11 +29,17 @@ var discoverySafeBackendAttributes = map[string]struct{}{
 // with the state-file locator, breaking every consumer that reads row["path"]
 // expecting the file path (backendModuleDir's variable/local scoping in
 // go/internal/collector/terraformstate/backend_config_resolution.go). The
-// attribute is stored under "local_path" instead so both values survive
+// attribute is stored under "state_path" instead so both values survive.
+// "state_path" was chosen over an earlier "local_path" candidate because the
+// durable `repository` fact ALREADY has an established, differently-scoped
+// "local_path" payload field meaning the repo checkout root (see
+// go/internal/collector/git_content_fact_envelopes.go); reusing that name
+// here for a completely different value (the backend's own path attribute)
+// would recreate the exact class of collision this function exists to avoid
 // (issue #5594).
 func backendAttributeRowKey(name string) string {
 	if name == "path" {
-		return "local_path"
+		return "state_path"
 	}
 	return name
 }

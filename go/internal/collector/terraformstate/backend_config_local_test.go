@@ -12,7 +12,7 @@ import (
 // the parser's real output (go/internal/parser/hcl/terraform_backend.go):
 // row["path"] is always the absolute source .tf file path, and the backend's
 // own "path" attribute (when present) is carried separately as
-// row["local_path"].
+// row["state_path"].
 func localBackendFixture(backendFilePath, localPath string) map[string]any {
 	row := map[string]any{
 		"backend_kind": "local",
@@ -20,8 +20,8 @@ func localBackendFixture(backendFilePath, localPath string) map[string]any {
 		"path":         backendFilePath,
 	}
 	if localPath != "" {
-		row["local_path"] = localPath
-		row["local_path_is_literal"] = true
+		row["state_path"] = localPath
+		row["state_path_is_literal"] = true
 	}
 	return row
 }
@@ -59,11 +59,14 @@ func TestEvaluateBackendConfigDefaultsBareLocalBackendPath(t *testing.T) {
 	if got, want := candidate.RepoID, "platform-infra"; got != want {
 		t.Fatalf("RepoID = %q, want %q", got, want)
 	}
+	if !candidate.LocatorDefaulted {
+		t.Fatal("LocatorDefaulted = false, want true for a bare `backend \"local\" {}` block")
+	}
 }
 
 // TestEvaluateBackendConfigHonorsExplicitLocalBackendPath proves an explicit
 // non-default path still resolves, at a directory other than repo root, using
-// the same default-application code path.
+// the same default-application code path, and is NOT flagged as defaulted.
 func TestEvaluateBackendConfigHonorsExplicitLocalBackendPath(t *testing.T) {
 	t.Parallel()
 
@@ -81,6 +84,9 @@ func TestEvaluateBackendConfigHonorsExplicitLocalBackendPath(t *testing.T) {
 	}
 	if got, want := result.Candidates[0].State.Locator, wantLocator; got != want {
 		t.Fatalf("Locator = %q, want %q", got, want)
+	}
+	if result.Candidates[0].LocatorDefaulted {
+		t.Fatal("LocatorDefaulted = true, want false for an explicit path attribute")
 	}
 }
 
@@ -131,13 +137,13 @@ func TestEvaluateBackendConfigSkipsLocalBackendWithoutRepoLocalPath(t *testing.T
 // TestEvaluateBackendConfigWarnsOnUnresolvedLocalBackendPath proves a dynamic
 // (non-literal) path attribute is reported as a warning under the true
 // Terraform attribute name "path", even though the parser stores it as
-// row["local_path"] internally.
+// row["state_path"] internally.
 func TestEvaluateBackendConfigWarnsOnUnresolvedLocalBackendPath(t *testing.T) {
 	t.Parallel()
 
 	backend := localBackendFixture("/repos/platform-infra/main.tf", "")
-	backend["local_path"] = "${terraform.workspace}.tfstate"
-	backend["local_path_is_literal"] = false
+	backend["state_path"] = "${terraform.workspace}.tfstate"
+	backend["state_path_is_literal"] = false
 
 	result := EvaluateBackendConfig("platform-infra", BackendConfigContext{
 		Backends:      []map[string]any{backend},

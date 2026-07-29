@@ -47,7 +47,7 @@ func backendConfigLocalCandidate(
 	if repoLocalPath == "" {
 		return DiscoveryCandidate{}, false
 	}
-	statePath, ok := resolveOptionalLocalStatePathAttribute(backend, resolution)
+	statePath, defaulted, ok := resolveOptionalLocalStatePathAttribute(backend, resolution)
 	if !ok {
 		return DiscoveryCandidate{}, false
 	}
@@ -67,26 +67,29 @@ func backendConfigLocalCandidate(
 			BackendKind: BackendLocal,
 			Locator:     absoluteLocator,
 		},
-		Source: DiscoveryCandidateSourceGraph,
-		RepoID: strings.TrimSpace(repoID),
+		Source:           DiscoveryCandidateSourceGraph,
+		RepoID:           strings.TrimSpace(repoID),
+		LocatorDefaulted: defaulted,
 	}, true
 }
 
 // resolveOptionalLocalStatePathAttribute returns the local backend's
 // effective state-file path: the literal or resolved "path" attribute value
-// when present, or Terraform's own default when the attribute is absent. It
-// returns ok=false only when the attribute is present but did not resolve to
-// an exact literal value.
+// when present, or Terraform's own default when the attribute is absent. The
+// second return value is true exactly when the default was applied (the
+// attribute was absent), so callers can distinguish an explicit locator from
+// a defaulted one. ok is false only when the attribute is present but did
+// not resolve to an exact literal value.
 func resolveOptionalLocalStatePathAttribute(
 	backend map[string]any,
 	resolution backendResolutionContext,
-) (string, bool) {
-	raw := strings.TrimSpace(backendStringValue(backend, "local_path"))
+) (path string, defaulted bool, ok bool) {
+	raw := strings.TrimSpace(backendStringValue(backend, "state_path"))
 	if raw == "" {
-		return defaultTerraformLocalStatePath, true
+		return defaultTerraformLocalStatePath, true, true
 	}
-	decision := resolveBackendConfigAttributeDecision(backend, "local_path", resolution)
-	return decision.value, decision.ok
+	decision := resolveBackendConfigAttributeDecision(backend, "state_path", resolution)
+	return decision.value, false, decision.ok
 }
 
 // backendFileDirRelativeToRepo returns the repo-relative directory of the .tf
@@ -120,15 +123,15 @@ func backendConfigLocalExpressionWarnings(
 	backend map[string]any,
 	resolution backendResolutionContext,
 ) []BackendExpressionWarning {
-	raw := strings.TrimSpace(backendStringValue(backend, "local_path"))
+	raw := strings.TrimSpace(backendStringValue(backend, "state_path"))
 	if raw == "" {
 		return nil
 	}
-	decision := resolveBackendConfigAttributeDecision(backend, "local_path", resolution)
+	decision := resolveBackendConfigAttributeDecision(backend, "state_path", resolution)
 	if decision.ok {
 		return nil
 	}
 	return []BackendExpressionWarning{
-		backendExpressionWarningForRowAttribute(repoID, backend, "path", "local_path", decision),
+		backendExpressionWarningForRowAttribute(repoID, backend, "path", "state_path", decision),
 	}
 }

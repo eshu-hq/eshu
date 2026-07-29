@@ -63,13 +63,44 @@ WITH backend_generations AS (
             THEN jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_backends')
             ELSE 0
           END > 0
+),
+-- repo_local_paths resolves exactly one repository-fact row per
+-- (scope_id, generation_id, repo_id): DISTINCT ON with that composite key
+-- plus ORDER BY observed_at DESC, fact_id DESC picks the latest row,
+-- mirroring the same latest-wins convention listTerraformBackendFactsQuery's
+-- active_repositories CTE already uses (tfstate_backend_queries.go). Without
+-- the repo_id key here, a scope/generation carrying more than one distinct
+-- repo_id (which is exactly the shape backend_generations' own DISTINCT
+-- exists to handle) could join a DIFFERENT repo's checkout root onto this
+-- one's backend rows; without the DISTINCT ON, more than one repository fact
+-- per (scope_id, generation_id, repo_id) -- a real shape after re-collection
+-- or retries -- would fan the outer JOIN out to duplicate backend rows via
+-- mergeTerraformBackendFactContext's append semantics, corrupting even the
+-- pre-existing s3 candidate path. Both were caught by review before this
+-- landed; see issue #5594.
+repo_local_paths AS (
+    SELECT DISTINCT ON (repository.scope_id, repository.generation_id, repository.payload->>'repo_id')
+        repository.scope_id,
+        repository.generation_id,
+        repository.payload->>'repo_id' AS repo_id,
+        COALESCE(repository.payload->>'local_path', repository.source_uri, '') AS repo_local_path
+    FROM fact_records AS repository
+    WHERE repository.fact_kind = 'repository'
+      AND repository.source_system = 'git'
+      AND repository.scope_id IN (SELECT scope_id FROM backend_generations)
+    ORDER BY
+        repository.scope_id,
+        repository.generation_id,
+        repository.payload->>'repo_id',
+        repository.observed_at DESC,
+        repository.fact_id DESC
 )
 SELECT
     backend.repo_id                                           AS repo_id,
     fact.scope_id                                             AS scope_id,
     fact.generation_id                                        AS generation_id,
     fact.observed_at                                          AS observed_at,
-    COALESCE(repository.payload->>'local_path', repository.source_uri, '') AS repo_local_path,
+    COALESCE(repo_local_paths.repo_local_path, '')             AS repo_local_path,
     jsonb_build_object(
         'terraform_backends', COALESCE(fact.payload->'parsed_file_data'->'terraform_backends', '[]'::jsonb),
         'terraform_variables', COALESCE(fact.payload->'parsed_file_data'->'terraform_variables', '[]'::jsonb),
@@ -80,11 +111,10 @@ JOIN fact_records AS fact
   ON fact.scope_id = backend.scope_id
  AND fact.generation_id = backend.generation_id
  AND fact.payload->>'repo_id' = backend.repo_id
-LEFT JOIN fact_records AS repository
-  ON repository.scope_id = backend.scope_id
- AND repository.generation_id = backend.generation_id
- AND repository.fact_kind = 'repository'
- AND repository.source_system = 'git'
+LEFT JOIN repo_local_paths
+  ON repo_local_paths.scope_id = backend.scope_id
+ AND repo_local_paths.generation_id = backend.generation_id
+ AND repo_local_paths.repo_id = backend.repo_id
 WHERE fact.fact_kind = 'file'
   AND fact.source_system = 'git'
   AND (
@@ -293,6 +323,7 @@ func matchingBackendRowsFromCandidates(
 			CommitObservedAt: observedAt.UTC(),
 			BackendKind:      gotKind,
 			LocatorHash:      gotHash,
+			LocatorDefaulted: candidate.LocatorDefaulted,
 		})
 	}
 	return out

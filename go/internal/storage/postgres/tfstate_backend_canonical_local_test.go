@@ -15,20 +15,21 @@ import (
 // fixtureLocalBackendFact builds a `backend "local" {}` parser-fact row.
 // backendFilePath is the absolute path of the .tf file the block was parsed
 // from (row["path"], always absolute — see
-// go/internal/parser/hcl/terraform_backend.go); localPath is the raw "path"
-// ATTRIBUTE value the parser stores under row["local_path"] to avoid
-// colliding with the file-path field, and may be "" to exercise Terraform's
-// own default (issue #5594).
-func fixtureLocalBackendFact(backendFilePath, localPath string) []byte {
-	localPathFields := ""
-	if localPath != "" {
-		localPathFields = `,
-		"local_path":"` + localPath + `",
-		"local_path_is_literal":true`
+// go/internal/parser/hcl/terraform_backend.go); statePath is the raw "path"
+// ATTRIBUTE value the parser stores under row["state_path"] to avoid
+// colliding with the file-path field (and with the durable `repository`
+// fact's own, differently-scoped "local_path" field), and may be "" to
+// exercise Terraform's own default (issue #5594).
+func fixtureLocalBackendFact(backendFilePath, statePath string) []byte {
+	statePathFields := ""
+	if statePath != "" {
+		statePathFields = `,
+		"state_path":"` + statePath + `",
+		"state_path_is_literal":true`
 	}
 	return []byte(`[{
 		"backend_kind":"local",
-		"path":"` + backendFilePath + `"` + localPathFields + `
+		"path":"` + backendFilePath + `"` + statePathFields + `
 	}]`)
 }
 

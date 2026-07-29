@@ -210,7 +210,7 @@ func backendExpressionWarningForAttribute(
 // whose Terraform HCL name (attributeName, used for the reported
 // attribute_name field operators recognize) differs from the parser row key
 // it is stored under (rowKey). The two differ only for the local backend's
-// "path" attribute, which the parser stores as row["local_path"] to avoid
+// "path" attribute, which the parser stores as row["state_path"] to avoid
 // colliding with the row's own "path" field (the source .tf file path; see
 // go/internal/parser/hcl/terraform_backend.go).
 func backendExpressionWarningForRowAttribute(

@@ -92,9 +92,12 @@ neither value silently overwrites the other (`terragrunt_remote_state.go:54`).
 `terraform_backends` rows (`terraform_backend.go`) solve the same collision
 the other way round: `row["path"]` was already the parser-side source file
 path before backends had a `path` attribute of their own, so the local
-backend's `path` attribute is captured under `row["local_path"]` instead
-(`backendAttributeRowKey`, issue #5594). A bare `backend "local" {}` with no
-`path` attribute omits `local_path` entirely — the config-vs-state drift
+backend's `path` attribute is captured under `row["state_path"]` instead
+(`backendAttributeRowKey`, issue #5594) — not `row["local_path"]`, because the
+durable `repository` fact already has an established `local_path` field
+meaning the repo checkout root, and reusing that name here would recreate the
+exact collision this split exists to avoid. A bare `backend "local" {}` with
+no `path` attribute omits `state_path` entirely — the config-vs-state drift
 resolver (`go/internal/collector/terraformstate.EvaluateBackendConfig`)
 applies Terraform's own default in that case, not this parser package.
 
