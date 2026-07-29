@@ -190,4 +190,36 @@ git -C "${reducer_sibling_doc_inherited_repo}" add .
 git -C "${reducer_sibling_doc_inherited_repo}" commit -q -m 'add MERGE (hot change, no new evidence of its own; unrelated heading typo fix)'
 expect_fail "${reducer_sibling_doc_inherited_repo}"
 
+# Regression coverage for the P1 whitelist broadening (eshu-hq/eshu#5542
+# follow-up): is_evidence_file() must recognize ANY .md directly under a
+# go/** package directory, not just README.md/AGENTS.md/evidence-*.md/the
+# #5786 reducer docs. Real merged commit 7be40a0842 (#5747) recorded a
+# genuine Performance Evidence line in go/internal/query/read-models.md,
+# which the narrower whitelist never recognized at all. This isolates that
+# exact gap with BOTH markers present in the PR's own added lines, so the
+# result depends purely on whitelist recognition, not on whether an
+# observability marker happens to exist elsewhere.
+query_doc_evidence_repo="$(init_repo query-doc-evidence)"
+mkdir -p "${query_doc_evidence_repo}/go/internal/query"
+printf 'package query\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\n' \
+  >"${query_doc_evidence_repo}/go/internal/query/supply_chain_impact_findings.go"
+git -C "${query_doc_evidence_repo}" add .
+git -C "${query_doc_evidence_repo}" commit -q -m 'baseline query file, no evidence docs yet'
+printf 'package query\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\nconst writerQuery = "UNWIND $rows AS row MERGE (n:Finding {uid: row.uid})"\n' \
+  >"${query_doc_evidence_repo}/go/internal/query/supply_chain_impact_findings.go"
+cat >"${query_doc_evidence_repo}/go/internal/query/read-models.md" <<'MD'
+# Query Read Models
+
+## Current Evidence (this PR)
+
+Performance Evidence: supply_chain_impact_findings MERGE benchmarked flat vs
+baseline on the 20-repo local NornicDB corpus; terminal queue depth 0.
+
+No-Observability-Change: existing query span/metric coverage already
+instruments this MERGE path.
+MD
+git -C "${query_doc_evidence_repo}" add .
+git -C "${query_doc_evidence_repo}" commit -q -m 'add MERGE (hot change) with evidence in a query package doc'
+expect_pass "${query_doc_evidence_repo}"
+
 printf 'verify-performance-evidence inherited-marker tests passed\n'

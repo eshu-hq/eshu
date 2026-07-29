@@ -434,4 +434,10 @@ expect_fail "${last_line_repo}"
 # into its own file to keep this one under the repo's 500-line file cap.
 "${repo_root}/scripts/test-verify-performance-evidence-inherited-marker.sh"
 
+# Regression (eshu-hq/eshu#5542 P0 follow-up): exercises the actual CI base
+# resolution path (GITHUB_BASE_REF -> origin/$GITHUB_BASE_REF), which every
+# test above bypasses via ESHU_PERFORMANCE_EVIDENCE_BASE. Split into its own
+# file to keep this one under the repo's 500-line file cap.
+"${repo_root}/scripts/test-verify-performance-evidence-ci-base.sh"
+
 printf 'verify-performance-evidence tests passed\n'

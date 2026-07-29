@@ -9,7 +9,15 @@ fi
 
 base="${ESHU_PERFORMANCE_EVIDENCE_BASE:-}"
 if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
-  git -C "$repo_root" fetch --no-tags --depth=1 origin "$GITHUB_BASE_REF" >/dev/null 2>&1 || true
+  # An explicit destination refspec is required: `git fetch origin <branch>`
+  # with no `:<dst>` only ever updates FETCH_HEAD, never
+  # refs/remotes/origin/<branch> -- this is real git behavior independent of
+  # any configured remote.origin.fetch, so under actions/checkout@v5's actual
+  # narrow/shallow setup `origin/$GITHUB_BASE_REF` never resolved and `base`
+  # silently fell through to HEAD~1 (last commit only) in every real CI run
+  # (eshu-hq/eshu#5542 follow-up).
+  git -C "$repo_root" fetch --no-tags --depth=1 origin \
+    "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" >/dev/null 2>&1 || true
   if git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
     base="origin/$GITHUB_BASE_REF"
   fi
@@ -112,9 +120,19 @@ is_runtime_config_by_content() {
   return 1
 }
 
-# Pre-fetch the full diff once so comment-only checks are O(1) hash lookups
-# instead of one git invocation per file. Empty if the diff is unavailable.
-_perf_diff_cache="$(git -C "$repo_root" diff --unified=0 "$base"...HEAD 2>/dev/null || true)"
+# Pre-fetch the full diff once so comment-only and marker-added-lines checks
+# are O(1) lookups against this cache instead of one git invocation per file.
+# Falls back to the two-dot form on failure -- the three-dot (merge-base)
+# form fails outright ("no merge base") when the fetched base tip and the
+# local commit graph share no common ancestor object, which is the normal
+# shape of a shallow CI checkout (eshu-hq/eshu#5542 follow-up). Mirrors the
+# same fallback already used by changed_files above and
+# is_runtime_config_by_content below. Empty if both forms are unavailable.
+if _perf_diff_cache="$(git -C "$repo_root" diff --unified=0 "$base"...HEAD 2>/dev/null)"; then
+  :
+else
+  _perf_diff_cache="$(git -C "$repo_root" diff --unified=0 "$base" HEAD 2>/dev/null || true)"
+fi
 
 # Newline-delimited map of changed files whose diff contains at least one
 # non-comment, non-whitespace added/removed line. Files absent from the map had
@@ -203,15 +221,23 @@ is_evidence_file() {
     docs/public/reference/**/*.md) return 0 ;;
     docs/internal/evidence/*.md) return 0 ;;
     docs/internal/evidence/**/*.md) return 0 ;;
-    go/*/evidence-*.md|go/*/*/evidence-*.md|go/*/*/*/evidence-*.md|go/*/*/*/*/evidence-*.md|go/*/*/*/*/*/evidence-*.md) return 0 ;;
-    go/*/README.md|go/*/*/README.md|go/*/*/*/README.md|go/*/*/*/*/README.md|go/*/*/*/*/*/README.md) return 0 ;;
-    go/*/AGENTS.md|go/*/*/AGENTS.md|go/*/*/*/AGENTS.md|go/*/*/*/*/AGENTS.md|go/*/*/*/*/*/AGENTS.md) return 0 ;;
-    # #5786 splits the 4,495-line go/internal/reducer/README.md into topic-
-    # scoped sibling docs (cloud-projections.md, domain-catalog.md, etc.)
-    # directly in that directory. A general glob on the directory, not eight
-    # hardcoded filenames, so a ninth sibling doc is covered without a
-    # follow-up edit here (eshu-hq/eshu#5542 follow-up).
-    go/internal/reducer/*.md) return 0 ;;
+    docs/internal/design/*.md) return 0 ;;
+    docs/internal/design/**/*.md) return 0 ;;
+    # Any .md directly under a go/** package directory is a recognized
+    # evidence location, not just README.md/AGENTS.md/evidence-*.md. The
+    # repo's real, actively-used convention has topic-named package docs
+    # carrying genuine markers well beyond those three filenames (e.g.
+    # go/internal/query/read-models.md, go/internal/storage/postgres/
+    # gotchas-and-invariants.md, go/internal/reducer/shared-projection.md,
+    # and the #5786 reducer README split's sibling docs). A narrower
+    # whitelist recognized only 584 of 679 real .md files repo-wide that
+    # carry a genuine marker and false-blocked legitimate PRs whose only
+    # evidence lived in one of the other 95, including real merged commit
+    # 7be40a0842 (#5747) which recorded evidence in
+    # go/internal/query/read-models.md (eshu-hq/eshu#5542 follow-up).
+    # Subsumes the earlier go/*/README.md, go/*/AGENTS.md,
+    # go/*/evidence-*.md, and go/internal/reducer/*.md patterns.
+    go/*.md|go/*/*.md|go/*/*/*.md|go/*/*/*/*.md|go/*/*/*/*/*.md|go/*/*/*/*/*/*.md) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -256,11 +282,29 @@ fi
 # unrelated marker left behind by an earlier PR in a file it merely touches
 # (eshu-hq/eshu#5542): the marker sits in the file as unchanged context, not
 # as something this diff contributed, so it must not satisfy the gate.
+#
+# Filters the already-fetched _perf_diff_cache instead of spawning a fresh
+# `git diff` per evidence file -- the cache above exists precisely so
+# per-file checks are O(1) lookups, not one git invocation each. Uses plain
+# string comparisons (not regex) so an evidence path containing regex
+# metacharacters (e.g. a literal `.` in a filename) still compares exactly.
 added_lines_for_evidence_file() {
   local rel="$1"
-  git -C "$repo_root" diff --unified=0 "$base"...HEAD -- "$rel" 2>/dev/null \
-    | awk '/^\+\+\+ /{next} /^\+/{print substr($0,2)}' \
-    || true
+  [ -n "${_perf_diff_cache}" ] || return 0
+  printf '%s\n' "${_perf_diff_cache}" | awk -v target="${rel}" '
+    substr($0, 1, 6) == "+++ b/" {
+      cur = substr($0, 7)
+      if (cur == "/dev/null" || cur == "b/dev/null") { cur = "" }
+      next
+    }
+    $0 == "+++ /dev/null" { cur = ""; next }
+    substr($0, 1, 6) == "--- a/" { next }
+    $0 == "--- /dev/null" { next }
+    substr($0, 1, 1) == "+" {
+      if (cur == target) print substr($0, 2)
+      next
+    }
+  '
 }
 
 has_performance_evidence=1

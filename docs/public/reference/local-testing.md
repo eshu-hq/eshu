@@ -311,6 +311,29 @@ For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database
 | Root marketing site (Cloudflare Pages) | `npm test` (unit) plus `npm run site:review` (desktop + mobile browser gate documented in the repo-root `CLOUDFLARE_PAGES.md`) |
 | Repo hygiene gates | `git diff --check` |
 
+### Performance Evidence Gate
+
+`scripts/verify-performance-evidence.sh` blocks a PR that touches hot Cypher,
+graph writes, queues, workers, leases, batching, or runtime knobs unless the
+same PR carries its own tracked evidence:
+
+- **Evidence must be in the PR's own added lines**, not merely present
+  somewhere in a touched file. A marker that already existed in the file
+  before this PR — added by an earlier, unrelated PR — does not satisfy the
+  gate even if the PR happens to touch that file for something else. Add a
+  fresh `Performance Evidence:`/`Benchmark Evidence:`/`No-Regression
+  Evidence:` line (and a fresh `Observability Evidence:`/
+  `No-Observability-Change:` line) as part of this PR's own diff.
+- **Recognized evidence-file locations**: `docs/public/adrs/*.md`,
+  `docs/public/reference/**/*.md`, `docs/internal/evidence/**/*.md`,
+  `docs/internal/design/**/*.md`, and any `.md` file directly under a
+  `go/**` package directory — not just `README.md`, `AGENTS.md`, or
+  `evidence-*.md`. The repo's real convention already has evidence recorded
+  in topic-named package docs such as `go/internal/query/read-models.md`
+  and `go/internal/storage/postgres/gotchas-and-invariants.md`; any of
+  these locations works as long as the marker is in this PR's own added
+  lines.
+
 ## Remote Collector E2E Compose Proof
 
 Use [Remote collector E2E](local-testing/remote-collector-e2e.md) when changing
