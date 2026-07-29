@@ -43,6 +43,11 @@ leaves the aggregate visible as `scope_mismatch`. Singleton stage evidence
 still suppresses. This preserves stable vulnerability identity and prevents a
 context predicate from hiding sibling exposures.
 
+`TestEvaluateSupplyChainSuppressionDeploymentContextDoesNotCrossVulnerabilityIdentity`
+proves that shared `prod` context never makes a CVE-A suppression adjacent to
+CVE-B. Deployment fields narrow an already-matching vulnerability identity;
+they never attach another vulnerability's suppression ID or mismatch state.
+
 ## Prove-the-theory-first performance work
 
 The rejected design made a common environment a SQL discovery key. On the
@@ -70,8 +75,8 @@ Final measurements, Apple M5 Max, `darwin/arm64`, five one-second samples:
 
 | Metric | Current main | #5466 legacy shape | #5466 deployment shape |
 | --- | ---: | ---: | ---: |
-| Mean ns/op | 9,106 | 3,668 | 3,983 |
-| Range ns/op | 9,059–9,144 | 3,625–3,708 | 3,975–3,990 |
+| Mean ns/op | 9,106 | 3,639 | 3,969 |
+| Range ns/op | 9,059–9,144 | 3,625–3,663 | 3,948–3,992 |
 | B/op | 43,964 | 112 | 689 |
 | allocs/op | 14 | 4 | 8 |
 
@@ -82,11 +87,11 @@ selection rewrite; the differential proof above pins exact decision
 equivalence.
 
 The final real-Postgres proof seeded 100,000 active facts and took ten warm
-measurements. The legacy query median/p95 was 12.965/14.096 ms; the current
-identity-anchored query was 12.901/13.344 ms, within the enforced 10% ceiling
+measurements. The legacy query median/p95 was 12.986/14.245 ms; the current
+identity-anchored query was 11.893/12.485 ms, within the enforced 10% ceiling
 at both boundaries and with an identical 250-row CVE result set. The new
 advisory-only identity path returned exactly its intended 250 rows at
-13.409/13.981 ms median/p95. The guarded Unicode-normalized shape is about 16%
+12.843/13.751 ms median/p95. The guarded Unicode-normalized shape is about 22%
 faster than the earlier 15.307 ms current-query median while matching the full
 Go `strings.TrimSpace` character set. The row-cap integration proof also
 passed without truncating core evidence or overstating exact-cap truncation.
@@ -126,16 +131,16 @@ Measured suppression-path timings:
 
 | Operation | Wall or p50 time |
 | --- | ---: |
-| Scope setup mutation | 0.006832 s |
-| Scope setup drain | 2.104646 s |
-| Malformed-input drain | 2.107317 s |
-| Active baseline query p50 | 0.020216 s |
-| Ignore mutation | 0.004305 s |
-| Ignore drain | 2.117275 s |
-| Hidden query p50 | 0.006074 s |
-| Audit query p50 | 0.010179 s |
-| Identical retry mutation p50 | 0.003317 s |
-| Expired-visible query p50 | 0.014377 s |
+| Scope setup mutation | 0.007517 s |
+| Scope setup drain | 2.099366 s |
+| Malformed-input drain | 2.108445 s |
+| Active baseline query p50 | 0.019233 s |
+| Ignore mutation | 0.005002 s |
+| Ignore drain | 2.105417 s |
+| Hidden query p50 | 0.006667 s |
+| Audit query p50 | 0.010262 s |
+| Identical retry mutation p50 | 0.003371 s |
+| Expired-visible query p50 | 0.014130 s |
 
 Command:
 

@@ -11,6 +11,7 @@ import (
 func TestListActiveSupplyChainImpactFactsQueryIsPackageBoundedAndPaged(t *testing.T) {
 	t.Parallel()
 
+	executableQuery := sqlWithoutLineComments(listActiveSupplyChainImpactFactsQuery)
 	for _, want := range []string{
 		"scope.active_generation_id = fact.generation_id",
 		"generation.status = 'active'",
@@ -42,10 +43,11 @@ func TestListActiveSupplyChainImpactFactsQueryIsPackageBoundedAndPaged(t *testin
 		"fact.payload->>'document_id' = ANY($7::text[])",
 		"fact.payload->>'repository_id' = ANY($8::text[])",
 		"fact.payload->>'image_ref' = ANY($9::text[])",
-		"fact.fact_id > $11",
+		"OR (fact.fact_kind = 'vulnerability.suppression', fact.fact_id) > ($19::boolean, $11)",
+		"ORDER BY (fact.fact_kind = 'vulnerability.suppression') ASC, fact.fact_id ASC",
 		"LIMIT $12",
 	} {
-		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
+		if !strings.Contains(executableQuery, want) {
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
 		}
 	}
@@ -169,6 +171,7 @@ func TestListActiveSupplyChainImpactFactsQueryLoadsPackageConsumptionByRepositor
 func TestListActiveSupplyChainImpactFactsQuerySeparatesParserFileFollowUp(t *testing.T) {
 	t.Parallel()
 
+	executableQuery := sqlWithoutLineComments(listActiveSupplyChainImpactFactsQuery)
 	repositoryBranchStart := strings.Index(listActiveSupplyChainImpactFactsQuery, "fact.fact_kind IN (\n              'vulnerability.suppression'")
 	if repositoryBranchStart < 0 {
 		t.Fatalf("repository follow-up branch missing:\n%s", listActiveSupplyChainImpactFactsQuery)
@@ -187,13 +190,24 @@ func TestListActiveSupplyChainImpactFactsQuerySeparatesParserFileFollowUp(t *tes
 		"ANY($10::text[])",
 		"fact.payload->'parsed_file_data'->>'language'",
 		"'javascript', 'jsx', 'typescript', 'tsx'",
-		"fact.fact_id > $11",
+		"OR (fact.fact_kind = 'vulnerability.suppression', fact.fact_id) > ($19::boolean, $11)",
+		"ORDER BY (fact.fact_kind = 'vulnerability.suppression') ASC, fact.fact_id ASC",
 		"LIMIT $12",
 	} {
-		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
+		if !strings.Contains(executableQuery, want) {
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
 		}
 	}
+}
+
+func sqlWithoutLineComments(query string) string {
+	lines := strings.Split(query, "\n")
+	for i, line := range lines {
+		if commentStart := strings.Index(line, "--"); commentStart >= 0 {
+			lines[i] = line[:commentStart]
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 func TestListActiveSecurityAlertReconciliationFactsQueryIsScopedAndPaged(t *testing.T) {

@@ -5,12 +5,14 @@ package reducer
 
 import "strings"
 
-// suppressionAdjacent reports whether a suppression names at least one anchor
-// the finding also has, so we can tell "could this suppression apply to this
-// finding's identity at all?" from "applies but scope did not line up." A
-// scope without a discoverable identity anchor is treated as adjacent so the
-// invalid suppression is preserved for audit, but
-// suppressionScopeMatchesFinding rejects it so it never hides a finding.
+// suppressionAdjacent reports whether a suppression names at least one
+// discoverable identity anchor the finding also has, so we can tell "could
+// this suppression apply to this vulnerability at all?" from "the identity
+// applies but narrowing scope did not line up." Deployment fields never make
+// different vulnerability identities adjacent. A scope without a discoverable
+// identity anchor is treated as adjacent so the invalid suppression is
+// preserved for audit, but suppressionScopeMatchesFinding rejects it so it
+// never hides a finding.
 func suppressionAdjacent(finding SupplyChainImpactFinding, s vulnerabilitySuppression) bool {
 	if !suppressionScopeHasDiscoverableAnchor(s.Scope) {
 		return true
@@ -31,15 +33,6 @@ func suppressionAdjacent(finding SupplyChainImpactFinding, s vulnerabilitySuppre
 		return true
 	}
 	if s.Scope.SubjectDigest != "" && strings.EqualFold(s.Scope.SubjectDigest, finding.SubjectDigest) {
-		return true
-	}
-	if s.Scope.Environment != "" && scopeListAnchorMatches(s.Scope.Environment, finding.Environments) {
-		return true
-	}
-	if s.Scope.WorkloadID != "" && scopeListAnchorMatches(s.Scope.WorkloadID, finding.WorkloadIDs) {
-		return true
-	}
-	if s.Scope.ServiceID != "" && scopeListAnchorMatches(s.Scope.ServiceID, finding.ServiceIDs) {
 		return true
 	}
 	return false

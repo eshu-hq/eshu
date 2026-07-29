@@ -101,6 +101,39 @@ func TestEvaluateSupplyChainSuppressionAmbiguousEnvironmentReasonPreservesVerifi
 	}
 }
 
+func TestEvaluateSupplyChainSuppressionDeploymentContextDoesNotCrossVulnerabilityIdentity(t *testing.T) {
+	t.Parallel()
+
+	findings := []SupplyChainImpactFinding{
+		{CVEID: "CVE-2026-54661", Environments: []string{"prod"}},
+		{CVEID: "CVE-2026-54662", Environments: []string{"prod"}},
+	}
+	suppressions := []vulnerabilitySuppression{{
+		SuppressionID: "suppression-other-cve",
+		Source:        facts.VulnerabilitySuppressionSourcePolicy,
+		Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+		AuthoredAt:    time.Date(2026, 7, 28, 0, 0, 0, 0, time.UTC),
+		Scope: vulnerabilitySuppressionScope{
+			CVEID:       "CVE-2026-54661",
+			Environment: "prod",
+		},
+	}}
+	now := time.Date(2026, 7, 29, 0, 0, 0, 0, time.UTC)
+	for i := range findings {
+		findings[i].Suppression = EvaluateSupplyChainSuppression(findings[i], suppressions, now)
+	}
+
+	if findings[0].Suppression.State != SupplyChainSuppressionStateNotAffected {
+		t.Fatalf("CVE-A State = %q, want %q", findings[0].Suppression.State, SupplyChainSuppressionStateNotAffected)
+	}
+	if findings[1].Suppression.State != SupplyChainSuppressionStateActive {
+		t.Fatalf("CVE-B State = %q, want %q for a different vulnerability identity", findings[1].Suppression.State, SupplyChainSuppressionStateActive)
+	}
+	if findings[1].Suppression.SuppressionID != "" {
+		t.Fatalf("CVE-B SuppressionID = %q, want empty for a different vulnerability identity", findings[1].Suppression.SuppressionID)
+	}
+}
+
 func TestEvaluateSupplyChainSuppressionSingleDeploymentDimensionRequiresSingletonEvidence(t *testing.T) {
 	t.Parallel()
 
