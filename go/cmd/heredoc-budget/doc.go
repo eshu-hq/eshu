@@ -37,13 +37,35 @@
 // the deadlock).
 //
 // This is a burn-down gate, not a hard ban: as of #5074 roughly 120 existing
-// heredocs across 56 files already exceed the budget, and rewriting all of
-// them is out of scope for this slice. Instead, the command compares the
+// heredocs across 56 files already exceeded the budget, and rewriting all of
+// them was out of scope for that slice. Instead, the command compares the
 // current scan against a checked-in baseline
 // (scripts/heredoc-budget-baseline.txt) and fails only on regression — a
 // brand-new file with an over-budget heredoc, or an existing baselined
 // file's over-budget count going up. A file's count staying the same or
 // going down (the expected burn-down direction) always passes.
+//
+// # Unquoted heredocs and runtime expansion (#5085)
+//
+// An UNQUOTED heredoc delimiter (`<<DELIM`, as opposed to `<<'DELIM'` or
+// `<<"DELIM"`) lets bash perform parameter and command substitution
+// (${var}, $(cmd), arithmetic) inside the body at runtime. That means a
+// heredoc whose literal SOURCE is under the 512-byte budget can still
+// expand past the real macOS pipe-buffer deadlock threshold once the shell
+// substitutes its variables — the concrete case (#5074 batch 1,
+// verify-oci-scorecard-adapter.sh) was a 496-byte source heredoc whose
+// `${fact_families[*]}` expansion crossed 512 bytes at runtime and
+// deadlocked, even though the static byte count looked safe. A quoted
+// delimiter disables all substitution, so its body never grows past its
+// literal size and keeps the full budget.
+//
+// To close this blind spot without a full static-expansion estimate (which
+// is generally impossible — an array's runtime size is unknowable from
+// source), the scanner compares an UNQUOTED heredoc against a stricter
+// effective threshold: budget minus a 25% margin (384 bytes for the default
+// 512-byte budget). This is a conservative, documented policy choice, not a
+// re-derived OS constant, and it only ever tightens (never loosens) what an
+// unquoted heredoc must clear.
 //
 // # Modes
 //
@@ -62,12 +84,14 @@
 //
 // The scanner is a line-based approximation, not a full shell lexer. It
 // handles blanks between `<<`/`<<-` and the delimiter (`cat << EOF`), ignores
-// a `<<IDENT` written in a full-line `#` comment, and does not mis-close a
-// heredoc on a delimiter word appearing inside another body. A few edge cases
-// remain and are tracked in #5079: a `<<IDENT` inside a string literal, two
-// heredoc openers on one line (`cmd <<A <<B`, only the first is measured), a
+// a `<<IDENT` written in a full-line `#` comment, does not mis-close a
+// heredoc on a delimiter word appearing inside another body, tracks
+// single/double-quote state so a `<<IDENT` inside a string literal (e.g.
+// `echo "a <<X b"`) does not phantom-open the scanner, and measures every
+// heredoc opener on a line (`cmd <<A <<B`), not just the first (#5079). Two
+// edge cases remain, neither present in the scanned tree today: a
 // numeric-first delimiter (`cat <<123`, rejected to avoid mistaking a
-// `$(( x << 2 ))` shift for a heredoc), and a `<<IDENT` in an inline comment
-// after a command (`echo x # <<EOF`, a false positive). None occurs in the
-// scanned tree today.
+// `$(( x << 2 ))` shift for a heredoc — intentional, not a bug) and a
+// `<<IDENT` in an inline comment after a command (`echo x # <<EOF`, a false
+// positive; only a full-line comment is recognized).
 package main

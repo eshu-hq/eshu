@@ -110,6 +110,17 @@ func reportFailures(stderr io.Writer, budget int, baseline map[string]int, failu
 		violations := failures[p]
 		_, _ = fmt.Fprintf(stderr, "FAIL %s: %d heredoc(s) over %d bytes (baseline %d)\n", p, len(violations), budget, baseline[p])
 		for _, v := range violations {
+			if v.Unquoted && v.Size <= budget {
+				// Flagged only via the unquoted runtime-expansion margin
+				// (#5085): the literal source is under the raw budget, but a
+				// bare (unquoted) delimiter lets bash expand ${var}/$(cmd)
+				// substitutions in the body at runtime, which can push it
+				// past the real deadlock threshold even though it looks safe
+				// here.
+				_, _ = fmt.Fprintf(stderr, "  %s:%d body=%d bytes (unquoted; exceeds %d-byte runtime-expansion margin though under the literal %d-byte budget)\n",
+					v.Path, v.Line, v.Size, v.Threshold, budget)
+				continue
+			}
 			_, _ = fmt.Fprintf(stderr, "  %s:%d body=%d bytes\n", v.Path, v.Line, v.Size)
 		}
 	}
