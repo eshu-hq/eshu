@@ -273,6 +273,59 @@ recent shipped work grouped by feature area.
     the corpus-wide count ranges is not runnable in this environment; see
     the PR description for that evidence.
 
+- **Live golden-corpus-gate round trip on the new fixtures.** A live run
+  found two failures the local-only verification above could not catch:
+  `?variant=local-backend-resolved` returned zero findings instead of the
+  expected `outcome: "exact"` finding, and `GET /api/v0/iac/resources` count
+  drifted from the new fixture's own resources. `?variant=unresolved`
+  passed, proving `outcome: "unresolved"` fires live and is distinguishable
+  from the resolved case, exactly the assertion this PR exists to build.
+  For the first failure: built an offline reproduction
+  (`TestEvaluateBackendConfigLocalBackendThroughRealParser`,
+  `go/internal/collector/terraformstate/backend_config_local_parser_integration_test.go`)
+  that parses the real fixture `.tf` content with the real
+  `go/internal/parser/hcl` package and feeds the result straight into
+  `EvaluateBackendConfig` -- no hand-built row, unlike every pre-existing
+  `backendConfigLocalCandidate` test -- and it passes, proving the
+  candidate-derivation algorithm, the parser's absolute-path row shape, and
+  the locator/hash formula are all correct for this exact fixture shape.
+  That ruled out a production-code defect in the default-path fix itself.
+  The remaining, most likely explanation: `scripts/lib/golden-corpus-local-backend.sh`'s
+  `stage_local_backend_cassette` computed the fixture's `local_path` from
+  `ingestion_scopes.payload`, but the resolver's actual join
+  (`go/internal/storage/postgres/tfstate_backend_canonical.go`'s
+  `repo_local_paths` CTE) reads it from `fact_records WHERE fact_kind =
+  'repository'` instead -- a different table. Tracing the write path shows
+  both should carry the identical value (same `repositoryidentity.Metadata`
+  struct field, written into both places by the same collector call), so
+  this was not provably the defect, but it was a real, unverified gap
+  between what the orchestrator precomputed and what the resolver actually
+  reads. Fixed by reading the identical table/predicate/tiebreak the
+  resolver's own CTE uses, removing the gap rather than relying on the two
+  staying in sync; also added a diagnostic print of the repository fact's
+  and the active backend-bearing file fact's generation_id side by side,
+  since the canonical join requires them to match exactly. For the second
+  failure: `GET /api/v0/iac/resources`'s `kind=resource` list and
+  `summary.by_kind.resource` both scan the `TerraformResource` graph label
+  sourced from `fact_kind='content_entity'` config-side parsing
+  (`go/internal/query/iac_resources.go`), unrelated to drift-ownership
+  resolution, so the fixture's two resource blocks
+  (`aws_instance.local_backend_demo`, `aws_s3_bucket.local_backend_demo`)
+  landed regardless of the first failure; `count`/`summary.by_kind.resource`
+  raised 11 -> 13 and `summary.total` (the sum of all three kind counts,
+  `go/internal/query/iac_inventory_postgres.go`) raised 19 -> 21, with the
+  module/data-source counts (19 - 11 = 8) held constant.
+  `node_count_Repository: 30` passed against range `[15,30]` on this live
+  run -- exactly at the ceiling. Left unchanged (correct today), but the
+  **next** fixture repo added to this corpus will break that assertion;
+  whoever adds it must raise the ceiling deliberately, not be surprised by
+  a red gate.
+  - Local verification: `cd go && go test ./internal/collector/terraformstate/...
+    -run TestEvaluateBackendConfigLocalBackendThroughRealParser -v -count=1`
+    passes; `bash scripts/test-verify-golden-corpus-gate.sh` passes;
+    `testdata/golden/e2e-20repo-snapshot.json` is valid JSON. The live gate
+    re-run that confirms this fix is not runnable in this environment.
+
 ### Route-fact-based Rails controller liveness
 
 - **Join the Rails controller dead-code-root verdict against real route facts**

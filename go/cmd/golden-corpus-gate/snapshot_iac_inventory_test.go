@@ -29,10 +29,14 @@ func TestGoldenSnapshotIaCInventoryRequiresCurrentSummary(t *testing.T) {
 			t.Fatalf("%s missing required JSON path %q", key, path)
 		}
 	}
+	// Issue #5594: raised by terraform_local_backend_demo's two resource
+	// blocks (aws_instance.local_backend_demo, aws_s3_bucket.local_backend_demo) --
+	// see testdata/golden/e2e-20repo-snapshot.json's own required_json_values
+	// comment on this same query shape for the full derivation.
 	for path, want := range map[string]any{
-		"count":                    float64(11),
-		"summary.total":            float64(19),
-		"summary.by_kind.resource": float64(11),
+		"count":                    float64(13),
+		"summary.total":            float64(21),
+		"summary.by_kind.resource": float64(13),
 	} {
 		if got := shape.RequiredJSONValues[path]; got != want {
 			t.Fatalf("%s required JSON value %q = %#v, want %#v", key, path, got, want)
