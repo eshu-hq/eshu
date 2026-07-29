@@ -326,6 +326,14 @@ if ! "${bin_dir}/eshu-golden-corpus-gate" \
 	die "first drain pass failed"
 fi
 kill "${projector_pid}" "${reducer_pid}" >/dev/null 2>&1 || true
+# issue #5594: start the cumulative reducer-log history this pass, before
+# start_bg's truncating redirect overwrites reducer.log on the next drain.
+# See scripts/lib/golden-corpus-maintenance-drains.sh's matching append for
+# why this file exists (config_state_drift intents for cassette-landed
+# scopes are not enqueueable until bootstrap-index's Phase 3.5 re-runs
+# during the maintenance loop below, but capturing this pass too costs
+# nothing and removes a "was it actually this early" question later).
+cat "${log_dir}/reducer.log" >"${log_dir}/reducer-config-state-drift-history.log" 2>/dev/null || true
 phase_first_drain_end="$(date +%s)"
 phase_maintenance_start="${phase_first_drain_end}"
 
@@ -337,6 +345,9 @@ phase_maintenance_start="${phase_first_drain_end}"
 # shellcheck source=scripts/lib/golden-corpus-maintenance-drains.sh
 . "${repo_root}/scripts/lib/golden-corpus-maintenance-drains.sh"
 run_maintenance_drain_cycles
+
+log "local-backend drift diagnostics (issue #5594)"
+print_local_backend_drift_diagnostics
 
 pipeline_end="$(date +%s)"
 elapsed=$(( pipeline_end - pipeline_start ))

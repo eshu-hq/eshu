@@ -82,5 +82,15 @@ run_maintenance_drain_cycles() {
 			die "maintenance drain ${maintenance_pass} failed"
 		fi
 		kill "${projector_pid}" "${reducer_pid}" >/dev/null 2>&1 || true
+		# start_bg truncates reducer.log on every invocation, so whichever pass
+		# actually claimed a given intent (issue #5594: the config_state_drift
+		# intent for a cassette-landed scope is only enqueueable once
+		# bootstrap-index re-runs Phase 3.5 after that scope exists, i.e. from
+		# this loop, not the first drain) would otherwise have its log
+		# silently overwritten by the next pass before anything downstream can
+		# read it. Append (never truncate) into one cumulative file so
+		# print_local_backend_drift_diagnostics (golden-corpus-local-backend.sh),
+		# called once after the whole loop, can grep every pass's output.
+		cat "${log_dir}/reducer.log" >>"${log_dir}/reducer-config-state-drift-history.log" 2>/dev/null || true
 	done
 }

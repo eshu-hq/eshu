@@ -104,3 +104,81 @@ stage_local_backend_cassette() {
 		-e "s|\$LOCAL_BACKEND_LOCATOR_HASH\$|${local_backend_hash}|g" \
 		"${committed_cassette}" >"${local_backend_cassette_path}"
 }
+
+# print_local_backend_drift_diagnostics() answers, in order, the four
+# questions that localize a zero-finding local-backend scope to one specific
+# failure point in the sync -> discover -> parse -> emit facts -> enqueue
+# work -> reducer -> query surface pipeline (issue #5594 second live-gate
+# round trip: candidate DERIVATION was proven correct offline by
+# TestEvaluateBackendConfigLocalBackendThroughRealParser, and the
+# local_path-source alignment in stage_local_backend_cassette above did not
+# fix the live failure, so the next round trip needs this instead of another
+# hypothesis). Call once, after run_maintenance_drain_cycles returns (the
+# config_state_drift intent for a cassette-landed scope is only enqueueable
+# once bootstrap-index's Phase 3.5 re-runs during that loop, not before).
+#
+# Requires: local_backend_scope_id (set by stage_local_backend_cassette,
+# called earlier in the same script run), pg(), log_dir. jq is required (the
+# suppression-proof helper elsewhere in this gate already depends on it, so
+# this adds no new tool requirement).
+#
+# Intent: KEEP THIS PERMANENTLY. It costs one script block and a handful of
+# bounded queries against a corpus this small, and it turns "which of five
+# failure points broke" from a guessing game back into a single gate run —
+# the same value a live-gate operator would want for any other domain this
+# gate exercises, not just while #5594 is open.
+print_local_backend_drift_diagnostics() {
+	printf '\n--- local-backend drift diagnostics (scope_id=%s) ---\n' "${local_backend_scope_id}"
+
+	printf '\n[1] did the cassette entry land? (ingestion_scopes + terraform_state_snapshot/terraform_state_candidate facts)\n'
+	pg "
+		SELECT 'ingestion_scopes' AS source, scope_id, active_generation_id, status
+		FROM ingestion_scopes WHERE scope_id = '${local_backend_scope_id}';
+	" || true
+	pg "
+		SELECT 'fact_records' AS source, fact_kind, generation_id, is_tombstone, observed_at
+		FROM fact_records
+		WHERE scope_id = '${local_backend_scope_id}'
+		  AND fact_kind IN ('terraform_state_snapshot', 'terraform_state_candidate')
+		ORDER BY fact_kind, observed_at DESC;
+	" || true
+
+	printf '\n[2] was a config_state_drift intent enqueued? (fact_work_items rows for this scope + domain)\n'
+	pg "
+		SELECT work_item_id, status, attempt_count, failure_class, failure_message, updated_at
+		FROM fact_work_items
+		WHERE scope_id = '${local_backend_scope_id}' AND domain = 'config_state_drift'
+		ORDER BY updated_at DESC;
+	" || true
+
+	printf '\n[3] did it execute, and what did it produce? (reducer_terraform_config_state_drift_finding facts, by outcome/drift_kind)\n'
+	pg "
+		SELECT payload->>'outcome' AS outcome, COALESCE(payload->>'drift_kind', '<none>') AS drift_kind, count(*)
+		FROM fact_records
+		WHERE scope_id = '${local_backend_scope_id}'
+		  AND fact_kind = 'reducer_terraform_config_state_drift_finding'
+		GROUP BY 1, 2
+		ORDER BY 1, 2;
+	" || true
+
+	printf '\n[4] if zero findings above: was ownership resolved at all? (reducer structured log, both outcomes are logged even when nothing is written to fact_records)\n'
+	local history="${log_dir}/reducer-config-state-drift-history.log"
+	if [[ ! -f "${history}" ]]; then
+		printf 'no reducer log history file found at %s\n' "${history}"
+	elif ! command -v jq >/dev/null 2>&1; then
+		printf 'jq not available; raw grep of %s for this scope_id:\n' "${history}"
+		grep -F "${local_backend_scope_id}" "${history}" || printf '(no lines matched)\n'
+	else
+		local matches
+		matches="$(jq -c --arg scope "${local_backend_scope_id}" '
+			select(.scope_id == $scope and (.message == "drift candidate rejected" or .message == "drift candidate resolved via defaulted locator"))
+		' "${history}" 2>/dev/null)"
+		if [[ -z "${matches}" ]]; then
+			printf 'no "drift candidate rejected" or "drift candidate resolved via defaulted locator" log line found for this scope_id across any drain pass. This means either the intent was never claimed (see [2]), or the handler returned before either log call -- check for "resolver_unavailable"/"evidence_loader_unavailable" failure_class lines too:\n'
+			jq -c --arg scope "${local_backend_scope_id}" 'select(.scope_id == $scope)' "${history}" 2>/dev/null || true
+		else
+			printf '%s\n' "${matches}"
+		fi
+	fi
+	printf -- '--- end local-backend drift diagnostics ---\n\n'
+}
