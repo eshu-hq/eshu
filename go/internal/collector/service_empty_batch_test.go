@@ -94,20 +94,25 @@ func (s *scriptedPollSource) Next(context.Context) (CollectedGeneration, bool, e
 }
 
 // TestServiceRunEmptyBatchEscapeAddsExactlyOneDrainPerProcess pins the escape's
-// blast radius by measuring the observable — the drain count — rather than
-// reasoning about the two latch flags, which is easy to get wrong from the source.
+// blast radius, for a shard that DOES eventually commit, by measuring the
+// observable — the drain count — rather than reasoning about the latch
+// flags, which is easy to get wrong from the source.
 //
-// AfterEmptyBatchDrained is easy to misread as recurring, because
-// emptyDrainObserved is cleared on every successful commit (service.go:265). It
-// does not recur: the same commit sets committedSinceDrain (service.go:264), so
-// the next exhausted batch drains through the committedSinceDrain leg whether or
-// not the escape is enabled, and the escape leg is decisive only in the initial
-// state before any commit. Drains DO recur once per commit-to-idle cycle; that
-// recurrence belongs to committedSinceDrain and is present with the escape off.
+// The escape leg fires while `everCommitted` is false (service.go:226) and
+// `everCommitted` latches true permanently on this shard's first commit
+// (service.go:273) — it is never cleared again for the rest of the process.
+// So for a script that commits at least once, the escape leg can matter only
+// during the idle polls before that first commit; every commit-to-idle cycle
+// after it is driven by `committedSinceDrain` alone, on or off. (A shard that
+// never commits at all is a different case — see
+// TestServiceRunCallsEmptyBatchDrainHookOnEveryIdlePollForANeverCommittingShard,
+// which pins the opposite behavior: the escape recurs on every idle poll for
+// as long as `everCommitted` stays false.)
 //
 // Running the same script with the escape on and off isolates the escape's own
 // contribution: the delta must be exactly one drain for the whole process, no
-// matter how many commit-to-idle cycles the script contains.
+// matter how many commit-to-idle cycles the script contains, because this
+// script's leading idle poll is the only one that happens before any commit.
 func TestServiceRunEmptyBatchEscapeAddsExactlyOneDrainPerProcess(t *testing.T) {
 	t.Parallel()
 
@@ -158,19 +163,42 @@ func TestServiceRunEmptyBatchEscapeAddsExactlyOneDrainPerProcess(t *testing.T) {
 	}
 }
 
-func TestServiceRunCallsEmptyBatchDrainHookOnceWhileIdle(t *testing.T) {
+// TestServiceRunCallsEmptyBatchDrainHookOnEveryIdlePollForANeverCommittingShard
+// reproduces #5852: a sharded ingester shard that owns no repositories never
+// commits a generation, so a latch that only re-arms on commit fires the
+// escape drain hook exactly once (at startup) and then never again. That
+// drains the fleet's deferred-maintenance barrier for its first epoch and
+// then permanently strands every later one, because
+// waitDeferredMaintenanceBarrierCompletion
+// (go/internal/storage/postgres/deferred_maintenance_barrier.go) requires a
+// fresh arrival from every shard, including this one, each epoch, and has no
+// arrival deadline.
+//
+// Before the fix, this test failed: emptyDrainObserved latched true after the
+// first drain and nothing but a commit ever cleared it, so hookCalls stayed
+// at 1 no matter how many idle polls followed. The fix re-arms the escape on
+// "has this shard ever committed," not on "did the last drain happen" — a
+// shard that has never committed keeps re-firing on every idle poll, one
+// arrival attempt per barrier cycle, for as long as it stays empty. A shard
+// that does commit is unaffected: `committedSinceDrain` takes over as soon as
+// its first commit lands, exactly as before.
+func TestServiceRunCallsEmptyBatchDrainHookOnEveryIdlePollForANeverCommittingShard(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// wantIdlePolls stands in for at least two fleet-barrier epochs (three
+	// idle polls give a clear third data point beyond the two-epoch minimum
+	// the issue asks for).
+	const wantIdlePolls = 3
 	emptyPolls := 0
 	hookCalls := 0
 	service := Service{
 		Source: &stubSource{
 			empty: func() {
 				emptyPolls++
-				if emptyPolls == 2 {
+				if emptyPolls == wantIdlePolls {
 					cancel()
 				}
 			},
@@ -187,7 +215,7 @@ func TestServiceRunCallsEmptyBatchDrainHookOnceWhileIdle(t *testing.T) {
 	if err := service.Run(ctx); err != nil {
 		t.Fatalf("Run() error = %v, want nil", err)
 	}
-	if got, want := hookCalls, 1; got != want {
-		t.Fatalf("AfterBatchDrained() calls = %d, want %d", got, want)
+	if got, want := hookCalls, wantIdlePolls; got != want {
+		t.Fatalf("AfterBatchDrained() calls = %d, want %d (a shard that never commits must re-arrive at the barrier every idle poll, not just once)", got, want)
 	}
 }

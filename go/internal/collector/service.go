@@ -198,7 +198,16 @@ func (s Service) Run(ctx context.Context) error {
 	}
 
 	committedSinceDrain := false
-	emptyDrainObserved := false
+	// everCommitted latches true on the first commit and never clears again,
+	// unlike committedSinceDrain (which resets on every drain). #5852: gating
+	// the AfterEmptyBatchDrained escape on a drain-cleared flag meant a shard
+	// that never commits (owns no repositories) escaped once at startup and
+	// then never again, starving every later barrier epoch of its arrival.
+	// Gating on !everCommitted instead re-fires the escape on every idle poll
+	// until this shard's first commit, if any — recurring for the process
+	// lifetime when there is none, and yielding to committedSinceDrain as
+	// soon as one lands.
+	everCommitted := false
 	for {
 		if ctx.Err() != nil {
 			return nil
@@ -214,13 +223,12 @@ func (s Service) Run(ctx context.Context) error {
 		}
 		if !ok {
 			s.endCollectorObserve(observation, nil)
-			shouldDrain := committedSinceDrain || (s.AfterEmptyBatchDrained && !emptyDrainObserved)
+			shouldDrain := committedSinceDrain || (s.AfterEmptyBatchDrained && !everCommitted)
 			if shouldDrain && s.AfterBatchDrained != nil {
 				if err := s.AfterBatchDrained(ctx); err != nil {
 					return fmt.Errorf("after collector batch drained: %w", err)
 				}
 				committedSinceDrain = false
-				emptyDrainObserved = true
 			}
 			if err := waitForNextPoll(ctx, s.PollInterval); err != nil {
 				return nil
@@ -262,7 +270,7 @@ func (s Service) Run(ctx context.Context) error {
 		}
 		s.endCollectorObserve(observation, nil)
 		committedSinceDrain = true
-		emptyDrainObserved = false
+		everCommitted = true
 	}
 }
 

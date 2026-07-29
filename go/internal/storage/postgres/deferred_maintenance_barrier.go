@@ -18,6 +18,15 @@ const (
 	deferredMaintenanceBarrierName         = "ingester_deferred_relationship_maintenance"
 	deferredMaintenanceBarrierStateLockKey = 0x455348554d4253
 	deferredMaintenanceBarrierPollInterval = 250 * time.Millisecond
+	// deferredMaintenanceBarrierStallLogInterval bounds how often a shard
+	// stuck in waitDeferredMaintenanceBarrierCompletion re-announces the
+	// stall. The wait itself stays unbounded (see the function doc for why),
+	// but a shard that has been waiting this long or longer logs a WARN with
+	// the current arrival count on every subsequent poll tick until the
+	// barrier completes, so an operator grepping logs at 3 AM can find the
+	// stalled epoch, which shards have (and have not) arrived, and how long
+	// it has been stuck without having to correlate silence across shards.
+	deferredMaintenanceBarrierStallLogInterval = 30 * time.Second
 )
 
 const selectLatestDeferredMaintenanceBarrierSQL = `
@@ -209,6 +218,24 @@ func (s IngestionStore) markDeferredMaintenanceBarrierComplete(
 	return nil
 }
 
+// waitDeferredMaintenanceBarrierCompletion blocks until every shard has
+// arrived at epoch and the leader has marked it complete, or ctx is
+// cancelled. The wait is deliberately unbounded rather than falling back to a
+// deadline or partial-arrival quorum: this barrier's entire purpose is to
+// stop deferred relationship maintenance from running while any shard might
+// still be mid-ingest, and a quorum or timeout bypass would let maintenance
+// run against a fleet that has not actually reached a quiescent point,
+// trading a correctness guarantee (the repo's accuracy-first priority) for
+// liveness. #5852 fixed the actual cause of an indefinite wait here — a
+// shard that owns no repositories and never commits used to arrive at the
+// barrier once, at startup, and then never again (see
+// collector.Service.Run's everCommitted latch) — so every shard that is
+// still running now keeps arriving every epoch for as long as it is alive
+// and connected to Postgres. What remains unbounded on purpose is the case
+// this function cannot fix: a shard that has actually crashed, hung, or lost
+// connectivity. Waiting shards observe that as a stall with no deadline, by
+// design, rather than risk running maintenance early against live data from
+// a shard that turns out not to be dead.
 func (s IngestionStore) waitDeferredMaintenanceBarrierCompletion(
 	ctx context.Context,
 	epoch int64,
@@ -220,6 +247,8 @@ func (s IngestionStore) waitDeferredMaintenanceBarrierCompletion(
 
 	ticker := time.NewTicker(deferredMaintenanceBarrierPollInterval)
 	defer ticker.Stop()
+	waitStartedAt := s.now()
+	nextStallLogAt := waitStartedAt.Add(deferredMaintenanceBarrierStallLogInterval)
 	for {
 		completed, err := deferredMaintenanceBarrierCompleted(ctx, s.db, epoch)
 		if err != nil {
@@ -236,6 +265,28 @@ func (s IngestionStore) waitDeferredMaintenanceBarrierCompletion(
 				)
 			}
 			return nil
+		}
+		if s.Logger != nil {
+			if now := s.now(); !now.Before(nextStallLogAt) {
+				arrivedCount, countErr := countDeferredMaintenanceBarrierArrivals(ctx, s.db, epoch)
+				logArgs := []any{
+					telemetry.PhaseAttr("deferred_maintenance_barrier"),
+					"epoch", epoch,
+					"shard_count", config.ShardCount,
+					"shard_index", config.ShardIndex,
+					"waited", now.Sub(waitStartedAt).String(),
+				}
+				if countErr != nil {
+					logArgs = append(logArgs, "arrived_shards_error", countErr.Error())
+				} else {
+					logArgs = append(logArgs, "arrived_shards", arrivedCount)
+				}
+				s.Logger.WarnContext(
+					ctx, "deferred maintenance barrier still waiting for completion",
+					logArgs...,
+				)
+				nextStallLogAt = now.Add(deferredMaintenanceBarrierStallLogInterval)
+			}
 		}
 		select {
 		case <-ctx.Done():
@@ -355,6 +406,33 @@ func deferredMaintenanceBarrierCompleted(ctx context.Context, queryer Queryer, e
 		return false, fmt.Errorf("scan deferred maintenance barrier completion rows: %w", err)
 	}
 	return completedAt.Valid, nil
+}
+
+// countDeferredMaintenanceBarrierArrivals reports how many shards have
+// recorded an arrival for epoch, for the stall-watchdog log in
+// waitDeferredMaintenanceBarrierCompletion. It is read-only and, unlike
+// recordDeferredMaintenanceBarrierArrival, does not require a transaction —
+// a waiting shard has nothing new to record, only a count to report.
+func countDeferredMaintenanceBarrierArrivals(ctx context.Context, queryer Queryer, epoch int64) (int, error) {
+	rows, err := queryer.QueryContext(ctx, countDeferredMaintenanceBarrierArrivalsSQL, deferredMaintenanceBarrierName, epoch)
+	if err != nil {
+		return 0, fmt.Errorf("count deferred maintenance barrier arrivals: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return 0, fmt.Errorf("scan deferred maintenance barrier arrival rows: %w", err)
+		}
+		return 0, fmt.Errorf("count deferred maintenance barrier arrivals: no rows")
+	}
+	var arrivedCount int
+	if err := rows.Scan(&arrivedCount); err != nil {
+		return 0, fmt.Errorf("scan deferred maintenance barrier arrival count: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("scan deferred maintenance barrier arrival rows: %w", err)
+	}
+	return arrivedCount, nil
 }
 
 func completeDeferredMaintenanceBarrier(

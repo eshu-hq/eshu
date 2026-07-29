@@ -1586,25 +1586,42 @@ activation-driven re-enqueue, which replaces the replay rather than bounding it.
 server-side `UPDATE` loop excludes exactly the round-trips that dominate here.
 
 On the ingester those drains are paced by ingestion, not by a timer.
-`collector.Service` runs `AfterBatchDrained` only when the source batch
-exhausts after at least one committed generation, and only a further commit
-re-arms the latch (`committedSinceDrain || (AfterEmptyBatchDrained &&
-!emptyDrainObserved)` at `go/internal/collector/service.go:217`, cleared at
-`:222`-`:223`, set again at `:264`-`:265`); the `AfterEmptyBatchDrained` escape
-the ingester enables for `RepoShardCount > 1` (`go/cmd/ingester/wiring.go:220`)
-adds at most one drain per process, not a recurring one — zero if the process
-commits before its first exhausted batch, since that commit makes the
-`committedSinceDrain` leg decisive instead.
+`collector.Service` runs `AfterBatchDrained` when the source batch exhausts
+after at least one committed generation (`committedSinceDrain`, cleared at
+`go/internal/collector/service.go:231`, set again at `:272`), or via the
+`AfterEmptyBatchDrained` escape the ingester enables for `RepoShardCount > 1`
+(`go/cmd/ingester/wiring.go:220`).
 
-Drains themselves do recur, once per commit-to-idle cycle, but that recurrence is
-`committedSinceDrain`'s and happens with the escape disabled. The escape's own
-`emptyDrainObserved` latch re-arms on every commit (`:265`), which reads as
-recurring and is not: the same commit sets `committedSinceDrain` (`:264`), so the
-next exhausted batch drains through the `committedSinceDrain` leg either way, and
-the escape leg decides a drain only in the initial state before any commit.
-`TestServiceRunEmptyBatchEscapeAddsExactlyOneDrainPerProcess` measures the drain
-count with the escape on and off over ten commit-to-idle cycles and pins the
-difference at exactly one.
+The escape is gated on `!everCommitted` (`:226`), where `everCommitted`
+latches true permanently on this shard's first commit (`:273`) and is never
+cleared again. A shard that eventually commits only exercises the escape
+during its pre-first-commit startup window — after the first commit,
+`committedSinceDrain` alone drives the cadence, on or off, exactly as before
+#5852. A shard that never commits, because it owns no repositories under the
+current shard assignment, keeps `everCommitted` false forever, so the escape
+fires on every idle poll for the life of the process — one deferred-maintenance
+barrier arrival attempt per idle poll, for as long as the shard stays empty.
+Before #5852 the equivalent latch (`emptyDrainObserved`) was cleared by a
+drain, not gated by "has this shard ever committed," so a permanently empty
+shard drained once at startup and then never again, permanently starving every
+later barrier epoch of its arrival —
+`waitDeferredMaintenanceBarrierCompletion` has no arrival deadline, so the
+shards that had arrived blocked forever.
+`TestServiceRunEmptyBatchEscapeAddsExactlyOneDrainPerProcess` still pins the
+single-window behavior for an eventually-busy shard, and the new
+`TestServiceRunCallsEmptyBatchDrainHookOnEveryIdlePollForANeverCommittingShard`
+pins the recurring behavior for a shard that never commits.
+
+`waitDeferredMaintenanceBarrierCompletion` itself remains deliberately
+unbounded — no arrival deadline, no partial-arrival quorum — because running
+deferred maintenance while any shard might still be mid-ingest is a
+correctness risk this barrier exists to prevent, and #5852 fixed the actual
+trigger for an indefinite wait among live shards rather than weakening that
+guarantee. What stays unbounded on purpose is a shard that has genuinely
+crashed or lost connectivity; that case now surfaces as a WARN log
+(`deferred maintenance barrier still waiting for completion`, at least every
+30s) carrying the epoch, shard identity, elapsed wait, and current arrival
+count, so an operator can tell a stalled epoch from ordinary silence.
 
 All five domains reopen in one
 unordered transaction, so a `container_image_identity` ->
