@@ -143,14 +143,36 @@
 //     every competing repo's identity) rather than either silently dropping
 //     the rejection to a log line or stamping a guessed winner exact.
 //
+//   - "unresolved" — also NOT a per-address outcome, one level up at
+//     backend-owner resolution like "ambiguous," but for the opposite
+//     cardinality: zero distinct repos claim the (backend_kind, locator_hash)
+//     (tfstatebackend.ErrNoConfigRepoOwnsBackend), rather than more than one.
+//     Superseded decision (issue #5594, overriding the #5442-era call
+//     recorded in this package's history): this outcome WAS log-only through
+//     #5442, on the reasoning that "no Eshu-tracked repo owns this backend"
+//     is not actionable drift evidence and persisting one row per untracked
+//     backend per generation is unbounded write volume for zero operator
+//     value. #5594 revisited that trade-off and the repo owner chose
+//     visibility: the writer now persists ONE durable finding for the whole
+//     rejected state scope (Address and DriftKind empty,
+//     AmbiguousOwnerCandidates also empty — there is no competing evidence to
+//     record here, only the absence of any owner), the exact ambiguous
+//     precedent extended to the zero-owner case. The "unbounded write volume"
+//     concern is addressed, not ignored: this write grows the SAME already-
+//     accepted rate the ambiguous write already has (one row per
+//     scope+generation, upserted by stable fact id, and only the active
+//     generation's row is ever queryable — see
+//     go/internal/storage/postgres/terraform_config_state_drift_findings.go's
+//     `scope.active_generation_id = fact.generation_id` filter), not a new
+//     unbounded category. The Terragrunt local-backend case that originally
+//     surfaced this gap (a `remote_state { backend = "local" }` block whose
+//     path resolves into Terragrunt's ephemeral `.terragrunt-cache` working
+//     directory, which a static parser cannot observe or default against) is
+//     one instance of this same no_config_repo_owns_backend class, not a
+//     special case — see go/internal/collector/terraformstate/source_terragrunt.go.
+//
 // Deliberately not reachable / not persisted:
 //
-//   - "unresolved" (tfstatebackend.ErrNoConfigRepoOwnsBackend, zero candidate
-//     repos) stays log-only, not a durable finding. Unlike the ambiguous
-//     case, there is no competing evidence to record — "no Eshu-tracked repo
-//     owns this backend" is not actionable drift evidence, and persisting one
-//     row per untracked backend per generation would be unbounded write
-//     volume for zero operator value.
 //   - "stale" is unreachable with the evidence this handler has today.
 //     CommitAnchor records which single config commit currently owns the
 //     backend (tfstatebackend.CommitAnchor.CommitObservedAt), but nothing in

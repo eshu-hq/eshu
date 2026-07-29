@@ -272,7 +272,7 @@ func composeReplatformingPlanSchema() map[string]any {
 func terraformConfigStateDriftFindingsTool() ToolDefinition {
 	return ToolDefinition{
 		Name:        "list_terraform_config_state_drift_findings",
-		Description: "List active Terraform config-vs-state drift reducer findings for one bounded state-snapshot scope, with the exact/ambiguous outcome and drift kind for each finding. Provider-neutral: config-vs-state drift is not cloud-specific. Provide scope_id.",
+		Description: "List active Terraform config-vs-state drift reducer findings for one bounded state-snapshot scope, with the exact/ambiguous/unresolved outcome and drift kind for each finding. A scope whose backend ownership never resolved is reported as one \"unresolved\" finding, not an empty page, so it can be told apart from a scope that resolved cleanly and simply has no drift. Provider-neutral: config-vs-state drift is not cloud-specific. Provide scope_id.",
 		InputSchema: terraformConfigStateDriftFindingsSchema(),
 	}
 }
@@ -291,7 +291,7 @@ func terraformConfigStateDriftFindingsSchema() map[string]any {
 			},
 			"outcome": map[string]any{
 				"type":        "string",
-				"description": "Optional outcome filter: exact or ambiguous",
+				"description": "Optional outcome filter: exact, ambiguous, or unresolved",
 			},
 			"drift_kinds": map[string]any{
 				"type":        "array",

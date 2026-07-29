@@ -8,7 +8,7 @@ const openAPIPathsTerraformConfigStateDrift = `
       "post": {
         "tags": ["terraform"],
         "summary": "List Terraform config-vs-state drift findings",
-        "description": "Lists active reducer-materialized Terraform config-vs-state drift findings for one bounded state-snapshot scope. Provider-neutral: config-vs-state drift is not cloud-specific, so this route is separate from the AWS and multi-cloud runtime-drift routes. Every finding carries an outcome: exact (a classified per-address drift kind) or ambiguous (backend-owner resolution found more than one candidate config repo; no per-address classification ran). Scoped tokens must supply an exact scope_id that resolves to a granted repository or ingestion scope; an out-of-grant scope_id receives an empty page.",
+        "description": "Lists active reducer-materialized Terraform config-vs-state drift findings for one bounded state-snapshot scope. Provider-neutral: config-vs-state drift is not cloud-specific, so this route is separate from the AWS and multi-cloud runtime-drift routes. Every finding carries an outcome: exact (a classified per-address drift kind), ambiguous (backend-owner resolution found more than one candidate config repo; no per-address classification ran), or unresolved (backend-owner resolution found zero candidate config repos -- no Eshu-tracked repo declares this backend at all; no per-address classification ran). A scope whose backend never resolves is reported as one unresolved finding rather than an empty page, so it can be told apart from a scope that resolved cleanly and simply has no drift. Scoped tokens must supply an exact scope_id that resolves to a granted repository or ingestion scope; an out-of-grant scope_id receives an empty page.",
         "operationId": "listTerraformConfigStateDriftFindings",
         "x-scoped-token-support": true,
         "requestBody": {
@@ -20,7 +20,7 @@ const openAPIPathsTerraformConfigStateDrift = `
                 "properties": {
                   "scope_id": {"type": "string", "description": "Exact Terraform state-snapshot scope, for example state_snapshot:s3:hash-1."},
                   "address": {"type": "string", "description": "Optional exact Terraform resource address to inspect."},
-                  "outcome": {"type": "string", "enum": ["exact", "ambiguous"], "description": "Optional outcome filter."},
+                  "outcome": {"type": "string", "enum": ["exact", "ambiguous", "unresolved"], "description": "Optional outcome filter."},
                   "drift_kinds": {
                     "type": "array",
                     "description": "Optional drift kinds: added_in_state, added_in_config, attribute_drift, removed_from_state, or removed_from_config.",
@@ -70,7 +70,7 @@ const openAPIPathsTerraformConfigStateDrift = `
                           "canonical_id": {"type": "string"},
                           "candidate_id": {"type": "string"},
                           "candidate_kind": {"type": "string"},
-                          "outcome": {"type": "string", "enum": ["exact", "ambiguous"]},
+                          "outcome": {"type": "string", "enum": ["exact", "ambiguous", "unresolved"]},
                           "address": {"type": "string"},
                           "drift_kind": {"type": "string"},
                           "backend_kind": {"type": "string"},
