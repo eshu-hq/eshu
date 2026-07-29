@@ -5,6 +5,10 @@ image identity, SBOM, supply-chain impact, suppression, and
 ecosystem-parity invariants live here; keep the top invariants and a
 pointer in `README.md`.
 
+Some supply-chain-impact / security-alert-reconciliation evidence stayed in
+[`gotchas-correlation-queue-and-graph-security.md`](gotchas-correlation-queue-and-graph-security.md)
+(near its "Provider alerts" bullet) to keep both files under the 500-line cap.
+
 - **All reducer domains must be cross-source, cross-scope, and truth-emitting**
   — enforced by `OwnershipShape.Validate`; domains either write canonical graph
   truth, publish durable reducer facts such as `aws_cloud_runtime_drift`, or

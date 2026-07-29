@@ -6,6 +6,13 @@ invariants, code-call edge rules, and the security-sensitive
 SecurityGroup/IAM graph projections live here; keep the top
 invariants and a pointer in `README.md`.
 
+Some evidence paragraphs below the code-call edge rules (roughly between the
+platform-lock and observability-coverage evidence) are supply-chain-impact
+and security-alert-reconciliation proof, topically closer to
+[`gotchas-supply-chain-and-vulnerabilities.md`](gotchas-supply-chain-and-vulnerabilities.md).
+They stayed here — unmoved from the original README ordering — because
+moving them would push that file over the 500-line cap.
+
 - **Service catalog correlation is repository-evidence gated** —
   `ServiceCatalogCorrelationHandler` writes
   `reducer_service_catalog_correlation` facts for explicit repository-id or
