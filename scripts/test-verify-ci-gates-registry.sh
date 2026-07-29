@@ -120,6 +120,43 @@ require_path_line "${e2e_pull_request_paths}" "${backend_conformance_script}" \
 require_path_line "${e2e_gate}" "${backend_conformance_script}" \
 	"e2e-tests registry triggers omit the live backend-conformance driver"
 
+# #5814/#5863 codex review: scripts/lib/ci-gate-merge-group-checks.sh is
+# sourced by scripts/verify-docs-only-ci-skip.sh (extracted to keep that
+# script under the 500-line cap) but is not itself a workflow or script the
+# docs-only-ci-skip gate's own file list would otherwise catch. Without this
+# trigger, a change touching ONLY that lib selected NO local gate at all — the
+# exact unregistered-trigger false-green class #5538/#5546 closed elsewhere —
+# so the first discovery of a broken merge_group assertion would have been CI,
+# on the always-on job guarding the go-core-complete/go-race-complete required
+# status checks. docs-only-ci-skip is tier pre-pr, not pre-push, so this uses
+# its own --tier pre-pr call rather than the pre-push-only select_explain
+# helper defined below for the frontend suite.
+docs_only_ci_skip_gate="$(
+	sed -n '/^  - id: docs-only-ci-skip$/,/^  - id:/p' "${registry}"
+)"
+merge_group_lib='scripts/lib/ci-gate-merge-group-checks.sh'
+require_path_line "${docs_only_ci_skip_gate}" "${merge_group_lib}" \
+	"docs-only-ci-skip registry triggers omit the merge_group checks lib"
+selection="$(
+	printf '%s\n' "${merge_group_lib}" |
+		(cd "${repo_root}/go" && go run ./cmd/ci-gates select \
+			--registry "${registry}" --tier pre-pr --paths-from - --explain)
+)"
+# Also legitimately selects heredoc-budget (its own "scripts/**/*.sh" trigger
+# covers every shell script, including this one) — that is correct, unrelated
+# behavior, not something this assertion should suppress or ignore.
+[[ "$(printf '%s\n' "${selection}" | rg --count '^SELECTED[[:space:]]+' || true)" == "2" ]] ||
+	fail "merge_group checks lib must select exactly two gates, docs-only-ci-skip and heredoc-budget (${merge_group_lib})"
+printf '%s\n' "${selection}" |
+	rg --quiet '^SELECTED[[:space:]]+docs-only-ci-skip[[:space:]]' ||
+	fail "merge_group checks lib did not select docs-only-ci-skip (${merge_group_lib})"
+printf '%s\n' "${selection}" |
+	rg --fixed-strings --quiet -- "matched trigger \"${merge_group_lib}\" on path \"${merge_group_lib}\"" ||
+	fail "docs-only-ci-skip selected for the wrong reason (${merge_group_lib})"
+printf '%s\n' "${selection}" |
+	rg --quiet '^SELECTED[[:space:]]+heredoc-budget[[:space:]]' ||
+	fail "merge_group checks lib did not also select heredoc-budget (${merge_group_lib})"
+
 for sql_fixture in \
 	'scripts/lib/console-retained-create-proof-schema.sql' \
 	'scripts/lib/console-retained-verify-public-identity.sql'; do

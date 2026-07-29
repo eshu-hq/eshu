@@ -1092,6 +1092,7 @@ gates:
       - "specs/ci-gates.v1.yaml"
       - "scripts/verify-docs-only-ci-skip.sh"
       - "scripts/test-verify-docs-only-ci-skip.sh"
+      - "scripts/lib/ci-gate-merge-group-checks.sh"
     local:
       command: "bash scripts/verify-docs-only-ci-skip.sh"
       test_command: "bash scripts/test-verify-docs-only-ci-skip.sh"
