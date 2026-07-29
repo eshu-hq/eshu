@@ -612,10 +612,47 @@ and `TestEvaluateSupplyChainSuppressionWorkloadAndServiceScopeMatchAndFailClosed
 use single-value lists throughout and pass unchanged, proving the common
 case is not regressed.
 
+**Operator-visible limitation (make this discoverable, not just correct):**
+a suppression naming TWO OR MORE of {environment, workload_id, service_id}
+will silently never apply to any finding that has more than one distinct
+value in a referenced dimension -- it fails closed and the finding stays
+visible. From an operator's chair this looks exactly like "I wrote a
+precise multi-anchor suppression and it did nothing," the same complaint
+class this whole branch has spent seven review rounds fixing for other
+scope keys. WHY: the evidence model genuinely cannot prove the named
+combination ever occurred in one real deployment (see the struct trace
+above -- environment, workload, and service come from three fact kinds
+that share no field but `repository_id`), so matching anyway would risk
+silently hiding a finding from a deployment context it was never actually
+in. This is stated plainly in three places so it cannot be missed: the
+`vulnerabilitySuppressionScope` struct's doc comment
+(`supply_chain_suppression.go`, under a `KNOWN LIMITATION` heading), this
+evidence doc, and the scope-mismatch reason string itself --
+`suppressionAmbiguousCombinationDiff`
+(`supply_chain_suppression_reasons.go`) distinguishes "the anchors
+genuinely did not match" from "the anchors could not be verified
+together" in the `decision.Reason` text an operator actually sees, naming
+exactly which dimension(s) had more than one distinct value, rather than
+falling through to the generic (and here misleading) "scope anchors did
+not match the finding." This was cheap to add -- it reuses the same pure
+`suppressionDeploymentContextUnambiguous` function the matcher already
+calls -- so it was added rather than deferred.
+
 This is a genuine projected-truth change (a finding's suppression decision
 outcome changes for the previously-over-suppressed multi-anchor-ambiguous
-case), so the full golden-corpus gate is mandatory for this fix -- see the
-combined re-verification note at the end of the P1-B section below.
+case), so the full golden-corpus gate is mandatory for this fix. **Run and
+green**: `bash scripts/verify-golden-corpus-gate.sh` -- `511 pass, 0
+required-fail, 0 advisory-warn`, `PASS: B-7 golden corpus gate green
+(elapsed 106s, budget ceiling 1800s)`. The golden corpus's one
+`vulnerability.suppression` fixture (`SUP-9001`,
+`testdata/cassettes/replayschedule/supply-chain-impact.json`) scopes only
+`cve_id`/`advisory_id`/`package_id`/`purl`/`repository_id` -- it never
+references two or more of {environment, workload_id, service_id}, so it
+cannot exercise the new ambiguity guard either way; the gate's
+`mcp:list_supply_chain_impact_findings` assertion, which DOES include
+`environments`/`runtime_context.workload_ids[]` in its checked fields,
+passing unchanged is the live, not just reasoned-about, confirmation that
+this fix does not disturb the corpus's projected truth.
 
 ### Round-7 review P1-B (codex, PR #5857): unbounded environment-only suppression loads
 
@@ -644,4 +681,6 @@ small, curated golden corpus the 2,000-row cap never engages (no golden
 fixture approaches that row count), so this fix alone would not be
 golden-corpus-observable. P1-A above, however, IS a genuine projected-truth
 change, so the full golden-corpus gate was run covering both fixes'
-combined diff -- see the command output cited in the PR.
+combined diff: `bash scripts/verify-golden-corpus-gate.sh` -- `511 pass, 0
+required-fail, 0 advisory-warn`, `PASS: B-7 golden corpus gate green
+(elapsed 106s, budget ceiling 1800s)`.

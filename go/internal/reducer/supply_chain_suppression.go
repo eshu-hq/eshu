@@ -110,6 +110,34 @@ type vulnerabilitySuppressionScope struct {
 	// shared environment-alias contract, go/internal/environment) at decode
 	// time so alias forms like "production" match the canonical "prod" the
 	// finding's own deployment evidence already resolved to.
+	//
+	// KNOWN LIMITATION (round-7 review P1-A, codex): naming TWO OR MORE of
+	// these three fields together does NOT guarantee the finding actually
+	// had that exact combination in one real deployment. A finding's
+	// Environments/WorkloadIDs/ServiceIDs are populated from three
+	// independently matched evidence sources with no shared join key beyond
+	// repository_id (reducer_ci_cd_run_correlation carries environment but
+	// no workload/service; reducer_workload_identity carries workload but
+	// no environment; reducer_service_catalog_correlation carries
+	// service/workload but no environment -- see
+	// supply_chain_impact_index.go), so a finding that aggregates multiple
+	// deployments has no record of which environment paired with which
+	// workload/service. suppressionDeploymentContextUnambiguous
+	// (supply_chain_suppression_scope_match.go) therefore requires the
+	// finding to have AT MOST ONE distinct value in every dimension a
+	// multi-field scope references before it will match at all; if any
+	// referenced dimension has two or more distinct values, the scope
+	// FAILS TO MATCH ANY FINDING with that combination, even a finding that
+	// genuinely was in exactly that deployment -- the matcher cannot tell
+	// the two cases apart from the evidence available, so it fails closed
+	// rather than risk hiding a finding that was never in that context.
+	// Making the underlying collectors/reducers correlate these dimensions
+	// (so real per-deployment tuples exist to check) is a separate,
+	// cross-cutting contract change, not attempted here. An operator who
+	// authors a precise multi-field suppression against a repository with
+	// more than one deployment/workload/service should expect it to
+	// silently never apply; narrow it to one field, or to a
+	// single-deployment repository, instead.
 	Environment string
 	WorkloadID  string
 	ServiceID   string

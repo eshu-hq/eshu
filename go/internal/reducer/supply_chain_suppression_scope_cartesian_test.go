@@ -4,6 +4,7 @@
 package reducer
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -59,6 +60,18 @@ func TestEvaluateSupplyChainSuppressionMultiAnchorScopeDoesNotMatchUnverifiedCom
 	}
 	if decision.SuppressionID != "suppression-cartesian" {
 		t.Fatalf("SuppressionID = %q, want the mismatched suppression preserved for audit", decision.SuppressionID)
+	}
+	// The reason string must distinguish "could not be verified together"
+	// from a real value mismatch: every individual scopeListAnchorMatches
+	// call for this scope actually succeeds ("stage" is in Environments,
+	// "workload-b" is in WorkloadIDs), so without
+	// suppressionAmbiguousCombinationDiff this would fall through to the
+	// generic, misleading "scope anchors did not match the finding".
+	if !strings.Contains(decision.Reason, "multi-anchor combination unverifiable") {
+		t.Fatalf("Reason = %q, want it to explain the combination could not be verified (not a value mismatch)", decision.Reason)
+	}
+	if !strings.Contains(decision.Reason, "environment") || !strings.Contains(decision.Reason, "workload_id") {
+		t.Fatalf("Reason = %q, want it to name BOTH ambiguous dimensions (environment and workload_id)", decision.Reason)
 	}
 }
 

@@ -72,8 +72,50 @@ func suppressionScopeMismatchReason(finding SupplyChainImpactFinding, s vulnerab
 	if s.Scope.ServiceID != "" && !scopeListAnchorMatches(s.Scope.ServiceID, finding.ServiceIDs) {
 		diffs = append(diffs, fmt.Sprintf("service_id=%q vs finding %v", s.Scope.ServiceID, finding.ServiceIDs))
 	}
+	// #5466 round-7 review P1-A follow-up: distinguish "the anchors
+	// genuinely did not match" from "the anchors could not be verified
+	// TOGETHER" -- without this, a multi-anchor scope that fails ONLY the
+	// suppressionDeploymentContextUnambiguous guard (every individual
+	// scopeListAnchorMatches call above passes, since each value really is
+	// somewhere in its own list) would add nothing to diffs and fall
+	// through to the generic "scope anchors did not match the finding"
+	// below, which is actively misleading here: the operator's values were
+	// each individually correct, the combination just could not be
+	// verified against a single deployment context. This check is cheap
+	// (reuses the same pure function the matcher already calls) so there is
+	// no reason not to make it precise.
+	if ambiguous := suppressionAmbiguousCombinationDiff(finding, s.Scope); ambiguous != "" {
+		diffs = append(diffs, ambiguous)
+	}
 	if len(diffs) == 0 {
 		diffs = append(diffs, "scope anchors did not match the finding")
 	}
 	return fmt.Sprintf("suppression %s scope mismatch: %s", s.SuppressionID, strings.Join(diffs, "; "))
+}
+
+// suppressionAmbiguousCombinationDiff returns a non-empty diagnostic when
+// suppressionDeploymentContextUnambiguous would reject scope for finding,
+// naming exactly which dimension(s) have more than one distinct value on
+// the finding so an operator can tell this apart from a real value
+// mismatch. Returns "" when the scope is unambiguous (including every
+// single-anchor scope, since suppressionDeploymentContextUnambiguous is a
+// no-op below two referenced dimensions).
+func suppressionAmbiguousCombinationDiff(finding SupplyChainImpactFinding, scope vulnerabilitySuppressionScope) string {
+	if suppressionDeploymentContextUnambiguous(finding, scope) {
+		return ""
+	}
+	var ambiguous []string
+	if strings.TrimSpace(scope.Environment) != "" && distinctNonEmptyValueCount(finding.Environments) > 1 {
+		ambiguous = append(ambiguous, fmt.Sprintf("environment (finding evidence: %v)", finding.Environments))
+	}
+	if strings.TrimSpace(scope.WorkloadID) != "" && distinctNonEmptyValueCount(finding.WorkloadIDs) > 1 {
+		ambiguous = append(ambiguous, fmt.Sprintf("workload_id (finding evidence: %v)", finding.WorkloadIDs))
+	}
+	if strings.TrimSpace(scope.ServiceID) != "" && distinctNonEmptyValueCount(finding.ServiceIDs) > 1 {
+		ambiguous = append(ambiguous, fmt.Sprintf("service_id (finding evidence: %v)", finding.ServiceIDs))
+	}
+	return fmt.Sprintf(
+		"multi-anchor combination unverifiable, not necessarily a value mismatch: the finding aggregates multiple deployments with more than one distinct value in %s, so this scope cannot be checked against a single deployment context and fails closed (#5466 round-7 review P1-A)",
+		strings.Join(ambiguous, ", "),
+	)
 }
