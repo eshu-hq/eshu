@@ -5769,7 +5769,7 @@
         "minimum_results": 0
       },
       "POST /api/v0/cloud/runtime-drift/findings": {
-        "description": "Provider-neutral runtime drift findings for the synthetic GCP cloud scope; proves the reducer-derived drift read surface is mounted and bounded without requiring positive drift rows.",
+        "description": "Provider-neutral runtime drift findings for the synthetic GCP cloud scope. Non-vacuous (Refs #5759): the sibling list_cloud_runtime_drift_findings MCP shape proved >=1 admitted orphaned finding live for this exact scope_id/provider; this HTTP entry reads the same handleCloudRuntimeDriftFindings route and ListActiveMultiCloudRuntimeDriftFindings store. minimum_results stays 0 here deliberately -- not lowered, structurally inapplicable: this shape keeps the {data,truth,error} envelope (envelope:true) with only top-level required_response_fields, and EvaluateQueryShape's minimum_results check only scans top-level RequiredResponseFields for the first array-valued field (none of data/truth/error is one; data is an object), so setting minimum_results>0 here would hard-fail every run regardless of live data, not gate on row count. required_json_paths below is this codebase's own established mechanism for proving non-vacuousness on an envelope:true shape (mirrors the what_runs_image entry's data.outgoing[].type path) and requires data.drift_findings to be a non-empty array whose elements carry a real finding_kind.",
         "truth_class": "derived",
         "envelope": true,
         "request_body": {
@@ -5782,9 +5782,13 @@
           "truth",
           "error"
         ],
+        "required_json_paths": [
+          "data.drift_findings[].finding_kind"
+        ],
         "required_json_values": {
           "data.analysis_status": "materialized_multi_cloud_runtime_drift",
-          "data.truth_basis": "materialized_reducer_rows"
+          "data.truth_basis": "materialized_reducer_rows",
+          "data.drift_findings[].finding_kind": "orphaned_cloud_resource"
         },
         "minimum_results": 0
       },
