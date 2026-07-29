@@ -69,9 +69,10 @@ no graph query.
   (CVE-2026-00010) to the one ECS task running it, and the finding classifies
   `runtime_confirmed`. Asserted non-vacuously (minimum_results>=1) by the
   `GET /api/v0/supply-chain/impact/findings?subject_digest=sha256:abcdef...ab&profile=comprehensive`
-  query shape in `testdata/golden/e2e-20repo-snapshot.json` — the comprehensive
-  profile is required because the finding is comprehensive-tier and the findings
-  list defaults to precise. Exact post-review result:
+  query shape in `testdata/golden/e2e-20repo-snapshot.json`. The comprehensive
+  profile remains the epic's inclusive OS-package proof; after #5735 the
+  fixture's exact DPKG affected-version reason also qualifies for precise.
+  Exact post-review result:
   `PASS: B-7 golden corpus gate green`, 512 pass / 0 required-fail /
   1 advisory-warn in 106 seconds, with residual/dead-letter counts `0/0`.
 

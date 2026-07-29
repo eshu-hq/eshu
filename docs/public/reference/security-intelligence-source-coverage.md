@@ -233,8 +233,9 @@ Selection rules:
   Composer, Pub, Hex, Swift, NuGet), GHSA outranks GLAD, OSV-via-OSV,
   PYSEC-via-OSV, RUSTSEC-via-OSV, GO-via-OSV, and NVD.
   Impact-supported version matchers are npm, PyPI, Cargo, Pub, Swift, NuGet,
-  and Maven; vendor-backed RPM-family OS package facts use the OS package priority
-  above. Go, RubyGems, Composer, Hex, and other matcher-unimplemented
+  and Maven; vendor-backed RPM-family, Debian/dpkg, and Alpine/APK OS package
+  facts use the OS package priority above. Go, RubyGems, Composer, Hex, and
+  other matcher-unimplemented
   ecosystems remain source-only, missing, or unsupported evidence until package
   identity, dependency evidence, version matching, advisory ingestion, and
   readback are proven end to end.

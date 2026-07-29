@@ -175,6 +175,12 @@ func TestBuildSupplyChainImpactFindingsUsesVendorAPKOSPackageEvidence(t *testing
 	if got.RuntimeReachability != "image_os_package" {
 		t.Fatalf("RuntimeReachability = %q, want image_os_package", got.RuntimeReachability)
 	}
+	if got.MatchReason != supplyChainVersionReasonAPKExactAffected {
+		t.Fatalf("MatchReason = %q, want %q", got.MatchReason, supplyChainVersionReasonAPKExactAffected)
+	}
+	if got.DetectionProfile != DetectionProfilePrecise {
+		t.Fatalf("DetectionProfile = %q, want precise", got.DetectionProfile)
+	}
 }
 
 func TestBuildSupplyChainImpactFindingsUsesCollectorShapedOSVDebianAndAPKRanges(t *testing.T) {
@@ -194,6 +200,7 @@ func TestBuildSupplyChainImpactFindingsUsesCollectorShapedOSVDebianAndAPKRanges(
 		fixedVersion     string
 		wantStatus       SupplyChainImpactStatus
 		wantReason       string
+		wantProfile      DetectionProfile
 		wantSource       string
 	}{
 		{
@@ -210,6 +217,7 @@ func TestBuildSupplyChainImpactFindingsUsesCollectorShapedOSVDebianAndAPKRanges(
 			fixedVersion:     "3.0.11-1~deb12u3",
 			wantStatus:       SupplyChainImpactAffectedExact,
 			wantReason:       "dpkg_affected_range",
+			wantProfile:      DetectionProfileComprehensive,
 			wantSource:       "debian",
 		},
 		{
@@ -225,7 +233,8 @@ func TestBuildSupplyChainImpactFindingsUsesCollectorShapedOSVDebianAndAPKRanges(
 			installedVersion: "3.0.11-1~deb12u3",
 			fixedVersion:     "3.0.11-1~deb12u3",
 			wantStatus:       SupplyChainImpactNotAffectedKnownFixed,
-			wantReason:       "dpkg_known_fixed",
+			wantReason:       "dpkg_exact_known_fixed",
+			wantProfile:      DetectionProfilePrecise,
 			wantSource:       "debian",
 		},
 		{
@@ -242,6 +251,7 @@ func TestBuildSupplyChainImpactFindingsUsesCollectorShapedOSVDebianAndAPKRanges(
 			fixedVersion:     "3.1.4-r6",
 			wantStatus:       SupplyChainImpactAffectedExact,
 			wantReason:       "apk_affected_range",
+			wantProfile:      DetectionProfileComprehensive,
 			wantSource:       "alpine",
 		},
 		{
@@ -258,6 +268,7 @@ func TestBuildSupplyChainImpactFindingsUsesCollectorShapedOSVDebianAndAPKRanges(
 			fixedVersion:     "3.1.4-r6",
 			wantStatus:       SupplyChainImpactNotAffectedKnownFixed,
 			wantReason:       "apk_known_fixed",
+			wantProfile:      DetectionProfileComprehensive,
 			wantSource:       "alpine",
 		},
 	}
@@ -310,6 +321,9 @@ func TestBuildSupplyChainImpactFindingsUsesCollectorShapedOSVDebianAndAPKRanges(
 			}
 			if got.MatchReason != tc.wantReason {
 				t.Fatalf("MatchReason = %q, want %q", got.MatchReason, tc.wantReason)
+			}
+			if got.DetectionProfile != tc.wantProfile {
+				t.Fatalf("DetectionProfile = %q, want %q", got.DetectionProfile, tc.wantProfile)
 			}
 			if got.ObservedVersion != tc.installedVersion {
 				t.Fatalf("ObservedVersion = %q, want %q", got.ObservedVersion, tc.installedVersion)

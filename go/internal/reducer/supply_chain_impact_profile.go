@@ -77,6 +77,10 @@ func classifySupplyChainImpactDetectionProfile(finding SupplyChainImpactFinding)
 		supplyChainVersionReasonMavenKnownFixed,
 		supplyChainVersionReasonRPMExactAffected,
 		supplyChainVersionReasonRPMKnownFixed,
+		supplyChainVersionReasonDPKGExactAffected,
+		supplyChainVersionReasonDPKGExactKnownFixed,
+		supplyChainVersionReasonAPKExactAffected,
+		supplyChainVersionReasonAPKExactKnownFixed,
 		supplyChainVersionReasonRubyGemsAffectedRange,
 		supplyChainVersionReasonRubyGemsKnownFixed:
 		return DetectionProfilePrecise
