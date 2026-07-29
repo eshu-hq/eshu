@@ -28,4 +28,18 @@
 // backend kind, locator, and version ID for per-candidate identity.
 // ScopeLocatorHash includes backend kind and locator only for the
 // version-agnostic join key shared with scope.NewTerraformStateSnapshotScope.
+//
+// EvaluateBackendConfig derives the config-side ownership-join candidate for
+// one parsed `terraform { backend "<kind>" {} }` block. A bare
+// `backend "local" {}` with no `path` attribute applies Terraform's own
+// default ("terraform.tfstate" relative to the root module directory —
+// https://developer.hashicorp.com/terraform/language/backend/local) rather
+// than producing no candidate (issue #5594). A BackendLocal candidate's
+// locator must be an absolute path that matches the absolute path
+// LocalStateSource actually opens, so BackendConfigContext.RepoLocalPath (the
+// repository checkout root) is required; without it, EvaluateBackendConfig
+// reports no candidate rather than guess a locator. Only BackendS3 and
+// BackendLocal produce candidates; any other Terraform backend kind (gcs,
+// azurerm, remote, http, ...) is unmodeled here and yields neither a
+// candidate nor a warning.
 package terraformstate

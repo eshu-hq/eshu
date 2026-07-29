@@ -41,6 +41,21 @@ type BackendConfigContext struct {
 	Backends  []map[string]any
 	Variables []map[string]any
 	Locals    []map[string]any
+	// RepoLocalPath is the absolute filesystem root the repository checkout
+	// used to produce Backends/Variables/Locals was cloned into, mirrored
+	// from the durable `repository` fact's `local_path` payload field for the
+	// same active generation (see
+	// go/internal/storage/postgres/tfstate_backend_canonical.go). A
+	// BackendLocal candidate's locator must be an absolute path that
+	// byte-for-byte matches the absolute path
+	// terraformstate.LocalStateSource used when it actually opened the same
+	// on-disk state file (scope.NewTerraformStateSnapshotScope hashes that
+	// absolute path) — RepoLocalPath is the prefix that makes the two agree
+	// (issue #5594). Callers that only need Warnings (for example the git
+	// collector's EvaluateBackendConfig(...).Warnings call, which discards
+	// Candidates) may leave this blank; a blank value makes every
+	// BackendLocal candidate resolve to false rather than guess a locator.
+	RepoLocalPath string
 }
 
 // BackendConfigResult is the shared decision output for Git-observed Terraform
@@ -73,7 +88,7 @@ func EvaluateBackendConfig(repoID string, contextValue BackendConfigContext) Bac
 	}
 	for _, backend := range contextValue.Backends {
 		resolution := newBackendResolutionContext(contextValue, backendStringValue(backend, "path"))
-		if candidate, ok := backendConfigCandidate(repoID, backend, resolution); ok {
+		if candidate, ok := backendConfigCandidate(repoID, backend, resolution, contextValue.RepoLocalPath); ok {
 			result.Candidates = append(result.Candidates, candidate)
 			continue
 		}
@@ -82,14 +97,32 @@ func EvaluateBackendConfig(repoID string, contextValue BackendConfigContext) Bac
 	return result
 }
 
+// backendConfigCandidate dispatches to the per-backend-kind candidate
+// derivation. Every Terraform backend kind Eshu does not model here (gcs,
+// azurerm, remote, http, ...) falls through to the default case: no candidate
+// and no warning, the same silent-zero behavior BackendLocal had before issue
+// #5594.
 func backendConfigCandidate(
 	repoID string,
 	backend map[string]any,
 	resolution backendResolutionContext,
+	repoLocalPath string,
 ) (DiscoveryCandidate, bool) {
-	if strings.TrimSpace(backendStringValue(backend, "backend_kind", "name")) != string(BackendS3) {
+	switch strings.TrimSpace(backendStringValue(backend, "backend_kind", "name")) {
+	case string(BackendS3):
+		return backendConfigS3Candidate(repoID, backend, resolution)
+	case string(BackendLocal):
+		return backendConfigLocalCandidate(repoID, backend, resolution, repoLocalPath)
+	default:
 		return DiscoveryCandidate{}, false
 	}
+}
+
+func backendConfigS3Candidate(
+	repoID string,
+	backend map[string]any,
+	resolution backendResolutionContext,
+) (DiscoveryCandidate, bool) {
 	if strings.TrimSpace(backendStringValue(backend, "workspace_key_prefix")) != "" {
 		return DiscoveryCandidate{}, false
 	}
@@ -122,11 +155,21 @@ func backendExpressionWarnings(
 	backend map[string]any,
 	resolution backendResolutionContext,
 ) []BackendExpressionWarning {
-	backendKind := strings.TrimSpace(backendStringValue(backend, "backend_kind", "name"))
-	if backendKind != string(BackendS3) {
+	switch strings.TrimSpace(backendStringValue(backend, "backend_kind", "name")) {
+	case string(BackendS3):
+		return backendConfigS3ExpressionWarnings(repoID, backend, resolution)
+	case string(BackendLocal):
+		return backendConfigLocalExpressionWarnings(repoID, backend, resolution)
+	default:
 		return nil
 	}
+}
 
+func backendConfigS3ExpressionWarnings(
+	repoID string,
+	backend map[string]any,
+	resolution backendResolutionContext,
+) []BackendExpressionWarning {
 	warnings := make([]BackendExpressionWarning, 0, 3)
 	if strings.TrimSpace(backendStringValue(backend, "workspace_key_prefix")) != "" {
 		warnings = append(warnings, backendExpressionWarningForAttribute(
@@ -160,7 +203,24 @@ func backendExpressionWarningForAttribute(
 	attributeName string,
 	decision backendAttributeDecision,
 ) BackendExpressionWarning {
-	value := strings.TrimSpace(backendStringValue(backend, attributeName))
+	return backendExpressionWarningForRowAttribute(repoID, backend, attributeName, attributeName, decision)
+}
+
+// backendExpressionWarningForRowAttribute builds the warning for an attribute
+// whose Terraform HCL name (attributeName, used for the reported
+// attribute_name field operators recognize) differs from the parser row key
+// it is stored under (rowKey). The two differ only for the local backend's
+// "path" attribute, which the parser stores as row["local_path"] to avoid
+// colliding with the row's own "path" field (the source .tf file path; see
+// go/internal/parser/hcl/terraform_backend.go).
+func backendExpressionWarningForRowAttribute(
+	repoID string,
+	backend map[string]any,
+	attributeName string,
+	rowKey string,
+	decision backendAttributeDecision,
+) BackendExpressionWarning {
+	value := strings.TrimSpace(backendStringValue(backend, rowKey))
 	return BackendExpressionWarning{
 		RepoID:             strings.TrimSpace(repoID),
 		BackendKind:        strings.TrimSpace(backendStringValue(backend, "backend_kind", "name")),
@@ -170,7 +230,7 @@ func backendExpressionWarningForAttribute(
 		ConfidenceTier:     "name_only",
 		NotCandidateReason: backendNotCandidateReason,
 		SourcePath:         cleanBackendConfigRelativePath(backendStringValue(backend, "path")),
-		LineNumber:         backendIntValue(backend, attributeName+"_line_number"),
+		LineNumber:         backendIntValue(backend, rowKey+"_line_number"),
 		ExpressionHash: facts.StableID("TerraformBackendExpression", map[string]any{
 			"expression": value,
 		}),
