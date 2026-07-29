@@ -230,13 +230,13 @@ truth.
 
 `appendScopeGenerationReducerIntents` builds one shared, read-only
 `reducerIntentFactIndex` (`reducer_intent_fact_index.go`) over `inputFacts` and
-passes it to all 42 `build*ReducerIntent` probes instead of the raw
+passes it to all 44 `build*ReducerIntent` probes instead of the raw
 `inputFacts` slice (issue #4875). Each probe used to independently re-scan the
 full generation for its own trigger fact kind(s); the shared index groups fact
 positions by `FactKind` once, so a probe that only cares about one or a
 handful of kinds looks them up directly instead of walking every fact in the
 generation. `inputFacts` is immutable once a scope generation is claimed for
-projection, so sharing one read-only index across all 42 probes is
+projection, so sharing one read-only index across all 44 probes is
 concurrency-safe. Probes that pick their anchor fact from more than one
 candidate kind (e.g. `buildSupplyChainImpactReducerIntent`,
 `buildContainerImageIdentityReducerIntent`) use the index's
@@ -244,6 +244,13 @@ candidate kind (e.g. `buildSupplyChainImpactReducerIntent`,
 exact same "earliest fact in original `inputFacts` order" anchor selection the
 old full scan made — not "earliest fact of the first-checked kind" — so anchor
 `FactID`, `Reason`, and `SourceSystem` stay byte-identical.
+The "44 probes" count above is not a bare claim: `documentedReducerIntentProbeCount`
+in `reducer_intent_fact_index.go` pins it, and
+`TestReducerIntentProbeCountMatchesDocumentedCount` parses
+`scope_generation_intents.go` with `go/ast` to count the real distinct
+`build*ReducerIntent` calls and fails if that constant (and, by extension,
+this prose) ever drifts from the source again — this doc count went stale
+silently twice before that guard existed.
 RDS posture facts follow that same reducer-owned handoff. When a generation
 contains an `rds_instance_posture` fact,
 `buildRDSPostureMaterializationReducerIntent` emits one
