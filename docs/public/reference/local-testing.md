@@ -247,10 +247,8 @@ For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database
 
 ## Quick Verification Matrix
 
-Minimum focused verification per touched surface, as a full reference
-table. See
-[Quick Verification Matrix](local-testing/quick-verification-matrix.md)
-for the complete touched-area-to-command mapping.
+See [Quick Verification Matrix](local-testing/quick-verification-matrix.md)
+for the full touched-area-to-minimum-verification mapping.
 
 ### Performance Evidence Gate
 
