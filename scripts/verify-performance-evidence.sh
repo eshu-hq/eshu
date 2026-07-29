@@ -245,13 +245,34 @@ if [ "${#hot_files[@]}" -eq 0 ]; then
   exit 0
 fi
 
+# Marker presence is decided from the PR's own ADDED lines, not whole-file
+# content. Whole-file search lets a PR inherit a passing gate from an
+# unrelated marker left behind by an earlier PR in a file it merely touches
+# (eshu-hq/eshu#5542): the marker sits in the file as unchanged context, not
+# as something this diff contributed, so it must not satisfy the gate.
+added_lines_for_evidence_file() {
+  local rel="$1"
+  git -C "$repo_root" diff --unified=0 "$base"...HEAD -- "$rel" 2>/dev/null \
+    | awk '/^\+\+\+ /{next} /^\+/{print substr($0,2)}' \
+    || true
+}
+
 has_performance_evidence=1
 has_observability_evidence=1
 if [ "${#evidence_files[@]}" -gt 0 ]; then
-  rg -q -e '(^|[[:space:]])(Performance Evidence|Benchmark Evidence|No-Regression Evidence):' \
-    "${evidence_files[@]}" && has_performance_evidence=0
-  rg -q -e '(^|[[:space:]])(Observability Evidence|No-Observability-Change):' \
-    "${evidence_files[@]}" && has_observability_evidence=0
+  for evidence_file in "${evidence_files[@]}"; do
+    evidence_rel="${evidence_file#"$repo_root"/}"
+    evidence_added="$(added_lines_for_evidence_file "$evidence_rel")"
+    [ -z "$evidence_added" ] && continue
+    if printf '%s\n' "$evidence_added" \
+      | rg -q -e '(^|[[:space:]])(Performance Evidence|Benchmark Evidence|No-Regression Evidence):'; then
+      has_performance_evidence=0
+    fi
+    if printf '%s\n' "$evidence_added" \
+      | rg -q -e '(^|[[:space:]])(Observability Evidence|No-Observability-Change):'; then
+      has_observability_evidence=0
+    fi
+  done
 fi
 
 if [ "$has_performance_evidence" -eq 0 ] && [ "$has_observability_evidence" -eq 0 ]; then
