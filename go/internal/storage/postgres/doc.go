@@ -341,7 +341,7 @@
 // commits — deliberately its own bounded, paged unit of work, never inline
 // inside Ack's fixed-size generation-activation transaction.
 //
-// ConfigStateDriftRuntimeTrigger closes the runtime delta-trigger gap
+// ConfigStateDriftRuntimeTrigger addresses the runtime delta-trigger gap
 // EnqueueConfigStateDriftIntents' doc comment anticipated (issue #5593): a
 // terraform_state_snapshot landing outside a bootstrap-index pass was never
 // drift-evaluated until the next bootstrap run, because bootstrap's Phase 3.5
@@ -353,5 +353,16 @@
 // using the identical (scope_id, generation_id, domain) shape the bootstrap
 // sweep uses so the two producers dedupe against each other through the
 // reducer queue's existing ON CONFLICT DO NOTHING work_item_id fence rather
-// than racing to write different rows.
+// than racing to write different rows. This still leaves one race: a
+// state_snapshot scope can activate before the config-side repo that owns
+// its backend has synced its own terraform_backends fact, which the resolver
+// reads directly (tfstate_backend_canonical.go) with no dependency on this
+// generation's own correlation. ConfigStateDriftRedriveStore
+// (drift_runtime_redrive.go, issue #5593 P1-1) closes that remaining gap: a
+// bounded ledger the runtime trigger schedules on every enqueue, claimed by
+// go/cmd/ingester's periodic catch-up loop, which reopens the work item via
+// ReducerQueue.ReplayDomain up to a fixed attempt count so a transient
+// "no config repo owns this backend" outcome gets revisited instead of
+// staying terminal, while a genuine "no owner, ever" case still terminates
+// once that bound is reached.
 package postgres

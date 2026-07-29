@@ -919,6 +919,17 @@ type Instruments struct {
 	// Labels: pack (frozen string "terraform_config_state_drift"), source
 	// ("bootstrap_index" or "ingester_runtime_trigger").
 	CorrelationDriftIntentsEnqueued metric.Int64Counter
+	// ConfigStateDriftRuntimeTriggerFailures counts config_state_drift
+	// runtime delta-trigger failures (issue #5593), by outcome
+	// (trigger_error). Fires when ProjectorQueue.Ack's
+	// runConfigStateDriftTriggerHook's call to
+	// ConfigStateDriftTrigger.TriggerConfigStateDrift errors -- mirrors
+	// CrossplaneRedriveSweeps' outcome-labeled shape for the same reason:
+	// the hook's structured log carries scope_id/generation_id for
+	// per-incident triage, but a systematically failing trigger needs a
+	// bounded-cardinality counter an operator can dashboard and alert on
+	// without grepping logs for the message string.
+	ConfigStateDriftRuntimeTriggerFailures metric.Int64Counter
 	// CorrelationOrphanDetected counts admitted AWS cloud-runtime candidates
 	// where an observed cloud resource has no Terraform-state backing for the
 	// same ARN. Labels: pack, rule.
@@ -2913,10 +2924,18 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.CorrelationDriftIntentsEnqueued, err = meter.Int64Counter(
 		"eshu_dp_correlation_drift_intents_enqueued_total",
-		metric.WithDescription("Total config_state_drift reducer intents enqueued by Phase 3.5 per pack and source"),
+		metric.WithDescription("Total config_state_drift reducer intents enqueued per pack and source (bootstrap_index Phase 3.5 or ingester_runtime_trigger)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CorrelationDriftIntentsEnqueued counter: %w", err)
+	}
+
+	inst.ConfigStateDriftRuntimeTriggerFailures, err = meter.Int64Counter(
+		"eshu_dp_config_state_drift_runtime_trigger_failures_total",
+		metric.WithDescription("Total config_state_drift runtime delta-trigger failures by outcome"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ConfigStateDriftRuntimeTriggerFailures counter: %w", err)
 	}
 
 	inst.CorrelationOrphanDetected, err = meter.Int64Counter(

@@ -263,9 +263,14 @@ func buildIngesterProjectorService(
 	// every other reducer intent. MUST NOT be copied to
 	// cmd/bootstrap-index/wiring.go -- see
 	// postgres.ProjectorQueue.ConfigStateDriftTrigger's doc comment for why.
+	// Redrive (issue #5593 P1-1) schedules a bounded catch-up so a "no config
+	// repo owns this backend" outcome caused by the config side not having
+	// synced yet gets revisited by config_state_drift_redrive_catchup.go's
+	// periodic loop (started in main.go) instead of staying terminal.
 	projectorQueue.ConfigStateDriftTrigger = postgres.ConfigStateDriftRuntimeTrigger{
 		Queue:       reducerWriter,
 		Instruments: instruments,
+		Redrive:     postgres.NewConfigStateDriftRedriveStore(database),
 	}
 	runner, err := buildIngesterProjectorRuntime(database, canonicalWriter, reducerWriter, retryInjector, getenv, tracer, instruments, logger)
 	if err != nil {

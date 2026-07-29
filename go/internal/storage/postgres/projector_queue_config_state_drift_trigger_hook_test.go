@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -110,6 +112,82 @@ func TestProjectorQueueAckInvokesConfigStateDriftTriggerAfterCommitForStateSnaps
 	}
 	if got, want := triggerArgs[0][1], work.Generation.GenerationID; got != want {
 		t.Fatalf("trigger generation_id = %q, want %q", got, want)
+	}
+}
+
+// TestProjectorQueueAckRecordsConfigStateDriftRuntimeTriggerFailureCounter
+// proves the issue #5593 P1-2 fix: a TriggerConfigStateDrift error advances
+// ConfigStateDriftRuntimeTriggerFailures{outcome="trigger_error"}, mirroring
+// runCrossplaneRedriveHook's CrossplaneRedriveSweeps{outcome="sweep_error"}
+// precedent, so a systematically failing trigger is visible on a dashboard
+// instead of only in logs.
+func TestProjectorQueueAckRecordsConfigStateDriftRuntimeTriggerFailureCounter(t *testing.T) {
+	var log []string
+	var triggerArgs [][2]string
+	fake := configStateDriftTriggerHookFake{log: &log, triggerArgs: &triggerArgs, triggerErr: errors.New("injected trigger failure")}
+	inst, reader := newEnqueueInstruments(t)
+
+	queue := ProjectorQueue{
+		db:                      fake,
+		LeaseOwner:              "test-owner",
+		LeaseDuration:           time.Minute,
+		ConfigStateDriftTrigger: fake,
+		Instruments:             inst,
+	}
+
+	work := projector.ScopeGenerationWork{
+		Scope:      scope.IngestionScope{ScopeID: "state_snapshot:s3:hash-1"},
+		Generation: scope.ScopeGeneration{GenerationID: "gen-state-1"},
+	}
+
+	if err := queue.Ack(context.Background(), work, projector.Result{}); err != nil {
+		t.Fatalf("expected Ack to swallow the trigger's error, got: %v", err)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	metricName := "eshu_dp_config_state_drift_runtime_trigger_failures_total"
+	if got, want := counterTotal(rm, metricName), int64(1); got != want {
+		t.Fatalf("%s = %d, want %d", metricName, got, want)
+	}
+	assertCounterPresentWithLabels(t, rm, metricName, map[string]string{"outcome": "trigger_error"})
+}
+
+// TestProjectorQueueAckDoesNotRecordFailureCounterOnSuccessfulTrigger proves
+// the failure counter stays at zero when TriggerConfigStateDrift succeeds --
+// it is an error-outcome-only signal, not a general activity counter (that
+// role belongs to CorrelationDriftIntentsEnqueued).
+func TestProjectorQueueAckDoesNotRecordFailureCounterOnSuccessfulTrigger(t *testing.T) {
+	var log []string
+	var triggerArgs [][2]string
+	fake := configStateDriftTriggerHookFake{log: &log, triggerArgs: &triggerArgs}
+	inst, reader := newEnqueueInstruments(t)
+
+	queue := ProjectorQueue{
+		db:                      fake,
+		LeaseOwner:              "test-owner",
+		LeaseDuration:           time.Minute,
+		ConfigStateDriftTrigger: fake,
+		Instruments:             inst,
+	}
+
+	work := projector.ScopeGenerationWork{
+		Scope:      scope.IngestionScope{ScopeID: "state_snapshot:s3:hash-1"},
+		Generation: scope.ScopeGeneration{GenerationID: "gen-state-1"},
+	}
+
+	if err := queue.Ack(context.Background(), work, projector.Result{}); err != nil {
+		t.Fatalf("Ack: %v", err)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if got, want := counterTotal(rm, "eshu_dp_config_state_drift_runtime_trigger_failures_total"), int64(0); got != want {
+		t.Fatalf("failure counter = %d, want %d on a successful trigger", got, want)
 	}
 }
 

@@ -8,7 +8,10 @@ import (
 	"log/slog"
 	"strings"
 
+	"go.opentelemetry.io/otel/metric"
+
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // ConfigStateDriftTrigger is the narrow surface ProjectorQueue.Ack calls to
@@ -51,20 +54,29 @@ const configStateDriftTriggerScopePrefix = "state_snapshot:"
 //
 // MUST NOT be wired on the ProjectorQueue bootstrap-index constructs
 // (cmd/bootstrap-index/wiring.go): bootstrap's Phase 3.5 deliberately runs
-// after Phase 3 reopens deployment_mapping so
-// reducer.TerraformConfigStateDriftHandler's backend resolver has the
-// cross-repo config-to-backend correlation (resolved_relationships) it
-// needs. Firing this trigger during bootstrap's own Phase 1 projector drain
-// would evaluate drift before that correlation exists, and — because the
+// after "wait for source-local projector drain" has activated every scope in
+// the finite bootstrap corpus, including the config-side repo that owns a
+// given state snapshot's backend --
+// reducer.TerraformConfigStateDriftHandler's backend resolver
+// (tfstatebackend.Resolver.ResolveConfigCommitForBackend) reads that
+// config-side repo's OWN active-generation terraform_backends parser fact
+// directly (go/internal/storage/postgres/tfstate_backend_canonical.go), with
+// no dependency on this generation's own cross-repo correlation having run.
+// Firing this trigger during bootstrap's own Phase 1 -- before every scope in
+// the corpus has necessarily activated -- risks the identical race the
+// runtime path has: evaluating a state_snapshot scope before its owning
+// config-side repo has activated its own terraform_backends fact. Because the
 // resolver's "no owner" outcome is a non-fatal SUCCESS, not a retryable
-// failure — the reducer queue's per-(scope,generation) ON CONFLICT DO
-// NOTHING dedupe would freeze that premature false negative forever:
-// Phase 3.5's later, correctly-ordered enqueue attempt for the SAME
-// generation would find the work_item_id row already present and silently
-// no-op. Wire this only on the runtime ingester's ProjectorQueue
-// (cmd/ingester/wiring.go), where a NEW state snapshot activating
-// post-bootstrap almost always finds the config-side correlation already
-// resolved from the prior run.
+// failure, the reducer queue's per-(scope,generation) ON CONFLICT DO NOTHING
+// dedupe would freeze that premature false negative forever: Phase 3.5's
+// later, correctly-ordered enqueue attempt for the SAME generation would find
+// the work_item_id row already present and silently no-op. Wire this only on
+// the runtime ingester's ProjectorQueue (cmd/ingester/wiring.go), where a NEW
+// state snapshot activating post-bootstrap almost always finds the
+// config-side correlation already resolved from the prior run -- and where
+// ConfigStateDriftRuntimeTrigger's Redrive field (issue #5593 P1-1,
+// drift_runtime_redrive.go) gives the remaining race a bounded recovery path
+// this hook alone does not provide.
 func (q ProjectorQueue) runConfigStateDriftTriggerHook(ctx context.Context, work projector.ScopeGenerationWork) {
 	if q.ConfigStateDriftTrigger == nil {
 		return
@@ -79,5 +91,10 @@ func (q ProjectorQueue) runConfigStateDriftTriggerHook(ctx context.Context, work
 			"generation_id", work.Generation.GenerationID,
 			"error", err,
 		)
+		if q.Instruments != nil && q.Instruments.ConfigStateDriftRuntimeTriggerFailures != nil {
+			q.Instruments.ConfigStateDriftRuntimeTriggerFailures.Add(ctx, 1, metric.WithAttributes(
+				telemetry.AttrOutcome("trigger_error"),
+			))
+		}
 	}
 }
