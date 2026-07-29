@@ -1913,59 +1913,23 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   request-bound UTC clock. When that clock reaches `expires_at`, direct,
   materialized, aggregate, and explain reads expose the same immutable operator
   row as `expired` without waiting for unrelated evidence or a reducer replay.
-- **Suppression scope is environment/workload/service-aware (#5466)** —
-  `vulnerabilitySuppressionScope` additionally carries optional `Environment`,
-  `WorkloadID`, and `ServiceID` fields so an operator can suppress a finding
-  for one deployment context ("not exploitable in staging, still visible in
-  prod") instead of only digest-everywhere. All three are additive wildcards:
-  empty matches any finding, so a suppression that never sets them behaves
-  exactly as before #5466. They match against the finding's multi-value
-  deployment evidence (`SupplyChainImpactFinding.Environments`, `.WorkloadIDs`,
-  `.ServiceIDs`, populated by `applySupplyChainRuntimeContext` in
-  `supply_chain_impact_runtime.go`) rather than a single field, and fail
-  closed: a non-empty scope value against a finding with no evidence for that
-  anchor never matches, so ambiguity always resolves to the finding staying
-  visible (a suppression hides a vulnerability, so it must narrow, never
-  widen, visibility). `Environment` is canonicalized through the shared
-  `environment.Canonical` alias contract (`go/internal/environment`, #5473)
-  at decode time (`decodeVulnerabilitySuppressionScope`,
-  `supply_chain_suppression_decode.go`), so an operator-authored "production"
-  matches a finding whose deployment evidence already resolved to the
-  canonical "prod" — the same alias table `ci_cd_run_correlation.go` and
-  `kubernetes_namespace_materialization.go` already use, not a second,
-  locally reinvented normalization. The three new optional keys are part of
-  the typed `sdk/go/factschema/vulnerabilitysuppression/v1.Scope` contract and
-  decode through `factschema.DecodeVulnerabilitySuppression`, like the existing
-  scope keys. The matcher and adjacency check
-  (`suppressionAdjacent`/`suppressionScopeMatchesFinding`,
-  `supply_chain_suppression_scope_match.go`) are the only touched surface;
-  `decisionFromActiveOperatorSuppression` and the other decision-shape
-  functions are unchanged. A suppression scoped this way must also be
-  reachable by the Postgres active-evidence prefilter, not only accepted by
-  the matcher: `SupplyChainImpactFactFilter` gained `Environments`,
-  `WorkloadIDs`, and `ServiceIDs`, populated in `supplyChainImpactFilter`
-  (`supply_chain_impact_active_filter.go`) from already-loaded
-  `reducer_ci_cd_run_correlation`/`reducer_workload_identity`/
-  `reducer_service_catalog_correlation` evidence, feeding a new
-  `FactStore.ListActiveSupplyChainImpactFacts` SQL branch; see
-  `go/internal/storage/postgres/gotchas-and-invariants.md` for the
-  failing-test-first proof at the real load path and the EXPLAIN/index
-  evidence.
-  Performance Evidence: `docs/internal/evidence/5466-env-scoped-suppression-scope.md`
-  benchmarks `EvaluateSupplyChainSuppression` on `darwin/arm64` (Apple M5 Max) with a
-  50-suppression per-finding fan-out, OLD (`58f364f68f`) vs NEW on an
-  identical zero-value input shape: ns/op is flat within machine noise
-  (10,550.8 -> 11,152.6 mean of 5, ranges overlap), allocs/op is unchanged
-  (14 in every sample), and B/op grows a deterministic +13.1%
-  (43,962.6 -> 49,727.2) fully explained by the three new string fields
-  widening `vulnerabilitySuppressionScope` (and therefore every per-call
-  bucket-slice copy in `EvaluateSupplyChainSuppression`) by 48 bytes per
-  suppression -- a constant-factor cost every prior scope key already paid,
-  not a change to the `O(suppressions × scope keys)` shape. Populating the
-  new fields on every suppression costs no additional time over leaving them
-  empty on the same branch. Both stay roughly two orders of magnitude under
-  the "under one millisecond per finding" budget this section already
-  documents for the CI fixture fan-out.
+- **Suppression scope supports deployment-context narrowing (#5466)** —
+  `environment`, `workload_id`, and `service_id` are optional conjuncts on an
+  identity-anchored `vulnerability.suppression` scope. At least one of
+  `cve_id`, `advisory_id`, `package_id`, `purl`, `repository_id`, or
+  `subject_digest` remains mandatory; deployment context never acts as a
+  cross-vulnerability wildcard or SQL discovery key. Environment values use
+  the shared canonical alias contract, and every populated deployment field
+  must match baked finding evidence. Missing or ambiguous evidence fails
+  closed to `scope_mismatch`. Because the finding stores flattened deployment
+  dimensions rather than correlated tuples, a scope naming two or more
+  deployment dimensions applies only when each referenced dimension has one
+  unambiguous observed value. The live golden suppression is identity-anchored
+  and narrowed to `prod`, so its hidden-then-expired transition proves the
+  real reducer path; focused tests pin the same-digest stage/prod split.
+  Performance Evidence:
+  `docs/internal/evidence/5466-env-scoped-suppression-scope.md` records the
+  current-base benchmark and exact stable-sort equivalence proof.
 - **Safe-upgrade remediation is advisory-only** —
   `SupplyChainImpactHandler` attaches a `Remediation` block to every finding
   via `BuildSupplyChainImpactRemediation` (issue #595). The block records the

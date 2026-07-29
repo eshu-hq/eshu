@@ -45,7 +45,7 @@ const openAPIPathsSupplyChainSuppressionMutation = `
                   "scope": {
                     "type": "object",
                     "additionalProperties": false,
-                    "description": "At least one discoverable identity anchor is required: cve_id, advisory_id, package_id, purl, repository_id, or subject_digest. evidence_path may narrow an anchored suppression but cannot stand alone.",
+                    "description": "At least one discoverable identity anchor is required: cve_id, advisory_id, package_id, purl, repository_id, or subject_digest. evidence_path, environment, workload_id, and service_id may narrow an anchored suppression but cannot stand alone.",
                     "properties": {
                       "cve_id": {"type": "string"},
                       "advisory_id": {"type": "string"},
@@ -53,6 +53,18 @@ const openAPIPathsSupplyChainSuppressionMutation = `
                       "purl": {"type": "string"},
                       "repository_id": {"type": "string"},
                       "subject_digest": {"type": "string"},
+                      "environment": {
+                        "type": "string",
+                        "description": "Optional canonical environment conjunct; narrows a suppression with a discoverable identity anchor."
+                      },
+                      "workload_id": {
+                        "type": "string",
+                        "description": "Optional workload identity conjunct; narrows a suppression with a discoverable identity anchor."
+                      },
+                      "service_id": {
+                        "type": "string",
+                        "description": "Optional service identity conjunct; narrows a suppression with a discoverable identity anchor."
+                      },
                       "evidence_path": {
                         "type": "array",
                         "items": {"type": "string"},

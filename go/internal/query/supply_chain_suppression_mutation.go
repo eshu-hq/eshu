@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/environment"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	vulnerabilitysuppressionv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerabilitysuppression/v1"
@@ -176,7 +177,7 @@ func buildOperatorVulnerabilitySuppression(
 	}
 	if !vulnerabilitySuppressionScopeDiscoverable(request.Scope) {
 		return vulnerabilitysuppressionv1.Suppression{}, fmt.Errorf(
-			"scope must include cve_id, advisory_id, package_id, purl, repository_id, or subject_digest; evidence_path can only narrow a discoverable identity",
+			"scope must include cve_id, advisory_id, package_id, purl, repository_id, or subject_digest; evidence_path, environment, workload_id, and service_id can only narrow a discoverable identity",
 		)
 	}
 
@@ -246,6 +247,9 @@ func normalizeVulnerabilitySuppressionScope(
 	value.PURL = trimmedStringPointer(value.PURL)
 	value.RepositoryID = trimmedStringPointer(value.RepositoryID)
 	value.SubjectDigest = trimmedStringPointer(value.SubjectDigest)
+	value.Environment = canonicalEnvironmentPointer(value.Environment)
+	value.WorkloadID = trimmedStringPointer(value.WorkloadID)
+	value.ServiceID = trimmedStringPointer(value.ServiceID)
 	cleanedPath := make([]string, 0, len(value.EvidencePath))
 	for _, step := range value.EvidencePath {
 		if step = strings.TrimSpace(step); step != "" {
@@ -254,6 +258,17 @@ func normalizeVulnerabilitySuppressionScope(
 	}
 	value.EvidencePath = cleanedPath
 	return value
+}
+
+func canonicalEnvironmentPointer(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	canonical := environment.Canonical(*value)
+	if canonical == "" {
+		return nil
+	}
+	return &canonical
 }
 
 func trimmedStringPointer(value *string) *string {

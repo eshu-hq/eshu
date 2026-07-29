@@ -6028,7 +6028,8 @@
           "scope": {
             "cve_id": "CVE-2026-00010",
             "repository_id": "repository:r_217415d9",
-            "subject_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
+            "subject_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
+            "environment": "prod"
           }
         },
         "required_response_fields": [

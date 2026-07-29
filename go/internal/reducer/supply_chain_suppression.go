@@ -5,7 +5,6 @@ package reducer
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -100,44 +99,14 @@ type vulnerabilitySuppressionScope struct {
 	RepositoryID  string
 	SubjectDigest string
 	EvidencePath  []string
-	// Environment, WorkloadID, and ServiceID narrow a suppression to one
-	// deployment context (#5466), e.g. "not exploitable in staging, still
-	// visible in prod" instead of digest-everywhere. All three are optional
-	// and additive: an empty value is a wildcard, matching every finding
-	// regardless of its environment/workload/service evidence, so an
-	// existing suppression that never sets them behaves exactly as before.
-	// Environment is canonicalized through environment.Canonical (the
-	// shared environment-alias contract, go/internal/environment) at decode
-	// time so alias forms like "production" match the canonical "prod" the
-	// finding's own deployment evidence already resolved to.
+	// Environment, WorkloadID, and ServiceID are optional conjuncts on a
+	// discoverable vulnerability identity. They never identify a vulnerability
+	// alone. Environment is canonicalized through the shared alias contract.
 	//
-	// KNOWN LIMITATION (round-7 review P1-A, codex): naming TWO OR MORE of
-	// these three fields together does NOT guarantee the finding actually
-	// had that exact combination in one real deployment. A finding's
-	// Environments/WorkloadIDs/ServiceIDs are populated from three
-	// independently matched evidence sources with no shared join key beyond
-	// repository_id (reducer_ci_cd_run_correlation carries environment but
-	// no workload/service; reducer_workload_identity carries workload but
-	// no environment; reducer_service_catalog_correlation carries
-	// service/workload but no environment -- see
-	// supply_chain_impact_index.go), so a finding that aggregates multiple
-	// deployments has no record of which environment paired with which
-	// workload/service. suppressionDeploymentContextUnambiguous
-	// (supply_chain_suppression_scope_match.go) therefore requires the
-	// finding to have AT MOST ONE distinct value in every dimension a
-	// multi-field scope references before it will match at all; if any
-	// referenced dimension has two or more distinct values, the scope
-	// FAILS TO MATCH ANY FINDING with that combination, even a finding that
-	// genuinely was in exactly that deployment -- the matcher cannot tell
-	// the two cases apart from the evidence available, so it fails closed
-	// rather than risk hiding a finding that was never in that context.
-	// Making the underlying collectors/reducers correlate these dimensions
-	// (so real per-deployment tuples exist to check) is a separate,
-	// cross-cutting contract change, not attempted here. An operator who
-	// authors a precise multi-field suppression against a repository with
-	// more than one deployment/workload/service should expect it to
-	// silently never apply; narrow it to one field, or to a
-	// single-deployment repository, instead.
+	// Findings currently store these dimensions as independent flattened lists,
+	// not correlated deployment tuples. A scope naming two or more dimensions
+	// therefore matches only when every referenced dimension has at most one
+	// observed value. Ambiguous combinations fail closed to scope_mismatch.
 	Environment string
 	WorkloadID  string
 	ServiceID   string
@@ -212,57 +181,59 @@ func EvaluateSupplyChainSuppression(
 		return SupplyChainSuppressionDecision{State: SupplyChainSuppressionStateActive}
 	}
 	var (
-		activeMatches   []vulnerabilitySuppression
-		providerMatches []vulnerabilitySuppression
-		expiredMatches  []vulnerabilitySuppression
-		scopeMismatched []vulnerabilitySuppression
+		activeMatch   *vulnerabilitySuppression
+		providerMatch *vulnerabilitySuppression
+		expiredMatch  *vulnerabilitySuppression
+		scopeMismatch *vulnerabilitySuppression
 	)
-	for _, s := range suppressions {
-		if !suppressionAdjacent(finding, s) {
+	for i := range suppressions {
+		suppression := &suppressions[i]
+		if !suppressionAdjacent(finding, *suppression) {
 			continue
 		}
-		if !suppressionScopeMatchesFinding(finding, s) {
-			scopeMismatched = append(scopeMismatched, s)
+		if !suppressionScopeMatchesFinding(finding, *suppression) {
+			scopeMismatch = preferredSuppression(scopeMismatch, suppression)
 			continue
 		}
-		if suppressionIsExpired(s, now) {
-			expiredMatches = append(expiredMatches, s)
+		if suppressionIsExpired(*suppression, now) {
+			expiredMatch = preferredSuppression(expiredMatch, suppression)
 			continue
 		}
-		if s.Source == facts.VulnerabilitySuppressionSourceProviderDismissal {
-			providerMatches = append(providerMatches, s)
+		if suppression.Source == facts.VulnerabilitySuppressionSourceProviderDismissal {
+			providerMatch = preferredSuppression(providerMatch, suppression)
 			continue
 		}
-		activeMatches = append(activeMatches, s)
+		activeMatch = preferredSuppression(activeMatch, suppression)
 	}
 
-	if pick := pickPreferredSuppression(activeMatches); pick != nil {
-		return decisionFromActiveOperatorSuppression(*pick)
+	if activeMatch != nil {
+		return decisionFromActiveOperatorSuppression(*activeMatch)
 	}
-	if pick := pickPreferredSuppression(providerMatches); pick != nil {
-		return decisionFromProviderSuppression(*pick)
+	if providerMatch != nil {
+		return decisionFromProviderSuppression(*providerMatch)
 	}
-	if pick := pickPreferredSuppression(expiredMatches); pick != nil {
-		return decisionFromExpiredSuppression(*pick)
+	if expiredMatch != nil {
+		return decisionFromExpiredSuppression(*expiredMatch)
 	}
-	if pick := pickPreferredSuppression(scopeMismatched); pick != nil {
-		return decisionFromScopeMismatch(finding, *pick)
+	if scopeMismatch != nil {
+		return decisionFromScopeMismatch(finding, *scopeMismatch)
 	}
 	return SupplyChainSuppressionDecision{State: SupplyChainSuppressionStateActive}
 }
 
-func pickPreferredSuppression(matches []vulnerabilitySuppression) *vulnerabilitySuppression {
-	if len(matches) == 0 {
-		return nil
+// preferredSuppression returns the candidate that the former stable sort
+// would place first: newest authored time, then lexicographically smallest
+// ID. Exact ties preserve the first input record.
+func preferredSuppression(
+	current *vulnerabilitySuppression,
+	candidate *vulnerabilitySuppression,
+) *vulnerabilitySuppression {
+	if current == nil ||
+		candidate.AuthoredAt.After(current.AuthoredAt) ||
+		(candidate.AuthoredAt.Equal(current.AuthoredAt) && candidate.SuppressionID < current.SuppressionID) {
+		return candidate
 	}
-	sort.SliceStable(matches, func(i, j int) bool {
-		if !matches[i].AuthoredAt.Equal(matches[j].AuthoredAt) {
-			return matches[i].AuthoredAt.After(matches[j].AuthoredAt)
-		}
-		return matches[i].SuppressionID < matches[j].SuppressionID
-	})
-	picked := matches[0]
-	return &picked
+	return current
 }
 
 func decisionFromActiveOperatorSuppression(s vulnerabilitySuppression) SupplyChainSuppressionDecision {

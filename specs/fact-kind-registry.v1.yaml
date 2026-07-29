@@ -600,7 +600,7 @@ families:
     kinds: [vulnerability.affected_package, vulnerability.affected_product, vulnerability.cve, vulnerability.epss_score, vulnerability.go_call_reachability, vulnerability.go_module_evidence, vulnerability.known_exploited, vulnerability.os_package, vulnerability.reference, vulnerability.source_snapshot, vulnerability.warning]
   vulnerability_suppression:
     lifecycle_owner: go/internal/facts
-    schema_version: "1.0.0"
+    schema_version: "1.1.0"
     reducer_domain: supply_chain_impact
     projection_hook: vulnerability_suppression_admission
     admission_hook: facts.ValidateSchemaVersion
