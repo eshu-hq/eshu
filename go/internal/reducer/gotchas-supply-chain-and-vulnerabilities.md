@@ -7,7 +7,8 @@ pointer in `README.md`.
 
 Some supply-chain-impact / security-alert-reconciliation evidence stayed in
 [`gotchas-correlation-queue-and-graph-security.md`](gotchas-correlation-queue-and-graph-security.md)
-(near its "Provider alerts" bullet) to keep both files under the 500-line cap.
+(near the platform-lock/`BuildSharedProjectionIntent` evidence, before the
+SecurityGroup/IAM subsections) to keep both files under the 500-line cap.
 
 - **All reducer domains must be cross-source, cross-scope, and truth-emitting**
   — enforced by `OwnershipShape.Validate`; domains either write canonical graph
