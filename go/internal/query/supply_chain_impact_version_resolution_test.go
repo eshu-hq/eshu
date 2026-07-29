@@ -155,6 +155,29 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 			wantCorroboration: nil,
 		},
 		{
+			// Owner review (round 9): the config_only claim falls through
+			// ObservedVersion -> SubjectDigest -> ImageRef
+			// (supplyChainVersionResolutionClaim, ImageRef branch), but no
+			// prior case in this table exercised a row carrying ONLY
+			// ImageRef -- no ObservedVersion, no SubjectDigest. That third
+			// fallback was untested even though config_only is the floor
+			// every finding degrades to.
+			name: "config-only falls back to image_ref when no version or digest exists",
+			row: SupplyChainImpactFindingRow{
+				ImageRef:     "registry.example/app:v1",
+				WorkloadIDs:  []string{"workload:example-api"},
+				Environments: []string{"prod"},
+			},
+			wantTier: truth.TierConfigOnly,
+			// No other tier makes any claim for this row: runtime_confirmed
+			// requires SubjectDigest (absent), provenance_ci_declared
+			// requires CIDeclaredArtifactDigest/CIDeclaredImageRef (neither
+			// baked here), and declared_ref never fires (#5393). config_only
+			// is the only candidate, so there is nothing to corroborate
+			// against.
+			wantCorroboration: nil,
+		},
+		{
 			name: "weak-branch CI hop with no baked digest contributes no version claim, even with a digest-bearing finding",
 			row: SupplyChainImpactFindingRow{
 				// SubjectDigest is present (a digest-bearing finding) and
