@@ -305,6 +305,19 @@ dispatch tests.
 No-Observability-Change: existing supply-chain impact query spans, truth
 envelopes, readiness envelopes, limits, cursors, truncation, count, and
 inventory metadata diagnose the bounded reads.
+The findings list and impact explain routes run the same finding assembler
+after their bounded cloud-runtime and repository-runtime-context probes. Each
+result therefore reports the current `runtime_context`,
+`deployment_truth_tier`, `version_resolution_tier`, and
+`version_resolution_corroboration` from the same enriched row. The transformed
+investigation packet omits those fields and skips reads that cannot affect its
+response. Version resolution selects the strongest eligible concrete claim in
+deployment-truth
+order: runtime-observed evidence, CI-declared provenance, then config evidence.
+The unshipped declared-ref tier contributes no claim. A CI-declared digest that
+contradicts the finding's subject digest remains corroboration and cannot win.
+Same-axis claims are labeled `agrees` or `disagrees`; digest, image-reference,
+and package-version claims on different axes are `not_comparable`.
 The administrative `POST /api/v0/supply-chain/impact/suppressions` route is
 deliberately outside the scoped-token allowlist. It requires an all-scopes
 authenticated subject, derives source and author server-side, validates a

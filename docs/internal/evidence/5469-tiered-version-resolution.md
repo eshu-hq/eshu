@@ -18,9 +18,9 @@ The query path preserves these boundaries:
   reference;
 - agreement is `agrees`, `disagrees`, or `not_comparable`, so cross-axis
   version/digest comparisons are never reported as contradictions;
-- list, explain, and investigation-packet routes run the same authorized
-  cloud-runtime and read-time runtime-context probes before assembling these
-  fields.
+- list and explain run the same authorized cloud-runtime and read-time
+  runtime-context probes before assembling these fields; the investigation
+  packet omits both fields and skips those unused reads.
 
 The reducer persists the matched CI deployment's own artifact digest and image
 reference atomically. It never borrows the finding identity or combines fields
@@ -118,6 +118,54 @@ remaining 112 B/op delta is the two corroboration records returned by the new
 wire contract, not temporary classifier storage. Candidate work remains
 strictly bounded to the four closed truth tiers.
 
+## Cloud-runtime lookup theory and route proof
+
+The first candidate repair added a property index to NornicDB's
+`CloudResource.running_image_digest`. Against 50,000 synthetic cloud-resource
+nodes, the index reported 50,000 entries but repeated zero-match probes still
+took roughly 130-190 ms. That theory was rejected and no graph index ships.
+
+The accepted design uses the reducer-owned `graph_node_owner.winning_row`
+read model. The same query resolves the requested digest and checks the source
+fact's active generation, tombstone state, and caller grants. A 100,000-row
+synthetic owner ledger measured the same zero-match shape before and after the
+partial `(running_image_digest, arn, uid)` expression index:
+
+| Plan | Rows examined | Shared hits | Execution |
+| --- | ---: | ---: | ---: |
+| Unindexed sequential scan | 100,000 removed by filter | corpus scan | 7.55 ms |
+| Indexed owner-ledger read | 1 index search, 0 matches | 3 | 0.038 ms |
+
+The new plan is about 199 times faster for this worst-case zero-match lookup.
+The behavior change is intentional rather than output-equivalent: the query
+adds active-generation freshness and scoped authorization to the exact
+digest-to-runtime-resource answer. The integration proof verifies the
+expression index is selected, a scoped caller cannot observe a denied
+resource, and a tombstoned source fact cannot supply runtime evidence:
+
+```bash
+ESHU_POSTGRES_TEST_DSN="$TEST_DSN" GOCACHE=$PWD/.gocache \
+  go test -tags=integration ./internal/query \
+  -run '^TestCloudResourceRuntimeDigestProductionVariantLive$' -count=1 -v
+```
+
+The actual route proof used the same isolated 50,000-node graph and
+100,000-row owner ledger for exact base `ba2b7b80be85` and the finished code.
+Each measurement is the median of 15 unique zero-match digests. NornicDB was
+restarted before each cold comparison:
+
+| Route | Exact base | Finished #5469 | Interpretation |
+| --- | ---: | ---: | --- |
+| Findings list | 173.516 ms | 0.503 ms | about 345 times faster; graph scan removed |
+| Impact explain | 0.041 ms | 0.434 ms | corrected path now resolves runtime evidence; still sub-millisecond |
+| Investigation packet | 0.051 ms | 0.020 ms | faster because its wire shape omits the enriched fields and their reads |
+
+Warm repeated reads put both list implementations below one millisecond, so
+the cold comparison isolates the graph-scan tail rather than claiming a
+steady-state cache win. The temporary route harness was removed after the
+measurement; production integration and handler tests retain the accuracy,
+index-selection, and skipped-packet-read contracts.
+
 ## Live pipeline proof
 
 The live B-7 gate ran after the performance source commit on the rebased
@@ -134,10 +182,10 @@ Result:
 
 ```text
 summary: 512 pass, 0 required-fail, 1 advisory-warn
-PASS: B-7 golden corpus gate green (elapsed 107s)
+PASS: B-7 golden corpus gate green (elapsed 104s)
 ```
 
-The advisory was the graph-query wall-clock check at 22 seconds. The required
+The advisory was the graph-query wall-clock check at 24 seconds. The required
 pipeline wall time, bootstrap, collection, first drain, and maintenance drains
 all passed. Every suppression and reducer drain reported zero residual and
 zero dead-letter work. The live query assertions included the comprehensive

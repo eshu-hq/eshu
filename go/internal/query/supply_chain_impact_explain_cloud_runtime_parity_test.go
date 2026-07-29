@@ -34,7 +34,10 @@ func TestSupplyChainListAndExplainReportSameDeploymentTruthForRuntimeConfirmedFi
 			runningDigest: {cloudResourceGraphRow(uid, runningDigest, ecsARN)},
 		},
 	}
-	inventory := &stubCloudInventory{currentAuthorized: map[string]struct{}{uid: {}}}
+	inventory := &stubCloudInventory{
+		currentAuthorized: map[string]struct{}{uid: {}},
+		rowsByDigest:      graph.rowsByDigest,
+	}
 
 	finding := SupplyChainImpactFindingRow{
 		FindingID:                "finding-parity",
@@ -192,25 +195,10 @@ func TestSupplyChainListAndExplainReportSameRuntimeContextForFindingThatHasOne(t
 	}
 }
 
-// TestSupplyChainPacketRoutesEnrichmentProbesBeforeBuildingPacket proves the
-// investigation-packet route (GET /api/v0/investigations/supply-chain/impact/packet)
-// no longer silently skips either enrichment probe the way it silently
-// skipped applySupplyChainCloudRuntimeEvidence before the codex P1-A fix.
-//
-// This is a call-verification test, not a JSON-field parity test like the two
-// above: verified by direct inspection of supplyChainPacketSummary,
-// supplyChainPacketDecisions, and the InvestigationEvidencePacket struct
-// (investigation_packet.go, investigation_packet_supply_chain.go) that NEITHER
-// deployment_truth_tier, version_resolution_tier, cloud_runtime_resource_refs,
-// nor runtime_context is echoed anywhere in the packet's own transformed JSON
-// shape today (grepped for all four field names across every
-// investigation_packet*.go file: zero matches) -- so there is no packet
-// response field to assert parity against the way explain's raw `finding`
-// field allows. What IS verifiable through the real HTTP route is that the
-// route now genuinely calls both probes with the finding's real digest and
-// repository ID rather than the calls being dead code, proven via the
-// test doubles' own call-recording fields.
-func TestSupplyChainPacketRoutesEnrichmentProbesBeforeBuildingPacket(t *testing.T) {
+// TestSupplyChainPacketSkipsEnrichmentThatItsWireShapeCannotExpose prevents the
+// packet route from paying for runtime enrichment whose fields are absent from
+// the transformed packet response.
+func TestSupplyChainPacketSkipsEnrichmentThatItsWireShapeCannotExpose(t *testing.T) {
 	t.Parallel()
 
 	runningDigest := "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
@@ -223,7 +211,10 @@ func TestSupplyChainPacketRoutesEnrichmentProbesBeforeBuildingPacket(t *testing.
 			runningDigest: {cloudResourceGraphRow(uid, runningDigest, ecsARN)},
 		},
 	}
-	inventory := &stubCloudInventory{currentAuthorized: map[string]struct{}{uid: {}}}
+	inventory := &stubCloudInventory{
+		currentAuthorized: map[string]struct{}{uid: {}},
+		rowsByDigest:      graph.rowsByDigest,
+	}
 
 	finding := SupplyChainImpactFindingRow{
 		FindingID:     "finding-packet-parity",
@@ -260,13 +251,13 @@ func TestSupplyChainPacketRoutesEnrichmentProbesBeforeBuildingPacket(t *testing.
 		t.Fatalf("packet status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 
-	if len(graph.gotDigests) != 1 || graph.gotDigests[0] != runningDigest {
-		t.Fatalf("cloud-runtime probe digests = %#v, want [%q] -- the packet route must probe this finding's own subject digest, not skip the call", graph.gotDigests, runningDigest)
+	if len(graph.gotDigests) != 0 {
+		t.Fatalf("cloud-runtime probe digests = %#v, want none for a packet shape that omits runtime evidence", graph.gotDigests)
 	}
-	if len(inventory.gotCandidates) != 1 || inventory.gotCandidates[0] != uid {
-		t.Fatalf("cloud-runtime probe candidates = %#v, want [%q]", inventory.gotCandidates, uid)
+	if len(inventory.gotCandidates) != 0 {
+		t.Fatalf("cloud-runtime probe candidates = %#v, want none", inventory.gotCandidates)
 	}
-	if len(contextStore.called) != 1 || contextStore.called[0] != repositoryID {
-		t.Fatalf("runtime-context probe repository ids = %#v, want [%q] -- the packet route must resolve this finding's own repository, not skip the call", contextStore.called, repositoryID)
+	if len(contextStore.called) != 0 {
+		t.Fatalf("runtime-context probe repository ids = %#v, want none for a packet shape that omits runtime_context", contextStore.called)
 	}
 }

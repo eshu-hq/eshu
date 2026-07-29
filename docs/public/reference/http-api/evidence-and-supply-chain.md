@@ -933,9 +933,10 @@ Runtime context is evidence-only. Findings preserve reducer-owned
 `repository_id`, `subject_digest`, `image_ref`, `workload_ids[]`,
 `service_ids[]`, `environments[]`, `catalog_entity_refs[]`, and
 `catalog_owner_refs[]` when package/SBOM/image evidence joins to explicit
-deployment or service-catalog facts. The findings list also returns a labeled
-`runtime_context` block resolved from the repository's current active workload,
-service-catalog, platform, and CI/CD facts at read time. The `workload_id`,
+deployment or service-catalog facts. The findings list and impact explain route
+also return a labeled `runtime_context` block resolved from the repository's
+current active workload, service-catalog, platform, and CI/CD facts at read
+time. The transformed investigation packet omits this field. The `workload_id`,
 `service_id`, and `environment` filters use those same current repository
 mappings exclusively; reducer-baked arrays remain historical evidence but
 cannot satisfy a current-runtime filter after a redeploy, retraction, or
@@ -1031,16 +1032,25 @@ per result. The finished #5469 path measured 95.64-96.84 ns/op, 128 B/op, and
 sink. CPU improves by about 30 percent and allocation count is maintained.
 The remaining 112 B/op delta is the two corroboration records returned by the
 new wire contract, not temporary candidate or normalization storage.
-Candidate work is bounded to the four closed truth tiers, and no new graph or
-Postgres query is added.
+Candidate work is bounded to the four closed truth tiers. The findings list and
+explain routes resolve current cloud-runtime evidence with one indexed
+Postgres owner-ledger read, including active-generation freshness and caller
+authorization in that read; they no longer scan the `CloudResource` graph
+label or make a second authorization query. On an isolated 50,000-node graph
+and 100,000-row owner ledger, the cold zero-match findings-list route improved
+from 173.516 ms on exact base `ba2b7b80be85` to 0.503 ms. The explain route,
+which did not perform the required runtime-evidence resolution on the base,
+performs the corrected read in 0.434 ms. The transformed investigation packet
+omits these enrichment fields and improved from 0.051 ms to 0.020 ms by
+skipping their reads.
 
-No-Observability-Change: `version_resolution_tier`/`version_resolution_corroboration`
-are produced by a pure read-time classifier
-(`supplyChainVersionResolution`) plus two reducer-baked string fields threaded
-through the existing `SupplyChainImpactFindingRow`/`buildSupplyChainImpactFindingResult`
-assembly path. No new instrument, metric, span, log line, queue, worker, or
-runtime deployment knob is introduced; the change reuses the existing
-`query.supply_chain_impact_findings` request span and reducer counters.
+Observability: `version_resolution_tier`/`version_resolution_corroboration`
+are produced by `supplyChainVersionResolution` from the enriched finding row.
+The bounded owner-ledger lookup reuses the existing
+`supply_chain.cloud_runtime_probe` child span and records subject-digest,
+candidate-resource, authorized-current-resource, runtime-confirmed-digest, and
+runtime-resource counts. No new metric, log line, queue, worker, graph write,
+or runtime deployment knob is introduced.
 
 Withholding the promotion also changes the derived `reachability` block. That
 object is computed from `runtime_reachability`, and `deployed_image` maps onto

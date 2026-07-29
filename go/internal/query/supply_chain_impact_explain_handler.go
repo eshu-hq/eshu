@@ -114,30 +114,11 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Codex P1-A: buildSupplyChainImpactFindingResult (the shared assembler
-	// this route and the list route both call) resolves deployment_truth_tier
-	// and version_resolution_tier straight from CloudRuntimeResourceRefs on
-	// the row. The list route populates that field by running the authorized
-	// cloud-runtime probe before assembling results, so this route MUST run
-	// it too before the resolver, or explain would silently disagree with
-	// list about which tier won for the same finding.
-	//
-	// This is NOT cheap because it is bounded to one finding: the probe's
-	// Cypher matches on CloudResource.running_image_digest
-	// (supply_chain_impact_cloud_runtime_probe.go), and that property has no
-	// graph index (go/internal/graph/schema_tables_indexes.go only indexes
-	// CloudResource.arn/resource_id/resource_type), so the read is a
-	// CloudResource label scan whose cost is independent of len($digests) --
-	// one digest pays the same scan as list's full page. The common explain
-	// case (a finding whose digest is not running) is the worst case: a full
-	// scan that returns zero rows, which LIMIT cannot short-circuit. Accepted
-	// deliberately anyway: a wrong security tier is worse than the scan cost,
-	// and list already pays this same cost on every request.
+	// Resolve current, authorized runtime image evidence through the indexed
+	// owner ledger before assembling the finding, so explain and list select the
+	// same deployment and version-resolution tiers.
 	rows := []SupplyChainImpactFindingRow{row.Finding}
 	if err := h.applySupplyChainCloudRuntimeEvidence(r.Context(), access, rows); err != nil {
-		if WriteGraphReadError(w, r, err, supplyChainImpactExplanationCapability) {
-			return
-		}
 		WriteError(w, http.StatusInternalServerError, "supply-chain impact runtime evidence probe failed")
 		return
 	}

@@ -67,6 +67,75 @@ func TestCloudResourceListProductionVariantsLive(t *testing.T) {
 	t.Logf("20,000-row production-variant max duration = %s (SLO %s)", maxDuration, cloudResourceListInteractiveSLO)
 }
 
+func TestCloudResourceRuntimeDigestProductionVariantLive(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
+	if dsn == "" {
+		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the live runtime-digest proof")
+	}
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open Postgres: %v", err)
+	}
+	db.SetMaxOpenConns(1)
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	seedCloudResourceListLiveCorpus(t, ctx, db)
+	store := NewPostgresCloudResourceListStore(db)
+	digests := []string{cloudResourceListLiveDigest(1), cloudResourceListLiveDigest(2)}
+
+	query, args := buildCloudResourceRuntimeDigestQuery(
+		digests,
+		false,
+		[]string{"repository:allowed"},
+		[]string{"scope:allowed"},
+	)
+	plan := explainCloudResourceListLiveQuery(t, ctx, db, query, args)
+	if !strings.Contains(plan, "graph_node_owner_cloud_resource_runtime_digest_idx") {
+		t.Fatalf("runtime-digest plan is not index-backed: %s", plan)
+	}
+
+	got, err := store.CurrentAuthorizedCloudResourcesByDigest(
+		ctx,
+		digests,
+		false,
+		[]string{"repository:allowed"},
+		[]string{"scope:allowed"},
+	)
+	if err != nil {
+		t.Fatalf("scoped runtime-digest read: %v", err)
+	}
+	want := []CloudResourceRuntimeDigestMatch{{
+		UID:    "uid-000001",
+		Digest: cloudResourceListLiveDigest(1),
+		ARN:    "arn:example:compute:::resource/000001",
+	}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("scoped runtime-digest rows = %#v, want %#v", got, want)
+	}
+
+	if _, err := db.ExecContext(ctx, `UPDATE fact_records SET is_tombstone = true WHERE fact_id = 'fact-000001'`); err != nil {
+		t.Fatalf("tombstone active fact: %v", err)
+	}
+	got, err = store.CurrentAuthorizedCloudResourcesByDigest(ctx, digests, true, nil, nil)
+	if err != nil {
+		t.Fatalf("all-scopes runtime-digest read after tombstone: %v", err)
+	}
+	want = []CloudResourceRuntimeDigestMatch{{
+		UID:    "uid-000002",
+		Digest: cloudResourceListLiveDigest(2),
+		ARN:    "arn:example:compute:::resource/000002",
+	}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("fresh runtime-digest rows = %#v, want %#v", got, want)
+	}
+}
+
+func cloudResourceListLiveDigest(value int) string {
+	return fmt.Sprintf("sha256:%064x", value)
+}
+
 func assertCloudResourceListLivePaging(
 	t *testing.T,
 	ctx context.Context,
@@ -275,7 +344,9 @@ func seedCloudResourceListLiveCorpus(t *testing.T, ctx context.Context, db *sql.
                   'resource_type', 'type-' || lpad((value % 20)::text, 2, '0'),
                   'collector_kind', 'provider-' || lpad((value % 4)::text, 2, '0'),
                   'region', 'region-' || lpad((value % 8)::text, 2, '0'),
-                  'account_id', 'account-' || lpad((value % 16)::text, 2, '0')
+                  'account_id', 'account-' || lpad((value % 16)::text, 2, '0'),
+                  'running_image_digest', 'sha256:' || lpad(to_hex(value), 64, '0'),
+                  'arn', 'arn:example:compute:::resource/' || lpad(value::text, 6, '0')
                 )
          FROM generate_series(1, 20000) AS value`,
 		`CREATE INDEX graph_node_owner_cloud_resource_page_idx
@@ -290,6 +361,10 @@ func seedCloudResourceListLiveCorpus(t *testing.T, ctx context.Context, db *sql.
 		`CREATE INDEX graph_node_owner_cloud_resource_account_page_idx
            ON graph_node_owner (((winning_row->>'account_id')), ((winning_row->>'resource_type')), uid)
            WHERE winning_row->>'resource_type' IS NOT NULL`,
+		`CREATE INDEX graph_node_owner_cloud_resource_runtime_digest_idx
+           ON graph_node_owner (((winning_row->>'running_image_digest')), ((winning_row->>'arn')), uid)
+           WHERE winning_row->>'resource_type' IS NOT NULL
+             AND winning_row->>'running_image_digest' IS NOT NULL`,
 		`ANALYZE ingestion_scopes`,
 		`ANALYZE scope_generations`,
 		`ANALYZE fact_records`,

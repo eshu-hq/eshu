@@ -39,13 +39,8 @@ bash -n "${matcher_lib}" || fail "golden-corpus-mirror-matcher.sh has a syntax e
 # shellcheck source=scripts/lib/golden-corpus-mirror-matcher.sh
 . "${matcher_lib}"
 
-# #5596: the workflow's on.pull_request.paths filter must trigger this gate on
-# every source dir whose changes can alter emitted facts or fact contracts the
-# gate asserts. A dir missing here means a PR that touches only that dir ships
-# a fact-emission change unverified by the golden corpus (a false-green).
-# Anchored off comment lines for the same reason every other assertion is: a
-# YAML `#` comment naming a path would otherwise satisfy the assertion while the
-# real filter entry is gone.
+# The workflow paths filter must cover every input that can change golden truth.
+# require_in ignores YAML comments, so prose cannot stand in for a live entry.
 require_workflow_path() {
 	local label="$1" path_glob="$2"
 	require_in "golden-corpus-gate.yml paths filter (${label})" "${workflow}" "- '${path_glob}'"
@@ -68,6 +63,7 @@ require_workflow_path "ingester fact emission"         "go/cmd/ingester/**"
 require_workflow_path "projector runtime"              "go/cmd/projector/**"
 require_workflow_path "reducer runtime"                "go/cmd/reducer/**"
 require_workflow_path "api query surface"              "go/cmd/api/**"
+require_workflow_path "static ecosystem corpus inputs" "tests/fixtures/ecosystems/**"
 # The orchestrator sources these; an edit to the mutex or a fixture/timing lib
 # changes what the gate does, so each must trigger it. Without this the lock
 # itself was in no trigger list at all - its only test would never have run.
@@ -79,9 +75,9 @@ require_workflow_path "live gate mutex"                "scripts/lib/live-gate-lo
 # is present in either gate, so deleting it from one silently un-selects that
 # gate and the local half of the gap reopens.
 for gate_id in golden-corpus-mirror golden-corpus-gate; do
-	for lib_path in 'scripts/lib/golden-corpus-*.sh' 'scripts/lib/live-gate-lock.sh'; do
-		require_in_region "ci-gates gate ${gate_id} trigger ${lib_path}" "${ci_gates}" \
-			"/^  - id: ${gate_id}\$/,/^    local:/" "- \"${lib_path}\""
+	for gate_path in 'scripts/lib/golden-corpus-*.sh' 'scripts/lib/live-gate-lock.sh' 'tests/fixtures/ecosystems/**'; do
+		require_in_region "ci-gates gate ${gate_id} trigger ${gate_path}" "${ci_gates}" \
+			"/^  - id: ${gate_id}\$/,/^    local:/" "- \"${gate_path}\""
 	done
 done
 # Anchored to the golden-corpus selector line, not the whole file: the fragment
@@ -91,6 +87,9 @@ done
 require_matches "the pre-pr golden-corpus selector must match the golden-corpus libs and the mutex" \
 	"${prepr}" \
 	"^(?!\s*#)[^\n]*run_or_defer golden-corpus \\\\\n[^\n]*scripts/lib/\(golden-corpus-\.\+\|live-gate-lock\)"
+require_matches "the pre-pr golden-corpus selector must match static ecosystem corpus inputs" \
+	"${prepr}" \
+	"^(?!\s*#)[^\n]*run_or_defer golden-corpus \\\\\n[^\n]*tests/fixtures/ecosystems/"
 
 # #5817 P2 review: verify-golden-corpus-gate.sh sources FOUR
 # scripts/lib/golden-corpus-*.sh helper libs (fixtures, phase-timings,

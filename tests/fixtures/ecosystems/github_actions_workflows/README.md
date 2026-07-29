@@ -70,8 +70,6 @@ them, empties `version_resolution_tier` for that finding and fails the pin.
 
 **Do not remove `package.json` or `package-lock.json` from this fixture** even
 though they are unrelated to the GitHub Actions detector fixture they sit
-alongside. A silent removal is dangerous because nothing would catch it before
-merge: neither the `paths:` filter in `.github/workflows/golden-corpus-gate.yml` nor
-the golden-corpus change-detection in `scripts/dev/pre-pr.sh` watches
-`tests/fixtures/ecosystems/**`, so a fixture-only edit here would not
-automatically re-run the gate that would catch the break.
+alongside. The B-7 workflow, gate registry, and local pre-PR selector all watch
+`tests/fixtures/ecosystems/**`, so a fixture-only edit here automatically
+re-runs the gate that catches a broken config-only pin.

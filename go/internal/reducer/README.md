@@ -1811,7 +1811,29 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   image identity evidence. Package-registry version facts are upstream metadata
   and must not be treated as installed versions. CVSS, EPSS, and KEV stay risk
   signals; they never prove reachability without package or runtime evidence,
-  and missing deployment evidence remains visible. Exact repository-scoped
+  and missing deployment evidence remains visible. A matched
+  `reducer_ci_cd_run_correlation` contributes
+  `ci_declared_artifact_digest` and `ci_declared_image_ref` only when that one
+  deployment matches the finding by digest or image reference. The reducer
+  copies both values from the first strong match as one pair, including an empty
+  sibling value, so later rows cannot assemble an identity no deployment
+  declared. A repository/environment/operational-anchor match contributes
+  deployment context but leaves both CI-declared identity fields absent. An
+  image-reference match may carry a contradicting digest; the reducer preserves
+  it so the query layer can disclose the disagreement without selecting the
+  foreign digest as the finding's resolved identity.
+
+  No-Regression Evidence: `go test ./internal/reducer -run
+  'TestBuildSupplyChainImpactFindings(BakesCIDeclaredArtifact|WeakBranchBakesNoCIDeclaredArtifact)'
+  -count=1` covers strong digest and image-reference matches, weak operational
+  matches, atomic first-row selection, and preserved digest disagreement.
+
+  No-Observability-Change: the helper runs in-process over already matched
+  deployment rows. It adds no query, queue, graph write, metric, span, log
+  field, or runtime knob; the existing supply-chain reducer execution metrics,
+  durable finding payload, and query spans expose the result.
+
+  Exact repository-scoped
   `reducer_service_catalog_correlation` facts are attached to the finding
   evidence path, but they do not create `service_ids` or `workload_ids` unless
   the fact carries those anchors. Repository-only catalog facts preserve

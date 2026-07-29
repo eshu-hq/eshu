@@ -128,12 +128,19 @@
 // referenced evidence facts. It reports advisory, package/version,
 // dependency-chain, manifest/SBOM/image/workload anchors, freshness, and
 // missing-evidence reasons without adding whole-graph traversal or inventing
-// reachability truth. Repository-scoped service-catalog correlation evidence
-// remains visible in list and explain evidence paths. Catalog entity refs are
-// reported as catalog anchors without becoming service ids; only catalog
-// evidence that lacks a service id, workload id, and entity ref reports
-// service/workload catalog anchor missing instead of claiming catalog evidence
-// is absent.
+// reachability truth. The list and explain routes resolve the same current
+// repository-to-runtime context before building their finding result. They also
+// select the strongest eligible concrete
+// version or digest claim from runtime-observed, CI-declared, and config
+// evidence. Weaker claims remain visible as agreeing, disagreeing, or
+// incomparable corroboration; a CI-declared digest that contradicts the
+// finding's subject digest cannot become the selected value. The transformed
+// investigation packet omits these fields and skips the unused enrichment.
+// Repository-scoped service-catalog correlation evidence remains visible in
+// list and explain evidence paths. Catalog entity refs are reported as catalog
+// anchors without becoming service ids; only catalog evidence that lacks a
+// service id, workload id, and entity ref reports service/workload catalog
+// anchor missing instead of claiming catalog evidence is absent.
 // Metrics reads expose bounded historical time-series for console trend panels
 // through MetricsHandler. The handler accepts a MetricsTimeSeriesSource, with
 // PrometheusMetricsTimeSeriesSource providing the Prometheus/Mimir query_range

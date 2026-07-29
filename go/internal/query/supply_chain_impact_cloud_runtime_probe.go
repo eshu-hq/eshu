@@ -2,16 +2,13 @@
 // Copyright (c) 2025-2026 eshu-hq
 
 // Observability Evidence: probeSupplyChainCloudRuntimeResources issues one
-// bounded CloudResource graph read through the shared GraphQuery port, so the
-// underlying backend read is covered by the port's existing query telemetry.
-// That coverage does NOT explain the tier-promotion DECISION this probe drives
-// (config_only/provenance_ci_declared -> runtime_confirmed), so the probe opens
-// its own "supply_chain.cloud_runtime_probe" child span (queryHandlerTracer,
-// shared with handler_tracing.go) carrying the number of subject digests
-// probed, how many candidate resources matched, how many survived the
-// current-inventory + authorization filter, and the final resolved counts — an
-// operator can read that span to see exactly why a finding's deployment truth
-// tier was (or was not) promoted to runtime_confirmed (#5452).
+// indexed, bounded read through the reducer-owned CloudResource owner ledger.
+// The probe opens its own "supply_chain.cloud_runtime_probe" child span
+// (queryHandlerTracer, shared with handler_tracing.go) carrying the number of
+// subject digests probed, how many authorized current resources matched, and
+// the final resolved counts — an operator can read that span to see exactly why
+// a finding's deployment truth tier was (or was not) promoted to
+// runtime_confirmed (#5452).
 
 package query
 
@@ -23,15 +20,15 @@ import (
 )
 
 // supplyChainCloudRuntimeProbeMaxDigests bounds the runtime-image probe: at most
-// this many distinct subject digests are matched against CloudResource nodes in
-// one graph read, so a large findings page can never issue an unbounded IN-list
-// graph query. A page returning more distinct digests than this is capped; the
+// this many distinct subject digests are matched against owner-ledger rows in
+// one read, so a large findings page can never issue an unbounded IN-list query.
+// A page returning more distinct digests than this is capped; the
 // excess simply does not gain a runtime tier (a bounded, documented limit, not a
 // silent wrong answer).
 const supplyChainCloudRuntimeProbeMaxDigests = 200
 
-// supplyChainCloudRuntimeProbeMaxResults bounds the total rows the probe's
-// CloudResource graph read returns, so a single vulnerable image running on an
+// supplyChainCloudRuntimeProbeMaxResults bounds the total owner-ledger rows the
+// probe returns, so a single vulnerable image running on an
 // unusually large fleet can never return an unbounded row set. The query orders
 // by (running_image_digest, arn) before the LIMIT, so the returned set is
 // DETERMINISTIC and reproducible run-to-run — a security evidence field must not
@@ -44,31 +41,21 @@ const supplyChainCloudRuntimeProbeMaxDigests = 200
 const supplyChainCloudRuntimeProbeMaxResults = 200
 
 // probeSupplyChainCloudRuntimeResources maps each given finding subject digest
-// to the observed cloud resources (CloudResource graph nodes) whose
-// running_image_digest equals that digest AND that are current + authorized —
+// to observed CloudResource owner-ledger rows whose running_image_digest equals
+// that digest AND that are current + authorized —
 // the runtime-observed deployment evidence #5452 promotes to the
 // runtime_confirmed deployment_truth_tier. The digest is the vulnerable
 // artifact's own content-addressed identity, so a match means "this exact
 // scanned image is running on that resource", not a shared base-image
 // coincidence.
 //
-// Two gates run after the bounded graph read, because CloudResource graph nodes
-// carry neither a scope_id nor a freshness marker:
+// The owner-ledger read combines digest lookup, active-generation freshness,
+// and authorization in one query. A stale graph node therefore cannot become
+// runtime evidence, and a scoped caller never sees an ARN outside its grants.
 //
-//   - current-inventory (#5452 codex P1a): CloudResource nodes are MERGE-written
-//     and never node-retracted, so a resource that vanished from a later scan
-//     leaves a stale node with its old running_image_digest. The graph matches
-//     are filtered through the Postgres owner ledger
-//     (CloudResourceCurrentInventoryFilter), which admits only uids backed by an
-//     active-generation, non-tombstoned source fact — so a stale node never
-//     becomes runtime evidence.
-//   - authorization (#5787): the same owner-ledger filter applies the caller's
-//     scope grants, so a scoped-token caller sees runtime evidence for cloud
-//     resources it is granted and never ARNs from scopes it is not.
-//
-// It is nil-safe: a nil GraphQuery port, a nil inventory filter, or empty input
+// It is nil-safe: a nil runtime-digest resolver or empty input
 // returns an empty map so tier classification degrades cleanly to
-// CI-declared/config. A graph or ledger error is returned to the caller rather
+// CI-declared/config. A ledger error is returned to the caller rather
 // than swallowed, so a probe failure never silently downgrades a
 // runtime_confirmed finding to a false config_only.
 func (h *SupplyChainHandler) probeSupplyChainCloudRuntimeResources(
@@ -76,7 +63,11 @@ func (h *SupplyChainHandler) probeSupplyChainCloudRuntimeResources(
 	access repositoryAccessFilter,
 	digests []string,
 ) (map[string][]string, error) {
-	if h == nil || h.Neo4j == nil || h.CloudResourceInventory == nil {
+	if h == nil || h.CloudResourceInventory == nil {
+		return nil, nil
+	}
+	resolver, ok := h.CloudResourceInventory.(CloudResourceRuntimeDigestResolver)
+	if !ok {
 		return nil, nil
 	}
 	deduped := sortedUniqueNonEmptyStrings(digests)
@@ -91,35 +82,25 @@ func (h *SupplyChainHandler) probeSupplyChainCloudRuntimeResources(
 	defer span.End()
 	span.SetAttributes(attribute.Int("eshu.subject_digest_count", len(deduped)))
 
-	const cypher = `
-		MATCH (n:CloudResource)
-		WHERE n.running_image_digest IN $digests
-		  AND coalesce(n.arn, '') <> ''
-		  AND coalesce(n.uid, '') <> ''
-		RETURN n.uid AS uid,
-		       n.running_image_digest AS digest,
-		       n.arn AS arn
-		ORDER BY n.running_image_digest, n.arn
-		LIMIT $limit
-	`
-	rows, err := h.Neo4j.Run(ctx, cypher, map[string]any{
-		"digests": deduped,
-		"limit":   supplyChainCloudRuntimeProbeMaxResults,
-	})
+	rows, err := resolver.CurrentAuthorizedCloudResourcesByDigest(
+		ctx,
+		deduped,
+		!access.scoped(),
+		access.grantedRepositoryIDs(),
+		access.grantedScopeIDs(),
+	)
 	if err != nil {
 		span.RecordError(err)
 		return nil, err
 	}
 
-	// Candidate (digest, arn) matches keyed by uid, so the owner-ledger filter
-	// below can drop stale or unauthorized resources by uid before building refs.
 	type cloudRuntimeMatch struct{ digest, arn string }
 	byUID := make(map[string][]cloudRuntimeMatch, len(rows))
 	candidateUIDs := make([]string, 0, len(rows))
 	for _, row := range rows {
-		uid := strings.TrimSpace(StringVal(row, "uid"))
-		digest := strings.TrimSpace(StringVal(row, "digest"))
-		arn := strings.TrimSpace(StringVal(row, "arn"))
+		uid := strings.TrimSpace(row.UID)
+		digest := strings.TrimSpace(row.Digest)
+		arn := strings.TrimSpace(row.ARN)
 		if uid == "" || digest == "" || arn == "" {
 			continue
 		}
@@ -132,23 +113,8 @@ func (h *SupplyChainHandler) probeSupplyChainCloudRuntimeResources(
 		return nil, nil
 	}
 
-	authorizedUIDs, err := h.CloudResourceInventory.CurrentAuthorizedCloudResourceUIDs(
-		ctx, candidateUIDs, !access.scoped(), access.grantedRepositoryIDs(), access.grantedScopeIDs(),
-	)
-	if err != nil {
-		span.RecordError(err)
-		return nil, err
-	}
-	authorized := make(map[string]struct{}, len(authorizedUIDs))
-	for _, uid := range authorizedUIDs {
-		authorized[uid] = struct{}{}
-	}
-
 	byDigest := make(map[string][]string)
-	for uid, matches := range byUID {
-		if _, ok := authorized[uid]; !ok {
-			continue
-		}
+	for _, matches := range byUID {
 		for _, match := range matches {
 			byDigest[match.digest] = append(byDigest[match.digest], match.arn)
 		}
@@ -161,7 +127,7 @@ func (h *SupplyChainHandler) probeSupplyChainCloudRuntimeResources(
 	}
 	span.SetAttributes(
 		attribute.Int("eshu.candidate_resource_count", len(candidateUIDs)),
-		attribute.Int("eshu.authorized_current_resource_count", len(authorized)),
+		attribute.Int("eshu.authorized_current_resource_count", len(candidateUIDs)),
 		attribute.Int("eshu.runtime_confirmed_digest_count", len(byDigest)),
 		attribute.Int("eshu.runtime_resource_count", resourceCount),
 	)
@@ -176,18 +142,18 @@ func (h *SupplyChainHandler) probeSupplyChainCloudRuntimeResources(
 // resource, are left untouched (their tier stays CI-declared or config-only).
 //
 // Authorization and staleness are enforced inside the probe through the
-// owner-ledger current-inventory filter (see probeSupplyChainCloudRuntimeResources):
+// owner-ledger read (see probeSupplyChainCloudRuntimeResources):
 // a scoped caller receives runtime evidence only for cloud resources it is
 // granted, and a stale (retracted-in-a-later-scan) node never contributes. The
-// probe error is propagated so the read fails loudly (mapped to a bounded,
-// retryable graph-availability error by the caller) rather than serving a false
-// config_only tier for a vulnerability that is actually running.
+// probe error is propagated so the read fails loudly as a bounded internal
+// query error rather than serving a false config_only tier for a vulnerability
+// that is actually running.
 func (h *SupplyChainHandler) applySupplyChainCloudRuntimeEvidence(
 	ctx context.Context,
 	access repositoryAccessFilter,
 	rows []SupplyChainImpactFindingRow,
 ) error {
-	if h == nil || h.Neo4j == nil || h.CloudResourceInventory == nil || len(rows) == 0 {
+	if h == nil || h.CloudResourceInventory == nil || len(rows) == 0 {
 		return nil
 	}
 	digests := make([]string, 0, len(rows))

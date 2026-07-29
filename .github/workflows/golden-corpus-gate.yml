@@ -30,6 +30,7 @@ on:
       - 'go/internal/demospec/**'
       - 'testdata/golden/**'
       - 'testdata/cassettes/**'
+      - 'tests/fixtures/ecosystems/**'
       - 'specs/demo-first-answers.v1.yaml'
       - 'scripts/verify-golden-corpus-gate.sh'
       - 'scripts/test-verify-golden-corpus-gate.sh'
