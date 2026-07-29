@@ -132,6 +132,23 @@ func (h *SupplyChainHandler) getImpactPacket(w http.ResponseWriter, r *http.Requ
 		WriteError(w, http.StatusInternalServerError, "supply-chain impact runtime evidence probe failed")
 		return
 	}
+	// Same root cause as the cloud-runtime probe above, and the same fix as
+	// the explain route: row.RuntimeContext must be resolved before the row
+	// feeds the shared assembler, or this route silently omits a finding's
+	// current workload/service/deployment context on the internal Finding
+	// object even where list would resolve one. (The packet's own JSON
+	// response does not currently echo runtime_context anywhere in its
+	// transformed shape -- see supplyChainPacketSummary/supplyChainPacketDecisions
+	// -- so this keeps the row internally correct and consistent with the
+	// other two routes rather than fixing an externally observable
+	// disagreement on this specific field for packet today.)
+	if err := h.applySupplyChainRuntimeContext(r.Context(), rows, access); err != nil {
+		if WriteGraphReadError(w, r, err, supplyChainImpactExplanationCapability) {
+			return
+		}
+		WriteError(w, http.StatusInternalServerError, "supply-chain impact runtime context probe failed")
+		return
+	}
 	row.Finding = rows[0]
 
 	scope := findingReadinessScope(row.Finding, filter)

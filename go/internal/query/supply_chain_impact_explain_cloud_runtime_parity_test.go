@@ -110,3 +110,163 @@ func TestSupplyChainListAndExplainReportSameDeploymentTruthForRuntimeConfirmedFi
 		t.Fatalf("explain version_resolution_corroboration = %#v, want %#v (same as list)", got, want)
 	}
 }
+
+// TestSupplyChainListAndExplainReportSameRuntimeContextForFindingThatHasOne
+// is the third instance of the same shape as codex P1-A: buildSupplyChainImpactFindingResult's
+// SupplyChainImpactFindingResult(row) conversion carries row.RuntimeContext
+// straight through to the runtime_context response field
+// (supply_chain_impact_result.go), but only the list route called
+// applySupplyChainRuntimeContext before assembling results -- explain
+// unconditionally reported no runtime_context even for a finding whose
+// repository DOES currently resolve to real workload/service context.
+func TestSupplyChainListAndExplainReportSameRuntimeContextForFindingThatHasOne(t *testing.T) {
+	t.Parallel()
+
+	repositoryID := "repository:r_context_parity"
+	finding := SupplyChainImpactFindingRow{
+		FindingID:    "finding-context-parity",
+		CVEID:        "CVE-2026-9002",
+		PackageID:    "pkg:npm/example",
+		ImpactStatus: "affected_exact",
+		RepositoryID: repositoryID,
+	}
+
+	contextStore := &runtimeContextFindingStore{
+		rows: []SupplyChainImpactFindingRow{finding},
+		byRepo: map[string]SupplyChainRuntimeContext{
+			repositoryID: {
+				WorkloadIDs: []string{"workload:example-api"},
+				ServiceIDs:  []string{"service:example-api"},
+			},
+		},
+	}
+	explanationStore := &recordingSupplyChainImpactExplanationStore{
+		row: SupplyChainImpactExplanationRow{Finding: finding},
+	}
+	readiness := &recordingSupplyChainImpactReadinessStore{}
+
+	handler := &SupplyChainHandler{
+		ImpactFindings:     contextStore,
+		ImpactExplanations: explanationStore,
+		Readiness:          readiness,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	listReq := httptest.NewRequest(http.MethodGet, "/api/v0/supply-chain/impact/findings?cve_id=CVE-2026-9002&limit=10", nil)
+	listW := httptest.NewRecorder()
+	mux.ServeHTTP(listW, listReq)
+	if got, want := listW.Code, http.StatusOK; got != want {
+		t.Fatalf("list status = %d, want %d; body = %s", got, want, listW.Body.String())
+	}
+	var listResp struct {
+		Findings []SupplyChainImpactFindingResult `json:"findings"`
+	}
+	if err := json.Unmarshal(listW.Body.Bytes(), &listResp); err != nil {
+		t.Fatalf("list json.Unmarshal: %v", err)
+	}
+	if len(listResp.Findings) != 1 {
+		t.Fatalf("list findings = %#v, want exactly 1", listResp.Findings)
+	}
+	listFinding := listResp.Findings[0]
+	if listFinding.RuntimeContext == nil {
+		t.Fatalf("list runtime_context = nil, want a resolved context (test setup bug, not the fix under test)")
+	}
+
+	explainReq := httptest.NewRequest(http.MethodGet, "/api/v0/supply-chain/impact/explain?finding_id=finding-context-parity", nil)
+	explainW := httptest.NewRecorder()
+	mux.ServeHTTP(explainW, explainReq)
+	if got, want := explainW.Code, http.StatusOK; got != want {
+		t.Fatalf("explain status = %d, want %d; body = %s", got, want, explainW.Body.String())
+	}
+	var explainResp SupplyChainImpactExplanationResult
+	if err := json.Unmarshal(explainW.Body.Bytes(), &explainResp); err != nil {
+		t.Fatalf("explain json.Unmarshal: %v", err)
+	}
+	if explainResp.Finding == nil {
+		t.Fatalf("explain Finding = nil, want the explained finding")
+	}
+
+	if got, want := explainResp.Finding.RuntimeContext, listFinding.RuntimeContext; !reflect.DeepEqual(got, want) {
+		t.Fatalf("explain runtime_context = %#v, want %#v (same as list) -- list and explain must agree on a finding's current workload/service context", got, want)
+	}
+}
+
+// TestSupplyChainPacketRoutesEnrichmentProbesBeforeBuildingPacket proves the
+// investigation-packet route (GET /api/v0/investigations/supply-chain/impact/packet)
+// no longer silently skips either enrichment probe the way it silently
+// skipped applySupplyChainCloudRuntimeEvidence before the codex P1-A fix.
+//
+// This is a call-verification test, not a JSON-field parity test like the two
+// above: verified by direct inspection of supplyChainPacketSummary,
+// supplyChainPacketDecisions, and the InvestigationEvidencePacket struct
+// (investigation_packet.go, investigation_packet_supply_chain.go) that NEITHER
+// deployment_truth_tier, version_resolution_tier, cloud_runtime_resource_refs,
+// nor runtime_context is echoed anywhere in the packet's own transformed JSON
+// shape today (grepped for all four field names across every
+// investigation_packet*.go file: zero matches) -- so there is no packet
+// response field to assert parity against the way explain's raw `finding`
+// field allows. What IS verifiable through the real HTTP route is that the
+// route now genuinely calls both probes with the finding's real digest and
+// repository ID rather than the calls being dead code, proven via the
+// test doubles' own call-recording fields.
+func TestSupplyChainPacketRoutesEnrichmentProbesBeforeBuildingPacket(t *testing.T) {
+	t.Parallel()
+
+	runningDigest := "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+	uid := "CloudResource:aws:ecs:task-packet-parity"
+	ecsARN := "arn:aws:ecs:us-east-1:123456789012:task/demo/eeeeeeee"
+	repositoryID := "repository:r_packet_parity"
+
+	graph := &stubCloudRuntimeGraph{
+		rowsByDigest: map[string][]map[string]any{
+			runningDigest: {cloudResourceGraphRow(uid, runningDigest, ecsARN)},
+		},
+	}
+	inventory := &stubCloudInventory{currentAuthorized: map[string]struct{}{uid: {}}}
+
+	finding := SupplyChainImpactFindingRow{
+		FindingID:     "finding-packet-parity",
+		CVEID:         "CVE-2026-9003",
+		PackageID:     "pkg:npm/example",
+		ImpactStatus:  "affected_exact",
+		SubjectDigest: runningDigest,
+		RepositoryID:  repositoryID,
+	}
+	contextStore := &runtimeContextFindingStore{
+		byRepo: map[string]SupplyChainRuntimeContext{
+			repositoryID: {WorkloadIDs: []string{"workload:example-api"}},
+		},
+	}
+	explanationStore := &recordingSupplyChainImpactExplanationStore{
+		row: SupplyChainImpactExplanationRow{Finding: finding},
+	}
+	readiness := &recordingSupplyChainImpactReadinessStore{}
+
+	handler := &SupplyChainHandler{
+		ImpactFindings:         contextStore,
+		ImpactExplanations:     explanationStore,
+		Readiness:              readiness,
+		Neo4j:                  graph,
+		CloudResourceInventory: inventory,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/investigations/supply-chain/impact/packet?finding_id=finding-packet-parity", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("packet status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+
+	if len(graph.gotDigests) != 1 || graph.gotDigests[0] != runningDigest {
+		t.Fatalf("cloud-runtime probe digests = %#v, want [%q] -- the packet route must probe this finding's own subject digest, not skip the call", graph.gotDigests, runningDigest)
+	}
+	if len(inventory.gotCandidates) != 1 || inventory.gotCandidates[0] != uid {
+		t.Fatalf("cloud-runtime probe candidates = %#v, want [%q]", inventory.gotCandidates, uid)
+	}
+	if len(contextStore.called) != 1 || contextStore.called[0] != repositoryID {
+		t.Fatalf("runtime-context probe repository ids = %#v, want [%q] -- the packet route must resolve this finding's own repository, not skip the call", contextStore.called, repositoryID)
+	}
+}
