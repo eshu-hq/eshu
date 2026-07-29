@@ -222,4 +222,94 @@ git -C "${query_doc_evidence_repo}" add .
 git -C "${query_doc_evidence_repo}" commit -q -m 'add MERGE (hot change) with evidence in a query package doc'
 expect_pass "${query_doc_evidence_repo}"
 
+# Regression coverage for the sdk/go/** whitelist gap (eshu-hq/eshu#5542
+# follow-up): sdk/go is a sibling Go-module tree the go/** globs do not
+# reach. sdk/go/collector/README.md and sdk/go/factschema/README.md are two
+# of the residual whitelist gap files measured against real repo content.
+# sdk/go itself carries no hot-path Go file (only go/internal and go/cmd are
+# recognized hot-path locations), so this fixture puts the hot change in a
+# real hot-path file and the evidence in a new sdk/go/**/*.md doc, matching
+# how contributors actually record evidence for SDK-consuming reducer code.
+sdk_doc_evidence_repo="$(init_repo sdk-doc-evidence)"
+write_baseline "${sdk_doc_evidence_repo}"
+printf 'package cypher\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\nconst writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n' \
+  >"${sdk_doc_evidence_repo}/go/internal/storage/cypher/writer.go"
+mkdir -p "${sdk_doc_evidence_repo}/sdk/go/factschema"
+cat >"${sdk_doc_evidence_repo}/sdk/go/factschema/README.md" <<'MD'
+# Fact Schema SDK
+
+## Current Evidence (this PR)
+
+Performance Evidence: writerQuery MERGE benchmarked flat vs baseline on the
+20-repo local NornicDB corpus; terminal queue depth 0.
+
+No-Observability-Change: existing writer span/metric coverage already
+instruments this MERGE path.
+MD
+git -C "${sdk_doc_evidence_repo}" add .
+git -C "${sdk_doc_evidence_repo}" commit -q -m 'add writerQuery MERGE (hot change) with evidence in an sdk/go package doc'
+expect_pass "${sdk_doc_evidence_repo}"
+
+# Regression coverage for the marker-regex parenthetical-qualifier fix
+# (eshu-hq/eshu#5542 follow-up): "No-Regression Evidence (#5735):" is an
+# established, already-merged convention (docs/public/reference/
+# cypher-performance.md, go/internal/ask/engine/README.md, and 36 other
+# files -- 116 such markers repo-wide) that the original phrase-then-
+# colon-only regex made invisible to the gate. This PR's ONLY evidence uses
+# that exact "(#NNNN):" form; the gate must PASS.
+parenthetical_marker_repo="$(init_repo parenthetical-marker)"
+write_baseline "${parenthetical_marker_repo}"
+printf 'package cypher\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\nconst writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n' \
+  >"${parenthetical_marker_repo}/go/internal/storage/cypher/writer.go"
+cat >"${parenthetical_marker_repo}/go/internal/storage/cypher/README.md" <<'MD'
+# Cypher Storage
+
+Overview of the cypher storage writer package.
+
+## Prior Evidence (an earlier, unrelated PR)
+
+Performance Evidence: baseline writer benchmark stayed flat.
+
+No-Observability-Change: existing writer metrics already cover this path.
+
+## Current Evidence (#5542 review round, parenthetical marker form)
+
+Performance Evidence (#5542): writerQuery MERGE benchmarked flat vs baseline
+on the 20-repo local NornicDB corpus; terminal queue depth 0.
+
+No-Observability-Change (#5542): existing writer span/metric coverage
+already instruments this MERGE path.
+MD
+git -C "${parenthetical_marker_repo}" add .
+git -C "${parenthetical_marker_repo}" commit -q -m 'add writerQuery MERGE with parenthetical-form evidence markers'
+expect_pass "${parenthetical_marker_repo}"
+
+# Composition safety check for the SAME fix: a bare mention of the marker
+# phrase with a parenthetical aside but NO colon at all must still not
+# satisfy the gate. The colon remains mandatory either way -- only an
+# optional bracketed/parenthetical qualifier is now tolerated BEFORE it.
+parenthetical_mention_repo="$(init_repo parenthetical-mention-no-colon)"
+write_baseline "${parenthetical_mention_repo}"
+printf 'package cypher\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\nconst writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n' \
+  >"${parenthetical_mention_repo}/go/internal/storage/cypher/writer.go"
+cat >"${parenthetical_mention_repo}/go/internal/storage/cypher/README.md" <<'MD'
+# Cypher Storage
+
+Overview of the cypher storage writer package.
+
+## Prior Evidence (an earlier, unrelated PR)
+
+Performance Evidence: baseline writer benchmark stayed flat.
+
+No-Observability-Change: existing writer metrics already cover this path.
+
+## Follow-Up Note
+
+No-Regression Evidence (tracked in #5542) is still pending review for this
+change; a fuller write-up will follow once the benchmark rerun completes.
+MD
+git -C "${parenthetical_mention_repo}" add .
+git -C "${parenthetical_mention_repo}" commit -q -m 'add writerQuery MERGE with only a bare mention of the marker phrase (no colon)'
+expect_fail "${parenthetical_mention_repo}"
+
 printf 'verify-performance-evidence inherited-marker tests passed\n'

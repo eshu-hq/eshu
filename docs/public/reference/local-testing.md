@@ -323,16 +323,22 @@ same PR carries its own tracked evidence:
   gate even if the PR happens to touch that file for something else. Add a
   fresh `Performance Evidence:`/`Benchmark Evidence:`/`No-Regression
   Evidence:` line (and a fresh `Observability Evidence:`/
-  `No-Observability-Change:` line) as part of this PR's own diff.
+  `No-Observability-Change:` line) as part of this PR's own diff. An
+  optional single parenthetical or bracketed qualifier between the marker
+  phrase and the colon is accepted (`Performance Evidence (#1234): ...`,
+  `No-Regression Evidence [tracked in ISSUE-1234]: ...`) — an established
+  convention already used across dozens of files — but the colon is always
+  required; a bare mention of the phrase with no colon does not count.
 - **Recognized evidence-file locations**: `docs/public/adrs/*.md`,
   `docs/public/reference/**/*.md`, `docs/internal/evidence/**/*.md`,
   `docs/internal/design/**/*.md`, and any `.md` file directly under a
-  `go/**` package directory — not just `README.md`, `AGENTS.md`, or
-  `evidence-*.md`. The repo's real convention already has evidence recorded
-  in topic-named package docs such as `go/internal/query/read-models.md`
-  and `go/internal/storage/postgres/gotchas-and-invariants.md`; any of
-  these locations works as long as the marker is in this PR's own added
-  lines.
+  `go/**` or `sdk/go/**` package directory — not just `README.md`,
+  `AGENTS.md`, or `evidence-*.md`. The repo's real convention already has
+  evidence recorded in topic-named package docs such as
+  `go/internal/query/read-models.md`,
+  `go/internal/storage/postgres/gotchas-and-invariants.md`, and
+  `sdk/go/factschema/README.md`; any of these locations works as long as
+  the marker is in this PR's own added lines.
 
 ## Remote Collector E2E Compose Proof
 

@@ -238,6 +238,10 @@ is_evidence_file() {
     # Subsumes the earlier go/*/README.md, go/*/AGENTS.md,
     # go/*/evidence-*.md, and go/internal/reducer/*.md patterns.
     go/*.md|go/*/*.md|go/*/*/*.md|go/*/*/*/*.md|go/*/*/*/*/*.md|go/*/*/*/*/*/*.md) return 0 ;;
+    # sdk/go/ is a sibling Go-module tree the go/** globs above do not reach
+    # (e.g. sdk/go/collector/README.md, sdk/go/factschema/README.md), same
+    # gap class as go/** (eshu-hq/eshu#5542 follow-up).
+    sdk/go/*.md|sdk/go/*/*.md|sdk/go/*/*/*.md|sdk/go/*/*/*/*.md|sdk/go/*/*/*/*/*.md|sdk/go/*/*/*/*/*/*.md) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -314,12 +318,21 @@ if [ "${#evidence_files[@]}" -gt 0 ]; then
     evidence_rel="${evidence_file#"$repo_root"/}"
     evidence_added="$(added_lines_for_evidence_file "$evidence_rel")"
     [ -z "$evidence_added" ] && continue
+    # Tolerates an optional single parenthetical/bracketed qualifier between
+    # the marker phrase and the colon (e.g. "No-Regression Evidence (#5369):"),
+    # an established, already-merged convention on main (docs/public/
+    # reference/cypher-performance.md, go/internal/ask/engine/README.md, and
+    # 36 other files -- 116 such markers repo-wide) that the original
+    # phrase-then-colon-only regex made invisible to the gate. The colon
+    # remains mandatory either way, so a bare mention of the phrase with no
+    # colon at all -- "No-Regression Evidence (as discussed above) helps
+    # operators..." -- still does not match (eshu-hq/eshu#5542 follow-up).
     if printf '%s\n' "$evidence_added" \
-      | rg -q -e '(^|[[:space:]])(Performance Evidence|Benchmark Evidence|No-Regression Evidence):'; then
+      | rg -q -e '(^|[[:space:]])(Performance Evidence|Benchmark Evidence|No-Regression Evidence)([[:space:]]*(\([^()]*\)|\[[^\[\]]*\]))?[[:space:]]*:'; then
       has_performance_evidence=0
     fi
     if printf '%s\n' "$evidence_added" \
-      | rg -q -e '(^|[[:space:]])(Observability Evidence|No-Observability-Change):'; then
+      | rg -q -e '(^|[[:space:]])(Observability Evidence|No-Observability-Change)([[:space:]]*(\([^()]*\)|\[[^\[\]]*\]))?[[:space:]]*:'; then
       has_observability_evidence=0
     fi
   done
