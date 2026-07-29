@@ -375,21 +375,91 @@ operational lessons that future storage changes still need to respect.
   intent's derived filter was fully empty
   and `loadActiveSupplyChainImpactFacts` short-circuited to `nil, nil`
   without issuing a query; after #5466 it issues a full paginated Seq Scan.
-  This new-invocation class is UNMEASURED -- no benchmark or production
-  metric isolates it yet -- but it is bounded the same way every other
-  invocation is: at most `maxSupplyChainImpactActiveEvidenceLoads = 8`
-  rounds per intent, the same cap
-  `TestSupplyChainImpactHandlerStopsActiveEvidenceExpansionConservatively`
-  (`go/internal/reducer/supply_chain_impact_active_test.go`) already asserts
-  for the pre-existing loop. The no-index CONCLUSION still stands regardless
-  of this correction: the predicate is OR-ed into a query that already
-  performs a `Parallel Seq Scan` for its other branches at this scale, so an
-  index on this one predicate would not change the scan strategy chosen for
-  the query as a whole.
+  This new-invocation class was originally described here as "UNMEASURED --
+  no benchmark or production metric isolates it yet -- but it is bounded the
+  same way every other invocation is: at most
+  `maxSupplyChainImpactActiveEvidenceLoads = 8` rounds per intent." **That
+  bound claim was wrong, per round-7 review P1-B (codex) -- see the
+  dedicated entry below.** `maxSupplyChainImpactActiveEvidenceLoads = 8`
+  bounds the NUMBER OF ROUNDS `loadActiveSupplyChainImpactFactsUntilStable`
+  issues, not the number of ROWS any single round's
+  `ListActiveSupplyChainImpactFacts` call can return -- and before P1-B, a
+  single round had no row-count bound at all, so an intent whose filter
+  carried a common environment/workload/service/advisory value (with no
+  other anchor) could paginate that ONE round to exhaustion of the entire
+  matching corpus. The no-index CONCLUSION still stands regardless of this
+  correction: the predicate is OR-ed into a query that already performs a
+  `Parallel Seq Scan` for its other branches at this scale, so an index on
+  this one predicate would not change the scan strategy chosen for the
+  query as a whole.
   No-Observability-Change: same as the parser-file-follow-up entry above --
   only the SQL predicate and reducer filter keys changed; the existing
   Postgres query duration metric, reducer run spans/counters, and durable
   suppression decision payload are unaffected.
+  Round-7 review P1-B (codex, `ListActiveSupplyChainImpactFacts` per-call row
+  cap, fixed): a suppression scoped ONLY by a common environment/workload/
+  service/advisory value has no other `WHERE`-clause constraint (see the
+  round-4/round-5 entries above), so `ListActiveSupplyChainImpactFacts`'s
+  pagination loop (`facts_active_supply_chain_impact.go`) paginated to
+  EXHAUSTION of every matching row for that ONE call -- codex cited this
+  branch's own committed 300k-row EXPLAIN evidence (85,715 rows matching a
+  realistic `prod` environment predicate) as proof the total is unbounded.
+  MEASURED (not estimated, per the mandatory Prove-The-Theory-First rule):
+  running the real Go code path end to end (not `EXPLAIN`) against the same
+  300,000-row seeded corpus with `Environments: ["prod"]` returned exactly
+  85,715 envelopes in ~22.7s wall time on a cold-cache Postgres 16 container
+  -- 172 pages at the existing 500-row `listFactsByKindPageSize`. Fix: a new
+  `maxSupplyChainImpactActiveEvidenceRowsPerCall = 2000` cap (4 pages) on
+  `ListActiveSupplyChainImpactFacts`'s own pagination loop, chosen because
+  every OTHER anchor type this query serves (cve_id/package_id/purl/
+  subject_digest/repository_id/advisory_id) measured at 0 to a few hundred
+  matching rows on the same corpus (round-3/round-6 EXPLAIN evidence), so
+  2,000 rows is generous headroom for legitimate targeted evidence
+  expansion while bounding the low-selectivity deployment-context-only
+  worst case. Re-measured WITH the cap engaged, same corpus, same filter,
+  real Go code path: cold-cache first call ~9-11s (dominated by a fixed,
+  one-time Postgres/OS-cache warm-up cost the cap does not eliminate --
+  each page is still an unindexed `Parallel Seq Scan`, per the standing
+  no-index conclusion above), but WARM-cache steady state (three
+  consecutive calls on the same connection: 9.35s, then 4.95s, then
+  532ms) settled at ~532ms for 4 pages -- a ~43x reduction from the
+  uncapped 22.7s/172-page baseline, matching the page-count ratio
+  (4/172 ≈ 1/43) almost exactly, which confirms the dominant warm-cache
+  cost is the per-page CPU-bound Seq Scan filter pass over 300k JSONB rows,
+  not disk I/O. Steady state is the representative production case: this
+  table is queried repeatedly across reducer intents and stays resident in
+  Postgres shared_buffers/OS page cache. Truncation fails OPEN (less
+  suppression evidence loaded this round, findings stay visible -- never
+  hidden by a truncated load) but is surfaced, not silently dropped: the
+  interface `activeSupplyChainImpactFactLoader.ListActiveSupplyChainImpactFacts`
+  (`go/internal/reducer/supply_chain_impact.go`) gained a `bool` return that
+  ORs into the SAME `activeEvidenceTruncated` signal the pre-existing
+  8-round cap already produces (`loadActiveSupplyChainImpactFactsUntilStable`,
+  `supply_chain_impact_handler_helpers.go`), which already flows through
+  `markSupplyChainImpactFindingsActiveExpansionTruncated`, the
+  `active_evidence_truncated=true` evidence-summary log suffix, and the
+  `active_evidence_truncated` sub-signal (`supply_chain_impact_diagnostics.go`)
+  -- an operator sees a per-call row-cap truncation exactly the same way
+  they already see a round-cap truncation, no new observability surface
+  needed.
+  No-Regression Evidence:
+  `TestListActiveSupplyChainImpactFactsCapsRowsPerCall` (hermetic, no DSN
+  required, `facts_active_supply_chain_impact_row_cap_test.go`) proves the
+  cap stops pagination early (asserting BOTH the capped row count AND a
+  lower query count than exhausting every primed page would need, so a
+  regression that removes the early stop fails on the query-count
+  assertion even if row counts happened to coincide) and that `truncated`
+  is reported true; failing-test-first proof: with the cap check disabled,
+  this test failed on an "unexpected query" error from the fake queryer
+  exhausting all four primed pages and requesting a fifth. A companion
+  `TestListActiveSupplyChainImpactFactsDoesNotTruncateUnderTheCap` proves
+  the common (well-under-cap) case is unaffected. All 5 existing live tests
+  (`facts_active_supply_chain_impact_scope_*_live_test.go`) were re-run
+  against a live Postgres after the interface signature change and pass
+  unchanged.
+  No-Observability-Change: reuses the existing `activeEvidenceTruncated`
+  signal path described above; no new metric, span, or log field was
+  added.
 - Advisory evidence reads stay bounded by first-class advisory identity fields,
   package IDs, or PURLs before active-generation validation. Performance
   Evidence: issue #868 changed the read path from a broad active vulnerability

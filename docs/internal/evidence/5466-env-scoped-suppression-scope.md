@@ -487,8 +487,12 @@ evidence (environment/workload/service) and no package/CVE/digest/
 repository anchor at all. Before #5466 that intent's derived filter was
 fully empty and the load short-circuited to `nil, nil` with no query issued;
 after #5466 it issues a full paginated Seq Scan. **This new-invocation class
-is unmeasured** — no benchmark or production metric isolates it yet — but it
-is bounded the same way every other invocation is, by the same 8-round cap.
+was originally described here as unmeasured but bounded by the same 8-round
+cap every other invocation gets. That bound claim was wrong -- see the
+round-7 review P1-B section at the end of this document.** The 8-round cap
+bounds the NUMBER OF ROUNDS, not the number of rows any single round's
+`ListActiveSupplyChainImpactFacts` call can return; before P1-B a single
+round had no row-count bound at all.
 Round-2 review narrowing (conservative in the safe direction): every fact
 kind that contributes to `Environments`/`WorkloadIDs`/`ServiceIDs` in
 `supplyChainImpactFilter` (`cicdRunCorrelationFactKind`,
@@ -521,3 +525,123 @@ predicate is OR-ed into a query that already performs a `Parallel Seq Scan`
 for its other branches at this scale, so an index on this one predicate
 would not change the scan strategy chosen for the query as a whole. No index
 change is proposed in this PR.
+
+### Round-7 review P1-A (codex, PR #5857): multi-anchor Cartesian-product false positive
+
+Both PR #5857 codex findings slipped past seven prior separate-context
+reviews and were independently verified true against the code before
+fixing, per the mandatory Prove-The-Theory-First rule.
+
+`applySupplyChainRuntimeContext` (`go/internal/reducer/supply_chain_impact_runtime.go`)
+populates a finding's `Environments`, `WorkloadIDs`, and `ServiceIDs` from
+THREE independently matched, uncorrelated evidence sources:
+`supplyChainDeploymentContext` (from `reducer_ci_cd_run_correlation`,
+carrying `environment` but no `workload_id`/`service_id`),
+`supplyChainWorkloadContext` (from `reducer_workload_identity`, carrying
+`workload_id` but no `environment`), and `supplyChainServiceContext` (from
+`reducer_service_catalog_correlation`, carrying `service_id`/`workload_id`
+but no `environment`) -- verified directly against
+`go/internal/reducer/supply_chain_impact_index.go`'s struct definitions and
+their sole builder functions
+(`supplyChainDeploymentContextFromEnvelope`/`supplyChainWorkloadContextsFromEnvelope`/
+`supplyChainServiceContextFromEnvelope`, `supply_chain_impact_deployment_context.go`
+and `supply_chain_impact_match.go`). The only field these three structs
+share is `repositoryID`, and each is matched against the finding
+INDEPENDENTLY (by digest/image-ref/repository, `supply_chain_impact_runtime.go`),
+never against each other. So a finding whose repository has two deployments
+`(stage, workload-a)` and `(prod, workload-b)` gets
+`Environments=[prod,stage]` and `WorkloadIDs=[workload-a,workload-b]` with
+NO record anywhere of which environment paired with which workload.
+
+`suppressionScopeMatchesFinding`
+(`go/internal/reducer/supply_chain_suppression_scope_match.go`) checked
+each of Environment/WorkloadID/ServiceID independently against its own
+flattened list, so a suppression scoped `environment=stage,
+workload_id=workload-b` matched -- "stage" is in `Environments`,
+"workload-b" is in `WorkloadIDs` -- even though that exact combination
+never occurred in either real deployment. The whole finding was then
+suppressed: an OVER-suppression bug (hides a real, still-visible
+vulnerability), exactly the widening the #5466 fail-closed rule (empty
+anchor list -> no-match) was designed to prevent, but for a failure mode
+one anchor at a time never surfaces.
+
+**Tuple preservation vs. the alternative, surfaced before building either:**
+codex suggested preserving correlated deployment tuples or splitting
+findings by deployment context. Neither is achievable within the current
+fact model without a genuine reducer contract/payload change: as the struct
+trace above shows, `reducer_ci_cd_run_correlation` facts carry no
+`workload_id`/`service_id`, and `reducer_workload_identity`/
+`reducer_service_catalog_correlation` facts carry no `environment` -- there
+is no real per-deployment tuple in the evidence to preserve or split by; any
+`(environment, workload)` pairing would have to be INVENTED, not derived.
+Making the underlying collectors/reducers correlate these dimensions is a
+cross-cutting contract change well beyond this fix's scope, and was not
+built speculatively here.
+
+**Fix actually shipped (matcher-only, no reducer payload/contract change,
+does not disturb #5426's environment-evidence contract):** a new
+`suppressionDeploymentContextUnambiguous` check in
+`suppressionScopeMatchesFinding`. When a scope names two or more of
+{Environment, WorkloadID, ServiceID}, it requires the finding to have AT
+MOST ONE distinct value in EVERY dimension the scope references -- with at
+most one candidate value per referenced dimension there is only one
+possible combination, so the existing independent per-dimension checks are
+equivalent to verifying that single combination, exactly satisfying
+codex's "matches only when a SINGLE deployment context satisfies all the
+anchors it names." A dimension with two or more distinct values makes the
+combination unverifiable and fails closed to no-match (same
+ambiguity-resolves-to-visible direction as the pre-existing empty-list
+case). A scope naming zero or one of the three dimensions has nothing to
+combine and is completely unaffected -- **a single-anchor scope keeps
+behaving exactly as it did before this fix.**
+
+Failing-test-first proof:
+`TestEvaluateSupplyChainSuppressionMultiAnchorScopeDoesNotMatchUnverifiedCombination`
+(`go/internal/reducer/supply_chain_suppression_scope_cartesian_test.go`)
+constructs the exact scenario above -- `Environments:["prod","stage"]`,
+`WorkloadIDs:["workload-a","workload-b"]`, scope
+`environment=stage,workload_id=workload-b`. Run against the pre-fix
+matcher, this test failed at `State = "not_affected"` (the finding was
+incorrectly hidden); after the fix it passes at `State = "scope_mismatch"`
+(finding stays visible, suppression preserved for audit). A companion
+`TestEvaluateSupplyChainSuppressionMultiAnchorScopeMatchesTheOnlyPossibleCombination`
+proves the unambiguous single-value case still matches. The two pre-existing
+backward-compat regression tests,
+`TestEvaluateSupplyChainSuppressionEnvironmentAndWorkloadCombinationRequiresBoth`
+and `TestEvaluateSupplyChainSuppressionWorkloadAndServiceScopeMatchAndFailClosed`,
+use single-value lists throughout and pass unchanged, proving the common
+case is not regressed.
+
+This is a genuine projected-truth change (a finding's suppression decision
+outcome changes for the previously-over-suppressed multi-anchor-ambiguous
+case), so the full golden-corpus gate is mandatory for this fix -- see the
+combined re-verification note at the end of the P1-B section below.
+
+### Round-7 review P1-B (codex, PR #5857): unbounded environment-only suppression loads
+
+See `go/internal/storage/postgres/gotchas-and-invariants.md` for the full
+measurement, fix, and test detail; this section is the narrative summary.
+Codex correctly identified that this branch's own committed 300k-row EXPLAIN
+evidence (85,715 rows matching a realistic `prod` environment predicate,
+documented earlier in this file) demonstrates
+`ListActiveSupplyChainImpactFacts` has no bound on total rows per call --
+the 8-round expansion cap and the 500-row page `LIMIT` do not compose into
+a total bound, since the query paginates to exhaustion of every matching
+row within EACH round. MEASURED (per Prove-The-Theory-First, not reasoned
+about): the real Go code path against the same 300k-row corpus with
+`Environments:["prod"]` returned 85,715 envelopes in ~22.7s. Fixed with a
+2,000-row (4-page) cap on `ListActiveSupplyChainImpactFacts`'s own
+pagination loop; re-measured with the cap engaged, warm-cache steady state
+settled at ~532ms for the same filter -- a ~43x reduction, matching the
+4/172 page-count ratio. Truncation fails open (findings stay visible) and
+reuses the existing `activeEvidenceTruncated` observability path (finding
+marking, evidence-summary log suffix, `active_evidence_truncated`
+sub-signal) rather than adding a new one.
+
+This fix changes `ListActiveSupplyChainImpactFacts`'s internal pagination
+behavior but not its `WHERE`-clause SQL text or per-page row set; for the
+small, curated golden corpus the 2,000-row cap never engages (no golden
+fixture approaches that row count), so this fix alone would not be
+golden-corpus-observable. P1-A above, however, IS a genuine projected-truth
+change, so the full golden-corpus gate was run covering both fixes'
+combined diff -- see the command output cited in the PR.
