@@ -89,16 +89,25 @@ type opener struct {
 // command line, before moving on. An opener with no matching closing line (a
 // malformed script) is dropped rather than reported, since there is no
 // well-formed body to measure.
+//
+// Quote/substitution context (see findAllOpeners) persists across lines: a
+// double-quoted string that spans multiple physical lines stays "quoted" on
+// every line until its closing quote is actually found, and a `$(...)`
+// opened on one line stays open across lines too. Both are frozen (left
+// untouched) while a heredoc body is being consumed, since body lines are
+// never lexed for quoting — they are raw content, exactly as bash treats
+// them.
 func ScanContent(src string) []Heredoc {
 	var heredocs []Heredoc
 	lines := strings.Split(src, "\n")
 
 	var (
-		inBody   bool
-		current  opener
-		pending  []opener
-		openLine int
-		bodySize int
+		inBody     bool
+		current    opener
+		pending    []opener
+		openLine   int
+		bodySize   int
+		quoteStack []byte
 	)
 
 	for i, line := range lines {
@@ -117,16 +126,22 @@ func ScanContent(src string) []Heredoc {
 			bodySize += len(line) + 1
 			continue
 		}
-		// A full-line shell comment cannot open a heredoc. Skipping it keeps a
-		// `<<IDENT` written inside a comment (e.g. "# see the <<EOF below")
-		// from phantom-opening the scanner and desyncing it so a later real
-		// oversized heredoc is missed — the dangerous fail-open case for this
-		// gate. This applies only outside a heredoc body; a comment-looking
-		// line inside a body is body content, already handled above.
-		if strings.HasPrefix(strings.TrimLeft(line, " \t"), "#") {
+		// A full-line shell comment cannot open a heredoc, UNLESS it is
+		// really a continuation of a still-open quoted string from an
+		// earlier line (e.g. the closing quote of a multi-line double-quoted
+		// string happens to be on a line that starts with "#"). Skipping it
+		// keeps a `<<IDENT` written inside a real comment (e.g. "# see the
+		// <<EOF below") from phantom-opening the scanner and desyncing it so
+		// a later real oversized heredoc is missed — the dangerous fail-open
+		// case for this gate. This applies only outside a heredoc body; a
+		// comment-looking line inside a body is body content, already
+		// handled above.
+		if !inQuoteFrame(quoteStack) && strings.HasPrefix(strings.TrimLeft(line, " \t"), "#") {
 			continue
 		}
-		if openers := findAllOpeners(line); len(openers) > 0 {
+		var openers []opener
+		openers, quoteStack = findAllOpeners(line, quoteStack)
+		if len(openers) > 0 {
 			inBody = true
 			current, pending = openers[0], openers[1:]
 			openLine = lineNo
@@ -201,13 +216,58 @@ func closesHeredoc(line string, o opener) bool {
 	return l == o.delim
 }
 
+// Quote/substitution stack frame markers used by findAllOpeners. Each byte
+// pushed onto the stack records what opened that lexical context:
+//
+//   - frameSingle ('): a POSIX single-quoted string. Fully inert — no
+//     escapes, no substitution, no nested quoting; only its own closing '
+//     ends it.
+//   - frameDouble ("): a double-quoted string. Backslash escapes the next
+//     char; a bare `'` inside it is NOT special (matches bash); but `$(`
+//     STILL opens a nested substitution frame, because command substitution
+//     is not suppressed inside double quotes (only inside single quotes).
+//   - frameAnsiC ($'...'): an ANSI-C-quoted string. Backslash escapes the
+//     next char (so `\'` does not end the string); no substitution
+//     recognized inside it.
+//   - frameSubst ($(...)): a command substitution. This is bash re-entering
+//     a fresh, UNQUOTED lexical scope — it is scanned exactly like the
+//     top-level (base) context, including recognizing further quotes,
+//     nested `$(`, and real heredoc openers — until its own closing `)`.
+//
+// The "base" context (empty stack) behaves the same as frameSubst for
+// scanning purposes, except a stray `)` at the base has nothing to pop.
+const (
+	frameSingle = '\''
+	frameDouble = '"'
+	frameAnsiC  = 'A'
+	frameSubst  = '('
+)
+
+// inQuoteFrame reports whether the top of stack is a live quoted string
+// (single, double, or ANSI-C) as opposed to being at the base context or
+// inside an unquoted `$(...)` substitution. ScanContent uses this to decide
+// whether a "#"-looking line is really a comment or just the tail of a
+// still-open multi-line string.
+func inQuoteFrame(stack []byte) bool {
+	if len(stack) == 0 {
+		return false
+	}
+	switch stack[len(stack)-1] {
+	case frameSingle, frameDouble, frameAnsiC:
+		return true
+	default:
+		return false
+	}
+}
+
 // findAllOpeners scans line for every heredoc opener — `<<DELIM`,
 // `<<'DELIM'`, `<<"DELIM"`, or the `<<-` tab-stripped variant of each — and
-// returns them in left-to-right order. `<<<` here-strings are recognized and
-// skipped rather than mistaken for a heredoc opener with an empty or
-// malformed delimiter.
+// returns them in left-to-right order, along with the updated quote/
+// substitution stack (see the frame* constants) for the caller to pass back
+// in on the next line. `<<<` here-strings are recognized and skipped rather
+// than mistaken for a heredoc opener with an empty or malformed delimiter.
 //
-// The scan tracks single- and double-quote state as it goes, so a `<<IDENT`
+// The scan tracks quote/substitution context as it goes, so a `<<IDENT`
 // written inside a string literal (e.g. `echo "a <<X b"`) is not mistaken
 // for a real opener (#5079) — bash itself never treats `<<` as redirection
 // inside a quoted string. Because the scan keeps going after a match instead
@@ -215,75 +275,141 @@ func closesHeredoc(line string, o opener) bool {
 // (`cmd <<A <<B`) yields every opener, not just the first (#5079); bash
 // reads their bodies back to back immediately after the command line, so
 // ScanContent processes them in the same left-to-right order.
-func findAllOpeners(line string) []opener {
+//
+// The stack is threaded in and back out (rather than reset per call) because
+// quoting is not a per-line property in bash: a double-quoted string can
+// span several physical lines, and a `$(...)` opened on one line can stay
+// open across lines too. Command substitution also gets its own dedicated
+// handling: `$(` opens a fresh, UNQUOTED scope even while nested inside an
+// outer double-quoted string that has not closed yet, because bash does not
+// suppress command substitution inside double quotes (only inside single
+// quotes) — so a real heredoc inside `"...$(cat <<Y ... Y)..."` is still a
+// real heredoc, not string content.
+func findAllOpeners(line string, stack []byte) ([]opener, []byte) {
 	var openers []opener
-	var quote byte // 0 outside any quote; else '\'' or '"'
+
+	top := func() byte {
+		if len(stack) == 0 {
+			return 0
+		}
+		return stack[len(stack)-1]
+	}
 
 	for i := 0; i < len(line); {
 		c := line[i]
 
-		if quote != 0 {
-			// Inside a double-quoted string, `\"` escapes the quote so it
-			// does not end the string early. Single-quoted strings have no
-			// escapes in POSIX shell — a literal `'` cannot appear inside
-			// one at all — so no special-casing is needed there.
-			if quote == '"' && c == '\\' && i+1 < len(line) {
+		switch top() {
+		case frameSingle:
+			// POSIX single quotes: no escapes, nothing else is special.
+			if c == frameSingle {
+				stack = stack[:len(stack)-1]
+			}
+			i++
+		case frameAnsiC:
+			// $'...': backslash escapes the next char, so `\'` does not
+			// close the string early (the #5079 review false negative).
+			if c == '\\' && i+1 < len(line) {
 				i += 2
 				continue
 			}
-			if c == quote {
-				quote = 0
+			if c == '\'' {
+				stack = stack[:len(stack)-1]
 			}
 			i++
-			continue
-		}
-
-		switch c {
-		case '\'', '"':
-			quote = c
-			i++
-			continue
-		case '<':
-			if i+1 >= len(line) || line[i+1] != '<' {
+		case frameDouble:
+			if c == '\\' && i+1 < len(line) {
+				i += 2
+				continue
+			}
+			if c == '"' {
+				stack = stack[:len(stack)-1]
 				i++
 				continue
 			}
-			// `<<<` is a here-string, not a heredoc. Skip past the third '<'
-			// so it cannot be re-matched as its own (bogus) heredoc opener.
-			if i+2 < len(line) && line[i+2] == '<' {
-				i += 3
+			// Command substitution is NOT suppressed inside double quotes,
+			// so `$(` still opens a fresh unquoted frame here.
+			if c == '$' && i+1 < len(line) && line[i+1] == '(' {
+				stack = append(stack, frameSubst)
+				i += 2
 				continue
 			}
-			rest := line[i+2:]
-			tabStrip := strings.HasPrefix(rest, "-")
-			if tabStrip {
-				rest = rest[1:]
-			}
-			// Bash allows optional blanks between `<<`/`<<-` and the
-			// delimiter (`cat << EOF`, `cat <<- 'EOF'`). Trim them so a
-			// whitespace-separated heredoc is not missed — a fail-open the
-			// gate exists to block. The delimiter must still start with a
-			// letter or `_` (parseDelim), so an arithmetic left-shift like
-			// `$(( x << 2 ))` is not mistaken for a heredoc opener.
-			trimmed := strings.TrimLeft(rest, " \t")
-			blanks := len(rest) - len(trimmed)
-			if delim, quoted, consumed, ok := parseDelim(trimmed); ok {
-				openers = append(openers, opener{delim: delim, tabStrip: tabStrip, quoted: quoted})
-				advance := 2 + blanks + consumed
-				if tabStrip {
-					advance++
+			i++
+		default: // base context (empty stack) or inside an unquoted $(...)
+			switch {
+			case c == '\\' && i+1 < len(line):
+				// Backslash escapes the next char even outside any quote,
+				// e.g. the extremely common `'\''` idiom for embedding a
+				// literal `'` inside a single-quoted string: close (`'`),
+				// escaped literal quote (`\'`), reopen (`'`). Without this,
+				// the escaped `'` is wrongly read as opening a fresh quote
+				// frame that the very next `'` (the real reopen) instantly
+				// closes again — landing back at base one idiom-cycle too
+				// early. Any literal `"`/`'` still inside what bash
+				// considers the reopened string then gets misread as a
+				// real quote-open, desyncing the stack for the rest of the
+				// file and silently swallowing a real heredoc later on
+				// (found via adversarial review against a real script in
+				// this repo, not a synthetic case).
+				i += 2
+			case c == '\'':
+				stack = append(stack, frameSingle)
+				i++
+			case c == '"':
+				stack = append(stack, frameDouble)
+				i++
+			case c == '$' && i+1 < len(line) && line[i+1] == '\'':
+				stack = append(stack, frameAnsiC)
+				i += 2
+			case c == '$' && i+1 < len(line) && line[i+1] == '(':
+				stack = append(stack, frameSubst)
+				i += 2
+			case c == ')' && top() == frameSubst:
+				stack = stack[:len(stack)-1]
+				i++
+			case c == '<':
+				if i+1 >= len(line) || line[i+1] != '<' {
+					i++
+					continue
 				}
-				i += advance
-				continue
+				// `<<<` is a here-string, not a heredoc. Skip past the
+				// third '<' so it cannot be re-matched as its own (bogus)
+				// heredoc opener.
+				if i+2 < len(line) && line[i+2] == '<' {
+					i += 3
+					continue
+				}
+				rest := line[i+2:]
+				tabStrip := strings.HasPrefix(rest, "-")
+				if tabStrip {
+					rest = rest[1:]
+				}
+				// Bash allows optional blanks between `<<`/`<<-` and the
+				// delimiter (`cat << EOF`, `cat <<- 'EOF'`). Trim them so a
+				// whitespace-separated heredoc is not missed — a fail-open
+				// the gate exists to block. The delimiter must still start
+				// with a letter or `_` (parseDelim), so an arithmetic
+				// left-shift like `$(( x << 2 ))` is not mistaken for a
+				// heredoc opener.
+				trimmed := strings.TrimLeft(rest, " \t")
+				blanks := len(rest) - len(trimmed)
+				if delim, quoted, consumed, ok := parseDelim(trimmed); ok {
+					openers = append(openers, opener{delim: delim, tabStrip: tabStrip, quoted: quoted})
+					advance := 2 + blanks + consumed
+					if tabStrip {
+						advance++
+					}
+					i += advance
+					continue
+				}
+				// Not a valid delimiter after "<<" (e.g. no identifier
+				// follows) — keep scanning for another candidate.
+				i++
+			default:
+				i++
 			}
-			// Not a valid delimiter after "<<" (e.g. no identifier follows)
-			// — keep scanning the rest of the line for another candidate.
-			i++
-		default:
-			i++
 		}
 	}
-	return openers
+	return openers, stack
 }
 
 // parseDelim parses a heredoc delimiter word from the start of s, which is

@@ -59,13 +59,35 @@
 // delimiter disables all substitution, so its body never grows past its
 // literal size and keeps the full budget.
 //
-// To close this blind spot without a full static-expansion estimate (which
-// is generally impossible — an array's runtime size is unknowable from
-// source), the scanner compares an UNQUOTED heredoc against a stricter
-// effective threshold: budget minus a 25% margin (384 bytes for the default
-// 512-byte budget). This is a conservative, documented policy choice, not a
+// A full static-expansion estimate is generally impossible — an array's or a
+// command substitution's runtime size is unknowable from source — so instead
+// the scanner compares an UNQUOTED heredoc against a stricter effective
+// threshold: budget minus a 25% margin (384 bytes for the default 512-byte
+// budget). This is a conservative, documented policy choice, not a
 // re-derived OS constant, and it only ever tightens (never loosens) what an
 // unquoted heredoc must clear.
+//
+// This margin narrows the window for the observed expansion shape (a source
+// body already close to budget that a small/medium substitution pushes over)
+// — it does NOT close the general case. Adversarial review (#5085 follow-up)
+// showed a 17-byte literal source heredoc referencing a 200-element array
+// via `${arr[*]}` expands to 607 real bytes under actual bash, and the
+// scanner passes it silently: 384 bytes of literal source is nowhere near
+// the margin, no matter how much the body expands at runtime. A margin is
+// fundamentally a heuristic over literal byte count; it cannot bound an
+// expansion whose size depends on data the scanner never sees. Closing that
+// gap for real would require either measuring what the runtime value
+// actually expands to (this package deliberately never executes bash — see
+// "Failure modes" in AGENTS.md) or flagging unquoted heredocs by the
+// presence of an unbounded-expansion construct in the body regardless of
+// literal size. The latter was measured against this repo's own
+// scripts/**/*.sh: a rule that fires on any `$(...)` in an unquoted body
+// would newly flag roughly a third of the existing baselined files (most of
+// it ordinary, bounded command substitution — a version string, a
+// timestamp — not the unbounded-array pattern that caused the original
+// incident), which is too noisy to ship; the narrower array-subscript-only
+// form (`${arr[*]}`/`${arr[@]}`) currently matches zero files in this tree.
+// Neither is implemented; this remains a documented gap.
 //
 // # Modes
 //
@@ -82,16 +104,52 @@
 //
 // # Known limitations
 //
-// The scanner is a line-based approximation, not a full shell lexer. It
-// handles blanks between `<<`/`<<-` and the delimiter (`cat << EOF`), ignores
-// a `<<IDENT` written in a full-line `#` comment, does not mis-close a
-// heredoc on a delimiter word appearing inside another body, tracks
-// single/double-quote state so a `<<IDENT` inside a string literal (e.g.
-// `echo "a <<X b"`) does not phantom-open the scanner, and measures every
-// heredoc opener on a line (`cmd <<A <<B`), not just the first (#5079). Two
-// edge cases remain, neither present in the scanned tree today: a
-// numeric-first delimiter (`cat <<123`, rejected to avoid mistaking a
-// `$(( x << 2 ))` shift for a heredoc — intentional, not a bug) and a
-// `<<IDENT` in an inline comment after a command (`echo x # <<EOF`, a false
-// positive; only a full-line comment is recognized).
+// This list is deliberately non-exhaustive: it names every gap found so far,
+// not a closed set. The scanner is a line-based approximation, not a full
+// shell lexer, and adversarial review keeps finding more of these than any
+// one pass catches.
+//
+// Handled correctly (fixed, not gaps): blanks between `<<`/`<<-` and the
+// delimiter (`cat << EOF`); a `<<IDENT` written in a full-line `#` comment;
+// a delimiter word appearing inside another heredoc's body (does not
+// mis-close it); a `<<IDENT` inside a single- or double-quoted string
+// literal, or inside an ANSI-C `$'...'` string even across an escaped `\'`
+// (does not phantom-open); more than one heredoc opener on a line
+// (`cmd <<A <<B`, both measured, #5079); a heredoc opener nested inside
+// `$(...)` command substitution, including when that substitution itself
+// sits inside an outer double-quoted string that has not closed yet; a
+// double-quoted string that spans multiple physical lines (with or without
+// a trailing backslash-continuation) — quote/substitution context persists
+// across lines, not just within one; and backslash-escaping at the bare
+// unquoted level, including the extremely common close/escaped-quote/reopen
+// idiom for embedding a literal single quote inside a single-quoted string
+// — found missing during this same review, when it desynced the quote stack
+// on a real script in this repo
+// (scripts/verify-remote-e2e-remediation-benchmark.sh) and silently
+// swallowed a real over-budget heredoc dozens of lines later.
+//
+// Still open (real, adversarially-found gaps):
+//
+//   - The unquoted-heredoc runtime-expansion margin (#5085, see above) only
+//     narrows the window for a source body already close to budget; it does
+//     not catch a small literal body that references an unbounded runtime
+//     expansion (a large array via `${arr[*]}`, a large command
+//     substitution). This is a fundamental limit of any literal-byte-count
+//     heuristic, not a bug to fix in this pass.
+//   - The baseline burn-down comparison (CheckBaseline in baseline.go) keys
+//     on a per-file violation COUNT, not the identity of which heredoc it
+//     is. Fixing one baselined violation while introducing a different,
+//     unrelated over-budget heredoc elsewhere in the same file can leave the
+//     count unchanged and pass with no signal — pre-existing behavior,
+//     unchanged by this package's fixes, and intentionally not redesigned
+//     here (see AGENTS.md for the owning slice).
+//   - Legacy backtick command substitution (backtick-delimited instead of
+//     `$(...)`) is not tracked as its own lexical scope the way `$(...)` is;
+//     a heredoc opener nested inside backticks that are themselves inside an
+//     outer quoted string can still be missed.
+//   - A numeric-first delimiter (`cat <<123`) is rejected on purpose, to
+//     avoid mistaking a `$(( x << 2 ))` arithmetic shift for a heredoc — this
+//     is intentional design, not a limitation.
+//   - A `<<IDENT` in an inline comment AFTER a command (`echo x # <<EOF`) is
+//     a false positive; only a full-line comment is recognized as a comment.
 package main

@@ -62,6 +62,21 @@ the CLI's failure output (`unquoted; exceeds N-byte runtime-expansion margin
 though under the literal M-byte budget`) so it isn't mistaken for an ordinary
 over-budget failure.
 
+**This margin narrows the window for the observed expansion shape — it does
+NOT close the general case.** It only helps when the literal source is
+already reasonably close to budget. Adversarial review found a
+counter-example: a 17-byte literal heredoc referencing a 200-element array
+via `${arr[*]}` expands to 607 real bytes under actual bash, and the scanner
+passes it silently, because 17 bytes of source is nowhere near the 384-byte
+margin regardless of what it expands to at runtime. Flagging by construct
+(any `$(...)` in an unquoted body, regardless of size) was measured against
+this repo's own `scripts/**/*.sh` and would newly flag roughly a third of the
+existing baselined files — mostly ordinary, bounded command substitution
+(a version string, a timestamp), not the unbounded-array pattern that caused
+the original incident — too noisy to ship. The narrower
+array-subscript-only form (`${arr[*]}`/`${arr[@]}`) currently matches zero
+files in this tree. Neither is implemented; see "Known limitations" below.
+
 ## Usage
 
 Run from the `go` module directory:
@@ -104,17 +119,46 @@ that convert individual files.
 
 ## Known limitations
 
-The scanner is a line-based approximation, not a full shell lexer. It handles
-blanks before the delimiter (`cat << EOF`), ignores a `<<IDENT` written in a
-full-line `#` comment, never mis-closes on a delimiter word inside another
-heredoc body, tracks single/double-quote state so a `<<IDENT` inside a string
-literal (e.g. `echo "a <<X b"`) does not phantom-open the scanner, and
-measures every heredoc opener on a line (`cmd <<A <<B`), not just the first
-(#5079 — both fixed). Two edge cases remain, neither present in the tree
-today: a numeric-first delimiter (`cat <<123`, rejected so a `$(( x << 2 ))`
-shift is not mistaken for a heredoc — intentional, not a bug), and a
-`<<IDENT` in an inline comment after a command (`echo x # <<EOF`, a false
-positive; only a full-line comment is recognized).
+This list is deliberately non-exhaustive — it names every gap found so far,
+not a closed set. The scanner is a line-based approximation, not a full shell
+lexer, and adversarial review keeps finding more of these than any one pass
+catches.
+
+**Handled correctly (fixed, not gaps):** blanks between `<<`/`<<-` and the
+delimiter (`cat << EOF`); a `<<IDENT` in a full-line `#` comment; a delimiter
+word inside another heredoc's body (does not mis-close it); a `<<IDENT`
+inside a single- or double-quoted string, or inside an ANSI-C `$'...'` string
+even across an escaped `\'`; more than one heredoc opener on a line
+(`cmd <<A <<B`, both measured, #5079); a heredoc opener nested inside
+`$(...)` command substitution, including when that substitution sits inside
+an outer double-quoted string that has not closed yet; a double-quoted
+string spanning multiple physical lines (quote/substitution context now
+persists across lines, not just within one line); and backslash-escaping at
+the bare unquoted level, including the extremely common `'\''` idiom for
+embedding a literal `'` inside a single-quoted string — found missing during
+this same review, when it desynced the quote stack on a real script in this
+repo (`verify-remote-e2e-remediation-benchmark.sh`) and silently swallowed a
+real over-budget heredoc dozens of lines later.
+
+**Still open (real, adversarially-found gaps):**
+
+- The unquoted-heredoc runtime-expansion margin (#5085, above) narrows the
+  window for a source body already close to budget; it does not catch a
+  small literal body that references an unbounded runtime expansion (a large
+  array, a large command substitution) — see above for the measurement
+  behind not implementing a construct-based rule instead.
+- The baseline burn-down comparison keys on a per-file violation **count**,
+  not the identity of which heredoc it is. Fixing one violation while
+  introducing a different one elsewhere in the same file can leave the count
+  unchanged and pass silently. Pre-existing, unrelated to this branch's
+  fixes, and intentionally not redesigned here.
+- Legacy backtick command substitution (`` `cmd` ``) is not tracked as its
+  own lexical scope the way `$(...)` is.
+- A numeric-first delimiter (`cat <<123`) is rejected on purpose, to avoid
+  mistaking a `$(( x << 2 ))` arithmetic shift for a heredoc — intentional,
+  not a bug.
+- A `<<IDENT` in an inline comment AFTER a command (`echo x # <<EOF`) is a
+  false positive; only a full-line comment is recognized.
 
 ## Tests
 
