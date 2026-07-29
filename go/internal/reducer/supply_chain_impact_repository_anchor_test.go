@@ -80,12 +80,12 @@ func (l *repositoryAnchorSupplyChainImpactFactLoader) ListFactsByKind(
 func (l *repositoryAnchorSupplyChainImpactFactLoader) ListActiveSupplyChainImpactFacts(
 	_ context.Context,
 	filter SupplyChainImpactFactFilter,
-) ([]facts.Envelope, error) {
+) ([]facts.Envelope, bool, error) {
 	l.activeFilters = append(l.activeFilters, filter)
 	if l.activeForFilter == nil {
-		return nil, nil
+		return nil, false, nil
 	}
-	return append([]facts.Envelope(nil), l.activeForFilter(filter)...), nil
+	return append([]facts.Envelope(nil), l.activeForFilter(filter)...), false, nil
 }
 
 func repositoryAnchorDebianOSPackageFact(factID, scopeID, generationID string) facts.Envelope {

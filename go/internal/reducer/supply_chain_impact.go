@@ -199,7 +199,10 @@ type SupplyChainImpactWriter interface {
 }
 
 type activeSupplyChainImpactFactLoader interface {
-	ListActiveSupplyChainImpactFacts(context.Context, SupplyChainImpactFactFilter) ([]facts.Envelope, error)
+	// The bool return reports pagination truncation (#5466 P1-B, see
+	// supply_chain_impact_handler_helpers.go): callers OR it into the same
+	// truncation signal maxSupplyChainImpactActiveEvidenceLoads produces.
+	ListActiveSupplyChainImpactFacts(context.Context, SupplyChainImpactFactFilter) ([]facts.Envelope, bool, error)
 }
 
 // SupplyChainImpactHandler publishes vulnerability impact findings without

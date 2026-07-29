@@ -126,7 +126,7 @@ func TestListActiveSupplyChainImpactFactsBindsWorkloadAndServiceIDsToDistinctPla
 	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: nil}}}
 	store := NewFactStore(db)
 
-	_, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
+	_, _, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
 		WorkloadIDs: []string{"Workload:X"},
 		ServiceIDs:  []string{"Service:Y"},
 	})

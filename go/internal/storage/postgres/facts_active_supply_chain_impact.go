@@ -209,14 +209,43 @@ ORDER BY fact.fact_id ASC
 LIMIT $12
 `
 
-// ListActiveSupplyChainImpactFacts loads active package, SBOM, image, and risk
-// evidence for one bounded supply-chain impact reducer intent.
+// maxSupplyChainImpactActiveEvidenceRowsPerCall bounds the total rows one
+// ListActiveSupplyChainImpactFacts call may return before it stops
+// paginating and reports truncation (#5466 round-7 review P1-B). Without
+// this cap, a suppression scoped ONLY by a common environment/workload/
+// service/advisory value (#5466 P1-1/F-10) has no other WHERE-clause
+// constraint and paginates to EXHAUSTION of every active
+// vulnerability.suppression fact matching that value across ALL ingestion
+// scopes: MEASURED (not estimated) at 85,715 rows and ~22.7s wall time for
+// a single Environments:["prod"] filter against a 300,000-row seeded
+// corpus, running the real Go code path end to end -- see
+// go/internal/storage/postgres/gotchas-and-invariants.md for the full
+// measurement. 2,000 rows (4 pages at the existing 500-row
+// listFactsByKindPageSize) is generous headroom for every OTHER anchor
+// this query serves: cve_id/package_id/purl/subject_digest/repository_id/
+// advisory_id anchors measured at 0 to a few hundred matching rows on the
+// same corpus (the round-3/round-6 EXPLAIN evidence), while bounding the
+// low-selectivity deployment-context-only worst case to a fraction of a
+// second. A truncated load fails OPEN (less suppression evidence loaded,
+// findings stay visible -- never the reverse) but is surfaced via the
+// returned bool rather than silently dropped, so it can OR into the same
+// truncation signal maxSupplyChainImpactActiveEvidenceLoads already
+// produces for the round cap
+// (go/internal/reducer/supply_chain_impact_handler_helpers.go). A `var`,
+// not a `const`, so hermetic tests can lower it without seeding thousands
+// of rows.
+var maxSupplyChainImpactActiveEvidenceRowsPerCall = 2000
+
+// ListActiveSupplyChainImpactFacts loads active package, SBOM, image, and
+// risk evidence for one bounded supply-chain impact reducer intent. The
+// bool return reports whether maxSupplyChainImpactActiveEvidenceRowsPerCall
+// truncated the result before every matching row was loaded.
 func (s FactStore) ListActiveSupplyChainImpactFacts(
 	ctx context.Context,
 	filter reducer.SupplyChainImpactFactFilter,
-) ([]facts.Envelope, error) {
+) ([]facts.Envelope, bool, error) {
 	if s.db == nil {
-		return nil, fmt.Errorf("fact store database is required")
+		return nil, false, fmt.Errorf("fact store database is required")
 	}
 	filter.PackageIDs = cleanStringFilterValues(filter.PackageIDs)
 	filter.PURLs = cleanStringFilterValues(filter.PURLs)
@@ -237,7 +266,7 @@ func (s FactStore) ListActiveSupplyChainImpactFacts(
 		len(filter.RepositoryIDs) == 0 && len(filter.FileRepositoryIDs) == 0 &&
 		len(filter.ImageRefs) == 0 && len(filter.WorkloadIDs) == 0 &&
 		len(filter.ServiceIDs) == 0 && len(filter.Environments) == 0 {
-		return nil, nil
+		return nil, false, nil
 	}
 
 	var loaded []facts.Envelope
@@ -245,11 +274,14 @@ func (s FactStore) ListActiveSupplyChainImpactFacts(
 	for {
 		page, err := s.listActiveSupplyChainImpactFactsPage(ctx, filter, cursorFactID)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		loaded = append(loaded, page...)
+		if len(loaded) >= maxSupplyChainImpactActiveEvidenceRowsPerCall {
+			return loaded, true, nil
+		}
 		if len(page) < listFactsByKindPageSize {
-			return loaded, nil
+			return loaded, false, nil
 		}
 		cursorFactID = page[len(page)-1].FactID
 	}

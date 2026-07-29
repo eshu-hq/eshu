@@ -198,7 +198,7 @@ func TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedOnlyByDeploymentC
 	// in go/internal/reducer/supply_chain_impact_active_filter.go); this test
 	// exercises FactStore.ListActiveSupplyChainImpactFacts directly with that
 	// filter shape to isolate the SQL prefilter itself.
-	loaded, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
+	loaded, _, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
 		Environments: []string{"stage"},
 	})
 	if err != nil {
@@ -272,7 +272,7 @@ func TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByEnvironmentAlia
 	// (go/internal/environment). The literal "production" payload, the
 	// space-padded " Production " payload, and the tab/newline-padded
 	// payload above must all still be selected; SUP-ALIAS-NOISE must not.
-	loaded, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
+	loaded, _, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
 		Environments: []string{"prod"},
 	})
 	if err != nil {
@@ -317,7 +317,7 @@ func TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByWorkloadAndServ
 
 	store := NewFactStore(SQLDB{DB: db})
 
-	loaded, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
+	loaded, _, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
 		WorkloadIDs: []string{"workload:x"},
 		ServiceIDs:  []string{"service:y"},
 	})

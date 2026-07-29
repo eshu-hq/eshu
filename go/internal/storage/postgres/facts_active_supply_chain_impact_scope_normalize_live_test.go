@@ -48,7 +48,7 @@ func TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByLowercaseCVEIDA
 	// vulnerability.cve/vulnerability.affected_package evidence, which
 	// conventionally carries uppercase CVE IDs and unpadded PURLs -- the
 	// exact filter shape used here.
-	loaded, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
+	loaded, _, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
 		CVEIDs: []string{"CVE-2026-1234"},
 		PURLs:  []string{"pkg:npm/left-pad@1.3.0"},
 	})
@@ -111,7 +111,7 @@ func TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByAdvisoryIDOnlyL
 	// vulnerability.cve fact's raw top-level advisory_id field (see
 	// supplyChainImpactFilter), independent of that same fact's cve_id
 	// (which is collected separately into CVEIDs).
-	loaded, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
+	loaded, _, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
 		AdvisoryIDs: []string{"GHSA-demo-1111-2222"},
 	})
 	if err != nil {

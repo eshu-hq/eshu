@@ -49,9 +49,9 @@ func (s *manifestBackedSupplyChainImpactLoader) ListFactsByKind(
 func (s *manifestBackedSupplyChainImpactLoader) ListActiveSupplyChainImpactFacts(
 	_ context.Context,
 	filter SupplyChainImpactFactFilter,
-) ([]facts.Envelope, error) {
+) ([]facts.Envelope, bool, error) {
 	s.filters = append(s.filters, filter)
-	return append([]facts.Envelope(nil), s.activeFacts...), nil
+	return append([]facts.Envelope(nil), s.activeFacts...), false, nil
 }
 
 func (s *manifestBackedSupplyChainImpactLoader) ListActiveRepositoryFacts(

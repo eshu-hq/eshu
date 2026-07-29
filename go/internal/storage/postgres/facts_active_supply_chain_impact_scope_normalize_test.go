@@ -65,7 +65,7 @@ func TestListActiveSupplyChainImpactFactsBindsNormalizedSuppressionScopeSiblings
 	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: nil}}}
 	store := NewFactStore(db)
 
-	_, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
+	_, _, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
 		PackageIDs:     []string{"PKG:NPM/Left-Pad"},
 		PURLs:          []string{" pkg:npm/left-pad@1.3.0 "},
 		CVEIDs:         []string{"CVE-2026-1234"},
@@ -127,7 +127,7 @@ func TestListActiveSupplyChainImpactFactsBindsNormalizedSuppressionScopeAdvisory
 	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: nil}}}
 	store := NewFactStore(db)
 
-	_, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
+	_, _, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
 		AdvisoryIDs: []string{" GHSA-Demo-1111-2222 "},
 	})
 	if err != nil {
