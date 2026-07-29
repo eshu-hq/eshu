@@ -35,7 +35,7 @@ cd go && ESHU_CLOUDRESOURCE_ROWKEY_PROVE_LIVE=1 ESHU_GRAPH_BACKEND=nornicdb \
 
 Three shapes, over a heterogeneous 2-row `$rows` batch (one row WITH
 `workload_id`, one row WITHOUT it — the exact omission shape
-`cloudResourceServiceAnchorFields`/`azureCloudResourceNodeRow` produced before
+`applyCloudResourceServiceAnchorFields`/`azureCloudResourceNodeRow` produced before
 this issue's fix):
 
 1. **BASELINE** — the actual production shape, `SET n.workload_id =

@@ -120,15 +120,29 @@ func (e liveCloudResourceExecutor) readWorkloadID(ctx context.Context, uid strin
 	if err != nil {
 		return "", fmt.Errorf("collect read: %w", err)
 	}
-	value, _ := record.Get("v")
-	s, _ := value.(string)
+	// Both of these were `_`-discarded originally, which made the whole test
+	// vacuous: a missing field, a Cypher null, or a non-string value all
+	// collapse to "" — the exact value the bare-node assertion expects — so the
+	// test passed without proving the property it advertises (PR #5867 review).
+	// Fail loudly on each instead.
+	value, ok := record.Get("v")
+	if !ok {
+		return "", fmt.Errorf("read workload_id: record has no field %q", "v")
+	}
+	if value == nil {
+		return "", fmt.Errorf("read workload_id: field %q is null, want a string", "v")
+	}
+	s, ok := value.(string)
+	if !ok {
+		return "", fmt.Errorf("read workload_id: field %q is %T (%v), want string", "v", value, value)
+	}
 	return s, nil
 }
 
 // TestCloudResourceNodeWriterLiveHeterogeneousBatchNeverPersistsLiteral is the
 // live-backend, non-vacuous regression proof for issue #5714/#5055: a batch
 // with one anchor-bearing row (workload_id present) and one bare row
-// (workload_id omitted, the exact shape cloudResourceServiceAnchorFields and
+// (workload_id omitted, the exact shape applyCloudResourceServiceAnchorFields and
 // azureCloudResourceNodeRow produced before their fix) must read back "" on
 // the bare node's workload_id, never the stringified literal
 // "row.workload_id" the pinned NornicDB backend persists for a key missing
@@ -169,7 +183,7 @@ func TestCloudResourceNodeWriterLiveHeterogeneousBatchNeverPersistsLiteral(t *te
 	writer := cypher.NewCloudResourceNodeWriter(exec, 0)
 
 	// The anchor-bearing row supplies workload_id; the bare row deliberately
-	// OMITS it — the exact production shape cloudResourceServiceAnchorFields
+	// OMITS it — the exact production shape applyCloudResourceServiceAnchorFields
 	// (no service-anchor decision) and azureCloudResourceNodeRow produced
 	// before the #5714/#5055 fix. Both rows are still missing several other
 	// SET-referenced keys entirely (arn, resource_id, name, ... ) to exercise

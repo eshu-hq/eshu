@@ -112,7 +112,7 @@ func TestExtractCloudResourceNodeRowsDoesNotPromoteGenericAWSServiceNameAttribut
 }
 
 // TestExtractCloudResourceNodeRowsSetsExplicitServiceAnchorParityKeysWhenNoDecision
-// proves issue #5714/#5055's still-live AWS instance: cloudResourceServiceAnchorFields
+// proves issue #5714/#5055's still-live AWS instance: applyCloudResourceServiceAnchorFields
 // used to return nil for a resource with no service-anchor decision at all
 // (resource_type/attributes carrying nothing cloudResourceServiceAnchorDecisionForPayload
 // recognizes), which OMITTED all 7 service-anchor keys from the row. The shared

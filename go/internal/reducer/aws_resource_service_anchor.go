@@ -24,7 +24,7 @@ type cloudResourceServiceAnchorDecision struct {
 }
 
 // cloudResourceServiceAnchorFieldsAbsent is the explicit-empty parity-key
-// value cloudResourceServiceAnchorFields returns for every one of the 7
+// value applyCloudResourceServiceAnchorFields writes for every one of the 7
 // service-anchor keys canonicalCloudResourceUpsertCypher's SET clause reads
 // (workload_id, service_name, service_anchor_status/source/reason/names/
 // name_tokens) whenever a given key has no real decided value — never
@@ -38,24 +38,52 @@ type cloudResourceServiceAnchorDecision struct {
 // ambiguous decision with no single workload/service name) batched alongside
 // an anchor-bearing AWS resource previously corrupted these properties on
 // the plain resource's node.
-var cloudResourceServiceAnchorFieldsAbsent = map[string]any{
-	"workload_id":                "",
-	"service_name":               "",
-	"service_anchor_status":      "",
-	"service_anchor_source":      "",
-	"service_anchor_reason":      "",
-	"service_anchor_names":       []string{},
-	"service_anchor_name_tokens": "",
+//
+// It is a FIXED-ORDER SLICE, not a map, so both iteration sites insert the 7
+// keys into their destination row in the same order on every run. Go map
+// iteration order is randomized, and while that is functionally irrelevant here
+// (the Cypher SET clause reads row.<key> by name, never by position), a
+// non-deterministic row-map dump costs a future debugger real time when
+// comparing two runs. This mirrors cloudResourceRowKeyDefaults in
+// go/internal/storage/cypher/cloud_resource_node_writer.go, the shared-writer
+// backstop for the same class of key, which is a fixed-order slice for exactly
+// this reason (PR #5867 review).
+var cloudResourceServiceAnchorFieldsAbsent = []struct {
+	key   string
+	value any
+}{
+	{"workload_id", ""},
+	{"service_name", ""},
+	{"service_anchor_status", ""},
+	{"service_anchor_source", ""},
+	{"service_anchor_reason", ""},
+	{"service_anchor_names", []string{}},
+	{"service_anchor_name_tokens", ""},
 }
 
-// cloudResourceServiceAnchorFields returns reducer-owned service anchor
-// metadata for an aws_resource row. Only exact, single-target anchors are
-// promotable by the service story read model; ambiguous anchors remain visible
-// as drift candidates without becoming canonical dependencies. All 7 keys are
-// ALWAYS present in the returned map (never omitted — see
+// applyCloudResourceServiceAnchorAbsentFields writes every no-anchor parity key
+// into row in the fixed order above. Callers that have already built a row map
+// use this instead of copying from an intermediate map, so no per-resource
+// allocation is spent on the common no-decision path.
+func applyCloudResourceServiceAnchorAbsentFields(row map[string]any) {
+	for _, field := range cloudResourceServiceAnchorFieldsAbsent {
+		row[field.key] = field.value
+	}
+}
+
+// applyCloudResourceServiceAnchorFields writes reducer-owned service anchor
+// metadata directly into an aws_resource node row. Only exact, single-target
+// anchors are promotable by the service story read model; ambiguous anchors
+// remain visible as drift candidates without becoming canonical dependencies.
+// All 7 keys are ALWAYS set (never omitted — see
 // cloudResourceServiceAnchorFieldsAbsent): a resource with no decision, or an
 // ambiguous decision that resolves no single workload_id/service_name, gets
 // the explicit empty-value keys rather than missing ones.
+//
+// It writes into the caller's row rather than returning a fresh map, so the
+// common no-decision path — every ordinary AWS resource in a batch — spends no
+// per-resource map allocation on parity keys the caller would immediately copy
+// out again (PR #5867 review).
 //
 // resource is the already-decoded aws_resource struct. The service-anchor
 // keys (workload_id/workload_ids, service_name/service_names) and, for a small
@@ -65,32 +93,29 @@ var cloudResourceServiceAnchorFieldsAbsent = map[string]any{
 // (issue #4631) rather than read as a raw map lookup. A present-but-malformed
 // value returns a non-nil error the caller must dead-letter, never a silently
 // empty anchor.
-func cloudResourceServiceAnchorFields(resource awsv1.Resource) (map[string]any, error) {
+func applyCloudResourceServiceAnchorFields(row map[string]any, resource awsv1.Resource) error {
 	decision, err := cloudResourceServiceAnchorDecisionForPayload(resource)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	fields := make(map[string]any, len(cloudResourceServiceAnchorFieldsAbsent))
-	for key, value := range cloudResourceServiceAnchorFieldsAbsent {
-		fields[key] = value
-	}
+	applyCloudResourceServiceAnchorAbsentFields(row)
 	if decision.Status == "" {
-		return fields, nil
+		return nil
 	}
-	fields["service_anchor_status"] = decision.Status
-	fields["service_anchor_source"] = decision.Source
-	fields["service_anchor_reason"] = decision.Reason
+	row["service_anchor_status"] = decision.Status
+	row["service_anchor_source"] = decision.Source
+	row["service_anchor_reason"] = decision.Reason
 	if decision.WorkloadID != "" {
-		fields["workload_id"] = decision.WorkloadID
+		row["workload_id"] = decision.WorkloadID
 	}
 	if decision.ServiceName != "" {
-		fields["service_name"] = decision.ServiceName
+		row["service_name"] = decision.ServiceName
 	}
 	if len(decision.ServiceNames) > 0 {
-		fields["service_anchor_names"] = append([]string(nil), decision.ServiceNames...)
-		fields["service_anchor_name_tokens"] = strings.Join(decision.ServiceNames, " ")
+		row["service_anchor_names"] = append([]string(nil), decision.ServiceNames...)
+		row["service_anchor_name_tokens"] = strings.Join(decision.ServiceNames, " ")
 	}
-	return fields, nil
+	return nil
 }
 
 func cloudResourceServiceAnchorDecisionForPayload(resource awsv1.Resource) (cloudResourceServiceAnchorDecision, error) {

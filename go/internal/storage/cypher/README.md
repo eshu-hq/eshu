@@ -1669,7 +1669,7 @@ why these values diverge across worker counts.
 (`defaultFillCloudResourceRow`, driven by the authoritative
 `cloudResourceRowKeyDefaults` list next to the Cypher). This is a shared
 defense-in-depth backstop, not a replacement for builder-level correctness:
-the AWS (`cloudResourceServiceAnchorFields`), Azure
+the AWS (`applyCloudResourceServiceAnchorFields`), Azure
 (`azureCloudResourceNodeRow`), and GCP (`gcpCloudResourceNodeRow`) row
 builders all already supply every key explicitly (the #4995/#5450/#5714
 precedent), so this defaulting is normally a no-op — it exists so a *future*

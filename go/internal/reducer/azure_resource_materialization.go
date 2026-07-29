@@ -244,9 +244,7 @@ func azureCloudResourceNodeRow(env facts.Envelope) (row map[string]any, uid stri
 	// source today, so cloudResourceServiceAnchorFieldsAbsent's explicit
 	// empty-value keys (aws_resource_service_anchor.go) are the correct
 	// no-anchor values, just present rather than absent.
-	for key, value := range cloudResourceServiceAnchorFieldsAbsent {
-		row[key] = value
-	}
+	applyCloudResourceServiceAnchorAbsentFields(row)
 	return row, uid, resourceID, true, nil
 }
 

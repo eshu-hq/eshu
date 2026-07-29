@@ -4217,7 +4217,7 @@ omitted all 7 anchor/identity keys — `workload_id`, `service_name`,
 `service_anchor_names`, and `service_anchor_name_tokens` — from every GCP
 `CloudResource` row map, mirroring how the AWS row builder
 (`aws_resource_service_anchor.go`) omits the same keys when
-`cloudResourceServiceAnchorFields` finds no service-anchor decision.
+`applyCloudResourceServiceAnchorFields` finds no service-anchor decision.
 `canonicalCloudResourceUpsertCypher`'s shared `SET` clause
 (`go/internal/storage/cypher/cloud_resource_node_writer.go`) unconditionally
 reads all 7 `row.<key>` references for every batch row. An audit of every
@@ -4270,7 +4270,7 @@ The shared Cypher, the AWS row builder, and the API-side `service_name`
 placeholder drop are all unchanged.
 
 Known latent parity gap (tracked separately, not fixed here): the AWS row
-builder (`cloudResourceServiceAnchorFields` in
+builder (`applyCloudResourceServiceAnchorFields` in
 `aws_resource_service_anchor.go`) omits these same 7 keys whenever
 `decision.Status == ""` (a resource with no service-anchor decision), so an AWS
 `CloudResource` with no explicit anchor tag hits the identical
@@ -4301,7 +4301,7 @@ existing `gcp resource materialization completed` log and
 The "known latent parity gap" noted above is now closed, plus a second,
 independently-discovered instance:
 
-- **AWS**: `cloudResourceServiceAnchorFields` (`aws_resource_service_anchor.go`)
+- **AWS**: `applyCloudResourceServiceAnchorFields` (`aws_resource_service_anchor.go`)
   returned `nil, nil` whenever `cloudResourceServiceAnchorDecisionForPayload`
   found no decision (`decision.Status == ""`), and even a real decision could
   leave `workload_id`/`service_name` unset (an ambiguous decision names no
