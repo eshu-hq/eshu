@@ -164,9 +164,9 @@ queue, reducer, and query path: an inert or mismatched conjunct would produce
 `scope_mismatch`, not the asserted hidden and expired states.
 
 The final source-tree live gate passed with 511 checks, 0 required failures,
-and one advisory timing warning. The graph-query phase completed in 22 seconds
-against its 8-second advisory ceiling. The 67-second first drain and 17-second
-maintenance drains both passed their timing ceilings. Total wall time was 107
+and one advisory timing warning. The graph-query phase completed in 24 seconds
+against its 8-second advisory ceiling. The 66-second first drain and 17-second
+maintenance drains both passed their timing ceilings. Total wall time was 106
 seconds, below the 30-minute required ceiling. Every suppression drain reported
 zero residual and zero dead-letter work.
 
@@ -174,16 +174,16 @@ Measured suppression-path timings:
 
 | Operation | Wall or p50 time |
 | --- | ---: |
-| Scope setup mutation | 0.017770 s |
-| Scope setup drain | 2.108091 s |
-| Malformed-input drain | 2.118600 s |
-| Active baseline query p50 | 0.020422 s |
-| Ignore mutation | 0.004392 s |
-| Ignore drain | 2.106325 s |
-| Hidden query p50 | 0.006784 s |
-| Audit query p50 | 0.009631 s |
-| Identical retry mutation p50 | 0.003051 s |
-| Expired-visible query p50 | 0.006571 s |
+| Scope setup mutation | 0.007667 s |
+| Scope setup drain | 2.099363 s |
+| Malformed-input drain | 2.101388 s |
+| Active baseline query p50 | 0.019643 s |
+| Ignore mutation | 0.004589 s |
+| Ignore drain | 2.095249 s |
+| Hidden query p50 | 0.005168 s |
+| Audit query p50 | 0.008724 s |
+| Identical retry mutation p50 | 0.003451 s |
+| Expired-visible query p50 | 0.016047 s |
 
 Command:
 
