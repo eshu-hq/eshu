@@ -148,27 +148,27 @@ therefore prove the environment conjunct on the real producer, Postgres,
 queue, reducer, and query path: an inert or mismatched conjunct would produce
 `scope_mismatch`, not the asserted hidden and expired states.
 
-The exact-head live gate passed with 510 checks, 0 required failures, and two
-advisory timing warnings. The graph-query check completed in 22 seconds against
-its 20-second advisory ceiling, and the maintenance drains completed in 20
-seconds against their 19-second advisory ceiling. Total wall time was 110
-seconds, below the 30-minute required ceiling. Every suppression drain
-reported zero residual and zero dead-letter work.
+The final source-tree live gate passed with 511 checks, 0 required failures,
+and one advisory timing warning. The graph-query phase completed in 22 seconds
+against its 8-second advisory ceiling. The 67-second first drain and 17-second
+maintenance drains both passed their timing ceilings. Total wall time was 107
+seconds, below the 30-minute required ceiling. Every suppression drain reported
+zero residual and zero dead-letter work.
 
 Measured suppression-path timings:
 
 | Operation | Wall or p50 time |
 | --- | ---: |
-| Scope setup mutation | 0.007517 s |
-| Scope setup drain | 2.099366 s |
-| Malformed-input drain | 2.108445 s |
-| Active baseline query p50 | 0.019233 s |
-| Ignore mutation | 0.005002 s |
-| Ignore drain | 2.105417 s |
-| Hidden query p50 | 0.006667 s |
-| Audit query p50 | 0.010262 s |
-| Identical retry mutation p50 | 0.003371 s |
-| Expired-visible query p50 | 0.014130 s |
+| Scope setup mutation | 0.017770 s |
+| Scope setup drain | 2.108091 s |
+| Malformed-input drain | 2.118600 s |
+| Active baseline query p50 | 0.020422 s |
+| Ignore mutation | 0.004392 s |
+| Ignore drain | 2.106325 s |
+| Hidden query p50 | 0.006784 s |
+| Audit query p50 | 0.009631 s |
+| Identical retry mutation p50 | 0.003051 s |
+| Expired-visible query p50 | 0.006571 s |
 
 Command:
 
