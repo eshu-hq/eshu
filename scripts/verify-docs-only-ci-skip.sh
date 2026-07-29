@@ -46,6 +46,33 @@ job_block() { awk -v j="  $2:" '$0==j{f=1;print;next} f&&/^  [A-Za-z]/{exit} f{p
 job_gated()    { job_block "$1" "$2" | rg -qF 'needs: changes'; }
 job_alwayson() { ! job_gated "$1" "$2"; }
 
+# step_block <job_block_text> <step_id> — the YAML lines of the ONE step inside
+# a job block (as produced by job_block) whose `id: <step_id>` field appears in
+# it, from that step's "      - " list-item marker through the line before the
+# next step marker (or the end of the job). Steps are unkeyed YAML list items,
+# so — unlike job_block, which can match on a literal "  job:" header line —
+# isolating one requires buffering each item and checking which one contains
+# the id line. This exists so a caller can assert two substrings belong to the
+# SAME step rather than merely co-occurring anywhere in the job: two
+# independent `rg -qF` searches over a whole job block would false-pass if a
+# future unrelated step carried one of the two substrings on its own.
+step_block() {
+	local block="$1" needle="        id: $2"
+	awk -v needle="${needle}" '
+		BEGIN { cur = ""; found = 0 }
+		/^      - / {
+			if (found) { exit }
+			if (index(cur, needle) > 0) { printf "%s", cur; found = 1 }
+			cur = $0 "\n"
+			next
+		}
+		{ cur = cur $0 "\n" }
+		END {
+			if (!found && index(cur, needle) > 0) { printf "%s", cur }
+		}
+	' <<<"${block}"
+}
+
 # code_filter_block <file> — the dorny/paths-filter `code:` key and its `- '...'`
 # negation list, verbatim (comments excluded), for byte-identity comparison
 # across the three workflows that duplicate this filter.
@@ -337,10 +364,17 @@ if rg -qF "if: \${{ github.event_name != 'merge_group' }}" <<<"${changes_block}"
 else
 	bad "test.yml changes job's Filter changed paths step must guard if: \${{ github.event_name != 'merge_group' }} (do not depend on paths-filter's unproven merge_group behavior)"
 fi
-if rg -qF "if: \${{ github.event_name == 'merge_group' }}" <<<"${changes_block}" && rg -qF 'code=true' <<<"${changes_block}"; then
+# Scoped to the single step carrying `id: merge_group_code`, not the whole
+# job block: two independent whole-block substring searches would false-pass
+# if some future unrelated step carried a merge_group guard and a separate
+# step elsewhere in the job happened to contain the literal text "code=true".
+merge_group_code_step="$(step_block "${changes_block}" merge_group_code)"
+if [[ -n "${merge_group_code_step}" ]] \
+	&& rg -qF "if: \${{ github.event_name == 'merge_group' }}" <<<"${merge_group_code_step}" \
+	&& rg -qF 'code=true' <<<"${merge_group_code_step}"; then
 	ok "test.yml changes job forces code=true on merge_group instead of depending on paths-filter"
 else
-	bad "test.yml changes job must have a step that sets code=true directly when github.event_name == 'merge_group'"
+	bad "test.yml changes job must have a single step (id: merge_group_code) that sets code=true directly when github.event_name == 'merge_group'"
 fi
 if rg -qF 'steps.filter.outputs.code || steps.merge_group_code.outputs.code' <<<"${changes_block}"; then
 	ok "test.yml changes job output falls back to the merge_group step when the filter step is skipped"
