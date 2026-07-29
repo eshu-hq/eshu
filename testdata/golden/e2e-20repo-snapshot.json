@@ -6246,6 +6246,70 @@
           "scope_id": "state_snapshot:s3:299b28d40110e54bf81beb51e9459bdef688dbc58419782b29aa83a5930b48a7",
           "limit": 25
         }
+      },
+      "POST /api/v0/terraform/config-state-drift/findings?variant=local-backend-resolved": {
+        "description": "Issue #5594 golden-corpus coverage for the `backend \"local\" {}` default-path fix itself: before this shape, the corpus had zero backend-local fixtures, so the default-path fix (go/internal/collector/terraformstate/backend_config_local.go) had no live golden-corpus coverage even though the shape above proved the read surface generally against the pre-existing S3 scope. The '?variant=local-backend-resolved' query-string suffix (following the precedent at 'POST /api/v0/impact/trace-deployment-chain?anchor=declared-object' above) exists only to give this entry a distinct map key -- go/cmd/golden-corpus-gate/query.go's parseHTTPShapeKey and Go's net/http.ServeMux both ignore the query string when routing, so this dispatches to the real, unmodified handler; the actual selector is scope_id in request_body, same as every other shape. scope_id is the $LOCAL_BACKEND_SCOPE_ID$ sentinel (see go/cmd/golden-corpus-gate/local_backend_scope_id.go and scripts/lib/golden-corpus-local-backend.sh for why a BackendLocal locator cannot be a literal here), substituted by golden-corpus-gate -local-backend-scope-id before this shape is asserted. tests/fixtures/ecosystems/terraform_local_backend_demo/main.tf declares a bare `backend \"local\" {}` block (no explicit path) with two resources; testdata/cassettes/terraformstate/supply-chain-demo.json's matching scope declares two different-address resources, so tfstatebackend.ResolveConfigCommitForBackend resolves this repo as the sole owner and both sides drift (added_in_config/added_in_state), materializing a real, non-vacuous outcome=\"exact\" finding. The outcome=\"exact\" request_body filter plus required_json_values prove this is a classified finding, not merely a resolved-with-zero-findings scope. minimum_results is 1 -- proven by a live golden-corpus-gate run against the HTTP route directly, not shape-only.",
+        "required_response_fields": [
+          "address",
+          "analysis_status",
+          "drift_findings",
+          "drift_kinds",
+          "findings_count",
+          "graph_projection_note",
+          "limit",
+          "limitations",
+          "next_offset",
+          "offset",
+          "outcome",
+          "outcome_groups",
+          "scope_id",
+          "story",
+          "total_findings_count",
+          "truncated",
+          "truth_basis"
+        ],
+        "minimum_results": 1,
+        "request_body": {
+          "scope_id": "$LOCAL_BACKEND_SCOPE_ID$",
+          "outcome": "exact",
+          "limit": 25
+        },
+        "required_json_values": {
+          "outcome_groups[].outcome": "exact",
+          "drift_findings[].outcome": "exact"
+        }
+      },
+      "POST /api/v0/terraform/config-state-drift/findings?variant=unresolved": {
+        "description": "Issue #5594 golden-corpus coverage for the outcome=\"unresolved\" read-surface change: proves a rejected-with-no-config-owner scope is provably distinguishable, AT THE GATE, from the resolved-and-evaluated shapes above (both the pre-existing S3 scope and the new local-backend scope), not just in unit tests. The '?variant=unresolved' query-string suffix exists only to give this entry a distinct map key, same rationale as the local-backend-resolved shape above; the real selector is scope_id in request_body. scope_id=state_snapshot:s3:c56196104e4c2e4b00460def9a701a3d2b5e3098f3fccf4accaccd6e1c261efd (terraformstate.ScopeLocatorHash for bucket=golden-orphaned-tfstate-demo key=orphaned/terraform.tfstate) is a deliberately-orphaned backend: testdata/cassettes/terraformstate/supply-chain-demo.json carries its state side, but no fixture repo's .tf declares a matching `backend \"s3\"` block, so tfstatebackend.Resolver rejects every candidate with ErrNoConfigRepoOwnsBackend and the reducer writes outcome=\"unresolved\" (go/internal/reducer/terraform_config_state_drift_unresolved_owner.go, go/internal/reducer/terraform_config_state_drift_writer.go). The outcome=\"unresolved\" request_body filter plus required_json_values prove the single unresolved finding this scope produces (go/internal/query/terraform_config_state_drift.go's writeTerraformConfigStateDriftFindings: 'a scope whose backend never resolves to any config repo is reported as one \"unresolved\" finding, not an empty page') actually materializes. minimum_results is 1 -- proven by a live golden-corpus-gate run against the HTTP route directly, not shape-only.",
+        "required_response_fields": [
+          "address",
+          "analysis_status",
+          "drift_findings",
+          "drift_kinds",
+          "findings_count",
+          "graph_projection_note",
+          "limit",
+          "limitations",
+          "next_offset",
+          "offset",
+          "outcome",
+          "outcome_groups",
+          "scope_id",
+          "story",
+          "total_findings_count",
+          "truncated",
+          "truth_basis"
+        ],
+        "minimum_results": 1,
+        "request_body": {
+          "scope_id": "state_snapshot:s3:c56196104e4c2e4b00460def9a701a3d2b5e3098f3fccf4accaccd6e1c261efd",
+          "outcome": "unresolved",
+          "limit": 25
+        },
+        "required_json_values": {
+          "outcome_groups[].outcome": "unresolved",
+          "drift_findings[].outcome": "unresolved"
+        }
       }
     }
   },

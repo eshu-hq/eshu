@@ -183,6 +183,151 @@
           }
         }
       ]
+    },
+    {
+      "scope_id": "$LOCAL_BACKEND_SCOPE_ID$",
+      "source_system": "terraform_state",
+      "scope_kind": "state_snapshot",
+      "collector_kind": "terraform_state",
+      "partition_key": "$LOCAL_BACKEND_SCOPE_ID$",
+      "metadata": {
+        "backend_kind": "local",
+        "locator_hash": "terraform_local_backend_demo/terraform.tfstate",
+        "note": "Issue #5594 golden-corpus coverage: resolvable backend local scope. scope_id/partition_key/locator_hash below carry the $LOCAL_BACKEND_SCOPE_ID$/$LOCAL_BACKEND_LOCATOR_HASH$ sentinels -- a BackendLocal locator is an absolute path rooted at tests/fixtures/ecosystems/terraform_local_backend_demo's real, run-time git-checkout location (fresh mktemp dir per gate run), so it cannot be a literal here. scripts/verify-golden-corpus-gate.sh substitutes both sentinels, computed via golden-corpus-gate -print-local-backend-scope-id after bootstrap-index commits that fixture's repository fact, into a runtime copy of this cassette before replay. Neither state resource address below overlaps terraform_local_backend_demo/main.tf's declared resources, so both sides drift (added_in_config/added_in_state) once ownership resolves, proving a non-vacuous exact-outcome finding."
+      },
+      "generation_id": "cassette-tfstate-local-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "terraform_state_snapshot",
+          "stable_fact_key": "terraform_state_snapshot:snapshot",
+          "schema_version": "1.0.0",
+          "collector_kind": "terraform_state",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "format_version": "1.9",
+            "terraform_version": "1.9.8",
+            "serial": 1,
+            "lineage": "terraform-local-backend-demo-lineage",
+            "backend_kind": "local",
+            "locator_hash": "$LOCAL_BACKEND_LOCATOR_HASH$",
+            "source_size_bytes": 2048
+          }
+        },
+        {
+          "fact_kind": "terraform_state_resource",
+          "stable_fact_key": "terraform_state_resource:resource:aws_instance.local_backend_demo_state_only",
+          "schema_version": "1.0.0",
+          "collector_kind": "terraform_state",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "address": "aws_instance.local_backend_demo_state_only",
+            "mode": "managed",
+            "type": "aws_instance",
+            "name": "local_backend_demo_state_only",
+            "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+            "correlation_anchors": [
+              {
+                "anchor_kind": "arn",
+                "value_hash": "anchor-hash-local-backend-instance"
+              }
+            ],
+            "attributes": {
+              "arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-0localbackenddemo01",
+              "instance_type": "t3.micro",
+              "ami": "ami-0localbackenddemostate1"
+            }
+          }
+        },
+        {
+          "fact_kind": "terraform_state_resource",
+          "stable_fact_key": "terraform_state_resource:resource:aws_s3_bucket.local_backend_demo_state_only",
+          "schema_version": "1.0.0",
+          "collector_kind": "terraform_state",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "address": "aws_s3_bucket.local_backend_demo_state_only",
+            "mode": "managed",
+            "type": "aws_s3_bucket",
+            "name": "local_backend_demo_state_only",
+            "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+            "correlation_anchors": [
+              {
+                "anchor_kind": "name",
+                "value_hash": "anchor-hash-local-backend-bucket"
+              }
+            ],
+            "attributes": {
+              "arn": "arn:aws:s3:::local-backend-demo-state-only-bucket",
+              "bucket": "local-backend-demo-state-only-bucket"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scope_id": "state_snapshot:s3:c56196104e4c2e4b00460def9a701a3d2b5e3098f3fccf4accaccd6e1c261efd",
+      "source_system": "terraform_state",
+      "scope_kind": "state_snapshot",
+      "collector_kind": "terraform_state",
+      "partition_key": "state_snapshot:s3:c56196104e4c2e4b00460def9a701a3d2b5e3098f3fccf4accaccd6e1c261efd",
+      "metadata": {
+        "backend_kind": "s3",
+        "locator_hash": "golden-orphaned-tfstate-demo/orphaned/terraform.tfstate",
+        "note": "Issue #5594 golden-corpus coverage: deliberately-unresolvable backend scope. No fixture repo's .tf declares a matching backend s3 block for this bucket/key, so tfstatebackend.Resolver rejects every candidate with ErrNoConfigRepoOwnsBackend and the reducer writes outcome=unresolved (go/internal/reducer/terraform_config_state_drift_unresolved_owner.go). scope_id = state_snapshot:s3:sha256(s3\\x00s3://golden-orphaned-tfstate-demo/orphaned/terraform.tfstate) (terraformstate.ScopeLocatorHash) -- offline-precomputable and pinned as a literal, unlike the local-backend scope above, because an S3 locator has no run-time filesystem dependency."
+      },
+      "generation_id": "cassette-tfstate-orphaned-gen1",
+      "observed_at": "2026-06-25T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "terraform_state_snapshot",
+          "stable_fact_key": "terraform_state_snapshot:snapshot",
+          "schema_version": "1.0.0",
+          "collector_kind": "terraform_state",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "format_version": "1.9",
+            "terraform_version": "1.9.8",
+            "serial": 1,
+            "lineage": "golden-orphaned-tfstate-demo-lineage",
+            "backend_kind": "s3",
+            "locator_hash": "c56196104e4c2e4b00460def9a701a3d2b5e3098f3fccf4accaccd6e1c261efd",
+            "source_size_bytes": 1024
+          }
+        },
+        {
+          "fact_kind": "terraform_state_resource",
+          "stable_fact_key": "terraform_state_resource:resource:aws_instance.orphaned_demo",
+          "schema_version": "1.0.0",
+          "collector_kind": "terraform_state",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "address": "aws_instance.orphaned_demo",
+            "mode": "managed",
+            "type": "aws_instance",
+            "name": "orphaned_demo",
+            "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+            "correlation_anchors": [
+              {
+                "anchor_kind": "arn",
+                "value_hash": "anchor-hash-orphaned-instance"
+              }
+            ],
+            "attributes": {
+              "arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-0orphaneddemo000001",
+              "instance_type": "t3.micro",
+              "ami": "ami-0orphaneddemostate001"
+            }
+          }
+        }
+      ]
     }
   ]
 }
