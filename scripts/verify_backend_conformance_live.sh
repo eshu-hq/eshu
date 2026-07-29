@@ -41,4 +41,8 @@ if [ "$ESHU_GRAPH_BACKEND" = "nornicdb" ]; then
     ESHU_CYPHER_BOLT_DSN="$ESHU_NEO4J_URI" \
     ESHU_CYPHER_BOLT_DATABASE="$ESHU_NEO4J_DATABASE" \
         go test ./internal/storage/cypher -run '^(TestLiveNornicDBRetryConflictClassificationContract|TestLiveNornicDBRelationshipSnapshotConflictRetryContract|TestTerraformResourceWriterLiveClearsStaleAttributeOnRefresh)$' -count=1
+
+    echo "Running live NornicDB CloudResource heterogeneous-batch row-key-default regression (#5714/#5055)"
+    ESHU_CLOUDRESOURCE_NODE_WRITER_LIVE=1 \
+        go test ./internal/storage/cypher -run '^TestCloudResourceNodeWriterLiveHeterogeneousBatchNeverPersistsLiteral$' -count=1
 fi

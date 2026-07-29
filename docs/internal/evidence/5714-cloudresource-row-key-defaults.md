@@ -131,3 +131,101 @@ broadened to the other 6 service-anchor keys or `running_image_ref`/
 otherwise) of those specific literals having reached a live API response, and
 adding speculative masks for values that were never observed to leak is out
 of scope for this fix.
+
+**Removal trigger** (named per hostile-review P2 finding — a mask with no
+stated removal condition would silently keep absorbing a regression of this
+exact literal at the API layer, hiding the operator-visible symptom that
+would otherwise surface a `service_name` regression faster than any other
+signal): safe to delete once every AWS/Azure scope has re-materialized at
+least once post-deploy — the normal case within one collector sync cycle,
+since `DomainAWSResourceMaterialization`/`DomainAzureResourceMaterialization`
+re-run every generation a scope carries current resource facts (see Data
+repair above). Do not remove opportunistically on a fixed calendar date;
+confirm the re-sync has actually happened (e.g. no CloudResource node with
+`service_name = "row.service_name"` in a live query) before deleting. The
+same trigger and reasoning is noted at the mask itself
+(`go/internal/query/cloud_resources.go`, `cloudResourceRowFromGraph`'s doc
+comment).
+
+## CI enforcement decision (#5714 acceptance bullet 3, hostile-review P1)
+
+The issue's third acceptance bullet asks to "consider a shared helper or a
+golden-gate `MaximumNodePropertyCount`-style guard so a future over-broad/
+literal write fails loud." Two ways to get CI-enforced coverage were
+considered:
+
+- **(a) Wire the existing live regression test into the live conformance
+  lane.** `TestCloudResourceNodeWriterLiveHeterogeneousBatchNeverPersistsLiteral`
+  (`go/internal/storage/cypher/cloud_resource_node_writer_heterogeneous_batch_live_test.go`)
+  already proves the defect class against a real NornicDB backend, but its
+  gate env var (`ESHU_CLOUDRESOURCE_NODE_WRITER_LIVE`) was set nowhere outside
+  the test file itself, so it always skipped — including in CI. Nothing was
+  actually exercising this regression class end to end.
+- **(b) Add a new B-7/B-12 golden-corpus fixture** mirroring
+  `rn-cloud-resource-running-image` (#5450's `MaximumNodePropertyCount`
+  ceiling guard on the same writer and label): a new heterogeneous AWS or
+  Azure cassette resource plus a snapshot entry pinning
+  `required_node_properties`/`maximum_node_property_count` for the 7
+  anchor keys.
+
+**Chose (a).** The AWS/Azure cassettes carry zero anchor-bearing
+`CloudResource` resources today (confirmed by `rg` over
+`testdata/cassettes/awscloud/` and `testdata/cassettes/azurecloud/` — no
+`service_name`/`workload_id` hits), so (b) would require introducing a new
+fixture resource specifically to make a floor assertion non-vacuous, which
+moves the total AWS/Azure `CloudResource` node count and every count-derived
+assertion downstream of it (the golden-corpus gate is a live Docker gate this
+executor is not permitted to run and the orchestrator serializes) — a
+materially larger, corpus-perturbing change for a guard whose job is only to
+catch a regression in a writer this PR already covers at the unit level
+(`TestCloudResourceNodeWriterDefaultFillsMissingRowKeys`,
+`TestCloudResourceRowKeyDefaultsCoversEverySetKey`) and, with (a), at the live
+level in every CI run of `.github/workflows/e2e-tests.yml`'s backend-matrix
+job. (a) is strictly cheaper and does not touch the corpus.
+
+Implemented in `scripts/verify_backend_conformance_live.sh`'s existing
+NornicDB-only allowlist block (the same pattern
+`TestLiveNornicDBRetryConflictClassificationContract`/
+`TestTerraformResourceWriterLiveClearsStaleAttributeOnRefresh` already use):
+sets `ESHU_CLOUDRESOURCE_NODE_WRITER_LIVE=1` and runs
+`TestCloudResourceNodeWriterLiveHeterogeneousBatchNeverPersistsLiteral` as its
+own `go test` invocation. That script is wired into
+`.github/workflows/e2e-tests.yml`'s "Run live backend conformance" step,
+which runs on every push to `main` and on every PR touching `go/**` (path
+filter), across the `nornicdb`/`neo4j` backend matrix — so this regression
+class now fails loud in CI, not just locally. Verified locally end to end
+against a bare (non-Compose) NornicDB container on private ports: the full
+`scripts/verify_backend_conformance_live.sh` run, including the new block,
+passed (`ok  go/internal/storage/cypher  1.111s` for the new test).
+
+(b) remains available as a follow-up if a future maintainer wants the
+non-vacuous corpus-level floor+ceiling assertion in addition to (a); it was
+not rejected as wrong, only as disproportionate to land in this change.
+
+## P3 — informational, no action taken (out of #5714's scope)
+
+- **`canonicalEC2InstanceUpsertCypher`** (`go/internal/storage/cypher/
+  ec2_instance_node_writer.go`) is a genuinely separate Cypher constant (not
+  `canonicalCloudResourceUpsertCypher`) that shares the same `UNWIND $rows AS
+  row ... MERGE (r:CloudResource {uid: row.uid}) SET ...` shape and ~9 of the
+  same base keys (`arn`, `resource_id`, `resource_type`, `name`, `state`,
+  `account_id`, `region`, `service_kind`, `correlation_anchors`) plus its own
+  ten EC2-posture-specific keys, with no default-fill backstop of its own.
+  It is outside #5714's "feeding `canonicalCloudResourceUpsertCypher`" scope
+  by the issue's own text, so it is not fixed here and no new issue is filed
+  for it per this session's standing instruction against issue sprawl; flagged
+  for the package owner to decide whether the same backstop pattern should
+  extend there.
+- **The `ifadeterminismteeth` build-tag SET clause**
+  (`cloud_resource_node_writer_teeth.go`'s `teethCloudResourceUpsertExtraSet`,
+  `r.ifa_teeth_seq`/`r.ifa_teeth_write_order`) is outside
+  `TestCloudResourceRowKeyDefaultsCoversEverySetKey`'s lockstep scan surface
+  (the test scans `baseCloudResourceUpsertCypher`, not the
+  `ifadeterminismteeth`-only concatenation). This is intentional and benign:
+  that build tag never links in a normal/CI/production build
+  (`cloud_resource_node_writer_teeth_off.go` supplies the empty string
+  instead, proven by `TestCanonicalCloudResourceUpsertCypherExcludesTeethClauseByDefault`),
+  and `ifaTeethStampCloudResourceRow` (the row-side counterpart) always stamps
+  both keys unconditionally when that tag IS active, so the two teeth keys are
+  never actually omitted from a row in practice — unreachable, not merely
+  unchecked.
