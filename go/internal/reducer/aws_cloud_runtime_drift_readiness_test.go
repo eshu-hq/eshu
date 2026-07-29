@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
 )
@@ -85,14 +86,23 @@ func TestAWSCloudRuntimeDriftHandlerDefersOrphanedFindingWhenStatePending(t *tes
 	}
 }
 
-// TestAWSCloudRuntimeDriftHandlerCommitsAfterAttemptBoundReached is the
-// terminal-fallback regression: past awsCloudRuntimeDriftStatePendingMaxAttempts,
-// Handle must commit its best-available classification even though the state
-// scope is STILL pending, so a genuine orphan (no Terraform anywhere, ever)
-// does not starve forever.
-func TestAWSCloudRuntimeDriftHandlerCommitsAfterAttemptBoundReached(t *testing.T) {
+// TestAWSCloudRuntimeDriftHandlerCommitsAfterElapsedBoundReached is the
+// terminal-fallback regression: once elapsed time since Intent.EnqueuedAt
+// reaches awsCloudRuntimeDriftStatePendingMaxWait, Handle must commit its
+// best-available classification even though the state scope is STILL
+// pending, so a genuine orphan (no Terraform anywhere, ever) does not starve
+// forever. Deliberately NOT an Intent.AttemptCount comparison: that was the
+// original, wrong shape a hostile review caught -- AttemptCount is frozen by
+// this defer's own non-counting failure class once the queue sees it, so a
+// bound compared against it can never fire against the REAL queue (see
+// TestAWSCloudRuntimeDriftHandlerConvergesAfterElapsedBoundOverRealQueueLive
+// in go/internal/storage/postgres for the proof against the real
+// ReducerQueue claim/fail cycle, which this Handler-level test cannot
+// provide on its own).
+func TestAWSCloudRuntimeDriftHandlerCommitsAfterElapsedBoundReached(t *testing.T) {
 	t.Parallel()
 
+	now := time.Date(2026, time.July, 29, 15, 0, 0, 0, time.UTC)
 	loader := &stubAWSCloudRuntimeDriftEvidenceLoader{
 		rows: []cloudruntime.AddressedRow{awsCloudRuntimeDriftOrphanedEvidenceRow("arn:aws:lambda:us-east-1:123456789012:function:x")},
 	}
@@ -102,6 +112,7 @@ func TestAWSCloudRuntimeDriftHandlerCommitsAfterAttemptBoundReached(t *testing.T
 		EvidenceLoader:   loader,
 		Writer:           writer,
 		ReadinessChecker: readiness,
+		Now:              func() time.Time { return now },
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{
@@ -111,13 +122,55 @@ func TestAWSCloudRuntimeDriftHandlerCommitsAfterAttemptBoundReached(t *testing.T
 		SourceSystem: "aws",
 		Domain:       DomainAWSCloudRuntimeDrift,
 		Cause:        "aws runtime resource facts observed",
-		AttemptCount: awsCloudRuntimeDriftStatePendingMaxAttempts,
+		// Far past the bound. AttemptCount is deliberately left at its zero
+		// value: the fix under test must not consult it at all.
+		EnqueuedAt: now.Add(-2 * awsCloudRuntimeDriftStatePendingMaxWait),
 	})
 	if err != nil {
-		t.Fatalf("Handle() error = %v, want nil (bound reached, must commit)", err)
+		t.Fatalf("Handle() error = %v, want nil (elapsed bound reached, must commit)", err)
 	}
 	if writer.calls != 1 {
 		t.Fatalf("writer.calls = %d, want 1 (past the bound, Handle must write its best-available verdict)", writer.calls)
+	}
+}
+
+// TestAWSCloudRuntimeDriftHandlerKeepsDeferringBeforeElapsedBoundReached
+// proves the bound does not fire early: an intent enqueued well within
+// awsCloudRuntimeDriftStatePendingMaxWait must still defer while the state
+// scope is pending, exactly like the zero-EnqueuedAt case
+// TestAWSCloudRuntimeDriftHandlerDefersOrphanedFindingWhenStatePending
+// already covers, but with a REAL non-zero elapsed duration under the bound
+// rather than the "unknown enqueue time" fallback.
+func TestAWSCloudRuntimeDriftHandlerKeepsDeferringBeforeElapsedBoundReached(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.July, 29, 15, 0, 0, 0, time.UTC)
+	loader := &stubAWSCloudRuntimeDriftEvidenceLoader{
+		rows: []cloudruntime.AddressedRow{awsCloudRuntimeDriftOrphanedEvidenceRow("arn:aws:lambda:us-east-1:123456789012:function:x")},
+	}
+	writer := &stubAWSCloudRuntimeDriftFindingWriter{}
+	readiness := &stubAWSCloudRuntimeDriftReadinessChecker{pending: true}
+	handler := AWSCloudRuntimeDriftHandler{
+		EvidenceLoader:   loader,
+		Writer:           writer,
+		ReadinessChecker: readiness,
+		Now:              func() time.Time { return now },
+	}
+
+	_, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-still-waiting",
+		ScopeID:      "aws:123456789012:us-east-1",
+		GenerationID: "gen-1",
+		SourceSystem: "aws",
+		Domain:       DomainAWSCloudRuntimeDrift,
+		Cause:        "aws runtime resource facts observed",
+		EnqueuedAt:   now.Add(-awsCloudRuntimeDriftStatePendingMaxWait / 2),
+	})
+	if err == nil {
+		t.Fatal("Handle() error = nil, want a deferred error (well within the elapsed bound)")
+	}
+	if writer.calls != 0 {
+		t.Fatalf("writer.calls = %d, want 0 (still within the elapsed bound, must not write)", writer.calls)
 	}
 }
 

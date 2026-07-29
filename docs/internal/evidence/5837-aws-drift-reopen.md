@@ -298,6 +298,141 @@ a non-tip commit message without an interactive rebase — barred by
 current source, and in the tests, which is what a reader or a future `git
 blame` will actually execute against.
 
+### P0 (second, caused by the first P0's own fix): registering the classes as non-counting froze the counter the terminal-fallback bound read
+
+Registering both classes in `nonCountingReducerRetryFailureClasses` (the fix
+immediately above) closed the dead-letter hole, but it did so by making
+`reducerClaimAttemptCountCaseSQL()` freeze `fact_work_items.attempt_count` for
+any row claimed while `status='retrying'` under either class — and the
+readiness defer's own terminal fallback was, at that point, still comparing
+against exactly that frozen counter:
+`intent.AttemptCount >= awsCloudRuntimeDriftStatePendingMaxAttempts`.
+
+Concrete trace, reproduced live against a fake `ReducerQueue` backend driven
+through real `Claim`/`Fail` cycles: first claim increments `attempt_count`
+0→1 (the row is still `'pending'`, so the non-counting CASE branch does not
+apply yet — it only applies once the row has ALREADY been retried once under
+the class). `Handle()` sees `AttemptCount=1`, `1 < 3`, defers. `Fail()` sets
+`status='retrying'` with the state-pending failure class and — correctly,
+per the fix above — leaves `attempt_count` untouched. Every subsequent claim
+now matches `status='retrying' AND failure_class IN (...)`, so the CASE keeps
+`attempt_count` unchanged FOREVER. `Handle()` sees `AttemptCount=1` on every
+future call; `1 >= 3` is never true. If any `state_snapshot:*` scope gets
+durably stuck in `'pending'` — an ordinary operational fault, not a rare
+race — every orphaned-candidate intent for that account would defer forever:
+a **permanently absent** finding, silent and gate-invisible in an environment
+(like the golden corpus's) where the state scope does eventually activate on
+its own.
+
+This is the same class of bug as the first P0 — a promise made by a doc
+comment that the code did not actually keep — but caused BY that P0's own
+fix, not independent of it: closing the dead-letter hole is what exposed the
+counter-freeze, since before registration the counter was (wrongly)
+incrementing every cycle and would have crossed the bound eventually, just by
+dead-lettering first.
+
+**Fix: the domain's bound is now elapsed wall-clock time since
+`Intent.EnqueuedAt`, not `Intent.AttemptCount`.**
+`awsCloudRuntimeDriftStatePendingMaxAttempts` (an int, 3) is replaced by
+`awsCloudRuntimeDriftStatePendingMaxWait` (a `time.Duration`, 30 minutes).
+`Intent.EnqueuedAt` is populated from `fact_work_items.created_at`
+(`go/internal/storage/postgres/reducer_queue_helpers.go`), which no claim,
+retry, or fail statement in this package ever writes — it is immune to the
+same freeze precisely because nothing needs it to change across retries. "How
+long have we been waiting for a sibling scope to activate" is a time concept,
+not a retry-count concept, so bounding it on elapsed time is also the more
+honest match for what is actually being bounded, independent of the freeze
+bug. A zero `EnqueuedAt` (unreachable against the real queue, but reachable
+from a hand-built `Intent` in a test or a future caller) is treated as
+"elapsed time unknown" and defers rather than committing immediately — the
+safe direction, since a misread zero timestamp must not manufacture a false
+"expired" signal that writes a possibly-wrong verdict.
+
+Considered and rejected: a domain-owned defer counter (a payload field bumped
+unconditionally on every `state_pending` fail), the other option raised
+during review. Elapsed time was preferred because it matches the actual thing
+being bounded, needs no new durable field or idempotency story for that
+field's own updates, and cannot recreate the SAME class of coupling defect in
+a new place — a payload-field counter would still need its own proof that
+something actually bumps it on every cycle, which is exactly the kind of
+implicit coupling this bug came from in the first place.
+
+**The regression that must exist, and could not be a Handler-level test
+alone:** `TestAWSCloudRuntimeDriftHandlerCommitsAfterElapsedBoundReached`
+(reducer package) proves the Handler's OWN bound logic given an
+already-elapsed `EnqueuedAt`, but a hand-set field cannot prove the QUEUE ever
+delivers one — that is exactly what the ORIGINAL, wrong
+`AttemptCount`-comparison version of this same test (hand-setting
+`AttemptCount: awsCloudRuntimeDriftStatePendingMaxAttempts`) proved instead,
+and why it missed the bug entirely. The real proof is
+`TestAWSCloudRuntimeDriftHandlerConvergesAfterElapsedBoundOverRealQueueLive`
+(`go/internal/storage/postgres/aws_cloud_runtime_drift_elapsed_bound_queue_test.go`):
+it drives the REAL `reducer.ReducerQueue.Claim`/`Fail` through repeated
+cycles against a fake backend that computes `attempt_count` with the exact
+production CASE semantics, advancing a fake wall clock between cycles (a real
+30-minute wait is infeasible to run in a test), and asserts the domain
+eventually reaches a terminal commit. Failing-before/passing-after, by
+temporarily reverting `shouldDeferForStatePending`'s bound check back to the
+original `intent.AttemptCount >= 3` shape and rerunning:
+
+```
+$ go test ./internal/storage/postgres -run TestAWSCloudRuntimeDriftHandlerConvergesAfterElapsedBoundOverRealQueueLive -v -count=1
+--- FAIL: TestAWSCloudRuntimeDriftHandlerConvergesAfterElapsedBoundOverRealQueueLive (0.00s)
+    domain never reached a terminal commit within 10 cycles (2h0m0s of simulated elapsed time):
+    attempt_count sequence seen = [1 1 1 1 1 1 1 1 1 1] -- the elapsed-time bound did not fire
+# fix restored
+--- PASS: TestAWSCloudRuntimeDriftHandlerConvergesAfterElapsedBoundOverRealQueueLive (0.00s)
+    converged after 4 claim/fail cycles, 36m0s elapsed, attempt_count sequence = [1 1 1 1] (frozen), writer.calls = 1
+```
+
+The red transcript's `attempt_count` sequence — `[1 1 1 1 1 1 1 1 1 1]`,
+frozen from the first cycle onward across 2 simulated hours — is the exact
+mechanism the review predicted, reproduced independently. The green
+transcript shows the SAME frozen sequence (proving the freeze itself is real
+and expected, not something the fix "solves" by un-freezing the counter) but
+now converges at 36 minutes — past the 30-minute bound — because the
+comparison no longer depends on that frozen value at all.
+
+`awsCloudRuntimeDriftStatePendingMaxWait`'s own doc comment
+(`go/internal/reducer/aws_cloud_runtime_drift_readiness.go`) now states this
+history and the reason directly, so a future reader does not reintroduce an
+`AttemptCount` comparison believing it to be equivalent.
+
+**Confirmation: a genuine orphan still converges.** Two shapes matter, and
+only one needs the bound at all. (1) No `state_snapshot:*` scope exists for
+the account -- `HasPendingStateSnapshotEvidence` returns `false` on the very
+first call, `shouldDeferForStatePending` returns `false` immediately, and
+`Handle` writes the correct `orphaned_cloud_resource` verdict on the FIRST
+attempt, never touching the bound at all (existing coverage:
+`TestAWSCloudRuntimeDriftHandlerDoesNotDeferWhenStateNotPending`, still
+green). (2) A `state_snapshot:*` scope exists but is durably stuck in
+`'pending'` -- an ordinary operational fault (a crashed or hung ingester),
+not a rare race -- and the readiness checker is deliberately coarse (see
+`AWSCloudRuntimeDriftReadinessChecker`'s doc comment): it cannot tell "the
+ONE scope that would resolve THIS ARN is stuck" apart from "SOME unrelated
+scope is stuck", so a resource that is a genuine orphan (no Terraform state
+anywhere will ever claim it) gets held back by a sibling scope's fault that
+has nothing to do with it. This is exactly what
+`TestAWSCloudRuntimeDriftHandlerConvergesAfterElapsedBoundOverRealQueueLive`
+proves: `alwaysOrphanedAWSCloudRuntimeDriftEvidenceLoader` returns a resource
+with no Terraform match at all (an orphan by construction, not by a
+transient miss), `alwaysPendingAWSCloudRuntimeDriftReadinessChecker` never
+resolves (the permanently-stuck-scope shape), and the handler still reaches
+`writer.calls == 1` with `CanonicalWrites` covering the one orphaned
+candidate once elapsed time crosses the bound -- the genuine orphan's correct
+verdict is written, not a placeholder or an error. Shape (2) is the only one
+that was ever at risk from the freeze; the test proves it converges.
+
+**Two P3s recorded, not built:** (1) no signal distinguishes "converging
+soon" from "will never converge" for a `state_pending` defer; only the
+generic `ReducerRetrySurge{failure_class=...}` counter exists. Moot once this
+fix lands (the elapsed bound guarantees convergence), but worth an
+operator-facing gauge if this pattern is reused by a future domain with a
+longer bound. (2) commit `c161855f8` still asserts the ORIGINAL registration
+as accomplished fact in its message; per the no-rebase-yet constraint that
+message is not rewritten here either, and is left for the coordinator's own
+planned rebase before push.
+
 ### P1 found by pre-PR review: exact-tie watermarks resolve last-committer-wins, not fresher-wins
 
 `fencingToken = evidenceAsOf.UnixMicro()` is a wall-clock LABEL taken when a

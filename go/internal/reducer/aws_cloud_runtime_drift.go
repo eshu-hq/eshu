@@ -134,12 +134,12 @@ func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent Intent) 
 	admitted := admittedAWSCloudRuntimeDriftCandidates(evaluation)
 	summary := summarizeAWSCloudRuntimeDriftCandidates(admitted)
 
-	shouldDefer, err := h.shouldDeferForStatePending(ctx, intent, admitted)
+	shouldDefer, err := h.shouldDeferForStatePending(ctx, intent, admitted, evidenceAsOf)
 	if err != nil {
 		return Result{}, fmt.Errorf("check aws cloud runtime drift state readiness: %w", err)
 	}
 	if shouldDefer {
-		h.logStatePendingDefer(ctx, intent, admitted)
+		h.logStatePendingDefer(ctx, intent, admitted, evidenceAsOf)
 		return Result{}, newAWSCloudRuntimeDriftStatePendingError(intent.ScopeID, intent.GenerationID)
 	}
 

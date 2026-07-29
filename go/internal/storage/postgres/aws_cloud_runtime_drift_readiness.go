@@ -24,8 +24,10 @@ import (
 // AWSCloudRuntimeDriftConfigResolver's same chicken-and-egg). A pending scope
 // anywhere can only cause an unnecessary, bounded defer -- never an incorrect
 // verdict, since the caller only holds back an orphaned_cloud_resource
-// classification that a bound (awsCloudRuntimeDriftStatePendingMaxAttempts)
-// eventually commits anyway.
+// classification that a bound (go/internal/reducer/aws_cloud_runtime_drift_readiness.go's
+// awsCloudRuntimeDriftStatePendingMaxWait, an ELAPSED-TIME bound since the
+// intent was first enqueued, not a retry-count bound) eventually commits
+// anyway.
 const hasPendingStateSnapshotGenerationQuery = `
 SELECT EXISTS (
     SELECT 1

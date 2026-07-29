@@ -147,12 +147,23 @@
   ARN the CURRENT pass's evidence load covered, not only the ones that produced
   an admitted candidate. Narrowing it to admitted-candidate ARNs would stop
   retiring a converged (no-longer-drifted) ARN's stale prior finding.
-- **AWS runtime drift readiness defer is opt-in and bounded** —
-  `AWSCloudRuntimeDriftHandler.ReadinessChecker` being nil must leave `Handle`
-  writing its best-available classification unconditionally (pre-#5848
-  behavior). When wired, the defer must stay bounded by
-  `awsCloudRuntimeDriftStatePendingMaxAttempts`; an unbounded defer would starve
-  a genuine orphan (a resource with no Terraform state anywhere, ever) forever.
+- **AWS runtime drift readiness defer is opt-in and bounded by elapsed time,
+  not retry count** — `AWSCloudRuntimeDriftHandler.ReadinessChecker` being nil
+  must leave `Handle` writing its best-available classification
+  unconditionally (pre-#5848 behavior). When wired, the defer must stay
+  bounded by `awsCloudRuntimeDriftStatePendingMaxWait`, an ELAPSED-TIME bound
+  compared against `Intent.EnqueuedAt` — never a `Intent.AttemptCount`
+  comparison. `AttemptCount` is frozen by this defer's own non-counting
+  failure class the moment the row is retried once
+  (`nonCountingReducerRetryFailureClasses` in
+  `reducer_queue_readiness_sql.go`), so a retry-count bound can never fire
+  against the real queue; see
+  `go/internal/reducer/aws_cloud_runtime_drift_readiness.go`'s
+  `awsCloudRuntimeDriftStatePendingMaxWait` doc comment and
+  `TestAWSCloudRuntimeDriftHandlerConvergesAfterElapsedBoundOverRealQueueLive`
+  for the mechanism and the real-queue proof. An unbounded (or
+  unreachably-bounded) defer would starve a genuine orphan (a resource with no
+  Terraform state anywhere, ever) forever.
 
 ## Evidence notes
 
