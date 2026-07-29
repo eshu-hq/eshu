@@ -51,7 +51,11 @@ authoring; it does not build a second coverage framework.
   original payload, proving the typed struct neither drops nor reshapes a
   field the collector emitted.
 - `Catalog`, `CatalogByName`, `CatalogOdu` - the cataloged Odù seed set (see
-  `catalog_seed.go` and `roundtrip.go`'s `demoOrgRoundtripOdu`).
+  `catalog_seed.go` and `roundtrip.go`'s `demoOrgRoundtripOdu`). The
+  `odu:vuln-pack` fixture includes the operator-owned
+  `vulnerability.suppression` payload under
+  `operator:vulnerability_suppressions`, so Ifá validates the producer's
+  server-owned source/author contract separately from provider facts.
 - `RepoDependencyBackfillProofOdu` - a lazy, uncataloged retained-shape Odù for
   relationship-backfill SQL and eight-worker storage proofs; it preserves the
   repository-dependency truth cases while adding the measured worst-scope

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/replay/schedulereplay"
 )
 
@@ -49,6 +50,52 @@ var projectionCases = []projectionCase{
 		domain:       reducer.DomainSupplyChainImpact,
 		hooks:        []string{"supply_chain_impact", "vulnerability_source_state", "vulnerability_suppression_admission"},
 	},
+}
+
+func TestSupplyChainImpactCassetteCarriesOperatorSuppressionShape(t *testing.T) {
+	t.Parallel()
+
+	file, err := cassette.LoadFile(projectionCases[1].cassettePath)
+	if err != nil {
+		t.Fatalf("LoadFile(supply-chain-impact): %v", err)
+	}
+
+	var matched int
+	for _, scope := range file.Scopes {
+		for _, fact := range scope.Facts {
+			if fact.FactKind != "vulnerability.suppression" {
+				continue
+			}
+			matched++
+			if got, want := scope.ScopeID, "operator:vulnerability_suppressions"; got != want {
+				t.Errorf("suppression scope_id = %q, want %q", got, want)
+			}
+			if got, want := scope.SourceSystem, "eshu_policy"; got != want {
+				t.Errorf("suppression source_system = %q, want %q", got, want)
+			}
+			if got, want := scope.ScopeKind, "vulnerability_intelligence"; got != want {
+				t.Errorf("suppression scope_kind = %q, want %q", got, want)
+			}
+			if got, want := fact.SourceConfidence, "reported"; got != want {
+				t.Errorf("suppression source_confidence = %q, want %q", got, want)
+			}
+			if got, want := fact.Payload["source"], "eshu_policy"; got != want {
+				t.Errorf("suppression payload source = %#v, want %q", got, want)
+			}
+			author, _ := fact.Payload["author"].(string)
+			if !strings.HasPrefix(author, "shared_token:sha256:") {
+				t.Errorf("suppression author = %q, want authenticated shared-token hash", author)
+			}
+			scopePayload, _ := fact.Payload["scope"].(map[string]any)
+			cveID, _ := scopePayload["cve_id"].(string)
+			if !strings.HasPrefix(cveID, "CVE-2026-") {
+				t.Errorf("suppression cve_id = %q, want synthetic CVE-2026-*", cveID)
+			}
+		}
+	}
+	if matched != 1 {
+		t.Fatalf("vulnerability.suppression facts = %d, want 1", matched)
+	}
 }
 
 // loadProjectionItems loads a projection cassette and asserts the shared-

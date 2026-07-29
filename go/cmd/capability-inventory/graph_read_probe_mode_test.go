@@ -125,7 +125,7 @@ func TestGraphReadProbeRegistryCoversCurrentDirectSurfaces(t *testing.T) {
 	if err != nil {
 		t.Fatalf("currentAPIAndMCPSurfaces() error = %v", err)
 	}
-	if got, want := len(targets), 417; got != want {
+	if got, want := len(targets), 418; got != want {
 		t.Fatalf("current target count = %d, want checked-in current manifest count %d", got, want)
 	}
 }
@@ -135,7 +135,7 @@ func TestCurrentProbeRegistryClassifiesEverySurfaceWithoutGenericUnsupported(t *
 	if err != nil {
 		t.Fatalf("buildCurrentProbeRegistry() error = %v", err)
 	}
-	if got, want := len(registry), 417; got != want {
+	if got, want := len(registry), 418; got != want {
 		t.Fatalf("registry count = %d, want %d", got, want)
 	}
 	seen := map[string]struct{}{}
@@ -216,6 +216,10 @@ func TestCurrentProbeRegistryIsRedactedAndClassifiesMappedDelta(t *testing.T) {
 	}
 	if probe := requireProbeIdentity(t, registry, "api:POST /api/v0/admin/reindex"); probe.execute || !strings.Contains(probe.unsafeReason, "reindex") {
 		t.Fatalf("admin reindex classification = %#v, want explicit unsafe mutation", probe)
+	}
+	if probe := requireProbeIdentity(t, registry, "api:POST /api/v0/supply-chain/impact/suppressions"); probe.execute ||
+		!strings.Contains(probe.unsafeReason, "suppression") {
+		t.Fatalf("suppression mutation classification = %#v, want explicit unsafe mutation", probe)
 	}
 	for _, test := range []struct {
 		identity string
@@ -348,7 +352,7 @@ func TestCurrentProbeRegistryResolvesEveryExecutableFixture(t *testing.T) {
 			t.Errorf("resolveProbeSelectors(%s) error = %v", probe.identity, err)
 		}
 	}
-	if got, want := classified, 417; got != want {
+	if got, want := classified, 418; got != want {
 		t.Fatalf("classified registry entries = %d, want %d", got, want)
 	}
 }

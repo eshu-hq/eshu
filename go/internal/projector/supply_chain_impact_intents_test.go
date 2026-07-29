@@ -51,6 +51,43 @@ func TestBuildProjectionQueuesSupplyChainImpactForVulnerabilityEvidence(t *testi
 	}
 }
 
+func TestBuildProjectionQueuesSupplyChainImpactForSuppressionEvidence(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{
+		ScopeID:      "operator:vulnerability_suppressions",
+		SourceSystem: "eshu_policy",
+	}
+	generation := scope.ScopeGeneration{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: "generation-suppression-1",
+	}
+	projection, err := buildProjection(scopeValue, generation, []facts.Envelope{{
+		FactID:        "fact-suppression-1",
+		ScopeID:       scopeValue.ScopeID,
+		GenerationID:  generation.GenerationID,
+		FactKind:      facts.VulnerabilitySuppressionFactKind,
+		SchemaVersion: facts.VulnerabilitySuppressionSchemaVersionV1,
+		SourceRef: facts.Ref{
+			SourceSystem: "eshu_policy",
+		},
+	}})
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil", err)
+	}
+
+	intent := requireSupplyChainImpactIntent(t, projection.reducerIntents)
+	if got, want := intent.FactID, "fact-suppression-1"; got != want {
+		t.Fatalf("FactID = %q, want %q", got, want)
+	}
+	if got, want := intent.Reason, "vulnerability suppression evidence observed"; got != want {
+		t.Fatalf("Reason = %q, want %q", got, want)
+	}
+	if got, want := intent.SourceSystem, "eshu_policy"; got != want {
+		t.Fatalf("SourceSystem = %q, want %q", got, want)
+	}
+}
+
 func TestBuildProjectionQueuesSupplyChainImpactForPackageIdentityEvidence(t *testing.T) {
 	t.Parallel()
 

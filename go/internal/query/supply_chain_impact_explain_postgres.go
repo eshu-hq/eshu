@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/lib/pq"
 )
@@ -66,43 +67,24 @@ func (s PostgresSupplyChainImpactFindingStore) ExplainSupplyChainImpact(
 	if !filter.hasBoundedScope() {
 		return SupplyChainImpactExplanationRow{}, fmt.Errorf("finding_id or advisory/cve plus package, repository, or subject digest is required")
 	}
-	rows, err := s.DB.QueryContext(
-		ctx,
-		explainSupplyChainImpactFindingQuery,
-		supplyChainImpactFindingFactKind,
-		filter.FindingID,
-		filter.AdvisoryID,
-		filter.CVEID,
-		filter.PackageID,
-		filter.RepositoryID,
-		filter.SubjectDigest,
-		filter.WorkloadID,
-		filter.ServiceID,
-		filter.ImageRef,
-		pq.Array(filter.AllowedRepositoryIDs),
-		pq.Array(filter.AllowedScopeIDs),
-	)
-	if err != nil {
-		return SupplyChainImpactExplanationRow{}, fmt.Errorf("explain supply chain impact finding: %w", err)
+	args := supplyChainImpactExplanationQueryArgs(filter, s.Now)
+	query := explainSupplyChainImpactFindingQuery
+	if filter.FindingID != "" {
+		query = explainSupplyChainImpactFindingByPublicIDQuery
 	}
-	defer func() { _ = rows.Close() }()
-
-	findings := make([]SupplyChainImpactFindingRow, 0, 2)
-	for rows.Next() {
-		var factID string
-		var sourceConfidence string
-		var payloadBytes []byte
-		if err := rows.Scan(&factID, &sourceConfidence, &payloadBytes); err != nil {
-			return SupplyChainImpactExplanationRow{}, fmt.Errorf("explain supply chain impact finding: %w", err)
-		}
-		finding, err := decodeSupplyChainImpactFindingRow(factID, sourceConfidence, payloadBytes)
+	findings, err := s.loadSupplyChainImpactExplanationFindings(ctx, query, args)
+	if err != nil {
+		return SupplyChainImpactExplanationRow{}, err
+	}
+	if filter.FindingID != "" && len(findings) == 0 {
+		findings, err = s.loadSupplyChainImpactExplanationFindings(
+			ctx,
+			explainSupplyChainImpactFindingQuery,
+			args,
+		)
 		if err != nil {
 			return SupplyChainImpactExplanationRow{}, err
 		}
-		findings = append(findings, finding)
-	}
-	if err := rows.Err(); err != nil {
-		return SupplyChainImpactExplanationRow{}, fmt.Errorf("explain supply chain impact finding: %w", err)
 	}
 	switch len(findings) {
 	case 0:
@@ -119,6 +101,41 @@ func (s PostgresSupplyChainImpactFindingStore) ExplainSupplyChainImpact(
 		Finding:       findings[0],
 		EvidenceFacts: evidence,
 	}, nil
+}
+
+func (s PostgresSupplyChainImpactFindingStore) loadSupplyChainImpactExplanationFindings(
+	ctx context.Context,
+	query string,
+	args []any,
+) ([]SupplyChainImpactFindingRow, error) {
+	rows, err := s.DB.QueryContext(
+		ctx,
+		query,
+		args...,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("explain supply chain impact finding: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	findings := make([]SupplyChainImpactFindingRow, 0, 2)
+	for rows.Next() {
+		var factID string
+		var sourceConfidence string
+		var payloadBytes []byte
+		if err := rows.Scan(&factID, &sourceConfidence, &payloadBytes); err != nil {
+			return nil, fmt.Errorf("explain supply chain impact finding: %w", err)
+		}
+		finding, err := decodeSupplyChainImpactFindingRow(factID, sourceConfidence, payloadBytes)
+		if err != nil {
+			return nil, err
+		}
+		findings = append(findings, finding)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("explain supply chain impact finding: %w", err)
+	}
+	return findings, nil
 }
 
 func (s PostgresSupplyChainImpactFindingStore) loadSupplyChainImpactEvidenceFacts(
@@ -181,70 +198,119 @@ func (s PostgresSupplyChainImpactFindingStore) loadSupplyChainImpactEvidenceFact
 	return out, nil
 }
 
-var explainSupplyChainImpactFindingQuery = `
+var explainSupplyChainImpactFindingByPublicIDQuery = buildExplainSupplyChainImpactFindingQuery(
+	`
+    AND fact.payload->>'finding_id' = $2`,
+	"",
+)
+
+var explainSupplyChainImpactFindingQuery = buildExplainSupplyChainImpactFindingQuery(
+	"",
+	`
+  WHERE $2 = ''
+     OR fact_id = $2
+     OR finding_id = $2
+     OR canonical_key = $2
+     OR canonical_key IN (
+          SELECT `+supplyChainImpactCanonicalFindingKeySQL+`
+          FROM fact_records AS fact
+          JOIN ingestion_scopes AS identity_scope
+            ON identity_scope.scope_id = fact.scope_id
+           AND identity_scope.active_generation_id = fact.generation_id
+          JOIN scope_generations AS identity_generation
+            ON identity_generation.scope_id = fact.scope_id
+           AND identity_generation.generation_id = fact.generation_id
+          WHERE fact.fact_kind = $1
+            AND fact.is_tombstone = FALSE
+            AND identity_generation.status = 'active'
+            AND fact.fact_id = $2
+        )`,
+)
+
+func buildExplainSupplyChainImpactFindingQuery(
+	authorizedSourcePredicate string,
+	sourceCandidatePredicate string,
+) string {
+	return `
 WITH ` + supplyChainImpactRuntimeFilterCTE("$9", "$8", "''", "$11", "$12") + `,
-raw_facts AS (
-SELECT fact.fact_id,
-       ` + supplyChainImpactPublicFindingIDSQL + ` AS finding_id,
-       fact.source_confidence,
-       fact.payload,
-       COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) AS priority_score,
-       ` + supplyChainImpactPayloadFindingIDPresentSQL + ` AS has_payload_finding_id,
-       ` + supplyChainImpactCanonicalFindingKeySQL + ` AS canonical_key
-FROM fact_records AS fact
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = fact.scope_id
- AND scope.active_generation_id = fact.generation_id
-JOIN scope_generations AS generation
-  ON generation.scope_id = fact.scope_id
- AND generation.generation_id = fact.generation_id
-WHERE fact.fact_kind = $1
-  AND fact.is_tombstone = FALSE
-  AND generation.status = 'active'
-  AND ($3 = '' OR fact.payload->>'advisory_id' = $3 OR fact.payload->>'cve_id' = $3)
-  AND ($4 = '' OR fact.payload->>'cve_id' = $4)
-  AND ($5 = '' OR fact.payload->>'package_id' = $5)
-  AND ($6 = '' OR fact.payload->>'repository_id' = $6)
-  AND ($7 = '' OR fact.payload->>'subject_digest' = $7)
+authorized_source_candidates AS NOT MATERIALIZED (
+  SELECT fact.fact_id,
+         fact.scope_id,
+         ` + supplyChainImpactPublicFindingIDSQL + ` AS finding_id,
+         fact.source_confidence,
+         fact.payload,
+         COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') AS suppression_state,
+         COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) AS priority_score,
+         ` + supplyChainImpactPayloadFindingIDPresentSQL + ` AS has_payload_finding_id,
+         ` + supplyChainImpactCanonicalFindingKeySQL + ` AS canonical_key
+  FROM fact_records AS fact
+  JOIN ingestion_scopes AS scope
+    ON scope.scope_id = fact.scope_id
+   AND scope.active_generation_id = fact.generation_id
+  JOIN scope_generations AS generation
+    ON generation.scope_id = fact.scope_id
+   AND generation.generation_id = fact.generation_id
+  WHERE fact.fact_kind = $1
+    AND fact.is_tombstone = FALSE
+    AND generation.status = 'active'
+    AND fact.scope_id <> '` + supplyChainImpactOperatorSuppressionScopeID + `'
+    AND ($3 = '' OR fact.payload->>'advisory_id' = $3 OR fact.payload->>'cve_id' = $3)
+    AND ($4 = '' OR fact.payload->>'cve_id' = $4)
+    AND ($5 = '' OR fact.payload->>'package_id' = $5)
+    AND ($6 = '' OR fact.payload->>'repository_id' = $6)
+    AND ($7 = '' OR fact.payload->>'subject_digest' = $7)
 ` + supplyChainImpactRuntimeFilterPredicate(
-	"fact.payload->>'repository_id'",
-	"$9",
-	"$8",
-	"''",
-) + `
-  AND ($10 = '' OR fact.payload->>'image_ref' = $10)
-  AND (
-    (COALESCE(cardinality($11::text[]), 0) = 0 AND COALESCE(cardinality($12::text[]), 0) = 0)
-    OR fact.payload->>'repository_id' = ANY($11::text[])
-    OR fact.scope_id = ANY($12::text[])
-  )
+		"fact.payload->>'repository_id'",
+		"$9",
+		"$8",
+		"''",
+	) + `
+    AND ($10 = '' OR fact.payload->>'image_ref' = $10)
+    AND (
+      (COALESCE(cardinality($11::text[]), 0) = 0 AND COALESCE(cardinality($12::text[]), 0) = 0)
+      OR fact.payload->>'repository_id' = ANY($11::text[])
+      OR fact.scope_id = ANY($12::text[])
+    )
+` + authorizedSourcePredicate + `
 ),
-scoped_facts AS (
-SELECT *
-FROM raw_facts
-WHERE $2 = ''
-   OR fact_id = $2
-   OR finding_id = $2
-   OR canonical_key = $2
+source_candidates AS MATERIALIZED (
+  SELECT *
+  FROM authorized_source_candidates
+` + sourceCandidatePredicate + `
 ),
-ranked_facts AS (
-SELECT *,
-       ROW_NUMBER() OVER (
-         PARTITION BY canonical_key
-         ORDER BY priority_score DESC, has_payload_finding_id DESC, fact_id ASC
-       ) AS canonical_rank
-FROM scoped_facts
-),
+` + supplyChainImpactBoundedOperatorCandidatesCTE("$1") + `,
+` + supplyChainImpactSplitCanonicalWinnerCTEs("$13::timestamptz") + `,
 canonical_facts AS (
-SELECT finding_id, source_confidence, payload
-FROM ranked_facts
-WHERE canonical_rank = 1
+  SELECT finding_id, source_confidence, payload
+  FROM canonical_winners
 )
 SELECT finding_id, source_confidence, payload
 FROM canonical_facts
 ORDER BY finding_id ASC
 LIMIT 2
 `
+}
+
+func supplyChainImpactExplanationQueryArgs(
+	filter SupplyChainImpactExplanationFilter,
+	now func() time.Time,
+) []any {
+	return []any{
+		supplyChainImpactFindingFactKind,
+		filter.FindingID,
+		filter.AdvisoryID,
+		filter.CVEID,
+		filter.PackageID,
+		filter.RepositoryID,
+		filter.SubjectDigest,
+		filter.WorkloadID,
+		filter.ServiceID,
+		filter.ImageRef,
+		pq.Array(filter.AllowedRepositoryIDs),
+		pq.Array(filter.AllowedScopeIDs),
+		supplyChainImpactSuppressionReadAt(now),
+	}
+}
 
 const explainSupplyChainImpactEvidenceFactsQuery = `
 SELECT fact.fact_id, fact.fact_kind, fact.source_system, fact.source_confidence, fact.observed_at, fact.schema_version, fact.payload

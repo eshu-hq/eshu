@@ -307,6 +307,13 @@ CREATE INDEX IF NOT EXISTS fact_records_supply_chain_impact_active_scan_idx
     WHERE fact_kind = 'reducer_supply_chain_impact_finding'
       AND is_tombstone = FALSE;
 
+-- #5465: public finding-ID explanations use this partial expression index to
+-- avoid ranking every active impact fact before selecting one bounded result.
+CREATE INDEX IF NOT EXISTS fact_records_supply_chain_impact_finding_id_idx
+    ON fact_records ((payload->>'finding_id'))
+    WHERE fact_kind = 'reducer_supply_chain_impact_finding'
+      AND is_tombstone = FALSE;
+
 -- #5747: workload filters resolve current repository context from active
 -- workload-identity facts. These dimension-first indexes prevent a filter from
 -- probing every active scope before it can identify the matching repository.

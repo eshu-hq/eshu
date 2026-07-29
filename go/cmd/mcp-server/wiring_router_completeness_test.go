@@ -158,9 +158,10 @@ var routerFieldsNotWiredByNewMCPQueryRouter = map[string]string{
 	// against go/cmd/mcp-server/wiring.go's use of
 	// newCodeHybridRanker/newContentHybridRanker/newSemanticSearchHybrid,
 	// which mirror cmd/api's semantic_search_vector_wiring.go behavior.
-	"Code.HybridRanker":          "config-gated: newCodeHybridRanker returns nil unless semantic search embedding is enabled; nil is the documented default, falling back to lexical order",
-	"Content.HybridRanker":       "config-gated: newContentHybridRanker returns nil unless semantic search embedding is enabled; nil is the documented default, falling back to lexical order",
-	"SemanticSearch.LocalHybrid": "config-gated: newSemanticSearchHybrid returns nil unless semantic search embedding is enabled",
+	"Code.HybridRanker":                "config-gated: newCodeHybridRanker returns nil unless semantic search embedding is enabled; nil is the documented default, falling back to lexical order",
+	"Content.HybridRanker":             "config-gated: newContentHybridRanker returns nil unless semantic search embedding is enabled; nil is the documented default, falling back to lexical order",
+	"SemanticSearch.LocalHybrid":       "config-gated: newSemanticSearchHybrid returns nil unless semantic search embedding is enabled",
+	"SupplyChain.SuppressionMutations": "API-only mutation: the MCP tool surface is read-only and does not expose operator policy writes",
 
 	// Status.LiveActivity backs GET /api/v0/status/operations, the live
 	// operations board (#5137/#5140). Commit f33333b5ab's own message scopes

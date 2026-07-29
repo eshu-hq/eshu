@@ -38,6 +38,7 @@ import (
 	submodulev1 "github.com/eshu-hq/eshu/sdk/go/factschema/submodule/v1"
 	tfstatev1 "github.com/eshu-hq/eshu/sdk/go/factschema/terraformstate/v1"
 	vulnerabilityv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerability/v1"
+	vulnerabilitysuppressionv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerabilitysuppression/v1"
 	workitemv1 "github.com/eshu-hq/eshu/sdk/go/factschema/workitem/v1"
 )
 
@@ -384,6 +385,7 @@ var payloadContracts = []struct {
 	{FactKindVulnerabilityGoCallReachability, "vulnerability.go_call_reachability.v1.schema.json", reflect.TypeOf(vulnerabilityv1.GoCallReachability{})},
 	{FactKindVulnerabilityReference, "vulnerability.reference.v1.schema.json", reflect.TypeOf(vulnerabilityv1.Reference{})},
 	{FactKindVulnerabilitySourceSnapshot, "vulnerability.source_snapshot.v1.schema.json", reflect.TypeOf(vulnerabilityv1.SourceSnapshot{})},
+	{FactKindVulnerabilitySuppression, "vulnerability.suppression.v1.schema.json", reflect.TypeOf(vulnerabilitysuppressionv1.Suppression{})},
 	{FactKindCodegraphFile, "file.v1.schema.json", reflect.TypeOf(codegraphv1.File{})},
 	{FactKindCodegraphRepository, "repository.v1.schema.json", reflect.TypeOf(codegraphv1.Repository{})},
 	{FactKindCodeDataflowScanned, "code_dataflow_scanned.v1.schema.json", reflect.TypeOf(codedataflowv1.DataflowScanned{})},

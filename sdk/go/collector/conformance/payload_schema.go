@@ -13,15 +13,15 @@ import (
 // harness understands for a fact payload. It implements exactly the constructs
 // the checked-in factschema payload schemas use
 // (sdk/go/factschema/schema/*.json): an object with required keys and typed
-// properties, where each property is a primitive/nullable type, an array with a
-// typed item schema, or a nested object (open or a string-valued map). Every
-// unrecognized keyword, type, or composition ($ref/oneOf/anyOf/allOf/enum/
-// pattern/numeric bounds) is rejected at compile time (compileSchema) so the
-// validator fails closed rather than silently under-validating a payload — the
-// accuracy guarantee Contract System v1 exists to protect. Adding a schema
-// construct means teaching this validator about it, never letting it slip
-// through unchecked; the in-tree construct-coverage test turns the build red the
-// moment a checked-in schema outgrows this subset.
+// properties, where each property is a primitive/nullable type, an optional
+// string-or-null enum, an array with a typed item schema, or a nested object
+// (open or a string-valued map). Every unrecognized keyword, type, or composition
+// ($ref/oneOf/anyOf/allOf/pattern/numeric bounds) is rejected at compile time
+// (compileSchema) so the validator fails closed rather than silently
+// under-validating a payload — the accuracy guarantee Contract System v1 exists
+// to protect. Adding a schema construct means teaching this validator about it,
+// never letting it slip through unchecked; the in-tree construct-coverage test
+// turns the build red the moment a checked-in schema outgrows this subset.
 type payloadSchema struct {
 	root objectSchema
 }
@@ -47,6 +47,14 @@ type objectSchema struct {
 	valueType string
 }
 
+// stringEnum is the exact enum subset supported by the conformance harness.
+// String values are indexed without lossy numeric normalization; null is tracked
+// separately so nullable string enums preserve JSON Schema membership exactly.
+type stringEnum struct {
+	values     map[string]struct{}
+	allowsNull bool
+}
+
 // propertySchema is the decoded constraint for one object property.
 type propertySchema struct {
 	// types is the set of JSON types the value may take, expanded from a bare
@@ -56,6 +64,9 @@ type propertySchema struct {
 	// format constrains string values when set. Only date-time is supported
 	// today because it is the only format emitted by checked-in factschemas.
 	format string
+	// enum constrains a string or nullable string value to one of the compiled
+	// members. Nil means the property has no enum constraint.
+	enum *stringEnum
 	// items constrains array element values when "array" is an allowed type.
 	// Nil when the property is not array-typed.
 	items *propertySchema
@@ -84,6 +95,7 @@ var (
 		"properties":           {},
 		"additionalProperties": {},
 		"format":               {},
+		"enum":                 {},
 	}
 	supportedPrimitiveTypes = map[string]struct{}{
 		"string":  {},
@@ -202,6 +214,9 @@ func compileAdditionalProperties(doc map[string]json.RawMessage) (string, error)
 	if _, ok := apObject["format"]; ok {
 		return "", fmt.Errorf("\"additionalProperties\" schema \"format\" is not supported")
 	}
+	if _, ok := apObject["enum"]; ok {
+		return "", fmt.Errorf("\"additionalProperties\" schema \"enum\" is not supported")
+	}
 	rawAPType, ok := apObject["type"]
 	if !ok {
 		return "", fmt.Errorf("\"additionalProperties\" schema must declare a \"type\"")
@@ -246,6 +261,14 @@ func compileProperty(raw json.RawMessage) (propertySchema, error) {
 	}
 	prop.types = types
 
+	if rawEnum, ok := doc["enum"]; ok {
+		enum, err := compileStringEnum(types, rawEnum)
+		if err != nil {
+			return propertySchema{}, err
+		}
+		prop.enum = enum
+	}
+
 	if rawFormat, ok := doc["format"]; ok {
 		format, err := decodeStringFormat(rawFormat)
 		if err != nil {
@@ -286,6 +309,61 @@ func compileProperty(raw json.RawMessage) (propertySchema, error) {
 	}
 
 	return prop, nil
+}
+
+// compileStringEnum validates and indexes the exact JSON Schema enum subset the
+// checked-in fact schemas use: strings, optionally with null. Numeric, boolean,
+// array, and object enums fail closed rather than relying on encoding/json's
+// lossy float64 number normalization or introducing structural canonicalization.
+func compileStringEnum(types map[string]struct{}, raw json.RawMessage) (*stringEnum, error) {
+	if _, ok := types["string"]; !ok {
+		return nil, fmt.Errorf(
+			"\"enum\" is only supported on string or nullable-string properties, got %s",
+			sortedTypeList(types),
+		)
+	}
+	for schemaType := range types {
+		if schemaType != "string" && schemaType != "null" {
+			return nil, fmt.Errorf(
+				"\"enum\" is only supported on string or nullable-string properties, got %s",
+				sortedTypeList(types),
+			)
+		}
+	}
+
+	var values []any
+	if err := json.Unmarshal(raw, &values); err != nil {
+		return nil, fmt.Errorf("\"enum\" must be an array")
+	}
+	if len(values) == 0 {
+		return nil, fmt.Errorf("\"enum\" must not be empty")
+	}
+
+	enum := &stringEnum{values: make(map[string]struct{}, len(values))}
+	for index, value := range values {
+		switch typed := value.(type) {
+		case string:
+			if _, exists := enum.values[typed]; exists {
+				return nil, fmt.Errorf("\"enum\" member %d duplicates an earlier value", index)
+			}
+			enum.values[typed] = struct{}{}
+		case nil:
+			if _, ok := types["null"]; !ok {
+				return nil, fmt.Errorf("\"enum\" member %d has type null, want one of %s", index, sortedTypeList(types))
+			}
+			if enum.allowsNull {
+				return nil, fmt.Errorf("\"enum\" member %d duplicates an earlier value", index)
+			}
+			enum.allowsNull = true
+		default:
+			return nil, fmt.Errorf(
+				"\"enum\" member %d has unsupported type %s; only string and null members are supported",
+				index,
+				jsonTypeOf(value),
+			)
+		}
+	}
+	return enum, nil
 }
 
 // decodeStringFormat validates a JSON Schema string "format" value. Only

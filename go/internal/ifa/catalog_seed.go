@@ -101,14 +101,12 @@ func awsPackOdu() CatalogOdu {
 }
 
 // vulnFamilySchemaBackedKinds are the schema-backed vulnerability_intelligence
-// fact kinds odu:vuln-pack carries with fixturepack.ValidPayload examples,
-// proving the payload-schema derivation axis (design §1c) for the
-// vulnerability-intelligence family (epic #5462). These are the 10 kinds the
-// registry's payload_schema_overrides names for the family
-// (specs/fact-kind-registry.v1.yaml); the 11th kind,
-// facts.VulnerabilityWarningFactKind, is registry-only (no payload schema) and
-// is carried separately below to prove the schema-less presence path in the
-// same Odù, mirroring awsPackOdu's aws_tag_observation.
+// provider fact kinds odu:vuln-pack carries with fixturepack.ValidPayload
+// examples, proving the payload-schema derivation axis (design §1c) for the
+// vulnerability-intelligence family (epic #5462). The operator-owned
+// vulnerability.suppression schema fixture and the schema-less
+// vulnerability.warning kind are carried separately below so their ownership
+// shapes remain explicit.
 var vulnFamilySchemaBackedKinds = []string{
 	facts.VulnerabilityOSPackageFactKind,
 	facts.VulnerabilityCVEFactKind,
@@ -123,15 +121,16 @@ var vulnFamilySchemaBackedKinds = []string{
 }
 
 // vulnPackOdu carries one valid fixturepack payload per schema-backed
-// vulnerability_intelligence fact kind, plus one registry-only (schema-less)
-// vulnerability.warning fact. Like awsPackOdu it has no repository fact and
-// produces no graph evidence — it exists purely to prove fact_kind:* payload-
-// schema coverage for the 11 vulnerability_intelligence kinds
+// vulnerability_intelligence fact kind, one operator-authored suppression,
+// plus one registry-only (schema-less) vulnerability.warning fact. Like
+// awsPackOdu it has no repository fact and produces no graph evidence — it
+// exists purely to prove fact_kind:* payload-schema coverage for the 12
+// vulnerability kinds
 // (specs/ifa-coverage-manifest.v1.yaml), the Ifá backfill this family owns per
 // epic #5462 and the #5474 coverage-backfill plan's ownership carve-out. It
 // does not prove narrowed_correlation coverage.
 func vulnPackOdu() CatalogOdu {
-	factsForOdu := make([]facts.Envelope, 0, len(vulnFamilySchemaBackedKinds)+1)
+	factsForOdu := make([]facts.Envelope, 0, len(vulnFamilySchemaBackedKinds)+2)
 	for _, kind := range vulnFamilySchemaBackedKinds {
 		payload, ok := fixturepack.ValidPayload(kind)
 		if !ok {
@@ -143,6 +142,18 @@ func vulnPackOdu() CatalogOdu {
 			Payload:  payload,
 		})
 	}
+	suppressionPayload, ok := fixturepack.ValidPayload(facts.VulnerabilitySuppressionFactKind)
+	if !ok {
+		panic(fmt.Sprintf(
+			"ifa: catalog_seed odu:vuln-pack: fixturepack has no valid payload example for %q",
+			facts.VulnerabilitySuppressionFactKind,
+		))
+	}
+	factsForOdu = append(factsForOdu, facts.Envelope{
+		ScopeID:  "operator:vulnerability_suppressions",
+		FactKind: facts.VulnerabilitySuppressionFactKind,
+		Payload:  suppressionPayload,
+	})
 	factsForOdu = append(factsForOdu, facts.Envelope{
 		ScopeID:  "vulnerability_intelligence:scanned-image",
 		FactKind: facts.VulnerabilityWarningFactKind,
@@ -155,7 +166,7 @@ func vulnPackOdu() CatalogOdu {
 
 	return CatalogOdu{
 		Odu:    Odu{Name: "odu:vuln-pack", Facts: factsForOdu},
-		Detail: "fixturepack-valid payloads for the schema-backed vulnerability_intelligence family (os_package/cve/affected_package/affected_product/epss_score/known_exploited/go_module_evidence/go_call_reachability/reference/source_snapshot), plus the schema-less vulnerability.warning registry-only kind",
+		Detail: "fixturepack-valid provider vulnerability payloads plus the operator-owned vulnerability.suppression shape and schema-less vulnerability.warning kind",
 	}
 }
 

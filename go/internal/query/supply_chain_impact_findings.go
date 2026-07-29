@@ -244,6 +244,9 @@ type supplyChainImpactFindingQueryer interface {
 // Postgres using scoped payload predicates.
 type PostgresSupplyChainImpactFindingStore struct {
 	DB supplyChainImpactFindingQueryer
+	// Now supplies the single UTC clock value used to evaluate suppression
+	// expiry for one list or explain call. It defaults to time.Now.
+	Now func() time.Time
 	// ReadFromWinners switches the list read to the maintained
 	// supply_chain_impact_canonical_winners read model (#3389 Phase 2). When
 	// false (the default) the read deduplicates at query time with the legacy
@@ -272,6 +275,13 @@ func NewPostgresSupplyChainImpactFindingStoreWithReadModel(
 	readFromWinners bool,
 ) PostgresSupplyChainImpactFindingStore {
 	return PostgresSupplyChainImpactFindingStore{DB: db, ReadFromWinners: readFromWinners}
+}
+
+func supplyChainImpactSuppressionReadAt(now func() time.Time) time.Time {
+	if now == nil {
+		return time.Now().UTC()
+	}
+	return now().UTC()
 }
 
 // selectSupplyChainImpactWinnersWatermarkQuery reads the maintainer watermark
@@ -351,7 +361,9 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactFindings(
 	}
 
 	query := listSupplyChainImpactFindingsQuery
-	if s.ReadFromWinners {
+	if s.ReadFromWinners &&
+		len(filter.AllowedRepositoryIDs) == 0 &&
+		len(filter.AllowedScopeIDs) == 0 {
 		query = listSupplyChainImpactFindingsFromWinnersQuery
 	}
 	rows, err := s.DB.QueryContext(
@@ -380,6 +392,7 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactFindings(
 		filter.IncludeSuppressed,
 		pq.Array(filter.AllowedRepositoryIDs),
 		pq.Array(filter.AllowedScopeIDs),
+		supplyChainImpactSuppressionReadAt(s.Now),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list supply chain impact findings: %w", err)

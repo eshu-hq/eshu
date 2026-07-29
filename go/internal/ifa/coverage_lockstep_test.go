@@ -143,6 +143,20 @@ func TestCoverageLockstepAgainstRealSpecs(t *testing.T) {
 		}
 	}
 
+	suppressionCoverage := findSurfaceCoverage(
+		t,
+		cov,
+		FactKindSurfacePrefix+facts.VulnerabilitySuppressionFactKind,
+	)
+	if suppressionCoverage.Status != replaycoverage.StatusCovered {
+		t.Errorf(
+			"fact_kind:%s status = %q, detail=%q, want covered by the operator suppression Odù",
+			facts.VulnerabilitySuppressionFactKind,
+			suppressionCoverage.Status,
+			suppressionCoverage.Detail,
+		)
+	}
+
 	// The five odu:demo-org-roundtrip rows use proof_gate: ifa-contract-layer
 	// like every other row, so they add no proof-gate validation error (the gate
 	// is blocking and well-formed, asserted above). ifa-contract-layer's

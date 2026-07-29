@@ -109,6 +109,50 @@ func TestAuthMiddlewareAllScopesTenantBrowserSessionDefaultsWholeGraphConsoleRou
 	assertWholeGraphRouteDenied(t, rec, called)
 }
 
+func TestAuthMiddlewareAllScopesTenantBrowserSessionCannotEnterSharedKeyOnlyMutation(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingVulnerabilitySuppressionMutationStore{}
+	supplyChainHandler := &SupplyChainHandler{SuppressionMutations: store}
+	mux := http.NewServeMux()
+	supplyChainHandler.Mount(mux)
+
+	resolver := &fakeBrowserSessionResolver{
+		context: AuthContext{
+			Mode:        AuthModeBrowserSession,
+			TenantID:    "tenant-a",
+			WorkspaceID: "workspace-a",
+			AllScopes:   true,
+		},
+		ok: true,
+	}
+	handler := AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditAndRoutePolicy(
+		"shared-token",
+		nil,
+		resolver,
+		mux,
+		nil,
+		BrowserSessionRoutePolicy{AllowTenantBoundAllScopes: true},
+	)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/supply-chain/impact/suppressions",
+		nil,
+	)
+	req.AddCookie(&http.Cookie{Name: BrowserSessionCookieName, Value: "session-secret"})
+	req.Header.Set(BrowserSessionCSRFHeaderName, "csrf-secret")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusForbidden; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+	if store.calls != 0 {
+		t.Fatalf("store calls = %d, want 0", store.calls)
+	}
+}
+
 func TestAuthMiddlewareTenantlessAllScopesBrowserSessionCannotEnterWholeGraphConsoleRoutes(t *testing.T) {
 	t.Parallel()
 

@@ -79,7 +79,7 @@ func (o objectSchema) validate(path string, value map[string]any) error {
 func (p propertySchema) validateValue(field string, value any) error {
 	if value == nil {
 		if _, ok := p.types["null"]; ok {
-			return nil
+			return p.validateEnum(field, value)
 		}
 		return fmt.Errorf("field %q is null but the schema does not allow null", field)
 	}
@@ -87,6 +87,9 @@ func (p propertySchema) validateValue(field string, value any) error {
 	actual := jsonTypeOf(value)
 	if !typeSetAccepts(p.types, actual) {
 		return fmt.Errorf("field %q has type %s, want one of %s", field, actual, sortedTypeList(p.types))
+	}
+	if err := p.validateEnum(field, value); err != nil {
+		return err
 	}
 	if p.format != "" {
 		if err := validateStringFormat(field, p.format, value); err != nil {
@@ -113,6 +116,27 @@ func (p propertySchema) validateValue(field string, value any) error {
 		if err := p.object.validate(field, entries); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// validateEnum applies a compiled string-or-null enum constraint.
+func (p propertySchema) validateEnum(field string, value any) error {
+	if p.enum == nil {
+		return nil
+	}
+	if value == nil {
+		if p.enum.allowsNull {
+			return nil
+		}
+		return fmt.Errorf("field %q has value null outside the allowed enum", field)
+	}
+	typed, ok := value.(string)
+	if !ok {
+		return fmt.Errorf("field %q has unsupported enum value type %s", field, jsonTypeOf(value))
+	}
+	if _, ok := p.enum.values[typed]; !ok {
+		return fmt.Errorf("field %q has value %v outside the allowed enum", field, value)
 	}
 	return nil
 }

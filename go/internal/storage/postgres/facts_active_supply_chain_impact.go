@@ -69,15 +69,22 @@ WHERE fact.fact_kind IN (
       OR fact.payload->'scope'->>'purl' = ANY($2::text[])
       OR fact.payload->>'cve_id' = ANY($3::text[])
       OR fact.payload->'scope'->>'cve_id' = ANY($3::text[])
-      OR fact.payload->>'subject_digest' = ANY($4::text[])
-      OR fact.payload->'scope'->>'subject_digest' = ANY($4::text[])
-      OR fact.payload->>'digest' = ANY($4::text[])
-      OR fact.payload->>'artifact_digest' = ANY($4::text[])
-      OR fact.payload->>'referrer_digest' = ANY($4::text[])
-      OR fact.payload->>'resolved_digest' = ANY($4::text[])
-      OR fact.payload->>'cpe' = ANY($5::text[])
-      OR fact.payload->>'criteria' = ANY($5::text[])
-      OR fact.payload->>'document_id' = ANY($6::text[])
+      OR (
+          cardinality($4::text[]) > 0
+          AND (
+              fact.payload->>'advisory_id' = ANY($4::text[])
+              OR fact.payload->'scope'->>'advisory_id' = ANY($4::text[])
+          )
+      )
+      OR fact.payload->>'subject_digest' = ANY($5::text[])
+      OR fact.payload->'scope'->>'subject_digest' = ANY($5::text[])
+      OR fact.payload->>'digest' = ANY($5::text[])
+      OR fact.payload->>'artifact_digest' = ANY($5::text[])
+      OR fact.payload->>'referrer_digest' = ANY($5::text[])
+      OR fact.payload->>'resolved_digest' = ANY($5::text[])
+      OR fact.payload->>'cpe' = ANY($6::text[])
+      OR fact.payload->>'criteria' = ANY($6::text[])
+      OR fact.payload->>'document_id' = ANY($7::text[])
       OR (
           fact.fact_kind IN (
               'vulnerability.suppression',
@@ -89,27 +96,27 @@ WHERE fact.fact_kind IN (
               'reducer_workload_identity'
           )
           AND (
-              fact.payload->>'repository_id' = ANY($7::text[])
-              OR fact.payload->>'repo_id' = ANY($7::text[])
-              OR fact.payload->'scope'->>'repository_id' = ANY($7::text[])
-              OR fact.scope_id = ANY($7::text[])
-              OR fact.payload->>'scope_id' = ANY($7::text[])
-              OR scope.source_key = ANY($7::text[])
-              OR scope.payload->>'repo_id' = ANY($7::text[])
-              OR scope.payload->>'id' = ANY($7::text[])
+              fact.payload->>'repository_id' = ANY($8::text[])
+              OR fact.payload->>'repo_id' = ANY($8::text[])
+              OR fact.payload->'scope'->>'repository_id' = ANY($8::text[])
+              OR fact.scope_id = ANY($8::text[])
+              OR fact.payload->>'scope_id' = ANY($8::text[])
+              OR scope.source_key = ANY($8::text[])
+              OR scope.payload->>'repo_id' = ANY($8::text[])
+              OR scope.payload->>'id' = ANY($8::text[])
           )
       )
       OR (
           fact.fact_kind = 'file'
           AND (
-              fact.payload->>'repository_id' = ANY($9::text[])
-              OR fact.payload->>'repo_id' = ANY($9::text[])
-              OR fact.payload->'scope'->>'repository_id' = ANY($9::text[])
-              OR fact.scope_id = ANY($9::text[])
-              OR fact.payload->>'scope_id' = ANY($9::text[])
-              OR scope.source_key = ANY($9::text[])
-              OR scope.payload->>'repo_id' = ANY($9::text[])
-              OR scope.payload->>'id' = ANY($9::text[])
+              fact.payload->>'repository_id' = ANY($10::text[])
+              OR fact.payload->>'repo_id' = ANY($10::text[])
+              OR fact.payload->'scope'->>'repository_id' = ANY($10::text[])
+              OR fact.scope_id = ANY($10::text[])
+              OR fact.payload->>'scope_id' = ANY($10::text[])
+              OR scope.source_key = ANY($10::text[])
+              OR scope.payload->>'repo_id' = ANY($10::text[])
+              OR scope.payload->>'id' = ANY($10::text[])
           )
           AND LOWER(COALESCE(
               fact.payload->'parsed_file_data'->>'language',
@@ -117,11 +124,11 @@ WHERE fact.fact_kind IN (
               ''
           )) IN ('javascript', 'jsx', 'typescript', 'tsx')
       )
-      OR fact.payload->>'image_ref' = ANY($8::text[])
+      OR fact.payload->>'image_ref' = ANY($9::text[])
   )
-  AND ($10 = '' OR fact.fact_id > $10)
+  AND ($11 = '' OR fact.fact_id > $11)
 ORDER BY fact.fact_id ASC
-LIMIT $11
+LIMIT $12
 `
 
 // ListActiveSupplyChainImpactFacts loads active package, SBOM, image, and risk
@@ -136,6 +143,7 @@ func (s FactStore) ListActiveSupplyChainImpactFacts(
 	filter.PackageIDs = cleanStringFilterValues(filter.PackageIDs)
 	filter.PURLs = cleanStringFilterValues(filter.PURLs)
 	filter.CVEIDs = cleanStringFilterValues(filter.CVEIDs)
+	filter.AdvisoryIDs = cleanStringFilterValues(filter.AdvisoryIDs)
 	filter.SubjectDigests = cleanStringFilterValues(filter.SubjectDigests)
 	filter.DocumentIDs = cleanStringFilterValues(filter.DocumentIDs)
 	filter.ProductCriteria = cleanStringFilterValues(filter.ProductCriteria)
@@ -143,7 +151,7 @@ func (s FactStore) ListActiveSupplyChainImpactFacts(
 	filter.FileRepositoryIDs = cleanStringFilterValues(filter.FileRepositoryIDs)
 	filter.ImageRefs = cleanStringFilterValues(filter.ImageRefs)
 	if len(filter.PackageIDs) == 0 && len(filter.PURLs) == 0 &&
-		len(filter.CVEIDs) == 0 && len(filter.SubjectDigests) == 0 &&
+		len(filter.CVEIDs) == 0 && len(filter.AdvisoryIDs) == 0 && len(filter.SubjectDigests) == 0 &&
 		len(filter.DocumentIDs) == 0 && len(filter.ProductCriteria) == 0 &&
 		len(filter.RepositoryIDs) == 0 && len(filter.FileRepositoryIDs) == 0 &&
 		len(filter.ImageRefs) == 0 {
@@ -176,6 +184,7 @@ func (s FactStore) listActiveSupplyChainImpactFactsPage(
 		filter.PackageIDs,
 		filter.PURLs,
 		filter.CVEIDs,
+		filter.AdvisoryIDs,
 		filter.SubjectDigests,
 		filter.ProductCriteria,
 		filter.DocumentIDs,
@@ -191,7 +200,7 @@ func (s FactStore) listActiveSupplyChainImpactFactsPage(
 	defer func() { _ = rows.Close() }()
 
 	loaded := make([]facts.Envelope, 0,
-		len(filter.PackageIDs)+len(filter.PURLs)+len(filter.CVEIDs)+len(filter.SubjectDigests)+
+		len(filter.PackageIDs)+len(filter.PURLs)+len(filter.CVEIDs)+len(filter.AdvisoryIDs)+len(filter.SubjectDigests)+
 			len(filter.DocumentIDs)+len(filter.ProductCriteria)+len(filter.FileRepositoryIDs))
 	for rows.Next() {
 		envelope, scanErr := scanFactEnvelope(rows)

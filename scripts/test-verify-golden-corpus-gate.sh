@@ -6,7 +6,6 @@
 # pipeline stage and drain, honours the B-13 shared_projection_intents gate, and
 # leaks no private data.
 set -euo pipefail
-
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/verify-golden-corpus-gate.sh"
 fixture_lib="${repo_root}/scripts/lib/golden-corpus-fixtures.sh"
@@ -15,11 +14,12 @@ snapshot="${repo_root}/testdata/golden/e2e-20repo-snapshot.json"
 sql_drop_fixture="${repo_root}/tests/fixtures/ecosystems/sql_comprehensive/migrations/V2__drop_legacy_tables.sql"
 ci_gates="${repo_root}/specs/ci-gates.v1.yaml"
 prepr="${repo_root}/scripts/dev/pre-pr.sh"
-
 fail() { printf 'test-verify-golden-corpus-gate: %s\n' "$*" >&2; exit 1; }
 
 [[ -f "${script}" ]] || fail "missing ${script}"
 [[ -x "${script}" ]] || fail "verify-golden-corpus-gate.sh must be executable"
+[[ "$(wc -l <"${script}" | tr -d '[:space:]')" -lt 500 ]] \
+	|| fail "verify-golden-corpus-gate.sh must stay under 500 lines"
 [[ -f "${fixture_lib}" ]] || fail "missing ${fixture_lib}"
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
 [[ -f "${snapshot}" ]] || fail "missing ${snapshot}"
@@ -124,6 +124,81 @@ for sourced_case_lib in \
 	bash -n "${sourced_case_lib}" || fail "$(basename "${sourced_case_lib}") has a syntax error"
 done
 bash -n "${fixture_lib}" || fail "golden-corpus-fixtures.sh has a syntax error"
+
+suppression_lib="${repo_root}/scripts/lib/golden-corpus-vulnerability-suppression.sh"
+[[ -f "${suppression_lib}" ]] || fail "missing suppression proof lib: ${suppression_lib}"
+bash -n "${suppression_lib}" || fail "golden-corpus-vulnerability-suppression.sh has a syntax error"
+captured_suppression_count_query=""
+pg() {
+	captured_suppression_count_query="$1"
+	printf '0 0\n'
+}
+# shellcheck source=scripts/lib/golden-corpus-vulnerability-suppression.sh
+. "${suppression_lib}"
+golden_suppression_counts >/dev/null
+rg --fixed-strings --quiet -- "stage='projector'" <<<"${captured_suppression_count_query}" \
+	|| fail "suppression mutation count must isolate projector work from reducer fanout"
+rg --fixed-strings --quiet -- "golden_suppression_verify_producer_truth()" "${suppression_lib}" \
+	|| fail "suppression proof must keep its orchestration in the sourced helper"
+rg --fixed-strings --quiet -- "golden_suppression_wait_for_expiry" "${suppression_lib}" \
+	|| fail "suppression proof must wait for the authored future expiry"
+rg --fixed-strings --quiet -- "suppression_perf drain_state=" "${suppression_lib}" \
+	|| fail "suppression proof must report reducer/projector drain wall time and terminal queue counts"
+rg --fixed-strings --quiet -- "golden_suppression_remove_malformed_fixture" "${suppression_lib}" \
+	|| fail "suppression proof must remove the deliberately malformed source fact before API generation rewrite"
+rg --fixed-strings --quiet -- "'justification', 'external_unknown'" "${suppression_lib}" \
+	|| fail "suppression proof must inject the malformed enum directly at the storage/reducer seam"
+rg --fixed-strings --quiet -- "golden_suppression_setup_body" "${suppression_lib}" \
+	|| fail "suppression proof must establish the operator scope through the live producer before hostile storage injection"
+rg --fixed-strings --quiet -- "active_generation_id" "${suppression_lib}" \
+	|| fail "suppression proof must bind hostile injection to the producer-created active generation"
+rg --fixed-strings --quiet -- "UPDATE fact_work_items AS work" "${suppression_lib}" \
+	|| fail "suppression proof must reopen the producer-created reducer work instead of adding a supersedable duplicate"
+rg --fixed-strings --quiet -- '.arguments.generation_id = $generation' "${suppression_lib}" \
+	|| fail "suppression runtime snapshot must bind MCP quarantine readback to the producer-created generation"
+jq -e '
+	.query_shapes.mcp.list_reducer_input_invalid_facts
+	| .minimum_results == 1
+	  and .arguments.scope_id == "operator:vulnerability_suppressions"
+	  and .arguments.generation_id == "__runtime_operator_generation__"
+	  and (.result_item_required_fields | index("missing_field") != null)
+	  and .required_json_values["items[].missing_field"] == "justification"
+	  and .required_json_values["items[].generation_id"] == "__runtime_operator_generation__"
+' "${snapshot}" >/dev/null ||
+	fail "B-12 must non-vacuously assert the malformed suppression quarantine"
+if rg --fixed-strings --quiet -- "golden_suppression_expired_body" "${suppression_lib}"; then
+	fail "suppression proof must not create a second already-expired mutation"
+fi
+runtime_snapshot_test_dir="$(mktemp -d -t golden-suppression-snapshot.XXXXXX)"
+log_dir="${runtime_snapshot_test_dir}"
+golden_suppression_active_body="${runtime_snapshot_test_dir}/active.json"
+jq -n '{
+	suppression_id: "golden-CVE-2026-00010",
+	justification: "ignored",
+	authored_at: "2026-07-27T12:00:00Z",
+	expires_at: "2099-07-27T12:00:00Z",
+	scope: {cve_id: "CVE-2026-00010"}
+}' >"${golden_suppression_active_body}"
+runtime_snapshot_generation="suppression_runtime_test_generation"
+golden_suppression_prepare_runtime_snapshot "${runtime_snapshot_generation}"
+runtime_snapshot_body="$(
+	jq -c '.query_shapes.http["POST /api/v0/supply-chain/impact/suppressions"].request_body' \
+		"${golden_suppression_runtime_snapshot}"
+)"
+expected_runtime_snapshot_body="$(jq -c . "${golden_suppression_active_body}")"
+[[ "${runtime_snapshot_body}" == "${expected_runtime_snapshot_body}" ]] ||
+	fail "runtime snapshot must replay the exact dynamically authored suppression body"
+runtime_snapshot_quarantine_generation="$(
+	jq -r '.query_shapes.mcp.list_reducer_input_invalid_facts.arguments.generation_id' \
+		"${golden_suppression_runtime_snapshot}"
+)"
+[[ "${runtime_snapshot_quarantine_generation}" == "${runtime_snapshot_generation}" ]] ||
+	fail "runtime snapshot must bind quarantine readback to the producer-created generation"
+rm -rf "${runtime_snapshot_test_dir}"
+rg --fixed-strings --quiet -- "golden_suppression_verify_producer_truth" "${script}" \
+	|| fail "golden gate must execute the suppression producer proof helper"
+rg --fixed-strings --quiet -- '${golden_suppression_runtime_snapshot}' "${script}" \
+	|| fail "final query gate must use the runtime snapshot with the exact suppression body"
 
 # Skipping comment lines is load-bearing, not cosmetic: the orchestrator and its
 # lib chunks name their own helpers, sourced libs and gate flags in the prose
@@ -237,8 +312,8 @@ require "drains phase" "-phase=drains"
 require "graph+query+timing phase" "-phase=graph,query,timing"
 require_region "snapshot contract (drains phase)" \
 	"/-phase=drains/,/-drain-timeout=/" "-snapshot=testdata/golden/e2e-20repo-snapshot.json"
-require_region "snapshot contract (graph,query,timing phase)" \
-	"/-phase=graph,query,timing/,/-elapsed-seconds=/" "-snapshot=testdata/golden/e2e-20repo-snapshot.json"
+require_region "runtime snapshot contract (graph,query,timing phase)" \
+	"/-phase=graph,query,timing,demo-answers/,/-elapsed-seconds=/" '-snapshot="${golden_suppression_runtime_snapshot}"'
 require "timing budget" "-budget-multiplier"
 # #4596: the blocking-correlation set must be single-sourced from the
 # snapshot's own required_correlations ids via the "all" sentinel, not a

@@ -231,24 +231,24 @@ func TestRunPassesThroughKindsWithoutSchema(t *testing.T) {
 
 // TestRunRejectsUnsupportedSchemaConstruct is the fail-closed guardrail: the
 // stdlib schema subset validator must reject, not silently skip, any schema
-// construct it does not implement. A schema using "enum" (unsupported) must
+// construct it does not implement. A schema using "pattern" (unsupported) must
 // produce a blocking finding rather than a false pass — silent under-validation
 // is the exact failure the contract system exists to kill.
 func TestRunRejectsUnsupportedSchemaConstruct(t *testing.T) {
 	t.Parallel()
 
-	const enumSchema = `{
+	const patternSchema = `{
       "type": "object",
       "additionalProperties": true,
       "required": ["account_id"],
-      "properties": {"account_id": {"type": "string", "enum": ["a", "b"]}}
+      "properties": {"account_id": {"type": "string", "pattern": "^[0-9]+$"}}
     }`
 
 	report := conformance.Run(conformance.Request{
 		Manifest:       awsManifest(),
 		Fixtures:       []collector.Result{awsResourceResult(validAWSResourcePayload())},
 		Mode:           conformance.ModeFixture,
-		PayloadSchemas: map[string]json.RawMessage{awsResourceKind: json.RawMessage(enumSchema)},
+		PayloadSchemas: map[string]json.RawMessage{awsResourceKind: json.RawMessage(patternSchema)},
 	})
 
 	if report.OK() {
@@ -288,7 +288,6 @@ func TestCompileSchemaRejectsUnsupportedCompositions(t *testing.T) {
 		"oneOf":              `{"type":"object","oneOf":[{"type":"object"}]}`,
 		"anyOf":              `{"type":"object","properties":{"a":{"anyOf":[{"type":"string"}]}}}`,
 		"allOf":              `{"type":"object","allOf":[{"type":"object"}]}`,
-		"enum":               `{"type":"object","properties":{"a":{"type":"string","enum":["x"]}}}`,
 		"pattern":            `{"type":"object","properties":{"a":{"type":"string","pattern":"^x$"}}}`,
 		"numericBounds":      `{"type":"object","properties":{"a":{"type":"integer","minimum":0}}}`,
 		"nonObjectRoot":      `{"type":"array","items":{"type":"string"}}`,

@@ -607,6 +607,8 @@ families:
     read_surface: "GET /api/v0/supply-chain/impact/findings"
     truth_profile: provider_gated
     provider_key_independent: false
+    payload_schema_overrides:
+      vulnerability.suppression: "sdk/go/factschema/schema/vulnerability.suppression.v1.schema.json"
     kinds: [vulnerability.suppression]
   work_item:
     lifecycle_owner: go/internal/facts

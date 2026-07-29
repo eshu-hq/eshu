@@ -44,6 +44,7 @@ type SupplyChainImpactFactFilter struct {
 	PackageIDs        []string
 	PURLs             []string
 	CVEIDs            []string
+	AdvisoryIDs       []string
 	SubjectDigests    []string
 	DocumentIDs       []string
 	ProductCriteria   []string
@@ -210,18 +211,28 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent Intent) (Re
 		// the durable queue triages it correctly.
 		return Result{}, fmt.Errorf("build supply chain impact findings: %w", err)
 	}
-	// Per-fact isolation: a malformed vulnerability.* fact (a missing required
-	// identity field) is quarantined as a visible input_invalid dead-letter —
-	// counter + structured error log — while every valid fact still
-	// contributes to the findings computed above.
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainSupplyChainImpact, intent.ScopeID, intent.GenerationID, quarantinedVulnerabilityFacts)
 	if loaded.activeEvidenceTruncated {
 		findings = markSupplyChainImpactFindingsActiveExpansionTruncated(findings)
 	}
 	timing.buildFindingsDuration = time.Since(phaseStarted)
 
 	phaseStarted = time.Now()
-	suppressions := BuildVulnerabilitySuppressions(envelopes)
+	suppressions, quarantinedSuppressions, err := BuildVulnerabilitySuppressions(envelopes)
+	if err != nil {
+		return Result{}, fmt.Errorf("build vulnerability suppressions: %w", err)
+	}
+	quarantinedVulnerabilityFacts = append(quarantinedVulnerabilityFacts, quarantinedSuppressions...)
+	// Per-fact isolation: a malformed vulnerability or suppression fact is
+	// quarantined as a visible input_invalid dead-letter while valid facts
+	// still contribute to findings and suppression decisions.
+	inputInvalidCount := recordQuarantinedFacts(
+		ctx,
+		h.Instruments,
+		DomainSupplyChainImpact,
+		intent.ScopeID,
+		intent.GenerationID,
+		quarantinedVulnerabilityFacts,
+	)
 	now := h.evaluationNow()
 	for i := range findings {
 		findings[i].Suppression = EvaluateSupplyChainSuppression(findings[i], suppressions, now)

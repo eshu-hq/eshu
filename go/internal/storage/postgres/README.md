@@ -84,6 +84,34 @@ High-signal invariants for this package:
   JSONB-incompatible U+0000 characters and control bytes without changing
   literal source text such as `\u0000`, and skip unchanged pending-or-active
   generations by `FreshnessHint`.
+- `VulnerabilitySuppressionStore` owns one operator scope and serializes
+  concurrent mutations with a row lock. Each changed request clones the latest
+  pending, active, or failed full set into a new immutable generation, writes
+  its facts, and enqueues projector work in the same transaction. An identical
+  canonical payload commits as a no-op unless the lineage head failed, in which
+  case concurrent retries converge on one pending recovery successor while the
+  active predecessor remains available. Generation ordering uses
+  lock-acquisition-time ingestion timestamps with a one-microsecond monotonic
+  floor rather than operator-authored evidence time, so clock ties and older
+  authored assertions submitted later cannot hide a newer committed set. A
+  fixed-scope partial covering index adds no entries for unrelated ingestion
+  scopes. On PostgreSQL 18 with 100,000 generations, ten alternating 50,000-read
+  runs measured the old pending/active lookup at 3.809/4.238 microseconds
+  median/p95 per lookup and the indexed failed-aware lookup at 3.443/3.687
+  microseconds. The new lookup returned the intended failed successor instead
+  of the stale active row while improving median latency by 9.6 percent; the
+  candidate index occupied 16 kB. With PostgreSQL forced to a generic prepared
+  plan, the production fixed-scope query still used the covering index and
+  completed in 0.013 ms with two shared-buffer hits. A populated pre-085
+  integration proof loaded 100,000 failed generations, ran the exact bootstrap
+  path, held an old snapshot while migration 085 built concurrently, and
+  confirmed a second connection could still insert a generation; bootstrap
+  then completed, reapplied as a no-op, and left the index valid and ready.
+- Canonical impact winners denormalize `suppression_expires_at` for
+  operator-owned rows. Migration `083_supply_chain_suppression_expiry.sql`
+  backfills only hidden operator winners, preserves `NULL` for timeless rows,
+  and maps malformed non-empty legacy timestamps to `-infinity` so reads fail
+  open as expired without scanning or rewriting all winners.
 - Projector claims preserve one active source-local generation per `scope_id`,
   reclaim expired leases before fresh work, coalesce stale same-scope work, and
   atomically ack by superseding stale active generation, superseding older

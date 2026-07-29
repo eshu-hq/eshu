@@ -43,6 +43,7 @@ type SupplyChainHandler struct {
 	SecurityAlerts           SecurityAlertReconciliationStore
 	SecurityAlertAggregates  SecurityAlertReconciliationAggregateStore
 	Readiness                SupplyChainImpactReadinessStore
+	SuppressionMutations     VulnerabilitySuppressionMutationStore
 	// CloudResourceInventory gates the #5452 runtime-observed cloud evidence
 	// probe: it filters the probe's digest-matched CloudResource graph nodes to
 	// those that are BOTH current (active-generation, non-tombstoned) and
@@ -104,6 +105,7 @@ func (h *SupplyChainHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/supply-chain/vulnerabilities/{advisory_id}", h.getVulnerabilityDetail)
 	mux.HandleFunc("GET /api/v0/supply-chain/impact/findings", h.listImpactFindings)
 	mux.HandleFunc("GET /api/v0/supply-chain/impact/explain", h.explainImpact)
+	mux.HandleFunc("POST /api/v0/supply-chain/impact/suppressions", h.createVulnerabilitySuppression)
 	mux.HandleFunc("GET /api/v0/investigations/supply-chain/impact/packet", h.getImpactPacket)
 	mux.HandleFunc("GET /api/v0/supply-chain/container-images/identities", h.listContainerImageIdentities)
 	mux.HandleFunc("GET /api/v0/supply-chain/security-alerts/reconciliations", h.listSecurityAlertReconciliations)

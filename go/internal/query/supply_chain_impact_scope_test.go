@@ -392,14 +392,14 @@ func TestSupplyChainImpactSQLAppliesScopedAuthorizationBeforeOrderingAndGrouping
 		{
 			name:       "list",
 			query:      listSupplyChainImpactFindingsQuery,
-			beforeText: "ranked_facts AS",
+			beforeText: "source_winners AS",
 			repoParam:  "fact.payload->>'repository_id' = ANY($22::text[])",
 			scopeParam: "fact.scope_id = ANY($23::text[])",
 		},
 		{
 			name:       "aggregate_cte",
 			query:      supplyChainImpactAggregateCanonicalFactsCTE,
-			beforeText: "ranked_facts",
+			beforeText: "source_winners AS",
 			repoParam:  "fact.payload->>'repository_id' = ANY($18::text[])",
 			scopeParam: "fact.scope_id = ANY($19::text[])",
 		},
@@ -413,7 +413,7 @@ func TestSupplyChainImpactSQLAppliesScopedAuthorizationBeforeOrderingAndGrouping
 		{
 			name:       "explain",
 			query:      explainSupplyChainImpactFindingQuery,
-			beforeText: "scoped_facts AS",
+			beforeText: "source_winners AS",
 			repoParam:  "fact.payload->>'repository_id' = ANY($11::text[])",
 			scopeParam: "fact.scope_id = ANY($12::text[])",
 		},

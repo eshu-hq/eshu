@@ -157,8 +157,12 @@ func TestListSupplyChainImpactFindingsQueryHandlesSuppressionPredicates(t *testi
 	t.Parallel()
 
 	for _, want := range []string{
-		"COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') = $20",
-		"$21::boolean OR COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') NOT IN ('not_affected','accepted_risk','false_positive','ignored')",
+		"$20 = ''",
+		"fact.payload #>> '{suppression,expires_at}' AS expires_at",
+		"'expired'",
+		"effective_suppression_state = $20",
+		"$21::boolean",
+		"NOT IN ('not_affected','accepted_risk','false_positive','ignored')",
 	} {
 		if !strings.Contains(listSupplyChainImpactFindingsQuery, want) {
 			t.Fatalf("listSupplyChainImpactFindingsQuery missing suppression predicate %q:\n%s", want, listSupplyChainImpactFindingsQuery)

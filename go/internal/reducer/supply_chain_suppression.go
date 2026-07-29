@@ -334,13 +334,6 @@ func pickPreferredSuppression(matches []vulnerabilitySuppression) *vulnerability
 
 func decisionFromActiveOperatorSuppression(s vulnerabilitySuppression) SupplyChainSuppressionDecision {
 	state := suppressionStateForJustification(s.Justification)
-	if state == SupplyChainSuppressionStateActive {
-		// Defensive fallback: an unknown justification on an otherwise-active
-		// operator suppression is still a suppression. Hide it as ignored so
-		// operators see it and can correct the input rather than silently
-		// shipping it as active.
-		state = SupplyChainSuppressionStateIgnored
-	}
 	return SupplyChainSuppressionDecision{
 		State:          state,
 		SuppressionID:  s.SuppressionID,

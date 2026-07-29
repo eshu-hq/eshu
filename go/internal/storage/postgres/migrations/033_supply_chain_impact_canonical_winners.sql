@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS supply_chain_impact_canonical_winners (
     observed_version TEXT NOT NULL DEFAULT '',
     match_reason TEXT NOT NULL DEFAULT '',
     suppression_state TEXT NOT NULL DEFAULT 'active',
+    suppression_expires_at TIMESTAMPTZ NULL,
     service_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
     workload_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
     environments JSONB NOT NULL DEFAULT '[]'::jsonb,

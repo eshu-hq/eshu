@@ -110,6 +110,22 @@ func (e *countingExecutor) Execute(_ context.Context, intent Intent) (Result, er
 	}, nil
 }
 
+type batchQuarantineExecutor struct{}
+
+func (batchQuarantineExecutor) Execute(ctx context.Context, intent Intent) (Result, error) {
+	recordQuarantinedFacts(ctx, nil, intent.Domain, intent.ScopeID, intent.GenerationID, []quarantinedFact{{
+		factID:         "fact-1",
+		factKind:       "vulnerability.suppression",
+		field:          "justification",
+		classification: "input_invalid",
+	}})
+	return Result{
+		IntentID: intent.IntentID,
+		Domain:   intent.Domain,
+		Status:   ResultStatusSucceeded,
+	}, nil
+}
+
 func makeTestIntents(n int) []Intent {
 	intents := make([]Intent, n)
 	for i := range intents {
@@ -128,6 +144,26 @@ func makeTestIntents(n int) []Intent {
 		}
 	}
 	return intents
+}
+
+func TestServiceExecuteAndReportPersistsQuarantineThroughBatchPath(t *testing.T) {
+	t.Parallel()
+
+	writer := &fakeQuarantinedFactWriter{}
+	svc := Service{
+		Executor:         batchQuarantineExecutor{},
+		WorkSink:         &fakeBatchWorkSink{},
+		QuarantineWriter: writer,
+	}
+	intent := makeTestIntents(1)[0]
+	intent.Domain = DomainSupplyChainImpact
+
+	if _, err := svc.executeAndReport(context.Background(), intent, 1); err != nil {
+		t.Fatalf("executeAndReport() error = %v", err)
+	}
+	if writer.callCount != 1 {
+		t.Fatalf("quarantine writer calls = %d, want 1", writer.callCount)
+	}
 }
 
 func TestServiceRunBatchConcurrentProcessesAllItems(t *testing.T) {

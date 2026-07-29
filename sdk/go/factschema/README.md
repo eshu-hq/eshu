@@ -32,6 +32,10 @@ The migration is incremental, family by family (Contract System v1 §7,
   deployment event was observed at the deploying run's commit) and `declared`
   (the CI-declared workflow job gate alone). The two collections are siblings,
   not a replacement: a reader that only knows `environments` keeps working.
+- **vulnerabilitysuppression** — `vulnerabilitysuppression/v1`: the
+  `vulnerability.suppression` payload shared by VEX, operator-policy, and
+  provider-dismissal producers. Identity, source, justification, author,
+  authorship time, and the compound suppression scope are required.
 
 ## Compatibility
 

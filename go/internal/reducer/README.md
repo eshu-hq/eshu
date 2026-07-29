@@ -1901,6 +1901,17 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   the finding from the default API view. The handler emits
   `eshu_dp_supply_chain_suppression_decisions_total` per state so operators
   can detect VEX/policy drift without re-running the reducer.
+  Operator-authored facts arrive through the authenticated suppression mutation
+  route as one immutable full-set generation under
+  `operator:vulnerability_suppressions`. Reducer admission uses
+  `factschema.DecodeVulnerabilitySuppression`; missing identity, provenance,
+  authorship time, or scope fields are quarantined as `input_invalid` instead
+  of reaching the evaluator. A malformed expiry remains fail-closed evidence
+  and can never turn into an active hidden decision.
+  Temporary operator decisions are evaluated again at query time against one
+  request-bound UTC clock. When that clock reaches `expires_at`, direct,
+  materialized, aggregate, and explain reads expose the same immutable operator
+  row as `expired` without waiting for unrelated evidence or a reducer replay.
 - **Safe-upgrade remediation is advisory-only** —
   `SupplyChainImpactHandler` attaches a `Remediation` block to every finding
   via `BuildSupplyChainImpactRemediation` (issue #595). The block records the

@@ -5,6 +5,8 @@ package query
 
 const supplyChainImpactFindingFactKind = "reducer_supply_chain_impact_finding"
 
+const supplyChainImpactOperatorSuppressionScopeID = "operator:vulnerability_suppressions"
+
 const supplyChainImpactCanonicalFindingKeySQL = `CONCAT_WS('|',
          COALESCE(NULLIF(fact.payload->>'cve_id', ''), NULLIF(fact.payload->>'advisory_id', ''), ''),
          COALESCE(fact.payload->>'advisory_id', ''),
@@ -37,125 +39,83 @@ const supplyChainImpactSeverityBucketFactSQL = `CASE
     ELSE 'none'
   END`
 
-var listSupplyChainImpactFindingsQuery = `
-WITH ` + supplyChainImpactRuntimeFilterCTE("$9", "$10", "$11", "$22", "$23") + `,
-scoped_facts AS (
-SELECT fact.fact_id,
-       ` + supplyChainImpactPublicFindingIDSQL + ` AS finding_id,
-       fact.source_confidence,
-       fact.payload,
-       COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) AS priority_score,
-       ` + supplyChainImpactPayloadFindingIDPresentSQL + ` AS has_payload_finding_id,
-       ` + supplyChainImpactCanonicalFindingKeySQL + ` AS canonical_key
-FROM fact_records AS fact
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = fact.scope_id
- AND scope.active_generation_id = fact.generation_id
-JOIN scope_generations AS generation
-  ON generation.scope_id = fact.scope_id
- AND generation.generation_id = fact.generation_id
-WHERE fact.fact_kind = $1
-  AND fact.is_tombstone = FALSE
-  AND generation.status = 'active'
-  AND ($2 = '' OR fact.payload->>'cve_id' = $2)
-  AND ($3 = '' OR fact.payload->>'package_id' = $3)
-  AND ($4 = '' OR fact.payload->>'repository_id' = $4)
-  AND ($5 = '' OR fact.payload->>'subject_digest' = $5)
-  AND ($6 = '' OR fact.payload->>'impact_status' = $6)
-  AND ($7 = '' OR fact.payload->>'advisory_id' = $7)
-  AND ($8 = '' OR LOWER(fact.payload->>'ecosystem') = LOWER($8))
-` + supplyChainImpactRuntimeFilterPredicate(
-	"fact.payload->>'repository_id'",
-	"$9",
-	"$10",
-	"$11",
-) + `
-  AND ($12 = '' OR ` + supplyChainImpactSeverityBucketFactSQL + ` = $12)
-  AND (
-        $13 = ''
-        OR fact.payload->>'detection_profile' = $13
-        OR (
-              $13 = 'comprehensive'
-              AND COALESCE(fact.payload->>'detection_profile', '') = ''
-           )
-        OR (
-              $13 = 'precise'
-              AND COALESCE(fact.payload->>'detection_profile', '') = ''
-              AND fact.payload->>'impact_status' IN (
-                    'affected_exact',
-                    'not_affected_known_fixed'
-                  )
-              AND COALESCE(fact.payload->>'observed_version', '') <> ''
-                AND fact.payload->>'match_reason' IN (
-                      'npm_semver_affected_range',
-                      'npm_semver_known_fixed',
-                      'nuget_semver_affected_range',
-                      'nuget_semver_known_fixed',
-                      'cargo_semver_affected_range',
-                      'cargo_semver_known_fixed',
-                      'hex_semver_affected_range',
-                      'hex_semver_known_fixed',
-                      'maven_range_match',
-                      'maven_known_fixed',
-                      'swift_semver_affected_range',
-                      'swift_semver_known_fixed'
-                    )
-             )
-        )
-    AND ($14 = '' OR fact.payload->>'priority_bucket' = $14)
-    AND ($15 = 0 OR COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) >= $15)
-    AND ($16 = '' OR fact.payload->>'image_ref' = $16)
-    AND ($20 = '' OR COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') = $20)
-    AND ($21::boolean OR COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') NOT IN ('not_affected','accepted_risk','false_positive','ignored'))
-    AND (
-          (COALESCE(cardinality($22::text[]), 0) = 0 AND COALESCE(cardinality($23::text[]), 0) = 0)
-          OR fact.payload->>'repository_id' = ANY($22::text[])
-          OR fact.scope_id = ANY($23::text[])
-        )
-),
-ranked_facts AS (
-SELECT *,
-       ROW_NUMBER() OVER (
-         PARTITION BY canonical_key
-         ORDER BY priority_score DESC, has_payload_finding_id DESC, fact_id ASC
-       ) AS canonical_rank
-FROM scoped_facts
-),
-canonical_facts AS (
-SELECT fact_id, finding_id, source_confidence, payload, priority_score, has_payload_finding_id
-FROM ranked_facts
-WHERE canonical_rank = 1
-)
-SELECT finding_id, source_confidence, payload
-FROM canonical_facts
-WHERE $17 = ''
-   OR ($18 = 'finding_id' AND finding_id > $17)
-   OR (
-      $18 = 'priority_score_desc'
-      AND (
-        priority_score < COALESCE((SELECT cursor.priority_score FROM canonical_facts AS cursor WHERE cursor.finding_id = $17), -1)
-        OR (
-          priority_score = COALESCE((SELECT cursor.priority_score FROM canonical_facts AS cursor WHERE cursor.finding_id = $17), -1)
-          AND finding_id > $17
-        )
-      )
-   )
-   OR (
-      $18 = 'priority_score_asc'
-      AND (
-        priority_score > COALESCE((SELECT cursor.priority_score FROM canonical_facts AS cursor WHERE cursor.finding_id = $17), 101)
-        OR (
-          priority_score = COALESCE((SELECT cursor.priority_score FROM canonical_facts AS cursor WHERE cursor.finding_id = $17), 101)
-          AND finding_id > $17
-        )
-      )
-   )
-ORDER BY
-  CASE WHEN $18 = 'priority_score_desc' THEN priority_score END DESC,
-  CASE WHEN $18 = 'priority_score_asc' THEN priority_score END ASC,
-  finding_id ASC
-LIMIT $19
-`
+const supplyChainImpactHiddenSuppressionStatesSQL = "'not_affected','accepted_risk','false_positive','ignored'"
+
+func supplyChainImpactEffectiveSuppressionStateSQL(
+	scopeExpr string,
+	stateExpr string,
+	expiresAtExpr string,
+	readAtExpr string,
+) string {
+	return `CASE
+    WHEN ` + scopeExpr + ` <> '` + supplyChainImpactOperatorSuppressionScopeID + `'
+    THEN ` + stateExpr + `
+    ELSE ` + supplyChainImpactEffectiveDecisionStateSQL(
+		stateExpr,
+		expiresAtExpr,
+		readAtExpr,
+	) + `
+  END`
+}
+
+func supplyChainImpactEffectiveDecisionStateSQL(
+	stateExpr string,
+	expiresAtExpr string,
+	readAtExpr string,
+) string {
+	return `CASE
+    WHEN ` + stateExpr + ` NOT IN (` + supplyChainImpactHiddenSuppressionStatesSQL + `)
+      OR NULLIF(` + expiresAtExpr + `, '') IS NULL
+    THEN ` + stateExpr + `
+    WHEN NOT pg_input_is_valid(` + expiresAtExpr + `, 'timestamp with time zone')
+    THEN 'expired'
+    WHEN (` + expiresAtExpr + `)::timestamptz <= ` + readAtExpr + `
+    THEN 'expired'
+    ELSE ` + stateExpr + `
+  END`
+}
+
+func supplyChainImpactPayloadWithEffectiveSuppressionSQL(
+	payloadExpr string,
+	effectiveStateExpr string,
+) string {
+	return `(` + payloadExpr + ` || jsonb_build_object(
+    'suppression_state', ` + effectiveStateExpr + `,
+    'suppression',
+      COALESCE(
+        CASE
+          WHEN jsonb_typeof(` + payloadExpr + `->'suppression') = 'object'
+          THEN ` + payloadExpr + `->'suppression'
+        END,
+        '{}'::jsonb
+      ) || jsonb_build_object('state', ` + effectiveStateExpr + `)
+  ))`
+}
+
+func supplyChainImpactPayloadWithSuppressionOverlaySQL(
+	sourcePayloadExpr string,
+	overridePayloadExpr string,
+	effectiveStateExpr string,
+) string {
+	return `CASE
+    WHEN ` + overridePayloadExpr + ` IS NULL
+    THEN ` + supplyChainImpactPayloadWithEffectiveSuppressionSQL(
+		sourcePayloadExpr,
+		effectiveStateExpr,
+	) + `
+    ELSE ` + sourcePayloadExpr + ` || jsonb_build_object(
+      'suppression_state', ` + effectiveStateExpr + `,
+      'suppression',
+        COALESCE(
+          CASE
+            WHEN jsonb_typeof(` + overridePayloadExpr + `->'suppression') = 'object'
+            THEN ` + overridePayloadExpr + `->'suppression'
+          END,
+          '{}'::jsonb
+        ) || jsonb_build_object('state', ` + effectiveStateExpr + `)
+    )
+  END`
+}
 
 // listSupplyChainImpactFindingsFromWinnersQuery is the #3389 Phase 2 read that
 // serves the same page from the maintained supply_chain_impact_canonical_winners
@@ -166,7 +126,7 @@ LIMIT $19
 // window, no sort spill) and joins fact_records by winner_fact_id only for the
 // page payloads.
 //
-// It takes the SAME 23-parameter slice as listSupplyChainImpactFindingsQuery so
+// It takes the SAME 24-parameter slice as listSupplyChainImpactFindingsQuery so
 // the store can swap queries without rebuilding args; $1 (fact_kind) is not a
 // filter here because the winners table is impact-only, but it is referenced in a
 // trivially-true guard so every bound parameter is used.
@@ -178,8 +138,27 @@ LIMIT $19
 // to the read-time-dedup query (verified across the filter/sort/cursor matrix).
 var listSupplyChainImpactFindingsFromWinnersQuery = `
 WITH ` + supplyChainImpactRuntimeFilterCTE("$9", "$10", "$11", "$22", "$23") + `,
+` + supplyChainImpactOperatorCandidatesCTE("$1") + `,
+operator_overrides AS MATERIALIZED (
+    SELECT DISTINCT ON (canonical_key)
+           canonical_key,
+           payload
+    FROM operator_candidates
+    ORDER BY canonical_key,
+             priority_score DESC,
+             has_payload_finding_id DESC,
+             fact_id ASC
+),
 filtered AS NOT MATERIALIZED (
-    SELECT w.finding_id, w.winner_fact_id, w.priority_score
+    SELECT w.finding_id,
+           w.canonical_key,
+           w.winner_fact_id,
+           w.priority_score,
+           ` + supplyChainImpactEffectiveDecisionStateSQL(
+	"w.suppression_state",
+	"COALESCE(w.suppression_expires_at::text, '')",
+	"$24::timestamptz",
+) + ` AS effective_suppression_state
     FROM supply_chain_impact_canonical_winners AS w
     WHERE ($1 = $1)
       AND ($2 = '' OR w.cve_id = $2)
@@ -218,19 +197,32 @@ filtered AS NOT MATERIALIZED (
       AND ($14 = '' OR w.priority_bucket = $14)
       AND ($15 = 0 OR w.priority_score >= $15)
       AND ($16 = '' OR w.image_ref = $16)
-      AND ($20 = '' OR w.suppression_state = $20)
-      AND ($21::boolean OR w.suppression_state NOT IN ('not_affected', 'accepted_risk', 'false_positive', 'ignored'))
+      AND (
+            $20 = ''
+            OR ` + supplyChainImpactEffectiveDecisionStateSQL(
+	"w.suppression_state",
+	"COALESCE(w.suppression_expires_at::text, '')",
+	"$24::timestamptz",
+) + ` = $20
+          )
+      AND (
+            $21::boolean
+            OR ` + supplyChainImpactEffectiveDecisionStateSQL(
+	"w.suppression_state",
+	"COALESCE(w.suppression_expires_at::text, '')",
+	"$24::timestamptz",
+) + ` NOT IN (` + supplyChainImpactHiddenSuppressionStatesSQL + `)
+          )
       AND (
             (COALESCE(cardinality($22::text[]), 0) = 0 AND COALESCE(cardinality($23::text[]), 0) = 0)
             OR w.repository_id = ANY($22::text[])
             OR w.winner_scope_id = ANY($23::text[])
           )
-)
-SELECT f.finding_id, refetch.source_confidence, refetch.payload
-FROM filtered AS f
-JOIN fact_records AS refetch
-  ON refetch.fact_id = f.winner_fact_id
-WHERE (
+),
+paged AS MATERIALIZED (
+  SELECT *
+  FROM filtered AS f
+  WHERE (
         $17 = ''
         OR ($18 = 'finding_id' AND f.finding_id > $17)
         OR (
@@ -254,9 +246,26 @@ WHERE (
               )
            )
       )
+  ORDER BY
+    CASE WHEN $18 = 'priority_score_desc' THEN f.priority_score END DESC,
+    CASE WHEN $18 = 'priority_score_asc' THEN f.priority_score END ASC,
+    f.finding_id ASC
+  LIMIT $19
+)
+SELECT page.finding_id,
+       refetch.source_confidence,
+       ` + supplyChainImpactPayloadWithSuppressionOverlaySQL(
+	"refetch.payload",
+	"override.payload",
+	"page.effective_suppression_state",
+) + ` AS payload
+FROM paged AS page
+JOIN fact_records AS refetch
+  ON refetch.fact_id = page.winner_fact_id
+LEFT JOIN operator_overrides AS override
+  ON override.canonical_key = page.canonical_key
 ORDER BY
-  CASE WHEN $18 = 'priority_score_desc' THEN f.priority_score END DESC,
-  CASE WHEN $18 = 'priority_score_asc' THEN f.priority_score END ASC,
-  f.finding_id ASC
-LIMIT $19
+  CASE WHEN $18 = 'priority_score_desc' THEN page.priority_score END DESC,
+  CASE WHEN $18 = 'priority_score_asc' THEN page.priority_score END ASC,
+  page.finding_id ASC
 `

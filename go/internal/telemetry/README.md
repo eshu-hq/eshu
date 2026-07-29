@@ -390,6 +390,12 @@ Defined in `contract.go` and small companion files such as
 new query routes such as hardcoded-secret investigation register their span name
 here before handlers use it.
 
+`SpanQueryVulnerabilitySuppressionMutation` uses
+`SpanAttrVulnerabilitySuppressionMutationOutcome`
+(`eshu.mutation.outcome`) with the closed values `created`, `unchanged`,
+`rejected`, and `store_error`. The dimension is intentionally low-cardinality;
+suppression ids, authors, anchors, and reasons must not be attached.
+
 Pipeline spans: `SpanCollectorObserve`, `SpanCollectorStream`, `SpanScopeAssign`,
 `SpanFactEmit`, `SpanProjectorRun`, `SpanReducerIntentEnqueue`, `SpanReducerRun`,
 `SpanReducerBatchClaim`, `SpanReducerEshuSearchIndexWrite`,
@@ -418,6 +424,7 @@ Pipeline spans: `SpanCollectorObserve`, `SpanCollectorStream`, `SpanScopeAssign`
 `SpanQueryAdvisoryEvidence`,
 `SpanQueryIncidentContext`,
 `SpanQueryWorkItemEvidence`,
+`SpanQueryVulnerabilitySuppressionMutation`,
 `SpanQuerySupplyChainImpactExplanation`,
 `SpanScannerWorkerClaimProcess`, `SpanScannerWorkerAnalyze`,
 `SpanScannerWorkerFactEmitBatch`, `SpanTerraformStateClaimProcess`,

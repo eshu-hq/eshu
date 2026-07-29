@@ -4,4 +4,5 @@
 package query
 
 const openAPIPathsSupplyChain = openAPIPathsSupplyChainImpactFindings +
-	openAPIPathsSupplyChainImpactExplain
+	openAPIPathsSupplyChainImpactExplain +
+	openAPIPathsSupplyChainSuppressionMutation

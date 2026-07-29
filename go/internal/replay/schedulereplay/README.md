@@ -89,6 +89,10 @@ ordering proof rather than two independent single-hook scenarios glued
 together. The teeth test
 (`TestProjectionScheduleReplayCatchesCrossHookOrderingBug`) proves the harness
 catches a cross-hook ordering bug on the incident cassette.
+The supply-chain cassette keeps the suppression in its own
+`operator:vulnerability_suppressions` scope with `source_system=eshu_policy`
+and an authenticated-subject hash, matching the administrative producer rather
+than presenting it as provider intelligence.
 
 See `evidence-4367-projection-ordering.md` for the no-regression and
 no-observability-change evidence for this addition.

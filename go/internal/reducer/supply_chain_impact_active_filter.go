@@ -42,6 +42,7 @@ func supplyChainImpactFollowUpFilter(
 		PackageIDs:        missingStringValues(current.PackageIDs, requested.PackageIDs),
 		PURLs:             missingStringValues(current.PURLs, requested.PURLs),
 		CVEIDs:            missingStringValues(current.CVEIDs, requested.CVEIDs),
+		AdvisoryIDs:       missingStringValues(current.AdvisoryIDs, requested.AdvisoryIDs),
 		SubjectDigests:    missingStringValues(current.SubjectDigests, requested.SubjectDigests),
 		DocumentIDs:       missingStringValues(current.DocumentIDs, requested.DocumentIDs),
 		ProductCriteria:   missingStringValues(current.ProductCriteria, requested.ProductCriteria),
@@ -57,6 +58,7 @@ func mergeSupplyChainImpactFactFilters(filters ...SupplyChainImpactFactFilter) S
 		merged.PackageIDs = append(merged.PackageIDs, filter.PackageIDs...)
 		merged.PURLs = append(merged.PURLs, filter.PURLs...)
 		merged.CVEIDs = append(merged.CVEIDs, filter.CVEIDs...)
+		merged.AdvisoryIDs = append(merged.AdvisoryIDs, filter.AdvisoryIDs...)
 		merged.SubjectDigests = append(merged.SubjectDigests, filter.SubjectDigests...)
 		merged.DocumentIDs = append(merged.DocumentIDs, filter.DocumentIDs...)
 		merged.ProductCriteria = append(merged.ProductCriteria, filter.ProductCriteria...)
@@ -68,6 +70,7 @@ func mergeSupplyChainImpactFactFilters(filters ...SupplyChainImpactFactFilter) S
 		PackageIDs:        uniqueSortedStrings(merged.PackageIDs),
 		PURLs:             uniqueSortedStrings(merged.PURLs),
 		CVEIDs:            uniqueSortedStrings(merged.CVEIDs),
+		AdvisoryIDs:       uniqueSortedStrings(merged.AdvisoryIDs),
 		SubjectDigests:    uniqueSortedStrings(merged.SubjectDigests),
 		DocumentIDs:       uniqueSortedStrings(merged.DocumentIDs),
 		ProductCriteria:   uniqueSortedStrings(merged.ProductCriteria),
@@ -96,16 +99,18 @@ func missingStringValues(current []string, initial []string) []string {
 }
 
 func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFilter {
-	var packageIDs, purls, cveIDs, digests, documentIDs, productCriteria, repositoryIDs, imageRefs []string
+	var packageIDs, purls, cveIDs, advisoryIDs, digests, documentIDs, productCriteria, repositoryIDs, imageRefs []string
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
 		case facts.VulnerabilityCVEFactKind:
 			cveIDs = append(cveIDs, supplyChainCVEID(envelope.Payload))
+			advisoryIDs = append(advisoryIDs, payloadStr(envelope.Payload, "advisory_id"))
 		case facts.VulnerabilityAffectedPackageFactKind:
 			purl := payloadStr(envelope.Payload, "purl")
 			packageIDs = append(packageIDs, canonicalSupplyChainAffectedPackageID(payloadStr(envelope.Payload, "package_id"), purl))
 			purls = append(purls, purl)
 			cveIDs = append(cveIDs, supplyChainCVEID(envelope.Payload))
+			advisoryIDs = append(advisoryIDs, payloadStr(envelope.Payload, "advisory_id"))
 		case facts.VulnerabilityAffectedProductFactKind:
 			cveIDs = append(cveIDs, supplyChainCVEID(envelope.Payload))
 			if payloadBool(envelope.Payload, "vulnerable") {
@@ -116,6 +121,7 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 		case facts.VulnerabilitySuppressionFactKind:
 			if scope := payloadMap(envelope.Payload, "scope"); scope != nil {
 				cveIDs = append(cveIDs, payloadStr(scope, "cve_id"))
+				advisoryIDs = append(advisoryIDs, payloadStr(scope, "advisory_id"))
 				packageIDs = append(packageIDs, payloadStr(scope, "package_id"))
 				purls = append(purls, payloadStr(scope, "purl"))
 				digests = append(digests, payloadStr(scope, "subject_digest"))
@@ -202,6 +208,7 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 		PackageIDs:        uniqueSortedStrings(packageIDs),
 		PURLs:             uniqueSortedStrings(purls),
 		CVEIDs:            uniqueSortedStrings(cveIDs),
+		AdvisoryIDs:       uniqueSortedStrings(advisoryIDs),
 		SubjectDigests:    uniqueSortedStrings(digests),
 		DocumentIDs:       uniqueSortedStrings(documentIDs),
 		ProductCriteria:   uniqueSortedStrings(productCriteria),
@@ -224,7 +231,7 @@ func supplyChainImpactRepositoryFilterIDs(repositoryIDs []string) []string {
 }
 
 func (f SupplyChainImpactFactFilter) empty() bool {
-	return len(f.PackageIDs) == 0 && len(f.PURLs) == 0 && len(f.CVEIDs) == 0 &&
+	return len(f.PackageIDs) == 0 && len(f.PURLs) == 0 && len(f.CVEIDs) == 0 && len(f.AdvisoryIDs) == 0 &&
 		len(f.SubjectDigests) == 0 && len(f.DocumentIDs) == 0 && len(f.ProductCriteria) == 0 &&
 		len(f.RepositoryIDs) == 0 && len(f.FileRepositoryIDs) == 0 && len(f.ImageRefs) == 0
 }

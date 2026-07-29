@@ -224,7 +224,7 @@ var fanOutParityExpectations = map[reducer.Domain]fanOutParityExpectation{
 		reason: "service catalog facts observed", sourceSystem: "service_catalog",
 	},
 	reducer.DomainSupplyChainImpact: {
-		// Earliest across supply_chain_impact's 11 candidate kinds is the
+		// Earliest across supply_chain_impact's 12 candidate kinds is the
 		// package identity fact, ahead of the security_alert, oci-manifest,
 		// and oci-referrer facts placed later.
 		factID: "package-identity-1", entityKey: "supply_chain_impact:mixed:fanout:demo",

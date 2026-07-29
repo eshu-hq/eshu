@@ -12,7 +12,7 @@ choices, use [Docker Compose](../run-locally/docker-compose.md).
 | Runtime | Owns | Kubernetes shape | Detail |
 | --- | --- | --- | --- |
 | Schema Bootstrap | Postgres and graph schema DDL only. | `Job` | [Bootstrap runtimes](service-runtimes-bootstrap.md) |
-| API | HTTP API, query reads, and admin endpoints. | `Deployment` | [Core runtimes](service-runtimes-core.md) |
+| API | HTTP query/admin reads and the all-scopes vulnerability-suppression policy mutation. | `Deployment` | [Core runtimes](service-runtimes-core.md) |
 | MCP Server | MCP HTTP/SSE or stdio transport over the query surface. | optional `Deployment` | [Core runtimes](service-runtimes-core.md) |
 | Ingester | Repository sync, workspace PVC, parsing, fact emission. | `StatefulSet` | [Core runtimes](service-runtimes-core.md) |
 | Webhook Listener | Verified Git and AWS freshness trigger intake. | optional `Deployment` | [Core runtimes](service-runtimes-core.md) |
