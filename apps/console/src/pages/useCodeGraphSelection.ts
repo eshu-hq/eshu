@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 
 import { candidateIdFromParam } from "./CodeGraphPageSupport";
@@ -56,6 +56,18 @@ export function useCodeGraphSelection({
   );
   const availableRepositories = repositories ?? fallbackRepositories;
   const [searchParams, setSearchParams] = useSearchParams();
+  // React flushes the passive effect below asynchronously, so it can still be
+  // pending when the user navigates (browser back/forward) to a different
+  // history entry before it runs. Because `setSearchParams(..., { replace:
+  // true })` replaces whichever entry is current AT CALL TIME -- not the
+  // entry that was current when the effect captured its closure -- a stale
+  // effect firing after such a navigation would silently overwrite the
+  // just-restored location with the previous repo/entity selection. Track the
+  // latest render's params in a ref (written during render, so it is always
+  // current before any deferred effect can run) so the effect can detect it
+  // has gone stale and skip its own write instead of clobbering navigation.
+  const latestSearchParamsRef = useRef(searchParams);
+  latestSearchParamsRef.current = searchParams;
   const legacyCandidateParam = searchParams.get("candidate") ?? searchParams.get("q") ?? "";
   const legacyCandidateId = candidateIdFromParam(deadCandidates, legacyCandidateParam);
   const legacyCandidate = deadCandidates.find((finding) => finding.id === legacyCandidateId);
@@ -184,8 +196,16 @@ export function useCodeGraphSelection({
     else canonical.delete("entity_id");
     canonical.delete("candidate");
     canonical.delete("q");
-    if (canonical.toString() !== searchParams.toString())
-      setSearchParams(canonical, { replace: true });
+    if (canonical.toString() === searchParams.toString()) return;
+    // Guard against a stale flush: if a later render (e.g. a browser
+    // back/forward navigation) has already moved `searchParams` on since this
+    // effect's closure was captured, `latestSearchParamsRef` reflects that
+    // newer value (written during render, ahead of any effect flush). Writing
+    // this effect's own (now-outdated) canonical params would replace the
+    // freshly navigated-to entry instead of the one this effect was meant
+    // for, so skip it.
+    if (latestSearchParamsRef.current.toString() !== searchParams.toString()) return;
+    setSearchParams(canonical, { replace: true });
   }, [entityParam, loading, repository, searchParams, selected, setSearchParams]);
 
   const error =
