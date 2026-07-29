@@ -28,6 +28,29 @@ on:
       - 'go/cmd/api/**'
       - 'go/cmd/golden-corpus-gate/**'
       - 'go/internal/demospec/**'
+      # #5538 wider audit: every other package `go list -deps` confirms is
+      # compiled into the six binaries this gate builds (bootstrap-index,
+      # projector, reducer, api, mcp-server, golden-corpus-gate) and that can
+      # alter projected graph, content, or query/MCP truth. See
+      # scripts/lib/golden-corpus-mirror-workflow-paths.sh for the rationale
+      # behind each entry.
+      - 'go/cmd/mcp-server/**'
+      - 'go/internal/mcp/**'
+      - 'go/internal/goldengate/**'
+      - 'go/internal/graph/**'
+      - 'go/internal/graphowner/**'
+      - 'go/internal/graphschemacompat/**'
+      - 'go/internal/graphbackpressure/**'
+      - 'go/internal/facts/**'
+      - 'go/internal/queue/**'
+      - 'go/internal/replay/**'
+      - 'go/internal/content/**'
+      - 'go/internal/contentrefs/**'
+      - 'go/internal/codeprovenance/**'
+      - 'go/internal/packageidentity/**'
+      - 'go/internal/repositoryidentity/**'
+      - 'go/internal/sourcetool/**'
+      - 'go/internal/terraformschema/**'
       - 'testdata/golden/**'
       - 'testdata/cassettes/**'
       - 'tests/fixtures/ecosystems/**'

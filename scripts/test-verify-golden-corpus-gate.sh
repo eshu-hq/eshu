@@ -39,36 +39,14 @@ bash -n "${matcher_lib}" || fail "golden-corpus-mirror-matcher.sh has a syntax e
 # shellcheck source=scripts/lib/golden-corpus-mirror-matcher.sh
 . "${matcher_lib}"
 
-# The workflow paths filter must cover every input that can change golden truth.
-# require_in ignores YAML comments, so prose cannot stand in for a live entry.
-require_workflow_path() {
-	local label="$1" path_glob="$2"
-	require_in "golden-corpus-gate.yml paths filter (${label})" "${workflow}" "- '${path_glob}'"
-}
-require_workflow_path "collector fact emission"        "go/internal/collector/**"
-require_workflow_path "parser fact emission"           "go/internal/parser/**"
-require_workflow_path "projector graph writes"         "go/internal/projector/**"
-require_workflow_path "reducer graph writes"           "go/internal/reducer/**"
-require_workflow_path "query response shapes"          "go/internal/query/**"
-require_workflow_path "storage layer"                  "go/internal/storage/**"
-require_workflow_path "relationship resolution (#5596)" "go/internal/relationships/**"
-require_workflow_path "fact-kind schemas (#5596)"       "sdk/go/factschema/**"
-# The fact-emitting command packages (service wiring that assembles the
-# collectors/ingester/reducer/projector) must trigger the gate too — a change
-# under go/cmd/collector-aws-cloud/service.go can alter emitted facts as much
-# as go/internal/collector (#5686 review).
-require_workflow_path "collector command wiring"       "go/cmd/collector-**"
-require_workflow_path "bootstrap-index fact seeding"   "go/cmd/bootstrap-index/**"
-require_workflow_path "ingester fact emission"         "go/cmd/ingester/**"
-require_workflow_path "projector runtime"              "go/cmd/projector/**"
-require_workflow_path "reducer runtime"                "go/cmd/reducer/**"
-require_workflow_path "api query surface"              "go/cmd/api/**"
-require_workflow_path "static ecosystem corpus inputs" "tests/fixtures/ecosystems/**"
-# The orchestrator sources these; an edit to the mutex or a fixture/timing lib
-# changes what the gate does, so each must trigger it. Without this the lock
-# itself was in no trigger list at all - its only test would never have run.
-require_workflow_path "golden-corpus libs"             "scripts/lib/golden-corpus-*.sh"
-require_workflow_path "live gate mutex"                "scripts/lib/live-gate-lock.sh"
+# The workflow's on.pull_request.paths filter must trigger this gate on every
+# source dir whose changes can alter emitted facts, graph/content projection,
+# or query/MCP truth the gate asserts (#5596, widened by #5538). Assertions
+# extracted to a sourced lib chunk (golden-corpus-mirror-workflow-paths.sh) to
+# keep this mirror under the repo's 500-line file rule as the count grows; see
+# that lib's header for the full rationale per group of paths.
+# shellcheck source=scripts/lib/golden-corpus-mirror-workflow-paths.sh
+. "${repo_root}/scripts/lib/golden-corpus-mirror-workflow-paths.sh"
 # The workflow is only one of THREE lists that must carry these paths. Assert the
 # other two as well, or "the gap cannot reopen" is true for a third of the gap.
 # Scoped to each gate's OWN trigger block: a file-wide grep passes while the path
