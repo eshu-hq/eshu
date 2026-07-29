@@ -23,10 +23,39 @@ type cloudResourceServiceAnchorDecision struct {
 	ServiceNames []string
 }
 
+// cloudResourceServiceAnchorFieldsAbsent is the explicit-empty parity-key
+// value cloudResourceServiceAnchorFields returns for every one of the 7
+// service-anchor keys canonicalCloudResourceUpsertCypher's SET clause reads
+// (workload_id, service_name, service_anchor_status/source/reason/names/
+// name_tokens) whenever a given key has no real decided value — never
+// omitted (issue #5714/#5055, following the #4995 precedent — see
+// gcpCloudResourceNodeRow's parity-key comment in
+// gcp_resource_materialization.go and runningImageFieldsAbsent's doc in
+// aws_resource_running_image.go). The pinned NornicDB backend does not
+// evaluate a key MISSING from one row of a heterogeneous UNWIND $rows batch
+// as null in a SET clause, it persists a stringified representation of the
+// row expression instead — a plain AWS resource (no decision, or an
+// ambiguous decision with no single workload/service name) batched alongside
+// an anchor-bearing AWS resource previously corrupted these properties on
+// the plain resource's node.
+var cloudResourceServiceAnchorFieldsAbsent = map[string]any{
+	"workload_id":                "",
+	"service_name":               "",
+	"service_anchor_status":      "",
+	"service_anchor_source":      "",
+	"service_anchor_reason":      "",
+	"service_anchor_names":       []string{},
+	"service_anchor_name_tokens": "",
+}
+
 // cloudResourceServiceAnchorFields returns reducer-owned service anchor
 // metadata for an aws_resource row. Only exact, single-target anchors are
 // promotable by the service story read model; ambiguous anchors remain visible
-// as drift candidates without becoming canonical dependencies.
+// as drift candidates without becoming canonical dependencies. All 7 keys are
+// ALWAYS present in the returned map (never omitted — see
+// cloudResourceServiceAnchorFieldsAbsent): a resource with no decision, or an
+// ambiguous decision that resolves no single workload_id/service_name, gets
+// the explicit empty-value keys rather than missing ones.
 //
 // resource is the already-decoded aws_resource struct. The service-anchor
 // keys (workload_id/workload_ids, service_name/service_names) and, for a small
@@ -41,14 +70,16 @@ func cloudResourceServiceAnchorFields(resource awsv1.Resource) (map[string]any, 
 	if err != nil {
 		return nil, err
 	}
+	fields := make(map[string]any, len(cloudResourceServiceAnchorFieldsAbsent))
+	for key, value := range cloudResourceServiceAnchorFieldsAbsent {
+		fields[key] = value
+	}
 	if decision.Status == "" {
-		return nil, nil
+		return fields, nil
 	}
-	fields := map[string]any{
-		"service_anchor_status": decision.Status,
-		"service_anchor_source": decision.Source,
-		"service_anchor_reason": decision.Reason,
-	}
+	fields["service_anchor_status"] = decision.Status
+	fields["service_anchor_source"] = decision.Source
+	fields["service_anchor_reason"] = decision.Reason
 	if decision.WorkloadID != "" {
 		fields["workload_id"] = decision.WorkloadID
 	}

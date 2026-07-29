@@ -4296,6 +4296,66 @@ This is a row-shape correction in an existing materialization path; the
 existing `gcp resource materialization completed` log and
 `eshu_dp_reducer_*`/materialization-duration instruments are unaffected.
 
+### AWS and Azure follow-up closure (#5714/#5055)
+
+The "known latent parity gap" noted above is now closed, plus a second,
+independently-discovered instance:
+
+- **AWS**: `cloudResourceServiceAnchorFields` (`aws_resource_service_anchor.go`)
+  returned `nil, nil` whenever `cloudResourceServiceAnchorDecisionForPayload`
+  found no decision (`decision.Status == ""`), and even a real decision could
+  leave `workload_id`/`service_name` unset (an ambiguous decision names no
+  single workload/service). It now always returns all 7 keys
+  (`cloudResourceServiceAnchorFieldsAbsent` supplies the no-anchor parity
+  defaults, mirroring `gcpCloudResourceNodeRow`'s and
+  `runningImageFieldsAbsent`'s convention), and only overwrites the specific
+  keys a real decision resolves.
+- **Azure**: `azureCloudResourceNodeRow` (`azure_resource_materialization.go`)
+  never received the #4995 fix at all — it omitted all 7 keys unconditionally,
+  so every Azure `CloudResource` was exposed to the missing-map-key-in-UNWIND
+  corruption whenever its batch was heterogeneous. It now reuses
+  `cloudResourceServiceAnchorFieldsAbsent` the same way.
+- **Shared-writer backstop**: `WriteCloudResourceNodes`
+  (`go/internal/storage/cypher/cloud_resource_node_writer.go`) now
+  default-fills any row key its Cypher `SET` clause reads that a caller's row
+  map omits, so a *future* row builder cannot reopen this class of bug even if
+  it forgets a key. See that package's README "Shared-writer row-key
+  default-fill backstop (#5714/#5055)" section and
+  `docs/internal/evidence/5714-cloudresource-row-key-defaults.md` for the
+  prove-theory-first shim that chose Go-side default-fill over an in-Cypher
+  `coalesce` rewrite (both were measured viable against the pinned NornicDB
+  image; Option A needs no Cypher rewrite and is unit-testable without a live
+  backend).
+
+No-Regression Evidence:
+`TestExtractCloudResourceNodeRowsSetsExplicitServiceAnchorParityKeysWhenNoDecision`
+(AWS) and `TestExtractAzureCloudResourceNodeRowsSetsExplicitServiceAnchorParityKeys`
+(Azure) assert presence (not just `""` equality) for the no-decision/no-anchor
+case, mirroring the GCP test above; both were confirmed red before this fix
+(missing keys) and green after.
+`TestCloudResourceNodeWriterLiveHeterogeneousBatchNeverPersistsLiteral`
+(`go/internal/storage/cypher`) is the live-NornicDB, non-vacuous end-to-end
+proof: a batch with one anchor-bearing row and one bare row reads back `""`
+on the bare node's `workload_id`, confirmed red (literal `"row.workload_id"`)
+with the shared-writer default-fill disabled and green with it restored.
+`go test ./internal/reducer ./internal/storage/cypher -count=1` covers the
+full reducer and shared-writer suites with no regressions.
+
+Data repair: no explicit backfill/retract pass is needed for a CloudResource
+whose source facts are still emitted — `DomainAWSResourceMaterialization`/
+`DomainAzureResourceMaterialization` re-run every generation the scope carries
+current resource facts (the same persistent trigger this file's
+`DomainAWSCloudImageMaterialization` row documents), and
+`baseCloudResourceUpsertCypher` `MERGE`s on `uid` then unconditionally `SET`s
+every property (no `ON CREATE SET` gate) — so the next reprocessing of a still
+actively-synced resource overwrites any previously-corrupted literal with the
+correct value. See the evidence doc above for the full reasoning, including
+the (out-of-scope, pre-existing) staleness exposure for a resource that stops
+being observed entirely.
+
+No-Observability-Change: no metric, span, log field, or status field changes
+in either the AWS/Azure row builders or the shared writer.
+
 ## Cross-Provider image_reference Typed Decode (#4685)
 
 The `container_image_identity` domain read every provider's image_reference

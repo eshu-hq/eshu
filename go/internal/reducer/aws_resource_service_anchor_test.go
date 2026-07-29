@@ -111,6 +111,76 @@ func TestExtractCloudResourceNodeRowsDoesNotPromoteGenericAWSServiceNameAttribut
 	}
 }
 
+// TestExtractCloudResourceNodeRowsSetsExplicitServiceAnchorParityKeysWhenNoDecision
+// proves issue #5714/#5055's still-live AWS instance: cloudResourceServiceAnchorFields
+// used to return nil for a resource with no service-anchor decision at all
+// (resource_type/attributes carrying nothing cloudResourceServiceAnchorDecisionForPayload
+// recognizes), which OMITTED all 7 service-anchor keys from the row. The shared
+// canonicalCloudResourceUpsertCypher SETs all 7 unconditionally for every batch
+// row; the pinned NornicDB backend does not evaluate a missing UNWIND row map
+// key in a SET clause as null, it persists a stringified representation of the
+// row expression instead (issue #4995's proved mechanism, TestExtractGCPCloudResourceNodeRowsSetsExplicitServiceAnchorParityKeys).
+// So a plain AWS resource (no decision) batched alongside an anchor-bearing AWS
+// resource corrupted these 7 properties on the plain resource's node. This test
+// asserts PRESENCE (not just empty value) for exactly that no-decision case,
+// mirroring the GCP/Azure running-image parity-key tests: a missing key and ""
+// both stringify to "" via anyToString, so presence is what actually catches
+// this regression.
+func TestExtractCloudResourceNodeRowsSetsExplicitServiceAnchorParityKeysWhenNoDecision(t *testing.T) {
+	t.Parallel()
+
+	rows, quarantined, err := ExtractCloudResourceNodeRows([]facts.Envelope{
+		awsResourceEnvelope(map[string]any{
+			"account_id":    "sample-account",
+			"region":        "us-east-1",
+			"resource_type": "aws_ec2_vpc",
+			"resource_id":   "vpc-1",
+			"name":          "main",
+		}),
+	})
+	if err != nil {
+		t.Fatalf("ExtractCloudResourceNodeRows() error = %v, want nil", err)
+	}
+	if len(quarantined) != 0 {
+		t.Fatalf("quarantined = %v, want none", quarantined)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("len(rows) = %d, want 1", len(rows))
+	}
+	row := rows[0]
+
+	for _, key := range []string{
+		"workload_id",
+		"service_name",
+		"service_anchor_status",
+		"service_anchor_source",
+		"service_anchor_reason",
+		"service_anchor_name_tokens",
+	} {
+		value, ok := row[key]
+		if !ok {
+			t.Fatalf("row[%q] is absent; the shared upsert Cypher's row.%s reference "+
+				"would resolve against a missing map key on the pinned NornicDB backend "+
+				"and persist a stringified-row literal instead of an empty value", key, key)
+		}
+		if value != "" {
+			t.Fatalf("row[%q] = %#v, want empty string (no service-anchor decision)", key, value)
+		}
+	}
+
+	namesValue, ok := row["service_anchor_names"]
+	if !ok {
+		t.Fatal("row[\"service_anchor_names\"] is absent; must be an explicit empty value")
+	}
+	names, ok := namesValue.([]string)
+	if !ok {
+		t.Fatalf("row[\"service_anchor_names\"] type = %T, want []string", namesValue)
+	}
+	if len(names) != 0 {
+		t.Fatalf("row[\"service_anchor_names\"] = %#v, want empty slice", names)
+	}
+}
+
 // TestExtractCloudResourceNodeRowsMalformedServiceNameQuarantines proves the
 // #4631 typed-attribute-decode fix: a nested attributes.service_name present
 // as a non-string on an allow-listed resource type must dead-letter as a
