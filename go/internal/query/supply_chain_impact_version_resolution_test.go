@@ -9,6 +9,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
+var supplyChainImpactFindingResultBenchmarkSink SupplyChainImpactFindingResult
+
 // TestSupplyChainVersionResolutionTier proves the #5469 tiered version
 // resolution: the judged version/digest for a finding comes from the
 // strongest available deployment-truth-tier evidence that is ELIGIBLE to
@@ -211,7 +213,7 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			gotTier, gotCorroboration := supplyChainVersionResolution(tc.row)
+			gotTier, gotCorroboration := supplyChainVersionResolution(&tc.row)
 			if gotTier != string(tc.wantTier) {
 				t.Fatalf("tier = %q, want %q", gotTier, tc.wantTier)
 			}
@@ -258,7 +260,7 @@ func TestSupplyChainVersionResolutionDeclaredRefNeverEmitted(t *testing.T) {
 	}
 
 	for i, row := range rows {
-		tier, corroboration := supplyChainVersionResolution(row)
+		tier, corroboration := supplyChainVersionResolution(&row)
 		if tier == string(truth.TierDeclaredRef) {
 			t.Fatalf("row[%d]: version_resolution_tier fired declared_ref with no evidence producer", i)
 		}
@@ -282,33 +284,60 @@ func TestBuildSupplyChainImpactFindingResultSetsVersionResolution(t *testing.T) 
 		CIDeclaredArtifactDigest: digest,
 	}
 
-	result := buildSupplyChainImpactFindingResult(row)
+	result := buildSupplyChainImpactFindingResult(&row)
 	if result.VersionResolutionTier != string(truth.TierProvenanceCIDeclared) {
 		t.Fatalf("VersionResolutionTier = %q, want %q", result.VersionResolutionTier, truth.TierProvenanceCIDeclared)
+	}
+}
+
+// TestBuildSupplyChainImpactFindingResultAllocationBudget keeps the #5469
+// classifier within one allocation for a row that emits two corroboration
+// entries. That one allocation is the returned corroboration slice itself;
+// row classification and unchanged missing-evidence normalization must not
+// add another per-finding allocation on this read path.
+func TestBuildSupplyChainImpactFindingResultAllocationBudget(t *testing.T) {
+	digest := "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+	row := SupplyChainImpactFindingRow{
+		FindingID:                "finding-allocation-budget",
+		CVEID:                    "CVE-2026-00099",
+		SubjectDigest:            digest,
+		ImageRef:                 "registry.example.com/demo/app:v1",
+		ObservedVersion:          "1.2.3",
+		CloudRuntimeResourceRefs: []string{"arn:aws:ecs:us-east-1:123456789012:task/demo/allocation-budget"},
+		CIDeclaredArtifactDigest: digest,
+		CIDeclaredImageRef:       "registry.example.com/demo/app:v1",
+		WorkloadIDs:              []string{"workload:example-api"},
+		DeploymentIDs:            []string{"deployment:example-api"},
+		ServiceIDs:               []string{"service:example-api"},
+		Environments:             []string{"prod"},
+		EvidencePath:             []string{cicdRunCorrelationFactKind, "reducer_platform_materialization"},
+		MissingEvidence:          []string{serviceCatalogCorrelationMissingReason},
+	}
+
+	allocations := testing.AllocsPerRun(1000, func() {
+		_ = buildSupplyChainImpactFindingResult(&row)
+	})
+	if allocations > 1 {
+		t.Fatalf("allocations per result = %.0f, want <= 1", allocations)
 	}
 }
 
 // BenchmarkBuildSupplyChainImpactFindingResult measures result-assembly cost
 // per row for the #5469 performance proof: the resolver classifies fields the
 // row already carries with no new graph or Postgres query. Measured on
-// go1.26.5 darwin/arm64 (-benchtime=2s -count=5, 5 runs each): before #5469
-// (origin/main parent commit, this benchmark function copied alone into the
-// package with CIDeclaredArtifactDigest/CIDeclaredImageRef deleted from the
-// row literal, since those fields do not exist yet) 136.8-143.9 ns/op, 16
-// B/op, 1 allocs/op; after #5469 (this commit) 292.3-314.3 ns/op, 208 B/op, 2
-// allocs/op. That is roughly +166 ns/op (more than double, ~2.2x), 16->208
-// B/op, 1->2 allocs/op per row -- bounded at 4 tiers, so it stays roughly
-// constant per row rather than growing with corpus size, but it is not small
-// in relative terms. At the 200-row page-size limit that is roughly 61
-// microseconds and 42 KB of added per-page cost.
+// go1.26.5 darwin/arm64 (-benchtime=2s -count=5, five runs each), with both
+// benchmarks assigning the result to a package sink: exact base
+// ba2b7b80be85 was 143.3-144.5 ns/op, 16 B/op, 1 alloc/op; the finished
+// #5469 path was 95.64-96.84 ns/op, 128 B/op, 1 alloc/op. CPU improves by
+// about 30 percent and allocation count is maintained. The remaining 112
+// B/op delta is the two corroboration records returned by the new wire
+// contract, not temporary candidate or normalization storage.
 //
-// This benchmark function alone compiles and runs unmodified at the parent
-// commit with the two row fields above deleted. The rest of this file does
-// not: it is entirely new in #5469, and its sibling tests in this file
-// reference #5469-only symbols (SupplyChainVersionResolutionCorroboration,
-// supplyChainVersionResolution, truth.TierProvenanceCIDeclared, and others),
-// so copying the whole file to the parent commit fails to compile. Copy only
-// this benchmark function into the package there.
+// The exact-base companion benchmark uses the same common row fields,
+// package sink, duration, and sample count. It omits the two #5469-only CI
+// identity fields and calls the base value-parameter assembler; the pointer
+// parameter is itself part of the measured optimization. The rest of this
+// file is #5469-only and cannot compile on the base.
 //
 // The row exercises every field the resolver reads, including enough tiers
 // present at once to walk the full candidate/corroboration loop.
@@ -332,8 +361,7 @@ func BenchmarkBuildSupplyChainImpactFindingResult(b *testing.B) {
 	}
 
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = buildSupplyChainImpactFindingResult(row)
+	for b.Loop() {
+		supplyChainImpactFindingResultBenchmarkSink = buildSupplyChainImpactFindingResult(&row)
 	}
 }

@@ -93,13 +93,13 @@ func TestApplySupplyChainCloudRuntimeEvidencePromotesRunningDigest(t *testing.T)
 	if got := rows[0].CloudRuntimeResourceRefs; len(got) != 1 || got[0] != ecsARN {
 		t.Fatalf("running finding CloudRuntimeResourceRefs = %#v, want [%q]", got, ecsARN)
 	}
-	if tier := buildSupplyChainImpactFindingResult(rows[0]).DeploymentTruthTier; tier != "runtime_confirmed" {
+	if tier := buildSupplyChainImpactFindingResult(&rows[0]).DeploymentTruthTier; tier != "runtime_confirmed" {
 		t.Fatalf("running finding tier = %q, want runtime_confirmed", tier)
 	}
 	if got := rows[1].CloudRuntimeResourceRefs; len(got) != 0 {
 		t.Fatalf("non-running finding CloudRuntimeResourceRefs = %#v, want none", got)
 	}
-	if tier := buildSupplyChainImpactFindingResult(rows[1]).DeploymentTruthTier; tier != "provenance_ci_declared" {
+	if tier := buildSupplyChainImpactFindingResult(&rows[1]).DeploymentTruthTier; tier != "provenance_ci_declared" {
 		t.Fatalf("non-running finding tier = %q, want provenance_ci_declared", tier)
 	}
 }
@@ -130,7 +130,7 @@ func TestApplySupplyChainCloudRuntimeEvidenceExcludesStaleOrUnauthorized(t *test
 	if len(rows[0].CloudRuntimeResourceRefs) != 0 {
 		t.Fatalf("CloudRuntimeResourceRefs = %#v, want none for a stale/unauthorized node", rows[0].CloudRuntimeResourceRefs)
 	}
-	if tier := buildSupplyChainImpactFindingResult(rows[0]).DeploymentTruthTier; tier != "provenance_ci_declared" {
+	if tier := buildSupplyChainImpactFindingResult(&rows[0]).DeploymentTruthTier; tier != "provenance_ci_declared" {
 		t.Fatalf("tier = %q, want provenance_ci_declared (no runtime evidence from a stale node)", tier)
 	}
 	if len(inventory.gotCandidates) != 1 || inventory.gotCandidates[0] != staleUID {

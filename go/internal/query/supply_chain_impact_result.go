@@ -156,8 +156,8 @@ type SupplyChainReachabilityResult struct {
 	MissingEvidence  []string `json:"missing_evidence,omitempty"`
 }
 
-func buildSupplyChainImpactFindingResult(row SupplyChainImpactFindingRow) SupplyChainImpactFindingResult {
-	result := SupplyChainImpactFindingResult(row)
+func buildSupplyChainImpactFindingResult(row *SupplyChainImpactFindingRow) SupplyChainImpactFindingResult {
+	result := SupplyChainImpactFindingResult(*row)
 	result.MissingEvidence = normalizedSupplyChainImpactMissingEvidence(row)
 	result.DeploymentTruthTier = string(supplyChainDeploymentTruthTier(row))
 	result.VersionResolutionTier, result.VersionResolutionCorroboration = supplyChainVersionResolution(row)
@@ -183,7 +183,7 @@ func buildSupplyChainImpactFindingResult(row SupplyChainImpactFindingRow) Supply
 //     because no runtime tier existed on this surface.
 //   - config_only: only config-materialized deployment anchors or config
 //     environments exist, with no runtime or CI-declared evidence.
-func supplyChainDeploymentTruthTier(row SupplyChainImpactFindingRow) truth.DeploymentTruthTier {
+func supplyChainDeploymentTruthTier(row *SupplyChainImpactFindingRow) truth.DeploymentTruthTier {
 	if len(row.CloudRuntimeResourceRefs) > 0 {
 		return truth.ClassifyDeploymentTruthTier(true, false, false, false)
 	}
@@ -214,7 +214,7 @@ func supplyChainDeploymentTruthTier(row SupplyChainImpactFindingRow) truth.Deplo
 // deployment does not on its own raise runtime_reachability to deployed_image,
 // but it is still CI-declared deployment evidence and holds the row at
 // deployment_truth_tier=provenance_ci_declared rather than config_only.
-func rowHasCIDeclaredDeploymentEvidence(row SupplyChainImpactFindingRow) bool {
+func rowHasCIDeclaredDeploymentEvidence(row *SupplyChainImpactFindingRow) bool {
 	for _, hop := range row.EvidencePath {
 		if hop == cicdRunCorrelationFactKind {
 			return true
@@ -223,7 +223,11 @@ func rowHasCIDeclaredDeploymentEvidence(row SupplyChainImpactFindingRow) bool {
 	return false
 }
 
-func normalizedSupplyChainImpactMissingEvidence(row SupplyChainImpactFindingRow) []string {
+func normalizedSupplyChainImpactMissingEvidence(row *SupplyChainImpactFindingRow) []string {
+	if supplyChainImpactMissingEvidenceIsNormalized(row) {
+		return row.MissingEvidence
+	}
+
 	missing := make([]string, 0, len(row.MissingEvidence))
 	hasServiceCatalogEvidence := rowHasServiceCatalogEvidence(row)
 	hasResolvedServiceCatalogAnchor := rowHasResolvedServiceCatalogAnchor(row)
@@ -242,7 +246,32 @@ func normalizedSupplyChainImpactMissingEvidence(row SupplyChainImpactFindingRow)
 	return explanationUniqueStrings(missing)
 }
 
-func rowHasServiceCatalogEvidence(row SupplyChainImpactFindingRow) bool {
+// supplyChainImpactMissingEvidenceIsNormalized reports whether the existing
+// slice is already the exact trimmed, unique, sorted output and no
+// service-catalog reason needs rewriting. Reusing that slice avoids an
+// otherwise unconditional per-finding allocation; rows and results already
+// share the other immutable decoded slices.
+func supplyChainImpactMissingEvidenceIsNormalized(row *SupplyChainImpactFindingRow) bool {
+	hasServiceCatalogEvidence := rowHasServiceCatalogEvidence(row)
+	hasResolvedServiceCatalogAnchor := rowHasResolvedServiceCatalogAnchor(row)
+	for i, reason := range row.MissingEvidence {
+		if reason == serviceCatalogAnchorMissingReason && hasResolvedServiceCatalogAnchor {
+			return false
+		}
+		if reason == serviceCatalogCorrelationMissingReason && hasServiceCatalogEvidence {
+			return false
+		}
+		if reason == "" || strings.TrimSpace(reason) != reason {
+			return false
+		}
+		if i > 0 && row.MissingEvidence[i-1] >= reason {
+			return false
+		}
+	}
+	return true
+}
+
+func rowHasServiceCatalogEvidence(row *SupplyChainImpactFindingRow) bool {
 	for _, hop := range row.EvidencePath {
 		if hop == serviceCatalogCorrelationFactKind {
 			return true
@@ -257,7 +286,7 @@ func rowHasServiceCatalogEvidence(row SupplyChainImpactFindingRow) bool {
 	return false
 }
 
-func rowHasResolvedServiceCatalogAnchor(row SupplyChainImpactFindingRow) bool {
+func rowHasResolvedServiceCatalogAnchor(row *SupplyChainImpactFindingRow) bool {
 	if len(row.ServiceIDs) > 0 {
 		return true
 	}

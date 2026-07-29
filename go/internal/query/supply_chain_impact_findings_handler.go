@@ -181,8 +181,8 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 		attribute.Int("eshu.query.runtime_context_workloads", resolvedWorkloadCount),
 	)
 	results := make([]SupplyChainImpactFindingResult, 0, len(rows))
-	for _, row := range rows {
-		results = append(results, buildSupplyChainImpactFindingResult(row))
+	for i := range rows {
+		results = append(results, buildSupplyChainImpactFindingResult(&rows[i]))
 	}
 	scope := SupplyChainImpactTargetScope{
 		CVEID:         filter.CVEID,

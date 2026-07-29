@@ -70,7 +70,7 @@ type supplyChainVersionResolutionCandidate struct {
 // rather than guessing.
 func supplyChainVersionResolutionClaim(
 	tier truth.DeploymentTruthTier,
-	row SupplyChainImpactFindingRow,
+	row *SupplyChainImpactFindingRow,
 ) (value string, evidenceKind string, axis supplyChainVersionResolutionAxis) {
 	switch tier {
 	case truth.TierRuntimeConfirmed:
@@ -163,7 +163,7 @@ func supplyChainVersionResolutionClaim(
 // appears as corroboration (with a disagrees Agreement, since it shares the
 // digest axis with the finding's own identity) -- it is only barred from
 // being the winner.
-func supplyChainCIDeclaredDigestContradictsFinding(row SupplyChainImpactFindingRow) bool {
+func supplyChainCIDeclaredDigestContradictsFinding(row *SupplyChainImpactFindingRow) bool {
 	return row.SubjectDigest != "" &&
 		row.CIDeclaredArtifactDigest != "" &&
 		row.CIDeclaredArtifactDigest != row.SubjectDigest
@@ -215,24 +215,28 @@ func supplyChainVersionResolutionAgreement(
 // deployment_truth_tier. A finding with no eligible version/digest evidence
 // at all -- not even a config-materialized one -- returns ("", nil).
 func supplyChainVersionResolution(
-	row SupplyChainImpactFindingRow,
+	row *SupplyChainImpactFindingRow,
 ) (tier string, corroboration []SupplyChainVersionResolutionCorroboration) {
 	ciContradicts := supplyChainCIDeclaredDigestContradictsFinding(row)
 
 	// truth.AllDeploymentTruthTiers has exactly four members; the candidate
-	// set can never exceed that, so preallocate rather than grow by append
-	// on this per-row read path (review finding R7).
-	candidates := make([]supplyChainVersionResolutionCandidate, 0, 4)
+	// set can never exceed that. Keep the bounded working set on the stack
+	// rather than allocating or copying the large finding row on this
+	// per-row read path.
+	var candidateStorage [4]supplyChainVersionResolutionCandidate
+	candidateCount := 0
 	for _, t := range truth.AllDeploymentTruthTiers() {
 		value, kind, axis := supplyChainVersionResolutionClaim(t, row)
 		if value == "" {
 			continue
 		}
 		ineligible := t == truth.TierProvenanceCIDeclared && ciContradicts
-		candidates = append(candidates, supplyChainVersionResolutionCandidate{
+		candidateStorage[candidateCount] = supplyChainVersionResolutionCandidate{
 			tier: t, value: value, kind: kind, axis: axis, ineligible: ineligible,
-		})
+		}
+		candidateCount++
 	}
+	candidates := candidateStorage[:candidateCount]
 	if len(candidates) == 0 {
 		return "", nil
 	}
@@ -273,11 +277,16 @@ func supplyChainVersionResolutionCorroborationEntries(
 	candidates []supplyChainVersionResolutionCandidate,
 	winnerIndex int,
 ) []SupplyChainVersionResolutionCorroboration {
+	entryCount := len(candidates)
 	var winner supplyChainVersionResolutionCandidate
 	if winnerIndex != -1 {
+		entryCount--
 		winner = candidates[winnerIndex]
 	}
-	entries := make([]SupplyChainVersionResolutionCorroboration, 0, len(candidates))
+	if entryCount == 0 {
+		return nil
+	}
+	entries := make([]SupplyChainVersionResolutionCorroboration, 0, entryCount)
 	for i, c := range candidates {
 		if i == winnerIndex {
 			continue

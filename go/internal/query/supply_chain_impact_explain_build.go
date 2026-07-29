@@ -266,7 +266,7 @@ func explanationMissingEvidence(
 	dependencyChain *SupplyChainImpactDependencyChain,
 	anchors SupplyChainImpactExplanationAnchors,
 ) []string {
-	missing := normalizedSupplyChainImpactMissingEvidence(finding)
+	missing := normalizedSupplyChainImpactMissingEvidence(&finding)
 	missing = append(missing, readiness.MissingEvidence...)
 	if advisory.VulnerableRange == "" {
 		missing = append(missing, "vulnerable_range")
