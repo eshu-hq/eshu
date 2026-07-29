@@ -67,7 +67,7 @@ func decodeVulnerabilitySuppression(envelope facts.Envelope) (vulnerabilitySuppr
 	if field := vulnerabilitySuppressionSourceJustificationInvalidField(value.Source, value.Justification); field != "" {
 		return vulnerabilitySuppression{}, invalidVulnerabilitySuppressionField(field)
 	}
-	if vulnerabilitySuppressionTypedScopeEmpty(value.Scope) {
+	if !vulnerabilitySuppressionTypedScopeHasDiscoverableAnchor(value.Scope) {
 		return vulnerabilitySuppression{}, invalidVulnerabilitySuppressionField("scope")
 	}
 	authoredAt, authoredPresent, authoredValid := parseSuppressionTime(value.AuthoredAt)
@@ -173,19 +173,13 @@ func cleanSuppressionStrings(values []string) []string {
 	return cleaned
 }
 
-func vulnerabilitySuppressionTypedScopeEmpty(value vulnerabilitysuppressionv1.Scope) bool {
-	if optionalSuppressionString(value.CVEID) != "" ||
+func vulnerabilitySuppressionTypedScopeHasDiscoverableAnchor(value vulnerabilitysuppressionv1.Scope) bool {
+	return optionalSuppressionString(value.CVEID) != "" ||
 		optionalSuppressionString(value.AdvisoryID) != "" ||
 		optionalSuppressionString(value.PackageID) != "" ||
 		optionalSuppressionString(value.PURL) != "" ||
 		optionalSuppressionString(value.RepositoryID) != "" ||
-		optionalSuppressionString(value.SubjectDigest) != "" ||
-		environment.Canonical(optionalSuppressionString(value.Environment)) != "" ||
-		optionalSuppressionString(value.WorkloadID) != "" ||
-		optionalSuppressionString(value.ServiceID) != "" {
-		return false
-	}
-	return true
+		optionalSuppressionString(value.SubjectDigest) != ""
 }
 
 // parseSuppressionTime parses an RFC3339 timestamp from a fact payload and

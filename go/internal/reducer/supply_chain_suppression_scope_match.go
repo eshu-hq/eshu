@@ -7,12 +7,12 @@ import "strings"
 
 // suppressionAdjacent reports whether a suppression names at least one anchor
 // the finding also has, so we can tell "could this suppression apply to this
-// finding's identity at all?" from "applies but scope did not line up." An
-// empty scope is still treated as adjacent so the suppression is preserved on
-// every finding decision for audit, but suppressionScopeMatchesFinding
-// rejects empty scope so it never silently hides a finding.
+// finding's identity at all?" from "applies but scope did not line up." A
+// scope without a discoverable identity anchor is treated as adjacent so the
+// invalid suppression is preserved for audit, but
+// suppressionScopeMatchesFinding rejects it so it never hides a finding.
 func suppressionAdjacent(finding SupplyChainImpactFinding, s vulnerabilitySuppression) bool {
-	if suppressionScopeIsEmpty(s.Scope) {
+	if !suppressionScopeHasDiscoverableAnchor(s.Scope) {
 		return true
 	}
 	if s.Scope.CVEID != "" && strings.EqualFold(s.Scope.CVEID, finding.CVEID) {
@@ -53,7 +53,7 @@ func suppressionAdjacent(finding SupplyChainImpactFinding, s vulnerabilitySuppre
 // audit). Evidence path entries must all appear in the finding's evidence
 // path.
 func suppressionScopeMatchesFinding(finding SupplyChainImpactFinding, s vulnerabilitySuppression) bool {
-	if suppressionScopeIsEmpty(s.Scope) {
+	if !suppressionScopeHasDiscoverableAnchor(s.Scope) {
 		return false
 	}
 	if !scopeAnchorMatches(s.Scope.CVEID, finding.CVEID) {
@@ -74,31 +74,21 @@ func suppressionScopeMatchesFinding(finding SupplyChainImpactFinding, s vulnerab
 	if !scopeAnchorMatches(s.Scope.SubjectDigest, finding.SubjectDigest) {
 		return false
 	}
-	// #5466 round-7 review P1-A (codex): Environment, WorkloadID, and
-	// ServiceID are flattened onto the finding as three INDEPENDENTLY
-	// matched, uncorrelated evidence lists (applySupplyChainRuntimeContext,
-	// supply_chain_impact_runtime.go, matches supplyChainDeploymentContext/
-	// supplyChainWorkloadContext/supplyChainServiceContext each against the
-	// finding's repository/digest/image-ref -- none of those three structs
-	// share a field with each other beyond repository_id; see
-	// supply_chain_impact_index.go). So a finding whose evidence aggregates
-	// TWO deployments, say (stage, workload-a) and (prod, workload-b), has
-	// Environments=[prod,stage] and WorkloadIDs=[workload-a,workload-b] with
-	// no record of which environment paired with which workload. Checking
-	// each anchor independently against its own list (scopeListAnchorMatches
-	// below) would let a scope of environment=stage + workload_id=workload-b
-	// match, even though that exact combination never occurred in any real
-	// deployment -- the fail-closed rule exists precisely to prevent this
-	// kind of over-suppression. When the scope names two or more of these
-	// three dimensions, suppressionDeploymentContextUnambiguous requires the
-	// finding to have AT MOST ONE distinct value in every dimension the
-	// scope references, so the independent per-list checks below are
-	// equivalent to verifying a single, unambiguous deployment context
-	// satisfies the whole combination. A finding with two or more distinct
-	// values in any referenced dimension cannot be verified this way and
-	// fails closed to no-match (same "ambiguity resolves to visible"
-	// direction as the empty-list case). A scope naming zero or one of these
-	// three dimensions has no combination to verify and is unaffected.
+	// #5466 round-7 review P1-A, tightened by round-8 review F-2:
+	// Environment, WorkloadID, and ServiceID are flattened onto the finding
+	// as evidence lists built by applySupplyChainRuntimeContext
+	// (supply_chain_impact_runtime.go). Environment has NO shared join key
+	// to WorkloadID/ServiceID at all (a separate fact source,
+	// reducer_ci_cd_run_correlation, correlated only by repository_id), so a
+	// scope combining Environment with either one can only be verified when
+	// suppressionDeploymentContextUnambiguous's cardinality-1 fallback
+	// applies (see that function's doc). WorkloadID and ServiceID DO share a
+	// genuine join: supplyChainServiceContext (supply_chain_impact_index.go)
+	// carries both together from the SAME reducer_service_catalog_
+	// correlation record, and applySupplyChainRuntimeContext preserves that
+	// exact pairing in finding.ServiceWorkloadPairs -- so a scope naming
+	// BOTH is verified against a real pair instead of the (unsound, see
+	// suppressionServiceWorkloadPairMatches) cardinality heuristic.
 	if !suppressionDeploymentContextUnambiguous(finding, s.Scope) {
 		return false
 	}
@@ -126,47 +116,103 @@ func suppressionScopeMatchesFinding(finding SupplyChainImpactFinding, s vulnerab
 
 // suppressionDeploymentContextUnambiguous reports whether the finding's
 // deployment evidence is precise enough to verify a scope naming two or more
-// of {Environment, WorkloadID, ServiceID} against a SINGLE deployment
-// context (#5466 round-7 review P1-A). These three dimensions are populated
-// on the finding from three independently matched fact sources with no
-// shared join key besides repository_id (see the call site's comment for
-// the full trace), so this reducer has no evidence of which environment
-// paired with which workload/service when a finding aggregates more than
-// one deployment. When the scope references two or more of the three
-// dimensions, this returns true only if EVERY referenced dimension has at
-// most one distinct value on the finding: with at most one candidate value
-// per referenced dimension there is only one possible combination, so the
-// independent per-dimension checks are equivalent to checking that single
-// combination. A dimension with two or more distinct values makes the
-// combination unverifiable and this returns false (fail closed -- the
-// suppression does not apply, the finding stays visible). A scope
-// referencing zero or one of the three dimensions always returns true: with
-// nothing to combine there is no cross-dimension ambiguity to guard
-// against, and behavior is unchanged from before this guard existed.
+// of {Environment, WorkloadID, ServiceID} against a SINGLE real deployment
+// (#5466 round-7 review P1-A, tightened by round-8 review F-2).
+//
+// The two remaining dimension-pairs are verified by GENUINELY DIFFERENT
+// mechanisms, because only one of them has real correlating evidence:
+//
+//   - WorkloadID+ServiceID: supplyChainServiceContext (supply_chain_impact_
+//     index.go) carries serviceID and workloadID together on the SAME row --
+//     both fields come from the SAME reducer_service_catalog_correlation
+//     fact. That is real correlation, so when the scope references BOTH,
+//     this delegates to suppressionServiceWorkloadPairMatches, which checks
+//     finding.ServiceWorkloadPairs for a genuine co-occurrence instead of
+//     the cardinality heuristic below (see that function's doc for why the
+//     heuristic is unsound for this pair specifically).
+//   - Environment+either: Environment is populated from a DIFFERENT fact
+//     kind entirely (reducer_ci_cd_run_correlation via
+//     supplyChainDeploymentContext), correlated to the finding only by
+//     repository_id -- there is no row anywhere that carries Environment
+//     alongside WorkloadID or ServiceID, so it cannot be tupled with either
+//     the way WorkloadID and ServiceID can be tupled with each other. A
+//     scope combining Environment with one of them (or naming Environment
+//     plus one of the other two when both were NOT referenced) falls back
+//     to the cardinality-1 guard below: it returns true only if EVERY
+//     referenced dimension in that fallback has at most one distinct value
+//     on the finding -- with at most one candidate value per referenced
+//     dimension there is only one possible combination, so independent
+//     per-dimension checks are equivalent to checking that single
+//     combination.
+//
+// A scope referencing zero or one of the three dimensions always returns
+// true: nothing to combine, no ambiguity.
 func suppressionDeploymentContextUnambiguous(finding SupplyChainImpactFinding, scope vulnerabilitySuppressionScope) bool {
+	env := strings.TrimSpace(scope.Environment) != ""
+	workload := strings.TrimSpace(scope.WorkloadID) != ""
+	service := strings.TrimSpace(scope.ServiceID) != ""
+	if workload && service {
+		if !suppressionServiceWorkloadPairMatches(finding, scope) {
+			return false
+		}
+		if !env {
+			return true
+		}
+		return distinctNonEmptyValueCount(finding.Environments) <= 1
+	}
 	referenced := 0
-	if strings.TrimSpace(scope.Environment) != "" {
+	if env {
 		referenced++
 	}
-	if strings.TrimSpace(scope.WorkloadID) != "" {
+	if workload {
 		referenced++
 	}
-	if strings.TrimSpace(scope.ServiceID) != "" {
+	if service {
 		referenced++
 	}
 	if referenced < 2 {
 		return true
 	}
-	if strings.TrimSpace(scope.Environment) != "" && distinctNonEmptyValueCount(finding.Environments) > 1 {
+	if env && distinctNonEmptyValueCount(finding.Environments) > 1 {
 		return false
 	}
-	if strings.TrimSpace(scope.WorkloadID) != "" && distinctNonEmptyValueCount(finding.WorkloadIDs) > 1 {
+	if workload && distinctNonEmptyValueCount(finding.WorkloadIDs) > 1 {
 		return false
 	}
-	if strings.TrimSpace(scope.ServiceID) != "" && distinctNonEmptyValueCount(finding.ServiceIDs) > 1 {
+	if service && distinctNonEmptyValueCount(finding.ServiceIDs) > 1 {
 		return false
 	}
 	return true
+}
+
+// suppressionServiceWorkloadPairMatches reports whether finding has at least
+// one ServiceWorkloadPairs entry whose ServiceID and WorkloadID both
+// case-insensitively equal scope's (#5466 round-8 review F-2). This is NOT
+// equivalent to two independent scopeListAnchorMatches calls against
+// finding.ServiceIDs/WorkloadIDs: those lists are flattened from multiple
+// sources, and WorkloadIDs in particular mixes reducer_service_catalog_
+// correlation's genuinely-paired workload IDs with reducer_workload_
+// identity's workload IDs, which have no known service at all. A service
+// record that resolved ServiceID="service-x" but not its WorkloadID
+// (dropped as empty by uniqueSortedStrings), plus an UNRELATED workload
+// record contributing "workload-b", would each independently satisfy
+// scopeListAnchorMatches for service_id=service-x and workload_id=
+// workload-b even though that combination never occurred anywhere -- the
+// exact over-suppression the round-7 P1-A guard could not close, because
+// its cardinality check saw both lists at cardinality 1 and declared them
+// unambiguous. An empty finding.ServiceWorkloadPairs (no service-catalog
+// evidence at all) fails closed to no-match, same "ambiguity resolves to
+// visible" direction as every other #5466 fail-closed check.
+func suppressionServiceWorkloadPairMatches(finding SupplyChainImpactFinding, scope vulnerabilitySuppressionScope) bool {
+	scopedService := strings.TrimSpace(scope.ServiceID)
+	scopedWorkload := strings.TrimSpace(scope.WorkloadID)
+	for _, pair := range finding.ServiceWorkloadPairs {
+		if strings.EqualFold(strings.TrimSpace(pair.ServiceID), scopedService) &&
+			strings.EqualFold(strings.TrimSpace(pair.WorkloadID), scopedWorkload) {
+			return true
+		}
+	}
+	return false
 }
 
 // distinctNonEmptyValueCount counts the distinct trimmed, non-empty values
@@ -238,15 +284,15 @@ func evidencePathContainsAll(observed []string, required []string) bool {
 	return true
 }
 
-func suppressionScopeIsEmpty(scope vulnerabilitySuppressionScope) bool {
-	return strings.TrimSpace(scope.CVEID) == "" &&
-		strings.TrimSpace(scope.AdvisoryID) == "" &&
-		strings.TrimSpace(scope.PackageID) == "" &&
-		strings.TrimSpace(scope.PURL) == "" &&
-		strings.TrimSpace(scope.RepositoryID) == "" &&
-		strings.TrimSpace(scope.SubjectDigest) == "" &&
-		strings.TrimSpace(scope.Environment) == "" &&
-		strings.TrimSpace(scope.WorkloadID) == "" &&
-		strings.TrimSpace(scope.ServiceID) == "" &&
-		len(scope.EvidencePath) == 0
+// suppressionScopeHasDiscoverableAnchor reports whether storage can discover
+// the suppression from a finding identity. Deployment context and evidence
+// path are narrowing-only: accepting any of them as a sole anchor would turn
+// an environment, workload, or service into a cross-vulnerability wildcard.
+func suppressionScopeHasDiscoverableAnchor(scope vulnerabilitySuppressionScope) bool {
+	return strings.TrimSpace(scope.CVEID) != "" ||
+		strings.TrimSpace(scope.AdvisoryID) != "" ||
+		strings.TrimSpace(scope.PackageID) != "" ||
+		strings.TrimSpace(scope.PURL) != "" ||
+		strings.TrimSpace(scope.RepositoryID) != "" ||
+		strings.TrimSpace(scope.SubjectDigest) != ""
 }

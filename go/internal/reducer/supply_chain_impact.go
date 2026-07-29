@@ -45,7 +45,7 @@ type SupplyChainImpactFactFilter struct {
 	PURLs      []string
 	CVEIDs     []string
 	// AdvisoryIDs binds both #5465's exact-match predicate ($4) and #5466
-	// F-10's normalized suppression-scope predicate ($21) -- one field, two
+	// F-10's normalized suppression-scope predicate ($18) -- one field, two
 	// predicates. F-10 exists because supplyChainCVEID prefers cve_id over
 	// advisory_id (firstNonBlank), leaving an advisory_id-only suppression
 	// unreachable without it (affected_product does NOT carry advisory_id
@@ -58,20 +58,6 @@ type SupplyChainImpactFactFilter struct {
 	RepositoryIDs     []string
 	FileRepositoryIDs []string
 	ImageRefs         []string
-	// Environments, WorkloadIDs, and ServiceIDs (#5466) let the active-evidence
-	// query select a vulnerability.suppression fact scoped ONLY by
-	// environment/workload_id/service_id -- no cve_id/advisory_id/package_id/
-	// purl/subject_digest/repository_id at all. Populated in
-	// supplyChainImpactFilter from already-loaded deployment evidence
-	// (reducer_ci_cd_run_correlation's environment,
-	// reducer_workload_identity's workload IDs,
-	// reducer_service_catalog_correlation's service_id/workload_id), the same
-	// way RepositoryIDs is populated from repository-bearing facts. Without
-	// these, a suppression naming only these anchors could never be loaded by
-	// FactStore.ListActiveSupplyChainImpactFacts in production.
-	Environments []string
-	WorkloadIDs  []string
-	ServiceIDs   []string
 }
 
 // SupplyChainImpactFinding is one reducer-owned vulnerability impact finding.
@@ -127,9 +113,13 @@ type SupplyChainImpactFinding struct {
 	ImageRef              string
 	DependencyScope       string
 	WorkloadIDs           []string
-	DeploymentIDs         []string
-	ServiceIDs            []string
-	Environments          []string
+	// ServiceWorkloadPairs is genuine (ServiceID, WorkloadID) co-occurrence
+	// for tuple-aware suppression matching (#5466 F-2); see
+	// supply_chain_impact_runtime.go and supply_chain_suppression_scope_match.go.
+	ServiceWorkloadPairs []SupplyChainServiceWorkloadPair
+	DeploymentIDs        []string
+	ServiceIDs           []string
+	Environments         []string
 	// EnvironmentEvidence records, per environment name in Environments,
 	// whether the strongest deployment evidence observed for that
 	// environment was "deploy_event" (a ci.deployment_event observed at the

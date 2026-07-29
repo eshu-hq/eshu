@@ -25,7 +25,7 @@ func benchmarkSuppressionSet(withDeploymentScope bool) []vulnerabilitySuppressio
 		scope := vulnerabilitySuppressionScope{
 			CVEID:         fmt.Sprintf("CVE-2026-%05d", i),
 			PackageID:     "pkg:npm/bench-package",
-			RepositoryID:  "repo://acme/bench",
+			RepositoryID:  "repo://example/bench",
 			SubjectDigest: fmt.Sprintf("sha256:bench-digest-%d", i),
 		}
 		if withDeploymentScope {
@@ -46,7 +46,7 @@ func benchmarkSuppressionSet(withDeploymentScope bool) []vulnerabilitySuppressio
 	scope := vulnerabilitySuppressionScope{
 		CVEID:         "CVE-2026-00000",
 		PackageID:     "pkg:npm/bench-package",
-		RepositoryID:  "repo://acme/bench",
+		RepositoryID:  "repo://example/bench",
 		SubjectDigest: "sha256:bench-digest-0",
 	}
 	if withDeploymentScope {
@@ -73,7 +73,7 @@ func BenchmarkEvaluateSupplyChainSuppression_LegacyScopeOnly(b *testing.B) {
 	finding := SupplyChainImpactFinding{
 		CVEID:         "CVE-2026-00000",
 		PackageID:     "pkg:npm/bench-package",
-		RepositoryID:  "repo://acme/bench",
+		RepositoryID:  "repo://example/bench",
 		SubjectDigest: "sha256:bench-digest-0",
 	}
 	suppressions := benchmarkSuppressionSet(false)
@@ -95,7 +95,7 @@ func BenchmarkEvaluateSupplyChainSuppression_WithEnvironmentWorkloadServiceScope
 	finding := SupplyChainImpactFinding{
 		CVEID:         "CVE-2026-00000",
 		PackageID:     "pkg:npm/bench-package",
-		RepositoryID:  "repo://acme/bench",
+		RepositoryID:  "repo://example/bench",
 		SubjectDigest: "sha256:bench-digest-0",
 		Environments:  []string{"stage"},
 		WorkloadIDs:   []string{"workload-0"},

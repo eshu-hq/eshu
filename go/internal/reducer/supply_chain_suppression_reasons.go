@@ -35,9 +35,9 @@ func suppressionReasonOrDefault(s vulnerabilitySuppression, state SupplyChainSup
 }
 
 func suppressionScopeMismatchReason(finding SupplyChainImpactFinding, s vulnerabilitySuppression) string {
-	if suppressionScopeIsEmpty(s.Scope) {
+	if !suppressionScopeHasDiscoverableAnchor(s.Scope) {
 		return fmt.Sprintf(
-			"suppression %s scope mismatch: empty scope; an applied scope MUST specify at least one of cve_id, advisory_id, package_id, purl, repository_id, subject_digest, evidence_path, environment, workload_id, or service_id so a malformed fact cannot hide every finding",
+			"suppression %s scope mismatch: no discoverable identity anchor; an applied scope MUST specify at least one of cve_id, advisory_id, package_id, purl, repository_id, or subject_digest; evidence_path, environment, workload_id, and service_id only narrow that identity",
 			s.SuppressionID,
 		)
 	}
@@ -104,18 +104,32 @@ func suppressionAmbiguousCombinationDiff(finding SupplyChainImpactFinding, scope
 	if suppressionDeploymentContextUnambiguous(finding, scope) {
 		return ""
 	}
+	workload := strings.TrimSpace(scope.WorkloadID) != ""
+	service := strings.TrimSpace(scope.ServiceID) != ""
 	var ambiguous []string
+	// WorkloadID+ServiceID: real pairing evidence exists (#5466 round-8
+	// review F-2), so a failure here means no ServiceWorkloadPairs entry
+	// matched BOTH -- not a per-list cardinality problem, which is why this
+	// branch reports differently than the environment/single-dimension
+	// cases below.
+	if workload && service {
+		ambiguous = append(ambiguous, fmt.Sprintf(
+			"workload_id+service_id (no verified co-occurrence in finding evidence: pairs=%v)",
+			finding.ServiceWorkloadPairs,
+		))
+	} else {
+		if workload && distinctNonEmptyValueCount(finding.WorkloadIDs) > 1 {
+			ambiguous = append(ambiguous, fmt.Sprintf("workload_id (finding evidence: %v)", finding.WorkloadIDs))
+		}
+		if service && distinctNonEmptyValueCount(finding.ServiceIDs) > 1 {
+			ambiguous = append(ambiguous, fmt.Sprintf("service_id (finding evidence: %v)", finding.ServiceIDs))
+		}
+	}
 	if strings.TrimSpace(scope.Environment) != "" && distinctNonEmptyValueCount(finding.Environments) > 1 {
 		ambiguous = append(ambiguous, fmt.Sprintf("environment (finding evidence: %v)", finding.Environments))
 	}
-	if strings.TrimSpace(scope.WorkloadID) != "" && distinctNonEmptyValueCount(finding.WorkloadIDs) > 1 {
-		ambiguous = append(ambiguous, fmt.Sprintf("workload_id (finding evidence: %v)", finding.WorkloadIDs))
-	}
-	if strings.TrimSpace(scope.ServiceID) != "" && distinctNonEmptyValueCount(finding.ServiceIDs) > 1 {
-		ambiguous = append(ambiguous, fmt.Sprintf("service_id (finding evidence: %v)", finding.ServiceIDs))
-	}
 	return fmt.Sprintf(
-		"multi-anchor combination unverifiable, not necessarily a value mismatch: the finding aggregates multiple deployments with more than one distinct value in %s, so this scope cannot be checked against a single deployment context and fails closed (#5466 round-7 review P1-A)",
+		"multi-anchor combination unverifiable, not necessarily a value mismatch: %s, so this scope cannot be verified against a single real deployment and fails closed (#5466 round-7 review P1-A, round-8 review F-2)",
 		strings.Join(ambiguous, ", "),
 	)
 }

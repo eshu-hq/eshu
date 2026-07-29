@@ -153,3 +153,41 @@ func TestBuildVulnerabilitySuppressionsQuarantinesEvidencePathWithoutIdentityAnc
 		t.Fatalf("quarantined = %#v, want invalid scope", quarantined)
 	}
 }
+
+func TestBuildVulnerabilitySuppressionsQuarantinesDeploymentContextWithoutIdentityAnchor(t *testing.T) {
+	t.Parallel()
+
+	for _, scope := range []map[string]any{
+		{"environment": "prod"},
+		{"workload_id": "workload:example-api"},
+		{"service_id": "service:example-api"},
+		{
+			"environment": "prod",
+			"workload_id": "workload:example-api",
+			"service_id":  "service:example-api",
+		},
+	} {
+		malformed := vulnerabilitySuppressionFactEnvelope(
+			"suppression-deployment-only",
+			facts.VulnerabilitySuppressionSourcePolicy,
+			facts.VulnerabilitySuppressionJustificationAcceptedRisk,
+			"shared_token",
+			"2026-07-27T12:00:00Z",
+			"",
+			scope,
+		)
+
+		suppressions, quarantined, err := BuildVulnerabilitySuppressions([]facts.Envelope{malformed})
+		if err != nil {
+			t.Fatalf("BuildVulnerabilitySuppressions() error = %v, want nil", err)
+		}
+		if len(suppressions) != 0 {
+			t.Fatalf("scope %#v: suppressions = %#v, want none", scope, suppressions)
+		}
+		if len(quarantined) != 1 ||
+			quarantined[0].factID != "suppression-deployment-only" ||
+			quarantined[0].field != "scope" {
+			t.Fatalf("scope %#v: quarantined = %#v, want invalid scope", scope, quarantined)
+		}
+	}
+}
