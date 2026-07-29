@@ -62,7 +62,7 @@ no graph query.
   `config_only` for a vulnerability that is actually running is worse than an
   explicit failed read. A nil or unsupported resolver still degrades cleanly to
   CI/config tiers because no runtime lookup can be made.
-- **Terminal counts (B-7 live golden gate, 29-repository synthetic corpus):**
+- **Terminal counts (B-7 live golden gate, synthetic corpus):**
   the current, authorized owner-ledger lookup resolves the finding's subject
   digest
   `sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab`
