@@ -39,7 +39,10 @@ func evaluateOSPackageVersionMatch(
 		if !valid {
 			return malformedVersionDecision()
 		}
-		if cmp >= 0 {
+		if cmp == 0 {
+			return knownFixedDecision(knownFixedReason)
+		}
+		if cmp > 0 {
 			return knownFixedDecision(rangeKnownFixedReason)
 		}
 	}

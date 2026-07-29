@@ -2039,11 +2039,29 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   covers range-only manifests, SBOM/CPE-derived image paths without an
   exact version, malformed advisory ranges, and missing observed versions.
   Unsupported matcher ecosystems are not finding rows and are reported by
-  readiness instead. PyPI exact lockfile matches qualify as precise only after
-  the PEP 440 matcher proves the advisory range or known-fixed boundary. The
+  readiness instead. Vendor-backed RPM, Debian/dpkg, and Alpine/APK findings
+  qualify as precise when an exact affected-version or exact known-fixed
+  boundary matches; OS-package range reasons remain comprehensive. PyPI exact
+  lockfile matches qualify as precise only after the PEP 440 matcher proves the
+  advisory range or known-fixed boundary. The
   tier is persisted alongside the truth
   labels (status, confidence, runtime_reachability) and missing-evidence
   reasons; readers (API, MCP, parity gate) decide which tier they want.
+
+  No-Regression Evidence (#5735): `go test ./internal/reducer -run
+  '^(TestSupplyChainImpactExactOSPackageReasonsQualifyForPreciseProfile|TestGoldenCassetteDebianOSPackageChainSynthesizesFinding|TestBuildSupplyChainImpactFindingsUsesCollectorShapedOSVDebianAndAPKRanges)$'
+  -count=1` proves exact affected-version and exact known-fixed DPKG/APK
+  decisions are precise. The golden cassette's exact DPKG affected-version
+  decision is precise, while the collector-shaped OSV matrix keeps DPKG/APK
+  range decisions comprehensive. On Go 1.26.5, darwin/arm64, the before/after
+  `BenchmarkEvaluateOSPackageVersionMatchAndClassify` comparison remained
+  allocation-free and within 2.1% on both measured paths (exact affected:
+  415.9 ns to 421.9 ns; exact known-fixed: 273.6 ns to 279.4 ns), below the
+  reducer's 10% no-material-regression band.
+  No-Observability-Change: this changes only the in-memory evidence-tier
+  classifier and exact-boundary reason emitted in the existing finding
+  payload. It adds no queue, graph write, runtime knob, metric instrument,
+  metric label, span, or log field.
 - **OS package evidence is vendor-gated** — `vulnerability.os_package`
   rows from RPM-family, Debian dpkg, and Alpine apk snapshots can seed
   supply-chain impact only when the row is vendor-class, carries distro and

@@ -76,14 +76,11 @@ func TestGoldenCassetteDebianOSPackageChainSynthesizesFinding(t *testing.T) {
 	if got.RuntimeReachability != "image_os_package" {
 		t.Fatalf("RuntimeReachability = %q, want image_os_package", got.RuntimeReachability)
 	}
-	// DPKG-matched findings classify as DetectionProfileComprehensive, not
-	// precise: classifySupplyChainImpactDetectionProfile
-	// (supply_chain_impact_profile.go) only grants
-	// DetectionProfilePrecise to a fixed set of MatchReason values that does
-	// not include the dpkg affected-range reason (only RPM's exact-affected
-	// reason is precise among the OS-package matchers).
-	if got.DetectionProfile != DetectionProfileComprehensive {
-		t.Fatalf("DetectionProfile = %q, want comprehensive (dpkg matches are not in the precise reason set)", got.DetectionProfile)
+	if got.MatchReason != supplyChainVersionReasonDPKGExactAffected {
+		t.Fatalf("MatchReason = %q, want exact DPKG affected-version evidence", got.MatchReason)
+	}
+	if got.DetectionProfile != DetectionProfilePrecise {
+		t.Fatalf("DetectionProfile = %q, want precise for exact DPKG affected-version evidence", got.DetectionProfile)
 	}
 	if got.SubjectDigest != "" {
 		t.Fatalf("SubjectDigest = %q, want empty: this cassette scope carries no "+

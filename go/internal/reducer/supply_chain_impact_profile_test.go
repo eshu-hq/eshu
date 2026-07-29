@@ -10,6 +10,92 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
+var benchmarkDetectionProfile DetectionProfile
+
+func BenchmarkClassifySupplyChainImpactDetectionProfile(b *testing.B) {
+	tests := []struct {
+		name    string
+		finding SupplyChainImpactFinding
+	}{
+		{
+			name: "rpm exact affected",
+			finding: SupplyChainImpactFinding{
+				Status:          SupplyChainImpactAffectedExact,
+				ObservedVersion: "1.2.3",
+				MatchReason:     supplyChainVersionReasonRPMExactAffected,
+			},
+		},
+		{
+			name: "dpkg exact affected",
+			finding: SupplyChainImpactFinding{
+				Status:          SupplyChainImpactAffectedExact,
+				ObservedVersion: "1.2.3",
+				MatchReason:     supplyChainVersionReasonDPKGExactAffected,
+			},
+		},
+	}
+	for _, test := range tests {
+		b.Run(test.name, func(b *testing.B) {
+			b.ReportAllocs()
+			var got DetectionProfile
+			for b.Loop() {
+				got = classifySupplyChainImpactDetectionProfile(test.finding)
+			}
+			benchmarkDetectionProfile = got
+		})
+	}
+}
+
+func BenchmarkEvaluateOSPackageVersionMatchAndClassify(b *testing.B) {
+	tests := []struct {
+		name         string
+		observed     string
+		fixedVersion string
+		packages     []supplyChainAffectedPackage
+		compare      versionCompareFunc
+	}{
+		{
+			name:         "dpkg exact affected",
+			observed:     "3.0.11-1~deb12u2",
+			fixedVersion: "3.0.11-1~deb12u3",
+			packages: []supplyChainAffectedPackage{{
+				affectedVersions: []string{"3.0.11-1~deb12u2"},
+			}},
+			compare: compareDPKGVersion,
+		},
+		{
+			name:         "dpkg exact known fixed",
+			observed:     "3.0.11-1~deb12u3",
+			fixedVersion: "3.0.11-1~deb12u3",
+			compare:      compareDPKGVersion,
+		},
+	}
+	for _, test := range tests {
+		b.Run(test.name, func(b *testing.B) {
+			b.ReportAllocs()
+			var got DetectionProfile
+			for b.Loop() {
+				decision := evaluateOSPackageVersionMatch(
+					test.observed,
+					test.fixedVersion,
+					test.packages,
+					supplyChainVersionReasonDPKGExactAffected,
+					supplyChainVersionReasonDPKGExactKnownFixed,
+					supplyChainVersionReasonDPKGAffectedRange,
+					supplyChainVersionReasonDPKGKnownFixed,
+					test.compare,
+				)
+				got = classifySupplyChainImpactDetectionProfile(SupplyChainImpactFinding{
+					Status:          decision.Status,
+					ObservedVersion: test.observed,
+					MatchReason:     decision.Reason,
+				})
+			}
+			benchmarkDetectionProfile = got
+		})
+	}
+}
+
 func TestSupplyChainImpactExactLockfileQualifiesForPreciseProfile(t *testing.T) {
 	t.Parallel()
 
@@ -137,6 +223,111 @@ func TestSupplyChainImpactKnownFixedQualifiesForPreciseProfile(t *testing.T) {
 	assertSupplyChainImpactStatus(t, got, SupplyChainImpactNotAffectedKnownFixed)
 	if got.DetectionProfile != DetectionProfilePrecise {
 		t.Fatalf("DetectionProfile = %q, want %q for known-fixed exact version anchor", got.DetectionProfile, DetectionProfilePrecise)
+	}
+}
+
+func TestSupplyChainImpactExactOSPackageReasonsQualifyForPreciseProfile(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                  string
+		observedVersion       string
+		fixedVersion          string
+		affectedVersions      []string
+		affectedReason        string
+		knownFixedReason      string
+		rangeAffectedReason   string
+		rangeKnownFixedReason string
+		compare               versionCompareFunc
+		wantStatus            SupplyChainImpactStatus
+		wantReason            string
+	}{
+		{
+			name:                  "dpkg affected",
+			observedVersion:       "3.0.11-1~deb12u2",
+			fixedVersion:          "3.0.11-1~deb12u3",
+			affectedVersions:      []string{"3.0.11-1~deb12u2"},
+			affectedReason:        supplyChainVersionReasonDPKGExactAffected,
+			knownFixedReason:      supplyChainVersionReasonDPKGExactKnownFixed,
+			rangeAffectedReason:   supplyChainVersionReasonDPKGAffectedRange,
+			rangeKnownFixedReason: supplyChainVersionReasonDPKGKnownFixed,
+			compare:               compareDPKGVersion,
+			wantStatus:            SupplyChainImpactAffectedExact,
+			wantReason:            supplyChainVersionReasonDPKGExactAffected,
+		},
+		{
+			name:                  "dpkg known fixed",
+			observedVersion:       "3.0.11-1~deb12u3",
+			fixedVersion:          "3.0.11-1~deb12u3",
+			affectedReason:        supplyChainVersionReasonDPKGExactAffected,
+			knownFixedReason:      supplyChainVersionReasonDPKGExactKnownFixed,
+			rangeAffectedReason:   supplyChainVersionReasonDPKGAffectedRange,
+			rangeKnownFixedReason: supplyChainVersionReasonDPKGKnownFixed,
+			compare:               compareDPKGVersion,
+			wantStatus:            SupplyChainImpactNotAffectedKnownFixed,
+			wantReason:            supplyChainVersionReasonDPKGExactKnownFixed,
+		},
+		{
+			name:                  "apk affected",
+			observedVersion:       "3.1.4-r5",
+			fixedVersion:          "3.1.4-r6",
+			affectedVersions:      []string{"3.1.4-r5"},
+			affectedReason:        supplyChainVersionReasonAPKExactAffected,
+			knownFixedReason:      supplyChainVersionReasonAPKExactKnownFixed,
+			rangeAffectedReason:   supplyChainVersionReasonAPKAffectedRange,
+			rangeKnownFixedReason: supplyChainVersionReasonAPKKnownFixed,
+			compare:               compareAPKVersion,
+			wantStatus:            SupplyChainImpactAffectedExact,
+			wantReason:            supplyChainVersionReasonAPKExactAffected,
+		},
+		{
+			name:                  "apk known fixed",
+			observedVersion:       "3.1.4-r6",
+			fixedVersion:          "3.1.4-r6",
+			affectedReason:        supplyChainVersionReasonAPKExactAffected,
+			knownFixedReason:      supplyChainVersionReasonAPKExactKnownFixed,
+			rangeAffectedReason:   supplyChainVersionReasonAPKAffectedRange,
+			rangeKnownFixedReason: supplyChainVersionReasonAPKKnownFixed,
+			compare:               compareAPKVersion,
+			wantStatus:            SupplyChainImpactNotAffectedKnownFixed,
+			wantReason:            supplyChainVersionReasonAPKExactKnownFixed,
+		},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			decision := evaluateOSPackageVersionMatch(
+				test.observedVersion,
+				test.fixedVersion,
+				[]supplyChainAffectedPackage{{affectedVersions: test.affectedVersions}},
+				test.affectedReason,
+				test.knownFixedReason,
+				test.rangeAffectedReason,
+				test.rangeKnownFixedReason,
+				test.compare,
+			)
+			if decision.Status != test.wantStatus {
+				t.Fatalf("Status = %q, want %q", decision.Status, test.wantStatus)
+			}
+			if decision.Reason != test.wantReason {
+				t.Fatalf("Reason = %q, want %q", decision.Reason, test.wantReason)
+			}
+			got := classifySupplyChainImpactDetectionProfile(SupplyChainImpactFinding{
+				Status:          decision.Status,
+				ObservedVersion: test.observedVersion,
+				MatchReason:     decision.Reason,
+			})
+			if got != DetectionProfilePrecise {
+				t.Fatalf(
+					"classifySupplyChainImpactDetectionProfile() = %q, want %q for %q",
+					got,
+					DetectionProfilePrecise,
+					decision.Reason,
+				)
+			}
+		})
 	}
 }
 
