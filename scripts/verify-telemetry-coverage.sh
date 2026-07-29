@@ -243,6 +243,81 @@ while IFS= read -r file; do
   fi
 done <"$new_stages_tmp"
 
+# (3b) Reverse of (3): every row in the stage tables must name a file (or
+# glob) that actually exists on disk. Check (3) only fires on a *new*
+# stage file with no doc row; a row whose target file was deleted or
+# renamed leaves no diff signal for (3) to catch, so a stale row passes
+# the gate forever (#5855). Restricted to rows above the
+# histogram-buckets section, whose second column is a boundary-value
+# list, not a path.
+histogram_section_line="$(rg -n '<!-- eshu:metric:section=histogram-buckets -->' "$repo_root/$doc_path" 2>/dev/null | head -1 | cut -d: -f1 || true)"
+stage_table_rows_tmp="$(mktemp)"
+trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instruments_metrics_tmp" "$new_stages_tmp" "$tmp_diff" "$all_rows_tmp" "$required_rows_tmp" "$doc_row_signals_tmp" "$doc_buckets_tmp" "$code_buckets_tmp" "$instruments_flat" "$stage_table_rows_tmp"' EXIT
+if [ -n "$histogram_section_line" ]; then
+  rg -n '^\|[[:space:]]*[^|[:space:]]' "$repo_root/$doc_path" 2>/dev/null \
+    | awk -F: -v cutoff="$histogram_section_line" '{n=$1; sub(/^[0-9]+:/, ""); if (n + 0 < cutoff + 0) print}' \
+    >"$stage_table_rows_tmp"
+else
+  cp "$all_rows_tmp" "$stage_table_rows_tmp"
+fi
+
+# trim_ws <var> — strip leading/trailing whitespace from $1 using pure
+# parameter expansion (no subprocess). Prints the trimmed value.
+trim_ws() {
+  local s="$1"
+  s="${s#"${s%%[![:space:]]*}"}"
+  s="${s%"${s##*[![:space:]]}"}"
+  printf '%s' "$s"
+}
+
+# path_target_exists <path-or-glob> — true if the token names a real file
+# under repo_root, or (for a token containing '*') at least one file
+# matches the glob. Both branches are pure bash builtins (no forked
+# process), which matters here since this runs once per doc row.
+path_target_exists() {
+  case "$1" in
+    *'*'*)
+      compgen -G "$repo_root/$1" >/dev/null 2>&1
+      ;;
+    *)
+      [ -f "$repo_root/$1" ]
+      ;;
+  esac
+}
+
+while IFS='|' read -ra cols; do
+  [ "${#cols[@]}" -ge 3 ] || continue
+  stage_name="$(trim_ws "${cols[1]}")"
+  path_cell="$(trim_ws "${cols[2]}")"
+  case "$path_cell" in
+    ''|'---'|'file:line') continue ;;
+  esac
+  # A cell may name more than one target, comma-separated (e.g.
+  # "contract.go:389-470, contract_z_observability_coverage.go:10"). A
+  # bare filename with no directory in a later part inherits the
+  # directory of the previous part in the same cell.
+  prev_dir=""
+  IFS=',' read -ra path_parts <<<"$path_cell"
+  for raw_part in "${path_parts[@]}"; do
+    part="$(trim_ws "$raw_part")"
+    [ -n "$part" ] || continue
+    token="${part%% *}"
+    if [[ "$token" =~ ^(.*):[0-9]+(-[0-9]+)?$ ]]; then
+      token="${BASH_REMATCH[1]}"
+    fi
+    [ -n "$token" ] || continue
+    case "$token" in
+      */*) prev_dir="${token%/*}" ;;
+      *) [ -n "$prev_dir" ] && token="${prev_dir}/${token}" ;;
+    esac
+    if ! path_target_exists "$token"; then
+      report="${report}  - doc row \"${stage_name}\" in ${doc_path} names ${token}, which does not exist
+"
+      drift=1
+    fi
+  done
+done <"$stage_table_rows_tmp"
+
 # (4) Histogram bucket boundary assertion.
 # Parse documented bucket sets from the X1 doc's histogram-buckets section
 # and bucket boundary definitions from instruments.go. Normalize both to
@@ -339,6 +414,7 @@ if [ "$drift" -ne 0 ]; then
     printf '  - Add the missing metric to %s, OR remove it if it is dead code\n' "$instruments_path"
     printf '  - Replace the metric column with a No-Observability-Change: marker that names\n'
     printf '    the existing signal that already covers the stage\n'
+    printf '  - Fix or remove a doc row that names a file or glob with no matching target\n'
   } >&2
   exit 1
 fi

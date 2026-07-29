@@ -348,6 +348,54 @@ git -C "${case_buckets_multiline}" add .
 git -C "${case_buckets_multiline}" commit -q -m "add multi-line bucket literal"
 expect_pass "passes when bucket set spans multiple lines in code" "${case_buckets_multiline}"
 
+# Case 15 (#5855): a doc row names a file that does not exist anywhere in
+# the repo (a stale row — e.g. left behind after the file it described was
+# deleted or renamed). The verifier must fail and name the row plus the
+# missing path; check (3) alone never catches this because it only diffs
+# *new* files against the doc, not existing rows against the filesystem.
+case_stale_target="$(init_repo case-stale-target)"
+cat >>"${case_stale_target}/docs/public/observability/telemetry-coverage.md" <<'MD'
+
+| ghost row | go/internal/reducer/deleted_stage.go:9 | `eshu_dp_queue_claim_duration_seconds` | reducer runtime |
+MD
+git -C "${case_stale_target}" add .
+git -C "${case_stale_target}" commit -q -m "add row naming a nonexistent file"
+expect_fail "fails when a doc row's file target does not exist" "${case_stale_target}"
+
+# Case 16 (#5855): the exact mutation the issue describes — an instrumented
+# file is deleted from the repo, but the doc rows that name it are left in
+# place. This is the reproduction for the issue's acceptance criterion "a
+# file deletion in an instrumented package fails the gate until its row is
+# removed, proven by mutation."
+case_deleted_file="$(init_repo case-deleted-file)"
+git -C "${case_deleted_file}" rm -q go/internal/reducer/service.go
+git -C "${case_deleted_file}" commit -q -m "delete instrumented file, leaving stale doc rows behind"
+expect_fail "fails when an instrumented file is deleted but its doc rows remain" "${case_deleted_file}"
+
+# Case 17 (#5855): a row whose second column is a glob (e.g.
+# dir/*.go — the form used pervasively in the real X1 doc for parser and
+# collector language sub-packages) must pass when the glob matches at
+# least one real file.
+case_glob_target="$(init_repo case-glob-target)"
+cat >>"${case_glob_target}/docs/public/observability/telemetry-coverage.md" <<'MD'
+
+| glob stage | go/internal/reducer/*.go | `eshu_dp_queue_claim_duration_seconds` | reducer runtime |
+MD
+git -C "${case_glob_target}" add .
+git -C "${case_glob_target}" commit -q -m "add glob-form row matching an existing file"
+expect_pass "passes when a glob-form row matches an existing file" "${case_glob_target}"
+
+# Case 18 (#5855): a row whose glob matches nothing is the glob-form
+# equivalent of a stale row and must fail the same way.
+case_glob_missing="$(init_repo case-glob-missing)"
+cat >>"${case_glob_missing}/docs/public/observability/telemetry-coverage.md" <<'MD'
+
+| ghost glob stage | go/internal/reducer/ghoststage/*.go | `eshu_dp_queue_claim_duration_seconds` | reducer runtime |
+MD
+git -C "${case_glob_missing}" add .
+git -C "${case_glob_missing}" commit -q -m "add glob-form row matching no files"
+expect_fail "fails when a glob-form row matches no files" "${case_glob_missing}"
+
 if [ "${FAIL}" -ne 0 ]; then
   printf 'verify-telemetry-coverage tests FAILED: %d/%d failed\n' "${FAIL}" "${TOTAL}" >&2
   exit 1
