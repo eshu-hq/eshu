@@ -419,6 +419,23 @@ git -C "${case_row_after_histogram}" add .
 git -C "${case_row_after_histogram}" commit -q -m "add stale stage row after the histogram-buckets section"
 expect_fail "fails when a stale row is placed after the histogram-buckets section" "${case_row_after_histogram}"
 
+# Case 20 (#5855 review follow-up): a stage-table row missing its trailing
+# metric and category columns collapses to the same 2-column shape as a
+# histogram-buckets row when split on '|'. Classifying by column count
+# alone would silently skip it (invisible to 3b as the wrong shape,
+# invisible to checks 1/2 with no eshu_dp_* metric, invisible to check 3
+# since it names no new file). It must fail loud as malformed instead of
+# vanishing — the narrower way to reach the same blind spot case 19
+# closes.
+case_malformed_row="$(init_repo case-malformed-row)"
+cat >>"${case_malformed_row}/docs/public/observability/telemetry-coverage.md" <<'MD'
+
+| malformed missing cols | go/internal/reducer/does_not_exist_malformed.go |
+MD
+git -C "${case_malformed_row}" add .
+git -C "${case_malformed_row}" commit -q -m "add row missing its trailing metric and category columns"
+expect_fail "fails when a row is missing its trailing metric/category columns" "${case_malformed_row}"
+
 if [ "${FAIL}" -ne 0 ]; then
   printf 'verify-telemetry-coverage tests FAILED: %d/%d failed\n' "${FAIL}" "${TOTAL}" >&2
   exit 1

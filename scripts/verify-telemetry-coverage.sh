@@ -249,19 +249,27 @@ done <"$new_stages_tmp"
 # renamed leaves no diff signal for (3) to catch, so a stale row passes
 # the gate forever (#5855).
 #
-# Rows are classified by SHAPE, not position: splitting a row on '|' with
-# `IFS='|' read -ra cols` yields 5 elements for the 4-column stage-table
-# format (leading empty field + stage/path/metric/category) and 3 for the
-# 2-column histogram-buckets format (leading empty field + set_name/
-# boundary_values) — the only two table shapes in this doc. A cutoff
-# derived from the histogram-buckets section-marker LINE NUMBER was tried
-# first and rejected: it silently excluded any stage-table row placed
-# textually after that marker (including a malformed one appended with no
-# section boundary of its own), which is exactly the kind of stale row
-# this check exists to catch. One doc row's metric column legitimately
-# contains bare (unescaped) pipe characters in its prose
+# Rows are classified by CONTENT, not position or column count alone: a
+# position-based cutoff derived from the histogram-buckets section-marker
+# LINE NUMBER was tried first and rejected — it silently excluded any
+# stage-table row placed textually after that marker (including a
+# malformed one appended with no section boundary of its own). A pure
+# column-count classifier (5 elements for the 4-column stage-table shape,
+# 3 for the 2-column histogram-buckets shape when split on '|' with
+# `IFS='|' read -ra cols`) was tried second and also rejected: a
+# truncated stage-table row missing its trailing metric/category cells
+# collapses to the same 3-element shape as a histogram row and vanishes
+# from the gate the same way (review of #5855, narrower trigger — drop
+# two trailing cells instead of appending past a marker). A row that is
+# too short for the stage-table shape is now only treated as a genuine
+# histogram-buckets row if its second column is recognizably that
+# table's content (the literal `boundary_values` header, an all-dash/
+# colon separator, or a comma-separated numeric list); anything else that
+# short is reported as a malformed row rather than silently dropped. One
+# doc row's metric column legitimately contains bare (unescaped) pipe
+# characters in its prose
 # (`reconciliation_status=not_requested|applied|suppressed_input_invalid`),
-# pushing that row's field count to 7; `-gt 3` still classifies it as a
+# pushing that row's field count to 7; `-ge 5` still classifies it as a
 # stage-table row (its stage/path columns are unaffected, since the extra
 # pipes are later in the row), whereas an exact `-eq 5` would have missed
 # it.
@@ -297,17 +305,38 @@ path_target_exists() {
 }
 
 while IFS='|' read -ra cols; do
-  [ "${#cols[@]}" -gt 3 ] || continue
-  stage_name="$(trim_ws "${cols[1]}")"
-  path_cell="$(trim_ws "${cols[2]}")"
-  case "$path_cell" in
-    ''|'file:line') continue ;;
+  n="${#cols[@]}"
+  [ "$n" -ge 2 ] || continue
+  col2="$(trim_ws "${cols[2]:-}")"
+  # Header row (either table shape) or a GFM separator row (plain `---`
+  # or colon-alignment `:---`, `:---:`, `---:`) — recognized by content,
+  # not position, so it is excluded regardless of which table it belongs
+  # to or where that table sits in the doc.
+  case "$col2" in
+    'file:line'|'boundary_values') continue ;;
   esac
-  # Header-separator row (plain `---` or GFM colon-alignment forms like
-  # `:---`, `:---:`, `---:`).
-  if [[ "$path_cell" =~ ^[-:]+$ ]]; then
+  if [[ "$col2" =~ ^[-:]+$ ]]; then
     continue
   fi
+
+  if [ "$n" -lt 5 ]; then
+    # Too few columns for the 4-column stage-table shape. Accept
+    # silently only if this is genuinely histogram-buckets data: a
+    # comma-separated numeric boundary list. Anything else this short
+    # is a malformed/truncated row and must fail loud rather than
+    # vanish from the gate.
+    if [[ "$col2" =~ ^[0-9]+(\.[0-9]+)?([[:space:]]*,[[:space:]]*[0-9]+(\.[0-9]+)?)*$ ]]; then
+      continue
+    fi
+    stage_name="$(trim_ws "${cols[1]:-}")"
+    report="${report}  - doc row \"${stage_name}\" in ${doc_path} is malformed: expected 4 columns (stage, file/glob, metric, category), found $((n - 1))
+"
+    drift=1
+    continue
+  fi
+
+  stage_name="$(trim_ws "${cols[1]}")"
+  path_cell="$col2"
   # A cell may name more than one target, comma-separated (e.g.
   # "contract.go:389-470, contract_z_observability_coverage.go:10"). A
   # bare filename with no directory in a later part inherits the
@@ -431,6 +460,7 @@ if [ "$drift" -ne 0 ]; then
     printf '  - Replace the metric column with a No-Observability-Change: marker that names\n'
     printf '    the existing signal that already covers the stage\n'
     printf '  - Fix or remove a doc row that names a file or glob with no matching target\n'
+    printf '  - Fix a malformed row missing its file/glob, metric, or category column\n'
   } >&2
   exit 1
 fi
