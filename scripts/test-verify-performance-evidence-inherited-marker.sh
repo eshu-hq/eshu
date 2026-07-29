@@ -284,15 +284,27 @@ git -C "${parenthetical_marker_repo}" add .
 git -C "${parenthetical_marker_repo}" commit -q -m 'add writerQuery MERGE with parenthetical-form evidence markers'
 expect_pass "${parenthetical_marker_repo}"
 
-# Composition safety check for the SAME fix: a bare mention of the marker
-# phrase with a parenthetical aside but NO colon at all must still not
-# satisfy the gate. The colon remains mandatory either way -- only an
-# optional bracketed/parenthetical qualifier is now tolerated BEFORE it.
-parenthetical_mention_repo="$(init_repo parenthetical-mention-no-colon)"
-write_baseline "${parenthetical_mention_repo}"
+# Composition safety check for the SAME fix, isolated per family
+# (eshu-hq/eshu#5542 review: the original single-fixture version of this
+# check had NO teeth -- its only added content was a bare Performance-family
+# mention with no Observability-family text at all, so the AND-both-required
+# check failed on the Observability half regardless of whether the colon
+# requirement held. Making the colon fully optional in BOTH regexes still
+# left the suite reporting "tests passed"). Each fixture below gives ONE
+# family a genuine, colon-terminated marker (already satisfied, colon
+# requirement irrelevant to it) and gives the OTHER family only a bare
+# mention with a parenthetical aside and NO colon. The gate must still fail
+# because the bare-mention family's colon requirement holds -- so a colon
+# regression in EITHER family is caught by one of these two fixtures
+# independently of the AND condition, not masked by it.
+
+# Isolates the Performance-family colon requirement: Observability already
+# satisfied by a genuine marker; Performance is only a bare mention.
+performance_colon_required_repo="$(init_repo performance-colon-required)"
+write_baseline "${performance_colon_required_repo}"
 printf 'package cypher\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\nconst writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n' \
-  >"${parenthetical_mention_repo}/go/internal/storage/cypher/writer.go"
-cat >"${parenthetical_mention_repo}/go/internal/storage/cypher/README.md" <<'MD'
+  >"${performance_colon_required_repo}/go/internal/storage/cypher/writer.go"
+cat >"${performance_colon_required_repo}/go/internal/storage/cypher/README.md" <<'MD'
 # Cypher Storage
 
 Overview of the cypher storage writer package.
@@ -303,13 +315,45 @@ Performance Evidence: baseline writer benchmark stayed flat.
 
 No-Observability-Change: existing writer metrics already cover this path.
 
-## Follow-Up Note
+## Current Evidence (this PR)
+
+No-Observability-Change (#5542): existing writer span/metric coverage
+already instruments this MERGE path.
 
 No-Regression Evidence (tracked in #5542) is still pending review for this
 change; a fuller write-up will follow once the benchmark rerun completes.
 MD
-git -C "${parenthetical_mention_repo}" add .
-git -C "${parenthetical_mention_repo}" commit -q -m 'add writerQuery MERGE with only a bare mention of the marker phrase (no colon)'
-expect_fail "${parenthetical_mention_repo}"
+git -C "${performance_colon_required_repo}" add .
+git -C "${performance_colon_required_repo}" commit -q -m 'add writerQuery MERGE: genuine observability marker, bare performance mention (no colon)'
+expect_fail "${performance_colon_required_repo}"
+
+# Isolates the Observability-family colon requirement: Performance already
+# satisfied by a genuine marker; Observability is only a bare mention.
+observability_colon_required_repo="$(init_repo observability-colon-required)"
+write_baseline "${observability_colon_required_repo}"
+printf 'package cypher\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\nconst writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n' \
+  >"${observability_colon_required_repo}/go/internal/storage/cypher/writer.go"
+cat >"${observability_colon_required_repo}/go/internal/storage/cypher/README.md" <<'MD'
+# Cypher Storage
+
+Overview of the cypher storage writer package.
+
+## Prior Evidence (an earlier, unrelated PR)
+
+Performance Evidence: baseline writer benchmark stayed flat.
+
+No-Observability-Change: existing writer metrics already cover this path.
+
+## Current Evidence (this PR)
+
+Performance Evidence (#5542): writerQuery MERGE benchmarked flat vs baseline
+on the 20-repo local NornicDB corpus; terminal queue depth 0.
+
+No-Observability-Change (tracked in #5542) is still pending confirmation
+that no new span or metric is required for this path.
+MD
+git -C "${observability_colon_required_repo}" add .
+git -C "${observability_colon_required_repo}" commit -q -m 'add writerQuery MERGE: genuine performance marker, bare observability mention (no colon)'
+expect_fail "${observability_colon_required_repo}"
 
 printf 'verify-performance-evidence inherited-marker tests passed\n'
