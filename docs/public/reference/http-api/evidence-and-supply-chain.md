@@ -1024,20 +1024,15 @@ wired yet.
 
 Benchmark Evidence: `go test ./internal/query -run '^$' -bench
 '^BenchmarkBuildSupplyChainImpactFindingResult$' -benchtime=2s -count=5
--benchmem` on go1.26.5 darwin/arm64 (Apple M5 Max), 5 runs each. BEFORE
-(origin/main parent commit, this same benchmark function copied alone into
-the package with `CIDeclaredArtifactDigest`/`CIDeclaredImageRef` deleted from
-the row literal, since those two fields do not exist on
-`SupplyChainImpactFindingRow` before #5469): 136.8-143.9 ns/op, 16 B/op, 1
-allocs/op. AFTER (this branch's HEAD): 292.3-314.3 ns/op, 208 B/op, 2
-allocs/op. That is roughly +166 ns/op (more than double, ~2.2x), 16→208 B/op,
-1→2 allocs/op per row — the cost of the read-time classifier walking the
-tier candidates plus the two reducer-baked
-`CIDeclaredArtifactDigest`/`CIDeclaredImageRef` fields threaded through the
-row, bounded at 4 tiers so it stays roughly constant per row rather than
-growing with corpus size. No new graph or Postgres query is added. At the
-200-row page-size limit that is roughly 61 microseconds and 42 KB of added
-per-page cost.
+-benchmem` on go1.26.5 darwin/arm64 (Apple M5 Max), five runs each. The exact
+base (`ba2b7b80be85`) measured 143.3-144.5 ns/op, 16 B/op, and 1 allocation
+per result. The finished #5469 path measured 95.64-96.84 ns/op, 128 B/op, and
+1 allocation per result on the same common row shape and package-level result
+sink. CPU improves by about 30 percent and allocation count is maintained.
+The remaining 112 B/op delta is the two corroboration records returned by the
+new wire contract, not temporary candidate or normalization storage.
+Candidate work is bounded to the four closed truth tiers, and no new graph or
+Postgres query is added.
 
 No-Observability-Change: `version_resolution_tier`/`version_resolution_corroboration`
 are produced by a pure read-time classifier
