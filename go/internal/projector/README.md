@@ -191,6 +191,17 @@ Workload endpoints are still exact `MATCH` anchors in the graph writer; missing
 or unmaterialized workload instances leave the row unwritten rather than
 fabricating a relationship. The projector never writes those service/cloud
 relationships itself.
+Provider-neutral multi-cloud runtime drift follows a related but distinct rule
+(issue #5759). When a generation contains one or more `gcp_cloud_resource` or
+`azure_cloud_resource` facts, `buildMultiCloudRuntimeDriftReducerIntent` emits
+one `multi_cloud_runtime_drift` reducer intent for the scope/generation so the
+reducer can run the bounded `cloud_resource_uid` join shared with the AWS drift
+path. `aws_resource` facts alone do NOT trigger this intent: AWS runtime drift
+stays exclusively `buildAWSCloudRuntimeDriftReducerIntent`'s job, and
+`MultiCloudRuntimeDriftHandler.Handle` drops any AWS-provider row its shared
+evidence loader also resolves before publishing, so the two domains never
+disagree about the same AWS resource. A scope carrying both AWS and GCP/Azure
+facts still enqueues this intent, for its GCP/Azure coverage.
 GCP cloud facts follow the same source-local rule. When a generation contains
 one or more `gcp_cloud_resource` facts,
 `buildGCPResourceMaterializationReducerIntent` emits one
@@ -219,13 +230,13 @@ truth.
 
 `appendScopeGenerationReducerIntents` builds one shared, read-only
 `reducerIntentFactIndex` (`reducer_intent_fact_index.go`) over `inputFacts` and
-passes it to all 40 `build*ReducerIntent` probes instead of the raw
+passes it to all 42 `build*ReducerIntent` probes instead of the raw
 `inputFacts` slice (issue #4875). Each probe used to independently re-scan the
 full generation for its own trigger fact kind(s); the shared index groups fact
 positions by `FactKind` once, so a probe that only cares about one or a
 handful of kinds looks them up directly instead of walking every fact in the
 generation. `inputFacts` is immutable once a scope generation is claimed for
-projection, so sharing one read-only index across all 41 probes is
+projection, so sharing one read-only index across all 42 probes is
 concurrency-safe. Probes that pick their anchor fact from more than one
 candidate kind (e.g. `buildSupplyChainImpactReducerIntent`,
 `buildContainerImageIdentityReducerIntent`) use the index's

@@ -244,34 +244,57 @@ Observability Evidence: GCP grant observations flow through the existing
 and `severity`, so an operator sees GCP standing-access posture alongside the AWS
 wildcard-trust posture without a new metric.
 
-## Multi-Cloud Runtime Drift (issues #1997, #1998)
+## Multi-Cloud Runtime Drift (issues #1997, #1998, #5759)
 
 `DomainMultiCloudRuntimeDrift` reuses the AWS structural drift join
 (`cloudruntime.Classify`) but keys every candidate on canonical
-`cloud_resource_uid` so AWS, GCP, and Azure share one
-orphaned/unmanaged/ambiguous/unknown vocabulary instead of three forked paths.
-`multicloud.BuildCandidates` skips rows whose provider identity does not resolve
-to a canonical uid (counted as unresolved, never fabricated), emits config
-evidence only when a config layer is actually present (so an unmanaged resource
-is never falsely promoted to managed), and lets a reducer `ambiguous`/`unknown`
-override win over the bare structural join so conflicting or unproven ownership
-is never presented as managed. `MultiCloudRuntimeDriftHandler` writes
+`cloud_resource_uid` so GCP and Azure share AWS's
+orphaned/unmanaged/ambiguous/unknown vocabulary. `multicloud.BuildCandidates`
+skips rows whose provider identity does not resolve to a canonical uid
+(counted as unresolved, never fabricated), emits config evidence only when a
+config layer is actually present (so an unmanaged resource is never falsely
+promoted to managed), and lets a reducer `ambiguous`/`unknown` override win
+over the bare structural join so conflicting or unproven ownership is never
+presented as managed. `MultiCloudRuntimeDriftHandler` writes
 `reducer_multi_cloud_runtime_drift_finding` facts through
 `PostgresMultiCloudRuntimeDriftWriter`, read back by
 `postgres.MultiCloudRuntimeDriftFindingStore`. The domain is graph-neutral and
 additive: it registers only when both a `MultiCloudRuntimeDriftEvidenceLoader`
 and writer are wired.
 
+`go/internal/projector`'s `buildMultiCloudRuntimeDriftReducerIntent` enqueues
+this domain when a scope generation carries `gcp_cloud_resource` or
+`azure_cloud_resource` facts (#5759; before that fix it was registered but
+never enqueued, so it fired for no scope). **Provider partitioning:** AWS
+stays exclusively `DomainAWSCloudRuntimeDrift`'s; the shared evidence loader
+still joins AWS rows into the same `cloud_resource_uid` keyspace for
+implementation reuse, but `Handle`'s `excludeAWSOwnedRows` drops every
+AWS-provider row before publication so this domain never republishes a
+finding `DomainAWSCloudRuntimeDrift` already owns. The provider-neutral read surface
+(`list_cloud_runtime_drift_findings`, `POST /api/v0/cloud/runtime-drift/findings`,
+`export_cloud_runtime_drift_packet`) separately aggregates
+`reducer_aws_cloud_runtime_drift_finding` rows back in at READ time
+(`MultiCloudRuntimeDriftFindingStore.ListActiveFindingsAcrossProviders`,
+`go/internal/query/cloud_runtime_drift_aggregate.go`), so `provider=aws` and an
+unfiltered query return real AWS findings instead of an empty page --
+`excludeAWSOwnedRows` still guarantees the write side never duplicates one, and
+an AWS-origin row's status/missing-evidence/warning-flags are derived through
+the SAME classification `list_aws_runtime_drift_findings` uses, so one row
+never yields two safety verdicts.
+
 No-Regression Evidence: `go test ./internal/correlation/drift/multicloud
-./internal/correlation/rules -count=1` proves the GCP/Azure orphaned, unmanaged,
-ambiguous, and unknown classifications, uid keying, unresolved/converged skips,
-and declared-config non-overwrite. `go test ./internal/reducer -run 'MultiCloud'
--race -count=1` proves publication, no-emit-before-durable-write, redaction,
-idempotent replay (stable fact id and stable_fact_key), and concurrent-worker
-key stability. `go test ./internal/storage/postgres -run 'MultiCloud' -count=1`
-proves the scope-bounded, active-generation-joined read surface. `go test
-./internal/correlation/drift/cloudruntime ./internal/reducer -run
-'AWSCloudRuntimeDrift' -count=1` proves the AWS drift path did not regress.
+./internal/correlation/rules -count=1` proves the GCP/Azure classifications,
+uid keying, and unresolved/converged skips. `go test ./internal/reducer -run
+'MultiCloud' -race -count=1` proves publication, idempotent replay, and
+(`TestMultiCloudRuntimeDriftHandlerExcludesAWSOwnedRowsFromPublication`, #5759)
+that an AWS-provider row mixed with GCP/Azure rows is dropped rather than
+duplicated. `go test ./internal/projector -run 'MultiCloudRuntimeDrift|FanOutParity' -count=1`
+proves the enqueue trigger fires for GCP/Azure scopes and stays silent for an
+AWS-only scope. `go test ./internal/storage/postgres -run 'MultiCloud' -count=1`
+proves the write-side read; `go test ./internal/query -run 'CloudRuntimeDrift'
+-count=1` proves the read-side AWS aggregation and shared safety-verdict
+derivation; `go test ./internal/correlation/drift/cloudruntime ./internal/reducer
+-run 'AWSCloudRuntimeDrift' -count=1` proves the AWS path did not regress.
 
 Observability Evidence: the handler reuses the existing
 `eshu_dp_correlation_orphan_detected_total`,

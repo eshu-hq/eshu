@@ -3371,7 +3371,7 @@
         "results_field": "resources"
       },
       "list_cloud_runtime_drift_findings": {
-        "description": "MCP tool coverage shape for list_cloud_runtime_drift_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). SHAPE-ONLY (minimum_results:0) by necessity: this tool reads reducer_multi_cloud_runtime_drift_finding facts, but the provider-neutral DomainMultiCloudRuntimeDrift domain is registered WITHOUT a projector intent builder (no buildMultiCloudRuntimeDriftReducerIntent in appendScopeGenerationReducerIntents), so it fires for NO scope or provider and writes zero findings -- a pre-existing registered-not-enqueued gap (domain built for #1997/#1998, predates #5453), confirmed empirically by a live corpus-gate DB query returning 0 reducer_multi_cloud_runtime_drift_finding rows. #5453's image_version_drift value drift IS proven non-vacuously through the sibling list_aws_runtime_drift_findings entry (reducer_aws_cloud_runtime_drift_finding, which IS enqueued). Wiring the multi-cloud domain (with duplicate-finding avoidance vs the AWS domain) is tracked as follow-up #5759.",
+        "description": "MCP tool coverage shape for list_cloud_runtime_drift_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5759 wired buildMultiCloudRuntimeDriftReducerIntent into appendScopeGenerationReducerIntents (triggering on gcp_cloud_resource or azure_cloud_resource facts) and added MultiCloudRuntimeDriftHandler.Handle's excludeAWSOwnedRows provider-partition filter, so DomainMultiCloudRuntimeDrift is enqueued for GCP/Azure scopes and no longer collides with DomainAWSCloudRuntimeDrift's own findings for the same AWS resource -- closing the pre-existing registered-not-enqueued gap (domain built for #1997/#1998, predates #5453). STILL SHAPE-ONLY (minimum_results:0) pending a live-gate-verified fixture: this corpus's gcp_cloud_resource cassette (testdata/cassettes/gcpcloud/supply-chain-demo.json) is not yet proven to produce an admitted orphaned/unmanaged finding for the scoped resource below (that needs the same kind of Terraform-state fixture surgery #5453 did for the sibling AWS assertion, verified live). The orchestrator should run the live golden-corpus gate: if reducer_multi_cloud_runtime_drift_finding rows now materialize for a GCP or Azure scope, retarget scope_id/provider to that resource and raise minimum_results to 1 (non-vacuous, per #5759's acceptance criteria) instead of leaving this shape-only. #5453's image_version_drift value drift IS already proven non-vacuously through the sibling list_aws_runtime_drift_findings entry (reducer_aws_cloud_runtime_drift_finding, which is exclusively AWS-owned and unaffected by this change).",
         "required_response_fields": [
           "drift_findings",
           "findings_count",
@@ -3379,7 +3379,8 @@
         ],
         "minimum_results": 0,
         "arguments": {
-          "scope_id": "aws:123456789012:us-east-1:ec2",
+          "scope_id": "gcp:project:supply-chain-demo-project",
+          "provider": "gcp",
           "limit": 10
         }
       },

@@ -20,19 +20,29 @@ for the same reason.
   `AWSCloudRuntimeDriftHandler` writes `reducer_aws_cloud_runtime_drift_finding`
   facts through `PostgresAWSCloudRuntimeDriftWriter`; graph nodes and MCP/API
   read models need their own frozen shape before Cypher lands.
-- **Multi-cloud runtime drift shares one path keyed on `cloud_resource_uid`** —
+- **Multi-cloud runtime drift shares one path keyed on `cloud_resource_uid`, but
+  AWS publication stays exclusive to `DomainAWSCloudRuntimeDrift`** —
   `MultiCloudRuntimeDriftHandler` reuses the AWS structural join
-  (`cloudruntime.Classify`) but joins on the canonical identity keyspace so AWS,
-  GCP, and Azure emit one orphaned/unmanaged/ambiguous/unknown vocabulary. It
-  writes `reducer_multi_cloud_runtime_drift_finding` facts through
+  (`cloudruntime.Classify`) and joins on the canonical identity keyspace so GCP
+  and Azure share AWS's orphaned/unmanaged/ambiguous/unknown vocabulary, but
+  `excludeAWSOwnedRows` drops every AWS-provider row the shared loader returns
+  before candidate construction so this domain never republishes a finding
+  `DomainAWSCloudRuntimeDrift` already owns (#5759). It writes
+  `reducer_multi_cloud_runtime_drift_finding` facts through
   `PostgresMultiCloudRuntimeDriftWriter`, read back by
   `postgres.MultiCloudRuntimeDriftFindingStore` (issues #1997, #1998). The domain
   is additive: it registers only when both a `MultiCloudRuntimeDriftEvidenceLoader`
   and writer are wired, so an unwired loader leaves the domain unregistered rather
-  than dropping intents. The Postgres uid-join evidence loader (joining
-  `reducer_cloud_resource_identity`, Terraform-state, and Terraform-config facts
-  by `cloud_resource_uid`) and the provider-generalized query/MCP surfaces are the
-  next slices; graph nodes stay deferred exactly like the AWS drift domain.
+  than dropping intents. `buildMultiCloudRuntimeDriftReducerIntent` enqueues it
+  whenever a scope generation carries `gcp_cloud_resource` or
+  `azure_cloud_resource` facts (#5759 closed the prior registered-but-never-
+  enqueued gap); graph nodes stay deferred exactly like the AWS drift domain.
+  The provider-neutral READ surface separately aggregates AWS findings back in
+  at query time (`MultiCloudRuntimeDriftFindingStore.ListActiveFindingsAcrossProviders`,
+  `go/internal/query`), so `provider=aws` genuinely returns data even though
+  the reducer never publishes an AWS row on this fact kind — see
+  `cloud-projections.md`'s Multi-Cloud Runtime Drift section for the full
+  write-side/read-side split.
 - **Container image identity is digest-first and fencing-guarded** — writes
   land only for explicit digest or single-tag-to-digest matches, and a
   fencing token (`ContainerImageIdentityWrite.EvidenceAsOf`) rejects a stale
