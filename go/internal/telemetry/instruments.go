@@ -979,6 +979,18 @@ type Instruments struct {
 	// "terraform_config_state_drift", matching CorrelationDriftDetected and
 	// CorrelationRuleMatches so operators can group all three by pack).
 	DriftAmbiguousOwnerWriteFailed metric.Int64Counter
+	// DriftUnresolvedOwnerWriteFailed counts failed durable writes of an
+	// "unresolved" terraform_config_state_drift finding — the
+	// TerraformConfigStateDriftFindingWriter call
+	// TerraformConfigStateDriftHandler.writeUnresolvedOwner issues when
+	// backend-owner resolution finds zero candidate config repos
+	// (tfstatebackend.ErrNoConfigRepoOwnsBackend). Mirrors
+	// DriftAmbiguousOwnerWriteFailed's rationale exactly: the write is
+	// deliberately non-fatal (Handle() still returns Status=Succeeded — an
+	// unresolved-owner rejection has no retry that could fix it), so this
+	// counter is the only durability signal for it (issue #5594). Labels:
+	// pack (frozen string "terraform_config_state_drift").
+	DriftUnresolvedOwnerWriteFailed metric.Int64Counter
 	// WebhookRequests counts public webhook requests by provider, bounded
 	// outcome, and reason. Provider is one of github, gitlab, bitbucket, or
 	// unknown; reason values are closed enums from the webhook listener.
@@ -3223,6 +3235,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register DriftAmbiguousOwnerWriteFailed counter: %w", err)
+	}
+
+	inst.DriftUnresolvedOwnerWriteFailed, err = meter.Int64Counter(
+		"eshu_dp_drift_unresolved_owner_write_failed_total",
+		metric.WithDescription("Total failed durable writes of an unresolved-owner terraform_config_state_drift finding, labeled by pack"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register DriftUnresolvedOwnerWriteFailed counter: %w", err)
 	}
 
 	inst.DriftSchemaUnknownComposite, err = meter.Int64Counter(

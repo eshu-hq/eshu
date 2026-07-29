@@ -171,6 +171,7 @@ func (h TerraformConfigStateDriftHandler) Handle(
 			FailureClass: "no_config_repo_owns_backend",
 			Reason:       resolveErr.Error(),
 		})
+		h.writeUnresolvedOwner(ctx, intent, backendKind, locatorHash)
 		return Result{
 			IntentID: intent.IntentID,
 			Domain:   intent.Domain,

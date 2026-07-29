@@ -185,6 +185,78 @@ func TestPostgresTerraformConfigStateDriftWriterPersistsAmbiguousOwnerFinding(t 
 	}
 }
 
+// TestPostgresTerraformConfigStateDriftWriterPersistsUnresolvedOwnerFinding
+// proves the no-owner rejection (tfstatebackend.ErrNoConfigRepoOwnsBackend) is
+// recorded as one durable, provenance-only "unresolved" finding per
+// state-snapshot scope, so a caller reading this scope's findings can tell
+// "evaluated, no drift" (an empty page) apart from "could not resolve
+// ownership at all" (one unresolved row) instead of both looking identical
+// (issue #5594 follow-up). Address/DriftKind stay empty, matching the
+// ambiguous row's shape: no anchor was resolved to classify against.
+// AmbiguousOwnerCandidates stays empty too -- unlike the ambiguous case there
+// is no competing evidence to record, only the absence of any owner.
+func TestPostgresTerraformConfigStateDriftWriterPersistsUnresolvedOwnerFinding(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeWorkloadIdentityExecer{}
+	writer := PostgresTerraformConfigStateDriftWriter{DB: db}
+
+	write := TerraformConfigStateDriftWrite{
+		IntentID: "intent-unresolved-1", ScopeID: "state_snapshot:local:hash-2", GenerationID: "generation-1",
+		SourceSystem: "collector/terraform-state", BackendKind: "local", LocatorHash: "hash-2",
+		UnresolvedOwner: true,
+	}
+
+	result, err := writer.WriteTerraformConfigStateDriftFindings(context.Background(), write)
+	if err != nil {
+		t.Fatalf("WriteTerraformConfigStateDriftFindings() error = %v, want nil", err)
+	}
+	if got, want := result.CanonicalWrites, 1; got != want {
+		t.Fatalf("CanonicalWrites = %d, want %d (one scope-level unresolved row)", got, want)
+	}
+
+	rows := decodeBatchedVersionedFactCalls(t, db.execs)
+	if len(rows) != 1 {
+		t.Fatalf("decoded rows = %d, want 1", len(rows))
+	}
+	var decoded reducerderivedv1.TerraformConfigStateDriftFinding
+	if err := json.Unmarshal([]byte(rows[0].Payload), &decoded); err != nil {
+		t.Fatalf("unmarshal payload: %v", err)
+	}
+	if decoded.Outcome != "unresolved" {
+		t.Fatalf("Outcome = %q, want %q", decoded.Outcome, "unresolved")
+	}
+	if decoded.Address != "" || decoded.DriftKind != "" {
+		t.Fatalf("Address/DriftKind = %q/%q, want both empty for an unresolved row", decoded.Address, decoded.DriftKind)
+	}
+	if len(decoded.AmbiguousOwnerCandidates) != 0 {
+		t.Fatalf("len(AmbiguousOwnerCandidates) = %d, want 0 (no competing evidence for an unresolved row)", len(decoded.AmbiguousOwnerCandidates))
+	}
+	if decoded.BackendKind != "local" || decoded.LocatorHash != "hash-2" {
+		t.Fatalf("BackendKind/LocatorHash = %q/%q, want local/hash-2", decoded.BackendKind, decoded.LocatorHash)
+	}
+}
+
+// TestWriteTerraformConfigStateDriftFindingsRejectsMultipleWriteModes proves
+// the writer refuses a request that sets more than one of
+// Candidates/AmbiguousOwners/UnresolvedOwner, extending the existing
+// Candidates+AmbiguousOwners guard to the new three-way split.
+func TestWriteTerraformConfigStateDriftFindingsRejectsMultipleWriteModes(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeWorkloadIdentityExecer{}
+	writer := PostgresTerraformConfigStateDriftWriter{DB: db}
+
+	_, err := writer.WriteTerraformConfigStateDriftFindings(context.Background(), TerraformConfigStateDriftWrite{
+		IntentID: "intent-bad", ScopeID: "state_snapshot:s3:hash-1", GenerationID: "generation-1",
+		AmbiguousOwners: []tfstatebackend.TerraformBackendRow{{RepoID: "repo-a"}},
+		UnresolvedOwner: true,
+	})
+	if err == nil {
+		t.Fatal("WriteTerraformConfigStateDriftFindings() error = nil, want non-nil for AmbiguousOwners + UnresolvedOwner both set")
+	}
+}
+
 // TestWriteTerraformConfigStateDriftFindingsBoundedExecCount proves N
 // candidates are persisted in O(N/batchSize) bulk inserts rather than one
 // ExecContext per candidate, mirroring the AWS/multi-cloud runtime drift
