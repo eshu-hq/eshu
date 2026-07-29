@@ -108,3 +108,22 @@ require_workflow_path "package identity normalization (#5538)"    "go/internal/p
 require_workflow_path "repository identity normalization (#5538)" "go/internal/repositoryidentity/**"
 require_workflow_path "source_tool edge vocabulary (#5538)"       "go/internal/sourcetool/**"
 require_workflow_path "terraform schema data layer (#5538)"      "go/internal/terraformschema/**"
+
+# Bounded reachability check (#5538 review): does any package feed a response
+# the B-12 snapshot's query_shapes actually asserts? Checked, not assumed —
+# these five back non-trivial, non-error asserted MCP shapes (real
+# required_response_fields, not just an expected_error_contains guard):
+# environment backs compare_environments; exposure backs
+# trace_exposure_path/dispatch_taint_path/dispatch_reaching_def; doctruth
+# backs get_documentation_finding_inventory/list_documentation_findings/etc.;
+# serviceintel(+http) backs get_service_intelligence_report. (By contrast,
+# ask/askwiring/answerguardrail/answernarration were checked and excluded:
+# the only asserted "ask" shape pins expected_error_contains "ask is not
+# enabled" — that guard lives in the already-covered internal/query package,
+# ESHU_ASK_ENABLED is never set in this gate, so the real ask/answer-narration
+# pipeline never executes here.)
+require_workflow_path "environment alias normalization (#5538)"   "go/internal/environment/**"
+require_workflow_path "code-to-cloud exposure taint (#5538)"      "go/internal/exposure/**"
+require_workflow_path "documentation truth extraction (#5538)"    "go/internal/doctruth/**"
+require_workflow_path "service intelligence report (#5538)"       "go/internal/serviceintel/**"
+require_workflow_path "service intelligence HTTP adapter (#5538)" "go/internal/serviceintelhttp/**"

@@ -51,6 +51,13 @@ on:
       - 'go/internal/repositoryidentity/**'
       - 'go/internal/sourcetool/**'
       - 'go/internal/terraformschema/**'
+      # Reachability-checked against the B-12 snapshot's asserted MCP/query
+      # shapes (not assumed): each backs a non-trivial asserted response.
+      - 'go/internal/environment/**'
+      - 'go/internal/exposure/**'
+      - 'go/internal/doctruth/**'
+      - 'go/internal/serviceintel/**'
+      - 'go/internal/serviceintelhttp/**'
       - 'testdata/golden/**'
       - 'testdata/cassettes/**'
       - 'tests/fixtures/ecosystems/**'
