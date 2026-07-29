@@ -247,22 +247,30 @@ done <"$new_stages_tmp"
 # glob) that actually exists on disk. Check (3) only fires on a *new*
 # stage file with no doc row; a row whose target file was deleted or
 # renamed leaves no diff signal for (3) to catch, so a stale row passes
-# the gate forever (#5855). Restricted to rows above the
-# histogram-buckets section, whose second column is a boundary-value
-# list, not a path.
-histogram_section_line="$(rg -n '<!-- eshu:metric:section=histogram-buckets -->' "$repo_root/$doc_path" 2>/dev/null | head -1 | cut -d: -f1 || true)"
-stage_table_rows_tmp="$(mktemp)"
-trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instruments_metrics_tmp" "$new_stages_tmp" "$tmp_diff" "$all_rows_tmp" "$required_rows_tmp" "$doc_row_signals_tmp" "$doc_buckets_tmp" "$code_buckets_tmp" "$instruments_flat" "$stage_table_rows_tmp"' EXIT
-if [ -n "$histogram_section_line" ]; then
-  rg -n '^\|[[:space:]]*[^|[:space:]]' "$repo_root/$doc_path" 2>/dev/null \
-    | awk -F: -v cutoff="$histogram_section_line" '{n=$1; sub(/^[0-9]+:/, ""); if (n + 0 < cutoff + 0) print}' \
-    >"$stage_table_rows_tmp"
-else
-  cp "$all_rows_tmp" "$stage_table_rows_tmp"
-fi
-
-# trim_ws <var> — strip leading/trailing whitespace from $1 using pure
-# parameter expansion (no subprocess). Prints the trimmed value.
+# the gate forever (#5855).
+#
+# Rows are classified by SHAPE, not position: splitting a row on '|' with
+# `IFS='|' read -ra cols` yields 5 elements for the 4-column stage-table
+# format (leading empty field + stage/path/metric/category) and 3 for the
+# 2-column histogram-buckets format (leading empty field + set_name/
+# boundary_values) — the only two table shapes in this doc. A cutoff
+# derived from the histogram-buckets section-marker LINE NUMBER was tried
+# first and rejected: it silently excluded any stage-table row placed
+# textually after that marker (including a malformed one appended with no
+# section boundary of its own), which is exactly the kind of stale row
+# this check exists to catch. One doc row's metric column legitimately
+# contains bare (unescaped) pipe characters in its prose
+# (`reconciliation_status=not_requested|applied|suppressed_input_invalid`),
+# pushing that row's field count to 7; `-gt 3` still classifies it as a
+# stage-table row (its stage/path columns are unaffected, since the extra
+# pipes are later in the row), whereas an exact `-eq 5` would have missed
+# it.
+#
+# trim_ws <var> — strip leading/trailing whitespace using parameter
+# expansion, so the trim itself never forks an external sed/awk process.
+# Each `$(trim_ws ...)` call site below still forks a bash subshell for
+# the command substitution — cheaper than an external-binary fork, but
+# not free.
 trim_ws() {
   local s="$1"
   s="${s#"${s%%[![:space:]]*}"}"
@@ -272,8 +280,11 @@ trim_ws() {
 
 # path_target_exists <path-or-glob> — true if the token names a real file
 # under repo_root, or (for a token containing '*') at least one file
-# matches the glob. Both branches are pure bash builtins (no forked
-# process), which matters here since this runs once per doc row.
+# matches the glob. Called directly (not via command substitution), so
+# neither branch forks anything: `compgen` and `[ -f ]` are bash builtins.
+# A glob only proves at least one file under it exists, not that the
+# specific file implementing the row's described stage is still there
+# (see the Limitations note in docs/internal/telemetry-discipline-precedent.md).
 path_target_exists() {
   case "$1" in
     *'*'*)
@@ -286,12 +297,17 @@ path_target_exists() {
 }
 
 while IFS='|' read -ra cols; do
-  [ "${#cols[@]}" -ge 3 ] || continue
+  [ "${#cols[@]}" -gt 3 ] || continue
   stage_name="$(trim_ws "${cols[1]}")"
   path_cell="$(trim_ws "${cols[2]}")"
   case "$path_cell" in
-    ''|'---'|'file:line') continue ;;
+    ''|'file:line') continue ;;
   esac
+  # Header-separator row (plain `---` or GFM colon-alignment forms like
+  # `:---`, `:---:`, `---:`).
+  if [[ "$path_cell" =~ ^[-:]+$ ]]; then
+    continue
+  fi
   # A cell may name more than one target, comma-separated (e.g.
   # "contract.go:389-470, contract_z_observability_coverage.go:10"). A
   # bare filename with no directory in a later part inherits the
@@ -316,7 +332,7 @@ while IFS='|' read -ra cols; do
       drift=1
     fi
   done
-done <"$stage_table_rows_tmp"
+done <"$all_rows_tmp"
 
 # (4) Histogram bucket boundary assertion.
 # Parse documented bucket sets from the X1 doc's histogram-buckets section

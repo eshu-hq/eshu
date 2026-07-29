@@ -396,6 +396,29 @@ git -C "${case_glob_missing}" add .
 git -C "${case_glob_missing}" commit -q -m "add glob-form row matching no files"
 expect_fail "fails when a glob-form row matches no files" "${case_glob_missing}"
 
+# Case 19 (#5855 review follow-up): a stale stage-table row placed AFTER
+# the histogram-buckets section, with no section marker of its own. A
+# check that excludes rows by a line-number cutoff derived from the
+# histogram-buckets marker would silently skip this row; row shape (4
+# columns vs. the histogram table's 2) must be what excludes histogram
+# rows, not textual position, so this must still fail. The bucket table
+# has header/separator only (no data row), so this cannot also trip the
+# unrelated bucket-boundary check (4) and mask the signal under test.
+case_row_after_histogram="$(init_repo case-row-after-histogram)"
+cat >>"${case_row_after_histogram}/docs/public/observability/telemetry-coverage.md" <<'MD'
+
+<!-- eshu:metric:section=histogram-buckets -->
+## Histogram Bucket Boundaries
+
+| set_name | boundary_values |
+| --- | --- |
+
+| ghost row after histogram section | go/internal/reducer/deleted_after_histogram.go:1 | `eshu_dp_queue_claim_duration_seconds` | reducer runtime |
+MD
+git -C "${case_row_after_histogram}" add .
+git -C "${case_row_after_histogram}" commit -q -m "add stale stage row after the histogram-buckets section"
+expect_fail "fails when a stale row is placed after the histogram-buckets section" "${case_row_after_histogram}"
+
 if [ "${FAIL}" -ne 0 ]; then
   printf 'verify-telemetry-coverage tests FAILED: %d/%d failed\n' "${FAIL}" "${TOTAL}" >&2
   exit 1

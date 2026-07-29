@@ -195,6 +195,15 @@ The verifier does not catch:
   something real, not that the referenced line number or function name
   is still accurate. A line-number-accurate check would require parsing
   Go, which this static-analysis script does not do.
+- For a glob-form row (`dir/*.go`), the #5855 reverse-direction check only
+  proves that *at least one* file under the glob exists — not that the
+  specific file implementing the row's described stage is still among
+  them. A broad glob (several rows in this doc match dozens to hundreds
+  of files, e.g. `go/internal/query/repository*.go`) stays green as long
+  as any one match survives, even if the actual stage the row describes
+  was deleted. This is an inherent limit of static glob-existence
+  checking, not a bug to fix here; a maintainer narrowing a glob to a
+  single file gets the full protection, a broad glob does not.
 - A pre-existing gap from before the verifier was added. The verifier
   compares the *current* X1 doc against the *current*
   `go/internal/telemetry/instruments.go`. It does not surface drift that
