@@ -62,6 +62,7 @@ func (db *rdsPostureReadinessQueueDB) QueryContext(_ context.Context, query stri
 		db.attemptCount + 1,
 		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
+		db.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"aws_resource_materialization:aws:111111111111:us-east-1:rds","reason":"rds posture observed","fact_id":"fact-rds-posture-1","source_system":"aws"}`),
 	}}}, nil
 }

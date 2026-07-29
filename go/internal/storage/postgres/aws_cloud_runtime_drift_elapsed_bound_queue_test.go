@@ -60,6 +60,12 @@ func (db *awsCloudRuntimeDriftElapsedBoundQueueDB) QueryContext(
 		db.attemptCount,
 		db.enqueuedAt,
 		db.enqueuedAt,
+		// cycle_started_at: this test proves the attempt_count freeze, not the
+		// reopen anchor (that is
+		// TestAWSCloudRuntimeDriftReopenGetsFreshElapsedBoundWhileStatePendingLive),
+		// so it always equals enqueuedAt -- COALESCE(reopened_at, created_at)
+		// with reopened_at NULL, matching a row that has never been reopened.
+		db.enqueuedAt,
 		[]byte(`{"reason":"aws runtime resource facts observed","source_system":"aws"}`),
 	}}}, nil
 }

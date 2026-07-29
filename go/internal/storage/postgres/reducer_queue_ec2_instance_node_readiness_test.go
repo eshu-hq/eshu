@@ -79,6 +79,7 @@ func (db *ec2InstanceNodeReadinessQueueDB) QueryContext(_ context.Context, query
 		db.attemptCount + 1,
 		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
+		db.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"ec2_instance_node_materialization:aws:123456789012:us-east-1:ec2","reason":"ec2 instance posture facts observed","fact_id":"fact-ec2-1","source_system":"aws"}`),
 	}}}, nil
 }

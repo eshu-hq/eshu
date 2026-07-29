@@ -152,18 +152,32 @@
   must leave `Handle` writing its best-available classification
   unconditionally (pre-#5848 behavior). When wired, the defer must stay
   bounded by `awsCloudRuntimeDriftStatePendingMaxWait`, an ELAPSED-TIME bound
-  compared against `Intent.EnqueuedAt` — never a `Intent.AttemptCount`
-  comparison. `AttemptCount` is frozen by this defer's own non-counting
-  failure class the moment the row is retried once
+  compared against `Intent.CycleStartedAt` (falling back to `Intent.EnqueuedAt`
+  only for a hand-built `Intent` that does not populate it) — never a
+  `Intent.AttemptCount` comparison. `AttemptCount` is frozen by this defer's
+  own non-counting failure class the moment the row is retried once
   (`nonCountingReducerRetryFailureClasses` in
   `reducer_queue_readiness_sql.go`), so a retry-count bound can never fire
-  against the real queue; see
+  against the real queue. `CycleStartedAt` (not `EnqueuedAt` alone) is the
+  correct anchor because `EnqueuedAt`/`created_at` is immutable across a
+  reopen, and this domain is unconditionally reopened on every ingester shard
+  drain and bootstrap maintenance pass
+  (`postgres.CrossScopeCorrelationReopenDomains`) — anchoring on `EnqueuedAt`
+  alone would give a maintenance-triggered reopen NO grace window at all,
+  since the original enqueue is almost always already past the bound by the
+  time a reopen happens. `ReopenSucceeded`/`ReplayDomain`
+  (`reducer_queue_replay.go`) reset `fact_work_items.reopened_at` in the same
+  statement that resets `attempt_count = 0`, so a reopened row's
+  `CycleStartedAt` (`COALESCE(reopened_at, created_at)`, computed by the claim
+  query) gets a genuinely fresh window; see
   `go/internal/reducer/aws_cloud_runtime_drift_readiness.go`'s
-  `awsCloudRuntimeDriftStatePendingMaxWait` doc comment and
+  `awsCloudRuntimeDriftStatePendingMaxWait` doc comment,
   `TestAWSCloudRuntimeDriftHandlerConvergesAfterElapsedBoundOverRealQueueLive`
-  for the mechanism and the real-queue proof. An unbounded (or
-  unreachably-bounded) defer would starve a genuine orphan (a resource with no
-  Terraform state anywhere, ever) forever.
+  for the attempt_count-freeze mechanism and real-queue proof, and
+  `TestAWSCloudRuntimeDriftReopenGetsFreshElapsedBoundWhileStatePendingLive`
+  for the reopen-anchor proof. An unbounded (or unreachably-bounded, or
+  no-grace-window-on-reopen) defer would starve a genuine orphan (a resource
+  with no Terraform state anywhere, ever) forever.
 
 ## Evidence notes
 

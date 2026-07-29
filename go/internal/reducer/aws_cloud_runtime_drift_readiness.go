@@ -17,8 +17,9 @@ import (
 )
 
 // awsCloudRuntimeDriftStatePendingMaxWait bounds the readiness defer (#5848,
-// #5837's root cause) by ELAPSED TIME SINCE THE INTENT WAS FIRST ENQUEUED
-// (Intent.EnqueuedAt), not by retry count. Below the bound, an
+// #5837's root cause) by ELAPSED TIME SINCE THE CURRENT REPAIR CYCLE BEGAN
+// (Intent.CycleStartedAt, falling back to Intent.EnqueuedAt -- see
+// shouldDeferForStatePending), not by retry count. Below the bound, an
 // orphaned_cloud_resource candidate is held back while a Terraform
 // state_snapshot scope is still mid-ingestion, because it might supply the
 // state that would reclassify the finding. At or past the bound, Handle
@@ -41,14 +42,42 @@ import (
 // ReducerQueue through repeated claim/fail cycles and asserts the domain
 // eventually commits.
 //
-// Intent.EnqueuedAt is immune to that freeze: it is populated from
-// fact_work_items.created_at (go/internal/storage/postgres/reducer_queue_helpers.go),
-// which every claim/retry/defer cycle for this row's ORIGINAL enqueue reads
-// back unchanged — no retry, fail, or claim statement in this package writes
-// created_at. "How long have we been waiting for a sibling scope to
-// activate" is a time concept, not a retry-count concept, so bounding it on
-// elapsed wall-clock time is also the more honest match for what is actually
-// being bounded.
+// It also MUST NOT be anchored on Intent.EnqueuedAt alone (a second, distinct
+// mistake this doc comment used to make, found by a round-3 review after the
+// AttemptCount fix above landed): EnqueuedAt is populated from
+// fact_work_items.created_at, which is immutable for the life of the row —
+// including across a reopen. aws_cloud_runtime_drift is unconditionally
+// reopened on every ingester shard drain and bootstrap maintenance pass
+// (postgres.CrossScopeCorrelationReopenDomains), so for essentially every
+// maintenance-triggered reopen in a real deployment, more than this bound has
+// already elapsed since the row's ORIGINAL enqueue. Anchored on EnqueuedAt
+// alone, shouldDeferForStatePending would return false on the very first
+// claim of the reopened row WITHOUT EVER CONSULTING THE READINESS CHECKER,
+// committing a degraded verdict immediately even though the state_snapshot
+// scope is freshly, legitimately still pending for this repair cycle — the
+// exact no-grace-window regression the old AttemptCount=0 reset on reopen
+// (see ReopenSucceeded/ReplayDomain in
+// go/internal/storage/postgres/reducer_queue_replay.go) used to prevent,
+// before its own freeze bug (the paragraph above) made it not actually work.
+//
+// Intent.CycleStartedAt closes that gap without reintroducing the freeze:
+// ReopenSucceeded/ReplayDomain reset fact_work_items.reopened_at to the
+// reopen timestamp in the SAME statement that resets attempt_count to 0
+// (migration 088), so a reopened row's CycleStartedAt
+// (COALESCE(reopened_at, created_at), computed in the claim query) becomes
+// the reopen time, giving this bound a genuinely fresh window. Ordinary
+// claim/retry/fail never touch reopened_at (see reducer_queue.go's
+// retryReducerWorkQuery and reducer_queue_claim_query.go's claim CASE), so it
+// stays just as freeze-immune as created_at always was — proven live by
+// TestAWSCloudRuntimeDriftReopenGetsFreshElapsedBoundWhileStatePendingLive
+// (go/internal/storage/postgres), which reopens a row against real Postgres
+// after its original EnqueuedAt is already past the bound and asserts the
+// reopened claim still defers instead of committing immediately.
+//
+// "How long have we been waiting for a sibling scope to activate, in THIS
+// repair cycle" is a time concept, not a retry-count concept, so bounding it
+// on elapsed wall-clock time is also the more honest match for what is
+// actually being bounded.
 //
 // 30 minutes is a judgment call, not a measured threshold: generous enough
 // that ordinary asynchronous Terraform-state ingestion (observed on the order
@@ -124,24 +153,34 @@ func (awsCloudRuntimeDriftStatePendingError) FailureClass() string {
 
 // shouldDeferForStatePending reports whether Handle must defer instead of
 // writing, bounded by awsCloudRuntimeDriftStatePendingMaxWait elapsed since
-// intent.EnqueuedAt (NOT intent.AttemptCount -- see that constant's doc
-// comment for why a retry-count bound can never fire once this defer's own
-// failure class freezes the queue's attempt_count). now must be the SAME
-// clock reading Handle uses for its evidence-read watermark, passed in rather
-// than read again here, so a slow evidence load cannot itself push the
-// intent past the bound. Returns false (never defer, so Handle proceeds to
-// write) when the checker is nil (gate disabled, matches pre-#5848 behavior),
-// when the elapsed-time bound is reached (terminal fallback), or when no
-// admitted candidate is actually an orphaned_cloud_resource (a pending state
-// scope cannot improve any other finding kind: unmanaged/ambiguous/unknown/
-// image_version_drift all already require state to be present).
+// the current repair cycle began (NOT intent.AttemptCount -- see that
+// constant's doc comment for why a retry-count bound can never fire once this
+// defer's own failure class freezes the queue's attempt_count). now must be
+// the SAME clock reading Handle uses for its evidence-read watermark, passed
+// in rather than read again here, so a slow evidence load cannot itself push
+// the intent past the bound. Returns false (never defer, so Handle proceeds
+// to write) when the checker is nil (gate disabled, matches pre-#5848
+// behavior), when the elapsed-time bound is reached (terminal fallback), or
+// when no admitted candidate is actually an orphaned_cloud_resource (a
+// pending state scope cannot improve any other finding kind:
+// unmanaged/ambiguous/unknown/image_version_drift all already require state
+// to be present).
 //
-// A zero intent.EnqueuedAt (unset -- should not happen against the real
-// queue, whose claim query always returns fact_work_items.created_at, but
-// reachable from a hand-built Intent in a test or a future caller) is treated
-// as "elapsed time unknown" rather than "infinitely elapsed": subtracting a
-// zero time.Time from now would otherwise read as tens of thousands of hours
-// and fire the terminal fallback immediately on the very first defer. Failing
+// The anchor is intent.CycleStartedAt when set, falling back to
+// intent.EnqueuedAt otherwise. CycleStartedAt is what the real queue always
+// populates (COALESCE(reopened_at, created_at) in the claim query) and is the
+// only one of the two that gets a fresh value on reopen/replay -- see
+// awsCloudRuntimeDriftStatePendingMaxWait's doc comment for why anchoring on
+// EnqueuedAt alone regressed the reopen grace window a round-3 review caught.
+// The EnqueuedAt fallback exists only for a hand-built Intent (a test or a
+// future caller) that does not populate CycleStartedAt; it never fires
+// against the real queue, which always returns both fields.
+//
+// A zero anchor (neither field set -- should not happen against the real
+// queue, but reachable from a hand-built Intent in a test) is treated as
+// "elapsed time unknown" rather than "infinitely elapsed": subtracting a zero
+// time.Time from now would otherwise read as tens of thousands of hours and
+// fire the terminal fallback immediately on the very first defer. Failing
 // toward "keep deferring" is the safe direction here -- it costs a bounded
 // delay, where failing toward "commit now" on a misread zero timestamp would
 // write a possibly-wrong verdict for a reason unrelated to actual elapsed
@@ -155,7 +194,8 @@ func (h AWSCloudRuntimeDriftHandler) shouldDeferForStatePending(
 	if h.ReadinessChecker == nil {
 		return false, nil
 	}
-	if !intent.EnqueuedAt.IsZero() && now.Sub(intent.EnqueuedAt) >= awsCloudRuntimeDriftStatePendingMaxWait {
+	anchor := awsCloudRuntimeDriftCycleAnchor(intent)
+	if !anchor.IsZero() && now.Sub(anchor) >= awsCloudRuntimeDriftStatePendingMaxWait {
 		return false, nil
 	}
 	if !hasOrphanedAWSCloudRuntimeDriftCandidate(admitted) {
@@ -166,6 +206,17 @@ func (h AWSCloudRuntimeDriftHandler) shouldDeferForStatePending(
 		return false, err
 	}
 	return pending, nil
+}
+
+// awsCloudRuntimeDriftCycleAnchor returns intent.CycleStartedAt when set,
+// falling back to intent.EnqueuedAt -- see shouldDeferForStatePending's doc
+// comment for why CycleStartedAt is the correct anchor and EnqueuedAt is only
+// a fallback for callers that do not populate it.
+func awsCloudRuntimeDriftCycleAnchor(intent Intent) time.Time {
+	if !intent.CycleStartedAt.IsZero() {
+		return intent.CycleStartedAt
+	}
+	return intent.EnqueuedAt
 }
 
 // hasOrphanedAWSCloudRuntimeDriftCandidate reports whether any admitted
@@ -233,8 +284,8 @@ func (h AWSCloudRuntimeDriftHandler) logStatePendingDefer(
 		slog.Int("admitted_candidates", len(admitted)),
 		slog.Duration("max_wait", awsCloudRuntimeDriftStatePendingMaxWait),
 	}
-	if !intent.EnqueuedAt.IsZero() {
-		attrs = append(attrs, slog.Duration("elapsed_since_enqueued", now.Sub(intent.EnqueuedAt)))
+	if anchor := awsCloudRuntimeDriftCycleAnchor(intent); !anchor.IsZero() {
+		attrs = append(attrs, slog.Duration("elapsed_since_cycle_start", now.Sub(anchor)))
 	}
 	h.Logger.LogAttrs(ctx, slog.LevelInfo, "aws cloud runtime drift deferred for pending terraform state", attrs...)
 }

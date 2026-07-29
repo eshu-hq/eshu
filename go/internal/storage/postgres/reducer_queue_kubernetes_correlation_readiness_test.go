@@ -74,6 +74,7 @@ func (db *kubernetesCorrelationReadinessQueueDB) QueryContext(_ context.Context,
 		db.attemptCount + 1,
 		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
+		db.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"kubernetes_workload_materialization:k8s:prod-us-east-1","reason":"kubernetes live workload facts observed","fact_id":"fact-pod-1","source_system":"kubernetes"}`),
 	}}}, nil
 }

@@ -68,6 +68,7 @@ func (db *observabilityCoverageReadinessQueueDB) QueryContext(_ context.Context,
 		db.attemptCount + 1,
 		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
+		db.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"aws_resource_materialization:aws:123456789012:us-east-1:lambda","reason":"aws observability resource facts observed","fact_id":"fact-alarm-1","source_system":"aws"}`),
 	}}}, nil
 }

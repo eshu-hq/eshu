@@ -96,6 +96,7 @@ func (db *ec2UsesProfileReadinessQueueDB) QueryContext(_ context.Context, query 
 		db.attemptCount + 1,
 		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
+		db.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"ec2_uses_profile_materialization:aws:111122223333:us-east-1:ec2","reason":"ec2 instance profile usage observed","fact_id":"fact-profile-1","source_system":"aws"}`),
 	}}}, nil
 }

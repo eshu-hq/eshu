@@ -48,6 +48,11 @@ func TestReducerQueueReopenSucceededResetsSucceededWorkItemToPending(t *testing.
 		"stage = 'reducer'",
 		"status = 'succeeded'",
 		"next_attempt_at = NULL",
+		// #5848/#5837 round-3 P2-2: reopen must reset reopened_at alongside
+		// attempt_count, so Intent.CycleStartedAt (which the AWS drift
+		// elapsed-time bound reads) gets a fresh grace window instead of
+		// inheriting the row's original, possibly already-elapsed, created_at.
+		"reopened_at = $1",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("reopen query missing %q:\n%s", want, query)
@@ -129,6 +134,7 @@ func TestReducerQueueReplayDomainReopensSucceededWorkItem(t *testing.T) {
 		"status = 'pending'",
 		"container_image_identity_v2_authorized_status = CASE",
 		"THEN 'pending'",
+		"reopened_at = $1",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("ReplayDomain query missing %q:\n%s", want, query)

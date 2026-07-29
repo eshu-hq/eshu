@@ -54,6 +54,7 @@ func TestReducerQueuePreservesIntentPayloadMetadata(t *testing.T) {
 		1,
 		now,
 		now,
+		now,
 		db.execs[0].args[7].([]byte),
 	}}}
 	claimed, err := scanReducerIntent(rows)

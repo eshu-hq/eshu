@@ -84,6 +84,7 @@ func (db *securityGroupReachabilityReadinessQueueDB) QueryContext(_ context.Cont
 		db.attemptCount + 1,
 		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
+		db.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"aws_resource_materialization:aws:111122223333:us-east-1","reason":"aws security group rule facts observed","fact_id":"fact-rule-1","source_system":"aws"}`),
 	}}}, nil
 }

@@ -35,6 +35,22 @@ type Intent struct {
 	ClaimedAt       *time.Time
 	CompletedAt     *time.Time
 	Failure         *FailureRecord
+
+	// CycleStartedAt anchors "how long has this row been in its current
+	// repair cycle", as opposed to EnqueuedAt's "when was this row first
+	// created". It equals EnqueuedAt for a row that has never been reopened;
+	// ReopenSucceeded/ReplayDomain (go/internal/storage/postgres/reducer_queue_replay.go)
+	// reset it to the reopen timestamp, the same moment they reset
+	// AttemptCount to 0, so a maintenance-triggered reopen gets a genuinely
+	// fresh window instead of inheriting an already-expired one. Unlike
+	// AvailableAt, ordinary claim/retry/fail never touch it (see
+	// reducer_queue.go's retryReducerWorkQuery), so it is immune to the
+	// AttemptCount freeze that a non-counting retry failure class causes
+	// (nonCountingReducerRetryFailureClasses). A bounded readiness defer that
+	// needs a per-reopen grace window (e.g. AWS cloud runtime drift's
+	// awsCloudRuntimeDriftStatePendingMaxWait) should compare elapsed time
+	// against CycleStartedAt, not EnqueuedAt.
+	CycleStartedAt time.Time
 }
 
 // ScopeGenerationKey returns the durable scope-generation boundary for the intent.

@@ -70,6 +70,7 @@ func (db *iamCanAssumeReadinessQueueDB) QueryContext(_ context.Context, query st
 		db.attemptCount + 1,
 		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
+		db.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"aws_resource_materialization:aws:123456789012:aws-global:iam","reason":"aws iam trust statements observed","fact_id":"fact-trust-1","source_system":"aws"}`),
 	}}}, nil
 }

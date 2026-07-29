@@ -71,6 +71,7 @@ func (db *s3LogsToReadinessQueueDB) QueryContext(_ context.Context, query string
 		db.attemptCount + 1,
 		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
+		db.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"aws_resource_materialization:aws:111111111111:us-east-1:s3","reason":"s3 bucket access logging observed","fact_id":"fact-logging-1","source_system":"aws"}`),
 	}}}, nil
 }

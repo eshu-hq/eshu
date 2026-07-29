@@ -386,6 +386,10 @@ func (db *proofDomainDB) claimReducerWork(now time.Time, leaseOwner string, clai
 			item.attemptCount,
 			item.createdAt,
 			item.visibleAt,
+			// cycle_started_at: this harness never exercises reopen, so it
+			// always equals created_at, matching COALESCE(reopened_at,
+			// created_at) with reopened_at NULL.
+			item.createdAt,
 			item.payload,
 		}}), nil
 	}

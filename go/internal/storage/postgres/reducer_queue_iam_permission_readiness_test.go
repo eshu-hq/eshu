@@ -158,6 +158,7 @@ func (db *iamPermissionReadinessQueueDB) QueryContext(_ context.Context, query s
 		1,
 		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
+		db.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"aws_resource_materialization:aws:123456789012:aws-global:iam","reason":"iam permission facts observed","fact_id":"fact-iam-1","source_system":"aws"}`),
 	}}}, nil
 }
