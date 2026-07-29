@@ -169,10 +169,9 @@ recent shipped work grouped by feature area.
   distinct scopes land in `"unresolved"` than ever go `"ambiguous"`, since an
   unonboarded repo's backend is the default case for
   `no_config_repo_owns_backend` — worth watching after rollout, not a defect
-  today), and a recorded known gap: no golden-corpus fixture exercises this
-  path end-to-end (see below), which would need a new untracked/local-backend
-  corpus fixture — out of scope for this change; the owner will decide on a
-  follow-up filing separately.
+  today). This write path, and the `backend "local" {}` default-path fix
+  itself, are now both proven end-to-end by the golden corpus (see the
+  golden-corpus fixture entry below).
   - Observability Evidence: `eshu_dp_drift_unresolved_owner_write_failed_total`
     (`go/internal/telemetry/instruments.go`, registered alongside
     `DriftAmbiguousOwnerWriteFailed`), with its X1 contract row in
@@ -199,16 +198,80 @@ recent shipped work grouped by feature area.
     `TestDriftHandlerAmbiguousOwnerStillWritesAmbiguousNotUnresolved` and
     `TestTerraformConfigStateDriftFindingStoreFiltersByOutcome` (pre-existing)
     both stayed green throughout, proving the pre-existing
-    `"ambiguous"` path is untouched. No golden-corpus files changed: the
-    corpus's one Terraform-state cassette/fixture pair
+    `"ambiguous"` path is untouched. Golden-corpus fixtures for both the
+    `"unresolved"` write path and the `backend "local" {}` default-path fix
+    landed in a follow-up commit on this branch (see below); at the time of
+    this commit the corpus's one Terraform-state cassette/fixture pair
     (`testdata/cassettes/terraformstate/supply-chain-demo.json`,
-    `tests/fixtures/ecosystems/terraform_comprehensive/main.tf`) is
+    `tests/fixtures/ecosystems/terraform_comprehensive/main.tf`) was still
     deliberately backend-aligned by #5442's own design so ownership
     resolution always succeeds — confirmed by direct corpus scan (exactly
     one `backend` block across all 20 fixture repos, exactly one
     `terraformstate` cassette, both in that same aligned pair) — so the new
-    `"unresolved"` write path structurally cannot fire against the existing
-    corpus.
+    `"unresolved"` write path could not yet fire against the existing corpus.
+
+- **Golden-corpus fixtures proving both the `backend "local" {}`
+  default-path fix and the `"unresolved"` outcome fire for real**
+  ([#5594](https://github.com/eshu-hq/eshu/issues/5594)). Neither change
+  above had live golden-corpus coverage: the corpus's only Terraform backend
+  fixture (`terraform_comprehensive`) is deliberately S3-aligned by #5442's
+  design, so it can prove neither a bare local backend's default-path
+  resolution nor a genuinely-unowned backend's `"unresolved"` write. Added
+  two new scopes to `testdata/cassettes/terraformstate/supply-chain-demo.json`
+  and one new fixture repo, `tests/fixtures/ecosystems/terraform_local_backend_demo`
+  (a bare `backend "local" {}` block, no `path`, at repo root), alongside —
+  not replacing — the existing S3-aligned pair: (1) a resolvable local-backend
+  scope whose state resources deliberately do not overlap the new fixture's
+  declared resources, proving `tfstatebackend.ResolveConfigCommitForBackend`
+  resolves the default-path locator and materializes a real
+  `outcome: "exact"` finding; (2) a deliberately orphaned S3 bucket/key no
+  fixture's config declares, proving `outcome: "unresolved"` fires. A
+  `BackendLocal` locator is an absolute path rooted at the fixture's real,
+  run-time git-checkout location (`scripts/verify-golden-corpus-gate.sh`
+  stages every fixture inside a fresh `mktemp -d` per run), so neither the
+  cassette nor the snapshot can pin its resolved `scope_id` as a literal;
+  both instead carry a `$LOCAL_BACKEND_SCOPE_ID$` sentinel. Added
+  `go/cmd/golden-corpus-gate/local_backend_scope_id.go` (a
+  `-print-local-backend-scope-id` compute-and-print mode reproducing
+  production's join-key formula, pinned against the real
+  `terraformstate.ScopeLocatorHash` by
+  `TestComputeLocalBackendScopeIDMatchesScopeLocatorHash`, plus a
+  `-local-backend-scope-id` flag that substitutes the sentinel into the
+  loaded snapshot's query shapes before the query phase runs) and
+  `scripts/lib/golden-corpus-local-backend.sh` (`stage_local_backend_cassette`:
+  resolves the fixture's `local_path` from Postgres after bootstrap-index,
+  computes the real `scope_id`, and writes a sentinel-substituted runtime
+  copy of the cassette that only the `terraformstate` collector replays —
+  every other collector keeps its original, unmodified, committed cassette).
+  Added two new HTTP query shapes to `testdata/golden/e2e-20repo-snapshot.json`
+  (`POST /api/v0/terraform/config-state-drift/findings?variant=local-backend-resolved`
+  and `...?variant=unresolved`; the query-string suffix exists only to give
+  each entry a distinct map key — `net/http.ServeMux` ignores it when
+  routing, and `parseHTTPShapeKey` passes it straight through — the real
+  selector is `scope_id` in `request_body`, matching the precedent already
+  in this file at `POST /api/v0/impact/trace-deployment-chain?anchor=declared-object`),
+  each filtering by `outcome` and asserting `required_json_values` on
+  `outcome_groups[].outcome`/`drift_findings[].outcome`, so the two new
+  scopes are provably distinguishable from each other and from the
+  pre-existing S3 scope's shape at the gate, not just in unit tests. No new
+  MCP query shape: `list_terraform_config_state_drift_findings` is the one
+  registered MCP tool name for this capability, and the snapshot's MCP shape
+  map key is dispatched as the literal `tools/call` tool name, so only one
+  MCP entry can exist for it; the existing S3-scope MCP entry already proves
+  the MCP tool layer itself dispatches this capability correctly, and it is
+  left unchanged. Updated `go/internal/correlation/drift/tfconfigstate/doc.go`
+  and this file's earlier "known gap" entries above to describe what these
+  fixtures now prove instead of recording the gap as deferred.
+  - Local verification: `cd go && go test ./internal/replay/schema/...
+    ./cmd/golden-corpus-gate/... ./internal/goldengate/... -count=1` is
+    green; `bash scripts/test-verify-golden-corpus-gate.sh` passes;
+    `testdata/cassettes/terraformstate/supply-chain-demo.json` and
+    `testdata/golden/e2e-20repo-snapshot.json` are both valid JSON and the
+    former passes `TestCommittedCassettesValid`'s schema/loader validation.
+    The live `bash scripts/verify-golden-corpus-gate.sh` run (Docker,
+    real Postgres/graph backend) that proves the two new query shapes and
+    the corpus-wide count ranges is not runnable in this environment; see
+    the PR description for that evidence.
 
 ### Route-fact-based Rails controller liveness
 

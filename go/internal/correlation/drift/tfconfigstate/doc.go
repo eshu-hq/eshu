@@ -188,14 +188,23 @@
 //     volume, the mitigation is scope-level (e.g. a distinct-scope gauge or
 //     a query-time cap), not a change to this per-scope write cadence.
 //
-//     Known gap: no golden-corpus fixture exercises this write path
-//     end-to-end. The corpus's one Terraform-state cassette/fixture pair
+//     Golden-corpus proof: this write path, and the "backend \"local\" {}"
+//     default-path fix itself, are both exercised end-to-end by the corpus.
+//     The corpus's original Terraform-state cassette/fixture pair
 //     (testdata/cassettes/terraformstate/supply-chain-demo.json,
-//     tests/fixtures/ecosystems/terraform_comprehensive/main.tf) is
-//     deliberately backend-aligned by #5442's own design so ownership
-//     resolution always succeeds, so "unresolved" never fires against the
-//     existing 20-repo corpus. A live-gate proof would need a new
-//     untracked/local-backend corpus fixture; out of scope for issue #5594.
+//     tests/fixtures/ecosystems/terraform_comprehensive/main.tf) stays
+//     deliberately backend-aligned by #5442's own design so that scope's
+//     ownership resolution always succeeds. Issue #5594 added two more
+//     scopes to the SAME cassette alongside it: a resolvable
+//     tests/fixtures/ecosystems/terraform_local_backend_demo (a bare
+//     `backend "local" {}` block, proving the default-path fix resolves an
+//     owner and materializes a real outcome="exact" finding) and a
+//     deliberately orphaned bucket/key no fixture's config declares (proving
+//     outcome="unresolved" fires for real, not just in unit tests). Both are
+//     asserted live at testdata/golden/e2e-20repo-snapshot.json's
+//     'POST /api/v0/terraform/config-state-drift/findings?variant=...' HTTP
+//     query shapes, distinguished from each other and from the pre-existing
+//     S3 scope by an outcome filter plus required_json_values.
 //
 // Deliberately not reachable / not persisted:
 //
