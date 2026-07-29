@@ -81,8 +81,8 @@ func suppressionScopeMatchesFinding(finding SupplyChainImpactFinding, s vulnerab
 	// to WorkloadID/ServiceID at all (a separate fact source,
 	// reducer_ci_cd_run_correlation, correlated only by repository_id), so a
 	// scope combining Environment with either one can only be verified when
-	// suppressionDeploymentContextUnambiguous's cardinality-1 fallback
-	// applies (see that function's doc). WorkloadID and ServiceID DO share a
+	// every referenced dimension is single-valued (see that function's doc).
+	// WorkloadID and ServiceID DO share a
 	// genuine join: supplyChainServiceContext (supply_chain_impact_index.go)
 	// carries both together from the SAME reducer_service_catalog_
 	// correlation record, and applySupplyChainRuntimeContext preserves that
@@ -115,9 +115,9 @@ func suppressionScopeMatchesFinding(finding SupplyChainImpactFinding, s vulnerab
 }
 
 // suppressionDeploymentContextUnambiguous reports whether the finding's
-// deployment evidence is precise enough to verify a scope naming two or more
-// of {Environment, WorkloadID, ServiceID} against a SINGLE real deployment
-// (#5466 round-7 review P1-A, tightened by round-8 review F-2).
+// deployment evidence is precise enough to apply a scoped decision to the
+// whole canonical finding. Every referenced dimension must be single-valued;
+// WorkloadID+ServiceID must additionally have a verified pair.
 //
 // The two remaining dimension-pairs are verified by GENUINELY DIFFERENT
 // mechanisms, because only one of them has real correlating evidence:
@@ -136,51 +136,28 @@ func suppressionScopeMatchesFinding(finding SupplyChainImpactFinding, s vulnerab
 //     repository_id -- there is no row anywhere that carries Environment
 //     alongside WorkloadID or ServiceID, so it cannot be tupled with either
 //     the way WorkloadID and ServiceID can be tupled with each other. A
-//     scope combining Environment with one of them (or naming Environment
-//     plus one of the other two when both were NOT referenced) falls back
-//     to the cardinality-1 guard below: it returns true only if EVERY
-//     referenced dimension in that fallback has at most one distinct value
-//     on the finding -- with at most one candidate value per referenced
-//     dimension there is only one possible combination, so independent
-//     per-dimension checks are equivalent to checking that single
-//     combination.
+//     scope combining Environment with one of them therefore relies on the
+//     singleton guard below. With at most one candidate per referenced
+//     dimension, independent checks describe only one possible combination.
 //
-// A scope referencing zero or one of the three dimensions always returns
-// true: nothing to combine, no ambiguity.
+// A referenced dimension must itself be single-valued. The finding carries
+// one suppression decision for the whole canonical aggregate, so matching one
+// value in a multi-valued dimension would hide every other context too.
 func suppressionDeploymentContextUnambiguous(finding SupplyChainImpactFinding, scope vulnerabilitySuppressionScope) bool {
 	env := strings.TrimSpace(scope.Environment) != ""
 	workload := strings.TrimSpace(scope.WorkloadID) != ""
 	service := strings.TrimSpace(scope.ServiceID) != ""
+	if env && !suppressionDimensionSingleValued(finding.Environments) {
+		return false
+	}
+	if workload && !suppressionDimensionSingleValued(finding.WorkloadIDs) {
+		return false
+	}
+	if service && !suppressionDimensionSingleValued(finding.ServiceIDs) {
+		return false
+	}
 	if workload && service {
-		if !suppressionServiceWorkloadPairMatches(finding, scope) {
-			return false
-		}
-		if !env {
-			return true
-		}
-		return distinctNonEmptyValueCount(finding.Environments) <= 1
-	}
-	referenced := 0
-	if env {
-		referenced++
-	}
-	if workload {
-		referenced++
-	}
-	if service {
-		referenced++
-	}
-	if referenced < 2 {
-		return true
-	}
-	if env && distinctNonEmptyValueCount(finding.Environments) > 1 {
-		return false
-	}
-	if workload && distinctNonEmptyValueCount(finding.WorkloadIDs) > 1 {
-		return false
-	}
-	if service && distinctNonEmptyValueCount(finding.ServiceIDs) > 1 {
-		return false
+		return suppressionServiceWorkloadPairMatches(finding, scope)
 	}
 	return true
 }
@@ -215,21 +192,26 @@ func suppressionServiceWorkloadPairMatches(finding SupplyChainImpactFinding, sco
 	return false
 }
 
-// distinctNonEmptyValueCount counts the distinct trimmed, non-empty values
-// in values. Exact-string comparison (not case-insensitive) is intentional:
-// treating case variants as distinct is the more conservative reading for
-// suppressionDeploymentContextUnambiguous's fail-closed check, since it can
-// only ever make ambiguity detection MORE likely to fire, never less.
-func distinctNonEmptyValueCount(values []string) int {
-	seen := make(map[string]struct{}, len(values))
+// suppressionDimensionSingleValued reports whether values contain at most one
+// distinct trimmed, non-empty value without allocating a set on the
+// per-finding suppression path. Exact comparison is conservative: case
+// variants remain ambiguous and therefore visible.
+func suppressionDimensionSingleValued(values []string) bool {
+	var first string
 	for _, value := range values {
 		value = strings.TrimSpace(value)
 		if value == "" {
 			continue
 		}
-		seen[value] = struct{}{}
+		if first == "" {
+			first = value
+			continue
+		}
+		if value != first {
+			return false
+		}
 	}
-	return len(seen)
+	return true
 }
 
 // scopeListAnchorMatches reports whether a scoped anchor value matches at

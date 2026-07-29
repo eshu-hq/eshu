@@ -103,10 +103,10 @@ type vulnerabilitySuppressionScope struct {
 	// discoverable vulnerability identity. They never identify a vulnerability
 	// alone. Environment is canonicalized through the shared alias contract.
 	//
-	// Findings currently store these dimensions as independent flattened lists,
-	// not correlated deployment tuples. A scope naming two or more dimensions
-	// therefore matches only when every referenced dimension has at most one
-	// observed value. Ambiguous combinations fail closed to scope_mismatch.
+	// Findings currently store one suppression decision over independent
+	// flattened deployment lists. Every referenced dimension must therefore
+	// have at most one observed value; otherwise one matching value would hide
+	// sibling contexts. Ambiguous aggregates fail closed to scope_mismatch.
 	Environment string
 	WorkloadID  string
 	ServiceID   string

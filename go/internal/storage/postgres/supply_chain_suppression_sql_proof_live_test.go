@@ -244,18 +244,20 @@ SELECT
     ELSE format('fact:other:%06s', n)
   END,
   'scope:5465:sql-proof', 'generation:5465:sql-proof',
-  -- rows 126-250 carry advisory_id nested under "scope", which only ever
+  -- rows 126-250 and 376-500 carry identity values nested under "scope",
+  -- which only ever appears on a vulnerability.suppression fact in
+  -- production (no other
   -- appears on a vulnerability.suppression fact in production (no other
   -- fact kind's schema has a "scope" sub-object -- see
   -- sdk/go/factschema/vulnerability/v1); the query's normalized
   -- scope-nested advisory_id predicate ($18, #5466 round-4 review F-10) is
-  -- gated to fact_kind = 'vulnerability.suppression' to match that reality,
-  -- unlike its package_id/purl/cve_id/subject_digest/repository_id
-  -- siblings (#5466 round-3 review F-6), which stay ungated because their
-  -- own JSON path is likewise only ever populated on a suppression fact --
-  -- gating changes nothing for them, so they were left as-is.
+  -- gated to fact_kind = 'vulnerability.suppression' to match that reality.
+  -- The same guard now applies to every nested suppression scope identity,
+  -- avoiding Unicode normalization work on the 99.75% unrelated rows in
+  -- this representative corpus.
   CASE
-    WHEN n > 125 AND n <= 250 THEN 'vulnerability.suppression'
+    WHEN (n > 125 AND n <= 250) OR (n > 375 AND n <= 500)
+      THEN 'vulnerability.suppression'
     ELSE 'vulnerability.cve'
   END,
   format('stable:%06s', n), '1.0.0', 'synthetic', 1, 'reported',

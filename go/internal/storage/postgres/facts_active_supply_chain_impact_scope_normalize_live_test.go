@@ -124,3 +124,36 @@ func TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByAdvisoryIDOnlyL
 		t.Fatalf("FactID = %q, want vuln-suppression:advisory-only: %#v", loaded[0].FactID, loaded[0])
 	}
 }
+
+func TestListActiveSupplyChainImpactFactsLoadsUnicodeTrimSpaceSuppressionScopeLive(t *testing.T) {
+	db := newSupplyChainImpactScopeLiveTestDB(t, "eshu_5466_suppression_scope_unicode_space_live")
+	const (
+		cveID  = "CVE-2026-54661"
+		factID = "vuln-suppression:unicode-space"
+	)
+	seedSupplyChainImpactScopeLiveFact(
+		t,
+		db,
+		factID,
+		"unicode-space",
+		`{"suppression_id":"SUP-UNICODE-SPACE","source":"eshu_policy","justification":"not_affected","author":"security-bot","authored_at":"2026-06-20T00:00:00Z","scope":{"cve_id":"\u00a0CVE-2026-54661\u00a0"}}`,
+	)
+
+	store := NewFactStore(SQLDB{DB: db})
+	loaded, truncated, err := store.ListActiveSupplyChainImpactFacts(
+		context.Background(),
+		reducer.SupplyChainImpactFactFilter{CVEIDs: []string{cveID}},
+	)
+	if err != nil {
+		t.Fatalf("ListActiveSupplyChainImpactFacts: %v", err)
+	}
+	if truncated {
+		t.Fatal("truncated = true, want false")
+	}
+	for _, envelope := range loaded {
+		if envelope.FactID == factID {
+			return
+		}
+	}
+	t.Fatalf("unicode-TrimSpace suppression %q was not loaded", factID)
+}

@@ -128,19 +128,12 @@ FROM generate_series(1, $2::integer) AS n
 			affectedPackageFactID, len(loaded),
 		)
 	}
-	// The cap check runs after each FULL page is appended (page-granularity
-	// stop, not a mid-page hard trim -- matching
-	// TestListActiveSupplyChainImpactFactsCapsRowsPerCall's documented
-	// behavior in facts_active_supply_chain_impact_row_cap_test.go). Page 1
-	// (LIMIT 500) holds the 1 affected_package row FIRST (it sorts before
-	// every suppression row) plus 499 suppression rows -- only 499 total
-	// suppression rows loaded, still under the 600 cap, so pagination
-	// continues; page 2 is entirely suppression rows (500 more), crossing
-	// the cap (499+500=999 >= 600), so the loop stops there: exactly 999
-	// suppression rows, not all 1,200 and not a full 1,000.
-	wantSuppressionCount := 2*listFactsByKindPageSize - 1
+	// Page 1 holds the core row plus 499 suppressions. Page 2 supplies the
+	// remaining 101 suppressions up to the exact cap and one sentinel proving
+	// more rows exist. The sentinel is not returned.
+	wantSuppressionCount := lowCap
 	if got := suppressionCount; got != wantSuppressionCount {
-		t.Fatalf("suppression rows loaded = %d, want %d (stops after the page where the %d-row cap is crossed)", got, wantSuppressionCount, lowCap)
+		t.Fatalf("suppression rows loaded = %d, want exact cap %d", got, wantSuppressionCount)
 	}
 	if got, want := len(loaded), 1+wantSuppressionCount; got != want {
 		t.Fatalf("total loaded = %d, want %d (1 affected_package + %d suppression)", got, want, wantSuppressionCount)

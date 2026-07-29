@@ -67,7 +67,7 @@ func TestEvaluateSupplyChainSuppressionMultiAnchorScopeDoesNotMatchUnverifiedCom
 	// "workload-b" is in WorkloadIDs), so without
 	// suppressionAmbiguousCombinationDiff this would fall through to the
 	// generic, misleading "scope anchors did not match the finding".
-	if !strings.Contains(decision.Reason, "multi-anchor combination unverifiable") {
+	if !strings.Contains(decision.Reason, "deployment context unverifiable") {
 		t.Fatalf("Reason = %q, want it to explain the combination could not be verified (not a value mismatch)", decision.Reason)
 	}
 	if !strings.Contains(decision.Reason, "environment") || !strings.Contains(decision.Reason, "workload_id") {
@@ -163,7 +163,7 @@ func TestEvaluateSupplyChainSuppressionMultiAnchorScopeDoesNotMatchUnpairedServi
 	if decision.SuppressionID != "suppression-unpaired-service-workload" {
 		t.Fatalf("SuppressionID = %q, want the mismatched suppression preserved for audit", decision.SuppressionID)
 	}
-	if !strings.Contains(decision.Reason, "multi-anchor combination unverifiable") {
+	if !strings.Contains(decision.Reason, "deployment context unverifiable") {
 		t.Fatalf("Reason = %q, want it to explain the combination could not be verified", decision.Reason)
 	}
 }

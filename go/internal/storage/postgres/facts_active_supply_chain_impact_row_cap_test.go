@@ -83,11 +83,39 @@ func TestListActiveSupplyChainImpactFactsCapsRowsPerCall(t *testing.T) {
 	if !truncated {
 		t.Fatalf("truncated = false, want true (loaded %d rows against a %d-row cap)", len(loaded), maxSupplyChainImpactActiveEvidenceRowsPerCall)
 	}
-	if got, want := len(loaded), 2*listFactsByKindPageSize; got != want {
-		t.Fatalf("len(loaded) = %d, want %d (the cap (%d) is crossed exactly after the SECOND page, so the loop must stop there, not return every primed row)", got, want, maxSupplyChainImpactActiveEvidenceRowsPerCall)
+	if got, want := len(loaded), maxSupplyChainImpactActiveEvidenceRowsPerCall; got != want {
+		t.Fatalf("len(loaded) = %d, want the exact cap %d", got, want)
 	}
 	if got, want := len(db.queries), 2; got != want {
 		t.Fatalf("query count = %d, want %d (stopping after the cap is crossed, not exhausting all four primed pages)", got, want)
+	}
+}
+
+func TestListActiveSupplyChainImpactFactsExactCapIsNotTruncated(t *testing.T) {
+	originalCap := maxSupplyChainImpactActiveEvidenceRowsPerCall
+	maxSupplyChainImpactActiveEvidenceRowsPerCall = listFactsByKindPageSize
+	t.Cleanup(func() { maxSupplyChainImpactActiveEvidenceRowsPerCall = originalCap })
+
+	baseTime := time.Date(2026, time.July, 28, 10, 0, 0, 0, time.UTC)
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: suppressionRowCapFakePage(0, listFactsByKindPageSize, baseTime)},
+			{rows: nil},
+		},
+	}
+	store := NewFactStore(db)
+
+	loaded, truncated, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
+		CVEIDs: []string{"CVE-2026-0700"},
+	})
+	if err != nil {
+		t.Fatalf("ListActiveSupplyChainImpactFacts() error = %v, want nil", err)
+	}
+	if truncated {
+		t.Fatalf("truncated = true, want false for exactly %d rows", maxSupplyChainImpactActiveEvidenceRowsPerCall)
+	}
+	if got, want := len(loaded), maxSupplyChainImpactActiveEvidenceRowsPerCall; got != want {
+		t.Fatalf("len(loaded) = %d, want %d", got, want)
 	}
 }
 

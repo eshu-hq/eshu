@@ -77,56 +77,6 @@ func TestEvaluateSupplyChainSuppressionEnvironmentScopeDoesNotHideOtherEnvironme
 	}
 }
 
-// TestEvaluateSupplyChainSuppressionSameDigestTwoEnvironmentsHidesOnlyScopedEnvironment
-// is the binding acceptance fixture: the same digest deployed to two
-// environments, one suppression scoped to one environment, exactly one
-// finding hidden and the other visible.
-func TestEvaluateSupplyChainSuppressionSameDigestTwoEnvironmentsHidesOnlyScopedEnvironment(t *testing.T) {
-	t.Parallel()
-
-	const digest = "sha256:headline-fixture-digest"
-	stagingFinding := SupplyChainImpactFinding{
-		CVEID:         "CVE-2026-0210",
-		PackageID:     "pkg:npm/example",
-		RepositoryID:  "repo://acme/api",
-		SubjectDigest: digest,
-		Environments:  []string{"stage"},
-	}
-	prodFinding := SupplyChainImpactFinding{
-		CVEID:         "CVE-2026-0210",
-		PackageID:     "pkg:npm/example",
-		RepositoryID:  "repo://acme/api",
-		SubjectDigest: digest,
-		Environments:  []string{"prod"},
-	}
-	suppressions := []vulnerabilitySuppression{{
-		SuppressionID: "suppression-staging-only",
-		Source:        facts.VulnerabilitySuppressionSourcePolicy,
-		Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
-		AuthoredAt:    time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
-		Reason:        "not exploitable in staging, still visible in prod",
-		Scope: vulnerabilitySuppressionScope{
-			CVEID:         "CVE-2026-0210",
-			SubjectDigest: digest,
-			Environment:   "stage",
-		},
-	}}
-	now := time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC)
-
-	stagingDecision := EvaluateSupplyChainSuppression(stagingFinding, suppressions, now)
-	prodDecision := EvaluateSupplyChainSuppression(prodFinding, suppressions, now)
-
-	if stagingDecision.State != SupplyChainSuppressionStateNotAffected {
-		t.Fatalf("staging State = %q, want %q (exactly one environment hidden)", stagingDecision.State, SupplyChainSuppressionStateNotAffected)
-	}
-	if !SupplyChainSuppressionStateIsHidden(stagingDecision.State) {
-		t.Fatalf("staging decision state %q must be hidden from the default view", stagingDecision.State)
-	}
-	if prodDecision.State == SupplyChainSuppressionStateNotAffected || SupplyChainSuppressionStateIsHidden(prodDecision.State) {
-		t.Fatalf("prod State = %q, want the same-digest finding in the other environment to stay visible", prodDecision.State)
-	}
-}
-
 // TestEvaluateSupplyChainSuppressionEnvironmentScopeCanonicalizesAliases proves
 // the matcher consumes the shared environment-alias contract
 // (go/internal/environment.Canonical) rather than a local normalization: an
@@ -210,7 +160,7 @@ func TestEvaluateSupplyChainSuppressionWorkloadAndServiceScopeMatchAndFailClosed
 		wantState     SupplyChainSuppressionState
 	}{
 		{
-			name: "workload_id matches",
+			name: "workload_id aggregate stays visible",
 			findingFields: SupplyChainImpactFinding{
 				CVEID:         "CVE-2026-0300",
 				SubjectDigest: "sha256:workload-digest",
@@ -221,7 +171,7 @@ func TestEvaluateSupplyChainSuppressionWorkloadAndServiceScopeMatchAndFailClosed
 				SubjectDigest: "sha256:workload-digest",
 				WorkloadID:    "workload-a",
 			},
-			wantState: SupplyChainSuppressionStateNotAffected,
+			wantState: SupplyChainSuppressionStateScopeMismatch,
 		},
 		{
 			name: "workload_id mismatch",

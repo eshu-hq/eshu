@@ -12,6 +12,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
+// suppressionScopeTrimCharactersSQL is PostgreSQL's explicit spelling of the
+// Unicode White_Space set used by strings.TrimSpace. Keeping the sets equal
+// prevents the SQL prefilter from making a suppression inert before the Go
+// decoder can apply its matching contract.
+const suppressionScopeTrimCharactersSQL = `U&'\0009\000A\000B\000C\000D\0020\0085\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000'`
+
 const listActiveSupplyChainImpactFactsQuery = `
 SELECT
     fact.fact_id,
@@ -84,11 +90,23 @@ WHERE fact.fact_kind IN (
       -- (vulnerability.affected_package, sbom.component, ...) whose
       -- existing exact-match behavior must not change -- only the
       -- "scope"-nested comparisons were replaced.
-      OR lower(btrim(fact.payload->'scope'->>'package_id', E' \t\n\v\f\r')) = ANY($13::text[])
+      OR (
+          fact.fact_kind = 'vulnerability.suppression'
+          AND cardinality($13::text[]) > 0
+          AND lower(btrim(fact.payload->'scope'->>'package_id', ` + suppressionScopeTrimCharactersSQL + `)) = ANY($13::text[])
+      )
       OR fact.payload->>'purl' = ANY($2::text[])
-      OR lower(btrim(fact.payload->'scope'->>'purl', E' \t\n\v\f\r')) = ANY($14::text[])
+      OR (
+          fact.fact_kind = 'vulnerability.suppression'
+          AND cardinality($14::text[]) > 0
+          AND lower(btrim(fact.payload->'scope'->>'purl', ` + suppressionScopeTrimCharactersSQL + `)) = ANY($14::text[])
+      )
       OR fact.payload->>'cve_id' = ANY($3::text[])
-      OR lower(btrim(fact.payload->'scope'->>'cve_id', E' \t\n\v\f\r')) = ANY($15::text[])
+      OR (
+          fact.fact_kind = 'vulnerability.suppression'
+          AND cardinality($15::text[]) > 0
+          AND lower(btrim(fact.payload->'scope'->>'cve_id', ` + suppressionScopeTrimCharactersSQL + `)) = ANY($15::text[])
+      )
       OR (
           cardinality($4::text[]) > 0
           AND (
@@ -96,7 +114,11 @@ WHERE fact.fact_kind IN (
           )
       )
       OR fact.payload->>'subject_digest' = ANY($5::text[])
-      OR lower(btrim(fact.payload->'scope'->>'subject_digest', E' \t\n\v\f\r')) = ANY($16::text[])
+      OR (
+          fact.fact_kind = 'vulnerability.suppression'
+          AND cardinality($16::text[]) > 0
+          AND lower(btrim(fact.payload->'scope'->>'subject_digest', ` + suppressionScopeTrimCharactersSQL + `)) = ANY($16::text[])
+      )
       OR fact.payload->>'digest' = ANY($5::text[])
       OR fact.payload->>'artifact_digest' = ANY($5::text[])
       OR fact.payload->>'referrer_digest' = ANY($5::text[])
@@ -122,7 +144,11 @@ WHERE fact.fact_kind IN (
               -- ANY($8) predicate here. It binds the same repository filter
               -- values after normalization, so it strictly supersedes the
               -- old exact-match comparison (#5466 round-3 review F-6).
-              OR lower(btrim(fact.payload->'scope'->>'repository_id', E' \t\n\v\f\r')) = ANY($17::text[])
+              OR (
+                  fact.fact_kind = 'vulnerability.suppression'
+                  AND cardinality($17::text[]) > 0
+                  AND lower(btrim(fact.payload->'scope'->>'repository_id', ` + suppressionScopeTrimCharactersSQL + `)) = ANY($17::text[])
+              )
               OR fact.scope_id = ANY($8::text[])
               OR fact.payload->>'scope_id' = ANY($8::text[])
               OR scope.source_key = ANY($8::text[])
@@ -155,7 +181,8 @@ WHERE fact.fact_kind IN (
           -- advisory_id scope lookup. Deployment context is deliberately
           -- absent here: environment, workload_id, and service_id only
           -- narrow suppressions discovered through an identity anchor.
-          AND lower(btrim(fact.payload->'scope'->>'advisory_id', E' \t\n\v\f\r')) = ANY($18::text[])
+          AND cardinality($18::text[]) > 0
+          AND lower(btrim(fact.payload->'scope'->>'advisory_id', ` + suppressionScopeTrimCharactersSQL + `)) = ANY($18::text[])
       )
   )
   AND (
@@ -194,7 +221,9 @@ LIMIT $12
 // exist. The 2,000-row ceiling is four existing 500-row pages of
 // suppression evidence, generous headroom for the operator-authored
 // suppression counts this query realistically serves (round-3/round-6
-// EXPLAIN evidence, gotchas-and-invariants.md).
+// EXPLAIN evidence, gotchas-and-invariants.md). The loader admits exactly
+// this many suppression rows, then reads one sentinel before reporting
+// truncation; an exact-cap result with no sentinel is complete.
 //
 // A truncated load fails OPEN for the omitted TAIL of suppression evidence
 // only (less suppression evidence loaded past the cap, findings that would
@@ -247,14 +276,14 @@ func (s FactStore) ListActiveSupplyChainImpactFacts(
 		if err != nil {
 			return nil, false, err
 		}
-		loaded = append(loaded, page...)
 		for _, envelope := range page {
 			if envelope.FactKind == facts.VulnerabilitySuppressionFactKind {
+				if suppressionLoaded == maxSupplyChainImpactActiveEvidenceRowsPerCall {
+					return loaded, true, nil
+				}
 				suppressionLoaded++
 			}
-		}
-		if suppressionLoaded >= maxSupplyChainImpactActiveEvidenceRowsPerCall {
-			return loaded, true, nil
+			loaded = append(loaded, envelope)
 		}
 		if len(page) < listFactsByKindPageSize {
 			return loaded, false, nil

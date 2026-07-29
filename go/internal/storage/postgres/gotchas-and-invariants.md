@@ -226,6 +226,9 @@ operational lessons that future storage changes still need to respect.
   filter removes that broad-scan class while the reducer applies them as
   conjunctive, fail-closed match constraints after an identity-anchored fact
   is loaded. Scope identity predicates use normalized `lower(btrim(...))`
-  binds so SQL selection agrees with the reducer's trimmed, case-insensitive
-  matcher. The 2,000-row per-call cap remains defense in depth and reports
-  truncation through the existing active-evidence signal.
+  binds with the complete Unicode White_Space set used by Go
+  `strings.TrimSpace`, so SQL selection agrees with the reducer's
+  case-insensitive matcher. A fact-kind guard avoids paying that normalization
+  cost on non-suppression rows. The 2,000-row per-call cap remains defense in
+  depth; it over-fetches one sentinel, returns at most 2,000 suppressions, and
+  reports truncation only when another row actually exists.

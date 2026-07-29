@@ -27,11 +27,11 @@ func TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeSiblings
 	// exact-match top-level (non-"scope") siblings serving other fact kinds
 	// keep their existing behavior unchanged.
 	for _, want := range []string{
-		"lower(btrim(fact.payload->'scope'->>'package_id', E' \\t\\n\\v\\f\\r')) = ANY($13::text[])",
-		"lower(btrim(fact.payload->'scope'->>'purl', E' \\t\\n\\v\\f\\r')) = ANY($14::text[])",
-		"lower(btrim(fact.payload->'scope'->>'cve_id', E' \\t\\n\\v\\f\\r')) = ANY($15::text[])",
-		"lower(btrim(fact.payload->'scope'->>'subject_digest', E' \\t\\n\\v\\f\\r')) = ANY($16::text[])",
-		"lower(btrim(fact.payload->'scope'->>'repository_id', E' \\t\\n\\v\\f\\r')) = ANY($17::text[])",
+		"lower(btrim(fact.payload->'scope'->>'package_id', " + suppressionScopeTrimCharactersSQL + ")) = ANY($13::text[])",
+		"lower(btrim(fact.payload->'scope'->>'purl', " + suppressionScopeTrimCharactersSQL + ")) = ANY($14::text[])",
+		"lower(btrim(fact.payload->'scope'->>'cve_id', " + suppressionScopeTrimCharactersSQL + ")) = ANY($15::text[])",
+		"lower(btrim(fact.payload->'scope'->>'subject_digest', " + suppressionScopeTrimCharactersSQL + ")) = ANY($16::text[])",
+		"lower(btrim(fact.payload->'scope'->>'repository_id', " + suppressionScopeTrimCharactersSQL + ")) = ANY($17::text[])",
 	} {
 		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
@@ -107,7 +107,7 @@ func TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeAdvisory
 	// normalized, advisory_id was a dead scope key from the start. New
 	// placeholder $18 closes it with the same lower(btrim(...)) treatment.
 	for _, want := range []string{
-		"lower(btrim(fact.payload->'scope'->>'advisory_id', E' \\t\\n\\v\\f\\r')) = ANY($18::text[])",
+		"lower(btrim(fact.payload->'scope'->>'advisory_id', " + suppressionScopeTrimCharactersSQL + ")) = ANY($18::text[])",
 	} {
 		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)

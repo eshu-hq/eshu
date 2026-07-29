@@ -79,10 +79,10 @@ func TestListActiveSupplyChainImpactFactsQueryIncludesVulnerabilitySuppression(t
 	// other fact kinds.
 	for _, want := range []string{
 		"'vulnerability.suppression'",
-		"lower(btrim(fact.payload->'scope'->>'package_id', E' \\t\\n\\v\\f\\r')) = ANY($13::text[])",
-		"lower(btrim(fact.payload->'scope'->>'purl', E' \\t\\n\\v\\f\\r')) = ANY($14::text[])",
-		"lower(btrim(fact.payload->'scope'->>'cve_id', E' \\t\\n\\v\\f\\r')) = ANY($15::text[])",
-		"lower(btrim(fact.payload->'scope'->>'subject_digest', E' \\t\\n\\v\\f\\r')) = ANY($16::text[])",
+		"lower(btrim(fact.payload->'scope'->>'package_id', " + suppressionScopeTrimCharactersSQL + ")) = ANY($13::text[])",
+		"lower(btrim(fact.payload->'scope'->>'purl', " + suppressionScopeTrimCharactersSQL + ")) = ANY($14::text[])",
+		"lower(btrim(fact.payload->'scope'->>'cve_id', " + suppressionScopeTrimCharactersSQL + ")) = ANY($15::text[])",
+		"lower(btrim(fact.payload->'scope'->>'subject_digest', " + suppressionScopeTrimCharactersSQL + ")) = ANY($16::text[])",
 	} {
 		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
@@ -128,7 +128,7 @@ func TestListActiveSupplyChainImpactFactsQueryBoundsRepositoryFollowUp(t *testin
 		// (exact match); $17 supersedes it with lower(btrim(...)) -- see
 		// TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeSiblings
 		// (facts_active_supply_chain_impact_scope_normalize_test.go).
-		"lower(btrim(fact.payload->'scope'->>'repository_id', E' \\t\\n\\v\\f\\r')) = ANY($17::text[])",
+		"lower(btrim(fact.payload->'scope'->>'repository_id', " + suppressionScopeTrimCharactersSQL + ")) = ANY($17::text[])",
 		"fact.scope_id = ANY($8::text[])",
 		"fact.payload->>'scope_id' = ANY($8::text[])",
 		"scope.source_key = ANY($8::text[])",

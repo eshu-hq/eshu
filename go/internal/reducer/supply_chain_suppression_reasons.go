@@ -97,9 +97,7 @@ func suppressionScopeMismatchReason(finding SupplyChainImpactFinding, s vulnerab
 // suppressionDeploymentContextUnambiguous would reject scope for finding,
 // naming exactly which dimension(s) have more than one distinct value on
 // the finding so an operator can tell this apart from a real value
-// mismatch. Returns "" when the scope is unambiguous (including every
-// single-anchor scope, since suppressionDeploymentContextUnambiguous is a
-// no-op below two referenced dimensions).
+// mismatch. Returns "" when the scope is unambiguous.
 func suppressionAmbiguousCombinationDiff(finding SupplyChainImpactFinding, scope vulnerabilitySuppressionScope) string {
 	if suppressionDeploymentContextUnambiguous(finding, scope) {
 		return ""
@@ -107,29 +105,31 @@ func suppressionAmbiguousCombinationDiff(finding SupplyChainImpactFinding, scope
 	workload := strings.TrimSpace(scope.WorkloadID) != ""
 	service := strings.TrimSpace(scope.ServiceID) != ""
 	var ambiguous []string
-	// WorkloadID+ServiceID: real pairing evidence exists (#5466 round-8
-	// review F-2), so a failure here means no ServiceWorkloadPairs entry
-	// matched BOTH -- not a per-list cardinality problem, which is why this
-	// branch reports differently than the environment/single-dimension
-	// cases below.
-	if workload && service {
+	if workload && !suppressionDimensionSingleValued(finding.WorkloadIDs) {
+		ambiguous = append(ambiguous, fmt.Sprintf("workload_id (finding evidence: %v)", finding.WorkloadIDs))
+	}
+	if service && !suppressionDimensionSingleValued(finding.ServiceIDs) {
+		ambiguous = append(ambiguous, fmt.Sprintf("service_id (finding evidence: %v)", finding.ServiceIDs))
+	}
+	if strings.TrimSpace(scope.Environment) != "" &&
+		!suppressionDimensionSingleValued(finding.Environments) {
+		ambiguous = append(ambiguous, fmt.Sprintf("environment (finding evidence: %v)", finding.Environments))
+	}
+	// WorkloadID+ServiceID has genuine pair evidence. Report a missing pair
+	// only after both individual dimensions are single-valued; otherwise the
+	// more fundamental aggregate ambiguity above already explains the
+	// fail-closed decision.
+	if workload && service &&
+		suppressionDimensionSingleValued(finding.WorkloadIDs) &&
+		suppressionDimensionSingleValued(finding.ServiceIDs) &&
+		!suppressionServiceWorkloadPairMatches(finding, scope) {
 		ambiguous = append(ambiguous, fmt.Sprintf(
 			"workload_id+service_id (no verified co-occurrence in finding evidence: pairs=%v)",
 			finding.ServiceWorkloadPairs,
 		))
-	} else {
-		if workload && distinctNonEmptyValueCount(finding.WorkloadIDs) > 1 {
-			ambiguous = append(ambiguous, fmt.Sprintf("workload_id (finding evidence: %v)", finding.WorkloadIDs))
-		}
-		if service && distinctNonEmptyValueCount(finding.ServiceIDs) > 1 {
-			ambiguous = append(ambiguous, fmt.Sprintf("service_id (finding evidence: %v)", finding.ServiceIDs))
-		}
-	}
-	if strings.TrimSpace(scope.Environment) != "" && distinctNonEmptyValueCount(finding.Environments) > 1 {
-		ambiguous = append(ambiguous, fmt.Sprintf("environment (finding evidence: %v)", finding.Environments))
 	}
 	return fmt.Sprintf(
-		"multi-anchor combination unverifiable, not necessarily a value mismatch: %s, so this scope cannot be verified against a single real deployment and fails closed (#5466 round-7 review P1-A, round-8 review F-2)",
+		"deployment context unverifiable, not necessarily a value mismatch: %s, so this scope cannot be applied to the whole canonical finding and fails closed (#5466)",
 		strings.Join(ambiguous, ", "),
 	)
 }

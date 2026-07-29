@@ -1921,12 +1921,13 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   cross-vulnerability wildcard or SQL discovery key. Environment values use
   the shared canonical alias contract, and every populated deployment field
   must match baked finding evidence. Missing or ambiguous evidence fails
-  closed to `scope_mismatch`. Because the finding stores flattened deployment
-  dimensions rather than correlated tuples, a scope naming two or more
-  deployment dimensions applies only when each referenced dimension has one
-  unambiguous observed value. The live golden suppression is identity-anchored
-  and narrowed to `prod`, so its hidden-then-expired transition proves the
-  real reducer path; focused tests pin the same-digest stage/prod split.
+  closed to `scope_mismatch`. Because one canonical finding stores one
+  suppression decision while deployment dimensions are flattened lists, every
+  referenced deployment dimension must have one unambiguous observed value.
+  A stage predicate cannot hide a canonical finding that also carries prod.
+  The live golden suppression is identity-anchored and narrowed to the
+  singleton `prod` context, so its hidden-then-expired transition proves the
+  real reducer path; a production-finalized prod+stage aggregate stays visible.
   Performance Evidence:
   `docs/internal/evidence/5466-env-scoped-suppression-scope.md` records the
   current-base benchmark and exact stable-sort equivalence proof.

@@ -17,8 +17,10 @@ This boundary matters for both accuracy and performance:
 - Postgres discovers suppression facts through identity anchors only.
   Deployment context is checked after the anchored fact is loaded.
 - Environment values use the shared alias canonicalizer.
-- A multi-dimension deployment scope fails closed when flattened finding
-  evidence cannot prove one correlated deployment tuple.
+- Every referenced deployment dimension must be single-valued on the
+  canonical finding. One finding has one suppression decision, so a `stage`
+  predicate cannot hide a prod+stage aggregate. Multi-dimension scopes also
+  require verified tuple evidence where the reducer has a real join.
 
 The behavior change is versioned as the additive, backward-compatible
 `vulnerability.suppression` schema `1.1.0`. A compatibility test decodes a
@@ -34,10 +36,12 @@ TestCreateVulnerabilitySuppressionValidatesAndPersistsOperatorFact
 TestListActiveSupplyChainImpactFactsQueryDoesNotDiscoverSuppressionByDeploymentContext
 ```
 
-The acceptance fixture
-`TestEvaluateSupplyChainSuppressionSameDigestTwoEnvironmentsHidesOnlyScopedEnvironment`
-uses two findings with the same digest. The `stage` finding is suppressed and
-the `prod` finding remains visible as `scope_mismatch`.
+`TestEvaluateSupplyChainSuppressionEnvironmentScopeKeepsMultiEnvironmentAggregateVisible`
+builds the finding through `finalizeSupplyChainImpactFinding` with real
+prod+stage deployment contexts, then proves the stage-scoped suppression
+leaves the aggregate visible as `scope_mismatch`. Singleton stage evidence
+still suppresses. This preserves stable vulnerability identity and prevents a
+context predicate from hiding sibling exposures.
 
 ## Prove-the-theory-first performance work
 
@@ -66,24 +70,26 @@ Final measurements, Apple M5 Max, `darwin/arm64`, five one-second samples:
 
 | Metric | Current main | #5466 legacy shape | #5466 deployment shape |
 | --- | ---: | ---: | ---: |
-| Mean ns/op | 9,106 | 3,738 | 3,980 |
-| Range ns/op | 9,059–9,144 | 3,658–3,770 | 3,950–4,059 |
-| B/op | 43,964 | 112 | 656–657 |
-| allocs/op | 14 | 4 | 5 |
+| Mean ns/op | 9,106 | 3,668 | 3,983 |
+| Range ns/op | 9,059–9,144 | 3,625–3,708 | 3,975–3,990 |
+| B/op | 43,964 | 112 | 689 |
+| allocs/op | 14 | 4 | 8 |
 
-The legacy shape is about 59% faster than current main with 10 fewer
+The legacy shape is about 60% faster than current main with 10 fewer
 allocations. The deployment shape performs the three new conjunct checks and
 is still about 56% faster than current main. Accuracy is unchanged by the
 selection rewrite; the differential proof above pins exact decision
 equivalence.
 
 The final real-Postgres proof seeded 100,000 active facts and took ten warm
-measurements. The legacy query median/p95 was 15.456/16.515 ms; the current
-identity-anchored query was 15.307/16.997 ms, within the enforced 10% ceiling
+measurements. The legacy query median/p95 was 12.965/14.096 ms; the current
+identity-anchored query was 12.901/13.344 ms, within the enforced 10% ceiling
 at both boundaries and with an identical 250-row CVE result set. The new
 advisory-only identity path returned exactly its intended 250 rows at
-16.558/18.151 ms median/p95. The row-cap integration proof also passed without
-truncating core evidence.
+13.409/13.981 ms median/p95. The guarded Unicode-normalized shape is about 16%
+faster than the earlier 15.307 ms current-query median while matching the full
+Go `strings.TrimSpace` character set. The row-cap integration proof also
+passed without truncating core evidence or overstating exact-cap truncation.
 
 Commands:
 
@@ -120,16 +126,16 @@ Measured suppression-path timings:
 
 | Operation | Wall or p50 time |
 | --- | ---: |
-| Scope setup mutation | 0.007588 s |
-| Scope setup drain | 2.079212 s |
-| Malformed-input drain | 2.096132 s |
-| Active baseline query p50 | 0.019466 s |
-| Ignore mutation | 0.004468 s |
-| Ignore drain | 2.092349 s |
-| Hidden query p50 | 0.007173 s |
-| Audit query p50 | 0.008477 s |
-| Identical retry mutation p50 | 0.003126 s |
-| Expired-visible query p50 | 0.008204 s |
+| Scope setup mutation | 0.006832 s |
+| Scope setup drain | 2.104646 s |
+| Malformed-input drain | 2.107317 s |
+| Active baseline query p50 | 0.020216 s |
+| Ignore mutation | 0.004305 s |
+| Ignore drain | 2.117275 s |
+| Hidden query p50 | 0.006074 s |
+| Audit query p50 | 0.010179 s |
+| Identical retry mutation p50 | 0.003317 s |
+| Expired-visible query p50 | 0.014377 s |
 
 Command:
 
