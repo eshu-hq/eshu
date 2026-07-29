@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
+	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -398,6 +399,20 @@ func awsRuntimeStateRowFromPayload(scopeID, address string, payload []byte) (*cl
 		address = decoded.Address
 	}
 	address = strings.TrimSpace(address)
+	// "arn" is the join key, not a value, so a redacted one has to be REJECTED
+	// rather than carried. LoadPackagedSchemaResolver returns (nil, nil) when no
+	// provider-schema bundle parses, and schemaTrust answers SchemaUnknown for
+	// every attribute against a nil resolver, so the state parser fail-closed-
+	// redacts "arn" along with everything else. coerceJSONString renders that
+	// marker map through fmt.Sprint into a NON-EMPTY garbage string, which
+	// satisfies the emptiness guard below and then keys stateByARN. It matches no
+	// observed ARN, so the declared side does not lose a comparison -- it leaves
+	// the join, and every cloud resource under that bundle reclassifies as
+	// orphaned_cloud_resource. Dropping the row instead surfaces as missing
+	// declared evidence, which is what the empty-ARN guard already means (#5870).
+	if redact.IsRedactedValue(decoded.Attributes["arn"]) {
+		return nil, false
+	}
 	arn := strings.TrimSpace(coerceJSONString(decoded.Attributes["arn"]))
 	if address == "" || arn == "" {
 		return nil, false
