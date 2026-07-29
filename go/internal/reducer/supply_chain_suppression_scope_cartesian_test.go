@@ -167,3 +167,92 @@ func TestEvaluateSupplyChainSuppressionMultiAnchorScopeDoesNotMatchUnpairedServi
 		t.Fatalf("Reason = %q, want it to explain the combination could not be verified", decision.Reason)
 	}
 }
+
+func TestFinalizeSupplyChainImpactFindingPopulatesServiceWorkloadPairsForSuppression(t *testing.T) {
+	t.Parallel()
+
+	const (
+		cveID       = "CVE-2026-0603"
+		digest      = "sha256:runtime-service-workload-pair"
+		repository  = "repository:r_runtime_pair"
+		serviceID   = "service-a"
+		workloadID  = "workload-a"
+		suppression = "suppression-runtime-service-workload-pair"
+	)
+	now := time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name          string
+		index         supplyChainImpactIndex
+		wantPair      SupplyChainServiceWorkloadPair
+		wantDecision  SupplyChainSuppressionState
+		scopeWorkload string
+	}{
+		{
+			name: "matched pair from one service context suppresses",
+			index: supplyChainImpactIndex{services: []supplyChainServiceContext{{
+				factID:       "service-context:matched",
+				repositoryID: repository,
+				serviceID:    serviceID,
+				workloadID:   workloadID,
+			}}},
+			wantPair:      SupplyChainServiceWorkloadPair{ServiceID: serviceID, WorkloadID: workloadID},
+			wantDecision:  SupplyChainSuppressionStateNotAffected,
+			scopeWorkload: workloadID,
+		},
+		{
+			name: "unrelated workload does not pair with service",
+			index: supplyChainImpactIndex{
+				workloads: []supplyChainWorkloadContext{{
+					factID:       "workload-context:unrelated",
+					repositoryID: repository,
+					workloadID:   workloadID,
+				}},
+				services: []supplyChainServiceContext{{
+					factID:       "service-context:without-workload",
+					repositoryID: repository,
+					serviceID:    serviceID,
+				}},
+			},
+			wantPair:      SupplyChainServiceWorkloadPair{ServiceID: serviceID},
+			wantDecision:  SupplyChainSuppressionStateScopeMismatch,
+			scopeWorkload: workloadID,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			finding := SupplyChainImpactFinding{
+				CVEID:         cveID,
+				SubjectDigest: digest,
+				RepositoryID:  repository,
+			}
+			finalizeSupplyChainImpactFinding(&finding, tt.index)
+
+			if got, want := len(finding.ServiceWorkloadPairs), 1; got != want {
+				t.Fatalf("ServiceWorkloadPairs length = %d, want %d: %#v", got, want, finding.ServiceWorkloadPairs)
+			}
+			if got := finding.ServiceWorkloadPairs[0]; got != tt.wantPair {
+				t.Fatalf("ServiceWorkloadPairs[0] = %#v, want %#v", got, tt.wantPair)
+			}
+
+			decision := EvaluateSupplyChainSuppression(finding, []vulnerabilitySuppression{{
+				SuppressionID: suppression,
+				Source:        facts.VulnerabilitySuppressionSourcePolicy,
+				Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+				AuthoredAt:    now.Add(-time.Hour),
+				Scope: vulnerabilitySuppressionScope{
+					CVEID:         cveID,
+					SubjectDigest: digest,
+					ServiceID:     serviceID,
+					WorkloadID:    tt.scopeWorkload,
+				},
+			}}, now)
+			if decision.State != tt.wantDecision {
+				t.Fatalf("State = %q, want %q; finding pairs=%#v", decision.State, tt.wantDecision, finding.ServiceWorkloadPairs)
+			}
+		})
+	}
+}
