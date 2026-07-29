@@ -21,6 +21,9 @@ func TestGoldenSnapshotDefaultPreciseSupplyChainImpactFloor(t *testing.T) {
 	if shape.MinimumResults != 1 {
 		t.Fatalf("%s minimum_results = %d, want 1", key, shape.MinimumResults)
 	}
+	if shape.MaximumResults != 1 {
+		t.Fatalf("%s maximum_results = %d, want 1", key, shape.MaximumResults)
+	}
 	hasSelectedProfile := false
 	for _, field := range shape.RequiredResponseFields {
 		if field == "detection_profile" {
@@ -30,6 +33,11 @@ func TestGoldenSnapshotDefaultPreciseSupplyChainImpactFloor(t *testing.T) {
 	}
 	if !hasSelectedProfile {
 		t.Fatalf("%s required_response_fields missing detection_profile", key)
+	}
+	for _, field := range []string{"cve_id", "detection_profile"} {
+		if !containsString(shape.ResultItemRequiredFields, field) {
+			t.Fatalf("%s result_item_required_fields = %#v, want %q", key, shape.ResultItemRequiredFields, field)
+		}
 	}
 	for path, want := range map[string]any{
 		"detection_profile":            "precise",
