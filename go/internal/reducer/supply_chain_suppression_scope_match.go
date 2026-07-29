@@ -74,6 +74,34 @@ func suppressionScopeMatchesFinding(finding SupplyChainImpactFinding, s vulnerab
 	if !scopeAnchorMatches(s.Scope.SubjectDigest, finding.SubjectDigest) {
 		return false
 	}
+	// #5466 round-7 review P1-A (codex): Environment, WorkloadID, and
+	// ServiceID are flattened onto the finding as three INDEPENDENTLY
+	// matched, uncorrelated evidence lists (applySupplyChainRuntimeContext,
+	// supply_chain_impact_runtime.go, matches supplyChainDeploymentContext/
+	// supplyChainWorkloadContext/supplyChainServiceContext each against the
+	// finding's repository/digest/image-ref -- none of those three structs
+	// share a field with each other beyond repository_id; see
+	// supply_chain_impact_index.go). So a finding whose evidence aggregates
+	// TWO deployments, say (stage, workload-a) and (prod, workload-b), has
+	// Environments=[prod,stage] and WorkloadIDs=[workload-a,workload-b] with
+	// no record of which environment paired with which workload. Checking
+	// each anchor independently against its own list (scopeListAnchorMatches
+	// below) would let a scope of environment=stage + workload_id=workload-b
+	// match, even though that exact combination never occurred in any real
+	// deployment -- the fail-closed rule exists precisely to prevent this
+	// kind of over-suppression. When the scope names two or more of these
+	// three dimensions, suppressionDeploymentContextUnambiguous requires the
+	// finding to have AT MOST ONE distinct value in every dimension the
+	// scope references, so the independent per-list checks below are
+	// equivalent to verifying a single, unambiguous deployment context
+	// satisfies the whole combination. A finding with two or more distinct
+	// values in any referenced dimension cannot be verified this way and
+	// fails closed to no-match (same "ambiguity resolves to visible"
+	// direction as the empty-list case). A scope naming zero or one of these
+	// three dimensions has no combination to verify and is unaffected.
+	if !suppressionDeploymentContextUnambiguous(finding, s.Scope) {
+		return false
+	}
 	// Environment/WorkloadID/ServiceID match against the finding's
 	// multi-value evidence lists rather than a single field: a finding can
 	// carry more than one deployment's environment/workload/service. An
@@ -94,6 +122,68 @@ func suppressionScopeMatchesFinding(finding SupplyChainImpactFinding, s vulnerab
 		return false
 	}
 	return true
+}
+
+// suppressionDeploymentContextUnambiguous reports whether the finding's
+// deployment evidence is precise enough to verify a scope naming two or more
+// of {Environment, WorkloadID, ServiceID} against a SINGLE deployment
+// context (#5466 round-7 review P1-A). These three dimensions are populated
+// on the finding from three independently matched fact sources with no
+// shared join key besides repository_id (see the call site's comment for
+// the full trace), so this reducer has no evidence of which environment
+// paired with which workload/service when a finding aggregates more than
+// one deployment. When the scope references two or more of the three
+// dimensions, this returns true only if EVERY referenced dimension has at
+// most one distinct value on the finding: with at most one candidate value
+// per referenced dimension there is only one possible combination, so the
+// independent per-dimension checks are equivalent to checking that single
+// combination. A dimension with two or more distinct values makes the
+// combination unverifiable and this returns false (fail closed -- the
+// suppression does not apply, the finding stays visible). A scope
+// referencing zero or one of the three dimensions always returns true: with
+// nothing to combine there is no cross-dimension ambiguity to guard
+// against, and behavior is unchanged from before this guard existed.
+func suppressionDeploymentContextUnambiguous(finding SupplyChainImpactFinding, scope vulnerabilitySuppressionScope) bool {
+	referenced := 0
+	if strings.TrimSpace(scope.Environment) != "" {
+		referenced++
+	}
+	if strings.TrimSpace(scope.WorkloadID) != "" {
+		referenced++
+	}
+	if strings.TrimSpace(scope.ServiceID) != "" {
+		referenced++
+	}
+	if referenced < 2 {
+		return true
+	}
+	if strings.TrimSpace(scope.Environment) != "" && distinctNonEmptyValueCount(finding.Environments) > 1 {
+		return false
+	}
+	if strings.TrimSpace(scope.WorkloadID) != "" && distinctNonEmptyValueCount(finding.WorkloadIDs) > 1 {
+		return false
+	}
+	if strings.TrimSpace(scope.ServiceID) != "" && distinctNonEmptyValueCount(finding.ServiceIDs) > 1 {
+		return false
+	}
+	return true
+}
+
+// distinctNonEmptyValueCount counts the distinct trimmed, non-empty values
+// in values. Exact-string comparison (not case-insensitive) is intentional:
+// treating case variants as distinct is the more conservative reading for
+// suppressionDeploymentContextUnambiguous's fail-closed check, since it can
+// only ever make ambiguity detection MORE likely to fire, never less.
+func distinctNonEmptyValueCount(values []string) int {
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		seen[value] = struct{}{}
+	}
+	return len(seen)
 }
 
 // scopeListAnchorMatches reports whether a scoped anchor value matches at
