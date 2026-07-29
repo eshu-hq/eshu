@@ -5584,13 +5584,23 @@
         }
       },
       "GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000": {
-        "description": "Supply-chain impact findings for the synthetic supply-chain-demo CVE.",
+        "description": "#5736 non-vacuous default-profile floor: the synthetic github_actions_workflows fixture pins supply-chain-demo-lib@1.2.2 in package-lock.json, matching CVE-2026-00000's exact affected version. The query deliberately omits profile so the API applies its default precise profile; minimum_results:1 and the detection_profile pin make a regression that empties or misclassifies the default path fail the live gate. This uses the npm lockfile chain rather than an OS-package finding, preserving the epic's explicit comprehensive-profile convention for established DPKG/APK golden assertions.",
         "truth_class": "deterministic",
         "required_response_fields": [
           "findings",
-          "count"
+          "count",
+          "detection_profile"
         ],
-        "minimum_results": 0
+        "result_item_required_fields": [
+          "cve_id",
+          "detection_profile"
+        ],
+        "required_json_values": {
+          "detection_profile": "precise",
+          "findings[].cve_id": "CVE-2026-00000",
+          "findings[].detection_profile": "precise"
+        },
+        "minimum_results": 1
       },
       "GET /api/v0/supply-chain/impact/findings?limit=10&cve_id=CVE-2026-00010&workload_id=workload%3Adeployable-config&profile=comprehensive": {
         "description": "#5747 non-vacuous current-runtime filter proof: the Debian OS-package finding has an empty baked workload_ids array, but its repository currently maps to workload:deployable-config through active reducer_workload_identity evidence. The comprehensive profile is retained as the epic's inclusive OS-package proof; after #5735 this exact DPKG affected-version finding also qualifies for precise.",
