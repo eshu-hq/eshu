@@ -119,6 +119,21 @@ func (h *SupplyChainHandler) getImpactPacket(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// Codex P1-A (same root cause as the explain route): run the authorized
+	// cloud-runtime probe on this bounded, single-finding row before the
+	// shared assembler resolves deployment_truth_tier/version_resolution_tier,
+	// so this packet surface never disagrees with list/explain about which
+	// tier won for the same finding.
+	rows := []SupplyChainImpactFindingRow{row.Finding}
+	if err := h.applySupplyChainCloudRuntimeEvidence(r.Context(), access, rows); err != nil {
+		if WriteGraphReadError(w, r, err, supplyChainImpactExplanationCapability) {
+			return
+		}
+		WriteError(w, http.StatusInternalServerError, "supply-chain impact runtime evidence probe failed")
+		return
+	}
+	row.Finding = rows[0]
+
 	scope := findingReadinessScope(row.Finding, filter)
 	findingResult := SupplyChainImpactFindingResult(row.Finding)
 	readiness := h.readSupplyChainImpactReadinessForScope(r, scope, []SupplyChainImpactFindingResult{findingResult}, false)

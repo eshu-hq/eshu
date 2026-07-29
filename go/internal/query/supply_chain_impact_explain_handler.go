@@ -114,6 +114,24 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Codex P1-A: buildSupplyChainImpactFindingResult (the shared assembler
+	// this route and the list route both call) resolves deployment_truth_tier
+	// and version_resolution_tier straight from CloudRuntimeResourceRefs on
+	// the row. The list route populates that field by running the authorized
+	// cloud-runtime probe before assembling results; this route explains
+	// exactly one bounded finding (at most one subject digest), so the same
+	// probe is cheap here and MUST run before the resolver, or explain would
+	// silently disagree with list about which tier won for the same finding.
+	rows := []SupplyChainImpactFindingRow{row.Finding}
+	if err := h.applySupplyChainCloudRuntimeEvidence(r.Context(), access, rows); err != nil {
+		if WriteGraphReadError(w, r, err, supplyChainImpactExplanationCapability) {
+			return
+		}
+		WriteError(w, http.StatusInternalServerError, "supply-chain impact runtime evidence probe failed")
+		return
+	}
+	row.Finding = rows[0]
+
 	scope := findingReadinessScope(row.Finding, filter)
 	findingResult := SupplyChainImpactFindingResult(row.Finding)
 	readiness := h.readSupplyChainImpactReadinessForScope(r, scope, []SupplyChainImpactFindingResult{findingResult}, false)
