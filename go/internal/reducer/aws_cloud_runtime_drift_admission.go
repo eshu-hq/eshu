@@ -51,6 +51,34 @@ type AWSCloudRuntimeDriftBeginner interface {
 // identity embeds finding_kind, so a stale pass that reclassifies an ARN mints
 // a DIFFERENT fact_id and never collides. Without this admission check that
 // pass's insert lands unopposed.
+//
+// # The actual rule on an exact watermark tie is last-committer-wins, not fresher-wins
+//
+// fencingToken is `evidenceAsOf.UnixMicro()` — a wall-clock LABEL taken when a
+// pass starts reading evidence, not a database read snapshot or a logical
+// clock. Two genuinely independent passes (a live pass racing a
+// maintenance-reopen replay of the same intent, or a duplicate claim after
+// lease theft) can therefore read DIFFERENT evidence yet stamp the IDENTICAL
+// microsecond token. On that exact tie, `stored <= EXCLUDED` is satisfied by
+// EQUALITY (this is deliberate for the equal-token retry case documented
+// above — the SAME pass redelivered must still be admitted), so this
+// statement cannot distinguish "a retry of the pass already admitted" from "a
+// different pass that happened to tie". Both are admitted. Whichever
+// transaction's admission statement COMMITS SECOND wins the stored watermark
+// (unconditionally: a plain equality-satisfying UPDATE, not a CAS against a
+// third value), and its retire (also `<=`, aws_cloud_runtime_drift_writer_queries.go)
+// then deletes whatever the first transaction just inserted before inserting
+// its own row. The commit order between two ties is not derivable from the
+// watermark itself, so on a genuine tie the SURVIVING classification is
+// whichever pass's transaction the database happened to commit later, not
+// necessarily the one that read evidence "more recently" in wall-clock terms
+// (the two are indistinguishable at this resolution). See
+// TestAWSCloudRuntimeDriftInsertAdmissionResolvesExactTieByLastCommitLive for
+// the live proof of this exact shape. Measured impact is low: an untied LATER
+// pass, or the reopen slice's next replay, still corrects a wrong tie-broken
+// verdict the same way it corrects any other stale one — this is a
+// consistency/observability property (the docs must state the real rule,
+// not imply a stronger one), not a correctness gap the domain depends on.
 const awsCloudRuntimeDriftAdmissionQuery = `
 INSERT INTO aws_cloud_runtime_drift_write_admission (
     scope_id, generation_id, fencing_token, updated_at

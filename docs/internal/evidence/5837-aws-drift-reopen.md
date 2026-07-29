@@ -214,6 +214,152 @@ transaction-capable handle") is resolved rather than worked around.
   contend, and a fresher pass for the SAME scope/generation is never blocked by
   an older one; it wins the race and the older one is told to retry.
 
+### P0 found and fixed by pre-PR review: the two failure classes were never registered
+
+The "Dead-letter behavior" bullet above states both new failure classes are in
+`nonCountingReducerRetryFailureClasses`. That statement was FALSE from the
+first commit that declared the two classes through the rebase-completion
+commit: the classes existed only as `const` declarations next to the error
+types that return them
+(`go/internal/reducer/aws_cloud_runtime_drift_admission.go`,
+`aws_cloud_runtime_drift_readiness.go`) — `go/internal/storage/postgres/reducer_queue_readiness_sql.go`,
+the actual registry, was never touched. A declared-but-unregistered class is
+invisible to both `retryable()`'s non-counting check and
+`reducerClaimAttemptCountCaseSQL()`'s CASE, so it silently falls through to
+counting behavior: `attempt_count` increments on every retrying claim exactly
+like an ordinary failure, and `ReducerQueue.Fail` dead-letters once
+`attempt_count >= MaxAttempts` (default `ESHU_REDUCER_MAX_ATTEMPTS=3` —
+numerically identical to `awsCloudRuntimeDriftStatePendingMaxAttempts`, so the
+two thresholds only failed to collide by coincidence in the local proofs run
+so far). Because the domain is also in the bootstrap/ingester reopen slice
+(succeeded-only), a dead-lettered item is never recovered by that path either
+— the net effect this branch would have shipped is a PERMANENTLY ABSENT
+finding for an ARN, which is strictly worse than the #5837 bug being replaced
+(a wrong-but-present, later-reparable finding). This falsified #5848's own
+acceptance criterion ("refusing a pass does not consume its retry budget in a
+way that turns a normal race into a dead-letter") as shipped, despite every
+other piece of the design being correct and separately proven.
+
+Found by pre-PR hostile review, not by any test in this branch:
+`TestAWSCloudRuntimeDriftHandlerCommitsAfterAttemptBoundReached` (the existing
+Handler-level unit test) cannot catch this class of bug because it hand-sets
+`Intent.AttemptCount` and never exercises `ReducerQueue`'s real claim/retry
+SQL or `Fail` path — it only proves the HANDLER's own bound logic, not that
+the QUEUE agrees the class is exempt.
+
+Fixed by registering both classes in `nonCountingReducerRetryFailureClasses`
+(`reducer_queue_readiness_sql.go`), and adding four queue-level regression
+tests (`go/internal/storage/postgres/reducer_queue_aws_cloud_runtime_drift_readiness_test.go`)
+following the existing GCP/EC2/cross-scope precedent
+(`TestReducerQueueFailDefersGCPRelationshipReadinessPastAttemptBudget`,
+`TestReducerQueueFailDefersEC2InstanceIdentityReadinessPastAttemptBudget`) —
+two `Fail()`-at-`AttemptCount=42` tests (one per class) proving the row is
+re-queued `retrying`, not `dead_letter`, and two claim-query tests (single and
+batch) proving the attempt-count CASE keeps both classes' `attempt_count`
+frozen. Failing-before/passing-after, by temporarily reverting the
+registration and rerunning:
+
+```
+$ go test ./internal/storage/postgres -run "TestReducerQueueFailDefersAWSCloudRuntimeDrift|TestReducerQueueClaimDoesNotCountAWSCloudRuntimeDrift|TestClaimBatchDoesNotCountAWSCloudRuntimeDrift" -v -count=1
+--- FAIL: TestReducerQueueFailDefersAWSCloudRuntimeDriftStatePendingPastAttemptBudget (0.00s)
+    deferred retry query missing "status = 'retrying'":
+    UPDATE fact_work_items
+    SET status = 'dead_letter', ...
+--- FAIL: TestReducerQueueFailDefersAWSCloudRuntimeDriftWriteSupersededPastAttemptBudget (0.00s)
+    deferred retry query missing "status = 'retrying'":
+    UPDATE fact_work_items
+    SET status = 'dead_letter', ...
+--- FAIL: TestReducerQueueClaimDoesNotCountAWSCloudRuntimeDriftReadinessDefers (0.00s)
+--- FAIL: TestClaimBatchDoesNotCountAWSCloudRuntimeDriftReadinessDefers (0.00s)
+# registration restored
+--- PASS: TestReducerQueueFailDefersAWSCloudRuntimeDriftStatePendingPastAttemptBudget (0.00s)
+--- PASS: TestReducerQueueFailDefersAWSCloudRuntimeDriftWriteSupersededPastAttemptBudget (0.00s)
+--- PASS: TestReducerQueueClaimDoesNotCountAWSCloudRuntimeDriftReadinessDefers (0.00s)
+--- PASS: TestClaimBatchDoesNotCountAWSCloudRuntimeDriftReadinessDefers (0.00s)
+```
+
+The two red `Fail()` transcripts show the literal bug: `status = 'dead_letter'`
+where `status = 'retrying'` was expected — a normal admission-race loss or a
+still-pending state scope, both bounded and expected to self-correct, instead
+permanently terminalizing the work item at `MaxAttempts`.
+
+The source doc comments on `AWSCloudRuntimeDriftWriteSupersededFailureClass`
+and `AWSCloudRuntimeDriftStatePendingFailureClass` (both already stated "the
+reducer queue treats it as a non-counting retry class... added to
+nonCountingReducerRetryFailureClasses") did not need editing once the
+registration landed — they described the intended, now-actual, state
+correctly; they were simply describing code that had not been written yet.
+One earlier commit message on this branch ("Refs #5848: transactional
+insert-admission, retire, and readiness defer for aws_cloud_runtime_drift")
+also asserts the non-counting registration; that commit's message is not
+rewritten (this branch was explicitly told not to rebase again, and rewriting
+a non-tip commit message without an interactive rebase — barred by
+`CLAUDE.md` — is not attempted), but the claim is corrected here, in the
+current source, and in the tests, which is what a reader or a future `git
+blame` will actually execute against.
+
+### P1 found by pre-PR review: exact-tie watermarks resolve last-committer-wins, not fresher-wins
+
+`fencingToken = evidenceAsOf.UnixMicro()` is a wall-clock LABEL taken when a
+pass starts reading evidence, not a database read snapshot or a logical
+clock. Two genuinely independent passes — a live pass racing a
+maintenance-reopen replay of the same intent, or a duplicate claim after
+lease theft — can therefore read DIFFERENT evidence yet stamp the IDENTICAL
+microsecond token. On that exact tie, `stored <= EXCLUDED` is satisfied by
+equality (required so the equal-token retry case stays admitted — the SAME
+pass redelivered must not be rejected), so BOTH transactions are admitted,
+and the retire step then means whichever transaction COMMITS SECOND wins:
+its retire deletes whatever the first transaction just inserted before
+inserting its own row. This is last-committer-wins, not fresher-wins — on an
+exact tie the token cannot express which pass read evidence more recently,
+because both stamped the same value.
+
+The existing tests before this fix covered the same-pass retry tie
+(`TestAWSCloudRuntimeDriftInsertAdmissionAppliesEqualTokenRetryLive`, one
+candidate set, redelivered) and the strictly-ordered stale-then-fresh case,
+but nothing drove two DIFFERENT candidate sets through a genuinely tied
+token — so the actual tie-breaking rule was unproven, and the doc comments on
+`awsCloudRuntimeDriftAdmissionQuery` and the two error types implied
+"fresher wins" without qualification.
+
+Fixed by adding
+`TestAWSCloudRuntimeDriftInsertAdmissionResolvesExactTieByLastCommitLive`
+(`go/internal/storage/postgres/aws_cloud_runtime_drift_admission_live_test.go`),
+which drives the SAME tied watermark through two DIFFERENT classifications
+(`orphaned_cloud_resource` vs. `image_version_drift`) for one ARN, in BOTH
+call orders, and asserts the pass called SECOND wins in both orderings —
+exactly what last-committer-wins predicts and fresher-wins (a property of the
+evidence, not the call order) would not, since neither candidate is
+chronologically distinguishable from the other by construction:
+
+```
+$ go test ./internal/storage/postgres -run TestAWSCloudRuntimeDriftInsertAdmissionResolvesExactTieByLastCommitLive -v -count=1
+=== RUN   TestAWSCloudRuntimeDriftInsertAdmissionResolvesExactTieByLastCommitLive/orphaned_called_first,_image_version_drift_called_second
+=== RUN   TestAWSCloudRuntimeDriftInsertAdmissionResolvesExactTieByLastCommitLive/image_version_drift_called_first,_orphaned_called_second
+--- PASS: TestAWSCloudRuntimeDriftInsertAdmissionResolvesExactTieByLastCommitLive (0.66s)
+    --- PASS: .../orphaned_called_first,_image_version_drift_called_second (0.02s)
+    --- PASS: .../image_version_drift_called_first,_orphaned_called_second (0.02s)
+```
+
+Both subtests pass: reversing call order reverses the surviving
+classification, confirming the winner tracks commit order, not evidence
+freshness. This is a characterization test of the intended, correct-by-design
+behavior, not a bug fix — there is no code change backing it, only the test
+and the doc correction. `awsCloudRuntimeDriftAdmissionQuery`'s own doc
+comment (`go/internal/reducer/aws_cloud_runtime_drift_admission.go`) now
+states the actual rule explicitly under a `# The actual rule on an exact
+watermark tie is last-committer-wins, not fresher-wins` heading, rather than
+leaving "fresher wins" implied.
+
+Real-world impact is judged low and left unresolved on purpose rather than
+forcing a stronger guarantee: a later untied pass, or the reopen slice's own
+next replay, corrects a wrong tie-broken verdict the same way it corrects any
+other stale one. Making the tie deterministic on a different axis (e.g.
+tie-breaking on `fact_id` or a monotonic counter alongside the wall-clock
+label) is a design change with its own concurrency argument and was judged
+out of scope for closing #5848/#5837; documenting the real rule, so nobody
+relies on a stronger guarantee than what ships, is what this fix provides.
+
 ## Adjacent defect found and fixed: `InstrumentedDB.Begin` silently dropped observability
 
 `InstrumentedDB.Begin` returned the inner `Beginner`'s transaction UNWRAPPED, so

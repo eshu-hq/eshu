@@ -174,6 +174,115 @@ func TestAWSCloudRuntimeDriftInsertAdmissionAppliesEqualTokenRetryLive(t *testin
 	}
 }
 
+// TestAWSCloudRuntimeDriftInsertAdmissionResolvesExactTieByLastCommitLive is
+// the P1 regression: fencingToken is a wall-clock LABEL
+// (evidenceAsOf.UnixMicro()), not a read snapshot, so two genuinely
+// independent passes (a live pass racing a maintenance-reopen replay, or a
+// lease-theft duplicate claim) can tie at microsecond resolution while having
+// read DIFFERENT evidence. On that tie, `stored <= EXCLUDED` is satisfied by
+// equality (required for the equal-token retry case
+// TestAWSCloudRuntimeDriftInsertAdmissionAppliesEqualTokenRetryLive pins), so
+// BOTH transactions are admitted, and whichever commits SECOND wins: its
+// retire deletes the first transaction's just-written row before inserting
+// its own. This is last-committer-wins, not fresher-wins — the token alone
+// cannot express which pass read evidence more recently once they tie.
+//
+// Proven by driving the SAME tied watermark through two DIFFERENT candidate
+// sets (different classifications, so different fact_ids -- the
+// reclassification shape, not the retry shape) in BOTH call orders. In
+// EITHER order the pass called SECOND is the one left standing, which is
+// exactly the property "last commit wins" predicts and "fresher wins" does
+// not (neither candidate is chronologically fresher than the other; they
+// share one watermark by construction).
+func TestAWSCloudRuntimeDriftInsertAdmissionResolvesExactTieByLastCommitLive(t *testing.T) {
+	sqlDB, ctx := awsCloudRuntimeDriftAdmissionLiveDB(t)
+
+	writer := reducer.PostgresAWSCloudRuntimeDriftWriter{
+		DB: AWSCloudRuntimeDriftAdmissionBeginner{Beginner: SQLDB{DB: sqlDB}},
+	}
+
+	runTiedPair := func(t *testing.T, firstKind, secondKind cloudruntime.FindingKind) string {
+		t.Helper()
+
+		now := time.Now().UTC()
+		suffix := fmt.Sprintf("5848-p1-tie-%d", time.Now().UnixNano())
+		scopeID := "aws:" + suffix
+		generationID := "gen-" + suffix
+		arn := "arn:aws:lambda:us-east-1:123456789012:function:" + suffix
+		seedAWSCloudRuntimeDriftScope(t, ctx, sqlDB, scopeID, "aws", generationID, now)
+		seedAWSCloudRuntimeDriftGeneration(t, ctx, sqlDB, generationID, scopeID, "active", now)
+
+		// One tied watermark for both passes: they read DIFFERENT evidence
+		// (different classifications) but stamp the IDENTICAL microsecond
+		// token, exactly the shape a live pass racing a reopen replay -- or a
+		// duplicate claim after lease theft -- can produce.
+		tiedEvidenceAsOf := now
+
+		firstWrite := reducer.AWSCloudRuntimeDriftWrite{
+			IntentID:      "intent-tie-first",
+			ScopeID:       scopeID,
+			GenerationID:  generationID,
+			SourceSystem:  "aws",
+			Cause:         "tied pass, called first",
+			EvidenceAsOf:  tiedEvidenceAsOf,
+			Candidates:    []model.Candidate{awsCloudRuntimeDriftCandidateFixture(arn, firstKind)},
+			EvaluatedARNs: []string{arn},
+		}
+		if _, err := writer.WriteAWSCloudRuntimeDriftFindings(ctx, firstWrite); err != nil {
+			t.Fatalf("first (called-first) write error = %v, want nil: an exact tie must still ADMIT, not reject", err)
+		}
+
+		secondWrite := reducer.AWSCloudRuntimeDriftWrite{
+			IntentID:      "intent-tie-second",
+			ScopeID:       scopeID,
+			GenerationID:  generationID,
+			SourceSystem:  "aws",
+			Cause:         "tied pass, called second",
+			EvidenceAsOf:  tiedEvidenceAsOf,
+			Candidates:    []model.Candidate{awsCloudRuntimeDriftCandidateFixture(arn, secondKind)},
+			EvaluatedARNs: []string{arn},
+		}
+		if _, err := writer.WriteAWSCloudRuntimeDriftFindings(ctx, secondWrite); err != nil {
+			t.Fatalf("second (called-second) write error = %v, want nil: an exact tie must still ADMIT, not reject", err)
+		}
+
+		kinds := countAWSCloudRuntimeDriftFindingRows(t, ctx, sqlDB, scopeID, generationID)
+		if len(kinds) != 1 {
+			t.Fatalf(
+				"finding rows = %v, want exactly 1: an exact-tie admission must still leave exactly one "+
+					"surviving row (the second pass's retire must clean up the first pass's row), not two "+
+					"contradictory findings",
+				kinds,
+			)
+		}
+		return kinds[0]
+	}
+
+	t.Run("orphaned called first, image_version_drift called second", func(t *testing.T) {
+		got := runTiedPair(t, cloudruntime.FindingKindOrphanedCloudResource, cloudruntime.FindingKindImageVersionDrift)
+		if want := string(cloudruntime.FindingKindImageVersionDrift); got != want {
+			t.Fatalf(
+				"surviving finding_kind = %q, want %q: the pass called SECOND must win on an exact tie "+
+					"(last-committer-wins), regardless of which classification it carries",
+				got, want,
+			)
+		}
+	})
+
+	t.Run("image_version_drift called first, orphaned called second", func(t *testing.T) {
+		got := runTiedPair(t, cloudruntime.FindingKindImageVersionDrift, cloudruntime.FindingKindOrphanedCloudResource)
+		if want := string(cloudruntime.FindingKindOrphanedCloudResource); got != want {
+			t.Fatalf(
+				"surviving finding_kind = %q, want %q: reversing call order reverses the winner, which is "+
+					"exactly what last-committer-wins predicts and fresher-wins (a property of the EVIDENCE, "+
+					"not the call order) would not -- the two candidates are not chronologically distinguishable "+
+					"by construction, sharing one tied watermark",
+				got, want,
+			)
+		}
+	})
+}
+
 // TestAWSCloudRuntimeDriftRetireRemovesStaleFindingOnReclassificationLive
 // proves the generation-authoritative retire specifically (#5848 item 3),
 // the more common real-world shape: an OLDER pass ran first (nothing existed
