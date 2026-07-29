@@ -96,8 +96,8 @@ recent shipped work grouped by feature area.
     `ESHU_POSTGRES_DSN` set. Fixed inline; verified green against the same
     live instance.
 
-  **Open question for the maintainer:** Terragrunt's own `remote_state {
-  backend = "local" }` was investigated (not fixed) per hostile-review
+  **Terragrunt finding (informational, not fixed):** Terragrunt's own
+  `remote_state { backend = "local" }` was investigated per hostile-review
   follow-up. Terragrunt's docs (`docs.terragrunt.com/features/units/state-backend`)
   state that `local` is not one of its specially-bootstrapped backend kinds
   (only `s3`, `gcs`, `azurerm` are); for any other backend the `remote_state`
@@ -115,7 +115,100 @@ recent shipped work grouped by feature area.
   `terragruntRemoteStateLocalCandidate` continues to require an explicit,
   literal, absolute `path` for its (separately security-gated, operator-approval-required)
   local-state-reading candidate; the ownership-join path never modeled
-  Terragrunt as its own backend kind and still does not.
+  Terragrunt as its own backend kind and still does not. The repo owner
+  resolved the open question this raised (below): rather than guessing a
+  path Eshu cannot observe, make the resulting rejection visible at the read
+  surface instead.
+
+- **Surface rejected/ambiguous config-vs-state drift candidates at the read
+  edge, closing the general `no_config_repo_owns_backend` visibility gap**
+  ([#5594](https://github.com/eshu-hq/eshu/issues/5594) follow-up; owner
+  decision, not a reviewer suggestion). The Terragrunt finding above is one
+  instance of a broader, pre-existing gap: a state-snapshot scope whose
+  backend never resolved to any config repo
+  (`tfstatebackend.ErrNoConfigRepoOwnsBackend`) was log-only since issue
+  #5442's durability work, so `POST /api/v0/terraform/config-state-drift/findings`
+  returned an identical empty page for "evaluated, no drift" and "ownership
+  never resolved at all." The repo owner put the disposition to a
+  hostile-review pass and chose: fix the general visibility gap inline,
+  covering both pre-existing rejection classes
+  (`no_config_repo_owns_backend` and the already-durable
+  `ambiguous_backend_owner`), not just the Terragrunt symptom.
+  `TerraformConfigStateDriftWrite` gains a third write mode,
+  `UnresolvedOwner`, persisting exactly one durable `"unresolved"` finding
+  per state-snapshot scope (`Address`/`DriftKind` empty,
+  `AmbiguousOwnerCandidates` also empty — no competing evidence to record,
+  only the absence of any owner), mirroring the existing `"ambiguous"` write
+  in every respect: same upsert-by-stable-fact-id idempotency, same
+  non-fatal write-failure handling, same
+  `eshu_dp_drift_ambiguous_owner_write_failed_total`-style counter pattern.
+  The read surface (`go/internal/query/terraform_config_state_drift.go`),
+  its OpenAPI contract
+  (`go/internal/query/openapi_paths_terraform_config_state_drift.go`), and
+  its MCP tool (`list_terraform_config_state_drift_findings`,
+  `go/internal/mcp/tools_iac.go`) all accept and document `"unresolved"`
+  alongside `exact`/`ambiguous` in the same change, per the repo's
+  OpenAPI/MCP lockstep rule. Matched to existing prior art rather than
+  inventing new vocabulary: the `relationships_complete`/
+  `k8s_relationships_complete` partial-truth disclosure convention
+  (`go/internal/query/entity_context_content.go`,
+  `impact_trace_deployment_k8s_select.go`) and, more directly, the CI/CD run
+  correlation aggregate handler's existing
+  exact/derived/ambiguous/unresolved/rejected outcome enum
+  (`go/internal/query/ci_cd_run_correlation_aggregates_handler.go:318`),
+  which already uses `"unresolved"` for this exact semantic per the
+  six-value vocabulary in
+  `docs/internal/design/391-observability-coverage-correlation.md`.
+  `go/internal/correlation/drift/tfconfigstate/doc.go` records this as a
+  decision superseding the #5442-era "unresolved stays log-only" call, with
+  the reasoning for why the reopened "unbounded write volume" concern is
+  addressed (same per-scope-per-generation cadence the already-accepted
+  `"ambiguous"` write has always had, not a new unbounded category), a
+  post-deployment volume watch note (the *cadence* per key is proven
+  identical, but a partially-onboarded org could still see materially more
+  distinct scopes land in `"unresolved"` than ever go `"ambiguous"`, since an
+  unonboarded repo's backend is the default case for
+  `no_config_repo_owns_backend` — worth watching after rollout, not a defect
+  today), and a recorded known gap: no golden-corpus fixture exercises this
+  path end-to-end (see below), which would need a new untracked/local-backend
+  corpus fixture — out of scope for this change; the owner will decide on a
+  follow-up filing separately.
+  - Observability Evidence: `eshu_dp_drift_unresolved_owner_write_failed_total`
+    (`go/internal/telemetry/instruments.go`, registered alongside
+    `DriftAmbiguousOwnerWriteFailed`), with its X1 contract row in
+    `docs/public/observability/telemetry-coverage.md` (two rows: the
+    `terraform_config_state_drift.go` call-site row and a dedicated row for
+    the new `terraform_config_state_drift_unresolved_owner.go` file). Also
+    closed a stale X1 gap surfaced while adding this row: an earlier commit
+    on this branch (`go/internal/collector/terraformstate/backend_config_local.go`)
+    had landed without its own X1 coverage row; added a
+    `No-Observability-Change:` row for it in the same change. Verified with
+    `bash scripts/test-verify-telemetry-coverage.sh` (15/15) and
+    `ESHU_TELEMETRY_COVERAGE_BASE=origin/main bash scripts/verify-telemetry-coverage.sh`
+    (clean, no drift), plus `bash scripts/test-generate-operator-dashboard.sh`
+    (9/9) and a re-run of `scripts/generate-operator-dashboard.sh` confirming
+    no diff (idempotent, no dashboard update needed).
+  - No-Regression Evidence: `go test ./internal/reducer/... ./internal/query/...
+    ./internal/storage/postgres/... ./internal/mcp/... ./internal/telemetry/...
+    ./internal/correlation/... -count=1` is green (all packages `ok`). TDD:
+    `TestPostgresTerraformConfigStateDriftWriterPersistsUnresolvedOwnerFinding`,
+    `TestDriftHandlerNoOwnerWritesDurableUnresolvedFinding`, and
+    `TestHandleTerraformConfigStateDriftFindingsDistinguishesUnresolvedFromNoDrift`
+    each fail before the corresponding production change (missing field /
+    zero writes / identical empty page for both cases) and pass after.
+    `TestDriftHandlerAmbiguousOwnerStillWritesAmbiguousNotUnresolved` and
+    `TestTerraformConfigStateDriftFindingStoreFiltersByOutcome` (pre-existing)
+    both stayed green throughout, proving the pre-existing
+    `"ambiguous"` path is untouched. No golden-corpus files changed: the
+    corpus's one Terraform-state cassette/fixture pair
+    (`testdata/cassettes/terraformstate/supply-chain-demo.json`,
+    `tests/fixtures/ecosystems/terraform_comprehensive/main.tf`) is
+    deliberately backend-aligned by #5442's own design so ownership
+    resolution always succeeds — confirmed by direct corpus scan (exactly
+    one `backend` block across all 20 fixture repos, exactly one
+    `terraformstate` cassette, both in that same aligned pair) — so the new
+    `"unresolved"` write path structurally cannot fire against the existing
+    corpus.
 
 ### Route-fact-based Rails controller liveness
 

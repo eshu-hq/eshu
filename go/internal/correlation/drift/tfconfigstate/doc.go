@@ -171,6 +171,32 @@
 //     one instance of this same no_config_repo_owns_backend class, not a
 //     special case — see go/internal/collector/terraformstate/source_terragrunt.go.
 //
+//     Post-deployment volume watch (recorded, not yet a defect): the
+//     disproof above is about per-key write CADENCE — one row per
+//     scope+generation, the same rate "ambiguous" has always had — and that
+//     disproof holds regardless of scale. It does NOT bound the number of
+//     DISTINCT scopes that land in "unresolved" at once. An unonboarded
+//     repo's backend is the ordinary way to reach
+//     no_config_repo_owns_backend (no Eshu-tracked repo declares it, full
+//     stop), so in a partially-onboarded org the count of distinct
+//     "unresolved" scopes could plausibly exceed the count of "ambiguous"
+//     scopes by a wide margin — ambiguity requires two-or-more repos to
+//     coincidentally claim the same backend, which is rare, while
+//     "unresolved" only requires one backend Eshu has not indexed yet, which
+//     is common during rollout. If a future report shows this materially
+//     inflates the drift-findings read surface or its underlying fact
+//     volume, the mitigation is scope-level (e.g. a distinct-scope gauge or
+//     a query-time cap), not a change to this per-scope write cadence.
+//
+//     Known gap: no golden-corpus fixture exercises this write path
+//     end-to-end. The corpus's one Terraform-state cassette/fixture pair
+//     (testdata/cassettes/terraformstate/supply-chain-demo.json,
+//     tests/fixtures/ecosystems/terraform_comprehensive/main.tf) is
+//     deliberately backend-aligned by #5442's own design so ownership
+//     resolution always succeeds, so "unresolved" never fires against the
+//     existing 20-repo corpus. A live-gate proof would need a new
+//     untracked/local-backend corpus fixture; out of scope for issue #5594.
+//
 // Deliberately not reachable / not persisted:
 //
 //   - "stale" is unreachable with the evidence this handler has today.
