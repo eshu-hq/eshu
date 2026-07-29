@@ -194,17 +194,29 @@ export function useCodeGraphSelection({
     // entry with this effect's now-stale snapshot.
     //
     // Defer the write one microtask and gate it on a `cancelled` flag set by
-    // this effect instance's own cleanup. React guarantees a component's
-    // previous effect cleanup runs -- synchronously -- before its next effect
-    // instance for changed dependencies (here, `searchParams`/`repository`/
-    // `selected`, all of which change on any navigation), and that cleanup
-    // call happens before the JS engine can drain a microtask queued from an
-    // earlier commit. So this deferred write either lands before any
-    // subsequent navigation has a chance to invalidate it, or is cancelled by
-    // that navigation's own effect teardown first -- it can never fire after
-    // a newer navigation and clobber it. This mirrors the `cancelled`-flag
-    // pattern the inventory-loading effect above already uses for its async
-    // fetch, applied here to guard the effect's own deferred flush instead.
+    // this effect instance's own cleanup, mirroring the pattern the
+    // inventory-loading effect above already uses for its async fetch. What
+    // React actually guarantees here (traced against React 19's
+    // react-dom-client.development.js) is narrower than "cleanup always runs
+    // first": a new synchronous update (e.g. the click that drives a
+    // back/forward or repository change) makes `performSyncWorkOnRoot` call
+    // `flushPendingEffects()` eagerly, synchronously, before rendering that
+    // update. If this effect was still pending, that eager flush is what
+    // runs its body and queues the microtask below -- but the *cleanup* for
+    // that same effect, once the newer commit supersedes it, is bundled into
+    // the newer commit's own passive-effect pass, which is scheduled through
+    // the Scheduler as a later macrotask, not synchronously and not as a
+    // microtask. So a narrower window is conceivable in principle: a
+    // subsequent navigation arriving synchronously, with no intervening
+    // `await`/yield, right as this effect's eager flush queues the
+    // microtask, could in theory let the microtask drain before that
+    // newer commit's cleanup macrotask gets a turn. This has not been
+    // observed: 180+ fixed-arm iterations of the regression test (including
+    // deliberately induced load up to ~70) produced zero reproductions of
+    // the clobber this effect exists to prevent, against a reverted
+    // baseline that reproduces it in the same run. Closed empirically by
+    // that repeated-run evidence, not by a documented React ordering
+    // guarantee -- treat it as a low-probability residual, not a proven-closed one.
     let cancelled = false;
     queueMicrotask(() => {
       if (!cancelled) setSearchParams(canonical, { replace: true });
