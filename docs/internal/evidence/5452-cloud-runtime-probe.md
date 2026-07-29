@@ -15,68 +15,65 @@ silently inert. This mirrors how `trace_deployment_chain` derives its
 
 `SupplyChainHandler.applySupplyChainCloudRuntimeEvidence`
 (`go/internal/query/supply_chain_impact_cloud_runtime_probe.go`) batches the
-findings page's subject digests and issues **one** bounded `CloudResource` graph
-read for a matching `running_image_digest`, then records the running resource
-ARNs on the matched rows so `buildSupplyChainImpactFindingResult` promotes the
-tier.
+findings page's subject digests and issues **one** bounded, indexed Postgres
+owner-ledger read for matching `running_image_digest` values. That read applies
+active-generation freshness and caller authorization in the same query, then
+the handler records the running resource ARNs on matched rows so
+`buildSupplyChainImpactFindingResult` promotes the tier. The current path makes
+no graph query.
 
 ## No-Regression Evidence:
 
-- **Baseline:** the `GET /api/v0/supply-chain/impact/findings` list did zero
-  graph reads (Postgres reducer read model only).
-- **After:** the list gains exactly **one** graph round-trip per page — a single
-  batched query, never per-finding (no N+1), plus one bounded Postgres
-  owner-ledger read to gate the matches (see Current-inventory + scope
-  authorization below). It is skipped entirely when the page has no subject
-  digest, or no graph port / owner-ledger inventory filter is wired.
-- **Query shape / bound:** `MATCH (n:CloudResource) WHERE n.running_image_digest
-  IN $digests AND coalesce(n.arn,'') <> '' RETURN n.running_image_digest,
-  n.arn ORDER BY n.running_image_digest, n.arn LIMIT $limit`. The `$digests`
-  list is deduplicated and hard-capped at
-  `supplyChainCloudRuntimeProbeMaxDigests = 200`, and the result set is bounded
-  by `LIMIT supplyChainCloudRuntimeProbeMaxResults = 200`, so neither the
-  IN-list nor the returned rows can grow unbounded. The `ORDER BY` makes the
-  returned ARN set deterministic run-to-run (a security evidence field must be
-  reproducible). The total-row cap can, under a page whose findings collectively
-  match more than the cap, truncate the highest-sorted digests' runtime
-  evidence (deterministically) — a bounded, scale-gated limitation; a per-digest
-  bound is tracked in #5789. Registered as a bounded
-  `label_inventory` read (label CloudResource, max_results 200) in
-  `go/internal/queryplan/testdata/query-source-coverage.yaml` — the same typed
-  non-hot classification the sibling `cloud_resource_owner_backfill.go`
-  CloudResource label read uses — so the query-plan-regression gate covers it.
-- **Backend/version:** NornicDB (default graph backend), pinned image per
-  `docs/public/run-locally/docker-compose.yaml`.
-- **Why safe (scan class):** the query is **label-anchored** on `CloudResource`,
-  structurally identical to the already-accepted hydration query
-  `MATCH (n:CloudResource) WHERE n.uid IN $uids` in
-  `go/internal/query/cloud_resources.go` (same label anchor, same `IN $list`
-  bound). It is NOT the full-graph `MATCH (n) WHERE (n:Label)` shape that
-  `go/internal/query/cloud_resource_candidates.go` documents as forcing a
-  hanging full scan. Cost is bounded by the cloud-inventory `CloudResource`
-  node count (the label subset), not the whole graph, and is paid once per
-  page.
+- **Baseline:** before runtime enrichment, the
+  `GET /api/v0/supply-chain/impact/findings` list made no runtime-evidence read.
+  The first #5452 implementation added one graph query plus a Postgres
+  freshness/authorization gate; that historical shape is superseded.
+- **Current:** the list makes exactly **one** Postgres owner-ledger query per
+  page, never one query per finding. It is skipped entirely when the page has no
+  subject digest or the inventory store does not implement
+  `CloudResourceRuntimeDigestResolver`. No graph round-trip or second candidate
+  authorization read remains.
+- **Query shape / bound:** `buildCloudResourceRuntimeDigestQuery` materializes
+  candidate `(uid, running_image_digest, arn, source_fact_id)` rows from
+  `graph_node_owner`, using the requested digest set plus trim-aware nonblank
+  digest and ARN predicates. It orders by `(digest, arn, uid)` and applies the
+  global `LIMIT supplyChainCloudRuntimeProbeMaxResults = 200` before the
+  correlated active-fact and authorization checks. The input digest list is
+  deduplicated and capped at `supplyChainCloudRuntimeProbeMaxDigests = 200`.
+  This preserves the former route's deterministic global cap and bounds both
+  candidate and authorization work. Authorized rows after that cap remain
+  under-enriched rather than widening the hot path; per-digest fairness is
+  tracked in #5789.
+- **Backend/version:** PostgreSQL 18.4 for the recorded plan, index, and live
+  store/handler measurements.
+- **Why safe:** migration 086 adds a strict partial expression index whose
+  predicate matches the query's nonblank digest and ARN predicates. The
+  materialized candidate boundary prevents a hot digest or denied caller from
+  causing unbounded authorization probes. Representative proof measured
+  100,000 same-digest rows with the first authorized row outside the cap:
+  the superseded late-limit shape took 145.785 ms and 100,000 authorization
+  probes, while the shipped materialized shape took 0.512 ms and 200 probes.
+  The intentional row-set delta preserves the former graph route's global cap;
+  the all-authorized comparison returned `EXCEPT ALL` counts `0/0`.
 - **Failure mode:** a probe error is propagated, never swallowed, and mapped by
-  the findings handler through `WriteGraphReadError` to a bounded, retryable
-  graph-availability envelope (503 unavailable / 504 timeout, sanitized — the
-  raw graph error is never echoed to the client), falling back to a sanitized
-  500 for other errors. Accuracy-first rationale: the `deployment_truth_tier` is
-  a security signal, so serving a wrong `config_only` for a vulnerability that
-  is actually running is worse than a retryable error. This is a deliberate
-  accuracy-over-availability judgment for this tier; a nil graph port (unwired
-  profile) still degrades cleanly to CI/config tiers.
-- **Terminal counts (B-7 live golden gate run6, 20-repo demo corpus):** the
-  supply-chain-demo scope has 118 `CloudResource` nodes, 2 of which carry a
-  non-empty `running_image_digest` (the ECS task and the image-package Lambda; the synthetic 66-hex demo digest is a pre-existing corpus issue tracked in #5788);
-  the probe resolves the finding's subject digest
+  the findings and explain handlers to a sanitized HTTP 500; the raw storage
+  error is never echoed to the client. Accuracy-first rationale: the
+  `deployment_truth_tier` is a security signal, so serving a wrong
+  `config_only` for a vulnerability that is actually running is worse than an
+  explicit failed read. A nil or unsupported resolver still degrades cleanly to
+  CI/config tiers because no runtime lookup can be made.
+- **Terminal counts (B-7 live golden gate, 29-repository synthetic corpus):**
+  the current, authorized owner-ledger lookup resolves the finding's subject
+  digest
   `sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab`
   (CVE-2026-00010) to the one ECS task running it, and the finding classifies
   `runtime_confirmed`. Asserted non-vacuously (minimum_results>=1) by the
   `GET /api/v0/supply-chain/impact/findings?subject_digest=sha256:abcdef...ab&profile=comprehensive`
   query shape in `testdata/golden/e2e-20repo-snapshot.json` — the comprehensive
   profile is required because the finding is comprehensive-tier and the findings
-  list defaults to precise. Result: `PASS: B-7 golden corpus gate green`,
-  493 pass / 0 required-fail.
+  list defaults to precise. Exact post-review result:
+  `PASS: B-7 golden corpus gate green`, 512 pass / 0 required-fail /
+  1 advisory-warn in 106 seconds, with residual/dead-letter counts `0/0`.
 
 ## Prove-The-Theory-First: `running_image_digest` index (measured, DISPROVEN, not shipped)
 
@@ -124,27 +121,27 @@ data on the canonical backend **before** landing it. It did not hold.
 
 ## Current-inventory + scope authorization:
 
-`CloudResource` graph nodes carry neither a `scope_id` nor a freshness marker
-(`go/internal/storage/cypher/cloud_resource_node_writer.go` MERGE-writes them and
-never node-retracts), so two gates run in Postgres after the bounded graph read,
-over the probe's already-bounded digest matches (keyed by uid):
+The probe reads the reducer-owned `graph_node_owner.winning_row` directly
+through `CloudResourceRuntimeDigestResolver.CurrentAuthorizedCloudResourcesByDigest`.
+One Postgres statement performs all three stages:
 
-- **Current-inventory (staleness):** the matched uids are filtered through the
-  owner ledger (`CloudResourceCurrentInventoryFilter.CurrentAuthorizedCloudResourceUIDs`,
-  the same `graph_node_owner` + active-generation + non-tombstone predicate
-  `ListCloudResourceIdentities` applies), so a node left stale by a resource that
-  vanished from a later scan never becomes runtime evidence. Proven by
-  `TestApplySupplyChainCloudRuntimeEvidenceExcludesStaleOrUnauthorized`.
-- **Authorization:** the same filter applies the caller's scope grants, so a
-  scoped-token caller receives runtime evidence for cloud resources it is
-  granted and never ARNs from scopes it is not — while authorized scoped callers
-  DO receive the runtime tier. Proven by
-  `TestApplySupplyChainCloudRuntimeEvidenceScopedCallerGetsAuthorized` (asks the
-  ledger with `allScopes=false`).
+- **Deterministic candidates:** the materialized CTE selects at most 200
+  matching `(digest, arn, uid, source_fact_id)` rows in digest/ARN/uid order.
+- **Current inventory:** each candidate must still resolve to a non-tombstoned
+  `fact_records` row in its scope's active generation. A resource that vanished
+  from a later scan therefore cannot become runtime evidence.
+- **Authorization:** the same correlated predicate applies repository and scope
+  grants. A scoped caller receives ARNs only from granted evidence, while an
+  authorized scoped caller still receives the runtime tier.
 
-A nil inventory filter disables the runtime tier entirely (the probe is skipped)
-rather than surfacing unauthorized or stale evidence. This closes the earlier
-skip-for-scoped limitation and the follow-up that was #5787.
+The static query-shape tests cover the active-generation, tombstone, and grant
+predicates. `TestCloudResourceRuntimeDigestProductionVariantLive` proves the
+current/authorized delta against live Postgres, while
+`TestCloudResourceRuntimeDigestHotCandidateSetStaysBoundedLive` proves the
+candidate and authorization work stays bounded under a hot digest. A nil or
+unsupported resolver disables the runtime tier rather than surfacing stale or
+unauthorized evidence. This closes the earlier skip-for-scoped limitation and
+the follow-up that was #5787.
 
 ## Observability Evidence:
 
