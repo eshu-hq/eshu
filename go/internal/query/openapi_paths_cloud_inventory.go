@@ -18,13 +18,13 @@ const openAPIPathsCloudInventory = `
         "summary": "List canonical multi-cloud resource identities (bounded, filterable, paginated, truth-labeled)",
         "operationId": "listCloudResourceInventory",
         "x-scoped-token-support": true,
-        "description": "Reads the reducer-owned canonical CloudResource identity rows (reducer_cloud_resource_identity). Filterable by provider (aws/gcp/azure), canonical scope, and management_origin. local_lightweight returns unsupported_capability. Scoped tokens receive rows intersected with the caller's granted repositories/ingestion scopes (fact_records.scope_id); a scoped caller with no grants receives an empty page without a query.",
+        "description": "Reads the reducer-owned canonical CloudResource identity rows (reducer_cloud_resource_identity). Filterable by provider (aws/gcp/azure), canonical scope or provider account, and management_origin. local_lightweight returns unsupported_capability. Scoped tokens receive rows intersected with the caller's granted repositories/ingestion scopes (fact_records.scope_id); a scoped caller with no grants receives an empty page without a query.",
         "parameters": [
           {"name": "provider", "in": "query", "description": "Filter by cloud provider: aws, gcp, or azure.", "schema": {"type": "string", "enum": ["aws", "gcp", "azure"]}},
-          {"name": "scope_id", "in": "query", "description": "Filter by canonical scope id. account_id, project_id, and subscription_id are accepted aliases that target the same canonical scope.", "schema": {"type": "string"}},
-          {"name": "account_id", "in": "query", "description": "Alias for scope_id (AWS account scope).", "schema": {"type": "string"}},
-          {"name": "project_id", "in": "query", "description": "Alias for scope_id (GCP project scope).", "schema": {"type": "string"}},
-          {"name": "subscription_id", "in": "query", "description": "Alias for scope_id (Azure subscription scope).", "schema": {"type": "string"}},
+          {"name": "scope_id", "in": "query", "description": "Filter by the exact canonical ingestion scope id. A canonical scope is a single collector partition (for AWS, one account+region+service claim), not the whole provider account -- one account can span many scope ids. Takes precedence over account_id/project_id/subscription_id when both are given.", "schema": {"type": "string"}},
+          {"name": "account_id", "in": "query", "description": "Filter by the raw AWS account number. Unlike scope_id, this matches every canonical scope recorded under that account (potentially many, one per region/service partition), resolved from the account metadata the collector recorded on each scope.", "schema": {"type": "string"}},
+          {"name": "project_id", "in": "query", "description": "Filter by the raw GCP project id, matching every canonical scope recorded under that project.", "schema": {"type": "string"}},
+          {"name": "subscription_id", "in": "query", "description": "Filter by the raw Azure subscription id, matching every canonical scope recorded under that subscription.", "schema": {"type": "string"}},
           {"name": "management_origin", "in": "query", "description": "Filter by strongest contributing evidence layer: declared, applied, or observed.", "schema": {"type": "string", "enum": ["declared", "applied", "observed"]}},
           {"name": "limit", "in": "query", "description": "Page size.", "schema": {"type": "integer", "minimum": 1, "maximum": 200, "default": 50}},
           {"name": "cursor", "in": "query", "description": "Continuation cursor: non-negative integer offset returned in next_cursor of the previous page.", "schema": {"type": "string"}}

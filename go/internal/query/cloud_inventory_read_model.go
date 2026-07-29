@@ -104,6 +104,19 @@ func buildCloudInventoryIdentitiesSQL(filter cloudInventoryFilter) (string, []an
 			"(fact_records.scope_id = $%d OR fact_records.payload->>'scope_id' = $%d)",
 			len(args), len(args),
 		))
+	} else if aliasKey := strings.TrimSpace(filter.AccountAliasKey); aliasKey != "" {
+		if aliasValue := strings.TrimSpace(filter.AccountAliasValue); aliasValue != "" {
+			// aliasKey is drawn only from the closed cloudInventoryAccountAliasKeys
+			// set (account_id/project_id/subscription_id), never from raw request
+			// input, so interpolating it into the jsonb path is safe. The value
+			// itself is always bound as a parameter. This matches against the
+			// owning scope's raw provider metadata (ingestion_scopes.payload),
+			// not scope_id, because scope_id is a derived per-shard identifier
+			// that can differ from the account/project/subscription number even
+			// within one account (#5238).
+			args = append(args, aliasValue)
+			clauses = append(clauses, fmt.Sprintf("scope.payload->>'%s' = $%d", aliasKey, len(args)))
+		}
 	}
 	if !filter.AllScopes {
 		args = append(args, pq.Array(filter.AllowedRepositoryIDs), pq.Array(filter.AllowedScopeIDs))

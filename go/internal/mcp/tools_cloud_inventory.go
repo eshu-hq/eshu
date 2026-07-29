@@ -24,19 +24,19 @@ func cloudInventoryTools() []ToolDefinition {
 					},
 					"scope_id": map[string]any{
 						"type":        "string",
-						"description": "Canonical scope id filter",
+						"description": "Exact canonical ingestion scope id filter (one collector partition, e.g. one AWS account+region+service claim -- not the whole account). Takes precedence over account_id/project_id/subscription_id.",
 					},
 					"account_id": map[string]any{
 						"type":        "string",
-						"description": "Alias for scope_id (AWS account scope)",
+						"description": "Raw AWS account number. Matches every canonical scope recorded under that account, which can span multiple region/service partitions.",
 					},
 					"project_id": map[string]any{
 						"type":        "string",
-						"description": "Alias for scope_id (GCP project scope)",
+						"description": "Raw GCP project id. Matches every canonical scope recorded under that project.",
 					},
 					"subscription_id": map[string]any{
 						"type":        "string",
-						"description": "Alias for scope_id (Azure subscription scope)",
+						"description": "Raw Azure subscription id. Matches every canonical scope recorded under that subscription.",
 					},
 					"management_origin": map[string]any{
 						"type":        "string",

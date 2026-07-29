@@ -75,15 +75,26 @@ type cloudInventoryReadModelStore interface {
 }
 
 // cloudInventoryFilter holds the optional, bounded filters for the readback.
-// Empty values mean "no filter". Scope, account, project, and subscription all
-// match the canonical scope_id selector because the reducer keys canonical rows
-// by scope; provider determines which of those scope kinds applies.
+// Empty values mean "no filter". ScopeID is the literal canonical scope_id and
+// matches exactly one ingestion scope. AccountAliasKey/AccountAliasValue carry
+// a provider-flavored account selector (account_id, project_id, or
+// subscription_id) instead: unlike scope_id, every provider's scope id is a
+// derived, opaque per-shard identifier (for AWS, one shard per
+// account+region+service; see go/internal/collector/awscloud/awsruntime) that
+// is never literally equal to the raw provider account/project/subscription
+// number, and one account can fan out into many scope ids. An alias therefore
+// resolves against the raw identifier the collector recorded on the scope's
+// own metadata (ingestion_scopes.payload) rather than against scope_id itself
+// (#5238 -- the prior code compared the alias value directly to scope_id,
+// which silently matched zero rows for every real multi-shard account).
 type cloudInventoryFilter struct {
-	Provider         string
-	ScopeID          string
-	ManagementOrigin string
-	Limit            int
-	Offset           int
+	Provider          string
+	ScopeID           string
+	AccountAliasKey   string
+	AccountAliasValue string
+	ManagementOrigin  string
+	Limit             int
+	Offset            int
 	// AllScopes, AllowedRepositoryIDs, and AllowedScopeIDs carry the #5167
 	// access-scoping bound: AllScopes selects the admin/all-scopes path (no
 	// row filtering, byte-identical to the pre-#5167 query). When AllScopes is
@@ -242,27 +253,43 @@ func (h *CloudInventoryHandler) filterFromRequest(w http.ResponseWriter, r *http
 	if !ok {
 		return cloudInventoryFilter{}, false
 	}
+	scopeID, aliasKey, aliasValue := cloudInventoryScopeSelector(r)
 	return cloudInventoryFilter{
-		Provider:         provider,
-		ScopeID:          strings.TrimSpace(cloudInventoryScopeSelector(r)),
-		ManagementOrigin: managementOrigin,
-		Limit:            limit,
-		Offset:           offset,
+		Provider:          provider,
+		ScopeID:           scopeID,
+		AccountAliasKey:   aliasKey,
+		AccountAliasValue: aliasValue,
+		ManagementOrigin:  managementOrigin,
+		Limit:             limit,
+		Offset:            offset,
 	}, true
 }
 
-// cloudInventoryScopeSelector resolves the canonical scope filter. The readback
-// accepts scope_id directly and the provider-flavored aliases account_id,
-// project_id, and subscription_id, all of which target the same canonical
-// scope_id column. The first non-empty alias wins; they are mutually consistent
-// because a given row belongs to exactly one canonical scope.
-func cloudInventoryScopeSelector(r *http.Request) string {
-	for _, key := range []string{"scope_id", "account_id", "project_id", "subscription_id"} {
+// cloudInventoryAccountAliasKeys is the closed, ordered set of provider-flavored
+// account selector parameters. Each name doubles as the exact ingestion_scopes
+// metadata key the owning collector writes for that provider (verified for AWS:
+// go/internal/collector/awscloud/awsruntime/source.go writes
+// Metadata["account_id"]); a caller-supplied alias is never interpolated as
+// free-form SQL, only chosen from this fixed slice.
+var cloudInventoryAccountAliasKeys = []string{"account_id", "project_id", "subscription_id"}
+
+// cloudInventoryScopeSelector resolves the request's scope filter. scope_id is
+// the literal canonical scope id and, when present, wins outright. Otherwise
+// the first non-empty provider-flavored alias (account_id, project_id,
+// subscription_id) is returned as (aliasKey, aliasValue) so the caller can
+// resolve it against the owning scope's raw provider metadata instead of
+// against scope_id -- see cloudInventoryFilter's doc comment for why the two
+// are not interchangeable (#5238).
+func cloudInventoryScopeSelector(r *http.Request) (scopeID string, aliasKey string, aliasValue string) {
+	if value := strings.TrimSpace(QueryParam(r, "scope_id")); value != "" {
+		return value, "", ""
+	}
+	for _, key := range cloudInventoryAccountAliasKeys {
 		if value := strings.TrimSpace(QueryParam(r, key)); value != "" {
-			return value
+			return "", key, value
 		}
 	}
-	return ""
+	return "", "", ""
 }
 
 func (h *CloudInventoryHandler) writeInvalidArgument(w http.ResponseWriter, r *http.Request, message string) {
@@ -335,6 +362,11 @@ func cloudInventoryScope(filter cloudInventoryFilter) map[string]any {
 	}
 	if filter.ScopeID != "" {
 		scope["scope_id"] = filter.ScopeID
+	} else if filter.AccountAliasKey != "" && filter.AccountAliasValue != "" {
+		// Echo back under the alias name the caller actually used (account_id,
+		// project_id, or subscription_id) rather than mislabeling a raw provider
+		// account number as "scope_id".
+		scope[filter.AccountAliasKey] = filter.AccountAliasValue
 	}
 	if filter.ManagementOrigin != "" {
 		scope["management_origin"] = filter.ManagementOrigin

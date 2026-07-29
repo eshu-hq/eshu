@@ -457,10 +457,25 @@ enforced entirely through those inner dispatches.
 
 `GET /api/v0/cloud/inventory` returns reducer-owned canonical
 `reducer_cloud_resource_identity` rows (one per `cloud_resource_uid`). It is
-filterable by `provider` (aws/gcp/azure), `scope_id` (or its aliases
-`account_id`, `project_id`, `subscription_id`), and `management_origin`
-(declared/applied/observed). Results are paginated via `limit` and `cursor`
-parameters. `local_lightweight` returns `unsupported_capability`.
+filterable by `provider` (aws/gcp/azure), a scope selector, and
+`management_origin` (declared/applied/observed). Results are paginated via
+`limit` and `cursor` parameters. `local_lightweight` returns
+`unsupported_capability`.
+
+The scope selector is one of:
+
+- `scope_id` -- the exact canonical ingestion scope id. A scope is one
+  collector partition, not the whole provider account: for AWS specifically,
+  the collector claims work per account+region+service, so one AWS account can
+  span many scope ids (`go/internal/collector/awscloud/awsruntime/source.go`).
+  `scope_id` takes precedence when given alongside an account selector.
+- `account_id` (AWS), `project_id` (GCP), or `subscription_id` (Azure) -- the
+  raw provider account/tenant identifier. Unlike `scope_id` this is **not**
+  compared against the scope id itself (#5238: earlier revisions did, which
+  silently matched zero rows for any real multi-scope account); it resolves
+  against the account/project/subscription value the collector recorded on
+  each scope's own metadata, and therefore returns every canonical row across
+  every scope that shares that identifier.
 
 Each resource item in the `resources` array carries:
 
@@ -470,7 +485,7 @@ Each resource item in the `resources` array carries:
 | `provider` | Normalized provider token: `aws`, `gcp`, or `azure` |
 | `resource_type` | Provider resource type string |
 | `management_origin` | Strongest contributing evidence layer |
-| `scope_id` | Canonical scope (account/project/subscription) |
+| `scope_id` | Canonical ingestion scope id of the resource's admitting collector partition |
 | `generation_id` | Evidence generation that produced this row |
 | `source_state` | Provider-neutral truth label derived from `management_origin` |
 | `evidence` | Per-layer boolean flags: `declared`, `applied`, `observed` |
