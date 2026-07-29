@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 
 import { candidateIdFromParam } from "./CodeGraphPageSupport";
@@ -56,18 +56,6 @@ export function useCodeGraphSelection({
   );
   const availableRepositories = repositories ?? fallbackRepositories;
   const [searchParams, setSearchParams] = useSearchParams();
-  // React flushes the passive effect below asynchronously, so it can still be
-  // pending when the user navigates (browser back/forward) to a different
-  // history entry before it runs. Because `setSearchParams(..., { replace:
-  // true })` replaces whichever entry is current AT CALL TIME -- not the
-  // entry that was current when the effect captured its closure -- a stale
-  // effect firing after such a navigation would silently overwrite the
-  // just-restored location with the previous repo/entity selection. Track the
-  // latest render's params in a ref (written during render, so it is always
-  // current before any deferred effect can run) so the effect can detect it
-  // has gone stale and skip its own write instead of clobbering navigation.
-  const latestSearchParamsRef = useRef(searchParams);
-  latestSearchParamsRef.current = searchParams;
   const legacyCandidateParam = searchParams.get("candidate") ?? searchParams.get("q") ?? "";
   const legacyCandidateId = candidateIdFromParam(deadCandidates, legacyCandidateParam);
   const legacyCandidate = deadCandidates.find((finding) => finding.id === legacyCandidateId);
@@ -197,15 +185,33 @@ export function useCodeGraphSelection({
     canonical.delete("candidate");
     canonical.delete("q");
     if (canonical.toString() === searchParams.toString()) return;
-    // Guard against a stale flush: if a later render (e.g. a browser
-    // back/forward navigation) has already moved `searchParams` on since this
-    // effect's closure was captured, `latestSearchParamsRef` reflects that
-    // newer value (written during render, ahead of any effect flush). Writing
-    // this effect's own (now-outdated) canonical params would replace the
-    // freshly navigated-to entry instead of the one this effect was meant
-    // for, so skip it.
-    if (latestSearchParamsRef.current.toString() !== searchParams.toString()) return;
-    setSearchParams(canonical, { replace: true });
+    // `setSearchParams(..., { replace: true })` replaces whichever history
+    // entry is current AT THE MOMENT IT RUNS, not the entry that was current
+    // when this effect's closure captured `repository`/`selected`. Passive
+    // effects flush asynchronously, so if the user navigates (browser
+    // back/forward, or picks a different repository/entity) before this one
+    // flushes, an unguarded write here would replace the freshly-navigated-to
+    // entry with this effect's now-stale snapshot.
+    //
+    // Defer the write one microtask and gate it on a `cancelled` flag set by
+    // this effect instance's own cleanup. React guarantees a component's
+    // previous effect cleanup runs -- synchronously -- before its next effect
+    // instance for changed dependencies (here, `searchParams`/`repository`/
+    // `selected`, all of which change on any navigation), and that cleanup
+    // call happens before the JS engine can drain a microtask queued from an
+    // earlier commit. So this deferred write either lands before any
+    // subsequent navigation has a chance to invalidate it, or is cancelled by
+    // that navigation's own effect teardown first -- it can never fire after
+    // a newer navigation and clobber it. This mirrors the `cancelled`-flag
+    // pattern the inventory-loading effect above already uses for its async
+    // fetch, applied here to guard the effect's own deferred flush instead.
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setSearchParams(canonical, { replace: true });
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [entityParam, loading, repository, searchParams, selected, setSearchParams]);
 
   const error =
