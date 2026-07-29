@@ -74,11 +74,15 @@ func TestListActiveSupplyChainImpactFactsQueryIncludesVulnerabilitySuppression(t
 	// TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeSiblings,
 	// facts_active_supply_chain_impact_scope_normalize_test.go, for the
 	// full F-6 predicate-shape and unchanged-sibling assertions). $4
-	// (AdvisoryIDs, #5465) stays exact-match -- round-3 predates
-	// advisory_id support on this branch.
+	// (AdvisoryIDs, #5465) started as scope-nested exact-match too, but
+	// round-4 review F-10 later superseded ITS scope-nested form the same
+	// way -- normalized at $21 (see
+	// TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeAdvisoryID) --
+	// so the old ->'scope'->>'advisory_id' = ANY($4) form no longer exists;
+	// only the top-level (non-"scope") $4 exact match remains, serving
+	// other fact kinds.
 	for _, want := range []string{
 		"'vulnerability.suppression'",
-		"fact.payload->'scope'->>'advisory_id' = ANY($4::text[])",
 		"lower(btrim(fact.payload->'scope'->>'package_id', E' \\t\\n\\v\\f\\r')) = ANY($16::text[])",
 		"lower(btrim(fact.payload->'scope'->>'purl', E' \\t\\n\\v\\f\\r')) = ANY($17::text[])",
 		"lower(btrim(fact.payload->'scope'->>'cve_id', E' \\t\\n\\v\\f\\r')) = ANY($18::text[])",
@@ -87,6 +91,9 @@ func TestListActiveSupplyChainImpactFactsQueryIncludesVulnerabilitySuppression(t
 		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
 		}
+	}
+	if strings.Contains(listActiveSupplyChainImpactFactsQuery, "fact.payload->'scope'->>'advisory_id' = ANY($4::text[])") {
+		t.Fatalf("scope-nested advisory_id exact-match at $4 should be superseded by the $21 normalized predicate (round-4 review F-10):\n%s", listActiveSupplyChainImpactFactsQuery)
 	}
 }
 

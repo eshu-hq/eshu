@@ -421,7 +421,13 @@ func TestBuildVulnerabilitySuppressionsDecodesEnvironmentWorkloadServiceScope(t 
 		),
 	}
 
-	suppressions := BuildVulnerabilitySuppressions(envelopes)
+	suppressions, quarantined, err := BuildVulnerabilitySuppressions(envelopes)
+	if err != nil {
+		t.Fatalf("BuildVulnerabilitySuppressions() error = %v, want nil", err)
+	}
+	if len(quarantined) != 0 {
+		t.Fatalf("BuildVulnerabilitySuppressions() quarantined = %#v, want none", quarantined)
+	}
 	if got, want := len(suppressions), 1; got != want {
 		t.Fatalf("BuildVulnerabilitySuppressions() len = %d, want %d", got, want)
 	}
@@ -461,7 +467,13 @@ func TestBuildVulnerabilitySuppressionsOmittedEnvironmentWorkloadServiceScope(t 
 		),
 	}
 
-	suppressions := BuildVulnerabilitySuppressions(envelopes)
+	suppressions, quarantined, err := BuildVulnerabilitySuppressions(envelopes)
+	if err != nil {
+		t.Fatalf("BuildVulnerabilitySuppressions() error = %v, want nil", err)
+	}
+	if len(quarantined) != 0 {
+		t.Fatalf("BuildVulnerabilitySuppressions() quarantined = %#v, want none", quarantined)
+	}
 	if got, want := len(suppressions), 1; got != want {
 		t.Fatalf("BuildVulnerabilitySuppressions() len = %d, want %d", got, want)
 	}
