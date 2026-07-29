@@ -7,8 +7,7 @@ pointer in `README.md`.
 
 Some supply-chain-impact / security-alert-reconciliation evidence stayed in
 [`gotchas-correlation-queue-and-graph-security.md`](gotchas-correlation-queue-and-graph-security.md)
-(near the platform-lock/`BuildSharedProjectionIntent` evidence, before the
-SecurityGroup/IAM subsections) to keep both files under the 500-line cap.
+(near the platform-lock/`BuildSharedProjectionIntent` evidence) to fit the cap.
 
 - **All reducer domains must be cross-source, cross-scope, and truth-emitting**
   — enforced by `OwnershipShape.Validate`; domains either write canonical graph
@@ -222,10 +221,8 @@ SecurityGroup/IAM subsections) to keep both files under the 500-line cap.
   `ListActiveSupplyChainImpactFacts`; existing reducer counters, persisted
   `evidence_path`, `evidence_fact_ids`, `service_ids`, `workload_ids`,
   `catalog_entity_refs`, `catalog_owner_refs`, and `missing_evidence` remain
-  the operator-facing signals.
-
-  #5469 added CI-declared-artifact digest selection on top of this bullet; see
-  `docs/internal/evidence/5469-ci-declared-artifact-digest-selection.md`.
+  the operator-facing signals. #5469 added CI-declared-artifact digest
+  selection here; see `docs/internal/evidence/5469-ci-declared-artifact-digest-selection.md`.
 - **Go-vulnerability reachability is classified, not invented** —
   `ClassifyGoVulnerabilityReachability` joins `vulnerability.go_module_evidence`
   facts (parsed from repository `go.mod` and `go.sum`), Go ecosystem
@@ -404,9 +401,8 @@ SecurityGroup/IAM subsections) to keep both files under the 500-line cap.
   tier is persisted alongside the truth
   labels (status, confidence, runtime_reachability) and missing-evidence
   reasons; readers (API, MCP, parity gate) decide which tier they want.
-
-  #5735 added exact-DPKG/APK precise-profile admission on top of this bullet;
-  see `docs/internal/evidence/5735-os-package-precise-profile.md`.
+  #5735 added exact-DPKG/APK precise-profile admission here; see
+  `docs/internal/evidence/5735-os-package-precise-profile.md`.
 - **OS package evidence is vendor-gated** — `vulnerability.os_package`
   rows from RPM-family, Debian dpkg, and Alpine apk snapshots can seed
   supply-chain impact only when the row is vendor-class, carries distro and
