@@ -1893,7 +1893,8 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   `provider_dismissal`), justification, author, timestamps, reason, evidence
   reference, and optional VEX document/statement IDs. Suppressions apply only
   when every populated scope key (`cve_id`, `advisory_id`, `package_id`,
-  `purl`, `repository_id`, `subject_digest`, `evidence_path`) matches the
+  `purl`, `repository_id`, `subject_digest`, `evidence_path`, `environment`,
+  `workload_id`, `service_id`) matches the
   finding identity; mismatched scope yields the `scope_mismatch` state so the
   finding stays visible and operators can audit drift. Expired suppressions
   surface as `expired` rather than hidden. Provider dismissals are evidence:
@@ -1912,6 +1913,24 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   request-bound UTC clock. When that clock reaches `expires_at`, direct,
   materialized, aggregate, and explain reads expose the same immutable operator
   row as `expired` without waiting for unrelated evidence or a reducer replay.
+- **Suppression scope supports deployment-context narrowing (#5466)** —
+  `environment`, `workload_id`, and `service_id` are optional conjuncts on an
+  identity-anchored `vulnerability.suppression` scope. At least one of
+  `cve_id`, `advisory_id`, `package_id`, `purl`, `repository_id`, or
+  `subject_digest` remains mandatory; deployment context never acts as a
+  cross-vulnerability wildcard or SQL discovery key. Environment values use
+  the shared canonical alias contract, and every populated deployment field
+  must match baked finding evidence. Missing or ambiguous evidence fails
+  closed to `scope_mismatch`. Because one canonical finding stores one
+  suppression decision while deployment dimensions are flattened lists, every
+  referenced deployment dimension must have one unambiguous observed value.
+  A stage predicate cannot hide a canonical finding that also carries prod.
+  The live golden suppression is identity-anchored and narrowed to the
+  singleton `prod` context, so its hidden-then-expired transition proves the
+  real reducer path; a production-finalized prod+stage aggregate stays visible.
+  Performance Evidence:
+  `docs/internal/evidence/5466-env-scoped-suppression-scope.md` records the
+  current-base benchmark and exact stable-sort equivalence proof.
 - **Safe-upgrade remediation is advisory-only** —
   `SupplyChainImpactHandler` attaches a `Remediation` block to every finding
   via `BuildSupplyChainImpactRemediation` (issue #595). The block records the

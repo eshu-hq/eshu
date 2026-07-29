@@ -100,12 +100,12 @@ func (l *scanScopedSupplyChainImpactFactLoader) ListFactsByKind(
 func (l *scanScopedSupplyChainImpactFactLoader) ListActiveSupplyChainImpactFacts(
 	_ context.Context,
 	_ SupplyChainImpactFactFilter,
-) ([]facts.Envelope, error) {
+) ([]facts.Envelope, bool, error) {
 	if l.activeCalled {
-		return nil, nil
+		return nil, false, nil
 	}
 	l.activeCalled = true
-	return append([]facts.Envelope(nil), l.activeFacts...), nil
+	return append([]facts.Envelope(nil), l.activeFacts...), false, nil
 }
 
 // TestSupplyChainImpactHandlerLoadsScannerAnalysisFromOSPackageScanScope is

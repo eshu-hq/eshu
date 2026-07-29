@@ -315,8 +315,10 @@ contract aligned with OpenAPI's `additionalProperties: false`. Its
 `query.vulnerability_suppression_mutation` span records
 only the closed `created`, `unchanged`, `rejected`, or `store_error` outcome;
 operator reason text and suppression anchors never become telemetry labels.
-`evidence_path` can only narrow a suppression that also carries a discoverable
-CVE, advisory, package, PURL, repository, or digest anchor. Query stores bind
+`evidence_path`, `environment`, `workload_id`, and `service_id` can only narrow
+a suppression that also carries a discoverable CVE, advisory, package, PURL,
+repository, or digest anchor. Environment values are canonicalized through the
+shared alias contract before persistence. Query stores bind
 one UTC expiry clock per call; list, aggregate facets, and explain patch an
 expired operator row to `state=expired` without changing its immutable fact.
 The materialized winners path uses the same clock and denormalized expiry so it

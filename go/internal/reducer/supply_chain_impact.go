@@ -41,9 +41,13 @@ const (
 // SupplyChainImpactFactFilter bounds active evidence loading for one impact
 // reducer intent.
 type SupplyChainImpactFactFilter struct {
-	PackageIDs        []string
-	PURLs             []string
-	CVEIDs            []string
+	PackageIDs []string
+	PURLs      []string
+	CVEIDs     []string
+	// AdvisoryIDs binds both the top-level exact-match predicate and the
+	// normalized suppression-scope predicate. It is populated alongside
+	// CVEIDs because supplyChainCVEID prefers cve_id over advisory_id when
+	// both are present.
 	AdvisoryIDs       []string
 	SubjectDigests    []string
 	DocumentIDs       []string
@@ -106,9 +110,13 @@ type SupplyChainImpactFinding struct {
 	ImageRef              string
 	DependencyScope       string
 	WorkloadIDs           []string
-	DeploymentIDs         []string
-	ServiceIDs            []string
-	Environments          []string
+	// ServiceWorkloadPairs is genuine (ServiceID, WorkloadID) co-occurrence
+	// for tuple-aware suppression matching (#5466 F-2); see
+	// supply_chain_impact_runtime.go and supply_chain_suppression_scope_match.go.
+	ServiceWorkloadPairs []SupplyChainServiceWorkloadPair
+	DeploymentIDs        []string
+	ServiceIDs           []string
+	Environments         []string
 	// EnvironmentEvidence records, per environment name in Environments,
 	// whether the strongest deployment evidence observed for that
 	// environment was "deploy_event" (a ci.deployment_event observed at the
@@ -169,7 +177,10 @@ type SupplyChainImpactWriter interface {
 }
 
 type activeSupplyChainImpactFactLoader interface {
-	ListActiveSupplyChainImpactFacts(context.Context, SupplyChainImpactFactFilter) ([]facts.Envelope, error)
+	// The bool return reports pagination truncation (#5466 P1-B, see
+	// supply_chain_impact_handler_helpers.go): callers OR it into the same
+	// truncation signal maxSupplyChainImpactActiveEvidenceLoads produces.
+	ListActiveSupplyChainImpactFacts(context.Context, SupplyChainImpactFactFilter) ([]facts.Envelope, bool, error)
 }
 
 // SupplyChainImpactHandler publishes vulnerability impact findings without
@@ -222,6 +233,13 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent Intent) (Re
 		return Result{}, fmt.Errorf("build vulnerability suppressions: %w", err)
 	}
 	quarantinedVulnerabilityFacts = append(quarantinedVulnerabilityFacts, quarantinedSuppressions...)
+	if loaded.suppressionEvidenceTruncated {
+		// Selection is newest AuthoredAt and then SuppressionID across the
+		// complete adjacent candidate set. A bounded prefix cannot prove its
+		// retained winner is globally preferred, so discard every candidate
+		// and keep findings visible rather than persist a false audit winner.
+		suppressions = nil
+	}
 	// Per-fact isolation: a malformed vulnerability or suppression fact is
 	// quarantined as a visible input_invalid dead-letter while valid facts
 	// still contribute to findings and suppression decisions.

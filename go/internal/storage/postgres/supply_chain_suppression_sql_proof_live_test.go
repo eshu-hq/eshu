@@ -5,13 +5,14 @@ package postgres
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
 	"sort"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -25,7 +26,15 @@ const (
 	suppressionSQLProofMatches  = 250
 	suppressionSQLProofAdvisory = "GHSA-2026-proof-advisory"
 	suppressionSQLProofCVE      = "CVE-2026-54650"
+	suppressionSQLProofBaseSHA  = "37649ca04ad51408494af96955876a8c8ad49f22"
+	suppressionSQLProofBaseHash = "2bed8a571c86702c5090d305fa4dfa31889b6c54208d9cf00fb81f4447490bf3"
 )
+
+// suppressionSQLProofBaseQuery is byte-for-byte the query constant from
+// facts_active_supply_chain_impact.go at suppressionSQLProofBaseSHA.
+//
+//go:embed testdata/list_active_supply_chain_impact_facts_37649ca.sql
+var suppressionSQLProofBaseQuery string
 
 type suppressionSQLPlan struct {
 	ExecutionTime float64 `json:"Execution Time"`
@@ -42,83 +51,124 @@ func TestSupplyChainImpactAdvisoryFilterPlanLive(t *testing.T) {
 	applySuppressionSQLProofDefinitions(t, ctx, db)
 	seedSuppressionSQLProofFacts(t, ctx, db)
 
-	legacyQuery := suppressionSQLProofLegacyQuery(t)
-	legacyArgs := suppressionSQLProofLegacyArgs([]string{suppressionSQLProofCVE})
-	currentLegacyArgs := suppressionSQLProofCurrentArgs(
+	if got := fmt.Sprintf("%x", sha256.Sum256([]byte(suppressionSQLProofBaseQuery))); got != suppressionSQLProofBaseHash {
+		t.Fatalf("exact-base query hash = %s, want %s", got, suppressionSQLProofBaseHash)
+	}
+
+	baseCVEArgs := suppressionSQLProofBaseArgs(
 		[]string{suppressionSQLProofCVE},
 		nil,
 	)
-	advisoryArgs := suppressionSQLProofCurrentArgs(
+	currentCVEArgs := suppressionSQLProofCurrentArgs(
+		[]string{suppressionSQLProofCVE},
+		nil,
+	)
+	baseAdvisoryArgs := suppressionSQLProofBaseArgs(
+		nil,
+		[]string{suppressionSQLProofAdvisory},
+	)
+	currentAdvisoryArgs := suppressionSQLProofCurrentArgs(
 		nil,
 		[]string{suppressionSQLProofAdvisory},
 	)
 
-	legacyIDs := suppressionSQLProofFactIDs(t, ctx, db, legacyQuery, legacyArgs)
-	currentLegacyIDs := suppressionSQLProofFactIDs(
+	baseCVEIDs := suppressionSQLProofFactIDs(
+		t,
+		ctx,
+		db,
+		suppressionSQLProofBaseQuery,
+		baseCVEArgs,
+	)
+	currentCVEIDs := suppressionSQLProofFactIDs(
 		t,
 		ctx,
 		db,
 		listActiveSupplyChainImpactFactsQuery,
-		currentLegacyArgs,
+		currentCVEArgs,
 	)
-	if strings.Join(legacyIDs, "\n") != strings.Join(currentLegacyIDs, "\n") {
-		t.Fatal("current query changed the legacy CVE result set")
+	if strings.Join(baseCVEIDs, "\n") != strings.Join(currentCVEIDs, "\n") {
+		t.Fatal("current query changed the exact-base CVE result set")
 	}
-	if len(legacyIDs) != suppressionSQLProofMatches {
-		t.Fatalf("legacy CVE rows = %d, want %d", len(legacyIDs), suppressionSQLProofMatches)
+	if len(baseCVEIDs) != suppressionSQLProofMatches {
+		t.Fatalf("exact-base CVE rows = %d, want %d", len(baseCVEIDs), suppressionSQLProofMatches)
 	}
 
-	advisoryIDs := suppressionSQLProofFactIDs(
+	baseAdvisoryIDs := suppressionSQLProofFactIDs(
+		t,
+		ctx,
+		db,
+		suppressionSQLProofBaseQuery,
+		baseAdvisoryArgs,
+	)
+	currentAdvisoryIDs := suppressionSQLProofFactIDs(
 		t,
 		ctx,
 		db,
 		listActiveSupplyChainImpactFactsQuery,
-		advisoryArgs,
+		currentAdvisoryArgs,
 	)
-	if len(advisoryIDs) != suppressionSQLProofMatches {
-		t.Fatalf("advisory-only rows = %d, want %d", len(advisoryIDs), suppressionSQLProofMatches)
+	if got, want := len(baseAdvisoryIDs), suppressionSQLProofMatches/2; got != want {
+		t.Fatalf("exact-base advisory rows = %d, want %d exact top-level matches", got, want)
 	}
-	for _, factID := range advisoryIDs {
+	if got, want := len(currentAdvisoryIDs), suppressionSQLProofMatches; got != want {
+		t.Fatalf("current advisory rows = %d, want %d normalized matches", got, want)
+	}
+	if got, want := len(currentAdvisoryIDs)-len(baseAdvisoryIDs), suppressionSQLProofMatches/2; got != want {
+		t.Fatalf("normalized advisory delta = %d, want %d nested matches", got, want)
+	}
+	for _, factID := range currentAdvisoryIDs {
 		if !strings.HasPrefix(factID, "fact:advisory:") {
 			t.Fatalf("advisory-only query returned unintended fact %q", factID)
 		}
 	}
 
-	legacyPlans := suppressionSQLProofPlans(t, ctx, db, legacyQuery, legacyArgs)
-	currentLegacyPlans := suppressionSQLProofPlans(
+	baseCVEPlans := suppressionSQLProofPlans(
+		t,
+		ctx,
+		db,
+		suppressionSQLProofBaseQuery,
+		baseCVEArgs,
+	)
+	currentCVEPlans := suppressionSQLProofPlans(
 		t,
 		ctx,
 		db,
 		listActiveSupplyChainImpactFactsQuery,
-		currentLegacyArgs,
+		currentCVEArgs,
 	)
-	advisoryPlans := suppressionSQLProofPlans(
+	baseAdvisoryPlans := suppressionSQLProofPlans(
+		t,
+		ctx,
+		db,
+		suppressionSQLProofBaseQuery,
+		baseAdvisoryArgs,
+	)
+	currentAdvisoryPlans := suppressionSQLProofPlans(
 		t,
 		ctx,
 		db,
 		listActiveSupplyChainImpactFactsQuery,
-		advisoryArgs,
+		currentAdvisoryArgs,
 	)
-	legacyMedian := suppressionSQLProofMedian(legacyPlans)
-	currentMedian := suppressionSQLProofMedian(currentLegacyPlans)
-	advisoryMedian := suppressionSQLProofMedian(advisoryPlans)
-	legacyP95 := suppressionSQLProofP95(legacyPlans)
-	currentP95 := suppressionSQLProofP95(currentLegacyPlans)
-	if currentMedian > legacyMedian*1.10 {
+	baseCVEMedian := suppressionSQLProofMedian(baseCVEPlans)
+	currentCVEMedian := suppressionSQLProofMedian(currentCVEPlans)
+	baseCVEP95 := suppressionSQLProofP95(baseCVEPlans)
+	currentCVEP95 := suppressionSQLProofP95(currentCVEPlans)
+	if currentCVEMedian > baseCVEMedian*1.10 {
 		t.Fatalf(
-			"legacy filter median regressed by more than 10%%: old=%.3fms current=%.3fms",
-			legacyMedian,
-			currentMedian,
+			"equivalent CVE filter median regressed by more than 10%%: base=%.3fms current=%.3fms",
+			baseCVEMedian,
+			currentCVEMedian,
 		)
 	}
-	if currentP95 > legacyP95*1.10 {
+	if currentCVEP95 > baseCVEP95*1.10 {
 		t.Fatalf(
-			"legacy filter p95 regressed by more than 10%%: old=%.3fms current=%.3fms",
-			legacyP95,
-			currentP95,
+			"equivalent CVE filter p95 regressed by more than 10%%: base=%.3fms current=%.3fms",
+			baseCVEP95,
+			currentCVEP95,
 		)
 	}
-	lastAdvisory := advisoryPlans[len(advisoryPlans)-1]
+	lastAdvisory := currentAdvisoryPlans[len(currentAdvisoryPlans)-1]
 	if int(lastAdvisory.Plan.ActualRows) != suppressionSQLProofMatches {
 		t.Fatalf(
 			"advisory plan actual rows = %.0f, want %d",
@@ -127,15 +177,21 @@ func TestSupplyChainImpactAdvisoryFilterPlanLive(t *testing.T) {
 		)
 	}
 	t.Logf(
-		"100k active facts; 10 warm measurements: legacy old median=%.3fms p95=%.3fms, "+
-			"legacy current median=%.3fms p95=%.3fms, advisory-only median=%.3fms p95=%.3fms; "+
-			"advisory rows=%d shared_hit_blocks=%d shared_read_blocks=%d",
-		legacyMedian,
-		legacyP95,
-		currentMedian,
-		currentP95,
-		advisoryMedian,
-		suppressionSQLProofP95(advisoryPlans),
+		"100k active facts; exact base %s; 10 warm measurements: "+
+			"CVE base median=%.3fms p95=%.3fms, CVE current median=%.3fms p95=%.3fms; "+
+			"advisory base median=%.3fms p95=%.3fms rows=%d, "+
+			"advisory current median=%.3fms p95=%.3fms rows=%d; "+
+			"current advisory shared_hit_blocks=%d shared_read_blocks=%d",
+		suppressionSQLProofBaseSHA,
+		baseCVEMedian,
+		baseCVEP95,
+		currentCVEMedian,
+		currentCVEP95,
+		suppressionSQLProofMedian(baseAdvisoryPlans),
+		suppressionSQLProofP95(baseAdvisoryPlans),
+		len(baseAdvisoryIDs),
+		suppressionSQLProofMedian(currentAdvisoryPlans),
+		suppressionSQLProofP95(currentAdvisoryPlans),
 		int(lastAdvisory.Plan.ActualRows),
 		lastAdvisory.Plan.SharedHitBlocks,
 		lastAdvisory.Plan.SharedReadBlocks,
@@ -146,7 +202,7 @@ func openSuppressionSQLProofDB(t *testing.T) (context.Context, *sql.DB) {
 	t.Helper()
 	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
 	if dsn == "" {
-		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the live #5465 SQL proofs")
+		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the live #5466 SQL proofs")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	t.Cleanup(cancel)
@@ -156,7 +212,7 @@ func openSuppressionSQLProofDB(t *testing.T) (context.Context, *sql.DB) {
 	}
 	t.Cleanup(func() { _ = adminDB.Close() })
 
-	schemaName := fmt.Sprintf("suppression_sql_5465_%d", time.Now().UnixNano())
+	schemaName := fmt.Sprintf("suppression_sql_5466_%d", time.Now().UnixNano())
 	if _, err := adminDB.ExecContext(ctx, "CREATE SCHEMA "+pq.QuoteIdentifier(schemaName)); err != nil {
 		t.Fatalf("create isolated schema: %v", err)
 	}
@@ -216,22 +272,23 @@ INSERT INTO ingestion_scopes (
   scope_id, scope_kind, source_system, source_key, collector_kind,
   partition_key, observed_at, ingested_at, status, active_generation_id, payload
 ) VALUES (
-  'scope:5465:sql-proof', 'vulnerability_intelligence', 'synthetic',
-  'scope:5465:sql-proof', 'synthetic', 'scope:5465:sql-proof',
+  'scope:5466:sql-proof', 'vulnerability_intelligence', 'synthetic',
+  'scope:5466:sql-proof', 'synthetic', 'scope:5466:sql-proof',
   '2026-07-27T12:00:00Z', '2026-07-27T12:00:00Z', 'active',
-  'generation:5465:sql-proof', '{}'::jsonb
+  'generation:5466:sql-proof', '{}'::jsonb
 );
 INSERT INTO scope_generations (
   generation_id, scope_id, trigger_kind, observed_at, ingested_at,
   status, activated_at, payload
 ) VALUES (
-  'generation:5465:sql-proof', 'scope:5465:sql-proof', 'synthetic',
+  'generation:5466:sql-proof', 'scope:5466:sql-proof', 'synthetic',
   '2026-07-27T12:00:00Z', '2026-07-27T12:00:00Z',
   'active', '2026-07-27T12:00:00Z', '{}'::jsonb
 )`); err != nil {
 		t.Fatalf("seed active supply-chain scope: %v", err)
 	}
-	if _, err := db.ExecContext(ctx, `
+	if _, err := db.ExecContext(
+		ctx, `
 INSERT INTO fact_records (
   fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
   schema_version, collector_kind, fencing_token, source_confidence,
@@ -243,13 +300,31 @@ SELECT
     WHEN n <= 500 THEN format('fact:cve:%06s', n)
     ELSE format('fact:other:%06s', n)
   END,
-  'scope:5465:sql-proof', 'generation:5465:sql-proof', 'vulnerability.cve',
+  'scope:5466:sql-proof', 'generation:5466:sql-proof',
+  -- rows 126-250 and 376-500 carry identity values nested under "scope",
+  -- which only ever appears on a vulnerability.suppression fact in
+  -- production (no other
+  -- fact kind's schema has a "scope" sub-object -- see
+  -- sdk/go/factschema/vulnerability/v1); the query's normalized
+  -- scope-nested advisory_id predicate ($18) is
+  -- gated to fact_kind = 'vulnerability.suppression' to match that reality.
+  -- The same guard now applies to every nested suppression scope identity,
+  -- avoiding Unicode normalization work on the 99.75% unrelated rows in
+  -- this representative corpus.
+  CASE
+    WHEN (n > 125 AND n <= 250) OR (n > 375 AND n <= 500)
+      THEN 'vulnerability.suppression'
+    ELSE 'vulnerability.cve'
+  END,
   format('stable:%06s', n), '1.0.0', 'synthetic', 1, 'reported',
   'synthetic', format('source:%06s', n),
   '2026-07-27T12:00:00Z', '2026-07-27T12:00:00Z',
   CASE
     WHEN n <= 125 THEN jsonb_build_object('advisory_id', $1::text)
-    WHEN n <= 250 THEN jsonb_build_object('scope', jsonb_build_object('advisory_id', $1::text))
+    WHEN n <= 250 THEN jsonb_build_object(
+      'scope',
+      jsonb_build_object('advisory_id', chr(160) || lower($1::text) || chr(160))
+    )
     WHEN n <= 375 THEN jsonb_build_object('cve_id', $2::text)
     WHEN n <= 500 THEN jsonb_build_object('scope', jsonb_build_object('cve_id', $2::text))
     ELSE jsonb_build_object('advisory_id', format('GHSA-2026-other-%06s', n))
@@ -270,53 +345,36 @@ ANALYZE scope_generations;`); err != nil {
 	}
 }
 
-func suppressionSQLProofLegacyQuery(t *testing.T) string {
-	t.Helper()
-	query := strings.Replace(
-		listActiveSupplyChainImpactFactsQuery,
-		"      OR (\n"+
-			"          cardinality($4::text[]) > 0\n"+
-			"          AND (\n"+
-			"              fact.payload->>'advisory_id' = ANY($4::text[])\n"+
-			"              OR fact.payload->'scope'->>'advisory_id' = ANY($4::text[])\n"+
-			"          )\n"+
-			"      )\n",
-		"",
-		1,
-	)
-	for parameter := 5; parameter <= 12; parameter++ {
-		query = strings.ReplaceAll(
-			query,
-			"$"+strconv.Itoa(parameter),
-			"__SUPPRESSION_PROOF_ARG_"+strconv.Itoa(parameter)+"__",
-		)
-	}
-	for parameter := 5; parameter <= 12; parameter++ {
-		query = strings.ReplaceAll(
-			query,
-			"__SUPPRESSION_PROOF_ARG_"+strconv.Itoa(parameter)+"__",
-			"$"+strconv.Itoa(parameter-1),
-		)
-	}
-	if strings.Contains(query, "advisory_id' = ANY") {
-		t.Fatal("legacy query still contains advisory filter")
-	}
-	return query
-}
-
+// suppressionSQLProofCurrentArgs binds against the current, full
+// listActiveSupplyChainImpactFactsQuery (19 placeholders). cveIDs and
+// advisoryIDs each feed BOTH their exact-match slot and their lower(btrim(...))
+// normalized sibling slot, mirroring exactly how
+// listActiveSupplyChainImpactFactsPage binds the same filter value twice in
+// production. The final `false` is the compound keyset cursor's boolean
+// half ($19, #5466 round-8 review F-3); its value is irrelevant here since
+// $11 (the cursor's fact_id half) is empty, which bypasses the cursor
+// predicate entirely (first page), but it must still be present and
+// well-typed for Postgres to plan the query.
 func suppressionSQLProofCurrentArgs(cveIDs, advisoryIDs []string) []any {
 	empty := []string{}
 	return []any{
 		empty, empty, cveIDs, advisoryIDs, empty, empty,
 		empty, empty, empty, empty, "", 1_000,
+		empty, empty,
+		lowerCleanedStringFilterValues(cveIDs),
+		empty, empty,
+		lowerCleanedStringFilterValues(advisoryIDs),
+		false,
 	}
 }
 
-func suppressionSQLProofLegacyArgs(cveIDs []string) []any {
+// suppressionSQLProofBaseArgs binds the exact 12-placeholder query from
+// suppressionSQLProofBaseSHA.
+func suppressionSQLProofBaseArgs(cveIDs, advisoryIDs []string) []any {
 	empty := []string{}
 	return []any{
-		empty, empty, cveIDs, empty, empty, empty,
-		empty, empty, empty, "", 1_000,
+		empty, empty, cveIDs, advisoryIDs, empty, empty,
+		empty, empty, empty, empty, "", 1_000,
 	}
 }
 

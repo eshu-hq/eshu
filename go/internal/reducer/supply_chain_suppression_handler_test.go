@@ -124,6 +124,80 @@ func TestSupplyChainImpactHandlerKeepsExpiredSuppressionVisible(t *testing.T) {
 	}
 }
 
+func TestSupplyChainImpactHandlerFailsOpenWhenSuppressionCandidatesAreTruncated(t *testing.T) {
+	t.Parallel()
+
+	loader := &stubSupplyChainImpactFactLoader{
+		scopeFacts: []facts.Envelope{
+			vulnerabilityCVEFact("cve-1", "CVE-2026-0042", 8.4),
+			vulnerabilityAffectedPackageFact(
+				"affected-1",
+				"CVE-2026-0042",
+				testImpactPackageID,
+				"npm",
+				"example",
+				"1.2.3",
+				"1.3.0",
+			),
+			packageConsumptionFactWithRange(
+				"consume-1",
+				testImpactPackageID,
+				testImpactRepositoryID,
+				"1.2.3",
+			),
+		},
+		active: []facts.Envelope{
+			suppressionFactEnvelope(
+				"suppression-older-loaded",
+				facts.VulnerabilitySuppressionSourcePolicy,
+				facts.VulnerabilitySuppressionJustificationNotAffected,
+				"eshu:policy/operator@example.com",
+				"2026-05-10T00:00:00Z",
+				"",
+				map[string]any{
+					"cve_id":        "CVE-2026-0042",
+					"package_id":    testImpactPackageID,
+					"repository_id": testImpactRepositoryID,
+				},
+			),
+		},
+		// The active reader retained the older row above but omitted a newer
+		// matching assertion after its bounded suppression prefix.
+		activeTruncated: true,
+	}
+	writer := &recordingSupplyChainImpactWriter{}
+	handler := SupplyChainImpactHandler{
+		FactLoader: loader,
+		Writer:     writer,
+		Now:        func() time.Time { return time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC) },
+	}
+
+	result, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-truncated-suppression",
+		ScopeID:      "vuln-intel://osv/npm/example",
+		GenerationID: "generation-impact",
+		SourceSystem: "vulnerability_intelligence",
+		Domain:       DomainSupplyChainImpact,
+		Cause:        "vulnerability evidence observed",
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+	if got, want := len(writer.write.Findings), 1; got != want {
+		t.Fatalf("len(Findings) = %d, want %d", got, want)
+	}
+	decision := writer.write.Findings[0].Suppression
+	if got, want := decision.State, SupplyChainSuppressionStateActive; got != want {
+		t.Fatalf("Suppression.State = %q, want fail-open %q", got, want)
+	}
+	if decision.SuppressionID != "" {
+		t.Fatalf("Suppression.SuppressionID = %q, want empty for incomplete candidate set", decision.SuppressionID)
+	}
+	if !strings.Contains(result.EvidenceSummary, "active_evidence_truncated=true") {
+		t.Fatalf("EvidenceSummary = %q, want truncation marker", result.EvidenceSummary)
+	}
+}
+
 func TestSupplyChainImpactPayloadIncludesSuppressionState(t *testing.T) {
 	t.Parallel()
 

@@ -215,3 +215,20 @@ operational lessons that future storage changes still need to respect.
 - Schema definitions in `bootstrapDefinitions` are applied in slice order.
   Tables with foreign key constraints on other tables must appear after their
   dependencies.
+
+- Vulnerability-suppression deployment context is narrowing-only (#5466).
+  `ListActiveSupplyChainImpactFacts` discovers suppressions through
+  `cve_id`, `advisory_id`, `package_id`, `purl`, `repository_id`, or
+  `subject_digest`; it MUST NOT scan by `environment`, `workload_id`, or
+  `service_id` alone. The rejected deployment-only query shape matched
+  85,715 of 300,000 synthetic rows and took about 22.7 seconds through the
+  real paginated Go path. Keeping deployment fields out of the SQL discovery
+  filter removes that broad-scan class while the reducer applies them as
+  conjunctive, fail-closed match constraints after an identity-anchored fact
+  is loaded. Scope identity predicates use normalized `lower(btrim(...))`
+  binds with the complete Unicode White_Space set used by Go
+  `strings.TrimSpace`, so SQL selection agrees with the reducer's
+  case-insensitive matcher. A fact-kind guard avoids paying that normalization
+  cost on non-suppression rows. The 2,000-row per-call cap remains defense in
+  depth; it over-fetches one sentinel, returns at most 2,000 suppressions, and
+  reports truncation only when another row actually exists.

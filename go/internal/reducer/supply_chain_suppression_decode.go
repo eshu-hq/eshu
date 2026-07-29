@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/environment"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	vulnerabilitysuppressionv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerabilitysuppression/v1"
@@ -66,7 +67,7 @@ func decodeVulnerabilitySuppression(envelope facts.Envelope) (vulnerabilitySuppr
 	if field := vulnerabilitySuppressionSourceJustificationInvalidField(value.Source, value.Justification); field != "" {
 		return vulnerabilitySuppression{}, invalidVulnerabilitySuppressionField(field)
 	}
-	if vulnerabilitySuppressionTypedScopeEmpty(value.Scope) {
+	if !vulnerabilitySuppressionTypedScopeHasDiscoverableAnchor(value.Scope) {
 		return vulnerabilitySuppression{}, invalidVulnerabilitySuppressionField("scope")
 	}
 	authoredAt, authoredPresent, authoredValid := parseSuppressionTime(value.AuthoredAt)
@@ -132,6 +133,15 @@ func decodeVulnerabilitySuppressionScope(
 		RepositoryID:  optionalSuppressionString(value.RepositoryID),
 		SubjectDigest: optionalSuppressionString(value.SubjectDigest),
 		EvidencePath:  cleanSuppressionStrings(value.EvidencePath),
+		// Environment is canonicalized through the shared environment-alias
+		// contract (environment.Canonical, go/internal/environment, #5473)
+		// at decode time -- not a local lowercase/trim -- so an operator
+		// writing "production" matches a finding whose deployment evidence
+		// already resolved to the canonical "prod" (#5466). WorkloadID and
+		// ServiceID are opaque IDs with no alias table; they decode as-is.
+		Environment: environment.Canonical(optionalSuppressionString(value.Environment)),
+		WorkloadID:  optionalSuppressionString(value.WorkloadID),
+		ServiceID:   optionalSuppressionString(value.ServiceID),
 	}
 }
 
@@ -163,16 +173,13 @@ func cleanSuppressionStrings(values []string) []string {
 	return cleaned
 }
 
-func vulnerabilitySuppressionTypedScopeEmpty(value vulnerabilitysuppressionv1.Scope) bool {
-	if optionalSuppressionString(value.CVEID) != "" ||
+func vulnerabilitySuppressionTypedScopeHasDiscoverableAnchor(value vulnerabilitysuppressionv1.Scope) bool {
+	return optionalSuppressionString(value.CVEID) != "" ||
 		optionalSuppressionString(value.AdvisoryID) != "" ||
 		optionalSuppressionString(value.PackageID) != "" ||
 		optionalSuppressionString(value.PURL) != "" ||
 		optionalSuppressionString(value.RepositoryID) != "" ||
-		optionalSuppressionString(value.SubjectDigest) != "" {
-		return false
-	}
-	return true
+		optionalSuppressionString(value.SubjectDigest) != ""
 }
 
 // parseSuppressionTime parses an RFC3339 timestamp from a fact payload and

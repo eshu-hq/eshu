@@ -426,8 +426,8 @@ func (l *pythonReachabilityImpactLoader) ListActivePackageManifestDependencyFact
 func (l *pythonReachabilityImpactLoader) ListActiveSupplyChainImpactFacts(
 	_ context.Context,
 	filter SupplyChainImpactFactFilter,
-) ([]facts.Envelope, error) {
-	return nil, nil
+) ([]facts.Envelope, bool, error) {
+	return nil, false, nil
 }
 
 func pythonReachabilityFileFact(

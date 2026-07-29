@@ -57,9 +57,17 @@ func TestOpenAPISpecIncludesVulnerabilitySuppressionMutation(t *testing.T) {
 	}
 	scope := mustMapField(t, properties, "scope")
 	scopeDescription, _ := scope["description"].(string)
-	for _, want := range []string{"discoverable identity anchor", "evidence_path", "cannot stand alone"} {
+	for _, want := range []string{"discoverable identity anchor", "evidence_path", "environment", "workload_id", "service_id", "cannot stand alone"} {
 		if !strings.Contains(scopeDescription, want) {
 			t.Fatalf("scope description = %q, want %q", scopeDescription, want)
+		}
+	}
+	scopeProperties := mustMapField(t, scope, "properties")
+	for _, want := range []string{"environment", "workload_id", "service_id"} {
+		property := mustMapField(t, scopeProperties, want)
+		description, _ := property["description"].(string)
+		if !strings.Contains(description, "narrows a suppression") {
+			t.Fatalf("scope property %q description = %q, want narrowing-only contract", want, description)
 		}
 	}
 

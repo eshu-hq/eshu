@@ -11,6 +11,7 @@ import (
 func TestListActiveSupplyChainImpactFactsQueryIsPackageBoundedAndPaged(t *testing.T) {
 	t.Parallel()
 
+	executableQuery := sqlWithoutLineComments(listActiveSupplyChainImpactFactsQuery)
 	for _, want := range []string{
 		"scope.active_generation_id = fact.generation_id",
 		"generation.status = 'active'",
@@ -42,10 +43,11 @@ func TestListActiveSupplyChainImpactFactsQueryIsPackageBoundedAndPaged(t *testin
 		"fact.payload->>'document_id' = ANY($7::text[])",
 		"fact.payload->>'repository_id' = ANY($8::text[])",
 		"fact.payload->>'image_ref' = ANY($9::text[])",
-		"fact.fact_id > $11",
+		"OR (fact.fact_kind = 'vulnerability.suppression', fact.fact_id) > ($19::boolean, $11)",
+		"ORDER BY (fact.fact_kind = 'vulnerability.suppression') ASC, fact.fact_id ASC",
 		"LIMIT $12",
 	} {
-		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
+		if !strings.Contains(executableQuery, want) {
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
 		}
 	}
@@ -59,16 +61,53 @@ func TestListActiveSupplyChainImpactFactsQueryIncludesVulnerabilitySuppression(t
 	// kinds; otherwise suppressions outside the initially loaded
 	// scope/generation never reach the reducer and operator-authored
 	// suppressions silently miss findings.
+	//
+	// The scope-nested predicates below are the round-3 review F-6
+	// lower(btrim(...)) normalized shape ($13-$16), which SUPERSEDES (not
+	// supplements) the original exact-match ->'scope'->>'X' = ANY($1-$5)
+	// shape: $13-$16 bind lower(btrim(...)) of the SAME filter values
+	// bound to $1/$2/$3/$5, so every row the old exact-match predicate
+	// could select, the normalized predicate also selects, plus payloads
+	// whose case/whitespace differs from the filter (see
+	// TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeSiblings,
+	// facts_active_supply_chain_impact_scope_normalize_test.go, for the
+	// full F-6 predicate-shape and unchanged-sibling assertions). $4
+	// (AdvisoryIDs, #5465) also started as a scope-nested exact match.
+	// #5466 supersedes its nested form the same way -- normalized at $18 (see
+	// TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeAdvisoryID) --
+	// so the old ->'scope'->>'advisory_id' = ANY($4) form no longer exists;
+	// only the top-level (non-"scope") $4 exact match remains, serving
+	// other fact kinds.
 	for _, want := range []string{
 		"'vulnerability.suppression'",
-		"fact.payload->'scope'->>'package_id' = ANY($1::text[])",
-		"fact.payload->'scope'->>'purl' = ANY($2::text[])",
-		"fact.payload->'scope'->>'cve_id' = ANY($3::text[])",
-		"fact.payload->'scope'->>'advisory_id' = ANY($4::text[])",
-		"fact.payload->'scope'->>'subject_digest' = ANY($5::text[])",
+		"lower(btrim(fact.payload->'scope'->>'package_id', " + suppressionScopeTrimCharactersSQL + ")) = ANY($13::text[])",
+		"lower(btrim(fact.payload->'scope'->>'purl', " + suppressionScopeTrimCharactersSQL + ")) = ANY($14::text[])",
+		"lower(btrim(fact.payload->'scope'->>'cve_id', " + suppressionScopeTrimCharactersSQL + ")) = ANY($15::text[])",
+		"lower(btrim(fact.payload->'scope'->>'subject_digest', " + suppressionScopeTrimCharactersSQL + ")) = ANY($16::text[])",
 	} {
 		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
+		}
+	}
+	if strings.Contains(listActiveSupplyChainImpactFactsQuery, "fact.payload->'scope'->>'advisory_id' = ANY($4::text[])") {
+		t.Fatalf("scope-nested advisory_id exact-match at $4 should be superseded by the $18 normalized predicate:\n%s", listActiveSupplyChainImpactFactsQuery)
+	}
+}
+
+func TestListActiveSupplyChainImpactFactsQueryDoesNotDiscoverSuppressionByDeploymentContext(t *testing.T) {
+	t.Parallel()
+
+	// Deployment context narrows a suppression selected through a
+	// vulnerability identity. It must never become a broad discovery
+	// predicate that scans every suppression in a common environment,
+	// workload, or service.
+	for _, forbidden := range []string{
+		"fact.payload->'scope'->>'workload_id'",
+		"fact.payload->'scope'->>'service_id'",
+		"fact.payload->'scope'->>'environment'",
+	} {
+		if strings.Contains(listActiveSupplyChainImpactFactsQuery, forbidden) {
+			t.Fatalf("listActiveSupplyChainImpactFactsQuery contains deployment-only discovery predicate %q:\n%s", forbidden, listActiveSupplyChainImpactFactsQuery)
 		}
 	}
 }
@@ -86,7 +125,11 @@ func TestListActiveSupplyChainImpactFactsQueryBoundsRepositoryFollowUp(t *testin
 		"'reducer_workload_identity'",
 		"fact.payload->>'repository_id' = ANY($8::text[])",
 		"fact.payload->>'repo_id' = ANY($8::text[])",
-		"fact.payload->'scope'->>'repository_id' = ANY($8::text[])",
+		// Round-3 review F-6: this was ->'scope'->>'repository_id' = ANY($8)
+		// (exact match); $17 supersedes it with lower(btrim(...)) -- see
+		// TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeSiblings
+		// (facts_active_supply_chain_impact_scope_normalize_test.go).
+		"lower(btrim(fact.payload->'scope'->>'repository_id', " + suppressionScopeTrimCharactersSQL + ")) = ANY($17::text[])",
 		"fact.scope_id = ANY($8::text[])",
 		"fact.payload->>'scope_id' = ANY($8::text[])",
 		"scope.source_key = ANY($8::text[])",
@@ -127,6 +170,7 @@ func TestListActiveSupplyChainImpactFactsQueryLoadsPackageConsumptionByRepositor
 func TestListActiveSupplyChainImpactFactsQuerySeparatesParserFileFollowUp(t *testing.T) {
 	t.Parallel()
 
+	executableQuery := sqlWithoutLineComments(listActiveSupplyChainImpactFactsQuery)
 	repositoryBranchStart := strings.Index(listActiveSupplyChainImpactFactsQuery, "fact.fact_kind IN (\n              'vulnerability.suppression'")
 	if repositoryBranchStart < 0 {
 		t.Fatalf("repository follow-up branch missing:\n%s", listActiveSupplyChainImpactFactsQuery)
@@ -145,13 +189,24 @@ func TestListActiveSupplyChainImpactFactsQuerySeparatesParserFileFollowUp(t *tes
 		"ANY($10::text[])",
 		"fact.payload->'parsed_file_data'->>'language'",
 		"'javascript', 'jsx', 'typescript', 'tsx'",
-		"fact.fact_id > $11",
+		"OR (fact.fact_kind = 'vulnerability.suppression', fact.fact_id) > ($19::boolean, $11)",
+		"ORDER BY (fact.fact_kind = 'vulnerability.suppression') ASC, fact.fact_id ASC",
 		"LIMIT $12",
 	} {
-		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
+		if !strings.Contains(executableQuery, want) {
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
 		}
 	}
+}
+
+func sqlWithoutLineComments(query string) string {
+	lines := strings.Split(query, "\n")
+	for i, line := range lines {
+		if commentStart := strings.Index(line, "--"); commentStart >= 0 {
+			lines[i] = line[:commentStart]
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 func TestListActiveSecurityAlertReconciliationFactsQueryIsScopedAndPaged(t *testing.T) {

@@ -3,7 +3,61 @@
 
 package reducer
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
+
+// SupplyChainServiceWorkloadPair records one (ServiceID, WorkloadID) pair
+// exactly as it appeared together on a single reducer_service_catalog_
+// correlation fact (#5466 round-8 review F-2). It exists because
+// finding.ServiceIDs/WorkloadIDs are independently flattened, deduplicated
+// lists with no record of which value paired with which -- WorkloadIDs in
+// particular mixes this genuinely-paired source with
+// reducer_workload_identity's workload IDs, which have no known service at
+// all. suppressionServiceWorkloadPairMatches
+// (supply_chain_suppression_scope_match.go) uses this to verify a
+// suppression scoped by BOTH workload_id and service_id names a combination
+// that actually co-occurred, rather than two independently-true list
+// memberships that never occurred together.
+type SupplyChainServiceWorkloadPair struct {
+	ServiceID  string
+	WorkloadID string
+}
+
+// uniqueServiceWorkloadPairs trims, deduplicates, and sorts pairs by ServiceID
+// and then WorkloadID, matching uniqueSortedStrings' canonical-output contract
+// for the finding's other evidence-derived lists. Deliberately does
+// NOT drop pairs with an empty ServiceID or WorkloadID: an empty field
+// records "this service-catalog record did not resolve that identity",
+// which suppressionServiceWorkloadPairMatches must still treat as
+// non-matching for a scope naming that dimension (fail closed), not as a
+// wildcard the way an empty SCOPE value is treated elsewhere.
+func uniqueServiceWorkloadPairs(pairs []SupplyChainServiceWorkloadPair) []SupplyChainServiceWorkloadPair {
+	if len(pairs) == 0 {
+		return nil
+	}
+	seen := make(map[SupplyChainServiceWorkloadPair]struct{}, len(pairs))
+	out := make([]SupplyChainServiceWorkloadPair, 0, len(pairs))
+	for _, pair := range pairs {
+		pair = SupplyChainServiceWorkloadPair{
+			ServiceID:  strings.TrimSpace(pair.ServiceID),
+			WorkloadID: strings.TrimSpace(pair.WorkloadID),
+		}
+		if _, ok := seen[pair]; ok {
+			continue
+		}
+		seen[pair] = struct{}{}
+		out = append(out, pair)
+	}
+	slices.SortFunc(out, func(a, b SupplyChainServiceWorkloadPair) int {
+		if serviceOrder := strings.Compare(a.ServiceID, b.ServiceID); serviceOrder != 0 {
+			return serviceOrder
+		}
+		return strings.Compare(a.WorkloadID, b.WorkloadID)
+	})
+	return out
+}
 
 func finalizeSupplyChainImpactFinding(
 	finding *SupplyChainImpactFinding,
@@ -44,6 +98,10 @@ func applySupplyChainRuntimeContext(
 		finding.EvidencePath = append(finding.EvidencePath, serviceCatalogCorrelationFactKind)
 		finding.ServiceIDs = append(finding.ServiceIDs, service.serviceID)
 		finding.WorkloadIDs = append(finding.WorkloadIDs, service.workloadID)
+		finding.ServiceWorkloadPairs = append(finding.ServiceWorkloadPairs, SupplyChainServiceWorkloadPair{
+			ServiceID:  service.serviceID,
+			WorkloadID: service.workloadID,
+		})
 		finding.CatalogEntityRefs = append(finding.CatalogEntityRefs, service.entityRef)
 		finding.CatalogOwnerRefs = append(finding.CatalogOwnerRefs, service.ownerRef)
 	}
@@ -66,6 +124,7 @@ func applySupplyChainRuntimeContext(
 	finding.Environments = uniqueSortedStrings(finding.Environments)
 	finding.ServiceIDs = uniqueSortedStrings(finding.ServiceIDs)
 	finding.WorkloadIDs = uniqueSortedStrings(finding.WorkloadIDs)
+	finding.ServiceWorkloadPairs = uniqueServiceWorkloadPairs(finding.ServiceWorkloadPairs)
 	finding.CatalogEntityRefs = uniqueSortedStrings(finding.CatalogEntityRefs)
 	finding.CatalogOwnerRefs = uniqueSortedStrings(finding.CatalogOwnerRefs)
 	if finding.RuntimeReachability != "known_fixed" &&

@@ -50,7 +50,13 @@ func TestCreateVulnerabilitySuppressionValidatesAndPersistsOperatorFact(t *testi
 		"expires_at":"2026-08-01T12:00:00Z",
 		"reason":"compensating control verified",
 		"evidence_ref":"evidence://suppression/CVE-2026-00001",
-		"scope":{"cve_id":"CVE-2026-00001","repository_id":"repo://example/api"}
+		"scope":{
+			"cve_id":"CVE-2026-00001",
+			"repository_id":"repo://example/api",
+			"environment":" Production ",
+			"workload_id":" workload:example-api ",
+			"service_id":" service:example-api "
+		}
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/supply-chain/impact/suppressions", strings.NewReader(body))
 	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
@@ -76,6 +82,15 @@ func TestCreateVulnerabilitySuppressionValidatesAndPersistsOperatorFact(t *testi
 	}
 	if store.value.Scope.CVEID == nil || *store.value.Scope.CVEID != "CVE-2026-00001" {
 		t.Fatalf("Scope.CVEID = %#v, want CVE-2026-00001", store.value.Scope.CVEID)
+	}
+	if store.value.Scope.Environment == nil || *store.value.Scope.Environment != "prod" {
+		t.Fatalf("Scope.Environment = %#v, want canonical prod", store.value.Scope.Environment)
+	}
+	if store.value.Scope.WorkloadID == nil || *store.value.Scope.WorkloadID != "workload:example-api" {
+		t.Fatalf("Scope.WorkloadID = %#v, want trimmed workload:example-api", store.value.Scope.WorkloadID)
+	}
+	if store.value.Scope.ServiceID == nil || *store.value.Scope.ServiceID != "service:example-api" {
+		t.Fatalf("Scope.ServiceID = %#v, want trimmed service:example-api", store.value.Scope.ServiceID)
 	}
 	var response VulnerabilitySuppressionMutationResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
@@ -161,6 +176,18 @@ func TestCreateVulnerabilitySuppressionFailsClosedForInvalidOrScopedRequests(t *
 		{
 			name:       "evidence path without discoverable identity anchor",
 			body:       `{"suppression_id":"suppression-1","justification":"accepted_risk","authored_at":"2026-07-27T12:00:00Z","reason":"verified","scope":{"evidence_path":["vulnerability.cve"]}}`,
+			auth:       AuthContext{Mode: AuthModeShared, SubjectClass: "shared_token", AllScopes: true},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "environment without discoverable identity anchor",
+			body:       `{"suppression_id":"suppression-1","justification":"accepted_risk","authored_at":"2026-07-27T12:00:00Z","reason":"verified","scope":{"environment":"prod"}}`,
+			auth:       AuthContext{Mode: AuthModeShared, SubjectClass: "shared_token", AllScopes: true},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "workload and service without discoverable identity anchor",
+			body:       `{"suppression_id":"suppression-1","justification":"accepted_risk","authored_at":"2026-07-27T12:00:00Z","reason":"verified","scope":{"workload_id":"workload:example-api","service_id":"service:example-api"}}`,
 			auth:       AuthContext{Mode: AuthModeShared, SubjectClass: "shared_token", AllScopes: true},
 			wantStatus: http.StatusBadRequest,
 		},

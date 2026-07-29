@@ -21,19 +21,23 @@ func (h SupplyChainImpactHandler) evaluationNow() time.Time {
 	return time.Now().UTC()
 }
 
+// loadActiveSupplyChainImpactFacts's bool return reports whether the
+// underlying loader truncated its own pagination for THIS round (#5466
+// round-7 review P1-B); the caller ORs it into the same truncation signal
+// the round cap below already produces.
 func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFacts(
 	ctx context.Context,
 	filter SupplyChainImpactFactFilter,
-) ([]facts.Envelope, error) {
+) ([]facts.Envelope, bool, error) {
 	loader, ok := h.FactLoader.(activeSupplyChainImpactFactLoader)
 	if !ok || filter.empty() {
-		return nil, nil
+		return nil, false, nil
 	}
-	envelopes, err := loader.ListActiveSupplyChainImpactFacts(ctx, filter)
+	envelopes, truncated, err := loader.ListActiveSupplyChainImpactFacts(ctx, filter)
 	if err != nil {
-		return nil, classifyFactLoadError(err)
+		return nil, false, classifyFactLoadError(err)
 	}
-	return envelopes, nil
+	return envelopes, truncated, nil
 }
 
 const maxSupplyChainImpactActiveEvidenceLoads = 8
@@ -44,19 +48,27 @@ func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFactsUntilStable(
 ) ([]facts.Envelope, bool, error) {
 	requested := SupplyChainImpactFactFilter{}
 	next := supplyChainImpactFilter(envelopes)
+	truncated := false
 	for loads := 0; !next.empty(); loads++ {
 		if loads >= maxSupplyChainImpactActiveEvidenceLoads {
 			return envelopes, true, nil
 		}
-		active, err := h.loadActiveSupplyChainImpactFacts(ctx, next)
+		active, roundTruncated, err := h.loadActiveSupplyChainImpactFacts(ctx, next)
 		if err != nil {
 			return nil, false, err
 		}
+		// #5466 round-7 review P1-B: a single round's own per-call row cap
+		// (maxSupplyChainImpactActiveEvidenceRowsPerCall,
+		// go/internal/storage/postgres/facts_active_supply_chain_impact.go)
+		// can truncate independently of the round cap above -- OR it in so
+		// the caller's evidence-summary log and finding-level marking see
+		// it either way.
+		truncated = truncated || roundTruncated
 		requested = mergeSupplyChainImpactFactFilters(requested, next)
 		envelopes = appendUniqueSupplyChainImpactFacts(envelopes, active...)
 		next = supplyChainImpactFollowUpFilter(requested, supplyChainImpactFilter(envelopes))
 	}
-	return envelopes, false, nil
+	return envelopes, truncated, nil
 }
 
 // maxSupplyChainImpactScannerAnalysisScopeLoads bounds how many distinct
@@ -203,8 +215,8 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactResolvedDigestEvidenceFac
 		filter.SubjectDigests = filter.SubjectDigests[:maxSupplyChainImpactResolvedDigestLoads]
 		truncated = true
 	}
-	loaded, err := h.loadActiveSupplyChainImpactFacts(ctx, filter)
-	return loaded, truncated, err
+	loaded, rowsTruncated, err := h.loadActiveSupplyChainImpactFacts(ctx, filter)
+	return loaded, truncated || rowsTruncated, err
 }
 
 // loadSupplyChainImpactPeerIdentityFacts performs ONE additional bounded
@@ -222,10 +234,10 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactResolvedDigestEvidenceFac
 func (h SupplyChainImpactHandler) loadSupplyChainImpactPeerIdentityFacts(
 	ctx context.Context,
 	resolvedDigestEnvelopes []facts.Envelope,
-) ([]facts.Envelope, error) {
+) ([]facts.Envelope, bool, error) {
 	filter := supplyChainImpactFilter(resolvedDigestEnvelopes)
 	if len(filter.RepositoryIDs) == 0 {
-		return nil, nil
+		return nil, false, nil
 	}
 	if len(filter.RepositoryIDs) > maxSupplyChainImpactResolvedDigestLoads {
 		filter.RepositoryIDs = filter.RepositoryIDs[:maxSupplyChainImpactResolvedDigestLoads]

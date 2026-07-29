@@ -5,7 +5,6 @@ package reducer
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -100,6 +99,17 @@ type vulnerabilitySuppressionScope struct {
 	RepositoryID  string
 	SubjectDigest string
 	EvidencePath  []string
+	// Environment, WorkloadID, and ServiceID are optional conjuncts on a
+	// discoverable vulnerability identity. They never identify a vulnerability
+	// alone. Environment is canonicalized through the shared alias contract.
+	//
+	// Findings currently store one suppression decision over independent
+	// flattened deployment lists. Every referenced dimension must therefore
+	// have at most one observed value; otherwise one matching value would hide
+	// sibling contexts. Ambiguous aggregates fail closed to scope_mismatch.
+	Environment string
+	WorkloadID  string
+	ServiceID   string
 }
 
 // vulnerabilitySuppression is a decoded VEX or operator-policy suppression
@@ -171,165 +181,59 @@ func EvaluateSupplyChainSuppression(
 		return SupplyChainSuppressionDecision{State: SupplyChainSuppressionStateActive}
 	}
 	var (
-		activeMatches   []vulnerabilitySuppression
-		providerMatches []vulnerabilitySuppression
-		expiredMatches  []vulnerabilitySuppression
-		scopeMismatched []vulnerabilitySuppression
+		activeMatch   *vulnerabilitySuppression
+		providerMatch *vulnerabilitySuppression
+		expiredMatch  *vulnerabilitySuppression
+		scopeMismatch *vulnerabilitySuppression
 	)
-	for _, s := range suppressions {
-		if !suppressionAdjacent(finding, s) {
+	for i := range suppressions {
+		suppression := &suppressions[i]
+		if !suppressionAdjacent(finding, *suppression) {
 			continue
 		}
-		if !suppressionScopeMatchesFinding(finding, s) {
-			scopeMismatched = append(scopeMismatched, s)
+		if !suppressionScopeMatchesFinding(finding, *suppression) {
+			scopeMismatch = preferredSuppression(scopeMismatch, suppression)
 			continue
 		}
-		if suppressionIsExpired(s, now) {
-			expiredMatches = append(expiredMatches, s)
+		if suppressionIsExpired(*suppression, now) {
+			expiredMatch = preferredSuppression(expiredMatch, suppression)
 			continue
 		}
-		if s.Source == facts.VulnerabilitySuppressionSourceProviderDismissal {
-			providerMatches = append(providerMatches, s)
+		if suppression.Source == facts.VulnerabilitySuppressionSourceProviderDismissal {
+			providerMatch = preferredSuppression(providerMatch, suppression)
 			continue
 		}
-		activeMatches = append(activeMatches, s)
+		activeMatch = preferredSuppression(activeMatch, suppression)
 	}
 
-	if pick := pickPreferredSuppression(activeMatches); pick != nil {
-		return decisionFromActiveOperatorSuppression(*pick)
+	if activeMatch != nil {
+		return decisionFromActiveOperatorSuppression(*activeMatch)
 	}
-	if pick := pickPreferredSuppression(providerMatches); pick != nil {
-		return decisionFromProviderSuppression(*pick)
+	if providerMatch != nil {
+		return decisionFromProviderSuppression(*providerMatch)
 	}
-	if pick := pickPreferredSuppression(expiredMatches); pick != nil {
-		return decisionFromExpiredSuppression(*pick)
+	if expiredMatch != nil {
+		return decisionFromExpiredSuppression(*expiredMatch)
 	}
-	if pick := pickPreferredSuppression(scopeMismatched); pick != nil {
-		return decisionFromScopeMismatch(finding, *pick)
+	if scopeMismatch != nil {
+		return decisionFromScopeMismatch(finding, *scopeMismatch)
 	}
 	return SupplyChainSuppressionDecision{State: SupplyChainSuppressionStateActive}
 }
 
-// suppressionAdjacent reports whether a suppression names at least one anchor
-// the finding also has, so we can tell "could this suppression apply to this
-// finding's identity at all?" from "applies but scope did not line up." An
-// empty scope is still treated as adjacent so the suppression is preserved on
-// every finding decision for audit, but suppressionScopeMatchesFinding
-// rejects empty scope so it never silently hides a finding.
-func suppressionAdjacent(finding SupplyChainImpactFinding, s vulnerabilitySuppression) bool {
-	if suppressionScopeIsEmpty(s.Scope) {
-		return true
+// preferredSuppression returns the candidate that the former stable sort
+// would place first: newest authored time, then lexicographically smallest
+// ID. Exact ties preserve the first input record.
+func preferredSuppression(
+	current *vulnerabilitySuppression,
+	candidate *vulnerabilitySuppression,
+) *vulnerabilitySuppression {
+	if current == nil ||
+		candidate.AuthoredAt.After(current.AuthoredAt) ||
+		(candidate.AuthoredAt.Equal(current.AuthoredAt) && candidate.SuppressionID < current.SuppressionID) {
+		return candidate
 	}
-	if s.Scope.CVEID != "" && strings.EqualFold(s.Scope.CVEID, finding.CVEID) {
-		return true
-	}
-	if s.Scope.AdvisoryID != "" && strings.EqualFold(s.Scope.AdvisoryID, finding.AdvisoryID) {
-		return true
-	}
-	if s.Scope.PackageID != "" && strings.EqualFold(s.Scope.PackageID, finding.PackageID) {
-		return true
-	}
-	if s.Scope.PURL != "" && strings.EqualFold(s.Scope.PURL, finding.PURL) {
-		return true
-	}
-	if s.Scope.RepositoryID != "" && strings.EqualFold(s.Scope.RepositoryID, finding.RepositoryID) {
-		return true
-	}
-	if s.Scope.SubjectDigest != "" && strings.EqualFold(s.Scope.SubjectDigest, finding.SubjectDigest) {
-		return true
-	}
-	return false
-}
-
-// suppressionScopeMatchesFinding returns true only when every populated scope
-// key matches the finding. Empty scope keys act as wildcards within an
-// otherwise-bounded scope, but a scope that names nothing at all is treated
-// as a mismatch so a malformed or missing scope payload can never silently
-// hide every finding (the suppression still surfaces as scope_mismatch for
-// audit). Evidence path entries must all appear in the finding's evidence
-// path.
-func suppressionScopeMatchesFinding(finding SupplyChainImpactFinding, s vulnerabilitySuppression) bool {
-	if suppressionScopeIsEmpty(s.Scope) {
-		return false
-	}
-	if !scopeAnchorMatches(s.Scope.CVEID, finding.CVEID) {
-		return false
-	}
-	if !scopeAnchorMatches(s.Scope.AdvisoryID, finding.AdvisoryID) {
-		return false
-	}
-	if !scopeAnchorMatches(s.Scope.PackageID, finding.PackageID) {
-		return false
-	}
-	if !scopeAnchorMatches(s.Scope.PURL, finding.PURL) {
-		return false
-	}
-	if !scopeAnchorMatches(s.Scope.RepositoryID, finding.RepositoryID) {
-		return false
-	}
-	if !scopeAnchorMatches(s.Scope.SubjectDigest, finding.SubjectDigest) {
-		return false
-	}
-	if !evidencePathContainsAll(finding.EvidencePath, s.Scope.EvidencePath) {
-		return false
-	}
-	return true
-}
-
-func scopeAnchorMatches(scoped, observed string) bool {
-	scoped = strings.TrimSpace(scoped)
-	if scoped == "" {
-		return true
-	}
-	return strings.EqualFold(scoped, strings.TrimSpace(observed))
-}
-
-func evidencePathContainsAll(observed []string, required []string) bool {
-	if len(required) == 0 {
-		return true
-	}
-	have := make(map[string]struct{}, len(observed))
-	for _, step := range observed {
-		step = strings.TrimSpace(step)
-		if step == "" {
-			continue
-		}
-		have[step] = struct{}{}
-	}
-	for _, step := range required {
-		step = strings.TrimSpace(step)
-		if step == "" {
-			continue
-		}
-		if _, ok := have[step]; !ok {
-			return false
-		}
-	}
-	return true
-}
-
-func suppressionScopeIsEmpty(scope vulnerabilitySuppressionScope) bool {
-	return strings.TrimSpace(scope.CVEID) == "" &&
-		strings.TrimSpace(scope.AdvisoryID) == "" &&
-		strings.TrimSpace(scope.PackageID) == "" &&
-		strings.TrimSpace(scope.PURL) == "" &&
-		strings.TrimSpace(scope.RepositoryID) == "" &&
-		strings.TrimSpace(scope.SubjectDigest) == "" &&
-		len(scope.EvidencePath) == 0
-}
-
-func pickPreferredSuppression(matches []vulnerabilitySuppression) *vulnerabilitySuppression {
-	if len(matches) == 0 {
-		return nil
-	}
-	sort.SliceStable(matches, func(i, j int) bool {
-		if !matches[i].AuthoredAt.Equal(matches[j].AuthoredAt) {
-			return matches[i].AuthoredAt.After(matches[j].AuthoredAt)
-		}
-		return matches[i].SuppressionID < matches[j].SuppressionID
-	})
-	picked := matches[0]
-	return &picked
+	return current
 }
 
 func decisionFromActiveOperatorSuppression(s vulnerabilitySuppression) SupplyChainSuppressionDecision {

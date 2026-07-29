@@ -99,7 +99,12 @@ func missingStringValues(current []string, initial []string) []string {
 }
 
 func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFilter {
-	var packageIDs, purls, cveIDs, advisoryIDs, digests, documentIDs, productCriteria, repositoryIDs, imageRefs []string
+	var packageIDs, purls, cveIDs, digests, documentIDs, productCriteria, repositoryIDs, imageRefs []string
+	// advisoryIDs is collected separately from cveIDs because
+	// supplyChainCVEID prefers cve_id over advisory_id when both are
+	// present. The storage reader uses this independent list for both
+	// top-level exact matching and normalized suppression-scope matching.
+	var advisoryIDs []string
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
 		case facts.VulnerabilityCVEFactKind:
@@ -113,6 +118,7 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 			advisoryIDs = append(advisoryIDs, payloadStr(envelope.Payload, "advisory_id"))
 		case facts.VulnerabilityAffectedProductFactKind:
 			cveIDs = append(cveIDs, supplyChainCVEID(envelope.Payload))
+			advisoryIDs = append(advisoryIDs, payloadStr(envelope.Payload, "advisory_id"))
 			if payloadBool(envelope.Payload, "vulnerable") {
 				productCriteria = append(productCriteria, payloadStr(envelope.Payload, "criteria"))
 			}
