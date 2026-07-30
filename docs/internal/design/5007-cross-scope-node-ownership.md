@@ -862,7 +862,7 @@ shape returns. B-7/B-12 gates still run as proof (expected no-diff), and
    decide (Open Question 3) whether `ec2_instance_node_rows.go` and
    `kubernetes_workload_materialization.go` join the same change.
    Extractor tie-break fix in the two `Extract*NodeRows` functions. Docs:
-   `go/internal/storage/cypher/README.md`, `go/internal/reducer/README.md`
+   `go/internal/storage/cypher/README.md`, `go/internal/reducer/domain-catalog.md`
    domain table, and the folder-doc pairs per `eshu-folder-doc-keeper`.
 2. Regression tests: guard unit tests in the cypher package; the
    concurrency shim recorded as evidence; the contention Odù (above) added

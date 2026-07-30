@@ -191,8 +191,10 @@ Evidence:` / `No-Observability-Change:`.)
   - **Multi-scope matrix (slice 6b, `scripts/verify-ifa-determinism.sh`,
     unmodified — no `--teeth`):** the demo-org Odù alone gives
     `concurrentreplay.Driver` exactly one work unit for ANY `-workers` count
-    (see the reducer README's teeth section), so the recorded slice-5 run
-    above proves repeatability, not a worker matrix. This run adds the
+    (see `docs/internal/evidence/4396-ifa-p3-determinism-matrix-teeth.md`,
+    relocated from `go/internal/reducer/README.md`'s former teeth section),
+    so the recorded slice-5 run above proves repeatability, not a worker
+    matrix. This run adds the
     generated synth-multiscope cassette (`ifa synth-cassette -seed 4396
     -projects 8 -resources 64`, `go/internal/synth/gcp.GenerateMultiScope`) as
     a SECOND `eshu-ifa drive -cassette <synth> -workers N` into the SAME cell
@@ -235,8 +237,10 @@ Evidence:` / `No-Observability-Change:`.)
         node identity, different process-relative sequence number) —
         confirming the counter is genuinely interleaving-sensitive on this
         9-work-unit fixture, unlike the single-scope run recorded in
-        `go/internal/reducer/README.md`'s teeth section where the counter
-        alone was measured INERT (identical digest across every N). Example:
+        `docs/internal/evidence/4396-ifa-p3-determinism-matrix-teeth.md`
+        (relocated from `go/internal/reducer/README.md`'s former teeth
+        section) where the counter alone was measured INERT (identical
+        digest across every N). Example:
         `resource_id
         //compute.googleapis.com/projects/acme-demo-gcp-00/computeName/synth-compute-30`
         got `ifa_teeth_seq=340` at N=1 vs. `ifa_teeth_seq=57` at N=2 — the

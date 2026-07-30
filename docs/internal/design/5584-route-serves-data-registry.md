@@ -132,7 +132,8 @@ The gate's independence from the backing map is tiered, not absolute:
    `MERGE (r:CloudResource {uid: row.uid})` writer
    (storage/cypher/cloud_resource_node_writer.go:22, aws_resource facts →
    aws_cloud_runtime_drift) and the azure/gcp materializations
-   (reducer/azure_resource_materialization.go:93, reducer README §GCP) also
+   (reducer/azure_resource_materialization.go:93, reducer's
+   cloud-projections.md §GCP Cloud Resource Materialization) also
    create the nodes `/cloud/resources` enumerates, while their declared
    read_surface is `/cloud/inventory`. The backing map does not list them on
    `/cloud/resources`; their signatures were deliberately scoped to the
