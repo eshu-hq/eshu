@@ -495,6 +495,116 @@ label) is a design change with its own concurrency argument and was judged
 out of scope for closing #5848/#5837; documenting the real rule, so nobody
 relies on a stronger guarantee than what ships, is what this fix provides.
 
+### P2 found by round-3 review, closed by round-4 review: a reopened row got no grace window at all
+
+Closing the round-2 P0 above (bounding the defer on elapsed time instead of
+`AttemptCount`) fixed the freeze but exposed a second gap: the elapsed bound
+was anchored on `Intent.EnqueuedAt` alone, which is populated from
+`fact_work_items.created_at` -- immutable for the life of the row, INCLUDING
+across a reopen. `aws_cloud_runtime_drift` is unconditionally reopened on
+every ingester shard drain and bootstrap maintenance pass
+(`postgres.CrossScopeCorrelationReopenDomains`), so for essentially every
+real-deployment reopen, more than the bound has already elapsed since the
+row's ORIGINAL enqueue. Anchored on `EnqueuedAt` alone,
+`shouldDeferForStatePending` would return `false` on the very first claim of
+a reopened row WITHOUT EVER CONSULTING THE READINESS CHECKER -- a degraded
+verdict committed immediately, even when the `state_snapshot` scope is
+freshly, legitimately still pending for that repair cycle. This is the exact
+no-grace-window regression the pre-#5848 `AttemptCount = 0` reset on reopen
+used to prevent (before its own freeze bug made it not actually work).
+
+**Fix (round-3, option (b) as directed -- "anchor the bound to the current
+repair cycle, not the original enqueue"):** `fact_work_items.reopened_at`
+(migration `088_reducer_work_item_reopened_at.sql`), reset by
+`ReopenSucceeded`/`ReplayDomain` (`reducer_queue_replay.go`) in the SAME
+statement that already resets `attempt_count = 0`. The claim query
+(`reducer_queue_claim_query.go`, `reducer_queue_batch_query.go`) now returns
+`COALESCE(work.reopened_at, work.created_at) AS cycle_started_at`, surfaced on
+`reducer.Intent` as the new `CycleStartedAt` field. `awsCloudRuntimeDriftCycleAnchor`
+(`aws_cloud_runtime_drift_readiness.go`) prefers `CycleStartedAt` when set,
+falling back to `EnqueuedAt` only for a hand-built `Intent` (a test, or a
+future caller) that does not populate it -- against the real queue,
+`CycleStartedAt` is always populated, so the fallback never fires there.
+
+**Freeze-immunity, verified the same way `created_at`'s was:** every
+non-claim statement that mutates `fact_work_items` was read directly --
+`ackReducerWorkQuery`, `failReducerWorkQuery`, `retryReducerWorkQuery`, and
+`heartbeatReducerWorkQuery` (`reducer_queue.go`) -- and none sets
+`reopened_at`. Only `reopenSucceededReducerWorkQuery` and
+`replaySucceededReducerDomainQuery` do, and both gate on `WHERE status =
+'succeeded'`. A row mid-defer is `'retrying'`, never `'succeeded'`, so no
+maintenance cadence, however frequent, can reset the anchor mid-cycle --
+confirmed independently by the round-4 review reading the same statements.
+Only an already-terminal row reopens, starting a fresh, independently-bounded
+30-minute cycle.
+
+**A commit made during an upstream API outage (`d7cd88cab`) cited a live test
+by name -- `TestAWSCloudRuntimeDriftReopenGetsFreshElapsedBoundWhileStatePendingLive`
+-- in three places (this domain's readiness doc comment,
+`go/internal/storage/postgres/AGENTS.md`, and a test-file comment) before
+that test existed.** The round-4 review caught it: the coordinator wrote that
+commit message to preserve 31 uncommitted files across a session death, and
+lifted the test name out of in-progress doc comments without checking it had
+actually been written -- the same failure shape (a doc comment asserting a
+registration/test that was never made) the round-1 P0 caught, this time in
+the coordinator's own recovery commit rather than the executor's. The test
+now exists, at
+`go/internal/storage/postgres/aws_cloud_runtime_drift_reopen_anchor_live_test.go`,
+so all three citations resolve.
+
+It drives the REAL `ReducerQueue.Enqueue`/`Claim`/`Ack`/`ReopenSucceeded`/`Claim`
+sequence against real Postgres, then the REAL `AWSCloudRuntimeDriftHandler`:
+enqueue a work item with `created_at` far in the past, claim and ack it to
+`'succeeded'`, advance the clock more than `awsCloudRuntimeDriftStatePendingMaxWait`
+past the original enqueue, `ReopenSucceeded` it, claim it again, and confirm
+the returned `Intent.CycleStartedAt` reflects the REOPEN time (not the
+original enqueue) before feeding it through `Handle` with a permanently
+`'pending'` `state_snapshot` scope. Failing-before/passing-after, by
+temporarily reverting `awsCloudRuntimeDriftCycleAnchor` to `return
+intent.EnqueuedAt` (bypassing `CycleStartedAt` entirely) and rerunning:
+
+```
+$ ESHU_POSTGRES_DSN=postgres://eshu:change-me@localhost:15948/eshu?sslmode=disable \
+    go test ./internal/storage/postgres -run TestAWSCloudRuntimeDriftReopenGetsFreshElapsedBoundWhileStatePendingLive -v -count=1
+--- FAIL: TestAWSCloudRuntimeDriftReopenGetsFreshElapsedBoundWhileStatePendingLive (5.23s)
+    Handle() error = nil, want a deferred (retryable) error: a reopened claim whose ORIGINAL
+    enqueue is long past the bound must still get a fresh grace window for its own repair
+    cycle, not commit a degraded verdict on the very first reopened claim
+# fix restored
+--- PASS: TestAWSCloudRuntimeDriftReopenGetsFreshElapsedBoundWhileStatePendingLive (1.35s)
+    reopen anchor held: EnqueuedAt 2h0m0s old, CycleStartedAt 0s old at reopen -- Handle
+    deferred, zero rows written
+```
+
+**Unit coverage added for the previously-uncovered anchor selection itself**
+(round-4 P1: `awsCloudRuntimeDriftCycleAnchor` and `Intent.CycleStartedAt` had
+zero direct test coverage before this fix -- `reducer_queue_replay_test.go`'s
+`reopened_at = $1` assertions are `strings.Contains` checks against a
+hand-built fake and do not count): `TestAWSCloudRuntimeDriftCycleAnchorPrefersCycleStartedAt`
+(table-driven over the CycleStartedAt-set, CycleStartedAt-zero-falls-back-to-EnqueuedAt,
+and both-zero branches) and `TestAWSCloudRuntimeDriftHandlerDefersOnFreshCycleStartedAtDespiteStaleEnqueuedAt`
+(a fast, in-process Handle()-level companion to the live test above, proving
+`CycleStartedAt` governs the decision even when `EnqueuedAt` alone is already
+past the bound) -- both in
+`go/internal/reducer/aws_cloud_runtime_drift_readiness_test.go`.
+
+**Convergence in both directions, confirmed:** a genuinely permanent orphan
+(no Terraform state anywhere, ever, and no reopen) still converges through
+the existing elapsed-bound mechanism (`TestAWSCloudRuntimeDriftHandlerConvergesAfterElapsedBoundOverRealQueueLive`,
+documented above). A transient case -- a `state_snapshot` scope that is
+merely slow, not permanently stuck -- is revisited and reclassified once
+state activates, whether via an ordinary retry within the same cycle
+(`TestAWSCloudRuntimeDriftReadinessDeterministicReproductionLive`, Phase 3)
+or via a maintenance-triggered reopen starting a fresh cycle (this section's
+live test proves the fresh cycle is granted; a subsequent Handle call within
+that fresh cycle, once state activates, reclassifies exactly as Phase 3
+does). The round-4 review noted, and this doc records as an accepted
+trade-off requiring no further action: a genuinely permanent orphan re-runs
+the up-to-30-minute defer on every maintenance reopen forever, which is
+wasteful (repeated deferred cycles that always converge) but never a
+correctness defect, since each cycle is independently bounded and always
+reaches its own terminal commit.
+
 ## Adjacent defect found and fixed: `InstrumentedDB.Begin` silently dropped observability
 
 `InstrumentedDB.Begin` returned the inner `Beginner`'s transaction UNWRAPPED, so
