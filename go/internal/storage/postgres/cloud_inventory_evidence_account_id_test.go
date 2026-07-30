@@ -7,6 +7,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -112,5 +113,110 @@ func TestPostgresCloudInventoryEvidenceLoaderMissingAccountIDYieldsEmptyString(t
 	}
 	if got, want := records[0].AccountID, ""; got != want {
 		t.Fatalf("AccountID = %q, want empty string for a payload with no account_id key", got)
+	}
+}
+
+// TestGCPProjectIDFromFullResourceNameMatchesCollectorDerivation is a parity
+// pin between this loader's local gcpProjectIDFromFullResourceName and the
+// collector's canonical go/internal/collector/gcpcloud.ProjectIDFromFullName.
+// The two are intentionally independent, small, duplicated implementations of
+// the same parsing rule (this package does not import the collector package
+// for this purpose, keeping the storage layer independent of collector
+// internals); this test is what keeps them from silently drifting apart.
+func TestGCPProjectIDFromFullResourceNameMatchesCollectorDerivation(t *testing.T) {
+	t.Parallel()
+
+	cases := []string{
+		"//compute.googleapis.com/projects/p/zones/z/instances/i",
+		"//cloudresourcemanager.googleapis.com/organizations/123456",
+		"//cloudresourcemanager.googleapis.com/folders/789",
+		"",
+		"projects/only-project-segment",
+		"//bigquery.googleapis.com/projects/proj-a/datasets/d/tables/t",
+	}
+	for _, fullResourceName := range cases {
+		want := gcpcloud.ProjectIDFromFullName(fullResourceName)
+		got := gcpProjectIDFromFullResourceName(fullResourceName)
+		if got != want {
+			t.Errorf("gcpProjectIDFromFullResourceName(%q) = %q, want %q (collector derivation)", fullResourceName, got, want)
+		}
+	}
+}
+
+// TestPostgresCloudInventoryEvidenceLoaderGCPBlankProjectIDDerivesFromFullResourceName
+// is the #5238 GCP-specific fix: a resource whose gcp_cloud_resource payload
+// carries project_id="" (the collector's documented "always emitted but may be
+// empty" case -- sdk/go/factschema/gcp/v1/resource.go) but whose
+// full_resource_name DOES embed a "projects/<id>" segment must still resolve a
+// non-blank AccountID via the fallback, matching what the collector's own
+// go/internal/collector/gcpcloud.ProjectIDFromFullName would have derived at
+// emission time. Without this, a resource the collector's own derivation would
+// have identified vanishes from every project_id-filtered read while still
+// appearing under an unscoped provider=gcp read -- a real, closable gap, not
+// the genuine org/folder exclusion the next test documents.
+func TestPostgresCloudInventoryEvidenceLoaderGCPBlankProjectIDDerivesFromFullResourceName(t *testing.T) {
+	t.Parallel()
+
+	gcpName := "//compute.googleapis.com/projects/derivable-project/zones/z/instances/i"
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{
+				{facts.GCPCloudResourceFactKind, gcpName, []byte(`{
+					"full_resource_name":"` + gcpName + `",
+					"asset_type":"compute.googleapis.com/Instance",
+					"project_id":""
+				}`)},
+			}},
+		},
+	}
+
+	loader := PostgresCloudInventoryEvidenceLoader{DB: db}
+	records, err := loader.LoadCloudInventoryEvidence(context.Background(), "cloud:tenant-1", "gen-1")
+	if err != nil {
+		t.Fatalf("LoadCloudInventoryEvidence() error = %v, want nil", err)
+	}
+	if got, want := len(records), 1; got != want {
+		t.Fatalf("len(records) = %d, want %d", got, want)
+	}
+	if got, want := records[0].AccountID, "derivable-project"; got != want {
+		t.Fatalf("AccountID = %q, want %q derived from full_resource_name", got, want)
+	}
+}
+
+// TestPostgresCloudInventoryEvidenceLoaderGCPBlankProjectIDWithNoDerivableSegment
+// is the documented residual gap: an organization- or folder-level Cloud Asset
+// Inventory asset has NO project by definition -- its full_resource_name
+// carries no "projects/<id>" segment at all, so there is nothing to derive.
+// AccountID correctly stays blank; this resource is genuinely absent from
+// every project_id-filtered read (though still visible under an unscoped
+// provider=gcp read -- proven end to end at the query layer by
+// TestCloudInventoryHandlerGCPBlankProjectIDExcludedFromFilterButVisibleUnscoped
+// in go/internal/query/cloud_inventory_account_alias_test.go).
+func TestPostgresCloudInventoryEvidenceLoaderGCPBlankProjectIDWithNoDerivableSegment(t *testing.T) {
+	t.Parallel()
+
+	gcpName := "//cloudresourcemanager.googleapis.com/organizations/123456"
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{
+				{facts.GCPCloudResourceFactKind, gcpName, []byte(`{
+					"full_resource_name":"` + gcpName + `",
+					"asset_type":"cloudresourcemanager.googleapis.com/Organization",
+					"project_id":""
+				}`)},
+			}},
+		},
+	}
+
+	loader := PostgresCloudInventoryEvidenceLoader{DB: db}
+	records, err := loader.LoadCloudInventoryEvidence(context.Background(), "cloud:tenant-1", "gen-1")
+	if err != nil {
+		t.Fatalf("LoadCloudInventoryEvidence() error = %v, want nil", err)
+	}
+	if got, want := len(records), 1; got != want {
+		t.Fatalf("len(records) = %d, want %d", got, want)
+	}
+	if got, want := records[0].AccountID, ""; got != want {
+		t.Fatalf("AccountID = %q, want empty string for an org-level asset with no derivable project segment", got)
 	}
 }

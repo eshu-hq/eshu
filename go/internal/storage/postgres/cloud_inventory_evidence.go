@@ -48,17 +48,39 @@ type cloudInventorySourceFactMapping struct {
 	resourceTypeKey string
 	// accountIDKey is the payload key holding this provider's raw account/
 	// tenant identifier: "account_id" for aws_resource, "project_id" for
-	// gcp_cloud_resource, "subscription_id" for azure_cloud_resource. Each
-	// resource fact's emitter already validates and writes this field as part
-	// of its required identity contract (sdk/go/factschema/{aws,gcp,azure}/v1),
-	// so reading it here needs no new collector work -- issue #5238's
-	// GET /api/v0/cloud/inventory account_id/project_id/subscription_id
-	// selectors resolve against the value this key extracts, carried onto the
-	// canonical reducer_cloud_resource_identity payload as "account_id"
-	// uniformly across providers (mirroring the account_id field
+	// gcp_cloud_resource, "subscription_id" for azure_cloud_resource. Reading
+	// it here needs no new collector work for AWS and Azure: both emitters
+	// validate and write their field as a REQUIRED identity value
+	// (sdk/go/factschema/aws/v1/resource.go, .../azure/v1/resource.go --
+	// AccountID/SubscriptionID are non-pointer, decode-rejected if absent). GCP
+	// is different and weaker: sdk/go/factschema/gcp/v1/resource.go's ProjectID
+	// is OPTIONAL (`*string`, `omitempty`) and the emitter itself documents it
+	// "may be empty for a resource whose full resource name carries no
+	// derivable project segment" -- an org-level or folder-level Cloud Asset
+	// Inventory asset genuinely has no project. accountIDFallback below closes
+	// the derivable subset of that gap; the true org/folder case is a real,
+	// unavoidable exclusion from project_id-filtered reads, not a bug (see
+	// TestPostgresCloudInventoryEvidenceLoaderGCPBlankProjectIDWithNoDerivableSegment).
+	// Issue #5238's GET /api/v0/cloud/inventory account_id/project_id/
+	// subscription_id selectors resolve against the value this key extracts,
+	// carried onto the canonical reducer_cloud_resource_identity payload as
+	// "account_id" uniformly across providers (mirroring the account_id field
 	// go/internal/reducer/{aws,gcp,azure}_resource_materialization.go already
 	// writes onto graph_node_owner.winning_row for GET /api/v0/cloud/resources).
 	accountIDKey string
+	// accountIDFallback, when set, derives the account identifier from the raw
+	// provider identity (rawIdentity, the same value cloudInventoryRecordFromRow
+	// already reads from the SQL COALESCE) when accountIDKey's payload value is
+	// blank. Only GCP sets this: full_resource_name embeds "projects/<id>/" for
+	// any project-scoped asset (the same segment
+	// go/internal/collector/gcpcloud.ProjectIDFromFullName derives at emission
+	// time into project_id in the common case), so a blank project_id key can
+	// still often be recovered here even when the collector's own derivation
+	// somehow didn't populate it. It does NOT close every gap: an asset whose
+	// full_resource_name has no "projects/" segment at all (an org- or
+	// folder-level CAI asset) has no project by definition, and this fallback
+	// correctly leaves AccountID blank for it too.
+	accountIDFallback func(rawIdentity string) string
 	// surfacesAttributes gates whether the loader carries the RAW payload
 	// attributes map onto the admission record, unfiltered beyond
 	// boundedCloudInventoryAttributes' type/cap bounding. Only GCP typed-depth
@@ -148,6 +170,7 @@ var cloudInventorySourceFactMappings = map[string]cloudInventorySourceFactMappin
 		provider:           cloudinventory.ProviderGCP,
 		resourceTypeKey:    "asset_type",
 		accountIDKey:       "project_id",
+		accountIDFallback:  gcpProjectIDFromFullResourceName,
 		surfacesAttributes: true,
 	},
 	facts.AzureCloudResourceFactKind: {
@@ -225,6 +248,13 @@ func cloudInventoryRecordFromRow(
 		return reducer.CloudInventoryRecord{}, false
 	}
 
+	// Decoded as an untyped map rather than through factschema.Decode* (typed
+	// structs exist for all three kinds: sdk/go/factschema/{aws,gcp,azure}/v1).
+	// This predates account_id extraction and is pre-existing debt, not
+	// something this change introduces or should migrate inline -- resourceTypeKey
+	// and the attribute allowlist/passthrough already read the same untyped map.
+	// A future pass could route this loader through the typed decoders in one
+	// family-wide migration; that is out of scope here.
 	var decoded map[string]any
 	if len(payload) > 0 {
 		if err := json.Unmarshal(payload, &decoded); err != nil {
@@ -232,12 +262,17 @@ func cloudInventoryRecordFromRow(
 		}
 	}
 
+	accountID := strings.TrimSpace(coerceJSONString(decoded[mapping.accountIDKey]))
+	if accountID == "" && mapping.accountIDFallback != nil {
+		accountID = mapping.accountIDFallback(rawIdentity)
+	}
+
 	return reducer.CloudInventoryRecord{
 		Provider:     mapping.provider,
 		FactKind:     factKind,
 		RawIdentity:  rawIdentity,
 		ResourceType: strings.TrimSpace(coerceJSONString(decoded[mapping.resourceTypeKey])),
-		AccountID:    strings.TrimSpace(coerceJSONString(decoded[mapping.accountIDKey])),
+		AccountID:    accountID,
 		// The three inventory source fact kinds are provider control-plane
 		// observations, so every loaded record is the observed evidence layer.
 		// Declared and applied layers arrive from IaC/state source fact kinds in

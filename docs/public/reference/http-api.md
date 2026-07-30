@@ -478,7 +478,28 @@ The scope selector is one of:
   fact's own identity field (AWS `account_id`, GCP `project_id`, Azure
   `subscription_id` -- see `go/internal/reducer/cloud_inventory_admission_writer.go`),
   and therefore returns every canonical row across every scope that shares
-  that identifier.
+  that identifier. AWS `account_id` and Azure `subscription_id` are required
+  identity fields on every admitting source fact, so this always resolves for
+  those two providers. GCP `project_id` is genuinely **optional**
+  (`sdk/go/factschema/gcp/v1/resource.go`): an organization- or folder-level
+  Cloud Asset Inventory asset has no project. The reducer derives it from the
+  asset's `full_resource_name` when a `projects/<id>` segment is present (the
+  common, project-scoped case); a resource with no such segment has no
+  `account_id` value and is correctly absent from every `project_id`-filtered
+  read while remaining visible under an unscoped `provider=gcp` read.
+
+**Rollout window:** `account_id`/`project_id`/`subscription_id` only resolve
+against rows admitted by the reducer AFTER this fix deploys. A scope's
+currently-active generation -- the one that was live at deploy time -- was
+admitted by the OLD reducer code and carries no `account_id` key on its
+canonical payload at all, so it will not match any `account_id`/`project_id`/
+`subscription_id` filter (though `scope_id` and unfiltered/`provider`-only
+reads are unaffected) until that scope's next collector sync activates a new
+generation. No forced re-sync is required as a deploy step: the normal
+scheduled collector cadence for that scope closes the gap on its own next run.
+An operator who needs `account_id` filtering to be authoritative immediately
+after deploy should trigger a fresh sync for the scopes they care about rather
+than wait for the next scheduled run.
 
 Each resource item in the `resources` array carries:
 
