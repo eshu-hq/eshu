@@ -121,7 +121,12 @@ const openAPIPathsCloudInventory = `
                     "limit": {"type": "integer"},
                     "truncated": {"type": "boolean"},
                     "next_cursor": {"type": "string", "description": "Present only when truncated is true. Pass back as cursor to fetch the next page."},
-                    "scope": {"type": "object", "additionalProperties": {"type": "string"}}
+                    "scope": {"type": "object", "additionalProperties": {"type": "string"}},
+                    "warning_flags": {
+                      "type": "array",
+                      "items": {"type": "string", "enum": ["account_alias_rollout_gap", "account_alias_rollout_gap_check_failed"]},
+                      "description": "Present only for an account_id/project_id/subscription_id-filtered request that returned zero resources. account_alias_rollout_gap means a canonical row exists in the same provider/access scope whose payload predates the #5238 account_id rollout (admitted before the reducer started writing account_id; it will resolve once that scope's next collector sync re-admits it) -- so this zero-row response does NOT prove the account does not exist. account_alias_rollout_gap_check_failed means that disambiguation check itself could not run; absent means the check ran and found no such gap, so the zero rows are a genuine no-such-account/no-such-scope result. Never present for scope_id-filtered or unfiltered requests, or for any request that returned at least one resource, since the second query behind this signal only fires for the zero-result account-alias case."
+                    }
                   }
                 }
               }

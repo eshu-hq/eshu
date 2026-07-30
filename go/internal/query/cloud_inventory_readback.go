@@ -73,6 +73,13 @@ type CloudInventoryHandler struct {
 // reader without a live database or graph backend.
 type cloudInventoryReadModelStore interface {
 	cloudInventoryIdentities(context.Context, cloudInventoryFilter) (cloudInventoryListReadModel, error)
+	// cloudInventoryPreRolloutEvidenceExists reports whether the filter's
+	// provider/access scope contains any canonical identity row predating the
+	// #5238 account_id rollout (see cloud_inventory_rollout_signal.go). The
+	// handler calls it only when an account-alias filter matched zero rows, so
+	// it never costs a round trip on the hot unfiltered or non-empty-result
+	// path.
+	cloudInventoryPreRolloutEvidenceExists(context.Context, cloudInventoryFilter) (bool, error)
 }
 
 // cloudInventoryFilter holds the optional, bounded filters for the readback.
@@ -167,7 +174,7 @@ func (h *CloudInventoryHandler) listInventory(w http.ResponseWriter, r *http.Req
 
 	access := repositoryAccessFilterFromContext(r.Context())
 	if access.empty() {
-		WriteSuccess(w, r, http.StatusOK, cloudInventoryResponse(cloudInventoryListReadModel{}, filter), BuildTruthEnvelope(
+		WriteSuccess(w, r, http.StatusOK, cloudInventoryResponse(cloudInventoryListReadModel{}, filter, nil), BuildTruthEnvelope(
 			h.profile(),
 			cloudInventoryReadbackCapability,
 			TruthBasisSemanticFacts,
@@ -198,7 +205,9 @@ func (h *CloudInventoryHandler) listInventory(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	WriteSuccess(w, r, http.StatusOK, cloudInventoryResponse(readModel, filter), BuildTruthEnvelope(
+	warningFlags := cloudInventoryRolloutGapWarningFlags(r.Context(), store, filter, readModel)
+
+	WriteSuccess(w, r, http.StatusOK, cloudInventoryResponse(readModel, filter, warningFlags), BuildTruthEnvelope(
 		h.profile(),
 		cloudInventoryReadbackCapability,
 		TruthBasisSemanticFacts,
@@ -359,7 +368,10 @@ func (h *CloudInventoryHandler) pagination(w http.ResponseWriter, r *http.Reques
 // cloudInventoryResponse builds the bounded list envelope body. Each resource is
 // projected through cloudInventoryResourceView so raw provider locators never
 // reach the wire and every row carries its provider-neutral source state.
-func cloudInventoryResponse(readModel cloudInventoryListReadModel, filter cloudInventoryFilter) map[string]any {
+// warningFlags is nil in the common case; see
+// cloudInventoryRolloutGapWarningFlags for when it carries the #5238
+// account-alias rollout-gap disambiguation signal.
+func cloudInventoryResponse(readModel cloudInventoryListReadModel, filter cloudInventoryFilter, warningFlags []string) map[string]any {
 	resources := make([]map[string]any, 0, len(readModel.Resources))
 	for _, payload := range readModel.Resources {
 		resources = append(resources, cloudInventoryResourceView(payload))
@@ -374,6 +386,9 @@ func cloudInventoryResponse(readModel cloudInventoryListReadModel, filter cloudI
 	}
 	if nextCursor != "" {
 		body["next_cursor"] = nextCursor
+	}
+	if len(warningFlags) > 0 {
+		body["warning_flags"] = warningFlags
 	}
 	return body
 }

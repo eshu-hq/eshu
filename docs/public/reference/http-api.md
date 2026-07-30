@@ -515,6 +515,30 @@ An operator who needs `account_id` filtering to be authoritative immediately
 after deploy should trigger a fresh sync for the scopes they care about rather
 than wait for the next scheduled run.
 
+**Distinguishing "no such account" from "not yet re-admitted."** Without more,
+a zero-row response to an `account_id`/`project_id`/`subscription_id`-filtered
+request is ambiguous between two very different states: the account genuinely
+does not exist, or the account's data is still behind the rollout window
+above. To resolve this, a zero-result account-alias-filtered call runs one
+additional bounded Postgres check (never on the unfiltered/`scope_id` path,
+and never when the alias filter already matched rows) for whether any
+canonical row in the same provider/access scope predates the rollout. The
+result is surfaced as a `warning_flags` array on the response:
+
+- `account_alias_rollout_gap` — a pre-rollout row exists in scope; the zero
+  rows do **not** prove the account does not exist, and the answer will become
+  authoritative once that scope's next collector sync re-admits it.
+- `account_alias_rollout_gap_check_failed` — the disambiguation check itself
+  could not run; the primary (empty) result still stands, but the check
+  could not confirm or rule out a rollout gap.
+- Absent — the check ran and found no pre-rollout row in scope, so the zero
+  rows are a genuine no-such-account/no-such-scope result.
+
+`warning_flags` is never present for a `scope_id`-filtered or unfiltered
+request, nor for any account-alias-filtered request that already returned at
+least one resource, because the disambiguation query only fires for the one
+case a caller cannot otherwise resolve from the response alone.
+
 Each resource item in the `resources` array carries:
 
 | Field | Description |

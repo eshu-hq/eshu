@@ -22,8 +22,9 @@ import (
 // and that scope's next collector sync.
 //
 // This proves the documented rollout behavior (docs/public/reference/
-// http-api.md's Cloud Inventory Readback section, go/internal/reducer/
-// README.md's "Rollout window" note) against a real Postgres jsonb read:
+// http-api.md's Cloud Inventory Readback section, docs/internal/evidence/
+// 1997-1998-cloud-inventory-identity-admission.md's "Rollout window" note)
+// against a real Postgres jsonb read:
 //  1. account_id/project_id/subscription_id filters return ZERO rows against
 //     a pre-fix-shaped row (payload->>'account_id' on a missing key is SQL
 //     NULL, and NULL = $1 is never true) -- exactly the #5238 symptom,
