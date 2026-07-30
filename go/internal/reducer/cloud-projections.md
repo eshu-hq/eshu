@@ -282,21 +282,22 @@ an AWS-origin row's status/missing-evidence/warning-flags are derived through
 the SAME classification `list_aws_runtime_drift_findings` uses, so one row
 never yields two safety verdicts.
 
-No-Regression Evidence: `go test ./internal/correlation/drift/multicloud
-./internal/correlation/rules -count=1` proves the GCP/Azure classifications,
-uid keying, and unresolved/converged skips. `go test ./internal/reducer -run
-'MultiCloud' -race -count=1` proves publication, idempotent replay, and
-(`TestMultiCloudRuntimeDriftHandlerExcludesAWSOwnedRowsFromPublication`, #5759)
-that an AWS-provider row mixed with GCP/Azure rows is dropped rather than
-duplicated. `go test ./internal/projector -run 'MultiCloudRuntimeDrift|FanOutParity' -count=1`
-proves the enqueue trigger fires for GCP/Azure scopes and stays silent for an
-AWS-only scope. `go test ./internal/storage/postgres -run 'MultiCloud' -count=1`
-proves the write-side read; `go test ./internal/query -run 'CloudRuntimeDrift'
--count=1` proves the read-side AWS aggregation and shared safety-verdict
-derivation; `go test ./internal/correlation/drift/cloudruntime ./internal/reducer
--run 'AWSCloudRuntimeDrift' -count=1` proves the AWS path did not regress.
+No-Regression Evidence (#5759): `go test ./internal/correlation/drift/multicloud
+./internal/correlation/rules -count=1` proves the GCP/Azure classifications, uid keying,
+unresolved/converged skips, and declared-config non-overwrite. `go test ./internal/reducer
+-run 'MultiCloud' -race -count=1` proves publication, no-emit-before-durable-write,
+redaction, idempotent replay (stable fact id, `stable_fact_key`), concurrent-worker key
+stability, and (`TestMultiCloudRuntimeDriftHandlerExcludesAWSOwnedRowsFromPublication`,
+#5759) that an AWS row mixed with GCP/Azure rows is dropped, not duplicated. `go test
+./internal/projector -run 'MultiCloudRuntimeDrift|FanOutParity' -count=1` proves the enqueue
+trigger fires for GCP/Azure scopes and stays silent for AWS-only. `go test
+./internal/storage/postgres -run 'MultiCloud' -count=1` proves the scope-bounded,
+active-generation-joined write-side read; `go test ./internal/query -run 'CloudRuntimeDrift'
+-count=1` proves the read-side AWS aggregation and shared safety-verdict derivation; `go
+test ./internal/correlation/drift/cloudruntime ./internal/reducer -run
+'AWSCloudRuntimeDrift' -count=1` proves the AWS path did not regress.
 
-Observability Evidence: the handler reuses the existing
+Observability Evidence (#5759): the handler reuses the existing
 `eshu_dp_correlation_orphan_detected_total`,
 `eshu_dp_correlation_unmanaged_detected_total`, and
 `eshu_dp_correlation_rule_matches_total` counters, labeled by the bounded
