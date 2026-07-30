@@ -66,13 +66,24 @@ stage_local_backend_cassette() {
 	# these two printed values ever diverge, the canonical join silently drops
 	# repo_local_path to '' and every BackendLocal candidate resolves to
 	# ok=false (backendConfigLocalCandidate's repoLocalPath=="" guard).
+	# Diagnostic only: guarded with the same `out="$(cmd)" && status=0 ||
+	# status=$?` idiom pg_diag uses below, so a `pg` connection/query error
+	# here cannot abort the whole gate under this script's `set -euo
+	# pipefail` -- a bare assignment would (see the HARD REQUIREMENT
+	# docstring on print_local_backend_drift_diagnostics above; this is the
+	# same failure class, just in the staging function instead of the
+	# reporting one). Zero rows is a legitimate, non-error outcome (`pg`'s
+	# `-tA` prints nothing and the pipeline still exits 0); a real query
+	# failure is reported distinctly instead of being silently folded into
+	# "<none>".
 	local repo_fact_generation active_file_generation
+	local repo_fact_generation_status active_file_generation_status
 	repo_fact_generation="$(pg "
 		SELECT generation_id FROM fact_records
 		WHERE fact_kind = 'repository' AND source_system = 'git'
 		  AND payload->>'name' = '${local_backend_fixture_repo_name}'
 		ORDER BY observed_at DESC, fact_id DESC LIMIT 1;
-	" | tr -d '[:space:]')"
+	" | tr -d '[:space:]')" && repo_fact_generation_status=0 || repo_fact_generation_status=$?
 	active_file_generation="$(pg "
 		SELECT fact.generation_id
 		FROM fact_records AS fact
@@ -88,9 +99,15 @@ stage_local_backend_cassette() {
 		  AND jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_backends') = 'array'
 		  AND jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_backends') > 0
 		ORDER BY fact.observed_at DESC LIMIT 1;
-	" | tr -d '[:space:]')"
-	printf 'local-backend fixture repository fact generation_id=%s; active backend-bearing file fact generation_id=%s (must match for the canonical join to see repo_local_path)\n' \
-		"${repo_fact_generation:-<none>}" "${active_file_generation:-<none>}"
+	" | tr -d '[:space:]')" && active_file_generation_status=0 || active_file_generation_status=$?
+	if [[ "${repo_fact_generation_status}" -ne 0 || "${active_file_generation_status}" -ne 0 ]]; then
+		printf 'local-backend fixture repository/active-file generation_id diagnostic query FAILED (non-fatal, diagnostic only): repo_fact_generation exit=%s value=%s; active_file_generation exit=%s value=%s\n' \
+			"${repo_fact_generation_status}" "${repo_fact_generation:-<none>}" \
+			"${active_file_generation_status}" "${active_file_generation:-<none>}"
+	else
+		printf 'local-backend fixture repository fact generation_id=%s; active backend-bearing file fact generation_id=%s (must match for the canonical join to see repo_local_path)\n' \
+			"${repo_fact_generation:-<none>}" "${active_file_generation:-<none>}"
+	fi
 
 	local_backend_scope_id="$("${bin_dir}/eshu-golden-corpus-gate" -print-local-backend-scope-id="${repo_local_path}")"
 	[[ -n "${local_backend_scope_id}" ]] || die "failed to compute the local-backend fixture's scope_id"
