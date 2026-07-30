@@ -1446,15 +1446,95 @@ gates:
       - "go/internal/relationships/**"
       - "go/internal/storage/**"
       - "sdk/go/factschema/**"
+      # #5538: this registry entry had drifted from the workflow's own
+      # on.pull_request.paths — missing the go/cmd/* binaries the gate builds
+      # and every package below. Brought back into lockstep here; a general
+      # registry-vs-workflow drift CHECK (so this cannot silently reopen) is
+      # tracked separately as #5546, not added by this change.
+      - "go/cmd/bootstrap-index/**"
+      - "go/cmd/ingester/**"
+      - "go/cmd/projector/**"
+      - "go/cmd/reducer/**"
+      - "go/cmd/collector-**"
+      - "go/cmd/api/**"
+      - "go/cmd/golden-corpus-gate/**"
+      - "go/internal/demospec/**"
+      - "go/cmd/mcp-server/**"
+      - "go/internal/mcp/**"
+      - "go/internal/goldengate/**"
+      - "go/internal/graph/**"
+      - "go/internal/graphowner/**"
+      - "go/internal/graphschemacompat/**"
+      - "go/internal/graphbackpressure/**"
+      - "go/internal/facts/**"
+      - "go/internal/queue/**"
+      - "go/internal/replay/**"
+      - "go/internal/content/**"
+      - "go/internal/contentrefs/**"
+      - "go/internal/codeprovenance/**"
+      - "go/internal/packageidentity/**"
+      - "go/internal/repositoryidentity/**"
+      - "go/internal/sourcetool/**"
+      - "go/internal/terraformschema/**"
+      - "go/internal/environment/**"
+      - "go/internal/exposure/**"
+      - "go/internal/doctruth/**"
+      - "go/internal/serviceintel/**"
+      - "go/internal/serviceintelhttp/**"
+      # #5538 review follow-up: mirrors the workflow's own correction of two
+      # wrong exclusions ("reducer correlation" and "workflowimage") plus the
+      # search/semantic family and the iacreachability/rubycontroller checks --
+      # see scripts/lib/golden-corpus-mirror-workflow-paths.sh for the evidence.
+      - "go/internal/correlation/**"
+      - "go/internal/truth/**"
+      - "go/internal/scope/**"
+      - "go/internal/factenvelope/**"
+      - "go/internal/ghactionsref/**"
+      - "go/internal/workflowimage/**"
+      - "go/internal/searchretrieval/**"
+      - "go/internal/searchdocs/**"
+      - "go/internal/searchbench/**"
+      - "go/internal/searchdecay/**"
+      - "go/internal/searchhybrid/**"
+      - "go/internal/searchrerank/**"
+      - "go/internal/searchembed/**"
+      - "go/internal/searchembedprovider/**"
+      - "go/internal/searchembedruntime/**"
+      - "go/internal/searchvector/**"
+      - "go/internal/semanticqueue/**"
+      - "go/internal/semanticpolicy/**"
+      - "go/internal/semanticguard/**"
+      - "go/internal/semanticprofile/**"
+      - "go/internal/iacreachability/**"
+      - "go/internal/rubycontroller/**"
+      # #5538 second review round: capability/status/version surface --
+      # mirrors the workflow's own addition. See
+      # scripts/lib/golden-corpus-mirror-workflow-paths.sh for the per-package
+      # import evidence, and for why internal/component stays excluded.
+      - "go/internal/capabilitycatalog/**"
+      - "go/internal/extraction/**"
+      - "go/internal/governanceaudit/**"
+      - "go/internal/status/**"
+      - "go/internal/buildinfo/**"
+      # #5877 review: two corrected exclusions -- see the workflow's own
+      # comment and scripts/lib/golden-corpus-mirror-workflow-paths.sh for the
+      # per-package import evidence (boundedset.DedupeSortCap shapes asserted
+      # SBOM attachment fields; tfstatewarning.Classify shapes get_index_status's
+      # required "terraform_state" field).
+      - "go/internal/boundedset/**"
+      - "go/internal/tfstatewarning/**"
       - "testdata/golden/**"
       - "testdata/cassettes/**"
       - "tests/fixtures/ecosystems/**"
+      - "specs/demo-first-answers.v1.yaml"
       # The orchestrator and the libs it sources, including the live-gate mutex:
       # an edit to any of them changes what this gate does.
       - "scripts/verify-golden-corpus-gate.sh"
       - "scripts/test-verify-golden-corpus-gate.sh"
       - "scripts/lib/golden-corpus-*.sh"
       - "scripts/lib/live-gate-lock.sh"
+      - "scripts/ci/install-apt-packages.sh"
+      - ".github/workflows/golden-corpus-gate.yml"
     local:
       command: "bash scripts/verify-golden-corpus-gate.sh"
       test_command: "bash scripts/test-verify-golden-corpus-gate.sh"
@@ -1465,6 +1545,35 @@ gates:
       - go
       - docker
       - nornicdb
+    ci_only_reason: ""
+
+  # #5538 task 4 root-cause fix: three review rounds each found more packages
+  # missing from golden-corpus-gate's own path filter because completeness was
+  # maintained by hand. This gate makes it converge -- it derives the real
+  # compiled-package set with `go list -deps` and fails when a package is
+  # neither covered by that filter nor listed in the exclusions file. Its own
+  # triggers include its own script/lib/workflow paths (not just the filter it
+  # checks), so an edit to the checker itself is never a false green -- the
+  # #5873 self-trigger gap this is written to avoid repeating.
+  - id: golden-corpus-filter-exhaustive
+    name: Golden corpus PR path filter exhaustiveness
+    category: hygiene
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/**"
+      - ".github/workflows/golden-corpus-gate.yml"
+      - "scripts/verify-golden-corpus-filter-exhaustive.sh"
+      - "scripts/test-verify-golden-corpus-filter-exhaustive.sh"
+      - "scripts/lib/golden-corpus-filter-exclusions.txt"
+    local:
+      command: "bash scripts/verify-golden-corpus-filter-exhaustive.sh"
+      test_command: "bash scripts/test-verify-golden-corpus-filter-exhaustive.sh"
+    ci:
+      workflow: test.yml
+      job: "verify-contracts"
+    requirements:
+      - go
     ci_only_reason: ""
 
   - id: replay-coverage-gate
