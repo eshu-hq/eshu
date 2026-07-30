@@ -14,6 +14,15 @@
 # Exit 0 on success; non-zero with a per-stage diff on drift.
 set -euo pipefail
 
+# script_dir always resolves to where THIS script actually lives, regardless
+# of ESHU_TELEMETRY_COVERAGE_REPO_ROOT below (which retargets repo_root at a
+# fixture or another worktree for doc/instruments lookups, but never moves
+# this script's own sibling files). Used to source scripts/lib/*.sh chunks
+# so sourcing keeps working under a copied-script fixture (see case 9 in
+# test-verify-telemetry-coverage.sh) exactly like the GIT_DIR-safe repo_root
+# derivation below.
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+
 repo_root="${ESHU_TELEMETRY_COVERAGE_REPO_ROOT:-}"
 if [ -z "$repo_root" ]; then
   # Derive the repo root from the script's own location, NOT
@@ -23,7 +32,7 @@ if [ -z "$repo_root" ]; then
   # `$repo_root/<doc>` existence checks below fail with a false "missing". The
   # script always lives at <repo>/scripts/, so dirname/.. is the repo root and is
   # both worktree- and hook-safe.
-  repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+  repo_root="$(cd "$script_dir/.." && pwd)"
 fi
 
 base="${ESHU_TELEMETRY_COVERAGE_BASE:-}"
@@ -337,10 +346,37 @@ while IFS='|' read -ra cols; do
 
   stage_name="$(trim_ws "${cols[1]}")"
   path_cell="$col2"
+
+  # Metric column must carry a real signal even for a row that names no
+  # *new* stage file. Check (3)'s has_signal only guards a row that names a
+  # file added since $base; an EXISTING row's metric column going blank
+  # (e.g. after a bad rebase or merge that keeps the row but drops the
+  # cell) has no other guard anywhere in this script and would otherwise
+  # vanish from the gate the same way a blank path cell does (#5855).
+  metric_cell="$(trim_ws "${cols[3]:-}")"
+  if [ -z "$metric_cell" ]; then
+    report="${report}  - doc row \"${stage_name}\" in ${doc_path} is malformed: metric column is blank (expected an eshu_dp_* metric or a No-Observability-Change: marker)
+"
+    drift=1
+  fi
+
   # A cell may name more than one target, comma-separated (e.g.
   # "contract.go:389-470, contract_z_observability_coverage.go:10"). A
   # bare filename with no directory in a later part inherits the
   # directory of the previous part in the same cell.
+  #
+  # checked_any tracks whether the comma-split loop below ever reached a
+  # non-empty token. `IFS=',' read -ra path_parts <<<""` yields ZERO array
+  # elements for a blank path_cell, so the loop below silently runs zero
+  # times; a path_cell of only commas/whitespace ("," / " , ") yields
+  # elements that each trim to empty and get skipped by
+  # `[ -n "$part" ] || continue`, reaching the same zero-real-tokens
+  # outcome through a different shape. Both are the same "vanish instead
+  # of fail loud" bug the blank-path P1 finding reported: neither the
+  # per-token existence check nor any other check in this script ever
+  # fires for that row, so it passes forever un-anchored from a real
+  # dispatcher (#5855).
+  checked_any=0
   prev_dir=""
   IFS=',' read -ra path_parts <<<"$path_cell"
   for raw_part in "${path_parts[@]}"; do
@@ -351,6 +387,7 @@ while IFS='|' read -ra cols; do
       token="${BASH_REMATCH[1]}"
     fi
     [ -n "$token" ] || continue
+    checked_any=1
     case "$token" in
       */*) prev_dir="${token%/*}" ;;
       *) [ -n "$prev_dir" ] && token="${prev_dir}/${token}" ;;
@@ -361,93 +398,25 @@ while IFS='|' read -ra cols; do
       drift=1
     fi
   done
+  if [ "$checked_any" -eq 0 ]; then
+    report="${report}  - doc row \"${stage_name}\" in ${doc_path} is malformed: file/glob column is blank or names no real target
+"
+    drift=1
+  fi
 done <"$all_rows_tmp"
 
-# (4) Histogram bucket boundary assertion.
-# Parse documented bucket sets from the X1 doc's histogram-buckets section
-# and bucket boundary definitions from instruments.go. Normalize both to
-# canonical form (sorted numbers, no whitespace) and assert bidirectional
-# agreement: every code bucket set must match a doc row, and vice versa.
-canonicalize_buckets() {
-  printf '%s' "$1" | tr -d '[:space:]' | tr ',' '\n' | sort -n | paste -sd ',' -
-}
-
-doc_buckets_tmp="$(mktemp)"
-code_buckets_tmp="$(mktemp)"
-
-# 4a: Parse documented bucket sets from the histogram-buckets section.
-section_line=$(rg -n '<!-- eshu:metric:section=histogram-buckets -->' "$repo_root/$doc_path" | head -1 | cut -d: -f1 || true)
-if [ -n "$section_line" ]; then
-  next_section_line=$(rg -n '<!-- eshu:metric:section=' "$repo_root/$doc_path" | \
-    awk -F: -v s="$section_line" '$1 > s {print $1; exit}' || true)
-  [ -z "$next_section_line" ] && next_section_line=$(( $(wc -l < "$repo_root/$doc_path") + 1 ))
-  sed -n "$((section_line + 1)),$((next_section_line - 1))p" "$repo_root/$doc_path" | \
-    while IFS= read -r line; do
-      printf '%s' "$line" | rg -q '^\|[-:|[:space:]]+\|' && continue
-      if printf '%s' "$line" | rg -q '^\|.*\|.*[0-9].*\|'; then
-        boundaries=$(printf '%s' "$line" | sed -n 's/^|[^|]*|\([^|]*\)|$/\1/p')
-        if [ -n "$boundaries" ]; then
-          boundaries=$(printf '%s' "$boundaries" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-          canonicalize_buckets "$boundaries"
-        fi
-      fi
-    done | sort -u >"$doc_buckets_tmp" 2>/dev/null || true
-fi
-
-# 4b: Parse bucket boundary definitions from instruments.go.
-# rg --replace is line-oriented even with -U (multiline), so a bucket list
-# split across lines produces one output line per number rather than one
-# combined capture. Collapse the file to a single line first (remove
-# newlines inside []float64{...} and WithExplicitBucketBoundaries(...)
-# blocks), then extract the sets with single-line regexps.
-: >"$code_buckets_tmp"
-instruments_flat="$(mktemp)"
-# python3 one-liner: join lines inside matching bracket pairs so each
-# bucket definition becomes a single line, then extract.
-python3 -c "
-import re, sys
-with open(sys.argv[1]) as f:
-    text = f.read()
-
-# Collapse newlines inside []float64{...} and WithExplicitBucketBoundaries(...)
-# blocks so each becomes a single line.
-text = re.sub(r'\[\]float64\{[^}]+\}', lambda m: m.group(0).replace('\n', ' '), text)
-text = re.sub(r'WithExplicitBucketBoundaries\([^)]+\)', lambda m: m.group(0).replace('\n', ' '), text)
-
-# Extract named variables: = []float64{...}
-for m in re.finditer(r'=\s*\[\]float64\{([^}]+)\}', text):
-    raw = m.group(1).strip()
-    sys.stdout.write(raw + '\n')
-
-# Extract inline literals: WithExplicitBucketBoundaries(N, N, ...)
-for m in re.finditer(r'WithExplicitBucketBoundaries\(([^)]+)\)', text):
-    raw = m.group(1).strip()
-    if not re.search(r'[a-zA-Z_]', raw):  # skip variable references
-        sys.stdout.write(raw + '\n')
-" "$repo_root/$instruments_path" 2>/dev/null | \
-  while IFS= read -r raw_set; do
-    [ -n "$raw_set" ] && canonicalize_buckets "$raw_set" >>"$code_buckets_tmp"
-  done || true
-sort -u -o "$code_buckets_tmp" "$code_buckets_tmp"
-
-# 4c: Bidirectional assertion.
-# Every code bucket set must have a matching documented set.
-while IFS= read -r code_set; do
-  [ -n "$code_set" ] || continue
-  if ! rg -qx "$code_set" "$doc_buckets_tmp"; then
-    report="${report}  - bucket set [${code_set}] is in ${instruments_path} but not documented in ${doc_path}\n"
-    drift=1
-  fi
-done <"$code_buckets_tmp"
-
-# Every documented bucket set must have a matching code definition.
-while IFS= read -r doc_set; do
-  [ -n "$doc_set" ] || continue
-  if ! rg -qx "$doc_set" "$code_buckets_tmp"; then
-    report="${report}  - bucket set [${doc_set}] is documented in ${doc_path} but not defined in ${instruments_path}\n"
-    drift=1
-  fi
-done <"$doc_buckets_tmp"
+# (4) Histogram bucket boundary assertion. Parses documented bucket sets
+# from the X1 doc's histogram-buckets section and bucket boundary
+# definitions from instruments.go, normalizes both to canonical form, and
+# asserts bidirectional agreement: every code bucket set must match a doc
+# row, and vice versa. Split into scripts/lib/telemetry-coverage-bucket-check.sh
+# to keep this script under the repo's file-length cap (#5855); that file
+# is registered as its own trigger of the telemetry-coverage gate in
+# specs/ci-gates.v1.yaml. check_histogram_bucket_agreement mutates
+# $report/$drift like the checks above.
+# shellcheck source=scripts/lib/telemetry-coverage-bucket-check.sh
+source "${script_dir}/lib/telemetry-coverage-bucket-check.sh"
+check_histogram_bucket_agreement
 
 if [ "$drift" -ne 0 ]; then
   {

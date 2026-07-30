@@ -197,8 +197,13 @@ expect_fail "fails when a new go/internal/content/shape file is not covered by t
 # with GIT_DIR set and ESHU_TELEMETRY_COVERAGE_REPO_ROOT unset; it must resolve
 # the fixture root and PASS.
 case_gitdir="$(init_repo case-gitdir)"
-mkdir -p "${case_gitdir}/scripts"
+mkdir -p "${case_gitdir}/scripts/lib"
 cp "${verifier}" "${case_gitdir}/scripts/verify-telemetry-coverage.sh"
+# The bucket-agreement check now lives in a sourced lib chunk (#5855); the
+# copied verifier sources it relative to its own location (script_dir), so
+# the fixture needs the sibling file too, not just the verifier itself.
+cp "${repo_root}/scripts/lib/telemetry-coverage-bucket-check.sh" \
+  "${case_gitdir}/scripts/lib/telemetry-coverage-bucket-check.sh"
 git -C "${case_gitdir}" add .
 git -C "${case_gitdir}" commit -q -m "copy verifier into fixture scripts"
 if env -u ESHU_TELEMETRY_COVERAGE_REPO_ROOT -u GITHUB_BASE_REF \
@@ -435,6 +440,54 @@ MD
 git -C "${case_malformed_row}" add .
 git -C "${case_malformed_row}" commit -q -m "add row missing its trailing metric and category columns"
 expect_fail "fails when a row is missing its trailing metric/category columns" "${case_malformed_row}"
+
+# Case 21 (#5855 P1): a row with the FULL column count (real stage, real
+# metric, real category) but a BLANK path cell. `IFS=',' read -ra path_parts
+# <<<""` yields zero array elements, so the per-token existence loop runs
+# zero times and neither the path-exists check nor a malformed-row report
+# ever fires -- the row silently passes forever, un-anchored from any real
+# dispatcher. This is the exact "vanish instead of fail loud" mode case 20
+# closed for missing trailing columns, reached instead through a blank
+# middle cell.
+case_blank_path="$(init_repo case-blank-path)"
+cat >>"${case_blank_path}/docs/public/observability/telemetry-coverage.md" <<'MD'
+
+| blank path stage |  | `eshu_dp_queue_claim_duration_seconds` | reducer runtime |
+MD
+git -C "${case_blank_path}" add .
+git -C "${case_blank_path}" commit -q -m "add row with blank path cell"
+expect_fail "fails when a full-column row's path cell is blank" "${case_blank_path}"
+
+# Case 22 (#5855 P1 follow-up): a row whose path cell is present but
+# consists only of commas (no real token between them). Each comma-split
+# part trims to empty and is skipped by the per-token
+# `[ -n "$part" ] || continue`, so the loop completes zero real checks
+# without ever reporting drift -- the same vanish as case 21, reached
+# through comma-only content instead of an empty string.
+case_comma_only_path="$(init_repo case-comma-only-path)"
+cat >>"${case_comma_only_path}/docs/public/observability/telemetry-coverage.md" <<'MD'
+
+| comma only path stage | , , | `eshu_dp_queue_claim_duration_seconds` | reducer runtime |
+MD
+git -C "${case_comma_only_path}" add .
+git -C "${case_comma_only_path}" commit -q -m "add row whose path cell is comma-only"
+expect_fail "fails when a full-column row's path cell is comma-only" "${case_comma_only_path}"
+
+# Case 23 (#5855 P1 follow-up): a row with a real, existing path but a
+# BLANK metric column. Case 7 only covers a blank/TODO metric column on a
+# row naming a *new* stage file (caught via the has_signal check in check
+# (3)); an EXISTING row's metric column going blank -- e.g. after a bad
+# rebase or merge -- has no equivalent guard, so it would vanish from the
+# gate exactly like the blank-path case, just anchored on a different
+# column.
+case_blank_metric_existing="$(init_repo case-blank-metric-existing)"
+cat >>"${case_blank_metric_existing}/docs/public/observability/telemetry-coverage.md" <<'MD'
+
+| blank metric stage | go/internal/reducer/service.go:1 |  | reducer runtime |
+MD
+git -C "${case_blank_metric_existing}" add .
+git -C "${case_blank_metric_existing}" commit -q -m "add row whose metric column is blank"
+expect_fail "fails when an existing row's metric column is blank" "${case_blank_metric_existing}"
 
 if [ "${FAIL}" -ne 0 ]; then
   printf 'verify-telemetry-coverage tests FAILED: %d/%d failed\n' "${FAIL}" "${TOTAL}" >&2
