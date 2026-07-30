@@ -6,19 +6,25 @@ package postgres
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
 )
 
 // TestIngestionStoreListActiveStateSnapshotScopesReturnsBoundedPendingScopes
-// proves the issue #5593 P1-1 lister: it scans the SAME active
-// state_snapshot:* set listActiveStateSnapshotScopes (bootstrap Phase 3.5)
-// scans, translated into projector.PendingConfigStateDriftScope, bounded by
-// the caller-supplied limit via a LIMIT clause -- not the unbounded query
-// Phase 3.5 uses, because this lister runs on a recurring interval from the
+// proves the issue #5593 lister: it scans the SAME active state_snapshot:*
+// set listActiveStateSnapshotScopes (bootstrap Phase 3.5) scans, translated
+// into projector.PendingConfigStateDriftScope, bounded by the
+// caller-supplied limit via a LIMIT clause -- not the unbounded query Phase
+// 3.5 uses, because this lister runs on a recurring interval from the
 // reducer's catch-up sweep and must not turn every tick into an unbounded
-// scan on a large corpus.
+// scan on a large corpus. Also proves the query filters by scope_kind
+// (bound as a parameter, not a LIKE-prefix on scope_id) so it can be
+// serviced by ingestion_scopes_active_state_snapshot_idx (migration 087) --
+// see drift_catchup_lister.go's doc comment and
+// docs/internal/evidence/5593-config-state-drift-catchup-lister-query.md for
+// why the LIKE shape was rejected.
 func TestIngestionStoreListActiveStateSnapshotScopesReturnsBoundedPendingScopes(t *testing.T) {
 	t.Parallel()
 
@@ -53,8 +59,14 @@ func TestIngestionStoreListActiveStateSnapshotScopesReturnsBoundedPendingScopes(
 	if len(db.queries) != 1 {
 		t.Fatalf("query count = %d, want 1", len(db.queries))
 	}
-	if got := db.queries[0].args; len(got) != 1 || got[0] != 500 {
-		t.Fatalf("query args = %#v, want [500] (LIMIT bound)", got)
+	if got := db.queries[0].args; len(got) != 2 || got[0] != "state_snapshot" || got[1] != 500 {
+		t.Fatalf("query args = %#v, want [\"state_snapshot\" 500] (scope_kind bind, then LIMIT bound)", got)
+	}
+	if strings.Contains(db.queries[0].query, "LIKE") {
+		t.Fatalf("query = %q, want no LIKE predicate -- must filter on the indexed scope_kind equality, not a scope_id prefix scan (issue #5593 perf regression)", db.queries[0].query)
+	}
+	if !strings.Contains(db.queries[0].query, "scope_kind") {
+		t.Fatalf("query = %q, want a scope_kind predicate", db.queries[0].query)
 	}
 }
 
@@ -74,8 +86,8 @@ func TestIngestionStoreListActiveStateSnapshotScopesDefaultsNonPositiveLimit(t *
 	if len(db.queries) != 1 {
 		t.Fatalf("query count = %d, want 1", len(db.queries))
 	}
-	if got := db.queries[0].args; len(got) != 1 || got[0] != defaultCatchUpListLimit {
-		t.Fatalf("query args = %#v, want [%d] (default limit)", got, defaultCatchUpListLimit)
+	if got := db.queries[0].args; len(got) != 2 || got[0] != "state_snapshot" || got[1] != defaultCatchUpListLimit {
+		t.Fatalf("query args = %#v, want [\"state_snapshot\" %d] (default limit)", got, defaultCatchUpListLimit)
 	}
 }
 

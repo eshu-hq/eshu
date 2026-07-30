@@ -141,4 +141,7 @@ var orderedBootstrapDefinitionNames = []string{
 	"vulnerability_suppression_lineage_index",
 	// migration 086 (#5469 indexed current runtime-image evidence lookup).
 	"cloud_resource_owner_runtime_digest_index",
+	// migration 087 (#5593 bounded index for the reducer's config-state-drift
+	// catch-up sweep's recurring active state_snapshot scope scan).
+	"ingestion_scopes_active_state_snapshot_index",
 }
