@@ -10,7 +10,6 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
-	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -84,20 +83,6 @@ type TerraformConfigStateDriftHandler struct {
 	// signal to the durable write, not a replacement for it, when Writer is
 	// set.
 	Writer TerraformConfigStateDriftFindingWriter
-	// Redrive schedules a bounded catch-up attempt when Handle observes
-	// tfstatebackend.ErrNoConfigRepoOwnsBackend (issue #5593 P1-A): that
-	// rejection may be a genuine "no repo will ever own this backend", or a
-	// config-side ingestion race that resolves once that repo syncs and
-	// activates. May be nil; the handler then keeps the pre-#5593-redrive
-	// behavior of a durably terminal rejection. See scheduleRedrive's doc
-	// comment in terraform_config_state_drift_redrive.go.
-	Redrive ConfigStateDriftRedriveScheduler
-	// RedriveDelay overrides defaultConfigStateDriftRedriveDelay for the
-	// scheduled ledger row's first eligible attempt. Zero uses the default.
-	RedriveDelay time.Duration
-	// Now overrides time.Now for the redrive schedule's first-attempt
-	// timestamp. Nil uses time.Now (UTC).
-	Now func() time.Time
 }
 
 // Handle executes the drift pipeline for one reducer intent. The handler:
@@ -153,11 +138,34 @@ func (h TerraformConfigStateDriftHandler) Handle(
 
 	anchor, resolveErr := h.Resolver.ResolveConfigCommitForBackend(ctx, backendKind, locatorHash)
 	if errors.Is(resolveErr, tfstatebackend.ErrNoConfigRepoOwnsBackend) {
+		// Deliberately terminal for THIS generation, not retried (issue
+		// #5593: a runtime redrive for this exact rejection was built,
+		// proven, and then removed across three review rounds -- see
+		// go/internal/storage/postgres/drift_runtime_trigger.go's doc
+		// comment for the full history). ResolveConfigCommitForBackend's own
+		// doc comment names the dominant real-world cause of this rejection:
+		// "the state may be operator owned outside Eshu's repo set" -- i.e.
+		// most zero-row resolutions are permanently correct, not a race, so
+		// automatically retrying this generation on a fixed schedule mostly
+		// re-derives the same terminal answer at real reducer/Postgres cost.
+		// The genuine race case (the config repo that owns this backend
+		// syncs into Eshu AFTER this state snapshot's first evaluation)
+		// self-heals for free on the next real terraform apply: a new
+		// apply produces a new state_snapshot generation (new serial, see
+		// go/internal/scope/tfstate.go), which the runtime trigger
+		// (ConfigStateDriftRuntimeTrigger) evaluates independently, with no
+		// dependency on this generation's outcome
+		// (TestConfigStateDriftRuntimeTriggerAndBootstrapProduceSameConflictKey
+		// proves distinct generations never share a work_item_id). A state
+		// that never changes again after racing once is the one case this
+		// does not recover automatically; re-running bootstrap-index (which
+		// re-scans every active state_snapshot:* scope regardless of age)
+		// or the read-model "unresolved" outcome tracked in a sibling
+		// branch are the accepted paths for that narrower gap.
 		h.logRejection(ctx, intent, DriftRejection{
 			FailureClass: "no_config_repo_owns_backend",
 			Reason:       resolveErr.Error(),
 		})
-		h.scheduleRedrive(ctx, intent)
 		return Result{
 			IntentID: intent.IntentID,
 			Domain:   intent.Domain,

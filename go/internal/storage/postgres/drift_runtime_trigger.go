@@ -38,15 +38,36 @@ const driftRuntimeTriggerSourceSystem = "ingester_runtime_trigger"
 // observes the same graph-write-pressure backpressure as every other
 // reducer intent instead of bypassing it with a raw queue handle.
 //
-// This type deliberately does NOT schedule a redrive (issue #5593 P1-1/P1-A):
-// it fires unconditionally on every activation, before Handle() has even
-// run, so it cannot know whether the eventual evaluation will need one.
-// Scheduling lives in reducer.TerraformConfigStateDriftHandler instead —
-// the one place that actually observes the "no config repo owns this
-// backend" outcome the redrive exists to recover from — so a redrive is
-// scheduled only for the generations that need it, not for every
-// runtime-triggered activation. See
-// reducer.TerraformConfigStateDriftHandler's Redrive field.
+// This type has no redrive/retry mechanism for a "no config repo owns this
+// backend" rejection, and deliberately so — history matters here. A bounded
+// redrive for that exact rejection was built, reviewed, and removed across
+// three rounds in issue #5593: first it fired unconditionally on every
+// activation (re-evaluating generations that never needed it); narrowing it
+// to fire only on the observed rejection (moving scheduling into
+// reducer.TerraformConfigStateDriftHandler) fixed that but exposed that
+// Handle() re-running on every replay, combined with the ledger row being
+// deleted on exhaustion, made EnsureScheduled's ON CONFLICT DO NOTHING
+// insert a FRESH row every cycle — an unbounded ~20-minute retry loop for
+// every genuinely operator-owned backend, which
+// tfstatebackend.Resolver.ResolveConfigCommitForBackend's own doc comment
+// names as the dominant real-world cause of this rejection ("the state may
+// be operator owned outside Eshu's repo set"). Each fix traded one failure
+// mode for another without shrinking the underlying complexity, which is
+// the sign the mechanism was solving the problem at the wrong layer.
+//
+// The runtime trigger here does not need a redrive to close issue #5593's
+// actual acceptance criterion (evaluate on activation, which it now always
+// does). The race a redrive would recover — this generation evaluates
+// before its owning config repo has synced — self-heals for free on the
+// next real terraform apply: a new apply produces a new state_snapshot
+// generation with a new work_item_id
+// (TestConfigStateDriftRuntimeTriggerAndBootstrapProduceSameConflictKey),
+// evaluated independently by this same trigger. A state that never changes
+// again after racing once is the one case that does not recover
+// automatically; re-running bootstrap-index (which re-scans every active
+// state_snapshot:* scope regardless of age) or an explicit "unresolved"
+// read-model outcome — the issue's own second acceptance path, tracked in a
+// sibling branch — are the accepted paths for that narrower residual gap.
 type ConfigStateDriftRuntimeTrigger struct {
 	Queue       projector.ReducerIntentWriter
 	Instruments *telemetry.Instruments

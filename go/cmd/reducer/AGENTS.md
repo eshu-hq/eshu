@@ -44,21 +44,25 @@ before touching any file in this directory.
   reintroduce a fixed `now().Add(retryDelay)` retry schedule; many
   same-instant failures reconverging on one `visible_at` is the retry-storm
   this replaced.
-- **`config_state_drift` redrive scheduling lives here, not in
-  `cmd/ingester`** (issue #5593 P1-A) — `buildReducerDriftHandlers`
-  (`wiring_handlers.go`) wires `DriftRedrive:
-  postgres.NewConfigStateDriftRedriveStore(database)` into
-  `reducer.DriftHandlers`, which `TerraformConfigStateDriftHandler.Handle`
-  calls ONLY from its `tfstatebackend.ErrNoConfigRepoOwnsBackend` branch
-  (`go/internal/reducer/terraform_config_state_drift_redrive.go`). This
-  binary only WRITES the redrive ledger row; `go/cmd/ingester`'s
-  `config_state_drift_redrive_catchup.go` periodic loop CLAIMS and REPLAYS
-  it via `ReducerQueue.ReplayDomain`, which just reopens the work item —
-  this reducer's own normal claim loop then processes it again on its next
-  poll. Do not move the scheduling call into `ConfigStateDriftRuntimeTrigger`
-  (the ingester-side enqueue trigger, `internal/storage/postgres/drift_runtime_trigger.go`):
-  it fires unconditionally on every activation and cannot observe the actual
-  rejection this redrive exists to recover from.
+- **`config_state_drift` has no redrive/retry — do not re-add one without
+  reading the issue #5593 history first.** `TerraformConfigStateDriftHandler`
+  once had a `Redrive` field wired from here
+  (`buildReducerDriftHandlers`/`wiring_handlers.go`) into a Postgres-backed
+  ledger claimed by a `cmd/ingester` catch-up loop. It went through three
+  review rounds and was removed: narrowing it to schedule only on the
+  observed `tfstatebackend.ErrNoConfigRepoOwnsBackend` rejection (instead of
+  unconditionally on every activation) fixed one bug but exposed that
+  `Handle()` re-running on every redrive replay, combined with the ledger
+  row being deleted on exhaustion, made the scheduling INSERT's
+  `ON CONFLICT DO NOTHING` a no-op against nothing — a fresh row every
+  cycle, an unbounded ~20-minute perpetual retry loop for every
+  operator-owned backend (the resolver's own doc comment names that as the
+  dominant real-world cause of the rejection, not a rare edge case). See
+  `ConfigStateDriftRuntimeTrigger`'s doc comment
+  (`internal/storage/postgres/drift_runtime_trigger.go`) for the full
+  history. The rejection is now durably terminal per generation and
+  self-heals on the next real `terraform apply` (a new generation,
+  evaluated independently).
 - **Prior-config depth defaults to 10; invalid input WARNs and falls back** —
   `PriorConfigDepth` is set from `parsePriorConfigDepth` in
   `buildReducerDriftHandlers` (`wiring_handlers.go`).

@@ -263,13 +263,12 @@ func buildIngesterProjectorService(
 	// every other reducer intent. MUST NOT be copied to
 	// cmd/bootstrap-index/wiring.go -- see
 	// postgres.ProjectorQueue.ConfigStateDriftTrigger's doc comment for why.
-	// The trigger deliberately does NOT schedule a redrive itself (issue
-	// #5593 P1-A) -- that happens in cmd/reducer's
-	// TerraformConfigStateDriftHandler.Redrive, which observes the actual
-	// "no config repo owns this backend" outcome this fires unconditionally
-	// on every activation and cannot see. config_state_drift_redrive_catchup.go
-	// (started in main.go, below) claims and replays whatever that handler
-	// schedules.
+	// This type has no redrive/retry of its own -- see
+	// ConfigStateDriftRuntimeTrigger's doc comment
+	// (internal/storage/postgres/drift_runtime_trigger.go) for why a bounded
+	// redrive for the "no config repo owns this backend" rejection was
+	// built, reviewed, and removed, and why the race it would have covered
+	// self-heals on the next terraform apply instead.
 	projectorQueue.ConfigStateDriftTrigger = postgres.ConfigStateDriftRuntimeTrigger{
 		Queue:       reducerWriter,
 		Instruments: instruments,

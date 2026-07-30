@@ -9,9 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
-	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
@@ -165,22 +163,5 @@ func run(parent context.Context) error {
 	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// config_state_drift redrive catch-up (issue #5593 P1-1): reopens
-	// config_state_drift work items ConfigStateDriftRuntimeTrigger scheduled
-	// (buildIngesterProjectorService, wiring.go) when a state_snapshot:*
-	// scope activated before its owning config-side repo had synced. Runs as
-	// an independent background loop, not tied to the composite runner's own
-	// collector/projector concurrency, so its cadence and failure mode never
-	// affect ingestion itself.
-	redriveStore := postgres.NewConfigStateDriftRedriveStore(instrumentedDB)
-	redriveReplayQueue := postgres.NewReducerQueue(instrumentedDB, "ingester-drift-redrive", time.Minute)
-	redriveCtx, cancelRedrive := context.WithCancel(ctx)
-	var redriveWG sync.WaitGroup
-	redriveWG.Add(1)
-	go func() {
-		defer redriveWG.Done()
-		runConfigStateDriftRedriveCatchUpLoop(redriveCtx, redriveStore, redriveReplayQueue, logger)
-	}()
-
-	return runServiceAndJoinConfigStateDriftRedrive(ctx, service, cancelRedrive, &redriveWG)
+	return service.Run(ctx)
 }

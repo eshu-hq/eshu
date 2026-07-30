@@ -67,22 +67,24 @@ const configStateDriftTriggerScopePrefix = "state_snapshot:"
 // runtime path has: evaluating a state_snapshot scope before its owning
 // config-side repo has activated its own terraform_backends fact.
 //
-// A "no owner" outcome from that race is no longer permanently frozen (issue
-// #5593 P1-A/P1-1): reducer.TerraformConfigStateDriftHandler.Redrive
-// schedules a bounded catch-up whenever it OBSERVES that exact rejection,
-// regardless of which producer's intent triggered it -- so even a
-// hypothetical bootstrap-Phase-1 firing would still get a bounded number of
-// retries, not silence forever. Wiring this trigger on bootstrap-index
-// remains wrong anyway: it would evaluate drift before the corpus has
-// necessarily finished activating (semantically premature), and the
-// redrive's fixed bounded window (roughly 20 minutes, see
-// cmd/ingester/config_state_drift_redrive_catchup.go) is sized for a
-// steady-state config-repo sync gap, not for however long the REST of a
-// bootstrap run takes to activate every repo in the corpus. Wire this only
-// on the runtime ingester's ProjectorQueue (cmd/ingester/wiring.go), where a
-// NEW state snapshot activating post-bootstrap almost always finds the
-// config-side correlation already resolved from the prior run, and where
-// the redrive's window comfortably covers the remaining race.
+// A "no owner" outcome from that race IS durably terminal for that one
+// generation (issue #5593: a bounded runtime redrive for this exact
+// rejection was built, reviewed, and removed -- see
+// ConfigStateDriftRuntimeTrigger's doc comment in drift_runtime_trigger.go
+// for the full history and why retrying it automatically caused more harm
+// than the race it was meant to fix). That is a real, but bounded and
+// self-healing, cost: a NEW terraform apply on the SAME backend produces a
+// NEW state_snapshot generation, which this trigger evaluates independently
+// of the prior generation's outcome. On the runtime ingester's ProjectorQueue
+// (cmd/ingester/wiring.go), a NEW state snapshot activating post-bootstrap
+// almost always finds the config-side correlation already resolved from the
+// prior run, so this race is rare there. Firing during bootstrap's own
+// Phase 1 -- before every repo in the corpus has necessarily activated --
+// would make the race common instead of rare, and there is no redrive to
+// recover it: wiring this trigger on bootstrap-index would durably and
+// silently under-evaluate config_state_drift for the affected generations
+// until their next real terraform apply. Wire this only on the runtime
+// ingester's ProjectorQueue.
 func (q ProjectorQueue) runConfigStateDriftTriggerHook(ctx context.Context, work projector.ScopeGenerationWork) {
 	if q.ConfigStateDriftTrigger == nil {
 		return

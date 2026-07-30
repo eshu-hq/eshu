@@ -359,21 +359,17 @@
 // reads directly (tfstate_backend_canonical.go) with no dependency on this
 // generation's own correlation.
 //
-// ConfigStateDriftRedriveStore (drift_runtime_redrive.go, issue #5593
-// P1-A/P1-1/P1-B) closes that remaining gap with a bounded ledger. Unlike
-// the runtime trigger above, which fires unconditionally on every
-// activation, scheduling happens in
-// reducer.TerraformConfigStateDriftHandler.Redrive -- the one place that
-// actually OBSERVES tfstatebackend.ErrNoConfigRepoOwnsBackend, so only
-// generations that hit that exact rejection pay for a redrive attempt.
-// go/cmd/ingester's periodic catch-up loop claims due rows and reopens the
-// work item via ReducerQueue.ReplayDomain, giving the handler a fresh
-// Handle() call. ClaimDue's own SQL deletes a row the moment it reaches its
-// bounded attempt count (rather than leaving it behind with a
-// frozen-in-the-past next_attempt_at that would otherwise re-satisfy the
-// due-row scan forever) so a transient rejection gets revisited within the
-// bound and a genuine "no owner, ever" case both terminates and stops
-// occupying a row, keeping the ledger's steady-state size proportional to
-// recent rejection volume rather than growing for the life of the
-// deployment.
+// That race has no automatic redrive (issue #5593: a bounded ledger-backed
+// redrive for the exact "no config repo owns this backend" rejection was
+// built, reviewed, and removed across three review rounds -- see
+// ConfigStateDriftRuntimeTrigger's doc comment in drift_runtime_trigger.go
+// for the full history, including the perpetual-retry bug the final round
+// found). The rejection is durably terminal for that one generation. The
+// race self-heals for free on the next real terraform apply, which produces
+// a NEW state_snapshot generation the runtime trigger evaluates
+// independently; a state that never changes again after racing once is the
+// residual gap, recoverable today only by re-running bootstrap-index (which
+// re-scans every active state_snapshot:* scope) or by the explicit
+// "unresolved" read-model outcome tracked in a sibling branch -- the
+// issue's own second acceptance path.
 package postgres

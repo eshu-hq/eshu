@@ -141,10 +141,4 @@ var orderedBootstrapDefinitionNames = []string{
 	"vulnerability_suppression_lineage_index",
 	// migration 086 (#5469 indexed current runtime-image evidence lookup).
 	"cloud_resource_owner_runtime_digest_index",
-	// migration 087 (#5593 P1-1 fix): bounded redrive ledger for the
-	// config_state_drift runtime delta-trigger, so a "no config repo owns
-	// this backend" outcome caused by a config/state ingestion race gets
-	// revisited instead of being frozen by the reducer queue's per-
-	// (scope, generation) ON CONFLICT DO NOTHING fence.
-	"config_state_drift_runtime_redrive",
 }

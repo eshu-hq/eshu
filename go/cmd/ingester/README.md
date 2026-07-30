@@ -74,17 +74,17 @@ finished activating every repo. See
 `go/internal/storage/postgres/projector_queue_config_state_drift_trigger_hook.go`
 for the full ordering rationale.
 
-`main.go` also runs a second, independent background loop:
-`runConfigStateDriftRedriveCatchUpLoop` (issue #5593 P1-A/P1-1/P1-B,
-`config_state_drift_redrive_catchup.go`). The trigger above fires
-unconditionally and cannot know whether the eventual evaluation will need a
-retry; scheduling instead happens in `cmd/reducer`'s
-`reducer.TerraformConfigStateDriftHandler.Redrive`, which observes the
-actual "no config repo owns this backend" outcome. This loop only claims
-whatever that handler scheduled and reopens it via `ReducerQueue.ReplayDomain`
--- it is started and joined independently of the composite runner
-(`runServiceAndJoinConfigStateDriftRedrive`), so its cadence and failure mode
-never affect collection or source-local projection.
+The trigger above has no redrive/retry of its own for a "no config repo owns
+this backend" rejection -- a bounded, ledger-backed redrive for that exact
+rejection was built and removed across three issue #5593 review rounds (the
+final round found it created an unbounded ~20-minute perpetual retry loop
+for every operator-owned backend, once scheduling was narrowed to run from
+inside `Handle()` itself). See `ConfigStateDriftRuntimeTrigger`'s doc comment
+in `go/internal/storage/postgres/drift_runtime_trigger.go` for the full
+history. The race it would have covered self-heals on the next real
+`terraform apply` (a new state_snapshot generation, evaluated independently
+by this same trigger); a state that never changes again after racing once
+is the accepted residual gap.
 
 When `ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED` is true, the ingester wraps the
 normal repository selector with a webhook-trigger selector. Accepted queued

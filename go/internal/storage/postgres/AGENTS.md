@@ -311,29 +311,24 @@ shared-intent backlog/status queries and reducer code-call cycle logs.
   every repo; see `runConfigStateDriftTriggerHook`'s doc comment for the
   full reasoning.
 
-  **Redrive (issue #5593 P1-A/P1-1/P1-B) — scheduling lives in the REDUCER
-  handler, not the trigger above.** `ConfigStateDriftRuntimeTrigger` fires
-  unconditionally on every activation and cannot know whether the eventual
-  `Handle()` call will need a retry. Scheduling a bounded catch-up happens in
-  `go/internal/reducer/terraform_config_state_drift_redrive.go`'s
-  `TerraformConfigStateDriftHandler.scheduleRedrive`, called ONLY from the
-  `tfstatebackend.ErrNoConfigRepoOwnsBackend` branch of `Handle` — so a row
-  is scheduled per REJECTION, not per activation. `drift_runtime_redrive.go`
-  is the ledger store (`ConfigStateDriftRedriveStore`); its `ClaimDue` runs
-  TWO queries, `claimAndAdvanceConfigStateDriftRedrivesQuery` (rows with
-  budget left) and `claimAndDeleteExhaustedConfigStateDriftRedrivesQuery`
-  (a row's LAST allowed attempt — claims AND DELETES it in the same
-  statement, the P1-B growth bound: without the delete, an exhausted row's
-  frozen-in-the-past `next_attempt_at` would re-satisfy the due-row index
-  scan forever). `go/cmd/ingester/config_state_drift_redrive_catchup.go`
-  claims due rows and reopens them via `ReducerQueue.ReplayDomain`. Both the
-  bounded-termination/deletion behavior (`drift_runtime_redrive_test.go`,
-  fake-backed) and the concurrent-claim safety
-  (`drift_runtime_redrive_live_test.go`, `ESHU_CONFIG_STATE_DRIFT_REDRIVE_PROOF_DSN`-gated,
-  mirrors the Crossplane live-test pattern below) are proven — do not modify
-  either claim query without re-running the live proof; the fake tests
-  mirror intended semantics, not the executed SQL, and cannot catch a
-  locking-predicate regression.
+  **No redrive/retry — this was tried and removed (issue #5593).** A
+  bounded ledger-backed redrive for the `tfstatebackend.ErrNoConfigRepoOwnsBackend`
+  rejection went through three review rounds: unconditional scheduling on
+  every activation (wrong — re-evaluated generations that never raced);
+  narrowed to schedule only on the observed rejection, from inside
+  `Handle()` (still wrong — `Handle()` re-runs on every redrive replay, and
+  the ledger row was deleted on exhaustion, so `EnsureScheduled`'s
+  `ON CONFLICT DO NOTHING` had nothing to conflict with and inserted a
+  FRESH row every cycle: an unbounded ~20-minute retry loop for every
+  operator-owned backend, which the resolver's own doc comment names as the
+  dominant real-world cause of this rejection). Removed rather than adding a
+  fourth guard (a permanent tombstone table), because that table would need
+  its own unbounded-growth proof — the same class of bug as the ledger it
+  would replace, just relocated. See `ConfigStateDriftRuntimeTrigger`'s doc
+  comment in `drift_runtime_trigger.go` for the full history. The race this
+  would have covered self-heals on the next real `terraform apply` (a new
+  generation, evaluated independently); a state that never changes again
+  after racing once is the accepted residual gap.
 
 - **State-attribute decoding or flattening** → edit
   `tfstate_drift_evidence_state_row.go`. `stateRowFromCollectorPayload`

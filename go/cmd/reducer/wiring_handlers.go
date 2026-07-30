@@ -51,11 +51,6 @@ func buildReducerDriftHandlers(
 		// of only incrementing counters.
 		DriftWriter: reducer.PostgresTerraformConfigStateDriftWriter{DB: database},
 		DriftLogger: logger,
-		// DriftRedrive (issue #5593 P1-A) schedules a bounded catch-up
-		// attempt when the handler observes "no config repo owns this
-		// backend" -- config_state_drift_redrive_catchup.go in cmd/ingester
-		// claims and replays scheduled rows.
-		DriftRedrive: postgres.NewConfigStateDriftRedriveStore(database),
 		// AWS runtime drift joins current AWS resource facts to active
 		// Terraform-state resources by ARN, then resolves the state backend to
 		// the owning config snapshot before classifying unmanaged resources.
