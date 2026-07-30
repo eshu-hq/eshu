@@ -5629,7 +5629,8 @@
           "findings[].detection_profile": "precise"
         },
         "minimum_results": 1,
-        "maximum_results": 1
+        "maximum_results": 1,
+        "results_field": "findings"
       },
       "GET /api/v0/supply-chain/impact/findings?limit=10&cve_id=CVE-2026-00010&workload_id=workload%3Adeployable-config&profile=comprehensive": {
         "description": "#5747 non-vacuous current-runtime filter proof: the Debian OS-package finding has an empty baked workload_ids array, but its repository currently maps to workload:deployable-config through active reducer_workload_identity evidence. The comprehensive profile is retained as the epic's inclusive OS-package proof; after #5735 this exact DPKG affected-version finding also qualifies for precise.",
