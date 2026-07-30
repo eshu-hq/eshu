@@ -152,7 +152,8 @@ func TestExtractGCPCloudResourceNodeRowsBuildsStableUID(t *testing.T) {
 // explicit (present-key) empty value for the 7 anchor/identity keys
 // (workload_id, service_name, and the 5 service_anchor_* keys) the shared
 // canonicalCloudResourceUpsertCypher SET clause always reads (see
-// go/internal/reducer/README.md's "#4995" entry for the full NornicDB proof:
+// docs/internal/evidence/4995-gcp-cloudresource-literal-property-fix.md for
+// the full NornicDB proof (relocated from README.md's former "#4995" entry):
 // a missing UNWIND row map key does not evaluate to null in a SET clause on
 // the pinned backend, it stringifies the row expression instead). Checking
 // key presence with `_, ok := row[key]` (not just value equality) is

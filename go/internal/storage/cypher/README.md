@@ -688,7 +688,8 @@ target-bound activation record.
 
 Observability Evidence: no new metric name is introduced by the writer; the
 reducer projection domain owns the bounded-enum node/edge/skip counters and the
-per-phase-duration completion log documented in `go/internal/reducer/README.md`.
+per-phase-duration completion log documented in
+`docs/internal/evidence/1347-1379-1381-secrets-iam-edge-promotion.md`.
 
 The executor chain is composed in `cmd/` wiring. A typical production chain
 wraps a concrete driver executor with `TimeoutExecutor` → `RetryingExecutor` →
@@ -1659,8 +1660,58 @@ makes it interleaving-sensitive again) and `r.ifa_teeth_write_order`
 `scripts/verify-ifa-determinism.sh --teeth` uses at least one of these two
 deliberately non-idempotent values to prove the graph-determinism matrix
 actually catches a real non-idempotent write. See
-`go/internal/reducer/README.md`'s matching section for the fuller writeup of
-why these values diverge across worker counts.
+`docs/internal/evidence/4396-ifa-p3-determinism-matrix-teeth.md` for the
+fuller writeup of why these values diverge across worker counts.
+
+## Shared-writer row-key default-fill backstop (#5714/#5055)
+
+`WriteCloudResourceNodes` now default-fills every `row.<key>`
+`baseCloudResourceUpsertCypher`'s `SET` clause reads before dispatch
+(`defaultFillCloudResourceRow`, driven by the authoritative
+`cloudResourceRowKeyDefaults` list next to the Cypher). This is a shared
+defense-in-depth backstop, not a replacement for builder-level correctness:
+the AWS (`applyCloudResourceServiceAnchorFields`), Azure
+(`azureCloudResourceNodeRow`), and GCP (`gcpCloudResourceNodeRow`) row
+builders all already supply every key explicitly (the #4995/#5450/#5714
+precedent), so this defaulting is normally a no-op — it exists so a *future*
+row builder that forgets one cannot reproduce the class of bug this issue
+fixed: the pinned NornicDB backend does not evaluate a key MISSING from one
+row of a heterogeneous `UNWIND $rows` batch as `null` in a `SET` clause, it
+persists a stringified `"row.<key>"` literal instead (a non-empty string a
+query/join consumer would treat as real data).
+
+Prove-theory-first: before choosing between an in-Cypher `coalesce` rewrite
+(Option B) and this Go-side default-fill (Option A), both were measured live
+against the pinned NornicDB image — see
+`docs/internal/evidence/5714-cloudresource-row-key-defaults.md` for the shim,
+its output, and why Option A was chosen even though both were proven viable.
+`TestCloudResourceRowKeyDefaultsCoversEverySetKey` is the static lockstep
+guard keeping `cloudResourceRowKeyDefaults` and the Cypher's `SET` clause from
+drifting apart; `TestCloudResourceNodeWriterLiveHeterogeneousBatchNeverPersistsLiteral`
+is the live-backend, non-vacuous regression proof (skips without
+`ESHU_CLOUDRESOURCE_NODE_WRITER_LIVE=1`).
+
+Performance Evidence: `cloudResourceRowKeyDefaults` is a fixed-order slice,
+not a map — ranging a Go map costs measurably more per entry than a slice
+(hashing plus randomized iteration order), and `defaultFillCloudResourceRow`
+runs once per row in every batch. `BenchmarkCloudResourceNodeWriter` (5,000
+fully-populated rows, where every key is already present so the loop is a
+pure no-write presence-check pass) reports **allocs/op and B/op unchanged**
+at exactly `25,068` allocs / `6.035 MiB` across 18 combined runs both before
+and after this change (`benchstat` `p=1.000`/`p=0.593`-`0.869` — no
+detectable allocation cost from the added pass in the common all-keys-present
+case). The wall-clock (`ns/op`) delta measured on this shared, heavily
+contended development host was NOT statistically significant per `benchstat`
+(baseline `3.571ms ± 104%` vs after `4.724ms ± 11%`, `p=0.442`, n=8; a second
+run pair gave `p=0.075`) — host contention (concurrent unrelated builds on
+the same machine) dominates the signal at this scale, so this is reported
+honestly as inconclusive on wall-clock rather than claimed as a proven
+speedup or regression; allocs/op is the noise-immune metric here and shows no
+regression.
+
+No-Observability-Change: no metric, span, log, or status field is added or
+changed; the default-fill only affects graph-node property values (correct
+empty defaults instead of a corrupted literal), never telemetry.
 
 ## GitHub Actions @ref pin signal (#5372)
 

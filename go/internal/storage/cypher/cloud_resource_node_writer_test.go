@@ -5,9 +5,57 @@ package cypher
 
 import (
 	"context"
+	"regexp"
 	"strings"
 	"testing"
 )
+
+// cloudResourceRowKeyReferencePattern matches every "row.<key>" reference in
+// baseCloudResourceUpsertCypher's SET clause.
+var cloudResourceRowKeyReferencePattern = regexp.MustCompile(`row\.([A-Za-z0-9_]+)`)
+
+// TestCloudResourceRowKeyDefaultsCoversEverySetKey is the static lockstep
+// guard issue #5714/#5055's shared-writer backstop depends on:
+// cloudResourceRowKeyDefaults (cloud_resource_node_writer.go) must name
+// exactly the row.<key> references baseCloudResourceUpsertCypher's SET clause
+// reads, minus "uid" (the MERGE identity every caller supplies) and
+// "evidence_source" (injected by WriteCloudResourceNodes itself, never
+// omitted). A key added to the Cypher without a matching default would
+// silently reopen the missing-map-key-in-UNWIND corruption class this issue
+// fixes; a stale default with no matching Cypher key is dead weight this test
+// also catches.
+func TestCloudResourceRowKeyDefaultsCoversEverySetKey(t *testing.T) {
+	t.Parallel()
+
+	matches := cloudResourceRowKeyReferencePattern.FindAllStringSubmatch(baseCloudResourceUpsertCypher, -1)
+	if len(matches) == 0 {
+		t.Fatal("no row.<key> references found in baseCloudResourceUpsertCypher; regex or Cypher shape changed unexpectedly")
+	}
+	wantKeys := make(map[string]struct{}, len(matches))
+	for _, match := range matches {
+		key := match[1]
+		if key == "uid" || key == "evidence_source" {
+			continue
+		}
+		wantKeys[key] = struct{}{}
+	}
+
+	haveKeys := make(map[string]struct{}, len(cloudResourceRowKeyDefaults))
+	for _, d := range cloudResourceRowKeyDefaults {
+		haveKeys[d.key] = struct{}{}
+	}
+
+	for key := range wantKeys {
+		if _, ok := haveKeys[key]; !ok {
+			t.Errorf("baseCloudResourceUpsertCypher references row.%s but cloudResourceRowKeyDefaults has no default for it", key)
+		}
+	}
+	for key := range haveKeys {
+		if _, ok := wantKeys[key]; !ok {
+			t.Errorf("cloudResourceRowKeyDefaults has a stale default for %q; baseCloudResourceUpsertCypher no longer references row.%s", key, key)
+		}
+	}
+}
 
 func cloudResourceRows(n int) []map[string]any {
 	rows := make([]map[string]any, 0, n)
@@ -160,6 +208,74 @@ func TestCloudResourceNodeWriterPersistsRunningImageFields(t *testing.T) {
 	}
 	if got := dispatchedRows[0]["running_image_digest"]; got != "sha256:cc" {
 		t.Fatalf("dispatched running_image_digest = %#v", got)
+	}
+}
+
+// TestCloudResourceNodeWriterDefaultFillsMissingRowKeys proves issue
+// #5714/#5055's shared-writer backstop: WriteCloudResourceNodes must ensure
+// every key canonicalCloudResourceUpsertCypher's SET clause reads is PRESENT
+// on every dispatched row, even when a caller's row map omits it. This is the
+// defense-in-depth layer the issue requires in ADDITION to fixing individual
+// row builders (AWS/Azure/GCP): a future row builder that forgets a key must
+// not corrupt the graph the way the AWS/Azure omissions did, because the
+// pinned NornicDB backend persists a stringified "row.<key>" literal instead
+// of null for a key missing from one row of a heterogeneous UNWIND $rows
+// batch. cloudResourceRows(n) deliberately omits workload_id, service_name,
+// every service_anchor_* key, and running_image_ref/digest — the exact
+// omission shape the AWS/Azure builders used to produce.
+func TestCloudResourceNodeWriterDefaultFillsMissingRowKeys(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewCloudResourceNodeWriter(executor, 0)
+	rows := cloudResourceRows(1)
+
+	if err := writer.WriteCloudResourceNodes(context.Background(), rows, "reducer/aws-resources"); err != nil {
+		t.Fatalf("WriteCloudResourceNodes returned error: %v", err)
+	}
+	if len(executor.calls) != 1 {
+		t.Fatalf("len(calls) = %d, want 1", len(executor.calls))
+	}
+	dispatchedRows, ok := executor.calls[0].Parameters["rows"].([]map[string]any)
+	if !ok || len(dispatchedRows) != 1 {
+		t.Fatalf("dispatched rows = %#v, want 1 row", executor.calls[0].Parameters["rows"])
+	}
+	row := dispatchedRows[0]
+
+	for _, key := range []string{
+		"workload_id",
+		"service_name",
+		"service_anchor_status",
+		"service_anchor_source",
+		"service_anchor_reason",
+		"service_anchor_name_tokens",
+		"running_image_ref",
+		"running_image_digest",
+	} {
+		value, ok := row[key]
+		if !ok {
+			t.Fatalf("dispatched row[%q] is absent; the writer must default-fill every key "+
+				"canonicalCloudResourceUpsertCypher's SET clause reads, or the pinned NornicDB "+
+				"backend persists a stringified \"row.%s\" literal instead of an empty value", key, key)
+		}
+		if value != "" {
+			t.Fatalf("dispatched row[%q] = %#v, want empty string default", key, value)
+		}
+	}
+	namesValue, ok := row["service_anchor_names"]
+	if !ok {
+		t.Fatal("dispatched row[\"service_anchor_names\"] is absent; must default-fill to an empty slice")
+	}
+	names, ok := namesValue.([]string)
+	if !ok {
+		t.Fatalf("dispatched row[\"service_anchor_names\"] type = %T, want []string", namesValue)
+	}
+	if len(names) != 0 {
+		t.Fatalf("dispatched row[\"service_anchor_names\"] = %#v, want empty slice", names)
+	}
+	// A key the caller DID supply must survive default-fill untouched.
+	if got := row["resource_type"]; got != "aws_ec2_vpc" {
+		t.Fatalf("dispatched row[\"resource_type\"] = %#v, want caller-supplied value preserved", got)
 	}
 }
 

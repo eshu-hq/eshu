@@ -428,12 +428,14 @@ func TestQueryClientChecksPostEnvelopeShapes(t *testing.T) {
 
 func fakeQueryShapeResponse(shape QueryShape) map[string]any {
 	resp := make(map[string]any, len(shape.RequiredResponseFields))
-	arrayField := ""
-	if shape.MinimumResults > 0 || len(shape.ResultItemRequiredFields) > 0 {
-		arrayField = shape.RequiredResponseFields[0]
-	}
+	// ResultsField names the array the shape actually asserts against
+	// (eshu-hq/eshu#5566); this generator must populate that exact field as
+	// an array, not just the first required_response_fields entry, or a
+	// shape whose asserted collection is not the first-listed field would
+	// get a fixture that does not match what EvaluateQueryShape checks.
+	arrayField := shape.ResultsField
 	for _, field := range shape.RequiredResponseFields {
-		if field == arrayField {
+		if arrayField != "" && field == arrayField {
 			count := max(shape.MinimumResults, 1)
 			items := make([]map[string]any, count)
 			for i := range items {

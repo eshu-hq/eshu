@@ -372,8 +372,9 @@ are either unreachable with today's evidence or intentionally not persisted.
   entries chose the unwrapped form (asserting `minimum_results` directly
   against the top-level array field, which the shared evaluator
   `EvaluateQueryShape` can only count when the array is a top-level
-  required field — see `go/internal/goldengate/evaluate.go`'s "Locate the
-  first array-valued required field" comment). Anyone deciding whether a
-  *new* `query_shapes.http`/`query_shapes.mcp` entry should set
+  required field named explicitly by `results_field` — see
+  `go/internal/goldengate/evaluate.go` and eshu-hq/eshu#5566; both of this
+  domain's entries set `results_field: "drift_findings"`). Anyone deciding
+  whether a *new* `query_shapes.http`/`query_shapes.mcp` entry should set
   `envelope: true` should pick based on that trade-off, not on any
   property of MCP dispatch itself.

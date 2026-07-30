@@ -224,6 +224,11 @@ func TestGoldenSnapshotPinsDuplicateGlobalEntityResolution(t *testing.T) {
 	if shape.MinimumResults != 2 {
 		t.Fatalf("resolve_entity minimum_results = %d, want 2", shape.MinimumResults)
 	}
+	// entities/matches are aliased rows (eshu-hq/eshu#5566); results_field pins
+	// the asserted one explicitly instead of relying on field order.
+	if shape.ResultsField != "entities" {
+		t.Fatalf("resolve_entity results_field = %q, want %q", shape.ResultsField, "entities")
+	}
 	for key, want := range map[string]any{
 		"count":         float64(2),
 		"limit":         float64(10),
@@ -259,6 +264,11 @@ func TestGoldenSnapshotPinsCodeSearchOverflowAcrossHTTPAndMCP(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.shape.MinimumResults != 1 {
 				t.Fatalf("minimum_results = %d, want 1", tc.shape.MinimumResults)
+			}
+			// matches/results are aliased rows (eshu-hq/eshu#5566); results_field
+			// pins the asserted one explicitly.
+			if tc.shape.ResultsField != "matches" {
+				t.Fatalf("results_field = %q, want %q", tc.shape.ResultsField, "matches")
 			}
 			for key, want := range map[string]any{
 				"count":               float64(1),

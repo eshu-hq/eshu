@@ -540,6 +540,7 @@ gates:
       - "go/internal/parser/**"
       - "go/internal/relationships/**"
       - "specs/parser-backing-ledger.v1.yaml"
+      - "scripts/lib/parser_relationship_language_ledger.sh"
     local:
       command: "bash scripts/verify-parser-relationship-kit.sh"
       test_command: "bash scripts/test-verify-parser-relationship-kit.sh"
@@ -1011,6 +1012,7 @@ gates:
       - "scripts/verify-maturity-drift-guard.sh"
       - "scripts/test-verify-maturity-drift-guard.sh"
       - "scripts/lib/maturity-drift-guard-language-extensions.sh"
+      - "scripts/lib/golden-corpus-fixtures.sh"
       - "specs/ci-gates.v1.yaml"
     local:
       command: "bash scripts/verify-maturity-drift-guard.sh"
@@ -1068,6 +1070,7 @@ gates:
       - "AGENTS.md"
       - "CLAUDE.md"
       - "README.md"
+      - "scripts/lib/test-verify-docs-build-changed-fake-uv.sh"
     local:
       command: "bash scripts/verify-docs-build-changed.sh"
       test_command: "bash scripts/test-verify-docs-build-changed.sh"
@@ -1092,6 +1095,7 @@ gates:
       - "specs/ci-gates.v1.yaml"
       - "scripts/verify-docs-only-ci-skip.sh"
       - "scripts/test-verify-docs-only-ci-skip.sh"
+      - "scripts/lib/ci-gate-merge-group-checks.sh"
     local:
       command: "bash scripts/verify-docs-only-ci-skip.sh"
       test_command: "bash scripts/test-verify-docs-only-ci-skip.sh"
@@ -1587,6 +1591,7 @@ gates:
       - "scripts/verify-ifa-determinism.sh"
       - "scripts/test-verify-ifa-determinism.sh"
       - "scripts/lib/ifa_determinism_common.sh"
+      - "scripts/lib/ifa_sql_delta_live.sh"
     local:
       command: "bash scripts/test-verify-ifa-determinism.sh"
       test_command: "bash scripts/test-verify-ifa-determinism.sh"
@@ -1641,6 +1646,7 @@ gates:
       - "scripts/verify-ifa-fault-injection.sh"
       - "scripts/test-verify-ifa-fault-injection.sh"
       - "scripts/lib/ifa_fault_injection_common.sh"
+      - "scripts/lib/ifa_determinism_common.sh"
     local:
       command: "bash scripts/test-verify-ifa-fault-injection.sh"
       test_command: "bash scripts/test-verify-ifa-fault-injection.sh"
