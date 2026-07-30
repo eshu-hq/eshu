@@ -18,13 +18,13 @@ const openAPIPathsCloudInventory = `
         "summary": "List canonical multi-cloud resource identities (bounded, filterable, paginated, truth-labeled)",
         "operationId": "listCloudResourceInventory",
         "x-scoped-token-support": true,
-        "description": "Reads the reducer-owned canonical CloudResource identity rows (reducer_cloud_resource_identity). Filterable by provider (aws/gcp/azure), canonical scope, and management_origin. local_lightweight returns unsupported_capability. Scoped tokens receive rows intersected with the caller's granted repositories/ingestion scopes (fact_records.scope_id); a scoped caller with no grants receives an empty page without a query.",
+        "description": "Reads the reducer-owned canonical CloudResource identity rows (reducer_cloud_resource_identity). Filterable by provider (aws/gcp/azure), canonical scope or provider account, and management_origin. local_lightweight returns unsupported_capability. Scoped tokens receive rows intersected with the caller's granted repositories/ingestion scopes (fact_records.scope_id); a scoped caller with no grants receives an empty page without a query. account_id/project_id/subscription_id are provider-SPECIFIC aliases (aws/gcp/azure respectively) that all resolve against one shared canonical payload key with no per-provider disambiguation in the predicate itself, so each REQUIRES its matching provider: account_id requires provider=aws, project_id requires provider=gcp, subscription_id requires provider=azure. Omitting provider, or supplying a mismatched provider (e.g. provider=gcp&account_id=...), is rejected as invalid_argument rather than risking a cross-provider numeric collision (e.g. an AWS account id and a GCP project number can be the identical decimal string).",
         "parameters": [
-          {"name": "provider", "in": "query", "description": "Filter by cloud provider: aws, gcp, or azure.", "schema": {"type": "string", "enum": ["aws", "gcp", "azure"]}},
-          {"name": "scope_id", "in": "query", "description": "Filter by canonical scope id. account_id, project_id, and subscription_id are accepted aliases that target the same canonical scope.", "schema": {"type": "string"}},
-          {"name": "account_id", "in": "query", "description": "Alias for scope_id (AWS account scope).", "schema": {"type": "string"}},
-          {"name": "project_id", "in": "query", "description": "Alias for scope_id (GCP project scope).", "schema": {"type": "string"}},
-          {"name": "subscription_id", "in": "query", "description": "Alias for scope_id (Azure subscription scope).", "schema": {"type": "string"}},
+          {"name": "provider", "in": "query", "description": "Filter by cloud provider: aws, gcp, or azure. REQUIRED alongside account_id/project_id/subscription_id, and must match the alias used (account_id->aws, project_id->gcp, subscription_id->azure).", "schema": {"type": "string", "enum": ["aws", "gcp", "azure"]}},
+          {"name": "scope_id", "in": "query", "description": "Filter by the exact canonical ingestion scope id. A canonical scope is a single collector partition (for AWS, one account+region+service claim), not the whole provider account -- one account can span many scope ids. Takes precedence over account_id/project_id/subscription_id when both are given.", "schema": {"type": "string"}},
+          {"name": "account_id", "in": "query", "description": "Filter by the raw AWS account number. Requires provider=aws exactly (rejected with any other provider value). Unlike scope_id, this matches every canonical resource whose admitting aws_resource source fact carried this account_id (potentially spanning many scope ids, one per region/service partition).", "schema": {"type": "string"}},
+          {"name": "project_id", "in": "query", "description": "Filter by the raw GCP project id. Requires provider=gcp exactly (rejected with any other provider value). Matches every canonical resource whose admitting gcp_cloud_resource source fact carried this project_id.", "schema": {"type": "string"}},
+          {"name": "subscription_id", "in": "query", "description": "Filter by the raw Azure subscription id. Requires provider=azure exactly (rejected with any other provider value). Matches every canonical resource whose admitting azure_cloud_resource source fact carried this subscription_id.", "schema": {"type": "string"}},
           {"name": "management_origin", "in": "query", "description": "Filter by strongest contributing evidence layer: declared, applied, or observed.", "schema": {"type": "string", "enum": ["declared", "applied", "observed"]}},
           {"name": "limit", "in": "query", "description": "Page size.", "schema": {"type": "integer", "minimum": 1, "maximum": 200, "default": 50}},
           {"name": "cursor", "in": "query", "description": "Continuation cursor: non-negative integer offset returned in next_cursor of the previous page.", "schema": {"type": "string"}}
@@ -121,13 +121,18 @@ const openAPIPathsCloudInventory = `
                     "limit": {"type": "integer"},
                     "truncated": {"type": "boolean"},
                     "next_cursor": {"type": "string", "description": "Present only when truncated is true. Pass back as cursor to fetch the next page."},
-                    "scope": {"type": "object", "additionalProperties": {"type": "string"}}
+                    "scope": {"type": "object", "additionalProperties": {"type": "string"}},
+                    "warning_flags": {
+                      "type": "array",
+                      "items": {"type": "string", "enum": ["account_alias_rollout_gap", "account_alias_rollout_gap_check_failed"]},
+                      "description": "Present only for an account_id/project_id/subscription_id-filtered request that returned zero resources. account_alias_rollout_gap means a canonical row exists in the same provider/access scope whose payload predates the #5238 account_id rollout (admitted before the reducer started writing account_id; it will resolve once that scope's next collector sync re-admits it) -- so this zero-row response does NOT prove the account does not exist. account_alias_rollout_gap_check_failed means that disambiguation check itself could not run; absent means the check ran and found no such gap, so the zero rows are a genuine no-such-account/no-such-scope result. Never present for scope_id-filtered or unfiltered requests, or for any request that returned at least one resource, since the second query behind this signal only fires for the zero-result account-alias case."
+                    }
                   }
                 }
               }
             }
           },
-          "400": {"description": "Invalid provider, management_origin, limit, or cursor"},
+          "400": {"description": "Invalid provider, management_origin, limit, or cursor; or account_id/project_id/subscription_id supplied without provider, or with a mismatched provider (account_id requires provider=aws, project_id requires provider=gcp, subscription_id requires provider=azure)"},
           "501": {"description": "Capability unsupported by the active query profile, or canonical identity read model unavailable"}
         }
       }

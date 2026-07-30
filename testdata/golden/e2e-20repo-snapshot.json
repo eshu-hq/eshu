@@ -5575,6 +5575,20 @@
           "resources[].code_sha256_correlation.unsupported_reason": "zip_code_sha256_no_ci_counterpart"
         }
       },
+      "GET /api/v0/cloud/inventory?provider=aws&account_id=123456789012": {
+        "description": "AWS account_id selector non-vacuousness proof (#5238). Before the fix, account_id/project_id/subscription_id compared the caller's value directly against fact_records.scope_id -- an opaque, derived per-collector-partition identifier that is never literally the raw account number -- so this exact query returned zero rows against a live corpus even though the equivalent provider=aws query above returned the full awscloud supply-chain-demo set. The fix normalizes every provider's resolving source fact's own account/project/subscription identity field (aws_resource.account_id, gcp_cloud_resource.project_id, azure_cloud_resource.subscription_id) onto one canonical reducer_cloud_resource_identity payload key, \"account_id\" (go/internal/reducer/cloud_inventory_admission_writer.go), which go/internal/query/cloud_inventory_read_model.go's account_id/project_id/subscription_id selectors filter directly. The awscloud/supply-chain-demo cassette's every AWS resource carries account_id=123456789012 (ecr.repository, ecs.service, ecs.task, lambda.function), so this account_id-scoped query must return the SAME row set as the sibling provider=aws entry above -- same required_json_values, same minimum_results.",
+        "required_response_fields": [
+          "resources",
+          "count"
+        ],
+        "minimum_results": 1,
+        "results_field": "resources",
+        "required_json_values": {
+          "resources[].attributes.containers[].image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
+          "resources[].attributes.image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
+          "resources[].code_sha256_correlation.unsupported_reason": "zip_code_sha256_no_ci_counterpart"
+        }
+      },
       "GET /api/v0/cloud/resources": {
         "description": "Cloud resources readback; confirms CloudResource projection is queryable.",
         "required_response_fields": [

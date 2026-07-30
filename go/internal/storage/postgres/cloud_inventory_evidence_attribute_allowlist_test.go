@@ -24,6 +24,9 @@ func TestCloudInventoryRecordFromRowAWSRawLocatorsNotSurfaced(t *testing.T) {
 	payload := []byte(`{
 		"arn":"` + arn + `",
 		"resource_type":"aws_ecs_cluster",
+		"account_id":"000000000000",
+		"resource_id":"demo",
+		"region":"us-east-1",
 		"attributes":{
 			"uri":"https://example.invalid/raw/locator",
 			"cluster_arn":"` + arn + `"
@@ -51,6 +54,9 @@ func TestCloudInventoryRecordFromRowAWSECSTaskAllowlistFiltersRawKeys(t *testing
 	payload := []byte(`{
 		"arn":"` + arn + `",
 		"resource_type":"aws_ecs_task",
+		"account_id":"000000000000",
+		"resource_id":"demo-task",
+		"region":"us-east-1",
 		"attributes":{
 			"cluster_arn":"arn:aws:ecs:us-east-1:000000000000:cluster/demo-cluster",
 			"task_definition_arn":"arn:aws:ecs:us-east-1:000000000000:task-definition/demo:1",
@@ -109,6 +115,9 @@ func TestCloudInventoryRecordFromRowAWSLambdaAllowlistFiltersRawKeys(t *testing.
 	payload := []byte(`{
 		"arn":"` + arn + `",
 		"resource_type":"aws_lambda_function",
+		"account_id":"000000000000",
+		"resource_id":"demo",
+		"region":"us-east-1",
 		"attributes":{
 			"image_uri":"000000000000.dkr.ecr.us-east-1.amazonaws.com/demo:latest",
 			"resolved_image_uri":"000000000000.dkr.ecr.us-east-1.amazonaws.com/demo@sha256:0000000000000000000000000000000000000000000000000000000000cc",
@@ -158,6 +167,9 @@ func TestCloudInventoryRecordFromRowAWSLambdaAllowlistSurfacesPackageType(t *tes
 	payload := []byte(`{
 		"arn":"` + arn + `",
 		"resource_type":"aws_lambda_function",
+		"account_id":"000000000000",
+		"resource_id":"demo-zip",
+		"region":"us-east-1",
 		"attributes":{
 			"package_type":"Zip",
 			"code_sha256":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
@@ -197,6 +209,9 @@ func TestCloudInventoryRecordFromRowAWSAllowlistDropsNestedObjectUnderScalarKey(
 	payload := []byte(`{
 		"arn":"` + arn + `",
 		"resource_type":"aws_ecs_task",
+		"account_id":"000000000000",
+		"resource_id":"demo-task-1",
+		"region":"us-east-1",
 		"attributes":{
 			"task_definition_arn":{"cluster_arn":"arn:aws:ecs:us-east-1:000000000000:cluster/demo","role_arn":"arn:aws:iam::000000000000:role/leaked"}
 		}
@@ -226,6 +241,9 @@ func TestCloudInventoryRecordFromRowAWSAllowlistDropsNestedObjectContainerSubKey
 	payload := []byte(`{
 		"arn":"` + arn + `",
 		"resource_type":"aws_ecs_task",
+		"account_id":"000000000000",
+		"resource_id":"demo-task-2",
+		"region":"us-east-1",
 		"attributes":{
 			"containers":[
 				{"image":{"cluster_arn":"arn:aws:ecs:us-east-1:000000000000:cluster/demo","role_arn":"arn:aws:iam::000000000000:role/leaked"}}
@@ -282,6 +300,8 @@ func TestCloudInventoryRecordFromRowAzureAttributesAlwaysDropped(t *testing.T) {
 	payload := []byte(`{
 		"arm_resource_id":"` + armID + `",
 		"resource_type":"microsoft.compute/virtualmachines",
+		"subscription_id":"00000000-0000-0000-0000-000000000000",
+		"location":"eastus",
 		"attributes":{
 			"arm_resource_id":"` + armID + `",
 			"subscription_id":"00000000-0000-0000-0000-000000000000",

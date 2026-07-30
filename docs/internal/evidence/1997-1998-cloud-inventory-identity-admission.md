@@ -17,6 +17,39 @@ reducer-owned read-model facts through `PostgresCloudInventoryAdmissionWriter`
 (`cloud_inventory_admission_writer.go`, fact kind
 `reducer_cloud_resource_identity`).
 
+Each admitted resource also carries `AccountID` (issue #5238): the raw provider
+account/tenant identifier read straight from the admitting source fact's own
+identity field — `aws_resource.account_id`, `gcp_cloud_resource.project_id`,
+`azure_cloud_resource.subscription_id` (extracted per
+`cloudInventorySourceFactMapping.accountIDKey` in
+`go/internal/storage/postgres/cloud_inventory_evidence.go`) — and persisted onto
+the canonical payload under one uniform `"account_id"` key regardless of
+provider. This is deliberately NOT derived from the ingestion scope: a scope id
+is a derived, opaque per-collector-partition identifier (for AWS, one partition
+per account+region+service claim) that differs from the account number even
+within one account, so it cannot stand in for it. The
+`GET /api/v0/cloud/inventory` and MCP `list_cloud_resource_inventory`
+`account_id`/`project_id`/`subscription_id` selectors filter this field
+directly (`go/internal/query/cloud_inventory_read_model.go`).
+
+AWS `account_id` and Azure `subscription_id` are required identity fields on
+their source facts, so `AccountID` always resolves for those two providers.
+GCP `project_id` is optional (`sdk/go/factschema/gcp/v1/resource.go`) — an
+organization- or folder-level Cloud Asset Inventory asset has no project; the
+loader derives one from `full_resource_name`'s `projects/<id>` segment when
+present (`go/internal/storage/postgres/cloud_inventory_evidence_gcp_project_id.go`),
+and correctly leaves `AccountID` blank when no such segment exists.
+
+**Rollout window**: `AccountID` (and therefore the `account_id`/`project_id`/
+`subscription_id` readback selectors) only resolves for rows a generation
+admitted AFTER this fix deployed. A scope's active generation at deploy time
+was admitted by the prior reducer code and carries no `account_id` key at all;
+it stays unmatched by those selectors (`scope_id` and unfiltered reads are
+unaffected) until that scope's next collector sync admits a fresh generation.
+No forced re-sync is required — the normal collector cadence closes the gap —
+but see `docs/public/reference/http-api.md`'s Cloud Inventory Readback section
+for the operator-facing statement of this window.
+
 The admission slice is graph-neutral. Canonical graph node/edge projection
 stays in separate domains; the admission writer publishes the
 `reducer_cloud_resource_identity` Postgres read model consumed by the
