@@ -147,7 +147,7 @@ ok  	github.com/eshu-hq/eshu/go/internal/query	1.425s
   `go/internal/query/cloud_inventory_account_alias_test.go`) that refuses an
   account alias supplied without `provider` in the first place.
 
-## No-Regression Evidence
+## No-Regression Evidence:
 
 This proof exercises only the readback SQL path
 (`buildCloudInventoryIdentitiesSQL`) against hand-seeded `TEMP TABLE` fixtures
@@ -160,7 +160,7 @@ already captured during initial development of this fix, showing the
 predicate applied as a `Filter` on the existing PK-indexed join, not a new
 scan.
 
-## No-Observability-Change
+## No-Observability-Change:
 
 This proof adds no metric, span, structured log, or runtime knob; the
 readback route's existing `SpanQueryCloudInventoryReadback` span and query
