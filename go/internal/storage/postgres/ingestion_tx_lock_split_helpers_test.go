@@ -150,6 +150,26 @@ func runLockedCommitWindowWithoutBackfill(ctx context.Context, adapter SQLDB, re
 // (listOnboardedRepoScopedRelationshipFactRecordsQuery) and DiscoverEvidence a
 // realistic amount of matching work when a generation onboarding
 // newRepoAlias triggers the new-repo backfill.
+//
+// Each row's content is a genuine `module "mod" { source =
+// "git::https://github.com/.../newRepoAlias.git" }` block, not merely a bare
+// occurrence of newRepoAlias: the anchor-scoped SQL predicate is a raw `LIKE
+// ANY` substring match and does not care about shape, but
+// relationships.DiscoverEvidence's Terraform extractors do —
+// discoverTerraformModuleSourceEvidence only looks inside a `module "x" {
+// ... }` block (terraformModuleBlockPattern), and looksLikeRemoteModuleSource
+// rejects a bare alias with no URL/registry shape. A content field that only
+// satisfies the LIKE predicate (e.g. `module_source = "newRepoAlias"`, no
+// module block) makes the anchor-scoped load return every row but
+// DiscoverEvidence resolve zero real evidence for any of them — a defect this
+// helper used to have, invisible to a caller that only asserts the backfill
+// was slow (TestIngestionCommitLockSplitReducesConcurrentMaintenanceWait) but
+// deterministically fatal to one that asserts evidence was actually
+// discovered and persisted (TestIngestionCommitScopeGenerationHoldsBarrierOnlyForAtomicCommit).
+// The github.com URL form here satisfies both the LIKE predicate and the
+// EvidenceKindTerraformGitHubRepo regex pattern in terraform_evidence.go, so
+// every seeded row is real, resolvable evidence against newRepoAlias's
+// catalog entry.
 func seedAnchorMatchingCorpus(t *testing.T, ctx context.Context, adapter SQLDB, factCount int, newRepoAlias string) {
 	t.Helper()
 
@@ -211,7 +231,7 @@ VALUES ($1, $2, $3, $4, $5, 'git', $5, $6, $6, $7::jsonb)`,
 		sourceKeys[i] = factID
 		observedAts[i] = observedAt
 		payloads[i] = fmt.Sprintf(
-			`{"repo_id":%q,"artifact_type":"terraform","relative_path":"modules/mod-%d/main.tf","content":"module_source = \"%s\"\nunrelated_index = %d"}`,
+			`{"repo_id":%q,"artifact_type":"terraform","relative_path":"modules/mod-%d/main.tf","content":"module \"mod\" {\n  source = \"git::https://github.com/eshu-hq/%s.git\"\n}\nunrelated_index = %d"}`,
 			knownRepoID, i, newRepoAlias, i,
 		)
 	}
@@ -318,23 +338,78 @@ func openIngestionTxLockSplitProofDB(t *testing.T, dsn string) *sql.DB {
 // throwaway schema with the bootstrap DDL applied, and registers a t.Cleanup
 // to drop the schema unconditionally (even on t.Fatal) so a leftover
 // pg_trgm/gin_trgm_ops install in a stray schema from a crashed run can never
-// shadow the extension's normal public-schema location for a later run.
+// shadow the extension's normal public-schema location for a later run. The
+// returned handle is capped at one connection (see
+// openIngestionTxLockSplitProofSchemaConn) so every transaction it opens —
+// including CommitScopeGeneration's own post-commit backfill transaction,
+// which reuses this same *sql.DB — durably sees the pinned search_path.
+// Concurrency proofs that fan many transactions out over this schema at once
+// must NOT share this handle; they need independent per-participant handles
+// from openIngestionTxLockSplitProofClaimerDB instead, or every "concurrent"
+// transaction serializes behind this single connection.
 func openIngestionTxLockSplitProofSchema(t *testing.T, dsn string) (*sql.DB, string) {
 	t.Helper()
-	db := openIngestionTxLockSplitProofDB(t, dsn)
 	schemaName := fmt.Sprintf("ingestion_tx_lock_split_proof_%d", time.Now().UnixNano())
 	ctx := context.Background()
+	db := openIngestionTxLockSplitProofSchemaConn(t, ctx, dsn, schemaName)
 	if _, err := db.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
 		t.Fatalf("create proof schema: %v", err)
 	}
 	t.Cleanup(func() {
 		_, _ = db.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
 	})
-	if _, err := db.ExecContext(ctx, "SET search_path TO "+schemaName+", public"); err != nil {
-		t.Fatalf("set search_path: %v", err)
-	}
 	if err := ApplyBootstrap(ctx, SQLDB{DB: db}); err != nil {
 		t.Fatalf("apply bootstrap schema: %v", err)
 	}
 	return db, schemaName
+}
+
+// openIngestionTxLockSplitProofSchemaConn opens a pgx handle capped at one
+// connection and pins its session-local search_path to schemaName. The
+// single-connection cap is what keeps SET search_path durable for the
+// handle: search_path is connection-local, so a multi-connection pool would
+// hand out fresh connections that no longer see the schema's tables — the
+// exact defect this helper exists to close (a *sql.DB pool that ran SET
+// search_path on only one pooled connection produced deterministic
+// "relation does not exist" errors once any concurrent caller, including
+// CommitScopeGeneration's own sequential post-commit backfill transaction,
+// drew a different connection from the same pool). Each handle still
+// represents one live connection, so distinct handles (see
+// openIngestionTxLockSplitProofClaimerDB) run genuinely concurrently against
+// the same schema.
+func openIngestionTxLockSplitProofSchemaConn(t *testing.T, ctx context.Context, dsn, schemaName string) *sql.DB {
+	t.Helper()
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open postgres: %v", err)
+	}
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	t.Cleanup(func() { _ = db.Close() })
+	if err := db.PingContext(ctx); err != nil {
+		t.Fatalf("ping postgres: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, "SET search_path TO "+schemaName+", public"); err != nil {
+		t.Fatalf("set search_path: %v", err)
+	}
+	return db
+}
+
+// openIngestionTxLockSplitProofClaimerDB opens an independent single-
+// connection handle bound to an already-created proof schema (created by a
+// prior call to openIngestionTxLockSplitProofSchema). Concurrency proofs give
+// each concurrent participant — an ingestion commit goroutine or a
+// maintenance exclusive-lock batch goroutine — its own handle so that N
+// participants hold N live Postgres connections/sessions and their
+// transactions and advisory locks genuinely interleave and contend at the
+// database. Postgres advisory locks are session-scoped: sharing one
+// single-connection handle across "concurrent" goroutines would serialize
+// every transaction behind that one physical connection, making it
+// impossible for two sessions to ever contend for the same advisory lock —
+// which would make TestIngestionCommitAndMaintenanceLockOrderingNeverDeadlocks
+// pass vacuously without ever exercising the lock-ordering guarantee it
+// claims to prove.
+func openIngestionTxLockSplitProofClaimerDB(t *testing.T, ctx context.Context, dsn, schemaName string) *sql.DB {
+	t.Helper()
+	return openIngestionTxLockSplitProofSchemaConn(t, ctx, dsn, schemaName)
 }

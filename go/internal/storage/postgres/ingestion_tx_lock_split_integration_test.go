@@ -201,7 +201,7 @@ func TestIngestionCommitScopeGenerationHoldsBarrierOnlyForAtomicCommit(t *testin
 func TestIngestionCommitAndMaintenanceLockOrderingNeverDeadlocks(t *testing.T) {
 	dsn := ingestionTxLockSplitProofDSN(t)
 	ctx := context.Background()
-	db, _ := openIngestionTxLockSplitProofSchema(t, dsn)
+	db, schemaName := openIngestionTxLockSplitProofSchema(t, dsn)
 	adapter := SQLDB{DB: db}
 
 	const repoCount = 6
@@ -211,7 +211,22 @@ func TestIngestionCommitAndMaintenanceLockOrderingNeverDeadlocks(t *testing.T) {
 		repoKeys[i] = fmt.Sprintf("repo-deadlock-proof-%d", i)
 	}
 
-	// Seed one active generation per repo so commits have a known prior state.
+	// Seed one generation per repo so commits have a known prior state. Status
+	// is Pending, matching every real production caller of
+	// CommitScopeGeneration (e.g. the git collector's Source, which always
+	// submits GenerationStatusPending — see git_source_processing.go):
+	// commitScopeGeneration never supersedes a scope's prior active generation
+	// itself, only the projector queue's activate/supersede queries do
+	// (activateProjectorGenerationQuery / supersedeProjectorActiveGenerationQuery
+	// in projector_queue_sql.go), and this test never runs the projector.
+	// Seeding (or committing below) as Active writes straight into
+	// ingestion_scopes.active_generation_id (activeGenerationID/
+	// activeTimestamp in ingestion.go gate on Status == Active) without ever
+	// superseding the previous active row, which deterministically violates
+	// scope_generations_active_scope_idx on the scope's second commit — a
+	// second, latent test-setup defect that the #4451 connection-pinning fix
+	// exposed by letting every commit finally reach the INSERT instead of
+	// failing earlier on a stray connection with no search_path.
 	for i, repoKey := range repoKeys {
 		scopeValue := scope.IngestionScope{
 			ScopeID:       fmt.Sprintf("git:scope-deadlock-%d", i),
@@ -225,7 +240,7 @@ func TestIngestionCommitAndMaintenanceLockOrderingNeverDeadlocks(t *testing.T) {
 			ScopeID:      scopeValue.ScopeID,
 			ObservedAt:   time.Date(2026, time.July, 1, 0, 0, 0, 0, time.UTC),
 			IngestedAt:   time.Date(2026, time.July, 1, 0, 0, 0, 0, time.UTC),
-			Status:       scope.GenerationStatusActive,
+			Status:       scope.GenerationStatusPending,
 			TriggerKind:  scope.TriggerKindSnapshot,
 		}
 		store := NewIngestionStore(adapter)
@@ -236,6 +251,32 @@ func TestIngestionCommitAndMaintenanceLockOrderingNeverDeadlocks(t *testing.T) {
 		); err != nil {
 			t.Fatalf("seed repo %d: CommitScopeGeneration() error = %v, want nil", i, err)
 		}
+	}
+
+	// Each concurrent participant below (one per repo per round for ingestion
+	// commits, plus two per round for the ascending/descending maintenance
+	// batches) gets its own single-connection handle bound to schemaName,
+	// rather than sharing the schema-owner `adapter` above. Postgres advisory
+	// locks are session-scoped, and a *sql.DB capped at one connection
+	// serializes every goroutine that shares it onto that one physical
+	// connection/session — so sharing `adapter` here would make it
+	// impossible for two "concurrent" transactions to ever actually contend
+	// for the same advisory lock, and this deadlock/lock-ordering proof would
+	// pass vacuously without exercising anything. Handles are opened once, up
+	// front, on the main test goroutine (t.Fatalf/t.Fatal inside
+	// openIngestionTxLockSplitProofClaimerDB is documented unsafe to call
+	// from a spawned goroutine) and reused across rounds: each round's
+	// wg.Wait() makes rounds strictly sequential even though the
+	// repoCount+2 participants within a single round run concurrently, so
+	// reusing per-slot handles across rounds does not reintroduce sharing
+	// within a round.
+	commitAdapters := make([]SQLDB, repoCount)
+	for i := range commitAdapters {
+		commitAdapters[i] = SQLDB{DB: openIngestionTxLockSplitProofClaimerDB(t, ctx, dsn, schemaName)}
+	}
+	maintenanceAdapters := [2]SQLDB{
+		{DB: openIngestionTxLockSplitProofClaimerDB(t, ctx, dsn, schemaName)},
+		{DB: openIngestionTxLockSplitProofClaimerDB(t, ctx, dsn, schemaName)},
 	}
 
 	deadline := time.After(30 * time.Second)
@@ -261,15 +302,20 @@ func TestIngestionCommitAndMaintenanceLockOrderingNeverDeadlocks(t *testing.T) {
 						CollectorKind: scope.CollectorGit,
 						PartitionKey:  repoKey,
 					}
+					// Status is Pending, same as the seed loop above: repeated
+					// same-scope commits across rounds must not each claim
+					// Active, or they deterministically collide on
+					// scope_generations_active_scope_idx since nothing in this
+					// test runs the projector queue's supersede step.
 					gen := scope.ScopeGeneration{
 						GenerationID: fmt.Sprintf("gen-deadlock-r%d-%d", round, i),
 						ScopeID:      scopeValue.ScopeID,
 						ObservedAt:   time.Date(2026, time.July, 1, 1, 0, 0, 0, time.UTC).Add(time.Duration(round) * time.Minute),
 						IngestedAt:   time.Date(2026, time.July, 1, 1, 0, 0, 0, time.UTC).Add(time.Duration(round) * time.Minute),
-						Status:       scope.GenerationStatusActive,
+						Status:       scope.GenerationStatusPending,
 						TriggerKind:  scope.TriggerKindSnapshot,
 					}
-					store := NewIngestionStore(adapter)
+					store := NewIngestionStore(commitAdapters[i])
 					store.Now = func() time.Time { return gen.IngestedAt }
 					if err := store.CommitScopeGeneration(
 						ctx, scopeValue, gen,
@@ -292,12 +338,12 @@ func TestIngestionCommitAndMaintenanceLockOrderingNeverDeadlocks(t *testing.T) {
 			for i, k := range repoKeys {
 				descending[len(repoKeys)-1-i] = k
 			}
-			for _, batch := range [][]string{ascending, descending} {
-				batch := batch
+			for bi, batch := range [][]string{ascending, descending} {
+				bi, batch := bi, batch
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
-					tx, err := adapter.Begin(ctx)
+					tx, err := maintenanceAdapters[bi].Begin(ctx)
 					if err != nil {
 						t.Errorf("begin maintenance batch tx: %v", err)
 						atomic.AddInt32(&failures, 1)
