@@ -319,6 +319,11 @@ func openReducerSupersedeReadinessDB(t *testing.T, ctx context.Context, dsn stri
 		MigrationSQL("scope_generations"),
 		MigrationSQL("fact_work_items"),
 		reducerClaimCapabilityColumnsSchemaSQL,
+		// migration 088 (#5848/#5837): fact_work_items.reopened_at, read by the
+		// claim query as COALESCE(reopened_at, created_at). A fixture that
+		// applies the base table without this ALTER makes every Claim() fail
+		// with `column work.reopened_at does not exist`.
+		MigrationSQL("reducer_work_item_reopened_at"),
 		graphProjectionPhaseStateSchemaSQL,
 	} {
 		if _, err := db.ExecContext(ctx, stmt); err != nil {
