@@ -376,6 +376,7 @@ func TestResolveInfraRelationshipTypes(t *testing.T) {
 		{name: "module_consumers alias", input: "module_consumers", wantTypes: []string{"USES_MODULE"}, wantOK: true},
 		{name: "who_consumes_xrd alias", input: "who_consumes_xrd", wantTypes: []string{"USES_MODULE"}, wantOK: true},
 		{name: "what_runs_image alias", input: "what_runs_image", wantTypes: []string{"RUNS_IMAGE"}, wantOK: true},
+		{name: "what_runs_lambda_image alias", input: "what_runs_lambda_image", wantTypes: []string{"AWS_lambda_function_uses_image"}, wantOK: true},
 		{name: "alias is case-insensitive", input: "WHAT_DEPLOYS", wantTypes: []string{"DEPLOYS_FROM", "DEPLOYMENT_SOURCE", "HAS_DEPLOYMENT_EVIDENCE"}, wantOK: true},
 		{name: "canonical edge type", input: "DEPLOYS_FROM", wantTypes: []string{"DEPLOYS_FROM"}, wantOK: true},
 		{name: "canonical edge type lower", input: "uses_module", wantTypes: []string{"USES_MODULE"}, wantOK: true},
