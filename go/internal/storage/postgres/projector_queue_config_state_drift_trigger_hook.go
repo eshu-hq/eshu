@@ -30,6 +30,19 @@ type ConfigStateDriftTrigger interface {
 // go/internal/scope/tfstate.go:33-40).
 const configStateDriftTriggerScopePrefix = "state_snapshot:"
 
+// bootstrapIndexProjectorLeaseOwner is the exact LeaseOwner literal
+// cmd/bootstrap-index/wiring.go passes to postgres.NewProjectorQueue
+// (`postgres.NewProjectorQueue(instrumentedDB, "bootstrap-index", ...)`).
+// runConfigStateDriftTriggerHook uses it as a runtime guard (issue #5593):
+// "MUST NOT be wired on bootstrap-index's ProjectorQueue" was
+// previously enforced only by this file's doc comment, AGENTS.md, and
+// doc.go -- wire it there by accident (e.g. by copying cmd/ingester/wiring.go's
+// ConfigStateDriftTrigger assignment) and nothing would have stopped the
+// exact Phase-1 ordering race those docs describe. This constant makes the
+// constraint mechanical: even a mis-wired ConfigStateDriftTrigger on a
+// bootstrap-index-owned queue never fires.
+const bootstrapIndexProjectorLeaseOwner = "bootstrap-index"
+
 // runConfigStateDriftTriggerHook calls the wired ConfigStateDriftTrigger
 // AFTER Ack's own transaction has committed, mirroring
 // runCrossplaneRedriveHook's ordering rationale (issue #5476): the
@@ -87,6 +100,25 @@ const configStateDriftTriggerScopePrefix = "state_snapshot:"
 // ingester's ProjectorQueue.
 func (q ProjectorQueue) runConfigStateDriftTriggerHook(ctx context.Context, work projector.ScopeGenerationWork) {
 	if q.ConfigStateDriftTrigger == nil {
+		return
+	}
+	if q.LeaseOwner == bootstrapIndexProjectorLeaseOwner {
+		// Structural guard, not just documentation: refuse to fire even if a
+		// future edit mis-wires ConfigStateDriftTrigger on bootstrap-index's
+		// queue. Loud on purpose (ERROR log + counter) so the misconfiguration
+		// is visible immediately instead of showing up weeks later as
+		// under-evaluated config_state_drift generations from the Phase-1
+		// ordering race this guard exists to prevent.
+		slog.ErrorContext(
+			ctx, "config state drift runtime trigger is wired on bootstrap-index's ProjectorQueue; refusing to fire",
+			"scope_id", work.Scope.ScopeID,
+			"generation_id", work.Generation.GenerationID,
+		)
+		if q.Instruments != nil && q.Instruments.ConfigStateDriftRuntimeTriggerFailures != nil {
+			q.Instruments.ConfigStateDriftRuntimeTriggerFailures.Add(ctx, 1, metric.WithAttributes(
+				telemetry.AttrOutcome("bootstrap_wiring_rejected"),
+			))
+		}
 		return
 	}
 	if !strings.HasPrefix(work.Scope.ScopeID, configStateDriftTriggerScopePrefix) {

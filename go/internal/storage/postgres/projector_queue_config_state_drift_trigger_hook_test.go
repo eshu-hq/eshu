@@ -220,6 +220,54 @@ func TestProjectorQueueAckSkipsConfigStateDriftTriggerForNonStateSnapshotScope(t
 	}
 }
 
+// TestProjectorQueueAckRefusesConfigStateDriftTriggerWhenLeaseOwnerIsBootstrapIndex
+// proves the issue #5593 bootstrap-wiring guard fix: "MUST NOT be wired on bootstrap-index's
+// ProjectorQueue" is a runtime guard, not only a doc comment. Even when a
+// future edit mistakenly sets ConfigStateDriftTrigger on the ProjectorQueue
+// bootstrap-index constructs (LeaseOwner "bootstrap-index", the exact literal
+// cmd/bootstrap-index/wiring.go passes to NewProjectorQueue), the hook must
+// refuse to call it -- proving the Phase-1 ordering race the doc comment
+// describes cannot be reintroduced by a silent wiring accident.
+func TestProjectorQueueAckRefusesConfigStateDriftTriggerWhenLeaseOwnerIsBootstrapIndex(t *testing.T) {
+	var log []string
+	var triggerArgs [][2]string
+	fake := configStateDriftTriggerHookFake{log: &log, triggerArgs: &triggerArgs}
+	inst, reader := newEnqueueInstruments(t)
+
+	queue := ProjectorQueue{
+		db: fake,
+		// The exact LeaseOwner literal cmd/bootstrap-index/wiring.go passes to
+		// postgres.NewProjectorQueue(instrumentedDB, "bootstrap-index", ...).
+		LeaseOwner:              "bootstrap-index",
+		LeaseDuration:           time.Minute,
+		ConfigStateDriftTrigger: fake,
+		Instruments:             inst,
+	}
+
+	work := projector.ScopeGenerationWork{
+		Scope:      scope.IngestionScope{ScopeID: "state_snapshot:s3:hash-1"},
+		Generation: scope.ScopeGeneration{GenerationID: "gen-state-1"},
+	}
+
+	if err := queue.Ack(context.Background(), work, projector.Result{}); err != nil {
+		t.Fatalf("Ack: %v", err)
+	}
+
+	if len(triggerArgs) != 0 {
+		t.Fatalf("expected NO TriggerConfigStateDrift call when LeaseOwner is bootstrap-index, got %v", triggerArgs)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	metricName := "eshu_dp_config_state_drift_runtime_trigger_failures_total"
+	if got, want := counterTotal(rm, metricName), int64(1); got != want {
+		t.Fatalf("%s = %d, want %d", metricName, got, want)
+	}
+	assertCounterPresentWithLabels(t, rm, metricName, map[string]string{"outcome": "bootstrap_wiring_rejected"})
+}
+
 // TestProjectorQueueAckSkipsConfigStateDriftTriggerWhenNilTrigger proves the
 // hook is a pure no-op (never panics, never adds latency) when
 // ConfigStateDriftTrigger is unwired -- the default for every existing caller

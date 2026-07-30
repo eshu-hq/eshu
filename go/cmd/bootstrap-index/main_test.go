@@ -299,3 +299,37 @@ func TestBuildBootstrapProjectorClaimsOnlyGitScopes(t *testing.T) {
 		t.Fatalf("ClaimSourceSystem = %q, want %q", got, want)
 	}
 }
+
+// TestBuildBootstrapProjectorNeverWiresConfigStateDriftTrigger is the cheap
+// half of the issue #5593 bootstrap-wiring guard fix: bootstrap-index's own wiring must never
+// set ConfigStateDriftTrigger (postgres.ProjectorQueue.runConfigStateDriftTriggerHook's
+// LeaseOwner=="bootstrap-index" guard is the structural half -- this test
+// guards the wiring path itself, so a regression here is caught even before
+// any Ack call would exercise the runtime guard).
+func TestBuildBootstrapProjectorNeverWiresConfigStateDriftTrigger(t *testing.T) {
+	t.Parallel()
+
+	deps, err := buildBootstrapProjector(
+		context.Background(),
+		&fakeBootstrapSQLDB{},
+		&noopCanonicalWriter{},
+		func(string) string { return "" },
+		nil,
+		nil,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("buildBootstrapProjector() error = %v, want nil", err)
+	}
+
+	queue, ok := deps.workSource.(postgres.ProjectorQueue)
+	if !ok {
+		t.Fatalf("buildBootstrapProjector() workSource type = %T, want postgres.ProjectorQueue", deps.workSource)
+	}
+	if queue.ConfigStateDriftTrigger != nil {
+		t.Fatalf("buildBootstrapProjector() wired ConfigStateDriftTrigger = %#v, want nil -- bootstrap-index MUST NOT enqueue config_state_drift on Ack (see postgres.ProjectorQueue.ConfigStateDriftTrigger's doc comment)", queue.ConfigStateDriftTrigger)
+	}
+	if got, want := queue.LeaseOwner, "bootstrap-index"; got != want {
+		t.Fatalf("LeaseOwner = %q, want %q -- the runtime guard in runConfigStateDriftTriggerHook keys off this exact literal", got, want)
+	}
+}
