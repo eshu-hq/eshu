@@ -33,12 +33,6 @@ func cloudRuntimeDriftFindingViews(rows []MultiCloudRuntimeDriftFindingRow) []Cl
 			MissingEvidence:              row.MissingEvidence,
 			RecommendedAction:            row.RecommendedAction,
 			DriftedAttributes:            row.DriftedAttributes,
-			MatchedTerraformConfigFile:   row.MatchedTerraformConfigFile,
-			MatchedTerraformModulePath:   row.MatchedTerraformModulePath,
-			MatchedOtherIaCSource:        row.MatchedOtherIaCSource,
-			ServiceCandidates:            row.ServiceCandidates,
-			EnvironmentCandidates:        row.EnvironmentCandidates,
-			DependencyPaths:              row.DependencyPaths,
 			SafetyGate:                   gate,
 		})
 	}

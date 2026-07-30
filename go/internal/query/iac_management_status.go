@@ -167,11 +167,22 @@ func recommendedActionForManagementStatus(status string) string {
 	}
 }
 
+// warningFlagsForManagementFinding is the single, shared read-time warning-
+// flag classification for an AWS runtime-drift finding (#5759 follow-up
+// P1-1). It is called both by awsRuntimeDriftRowToIaCManagement
+// (list_aws_runtime_drift_findings, find_unmanaged_resources) and by
+// awsCloudRuntimeDriftDerivedStatus (iac_management_transform.go), which the
+// provider-neutral aggregate surface's awsCloudRuntimeDriftRowToNeutral
+// (cloud_runtime_drift_aggregate.go) depends on -- so the SAME row can never
+// produce two different safety verdicts across the two surfaces.
+// hasTagEvidence only needs to report presence, not the tag values
+// themselves: this function never reads a tag's value, only whether at least
+// one exists.
 func warningFlagsForManagementFinding(
 	status string,
 	resourceType string,
 	resourceID string,
-	tags map[string]string,
+	hasTagEvidence bool,
 ) []string {
 	var warnings []string
 	switch status {
@@ -185,7 +196,7 @@ func warningFlagsForManagementFinding(
 	if securitySensitiveAWSResource(resourceType, resourceID) {
 		warnings = append(warnings, "security_sensitive_resource")
 	}
-	if len(tags) > 0 {
+	if hasTagEvidence {
 		warnings = append(warnings, "raw_tags_provenance_only")
 	}
 	return iacMergeStringSets(warnings, nil)

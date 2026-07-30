@@ -42,34 +42,48 @@ func cloudRuntimeDriftAggregateRowFromStore(
 //     A malformed/unresolvable ARN yields an empty CloudResourceUID -- never
 //     a fabricated one -- matching ResolveProviderIdentity's own "never
 //     invent canonical truth" contract.
-//   - AWS-only enrichment: the AWS-specific reducer domain computes six
-//     fields (MatchedTerraformConfigFile/ModulePath, MatchedOtherIaCSource,
-//     ServiceCandidates, EnvironmentCandidates, DependencyPaths) that the
-//     provider-neutral domain does not compute for GCP/Azure. Rather than
-//     drop them (losing real AWS evidence) or synthesize an empty-but-present
-//     value for GCP/Azure (inventing agreement that does not exist),
-//     MultiCloudRuntimeDriftFindingRow/CloudRuntimeDriftFindingView carry
-//     them as provider-conditional fields: populated only here, for
-//     AWS-origin rows, and always absent (omitempty on the wire) for
-//     GCP/Azure ones. The response is honest about which provider actually
-//     produced which field instead of defaulting one shape's absence onto
-//     the other's presence.
-//   - Everything else (FindingKind, ManagementStatus, Confidence,
-//     MatchedTerraformStateAddress, MissingEvidence, WarningFlags,
+//   - Safety verdict (#5759 follow-up P1-1, hostile-review finding): status,
+//     missing evidence, and warning flags are computed by
+//     awsCloudRuntimeDriftDerivedStatus (iac_management_transform.go), the
+//     SAME shared derivation awsRuntimeDriftRowToIaCManagement
+//     (list_aws_runtime_drift_findings) uses -- NOT a verbatim copy of
+//     row.WarningFlags. A naive copy silently under-reports the safety gate:
+//     warningFlagsForManagementFinding adds security_sensitive_resource for
+//     an iam/kms/secretsmanager/ssm/rds/certain-ec2-subtype/
+//     elasticloadbalancing/cloudfront/route53 ARN and raw_tags_provenance_only
+//     when tag evidence is present, and neither flag is ever written by the
+//     reducer -- both are read-time-only classifications. Reusing the SAME
+//     function (not a reimplementation) means the identical row always
+//     produces the identical safety verdict on both surfaces; see
+//     TestAWSCloudRuntimeDriftRowToNeutralSafetyGateMatchesAWSSurface.
+//   - The six AWS-only IaC-source enrichment fields
+//     (MatchedTerraformConfigFile/ModulePath, MatchedOtherIaCSource,
+//     ServiceCandidates, EnvironmentCandidates, DependencyPaths) that
+//     IaCManagementFindingRow also carries are DELIBERATELY NOT projected
+//     here (#5759 follow-up P1-2, hostile-review finding): traced write to
+//     read, reducerderivedv1.AWSCloudRuntimeDriftFinding has no fields for
+//     them, awsCloudRuntimeDriftTypedPayload never sets them, and the evidence-atom
+//     types iacManagementEvidenceEnrichment.recordEvidence matches
+//     (service_candidate, environment_candidate, dependency_path,
+//     terraform_config_resource with key file_path/relative_path/module_path,
+//     any cloudformation/cdk/pulumi/crossplane/serverless/other_iac_resource
+//     evidence type) are never emitted by cloudruntime.buildOneCandidate --
+//     confirmed by exhaustive repo search, zero producers anywhere. They are
+//     structurally unreachable on ANY real fact, on EITHER surface, not just
+//     this one; a hand-built test fixture that sets them proves nothing about
+//     production behavior. Projecting them here (even mirroring
+//     IaCManagementFindingRow's own dead fields) would document a capability
+//     that cannot fire, which is exactly the defect this fix removes rather
+//     than relocates. The pre-existing dead fields on IaCManagementFindingRow/
+//     list_aws_runtime_drift_findings are out of this issue's scope and are
+//     flagged separately.
+//   - Everything else (FindingKind, Confidence, MatchedTerraformStateAddress,
 //     RecommendedAction, and the DriftedAttributes evidence projection) uses
 //     the SAME field names and vocabulary in both payloads, so this mapping
-//     copies them directly rather than re-deriving them. It deliberately does
-//     NOT replicate awsRuntimeDriftRowToIaCManagement's ARN-based evidence
-//     re-derivation (iac_management_transform.go) -- that logic is specific
-//     to the AWS-only list_aws_runtime_drift_findings/ListUnmanagedCloudResources
-//     contract and has no GCP/Azure equivalent; reusing it here would give
-//     AWS-origin rows richer derived truth than GCP/Azure rows on this same
-//     surface can ever carry. Treating every provider identically (trust the
-//     reducer's own stored fields) is what multiCloudRuntimeDriftRowFromStore
-//     already does for GCP/Azure, so this keeps the neutral surface's
-//     semantics uniform across all three providers.
+//     copies them directly.
 func awsCloudRuntimeDriftRowToNeutral(row postgres.AWSCloudRuntimeDriftFindingRow) MultiCloudRuntimeDriftFindingRow {
 	resolution := cloudinventory.ResolveProviderIdentity(cloudinventory.ProviderAWS, row.ARN)
+	status, missingEvidence, warningFlags := awsCloudRuntimeDriftDerivedStatus(row)
 	return MultiCloudRuntimeDriftFindingRow{
 		FactID:                       row.FactID,
 		ScopeID:                      row.ScopeID,
@@ -79,19 +93,13 @@ func awsCloudRuntimeDriftRowToNeutral(row postgres.AWSCloudRuntimeDriftFindingRo
 		CloudResourceUID:             resolution.CloudResourceUID,
 		RawIdentity:                  row.ARN,
 		FindingKind:                  row.FindingKind,
-		ManagementStatus:             row.ManagementStatus,
+		ManagementStatus:             status,
 		Confidence:                   row.Confidence,
 		MatchedTerraformStateAddress: row.MatchedTerraformStateAddress,
-		MissingEvidence:              row.MissingEvidence,
-		WarningFlags:                 row.WarningFlags,
+		MissingEvidence:              missingEvidence,
+		WarningFlags:                 warningFlags,
 		RecommendedAction:            row.RecommendedAction,
 		DriftedAttributes:            driftedAttributesFromAWSEvidence(row.Evidence),
-		MatchedTerraformConfigFile:   row.MatchedTerraformConfigFile,
-		MatchedTerraformModulePath:   row.MatchedTerraformModulePath,
-		MatchedOtherIaCSource:        row.MatchedOtherIaCSource,
-		ServiceCandidates:            row.ServiceCandidates,
-		EnvironmentCandidates:        row.EnvironmentCandidates,
-		DependencyPaths:              row.DependencyPaths,
 	}
 }
 

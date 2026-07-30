@@ -18,12 +18,12 @@ package query
 // image_version_drift finding, it carries the bounded declared/observed value
 // pairs (e.g. ami, image_uri, version) the finding is ABOUT -- a
 // purpose-built projection of two evidence atoms per attribute, never the
-// full raw evidence-atom list. matched_terraform_config_file,
-// matched_terraform_module_path, matched_other_iac_source,
-// service_candidates, environment_candidates, and dependency_paths are
-// AWS-only enrichment the AWS-specific reducer domain computes; they are
-// present only on aws-origin findings and absent (never a fabricated empty
-// value) on gcp/azure ones.
+// full raw evidence-atom list. An aws-origin finding's management_status,
+// missing_evidence, and warning_flags (folded into safety_gate) are derived
+// through the SAME classification list_aws_runtime_drift_findings uses
+// (awsCloudRuntimeDriftDerivedStatus, #5759 follow-up P1-1), so the identical
+// underlying reducer row never produces two different safety verdicts
+// depending on which route reads it.
 const openAPIPathsCloudRuntimeDrift = `
     "/api/v0/cloud/runtime-drift/findings": {
       "post": {
@@ -104,12 +104,6 @@ const openAPIPathsCloudRuntimeDrift = `
                           "matched_terraform_state_address": {"type": "string"},
                           "missing_evidence": {"type": "array", "items": {"type": "string"}},
                           "recommended_action": {"type": "string"},
-                          "matched_terraform_config_file": {"type": "string", "description": "AWS-only enrichment; present only on aws-origin findings."},
-                          "matched_terraform_module_path": {"type": "string", "description": "AWS-only enrichment; present only on aws-origin findings."},
-                          "matched_other_iac_source": {"type": "string", "description": "AWS-only enrichment; present only on aws-origin findings."},
-                          "service_candidates": {"type": "array", "items": {"type": "string"}, "description": "AWS-only enrichment; present only on aws-origin findings."},
-                          "environment_candidates": {"type": "array", "items": {"type": "string"}, "description": "AWS-only enrichment; present only on aws-origin findings."},
-                          "dependency_paths": {"type": "array", "items": {"type": "string"}, "description": "AWS-only enrichment; present only on aws-origin findings."},
                           "drifted_attributes": {
                             "type": "array",
                             "description": "Bounded declared/observed value pairs for an image_version_drift finding (ami, image_uri, version, or the ECS container image comparison). Empty for orphaned/unmanaged/unknown/ambiguous findings.",

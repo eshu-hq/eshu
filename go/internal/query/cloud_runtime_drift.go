@@ -109,25 +109,22 @@ type MultiCloudRuntimeDriftFindingRow struct {
 	// readback (#5453); see CloudRuntimeDriftFindingView for the wire
 	// contract this feeds.
 	DriftedAttributes []DriftedAttributeView
-	// MatchedTerraformConfigFile, MatchedTerraformModulePath, and
-	// MatchedOtherIaCSource are richer IaC-source enrichment the AWS-specific
-	// reducer domain computes that the provider-neutral domain does not (yet)
-	// compute for GCP/Azure (#5759 follow-up: aggregating the AWS-specific
-	// fact kind onto this surface). They are populated only for AWS-origin
-	// findings; a GCP/Azure finding always carries them empty rather than a
-	// fabricated value, and the wire view omits them entirely when empty so
-	// "empty" and "not computed for this provider" are never confused with a
-	// disclosed negative finding.
-	MatchedTerraformConfigFile string
-	MatchedTerraformModulePath string
-	MatchedOtherIaCSource      string
-	// ServiceCandidates, EnvironmentCandidates, and DependencyPaths are the
-	// same AWS-only enrichment as above: populated only for AWS-origin
-	// findings, always empty for GCP/Azure ones.
-	ServiceCandidates     []string
-	EnvironmentCandidates []string
-	DependencyPaths       []string
 }
+
+// The AWS-specific finding row (postgres.AWSCloudRuntimeDriftFindingRow) also
+// carries MatchedTerraformConfigFile/ModulePath, MatchedOtherIaCSource,
+// ServiceCandidates, EnvironmentCandidates, and DependencyPaths.
+// MultiCloudRuntimeDriftFindingRow deliberately does NOT project them
+// (#5759 follow-up P1-2, hostile-review finding): traced write to read,
+// reducerderivedv1.AWSCloudRuntimeDriftFinding has no fields for them,
+// awsCloudRuntimeDriftTypedPayload (go/internal/reducer/aws_cloud_runtime_drift_writer.go)
+// never sets them, and the evidence-atom shapes
+// iacManagementEvidenceEnrichment.recordEvidence matches are never emitted by
+// cloudruntime.buildOneCandidate -- confirmed by exhaustive repo search, zero
+// producers anywhere. They are structurally unreachable on any real fact, on
+// either the AWS-specific or the provider-neutral surface. Do not add them
+// back without first proving a real producer exists; a hand-built test
+// fixture that sets them proves nothing about production behavior.
 
 // DriftedAttributeView is one declared/observed value pair for an
 // image_version_drift finding's comparable attribute (ami, image_uri,
@@ -217,21 +214,8 @@ type CloudRuntimeDriftFindingView struct {
 	// DriftedAttributes carries the bounded declared/observed value pairs for
 	// an image_version_drift finding (#5453). Empty for orphaned/unmanaged/
 	// unknown/ambiguous findings, which carry no comparable value evidence.
-	DriftedAttributes []DriftedAttributeView `json:"drifted_attributes,omitempty"`
-	// MatchedTerraformConfigFile, MatchedTerraformModulePath,
-	// MatchedOtherIaCSource, ServiceCandidates, EnvironmentCandidates, and
-	// DependencyPaths are AWS-only IaC-source enrichment carried through when
-	// this finding is AWS-origin (#5759 follow-up aggregation); they are
-	// omitted entirely, not defaulted to a fabricated value, for GCP/Azure
-	// findings, which the provider-neutral reducer domain does not compute
-	// them for.
-	MatchedTerraformConfigFile string                  `json:"matched_terraform_config_file,omitempty"`
-	MatchedTerraformModulePath string                  `json:"matched_terraform_module_path,omitempty"`
-	MatchedOtherIaCSource      string                  `json:"matched_other_iac_source,omitempty"`
-	ServiceCandidates          []string                `json:"service_candidates,omitempty"`
-	EnvironmentCandidates      []string                `json:"environment_candidates,omitempty"`
-	DependencyPaths            []string                `json:"dependency_paths,omitempty"`
-	SafetyGate                 IaCManagementSafetyGate `json:"safety_gate"`
+	DriftedAttributes []DriftedAttributeView  `json:"drifted_attributes,omitempty"`
+	SafetyGate        IaCManagementSafetyGate `json:"safety_gate"`
 }
 
 // Mount registers the provider-neutral runtime drift readback route.

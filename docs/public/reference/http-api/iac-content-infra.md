@@ -337,21 +337,21 @@ duplicate-free across the merged, multi-provider result set.
 Each `drift_findings[]` item carries a provider-neutral identity, finding kind,
 management status, source state, missing evidence, recommended action, and
 safety gate. Raw provider locators (including the AWS ARN) and raw evidence
-atoms are not returned. An AWS-origin finding additionally carries AWS-only
-IaC-source enrichment the AWS-specific reducer domain computes --
-`matched_terraform_config_file`, `matched_terraform_module_path`,
-`matched_other_iac_source`, `service_candidates`, `environment_candidates`,
-and `dependency_paths` -- fields a GCP/Azure finding never carries because the
-provider-neutral domain does not compute them; they are omitted, not
-defaulted to an empty value, on non-AWS findings. Unsafe or ambiguous findings
-are reported with rejected source state and refused actions rather than
-silently omitted. Lightweight local profiles return `501
+atoms are not returned. An AWS-origin finding's management status, missing
+evidence, and warning flags (folded into `safety_gate`) are derived through
+`awsCloudRuntimeDriftDerivedStatus`, the SAME classification
+`POST /api/v0/aws/runtime-drift/findings` uses -- not a verbatim copy of the
+reducer's stored fields -- so the identical underlying row can never produce
+two different safety verdicts depending on which route reads it (#5759
+follow-up: a naive copy previously under-reported `security_review_required`
+for security-sensitive AWS resource types such as `iam`/`kms`/`rds`). Unsafe
+or ambiguous findings are reported with rejected source state and refused
+actions rather than silently omitted. Lightweight local profiles return `501
 unsupported_capability`.
 
 `GET /api/v0/investigations/drift/packet` (`export_cloud_runtime_drift_packet`
 over MCP) reads the same aggregated store, so it also returns AWS findings for
-`provider=aws` or an unfiltered request; its packet composer does not yet
-surface the six AWS-only enrichment fields above.
+`provider=aws` or an unfiltered request, with the same safety verdict.
 
 ### Provider-neutral cloud runtime drift observability
 
