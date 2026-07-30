@@ -72,8 +72,10 @@ const ifaTeethSequenceKey = "ifa_teeth_seq"
 // guaranteed-red FLOOR: even if some future fixture change made this counter
 // inert again, two independent process invocations reading
 // time.Now().UnixNano() are vanishingly unlikely to collide, so --teeth can
-// never flake green. See go/internal/reducer/README.md's matching section
-// for the fuller writeup of both properties' roles.
+// never flake green. See
+// docs/internal/evidence/4396-ifa-p3-determinism-matrix-teeth.md (relocated
+// from README.md's former teeth section) for the fuller writeup of both
+// properties' roles.
 var ifaTeethSequenceCounter atomic.Int64
 
 // ifaTeethStampCloudResourceRow stamps row with two build-tag-gated debug

@@ -1,0 +1,379 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Companion to scripts/test-verify-performance-evidence.sh, split out to keep
+# that file under the repo's 500-line cap. Invoked from its tail.
+#
+# Regression coverage for eshu-hq/eshu#5542: a PR that touches a file which
+# already carries a correctly-formatted marker left behind by an EARLIER,
+# unrelated PR must not inherit a passing verdict from that untouched marker.
+# Whole-file marker search (the bug) finds the old marker anywhere in the
+# file and wrongly passes; the fix scopes the search to the diff's added
+# lines, so the gate must fail unless THIS PR's own diff carries the marker.
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+verifier="${repo_root}/scripts/verify-performance-evidence.sh"
+
+tmp_root="$(mktemp -d)"
+trap 'rm -rf "${tmp_root}" 2>/dev/null || true' EXIT
+
+init_repo() {
+  local name="$1"
+  local dir="${tmp_root}/${name}"
+  mkdir -p "${dir}/go/internal/storage/cypher"
+  git -C "${dir}" init -q
+  git -C "${dir}" config user.email "test@example.invalid"
+  git -C "${dir}" config user.name "Eshu Test"
+  printf '%s\n' "${dir}"
+}
+
+run_verifier() {
+  local dir="$1"
+  ESHU_PERFORMANCE_EVIDENCE_REPO_ROOT="${dir}" \
+    ESHU_PERFORMANCE_EVIDENCE_BASE=HEAD~1 \
+    "${verifier}" >/tmp/eshu-perf-gate-inherited.out 2>/tmp/eshu-perf-gate-inherited.err
+}
+
+expect_pass() {
+  local dir="$1"
+  if ! run_verifier "${dir}"; then
+    printf 'expected verifier to pass in %s\n' "${dir}" >&2
+    sed -n '1,120p' /tmp/eshu-perf-gate-inherited.err >&2
+    exit 1
+  fi
+}
+
+expect_fail() {
+  local dir="$1"
+  if run_verifier "${dir}"; then
+    printf 'expected verifier to fail in %s\n' "${dir}" >&2
+    sed -n '1,120p' /tmp/eshu-perf-gate-inherited.out >&2
+    exit 1
+  fi
+}
+
+write_baseline() {
+  local dir="$1"
+  printf 'package cypher\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\n' \
+    >"${dir}/go/internal/storage/cypher/writer.go"
+  cat >"${dir}/go/internal/storage/cypher/README.md" <<'MD'
+# Cypher Storage
+
+Overview of the cypher storage writer package.
+
+## Prior Evidence (an earlier, unrelated PR)
+
+Performance Evidence: baseline writer benchmark stayed flat.
+
+No-Observability-Change: existing writer metrics already cover this path.
+MD
+  git -C "${dir}" add .
+  git -C "${dir}" commit -q -m 'baseline hot-path file + prior unrelated evidence marker'
+}
+
+# The old marker sits untouched as context; this PR's own edit to the same
+# file is unrelated prose (a typo fix) with no marker text of its own. The
+# gate must fail.
+inherited_marker_repo="$(init_repo inherited-marker)"
+write_baseline "${inherited_marker_repo}"
+printf 'package cypher\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\nconst writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n' \
+  >"${inherited_marker_repo}/go/internal/storage/cypher/writer.go"
+cat >"${inherited_marker_repo}/go/internal/storage/cypher/README.md" <<'MD'
+# Cypher Storage
+
+Overview of the cypher storage writer package and its query surface.
+
+## Prior Evidence (an earlier, unrelated PR)
+
+Performance Evidence: baseline writer benchmark stayed flat.
+
+No-Observability-Change: existing writer metrics already cover this path.
+MD
+git -C "${inherited_marker_repo}" add .
+git -C "${inherited_marker_repo}" commit -q -m 'add writerQuery MERGE (hot change, no new evidence of its own)'
+expect_fail "${inherited_marker_repo}"
+
+# Companion case: the same inherited-marker setup, but this PR ALSO adds a
+# genuine new marker of its own (added lines contain fresh marker text)
+# alongside the untouched old one. The gate must pass because this PR's own
+# diff now carries real evidence, proving the fix does not over-block a
+# file that legitimately contains both an old and a new marker.
+inherited_marker_with_new_evidence_repo="$(init_repo inherited-marker-with-new-evidence)"
+write_baseline "${inherited_marker_with_new_evidence_repo}"
+printf 'package cypher\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\nconst writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n' \
+  >"${inherited_marker_with_new_evidence_repo}/go/internal/storage/cypher/writer.go"
+# Split across two heredocs (cat > then cat >>) so neither body exceeds the
+# repo's 512-byte heredoc budget; the concatenated file content is identical
+# to a single heredoc.
+cat >"${inherited_marker_with_new_evidence_repo}/go/internal/storage/cypher/README.md" <<'MD'
+# Cypher Storage
+
+Overview of the cypher storage writer package.
+
+## Prior Evidence (an earlier, unrelated PR)
+
+Performance Evidence: baseline writer benchmark stayed flat.
+
+No-Observability-Change: existing writer metrics already cover this path.
+
+MD
+cat >>"${inherited_marker_with_new_evidence_repo}/go/internal/storage/cypher/README.md" <<'MD'
+## Current Evidence (this PR)
+
+Performance Evidence: writerQuery MERGE benchmarked flat vs baseline on the
+20-repo local NornicDB corpus; terminal queue depth 0, p50/p95 unchanged.
+
+No-Observability-Change: existing writer span/metric coverage already
+instruments this MERGE path.
+MD
+git -C "${inherited_marker_with_new_evidence_repo}" add .
+git -C "${inherited_marker_with_new_evidence_repo}" commit -q -m 'add writerQuery MERGE with its own new evidence'
+expect_pass "${inherited_marker_with_new_evidence_repo}"
+
+# Regression coverage for the #5786 reducer README split (flagged during
+# that lane's own review): is_evidence_file() must recognize the new sibling
+# docs go/internal/reducer/*.md (e.g. gotchas-supply-chain-and-vulnerabilities.md)
+# as evidence locations, or a hot reducer change whose only evidence lives in
+# one of those docs is a false-red. This also proves the new location
+# composes correctly with the added-lines scoping above: a marker added in a
+# sibling doc's own added lines must pass, but an inherited pre-existing
+# marker in a sibling doc must still fail.
+reducer_sibling_doc_evidence_repo="$(init_repo reducer-sibling-doc-evidence)"
+mkdir -p "${reducer_sibling_doc_evidence_repo}/go/internal/reducer"
+printf 'package reducer\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\n' \
+  >"${reducer_sibling_doc_evidence_repo}/go/internal/reducer/container_image_identity.go"
+git -C "${reducer_sibling_doc_evidence_repo}" add .
+git -C "${reducer_sibling_doc_evidence_repo}" commit -q -m 'baseline reducer file, no evidence docs yet'
+printf 'package reducer\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\nconst writerQuery = "UNWIND $rows AS row MERGE (n:Image {uid: row.uid})"\n' \
+  >"${reducer_sibling_doc_evidence_repo}/go/internal/reducer/container_image_identity.go"
+cat >"${reducer_sibling_doc_evidence_repo}/go/internal/reducer/gotchas-supply-chain-and-vulnerabilities.md" <<'MD'
+# Reducer Gotchas: Supply Chain And Vulnerabilities
+
+## Current Evidence (this PR)
+
+Performance Evidence: container_image_identity MERGE benchmarked flat vs
+baseline on the 20-repo local NornicDB corpus; terminal queue depth 0.
+
+No-Observability-Change: existing reducer span/metric coverage already
+instruments this MERGE path.
+MD
+git -C "${reducer_sibling_doc_evidence_repo}" add .
+git -C "${reducer_sibling_doc_evidence_repo}" commit -q -m 'add MERGE (hot change) with evidence in new #5786 sibling doc'
+expect_pass "${reducer_sibling_doc_evidence_repo}"
+
+# Compose check: recognizing the new sibling-doc location must NOT let an
+# untouched, inherited marker in one satisfy the gate -- the added-lines
+# scoping from the first regression above still applies to this new
+# location too.
+reducer_sibling_doc_inherited_repo="$(init_repo reducer-sibling-doc-inherited)"
+mkdir -p "${reducer_sibling_doc_inherited_repo}/go/internal/reducer"
+printf 'package reducer\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\n' \
+  >"${reducer_sibling_doc_inherited_repo}/go/internal/reducer/container_image_identity.go"
+cat >"${reducer_sibling_doc_inherited_repo}/go/internal/reducer/gotchas-supply-chain-and-vulnerabilities.md" <<'MD'
+# Reducer Gotchas: Supply Chain and Vulnerabilities
+
+## Prior Evidence (an earlier, unrelated PR)
+
+Performance Evidence: baseline suppression benchmark stayed flat.
+
+No-Observability-Change: existing suppression metrics already cover this path.
+MD
+git -C "${reducer_sibling_doc_inherited_repo}" add .
+git -C "${reducer_sibling_doc_inherited_repo}" commit -q -m 'baseline reducer file + prior unrelated evidence marker in sibling doc'
+printf 'package reducer\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\nconst writerQuery = "UNWIND $rows AS row MERGE (n:Image {uid: row.uid})"\n' \
+  >"${reducer_sibling_doc_inherited_repo}/go/internal/reducer/container_image_identity.go"
+cat >"${reducer_sibling_doc_inherited_repo}/go/internal/reducer/gotchas-supply-chain-and-vulnerabilities.md" <<'MD'
+# Reducer Gotchas: Supply Chain And Vulnerabilities
+
+## Prior Evidence (an earlier, unrelated PR)
+
+Performance Evidence: baseline suppression benchmark stayed flat.
+
+No-Observability-Change: existing suppression metrics already cover this path.
+MD
+git -C "${reducer_sibling_doc_inherited_repo}" add .
+git -C "${reducer_sibling_doc_inherited_repo}" commit -q -m 'add MERGE (hot change, no new evidence of its own; unrelated heading typo fix)'
+expect_fail "${reducer_sibling_doc_inherited_repo}"
+
+# Regression coverage for the P1 whitelist broadening (eshu-hq/eshu#5542
+# follow-up): is_evidence_file() must recognize ANY .md directly under a
+# go/** package directory, not just README.md/AGENTS.md/evidence-*.md/the
+# #5786 reducer docs. Real merged commit 7be40a0842 (#5747) recorded a
+# genuine Performance Evidence line in go/internal/query/read-models.md,
+# which the narrower whitelist never recognized at all. This isolates that
+# exact gap with BOTH markers present in the PR's own added lines, so the
+# result depends purely on whitelist recognition, not on whether an
+# observability marker happens to exist elsewhere.
+query_doc_evidence_repo="$(init_repo query-doc-evidence)"
+mkdir -p "${query_doc_evidence_repo}/go/internal/query"
+printf 'package query\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\n' \
+  >"${query_doc_evidence_repo}/go/internal/query/supply_chain_impact_findings.go"
+git -C "${query_doc_evidence_repo}" add .
+git -C "${query_doc_evidence_repo}" commit -q -m 'baseline query file, no evidence docs yet'
+printf 'package query\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\nconst writerQuery = "UNWIND $rows AS row MERGE (n:Finding {uid: row.uid})"\n' \
+  >"${query_doc_evidence_repo}/go/internal/query/supply_chain_impact_findings.go"
+cat >"${query_doc_evidence_repo}/go/internal/query/read-models.md" <<'MD'
+# Query Read Models
+
+## Current Evidence (this PR)
+
+Performance Evidence: supply_chain_impact_findings MERGE benchmarked flat vs
+baseline on the 20-repo local NornicDB corpus; terminal queue depth 0.
+
+No-Observability-Change: existing query span/metric coverage already
+instruments this MERGE path.
+MD
+git -C "${query_doc_evidence_repo}" add .
+git -C "${query_doc_evidence_repo}" commit -q -m 'add MERGE (hot change) with evidence in a query package doc'
+expect_pass "${query_doc_evidence_repo}"
+
+# Regression coverage for the sdk/go/** whitelist gap (eshu-hq/eshu#5542
+# follow-up): sdk/go is a sibling Go-module tree the go/** globs do not
+# reach. sdk/go/collector/README.md and sdk/go/factschema/README.md are two
+# of the residual whitelist gap files measured against real repo content.
+# sdk/go itself carries no hot-path Go file (only go/internal and go/cmd are
+# recognized hot-path locations), so this fixture puts the hot change in a
+# real hot-path file and the evidence in a new sdk/go/**/*.md doc, matching
+# how contributors actually record evidence for SDK-consuming reducer code.
+sdk_doc_evidence_repo="$(init_repo sdk-doc-evidence)"
+write_baseline "${sdk_doc_evidence_repo}"
+printf 'package cypher\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\nconst writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n' \
+  >"${sdk_doc_evidence_repo}/go/internal/storage/cypher/writer.go"
+mkdir -p "${sdk_doc_evidence_repo}/sdk/go/factschema"
+cat >"${sdk_doc_evidence_repo}/sdk/go/factschema/README.md" <<'MD'
+# Fact Schema SDK
+
+## Current Evidence (this PR)
+
+Performance Evidence: writerQuery MERGE benchmarked flat vs baseline on the
+20-repo local NornicDB corpus; terminal queue depth 0.
+
+No-Observability-Change: existing writer span/metric coverage already
+instruments this MERGE path.
+MD
+git -C "${sdk_doc_evidence_repo}" add .
+git -C "${sdk_doc_evidence_repo}" commit -q -m 'add writerQuery MERGE (hot change) with evidence in an sdk/go package doc'
+expect_pass "${sdk_doc_evidence_repo}"
+
+# Regression coverage for the marker-regex parenthetical-qualifier fix
+# (eshu-hq/eshu#5542 follow-up): "No-Regression Evidence (#5735):" is an
+# established, already-merged convention (docs/public/reference/
+# cypher-performance.md, go/internal/ask/engine/README.md, and 36 other
+# files -- 116 such markers repo-wide) that the original phrase-then-
+# colon-only regex made invisible to the gate. This PR's ONLY evidence uses
+# that exact "(#NNNN):" form; the gate must PASS.
+parenthetical_marker_repo="$(init_repo parenthetical-marker)"
+write_baseline "${parenthetical_marker_repo}"
+printf 'package cypher\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\nconst writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n' \
+  >"${parenthetical_marker_repo}/go/internal/storage/cypher/writer.go"
+# Split across two heredocs (cat > then cat >>) so neither body exceeds the
+# repo's 512-byte heredoc budget; the concatenated file content is identical
+# to a single heredoc.
+cat >"${parenthetical_marker_repo}/go/internal/storage/cypher/README.md" <<'MD'
+# Cypher Storage
+
+Overview of the cypher storage writer package.
+
+## Prior Evidence (an earlier, unrelated PR)
+
+Performance Evidence: baseline writer benchmark stayed flat.
+
+No-Observability-Change: existing writer metrics already cover this path.
+
+MD
+cat >>"${parenthetical_marker_repo}/go/internal/storage/cypher/README.md" <<'MD'
+## Current Evidence (#5542 review round, parenthetical marker form)
+
+Performance Evidence (#5542): writerQuery MERGE benchmarked flat vs baseline
+on the 20-repo local NornicDB corpus; terminal queue depth 0.
+
+No-Observability-Change (#5542): existing writer span/metric coverage
+already instruments this MERGE path.
+MD
+git -C "${parenthetical_marker_repo}" add .
+git -C "${parenthetical_marker_repo}" commit -q -m 'add writerQuery MERGE with parenthetical-form evidence markers'
+expect_pass "${parenthetical_marker_repo}"
+
+# Composition safety check for the SAME fix, isolated per family
+# (eshu-hq/eshu#5542 review: the original single-fixture version of this
+# check had NO teeth -- its only added content was a bare Performance-family
+# mention with no Observability-family text at all, so the AND-both-required
+# check failed on the Observability half regardless of whether the colon
+# requirement held. Making the colon fully optional in BOTH regexes still
+# left the suite reporting "tests passed"). Each fixture below gives ONE
+# family a genuine, colon-terminated marker (already satisfied, colon
+# requirement irrelevant to it) and gives the OTHER family only a bare
+# mention with a parenthetical aside and NO colon. The gate must still fail
+# because the bare-mention family's colon requirement holds -- so a colon
+# regression in EITHER family is caught by one of these two fixtures
+# independently of the AND condition, not masked by it.
+
+# Isolates the Performance-family colon requirement: Observability already
+# satisfied by a genuine marker; Performance is only a bare mention.
+performance_colon_required_repo="$(init_repo performance-colon-required)"
+write_baseline "${performance_colon_required_repo}"
+printf 'package cypher\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\nconst writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n' \
+  >"${performance_colon_required_repo}/go/internal/storage/cypher/writer.go"
+# Split across two heredocs (cat > then cat >>) so neither body exceeds the
+# repo's 512-byte heredoc budget; the concatenated file content is identical
+# to a single heredoc.
+cat >"${performance_colon_required_repo}/go/internal/storage/cypher/README.md" <<'MD'
+# Cypher Storage
+
+Overview of the cypher storage writer package.
+
+## Prior Evidence (an earlier, unrelated PR)
+
+Performance Evidence: baseline writer benchmark stayed flat.
+
+No-Observability-Change: existing writer metrics already cover this path.
+
+MD
+cat >>"${performance_colon_required_repo}/go/internal/storage/cypher/README.md" <<'MD'
+## Current Evidence (this PR)
+
+No-Observability-Change (#5542): existing writer span/metric coverage
+already instruments this MERGE path.
+
+No-Regression Evidence (tracked in #5542) is still pending review for this
+change; a fuller write-up will follow once the benchmark rerun completes.
+MD
+git -C "${performance_colon_required_repo}" add .
+git -C "${performance_colon_required_repo}" commit -q -m 'add writerQuery MERGE: genuine observability marker, bare performance mention (no colon)'
+expect_fail "${performance_colon_required_repo}"
+
+# Isolates the Observability-family colon requirement: Performance already
+# satisfied by a genuine marker; Observability is only a bare mention.
+observability_colon_required_repo="$(init_repo observability-colon-required)"
+write_baseline "${observability_colon_required_repo}"
+printf 'package cypher\n\nconst readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\nconst writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n' \
+  >"${observability_colon_required_repo}/go/internal/storage/cypher/writer.go"
+# Split across two heredocs (cat > then cat >>) so neither body exceeds the
+# repo's 512-byte heredoc budget; the concatenated file content is identical
+# to a single heredoc.
+cat >"${observability_colon_required_repo}/go/internal/storage/cypher/README.md" <<'MD'
+# Cypher Storage
+
+Overview of the cypher storage writer package.
+
+## Prior Evidence (an earlier, unrelated PR)
+
+Performance Evidence: baseline writer benchmark stayed flat.
+
+No-Observability-Change: existing writer metrics already cover this path.
+
+MD
+cat >>"${observability_colon_required_repo}/go/internal/storage/cypher/README.md" <<'MD'
+## Current Evidence (this PR)
+
+Performance Evidence (#5542): writerQuery MERGE benchmarked flat vs baseline
+on the 20-repo local NornicDB corpus; terminal queue depth 0.
+
+No-Observability-Change (tracked in #5542) is still pending confirmation
+that no new span or metric is required for this path.
+MD
+git -C "${observability_colon_required_repo}" add .
+git -C "${observability_colon_required_repo}" commit -q -m 'add writerQuery MERGE: genuine performance marker, bare observability mention (no colon)'
+expect_fail "${observability_colon_required_repo}"
+
+printf 'verify-performance-evidence inherited-marker tests passed\n'

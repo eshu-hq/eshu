@@ -174,8 +174,8 @@ gates its changed paths select:
   points at two umbrellas: `go-core-complete` (**compilation gate** — whole-module
   `cd go && go build ./...` plus lint/fmt, catching a merge result that does not
   compile though every PR was green, #5814) and `go-race-complete` (**race gate**
-  over the sharded `go test -race` matrix). `go-race-complete` is required today; `go-core-complete` joins it
-  once that job is on `main`. Each stays green when its own lane is legitimately
+  over the sharded `go test -race` matrix). Both `go-core-complete` and
+  `go-race-complete` are required status checks on `main` today. Each stays green when its own lane is legitimately
   skipped, so neither strands a docs-only PR — but each also depends on
   `changes` and fails if `changes` did not, since GitHub marks a job `skipped`
   (not `failed`) when a dependency fails, and an umbrella reading only its own
@@ -247,69 +247,20 @@ For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database
 
 ## Quick Verification Matrix
 
-| If you touched | Minimum verification |
-| --- | --- |
-| CI gate registry (`specs/ci-gates.v1.yaml`), `internal/cigates`, `cmd/ci-gates`, `.pre-commit-config.yaml`, `scripts/dev/pre-pr.sh`, or `.github/workflows/*` | `cd go && go test ./internal/cigates ./cmd/ci-gates -count=1`, `bash scripts/verify-ci-gates-registry.sh --drift`, and `bash scripts/test-verify-ci-gates-registry.sh` |
-| Answer-quality scorecard criteria, CLI, or docs | `cd go && go test ./internal/answerquality -count=1`, `cd go && go test ./cmd/eshu -run 'TestAnswerQualityScorecardCommand' -count=1`, and the docs build |
-| Ask Eshu answer path, guardrail, or local proof | `scripts/test-verify-ask-eshu-local-proof.sh`, `scripts/verify-ask-eshu-local-proof.sh`, and the docs build (see [Ask Eshu Local Proof](local-testing/ask-eshu-local-proof.md)) |
-| Competitive parity gate criteria, CLI, or docs | `cd go && go test ./internal/competitiveparity -count=1`, `cd go && go test ./cmd/eshu -run 'TestCompetitiveParity|TestRootCommandIncludesCompetitiveParity' -count=1`, `cd go && go run ./cmd/eshu competitive-parity validate --repo-root .. --json`, and the docs build |
-| Portable evidence bundle schema, CLI, or docs | `cd go && go test ./internal/evidencebundle -count=1`, `cd go && go test ./cmd/eshu -run 'TestEvidenceBundle|TestRootCommandIncludesEvidenceBundle' -count=1`, and the docs build |
-| Performance contract thresholds (`local-performance-envelope.md`, `reducer-claim-latency-gate.md`, `hybrid-retrieval-production-gate.md`) or `go/internal/perfcontract` | `cd go && go test ./internal/perfcontract -count=1` (doc↔code lockstep; fails if a documented threshold drifts from its in-code value) and the docs build if a doc threshold changed |
-| Remote remediation benchmark wrapper | `bash scripts/test-verify-remote-e2e-remediation-benchmark.sh` |
-| Remote full-corpus degradation report classifier | `bash scripts/test-verify-remote-e2e-degradation-report.sh` |
-| Docs, `CLAUDE.md`, `AGENTS.md`, or README files | `bash scripts/test-verify-docs-build-changed.sh` and `bash scripts/verify-docs-build-changed.sh` (changed-path mkdocs build, mirrors pre-push hook); also `cd go && go run ./cmd/capability-inventory -mode docs` and `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml` for a full build |
-| GitHub workflow or CodeQL setup guidance | `scripts/test-verify-codeql-setup.sh` and `scripts/verify-codeql-setup.sh` |
-| CLI/runtime wiring | `cd go && go test ./cmd/eshu ./cmd/api ./cmd/mcp-server -count=1` |
-| Pre-change impact or developer change plan API/MCP/CLI surface | `cd go && go test ./internal/query ./internal/mcp ./cmd/eshu -run 'TestDeveloperChangePlan|TestPreChangeImpact|TestChangePlan|TestFetchChangePlan|TestRunChangePlan|TestResolveRouteMapsDeveloperChangePlan|TestOpenAPIDeveloperChangePlan' -count=1` |
-| Status/admin or completeness contract | `cd go && go test ./internal/status ./internal/query ./cmd/api -count=1` and `cd go && go vet ./internal/status ./internal/query ./cmd/api` |
-| Replatforming plan, ownership-packet, or rollup API/MCP surface | `cd go && go test ./internal/mcp -run TestReplatforming -count=1` (see [Verification gates → Replatforming API/MCP parity proof](local-testing/verification-gates.md#replatforming-apimcp-parity-proof)) |
-| Parser platform or collector snapshot flow | `cd go && go test ./internal/parser ./internal/collector/discovery ./internal/collector -count=1` |
-| Terraform provider-schema evidence or relationship extraction | `cd go && go test ./internal/terraformschema ./internal/relationships ./internal/storage/postgres -count=1` |
-| Parser, language-query, dead-code maturity, or relationship contribution docs | `scripts/verify-parser-relationship-kit.sh` plus the focused parser, query, relationship, or docs gate for the touched surface. |
-| Compose, Helm, or deployable runtime shape | `cd go && go test ./cmd/api ./cmd/bootstrap-index ./cmd/ingester ./cmd/reducer -count=1` and `helm lint deploy/helm/eshu` |
-| Argo CD or GitOps overlay rendered shape | `scripts/test-verify-gitops-rendered-diff-preflight.sh` and `scripts/verify-gitops-rendered-diff-preflight.sh --overlay deploy/argocd/overlays/aws --values values.private.yaml` |
-| Hosted Helm install, upgrade, or rollback proof | `scripts/test-verify-hosted-helm-rollout-proof.sh`, `scripts/verify-hosted-helm-rollout-proof.sh --out-dir .proof/helm-install`, and `helm lint deploy/helm/eshu` |
-| Hosted API/MCP auth, secret, or exposure posture | `scripts/test-verify-hosted-security-posture.sh`, `scripts/verify-hosted-security-posture.sh -f values.eshu.yaml`, and `helm lint deploy/helm/eshu -f values.eshu.yaml` |
-| Hosted NetworkPolicy egress posture | `scripts/test-verify-hosted-network-policy-egress.sh`, `scripts/verify-hosted-network-policy-egress.sh -f values.eshu.yaml`, and `helm lint deploy/helm/eshu -f values.eshu.yaml` |
-| Hosted governance local proof posture | `scripts/test-verify-hosted-governance-proof.sh`, `scripts/verify-hosted-governance-proof.sh`, and the docs build. This includes local no-policy governance status, no-provider semantic status, and no-provider semantic queue planning. |
-| Hosted governance remote Compose proof | `scripts/test-verify-hosted-governance-remote-compose-proof.sh`, `scripts/verify-hosted-governance-remote-compose-proof.sh`, and `scripts/verify-hosted-governance-remote-compose-proof.sh --runtime` after the remote Compose stack is running |
-| Hosted governance proof artifact | `scripts/test-verify-hosted-governance-proof-artifact.sh` and `scripts/verify-hosted-governance-proof-artifact.sh --input governance-proof.json --output-json governance-proof.summary.json --output-markdown governance-proof.summary.md` |
-| Hosted governance Helm proof | `scripts/test-verify-hosted-governance-helm-proof.sh`, `scripts/verify-hosted-governance-helm-proof.sh --out-dir .proof/governance-helm --values values.eshu.yaml`, and `helm lint deploy/helm/eshu -f values.eshu.yaml` |
-| Hosted governance negative leakage proof | `scripts/test-verify-hosted-governance-negative-leakage-proof.sh` and `scripts/verify-hosted-governance-negative-leakage-proof.sh --manifest leakage-proof.json --output-json leakage-proof.summary.json --output-markdown leakage-proof.summary.md` |
-| Hosted auth audit and revocation proof | `scripts/test-verify-hosted-auth-audit-proof.sh` and `scripts/verify-hosted-auth-audit-proof.sh --input auth-audit-proof.json --output-json auth-audit-proof.summary.json --output-markdown auth-audit-proof.summary.md` |
-| Hosted governance retention-state proof | `scripts/test-verify-hosted-governance-retention-proof.sh` and `scripts/verify-hosted-governance-retention-proof.sh --input retention-proof.json --output-json retention-proof.summary.json --output-markdown retention-proof.summary.md` |
-| Hosted-growth Postgres fact and queue proof | `scripts/test-verify-hosted-growth-postgres-proof.sh` and `scripts/verify-hosted-growth-postgres-proof.sh --input hosted-growth-proof.json --output-json hosted-growth-proof.summary.json --output-markdown hosted-growth-proof.summary.md`; the proof must include the #4044 `fact_records` growth breakpoint fields: fact-family growth, index bloat, graph-write pressure, query plans, retention lag/prune cost, and the partition/archive/split/retention/defer decision |
-| Hosted backup, restore, or graph-rebuild proof | `scripts/test-verify-hosted-backup-restore-proof.sh` and `scripts/verify-hosted-backup-restore-proof.sh --input restore-proof.json --output-json restore-proof.summary.json --output-markdown restore-proof.summary.md` |
-| Compose-to-Kubernetes runtime parity | `scripts/test-verify-compose-helm-runtime-parity.sh`, `scripts/verify-compose-helm-runtime-parity.sh`, and `helm lint deploy/helm/eshu` |
-| `docs/public/deploy/kubernetes/storage.md` "Bundled NornicDB" values example | `scripts/test-verify-storage-doc-bundled-nornicdb-example.sh` and `scripts/verify-storage-doc-bundled-nornicdb-example.sh` — renders the embedded `neo4j.auth` example through `helm template` so a stale `secretName`/`password` pairing fails locally instead of only when a reader copy-pastes it |
-| Hosted ops dashboard or alert pack | `scripts/test-verify-hosted-ops-alert-pack.sh`, `scripts/verify-hosted-ops-alert-pack.sh`, and `helm lint deploy/helm/eshu` |
-| Accuracy golden gate (complexity, resolvers, correlation), or per-language cyclomatic complexity, cross-repo call resolvers, or correlation precision | `scripts/verify_accuracy_golden_gate.sh` (or `cd go && go test ./internal/accuracygate -count=1`); update `go/internal/accuracygate/testdata/baseline.json` only to raise a floor after a measured improvement (see [Accuracy Golden Gate](accuracy-golden-gate.md)) |
-| Facts-first indexing, queue, or resolution flow | `cd go && go test ./internal/projector ./internal/reducer ./internal/storage/postgres -count=1` |
-| Recovery, replay, or repair controls | `cd go && go test ./internal/recovery ./internal/runtime ./internal/status -count=1` |
-| Hot-path Cypher, graph writes, queues, workers, leases, batching, or runtime knobs | `scripts/test-verify-performance-evidence.sh`, `scripts/verify-performance-evidence.sh`, `scripts/test-verify-query-plan-regression.sh`, and `scripts/verify-query-plan-regression.sh` |
-| Graph backend query-plan fixture contract | `scripts/test-verify-query-plan-regression.sh` and `scripts/verify-query-plan-regression.sh` |
-| Scale-lab representative corpus, privacy, metric, or threshold contract | `bash scripts/test-verify-scale-corpus-suite.sh` and `bash scripts/verify-scale-corpus-suite.sh` |
-| Scale benchmark artifact, threshold, backend, commit, or before/after proof contract | `bash scripts/test-verify-scale-benchmark-artifact.sh` and `bash scripts/verify-scale-benchmark-artifact.sh` |
-| Go micro-benchmark CI workflow (`.github/workflows/bench.yml`) or its runner `scripts/run-go-benchmarks.sh` | `bash scripts/test-run-go-benchmarks.sh` (static contract + fast hermetic functional check); `bash scripts/run-go-benchmarks.sh` for the full credential-free benchmark sweep that the workflow uploads as an artifact |
-| Benchmark regression gate (`scripts/verify-bench-regression.sh`, `testdata/benchmarks/baseline.txt`, the weekly `bench-baseline-refresh` workflow) | `bash scripts/test-verify-bench-regression.sh` (static contract + synthetic benchstat parser checks); `bash scripts/verify-bench-regression.sh` compares the current run against the committed baseline with `benchstat` (advisory by default — set `BENCH_REGRESSION_ENFORCE=true` to block; baseline is recaptured on ubuntu-latest weekly via `scripts/refresh-bench-baseline.sh`) |
-| Capability-matrix p95 latency or max-scope budget proof contract | `bash scripts/test-verify-capability-budget-proof.sh` and `bash scripts/verify-capability-budget-proof.sh` |
-| B-7 golden end-to-end corpus gate (any pipeline phase: collector/parser/projector/reducer/query/storage, the B-10 cassettes, or the B-12 snapshot) | `cd go && go test ./cmd/golden-corpus-gate -count=1` and `bash scripts/test-verify-golden-corpus-gate.sh` (unit + static contract); `bash scripts/verify-golden-corpus-gate.sh` for the full live run (needs Docker; runs bootstrap + B-10 cassettes + reducer drain and diffs the B-12 snapshot — see [Golden Corpus Gate](local-testing/golden-corpus-gate.md)) |
-| B-11 macro per-phase wall-clock baseline (`testdata/golden/e2e-baseline.json`) or the refresh script | `cd go && go test ./cmd/golden-corpus-gate -count=1` and `bash scripts/test-refresh-e2e-baseline.sh` (unit + static contract); `bash scripts/refresh-e2e-baseline.sh` recaptures the baseline on the enforcement host (needs Docker — see [Golden Corpus Gate → Macro per-phase regression (B-11)](local-testing/golden-corpus-gate.md#macro-per-phase-regression-b-11)) |
-| Cassette or replay authoring docs, contributor conformance flow, input tape, parser fixture, authz replay catalog, or replay proof boundary | `cd go && go test ./conformance -count=1`, `cd go && go test ./internal/replay/... -count=1`, `bash scripts/test-verify-replay-coverage-gate.sh`, `bash scripts/verify-replay-coverage-gate.sh --blocking`, and the docs build (see [Cassette and Replay Proof](cassette-replay.md)) |
-| API/MCP/CLI golden response-shape change or B-12 `query_shapes` update | `(cd go && go test ./conformance ./internal/replay/... ./cmd/replay-coverage-gate ./internal/replaycoverage -count=1)`, `bash scripts/test-verify-replay-coverage-gate.sh`, `bash scripts/verify-replay-coverage-gate.sh --blocking`, `(cd go && go test ./cmd/golden-corpus-gate -count=1)`, `bash scripts/test-verify-golden-corpus-gate.sh`, and `bash scripts/verify-golden-corpus-gate.sh` when the committed B-12 snapshot or query shapes change; `query_shapes.http`, `query_shapes.mcp`, and `query_shapes.cli` are asserted by the B-7 gate |
-| C-1/C-8/C-9/C-10 replay coverage manifest + lockstep gate (a new implemented-lane collector, fact-kind read surface, CLI read surface in `query_shapes.cli`, parser, capability claim, product claim, authorization permission family/scoped route, required scenario type, the coverage manifest, or `go/internal/replaycoverage`) | `cd go && go test ./cmd/replay-coverage-gate ./internal/replaycoverage -count=1` and `bash scripts/test-verify-replay-coverage-gate.sh` (unit + static contract); `bash scripts/verify-replay-coverage-gate.sh --blocking` runs the same blocking gate CI enforces over the source-of-truth registries, runs the focused `authz-scoped-route-tests` query proof, and fails on any supported surface/scenario_type pair lacking a replay scenario while writing the C-7 coverage report with per-axis and per-scenario-type percentages. Omit `--blocking` only for local exploratory/advisory reports. Static, credential-free, Docker-free — composes with the golden-corpus-gate, replay tier, parser fixtures, capability inventory, Go race tests, authz scoped-route tests, and budget proof gates that actually run the scenarios it counts |
-| #5335 read-surface consumer-existence gate (`specs/language-feature-parity-ledger.v1.yaml` `read_surfaces`, `specs/fact-kind-registry.v1.yaml` `read_surface`, or `go/internal/query/impact_blast_radius.go`) | `cd go && go test ./internal/mcp ./internal/query ./internal/replaycoverage ./cmd/api -count=1` — see [Read-Surface Consumer-Existence Gate](read-surface-consumer-existence-gate.md) |
-| New collector family, provider, scanner, or hosted collector runtime | `scripts/test-verify-collector-authoring-gate.sh` and `scripts/verify-collector-authoring-gate.sh` |
-| Generated collector entrypoint manifest or generated collector command files | `scripts/test-verify-collector-entrypoints-generated.sh` and `scripts/verify-collector-entrypoints-generated.sh` |
-| Skillgen roundtrip baseline (`skill-fragments/`, `expected/`, `go/cmd/skillgen/`, `go/internal/extensions/skillgen/`, `specs/surface-inventory.v1.yaml`, or the gate script itself) | `cd go && go build ./cmd/skillgen/...` and `bash scripts/test-verify-skill-roundtrip.sh` plus `bash scripts/verify-skill-roundtrip.sh` (and the docs build when the matrix or skillgen doc changes) |
-| Evidence-continuity matrix, evidence-centric capability rows, or API/MCP proof coverage | `scripts/test-verify-evidence-continuity.sh`, `scripts/verify-evidence-continuity.sh`, and `cd go && go test ./internal/evidencecontinuity -count=1` |
-| Fact-kind registry contract, fact schema-version metadata, or generated fact registry docs | `scripts/test-verify-fact-kind-registry.sh`, `scripts/verify-fact-kind-registry.sh`, and `cd go && go test ./internal/facts ./cmd/fact-kind-registry -count=1` |
-| New or changed Go package under `go/internal` or `go/cmd` | `scripts/test-verify-package-docs.sh` and `scripts/verify-package-docs.sh` |
-| New or changed telemetry registration, pipeline stage, or `docs/public/observability/telemetry-coverage.md` row (the X2 coverage gate) | `scripts/test-verify-telemetry-coverage.sh` and `scripts/verify-telemetry-coverage.sh` (and the docs build when the X1 doc changes) |
-| New or changed operator dashboard, dashboard panel, or `docs/public/observability/dashboards/eshu-operator-overview.json` (the X4 dashboard generator) | `scripts/test-generate-operator-dashboard.sh` and `scripts/generate-operator-dashboard.sh` (re-generates the committed dashboard JSON; the test mirror asserts the committed artifact matches) |
-| Go source, comments, package contracts, or generated docs | `cd go && golangci-lint run ./...` |
-| Root marketing site (Cloudflare Pages) | `npm test` (unit) plus `npm run site:review` (desktop + mobile browser gate documented in the repo-root `CLOUDFLARE_PAGES.md`) |
-| Repo hygiene gates | `git diff --check` |
+See [Quick Verification Matrix](local-testing/quick-verification-matrix.md)
+for the full touched-area-to-minimum-verification mapping.
+
+### Performance Evidence Gate
+
+`scripts/verify-performance-evidence.sh` blocks a PR that touches hot Cypher,
+graph writes, queues, workers, leases, batching, or runtime knobs unless the
+same PR carries its own tracked evidence in a fresh `Performance Evidence:`
+(or `Benchmark Evidence:`/`No-Regression Evidence:`) line plus a fresh
+`Observability Evidence:`/`No-Observability-Change:` line, in one of the
+gate's recognized evidence-file locations. See
+[Performance Evidence Gate](local-testing/performance-evidence-gate.md) for
+the added-lines requirement, the full list of recognized locations, and the
+fixture/vendor/generated exclusions.
 
 ## Remote Collector E2E Compose Proof
 

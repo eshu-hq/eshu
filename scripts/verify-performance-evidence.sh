@@ -9,7 +9,15 @@ fi
 
 base="${ESHU_PERFORMANCE_EVIDENCE_BASE:-}"
 if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
-  git -C "$repo_root" fetch --no-tags --depth=1 origin "$GITHUB_BASE_REF" >/dev/null 2>&1 || true
+  # An explicit destination refspec is required: `git fetch origin <branch>`
+  # with no `:<dst>` only ever updates FETCH_HEAD, never
+  # refs/remotes/origin/<branch> -- this is real git behavior independent of
+  # any configured remote.origin.fetch, so under actions/checkout@v5's actual
+  # narrow/shallow setup `origin/$GITHUB_BASE_REF` never resolved and `base`
+  # silently fell through to HEAD~1 (last commit only) in every real CI run
+  # (eshu-hq/eshu#5542 follow-up).
+  git -C "$repo_root" fetch --no-tags --depth=1 origin \
+    "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" >/dev/null 2>&1 || true
   if git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
     base="origin/$GITHUB_BASE_REF"
   fi
@@ -112,9 +120,19 @@ is_runtime_config_by_content() {
   return 1
 }
 
-# Pre-fetch the full diff once so comment-only checks are O(1) hash lookups
-# instead of one git invocation per file. Empty if the diff is unavailable.
-_perf_diff_cache="$(git -C "$repo_root" diff --unified=0 "$base"...HEAD 2>/dev/null || true)"
+# Pre-fetch the full diff once so comment-only and marker-added-lines checks
+# are O(1) lookups against this cache instead of one git invocation per file.
+# Falls back to the two-dot form on failure -- the three-dot (merge-base)
+# form fails outright ("no merge base") when the fetched base tip and the
+# local commit graph share no common ancestor object, which is the normal
+# shape of a shallow CI checkout (eshu-hq/eshu#5542 follow-up). Mirrors the
+# same fallback already used by changed_files above and
+# is_runtime_config_by_content below. Empty if both forms are unavailable.
+if _perf_diff_cache="$(git -C "$repo_root" diff --unified=0 "$base"...HEAD 2>/dev/null)"; then
+  :
+else
+  _perf_diff_cache="$(git -C "$repo_root" diff --unified=0 "$base" HEAD 2>/dev/null || true)"
+fi
 
 # Newline-delimited map of changed files whose diff contains at least one
 # non-comment, non-whitespace added/removed line. Files absent from the map had
@@ -197,15 +215,57 @@ is_comment_only_change() {
 
 is_evidence_file() {
   local path="$1"
+  # Exclude fixture/vendor/generated .md files before the whitelist below
+  # runs. This must come first because bash `case` has no negation: `*`
+  # inside a `case` pattern matches `/` too (unlike `compgen -G`'s glob
+  # engine, which an earlier review used to verify this same ladder and
+  # which does NOT cross `/` -- that mismatch is exactly how the bug below
+  # slipped past review). That means a single `go/*.md` pattern already
+  # matches every path under go/** at any depth, INCLUDING
+  # go/cmd/audit-preflight/testdata/*.md -- four checked-in test fixtures
+  # that are not documentation and must never satisfy the evidence gate
+  # (eshu-hq/eshu#5542 follow-up). testdata/ is the confirmed, currently
+  # present offender; vendor/ and generated/ are excluded defensively for
+  # the same "not hand-authored documentation" reason even though no .md
+  # files live there today, so the gate does not quietly reopen the same
+  # hole the moment one appears. Matches both a leading path segment
+  # (e.g. testdata/foo.md under the repo-root testdata/ tree) and a nested
+  # one (e.g. go/cmd/audit-preflight/testdata/foo.md).
+  case "$path" in
+    testdata/*|*/testdata/*|vendor/*|*/vendor/*|generated/*|*/generated/*) return 1 ;;
+  esac
   case "$path" in
     docs/public/adrs/*.md) return 0 ;;
     docs/public/reference/*.md) return 0 ;;
     docs/public/reference/**/*.md) return 0 ;;
     docs/internal/evidence/*.md) return 0 ;;
     docs/internal/evidence/**/*.md) return 0 ;;
-    go/*/evidence-*.md|go/*/*/evidence-*.md|go/*/*/*/evidence-*.md|go/*/*/*/*/evidence-*.md|go/*/*/*/*/*/evidence-*.md) return 0 ;;
-    go/*/README.md|go/*/*/README.md|go/*/*/*/README.md|go/*/*/*/*/README.md|go/*/*/*/*/*/README.md) return 0 ;;
-    go/*/AGENTS.md|go/*/*/AGENTS.md|go/*/*/*/AGENTS.md|go/*/*/*/*/AGENTS.md|go/*/*/*/*/*/AGENTS.md) return 0 ;;
+    docs/internal/design/*.md) return 0 ;;
+    docs/internal/design/**/*.md) return 0 ;;
+    # Any .md directly under a go/** package directory is a recognized
+    # evidence location, not just README.md/AGENTS.md/evidence-*.md. The
+    # repo's real, actively-used convention has topic-named package docs
+    # carrying genuine markers well beyond those three filenames (e.g.
+    # go/internal/query/read-models.md, go/internal/storage/postgres/
+    # gotchas-and-invariants.md, go/internal/reducer/shared-projection.md,
+    # and the #5786 reducer README split's sibling docs). A narrower
+    # whitelist recognized only 584 of 679 real .md files repo-wide that
+    # carry a genuine marker and false-blocked legitimate PRs whose only
+    # evidence lived in one of the other 95, including real merged commit
+    # 7be40a0842 (#5747) which recorded evidence in
+    # go/internal/query/read-models.md (eshu-hq/eshu#5542 follow-up).
+    # Subsumes the earlier go/*/README.md, go/*/AGENTS.md,
+    # go/*/evidence-*.md, and go/internal/reducer/*.md patterns, and the
+    # previous go/*/*.md|go/*/*/*.md|... "depth ladder": under `case`
+    # semantics `*` already crosses `/`, so `go/*.md` alone matches every
+    # depth and the extra ladder rungs were unreachable dead weight
+    # (eshu-hq/eshu#5542 follow-up).
+    go/*.md) return 0 ;;
+    # sdk/go/ is a sibling Go-module tree the go/*.md pattern above does not
+    # reach (e.g. sdk/go/collector/README.md, sdk/go/factschema/README.md),
+    # same gap class as go/** (eshu-hq/eshu#5542 follow-up). Collapsed for
+    # the same dead-weight-ladder reason as go/*.md above.
+    sdk/go/*.md) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -245,13 +305,66 @@ if [ "${#hot_files[@]}" -eq 0 ]; then
   exit 0
 fi
 
+# Marker presence is decided from the PR's own ADDED lines, not whole-file
+# content. Whole-file search lets a PR inherit a passing gate from an
+# unrelated marker left behind by an earlier PR in a file it merely touches
+# (eshu-hq/eshu#5542): the marker sits in the file as unchanged context, not
+# as something this diff contributed, so it must not satisfy the gate.
+#
+# Filters the already-fetched _perf_diff_cache instead of spawning a fresh
+# `git diff` per evidence file -- the cache above exists precisely so
+# per-file checks are O(1) lookups, not one git invocation each. Uses plain
+# string comparisons (not regex) so an evidence path containing regex
+# metacharacters (e.g. a literal `.` in a filename) still compares exactly.
+added_lines_for_evidence_file() {
+  local rel="$1"
+  [ -n "${_perf_diff_cache}" ] || return 0
+  printf '%s\n' "${_perf_diff_cache}" | awk -v target="${rel}" '
+    substr($0, 1, 6) == "+++ b/" {
+      # No /dev/null guard needed here: "+++ b/" is exactly six characters, so
+      # substr($0, 7) is always the path *after* b/ -- for "+++ b/dev/null" it
+      # is "dev/null", never "/dev/null" or "b/dev/null". A real deleted-file
+      # header is "+++ /dev/null", which does not match this rule at all and is
+      # handled by the next one. The shell loop in _perf_code_change_map keeps
+      # an equivalent check for its own reasons; do not copy it back here.
+      cur = substr($0, 7)
+      next
+    }
+    $0 == "+++ /dev/null" { cur = ""; next }
+    substr($0, 1, 6) == "--- a/" { next }
+    $0 == "--- /dev/null" { next }
+    substr($0, 1, 1) == "+" {
+      if (cur == target) print substr($0, 2)
+      next
+    }
+  '
+}
+
 has_performance_evidence=1
 has_observability_evidence=1
 if [ "${#evidence_files[@]}" -gt 0 ]; then
-  rg -q -e '(^|[[:space:]])(Performance Evidence|Benchmark Evidence|No-Regression Evidence):' \
-    "${evidence_files[@]}" && has_performance_evidence=0
-  rg -q -e '(^|[[:space:]])(Observability Evidence|No-Observability-Change):' \
-    "${evidence_files[@]}" && has_observability_evidence=0
+  for evidence_file in "${evidence_files[@]}"; do
+    evidence_rel="${evidence_file#"$repo_root"/}"
+    evidence_added="$(added_lines_for_evidence_file "$evidence_rel")"
+    [ -z "$evidence_added" ] && continue
+    # Tolerates an optional single parenthetical/bracketed qualifier between
+    # the marker phrase and the colon (e.g. "No-Regression Evidence (#5369):"),
+    # an established, already-merged convention on main (docs/public/
+    # reference/cypher-performance.md, go/internal/ask/engine/README.md, and
+    # 36 other files -- 116 such markers repo-wide) that the original
+    # phrase-then-colon-only regex made invisible to the gate. The colon
+    # remains mandatory either way, so a bare mention of the phrase with no
+    # colon at all -- "No-Regression Evidence (as discussed above) helps
+    # operators..." -- still does not match (eshu-hq/eshu#5542 follow-up).
+    if printf '%s\n' "$evidence_added" \
+      | rg -q -e '(^|[[:space:]])(Performance Evidence|Benchmark Evidence|No-Regression Evidence)([[:space:]]*(\([^()]*\)|\[[^\[\]]*\]))?[[:space:]]*:'; then
+      has_performance_evidence=0
+    fi
+    if printf '%s\n' "$evidence_added" \
+      | rg -q -e '(^|[[:space:]])(Observability Evidence|No-Observability-Change)([[:space:]]*(\([^()]*\)|\[[^\[\]]*\]))?[[:space:]]*:'; then
+      has_observability_evidence=0
+    fi
+  done
 fi
 
 if [ "$has_performance_evidence" -eq 0 ] && [ "$has_observability_evidence" -eq 0 ]; then
