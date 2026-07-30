@@ -395,11 +395,24 @@ exists specifically because `internal/projector` (owner of the outcome enum)
 already transitively imports `internal/relationships/tfstatebackend` (via
 `internal/reducer` -> `internal/correlation/drift/tfconfigstate`), so
 `tfstatebackend` cannot import `projector` back without a cycle -- confirmed
-by an actual `go build` failure while developing this fix. This also keeps
-`internal/storage/cypher`'s `TerraformStateOwnershipResolver` interface
-depending only on `projector` types, preserving its documented narrow-port
-boundary (never `tfstatebackend`, directly or transitively through the new
-package).
+by an actual `go build` failure while developing this fix, and independently
+reproduced by the #5623 P1 follow-up review (a throwaway import reproduced
+the identical `import cycle not allowed` chain). This keeps the
+`TerraformStateOwnershipResolver` interface itself (`tfstate_state_match_edge.go`,
+this package) scoped to `projector` types only -- it does not import
+`tfstatebackend`, and `canonicalwriter` adds ZERO new transitive edge from
+this package to `tfstatebackend` beyond what already existed.
+
+Precision matters on that last point: `internal/storage/cypher` ALREADY
+depends on `tfstatebackend` transitively through a DIFFERENT, PRE-EXISTING,
+unrelated path this fix did not create -- `edge_writer.go` (this package)
+imports `internal/reducer`, and `internal/reducer` imports `tfstatebackend`
+directly (for example `terraform_config_state_drift.go`, wiring the
+drift-correlation resolver `cmd/reducer/wiring_handlers.go` already uses).
+`go list -deps ./internal/storage/cypher` shows
+`github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend` in the
+output for that reason, predating this branch entirely. Do not read that as
+a regression this change introduced.
 
 No-Regression Evidence: widens the retract's candidate set from "resolved
 rows only" to "resolved, no-owner, or ambiguous-owner rows" (narrower than
@@ -435,3 +448,42 @@ No-Observability-Change: the retract is a Cypher WHERE/DELETE fragment with no
 span, metric, label, or log surface; the new adapter package logs a warning
 for a genuine transient failure only, reusing the exact log line every prior
 per-adapter copy already emitted -- no new signal.
+
+AmbiguousOwner can itself be a byproduct of eventually-consistent ingestion,
+not just a genuinely contested backend, and this fix now retracts on it every
+cycle instead of only at full reconciliation -- worth stating explicitly
+rather than leaving it implicit (#5623 P1 follow-up review, third finding).
+`PostgresTerraformBackendQuery.ListTerraformBackendsByLocator`
+(`internal/storage/postgres/tfstate_backend_canonical.go`) joins each
+candidate `terraform_backends` fact through
+`scope.active_generation_id = fact.generation_id` -- i.e. it only sees a
+repo's CURRENTLY-ACTIVE generation, and every repo re-ingests independently
+and asynchronously. During a real backend-ownership migration (state moved
+from repo A to repo B -- teams do this), if repo A's next ingestion (which
+would drop its now-stale `terraform_backends` declaration) lags repo B's
+(which picks up the new one), the resolver observes BOTH as active claimants
+for one or more cycles and returns `ErrAmbiguousBackendOwner` -- not because
+ownership is contested, but because ingestion has not yet converged. Under
+this fix that transient ambiguity retracts the existing edge (repo A's
+authorization to this resource is now under-authorized, not extended, and
+repo B does not gain it yet either, since the MERGE never fires while
+`OwningRepoID` is empty), and the edge -- and the scoped-token visibility it
+gates -- flaps until both repos' ingestion converges and a single unambiguous
+owner emerges.
+
+This is judged acceptable, not a defect to fix here, for three reasons: (1) it
+fails safe in the same direction every prior fix in this chain converged on --
+under-authorization during the flap, never a cross-tenant leak, since neither
+the stale nor the new owner is over-admitted at any point in the sequence; (2)
+the flap window is bounded by ordinary delta-ingestion cadence for two
+actively-developed repos (commit-triggered, typically minutes), not by
+`ESHU_REPO_RECONCILE_INTERVAL_HOURS` (default 24h, the window the ORIGINAL
+#5623 P0 leak was bounded by) -- the window this fix can introduce is tighter
+than the window the fix it replaces left open; (3) it self-heals with no
+operator action: the next cycle that reprocesses this state resource after
+BOTH repos' active generations agree resolves cleanly to Resolved and the
+correct edge reappears, the same self-healing property TransientFailure
+already relies on. No code change is warranted for this alone -- if it proves
+operationally noisy in practice (repeated retract-then-reappear on the SAME
+backend across many cycles), that is a signal for a follow-up, not evidence
+this fix is wrong.
