@@ -401,93 +401,13 @@ git -C "${case_glob_missing}" add .
 git -C "${case_glob_missing}" commit -q -m "add glob-form row matching no files"
 expect_fail "fails when a glob-form row matches no files" "${case_glob_missing}"
 
-# Case 19 (#5855 review follow-up): a stale stage-table row placed AFTER
-# the histogram-buckets section, with no section marker of its own. A
-# check that excludes rows by a line-number cutoff derived from the
-# histogram-buckets marker would silently skip this row; row shape (4
-# columns vs. the histogram table's 2) must be what excludes histogram
-# rows, not textual position, so this must still fail. The bucket table
-# has header/separator only (no data row), so this cannot also trip the
-# unrelated bucket-boundary check (4) and mask the signal under test.
-case_row_after_histogram="$(init_repo case-row-after-histogram)"
-cat >>"${case_row_after_histogram}/docs/public/observability/telemetry-coverage.md" <<'MD'
-
-<!-- eshu:metric:section=histogram-buckets -->
-## Histogram Bucket Boundaries
-
-| set_name | boundary_values |
-| --- | --- |
-
-| ghost row after histogram section | go/internal/reducer/deleted_after_histogram.go:1 | `eshu_dp_queue_claim_duration_seconds` | reducer runtime |
-MD
-git -C "${case_row_after_histogram}" add .
-git -C "${case_row_after_histogram}" commit -q -m "add stale stage row after the histogram-buckets section"
-expect_fail "fails when a stale row is placed after the histogram-buckets section" "${case_row_after_histogram}"
-
-# Case 20 (#5855 review follow-up): a stage-table row missing its trailing
-# metric and category columns collapses to the same 2-column shape as a
-# histogram-buckets row when split on '|'. Classifying by column count
-# alone would silently skip it (invisible to 3b as the wrong shape,
-# invisible to checks 1/2 with no eshu_dp_* metric, invisible to check 3
-# since it names no new file). It must fail loud as malformed instead of
-# vanishing — the narrower way to reach the same blind spot case 19
-# closes.
-case_malformed_row="$(init_repo case-malformed-row)"
-cat >>"${case_malformed_row}/docs/public/observability/telemetry-coverage.md" <<'MD'
-
-| malformed missing cols | go/internal/reducer/does_not_exist_malformed.go |
-MD
-git -C "${case_malformed_row}" add .
-git -C "${case_malformed_row}" commit -q -m "add row missing its trailing metric and category columns"
-expect_fail "fails when a row is missing its trailing metric/category columns" "${case_malformed_row}"
-
-# Case 21 (#5855 P1): a row with the FULL column count (real stage, real
-# metric, real category) but a BLANK path cell. `IFS=',' read -ra path_parts
-# <<<""` yields zero array elements, so the per-token existence loop runs
-# zero times and neither the path-exists check nor a malformed-row report
-# ever fires -- the row silently passes forever, un-anchored from any real
-# dispatcher. This is the exact "vanish instead of fail loud" mode case 20
-# closed for missing trailing columns, reached instead through a blank
-# middle cell.
-case_blank_path="$(init_repo case-blank-path)"
-cat >>"${case_blank_path}/docs/public/observability/telemetry-coverage.md" <<'MD'
-
-| blank path stage |  | `eshu_dp_queue_claim_duration_seconds` | reducer runtime |
-MD
-git -C "${case_blank_path}" add .
-git -C "${case_blank_path}" commit -q -m "add row with blank path cell"
-expect_fail "fails when a full-column row's path cell is blank" "${case_blank_path}"
-
-# Case 22 (#5855 P1 follow-up): a row whose path cell is present but
-# consists only of commas (no real token between them). Each comma-split
-# part trims to empty and is skipped by the per-token
-# `[ -n "$part" ] || continue`, so the loop completes zero real checks
-# without ever reporting drift -- the same vanish as case 21, reached
-# through comma-only content instead of an empty string.
-case_comma_only_path="$(init_repo case-comma-only-path)"
-cat >>"${case_comma_only_path}/docs/public/observability/telemetry-coverage.md" <<'MD'
-
-| comma only path stage | , , | `eshu_dp_queue_claim_duration_seconds` | reducer runtime |
-MD
-git -C "${case_comma_only_path}" add .
-git -C "${case_comma_only_path}" commit -q -m "add row whose path cell is comma-only"
-expect_fail "fails when a full-column row's path cell is comma-only" "${case_comma_only_path}"
-
-# Case 23 (#5855 P1 follow-up): a row with a real, existing path but a
-# BLANK metric column. Case 7 only covers a blank/TODO metric column on a
-# row naming a *new* stage file (caught via the has_signal check in check
-# (3)); an EXISTING row's metric column going blank -- e.g. after a bad
-# rebase or merge -- has no equivalent guard, so it would vanish from the
-# gate exactly like the blank-path case, just anchored on a different
-# column.
-case_blank_metric_existing="$(init_repo case-blank-metric-existing)"
-cat >>"${case_blank_metric_existing}/docs/public/observability/telemetry-coverage.md" <<'MD'
-
-| blank metric stage | go/internal/reducer/service.go:1 |  | reducer runtime |
-MD
-git -C "${case_blank_metric_existing}" add .
-git -C "${case_blank_metric_existing}" commit -q -m "add row whose metric column is blank"
-expect_fail "fails when an existing row's metric column is blank" "${case_blank_metric_existing}"
+# Cases 19-26 (#5855 malformed/stale-row series, including the third review
+# round's row-selection P1): extracted to keep this orchestrator under the
+# 500-line cap. Sourced, not executed -- reuses
+# init_repo/expect_pass/expect_fail/run_verifier/record_pass/record_fail and
+# case_pass from case 1 above.
+# shellcheck source=scripts/lib/test-verify-telemetry-coverage-row-selection-cases.sh
+. "${repo_root}/scripts/lib/test-verify-telemetry-coverage-row-selection-cases.sh"
 
 if [ "${FAIL}" -ne 0 ]; then
   printf 'verify-telemetry-coverage tests FAILED: %d/%d failed\n' "${FAIL}" "${TOTAL}" >&2

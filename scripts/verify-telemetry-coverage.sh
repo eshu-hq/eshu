@@ -90,11 +90,23 @@ tmp_diff="$(mktemp)"
 trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instruments_metrics_tmp" "$new_stages_tmp" "$tmp_diff"' EXIT
 
 # Extract all table rows from the X1 doc. A "row" is any line that starts
-# with a pipe after optional whitespace, AND is not the header separator
-# (a line made of pipes, dashes, and colons).
+# with a pipe, full stop -- selection must not also require the FIRST CELL
+# to be non-blank. An earlier version of this regex
+# (^\|[[:space:]]*[^|[:space:]]) required a non-pipe, non-space character
+# right after the opening pipe, so a row with a blank stage-name cell (e.g.
+# "|  | go/internal/reducer/does_not_exist.go:1 | ... |") never entered
+# all_rows_tmp at all -- invisible to every downstream check, including the
+# (3b) stale-target check below that would otherwise catch its nonexistent
+# path (#5855, third review round: a P1 one layer upstream of the blank-path
+# and blank-metric P1s, which fixed row VALIDATION but could not help a row
+# that never reached validation). The header and GFM separator rows are
+# deliberately NOT excluded here by position or shape -- they are excluded
+# downstream, by CONTENT, in every check that classifies rows (see the
+# 'file:line'/'boundary_values' and ^[-:]+$ content checks in the (3b) loop
+# below), so broadening this selector cannot let them slip through as data.
 all_rows_tmp="$(mktemp)"
 trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instruments_metrics_tmp" "$new_stages_tmp" "$tmp_diff" "$all_rows_tmp"' EXIT
-rg -N --no-line-number '^\|[[:space:]]*[^|[:space:]]' "$repo_root/$doc_path" >"$all_rows_tmp" 2>/dev/null || true
+rg -N --no-line-number '^\|' "$repo_root/$doc_path" >"$all_rows_tmp" 2>/dev/null || true
 
 # doc_documented_tmp: every eshu_dp_* name mentioned anywhere in a table
 # row. Used for the instruments.go -> doc check (a registered metric must
@@ -173,7 +185,7 @@ fi
 # or TODO, which would defeat the "every stage must register telemetry"
 # policy. Format: <file> <signal> where signal is 1 or 0.
 doc_row_signals_tmp="$(mktemp)"
-trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instruments_metrics_tmp" "$new_stages_tmp" "$tmp_diff" "$all_rows_tmp" "$required_rows_tmp" "$doc_row_signals_tmp" "$doc_buckets_tmp" "$code_buckets_tmp" "$instruments_flat"' EXIT
+trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instruments_metrics_tmp" "$new_stages_tmp" "$tmp_diff" "$all_rows_tmp" "$required_rows_tmp" "$doc_row_signals_tmp" "$doc_buckets_tmp" "$code_buckets_tmp"' EXIT
 : >"$doc_row_signals_tmp"
 if [ -s "$all_rows_tmp" ]; then
   while IFS= read -r row; do
@@ -346,6 +358,18 @@ while IFS='|' read -ra cols; do
 
   stage_name="$(trim_ws "${cols[1]}")"
   path_cell="$col2"
+
+  # Stage-name column must be non-blank. Before the row-selection fix above,
+  # a blank stage-name cell kept the whole row out of all_rows_tmp, so no
+  # check anywhere ever saw it -- not this one, not the path-existence check
+  # below. Now that the row reaches validation, a blank stage name must fail
+  # loud on its own, independent of whether the path and metric cells happen
+  # to be otherwise valid (#5855, third review round).
+  if [ -z "$stage_name" ]; then
+    report="${report}  - doc row in ${doc_path} is malformed: stage name (column 1) is blank
+"
+    drift=1
+  fi
 
   # Metric column must carry a real signal even for a row that names no
   # *new* stage file. Check (3)'s has_signal only guards a row that names a

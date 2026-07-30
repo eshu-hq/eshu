@@ -10,13 +10,22 @@
 # caller's global `report` and `drift` variables — the same pattern the
 # other numbered checks in verify-telemetry-coverage.sh use throughout.
 #
-# Registered as its own trigger of the telemetry-coverage gate in
-# specs/ci-gates.v1.yaml so a change to this file re-runs the gate, the
-# same convention other scripts/lib/*.sh chunks (e.g.
-# parser_relationship_language_ledger.sh) already follow — the point of
-# that registration is to NOT recreate the self-trigger gap tracked in
-# #5873 for this new file, not to fix that gap for verify-telemetry-coverage.sh
-# itself.
+# Registered as its own trigger of the telemetry-coverage gate in BOTH
+# specs/ci-gates.v1.yaml (the registry) and the `telemetry:` dorny
+# path-filter block in .github/workflows/static-contract-gates.yml (the
+# actual CI enforcement), so a change to this file re-runs the gate. Both
+# registrations are required: dorny/paths-filter is gitignore-style, where a
+# single `*` does not cross `/`, so a registry-only trigger does not make CI
+# select this gate for a PR confined to this file — the exact gap #5855's
+# third review round found (the registry had the trigger; the workflow's
+# filter still only matched direct children of scripts/, e.g.
+# scripts/*verify-telemetry-coverage*.sh, which this scripts/lib/ file is
+# not). The convention mirrors other scripts/lib/*.sh chunks (e.g.
+# parser_relationship_language_ledger.sh). The point of dual registration is
+# to NOT recreate the self-trigger gap tracked in #5873 for this new file —
+# that gap is about the gate's own change-detection completeness in
+# general, not something this comment claims to fix for
+# verify-telemetry-coverage.sh as a whole.
 
 # canonicalize_buckets <comma-separated-numbers> — normalize a bucket
 # boundary list to a stable, whitespace-free, sorted-numeric form so the
@@ -56,7 +65,6 @@ check_histogram_bucket_agreement() {
   # newlines inside []float64{...} and WithExplicitBucketBoundaries(...)
   # blocks), then extract the sets with single-line regexps.
   : >"$code_buckets_tmp"
-  instruments_flat="$(mktemp)"
   # python3 one-liner: join lines inside matching bracket pairs so each
   # bucket definition becomes a single line, then extract.
   python3 -c "

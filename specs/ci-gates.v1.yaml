@@ -715,6 +715,7 @@ gates:
       - "go/internal/**"
       - "go/cmd/**"
       - "scripts/lib/telemetry-coverage-bucket-check.sh"
+      - "scripts/lib/test-verify-telemetry-coverage-*"
     local:
       command: "bash scripts/verify-telemetry-coverage.sh"
       test_command: "bash scripts/test-verify-telemetry-coverage.sh"

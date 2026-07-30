@@ -51,6 +51,15 @@ var appendGateDisplayRE = regexp.MustCompile(`append_gate\s+"[^"]*"\s+"[^"]*"\s+
 //     name a real check in its ci.workflow — a job `name:`, a job key, or an
 //     append_gate display — not the workflow title. See checkJobNamesResolve for
 //     the membership-vs-correspondence and matrix-job caveats.
+//
+//  5. Registry trigger → CI path-filter coverage (#5855): for a gate whose
+//     ci.workflow uses a dorny/paths-filter matrix dispatch and whose ci.job
+//     resolves to a dorny filter key via an append_gate call, every LITERAL
+//     (non-glob) registry trigger must be matched by that key's filter glob
+//     under dorny's own gitignore-style semantics. See checkPathFilterCoverage
+//     for the skip conditions (glob-form triggers, non-matrix workflows, and
+//     gates whose ci.job does not resolve to a filter key are all skipped
+//     rather than false-flagged).
 func DriftCheck(repoRoot string, reg *Registry) []error {
 	var errs []error
 
@@ -65,6 +74,7 @@ func DriftCheck(repoRoot string, reg *Registry) []error {
 	errs = append(errs, checkGateHookIDs(hooks, reg)...)
 	errs = append(errs, checkWorkflowCompleteness(repoRoot, reg)...)
 	errs = append(errs, checkJobNamesResolve(repoRoot, reg)...)
+	errs = append(errs, checkPathFilterCoverage(repoRoot, reg)...)
 
 	return errs
 }
