@@ -26,22 +26,30 @@ type ConfigStateDriftTrigger interface {
 // go/internal/reducer/terraform_config_state_drift.go and
 // listActiveStateSnapshotScopesQuery's LIKE predicate in drift_enqueue.go --
 // all three MUST agree on the state_snapshot scope shape
-// (state_snapshot:<backend_kind>:<locator_hash>, see
-// go/internal/scope/tfstate.go:33-40).
+// (state_snapshot:<backend_kind>:<locator_hash>), the exact ScopeID format
+// NewTerraformStateSnapshotScope (go/internal/scope/tfstate.go) builds via
+// `fmt.Sprintf("state_snapshot:%s:%s", backendKind, locatorHash)`.
 const configStateDriftTriggerScopePrefix = "state_snapshot:"
 
-// bootstrapIndexProjectorLeaseOwner is the exact LeaseOwner literal
-// cmd/bootstrap-index/wiring.go passes to postgres.NewProjectorQueue
-// (`postgres.NewProjectorQueue(instrumentedDB, "bootstrap-index", ...)`).
+// BootstrapIndexProjectorLeaseOwner is the LeaseOwner
+// cmd/bootstrap-index/wiring.go MUST pass to postgres.NewProjectorQueue.
 // runConfigStateDriftTriggerHook uses it as a runtime guard (issue #5593):
-// "MUST NOT be wired on bootstrap-index's ProjectorQueue" was
-// previously enforced only by this file's doc comment, AGENTS.md, and
-// doc.go -- wire it there by accident (e.g. by copying cmd/ingester/wiring.go's
+// "MUST NOT be wired on bootstrap-index's ProjectorQueue" was previously
+// enforced only by this file's doc comment, AGENTS.md, and doc.go -- wire it
+// there by accident (e.g. by copying cmd/ingester/wiring.go's
 // ConfigStateDriftTrigger assignment) and nothing would have stopped the
-// exact Phase-1 ordering race those docs describe. This constant makes the
-// constraint mechanical: even a mis-wired ConfigStateDriftTrigger on a
-// bootstrap-index-owned queue never fires.
-const bootstrapIndexProjectorLeaseOwner = "bootstrap-index"
+// exact Phase-1 ordering race those docs describe.
+//
+// Exported (not a private literal re-declared on both sides) so
+// cmd/bootstrap-index/wiring.go's NewProjectorQueue call and this guard share
+// ONE Go identifier instead of two independently authored string literals
+// that merely happen to match today. Two copies of "bootstrap-index" would
+// silently desync the moment either side was renamed -- wiring.go could pass
+// a new lease-owner string while this guard kept checking the old one, and
+// the guard would then never fire again, with no compiler error to catch it
+// (issue #5593 review finding: the prior two-literal version was still
+// convention coupling, just moved from prose into code).
+const BootstrapIndexProjectorLeaseOwner = "bootstrap-index"
 
 // runConfigStateDriftTriggerHook calls the wired ConfigStateDriftTrigger
 // AFTER Ack's own transaction has committed, mirroring
@@ -121,7 +129,7 @@ func (q ProjectorQueue) runConfigStateDriftTriggerHook(ctx context.Context, work
 	if q.ConfigStateDriftTrigger == nil {
 		return
 	}
-	if q.LeaseOwner == bootstrapIndexProjectorLeaseOwner {
+	if q.LeaseOwner == BootstrapIndexProjectorLeaseOwner {
 		// Structural guard, not just documentation: refuse to fire even if a
 		// future edit mis-wires ConfigStateDriftTrigger on bootstrap-index's
 		// queue. Loud on purpose (ERROR log + counter) so the misconfiguration
