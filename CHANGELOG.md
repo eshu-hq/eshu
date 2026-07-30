@@ -273,13 +273,36 @@ recent shipped work grouped by feature area.
     the corpus-wide count ranges is not runnable in this environment; see
     the PR description for that evidence.
 
-- **Live golden-corpus-gate round trip on the new fixtures.** A live run
-  found two failures the local-only verification above could not catch:
-  `?variant=local-backend-resolved` returned zero findings instead of the
-  expected `outcome: "exact"` finding, and `GET /api/v0/iac/resources` count
-  drifted from the new fixture's own resources. `?variant=unresolved`
-  passed, proving `outcome: "unresolved"` fires live and is distinguishable
-  from the resolved case, exactly the assertion this PR exists to build.
+- **Live golden-corpus-gate round trip on the new fixtures (superseded by the
+  correction below).** A live run found two failures the local-only
+  verification above could not catch: `?variant=local-backend-resolved`
+  returned zero findings instead of the expected `outcome: "exact"` finding,
+  and `GET /api/v0/iac/resources` count drifted from the new fixture's own
+  resources. `?variant=unresolved` passed at the time. **Correction:** this
+  run predates the branch being rebased onto a base carrying #5862, which made
+  `results_field` mandatory for any query shape setting `minimum_results`
+  (`EvaluateQueryShape` now hard-errors before evaluating the array instead of
+  inferring the first array-valued field). Neither of these two entries ever
+  set `results_field` (confirmed by `git log -p` across every commit that
+  touched them), so on the rebased base both `?variant=local-backend-resolved`
+  and `?variant=unresolved` hard-fail with `"results_field is required when
+  minimum_results ... is set"` before the `outcome_groups[].outcome` assertion
+  ever runs -- the "`?variant=unresolved` passed" result above no longer holds
+  against the currently committed snapshot and must not be read as current
+  proof. Fixed by adding `"results_field": "drift_findings"` to both entries,
+  matching the pre-existing S3-scope sibling shape immediately above them.
+  `cd go && go test ./cmd/golden-corpus-gate/... -count=1` is green after the
+  fix (was `--- FAIL: TestQueryClientChecksHTTPShapes` naming both entries
+  before it). Confirmed the assertion is not vacuous once the missing-field
+  error is gone: evaluating each shape against a synthetic response with an
+  empty `drift_findings` array (all other required fields present) fails with
+  `"drift_findings" has 0 results, want >= 1`, not the results_field error --
+  proving `minimum_results` genuinely binds. This local proof only establishes
+  that the shape assertion itself is sound; it does not re-establish that
+  `?variant=unresolved` produces a real, distinguishable `"unresolved"` finding
+  against the live corpus. That requires a fresh `bash
+  scripts/verify-golden-corpus-gate.sh` run against the fixed entries, which
+  is the repo owner's to run, not restated as proven here.
   For the first failure: built an offline reproduction
   (`TestEvaluateBackendConfigLocalBackendThroughRealParser`,
   `go/internal/collector/terraformstate/backend_config_local_parser_integration_test.go`)

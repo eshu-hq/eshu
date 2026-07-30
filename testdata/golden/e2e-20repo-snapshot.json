@@ -6269,6 +6269,7 @@
           "truth_basis"
         ],
         "minimum_results": 1,
+        "results_field": "drift_findings",
         "request_body": {
           "scope_id": "$LOCAL_BACKEND_SCOPE_ID$",
           "outcome": "exact",
@@ -6301,6 +6302,7 @@
           "truth_basis"
         ],
         "minimum_results": 1,
+        "results_field": "drift_findings",
         "request_body": {
           "scope_id": "state_snapshot:s3:c56196104e4c2e4b00460def9a701a3d2b5e3098f3fccf4accaccd6e1c261efd",
           "outcome": "unresolved",
