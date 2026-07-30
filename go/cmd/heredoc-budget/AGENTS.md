@@ -86,22 +86,73 @@
   `<<EOF` fragment inside it phantom-opened the scanner exactly like the
   full-line case — silently swallowing a real over-budget heredoc elsewhere
   in the file (0 detected, exit 0) whenever no later line happened to be
-  literally its delimiter. The check (`case c == '#' && (i == 0 ||
-  line[i-1] == ' ' || line[i-1] == '\t')` in the `default` case's inner
-  switch) MUST come after the backslash-escape check described above, not
-  before it, to preserve that invariant. It fires only in the base/`$(...)`
-  context (the outer `switch top()` already routes a `#` inside an actual
-  quote to the frame-specific cases, where `#` has no special meaning), and
-  only when the preceding byte is a blank or the `#` is the first byte of the
-  line — matching real bash's "comment starts a word" rule closely enough to
-  stay conservative: `echo foo#bar`, `${x#pat}`, and `$#` all fail this
-  start-of-word check and stay literal, exactly as verified against real
-  `/bin/bash`. See `TestScanContent_TrailingCommentOpenerDoesNotHideRealHeredoc`
+  literally its delimiter. The check (`case c == '#' && atWordStart` in the
+  `default` case's inner switch) MUST come after the backslash-escape check
+  described above, not before it, to preserve that invariant. It fires only
+  in the base/`$(...)` context (the outer `switch top()` already routes a
+  `#` inside an actual quote to the frame-specific cases, where `#` has no
+  special meaning), and only when `atWordStart` is true — matching real
+  bash's "comment starts a word" rule closely enough to stay conservative:
+  `echo foo#bar`, `${x#pat}`, and `$#` all fail the word-start check and
+  stay literal, exactly as verified against real `/bin/bash`. See
+  `TestScanContent_TrailingCommentOpenerDoesNotHideRealHeredoc`
   (the RED/GREEN regression) and `TestScanContent_HashNotStartingWordStaysLiteral`
   (the non-comment edge cases) in `scanner_quoting_test.go`. This fix is a
   narrowing, like the unquoted-margin fix above, not a closure of #5079: a
   small literal heredoc referencing an unbounded expansion is still a
   separate, open gap (see `doc.go`).
+- **Word-start (`atWordStart`) is EXPLICIT STATE (a `wordStart` local in
+  `findAllOpeners`), never a raw byte lookback at `line[i-1]`.** A raw
+  lookback cannot tell a genuine separator apart from one already consumed
+  as half of a wider, variable-width unit — and a P1 REGRESSION shipped
+  exactly that way from the trailing-comment fix above: a backslash-escaped
+  blank (`x\ #<<EOF`) leaves that blank byte physically sitting at
+  `line[i-1]` even though the escape branch (`case c == '\\' && i+1 <
+  len(line): i += 2`) already consumed it as the second half of a two-byte
+  unit, so the old `line[i-1] == ' ' || line[i-1] == '\t'` check wrongly
+  read it as a real separator that bash itself does not treat as one —
+  misreading a genuine heredoc opener as a trailing comment (0 heredocs
+  detected, exit 0, the identical fail-open the trailing-comment fix itself
+  was written to close). `wordStart` is instead captured into `atWordStart`
+  at the TOP of each loop iteration (before that iteration mutates
+  anything), then explicitly reset for the NEXT iteration by what actually
+  happened: true only after a real (unescaped, unquoted) blank or a
+  statement-separator operator (`;`, `|`, `&`) was itself consumed as its
+  own token — false after everything else, including an escape's second
+  byte, any quote/substitution open or close, and a matched heredoc opener.
+  The `;`/`|`/`&` recognition is a related fix shipped in the same change:
+  the old raw-byte check only ever recognized blank/start-of-line, so
+  `true;#<<EOF` and `true|#<<EOF` were NOT treated as comments even though
+  real bash treats both as one — which manifested as the SAME dangerous
+  fail-open (the phantom-opened `<<EOF`/`<<FAKE` fragment swallows a real
+  heredoc later in the file, since it never finds a literal closing line and
+  is dropped as unterminated). Both regressions are proven RED-then-GREEN in
+  `TestScanContent_EscapedWhitespaceBeforeHashStaysLiteral` and
+  `TestScanContent_RealWordBoundaryBeforeHashIsGenuineComment` in
+  `scanner_quoting_test.go`, each verified against real `/bin/bash` first.
+  The `;`/`|`/`&` set is deliberately narrow — only the bytes actually
+  verified against real bash, not every bash operator (e.g. `(`, `)` outside
+  `$(...)`, redirection operators are NOT covered and remain whatever the
+  fallback default (`wordStart = false`) produces).
+- **Known gap (pre-existing, not introduced or fixed by the word-start work
+  above):** a heredoc opener split immediately after `<<`/`<<-` by a
+  backslash-newline line continuation (`cat <<\` then a newline, then the
+  delimiter on the next physical line) is valid bash — the continuation is
+  spliced away before tokenizing, so the delimiter still binds to the `<<`
+  — and opens a real heredoc this scanner never sees, since it lexes one
+  physical line at a time and the `<<` has no delimiter text on its own
+  line. Verified against real `/bin/bash`: a script starting `cat <<\`
+  (trailing backslash-newline), then `EOF` on the next line, then a
+  600-byte body, prints the body and exits 0, while `ScanContent` on the
+  same source reports zero heredocs. Considered low real-world likelihood.
+  Not fixed here: splicing backslash-newline continuations before lexing
+  would have to interact correctly with the persisted cross-line quote
+  stack (`\<newline>` is literal — kept, not spliced — inside a
+  single-quoted string, but IS a real continuation inside double quotes or
+  at the base level), and this file's own prior quote-stack fixes required
+  a full old-vs-new re-proof against real `scripts/**/*.sh` before being
+  trusted (see the warning above); that proof was not done for this gap.
+  See `doc.go`/README "Still open" for the same writeup.
 - **`scanner.go` and `scanner_lexer.go` are one logical unit, split only to
   stay under the repo's 500-line-per-file cap.** `scanner.go` owns the
   line-by-line `ScanContent`/`ScanFile`/`ScanTree`/`closesHeredoc` state

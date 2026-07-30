@@ -141,8 +141,46 @@
 // check (`echo foo#bar`, `${x#pat}`, `$#`, `#` inside single or double
 // quotes).
 //
+// The word-start check itself is tracked as EXPLICIT STATE across the scan
+// (a `wordStart` boolean in findAllOpeners), not re-derived from the raw
+// byte immediately before `#`. A P1 regression shipped from the raw-byte
+// version: a backslash-escaped blank (`x\ #<<EOF`) leaves that blank byte
+// sitting right before the `#` even though the escape branch already
+// consumed it as part of a two-byte unit, so the old lookback wrongly saw a
+// "real" separator that bash itself does not, misreading a genuine heredoc
+// opener as a trailing comment (0 heredocs detected, exit 0). Explicit state
+// also let word-start recognize an unquoted statement-separator operator
+// (`;`, `|`, `&`) as a real boundary, not just a blank -- `true;#<<EOF` and
+// `true|#<<EOF` are genuine bash comments too, and the old raw-byte check
+// missed both, which manifested as the identical fail-open (the phantom
+// opener swallowed a real heredoc later in the file). Both were verified
+// against real /bin/bash; see the TestScanContent_EscapedWhitespaceBefore*
+// and TestScanContent_RealWordBoundaryBeforeHashIsGenuineComment tests in
+// scanner_quoting_test.go for the transcripts and regression coverage.
+//
 // Still open (real, adversarially-found gaps):
 //
+//   - A heredoc opener split immediately after `<<`/`<<-` by a
+//     backslash-newline line continuation (`cat <<\` then a newline, then
+//     the delimiter on the next physical line) is valid bash -- the
+//     continuation is spliced away before tokenizing, so the delimiter
+//     still binds to the `<<` -- and opens a real heredoc this scanner
+//     never sees, since it lexes one physical line at a time and the `<<`
+//     has no delimiter text on its own line. Verified against real
+//     /bin/bash: a script whose first line is `cat <<\` (trailing
+//     backslash-newline) followed by `EOF` on the next line and a
+//     600-byte body prints the body and exits 0, while ScanContent on the
+//     same source reports zero heredocs. This is PRE-EXISTING, not
+//     introduced or fixed by the word-start work above, and considered low
+//     real-world likelihood. Closing it would mean splicing
+//     backslash-newline continuations before lexing, which is unsafe to do
+//     blindly: `\<newline>` is literal (kept, not spliced) inside a
+//     single-quoted string but IS a continuation inside double quotes or
+//     at the base level, and the splice would have to interact correctly
+//     with the persisted cross-line quote stack -- the same fragile
+//     mechanism this file's other quote-stack fixes required a full
+//     old-vs-new re-proof against real scripts/**/*.sh for. That proof was
+//     not done for this gap, so it is documented rather than fixed here.
 //   - The unquoted-heredoc runtime-expansion margin (#5085, see above) only
 //     narrows the window for a source body already close to budget; it does
 //     not catch a small literal body that references an unbounded runtime

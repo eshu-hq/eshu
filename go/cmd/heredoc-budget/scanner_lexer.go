@@ -87,8 +87,25 @@ func inQuoteFrame(stack []byte) bool {
 // (#5085/#5079 review): once one is seen at the base/substitution level, the
 // rest of the line is inert and scanning stops immediately, so a heredoc-
 // opener-shaped fragment inside a trailing comment (e.g. "echo x # <<EOF")
-// is not mistaken for a real opener. See the `case c == '#'` comment below
-// for the exact rule and the real-bash verification it rests on.
+// is not mistaken for a real opener. See the `wordStart` variable and its
+// use below for the exact rule and the real-bash verification it rests on.
+//
+// "Word-starting" is tracked as EXPLICIT STATE (the `wordStart` local),
+// never re-derived from a raw byte lookback, because a lookback cannot tell
+// a genuine separator apart from one that was already consumed as half of a
+// wider unit. A P1 regression shipped exactly this way: the original check
+// read line[i-1] directly and treated any space/tab byte there as proof of
+// a word boundary, but a backslash-escaped space (`x\ #<<EOF`) leaves that
+// space byte sitting at line[i-1] even though the escape branch already
+// consumed it two bytes at a time -- so the lookback wrongly saw a "real"
+// separator that bash itself does not, misreading a genuine heredoc opener
+// as a trailing comment (0 heredocs detected, exit 0, the exact fail-open
+// this gate exists to catch). `wordStart` instead reflects what the PREVIOUS
+// iteration actually consumed: true only after real unescaped whitespace or
+// an unquoted statement-separator operator (`;`, `|`, `&`), and at the start
+// of the line; false after anything else, including an escape's second
+// byte, a quote/substitution open or close, and a heredoc-opener match --
+// none of those are real word boundaries in bash, escaped or not.
 //
 // The stack is threaded in and back out (rather than reset per call) because
 // quoting is not a per-line property in bash: a double-quoted string can
@@ -109,8 +126,26 @@ func findAllOpeners(line string, stack []byte) ([]opener, []byte) {
 		return stack[len(stack)-1]
 	}
 
+	// wordStart is true when the position about to be examined is a genuine
+	// bash word boundary: the start of the line, or the byte immediately
+	// after real (unescaped, unquoted) whitespace or a statement-separator
+	// operator (`;`, `|`, `&`) that was itself consumed as its own token. It
+	// is explicit state, not a raw byte lookback -- see the doc comment on
+	// findAllOpeners for why a lookback is unsound after a variable-width
+	// consume (escape, quote close, substitution close).
+	wordStart := true
+
 	for i := 0; i < len(line); {
 		c := line[i]
+		// Capture this iteration's word-start state before it is
+		// (re)computed below. Every branch defaults to "not a word start"
+		// for the NEXT iteration; only the real-separator case at the
+		// bottom of the base/subst switch sets it back to true. This must
+		// happen unconditionally, before any branch below can `continue`,
+		// so every exit path leaves wordStart correctly set for whatever
+		// byte comes next.
+		atWordStart := wordStart
+		wordStart = false
 
 		switch top() {
 		case frameSingle:
@@ -164,8 +199,17 @@ func findAllOpeners(line string, stack []byte) ([]opener, []byte) {
 				// file and silently swallowing a real heredoc later on
 				// (found via adversarial review against a real script in
 				// this repo, not a synthetic case).
+				//
+				// The escaped byte is NOT a word boundary regardless of
+				// what it is — an escaped space or tab does not end the
+				// current word in bash, so wordStart stays false (already
+				// set above) for whatever follows. This is the P1
+				// regression fix: the old code inferred word-start from
+				// the raw byte at line[i-1], which cannot tell this
+				// escaped separator apart from a real one once `i` has
+				// jumped two bytes ahead.
 				i += 2
-			case c == '#' && (i == 0 || line[i-1] == ' ' || line[i-1] == '\t'):
+			case c == '#' && atWordStart:
 				// An unquoted '#' that starts a word begins a real bash
 				// comment: the rest of the line is ignored, so anything
 				// after it that looks like a heredoc opener (e.g.
@@ -178,11 +222,10 @@ func findAllOpeners(line string, stack []byte) ([]opener, []byte) {
 				// Verified against real /bin/bash. A '#' that does NOT
 				// start a word — "echo foo#bar", "${x#pat}", "$#" — is
 				// ordinary text in real bash, not a comment start; each
-				// fails this start-of-word check (preceding byte is
-				// neither blank nor start-of-line) and falls through
-				// untouched, so a real heredoc opener later on the same
-				// line is still found. A '#' inside a quote never reaches
-				// this default case at all (it is handled by the
+				// fails the wordStart check and falls through untouched,
+				// so a real heredoc opener later on the same line is
+				// still found. A '#' inside a quote never reaches this
+				// default case at all (it is handled by the
 				// frameSingle/frameDouble/frameAnsiC cases above, where
 				// '#' has no special meaning), so quoted '#' is already
 				// correctly excluded.
@@ -239,6 +282,18 @@ func findAllOpeners(line string, stack []byte) ([]opener, []byte) {
 				}
 				// Not a valid delimiter after "<<" (e.g. no identifier
 				// follows) — keep scanning for another candidate.
+				i++
+			case c == ' ' || c == '\t' || c == ';' || c == '|' || c == '&':
+				// A real, unescaped blank or statement-separator operator
+				// IS a genuine word boundary in bash, so the byte right
+				// after it is a real word start for the '#'-comment check
+				// above. Verified against real bash for `;` and `|`
+				// (`true;#<<EOF`, `true|#<<EOF` both discard the rest of
+				// the line as a comment, same as a plain blank); `&`
+				// behaves identically (background-job separator). This
+				// set is deliberately narrow — only the bytes actually
+				// verified — not every bash operator (see AGENTS.md).
+				wordStart = true
 				i++
 			default:
 				i++

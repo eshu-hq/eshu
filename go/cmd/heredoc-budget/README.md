@@ -150,8 +150,32 @@ Verified against real bash both for the comment case itself and for the
 constructs that must stay literal under the same start-of-word check
 (`echo foo#bar`, `${x#pat}`, `$#`, `#` inside single or double quotes).
 
+The word-start check is tracked as explicit state across the scan (not
+re-derived from the raw byte before `#`), because a raw-byte lookback cannot
+tell a real separator apart from one already consumed as half of a wider
+unit. A P1 regression shipped exactly that way: a backslash-escaped blank
+(`x\ #<<EOF`) leaves that blank byte sitting right before `#` even though the
+escape branch already consumed it, so the lookback wrongly saw a "real"
+separator bash itself does not -- misreading a genuine heredoc opener as a
+trailing comment (0 detected, exit 0). The same explicit-state fix also lets
+word-start recognize an unquoted statement-separator operator (`;`, `|`,
+`&`), not just a blank -- `true;#<<EOF` and `true|#<<EOF` are genuine bash
+comments too, and the old raw-byte check missed both with the identical
+fail-open shape. Both verified against real `/bin/bash`.
+
 **Still open (real, adversarially-found gaps):**
 
+- A heredoc opener split immediately after `<<`/`<<-` by a
+  backslash-newline line continuation (`cat <<\` then a newline, then the
+  delimiter on the next physical line) is valid bash and opens a real
+  heredoc this line-based scanner never sees. Verified against real
+  `/bin/bash`. Pre-existing, not introduced or fixed by the word-start work
+  above; considered low real-world likelihood. Not fixed here because
+  splicing backslash-newline continuations before lexing would have to
+  interact correctly with the persisted cross-line quote stack (literal
+  inside single quotes, a real continuation inside double quotes or at the
+  base level) without the full old-vs-new re-proof this file's other
+  quote-stack fixes required.
 - The unquoted-heredoc runtime-expansion margin (#5085, above) narrows the
   window for a source body already close to budget; it does not catch a
   small literal body that references an unbounded runtime expansion (a large
