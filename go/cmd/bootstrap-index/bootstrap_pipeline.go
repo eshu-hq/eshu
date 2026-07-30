@@ -286,8 +286,9 @@ func runPipelined(
 	// scope that has an active generation. The drift handler consumes both
 	// config-side parser facts and state-side collector facts, so its work
 	// items must land after Phase 3 reopens deployment_mapping (the same
-	// facts-first ordering rationale documented in go/internal/reducer/README.md
-	// under "Facts-First Bootstrap Ordering"). Idempotent.
+	// facts-first ordering rationale documented in
+	// go/internal/reducer/queue-and-runners.md under "Facts-First Bootstrap
+	// Ordering"). Idempotent.
 	driftStart := time.Now()
 	if err := cd.committer.EnqueueConfigStateDriftIntents(ctx, tracer, instruments); err != nil {
 		recordPhase(telemetry.BootstrapPhaseConfigStateDrift, driftStart)

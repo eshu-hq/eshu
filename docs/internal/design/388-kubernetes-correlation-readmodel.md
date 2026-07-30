@@ -298,7 +298,8 @@ this deferral.
 ### Evidence
 
 Performance, no-regression, and observability evidence (benchmarks, gate
-commands, telemetry) live in `go/internal/reducer/README.md` (the
+commands, telemetry) live in
+`go/internal/reducer/search-and-runtime-projections.md` (the
 "Live-workload RUNS_IMAGE edge projection" section) and
 `go/internal/storage/cypher/README.md` (the `KubernetesCorrelationEdgeWriter`
 entry), which are the gate-tracked evidence files.
