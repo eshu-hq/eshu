@@ -148,5 +148,42 @@ case_missing_exclusions_file_fails_clearly() {
 }
 check case_missing_exclusions_file_fails_clearly
 
+# Case 9 (negative + convergence proof, #5877 review): the "NOT REACHABLE:"
+# marker on the five search/semantic exclusions must be self-enforcing -- if
+# one of them starts being imported from the six gate binaries, the checker
+# must fail naming it, not silently keep classifying it as excluded forever
+# (the exact class of bug #5877 found in go/internal/boundedset: an entry
+# whose reason stopped being true, discovered only by a human re-reading the
+# file rather than by the check itself). Blank-import
+# go/internal/searchbenchrun from go/cmd/golden-corpus-gate/main.go -- the
+# same binary this script derives its compiled set from -- confirm the
+# failure names that package, then revert the source file and confirm PASS
+# again.
+case_not_reachable_becomes_reachable_fails() {
+	local main_go="${repo_root}/go/cmd/golden-corpus-gate/main.go"
+	local backup out status
+	backup="$(mktemp -t golden-corpus-filter-main-go-backup.XXXXXX)"
+	cp "${main_go}" "${backup}"
+
+	# Insert a blank import right after the import block's opening line so
+	# `go list -deps` picks up the package without touching anything else.
+	awk '{print} /^import \($/ && !done {print "\t_ \"github.com/eshu-hq/eshu/go/internal/searchbenchrun\""; done=1}' \
+		"${backup}" >"${main_go}"
+
+	out="$(bash "${script}" 2>&1)"
+	status=$?
+	cp "${backup}" "${main_go}"
+	rm -f "${backup}"
+
+	[[ "${status}" -ne 0 ]] || return 1
+	rg --fixed-strings --quiet -- 'go/internal/searchbenchrun' <<<"${out}" || return 1
+
+	# Confirm the revert actually restored a clean, passing state -- proves
+	# reachability (not some other side effect of the edit) drove the failure.
+	out="$(bash "${script}" 2>&1)" || return 1
+	rg --fixed-strings --quiet -- '0 uncovered' <<<"${out}"
+}
+check case_not_reachable_becomes_reachable_fails
+
 printf 'test-verify-golden-corpus-filter-exhaustive: %d/%d cases pass\n' "${pass}" "${total}"
 [[ "${pass}" -eq "${total}" ]] || exit 1

@@ -1516,6 +1516,13 @@ gates:
       - "go/internal/governanceaudit/**"
       - "go/internal/status/**"
       - "go/internal/buildinfo/**"
+      # #5877 review: two corrected exclusions -- see the workflow's own
+      # comment and scripts/lib/golden-corpus-mirror-workflow-paths.sh for the
+      # per-package import evidence (boundedset.DedupeSortCap shapes asserted
+      # SBOM attachment fields; tfstatewarning.Classify shapes get_index_status's
+      # required "terraform_state" field).
+      - "go/internal/boundedset/**"
+      - "go/internal/tfstatewarning/**"
       - "testdata/golden/**"
       - "testdata/cassettes/**"
       - "tests/fixtures/ecosystems/**"

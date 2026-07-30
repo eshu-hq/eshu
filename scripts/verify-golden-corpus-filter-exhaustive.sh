@@ -102,7 +102,17 @@ is_covered() {
 }
 
 # --- 3. load the exclusions file --------------------------------------------
+# "NOT REACHABLE:" is a machine-readable marker (not decoration -- see step
+# 3b below): a reason carrying it asserts the package is absent from every
+# compiled binary's `go list -deps` output today. That claim must stay
+# self-enforcing, because the classify loop in step 4 only ever inspects
+# packages already IN the compiled set -- a NOT-REACHABLE package that later
+# becomes reachable would otherwise be silently classified as "excluded"
+# forever, the same class of drift #5877 found in a plain (non-marked)
+# exclusion entry.
+not_reachable_marker='NOT REACHABLE:'
 declare -A excluded_reason=()
+declare -A not_reachable_pkgs=()
 while IFS= read -r line; do
 	[[ -n "${line}" && "${line}" != '#'* ]] || continue
 	excl_pkg=""
@@ -111,8 +121,40 @@ while IFS= read -r line; do
 	[[ -n "${excl_pkg}" ]] || continue
 	[[ -n "${excl_reason}" ]] || fail "exclusion entry for ${excl_pkg} carries no reason: ${exclusions}"
 	excluded_reason["${excl_pkg}"]="${excl_reason}"
+	if [[ "${excl_reason}" == "${not_reachable_marker}"* ]]; then
+		not_reachable_pkgs["${excl_pkg}"]=1
+	fi
 done <"${exclusions}"
 [[ "${#excluded_reason[@]}" -gt 0 ]] || fail "exclusions file parsed to zero entries: ${exclusions}"
+
+# --- 3b. NOT-REACHABLE convergence check -------------------------------------
+# Independent of step 4's classification: a NOT-REACHABLE package that shows
+# up in the compiled set fails here even though it also has a (now stale)
+# excluded_reason entry, which step 4 alone would accept silently.
+declare -A compiled_set=()
+while IFS= read -r pkg; do
+	[[ -n "${pkg}" ]] || continue
+	compiled_set["${pkg}"]=1
+done <<<"${compiled_pkgs}"
+
+now_reachable=()
+for pkg in "${!not_reachable_pkgs[@]}"; do
+	[[ -n "${compiled_set[${pkg}]:-}" ]] || continue
+	now_reachable+=("${pkg}")
+done
+if [[ "${#now_reachable[@]}" -gt 0 ]]; then
+	# Associative-array key iteration order is not guaranteed stable; sort so
+	# the failure message (and case_deterministic, should this path ever be
+	# exercised by a real regression) is byte-identical across runs.
+	mapfile -t now_reachable < <(printf '%s\n' "${now_reachable[@]}" | sort -u)
+	{
+		printf 'FAIL: %d package(s) marked "NOT REACHABLE" in the exclusions file are now compiled into the golden-corpus-gate binaries:\n' "${#now_reachable[@]}"
+		printf '  %s\n' "${now_reachable[@]}"
+		printf 'Fix: this package is no longer unreachable -- either cover it (add a path entry to %s, mirror it in specs/ci-gates.v1.yaml, and assert it in scripts/lib/golden-corpus-mirror-workflow-paths.sh), OR replace its "NOT REACHABLE:" reason in %s with a real reason for why a change to it still cannot alter what the B-7 gate projects or asserts.\n' \
+			"${workflow#"${repo_root}/"}" "${exclusions#"${repo_root}/"}"
+	} >&2
+	exit 1
+fi
 
 # --- 4. classify every compiled package --------------------------------------
 uncovered=()

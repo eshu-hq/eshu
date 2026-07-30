@@ -292,3 +292,30 @@ require_workflow_path "build version stamp (#5538)" "go/internal/buildinfo/**"
 # ComponentExtensionWorkPlanner is equally dead: it only plans work for a
 # configured component-extension collector instance, and none exists in this
 # corpus. See scripts/lib/golden-corpus-filter-exclusions.txt.
+
+# --- #5877 review: two more wrong exclusions found by the exhaustiveness
+# audit's own exclusion re-check --------------------------------------------
+# internal/boundedset.DedupeSortCap is called directly and unconditionally by
+# the already-covered internal/query/sbom_attestation_attachment_rows.go and
+# internal/reducer/sbom_attestation_attachment_evidence_bounds.go to compute
+# attachments[].component_count, attachments[].component_evidence_truncated,
+# and attachments[].component_evidence[].{component_id,purl} -- all asserted
+# response fields. It was wrongly filed as "not itself a fact/graph/query
+# producer"; it is exactly that, just a shared helper rather than a
+# fact-specific one.
+require_workflow_path "SBOM attachment dedupe/sort/cap (#5877 correction)" "go/internal/boundedset/**"
+
+# internal/tfstatewarning was excluded as "not one of the 9 credentialed
+# collectors this gate replays via cassette" -- factually wrong, terraform-state
+# IS one of the cassette-replayed collectors (testdata/cassettes/terraformstate/
+# supply-chain-demo.json). internal/status/tfstate.go (already-covered
+# internal/status) unconditionally calls tfstatewarning.Classify for every
+# recent warning row to build get_index_status's required "terraform_state"
+# field (status.go's GroupTerraformStateWarningsByKind/
+# SummarizeTerraformStateWarnings). The current cassette records zero
+# warning_fact rows, so Classify runs zero times against real data in today's
+# corpus -- but the call site is unconditional production code, not gated by
+# an env flag or a ComponentHome-style short-circuit, so a future cassette
+# change (or a bug in the classification itself once warnings exist) must not
+# ship invisibly. Cover it rather than lean on today's empty-corpus accident.
+require_workflow_path "terraform-state warning classification (#5877 correction)" "go/internal/tfstatewarning/**"

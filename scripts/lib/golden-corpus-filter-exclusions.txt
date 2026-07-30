@@ -52,7 +52,6 @@ go/internal/component	both asserted MCP shapes short-circuit on ComponentHome=="
 
 # --- collector/source families outside the gate's fixed cassette corpus ----
 go/internal/redact			redaction layer for LIVE collector output; cassette replay bypasses live collection and its redaction path entirely (see eshu-golden-corpus-rigor)
-go/internal/tfstatewarning	terraform-state collector staleness warning surface; not one of the 9 credentialed collectors this gate replays via cassette
 go/internal/vulnsource		vulnerability-source ingestion outside the gate's fixed cassette/fixture inputs
 
 # --- operational control plane / observability / utility -------------------
@@ -62,7 +61,6 @@ go/internal/vulnsource		vulnerability-source ingestion outside the gate's fixed 
 go/internal/runtime			admin/status/probes/retry-policy/lifecycle control plane; does not alter projected graph or query truth
 go/internal/telemetry		OTEL spans/metrics/logs; observability side channel, never alters a query/graph response value
 go/internal/clock			fake-clock test utility used only by internal/replay/crashreplay's crash-replay simulation harness, not the gate's normal replay path
-go/internal/boundedset		generic bounded-set data structure utility; not itself a fact/graph/query producer
 go/internal/cpubudget		CPU budget/throttling scheduling knob; not projected truth
 go/internal/webhook			outbound webhook delivery; not on the fact/graph/query read path this gate asserts
 go/internal/app				service bootstrap/admin HTTP wiring (health/readiness server); not a fact or query producer
@@ -74,11 +72,23 @@ go/internal/workflow		coordinator run/work-item scheduling types used for dynami
 # Checked during #5538's review and confirmed NOT present in `go list -deps`
 # output for any of bootstrap-index, projector, reducer, api, mcp-server, or
 # golden-corpus-gate. Listed here for documentation/future-proofing per that
-# review, not because the exhaustiveness check currently observes them --
-# scripts/test-verify-golden-corpus-filter-exhaustive.sh asserts they stay
-# absent from the compiled set so this entry cannot silently go stale.
-go/internal/searchbenchrun			not reachable via go list -deps for any of the six gate binaries
-go/internal/searchdecaytelemetry	not reachable via go list -deps for any of the six gate binaries
-go/internal/searchnornicdb			not reachable via go list -deps for any of the six gate binaries
-go/internal/searchpostgres			not reachable via go list -deps for any of the six gate binaries
-go/internal/semanticdocs			not reachable via go list -deps for any of the six gate binaries
+# review.
+#
+# The "NOT REACHABLE:" reason prefix below is a machine-readable marker, not
+# decoration: scripts/verify-golden-corpus-filter-exhaustive.sh itself (#5877
+# review) parses it and FAILS the gate if any so-marked package ever appears
+# in the compiled set derived from `go list -deps` -- naming the package and
+# telling the author to either cover it (add workflow/registry/mirror-lib
+# paths) or reclassify it with a real, non-"NOT REACHABLE" reason. Before that
+# check existed, becoming reachable would have silently and permanently
+# reclassified as "excluded" the moment the package entered the compiled set,
+# because the exhaustiveness loop only ever inspects packages IN that set --
+# see scripts/test-verify-golden-corpus-filter-exhaustive.sh's
+# case_not_reachable_becomes_reachable_fails for the regression proof (blank-
+# imports go/internal/searchbenchrun from go/cmd/golden-corpus-gate/main.go,
+# confirms the failure names it, then reverts).
+go/internal/searchbenchrun			NOT REACHABLE: not reachable via go list -deps for any of the six gate binaries
+go/internal/searchdecaytelemetry	NOT REACHABLE: not reachable via go list -deps for any of the six gate binaries
+go/internal/searchnornicdb			NOT REACHABLE: not reachable via go list -deps for any of the six gate binaries
+go/internal/searchpostgres			NOT REACHABLE: not reachable via go list -deps for any of the six gate binaries
+go/internal/semanticdocs			NOT REACHABLE: not reachable via go list -deps for any of the six gate binaries

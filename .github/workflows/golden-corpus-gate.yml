@@ -102,6 +102,19 @@ on:
       - 'go/internal/governanceaudit/**'
       - 'go/internal/status/**'
       - 'go/internal/buildinfo/**'
+      # #5877 review: two exclusions were wrong. internal/boundedset backs
+      # DedupeSortCap, called directly by the already-covered internal/query
+      # and internal/reducer (sbom_attestation_attachment_rows.go,
+      # sbom_attestation_attachment_evidence_bounds.go) to shape the
+      # asserted attachments[].component_count/component_evidence_truncated/
+      # component_evidence[] fields. internal/tfstatewarning was excluded as
+      # "not one of the 9 credentialed collectors" -- wrong, terraform-state
+      # IS cassette-replayed; internal/status/tfstate.go (already-covered
+      # internal/status) unconditionally classifies its recent warnings into
+      # get_index_status's required "terraform_state" field. See the lib file
+      # for the per-package import evidence.
+      - 'go/internal/boundedset/**'
+      - 'go/internal/tfstatewarning/**'
       - 'testdata/golden/**'
       - 'testdata/cassettes/**'
       - 'tests/fixtures/ecosystems/**'
