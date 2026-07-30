@@ -127,3 +127,101 @@ require_workflow_path "code-to-cloud exposure taint (#5538)"      "go/internal/e
 require_workflow_path "documentation truth extraction (#5538)"    "go/internal/doctruth/**"
 require_workflow_path "service intelligence report (#5538)"       "go/internal/serviceintel/**"
 require_workflow_path "service intelligence HTTP adapter (#5538)" "go/internal/serviceintelhttp/**"
+
+# --- #5538 review follow-up: correcting two wrong exclusions ----------------
+# The prior widening round's commit message excluded "reducer correlation" as
+# "owned by other lanes or a different capability, not this filter" -- that
+# call was wrong: internal/reducer/deployable_unit_correlation.go imports
+# internal/correlation (plus its engine/model/rules subpackages) directly, and
+# aws_cloud_runtime_drift.go, multi_cloud_runtime_drift.go,
+# terraform_config_state_drift.go, and cloud_inventory_admission*.go import
+# internal/correlation/{cloudinventory,drift/cloudruntime,drift/multicloud,
+# drift/tfconfigstate} directly. rc-1 (CORRELATES_DEPLOYABLE_UNIT, asserted via
+# -required-correlations=all) is provably zero without the deployable-unit
+# correlation materializer these packages back.
+require_workflow_path "deployable-unit + drift correlation (#5538 correction)" "go/internal/correlation/**"
+
+# internal/truth is the canonical truth-contract package (see the ownership
+# table in docs/internal/agent-guide.md) imported directly by dozens of
+# internal/reducer materialization writers -- including
+# kubernetes_namespace_materialization.go, azure_resource_materialization.go,
+# and secrets_iam_graph_projection.go -- plus doctruth, relationships, and
+# internal/query. KubernetesNamespace node counts, fed by
+# kubernetes_namespace_materialization.go, are asserted in the B-12 snapshot's
+# node_counts.
+require_workflow_path "canonical truth contracts (#5538)" "go/internal/truth/**"
+
+# internal/scope defines IngestionScope/ScopeGeneration, the anchor every
+# fact, work item, and graph projection carries; 97 files under
+# internal/projector (every *_intents.go) import it directly.
+require_workflow_path "ingestion scope + generation anchor (#5538)" "go/internal/scope/**"
+
+# internal/factenvelope is the single collector-SDK-record <-> internal
+# envelope <-> factschema decode adapter, imported directly by
+# projector/factschema_quarantine.go, projector/schema_version_admission.go,
+# and reducer/factschema_decode.go. A fact_kind/version mismatch here is
+# silently inert -- the same 0-node-gate-result failure mode
+# eshu-golden-corpus-rigor documents for a cassette fact_kind mismatch.
+require_workflow_path "fact envelope decode adapter (#5538)" "go/internal/factenvelope/**"
+
+# internal/ghactionsref backs the ReusableWorkflowRepo/ActionRepo/Pinned
+# classifiers that relationships/github_actions_evidence.go and
+# reducer/cross_repo_evidence_artifacts.go call directly; the
+# "github_actions_action_repository" DEPENDS_ON evidence-kind reason those
+# classifiers produce is asserted live in the B-12 snapshot's
+# content-relationships query shapes.
+require_workflow_path "GitHub Actions ref classification (#5538)" "go/internal/ghactionsref/**"
+
+# internal/workflowimage was deliberately left out of the prior widening round
+# ("sits adjacent to the container_image_identity lane") -- that call was also
+# wrong: collector/git_workflow_image_facts.go imports it directly to emit
+# ci.workflow_image_evidence facts, and query/ci_cd_evidence_summary.go
+# imports it directly to classify EvidenceClassImageRef/Unresolved/Ambiguous
+# into evidence_summary.static_workflow_artifacts.evidence_class, a
+# required_response_fields entry on the asserted list_ci_cd_run_correlations
+# query shape.
+require_workflow_path "GitHub Actions workflow image evidence (#5538 correction)" "go/internal/workflowimage/**"
+
+# The search/semantic family: internal/query/semantic_search.go imports
+# searchbench, searchdocs, and searchretrieval directly, and the
+# search_semantic_context MCP tool shape (14 required_response_fields) is
+# asserted live in the B-12 snapshot. searchbench also imports searchdecay
+# directly. searchhybrid/searchrerank/searchembed/searchembedruntime feed
+# internal/query/semantic_search_hybrid.go, semantic_search_rerank.go, and
+# semantic_search_persisted_vector.go (the same MCP tool's response), plus
+# cmd/api and cmd/mcp-server wiring; searchvector feeds
+# cmd/reducer/search_vector_build_wiring.go; semanticqueue/semanticpolicy/
+# semanticguard/semanticprofile feed the semantic-extraction queue
+# (internal/coordinator, internal/storage/postgres) and the same
+# mcp-server/api wiring, independent of the ask/answer-narration pipeline that
+# stays excluded above. Checked and left OUT: searchbenchrun,
+# searchdecaytelemetry, searchnornicdb, searchpostgres, and semanticdocs do
+# not appear in `go list -deps` for any of the six binaries this gate builds.
+require_workflow_path "search retrieval + doc scoring (#5538)" "go/internal/searchretrieval/**"
+require_workflow_path "search document model (#5538)"          "go/internal/searchdocs/**"
+require_workflow_path "search benchmark harness (#5538)"       "go/internal/searchbench/**"
+require_workflow_path "search recency decay (#5538)"           "go/internal/searchdecay/**"
+require_workflow_path "search hybrid fusion (#5538)"            "go/internal/searchhybrid/**"
+require_workflow_path "search rerank (#5538)"                   "go/internal/searchrerank/**"
+require_workflow_path "search embedding contract (#5538)"       "go/internal/searchembed/**"
+require_workflow_path "search embedding provider (#5538)"       "go/internal/searchembedprovider/**"
+require_workflow_path "search embedding runtime wiring (#5538)" "go/internal/searchembedruntime/**"
+require_workflow_path "search vector build (#5538)"             "go/internal/searchvector/**"
+require_workflow_path "semantic extraction queue (#5538)"       "go/internal/semanticqueue/**"
+require_workflow_path "semantic policy (#5538)"                 "go/internal/semanticpolicy/**"
+require_workflow_path "semantic guard (#5538)"                  "go/internal/semanticguard/**"
+require_workflow_path "semantic profile (#5538)"                "go/internal/semanticprofile/**"
+
+# internal/iacreachability backs query/iac.go's dead-IaC analysis; the
+# find_dead_code / find_cross_repo_dead_code MCP shapes pin
+# data.analysis.iac_reachability_mode="not_modeled_by_code_dead_code" in the
+# B-12 snapshot.
+require_workflow_path "IaC reachability analysis (#5538)" "go/internal/iacreachability/**"
+
+# internal/rubycontroller backs the shared dead-code query filter --
+# query/content_reader_dead_code.go uses rubycontroller.VerdictDowngraded
+# directly as a SQL argument -- that find_dead_code/investigate_dead_code/
+# find_cross_repo_dead_code all share regardless of language, plus the
+# parser/ruby and reducer dead-code-root verdict engine those MCP shapes are
+# asserted live against.
+require_workflow_path "dead-code verdict engine (#5538)" "go/internal/rubycontroller/**"

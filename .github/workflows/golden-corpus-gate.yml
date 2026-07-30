@@ -58,6 +58,37 @@ on:
       - 'go/internal/doctruth/**'
       - 'go/internal/serviceintel/**'
       - 'go/internal/serviceintelhttp/**'
+      # #5538 review follow-up: correcting two wrong exclusions from the prior
+      # widening round. "reducer correlation" was excluded as "owned by other
+      # lanes" -- wrong, see scripts/lib/golden-corpus-mirror-workflow-paths.sh
+      # for the direct-import evidence against rc-1 (CORRELATES_DEPLOYABLE_UNIT).
+      - 'go/internal/correlation/**'
+      - 'go/internal/truth/**'
+      - 'go/internal/scope/**'
+      - 'go/internal/factenvelope/**'
+      - 'go/internal/ghactionsref/**'
+      # "workflowimage" was excluded as "adjacent to the container_image_identity
+      # lane" -- also wrong, see the lib file for the direct-import evidence.
+      - 'go/internal/workflowimage/**'
+      # The search/semantic family backing the search_semantic_context MCP tool
+      # shape (14 required_response_fields, asserted live). See the lib file for
+      # the per-package import evidence and the packages checked and left out.
+      - 'go/internal/searchretrieval/**'
+      - 'go/internal/searchdocs/**'
+      - 'go/internal/searchbench/**'
+      - 'go/internal/searchdecay/**'
+      - 'go/internal/searchhybrid/**'
+      - 'go/internal/searchrerank/**'
+      - 'go/internal/searchembed/**'
+      - 'go/internal/searchembedprovider/**'
+      - 'go/internal/searchembedruntime/**'
+      - 'go/internal/searchvector/**'
+      - 'go/internal/semanticqueue/**'
+      - 'go/internal/semanticpolicy/**'
+      - 'go/internal/semanticguard/**'
+      - 'go/internal/semanticprofile/**'
+      - 'go/internal/iacreachability/**'
+      - 'go/internal/rubycontroller/**'
       - 'testdata/golden/**'
       - 'testdata/cassettes/**'
       - 'tests/fixtures/ecosystems/**'
