@@ -29,21 +29,30 @@ import (
 // stable epoch) and fails loudly if the load-page query — which singleflight
 // must serialize to exactly one caller — is ever issued more than once.
 //
-// probeDelay simulates a DB round-trip. inFlightProbes/peakInFlightProbes
-// count, at every instant, how many probe calls are concurrently inside that
-// round-trip — a direct, wall-clock-free measurement of non-serialization
-// (issue #5849): under the P1-A bug, probes fully serialize behind mu,
-// pinning peakInFlightProbes at 1 regardless of host scheduling; under the
-// fix, mu is released before the probe, so 32 concurrent callers guarantee
-// overlap. This replaces a prior wall-clock bound that could fail under host
-// load even with fully correct, non-serialized behavior.
+// Non-serialization proof (issue #5849): the first probe call blocks (via
+// firstProbeEntered/secondProbeEntered) until a second, independent probe
+// call arrives or overlapTimeout elapses. This does NOT rest on "32
+// concurrent callers guarantee overlap" — that premise is false: c.loading
+// (identity_epoch_cache.go) goes non-nil only after the leader's probe
+// returns, so a straggler goroutine that reaches the loading check after
+// that point correctly skips probing, and how many of the 32 callers race in
+// before then is scheduling-dependent (can legitimately be 31, not 32, under
+// -race on a loaded host). What actually guarantees overlap under the fixed
+// code is that mu is released before the probe: the leader blocks inside the
+// probe holding no lock, so every other caller can reach its own probe call
+// unimpeded by mu, and the leader's generous timeout gives one of them time
+// to arrive as the second entrant. Under the seeded P1-A bug (mu held across
+// the probe), the leader blocks while still holding mu, so no other caller
+// can even reach QueryContext — the handshake never completes and the test
+// fails deterministically, every run.
 type concurrentSingleflightQueryer struct {
 	mu                 sync.Mutex
 	probeCalls         int
 	loadCalls          int
-	inFlightProbes     int
-	peakInFlightProbes int
-	probeDelay         time.Duration
+	firstProbeEntered  chan struct{}
+	secondProbeEntered chan struct{}
+	overlapTimeout     time.Duration
+	overlapAchieved    bool
 	factRow            []any
 	probeRow           []any
 }
@@ -64,24 +73,33 @@ func (q *concurrentSingleflightQueryer) QueryContext(_ context.Context, query st
 		return &queueFakeRows{rows: [][]any{q.factRow}}, nil
 	}
 
-	// Probe query: simulate a DB round-trip, tracking peak concurrency across
-	// the simulated round-trip so the test can assert non-serialization
-	// directly instead of inferring it from elapsed wall-clock time.
-	q.mu.Lock()
-	q.inFlightProbes++
-	if q.inFlightProbes > q.peakInFlightProbes {
-		q.peakInFlightProbes = q.inFlightProbes
-	}
-	q.mu.Unlock()
-
-	if q.probeDelay > 0 {
-		time.Sleep(q.probeDelay)
-	}
-
+	// Probe query: a deterministic two-probe handshake proves overlap
+	// directly instead of inferring it from a peak-count sample or elapsed
+	// wall-clock time. The first probe call to arrive blocks until a second,
+	// independent probe call arrives (proving mu was not held across the
+	// first call) or overlapTimeout elapses (deadlock/serialization
+	// detector, not a timing assertion).
 	q.mu.Lock()
 	q.probeCalls++
-	q.inFlightProbes--
+	n := q.probeCalls
 	q.mu.Unlock()
+
+	switch n {
+	case 1:
+		close(q.firstProbeEntered)
+		select {
+		case <-q.secondProbeEntered:
+			q.mu.Lock()
+			q.overlapAchieved = true
+			q.mu.Unlock()
+		case <-time.After(q.overlapTimeout):
+			// Leave overlapAchieved false: no second probe arrived in time,
+			// meaning mu (or some other chokepoint) serialized the callers.
+		}
+	case 2:
+		close(q.secondProbeEntered)
+	}
+
 	return &queueFakeRows{rows: [][]any{q.probeRow}}, nil
 }
 
@@ -98,11 +116,19 @@ func TestIdentityEpochCacheConcurrentSingleflight(t *testing.T) {
 		[]byte(`{}`),
 	}
 
-	const probeDelay = 20 * time.Millisecond
+	// overlapTimeout is a deadlock/serialization detector, not a timing
+	// assertion: it only needs to be long enough for a goroutine scheduled
+	// on a loaded host to reach its probe call. Kept generous (seconds, not
+	// milliseconds) so it never contributes to flakiness; a real
+	// serialization bug (the seeded P1-A regression proven below) fails this
+	// test on every run regardless of how long the timeout is.
+	const overlapTimeout = 5 * time.Second
 	q := &concurrentSingleflightQueryer{
-		probeDelay: probeDelay,
-		factRow:    factRow,
-		probeRow:   []any{int64(1), time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), ""},
+		firstProbeEntered:  make(chan struct{}),
+		secondProbeEntered: make(chan struct{}),
+		overlapTimeout:     overlapTimeout,
+		factRow:            factRow,
+		probeRow:           []any{int64(1), time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), ""},
 	}
 
 	store := newFactStoreWithCache(q, 0)
@@ -113,7 +139,6 @@ func TestIdentityEpochCacheConcurrentSingleflight(t *testing.T) {
 	results := make([][]facts.Envelope, numGoroutines)
 	errs := make([]error, numGoroutines)
 
-	start := time.Now()
 	for i := range numGoroutines {
 		go func(idx int) {
 			defer wg.Done()
@@ -123,7 +148,6 @@ func TestIdentityEpochCacheConcurrentSingleflight(t *testing.T) {
 		}(i)
 	}
 	wg.Wait()
-	elapsed := time.Since(start)
 
 	for i := range numGoroutines {
 		if errs[i] != nil {
@@ -135,33 +159,29 @@ func TestIdentityEpochCacheConcurrentSingleflight(t *testing.T) {
 	}
 
 	q.mu.Lock()
-	loadCalls, probeCalls, peakInFlight := q.loadCalls, q.probeCalls, q.peakInFlightProbes
+	loadCalls, probeCalls, overlapAchieved := q.loadCalls, q.probeCalls, q.overlapAchieved
 	q.mu.Unlock()
 	if loadCalls != 1 {
 		t.Fatalf("load page queries = %d, want 1 (singleflight)", loadCalls)
 	}
-	t.Logf("probeCalls=%d loadCalls=%d peakInFlightProbes=%d elapsed=%v (probeDelay=%v, logged for diagnostics only, not asserted)",
-		probeCalls, loadCalls, peakInFlight, elapsed, probeDelay)
+	t.Logf("probeCalls=%d loadCalls=%d overlapAchieved=%v", probeCalls, loadCalls, overlapAchieved)
 
-	// Non-serialization proof (issue #5849 fix): assert directly, via the
-	// observed peak in-flight probe count, that concurrent callers' epoch
-	// probes overlap — not by inferring it from elapsed wall-clock time. A
-	// busy host can delay every goroutine's wake-up by an unbounded amount
-	// regardless of whether mu serializes the probe, so any fixed multiple
-	// of probeDelay can fail on correct code (reproduced for #5849).
-	//
-	// The bound is exact equality, not merely ">1": the only gate before the
-	// probe call is a sub-microsecond uncontended mutex check against an
-	// empty cache, far faster than the 20ms probeDelay, so every one of the
-	// numGoroutines callers necessarily reaches its probe call before the
-	// first one returns — there is no chokepoint that could let some
-	// callers through while serializing others. Measured across 200+ runs
-	// each way: peakInFlightProbes == numGoroutines on every correct run,
-	// == 1 on every run of the seeded P1-A bug, never anything in between.
-	// A looser bound (e.g. ">1") would go green on a run showing only 2 of
-	// 32 probes overlapping, which would actually indicate a different,
-	// subtler serialization regression than the one this test guards.
-	if peakInFlight != numGoroutines {
-		t.Fatalf("peak concurrent probes = %d, want %d (mu must not serialize the epoch probe across any caller)", peakInFlight, numGoroutines)
+	// Non-serialization proof (issue #5849 fix): assert the real invariant —
+	// mu is not held across the epoch probe — via a deterministic two-probe
+	// handshake instead of a scheduling-dependent peak-count sample or a
+	// wall-clock bound. This replaces an exact-equality bound
+	// (peakInFlightProbes == numGoroutines) rejected on review: c.loading
+	// only goes non-nil after the leader's probe returns, so a straggler
+	// goroutine that reaches the loading check after that point correctly
+	// skips probing, and exactly how many of the 32 callers race in before
+	// then is scheduling-dependent — a busy host can legitimately leave it
+	// at 31 on fully correct code. The handshake sidesteps that: it only
+	// requires that a second, independent probe call arrive while the first
+	// is still outstanding, which the fixed code guarantees deterministically
+	// (mu is free during the leader's probe, so every other caller can reach
+	// its own probe call) and the seeded P1-A bug fails deterministically
+	// (mu is held, so no other caller can even reach QueryContext).
+	if !overlapAchieved {
+		t.Fatalf("epoch probes never overlapped within %v (mu must not serialize the epoch probe across any caller)", overlapTimeout)
 	}
 }
