@@ -268,7 +268,7 @@ proof, not a claim that either absolute number is the authoritative one.
 | NEW (`scope_kind =` + partial index) | 0.5-1.2 ms | 0.6-0.7 ms | Index Scan on `ingestion_scopes_active_state_snapshot_idx` |
 
 **Recommendation:** filter on `scope_kind = $1` (bound parameter), backed by
-`ingestion_scopes_active_state_snapshot_idx` (migration 087). Roughly
+`ingestion_scopes_active_state_snapshot_idx` (migration 091). Roughly
 40-100x faster at 500K rows and 500-850x faster at 2M rows on this machine
 profile, and flat with corpus growth rather than degrading linearly with it
 — the query this sweeper runs every 5 minutes forever.

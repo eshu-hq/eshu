@@ -18,7 +18,7 @@ import (
 )
 
 // TestIngestionScopesActiveStateSnapshotIndexAppliesReappliesAndRecoversLive
-// is the migration-087 concurrency proof (issue #5593 P1 fix): first
+// is the migration-091 concurrency proof (issue #5593 P1 fix): first
 // application, identical reapplication, a connection restart, and recovery
 // from a same-name invalid index -- the proof ladder's "Concurrency" rung
 // for index candidates, mirroring

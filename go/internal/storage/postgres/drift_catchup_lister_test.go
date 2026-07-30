@@ -21,7 +21,7 @@ import (
 // reducer's catch-up sweep and must not turn every tick into an unbounded
 // scan on a large corpus. Also proves the query filters by scope_kind
 // (bound as a parameter, not a LIKE-prefix on scope_id) so it can be
-// serviced by ingestion_scopes_active_state_snapshot_idx (migration 087) --
+// serviced by ingestion_scopes_active_state_snapshot_idx (migration 091) --
 // see drift_catchup_lister.go's doc comment and
 // docs/internal/evidence/5593-config-state-drift-catchup-lister-query.md for
 // why the LIKE shape was rejected.

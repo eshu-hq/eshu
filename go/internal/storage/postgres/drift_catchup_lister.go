@@ -37,7 +37,7 @@ const defaultCatchUpListLimit = 500
 // with. Measured: the LIKE-based shape forced a near-full ingestion_scopes_pkey
 // scan (~76 ms at 500K rows, ~506 ms at 2M rows, growing with total corpus
 // size); the scope_kind equality shape, backed by
-// ingestion_scopes_active_state_snapshot_idx (migration 087), stays flat at
+// ingestion_scopes_active_state_snapshot_idx (migration 091), stays flat at
 // ~0.6-1.2 ms regardless of total corpus size. See
 // docs/internal/evidence/5593-config-state-drift-catchup-lister-query.md for
 // the full EXPLAIN (ANALYZE, BUFFERS) ladder.
