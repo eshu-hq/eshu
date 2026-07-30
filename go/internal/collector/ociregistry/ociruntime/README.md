@@ -66,6 +66,11 @@ digests. Those values are high cardinality and may describe private topology.
 ## Invariants
 
 - Tags are mutable observations; digest identity wins.
+- When a registry returns more tags than `TagLimit`, the runtime sorts and
+  compacts the complete response, retains the bounded prefix, and emits one
+  `tag_list_truncated` warning for that repository generation. The
+  container-image-identity reducer consumes that warning to hold evicted tag
+  references instead of treating the bounded scan as authoritative absence.
 - Claimed scans must match one configured target by normalized `scope_id`; an
   unmatched claim releases without emitting facts.
 - Referrers API absence emits a warning fact instead of false negative truth.

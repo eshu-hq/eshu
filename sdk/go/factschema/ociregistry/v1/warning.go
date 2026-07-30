@@ -7,16 +7,12 @@ package v1
 // "oci_registry.warning" fact kind (Contract System v1 §3.1,
 // docs/internal/design/contract-system-v1.md).
 //
-// DEFERRED — TYPED BUT NOT YET CONSUMED. oci_registry.warning has no read-side
-// consumer in the projector or the reducer today: the collector emits it
-// (ociregistry.NewWarningEnvelope) but no decode site reads it, so it is a
-// declared provenance-only kind (design §3.4). This struct, its schema, its
-// fixturepack entry, and its registry payload_schema ref exist so the kind is
-// contract-complete and an external collector can validate it in conformance,
-// but NO decode-site conversion, input_invalid regression test, or benchmark
-// accompanies it — there is no read path to convert. It migrates its decode
-// site WITH the future consumer, matching how the gcp wave shipped
-// gcp_image_reference/gcp_tag_observation as typed-but-deferred.
+// The container-image-identity reducer consumes this payload before retiring a
+// previously canonical image reference. Active config-blob, tag-list, and
+// missing-manifest warnings hold the affected reference set; missing-manifest
+// is repository-wide because the payload carries no scanned-reference field.
+// Malformed active warnings fail retirement closed so bounded collector
+// incompleteness is not mistaken for authoritative demotion.
 //
 // The required field is WarningCode: the collector emitter fails closed on a
 // blank warning code (warning.go rejects it before the envelope is built), so

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -17,32 +18,55 @@ import (
 
 const containerImageIdentityFactKind = "reducer_container_image_identity"
 
+const containerImageIdentityLegacyCleanupQuery = `
+DELETE FROM fact_records AS fact
+WHERE fact.fact_id = ANY($1::text[])
+  AND fact.fact_kind = 'reducer_container_image_identity'
+  AND fact.is_tombstone = FALSE
+  AND fact.scope_id = $2
+  AND fact.generation_id = $3
+  AND fact.fencing_token <= $4
+`
+
+// ContainerImageIdentityTransaction is the narrow atomic write surface used by
+// the identity writer for outcome-independent publications followed by cleanup
+// of unreachable legacy outcome-keyed rows.
+type ContainerImageIdentityTransaction interface {
+	workloadIdentityExecer
+	Commit() error
+	Rollback() error
+}
+
+// ContainerImageIdentityBeginner opens the identity writer's publication and
+// legacy-cleanup transaction.
+type ContainerImageIdentityBeginner interface {
+	BeginContainerImageIdentityTx(context.Context) (ContainerImageIdentityTransaction, error)
+}
+
 // PostgresContainerImageIdentityWriter persists digest-keyed image identity
 // decisions into the shared fact store.
 type PostgresContainerImageIdentityWriter struct {
-	DB  workloadIdentityExecer
-	Now func() time.Time
+	DB       workloadIdentityExecer
+	Beginner ContainerImageIdentityBeginner
+	Now      func() time.Time
 }
 
-// WriteContainerImageIdentityDecisions stores only canonical image identity
-// decisions. Weak, missing, ambiguous, or stale tag outcomes stay diagnostic
-// reducer output until a stronger source can prove digest identity.
+// WriteContainerImageIdentityDecisions stores canonical image identity
+// decisions and fenced tombstones for evaluated demotions. Weak, missing,
+// ambiguous, or stale outcomes stay diagnostic reducer output unless the
+// retirement planner proves the reference was evaluated authoritatively.
 //
-// The fact id is stable by decision identity, so a retry that reaches the same
-// classification upserts the same rows, and the insert's fencing guard keeps a
-// pass that read STALE evidence from overwriting a fresher pass's payload on
-// that shared fact id (reducerFactBatchInsertQuery).
+// The fact ID is stable by logical image identity: scope, generation, and image
+// reference. Outcome is payload, not identity. A reclassification therefore
+// collides on the same primary key, where the shared insert's fencing guard
+// rejects an older evidence read. A demotion writes a tombstone at that same
+// key, preserving the durable fence so a stalled older pass cannot resurrect
+// the retired row after the fresher pass commits.
 //
-// What this write is NOT is generation-authoritative. The identity embeds
-// `outcome` and `image_ref`, so a replay that RE-CLASSIFIES an image lands under
-// a new fact id beside the old one, and a replay that demotes an image out of
-// the canonical outcomes produces no row to upsert over the stale one at all.
-// Both leave a superseded decision live for the same active generation, which
-// PostgresContainerImageIdentityStore.ListContainerImageIdentities serves — it
-// has no DISTINCT ON, GROUP BY, or per-digest latest-wins. Closing that needs a
-// retire pass whose deletes are safe against the OCI collector's bounded
-// degradation (a soft-failed config blob and a truncated tag list both shrink a
-// generation with no registry-side assertion), which is tracked as #5854.
+// Legacy outcome-keyed rows are deleted only after the new derivation makes
+// those keys unreachable to every future writer. Publication and that one-way
+// cleanup share a transaction so readers never observe both formats from a
+// completed pass.
 func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisions(
 	ctx context.Context,
 	write ContainerImageIdentityWrite,
@@ -61,10 +85,13 @@ func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisio
 	// Stamped on the INSERT, which is the only statement that stamps it. See
 	// reducerFactBatchInsertQuery for why a row at 0 defeats its own guard.
 	fencingToken := containerImageIdentityFencingToken(write)
-	decisions := containerImageIdentityCanonicalDecisions(write.Decisions)
+	publications := planContainerImageIdentityPublications(write)
 	collectorKind := reducerFactCollectorKind(write.SourceSystem)
-	rows := make([]reducerFactRow, 0, len(decisions))
-	for _, decision := range decisions {
+	rows := make([]reducerFactRow, 0, len(publications))
+	canonicalWrites := 0
+	retirementAttempts := 0
+	for _, publication := range publications {
+		decision := publication.decision
 		canonicalID := canonicalContainerImageIdentityID(write, decision)
 		payloadJSON, err := json.Marshal(containerImageIdentityPayload(write, decision, canonicalID))
 		if err != nil {
@@ -82,19 +109,172 @@ func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisio
 			SourceFactKey:    write.IntentID,
 			ObservedAt:       now,
 			IngestedAt:       now,
+			IsTombstone:      publication.tombstone,
 			Payload:          string(payloadJSON),
 			FencingToken:     fencingToken,
 		})
+		if publication.tombstone {
+			retirementAttempts++
+		} else {
+			canonicalWrites++
+		}
+	}
+	exec := w.DB
+	var tx ContainerImageIdentityTransaction
+	rollbackNeeded := false
+	if len(write.LegacyFactIDs) > 0 {
+		if w.Beginner == nil {
+			return ContainerImageIdentityWriteResult{}, fmt.Errorf(
+				"container image identity transaction beginner is required for legacy cleanup",
+			)
+		}
+		var err error
+		tx, err = w.Beginner.BeginContainerImageIdentityTx(ctx)
+		if err != nil {
+			return ContainerImageIdentityWriteResult{}, fmt.Errorf(
+				"begin container image identity write: %w",
+				err,
+			)
+		}
+		exec = tx
+		rollbackNeeded = true
+		defer func() {
+			if rollbackNeeded {
+				_ = tx.Rollback()
+			}
+		}()
 	}
 	// Bounded chunked bulk insert: canonical decisions are upserted in
 	// O(N/batchSize) round-trips rather than one ExecContext per decision.
-	if err := reducerBatchInsertFacts(ctx, w.DB, rows); err != nil {
+	if err := reducerBatchInsertFacts(ctx, exec, rows); err != nil {
 		return ContainerImageIdentityWriteResult{}, fmt.Errorf("write container image identity fact: %w", err)
 	}
+	legacyRowsDeleted := 0
+	if len(write.LegacyFactIDs) > 0 {
+		result, err := exec.ExecContext(
+			ctx,
+			containerImageIdentityLegacyCleanupQuery,
+			write.LegacyFactIDs,
+			write.ScopeID,
+			write.GenerationID,
+			fencingToken,
+		)
+		if err != nil {
+			return ContainerImageIdentityWriteResult{}, fmt.Errorf(
+				"delete legacy container image identity facts: %w",
+				err,
+			)
+		}
+		if result != nil {
+			affected, affectedErr := result.RowsAffected()
+			if affectedErr != nil {
+				return ContainerImageIdentityWriteResult{}, fmt.Errorf(
+					"count deleted legacy container image identity facts: %w",
+					affectedErr,
+				)
+			}
+			legacyRowsDeleted = int(affected)
+		}
+	}
+	if tx != nil {
+		if err := tx.Commit(); err != nil {
+			return ContainerImageIdentityWriteResult{}, fmt.Errorf(
+				"commit container image identity write: %w",
+				err,
+			)
+		}
+		rollbackNeeded = false
+	}
 	return ContainerImageIdentityWriteResult{
-		CanonicalWrites: len(decisions),
-		EvidenceSummary: fmt.Sprintf("wrote container image identity decisions %d", len(decisions)),
+		CanonicalWrites:    canonicalWrites,
+		RetirementAttempts: retirementAttempts,
+		LegacyRowsDeleted:  legacyRowsDeleted,
+		EvidenceSummary: fmt.Sprintf(
+			"wrote container image identity decisions %d attempted tombstone publications %d legacy rows deleted %d",
+			canonicalWrites,
+			retirementAttempts,
+			legacyRowsDeleted,
+		),
 	}, nil
+}
+
+type containerImageIdentityPublication struct {
+	decision  ContainerImageIdentityDecision
+	tombstone bool
+}
+
+func planContainerImageIdentityPublications(
+	write ContainerImageIdentityWrite,
+) []containerImageIdentityPublication {
+	byFactID := make(map[string]containerImageIdentityPublication)
+	for _, decision := range containerImageIdentityCanonicalDecisions(write.Decisions) {
+		publication := containerImageIdentityPublication{decision: decision}
+		factID := containerImageIdentityFactID(write, decision)
+		if current, ok := byFactID[factID]; !ok ||
+			preferContainerImageIdentityPublication(publication, current) {
+			byFactID[factID] = publication
+		}
+	}
+	for _, decision := range write.TombstoneDecisions {
+		publication := containerImageIdentityPublication{
+			decision:  decision,
+			tombstone: true,
+		}
+		factID := containerImageIdentityFactID(write, decision)
+		if current, ok := byFactID[factID]; !ok ||
+			preferContainerImageIdentityPublication(publication, current) {
+			byFactID[factID] = publication
+		}
+	}
+
+	factIDs := make([]string, 0, len(byFactID))
+	for factID := range byFactID {
+		factIDs = append(factIDs, factID)
+	}
+	sort.Strings(factIDs)
+	publications := make([]containerImageIdentityPublication, 0, len(factIDs))
+	for _, factID := range factIDs {
+		publications = append(publications, byFactID[factID])
+	}
+	return publications
+}
+
+func preferContainerImageIdentityPublication(
+	candidate containerImageIdentityPublication,
+	current containerImageIdentityPublication,
+) bool {
+	if candidate.tombstone != current.tombstone {
+		return !candidate.tombstone
+	}
+	candidateRank := containerImageIdentityPublicationRank(candidate.decision.Outcome)
+	currentRank := containerImageIdentityPublicationRank(current.decision.Outcome)
+	if candidateRank != currentRank {
+		return candidateRank > currentRank
+	}
+	return containerImageIdentityDecisionSortKey(candidate.decision) <
+		containerImageIdentityDecisionSortKey(current.decision)
+}
+
+func containerImageIdentityPublicationRank(outcome ContainerImageIdentityOutcome) int {
+	switch outcome {
+	case ContainerImageIdentityExactDigest:
+		return 2
+	case ContainerImageIdentityTagResolved:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func containerImageIdentityDecisionSortKey(decision ContainerImageIdentityDecision) string {
+	return strings.Join([]string{
+		strings.TrimSpace(decision.ImageRef),
+		string(decision.Outcome),
+		strings.TrimSpace(decision.Digest),
+		strings.TrimSpace(decision.RepositoryID),
+		strings.TrimSpace(decision.SourceRevision),
+		strings.TrimSpace(decision.Reason),
+	}, "\x00")
 }
 
 // errContainerImageIdentityMissingEvidenceAsOf is returned when a write reaches
@@ -169,7 +349,6 @@ func containerImageIdentityStableFactKey(
 		strings.TrimSpace(fmt.Sprint(identity["scope_id"])),
 		strings.TrimSpace(fmt.Sprint(identity["generation_id"])),
 		strings.TrimSpace(fmt.Sprint(identity["image_ref"])),
-		strings.TrimSpace(fmt.Sprint(identity["outcome"])),
 	}, ":")
 }
 
@@ -188,8 +367,19 @@ func containerImageIdentityIdentity(
 		"scope_id":      strings.TrimSpace(write.ScopeID),
 		"generation_id": strings.TrimSpace(write.GenerationID),
 		"image_ref":     strings.TrimSpace(decision.ImageRef),
-		"outcome":       string(decision.Outcome),
 	}
+}
+
+func legacyContainerImageIdentityFactID(
+	write ContainerImageIdentityWrite,
+	decision ContainerImageIdentityDecision,
+) string {
+	identity := containerImageIdentityIdentity(write, decision)
+	identity["outcome"] = string(decision.Outcome)
+	return containerImageIdentityFactKind + ":" + facts.StableID(
+		containerImageIdentityFactKind,
+		identity,
+	)
 }
 
 func containerImageIdentityPayload(

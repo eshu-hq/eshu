@@ -45,6 +45,8 @@ type stubContainerImageIdentityFactLoader struct {
 	ciActive                   []facts.Envelope
 	ciActiveCall               int
 	ciActiveOwnerRepositoryIDs []string
+	warnings                   []facts.Envelope
+	warningCalls               int
 }
 
 func (s *stubContainerImageIdentityFactLoader) ListFacts(
@@ -70,6 +72,13 @@ func (s *stubContainerImageIdentityFactLoader) ListActiveContainerImageIdentityF
 ) ([]facts.Envelope, error) {
 	s.activeCall++
 	return append([]facts.Envelope(nil), s.active...), nil
+}
+
+func (s *stubContainerImageIdentityFactLoader) ListActiveContainerImageIdentityWarnings(
+	context.Context,
+) ([]facts.Envelope, error) {
+	s.warningCalls++
+	return append([]facts.Envelope(nil), s.warnings...), nil
 }
 
 func (s *stubContainerImageIdentityFactLoader) ListActiveContainerImageSLSAFacts(

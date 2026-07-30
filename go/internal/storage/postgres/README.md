@@ -1435,6 +1435,22 @@ gap. One list plus one SQL shape means the gate's bootstrap passes are evidence
 about the ingester; only the call site differs. (The gate still does not start
 `eshu-ingester`, so the call site itself is not gate-covered.)
 
+Container-image identity retirement loads active OCI incompleteness warnings
+through `ListActiveContainerImageIdentityWarnings`. That loader is deliberately
+separate from the cached cross-scope identity-evidence query: warning churn does
+not invalidate or enlarge the shared evidence cache, and the query admits only
+non-tombstone `oci_registry.warning` facts on active generations. Migration 087
+adds the ordered partial
+`fact_records_active_oci_warning_idx (observed_at, fact_id, scope_id,
+generation_id)` for that global keyset scan. On 500,000 facts across 1,000
+active scopes with 1,000 warnings, it changed the exact query from 4.658 ms and
+1,000 scope-generation index probes plus a sort to 1.759 ms with one ordered
+warning-index scan; the first 500 IDs were identical (0/0 symmetric
+difference). The reducer uses those warnings to hold affected references. Its
+writer publishes outcome-independent live rows or tombstones, then deletes
+exact pre-#5854 outcome-keyed IDs through
+`ContainerImageIdentityBeginner` in the same transaction.
+
 These domains are deliberately NOT gated by the same-pass backfill skip-set
 described below. That set records which partitions committed no new BACKWARD
 EVIDENCE this pass; the correlation domains wait on a different signal —

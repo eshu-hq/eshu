@@ -80,6 +80,9 @@ const (
 	// WarningConfigBlobOversized marks an image config blob that exceeded the
 	// collector's bounded provenance label read limit.
 	WarningConfigBlobOversized = "config_blob_oversized"
+	// WarningTagListTruncated marks a repository whose discovered tag list
+	// exceeded the configured bounded collection window.
+	WarningTagListTruncated = "tag_list_truncated"
 	// SeverityInfo marks informational warnings.
 	SeverityInfo = "info"
 	// ReferrersUnsupported records unsupported Referrers API state.

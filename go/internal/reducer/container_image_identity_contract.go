@@ -118,12 +118,29 @@ type ContainerImageIdentityWrite struct {
 	// never a defaulted or unfenced write. See reducerFactBatchInsertQuery.
 	EvidenceAsOf time.Time
 	Decisions    []ContainerImageIdentityDecision
+	// TombstoneDecisions names evaluated, non-canonical image references whose
+	// durable logical identity must be retired. The writer publishes each as a
+	// fenced tombstone at the same outcome-independent fact ID a later
+	// canonical decision revives. Collector incompleteness holds exclude a
+	// decision from this slice.
+	TombstoneDecisions []ContainerImageIdentityDecision
+	// LegacyFactIDs names outcome-keyed IDs emitted before #5854. The writer
+	// deletes these unreachable keys in the same transaction as the new
+	// outcome-independent live rows and tombstones.
+	LegacyFactIDs []string
 }
 
 // ContainerImageIdentityWriteResult summarizes durable publication.
 type ContainerImageIdentityWriteResult struct {
 	// CanonicalWrites counts the decisions this execution inserted or upserted.
 	CanonicalWrites int
+	// RetirementAttempts counts logical identities this execution attempted to
+	// publish as fenced tombstones. A fresher row can reject the publication at
+	// the ON CONFLICT fence, so this is deliberately not an applied-row count.
+	RetirementAttempts int
+	// LegacyRowsDeleted counts pre-#5854 outcome-keyed rows removed after their
+	// fact-ID derivation became unreachable to future writers.
+	LegacyRowsDeleted int
 	// EvidenceSummary is a short operator-facing description of the write.
 	EvidenceSummary string
 }

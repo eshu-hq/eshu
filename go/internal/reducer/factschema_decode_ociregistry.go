@@ -14,20 +14,19 @@ import (
 // (container_image_identity_registry.go). Each wraps the contracts-module
 // Decode* seam.
 //
-// Unlike the AWS/GCP/Azure reducer decode wrappers, these do NOT route a decode
-// failure through partitionDecodeFailures to a per-fact input_invalid
-// quarantine: the SAME oci_registry facts are the PRIMARY graph-identity
-// producers in the projector's canonical extractor (oci_registry_canonical.go),
-// which already quarantines a malformed fact as input_invalid and increments
-// eshu_dp_projector_input_invalid_facts_total. The reducer's registry index is a
-// SECONDARY cross-source consumer (it correlates already-projected digest/tag
-// observations to container image references); double-recording the same
-// malformed fact here would over-count the dead-letter. So a decode error here
-// is a SKIP that matches the pre-typing behavior (an incomplete observation was
-// already dropped with ok=false), while the operator-facing dead-letter is
-// emitted once, at the projector. The typed decode still removes the raw
-// payloadStr reads for the typed identity fields, so the field contract is
-// single-sourced.
+// Manifest/index/tag decode failures do not route through
+// partitionDecodeFailures to a second per-fact input_invalid quarantine: those
+// same facts are primary graph-identity producers in the projector's canonical
+// extractor (oci_registry_canonical.go), which already records the malformed
+// input. The reducer's registry index is a secondary cross-source consumer, so
+// those three wrappers retain their established skip behavior rather than
+// double-counting the dead-letter.
+//
+// Warning decoding is different. An active warning is a safety declaration
+// that blocks destructive retirement. A malformed warning therefore returns a
+// classified error and fails the whole handler before publication; silently
+// skipping it would convert unknown collector completeness into authoritative
+// absence.
 
 // decodeOCIImageManifestForIndex decodes an oci_registry.image_manifest or
 // oci_registry.image_index envelope's typed fields for the container-image
@@ -63,4 +62,14 @@ func decodeOCIImageTagObservationForIndex(env facts.Envelope) (ociregistryv1.Tag
 		return ociregistryv1.TagObservation{}, false
 	}
 	return observation, true
+}
+
+// decodeOCIRegistryWarning is the fail-closed typed decode seam for active OCI
+// warnings consumed by the container-image-identity retirement planner.
+func decodeOCIRegistryWarning(env facts.Envelope) (ociregistryv1.Warning, error) {
+	warning, err := factschema.DecodeOCIRegistryWarning(factschemaEnvelope(env))
+	if err != nil {
+		return ociregistryv1.Warning{}, newFactDecodeError(factschema.FactKindOCIRegistryWarning, err)
+	}
+	return warning, nil
 }

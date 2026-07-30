@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"slices"
 	"strings"
 	"time"
 
@@ -112,7 +111,7 @@ func (s *Source) scanTarget(ctx context.Context, config Config, target TargetCon
 		result = "failed"
 		return collector.CollectedGeneration{}, fmt.Errorf("ping OCI registry: %w", err)
 	}
-	tags, err := s.listReferences(ctx, client, target)
+	tags, tagListTruncated, err := s.listReferences(ctx, client, target)
 	if err != nil {
 		result = "failed"
 		return collector.CollectedGeneration{}, err
@@ -129,6 +128,22 @@ func (s *Source) scanTarget(ctx context.Context, config Config, target TargetCon
 		result = "failed"
 		return collector.CollectedGeneration{}, err
 	}
+	if tagListTruncated {
+		warning, warningErr := s.warningEnvelope(
+			target,
+			config.CollectorInstanceID,
+			generationValue.GenerationID,
+			observedAt,
+			ociregistry.WarningTagListTruncated,
+			"repository tag list exceeded the configured bounded collection window",
+			"",
+		)
+		if warningErr != nil {
+			result = "failed"
+			return collector.CollectedGeneration{}, warningErr
+		}
+		envelopes = append(envelopes, warning)
+	}
 	if s.Logger != nil {
 		s.Logger.InfoContext(
 			ctx, "OCI registry scan completed",
@@ -143,33 +158,6 @@ func (s *Source) scanTarget(ctx context.Context, config Config, target TargetCon
 		)
 	}
 	return collector.FactsFromSlice(scopeValue, generationValue, envelopes), nil
-}
-
-func (s *Source) listReferences(ctx context.Context, client RegistryClient, target TargetConfig) ([]string, error) {
-	if len(target.References) > 0 {
-		return append([]string(nil), target.References...), nil
-	}
-	var tags []string
-	err := s.recordAPICall(ctx, target, "list_tags", func(context.Context) error {
-		var err error
-		tags, err = client.ListTags(ctx, target.Repository)
-		return err
-	})
-	if err != nil {
-		return nil, fmt.Errorf("list OCI registry tags: %w", err)
-	}
-	slices.Sort(tags)
-	tags = slices.Compact(tags)
-	if len(tags) > target.TagLimit {
-		tags = tags[:target.TagLimit]
-	}
-	if s.Instruments != nil {
-		s.Instruments.OCIRegistryTagsObserved.Add(ctx, int64(len(tags)), metric.WithAttributes(
-			telemetry.AttrProvider(string(target.Provider)),
-			telemetry.AttrResult("success"),
-		))
-	}
-	return tags, nil
 }
 
 func (s *Source) buildEnvelopes(

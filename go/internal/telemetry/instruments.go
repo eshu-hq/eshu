@@ -308,8 +308,9 @@ type Instruments struct {
 	// "skipped_no_owner", "skipped_self", and "skipped_malformed_file". It lets
 	// an operator confirm the code-import projection lane is producing edges and
 	// see why candidate imports were dropped (issues #3642, #4749).
-	CodeImportRepoEdges             metric.Int64Counter
-	ContainerImageIdentityDecisions metric.Int64Counter
+	CodeImportRepoEdges               metric.Int64Counter
+	ContainerImageIdentityDecisions   metric.Int64Counter
+	ContainerImageIdentityRetirements metric.Int64Counter
 	// ProvenanceEdges counts canonical PUBLISHES and BUILT_FROM graph
 	// provenance edges materialized from package-ownership,
 	// package-publication, and container-image-identity correlation
@@ -2492,6 +2493,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ContainerImageIdentityDecisions counter: %w", err)
+	}
+
+	inst.ContainerImageIdentityRetirements, err = meter.Int64Counter(
+		"eshu_dp_container_image_identity_retirements_total",
+		metric.WithDescription("Total container image identity retirement actions by reducer domain and outcome"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ContainerImageIdentityRetirements counter: %w", err)
 	}
 
 	inst.ProvenanceEdges, err = meter.Int64Counter(

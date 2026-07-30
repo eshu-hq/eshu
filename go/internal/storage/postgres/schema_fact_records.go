@@ -54,6 +54,17 @@ CREATE INDEX IF NOT EXISTS fact_records_active_repository_idx
     WHERE fact_kind = 'repository'
       AND source_system = 'git';
 
+CREATE INDEX IF NOT EXISTS fact_records_active_oci_warning_idx
+    ON fact_records (
+        observed_at ASC,
+        fact_id ASC,
+        scope_id,
+        generation_id
+    )
+    WHERE fact_kind = 'oci_registry.warning'
+      AND source_system = 'oci_registry'
+      AND is_tombstone = FALSE;
+
 CREATE INDEX IF NOT EXISTS fact_records_framework_routes_repo_path_idx
     ON fact_records ((payload->>'repo_id'), (payload->>'relative_path'))
     WHERE fact_kind = 'file'
