@@ -135,7 +135,8 @@ ok  	github.com/eshu-hq/eshu/go/internal/query	1.425s
   (`payload->>'account_id'` on a missing key is SQL `NULL`, and `NULL = $1`
   is never true), while the exact `scope_id` selector and an unfiltered
   `provider`-only read remain unaffected. This is the documented rollout
-  window (`docs/public/reference/http-api.md`, `go/internal/reducer/README.md`).
+  window (`docs/public/reference/http-api.md`,
+  `docs/internal/evidence/1997-1998-cloud-inventory-identity-admission.md`).
 - `TestCloudInventoryAccountAliasCrossProviderIsolationLive`
   (`go/internal/query/cloud_inventory_cross_provider_isolation_live_test.go`)
   — two canonical rows sharing the IDENTICAL `account_id` value
