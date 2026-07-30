@@ -120,6 +120,91 @@ require_path_line "${e2e_pull_request_paths}" "${backend_conformance_script}" \
 require_path_line "${e2e_gate}" "${backend_conformance_script}" \
 	"e2e-tests registry triggers omit the live backend-conformance driver"
 
+# #5814/#5863 codex review: scripts/lib/ci-gate-merge-group-checks.sh is
+# sourced by scripts/verify-docs-only-ci-skip.sh (extracted to keep that
+# script under the 500-line cap) but is not itself a workflow or script the
+# docs-only-ci-skip gate's own file list would otherwise catch. Without this
+# trigger, a change touching ONLY that lib selected NO local gate at all — the
+# exact unregistered-trigger false-green class #5538/#5546 closed elsewhere —
+# so the first discovery of a broken merge_group assertion would have been CI,
+# on the always-on job guarding the go-core-complete/go-race-complete required
+# status checks. docs-only-ci-skip is tier pre-pr, not pre-push, so this uses
+# its own --tier pre-pr call rather than the pre-push-only select_explain
+# helper defined below for the frontend suite.
+docs_only_ci_skip_gate="$(
+	sed -n '/^  - id: docs-only-ci-skip$/,/^  - id:/p' "${registry}"
+)"
+merge_group_lib='scripts/lib/ci-gate-merge-group-checks.sh'
+require_path_line "${docs_only_ci_skip_gate}" "${merge_group_lib}" \
+	"docs-only-ci-skip registry triggers omit the merge_group checks lib"
+selection="$(
+	printf '%s\n' "${merge_group_lib}" |
+		(cd "${repo_root}/go" && go run ./cmd/ci-gates select \
+			--registry "${registry}" --tier pre-pr --paths-from - --explain)
+)"
+# Also legitimately selects heredoc-budget (its own "scripts/**/*.sh" trigger
+# covers every shell script, including this one) — that is correct, unrelated
+# behavior, not something this assertion should suppress or ignore.
+#
+# Deliberately membership-only, never an exact SELECTED count: a future
+# registry addition with a broad scripts/lib/** trigger would legitimately
+# select a third gate for this path, and an "exactly N" assertion here would
+# then fail for a reason unrelated to the wiring it guards. Assert the gates
+# that must be selected, and let unrelated ones come and go.
+printf '%s\n' "${selection}" |
+	rg --quiet '^SELECTED[[:space:]]+docs-only-ci-skip[[:space:]]' ||
+	fail "merge_group checks lib did not select docs-only-ci-skip (${merge_group_lib})"
+printf '%s\n' "${selection}" |
+	rg --fixed-strings --quiet -- "matched trigger \"${merge_group_lib}\" on path \"${merge_group_lib}\"" ||
+	fail "docs-only-ci-skip selected for the wrong reason (${merge_group_lib})"
+printf '%s\n' "${selection}" |
+	rg --quiet '^SELECTED[[:space:]]+heredoc-budget[[:space:]]' ||
+	fail "merge_group checks lib did not also select heredoc-budget (${merge_group_lib})"
+
+# #5814 class fix: five more gates depend on a scripts/lib helper their own
+# triggers omit, so a change touching only that helper selected NO gate and CI
+# became first discovery — the same unregistered-trigger false-green class as
+# the merge_group lib above. Membership assertions only, never an exact
+# SELECTED count: heredoc-budget's "scripts/**/*.sh" trigger legitimately also
+# matches every one of these paths, and other gates may come to match later.
+# The list is fed by heredoc (not a pipe) so `fail` exits this script rather
+# than a subshell; it is kept well under the 512-byte heredoc budget.
+#
+# "Depends on" deliberately covers more than `source`. maturity-drift-guard
+# never sources its helper: extract_corpus_fixtures() awk-parses the
+# corpus_fixtures=( ... ) array straight out of
+# scripts/lib/golden-corpus-fixtures.sh, so the helper's CONTENT decides which
+# fixture languages get graded. That inventory was split out of the gate
+# orchestrator to respect the 500-line file cap, which is precisely how its
+# trigger came to be missing — the same cap-driven extraction that created the
+# merge_group lib. A read-as-data dependency false-greens exactly like a
+# sourced one, so it belongs in this list.
+while IFS='|' read -r sourced_gate sourced_lib sourced_tier; do
+	[[ -n "${sourced_gate}" ]] || continue
+	sourced_gate_block="$(
+		sed -n "/^  - id: ${sourced_gate}\$/,/^  - id: /p" "${registry}"
+	)"
+	require_path_line "${sourced_gate_block}" "${sourced_lib}" \
+		"${sourced_gate} registry triggers omit a scripts/lib helper it uses"
+	sourced_selection="$(
+		printf '%s\n' "${sourced_lib}" |
+			(cd "${repo_root}/go" && go run ./cmd/ci-gates select \
+				--registry "${registry}" --tier "${sourced_tier}" --paths-from - --explain)
+	)"
+	printf '%s\n' "${sourced_selection}" |
+		rg --quiet "^SELECTED[[:space:]]+${sourced_gate}[[:space:]]" ||
+		fail "${sourced_lib} did not select ${sourced_gate}"
+	printf '%s\n' "${sourced_selection}" |
+		rg --fixed-strings --quiet -- "matched trigger \"${sourced_lib}\" on path \"${sourced_lib}\"" ||
+		fail "${sourced_gate} selected for the wrong reason (${sourced_lib})"
+done <<'SOURCED_LIB_GATES'
+parser-relationship-kit|scripts/lib/parser_relationship_language_ledger.sh|pre-pr
+ifa-determinism|scripts/lib/ifa_sql_delta_live.sh|pre-pr
+ifa-fault-injection|scripts/lib/ifa_determinism_common.sh|pre-pr
+docs-build-changed|scripts/lib/test-verify-docs-build-changed-fake-uv.sh|pre-push
+maturity-drift-guard|scripts/lib/golden-corpus-fixtures.sh|pre-pr
+SOURCED_LIB_GATES
+
 for sql_fixture in \
 	'scripts/lib/console-retained-create-proof-schema.sql' \
 	'scripts/lib/console-retained-verify-public-identity.sql'; do
