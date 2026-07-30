@@ -321,8 +321,13 @@ added_lines_for_evidence_file() {
   [ -n "${_perf_diff_cache}" ] || return 0
   printf '%s\n' "${_perf_diff_cache}" | awk -v target="${rel}" '
     substr($0, 1, 6) == "+++ b/" {
+      # No /dev/null guard needed here: "+++ b/" is exactly six characters, so
+      # substr($0, 7) is always the path *after* b/ -- for "+++ b/dev/null" it
+      # is "dev/null", never "/dev/null" or "b/dev/null". A real deleted-file
+      # header is "+++ /dev/null", which does not match this rule at all and is
+      # handled by the next one. The shell loop in _perf_code_change_map keeps
+      # an equivalent check for its own reasons; do not copy it back here.
       cur = substr($0, 7)
-      if (cur == "/dev/null" || cur == "b/dev/null") { cur = "" }
       next
     }
     $0 == "+++ /dev/null" { cur = ""; next }
