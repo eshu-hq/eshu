@@ -58,6 +58,34 @@ terminal error (see
 `/readyz`, `/metrics`, `/admin/status`, and `/admin/recovery` alongside the
 composite runner.
 
+`projectorQueue.Ack` (step `K` above) carries one runtime delta-trigger
+(issue #5593): `buildIngesterProjectorService` wires
+`postgres.ConfigStateDriftTrigger` to `postgres.ConfigStateDriftRuntimeTrigger`,
+reusing the same admission-aware `reducerWriter` the projector runtime already
+enqueues intents through. When the activating scope is `state_snapshot:*` —
+committed by `collector-terraform-state` through the normal ingestion
+boundary and drained by this same `projectorSvc` — the hook enqueues one
+`config_state_drift` reducer intent immediately, so a Terraform state change
+that lands between bootstrap-index runs is drift-evaluated without waiting
+for the next one. The hook is scoped to this binary's `ProjectorQueue` only:
+`cmd/bootstrap-index/wiring.go` deliberately does not wire it, because it
+would evaluate drift before bootstrap's finite corpus has necessarily
+finished activating every repo. See
+`go/internal/storage/postgres/projector_queue_config_state_drift_trigger_hook.go`
+for the full ordering rationale.
+
+The trigger above has no redrive/retry of its own for a "no config repo owns
+this backend" rejection -- a bounded, ledger-backed redrive for that exact
+rejection was built and removed across three issue #5593 review rounds (the
+final round found it created an unbounded ~20-minute perpetual retry loop
+for every operator-owned backend, once scheduling was narrowed to run from
+inside `Handle()` itself). See `ConfigStateDriftRuntimeTrigger`'s doc comment
+in `go/internal/storage/postgres/drift_runtime_trigger.go` for the full
+history. The race it would have covered self-heals on the next real
+`terraform apply` (a new state_snapshot generation, evaluated independently
+by this same trigger); a state that never changes again after racing once
+is the accepted residual gap.
+
 When `ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED` is true, the ingester wraps the
 normal repository selector with a webhook-trigger selector. Accepted queued
 GitHub, GitLab, and Bitbucket triggers are claimed first, synced as targeted

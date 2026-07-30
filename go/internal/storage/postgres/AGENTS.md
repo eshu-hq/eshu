@@ -288,6 +288,54 @@ shared-intent backlog/status queries and reducer code-call cycle logs.
   generation as invalidation state; and keep resource parents and page tokens
   out of telemetry labels.
 
+- **`config_state_drift` enqueue triggers (when drift gets evaluated, not how)**
+  → bootstrap's one-shot Phase 3.5 sweep is `drift_enqueue.go`
+  (`IngestionStore.EnqueueConfigStateDriftIntents`, scans every
+  `state_snapshot:*` scope with an active generation). The runtime delta-trigger
+  (issue #5593) is `drift_runtime_trigger.go`
+  (`ConfigStateDriftRuntimeTrigger.TriggerConfigStateDrift`), wired only onto
+  the ingester's `ProjectorQueue.ConfigStateDriftTrigger` in
+  `cmd/ingester/wiring.go` and fired from
+  `projector_queue_config_state_drift_trigger_hook.go`'s
+  `runConfigStateDriftTriggerHook` after `Ack` commits a `state_snapshot:*`
+  scope generation. Both producers build the reducer intent with the same
+  `(scope_id, generation_id, domain=config_state_drift)` shape and no
+  `EntityKey`, so `reducerWorkItemID` collapses them onto the same
+  `work_item_id` and the second producer's enqueue is a harmless
+  `ON CONFLICT DO NOTHING` no-op — do not add an `EntityKey` or other
+  differentiator to either producer without re-proving that de-dupe (see
+  `TestConfigStateDriftRuntimeTriggerAndBootstrapProduceSameConflictKey`).
+  Do NOT wire `ConfigStateDriftTrigger` onto bootstrap-index's own
+  `ProjectorQueue` (`cmd/bootstrap-index/wiring.go`) — it would evaluate
+  drift before bootstrap's finite corpus has necessarily finished activating
+  every repo; see `runConfigStateDriftTriggerHook`'s doc comment for the
+  full reasoning.
+
+  **No redrive/retry — this was tried and removed (issue #5593).** A
+  bounded ledger-backed redrive for the `tfstatebackend.ErrNoConfigRepoOwnsBackend`
+  rejection went through three review rounds: unconditional scheduling on
+  every activation (wrong — re-evaluated generations that never raced);
+  narrowed to schedule only on the observed rejection, from inside
+  `Handle()` (still wrong — `Handle()` re-runs on every redrive replay, and
+  the ledger row was deleted on exhaustion, so `EnsureScheduled`'s
+  `ON CONFLICT DO NOTHING` had nothing to conflict with and inserted a
+  FRESH row every cycle: an unbounded ~20-minute retry loop for every
+  operator-owned backend, which the resolver's own doc comment names as the
+  dominant real-world cause of this rejection). Removed rather than adding a
+  fourth guard (a permanent tombstone table), because that table would need
+  its own unbounded-growth proof — the same class of bug as the ledger it
+  would replace, just relocated. See `ConfigStateDriftRuntimeTrigger`'s doc
+  comment in `drift_runtime_trigger.go` for the full history. The race this
+  would have covered self-heals on the next real `terraform apply` (a new
+  generation, evaluated independently); a state that never changes again
+  after racing once is the accepted residual gap. Issue #5593's acceptance
+  is an OR of two criteria; this trigger satisfies criterion 1 alone
+  ("a snapshot results in a drift evaluation"). Criterion 2 ("the read
+  model reports an explicit not-yet-evaluated state") is deliberately OUT
+  OF SCOPE here and tracked in sibling branch
+  `5594-local-backend-default-path` — do not try to satisfy it by re-adding
+  a redrive or a terminal/non-terminal distinction on this rejection.
+
 - **State-attribute decoding or flattening** → edit
   `tfstate_drift_evidence_state_row.go`. `stateRowFromCollectorPayload`
   (`tfstate_drift_evidence_state_row.go:29`) decodes the collector payload and

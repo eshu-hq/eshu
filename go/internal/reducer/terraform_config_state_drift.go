@@ -138,6 +138,35 @@ func (h TerraformConfigStateDriftHandler) Handle(
 
 	anchor, resolveErr := h.Resolver.ResolveConfigCommitForBackend(ctx, backendKind, locatorHash)
 	if errors.Is(resolveErr, tfstatebackend.ErrNoConfigRepoOwnsBackend) {
+		// Deliberately terminal for THIS generation, not retried (issue
+		// #5593: a runtime redrive for this exact rejection was built,
+		// proven, and then removed across three review rounds -- see
+		// go/internal/storage/postgres/drift_runtime_trigger.go's doc
+		// comment for the full history, including which acceptance
+		// criterion this leaves out of scope for this branch and where
+		// that is being addressed). ResolveConfigCommitForBackend's own
+		// doc comment names the dominant real-world cause of this rejection:
+		// "the state may be operator owned outside Eshu's repo set" -- i.e.
+		// most zero-row resolutions are permanently correct, not a race, so
+		// automatically retrying this generation on a fixed schedule mostly
+		// re-derives the same terminal answer at real reducer/Postgres cost.
+		// The genuine race case (the config repo that owns this backend
+		// syncs into Eshu AFTER this state snapshot's first evaluation)
+		// self-heals for free on the next real terraform apply: a new
+		// apply produces a new state_snapshot generation (new serial, see
+		// go/internal/scope/tfstate.go), which the runtime trigger
+		// (ConfigStateDriftRuntimeTrigger) evaluates independently, with no
+		// dependency on this generation's outcome (proven by
+		// TestConfigStateDriftRuntimeTriggerDistinctGenerationsProduceDistinctWorkItemIDs
+		// -- distinct GenerationID values, same scope+domain, never share a
+		// work_item_id). A state that never changes again after racing once
+		// is the one case this does not recover automatically; re-running
+		// bootstrap-index (which re-scans every active state_snapshot:*
+		// scope regardless of age) or the read-model "unresolved" outcome
+		// (issue #5593's own second acceptance criterion, out of scope for
+		// this branch and tracked in sibling branch
+		// 5594-local-backend-default-path) are the accepted paths for that
+		// narrower gap.
 		h.logRejection(ctx, intent, DriftRejection{
 			FailureClass: "no_config_repo_owns_backend",
 			Reason:       resolveErr.Error(),

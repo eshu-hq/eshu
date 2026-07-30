@@ -32,7 +32,7 @@ func TestReducerQueuePreservesIntentPayloadMetadata(t *testing.T) {
 		},
 	}
 
-	if err := queue.enqueueReducerBatch(context.Background(), []projector.ReducerIntent{intent}, now); err != nil {
+	if _, err := queue.enqueueReducerBatch(context.Background(), []projector.ReducerIntent{intent}, now); err != nil {
 		t.Fatalf("enqueueReducerBatch error: %v", err)
 	}
 	payload, err := unmarshalPayload(db.execs[0].args[7].([]byte))

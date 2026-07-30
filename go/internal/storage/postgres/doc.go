@@ -340,4 +340,36 @@
 // runCrossplaneRedriveHook triggers the sweep AFTER Ack's own transaction
 // commits — deliberately its own bounded, paged unit of work, never inline
 // inside Ack's fixed-size generation-activation transaction.
+//
+// ConfigStateDriftRuntimeTrigger addresses the runtime delta-trigger gap
+// EnqueueConfigStateDriftIntents' doc comment anticipated (issue #5593): a
+// terraform_state_snapshot landing outside a bootstrap-index pass was never
+// drift-evaluated until the next bootstrap run, because bootstrap's Phase 3.5
+// sweep was the only producer of config_state_drift reducer intents. Wired
+// only on the ingester's ProjectorQueue (never bootstrap-index's — see
+// ProjectorQueue.ConfigStateDriftTrigger's doc comment), it enqueues one
+// config_state_drift intent through the same ReducerIntentWriter contract
+// immediately after a state_snapshot:* scope generation activates via Ack,
+// using the identical (scope_id, generation_id, domain) shape the bootstrap
+// sweep uses so the two producers dedupe against each other through the
+// reducer queue's existing ON CONFLICT DO NOTHING work_item_id fence rather
+// than racing to write different rows. This still leaves one race: a
+// state_snapshot scope can activate before the config-side repo that owns
+// its backend has synced its own terraform_backends fact, which the resolver
+// reads directly (tfstate_backend_canonical.go) with no dependency on this
+// generation's own correlation.
+//
+// That race has no automatic redrive (issue #5593: a bounded ledger-backed
+// redrive for the exact "no config repo owns this backend" rejection was
+// built, reviewed, and removed across three review rounds -- see
+// ConfigStateDriftRuntimeTrigger's doc comment in drift_runtime_trigger.go
+// for the full history, including the perpetual-retry bug the final round
+// found). The rejection is durably terminal for that one generation. The
+// race self-heals for free on the next real terraform apply, which produces
+// a NEW state_snapshot generation the runtime trigger evaluates
+// independently; a state that never changes again after racing once is the
+// residual gap, recoverable today only by re-running bootstrap-index (which
+// re-scans every active state_snapshot:* scope) or by the explicit
+// "unresolved" read-model outcome tracked in a sibling branch -- the
+// issue's own second acceptance path.
 package postgres
