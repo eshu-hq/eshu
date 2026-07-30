@@ -328,7 +328,13 @@ shared-intent backlog/status queries and reducer code-call cycle logs.
   comment in `drift_runtime_trigger.go` for the full history. The race this
   would have covered self-heals on the next real `terraform apply` (a new
   generation, evaluated independently); a state that never changes again
-  after racing once is the accepted residual gap.
+  after racing once is the accepted residual gap. Issue #5593's acceptance
+  is an OR of two criteria; this trigger satisfies criterion 1 alone
+  ("a snapshot results in a drift evaluation"). Criterion 2 ("the read
+  model reports an explicit not-yet-evaluated state") is deliberately OUT
+  OF SCOPE here and tracked in sibling branch
+  `5594-local-backend-default-path` — do not try to satisfy it by re-adding
+  a redrive or a terminal/non-terminal distinction on this rejection.
 
 - **State-attribute decoding or flattening** → edit
   `tfstate_drift_evidence_state_row.go`. `stateRowFromCollectorPayload`

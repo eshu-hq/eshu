@@ -55,19 +55,34 @@ const driftRuntimeTriggerSourceSystem = "ingester_runtime_trigger"
 // mode for another without shrinking the underlying complexity, which is
 // the sign the mechanism was solving the problem at the wrong layer.
 //
-// The runtime trigger here does not need a redrive to close issue #5593's
-// actual acceptance criterion (evaluate on activation, which it now always
-// does). The race a redrive would recover — this generation evaluates
-// before its owning config repo has synced — self-heals for free on the
-// next real terraform apply: a new apply produces a new state_snapshot
-// generation with a new work_item_id
-// (TestConfigStateDriftRuntimeTriggerAndBootstrapProduceSameConflictKey),
-// evaluated independently by this same trigger. A state that never changes
-// again after racing once is the one case that does not recover
-// automatically; re-running bootstrap-index (which re-scans every active
-// state_snapshot:* scope regardless of age) or an explicit "unresolved"
-// read-model outcome — the issue's own second acceptance path, tracked in a
-// sibling branch — are the accepted paths for that narrower residual gap.
+// Issue #5593's acceptance is an OR of two criteria. This trigger satisfies
+// criterion 1 on its own terms: a state_snapshot activation always results
+// in a drift evaluation attempt, full stop, no further work needed here.
+// Criterion 2 ("the read model reports an explicit not-yet-evaluated
+// state, covered by a test") is OUT OF SCOPE for this branch — it is being
+// addressed in sibling branch 5594-local-backend-default-path, which adds
+// an "unresolved" outcome to the config-state drift read surface. Do not
+// attempt to satisfy criterion 2 here by re-adding a redrive or a
+// terminal/non-terminal distinction on this rejection; that is what the
+// three-round history above already tried and removed.
+//
+// The runtime trigger here does not need a redrive to close criterion 1
+// (evaluate on activation, which it now always does). The race a redrive
+// would recover — this generation evaluates before its owning config repo
+// has synced — self-heals for free on the next real terraform apply: a new
+// apply produces a new state_snapshot generation with a new work_item_id
+// (proven by TestConfigStateDriftRuntimeTriggerDistinctGenerationsProduceDistinctWorkItemIDs:
+// two intents sharing scope+domain but carrying different GenerationID
+// values -- exactly what a new apply's bumped serial produces, per
+// go/internal/scope/tfstate.go's GenerationID format -- hash to different
+// work_item_id values, so the new generation is never blocked by the old
+// one's ON CONFLICT DO NOTHING row), evaluated independently by this same
+// trigger. A state that never changes again after racing once is the one
+// case that does not recover automatically; re-running bootstrap-index
+// (which re-scans every active state_snapshot:* scope regardless of age)
+// or criterion 2's read-model outcome (sibling branch
+// 5594-local-backend-default-path) are the accepted paths for that
+// narrower residual gap.
 type ConfigStateDriftRuntimeTrigger struct {
 	Queue       projector.ReducerIntentWriter
 	Instruments *telemetry.Instruments

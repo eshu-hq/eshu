@@ -48,6 +48,16 @@ bootstrap-index run (issue #5593). Both producers enqueue into the same
 `config_state_drift` reducer domain and dedupe against each other by
 `(scope_id, generation_id)`.
 
+**Known gap:** if that runtime evaluation runs before the Terraform config
+repo owning the backend has been added to Eshu and synced, it durably
+records "no config repo owns this backend" for that one snapshot
+generation and is not automatically retried. In practice this self-heals on
+the next `terraform apply`, since a new apply produces a new snapshot
+generation that is evaluated independently. A state that never changes
+again after racing once will not be re-evaluated on its own; re-run
+`eshu-bootstrap-index` to force a fresh sweep over every currently active
+`state_snapshot:*` scope, including that one.
+
 ## Concurrency
 
 - Collection uses the shared repository sync and snapshot configuration.

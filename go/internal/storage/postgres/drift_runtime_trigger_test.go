@@ -110,6 +110,52 @@ func TestConfigStateDriftRuntimeTriggerAndBootstrapProduceSameConflictKey(t *tes
 	}
 }
 
+// TestConfigStateDriftRuntimeTriggerDistinctGenerationsProduceDistinctWorkItemIDs
+// proves the load-bearing property the "race self-heals on the next
+// terraform apply" argument depends on (issue #5593, see
+// ConfigStateDriftRuntimeTrigger's doc comment and
+// TerraformConfigStateDriftHandler's ErrNoConfigRepoOwnsBackend branch): two
+// intents for the SAME scope and domain but DIFFERENT GenerationID hash to
+// DIFFERENT work_item_id values, so a new state_snapshot generation (a new
+// terraform apply bumps the embedded serial, per
+// go/internal/scope/tfstate.go's GenerationID format
+// "terraform_state:<scopeID>:<lineageUUID>:serial:<serial>") is never
+// blocked by the OLD generation's ON CONFLICT DO NOTHING row -- it gets its
+// own independent evaluation. This is the opposite property from
+// TestConfigStateDriftRuntimeTriggerAndBootstrapProduceSameConflictKey
+// above, which proves the SAME generation dedupes across producers; that
+// test was previously (and wrongly) cited as proof of THIS property.
+func TestConfigStateDriftRuntimeTriggerDistinctGenerationsProduceDistinctWorkItemIDs(t *testing.T) {
+	t.Parallel()
+
+	scopeID := "state_snapshot:s3:hash-1"
+	lineage := "lineage-abc"
+
+	firstApply := projector.ReducerIntent{
+		ScopeID:      scopeID,
+		GenerationID: "terraform_state:" + scopeID + ":" + lineage + ":serial:1",
+		Domain:       "config_state_drift",
+		Reason:       driftRuntimeTriggerReason,
+		SourceSystem: driftRuntimeTriggerSourceSystem,
+	}
+	secondApply := projector.ReducerIntent{
+		ScopeID:      scopeID,
+		GenerationID: "terraform_state:" + scopeID + ":" + lineage + ":serial:2",
+		Domain:       "config_state_drift",
+		Reason:       driftRuntimeTriggerReason,
+		SourceSystem: driftRuntimeTriggerSourceSystem,
+	}
+
+	firstID := reducerWorkItemID(firstApply)
+	secondID := reducerWorkItemID(secondApply)
+	if firstID == secondID {
+		t.Fatalf("two intents for the same scope+domain but different GenerationID produced the SAME work_item_id (%q) -- a new terraform apply would be silently blocked by the prior generation's ON CONFLICT DO NOTHING row instead of getting its own evaluation", firstID)
+	}
+	if firstID == "" || secondID == "" {
+		t.Fatalf("work_item_id must not be empty: first=%q second=%q", firstID, secondID)
+	}
+}
+
 // TestConfigStateDriftRuntimeTriggerWrapsEnqueueError proves a downstream
 // enqueue failure is surfaced to the caller (ProjectorQueue's hook is
 // responsible for swallowing it, not this type) rather than silently
