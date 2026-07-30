@@ -494,6 +494,55 @@
   span, metric, label, or log surface; the relationship read still reports the
   #3492 `query.infra_relationships` span and `eshu.relationship_filter` attribute.
 
+- **Scope predicate admits `TerraformStateResource` via `MATCHES_STATE` (#5623)**
+  — `TerraformStateResource` (#5443, state-observed Terraform resources) carries
+  no `repo_id`; before this fix none of `infraResourceScopeCoreDisjuncts`'s
+  disjuncts admitted it, so it was invisible to every scoped-token infra read
+  (fail-closed coverage gap, not a leak). The predicate now adds a fifth
+  inline-map disjunct, `(alias)<-[:MATCHES_STATE]-(:TerraformResource
+  {repo_id:$g})`: a state resource is admitted when the config-declared
+  `TerraformResource` it MATCHES_STATE-links to (#5443,
+  `canonicalTerraformStateMatchesConfigEdgeCypher`) has a granted `repo_id`. This
+  deliberately traverses the edge rather than trusting the node's own
+  `config_repo_id` property: that property is set from backend-ownership
+  resolution alone (`resolveTerraformStateOwnership`) and can be non-null even
+  when no MATCHES_STATE edge was ever written (ambiguous address match, or no
+  config resource at that address — the "applied-only" state), so a
+  property-only disjunct would wrongly admit an unmatched state resource
+  whenever its backend happens to be owned by a granted repo. Proven live on the
+  pinned NornicDB image: a property-only disjunct returned 2 rows (matched +
+  unmatched) for a fixture with exactly 1 matched-and-granted node, while the
+  edge-traversal disjunct correctly returns 1. Added to the shared core
+  (`infraResourceScopeCoreDisjuncts`), not gated like the DEFINES disjunct,
+  because a `TerraformStateResource` can have at most one MATCHES_STATE edge
+  (the config-match resolver anchors on a single resolved `OwningRepoID` and
+  excludes ambiguous matches from the edge write), so there is no name-collision
+  over-exposure risk for direct-projection callers such as
+  `relationshipEndpointScopePredicate`.
+
+  No-Regression Evidence: pure coverage fix; the predicate gains one fail-closed
+  disjunct and removes none. Baseline = predicate without the MATCHES_STATE
+  disjunct (TerraformStateResource always invisible to scoped tokens); after =
+  same plus the MATCHES_STATE inline-map term. Backend NornicDB (Neo4j
+  compatibility unaffected); the new disjunct is inert (empty pattern match) for
+  every other label in `allInfraLabels`, since only TerraformStateResource has
+  inbound MATCHES_STATE edges, so unscoped and non-state-resource scoped Cypher
+  shape and cost are unchanged. The new term is one more inline-map OR-branch,
+  same O(grant) cost class and cap (`maxScopeGrantInlineTerms`) as the existing
+  USES/DEFINES disjuncts — no new round trip, no unbounded scan. Proof: `go test
+  ./internal/query -run
+  'TestInfraResourceScopePredicateComposesShapeAAndRejectsForbiddenShapes' -v
+  -count=1` (predicate shape pinned) plus the live regression
+  `go test -tags live_infra_scope_shape ./internal/query -run
+  TestLiveInfraScopeShapeMatchesStateDiscriminates -count=1` against an isolated
+  NornicDB (matched+granted visible, cross-tenant matched excluded, unmatched
+  excluded despite a matching config_repo_id property) and `go test
+  ./internal/query -count=1`.
+
+  No-Observability-Change: the scope predicate is a Cypher WHERE fragment with
+  no span, metric, label, or log surface; no new telemetry signal is added or
+  needed.
+
 ## Common changes and how to scope them
 
 - **Add a new HTTP handler** → create a handler struct with `Neo4j GraphQuery`
