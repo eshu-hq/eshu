@@ -5480,6 +5480,38 @@
           ]
         }
       },
+      "POST /api/v0/infra/relationships?query_type=what_runs_lambda_image": {
+        "description": "#5738: AWS_lambda_function_uses_image read-path proof. #5450 (PR #5708) materialized the (:CloudResource)-[:AWS_lambda_function_uses_image]->(:ContainerImage) edge for the supply-chain-demo Lambda function, and #5751 (P1-B/P1-C) fixed the mixed-case canonical-value lookup and the relationships-catalog entry, but the analyze_infra_relationships MCP tool's query_type enum never advertised anything but a fixed set of semantic aliases (what_deploys, what_provisions, who_consumes_xrd, module_consumers, what_runs_image) -- it had no alias for this edge at all, so an MCP caller had no declared way to reach it. The '?query_type=...' suffix on this key is a disambiguator only (getRelationships never reads the request URL's query string); it exists because query_shapes.http is a single flat map and 'POST /api/v0/infra/relationships' is already claimed by the #5436 what_runs_image entry above. Anchored on the Lambda CloudResource (uid computed by aws_resource_materialization.go's cloudResourceUID over the awscloud cassette's aws_resource fact for arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo -- account_id, region, resource_id, resource_type), what_runs_lambda_image must resolve the AWS_lambda_function_uses_image edge to the ContainerImage node the oci_registry cassette's ECR image_manifest fact projects (digest sha256:...cc, descriptor_id oci-descriptor://123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo@sha256:...cc). Non-vacuous: the edge only exists because DomainAWSCloudImageMaterialization resolves the awscloud lambda_function_uses_image aws_relationship fact's resolved_image_uri against the oci_registry ECR scope manifest fixture (aws_cloud_image_join.go's containerImageNodeUIDFromDigestRef) -- neither cassette alone produces it (see rc-166's graph-materialization proof of the same edge), and before this change 'what_runs_lambda_image' was rejected 400 (unknown relationship_type), which the query-side regression test (TestInfraRelationshipsWhatRunsLambdaImageSurfacesOutgoingEdge / TestResolveInfraRelationshipTypes) also proves failing-then-green.",
+        "envelope": true,
+        "required_response_fields": [
+          "data",
+          "truth",
+          "error"
+        ],
+        "minimum_results": 0,
+        "request_body": {
+          "entity_id": "dafbedae2b62cb12dc97060debce1884305fd8dfdfb80f1fc8d514b17fae144f",
+          "relationship_type": "what_runs_lambda_image"
+        },
+        "required_json_paths": [
+          "data.id",
+          "data.outgoing[].type",
+          "data.outgoing[].target_id",
+          "data.outgoing[].target_labels"
+        ],
+        "required_json_values": {
+          "data.id": "dafbedae2b62cb12dc97060debce1884305fd8dfdfb80f1fc8d514b17fae144f",
+          "data.outgoing[].type": "AWS_lambda_function_uses_image"
+        },
+        "required_json_object_matches": {
+          "data.outgoing[]": [
+            {
+              "type": "AWS_lambda_function_uses_image",
+              "target_id": "oci-descriptor://123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo@sha256:0000000000000000000000000000000000000000000000000000000000cc"
+            }
+          ]
+        }
+      },
       "GET /api/v0/repositories": {
         "description": "Repository list endpoint (not /api/v0/repos)",
         "truth_class": "deterministic",

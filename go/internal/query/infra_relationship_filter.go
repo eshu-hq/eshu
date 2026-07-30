@@ -28,9 +28,9 @@ import (
 // relationship_type is optional. When omitted the handler returns every
 // relationship in both directions (the pre-#3492 behavior). When set it must be
 // a recognized analyze_infra_relationships query_type alias (what_deploys,
-// what_provisions, who_consumes_xrd, module_consumers, what_runs_image) or a
-// canonical edge type (e.g. DEPLOYS_FROM); the read is then bounded to the
-// matching edge types.
+// what_provisions, who_consumes_xrd, module_consumers, what_runs_image,
+// what_runs_lambda_image) or a canonical edge type (e.g. DEPLOYS_FROM); the
+// read is then bounded to the matching edge types.
 // An unrecognized value is rejected with 400 rather than silently ignored.
 func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
@@ -197,12 +197,26 @@ func filterNullRelationships(v any) []map[string]any {
 // before #5436; this alias gives it one through the existing bidirectional
 // getRelationships pattern (anchor on the workload to see the image, or anchor
 // on the image to see the workloads running it).
+//
+// what_runs_lambda_image resolves to AWS_lambda_function_uses_image, the
+// Lambda container-image edge (CloudResource)-[:AWS_lambda_function_uses_image]->
+// (ContainerImage) written by cloud_resource_container_image_edge_writer.go
+// (#5450). #5751 fixed the mixed-case canonical-value lookup
+// (infraCanonicalEdgeTypes below) so a caller who already knows the raw
+// edge-type string can pass it directly, but the MCP analyze_infra_relationships
+// tool's query_type enum only ever advertised semantic aliases -- it never
+// listed a raw edge-type string as a valid value -- so an MCP caller had no
+// declared way to reach this edge (#5738). This alias closes that gap through
+// the same bidirectional getRelationships pattern used by what_runs_image
+// (anchor on the Lambda CloudResource to see the image, or anchor on the
+// ContainerImage to see the Lambda functions using it).
 var infraRelationshipTypeAliases = map[string][]string{
-	"what_deploys":     {"DEPLOYS_FROM", "DEPLOYMENT_SOURCE", "HAS_DEPLOYMENT_EVIDENCE"},
-	"what_provisions":  {"PROVISIONS_DEPENDENCY_FOR", "PROVISIONS_PLATFORM"},
-	"module_consumers": {"USES_MODULE"},
-	"who_consumes_xrd": {"USES_MODULE"},
-	"what_runs_image":  {"RUNS_IMAGE"},
+	"what_deploys":           {"DEPLOYS_FROM", "DEPLOYMENT_SOURCE", "HAS_DEPLOYMENT_EVIDENCE"},
+	"what_provisions":        {"PROVISIONS_DEPENDENCY_FOR", "PROVISIONS_PLATFORM"},
+	"module_consumers":       {"USES_MODULE"},
+	"who_consumes_xrd":       {"USES_MODULE"},
+	"what_runs_image":        {"RUNS_IMAGE"},
+	"what_runs_lambda_image": {"AWS_lambda_function_uses_image"},
 }
 
 // infraCanonicalEdgeTypes maps the upper-cased form of each canonical edge type
