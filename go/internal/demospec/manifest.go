@@ -8,6 +8,7 @@ package demospec
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -139,10 +140,17 @@ type ExpectedAnswer struct {
 	// result array must contain for the answer to count as populated. Zero
 	// (the default) asserts only that the required fields/paths are present —
 	// correct for object-shaped answers with no result array. A positive value
-	// is asserted by the demo-answers gate phase against the first
-	// array-valued RequiredResponseFields entry, so a demo answer that
-	// silently regresses to empty turns the gate red.
+	// is asserted by the demo-answers gate phase against the field named by
+	// ResultsField, so a demo answer that silently regresses to empty turns
+	// the gate red.
 	MinimumResults int
+	// ResultsField names the exact RequiredResponseFields entry MinimumResults
+	// asserts against. Required whenever MinimumResults is positive:
+	// LoadManifest rejects a question that sets minimum_results without it,
+	// rather than inferring the target from field order (eshu-hq/eshu#5566) --
+	// the same explicit-selector fix applied to the golden snapshot's
+	// query_shapes.
+	ResultsField string
 }
 
 // Artifacts are the golden-corpus inputs a question's answer depends on.
@@ -197,6 +205,7 @@ type expectedAnswerFile struct {
 	RequiredJSONPaths       []string `yaml:"required_json_paths"`
 	DemonstratesCorrelation []string `yaml:"demonstrates_correlations"`
 	MinimumResults          int      `yaml:"minimum_results"`
+	ResultsField            string   `yaml:"results_field"`
 }
 
 type artifactsFile struct {
@@ -290,6 +299,23 @@ func convertQuestion(path string, qf questionFile) (Question, error) {
 	if qf.ExpectedAnswer.MinimumResults < 0 {
 		return Question{}, fmt.Errorf("demo-first-answers manifest %s: question %q has negative minimum_results %d", path, id, qf.ExpectedAnswer.MinimumResults)
 	}
+	// A positive minimum_results without an explicit results_field would fall
+	// back on inferring the asserted array from required_response_fields order
+	// -- the exact non-deterministic selection eshu-hq/eshu#5566 fixed for the
+	// golden snapshot's query_shapes. Reject it here too rather than silently
+	// under-specifying which collection the count applies to.
+	if qf.ExpectedAnswer.MinimumResults > 0 && strings.TrimSpace(qf.ExpectedAnswer.ResultsField) == "" {
+		return Question{}, fmt.Errorf(
+			"demo-first-answers manifest %s: question %q has minimum_results=%d but no results_field naming which required_response_fields entry it counts",
+			path, id, qf.ExpectedAnswer.MinimumResults,
+		)
+	}
+	if rf := qf.ExpectedAnswer.ResultsField; rf != "" && !slices.Contains(qf.ExpectedAnswer.RequiredResponseFields, rf) {
+		return Question{}, fmt.Errorf(
+			"demo-first-answers manifest %s: question %q results_field %q is not listed in required_response_fields %v",
+			path, id, rf, qf.ExpectedAnswer.RequiredResponseFields,
+		)
+	}
 
 	return Question{
 		ID:              id,
@@ -302,6 +328,7 @@ func convertQuestion(path string, qf questionFile) (Question, error) {
 			RequiredJSONPaths:        qf.ExpectedAnswer.RequiredJSONPaths,
 			DemonstratesCorrelations: qf.ExpectedAnswer.DemonstrateCorrelationsOrEmpty(),
 			MinimumResults:           qf.ExpectedAnswer.MinimumResults,
+			ResultsField:             qf.ExpectedAnswer.ResultsField,
 		},
 		Artifacts: Artifacts{
 			Cassettes: qf.Artifacts.Cassettes,

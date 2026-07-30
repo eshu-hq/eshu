@@ -28,11 +28,18 @@ for any Go edit.
   referential-integrity-checked against the golden snapshot query shapes, same
   as a surface ref.
 - **`minimum_results` reflects the live answer, not an aspiration.** Set it to
-  the floor the answer's first result array actually meets on the deterministic
+  the floor the answer's result array actually meets on the deterministic
   corpus (captured from a golden-gate run), or `0` for an object-shaped answer
   with no result array. The demo-answers phase asserts it live, so a wrong
   floor is a false red; when the corpus legitimately changes the count, update
   the floor under review.
+- **A positive `minimum_results` requires an explicit `results_field`.**
+  `results_field` must name the exact `required_response_fields` entry the
+  floor counts. `LoadManifest` hard-fails a positive `minimum_results` with a
+  missing, blank, or misnamed `results_field` (eshu-hq/eshu#5566) — do not rely
+  on `required_response_fields` list order to pick the asserted array; a
+  question with two array-valued fields (e.g. a request-echo array alongside
+  the real result array) would otherwise assert the wrong one silently.
 - **Existence, not greenness.** `manifest_test.go`'s `TestDemoFirstAnswers`
   proves referenced cassette files, fixture directories, playbook IDs, and
   query-shape keys exist. It does not run the pipeline or hit a live backend.
