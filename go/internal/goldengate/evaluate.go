@@ -330,7 +330,8 @@ func EvaluateQueryShape(name string, shape QueryShape, body []byte) Finding {
 		if arrayField == "" {
 			return mk(false, fmt.Sprintf(
 				"results_field is required when minimum_results, maximum_results, or result_item_required_fields is set (no implicit first-array-field selection); required_response_fields=%v",
-				shape.RequiredResponseFields))
+				shape.RequiredResponseFields,
+			))
 		}
 		if !containsField(shape.RequiredResponseFields, arrayField) {
 			return mk(false, fmt.Sprintf("results_field %q is not listed in required_response_fields %v", arrayField, shape.RequiredResponseFields))
