@@ -16,13 +16,13 @@ change, `Ack` never depended on reducer-admission state for ANY scope kind.
 After this change, `Ack` for a `state_snapshot:*` scope is coupled to it.
 
 `scripts/verify-performance-evidence.sh` passes on this branch, and it passes
-for the right reason. The gate scopes its marker search to the diff's own added
-lines (`git diff --unified=0 "$base"...HEAD -- "$path"`, lines 106 and 109),
-so the `Performance Evidence:` / `No-Regression Evidence:` /
-`Observability Evidence:` markers in THIS file are what satisfy it — not the
-dozens of markers `go/cmd/ingester/README.md` and
-`go/internal/storage/postgres/AGENTS.md` already carry from unrelated
-historical issues.
+for the right reason. The gate builds `_perf_diff_cache` from the branch's own
+diff, narrows it per evidence file through `added_lines_for_evidence_file()`,
+and matches the marker regex against only those added lines. So the
+`Performance Evidence:` / `No-Regression Evidence:` / `Observability Evidence:`
+markers in THIS file are what satisfy it — not the dozens of markers
+`go/cmd/ingester/README.md` and `go/internal/storage/postgres/AGENTS.md`
+already carry from unrelated historical issues.
 
 That distinction is worth stating explicitly, because it was the other way
 around until recently: the gate did grep whole-file content, and a touched
