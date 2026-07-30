@@ -224,10 +224,15 @@ func TestProjectorQueueAckSkipsConfigStateDriftTriggerForNonStateSnapshotScope(t
 // proves the issue #5593 bootstrap-wiring guard fix: "MUST NOT be wired on bootstrap-index's
 // ProjectorQueue" is a runtime guard, not only a doc comment. Even when a
 // future edit mistakenly sets ConfigStateDriftTrigger on the ProjectorQueue
-// bootstrap-index constructs (LeaseOwner "bootstrap-index", the exact literal
-// cmd/bootstrap-index/wiring.go passes to NewProjectorQueue), the hook must
-// refuse to call it -- proving the Phase-1 ordering race the doc comment
-// describes cannot be reintroduced by a silent wiring accident.
+// bootstrap-index constructs (LeaseOwner set to BootstrapIndexProjectorLeaseOwner,
+// the SAME exported constant cmd/bootstrap-index/wiring.go passes to
+// NewProjectorQueue), the hook must refuse to call it -- proving the Phase-1
+// ordering race the doc comment describes cannot be reintroduced by a silent
+// wiring accident. Asserts against the constant itself, not a re-typed
+// string literal: a fifth independently authored copy of "bootstrap-index"
+// here would defeat the whole point of exporting the constant -- this exact
+// test exercises the guard's own runtime behavior, so it above all must not
+// go stale against a rename (issue #5593 review finding).
 func TestProjectorQueueAckRefusesConfigStateDriftTriggerWhenLeaseOwnerIsBootstrapIndex(t *testing.T) {
 	var log []string
 	var triggerArgs [][2]string
@@ -236,9 +241,11 @@ func TestProjectorQueueAckRefusesConfigStateDriftTriggerWhenLeaseOwnerIsBootstra
 
 	queue := ProjectorQueue{
 		db: fake,
-		// The exact LeaseOwner literal cmd/bootstrap-index/wiring.go passes to
-		// postgres.NewProjectorQueue(instrumentedDB, "bootstrap-index", ...).
-		LeaseOwner:              "bootstrap-index",
+		// The SAME exported constant cmd/bootstrap-index/wiring.go passes to
+		// postgres.NewProjectorQueue -- not a re-typed literal, so a rename
+		// of the constant's value cannot desync this test from the guard it
+		// exercises.
+		LeaseOwner:              BootstrapIndexProjectorLeaseOwner,
 		LeaseDuration:           time.Minute,
 		ConfigStateDriftTrigger: fake,
 		Instruments:             inst,
