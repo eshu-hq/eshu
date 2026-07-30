@@ -432,8 +432,10 @@ HEAD — `HEAD~1` locally, `origin/$GITHUB_BASE_REF` in CI, matching
 matching one of two narrow patterns to carry a `ledger:<id>` token that
 resolves to a real row in the ledger:
 
-- `<N>/<M> trials` or `<N>/<M> runs` (for example `0/210 trials`, `5/5 runs`)
-- an explicit `Measurement:` marker line
+- `<N>/<M> trials` or `<N>/<M> runs` (for example, `0/210 trials`, cited
+  inline as `(ledger:5837-deadlock-plain-total)`)
+- a line starting with the word `Measurement`, immediately followed by a
+  colon, then the figure and its citation
 
 This is deliberately narrow. It does NOT catch:
 

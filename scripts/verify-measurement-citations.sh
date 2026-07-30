@@ -100,6 +100,12 @@ while IFS= read -r line; do
   case "${current_file}" in
     "${ledger_rel_path}") continue ;;
     testdata/*|*/testdata/*) continue ;;
+    # The gate's own script and test mirror necessarily contain the trigger
+    # patterns as regex source and test fixtures (e.g. the claim_pattern
+    # literal, or a fixture line like "0/30 trials failed"). Those are not
+    # claims about Eshu's measured behavior, so they are exempt from citation.
+    scripts/verify-measurement-citations.sh) continue ;;
+    scripts/test-verify-measurement-citations.sh) continue ;;
   esac
 
   payload="${line:1}"
