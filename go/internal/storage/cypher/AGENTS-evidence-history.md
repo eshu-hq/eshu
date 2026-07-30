@@ -283,3 +283,71 @@ and `...RunsOnNonDeltaGeneration` are unchanged and still pass.
 No-Observability-Change: the retract is a Cypher WHERE/DELETE fragment with no
 span, metric, label, or log surface; no new telemetry signal is added or
 needed.
+
+## #5623 P1 — the delta-cycle retract fix above wiped a still-valid edge on a resolver hiccup
+
+Follow-up review finding on the #5623 fix immediately above. That fix's
+`s.generation_id = $generation_id` anchor proves "this generation upserted the
+node," which is NOT the same fact as "we know its correct owner this cycle."
+`TerraformStateOwnershipResolver.ResolveOwningRepoID` fails closed on ANY
+resolver error -- an ordinary transient Postgres timeout or pool exhaustion,
+not only a genuine "no owner" -- and every `cmd/*` wiring site
+(`cmd/bootstrap-index`, `cmd/ingester`, `cmd/projector`'s
+`terraform_state_ownership.go`) treats that identically to "no owner,"
+returning `row.OwningRepoID == ""`. The state resource's node still gets
+upserted that cycle regardless (row presence in `mat.TerraformStateResources`
+drives the upsert, independent of whether ownership resolved). So a resolver
+hiccup on a delta cycle for a resource whose node was still upserted: the
+retract's generation-only anchor could not distinguish "ownership genuinely
+changed" from "we simply failed to learn it this cycle" and deleted the
+existing, still-correct `MATCHES_STATE` edge either way; nothing rewrote it
+(`terraformStateMatchesConfigEdgeStatements`' MERGE already excludes
+`OwningRepoID == ""` rows for the identical reason). Fail-closed
+(under-authorization, never a leak) but a real accuracy regression, on every
+delta cycle instead of only full-reconciliation cycles.
+
+Fix: `terraformStateMatchesConfigEdgeRetractStatements` now filters
+`mat.TerraformStateResources` to rows with `OwningRepoID != ""`, collects
+their uids, batches by `w.batchSize`, and adds `AND s.uid IN $uids` to
+`canonicalTerraformStateMatchesConfigEdgeRetractCypher`'s WHERE clause. A row
+whose ownership did not resolve this cycle is excluded from the uid set, so
+its existing edge (correct or not) survives untouched -- symmetric with the
+MERGE's own exclusion. Batching mirrors
+`terraformStateResourceMigrationStatements`' existing uid-batching precedent
+(same file family, `tfstate_canonical_writer_retract.go`) rather than
+inventing a new shape.
+
+No-Regression Evidence: narrows the retract's candidate set to a strict subset
+of what it touched before (only rows with resolved ownership); never widens
+it. The resolved-ownership path (the common case, and the #5623 P0 fix's own
+delta-cycle-reassignment scenario) is unaffected in statement count or shape.
+Two pre-existing package tests needed fixture updates because they
+constructed rows with no `OwningRepoID` and asserted the OLD unconditional
+retract count:
+`TestTerraformStateMatchesConfigEdgeRetractStatementsRunsUnderDeltaProjection`
+and `...RunsOnNonDeltaGeneration` now seed a resolved `OwningRepoID` and assert
+the `uids` parameter; `TestCanonicalNodeWriterBuildsTerraformStateStatements`
+(`tfstate_canonical_writer_test.go`) drops from 8 to 7 expected statements
+(its fixture intentionally wires no ownership resolver) and its stale doc
+comment claiming the edge retract was "unconditional...a harmless no-op" is
+corrected -- that claim was exactly the P1 bug.
+
+Live proof (RED via `git apply -R` on this fix alone, keeping the #5623 P0
+delta-cycle fix applied; confirmed FAIL for the right reason; GREEN restored),
+run through the REAL `CanonicalNodeWriter.Write` pipeline across a full
+generation then a delta cycle where ownership resolution returns not-ok (not a
+raw seeded fixture):
+`TestCanonicalNodeWriterPreservesMatchesStateEdgeOnResolverHiccupDeltaCycleLive`.
+Re-ran the P0 delta-cycle-reassignment live regression
+(`TestCanonicalNodeWriterRetractsStaleMatchesStateEdgeOnDeltaCycleLive`) and
+its `internal/query` counterpart
+(`TestLiveInfraScopeShapeMatchesStateStaleEdgeExcludedAfterDeltaReassignment`)
+alongside this fix to confirm both directions: P1 closed, P0 not reopened --
+all pass together. Unit proof:
+`TestTerraformStateMatchesConfigEdgeRetractStatementsExcludesUnresolvedOwnershipRows`
+(all-unresolved emits nothing; mixed resolved/unresolved includes only the
+resolved uid).
+
+No-Observability-Change: the retract is a Cypher WHERE/DELETE fragment with no
+span, metric, label, or log surface; no new telemetry signal is added or
+needed.

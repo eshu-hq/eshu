@@ -76,25 +76,30 @@ func TestCanonicalNodeWriterBuildsTerraformStateStatements(t *testing.T) {
 	}
 
 	statements := writer.buildTerraformStateStatements(mat)
-	// #5443/P0-2: buildTerraformStateStatements now emits, in order: the
+	// #5443/P0-2: buildTerraformStateStatements emits, in order: the
 	// migration relabel, the allowlisted-type REMOVE statement (#5441 review
 	// round 9, P0), the resource upsert, the two generation-gated retraction
-	// statements, the module upsert, the output upsert, and the
-	// generation-gated MATCHES_STATE edge retract (#5443 P1 review finding)
-	// -- 8 statements, not 4. Retraction MUST follow the resource upsert (not
-	// precede it, as an earlier P0 review finding proved): see
+	// statements, the module upsert, and the output upsert -- 7 statements.
+	// Retraction MUST follow the resource upsert (not precede it, as an
+	// earlier P0 review finding proved): see
 	// TestTerraformStateStatementsEmitRetractAfterUpsert
 	// (tfstate_canonical_writer_stale_attrs_test.go) for that ordering
 	// contract and buildTerraformStateStatements' doc comment for why.
-	// The MATCHES_STATE MERGE stays absent (this test wires no
-	// TerraformStateOwnershipResolver, so OwningRepoID is never resolved),
-	// but the edge retract statement itself is unconditional -- it only
-	// ever deletes edges this writer's own evidence_source previously
-	// wrote, so it is a harmless no-op when this cycle resolved no
-	// ownership at all. See TestTerraformStateStatementsEmitRemoveBeforeUpsert
+	// The MATCHES_STATE MERGE and its edge retract (#5443 P1 review finding)
+	// both stay absent here: this test wires no TerraformStateOwnershipResolver,
+	// so OwningRepoID is never resolved, and the edge retract is now
+	// conditional on OwningRepoID having actually resolved this cycle
+	// (#5623 P1 review finding -- "this generation upserted the node" is not
+	// the same fact as "we know its correct owner this cycle"; retracting an
+	// existing edge without a resolved owner would wipe a still-correct edge
+	// on an ordinary resolver hiccup). See
+	// TestBuildTerraformStateStatementsRetractsEdgeBeforeMerge
+	// (tfstate_state_match_edge_retract_test.go) for the resolved-ownership
+	// case that DOES emit both the MERGE and the edge retract, and
+	// TestTerraformStateStatementsEmitRemoveBeforeUpsert
 	// (tfstate_canonical_writer_stale_attrs_test.go) for the REMOVE/upsert
 	// ordering contract; this test asserts each statement's own shape.
-	if got, want := len(statements), 8; got != want {
+	if got, want := len(statements), 7; got != want {
 		t.Fatalf("buildTerraformStateStatements() count = %d, want %d:\n%#v", got, want, statements)
 	}
 
@@ -202,17 +207,16 @@ func TestCanonicalNodeWriterBuildsTerraformStateStatements(t *testing.T) {
 		t.Fatalf("output Cypher = %q, want TerraformOutput uid merge", statements[6].Cypher)
 	}
 
-	edgeRetract := statements[7]
-	if !strings.Contains(edgeRetract.Cypher, "MATCH (s:TerraformStateResource)") ||
-		!strings.Contains(edgeRetract.Cypher, "MATCHES_STATE") ||
-		!strings.Contains(edgeRetract.Cypher, "DELETE e") {
-		t.Fatalf("edge-retract Cypher = %q, want a generation-gated MATCHES_STATE relationship DELETE anchored on TerraformStateResource (#5443 P1 review finding)", edgeRetract.Cypher)
-	}
-	if !edgeRetract.Drain || edgeRetract.DrainVar != "" {
-		t.Fatalf("edge-retract Drain/DrainVar = %v/%q, want true/\"\" (bounded mixed-phase relationship retract)", edgeRetract.Drain, edgeRetract.DrainVar)
-	}
-	if got, want := edgeRetract.Parameters["scope_id"], "tf-scope-1"; got != want {
-		t.Fatalf("edge-retract scope_id = %#v, want %q", got, want)
+	// No MATCHES_STATE edge retract or MERGE statement: this fixture's row
+	// carries no OwningRepoID (no resolver wired), so #5623's P1 fix excludes
+	// it from the edge retract's uid set, and terraformStateMatchesConfigEdgeStatements'
+	// own MERGE filter excludes it too (OwningRepoID == ""). See
+	// TestBuildTerraformStateStatementsRetractsEdgeBeforeMerge for the
+	// resolved-ownership case that emits both.
+	for i, stmt := range statements {
+		if strings.Contains(stmt.Cypher, "MATCHES_STATE") {
+			t.Fatalf("statements[%d].Cypher unexpectedly contains MATCHES_STATE with no resolved ownership in this fixture: %q", i, stmt.Cypher)
+		}
 	}
 }
 

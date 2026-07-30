@@ -580,10 +580,11 @@
   -v -count=1` (statement-shape unit proof) plus two live regressions against
   an isolated NornicDB, both run through the REAL `CanonicalNodeWriter.Write`
   pipeline across a full generation then a delta-cycle ownership reassignment
-  (not a raw seeded fixture): `go test -tags live_infra_scope_shape
-  ./internal/storage/cypher -run
+  (not a raw seeded fixture): `go test ./internal/storage/cypher -run
   TestCanonicalNodeWriterRetractsStaleMatchesStateEdgeOnDeltaCycleLive -count=1`
-  (proves the stale edge is gone after the delta cycle, and that a
+  (this test has no build tag -- gated only by ESHU_CYPHER_BOLT_DSN, matching
+  every other `_live_test.go` in that package) (proves the stale edge is gone
+  after the delta cycle, and that a
   partial-failure retry of the same generation is idempotent) and `go test
   -tags live_infra_scope_shape ./internal/query -run
   TestLiveInfraScopeShapeMatchesStateStaleEdgeExcludedAfterDeltaReassignment
@@ -594,6 +595,61 @@
   No-Observability-Change: both the retract Cypher and this package's scope
   predicate remain Cypher fragments with no span, metric, label, or log
   surface; no new telemetry signal is added or needed.
+
+- **The delta-cycle retract fix above wiped a still-valid edge on an ordinary
+  resolver hiccup (#5623 P1 review follow-up)** — `terraformStateMatchesConfigEdgeRetractStatements`'
+  `s.generation_id = $generation_id` anchor (the fix above) proves "this
+  generation upserted the node," not "we know its correct owner this cycle."
+  `TerraformStateOwnershipResolver.ResolveOwningRepoID` fails closed on ANY
+  resolver error -- an ordinary transient Postgres timeout or pool exhaustion,
+  not only a genuine "no owner" -- and every `cmd/*` wiring site
+  (`cmd/bootstrap-index`, `cmd/ingester`, `cmd/projector`'s
+  `terraform_state_ownership.go`) treats that identically to "no owner,"
+  returning `row.OwningRepoID == ""`. The state resource's node still gets
+  upserted that cycle regardless, so on a delta cycle where a resolver hiccup
+  hit a resource whose node was still upserted, the retract could not
+  distinguish "ownership genuinely changed" from "we simply failed to learn it
+  this cycle" -- it deleted the existing, still-correct `MATCHES_STATE` edge
+  either way, and nothing rewrote it (the MERGE excludes `OwningRepoID == ""`
+  rows). Fail-closed (under-authorization, never a leak) but a real accuracy
+  regression on every delta cycle instead of only full-reconciliation cycles.
+  Fixed by restricting the retract's `s.uid IN $uids` set to rows whose
+  `OwningRepoID` actually resolved THIS cycle (non-empty), batched by
+  `w.batchSize` mirroring `terraformStateResourceMigrationStatements`' own
+  uid-batching precedent (same file family,
+  `tfstate_canonical_writer_retract.go`) rather than inventing a new batching
+  shape. A row with `OwningRepoID == ""` this cycle is simply excluded from
+  the uid set, so its existing edge survives untouched -- symmetric with the
+  MERGE, which already excludes the same rows for the same reason.
+
+  No-Regression Evidence: fail-closed accuracy fix; narrows the retract's uid
+  set to a strict subset of what it touched before (rows with resolved
+  ownership), never widens it. Baseline = every row this generation upserted
+  is a retract candidate regardless of resolution outcome; after = only rows
+  with `OwningRepoID != ""` are candidates. The Cypher statement gains one
+  `AND s.uid IN $uids` clause; the resolved-ownership path (the common case)
+  is unaffected in count or shape. Proof (failing-first, RED via `git apply -R`
+  on this fix alone -- keeping the delta-cycle fix above applied -- confirmed
+  FAIL for the right reason; GREEN restored): `go test ./internal/storage/cypher
+  -run 'TestTerraformStateMatchesConfigEdgeRetractStatementsExcludesUnresolvedOwnershipRows|TestTerraformStateMatchesConfigEdgeRetractStatementsRunsUnderDeltaProjection|TestTerraformStateMatchesConfigEdgeRetractStatementsRunsOnNonDeltaGeneration|TestBuildTerraformStateStatementsRetractsEdgeBeforeMerge'
+  -v -count=1` (unit proof: all-unresolved emits nothing, mixed
+  resolved/unresolved includes only the resolved uid, resolved-ownership path
+  unchanged) plus a live regression against an isolated NornicDB, run through
+  the REAL `CanonicalNodeWriter.Write` pipeline across a full generation then a
+  delta cycle where ownership resolution returns not-ok (not a raw seeded
+  fixture): `go test ./internal/storage/cypher -run
+  TestCanonicalNodeWriterPreservesMatchesStateEdgeOnResolverHiccupDeltaCycleLive
+  -count=1` (this test has no build tag, matching every other `_live_test.go`
+  in that package). Re-ran the delta-cycle-reassignment P0 regressions
+  (`TestCanonicalNodeWriterRetractsStaleMatchesStateEdgeOnDeltaCycleLive` and
+  `TestLiveInfraScopeShapeMatchesStateStaleEdgeExcludedAfterDeltaReassignment`)
+  alongside this fix to confirm it does not reopen the delta-cycle leak the
+  fix above closed -- both still pass. Also `go test ./internal/storage/cypher
+  ./internal/query ./cmd/... -count=1`.
+
+  No-Observability-Change: the retract remains a Cypher WHERE/DELETE fragment
+  with no span, metric, label, or log surface; no new telemetry signal is
+  added or needed.
 
 ## Common changes and how to scope them
 

@@ -37,9 +37,17 @@ import (
 // case. Direction is preserved from canonicalTerraformStateMatchesConfigEdgeCypher's
 // own (c)-[e:MATCHES_STATE]->(s): matching s first with the reversed `<-`
 // arrow selects the identical edge, never a different one.
+//
+// `s.uid IN $uids` (#5623 P1 review finding) additionally restricts this
+// retract to state resources whose ownership was ACTUALLY RESOLVED this
+// cycle -- see terraformStateMatchesConfigEdgeRetractStatements' doc comment
+// for why "this generation upserted the node" is not the same fact as "we
+// know its correct owner this cycle," and why conflating the two wiped a
+// still-valid edge on an ordinary transient resolver error.
 const canonicalTerraformStateMatchesConfigEdgeRetractCypher = `MATCH (s:TerraformStateResource)<-[e:MATCHES_STATE]-(:TerraformResource)
 WHERE s.scope_id = $scope_id
   AND s.generation_id = $generation_id
+  AND s.uid IN $uids
   AND e.evidence_source = 'projector/tfstate'
   AND e.generation_id <> $generation_id
 DELETE e`
@@ -93,6 +101,36 @@ DELETE e`
 //     first) keeps "at most one MATCHES_STATE edge per state resource" true
 //     at the end of every generation, not just every full reconciliation.
 //
+// UID-FILTERED (#5623 P1 review finding), not "every row this generation
+// upserted": this retract only considers state resources whose OwningRepoID
+// actually RESOLVED this cycle (row.OwningRepoID != ""). "This generation
+// upserted the node" and "we know its correct owner this cycle" are DIFFERENT
+// facts -- resolveTerraformStateOwnership's resolver
+// (TerraformStateOwnershipResolver.ResolveOwningRepoID) fails closed on ANY
+// error, including an ordinary transient Postgres timeout or pool exhaustion
+// (see the resolver's own doc comment; every cmd/* wiring site --
+// cmd/bootstrap-index, cmd/ingester, cmd/projector's terraform_state_ownership.go
+// -- treats a resolver error identically to "no owner"), and still upserts the
+// node with row.OwningRepoID == "" that cycle. Before this UID filter, the
+// generation-only anchor could not distinguish "ownership genuinely changed"
+// from "we simply failed to learn the ownership this cycle" -- it retracted
+// the existing edge either way, wiping a still-correct MATCHES_STATE edge on
+// an ordinary resolver hiccup instead of leaving it alone until a future
+// cycle resolves successfully. Under uncertainty this retract now keeps what
+// it had rather than assert a deletion it cannot justify: a row with
+// OwningRepoID == "" this cycle is simply excluded from the uid set, so its
+// existing edge (correct or not) survives untouched, exactly as if this
+// retract were skipped for that one resource. This is fail-closed
+// (under-authorization risk, never a leak) and symmetric with
+// terraformStateMatchesConfigEdgeStatements' own MERGE, which already
+// excludes OwningRepoID == "" rows from writing a new edge for the same
+// reason.
+//
+// Batched by w.batchSize uids per statement, mirroring
+// terraformStateResourceMigrationStatements' own uid-batching (same file
+// family, tfstate_canonical_writer_retract.go) rather than inventing a new
+// batching shape.
+//
 // Emitted with Drain=true and an empty DrainVar: this is a relationship
 // DELETE mixed into the terraform_state phase alongside sibling MERGE
 // upserts, the same NornicDB grouped-ExecuteWrite silent-no-op class (#4476)
@@ -106,13 +144,31 @@ func (w *CanonicalNodeWriter) terraformStateMatchesConfigEdgeRetractStatements(m
 	if mat.FirstGeneration {
 		return nil
 	}
-	return []Statement{
-		{
+
+	uids := make([]string, 0, len(mat.TerraformStateResources))
+	for _, row := range mat.TerraformStateResources {
+		if row.OwningRepoID == "" {
+			continue
+		}
+		uids = append(uids, row.UID)
+	}
+	if len(uids) == 0 {
+		return nil
+	}
+
+	var statements []Statement
+	for start := 0; start < len(uids); start += w.batchSize {
+		end := start + w.batchSize
+		if end > len(uids) {
+			end = len(uids)
+		}
+		statements = append(statements, Statement{
 			Operation: OperationCanonicalRetract,
 			Cypher:    canonicalTerraformStateMatchesConfigEdgeRetractCypher,
 			Parameters: map[string]any{
 				"scope_id":                       mat.ScopeID,
 				"generation_id":                  mat.GenerationID,
+				"uids":                           uids[start:end],
 				StatementMetadataPhaseKey:        canonicalPhaseTerraformState,
 				StatementMetadataEntityLabelKey:  "MATCHES_STATE",
 				StatementMetadataScopeIDKey:      mat.ScopeID,
@@ -120,6 +176,7 @@ func (w *CanonicalNodeWriter) terraformStateMatchesConfigEdgeRetractStatements(m
 				StatementMetadataSummaryKey:      "retract_stale_matches_state_edge",
 			},
 			Drain: true,
-		},
+		})
 	}
+	return statements
 }
