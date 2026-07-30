@@ -25,7 +25,7 @@
   limitations"). This is not something to redesign in this package without
   an ADR from the #5074 owner; it is documented here so it is not
   rediscovered as a surprise.
-- **`<<<` here-strings are never heredocs.** `findAllOpeners` in `scanner.go`
+- **`<<<` here-strings are never heredocs.** `findAllOpeners` in `scanner_lexer.go`
   explicitly skips past a third `<` so a here-string's trailing `<<` cannot
   be mistaken for a heredoc opener with a garbage delimiter. Do not "simplify"
   this into a plain `<<` regex — that regression is exactly what the
@@ -40,7 +40,7 @@
   immediately after the command line (`TestScanContent_TwoOpenersOnOneLineBothMeasured`).
 - **`findAllOpeners` tracks quote/substitution context as a STACK, persisted
   ACROSS LINES.** It is not a per-line quote toggle. The stack (`frameSingle`
-  /`frameDouble`/`frameAnsiC`/`frameSubst` in `scanner.go`) models: a `'...'`
+  /`frameDouble`/`frameAnsiC`/`frameSubst` in `scanner_lexer.go`) models: a `'...'`
   or `"..."` string (so a `<<IDENT` inside one is never mistaken for a real
   opener — bash never treats `<<` as redirection inside a quoted string);
   an ANSI-C `$'...'` string with backslash-escape awareness (so `\'` does
@@ -78,6 +78,38 @@
   before calling a scanner change safe.**
   **Known gap, not fixed here:** legacy backtick `` `cmd` `` substitution is
   NOT given its own stack frame the way `$(...)` is.
+- **`findAllOpeners` also recognizes an unquoted, word-starting `#` as a real
+  bash comment that ends scanning for the rest of the line.** This closes a
+  P1 fail-open found after the full-line-comment fix above shipped: only a
+  FULL-line comment was recognized, so a comment trailing real code on the
+  same line (`echo x # <<EOF`) was not treated as a comment at all, and the
+  `<<EOF` fragment inside it phantom-opened the scanner exactly like the
+  full-line case — silently swallowing a real over-budget heredoc elsewhere
+  in the file (0 detected, exit 0) whenever no later line happened to be
+  literally its delimiter. The check (`case c == '#' && (i == 0 ||
+  line[i-1] == ' ' || line[i-1] == '\t')` in the `default` case's inner
+  switch) MUST come after the backslash-escape check described above, not
+  before it, to preserve that invariant. It fires only in the base/`$(...)`
+  context (the outer `switch top()` already routes a `#` inside an actual
+  quote to the frame-specific cases, where `#` has no special meaning), and
+  only when the preceding byte is a blank or the `#` is the first byte of the
+  line — matching real bash's "comment starts a word" rule closely enough to
+  stay conservative: `echo foo#bar`, `${x#pat}`, and `$#` all fail this
+  start-of-word check and stay literal, exactly as verified against real
+  `/bin/bash`. See `TestScanContent_TrailingCommentOpenerDoesNotHideRealHeredoc`
+  (the RED/GREEN regression) and `TestScanContent_HashNotStartingWordStaysLiteral`
+  (the non-comment edge cases) in `scanner_quoting_test.go`. This fix is a
+  narrowing, like the unquoted-margin fix above, not a closure of #5079: a
+  small literal heredoc referencing an unbounded expansion is still a
+  separate, open gap (see `doc.go`).
+- **`scanner.go` and `scanner_lexer.go` are one logical unit, split only to
+  stay under the repo's 500-line-per-file cap.** `scanner.go` owns the
+  line-by-line `ScanContent`/`ScanFile`/`ScanTree`/`closesHeredoc` state
+  machine; `scanner_lexer.go` owns the character-by-character
+  quote/substitution/comment lexer (`opener`, the `frame*` constants,
+  `inQuoteFrame`, `findAllOpeners`, `parseDelim`, `isIdentifier`,
+  `isIdentByte`) that `ScanContent` drives once per line. Change them
+  together; do not let one drift ahead of the other's tests.
 - **Unquoted heredocs get a stricter effective budget — but the margin is a
   heuristic, not a closed fix.** `Heredoc.Unquoted` (set from whether the
   delimiter was `<<'DELIM'`/`<<"DELIM"` vs bare `<<DELIM`) drives
@@ -114,7 +146,7 @@
   size from the deadlock itself — changing it without re-deriving that
   number from the actual OS behavior would misrepresent the safety margin.
 - **New heredoc opener syntax to recognize** → extend `findAllOpeners` /
-  `parseDelim` in `scanner.go`, and add a fixture-backed test case mirroring
+  `parseDelim` in `scanner_lexer.go`, and add a fixture-backed test case mirroring
   the existing `TestScanContent_*` tests in `scanner_test.go` or
   `scanner_quoting_test.go` (quote/substitution-context cases live in the
   latter) (see `golang-engineering`: tests must exercise the real scanner,

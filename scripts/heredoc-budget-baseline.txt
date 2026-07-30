@@ -25,5 +25,3 @@ scripts/run-k8s-two-team-governance-proof.sh 2
 scripts/run-two-team-governance-proof.sh 2
 scripts/verify-hosted-auth-audit-proof.sh 1
 scripts/verify-hosted-governance-helm-proof.sh 1
-scripts/verify-remote-e2e-component-extension-oci.sh 1
-scripts/verify-remote-e2e-remediation-benchmark.sh 1

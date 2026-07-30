@@ -120,13 +120,26 @@
 // sits inside an outer double-quoted string that has not closed yet; a
 // double-quoted string that spans multiple physical lines (with or without
 // a trailing backslash-continuation) — quote/substitution context persists
-// across lines, not just within one; and backslash-escaping at the bare
+// across lines, not just within one; backslash-escaping at the bare
 // unquoted level, including the extremely common close/escaped-quote/reopen
 // idiom for embedding a literal single quote inside a single-quoted string
 // — found missing during this same review, when it desynced the quote stack
 // on a real script in this repo
 // (scripts/verify-remote-e2e-remediation-benchmark.sh) and silently
-// swallowed a real over-budget heredoc dozens of lines later.
+// swallowed a real over-budget heredoc dozens of lines later; and an
+// unquoted, word-starting `#` that trails real code on the same line
+// (`echo x # <<EOF`) is now recognized as a genuine bash comment that ends
+// scanning for the rest of that line. This was a genuine fail-open, not
+// merely a false positive: only a FULL-line comment was previously
+// recognized, so the `<<EOF` fragment after a trailing `#` phantom-opened
+// the scanner exactly like the full-line case, and a real over-budget
+// heredoc elsewhere in the file (with no line that is literally its
+// delimiter) was silently dropped as an unterminated opener — 0 heredocs
+// detected, exit 0, while the actual deadlock risk shipped unflagged.
+// Verified against real bash both for the comment case and for the
+// constructs that must NOT be mistaken for one on the same start-of-word
+// check (`echo foo#bar`, `${x#pat}`, `$#`, `#` inside single or double
+// quotes).
 //
 // Still open (real, adversarially-found gaps):
 //
@@ -135,7 +148,8 @@
 //     not catch a small literal body that references an unbounded runtime
 //     expansion (a large array via `${arr[*]}`, a large command
 //     substitution). This is a fundamental limit of any literal-byte-count
-//     heuristic, not a bug to fix in this pass.
+//     heuristic, not a bug to fix in this pass. #5085's runtime-expansion
+//     blind spot is NOT closed by this package; it is only narrowed.
 //   - The baseline burn-down comparison (CheckBaseline in baseline.go) keys
 //     on a per-file violation COUNT, not the identity of which heredoc it
 //     is. Fixing one baselined violation while introducing a different,
@@ -150,6 +164,9 @@
 //   - A numeric-first delimiter (`cat <<123`) is rejected on purpose, to
 //     avoid mistaking a `$(( x << 2 ))` arithmetic shift for a heredoc — this
 //     is intentional design, not a limitation.
-//   - A `<<IDENT` in an inline comment AFTER a command (`echo x # <<EOF`) is
-//     a false positive; only a full-line comment is recognized as a comment.
+//
+// #5079 (quote/substitution-context desyncs) is likewise NOT fully closed by
+// this or any prior slice: it names a class of line-based-scanner false
+// negatives, and the "Still open" gaps above (backtick substitution in
+// particular) are further instances of that same class, not yet found ones.
 package main

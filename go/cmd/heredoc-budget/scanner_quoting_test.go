@@ -189,3 +189,49 @@ func TestScanContent_CommentLineInsideMultiLineQuoteNotSkipped(t *testing.T) {
 		t.Fatalf("expected the real opener on line 3, got line %d", heredocs[0].Line)
 	}
 }
+
+// TestScanContent_HashNotStartingWordStaysLiteral guards the flip side of
+// TestScanContent_TrailingCommentOpenerDoesNotHideRealHeredoc: an unquoted
+// '#' that does NOT start a word is ordinary bash text, not a comment start,
+// and must not swallow a real heredoc opener that follows it on the SAME
+// line. Each case here was verified against real /bin/bash (all five open a
+// real heredoc with no hang and no misparse):
+//
+//	echo foo#bar <<EOF        -> prints "foo#bar", heredoc opens normally
+//	echo ${x#pat} <<EOF       -> unquoted param-expansion '#', heredoc opens
+//	echo $# <<EOF             -> positional-count '#', heredoc opens
+//	echo 'a # b' <<EOF        -> '#' inert inside single quotes, heredoc opens
+//	echo "a # b" <<EOF        -> '#' inert inside double quotes, heredoc opens
+//
+// If the scanner's start-of-word check were wrong (e.g. treating any '#' as
+// a comment start regardless of what precedes it), every one of these would
+// regress to the same fail-open this file's other tests guard against: the
+// trailing `<<EOF` would be swallowed as comment text and the real heredoc
+// would go undetected.
+func TestScanContent_HashNotStartingWordStaysLiteral(t *testing.T) {
+	tests := []struct {
+		name string
+		line string
+	}{
+		{"mid_word_hash", "echo foo#bar <<EOF"},
+		{"unquoted_param_expansion_hash", "x=foobar\necho ${x#foo} <<EOF"},
+		{"positional_count_hash", `echo $# <<EOF`},
+		{"hash_inside_single_quotes", "echo 'a # b' <<EOF"},
+		{"hash_inside_double_quotes", `echo "a # b" <<EOF`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := strings.Repeat("z", 600) + "\n" // over budget
+			src := tt.line + "\n" + body + "EOF\n"
+
+			heredocs := ScanContent(src)
+
+			if len(heredocs) != 1 {
+				t.Fatalf("expected the real EOF heredoc to be detected despite the non-comment '#', got %d: %+v", len(heredocs), heredocs)
+			}
+			if heredocs[0].Size <= defaultBudget {
+				t.Fatalf("expected over-budget body, got %d", heredocs[0].Size)
+			}
+		})
+	}
+}

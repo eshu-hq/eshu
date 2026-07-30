@@ -51,6 +51,36 @@ func TestScanContent_CommentOpenerDoesNotHideRealHeredoc(t *testing.T) {
 	}
 }
 
+// TestScanContent_TrailingCommentOpenerDoesNotHideRealHeredoc guards a P1
+// fail-open in the fix above: only a FULL-line comment was recognized, so a
+// comment that trails real code on the same line (e.g. "echo x # <<EOF") was
+// not treated as a comment at all -- the `<<EOF` inside it phantom-opened the
+// scanner exactly like the full-line case, and since no later line in the
+// script is literally "EOF" (the real heredoc uses "REALEOF"), the opener
+// with no matching close is silently dropped (per ScanContent's documented
+// behavior for malformed input) -- swallowing the real over-budget heredoc
+// entirely: 0 detected, exit 0. Verified against real /bin/bash: `echo x #
+// <<EOF` prints "x" and opens no heredoc at all; a following `cat <<REALEOF`
+// is a completely independent, real heredoc.
+func TestScanContent_TrailingCommentOpenerDoesNotHideRealHeredoc(t *testing.T) {
+	body := strings.Repeat("a", 600) + "\n" // 601 bytes, over budget
+	src := "#!/usr/bin/env bash\n" +
+		"echo x # <<EOF\n" +
+		"cat <<REALEOF\n" + body + "REALEOF\n"
+
+	heredocs := ScanContent(src)
+
+	if len(heredocs) != 1 {
+		t.Fatalf("expected the real REALEOF heredoc to be detected despite the trailing comment opener, got %d: %+v", len(heredocs), heredocs)
+	}
+	if heredocs[0].Size <= defaultBudget {
+		t.Fatalf("expected body size > %d, got %d", defaultBudget, heredocs[0].Size)
+	}
+	if heredocs[0].Line != 3 {
+		t.Fatalf("expected the real opener on line 3, got line %d", heredocs[0].Line)
+	}
+}
+
 // TestScanContent_WhitespaceBeforeDelimHandled guards the #5074 review P1
 // fail-open: bash accepts blanks between `<<`/`<<-` and the delimiter
 // (`cat << EOF`, `cat <<- 'EOF'`), and such a >512B heredoc must still be

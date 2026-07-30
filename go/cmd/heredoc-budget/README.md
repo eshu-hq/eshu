@@ -133,12 +133,22 @@ even across an escaped `\'`; more than one heredoc opener on a line
 `$(...)` command substitution, including when that substitution sits inside
 an outer double-quoted string that has not closed yet; a double-quoted
 string spanning multiple physical lines (quote/substitution context now
-persists across lines, not just within one line); and backslash-escaping at
+persists across lines, not just within one line); backslash-escaping at
 the bare unquoted level, including the extremely common `'\''` idiom for
 embedding a literal `'` inside a single-quoted string — found missing during
 this same review, when it desynced the quote stack on a real script in this
 repo (`verify-remote-e2e-remediation-benchmark.sh`) and silently swallowed a
-real over-budget heredoc dozens of lines later.
+real over-budget heredoc dozens of lines later; and an unquoted,
+word-starting `#` that trails real code on the same line (`echo x # <<EOF`)
+is now recognized as a genuine bash comment ending the line. **This was a
+genuine fail-open, not merely a false positive:** only a FULL-line comment
+was previously recognized, so the `<<EOF` fragment after a trailing `#`
+phantom-opened the scanner exactly like the full-line case, and dropped a
+real over-budget heredoc elsewhere in the file as an unterminated opener —
+0 heredocs detected, exit 0, while the real deadlock risk shipped unflagged.
+Verified against real bash both for the comment case itself and for the
+constructs that must stay literal under the same start-of-word check
+(`echo foo#bar`, `${x#pat}`, `$#`, `#` inside single or double quotes).
 
 **Still open (real, adversarially-found gaps):**
 
@@ -146,7 +156,9 @@ real over-budget heredoc dozens of lines later.
   window for a source body already close to budget; it does not catch a
   small literal body that references an unbounded runtime expansion (a large
   array, a large command substitution) — see above for the measurement
-  behind not implementing a construct-based rule instead.
+  behind not implementing a construct-based rule instead. **#5085's
+  runtime-expansion blind spot is NOT closed by this package; it is only
+  narrowed.**
 - The baseline burn-down comparison keys on a per-file violation **count**,
   not the identity of which heredoc it is. Fixing one violation while
   introducing a different one elsewhere in the same file can leave the count
@@ -157,8 +169,11 @@ real over-budget heredoc dozens of lines later.
 - A numeric-first delimiter (`cat <<123`) is rejected on purpose, to avoid
   mistaking a `$(( x << 2 ))` arithmetic shift for a heredoc — intentional,
   not a bug.
-- A `<<IDENT` in an inline comment AFTER a command (`echo x # <<EOF`) is a
-  false positive; only a full-line comment is recognized.
+
+**#5079 is likewise NOT fully closed** by this or any prior slice: it names a
+class of line-based-scanner false negatives (quote/substitution-context
+desyncs), and the backtick-substitution gap above is a further instance of
+that same class, not yet a closed list.
 
 ## Tests
 

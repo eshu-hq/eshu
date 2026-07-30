@@ -18,9 +18,15 @@ list_only=false
 artifacts_dir=""
 
 usage() {
-	cat <<USAGE
-Usage: $(basename "$0") --artifacts <dir> [--list]
-
+	# Split into a printf (for the one line needing $0 substitution) plus a
+	# QUOTED heredoc for the static remainder: the combined body was 510
+	# bytes, only 2 under the raw 512-byte budget and unquoted (so bash
+	# expands $0 at runtime), tripping the heredoc-budget gate's stricter
+	# unquoted margin (#5074/#5085) even though the actual content is inert.
+	# printf is a builtin (no pipe), and the quoted delimiter here needs no
+	# substitution, so it keeps the gate's full literal budget.
+	printf 'Usage: %s --artifacts <dir> [--list]\n\n' "$(basename "$0")"
+	cat <<'USAGE'
 Verifies recorded Scorecard OCI-adapter component-extension proof artifacts:
   inventory.json        component-extensions API readback (shared verifier)
   workflow-items.json   component workflow item terminal states (shared verifier)
