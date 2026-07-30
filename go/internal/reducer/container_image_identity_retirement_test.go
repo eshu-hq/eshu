@@ -5,6 +5,7 @@ package reducer
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -223,6 +224,40 @@ func TestContainerImageIdentityHandlerPassesWarningGatedRetirementPlan(t *testin
 	}
 }
 
+func TestContainerImageIdentityHandlerFailsClosedWhenRequiredWarningLoadFails(t *testing.T) {
+	t.Parallel()
+
+	loader := &stubContainerImageIdentityFactLoader{
+		scopeFacts: []facts.Envelope{
+			gitImageRefFact("git-tag", "registry.example.com/team/api:prod"),
+		},
+		warningErr: errors.New("synthetic warning load failure"),
+	}
+	writer := &recordingContainerImageIdentityWriter{}
+	handler := ContainerImageIdentityHandler{
+		FactLoader: loader,
+		Writer:     writer,
+	}
+
+	_, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-5854-warning-load",
+		Domain:       DomainContainerImageIdentity,
+		ScopeID:      "repository:synthetic",
+		GenerationID: "generation-5854",
+		SourceSystem: "git",
+		Cause:        "test",
+	})
+	if err == nil || !strings.Contains(err.Error(), "load active container image identity warnings") {
+		t.Fatalf("Handle() error = %v, want required warning-load failure", err)
+	}
+	if got, want := loader.warningCalls, 1; got != want {
+		t.Fatalf("warning loader calls = %d, want %d", got, want)
+	}
+	if writer.calls != 0 {
+		t.Fatalf("writer calls = %d, want 0 after warning-load failure", writer.calls)
+	}
+}
+
 func TestContainerImageIdentityHandlerFailsClosedOnMalformedRetirementWarning(t *testing.T) {
 	t.Parallel()
 
@@ -266,6 +301,127 @@ func TestContainerImageIdentityHandlerFailsClosedOnMalformedRetirementWarning(t 
 	}
 }
 
+func TestContainerImageIdentityHandlerFailsClosedOnIncompleteSafetyWarningTargets(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		warningCode  string
+		repositoryID *string
+		digest       *string
+		wantField    string
+	}{
+		{
+			name:        "tag truncation missing repository",
+			warningCode: containerImageIdentityWarningTagListTruncated,
+			wantField:   "repository_id",
+		},
+		{
+			name:         "tag truncation blank repository",
+			warningCode:  containerImageIdentityWarningTagListTruncated,
+			repositoryID: stringPointer(" "),
+			wantField:    "repository_id",
+		},
+		{
+			name:         "tag truncation placeholder repository",
+			warningCode:  containerImageIdentityWarningTagListTruncated,
+			repositoryID: stringPointer("oci-registry://warnings"),
+			wantField:    "repository_id",
+		},
+		{
+			name:        "missing manifest digest missing repository",
+			warningCode: containerImageIdentityWarningMissingManifestDigest,
+			wantField:   "repository_id",
+		},
+		{
+			name:         "missing manifest digest redacted repository",
+			warningCode:  containerImageIdentityWarningMissingManifestDigest,
+			repositoryID: stringPointer("[redacted]"),
+			wantField:    "repository_id",
+		},
+		{
+			name:         "config blob warning missing digest",
+			warningCode:  containerImageIdentityWarningConfigBlobUnavailable,
+			repositoryID: stringPointer(retirementTestRepositoryID),
+			wantField:    "digest",
+		},
+		{
+			name:         "config blob warning blank digest",
+			warningCode:  containerImageIdentityWarningConfigBlobUnavailable,
+			repositoryID: stringPointer(retirementTestRepositoryID),
+			digest:       stringPointer(" "),
+			wantField:    "digest",
+		},
+		{
+			name:         "config blob warning placeholder digest",
+			warningCode:  containerImageIdentityWarningConfigBlobUnavailable,
+			repositoryID: stringPointer(retirementTestRepositoryID),
+			digest:       stringPointer("sha256:placeholder"),
+			wantField:    "digest",
+		},
+		{
+			name:        "config blob warning missing repository",
+			warningCode: containerImageIdentityWarningConfigBlobUnavailable,
+			digest:      stringPointer(retirementTestConfigDigest),
+			wantField:   "repository_id",
+		},
+		{
+			name:         "config blob warning placeholder repository",
+			warningCode:  containerImageIdentityWarningConfigBlobUnavailable,
+			repositoryID: stringPointer("oci-registry://warnings"),
+			digest:       stringPointer(retirementTestConfigDigest),
+			wantField:    "repository_id",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			payload := map[string]any{"warning_code": tt.warningCode}
+			if tt.repositoryID != nil {
+				payload["repository_id"] = *tt.repositoryID
+			}
+			if tt.digest != nil {
+				payload["digest"] = *tt.digest
+			}
+			writer := &recordingContainerImageIdentityWriter{}
+			handler := ContainerImageIdentityHandler{
+				FactLoader: &stubContainerImageIdentityFactLoader{
+					scopeFacts: []facts.Envelope{
+						gitImageRefFact("git-tag", "registry.example.com/team/api:prod"),
+					},
+					warnings: []facts.Envelope{{
+						FactID:   "warning-incomplete-target",
+						FactKind: facts.OCIRegistryWarningFactKind,
+						Payload:  payload,
+					}},
+				},
+				Writer: writer,
+			}
+
+			_, err := handler.Handle(context.Background(), Intent{
+				IntentID:     "intent-5854-incomplete-warning",
+				Domain:       DomainContainerImageIdentity,
+				ScopeID:      "repository:synthetic",
+				GenerationID: "generation-5854",
+				SourceSystem: "git",
+				Cause:        "test",
+			})
+			if err == nil {
+				t.Fatal("Handle() error = nil, want incomplete safety warning to fail closed")
+			}
+			if !strings.Contains(err.Error(), tt.wantField) {
+				t.Fatalf("Handle() error = %q, want invalid %s classification", err, tt.wantField)
+			}
+			if writer.calls != 0 {
+				t.Fatalf("writer calls = %d, want 0 after incomplete safety warning", writer.calls)
+			}
+		})
+	}
+}
+
 func retirementTestWrite(decision ContainerImageIdentityDecision) ContainerImageIdentityWrite {
 	return ContainerImageIdentityWrite{
 		IntentID:     "intent-5854",
@@ -302,6 +458,10 @@ func retirementWarningEnvelope(code string, digest string) facts.Envelope {
 			"digest":        digest,
 		},
 	}
+}
+
+func stringPointer(value string) *string {
+	return &value
 }
 
 func equalStringIntMaps(left map[string]int, right map[string]int) bool {

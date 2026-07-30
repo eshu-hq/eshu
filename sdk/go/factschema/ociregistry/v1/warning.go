@@ -16,9 +16,13 @@ package v1
 //
 // The required field is WarningCode: the collector emitter fails closed on a
 // blank warning code (warning.go rejects it before the envelope is built), so
-// it is the kind's only unconditional identity invariant. WarningKey is
-// derived (defaults to WarningCode) and always emitted, but is not separately
-// validated by the emitter, so it stays optional.
+// it is the kind's only unconditional wire invariant. WarningKey is derived
+// (defaults to WarningCode) and always emitted, but is not separately validated
+// by the emitter, so it stays optional. A retirement consumer applies stricter
+// code-specific targeting: config_blob_unavailable requires a concrete
+// RepositoryID and sha256 Digest, while tag_list_truncated and
+// missing_manifest_digest require a concrete RepositoryID. Missing, malformed,
+// or registry-wide placeholder targets fail retirement closed.
 type Warning struct {
 	// WarningCode is the bounded warning code the collector classified.
 	// Required — the emitter fails closed on a blank code.

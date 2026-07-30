@@ -18,16 +18,6 @@ import (
 
 const containerImageIdentityFactKind = "reducer_container_image_identity"
 
-const containerImageIdentityLegacyCleanupQuery = `
-DELETE FROM fact_records AS fact
-WHERE fact.fact_id = ANY($1::text[])
-  AND fact.fact_kind = 'reducer_container_image_identity'
-  AND fact.is_tombstone = FALSE
-  AND fact.scope_id = $2
-  AND fact.generation_id = $3
-  AND fact.fencing_token <= $4
-`
-
 // ContainerImageIdentityTransaction is the narrow atomic write surface used by
 // the identity writer for outcome-independent publications followed by cleanup
 // of unreachable legacy outcome-keyed rows.
@@ -43,7 +33,7 @@ type ContainerImageIdentityBeginner interface {
 	BeginContainerImageIdentityTx(context.Context) (ContainerImageIdentityTransaction, error)
 }
 
-// PostgresContainerImageIdentityWriter persists digest-keyed image identity
+// PostgresContainerImageIdentityWriter persists image-reference-keyed identity
 // decisions into the shared fact store.
 type PostgresContainerImageIdentityWriter struct {
 	DB       workloadIdentityExecer
@@ -119,6 +109,28 @@ func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisio
 			canonicalWrites++
 		}
 	}
+	legacyRowsDeleted := 0
+	if len(write.LegacyFactIDs) > 0 && len(rows) <= reducerFactBatchSize {
+		var err error
+		legacyRowsDeleted, err = execContainerImageIdentityPublicationsAndCleanup(
+			ctx,
+			w.DB,
+			rows,
+			write.LegacyFactIDs,
+			write.ScopeID,
+			write.GenerationID,
+			fencingToken,
+		)
+		if err != nil {
+			return ContainerImageIdentityWriteResult{}, err
+		}
+		return containerImageIdentityWriteResult(
+			canonicalWrites,
+			retirementAttempts,
+			legacyRowsDeleted,
+		), nil
+	}
+
 	exec := w.DB
 	var tx ContainerImageIdentityTransaction
 	rollbackNeeded := false
@@ -144,37 +156,22 @@ func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisio
 			}
 		}()
 	}
-	// Bounded chunked bulk insert: canonical decisions are upserted in
-	// O(N/batchSize) round-trips rather than one ExecContext per decision.
-	if err := reducerBatchInsertFacts(ctx, exec, rows); err != nil {
-		return ContainerImageIdentityWriteResult{}, fmt.Errorf("write container image identity fact: %w", err)
-	}
-	legacyRowsDeleted := 0
 	if len(write.LegacyFactIDs) > 0 {
-		result, err := exec.ExecContext(
+		var err error
+		legacyRowsDeleted, err = execContainerImageIdentityPublicationsAndCleanup(
 			ctx,
-			containerImageIdentityLegacyCleanupQuery,
+			exec,
+			rows,
 			write.LegacyFactIDs,
 			write.ScopeID,
 			write.GenerationID,
 			fencingToken,
 		)
 		if err != nil {
-			return ContainerImageIdentityWriteResult{}, fmt.Errorf(
-				"delete legacy container image identity facts: %w",
-				err,
-			)
+			return ContainerImageIdentityWriteResult{}, err
 		}
-		if result != nil {
-			affected, affectedErr := result.RowsAffected()
-			if affectedErr != nil {
-				return ContainerImageIdentityWriteResult{}, fmt.Errorf(
-					"count deleted legacy container image identity facts: %w",
-					affectedErr,
-				)
-			}
-			legacyRowsDeleted = int(affected)
-		}
+	} else if err := reducerBatchInsertFacts(ctx, exec, rows); err != nil {
+		return ContainerImageIdentityWriteResult{}, fmt.Errorf("write container image identity fact: %w", err)
 	}
 	if tx != nil {
 		if err := tx.Commit(); err != nil {
@@ -185,6 +182,18 @@ func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisio
 		}
 		rollbackNeeded = false
 	}
+	return containerImageIdentityWriteResult(
+		canonicalWrites,
+		retirementAttempts,
+		legacyRowsDeleted,
+	), nil
+}
+
+func containerImageIdentityWriteResult(
+	canonicalWrites int,
+	retirementAttempts int,
+	legacyRowsDeleted int,
+) ContainerImageIdentityWriteResult {
 	return ContainerImageIdentityWriteResult{
 		CanonicalWrites:    canonicalWrites,
 		RetirementAttempts: retirementAttempts,
@@ -195,7 +204,7 @@ func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisio
 			retirementAttempts,
 			legacyRowsDeleted,
 		),
-	}, nil
+	}
 }
 
 type containerImageIdentityPublication struct {

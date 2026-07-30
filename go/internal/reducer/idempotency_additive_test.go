@@ -108,7 +108,7 @@ var idempotencyAdditiveExemptDomains = map[Domain]string{
 
 	// Image identity + CI/CD + supply chain: cross-source digest/artifact fan-in,
 	// proven by their own suites.
-	DomainContainerImageIdentity:      "additive, gated on FactLoader+ContainerImageIdentityWriter; cross-source digest-keyed join, idempotency proven by container_image_identity_*_test.go",
+	DomainContainerImageIdentity:      "additive, gated on FactLoader+ContainerImageIdentityWriter; cross-source digest correlation with image-reference-keyed facts, idempotency proven by container_image_identity_*_test.go",
 	DomainCICDRunCorrelation:          "additive, gated on FactLoader+CICDRunCorrelationWriter; idempotency proven by cicd run-correlation suites (container_image_identity_cicd_test.go and defaults_cicd_test.go)",
 	DomainSBOMAttestationAttachment:   "additive, gated on FactLoader+SBOMAttestationAttachmentWriter; digest-subject fan-in, idempotency proven by sbom_attestation_attachment_*_test.go",
 	DomainSupplyChainImpact:           "additive, gated on FactLoader+SupplyChainImpactWriter; multi-signal fan-in, idempotency proven by supply_chain_impact_*_test.go",

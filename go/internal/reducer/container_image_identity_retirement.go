@@ -37,6 +37,17 @@ type containerImageIdentityRepositoryConfig struct {
 	configDigest string
 }
 
+func containerImageIdentityRetirementNeedsWarnings(
+	decisions []ContainerImageIdentityDecision,
+) bool {
+	for _, decision := range decisions {
+		if decision.CanonicalWrites <= 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func containerImageIdentityRetireSubSignals(heldByReason map[string]int) map[string]float64 {
 	signals := make(map[string]float64, len(heldByReason))
 	for reason, count := range heldByReason {
@@ -70,10 +81,23 @@ func planContainerImageIdentityRetirement(
 				err,
 			)
 		}
-		repositoryID := strings.TrimSpace(derefString(warning.RepositoryID))
-		switch strings.TrimSpace(warning.WarningCode) {
+		warningCode := strings.TrimSpace(warning.WarningCode)
+		switch warningCode {
 		case containerImageIdentityWarningConfigBlobUnavailable:
+			repositoryID, err := containerImageIdentityRetirementWarningRepositoryID(
+				warningCode,
+				derefString(warning.RepositoryID),
+			)
+			if err != nil {
+				return containerImageIdentityRetirementPlan{}, err
+			}
 			configDigest := strings.TrimSpace(derefString(warning.Digest))
+			if !validContainerImageIdentityRetirementDigest(configDigest) {
+				return containerImageIdentityRetirementPlan{}, fmt.Errorf(
+					"active OCI registry retirement warning %q requires a valid digest",
+					warningCode,
+				)
+			}
 			for _, manifest := range configManifestDigests[containerImageIdentityRepositoryConfig{
 				repositoryID: repositoryID,
 				configDigest: configDigest,
@@ -81,13 +105,23 @@ func planContainerImageIdentityRetirement(
 				heldManifestDigests[manifest] = struct{}{}
 			}
 		case containerImageIdentityWarningTagListTruncated:
-			if repositoryID != "" {
-				truncatedRepositories[repositoryID] = struct{}{}
+			repositoryID, err := containerImageIdentityRetirementWarningRepositoryID(
+				warningCode,
+				derefString(warning.RepositoryID),
+			)
+			if err != nil {
+				return containerImageIdentityRetirementPlan{}, err
 			}
+			truncatedRepositories[repositoryID] = struct{}{}
 		case containerImageIdentityWarningMissingManifestDigest:
-			if repositoryID != "" {
-				missingManifestRepositories[repositoryID] = struct{}{}
+			repositoryID, err := containerImageIdentityRetirementWarningRepositoryID(
+				warningCode,
+				derefString(warning.RepositoryID),
+			)
+			if err != nil {
+				return containerImageIdentityRetirementPlan{}, err
 			}
+			missingManifestRepositories[repositoryID] = struct{}{}
 		}
 	}
 
@@ -127,6 +161,45 @@ func planContainerImageIdentityRetirement(
 	})
 	sort.Strings(plan.LegacyFactIDs)
 	return plan, nil
+}
+
+func containerImageIdentityRetirementWarningRepositoryID(
+	warningCode string,
+	raw string,
+) (string, error) {
+	repositoryID := strings.TrimSpace(raw)
+	repositoryKey := strings.TrimPrefix(repositoryID, "oci-registry://")
+	registry, repository, ok := strings.Cut(repositoryKey, "/")
+	if repositoryID == "" ||
+		repositoryKey == repositoryID ||
+		!ok ||
+		strings.TrimSpace(registry) == "" ||
+		strings.Trim(strings.TrimSpace(repository), "/") == "" ||
+		strings.ContainsAny(repositoryKey, " \t\r\n") {
+		return "", fmt.Errorf(
+			"active OCI registry retirement warning %q requires a valid repository_id",
+			warningCode,
+		)
+	}
+	return repositoryID, nil
+}
+
+func validContainerImageIdentityRetirementDigest(raw string) bool {
+	const (
+		sha256Prefix   = "sha256:"
+		sha256HexChars = 64
+	)
+
+	digest := strings.TrimSpace(raw)
+	if len(digest) != len(sha256Prefix)+sha256HexChars || !strings.HasPrefix(digest, sha256Prefix) {
+		return false
+	}
+	for _, char := range digest[len(sha256Prefix):] {
+		if (char < '0' || char > '9') && (char < 'a' || char > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 func containerImageIdentityLegacyOutcome(

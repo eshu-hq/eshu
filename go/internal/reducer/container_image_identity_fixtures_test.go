@@ -47,6 +47,7 @@ type stubContainerImageIdentityFactLoader struct {
 	ciActiveOwnerRepositoryIDs []string
 	warnings                   []facts.Envelope
 	warningCalls               int
+	warningErr                 error
 }
 
 func (s *stubContainerImageIdentityFactLoader) ListFacts(
@@ -78,7 +79,7 @@ func (s *stubContainerImageIdentityFactLoader) ListActiveContainerImageIdentityW
 	context.Context,
 ) ([]facts.Envelope, error) {
 	s.warningCalls++
-	return append([]facts.Envelope(nil), s.warnings...), nil
+	return append([]facts.Envelope(nil), s.warnings...), s.warningErr
 }
 
 func (s *stubContainerImageIdentityFactLoader) ListActiveContainerImageSLSAFacts(

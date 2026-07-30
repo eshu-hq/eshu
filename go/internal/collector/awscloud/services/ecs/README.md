@@ -79,7 +79,7 @@ throttles, and pagination spans.
   `aws_image_reference` fact (#5451). This is the strongest available
   deployed-code signal ECS offers: the digest DescribeTasks reports for the
   container running right now, not a build-time or task-definition reference.
-  It lets the digest-keyed `container_image_identity` reducer resolve a
+  It lets the digest-correlating `container_image_identity` reducer resolve a
   running task straight to the repository and commit that built its image,
   which reading only the task's `aws_resource` `containers[]` attribute never
   did (that attribute is not read by the identity resolver at all).
@@ -89,7 +89,7 @@ throttles, and pagination spans.
   not force it and emits no image reference for that container. The image is
   still visible through the task's `aws_resource` `containers[]` attribute and
   the task-definition's `RelationshipECSTaskDefinitionUsesImage` relationship;
-  only the digest-keyed identity join is unavailable for it.
+  only the digest-correlating identity join is unavailable for it.
 - A China-partition ECR-hosted image (host ends in `.amazonaws.com.cn`) is
   ALSO a bounded gap, deliberately: `ecrImageHostPattern` does not match it,
   so the scanner skips it exactly like a non-ECR image. This is not an

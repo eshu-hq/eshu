@@ -47,7 +47,7 @@ type activeContainerImageSLSAFactLoader interface {
 }
 
 // ContainerImageIdentityHandler joins Git/runtime image references with active
-// OCI registry facts and publishes digest-keyed identity decisions.
+// OCI registry facts and publishes image-reference-keyed identity decisions.
 type ContainerImageIdentityHandler struct {
 	FactLoader  FactLoader
 	Writer      ContainerImageIdentityWriter
@@ -103,10 +103,6 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 		return Result{}, fmt.Errorf("load active container image identity facts: %w", err)
 	}
 	envelopes = append(envelopes, active...)
-	warnings, err := h.loadActiveContainerImageIdentityWarnings(ctx)
-	if err != nil {
-		return Result{}, fmt.Errorf("load active container image identity warnings: %w", err)
-	}
 	slsaActive, err := h.loadActiveContainerImageSLSAFacts(ctx)
 	if err != nil {
 		return Result{}, fmt.Errorf("load active container image SLSA facts: %w", err)
@@ -146,6 +142,13 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 		return Result{}, fmt.Errorf("build container image identity decisions: %w", err)
 	}
 	counts := containerImageIdentityCounts(decisions)
+	var warnings []facts.Envelope
+	if containerImageIdentityRetirementNeedsWarnings(decisions) {
+		warnings, err = h.loadActiveContainerImageIdentityWarnings(ctx)
+		if err != nil {
+			return Result{}, fmt.Errorf("load active container image identity warnings: %w", err)
+		}
+	}
 
 	write := ContainerImageIdentityWrite{
 		IntentID:     intent.IntentID,

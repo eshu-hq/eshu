@@ -49,8 +49,11 @@
 // config_blob_unavailable, tag_list_truncated, and missing_manifest_digest
 // warnings hold the affected reference set; missing_manifest_digest is
 // repository-wide because the typed payload carries no scanned-reference
-// field. A malformed active warning fails the retirement pass closed, so
-// bounded collector incompleteness is not mistaken for authoritative demotion.
+// field. These codes require a concrete repository target at the consumer, and
+// config_blob_unavailable also requires a lowercase sha256 digest. A malformed,
+// incomplete, or registry-wide placeholder warning fails the retirement pass
+// closed, so bounded collector incompleteness is not mistaken for authoritative
+// demotion.
 //
 // The reducer and projector decode only the latest struct for each kind.
 // Version shims for an older schema major live in the parent factschema

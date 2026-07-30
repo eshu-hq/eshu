@@ -50,18 +50,19 @@ import (
 //
 // Raising only the token (`fencing_token = GREATEST(existing, excluded)`) with
 // the content columns assigned unconditionally protects the token and nothing
-// else, and that combination is worse than no fence at all. This domain's fact
-// identity embeds only (scope_id, generation_id, image_ref, outcome), while
+// else, and that combination is worse than no fence at all. This domain's
+// current fact identity embeds only (scope_id, generation_id, image_ref), while
 // source_revision, source_revision_provenance, build_provenance_repository_ids
 // and evidence_fact_ids are payload-only and are filled in by cross-scope
 // enrichment (applyCIRunDigestRevision/applySLSADigestRevision) whose visibility
-// depends on which generations are active at load time. So two passes that agree
-// on the outcome collide on the same fact_id with DIFFERENT payloads — a pass
-// that read before the CI/SLSA generation activated carries a poorer one. Let the
-// stalled pass overwrite the content while GREATEST keeps the fresher token, and
-// the row advertises a freshness its payload does not have. Measured on Postgres
-// 16 by TestReducerFactBatchInsertRejectsStaleContentUpsertLive, which is red on
-// the GREATEST form.
+// depends on which generations are active at load time. Outcome is payload too,
+// so passes that disagree on either classification or enrichment still collide
+// on the same fact_id with DIFFERENT payloads. A pass that read before the
+// CI/SLSA generation activated carries a poorer one. Let the stalled pass
+// overwrite the content while GREATEST keeps the fresher token, and the row
+// advertises a freshness its payload does not have. Measured on Postgres 16 by
+// TestReducerFactBatchInsertRejectsStaleContentUpsertLive, which is red on the
+// GREATEST form.
 //
 // `<=`, not `<`. A retry, a redelivery, or a second chunk of the same pass
 // carries the SAME watermark, because the watermark is the evidence-read time
@@ -291,6 +292,17 @@ func execReducerFactChunk(
 	db workloadIdentityExecer,
 	chunk []reducerFactRow,
 ) error {
+	if _, err := db.ExecContext(
+		ctx,
+		reducerFactBatchInsertQuery,
+		reducerFactChunkArgs(chunk)...,
+	); err != nil {
+		return fmt.Errorf("batch insert reducer facts: %w", err)
+	}
+	return nil
+}
+
+func reducerFactChunkArgs(chunk []reducerFactRow) []any {
 	n := len(chunk)
 	factIDs := make([]string, n)
 	scopeIDs := make([]string, n)
@@ -328,9 +340,7 @@ func execReducerFactChunk(
 		fencingTokens[i] = row.FencingToken
 	}
 
-	if _, err := db.ExecContext(
-		ctx,
-		reducerFactBatchInsertQuery,
+	return []any{
 		factIDs,
 		scopeIDs,
 		generationIDs,
@@ -347,8 +357,5 @@ func execReducerFactChunk(
 		isTombstones,
 		payloads,
 		fencingTokens,
-	); err != nil {
-		return fmt.Errorf("batch insert reducer facts: %w", err)
 	}
-	return nil
 }

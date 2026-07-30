@@ -105,3 +105,33 @@ func TestActiveContainerImageIdentityWarningIndexMatchesLiveQuery(t *testing.T) 
 		t.Fatal("bootstrap schema missing fact_records_active_oci_warning_idx")
 	}
 }
+
+func TestActiveContainerImageIdentityWarningIndexMigrationKeepsConcurrentDDLIsolated(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	migration := MigrationSQL("fact_records_active_oci_warning_idx")
+	statementLines := make([]string, 0)
+	for _, line := range strings.Split(migration, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "--") {
+			continue
+		}
+		statementLines = append(statementLines, line)
+	}
+	statementSQL := strings.Join(statementLines, "\n")
+	if count := strings.Count(statementSQL, "CREATE INDEX CONCURRENTLY"); count != 1 {
+		t.Fatalf(
+			"migration 087 CREATE INDEX CONCURRENTLY statements = %d, want 1:\n%s",
+			count,
+			migration,
+		)
+	}
+	if terminators := strings.Count(statementSQL, ";"); terminators != 1 {
+		t.Fatalf(
+			"migration 087 SQL terminators = %d, want 1 so concurrent DDL stays outside an implicit transaction:\n%s",
+			terminators,
+			migration,
+		)
+	}
+}

@@ -122,6 +122,7 @@ func TestContainerImageIdentityHandlerLoadsActiveRegistryFactsAndEmitsOutcomes(t
 		active: []facts.Envelope{
 			ociTagFact("oci-tag", "prod", testContainerDigest, false, ""),
 		},
+		warningErr: errors.New("warning loader must stay off the all-canonical path"),
 	}
 	writer := &recordingContainerImageIdentityWriter{}
 	handler := ContainerImageIdentityHandler{
@@ -149,6 +150,12 @@ func TestContainerImageIdentityHandlerLoadsActiveRegistryFactsAndEmitsOutcomes(t
 	}
 	if loader.activeCall != 1 {
 		t.Fatalf("ListActiveContainerImageIdentityFacts() calls = %d, want 1", loader.activeCall)
+	}
+	if loader.warningCalls != 0 {
+		t.Fatalf(
+			"ListActiveContainerImageIdentityWarnings() calls = %d, want 0 when every decision is canonical",
+			loader.warningCalls,
+		)
 	}
 	if got, want := strings.Join(loader.kindCalls[0], ","), strings.Join(containerImageIdentityFactKinds(), ","); got != want {
 		t.Fatalf("ListFactsByKind() kinds = %q, want %q", got, want)

@@ -60,6 +60,24 @@ Do not treat a green pod as proof that the graph is complete.
 Use `/admin/status` and queue metrics when the user-facing question is
 freshness, convergence, or "why is this repo still not reflected?"
 
+## Container Image Identity Retirement
+
+Use `eshu_dp_container_image_identity_retirements_total` when a replay changes
+the canonical answer for an image reference. Its bounded `outcome` values
+separate attempted retirements and exact legacy-row cleanup from references held
+because the OCI collector declared incomplete evidence:
+
+- `retirement_attempted`
+- `legacy_deleted`
+- `held_config_blob_unavailable`
+- `held_tag_list_truncated`
+- `held_missing_manifest_digest`
+
+An attempted retirement is not proof that a tombstone committed: a fresher
+fact-store row can reject it at the fencing-token conflict guard. Correlate the
+counter with reducer execution failures, PostgreSQL query duration, and the
+current read result before diagnosing a missing row as retired.
+
 ## Change Gate
 
 Runtime-affecting changes must keep telemetry useful. A PR that touches

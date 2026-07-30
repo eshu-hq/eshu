@@ -57,9 +57,11 @@ schema-version-1 typed payload structs for the `oci_registry` fact family:
   decodes active `oci_registry.warning` facts to distinguish genuine demotion
   from bounded collector incompleteness (`config_blob_unavailable`,
   `tag_list_truncated`, and `missing_manifest_digest`). Keep the typed decode
-  site fail-closed for malformed active warnings, and keep the warning-gated
-  retirement tests, struct, schema, fixturepack entry, and registry
-  `payload_schema` ref in lockstep.
+  site fail-closed for malformed active warnings and incomplete code-specific
+  targets: all three codes require a concrete repository target, and
+  `config_blob_unavailable` also requires a lowercase sha256 digest. Keep the
+  warning-gated retirement tests, struct, schema, fixturepack entry, and
+  registry `payload_schema` ref in lockstep.
 - The reducer and projector decode only the latest struct per fact kind.
   Older-schema-major shims live in the parent package's `decodeLatestMajor`,
   never here or in handler code.

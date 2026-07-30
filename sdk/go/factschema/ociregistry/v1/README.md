@@ -88,8 +88,11 @@ condition. The retirement planner holds affected config digests and tag
 references; `missing_manifest_digest` conservatively holds the repository
 because the payload has no scanned-reference field. A malformed active warning
 fails the retirement pass closed instead of treating unknown completeness as
-an authoritative demotion. The typed decode keeps that accuracy gate on the
-versioned payload contract.
+an authoritative demotion. For these three safety codes, optional wire fields
+become required consumer targets: all require a concrete repository identity,
+and `config_blob_unavailable` also requires a lowercase sha256 digest. Missing,
+malformed, or registry-wide placeholder targets fail closed. The typed decode
+keeps that accuracy gate on the versioned payload contract.
 
 ## Changing a struct
 

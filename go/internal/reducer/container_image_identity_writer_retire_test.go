@@ -7,10 +7,49 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestWriteContainerImageIdentityDecisionsUsesOneStatementForSingleChunkCleanup(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	db := &containerImageIdentityRetireDirectDB{retired: 1}
+	beginner := &containerImageIdentityRetireBeginner{
+		tx: &containerImageIdentityRetireTx{},
+	}
+	writer := PostgresContainerImageIdentityWriter{
+		DB:       db,
+		Beginner: beginner,
+	}
+
+	result, err := writer.WriteContainerImageIdentityDecisions(
+		context.Background(),
+		containerImageIdentityRetireWrite(),
+	)
+	if err != nil {
+		t.Fatalf("WriteContainerImageIdentityDecisions() error = %v", err)
+	}
+	if beginner.calls != 0 {
+		t.Fatalf("transaction begin calls = %d, want 0 for one bounded chunk", beginner.calls)
+	}
+	if got := len(db.queries); got != 1 {
+		t.Fatalf("direct queries = %d, want 1 atomic publication+cleanup statement", got)
+	}
+	for _, want := range []string{"WITH published AS", "INSERT INTO fact_records", "DELETE FROM fact_records"} {
+		if !strings.Contains(db.queries[0], want) {
+			t.Fatalf("single-chunk query missing %q:\n%s", want, db.queries[0])
+		}
+	}
+	if got, want := result.LegacyRowsDeleted, 1; got != want {
+		t.Fatalf("LegacyRowsDeleted = %d, want %d", got, want)
+	}
+}
 
 func TestWriteContainerImageIdentityDecisionsCommitsPublicationAndLegacyCleanupAtomically(t *testing.T) {
 	t.Parallel()
@@ -24,7 +63,7 @@ func TestWriteContainerImageIdentityDecisionsCommitsPublicationAndLegacyCleanupA
 			return time.Date(2026, time.July, 29, 12, 0, 1, 0, time.UTC)
 		},
 	}
-	write := containerImageIdentityRetireWrite()
+	write := containerImageIdentityRetireMultiChunkWrite()
 
 	result, err := writer.WriteContainerImageIdentityDecisions(context.Background(), write)
 	if err != nil {
@@ -39,16 +78,24 @@ func TestWriteContainerImageIdentityDecisionsCommitsPublicationAndLegacyCleanupA
 	if tx.queries[0] != reducerFactBatchInsertQuery {
 		t.Fatalf("first transaction query is not reducer batch insert:\n%s", tx.queries[0])
 	}
-	if tx.queries[1] != containerImageIdentityLegacyCleanupQuery {
-		t.Fatalf("second transaction query is not legacy cleanup:\n%s", tx.queries[1])
+	if tx.queries[1] != containerImageIdentityPublishAndLegacyCleanupQuery {
+		t.Fatalf("second transaction query is not final publication+legacy cleanup:\n%s", tx.queries[1])
 	}
-	if got, want := tx.args[1][0], write.LegacyFactIDs; !equalRetireIDArgument(got, want) {
+	if got, want := tx.args[1][16], write.LegacyFactIDs; !equalRetireIDArgument(got, want) {
 		t.Fatalf("legacy IDs arg = %#v, want %#v", got, want)
+	}
+	insertedFactIDs := append([]string(nil), tx.args[0][0].([]string)...)
+	insertedFactIDs = append(insertedFactIDs, tx.args[1][0].([]string)...)
+	if got, want := len(insertedFactIDs), len(write.Decisions); got != want {
+		t.Fatalf("inserted fact IDs = %d, want %d", got, want)
+	}
+	if !slices.IsSorted(insertedFactIDs) {
+		t.Fatal("multi-chunk fact IDs are not globally sorted by conflict key")
 	}
 	if !tx.committed || tx.rolledBack {
 		t.Fatalf("transaction committed=%t rolledBack=%t, want true/false", tx.committed, tx.rolledBack)
 	}
-	if got, want := result.RetirementAttempts, 1; got != want {
+	if got, want := result.RetirementAttempts, len(write.TombstoneDecisions); got != want {
 		t.Fatalf("result.RetirementAttempts = %d, want %d tombstone publications attempted", got, want)
 	}
 	if got, want := result.LegacyRowsDeleted, 1; got != want {
@@ -67,9 +114,9 @@ func TestWriteContainerImageIdentityDecisionsRollsBackBeforeRetireWhenInsertFail
 
 	_, err := writer.WriteContainerImageIdentityDecisions(
 		context.Background(),
-		containerImageIdentityRetireWrite(),
+		containerImageIdentityRetireMultiChunkWrite(),
 	)
-	if err == nil || !strings.Contains(err.Error(), "write container image identity fact") {
+	if err == nil || !strings.Contains(err.Error(), "batch insert reducer facts") {
 		t.Fatalf("WriteContainerImageIdentityDecisions() error = %v, want insert failure", err)
 	}
 	if got, want := len(tx.queries), 1; got != want {
@@ -83,7 +130,9 @@ func TestWriteContainerImageIdentityDecisionsRollsBackBeforeRetireWhenInsertFail
 func TestWriteContainerImageIdentityDecisionsRollsBackInsertWhenRetireFails(t *testing.T) {
 	t.Parallel()
 
-	tx := &containerImageIdentityRetireTx{failQuery: containerImageIdentityLegacyCleanupQuery}
+	tx := &containerImageIdentityRetireTx{
+		failQuery: containerImageIdentityPublishAndLegacyCleanupQuery,
+	}
 	writer := PostgresContainerImageIdentityWriter{
 		DB:       &containerImageIdentityRetireOutsideDB{},
 		Beginner: &containerImageIdentityRetireBeginner{tx: tx},
@@ -91,9 +140,9 @@ func TestWriteContainerImageIdentityDecisionsRollsBackInsertWhenRetireFails(t *t
 
 	_, err := writer.WriteContainerImageIdentityDecisions(
 		context.Background(),
-		containerImageIdentityRetireWrite(),
+		containerImageIdentityRetireMultiChunkWrite(),
 	)
-	if err == nil || !strings.Contains(err.Error(), "delete legacy container image identity facts") {
+	if err == nil || !strings.Contains(err.Error(), "publish container image identities and delete legacy facts") {
 		t.Fatalf("WriteContainerImageIdentityDecisions() error = %v, want legacy cleanup failure", err)
 	}
 	if tx.committed || !tx.rolledBack {
@@ -122,6 +171,22 @@ func containerImageIdentityRetireWrite() ContainerImageIdentityWrite {
 	}
 }
 
+func containerImageIdentityRetireMultiChunkWrite() ContainerImageIdentityWrite {
+	write := containerImageIdentityRetireWrite()
+	base := write.Decisions[0]
+	for i := 1; i <= reducerFactBatchSize; i++ {
+		decision := base
+		decision.ImageRef = fmt.Sprintf("registry.example.com/team/api:retire-%04d", i)
+		write.Decisions = append(write.Decisions, decision)
+		write.TombstoneDecisions = append(write.TombstoneDecisions, decision)
+		write.LegacyFactIDs = append(
+			write.LegacyFactIDs,
+			fmt.Sprintf("reducer_container_image_identity:synthetic-prior-%04d", i),
+		)
+	}
+	return write
+}
+
 type containerImageIdentityRetireBeginner struct {
 	tx    ContainerImageIdentityTransaction
 	calls int
@@ -144,6 +209,22 @@ func (*containerImageIdentityRetireOutsideDB) ExecContext(
 	return nil, errors.New("write escaped container image identity transaction")
 }
 
+type containerImageIdentityRetireDirectDB struct {
+	queries []string
+	args    [][]any
+	retired int64
+}
+
+func (db *containerImageIdentityRetireDirectDB) ExecContext(
+	_ context.Context,
+	query string,
+	args ...any,
+) (sql.Result, error) {
+	db.queries = append(db.queries, query)
+	db.args = append(db.args, append([]any(nil), args...))
+	return containerImageIdentityRetireResult(db.retired), nil
+}
+
 type containerImageIdentityRetireTx struct {
 	queries    []string
 	args       [][]any
@@ -163,7 +244,7 @@ func (tx *containerImageIdentityRetireTx) ExecContext(
 	if query == tx.failQuery {
 		return nil, errors.New("synthetic transaction failure")
 	}
-	if query == containerImageIdentityLegacyCleanupQuery {
+	if query == containerImageIdentityPublishAndLegacyCleanupQuery {
 		return containerImageIdentityRetireResult(tx.retired), nil
 	}
 	return containerImageIdentityRetireResult(0), nil
