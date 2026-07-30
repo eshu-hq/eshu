@@ -470,7 +470,10 @@ The scope selector is one of:
   span many scope ids (`go/internal/collector/awscloud/awsruntime/source.go`).
   `scope_id` takes precedence when given alongside an account selector.
 - `account_id` (AWS), `project_id` (GCP), or `subscription_id` (Azure) -- the
-  raw provider account/tenant identifier. **Requires `provider`.** Unlike
+  raw provider account/tenant identifier. **Requires the matching `provider`
+  exactly** (`account_id` requires `provider=aws`, `project_id` requires
+  `provider=gcp`, `subscription_id` requires `provider=azure`; any other
+  provider value is rejected). Unlike
   `scope_id` this is **not** compared against the scope id itself (#5238:
   earlier revisions did, which silently matched zero rows for any real
   multi-scope account, on every provider); it resolves against the canonical
@@ -489,18 +492,27 @@ The scope selector is one of:
   absent from every `project_id`-filtered read while remaining visible under
   an unscoped `provider=gcp` read.
 
-**Provider is required alongside an account alias.** `account_id`,
-`project_id`, and `subscription_id` all resolve against the SAME shared
-canonical `account_id` payload key, with no provider baked into the predicate
-itself. AWS account ids and GCP project *numbers* (as distinct from project
-IDs) are both plain decimal strings, and the GCP derivation above can populate
-`account_id` from a numeric `full_resource_name` segment -- so a caller who
-omits `provider` risks a genuine cross-provider collision: one `account_id`
-value silently matching another provider's unrelated resource for an
-all-scopes caller. `GET /api/v0/cloud/inventory` and MCP
-`list_cloud_resource_inventory` both reject an account alias supplied without
-`provider` as `invalid_argument` (HTTP 400) rather than searching across every
-provider's keyspace.
+**The matching provider is required alongside an account alias -- not just
+any provider.** `account_id`, `project_id`, and `subscription_id` all resolve
+against the SAME shared canonical `account_id` payload key, with no provider
+baked into the predicate itself. AWS account ids and GCP project *numbers*
+(as distinct from project IDs) are both plain decimal strings, and the GCP
+derivation above can populate `account_id` from a numeric
+`full_resource_name` segment -- so a caller who omits `provider`, or supplies
+the *wrong* provider for the alias used, risks a genuine cross-provider
+collision: one `account_id` value silently matching another provider's
+unrelated resource for an all-scopes caller. Requiring a provider narrows the
+blast radius but does not by itself prevent the mismatch --
+`provider=gcp&account_id=...` would otherwise still be accepted and could
+resolve against the GCP resource whose normalized `account_id` happens to
+equal the supplied value, even though `account_id` is documented as the
+AWS-specific alias. `GET /api/v0/cloud/inventory` and MCP
+`list_cloud_resource_inventory` both reject: an account alias supplied
+without `provider`; and an account alias supplied with a provider other than
+its documented match (`account_id`→`aws`, `project_id`→`gcp`,
+`subscription_id`→`azure`) -- both as `invalid_argument` (HTTP 400) -- rather
+than searching across, or silently resolving against, another provider's
+keyspace.
 
 **Rollout window:** `account_id`/`project_id`/`subscription_id` only resolve
 against rows admitted by the reducer AFTER this fix deploys. A scope's

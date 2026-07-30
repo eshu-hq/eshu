@@ -280,12 +280,30 @@ func (h *CloudInventoryHandler) filterFromRequest(w http.ResponseWriter, r *http
 	// provider's unrelated resource. Requiring provider whenever an alias is
 	// present closes that at the input boundary rather than relying on every
 	// caller to remember to scope it (#5238).
-	if aliasKey != "" && provider == "" {
-		h.writeInvalidArgument(w, r, fmt.Sprintf(
-			"%s requires provider (account_id/project_id/subscription_id resolve against a shared canonical key with no provider disambiguation)",
-			aliasKey,
-		))
-		return cloudInventoryFilter{}, false
+	if aliasKey != "" {
+		if provider == "" {
+			h.writeInvalidArgument(w, r, fmt.Sprintf(
+				"%s requires provider (account_id/project_id/subscription_id resolve against a shared canonical key with no provider disambiguation)",
+				aliasKey,
+			))
+			return cloudInventoryFilter{}, false
+		}
+		// Requiring SOME provider only narrows the collision blast radius; it
+		// does not prevent it. account_id/project_id/subscription_id are
+		// documented, provider-SPECIFIC aliases (aws/gcp/azure respectively --
+		// see cloudInventoryAccountAliasRequiredProviders), so a caller who
+		// supplies the wrong provider for the alias they used (e.g.
+		// provider=gcp&account_id=...) can still resolve against another
+		// provider's row sharing that numeric key. Reject the mismatch
+		// explicitly rather than silently resolving it against the wrong
+		// provider's keyspace (#5881 review follow-up).
+		if requiredProvider := cloudInventoryAccountAliasRequiredProviders[aliasKey]; provider != requiredProvider {
+			h.writeInvalidArgument(w, r, fmt.Sprintf(
+				"%s requires provider=%s, got provider=%s",
+				aliasKey, requiredProvider, provider,
+			))
+			return cloudInventoryFilter{}, false
+		}
 	}
 	return cloudInventoryFilter{
 		Provider:          provider,
@@ -307,6 +325,25 @@ func (h *CloudInventoryHandler) filterFromRequest(w http.ResponseWriter, r *http
 // back under the right key name. A caller-supplied alias name is never
 // interpolated as free-form SQL, only compared against this fixed slice.
 var cloudInventoryAccountAliasKeys = []string{"account_id", "project_id", "subscription_id"}
+
+// cloudInventoryAccountAliasRequiredProviders is the closed mapping from each
+// provider-flavored account alias to the ONE provider it is documented
+// (OpenAPI, the MCP tool, http-api.md) to select: account_id is AWS-specific,
+// project_id is GCP-specific, subscription_id is Azure-specific. Every alias
+// resolves against the SAME shared canonical "account_id" payload key with no
+// provider disambiguation baked into the value itself, so requiring merely
+// SOME provider (rather than the matching one) still lets a numeric
+// collision resolve against the wrong provider's row -- for example
+// provider=gcp&account_id=123 would otherwise be accepted and could return
+// the GCP resource whose normalized account_id happens to be "123", even
+// though account_id is the AWS-specific selector. filterFromRequest rejects
+// any (aliasKey, provider) pair not listed here as invalid input (#5881
+// review follow-up to #5238).
+var cloudInventoryAccountAliasRequiredProviders = map[string]string{
+	"account_id":      "aws",
+	"project_id":      "gcp",
+	"subscription_id": "azure",
+}
 
 // cloudInventoryScopeSelector resolves the request's scope filter. scope_id is
 // the literal canonical scope id and, when present, wins outright. Otherwise

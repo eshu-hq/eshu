@@ -52,7 +52,12 @@ func cloudInventoryRolloutGapWarningFlags(
 	filter cloudInventoryFilter,
 	readModel cloudInventoryListReadModel,
 ) []string {
-	if filter.AccountAliasKey == "" || len(readModel.Resources) != 0 {
+	// A non-zero cursor means the caller already paged past the initial
+	// results: an empty page here means the requested offset ran past the
+	// available rows, not that the account may be missing, so the probe would
+	// answer a question the caller did not ask. Restrict to the initial page
+	// (offset zero) (#5881 review follow-up).
+	if filter.AccountAliasKey == "" || filter.Offset != 0 || len(readModel.Resources) != 0 {
 		return nil
 	}
 	exists, err := store.cloudInventoryPreRolloutEvidenceExists(ctx, filter)
@@ -126,6 +131,15 @@ func buildCloudInventoryPreRolloutProbeSQL(filter cloudInventoryFilter) (string,
 	if provider := strings.TrimSpace(filter.Provider); provider != "" {
 		args = append(args, provider)
 		clauses = append(clauses, fmt.Sprintf("fact_records.payload->>'provider' = $%d", len(args)))
+	}
+	// A management_origin filter narrows which rows the CALLER'S question is
+	// even about; the probe must apply the identical predicate the primary
+	// query does, or it can find an unrelated-origin pre-fix row and warn
+	// account_alias_rollout_gap for a question that row has nothing to do
+	// with -- a false warning (#5881 review follow-up).
+	if managementOrigin := strings.TrimSpace(filter.ManagementOrigin); managementOrigin != "" {
+		args = append(args, managementOrigin)
+		clauses = append(clauses, fmt.Sprintf("fact_records.payload->>'management_origin' = $%d", len(args)))
 	}
 	if !filter.AllScopes {
 		args = append(args, pq.Array(filter.AllowedRepositoryIDs), pq.Array(filter.AllowedScopeIDs))

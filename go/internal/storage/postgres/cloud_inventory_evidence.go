@@ -248,13 +248,9 @@ func cloudInventoryRecordFromRow(
 		return reducer.CloudInventoryRecord{}, false
 	}
 
-	// Decoded as an untyped map rather than through factschema.Decode* (typed
-	// structs exist for all three kinds: sdk/go/factschema/{aws,gcp,azure}/v1).
-	// This predates account_id extraction and is pre-existing debt, not
-	// something this change introduces or should migrate inline -- resourceTypeKey
-	// and the attribute allowlist/passthrough already read the same untyped map.
-	// A future pass could route this loader through the typed decoders in one
-	// family-wide migration; that is out of scope here.
+	// Decoded as an untyped map for resourceTypeKey and the attribute
+	// allowlist/passthrough (no fixed required key set). account_id
+	// resolution below is different: see cloudInventoryResolveAccountID.
 	var decoded map[string]any
 	if len(payload) > 0 {
 		if err := json.Unmarshal(payload, &decoded); err != nil {
@@ -262,7 +258,10 @@ func cloudInventoryRecordFromRow(
 		}
 	}
 
-	accountID := strings.TrimSpace(coerceJSONString(decoded[mapping.accountIDKey]))
+	accountID, ok := cloudInventoryResolveAccountID(factKind, mapping, decoded)
+	if !ok {
+		return reducer.CloudInventoryRecord{}, false
+	}
 	if accountID == "" && mapping.accountIDFallback != nil {
 		accountID = mapping.accountIDFallback(rawIdentity)
 	}

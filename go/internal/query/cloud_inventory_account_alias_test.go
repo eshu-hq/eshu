@@ -268,6 +268,71 @@ func TestCloudInventoryHandlerAccountAliasWithoutProviderRejected(t *testing.T) 
 	}
 }
 
+// TestCloudInventoryHandlerAccountAliasProviderMismatchRejected is the #5881
+// review follow-up: requiring SOME provider alongside an alias closed only
+// part of the cross-provider collision class the earlier fix targeted.
+// account_id, project_id, and subscription_id are documented (OpenAPI,
+// http-api.md, the MCP tool) as provider-SPECIFIC aliases (aws, gcp, and
+// azure respectively), but the handler accepted any of the three providers
+// with any alias -- so provider=gcp&account_id=123 was accepted and could
+// resolve against the GCP row whose normalized account_id happened to be
+// "123", even though account_id is documented as the AWS-specific selector.
+// Every mismatched (alias, provider) pair must be rejected as invalid input,
+// not just the no-provider-at-all case.
+func TestCloudInventoryHandlerAccountAliasProviderMismatchRejected(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		aliasKey           string
+		mismatchedProvider string
+	}{
+		{"account_id", "gcp"},
+		{"account_id", "azure"},
+		{"project_id", "aws"},
+		{"project_id", "azure"},
+		{"subscription_id", "aws"},
+		{"subscription_id", "gcp"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.aliasKey+"_with_"+tc.mismatchedProvider, func(t *testing.T) {
+			t.Parallel()
+
+			handler := &CloudInventoryHandler{
+				Content: NewContentReader(openContentReaderTestDB(t, nil)),
+				Profile: ProfileProduction,
+			}
+			mux := http.NewServeMux()
+			handler.Mount(mux)
+
+			req := httptest.NewRequest(
+				http.MethodGet,
+				fmt.Sprintf("/api/v0/cloud/inventory?provider=%s&%s=123456789012", tc.mismatchedProvider, tc.aliasKey),
+				nil,
+			)
+			req.Header.Set("Accept", EnvelopeMIMEType)
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+
+			if got, want := w.Code, http.StatusBadRequest; got != want {
+				t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+			}
+			var resp ResponseEnvelope
+			if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+				t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+			}
+			if resp.Error == nil {
+				t.Fatalf("expected error envelope, got %s", w.Body.String())
+			}
+			if got, want := resp.Error.Code, ErrorCodeInvalidArgument; got != want {
+				t.Fatalf("error.code = %#v, want %#v", got, want)
+			}
+			if !strings.Contains(resp.Error.Message, tc.aliasKey) || !strings.Contains(resp.Error.Message, tc.mismatchedProvider) {
+				t.Fatalf("error.message = %q, want it to name both %q and %q", resp.Error.Message, tc.aliasKey, tc.mismatchedProvider)
+			}
+		})
+	}
+}
+
 // TestCloudInventoryHandlerAccountAliasWithProviderStillWorks is the
 // no-regression counterpart: supplying provider alongside an alias -- the
 // documented, required shape -- still succeeds exactly as before.

@@ -42,7 +42,9 @@ func TestPostgresCloudInventoryEvidenceLoaderExtractsPerProviderAccountID(t *tes
 				{facts.AWSResourceFactKind, awsARN, []byte(`{
 					"arn":"` + awsARN + `",
 					"resource_type":"aws_s3_bucket",
-					"account_id":"111111111111"
+					"account_id":"111111111111",
+					"resource_id":"managed-bucket",
+					"region":"us-east-1"
 				}`)},
 				{facts.GCPCloudResourceFactKind, gcpName, []byte(`{
 					"full_resource_name":"` + gcpName + `",
@@ -52,7 +54,8 @@ func TestPostgresCloudInventoryEvidenceLoaderExtractsPerProviderAccountID(t *tes
 				{facts.AzureCloudResourceFactKind, azureID, []byte(`{
 					"arm_resource_id":"` + azureID + `",
 					"resource_type":"microsoft.compute/virtualmachines",
-					"subscription_id":"11111111-2222-3333-4444-555555555555"
+					"subscription_id":"11111111-2222-3333-4444-555555555555",
+					"location":"eastus"
 				}`)},
 			}},
 		},
@@ -83,21 +86,63 @@ func TestPostgresCloudInventoryEvidenceLoaderExtractsPerProviderAccountID(t *tes
 	}
 }
 
-// TestPostgresCloudInventoryEvidenceLoaderMissingAccountIDYieldsEmptyString
-// proves a record whose source fact is missing (or has a blank) account
-// identity decodes to an empty AccountID rather than erroring or fabricating a
-// value -- the admission path already treats an unresolved identity field as
-// absent evidence elsewhere in this loader (see coerceJSONString(nil) == "").
-func TestPostgresCloudInventoryEvidenceLoaderMissingAccountIDYieldsEmptyString(t *testing.T) {
+// TestPostgresCloudInventoryEvidenceLoaderRejectsMalformedRequiredIdentityForAWSAndAzure
+// is the #5881 review follow-up: AWS account_id and Azure subscription_id are
+// REQUIRED, non-optional identity fields in their typed factschema contract
+// (sdk/go/factschema/{aws,azure}/v1), unlike GCP's genuinely optional
+// project_id. A fact missing the field entirely, or carrying a non-string
+// JSON value where the typed struct expects a string, must be REJECTED --
+// dropped from the returned records, exactly like any other malformed row
+// this loader already drops -- by routing identity resolution through
+// factschema.DecodeAWSResource/DecodeAzureCloudResource. The prior raw
+// map[string]any + coerceJSONString lookup would have silently tolerated
+// every one of these shapes instead (nil -> "", a JSON number -> its
+// fmt.Sprint form, a bool -> "true"/"false"), which would undermine the
+// #5238 rollout-gap signal's correctness argument: it depends on AWS
+// account_id and Azure subscription_id being structurally impossible to
+// admit blank (cloud_inventory_rollout_signal.go).
+func TestPostgresCloudInventoryEvidenceLoaderRejectsMalformedRequiredIdentityForAWSAndAzure(t *testing.T) {
 	t.Parallel()
 
-	awsARN := "arn:aws:s3:::no-account-field"
+	awsMissingAccountID := "arn:aws:s3:::missing-account-id"
+	awsNonStringAccountID := "arn:aws:s3:::non-string-account-id"
+	azureMissingSubscriptionID := "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/missing-sub"
+	azureNonStringSubscriptionID := "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/non-string-sub"
+
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{
-				{facts.AWSResourceFactKind, awsARN, []byte(`{
-					"arn":"` + awsARN + `",
-					"resource_type":"aws_s3_bucket"
+				// account_id entirely absent; every OTHER required field present, so
+				// only the missing identity field can explain the rejection.
+				{facts.AWSResourceFactKind, awsMissingAccountID, []byte(`{
+					"arn":"` + awsMissingAccountID + `",
+					"resource_type":"aws_s3_bucket",
+					"resource_id":"missing-account-id",
+					"region":"us-east-1"
+				}`)},
+				// account_id present but a JSON number, not a string. The old
+				// coerceJSONString(123456789012) would have returned "123456789012",
+				// silently coercing a malformed type into a plausible-looking value.
+				{facts.AWSResourceFactKind, awsNonStringAccountID, []byte(`{
+					"arn":"` + awsNonStringAccountID + `",
+					"resource_type":"aws_s3_bucket",
+					"resource_id":"non-string-account-id",
+					"region":"us-east-1",
+					"account_id":123456789012
+				}`)},
+				// subscription_id entirely absent.
+				{facts.AzureCloudResourceFactKind, azureMissingSubscriptionID, []byte(`{
+					"arm_resource_id":"` + azureMissingSubscriptionID + `",
+					"resource_type":"microsoft.compute/virtualmachines",
+					"location":"eastus"
+				}`)},
+				// subscription_id present but a JSON bool, not a string. The old
+				// coerceJSONString(true) would have returned "true".
+				{facts.AzureCloudResourceFactKind, azureNonStringSubscriptionID, []byte(`{
+					"arm_resource_id":"` + azureNonStringSubscriptionID + `",
+					"resource_type":"microsoft.compute/virtualmachines",
+					"location":"eastus",
+					"subscription_id":true
 				}`)},
 			}},
 		},
@@ -108,11 +153,8 @@ func TestPostgresCloudInventoryEvidenceLoaderMissingAccountIDYieldsEmptyString(t
 	if err != nil {
 		t.Fatalf("LoadCloudInventoryEvidence() error = %v, want nil", err)
 	}
-	if got, want := len(records), 1; got != want {
-		t.Fatalf("len(records) = %d, want %d", got, want)
-	}
-	if got, want := records[0].AccountID, ""; got != want {
-		t.Fatalf("AccountID = %q, want empty string for a payload with no account_id key", got)
+	if got, want := len(records), 0; got != want {
+		t.Fatalf("len(records) = %d, want %d (every row is malformed and must be dropped, not coerced); records = %#v", got, want, records)
 	}
 }
 

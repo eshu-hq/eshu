@@ -157,6 +157,45 @@ func TestCloudInventoryHandlerUnfilteredZeroResultsSkipsProbe(t *testing.T) {
 	}
 }
 
+// TestCloudInventoryHandlerAccountAliasNonInitialPageSkipsProbe is the #5881
+// P2 review follow-up: with a stale or out-of-range non-zero cursor, an empty
+// page means the requested offset ran past the available rows -- it says
+// nothing about whether the account exists, unlike an empty FIRST page. The
+// probe must fire only for the initial page (offset zero); a non-zero offset
+// must never issue it, regardless of whether the primary page came back
+// empty.
+func TestCloudInventoryHandlerAccountAliasNonInitialPageSkipsProbe(t *testing.T) {
+	t.Parallel()
+
+	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
+		{columns: []string{"payload"}, rows: nil},
+	})
+	handler := &CloudInventoryHandler{Content: NewContentReader(db), Profile: ProfileProduction}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/cloud/inventory?provider=aws&account_id=000000000000&cursor=50",
+		nil,
+	)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if got, want := len(recorder.queries), 1; got != want {
+		t.Fatalf("Postgres received %d queries, want %d (non-zero cursor, probe must not fire); queries = %#v", got, want, recorder.queries)
+	}
+	resp := cloudInventoryDecodeEnvelope(t, w.Body.Bytes())
+	data := resp.Data.(map[string]any)
+	if _, present := data["warning_flags"]; present {
+		t.Fatalf("warning_flags must be absent on a non-initial page: %#v", data["warning_flags"])
+	}
+}
+
 // TestCloudInventoryHandlerAccountAliasZeroResultsProbeErrorDegradesGracefully
 // proves the probe's own failure never breaks the already-successful primary
 // read: a probe error must not turn a 200 into a 500. It must be reported as

@@ -7,6 +7,8 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -190,4 +192,64 @@ INSERT INTO fact_records (
 
 	seedScope(cloudInventoryRolloutSignalPostFixGCPScopeID, "gcp", "gen-post-fix-gcp")
 	seedFact("f-post-fix-gcp-1", cloudInventoryRolloutSignalPostFixGCPScopeID, "gen-post-fix-gcp", "gcp", "gcp:compute:post-fix-instance", "project-signal")
+}
+
+// TestCloudInventoryHandlerManagementOriginFilteredAliasQueryDoesNotFalselyWarnLive
+// is the #5881 P2 review follow-up: the pre-rollout-gap probe ignored
+// management_origin, so a management_origin-filtered account-alias query that
+// matched zero rows could still emit account_alias_rollout_gap just because
+// SOME unrelated-origin row in the same provider/access scope happened to
+// predate the rollout -- a FALSE warning, the exact failure mode the GCP
+// org-level guard (TestCloudInventoryGCPOrgLevelAssetDoesNotFalselyWarnRolloutGapLive)
+// was added to prevent for a different filter.
+//
+// Reuses seedCloudInventoryRolloutSignalLiveCorpus, whose aws pre-fix row
+// (cloudInventoryRolloutSignalPreFixAWSScopeID) carries
+// management_origin="observed". A provider=aws&account_id=<no-such-account>
+// &management_origin=declared request matches zero rows in the primary read
+// (no row has that account_id, and no row anywhere has management_origin=
+// declared either). If the probe applied provider and the account-id-key
+// predicate but ignored management_origin, it would still find the pre-fix
+// aws row (provider=aws, no account_id key) and warn -- even though that row
+// is observed-origin, not declared-origin, so it has nothing to do with the
+// declared-origin question the caller actually asked. The fixed probe must
+// apply the SAME management_origin predicate as the primary query and find
+// nothing, since the only pre-fix row in scope carries a different origin.
+func TestCloudInventoryHandlerManagementOriginFilteredAliasQueryDoesNotFalselyWarnLive(t *testing.T) {
+	db, ctx, cancel := openCloudInventoryLiveDB(t)
+	defer cancel()
+	seedCloudInventoryRolloutSignalLiveCorpus(t, ctx, db)
+
+	handler := &CloudInventoryHandler{Content: NewContentReader(db), Profile: ProfileProduction}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/cloud/inventory?provider=aws&account_id=000000000000&management_origin=declared",
+		nil,
+	).WithContext(ctx)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+
+	var resp ResponseEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil; body = %s", err, w.Body.String())
+	}
+	data := resp.Data.(map[string]any)
+	if got, want := len(data["resources"].([]any)), 0; got != want {
+		t.Fatalf("resources = %d, want %d", got, want)
+	}
+	if flags, present := data["warning_flags"]; present {
+		t.Fatalf(
+			"warning_flags = %#v, want absent -- the only pre-fix row in scope carries management_origin=observed, "+
+				"not declared, so a probe that correctly scopes by management_origin must not match it",
+			flags,
+		)
+	}
 }

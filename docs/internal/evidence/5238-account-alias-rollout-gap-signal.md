@@ -401,3 +401,277 @@ with its own `db.operation` attribute value
 (`cloud_inventory_pre_rollout_evidence_exists`) and `span.RecordError` on
 failure — the same span mechanism, not a new metric, log, or runtime knob. The
 existing `SpanQueryCloudInventoryReadback` handler span is unchanged.
+
+## PR #5881 review follow-up (two P1, two P2)
+
+A hostile re-review of the branch found four legitimate defects, one showing
+a prior commit did less than its own message claimed. All four were fixed
+with a failing test first.
+
+### P1 — the cross-provider fix required SOME provider, not the MATCHING one
+
+The commit "require provider alongside an account alias to prevent
+cross-provider collisions" only checked `provider != ""`, not that the
+provider matched the alias used. `provider=gcp&account_id=123` was still
+accepted and could resolve against the GCP row whose normalized
+`account_id` happened to equal `123`, even though `account_id` is documented
+as the AWS-specific alias — the same collision class, reached through a
+different door.
+
+Fix: `cloudInventoryAccountAliasRequiredProviders` (`cloud_inventory_readback.go`)
+maps each alias to its one documented provider (`account_id`→`aws`,
+`project_id`→`gcp`, `subscription_id`→`azure`); `filterFromRequest` rejects
+any mismatch as `invalid_argument`. OpenAPI (`openapi_paths_cloud_inventory.go`),
+the MCP tool description (`tools_cloud_inventory.go`), and `http-api.md` were
+updated in lockstep.
+
+Proof: `TestCloudInventoryHandlerAccountAliasProviderMismatchRejected` covers
+all six mismatched pairs (`account_id`+`gcp`, `account_id`+`azure`,
+`project_id`+`aws`, `project_id`+`azure`, `subscription_id`+`aws`,
+`subscription_id`+`gcp`). RED (before the fix): all six returned `500`
+(request reached the store instead of being rejected). GREEN (after): all
+six return `400 invalid_argument` naming both the alias and the mismatched
+provider; the existing matching-provider tests
+(`TestCloudInventoryHandlerAccountAliasWithProviderStillWorks`,
+`TestCloudInventoryHandlerGCPProjectIDAndAzureSubscriptionIDDispatchCanonicalPayloadMatch`)
+stayed green throughout, proving no regression to the documented shape.
+
+```
+cd go && go test ./internal/query/... -run 'TestCloudInventoryHandlerAccountAliasProviderMismatchRejected|TestCloudInventoryHandlerAccountAliasWithProviderStillWorks|TestCloudInventoryHandlerAccountAliasWithoutProviderRejected|TestCloudInventoryHandlerGCPProjectIDAndAzureSubscriptionIDDispatchCanonicalPayloadMatch' -count=1
+echo $?
+```
+
+`echo $?` = `0`.
+
+### P1 — route AWS/Azure identity decode through the typed factschema contract
+
+`cloudInventoryRecordFromRow` resolved `account_id`/`subscription_id` via a
+raw `map[string]any` lookup plus `coerceJSONString`, which tolerates shapes
+the typed contract rejects: a missing key coerces to `""`, a JSON number
+coerces to its `fmt.Sprint` form, a JSON bool coerces to `"true"`/`"false"`.
+That weakens the exact claim the rollout-gap signal's correctness argument
+rests on -- that AWS `account_id` and Azure `subscription_id` are
+structurally impossible to admit blank, because both are REQUIRED fields on
+their typed `sdk/go/factschema/{aws,azure}/v1` structs.
+
+Fix: new `go/internal/storage/postgres/cloud_inventory_identity_decode.go` adds
+`decodeAWSResourceForCloudInventory` / `decodeAzureCloudResourceForCloudInventory`,
+wrapping `factschema.DecodeAWSResource` / `factschema.DecodeAzureCloudResource`
+via the same `postgresFactschemaEnvelope`/`newPostgresFactDecodeError` pattern
+`secrets_iam_trust_chain_anchor_decode.go` already established for this
+package. `cloudInventoryResolveAccountID` dispatches AWS/Azure through this
+seam and rejects the row (drops it, matching every other malformed-row
+outcome this loader already has) when decode fails; GCP's `project_id` stays
+on the raw lookup because it is genuinely OPTIONAL in its typed contract (an
+org/folder-level asset has none). The typed decode dispatches at schema major
+"1" (`postgresDefaultSchemaMajorVersion`) rather than reading
+`fact_records.schema_version` (not selected by this loader's SQL): both
+collectors emit only major 1 today, and this loader already hardcodes v1
+payload key names throughout, so this adds no new versioning assumption.
+
+**File naming, deliberately not `factschema_decode*.go`.** That glob is what
+`go/internal/payloadusage`'s gate-2 payload-usage manifest uses
+(`ParseDecodeSeamsGlob`, `LoaderDir = go/internal/storage/postgres`) to
+discover new `decode<Kind>` seams. `aws_resource` and `azure_cloud_resource`
+already have a canonical reducer-side seam (`decodeAWSResource`,
+`decodeAzureCloudResource` in `go/internal/reducer/factschema_decode*.go`)
+that already gates `account_id`/`subscription_id` as required, declared
+fields. First attempt named this file `factschema_decode_cloud_inventory_
+evidence.go`, matching `factschema_decode_cloud_tag_evidence.go`'s
+convention; that broke `TestRunGenerateAgainstRealRepoProducesNonTrivial
+Manifest` (`len(Kinds) = 126, want 124`) and `TestLoadCoversWiredAzureKinds`
+(`FactKindAzureCloudResource DecodeFunc = "decodeAzureCloudResourceForCloud
+Inventory", want "decodeAzureCloudResource"`): `BuildManifest`
+(`go/internal/payloadusage/manifest.go`) emits one `KindManifest` per
+`DecodeSeam`, keyed by `FuncName`, not deduplicated by `FactKind` -- so a
+second, differently-named seam for an ALREADY-seamed fact kind produces two
+manifest entries sharing one `FactKind` constant, which
+`TestLoadCoversWiredAzureKinds`'s single-entry-per-`FactKind` `byKind` map
+cannot disambiguate deterministically. Renaming the file outside the glob
+avoids the collision without losing any real coverage, and mirrors the
+established precedent: `secrets_iam_trust_chain_anchor_decode.go` decodes
+several fact kinds already seamed by the reducer (e.g.
+`facts.AWSIAMPrincipalFactKind`, seamed by
+`go/internal/reducer/factschema_decode.go`'s `decodeAWSIAMPrincipal`) the
+same way, through `factschema.Decode*` directly, in a file intentionally
+outside the `factschema_decode*.go` glob.
+
+**Was the raw path deliberate?** No. The removed comment said this predated
+account_id extraction and was "pre-existing debt, not something this change
+introduces" -- it was accidental, not a measured performance tradeoff. No
+performance defense is needed; this is a correctness fix.
+
+Proof: `TestPostgresCloudInventoryEvidenceLoaderRejectsMalformedRequiredIdentityForAWSAndAzure`
+seeds four malformed rows (AWS missing `account_id`, AWS `account_id` as a
+JSON number, Azure missing `subscription_id`, Azure `subscription_id` as a
+JSON bool) with every OTHER required field present, isolating the identity
+field as the only possible cause. RED (before the fix) showed the exact
+silent coercions this closes: `AccountID:"1.23456789012e+11"` (a stringified
+float) and `AccountID:"true"` (a stringified bool), plus the two
+missing-field rows silently admitted with `AccountID:""`. GREEN (after)
+drops all four rows (`len(records) == 0`).
+
+```
+=== RUN   TestPostgresCloudInventoryEvidenceLoaderRejectsMalformedRequiredIdentityForAWSAndAzure
+    cloud_inventory_evidence_account_id_test.go:157: len(records) = 4, want 0 (every row is malformed and must be dropped, not coerced); records = []reducer.CloudInventoryRecord{reducer.CloudInventoryRecord{Provider:"aws", ..., AccountID:"", ...}, reducer.CloudInventoryRecord{Provider:"aws", ..., AccountID:"1.23456789012e+11", ...}, reducer.CloudInventoryRecord{Provider:"azure", ..., AccountID:"", ...}, reducer.CloudInventoryRecord{Provider:"azure", ..., AccountID:"true", ...}}
+--- FAIL: TestPostgresCloudInventoryEvidenceLoaderRejectsMalformedRequiredIdentityForAWSAndAzure (0.00s)
+FAIL
+```
+
+```
+cd go && go test ./internal/storage/postgres/... -run 'CloudInventory' -count=1
+echo $?
+```
+
+`echo $?` = `0` (after the fix; full `CloudInventory`-matched suite, including
+every other AWS/Azure fixture in this package updated to carry the complete
+required-field set -- `resource_id`/`region` for AWS, `location` for Azure --
+so the typed decode's stricter validation does not itself regress any
+existing positive-path test).
+
+Micro-benchmark (`BenchmarkCloudInventoryRecordFromRowAWSAllowlist`,
+`-benchtime=100x`, isolated by temporarily reverting to the pre-fix code and
+re-running the identical benchmark on the same machine): AWS
+`cloudInventoryRecordFromRow` cost rose from 5987 ns/op (3696 B/op, 90
+allocs/op) to 6810 ns/op (4192 B/op, 95 allocs/op) -- roughly +14%, the
+direct cost of the typed decode's additional required-field validation. GCP's
+`BenchmarkCloudInventoryRecordFromRowGCPPassthrough` was unaffected (2676 vs
+2668 ns/op, within noise), confirming the change is scoped to AWS/Azure. This
+loader runs once per source-fact row during reducer admission, not on a live
+HTTP read path, so this is an accepted, bounded, honestly-measured cost of
+correctness, not a regression requiring mitigation.
+
+### P2 — the probe ignored `management_origin` (false-positive source)
+
+`buildCloudInventoryPreRolloutProbeSQL` applied `provider` and the
+access-scope predicate but never `management_origin`, so a
+`management_origin=declared`-filtered alias query that matched zero rows
+could still warn `account_alias_rollout_gap` because of an unrelated
+`management_origin=observed` pre-fix row in the same provider/access scope --
+a FALSE warning, the same failure class the GCP org-level guard closed for a
+different filter.
+
+Fix: `buildCloudInventoryPreRolloutProbeSQL` now applies the identical
+`fact_records.payload->>'management_origin' = $N` predicate the primary query
+does, whenever `filter.ManagementOrigin` is set.
+
+Proof: `TestCloudInventoryHandlerManagementOriginFilteredAliasQueryDoesNotFalselyWarnLive`
+(new, in `cloud_inventory_rollout_signal_live_test.go`) reuses the existing
+`seedCloudInventoryRolloutSignalLiveCorpus` fixture, whose aws pre-fix row
+carries `management_origin=observed`. A
+`provider=aws&account_id=<no-such-account>&management_origin=declared`
+request through the real HTTP handler matches zero primary rows either way;
+RED (before the fix) showed the probe still warning because it ignored
+`management_origin` and matched the observed-origin pre-fix row anyway.
+
+```
+=== RUN   TestCloudInventoryHandlerManagementOriginFilteredAliasQueryDoesNotFalselyWarnLive
+    cloud_inventory_rollout_signal_live_test.go:249: warning_flags = []interface {}{"account_alias_rollout_gap"}, want absent -- the only pre-fix row in scope carries management_origin=observed, not declared, so a probe that correctly scopes by management_origin must not match it
+--- FAIL: TestCloudInventoryHandlerManagementOriginFilteredAliasQueryDoesNotFalselyWarnLive (0.81s)
+FAIL
+```
+
+GREEN (after):
+
+```
+=== RUN   TestCloudInventoryHandlerManagementOriginFilteredAliasQueryDoesNotFalselyWarnLive
+--- PASS: TestCloudInventoryHandlerManagementOriginFilteredAliasQueryDoesNotFalselyWarnLive (0.56s)
+PASS
+```
+
+`echo $?` = `0` for both the isolated run and the full live suite (below).
+
+### P2 — the probe fired on non-initial pages (false-positive source)
+
+With a stale or out-of-range non-zero cursor, an empty page means the
+requested offset ran past the available rows, not that the account may be
+missing -- but `cloudInventoryRolloutGapWarningFlags` fired the probe on any
+zero-result alias-filtered page regardless of offset.
+
+Fix: gated to `filter.Offset != 0` in addition to the existing
+`AccountAliasKey`/zero-results conditions.
+
+Proof: `TestCloudInventoryHandlerAccountAliasNonInitialPageSkipsProbe`
+(sqlmock-recording, asserting exact dispatched query count) issues
+`?provider=aws&account_id=...&cursor=50` against a zero-row primary response.
+RED (before the fix):
+
+```
+=== RUN   TestCloudInventoryHandlerAccountAliasNonInitialPageSkipsProbe
+    cloud_inventory_rollout_signal_test.go:190: Postgres received 2 queries, want 1 (non-zero cursor, probe must not fire); queries = [...]
+--- FAIL: TestCloudInventoryHandlerAccountAliasNonInitialPageSkipsProbe (0.00s)
+FAIL
+```
+
+GREEN (after):
+
+```
+=== RUN   TestCloudInventoryHandlerAccountAliasNonInitialPageSkipsProbe
+--- PASS: TestCloudInventoryHandlerAccountAliasNonInitialPageSkipsProbe (0.00s)
+PASS
+```
+
+### Combined verification (postdates every fix above)
+
+```
+cd go && go test ./internal/query/... ./internal/storage/postgres/... ./internal/mcp/... ./cmd/api ./cmd/mcp-server -count=1
+echo $?
+```
+
+`echo $?` = `0`.
+
+```
+cd go && ESHU_POSTGRES_TEST_DSN="postgres://eshu:change-me@localhost:25971/eshu?sslmode=disable" \
+  go test ./internal/query/... -run \
+  'TestCloudInventoryAccountIDMatchesExactScopeIDLive|TestCloudInventoryGCPAndAzureAccountAliasMatchExactScopeIDLive|TestCloudInventoryGCPOrgLevelAssetExcludedFromProjectIDButVisibleUnscopedLive|TestCloudInventoryPreFixPayloadRolloutWindowLive|TestCloudInventoryAccountAliasCrossProviderIsolationLive|TestCloudInventoryPreRolloutEvidenceExistsLive|TestCloudInventoryGCPOrgLevelAssetDoesNotFalselyWarnRolloutGapLive|TestCloudInventoryHandlerManagementOriginFilteredAliasQueryDoesNotFalselyWarnLive' \
+  -count=1
+echo $?
+```
+
+`echo $?` = `0` (all eight `ESHU_POSTGRES_TEST_DSN`-gated live tests pass;
+they still skip visibly under `.github/` where that DSN is never set, per
+existing disclosed precedent).
+
+```
+cd go && golangci-lint run ./internal/query/... ./internal/storage/postgres/... ./internal/mcp/...
+```
+
+`0 issues.`
+
+```
+bash scripts/verify-openapi.sh
+```
+
+`OpenAPI surface clean: 253 HandleFunc routes, 253 OpenAPI path entries`
+
+```
+cd go && go test ./cmd/golden-corpus-gate/... -count=1
+```
+
+`ok` (this round did not touch the golden snapshot; re-run anyway as a sanity
+check per the mandatory post-snapshot-edit rule).
+
+```
+bash scripts/verify-payload-usage-manifest.sh
+```
+
+`ok  	github.com/eshu-hq/eshu/go/internal/reducer` (green after the file rename
+above; also independently confirmed via
+`cd go && go test ./cmd/payload-usage-manifest/... ./internal/payloadusage/... ./internal/reducer/... -run PayloadUsage -count=1`,
+all `ok`).
+
+```
+cd go && go test ./... -covermode=count -coverprofile=go-code-coverage.out
+```
+
+Full-module run for `scripts/generate-code-coverage-report.sh` (required
+because this round added one non-test `.go` file,
+`cloud_inventory_identity_decode.go`). One pre-existing, unrelated failure
+observed and disregarded per known precedent:
+`TestRepoDependencyProjectionRunnerQuarantinesHeartbeatLossBeforeSuccess`
+(documented macOS timing flake, not a regression introduced here). No other
+package failed in that run once the payload-usage-manifest fix above landed.
+`docs/public/reference/code-coverage.md` and `code-coverage-shield.json` were
+regenerated and committed in the same commit as the code changes, per the
+project rule that a coverage-report commit landing after `make pre-pr`
+invalidates the per-SHA stamp.
