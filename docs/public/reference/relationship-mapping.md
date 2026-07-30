@@ -211,6 +211,41 @@ toward a wrong or extra edge — see `internal/storage/cypher/AGENTS-evidence-hi
 `#5623 P1 follow-up` entry for the full mechanism and why the window is
 tighter than the reconciliation interval it replaced.
 
+### Bare Local-Backend Default-Path Resolution And The "unresolved" Finding
+
+Before issue #5594, a bare `backend "local" {}` block with no explicit `path`
+attribute — the ordinary way to write a local backend, since Terraform itself
+defaults `path` to `"terraform.tfstate"` relative to the backend block's own
+directory — produced no config-side candidate at all. Ownership resolution for
+that backend was therefore always **No owner**, permanently, regardless of
+whether a real owning repository existed: `MATCHES_STATE` could never form for
+a bare local backend no matter what. `backendConfigCandidate`
+(`go/internal/collector/terraformstate/backend_config.go`) now also derives a
+`BackendLocal` candidate, applying Terraform's own default when the attribute
+is absent, so these repos can reach **Resolved** and materialize
+`MATCHES_STATE` for the first time. This changes which candidates are
+*eligible* to compete for ownership; it does not change the
+Resolved/No owner/Ambiguous owner/Transient-failure classification logic
+above. A `path` present but unresolved (a dynamic expression) still yields no
+candidate rather than a guessed locator, same as every other unresolved
+backend attribute.
+
+The **No owner** outcome (`tfstatebackend.ErrNoConfigRepoOwnsBackend`) was
+log-only at the read edge until #5594: `POST
+/api/v0/terraform/config-state-drift/findings` and
+`list_terraform_config_state_drift_findings` returned an identical empty page
+for "evaluated, no drift" and "ownership never resolved at all," with no way
+for a caller to tell the two apart. `TerraformConfigStateDriftWrite` now
+persists exactly one durable `outcome: "unresolved"` finding per
+state-snapshot scope for this case
+(`go/internal/reducer/terraform_config_state_drift_unresolved_owner.go`),
+mirroring the pre-existing `"ambiguous"` write in every respect (same
+upsert-by-stable-fact-id idempotency, same non-fatal write-failure handling).
+This is the caller-visible complement to the graph-level edge retraction this
+section already documents: the `MATCHES_STATE` edge silently disappears from
+the graph on a **No owner** cycle, and the drift-findings read surface now
+says why, distinguishable from a scope that resolved cleanly with zero drift.
+
 ## Safe Extension Checklist
 
 Before adding a new mapping family or runtime interpretation:
