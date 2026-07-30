@@ -118,6 +118,12 @@ func backendConfigCandidate(
 	}
 }
 
+// backendConfigS3Candidate derives an S3-backend DiscoveryCandidate. It
+// requires bucket, key, and region to each resolve to an exact literal value
+// (see resolveBackendConfigAttribute); any one unresolved, or a non-empty
+// workspace_key_prefix (a Terraform Cloud/Enterprise-only attribute this
+// collector does not model), or a key ending in "/" (not a real state object
+// path), yields no candidate rather than a guessed locator.
 func backendConfigS3Candidate(
 	repoID string,
 	backend map[string]any,
@@ -165,6 +171,15 @@ func backendExpressionWarnings(
 	}
 }
 
+// backendConfigS3ExpressionWarnings reports why an S3 backend produced no
+// candidate: a present, non-empty workspace_key_prefix always warns (it is a
+// Terraform Cloud/Enterprise-only attribute this collector does not model, so
+// the candidate is rejected regardless of whether it resolves); bucket, key,
+// and region each warn only when present but their expression did not
+// resolve to an exact literal. An absent/blank bucket, key, or region is
+// never a warning here — backendConfigS3Candidate already reports that
+// rejection via its own bucketOK/keyOK/regionOK gating, so this function only
+// flags the "present but unresolved" shape for those three.
 func backendConfigS3ExpressionWarnings(
 	repoID string,
 	backend map[string]any,

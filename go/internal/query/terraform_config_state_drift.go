@@ -17,11 +17,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// File-size note (flagged in issue #5594 review): this file is at 475/500
-// lines as of the "unresolved" outcome addition. Not a violation, but the
-// next change here should split a cohesive chunk (the access-filtering
-// helpers, or the request/response shaping helpers) into a sibling file
-// before adding more, rather than pushing past the cap. See
+// File-size note (flagged in issue #5594 review): this file is close to the
+// repo's 500-line cap as of the "unresolved" outcome addition. Not a
+// violation, but the next change here should split a cohesive chunk (the
+// access-filtering helpers, or the request/response shaping helpers) into a
+// sibling file before adding more, rather than pushing past the cap. See
 // terraform_config_state_drift_evidence_access.go and
 // terraform_config_state_drift_writer_integration_test.go (reducer package)
 // for the precedent this package already follows elsewhere.
