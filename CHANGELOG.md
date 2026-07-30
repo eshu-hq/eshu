@@ -349,6 +349,75 @@ recent shipped work grouped by feature area.
     `testdata/golden/e2e-20repo-snapshot.json` is valid JSON. The live gate
     re-run that confirms this fix is not runnable in this environment.
 
+- **Third live golden-corpus-gate round trip: the actual root cause of the
+  zero-finding failure, found once the `results_field` fix above let the
+  assertion evaluate at all.** With `results_field` fixed,
+  `?variant=local-backend-resolved` still failed live: `"drift_findings" has
+  0 results, want >= 1`. Direct diagnostic queries against that run
+  (`print_local_backend_drift_diagnostics`'s `[1a]`) showed **zero**
+  `ingestion_scopes` rows for the computed scope_id
+  `state_snapshot:local:10ae50af...` -- no scope, no state-snapshot fact, no
+  work item, nothing for the resolver or the evidence loader to ever see.
+  The fixture repo itself landed and processed correctly (confirmed
+  separately: `deployable_unit_correlation` ran against
+  `repo:terraform_local_backend_demo`), so this was not a repo-ingestion
+  problem -- the *state-snapshot scope specifically* never landed under the
+  identifier the orchestrator computed.
+  The root cause: `stage_local_backend_cassette`'s `sed` substitution
+  (`scripts/lib/golden-corpus-local-backend.sh`) has never actually
+  substituted anything, since the commit that introduced it
+  (`1e4d37089`). The `-e` arguments were double-quoted --
+  `"s|\$LOCAL_BACKEND_SCOPE_ID\$|${local_backend_scope_id}|g"` -- so bash's
+  own double-quote parsing consumes the backslash before each `\$`,
+  and `sed` receives a bare, unescaped `$LOCAL_BACKEND_SCOPE_ID$` pattern.
+  In a BRE, an unescaped trailing `$` is an end-of-line anchor, so the
+  pattern only ever matches "...SCOPE_ID$" immediately followed by end of
+  line -- never true in the cassette, where the sentinel is always followed
+  by a closing quote and more JSON. `sed` exits 0 having substituted
+  nothing, on every occurrence, every run. Verified directly: re-running the
+  exact pre-fix `-e` arguments against the real committed cassette left all
+  four sentinel occurrences (including the one inside the scope's own
+  descriptive `"note"` field) byte-identical in the output. The runtime
+  cassette copy the terraformstate collector actually replayed therefore
+  still carried the literal, un-substituted string `$LOCAL_BACKEND_SCOPE_ID$`
+  as its `scope_id` -- a value that can never match the hash-based scope_id
+  the diagnostic query (correctly) checked for, hence zero rows. This also
+  explains why the sibling `?variant=unresolved` scope landed and passed
+  live: its `scope_id` is a plain literal hash, never routed through this
+  broken sentinel substitution at all.
+  This was not the `3c7b1f844` local_path-source alignment fix's territory
+  after all -- that fix targeted which Postgres table/predicate
+  `stage_local_backend_cassette` reads `repo_local_path` from, and was
+  itself never confirmed live (see above); the actual defect was in a wholly
+  different step (the `sed` escaping), present since the cassette-staging
+  mechanism was first introduced, and never previously observable because no
+  live run had ever gotten past the `results_field` hard-error to reach the
+  count assertion that would have revealed it.
+  Fixed by single-quoting the `\$`-escaped pattern segments and concatenating
+  the variable-bearing replacement as a separate double-quoted segment
+  (`'s|\$LOCAL_BACKEND_SCOPE_ID\$|'"${local_backend_scope_id}"'|g'`), so the
+  backslashes reach `sed` intact. Verified by sourcing the actual patched
+  `stage_local_backend_cassette` function (stubbing `pg`/`bin_dir`, not
+  reimplementing the sed call by hand) against the real committed cassette:
+  the output carries zero remaining sentinel occurrences and the correct
+  substituted `scope_id`/`partition_key`/`payload.locator_hash` values.
+  **What the corpus has and has not proven, plainly stated:** across all
+  three live rounds to date, the `backend "local" {}` default-path fix and
+  the `"unresolved"` outcome have never both been proven end to end by a
+  live golden-corpus-gate run with a green `?variant=local-backend-resolved`
+  assertion -- the state-snapshot scope this proof depends on has never
+  actually reached Postgres under its intended identifier until this fix.
+  Every prior claim of corpus proof for the `"exact"`-outcome local-backend
+  path in this file was, in hindsight, unearned; only the `"unresolved"`
+  path (which never depended on this substitution) has live proof today. A
+  fresh `bash scripts/verify-golden-corpus-gate.sh` run against this fix is
+  required before the `"exact"`-outcome path can be called proven, and that
+  run is the repo owner's to make, not restated as proven here.
+  - Local verification: `bash scripts/test-verify-golden-corpus-gate.sh`
+    passes. `bash -n scripts/lib/golden-corpus-local-backend.sh` is clean.
+    The live gate re-run that confirms this fix is not runnable in this
+    environment.
+
 ### Route-fact-based Rails controller liveness
 
 - **Join the Rails controller dead-code-root verdict against real route facts**

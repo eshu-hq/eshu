@@ -116,9 +116,29 @@ stage_local_backend_cassette() {
 
 	local committed_cassette="${repo_root}/testdata/cassettes/terraformstate/${cassette_recording}"
 	local_backend_cassette_path="${work_dir}/terraformstate-local-backend-${cassette_recording}"
+	# The sed patterns below are deliberately SINGLE-quoted around the `\$`
+	# escapes, with the substituted bash variables concatenated in as
+	# separate double-quoted segments -- not one double-quoted -e string.
+	# Double-quoting the whole pattern (the form this line used before) lets
+	# bash itself consume the backslash before each `\$` while expanding the
+	# string, so sed receives a BARE, unescaped `$LOCAL_BACKEND_SCOPE_ID$`
+	# pattern. In BRE, an unescaped trailing `$` is an end-of-line anchor, so
+	# that pattern only ever matches "...SCOPE_ID$" immediately followed by
+	# end of line -- never true here, since the sentinel is always followed
+	# by a closing quote and more JSON (`"$LOCAL_BACKEND_SCOPE_ID$",`). The
+	# substitution silently matched nothing, on every occurrence, every run:
+	# confirmed by re-running this exact previous form against the real
+	# committed cassette and finding all four sentinel occurrences (including
+	# the one inside this scope's own "note" prose) still present verbatim in
+	# the output, while sed itself exits 0. Single-quoting `\$LOCAL_BACKEND_
+	# SCOPE_ID\$` keeps the backslashes intact through bash, so sed's own BRE
+	# engine sees the escape and treats both `$` as literal characters
+	# regardless of position -- verified against the same committed cassette
+	# to leave zero sentinel occurrences and substitute the intended
+	# scope_id/partition_key/payload.locator_hash values.
 	sed \
-		-e "s|\$LOCAL_BACKEND_SCOPE_ID\$|${local_backend_scope_id}|g" \
-		-e "s|\$LOCAL_BACKEND_LOCATOR_HASH\$|${local_backend_hash}|g" \
+		-e 's|\$LOCAL_BACKEND_SCOPE_ID\$|'"${local_backend_scope_id}"'|g' \
+		-e 's|\$LOCAL_BACKEND_LOCATOR_HASH\$|'"${local_backend_hash}"'|g' \
 		"${committed_cassette}" >"${local_backend_cassette_path}"
 }
 

@@ -124,3 +124,56 @@ pre-existing S3-scope sibling shape immediately above them in
   error, proving `minimum_results` actually binds once `results_field` is set.
 - No-Observability-Change (#5594): a JSON fixture edit; no runtime code path,
   metric, span, or log changed.
+
+## Cassette-substitution `sed` fix and corrected corpus-proof status (this pass)
+
+With `results_field` fixed, a live run still failed
+`?variant=local-backend-resolved` (`"drift_findings" has 0 results, want >=
+1`). Diagnostics against that run showed zero `ingestion_scopes` rows for the
+computed scope_id `state_snapshot:local:10ae50af...` -- the state-snapshot
+scope never landed at all, though the fixture repository itself did.
+
+Root cause: `stage_local_backend_cassette`'s `sed` call
+(`scripts/lib/golden-corpus-local-backend.sh`) has never substituted anything
+since the commit that introduced it. The `-e` arguments were double-quoted --
+`"s|\$LOCAL_BACKEND_SCOPE_ID\$|${local_backend_scope_id}|g"` -- so bash
+consumes the backslash before each `\$` during its own double-quote parsing,
+and `sed` receives a bare, unescaped `$LOCAL_BACKEND_SCOPE_ID$` pattern. An
+unescaped trailing `$` in a BRE is an end-of-line anchor, so the pattern only
+matches "...SCOPE_ID$" immediately at end of line -- never true in the
+cassette JSON, where the sentinel is always followed by a closing quote and
+more content. `sed` exits 0 having substituted nothing. Verified directly by
+re-running the exact pre-fix arguments against the real committed cassette:
+all four sentinel occurrences (including one inside the scope's own `"note"`
+prose) survived byte-for-byte. This also explains why the sibling
+`?variant=unresolved` scope (a plain literal scope_id, never routed through
+this substitution) landed and passed live in the same run.
+
+Fixed by single-quoting the `\$`-escaped pattern segments and concatenating
+the variable-bearing replacement as a separate double-quoted segment, so the
+backslashes reach `sed` intact.
+
+- No-Regression Evidence (#5594): `bash
+  scripts/test-verify-golden-corpus-gate.sh` passes; `bash -n
+  scripts/lib/golden-corpus-local-backend.sh` is clean. Verified by sourcing
+  the actual patched `stage_local_backend_cassette` function (stubbing `pg`
+  and `bin_dir`, not reimplementing the `sed` call by hand) against the real
+  committed cassette: the produced runtime copy carries zero remaining
+  sentinel occurrences and the correct substituted
+  `scope_id`/`partition_key`/`payload.locator_hash` values. The live gate
+  re-run that confirms this fix end to end is not runnable in this
+  environment.
+- No-Observability-Change (#5594): a shell orchestration fix in a
+  gate-support script; no runtime code path, metric, span, or log changed.
+
+**Corrected corpus-proof status.** Across all live rounds to date, the
+`backend "local" {}` default-path fix's `"exact"`-outcome path has never
+actually been proven end to end by a green
+`?variant=local-backend-resolved` assertion -- the state-snapshot scope that
+proof depends on had never reached Postgres under its intended identifier
+until this fix. Only the `"unresolved"`-outcome path (which never depended on
+this substitution) has live proof today. A fresh `bash
+scripts/verify-golden-corpus-gate.sh` run against this fix is required before
+the `"exact"`-outcome path can be called proven end to end; see
+`CHANGELOG.md`'s "Third live golden-corpus-gate round trip" entry for the
+full narrative.
