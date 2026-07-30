@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 // TestIngestionStoreListActiveStateSnapshotScopesReturnsBoundedPendingScopes
@@ -19,12 +20,19 @@ import (
 // caller-supplied limit via a LIMIT clause -- not the unbounded query Phase
 // 3.5 uses, because this lister runs on a recurring interval from the
 // reducer's catch-up sweep and must not turn every tick into an unbounded
-// scan on a large corpus. Also proves the query filters by scope_kind
-// (bound as a parameter, not a LIKE-prefix on scope_id) so it can be
-// serviced by ingestion_scopes_active_state_snapshot_idx (migration 091) --
-// see drift_catchup_lister.go's doc comment and
+// scan on a large corpus. Also proves the query filters on scope_kind
+// (NOT a LIKE-prefix on scope_id) so it can be serviced by
+// ingestion_scopes_active_state_snapshot_idx (migration 091), and that the
+// scope_kind value is INLINED as a SQL literal rather than bound as a
+// parameter -- a review finding (issue #5593): a bound `scope_kind = $1`
+// cannot be statically proven by Postgres's planner to satisfy the partial
+// index's WHERE clause once a forced generic plan is in play (measured:
+// falls back to a full ingestion_scopes_pkey scan, ~296 ms at 2M rows). This
+// lister only ever targets one scope_kind, so there is no reason to bind
+// it -- inlining the literal removes the failure mode instead of documenting
+// it. See drift_catchup_lister.go's doc comment and
 // docs/internal/evidence/5593-config-state-drift-catchup-lister-query.md for
-// why the LIKE shape was rejected.
+// the LIKE-vs-equality measurement and the plan-mode proof.
 func TestIngestionStoreListActiveStateSnapshotScopesReturnsBoundedPendingScopes(t *testing.T) {
 	t.Parallel()
 
@@ -59,14 +67,16 @@ func TestIngestionStoreListActiveStateSnapshotScopesReturnsBoundedPendingScopes(
 	if len(db.queries) != 1 {
 		t.Fatalf("query count = %d, want 1", len(db.queries))
 	}
-	if got := db.queries[0].args; len(got) != 2 || got[0] != "state_snapshot" || got[1] != 500 {
-		t.Fatalf("query args = %#v, want [\"state_snapshot\" 500] (scope_kind bind, then LIMIT bound)", got)
+	// Only the LIMIT is bound now -- scope_kind is a literal in the query text.
+	if got := db.queries[0].args; len(got) != 1 || got[0] != 500 {
+		t.Fatalf("query args = %#v, want [500] (LIMIT bound only, scope_kind is inlined)", got)
 	}
 	if strings.Contains(db.queries[0].query, "LIKE") {
 		t.Fatalf("query = %q, want no LIKE predicate -- must filter on the indexed scope_kind equality, not a scope_id prefix scan (issue #5593 perf regression)", db.queries[0].query)
 	}
-	if !strings.Contains(db.queries[0].query, "scope_kind") {
-		t.Fatalf("query = %q, want a scope_kind predicate", db.queries[0].query)
+	wantLiteral := "scope_kind = '" + string(scope.KindStateSnapshot) + "'"
+	if !strings.Contains(db.queries[0].query, wantLiteral) {
+		t.Fatalf("query = %q, want it to contain the inlined literal %q (built from scope.KindStateSnapshot, not bound as a parameter -- see the plan-mode proof this guards against)", db.queries[0].query, wantLiteral)
 	}
 }
 
@@ -86,8 +96,8 @@ func TestIngestionStoreListActiveStateSnapshotScopesDefaultsNonPositiveLimit(t *
 	if len(db.queries) != 1 {
 		t.Fatalf("query count = %d, want 1", len(db.queries))
 	}
-	if got := db.queries[0].args; len(got) != 2 || got[0] != "state_snapshot" || got[1] != defaultCatchUpListLimit {
-		t.Fatalf("query args = %#v, want [\"state_snapshot\" %d] (default limit)", got, defaultCatchUpListLimit)
+	if got := db.queries[0].args; len(got) != 1 || got[0] != defaultCatchUpListLimit {
+		t.Fatalf("query args = %#v, want [%d] (default limit)", got, defaultCatchUpListLimit)
 	}
 }
 

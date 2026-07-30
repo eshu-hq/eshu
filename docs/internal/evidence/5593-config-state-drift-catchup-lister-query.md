@@ -184,24 +184,108 @@ checker (different columns, no functional dependency declared). **The query
 rewrite is required, not optional** — adding the index alone does not fix
 the original query.
 
-### Parameter binding proof
+### Plan-mode proof (corrected -- the original claim here was false)
 
-The production code binds `scope_kind` as a query parameter
-(`string(scope.KindStateSnapshot)`), not a literal, so the partial index
-must remain usable under Postgres's generic-plan path (after 5 executions of
-a named prepared statement, Postgres may switch from a per-execution custom
-plan to one generic plan not specialized to the bound value). Verified with
-`PREPARE ... AS ... WHERE scope_kind = $1 ... EXECUTE`, 7 consecutive
-executions:
+An earlier revision of this file claimed a bound `scope_kind = $1` "stays in
+use across the custom→generic plan transition," based on 7 consecutive
+`EXECUTE` runs that all used the partial index. That claim was never actually
+tested: it inferred a generic-plan transition from execution count alone,
+without checking whether Postgres had actually switched plan modes. Reviewed
+independently against a live 2M-row corpus with the same `PREPARE`/`EXECUTE`
+ladder, checking `pg_prepared_statements`:
 
+```sql
+PREPARE catchup_lister_final (int) AS
+SELECT scope.scope_id, scope.active_generation_id
+FROM ingestion_scopes AS scope
+WHERE scope.scope_kind = 'state_snapshot'
+  AND scope.active_generation_id IS NOT NULL
+ORDER BY scope.scope_id ASC
+LIMIT $1;
+-- 8 consecutive EXECUTE catchup_lister_final(500) calls, all using
+-- ingestion_scopes_active_state_snapshot_idx, 0.107-0.847 ms each.
+
+SELECT name, generic_plans, custom_plans FROM pg_prepared_statements
+WHERE name = 'catchup_lister_final';
+--         name          | generic_plans | custom_plans
+-- catchup_lister_final |             0 |            8
 ```
-run 1: Index Scan using ingestion_scopes_active_state_snapshot_idx ... Execution Time: 1.013 ms
-run 2: Index Scan using ingestion_scopes_active_state_snapshot_idx ... Execution Time: 0.199 ms
-run 3-7: Index Scan using ingestion_scopes_active_state_snapshot_idx ... Execution Time: 0.135-0.180 ms
+
+**`generic_plans = 0` after 8 executions.** No transition ever occurred --
+Postgres kept choosing a custom plan every time because the cost gap between
+the two plans is large enough that the heuristic never favors switching.
+Those 8 runs prove nothing about generic-plan behavior; the ladder never
+entered the state the original claim said it validated.
+
+Forcing the issue directly (this was reproduced against the ORIGINAL
+`scope_kind = $1` bound-parameter shape, before the fix below):
+
+```sql
+SET plan_cache_mode = force_generic_plan;
+-- EXPLAIN (ANALYZE, BUFFERS) EXECUTE ... WHERE scope_kind = $1 ...
+--   -> Index Scan using ingestion_scopes_pkey   -- partial index NOT used
+--   Execution Time: ~296 ms
 ```
 
-The index stays in use across the custom→generic plan transition (runs 6-7
-are past the 5-execution threshold). Confirmed correct as implemented.
+Confirmed: forcing a generic plan makes Postgres fall back to a full
+`ingestion_scopes_pkey` scan, reproducing the exact OLD-shape regression this
+migration exists to fix -- because Postgres cannot statically prove
+`scope_kind = $1` implies the partial index's
+`WHERE scope_kind = 'state_snapshot'` predicate when the parameter is
+unbound at plan time. The practical risk was low (the cost-based heuristic
+should keep choosing custom plans indefinitely), but it was a real,
+unmonitored silent-fallback mode: data skew, a planner version change, or a
+connection pooler configured with `plan_cache_mode = force_generic_plan`
+(not exotic) could all trigger it with no alert.
+
+**Fix: inline the literal instead of binding it.** The call site was
+checked, not assumed: `ListActiveStateSnapshotScopes` has exactly one
+production caller (`projector.ConfigStateDriftCatchUpSweeper.RunOnce`) and
+its own method signature never takes a `scope_kind` argument -- this lister
+only ever targets `scope.KindStateSnapshot`, with no variability anywhere in
+the call graph. There was no reason to bind it. The query now embeds the
+literal directly (built via `fmt.Sprintf` from `scope.KindStateSnapshot`, not
+copy-pasted, so a rename of that constant cannot silently desync the SQL text
+from the Go value -- see
+`TestIngestionStoreListActiveStateSnapshotScopesReturnsBoundedPendingScopes`),
+making the predicate statically provable in every plan mode instead of only
+the common case.
+
+Re-verified against the FINAL (literal-inlined) shape:
+
+```sql
+-- Same 8-execution PREPARE/EXECUTE ladder against the literal-inlined query
+-- (only $1 = limit remains bound): generic_plans = 0, custom_plans = 8 --
+-- unchanged, the heuristic still prefers custom plans naturally.
+
+SET plan_cache_mode = force_generic_plan;
+PREPARE catchup_lister_forced (int) AS
+SELECT scope.scope_id, scope.active_generation_id
+FROM ingestion_scopes AS scope
+WHERE scope.scope_kind = 'state_snapshot'
+  AND scope.active_generation_id IS NOT NULL
+ORDER BY scope.scope_id ASC
+LIMIT $1;
+EXPLAIN (ANALYZE, BUFFERS) EXECUTE catchup_lister_forced(500);
+--   -> Index Scan using ingestion_scopes_active_state_snapshot_idx
+--   Buffers: shared hit=509
+--   Execution Time: 0.863 ms
+EXPLAIN (ANALYZE, BUFFERS) EXECUTE catchup_lister_forced(500);
+--   -> Index Scan using ingestion_scopes_active_state_snapshot_idx
+--   Execution Time: 0.362 ms
+
+SELECT name, generic_plans, custom_plans FROM pg_prepared_statements
+WHERE name = 'catchup_lister_forced';
+--          name          | generic_plans | custom_plans
+-- catchup_lister_forced |             2 |            0
+```
+
+`generic_plans = 2, custom_plans = 0` -- this time the generic plan path was
+genuinely exercised (unlike the bound-parameter ladder above, which never
+triggered it naturally), and the index is STILL used, at 0.36-0.86 ms, no
+fallback. With the literal inlined, the partial index's applicability no
+longer depends on which plan mode Postgres happens to choose. The failure
+mode is removed, not documented.
 
 ## Write-cost check
 

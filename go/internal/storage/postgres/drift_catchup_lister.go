@@ -20,9 +20,9 @@ import (
 const defaultCatchUpListLimit = 500
 
 // listActiveStateSnapshotScopesLimitedQuery lists active state_snapshot
-// scopes for the reducer's recurring catch-up sweep, bounded by $2.
+// scopes for the reducer's recurring catch-up sweep, bounded by $1.
 //
-// Filters on scope_kind = $1 (an indexed equality), NOT
+// Filters on scope_kind (an indexed equality), NOT
 // `scope_id LIKE 'state_snapshot:%'` the way listActiveStateSnapshotScopesQuery
 // (drift_enqueue.go, the one-shot bootstrap Phase 3.5 sweep) does. The two
 // queries still scan the SAME active set -- NewTerraformStateSnapshotScope
@@ -41,14 +41,34 @@ const defaultCatchUpListLimit = 500
 // ~0.6-1.2 ms regardless of total corpus size. See
 // docs/internal/evidence/5593-config-state-drift-catchup-lister-query.md for
 // the full EXPLAIN (ANALYZE, BUFFERS) ladder.
-const listActiveStateSnapshotScopesLimitedQuery = `
+//
+// scope_kind is INLINED as a SQL literal here, NOT bound as a query
+// parameter -- a review finding (issue #5593): this lister only ever targets
+// one scope_kind (there is exactly one production caller,
+// projector.ConfigStateDriftCatchUpSweeper.RunOnce, and it never varies the
+// value), so there is no reason to bind it. Postgres cannot statically prove
+// a bound `scope_kind = $1` satisfies the partial index's
+// `WHERE scope_kind = 'state_snapshot'` predicate once a forced generic plan
+// is in play -- measured: a forced generic plan fell back to a full
+// ingestion_scopes_pkey scan, ~296 ms at 2M rows, silently reproducing the
+// exact regression this migration exists to fix. Inlining the literal
+// removes that failure mode instead of documenting and hoping the planner's
+// custom-plan heuristic never changes (data skew, a Postgres version change,
+// or a connection pooler configured with plan_cache_mode=force_generic_plan
+// could all trigger it). Built via fmt.Sprintf from scope.KindStateSnapshot,
+// not copy-pasted, so a rename of that constant cannot silently desync the
+// SQL literal from the Go value it names -- see
+// TestIngestionStoreListActiveStateSnapshotScopesReturnsBoundedPendingScopes
+// for the regression proof. See the evidence doc's "Plan-mode proof" section
+// for the full generic-plan measurement.
+var listActiveStateSnapshotScopesLimitedQuery = fmt.Sprintf(`
 SELECT scope.scope_id, scope.active_generation_id
 FROM ingestion_scopes AS scope
-WHERE scope.scope_kind = $1
+WHERE scope.scope_kind = '%s'
   AND scope.active_generation_id IS NOT NULL
 ORDER BY scope.scope_id ASC
-LIMIT $2
-`
+LIMIT $1
+`, scope.KindStateSnapshot)
 
 // ListActiveStateSnapshotScopes implements
 // projector.ActiveStateSnapshotScopeLister for
@@ -66,7 +86,7 @@ func (s IngestionStore) ListActiveStateSnapshotScopes(ctx context.Context, limit
 		limit = defaultCatchUpListLimit
 	}
 
-	rows, err := s.db.QueryContext(ctx, listActiveStateSnapshotScopesLimitedQuery, string(scope.KindStateSnapshot), limit)
+	rows, err := s.db.QueryContext(ctx, listActiveStateSnapshotScopesLimitedQuery, limit)
 	if err != nil {
 		return nil, fmt.Errorf("list active state_snapshot scopes for catch-up sweep: %w", err)
 	}
