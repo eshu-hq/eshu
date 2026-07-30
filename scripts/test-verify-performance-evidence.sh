@@ -428,4 +428,16 @@ git -C "${last_line_repo}" add .
 git -C "${last_line_repo}" commit -q -m 'append decisive code on last diff line'
 expect_fail "${last_line_repo}"
 
+# Regression (eshu-hq/eshu#5542): a PR that touches a file which already
+# carries an unrelated, correctly-formatted marker inherited from an earlier
+# PR must not inherit a passing verdict from that untouched marker. Split
+# into its own file to keep this one under the repo's 500-line file cap.
+"${repo_root}/scripts/test-verify-performance-evidence-inherited-marker.sh"
+
+# Regression (eshu-hq/eshu#5542 P0 follow-up): exercises the actual CI base
+# resolution path (GITHUB_BASE_REF -> origin/$GITHUB_BASE_REF), which every
+# test above bypasses via ESHU_PERFORMANCE_EVIDENCE_BASE. Split into its own
+# file to keep this one under the repo's 500-line file cap.
+"${repo_root}/scripts/test-verify-performance-evidence-ci-base.sh"
+
 printf 'verify-performance-evidence tests passed\n'

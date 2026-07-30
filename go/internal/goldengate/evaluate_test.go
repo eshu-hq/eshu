@@ -199,6 +199,7 @@ func TestEvaluateQueryShape(t *testing.T) {
 	shape := QueryShape{
 		RequiredResponseFields:   []string{"repositories"},
 		MinimumResults:           1,
+		ResultsField:             "repositories",
 		ResultItemRequiredFields: []string{"id", "name"},
 	}
 	cases := []struct {
@@ -243,6 +244,7 @@ func TestEvaluateQueryShape(t *testing.T) {
 		shape := QueryShape{
 			RequiredResponseFields: []string{"identities"},
 			MinimumResults:         1,
+			ResultsField:           "identities",
 			MaximumResults:         1,
 		}
 		if f := EvaluateQueryShape("list_container_image_identities", shape,
@@ -262,14 +264,17 @@ func TestEvaluateQueryShape(t *testing.T) {
 		}
 	})
 
-	t.Run("maximum results without an array result field", func(t *testing.T) {
+	t.Run("maximum results without results_field", func(t *testing.T) {
 		shape := QueryShape{
 			RequiredResponseFields: []string{"version"},
 			MaximumResults:         1,
 		}
-		if f := EvaluateQueryShape("operator-control-plane", shape,
-			[]byte(`{"version":"1"}`)); f.OK {
-			t.Error("a ceiling with no array-valued required field must fail rather than pass vacuously")
+		f := EvaluateQueryShape("operator-control-plane", shape, []byte(`{"version":"1"}`))
+		if f.OK {
+			t.Error("a ceiling with no results_field must fail rather than pass vacuously")
+		}
+		if !strings.Contains(f.Detail, "results_field is required") {
+			t.Errorf("detail = %q, want it to name the missing results_field", f.Detail)
 		}
 	})
 

@@ -115,6 +115,74 @@ func TestExtractAzureCloudResourceNodeRowsSetsExplicitEmptyRunningImageKeys(t *t
 	}
 }
 
+// TestExtractAzureCloudResourceNodeRowsSetsExplicitServiceAnchorParityKeys
+// proves issue #5714/#5055's still-live Azure instance: azureCloudResourceNodeRow
+// never received the #4995 fix at all, so it omitted all 7 service-anchor
+// keys (workload_id, service_name, service_anchor_status/source/reason/names/
+// name_tokens) from every Azure CloudResource row. canonicalCloudResourceUpsertCypher
+// SETs all 7 unconditionally for every batch row; the pinned NornicDB backend
+// does not evaluate a missing UNWIND row map key in a SET clause as null, it
+// persists a stringified representation of the row expression instead
+// (issue #4995's proved mechanism) — so EVERY Azure CloudResource was exposed
+// to this whenever its batch was heterogeneous (i.e. any other row in the same
+// generation's batch carried these keys). Mirrors
+// TestExtractGCPCloudResourceNodeRowsSetsExplicitServiceAnchorParityKeys and
+// TestExtractAzureCloudResourceNodeRowsSetsExplicitEmptyRunningImageKeys.
+func TestExtractAzureCloudResourceNodeRowsSetsExplicitServiceAnchorParityKeys(t *testing.T) {
+	t.Parallel()
+
+	rows, quarantined, err := ExtractAzureCloudResourceNodeRows([]facts.Envelope{
+		azureResourceEnvelope(map[string]any{
+			"arm_resource_id": "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm",
+			"subscription_id": "sub-1",
+			"resource_type":   "microsoft.compute/virtualmachines",
+			"resource_name":   "vm",
+			"location":        "eastus",
+		}),
+	})
+	if err != nil {
+		t.Fatalf("ExtractAzureCloudResourceNodeRows() error = %v, want nil", err)
+	}
+	if len(quarantined) != 0 {
+		t.Fatalf("quarantined = %v, want none", quarantined)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("len(rows) = %d, want 1", len(rows))
+	}
+	row := rows[0]
+
+	for _, key := range []string{
+		"workload_id",
+		"service_name",
+		"service_anchor_status",
+		"service_anchor_source",
+		"service_anchor_reason",
+		"service_anchor_name_tokens",
+	} {
+		value, ok := row[key]
+		if !ok {
+			t.Fatalf("row[%q] is absent; the shared upsert Cypher's row.%s reference "+
+				"would resolve against a missing map key on the pinned NornicDB backend "+
+				"and persist a stringified-row literal instead of an empty value", key, key)
+		}
+		if value != "" {
+			t.Fatalf("row[%q] = %#v, want empty string (Azure has no service-anchor source today)", key, value)
+		}
+	}
+
+	namesValue, ok := row["service_anchor_names"]
+	if !ok {
+		t.Fatal("row[\"service_anchor_names\"] is absent; must be an explicit empty value")
+	}
+	names, ok := namesValue.([]string)
+	if !ok {
+		t.Fatalf("row[\"service_anchor_names\"] type = %T, want []string", namesValue)
+	}
+	if len(names) != 0 {
+		t.Fatalf("row[\"service_anchor_names\"] = %#v, want empty slice", names)
+	}
+}
+
 func TestAzureResourceMaterializationPublishesReadinessPhase(t *testing.T) {
 	t.Parallel()
 

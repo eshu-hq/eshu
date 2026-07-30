@@ -63,14 +63,14 @@ func demoQuestionFixtures() []demospec.Question {
 			ID:      "q_mcp",
 			Surface: demospec.Surface{Kind: demospec.SurfaceKindMCP, Ref: "list_kubernetes_correlations", Arguments: map[string]any{"cluster_id": "supply-chain-demo"}},
 			ExpectedAnswer: demospec.ExpectedAnswer{
-				RequiredResponseFields: []string{"correlations", "count"}, MinimumResults: 2,
+				RequiredResponseFields: []string{"correlations", "count"}, MinimumResults: 2, ResultsField: "correlations",
 			},
 		},
 		{
 			ID:      "q_http",
 			Surface: demospec.Surface{Kind: demospec.SurfaceKindHTTP, Ref: "GET /api/v0/observability/coverage/correlations?provider=tempo&limit=50"},
 			ExpectedAnswer: demospec.ExpectedAnswer{
-				RequiredResponseFields: []string{"correlations", "count"}, MinimumResults: 1,
+				RequiredResponseFields: []string{"correlations", "count"}, MinimumResults: 1, ResultsField: "correlations",
 			},
 		},
 		{
@@ -87,7 +87,7 @@ func demoQuestionFixtures() []demospec.Question {
 				Kind: demospec.SurfaceKindPlaybook, Ref: "incident_context_evidence_path",
 				Execute: &demospec.ExecuteTarget{Kind: demospec.SurfaceKindHTTP, Ref: "GET /api/v0/incidents/PSCD1/context"},
 			},
-			ExpectedAnswer: demospec.ExpectedAnswer{RequiredResponseFields: []string{"incident", "evidence_path"}, MinimumResults: 1},
+			ExpectedAnswer: demospec.ExpectedAnswer{RequiredResponseFields: []string{"incident", "evidence_path"}, MinimumResults: 1, ResultsField: "evidence_path"},
 		},
 	}
 }

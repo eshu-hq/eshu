@@ -56,7 +56,7 @@ var runningImageFieldsAbsent = map[string]any{"running_image_ref": "", "running_
 // function AND the running image resolves unambiguously, and "" otherwise —
 // an unresolvable running image is a legitimate "no running-image truth to
 // publish" outcome, not a fabricated one, mirroring
-// cloudResourceServiceAnchorFields' ambiguous-stays-unpromoted pattern (that
+// applyCloudResourceServiceAnchorFields' ambiguous-stays-unpromoted pattern (that
 // function's own nil-map omission carries the pre-existing #4995 gap for
 // AWS resources with no service-anchor decision; out of scope for #5450, not
 // duplicated here). A non-nil error means the payload carried a

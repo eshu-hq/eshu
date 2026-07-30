@@ -51,6 +51,7 @@ func demoQueryShape(q demospec.Question) QueryShape {
 		RequiredResponseFields: q.ExpectedAnswer.RequiredResponseFields,
 		RequiredJSONPaths:      q.ExpectedAnswer.RequiredJSONPaths,
 		MinimumResults:         q.ExpectedAnswer.MinimumResults,
+		ResultsField:           q.ExpectedAnswer.ResultsField,
 	}
 }
 
