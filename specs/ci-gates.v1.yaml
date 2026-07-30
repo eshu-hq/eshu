@@ -1033,6 +1033,44 @@ gates:
     # a test-file split or fixture move must re-run this gate in the SAME PR that
     # causes the drift, not wait for someone to notice a stale citation later.
 
+  - id: measurement-citations
+    name: Measurement ledger citation gate
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "docs/internal/**"
+      - "docs/public/**"
+      - "go/**/evidence-*.md"
+      - "scripts/verify-measurement-citations.sh"
+      - "scripts/test-verify-measurement-citations.sh"
+      - "specs/ci-gates.v1.yaml"
+      - ".github/workflows/static-contract-gates.yml"
+    local:
+      command: "bash scripts/verify-measurement-citations.sh"
+      test_command: "bash scripts/test-verify-measurement-citations.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify measurement-citations gate"
+    requirements: []
+    ci_only_reason: ""
+    hook_id: go-measurement-citations
+    # Wired into CI (static-contract-gates.yml, same lane as doc-citations)
+    # because this is a blocking recurrence-prevention gate for the #5837
+    # incident: six of eleven review findings were uncited/inconsistent
+    # measurement figures restated across docs/internal/evidence, design docs,
+    # and go/**/evidence-*.md write-ups, and no prior gate read prose numbers
+    # at all (mkdocs --strict does not cover docs/internal — docs_dir: public).
+    # Triggers cover docs/internal/** and docs/public/** (where a measurement
+    # claim can appear in prose) plus go/**/evidence-*.md (11 existing
+    # evidence write-ups live under go/, co-located with the code they
+    # measure, not under docs/). Also dual-wired as a pre-push hook
+    # (hook_id, mirroring telemetry-coverage): the script is a bash+rg diff
+    # scan with no Go build or network dependency beyond a `git fetch`,
+    # measured at 0.549s total against this repo's real origin/main diff —
+    # cheap enough to catch the mistake locally before it reaches a
+    # reviewer, which is the exact failure mode #5837 exposed.
+
   - id: remote-validation-artifacts
     name: Remote-validation artifact-existence gate
     category: exactness

@@ -233,6 +233,18 @@ case "${cmd}" in
 		git -C "${repo_root}" rev-parse --verify "${base}" >/dev/null 2>&1 || base="HEAD~1"
 		ESHU_TELEMETRY_COVERAGE_BASE="${base}" "${repo_root}/scripts/verify-telemetry-coverage.sh"
 		;;
+	measurement-citations)
+		# The measurement-ledger citation gate (static-contract-gates.yml "Verify
+		# measurement-citations gate"): a newly added "<N>/<M> trials" or
+		# "Measurement:" claim must cite a docs/internal/measurements.jsonl row.
+		# Like perf-evidence and telemetry it diffs against the PR base, so pin it
+		# to origin/main (the script's HEAD~1 fallback only sees the last commit
+		# and would miss earlier commits on a multi-commit branch).
+		git -C "${repo_root}" fetch --no-tags origin main >/dev/null 2>&1 || true
+		base="origin/main"
+		git -C "${repo_root}" rev-parse --verify "${base}" >/dev/null 2>&1 || base="HEAD~1"
+		ESHU_MEASUREMENT_CITATIONS_BASE="${base}" "${repo_root}/scripts/verify-measurement-citations.sh"
+		;;
 	lint-all)
 		# Whole-module golangci-lint (./...), not just changed packages. Catches
 		# cross-package consequences a changed-package run misses — e.g. code that
@@ -309,6 +321,6 @@ case "${cmd}" in
 		bash "${repo_root}/scripts/dev/nancy-local.sh" "${go_dir}" "${worktree_cache_dir}" "${bin}"
 		;;
 	*)
-		die "unknown subcommand '${cmd}' (want fmt|lint|lint-all|fmt-all|filecap|filecap-all|gosec|gosec-all|govulncheck|nancy|surface|perf-evidence|telemetry|cache-paths)"
+		die "unknown subcommand '${cmd}' (want fmt|lint|lint-all|fmt-all|filecap|filecap-all|gosec|gosec-all|govulncheck|nancy|surface|perf-evidence|telemetry|measurement-citations|cache-paths)"
 		;;
 esac
