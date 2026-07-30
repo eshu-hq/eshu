@@ -1599,7 +1599,14 @@ during its pre-first-commit startup window — after the first commit,
 `committedSinceDrain` alone drives the cadence, on or off, exactly as before
 #5852. A shard that never commits, because it owns no repositories under the
 current shard assignment, keeps `everCommitted` false forever, so the escape
-fires on every idle poll for the life of the process — one deferred-maintenance
+fires on every idle poll for the life of the process. "Every idle poll" is not
+`PollInterval`-paced, which matters for the write rate: `AfterBatchDrained` calls
+`RunDeferredRelationshipMaintenanceAfterShardDrain` SYNCHRONOUSLY, and a
+non-leader shard blocks inside `waitDeferredMaintenanceBarrierCompletion` until
+the epoch completes before returning, so `Service.Run` cannot re-poll until then.
+The arrival-write cadence is therefore one row per completed epoch — the same
+cadence a busy shard already has per commit-to-idle cycle — not one per second.
+That is one deferred-maintenance
 barrier arrival attempt per idle poll, for as long as the shard stays empty.
 Before #5852 the equivalent latch (`emptyDrainObserved`) was cleared by a
 drain, not gated by "has this shard ever committed," so a permanently empty

@@ -86,9 +86,13 @@ README.
   graph write, span, metric name, runtime knob, or status field.
 - No-Regression Evidence: `AfterEmptyBatchDrained` behavior is covered by
   `go test ./internal/collector -run
-  'TestServiceRun(CallsAfterBatchDrainedOnceAfterCommittedBatch|SkipsAfterBatchDrainedOnEmptyBatchByDefault|CallsAfterBatchDrainedForConfiguredEmptyBatch|CallsEmptyBatchDrainHookOnceWhileIdle)'
-  -count=1`, which proves the default hook remains commit-gated and the
-  empty-batch hook is opt-in and not an idle timer.
+  'TestServiceRun(CallsAfterBatchDrainedOnceAfterCommittedBatch|SkipsAfterBatchDrainedOnEmptyBatchByDefault|CallsAfterBatchDrainedForConfiguredEmptyBatch|CallsEmptyBatchDrainHookOnEveryIdlePollForANeverCommittingShard|EmptyBatchEscapeAddsExactlyOneDrainPerProcess)'
+  -count=1`, which proves the default hook remains commit-gated, that a shard
+  which never commits keeps arriving at the barrier, and that a shard which does
+  commit gains exactly one extra drain per process. The fourth name was
+  `CallsEmptyBatchDrainHookOnceWhileIdle` before #5852 renamed it; `go test -run`
+  silently matches nothing for a stale name and still exits 0, so this command
+  passed while never running the regression it cites.
 - No-Observability-Change: `AfterEmptyBatchDrained` only changes whether the
   caller-supplied drain hook runs once for an exhausted empty batch. It adds no
   metric, span, status field, worker, queue, graph write, or runtime label.

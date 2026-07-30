@@ -48,9 +48,12 @@ commit. When no generation is ready, the service calls `AfterBatchDrained` if
 at least one generation was committed since the last drain, then waits
 `PollInterval` (1 second in `cmd/ingester`). Runtimes that must include empty
 source batches in a fleet barrier may set `AfterEmptyBatchDrained`; the default
-keeps idle polls from running drain hooks, and the opt-in path suppresses
-repeated idle-poll hooks until a later generation commit starts a new drain
-window. On receipt of a generation it calls `Committer.CommitScopeGeneration`
+keeps idle polls from running drain hooks. The opt-in path fires on every idle
+poll until this process's FIRST generation commit, then never again -- a shard
+that owns no repositories never commits, so it keeps arriving at the fleet
+barrier for its whole lifetime rather than arriving once and starving every later
+epoch (#5852). Cadence is paced by barrier completion, not by `PollInterval`,
+because the hook blocks synchronously until the epoch finishes. On receipt of a generation it calls `Committer.CommitScopeGeneration`
 with the `facts.Envelope` channel and records
 `CollectorObserveDuration`, `FactsEmitted`, `GenerationFactCount`, and
 `FactsCommitted`.
@@ -161,8 +164,10 @@ own correlation, drift, and truth decisions.
 generation and then observes the source batch drain. Idle polls do not trigger
 it unless `AfterEmptyBatchDrained` is set for a caller that needs configured
 empty source batches to participate in a cross-process barrier. The empty path
-is edge-triggered: it runs once for an empty drain window and does not repeat
-until a later generation commit resets the window.
+is gated on never-having-committed, not edge-triggered per drain window: it
+repeats on every idle poll until this process commits its first generation, and
+is permanently disabled by that commit. A shard that never commits therefore
+never stops participating in the barrier (#5852).
 
 The delta-generation, documentation-extraction, and `AfterEmptyBatchDrained`
 evidence for this section (No-Regression, Performance, and

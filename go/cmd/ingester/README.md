@@ -188,9 +188,16 @@ committed a generation, gated by the `everCommitted` latch
 (`go/internal/collector/service.go`): `everCommitted` starts false, latches
 true permanently on the shard's first commit (`:273`), and the escape checks
 `!everCommitted` (`:226`). A shard that commits regularly only ever exercises
-the escape during its brief pre-first-commit startup window, after which
+the escape during its pre-first-commit startup window, after which
 `committedSinceDrain` is decisive for the rest of the process — exactly as
-before #5852. A shard that never commits — because it owns no repositories
+before #5852. That window is not bounded in code: it is one escape-driven drain
+per idle poll until this shard's own first commit, where the old latch allowed
+exactly one per process. Each of those drains is a full barrier round-trip, and
+if this shard is the epoch's last arriver it also runs a corpus-wide
+`RunDeferredRelationshipMaintenance` pass, so they are not cheap no-ops. In
+practice the window is one poll, because the ingester queues repositories from
+startup — but a shard that starts with an empty queue and gains work later pays
+one per poll until it does. A shard that never commits — because it owns no repositories
 under the current shard assignment — keeps the escape live indefinitely,
 re-arriving at the deferred-maintenance barrier every idle poll for as long as
 the process runs. `TestServiceRunEmptyBatchEscapeAddsExactlyOneDrainPerProcess`

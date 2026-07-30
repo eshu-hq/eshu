@@ -177,8 +177,13 @@
 - `AfterBatchDrained` call semantics — removing or reordering the
   backfill and deployment-mapping reopen calls (wired via `AfterBatchDrained`
   in `cmd/ingester`) breaks the bootstrap phase contract defined in CLAUDE.md.
-  Empty-batch drain hooks must remain opt-in and edge-triggered so idle
-  collectors do not run global maintenance on every poll.
+  Empty-batch drain hooks must remain opt-in. They are NOT edge-triggered per
+  drain window: before #5852 they were, and a shard owning no repositories
+  drained once at startup and then starved every later fleet-barrier epoch,
+  blocking every shard that had already arrived. The gate is
+  never-having-committed (`everCommitted`), so the hook repeats while a shard has
+  no work and stops permanently at its first commit. Do not "restore" edge
+  triggering; that reintroduces #5852.
 
 ## Evidence
 
