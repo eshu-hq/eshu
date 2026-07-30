@@ -371,6 +371,102 @@ one blob; commit the pure reformat first (stating that it is formatting-only
 and verifiable with `--list-different`), then the real change on top. That
 keeps the reviewable diff reviewable. Never `--no-verify` past a format hook.
 
+## Measurement Ledger
+
+`docs/internal/measurements.jsonl` is the single source of truth for numeric
+claims: benchmark trial counts, deadlock rates, wall-time before/afters, and
+row counts. Prose in evidence docs, PR bodies, and design docs MUST cite a
+ledger row id rather than restate the numbers, because restated numbers
+drift. On one branch (#5837) six of eleven review findings were exactly
+that: a deadlock figure stated in four places with totals that did not sum, a
+"five callers" claim that was actually four, a domain count stale in one of
+six homes, and `file.go:123` citations off by four lines. Every one was a real
+defect and none was catchable by any prior gate, because `mkdocs --strict`
+does not validate `docs/internal/` (`docs_dir: public`) and no gate reads
+prose numbers at all.
+
+### Schema
+
+One JSON object per line, append-only, stable key order:
+
+```json
+{"id": "5837-deadlock-plain-total", "date": "2026-07-29", "issue": 5837, "metric": "aws_drift_retire_deadlock_events", "variant": "plain_delete total across all four keep_set/plan_forcing cells", "value": 0, "unit": "deadlocks", "trials": 210, "host": "local-dev", "backend": "postgresql", "backend_version": "16.14", "commit": "ab9dc1bc705b", "command": "sum of ...", "note": "Cite this row for '0/210' rather than restating the figure in prose."}
+```
+
+- `id`: stable, globally unique, `<issue>-<slug>`. Never reused or renumbered.
+- `date`: the date the measurement actually ran, not the date the row was added.
+- `issue`: the GitHub issue the measurement supports.
+- `metric`: a short machine-stable metric name, not a prose description.
+- `variant`: free text identifying the experiment cell — statement, shape,
+  keep-set size, plan-forcing knob, or whatever else distinguishes this row
+  from a sibling row for the same metric. This is what lets a multi-cell
+  experiment (plain DELETE vs. a stamped CTE, across several keep-set and
+  plan-forcing shapes) live as one row per cell instead of forcing a lossy
+  average or a single number.
+- `value`: the number this row reports, always interpreted through `unit`.
+- `unit`: `seconds`, `milliseconds`, `rows`, `deadlocks`, or another explicit
+  unit — never bare.
+- `trials`: the denominator when `value` is an event count out of N trials
+  (`value: 0, trials: 30` reads as `0/30`); `null` when the row is not a rate.
+- `host`, `backend`, `backend_version`: where, and against what backend and
+  version, the measurement ran.
+- `commit`: the git SHA the measurement was taken against.
+- `command`: the exact command run, or an honest note that the harness was ad
+  hoc and never checked in.
+- `note`: free text — what the row means, how it relates to sibling rows, or
+  why a figure changed from an earlier draft.
+
+JSONL over CSV is deliberate: cells vary in shape (a deadlock trial carries
+`trials`; a wall-time measurement does not), and CSV's fixed columns and
+quoting rules fight that. Every row still uses the same key order and stays
+on one line, so the file remains greppable (`rg '"issue":5837'`
+`docs/internal/measurements.jsonl`) and diff-friendly — one line changes per
+edit, never a reformatted table.
+
+### Citation gate
+
+`scripts/verify-measurement-citations.sh` (test mirror:
+`scripts/test-verify-measurement-citations.sh`) diffs the base commit against
+HEAD — `HEAD~1` locally, `origin/$GITHUB_BASE_REF` in CI, matching
+`verify-performance-evidence.sh`'s convention — and requires every ADDED line
+matching one of two narrow patterns to carry a `ledger:<id>` token that
+resolves to a real row in the ledger:
+
+- `<N>/<M> trials` or `<N>/<M> runs` (for example `0/210 trials`, `5/5 runs`)
+- an explicit `Measurement:` marker line
+
+This is deliberately narrow. It does NOT catch:
+
+- a bare duration or count restated without "trials"/"runs" (`5.927s`, `5400 rows`)
+- a percentage restating a ratio (`61/210` written as `29%`)
+- a single-run claim with no denominator (`ran clean`, `no deadlocks observed`)
+- a citation that sits elsewhere in the same paragraph but not the same line
+- a number inside a table cell whose line doesn't say "trials" or "runs"
+
+A gate this narrow is a starting point, not a complete solution. It exists so
+that a nonzero true-positive rate stays trustworthy, rather than firing on
+everything and getting disabled — a noisy gate nobody trusts is worse than no
+gate. Widen the patterns only after the current ones prove out in practice.
+
+### Frozen historical evidence
+
+The 222 existing `docs/internal/evidence/*.md` and `go/**/evidence-*.md`
+documents are FROZEN as historical artifacts. They are never edited again,
+including to fix a stale number — the fix is to add a ledger row and stop
+citing the frozen prose, not to patch it in place. A change that would have
+edited one of those documents' numbers instead:
+
+1. Adds the real figures to `docs/internal/measurements.jsonl` as one row per
+   experiment cell.
+2. Drops the prose that would have restated those figures — in a new doc, a
+   PR body, or a design doc — and cites the ledger row (`ledger:<id>`)
+   instead.
+3. Leaves the old frozen document untouched.
+
+Narrative reasoning — why a measurement was taken, what it disproves, what a
+reviewer objected to — belongs in the PR body, not a new doc. The ledger holds
+numbers; PRs hold arguments.
+
 ## API, MCP, And Query Reads
 
 Potentially expensive reads must be scoped, cancellable, observable, and cheap
