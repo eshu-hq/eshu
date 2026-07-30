@@ -68,6 +68,7 @@ func TestTerraformStateMatchesConfigEdgeRetractStatementsRunsUnderDeltaProjectio
 			SourceConfidence: facts.SourceConfidenceObserved,
 			CollectorKind:    "terraform_state",
 			OwningRepoID:     "repo-p1a-2",
+			OwnershipOutcome: projector.TerraformStateOwnershipResolved,
 		}},
 	}
 
@@ -91,14 +92,15 @@ func TestTerraformStateMatchesConfigEdgeRetractStatementsRunsUnderDeltaProjectio
 // TestTerraformStateMatchesConfigEdgeRetractStatementsExcludesUnresolvedOwnershipRows
 // proves the #5623 P1 review fix: "this generation upserted the node" is not
 // the same fact as "we know its correct owner this cycle." A row whose
-// OwningRepoID is empty this cycle (TerraformStateOwnershipResolver.ResolveOwningRepoID
-// fails closed on ANY resolver error, including an ordinary transient
-// Postgres timeout, not just genuine "no owner") must NOT have its existing
-// MATCHES_STATE edge retracted -- doing so would wipe a still-correct edge on
-// an ordinary resolver hiccup instead of leaving it alone until a future
-// cycle resolves successfully. Proves both the all-unresolved case (0
-// statements) and the mixed case (the resolved row's uid is included, the
-// unresolved row's uid is not).
+// OwnershipOutcome is TerraformStateOwnershipTransientFailure this cycle
+// (TerraformStateOwnershipResolver.ResolveOwningRepoID fails closed on ANY
+// resolver error, including an ordinary transient Postgres timeout, not just
+// genuine "no owner") must NOT have its existing MATCHES_STATE edge
+// retracted -- doing so would wipe a still-correct edge on an ordinary
+// resolver hiccup instead of leaving it alone until a future cycle resolves
+// successfully. Proves both the all-unresolved case (0 statements) and the
+// mixed case (the resolved row's uid is included, the unresolved row's uid is
+// not).
 func TestTerraformStateMatchesConfigEdgeRetractStatementsExcludesUnresolvedOwnershipRows(t *testing.T) {
 	t.Parallel()
 
@@ -117,6 +119,7 @@ func TestTerraformStateMatchesConfigEdgeRetractStatementsExcludesUnresolvedOwner
 				SourceConfidence: facts.SourceConfidenceObserved,
 				CollectorKind:    "terraform_state",
 				OwningRepoID:     "", // resolver hiccup this cycle
+				OwnershipOutcome: projector.TerraformStateOwnershipTransientFailure,
 			}},
 		}
 		statements := writer.terraformStateMatchesConfigEdgeRetractStatements(mat)
@@ -139,6 +142,7 @@ func TestTerraformStateMatchesConfigEdgeRetractStatementsExcludesUnresolvedOwner
 					SourceConfidence: facts.SourceConfidenceObserved,
 					CollectorKind:    "terraform_state",
 					OwningRepoID:     "repo-p1-mixed-resolved",
+					OwnershipOutcome: projector.TerraformStateOwnershipResolved,
 				},
 				{
 					UID:              "tf-resource-p1-mixed-unresolved",
@@ -146,6 +150,7 @@ func TestTerraformStateMatchesConfigEdgeRetractStatementsExcludesUnresolvedOwner
 					SourceConfidence: facts.SourceConfidenceObserved,
 					CollectorKind:    "terraform_state",
 					OwningRepoID:     "", // resolver hiccup this cycle
+					OwnershipOutcome: projector.TerraformStateOwnershipTransientFailure,
 				},
 			},
 		}
@@ -158,6 +163,55 @@ func TestTerraformStateMatchesConfigEdgeRetractStatementsExcludesUnresolvedOwner
 			t.Fatalf("uids = %#v, want exactly [tf-resource-p1-mixed-resolved] (the unresolved row's uid must be excluded)", statements[0].Parameters["uids"])
 		}
 	})
+}
+
+// TestTerraformStateMatchesConfigEdgeRetractStatementsIncludesAuthoritativeNonOwnerRows
+// is the #5623 P1 review FOLLOW-UP finding: NoOwner and AmbiguousOwner are
+// AUTHORITATIVE answers, not failures, and must be INCLUDED in the retract's
+// uid set -- the opposite of TransientFailure above. A prior version of this
+// fix's own filter (row.OwningRepoID != "") accidentally excluded these two
+// outcomes too, since both also leave OwningRepoID empty, reintroducing the
+// #5623 P0 tenant-visibility leak through a narrower door: a backend that
+// previously resolved to a repo and later became unowned or ambiguous kept
+// that repo's MATCHES_STATE edge indefinitely.
+func TestTerraformStateMatchesConfigEdgeRetractStatementsIncludesAuthoritativeNonOwnerRows(t *testing.T) {
+	t.Parallel()
+
+	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
+
+	for _, tc := range []struct {
+		name    string
+		outcome projector.TerraformStateOwnershipOutcome
+	}{
+		{name: "no owner", outcome: projector.TerraformStateOwnershipNoOwner},
+		{name: "ambiguous owner", outcome: projector.TerraformStateOwnershipAmbiguousOwner},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			mat := projector.CanonicalMaterialization{
+				ScopeID:         "tf-scope-p1-authoritative-" + tc.name,
+				GenerationID:    "tf-generation-p1-authoritative-" + tc.name,
+				FirstGeneration: false,
+				DeltaProjection: true,
+				TerraformStateResources: []projector.TerraformStateResourceRow{{
+					UID:              "tf-resource-p1-authoritative",
+					Address:          "aws_instance.web",
+					SourceConfidence: facts.SourceConfidenceObserved,
+					CollectorKind:    "terraform_state",
+					OwningRepoID:     "", // no unique owner this cycle
+					OwnershipOutcome: tc.outcome,
+				}},
+			}
+			statements := writer.terraformStateMatchesConfigEdgeRetractStatements(mat)
+			if got, want := len(statements), 1; got != want {
+				t.Fatalf("statements = %d, want %d (an authoritative %s answer must retract a stale edge, not preserve it): %#v", got, want, tc.name, statements)
+			}
+			uids, ok := statements[0].Parameters["uids"].([]string)
+			if !ok || len(uids) != 1 || uids[0] != "tf-resource-p1-authoritative" {
+				t.Fatalf("uids = %#v, want [tf-resource-p1-authoritative]", statements[0].Parameters["uids"])
+			}
+		})
+	}
 }
 
 // TestTerraformStateMatchesConfigEdgeRetractStatementsRunsOnNonDeltaGeneration
@@ -184,6 +238,7 @@ func TestTerraformStateMatchesConfigEdgeRetractStatementsRunsOnNonDeltaGeneratio
 			SourceConfidence: facts.SourceConfidenceObserved,
 			CollectorKind:    "terraform_state",
 			OwningRepoID:     "repo-p1a-3",
+			OwnershipOutcome: projector.TerraformStateOwnershipResolved,
 		}},
 	}
 
@@ -258,6 +313,7 @@ func TestBuildTerraformStateStatementsRetractsEdgeBeforeMerge(t *testing.T) {
 			SourceConfidence: facts.SourceConfidenceObserved,
 			CollectorKind:    "terraform_state",
 			OwningRepoID:     "repo-p1a-order",
+			OwnershipOutcome: projector.TerraformStateOwnershipResolved,
 		}},
 	}
 

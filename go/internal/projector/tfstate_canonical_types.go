@@ -67,8 +67,24 @@ type TerraformStateResourceRow struct {
 	// backend). Populated by an enrichment pass the graph writer runs before
 	// projection — extractTerraformStateRows itself stays pure and has no
 	// database access, so this field is always empty immediately after
-	// extraction and is filled in later, outside this package.
+	// extraction and is filled in later, outside this package. WHY it is
+	// empty is recorded separately in OwnershipOutcome (#5623 P1 review,
+	// second finding): an empty OwningRepoID alone no longer tells a
+	// downstream retract decision whether resolution was merely transient
+	// (preserve any existing MATCHES_STATE edge) or authoritatively found no
+	// unique owner (retract it).
 	OwningRepoID string
+	// OwnershipOutcome classifies WHY OwningRepoID is (or is not) populated
+	// this cycle -- see TerraformStateOwnershipOutcome's own doc comment for
+	// the full rationale. Populated by the SAME enrichment pass that fills
+	// OwningRepoID (CanonicalNodeWriter.resolveTerraformStateOwnership), so
+	// it carries the same "empty immediately after extraction" caveat. The
+	// zero value, TerraformStateOwnershipTransientFailure, is the correct
+	// default for a row that never reaches a resolver at all (no resolver
+	// wired, or blank backend identity): terraformStateMatchesConfigEdgeRetractStatements
+	// treats that identically to a genuine resolver error -- preserve any
+	// existing edge, never retract on missing information.
+	OwnershipOutcome TerraformStateOwnershipOutcome
 	// ConfigMatchAmbiguous is true when the MATCHES_STATE config-edge lookup
 	// (repo_id: OwningRepoID, name: Address) matches more than one
 	// TerraformResource node (#5443 P1 review finding): no uniqueness

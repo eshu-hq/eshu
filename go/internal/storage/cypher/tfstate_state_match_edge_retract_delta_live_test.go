@@ -116,6 +116,7 @@ func TestCanonicalNodeWriterRetractsStaleMatchesStateEdgeOnDeltaCycleLive(t *tes
 	baseRow := projector.TerraformStateResourceRow{
 		UID: stateUID, Address: address, Mode: "managed", ResourceType: "aws_instance",
 		Name: "web", SourceConfidence: facts.SourceConfidenceObserved, CollectorKind: "terraform_state",
+		OwnershipOutcome: projector.TerraformStateOwnershipResolved,
 	}
 
 	genOneRow := baseRow
@@ -275,7 +276,8 @@ func TestCanonicalNodeWriterPreservesMatchesStateEdgeOnResolverHiccupDeltaCycleL
 	genOneRow := projector.TerraformStateResourceRow{
 		UID: stateUID, Address: address, Mode: "managed", ResourceType: "aws_instance",
 		Name: "web", SourceConfidence: facts.SourceConfidenceObserved, CollectorKind: "terraform_state",
-		OwningRepoID: ownerRepoC,
+		OwningRepoID:     ownerRepoC,
+		OwnershipOutcome: projector.TerraformStateOwnershipResolved,
 	}
 	genOne := projector.CanonicalMaterialization{
 		ScopeID:                 scopeID,
@@ -289,10 +291,12 @@ func TestCanonicalNodeWriterPreservesMatchesStateEdgeOnResolverHiccupDeltaCycleL
 
 	// No read between writes (same write-loss avoidance as the sibling P0
 	// test). Generation 2: SAME uid re-included (so the node is upserted and
-	// stamped with this generation), but OwningRepoID is empty -- a resolver
-	// hiccup, not a real ownership change.
+	// stamped with this generation), but ownership resolution returns
+	// TransientFailure this cycle (OwningRepoID empty) -- a resolver hiccup,
+	// not a real ownership change.
 	genTwoRow := genOneRow
 	genTwoRow.OwningRepoID = ""
+	genTwoRow.OwnershipOutcome = projector.TerraformStateOwnershipTransientFailure
 	genTwo := projector.CanonicalMaterialization{
 		ScopeID:                 scopeID,
 		GenerationID:            "tf-generation-5623-p1-live-2",

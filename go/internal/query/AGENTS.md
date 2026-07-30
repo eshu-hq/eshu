@@ -651,6 +651,48 @@
   with no span, metric, label, or log surface; no new telemetry signal is
   added or needed.
 
+- **NoOwner/AmbiguousOwner must retract too, not just Resolved (#5623 P1
+  review follow-up to the fix above)** — the fix above's `row.OwningRepoID !=
+  ""` filter correctly excluded a genuine resolver hiccup from the retract's
+  uid set, but ALSO excluded two AUTHORITATIVE non-owner answers
+  (`tfstatebackend.ErrNoConfigRepoOwnsBackend`,
+  `tfstatebackend.ErrAmbiguousBackendOwner`) that also leave `OwningRepoID`
+  empty. A backend that previously resolved to a repo and later became
+  unowned or ambiguous kept that repo's `MATCHES_STATE` edge indefinitely --
+  the #5623 P0 tenant-visibility leak, reintroduced through a narrower door.
+  `TerraformStateOwnershipResolver.ResolveOwningRepoID` now returns `(repoID
+  string, outcome projector.TerraformStateOwnershipOutcome)` instead of
+  `(string, bool)` -- a four-value enum (Resolved, TransientFailure [zero
+  value], NoOwner, AmbiguousOwner). The retract's uid filter changed to
+  `row.OwnershipOutcome == projector.TerraformStateOwnershipTransientFailure`:
+  only the truly-unknown case is excluded now. The classification (mapping a
+  `*tfstatebackend.Resolver` result to this outcome) is centralized in the new
+  `internal/relationships/tfstatebackend/canonicalwriter` package rather than
+  duplicated across the three `cmd/*` adapters, which now each delegate in one
+  line.
+
+  No-Regression Evidence: widens the retract's candidate set from "resolved
+  rows only" back toward (but not identical to) the pre-#5623-P1 "every row"
+  set -- Resolved, NoOwner, and AmbiguousOwner are all retract-eligible now;
+  only TransientFailure stays excluded. Proof (failing-first, RED via a
+  temporary one-line revert of the filter to `row.OwningRepoID == ""`,
+  confirmed FAIL for the right reason with the reassignment/hiccup cases
+  unaffected; GREEN restored): `go test -tags live_infra_scope_shape
+  ./internal/query -run
+  TestLiveInfraScopeShapeMatchesStateFormerOwnerExcludedOnAuthoritativeNonOwner
+  -v -count=1` (both NoOwner and AmbiguousOwner subtests; proves THIS
+  package's scope predicate no longer authorizes the former owner) run
+  together with `TestLiveInfraScopeShapeMatchesStateStaleEdgeExcludedAfterDeltaReassignment`
+  and `go test ./internal/storage/cypher -run
+  TestCanonicalNodeWriterRetractsMatchesStateEdgeOnAuthoritativeNonOwnerDeltaCycleLive
+  -v -count=1` (both subtests) run together with the #5623 P0/P1 siblings in
+  that package. See `internal/storage/cypher/AGENTS-evidence-history.md`'s own
+  `#5623 P1 follow-up` entry for the full unit and package-boundary detail.
+
+  No-Observability-Change: the scope predicate and the retract both remain
+  Cypher fragments with no span, metric, label, or log surface; no new
+  telemetry signal is added or needed.
+
 ## Common changes and how to scope them
 
 - **Add a new HTTP handler** → create a handler struct with `Neo4j GraphQuery`

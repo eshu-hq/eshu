@@ -101,30 +101,50 @@ DELETE e`
 //     first) keeps "at most one MATCHES_STATE edge per state resource" true
 //     at the end of every generation, not just every full reconciliation.
 //
-// UID-FILTERED (#5623 P1 review finding), not "every row this generation
-// upserted": this retract only considers state resources whose OwningRepoID
-// actually RESOLVED this cycle (row.OwningRepoID != ""). "This generation
+// UID-FILTERED (#5623 P1 review, then its own P1 follow-up finding), not
+// "every row this generation upserted": this retract only considers state
+// resources whose OwnershipOutcome this cycle is NOT
+// projector.TerraformStateOwnershipTransientFailure. "This generation
 // upserted the node" and "we know its correct owner this cycle" are DIFFERENT
 // facts -- resolveTerraformStateOwnership's resolver
-// (TerraformStateOwnershipResolver.ResolveOwningRepoID) fails closed on ANY
-// error, including an ordinary transient Postgres timeout or pool exhaustion
-// (see the resolver's own doc comment; every cmd/* wiring site --
-// cmd/bootstrap-index, cmd/ingester, cmd/projector's terraform_state_ownership.go
-// -- treats a resolver error identically to "no owner"), and still upserts the
-// node with row.OwningRepoID == "" that cycle. Before this UID filter, the
-// generation-only anchor could not distinguish "ownership genuinely changed"
-// from "we simply failed to learn the ownership this cycle" -- it retracted
-// the existing edge either way, wiping a still-correct MATCHES_STATE edge on
-// an ordinary resolver hiccup instead of leaving it alone until a future
-// cycle resolves successfully. Under uncertainty this retract now keeps what
-// it had rather than assert a deletion it cannot justify: a row with
-// OwningRepoID == "" this cycle is simply excluded from the uid set, so its
-// existing edge (correct or not) survives untouched, exactly as if this
-// retract were skipped for that one resource. This is fail-closed
-// (under-authorization risk, never a leak) and symmetric with
-// terraformStateMatchesConfigEdgeStatements' own MERGE, which already
-// excludes OwningRepoID == "" rows from writing a new edge for the same
-// reason.
+// (TerraformStateOwnershipResolver.ResolveOwningRepoID) can fail for an
+// ordinary transient Postgres timeout or pool exhaustion, and the node still
+// gets upserted with an empty OwningRepoID that cycle regardless.
+//
+// The filter went through two shapes before landing here, and both matter to
+// understand why it looks the way it does:
+//
+//  1. (pre-#5623-P1) No filter at all -- every row this generation upserted
+//     was retract-eligible, including rows whose ownership resolution merely
+//     failed transiently. This wiped a still-correct MATCHES_STATE edge on an
+//     ordinary resolver hiccup: an accuracy regression (under-authorization,
+//     never a leak, but wrong graph truth on every affected delta cycle
+//     instead of only during genuine ownership changes).
+//  2. (#5623 P1, first pass) `row.OwningRepoID != ""` -- correctly excluded
+//     transient failures, but ALSO excluded the two AUTHORITATIVE
+//     "not resolved" answers (tfstatebackend.ErrNoConfigRepoOwnsBackend,
+//     tfstatebackend.ErrAmbiguousBackendOwner), because those also leave
+//     OwningRepoID empty. A backend that previously resolved to repo A and
+//     later became unowned or ambiguous kept repo A's MATCHES_STATE edge
+//     indefinitely -- the #5623 P0 tenant-visibility leak, reintroduced
+//     through this narrower door: infra_scope_grant.go's scope predicate kept
+//     authorizing repo A even though it was no longer the unique owner.
+//  3. (here) `row.OwnershipOutcome != TerraformStateOwnershipTransientFailure`
+//     -- the outcome enum makes the three-way distinction explicit instead of
+//     inferring it from OwningRepoID alone: TransientFailure (including "no
+//     resolver wired" / "blank backend identity") is excluded (preserve);
+//     Resolved, NoOwner, and AmbiguousOwner are all included (retract-
+//     eligible), because all three are authoritative answers this cycle --
+//     Resolved may point at a DIFFERENT repo than before, and NoOwner /
+//     AmbiguousOwner both mean "not uniquely owned by the prior repo
+//     anymore," which is exactly the condition that must invalidate a stale
+//     edge.
+//
+// This is symmetric with terraformStateMatchesConfigEdgeStatements' own
+// MERGE, which excludes OwningRepoID == "" rows from writing a new edge
+// regardless of outcome -- NoOwner and AmbiguousOwner rows are retract-
+// eligible here but never MERGE-eligible there, which is exactly "the edge
+// disappears and nothing replaces it," the correct result for both.
 //
 // Batched by w.batchSize uids per statement, mirroring
 // terraformStateResourceMigrationStatements' own uid-batching (same file
@@ -147,7 +167,7 @@ func (w *CanonicalNodeWriter) terraformStateMatchesConfigEdgeRetractStatements(m
 
 	uids := make([]string, 0, len(mat.TerraformStateResources))
 	for _, row := range mat.TerraformStateResources {
-		if row.OwningRepoID == "" {
+		if row.OwnershipOutcome == projector.TerraformStateOwnershipTransientFailure {
 			continue
 		}
 		uids = append(uids, row.UID)

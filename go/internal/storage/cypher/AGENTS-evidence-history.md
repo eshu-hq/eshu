@@ -351,3 +351,87 @@ resolved uid).
 No-Observability-Change: the retract is a Cypher WHERE/DELETE fragment with no
 span, metric, label, or log surface; no new telemetry signal is added or
 needed.
+
+## #5623 P1 follow-up — NoOwner/AmbiguousOwner must retract, not preserve
+
+Follow-up review finding on the #5623 P1 fix immediately above. That fix
+excluded any row whose `OwningRepoID` was empty this cycle from the retract's
+uid set, reasoning it might be a transient resolver failure. But THREE
+distinct outcomes all leave `OwningRepoID` empty, and only one of them is
+transient:
+
+- a genuine resolver hiccup (Postgres timeout, pool exhaustion) -- correctly
+  excluded, preserve the edge;
+- `tfstatebackend.ErrNoConfigRepoOwnsBackend` -- an AUTHORITATIVE "no owner"
+  answer, wrongly excluded;
+- `tfstatebackend.ErrAmbiguousBackendOwner` -- an AUTHORITATIVE "not uniquely
+  owned" answer, wrongly excluded.
+
+The `(string, bool)` shape `TerraformStateOwnershipResolver.ResolveOwningRepoID`
+used could not distinguish these. A backend that previously resolved to a
+repo and later became unowned or ambiguous kept that repo's `MATCHES_STATE`
+edge indefinitely -- the #5623 P0 tenant-visibility leak, reintroduced through
+a narrower door.
+
+Fix: the interface now returns `(repoID string, outcome
+projector.TerraformStateOwnershipOutcome)` -- a four-value enum (Resolved,
+TransientFailure [zero value], NoOwner, AmbiguousOwner) defined in
+`internal/projector/tfstate_ownership_outcome.go`.
+`projector.TerraformStateResourceRow` gained a matching `OwnershipOutcome`
+field, set by the same enrichment pass that sets `OwningRepoID`
+(`resolveTerraformStateOwnership`, this package). The retract's uid filter
+changed from `row.OwningRepoID == ""` to
+`row.OwnershipOutcome == projector.TerraformStateOwnershipTransientFailure` --
+only the truly-unknown case is excluded now; Resolved, NoOwner, and
+AmbiguousOwner are all retract-eligible.
+
+The classification logic (mapping a `*tfstatebackend.Resolver` result to the
+outcome enum) is centralized in the NEW package
+`internal/relationships/tfstatebackend/canonicalwriter`
+(`ResolveOwningRepoIDOutcome`), not duplicated across
+`cmd/{bootstrap-index,ingester,projector}`'s three near-identical adapters as
+it was before -- each adapter is now a one-line delegate. The new package
+exists specifically because `internal/projector` (owner of the outcome enum)
+already transitively imports `internal/relationships/tfstatebackend` (via
+`internal/reducer` -> `internal/correlation/drift/tfconfigstate`), so
+`tfstatebackend` cannot import `projector` back without a cycle -- confirmed
+by an actual `go build` failure while developing this fix. This also keeps
+`internal/storage/cypher`'s `TerraformStateOwnershipResolver` interface
+depending only on `projector` types, preserving its documented narrow-port
+boundary (never `tfstatebackend`, directly or transitively through the new
+package).
+
+No-Regression Evidence: widens the retract's candidate set from "resolved
+rows only" to "resolved, no-owner, or ambiguous-owner rows" (narrower than
+the original pre-#5623-P1 "every row" set, since transient failures are still
+excluded). Every `cmd/*` adapter, the fake test resolver
+(`fakeTerraformStateOwnershipResolver`, this package), and every hand-built
+`TerraformStateResourceRow` fixture across `internal/storage/cypher`,
+`internal/query`, and `internal/replay/offlinetier` that sets `OwningRepoID`
+directly needed a matching `OwnershipOutcome` value -- the zero value
+(`TransientFailure`) would otherwise silently exclude a fixture row its test
+intends to be retract-eligible. Proof (failing-first, RED via a temporary
+one-line revert of the filter back to `row.OwningRepoID == ""`, confirmed
+FAIL for the right reason with rows 1-2 unaffected; GREEN restored): unit
+`TestTerraformStateMatchesConfigEdgeRetractStatementsIncludesAuthoritativeNonOwnerRows`
+(NoOwner and AmbiguousOwner both produce a retract-eligible uid) plus
+`internal/relationships/tfstatebackend/canonicalwriter`'s own four-outcome
+unit suite. Live (real `CanonicalNodeWriter.Write` pipeline, no raw seeded
+fixture, isolated NornicDB v1.1.11):
+`TestCanonicalNodeWriterRetractsMatchesStateEdgeOnAuthoritativeNonOwnerDeltaCycleLive`
+(both subtests) run together with the #5623 P0/P1 siblings
+(`TestCanonicalNodeWriterRetractsStaleMatchesStateEdgeOnDeltaCycleLive`,
+`TestCanonicalNodeWriterPreservesMatchesStateEdgeOnResolverHiccupDeltaCycleLive`)
+and the #5443 originals -- all pass in one run. `internal/query`'s
+`TestLiveInfraScopeShapeMatchesStateFormerOwnerExcludedOnAuthoritativeNonOwner`
+proves the scoped-token predicate itself no longer authorizes the former
+owner for both outcomes, run alongside
+`TestLiveInfraScopeShapeMatchesStateStaleEdgeExcludedAfterDeltaReassignment`.
+Also `go test ./internal/storage/cypher ./internal/query ./internal/projector
+./internal/relationships/... ./internal/replay/... ./cmd/ingester
+./cmd/projector ./cmd/bootstrap-index -count=1`.
+
+No-Observability-Change: the retract is a Cypher WHERE/DELETE fragment with no
+span, metric, label, or log surface; the new adapter package logs a warning
+for a genuine transient failure only, reusing the exact log line every prior
+per-adapter copy already emitted -- no new signal.

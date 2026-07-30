@@ -16,31 +16,51 @@ var errTerraformStateConfigMatchResolverFixtureFailure = errors.New("fixture: co
 
 // fakeTerraformStateOwnershipResolver counts calls per (backend_kind,
 // locator_hash) pair so tests can assert the resolver is memoized within one
-// batch, not called once per row.
+// batch, not called once per row. answers maps a key to the outcome to
+// return; a key absent from answers returns
+// projector.TerraformStateOwnershipTransientFailure (the safe "not resolved"
+// default, matching a genuine resolver hiccup) with an empty repoID.
 type fakeTerraformStateOwnershipResolver struct {
 	calls   map[[2]string]int
-	answers map[[2]string]string // present key => resolved repo id; absent => not ok
+	answers map[[2]string]fakeOwnershipAnswer
+}
+
+// fakeOwnershipAnswer pairs a repoID with the outcome fakeTerraformStateOwnershipResolver
+// should return for one (backend_kind, locator_hash) key.
+type fakeOwnershipAnswer struct {
+	repoID  string
+	outcome projector.TerraformStateOwnershipOutcome
 }
 
 func newFakeTerraformStateOwnershipResolver() *fakeTerraformStateOwnershipResolver {
 	return &fakeTerraformStateOwnershipResolver{
 		calls:   map[[2]string]int{},
-		answers: map[[2]string]string{},
+		answers: map[[2]string]fakeOwnershipAnswer{},
 	}
 }
 
-func (f *fakeTerraformStateOwnershipResolver) ResolveOwningRepoID(_ context.Context, backendKind, locatorHash string) (string, bool) {
+// resolveTo registers a Resolved answer for (backendKind, locatorHash) --
+// most fixtures only need the happy path; use answers directly for
+// NoOwner/AmbiguousOwner/TransientFailure cases.
+func (f *fakeTerraformStateOwnershipResolver) resolveTo(backendKind, locatorHash, repoID string) {
+	f.answers[[2]string{backendKind, locatorHash}] = fakeOwnershipAnswer{repoID: repoID, outcome: projector.TerraformStateOwnershipResolved}
+}
+
+func (f *fakeTerraformStateOwnershipResolver) ResolveOwningRepoID(_ context.Context, backendKind, locatorHash string) (string, projector.TerraformStateOwnershipOutcome) {
 	key := [2]string{backendKind, locatorHash}
 	f.calls[key]++
-	repoID, ok := f.answers[key]
-	return repoID, ok
+	answer, ok := f.answers[key]
+	if !ok {
+		return "", projector.TerraformStateOwnershipTransientFailure
+	}
+	return answer.repoID, answer.outcome
 }
 
 func TestResolveTerraformStateOwnershipMemoizesPerBackendLocatorPair(t *testing.T) {
 	t.Parallel()
 
 	resolver := newFakeTerraformStateOwnershipResolver()
-	resolver.answers[[2]string{"s3", "locator-a"}] = "repo-a"
+	resolver.resolveTo("s3", "locator-a", "repo-a")
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil).WithTerraformStateOwnershipResolver(resolver)
 	rows := []projector.TerraformStateResourceRow{
@@ -60,11 +80,17 @@ func TestResolveTerraformStateOwnershipMemoizesPerBackendLocatorPair(t *testing.
 	if got, want := out[0].OwningRepoID, "repo-a"; got != want {
 		t.Fatalf("out[0].OwningRepoID = %q, want %q", got, want)
 	}
+	if got, want := out[0].OwnershipOutcome, projector.TerraformStateOwnershipResolved; got != want {
+		t.Fatalf("out[0].OwnershipOutcome = %v, want %v", got, want)
+	}
 	if got, want := out[1].OwningRepoID, "repo-a"; got != want {
 		t.Fatalf("out[1].OwningRepoID = %q, want %q", got, want)
 	}
 	if got, want := out[2].OwningRepoID, ""; got != want {
 		t.Fatalf("out[2].OwningRepoID = %q, want %q (unresolved backend stays empty)", got, want)
+	}
+	if got, want := out[2].OwnershipOutcome, projector.TerraformStateOwnershipTransientFailure; got != want {
+		t.Fatalf("out[2].OwnershipOutcome = %v, want %v (no answer registered for gcs/locator-b)", got, want)
 	}
 }
 
@@ -80,6 +106,9 @@ func TestResolveTerraformStateOwnershipNilResolverLeavesRowsUnchanged(t *testing
 	if got, want := out[0].OwningRepoID, ""; got != want {
 		t.Fatalf("OwningRepoID = %q, want %q (no resolver wired)", got, want)
 	}
+	if got, want := out[0].OwnershipOutcome, projector.TerraformStateOwnershipTransientFailure; got != want {
+		t.Fatalf("OwnershipOutcome = %v, want %v (zero value: no resolver wired is not an authoritative answer)", got, want)
+	}
 }
 
 func TestResolveTerraformStateOwnershipSkipsBlankBackendIdentity(t *testing.T) {
@@ -94,6 +123,9 @@ func TestResolveTerraformStateOwnershipSkipsBlankBackendIdentity(t *testing.T) {
 	out := writer.resolveTerraformStateOwnership(context.Background(), rows)
 	if got, want := out[0].OwningRepoID, ""; got != want {
 		t.Fatalf("OwningRepoID = %q, want %q (blank backend identity never calls the resolver)", got, want)
+	}
+	if got, want := out[0].OwnershipOutcome, projector.TerraformStateOwnershipTransientFailure; got != want {
+		t.Fatalf("OwnershipOutcome = %v, want %v (zero value: never attempted is not an authoritative answer)", got, want)
 	}
 	if len(resolver.calls) != 0 {
 		t.Fatalf("resolver was called %d times for a blank backend identity, want 0", len(resolver.calls))

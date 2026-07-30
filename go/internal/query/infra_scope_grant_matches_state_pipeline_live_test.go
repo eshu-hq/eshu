@@ -145,6 +145,7 @@ func TestLiveInfraScopeShapeMatchesStateStaleEdgeExcludedAfterDeltaReassignment(
 	baseRow := projector.TerraformStateResourceRow{
 		UID: stateUID, Address: address, Mode: "managed", ResourceType: "aws_instance",
 		Name: "web", SourceConfidence: facts.SourceConfidenceObserved, CollectorKind: "terraform_state",
+		OwnershipOutcome: projector.TerraformStateOwnershipResolved,
 	}
 
 	genOneRow := baseRow
@@ -205,6 +206,114 @@ func TestLiveInfraScopeShapeMatchesStateStaleEdgeExcludedAfterDeltaReassignment(
 	predCurrent := infraResourceScopePredicate("n", scalarsCurrent) + sst
 	if got := liveScopeCount(t, session, "n", "TerraformStateResource", predCurrent, paramsCurrent); got != 1 {
 		t.Fatalf("current owner's grant (%s) must admit the state resource after reassignment, got count=%d, want 1", currentOwnerRepo, got)
+	}
+}
+
+// TestLiveInfraScopeShapeMatchesStateFormerOwnerExcludedOnAuthoritativeNonOwner
+// is the #5623 P1 review FOLLOW-UP finding's query-layer proof, the
+// counterpart to TestLiveInfraScopeShapeMatchesStateStaleEdgeExcludedAfterDeltaReassignment
+// above: it proves the scoped-token infra predicate no longer authorizes the
+// FORMER owner after a delta cycle where ownership resolution returns an
+// AUTHORITATIVE non-owner answer (NoOwner or AmbiguousOwner), not just after
+// a reassignment to a different owner. A prior fix for the resolver-hiccup
+// accuracy regression excluded these two authoritative outcomes from the
+// retract's uid set by mistake (they also leave OwningRepoID empty), so the
+// former owner's stale MATCHES_STATE edge -- and its scoped authorization --
+// survived indefinitely.
+//
+// Gate: set ESHU_CYPHER_BOLT_DSN (e.g. bolt://localhost:27687) to the isolated
+// NornicDB. Run with:
+//
+//	go test -tags live_infra_scope_shape ./internal/query \
+//	  -run TestLiveInfraScopeShapeMatchesStateFormerOwnerExcludedOnAuthoritativeNonOwner -count=1
+func TestLiveInfraScopeShapeMatchesStateFormerOwnerExcludedOnAuthoritativeNonOwner(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		outcome projector.TerraformStateOwnershipOutcome
+	}{
+		{name: "no_owner", outcome: projector.TerraformStateOwnershipNoOwner},
+		{name: "ambiguous_owner", outcome: projector.TerraformStateOwnershipAmbiguousOwner},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			driver, closeDriver := liveScopeShapeDriver(t)
+			defer closeDriver()
+			session := driver.NewSession(context.Background(), neo4jdriver.SessionConfig{DatabaseName: liveScopeShapeDatabase()})
+			defer func() { _ = session.Close(context.Background()) }()
+
+			formerOwnerRepo := "sst5623-followup-repo-former-" + tc.name
+			const address = "aws_instance.web"
+			stateUID := "sst5623-followup-state-" + tc.name
+			scopeID := "sst5623-followup-scope-" + tc.name
+			ctx := context.Background()
+
+			cleanup := func() {
+				liveScopeRun(
+					t, session,
+					`MATCH (n) WHERE (n:TerraformResource AND n.repo_id = $repo_id) OR (n:TerraformStateResource AND n.uid = $uid) DETACH DELETE n`,
+					map[string]any{"repo_id": formerOwnerRepo, "uid": stateUID},
+				)
+			}
+			defer cleanup()
+			cleanup()
+
+			liveScopeRun(
+				t, session,
+				`CREATE (c:TerraformResource {repo_id: $repo_id, name: $name, path: $path, line_number: 1})`,
+				map[string]any{"repo_id": formerOwnerRepo, "name": address, "path": "envs/" + tc.name + "/main.tf"},
+			)
+
+			writer := cypher.NewCanonicalNodeWriter(&liveScopeShapeBoltExecutor{driver: driver, database: liveScopeShapeDatabase()}, 500, nil)
+
+			genOneRow := projector.TerraformStateResourceRow{
+				UID: stateUID, Address: address, Mode: "managed", ResourceType: "aws_instance",
+				Name: "web", SourceConfidence: facts.SourceConfidenceObserved, CollectorKind: "terraform_state",
+				OwningRepoID:     formerOwnerRepo,
+				OwnershipOutcome: projector.TerraformStateOwnershipResolved,
+			}
+			genOne := projector.CanonicalMaterialization{
+				ScopeID:                 scopeID,
+				GenerationID:            "sst5623-followup-gen-1-" + tc.name,
+				FirstGeneration:         true,
+				TerraformStateResources: []projector.TerraformStateResourceRow{genOneRow},
+			}
+			if err := writer.Write(ctx, genOne); err != nil {
+				t.Fatalf("Write (generation 1, full) error: %v", err)
+			}
+
+			// No read between writes -- same write-loss avoidance as the
+			// sibling test above.
+			genTwoRow := genOneRow
+			genTwoRow.OwningRepoID = ""
+			genTwoRow.OwnershipOutcome = tc.outcome
+			genTwo := projector.CanonicalMaterialization{
+				ScopeID:                 scopeID,
+				GenerationID:            "sst5623-followup-gen-2-" + tc.name,
+				FirstGeneration:         false,
+				DeltaProjection:         true,
+				TerraformStateResources: []projector.TerraformStateResourceRow{genTwoRow},
+			}
+			if err := writer.Write(ctx, genTwo); err != nil {
+				t.Fatalf("Write (generation 2, delta, %s) error: %v", tc.name, err)
+			}
+
+			sst := " AND n.uid = '" + stateUID + "'"
+			accessFormer := repositoryAccessFilter{
+				allowedRepositoryIDs: []string{formerOwnerRepo},
+				allowed:              map[string]struct{}{formerOwnerRepo: {}},
+			}
+			scalarsFormer, _ := accessFormer.scopeGrantInlineScalars()
+			paramsFormer := map[string]any{"allowed_repository_ids": accessFormer.allowedRepositoryIDs, "allowed_scope_ids": []string{}}
+			bindScopeGrantInlineScalars(paramsFormer, scalarsFormer)
+			predFormer := infraResourceScopePredicate("n", scalarsFormer) + sst
+			if got := liveScopeCount(t, session, "n", "TerraformStateResource", predFormer, paramsFormer); got != 0 {
+				t.Fatalf(
+					"P1 FOLLOW-UP LEAK REPRODUCED (%s): after a delta cycle where ownership resolution authoritatively returned %s, "+
+						"the FORMER owner's scoped grant still admits the state resource (count=%d, want 0). A stale MATCHES_STATE edge "+
+						"survived because the retract's uid filter collapsed this authoritative outcome into TransientFailure "+
+						"(#5623 P1 review follow-up finding)", tc.name, tc.name, got,
+				)
+			}
+		})
 	}
 }
 
