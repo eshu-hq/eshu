@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -83,6 +84,20 @@ type TerraformConfigStateDriftHandler struct {
 	// signal to the durable write, not a replacement for it, when Writer is
 	// set.
 	Writer TerraformConfigStateDriftFindingWriter
+	// Redrive schedules a bounded catch-up attempt when Handle observes
+	// tfstatebackend.ErrNoConfigRepoOwnsBackend (issue #5593 P1-A): that
+	// rejection may be a genuine "no repo will ever own this backend", or a
+	// config-side ingestion race that resolves once that repo syncs and
+	// activates. May be nil; the handler then keeps the pre-#5593-redrive
+	// behavior of a durably terminal rejection. See scheduleRedrive's doc
+	// comment in terraform_config_state_drift_redrive.go.
+	Redrive ConfigStateDriftRedriveScheduler
+	// RedriveDelay overrides defaultConfigStateDriftRedriveDelay for the
+	// scheduled ledger row's first eligible attempt. Zero uses the default.
+	RedriveDelay time.Duration
+	// Now overrides time.Now for the redrive schedule's first-attempt
+	// timestamp. Nil uses time.Now (UTC).
+	Now func() time.Time
 }
 
 // Handle executes the drift pipeline for one reducer intent. The handler:
@@ -142,6 +157,7 @@ func (h TerraformConfigStateDriftHandler) Handle(
 			FailureClass: "no_config_repo_owns_backend",
 			Reason:       resolveErr.Error(),
 		})
+		h.scheduleRedrive(ctx, intent)
 		return Result{
 			IntentID: intent.IntentID,
 			Domain:   intent.Domain,

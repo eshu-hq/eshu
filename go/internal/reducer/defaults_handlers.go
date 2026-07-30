@@ -32,6 +32,13 @@ type DriftHandlers struct {
 	DriftEvidenceLoader      DriftEvidenceLoader
 	DriftWriter              TerraformConfigStateDriftFindingWriter
 	DriftLogger              *slog.Logger
+	// DriftRedrive schedules a bounded config_state_drift redrive when the
+	// handler observes a "no config repo owns this backend" rejection
+	// (issue #5593 P1-A). Optional: unlike the four fields above, a nil
+	// DriftRedrive does NOT gate DomainConfigStateDrift registration -- it
+	// only means that rejection stays terminal, the pre-#5593-redrive
+	// behavior.
+	DriftRedrive ConfigStateDriftRedriveScheduler
 
 	// AWS cloud-runtime drift adapters (issue #39). Both must be non-nil for
 	// the registry to register DomainAWSCloudRuntimeDrift; missing either one

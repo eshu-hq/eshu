@@ -68,13 +68,23 @@ boundary and drained by this same `projectorSvc` — the hook enqueues one
 `config_state_drift` reducer intent immediately, so a Terraform state change
 that lands between bootstrap-index runs is drift-evaluated without waiting
 for the next one. The hook is scoped to this binary's `ProjectorQueue` only:
-`cmd/bootstrap-index/wiring.go` deliberately does not wire it, because
-bootstrap's own Phase 3.5 sweep must run after Phase 3 resolves the
-config-to-backend correlation the drift handler's resolver needs, and firing
-early would let the reducer queue's `(scope, generation)` de-dupe freeze a
-premature "no owner" result. See
+`cmd/bootstrap-index/wiring.go` deliberately does not wire it, because it
+would evaluate drift before bootstrap's finite corpus has necessarily
+finished activating every repo. See
 `go/internal/storage/postgres/projector_queue_config_state_drift_trigger_hook.go`
 for the full ordering rationale.
+
+`main.go` also runs a second, independent background loop:
+`runConfigStateDriftRedriveCatchUpLoop` (issue #5593 P1-A/P1-1/P1-B,
+`config_state_drift_redrive_catchup.go`). The trigger above fires
+unconditionally and cannot know whether the eventual evaluation will need a
+retry; scheduling instead happens in `cmd/reducer`'s
+`reducer.TerraformConfigStateDriftHandler.Redrive`, which observes the
+actual "no config repo owns this backend" outcome. This loop only claims
+whatever that handler scheduled and reopens it via `ReducerQueue.ReplayDomain`
+-- it is started and joined independently of the composite runner
+(`runServiceAndJoinConfigStateDriftRedrive`), so its cadence and failure mode
+never affect collection or source-local projection.
 
 When `ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED` is true, the ingester wraps the
 normal repository selector with a webhook-trigger selector. Accepted queued

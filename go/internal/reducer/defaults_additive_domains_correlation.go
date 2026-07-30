@@ -24,6 +24,7 @@ func appendCorrelationCoreAdditiveDomains(definitions []DomainDefinition, handle
 			Instruments:    handlers.Instruments,
 			Logger:         handlers.DriftLogger,
 			Writer:         handlers.DriftWriter,
+			Redrive:        handlers.DriftRedrive,
 		}
 		definitions = append(definitions, drift)
 	}

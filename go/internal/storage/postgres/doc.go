@@ -357,12 +357,23 @@
 // state_snapshot scope can activate before the config-side repo that owns
 // its backend has synced its own terraform_backends fact, which the resolver
 // reads directly (tfstate_backend_canonical.go) with no dependency on this
-// generation's own correlation. ConfigStateDriftRedriveStore
-// (drift_runtime_redrive.go, issue #5593 P1-1) closes that remaining gap: a
-// bounded ledger the runtime trigger schedules on every enqueue, claimed by
-// go/cmd/ingester's periodic catch-up loop, which reopens the work item via
-// ReducerQueue.ReplayDomain up to a fixed attempt count so a transient
-// "no config repo owns this backend" outcome gets revisited instead of
-// staying terminal, while a genuine "no owner, ever" case still terminates
-// once that bound is reached.
+// generation's own correlation.
+//
+// ConfigStateDriftRedriveStore (drift_runtime_redrive.go, issue #5593
+// P1-A/P1-1/P1-B) closes that remaining gap with a bounded ledger. Unlike
+// the runtime trigger above, which fires unconditionally on every
+// activation, scheduling happens in
+// reducer.TerraformConfigStateDriftHandler.Redrive -- the one place that
+// actually OBSERVES tfstatebackend.ErrNoConfigRepoOwnsBackend, so only
+// generations that hit that exact rejection pay for a redrive attempt.
+// go/cmd/ingester's periodic catch-up loop claims due rows and reopens the
+// work item via ReducerQueue.ReplayDomain, giving the handler a fresh
+// Handle() call. ClaimDue's own SQL deletes a row the moment it reaches its
+// bounded attempt count (rather than leaving it behind with a
+// frozen-in-the-past next_attempt_at that would otherwise re-satisfy the
+// due-row scan forever) so a transient rejection gets revisited within the
+// bound and a genuine "no owner, ever" case both terminates and stops
+// occupying a row, keeping the ledger's steady-state size proportional to
+// recent rejection volume rather than growing for the life of the
+// deployment.
 package postgres

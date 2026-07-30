@@ -306,11 +306,34 @@ shared-intent backlog/status queries and reducer code-call cycle logs.
   differentiator to either producer without re-proving that de-dupe (see
   `TestConfigStateDriftRuntimeTriggerAndBootstrapProduceSameConflictKey`).
   Do NOT wire `ConfigStateDriftTrigger` onto bootstrap-index's own
-  `ProjectorQueue` (`cmd/bootstrap-index/wiring.go`) — bootstrap's Phase 3.5
-  deliberately runs after Phase 3 reopens `deployment_mapping` so the drift
-  handler's backend resolver has the cross-repo correlation it needs; firing
-  during bootstrap's own Phase 1 projector drain would freeze a premature
-  "no owner" result under the same de-dupe fence.
+  `ProjectorQueue` (`cmd/bootstrap-index/wiring.go`) — it would evaluate
+  drift before bootstrap's finite corpus has necessarily finished activating
+  every repo; see `runConfigStateDriftTriggerHook`'s doc comment for the
+  full reasoning.
+
+  **Redrive (issue #5593 P1-A/P1-1/P1-B) — scheduling lives in the REDUCER
+  handler, not the trigger above.** `ConfigStateDriftRuntimeTrigger` fires
+  unconditionally on every activation and cannot know whether the eventual
+  `Handle()` call will need a retry. Scheduling a bounded catch-up happens in
+  `go/internal/reducer/terraform_config_state_drift_redrive.go`'s
+  `TerraformConfigStateDriftHandler.scheduleRedrive`, called ONLY from the
+  `tfstatebackend.ErrNoConfigRepoOwnsBackend` branch of `Handle` — so a row
+  is scheduled per REJECTION, not per activation. `drift_runtime_redrive.go`
+  is the ledger store (`ConfigStateDriftRedriveStore`); its `ClaimDue` runs
+  TWO queries, `claimAndAdvanceConfigStateDriftRedrivesQuery` (rows with
+  budget left) and `claimAndDeleteExhaustedConfigStateDriftRedrivesQuery`
+  (a row's LAST allowed attempt — claims AND DELETES it in the same
+  statement, the P1-B growth bound: without the delete, an exhausted row's
+  frozen-in-the-past `next_attempt_at` would re-satisfy the due-row index
+  scan forever). `go/cmd/ingester/config_state_drift_redrive_catchup.go`
+  claims due rows and reopens them via `ReducerQueue.ReplayDomain`. Both the
+  bounded-termination/deletion behavior (`drift_runtime_redrive_test.go`,
+  fake-backed) and the concurrent-claim safety
+  (`drift_runtime_redrive_live_test.go`, `ESHU_CONFIG_STATE_DRIFT_REDRIVE_PROOF_DSN`-gated,
+  mirrors the Crossplane live-test pattern below) are proven — do not modify
+  either claim query without re-running the live proof; the fake tests
+  mirror intended semantics, not the executed SQL, and cannot catch a
+  locking-predicate regression.
 
 - **State-attribute decoding or flattening** → edit
   `tfstate_drift_evidence_state_row.go`. `stateRowFromCollectorPayload`

@@ -23,21 +23,20 @@ INSERT INTO config_state_drift_redrive (
 ON CONFLICT (scope_id, generation_id) DO NOTHING
 `
 
-// claimDueConfigStateDriftRedrivesQuery atomically claims up to $3 rows that
-// are due ($1 = now) and still under the caller-supplied attempt bound ($2),
-// advancing attempt_count and rescheduling next_attempt_at ($4) in the SAME
-// statement. FOR UPDATE SKIP LOCKED lets concurrent ingester replicas each
-// claim a disjoint batch without blocking each other. Proven against a
-// scratch Postgres 16 instance (issue #5593 P1-1): after attempt_count
-// reaches the caller's bound, the WHERE clause excludes the row from every
-// later claim -- this is the query that makes "genuine no-owner, forever"
-// terminate instead of retrying without limit.
-const claimDueConfigStateDriftRedrivesQuery = `
+// claimAndAdvanceConfigStateDriftRedrivesQuery atomically claims up to $3 due
+// rows ($1 = now) whose NEXT attempt will still leave them under the
+// caller's attempt bound ($2) -- i.e. attempt_count < $2-1 -- advancing
+// attempt_count and rescheduling next_attempt_at ($4) in the SAME statement.
+// Rows on their FINAL allowed attempt do NOT match this query; they are
+// claimed (and deleted) by claimAndDeleteExhaustedConfigStateDriftRedrivesQuery
+// instead. FOR UPDATE SKIP LOCKED lets concurrent ingester replicas each
+// claim a disjoint batch without blocking each other.
+const claimAndAdvanceConfigStateDriftRedrivesQuery = `
 WITH due AS (
     SELECT scope_id, generation_id
     FROM config_state_drift_redrive
     WHERE next_attempt_at <= $1
-      AND attempt_count < $2
+      AND attempt_count < $2 - 1
     ORDER BY next_attempt_at ASC
     LIMIT $3
     FOR UPDATE SKIP LOCKED
@@ -52,18 +51,56 @@ WHERE redrive.scope_id = due.scope_id
 RETURNING redrive.scope_id, redrive.generation_id, redrive.attempt_count
 `
 
+// claimAndDeleteExhaustedConfigStateDriftRedrivesQuery atomically claims and
+// DELETES up to $3 due rows ($1 = now) whose attempt_count already equals
+// $2-1 -- this claim is their LAST allowed attempt. Deleting on the final
+// claim (issue #5593 P1-B) is what bounds the ledger's growth: without it, a
+// row that reaches maxAttempts would sit forever with next_attempt_at frozen
+// in the past, permanently re-satisfying the due-row scan's index condition
+// and relying only on the non-indexed attempt_count residual filter to skip
+// it, on every tick, for the life of the deployment. With this query, EVERY
+// row EnsureScheduled creates is guaranteed to be deleted within exactly
+// maxAttempts claims of it (regardless of whether ReplayDomain actually
+// found a 'succeeded' row to reopen), so steady-state table size is bounded
+// by (rows scheduled in roughly the last maxAttempts attempt-spacing
+// window), never unbounded accumulation over the deployment's lifetime.
+// Proven against a scratch Postgres 16 instance (issue #5593 P1-B): a
+// maxAttempts=3 row is claimed by claimAndAdvance at attempt_count 0->1 and
+// 1->2, does NOT match claimAndAdvance a third time (2 < 2 is false), DOES
+// match this query (2 = 2), and the table is empty immediately after.
+const claimAndDeleteExhaustedConfigStateDriftRedrivesQuery = `
+WITH due AS (
+    SELECT scope_id, generation_id
+    FROM config_state_drift_redrive
+    WHERE next_attempt_at <= $1
+      AND attempt_count = $2 - 1
+    ORDER BY next_attempt_at ASC
+    LIMIT $3
+    FOR UPDATE SKIP LOCKED
+)
+DELETE FROM config_state_drift_redrive AS redrive
+USING due
+WHERE redrive.scope_id = due.scope_id
+  AND redrive.generation_id = due.generation_id
+RETURNING redrive.scope_id, redrive.generation_id, redrive.attempt_count + 1
+`
+
 // ConfigStateDriftRedriveClaim identifies one config_state_drift
 // (scope_id, generation_id) work item the catch-up loop just claimed for a
 // redrive attempt, and the attempt number this claim represents (1-indexed:
-// the value AFTER this claim's increment).
+// the value AFTER this claim's increment). Exhausted is true when this claim
+// was the row's LAST allowed attempt -- the ledger row is already deleted by
+// the time the caller sees this claim, so ClaimDue never needs to be called
+// again for this (ScopeID, GenerationID) pair.
 type ConfigStateDriftRedriveClaim struct {
 	ScopeID      string
 	GenerationID string
 	AttemptCount int
+	Exhausted    bool
 }
 
 // ConfigStateDriftRedriveStore persists the bounded redrive ledger backing
-// ConfigStateDriftRuntimeTrigger's recovery path (issue #5593 P1-1): see
+// the config_state_drift runtime recovery path (issue #5593 P1-1). See
 // migrations/087_config_state_drift_runtime_redrive.sql for why this needs
 // no claim/lease/fencing-token machinery, unlike CrossplaneRedriveStateStore.
 type ConfigStateDriftRedriveStore struct {
@@ -111,11 +148,13 @@ func (s ConfigStateDriftRedriveStore) EnsureScheduled(
 }
 
 // ClaimDue claims up to limit due (scope, generation) pairs whose
-// attempt_count is still under maxAttempts, advances their attempt_count,
-// and reschedules them nextAttemptAt for their next try. A row whose
-// attempt_count reaches maxAttempts on this call is claimed one last time
-// (the caller gets its final redrive chance) and then never claimed again --
-// the bounded-termination guarantee.
+// attempt_count is still under maxAttempts. A row on a non-final attempt is
+// advanced and rescheduled nextAttemptAt for its next try; a row on its
+// FINAL allowed attempt is claimed and immediately DELETED (Exhausted=true
+// on the returned claim) -- issue #5593 P1-B's bounded-growth fix. Runs two
+// queries (claimAndAdvance, then claimAndDeleteExhausted with the REMAINING
+// batch budget) so the aggregate claimed count across both never exceeds
+// limit.
 func (s ConfigStateDriftRedriveStore) ClaimDue(
 	ctx context.Context,
 	maxAttempts int,
@@ -133,11 +172,37 @@ func (s ConfigStateDriftRedriveStore) ClaimDue(
 	}
 
 	now := s.now()
+
+	advanced, err := s.claimAndAdvance(ctx, now, maxAttempts, limit, nextAttemptAt)
+	if err != nil {
+		return nil, err
+	}
+
+	remaining := limit - len(advanced)
+	if remaining <= 0 {
+		return advanced, nil
+	}
+
+	exhausted, err := s.claimAndDeleteExhausted(ctx, now, maxAttempts, remaining)
+	if err != nil {
+		return nil, err
+	}
+
+	return append(advanced, exhausted...), nil
+}
+
+func (s ConfigStateDriftRedriveStore) claimAndAdvance(
+	ctx context.Context,
+	now time.Time,
+	maxAttempts int,
+	limit int,
+	nextAttemptAt time.Time,
+) ([]ConfigStateDriftRedriveClaim, error) {
 	rows, err := s.db.QueryContext(
-		ctx, claimDueConfigStateDriftRedrivesQuery, now, maxAttempts, limit, nextAttemptAt.UTC(),
+		ctx, claimAndAdvanceConfigStateDriftRedrivesQuery, now, maxAttempts, limit, nextAttemptAt.UTC(),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("claim due config state drift redrives: %w", err)
+		return nil, fmt.Errorf("claim and advance config state drift redrives: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -145,12 +210,41 @@ func (s ConfigStateDriftRedriveStore) ClaimDue(
 	for rows.Next() {
 		var claim ConfigStateDriftRedriveClaim
 		if err := rows.Scan(&claim.ScopeID, &claim.GenerationID, &claim.AttemptCount); err != nil {
-			return nil, fmt.Errorf("scan config state drift redrive claim: %w", err)
+			return nil, fmt.Errorf("scan config state drift redrive claim-and-advance: %w", err)
 		}
 		claims = append(claims, claim)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("claim due config state drift redrives: %w", err)
+		return nil, fmt.Errorf("claim and advance config state drift redrives: %w", err)
+	}
+	return claims, nil
+}
+
+func (s ConfigStateDriftRedriveStore) claimAndDeleteExhausted(
+	ctx context.Context,
+	now time.Time,
+	maxAttempts int,
+	limit int,
+) ([]ConfigStateDriftRedriveClaim, error) {
+	rows, err := s.db.QueryContext(
+		ctx, claimAndDeleteExhaustedConfigStateDriftRedrivesQuery, now, maxAttempts, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("claim and delete exhausted config state drift redrives: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	claims := make([]ConfigStateDriftRedriveClaim, 0, limit)
+	for rows.Next() {
+		var claim ConfigStateDriftRedriveClaim
+		if err := rows.Scan(&claim.ScopeID, &claim.GenerationID, &claim.AttemptCount); err != nil {
+			return nil, fmt.Errorf("scan config state drift redrive claim-and-delete: %w", err)
+		}
+		claim.Exhausted = true
+		claims = append(claims, claim)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("claim and delete exhausted config state drift redrives: %w", err)
 	}
 	return claims, nil
 }

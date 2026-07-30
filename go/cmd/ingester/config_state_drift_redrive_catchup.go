@@ -25,20 +25,22 @@ const (
 	// (scope, generation) row -- independent of the tick interval above.
 	configStateDriftRedriveAttemptSpacing = 5 * time.Minute
 	// configStateDriftRedriveMaxAttempts bounds how many times a single
-	// (scope, generation) gets reopened before the ledger stops claiming it
-	// -- issue #5593 P1-1's termination guarantee: a genuine "no config repo
-	// will ever own this backend" outcome stops being retried instead of
-	// retrying forever. Paired with ConfigStateDriftRuntimeTrigger's own
-	// first-attempt delay (defaultConfigStateDriftRedriveDelay, 5m) and this
-	// package's configStateDriftRedriveAttemptSpacing (5m), the total bounded
-	// recovery window is roughly 5m + (4-1)*5m = 20 minutes after the first
-	// evaluation -- comfortably longer than a normal ingester poll/sync cycle
-	// for the owning config-side repo to land and activate, while still
-	// bounding the cost of re-evaluating a config_state_drift work item that
-	// already resolved correctly on its first attempt (accepted, measured
-	// cost: at most configStateDriftRedriveMaxAttempts redundant re-runs of
-	// PostgresTerraformConfigStateDriftWriter, which is proven idempotent
-	// across replays -- TestPostgresTerraformConfigStateDriftWriterIsIdempotentAcrossReplays).
+	// (scope, generation) gets reopened before the ledger row is claimed one
+	// LAST time and DELETED (postgres.ConfigStateDriftRedriveStore.ClaimDue,
+	// issue #5593 P1-B) -- a genuine "no config repo will ever own this
+	// backend" outcome stops being retried, and its ledger row stops
+	// existing, instead of accumulating forever. Paired with
+	// reducer.TerraformConfigStateDriftHandler's own first-attempt delay
+	// (defaultConfigStateDriftRedriveDelay, 5m, issue #5593 P1-A -- the
+	// handler schedules a redrive ONLY when it actually observes
+	// tfstatebackend.ErrNoConfigRepoOwnsBackend, not unconditionally) and
+	// this package's configStateDriftRedriveAttemptSpacing (5m), the total
+	// bounded recovery window is roughly 5m + (4-1)*5m = 20 minutes after
+	// the rejection -- comfortably longer than a normal ingester poll/sync
+	// cycle for the owning config-side repo to land and activate. Because
+	// scheduling is now conditioned on the actual rejection (P1-A), this
+	// cost applies only to generations that hit "no owner", not to every
+	// runtime-triggered activation.
 	configStateDriftRedriveMaxAttempts = 4
 	// configStateDriftRedriveCatchUpBatchSize bounds how many due redrives
 	// one tick claims, keeping each tick's own work bounded.
@@ -59,13 +61,14 @@ type configStateDriftRedriveReplayer interface {
 }
 
 // runConfigStateDriftRedriveCatchUpLoop periodically reopens config_state_drift
-// work items ConfigStateDriftRuntimeTrigger scheduled for a bounded redrive
-// (issue #5593 P1-1): a terraform_state_snapshot scope that activated before
-// its owning config-side repo had synced and activated its own
+// work items reducer.TerraformConfigStateDriftHandler scheduled for a bounded
+// redrive after observing "no config repo owns this backend" (issue #5593
+// P1-A/P1-1): a terraform_state_snapshot scope that activated before its
+// owning config-side repo had synced and activated its own
 // terraform_backends fact gets its config_state_drift work item reopened via
-// ReplayDomain, giving TerraformConfigStateDriftHandler a fresh Handle() call
-// once that correlation has had time to resolve. Runs until ctx is done,
-// calling store.ClaimDue on every tick.
+// ReplayDomain, giving the handler a fresh Handle() call once that
+// correlation has had time to resolve. Runs until ctx is done, calling
+// store.ClaimDue on every tick.
 //
 // A per-tick claim or replay error is logged and the loop continues -- this
 // recovery pass must never take down the primary ingester composite runner,
@@ -118,7 +121,7 @@ func runConfigStateDriftRedriveCatchUpTick(
 			logger.InfoContext(
 				ctx, "config state drift redrive attempted",
 				"scope_id", claim.ScopeID, "generation_id", claim.GenerationID,
-				"attempt", claim.AttemptCount, "reopened", reopened,
+				"attempt", claim.AttemptCount, "reopened", reopened, "exhausted", claim.Exhausted,
 			)
 		}
 	}

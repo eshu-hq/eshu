@@ -8,7 +8,6 @@ import (
 	"errors"
 	"strings"
 	"testing"
-	"time"
 
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
@@ -146,99 +145,4 @@ type failingReducerIntentWriter struct {
 
 func (f failingReducerIntentWriter) Enqueue(context.Context, []projector.ReducerIntent) (projector.IntentResult, error) {
 	return projector.IntentResult{}, f.err
-}
-
-// recordingRedriveScheduler captures every EnsureScheduled call for
-// assertion, standing in for ConfigStateDriftRedriveStore.
-type recordingRedriveScheduler struct {
-	calls []struct {
-		scopeID        string
-		generationID   string
-		firstAttemptAt time.Time
-	}
-	err error
-}
-
-func (r *recordingRedriveScheduler) EnsureScheduled(_ context.Context, scopeID, generationID string, firstAttemptAt time.Time) error {
-	r.calls = append(r.calls, struct {
-		scopeID        string
-		generationID   string
-		firstAttemptAt time.Time
-	}{scopeID, generationID, firstAttemptAt})
-	return r.err
-}
-
-// TestConfigStateDriftRuntimeTriggerSchedulesRedriveAfterEnqueue proves the
-// issue #5593 P1-1 wiring: after a successful enqueue, the trigger schedules
-// a bounded redrive for the SAME (scope, generation) at now + RedriveDelay,
-// so a premature "no config repo owns this backend" outcome is not left
-// permanently terminal.
-func TestConfigStateDriftRuntimeTriggerSchedulesRedriveAfterEnqueue(t *testing.T) {
-	t.Parallel()
-
-	db := &fakeExecQueryer{}
-	scheduler := &recordingRedriveScheduler{}
-	now := time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC)
-	trigger := ConfigStateDriftRuntimeTrigger{
-		Queue:        ReducerQueue{db: db},
-		Redrive:      scheduler,
-		RedriveDelay: 5 * time.Minute,
-		Now:          func() time.Time { return now },
-	}
-
-	if err := trigger.TriggerConfigStateDrift(context.Background(), "state_snapshot:s3:hash-1", "gen-state-1"); err != nil {
-		t.Fatalf("TriggerConfigStateDrift() error = %v, want nil", err)
-	}
-
-	if len(scheduler.calls) != 1 {
-		t.Fatalf("EnsureScheduled call count = %d, want 1", len(scheduler.calls))
-	}
-	call := scheduler.calls[0]
-	if call.scopeID != "state_snapshot:s3:hash-1" || call.generationID != "gen-state-1" {
-		t.Fatalf("EnsureScheduled args = %+v, want scope/generation to match the enqueued intent", call)
-	}
-	if want := now.Add(5 * time.Minute); !call.firstAttemptAt.Equal(want) {
-		t.Fatalf("EnsureScheduled firstAttemptAt = %v, want %v (now + RedriveDelay)", call.firstAttemptAt, want)
-	}
-}
-
-// TestConfigStateDriftRuntimeTriggerSkipsRedriveSchedulingWhenNil proves the
-// scheduler is a pure no-op (never called, never panics) when Redrive is
-// unwired -- every caller that predates issue #5593 P1-1's fix.
-func TestConfigStateDriftRuntimeTriggerSkipsRedriveSchedulingWhenNil(t *testing.T) {
-	t.Parallel()
-
-	db := &fakeExecQueryer{}
-	trigger := ConfigStateDriftRuntimeTrigger{Queue: ReducerQueue{db: db}}
-
-	if err := trigger.TriggerConfigStateDrift(context.Background(), "state_snapshot:s3:hash-1", "gen-state-1"); err != nil {
-		t.Fatalf("TriggerConfigStateDrift() error = %v, want nil", err)
-	}
-}
-
-// TestConfigStateDriftRuntimeTriggerSurfacesRedriveSchedulingError proves a
-// redrive-scheduling failure is reported to the caller (so
-// runConfigStateDriftTriggerHook logs it) even though the primary enqueue
-// already succeeded.
-func TestConfigStateDriftRuntimeTriggerSurfacesRedriveSchedulingError(t *testing.T) {
-	t.Parallel()
-
-	db := &fakeExecQueryer{}
-	scheduler := &recordingRedriveScheduler{err: errors.New("ledger write failed")}
-	trigger := ConfigStateDriftRuntimeTrigger{
-		Queue:   ReducerQueue{db: db},
-		Redrive: scheduler,
-	}
-
-	err := trigger.TriggerConfigStateDrift(context.Background(), "state_snapshot:s3:hash-1", "gen-state-1")
-	if err == nil {
-		t.Fatal("TriggerConfigStateDrift() error = nil, want non-nil")
-	}
-	if !strings.Contains(err.Error(), "ledger write failed") {
-		t.Fatalf("error = %v, want it to wrap the redrive scheduling error", err)
-	}
-	// The enqueue itself must still have gone through -- one batch INSERT.
-	if got, want := len(db.execs), 1; got != want {
-		t.Fatalf("exec count = %d, want %d (enqueue must succeed even though scheduling failed)", got, want)
-	}
 }

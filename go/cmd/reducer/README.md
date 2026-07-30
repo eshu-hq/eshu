@@ -59,7 +59,12 @@ flowchart TB
    `SpanReducerDriftEvidenceLoad`, surfaces decode-failure WARN logs,
    and increments
    `eshu_dp_drift_unresolved_module_calls_total` per unresolvable
-   `module {}` source per the issue #169 module-aware join; the AWS runtime
+   `module {}` source per the issue #169 module-aware join; `DriftRedrive`
+   (`postgres.NewConfigStateDriftRedriveStore`, issue #5593 P1-A) schedules
+   a bounded catch-up attempt whenever the handler observes a "no config
+   repo owns this backend" rejection — `go/cmd/ingester`'s periodic loop
+   claims and replays whatever this schedules, this binary only writes the
+   schedule; the AWS runtime
    drift adapters `PostgresAWSCloudRuntimeDriftEvidenceLoader` and
    `PostgresAWSCloudRuntimeDriftWriter` are wired for issue #39 so
    `aws_resource` reducer intents can publish durable orphan/unmanaged
