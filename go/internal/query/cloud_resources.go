@@ -272,6 +272,18 @@ func hydrateCloudResourcePage(
 // cloudResourceRowFromGraph converts a graph result row into the wire shape.
 // service_name carries a known collector placeholder ("row.service_name") for
 // some nodes; that placeholder is dropped so the API never surfaces it.
+//
+// Rollout-window mask, not a permanent fixture: issue #5714/#5055 fixed the
+// writer (go/internal/storage/cypher/cloud_resource_node_writer.go) so no
+// FUTURE write can produce this literal, but a node written before that fix
+// deployed only self-heals on its next materialization (see this repo's
+// docs/internal/evidence/5714-cloudresource-row-key-defaults.md, "Data
+// repair"). Removal trigger: safe to delete once every AWS/Azure scope has
+// re-materialized at least once post-deploy (the normal case within one
+// collector sync cycle) — at that point no node can still carry the literal,
+// and this mask silently absorbing it would only hide a real regression
+// instead of surfacing it. Do not remove opportunistically; confirm a full
+// re-sync has actually happened first.
 func cloudResourceRowFromGraph(row map[string]any) CloudResourceRow {
 	serviceName := StringVal(row, "service_name")
 	if serviceName == "row.service_name" {

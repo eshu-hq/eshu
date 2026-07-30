@@ -232,13 +232,19 @@ func azureCloudResourceNodeRow(env facts.Envelope) (row map[string]any, uid stri
 		// unconditional SET clause does not hit the pinned NornicDB
 		// missing-map-key-in-UNWIND bug — see go/internal/reducer/
 		// aws_resource_running_image.go's runningImageFieldsAbsent doc for the
-		// live-proved mechanism, and gcpCloudResourceNodeRow's parity-key
-		// comment for the earlier #4995 precedent (workload_id/service_name/
-		// service_anchor_*, which Azure rows do NOT yet carry — a pre-existing
-		// gap tracked separately and out of scope here).
+		// live-proved mechanism.
 		"running_image_ref":    "",
 		"running_image_digest": "",
 	}
+	// workload_id/service_name/service_anchor_* (issue #5714/#5055): Azure
+	// azureCloudResourceNodeRow never received the #4995 fix at all, so every
+	// Azure CloudResource omitted these 7 keys — exposing every Azure node to
+	// the same missing-map-key-in-UNWIND corruption a heterogeneous batch
+	// triggers on the pinned NornicDB backend. Azure has no service-anchor
+	// source today, so cloudResourceServiceAnchorFieldsAbsent's explicit
+	// empty-value keys (aws_resource_service_anchor.go) are the correct
+	// no-anchor values, just present rather than absent.
+	applyCloudResourceServiceAnchorAbsentFields(row)
 	return row, uid, resourceID, true, nil
 }
 

@@ -124,6 +124,18 @@ func valueAllowed(v string, allowed []string) bool {
 	return false
 }
 
+// containsField reports whether field is one of fields. Used to validate that
+// QueryShape.ResultsField names an entry actually listed in
+// RequiredResponseFields, rather than an unrelated or misspelled field name.
+func containsField(fields []string, field string) bool {
+	for _, f := range fields {
+		if f == field {
+			return true
+		}
+	}
+	return false
+}
+
 // EvaluateEdgeProperty produces a required finding for one RequiredEdgeProperties
 // entry of a correlation. values holds the property value of every matching
 // (evidence-narrowed) edge ("" = absent/non-string). An edge is offending when
@@ -281,10 +293,12 @@ func EvaluateEdgeCount(rel string, rng CountRange, count int64, required bool) F
 }
 
 // EvaluateQueryShape validates a raw JSON response body against a query shape:
-// required top-level fields must be present, the first array-valued required
-// field must have at least MinimumResults elements, and each element must carry
-// ResultItemRequiredFields. The returned finding is required: query truth is a
-// first-class B-7(c) gate.
+// required top-level fields must be present, and when the shape configures an
+// array-result assertion (MinimumResults, MaximumResults, or
+// ResultItemRequiredFields), ResultsField must name one of the required fields
+// and its resolved array must satisfy the configured bounds and per-item
+// fields. The returned finding is required: query truth is a first-class B-7(c)
+// gate.
 func EvaluateQueryShape(name string, shape QueryShape, body []byte) Finding {
 	mk := func(ok bool, detail string) Finding {
 		return Finding{Phase: "query", Check: name, OK: ok, Required: true, Detail: detail}
@@ -301,40 +315,40 @@ func EvaluateQueryShape(name string, shape QueryShape, body []byte) Finding {
 		}
 	}
 
-	// Locate the first array-valued required field to count results and validate
-	// item shape. Many shapes (e.g. operator-control-plane) have no array result;
-	// for those, presence of required fields is sufficient.
+	// An array-result assertion resolves ONLY the field ResultsField names —
+	// never an inferred "first array-valued field". Inferring from field order
+	// let a request-echo array listed before the real result array silently
+	// become the asserted target instead (eshu-hq/eshu#5566): the assertion
+	// then passed regardless of the real collection's state, and flipped
+	// silently if the two fields were ever reordered. Many shapes (e.g.
+	// operator-control-plane) assert no array result at all; for those,
+	// presence of required fields is sufficient and ResultsField stays unset.
 	var items []json.RawMessage
-	var arrayField string
-	for _, field := range shape.RequiredResponseFields {
-		var arr []json.RawMessage
-		if err := json.Unmarshal(resp[field], &arr); err == nil {
-			items = arr
-			arrayField = field
-			break
+	arrayField := shape.ResultsField
+	needsArrayResult := shape.MinimumResults > 0 || shape.MaximumResults > 0 || len(shape.ResultItemRequiredFields) > 0
+	if needsArrayResult {
+		if arrayField == "" {
+			return mk(false, fmt.Sprintf(
+				"results_field is required when minimum_results, maximum_results, or result_item_required_fields is set (no implicit first-array-field selection); required_response_fields=%v",
+				shape.RequiredResponseFields,
+			))
+		}
+		if !containsField(shape.RequiredResponseFields, arrayField) {
+			return mk(false, fmt.Sprintf("results_field %q is not listed in required_response_fields %v", arrayField, shape.RequiredResponseFields))
+		}
+		if err := json.Unmarshal(resp[arrayField], &items); err != nil {
+			return mk(false, fmt.Sprintf("results_field %q is not an array-valued field: %s", arrayField, err.Error()))
 		}
 	}
 
-	if shape.MinimumResults > 0 {
-		if arrayField == "" {
-			return mk(false, fmt.Sprintf("no array-valued result field among %v but minimum_results=%d",
-				shape.RequiredResponseFields, shape.MinimumResults))
-		}
-		if len(items) < shape.MinimumResults {
-			return mk(false, fmt.Sprintf("%q has %d results, want >= %d", arrayField, len(items), shape.MinimumResults))
-		}
+	if shape.MinimumResults > 0 && len(items) < shape.MinimumResults {
+		return mk(false, fmt.Sprintf("%q has %d results, want >= %d", arrayField, len(items), shape.MinimumResults))
 	}
 
 	// The ceiling is what makes a duplicate visible; the floor above cannot see
 	// one. See QueryShape.MaximumResults.
-	if shape.MaximumResults > 0 {
-		if arrayField == "" {
-			return mk(false, fmt.Sprintf("no array-valued result field among %v but maximum_results=%d",
-				shape.RequiredResponseFields, shape.MaximumResults))
-		}
-		if len(items) > shape.MaximumResults {
-			return mk(false, fmt.Sprintf("%q has %d results, want <= %d", arrayField, len(items), shape.MaximumResults))
-		}
+	if shape.MaximumResults > 0 && len(items) > shape.MaximumResults {
+		return mk(false, fmt.Sprintf("%q has %d results, want <= %d", arrayField, len(items), shape.MaximumResults))
 	}
 
 	for _, itemField := range shape.ResultItemRequiredFields {
