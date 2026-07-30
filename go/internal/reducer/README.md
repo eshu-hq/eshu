@@ -83,8 +83,11 @@ under the repository's 500-line cap (issue #5786):
   concurrency, and facts-first bootstrap ordering.
 - [`telemetry.md`](telemetry.md) — the full span and metric contract.
 - [`gotchas-supply-chain-and-vulnerabilities.md`](gotchas-supply-chain-and-vulnerabilities.md) —
-  domain-shape, drift, container-image-identity, SBOM, supply-chain-impact,
-  suppression, and ecosystem-parity invariants.
+  domain-shape, drift, SBOM, supply-chain-impact, suppression, and
+  ecosystem-parity invariants.
+- [`container-image-identity.md`](container-image-identity.md) — digest-first
+  identity admission, the `#5847` not-generation-authoritative writer bug, and
+  the `EvidenceAsOf` fencing-token upsert guard.
 - [`gotchas-correlation-queue-and-graph-security.md`](gotchas-correlation-queue-and-graph-security.md) —
   service-catalog and observability correlation, Kubernetes correlation,
   queue/generation invariants, code-call edge rules, and the
@@ -299,8 +302,8 @@ values each counter carries.
 - **Container image identity is digest-first and fencing-guarded** — writes
   land only for explicit digest or single-tag-to-digest matches, and a
   fencing token (`ContainerImageIdentityWrite.EvidenceAsOf`) rejects a stale
-  pass's upsert whole; see `gotchas-supply-chain-and-vulnerabilities.md`.
-  The writer is **not** generation-authoritative (#5847 is the open bug).
+  pass's upsert whole; see `container-image-identity.md`. The writer is
+  **not** generation-authoritative (#5847 is the open bug).
 - **SecurityGroup/IAM graph projections are conservative and security-sensitive**
   — `CAN_ESCALATE_TO` and `CAN_PERFORM` edges are written only for exact,
   unambiguous, non-conditioned grants; see

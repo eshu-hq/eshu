@@ -191,8 +191,10 @@ Evidence:` / `No-Observability-Change:`.)
   - **Multi-scope matrix (slice 6b, `scripts/verify-ifa-determinism.sh`,
     unmodified — no `--teeth`):** the demo-org Odù alone gives
     `concurrentreplay.Driver` exactly one work unit for ANY `-workers` count
-    (see the reducer README's teeth section), so the recorded slice-5 run
-    above proves repeatability, not a worker matrix. This run adds the
+    (see `docs/internal/evidence/4396-ifa-p3-determinism-matrix-teeth.md`,
+    relocated from `go/internal/reducer/README.md`'s former teeth section),
+    so the recorded slice-5 run above proves repeatability, not a worker
+    matrix. This run adds the
     generated synth-multiscope cassette (`ifa synth-cassette -seed 4396
     -projects 8 -resources 64`, `go/internal/synth/gcp.GenerateMultiScope`) as
     a SECOND `eshu-ifa drive -cassette <synth> -workers N` into the SAME cell

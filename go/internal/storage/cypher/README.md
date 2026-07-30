@@ -688,7 +688,8 @@ target-bound activation record.
 
 Observability Evidence: no new metric name is introduced by the writer; the
 reducer projection domain owns the bounded-enum node/edge/skip counters and the
-per-phase-duration completion log documented in `go/internal/reducer/README.md`.
+per-phase-duration completion log documented in
+`docs/internal/evidence/1347-1379-1381-secrets-iam-edge-promotion.md`.
 
 The executor chain is composed in `cmd/` wiring. A typical production chain
 wraps a concrete driver executor with `TimeoutExecutor` → `RetryingExecutor` →
@@ -1659,8 +1660,8 @@ makes it interleaving-sensitive again) and `r.ifa_teeth_write_order`
 `scripts/verify-ifa-determinism.sh --teeth` uses at least one of these two
 deliberately non-idempotent values to prove the graph-determinism matrix
 actually catches a real non-idempotent write. See
-`go/internal/reducer/README.md`'s matching section for the fuller writeup of
-why these values diverge across worker counts.
+`docs/internal/evidence/4396-ifa-p3-determinism-matrix-teeth.md` for the
+fuller writeup of why these values diverge across worker counts.
 
 ## GitHub Actions @ref pin signal (#5372)
 
