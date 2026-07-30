@@ -57,6 +57,80 @@ SET r.id = row.uid,
 // compile-time constant; no normal build pays a runtime cost for the split.
 const canonicalCloudResourceUpsertCypher = baseCloudResourceUpsertCypher + teethCloudResourceUpsertExtraSet
 
+// cloudResourceRowKeyDefault pairs one row.<key> reference
+// baseCloudResourceUpsertCypher's SET clause reads with its typed zero value.
+type cloudResourceRowKeyDefault struct {
+	key   string
+	value any
+}
+
+// cloudResourceRowKeyDefaults is the single authoritative list of every
+// row.<key> reference baseCloudResourceUpsertCypher's SET clause reads
+// (excluding "uid", the MERGE identity every caller must already supply, and
+// "evidence_source", which WriteCloudResourceNodes itself always injects
+// below). WriteCloudResourceNodes uses it to default-fill any key a caller's
+// row map omits — issue #5714/#5055's shared-writer backstop (Option A,
+// chosen over an in-Cypher `coalesce` rewrite after both were measured live
+// against the pinned NornicDB image: see
+// docs/internal/evidence/5714-cloudresource-row-key-defaults.md).
+//
+// Every present-and-set CloudResource row builder (AWS, Azure, GCP) already
+// supplies all of these keys explicitly (the #4995/#5450/#5714 precedent), so
+// this defaulting is normally a no-op; it exists so a FUTURE row builder that
+// forgets one cannot reproduce the class of bug this issue fixed. The pinned
+// NornicDB backend does not evaluate a key MISSING from one row of a
+// heterogeneous UNWIND $rows batch as null in a SET clause — it persists a
+// stringified representation of the row expression instead (e.g.
+// "row.workload_id", a non-empty string a query/join consumer would treat as
+// real data).
+//
+// A fixed-order slice, not a map: WriteCloudResourceNodes runs this over
+// every row in a batch (up to DefaultBatchSize), and ranging a Go map costs
+// measurably more per entry than a slice (hashing plus randomized iteration
+// order) for no benefit here — see the Performance Evidence note in
+// go/internal/storage/cypher/README.md. Keep this slice in lockstep with
+// baseCloudResourceUpsertCypher's SET clause:
+// TestCloudResourceRowKeyDefaultsCoversEverySetKey fails the build if a SET
+// key has no matching default (or vice versa).
+var cloudResourceRowKeyDefaults = []cloudResourceRowKeyDefault{
+	{"arn", ""},
+	{"resource_id", ""},
+	{"resource_type", ""},
+	{"name", ""},
+	{"state", ""},
+	{"account_id", ""},
+	{"region", ""},
+	{"service_kind", ""},
+	{"correlation_anchors", []string{}},
+	{"service_anchor_status", ""},
+	{"service_anchor_source", ""},
+	{"service_anchor_reason", ""},
+	{"service_anchor_names", []string{}},
+	{"service_anchor_name_tokens", ""},
+	{"workload_id", ""},
+	{"service_name", ""},
+	{"running_image_ref", ""},
+	{"running_image_digest", ""},
+	{"source_fact_id", ""},
+	{"stable_fact_key", ""},
+	{"source_system", ""},
+	{"source_record_id", ""},
+	{"source_confidence", ""},
+	{"collector_kind", ""},
+}
+
+// defaultFillCloudResourceRow ensures every key cloudResourceRowKeyDefaults
+// names is present on row, filling any missing key with its typed zero value.
+// A key row already carries (even if empty/zero-valued) is left untouched —
+// this only fills OMITTED keys, never overwrites a caller-supplied value.
+func defaultFillCloudResourceRow(row map[string]any) {
+	for _, d := range cloudResourceRowKeyDefaults {
+		if _, present := row[d.key]; !present {
+			row[d.key] = d.value
+		}
+	}
+}
+
 // CloudResourceNodeWriter materializes aws_resource facts into canonical
 // CloudResource graph nodes. It satisfies the reducer-owned
 // CloudResourceNodeWriter consumer interface and writes through the
@@ -99,6 +173,7 @@ func (w *CloudResourceNodeWriter) WriteCloudResourceNodes(
 			cloned[key] = value
 		}
 		cloned["evidence_source"] = evidenceSource
+		defaultFillCloudResourceRow(cloned)
 		annotated = append(annotated, cloned)
 	}
 

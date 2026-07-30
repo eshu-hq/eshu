@@ -134,6 +134,7 @@ func TestCheckMCPQueryTextContentFallback(t *testing.T) {
 		"list_indexed_repositories": {
 			RequiredResponseFields:   []string{"repositories"},
 			MinimumResults:           1,
+			ResultsField:             "repositories",
 			ResultItemRequiredFields: []string{"id", "name"},
 		},
 	}}}
@@ -161,7 +162,7 @@ func TestCheckMCPQueryToolErrorsAreRequiredFailures(t *testing.T) {
 			t.Parallel()
 			doer := &fakeMCPDoer{byTool: map[string]string{"list_cloud_resource_inventory": resp}}
 			snap := Snapshot{QueryShapes: QueryShapes{MCP: map[string]QueryShape{
-				"list_cloud_resource_inventory": {RequiredResponseFields: []string{"resources"}, MinimumResults: 1},
+				"list_cloud_resource_inventory": {RequiredResponseFields: []string{"resources"}, MinimumResults: 1, ResultsField: "resources"},
 			}}}
 			var r Report
 			if err := checkMCPQuery(context.Background(), mcpClientWithDoer(doer), snap, &r); err != nil {
@@ -208,7 +209,7 @@ func TestCheckMCPQueryHTTPErrorFails(t *testing.T) {
 		"list_kubernetes_correlations": `{}`,
 	}}
 	snap := Snapshot{QueryShapes: QueryShapes{MCP: map[string]QueryShape{
-		"list_kubernetes_correlations": {RequiredResponseFields: []string{"correlations"}, MinimumResults: 1},
+		"list_kubernetes_correlations": {RequiredResponseFields: []string{"correlations"}, MinimumResults: 1, ResultsField: "correlations"},
 	}}}
 	var r Report
 	if err := checkMCPQuery(context.Background(), mcpClientWithDoer(doer), snap, &r); err != nil {
