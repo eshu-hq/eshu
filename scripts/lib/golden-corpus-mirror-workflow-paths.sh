@@ -43,6 +43,16 @@ require_workflow_path "ingester fact emission"         "go/cmd/ingester/**"
 require_workflow_path "projector runtime"              "go/cmd/projector/**"
 require_workflow_path "reducer runtime"                "go/cmd/reducer/**"
 require_workflow_path "api query surface"              "go/cmd/api/**"
+# Both were already IN the workflow's paths filter and the ci-gates registry
+# but had never been asserted by this mirror -- a pre-existing gap (present on
+# main too), found during the #5538 second review round. The gate command
+# itself (go/cmd/golden-corpus-gate/**) builds the orchestrator binary that
+# drives every stage this file asserts; go/internal/demospec backs the
+# fixed-corpus repository/demo-answer inputs the gate replays. Without an
+# assertion here, either path silently falling out of the workflow (a typo, a
+# rename, a merge conflict) would pass this mirror with nothing to catch it.
+require_workflow_path "golden-corpus-gate command (#5538 gap)" "go/cmd/golden-corpus-gate/**"
+require_workflow_path "demo-spec fixed corpus inputs (#5538 gap)" "go/internal/demospec/**"
 require_workflow_path "static ecosystem corpus inputs" "tests/fixtures/ecosystems/**"
 # The orchestrator sources these; an edit to the mutex or a fixture/timing lib
 # changes what the gate does, so each must trigger it. Without this the lock
@@ -225,3 +235,60 @@ require_workflow_path "IaC reachability analysis (#5538)" "go/internal/iacreacha
 # parser/ruby and reducer dead-code-root verdict engine those MCP shapes are
 # asserted live against.
 require_workflow_path "dead-code verdict engine (#5538)" "go/internal/rubycontroller/**"
+
+# --- #5538 second review round: capability/status/version surface ----------
+# Independently re-derived reachability with `go list -deps` over the same
+# six binaries and confirmed five more packages directly feed a
+# required_response_fields entry the B-12 snapshot asserts live.
+
+# query/capabilities.go imports capabilitycatalog directly and calls
+# capabilitycatalog.Load() to build the get_capability_catalog.capabilities
+# response; mcp/read_surface_factkind.go imports it directly and calls
+# capabilitycatalog.LoadSurfaceInventory() for get_surface_inventory.surfaces.
+# Both calls are unconditional (no env gate), unlike the excluded component
+# registry readback below.
+require_workflow_path "capability + surface catalog (#5538)" "go/internal/capabilitycatalog/**"
+
+# query/collector_extraction_readiness.go imports extraction directly; the
+# handler's own doc comment states it "reads no runtime, graph, or registry
+# state" -- a static catalog read, unconditional -- backing
+# list_collector_extraction_readiness and get_collector_extraction_readiness.
+require_workflow_path "collector extraction readiness catalog (#5538)" "go/internal/extraction/**"
+
+# query/status_governance.go imports governanceaudit directly and calls
+# GovernanceAudit.Summary() to fill get_hosted_governance_status.audit.
+# cmd/api/wiring_router.go and cmd/mcp-server/wiring_router.go both wire a
+# real store (newGovernanceAuditStore / pgstatus.NewGovernanceAuditStore)
+# unconditionally -- no opt-in flag gates it, unlike governanceauditasync
+# (excluded below: that async sink only fires behind a scoped-token/OIDC-bearer
+# read this gate's static ESHU_API_KEY auth never resolves).
+require_workflow_path "governance audit summary (#5538)" "go/internal/governanceaudit/**"
+
+# query/status_governance.go, status.go, status_collectors.go, and
+# status_operations.go all import internal/status directly; status.go's
+# getGovernanceStatus unconditionally calls status.BuildReport/LoadReport to
+# fill get_hosted_governance_status.readiness/semantic/aggregates, and the
+# same package backs get_ingester_status's and get_index_status's
+# coordinator/queue/scope_activity fields.
+require_workflow_path "pipeline status readback (#5538)" "go/internal/status/**"
+
+# buildinfo.AppVersion() is called directly from status.go and
+# status_operations.go to fill the "version" field required on
+# list_collectors, list_ingesters, get_ingester_status, get_index_status,
+# get_hosted_readiness, get_capability_catalog, and get_surface_inventory.
+require_workflow_path "build version stamp (#5538)" "go/internal/buildinfo/**"
+
+# internal/component was checked again in this round and is DELIBERATELY LEFT
+# OUT -- re-verification shows the prior exclusion was correct here (unlike
+# "reducer correlation" and workflowimage, which 6a6944fbad's message got
+# wrong). Both asserted MCP shapes
+# (list_component_extensions/get_component_extension_diagnostics) pin
+# expected_error_contains "component extension registry is unavailable",
+# which query/component_extensions.go's readbackOrUnavailable produces on its
+# `ComponentHome == ""` branch -- BEFORE ever calling
+# component.NewRegistry(...).Readback(...). ESHU_COMPONENT_HOME is never set
+# by verify-golden-corpus-gate.sh or docker-compose.yaml, so the real registry
+# code is unreachable dead code for this gate. internal/coordinator's
+# ComponentExtensionWorkPlanner is equally dead: it only plans work for a
+# configured component-extension collector instance, and none exists in this
+# corpus. See scripts/lib/golden-corpus-filter-exclusions.txt.

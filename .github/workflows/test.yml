@@ -146,6 +146,11 @@ jobs:
           scripts/test-verify-parser-relationship-kit.sh
           scripts/verify-parser-relationship-kit.sh
 
+      - name: Verify golden-corpus filter exhaustiveness
+        run: |
+          scripts/test-verify-golden-corpus-filter-exhaustive.sh
+          scripts/verify-golden-corpus-filter-exhaustive.sh
+
   go-core:
     needs: changes
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}

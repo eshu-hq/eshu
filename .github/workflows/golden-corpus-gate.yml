@@ -89,6 +89,19 @@ on:
       - 'go/internal/semanticprofile/**'
       - 'go/internal/iacreachability/**'
       - 'go/internal/rubycontroller/**'
+      # #5538 second review round: capability/status/version surface backing
+      # get_capability_catalog, get_surface_inventory,
+      # list_collector_extraction_readiness, get_collector_extraction_readiness,
+      # get_hosted_governance_status, get_ingester_status, get_index_status,
+      # list_collectors, list_ingesters, get_hosted_readiness. See the lib file
+      # for the per-package import evidence, and for why internal/component was
+      # checked and confirmed correctly excluded (unlike the two corrections
+      # above).
+      - 'go/internal/capabilitycatalog/**'
+      - 'go/internal/extraction/**'
+      - 'go/internal/governanceaudit/**'
+      - 'go/internal/status/**'
+      - 'go/internal/buildinfo/**'
       - 'testdata/golden/**'
       - 'testdata/cassettes/**'
       - 'tests/fixtures/ecosystems/**'

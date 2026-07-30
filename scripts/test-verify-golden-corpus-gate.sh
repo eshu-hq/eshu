@@ -45,8 +45,11 @@ bash -n "${matcher_lib}" || fail "golden-corpus-mirror-matcher.sh has a syntax e
 # extracted to a sourced lib chunk (golden-corpus-mirror-workflow-paths.sh) to
 # keep this mirror under the repo's 500-line file rule as the count grows; see
 # that lib's header for the full rationale per group of paths.
+workflow_paths_lib="${repo_root}/scripts/lib/golden-corpus-mirror-workflow-paths.sh"
+[[ -f "${workflow_paths_lib}" ]] || fail "missing workflow paths lib: ${workflow_paths_lib}"
+bash -n "${workflow_paths_lib}" || fail "golden-corpus-mirror-workflow-paths.sh has a syntax error"
 # shellcheck source=scripts/lib/golden-corpus-mirror-workflow-paths.sh
-. "${repo_root}/scripts/lib/golden-corpus-mirror-workflow-paths.sh"
+. "${workflow_paths_lib}"
 # The workflow is only one of THREE lists that must carry these paths. Assert the
 # other two as well, or "the gap cannot reopen" is true for a third of the gap.
 # Scoped to each gate's OWN trigger block: a file-wide grep passes while the path

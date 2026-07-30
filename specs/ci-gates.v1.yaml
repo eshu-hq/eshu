@@ -1503,6 +1503,15 @@ gates:
       - "go/internal/semanticprofile/**"
       - "go/internal/iacreachability/**"
       - "go/internal/rubycontroller/**"
+      # #5538 second review round: capability/status/version surface --
+      # mirrors the workflow's own addition. See
+      # scripts/lib/golden-corpus-mirror-workflow-paths.sh for the per-package
+      # import evidence, and for why internal/component stays excluded.
+      - "go/internal/capabilitycatalog/**"
+      - "go/internal/extraction/**"
+      - "go/internal/governanceaudit/**"
+      - "go/internal/status/**"
+      - "go/internal/buildinfo/**"
       - "testdata/golden/**"
       - "testdata/cassettes/**"
       - "tests/fixtures/ecosystems/**"
@@ -1525,6 +1534,35 @@ gates:
       - go
       - docker
       - nornicdb
+    ci_only_reason: ""
+
+  # #5538 task 4 root-cause fix: three review rounds each found more packages
+  # missing from golden-corpus-gate's own path filter because completeness was
+  # maintained by hand. This gate makes it converge -- it derives the real
+  # compiled-package set with `go list -deps` and fails when a package is
+  # neither covered by that filter nor listed in the exclusions file. Its own
+  # triggers include its own script/lib/workflow paths (not just the filter it
+  # checks), so an edit to the checker itself is never a false green -- the
+  # #5873 self-trigger gap this is written to avoid repeating.
+  - id: golden-corpus-filter-exhaustive
+    name: Golden corpus PR path filter exhaustiveness
+    category: hygiene
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/**"
+      - ".github/workflows/golden-corpus-gate.yml"
+      - "scripts/verify-golden-corpus-filter-exhaustive.sh"
+      - "scripts/test-verify-golden-corpus-filter-exhaustive.sh"
+      - "scripts/lib/golden-corpus-filter-exclusions.txt"
+    local:
+      command: "bash scripts/verify-golden-corpus-filter-exhaustive.sh"
+      test_command: "bash scripts/test-verify-golden-corpus-filter-exhaustive.sh"
+    ci:
+      workflow: test.yml
+      job: "verify-contracts"
+    requirements:
+      - go
     ci_only_reason: ""
 
   - id: replay-coverage-gate

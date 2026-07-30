@@ -1,0 +1,84 @@
+# Explicit exclusion list for scripts/verify-golden-corpus-filter-exhaustive.sh.
+#
+# Every github.com/eshu-hq/eshu/go/internal/* or go/cmd/* top-level package
+# actually compiled into the six golden-corpus-gate binaries (bootstrap-index,
+# projector, reducer, api, mcp-server, golden-corpus-gate) must be EITHER
+# covered by a path in .github/workflows/golden-corpus-gate.yml's
+# on.pull_request.paths filter, OR listed here with a one-line reason. A
+# package in neither set fails the check -- see that script's header for why.
+#
+# Format: one entry per line, "<go/internal/X or go/cmd/X><whitespace><reason>".
+# Blank lines and full-line "#" comments are ignored.
+#
+# Adding an entry here is a real decision, not a way to silence the check:
+# the reason must say why a change to the package cannot alter what the B-7
+# gate projects or asserts, the same test scripts/lib/golden-corpus-mirror-
+# workflow-paths.sh applies to every INCLUDED package.
+
+# --- the "ask"/answer-narration pipeline ------------------------------------
+# Gated by ESHU_ASK_ENABLED, never set by verify-golden-corpus-gate.sh. The
+# only asserted "ask" MCP shape pins expected_error_contains "ask is not
+# enabled", produced entirely by the already-covered internal/query package
+# before any of these ever run.
+go/internal/ask				ask pipeline gated by ESHU_ASK_ENABLED, never set in this gate; only asserted shape is an already-covered query-package error string
+go/internal/askwiring			wiring for the ask pipeline above; never constructs a live handler when ESHU_ASK_ENABLED is unset
+go/internal/answerguardrail	guardrail policy consulted only by the ask/answer-narration pipeline above
+go/internal/answernarration	answer narration pipeline gated by the same ESHU_ASK_ENABLED flag
+
+# --- the auth family (scoped-token/OIDC/SAML/TOTP identity) ----------------
+# verify-golden-corpus-gate.sh authenticates every API/MCP call with a
+# static ESHU_API_KEY bearer token (see scripts/verify-golden-corpus-gate.sh's
+# GATE_API_KEY / ESHU_API_KEY export). internal/query/auth.go's
+# resolver.ResolveScopedToken never matches that static shared secret, so the
+# scoped-token/OIDC/SAML/TOTP resolution code below this branch never runs.
+go/internal/githublogin			GitHub OIDC login auth family; gate never exercises a login flow
+go/internal/oidcbearer				OIDC bearer token resolution; gate's static ESHU_API_KEY never resolves as a scoped/OIDC token
+go/internal/oidclogin				OIDC login auth family; same as githublogin
+go/internal/samlauth				SAML auth family; same as githublogin
+go/internal/scopedtoken			scoped-token resolver; ResolveScopedToken never matches the gate's static shared secret, so this is dead code for the gate
+go/internal/secretcrypto			secret-crypto for auth token material; only reached through the scoped-token/OIDC/SAML stores above
+go/internal/totp					TOTP MFA for the auth family; same exclusion class
+go/internal/governanceauditasync	allowed-read audit sink wired only behind recordScopedReadAuthorized, which fires only for a RESOLVED scoped-token/OIDC-bearer request (internal/query/auth.go); the gate's static ESHU_API_KEY auth never takes that branch, so this is dead code for the gate too -- same class as the scopedtoken/oidcbearer packages it audits
+
+# --- internal/component (checked and RE-CONFIRMED excluded) -----------------
+# See scripts/lib/golden-corpus-mirror-workflow-paths.sh for the full
+# evidence: both asserted MCP shapes short-circuit in
+# query.ComponentExtensionsHandler.readbackOrUnavailable on ComponentHome=="",
+# before ever calling component.NewRegistry(...).Readback(...).
+# ESHU_COMPONENT_HOME is never set by this gate, and no component-extension
+# collector instance exists in the corpus for internal/coordinator's
+# ComponentExtensionWorkPlanner to plan work for either.
+go/internal/component	both asserted MCP shapes short-circuit on ComponentHome=="" before the real registry code runs; ESHU_COMPONENT_HOME is never set by this gate
+
+# --- collector/source families outside the gate's fixed cassette corpus ----
+go/internal/redact			redaction layer for LIVE collector output; cassette replay bypasses live collection and its redaction path entirely (see eshu-golden-corpus-rigor)
+go/internal/tfstatewarning	terraform-state collector staleness warning surface; not one of the 9 credentialed collectors this gate replays via cassette
+go/internal/vulnsource		vulnerability-source ingestion outside the gate's fixed cassette/fixture inputs
+
+# --- operational control plane / observability / utility -------------------
+# None of these packages emit facts, write graph state, or feed a query/MCP
+# response field the B-12 snapshot asserts; they are cross-cutting
+# infrastructure consumed by many already-covered packages.
+go/internal/runtime			admin/status/probes/retry-policy/lifecycle control plane; does not alter projected graph or query truth
+go/internal/telemetry		OTEL spans/metrics/logs; observability side channel, never alters a query/graph response value
+go/internal/clock			fake-clock test utility used only by internal/replay/crashreplay's crash-replay simulation harness, not the gate's normal replay path
+go/internal/boundedset		generic bounded-set data structure utility; not itself a fact/graph/query producer
+go/internal/cpubudget		CPU budget/throttling scheduling knob; not projected truth
+go/internal/webhook			outbound webhook delivery; not on the fact/graph/query read path this gate asserts
+go/internal/app				service bootstrap/admin HTTP wiring (health/readiness server); not a fact or query producer
+go/internal/payloadusage	payload-size usage accounting/metrics; not projected truth
+go/internal/recovery		panic-recovery HTTP middleware; not projected truth
+go/internal/workflow		coordinator run/work-item scheduling types used for dynamic collector-instance and component-extension planning outside the gate's fixed cassette/fixture corpus; no such live instance exists in this corpus
+
+# --- search/semantic packages not reachable from the six gate binaries -----
+# Checked during #5538's review and confirmed NOT present in `go list -deps`
+# output for any of bootstrap-index, projector, reducer, api, mcp-server, or
+# golden-corpus-gate. Listed here for documentation/future-proofing per that
+# review, not because the exhaustiveness check currently observes them --
+# scripts/test-verify-golden-corpus-filter-exhaustive.sh asserts they stay
+# absent from the compiled set so this entry cannot silently go stale.
+go/internal/searchbenchrun			not reachable via go list -deps for any of the six gate binaries
+go/internal/searchdecaytelemetry	not reachable via go list -deps for any of the six gate binaries
+go/internal/searchnornicdb			not reachable via go list -deps for any of the six gate binaries
+go/internal/searchpostgres			not reachable via go list -deps for any of the six gate binaries
+go/internal/semanticdocs			not reachable via go list -deps for any of the six gate binaries
