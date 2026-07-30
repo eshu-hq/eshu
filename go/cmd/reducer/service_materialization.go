@@ -55,8 +55,9 @@ func containerImageIdentityWriterFor(
 		return nil
 	}
 	return reducer.PostgresContainerImageIdentityWriter{
-		DB:       database,
-		Beginner: postgres.ContainerImageIdentityBeginner{Beginner: beginner},
+		DB:            database,
+		Beginner:      postgres.ContainerImageIdentityBeginner{Beginner: beginner},
+		CutoverLookup: postgres.NewContainerImageIdentityCutoverStore(database),
 	}
 }
 

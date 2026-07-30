@@ -147,13 +147,8 @@ func TestActiveOCIWarningIndexMigrationLifecycleLive(t *testing.T) {
 		t.Fatalf("release cancelled index-build snapshot: %v", err)
 	}
 
-	if err := ApplyDefinitionsWithLockTimeout(
-		ctx,
-		exec,
-		[]Definition{migration},
-		5*time.Second,
-	); err != nil {
-		t.Fatalf("retry migration 087 after invalid-index cleanup: %v", err)
+	if err := ApplyBootstrap(ctx, exec); err != nil {
+		t.Fatalf("retry full bootstrap after invalid migration 087 cleanup: %v", err)
 	}
 	recovered := readActiveOCIWarningIndexState(t, ctx, applyDB)
 	assertActiveOCIWarningIndexReady(t, recovered)

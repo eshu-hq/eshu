@@ -81,6 +81,9 @@ func TestPostgresContainerImageIdentityWriterPersistsCanonicalDecisions(t *testi
 	if got, want := payload["identity_strength"], "tag_observation_with_digest"; got != want {
 		t.Fatalf("payload identity_strength = %#v, want %q", got, want)
 	}
+	if got, want := payload["identity_format"], containerImageIdentityFormatImageRef; got != want {
+		t.Fatalf("payload identity_format = %#v, want %q", got, want)
+	}
 }
 
 func TestPostgresContainerImageIdentityWriterUsesStableTagReferenceIdentity(t *testing.T) {

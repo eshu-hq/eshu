@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-func TestWriteContainerImageIdentityDecisionsUsesOneStatementForSingleChunkCleanup(
+func TestWriteContainerImageIdentityDecisionsReusesCompletedSingleChunkCutover(
 	t *testing.T,
 ) {
 	t.Parallel()
@@ -23,8 +23,121 @@ func TestWriteContainerImageIdentityDecisionsUsesOneStatementForSingleChunkClean
 	beginner := &containerImageIdentityRetireBeginner{
 		tx: &containerImageIdentityRetireTx{},
 	}
+	lookup := &containerImageIdentityRetireCutoverLookup{exists: true}
+	writer := PostgresContainerImageIdentityWriter{
+		DB:            db,
+		Beginner:      beginner,
+		CutoverLookup: lookup,
+	}
+
+	result, err := writer.WriteContainerImageIdentityDecisions(
+		context.Background(),
+		containerImageIdentityRetireWrite(),
+	)
+	if err != nil {
+		t.Fatalf("WriteContainerImageIdentityDecisions() error = %v", err)
+	}
+	if lookup.calls != 1 {
+		t.Fatalf("cutover lookup calls = %d, want 1", lookup.calls)
+	}
+	if beginner.calls != 0 {
+		t.Fatalf("transaction begin calls = %d, want 0 after completed cutover", beginner.calls)
+	}
+	if got := len(db.queries); got != 1 {
+		t.Fatalf("direct queries = %d, want 1 publication+cleanup statement", got)
+	}
+	if db.queries[0] != containerImageIdentityPublishAndLegacyCleanupQuery {
+		t.Fatalf("completed-cutover query is not publication+cleanup:\n%s", db.queries[0])
+	}
+	if got, want := result.LegacyRowsDeleted, 1; got != want {
+		t.Fatalf("LegacyRowsDeleted = %d, want %d", got, want)
+	}
+}
+
+func TestWriteContainerImageIdentityDecisionsReusesCompletedMultiChunkCutover(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	tx := &containerImageIdentityRetireTx{retired: 1}
+	beginner := &containerImageIdentityRetireBeginner{tx: tx}
+	lookup := &containerImageIdentityRetireCutoverLookup{exists: true}
+	writer := PostgresContainerImageIdentityWriter{
+		DB:            &containerImageIdentityRetireOutsideDB{},
+		Beginner:      beginner,
+		CutoverLookup: lookup,
+	}
+
+	result, err := writer.WriteContainerImageIdentityDecisions(
+		context.Background(),
+		containerImageIdentityRetireMultiChunkWrite(),
+	)
+	if err != nil {
+		t.Fatalf("WriteContainerImageIdentityDecisions() error = %v", err)
+	}
+	if got, want := beginner.calls, 1; got != want {
+		t.Fatalf("transaction begin calls = %d, want %d", got, want)
+	}
+	if got, want := len(tx.queries), 2; got != want {
+		t.Fatalf("transaction queries = %d, want %d", got, want)
+	}
+	if tx.queries[0] != reducerFactBatchInsertQuery {
+		t.Fatalf("first query = %q, want bounded publication", tx.queries[0])
+	}
+	if tx.queries[1] != containerImageIdentityPublishAndLegacyCleanupQuery {
+		t.Fatalf("second query = %q, want final publication+cleanup", tx.queries[1])
+	}
+	if !tx.committed || tx.rolledBack {
+		t.Fatalf("transaction committed=%t rolledBack=%t, want true/false", tx.committed, tx.rolledBack)
+	}
+	if got, want := result.LegacyRowsDeleted, 1; got != want {
+		t.Fatalf("LegacyRowsDeleted = %d, want %d", got, want)
+	}
+}
+
+func TestWriteContainerImageIdentityDecisionsFailsClosedOnCutoverLookupError(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	db := &containerImageIdentityRetireDirectDB{}
+	beginner := &containerImageIdentityRetireBeginner{
+		tx: &containerImageIdentityRetireTx{},
+	}
 	writer := PostgresContainerImageIdentityWriter{
 		DB:       db,
+		Beginner: beginner,
+		CutoverLookup: &containerImageIdentityRetireCutoverLookup{
+			err: errors.New("synthetic cutover lookup failure"),
+		},
+	}
+
+	_, err := writer.WriteContainerImageIdentityDecisions(
+		context.Background(),
+		containerImageIdentityRetireWrite(),
+	)
+	if err == nil || !strings.Contains(err.Error(), "synthetic cutover lookup failure") {
+		t.Fatalf("WriteContainerImageIdentityDecisions() error = %v, want lookup failure", err)
+	}
+	if beginner.calls != 0 {
+		t.Fatalf("transaction begin calls = %d, want 0", beginner.calls)
+	}
+	if len(db.queries) != 0 {
+		t.Fatalf("write queries = %d, want 0", len(db.queries))
+	}
+}
+
+func TestWriteContainerImageIdentityDecisionsFencesSingleChunkCleanupInTransaction(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	tx := &containerImageIdentityRetireTx{retired: 1}
+	beginner := &containerImageIdentityRetireBeginner{
+		tx: tx,
+	}
+	writer := PostgresContainerImageIdentityWriter{
+		DB:       &containerImageIdentityRetireOutsideDB{},
 		Beginner: beginner,
 	}
 
@@ -35,16 +148,22 @@ func TestWriteContainerImageIdentityDecisionsUsesOneStatementForSingleChunkClean
 	if err != nil {
 		t.Fatalf("WriteContainerImageIdentityDecisions() error = %v", err)
 	}
-	if beginner.calls != 0 {
-		t.Fatalf("transaction begin calls = %d, want 0 for one bounded chunk", beginner.calls)
+	if beginner.calls != 1 {
+		t.Fatalf("transaction begin calls = %d, want 1 for the cutover fence", beginner.calls)
 	}
-	if got := len(db.queries); got != 1 {
-		t.Fatalf("direct queries = %d, want 1 atomic publication+cleanup statement", got)
+	if got := len(tx.queries); got != 2 {
+		t.Fatalf("transaction queries = %d, want fence then publication+cleanup", got)
+	}
+	if tx.queries[0] != containerImageIdentityCutoverFenceQuery {
+		t.Fatalf("first transaction query is not the cutover fence:\n%s", tx.queries[0])
 	}
 	for _, want := range []string{"WITH published AS", "INSERT INTO fact_records", "DELETE FROM fact_records"} {
-		if !strings.Contains(db.queries[0], want) {
-			t.Fatalf("single-chunk query missing %q:\n%s", want, db.queries[0])
+		if !strings.Contains(tx.queries[1], want) {
+			t.Fatalf("single-chunk query missing %q:\n%s", want, tx.queries[1])
 		}
+	}
+	if !tx.committed || tx.rolledBack {
+		t.Fatalf("transaction committed=%t rolledBack=%t, want true/false", tx.committed, tx.rolledBack)
 	}
 	if got, want := result.LegacyRowsDeleted, 1; got != want {
 		t.Fatalf("LegacyRowsDeleted = %d, want %d", got, want)
@@ -72,20 +191,23 @@ func TestWriteContainerImageIdentityDecisionsCommitsPublicationAndLegacyCleanupA
 	if got, want := beginner.calls, 1; got != want {
 		t.Fatalf("begin calls = %d, want %d", got, want)
 	}
-	if got, want := len(tx.queries), 2; got != want {
+	if got, want := len(tx.queries), 3; got != want {
 		t.Fatalf("transaction queries = %d, want %d", got, want)
 	}
-	if tx.queries[0] != reducerFactBatchInsertQuery {
-		t.Fatalf("first transaction query is not reducer batch insert:\n%s", tx.queries[0])
+	if tx.queries[0] != containerImageIdentityCutoverFenceQuery {
+		t.Fatalf("first transaction query is not the cutover fence:\n%s", tx.queries[0])
 	}
-	if tx.queries[1] != containerImageIdentityPublishAndLegacyCleanupQuery {
-		t.Fatalf("second transaction query is not final publication+legacy cleanup:\n%s", tx.queries[1])
+	if tx.queries[1] != reducerFactBatchInsertQuery {
+		t.Fatalf("second transaction query is not reducer batch insert:\n%s", tx.queries[1])
 	}
-	if got, want := tx.args[1][16], write.LegacyFactIDs; !equalRetireIDArgument(got, want) {
+	if tx.queries[2] != containerImageIdentityPublishAndLegacyCleanupQuery {
+		t.Fatalf("third transaction query is not final publication+legacy cleanup:\n%s", tx.queries[2])
+	}
+	if got, want := tx.args[2][16], write.LegacyFactIDs; !equalRetireIDArgument(got, want) {
 		t.Fatalf("legacy IDs arg = %#v, want %#v", got, want)
 	}
-	insertedFactIDs := append([]string(nil), tx.args[0][0].([]string)...)
-	insertedFactIDs = append(insertedFactIDs, tx.args[1][0].([]string)...)
+	insertedFactIDs := append([]string(nil), tx.args[1][0].([]string)...)
+	insertedFactIDs = append(insertedFactIDs, tx.args[2][0].([]string)...)
 	if got, want := len(insertedFactIDs), len(write.Decisions); got != want {
 		t.Fatalf("inserted fact IDs = %d, want %d", got, want)
 	}
@@ -119,7 +241,7 @@ func TestWriteContainerImageIdentityDecisionsRollsBackBeforeRetireWhenInsertFail
 	if err == nil || !strings.Contains(err.Error(), "batch insert reducer facts") {
 		t.Fatalf("WriteContainerImageIdentityDecisions() error = %v, want insert failure", err)
 	}
-	if got, want := len(tx.queries), 1; got != want {
+	if got, want := len(tx.queries), 2; got != want {
 		t.Fatalf("transaction queries = %d, want %d (no retire after failed insert)", got, want)
 	}
 	if tx.committed || !tx.rolledBack {
@@ -190,6 +312,21 @@ func containerImageIdentityRetireMultiChunkWrite() ContainerImageIdentityWrite {
 type containerImageIdentityRetireBeginner struct {
 	tx    ContainerImageIdentityTransaction
 	calls int
+}
+
+type containerImageIdentityRetireCutoverLookup struct {
+	exists bool
+	err    error
+	calls  int
+}
+
+func (l *containerImageIdentityRetireCutoverLookup) ContainerImageIdentityCutoverExists(
+	context.Context,
+	string,
+	string,
+) (bool, error) {
+	l.calls++
+	return l.exists, l.err
 }
 
 func (b *containerImageIdentityRetireBeginner) BeginContainerImageIdentityTx(

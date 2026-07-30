@@ -67,6 +67,22 @@ in `internal/reducer`.
 High-signal invariants for this package:
 
 - Bootstrap DDL is idempotent and ordered through `BootstrapDefinitions`.
+- Migration 088 fences the `container_image_identity` outcome-keyed to
+  image-reference-keyed rolling cutover. New-format rows identify themselves
+  with `payload.identity_format=image_ref_v2` and bypass the trigger. Legacy
+  rows take a transaction advisory lock by `(scope_id, generation_id)` and are
+  skipped after the durable `container_image_identity_cutovers` marker commits.
+  The new writer takes the same lock before its first marker, publication, and
+  exact cleanup transaction. Later passes read the marker through its primary
+  key: bounded passes use one publication-plus-cleanup statement without an
+  explicit transaction, while multi-chunk passes retain one transaction but
+  skip the completed fence. Read Committed is part of the old-writer
+  compatibility contract; stronger snapshot isolation fails closed.
+  Performance Evidence: 100,000 unrelated inserts measured +0.48% median in
+  the pre-implementation trigger shim; 100,000 marker rows measured 0.053 ms
+  for an existing-key lookup and 0.044 ms for a miss; paired production-path
+  results and concurrency evidence live in
+  `docs/internal/evidence/5847-container-image-identity-retire.md`.
 - Cold-bootstrap content search indexing has a separate durable lifecycle in
   `content_substring_index_state`. Deferred schema creates the content tables
   without the three exact trigram GINs for file content, entity source, and

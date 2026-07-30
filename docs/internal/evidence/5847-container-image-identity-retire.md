@@ -886,13 +886,45 @@ belong in this change.
 ## #5854 outcome-independent identity and fenced tombstones
 
 The completed design does not use the withdrawn generation-wide DELETE and does
-not use advisory locks.
+not rely on an advisory lock to order image-reference-keyed writers. Those
+writers still converge through one durable logical `fact_id` and its fencing
+token.
 
-An advisory transaction lock provides mutual exclusion only while two writers
-overlap. It cannot order a stale worker that starts its write after the fresher
-worker has already committed and released the lock. Deleting the row is the
-deeper defect: it destroys the durable fencing token, leaving no conflict target
-for that late stale insert.
+Migration from the OLD outcome-keyed format needs an additional rolling-upgrade
+fence because an old binary derives a DIFFERENT `fact_id`. A preliminary review
+reproduced the missing ordering: the new writer published and deleted the known
+legacy row, committed, and then an old binary inserted that outcome-keyed row
+after cleanup. The logical-key token cannot conflict with a key it never sees.
+
+Migration 088 therefore installs a compatibility fence, not a steady-state
+writer serializer:
+
+1. New rows carry `payload.identity_format = image_ref_v2` and bypass the
+   compatibility trigger.
+2. Before the first publication and cleanup, the new writer starts a
+   transaction, takes one transaction advisory lock keyed by
+   `(scope_id, generation_id)`, and inserts a durable
+   `container_image_identity_cutovers` marker.
+3. The legacy-row trigger takes the same key before checking the marker. A
+   legacy insert that committed before the lock is visible to the cleanup's
+   next Read Committed statement; one that overlaps waits and is skipped after
+   the marker commits; one that starts later is skipped immediately.
+4. Marker, new-format rows, and cleanup commit or roll back together. The marker
+   survives commit, so release of the advisory lock cannot reopen the old key
+   space.
+5. Later passes read that marker through its primary key. A bounded
+   single-chunk pass then publishes and performs exact cleanup in one statement
+   without another explicit transaction. A larger pass retains one transaction
+   across its bounded chunks but skips the already-completed compatibility
+   fence.
+
+The trigger fails legacy writes closed above Read Committed isolation. The old
+writer uses an implicit Read Committed transaction; at that level PostgreSQL
+gives the trigger's post-lock marker lookup a current statement snapshot.
+Repeatable Read would retain the pre-lock snapshot and could miss a newly
+committed marker, so migration 088 raises an explicit error instead of guessing.
+New-format rows bypass the trigger and retain their existing logical-key
+concurrency.
 
 The shipped invariant is:
 
@@ -917,6 +949,40 @@ The SQL theory shim ran against the isolated Postgres 16 container on port
 3. Attempt stale live token 5: PostgreSQL returned `INSERT 0 0`; the stored row
    remained tombstoned at token 10.
 4. Upsert fresh live token 11: the row became live at token 11.
+
+The post-review compatibility-fence shim ran against isolated Postgres 18 on
+the same port before tracked production code changed:
+
+- legacy-before was removed by the cutover;
+- a legacy insert started while cutover held the scope-generation lock waited
+  1.493 seconds, then returned `INSERT 0 0`;
+- legacy-after returned `INSERT 0 0` in 40 ms;
+- an injected cutover abort rolled back marker, publication, and cleanup, then
+  released the waiting legacy insert, and retry plus rerun converged to one
+  new-format row and one marker;
+- an unrelated scope committed in 40 ms while the target lock remained held.
+
+The trigger fast path was also measured before implementation with 100,000-row
+`EXPLAIN (ANALYZE, BUFFERS, WAL)`. Unrelated fact inserts moved from a
+135.213 ms median to 135.867 ms (**+0.48%**) with identical WAL. The deliberately
+worst-case all-container/new-format insert moved by **+2.8% to +3.7%** depending
+on whether the format discriminator used JSON existence or exact-value
+comparison, again with identical WAL. Production keeps the exact-value check
+for accuracy and is measured end to end below.
+
+The durable-marker steady-state lookup was proved separately with 100,000
+synthetic marker rows. PostgreSQL used the marker table's primary-key
+index-only scan; the existing-key median was **0.053 ms** and the missing-key
+median was **0.044 ms**. The production path uses that lookup only to remove
+the already-completed compatibility lock and transaction, never to decide
+whether the first cutover is safe.
+
+`TestContainerImageIdentityCutoverMigrationLifecycleLive` upgrades a populated
+10,000-row pre-088 fact table, preserves every row, checks the marker-table and
+trigger OIDs, and proves two full `ApplyBootstrap` reruns leave both catalog
+objects unchanged. It then executes a real cutover and proves a post-commit
+legacy insert affects zero rows while exactly one new-format row and one marker
+remain.
 
 The exact-key cleanup theory used 100,000 synthetic identity rows. Native pgx
 `[]string` binding for 99,500 evaluated legacy IDs measured:
@@ -953,7 +1019,7 @@ equivalent: 500/500 rows, baseline minus candidate 0, candidate minus baseline
 0. Migration 087 and the fresh-bootstrap schema both carry that index.
 
 The populated-table migration lifecycle is exercised separately by
-`TestActiveContainerImageIdentityWarningIndexMigrationLifecycleLive`. The test
+`TestActiveOCIWarningIndexMigrationLifecycleLive`. The test
 applies migration 087 to a populated fact table, proves an unrelated write can
 commit while `CREATE INDEX CONCURRENTLY` waits on an old snapshot, checks
 `pg_index.indisvalid` and `indisready`, and proves a repeated
@@ -964,39 +1030,58 @@ structural test also requires exactly one `CREATE INDEX CONCURRENTLY`
 statement, so a future non-concurrent replacement cannot satisfy the lifecycle
 test accidentally.
 
-The final single-statement shape was proved before production code changed.
+The original single-statement shape was proved before production code changed.
 Against 500 synthetic publications, the existing explicit
 insert-plus-delete transaction had a **14.879 ms** median and the
 data-modifying CTE had a **14.159 ms** median, a **4.84% improvement**. Both
 produced the same 500-row snapshot checksum, and the candidate reduced two
-statements plus `BEGIN`/`COMMIT` to one statement. Production therefore uses
-the CTE directly for one bounded chunk. For larger writes it keeps the
-1,000-row memory and lock-footprint bound, runs the preceding chunks in one
-transaction, and fuses cleanup into the final chunk.
+statements plus `BEGIN`/`COMMIT` to one statement.
+
+The review reproduction invalidated that optimization as the first-cutover
+shape. A statement takes its Read Committed snapshot before its CTE acquires the
+advisory lock, so an old writer can commit between snapshot acquisition and
+lock acquisition and remain invisible to that statement's DELETE. The first
+cutover therefore uses a separate lock-plus-marker statement followed by the
+publication and cleanup statement in one explicit transaction, including one
+bounded chunk. Once that transaction commits, the durable marker makes the
+single-statement shape safe for later bounded passes. Larger writes retain the
+1,000-row memory and lock-footprint bound, keep one transaction across chunks,
+skip the completed fence, and fuse cleanup into the final chunk.
 
 The finished production path was then compared with exact `origin/main` on the
 same Postgres instance. Each cell is the median of three independent runs; each
 representative run contains 20 measured handler calls and each 99,500-reference
 run contains three.
 
-| scenario | `origin/main` median | #5854 median | delta | main p95 | #5854 p95 | p95 delta | WAL delta |
+| scenario | `origin/main` median | pre-fence #5854 median | delta | main p95 | pre-fence p95 | p95 delta | WAL delta |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | 500 refs, zero legacy rows | 26.132 ms | 26.344 ms | +0.81% | 35.581 ms | 35.246 ms | -0.94% | -0.54% |
 | 500 refs, 100,000 stale warnings | 31.620 ms | 30.874 ms | -2.36% | 37.809 ms | 38.101 ms | +0.77% | -0.26% |
 | 99,500 refs, zero legacy rows | 12.923 s | 13.237 s | +2.44% | 13.604 s | 13.905 s | +2.22% | -4.90% |
 
-The representative and stale-warning paths each execute six reads and one
-write with no explicit transaction on both variants. #5854 therefore removes
-the preliminary branch's permanent warning read, second write, and
-`BEGIN`/`COMMIT` amplification. At 99,500 references, both variants execute 204
-reads and 100 writes; #5854 adds one atomic transaction and reduces median WAL
-from **417.2 MB** to **396.7 MB** per call. The sub-3% worst-case latency delta
-is the bounded cost of making publication and legacy cleanup atomic, while the
-common path is flat and the stale-warning-heavy path improves. A single giant
-99,500-row statement was rejected because it abandons the measured
-per-statement memory and lock bound; pre-checking for legacy rows and
-non-atomic chunk commits were rejected because an old writer can race the
-observation or a failure can strand a mixed identity format.
+That table records the branch before the rolling-upgrade review fix. The final
+compatibility fence was then paired against exact commit `4b13c7d456` on the
+same host and Postgres 18 instance. Representative cases contain 20 measured
+handler calls; the 99,500-reference case contains three.
+
+| scenario | pre-fence median | final median | delta | pre-fence p95 | final p95 | p95 delta | WAL delta |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 500 refs, zero legacy rows | 26.023 ms | 26.287 ms | +1.02% | 36.540 ms | 34.968 ms | -4.30% | +0.57% |
+| 500 refs, 100,000 stale warnings | 30.278 ms | 30.118 ms | -0.53% | 42.148 ms | 39.875 ms | -5.39% | -2.95% |
+| 99,500 refs, zero legacy rows | 13.269 s | 12.846 s | -3.19% | 13.746 s | 13.452 s | -2.14% | +0.83% |
+
+The final common-path median remains within the 5% no-regression band and both
+representative p95s improve. Against the original `origin/main` table above,
+final medians are **+0.59%**, **-4.75%**, and **-0.60%** respectively.
+Worst-cardinality WAL is **397.1 MB**, still **4.82% below** `origin/main`'s
+417.2 MB. A completed representative cutover uses seven reads, one Exec, and no
+explicit transaction per handler call; the extra read is the measured
+primary-key marker lookup. The 99,500-row path uses 205 reads, 100 Exec calls,
+and one transaction while retaining its chunk bound. A single giant statement
+remains rejected because it abandons the measured per-statement memory and lock
+bound; a marker pre-check is used only after the first atomic cutover, and
+non-atomic chunk commits remain rejected because a failure can strand a mixed
+identity format.
 
 All three scenarios returned identical logical checksums between variants.
 `origin/main` retained 500 or 99,500 outcome-keyed rows; #5854 retained zero
@@ -1013,22 +1098,34 @@ canonical write revives the same logical row.
 holds one same-key upsert uncommitted, observes the second same-key writer wait,
 and commits an unrelated fact ID while the conflict is held. After the first
 transaction releases, PostgreSQL rechecks the fence and the fresher tombstone
-wins. There is no scope-wide lock and no worker-count reduction.
+wins. These rows carry `identity_format=image_ref_v2`, so the compatibility
+trigger is bypassed and distinct logical keys remain concurrent.
 
 `TestPostgresContainerImageIdentityMultiChunkWriterSerializesMatchingKeyAndCleansInterleavedLegacyWrite`
-holds a 1,001-row production transaction after its first chunk. A matching-key
-writer waits, an old-binary legacy-key write commits without unrelated-key
-contention, and the final CTE deletes that interleaved legacy row before the
-transaction commits. The matching-key writer then resumes and the fresher
-fencing token wins.
+holds a 1,001-row production transaction after its first chunk. Both a
+matching-key new writer and an old-binary legacy-key writer wait. After commit,
+the matching-key writer resumes and its fresher fencing token wins; the old
+writer rechecks the durable marker and inserts zero rows.
 
 `TestPostgresContainerImageIdentityMultiChunkFailureRollsBackAndRetryConverges`
 injects a failure into the third statement of a six-chunk production
 transaction. It proves zero partial new-format rows and the pre-existing
-legacy row remain after rollback, then retries through the production writer
-and proves all 5,001 new-format rows commit and the legacy row disappears.
+legacy row remain after rollback, including no cutover marker, then retries
+through the production writer and proves all 5,001 new-format rows commit and
+the legacy row disappears.
 The unit proof also requires the conflict-key order to stay globally sorted
 across chunks, preventing opposite lock acquisition order between writers.
+
+`TestPostgresContainerImageIdentityCompletedCutoverRejectsLaterLegacyWriter`
+is the exact review regression: after the new transaction commits, an old
+binary attempts its outcome-keyed insert and PostgreSQL reports success with
+zero inserted rows.
+`TestPostgresContainerImageIdentityCutoverFenceKeepsOtherScopeConcurrent`
+holds one scope-generation fence and proves a legacy insert for another scope
+still commits.
+`TestPostgresContainerImageIdentityLegacyWriterFailsClosedAboveReadCommitted`
+proves the snapshot assumption cannot silently become false under Repeatable
+Read.
 
 `TestContainerImageIdentityRetirementProductionPathLive` drives the complete
 production path against PostgreSQL: active-generation `FactStore` evidence and

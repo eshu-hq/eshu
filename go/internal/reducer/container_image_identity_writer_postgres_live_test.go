@@ -260,9 +260,19 @@ func containerImageIdentityLiveRow(
 		ObservedAt:       now,
 		IngestedAt:       now,
 		IsTombstone:      tombstone,
-		Payload:          `{"image_ref":"registry.example.com/team/api:prod"}`,
+		Payload:          `{"identity_format":"image_ref_v2","image_ref":"registry.example.com/team/api:prod"}`,
 		FencingToken:     token,
 	}
+}
+
+func containerImageIdentityLegacyLiveRow(
+	factID string,
+	token int64,
+	tombstone bool,
+) reducerFactRow {
+	row := containerImageIdentityLiveRow(factID, token, tombstone)
+	row.Payload = `{"image_ref":"registry.example.com/team/api:prod"}`
+	return row
 }
 
 func assertContainerImageIdentityLiveRow(

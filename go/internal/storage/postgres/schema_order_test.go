@@ -143,10 +143,12 @@ var orderedBootstrapDefinitionNames = []string{
 	"cloud_resource_owner_runtime_digest_index",
 	// migration 087 (#5854 ordered cross-scope OCI warning safety load).
 	"fact_records_active_oci_warning_idx",
+	// migration 088 (#5854 old-binary compatibility fence after identity-key cutover).
+	"container_image_identity_cutover_guard",
 	// migration 091 (#5593 bounded index for the reducer's config-state-drift
 	// catch-up sweep's recurring active state_snapshot scope scan). Numbered
 	// 091 on its original branch to stay above a sibling's reserved 087-090
-	// range. Migration 087 now belongs to #5854 after rebasing onto main;
+	// range. Migrations 087-088 now belong to #5854 after rebasing onto main;
 	// BootstrapDefinitions sorts by file path, not numeric contiguity, so the
 	// remaining gap has no runtime effect.
 	"ingestion_scopes_active_state_snapshot_index",

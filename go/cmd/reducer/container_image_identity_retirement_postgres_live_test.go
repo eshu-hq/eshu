@@ -89,7 +89,8 @@ func TestContainerImageIdentityRetirementProductionPathLive(t *testing.T) {
 	}
 
 	writer := reducer.PostgresContainerImageIdentityWriter{
-		DB: storeDB,
+		DB:            storeDB,
+		CutoverLookup: postgres.NewContainerImageIdentityCutoverStore(storeDB),
 		Beginner: postgres.ContainerImageIdentityBeginner{
 			Beginner: storeDB,
 		},

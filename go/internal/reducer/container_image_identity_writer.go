@@ -16,7 +16,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
-const containerImageIdentityFactKind = "reducer_container_image_identity"
+const (
+	containerImageIdentityFactKind       = "reducer_container_image_identity"
+	containerImageIdentityFormatImageRef = "image_ref_v2"
+)
 
 // ContainerImageIdentityTransaction is the narrow atomic write surface used by
 // the identity writer for outcome-independent publications followed by cleanup
@@ -33,12 +36,20 @@ type ContainerImageIdentityBeginner interface {
 	BeginContainerImageIdentityTx(context.Context) (ContainerImageIdentityTransaction, error)
 }
 
+// ContainerImageIdentityCutoverLookup reads the durable format-transition
+// marker that makes the bounded steady-state cleanup safe without reacquiring
+// the rolling-upgrade lock.
+type ContainerImageIdentityCutoverLookup interface {
+	ContainerImageIdentityCutoverExists(context.Context, string, string) (bool, error)
+}
+
 // PostgresContainerImageIdentityWriter persists image-reference-keyed identity
 // decisions into the shared fact store.
 type PostgresContainerImageIdentityWriter struct {
-	DB       workloadIdentityExecer
-	Beginner ContainerImageIdentityBeginner
-	Now      func() time.Time
+	DB            workloadIdentityExecer
+	Beginner      ContainerImageIdentityBeginner
+	CutoverLookup ContainerImageIdentityCutoverLookup
+	Now           func() time.Time
 }
 
 // WriteContainerImageIdentityDecisions stores canonical image identity
@@ -109,32 +120,46 @@ func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisio
 			canonicalWrites++
 		}
 	}
-	legacyRowsDeleted := 0
-	if len(write.LegacyFactIDs) > 0 && len(rows) <= reducerFactBatchSize {
-		var err error
-		legacyRowsDeleted, err = execContainerImageIdentityPublicationsAndCleanup(
-			ctx,
-			w.DB,
-			rows,
-			write.LegacyFactIDs,
-			write.ScopeID,
-			write.GenerationID,
-			fencingToken,
-		)
-		if err != nil {
-			return ContainerImageIdentityWriteResult{}, err
-		}
-		return containerImageIdentityWriteResult(
-			canonicalWrites,
-			retirementAttempts,
-			legacyRowsDeleted,
-		), nil
-	}
-
 	exec := w.DB
 	var tx ContainerImageIdentityTransaction
 	rollbackNeeded := false
+	legacyRowsDeleted := 0
 	if len(write.LegacyFactIDs) > 0 {
+		cutoverComplete := false
+		if w.CutoverLookup != nil {
+			var err error
+			cutoverComplete, err = w.CutoverLookup.ContainerImageIdentityCutoverExists(
+				ctx,
+				write.ScopeID,
+				write.GenerationID,
+			)
+			if err != nil {
+				return ContainerImageIdentityWriteResult{}, fmt.Errorf(
+					"read container image identity cutover: %w",
+					err,
+				)
+			}
+		}
+		if cutoverComplete && len(rows) <= reducerFactBatchSize {
+			var err error
+			legacyRowsDeleted, err = execContainerImageIdentityPublicationsAndCleanup(
+				ctx,
+				w.DB,
+				rows,
+				write.LegacyFactIDs,
+				write.ScopeID,
+				write.GenerationID,
+				fencingToken,
+			)
+			if err != nil {
+				return ContainerImageIdentityWriteResult{}, err
+			}
+			return containerImageIdentityWriteResult(
+				canonicalWrites,
+				retirementAttempts,
+				legacyRowsDeleted,
+			), nil
+		}
 		if w.Beginner == nil {
 			return ContainerImageIdentityWriteResult{}, fmt.Errorf(
 				"container image identity transaction beginner is required for legacy cleanup",
@@ -155,9 +180,16 @@ func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisio
 				_ = tx.Rollback()
 			}
 		}()
-	}
-	if len(write.LegacyFactIDs) > 0 {
-		var err error
+		if !cutoverComplete {
+			if err := execContainerImageIdentityCutoverFence(
+				ctx,
+				exec,
+				write.ScopeID,
+				write.GenerationID,
+			); err != nil {
+				return ContainerImageIdentityWriteResult{}, err
+			}
+		}
 		legacyRowsDeleted, err = execContainerImageIdentityPublicationsAndCleanup(
 			ctx,
 			exec,
@@ -397,6 +429,7 @@ func containerImageIdentityPayload(
 	canonicalID string,
 ) map[string]any {
 	return map[string]any{
+		"identity_format":            containerImageIdentityFormatImageRef,
 		"reducer_domain":             string(DomainContainerImageIdentity),
 		"intent_id":                  write.IntentID,
 		"scope_id":                   write.ScopeID,

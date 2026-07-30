@@ -13,6 +13,50 @@ import (
 	"time"
 )
 
+func TestPostgresContainerImageIdentityCompletedCutoverRejectsLaterLegacyWriter(
+	t *testing.T,
+) {
+	db := openContainerImageIdentityLivePostgres(t)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+	defer cancel()
+	seedContainerImageIdentityLiveParents(t, ctx, db)
+
+	write := containerImageIdentityAtomicLiveWrite(
+		"legacy-after-cutover",
+		1,
+		time.Date(2026, time.July, 29, 15, 59, 0, 0, time.UTC),
+	)
+	cleanupContainerImageIdentityAtomicLiveWrite(t, db, write)
+	t.Cleanup(func() {
+		cleanupContainerImageIdentityAtomicLiveWrite(t, db, write)
+	})
+
+	writer := PostgresContainerImageIdentityWriter{
+		DB:       db,
+		Beginner: &containerImageIdentityAtomicLiveBeginner{db: db},
+	}
+	if _, err := writer.WriteContainerImageIdentityDecisions(ctx, write); err != nil {
+		t.Fatalf("complete image-reference-keyed cutover: %v", err)
+	}
+
+	legacyFactID := write.LegacyFactIDs[0]
+	if err := reducerBatchInsertFacts(
+		ctx,
+		db,
+		[]reducerFactRow{containerImageIdentityLegacyLiveRow(legacyFactID, 0, false)},
+	); err != nil {
+		t.Fatalf("run old-binary legacy writer after completed cutover: %v", err)
+	}
+	assertContainerImageIdentityAtomicLiveCount(
+		t,
+		ctx,
+		db,
+		`SELECT count(*) FROM fact_records WHERE fact_id = $1`,
+		0,
+		legacyFactID,
+	)
+}
+
 func TestPostgresContainerImageIdentityMultiChunkWriterSerializesMatchingKeyAndCleansInterleavedLegacyWrite(
 	t *testing.T,
 ) {
@@ -38,7 +82,7 @@ func TestPostgresContainerImageIdentityMultiChunkWriterSerializesMatchingKeyAndC
 		wrap: func(tx *sql.Tx) ContainerImageIdentityTransaction {
 			return &containerImageIdentityPausingLiveTx{
 				tx:      tx,
-				pauseAt: 2,
+				pauseAt: 3,
 				paused:  paused,
 				release: release,
 			}
@@ -78,12 +122,18 @@ func TestPostgresContainerImageIdentityMultiChunkWriterSerializesMatchingKeyAndC
 	}
 
 	legacyFactID := write.LegacyFactIDs[len(write.LegacyFactIDs)-1]
-	if err := reducerBatchInsertFacts(
-		ctx,
-		db,
-		[]reducerFactRow{containerImageIdentityLiveRow(legacyFactID, 0, false)},
-	); err != nil {
-		t.Fatalf("interleave old-binary legacy write on an unrelated key: %v", err)
+	legacyDone := make(chan error, 1)
+	go func() {
+		legacyDone <- reducerBatchInsertFacts(
+			ctx,
+			db,
+			[]reducerFactRow{containerImageIdentityLegacyLiveRow(legacyFactID, 0, false)},
+		)
+	}()
+	select {
+	case err := <-legacyDone:
+		t.Fatalf("legacy insert returned before the cutover transaction committed: %v", err)
+	case <-time.After(100 * time.Millisecond):
 	}
 
 	close(release)
@@ -102,6 +152,14 @@ func TestPostgresContainerImageIdentityMultiChunkWriterSerializesMatchingKeyAndC
 		}
 	case <-ctx.Done():
 		t.Fatal("matching-key upsert did not resume after transaction release")
+	}
+	select {
+	case err := <-legacyDone:
+		if err != nil {
+			t.Fatalf("legacy insert after cutover release: %v", err)
+		}
+	case <-ctx.Done():
+		t.Fatal("legacy insert did not resume after cutover release")
 	}
 
 	assertContainerImageIdentityLiveRow(t, ctx, db, firstFactID, false, freshToken)
@@ -145,7 +203,7 @@ func TestPostgresContainerImageIdentityMultiChunkFailureRollsBackAndRetryConverg
 	if err := reducerBatchInsertFacts(
 		ctx,
 		db,
-		[]reducerFactRow{containerImageIdentityLiveRow(legacyFactID, 0, false)},
+		[]reducerFactRow{containerImageIdentityLegacyLiveRow(legacyFactID, 0, false)},
 	); err != nil {
 		t.Fatalf("seed old-binary legacy row: %v", err)
 	}
@@ -261,6 +319,16 @@ func cleanupContainerImageIdentityAtomicLiveWrite(
 		write.LegacyFactIDs,
 	); err != nil {
 		t.Errorf("clean atomic live facts for %q: %v", write.IntentID, err)
+	}
+	if _, err := db.ExecContext(
+		ctx,
+		`DELETE FROM container_image_identity_cutovers
+		 WHERE scope_id = $1
+		   AND generation_id = $2`,
+		write.ScopeID,
+		write.GenerationID,
+	); err != nil {
+		t.Errorf("clean atomic live cutover for %q: %v", write.IntentID, err)
 	}
 }
 

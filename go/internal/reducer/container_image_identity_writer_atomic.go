@@ -8,6 +8,21 @@ import (
 	"fmt"
 )
 
+const containerImageIdentityCutoverFenceQuery = `
+WITH locked AS MATERIALIZED (
+    SELECT pg_advisory_xact_lock(
+        hashtextextended($1 || E'\x1f' || $2, 5854)
+    )
+)
+INSERT INTO container_image_identity_cutovers (
+    scope_id,
+    generation_id
+)
+SELECT $1, $2
+FROM locked
+ON CONFLICT (scope_id, generation_id) DO NOTHING
+`
+
 const containerImageIdentityPublishAndLegacyCleanupQuery = `WITH published AS (
 ` + reducerFactBatchInsertQuery + `
 RETURNING 1
@@ -21,10 +36,37 @@ WHERE fact.fact_id = ANY($17::text[])
   AND fact.fencing_token <= $20
 `
 
+// execContainerImageIdentityCutoverFence serializes the format transition for
+// one scope generation and commits its durable marker in the same transaction
+// as the image-reference-keyed publications and legacy cleanup.
+//
+// This must be a separate statement before cleanup. Under Read Committed, that
+// gives the later DELETE a fresh snapshot after the advisory lock is acquired,
+// so it sees a legacy insert that committed immediately before the lock. The
+// trigger installed by migration 088 takes the same lock and suppresses legacy
+// inserts after this marker commits.
+func execContainerImageIdentityCutoverFence(
+	ctx context.Context,
+	db workloadIdentityExecer,
+	scopeID string,
+	generationID string,
+) error {
+	if _, err := db.ExecContext(
+		ctx,
+		containerImageIdentityCutoverFenceQuery,
+		scopeID,
+		generationID,
+	); err != nil {
+		return fmt.Errorf("fence container image identity format cutover: %w", err)
+	}
+	return nil
+}
+
 // execContainerImageIdentityPublicationsAndCleanup publishes bounded chunks
-// and fuses exact legacy cleanup into the last chunk. A one-chunk call is one
-// implicit Postgres transaction; a multi-chunk caller must pass an explicit
-// transaction so all publications and cleanup still commit atomically.
+// and fuses exact legacy cleanup into the last chunk. The caller passes the
+// explicit transaction that already acquired the scope-generation cutover
+// fence, so every publication, the cleanup, and the durable marker commit
+// atomically.
 func execContainerImageIdentityPublicationsAndCleanup(
 	ctx context.Context,
 	db workloadIdentityExecer,

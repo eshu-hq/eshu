@@ -78,6 +78,17 @@ fact-store row can reject it at the fencing-token conflict guard. Correlate the
 counter with reducer execution failures, PostgreSQL query duration, and the
 current read result before diagnosing a missing row as retired.
 
+During the #5854 rolling format cutover,
+`container_image_identity_cutovers` is durable operator evidence that a scope
+generation has moved to `identity_format=image_ref_v2`. The compatibility
+trigger waits on the matching transaction lock and skips old outcome-keyed
+inserts after that marker commits. Later reducer passes read the marker by its
+primary key and do not reacquire the completed compatibility fence. Existing
+PostgreSQL query-duration telemetry shows lock wait and marker lookup duration,
+and a legacy writer using stronger-than-Read-Committed isolation fails through
+the existing reducer execution failure signals instead
+of risking a stale snapshot. This adds no unbounded metric label.
+
 ## Change Gate
 
 Runtime-affecting changes must keep telemetry useful. A PR that touches
