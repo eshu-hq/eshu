@@ -33,15 +33,23 @@ func appendSecretsAndDriftAdditiveDomains(definitions []DomainDefinition, handle
 		}
 		definitions = append(definitions, secretsIAMGraph)
 	}
+	// FencingTokenIssuer is required alongside the writer (#5875 P1): unlike
+	// ReadinessChecker, a nil issuer is not an opt-out, it is a missing
+	// dependency that would make every Handle() call for this domain
+	// hard-error on its issuer check. Gating registration on it here keeps
+	// that failure a startup-time "domain never registered" instead of a
+	// runtime "every intent fails forever" once queued.
 	if handlers.AWSCloudRuntimeDriftEvidenceLoader != nil &&
-		handlers.AWSCloudRuntimeDriftWriter != nil {
+		handlers.AWSCloudRuntimeDriftWriter != nil &&
+		handlers.AWSCloudRuntimeDriftFencingTokenIssuer != nil {
 		awsRuntimeDrift := awsCloudRuntimeDriftDomainDefinition()
 		awsRuntimeDrift.Handler = AWSCloudRuntimeDriftHandler{
-			EvidenceLoader:   handlers.AWSCloudRuntimeDriftEvidenceLoader,
-			Writer:           handlers.AWSCloudRuntimeDriftWriter,
-			Instruments:      handlers.Instruments,
-			Logger:           handlers.AWSCloudRuntimeDriftLogger,
-			ReadinessChecker: handlers.AWSCloudRuntimeDriftReadinessChecker,
+			EvidenceLoader:     handlers.AWSCloudRuntimeDriftEvidenceLoader,
+			Writer:             handlers.AWSCloudRuntimeDriftWriter,
+			Instruments:        handlers.Instruments,
+			Logger:             handlers.AWSCloudRuntimeDriftLogger,
+			ReadinessChecker:   handlers.AWSCloudRuntimeDriftReadinessChecker,
+			FencingTokenIssuer: handlers.AWSCloudRuntimeDriftFencingTokenIssuer,
 		}
 		definitions = append(definitions, awsRuntimeDrift)
 	}

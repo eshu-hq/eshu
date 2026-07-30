@@ -38,6 +38,7 @@ func TestPostgresAWSCloudRuntimeDriftWriterPersistsBatchedFacts(t *testing.T) {
 		SourceSystem: "aws",
 		Cause:        "aws runtime facts observed",
 		EvidenceAsOf: time.Date(2026, time.July, 29, 12, 0, 0, 0, time.UTC),
+		FencingToken: 1,
 		Candidates: []model.Candidate{
 			{
 				ID:             "aws_cloud_runtime_drift:arn:aws:lambda:us-east-1:123456789012:function:orphan:orphaned_cloud_resource",
@@ -144,6 +145,7 @@ func TestWriteAWSCloudRuntimeDriftFindingsBoundedExecCount(t *testing.T) {
 		GenerationID: "generation-batch",
 		SourceSystem: "aws",
 		EvidenceAsOf: time.Date(2026, time.July, 29, 12, 0, 0, 0, time.UTC),
+		FencingToken: 1,
 		Candidates:   candidates,
 	})
 	if err != nil {

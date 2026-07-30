@@ -120,6 +120,7 @@ func TestAWSCloudRuntimeDriftReadinessDeterministicReproductionLive(t *testing.T
 		DB: AWSCloudRuntimeDriftAdmissionBeginner{Beginner: SQLDB{DB: sqlDB}},
 	}
 	readinessChecker := PostgresAWSCloudRuntimeDriftReadinessChecker{DB: SQLDB{DB: sqlDB}}
+	fencingTokenIssuer := PostgresAWSCloudRuntimeDriftFencingTokenIssuer{DB: SQLDB{DB: sqlDB}}
 
 	// --- Phase 1: BEFORE (no ReadinessChecker) --------------------------
 	beforeScopeID := "aws:" + suffix + ":before"
@@ -133,6 +134,7 @@ func TestAWSCloudRuntimeDriftReadinessDeterministicReproductionLive(t *testing.T
 		EvidenceLoader: loader,
 		Writer:         writer,
 		// ReadinessChecker deliberately nil: byte-identical to pre-#5848.
+		FencingTokenIssuer: fencingTokenIssuer,
 	}
 	beforeResult, err := beforeHandler.Handle(ctx, reducer.Intent{
 		IntentID:     "intent-before-" + suffix,
@@ -168,9 +170,10 @@ func TestAWSCloudRuntimeDriftReadinessDeterministicReproductionLive(t *testing.T
 	seedAWSResourceFactMinimal(t, ctx, sqlDB, afterScopeID, afterGenerationID, afterARN, "aws_lambda_function", now)
 
 	afterHandler := reducer.AWSCloudRuntimeDriftHandler{
-		EvidenceLoader:   loader,
-		Writer:           writer,
-		ReadinessChecker: readinessChecker,
+		EvidenceLoader:     loader,
+		Writer:             writer,
+		ReadinessChecker:   readinessChecker,
+		FencingTokenIssuer: fencingTokenIssuer,
 	}
 	_, err = afterHandler.Handle(ctx, reducer.Intent{
 		IntentID:     "intent-after-defer-" + suffix,

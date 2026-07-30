@@ -6,6 +6,8 @@ package postgres
 import (
 	"errors"
 	"fmt"
+	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -24,19 +26,28 @@ import (
 // generation)).
 //
 //  1. Seed one scope and one active generation.
-//  2. Worker B (fresh): EvidenceAsOf = now, one candidate for ARN X classified
+//  2. Worker B (fresh): a LARGER FencingToken (#5875 P1: this is now the
+//     database-issued ordering value AWSCloudRuntimeDriftHandler.Handle would
+//     have obtained from a LATER evidence read; this write-level test sets it
+//     explicitly to drive the admission CAS directly, the same way the real
+//     issuer would have produced it), one candidate for ARN X classified
 //     image_version_drift. Run to completion (admission + insert + retire).
-//  3. Worker A (stale): EvidenceAsOf = now - 5m, one candidate for the SAME ARN
-//     X classified orphaned_cloud_resource. A different classification means a
-//     different fact_id, so the insert's own conflict guard cannot help here --
-//     only the insert-admission check can.
+//  3. Worker A (stale): a SMALLER FencingToken (an earlier evidence read),
+//     one candidate for the SAME ARN X classified orphaned_cloud_resource. A
+//     different classification means a different fact_id, so the insert's own
+//     conflict guard cannot help here -- only the insert-admission check can.
 //
 // Before #5848: A's insert lands unopposed (different fact_id, no conflict),
 // and its retire is fenced at A's OWN older token so it cannot delete B's
 // fresher row either -- leaving TWO rows for one ARN.
 //
 // After #5848: A's write is REJECTED by the admission check before it issues
-// ANY statement, so exactly one row survives, from B's fresher evidence.
+// ANY statement, so exactly one row survives, from B's fresher evidence --
+// regardless of which one's WriteAWSCloudRuntimeDriftFindings call this test
+// happens to invoke first (#5875 P1 closed the shape where a host-clock-derived
+// token could invert this ordering under cross-replica skew; this write-level
+// test pins the admission CAS's OWN ordering contract directly against
+// explicit tokens, independent of however a caller obtains them).
 func TestAWSCloudRuntimeDriftInsertAdmissionRejectsStaleWorkerAfterFreshWriteLive(t *testing.T) {
 	sqlDB, ctx := awsCloudRuntimeDriftAdmissionLiveDB(t)
 
@@ -53,10 +64,7 @@ func TestAWSCloudRuntimeDriftInsertAdmissionRejectsStaleWorkerAfterFreshWriteLiv
 		DB: AWSCloudRuntimeDriftAdmissionBeginner{Beginner: SQLDB{DB: sqlDB}},
 	}
 
-	freshEvidenceAsOf := now
-	staleEvidenceAsOf := now.Add(-5 * time.Minute)
-
-	// Step 2: worker B, fresh evidence, image_version_drift. Runs to
+	// Step 2: worker B, fresh (larger token), image_version_drift. Runs to
 	// completion first.
 	freshWrite := reducer.AWSCloudRuntimeDriftWrite{
 		IntentID:      "intent-worker-b",
@@ -64,7 +72,8 @@ func TestAWSCloudRuntimeDriftInsertAdmissionRejectsStaleWorkerAfterFreshWriteLiv
 		GenerationID:  generationID,
 		SourceSystem:  "aws",
 		Cause:         "fresh evidence read",
-		EvidenceAsOf:  freshEvidenceAsOf,
+		EvidenceAsOf:  now,
+		FencingToken:  200,
 		Candidates:    []model.Candidate{awsCloudRuntimeDriftCandidateFixture(arn, cloudruntime.FindingKindImageVersionDrift)},
 		EvaluatedARNs: []string{arn},
 	}
@@ -76,14 +85,15 @@ func TestAWSCloudRuntimeDriftInsertAdmissionRejectsStaleWorkerAfterFreshWriteLiv
 		t.Fatalf("worker B (fresh) CanonicalWrites = %d, want 1", freshResult.CanonicalWrites)
 	}
 
-	// Step 3: worker A, stale evidence read BEFORE B's write, lands AFTER it.
+	// Step 3: worker A, a SMALLER (stale) token, lands AFTER B in call order.
 	staleWrite := reducer.AWSCloudRuntimeDriftWrite{
 		IntentID:      "intent-worker-a",
 		ScopeID:       scopeID,
 		GenerationID:  generationID,
 		SourceSystem:  "aws",
 		Cause:         "stale evidence read",
-		EvidenceAsOf:  staleEvidenceAsOf,
+		EvidenceAsOf:  now.Add(-5 * time.Minute),
+		FencingToken:  100,
 		Candidates:    []model.Candidate{awsCloudRuntimeDriftCandidateFixture(arn, cloudruntime.FindingKindOrphanedCloudResource)},
 		EvaluatedARNs: []string{arn},
 	}
@@ -132,7 +142,11 @@ func TestAWSCloudRuntimeDriftInsertAdmissionRejectsStaleWorkerAfterFreshWriteLiv
 // TestAWSCloudRuntimeDriftInsertAdmissionAppliesEqualTokenRetryLive pins the
 // `<=` boundary (mirrors TestReducerFactBatchInsertAppliesEqualTokenRetryLive
 // for #5847): a retry or redelivery of the SAME pass carries the SAME
-// evidence-read watermark, and must be ADMITTED, not rejected as stale.
+// fencing token, and must be ADMITTED, not rejected as stale. #5875 P1 moved
+// the token from a wall-clock derivation to a database-issued value, but this
+// SQL-level guarantee is unchanged and still load-bearing: a caller that
+// legitimately reuses one already-issued token across a retry of the
+// identical write attempt must not be rejected merely for repeating it.
 func TestAWSCloudRuntimeDriftInsertAdmissionAppliesEqualTokenRetryLive(t *testing.T) {
 	sqlDB, ctx := awsCloudRuntimeDriftAdmissionLiveDB(t)
 
@@ -156,6 +170,7 @@ func TestAWSCloudRuntimeDriftInsertAdmissionAppliesEqualTokenRetryLive(t *testin
 		SourceSystem:  "aws",
 		Cause:         "retry of the same pass",
 		EvidenceAsOf:  now,
+		FencingToken:  300,
 		Candidates:    []model.Candidate{awsCloudRuntimeDriftCandidateFixture(arn, cloudruntime.FindingKindOrphanedCloudResource)},
 		EvaluatedARNs: []string{arn},
 	}
@@ -174,111 +189,101 @@ func TestAWSCloudRuntimeDriftInsertAdmissionAppliesEqualTokenRetryLive(t *testin
 	}
 }
 
-// TestAWSCloudRuntimeDriftInsertAdmissionResolvesExactTieByLastCommitLive is
-// the P1 regression: fencingToken is a wall-clock LABEL
-// (evidenceAsOf.UnixMicro()), not a read snapshot, so two genuinely
-// independent passes (a live pass racing a maintenance-reopen replay, or a
-// lease-theft duplicate claim) can tie at microsecond resolution while having
-// read DIFFERENT evidence. On that tie, `stored <= EXCLUDED` is satisfied by
-// equality (required for the equal-token retry case
-// TestAWSCloudRuntimeDriftInsertAdmissionAppliesEqualTokenRetryLive pins), so
-// BOTH transactions are admitted, and whichever commits SECOND wins: its
-// retire deletes the first transaction's just-written row before inserting
-// its own. This is last-committer-wins, not fresher-wins — the token alone
-// cannot express which pass read evidence more recently once they tie.
+// TestAWSCloudRuntimeDriftFencingTokenIssuerIssuesStrictlyIncreasingValuesLive
+// is the #5875 P1 fix's own mechanism proof, superseding the round-1 P1's
+// exact-tie test (TestAWSCloudRuntimeDriftInsertAdmissionResolvesExactTieByLastCommitLive,
+// now deleted): that test proved WHAT HAPPENED on an exact watermark tie
+// because the OLD wall-clock token (evidenceAsOf.UnixMicro()) could produce
+// one -- two independent passes stamping the identical microsecond. A
+// Postgres sequence never returns the same value twice, so that exact
+// scenario is now categorically impossible; a test built to characterize it
+// would be asserting behavior for an unreachable input. This test instead
+// proves the property that actually matters for #5875 P1: real,
+// concurrent callers against the SAME shared Postgres sequence never collide
+// and are always strictly ordered by issuance -- immune to any individual
+// caller's clock, since the caller's clock is never consulted at all.
 //
-// Proven by driving the SAME tied watermark through two DIFFERENT candidate
-// sets (different classifications, so different fact_ids -- the
-// reclassification shape, not the retry shape) in BOTH call orders. In
-// EITHER order the pass called SECOND is the one left standing, which is
-// exactly the property "last commit wins" predicts and "fresher wins" does
-// not (neither candidate is chronologically fresher than the other; they
-// share one watermark by construction).
-func TestAWSCloudRuntimeDriftInsertAdmissionResolvesExactTieByLastCommitLive(t *testing.T) {
+// Two parts: (1) sequential issuance is strictly increasing, proving the
+// basic mechanism; (2) CONCURRENT issuance from many goroutines still yields
+// a globally unique, strictly-ordered-by-issuance set (via nextval()'s own
+// atomicity), the genuine multi-worker-replica shape #5875 P1 is about --
+// this is the concurrency proof CLAUDE.md's evidence rules require for a
+// change to a shared ordering primitive, not just a single-threaded
+// correctness check.
+func TestAWSCloudRuntimeDriftFencingTokenIssuerIssuesStrictlyIncreasingValuesLive(t *testing.T) {
 	sqlDB, ctx := awsCloudRuntimeDriftAdmissionLiveDB(t)
+	issuer := PostgresAWSCloudRuntimeDriftFencingTokenIssuer{DB: SQLDB{DB: sqlDB}}
 
-	writer := reducer.PostgresAWSCloudRuntimeDriftWriter{
-		DB: AWSCloudRuntimeDriftAdmissionBeginner{Beginner: SQLDB{DB: sqlDB}},
-	}
-
-	runTiedPair := func(t *testing.T, firstKind, secondKind cloudruntime.FindingKind) string {
-		t.Helper()
-
-		now := time.Now().UTC()
-		suffix := fmt.Sprintf("5848-p1-tie-%d", time.Now().UnixNano())
-		scopeID := "aws:" + suffix
-		generationID := "gen-" + suffix
-		arn := "arn:aws:lambda:us-east-1:123456789012:function:" + suffix
-		seedAWSCloudRuntimeDriftScope(t, ctx, sqlDB, scopeID, "aws", generationID, now)
-		seedAWSCloudRuntimeDriftGeneration(t, ctx, sqlDB, generationID, scopeID, "active", now)
-
-		// One tied watermark for both passes: they read DIFFERENT evidence
-		// (different classifications) but stamp the IDENTICAL microsecond
-		// token, exactly the shape a live pass racing a reopen replay -- or a
-		// duplicate claim after lease theft -- can produce.
-		tiedEvidenceAsOf := now
-
-		firstWrite := reducer.AWSCloudRuntimeDriftWrite{
-			IntentID:      "intent-tie-first",
-			ScopeID:       scopeID,
-			GenerationID:  generationID,
-			SourceSystem:  "aws",
-			Cause:         "tied pass, called first",
-			EvidenceAsOf:  tiedEvidenceAsOf,
-			Candidates:    []model.Candidate{awsCloudRuntimeDriftCandidateFixture(arn, firstKind)},
-			EvaluatedARNs: []string{arn},
-		}
-		if _, err := writer.WriteAWSCloudRuntimeDriftFindings(ctx, firstWrite); err != nil {
-			t.Fatalf("first (called-first) write error = %v, want nil: an exact tie must still ADMIT, not reject", err)
-		}
-
-		secondWrite := reducer.AWSCloudRuntimeDriftWrite{
-			IntentID:      "intent-tie-second",
-			ScopeID:       scopeID,
-			GenerationID:  generationID,
-			SourceSystem:  "aws",
-			Cause:         "tied pass, called second",
-			EvidenceAsOf:  tiedEvidenceAsOf,
-			Candidates:    []model.Candidate{awsCloudRuntimeDriftCandidateFixture(arn, secondKind)},
-			EvaluatedARNs: []string{arn},
-		}
-		if _, err := writer.WriteAWSCloudRuntimeDriftFindings(ctx, secondWrite); err != nil {
-			t.Fatalf("second (called-second) write error = %v, want nil: an exact tie must still ADMIT, not reject", err)
-		}
-
-		kinds := countAWSCloudRuntimeDriftFindingRows(t, ctx, sqlDB, scopeID, generationID)
-		if len(kinds) != 1 {
-			t.Fatalf(
-				"finding rows = %v, want exactly 1: an exact-tie admission must still leave exactly one "+
-					"surviving row (the second pass's retire must clean up the first pass's row), not two "+
-					"contradictory findings",
-				kinds,
-			)
-		}
-		return kinds[0]
-	}
-
-	t.Run("orphaned called first, image_version_drift called second", func(t *testing.T) {
-		got := runTiedPair(t, cloudruntime.FindingKindOrphanedCloudResource, cloudruntime.FindingKindImageVersionDrift)
-		if want := string(cloudruntime.FindingKindImageVersionDrift); got != want {
-			t.Fatalf(
-				"surviving finding_kind = %q, want %q: the pass called SECOND must win on an exact tie "+
-					"(last-committer-wins), regardless of which classification it carries",
-				got, want,
-			)
+	t.Run("sequential issuance is strictly increasing", func(t *testing.T) {
+		const calls = 20
+		var previous int64 = -1
+		for i := 0; i < calls; i++ {
+			token, err := issuer.NextAWSCloudRuntimeDriftFencingToken(ctx)
+			if err != nil {
+				t.Fatalf("call %d: NextAWSCloudRuntimeDriftFencingToken() error = %v", i, err)
+			}
+			if token <= previous {
+				t.Fatalf("call %d: token = %d, want strictly greater than the previous token %d", i, token, previous)
+			}
+			previous = token
 		}
 	})
 
-	t.Run("image_version_drift called first, orphaned called second", func(t *testing.T) {
-		got := runTiedPair(t, cloudruntime.FindingKindImageVersionDrift, cloudruntime.FindingKindOrphanedCloudResource)
-		if want := string(cloudruntime.FindingKindOrphanedCloudResource); got != want {
-			t.Fatalf(
-				"surviving finding_kind = %q, want %q: reversing call order reverses the winner, which is "+
-					"exactly what last-committer-wins predicts and fresher-wins (a property of the EVIDENCE, "+
-					"not the call order) would not -- the two candidates are not chronologically distinguishable "+
-					"by construction, sharing one tied watermark",
-				got, want,
-			)
+	t.Run("concurrent issuance never collides and stays strictly ordered by issuance", func(t *testing.T) {
+		const goroutines = 10
+		const perGoroutine = 20
+		results := make(chan int64, goroutines*perGoroutine)
+		errs := make(chan error, goroutines*perGoroutine)
+
+		var wg sync.WaitGroup
+		for g := 0; g < goroutines; g++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for i := 0; i < perGoroutine; i++ {
+					token, err := issuer.NextAWSCloudRuntimeDriftFencingToken(ctx)
+					if err != nil {
+						errs <- err
+						continue
+					}
+					results <- token
+				}
+			}()
+		}
+		wg.Wait()
+		close(results)
+		close(errs)
+
+		for err := range errs {
+			t.Fatalf("concurrent NextAWSCloudRuntimeDriftFencingToken() error = %v", err)
+		}
+
+		seen := make(map[int64]struct{}, goroutines*perGoroutine)
+		tokens := make([]int64, 0, goroutines*perGoroutine)
+		for token := range results {
+			if _, dup := seen[token]; dup {
+				t.Fatalf(
+					"token %d issued more than once across %d concurrent callers: the sequence must "+
+						"never let two concurrent workers collide on the same fencing token",
+					token, goroutines,
+				)
+			}
+			seen[token] = struct{}{}
+			tokens = append(tokens, token)
+		}
+		if got, want := len(tokens), goroutines*perGoroutine; got != want {
+			t.Fatalf("collected %d tokens, want %d (one per call)", got, want)
+		}
+
+		sort.Slice(tokens, func(i, j int) bool { return tokens[i] < tokens[j] })
+		for i := 1; i < len(tokens); i++ {
+			if tokens[i] <= tokens[i-1] {
+				t.Fatalf(
+					"sorted tokens are not strictly increasing at index %d: %d <= %d -- a Postgres "+
+						"sequence must never repeat a value",
+					i, tokens[i], tokens[i-1],
+				)
+			}
 		}
 	})
 }
@@ -322,6 +327,7 @@ func TestAWSCloudRuntimeDriftRetireRemovesStaleFindingOnReclassificationLive(t *
 		SourceSystem:  "aws",
 		Cause:         "state not active yet",
 		EvidenceAsOf:  olderEvidenceAsOf,
+		FencingToken:  100,
 		Candidates:    []model.Candidate{awsCloudRuntimeDriftCandidateFixture(arn, cloudruntime.FindingKindOrphanedCloudResource)},
 		EvaluatedARNs: []string{arn},
 	}
@@ -332,8 +338,8 @@ func TestAWSCloudRuntimeDriftRetireRemovesStaleFindingOnReclassificationLive(t *
 		t.Fatalf("after first pass, finding rows = %v, want exactly [orphaned_cloud_resource]", kinds)
 	}
 
-	// Second pass: a reopen replay with fresher evidence (state now active),
-	// reclassifying the SAME ARN.
+	// Second pass: a reopen replay with fresher evidence (state now active)
+	// and a LARGER fencing token, reclassifying the SAME ARN.
 	freshWrite := reducer.AWSCloudRuntimeDriftWrite{
 		IntentID:      "intent-reopen-replay",
 		ScopeID:       scopeID,
@@ -341,6 +347,7 @@ func TestAWSCloudRuntimeDriftRetireRemovesStaleFindingOnReclassificationLive(t *
 		SourceSystem:  "aws",
 		Cause:         "reopen replay after state activated",
 		EvidenceAsOf:  freshEvidenceAsOf,
+		FencingToken:  200,
 		Candidates:    []model.Candidate{awsCloudRuntimeDriftCandidateFixture(arn, cloudruntime.FindingKindImageVersionDrift)},
 		EvaluatedARNs: []string{arn},
 	}

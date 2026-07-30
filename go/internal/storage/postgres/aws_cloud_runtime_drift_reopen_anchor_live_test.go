@@ -168,11 +168,13 @@ func TestAWSCloudRuntimeDriftReopenGetsFreshElapsedBoundWhileStatePendingLive(t 
 		DB: AWSCloudRuntimeDriftAdmissionBeginner{Beginner: SQLDB{DB: sqlDB}},
 	}
 	readinessChecker := PostgresAWSCloudRuntimeDriftReadinessChecker{DB: SQLDB{DB: sqlDB}}
+	fencingTokenIssuer := PostgresAWSCloudRuntimeDriftFencingTokenIssuer{DB: SQLDB{DB: sqlDB}}
 	handler := reducer.AWSCloudRuntimeDriftHandler{
-		EvidenceLoader:   loader,
-		Writer:           writer,
-		ReadinessChecker: readinessChecker,
-		Now:              func() time.Time { return clock },
+		EvidenceLoader:     loader,
+		Writer:             writer,
+		ReadinessChecker:   readinessChecker,
+		FencingTokenIssuer: fencingTokenIssuer,
+		Now:                func() time.Time { return clock },
 	}
 
 	_, handleErr := handler.Handle(ctx, reopenedClaim)

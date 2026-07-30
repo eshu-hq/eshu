@@ -107,9 +107,10 @@ func TestAWSCloudRuntimeDriftHandlerPublishesAdmittedFindings(t *testing.T) {
 	}
 	writer := &stubAWSCloudRuntimeDriftFindingWriter{}
 	handler := AWSCloudRuntimeDriftHandler{
-		EvidenceLoader: loader,
-		Writer:         writer,
-		Instruments:    inst,
+		EvidenceLoader:     loader,
+		Writer:             writer,
+		Instruments:        inst,
+		FencingTokenIssuer: &stubAWSCloudRuntimeDriftFencingTokenIssuer{tokens: []int64{1}},
 	}
 
 	result, err := handler.Handle(context.Background(), Intent{
@@ -187,7 +188,8 @@ func TestAWSCloudRuntimeDriftHandlerDoesNotEmitFindingsBeforeDurableWrite(t *tes
 		Writer: &stubAWSCloudRuntimeDriftFindingWriter{
 			err: errors.New("database unavailable"),
 		},
-		Instruments: inst,
+		Instruments:        inst,
+		FencingTokenIssuer: &stubAWSCloudRuntimeDriftFencingTokenIssuer{tokens: []int64{1}},
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{
@@ -237,9 +239,10 @@ func TestAWSCloudRuntimeDriftHandlerRedactsAdmittedFindingResourceLogs(t *testin
 		}},
 	}
 	handler := AWSCloudRuntimeDriftHandler{
-		EvidenceLoader: loader,
-		Writer:         &stubAWSCloudRuntimeDriftFindingWriter{},
-		Logger:         logger,
+		EvidenceLoader:     loader,
+		Writer:             &stubAWSCloudRuntimeDriftFindingWriter{},
+		Logger:             logger,
+		FencingTokenIssuer: &stubAWSCloudRuntimeDriftFencingTokenIssuer{tokens: []int64{1}},
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{
@@ -394,6 +397,7 @@ func TestPostgresAWSCloudRuntimeDriftWriterPersistsOneFactPerFinding(t *testing.
 		SourceSystem: "aws",
 		Cause:        "aws runtime facts observed",
 		EvidenceAsOf: now,
+		FencingToken: 1,
 		Candidates:   candidates,
 		Summary: cloudruntime.Summary{
 			OrphanedResources:  1,

@@ -55,9 +55,10 @@ func TestAWSCloudRuntimeDriftHandlerDefersOrphanedFindingWhenStatePending(t *tes
 	writer := &stubAWSCloudRuntimeDriftFindingWriter{}
 	readiness := &stubAWSCloudRuntimeDriftReadinessChecker{pending: true}
 	handler := AWSCloudRuntimeDriftHandler{
-		EvidenceLoader:   loader,
-		Writer:           writer,
-		ReadinessChecker: readiness,
+		EvidenceLoader:     loader,
+		Writer:             writer,
+		FencingTokenIssuer: &stubAWSCloudRuntimeDriftFencingTokenIssuer{tokens: []int64{1}},
+		ReadinessChecker:   readiness,
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{
@@ -109,10 +110,11 @@ func TestAWSCloudRuntimeDriftHandlerCommitsAfterElapsedBoundReached(t *testing.T
 	writer := &stubAWSCloudRuntimeDriftFindingWriter{}
 	readiness := &stubAWSCloudRuntimeDriftReadinessChecker{pending: true}
 	handler := AWSCloudRuntimeDriftHandler{
-		EvidenceLoader:   loader,
-		Writer:           writer,
-		ReadinessChecker: readiness,
-		Now:              func() time.Time { return now },
+		EvidenceLoader:     loader,
+		Writer:             writer,
+		FencingTokenIssuer: &stubAWSCloudRuntimeDriftFencingTokenIssuer{tokens: []int64{1}},
+		ReadinessChecker:   readiness,
+		Now:                func() time.Time { return now },
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{
@@ -151,10 +153,11 @@ func TestAWSCloudRuntimeDriftHandlerKeepsDeferringBeforeElapsedBoundReached(t *t
 	writer := &stubAWSCloudRuntimeDriftFindingWriter{}
 	readiness := &stubAWSCloudRuntimeDriftReadinessChecker{pending: true}
 	handler := AWSCloudRuntimeDriftHandler{
-		EvidenceLoader:   loader,
-		Writer:           writer,
-		ReadinessChecker: readiness,
-		Now:              func() time.Time { return now },
+		EvidenceLoader:     loader,
+		Writer:             writer,
+		FencingTokenIssuer: &stubAWSCloudRuntimeDriftFencingTokenIssuer{tokens: []int64{1}},
+		ReadinessChecker:   readiness,
+		Now:                func() time.Time { return now },
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{
@@ -186,9 +189,10 @@ func TestAWSCloudRuntimeDriftHandlerDoesNotDeferWhenStateNotPending(t *testing.T
 	writer := &stubAWSCloudRuntimeDriftFindingWriter{}
 	readiness := &stubAWSCloudRuntimeDriftReadinessChecker{pending: false}
 	handler := AWSCloudRuntimeDriftHandler{
-		EvidenceLoader:   loader,
-		Writer:           writer,
-		ReadinessChecker: readiness,
+		EvidenceLoader:     loader,
+		Writer:             writer,
+		FencingTokenIssuer: &stubAWSCloudRuntimeDriftFencingTokenIssuer{tokens: []int64{1}},
+		ReadinessChecker:   readiness,
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{
@@ -218,8 +222,9 @@ func TestAWSCloudRuntimeDriftHandlerNilReadinessCheckerNeverDefers(t *testing.T)
 	}
 	writer := &stubAWSCloudRuntimeDriftFindingWriter{}
 	handler := AWSCloudRuntimeDriftHandler{
-		EvidenceLoader: loader,
-		Writer:         writer,
+		EvidenceLoader:     loader,
+		Writer:             writer,
+		FencingTokenIssuer: &stubAWSCloudRuntimeDriftFencingTokenIssuer{tokens: []int64{1}},
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{
@@ -240,7 +245,13 @@ func TestAWSCloudRuntimeDriftHandlerNilReadinessCheckerNeverDefers(t *testing.T)
 
 // TestAWSCloudRuntimeDriftHandlerDoesNotDeferWithoutOrphanedCandidate proves a
 // pending state scope cannot improve a non-orphaned finding kind, so it must
-// not defer one.
+// not defer one. The readiness checker IS still called (#5875 P1 moved the
+// call to before the evidence load, so Handle no longer knows in advance
+// whether this pass will produce an orphaned candidate -- see
+// checkAWSCloudRuntimeDriftReadinessBeforeLoad's doc comment); what this test
+// actually proves is that the pending signal alone does not defer a pass
+// whose freshly loaded evidence contains no orphaned candidate
+// (shouldDeferForLoadedEvidence's AND, not OR).
 func TestAWSCloudRuntimeDriftHandlerDoesNotDeferWithoutOrphanedCandidate(t *testing.T) {
 	t.Parallel()
 
@@ -266,9 +277,10 @@ func TestAWSCloudRuntimeDriftHandlerDoesNotDeferWithoutOrphanedCandidate(t *test
 	writer := &stubAWSCloudRuntimeDriftFindingWriter{}
 	readiness := &stubAWSCloudRuntimeDriftReadinessChecker{pending: true}
 	handler := AWSCloudRuntimeDriftHandler{
-		EvidenceLoader:   loader,
-		Writer:           writer,
-		ReadinessChecker: readiness,
+		EvidenceLoader:     loader,
+		Writer:             writer,
+		FencingTokenIssuer: &stubAWSCloudRuntimeDriftFencingTokenIssuer{tokens: []int64{1}},
+		ReadinessChecker:   readiness,
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{
@@ -285,8 +297,12 @@ func TestAWSCloudRuntimeDriftHandlerDoesNotDeferWithoutOrphanedCandidate(t *test
 	if writer.calls != 1 {
 		t.Fatalf("writer.calls = %d, want 1", writer.calls)
 	}
-	if readiness.calls != 0 {
-		t.Fatalf("readiness.calls = %d, want 0 (no orphaned candidate, so the readiness check should not even run)", readiness.calls)
+	if readiness.calls != 1 {
+		t.Fatalf(
+			"readiness.calls = %d, want 1 (the check now runs before the load, unconditionally; "+
+				"it just must not, by itself, defer a pass whose loaded evidence has no orphaned candidate)",
+			readiness.calls,
+		)
 	}
 }
 
@@ -363,10 +379,11 @@ func TestAWSCloudRuntimeDriftHandlerDefersOnFreshCycleStartedAtDespiteStaleEnque
 	writer := &stubAWSCloudRuntimeDriftFindingWriter{}
 	readiness := &stubAWSCloudRuntimeDriftReadinessChecker{pending: true}
 	handler := AWSCloudRuntimeDriftHandler{
-		EvidenceLoader:   loader,
-		Writer:           writer,
-		ReadinessChecker: readiness,
-		Now:              func() time.Time { return now },
+		EvidenceLoader:     loader,
+		Writer:             writer,
+		FencingTokenIssuer: &stubAWSCloudRuntimeDriftFencingTokenIssuer{tokens: []int64{1}},
+		ReadinessChecker:   readiness,
+		Now:                func() time.Time { return now },
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{

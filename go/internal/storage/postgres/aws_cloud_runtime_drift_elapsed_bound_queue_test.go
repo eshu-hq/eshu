@@ -117,6 +117,21 @@ func (w *countingAWSCloudRuntimeDriftFindingWriter) WriteAWSCloudRuntimeDriftFin
 	return reducer.AWSCloudRuntimeDriftWriteResult{CanonicalWrites: len(write.Candidates)}, nil
 }
 
+// sequentialAWSCloudRuntimeDriftFencingTokenIssuer fakes
+// reducer.AWSCloudRuntimeDriftFencingTokenIssuer with a plain in-memory
+// counter -- this test drives a fake queue backend specifically so a
+// 30-minute bound can be crossed in test time, so it has no real Postgres
+// sequence to issue from; the fencing-token mechanism itself (#5875 P1) is
+// proven live by TestAWSCloudRuntimeDriftFencingTokenIssuerIssuesStrictlyIncreasingValuesLive.
+type sequentialAWSCloudRuntimeDriftFencingTokenIssuer struct{ next int64 }
+
+func (s *sequentialAWSCloudRuntimeDriftFencingTokenIssuer) NextAWSCloudRuntimeDriftFencingToken(
+	context.Context,
+) (int64, error) {
+	s.next++
+	return s.next, nil
+}
+
 // alwaysPendingAWSCloudRuntimeDriftReadinessChecker always reports a pending
 // state_snapshot scope -- the durably-stuck-ingestion shape the P0 fix must
 // still converge against.
@@ -174,10 +189,11 @@ func TestAWSCloudRuntimeDriftHandlerConvergesAfterElapsedBoundOverRealQueueLive(
 	writer := &countingAWSCloudRuntimeDriftFindingWriter{}
 	readiness := &alwaysPendingAWSCloudRuntimeDriftReadinessChecker{}
 	handler := reducer.AWSCloudRuntimeDriftHandler{
-		EvidenceLoader:   alwaysOrphanedAWSCloudRuntimeDriftEvidenceLoader{},
-		Writer:           writer,
-		ReadinessChecker: readiness,
-		Now:              clock,
+		EvidenceLoader:     alwaysOrphanedAWSCloudRuntimeDriftEvidenceLoader{},
+		Writer:             writer,
+		ReadinessChecker:   readiness,
+		FencingTokenIssuer: &sequentialAWSCloudRuntimeDriftFencingTokenIssuer{},
+		Now:                clock,
 	}
 
 	// awsCloudRuntimeDriftStatePendingMaxWait is unexported in package

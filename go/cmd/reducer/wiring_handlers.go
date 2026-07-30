@@ -82,10 +82,14 @@ func buildReducerDriftHandlers(
 		},
 		AWSCloudRuntimeDriftWriter:           awsCloudRuntimeDriftWriterFor(database),
 		AWSCloudRuntimeDriftReadinessChecker: postgres.PostgresAWSCloudRuntimeDriftReadinessChecker{DB: database},
-		AWSCloudRuntimeDriftLogger:           logger,
-		MultiCloudRuntimeDriftEvidenceLoader: multiCloudRuntimeDriftEvidenceLoader,
-		MultiCloudRuntimeDriftWriter:         multiCloudRuntimeDriftWriter,
-		MultiCloudRuntimeDriftLogger:         multiCloudRuntimeDriftLogger,
+		// FencingTokenIssuer must be wired whenever the writer is (#5875 P1):
+		// AWSCloudRuntimeDriftHandler.Handle hard-errors without one rather
+		// than silently falling back to the host clock.
+		AWSCloudRuntimeDriftFencingTokenIssuer: postgres.PostgresAWSCloudRuntimeDriftFencingTokenIssuer{DB: database},
+		AWSCloudRuntimeDriftLogger:             logger,
+		MultiCloudRuntimeDriftEvidenceLoader:   multiCloudRuntimeDriftEvidenceLoader,
+		MultiCloudRuntimeDriftWriter:           multiCloudRuntimeDriftWriter,
+		MultiCloudRuntimeDriftLogger:           multiCloudRuntimeDriftLogger,
 	}
 }
 

@@ -64,9 +64,18 @@ func (w PostgresAWSCloudRuntimeDriftWriter) WriteAWSCloudRuntimeDriftFindings(
 	if err := validateAWSCloudRuntimeDriftFence(write.EvidenceAsOf); err != nil {
 		return AWSCloudRuntimeDriftWriteResult{}, err
 	}
+	if err := validateAWSCloudRuntimeDriftFencingToken(write.FencingToken); err != nil {
+		return AWSCloudRuntimeDriftWriteResult{}, err
+	}
 
 	now := reducerWriterNow(w.Now)
-	fencingToken := awsCloudRuntimeDriftFencingToken(write.EvidenceAsOf)
+	// FencingToken is issued by AWSCloudRuntimeDriftHandler.Handle (#5875 P1),
+	// not derived here: it must be a database-issued value captured at
+	// evidence-read time, not anything this writer could compute from
+	// EvidenceAsOf or its own clock. See AWSCloudRuntimeDriftWrite.FencingToken
+	// and awsCloudRuntimeDriftAdmissionQuery's doc comment
+	// (aws_cloud_runtime_drift_admission.go).
+	fencingToken := write.FencingToken
 
 	tx, err := w.DB.BeginAWSCloudRuntimeDriftTx(ctx)
 	if err != nil {

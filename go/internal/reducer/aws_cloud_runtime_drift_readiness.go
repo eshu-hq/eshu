@@ -185,27 +185,91 @@ func (awsCloudRuntimeDriftStatePendingError) FailureClass() string {
 // delay, where failing toward "commit now" on a misread zero timestamp would
 // write a possibly-wrong verdict for a reason unrelated to actual elapsed
 // time.
-func (h AWSCloudRuntimeDriftHandler) shouldDeferForStatePending(
+// awsCloudRuntimeDriftReadinessSignal is the readiness gate's answer, captured
+// BEFORE LoadAWSCloudRuntimeDriftEvidence runs (see
+// checkAWSCloudRuntimeDriftReadinessBeforeLoad's doc comment for why the
+// ordering matters). Handle combines it with the POST-load admitted
+// candidates (shouldDeferForLoadedEvidence) rather than re-querying the
+// checker after the load, so the pending signal can never reflect a state
+// activation that happened after evidence was already captured.
+type awsCloudRuntimeDriftReadinessSignal struct {
+	// gateDisabled is true when there is nothing to check: a nil
+	// ReadinessChecker (gate opt-out) or the elapsed-time bound already
+	// reached (terminal fallback). When true, Handle must never defer
+	// regardless of what the evidence load produces.
+	gateDisabled bool
+	// pending is the checker's answer, captured before the evidence load.
+	// Meaningless when gateDisabled is true.
+	pending bool
+}
+
+// checkAWSCloudRuntimeDriftReadinessBeforeLoad reports the pending-state
+// signal Handle must use for its defer decision. It MUST be called BEFORE
+// LoadAWSCloudRuntimeDriftEvidence, never after (#5875 P1, a hostile review
+// caught this ordering bug): a state_snapshot generation that activates in
+// the window between the evidence snapshot and a POST-load readiness check
+// would make the checker report "ready" while the evidence already in hand
+// predates the activation, so Handle would durably write a stale
+// orphaned_cloud_resource verdict computed from evidence a fresher state read
+// would have reclassified -- the exact "written durably as a success, never
+// repaired" shape #5837 is about, reintroduced through a narrower window.
+// Worse, the repair path cannot save it: ReopenSucceeded's reopen selects
+// only 'succeeded' rows, so a maintenance pass racing this exact intent while
+// it is still claimed/running skips it, leaving no guaranteed later repair.
+//
+// Checking before the load closes that window: the signal this function
+// returns can only ever be as stale as "state activated before this call
+// returned", never staler than the evidence Handle goes on to load. The
+// reverse race -- state activating BETWEEN this check and the evidence load
+// that follows -- is benign: the load simply reads fresher data than this
+// signal assumed, which can only produce a MORE correct candidate set, never
+// a worse one (see shouldDeferForLoadedEvidence and
+// TestAWSCloudRuntimeDriftHandlerWritesFresherEvidenceWhenStateActivatesBeforeLoad
+// in aws_cloud_runtime_drift_toctou_test.go, which proves the reverse race
+// costs nothing when the fresher evidence resolves cleanly, and
+// TestAWSCloudRuntimeDriftHandlerDefersDespiteStateActivatingDuringEvidenceLoad,
+// which proves the forward race this function exists to close).
+//
+// now must be the SAME clock reading Handle uses for its evidence-read
+// watermark, passed in rather than read again here, so a slow evidence load
+// cannot itself push the intent past the elapsed bound.
+func (h AWSCloudRuntimeDriftHandler) checkAWSCloudRuntimeDriftReadinessBeforeLoad(
 	ctx context.Context,
 	intent Intent,
-	admitted []model.Candidate,
 	now time.Time,
-) (bool, error) {
+) (awsCloudRuntimeDriftReadinessSignal, error) {
 	if h.ReadinessChecker == nil {
-		return false, nil
+		return awsCloudRuntimeDriftReadinessSignal{gateDisabled: true}, nil
 	}
 	anchor := awsCloudRuntimeDriftCycleAnchor(intent)
 	if !anchor.IsZero() && now.Sub(anchor) >= awsCloudRuntimeDriftStatePendingMaxWait {
-		return false, nil
-	}
-	if !hasOrphanedAWSCloudRuntimeDriftCandidate(admitted) {
-		return false, nil
+		return awsCloudRuntimeDriftReadinessSignal{gateDisabled: true}, nil
 	}
 	pending, err := h.ReadinessChecker.HasPendingStateSnapshotEvidence(ctx)
 	if err != nil {
-		return false, err
+		return awsCloudRuntimeDriftReadinessSignal{}, err
 	}
-	return pending, nil
+	return awsCloudRuntimeDriftReadinessSignal{pending: pending}, nil
+}
+
+// shouldDeferForLoadedEvidence combines the PRE-load readiness signal with
+// the POST-load admitted candidates to decide whether Handle must defer
+// instead of writing. Deferring only when the freshly loaded evidence
+// actually contains an orphaned_cloud_resource candidate preserves the
+// existing "only defer when a pending state scope could actually matter"
+// optimization -- a pending state_snapshot scope cannot improve any other
+// finding kind (unmanaged/ambiguous/unknown/image_version_drift all already
+// require state to be present), so a pass that never touches an orphan
+// candidate must not defer just because SOME unrelated scope, anywhere, is
+// pending.
+func shouldDeferForLoadedEvidence(
+	signal awsCloudRuntimeDriftReadinessSignal,
+	admitted []model.Candidate,
+) bool {
+	if signal.gateDisabled || !signal.pending {
+		return false
+	}
+	return hasOrphanedAWSCloudRuntimeDriftCandidate(admitted)
 }
 
 // awsCloudRuntimeDriftCycleAnchor returns intent.CycleStartedAt when set,
