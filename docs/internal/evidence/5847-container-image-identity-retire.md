@@ -1158,9 +1158,9 @@ go test ./... -count=1
 
 The live PostgreSQL retirement, multi-chunk concurrency, migration lifecycle,
 focused-package, SDK, and complete Go-module suites passed. The fresh B-7 live
-golden-corpus gate completed in 111 seconds with 511 passes, 0 required
-failures, and two advisory timing warnings (graph query and maintenance
-drains). Its first drain took 66 seconds against the 75-second baseline. Both
+golden-corpus gate completed in 109 seconds with 512 passes, 0 required
+failures, and one advisory graph-query timing warning. Its first drain took
+67 seconds against the 75-second baseline. Both
 the container-image identity list and aggregate inventory query assertions
 passed.
 
