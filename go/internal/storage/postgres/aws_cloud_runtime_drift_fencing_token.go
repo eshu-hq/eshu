@@ -12,6 +12,7 @@ import (
 // awsCloudRuntimeDriftFencingTokenSequence is the Postgres sequence backing
 // PostgresAWSCloudRuntimeDriftFencingTokenIssuer (migration
 // 089_aws_cloud_runtime_drift_fencing_token_sequence.sql).
+// #nosec G101 -- sequence name, not a credential
 const awsCloudRuntimeDriftFencingTokenSequence = "aws_cloud_runtime_drift_fencing_token_seq"
 
 // awsCloudRuntimeDriftNextFencingTokenQuery issues the next value from the
