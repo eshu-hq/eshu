@@ -5582,6 +5582,7 @@
           "count"
         ],
         "minimum_results": 1,
+        "results_field": "resources",
         "required_json_values": {
           "resources[].attributes.containers[].image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
           "resources[].attributes.image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
