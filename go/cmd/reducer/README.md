@@ -98,8 +98,33 @@ flowchart TB
    `postgres.NewReducerQueue`.
 6. `app.NewHostedWithStatusServer` — mounts the shared admin surface.
 7. `signal.NotifyContext` for `os.Interrupt` / `syscall.SIGTERM`.
-8. `service.Run(ctx)` — blocks until the context is canceled; hosted
+8. `startSearchDocumentSweeper` and `startConfigStateDriftCatchUpSweeper`
+   launch their background loops (see "Background catch-up sweeps" below).
+9. `service.Run(ctx)` — blocks until the context is canceled; hosted
    runtime drains in-flight work before returning.
+
+### Background catch-up sweeps
+
+Two best-effort background loops run beside the hosted queue-drain runtime,
+started from `run.go` just before `service.Run(ctx)`, both needing no lease
+because their enqueue is idempotent (`ON CONFLICT DO NOTHING`
+by domain+scope_id+generation_id):
+
+- `startSearchDocumentSweeper` (design 430) — curated search-document
+  projection catch-up, default 30s interval.
+- `startConfigStateDriftCatchUpSweeper` (issue #5593) — re-scans active
+  `state_snapshot:*` scopes and re-enqueues `config_state_drift` reducer
+  intents every 5 minutes by default
+  (`projector.ConfigStateDriftCatchUpSweeper`). It exists to bound the one gap
+  the ingester's Ack post-commit runtime trigger cannot close on its own: that
+  trigger's `Enqueue` call is best-effort and never retried (see
+  `ConfigStateDriftRuntimeTrigger`'s doc comment in
+  `internal/storage/postgres/drift_runtime_trigger.go`), so a lost call would
+  otherwise wait for a new `terraform apply` or an operator-run
+  `eshu-bootstrap-index` to converge. This sweeper is a THIRD, unrelated
+  producer of the same domain, not the ledger-backed redrive issue #5593's
+  review removed — see that same doc comment and `AGENTS.md`'s
+  "config_state_drift has no redrive/retry" invariant before touching either.
 
 ## Default handler wiring evidence
 

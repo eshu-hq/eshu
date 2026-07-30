@@ -58,12 +58,31 @@ const bootstrapIndexProjectorLeaseOwner = "bootstrap-index"
 // because a best-effort downstream enqueue attempt errored. Unlike the
 // Crossplane sweep, a failed TriggerConfigStateDrift call leaves no durable
 // partial state to resume: ReducerQueue.Enqueue is one atomic batch INSERT,
-// so an error here means the work_item_id row was never written and the
-// reducer queue's per-(scope,generation) ON CONFLICT DO NOTHING dedupe does
-// NOT block a later attempt -- the next bootstrap-index Phase 3.5 sweep
+// so an error here means the work_item_id row was never written, and this
+// call is NEVER retried on its own -- Ack's own five-statement transaction
+// already committed and must not be blocked or looped waiting on reducer
+// admission a second time (that is what the perf evidence in this branch
+// measured and bounded; see docs/internal/evidence/5593-config-state-drift-ack-latency.md).
+//
+// Convergence for that lost call is bounded, not reliant on either producer
+// firing again by chance (issue #5593):
+// projector.ConfigStateDriftCatchUpSweeper, started from
+// cmd/reducer/config_state_drift_catchup_sweeper.go and running continuously
+// in the steady-state reducer process, re-scans every active
+// state_snapshot:* scope on a fixed interval (default 5 minutes) and
+// re-enqueues through the identical (domain, scope_id, generation_id)
+// work_item_id. Because that work_item_id has no row at all for a generation
+// this hook's Enqueue call failed on, ON CONFLICT DO NOTHING admits the
+// sweep's retry normally, closing the gap within one sweep interval instead
+// of waiting for an unrelated bootstrap-index re-run
 // (IngestionStore.EnqueueConfigStateDriftIntents) or the next state snapshot
-// activation for the same backend still converges on evaluating this drift
-// domain.
+// activation for the same backend, either of which may be arbitrarily far
+// away or never happen again in a continuously running deployment. This
+// counter (ConfigStateDriftRuntimeTriggerFailures{outcome="trigger_error"})
+// plus the ERROR log above are the trace that a specific generation took
+// this path rather than the direct one; the sweep's own
+// CorrelationDriftIntentsEnqueued{source="reducer_catch_up_sweep"} advancing
+// above zero is the trace that the sweep actually had to pick something up.
 //
 // MUST NOT be wired on the ProjectorQueue bootstrap-index constructs
 // (cmd/bootstrap-index/wiring.go): bootstrap's Phase 3.5 deliberately runs

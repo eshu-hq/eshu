@@ -83,6 +83,17 @@ const driftRuntimeTriggerSourceSystem = "ingester_runtime_trigger"
 // or criterion 2's read-model outcome (sibling branch
 // 5594-local-backend-default-path) are the accepted paths for that
 // narrower residual gap.
+//
+// projector.ConfigStateDriftCatchUpSweeper (issue #5593,
+// cmd/reducer/config_state_drift_catchup_sweeper.go) does NOT change this: it
+// re-enqueues against the same (domain, scope_id, generation_id)
+// work_item_id, and a rejected generation already has that row (status
+// succeeded), so ON CONFLICT DO NOTHING correctly skips it every sweep. The
+// sweeper's actual job is the DIFFERENT, narrower gap of TriggerConfigStateDrift's
+// own Enqueue call failing outright (network/timeout/transient Postgres
+// error) BEFORE any row was ever written for that generation -- see
+// runConfigStateDriftTriggerHook's doc comment in
+// projector_queue_config_state_drift_trigger_hook.go for that path's bound.
 type ConfigStateDriftRuntimeTrigger struct {
 	Queue       projector.ReducerIntentWriter
 	Instruments *telemetry.Instruments

@@ -44,16 +44,16 @@ before touching any file in this directory.
   reintroduce a fixed `now().Add(retryDelay)` retry schedule; many
   same-instant failures reconverging on one `visible_at` is the retry-storm
   this replaced.
-- **`config_state_drift` has no redrive/retry — do not re-add one without
-  reading the issue #5593 history first.** `TerraformConfigStateDriftHandler`
-  once had a `Redrive` field wired from here
-  (`buildReducerDriftHandlers`/`wiring_handlers.go`) into a Postgres-backed
-  ledger claimed by a `cmd/ingester` catch-up loop. It went through three
-  review rounds and was removed: narrowing it to schedule only on the
-  observed `tfstatebackend.ErrNoConfigRepoOwnsBackend` rejection (instead of
-  unconditionally on every activation) fixed one bug but exposed that
-  `Handle()` re-running on every redrive replay, combined with the ledger
-  row being deleted on exhaustion, made the scheduling INSERT's
+- **`config_state_drift` has no OUTCOME-based redrive/retry — do not re-add
+  one without reading the issue #5593 history first.**
+  `TerraformConfigStateDriftHandler` once had a `Redrive` field wired from
+  here (`buildReducerDriftHandlers`/`wiring_handlers.go`) into a
+  Postgres-backed ledger claimed by a `cmd/ingester` catch-up loop. It went
+  through three review rounds and was removed: narrowing it to schedule only
+  on the observed `tfstatebackend.ErrNoConfigRepoOwnsBackend` rejection
+  (instead of unconditionally on every activation) fixed one bug but exposed
+  that `Handle()` re-running on every redrive replay, combined with the
+  ledger row being deleted on exhaustion, made the scheduling INSERT's
   `ON CONFLICT DO NOTHING` a no-op against nothing — a fresh row every
   cycle, an unbounded ~20-minute perpetual retry loop for every
   operator-owned backend (the resolver's own doc comment names that as the
@@ -62,7 +62,15 @@ before touching any file in this directory.
   (`internal/storage/postgres/drift_runtime_trigger.go`) for the full
   history. The rejection is now durably terminal per generation and
   self-heals on the next real `terraform apply` (a new generation,
-  evaluated independently).
+  evaluated independently). This is UNRELATED to
+  `startConfigStateDriftCatchUpSweeper` (`config_state_drift_catchup_sweeper.go`,
+  issue #5593): that sweeper never inspects a per-item outcome, never
+  touches a ledger, and never re-runs `Handle()` for a generation that
+  already has a `fact_work_items` row (terminal in ANY status). It only
+  covers a generation with NO row at all — the case where the ingester's Ack
+  post-commit runtime trigger's own `Enqueue` call failed outright. Do not
+  conflate the two, and do not treat the sweeper's existence as license to
+  resurrect the removed ledger mechanism.
 - **Prior-config depth defaults to 10; invalid input WARNs and falls back** —
   `PriorConfigDepth` is set from `parsePriorConfigDepth` in
   `buildReducerDriftHandlers` (`wiring_handlers.go`).
