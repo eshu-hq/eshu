@@ -5,6 +5,7 @@ package query
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -258,6 +259,25 @@ func (h *CloudInventoryHandler) filterFromRequest(w http.ResponseWriter, r *http
 		return cloudInventoryFilter{}, false
 	}
 	scopeID, aliasKey, aliasValue := cloudInventoryScopeSelector(r)
+	// An account_id/project_id/subscription_id alias resolves against the
+	// single shared canonical payload key "account_id" with no provider
+	// disambiguation baked into the value itself (buildCloudInventoryIdentitiesSQL
+	// only ANDs a provider predicate when filter.Provider is non-empty). AWS
+	// account ids and GCP project NUMBERS are both plain decimal strings, and
+	// accountIDFallback can populate account_id from a numeric CAI
+	// full_resource_name segment for some asset types, so a caller who omits
+	// provider risks a genuine cross-provider numeric collision under an
+	// AllScopes grant -- one account_id value silently matching another
+	// provider's unrelated resource. Requiring provider whenever an alias is
+	// present closes that at the input boundary rather than relying on every
+	// caller to remember to scope it (#5238).
+	if aliasKey != "" && provider == "" {
+		h.writeInvalidArgument(w, r, fmt.Sprintf(
+			"%s requires provider (account_id/project_id/subscription_id resolve against a shared canonical key with no provider disambiguation)",
+			aliasKey,
+		))
+		return cloudInventoryFilter{}, false
+	}
 	return cloudInventoryFilter{
 		Provider:          provider,
 		ScopeID:           scopeID,

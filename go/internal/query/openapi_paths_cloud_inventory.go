@@ -18,13 +18,13 @@ const openAPIPathsCloudInventory = `
         "summary": "List canonical multi-cloud resource identities (bounded, filterable, paginated, truth-labeled)",
         "operationId": "listCloudResourceInventory",
         "x-scoped-token-support": true,
-        "description": "Reads the reducer-owned canonical CloudResource identity rows (reducer_cloud_resource_identity). Filterable by provider (aws/gcp/azure), canonical scope or provider account, and management_origin. local_lightweight returns unsupported_capability. Scoped tokens receive rows intersected with the caller's granted repositories/ingestion scopes (fact_records.scope_id); a scoped caller with no grants receives an empty page without a query.",
+        "description": "Reads the reducer-owned canonical CloudResource identity rows (reducer_cloud_resource_identity). Filterable by provider (aws/gcp/azure), canonical scope or provider account, and management_origin. local_lightweight returns unsupported_capability. Scoped tokens receive rows intersected with the caller's granted repositories/ingestion scopes (fact_records.scope_id); a scoped caller with no grants receives an empty page without a query. account_id/project_id/subscription_id REQUIRE provider: all three resolve against one shared canonical payload key with no per-provider disambiguation in the predicate itself, so an alias supplied without provider is rejected as invalid_argument rather than risking a cross-provider numeric collision (e.g. an AWS account id and a GCP project number can be the identical decimal string).",
         "parameters": [
-          {"name": "provider", "in": "query", "description": "Filter by cloud provider: aws, gcp, or azure.", "schema": {"type": "string", "enum": ["aws", "gcp", "azure"]}},
+          {"name": "provider", "in": "query", "description": "Filter by cloud provider: aws, gcp, or azure. REQUIRED alongside account_id/project_id/subscription_id.", "schema": {"type": "string", "enum": ["aws", "gcp", "azure"]}},
           {"name": "scope_id", "in": "query", "description": "Filter by the exact canonical ingestion scope id. A canonical scope is a single collector partition (for AWS, one account+region+service claim), not the whole provider account -- one account can span many scope ids. Takes precedence over account_id/project_id/subscription_id when both are given.", "schema": {"type": "string"}},
-          {"name": "account_id", "in": "query", "description": "Filter by the raw AWS account number. Unlike scope_id, this matches every canonical resource whose admitting aws_resource source fact carried this account_id (potentially spanning many scope ids, one per region/service partition).", "schema": {"type": "string"}},
-          {"name": "project_id", "in": "query", "description": "Filter by the raw GCP project id. Matches every canonical resource whose admitting gcp_cloud_resource source fact carried this project_id.", "schema": {"type": "string"}},
-          {"name": "subscription_id", "in": "query", "description": "Filter by the raw Azure subscription id. Matches every canonical resource whose admitting azure_cloud_resource source fact carried this subscription_id.", "schema": {"type": "string"}},
+          {"name": "account_id", "in": "query", "description": "Filter by the raw AWS account number. Requires provider. Unlike scope_id, this matches every canonical resource whose admitting aws_resource source fact carried this account_id (potentially spanning many scope ids, one per region/service partition).", "schema": {"type": "string"}},
+          {"name": "project_id", "in": "query", "description": "Filter by the raw GCP project id. Requires provider. Matches every canonical resource whose admitting gcp_cloud_resource source fact carried this project_id.", "schema": {"type": "string"}},
+          {"name": "subscription_id", "in": "query", "description": "Filter by the raw Azure subscription id. Requires provider. Matches every canonical resource whose admitting azure_cloud_resource source fact carried this subscription_id.", "schema": {"type": "string"}},
           {"name": "management_origin", "in": "query", "description": "Filter by strongest contributing evidence layer: declared, applied, or observed.", "schema": {"type": "string", "enum": ["declared", "applied", "observed"]}},
           {"name": "limit", "in": "query", "description": "Page size.", "schema": {"type": "integer", "minimum": 1, "maximum": 200, "default": 50}},
           {"name": "cursor", "in": "query", "description": "Continuation cursor: non-negative integer offset returned in next_cursor of the previous page.", "schema": {"type": "string"}}
@@ -127,7 +127,7 @@ const openAPIPathsCloudInventory = `
               }
             }
           },
-          "400": {"description": "Invalid provider, management_origin, limit, or cursor"},
+          "400": {"description": "Invalid provider, management_origin, limit, or cursor; or account_id/project_id/subscription_id supplied without provider"},
           "501": {"description": "Capability unsupported by the active query profile, or canonical identity read model unavailable"}
         }
       }

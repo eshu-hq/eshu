@@ -13,13 +13,13 @@ func cloudInventoryTools() []ToolDefinition {
 	return []ToolDefinition{
 		{
 			Name:        "list_cloud_resource_inventory",
-			Description: "List canonical multi-cloud resource identities (reducer_cloud_resource_identity) by bounded provider, scope, and management_origin filters. Returns provider, normalized identity, management_origin, per-layer evidence flags, provider-neutral source state, optional keyed tag fingerprints, optional bounded identity-policy evidence, and optional sanitized freshness evidence. Unsupported on lightweight local runtime.",
+			Description: "List canonical multi-cloud resource identities (reducer_cloud_resource_identity) by bounded provider, scope, and management_origin filters. Returns provider, normalized identity, management_origin, per-layer evidence flags, provider-neutral source state, optional keyed tag fingerprints, optional bounded identity-policy evidence, and optional sanitized freshness evidence. Unsupported on lightweight local runtime. account_id/project_id/subscription_id REQUIRE provider: all three resolve against one shared canonical key with no per-provider disambiguation, so a numeric value (an AWS account id and a GCP project number can be the identical decimal string) could otherwise match the wrong provider's resource; omitting provider alongside one of them is rejected as invalid_argument.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"provider": map[string]any{
 						"type":        "string",
-						"description": "Cloud provider filter: aws, gcp, or azure",
+						"description": "Cloud provider filter: aws, gcp, or azure. REQUIRED alongside account_id/project_id/subscription_id.",
 						"enum":        []string{"aws", "gcp", "azure"},
 					},
 					"scope_id": map[string]any{
@@ -28,15 +28,15 @@ func cloudInventoryTools() []ToolDefinition {
 					},
 					"account_id": map[string]any{
 						"type":        "string",
-						"description": "Raw AWS account number. Matches every canonical resource whose admitting source fact carried this account_id, which can span multiple region/service partitions (scope ids).",
+						"description": "Raw AWS account number. Requires provider. Matches every canonical resource whose admitting source fact carried this account_id, which can span multiple region/service partitions (scope ids).",
 					},
 					"project_id": map[string]any{
 						"type":        "string",
-						"description": "Raw GCP project id. Matches every canonical resource whose admitting source fact carried this project_id.",
+						"description": "Raw GCP project id. Requires provider. Matches every canonical resource whose admitting source fact carried this project_id.",
 					},
 					"subscription_id": map[string]any{
 						"type":        "string",
-						"description": "Raw Azure subscription id. Matches every canonical resource whose admitting source fact carried this subscription_id.",
+						"description": "Raw Azure subscription id. Requires provider. Matches every canonical resource whose admitting source fact carried this subscription_id.",
 					},
 					"management_origin": map[string]any{
 						"type":        "string",

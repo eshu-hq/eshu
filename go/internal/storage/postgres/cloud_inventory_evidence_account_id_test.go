@@ -133,6 +133,22 @@ func TestGCPProjectIDFromFullResourceNameMatchesCollectorDerivation(t *testing.T
 		"",
 		"projects/only-project-segment",
 		"//bigquery.googleapis.com/projects/proj-a/datasets/d/tables/t",
+		// Trailing slash immediately after the project id: the id itself is
+		// still a distinct segment before the trailing empty one.
+		"//compute.googleapis.com/projects/trailing-project/",
+		// Multiple "projects/" segments in one name: both implementations must
+		// agree on which one wins (the FIRST occurrence, since both loops return
+		// on first match) rather than silently diverging on the later one.
+		"//storage.googleapis.com/projects/outer-project/buckets/b/projects/inner-project",
+		// Empty id immediately after "projects/": a malformed name whose segment
+		// right after "projects" is itself empty. Both implementations must
+		// return the same (empty) string rather than one panicking or one
+		// returning a different sentinel.
+		"//compute.googleapis.com/projects//zones/z/instances/i",
+		// Unusual casing: "Projects" (capital P) must NOT match "projects" in
+		// either implementation -- both must agree on returning "" rather than
+		// one being case-sensitive and the other not.
+		"//compute.googleapis.com/Projects/p/zones/z/instances/i",
 	}
 	for _, fullResourceName := range cases {
 		want := gcpcloud.ProjectIDFromFullName(fullResourceName)

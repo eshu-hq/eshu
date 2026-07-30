@@ -470,23 +470,37 @@ The scope selector is one of:
   span many scope ids (`go/internal/collector/awscloud/awsruntime/source.go`).
   `scope_id` takes precedence when given alongside an account selector.
 - `account_id` (AWS), `project_id` (GCP), or `subscription_id` (Azure) -- the
-  raw provider account/tenant identifier. Unlike `scope_id` this is **not**
-  compared against the scope id itself (#5238: earlier revisions did, which
-  silently matched zero rows for any real multi-scope account, on every
-  provider); it resolves against the canonical payload's normalized
-  `account_id` field, which the reducer writes from the admitting source
-  fact's own identity field (AWS `account_id`, GCP `project_id`, Azure
-  `subscription_id` -- see `go/internal/reducer/cloud_inventory_admission_writer.go`),
-  and therefore returns every canonical row across every scope that shares
-  that identifier. AWS `account_id` and Azure `subscription_id` are required
-  identity fields on every admitting source fact, so this always resolves for
-  those two providers. GCP `project_id` is genuinely **optional**
-  (`sdk/go/factschema/gcp/v1/resource.go`): an organization- or folder-level
-  Cloud Asset Inventory asset has no project. The reducer derives it from the
-  asset's `full_resource_name` when a `projects/<id>` segment is present (the
-  common, project-scoped case); a resource with no such segment has no
-  `account_id` value and is correctly absent from every `project_id`-filtered
-  read while remaining visible under an unscoped `provider=gcp` read.
+  raw provider account/tenant identifier. **Requires `provider`.** Unlike
+  `scope_id` this is **not** compared against the scope id itself (#5238:
+  earlier revisions did, which silently matched zero rows for any real
+  multi-scope account, on every provider); it resolves against the canonical
+  payload's normalized `account_id` field, which the reducer writes from the
+  admitting source fact's own identity field (AWS `account_id`, GCP
+  `project_id`, Azure `subscription_id` -- see `go/internal/reducer/
+  cloud_inventory_admission_writer.go`), and therefore returns every canonical
+  row across every scope that shares that identifier. AWS `account_id` and
+  Azure `subscription_id` are required identity fields on every admitting
+  source fact, so this always resolves for those two providers. GCP
+  `project_id` is genuinely **optional** (`sdk/go/factschema/gcp/v1/
+  resource.go`): an organization- or folder-level Cloud Asset Inventory asset
+  has no project. The reducer derives it from the asset's `full_resource_name`
+  when a `projects/<id>` segment is present (the common, project-scoped case);
+  a resource with no such segment has no `account_id` value and is correctly
+  absent from every `project_id`-filtered read while remaining visible under
+  an unscoped `provider=gcp` read.
+
+**Provider is required alongside an account alias.** `account_id`,
+`project_id`, and `subscription_id` all resolve against the SAME shared
+canonical `account_id` payload key, with no provider baked into the predicate
+itself. AWS account ids and GCP project *numbers* (as distinct from project
+IDs) are both plain decimal strings, and the GCP derivation above can populate
+`account_id` from a numeric `full_resource_name` segment -- so a caller who
+omits `provider` risks a genuine cross-provider collision: one `account_id`
+value silently matching another provider's unrelated resource for an
+all-scopes caller. `GET /api/v0/cloud/inventory` and MCP
+`list_cloud_resource_inventory` both reject an account alias supplied without
+`provider` as `invalid_argument` (HTTP 400) rather than searching across every
+provider's keyspace.
 
 **Rollout window:** `account_id`/`project_id`/`subscription_id` only resolve
 against rows admitted by the reducer AFTER this fix deploys. A scope's

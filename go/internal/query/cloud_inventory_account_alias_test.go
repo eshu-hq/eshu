@@ -186,6 +186,14 @@ func TestCloudInventoryHandlerAccountIDDispatchesCanonicalPayloadMatch(t *testin
 	if !strings.Contains(dispatched, "fact_records.payload->>'account_id' = $") {
 		t.Fatalf("dispatched query missing account-alias predicate:\n%s", dispatched)
 	}
+	// #5238 P1-A: account_id resolves against one shared canonical key with no
+	// per-provider disambiguation baked into the value, so the provider
+	// predicate MUST also be present alongside it -- otherwise a numeric
+	// account_id could collide across providers (AWS account ids and GCP
+	// project numbers are both decimal strings).
+	if !strings.Contains(dispatched, "fact_records.payload->>'provider' = $") {
+		t.Fatalf("dispatched query missing the provider predicate required to disambiguate an account alias:\n%s", dispatched)
+	}
 	found := false
 	for _, arg := range recorder.args[0] {
 		if s := fmt.Sprintf("%v", arg); s == "111111111111" {
@@ -207,6 +215,81 @@ func TestCloudInventoryHandlerAccountIDDispatchesCanonicalPayloadMatch(t *testin
 	}
 	if _, present := scope["scope_id"]; present {
 		t.Fatalf(`scope["scope_id"] must not be set when the request used account_id, got %#v`, scope)
+	}
+}
+
+// TestCloudInventoryHandlerAccountAliasWithoutProviderRejected is the #5238
+// P1-A regression: account_id/project_id/subscription_id resolve against ONE
+// shared canonical payload key ("account_id") with no provider baked into the
+// predicate itself. AWS account ids and GCP project NUMBERS (as opposed to
+// project IDs) are both plain decimal strings, and accountIDFallback
+// (go/internal/storage/postgres/cloud_inventory_evidence_gcp_project_id.go)
+// can populate account_id from a numeric CAI full_resource_name segment for
+// some asset types -- so an alias supplied without provider risks a genuine
+// cross-provider numeric collision for an AllScopes caller. Every alias
+// selector must be rejected as invalid input when provider is omitted, rather
+// than silently searching across all three providers' keyspace.
+func TestCloudInventoryHandlerAccountAliasWithoutProviderRejected(t *testing.T) {
+	t.Parallel()
+
+	for _, aliasKey := range []string{"account_id", "project_id", "subscription_id"} {
+		t.Run(aliasKey, func(t *testing.T) {
+			t.Parallel()
+
+			handler := &CloudInventoryHandler{
+				Content: NewContentReader(openContentReaderTestDB(t, nil)),
+				Profile: ProfileProduction,
+			}
+			mux := http.NewServeMux()
+			handler.Mount(mux)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v0/cloud/inventory?"+aliasKey+"=123456789012", nil)
+			req.Header.Set("Accept", EnvelopeMIMEType)
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+
+			if got, want := w.Code, http.StatusBadRequest; got != want {
+				t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+			}
+			var resp ResponseEnvelope
+			if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+				t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+			}
+			if resp.Error == nil {
+				t.Fatalf("expected error envelope, got %s", w.Body.String())
+			}
+			if got, want := resp.Error.Code, ErrorCodeInvalidArgument; got != want {
+				t.Fatalf("error.code = %#v, want %#v", got, want)
+			}
+			if !strings.Contains(resp.Error.Message, "provider") {
+				t.Fatalf("error.message = %q, want it to mention provider", resp.Error.Message)
+			}
+		})
+	}
+}
+
+// TestCloudInventoryHandlerAccountAliasWithProviderStillWorks is the
+// no-regression counterpart: supplying provider alongside an alias -- the
+// documented, required shape -- still succeeds exactly as before.
+func TestCloudInventoryHandlerAccountAliasWithProviderStillWorks(t *testing.T) {
+	t.Parallel()
+
+	scopeID := "aws:cloud:111111111111:us-east-1:s3"
+	db := openContentReaderTestDB(t, []contentReaderQueryResult{{
+		columns: []string{"payload"},
+		rows:    [][]driver.Value{{cloudInventoryAccountAliasPayloadRow(t, "aws", scopeID, "aws:s3:bucket-1", "111111111111")}},
+	}})
+	handler := &CloudInventoryHandler{Content: NewContentReader(db), Profile: ProfileProduction}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/cloud/inventory?provider=aws&account_id=111111111111", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 }
 
