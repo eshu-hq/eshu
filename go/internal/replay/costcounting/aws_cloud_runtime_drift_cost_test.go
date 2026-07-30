@@ -105,6 +105,17 @@ var awsCloudRuntimeDriftFixtureARNs = []string{
 // matter for these cost scenarios since nothing here contends for admission.
 var awsCloudRuntimeDriftFixtureEvidenceAsOf = time.Date(2026, time.July, 12, 12, 0, 0, 0, time.UTC)
 
+// awsCloudRuntimeDriftFixtureFencingToken is the fixed fencing token every
+// fixture write in this file uses. WriteAWSCloudRuntimeDriftFindings
+// hard-errors on a zero FencingToken (#5875 P1: the writer no longer derives
+// it from EvidenceAsOf, so leaving this field unset -- as these fixtures did
+// before that fix -- is a real rejection, not a stand-in value): a real
+// Postgres sequence never issues 0 (ascending sequences default to MINVALUE
+// 1), so 0 unambiguously means "never issued". The exact nonzero value does
+// not matter for these cost scenarios since nothing here contends for
+// admission.
+const awsCloudRuntimeDriftFixtureFencingToken int64 = 1
+
 // postgresExecCountingQueryer is an in-memory postgres.ExecQueryer that
 // records each ExecContext call. QueryContext is never exercised by
 // PostgresAWSCloudRuntimeDriftWriter (it only writes) and is implemented as a
@@ -252,6 +263,7 @@ func TestCostBudget_AWSCloudRuntimeDrift(t *testing.T) {
 		SourceSystem:  "aws",
 		Cause:         "reducer/aws_cloud_runtime_drift",
 		EvidenceAsOf:  awsCloudRuntimeDriftFixtureEvidenceAsOf,
+		FencingToken:  awsCloudRuntimeDriftFixtureFencingToken,
 		Candidates:    awsCloudRuntimeDriftFixtureCandidates(),
 		EvaluatedARNs: awsCloudRuntimeDriftFixtureARNs,
 	}); err != nil {
@@ -337,6 +349,7 @@ func TestCostBudget_AWSCloudRuntimeDrift_N1_ExceedsBudget(t *testing.T) {
 			SourceSystem:  "aws",
 			Cause:         "reducer/aws_cloud_runtime_drift",
 			EvidenceAsOf:  awsCloudRuntimeDriftFixtureEvidenceAsOf,
+			FencingToken:  awsCloudRuntimeDriftFixtureFencingToken,
 			Candidates:    candidates,
 			EvaluatedARNs: awsCloudRuntimeDriftFixtureARNs,
 		}); err != nil {
@@ -398,6 +411,7 @@ func TestCostBudget_AWSCloudRuntimeDrift_WithinCallN1_ExceedsBudget(t *testing.T
 			SourceSystem:  "aws",
 			Cause:         "reducer/aws_cloud_runtime_drift",
 			EvidenceAsOf:  awsCloudRuntimeDriftFixtureEvidenceAsOf,
+			FencingToken:  awsCloudRuntimeDriftFixtureFencingToken,
 			Candidates:    []model.Candidate{candidate},
 			EvaluatedARNs: awsCloudRuntimeDriftFixtureARNs,
 		}); err != nil {

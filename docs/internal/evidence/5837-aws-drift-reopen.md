@@ -776,58 +776,163 @@ once). This is the identical anti-pattern `#3389` already paid down elsewhere
 in `003_fact_records.sql` with ~15 per-`fact_kind` partial indexes.
 
 Per Prove-The-Theory-First, the theory was measured before building anything:
-an isolated scratch Postgres 16 instance (private port, no shared container
-touched), bootstrapped with this branch's full schema, seeded with 200,000
-synthetic `fact_records` rows across 40 `fact_kind` values (1,000 matching
-`reducer_aws_cloud_runtime_drift_finding` — the reviewer's own representative
-shape) via `generate_series`, `ANALYZE`d, then `EXPLAIN (ANALYZE, BUFFERS)`
-against the actual seed query, both before and after a candidate index:
+an isolated scratch `postgres:18-alpine` instance (private port, matching
+this repo's `docker-compose.yaml` / `docker-compose.neo4j.yml` pin — no
+shared container touched), bootstrapped with this branch's full schema,
+seeded with 200,000 synthetic `fact_records` rows across 40 `fact_kind`
+values (1,000 matching `reducer_aws_cloud_runtime_drift_finding` — the
+reviewer's own representative shape) via `generate_series`, `ANALYZE`d, then
+`EXPLAIN (ANALYZE, BUFFERS)` against the actual seed query, both before and
+after the candidate index (the index was applied via the real migration,
+then dropped to capture the OLD plan on the identical dataset, then
+recreated):
 
 ```
 OLD (fact_records_scope_generation_idx, fact_kind third column):
- Aggregate  (cost=3788.52..3788.53 rows=1 width=8) (actual time=0.290..0.291 rows=1 loops=1)
-   Buffers: shared hit=240
-   ->  Index Scan using fact_records_scope_generation_idx on fact_records  (cost=0.42..3786.29 rows=893 width=8) (actual time=0.187..0.251 rows=1000 loops=1)
+ Aggregate  (cost=1742.79..1742.80 rows=1 width=8) (actual time=0.205..0.205 rows=1.00 loops=1)
+   Buffers: shared hit=51
+   ->  Index Scan using fact_records_scope_generation_idx on fact_records  (cost=0.42..1740.19 rows=1040 width=8) (actual time=0.049..0.160 rows=1000.00 loops=1)
          Index Cond: (fact_kind = 'reducer_aws_cloud_runtime_drift_finding'::text)
- Execution Time: 0.317 ms
+ Execution Time: 0.242 ms
 
-NEW (candidate: partial index on (fencing_token) WHERE fact_kind = '...'):
- Result  (cost=0.31..0.32 rows=1 width=8) (actual time=0.015..0.015 rows=1 loops=1)
-   InitPlan 1 (returns $0)
-     ->  Limit  (cost=0.28..0.31 rows=1 width=8) (actual time=0.013..0.013 rows=1 loops=1)
-           ->  Index Only Scan Backward using fact_records_aws_cloud_runtime_drift_fencing_token_idx on fact_records  (cost=0.28..38.36 rows=1033 width=8) (actual time=0.013..0.013 rows=1 loops=1)
-                 Index Cond: (fencing_token IS NOT NULL)
-                 Heap Fetches: 0
- Execution Time: 0.039 ms
+NEW (fact_records_aws_cloud_runtime_drift_fencing_token_idx, migration 090):
+ Result  (cost=0.57..0.58 rows=1 width=8) (actual time=0.027..0.027 rows=1.00 loops=1)
+   InitPlan 1
+     ->  Limit  (cost=0.28..0.57 rows=1 width=8) (actual time=0.025..0.025 rows=1.00 loops=1)
+           ->  Index Only Scan Backward using fact_records_aws_cloud_runtime_drift_fencing_token_idx on fact_records  (cost=0.28..304.88 rows=1040 width=8) (actual time=0.024..0.024 rows=1.00 loops=1)
+                 Heap Fetches: 1
+ Execution Time: 0.046 ms
 ```
 
-~12,000x lower planner cost (3788.52 → 0.31), ~8x faster wall time at this
-scale (0.317ms → 0.039ms), via Postgres's standard `MAX(col)` rewrite into an
-`Index Only Scan Backward ... LIMIT 1` once a leading-column index on
-`fencing_token` exists. Unlike the `#3389` precedent's
-`(scope_id, generation_id, fact_id)` enumeration shape — which still scales
-with the matching `fact_kind`'s own row count — a leading-`fencing_token`
-index makes this specific `MAX()` query O(1) regardless of table size or how
-many `reducer_aws_cloud_runtime_drift_finding` rows accumulate, so the
-recommendation is to deviate from the `#3389` column order for this one
-aggregate-shaped query while keeping its `WHERE fact_kind = '...'` partial
-predicate and `CREATE INDEX IF NOT EXISTS` idempotency identical to every
-other index in `003_fact_records.sql` (no `CONCURRENTLY`, matching every
-sibling index in that file; verified idempotent re-apply is a no-op, and
-`CREATE INDEX` does not rewrite the table itself).
+**Numbers restated as approximate, not exact, and pinned to the dataset that
+produced them**: an independent reproduction of an earlier version of this
+proof (run against a different scratch Postgres instance/dataset state) got
+`1826.92 → 0.32` (~5,700x); this exact run got `1742.79 → 0.57` (~3,000x); an
+even earlier run against `postgres:16` got `3788.52 → 0.31` (~12,000x). Same
+order of magnitude every time (planner cost drops roughly three to four
+orders of magnitude), directionally consistent, but the specific multiplier
+does not reproduce bit-for-bit across runs — dataset and cache state, not the
+mechanism, explain the spread, so this doc no longer cites one exact figure
+as if it were reproducible. Wall-clock execution time at this 200k-row scale
+also moves with cache state (0.242ms → 0.046ms this run) and matters far less
+than the plan shape change itself: `Aggregate` over an `Index Scan` bounded
+only by `fact_kind` (cost scales with that fact_kind's row count, which
+scales with total ingested `aws_cloud_runtime_drift` findings over the
+table's life) versus a `Result`/`Limit` over an `Index Only Scan Backward`
+(cost is O(1), Postgres's standard `MAX(col)` rewrite once a leading-column
+index on `fencing_token` exists).
 
-Index added to migration 089 (built before the seeding `DO` block, so the
-very first bootstrap apply benefits too, not only subsequent re-applies):
+Unlike the `#3389` precedent's `(scope_id, generation_id, fact_id)`
+enumeration shape — which still scales with the matching `fact_kind`'s own
+row count — a leading-`fencing_token` index makes this specific `MAX()`
+query's cost independent of table size or how many
+`reducer_aws_cloud_runtime_drift_finding` rows accumulate, so the
+recommendation is to deviate from the `#3389` column order for this one
+aggregate-shaped query.
+
+**`CONCURRENTLY`, not plain `CREATE INDEX`, and split into its own migration
+(090)**: an initial version of this index used plain `CREATE INDEX IF NOT
+EXISTS` in migration 089 itself, citing `003_fact_records.sql`'s ~15
+`#3389`-era indexes as precedent. A follow-up review correctly rejected that
+precedent: `003_fact_records.sql` predates the repo's current convention, and
+21 more recent migrations — including 069, 081, 082, 084, 085, and 086,
+three of them before this one, all touching `fact_records` or
+`graph_node_owner` — use `CREATE INDEX CONCURRENTLY IF NOT EXISTS`. A plain
+`CREATE INDEX` takes a `SHARE` lock for the full build, blocking every write
+to `fact_records` (the central facts table) for that duration on a large
+production table; `CONCURRENTLY` avoids that. The repo has purpose-built
+infrastructure for it: `withSchemaBootstrapLock`'s `schemaConnectionExecutor`
+runs each migration file's SQL as one statement on a single
+non-transactional `*sql.Conn` specifically so `CONCURRENTLY` works, and
+`dropInvalidConcurrentIndexes` cleans up a build that failed to complete.
+
+`CONCURRENTLY` cannot run inside a transaction block, and `ApplyBootstrap`
+sends each migration FILE's entire SQL as one multi-statement string to a
+single `ExecContext` call — Postgres's simple query protocol implicitly
+wraps a multi-statement string in a transaction. Migration 089 (this domain's
+sequence + seeding `DO` block) therefore cannot share a file with the
+`CONCURRENTLY` index statement. The index moved to a NEW migration, 090
+(`fact_records_aws_cloud_runtime_drift_fencing_token_idx.sql`), containing
+ONLY the `CREATE INDEX CONCURRENTLY IF NOT EXISTS` statement — matching every
+one of the six precedent migrations' own single-statement shape exactly.
+Because 089 applies before 090 by filename order, the very first bootstrap
+apply's seed query runs unindexed once; every later bootstrap-SQL re-apply
+(the actual repeated cost this fix targets) runs against the now-existing
+index.
+
+Proven correct in context, not just in isolation: `ApplyBootstrap` run TWICE
+against a clean `postgres:18-alpine` scratch instance (private port). First
+apply: `CREATE INDEX CONCURRENTLY` succeeded (`indisvalid = t`, confirming a
+clean concurrent build, not a failed-and-abandoned one). Second apply: a
+verified no-op (`CREATE INDEX ... IF NOT EXISTS` skips; exactly one index row
+after both applies; `aws_cloud_runtime_drift_fencing_token_seq`'s `last_value`
+unchanged). The repo's own pre-existing regression test,
+`TestBootstrapDefinitionsDoNotBundleConcurrentIndexStatements`
+(`cloud_resource_owner_page_index_schema_test.go`), independently guards the
+exact hazard this split avoids — it counts literal `CREATE INDEX CONCURRENTLY`
+occurrences per bootstrap definition's SQL and fails past 1; an early draft
+of migration 090's own explanatory COMMENT (not the SQL) quoted that phrase a
+second time and tripped it, which is itself confirmation the check works.
+
+Live suite re-run against `eshu-pg-5848` after the split: the index applies
+there too (`indisvalid = t`), and every `AWSCloudRuntimeDrift`-scoped test
+stays green.
+
+Index added as migration 090:
 
 ```sql
-CREATE INDEX IF NOT EXISTS fact_records_aws_cloud_runtime_drift_fencing_token_idx
+CREATE INDEX CONCURRENTLY IF NOT EXISTS fact_records_aws_cloud_runtime_drift_fencing_token_idx
     ON fact_records (fencing_token)
     WHERE fact_kind = 'reducer_aws_cloud_runtime_drift_finding';
 ```
 
-Scratch proof environment torn down after measurement (`docker rm -f`); no
-shared container's `fact_records` table was touched by the synthetic seed
+Scratch proof environments torn down after each measurement (`docker rm -f`);
+no shared container's `fact_records` table was touched by any synthetic seed
 data.
+
+### Round-6 P0: the branch broke the test its own Performance Evidence cites
+
+Adding `AWSCloudRuntimeDriftWrite.FencingToken` as a required, validated
+field (the round-5 P1 fencing-token fix, above) left three fixture writes in
+`go/internal/replay/costcounting/aws_cloud_runtime_drift_cost_test.go`
+(`TestCostBudget_AWSCloudRuntimeDrift` and its two N+1 negative controls)
+with no `FencingToken` set — `WriteAWSCloudRuntimeDriftFindings` correctly
+rejected all three with "requires a non-zero fencing_token". This mattered
+beyond a red test: this doc's `Performance Evidence:` marker (below) cites
+this EXACT test family as the measured proof that the aws_cloud_runtime_drift
+Postgres cost budget rose from 1 to 3 statements — so the branch's own cited
+measurement was not reproducible on its own HEAD, an evidence-integrity
+failure, not merely a broken fixture. It also meant
+`scripts/generate-code-coverage-report.sh` aborted under `set -euo pipefail`
+on the failing `go test ./...`, so the previously-committed file count was
+stale (generated before the round-5 fencing-token commit even existed).
+
+Fixed by adding `awsCloudRuntimeDriftFixtureFencingToken` (a named constant,
+commented as load-bearing, mirroring `awsCloudRuntimeDriftFixtureEvidenceAsOf`'s
+existing pattern) and wiring it into all three fixture writes:
+
+```
+$ go test ./internal/replay/costcounting/... -run TestCostBudget_AWSCloudRuntimeDrift -v -count=1
+--- PASS: TestCostBudget_AWSCloudRuntimeDrift (0.00s)
+    eshu_dp_postgres_query_duration_seconds_observations=3 (budget=3) statements_executed=3 (budget=3)
+--- PASS: TestCostBudget_AWSCloudRuntimeDrift_N1_ExceedsBudget (0.00s)
+    N+1 negative control passed: ... observations = 6 > budget 3
+--- PASS: TestCostBudget_AWSCloudRuntimeDrift_WithinCallN1_ExceedsBudget (0.00s)
+    within-call N+1 negative control passed: ... observations = 6 > budget 3
+```
+
+The cited numbers themselves did not move: `statements_executed=3 (budget=3)`
+matches the `Performance Evidence:` marker's "1 to 3 statements" exactly —
+the fencing-token fix only gates whether the write is ACCEPTED
+(a validation guard), not how many statements an accepted write executes, so
+the marker below needed no correction.
+
+`scripts/generate-code-coverage-report.sh` re-run after the fix completes
+(previously aborted): file count moved from the stale committed 4741 (a
+delta of `+6` against `origin/main`'s 4735, generated before the round-5
+fencing-token commit existed) to 4742 (`+7`), matching an independent
+reviewer's own count exactly. `docs/public/reference/code-coverage-shield.json`
+did not change (one file out of 4742 does not move the aggregate percentage).
 
 ### Round-6 P2: stale doc comment sweep
 

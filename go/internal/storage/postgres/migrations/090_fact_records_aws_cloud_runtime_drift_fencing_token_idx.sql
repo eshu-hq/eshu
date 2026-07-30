@@ -1,0 +1,52 @@
+-- Round-6 review (P2): migration 089's seed query (`MAX(fencing_token) FROM
+-- fact_records WHERE fact_kind = 'reducer_aws_cloud_runtime_drift_finding'`)
+-- resolved through fact_records_scope_generation_idx, where fact_kind is the
+-- THIRD column -- a full index traversal (every fact_records entry, not a
+-- seek), not bounded to the matching fact_kind. Because that seed query
+-- re-runs on every bootstrap-SQL re-apply (every reducer process start, not
+-- once), its cost scales with TOTAL fact_records size on every restart, not
+-- just at first deploy. This is the identical anti-pattern `#3389` already
+-- paid down elsewhere in 003_fact_records.sql with per-fact_kind partial
+-- indexes.
+--
+-- CONCURRENTLY, not plain CREATE INDEX: 003_fact_records.sql's ~15 `#3389`
+-- indexes predate the repo's current convention and are the wrong precedent
+-- to follow. Migrations 069, 081, 082, 084, 085, and 086 -- the six most
+-- recent fact_records/graph_node_owner partial-index additions, three of
+-- them before this one -- all add their index the SAME concurrent,
+-- IF-NOT-EXISTS way this statement below does. A plain CREATE INDEX takes a
+-- SHARE lock for the full index build, blocking
+-- every write to fact_records (the central facts table) for that duration;
+-- CONCURRENTLY avoids that at the cost of a longer, non-blocking build.
+-- withSchemaBootstrapLock's schemaConnectionExecutor runs each migration
+-- FILE's SQL as one statement on a single non-transactional *sql.Conn
+-- specifically so CONCURRENTLY works, and dropInvalidConcurrentIndexes
+-- cleans up a build this statement failed to complete -- purpose-built
+-- infrastructure for exactly this. This statement is the SOLE content of
+-- this file (see migration 089's comment for why it cannot share a file with
+-- any other statement): CONCURRENTLY cannot run inside a transaction block,
+-- and ApplyBootstrap sends a multi-statement file as one string, which
+-- Postgres's simple query protocol implicitly wraps in a transaction.
+--
+-- Measured impact (approximate; exact multiplier does not reproduce
+-- bit-for-bit across runs -- dataset/cache state, not the mechanism, causes
+-- the variance): isolated scratch postgres:18-alpine (matching this repo's
+-- docker-compose.yaml / docker-compose.neo4j.yml pin), synthetic
+-- fact_records seeded with 200,000 rows across 40 fact_kind values (1,000
+-- matching reducer_aws_cloud_runtime_drift_finding), ANALYZEd, then
+-- EXPLAIN (ANALYZE, BUFFERS) on the seed query before and after this index:
+-- planner cost dropped roughly three to four orders of magnitude (a few
+-- thousand cost units down to well under 1), via Postgres's standard
+-- MAX(col)-via-Index-Only-Scan-Backward-LIMIT-1 rewrite, which this
+-- leading-fencing_token shape enables. See
+-- docs/internal/evidence/5837-aws-drift-reopen.md's round-6 addendum for the
+-- literal EXPLAIN output from the run that produced these numbers.
+--
+-- Unlike the #3389 precedent's (scope_id, generation_id, fact_id)
+-- enumeration shape, which still scales with the MATCHING fact_kind's row
+-- count, this shape leads on the aggregated column itself, so cost does not
+-- grow with fact_records' total size OR with how many
+-- reducer_aws_cloud_runtime_drift_finding rows accumulate.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS fact_records_aws_cloud_runtime_drift_fencing_token_idx
+    ON fact_records (fencing_token)
+    WHERE fact_kind = 'reducer_aws_cloud_runtime_drift_finding';
