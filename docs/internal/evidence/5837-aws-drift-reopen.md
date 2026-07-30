@@ -101,27 +101,31 @@ distinction the coordinator's question raises still matters and is answered
 by the design already documented above: the checker's signal is coarse
 ("is ANY `state_snapshot:*` scope pending", not "is the specific backend for
 THIS ARN pending"), which is DELIBERATE — it can only ever cause an
-unnecessary, bounded (3-attempt) defer, never an incorrect verdict, because
-the terminal fallback always commits the classification the evidence actually
-supports once the bound is reached, whether or not any state scope ever
-activates. Extending this pattern to `MultiCloudRuntimeDriftHandler` in the
+unnecessary, bounded (30-minute ELAPSED-TIME, not retry-count — see
+`awsCloudRuntimeDriftStatePendingMaxWait`, round-3 review) defer, never an
+incorrect verdict, because the terminal fallback always commits the
+classification the evidence actually supports once the bound is reached,
+whether or not any state scope ever activates. Extending this pattern to
+`MultiCloudRuntimeDriftHandler` in the
 future would need its own analysis of what "pending" means for GCP/Azure
 state backends; this branch does not attempt that and cannot regress it.
 
 ## The four pieces, and why each is required
 
 1. **Readiness defer** (`go/internal/reducer/aws_cloud_runtime_drift_readiness.go`).
-   `AWSCloudRuntimeDriftHandler.shouldDeferForStatePending` holds back an
+   `AWSCloudRuntimeDriftHandler.shouldDeferForLoadedEvidence` (checked BEFORE the
+   evidence load — see the round-5 P1 addendum below) holds back an
    `orphaned_cloud_resource` classification when a Terraform `state_snapshot:*`
    scope is still mid-ingestion (`scope_generations.status = 'pending'`), for up
-   to `awsCloudRuntimeDriftStatePendingMaxAttempts` (3) attempts. Past the bound,
-   Handle commits its best-available verdict — the terminal fallback a genuine
-   orphan (no Terraform anywhere, ever) needs, so a permanently-pending or
-   never-registered state scope cannot starve the intent forever. This addresses
-   #5837's actual root cause directly: the AWS scope's drift intent draining
-   before the tfstate scope's generation activates, which made
-   `cloudruntime.Classify` read absent state as a VERDICT rather than as
-   "not ready".
+   to `awsCloudRuntimeDriftStatePendingMaxWait` (30 minutes of ELAPSED WALL-CLOCK
+   TIME since `Intent.CycleStartedAt`, not a retry-count bound — round-2/round-3
+   review; see the round-3 P2-2 addendum). Past the bound, Handle commits its
+   best-available verdict — the terminal fallback a genuine orphan (no Terraform
+   anywhere, ever) needs, so a permanently-pending or never-registered state
+   scope cannot starve the intent forever. This addresses #5837's actual root
+   cause directly: the AWS scope's drift intent draining before the tfstate
+   scope's generation activates, which made `cloudruntime.Classify` read absent
+   state as a VERDICT rather than as "not ready".
 2. **Bootstrap/ingester reopen**
    (`go/internal/storage/postgres/ingestion_reopen_correlation.go`).
    `aws_cloud_runtime_drift` is added to `CrossScopeCorrelationReopenDomains()`,
@@ -188,15 +192,20 @@ transaction-capable handle") is resolved rather than worked around.
   `Retryable() == true` error so the queue reschedules the intent.
 - **Idempotency key:** `fact_id` (candidate identity, including `finding_kind`)
   for the insert's own upsert; `(scope_id, generation_id)` for the admission
-  watermark; a retry with the SAME `EvidenceAsOf` (the SAME pass redelivered)
-  carries the SAME fencing token and is admitted again (`<=`, not `<`), so
-  redelivery is a no-op, not a rejection.
+  watermark. `FencingToken` (round-5 P1 addendum: now a database-issued
+  Postgres sequence value, not `EvidenceAsOf.UnixMicro()`) is captured once per
+  `AWSCloudRuntimeDriftHandler.Handle` call at evidence-read time; a caller that
+  legitimately reuses one already-issued token across a retry of the identical
+  write attempt is admitted again (`<=`, not `<`), so redelivery of that shape
+  is a no-op, not a rejection.
 - **Starvation:** none introduced. A rejected pass is not serialized behind
   anything — it is told to retry, and a retry that reads fresher evidence gets a
   higher token and is very likely admitted (unless an even-fresher concurrent
   pass wins first, in which case it correctly defers again). The readiness
-  defer's bound (3 attempts) is the other starvation guard: it prevents an
-  indefinite hold on a state scope that will never activate.
+  defer's bound (30 minutes of elapsed wall-clock time since
+  `Intent.CycleStartedAt`, not a retry-count bound — round-2/round-3 review) is
+  the other starvation guard: it prevents an indefinite hold on a state scope
+  that will never activate.
 - **Dead-letter behavior:** both `awsCloudRuntimeDriftWriteSupersededError` and
   `awsCloudRuntimeDriftStatePendingError` self-classify as non-counting retry
   classes (`AWSCloudRuntimeDriftWriteSupersededFailureClass`,
@@ -605,6 +614,155 @@ wasteful (repeated deferred cycles that always converge) but never a
 correctness defect, since each cycle is independently bounded and always
 reaches its own terminal commit.
 
+### Round-5 review (codex, PR #5875): two P1s found after the README split and rebase
+
+A hostile review against the post-split, post-rebase diff found two P1s in
+`aws_cloud_runtime_drift.go`, both fixed on this branch with TDD failing-first
+regressions.
+
+#### P1: readiness was checked AFTER the evidence snapshot (TOCTOU)
+
+If a `state_snapshot` generation activated AFTER `LoadAWSCloudRuntimeDriftEvidence`
+snapshotted the active rows but BEFORE the (then-)post-load readiness check,
+the checker reported "ready" and Handle did not defer, persisting the STALE
+`orphaned_cloud_resource` computed from the pre-activation snapshot. Worse,
+the repair path could not save it: `ReopenSucceeded`'s reopen selects only
+`'succeeded'` rows, so a maintenance pass racing this exact intent while it
+was still claimed/running would skip it, leaving no guaranteed later repair —
+the same "written durably as a success, never repaired" shape #5837 is about,
+reintroduced through a narrower window.
+
+**Fix:** `Handle` now checks readiness BEFORE the evidence load (`aws_cloud_runtime_drift.go`),
+capturing the pending signal into a local `awsCloudRuntimeDriftReadinessSignal`
+that the ACTUAL defer decision (`shouldDeferForLoadedEvidence`, in
+`aws_cloud_runtime_drift_readiness.go`) later combines with whether the
+freshly loaded evidence contains an orphaned candidate — the check is never
+re-run against the loader's own, possibly-newer, view of the world. This
+preserves the "only defer when it could actually matter" optimization instead
+of broadening every pass to defer whenever any `state_snapshot` scope
+anywhere is pending. The reverse race — state activating BETWEEN the check
+and the load — is benign, and in fact costs NOTHING when the fresher evidence
+resolves cleanly (proven by the second test below), since evidence is always
+loaded regardless of the pre-load signal.
+
+Deterministic (not statistical) interleaving proof, mirroring the technique
+`TestAWSCloudRuntimeDriftReadinessDeterministicReproductionLive` already uses
+for the original #5837 race: `transitioningAWSCloudRuntimeDriftEvidenceLoader`
+(`aws_cloud_runtime_drift_toctou_test.go`) flips the SAME readiness-checker
+stub's `pending` flag the moment `LoadAWSCloudRuntimeDriftEvidence` is called,
+forcing the exact interleaving into existence rather than racing goroutines
+against a clock. Failing-before/passing-after, by reverting the
+check-before-load ordering back to check-after-load and rerunning:
+
+```
+$ go test ./internal/reducer -run TestAWSCloudRuntimeDriftHandlerDefersDespiteStateActivatingDuringEvidenceLoad -v
+--- FAIL: TestAWSCloudRuntimeDriftHandlerDefersDespiteStateActivatingDuringEvidenceLoad (0.00s)
+    Handle() error = nil, want a deferred error: the readiness check must observe the PRE-transition
+    pending state, not a state the evidence load's own timing could have already raced past
+# fix restored
+--- PASS: TestAWSCloudRuntimeDriftHandlerDefersDespiteStateActivatingDuringEvidenceLoad (0.00s)
+```
+
+`TestAWSCloudRuntimeDriftHandlerWritesFresherEvidenceWhenStateActivatesBeforeLoad`
+proves the reverse race's actual safety property directly: a stale
+pending=true pre-load signal combined with freshly-loaded, already-matched
+evidence writes the correct verdict immediately, with zero wasted defers.
+
+#### P1: the fencing token was the reducer host's wall clock, not a durable ordering value
+
+`fencingToken` was `evidenceAsOf.UnixMicro()` — the REDUCER HOST'S wall clock.
+With modest clock skew between reducer replicas, an OLDER worker on a
+fast-clock host could carry a LARGER token than a LATER worker on a correct
+clock. If the fresher worker committed first, the stale older worker was then
+admitted afterward and its retire could replace correct truth with stale
+truth — defeating the whole point of the admission CAS this branch's #5848
+piece exists to provide. This is the general form of the round-1 exact-tie
+finding: skew does not just tie the ordering, it can invert it outright.
+
+**Fix:** `AWSCloudRuntimeDriftFencingTokenIssuer`
+(`aws_cloud_runtime_drift_admission.go`), backed in production by
+`PostgresAWSCloudRuntimeDriftFencingTokenIssuer`
+(`go/internal/storage/postgres/aws_cloud_runtime_drift_fencing_token.go`)
+issuing `nextval()` from a new Postgres sequence
+(`aws_cloud_runtime_drift_fencing_token_seq`, migration
+`089_aws_cloud_runtime_drift_fencing_token_sequence.sql`, seeded above any
+pre-existing wall-clock-derived watermark for a safe live-deployment
+rollout). `AWSCloudRuntimeDriftHandler.Handle` calls it at the SAME point
+`evidenceAsOf` used to be captured — before the evidence load, not at
+write-commit time. This ordering is load-bearing, not a style choice: a
+write-time token would order admission by COMMIT order instead of EVIDENCE
+RECENCY, silently reintroducing the ORIGINAL #5848 bug (a stalled worker's
+stale evidence landing after a fresher worker's committed write) while fixing
+the clock-skew one. `AWSCloudRuntimeDriftFencingTokenIssuer` is a required
+field, like `EvidenceLoader`/`Writer`: a nil issuer is a hard `Handle()`
+error and the registry (`defaults_additive_domains_secrets_drift.go`) will
+not register the domain without one, never a silent fallback to the host
+clock.
+
+A useful side effect: since a Postgres sequence never returns the same value
+twice, the round-1 exact-watermark-tie scenario is now categorically
+impossible — `TestAWSCloudRuntimeDriftInsertAdmissionResolvesExactTieByLastCommitLive`
+was deleted (it characterized behavior for an input that can no longer occur)
+and replaced by `TestAWSCloudRuntimeDriftFencingTokenIssuerIssuesStrictlyIncreasingValuesLive`,
+which proves sequential AND concurrent issuance (10 goroutines × 20 calls
+each against the real sequence) never collides and stays strictly ordered by
+issuance — the concurrency proof this shared-ordering-primitive change needs,
+not just a single-threaded correctness check. The pre-existing
+`TestAWSCloudRuntimeDriftInsertAdmissionRejectsStaleWorkerAfterFreshWriteLive`
+and `TestAWSCloudRuntimeDriftInsertAdmissionAppliesEqualTokenRetryLive` were
+updated to drive the admission CAS with explicit `FencingToken` values
+directly (the write-level ordering contract they pin is independent of how a
+caller obtains the token) rather than relying on `EvidenceAsOf` to derive it.
+
+```
+$ ESHU_POSTGRES_DSN=postgres://eshu:change-me@localhost:15948/eshu?sslmode=disable \
+    go test ./internal/storage/postgres -run 'AWSCloudRuntimeDrift(InsertAdmission|FencingToken|Retire)' -v
+--- PASS: TestAWSCloudRuntimeDriftInsertAdmissionRejectsStaleWorkerAfterFreshWriteLive (1.72s)
+--- PASS: TestAWSCloudRuntimeDriftInsertAdmissionAppliesEqualTokenRetryLive (1.99s)
+--- PASS: TestAWSCloudRuntimeDriftFencingTokenIssuerIssuesStrictlyIncreasingValuesLive (7.30s)
+--- PASS: TestAWSCloudRuntimeDriftRetireRemovesStaleFindingOnReclassificationLive (7.49s)
+```
+
+Fast, in-process regression proving `Handle` actually stamps the write with
+the ISSUER's value (not a value derivable from `h.Now()`), by wiring a clock
+that would produce a LARGER wall-clock-derived token than the issuer's
+explicit value if the host clock still drove it:
+
+```
+$ go test ./internal/reducer -run TestAWSCloudRuntimeDriftHandlerStampsWriteWithIssuedFencingTokenNotHostClock -v
+--- PASS: TestAWSCloudRuntimeDriftHandlerStampsWriteWithIssuedFencingTokenNotHostClock (0.00s)
+```
+
+`TestAWSCloudRuntimeDriftHandlerRequiresFencingTokenIssuer` and
+`TestAWSCloudRuntimeDriftHandlerPropagatesFencingTokenIssuerError` pin the
+required-field and no-silent-fallback contract; both pass.
+
+#### P2s (round-5): stale doc references, and the README split
+
+Five stale `awsCloudRuntimeDriftStatePendingMaxAttempts` / "3 attempts"
+references in this doc (the synopsis, the starvation-analysis bullet, an
+initial design description, and two more) were corrected to describe the
+30-minute elapsed-time bound with the cycle anchor — see the corrections
+throughout "The four pieces", "Concurrency analysis", and the readiness-test
+coverage description above. The `fencingToken` doc comment in
+`aws_cloud_runtime_drift_admission.go` (describing it as a wall-clock
+"last-committer-wins" ordering) was rewritten to describe the database-issued
+sequence mechanism.
+
+Separately, `origin/main` landed #5865 (split the 4,338-line
+`go/internal/reducer/README.md` into topic docs) while this branch was in
+flight, conflicting the rebase on that file. This branch's content —
+the admission CAS, readiness defer, reopen-slice enrolment, and cycle anchor
+— was placed in
+[`gotchas-supply-chain-and-vulnerabilities.md`](../../../go/internal/reducer/gotchas-supply-chain-and-vulnerabilities.md),
+appended to the SAME `aws_cloud_runtime_drift` bullet the split already
+carried there (verified: that file already contained this domain's
+"AWS runtime drift publication is graph-neutral for this slice" bullet,
+directly following the "cross-source, cross-scope, and truth-emitting" top
+invariant this branch's original hunk was appended after in the pre-split
+monolith) — not re-inflated back into `README.md`, which the split
+deliberately trimmed to a short pointer list.
+
 ## Adjacent defect found and fixed: `InstrumentedDB.Begin` silently dropped observability
 
 `InstrumentedDB.Begin` returned the inner `Beginner`'s transaction UNWRAPPED, so
@@ -717,12 +875,17 @@ $ go test ./internal/storage/postgres -run TestPostgresAWSCloudRuntimeDriftReadi
 
 `go/internal/reducer/aws_cloud_runtime_drift_readiness_test.go` covers the
 Handler-level bound logic without a database: a pending state scope defers an
-orphaned classification (writer never called), the bound (3 attempts) commits
-the best-available verdict regardless of pending state, a non-pending state
-never defers, a nil `ReadinessChecker` never defers (opt-in, matches pre-#5848
-behavior byte-for-byte), and a non-orphaned candidate never even calls the
-readiness checker (a pending state scope cannot improve
-unmanaged/ambiguous/unknown/image_version_drift).
+orphaned classification (writer never called), the bound (30 minutes of
+elapsed wall-clock time since `Intent.CycleStartedAt`, not a retry-count
+bound — round-2/round-3 review) commits the best-available verdict regardless
+of pending state, a non-pending state never defers, and a nil
+`ReadinessChecker` never defers (opt-in, matches pre-#5848 behavior
+byte-for-byte). Round-5 P1 addendum: the readiness checker is now called
+unconditionally BEFORE the evidence load (see that section below), so a
+non-orphaned candidate no longer skips the readiness-checker CALL the way it
+used to — it still cannot be DEFERRED by a pending state scope, since
+`shouldDeferForLoadedEvidence` only defers when the freshly loaded evidence
+actually contains an orphaned candidate.
 
 ### Deterministic end-to-end reproduction (real Handler, EvidenceLoader, Writer)
 
