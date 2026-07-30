@@ -41,8 +41,7 @@ for the same reason.
   at query time (`MultiCloudRuntimeDriftFindingStore.ListActiveFindingsAcrossProviders`,
   `go/internal/query`), so `provider=aws` genuinely returns data even though
   the reducer never publishes an AWS row on this fact kind — see
-  `cloud-projections.md`'s Multi-Cloud Runtime Drift section for the full
-  write-side/read-side split.
+  `multi-cloud-runtime-drift.md` for the full write-side/read-side split.
 - **Container image identity is digest-first and fencing-guarded** — writes
   land only for explicit digest or single-tag-to-digest matches, and a
   fencing token (`ContainerImageIdentityWrite.EvidenceAsOf`) rejects a stale
