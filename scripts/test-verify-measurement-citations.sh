@@ -137,4 +137,32 @@ mixed_repo="$(init_repo mixed)"
 commit_change "${mixed_repo}" "add mixed file with one cited claim among plain prose"
 expect_pass "${mixed_repo}" "mixed file with one properly cited claim must pass"
 
+# The gate's own script and mirror test necessarily CONTAIN claim-shaped text --
+# regex literals and these very fixtures. They are exempt, and that exemption was
+# untested: a mutation removing it survived the whole suite, so nothing proved
+# the gate could be edited at all without blocking its own commit.
+self_edit_repo="$(init_repo self-edit)"
+mkdir -p "${self_edit_repo}/scripts"
+printf '%s\n' \
+  '#!/bin/bash' \
+  '# A gate edit that mentions 7/9 trials in prose, and a Measurement: line,' \
+  '# both uncited -- exempt because this file IS the gate.' \
+  >"${self_edit_repo}/scripts/verify-measurement-citations.sh"
+commit_change "${self_edit_repo}" "edit the gate itself"
+expect_pass "${self_edit_repo}" "editing the gate's own script must not trip the gate on its own regex literals"
+
+# The same must hold for prose ABOUT the gate that lives outside those two files.
+# An unanchored `Measurement:` alternative matched the substring anywhere on a
+# line, so a comment in .pre-commit-config.yaml describing the gate tripped it
+# and the branch could not pass its own pre-push hook.
+describing_repo="$(init_repo describing)"
+printf '%s\n' \
+  'repos:' \
+  '  - repo: local' \
+  '    hooks:' \
+  '      # A claim in "Measurement:" shape must cite a ledger row.' \
+  >"${describing_repo}/.pre-commit-config.yaml"
+commit_change "${describing_repo}" "describe the gate in a config comment"
+expect_pass "${describing_repo}" "prose describing the gate mid-line must not trip it"
+
 printf 'verify-measurement-citations tests passed\n'

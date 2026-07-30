@@ -454,7 +454,7 @@ gate. Widen the patterns only after the current ones prove out in practice.
 
 ### Frozen historical evidence
 
-The 222 existing `docs/internal/evidence/*.md` and `go/**/evidence-*.md`
+Every existing `docs/internal/evidence/*.md` and `go/**/evidence-*.md`
 documents are FROZEN as historical artifacts. They are never edited again,
 including to fix a stale number — the fix is to add a ledger row and stop
 citing the frozen prose, not to patch it in place. A change that would have

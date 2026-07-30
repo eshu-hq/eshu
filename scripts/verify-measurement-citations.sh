@@ -20,7 +20,16 @@ fi
 
 base="${ESHU_MEASUREMENT_CITATIONS_BASE:-}"
 if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
-  git -C "$repo_root" fetch --no-tags --depth=1 origin "$GITHUB_BASE_REF" >/dev/null 2>&1 || true
+  # An explicit destination refspec is required: `git fetch origin <branch>`
+  # with no `:<dst>` only ever updates FETCH_HEAD, never
+  # refs/remotes/origin/<branch> -- real git behavior independent of any
+  # configured remote.origin.fetch. Under actions/checkout@v5's narrow setup
+  # `origin/$GITHUB_BASE_REF` then never resolved and `base` fell through to
+  # HEAD~1, so CI scanned only the last commit of a multi-commit PR and passed
+  # green on everything before it. verify-performance-evidence.sh carried the
+  # identical bug until #5869; this adopts that fix rather than repeating it.
+  git -C "$repo_root" fetch --no-tags --depth=1 origin \
+    "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" >/dev/null 2>&1 || true
   if git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
     base="origin/$GITHUB_BASE_REF"
   fi
@@ -66,7 +75,7 @@ fi
 # claim" that needs a citation. See the agent guide for the rationale and the
 # blind spots this leaves (bare durations, percentages, single-run counts,
 # prose restating a number without "trials"/"runs"/"Measurement:").
-claim_pattern='[0-9]+/[0-9]+[[:space:]]+(trials|runs)\b|Measurement:'
+claim_pattern='[0-9]+/[0-9]+[[:space:]]+(trials|runs)\b|^[[:space:]]*#?[[:space:]]*Measurement:'
 citation_pattern='ledger:([A-Za-z0-9][A-Za-z0-9_-]*)'
 
 violations=()
