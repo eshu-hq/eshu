@@ -443,6 +443,11 @@ This is deliberately narrow. It does NOT catch:
 - a single-run claim with no denominator (`ran clean`, `no deadlocks observed`)
 - a citation that sits elsewhere in the same paragraph but not the same line
 - a number inside a table cell whose line doesn't say "trials" or "runs"
+- anything added under `testdata/`, or inside the gate's own
+  `scripts/verify-measurement-citations.sh` and
+  `scripts/test-verify-measurement-citations.sh` — both are exempt from the
+  scan because their literal regex source and test fixtures necessarily
+  contain the trigger patterns without being claims about Eshu's behavior
 
 A gate this narrow is a starting point, not a complete solution. It exists so
 that a nonzero true-positive rate stays trustworthy, rather than firing on
