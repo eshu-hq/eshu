@@ -49,14 +49,32 @@ bootstrap-index run (issue #5593). Both producers enqueue into the same
 `(scope_id, generation_id)`.
 
 **Known gap:** if that runtime evaluation runs before the Terraform config
-repo owning the backend has been added to Eshu and synced, it durably
-records "no config repo owns this backend" for that one snapshot
-generation and is not automatically retried. In practice this self-heals on
-the next `terraform apply`, since a new apply produces a new snapshot
-generation that is evaluated independently. A state that never changes
-again after racing once will not be re-evaluated on its own; re-run
-`eshu-bootstrap-index` to force a fresh sweep over every currently active
-`state_snapshot:*` scope, including that one.
+repo owning the backend has been added to Eshu and synced, the handler
+rejects the snapshot generation with "no config repo owns this backend."
+That rejection is NOT durably recorded anywhere queryable: the reducer work
+item is marked succeeded with no failure payload, and the only trace is a
+`drift candidate rejected` structured WARN log line at evaluation time,
+subject to whatever log retention the deployment has configured. The
+rejection is durably terminal only in the narrow sense that the same
+generation is never automatically retried; nothing durable records *why* it
+was rejected. In practice this self-heals on the next `terraform apply`,
+since a new apply produces a new snapshot generation that is evaluated
+independently. A state that never changes again after racing once will not
+be re-evaluated on its own; three convergence paths cover the rest:
+
+- `eshu-bootstrap-index` re-run — a fresh sweep over every currently active
+  `state_snapshot:*` scope, including that one, but only on demand.
+- The reducer's `config_state_drift` catch-up sweep — a background loop in
+  the steady-state reducer process (`go/cmd/reducer/config_state_drift_catchup_sweeper.go`)
+  that re-scans active `state_snapshot:*` scopes on a bounded interval
+  (default 5 minutes) and re-enqueues through the same idempotent
+  `(scope_id, generation_id, domain)` work item every other producer uses.
+  It closes the gap for a lost or never-fired runtime trigger without
+  waiting for either a new `terraform apply` or an operator-initiated
+  bootstrap re-run.
+- The explicit "unresolved" read-model outcome tracked in sibling branch
+  5594-local-backend-default-path (issue #5593's own second acceptance
+  criterion), which is out of scope here.
 
 ## Concurrency
 
