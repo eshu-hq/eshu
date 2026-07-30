@@ -15,12 +15,20 @@ mark or under graph-write-timeout pressure, it blocks in
 change, `Ack` never depended on reducer-admission state for ANY scope kind.
 After this change, `Ack` for a `state_snapshot:*` scope is coupled to it.
 
-`scripts/verify-performance-evidence.sh` passed on this branch, but for the
-wrong reason: it greps the CURRENT full content of every touched
-`README.md`/`AGENTS.md` for marker strings, not the diff, and
-`go/cmd/ingester/README.md` and `go/internal/storage/postgres/AGENTS.md`
-already carry dozens of markers from unrelated historical issues. This file
-is the PR-specific record the gate's grep happened to accept without.
+`scripts/verify-performance-evidence.sh` passes on this branch, and it passes
+for the right reason. The gate scopes its marker search to the diff's own added
+lines (`git diff --unified=0 "$base"...HEAD -- "$path"`, lines 106 and 109),
+so the `Performance Evidence:` / `No-Regression Evidence:` /
+`Observability Evidence:` markers in THIS file are what satisfy it — not the
+dozens of markers `go/cmd/ingester/README.md` and
+`go/internal/storage/postgres/AGENTS.md` already carry from unrelated
+historical issues.
+
+That distinction is worth stating explicitly, because it was the other way
+around until recently: the gate did grep whole-file content, and a touched
+`README.md` could satisfy it by history rather than by the change. `74c829b94`
+(#5869) fixed that, and this branch picked the fix up when it rebased onto
+`origin/main`. An earlier draft of this file still described the old behavior.
 
 ## Theory and measurement (Prove-The-Theory-First)
 
