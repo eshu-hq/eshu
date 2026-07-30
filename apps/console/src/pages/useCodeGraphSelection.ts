@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router";
+import { useContext, useEffect, useMemo, useState } from "react";
+import { UNSAFE_NavigationContext as NavigationContext, useSearchParams } from "react-router";
+import type { Navigator } from "react-router";
 
 import { candidateIdFromParam } from "./CodeGraphPageSupport";
 import type { EshuApiClient } from "../api/client";
@@ -55,6 +56,7 @@ export function useCodeGraphSelection({
     [deadCandidates],
   );
   const availableRepositories = repositories ?? fallbackRepositories;
+  const { navigator } = useContext(NavigationContext);
   const [searchParams, setSearchParams] = useSearchParams();
   const legacyCandidateParam = searchParams.get("candidate") ?? searchParams.get("q") ?? "";
   const legacyCandidateId = candidateIdFromParam(deadCandidates, legacyCandidateParam);
@@ -186,45 +188,34 @@ export function useCodeGraphSelection({
     canonical.delete("q");
     if (canonical.toString() === searchParams.toString()) return;
     // `setSearchParams(..., { replace: true })` replaces whichever history
-    // entry is current AT THE MOMENT IT RUNS, not the entry that was current
-    // when this effect's closure captured `repository`/`selected`. Passive
-    // effects flush asynchronously, so if the user navigates (browser
-    // back/forward, or picks a different repository/entity) before this one
-    // flushes, an unguarded write here would replace the freshly-navigated-to
-    // entry with this effect's now-stale snapshot.
+    // entry the navigator considers current AT THE MOMENT IT RUNS -- not the
+    // entry that was current when this effect's closure captured
+    // `repository`/`selected`/`searchParams`. If a different navigation
+    // (browser back/forward, or picking a different repository/entity) has
+    // already landed since this effect's own snapshot was taken, writing
+    // `canonical` now would replace that freshly-navigated-to entry with this
+    // effect's stale one.
     //
-    // Defer the write one microtask and gate it on a `cancelled` flag set by
-    // this effect instance's own cleanup, mirroring the pattern the
-    // inventory-loading effect above already uses for its async fetch. What
-    // React actually guarantees here (traced against React 19's
-    // react-dom-client.development.js) is narrower than "cleanup always runs
-    // first": a new synchronous update (e.g. the click that drives a
-    // back/forward or repository change) makes `performSyncWorkOnRoot` call
-    // `flushPendingEffects()` eagerly, synchronously, before rendering that
-    // update. If this effect was still pending, that eager flush is what
-    // runs its body and queues the microtask below -- but the *cleanup* for
-    // that same effect, once the newer commit supersedes it, is bundled into
-    // the newer commit's own passive-effect pass, which is scheduled through
-    // the Scheduler as a later macrotask, not synchronously and not as a
-    // microtask. So a narrower window is conceivable in principle: a
-    // subsequent navigation arriving synchronously, with no intervening
-    // `await`/yield, right as this effect's eager flush queues the
-    // microtask, could in theory let the microtask drain before that
-    // newer commit's cleanup macrotask gets a turn. This has not been
-    // observed: 180+ fixed-arm iterations of the regression test (including
-    // deliberately induced load up to ~70) produced zero reproductions of
-    // the clobber this effect exists to prevent, against a reverted
-    // baseline that reproduces it in the same run. Closed empirically by
-    // that repeated-run evidence, not by a documented React ordering
-    // guarantee -- treat it as a low-probability residual, not a proven-closed one.
-    let cancelled = false;
-    queueMicrotask(() => {
-      if (!cancelled) setSearchParams(canonical, { replace: true });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [entityParam, loading, repository, searchParams, selected, setSearchParams]);
+    // Make that impossible by construction instead of by timing: stamp the
+    // write with the exact `searchParams` it was computed from, and check
+    // that against the navigator's OWN current location, read fresh, right
+    // here, right before writing. `searchParams` (the value from
+    // `useSearchParams`) only updates when THIS component re-renders; the
+    // navigator's `location` is mutated synchronously by any push, replace,
+    // or back/forward the instant it is issued, independent of whether or
+    // when React has re-rendered this component for it. So this comparison
+    // can never be stale relative to this effect's own timing -- if the live
+    // location no longer matches what `canonical` was derived from, some
+    // other navigation has unconditionally already happened, and skipping is
+    // correct regardless of which of the two ran "first". (`Navigator`, the
+    // public type for `navigator`, omits `.location` specifically to steer
+    // application code away from reading it to decide what to RENDER, where
+    // it could tear across a single render pass under Suspense; this reads
+    // it once, inside a post-commit effect, purely to gate an imperative
+    // write, which does not have that render-time tearing hazard.)
+    if (readLiveLocationSearch(navigator) !== searchParams.toString()) return;
+    setSearchParams(canonical, { replace: true });
+  }, [entityParam, loading, navigator, repository, searchParams, selected, setSearchParams]);
 
   const error =
     repositoryError(repository, repoParam, repositoryCatalog) ||
@@ -265,6 +256,31 @@ export function useCodeGraphSelection({
     symbols,
     truncated: activeInventory.truncated,
   };
+}
+
+/**
+ * Reads the navigator's current location search string, normalized the same
+ * way `useSearchParams`'s `searchParams.toString()` is, so the two are
+ * directly comparable.
+ *
+ * `Navigator` (react-router's public type for the value handed down through
+ * `NavigationContext`) deliberately does not declare `.location`: the object
+ * behind it always has one (every history instance -- browser or memory --
+ * conforms to the fuller `History` interface `Navigator` is trimmed from),
+ * but the trimmed type steers render-time code away from reading it, since a
+ * direct read used to decide what to render could tear across a single
+ * render pass under Suspense-driven concurrent rendering. This function is
+ * only ever called from inside a post-commit effect to gate an imperative
+ * write against a stale snapshot, never to decide what to render, so that
+ * tearing hazard does not apply -- and unlike `searchParams` from
+ * `useSearchParams` (which only updates once this component re-renders), the
+ * navigator's location is mutated synchronously the instant any push,
+ * replace, or history.go is issued, so this read is never behind React's own
+ * render timing.
+ */
+function readLiveLocationSearch(navigator: Navigator): string {
+  const liveNavigator = navigator as unknown as { readonly location: { readonly search: string } };
+  return new URLSearchParams(liveNavigator.location.search).toString();
 }
 
 function findingRepoId(finding: FindingRow): string {

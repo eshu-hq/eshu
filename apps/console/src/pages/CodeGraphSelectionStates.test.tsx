@@ -341,6 +341,70 @@ describe("CodeGraphPage repository state isolation", () => {
       expect(screen.getByRole("combobox", { name: "Repository" })).toHaveValue("repository:r2"),
     );
   });
+
+  it("does not let a still-pending canonicalize write clobber a back navigation that lands first", async () => {
+    const pending = new Map<string, Deferred<unknown>>();
+    const requestCounts = new Map<string, number>();
+    const client = clientWithInventory((repoId) => {
+      requestCounts.set(repoId, (requestCounts.get(repoId) ?? 0) + 1);
+      const request = deferred<unknown>();
+      pending.set(repoId, request);
+      return request.promise;
+    });
+    render(
+      <MemoryRouter initialEntries={["/code-graph?repo_id=repository%3Ar1"]}>
+        <CodeGraphPage
+          client={client}
+          model={{ ...demoModel, findings: [], source: "live" }}
+          repositories={repositories}
+        />
+        <HistoryControls />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(pending.has("repository:r1")).toBe(true));
+    await act(async () => {
+      pending.get("repository:r1")?.resolve(inventory("repository:r1", "alphaSymbol"));
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("combobox", { name: "Symbol" })).toHaveTextContent("alphaSymbol"),
+    );
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Repository" }), {
+      target: { value: "repository:r2" },
+    });
+    await waitFor(() => expect(pending.has("repository:r2")).toBe(true));
+
+    // Resolve repository:r2's inventory (which makes `selected` resolve to
+    // betaSymbol and schedules the URL-canonicalize effect to add
+    // entity_id=betaSymbol to the CURRENT, repository:r2 history entry) and
+    // click "Back" inside the SAME act() batch, with only bare microtask
+    // yields (no `waitFor`/real-timer wait) in between. This forces the two
+    // updates -- the still-pending canonicalize write computed from the
+    // repository:r2 render, and the back-navigation's own commit -- into the
+    // same flush window without giving the test's own synchronization
+    // machinery a chance to serialize them the way `waitFor` normally would.
+    await act(async () => {
+      pending.get("repository:r2")?.resolve(inventory("repository:r2", "betaSymbol"));
+      await Promise.resolve();
+      await Promise.resolve();
+      fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    });
+
+    await waitFor(() =>
+      expect(screen.getByRole("combobox", { name: "Repository" })).toHaveValue("repository:r1"),
+    );
+    // Navigating back to repository:r1 re-triggers its inventory fetch (a
+    // fresh request, independent of the one already resolved above); resolve
+    // it so the assertion below observes the settled symbol rather than the
+    // loading placeholder.
+    await waitFor(() => expect(requestCounts.get("repository:r1")).toBe(2));
+    await act(async () => {
+      pending.get("repository:r1")?.resolve(inventory("repository:r1", "alphaSymbol"));
+    });
+    expect(await screen.findByRole("combobox", { name: "Symbol" })).toHaveTextContent(
+      "alphaSymbol",
+    );
+  });
 });
 
 function renderPage(client: EshuApiClient): void {
