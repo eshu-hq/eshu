@@ -324,12 +324,8 @@ func cloudResourceNodeRow(env facts.Envelope) (map[string]any, string, bool, err
 		"collector_kind":      env.CollectorKind,
 		sourceOrderKeyField:   sourceOrderKey(env),
 	}
-	anchorFields, err := cloudResourceServiceAnchorFields(resource)
-	if err != nil {
+	if err := applyCloudResourceServiceAnchorFields(row, resource); err != nil {
 		return nil, "", false, attributeShapeAsFactDecodeError(env.FactKind, err)
-	}
-	for key, value := range anchorFields {
-		row[key] = value
 	}
 	runningImageFields, err := cloudResourceRunningImageFields(resource)
 	if err != nil {
