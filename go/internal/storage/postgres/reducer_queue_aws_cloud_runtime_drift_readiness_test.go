@@ -58,10 +58,14 @@ func (awsCloudRuntimeDriftWriteSupersededTestError) FailureClass() string {
 // reducer.AWSCloudRuntimeDriftStatePendingFailureClass registered in
 // nonCountingReducerRetryFailureClasses, in which case Fail would dead-letter
 // instead of deferring -- turning aws_cloud_runtime_drift's own bounded
-// readiness defer (capped at 3 attempts, well under most deployments'
-// MaxAttempts) into a permanent, unrecoverable data loss for the ARN once the
-// QUEUE's own MaxAttempts is reached first, rather than the domain's own
-// terminal fallback ever getting to commit a best-available verdict.
+// readiness defer (capped at awsCloudRuntimeDriftStatePendingMaxWait, 30
+// minutes of elapsed wall-clock time since Intent.CycleStartedAt -- NOT a
+// retry-count bound; a retry-count bound is unreachable once this exact
+// failure class is registered as non-counting below, since the registration
+// freezes attempt_count) into a permanent, unrecoverable data loss for the
+// ARN once the QUEUE's own MaxAttempts is reached first, rather than the
+// domain's own terminal fallback ever getting to commit a best-available
+// verdict.
 // Mirrors TestReducerQueueFailDefersGCPRelationshipReadinessPastAttemptBudget
 // and TestReducerQueueFailDefersEC2InstanceIdentityReadinessPastAttemptBudget.
 func TestReducerQueueFailDefersAWSCloudRuntimeDriftStatePendingPastAttemptBudget(t *testing.T) {

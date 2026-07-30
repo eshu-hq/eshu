@@ -763,6 +763,87 @@ invariant this branch's original hunk was appended after in the pre-split
 monolith) — not re-inflated back into `README.md`, which the split
 deliberately trimmed to a short pointer list.
 
+### Round-6 review (#5848): migration 089's seed query had no supporting index
+
+A hostile review of migration `089_aws_cloud_runtime_drift_fencing_token_sequence.sql`
+found its seed query —
+`SELECT MAX(fencing_token) FROM fact_records WHERE fact_kind = 'reducer_aws_cloud_runtime_drift_finding'`
+— resolved through `fact_records_scope_generation_idx`, where `fact_kind` is
+the THIRD column: a full index traversal checking every entry, not a seek.
+Cost scales with total `fact_records` size, and this query re-runs on every
+reducer process start (bootstrap SQL is re-applied idempotently, not run
+once). This is the identical anti-pattern `#3389` already paid down elsewhere
+in `003_fact_records.sql` with ~15 per-`fact_kind` partial indexes.
+
+Per Prove-The-Theory-First, the theory was measured before building anything:
+an isolated scratch Postgres 16 instance (private port, no shared container
+touched), bootstrapped with this branch's full schema, seeded with 200,000
+synthetic `fact_records` rows across 40 `fact_kind` values (1,000 matching
+`reducer_aws_cloud_runtime_drift_finding` — the reviewer's own representative
+shape) via `generate_series`, `ANALYZE`d, then `EXPLAIN (ANALYZE, BUFFERS)`
+against the actual seed query, both before and after a candidate index:
+
+```
+OLD (fact_records_scope_generation_idx, fact_kind third column):
+ Aggregate  (cost=3788.52..3788.53 rows=1 width=8) (actual time=0.290..0.291 rows=1 loops=1)
+   Buffers: shared hit=240
+   ->  Index Scan using fact_records_scope_generation_idx on fact_records  (cost=0.42..3786.29 rows=893 width=8) (actual time=0.187..0.251 rows=1000 loops=1)
+         Index Cond: (fact_kind = 'reducer_aws_cloud_runtime_drift_finding'::text)
+ Execution Time: 0.317 ms
+
+NEW (candidate: partial index on (fencing_token) WHERE fact_kind = '...'):
+ Result  (cost=0.31..0.32 rows=1 width=8) (actual time=0.015..0.015 rows=1 loops=1)
+   InitPlan 1 (returns $0)
+     ->  Limit  (cost=0.28..0.31 rows=1 width=8) (actual time=0.013..0.013 rows=1 loops=1)
+           ->  Index Only Scan Backward using fact_records_aws_cloud_runtime_drift_fencing_token_idx on fact_records  (cost=0.28..38.36 rows=1033 width=8) (actual time=0.013..0.013 rows=1 loops=1)
+                 Index Cond: (fencing_token IS NOT NULL)
+                 Heap Fetches: 0
+ Execution Time: 0.039 ms
+```
+
+~12,000x lower planner cost (3788.52 → 0.31), ~8x faster wall time at this
+scale (0.317ms → 0.039ms), via Postgres's standard `MAX(col)` rewrite into an
+`Index Only Scan Backward ... LIMIT 1` once a leading-column index on
+`fencing_token` exists. Unlike the `#3389` precedent's
+`(scope_id, generation_id, fact_id)` enumeration shape — which still scales
+with the matching `fact_kind`'s own row count — a leading-`fencing_token`
+index makes this specific `MAX()` query O(1) regardless of table size or how
+many `reducer_aws_cloud_runtime_drift_finding` rows accumulate, so the
+recommendation is to deviate from the `#3389` column order for this one
+aggregate-shaped query while keeping its `WHERE fact_kind = '...'` partial
+predicate and `CREATE INDEX IF NOT EXISTS` idempotency identical to every
+other index in `003_fact_records.sql` (no `CONCURRENTLY`, matching every
+sibling index in that file; verified idempotent re-apply is a no-op, and
+`CREATE INDEX` does not rewrite the table itself).
+
+Index added to migration 089 (built before the seeding `DO` block, so the
+very first bootstrap apply benefits too, not only subsequent re-applies):
+
+```sql
+CREATE INDEX IF NOT EXISTS fact_records_aws_cloud_runtime_drift_fencing_token_idx
+    ON fact_records (fencing_token)
+    WHERE fact_kind = 'reducer_aws_cloud_runtime_drift_finding';
+```
+
+Scratch proof environment torn down after measurement (`docker rm -f`); no
+shared container's `fact_records` table was touched by the synthetic seed
+data.
+
+### Round-6 P2: stale doc comment sweep
+
+`go/internal/storage/postgres/reducer_queue_aws_cloud_runtime_drift_readiness_test.go`
+still described the readiness defer as "capped at 3 attempts" — this
+branch's own superseded design, replaced by the elapsed-time bound
+(`awsCloudRuntimeDriftStatePendingMaxWait`, 30 minutes) precisely because
+registering the failure class as non-counting froze `attempt_count` and made
+the retry-count bound unreachable (the round-2 P0 above). Fixed. A full-repo
+sweep (`rg -n "3 attempts|StatePendingMaxAttempts"`) found no other
+current-state stale claim: the remaining hits in this doc's own P0/P1
+sections are accurate, deliberately past-tense narration of the superseded
+design (unchanged from the round-5 sweep), and
+`go/internal/status/README.md`'s "3 attempts" is the unrelated, generic
+`DefaultRetryPolicies()` queue-wide default, not this domain's bound.
+
 ## Adjacent defect found and fixed: `InstrumentedDB.Begin` silently dropped observability
 
 `InstrumentedDB.Begin` returned the inner `Beginner`'s transaction UNWRAPPED, so

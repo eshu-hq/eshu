@@ -20,6 +20,49 @@
 -- landing after a fresher worker's committed write) while fixing this one.
 CREATE SEQUENCE IF NOT EXISTS aws_cloud_runtime_drift_fencing_token_seq;
 
+-- Round-6 review (P2): the seed query below (`MAX(fencing_token) FROM
+-- fact_records WHERE fact_kind = ...`) has no supporting index without this.
+-- `fact_records_scope_generation_idx` carries `fact_kind` as its THIRD
+-- column, so the planner resolves the predicate via a full index traversal
+-- (every fact_records entry, not a seek) -- the identical anti-pattern
+-- `#3389` already paid down elsewhere in this file with per-fact_kind
+-- partial indexes. Because this seed query re-runs on every bootstrap-SQL
+-- re-apply (every reducer process start, not once), its cost scales with
+-- TOTAL fact_records size on every restart, not just at first deploy.
+--
+-- Proven with EXPLAIN (ANALYZE, BUFFERS) against a synthetic 200,000-row
+-- fact_records (40 fact_kinds, 1,000 rows matching
+-- reducer_aws_cloud_runtime_drift_finding -- the reviewer's own
+-- representative shape) on an isolated scratch Postgres 16 instance:
+--
+--   OLD (fact_records_scope_generation_idx, fact_kind third column):
+--     Aggregate (cost=3788.52..3788.53 rows=1) actual time=0.291ms
+--       -> Index Scan using fact_records_scope_generation_idx
+--          Index Cond: (fact_kind = 'reducer_aws_cloud_runtime_drift_finding')
+--          (scans every fact_records index entry; cost scales with TABLE size)
+--
+--   NEW (this partial index, leading on fencing_token):
+--     Result (cost=0.31..0.32 rows=1) actual time=0.039ms
+--       -> Limit
+--            -> Index Only Scan Backward using
+--               fact_records_aws_cloud_runtime_drift_fencing_token_idx
+--               Index Cond: (fencing_token IS NOT NULL)
+--               Heap Fetches: 0
+--     (Postgres's standard MAX()-via-backward-index-scan-LIMIT-1 rewrite;
+--     cost is O(1) in fact_kind's own row count, not the whole table)
+--
+-- ~12,000x lower planner cost, and -- unlike the #3389 precedent's
+-- (scope_id, generation_id, fact_id) enumeration shape, which still scales
+-- with the MATCHING fact_kind's row count -- this shape is a leading-column
+-- MAX() index, so cost does not grow with fact_records' total size OR with
+-- how many reducer_aws_cloud_runtime_drift_finding rows accumulate. Building
+-- the index is a plain CREATE INDEX (no CONCURRENTLY, matching every other
+-- index in this file) and does not rewrite fact_records itself; re-applying
+-- this bootstrap SQL is a verified no-op (CREATE INDEX IF NOT EXISTS).
+CREATE INDEX IF NOT EXISTS fact_records_aws_cloud_runtime_drift_fencing_token_idx
+    ON fact_records (fencing_token)
+    WHERE fact_kind = 'reducer_aws_cloud_runtime_drift_finding';
+
 -- Seed the sequence above the highest wall-clock-derived token already
 -- stored for this domain (both the admission watermark table and any
 -- already-written fact_records rows), so on a live, previously-deployed
