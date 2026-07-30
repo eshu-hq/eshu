@@ -1012,6 +1012,7 @@ gates:
       - "scripts/verify-maturity-drift-guard.sh"
       - "scripts/test-verify-maturity-drift-guard.sh"
       - "scripts/lib/maturity-drift-guard-language-extensions.sh"
+      - "scripts/lib/golden-corpus-fixtures.sh"
       - "specs/ci-gates.v1.yaml"
     local:
       command: "bash scripts/verify-maturity-drift-guard.sh"

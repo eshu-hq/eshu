@@ -161,7 +161,7 @@ printf '%s\n' "${selection}" |
 	rg --quiet '^SELECTED[[:space:]]+heredoc-budget[[:space:]]' ||
 	fail "merge_group checks lib did not also select heredoc-budget (${merge_group_lib})"
 
-# #5814 class fix: four more gates source a scripts/lib helper their own
+# #5814 class fix: five more gates depend on a scripts/lib helper their own
 # triggers omit, so a change touching only that helper selected NO gate and CI
 # became first discovery — the same unregistered-trigger false-green class as
 # the merge_group lib above. Membership assertions only, never an exact
@@ -169,6 +169,16 @@ printf '%s\n' "${selection}" |
 # matches every one of these paths, and other gates may come to match later.
 # The list is fed by heredoc (not a pipe) so `fail` exits this script rather
 # than a subshell; it is kept well under the 512-byte heredoc budget.
+#
+# "Depends on" deliberately covers more than `source`. maturity-drift-guard
+# never sources its helper: extract_corpus_fixtures() awk-parses the
+# corpus_fixtures=( ... ) array straight out of
+# scripts/lib/golden-corpus-fixtures.sh, so the helper's CONTENT decides which
+# fixture languages get graded. That inventory was split out of the gate
+# orchestrator to respect the 500-line file cap, which is precisely how its
+# trigger came to be missing — the same cap-driven extraction that created the
+# merge_group lib. A read-as-data dependency false-greens exactly like a
+# sourced one, so it belongs in this list.
 while IFS='|' read -r sourced_gate sourced_lib sourced_tier; do
 	[[ -n "${sourced_gate}" ]] || continue
 	sourced_gate_block="$(
@@ -192,6 +202,7 @@ parser-relationship-kit|scripts/lib/parser_relationship_language_ledger.sh|pre-p
 ifa-determinism|scripts/lib/ifa_sql_delta_live.sh|pre-pr
 ifa-fault-injection|scripts/lib/ifa_determinism_common.sh|pre-pr
 docs-build-changed|scripts/lib/test-verify-docs-build-changed-fake-uv.sh|pre-push
+maturity-drift-guard|scripts/lib/golden-corpus-fixtures.sh|pre-pr
 SOURCED_LIB_GATES
 
 for sql_fixture in \
