@@ -46,6 +46,25 @@ job_block() { awk -v j="  $2:" '$0==j{f=1;print;next} f&&/^  [A-Za-z]/{exit} f{p
 job_gated()    { job_block "$1" "$2" | rg -qF 'needs: changes'; }
 job_alwayson() { ! job_gated "$1" "$2"; }
 
+# step_block and run_merge_group_checks (the merge_group / #5814 assertion
+# group) live in scripts/lib/ci-gate-merge-group-checks.sh — that seam is
+# self-contained (used only by the merge_group checks below) and moving it out
+# keeps this script under the repo's 500-line file rule.
+# shellcheck source=scripts/lib/ci-gate-merge-group-checks.sh
+. "${repo_root}/scripts/lib/ci-gate-merge-group-checks.sh"
+# This script has no `set -e` (many of its own checks deliberately rely on a
+# non-zero `rg`/test exit continuing to the next assertion), so a broken or
+# missing source line above would NOT stop the script — it would print
+# "command not found" for run_merge_group_checks at its call site below and
+# silently skip all four merge_group assertions while every OTHER assertion
+# still ran and the script still reported "wiring intact" with exit 0. That
+# false green was reproduced by hand while landing this split (source line
+# commented out => the script printed the command-not-found line to stderr,
+# skipped the four merge_group checks entirely, and still exited 0). Fail
+# loudly and immediately instead of letting that happen silently.
+declare -F run_merge_group_checks >/dev/null ||
+	{ printf 'verify-docs-only-ci-skip: ci-gate-merge-group-checks.sh did not define run_merge_group_checks (source missing or failed) — aborting\n' >&2; exit 1; }
+
 # code_filter_block <file> — the dorny/paths-filter `code:` key and its `- '...'`
 # negation list, verbatim (comments excluded), for byte-identity comparison
 # across the three workflows that duplicate this filter.
@@ -291,7 +310,7 @@ done
 
 # --- test.yml: heavy Go lanes gated; docs build stays always-on. ---
 t="${wf}/test.yml"
-if has "${t}" 'code: ${{ steps.filter.outputs.code }}' && has "${t}" 'dorny/paths-filter'; then
+if has "${t}" 'code: ${{ steps.filter.outputs.code || steps.merge_group_code.outputs.code }}' && has "${t}" 'dorny/paths-filter'; then
 	ok "test.yml has a changes job exporting the code filter"
 else
 	bad "test.yml exposes a changes.outputs.code from dorny/paths-filter"
@@ -308,6 +327,11 @@ if job_alwayson "${t}" docs-helm-hygiene; then
 else
 	bad "test.yml docs-helm-hygiene must NOT be code-gated (it is the docs build)"
 fi
+
+# --- test.yml: merge_group (#5814) checks — see
+# scripts/lib/ci-gate-merge-group-checks.sh for what this guards and why. ---
+run_merge_group_checks "${t}"
+
 # --- test.yml: both umbrella gates (go-race-complete #5757, go-core-complete
 # #5814) are the names branch protection points at, so each must hold the same
 # three-part contract: always reports, accepts a genuine docs-only skip as pass,
