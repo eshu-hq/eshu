@@ -151,3 +151,52 @@ func TestEcosystemResolveRouteGetRepositoryCoverage(t *testing.T) {
 		t.Fatalf("route.path = %q, want %q", got, want)
 	}
 }
+
+// TestEcosystemAnalyzeInfraRelationshipsSchemaAdvertisesWhatRunsLambdaImage
+// proves the analyze_infra_relationships tool schema's query_type enum
+// advertises what_runs_lambda_image, so a tool-calling model has a declared
+// way to reach the AWS_lambda_function_uses_image edge (#5738). A schema-only
+// assertion is not sufficient on its own; see
+// TestEcosystemResolveRouteAnalyzeInfraRelationshipsWhatRunsLambdaImage for
+// the dispatch-forwarding half of the contract.
+func TestEcosystemAnalyzeInfraRelationshipsSchemaAdvertisesWhatRunsLambdaImage(t *testing.T) {
+	t.Parallel()
+
+	tool := requireToolDefinition(t, "analyze_infra_relationships")
+	schema, _ := tool.InputSchema.(map[string]any)
+	properties, _ := schema["properties"].(map[string]any)
+	queryType, _ := properties["query_type"].(map[string]any)
+	enum, _ := queryType["enum"].([]string)
+	if !schemaEnumContains(enum, "what_runs_lambda_image") {
+		t.Fatalf("analyze_infra_relationships query_type enum missing %q: %#v", "what_runs_lambda_image", enum)
+	}
+}
+
+// TestEcosystemResolveRouteAnalyzeInfraRelationshipsWhatRunsLambdaImage
+// proves dispatch actually forwards query_type=what_runs_lambda_image to the
+// HTTP route as relationship_type (#5738). Removing the enum entry, or a
+// dispatch change that stops forwarding query_type, must fail this test.
+func TestEcosystemResolveRouteAnalyzeInfraRelationshipsWhatRunsLambdaImage(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("analyze_infra_relationships", map[string]any{
+		"query_type": "what_runs_lambda_image",
+		"target":     "arn:aws:lambda:us-east-1:000000000000:function:image-consumer",
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	if got, want := route.method, "POST"; got != want {
+		t.Fatalf("route.method = %q, want %q", got, want)
+	}
+	if got, want := route.path, "/api/v0/infra/relationships"; got != want {
+		t.Fatalf("route.path = %q, want %q", got, want)
+	}
+	body := requireRouteBody(t, route)
+	if got, want := body["relationship_type"], "what_runs_lambda_image"; got != want {
+		t.Fatalf("body[relationship_type] = %#v, want %#v", got, want)
+	}
+	if got, want := body["entity_id"], "arn:aws:lambda:us-east-1:000000000000:function:image-consumer"; got != want {
+		t.Fatalf("body[entity_id] = %#v, want %#v", got, want)
+	}
+}
