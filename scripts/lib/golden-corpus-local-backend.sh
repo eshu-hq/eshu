@@ -118,67 +118,118 @@ stage_local_backend_cassette() {
 # once bootstrap-index's Phase 3.5 re-runs during that loop, not before).
 #
 # Requires: local_backend_scope_id (set by stage_local_backend_cassette,
-# called earlier in the same script run), pg(), log_dir. jq is required (the
-# suppression-proof helper elsewhere in this gate already depends on it, so
-# this adds no new tool requirement).
+# called earlier in the same script run), pg(), log_dir.
 #
 # Intent: KEEP THIS PERMANENTLY. It costs one script block and a handful of
 # bounded queries against a corpus this small, and it turns "which of five
 # failure points broke" from a guessing game back into a single gate run —
 # the same value a live-gate operator would want for any other domain this
 # gate exercises, not just while #5594 is open.
+#
+# HARD REQUIREMENT (issue #5594 review): this block must never be able to
+# fail the gate or short-circuit the phases that run after it. The first
+# version violated this twice, both from the same root cause -- a bare
+# `var="$(cmd)"` assignment, under this script's `set -euo pipefail`, aborts
+# the WHOLE gate the instant `cmd` exits non-zero, and the caller never finds
+# out why (stderr goes nowhere useful, and a downstream `|| true` on a
+# DIFFERENT line cannot retroactively protect it): a blanket `pg "..." ||
+# true` on the query calls hid real query failures behind what looked like
+# "zero rows" (pg()'s `-tA` prints nothing for a genuine empty result set
+# too, so the two were indistinguishable), and one unguarded
+# `matches="$(jq ...)"` assignment had no protection at all and killed the
+# run before the closing print, let alone the assertion phase after this
+# function returns. Every external command below is captured via the
+# `out="$(cmd)" && status=0 || status=$?` idiom specifically because a bare
+# assignment is NOT exempt from `set -e` but an assignment on the `&&`/`||`
+# side of a tested command IS -- see https://mywiki.wooledge.org/BashFAQ/105.
 print_local_backend_drift_diagnostics() {
 	printf '\n--- local-backend drift diagnostics (scope_id=%s) ---\n' "${local_backend_scope_id}"
-
-	printf '\n[1] did the cassette entry land? (ingestion_scopes + terraform_state_snapshot/terraform_state_candidate facts)\n'
-	pg "
-		SELECT 'ingestion_scopes' AS source, scope_id, active_generation_id, status
+	pg_diag "[1a] ingestion_scopes row for this scope_id (did the cassette land, and is its generation active?)" "
+		SELECT scope_id, active_generation_id, status
 		FROM ingestion_scopes WHERE scope_id = '${local_backend_scope_id}';
-	" || true
-	pg "
-		SELECT 'fact_records' AS source, fact_kind, generation_id, is_tombstone, observed_at
+	"
+	pg_diag "[1b] terraform_state_snapshot / terraform_state_candidate facts for this scope_id" "
+		SELECT fact_kind, generation_id, is_tombstone, observed_at
 		FROM fact_records
 		WHERE scope_id = '${local_backend_scope_id}'
 		  AND fact_kind IN ('terraform_state_snapshot', 'terraform_state_candidate')
 		ORDER BY fact_kind, observed_at DESC;
-	" || true
-
-	printf '\n[2] was a config_state_drift intent enqueued? (fact_work_items rows for this scope + domain)\n'
-	pg "
+	"
+	pg_diag "[2] fact_work_items rows for (scope_id, domain=config_state_drift) -- was an intent enqueued and claimed?" "
 		SELECT work_item_id, status, attempt_count, failure_class, failure_message, updated_at
 		FROM fact_work_items
 		WHERE scope_id = '${local_backend_scope_id}' AND domain = 'config_state_drift'
 		ORDER BY updated_at DESC;
-	" || true
-
-	printf '\n[3] did it execute, and what did it produce? (reducer_terraform_config_state_drift_finding facts, by outcome/drift_kind)\n'
-	pg "
+	"
+	pg_diag "[3] reducer_terraform_config_state_drift_finding facts for this scope_id, by outcome/drift_kind -- what did it produce?" "
 		SELECT payload->>'outcome' AS outcome, COALESCE(payload->>'drift_kind', '<none>') AS drift_kind, count(*)
 		FROM fact_records
 		WHERE scope_id = '${local_backend_scope_id}'
 		  AND fact_kind = 'reducer_terraform_config_state_drift_finding'
 		GROUP BY 1, 2
 		ORDER BY 1, 2;
-	" || true
+	"
+	log_diag_local_backend_ownership_lines
+	printf -- '--- end local-backend drift diagnostics ---\n\n'
+	return 0
+}
 
-	printf '\n[4] if zero findings above: was ownership resolved at all? (reducer structured log, both outcomes are logged even when nothing is written to fact_records)\n'
+# pg_diag <label> <sql> runs one diagnostic SQL query and prints exactly one
+# of three DISTINGUISHABLE outcomes, labelled, so "the query legitimately
+# returned nothing" is never confused with "the query itself failed" (issue
+# #5594 review: a blanket `|| true` made these look identical, since pg()'s
+# `-tA` flag already prints nothing for a genuine empty result set). Captures
+# pg()'s exit status via the `&&`/`||`-guarded assignment idiom rather than a
+# bare one, so a failing query cannot trip this script's `set -e` and abort
+# the run. Always returns 0.
+pg_diag() {
+	local label="$1" sql="$2"
+	local output status
+	output="$(pg "${sql}" 2>&1)" && status=0 || status=$?
+	if [[ "${status}" -ne 0 ]]; then
+		printf '%s: QUERY FAILED (exit %s):\n%s\n' "${label}" "${status}" "${output}"
+	elif [[ -z "${output}" ]]; then
+		printf '%s: (0 rows)\n' "${label}"
+	else
+		printf '%s:\n%s\n' "${label}" "${output}"
+	fi
+	return 0
+}
+
+# log_diag_local_backend_ownership_lines answers diagnostic [4]: if [3] shows
+# zero findings, did ownership resolve at all? go/internal/reducer/terraform_config_state_drift.go
+# JSON-logs (slog.LevelInfo, always enabled -- internal/telemetry/logging.go)
+# either "drift candidate rejected" (failure_class/rejection.reason -- e.g.
+# no_config_repo_owns_backend) or "drift candidate resolved via defaulted
+# locator" (ownership resolved, so a downstream zero-admitted-candidates
+# outcome is the more precise next question) for every scope the handler
+# actually processes. Uses grep, not jq: grep never errors on a line that
+# happens not to be valid JSON (a real risk in a log this script does not
+# fully control the content of -- see the docstring above), so it cannot
+# repeat the failure mode this diagnostic itself exists to catch. Every `|| true`
+# below is INSIDE the command substitution, guarding the one command that can
+# fail, not appended after the closing `)"` -- a trailing `|| true` on the
+# assignment line does not protect the assignment itself from `set -e`.
+log_diag_local_backend_ownership_lines() {
+	local label="[4] reducer structured log for this scope_id (ownership resolved vs rejected -- both outcomes are logged even when [3] writes nothing to fact_records)"
 	local history="${log_dir}/reducer-config-state-drift-history.log"
 	if [[ ! -f "${history}" ]]; then
-		printf 'no reducer log history file found at %s\n' "${history}"
-	elif ! command -v jq >/dev/null 2>&1; then
-		printf 'jq not available; raw grep of %s for this scope_id:\n' "${history}"
-		grep -F "${local_backend_scope_id}" "${history}" || printf '(no lines matched)\n'
-	else
-		local matches
-		matches="$(jq -c --arg scope "${local_backend_scope_id}" '
-			select(.scope_id == $scope and (.message == "drift candidate rejected" or .message == "drift candidate resolved via defaulted locator"))
-		' "${history}" 2>/dev/null)"
-		if [[ -z "${matches}" ]]; then
-			printf 'no "drift candidate rejected" or "drift candidate resolved via defaulted locator" log line found for this scope_id across any drain pass. This means either the intent was never claimed (see [2]), or the handler returned before either log call -- check for "resolver_unavailable"/"evidence_loader_unavailable" failure_class lines too:\n'
-			jq -c --arg scope "${local_backend_scope_id}" 'select(.scope_id == $scope)' "${history}" 2>/dev/null || true
-		else
-			printf '%s\n' "${matches}"
-		fi
+		printf '%s: (no reducer log history file at %s)\n' "${label}" "${history}"
+		return 0
 	fi
-	printf -- '--- end local-backend drift diagnostics ---\n\n'
+	local scoped_lines
+	scoped_lines="$(grep -F "${local_backend_scope_id}" "${history}" 2>/dev/null || true)"
+	if [[ -z "${scoped_lines}" ]]; then
+		printf '%s: (0 log lines mention this scope_id across any drain pass -- the intent was likely never claimed; see [2])\n' "${label}"
+		return 0
+	fi
+	local outcome_lines
+	outcome_lines="$(printf '%s\n' "${scoped_lines}" | grep -E 'drift candidate (rejected|resolved via defaulted locator)' 2>/dev/null || true)"
+	if [[ -z "${outcome_lines}" ]]; then
+		printf '%s: this scope_id appears in the reducer log, but never on a "drift candidate rejected"/"drift candidate resolved via defaulted locator" line. Every log line mentioning this scope_id (check for resolver_unavailable/evidence_loader_unavailable/scope_not_state_snapshot failure_class too):\n%s\n' \
+			"${label}" "${scoped_lines}"
+	else
+		printf '%s:\n%s\n' "${label}" "${outcome_lines}"
+	fi
+	return 0
 }
