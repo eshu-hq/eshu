@@ -5,10 +5,10 @@ package main
 
 import (
 	"context"
-	"errors"
-	"log/slog"
 
+	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
+	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend/canonicalwriter"
 )
 
 // ingesterTerraformStateOwnershipResolver adapts *tfstatebackend.Resolver to
@@ -24,26 +24,17 @@ type ingesterTerraformStateOwnershipResolver struct {
 	resolver *tfstatebackend.Resolver
 }
 
-// ResolveOwningRepoID implements sourcecypher.TerraformStateOwnershipResolver.
-// A query failure, an unowned backend (ErrNoConfigRepoOwnsBackend), and an
-// ambiguously-owned backend (ErrAmbiguousBackendOwner) all resolve to
-// ("", false) -- never a guess. A query failure is logged and otherwise
-// treated the same as "not resolved this cycle": the resolution reruns every
-// generation, so a transient failure only delays the MATCHES_STATE edge, it
-// never fabricates one.
+// ResolveOwningRepoID implements sourcecypher.TerraformStateOwnershipResolver
+// by delegating to canonicalwriter.ResolveOwningRepoIDOutcome (#5623 P1
+// review, second finding), the single place that classifies a resolution
+// result into (repoID, outcome) shared by every cmd/* wiring site --
+// cmd/bootstrap-index and cmd/projector's own terraform_state_ownership.go
+// call the identical function. Do not reimplement the classification here:
+// see canonicalwriter's own doc comment for why a query failure, an unowned
+// backend, and an ambiguously-owned backend must NOT collapse into the same
+// outcome.
 func (r ingesterTerraformStateOwnershipResolver) ResolveOwningRepoID(
 	ctx context.Context, backendKind, locatorHash string,
-) (string, bool) {
-	anchor, err := r.resolver.ResolveConfigCommitForBackend(ctx, backendKind, locatorHash)
-	if err != nil {
-		if !errors.Is(err, tfstatebackend.ErrNoConfigRepoOwnsBackend) && !errors.Is(err, tfstatebackend.ErrAmbiguousBackendOwner) {
-			slog.WarnContext(ctx, "terraform state backend ownership resolution failed",
-				"backend_kind", backendKind, "locator_hash", locatorHash, "error", err)
-		}
-		return "", false
-	}
-	if anchor.RepoID == "" {
-		return "", false
-	}
-	return anchor.RepoID, true
+) (string, projector.TerraformStateOwnershipOutcome) {
+	return canonicalwriter.ResolveOwningRepoIDOutcome(ctx, r.resolver, backendKind, locatorHash)
 }

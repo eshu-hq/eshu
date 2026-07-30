@@ -544,11 +544,16 @@ the join; CloudResource nodes carry no `repo_id` and anchor to a repository only
 through the canonical
 `(:Repository)-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]-(:WorkloadInstance)-[:USES]->(n)`
 chain, matched by an `EXISTS` subquery anchored on the indexed `Repository.id`
-grant filter (the production `workloadScopePredicate` shape). Nodes with no
-granted `repo_id` and no USES path from a granted repository (for example
-tfstate-only TerraformBackend / TerraformLockProvider nodes that carry no
-durable repository signal) match nothing and stay invisible to scoped tokens.
-Empty grants return the bounded zero/empty shapes without a graph read.
+grant filter (the production `workloadScopePredicate` shape).
+`TerraformStateResource` (state-observed, #5443) similarly carries no `repo_id`
+and anchors to a repository only through the `MATCHES_STATE` edge a
+config-declared `TerraformResource` writes to it (#5623); an inline-map
+disjunct admits it when that `TerraformResource`'s `repo_id` is granted. Nodes
+with no granted `repo_id` and no USES/MATCHES_STATE path from a granted
+repository (for example tfstate-only TerraformBackend / TerraformLockProvider
+nodes that carry no durable repository signal, or a TerraformStateResource with
+no MATCHES_STATE edge) match nothing and stay invisible to scoped tokens. Empty
+grants return the bounded zero/empty shapes without a graph read.
 Shared-token, all-scope admin, and local behavior are unchanged: the predicate
 renders only in scoped mode, so the unscoped Cypher is byte-identical.
 No-Regression Evidence: the scoped predicate and grant parameters render only

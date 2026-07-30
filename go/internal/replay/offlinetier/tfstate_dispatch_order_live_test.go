@@ -206,6 +206,22 @@ SET r.address = $address,
 // statement alone: it must delete the pre-existing stale edge because, once
 // the resource upsert has run, `s.generation_id = $generation_id` now holds
 // and `e.generation_id <> $generation_id` still holds for the untouched edge.
+//
+// The row explicitly sets OwnershipOutcome to TerraformStateOwnershipNoOwner
+// (#5623 P1 review follow-up): terraformStateMatchesConfigEdgeRetractStatements'
+// uid filter now excludes TerraformStateOwnershipTransientFailure rows (the
+// zero value, "we don't know this cycle, preserve any existing edge") from
+// its retract-eligible set. This row is constructed directly (bypassing
+// resolveTerraformStateOwnership, which never runs because no resolver is
+// wired below), so its OwnershipOutcome must be set explicitly to simulate an
+// authoritative outcome -- leaving it unset would default to
+// TerraformStateOwnershipTransientFailure and the retract would correctly
+// preserve the stale edge, silently invalidating this test's own premise
+// ("isolating this test to the retract statement alone: it must delete the
+// pre-existing stale edge"). NoOwner (rather than Resolved) keeps OwningRepoID
+// empty too, matching this test's own "no ownership/config-match resolver is
+// wired, so the MERGE never fires" framing above -- only the retract's
+// generation-mismatch logic is under test here, not the MERGE.
 func TestTfstateMatchesStateEdgeRetractDispatchLive(t *testing.T) {
 	if !liveTierEnabled() {
 		t.Skipf("set %s=1 (and ESHU_GRAPH_BACKEND/NEO4J_URI/ESHU_NEO4J_DATABASE) to run the tfstate dispatch-order tier against a real NornicDB", liveTierEnv)
@@ -315,6 +331,12 @@ SET e.evidence_source = 'projector/tfstate',
 			Name:             "edge_5680",
 			SourceConfidence: facts.SourceConfidenceObserved,
 			CollectorKind:    "terraform_state",
+			// #5623 P1 review follow-up: simulate an authoritative outcome
+			// (no resolver is wired below, so nothing else would set this)
+			// so terraformStateMatchesConfigEdgeRetractStatements includes
+			// this row's uid in its retract-eligible set -- see this test's
+			// own doc comment above for why.
+			OwnershipOutcome: projector.TerraformStateOwnershipNoOwner,
 		}},
 	}
 	if err := writer.Write(ctx, mat); err != nil {

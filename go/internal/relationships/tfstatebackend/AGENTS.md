@@ -61,3 +61,20 @@ Guidance for LLM assistants editing this package.
 - The deterministic selection rule.
 - The two typed errors. The drift handler depends on
   distinguishing them.
+
+## Related packages
+
+- `tfstatebackend/canonicalwriter` (`./canonicalwriter`) adapts
+  `Resolver.ResolveConfigCommitForBackend` for the canonical writer's
+  `MATCHES_STATE` edge scoping (#5623), classifying a result into
+  `projector.TerraformStateOwnershipOutcome` instead of this package's own
+  bare `(string, bool)`-shaped errors. It lives in a separate package
+  because `internal/projector` (owner of that outcome type) already
+  transitively imports this package, so this package cannot import
+  `projector` back without a cycle. If you change `ErrNoConfigRepoOwnsBackend`,
+  `ErrAmbiguousBackendOwner`, or `ResolveConfigCommitForBackend`'s return
+  contract, check `canonicalwriter.ResolveOwningRepoIDOutcome` for a matching
+  update — it is the only place those two errors are classified for the
+  canonical writer's scoped-token authorization path, and per its own
+  "What NOT to change" section, must not collapse `ErrAmbiguousBackendOwner`
+  back into a generic failure.

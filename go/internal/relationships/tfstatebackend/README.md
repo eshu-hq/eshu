@@ -61,6 +61,24 @@ relationship-mapping contract.
   repo B). The terraform_backends parser fact must live in the same
   repo as the state.
 
+## Related packages
+
+- `tfstatebackend/canonicalwriter` (`go/internal/relationships/tfstatebackend/canonicalwriter`)
+  adapts `Resolver.ResolveConfigCommitForBackend` for the canonical writer's
+  `MATCHES_STATE` edge scoping (`internal/storage/cypher`'s
+  `TerraformStateOwnershipResolver` port, #5623), classifying a result into
+  `projector.TerraformStateOwnershipOutcome` (Resolved / TransientFailure /
+  NoOwner / AmbiguousOwner) rather than the bare `(string, bool)` this package
+  itself returns. It lives in a separate package specifically because
+  `internal/projector` (owner of that outcome type) already transitively
+  imports this package, so this package cannot import `projector` back
+  without a cycle. See that package's own README for the full rationale and
+  for the AmbiguousOwner eventual-consistency caveat (this package's ambiguity
+  detection depends on every claimant repo's `active_generation_id` having
+  converged; a backend mid-migration between two repos can transiently
+  resolve as ambiguous purely because ingestion hasn't caught up yet, not
+  because ownership is genuinely contested).
+
 ## Implementation status
 
 The resolver groups, sorts, and selects from the rows returned by an
