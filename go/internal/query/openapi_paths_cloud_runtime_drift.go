@@ -3,24 +3,33 @@
 
 package query
 
-// openAPIPathsCloudRuntimeDrift documents the provider-neutral multi-cloud
-// runtime drift readback route (issues #1997, #1998). It surfaces reducer-owned
-// reducer_multi_cloud_runtime_drift_finding rows (one per canonical
-// cloud_resource_uid) with provider, normalized identity, finding_kind,
-// management_status, provider-neutral source_state, and refusal-safety posture.
-// The route is read-only, bounded, paginated, and truth-labeled; it never
-// returns raw provider locators or raw evidence atoms, and refuses unsafe
-// findings rather than omitting them. The one narrow exception is
-// drifted_attributes (#5453): for an image_version_drift finding, it carries
-// the bounded declared/observed value pairs (e.g. ami, image_uri, version)
-// the finding is ABOUT -- a purpose-built projection of two evidence atoms
-// per attribute, never the full raw evidence-atom list.
+// openAPIPathsCloudRuntimeDrift documents the runtime drift readback route
+// across all three providers (issues #1997, #1998, #5759 follow-up). It
+// aggregates reducer_multi_cloud_runtime_drift_finding rows (gcp, azure; one
+// per canonical cloud_resource_uid) with reducer_aws_cloud_runtime_drift_finding
+// rows (aws) in one query, so provider=aws and an unfiltered query genuinely
+// return AWS findings instead of the empty page this route returned for aws
+// before the aggregation existed. Findings carry provider, normalized
+// identity, finding_kind, management_status, provider-neutral source_state,
+// and refusal-safety posture. The route is read-only, bounded, paginated, and
+// truth-labeled; it never returns raw provider locators (including the AWS
+// ARN) or raw evidence atoms, and refuses unsafe findings rather than
+// omitting them. drifted_attributes (#5453) is a narrow exception: for an
+// image_version_drift finding, it carries the bounded declared/observed value
+// pairs (e.g. ami, image_uri, version) the finding is ABOUT -- a
+// purpose-built projection of two evidence atoms per attribute, never the
+// full raw evidence-atom list. matched_terraform_config_file,
+// matched_terraform_module_path, matched_other_iac_source,
+// service_candidates, environment_candidates, and dependency_paths are
+// AWS-only enrichment the AWS-specific reducer domain computes; they are
+// present only on aws-origin findings and absent (never a fabricated empty
+// value) on gcp/azure ones.
 const openAPIPathsCloudRuntimeDrift = `
     "/api/v0/cloud/runtime-drift/findings": {
       "post": {
         "tags": ["cloud"],
-        "summary": "List provider-neutral multi-cloud runtime drift findings",
-        "description": "Lists active reducer-materialized provider-neutral runtime drift findings for a bounded canonical scope across aws, gcp, and azure. Filterable by provider, canonical cloud_resource_uid, and finding_kind. Each finding carries its provider-neutral source_state and safety gate; unsafe findings are reported as rejected with a refused action rather than omitted. local_lightweight returns unsupported_capability. Scoped tokens must supply a scope_id (or account_id/project_id/subscription_id alias) that resolves to a granted repository or ingestion scope; a scoped caller with no grants or an out-of-grant scope_id receives an empty page.",
+        "summary": "List runtime drift findings across aws, gcp, and azure",
+        "description": "Lists active reducer-materialized runtime drift findings for a bounded canonical scope, aggregated across all three providers: reducer_multi_cloud_runtime_drift_finding (gcp, azure) and reducer_aws_cloud_runtime_drift_finding (aws) in one query. Filterable by provider, canonical cloud_resource_uid, and finding_kind; cloud_resource_uid filtering matches only gcp/azure findings (an AWS finding's canonical identity is resolved for display but is not a stored, filterable column on its fact kind). Each finding carries its provider-neutral source_state and safety gate; unsafe findings are reported as rejected with a refused action rather than omitted. local_lightweight returns unsupported_capability. Scoped tokens must supply a scope_id (or account_id/project_id/subscription_id alias) that resolves to a granted repository or ingestion scope; a scoped caller with no grants or an out-of-grant scope_id receives an empty page.",
         "operationId": "listCloudRuntimeDriftFindings",
         "x-scoped-token-support": true,
         "requestBody": {
@@ -95,6 +104,12 @@ const openAPIPathsCloudRuntimeDrift = `
                           "matched_terraform_state_address": {"type": "string"},
                           "missing_evidence": {"type": "array", "items": {"type": "string"}},
                           "recommended_action": {"type": "string"},
+                          "matched_terraform_config_file": {"type": "string", "description": "AWS-only enrichment; present only on aws-origin findings."},
+                          "matched_terraform_module_path": {"type": "string", "description": "AWS-only enrichment; present only on aws-origin findings."},
+                          "matched_other_iac_source": {"type": "string", "description": "AWS-only enrichment; present only on aws-origin findings."},
+                          "service_candidates": {"type": "array", "items": {"type": "string"}, "description": "AWS-only enrichment; present only on aws-origin findings."},
+                          "environment_candidates": {"type": "array", "items": {"type": "string"}, "description": "AWS-only enrichment; present only on aws-origin findings."},
+                          "dependency_paths": {"type": "array", "items": {"type": "string"}, "description": "AWS-only enrichment; present only on aws-origin findings."},
                           "drifted_attributes": {
                             "type": "array",
                             "description": "Bounded declared/observed value pairs for an image_version_drift finding (ami, image_uri, version, or the ECS container image comparison). Empty for orphaned/unmanaged/unknown/ambiguous findings.",

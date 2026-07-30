@@ -179,3 +179,40 @@ func multiCloudAzureResourceEnvelope(factID, scopeID, generationID string) facts
 		},
 	}
 }
+
+// TestMultiCloudRuntimeDriftSourceSystemFallsBackToCollectorKind is the #5759
+// P2 regression: multiCloudRuntimeDriftSourceSystem's CollectorKind fallback
+// was untested -- both existing intent tests
+// (TestBuildProjectionQueuesMultiCloudRuntimeDriftIntentForGCPScope/AzureScope)
+// set a non-empty SourceRef.SourceSystem, so a broken or removed fallback
+// would not have failed either one.
+func TestMultiCloudRuntimeDriftSourceSystemFallsBackToCollectorKind(t *testing.T) {
+	t.Parallel()
+
+	envelope := facts.Envelope{
+		FactID:        "fact-gcp-blank-source-ref",
+		FactKind:      facts.GCPCloudResourceFactKind,
+		CollectorKind: "gcp_cloud",
+		SourceRef:     facts.Ref{SourceSystem: ""},
+	}
+	if got, want := multiCloudRuntimeDriftSourceSystem(envelope), "gcp_cloud"; got != want {
+		t.Fatalf("multiCloudRuntimeDriftSourceSystem() = %q, want %q (fall back to CollectorKind when SourceRef.SourceSystem is blank)", got, want)
+	}
+}
+
+// TestMultiCloudRuntimeDriftSourceSystemPrefersSourceRef proves the fallback
+// only fires when SourceRef.SourceSystem is genuinely blank, not whenever
+// CollectorKind is also set.
+func TestMultiCloudRuntimeDriftSourceSystemPrefersSourceRef(t *testing.T) {
+	t.Parallel()
+
+	envelope := facts.Envelope{
+		FactID:        "fact-gcp-both-set",
+		FactKind:      facts.GCPCloudResourceFactKind,
+		CollectorKind: "gcp_cloud",
+		SourceRef:     facts.Ref{SourceSystem: "gcp"},
+	}
+	if got, want := multiCloudRuntimeDriftSourceSystem(envelope), "gcp"; got != want {
+		t.Fatalf("multiCloudRuntimeDriftSourceSystem() = %q, want %q (prefer SourceRef.SourceSystem when non-blank)", got, want)
+	}
+}

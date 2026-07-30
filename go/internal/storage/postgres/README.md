@@ -415,6 +415,28 @@ pins the Azure-only case-fold. No new storage telemetry shape is added; reducer
 spans, `postgres.query` child spans, publication counters, and redaction-aware
 decode/unresolved warning logs carry the operator signal.
 
+This is the WRITE-side join; the READ-side sibling
+(`cloud_runtime_drift_aggregate_findings.go`, #5759 follow-up) is a different
+concern living on `MultiCloudRuntimeDriftFindingStore`:
+`ListActiveFindingsAcrossProviders`/`CountActiveFindingsAcrossProviders` query
+BOTH `reducer_multi_cloud_runtime_drift_finding` and
+`reducer_aws_cloud_runtime_drift_finding` (the fact kind
+`AWSCloudRuntimeDriftFindingStore` also reads) in one SQL query, so the
+provider-neutral runtime drift readback genuinely covers all three providers
+instead of silently returning nothing for `provider=aws`. The write-side
+partition is untouched: `DomainAWSCloudRuntimeDrift` is still the sole writer
+of `reducer_aws_cloud_runtime_drift_finding`, and
+`MultiCloudRuntimeDriftHandler.Handle`'s `excludeAWSOwnedRows` still drops any
+AWS-provider row before publication. The fact_kind set to scan is chosen
+BEFORE the query is built (`cloudRuntimeDriftAggregateFactKinds`): `aws`
+selects only the AWS fact kind, `gcp`/`azure` select only the provider-neutral
+one (narrowed by its stored `payload->>'provider'` column, unchanged from
+before this aggregation), and an unfiltered request selects both with no
+provider predicate at all -- so ordering (`observed_at DESC, fact_id ASC`)
+and `LIMIT`/`OFFSET` are computed once, globally, by Postgres, and a deep
+page stays correct across the merged set rather than requiring the caller to
+over-fetch and re-sort in Go.
+
 ### Graph node owner ledger (#5007)
 
 `GraphNodeOwnerStore` (migration `056_graph_node_owner.sql`) is the

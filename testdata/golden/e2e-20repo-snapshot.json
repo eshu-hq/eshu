@@ -5792,6 +5792,31 @@
         },
         "minimum_results": 0
       },
+      "POST /api/v0/cloud/runtime-drift/findings?assert=provider_aws_aggregation": {
+        "description": "Refs #5759 P1 golden proof: the SAME route, key, and store as the sibling gcp-scoped entry above (\"POST /api/v0/cloud/runtime-drift/findings\") but scope_id/provider point at the AWS scope list_aws_runtime_drift_findings already proves live has an admitted image_version_drift finding (see that entry's fixture-surgery detail: ARN re-key plus terraform_comprehensive config-owner resolution). The trailing ?assert=provider_aws_aggregation query string exists ONLY to give this entry a distinct map key from the sibling gcp entry above -- POST /api/v0/cloud/runtime-drift/findings's net/http.ServeMux route pattern matches on path only (query strings are never part of Go 1.22+ ServeMux pattern matching), and this route reads its filters from the JSON request_body, not the URL, so the query string reaches the handler unused. Before #5759's follow-up read-side aggregation, provider=aws on this NEUTRAL surface always returned an empty page (list_cloud_runtime_drift_findings/this route only ever queried reducer_multi_cloud_runtime_drift_finding, which excludeAWSOwnedRows guarantees never carries an AWS row) even though DomainAWSCloudRuntimeDrift had live findings -- a confidently-wrong empty page, not a genuinely empty one. This entry proves the aggregation: same finding_kind/drifted_attributes values the AWS-specific list_aws_runtime_drift_findings entry already proves live, now also visible through the provider-neutral surface for provider=aws. minimum_results stays 0 for the same structural reason as the sibling gcp entry (envelope:true, no top-level array field); required_json_paths/required_json_values below are the non-vacuous proof.",
+        "truth_class": "derived",
+        "envelope": true,
+        "request_body": {
+          "scope_id": "aws:123456789012:us-east-1:ec2",
+          "provider": "aws",
+          "limit": 10
+        },
+        "required_response_fields": [
+          "data",
+          "truth",
+          "error"
+        ],
+        "required_json_paths": [
+          "data.drift_findings[].finding_kind"
+        ],
+        "required_json_values": {
+          "data.analysis_status": "materialized_multi_cloud_runtime_drift",
+          "data.truth_basis": "materialized_reducer_rows",
+          "data.drift_findings[].finding_kind": "image_version_drift",
+          "data.drift_findings[].drifted_attributes[].attribute": "ami"
+        },
+        "minimum_results": 0
+      },
       "GET /api/v0/observability/coverage/correlations?provider=tempo&limit=50": {
         "description": "Observability coverage correlations (tempo); confirms the observability coverage read surface is queryable.",
         "required_response_fields": [
