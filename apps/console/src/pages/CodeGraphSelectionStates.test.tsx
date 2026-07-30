@@ -1,15 +1,22 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, useNavigate } from "react-router";
+import { MemoryRouter } from "react-router";
 
 import { CodeGraphPage } from "./CodeGraphPage";
 import { codeGraphSelectionKey } from "./CodeGraphPageSupport";
+import {
+  clientWithCodeGraphInventory,
+  codeGraphInventory,
+  codeGraphRepository,
+  deferred,
+  type Deferred,
+} from "./codeGraphTestFixtures";
 import type { EshuApiClient } from "../api/client";
 import type { RepoListItem } from "../api/repoCatalog";
 import { demoModel } from "../console/demoModel";
 
 const repositories: readonly RepoListItem[] = [
-  repository("repository:r1", "service-one"),
-  repository("repository:r2", "service-two"),
+  codeGraphRepository("repository:r1", "service-one"),
+  codeGraphRepository("repository:r2", "service-two"),
 ];
 
 describe("CodeGraphPage repository state isolation", () => {
@@ -21,7 +28,7 @@ describe("CodeGraphPage repository state isolation", () => {
 
   it("ignores a stale inventory response after switching repositories", async () => {
     const pending = new Map<string, Deferred<unknown>>();
-    const client = clientWithInventory((repoId) => {
+    const client = clientWithCodeGraphInventory((repoId) => {
       const request = deferred<unknown>();
       pending.set(repoId, request);
       return request.promise;
@@ -37,12 +44,12 @@ describe("CodeGraphPage repository state isolation", () => {
     expect(screen.queryByText("alphaSymbol")).not.toBeInTheDocument();
     await waitFor(() => expect(pending.has("repository:r2")).toBe(true));
     await act(async () =>
-      pending.get("repository:r2")?.resolve(inventory("repository:r2", "betaSymbol")),
+      pending.get("repository:r2")?.resolve(codeGraphInventory("repository:r2", "betaSymbol")),
     );
     expect(await screen.findByRole("combobox", { name: "Symbol" })).toHaveTextContent("betaSymbol");
 
     await act(async () =>
-      pending.get("repository:r1")?.resolve(inventory("repository:r1", "alphaSymbol")),
+      pending.get("repository:r1")?.resolve(codeGraphInventory("repository:r1", "alphaSymbol")),
     );
     expect(screen.getByRole("combobox", { name: "Symbol" })).toHaveTextContent("betaSymbol");
     expect(screen.queryByText("alphaSymbol")).not.toBeInTheDocument();
@@ -50,12 +57,13 @@ describe("CodeGraphPage repository state isolation", () => {
 
   it("keeps the new repository isolated through error and retry", async () => {
     let repoTwoAttempts = 0;
-    const client = clientWithInventory((repoId) => {
-      if (repoId === "repository:r1") return Promise.resolve(inventory(repoId, "alphaSymbol"));
+    const client = clientWithCodeGraphInventory((repoId) => {
+      if (repoId === "repository:r1")
+        return Promise.resolve(codeGraphInventory(repoId, "alphaSymbol"));
       repoTwoAttempts += 1;
       if (repoTwoAttempts === 1)
         return Promise.reject(new Error("repository two inventory failed"));
-      return Promise.resolve(inventory(repoId, "betaSymbol"));
+      return Promise.resolve(codeGraphInventory(repoId, "betaSymbol"));
     });
 
     renderPage(client);
@@ -81,8 +89,8 @@ describe("CodeGraphPage repository state isolation", () => {
 
   it("retries a relationship-story error without changing repository scope", async () => {
     const entityId = "content-entity:repository:r1:alphaSymbol";
-    const client = clientWithInventory(
-      (repoId) => Promise.resolve(inventory(repoId, "alphaSymbol")),
+    const client = clientWithCodeGraphInventory(
+      (repoId) => Promise.resolve(codeGraphInventory(repoId, "alphaSymbol")),
       entityId,
       1,
     );
@@ -103,9 +111,9 @@ describe("CodeGraphPage repository state isolation", () => {
 
   it("does not substitute a repository for an invalid deep link", async () => {
     const inventoryCalls: string[] = [];
-    const client = clientWithInventory((repoId) => {
+    const client = clientWithCodeGraphInventory((repoId) => {
       inventoryCalls.push(repoId);
-      return Promise.resolve(inventory(repoId, "unexpectedSymbol"));
+      return Promise.resolve(codeGraphInventory(repoId, "unexpectedSymbol"));
     });
 
     render(
@@ -124,8 +132,8 @@ describe("CodeGraphPage repository state isolation", () => {
   });
 
   it("does not substitute a symbol for an invalid entity deep link", async () => {
-    const client = clientWithInventory(
-      (repoId) => Promise.resolve(inventory(repoId, "alphaSymbol")),
+    const client = clientWithCodeGraphInventory(
+      (repoId) => Promise.resolve(codeGraphInventory(repoId, "alphaSymbol")),
       "content-entity:missing",
     );
     render(
@@ -149,7 +157,7 @@ describe("CodeGraphPage repository state isolation", () => {
   });
 
   it("loads an explicit authorized entity anchor beyond the bounded inventory page", async () => {
-    const client = clientWithInventory(() =>
+    const client = clientWithCodeGraphInventory(() =>
       Promise.resolve({ data: { results: [] }, error: null, truth: null }),
     );
     render(
@@ -212,9 +220,9 @@ describe("CodeGraphPage repository state isolation", () => {
 
   it("does not substitute the first repository for an invalid legacy candidate", () => {
     const inventoryCalls: string[] = [];
-    const client = clientWithInventory((repoId) => {
+    const client = clientWithCodeGraphInventory((repoId) => {
       inventoryCalls.push(repoId);
-      return Promise.resolve(inventory(repoId, "unexpectedSymbol"));
+      return Promise.resolve(codeGraphInventory(repoId, "unexpectedSymbol"));
     });
     render(
       <MemoryRouter initialEntries={["/code-graph?candidate=missing-candidate"]}>
@@ -233,9 +241,9 @@ describe("CodeGraphPage repository state isolation", () => {
 
   it("resolves a legacy candidate repository label to its canonical catalog repository", async () => {
     const inventoryCalls: string[] = [];
-    const client = clientWithInventory((repoId) => {
+    const client = clientWithCodeGraphInventory((repoId) => {
       inventoryCalls.push(repoId);
-      return Promise.resolve(inventory(repoId, "betaSymbol"));
+      return Promise.resolve(codeGraphInventory(repoId, "betaSymbol"));
     });
     render(
       <MemoryRouter initialEntries={["/code-graph?candidate=legacy-beta"]}>
@@ -271,9 +279,9 @@ describe("CodeGraphPage repository state isolation", () => {
 
   it("does not substitute the first repository when a legacy repository label is unavailable", () => {
     const inventoryCalls: string[] = [];
-    const client = clientWithInventory((repoId) => {
+    const client = clientWithCodeGraphInventory((repoId) => {
       inventoryCalls.push(repoId);
-      return Promise.resolve(inventory(repoId, "unexpectedSymbol"));
+      return Promise.resolve(codeGraphInventory(repoId, "unexpectedSymbol"));
     });
     render(
       <MemoryRouter initialEntries={["/code-graph?candidate=legacy-unknown"]}>
@@ -304,107 +312,6 @@ describe("CodeGraphPage repository state isolation", () => {
     expect(screen.getByRole("combobox", { name: "Repository" })).toHaveValue("");
     expect(inventoryCalls).toEqual([]);
   });
-
-  it("restores repository scope through browser back and forward", async () => {
-    const client = clientWithInventory((repoId) =>
-      Promise.resolve(inventory(repoId, repoId === "repository:r1" ? "alphaSymbol" : "betaSymbol")),
-    );
-    render(
-      <MemoryRouter initialEntries={["/code-graph?repo_id=repository%3Ar1"]}>
-        <CodeGraphPage
-          client={client}
-          model={{ ...demoModel, findings: [], source: "live" }}
-          repositories={repositories}
-        />
-        <HistoryControls />
-      </MemoryRouter>,
-    );
-    await waitFor(() =>
-      expect(screen.getByRole("combobox", { name: "Symbol" })).toHaveTextContent("alphaSymbol"),
-    );
-    fireEvent.change(screen.getByRole("combobox", { name: "Repository" }), {
-      target: { value: "repository:r2" },
-    });
-    await waitFor(() =>
-      expect(screen.getByRole("combobox", { name: "Symbol" })).toHaveTextContent("betaSymbol"),
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Back" }));
-    await waitFor(() =>
-      expect(screen.getByRole("combobox", { name: "Repository" })).toHaveValue("repository:r1"),
-    );
-    expect(await screen.findByRole("combobox", { name: "Symbol" })).toHaveTextContent(
-      "alphaSymbol",
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Forward" }));
-    await waitFor(() =>
-      expect(screen.getByRole("combobox", { name: "Repository" })).toHaveValue("repository:r2"),
-    );
-  });
-
-  it("does not let a still-pending canonicalize write clobber a back navigation that lands first", async () => {
-    const pending = new Map<string, Deferred<unknown>>();
-    const requestCounts = new Map<string, number>();
-    const client = clientWithInventory((repoId) => {
-      requestCounts.set(repoId, (requestCounts.get(repoId) ?? 0) + 1);
-      const request = deferred<unknown>();
-      pending.set(repoId, request);
-      return request.promise;
-    });
-    render(
-      <MemoryRouter initialEntries={["/code-graph?repo_id=repository%3Ar1"]}>
-        <CodeGraphPage
-          client={client}
-          model={{ ...demoModel, findings: [], source: "live" }}
-          repositories={repositories}
-        />
-        <HistoryControls />
-      </MemoryRouter>,
-    );
-    await waitFor(() => expect(pending.has("repository:r1")).toBe(true));
-    await act(async () => {
-      pending.get("repository:r1")?.resolve(inventory("repository:r1", "alphaSymbol"));
-    });
-    await waitFor(() =>
-      expect(screen.getByRole("combobox", { name: "Symbol" })).toHaveTextContent("alphaSymbol"),
-    );
-
-    fireEvent.change(screen.getByRole("combobox", { name: "Repository" }), {
-      target: { value: "repository:r2" },
-    });
-    await waitFor(() => expect(pending.has("repository:r2")).toBe(true));
-
-    // Resolve repository:r2's inventory (which makes `selected` resolve to
-    // betaSymbol and schedules the URL-canonicalize effect to add
-    // entity_id=betaSymbol to the CURRENT, repository:r2 history entry) and
-    // click "Back" inside the SAME act() batch, with only bare microtask
-    // yields (no `waitFor`/real-timer wait) in between. This forces the two
-    // updates -- the still-pending canonicalize write computed from the
-    // repository:r2 render, and the back-navigation's own commit -- into the
-    // same flush window without giving the test's own synchronization
-    // machinery a chance to serialize them the way `waitFor` normally would.
-    await act(async () => {
-      pending.get("repository:r2")?.resolve(inventory("repository:r2", "betaSymbol"));
-      await Promise.resolve();
-      await Promise.resolve();
-      fireEvent.click(screen.getByRole("button", { name: "Back" }));
-    });
-
-    await waitFor(() =>
-      expect(screen.getByRole("combobox", { name: "Repository" })).toHaveValue("repository:r1"),
-    );
-    // Navigating back to repository:r1 re-triggers its inventory fetch (a
-    // fresh request, independent of the one already resolved above); resolve
-    // it so the assertion below observes the settled symbol rather than the
-    // loading placeholder.
-    await waitFor(() => expect(requestCounts.get("repository:r1")).toBe(2));
-    await act(async () => {
-      pending.get("repository:r1")?.resolve(inventory("repository:r1", "alphaSymbol"));
-    });
-    expect(await screen.findByRole("combobox", { name: "Symbol" })).toHaveTextContent(
-      "alphaSymbol",
-    );
-  });
 });
 
 function renderPage(client: EshuApiClient): void {
@@ -417,111 +324,4 @@ function renderPage(client: EshuApiClient): void {
       />
     </MemoryRouter>,
   );
-}
-
-function clientWithInventory(
-  loadInventory: (repoId: string) => Promise<unknown>,
-  rejectedEntityId = "",
-  rejectionLimit = Number.POSITIVE_INFINITY,
-): EshuApiClient {
-  let storyRejections = 0;
-  return {
-    post: async (path: string, body: unknown) => {
-      if (path === "/api/v0/code/structure/inventory") {
-        return loadInventory(String((body as { readonly repo_id?: string }).repo_id));
-      }
-      if (path === "/api/v0/code/relationships/story") {
-        const entityId = String((body as { readonly entity_id?: string }).entity_id);
-        const repoId = String((body as { readonly repo_id?: string }).repo_id);
-        if (entityId === rejectedEntityId && storyRejections < rejectionLimit) {
-          storyRejections += 1;
-          return {
-            data: { relationships: [], target_resolution: { status: "not_found" } },
-            error: null,
-            truth: null,
-          };
-        }
-        return {
-          data: {
-            entity_id: entityId,
-            labels: ["Function"],
-            name: entityId,
-            relationships: [],
-            scope: { repo_id: repoId },
-            target_resolution: { entity_id: entityId, repo_id: repoId, status: "resolved" },
-          },
-          error: null,
-          truth: null,
-        };
-      }
-      if (path === "/api/v0/code/imports/investigate") {
-        return { data: { cycles: [], truncated: false }, error: null, truth: null };
-      }
-      throw new Error(`unexpected request: ${path}`);
-    },
-  } as unknown as EshuApiClient;
-}
-
-function inventory(repoId: string, name: string): unknown {
-  return {
-    data: {
-      results: [
-        {
-          entity_id: `content-entity:${repoId}:${name}`,
-          entity_name: name,
-          entity_type: "Function",
-          file_path: `src/${name}.ts`,
-          repo_id: repoId,
-        },
-      ],
-      truncated: false,
-    },
-    error: null,
-    truth: null,
-  };
-}
-
-function repository(id: string, name: string): RepoListItem {
-  return {
-    groupKey: "source",
-    groupKind: "source",
-    groupReason: "fixture",
-    groupSource: "fixture",
-    groupTruth: "exact",
-    id,
-    isDependency: false,
-    name,
-    remoteUrl: "",
-    repoSlug: `platform/${name}`,
-  };
-}
-
-function HistoryControls(): React.JSX.Element {
-  const navigate = useNavigate();
-  return (
-    <>
-      <button type="button" onClick={() => navigate(-1)}>
-        Back
-      </button>
-      <button type="button" onClick={() => navigate(1)}>
-        Forward
-      </button>
-    </>
-  );
-}
-
-interface Deferred<T> {
-  readonly promise: Promise<T>;
-  readonly reject: (reason?: unknown) => void;
-  readonly resolve: (value: T) => void;
-}
-
-function deferred<T>(): Deferred<T> {
-  let resolve!: (value: T) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, reject, resolve };
 }

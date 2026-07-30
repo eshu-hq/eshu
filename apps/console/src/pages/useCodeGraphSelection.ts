@@ -213,7 +213,8 @@ export function useCodeGraphSelection({
     // it could tear across a single render pass under Suspense; this reads
     // it once, inside a post-commit effect, purely to gate an imperative
     // write, which does not have that render-time tearing hazard.)
-    if (readLiveLocationSearch(navigator) !== searchParams.toString()) return;
+    const liveLocationSearch = readLiveLocationSearch(navigator);
+    if (liveLocationSearch === undefined || liveLocationSearch !== searchParams.toString()) return;
     setSearchParams(canonical, { replace: true });
   }, [entityParam, loading, navigator, repository, searchParams, selected, setSearchParams]);
 
@@ -264,22 +265,41 @@ export function useCodeGraphSelection({
  * directly comparable.
  *
  * `Navigator` (react-router's public type for the value handed down through
- * `NavigationContext`) deliberately does not declare `.location`: the object
- * behind it always has one (every history instance -- browser or memory --
- * conforms to the fuller `History` interface `Navigator` is trimmed from),
- * but the trimmed type steers render-time code away from reading it, since a
- * direct read used to decide what to render could tear across a single
- * render pass under Suspense-driven concurrent rendering. This function is
- * only ever called from inside a post-commit effect to gate an imperative
- * write against a stale snapshot, never to decide what to render, so that
- * tearing hazard does not apply -- and unlike `searchParams` from
- * `useSearchParams` (which only updates once this component re-renders), the
- * navigator's location is mutated synchronously the instant any push,
- * replace, or history.go is issued, so this read is never behind React's own
- * render timing.
+ * `NavigationContext`) deliberately does not declare `.location`, to steer
+ * render-time code away from reading it -- a direct read used to decide what
+ * to render could tear across a single render pass under Suspense-driven
+ * concurrent rendering. This function is only ever called from inside a
+ * post-commit effect to gate an imperative write against a stale snapshot,
+ * never to decide what to render, so that tearing hazard does not apply --
+ * and unlike `searchParams` from `useSearchParams` (which only updates once
+ * this component re-renders), the navigator's location is mutated
+ * synchronously the instant any push, replace, or history.go is issued, so
+ * this read is never behind React's own render timing.
+ *
+ * Whether the object behind `navigator` actually HAS `.location` depends on
+ * the router mode -- verified against pinned react-router 8.3.0's own source
+ * (`lib/components.js`), not assumed. The three declarative routers --
+ * `BrowserRouter`, `MemoryRouter`, `HashRouter` -- pass their underlying
+ * `history` instance straight through as `navigator`, and `history` always
+ * carries `.location`. `RouterProvider` (the data-router mode from
+ * `createBrowserRouter` / `createMemoryRouter`, react-router's recommended
+ * API since v6.4 and required for loaders/actions/lazy routes) instead passes
+ * a plain memoized object -- `{ createHref, encodeLocation, go, push,
+ * replace }` -- with NO `.location` property at all
+ * (`lib/components.js:256-271`). This console currently renders through
+ * `<BrowserRouter>` (`apps/console/src/main.tsx`) and tests through
+ * `<MemoryRouter>`, so `.location` is present today, but nothing pins the
+ * console to that router mode forever.
+ *
+ * Because of that, this function treats an absent `.location` as "freshness
+ * cannot be verified" and returns `undefined` instead of dereferencing it and
+ * throwing. The caller below skips the canonicalizing write whenever this
+ * returns `undefined`, the same fail-safe direction already taken when the
+ * live location is present but simply does not match.
  */
-function readLiveLocationSearch(navigator: Navigator): string {
-  const liveNavigator = navigator as unknown as { readonly location: { readonly search: string } };
+function readLiveLocationSearch(navigator: Navigator): string | undefined {
+  const liveNavigator = navigator as unknown as { readonly location?: { readonly search: string } };
+  if (!("location" in liveNavigator) || liveNavigator.location === undefined) return undefined;
   return new URLSearchParams(liveNavigator.location.search).toString();
 }
 
