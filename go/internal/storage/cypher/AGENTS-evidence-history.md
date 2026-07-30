@@ -213,3 +213,73 @@ NornicDB write-loss shapes found but not fixed in the same change (a
 `WITH`-chained multi-clause edge-MERGE no-op in `canonicalNodeFileUpdateExistingCypher`,
 and an `UNWIND`-batched `DELETE` no-op in the retract/refresh statements) are
 in `docs/internal/evidence/5652-nornic-bare-match-writeloss.md`.
+
+## #5623 — MATCHES_STATE edge retract must run on delta cycles too
+
+`terraformStateMatchesConfigEdgeRetractStatements`
+(`tfstate_state_match_edge_retract.go`, #5443 P1) used to skip on
+`mat.FirstGeneration || mat.DeltaProjection`, copying
+`terraformStateResourceRetractStatements`' own `DeltaProjection` skip without
+re-deriving whether that reasoning transferred. It does not: the node-level
+retract is an ungated DETACH DELETE over the whole current-label population
+minus this generation, which really would mass-delete every resource a delta
+cycle did not touch if it ran unguarded. The edge-level retract's
+`s.generation_id = $generation_id` anchor already restricts it to state
+resources upserted THIS exact generation (the node upsert always runs before
+this retract, on every cycle) — a resource a delta cycle did not touch keeps
+an OLDER generation_id and never matches that anchor, so this retract has no
+mass-deletion exposure at all and is safe on delta cycles.
+
+The practical effect of the copied guard: `terraformStateMatchesConfigEdgeStatements`'
+MERGE (the edge WRITE) has no `DeltaProjection` guard and runs every cycle. So
+when a state resource's resolved `OwningRepoID` changed to a DIFFERENT repo on
+a delta cycle, the new edge was written immediately but the retract that
+would delete the old edge was skipped, leaving the state resource with
+`MATCHES_STATE` edges to two different repos simultaneously until the next
+full reconciliation generation (hours away per
+`ESHU_REPO_RECONCILE_INTERVAL_HOURS`). `go/internal/query/infra_scope_grant.go`'s
+scoped-token infra predicate (#5623, landed in the same PR that surfaced this
+finding in review) admits a `TerraformStateResource` via a `MATCHES_STATE`
+inline-map disjunct that assumes at most one such edge; during the leak
+window it admitted the resource for EITHER repo's scoped grant, including the
+repo that no longer owns it — a genuine tenant-visibility leak reproduced live
+through the real `CanonicalNodeWriter.Write` pipeline (not a raw seeded
+fixture), not merely a theoretical gap.
+
+Fix: removed the `DeltaProjection` skip, keeping only the `FirstGeneration`
+skip (nothing can be stale before any prior generation ever wrote an edge).
+
+No-Regression Evidence: the Cypher statement itself
+(`canonicalTerraformStateMatchesConfigEdgeRetractCypher`) is byte-identical;
+only the Go condition deciding whether to emit it changed. The already-passing
+non-delta (full reconciliation) path is unchanged.
+
+Live proof (RED via `git apply -R` on the fix, confirmed FAIL for the right
+reason; GREEN restored), both run through the real write pipeline across a
+full generation then a delta-cycle ownership reassignment against an isolated
+NornicDB (`timothyswt/nornicdb-cpu-bge:v1.1.11`):
+- `TestCanonicalNodeWriterRetractsStaleMatchesStateEdgeOnDeltaCycleLive`
+  (this package): after the delta-cycle reassignment, the stale edge is gone
+  and the new edge exists; a same-generation retry (partial-failure
+  simulation) is idempotent.
+- `TestLiveInfraScopeShapeMatchesStateStaleEdgeExcludedAfterDeltaReassignment`
+  (`go/internal/query`): after the same real pipeline sequence, the scoped
+  predicate admits only the current owner's grant, not the former owner's.
+
+Both tests deliberately run every write back-to-back with NO interleaved read
+between them, matching this package's existing #5443 live-test precedent
+(`TestCanonicalNodeWriterRetractsStaleMatchesStateEdgeLive`): the pinned local
+NornicDB image can silently drop a write that follows an interleaved read on
+the same node within one test process. An earlier draft of the delta-cycle
+test read between generation 1 and generation 2's writes and produced a false
+failure from this exact defect, not from the retract logic — moving all reads
+to a single block after every write fixed it.
+
+Unit proof: `TestTerraformStateMatchesConfigEdgeRetractStatementsRunsUnderDeltaProjection`
+replaces the old `...SkipsUnderDeltaProjection` test (which pinned the buggy
+behavior); `TestTerraformStateMatchesConfigEdgeRetractStatementsSkipsOnFirstGeneration`
+and `...RunsOnNonDeltaGeneration` are unchanged and still pass.
+
+No-Observability-Change: the retract is a Cypher WHERE/DELETE fragment with no
+span, metric, label, or log surface; no new telemetry signal is added or
+needed.

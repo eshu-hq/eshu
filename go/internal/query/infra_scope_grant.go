@@ -271,6 +271,24 @@ func infraResourceScopePredicate(alias string, scalars []string) string {
 // entirely (ConfigMatchAmbiguous, tfstate_state_match_edge.go), so a
 // TerraformStateResource can have at most one MATCHES_STATE edge, from exactly
 // one repository's TerraformResource.
+//
+// That "at most one edge" invariant is enforced by
+// terraformStateMatchesConfigEdgeRetractStatements
+// (go/internal/storage/cypher/tfstate_state_match_edge_retract.go), which
+// deletes a stale edge whenever a state resource's resolved owning repo
+// changes. #5623 P0 review finding: an earlier version of that retract skipped
+// entirely on a delta cycle, so a resource reassigned to a different owning
+// repo on a delta cycle briefly carried edges to BOTH the old and the new
+// owner, and THIS disjunct -- built purely from graph shape, with no
+// generation awareness -- admitted the resource for either repo's grant, a
+// real tenant-visibility leak (not merely a theoretical one; see
+// TestCanonicalNodeWriterRetractsStaleMatchesStateEdgeOnDeltaCycleLive and
+// TestLiveInfraScopeShapeMatchesStateStaleEdgeExcludedAfterDeltaReassignment
+// for the live reproduction and fix proof). This disjunct's correctness
+// depends on that retract running every generation (skipped only on the
+// scope's first generation, when nothing can be stale yet) -- do not
+// reintroduce a DeltaProjection skip on that retract without re-proving this
+// disjunct stays safe.
 func infraResourceScopeCoreDisjuncts(alias string, scalars []string) []string {
 	disjuncts := []string{
 		alias + ".repo_id IN $allowed_repository_ids",

@@ -48,22 +48,50 @@ DELETE e`
 // stale-MATCHES_STATE-edge retraction described on
 // canonicalTerraformStateMatchesConfigEdgeRetractCypher.
 //
-// Skipped on the scope's first generation, matching every other tfstate
+// Skipped ONLY on the scope's first generation, matching every other tfstate
 // retraction in this package (terraformStateResourceRetractStatements): no
 // prior generation ever wrote an edge for this scope, so nothing can be
-// stale yet. Also skipped on a delta cycle (mat.DeltaProjection), for the
-// exact reason terraformStateResourceRetractStatements documents:
-// mat.TerraformStateResources is populated only from terraform_state
-// envelopes present in THIS materialization's input
-// (tfstate_canonical.go's extractTerraformStateRows), so a delta cycle
-// triggered by an unrelated file edit carries none, and the
-// `s.generation_id = $generation_id` anchor would then never select any
-// state resource -- correctly a no-op, but the DeltaProjection guard is kept
-// explicit anyway to match this package's own established precedent rather
-// than rely on that incidental emptiness. Genuine MATCHES_STATE edge changes
-// missed by a delta cycle are still caught by the periodic full
-// reconciliation generation (mat.ReconciliationProjection forces
-// DeltaProjection=false), the same mechanism the node retraction relies on.
+// stale yet.
+//
+// UNLIKE terraformStateResourceRetractStatements (the node-level retract),
+// this statement runs on delta cycles too (#5623 fix; an earlier version of
+// this comment copied the node-level DeltaProjection skip here, reasoning
+// that a delta cycle "carries none" of mat.TerraformStateResources -- that
+// reasoning does not actually transfer, and skipping was a tenant-visibility
+// bug, not a no-op):
+//
+//   - The node-level retract is a whole-current-label-population DETACH DELETE
+//     bounded only by `generation_id <> $generation_id`; if it ran on a delta
+//     cycle that carries a strict subset of the scope's state resources, it
+//     would delete every resource this delta did NOT touch (mass deletion),
+//     because it has no positive list of "backends untouched this cycle" to
+//     exclude. THAT is the danger the DeltaProjection skip exists to prevent,
+//     and it is real for the node-level retract.
+//   - This edge-level retract's WHERE clause is differently shaped and does
+//     NOT have that danger: `s.generation_id = $generation_id` restricts it to
+//     edges attached to a state resource ALREADY confirmed upserted THIS EXACT
+//     generation (buildTerraformStateStatements always runs the resource
+//     upsert before this retract, on every cycle, delta or full -- see that
+//     function's phase-order doc). A resource this delta cycle did not touch
+//     still carries an OLDER generation_id and never matches the anchor, so
+//     its edges (stale or not) are correctly left alone. There is no
+//     "positive list" problem here: the anchor itself IS the positive list.
+//   - Skipping this retract on delta cycles therefore did not prevent mass
+//     deletion (nothing here can mass-delete); it only left a real window: if
+//     a state resource's resolved OwningRepoID changes on a delta cycle,
+//     terraformStateMatchesConfigEdgeStatements' MERGE (which has NO
+//     DeltaProjection guard and unconditionally writes the new edge every
+//     cycle) creates the new edge immediately, but the old edge to the
+//     now-orphaned repo survived, undeleted, until the next full
+//     reconciliation (mat.ReconciliationProjection, hours away per
+//     ESHU_REPO_RECONCILE_INTERVAL_HOURS). During that window the state
+//     resource carried two MATCHES_STATE edges to two different repos
+//     simultaneously, and infra_scope_grant.go's scope predicate (#5623) --
+//     which assumes at most one edge -- admitted the resource for EITHER
+//     repo's scoped grant, including the one that no longer owns it: a
+//     tenant-visibility leak. Running the retract every cycle (except the
+//     first) keeps "at most one MATCHES_STATE edge per state resource" true
+//     at the end of every generation, not just every full reconciliation.
 //
 // Emitted with Drain=true and an empty DrainVar: this is a relationship
 // DELETE mixed into the terraform_state phase alongside sibling MERGE
@@ -75,7 +103,7 @@ DELETE e`
 // BEFORE terraformStateMatchesConfigEdgeStatements' MERGE, matching that
 // precedent's retract-then-MERGE ordering.
 func (w *CanonicalNodeWriter) terraformStateMatchesConfigEdgeRetractStatements(mat projector.CanonicalMaterialization) []Statement {
-	if mat.FirstGeneration || mat.DeltaProjection {
+	if mat.FirstGeneration {
 		return nil
 	}
 	return []Statement{

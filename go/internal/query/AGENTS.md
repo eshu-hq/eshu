@@ -543,6 +543,58 @@
   no span, metric, label, or log surface; no new telemetry signal is added or
   needed.
 
+- **MATCHES_STATE disjunct's "at most one edge" invariant closed a real
+  tenant-visibility leak, not just a theoretical one (#5623 P0 review
+  follow-up)** — the disjunct above assumes a `TerraformStateResource` has at
+  most one `MATCHES_STATE` edge. That assumption depends entirely on
+  `terraformStateMatchesConfigEdgeRetractStatements`
+  (`go/internal/storage/cypher/tfstate_state_match_edge_retract.go`) deleting
+  the old edge whenever a state resource's resolved owning repo changes. The
+  first #5623 patch's version of that retract skipped on delta cycles (copying
+  the node-level retract's `DeltaProjection` guard without re-deriving whether
+  the reasoning transferred); it did not. A state resource reassigned to a
+  DIFFERENT owning repo on a delta cycle got its NEW `MATCHES_STATE` edge
+  written immediately (the MERGE has no `DeltaProjection` guard) but kept its
+  OLD edge until the next full reconciliation generation (hours away per
+  `ESHU_REPO_RECONCILE_INTERVAL_HOURS`), so it carried edges to two different
+  repos simultaneously and this predicate admitted it for EITHER repo's
+  grant — including the repo that no longer owns it. The fix removed the
+  `DeltaProjection` skip from that retract (kept only the `FirstGeneration`
+  skip): the retract's own `s.generation_id = $generation_id` anchor already
+  restricts it to state resources upserted THIS exact generation, so — unlike
+  the node-level retract's whole-population sweep — it never mass-deletes
+  edges for resources a delta cycle did not touch, and is safe to run on every
+  cycle after the first.
+
+  No-Regression Evidence: closes a real tenant-isolation gap, widening exactly
+  one retract's trigger condition and narrowing nothing else. Baseline =
+  `terraformStateMatchesConfigEdgeRetractStatements` skipped on
+  `FirstGeneration || DeltaProjection`; after = skipped only on
+  `FirstGeneration`. Backend NornicDB (Neo4j compatibility unaffected); the
+  Cypher statement itself is byte-identical, only the Go condition that decides
+  whether to emit it changed, so the non-delta (full reconciliation) path is
+  unchanged and already-passing. Proof (failing-first, RED via `git apply -R`
+  on the fix / GREEN restored, both cited in the PR): `go test
+  ./internal/storage/cypher -run
+  'TestTerraformStateMatchesConfigEdgeRetractStatementsRunsUnderDeltaProjection|TestTerraformStateMatchesConfigEdgeRetractStatementsSkipsOnFirstGeneration|TestTerraformStateMatchesConfigEdgeRetractStatementsRunsOnNonDeltaGeneration'
+  -v -count=1` (statement-shape unit proof) plus two live regressions against
+  an isolated NornicDB, both run through the REAL `CanonicalNodeWriter.Write`
+  pipeline across a full generation then a delta-cycle ownership reassignment
+  (not a raw seeded fixture): `go test -tags live_infra_scope_shape
+  ./internal/storage/cypher -run
+  TestCanonicalNodeWriterRetractsStaleMatchesStateEdgeOnDeltaCycleLive -count=1`
+  (proves the stale edge is gone after the delta cycle, and that a
+  partial-failure retry of the same generation is idempotent) and `go test
+  -tags live_infra_scope_shape ./internal/query -run
+  TestLiveInfraScopeShapeMatchesStateStaleEdgeExcludedAfterDeltaReassignment
+  -count=1` (proves the scope predicate in THIS package reflects only the
+  current owner afterward) and `go test ./internal/storage/cypher
+  ./internal/query -count=1`.
+
+  No-Observability-Change: both the retract Cypher and this package's scope
+  predicate remain Cypher fragments with no span, metric, label, or log
+  surface; no new telemetry signal is added or needed.
+
 ## Common changes and how to scope them
 
 - **Add a new HTTP handler** → create a handler struct with `Neo4j GraphQuery`

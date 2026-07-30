@@ -32,14 +32,25 @@ func TestTerraformStateMatchesConfigEdgeRetractStatementsSkipsOnFirstGeneration(
 	}
 }
 
-// TestTerraformStateMatchesConfigEdgeRetractStatementsSkipsUnderDeltaProjection
-// proves the guard mirroring terraformStateResourceRetractStatements' own
-// DeltaProjection skip: mat.TerraformStateResources is populated only from
-// terraform_state envelopes present in THIS materialization's input, so a
-// delta cycle triggered by an unrelated file edit carries none, and an
-// unscoped generation-gated edge retract would delete every MATCHES_STATE
-// edge for state resources this delta cycle never touched.
-func TestTerraformStateMatchesConfigEdgeRetractStatementsSkipsUnderDeltaProjection(t *testing.T) {
+// TestTerraformStateMatchesConfigEdgeRetractStatementsRunsUnderDeltaProjection
+// proves the #5623 fix: UNLIKE terraformStateResourceRetractStatements' own
+// DeltaProjection skip (which exists because that whole-population DETACH
+// DELETE would mass-delete every state resource a delta cycle did not touch),
+// this edge-level retract still emits its statement on a delta cycle. Its
+// `s.generation_id = $generation_id` anchor already restricts it to state
+// resources upserted THIS exact generation (buildTerraformStateStatements
+// always runs the resource upsert first, delta or full), so it never touches
+// a resource this delta cycle did not process -- there is no mass-deletion
+// risk to guard against. Skipping it on delta cycles instead left a real
+// window: a resource whose OwningRepoID changes on a delta cycle gets its NEW
+// MATCHES_STATE edge written immediately (the MERGE has no DeltaProjection
+// guard) but kept its OLD edge to the now-orphaned repo until the next full
+// reconciliation, so the state resource carried two edges to two different
+// repos simultaneously and infra_scope_grant.go's scope predicate -- which
+// assumes at most one edge -- admitted it for either repo's grant (a
+// tenant-visibility leak; see TestLiveInfraScopeShapeMatchesStateStaleEdgeExcluded
+// in internal/query for the live proof of the leak this closes).
+func TestTerraformStateMatchesConfigEdgeRetractStatementsRunsUnderDeltaProjection(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
@@ -51,8 +62,15 @@ func TestTerraformStateMatchesConfigEdgeRetractStatementsSkipsUnderDeltaProjecti
 	}
 
 	statements := writer.terraformStateMatchesConfigEdgeRetractStatements(mat)
-	if len(statements) != 0 {
-		t.Fatalf("terraformStateMatchesConfigEdgeRetractStatements() under DeltaProjection = %d statements, want 0: %#v", len(statements), statements)
+	if got, want := len(statements), 1; got != want {
+		t.Fatalf("terraformStateMatchesConfigEdgeRetractStatements() under DeltaProjection = %d statements, want %d (the retract must run on delta cycles too, #5623): %#v", got, want, statements)
+	}
+	stmt := statements[0]
+	if !strings.Contains(stmt.Cypher, "s.generation_id = $generation_id") {
+		t.Fatalf("Cypher = %q, want the generation anchor that scopes this retract to resources upserted THIS cycle (the property that makes running on delta cycles safe)", stmt.Cypher)
+	}
+	if got, want := stmt.Parameters["generation_id"], "tf-generation-p1a-2"; got != want {
+		t.Fatalf("generation_id = %#v, want %q", got, want)
 	}
 }
 
