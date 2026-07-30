@@ -184,28 +184,38 @@ func (q ReducerQueue) Enqueue(
 
 	now := q.now()
 
-	// Enqueue in batches
+	// Enqueue in batches, summing each batch's actual RowsAffected -- not
+	// len(intents) -- so the returned Count reflects what the DB really
+	// admitted through ON CONFLICT (work_item_id) DO NOTHING (issue #5593;
+	// see IntentResult's doc comment in internal/projector/runtime.go).
+	var inserted int64
 	for i := 0; i < len(intents); i += reducerEnqueueBatchSize {
 		end := i + reducerEnqueueBatchSize
 		if end > len(intents) {
 			end = len(intents)
 		}
-		if err := q.enqueueReducerBatch(ctx, intents[i:end], now); err != nil {
+		batchInserted, err := q.enqueueReducerBatch(ctx, intents[i:end], now)
+		if err != nil {
 			return projector.IntentResult{}, err
 		}
+		inserted += batchInserted
 	}
 
-	return projector.IntentResult{Count: len(intents)}, nil
+	return projector.IntentResult{Count: int(inserted)}, nil
 }
 
-// enqueueReducerBatch inserts one batch of reducer intents using a multi-row INSERT.
+// enqueueReducerBatch inserts one batch of reducer intents using a multi-row
+// INSERT and returns the number of rows the DB actually inserted (excluding
+// rows skipped by ON CONFLICT (work_item_id) DO NOTHING), read from the
+// ExecContext result's RowsAffected -- not the batch size, which is only an
+// attempt count (issue #5593).
 func (q ReducerQueue) enqueueReducerBatch(
 	ctx context.Context,
 	batch []projector.ReducerIntent,
 	now time.Time,
-) error {
+) (int64, error) {
 	if len(batch) == 0 {
-		return nil
+		return 0, nil
 	}
 
 	args := make([]any, 0, len(batch)*columnsPerReducerEnqueue)
@@ -222,7 +232,7 @@ func (q ReducerQueue) enqueueReducerBatch(
 		payload["source_system"] = intent.SourceSystem
 		payloadJSON, err := marshalPayload(payload)
 		if err != nil {
-			return fmt.Errorf("marshal reducer payload: %w", err)
+			return 0, fmt.Errorf("marshal reducer payload: %w", err)
 		}
 
 		if i > 0 {
@@ -251,11 +261,16 @@ func (q ReducerQueue) enqueueReducerBatch(
 
 	query := enqueueReducerBatchPrefix + values.String() + enqueueReducerBatchSuffix
 
-	if _, err := q.db.ExecContext(ctx, query, args...); err != nil {
-		return fmt.Errorf("enqueue reducer batch (%d intents): %w", len(batch), err)
+	result, err := q.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, fmt.Errorf("enqueue reducer batch (%d intents): %w", len(batch), err)
+	}
+	inserted, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("enqueue reducer batch (%d intents): rows affected: %w", len(batch), err)
 	}
 
-	return nil
+	return inserted, nil
 }
 
 // Claim implements reducer.WorkSource over fact_work_items.

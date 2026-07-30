@@ -25,18 +25,17 @@ func (r *reducerRecordingDB) ExecContext(_ context.Context, query string, args .
 		query: query,
 		args:  append([]any(nil), args...),
 	})
-	return reducerProofResult{}, nil
+	// Simulate a real "no conflicts" batch INSERT: every bound row is a fresh
+	// admission, so RowsAffected equals the row count the args slice encodes
+	// (len(args)/columnsPerReducerEnqueue), not a fixed constant. Every caller
+	// of this fake only issues the reducer batch-enqueue INSERT (never a
+	// differently-shaped Fail/Ack/Heartbeat exec), so this division is exact.
+	return rowsAffectedResult{rowsAffected: int64(len(args) / columnsPerReducerEnqueue)}, nil
 }
 
 func (r *reducerRecordingDB) QueryContext(context.Context, string, ...any) (Rows, error) {
 	return nil, nil
 }
-
-// reducerProofResult is a minimal sql.Result implementation for testing.
-type reducerProofResult struct{}
-
-func (reducerProofResult) LastInsertId() (int64, error) { return 0, nil }
-func (reducerProofResult) RowsAffected() (int64, error) { return 1, nil }
 
 type rowsAffectedResult struct {
 	rowsAffected int64

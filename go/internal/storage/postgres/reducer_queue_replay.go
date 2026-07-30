@@ -171,7 +171,7 @@ func (q ReducerQueue) ReplayWorkloadMaterialization(
 	if reopened {
 		return true, nil
 	}
-	if err := q.enqueueReducerBatch(ctx, []projector.ReducerIntent{intent}, q.now()); err != nil {
+	if _, err := q.enqueueReducerBatch(ctx, []projector.ReducerIntent{intent}, q.now()); err != nil {
 		return false, fmt.Errorf("schedule workload materialization replay: %w", err)
 	}
 
@@ -223,7 +223,7 @@ func (q ReducerQueue) ReplayCrossplaneSatisfiedByMaterialization(
 	if reopened {
 		return true, nil
 	}
-	if err := q.enqueueReducerBatch(ctx, []projector.ReducerIntent{intent}, q.now()); err != nil {
+	if _, err := q.enqueueReducerBatch(ctx, []projector.ReducerIntent{intent}, q.now()); err != nil {
 		return false, fmt.Errorf("schedule crossplane satisfied-by redrive replay: %w", err)
 	}
 

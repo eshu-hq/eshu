@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"strings"
 	"testing"
@@ -74,6 +75,42 @@ func TestConfigStateDriftRuntimeTriggerEnqueuesOneIntentForActivatedGeneration(t
 		"pack":   "terraform_config_state_drift",
 		"source": "ingester_runtime_trigger",
 	})
+}
+
+// TestConfigStateDriftRuntimeTriggerCounterReflectsActualInsertionNotAttempt
+// proves the issue #5593 fix at the exact call site the review flagged
+// (recordDriftEnqueueCounter(ctx, t.Instruments, result.Count, ...) in
+// TriggerConfigStateDrift): when the bootstrap Phase 3.5 sweep already wrote
+// this (scope, generation)'s work_item_id, ON CONFLICT DO NOTHING admits zero
+// rows, and CorrelationDriftIntentsEnqueued{source=ingester_runtime_trigger}
+// must advance by 0, not 1 -- the trigger still succeeds (this is a normal,
+// expected dedupe, not an error), but it must not claim an insertion that
+// never happened.
+func TestConfigStateDriftRuntimeTriggerCounterReflectsActualInsertionNotAttempt(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		// Bootstrap's Phase 3.5 sweep already enqueued this exact generation;
+		// the runtime trigger's attempt collides on the same work_item_id.
+		execResults: []sql.Result{rowsAffectedResult{rowsAffected: 0}},
+	}
+	inst, reader := newEnqueueInstruments(t)
+	trigger := ConfigStateDriftRuntimeTrigger{
+		Queue:       ReducerQueue{db: db},
+		Instruments: inst,
+	}
+
+	if err := trigger.TriggerConfigStateDrift(context.Background(), "state_snapshot:s3:hash-1", "gen-state-1"); err != nil {
+		t.Fatalf("TriggerConfigStateDrift() error = %v, want nil (a dedupe collision is not an error)", err)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if got, want := counterTotal(rm, "eshu_dp_correlation_drift_intents_enqueued_total"), int64(0); got != want {
+		t.Fatalf("enqueue counter = %d, want %d (bootstrap already enqueued this generation; ON CONFLICT DO NOTHING admitted 0 rows)", got, want)
+	}
 }
 
 // TestConfigStateDriftRuntimeTriggerAndBootstrapProduceSameConflictKey proves

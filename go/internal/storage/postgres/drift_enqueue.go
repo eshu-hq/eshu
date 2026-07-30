@@ -97,17 +97,23 @@ func (s IngestionStore) EnqueueConfigStateDriftIntents(
 	if s.Now != nil {
 		queue.Now = s.Now
 	}
-	if _, err := queue.Enqueue(ctx, intents); err != nil {
+	result, err := queue.Enqueue(ctx, intents)
+	if err != nil {
 		return fmt.Errorf("enqueue config_state_drift intents: %w", err)
 	}
 
-	// Phase 3.5 succeeded. Record enqueue volume so dashboards can decouple
-	// "trigger fired N intents" from "reducer admitted M drift candidates"
-	// downstream (CorrelationDriftDetected). See instruments.go for the
-	// label-set rationale.
-	recordDriftEnqueueCounter(ctx, instruments, len(intents), driftIntentSourceSystem)
+	// Phase 3.5 succeeded. Record ACTUAL insertions (result.Count, from the
+	// INSERT's RowsAffected), not len(intents): the runtime delta-trigger
+	// (ConfigStateDriftRuntimeTrigger, issue #5593) can enqueue the identical
+	// (scope_id, generation_id, domain) work_item_id before this sweep runs,
+	// in which case ON CONFLICT DO NOTHING admits zero rows for that scope
+	// here. Reporting len(intents) would double-count that generation across
+	// the two producers' combined CorrelationDriftIntentsEnqueued total, which
+	// defeats the "decouple trigger-fired from reducer-admitted" purpose this
+	// counter exists for (see instruments.go for the label-set rationale).
+	recordDriftEnqueueCounter(ctx, instruments, result.Count, driftIntentSourceSystem)
 	log.Printf("config_state_drift_intents_enqueued count=%d duration_s=%.2f",
-		len(intents), time.Since(start).Seconds())
+		result.Count, time.Since(start).Seconds())
 
 	return nil
 }
@@ -152,11 +158,14 @@ func listActiveStateSnapshotScopes(ctx context.Context, db ExecQueryer) ([]proje
 
 // recordDriftEnqueueCounter advances the CorrelationDriftIntentsEnqueued
 // counter by `count` with the bounded label set `pack` + `source`. `source`
-// is one of the two producers of this domain: driftIntentSourceSystem
-// (bootstrap Phase 3.5) or driftRuntimeTriggerSourceSystem
-// (ConfigStateDriftRuntimeTrigger, issue #5593). Tolerates a nil instruments
-// handle so callers without telemetry wired (early bootstrap test paths)
-// remain operable.
+// is one of the three producers of this domain: driftIntentSourceSystem
+// (bootstrap Phase 3.5), driftRuntimeTriggerSourceSystem
+// (ConfigStateDriftRuntimeTrigger, issue #5593), or the reducer's own
+// config_state_drift catch-up sweep (projector.ConfigStateDriftCatchUpSweeper,
+// source "reducer_catch_up_sweep", recorded from the projector package
+// directly since it has no dependency on this postgres-package helper).
+// Tolerates a nil instruments handle so callers without telemetry wired
+// (early bootstrap test paths) remain operable.
 func recordDriftEnqueueCounter(ctx context.Context, instruments *telemetry.Instruments, count int, source string) {
 	if instruments == nil || instruments.CorrelationDriftIntentsEnqueued == nil {
 		return
