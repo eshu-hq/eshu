@@ -91,13 +91,13 @@ The resolver-owned typed relationship enum lives in
 | `READS_CONFIG_FROM` | The source is granted read access to target configuration. |
 
 Related graph edges such as `PROVISIONS_PLATFORM`, `DEFINES`, `INSTANCE_OF`,
-and `DEPLOYMENT_SOURCE` are real runtime topology edges, but they are not
-resolver-owned relationship types. They are written by reducer/materializer
-paths and read by repository, workload, service, and deployment trace surfaces.
-Deployment trace responses preserve `DEPLOYMENT_SOURCE` separately from
-`DEPLOYS_FROM` and return each row's canonical `source_id` and `target_id` so
-clients do not invent a repository-to-repository edge from instance admission
-evidence.
+`DEPLOYMENT_SOURCE`, and `MATCHES_STATE` are real runtime topology edges, but
+they are not resolver-owned relationship types. They are written by
+reducer/materializer paths and read by repository, workload, service, and
+deployment trace surfaces. Deployment trace responses preserve
+`DEPLOYMENT_SOURCE` separately from `DEPLOYS_FROM` and return each row's
+canonical `source_id` and `target_id` so clients do not invent a
+repository-to-repository edge from instance admission evidence.
 
 ## Traversal Rule
 
@@ -169,6 +169,47 @@ Target-resource matching remains path-bounded. The normalized controller root
 must contain the resource's safe relative path; `.` and `./` mean the target
 repository root and match safe relative paths. Empty, unsafe, or otherwise
 unusable roots do not become repository-wide matches.
+
+## Terraform State MATCHES_STATE Edge Existence
+
+`MATCHES_STATE` links a config-declared `TerraformResource` to the
+`TerraformStateResource` it matches by exact address equality (#5443). It
+exists only while that config resource's Terraform backend resolves to a
+single, unambiguous owning repository whose declared address matches the
+state resource's address; it does not exist merely because a state resource
+was observed.
+
+Backend ownership resolution runs every materialization generation (not only
+full reconciliation) and classifies into one of four outcomes, only one of
+which preserves a prior edge unexamined:
+
+- **Resolved** — a single repository owns the backend. The edge is written
+  (or rewritten, if ownership moved to a different repository since the last
+  generation) to that repository's matching config resource; any edge to a
+  *different* prior repository is retracted the same cycle.
+- **No owner** — no config repository currently declares this backend. Any
+  existing edge is retracted; a state resource stays "applied-only" until a
+  config declaration reappears.
+- **Ambiguous owner** — more than one repository currently declares the same
+  backend. Any existing edge is retracted, the same as no owner: ownership is
+  not uniquely determined, so no edge should point at either candidate.
+- **Transient resolution failure** — the ownership query itself did not
+  complete this cycle (for example a Postgres timeout). Any existing edge is
+  left untouched: a cycle that learned nothing about ownership must not act
+  as though it learned something.
+
+Because ambiguous-owner detection compares each candidate repository's
+CURRENTLY-ACTIVE ingestion generation, and repositories ingest independently
+and asynchronously, a genuine backend-ownership migration between two
+repositories can transiently resolve as ambiguous purely because one
+repository's ingestion has not yet caught up to the other's — not because
+ownership is actually contested. During that window the edge (and anything
+that reads it, including scoped-token infra authorization) can flap: retracted
+while ambiguous, rewritten once both repositories' ingestion converges on a
+single owner. This is bounded, self-healing, and fails toward absence, never
+toward a wrong or extra edge — see `internal/storage/cypher/AGENTS-evidence-history.md`'s
+`#5623 P1 follow-up` entry for the full mechanism and why the window is
+tighter than the reconciliation interval it replaced.
 
 ## Safe Extension Checklist
 
