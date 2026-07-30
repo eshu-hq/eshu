@@ -41,6 +41,17 @@ the response alone. It never fires on the hot unfiltered path, a
 `scope_id`-filtered call, or any account-alias-filtered call that already
 returned rows.
 
+**Sustained-invalid-polling amplification (advisory, accepted tradeoff):** a
+caller that polls a genuinely nonexistent `account_id`/`project_id`/
+`subscription_id` in a loop pays the full worst-case probe cost
+(~14.5ms in the corpus above) on every single call forever, because
+`len(Resources) == 0` stays true for that caller on every poll — there is no
+per-caller backoff or negative-result caching. This is a bounded, known cost
+(not unbounded or quadratic) and the gating that gets us here is otherwise
+correct, so it is accepted as-is rather than adding caching complexity
+speculatively; revisit only if a real monitoring workload is observed doing
+this.
+
 ## Prove-The-Theory-First: EXPLAIN ANALYZE proof
 
 Per the root `CLAUDE.md`/`AGENTS.md` Prove-The-Theory-First gate, the query
@@ -202,13 +213,121 @@ A red-then-green check was run by temporarily replacing the handler's call to
 re-running the two flag-asserting tests above; both failed for the expected
 reason ("Postgres received 1 queries, want 2") before the revert.
 
-Live-Postgres regression (`go/internal/query/cloud_inventory_rollout_signal_live_test.go`,
-same throwaway-container pattern as the branch's existing live proofs):
+### Review finding: false positive on a genuine GCP org-level asset
+
+A hostile re-review asked whether a legitimate GCP org- or folder-level asset
+(which genuinely has no project, by design) could look like a pre-rollout row
+and produce a **false** `account_alias_rollout_gap` -- a differently-wrong
+signal, no better than the ambiguity this change fixes. It does not, and the
+reason is a specific Go/JSON invariant: `cloudInventoryAdmissionBasePayload`
+(`go/internal/reducer/cloud_inventory_admission_writer.go`) writes
+`"account_id"` into a `map[string]any` **unconditionally**, and
+`encoding/json` always emits a map key regardless of an empty value -- there
+is no implicit `omitempty` for maps. Confirmed live:
+`'{"account_id":""}'::jsonb ? 'account_id'` → `t`,
+`'{}'::jsonb ? 'account_id'` → `f`. So a genuine org-level asset's payload has
+the key present with a blank value, and the probe's `?` key-EXISTENCE
+predicate (never a value comparison) correctly excludes it. AWS and Azure
+cannot even reach the ambiguous shape: both identifiers are decode-rejected
+if absent from the source fact.
+
+That invariant is the whole argument, and two tests now pin it directly so a
+future refactor cannot silently reopen this class of false positive:
+
+- `TestCloudInventoryAdmissionPayloadIncludesAccountIDForEveryProvider`
+  (`go/internal/reducer/cloud_inventory_admission_account_id_test.go`) gained
+  a `{gcp, ""}` case, plus an explicit
+  `if _, ok := decoded["account_id"]; !ok { t.Fatalf(...) }` key-presence
+  assertion (not just a value-equality check) on the JSON-round-tripped
+  payload.
+- `TestCloudInventoryGCPOrgLevelAssetDoesNotFalselyWarnRolloutGapLive`
+  (`go/internal/query/cloud_inventory_gcp_org_level_rollout_signal_live_test.go`)
+  seeds the real present-but-blank shape (reusing
+  `seedCloudInventoryGCPOrgLevelAssetLiveCorpus`), issues a
+  `project_id`-filtered `GET /api/v0/cloud/inventory` through the actual HTTP
+  handler (not `cloudInventoryIdentities` directly), and asserts
+  `warning_flags` is absent.
+
+Both were proven RED before GREEN, not just written and left green:
+
+**Unit test RED** (production `cloudInventoryAdmissionBasePayload` temporarily
+changed to only set `account_id` `if strings.TrimSpace(resource.AccountID) !=
+""`, simulating an `omitempty`-style refactor):
 
 ```
-cd go && ESHU_POSTGRES_TEST_DSN="postgres://eshu:change-me@localhost:25946/eshu?sslmode=disable" \
+cd go && go test ./internal/reducer/... -run 'TestCloudInventoryAdmissionPayloadIncludesAccountIDForEveryProvider' -count=1 -v
+echo $?
+```
+
+```
+=== RUN   TestCloudInventoryAdmissionPayloadIncludesAccountIDForEveryProvider
+    cloud_inventory_admission_account_id_test.go:126: gcp payload[account_id] = <nil>, want ""
+--- FAIL: TestCloudInventoryAdmissionPayloadIncludesAccountIDForEveryProvider (0.00s)
+FAIL
+FAIL	github.com/eshu-hq/eshu/go/internal/reducer	0.949s
+```
+
+`echo $?` = `1` (reported as `FAIL` in the `go test` summary; the guard was
+reverted immediately after, restoring the unconditional assignment).
+
+**Unit test GREEN** (after revert):
+
+```
+--- PASS: TestCloudInventoryAdmissionPayloadIncludesAccountIDForEveryProvider (0.00s)
+PASS
+ok  	github.com/eshu-hq/eshu/go/internal/reducer	1.459s
+```
+
+`echo $?` = `0`.
+
+**Live test RED** (the shared fixture `seedCloudInventoryGCPOrgLevelAssetLiveCorpus`
+in `cloud_inventory_gcp_project_gap_live_test.go` temporarily edited to omit
+the `"account_id"` key entirely -- the true pre-fix shape -- instead of
+writing it blank, to prove the test's assertion actually fires on a genuine
+gap rather than trivially passing regardless of probe correctness):
+
+```
+cd go && ESHU_POSTGRES_TEST_DSN="postgres://eshu:change-me@localhost:25961/eshu?sslmode=disable" \
+  go test ./internal/query/... -run 'TestCloudInventoryGCPOrgLevelAssetDoesNotFalselyWarnRolloutGapLive|TestCloudInventoryGCPOrgLevelAssetExcludedFromProjectIDButVisibleUnscopedLive' -count=1 -v
+echo $?
+```
+
+```
+=== RUN   TestCloudInventoryGCPOrgLevelAssetDoesNotFalselyWarnRolloutGapLive
+    cloud_inventory_gcp_org_level_rollout_signal_live_test.go:64: warning_flags = []interface {}{"account_alias_rollout_gap"}, want absent -- the only gcp row in scope has account_id present-but-blank (a genuine org-level asset), which must never be mistaken for a pre-#5238 row with no account_id key at all
+--- FAIL: TestCloudInventoryGCPOrgLevelAssetDoesNotFalselyWarnRolloutGapLive (0.04s)
+=== RUN   TestCloudInventoryGCPOrgLevelAssetExcludedFromProjectIDButVisibleUnscopedLive
+--- PASS: TestCloudInventoryGCPOrgLevelAssetExcludedFromProjectIDButVisibleUnscopedLive (0.05s)
+FAIL
+FAIL	github.com/eshu-hq/eshu/go/internal/query
+```
+
+`echo $?` = `1`. This proves the new test correctly detects a real pre-fix gap
+(the sibling test, which does not depend on `account_id` presence, is
+unaffected) -- not just that it happens to pass when nothing exercises it.
+The fixture was reverted immediately after.
+
+**Live test GREEN** (after revert):
+
+```
+=== RUN   TestCloudInventoryGCPOrgLevelAssetDoesNotFalselyWarnRolloutGapLive
+--- PASS: TestCloudInventoryGCPOrgLevelAssetDoesNotFalselyWarnRolloutGapLive (0.69s)
+=== RUN   TestCloudInventoryGCPOrgLevelAssetExcludedFromProjectIDButVisibleUnscopedLive
+--- PASS: TestCloudInventoryGCPOrgLevelAssetExcludedFromProjectIDButVisibleUnscopedLive (0.10s)
+PASS
+ok  	github.com/eshu-hq/eshu/go/internal/query	1.643s
+```
+
+`echo $?` = `0`.
+
+Live-Postgres regression, full combined run (`go/internal/query/cloud_inventory_rollout_signal_live_test.go`,
+`cloud_inventory_gcp_org_level_rollout_signal_live_test.go`, same throwaway-container
+pattern as the branch's existing live proofs):
+
+```
+cd go && ESHU_POSTGRES_TEST_DSN="postgres://eshu:change-me@localhost:25961/eshu?sslmode=disable" \
   go test ./internal/query/... -run \
-  'TestCloudInventoryAccountIDMatchesExactScopeIDLive|TestCloudInventoryGCPAndAzureAccountAliasMatchExactScopeIDLive|TestCloudInventoryGCPOrgLevelAssetExcludedFromProjectIDButVisibleUnscopedLive|TestCloudInventoryPreFixPayloadRolloutWindowLive|TestCloudInventoryAccountAliasCrossProviderIsolationLive|TestCloudInventoryPreRolloutEvidenceExistsLive' \
+  'TestCloudInventoryAccountIDMatchesExactScopeIDLive|TestCloudInventoryGCPAndAzureAccountAliasMatchExactScopeIDLive|TestCloudInventoryGCPOrgLevelAssetExcludedFromProjectIDButVisibleUnscopedLive|TestCloudInventoryPreFixPayloadRolloutWindowLive|TestCloudInventoryAccountAliasCrossProviderIsolationLive|TestCloudInventoryPreRolloutEvidenceExistsLive|TestCloudInventoryGCPOrgLevelAssetDoesNotFalselyWarnRolloutGapLive' \
   -count=1 -v
 echo $?
 ```
@@ -216,24 +335,26 @@ echo $?
 ```
 === RUN   TestCloudInventoryAccountIDMatchesExactScopeIDLive
 seeded 5 scopes / 11 canonical identity facts across aws/gcp/azure
---- PASS: TestCloudInventoryAccountIDMatchesExactScopeIDLive (0.03s)
+--- PASS: TestCloudInventoryAccountIDMatchesExactScopeIDLive (0.08s)
 === RUN   TestCloudInventoryGCPAndAzureAccountAliasMatchExactScopeIDLive
 seeded 5 scopes / 11 canonical identity facts across aws/gcp/azure
 === RUN   TestCloudInventoryGCPAndAzureAccountAliasMatchExactScopeIDLive/gcp_project_id
 === RUN   TestCloudInventoryGCPAndAzureAccountAliasMatchExactScopeIDLive/azure_subscription_id
---- PASS: TestCloudInventoryGCPAndAzureAccountAliasMatchExactScopeIDLive (0.03s)
+--- PASS: TestCloudInventoryGCPAndAzureAccountAliasMatchExactScopeIDLive (0.05s)
     --- PASS: TestCloudInventoryGCPAndAzureAccountAliasMatchExactScopeIDLive/gcp_project_id (0.00s)
     --- PASS: TestCloudInventoryGCPAndAzureAccountAliasMatchExactScopeIDLive/azure_subscription_id (0.00s)
 === RUN   TestCloudInventoryAccountAliasCrossProviderIsolationLive
---- PASS: TestCloudInventoryAccountAliasCrossProviderIsolationLive (0.02s)
+--- PASS: TestCloudInventoryAccountAliasCrossProviderIsolationLive (0.03s)
+=== RUN   TestCloudInventoryGCPOrgLevelAssetDoesNotFalselyWarnRolloutGapLive
+--- PASS: TestCloudInventoryGCPOrgLevelAssetDoesNotFalselyWarnRolloutGapLive (0.03s)
 === RUN   TestCloudInventoryGCPOrgLevelAssetExcludedFromProjectIDButVisibleUnscopedLive
---- PASS: TestCloudInventoryGCPOrgLevelAssetExcludedFromProjectIDButVisibleUnscopedLive (0.02s)
+--- PASS: TestCloudInventoryGCPOrgLevelAssetExcludedFromProjectIDButVisibleUnscopedLive (0.03s)
 === RUN   TestCloudInventoryPreRolloutEvidenceExistsLive
---- PASS: TestCloudInventoryPreRolloutEvidenceExistsLive (0.02s)
+--- PASS: TestCloudInventoryPreRolloutEvidenceExistsLive (0.04s)
 === RUN   TestCloudInventoryPreFixPayloadRolloutWindowLive
---- PASS: TestCloudInventoryPreFixPayloadRolloutWindowLive (0.02s)
+--- PASS: TestCloudInventoryPreFixPayloadRolloutWindowLive (0.03s)
 PASS
-ok  	github.com/eshu-hq/eshu/go/internal/query	1.024s
+ok  	github.com/eshu-hq/eshu/go/internal/query	1.162s
 ```
 
 `echo $?` = `0`.
@@ -244,8 +365,10 @@ is found (probe `true`) for `provider=aws`, no `gcp` row in the corpus is
 pre-fix so the `provider=gcp` probe returns `false`, and a caller granted only
 the post-fix `aws` scope cannot see the pre-fix sibling scope's gap (access
 scoping matches the primary query exactly).
+`TestCloudInventoryGCPOrgLevelAssetDoesNotFalselyWarnRolloutGapLive` proves
+the false-positive guard above through the real HTTP handler.
 
-This branch's `ESHU_POSTGRES_TEST_DSN`-gated live tests (now five) still skip
+This branch's `ESHU_POSTGRES_TEST_DSN`-gated live tests (now seven) still skip
 under `.github/` where that DSN is never set — disclosed, matching existing
 repo precedent, not blocking (see the sibling doc
 `5238-live-proof-corpus-gap.md`).

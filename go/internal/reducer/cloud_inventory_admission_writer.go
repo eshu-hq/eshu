@@ -202,7 +202,17 @@ func cloudInventoryAdmissionBasePayload(
 		// comment), persisted under one uniform key regardless of provider so
 		// the readback's account_id/project_id/subscription_id selectors can
 		// filter this payload directly without a provider-specific key or a
-		// join through ingestion scope metadata (#5238).
+		// join through ingestion scope metadata (#5238). It is set
+		// UNCONDITIONALLY, including when blank (a genuine GCP org- or
+		// folder-level asset has no derivable project segment) --
+		// encoding/json always emits a map key regardless of an empty value,
+		// so this key's presence-vs-absence is exactly what
+		// cloudInventoryRolloutGapWarningFlags' pre-rollout probe uses to
+		// distinguish that genuine blank-account case from a pre-#5238
+		// payload that never had the key at all. See
+		// TestCloudInventoryAdmissionPayloadIncludesAccountIDForEveryProvider's
+		// blank-AccountID case and
+		// docs/internal/evidence/5238-account-alias-rollout-gap-signal.md.
 		"account_id":            resource.AccountID,
 		"source_fact_kinds":     resource.FactKinds,
 		"management_origin":     string(resource.ManagementOrigin),

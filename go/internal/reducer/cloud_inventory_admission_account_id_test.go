@@ -92,6 +92,25 @@ func TestCloudInventoryAdmissionPayloadIncludesAccountIDForEveryProvider(t *test
 		{cloudinventory.ProviderAWS, "111111111111"},
 		{cloudinventory.ProviderGCP, "eshu-prod"},
 		{cloudinventory.ProviderAzure, "0000"},
+		// #5238 follow-up (account-alias rollout-gap warning signal, review
+		// finding): a GCP org- or folder-level asset genuinely has no
+		// derivable project segment, so its resolved AccountID is blank --
+		// but cloudInventoryRolloutGapWarningFlags' pre-rollout probe
+		// distinguishes "no account_id key at all" (a pre-fix payload) from
+		// "account_id key present but empty" (this genuine, current,
+		// org-level shape) via Postgres jsonb `?` key-EXISTENCE, never a
+		// value comparison. That distinction is only correct because
+		// cloudInventoryAdmissionBasePayload writes "account_id" into the
+		// payload map UNCONDITIONALLY -- encoding/json always emits a map
+		// key regardless of an empty value; there is no implicit omitempty
+		// for maps. This case pins that invariant directly: the key-presence
+		// assertion below must fail loudly if a future refactor (a typed
+		// struct with `json:"account_id,omitempty"`, or an
+		// `if resource.AccountID != ""` guard) ever makes the key vanish for
+		// a blank value -- which would make every GCP org-level asset in
+		// every deployment misreported as a pre-rollout gap, permanently,
+		// with no test catching it otherwise.
+		{cloudinventory.ProviderGCP, ""},
 	}
 	for _, tc := range cases {
 		resource := AdmittedCloudResource{
@@ -119,6 +138,17 @@ func TestCloudInventoryAdmissionPayloadIncludesAccountIDForEveryProvider(t *test
 		}
 		if got, want := decoded["account_id"], tc.accountID; got != want {
 			t.Fatalf("%s round-tripped payload[account_id] = %#v, want %#v", tc.provider, got, want)
+		}
+		// The key-presence assertion the rollout-gap signal's correctness
+		// depends on: a blank value must still round-trip as a PRESENT key,
+		// not an absent one (json.Marshal on a map never applies omitempty).
+		if _, ok := decoded["account_id"]; !ok {
+			t.Fatalf(
+				"%s round-tripped payload has NO account_id key at all for accountID=%q; "+
+					"the key must always be present, even when blank, or cloudInventoryRolloutGapWarningFlags "+
+					"cannot distinguish a genuine org-level asset from a pre-fix row",
+				tc.provider, tc.accountID,
+			)
 		}
 	}
 }
