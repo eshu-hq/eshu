@@ -65,3 +65,51 @@ per-entry Postgres round trip was added; the four SQL queries
   telemetry instrument. `TestPostgresTerraformConfigStateDriftWriterDowngradesOutcomeToDerivedWhenModuleResolutionReasonPresent`
   proves the evidence atom and the downgraded `outcome="derived"` both reach
   the durable row.
+
+## Golden-corpus coverage per cause (review follow-up)
+
+Issue #5572's two documented causes get DIFFERENT proof tiers, a deliberate,
+stated decision rather than a silent gap:
+
+- **`external_registry` has live golden-corpus coverage.**
+  `tests/fixtures/ecosystems/terraform_comprehensive/terraform-aws-modules/vpc/aws/main.tf`
+  is a real directory sitting at the EXACT path `modules.tf`'s pre-existing
+  `module "vpc" { source = "terraform-aws-modules/vpc/aws" }` block resolves
+  to as a local relative path -- the ADR's own documented false-positive
+  shape, now made real instead of theoretical (that source was previously a
+  dead reference; no directory existed there). It declares one genuine
+  resource (`aws_security_group.vpc_endpoints`). The matching cassette side
+  (`testdata/cassettes/terraformstate/supply-chain-demo.json`) carries the
+  CORRECT module-prefixed address
+  (`module.vpc.aws_security_group.vpc_endpoints`) as a separate
+  `terraform_state_resource` fact under the same pre-existing S3-backed
+  scope, so neither side's address matches the other -- the real, live
+  spurious `added_in_config`/`added_in_state` pair the ADR describes, not a
+  synthetic single-sided fixture. The new
+  `POST /api/v0/terraform/config-state-drift/findings?variant=derived`
+  entry in `testdata/golden/e2e-20repo-snapshot.json` asserts BOTH that
+  `outcome="derived"` materializes for the wrongly-addressed finding AND
+  (via `required_json_object_matches`, not two independent wildcard value
+  checks) that the SAME finding's evidence array carries a
+  `terraform_module_resolution_confidence` atom with
+  `value="external_registry"` on one correlated object -- proving the
+  specific cause reaches the read surface, which is the entire
+  justification for keeping one `derived` outcome value instead of
+  splitting per cause (see `tfconfigstate/doc.go`'s "Outcome model"
+  section). This mirrors issue #5594's precedent in this same writer: a
+  unit-tested behavior change to reducer-materialized, OpenAPI- and
+  MCP-contracted truth gets cassette/golden replay proof, not only fakes.
+- **`depth_exceeded` deliberately stays unit/integration-only.** Reaching
+  it requires an 11-level-deep local module chain
+  (`maxModulePrefixDepth` = 10) -- a fixture heavy enough for a rare
+  production shape (a real repo would need ten nested nameless wrapper
+  modules purely to trigger this path) that
+  `TestBuildModulePrefixMapRecordsDepthExceededAsLowConfidence` and
+  `TestLoadDriftEvidenceMarksLowConfidenceForDepthExceededModuleChain`
+  (`go/internal/storage/postgres/tfstate_drift_evidence_module_confidence_test.go`)
+  already prove precisely, including the depth-comparison fix itself (the
+  masking case where the resource is silently misattributed to the
+  ancestor's real-but-wrong prefix rather than falling back to root). This
+  is a scoping decision, not an oversight: if a future real-world report
+  shows `depth_exceeded` firing in practice, a golden fixture is the
+  concrete follow-up, mirroring the `external_registry` fixture added here.

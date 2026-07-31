@@ -520,6 +520,52 @@ recent shipped work grouped by feature area.
     now accept and document `"derived"` alongside `"exact"`, `"ambiguous"`,
     and `"unresolved"`.
 
+- **Review follow-up: golden-corpus proof for the `external_registry` cause,
+  plus two stale doc-comment corrections.** Independent review confirmed the
+  masking-bug fix and traced the cause end to end to the read surface, but
+  flagged that a new, permanent, operator-visible outcome value threaded
+  into reducer-materialized truth, the OpenAPI enum, and the MCP contract
+  calls for cassette/golden replay proof, per issue #5594's precedent in
+  this same writer (#5594 added two fixture scopes specifically to prove its
+  new `"unresolved"` outcome fires end to end, rather than trusting unit
+  tests alone).
+  `tests/fixtures/ecosystems/terraform_comprehensive/terraform-aws-modules/vpc/aws/main.tf`
+  now gives modules.tf's pre-existing (previously dead) `module "vpc" {
+  source = "terraform-aws-modules/vpc/aws" }` reference a real target
+  directory containing a real resource
+  (`aws_security_group.vpc_endpoints`); the matching cassette-side
+  `module.vpc.aws_security_group.vpc_endpoints` resource
+  (`testdata/cassettes/terraformstate/supply-chain-demo.json`) makes both
+  sides genuinely drift, so a real `added_in_config`/`added_in_state` pair
+  materializes exactly as `tfconfigstate/doc.go` describes it. The new
+  `POST /api/v0/terraform/config-state-drift/findings?variant=derived`
+  snapshot entry (`testdata/golden/e2e-20repo-snapshot.json`) asserts
+  `outcome="derived"` AND, via `required_json_object_matches` (not two
+  independent wildcard checks that could accept unrelated fields), that the
+  same finding's evidence array carries a
+  `terraform_module_resolution_confidence` atom with
+  `value="external_registry"` on one correlated object -- proving the
+  specific cause survives to the read surface, the whole justification for
+  one `"derived"` outcome value instead of splitting per cause.
+  `depth_exceeded` deliberately keeps unit/integration-only coverage: an
+  11-level module chain is a heavy fixture for a rare shape the existing
+  focused tests already prove precisely; see the evidence doc's "Golden-
+  corpus coverage per cause" section for that explicit decision.
+  `cd go && go test ./cmd/golden-corpus-gate/... -count=1` passed after the
+  snapshot edit.
+
+  Review also flagged two doc comments this session's own tests disprove:
+  `tfstate_drift_evidence_config_row.go`'s `configRowFromParserEntry` doc
+  claimed the caller only ever passes a non-empty
+  `moduleResolutionReason` alongside an empty `modulePrefix` -- false,
+  proven false by `TestLoadDriftEvidenceMarksLowConfidenceForDepthExceededModuleChain`
+  itself, which passes a non-empty reason alongside a non-empty masked
+  prefix; and `classify.go`'s `ResourceRow.ModuleResolutionReason` doc
+  claimed both causes "fall back to a root-module address" -- true only for
+  `external_registry`, not `depth_exceeded` (which almost always produces
+  the masked wrong-ancestor address instead, per the masking-bug fix
+  above). Both corrected to describe the actual, tested behavior.
+
 ### Route-fact-based Rails controller liveness
 
 - **Join the Rails controller dead-code-root verdict against real route facts**

@@ -27,12 +27,19 @@ import (
 // canonical shape collector-side identity.go:26-42 emits.
 //
 // `moduleResolutionReason` (issue #5572) carries
-// moduleResolutionConfidenceMap.reasonForPath's result when modulePrefix is
-// "" — a non-empty value means the root-module address this call builds may
-// be wrong, not certainly correct; the caller (emitConfigRowsForEntry) only
-// ever passes a non-empty reason alongside modulePrefix == "". Pass "" when
-// modulePrefix is non-empty (a real prefix resolved) or when no low-
-// confidence directory matched.
+// moduleResolutionReasonForEntry's result — a non-empty value means the
+// address this call builds may be wrong, not certainly correct. This is NOT
+// exclusive to `modulePrefix == ""`: emitConfigRowsForEntry computes the
+// reason once per entry and passes it alongside whichever prefix branch
+// actually ran, including a NON-empty modulePrefix. That is deliberate, not
+// an edge case — moduleResolutionReasonForEntry's whole purpose is to catch
+// the masked case where modulePrefixForPath's ancestor-walk-up returns a
+// real (but too-shallow, wrong) prefix instead of nothing; see
+// tfstate_drift_evidence_module_confidence.go's package doc comment and
+// TestLoadDriftEvidenceMarksLowConfidenceForDepthExceededModuleChain, which
+// asserts exactly this: a non-empty reason alongside a non-empty, masked
+// 10-level prefix. Pass "" only when no low-confidence directory matched at
+// all (moduleResolutionReasonForEntry returned "").
 //
 // The helper stays strictly 1:1 — one parser entry produces one ResourceRow.
 // The 1→N projection (one callee resource referenced by multiple `module {}`

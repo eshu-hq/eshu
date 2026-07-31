@@ -50,15 +50,23 @@ type ResourceRow struct {
 	// (unresolvedReasonExternalRegistry, e.g. a repo whose top-level directory
 	// is literally "terraform-aws-modules"), or (b) a resolved local module
 	// call's callee directory that the DFS abandoned at
-	// maxModulePrefixDepth (unresolvedReasonDepthExceeded). Both cases fall
-	// back to a root-module address (`<type>.<name>`) that may not match the
-	// real module-prefixed state address, so BuildCandidates attaches this
-	// value as a EvidenceTypeModuleResolutionConfidence atom and the reducer
-	// writer downgrades the finding's Outcome from "exact" to "derived".
-	// Empty means the address resolved cleanly (no module nesting, or every
-	// module call on the chain resolved) — the classifier and Classify never
-	// read this field; it is address-provenance metadata consumed only
-	// downstream of the join.
+	// maxModulePrefixDepth (unresolvedReasonDepthExceeded). The two causes do
+	// NOT produce the same address shape: (a) genuinely falls back to a
+	// root-module address (`<type>.<name>`) when no resolved ancestor exists
+	// above the unresolved call; (b) almost always does NOT, because
+	// depth_exceeded is only reached after depths 1..N-1 already resolved, so
+	// modulePrefixMap's own longest-ancestor-match walk finds that shallower
+	// ancestor's real prefix and silently misattributes the resource to it
+	// instead of falling back to root — a masked, wrong, non-root address
+	// (see tfstate_drift_evidence_module_confidence.go's package doc comment).
+	// Either way the resulting Address may not match the real state address,
+	// so BuildCandidates attaches this value as a
+	// EvidenceTypeModuleResolutionConfidence atom and the reducer writer
+	// downgrades the finding's Outcome from "exact" to "derived". Empty means
+	// the address resolved cleanly (no module nesting, or every module call
+	// on the chain resolved) — the classifier and Classify never read this
+	// field; it is address-provenance metadata consumed only downstream of
+	// the join.
 	ModuleResolutionReason string `json:"module_resolution_reason,omitempty"`
 }
 

@@ -6312,6 +6312,49 @@
           "outcome_groups[].outcome": "unresolved",
           "drift_findings[].outcome": "unresolved"
         }
+      },
+      "POST /api/v0/terraform/config-state-drift/findings?variant=derived": {
+        "description": "Issue #5572 golden-corpus coverage for the outcome=\"derived\" read-surface change: proves a per-address finding whose config-side address depended on an unresolved module-prefix fallback is provably distinguishable, AT THE GATE, from an ordinary outcome=\"exact\" finding, not just in unit and loader-integration tests (go/internal/storage/postgres/tfstate_drift_evidence_module_confidence_test.go). The '?variant=derived' query-string suffix exists only to give this entry a distinct map key, same rationale as the local-backend-resolved and unresolved shapes above; the real selector is scope_id plus the outcome filter in request_body. scope_id=state_snapshot:s3:299b28d40110e54bf81beb51e9459bdef688dbc58419782b29aa83a5930b48a7 is the pre-existing S3-backed scope shared with the default (unfiltered) shape above. tests/fixtures/ecosystems/terraform_comprehensive/terraform-aws-modules/vpc/aws/main.tf declares module.vpc's own registered source path (modules.tf: `module \"vpc\" { source = \"terraform-aws-modules/vpc/aws\" }`) as a REAL local directory containing a real resource (aws_security_group.vpc_endpoints) -- the exact false-positive shape the ADR names: classifyModuleSource's Terraform-Registry-shorthand heuristic (go/internal/storage/postgres/tfstate_drift_evidence_module_prefix.go) misclassifies that source as an external registry reference, so the directory is never walked as a resolved local callee even though it genuinely exists. The config-vs-state drift loader therefore addresses that resource as a plain root-module resource (aws_security_group.vpc_endpoints) instead of module.vpc.aws_security_group.vpc_endpoints. testdata/cassettes/terraformstate/supply-chain-demo.json's matching scope carries the CORRECT module-prefixed address (module.vpc.aws_security_group.vpc_endpoints) as a separate terraform_state_resource fact, so neither address matches the other: a spurious added_in_config fires for the wrongly-addressed config resource, flagged low-confidence (ModuleResolutionReason=\"external_registry\") and downgraded to outcome=\"derived\" by the reducer writer's moduleResolutionOutcome, and a spurious added_in_state fires for the real module.vpc-prefixed state resource, staying outcome=\"exact\" (state-side rows are never confidence-flagged). The outcome=\"derived\" request_body filter plus required_json_values prove the derived finding materializes; required_json_object_matches additionally proves the SAME finding's evidence array carries a terraform_module_resolution_confidence atom with value=\"external_registry\" on one correlated object, not two independent, potentially-unrelated field matches -- this is the assertion that proves the specific cause reaches the read surface, the whole justification for one \"derived\" outcome value covering both #5572 causes instead of splitting per cause. depth_exceeded (issue #5572's other documented cause) has no golden-corpus fixture: an 11-level module chain is a heavy fixture for a rare production shape unit/integration coverage already proves precisely; see docs/internal/evidence/5572-drift-derived-outcome-module-resolution-confidence.md for that explicit scoping decision. minimum_results is 1.",
+        "required_response_fields": [
+          "address",
+          "analysis_status",
+          "drift_findings",
+          "drift_kinds",
+          "findings_count",
+          "graph_projection_note",
+          "limit",
+          "limitations",
+          "next_offset",
+          "offset",
+          "outcome",
+          "outcome_groups",
+          "scope_id",
+          "story",
+          "total_findings_count",
+          "truncated",
+          "truth_basis"
+        ],
+        "minimum_results": 1,
+        "results_field": "drift_findings",
+        "request_body": {
+          "scope_id": "state_snapshot:s3:299b28d40110e54bf81beb51e9459bdef688dbc58419782b29aa83a5930b48a7",
+          "outcome": "derived",
+          "limit": 25
+        },
+        "required_json_values": {
+          "outcome_groups[].outcome": "derived",
+          "drift_findings[].outcome": "derived",
+          "drift_findings[].address": "aws_security_group.vpc_endpoints",
+          "drift_findings[].evidence[].evidence_type": "terraform_module_resolution_confidence"
+        },
+        "required_json_object_matches": {
+          "drift_findings[].evidence[]": [
+            {
+              "evidence_type": "terraform_module_resolution_confidence",
+              "value": "external_registry"
+            }
+          ]
+        }
       }
     }
   },

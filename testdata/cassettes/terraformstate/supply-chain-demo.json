@@ -118,6 +118,33 @@
           }
         },
         {
+          "fact_kind": "terraform_state_resource",
+          "stable_fact_key": "terraform_state_resource:resource:module.vpc.aws_security_group.vpc_endpoints",
+          "schema_version": "1.0.0",
+          "collector_kind": "terraform_state",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "address": "module.vpc.aws_security_group.vpc_endpoints",
+            "mode": "managed",
+            "type": "aws_security_group",
+            "name": "vpc_endpoints",
+            "module": "module.vpc",
+            "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+            "correlation_anchors": [
+              {
+                "anchor_kind": "arn",
+                "value_hash": "anchor-hash-vpc-endpoints-sg"
+              }
+            ],
+            "attributes": {
+              "arn": "arn:aws:ec2:us-east-1:123456789012:security-group/sg-0vpcendpoints0000001",
+              "name": "vpc-endpoints-sg",
+              "description": "Security group for VPC interface endpoints"
+            }
+          }
+        },
+        {
           "fact_kind": "terraform_state_module",
           "stable_fact_key": "terraform_state_module:module:module.ecs:resource:module.ecs.aws_ecs_cluster.supply-chain-demo",
           "schema_version": "1.0.0",
