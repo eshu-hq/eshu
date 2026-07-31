@@ -178,12 +178,30 @@ if [ -n "$base" ]; then
   sort -u -o "$new_stages_tmp" "$new_stages_tmp"
 fi
 
+# metric_signal_pattern / cell_has_signal: the ONE shared definition of "does
+# this metric-column cell carry a real signal", used by BOTH the new-stage
+# check (3) below and the existing-row check (3b) further down. A row's
+# metric column counts as covered if it names a registered eshu_dp_* metric,
+# carries the No-Observability-Change: marker, or (the real X1 doc's own
+# narrower convention for structured-log-key rows that are pure correlation
+# identifiers, e.g. telemetry-coverage.md:755,760) starts with the literal
+# "(no metric" prefix. Before this helper existed, (3)'s has_signal test and
+# (3b)'s guard were two independently written regexes; (3b) had drifted to a
+# bare `[ -z "$metric_cell" ]` blank-only test, so a metric cell of `TODO` or
+# any other non-blank placeholder passed (3b) silently even though the
+# failure message it already emitted promised exactly this pattern (#5855,
+# fourth review round). Factoring both call sites onto one pattern means they
+# cannot silently diverge again.
+metric_signal_pattern='eshu_dp_[a-zA-Z0-9_]+|No-Observability-Change:|^\(no metric'
+cell_has_signal() {
+  printf '%s' "$1" | rg -q "$metric_signal_pattern"
+}
+
 # doc_row_signals_tmp: per-doc-row file-path and whether the row's
-# metric column carries a real signal (an eshu_dp_* metric or a
-# No-Observability-Change: marker). Used by the new-stage check to
-# detect rows that name a new file but leave the metric column blank
-# or TODO, which would defeat the "every stage must register telemetry"
-# policy. Format: <file> <signal> where signal is 1 or 0.
+# metric column carries a real signal per cell_has_signal above. Used by the
+# new-stage check to detect rows that name a new file but leave the metric
+# column blank or TODO, which would defeat the "every stage must register
+# telemetry" policy. Format: <file> <signal> where signal is 1 or 0.
 doc_row_signals_tmp="$(mktemp)"
 trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instruments_metrics_tmp" "$new_stages_tmp" "$tmp_diff" "$all_rows_tmp" "$required_rows_tmp" "$doc_row_signals_tmp" "$doc_buckets_tmp" "$code_buckets_tmp"' EXIT
 : >"$doc_row_signals_tmp"
@@ -197,7 +215,7 @@ if [ -s "$all_rows_tmp" ]; then
     metric_col="$(printf '%s' "$row" \
       | rg -o '^\|[[:space:]]*[^|]+\|[[:space:]]*[^|]+\|[[:space:]]*([^|]+)' \
         --replace '$1' 2>/dev/null || true)"
-    if printf '%s' "$metric_col" | rg -q 'eshu_dp_[a-zA-Z0-9_]+|No-Observability-Change:'; then
+    if cell_has_signal "$metric_col"; then
       signal=1
     else
       signal=0
@@ -387,12 +405,18 @@ while IFS='|' read -ra cols; do
 
   # Metric column must carry a real signal even for a row that names no
   # *new* stage file. Check (3)'s has_signal only guards a row that names a
-  # file added since $base; an EXISTING row's metric column going blank
-  # (e.g. after a bad rebase or merge that keeps the row but drops the
-  # cell) has no other guard anywhere in this script and would otherwise
-  # vanish from the gate the same way a blank path cell does (#5855).
+  # file added since $base; an EXISTING row's metric column going blank OR
+  # holding a non-blank placeholder (e.g. `TODO`, `pending`, or any other
+  # prose that is not a real eshu_dp_* metric or a recognized marker -- after
+  # a bad rebase or merge, or simply never filled in) has no other guard
+  # anywhere in this script and would otherwise vanish from the gate the same
+  # way a blank path cell does. A prior version of this check tested only
+  # `[ -z "$metric_cell" ]`, so any non-blank placeholder passed silently even
+  # though the failure message below already promised this exact signal test
+  # (#5855, fourth review round). Uses the same cell_has_signal helper check
+  # (3) uses so the two checks cannot silently diverge.
   metric_cell="$(trim_ws "${cols[3]:-}")"
-  if [ -z "$metric_cell" ]; then
+  if ! cell_has_signal "$metric_cell"; then
     report="${report}  - doc row \"${stage_name}\" in ${doc_path} is malformed: metric column is blank (expected an eshu_dp_* metric or a No-Observability-Change: marker)
 "
     drift=1

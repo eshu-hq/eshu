@@ -42,7 +42,7 @@ and `eshu-diagnostic-rigor`.
 - Adding a new dorny/paths-filter matrix-dispatch workflow: no code change is
   needed in `pathfilter.go` itself — `checkPathFilterCoverage` picks it up
   automatically once a gate's `ci.job` resolves to a filter key via
-  `append_gate`. Add a focused case in `drift_test.go` covering the new
+  `append_gate`. Add a focused case in `pathfilter_test.go` covering the new
   workflow's filter shape.
 
 ## Tests

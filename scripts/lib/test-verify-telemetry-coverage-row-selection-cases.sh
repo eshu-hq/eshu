@@ -211,3 +211,97 @@ MD
 git -C "${case_prose_pipes}" add .
 git -C "${case_prose_pipes}" commit -q -m "add a legitimate row whose metric prose contains bare pipes"
 expect_pass "passes when a legitimate row's prose contains bare pipe characters" "${case_prose_pipes}"
+
+# Case 31 (#5855, fourth review round): an EXISTING row (naming
+# go/internal/reducer/service.go, already present at $base, so check (3)'s
+# new-stage has_signal guard never fires) whose metric column is the literal
+# placeholder "TODO". The doc-authoring comment above (3b) and the failure
+# message it emits both promise "expected an eshu_dp_* metric or a
+# No-Observability-Change: marker", but until this fix the code only tested
+# `[ -z "$metric_cell" ]` -- true blank-only. A non-blank placeholder like
+# "TODO" satisfied that bare test and passed the gate silently, exactly the
+# malformed-cell-silently-accepted defect class this whole file exists to
+# close, now landed on the metric column of an EXISTING row instead of a new
+# stage's path/stage-name cell.
+case_metric_todo="$(init_repo case-metric-todo)"
+cat >>"${case_metric_todo}/docs/public/observability/telemetry-coverage.md" <<'MD'
+
+| todo metric stage | go/internal/reducer/service.go:1 | TODO | reducer runtime |
+MD
+git -C "${case_metric_todo}" add .
+git -C "${case_metric_todo}" commit -q -m "add existing row whose metric column is the placeholder TODO"
+expect_fail "fails when an existing row's metric column is the placeholder TODO" "${case_metric_todo}"
+
+# Case 32 (#5855, fourth review round): same defect as case 31, reached
+# through arbitrary non-placeholder prose instead of the word "TODO" -- proves
+# the fix matches the actual eshu_dp_*/No-Observability-Change: signal
+# pattern rather than a hardcoded "TODO" string literal.
+case_metric_garbage="$(init_repo case-metric-garbage)"
+cat >>"${case_metric_garbage}/docs/public/observability/telemetry-coverage.md" <<'MD'
+
+| garbage metric stage | go/internal/reducer/service.go:1 | garbage-not-a-real-metric | reducer runtime |
+MD
+git -C "${case_metric_garbage}" add .
+git -C "${case_metric_garbage}" commit -q -m "add existing row whose metric column is unrecognized prose"
+expect_fail "fails when an existing row's metric column is arbitrary non-signal prose" "${case_metric_garbage}"
+
+# Case 33 (#5855, fourth review round, regression guard): an EXISTING row
+# whose metric column is a real, registered eshu_dp_* name must keep passing
+# after the case 31/32 fix tightens the check.
+case_metric_valid_name="$(init_repo case-metric-valid-name)"
+cat >>"${case_metric_valid_name}/docs/public/observability/telemetry-coverage.md" <<'MD'
+
+| valid metric stage | go/internal/reducer/service.go:1 | `eshu_dp_queue_claim_duration_seconds` | reducer runtime |
+MD
+git -C "${case_metric_valid_name}" add .
+git -C "${case_metric_valid_name}" commit -q -m "add existing row whose metric column names a real registered metric"
+expect_pass "passes when an existing row's metric column names a real eshu_dp_* metric" "${case_metric_valid_name}"
+
+# Case 34 (#5855, fourth review round, regression guard): an EXISTING row
+# whose metric column is a proper No-Observability-Change: marker must keep
+# passing after the case 31/32 fix.
+case_metric_valid_marker="$(init_repo case-metric-valid-marker)"
+cat >>"${case_metric_valid_marker}/docs/public/observability/telemetry-coverage.md" <<'MD'
+
+| marked stage | go/internal/reducer/service.go:1 | `No-Observability-Change: covered by eshu_dp_reducer_run_duration_seconds` | reducer runtime |
+MD
+git -C "${case_metric_valid_marker}" add .
+git -C "${case_metric_valid_marker}" commit -q -m "add existing row whose metric column is a valid No-Observability-Change marker"
+expect_pass "passes when an existing row's metric column is a valid No-Observability-Change marker" "${case_metric_valid_marker}"
+
+# Case 35 (#5855, fourth review round, real-doc regression guard): pins the
+# real telemetry-coverage.md convention at lines 755 and 760, where a
+# structured-log-key row's metric column reads
+# "(no metric; structured log fields)" / "(no metric; safe log fields)" for
+# log keys that are pure correlation identifiers with no metric of their own
+# -- pre-existing content (present on origin/main before this branch) using a
+# second, narrower marker dialect alongside No-Observability-Change:. An
+# audit of every stage-shaped row in the real doc found exactly these two
+# non-blank rows that a strict eshu_dp_*/No-Observability-Change:-only
+# pattern would newly flag as a regression, so the shared signal pattern
+# also accepts a cell that STARTS WITH the literal "(no metric" prefix.
+case_metric_no_metric_marker="$(init_repo case-metric-no-metric-marker)"
+cat >>"${case_metric_no_metric_marker}/docs/public/observability/telemetry-coverage.md" <<'MD'
+
+| log key stage | go/internal/reducer/service.go:1 | (no metric; structured log fields) | reducer runtime |
+MD
+git -C "${case_metric_no_metric_marker}" add .
+git -C "${case_metric_no_metric_marker}" commit -q -m "add existing row whose metric column uses the (no metric; ...) log-key convention"
+expect_pass "passes when an existing row's metric column uses the (no metric; ...) log-key convention" "${case_metric_no_metric_marker}"
+
+# Case 36 (#5855, fourth review round, real-doc regression guard): pins the
+# real telemetry-coverage.md row at line 296, whose metric column is prose
+# that does not start with the canonical No-Observability-Change: marker at
+# all, but names real registered eshu_dp_* metrics inline before the first
+# embedded bare pipe (the same bare-pipe-in-prose shape case 30 covers, now
+# combined with a non-canonical lead-in). The signal pattern must match
+# eshu_dp_* anywhere in the cell, not only at its start, so this legitimate
+# row keeps passing.
+case_metric_inline_names="$(init_repo case-metric-inline-names)"
+cat >>"${case_metric_inline_names}/docs/public/observability/telemetry-coverage.md" <<'MD'
+
+| inline metric names stage | go/internal/reducer/service.go:1 | `No-New-Metric: covered by eshu_dp_queue_claim_duration_seconds and eshu_dp_reducer_run_duration_seconds; this stage emits no metric of its own` | reducer runtime |
+MD
+git -C "${case_metric_inline_names}" add .
+git -C "${case_metric_inline_names}" commit -q -m "add existing row whose metric column names real metrics inline without the canonical marker prefix"
+expect_pass "passes when an existing row's metric column names real eshu_dp_* metrics inline without the canonical marker prefix" "${case_metric_inline_names}"
