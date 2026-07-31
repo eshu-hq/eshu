@@ -40,17 +40,52 @@
 comment_prefix=""
 comment_block=0
 comment_anywhere=0
+# comment_syntax_registered is the same class of emptiness sentinel
+# count_homes/resolve_unique_line already carry for build_home_pattern's own
+# `fail` (#5837 P2-1): set_comment_prefix's `*` arm calls `fail`, which prints
+# a diagnostic and `exit 1`s, relying on that `exit` to unwind whatever
+# subshell set_comment_prefix happens to be running in. That is reliable for
+# every call shape this file's callers use TODAY -- require_in/require_in_region
+# call it bare (no subshell at all) and resolve_unique_line's own single-`$()`
+# wrapping is exactly the depth a bare `exit` always unwinds correctly -- but it
+# is reliable only because no caller of require_in/require_in_region/
+# resolve_unique_line currently nests a SECOND, unchecked `$()` around that
+# single wrap. count_homes/build_home_pattern's #5837 P2-1 sentinel exists
+# precisely because that second layer of nesting DOES already exist for THAT
+# pair (require_in_text's `homes="$(count_homes ...)"` wrapping count_homes's
+# own `pattern="$(build_home_pattern ...)"`), and a bare `exit` inside the
+# inner call is swallowed at that depth unless the outer function explicitly
+# checks its own assignment's exit status -- reproduced with a minimal shim:
+# `p="$(inner)"` inside `mid()`, itself captured bare as `homes="$(mid)"`,
+# continues past inner's `exit 1` with p empty. Nothing today builds that same
+# second layer around require_in/require_in_region/resolve_unique_line's OWN
+# invocation, so set_comment_prefix's `exit` is not presently swallowed in
+# practice -- but relying on "no caller happens to nest it that way yet" is
+# exactly the same latent posture build_home_pattern had before #5837 P2-1,
+# and an emptiness check on comment_prefix could not close it even if a caller
+# did add that nesting: comment_prefix is legitimately `""` for the registered
+# `.json` case, so "comment_prefix is empty" cannot distinguish "registered, no
+# comment syntax" from "never registered". This flag closes the gap at the
+# SAME sentinel-after-call depth count_homes/resolve_unique_line already use
+# for build_home_pattern, so a future caller that adds that second layer around
+# require_in/require_in_region/resolve_unique_line fails loudly here instead of
+# silently reusing whatever comment_prefix/comment_block/comment_anywhere the
+# PREVIOUS call left behind. Each case arm below sets this flag explicitly, and
+# every caller (require_in, require_in_region, resolve_unique_line) asserts it
+# immediately after calling set_comment_prefix.
+comment_syntax_registered=0
 set_comment_prefix() {
 	comment_block=0
 	comment_anywhere=0
+	comment_syntax_registered=0
 	case "$1" in
-		*.sh|*.bash|*.yml|*.yaml) comment_prefix='#' ;;
+		*.sh|*.bash|*.yml|*.yaml) comment_prefix='#'; comment_syntax_registered=1 ;;
 		# SQL's `--` opens a comment wherever it appears on the line, including
 		# mid-word (`1--`); unlike shell's `#`, it has no predecessor
 		# requirement, so comment_anywhere drops that constraint for it.
-		*.sql) comment_prefix='--'; comment_block=1; comment_anywhere=1 ;;
+		*.sql) comment_prefix='--'; comment_block=1; comment_anywhere=1; comment_syntax_registered=1 ;;
 		# RFC 8259 JSON has no comment syntax, so every line is a real home.
-		*.json) comment_prefix='' ;;
+		*.json) comment_prefix=''; comment_syntax_registered=1 ;;
 		*) fail "no comment syntax registered for $(basename "$1"); teach set_comment_prefix before asserting against it" ;;
 	esac
 }
@@ -206,6 +241,7 @@ require_in_text() {
 require_in() {
 	local label="$1" file="$2" needle="$3" origin
 	set_comment_prefix "${file}"
+	[[ "${comment_syntax_registered}" -eq 1 ]] || exit 1
 	origin="$(basename "${file}")"
 	require_in_text "${label}" "${origin}" "${needle}" <"${file}"
 }
@@ -220,6 +256,7 @@ require_in() {
 require_in_region() {
 	local label="$1" file="$2" range="$3" needle="$4" region
 	set_comment_prefix "${file}"
+	[[ "${comment_syntax_registered}" -eq 1 ]] || exit 1
 	region="$(sed -n "${range}p" "${file}")"
 	[[ -n "${region}" ]] || fail "empty region ${range} of $(basename "${file}") for ${label}"
 	require_in_text "${label}" "$(basename "${file}") ${range}" "${needle}" \
@@ -246,6 +283,7 @@ resolve_unique_line() {
 	local label="$1" file="$2" needle="$3" pattern home_line
 	local -a home_lines=()
 	set_comment_prefix "${file}"
+	[[ "${comment_syntax_registered}" -eq 1 ]] || exit 1
 	pattern="$(build_home_pattern "${needle}")"
 	# See count_homes's sentinel comment above: this assignment sits inside the
 	# SAME double-command-substitution shape every real caller uses
