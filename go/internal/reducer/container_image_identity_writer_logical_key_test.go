@@ -54,6 +54,7 @@ func TestContainerImageIdentityPublicationPrefersCanonicalExactDigest(t *testing
 
 	write := ContainerImageIdentityWrite{
 		IntentID:           "intent-5854-preference",
+		ClaimEpoch:         1,
 		ScopeID:            "repository:synthetic",
 		GenerationID:       "generation-5854",
 		SourceSystem:       "git",
@@ -62,7 +63,7 @@ func TestContainerImageIdentityPublicationPrefersCanonicalExactDigest(t *testing
 		TombstoneDecisions: []ContainerImageIdentityDecision{unresolved},
 	}
 	db := &fakeWorkloadIdentityExecer{}
-	writer := PostgresContainerImageIdentityWriter{DB: db}
+	writer := newContainerImageIdentityUnitWriter(db)
 	result, err := writer.WriteContainerImageIdentityDecisions(context.Background(), write)
 	if err != nil {
 		t.Fatalf("WriteContainerImageIdentityDecisions() error = %v", err)
@@ -100,6 +101,7 @@ func TestContainerImageIdentityWriterPublishesFencedTombstone(t *testing.T) {
 	}
 	write := ContainerImageIdentityWrite{
 		IntentID:           "intent-5854-tombstone",
+		ClaimEpoch:         1,
 		ScopeID:            "repository:synthetic",
 		GenerationID:       "generation-5854",
 		SourceSystem:       "git",
@@ -108,7 +110,7 @@ func TestContainerImageIdentityWriterPublishesFencedTombstone(t *testing.T) {
 		TombstoneDecisions: []ContainerImageIdentityDecision{decision},
 	}
 	db := &fakeWorkloadIdentityExecer{}
-	writer := PostgresContainerImageIdentityWriter{DB: db}
+	writer := newContainerImageIdentityUnitWriter(db)
 	result, err := writer.WriteContainerImageIdentityDecisions(context.Background(), write)
 	if err != nil {
 		t.Fatalf("WriteContainerImageIdentityDecisions() error = %v", err)

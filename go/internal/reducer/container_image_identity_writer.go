@@ -107,6 +107,11 @@ func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisio
 	if err != nil {
 		return ContainerImageIdentityWriteResult{}, err
 	}
+	if (len(rows) > 0 || len(write.LegacyFactIDs) > 0) && write.ClaimEpoch <= 0 {
+		return ContainerImageIdentityWriteResult{}, errors.New(
+			"container image identity claim_epoch must be positive for v2 publication or legacy cleanup",
+		)
+	}
 	legacyRowsDeleted, err := w.writeContainerImageIdentityRows(
 		ctx,
 		write,
@@ -175,7 +180,7 @@ func (w PostgresContainerImageIdentityWriter) writeContainerImageIdentityRows(
 	var tx ContainerImageIdentityTransaction
 	rollbackNeeded := false
 	legacyRowsDeleted := 0
-	if len(write.LegacyFactIDs) > 0 {
+	if len(rows) > 0 || len(write.LegacyFactIDs) > 0 {
 		cutoverComplete := false
 		var err error
 		if w.CutoverLookup != nil {
@@ -235,7 +240,7 @@ func (w PostgresContainerImageIdentityWriter) writeContainerImageIdentityRows(
 		}
 		if w.Beginner == nil {
 			return 0, fmt.Errorf(
-				"container image identity transaction beginner is required for legacy cleanup",
+				"container image identity transaction beginner is required for v2 publication or legacy cleanup",
 			)
 		}
 		tx, err = w.Beginner.BeginContainerImageIdentityTx(ctx)
@@ -357,9 +362,6 @@ func containerImageIdentityFencingToken(write ContainerImageIdentityWrite) int64
 func validateContainerImageIdentityFence(write ContainerImageIdentityWrite) error {
 	if write.EvidenceAsOf.IsZero() {
 		return errContainerImageIdentityMissingEvidenceAsOf
-	}
-	if len(write.LegacyFactIDs) > 0 && write.ClaimEpoch <= 0 {
-		return errors.New("container image identity claim_epoch must be positive for legacy cleanup")
 	}
 	return nil
 }

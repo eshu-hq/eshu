@@ -181,10 +181,12 @@ func TestPostgresContainerImageIdentityWriterDedupSurvivorForConvergedECSAndCICD
 
 	now := time.Date(2026, time.May, 15, 12, 0, 0, 0, time.UTC)
 	db := &fakeWorkloadIdentityExecer{}
-	writer := PostgresContainerImageIdentityWriter{DB: db, Now: func() time.Time { return now }}
+	writer := newContainerImageIdentityUnitWriter(db)
+	writer.Now = func() time.Time { return now }
 
 	if _, err := writer.WriteContainerImageIdentityDecisions(context.Background(), ContainerImageIdentityWrite{
 		IntentID:     "intent-ecs-image-identity",
+		ClaimEpoch:   1,
 		ScopeID:      "aws:123456789012:us-east-1:ecs",
 		GenerationID: "generation-ecs",
 		SourceSystem: "aws",
@@ -279,10 +281,12 @@ func TestPostgresContainerImageIdentityWriterPersistsExplicitDigestForFixedECSGo
 
 	now := time.Date(2026, time.May, 15, 12, 0, 0, 0, time.UTC)
 	db := &fakeWorkloadIdentityExecer{}
-	writer := PostgresContainerImageIdentityWriter{DB: db, Now: func() time.Time { return now }}
+	writer := newContainerImageIdentityUnitWriter(db)
+	writer.Now = func() time.Time { return now }
 
 	if _, err := writer.WriteContainerImageIdentityDecisions(context.Background(), ContainerImageIdentityWrite{
 		IntentID:     "intent-ecs-image-identity-fixed",
+		ClaimEpoch:   1,
 		ScopeID:      "aws:123456789012:us-east-1:ecs",
 		GenerationID: "generation-ecs",
 		SourceSystem: "aws",

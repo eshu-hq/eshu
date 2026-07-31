@@ -49,7 +49,8 @@ Collector incompleteness blocks destructive absence:
 - `tag_list_truncated` holds affected tag references.
 - `config_blob_unavailable` holds mapped manifest digests.
 - `missing_manifest_digest` holds the named repository conservatively.
-- malformed or unreadable warning state stops the destructive pass.
+- malformed, unreadable, or unavailable warning-loader state stops the
+  destructive pass before the writer runs.
 
 An all-canonical pass skips the warning read because it cannot demote a
 canonical publication.
@@ -61,7 +62,8 @@ the new writer cleans it:
 
 - v2 rows declare `payload.identity_format=image_ref_v2`;
 - the first v2 writer atomically creates a durable scope-generation cutover
-  marker, publishes v2 rows, and removes exact eligible legacy rows;
+  marker, publishes v2 rows, and removes exact eligible legacy rows; an empty
+  cleanup list never bypasses this fence;
 - the marker trigger locks the exact reducer work item and sets
   `container_image_identity_v2_required`;
 - the queue claim trigger increments

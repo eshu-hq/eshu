@@ -25,13 +25,18 @@ func TestPostgresContainerImageIdentityTombstoneFencePreventsStaleResurrection(t
 
 	imageRef := "registry.example.com/team/api:prod"
 	base := time.Date(2026, time.July, 29, 15, 0, 0, 0, time.UTC)
-	writer := PostgresContainerImageIdentityWriter{DB: db}
 	write := containerImageIdentityLiveWrite(base, imageRef, ContainerImageIdentityTagResolved, 1)
+	cleanupContainerImageIdentityAtomicLiveWrite(t, db, write)
+	cutoverLookup := containerImageIdentityAtomicLiveCutoverLookup{db: db}
+	writer := PostgresContainerImageIdentityWriter{
+		DB:            db,
+		Beginner:      &containerImageIdentityAtomicLiveBeginner{db: db},
+		CutoverLookup: cutoverLookup,
+		ClaimedExecer: containerImageIdentityAtomicLiveClaimedExecer{db: db},
+	}
 	factID := containerImageIdentityFactID(write, write.Decisions[0])
 	t.Cleanup(func() {
-		if _, err := db.ExecContext(context.Background(), `DELETE FROM fact_records WHERE fact_id = $1`, factID); err != nil {
-			t.Errorf("clean live identity fact: %v", err)
-		}
+		cleanupContainerImageIdentityAtomicLiveWrite(t, db, write)
 	})
 
 	if _, err := writer.WriteContainerImageIdentityDecisions(ctx, write); err != nil {

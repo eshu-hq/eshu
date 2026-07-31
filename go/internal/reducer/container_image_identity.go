@@ -248,7 +248,9 @@ func (h ContainerImageIdentityHandler) loadActiveContainerImageIdentityWarnings(
 ) ([]facts.Envelope, error) {
 	loader, ok := h.FactLoader.(activeContainerImageIdentityWarningLoader)
 	if !ok {
-		return nil, nil
+		return nil, fmt.Errorf(
+			"container image identity warning loader is required for retirement completeness",
+		)
 	}
 	envelopes, err := loader.ListActiveContainerImageIdentityWarnings(ctx)
 	if err != nil {

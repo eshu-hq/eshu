@@ -23,13 +23,12 @@ func TestPostgresContainerImageIdentityWriterPersistsCanonicalDecisions(t *testi
 
 	now := time.Date(2026, time.May, 15, 12, 0, 0, 0, time.UTC)
 	db := &fakeWorkloadIdentityExecer{}
-	writer := PostgresContainerImageIdentityWriter{
-		DB:  db,
-		Now: func() time.Time { return now },
-	}
+	writer := newContainerImageIdentityUnitWriter(db)
+	writer.Now = func() time.Time { return now }
 
 	result, err := writer.WriteContainerImageIdentityDecisions(context.Background(), ContainerImageIdentityWrite{
 		IntentID:     "intent-image-identity",
+		ClaimEpoch:   1,
 		ScopeID:      "repo:team-api",
 		GenerationID: "generation-git",
 		SourceSystem: "git",
@@ -90,11 +89,10 @@ func TestPostgresContainerImageIdentityWriterUsesStableTagReferenceIdentity(t *t
 	t.Parallel()
 
 	db := &fakeWorkloadIdentityExecer{}
-	writer := PostgresContainerImageIdentityWriter{
-		DB: db,
-	}
+	writer := newContainerImageIdentityUnitWriter(db)
 	write := ContainerImageIdentityWrite{
 		IntentID:     "intent-image-identity",
+		ClaimEpoch:   1,
 		ScopeID:      "repo:team-api",
 		GenerationID: "generation-git",
 		SourceSystem: "git",
@@ -149,11 +147,10 @@ func TestPostgresContainerImageIdentityWriterPublishesKnownTruthLayers(t *testin
 	t.Parallel()
 
 	db := &fakeWorkloadIdentityExecer{}
-	writer := PostgresContainerImageIdentityWriter{
-		DB: db,
-	}
+	writer := newContainerImageIdentityUnitWriter(db)
 	_, err := writer.WriteContainerImageIdentityDecisions(context.Background(), ContainerImageIdentityWrite{
 		IntentID:     "intent-image-identity",
+		ClaimEpoch:   1,
 		ScopeID:      "repo:team-api",
 		GenerationID: "generation-git",
 		SourceSystem: "git",

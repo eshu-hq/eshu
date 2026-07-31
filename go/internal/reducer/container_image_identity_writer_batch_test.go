@@ -30,10 +30,11 @@ func TestWriteContainerImageIdentityDecisionsBoundedExecCount(t *testing.T) {
 	}
 
 	db := &fakeWorkloadIdentityExecer{}
-	writer := PostgresContainerImageIdentityWriter{DB: db}
+	writer := newContainerImageIdentityUnitWriter(db)
 
 	result, err := writer.WriteContainerImageIdentityDecisions(context.Background(), ContainerImageIdentityWrite{
 		IntentID:     "intent-image-batch",
+		ClaimEpoch:   1,
 		ScopeID:      "repo:team-api",
 		GenerationID: "gen-batch",
 		SourceSystem: "git",

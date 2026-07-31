@@ -19,7 +19,8 @@ Collector-declared incompleteness is fail-closed:
 - `tag_list_truncated` holds affected tag references.
 - `config_blob_unavailable` holds manifest digests mapped from the warning.
 - `missing_manifest_digest` holds the named repository conservatively.
-- malformed or unreadable warning state stops a destructive pass.
+- malformed, unreadable, or unavailable warning-loader state stops a
+  destructive pass before the writer runs.
 
 An all-canonical pass skips the warning read because it cannot demote a
 canonical publication.
@@ -33,7 +34,10 @@ format-compatibility fence:
 1. New rows carry `payload.identity_format = image_ref_v2`.
 2. The first new writer creates one durable
    `container_image_identity_cutovers` marker for its scope generation in the
-   same transaction as publication and cleanup.
+   same transaction as publication and cleanup. V2 publication enters this
+   path even when every eligible legacy row is held and the exact cleanup list
+   is empty; cleanup eligibility never controls whether the compatibility
+   fence is installed.
 3. The marker trigger locks the exact stable reducer work item, marks it
    `container_image_identity_v2_required`, and normalizes it to
    `status='running'` with
@@ -86,6 +90,10 @@ All fixtures use public synthetic values such as
 - A cutover held for one scope generation blocked same-key old and new writers
   while an unrelated scope committed. After cutover commit, the old writer
   inserted zero rows and the fresher logical-key writer won.
+- An all-held mixed pass published its canonical v2 row and marker atomically,
+  preserved the held legacy row, rejected a later old-format write, and
+  rejected a stale claim epoch. A fully held demotion with no publication
+  performed no database work.
 - Injecting a later-chunk failure rolled back all new rows, exact cleanup, and
   the marker. A retry then converged to the complete v2 set.
 - A failed migration under a held fact-table lock left no partial table,
@@ -127,6 +135,14 @@ These are the medians of three alternating trials per variant. The v2 writer
 was 29.8% faster at median, 26.3% faster at p95, and used 14.6% less
 writer-local WAL in that isolated lane.
 
+After the review fix that requires the marker even when the cleanup list is
+empty, a final-head writer-only confirmation measured 4.589 s median and
+4.857 s p95 with the same checksum, 100 write statements, and 384.6 MB/op
+attributable WAL. That remains 26.9% faster at median and 24.9% faster at p95
+than the old-writer baseline above. The exact first-marker operation on
+100,000 historical rows measured 192.333 microseconds median and 289.750
+microseconds p95 against its 1,301.150-microsecond contribution budget.
+
 The cache-warm production handler also returned the same checksum:
 
 | variant | median | p95 | queries/op |
@@ -136,6 +152,9 @@ The cache-warm production handler also returned the same checksum:
 
 The final path was 23.2% faster at median and 24.3% faster at p95. The extra
 three queries are the exact cutover marker, zero-legacy probe, and claim check.
+A final-head post-fix confirmation measured 5.250 s median and 5.282 s p95,
+with the same 99,500-row checksum, exactly one epoch probe per measured call,
+and zero paginated identity loads.
 
 The uncached lane performs 204 unchanged paginated evidence reads at this
 cardinality for both variants. One paired run measured 11.530 s main versus
@@ -153,6 +172,10 @@ WAL surface.
 Focused live tests cover:
 
 - mixed eligible and warning-held legacy rows, then warning-clear retirement;
+- an all-held mixed pass that publishes v2, creates the marker, preserves the
+  held legacy row, rejects a later old writer, and rejects a stale claim epoch;
+- a missing warning-loader capability that stops before any writer call, plus
+  a fully held demotion that performs no database work;
 - marker-present seeded legacy rows;
 - first-cutover rollback atomicity;
 - old INSERT and UPDATE before, during, and after marker commit;
