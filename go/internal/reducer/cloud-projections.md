@@ -341,11 +341,20 @@ the RDS/EC2/S3 posture and exposure writers) so its per-uid critical section
 serializes against the `#5007` owner-ledger gate's writes to the same uid,
 avoiding NornicDB OCC abort-retry churn on concurrent same-uid writes.
 
-The instance->AMI relationship stays Postgres-only in this increment: no
-AMI/MachineImage CloudResource node class exists, so the generic
-`aws_relationship_materialization` domain's target join never resolves an
-`aws_ec2_ami` target (counted as unresolved, never fabricated). Follow-up
-issue https://github.com/eshu-hq/eshu/issues/5717 tracks the AMI node class.
+The instance->AMI relationship now resolves (issue #5717): the EC2 collector
+emits one `aws_resource` fact for the AMI itself (`resource_type=aws_ec2_ami`,
+deduplicated per scan across every instance sharing that AMI id — see
+`go/internal/collector/awscloud/services/ec2/ami_identity.go`). This is
+Pattern A, not a new node class: the AMI materializes under the EXISTING
+`CloudResource` label through the SAME generic `aws_resource_materialization`
+domain every other resource_type uses, so the generic
+`aws_relationship_materialization` domain's target join (`buildCloudResourceJoinIndex`
+in `aws_relationship_join.go`) resolves the `aws_ec2_ami` target by bare id
+like any other bare-id-keyed resource — no reducer code change was needed for
+the join itself. The AMI fact carries only identity (no name/state/owner/
+creation-date): that AMI metadata requires a `DescribeImages` call the
+collector deliberately does not make, a separate, costed enrichment
+follow-up.
 
 No-Regression Evidence: `go test ./internal/reducer -run 'EC2InstanceIdentity' -count=1`
 proves the augment-only never-create contract, single-key readiness gate,
