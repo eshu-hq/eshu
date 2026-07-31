@@ -124,10 +124,11 @@ func newInstrumentedContainerImageIdentityWriter(t *testing.T) (
 //
 // Instrument read: eshu_dp_postgres_query_duration_seconds{operation="write"}.
 // postgres.InstrumentedDB.ExecContext (go/internal/storage/postgres/
-// instrumented.go) records this once per ExecContext round-trip. The writer's
-// reducerBatchInsertFacts call issues one ExecContext per ceil(N/1000) chunk;
-// two rows fit one chunk, so this scenario asserts exactly one write
-// observation. An N+1 write-per-decision regression would double this count.
+// instrumented.go) records this once per ExecContext round-trip. The
+// completed-cutover exact-claim publication issues one instrumented statement
+// per bounded 1000-row chunk; two rows fit one chunk, so this scenario asserts
+// exactly one write observation. An N+1 write-per-decision regression would
+// double this count.
 func TestCostBudget_ContainerImageIdentity(t *testing.T) {
 	t.Parallel()
 

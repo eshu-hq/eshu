@@ -3,9 +3,6 @@
 
 //go:build perf5854_head || perf5854_main
 
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2025-2026 eshu-hq
-
 package main
 
 import (
