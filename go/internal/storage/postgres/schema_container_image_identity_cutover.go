@@ -24,8 +24,7 @@ BEGIN
     ALTER TABLE fact_work_items
         ADD COLUMN IF NOT EXISTS container_image_identity_v2_required
             BOOLEAN NOT NULL DEFAULT FALSE,
-        ADD COLUMN IF NOT EXISTS container_image_identity_claim_epoch
-            BIGINT NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS container_image_identity_claim_epoch BIGINT NOT NULL DEFAULT 0,
         ADD COLUMN IF NOT EXISTS container_image_identity_v2_authorized_status
             TEXT NOT NULL DEFAULT '';
 
