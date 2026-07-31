@@ -159,8 +159,12 @@ gates:
       command: "bash scripts/verify-no-ai-attribution.sh"
       test_command: ""
     ci:
-      workflow: test.yml
-      job: "docs-helm-hygiene"
+      # The AI-attribution check runs in verify-agent-hygiene.yml's "No AI
+      # attribution" step, not in test.yml's docs-helm-hygiene job, which has
+      # no such step. Matches the sibling agent-canon gate in the same
+      # workflow (#5748).
+      workflow: verify-agent-hygiene.yml
+      job: "Agent hygiene gate"
     requirements:
       - go
     ci_only_reason: ""
@@ -172,7 +176,15 @@ gates:
     tier: pre-commit
     blocking: true
     triggers:
-      - "go/**"
+      # Must match the scope verify-license-header.sh actually scans -- every
+      # .go file in the repo, not only go/**. 312 tracked .go files live under
+      # sdk/go/** and examples/collector-extensions/**, and while the trigger
+      # read "go/**" a PR touching only those passed `make pre-pr` and first
+      # failed in CI's verify-contracts job (#5535). Keyed on *.go rather than
+      # a directory list so a future top-level Go directory is covered the day
+      # it is added; this also stops a non-Go change under go/ (a README, a
+      # fixture) from selecting a gate that would not inspect it.
+      - "**/*.go"
     local:
       command: "bash scripts/verify-license-header.sh"
       test_command: "bash scripts/test-verify-license-header.sh"

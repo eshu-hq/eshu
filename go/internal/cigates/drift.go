@@ -60,6 +60,17 @@ var appendGateDisplayRE = regexp.MustCompile(`append_gate\s+"[^"]*"\s+"[^"]*"\s+
 //     for the skip conditions (glob-form triggers, non-matrix workflows, and
 //     gates whose ci.job does not resolve to a filter key are all skipped
 //     rather than false-flagged).
+//
+//  6. Verify-script → ci.workflow correspondence (#5748): when a gate's
+//     scripts/verify-*.sh is executed by exactly one workflow, the gate must
+//     declare that workflow. Only executable `run:` blocks count as executing
+//     it — a dorny/paths-filter entry watches a path rather than invoking it,
+//     and counting such a mention gives the script a phantom second owner that
+//     silently skips the gate. See checkVerifyScriptWorkflowMatch for why this
+//     is deliberately narrower than "the declared job runs the gate's local
+//     command": local and CI entrypoints legitimately differ, so the broad rule
+//     flags 16 gates of which 15 are correctly wired. A script no workflow runs,
+//     or several run, carries no correspondence signal and is skipped.
 func DriftCheck(repoRoot string, reg *Registry) []error {
 	var errs []error
 
@@ -75,6 +86,7 @@ func DriftCheck(repoRoot string, reg *Registry) []error {
 	errs = append(errs, checkWorkflowCompleteness(repoRoot, reg)...)
 	errs = append(errs, checkJobNamesResolve(repoRoot, reg)...)
 	errs = append(errs, checkPathFilterCoverage(repoRoot, reg)...)
+	errs = append(errs, checkVerifyScriptWorkflowMatch(repoRoot, reg)...)
 
 	return errs
 }
