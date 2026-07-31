@@ -108,6 +108,7 @@ jobs:
               - 'go/cmd/**'
               - 'docs/public/observability/telemetry-coverage.md'
               - 'scripts/*verify-telemetry-coverage*.sh'
+              - 'scripts/lib/telemetry-coverage-*.sh'
               - 'scripts/lib/test-verify-telemetry-coverage-*'
             dashboard:
               - '.github/workflows/static-contract-gates.yml'
@@ -223,6 +224,7 @@ jobs:
               - 'scripts/verify-maturity-drift-guard.sh'
               - 'scripts/test-verify-maturity-drift-guard.sh'
               - 'scripts/lib/maturity-drift-guard-language-extensions.sh'
+              - 'scripts/lib/golden-corpus-fixtures.sh'
       - name: Build selected gate matrix
         id: gate-matrix
         run: |

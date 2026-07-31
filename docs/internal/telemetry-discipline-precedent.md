@@ -171,15 +171,39 @@ The verifier catches:
   `go/internal/content/shape/`, or `go/cmd/collector-*/`) where the X1
   doc has no row that names the file's dispatcher with a real signal
   (an `eshu_dp_*` metric or a `No-Observability-Change:` marker).
+- (#5855) A stale X1 row: any row in a stage table whose second column
+  names a file or glob (`dir/*.go`) that no longer exists on disk — for
+  example a row left behind after the file it described was deleted or
+  renamed. This is the reverse direction of the previous check: the
+  new-stage check above walks new files and requires a doc row; this
+  walks doc rows and requires a real target. It runs unconditionally
+  against the *current* doc and working tree, not only against the diff,
+  so a pre-existing dangling row is caught too, not only one introduced
+  by the current change.
 
 The verifier does not catch:
 
-- A new pipeline stage added *inside* an existing Go file. The new-stage
-  check is `git diff --diff-filter=A`, which is file-level: an existing
-  file that gains a new function or a new metric emission will not
-  trigger the new-stage check, and a stale X1 row will not be flagged.
-  Reviewers must catch these by reading the diff and confirming the X1
-  row was updated.
+- A new pipeline stage added *inside* an existing Go file with no new
+  file created. The new-stage check is `git diff --diff-filter=A`,
+  which is file-level: an existing file that gains a new function or a
+  new metric emission will not trigger the new-stage check. Reviewers
+  must catch these by reading the diff and confirming the X1 row was
+  updated.
+- A row whose file target still exists but whose `:line` (or the
+  specific function/dispatcher at that line) has drifted — the #5855
+  reverse-direction check only confirms the *file* (or glob) resolves to
+  something real, not that the referenced line number or function name
+  is still accurate. A line-number-accurate check would require parsing
+  Go, which this static-analysis script does not do.
+- For a glob-form row (`dir/*.go`), the #5855 reverse-direction check only
+  proves that *at least one* file under the glob exists — not that the
+  specific file implementing the row's described stage is still among
+  them. A broad glob (several rows in this doc match dozens to hundreds
+  of files, e.g. `go/internal/query/repository*.go`) stays green as long
+  as any one match survives, even if the actual stage the row describes
+  was deleted. This is an inherent limit of static glob-existence
+  checking, not a bug to fix here; a maintainer narrowing a glob to a
+  single file gets the full protection, a broad glob does not.
 - A pre-existing gap from before the verifier was added. The verifier
   compares the *current* X1 doc against the *current*
   `go/internal/telemetry/instruments.go`. It does not surface drift that

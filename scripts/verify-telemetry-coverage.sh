@@ -14,6 +14,15 @@
 # Exit 0 on success; non-zero with a per-stage diff on drift.
 set -euo pipefail
 
+# script_dir always resolves to where THIS script actually lives, regardless
+# of ESHU_TELEMETRY_COVERAGE_REPO_ROOT below (which retargets repo_root at a
+# fixture or another worktree for doc/instruments lookups, but never moves
+# this script's own sibling files). Used to source scripts/lib/*.sh chunks
+# so sourcing keeps working under a copied-script fixture (see case 9 in
+# test-verify-telemetry-coverage.sh) exactly like the GIT_DIR-safe repo_root
+# derivation below.
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+
 repo_root="${ESHU_TELEMETRY_COVERAGE_REPO_ROOT:-}"
 if [ -z "$repo_root" ]; then
   # Derive the repo root from the script's own location, NOT
@@ -23,7 +32,7 @@ if [ -z "$repo_root" ]; then
   # `$repo_root/<doc>` existence checks below fail with a false "missing". The
   # script always lives at <repo>/scripts/, so dirname/.. is the repo root and is
   # both worktree- and hook-safe.
-  repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+  repo_root="$(cd "$script_dir/.." && pwd)"
 fi
 
 base="${ESHU_TELEMETRY_COVERAGE_BASE:-}"
@@ -81,11 +90,23 @@ tmp_diff="$(mktemp)"
 trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instruments_metrics_tmp" "$new_stages_tmp" "$tmp_diff"' EXIT
 
 # Extract all table rows from the X1 doc. A "row" is any line that starts
-# with a pipe after optional whitespace, AND is not the header separator
-# (a line made of pipes, dashes, and colons).
+# with a pipe, full stop -- selection must not also require the FIRST CELL
+# to be non-blank. An earlier version of this regex
+# (^\|[[:space:]]*[^|[:space:]]) required a non-pipe, non-space character
+# right after the opening pipe, so a row with a blank stage-name cell (e.g.
+# "|  | go/internal/reducer/does_not_exist.go:1 | ... |") never entered
+# all_rows_tmp at all -- invisible to every downstream check, including the
+# (3b) stale-target check below that would otherwise catch its nonexistent
+# path (#5855, third review round: a P1 one layer upstream of the blank-path
+# and blank-metric P1s, which fixed row VALIDATION but could not help a row
+# that never reached validation). The header and GFM separator rows are
+# deliberately NOT excluded here by position or shape -- they are excluded
+# downstream, by CONTENT, in every check that classifies rows (see the
+# 'file:line'/'boundary_values' and ^[-:]+$ content checks in the (3b) loop
+# below), so broadening this selector cannot let them slip through as data.
 all_rows_tmp="$(mktemp)"
 trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instruments_metrics_tmp" "$new_stages_tmp" "$tmp_diff" "$all_rows_tmp"' EXIT
-rg -N --no-line-number '^\|[[:space:]]*[^|[:space:]]' "$repo_root/$doc_path" >"$all_rows_tmp" 2>/dev/null || true
+rg -N --no-line-number '^\|' "$repo_root/$doc_path" >"$all_rows_tmp" 2>/dev/null || true
 
 # doc_documented_tmp: every eshu_dp_* name mentioned anywhere in a table
 # row. Used for the instruments.go -> doc check (a registered metric must
@@ -157,14 +178,32 @@ if [ -n "$base" ]; then
   sort -u -o "$new_stages_tmp" "$new_stages_tmp"
 fi
 
+# metric_signal_pattern / cell_has_signal: the ONE shared definition of "does
+# this metric-column cell carry a real signal", used by BOTH the new-stage
+# check (3) below and the existing-row check (3b) further down. A row's
+# metric column counts as covered if it names a registered eshu_dp_* metric,
+# carries the No-Observability-Change: marker, or (the real X1 doc's own
+# narrower convention for structured-log-key rows that are pure correlation
+# identifiers, e.g. telemetry-coverage.md:755,760) starts with the literal
+# "(no metric" prefix. Before this helper existed, (3)'s has_signal test and
+# (3b)'s guard were two independently written regexes; (3b) had drifted to a
+# bare `[ -z "$metric_cell" ]` blank-only test, so a metric cell of `TODO` or
+# any other non-blank placeholder passed (3b) silently even though the
+# failure message it already emitted promised exactly this pattern (#5855,
+# fourth review round). Factoring both call sites onto one pattern means they
+# cannot silently diverge again.
+metric_signal_pattern='eshu_dp_[a-zA-Z0-9_]+|No-Observability-Change:|^\(no metric'
+cell_has_signal() {
+  printf '%s' "$1" | rg -q "$metric_signal_pattern"
+}
+
 # doc_row_signals_tmp: per-doc-row file-path and whether the row's
-# metric column carries a real signal (an eshu_dp_* metric or a
-# No-Observability-Change: marker). Used by the new-stage check to
-# detect rows that name a new file but leave the metric column blank
-# or TODO, which would defeat the "every stage must register telemetry"
-# policy. Format: <file> <signal> where signal is 1 or 0.
+# metric column carries a real signal per cell_has_signal above. Used by the
+# new-stage check to detect rows that name a new file but leave the metric
+# column blank or TODO, which would defeat the "every stage must register
+# telemetry" policy. Format: <file> <signal> where signal is 1 or 0.
 doc_row_signals_tmp="$(mktemp)"
-trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instruments_metrics_tmp" "$new_stages_tmp" "$tmp_diff" "$all_rows_tmp" "$required_rows_tmp" "$doc_row_signals_tmp" "$doc_buckets_tmp" "$code_buckets_tmp" "$instruments_flat"' EXIT
+trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instruments_metrics_tmp" "$new_stages_tmp" "$tmp_diff" "$all_rows_tmp" "$required_rows_tmp" "$doc_row_signals_tmp" "$doc_buckets_tmp" "$code_buckets_tmp"' EXIT
 : >"$doc_row_signals_tmp"
 if [ -s "$all_rows_tmp" ]; then
   while IFS= read -r row; do
@@ -176,7 +215,7 @@ if [ -s "$all_rows_tmp" ]; then
     metric_col="$(printf '%s' "$row" \
       | rg -o '^\|[[:space:]]*[^|]+\|[[:space:]]*[^|]+\|[[:space:]]*([^|]+)' \
         --replace '$1' 2>/dev/null || true)"
-    if printf '%s' "$metric_col" | rg -q 'eshu_dp_[a-zA-Z0-9_]+|No-Observability-Change:'; then
+    if cell_has_signal "$metric_col"; then
       signal=1
     else
       signal=0
@@ -243,91 +282,32 @@ while IFS= read -r file; do
   fi
 done <"$new_stages_tmp"
 
-# (4) Histogram bucket boundary assertion.
-# Parse documented bucket sets from the X1 doc's histogram-buckets section
-# and bucket boundary definitions from instruments.go. Normalize both to
-# canonical form (sorted numbers, no whitespace) and assert bidirectional
-# agreement: every code bucket set must match a doc row, and vice versa.
-canonicalize_buckets() {
-  printf '%s' "$1" | tr -d '[:space:]' | tr ',' '\n' | sort -n | paste -sd ',' -
-}
+# (3b) Reverse of (3): every row in the stage tables must name a file (or
+# glob) that actually exists on disk, and carry a real metric signal. Split
+# into scripts/lib/telemetry-coverage-row-check.sh to keep this script under
+# the repo's file-length cap (#5855); that file is registered as its own
+# trigger of the telemetry-coverage gate in specs/ci-gates.v1.yaml. See that
+# file's header comment for the full rationale (row-vanishes-before-
+# validation history) and the check_stage_table_rows/trim_ws/
+# path_target_exists definitions it provides. check_stage_table_rows expects
+# repo_root, doc_path, all_rows_tmp, and cell_has_signal (defined above) to
+# already be set, and mutates $report/$drift like the checks above.
+# shellcheck source=scripts/lib/telemetry-coverage-row-check.sh
+source "${script_dir}/lib/telemetry-coverage-row-check.sh"
+check_stage_table_rows
 
-doc_buckets_tmp="$(mktemp)"
-code_buckets_tmp="$(mktemp)"
-
-# 4a: Parse documented bucket sets from the histogram-buckets section.
-section_line=$(rg -n '<!-- eshu:metric:section=histogram-buckets -->' "$repo_root/$doc_path" | head -1 | cut -d: -f1 || true)
-if [ -n "$section_line" ]; then
-  next_section_line=$(rg -n '<!-- eshu:metric:section=' "$repo_root/$doc_path" | \
-    awk -F: -v s="$section_line" '$1 > s {print $1; exit}' || true)
-  [ -z "$next_section_line" ] && next_section_line=$(( $(wc -l < "$repo_root/$doc_path") + 1 ))
-  sed -n "$((section_line + 1)),$((next_section_line - 1))p" "$repo_root/$doc_path" | \
-    while IFS= read -r line; do
-      printf '%s' "$line" | rg -q '^\|[-:|[:space:]]+\|' && continue
-      if printf '%s' "$line" | rg -q '^\|.*\|.*[0-9].*\|'; then
-        boundaries=$(printf '%s' "$line" | sed -n 's/^|[^|]*|\([^|]*\)|$/\1/p')
-        if [ -n "$boundaries" ]; then
-          boundaries=$(printf '%s' "$boundaries" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-          canonicalize_buckets "$boundaries"
-        fi
-      fi
-    done | sort -u >"$doc_buckets_tmp" 2>/dev/null || true
-fi
-
-# 4b: Parse bucket boundary definitions from instruments.go.
-# rg --replace is line-oriented even with -U (multiline), so a bucket list
-# split across lines produces one output line per number rather than one
-# combined capture. Collapse the file to a single line first (remove
-# newlines inside []float64{...} and WithExplicitBucketBoundaries(...)
-# blocks), then extract the sets with single-line regexps.
-: >"$code_buckets_tmp"
-instruments_flat="$(mktemp)"
-# python3 one-liner: join lines inside matching bracket pairs so each
-# bucket definition becomes a single line, then extract.
-python3 -c "
-import re, sys
-with open(sys.argv[1]) as f:
-    text = f.read()
-
-# Collapse newlines inside []float64{...} and WithExplicitBucketBoundaries(...)
-# blocks so each becomes a single line.
-text = re.sub(r'\[\]float64\{[^}]+\}', lambda m: m.group(0).replace('\n', ' '), text)
-text = re.sub(r'WithExplicitBucketBoundaries\([^)]+\)', lambda m: m.group(0).replace('\n', ' '), text)
-
-# Extract named variables: = []float64{...}
-for m in re.finditer(r'=\s*\[\]float64\{([^}]+)\}', text):
-    raw = m.group(1).strip()
-    sys.stdout.write(raw + '\n')
-
-# Extract inline literals: WithExplicitBucketBoundaries(N, N, ...)
-for m in re.finditer(r'WithExplicitBucketBoundaries\(([^)]+)\)', text):
-    raw = m.group(1).strip()
-    if not re.search(r'[a-zA-Z_]', raw):  # skip variable references
-        sys.stdout.write(raw + '\n')
-" "$repo_root/$instruments_path" 2>/dev/null | \
-  while IFS= read -r raw_set; do
-    [ -n "$raw_set" ] && canonicalize_buckets "$raw_set" >>"$code_buckets_tmp"
-  done || true
-sort -u -o "$code_buckets_tmp" "$code_buckets_tmp"
-
-# 4c: Bidirectional assertion.
-# Every code bucket set must have a matching documented set.
-while IFS= read -r code_set; do
-  [ -n "$code_set" ] || continue
-  if ! rg -qx "$code_set" "$doc_buckets_tmp"; then
-    report="${report}  - bucket set [${code_set}] is in ${instruments_path} but not documented in ${doc_path}\n"
-    drift=1
-  fi
-done <"$code_buckets_tmp"
-
-# Every documented bucket set must have a matching code definition.
-while IFS= read -r doc_set; do
-  [ -n "$doc_set" ] || continue
-  if ! rg -qx "$doc_set" "$code_buckets_tmp"; then
-    report="${report}  - bucket set [${doc_set}] is documented in ${doc_path} but not defined in ${instruments_path}\n"
-    drift=1
-  fi
-done <"$doc_buckets_tmp"
+# (4) Histogram bucket boundary assertion. Parses documented bucket sets
+# from the X1 doc's histogram-buckets section and bucket boundary
+# definitions from instruments.go, normalizes both to canonical form, and
+# asserts bidirectional agreement: every code bucket set must match a doc
+# row, and vice versa. Split into scripts/lib/telemetry-coverage-bucket-check.sh
+# to keep this script under the repo's file-length cap (#5855); that file
+# is registered as its own trigger of the telemetry-coverage gate in
+# specs/ci-gates.v1.yaml. check_histogram_bucket_agreement mutates
+# $report/$drift like the checks above.
+# shellcheck source=scripts/lib/telemetry-coverage-bucket-check.sh
+source "${script_dir}/lib/telemetry-coverage-bucket-check.sh"
+check_histogram_bucket_agreement
 
 if [ "$drift" -ne 0 ]; then
   {
@@ -339,6 +319,8 @@ if [ "$drift" -ne 0 ]; then
     printf '  - Add the missing metric to %s, OR remove it if it is dead code\n' "$instruments_path"
     printf '  - Replace the metric column with a No-Observability-Change: marker that names\n'
     printf '    the existing signal that already covers the stage\n'
+    printf '  - Fix or remove a doc row that names a file or glob with no matching target\n'
+    printf '  - Fix a malformed row missing its file/glob, metric, or category column\n'
   } >&2
   exit 1
 fi
