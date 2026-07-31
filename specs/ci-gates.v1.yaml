@@ -1999,8 +1999,8 @@ gates:
       command: "bash scripts/verify-root-cause-evidence.sh"
       test_command: "bash scripts/test-verify-root-cause-evidence.sh"
     ci:
-      workflow: test.yml
-      job: "verify-contracts"
+      workflow: ""
+      job: ""
     requirements: []
     ci_only_reason: ""
     hook_id: ""

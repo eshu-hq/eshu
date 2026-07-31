@@ -175,21 +175,14 @@ if [ "${#thin_markers[@]}" -gt 0 ]; then
   printf '\n'
 fi
 
-cat <<'GUIDANCE'
-Fix by adding a line that names what you OBSERVED, not what you concluded:
-
-  Root-Cause Evidence: reproduced 3 of 4 runs on the same commit; the AMI node
-  is present in all four while the edge count is 0 in three; no handler logged
-  an unresolved target.
-
-If you have not actually established the cause, say so instead and the gate
-stops applying -- it only matches claims that a cause is KNOWN. Hedged wording
-("the suspected cause", "one theory is", "this might be caused by") is
-deliberately not matched, because labelling a guess as a guess is the behaviour
-this gate exists to encourage.
-
-See CLAUDE.md, "Mandatory Prove-The-Theory-First".
-GUIDANCE
+printf 'Add a line naming what you OBSERVED, not what you concluded:\n\n'
+printf '  Root-Cause Evidence: reproduced 3 of 4 runs on the same commit; the\n'
+printf '  node is present in all four while the edge count is 0 in three.\n\n'
+printf 'If the cause is not actually established, say so and the gate stops\n'
+printf 'applying -- it only matches claims that a cause is KNOWN. Hedged wording\n'
+printf '("the suspected cause", "one theory is") is deliberately unmatched,\n'
+printf 'because labelling a guess as a guess is what this encourages.\n\n'
+printf 'See CLAUDE.md, "Mandatory Prove-The-Theory-First".\n'
 
 # Advisory while the real false-positive rate on this repo's prose is unknown.
 # Flip to exit 1 in specs/ci-gates.v1.yaml (blocking: true) once the rate is
