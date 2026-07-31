@@ -184,6 +184,19 @@
   never-having-committed (`everCommitted`), so the hook repeats while a shard has
   no work and stops permanently at its first commit. Do not "restore" edge
   triggering; that reintroduces #5852.
+- `AfterBatchDrained`'s `hasCommitted bool` argument — this must always be the
+  same value `Service.Run` used to decide `shouldDrain` for that cycle
+  (`committedSinceDrain`, true only when a real commit happened since the last
+  drain). A barrier caller (the ingester) forwards it into
+  `postgres.DeferredMaintenanceBarrierConfig.HasCommitted` so a never-committed
+  shard's arrival stays join-only: it may join an epoch another shard already
+  opened, but it must never open one itself. Hardcoding `hasCommitted` to
+  `true` (or dropping it) reintroduces the codex #5852-follow-up storm: a
+  quiet fleet where nothing has committed would open and complete an empty
+  barrier epoch on every idle poll, running the corpus-wide maintenance pass
+  against an unchanged corpus forever. See
+  `go/internal/storage/postgres/deferred_maintenance_barrier.go` and its
+  README for the epoch-open decision this gates.
 
 ## Evidence
 

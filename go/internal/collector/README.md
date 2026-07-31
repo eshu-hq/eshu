@@ -52,8 +52,18 @@ keeps idle polls from running drain hooks. The opt-in path fires on every idle
 poll until this process's FIRST generation commit, then never again -- a shard
 that owns no repositories never commits, so it keeps arriving at the fleet
 barrier for its whole lifetime rather than arriving once and starving every later
-epoch (#5852). Cadence is paced by barrier completion, not by `PollInterval`,
-because the hook blocks synchronously until the epoch finishes. On receipt of a generation it calls `Committer.CommitScopeGeneration`
+epoch (#5852). `AfterBatchDrained` takes a `hasCommitted bool` -- true when this
+drain follows a real commit since the last drain, false when it fires only from
+the empty-batch escape -- so a caller wiring a fleet barrier can tell a shard
+with real work from one that is only re-arriving with nothing to report. The
+ingester forwards this into
+`postgres.DeferredMaintenanceBarrierConfig.HasCommitted`, which keeps a
+never-committed shard's arrival join-only: it may join an epoch another shard
+already opened, but it never opens one itself (see
+`go/internal/storage/postgres/README.md`). Cadence is therefore not uniformly
+barrier-paced: a never-committed shard's call returns immediately when no
+epoch is open, and only blocks synchronously until the epoch finishes when it
+actually joins one. On receipt of a generation it calls `Committer.CommitScopeGeneration`
 with the `facts.Envelope` channel and records
 `CollectorObserveDuration`, `FactsEmitted`, `GenerationFactCount`, and
 `FactsCommitted`.
@@ -167,7 +177,12 @@ empty source batches to participate in a cross-process barrier. The empty path
 is gated on never-having-committed, not edge-triggered per drain window: it
 repeats on every idle poll until this process commits its first generation, and
 is permanently disabled by that commit. A shard that never commits therefore
-never stops participating in the barrier (#5852).
+never stops re-arriving at the barrier (#5852) -- but "arriving" is join-only:
+`AfterBatchDrained`'s `hasCommitted` argument is false for every one of those
+calls, so a barrier implementation that honors it (as the ingester's does)
+lets the shard join an epoch another shard already opened without ever
+opening one on its own. A fleet where nothing has committed anywhere stays
+idle rather than opening and completing empty epochs forever.
 
 The delta-generation, documentation-extraction, and `AfterEmptyBatchDrained`
 evidence for this section (No-Regression, Performance, and

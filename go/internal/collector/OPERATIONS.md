@@ -96,6 +96,34 @@ README.
 - No-Observability-Change: `AfterEmptyBatchDrained` only changes whether the
   caller-supplied drain hook runs once for an exhausted empty batch. It adds no
   metric, span, status field, worker, queue, graph write, or runtime label.
+- No-Regression Evidence (#5852 follow-up, join-only barrier arrivals): the
+  #5852 fix above stopped the fleet-barrier stall but, on a quiet restart
+  where no shard has anything new to commit, made every shard's idle-poll
+  arrival capable of opening a new barrier epoch — the barrier's leader would
+  then run the corpus-wide `RunDeferredRelationshipMaintenance` pass against
+  an unchanged corpus, complete the epoch, and the very next idle poll would
+  open another one, forever. `AfterBatchDrained` now takes a `hasCommitted
+  bool` (`committedSinceDrain` at the point `Service.Run` calls it), and the
+  ingester forwards it into
+  `postgres.DeferredMaintenanceBarrierConfig.HasCommitted`: a shard may join
+  an epoch another shard already opened regardless of this flag (the original
+  #5852 stall fix), but it may open a new epoch only when the flag is true.
+  `go test ./internal/collector -run
+  'TestServiceRun(CallsAfterBatchDrainedOnceAfterCommittedBatch|CallsAfterBatchDrainedForConfiguredEmptyBatch|CallsEmptyBatchDrainHookOnEveryIdlePollForANeverCommittingShard)'
+  -count=1` proves the hook reports `hasCommitted=true` only for a real commit
+  and `false` for every empty-batch-escape call. `go test
+  ./internal/storage/postgres -run
+  'TestIngestionStoreShardDrainBarrier(QuietRestartNeverOpensEpochAcrossManyIdlePolls|SingleShardNeverCommittedSkipsMaintenance|SingleShardHasCommittedRunsMaintenance|NeverCommittedShardJoinsAlreadyOpenEpochAndBecomesLeader)|TestEnsureDeferredMaintenanceBarrierEpochNeverCommittedShard(DoesNotOpenNewEpoch|JoinsAlreadyOpenEpoch)'
+  -count=1` proves a fleet where nothing has committed opens zero epochs
+  across many idle polls (multi-shard and the `ShardCount==1` single-shard
+  path, which had the same defect through its own unconditional
+  short-circuit), while a never-committed shard can still join and even lead
+  an epoch a committing shard already opened.
+- No-Observability-Change (#5852 follow-up): the join-only change adds one
+  INFO log line (`deferred maintenance barrier idle; no epoch to join`) on the
+  new no-op path and reuses every existing metric, span, and log field on the
+  paths that already ran. It adds no new metric, span, worker, queue, or
+  runtime knob.
 - No-Regression Evidence: `go test ./internal/collector ./internal/doctruth ./internal/query ./internal/mcp ./internal/storage/postgres -count=1` covers DOCX, CSV/TSV, XLSX, PPTX, ZIP packet summaries, deterministic diagrams, claim hints, repository fact readback, and MCP routing.
 - No-Observability-Change: documentation extraction stays inside existing `collector.observe`, body-free snapshot metadata, and stream-time re-reads. It adds no worker, queue, graph write, metric label, runtime knob, or deployment profile.
 - No-Regression Evidence: delta generation handling is covered by `go test ./internal/collector -run
