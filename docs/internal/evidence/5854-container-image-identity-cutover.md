@@ -82,6 +82,21 @@ enabled until that row becomes eligible.
 All fixtures use public synthetic values such as
 `registry.example.com/performance/team-api` and placeholder SHA-256 digests.
 
+Performance Evidence: against the old outcome-keyed writer on the same
+PostgreSQL 18 backend and 99,500-reference input, the final v2 writer preserved
+the logical checksum and terminal 99,500-row count while improving median from
+6.281 seconds to 4.576 seconds and p95 from 6.470 seconds to 4.875 seconds. The
+live golden gate terminated with zero residual work items, zero dead letters,
+515 passing assertions, and zero required failures.
+
+Observability Evidence: the bounded
+`eshu_dp_container_image_identity_decisions_total` and
+`eshu_dp_container_image_identity_retirements_total` counters expose
+classification, holds, attempts, and cleanup; existing Postgres query-duration
+and reducer execution/run-duration signals expose write and claim failures.
+The exact-head live golden gate also records terminal queue counts and
+per-phase timings, so the faster path is not accepted on latency alone.
+
 ### Correctness and concurrency theories
 
 - A live token 9 row, token 10 tombstone, stale token 5 live write, and fresh

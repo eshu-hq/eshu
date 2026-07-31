@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 // containerImageIdentityBudgetRelPath is the committed cost budget for the
@@ -31,6 +32,37 @@ var containerImageIdentityBudgetRelPath = filepath.Join(
 )
 
 const containerImageIdentityCostIntentID = "intent-container-image-identity-cost"
+
+type containerImageIdentityCompletedCutoverCostPath struct {
+	db *postgres.InstrumentedDB
+}
+
+func (p containerImageIdentityCompletedCutoverCostPath) ContainerImageIdentityCutoverExists(
+	context.Context,
+	string,
+	string,
+) (bool, error) {
+	return true, nil
+}
+
+func (p containerImageIdentityCompletedCutoverCostPath) ContainerImageIdentityLegacyCleanupComplete(
+	context.Context,
+	string,
+	string,
+) (bool, error) {
+	return true, nil
+}
+
+func (p containerImageIdentityCompletedCutoverCostPath) ExecContainerImageIdentityClaimed(
+	ctx context.Context,
+	query string,
+	args ...any,
+) (int, bool, error) {
+	if _, err := p.db.ExecContext(ctx, query, args...); err != nil {
+		return 0, false, err
+	}
+	return 0, true, nil
+}
 
 // containerImageIdentityFixtureDecisions is the deterministic input for the
 // positive and N+1 scenarios: two canonical (CanonicalWrites=1) exact-digest
@@ -56,13 +88,11 @@ func containerImageIdentityFixtureDecisions() []reducer.ContainerImageIdentityDe
 // write dispatch for this domain: reducer.PostgresContainerImageIdentityWriter
 // over a postgres.InstrumentedDB (StoreName "reducer", the exact shape
 // go/cmd/reducer/observed_service_wiring.go wires) wrapping a
-// countingExecQueryer. WriteContainerImageIdentityDecisions
-// (go/internal/reducer/container_image_identity_writer.go) filters to
-// CanonicalWrites>0 decisions, then calls reducerBatchInsertFacts — the SAME
-// bounded chunked bulk insert container_image_identity, ci_cd_run_correlation,
-// and sbom_attestation_attachment all share
-// (go/internal/reducer/reducer_fact_batch_insert.go) — so two canonical rows
-// fit in one 1000-row chunk and cost exactly one ExecContext round-trip.
+// countingExecQueryer. The fixture models the steady-state completed-cutover
+// path: the cutover marker and zero-legacy proof are already cached, and the
+// claimed executor verifies the exact positive claim epoch in the same
+// statement that publishes up to one 1000-row chunk. Two canonical rows
+// therefore fit in one statement and cost exactly one ExecContext round-trip.
 func newInstrumentedContainerImageIdentityWriter(t *testing.T) (
 	writer reducer.PostgresContainerImageIdentityWriter,
 	fake *countingExecQueryer,
@@ -72,9 +102,13 @@ func newInstrumentedContainerImageIdentityWriter(t *testing.T) (
 
 	fake = &countingExecQueryer{}
 	db, manualReader := newInstrumentedReducerDB(t, fake)
+	completedCutover := containerImageIdentityCompletedCutoverCostPath{db: db}
 	writer = reducer.PostgresContainerImageIdentityWriter{
-		DB:  db,
-		Now: func() time.Time { return time.Date(2026, time.July, 12, 12, 0, 0, 0, time.UTC) },
+		DB:                  db,
+		CutoverLookup:       completedCutover,
+		LegacyCleanupLookup: completedCutover,
+		ClaimedExecer:       completedCutover,
+		Now:                 func() time.Time { return time.Date(2026, time.July, 12, 12, 0, 0, 0, time.UTC) },
 	}
 	return writer, fake, manualReader
 }
@@ -102,6 +136,7 @@ func TestCostBudget_ContainerImageIdentity(t *testing.T) {
 
 	result, err := writer.WriteContainerImageIdentityDecisions(context.Background(), reducer.ContainerImageIdentityWrite{
 		IntentID:     containerImageIdentityCostIntentID,
+		ClaimEpoch:   1,
 		ScopeID:      "repo:team-api",
 		GenerationID: "generation-container-image-identity-cost",
 		SourceSystem: "git",
@@ -182,6 +217,7 @@ func TestCostBudget_ContainerImageIdentity_N1_ExceedsBudget(t *testing.T) {
 	for _, decision := range decisions {
 		if _, err := writer.WriteContainerImageIdentityDecisions(context.Background(), reducer.ContainerImageIdentityWrite{
 			IntentID:     containerImageIdentityCostIntentID,
+			ClaimEpoch:   1,
 			ScopeID:      "repo:team-api",
 			GenerationID: "generation-container-image-identity-cost",
 			SourceSystem: "git",
