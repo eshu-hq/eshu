@@ -45,6 +45,20 @@ if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
     base="origin/$GITHUB_BASE_REF"
   fi
 fi
+# Fall back to the merge base with origin/main, NOT HEAD~1. `make pre-pr` runs
+# this gate without exporting a base, and a HEAD~1 default silently narrows the
+# window to the last commit: a causal claim added in an earlier commit of a
+# multi-commit branch is never seen, and the gate passes for the wrong reason.
+# That exact default is a known repeated trap in this repo -- it produced a
+# false "no hot files" pass in verify-performance-evidence.sh and false failures
+# in verify-parser-relationship-kit.sh. HEAD~1 remains only as the last resort
+# for a branch with no reachable origin/main (a fresh clone in a test harness).
+if [ -z "$base" ]; then
+  if git -C "$repo_root" rev-parse --verify origin/main >/dev/null 2>&1; then
+    merge_base="$(git -C "$repo_root" merge-base origin/main HEAD 2>/dev/null || true)"
+    [ -n "$merge_base" ] && base="$merge_base"
+  fi
+fi
 if [ -z "$base" ]; then
   if git -C "$repo_root" rev-parse --verify HEAD~1 >/dev/null 2>&1; then
     base="HEAD~1"
@@ -138,10 +152,21 @@ for file in "${changed_files[@]}"; do
   # Longest text after any marker colon on this file's added lines. Judging by
   # the longest rather than the first lets an author write a short pointer line
   # and the real evidence in a following marker without tripping the check.
+  # Strip the COMPLETE marker match, not everything up to the first colon.
+  # `${line#*:}` cuts at the earliest colon, so a qualifier containing one --
+  # "Root-Cause Evidence (https://example.com/issues/123): confirmed." -- leaves
+  # the URL tail counted as evidence and a two-word body passes the length
+  # check. Matching the marker itself and removing exactly that prefix measures
+  # the real body regardless of what the qualifier contains.
   longest=0
   while IFS= read -r line; do
     [ -n "$line" ] || continue
-    tail_text="${line#*:}"
+    marker_text="$(printf '%s' "$line" | rg -o -e "$marker_pattern" | head -1)"
+    if [ -n "$marker_text" ]; then
+      tail_text="${line#*"$marker_text"}"
+    else
+      tail_text="${line#*:}"
+    fi
     tail_text="$(printf '%s' "$tail_text" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
     len="${#tail_text}"
     [ "$len" -gt "$longest" ] && longest="$len"

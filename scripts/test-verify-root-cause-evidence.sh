@@ -103,5 +103,44 @@ expect_not_contains 'ignores files outside the evidence directory' "$out" 'causa
 out="$(run_case 'docs/internal/evidence/testdata/sample.md' 'The root cause is a stale index.')"
 expect_not_contains 'ignores testdata fixtures' "$out" 'causal claim without recorded evidence'
 
+# A qualifier containing a colon must not be counted as evidence. `${line#*:}`
+# cuts at the URL's colon, leaving enough characters to clear the threshold
+# while the real body is two words.
+out="$(run_case 'docs/internal/evidence/case.md' \
+  'The root cause is a stale index.
+Root-Cause Evidence (https://example.com/issues/12345678901234567890): confirmed.')"
+expect_contains 'measures the body after a colon-bearing qualifier' "$out" 'too little after it'
+
+# Multi-commit branch: a causal claim in an EARLIER commit must still be seen.
+# A HEAD~1 default silently narrows the window to the last commit and passes
+# for the wrong reason -- the repeated default-base trap in this repo.
+multi_commit_case() {
+  local tmp
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/eshu-rce-multi.XXXXXX")"
+  (
+    cd "$tmp"
+    git init -q -b main .
+    git config user.email t@example.com
+    git config user.name t
+    mkdir -p docs/internal/evidence
+    printf 'base\n' >docs/internal/evidence/case.md
+    git add -A && git commit -q -m base
+    git branch -q -M main
+    git remote add origin . 2>/dev/null || true
+    git update-ref refs/remotes/origin/main HEAD
+    # Commit 1 of the branch carries the causal claim, with no marker.
+    printf 'The root cause is a stale index.\n' >>docs/internal/evidence/case.md
+    git add -A && git commit -q -m 'claim'
+    # Commit 2 touches something else entirely.
+    printf 'unrelated line\n' >>docs/internal/evidence/case.md
+    git add -A && git commit -q -m 'unrelated'
+  )
+  ESHU_ROOT_CAUSE_EVIDENCE_REPO_ROOT="$tmp" bash "$gate" 2>&1 || true
+  rm -rf "$tmp"
+}
+out="$(multi_commit_case)"
+expect_contains 'sees a claim from an earlier commit on a multi-commit branch' \
+  "$out" 'causal claim without recorded evidence'
+
 printf '\ntest-verify-root-cause-evidence: %d case(s), %d failure(s)\n' "$cases_run" "$failures"
 [ "$failures" -eq 0 ] || exit 1
