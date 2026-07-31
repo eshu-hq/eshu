@@ -367,8 +367,8 @@ response body and out of metric labels.
 state-snapshot scope (issue #5442). It requires an exact `scope_id` in the
 `state_snapshot:<backend_kind>:<locator_hash>` shape; there is no
 account-wide fallback for this domain, unlike the AWS route's `account_id`
-filter. Optional `address`, `outcome` (`exact`, `ambiguous`, or `unresolved`),
-and `drift_kinds` filters narrow the page. `limit` defaults to 100 and is
+filter. Optional `address`, `outcome` (`exact`, `derived`, `ambiguous`, or
+`unresolved`), and `drift_kinds` filters narrow the page. `limit` defaults to 100 and is
 capped at 500; use `offset` with `next_offset` when `truncated` is true.
 
 This route is provider-neutral and separate from the AWS and multi-cloud
@@ -379,6 +379,18 @@ Each `drift_findings[]` item carries an `outcome`:
 - `exact` — a classified per-address finding. `address` and `drift_kind` are
   populated; `drift_kind` is one of `added_in_state`, `added_in_config`,
   `attribute_drift`, `removed_from_state`, or `removed_from_config`.
+- `derived` — a classified per-address finding whose config-side `address`
+  depended on an unresolved module-prefix fallback (issue #5572), so the
+  address itself is a heuristic rather than a resolved fact. `address` and
+  `drift_kind` are populated exactly as for `exact`; the difference is
+  confidence, not shape. The finding's `evidence[]` carries a
+  `terraform_module_resolution_confidence` atom whose `value` names the
+  cause — `external_registry` (a genuinely local module source shaped like
+  Terraform Registry shorthand, so its prefix never resolved) or
+  `depth_exceeded` (a local module chain deeper than the resolver's bound).
+  Expect these findings to appear as spurious `added_in_config` /
+  `added_in_state` pairs for the same resource, because the unprefixed
+  config address and the prefixed state address never match.
 - `ambiguous` — backend-owner resolution found more than one candidate config
   repo for the state snapshot, so no per-address classification ran.
   `address` and `drift_kind` are empty; `ambiguous_owner_candidates` carries
@@ -402,10 +414,9 @@ Each `drift_findings[]` item carries an `outcome`:
   distinguishable from a scope that resolved cleanly and simply has no
   drift: both would otherwise return an identical empty page.
 
-`stale` and `derived` outcomes are not emitted by this version; see
-`go/internal/correlation/drift/tfconfigstate/doc.go` for why each is either
-unreachable with the evidence this handler has today or intentionally not
-persisted. This route never runs Terraform, imports resources, or mutates
+The `stale` outcome is not emitted by this version; see
+`go/internal/correlation/drift/tfconfigstate/doc.go` for why it is
+unreachable with the evidence this handler has today. This route never runs Terraform, imports resources, or mutates
 Terraform state. Graph projection remains deferred, mirroring the AWS and
 multi-cloud runtime drift routes.
 
