@@ -1985,6 +1985,26 @@ gates:
 
   # ─── EVIDENCE / LEDGER / DRIFT ─────────────────────────────────────────────
 
+  - id: root-cause-evidence
+    name: Root-cause claims carry observed evidence
+    category: exactness
+    tier: pre-pr
+    blocking: false
+    triggers:
+      - "docs/internal/evidence/**"
+      - "scripts/verify-root-cause-evidence.sh"
+      - "scripts/test-verify-root-cause-evidence.sh"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "bash scripts/verify-root-cause-evidence.sh"
+      test_command: "bash scripts/test-verify-root-cause-evidence.sh"
+    ci:
+      workflow: test.yml
+      job: "verify-contracts"
+    requirements: []
+    ci_only_reason: ""
+    hook_id: ""
+
   - id: perf-evidence
     name: Hot-path performance evidence
     category: telemetry

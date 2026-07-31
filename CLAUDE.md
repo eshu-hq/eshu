@@ -109,6 +109,38 @@ executor, land production code, or open a PR on a theory that has not been
 proven, and MUST stop any executor already dispatched on an unproven theory
 until the proof lands.
 
+A diagnosis is a theory too. The rule above is usually read as covering
+performance work before implementation; it also covers WHY something broke.
+Agents MUST:
+
+- State a cause only alongside the observation that establishes it. "The image
+  node is present in all four runs and the edge is absent in three" is an
+  observation. "The two stages race" is a conclusion, and without the
+  observation it is a guess.
+- Label an unproven cause as unproven, in the sentence itself, not in a caveat
+  further down. "I think X" and "X" are different claims and a reader cannot
+  recover the difference from confident phrasing.
+- NOT put an unproven hypothesis into a subagent's prompt. A dispatched agent
+  will look for confirmation of whatever it was handed. Give it the symptom and
+  the evidence, and let it find the cause.
+- Check the evidence already on disk before theorizing. Logs, prior gate runs,
+  and captured output routinely contain the answer while a theory is being
+  constructed around them.
+- Re-state the confidence when a claim is repeated. A guess restated a second
+  time reads as established fact unless it is re-labelled.
+
+A single passing observation is not proof of a behavior. Sampling once and
+reporting the result as the behavior is the same error as an unproven theory,
+because one sample cannot distinguish "works" from "works sometimes". Where a
+result could be intermittent, sample until the rate is known and report the
+rate.
+
+Evidence docs that assert a cause carry a `Root-Cause Evidence:` marker naming
+the observation; `scripts/verify-root-cause-evidence.sh` checks it. That gate
+verifies the evidence was written down, never that it is sound, and it cannot
+see a cause asserted in a PR description or a chat message. The rules above are
+the substance; the gate is only the part a script can reach.
+
 The required proof shape — OLD-vs-NEW on representative data, the
 output-preserving-vs-behavior-change equivalence split, and the
 disproven-theory/PR-acceptance rules — is in
