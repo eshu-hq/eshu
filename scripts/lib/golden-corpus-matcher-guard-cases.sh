@@ -28,7 +28,13 @@
 # (golden-corpus-phase-timing-cases.sh:455-458) against a fixture built the
 # same shape as the orchestrator's real excluded-span block, to prove the
 # comparison still fires when resolve_unique_line resolves clean (non-decoy)
-# line numbers for a relocated bracket.
+# line numbers for a relocated bracket. That replica alone tests only ITSELF,
+# not the production file -- deleting the real comparison at 455-458 left the
+# whole mirror suite green, because neither case's body ever referenced the
+# production file. Each case therefore also carries a require_in anchor
+# straight on its own `(( ... ))` comparison line in
+# golden-corpus-phase-timing-cases.sh, so deleting that line fails this file
+# directly, independent of the fixture-based behavioral replica above it.
 
 # Case 1: a comment mentioning the needle sits above two GENUINE (non-comment)
 # occurrences of it. The comment must be excluded -- proving comment-awareness
@@ -119,6 +125,21 @@ EOF
 ) || fail "placement guard does not catch an excluded-span bracket relocated wholly above phase_graph_query_start= (#5837 structural gap, case 3)"
 rm -rf "${matcher_guard_bracket_above_dir}"
 
+# #5837 P2 review: everything above proves resolve_unique_line resolves a
+# relocated bracket's line numbers correctly against a SYNTHETIC fixture built
+# to the same shape as the orchestrator's real excluded-span block -- it does
+# not touch the PRODUCTION file at all. `rg -n 'repo_root|\$\{script\}|
+# phase-timing-cases|verify-golden-corpus'` across this case's body finds
+# nothing: deleting the real comparison at golden-corpus-phase-timing-cases.sh
+# 455-458 leaves this whole mirror suite at exit 0, because the case only ever
+# asserts its own inline replica of the comparison, never the production
+# line. Anchor directly on the real comparison line, the same require_in
+# convention test-verify-golden-corpus-gate.sh already uses for its other
+# extracted-lib assertions (e.g. lines 263, 268, 271, 353).
+require_in "phase_graph_query start-vs-excluded-open placement comparison exists in production" \
+	"${repo_root}/scripts/lib/golden-corpus-phase-timing-cases.sh" \
+	'(( phase_graph_query_start_line < phase_graph_query_excluded_open_line )) ||'
+
 # Case 4: the excluded-span bracket relocated wholly BELOW
 # emit_phase_timings_and_flags -- the mirror image of case 3. Again no decoy;
 # every needle resolves to one clean line, so this isolates the PLACEMENT
@@ -152,6 +173,13 @@ EOF
 	}
 ) || fail "placement guard does not catch an excluded-span bracket relocated wholly below emit_phase_timings_and_flags (#5837 structural gap, case 4)"
 rm -rf "${matcher_guard_bracket_below_dir}"
+
+# #5837 P2 review: the mirror image of case 3's anchor above -- case 4 also
+# only ever asserts its own inline replica against a synthetic fixture, never
+# the production comparison. Anchor directly on the real comparison line.
+require_in "phase_graph_query excluded-close-vs-emit placement comparison exists in production" \
+	"${repo_root}/scripts/lib/golden-corpus-phase-timing-cases.sh" \
+	'(( phase_graph_query_excluded_close_line < phase_graph_query_emit_line )) ||'
 
 # Case 5: a genuinely missing anchor must die "missing", naming the anchor
 # and the file, and must NOT be a silent pipefail abort with no diagnostic
