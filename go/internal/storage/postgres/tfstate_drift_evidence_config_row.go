@@ -26,6 +26,14 @@ import (
 // to produce `module.<name>[.module.<name>...].<type>.<name>` matching the
 // canonical shape collector-side identity.go:26-42 emits.
 //
+// `moduleResolutionReason` (issue #5572) carries
+// moduleResolutionConfidenceMap.reasonForPath's result when modulePrefix is
+// "" — a non-empty value means the root-module address this call builds may
+// be wrong, not certainly correct; the caller (emitConfigRowsForEntry) only
+// ever passes a non-empty reason alongside modulePrefix == "". Pass "" when
+// modulePrefix is non-empty (a real prefix resolved) or when no low-
+// confidence directory matched.
+//
 // The helper stays strictly 1:1 — one parser entry produces one ResourceRow.
 // The 1→N projection (one callee resource referenced by multiple `module {}`
 // blocks) lives in the loader's emission loop, not here, so future readers
@@ -35,7 +43,11 @@ import (
 //
 // Returns (nil, false) on blank type or name so genuinely invalid rows do not
 // become drift candidates.
-func configRowFromParserEntry(entry map[string]any, modulePrefix string) (*tfconfigstate.ResourceRow, bool) {
+func configRowFromParserEntry(
+	entry map[string]any,
+	modulePrefix string,
+	moduleResolutionReason string,
+) (*tfconfigstate.ResourceRow, bool) {
 	resourceType := strings.TrimSpace(coerceJSONString(entry["resource_type"]))
 	resourceName := strings.TrimSpace(coerceJSONString(entry["resource_name"]))
 	if resourceType == "" || resourceName == "" {
@@ -46,8 +58,9 @@ func configRowFromParserEntry(entry map[string]any, modulePrefix string) (*tfcon
 		address = modulePrefix + "." + address
 	}
 	row := &tfconfigstate.ResourceRow{
-		Address:      address,
-		ResourceType: resourceType,
+		Address:                address,
+		ResourceType:           resourceType,
+		ModuleResolutionReason: moduleResolutionReason,
 	}
 	if attrs, ok := entry["attributes"].(map[string]any); ok && len(attrs) > 0 {
 		flat := make(map[string]string, len(attrs))

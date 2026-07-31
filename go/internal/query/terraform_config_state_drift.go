@@ -399,9 +399,9 @@ func writeTerraformConfigStateDriftFindings(
 		"graph_projection_note": "read-model-backed drift surface; graph projection remains deferred, mirroring the AWS and multi-cloud runtime drift domains",
 		"limitations": []string{
 			"bounded to active Terraform config-vs-state drift reducer facts for the requested state-snapshot scope",
-			"outcome is one of: \"exact\" (a classified per-address finding); \"ambiguous\" (backend-owner resolution found more than one candidate config repo; no per-address classification ran); or \"unresolved\" (backend-owner resolution found zero candidate config repos -- no Eshu-tracked repo declares this backend at all -- so no per-address classification ran)",
+			"outcome is one of: \"exact\" (a classified per-address finding whose config-side address resolved unambiguously); \"derived\" (a classified per-address finding whose config-side address depended on an unresolved module-prefix fallback -- a Terraform-Registry-shorthand misclassification or a module chain deeper than the resolver's depth bound -- so the address may be wrong; see the finding's evidence array for the specific reason); \"ambiguous\" (backend-owner resolution found more than one candidate config repo; no per-address classification ran); or \"unresolved\" (backend-owner resolution found zero candidate config repos -- no Eshu-tracked repo declares this backend at all -- so no per-address classification ran)",
 			"a scope whose backend never resolves to any config repo is reported as one \"unresolved\" finding, not an empty page, so it can be told apart from a scope that resolved cleanly and simply has no drift",
-			"\"stale\" and \"derived\" outcomes are not emitted by this version -- see go/internal/correlation/drift/tfconfigstate/doc.go",
+			"\"stale\" is not emitted by this version -- see go/internal/correlation/drift/tfconfigstate/doc.go",
 		},
 	}, BuildTruthEnvelope(
 		h.profile(),
@@ -467,8 +467,8 @@ func normalizeTerraformConfigStateDriftRequest(req terraformConfigStateDriftRequ
 	if !strings.HasPrefix(filter.ScopeID, "state_snapshot:") {
 		return TerraformConfigStateDriftFindingFilter{}, fmt.Errorf("scope_id must be a state_snapshot scope")
 	}
-	if filter.Outcome != "" && filter.Outcome != "exact" && filter.Outcome != "ambiguous" && filter.Outcome != "unresolved" {
-		return TerraformConfigStateDriftFindingFilter{}, fmt.Errorf("outcome must be exact, ambiguous, or unresolved")
+	if filter.Outcome != "" && filter.Outcome != "exact" && filter.Outcome != "derived" && filter.Outcome != "ambiguous" && filter.Outcome != "unresolved" {
+		return TerraformConfigStateDriftFindingFilter{}, fmt.Errorf("outcome must be exact, derived, ambiguous, or unresolved")
 	}
 	if filter.Limit <= 0 {
 		filter.Limit = terraformConfigStateDriftDefaultLimit

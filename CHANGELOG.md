@@ -437,6 +437,89 @@ recent shipped work grouped by feature area.
   same commit as this entry): both are now proven, not merely locally
   plausible.
 
+### Config-vs-state drift: "derived" outcome for unresolved module-prefix addresses
+
+- **Split "exact" into "exact" vs "derived" by per-address module-resolution
+  confidence** ([#5572](https://github.com/eshu-hq/eshu/issues/5572)).
+  `go/internal/correlation/drift/tfconfigstate/doc.go`'s own recorded
+  limitation named the risk: a module-nested resource's config-side address
+  is computed by resolving `module {}` call chains
+  (`go/internal/storage/postgres/tfstate_drift_evidence_module_prefix.go`),
+  and two documented failure shapes can silently produce a wrong address --
+  `classifyModuleSource`'s Terraform-Registry-shorthand heuristic
+  misclassifying a genuinely local module source as external (the
+  "terraform-aws-modules" false-positive the ADR already names), or a
+  resolved local module chain abandoned mid-walk at `maxModulePrefixDepth`.
+  Both were previously invisible at the finding level: every per-address
+  outcome was stamped `"exact"` regardless, because the comparison step
+  genuinely was an exact string match even when its input address was not
+  trustworthy.
+
+  A new `moduleResolutionConfidenceMap`
+  (`go/internal/storage/postgres/tfstate_drift_evidence_module_confidence.go`)
+  tracks both failure shapes as a directory-keyed low-confidence signal,
+  populated by `buildModulePrefixMap` alongside the real `modulePrefixMap`.
+  `ResourceRow.ModuleResolutionReason` carries it onto the config-side row;
+  `BuildCandidates` attaches a new `terraform_module_resolution_confidence`
+  evidence atom when present; the reducer writer's `moduleResolutionOutcome`
+  downgrades `Outcome` from `"exact"` to `"derived"` whenever that atom is
+  present. One `"derived"` value covers both causes deliberately -- the
+  atom's `Value` carries the specific reason (`"external_registry"` or
+  `"depth_exceeded"`), preserved in the finding's `Evidence` array, so an
+  operator can still tell the two causes apart without the outcome
+  vocabulary growing per cause.
+
+  **A masking bug the naive design would have missed, found by TDD before
+  landing:** `modulePrefixMap.modulePrefixForPath`'s own longest-ancestor-
+  match walk means an unresolved module call is not reliably visible as
+  "zero prefixes returned." Both failure shapes are reached only after one
+  or more ancestor levels already resolved successfully (a depth-exceeded
+  callee requires depths 1..N-1 to have already succeeded; a nested
+  registry-misclassified call sits inside whatever module resolved its own
+  call site), so the immediately shallower ancestor directory almost always
+  has a real, populated prefix -- and the walk-up silently returns THAT
+  prefix instead of nothing, misattributing the resource to the wrong,
+  too-shallow parent module rather than falling back to a plainly
+  root-shaped address. Consulting the confidence map only when
+  `modulePrefixForPath` returned zero prefixes would have missed this,
+  demonstrably: a first version of the depth-exceeded integration test
+  failed with the resource silently getting a real (wrong) 10-level-deep
+  prefix instead of a root fallback. The fix compares MATCH SPECIFICITY —
+  `moduleResolutionReasonForEntry` prefers the confidence signal whenever
+  its matched directory is at least as deep as (as close to the file as)
+  whatever directory supplied the real prefix — so the masked case is
+  caught too, not just the plain "no prefix" case.
+
+  No schema or contract bump: `outcome` is `"type": "string"` with no
+  `enum`/`pattern`/`oneOf` in the generated JSON Schema
+  (`sdk/go/factschema/schema/reducer_terraform_config_state_drift_finding.v1.schema.json`),
+  and no field was added, removed, renamed, or retyped on
+  `TerraformConfigStateDriftFinding` -- `Evidence []map[string]any` already
+  carried arbitrary atoms before this change. `specs/fact-kind-registry.v1.yaml`
+  is unaffected for the same reason.
+
+  - No-Regression Evidence: see
+    `docs/internal/evidence/5572-drift-derived-outcome-module-resolution-confidence.md`
+    for the full complexity argument (zero new Postgres queries; the added
+    per-entry work is the same O(directory depth) walk-up shape
+    `modulePrefixForPath` already performs, doubled) and the green focused
+    test run across `internal/correlation/drift/tfconfigstate`,
+    `internal/storage/postgres`, `internal/reducer`, `internal/query`, and
+    `internal/mcp`.
+  - No-Observability-Change: reuses the existing
+    `eshu_dp_drift_unresolved_module_calls_total{reason}` counter path
+    (issue #169) unchanged; the new evidence atom flows through the
+    finding's existing `Evidence` field and the existing
+    `POST /api/v0/terraform/config-state-drift/findings` response shape, not
+    a new field, log, span, or metric.
+  - OpenAPI (`go/internal/query/openapi_paths_terraform_config_state_drift.go`),
+    the MCP tool description (`go/internal/mcp/tools_iac.go`), and both
+    outcome-filter validators
+    (`go/internal/query/terraform_config_state_drift.go`,
+    `go/internal/storage/postgres/terraform_config_state_drift_findings.go`)
+    now accept and document `"derived"` alongside `"exact"`, `"ambiguous"`,
+    and `"unresolved"`.
+
 ### Route-fact-based Rails controller liveness
 
 - **Join the Rails controller dead-code-root verdict against real route facts**

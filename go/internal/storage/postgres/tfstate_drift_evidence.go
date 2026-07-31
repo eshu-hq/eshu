@@ -126,12 +126,12 @@ func (l PostgresDriftEvidenceLoader) LoadDriftEvidence(
 	}
 
 	recorder := l.unresolvedRecorder()
-	prefixMap, err := l.buildModulePrefixMap(ctx, configScopeID, configGenerationID, recorder)
+	prefixMap, confidenceMap, err := l.buildModulePrefixMap(ctx, configScopeID, configGenerationID, recorder)
 	if err != nil {
 		return nil, err
 	}
 
-	configByAddress, err := l.loadConfigByAddress(ctx, configScopeID, configGenerationID, prefixMap)
+	configByAddress, err := l.loadConfigByAddress(ctx, configScopeID, configGenerationID, prefixMap, confidenceMap)
 	if err != nil {
 		return nil, err
 	}
@@ -192,6 +192,7 @@ func (l PostgresDriftEvidenceLoader) loadConfigByAddress(
 	scopeID string,
 	generationID string,
 	prefixMap modulePrefixMap,
+	confidenceMap moduleResolutionConfidenceMap,
 ) (map[string]*tfconfigstate.ResourceRow, error) {
 	rows, err := l.DB.QueryContext(ctx, listConfigResourcesForCommitQuery, scopeID, generationID)
 	if err != nil {
@@ -210,7 +211,7 @@ func (l PostgresDriftEvidenceLoader) loadConfigByAddress(
 			return nil, err
 		}
 		for _, entry := range entries {
-			emitConfigRowsForEntry(entry, prefixMap, out)
+			emitConfigRowsForEntry(entry, prefixMap, confidenceMap, out)
 		}
 	}
 	if err := rows.Err(); err != nil {
@@ -233,6 +234,13 @@ func (l PostgresDriftEvidenceLoader) loadConfigByAddress(
 //     the load-bearing fan-out the ADR commits to and that
 //     TestLoadConfigByAddressExpandsSameCalleeForMultipleCallers proves.
 //
+// Every row's ModuleResolutionReason (issue #5572) is set from
+// moduleResolutionReasonForEntry, which compares confidenceMap and
+// prefixMap's MATCH DEPTHS rather than trusting "zero prefixes" alone — see
+// tfstate_drift_evidence_module_confidence.go's package doc comment for why
+// a resolved-but-wrong ancestor prefix can mask a genuinely unresolved,
+// closer directory.
+//
 // The fan-out lives here, in the loader emission loop, deliberately NOT in
 // configRowFromParserEntry — that helper stays strictly 1:1 so future
 // readers cannot mistake it for the projection seam (binding constraint D).
@@ -242,12 +250,14 @@ func (l PostgresDriftEvidenceLoader) loadConfigByAddress(
 func emitConfigRowsForEntry(
 	entry map[string]any,
 	prefixMap modulePrefixMap,
+	confidenceMap moduleResolutionConfidenceMap,
 	out map[string]*tfconfigstate.ResourceRow,
 ) {
 	entryPath := strings.TrimSpace(coerceJSONString(entry["path"]))
-	prefixes := prefixMap.modulePrefixForPath(entryPath)
+	prefixes, prefixDepth := prefixMap.modulePrefixForPathWithDepth(entryPath)
+	moduleResolutionReason := moduleResolutionReasonForEntry(confidenceMap, entryPath, prefixDepth)
 	if len(prefixes) == 0 {
-		row, ok := configRowFromParserEntry(entry, "")
+		row, ok := configRowFromParserEntry(entry, "", moduleResolutionReason)
 		if !ok {
 			return
 		}
@@ -257,7 +267,7 @@ func emitConfigRowsForEntry(
 		return
 	}
 	for _, prefix := range prefixes {
-		row, ok := configRowFromParserEntry(entry, prefix)
+		row, ok := configRowFromParserEntry(entry, prefix, moduleResolutionReason)
 		if !ok {
 			return
 		}

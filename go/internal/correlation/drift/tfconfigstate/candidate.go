@@ -34,7 +34,22 @@ const (
 	// EvidenceTypeDriftKind marks the classifier output atom so the explain
 	// trace can read which drift kind admitted the candidate.
 	EvidenceTypeDriftKind = "terraform_drift_kind"
+	// EvidenceTypeModuleResolutionConfidence marks the atom that carries
+	// ResourceRow.ModuleResolutionReason (issue #5572) when the config-side
+	// address depended on an unresolved module-prefix fallback. Present only
+	// when row.Config.ModuleResolutionReason is non-empty; the reducer writer
+	// reads this atom to downgrade the finding's Outcome from "exact" to
+	// "derived" and the atom's Value carries the specific closed-enum reason
+	// (e.g. "external_registry", "depth_exceeded") so operators can tell the
+	// two false-positive classes apart without a new outcome value per cause.
+	EvidenceTypeModuleResolutionConfidence = "terraform_module_resolution_confidence"
 )
+
+// EvidenceKeyModuleResolutionReason is the canonical EvidenceAtom.Key for the
+// EvidenceTypeModuleResolutionConfidence atom. The Value carries the specific
+// unresolved-module reason (see tfstate_drift_evidence_module_prefix.go's
+// closed reason enum).
+const EvidenceKeyModuleResolutionReason = "module_resolution_reason"
 
 // EvidenceKeyAddress is the canonical EvidenceAtom.Key for address-bearing
 // atoms (config, state, prior). The classifier joins on this key.
@@ -161,6 +176,21 @@ func buildOneCandidate(
 			Value:        row.Config.Address,
 			Confidence:   driftConfidence,
 		})
+		// Module-resolution-confidence atom (issue #5572) — present only when
+		// the loader marked this config row's Address as depending on an
+		// unresolved module-prefix fallback. See ResourceRow.ModuleResolutionReason
+		// and EvidenceTypeModuleResolutionConfidence's doc comments.
+		if row.Config.ModuleResolutionReason != "" {
+			evidence = append(evidence, model.EvidenceAtom{
+				ID:           candidateID + "/module_resolution",
+				SourceSystem: driftSourceSystem,
+				EvidenceType: EvidenceTypeModuleResolutionConfidence,
+				ScopeID:      anchor.ScopeID,
+				Key:          EvidenceKeyModuleResolutionReason,
+				Value:        row.Config.ModuleResolutionReason,
+				Confidence:   driftConfidence,
+			})
+		}
 	}
 	if row.State != nil {
 		evidence = append(evidence, model.EvidenceAtom{

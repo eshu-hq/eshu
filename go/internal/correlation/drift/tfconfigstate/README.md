@@ -151,12 +151,19 @@ through `POST /api/v0/terraform/config-state-drift/findings` and the
 `list_terraform_config_state_drift_findings` MCP tool. Counters and structured
 logs stay a parallel signal, not a replacement.
 
-Every durable finding carries an `outcome`: `exact` for a per-address
-classification, or `ambiguous` for a whole-scope backend-owner rejection with
-no per-address classification. See `doc.go`'s "Outcome model" section for the
-full reasoning on which of the design doc's six outcomes (exact, derived,
-ambiguous, unresolved, stale, rejected) this domain reaches and why the rest
-are either unreachable with today's evidence or intentionally not persisted.
+Every durable finding carries an `outcome`. Four of the design doc's six
+outcomes are reachable: `exact` for a per-address classification whose
+config-side address resolved unambiguously; `derived` (issue #5572) for a
+per-address classification whose config-side address depended on an
+unresolved module-prefix fallback (a Terraform-Registry-shorthand
+misclassification or a module chain deeper than the resolver's depth
+bound) — the finding's evidence array names the specific reason;
+`ambiguous` for a whole-scope backend-owner rejection with more than one
+candidate config repo and no per-address classification; or `unresolved`
+(issue #5594) for a whole-scope rejection where zero candidate config repos
+claim the backend. See `doc.go`'s "Outcome model" section for the full
+reasoning on why `stale` and `rejected` are either unreachable with today's
+evidence or intentionally not persisted.
 
 ### Performance evidence (issue #5442)
 

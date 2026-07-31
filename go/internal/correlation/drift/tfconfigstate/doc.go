@@ -23,7 +23,9 @@
 //   - DriftKind, AllDriftKinds, DriftKind.Validate — the closed enum that
 //     labels eshu_dp_correlation_drift_detected_total{drift_kind}.
 //   - ResourceRow — the normalized config / state / prior view of one
-//     Terraform resource address fed to the classifier.
+//     Terraform resource address fed to the classifier. ModuleResolutionReason
+//     (issue #5572) is address-provenance metadata the classifier itself
+//     never reads; see the outcome-model section below.
 //   - Classify — the top-level dispatcher. Returns the matching DriftKind
 //     or empty when no drift fires.
 //   - AddressedRow — the joined per-address input to the candidate builder.
@@ -63,73 +65,61 @@
 // Reachable today:
 //
 //   - "exact" — every per-address finding this package's Classify/
-//     BuildCandidates produce. The COMPARISON step is exact: the
-//     config<->state join is address-string equality (see
-//     ResourceRow.Address's doc comment: "The classifier never compares
-//     addresses internally; the candidate builder already keys candidates on
-//     this value"), and attribute comparison (classifyAttributeDrift) is a
-//     direct concrete-value comparison, not a derived or heuristic match.
+//     BuildCandidates produce whose config-side address resolved
+//     unambiguously. The COMPARISON step is exact: the config<->state join
+//     is address-string equality (see ResourceRow.Address's doc comment:
+//     "The classifier never compares addresses internally; the candidate
+//     builder already keys candidates on this value"), and attribute
+//     comparison (classifyAttributeDrift) is a direct concrete-value
+//     comparison, not a derived or heuristic match.
 //
-//     This label is honest about the comparison, not about every upstream
-//     input to it. The config-side ResourceRow.Address this package receives
-//     is computed by the evidence loader
-//     (go/internal/storage/postgres/tfstate_drift_evidence_module_prefix.go),
-//     which resolves a module-nested resource's address prefix by walking
-//     `module {}` call chains (buildModulePrefixMap /
-//     modulePrefixForPath). That resolution has a documented heuristic step:
+//   - "derived" (issue #5572) — every per-address finding whose config-side
+//     ResourceRow.Address depended on an unresolved module-prefix fallback.
+//     The evidence loader
+//     (go/internal/storage/postgres/tfstate_drift_evidence_module_prefix.go)
+//     resolves a module-nested resource's address prefix by walking
+//     `module {}` call chains (buildModulePrefixMap / modulePrefixForPath),
+//     and that resolution has two documented failure shapes:
 //     classifyModuleSource's Terraform-Registry-shorthand discriminator
 //     ("namespace/name/provider", three slash-separated segments) is a
-//     pattern match, not certain knowledge, and the function's own comment
-//     names the false-positive case — a repo whose top-level directory is
-//     literally "terraform-aws-modules" misclassifies a local module source
-//     as an external registry reference. When a module call cannot be
-//     resolved (this case, or external_git / external_archive /
-//     cross_repo_local / cycle_detected / depth_exceeded),
-//     modulePrefixForPath returns no prefix for that callee directory, and
-//     every resource declared under it is addressed as if it were a
-//     root-module resource — a config-side address that will not match the
-//     real (module-prefixed) state address. The comparison step then
-//     correctly reports what it was given: a spurious added_in_config for
-//     the wrongly-addressed config resource and a spurious added_in_state for
-//     the real state resource, both stamped "exact" because the string
-//     comparison that produced them genuinely was exact.
+//     pattern match, not certain knowledge — a repo whose top-level
+//     directory is literally "terraform-aws-modules" misclassifies a local
+//     module source as an external registry reference — and a resolved
+//     local module chain deeper than maxModulePrefixDepth is abandoned
+//     mid-walk. Either way the resulting address can be wrong. The
+//     evidence-loader sibling file
+//     go/internal/storage/postgres/tfstate_drift_evidence_module_confidence.go
+//     now tracks BOTH shapes as a directory-keyed
+//     moduleResolutionConfidenceMap and compares its match depth against
+//     modulePrefixMap's own match depth (moduleResolutionReasonForEntry) —
+//     necessary because modulePrefixForPath's own longest-ANCESTOR-match
+//     walk means an unresolved call is not reliably visible as "zero
+//     prefixes": a depth-exceeded (or nested registry-misclassified) callee
+//     directory almost always has an already-resolved ancestor directly
+//     above it, so naively checking "prefixes empty" would miss the more
+//     common case where the resource is silently misattributed to that
+//     wrong, too-shallow ancestor's prefix instead of falling back to a
+//     plainly-root-shaped address.
 //
-//     No per-finding signal distinguishes this today: a
-//     TerraformConfigStateDriftFinding row carries no marker for "this
-//     address came from an unresolved module chain." The only operator-
-//     visible mitigation is scope-level, not finding-level:
-//     eshu_dp_drift_unresolved_module_calls_total{reason} increments once per
-//     unresolved module call during the same evidence-load pass that built
-//     the (possibly wrong) address, so an operator who sees a surprising
-//     added_in_config/added_in_state pair for a resource inside a module
-//     block should check that counter for the same scope/generation before
-//     trusting the finding as genuine drift — it is a candidate explanation,
-//     not a proven one, since the counter is not joined to the specific
-//     finding.
+//     The signal reaches the finding through
+//     tfconfigstate.ResourceRow.ModuleResolutionReason ->
+//     BuildCandidates's EvidenceTypeModuleResolutionConfidence atom ->
+//     the reducer writer's moduleResolutionOutcome
+//     (go/internal/reducer/terraform_config_state_drift_writer.go), which
+//     downgrades Outcome from "exact" to "derived" whenever that atom is
+//     present. One "derived" value covers both causes deliberately, rather
+//     than splitting into two outcome values: the atom's Value carries the
+//     specific closed-enum reason ("external_registry" or
+//     "depth_exceeded"), preserved verbatim in the finding's Evidence array,
+//     so an operator debugging a spurious finding can still tell the two
+//     causes apart without the outcome vocabulary growing per cause.
 //
-//     Decision: "exact" stays the label for v1 rather than reopening the
-//     outcome model, for three reasons. First, this matches how "exact" is
-//     already used elsewhere in this vocabulary — AWS runtime drift's
-//     "exact" outcome (managementStatusManagedByTerraform) also does not
-//     guarantee its own upstream ARN/tag extraction is infallible; "exact"
-//     has always meant "the join mechanism was direct," not "every upstream
-//     input was independently verified." Second, the failure mode is
-//     pre-existing in PostgresDriftEvidenceLoader and shared by all five
-//     drift kinds, not introduced by durability (issue #5442) — durability
-//     makes an existing risk persistent and queryable rather than creating a
-//     new one. Third, a real fix requires threading a per-address
-//     module-resolution-confidence signal from buildModulePrefixMap through
-//     AddressedRow/ResourceRow into a new Candidate evidence atom and
-//     deciding how it maps onto outcome (most likely "derived" for
-//     module-nested resources whose containing chain had any unresolved
-//     segment) — a genuine code and outcome-model change with its own
-//     TDD/proof cycle, not a documentation fix, and larger than this issue
-//     should carry. If a future finding shows this false-positive class is
-//     material in practice (not just theoretically possible), that plumbing
-//     is the concrete follow-up: thread module-resolution status onto
-//     ResourceRow, have BuildCandidates read it, and split "exact" into
-//     "exact" (unambiguous module chain or no module nesting) versus
-//     "derived" (address depends on an unresolved module-prefix fallback).
+//     A pre-#5572 mitigation remains in place alongside this: a
+//     TerraformConfigStateDriftFinding row's own Evidence atom is
+//     finding-scoped, but eshu_dp_drift_unresolved_module_calls_total{reason}
+//     still increments once per unresolved module call scope-wide during the
+//     same evidence-load pass, giving operators a scope/generation-level
+//     cross-check independent of any single finding.
 //
 //   - "ambiguous" — NOT a per-address outcome. Genuine ambiguity in this
 //     domain lives one level up, at backend-owner resolution
@@ -215,16 +205,6 @@
 //     state generation, and no such threshold exists elsewhere in the
 //     codebase to borrow. Inventing one here would be an unmeasured,
 //     arbitrary policy choice, not an honest outcome.
-//   - "derived" is not emitted today, but — see the "exact" caveat above —
-//     it is not cleanly unreachable either. The comparison step itself is
-//     never a multi-hop or heuristic inference the way AWS runtime drift's
-//     management_status is (derived by combining multiple evidence
-//     classes), but the config-side address that comparison consumes can
-//     depend on a heuristic module-prefix resolution. This package does not
-//     currently surface that distinction as a candidate/finding-level
-//     signal, so every reachable per-address outcome is labeled "exact" as
-//     documented above rather than split into "exact" vs "derived" by
-//     module-resolution confidence.
 //   - "rejected" is not adopted as an outcome value; the existing
 //     DriftRejection.FailureClass vocabulary (scope_not_state_snapshot,
 //     resolver_unavailable, evidence_loader_unavailable,

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/correlation/drift/tfconfigstate"
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
@@ -20,14 +21,16 @@ import (
 const terraformConfigStateDriftFactKind = facts.ReducerTerraformConfigStateDriftFindingFactKind
 
 // terraformConfigStateDriftOutcomeExact, terraformConfigStateDriftOutcome
-// Ambiguous, and terraformConfigStateDriftOutcomeUnresolved are the three
-// outcome values this domain reaches today. See
-// go/internal/correlation/drift/tfconfigstate/doc.go for why "derived" and
-// "stale" are still not emitted, and for the issue #5594 decision that made
-// "unresolved" durable (superseding the #5442-era "unresolved stays log-only"
-// call recorded there).
+// Derived, terraformConfigStateDriftOutcomeAmbiguous, and
+// terraformConfigStateDriftOutcomeUnresolved are the four outcome values this
+// domain reaches today. See go/internal/correlation/drift/tfconfigstate/doc.go
+// for why "stale" is still not emitted, for the issue #5594 decision that
+// made "unresolved" durable (superseding the #5442-era "unresolved stays
+// log-only" call recorded there), and for issue #5572's per-address
+// module-resolution-confidence signal that makes "derived" reachable.
 const (
 	terraformConfigStateDriftOutcomeExact      = "exact"
+	terraformConfigStateDriftOutcomeDerived    = "derived"
 	terraformConfigStateDriftOutcomeAmbiguous  = "ambiguous"
 	terraformConfigStateDriftOutcomeUnresolved = "unresolved"
 )
@@ -137,7 +140,7 @@ func (w PostgresTerraformConfigStateDriftWriter) WriteTerraformConfigStateDriftF
 		canonicalIDs = append(canonicalIDs, canonicalID)
 	default:
 		for _, candidate := range write.Candidates {
-			row, canonicalID, err := exactFindingFactRow(write, candidate, now)
+			row, canonicalID, err := perAddressFindingFactRow(write, candidate, now)
 			if err != nil {
 				return TerraformConfigStateDriftWriteResult{}, err
 			}
@@ -173,12 +176,22 @@ func (w PostgresTerraformConfigStateDriftWriter) WriteTerraformConfigStateDriftF
 	}, nil
 }
 
-func exactFindingFactRow(
+// perAddressFindingFactRow builds the durable fact row for one admitted
+// per-address drift candidate. Named "perAddressFindingFactRow" rather than
+// the historical "exactFindingFactRow" (issue #5572): this row is no longer
+// always "exact" -- moduleResolutionOutcome downgrades Outcome to "derived"
+// when the candidate carries a EvidenceTypeModuleResolutionConfidence atom,
+// meaning the config-side Address the candidate was built from depended on
+// an unresolved module-prefix fallback (see
+// go/internal/correlation/drift/tfconfigstate/candidate.go and
+// go/internal/storage/postgres/tfstate_drift_evidence_module_confidence.go).
+func perAddressFindingFactRow(
 	write TerraformConfigStateDriftWrite,
 	candidate model.Candidate,
 	now time.Time,
 ) (reducerFactVersionedRow, string, error) {
 	driftKind := readDriftKindAtom(candidate)
+	outcome := moduleResolutionOutcome(candidate)
 	stableKey := strings.Join([]string{
 		"terraform_config_state_drift",
 		strings.TrimSpace(write.ScopeID),
@@ -207,7 +220,7 @@ func exactFindingFactRow(
 		CanonicalID:   canonicalID,
 		CandidateID:   candidate.ID,
 		CandidateKind: candidate.Kind,
-		Outcome:       terraformConfigStateDriftOutcomeExact,
+		Outcome:       outcome,
 		Address:       candidate.CorrelationKey,
 		DriftKind:     driftKind,
 		BackendKind:   write.BackendKind,
@@ -401,6 +414,27 @@ func ambiguousOwnerCandidatesPayload(rows []tfstatebackend.TerraformBackendRow) 
 		})
 	}
 	return out
+}
+
+// moduleResolutionOutcome returns terraformConfigStateDriftOutcomeDerived
+// when candidate carries a EvidenceTypeModuleResolutionConfidence atom
+// (issue #5572) — the config-side address this candidate was built from
+// depended on an unresolved module-prefix fallback (a registry-shorthand
+// misclassification or a depth-exceeded module chain; see
+// tfstate_drift_evidence_module_confidence.go) — and
+// terraformConfigStateDriftOutcomeExact otherwise. The specific reason stays
+// in the atom's Value inside the row's Evidence array (driftEvidencePayload
+// below carries every atom verbatim) rather than becoming a second outcome
+// value per cause: an operator debugging a spurious finding reads the
+// evidence array for "which unresolved-module reason," and the Outcome
+// column stays a join-confidence signal, not a reason taxonomy.
+func moduleResolutionOutcome(candidate model.Candidate) string {
+	for _, atom := range candidate.Evidence {
+		if atom.EvidenceType == tfconfigstate.EvidenceTypeModuleResolutionConfidence {
+			return terraformConfigStateDriftOutcomeDerived
+		}
+	}
+	return terraformConfigStateDriftOutcomeExact
 }
 
 func driftEvidencePayload(evidence []model.EvidenceAtom) []map[string]any {

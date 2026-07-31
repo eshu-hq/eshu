@@ -272,7 +272,7 @@ func composeReplatformingPlanSchema() map[string]any {
 func terraformConfigStateDriftFindingsTool() ToolDefinition {
 	return ToolDefinition{
 		Name:        "list_terraform_config_state_drift_findings",
-		Description: "List active Terraform config-vs-state drift reducer findings for one bounded state-snapshot scope, with the exact/ambiguous/unresolved outcome and drift kind for each finding. \"unresolved\" means backend-owner resolution found zero candidate config repos AT EVALUATION TIME, not that no owner exists: an unsynced repo and a genuinely untracked backend look identical today, and a later evaluation of the same generation can resolve to exact or ambiguous instead once an owning repo is present. A scope that has not resolved at evaluation time is reported as one \"unresolved\" finding, not an empty page, so it can be told apart from a scope that resolved cleanly and simply has no drift. Provider-neutral: config-vs-state drift is not cloud-specific. Provide scope_id.",
+		Description: "List active Terraform config-vs-state drift reducer findings for one bounded state-snapshot scope, with the exact/derived/ambiguous/unresolved outcome and drift kind for each finding. \"derived\" means the finding's config-side address depended on an unresolved module-prefix fallback (a Terraform-Registry-shorthand misclassification, e.g. a repo whose top-level directory is literally \"terraform-aws-modules\", or a module chain deeper than the resolver's depth bound) and so may not match the real state address; check the finding's evidence array for the specific reason before trusting it as genuine drift. \"unresolved\" means backend-owner resolution found zero candidate config repos AT EVALUATION TIME, not that no owner exists: an unsynced repo and a genuinely untracked backend look identical today, and a later evaluation of the same generation can resolve to exact or ambiguous instead once an owning repo is present. A scope that has not resolved at evaluation time is reported as one \"unresolved\" finding, not an empty page, so it can be told apart from a scope that resolved cleanly and simply has no drift. Provider-neutral: config-vs-state drift is not cloud-specific. Provide scope_id.",
 		InputSchema: terraformConfigStateDriftFindingsSchema(),
 	}
 }
@@ -291,7 +291,7 @@ func terraformConfigStateDriftFindingsSchema() map[string]any {
 			},
 			"outcome": map[string]any{
 				"type":        "string",
-				"description": "Optional outcome filter: exact, ambiguous, or unresolved",
+				"description": "Optional outcome filter: exact, derived, ambiguous, or unresolved",
 			},
 			"drift_kinds": map[string]any{
 				"type":        "array",

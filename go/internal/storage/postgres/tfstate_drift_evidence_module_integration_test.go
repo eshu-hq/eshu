@@ -181,6 +181,16 @@ func TestLoadConfigByAddressRootModuleResourcesKeepIdenticalAddress(t *testing.T
 	if got, want := rows[0].Address, "aws_iam_role.svc"; got != want {
 		t.Fatalf("Address = %q, want %q (root-module byte-identical regression)", got, want)
 	}
+	// Issue #5572 control: a genuinely root-module resource (no module
+	// nesting at all) must NOT be marked low-confidence just because it has
+	// no prefix. Confidence is about an ABANDONED module resolution, not
+	// about "no prefix" alone.
+	if rows[0].Config == nil {
+		t.Fatal("rows[0].Config = nil, want a config-side row")
+	}
+	if got := rows[0].Config.ModuleResolutionReason; got != "" {
+		t.Fatalf("ModuleResolutionReason = %q, want empty for a genuine root-module resource", got)
+	}
 }
 
 func TestLoadConfigByAddressMissingTerraformModulesFactDegradesGracefully(t *testing.T) {

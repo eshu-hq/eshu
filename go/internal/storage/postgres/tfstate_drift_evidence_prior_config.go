@@ -114,7 +114,7 @@ func (l PostgresDriftEvidenceLoader) loadPriorConfigAddresses(
 	seenModuleRename := map[string]struct{}{}
 	for _, generationID := range generationOrder {
 		group := groupsByGeneration[generationID]
-		priorPrefixMap, err := l.buildModulePrefixMap(ctx, scopeID, group.generationID, recorder)
+		priorPrefixMap, _, err := l.buildModulePrefixMap(ctx, scopeID, group.generationID, recorder)
 		if err != nil {
 			return nil, fmt.Errorf("build prior config module prefix map for generation %q: %w", group.generationID, err)
 		}
@@ -147,7 +147,7 @@ func collectPriorConfigAddresses(
 	entryPath := strings.TrimSpace(coerceJSONString(entry["path"]))
 	prefixes := prefixMap.modulePrefixForPath(entryPath)
 	if len(prefixes) == 0 {
-		row, ok := configRowFromParserEntry(entry, "")
+		row, ok := configRowFromParserEntry(entry, "", "")
 		if !ok {
 			return
 		}
@@ -155,7 +155,7 @@ func collectPriorConfigAddresses(
 		return
 	}
 	for _, prefix := range prefixes {
-		row, ok := configRowFromParserEntry(entry, prefix)
+		row, ok := configRowFromParserEntry(entry, prefix, "")
 		if !ok {
 			return
 		}

@@ -107,6 +107,74 @@ func TestBuildCandidatesAttachesAddressAndDriftKindAtoms(t *testing.T) {
 	}
 }
 
+// TestBuildCandidatesAttachesModuleResolutionConfidenceAtomWhenConfigRowFlagsIt
+// proves BuildCandidates threads ResourceRow.ModuleResolutionReason (issue
+// #5572) onto a dedicated EvidenceTypeModuleResolutionConfidence atom so the
+// reducer writer can downgrade Outcome from "exact" to "derived" without
+// re-deriving the reason itself.
+func TestBuildCandidatesAttachesModuleResolutionConfidenceAtomWhenConfigRowFlagsIt(t *testing.T) {
+	t.Parallel()
+
+	rows := []AddressedRow{
+		{
+			Address:      "aws_iam_role.svc",
+			ResourceType: "aws_iam_role",
+			Config: &ResourceRow{
+				Address:                "aws_iam_role.svc",
+				ResourceType:           "aws_iam_role",
+				ModuleResolutionReason: "external_registry",
+			},
+		},
+	}
+	got := BuildCandidates(rows, sampleAnchor(), "state_snapshot:s3:hash-1")
+	if len(got) != 1 {
+		t.Fatalf("BuildCandidates() = %d, want 1", len(got))
+	}
+	if err := got[0].Validate(); err != nil {
+		t.Fatalf("Candidate.Validate() error = %v", err)
+	}
+
+	var confidenceAtom *model.EvidenceAtom
+	for i := range got[0].Evidence {
+		if got[0].Evidence[i].EvidenceType == EvidenceTypeModuleResolutionConfidence {
+			confidenceAtom = &got[0].Evidence[i]
+		}
+	}
+	if confidenceAtom == nil {
+		t.Fatal("missing module resolution confidence atom")
+	}
+	if confidenceAtom.Key != EvidenceKeyModuleResolutionReason {
+		t.Fatalf("confidence atom key = %q, want %q", confidenceAtom.Key, EvidenceKeyModuleResolutionReason)
+	}
+	if confidenceAtom.Value != "external_registry" {
+		t.Fatalf("confidence atom value = %q, want %q", confidenceAtom.Value, "external_registry")
+	}
+}
+
+// TestBuildCandidatesOmitsModuleResolutionConfidenceAtomWhenConfigRowIsClean
+// is the negative case: a config row with no ModuleResolutionReason must NOT
+// carry the atom, so a genuinely exact finding never gets misread as derived.
+func TestBuildCandidatesOmitsModuleResolutionConfidenceAtomWhenConfigRowIsClean(t *testing.T) {
+	t.Parallel()
+
+	rows := []AddressedRow{
+		{
+			Address:      "aws_iam_role.svc",
+			ResourceType: "aws_iam_role",
+			Config:       &ResourceRow{Address: "aws_iam_role.svc", ResourceType: "aws_iam_role"},
+		},
+	}
+	got := BuildCandidates(rows, sampleAnchor(), "state_snapshot:s3:hash-1")
+	if len(got) != 1 {
+		t.Fatalf("BuildCandidates() = %d, want 1", len(got))
+	}
+	for _, atom := range got[0].Evidence {
+		if atom.EvidenceType == EvidenceTypeModuleResolutionConfidence {
+			t.Fatalf("unexpected module resolution confidence atom on a clean config row: %+v", atom)
+		}
+	}
+}
+
 func TestBuildCandidatesAdmitsThroughEngineAcrossAllDriftKinds(t *testing.T) {
 	t.Parallel()
 
