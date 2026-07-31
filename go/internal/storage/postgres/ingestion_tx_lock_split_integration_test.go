@@ -17,17 +17,25 @@ package postgres
 // The fix moves the backfill into its own short transaction
 // (runPostCommitRelationshipBackfill) that re-acquires the same per-repo
 // shared barrier only for its own bounded write, AFTER the main commit has
-// already released it. This file proves, against a live Postgres:
+// already released it. This file and ingestion_tx_lock_split_deadlock_test.go
+// (split out at the 500-line cap) together prove, against a live Postgres:
 //
 //  1. BEFORE/AFTER contention: a concurrent exclusive-lock maintenance
 //     transaction on the same repository waits roughly as long as the
 //     backfill takes when the backfill runs inside the locked window (the
 //     pre-fix shape, reproduced directly here), but waits only for the short
 //     atomic commit when CommitScopeGeneration runs the shipped fix.
-//  2. No new deadlock class: many concurrent ingestion commits (each now two
-//     sequential transactions) interleaved with concurrent overlapping-repo
-//     exclusive-lock maintenance batches complete within a bounded deadline
-//     every round.
+//  2. No new deadlock class (ingestion_tx_lock_split_deadlock_test.go): many
+//     concurrent ingestion commits interleaved with concurrent
+//     overlapping-repo exclusive-lock maintenance batches complete within a
+//     bounded deadline every round. Each commit is genuinely two sequential
+//     transactions — TestIngestionCommitAndMaintenanceLockOrderingNeverDeadlocks
+//     commits a never-before-seen repository alias every round specifically
+//     so runPostCommitRelationshipBackfill's hasNewRepo gate
+//     (ingestion_backfill_per_commit.go) is true and its transaction actually
+//     opens, and asserts the resulting Begin() count per repo slot
+//     (beginCountingDB) as positive proof — not only that the round loop
+//     finished without error, which a single-transaction shape would also do.
 //  3. Atomicity preserved: a forced failure in the post-commit backfill
 //     transaction never rolls back, corrupts, or blocks on the already-durable
 //     scope/generation/fact commit — CommitScopeGeneration still returns nil
@@ -38,9 +46,6 @@ package postgres
 
 import (
 	"context"
-	"fmt"
-	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -181,198 +186,6 @@ func TestIngestionCommitScopeGenerationHoldsBarrierOnlyForAtomicCommit(t *testin
 	if evidenceCount == 0 {
 		t.Fatal("relationship_evidence_facts row count = 0, want at least one backfilled row " +
 			"(the post-commit backfill must still discover and persist evidence for the new repository)")
-	}
-}
-
-// TestIngestionCommitAndMaintenanceLockOrderingNeverDeadlocks proves the
-// concurrency-safety half of the #4451 fix: running many concurrent
-// ingestion commits (each now two sequential transactions: the atomic commit,
-// then the post-commit backfill) and many concurrent exclusive-lock
-// maintenance batches over an OVERLAPPING repository set never deadlocks and
-// every operation completes. Postgres advisory locks are pure mutexes with no
-// built-in deadlock detector (unlike row/table locks), so lock ordering
-// discipline is the only thing that keeps this deadlock-free;
-// acquireDeferredMaintenanceRepoExclusiveLocks already sorts its keys for
-// exactly this reason, and the post-commit backfill takes only its OWN single
-// repository's shared lock (never a multi-repository sorted set), so it
-// cannot introduce a new lock-ordering conflict. This test exercises that
-// guarantee end to end against a live Postgres rather than only asserting on
-// sorted input.
-func TestIngestionCommitAndMaintenanceLockOrderingNeverDeadlocks(t *testing.T) {
-	dsn := ingestionTxLockSplitProofDSN(t)
-	ctx := context.Background()
-	db, schemaName := openIngestionTxLockSplitProofSchema(t, dsn)
-	adapter := SQLDB{DB: db}
-
-	const repoCount = 6
-	const rounds = 20
-	repoKeys := make([]string, repoCount)
-	for i := range repoKeys {
-		repoKeys[i] = fmt.Sprintf("repo-deadlock-proof-%d", i)
-	}
-
-	// Seed one generation per repo so commits have a known prior state. Status
-	// is Pending, matching every real production caller of
-	// CommitScopeGeneration (e.g. the git collector's Source, which always
-	// submits GenerationStatusPending — see git_source_processing.go):
-	// commitScopeGeneration never supersedes a scope's prior active generation
-	// itself, only the projector queue's activate/supersede queries do
-	// (activateProjectorGenerationQuery / supersedeProjectorActiveGenerationQuery
-	// in projector_queue_sql.go), and this test never runs the projector.
-	// Seeding (or committing below) as Active writes straight into
-	// ingestion_scopes.active_generation_id (activeGenerationID/
-	// activeTimestamp in ingestion.go gate on Status == Active) without ever
-	// superseding the previous active row, which deterministically violates
-	// scope_generations_active_scope_idx on the scope's second commit — a
-	// second, latent test-setup defect that the #4451 connection-pinning fix
-	// exposed by letting every commit finally reach the INSERT instead of
-	// failing earlier on a stray connection with no search_path.
-	for i, repoKey := range repoKeys {
-		scopeValue := scope.IngestionScope{
-			ScopeID:       fmt.Sprintf("git:scope-deadlock-%d", i),
-			SourceSystem:  "git",
-			ScopeKind:     scope.KindRepository,
-			CollectorKind: scope.CollectorGit,
-			PartitionKey:  repoKey,
-		}
-		gen := scope.ScopeGeneration{
-			GenerationID: fmt.Sprintf("gen-deadlock-seed-%d", i),
-			ScopeID:      scopeValue.ScopeID,
-			ObservedAt:   time.Date(2026, time.July, 1, 0, 0, 0, 0, time.UTC),
-			IngestedAt:   time.Date(2026, time.July, 1, 0, 0, 0, 0, time.UTC),
-			Status:       scope.GenerationStatusPending,
-			TriggerKind:  scope.TriggerKindSnapshot,
-		}
-		store := NewIngestionStore(adapter)
-		store.Now = func() time.Time { return gen.IngestedAt }
-		if err := store.CommitScopeGeneration(
-			ctx, scopeValue, gen,
-			testFactChannel([]facts.Envelope{repoFactEnvelope(fmt.Sprintf("fact-deadlock-seed-%d", i), scopeValue.ScopeID, gen.GenerationID, repoKey, gen.ObservedAt)}),
-		); err != nil {
-			t.Fatalf("seed repo %d: CommitScopeGeneration() error = %v, want nil", i, err)
-		}
-	}
-
-	// Each concurrent participant below (one per repo per round for ingestion
-	// commits, plus two per round for the ascending/descending maintenance
-	// batches) gets its own single-connection handle bound to schemaName,
-	// rather than sharing the schema-owner `adapter` above. Postgres advisory
-	// locks are session-scoped, and a *sql.DB capped at one connection
-	// serializes every goroutine that shares it onto that one physical
-	// connection/session — so sharing `adapter` here would make it
-	// impossible for two "concurrent" transactions to ever actually contend
-	// for the same advisory lock, and this deadlock/lock-ordering proof would
-	// pass vacuously without exercising anything. Handles are opened once, up
-	// front, on the main test goroutine (t.Fatalf/t.Fatal inside
-	// openIngestionTxLockSplitProofClaimerDB is documented unsafe to call
-	// from a spawned goroutine) and reused across rounds: each round's
-	// wg.Wait() makes rounds strictly sequential even though the
-	// repoCount+2 participants within a single round run concurrently, so
-	// reusing per-slot handles across rounds does not reintroduce sharing
-	// within a round.
-	commitAdapters := make([]SQLDB, repoCount)
-	for i := range commitAdapters {
-		commitAdapters[i] = SQLDB{DB: openIngestionTxLockSplitProofClaimerDB(t, ctx, dsn, schemaName)}
-	}
-	maintenanceAdapters := [2]SQLDB{
-		{DB: openIngestionTxLockSplitProofClaimerDB(t, ctx, dsn, schemaName)},
-		{DB: openIngestionTxLockSplitProofClaimerDB(t, ctx, dsn, schemaName)},
-	}
-
-	deadline := time.After(30 * time.Second)
-	done := make(chan struct{})
-	var failures int32
-
-	go func() {
-		var wg sync.WaitGroup
-		for round := 0; round < rounds; round++ {
-			round := round
-			// Concurrent ingestion commits, each taking its own single-repo
-			// shared lock (twice: once for the atomic commit, once for the
-			// post-commit backfill), over the shuffled repo set.
-			for i, repoKey := range repoKeys {
-				i, repoKey := i, repoKey
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					scopeValue := scope.IngestionScope{
-						ScopeID:       fmt.Sprintf("git:scope-deadlock-%d", i),
-						SourceSystem:  "git",
-						ScopeKind:     scope.KindRepository,
-						CollectorKind: scope.CollectorGit,
-						PartitionKey:  repoKey,
-					}
-					// Status is Pending, same as the seed loop above: repeated
-					// same-scope commits across rounds must not each claim
-					// Active, or they deterministically collide on
-					// scope_generations_active_scope_idx since nothing in this
-					// test runs the projector queue's supersede step.
-					gen := scope.ScopeGeneration{
-						GenerationID: fmt.Sprintf("gen-deadlock-r%d-%d", round, i),
-						ScopeID:      scopeValue.ScopeID,
-						ObservedAt:   time.Date(2026, time.July, 1, 1, 0, 0, 0, time.UTC).Add(time.Duration(round) * time.Minute),
-						IngestedAt:   time.Date(2026, time.July, 1, 1, 0, 0, 0, time.UTC).Add(time.Duration(round) * time.Minute),
-						Status:       scope.GenerationStatusPending,
-						TriggerKind:  scope.TriggerKindSnapshot,
-					}
-					store := NewIngestionStore(commitAdapters[i])
-					store.Now = func() time.Time { return gen.IngestedAt }
-					if err := store.CommitScopeGeneration(
-						ctx, scopeValue, gen,
-						testFactChannel([]facts.Envelope{repoFactEnvelope(
-							fmt.Sprintf("fact-deadlock-r%d-%d", round, i), scopeValue.ScopeID, gen.GenerationID, repoKey, gen.ObservedAt,
-						)}),
-					); err != nil {
-						t.Errorf("round %d repo %d: CommitScopeGeneration() error = %v, want nil", round, i, err)
-						atomic.AddInt32(&failures, 1)
-					}
-				}()
-			}
-
-			// Two overlapping-but-reverse-ordered maintenance batches,
-			// exercising the exact interleaving the sorted-key lock ordering
-			// must survive: batch A requests repos in ascending order, batch B
-			// in descending order.
-			ascending := append([]string(nil), repoKeys...)
-			descending := make([]string, len(repoKeys))
-			for i, k := range repoKeys {
-				descending[len(repoKeys)-1-i] = k
-			}
-			for bi, batch := range [][]string{ascending, descending} {
-				bi, batch := bi, batch
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					tx, err := maintenanceAdapters[bi].Begin(ctx)
-					if err != nil {
-						t.Errorf("begin maintenance batch tx: %v", err)
-						atomic.AddInt32(&failures, 1)
-						return
-					}
-					if err := acquireDeferredMaintenanceRepoExclusiveLocks(ctx, tx, batch); err != nil {
-						_ = tx.Rollback()
-						t.Errorf("acquire maintenance batch locks: %v", err)
-						atomic.AddInt32(&failures, 1)
-						return
-					}
-					if err := tx.Commit(); err != nil {
-						t.Errorf("commit maintenance batch tx: %v", err)
-						atomic.AddInt32(&failures, 1)
-					}
-				}()
-			}
-			wg.Wait()
-		}
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		if failures > 0 {
-			t.Fatalf("%d concurrent operation(s) failed; see logs above", failures)
-		}
-	case <-deadline:
-		t.Fatal("concurrent ingestion commits and maintenance batches did not complete within 30s: suspected deadlock")
 	}
 }
 
