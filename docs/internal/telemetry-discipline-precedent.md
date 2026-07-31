@@ -42,7 +42,7 @@ below replaces the human with a CI gate.
 | --- | --- | --- |
 | X1 | `docs/public/observability/telemetry-coverage.md` ([#3689](https://github.com/eshu-hq/eshu/issues/3689), [PR #3715](https://github.com/eshu-hq/eshu/pull/3715)) | The single source of truth that maps every reducer / projector / collector / parser stage to a metric, span, log key, or `No-Observability-Change:` marker. |
 | X2 | `scripts/verify-telemetry-coverage.sh` + test mirror ([#3690](https://github.com/eshu-hq/eshu/issues/3690), [PR #3718](https://github.com/eshu-hq/eshu/pull/3718)) | Static-analysis verifier that diffs the X1 doc against `go/internal/telemetry/instruments.go` and against new files added since the base ref. Fails on any drift in either direction. |
-| X3 | `.github/workflows/verify-telemetry-coverage.yml` ([#3691](https://github.com/eshu-hq/eshu/issues/3691), [PR #3720](https://github.com/eshu-hq/eshu/pull/3720)) | The CI gate that runs X2 on every pull request and push to `main`. |
+| X3 | the "Verify telemetry coverage gate" matrix entry in `.github/workflows/static-contract-gates.yml` ([#3691](https://github.com/eshu-hq/eshu/issues/3691), [PR #3720](https://github.com/eshu-hq/eshu/pull/3720)) | The CI gate that runs X2 on every pull request and push to `main`. Originally shipped as its own `verify-telemetry-coverage.yml` workflow; folded into the shared matrix by the #4218 consolidation. |
 | X4 | `docs/public/observability/dashboards/eshu-operator-overview.json` + generator ([#3692](https://github.com/eshu-hq/eshu/issues/3692), [PR #3722](https://github.com/eshu-hq/eshu/pull/3722)) | The operator-visible artifact. The headline single-stat row surfaces `eshu_dp_active_generations{age_bucket="stuck"}` and `eshu_dp_generation_liveness_failures_total` as the 3 AM alarm signal. |
 
 Together: a maintainer reads the X1 doc to learn the contract, runs the X2
@@ -105,10 +105,10 @@ Use this runbook when adding a new `eshu_dp_*` metric or a new pipeline stage.
    ESHU_TELEMETRY_COVERAGE_BASE=origin/main bash scripts/verify-telemetry-coverage.sh
    ```
 
-7. **Watch the CI gate.** PR pushes trigger the
-   `.github/workflows/verify-telemetry-coverage.yml` workflow. A failure means
-   the doc, the code, or both drifted. The drift report is uploaded as the
-   `telemetry-coverage-drift-report` artifact.
+7. **Watch the CI gate.** PR pushes trigger the "Verify telemetry coverage
+   gate" matrix entry in `.github/workflows/static-contract-gates.yml`. A
+   failure means the doc, the code, or both drifted; the drift report is in
+   that job's log.
 8. **If the new metric should appear on the operator overview dashboard**, add
    the metric name to `scripts/lib/operator-dashboard-metrics.sh` (and, if it
    is substituted into a template, its variable name to that file's
@@ -138,13 +138,13 @@ minutes.
    catch every drift (see Limitations below); the human audit is part of
    the discipline.
 2. **Run the verifier.** `bash scripts/test-verify-telemetry-coverage.sh`
-   runs the test mirror (8 cases) and `scripts/verify-telemetry-coverage.sh`
+   runs the test mirror (39 cases) and `scripts/verify-telemetry-coverage.sh`
    (with `ESHU_TELEMETRY_COVERAGE_BASE=origin/main`) runs the gate. Both pass
    on `main`; the X2 PR proved it.
 3. **Check CI.** Open any merged PR from Epic X. The
-   `verify-telemetry-coverage / Verify telemetry coverage gate` check is
-   green. The drift report artifact is empty (the gate would have failed
-   with a per-stage diff otherwise).
+   `Static Contract Gates / Verify telemetry coverage gate` check is green,
+   and its log reports no drift (the gate would have failed with a
+   per-stage diff otherwise).
 4. **View the operator surface.** Import the dashboard at
    `docs/public/observability/dashboards/eshu-operator-overview.json` into a
    stock Grafana instance with a Prometheus source. The "Is Eshu Healthy?"
