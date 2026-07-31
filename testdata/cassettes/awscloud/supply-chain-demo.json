@@ -65,6 +65,27 @@
           }
         },
         {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:ec2:ami:ami-000000000000000a",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "arn": "",
+            "resource_id": "ami-000000000000000a",
+            "resource_type": "aws_ec2_ami",
+            "name": "ami-000000000000000a",
+            "state": "",
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "service_kind": "ec2",
+            "correlation_anchors": [
+              "ami-000000000000000a"
+            ]
+          }
+        },
+        {
           "fact_kind": "aws_relationship",
           "stable_fact_key": "aws:123456789012:us-east-1:ec2:instance:i-000000000000000a#ami#ami-000000000000000a",
           "schema_version": "1.0.0",
