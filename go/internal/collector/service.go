@@ -172,9 +172,12 @@ type Service struct {
 	Committer    Committer
 	DeadLetters  GenerationDeadLetterSink // optional durable quarantine for commit failures
 	PollInterval time.Duration
-	// AfterBatchDrained runs once after at least one committed generation and
-	// the current source batch is exhausted.
-	AfterBatchDrained func(context.Context) error
+	// AfterBatchDrained runs once after the current source batch is exhausted,
+	// via a real commit or the AfterEmptyBatchDrained escape (see shouldDrain
+	// in Run). Its bool arg, hasCommitted, is true only for a real commit; a
+	// fleet-barrier caller must forward it so an empty shard never opens a
+	// new barrier epoch, only joins one already open.
+	AfterBatchDrained func(context.Context, bool) error
 	// AfterEmptyBatchDrained also runs AfterBatchDrained once when the current
 	// source batch is exhausted without commits. Repeated idle polls are
 	// suppressed until another generation is committed. Use only for runtimes
@@ -225,7 +228,7 @@ func (s Service) Run(ctx context.Context) error {
 			s.endCollectorObserve(observation, nil)
 			shouldDrain := committedSinceDrain || (s.AfterEmptyBatchDrained && !everCommitted)
 			if shouldDrain && s.AfterBatchDrained != nil {
-				if err := s.AfterBatchDrained(ctx); err != nil {
+				if err := s.AfterBatchDrained(ctx, committedSinceDrain); err != nil {
 					return fmt.Errorf("after collector batch drained: %w", err)
 				}
 				committedSinceDrain = false

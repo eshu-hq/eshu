@@ -160,6 +160,7 @@ func TestServiceRunCallsAfterBatchDrainedOnceAfterCommittedBatch(t *testing.T) {
 	defer cancel()
 
 	hookCalls := 0
+	hasCommittedValues := []bool{}
 	service := Service{
 		Source: &stubSource{
 			collected: []CollectedGeneration{
@@ -171,8 +172,9 @@ func TestServiceRunCallsAfterBatchDrainedOnceAfterCommittedBatch(t *testing.T) {
 		},
 		Committer:    &stubCommitter{},
 		PollInterval: time.Millisecond,
-		AfterBatchDrained: func(context.Context) error {
+		AfterBatchDrained: func(_ context.Context, hasCommitted bool) error {
 			hookCalls++
+			hasCommittedValues = append(hasCommittedValues, hasCommitted)
 			return nil
 		},
 	}
@@ -182,6 +184,9 @@ func TestServiceRunCallsAfterBatchDrainedOnceAfterCommittedBatch(t *testing.T) {
 	}
 	if got, want := hookCalls, 1; got != want {
 		t.Fatalf("AfterBatchDrained() calls = %d, want %d", got, want)
+	}
+	if got, want := hasCommittedValues, []bool{true}; len(got) != 1 || got[0] != want[0] {
+		t.Fatalf("AfterBatchDrained() hasCommitted values = %v, want %v (a real commit must report hasCommitted=true)", got, want)
 	}
 }
 

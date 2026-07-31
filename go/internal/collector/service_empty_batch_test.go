@@ -26,7 +26,7 @@ func TestServiceRunSkipsAfterBatchDrainedOnEmptyBatchByDefault(t *testing.T) {
 		},
 		Committer:    &stubCommitter{},
 		PollInterval: time.Millisecond,
-		AfterBatchDrained: func(context.Context) error {
+		AfterBatchDrained: func(context.Context, bool) error {
 			hookCalls++
 			return nil
 		},
@@ -47,6 +47,7 @@ func TestServiceRunCallsAfterBatchDrainedForConfiguredEmptyBatch(t *testing.T) {
 	defer cancel()
 
 	hookCalls := 0
+	hasCommittedValues := []bool{}
 	service := Service{
 		Source: &stubSource{
 			empty: func() {
@@ -56,8 +57,9 @@ func TestServiceRunCallsAfterBatchDrainedForConfiguredEmptyBatch(t *testing.T) {
 		Committer:              &stubCommitter{},
 		PollInterval:           time.Millisecond,
 		AfterEmptyBatchDrained: true,
-		AfterBatchDrained: func(context.Context) error {
+		AfterBatchDrained: func(_ context.Context, hasCommitted bool) error {
 			hookCalls++
+			hasCommittedValues = append(hasCommittedValues, hasCommitted)
 			return nil
 		},
 	}
@@ -67,6 +69,9 @@ func TestServiceRunCallsAfterBatchDrainedForConfiguredEmptyBatch(t *testing.T) {
 	}
 	if got, want := hookCalls, 1; got != want {
 		t.Fatalf("AfterBatchDrained() calls = %d, want %d", got, want)
+	}
+	if got, want := hasCommittedValues, []bool{false}; len(got) != 1 || got[0] != want[0] {
+		t.Fatalf("AfterBatchDrained() hasCommitted values = %v, want %v (the never-committed escape must report hasCommitted=false so callers never open a barrier epoch on its behalf)", got, want)
 	}
 }
 
@@ -137,7 +142,7 @@ func TestServiceRunEmptyBatchEscapeAddsExactlyOneDrainPerProcess(t *testing.T) {
 			Committer:              &stubCommitter{},
 			PollInterval:           time.Microsecond,
 			AfterEmptyBatchDrained: escape,
-			AfterBatchDrained: func(context.Context) error {
+			AfterBatchDrained: func(context.Context, bool) error {
 				hookCalls++
 				return nil
 			},
@@ -194,6 +199,7 @@ func TestServiceRunCallsEmptyBatchDrainHookOnEveryIdlePollForANeverCommittingSha
 	const wantIdlePolls = 3
 	emptyPolls := 0
 	hookCalls := 0
+	hasCommittedValues := []bool{}
 	service := Service{
 		Source: &stubSource{
 			empty: func() {
@@ -206,8 +212,9 @@ func TestServiceRunCallsEmptyBatchDrainHookOnEveryIdlePollForANeverCommittingSha
 		Committer:              &stubCommitter{},
 		PollInterval:           time.Millisecond,
 		AfterEmptyBatchDrained: true,
-		AfterBatchDrained: func(context.Context) error {
+		AfterBatchDrained: func(_ context.Context, hasCommitted bool) error {
 			hookCalls++
+			hasCommittedValues = append(hasCommittedValues, hasCommitted)
 			return nil
 		},
 	}
@@ -217,5 +224,10 @@ func TestServiceRunCallsEmptyBatchDrainHookOnEveryIdlePollForANeverCommittingSha
 	}
 	if got, want := hookCalls, wantIdlePolls; got != want {
 		t.Fatalf("AfterBatchDrained() calls = %d, want %d (a shard that never commits must re-arrive at the barrier every idle poll, not just once)", got, want)
+	}
+	for i, hasCommitted := range hasCommittedValues {
+		if hasCommitted {
+			t.Fatalf("AfterBatchDrained() hasCommitted[%d] = true, want false for every call on a shard that never commits (it must never be allowed to open a barrier epoch)", i)
+		}
 	}
 }
