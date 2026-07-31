@@ -389,8 +389,10 @@ Each `drift_findings[]` item carries an `outcome`:
   Terraform Registry shorthand, so its prefix never resolved) or
   `depth_exceeded` (a local module chain deeper than the resolver's bound).
   Expect these findings to appear as spurious `added_in_config` /
-  `added_in_state` pairs for the same resource, because the unprefixed
-  config address and the prefixed state address never match.
+  `added_in_state` pairs for the same resource, because the config-side
+  address the loader computed does not match the address Terraform state
+  records — root-shaped for `external_registry`, or a wrongly-shallow
+  module prefix inherited from an ancestor for `depth_exceeded`.
 - `ambiguous` — backend-owner resolution found more than one candidate config
   repo for the state snapshot, so no per-address classification ran.
   `address` and `drift_kind` are empty; `ambiguous_owner_candidates` carries
