@@ -40,10 +40,21 @@
 // when a workflow file is registered in neither a gate nor NonGateWorkflows (or
 // in both, or is a stale allowlist entry), when a gate's CI.Job does not name a
 // real check in its CI.Workflow — a job name, job key, or append_gate display,
-// not the workflow title (#5010) — or when a gate's literal (non-glob) trigger
-// is not matched by any glob in its CI workflow's dorny/paths-filter filter
-// block, for a workflow using that matrix-dispatch pattern (#5855). Like the
-// rest of the package it needs no network, Docker, or credentials.
+// not the workflow title (#5010) — when a gate's literal (non-glob) trigger
+// is not matched by its CI workflow's dorny/paths-filter block, for a gate
+// whose filter key resolves either through an append_gate matrix dispatch
+// (#5855) or through a job gated on a paths-filter output via
+// needs.<job>.outputs.<key> (#5546) — or when a gate whose
+// scripts/verify-*.sh is executed by exactly one workflow declares a
+// different ci.workflow (#5748). Filter matching mirrors dorny's own rule:
+// each pattern is compiled separately, a leading ! negates that pattern, and
+// the predicate-quantifier decides whether ANY (default) or EVERY pattern must
+// match. The script-correspondence check counts only executable `run:` blocks
+// as running a script, since a paths filter watches a path rather than
+// invoking it, and it skips rather than reports when no workflow runs the
+// script (CI legitimately uses a different entrypoint than the local gate) or
+// when several do (no single owner). Like the rest of the package it needs no
+// network, Docker, or credentials.
 //
 // # Glob matching
 //
