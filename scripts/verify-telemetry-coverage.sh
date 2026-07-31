@@ -327,7 +327,21 @@ path_target_exists() {
 
 while IFS='|' read -ra cols; do
   n="${#cols[@]}"
-  [ "$n" -ge 2 ] || continue
+  # No count-based skip here on purpose. A prior version had
+  # `[ "$n" -ge 2 ] || continue`, which treated any row splitting to fewer
+  # than 2 fields as "not a row" and skipped it before ANY check below ran.
+  # A doc line that is exactly the single byte `|` matches the `^\|`
+  # selector above but splits to a ONE-element array (`IFS='|' read -ra`
+  # drops the trailing empty field when there is no byte after the lone
+  # delimiter), so it silently vanished -- the fourth instance of the same
+  # "row vanishes before validation" defect across three review rounds
+  # (blank stage cell, blank/comma-only path cell, now a bare pipe) (#5855).
+  # Every row the selector matches must now reach the content
+  # classification below; a row too short to be a real stage-table or
+  # histogram-buckets row falls into the `n -lt 5` malformed branch just
+  # like a truncated stage-table row already does, and gets reported
+  # instead of disappearing. The `${cols[1]:-}`/`${cols[2]:-}` defaults used
+  # in that branch already tolerate a missing index for this reason.
   col2="$(trim_ws "${cols[2]:-}")"
   # Header row (either table shape) or a GFM separator row (plain `---`
   # or colon-alignment `:---`, `:---:`, `---:`) — recognized by content,

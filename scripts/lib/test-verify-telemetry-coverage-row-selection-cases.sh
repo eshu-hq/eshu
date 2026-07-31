@@ -150,3 +150,64 @@ else
     record_pass "header row and GFM separator row stay correctly ignored, not treated as data rows"
   fi
 fi
+
+# Case 27 (#5855, fourth instance of the same "row vanishes before
+# validation" defect across three review rounds -- blank stage cell (case
+# 24/25), blank/comma-only path cell (cases 21/22), now a bare single-byte
+# `|` row): the row-selection regex `^\|` matches a line that is exactly
+# one pipe character and nothing else, so it enters all_rows_tmp, but
+# `IFS='|' read -ra cols` on that exact line yields a ONE-element array
+# (n=1) -- proven empirically, since a lone delimiter with no trailing
+# byte leaves read nothing to emit for a second field. The old
+# `[ "$n" -ge 2 ] || continue` guard treated n=1 as "not a row" and skipped
+# it before any check ever ran, so this exact line passes the gate silently
+# forever. It must now fail loud as a malformed row, the same outcome a
+# truncated stage-table row gets.
+case_bare_pipe="$(init_repo case-bare-pipe)"
+printf '\n|\n' >>"${case_bare_pipe}/docs/public/observability/telemetry-coverage.md"
+git -C "${case_bare_pipe}" add .
+git -C "${case_bare_pipe}" commit -q -m "add a bare single-pipe row to the doc"
+expect_fail "fails when a doc row is exactly a bare single pipe byte" "${case_bare_pipe}"
+
+# Case 28 (#5855 follow-up to case 27): a row consisting of only pipe
+# characters and no content at all (e.g. "|||"). Splitting on '|' gives it
+# enough fields to reach the same malformed-row content classification the
+# n-lt-5 branch already applies to a truncated stage-table row; this pins
+# that it is reported rather than silently accepted as histogram-buckets
+# data (its second column, empty, does not match the boundary-values
+# numeric-list shape).
+case_all_pipes="$(init_repo case-all-pipes)"
+printf '\n|||\n' >>"${case_all_pipes}/docs/public/observability/telemetry-coverage.md"
+git -C "${case_all_pipes}" add .
+git -C "${case_all_pipes}" commit -q -m "add a row of only pipe characters to the doc"
+expect_fail "fails when a doc row consists of only pipe characters" "${case_all_pipes}"
+
+# Case 29 (#5855 follow-up to case 27): a row whose cells are present but
+# contain only whitespace between the pipes (e.g. "|   |   |"). Every cell
+# trims to empty, so this must be reported as malformed for the same reason
+# case 28 is -- a blank second column that is neither a legitimate
+# file:line/boundary_values header nor a numeric bucket-boundary list.
+case_whitespace_only="$(init_repo case-whitespace-only)"
+printf '\n|   |   |\n' >>"${case_whitespace_only}/docs/public/observability/telemetry-coverage.md"
+git -C "${case_whitespace_only}" add .
+git -C "${case_whitespace_only}" commit -q -m "add a row of only whitespace between pipes to the doc"
+expect_fail "fails when a doc row has only whitespace between its pipes" "${case_whitespace_only}"
+
+# Case 30 (#5855 false-positive guard for the case 27-29 fix): the
+# broadened acceptance of short rows must NOT start flagging the doc's own
+# legitimate rows. Re-run the clean fixture (case 1, header + separator +
+# two full 4-column data rows) and the real repo doc's histogram-buckets
+# header/separator rows are already exercised by every other expect_pass
+# case above; this case adds a genuine bare-pipe-in-prose row (mirroring
+# the real doc's `reconciliation_status=not_requested|applied|...` row,
+# which pushes a legitimate stage-table row to 7 fields when split on '|')
+# to confirm a row that legitimately contains bare pipes in its prose still
+# passes.
+case_prose_pipes="$(init_repo case-prose-pipes)"
+cat >>"${case_prose_pipes}/docs/public/observability/telemetry-coverage.md" <<'MD'
+
+| reconciliation stage | go/internal/reducer/service.go:1 | `No-Observability-Change: status is one of not_requested|applied|suppressed_input_invalid, covered by eshu_dp_reducer_run_duration_seconds` | reducer runtime |
+MD
+git -C "${case_prose_pipes}" add .
+git -C "${case_prose_pipes}" commit -q -m "add a legitimate row whose metric prose contains bare pipes"
+expect_pass "passes when a legitimate row's prose contains bare pipe characters" "${case_prose_pipes}"

@@ -36,10 +36,14 @@
 // DriftCheck(repoRoot, *Registry) keeps .pre-commit-config.yaml and
 // .github/workflows/ in lockstep with the registry. It fails when a local hook
 // is neither a gate's HookID nor a declared HygieneHook, when a gate's HookID is
-// missing from the hook config or sits at a stage inconsistent with its tier, or
+// missing from the hook config or sits at a stage inconsistent with its tier,
 // when a workflow file is registered in neither a gate nor NonGateWorkflows (or
-// in both, or is a stale allowlist entry). Like the rest of the package it needs
-// no network, Docker, or credentials.
+// in both, or is a stale allowlist entry), when a gate's CI.Job does not name a
+// real check in its CI.Workflow — a job name, job key, or append_gate display,
+// not the workflow title (#5010) — or when a gate's literal (non-glob) trigger
+// is not matched by any glob in its CI workflow's dorny/paths-filter filter
+// block, for a workflow using that matrix-dispatch pattern (#5855). Like the
+// rest of the package it needs no network, Docker, or credentials.
 //
 // # Glob matching
 //
