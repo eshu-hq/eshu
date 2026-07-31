@@ -113,3 +113,46 @@ stated decision rather than a silent gap:
   is a scoping decision, not an oversight: if a future real-world report
   shows `depth_exceeded` firing in practice, a golden fixture is the
   concrete follow-up, mirroring the `external_registry` fixture added here.
+
+## Adding a corpus resource shifts the IaC inventory count assertion (review follow-up)
+
+A live golden-corpus-gate run confirmed the `derived`-outcome fixture above
+proves the cause end to end (the `required_json_object_matches` check on
+`drift_findings[].evidence[]` passed, meaning `evidence_type` and `value`
+landed on the same evidence atom) -- but it also failed a SIBLING
+assertion: `GET /api/v0/iac/resources?limit=50&include_facets=true`
+expected `count`/`summary.by_kind.resource`/`summary.total` at their
+pre-fixture values.
+
+**This coupling is structural, not incidental, and the next person adding a
+corpus fixture should expect it too.** `tests/fixtures/ecosystems/terraform_comprehensive/terraform-aws-modules/vpc/aws/main.tf`
+declares one genuine `resource` block. `GET /api/v0/iac/resources`'s
+`count` field is `len(results)` (`go/internal/query/iac_resources.go`) --
+the returned PAGE, bounded by `limit`, not an unconditional corpus total --
+but this specific golden query shape requests `limit=50` against a corpus
+whose matching resource-kind population (13, pre-fixture) sits well under
+that limit, so every matching resource is returned and `count` equals the
+true total for this one request. `summary.by_kind.resource` and
+`summary.total` are separate, unbounded aggregates
+(`go/internal/query/iac_inventory_postgres.go`'s `Summary`) that scan the
+same `fact_kind='content_entity'`, `TerraformResource`-labeled population
+regardless of page limit. Any new `resource` block landing in an
+already-onboarded fixture repo (`terraform_comprehensive` here) raises all
+three by exactly the block count added, with `module`/`data` blocks moving
+the same three counts through a different dimension. Issue #5594's
+`terraform_local_backend_demo` fixture hit this identical coupling first
+(two resource blocks, +2/+2); this fixture repeats the pattern at +1
+(one resource block): `count`/`summary.by_kind.resource` 13 -> 14,
+`summary.total` 21 -> 22. Both `testdata/golden/e2e-20repo-snapshot.json`'s
+`required_json_values` on that query shape AND the static regression lock-in
+at `go/cmd/golden-corpus-gate/snapshot_iac_inventory_test.go` needed the
+matching update -- the snapshot alone is not enough; the Go test hardcodes
+the same three numbers as its own regression guard against silent snapshot
+drift, and `go test ./cmd/golden-corpus-gate/... -count=1` catches a
+snapshot/test mismatch immediately, without needing the live gate.
+
+Before adding a `resource`/`module`/`data` block to ANY already-onboarded
+fixture repo in the corpus, check
+`GET /api/v0/iac/resources?limit=50&include_facets=true`'s
+`required_json_values` and its lock-in test for the count this block
+type will move, and update both together in the same change.

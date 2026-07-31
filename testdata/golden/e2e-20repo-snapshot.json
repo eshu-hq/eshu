@@ -5828,7 +5828,7 @@
         "minimum_results": 0
       },
       "GET /api/v0/iac/resources?limit=50&include_facets=true": {
-        "description": "Current active-generation IaC resource list and authoritative caller-visible summary from the terraform/IaC corpus. count/summary.by_kind.resource raised 11 -> 13 and summary.total raised 19 -> 21 by issue #5594's terraform_local_backend_demo fixture (tests/fixtures/ecosystems/terraform_local_backend_demo/main.tf), which declares two resource blocks (aws_instance.local_backend_demo, aws_s3_bucket.local_backend_demo) and zero module/data blocks: this endpoint's kind=resource default list and summary.by_kind.resource both scan the TerraformResource graph label sourced from fact_kind='content_entity' config-side parsing (go/internal/query/iac_resources.go's iacResourceRow doc comment) -- unrelated to config-vs-state drift ownership resolution -- so +2 resource-kind content entities land regardless of drift-resolution outcome; summary.total sums all three kind counts (go/internal/query/iac_inventory_postgres.go's Summary: `summary.Total += count` per kind dimension row), so it moves by the same +2 with module/data-source counts unchanged (19 - 11 = 8 held constant, 13 + 8 = 21).",
+        "description": "Current active-generation IaC resource list and authoritative caller-visible summary from the terraform/IaC corpus. count/summary.by_kind.resource raised 11 -> 13 and summary.total raised 19 -> 21 by issue #5594's terraform_local_backend_demo fixture (tests/fixtures/ecosystems/terraform_local_backend_demo/main.tf), which declares two resource blocks (aws_instance.local_backend_demo, aws_s3_bucket.local_backend_demo) and zero module/data blocks: this endpoint's kind=resource default list and summary.by_kind.resource both scan the TerraformResource graph label sourced from fact_kind='content_entity' config-side parsing (go/internal/query/iac_resources.go's iacResourceRow doc comment) -- unrelated to config-vs-state drift ownership resolution -- so +2 resource-kind content entities land regardless of drift-resolution outcome; summary.total sums all three kind counts (go/internal/query/iac_inventory_postgres.go's Summary: `summary.Total += count` per kind dimension row), so it moves by the same +2 with module/data-source counts unchanged (19 - 11 = 8 held constant, 13 + 8 = 21). count/summary.by_kind.resource raised 13 -> 14 and summary.total raised 21 -> 22 by issue #5572's golden-corpus fixture (tests/fixtures/ecosystems/terraform_comprehensive/terraform-aws-modules/vpc/aws/main.tf), which declares exactly one resource block (aws_security_group.vpc_endpoints) and zero module/data blocks -- the pre-existing `module \"vpc\"` block in modules.tf is unchanged, only its previously-dead source path now has a real target directory, so the module/data-source counts (8, unchanged since #5594) hold and this is a pure +1 resource-kind content entity, same mechanism as #5594's fixture, confirmed by a live golden-corpus-gate run against this exact scope.",
         "required_response_fields": [
           "resources",
           "count",
@@ -5842,9 +5842,9 @@
           "summary.by_kind.resource"
         ],
         "required_json_values": {
-          "count": 13,
-          "summary.total": 21,
-          "summary.by_kind.resource": 13
+          "count": 14,
+          "summary.total": 22,
+          "summary.by_kind.resource": 14
         }
       },
       "GET /api/v0/documentation/facts?fact_kind=source": {
