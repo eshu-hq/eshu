@@ -72,8 +72,13 @@ strip_block_comments() {
 	}'
 }
 
-# count_homes prints how many lines of stdin carry the needle on a NON-comment
-# line, per the comment syntax the caller registered with set_comment_prefix.
+# build_home_pattern turns a needle into the PCRE2 pattern that decides
+# whether a line counts as a non-comment "home" for it, per the comment syntax
+# the caller registered with set_comment_prefix. Both count_homes (below) and
+# resolve_unique_line share this one pattern builder so the two can never
+# diverge on what counts as a home — a needle that count_homes considers
+# ambiguous must resolve_unique_line consider identically ambiguous, not pass
+# one check and fail the other.
 #
 # The needle is PCRE2-quoted (\Q..\E) so its metacharacters stay literal. That
 # holds only while the needle carries no literal \E of its own, which would close
@@ -94,9 +99,12 @@ strip_block_comments() {
 # the needle sits (scored as a comment, so the assertion fails "missing" — the
 # safe direction), and heredoc bodies and other multi-line quoting. It is a
 # word-boundary (or, for `.sql`, anywhere-on-line) heuristic over single lines,
-# not a lexer.
-count_homes() {
-	local needle="$1" open pattern
+# not a lexer. A heredoc body line that happens to carry the needle text is
+# therefore scored as a REAL (non-comment) home, same as genuine code — this is
+# what makes resolve_unique_line's exactly-one-home check catch a heredoc-body
+# decoy: the decoy adds a second home rather than silently passing as a comment.
+build_home_pattern() {
+	local needle="$1" open
 	[[ "${needle}" != *'\E'* ]] ||
 		fail "needle carries a literal \\E, which would close its \\Q..\\E quote and let the remainder act as a regex: ${needle}"
 	if [[ -n "${comment_prefix}" ]]; then
@@ -110,10 +118,17 @@ count_homes() {
 		else
 			open="(?<![^\s;|&(])\Q${comment_prefix}\E"
 		fi
-		pattern="^(?!${open})(?:'[^']*'|\"[^\"]*\"|(?!${open}).)*?\Q${needle}\E"
+		printf '%s' "^(?!${open})(?:'[^']*'|\"[^\"]*\"|(?!${open}).)*?\Q${needle}\E"
 	else
-		pattern="\Q${needle}\E"
+		printf '%s' "\Q${needle}\E"
 	fi
+}
+
+# count_homes prints how many lines of stdin carry the needle on a NON-comment
+# line, per the pattern build_home_pattern resolves for it.
+count_homes() {
+	local needle="$1" pattern
+	pattern="$(build_home_pattern "${needle}")"
 	if (( comment_block )); then
 		strip_block_comments | rg --pcre2 --count -- "${pattern}" || true
 	else
@@ -155,6 +170,43 @@ require_in_region() {
 	[[ -n "${region}" ]] || fail "empty region ${range} of $(basename "${file}") for ${label}"
 	require_in_text "${label}" "$(basename "${file}") ${range}" "${needle}" \
 		< <(printf '%s\n' "${region}")
+}
+
+# resolve_unique_line: the SAME exactly-one-non-comment-home invariant
+# require_in enforces, for a caller that additionally needs the resolved
+# line NUMBER — bracket PLACEMENT (source-line ordering), not just presence.
+# It shares build_home_pattern with count_homes, so a decoy that would make
+# count_homes report "ambiguous" (a heredoc-body line, a quoted string, a
+# second real occurrence) makes this die with the identical diagnostic
+# instead of silently binding to whichever line rg listed first.
+#
+# Process substitution, not a `<<<` here-string or a `... | cut` pipeline: a
+# `rg ... | cut` idiom under `set -o pipefail` propagates rg's exit 1 (zero
+# matches) straight through `set -e` and aborts the whole script BEFORE this
+# function's own "missing"/"ambiguous" diagnostic ever runs (#5837 P2-2, the
+# silent-abort case — reproduced with trailing whitespace defeating a
+# `--line-regexp` lookup). The `|| true` on the rg call below is what keeps a
+# zero-match result inside this function's own control flow instead of
+# escaping through pipefail.
+resolve_unique_line() {
+	local label="$1" file="$2" needle="$3" pattern home_line
+	local -a home_lines=()
+	set_comment_prefix "${file}"
+	pattern="$(build_home_pattern "${needle}")"
+	while IFS=: read -r home_line _; do
+		home_lines+=("${home_line}")
+	done < <(
+		if (( comment_block )); then
+			strip_block_comments <"${file}" | rg --pcre2 -n -- "${pattern}" || true
+		else
+			rg --pcre2 -n -- "${pattern}" "${file}" || true
+		fi
+	)
+	case "${#home_lines[@]}" in
+		0) fail "missing ${label} (no non-comment line of $(basename "${file}") carries it): ${needle}" ;;
+		1) printf '%s\n' "${home_lines[0]}"; return 0 ;;
+	esac
+	fail "ambiguous ${label}: ${#home_lines[@]} non-comment lines of $(basename "${file}") carry it (lines ${home_lines[*]}); narrow the needle or scope the region until exactly one home remains: ${needle}"
 }
 
 # require_matches: the invariant for the two assertions whose needle is a

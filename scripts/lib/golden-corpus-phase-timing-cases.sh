@@ -420,28 +420,38 @@ done < <(printf '%s\n' "${phase_graph_query_excluded_region}")
 # phase_graph_query_start= assignment and the emit_phase_timings_and_flags
 # call that consumes it.
 #
-# All three needles below are anchored to the ASSIGNMENT/STAMP line itself,
-# not to any substring match -- a bare `--fixed-strings` lookup is satisfied
-# by a comment that merely mentions the needle text placed above the real
-# line, which resolves phase_graph_query_start_line to the comment's (earlier)
-# line number and lets a bracket relocated above the real assignment read as
-# "after start" instead of failing. `^phase_graph_query_start=` anchors to
-# line-start, which no shell comment can satisfy (comments always begin with
-# `#`); `--line-regexp` on the two stamp lookups requires the ENTIRE line to
-# equal the stamp text, which a prose mention never does either.
+# #5837 round-9+ review: an earlier version of this block anchored each needle
+# with `^...`/`--line-regexp` and picked the FIRST match via `rg --max-count=1
+# | cut -d: -f1`. That defeats a COMMENT decoy (comments cannot open with the
+# needle text), but not a HEREDOC-BODY decoy: a `cat <<'EOF' >/dev/null` /
+# `phase_graph_query_start=999` / `EOF` block placed above the real assignment
+# is a real, column-1, non-comment line that satisfies `^phase_graph_query_start=`
+# just as well as the genuine one, and `--max-count=1` silently bound to
+# whichever line rg listed first -- reproduced: a bracket relocated wholly
+# above the real start assignment, with a matching heredoc decoy placed even
+# earlier, passed this guard at exit 0 with the real placement genuinely wrong.
+# Enumerating decoy shapes (a comment, then a heredoc body, and whatever comes
+# next) does not terminate; requiring UNIQUENESS does. resolve_unique_line
+# (scripts/lib/golden-corpus-mirror-matcher.sh) is the SAME exactly-one-
+# non-comment-home invariant the `require`/`require_lib` calls above already
+# apply to these same needles (see phase_graph_query_excluded_region_allowed),
+# now also returning the resolved line number: a decoy of ANY shape that adds
+# a second non-comment home turns the lookup "ambiguous" and dies loudly
+# instead of silently binding to the wrong line. It also replaces the
+# `rg ... | cut` pipeline that, under this file's `set -o pipefail` caller,
+# aborted the whole script on a genuine zero-match BEFORE reaching this
+# block's own diagnostic (#5837 P2-2, reproduced with trailing whitespace
+# defeating the old `--line-regexp` lookup) -- resolve_unique_line guards its
+# own `rg` call and reports "missing ..." instead.
 # ---------------------------------------------------------------------------
-phase_graph_query_start_line="$(rg -n --max-count=1 -- '^phase_graph_query_start=' "${script}" | cut -d: -f1)"
-[[ -n "${phase_graph_query_start_line}" ]] ||
-	fail "phase_graph_query_start= assignment not found in $(basename "${script}")"
-phase_graph_query_excluded_open_line="$(rg -n --fixed-strings --line-regexp --max-count=1 -- "${phase_graph_query_excluded_region_allowed[0]}" "${script}" | cut -d: -f1)"
-[[ -n "${phase_graph_query_excluded_open_line}" ]] ||
-	fail "phase_graph_query_excluded_starts+= stamp not found in $(basename "${script}")"
-phase_graph_query_excluded_close_line="$(rg -n --fixed-strings --line-regexp --max-count=1 -- "${phase_graph_query_excluded_region_allowed[2]}" "${script}" | cut -d: -f1)"
-[[ -n "${phase_graph_query_excluded_close_line}" ]] ||
-	fail "phase_graph_query_excluded_ends+= stamp not found in $(basename "${script}")"
-phase_graph_query_emit_line="$(rg -n --fixed-strings --max-count=1 --line-regexp -- 'emit_phase_timings_and_flags' "${script}" | cut -d: -f1)"
-[[ -n "${phase_graph_query_emit_line}" ]] ||
-	fail "emit_phase_timings_and_flags invocation not found in $(basename "${script}")"
+phase_graph_query_start_line="$(resolve_unique_line \
+	"phase_graph_query_start= assignment" "${script}" 'phase_graph_query_start=')"
+phase_graph_query_excluded_open_line="$(resolve_unique_line \
+	"phase_graph_query_excluded_starts+= stamp" "${script}" "${phase_graph_query_excluded_region_allowed[0]}")"
+phase_graph_query_excluded_close_line="$(resolve_unique_line \
+	"phase_graph_query_excluded_ends+= stamp" "${script}" "${phase_graph_query_excluded_region_allowed[2]}")"
+phase_graph_query_emit_line="$(resolve_unique_line \
+	"emit_phase_timings_and_flags invocation" "${script}" 'emit_phase_timings_and_flags')"
 (( phase_graph_query_start_line < phase_graph_query_excluded_open_line )) ||
 	fail "phase_graph_query excluded-span open stamp (line ${phase_graph_query_excluded_open_line}) is not after phase_graph_query_start= (line ${phase_graph_query_start_line}) in $(basename "${script}") -- a bracket relocated above the start assignment mismeasures the window without tripping any content check"
 (( phase_graph_query_excluded_close_line < phase_graph_query_emit_line )) ||
