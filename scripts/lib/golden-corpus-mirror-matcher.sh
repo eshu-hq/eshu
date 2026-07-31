@@ -83,8 +83,25 @@ strip_block_comments() {
 # The needle is PCRE2-quoted (\Q..\E) so its metacharacters stay literal. That
 # holds only while the needle carries no literal \E of its own, which would close
 # the quote and hand the remainder to the regex engine (`\Ecode_line.*` matched
-# `code_line ANYTHING_HERE`), so such a needle is rejected outright rather than
-# silently reinterpreted.
+# `code_line ANYTHING_HERE`), so such a needle is rejected outright by `fail`
+# here. That reject alone is not sufficient: this function is always reached
+# through `pattern="$(build_home_pattern ...)"`, and every real call site
+# (count_homes, resolve_unique_line) makes that assignment INSIDE ITS OWN
+# command substitution (`homes="$(count_homes ...)"`,
+# `line="$(resolve_unique_line ...)"`). Under that double nesting bash
+# suppresses errexit for the failed inner assignment, so the caller used to
+# carry on with pattern="" and hand `rg` an empty PCRE2 pattern -- which
+# matches every line, silently reinterpreting the rejected needle as
+# match-everything instead of aborting (#5837 P2-1). count_homes and
+# resolve_unique_line each carry their own `[[ -n "${pattern}" ]] || exit 1`
+# sentinel immediately after this call for exactly that reason: rejected here
+# does not mean aborted there without it. The sentinel exits bare, with no
+# second message of its own -- the one diagnostic this needle gets was
+# already printed by the `fail` two lines up (its subshell's stderr is
+# inherited by the caller, not swallowed), so a rejected needle prints
+# exactly ONE message and aborts, the same as before this function was
+# extracted to its own lib file, not the \E-reject message followed by a
+# misleading "ambiguous: N non-comment lines carry it" second verdict.
 #
 # What the comment rule DOES handle: a marker that opens the line, a marker
 # after leading whitespace, a TRAILING marker on an otherwise-code line, a
@@ -126,9 +143,31 @@ build_home_pattern() {
 
 # count_homes prints how many lines of stdin carry the needle on a NON-comment
 # line, per the pattern build_home_pattern resolves for it.
+#
+# The emptiness sentinel below closes #5837 P2-1: build_home_pattern's own
+# `fail` runs inside THIS assignment's command substitution, and every real
+# caller of count_homes reaches it through a SECOND, enclosing command
+# substitution (`homes="$(count_homes ...)"` in require_in_text). Under that
+# double nesting, bash suppresses errexit for the failed inner assignment
+# (reproduced with a minimal shim: `p="$(inner)"` inside `mid()`, itself
+# captured as `outer="$(mid)"`, continues past inner's `exit 1`), so this
+# function used to carry on with pattern="" after a needle-\E rejection and
+# hand an EMPTY PCRE2 pattern to `rg`, which matches every line -- the
+# `fail` above still printed its message and returned a nonzero exit from
+# ITS OWN subshell, but this function's flow continued regardless, turning a
+# clean single-message reject into a second, misleading "ambiguous" verdict
+# instead of aborting. build_home_pattern never returns empty on a genuine
+# success (its shortest output is the 4-character `\Q\E`), so an empty
+# pattern here is unambiguous proof the assignment above already failed.
 count_homes() {
 	local needle="$1" pattern
 	pattern="$(build_home_pattern "${needle}")"
+	# build_home_pattern's own `fail` already printed the one diagnostic this
+	# needle gets (its subshell's stderr is inherited, not captured); only
+	# propagate the failure here, with no second message, or a rejected needle
+	# prints its real reason FOLLOWED BY a misleading "ambiguous" verdict
+	# instead of aborting on the first, correct one.
+	[[ -n "${pattern}" ]] || exit 1
 	if (( comment_block )); then
 		strip_block_comments | rg --pcre2 --count -- "${pattern}" || true
 	else
@@ -140,7 +179,22 @@ count_homes() {
 # comment_prefix already set by the caller.
 require_in_text() {
 	local label="$1" origin="$2" needle="$3" homes
-	homes="$(count_homes "${needle}")"
+	# The explicit `|| exit 1` matters, not just style: count_homes's own
+	# `|| true` guards make ITS exit status always 0 EXCEPT when its
+	# build_home_pattern sentinel fires (a rejected needle, e.g. one carrying
+	# a literal \E). A genuinely absent needle and a rejected needle both
+	# print empty stdout here, so `${homes:-0}` alone cannot tell them apart
+	# -- only count_homes's own exit status can. Relying on bare `set -e` to
+	# react to that nonzero status is NOT enough: this assignment runs inside
+	# whatever subshell depth the caller is at (any require_in/require caller
+	# wrapped in so much as one `(...)` group already qualifies), and at
+	# depth >= 1 bash suppresses errexit for a failed nested command-
+	# substitution assignment (the same #5837 P2-1 class, one layer up) --
+	# reproduced: without this guard, a rejected needle called through one
+	# extra layer of subshell fell through to the "missing" branch below
+	# instead of stopping on count_homes's already-printed rejection reason.
+	# `||`/`&&` check $? explicitly, so they work at any depth.
+	homes="$(count_homes "${needle}")" || exit 1
 	case "${homes:-0}" in
 		0) fail "missing ${label} (no non-comment line of ${origin} carries it): ${needle}" ;;
 		1) return 0 ;;
@@ -193,6 +247,13 @@ resolve_unique_line() {
 	local -a home_lines=()
 	set_comment_prefix "${file}"
 	pattern="$(build_home_pattern "${needle}")"
+	# See count_homes's sentinel comment above: this assignment sits inside the
+	# SAME double-command-substitution shape every real caller uses
+	# (`x="$(resolve_unique_line ...)"`), so errexit is suppressed here too
+	# without this explicit check, and the one diagnostic a rejected needle
+	# gets was already printed by build_home_pattern's own `fail` -- no second
+	# message here, just propagate the failure.
+	[[ -n "${pattern}" ]] || exit 1
 	while IFS=: read -r home_line _; do
 		home_lines+=("${home_line}")
 	done < <(
