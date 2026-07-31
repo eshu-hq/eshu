@@ -9,6 +9,31 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### EC2 AMI node class resolves the instance->AMI relationship
+
+- **Materialize the AMI as a CloudResource node so the instance->AMI edge
+  finally resolves** ([#5717](https://github.com/eshu-hq/eshu/issues/5717)).
+  Issue #5448 shipped an `ec2_instance_uses_ami` `aws_relationship` fact, but
+  no `aws_resource` fact existed for the AMI itself, so the generic AWS
+  relationship edge join (`buildCloudResourceJoinIndex`,
+  `go/internal/reducer/aws_relationship_join.go`) could never resolve the
+  target — the edge was always counted `unresolved` and dropped, never
+  written. The EC2 collector now also emits one `aws_resource` fact per
+  distinct AMI id per scan (`resource_type=aws_ec2_ami`,
+  `go/internal/collector/awscloud/services/ec2/ami_identity.go`),
+  deduplicated across every instance in the scan that shares the same AMI —
+  many instances commonly launch from one AMI, so this avoids emitting a
+  redundant fact per instance. The AMI materializes under the EXISTING
+  `CloudResource` label through the SAME generic AWS resource node
+  materialization every other resource type uses: no new node label, no
+  dedicated node/edge writer, and no reducer join-code change was needed. The
+  fact carries only identity (account/region/resource_id) — no name, state,
+  owner, or creation-date metadata, since that requires a separate
+  `DescribeImages` API call this increment deliberately does not make (a
+  distinct, separately costed enrichment follow-up). `ResourceTypeEC2AMI` now
+  aliases the new `sdk/go/factschema/aws/v1.ResourceTypeEC2AMI` constant,
+  matching every sibling AWS resource-type constant.
+
 ### Bare `backend "local" {}` drift ownership resolution
 
 - **Apply Terraform's own default local-backend path when resolving
