@@ -159,10 +159,21 @@ type Service struct {
 	// an empty shard opens a new barrier epoch at most once per process and
 	// otherwise only joins one already open.
 	AfterBatchDrained func(context.Context, bool) error
-	// AfterEmptyBatchDrained also runs AfterBatchDrained once when the current
-	// source batch is exhausted without commits. Repeated idle polls are
-	// suppressed until another generation is committed. Use only for runtimes
-	// that need configured empty shards to participate in a fleet barrier.
+	// AfterEmptyBatchDrained also runs AfterBatchDrained when the current
+	// source batch is exhausted without commits. The escape is LEVEL-gated on
+	// everCommitted, not edge-gated on the last drain: it fires on EVERY idle
+	// poll for as long as this process has never committed, and the first
+	// commit suppresses it permanently. A shard that owns no repositories
+	// therefore keeps arriving for the lifetime of the process, which is the
+	// #5852 fix -- the earlier edge-gated form arrived once at startup and
+	// then never again, stalling every other shard on the barrier.
+	//
+	// Recurring arrivals are safe because only the first one may OPEN a
+	// barrier epoch (see AfterBatchDrained's hasCommitted arg and the
+	// startupMaintenanceEscapeUsed once-latch in Run); every later arrival can
+	// only join an epoch already open, so a quiet fleet does not reopen one
+	// per poll. Use only for runtimes that need configured empty shards to
+	// participate in a fleet barrier.
 	AfterEmptyBatchDrained bool
 	Tracer                 trace.Tracer           // optional — nil means no tracing
 	Instruments            *telemetry.Instruments // optional — nil means no metrics
