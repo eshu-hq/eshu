@@ -132,6 +132,7 @@ func buildOneCandidate(row AddressedRow, arn string, kind FindingKind, scopeID s
 	evidence = appendRawTagEvidence(evidence, candidateID, row.Cloud, scopeID)
 	evidence = appendManagementEvidence(evidence, candidateID, row, kind, scopeID)
 	evidence = appendValueDriftEvidence(evidence, candidateID, row.Cloud, row.State, scopeID)
+	evidence = appendValueComparisonGapEvidence(evidence, candidateID, kind, row.Cloud, row.State, scopeID)
 
 	return model.Candidate{
 		ID:             candidateID,
@@ -269,6 +270,44 @@ func appendValueDriftEvidence(
 	return evidence
 }
 
+// appendValueComparisonGapEvidence names the comparable attributes that could
+// NOT be compared, for a value_comparison_inconclusive finding only (#5837).
+//
+// Without it the finding says "I could not compare" and nothing else, which is
+// not actionable: the operator cannot tell an unreadable ECS
+// container_definitions from a redacted aws_instance ami. The atoms use the
+// same "missing_evidence" key the loader's own coverage atoms use, so they land
+// in the payload's missing_evidence list and reach every read surface without a
+// new field. Values are prefixed to keep them distinguishable from the
+// existence-axis values (terraform_state_resource, terraform_config_resource).
+//
+// It emits nothing for any other finding kind: an existence finding's missing
+// evidence is the missing LAYER, and an image_version_drift finding already
+// carries its declared_/observed_ pair for the attribute that did compare.
+func appendValueComparisonGapEvidence(
+	evidence []model.EvidenceAtom,
+	candidateID string,
+	kind FindingKind,
+	cloud, state *ResourceRow,
+	fallbackScopeID string,
+) []model.EvidenceAtom {
+	if kind != FindingKindValueComparisonInconclusive {
+		return evidence
+	}
+	for _, attr := range ClassifyValueComparison(cloud, state).Uncomparable {
+		evidence = append(evidence, model.EvidenceAtom{
+			ID:           candidateID + "/uncomparable/" + attr,
+			SourceSystem: driftSourceSystem,
+			EvidenceType: EvidenceTypeCoverageGap,
+			ScopeID:      scopeFor(state, fallbackScopeID),
+			Key:          "missing_evidence",
+			Value:        "comparable_attribute:" + attr,
+			Confidence:   driftConfidence,
+		})
+	}
+	return evidence
+}
+
 func appendRawTagEvidence(
 	evidence []model.EvidenceAtom,
 	candidateID string,
@@ -333,6 +372,15 @@ func managementStatusForFinding(kind FindingKind) string {
 		return ManagementStatusUnknown
 	case FindingKindAmbiguousCloudResource:
 		return ManagementStatusAmbiguous
+	case FindingKindValueComparisonInconclusive:
+		// Ownership is PROVEN here (cloud, state, and config all matched), so
+		// this is not an ownership verdict -- it is the coverage verdict, and
+		// unknown_management is the vocabulary's only honest answer for "the
+		// evidence needed to decide was not collectable". It also routes the
+		// finding to the right operator action: expand_collector_coverage_or_permissions
+		// is exactly what a redacted declared attribute or an unobserved cloud
+		// attribute needs (#5837).
+		return ManagementStatusUnknown
 	default:
 		return ""
 	}

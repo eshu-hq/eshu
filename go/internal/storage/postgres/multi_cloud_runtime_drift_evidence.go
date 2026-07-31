@@ -127,6 +127,7 @@ func (l PostgresMultiCloudRuntimeDriftEvidenceLoader) LoadMultiCloudRuntimeDrift
 		}
 		applyMultiCloudStateAndConfig(&row, stateByUID[uid], configByStateScope)
 		row.WarningFlags = append(row.WarningFlags, containerImagesTruncatedWarning(row.Cloud, row.State)...)
+		row.WarningFlags = append(row.WarningFlags, containerImagesUnreadableWarning(row.Cloud, row.State)...)
 		rows = append(rows, row)
 	}
 	return rows, nil
@@ -369,7 +370,7 @@ func multiCloudObservedRowFromRow(
 	resourceType := strings.TrimSpace(coerceJSONString(decoded[multiCloudResourceTypeKey(factKind)]))
 	tags := coerceStringTags(multiCloudTagsFromPayload(decoded))
 	attributesPayload, _ := decoded["attributes"].(map[string]any)
-	attributes, containerImages, truncated := cloudObservedValueAttributes(resourceType, attributesPayload)
+	attributes, containerImages, truncated, degraded := cloudObservedValueAttributes(resourceType, attributesPayload)
 
 	return multiCloudObservedRow{
 		uid:          resolution.CloudResourceUID,
@@ -384,6 +385,7 @@ func multiCloudObservedRowFromRow(
 			Attributes:               attributes,
 			ContainerImages:          containerImages,
 			ContainerImagesTruncated: truncated,
+			ContainerImagesDegraded:  degraded,
 		},
 	}, true
 }
@@ -437,7 +439,7 @@ func multiCloudStateRowFromPayload(scopeID, address string, payload []byte) (*cl
 		return nil, false
 	}
 	resourceType := strings.TrimSpace(decoded.Type)
-	attributes, containerImages, truncated := stateDeclaredValueAttributes(resourceType, decoded.Attributes)
+	attributes, containerImages, truncated, degraded := stateDeclaredValueAttributes(resourceType, decoded.Attributes)
 	return &cloudruntime.ResourceRow{
 		Address:                  address,
 		ResourceType:             resourceType,
@@ -445,6 +447,7 @@ func multiCloudStateRowFromPayload(scopeID, address string, payload []byte) (*cl
 		Attributes:               attributes,
 		ContainerImages:          containerImages,
 		ContainerImagesTruncated: truncated,
+		ContainerImagesDegraded:  degraded,
 	}, true
 }
 

@@ -24,7 +24,7 @@ const openAPIPathsAWSRuntimeDrift = `
                   "arn": {"type": "string", "description": "Optional exact AWS ARN to inspect."},
                   "finding_kinds": {
                     "type": "array",
-                    "description": "Optional finding kinds: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, ambiguous_cloud_resource, or image_version_drift.",
+                    "description": "Optional finding kinds: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, ambiguous_cloud_resource, image_version_drift, or value_comparison_inconclusive.",
                     "items": {"type": "string"}
                   },
                   "limit": {"type": "integer", "description": "Maximum findings to return (default 100, max 500).", "default": 100},
@@ -92,7 +92,7 @@ const openAPIPathsAWSRuntimeDrift = `
                           "evidence": {"type": "array", "items": {"type": "object"}},
                           "drifted_attributes": {
                             "type": "array",
-                            "description": "Bounded declared/observed value pairs for an image_version_drift finding (ami, image_uri, version, or the ECS container image comparison). Empty for every other finding kind.",
+                            "description": "Bounded declared/observed value pairs for an image_version_drift finding (ami, image_uri, version, or the ECS container image comparison). Empty for every other kind, including value_comparison_inconclusive, which reports that no comparison could be made at all and names the unreadable attributes in missing_evidence instead.",
                             "items": {
                               "type": "object",
                               "properties": {

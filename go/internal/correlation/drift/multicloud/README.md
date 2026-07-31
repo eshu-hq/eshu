@@ -27,6 +27,12 @@ package unchanged; this package adds the provider-neutral path beside it.
   the AWS-specific path. GCP/Azure resources carry no allowlist entries
   today (their resource type strings never match the AWS-only allowlist
   keys), so this is currently AWS-only in practice, not by a provider check.
+  The same delegation carries the #5837 `value_comparison_inconclusive` kind:
+  when the resource type IS covered and not one comparable value could be
+  compared, the shared classifier answers uncertainty rather than convergence,
+  and `Summary.ValueComparisonInconclusiveResources` counts it. A resource type
+  with no allowlist entry is not covered and still converges, so GCP and Azure
+  resources never acquire the kind today.
 - `Row.EffectiveFindingKind()` lets the reducer override the structural join
   with a stronger deterministic signal: `ambiguous` (conflicting ownership) or
   `unknown` (coverage gap). An override of ambiguous or unknown wins even when

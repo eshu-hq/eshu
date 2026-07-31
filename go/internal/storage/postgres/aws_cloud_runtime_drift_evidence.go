@@ -127,6 +127,7 @@ func (l PostgresAWSCloudRuntimeDriftEvidenceLoader) LoadAWSCloudRuntimeDriftEvid
 			}
 		}
 		row.WarningFlags = append(row.WarningFlags, containerImagesTruncatedWarning(row.Cloud, row.State)...)
+		row.WarningFlags = append(row.WarningFlags, containerImagesUnreadableWarning(row.Cloud, row.State)...)
 		rows = append(rows, row)
 	}
 	return rows, nil
@@ -368,7 +369,7 @@ func awsRuntimeResourceRowFromPayload(scopeID string, payload []byte) (*cloudrun
 		return nil, false
 	}
 	resourceType := strings.TrimSpace(decoded.ResourceType)
-	attributes, containerImages, truncated := cloudObservedValueAttributes(resourceType, decoded.Attributes)
+	attributes, containerImages, truncated, degraded := cloudObservedValueAttributes(resourceType, decoded.Attributes)
 	return &cloudruntime.ResourceRow{
 		ARN:                      arn,
 		ResourceID:               strings.TrimSpace(decoded.ResourceID),
@@ -378,6 +379,7 @@ func awsRuntimeResourceRowFromPayload(scopeID string, payload []byte) (*cloudrun
 		Attributes:               attributes,
 		ContainerImages:          containerImages,
 		ContainerImagesTruncated: truncated,
+		ContainerImagesDegraded:  degraded,
 	}, true
 }
 
@@ -401,7 +403,7 @@ func awsRuntimeStateRowFromPayload(scopeID, address string, payload []byte) (*cl
 		return nil, false
 	}
 	resourceType := strings.TrimSpace(decoded.Type)
-	attributes, containerImages, truncated := stateDeclaredValueAttributes(resourceType, decoded.Attributes)
+	attributes, containerImages, truncated, degraded := stateDeclaredValueAttributes(resourceType, decoded.Attributes)
 	return &cloudruntime.ResourceRow{
 		ARN:                      arn,
 		Address:                  address,
@@ -410,6 +412,7 @@ func awsRuntimeStateRowFromPayload(scopeID, address string, payload []byte) (*cl
 		Attributes:               attributes,
 		ContainerImages:          containerImages,
 		ContainerImagesTruncated: truncated,
+		ContainerImagesDegraded:  degraded,
 	}, true
 }
 

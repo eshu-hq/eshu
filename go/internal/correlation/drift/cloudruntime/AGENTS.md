@@ -4,7 +4,8 @@
 
 1. `doc.go` — package contract.
 2. `classify.go` — exclusive existence dispatch plus value-drift comparison
-   (`ClassifyValueDrift`, `ClassifyContainerImageDrift`, #5453).
+   (`ClassifyValueComparison`, `ClassifyValueDrift`,
+   `ClassifyContainerImageDrift`, #5453/#5837).
 3. `value_attribute_allowlist.go` — the bounded comparable-attribute allowlist.
 4. `container_image_extract.go` — SECURITY-BOUNDED ECS container-image
    extraction; read this before touching anything ECS-shaped.
@@ -26,6 +27,20 @@
   values, ARNs, Terraform addresses, or account IDs as metric labels.
 - `ClassifyValueDrift` only fires once cloud, state, AND config all agree the
   resource is Terraform-managed (existence findings always take precedence).
+- **An empty `Classify` return means CONVERGENCE, and callers act on it
+  destructively.** `BuildCandidates` drops the ARN, so the reducer's
+  generation-authoritative retire deletes whatever finding the ARN held. Never
+  return `""` for a case that means "I could not tell" — that is
+  `FindingKindValueComparisonInconclusive` (#5837). Before adding any new
+  early-return to `Classify`, decide which of the two it is.
+- `ValueComparison.Inconclusive()` is the only condition permitted to produce
+  that kind: the resource type IS covered (`Comparable` non-empty) and NOT ONE
+  comparison ran (`Compared` empty). Widening it to "some comparison failed"
+  would put a finding on every zip-packaged Lambda; see the README's #5861
+  residual section.
+- `ContainerImageExtractionResult.Degraded` means the source carried a value
+  that could not be read; absent evidence leaves it false. Do not collapse the
+  two — the loaders raise `container_images_unreadable` off it.
 - `ExtractDeclaredContainerImages`/`ExtractObservedContainerImages` return
   ONLY the bounded `image` field of each container, capped at
   `MaxContainerImagesPerResource`. NEVER add a field to
@@ -36,7 +51,10 @@
 ## Common changes
 
 - Add a finding kind: update `FindingKind`, `Classify`, `BuildCandidates`
-  evidence, `RecordEvaluation`, tests, telemetry docs, and the active ADR.
+  evidence, `managementStatusForFinding`, `RecordEvaluation` (both here and in
+  `../multicloud`), the reducer summary line, the query package's
+  `normalizeIaCManagementFindingKinds` allowlist, the MCP/OpenAPI descriptions,
+  tests, telemetry docs, and the active ADR.
 - Change candidate evidence shape: keep `EvidenceTypeCloudResourceARN` aligned
   with `rules.AWSCloudRuntimeDriftRulePack`.
 - Add reducer wiring: keep loaders and graph publication outside this package.
@@ -70,3 +88,5 @@
 - The exclusive orphan-before-unmanaged dispatch order.
 - The metric label set for orphan and unmanaged counters.
 - The existence-findings-before-value-drift precedence in `Classify`.
+- The convergence-versus-inconclusive split, which the retire's correctness
+  depends on (#5837).
