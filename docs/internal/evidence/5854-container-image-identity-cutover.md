@@ -136,11 +136,11 @@ was 29.8% faster at median, 26.3% faster at p95, and used 14.6% less
 writer-local WAL in that isolated lane.
 
 After the review fix that requires the marker even when the cleanup list is
-empty, a final-head writer-only confirmation measured 4.589 s median and
-4.857 s p95 with the same checksum, 100 write statements, and 384.6 MB/op
-attributable WAL. That remains 26.9% faster at median and 24.9% faster at p95
+empty, a final-head writer-only confirmation measured 4.576 s median and
+4.875 s p95 with the same checksum, 100 write statements, and 387.3 MB/op
+attributable WAL. That remains 27.2% faster at median and 24.6% faster at p95
 than the old-writer baseline above. The exact first-marker operation on
-100,000 historical rows measured 192.333 microseconds median and 289.750
+100,000 historical rows measured 192.167 microseconds median and 294.750
 microseconds p95 against its 1,301.150-microsecond contribution budget.
 
 The cache-warm production handler also returned the same checksum:
@@ -152,9 +152,10 @@ The cache-warm production handler also returned the same checksum:
 
 The final path was 23.2% faster at median and 24.3% faster at p95. The extra
 three queries are the exact cutover marker, zero-legacy probe, and claim check.
-A final-head post-fix confirmation measured 5.250 s median and 5.282 s p95,
-with the same 99,500-row checksum, exactly one epoch probe per measured call,
-and zero paginated identity loads.
+A final-head post-fix confirmation measured 5.405 s median and 5.469 s p95,
+still 20.8% and 21.8% faster than the old-writer baseline, with the same
+99,500-row checksum, exactly one epoch probe per measured call, and zero
+paginated identity loads.
 
 The uncached lane performs 204 unchanged paginated evidence reads at this
 cardinality for both variants. One paired run measured 11.530 s main versus
