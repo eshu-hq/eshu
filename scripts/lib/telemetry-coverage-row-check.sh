@@ -168,6 +168,32 @@ while IFS='|' read -ra cols; do
     drift=1
   fi
 
+  # Category column (the row's real LAST column) must be non-blank. This
+  # cell had NO guard anywhere in this script -- stage name, path, and
+  # metric are each checked above, but cols[4] is never even read -- even
+  # though the failure message this script's caller prints
+  # (verify-telemetry-coverage.sh: "Fix a malformed row missing its
+  # file/glob, metric, or category column") already promises rejection of a
+  # missing category (#5855 review).
+  #
+  # The category is read from cols[$((n-1))], the LAST array element, not
+  # a hardcoded cols[4]. A row whose metric column contains an embedded,
+  # unescaped pipe character (the reconciliation_status=a|b shape case 30/36
+  # in the test suite exercise) splits into MORE than 5 fields, so cols[4]
+  # holds a fragment of the metric prose, not the category -- a fixed-index
+  # check would validate the wrong cell (silently accepting a genuinely
+  # blank category whose fragment-at-cols[4] happens to be non-blank), the
+  # same "wrong cell" trap the bare-pipe-in-prose fix already avoided for
+  # the metric-cell check by scanning the whole cell instead of a
+  # sub-string. Reading the last element is correct regardless of how many
+  # embedded pipes shifted everything before it.
+  category_cell="$(trim_ws "${cols[$((n - 1))]:-}")"
+  if [ -z "$category_cell" ]; then
+    report="${report}  - doc row \"${stage_name}\" in ${doc_path} is malformed: category column (last column) is blank
+"
+    drift=1
+  fi
+
   # A cell may name more than one target, comma-separated (e.g.
   # "contract.go:389-470, contract_z_observability_coverage.go:10"). A
   # bare filename with no directory in a later part inherits the

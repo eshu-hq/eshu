@@ -305,3 +305,43 @@ MD
 git -C "${case_metric_inline_names}" add .
 git -C "${case_metric_inline_names}" commit -q -m "add existing row whose metric column names real metrics inline without the canonical marker prefix"
 expect_pass "passes when an existing row's metric column names real eshu_dp_* metrics inline without the canonical marker prefix" "${case_metric_inline_names}"
+
+# Case 37 (#5855 review): a row with a real stage name, a real existing
+# path, and a real registered metric, but a BLANK category (4th) column.
+# check_stage_table_rows only ever reads cols[1] (stage name), col2/cols[2]
+# (path), and cols[3] (metric) -- cols[4] is extracted nowhere in the
+# script, so a blank category cell has no guard at all, even though the
+# verifier's own remediation text (verify-telemetry-coverage.sh) promises
+# "Fix a malformed row missing its file/glob, metric, or category column".
+# This is the same "cell exists in the row shape the remediation text
+# promises to check but nothing actually reads it" defect class as the
+# pre-fix blank-path (case 21) and blank-metric (case 23) P1s, now found on
+# the remaining unchecked column.
+case_blank_category="$(init_repo case-blank-category)"
+cat >>"${case_blank_category}/docs/public/observability/telemetry-coverage.md" <<'MD'
+
+| blank category stage | go/internal/reducer/service.go:1 | `eshu_dp_queue_claim_duration_seconds` |  |
+MD
+git -C "${case_blank_category}" add .
+git -C "${case_blank_category}" commit -q -m "add existing row whose category column is blank"
+expect_fail "fails when an existing row's category column is blank" "${case_blank_category}"
+
+# Case 38 (#5855 review follow-up): the same blank-category defect, but
+# reached through a row whose metric column contains an embedded, unescaped
+# pipe character (the same reconciliation_status=a|b shape case 30/36
+# exercise). Splitting on '|' pushes the row to 6 fields, so cols[4] holds
+# a FRAGMENT of the metric prose (non-blank), not the row's real last
+# column -- a fixed `cols[4]` category check would wrongly read that
+# fragment as "category present" and miss that the row's actual trailing
+# column is blank. The category must be read from the LAST array element
+# (cols[n-1]), not a hardcoded index, or this exact row shape defeats the
+# case 37 fix the same way a hardcoded index would have defeated the
+# metric-cell check for a bare-pipe-in-prose row.
+case_blank_category_embedded_pipe="$(init_repo case-blank-category-embedded-pipe)"
+cat >>"${case_blank_category_embedded_pipe}/docs/public/observability/telemetry-coverage.md" <<'MD'
+
+| blank category behind embedded pipe stage | go/internal/reducer/service.go:1 | `No-Observability-Change: a|b` |  |
+MD
+git -C "${case_blank_category_embedded_pipe}" add .
+git -C "${case_blank_category_embedded_pipe}" commit -q -m "add existing row whose category column is blank behind an embedded metric-prose pipe"
+expect_fail "fails when a row's real last (category) column is blank behind an embedded metric-prose pipe" "${case_blank_category_embedded_pipe}"
