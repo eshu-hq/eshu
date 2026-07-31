@@ -616,12 +616,27 @@ recent shipped work grouped by feature area.
     and the prior-config threading
     (`TestPostgresDriftEvidenceLoaderPriorConfigConfidenceThreadedOntoRemovedFromConfigRow`).
   - The `POST /api/v0/terraform/config-state-drift/findings?variant=derived`
-    golden-corpus entry's description was corrected (it previously asserted
-    the state-side finding "stays outcome=\"exact\""); no assertion or count
-    changed, since `required_json_values`/`required_json_object_matches` use
-    existential array-path matching that holds whether the `outcome=derived`
-    filter now returns one finding or two. `cd go && go test
-    ./cmd/golden-corpus-gate/... -count=1` is green.
+    golden-corpus entry's `minimum_results` is raised from `1` to `2` --
+    review correctly flagged that a floor of `1` plus existential
+    `drift_findings[].*` path matching could not distinguish "both halves
+    downgraded" from the exact bug this PR fixes ("only the config-side half
+    downgraded"), so the gate could not tell fixed from broken. The `2` was
+    derived by tracing the actual fixture and cassette content, not assumed:
+    this repo's single ingested generation flags exactly one directory
+    (`module.s3_bucket`'s local path and `module.eks`'s `git::` source are
+    both never flagged), that directory declares exactly one resource, and
+    the cassette carries exactly one state address sharing that resource's
+    `<type>.<name>` key -- an unambiguous 1:1 pairing, with no prior
+    generation in the corpus to promote a third `derived` finding through
+    `removed_from_config`. Two `required_json_object_matches` entries under
+    `drift_findings[]` now pin `outcome="derived"` to EACH specific address
+    independently (`aws_security_group.vpc_endpoints` for the config-only
+    half, `module.vpc.aws_security_group.vpc_endpoints` for the state-only
+    half) -- since one finding object cannot carry two different `address`
+    values at once, this proves two distinct derived findings exist, which a
+    bare count of 2 (satisfiable by two unrelated or duplicated config-side
+    findings) could not. `cd go && go test ./cmd/golden-corpus-gate/...
+    -count=1` is green against the updated snapshot.
 
 ### Route-fact-based Rails controller liveness
 

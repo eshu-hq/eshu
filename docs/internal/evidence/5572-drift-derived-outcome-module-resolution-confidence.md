@@ -85,13 +85,24 @@ stated decision rather than a silent gap:
   `terraform_state_resource` fact under the same pre-existing S3-backed
   scope, so neither side's address matches the other -- the real, live
   spurious `added_in_config`/`added_in_state` pair the ADR describes, not a
-  synthetic single-sided fixture. The new
+  synthetic single-sided fixture. The
   `POST /api/v0/terraform/config-state-drift/findings?variant=derived`
-  entry in `testdata/golden/e2e-20repo-snapshot.json` asserts BOTH that
-  `outcome="derived"` materializes for the wrongly-addressed finding AND
-  (via `required_json_object_matches`, not two independent wildcard value
-  checks) that the SAME finding's evidence array carries a
-  `terraform_module_resolution_confidence` atom with
+  entry in `testdata/golden/e2e-20repo-snapshot.json`
+  (`minimum_results: 2`, raised from the original `1` when review flagged
+  that a floor of `1` cannot distinguish "both halves downgraded" from
+  "only the config-side half downgraded, as before this section's own
+  follow-up fix") asserts, via TWO `required_json_object_matches` entries
+  under `drift_findings[]`, that a finding with `outcome="derived"` exists
+  at address `aws_security_group.vpc_endpoints` (the config-only half) AND
+  that a SEPARATE finding with `outcome="derived"` exists at address
+  `module.vpc.aws_security_group.vpc_endpoints` (the state-only half) --
+  since one finding object cannot carry two different `address` values at
+  once, this pins two distinct derived findings, not merely a count a
+  regression retaining only the config-side downgrade could also satisfy.
+  A third `required_json_object_matches` entry under
+  `drift_findings[].evidence[]` (via `required_json_object_matches`, not
+  independent wildcard value checks) proves a finding's evidence array
+  carries a `terraform_module_resolution_confidence` atom with
   `value="external_registry"` on one correlated object -- proving the
   specific cause reaches the read surface, which is the entire
   justification for keeping one `derived` outcome value instead of
@@ -99,6 +110,18 @@ stated decision rather than a silent gap:
   section). This mirrors issue #5594's precedent in this same writer: a
   unit-tested behavior change to reducer-materialized, OpenAPI- and
   MCP-contracted truth gets cassette/golden replay proof, not only fakes.
+  The `2` floor was derived, not assumed, by tracing the actual fixture and
+  cassette content: `buildModulePrefixMap` flags exactly one directory for
+  this repo's single ingested generation (`module.s3_bucket`'s
+  `./modules/s3` is a clean local path with no leading-registry-shorthand
+  match; `module.eks`'s `git::` source is `external_git`, never flagged by
+  `recordRegistryHeuristicCandidate`), that directory declares exactly one
+  resource, and the cassette's four `terraform_state_resource` facts for
+  this scope contain exactly one address sharing that resource's
+  `<type>.<name>` key -- an unambiguous 1:1 pairing. This repo has a single
+  ingested generation in the corpus, so `loadPriorConfigAddresses` finds no
+  prior generation to promote a third (`removed_from_config`) `derived`
+  finding through.
 - **`depth_exceeded` deliberately stays unit/integration-only.** Reaching
   it requires an 11-level-deep local module chain
   (`maxModulePrefixDepth` = 10) -- a fixture heavy enough for a rare
