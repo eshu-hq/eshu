@@ -1489,12 +1489,14 @@ drives its round trips off `CrossScopeCorrelationReopenDomains()` directly, so
 the row counts were already a mechanical recount; the wall clock was not, and
 scaling it on paper is the kind of unmeasured claim the evidence rules exclude.
 
-It was re-run at six -- same test, same corpus shape, same loopback topology,
-Postgres 16.14 -- and the figures, the sublinearity argument, and the corrected
-"not measured" caveat live with the proof they belong to, in
-`go/internal/storage/postgres/README.md`'s cross-scope correlation reopen
-section under its `No-Regression Evidence:` marker. Summary: bounded pass
-5.5 s / 4500 rows -> 5.927 s / 5400 rows, listings only 74 ms -> 91 ms,
-unbounded pass 2 m 17 s / 112 500 -> 2 m 31.7 s / 135 000. About +0.4 s per
-drain against +20% reopened rows, so the pass got proportionally bigger rather
-than slower per unit of work.
+Six-domain provenance: measured on the pre-reconcile branch tip
+(`5837-drift-reopen-prereconcile` = `12bd12dc8`), same test, same corpus
+shape, same loopback topology, Postgres 16.14 -- carried forward unchanged
+into this reconciled branch rather than re-measured on this HEAD. The
+figures, the sublinearity argument, and this same provenance caveat live with
+the proof they belong to, in `go/internal/storage/postgres/README.md`'s
+cross-scope correlation reopen section under its `No-Regression Evidence:`
+marker. Summary: bounded pass 5.5 s / 4500 rows -> 5.927 s / 5400 rows,
+listings only 74 ms -> 91 ms, unbounded pass 2 m 17 s / 112 500 ->
+2 m 31.7 s / 135 000. About +0.4 s per drain against +20% reopened rows, so
+the pass got proportionally bigger rather than slower per unit of work.

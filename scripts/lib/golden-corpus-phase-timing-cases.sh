@@ -419,14 +419,24 @@ done < <(printf '%s\n' "${phase_graph_query_excluded_region}")
 # the bracket's own source line numbers fall strictly between the
 # phase_graph_query_start= assignment and the emit_phase_timings_and_flags
 # call that consumes it.
+#
+# All three needles below are anchored to the ASSIGNMENT/STAMP line itself,
+# not to any substring match -- a bare `--fixed-strings` lookup is satisfied
+# by a comment that merely mentions the needle text placed above the real
+# line, which resolves phase_graph_query_start_line to the comment's (earlier)
+# line number and lets a bracket relocated above the real assignment read as
+# "after start" instead of failing. `^phase_graph_query_start=` anchors to
+# line-start, which no shell comment can satisfy (comments always begin with
+# `#`); `--line-regexp` on the two stamp lookups requires the ENTIRE line to
+# equal the stamp text, which a prose mention never does either.
 # ---------------------------------------------------------------------------
-phase_graph_query_start_line="$(rg -n --fixed-strings --max-count=1 -- 'phase_graph_query_start=' "${script}" | cut -d: -f1)"
+phase_graph_query_start_line="$(rg -n --max-count=1 -- '^phase_graph_query_start=' "${script}" | cut -d: -f1)"
 [[ -n "${phase_graph_query_start_line}" ]] ||
 	fail "phase_graph_query_start= assignment not found in $(basename "${script}")"
-phase_graph_query_excluded_open_line="$(rg -n --fixed-strings --max-count=1 -- "${phase_graph_query_excluded_region_allowed[0]}" "${script}" | cut -d: -f1)"
+phase_graph_query_excluded_open_line="$(rg -n --fixed-strings --line-regexp --max-count=1 -- "${phase_graph_query_excluded_region_allowed[0]}" "${script}" | cut -d: -f1)"
 [[ -n "${phase_graph_query_excluded_open_line}" ]] ||
 	fail "phase_graph_query_excluded_starts+= stamp not found in $(basename "${script}")"
-phase_graph_query_excluded_close_line="$(rg -n --fixed-strings --max-count=1 -- "${phase_graph_query_excluded_region_allowed[2]}" "${script}" | cut -d: -f1)"
+phase_graph_query_excluded_close_line="$(rg -n --fixed-strings --line-regexp --max-count=1 -- "${phase_graph_query_excluded_region_allowed[2]}" "${script}" | cut -d: -f1)"
 [[ -n "${phase_graph_query_excluded_close_line}" ]] ||
 	fail "phase_graph_query_excluded_ends+= stamp not found in $(basename "${script}")"
 phase_graph_query_emit_line="$(rg -n --fixed-strings --max-count=1 --line-regexp -- 'emit_phase_timings_and_flags' "${script}" | cut -d: -f1)"
