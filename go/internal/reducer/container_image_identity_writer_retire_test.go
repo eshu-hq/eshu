@@ -229,15 +229,18 @@ func TestWriteContainerImageIdentityDecisionsFencesSingleChunkCleanupInTransacti
 	if beginner.calls != 1 {
 		t.Fatalf("transaction begin calls = %d, want 1 for the cutover fence", beginner.calls)
 	}
-	if got := len(tx.queries); got != 2 {
-		t.Fatalf("transaction queries = %d, want fence then publication+cleanup", got)
+	if got := len(tx.queries); got != 3 {
+		t.Fatalf("transaction queries = %d, want fence, prelock, then publication+cleanup", got)
 	}
 	if tx.queries[0] != containerImageIdentityCutoverFenceQuery {
 		t.Fatalf("first transaction query is not the cutover fence:\n%s", tx.queries[0])
 	}
+	if tx.queries[1] != containerImageIdentityLegacyPrelockQuery {
+		t.Fatalf("second transaction query is not the legacy prelock:\n%s", tx.queries[1])
+	}
 	for _, want := range []string{"WITH published AS", "INSERT INTO fact_records", "DELETE FROM fact_records"} {
-		if !strings.Contains(tx.queries[1], want) {
-			t.Fatalf("single-chunk query missing %q:\n%s", want, tx.queries[1])
+		if !strings.Contains(tx.queries[2], want) {
+			t.Fatalf("single-chunk query missing %q:\n%s", want, tx.queries[2])
 		}
 	}
 	if !tx.committed || tx.rolledBack {
@@ -269,23 +272,26 @@ func TestWriteContainerImageIdentityDecisionsCommitsPublicationAndLegacyCleanupA
 	if got, want := beginner.calls, 1; got != want {
 		t.Fatalf("begin calls = %d, want %d", got, want)
 	}
-	if got, want := len(tx.queries), 3; got != want {
+	if got, want := len(tx.queries), 4; got != want {
 		t.Fatalf("transaction queries = %d, want %d", got, want)
 	}
 	if tx.queries[0] != containerImageIdentityCutoverFenceQuery {
 		t.Fatalf("first transaction query is not the cutover fence:\n%s", tx.queries[0])
 	}
-	if tx.queries[1] != reducerFactBatchInsertQuery {
-		t.Fatalf("second transaction query is not reducer batch insert:\n%s", tx.queries[1])
+	if tx.queries[1] != containerImageIdentityLegacyPrelockQuery {
+		t.Fatalf("second transaction query is not the legacy prelock:\n%s", tx.queries[1])
 	}
-	if tx.queries[2] != containerImageIdentityPublishAndLegacyCleanupQuery {
-		t.Fatalf("third transaction query is not final publication+legacy cleanup:\n%s", tx.queries[2])
+	if tx.queries[2] != reducerFactBatchInsertQuery {
+		t.Fatalf("third transaction query is not reducer batch insert:\n%s", tx.queries[2])
 	}
-	if got, want := tx.args[2][16], write.LegacyFactIDs; !equalRetireIDArgument(got, want) {
+	if tx.queries[3] != containerImageIdentityPublishAndLegacyCleanupQuery {
+		t.Fatalf("fourth transaction query is not final publication+legacy cleanup:\n%s", tx.queries[3])
+	}
+	if got, want := tx.args[3][16], write.LegacyFactIDs; !equalRetireIDArgument(got, want) {
 		t.Fatalf("legacy IDs arg = %#v, want %#v", got, want)
 	}
-	insertedFactIDs := append([]string(nil), tx.args[1][0].([]string)...)
-	insertedFactIDs = append(insertedFactIDs, tx.args[2][0].([]string)...)
+	insertedFactIDs := append([]string(nil), tx.args[2][0].([]string)...)
+	insertedFactIDs = append(insertedFactIDs, tx.args[3][0].([]string)...)
 	if got, want := len(insertedFactIDs), len(write.Decisions); got != want {
 		t.Fatalf("inserted fact IDs = %d, want %d", got, want)
 	}
@@ -319,7 +325,7 @@ func TestWriteContainerImageIdentityDecisionsRollsBackBeforeRetireWhenInsertFail
 	if err == nil || !strings.Contains(err.Error(), "batch insert reducer facts") {
 		t.Fatalf("WriteContainerImageIdentityDecisions() error = %v, want insert failure", err)
 	}
-	if got, want := len(tx.queries), 2; got != want {
+	if got, want := len(tx.queries), 3; got != want {
 		t.Fatalf("transaction queries = %d, want %d (no retire after failed insert)", got, want)
 	}
 	if tx.committed || !tx.rolledBack {

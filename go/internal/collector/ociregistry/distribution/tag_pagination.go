@@ -131,7 +131,13 @@ func decodeTagListPage(body io.Reader) ([]string, int64, bool, error) {
 	var decoded struct {
 		Tags []string `json:"tags"`
 	}
-	decodeErr := json.NewDecoder(limited).Decode(&decoded)
+	decoder := json.NewDecoder(limited)
+	decodeErr := decoder.Decode(&decoded)
+	var trailing any
+	trailingErr := io.EOF
+	if decodeErr == nil {
+		trailingErr = decoder.Decode(&trailing)
+	}
 	if _, err := io.Copy(io.Discard, limited); err != nil {
 		return nil, 0, false, fmt.Errorf("read OCI tag list: %w", err)
 	}
@@ -141,6 +147,17 @@ func decodeTagListPage(body io.Reader) ([]string, int64, bool, error) {
 	}
 	if decodeErr != nil {
 		return nil, readBytes, false, fmt.Errorf("decode OCI tag list: %w", decodeErr)
+	}
+	if trailingErr != io.EOF {
+		if trailingErr != nil {
+			return nil, readBytes, false, fmt.Errorf(
+				"decode OCI tag list trailing content: %w",
+				trailingErr,
+			)
+		}
+		return nil, readBytes, false, fmt.Errorf(
+			"decode OCI tag list: multiple JSON values",
+		)
 	}
 	return decoded.Tags, readBytes, false, nil
 }

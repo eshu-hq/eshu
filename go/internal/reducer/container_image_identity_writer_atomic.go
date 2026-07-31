@@ -20,6 +20,19 @@ VALUES ($1, $2, $3, $4)
 ON CONFLICT (scope_id, generation_id) DO NOTHING
 `
 
+const containerImageIdentityLegacyPrelockQuery = `
+SELECT fact_id
+FROM fact_records
+WHERE fact_id = ANY($1::text[])
+  AND fact_kind = 'reducer_container_image_identity'
+  AND is_tombstone = FALSE
+  AND scope_id = $2
+  AND generation_id = $3
+  AND fencing_token <= $4
+ORDER BY fact_id
+FOR UPDATE NOWAIT
+`
+
 const containerImageIdentityPublishAndLegacyCleanupQuery = `WITH published AS (
 ` + reducerFactBatchInsertQuery + `
 RETURNING 1
@@ -139,16 +152,37 @@ var ErrContainerImageIdentityClaimRejected = errors.New(
 	"container image identity claim rejected",
 )
 
+type containerImageIdentityCutoverLockBusyError struct {
+	err error
+}
+
+func (e *containerImageIdentityCutoverLockBusyError) Error() string {
+	return fmt.Sprintf("container image identity cutover legacy row is busy: %v", e.err)
+}
+
+func (e *containerImageIdentityCutoverLockBusyError) Unwrap() error {
+	return e.err
+}
+
+func (*containerImageIdentityCutoverLockBusyError) Retryable() bool {
+	return true
+}
+
+func (*containerImageIdentityCutoverLockBusyError) FailureClass() string {
+	return "container_image_identity_cutover_lock_busy"
+}
+
 // execContainerImageIdentityCutoverFence serializes the format transition for
 // one scope generation and commits its durable marker in the same transaction
 // as the image-reference-keyed publications and legacy cleanup.
 //
-// This must be a separate statement before cleanup. The marker trigger
-// deterministically locks matching active work rows before taking the
-// scope-generation advisory lock. Under Read Committed, the later DELETE then
-// receives a fresh snapshot and sees a legacy insert that committed immediately
-// before the lock. Migration 088 uses the same row-then-advisory order for
-// legacy ACKs and suppresses legacy fact inserts after this marker commits.
+// This must be a separate statement before cleanup. The marker trigger locks
+// the active work item and scope-generation advisory key. The caller then uses
+// a NOWAIT prelock for every exact legacy row cleanup can delete, so it never
+// waits on a fact row while holding the advisory lock. Under Read Committed, an
+// absent legacy insert that commits before the marker remains visible to the
+// later prelock and cleanup; one that reaches the legacy guard after the marker
+// commits is rejected.
 func execContainerImageIdentityCutoverFence(
 	ctx context.Context,
 	db workloadIdentityExecer,
@@ -166,6 +200,63 @@ func execContainerImageIdentityCutoverFence(
 		claimEpoch,
 	); err != nil {
 		return fmt.Errorf("fence container image identity format cutover: %w", err)
+	}
+	return nil
+}
+
+func execContainerImageIdentityFirstCutover(
+	ctx context.Context,
+	db workloadIdentityExecer,
+	write ContainerImageIdentityWrite,
+	fencingToken int64,
+) error {
+	if err := execContainerImageIdentityCutoverFence(
+		ctx,
+		db,
+		write.ScopeID,
+		write.GenerationID,
+		write.IntentID,
+		write.ClaimEpoch,
+	); err != nil {
+		return err
+	}
+	return execContainerImageIdentityLegacyPrelock(
+		ctx,
+		db,
+		write.LegacyFactIDs,
+		write.ScopeID,
+		write.GenerationID,
+		fencingToken,
+	)
+}
+
+func execContainerImageIdentityLegacyPrelock(
+	ctx context.Context,
+	db workloadIdentityExecer,
+	legacyFactIDs []string,
+	scopeID string,
+	generationID string,
+	fencingToken int64,
+) error {
+	if len(legacyFactIDs) == 0 {
+		return nil
+	}
+	if _, err := db.ExecContext(
+		ctx,
+		containerImageIdentityLegacyPrelockQuery,
+		legacyFactIDs,
+		scopeID,
+		generationID,
+		fencingToken,
+	); err != nil {
+		var sqlState interface{ SQLState() string }
+		if errors.As(err, &sqlState) && sqlState.SQLState() == "55P03" {
+			return &containerImageIdentityCutoverLockBusyError{err: err}
+		}
+		return fmt.Errorf(
+			"prelock legacy container image identity facts: %w",
+			err,
+		)
 	}
 	return nil
 }

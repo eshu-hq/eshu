@@ -291,6 +291,44 @@ func TestClientListTagsOversizedPageReturnsIncomplete(t *testing.T) {
 	}
 }
 
+func TestClientListTagsRejectsTrailingJSONContent(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "trailing garbage",
+			body: `{"tags":["v1"]} invalid`,
+		},
+		{
+			name: "second JSON value",
+			body: `{"tags":["v1"]} {"tags":["v2"]}`,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte(tt.body))
+			}))
+			defer server.Close()
+
+			_, err := newTestClient(t, server).ListTags(
+				context.Background(),
+				"team/api",
+				2,
+			)
+			if err == nil {
+				t.Fatal("ListTags() error = nil, want trailing JSON rejection")
+			}
+		})
+	}
+}
+
 func TestClientListTagsStopsAtPageBound(t *testing.T) {
 	t.Parallel()
 

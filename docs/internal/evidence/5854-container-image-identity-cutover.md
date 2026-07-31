@@ -89,7 +89,7 @@ All fixtures use public synthetic values such as
 Performance Evidence: against the old outcome-keyed writer on the same
 PostgreSQL 18 backend and 99,500-reference input, the final v2 writer preserved
 the logical checksum and terminal 99,500-row count while improving median from
-6.281 seconds to 4.576 seconds and p95 from 6.470 seconds to 4.875 seconds. The
+6.281 seconds to 4.534 seconds and p95 from 6.470 seconds to 4.776 seconds. The
 live golden gate terminated with zero residual work items, zero dead letters,
 517 passing assertions, zero required failures, and one advisory in 109 seconds
 (exit 0).
@@ -116,6 +116,12 @@ per-phase timings, so the faster path is not accepted on latency alone.
   performed no database work.
 - Injecting a later-chunk failure rolled back all new rows, exact cleanup, and
   the marker. A retry then converged to the complete v2 set.
+- An existing two-row legacy upsert in reverse fact-ID order reproduced the old
+  fact-row-to-advisory versus advisory-to-fact-row lock inversion. The current
+  writer uses an exact `FOR UPDATE NOWAIT` prelock after marker acquisition:
+  20/20 live contention trials returned classified retryable lock-busy errors,
+  rolled back marker/publication/cleanup, allowed the old writer to finish, and
+  then converged on retry with no eligible legacy row left.
 - A failed migration under a held fact-table lock left no partial table,
   column, function, trigger, or constraint. Retry through `ApplyBootstrap`
   preserved rows and remained idempotent.
@@ -167,40 +173,39 @@ The production-handler benchmark retains three distinct lanes:
 - writer-only, isolating publication from the common cross-scope evidence
   load.
 
-The 99,500-reference writer-only comparison on the same Postgres instance
-produced identical logical checksums:
+The final-head 99,500-reference writer-only confirmation on the same Postgres
+instance produced the identical logical checksum and terminal row count:
 
 | variant | median | p95 | write statements | attributable WAL |
 | --- | ---: | ---: | ---: | ---: |
 | old outcome-keyed writer | 6.281 s | 6.470 s | 199 | 451.8 MB/op |
-| final v2 writer | 4.407 s | 4.770 s | 100 | 385.9 MB/op |
+| final v2 writer | 4.534 s | 4.776 s | 100 | 384.6 MB/op |
 
-These are the medians of three alternating trials per variant. The v2 writer
-was 29.8% faster at median, 26.3% faster at p95, and used 14.6% less
-writer-local WAL in that isolated lane.
+The final v2 writer is 27.8% faster at median, 26.2% faster at p95, and uses
+14.9% less writer-local WAL in that isolated lane. The exact first-marker
+operation on 100,000 historical rows measured 192.167 microseconds median and
+294.750 microseconds p95 against its 1,301.150-microsecond contribution budget.
 
-After the review fix that requires the marker even when the cleanup list is
-empty, an isolated warmed final-head writer-only confirmation measured 4.683 s
-median and 4.914 s p95 with the same checksum, 100 write statements, and
-389.6 MB/op attributable WAL. That remains 25.4% faster at median, 24.0%
-faster at p95, and uses 13.8% less writer-local WAL than the old-writer
-baseline above. The exact first-marker operation on
-100,000 historical rows measured 192.167 microseconds median and 294.750
-microseconds p95 against its 1,301.150-microsecond contribution budget.
+The lock-order fix adds work only to a first-cutover transaction with an exact
+legacy cleanup set. `EXPLAIN (ANALYZE, BUFFERS, WAL)` measured its conservative
+prelock contribution at 0.150 milliseconds for zero rows, 0.130 milliseconds
+for one row, 0.582 milliseconds for 500 rows, and 57.696 milliseconds plus
+5.373 MB WAL for 99,500 existing rows. At worst cardinality that is about 1.3%
+of final writer latency and 1.4% of final writer-local WAL, while preventing a
+transaction-aborting deadlock. Completed-cutover writes do not run the
+prelock.
 
 The cache-warm production handler also returned the same checksum:
 
 | variant | median | p95 | queries/op |
 | --- | ---: | ---: | ---: |
 | old outcome-keyed writer | 6.825 s | 6.995 s | 5 |
-| final v2 writer | 5.241 s | 5.297 s | 8 |
+| final v2 writer | 5.112 s | 5.171 s | 8 |
 
-The final path was 23.2% faster at median and 24.3% faster at p95. The extra
+The final path was 25.1% faster at median and 26.1% faster at p95. The extra
 three queries are the exact cutover marker, zero-legacy probe, and claim check.
-A final-head post-fix confirmation measured 5.308 s median and 5.329 s p95,
-still 22.2% and 23.8% faster than the old-writer baseline, with the same
-99,500-row checksum, exactly one epoch probe per measured call, and zero
-paginated identity loads.
+The final-head run kept the same 99,500-row checksum, exactly one epoch probe
+per measured call, and zero paginated identity loads.
 
 The uncached lane performs 204 unchanged paginated evidence reads at this
 cardinality for both variants. One paired run measured 11.530 s main versus

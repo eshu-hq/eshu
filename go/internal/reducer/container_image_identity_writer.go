@@ -280,17 +280,13 @@ func (w PostgresContainerImageIdentityWriter) writeContainerImageIdentityRows(
 			if !claimValid {
 				return 0, ErrContainerImageIdentityClaimRejected
 			}
-		} else {
-			if err := execContainerImageIdentityCutoverFence(
-				ctx,
-				exec,
-				write.ScopeID,
-				write.GenerationID,
-				write.IntentID,
-				write.ClaimEpoch,
-			); err != nil {
-				return 0, err
-			}
+		} else if err := execContainerImageIdentityFirstCutover(
+			ctx,
+			exec,
+			write,
+			fencingToken,
+		); err != nil {
+			return 0, err
 		}
 		if cutoverComplete && skipLegacyCleanup {
 			err = reducerBatchInsertFacts(ctx, exec, rows)

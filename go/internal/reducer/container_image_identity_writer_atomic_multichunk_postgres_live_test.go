@@ -36,7 +36,7 @@ func TestPostgresContainerImageIdentityMultiChunkWriterSerializesMatchingKeyAndC
 		wrap: func(tx *sql.Tx) ContainerImageIdentityTransaction {
 			return &containerImageIdentityPausingLiveTx{
 				tx:      tx,
-				pauseAt: 3,
+				pauseAt: 4,
 				paused:  paused,
 				release: release,
 			}
