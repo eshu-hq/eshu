@@ -120,11 +120,8 @@ func EncodeOCIImageReferrer(referrer ociregistryv1.ImageReferrer) (map[string]an
 // ociregistryv1.Warning struct for the "oci_registry.warning" fact kind. See
 // DecodeOCIRegistryRepository for the dispatch and error contract.
 //
-// oci_registry.warning is a DEFERRED, typed-but-not-yet-consumed kind: no
-// projector or reducer read path calls this decode function today (design
-// §3.4). It exists so the kind is contract-complete for conformance and a
-// future consumer, mirroring the gcp wave's deferred image_reference /
-// tag_observation.
+// The container-image-identity reducer calls this decode function when active
+// collector warnings gate retirement of previously canonical image references.
 func DecodeOCIRegistryWarning(env Envelope) (ociregistryv1.Warning, error) {
 	return decodeLatestMajor[ociregistryv1.Warning](FactKindOCIRegistryWarning, env)
 }

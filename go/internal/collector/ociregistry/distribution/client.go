@@ -151,26 +151,6 @@ func (c *Client) Ping(ctx context.Context) error {
 	return statusError("ping", resp)
 }
 
-// ListTags returns the registry-reported tags for one repository.
-func (c *Client) ListTags(ctx context.Context, repository string) ([]string, error) {
-	endpoint := "/v2/" + repositoryPath(repository) + "/tags/list"
-	resp, err := c.do(ctx, "list_tags", http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer closeBody(resp.Body)
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, statusError("list_tags", resp)
-	}
-	var decoded struct {
-		Tags []string `json:"tags"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
-		return nil, fmt.Errorf("decode OCI tag list: %w", err)
-	}
-	return decoded.Tags, nil
-}
-
 // GetManifest returns a manifest or image index by tag or digest reference.
 func (c *Client) GetManifest(ctx context.Context, repository, reference string) (ManifestResponse, error) {
 	endpoint := "/v2/" + repositoryPath(repository) + "/manifests/" + url.PathEscape(strings.TrimSpace(reference))
@@ -275,6 +255,16 @@ func (c *Client) do(
 	headers map[string]string,
 ) (*http.Response, error) {
 	requestURL := c.resolve(endpoint)
+	return c.doURL(ctx, operation, method, requestURL, headers)
+}
+
+func (c *Client) doURL(
+	ctx context.Context,
+	operation string,
+	method string,
+	requestURL url.URL,
+	headers map[string]string,
+) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, method, requestURL.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("build OCI request: %w", err)

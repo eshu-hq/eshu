@@ -23,10 +23,10 @@ Seven OCI registry fact kinds decode through this package. The kinds are DOTTED
 | `oci_registry.image_descriptor` | `ImageDescriptor` | `factschema.DecodeOCIImageDescriptor` |
 | `oci_registry.image_tag_observation` | `TagObservation` | `factschema.DecodeOCIImageTagObservation` |
 | `oci_registry.image_referrer` | `ImageReferrer` | `factschema.DecodeOCIImageReferrer` |
-| `oci_registry.warning` | `Warning` | `factschema.DecodeOCIRegistryWarning` (deferred) |
+| `oci_registry.warning` | `Warning` | `factschema.DecodeOCIRegistryWarning` |
 
-`oci_registry.warning` is **typed but not yet consumed** — see "The deferred
-warning kind" below.
+`oci_registry.warning` is consumed by the container-image-identity retirement
+planner — see "The warning consumer" below.
 
 ## Ownership boundary
 
@@ -78,17 +78,28 @@ behavior.
 synthesizes it from `(RepositoryID, Digest)` when absent, so its absence must
 stay a valid decode, not a dead-letter.
 
-## The deferred warning kind
+## The warning consumer
 
-`oci_registry.warning` (`Warning`) is typed but **not yet consumed**. The
-collector emits it (`ociregistry.NewWarningEnvelope`), but no projector or
-reducer read path decodes it today, so it is a declared provenance-only kind
-(design §3.4). Its struct, schema, fixturepack entry, and registry
-`payload_schema` ref exist so the kind is contract-complete for conformance and
-a future consumer, mirroring how the gcp wave shipped `gcp_image_reference` /
-`gcp_tag_observation` typed-but-deferred. There is no decode-site conversion,
-`input_invalid` regression test, or benchmark for it — there is no read path to
-convert; it migrates its decode site WITH its future consumer.
+`oci_registry.warning` (`Warning`) is decoded by the container-image-identity
+reducer before it retires a previously canonical image reference. Active
+`config_blob_unavailable`, `tag_list_truncated`, and
+`missing_manifest_digest` warnings declare a bounded collector-incompleteness
+condition. The retirement planner holds affected config digests and tag
+references; `missing_manifest_digest` conservatively holds the repository
+because the payload has no scanned-reference field. A malformed active warning
+fails the retirement pass closed instead of treating unknown completeness as
+an authoritative demotion. For these three safety codes, optional wire fields
+become required consumer targets: all require a concrete repository identity,
+and `config_blob_unavailable` also requires a lowercase sha256 digest. Missing,
+malformed, or registry-wide placeholder targets fail closed. The typed decode
+keeps that accuracy gate on the versioned payload contract.
+
+The schema-v1 warning vocabulary is closed and published by
+`KnownWarningCodes`. The remaining codes (`unsupported_referrers_api`,
+`computed_manifest_digest`, and `config_blob_oversized`) are explicit
+non-retirement warnings. Collectors reject unknown codes, and retirement fails
+closed if an unknown active warning reaches the consumer during a rolling
+upgrade.
 
 ## Changing a struct
 
@@ -124,5 +135,5 @@ path — it is pure type definitions and a JSON codec.
 - `docs/internal/contract-system-contributor-summary.md`
 - Parent module `README.md` (`sdk/go/factschema/README.md`) — decode seam,
   classified errors, schema generation.
-- `sdk/go/factschema/gcp/v1/README.md` — the gcp family whose deferred-kind
-  pattern this package's `Warning` mirrors.
+- `go/internal/reducer/README.md` — container-image identity publication and
+  warning-gated retirement.

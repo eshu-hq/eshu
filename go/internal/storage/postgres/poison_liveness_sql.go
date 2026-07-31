@@ -102,6 +102,10 @@ WITH poison AS (
 )
 UPDATE fact_work_items AS target
 SET status = 'pending',
+    container_image_identity_v2_authorized_status = CASE
+        WHEN target.container_image_identity_v2_required THEN 'pending'
+        ELSE ''
+    END,
     lease_owner = NULL,
     claim_until = NULL,
     visible_at = $1,

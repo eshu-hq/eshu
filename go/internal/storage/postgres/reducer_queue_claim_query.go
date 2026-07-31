@@ -97,6 +97,24 @@ claimed AS (
     UPDATE fact_work_items AS work
     SET status = 'claimed',
         attempt_count = ` + reducerClaimAttemptCountCaseSQL() + `,
+        container_image_identity_claim_epoch =
+            CASE
+                WHEN work.domain = 'container_image_identity'
+                    THEN work.container_image_identity_claim_epoch + 1
+                ELSE work.container_image_identity_claim_epoch
+            END,
+        container_image_identity_v2_required =
+            CASE
+                WHEN work.domain = 'container_image_identity'
+                    THEN TRUE
+                ELSE work.container_image_identity_v2_required
+            END,
+        container_image_identity_v2_authorized_status =
+            CASE
+                WHEN work.domain = 'container_image_identity'
+                    THEN 'claimed'
+                ELSE work.container_image_identity_v2_authorized_status
+            END,
         lease_owner = $3,
         claim_until = $4,
         last_attempt_at = $1,
@@ -109,6 +127,7 @@ claimed AS (
         work.generation_id,
         work.domain,
         work.attempt_count,
+        work.container_image_identity_claim_epoch,
         work.created_at,
         COALESCE(work.visible_at, work.created_at) AS available_at,
         work.payload
@@ -119,6 +138,7 @@ SELECT
     generation_id,
     domain,
     attempt_count,
+    container_image_identity_claim_epoch,
     created_at,
     available_at,
     payload

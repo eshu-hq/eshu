@@ -141,18 +141,15 @@ var orderedBootstrapDefinitionNames = []string{
 	"vulnerability_suppression_lineage_index",
 	// migration 086 (#5469 indexed current runtime-image evidence lookup).
 	"cloud_resource_owner_runtime_digest_index",
+	// migration 087 (#5854 ordered cross-scope OCI warning safety load).
+	"fact_records_active_oci_warning_idx",
+	// migration 088 (#5854 old-binary compatibility fence after identity-key cutover).
+	"container_image_identity_cutover_guard",
 	// migration 091 (#5593 bounded index for the reducer's config-state-drift
 	// catch-up sweep's recurring active state_snapshot scope scan). Numbered
-	// 091, not the next-available 087: sibling PR #5875 already claims
-	// 087_aws_cloud_runtime_drift_write_admission.sql through a staged 090 on
-	// origin/main-bound work ahead of this branch. This branch was not
-	// rebased onto that range, so 091 sits above #5875's whole claimed span
-	// to avoid a migration-file collision a future rebase would otherwise
-	// have to resolve (same pattern as the 086/087 renumber done for #5469
-	// on the aws_cloud_runtime_drift_write_admission migration). 087-090 are
-	// therefore absent from this branch's own migrations/ directory -- the
-	// gap is expected here and closes once #5875 merges; BootstrapDefinitions
-	// sorts by file path, not by numeric contiguity, so the gap has no
-	// runtime effect on this branch.
+	// 091 on its original branch to stay above a sibling's reserved 087-090
+	// range. Migrations 087-088 now belong to #5854 after rebasing onto main;
+	// BootstrapDefinitions sorts by file path, not numeric contiguity, so the
+	// remaining gap has no runtime effect.
 	"ingestion_scopes_active_state_snapshot_index",
 }

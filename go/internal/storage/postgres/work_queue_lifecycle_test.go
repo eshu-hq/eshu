@@ -285,6 +285,13 @@ func (r *queueFakeRows) Scan(dest ...any) error {
 		return errors.New("scan called without row")
 	}
 	row := r.rows[r.index]
+	// Reducer claim rows gained a target-only claim epoch between attempt_count
+	// and created_at. Older unrelated-domain fixtures intentionally omit it;
+	// synthesize the zero opt-out value while target-domain fixtures exercise
+	// the explicit ninth column.
+	if len(dest) == 9 && len(row) == 8 {
+		row = append(row[:5:5], append([]any{int64(0)}, row[5:]...)...)
+	}
 	if len(dest) != len(row) {
 		return fmt.Errorf("scan destination count = %d, want %d", len(dest), len(row))
 	}

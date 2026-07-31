@@ -134,13 +134,13 @@ func packageSourceCorrelationDomainDefinition() DomainDefinition {
 }
 
 // containerImageIdentityDomainDefinition returns the additive definition for
-// digest-keyed image identity decisions. The domain writes durable reducer
+// digest-correlated, image-reference-keyed identity decisions. The domain writes durable reducer
 // facts only for digest-proven or single tag-to-digest registry observations;
 // ambiguous, missing, and stale tag cases remain explicit decision facts.
 func containerImageIdentityDomainDefinition() DomainDefinition {
 	return DomainDefinition{
 		Domain:  DomainContainerImageIdentity,
-		Summary: "join Git, OCI registry, and runtime image references into digest-keyed image identity",
+		Summary: "join Git, OCI registry, and runtime image references into digest-correlated image identity",
 		Ownership: OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,

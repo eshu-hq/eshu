@@ -82,16 +82,16 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	"FactKindKubernetesLiveRelationship": "kubernetes_live.relationship.v1.schema.json",
 	"FactKindKubernetesLiveWarning":      "kubernetes_live.warning.v1.schema.json",
 	"FactKindKubernetesLiveNamespace":    "kubernetes_live.namespace.v1.schema.json",
-	// OCI registry family: the six consumed kinds a decode seam references
-	// (the projector canonical extractor decodes all six; the reducer registry
-	// index decodes manifest/index/tag). oci_registry.warning has no decode
-	// seam (typed-but-deferred), so it is intentionally absent here.
+	// OCI registry family: the projector canonical extractor decodes the six
+	// graph kinds; the reducer registry index decodes manifest/index/tag and
+	// its retirement planner decodes warning.
 	"FactKindOCIRegistryRepository":  "oci_registry.repository.v1.schema.json",
 	"FactKindOCIImageManifest":       "oci_registry.image_manifest.v1.schema.json",
 	"FactKindOCIImageIndex":          "oci_registry.image_index.v1.schema.json",
 	"FactKindOCIImageDescriptor":     "oci_registry.image_descriptor.v1.schema.json",
 	"FactKindOCIImageTagObservation": "oci_registry.image_tag_observation.v1.schema.json",
 	"FactKindOCIImageReferrer":       "oci_registry.image_referrer.v1.schema.json",
+	"FactKindOCIRegistryWarning":     "oci_registry.warning.v1.schema.json",
 	// terraform_state family: the six kinds the projector's canonical
 	// extractor decodes (factschema_decode_terraformstate.go), including
 	// provider_binding (#5446, terraformStateProviderBindingsByResource's

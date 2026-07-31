@@ -336,7 +336,7 @@ type DefaultHandlers struct {
 	// properties never resolve against uncommitted EC2 nodes.
 	EC2InternetExposureNodeWriter EC2InternetExposureNodeWriter
 
-	// ContainerImageIdentityWriter persists digest-keyed image identity
+	// ContainerImageIdentityWriter persists image-reference-keyed identity
 	// decisions for Git, OCI registry, and runtime image evidence.
 	ContainerImageIdentityWriter ContainerImageIdentityWriter
 

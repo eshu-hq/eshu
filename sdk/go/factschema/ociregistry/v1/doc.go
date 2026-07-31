@@ -44,13 +44,18 @@
 // projector synthesizes it from (RepositoryID, Digest) when absent; its absence
 // must therefore stay a valid decode.
 //
-// oci_registry.warning is DEFERRED — typed but not yet consumed. No projector or
-// reducer read path decodes it today (design §3.4); the struct, schema,
-// fixturepack entry, and registry payload_schema ref exist so the kind is
-// contract-complete for conformance and a future consumer, mirroring the gcp
-// wave's deferred gcp_image_reference / gcp_tag_observation. It has no
-// decode-site conversion, input_invalid regression test, or benchmark because
-// there is no read path to convert.
+// The container-image-identity reducer decodes oci_registry.warning before
+// retiring a previously canonical image reference. Active
+// config_blob_unavailable, tag_list_truncated, and missing_manifest_digest
+// warnings hold the affected reference set; missing_manifest_digest is
+// repository-wide because the typed payload carries no scanned-reference
+// field. These codes require a concrete repository target at the consumer, and
+// config_blob_unavailable also requires a lowercase sha256 digest. A malformed,
+// incomplete, or registry-wide placeholder warning fails the retirement pass
+// closed, so bounded collector incompleteness is not mistaken for authoritative
+// demotion. KnownWarningCodes publishes the closed schema-v1 warning
+// vocabulary; the collector rejects codes outside it, and the reducer gives
+// every known code an explicit retirement disposition.
 //
 // The reducer and projector decode only the latest struct for each kind.
 // Version shims for an older schema major live in the parent factschema

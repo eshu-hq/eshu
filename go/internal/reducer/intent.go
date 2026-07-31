@@ -97,7 +97,7 @@ const (
 	// (issue #3642).
 	DomainCodeImportRepoEdge Domain = "code_import_repo_edge"
 	// DomainContainerImageIdentity joins Git, registry, and runtime image
-	// evidence into digest-keyed container image identity decisions.
+	// evidence into digest-correlated, image-reference-keyed identity decisions.
 	DomainContainerImageIdentity Domain = "container_image_identity"
 	// DomainCICDRunCorrelation correlates provider CI/CD runs, artifacts, and
 	// environment observations with reducer-owned artifact identity evidence.

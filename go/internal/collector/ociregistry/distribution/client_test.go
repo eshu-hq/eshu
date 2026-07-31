@@ -67,9 +67,13 @@ func TestClientListTagsAndManifestUsesEscapedRepositoryPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient() error = %v", err)
 	}
-	tags, err := client.ListTags(context.Background(), "team/api")
+	tagList, err := client.ListTags(context.Background(), "team/api", 2)
 	if err != nil {
 		t.Fatalf("ListTags() error = %v", err)
+	}
+	tags := tagList.Tags
+	if !tagList.Complete {
+		t.Fatal("ListTags().Complete = false, want true")
 	}
 	if len(tags) != 2 || tags[0] != "latest" || tags[1] != "release" {
 		t.Fatalf("tags = %#v", tags)
@@ -200,7 +204,7 @@ func TestClientClassifiesStatusFailureWithoutLeakingRepositoryPath(t *testing.T)
 			if err != nil {
 				t.Fatalf("NewClient() error = %v", err)
 			}
-			_, err = client.ListTags(context.Background(), "private/team-api")
+			_, err = client.ListTags(context.Background(), "private/team-api", 20)
 			if err == nil {
 				t.Fatal("ListTags() error = nil, want classified failure")
 			}

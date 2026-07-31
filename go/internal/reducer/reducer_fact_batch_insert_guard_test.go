@@ -14,12 +14,13 @@ import (
 //
 // The guard is what makes the token mean anything. Without it a pass that read
 // STALE evidence overwrites a fresher pass's payload on the same fact_id — this
-// domain's identity embeds only (scope, generation, image_ref, outcome), while
+// domain's current identity embeds only (scope, generation, image_ref), while
 // source_revision, source_revision_provenance, build_provenance_repository_ids
-// and evidence_fact_ids are payload-only and are filled in by cross-scope
+// evidence_fact_ids, and outcome are payload-only and are filled in by
+// classification and cross-scope
 // enrichment whose visibility depends on which generations were active at load
-// time. Two passes that agree on the outcome therefore collide on one row with
-// different payloads, and the poorer one must lose.
+// time. Two passes therefore collide on one row even when either classification
+// or enrichment differs, and the poorer one must lose.
 //
 // The clause is frozen in FULL rather than probed by substring. A substring
 // check for `fencing_token` survives every rewrite that matters: replacing the
