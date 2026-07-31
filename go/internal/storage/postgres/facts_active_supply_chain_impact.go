@@ -19,6 +19,7 @@ import (
 const suppressionScopeTrimCharactersSQL = `U&'\0009\000A\000B\000C\000D\0020\0085\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000'`
 
 const listActiveSupplyChainImpactFactsQuery = `
+WITH legacy_facts AS MATERIALIZED (
 SELECT
     fact.fact_id,
     fact.scope_id,
@@ -31,8 +32,8 @@ SELECT
     fact.source_confidence,
     fact.source_system,
     fact.source_fact_key,
-    COALESCE(fact.source_uri, ''),
-    COALESCE(fact.source_record_id, ''),
+    COALESCE(fact.source_uri, '') AS source_uri,
+    COALESCE(fact.source_record_id, '') AS source_record_id,
     fact.observed_at,
     fact.is_tombstone,
     fact.payload
@@ -54,7 +55,6 @@ WHERE fact.fact_kind IN (
     'reducer_package_consumption_correlation',
     'sbom.component',
     'reducer_sbom_attestation_attachment',
-    'reducer_container_image_identity',
     'reducer_ci_cd_run_correlation',
     'reducer_platform_materialization',
     'reducer_service_catalog_correlation',
@@ -130,7 +130,6 @@ WHERE fact.fact_kind IN (
           fact.fact_kind IN (
               'vulnerability.suppression',
               'reducer_package_consumption_correlation',
-              'reducer_container_image_identity',
               'reducer_ci_cd_run_correlation',
               'reducer_platform_materialization',
               'reducer_service_catalog_correlation',
@@ -186,10 +185,62 @@ WHERE fact.fact_kind IN (
           AND lower(btrim(fact.payload->'scope'->>'advisory_id', ` + suppressionScopeTrimCharactersSQL + `)) = ANY($18::text[])
       )
   )
-  AND (
-      $11 = ''
-      OR (fact.fact_kind = 'vulnerability.suppression', fact.fact_id) > ($19::boolean, $11)
-  )
+),
+identity_facts AS MATERIALIZED (
+SELECT
+    fact.fact_id,
+    fact.scope_id,
+    fact.generation_id,
+    fact.fact_kind,
+    fact.stable_fact_key,
+    fact.schema_version,
+    fact.collector_kind,
+    fact.fencing_token,
+    fact.source_confidence,
+    fact.source_system,
+    fact.source_fact_key,
+    fact.source_uri,
+    fact.source_record_id,
+    fact.observed_at,
+    fact.is_tombstone,
+    fact.payload
+FROM container_image_identity_current_support_facts_for(
+    $5::text[],
+    $9::text[],
+    $8::text[],
+    $8::text[],
+    $8::text[],
+    $11::text,
+    CASE WHEN $19::boolean THEN 0 ELSE $12::integer END
+) AS fact
+),
+all_facts AS (
+    SELECT * FROM legacy_facts
+    UNION ALL
+    SELECT * FROM identity_facts
+)
+SELECT
+    fact.fact_id,
+    fact.scope_id,
+    fact.generation_id,
+    fact.fact_kind,
+    fact.stable_fact_key,
+    fact.schema_version,
+    fact.collector_kind,
+    fact.fencing_token,
+    fact.source_confidence,
+    fact.source_system,
+    fact.source_fact_key,
+    fact.source_uri,
+    fact.source_record_id,
+    fact.observed_at,
+    fact.is_tombstone,
+    fact.payload
+FROM all_facts AS fact
+WHERE (
+    $11 = ''
+    OR (fact.fact_kind = 'vulnerability.suppression', fact.fact_id) > ($19::boolean, $11)
+)
 -- #5466 round-8 review F-3: every non-suppression row sorts before every
 -- vulnerability.suppression row (the boolean ASC term), so the row cap
 -- below (ListActiveSupplyChainImpactFacts) can bound ONLY the suppression

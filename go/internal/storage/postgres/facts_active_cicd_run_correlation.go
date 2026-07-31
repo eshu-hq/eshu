@@ -30,21 +30,16 @@ SELECT
     fact.observed_at,
     fact.is_tombstone,
     fact.payload
-FROM fact_records AS fact
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = fact.scope_id
- AND scope.active_generation_id = fact.generation_id
-JOIN scope_generations AS generation
-  ON generation.scope_id = fact.scope_id
- AND generation.generation_id = fact.generation_id
-WHERE fact.fact_kind = 'reducer_container_image_identity'
-  AND fact.is_tombstone = FALSE
-  AND generation.status = 'active'
-  AND (
-    fact.payload->>'digest' = ANY($1::text[])
-    OR fact.payload->>'image_ref' = ANY($2::text[])
-  )
-  AND ($3 = '' OR fact.fact_id > $3)
+FROM container_image_identity_current_support_facts_for(
+    $1::text[],
+    $2::text[],
+    '{}'::text[],
+    '{}'::text[],
+    '{}'::text[],
+    $3::text,
+    $4::integer
+) AS fact
+WHERE ($3 = '' OR fact.fact_id > $3)
 ORDER BY fact.fact_id ASC
 LIMIT $4
 `

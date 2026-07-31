@@ -62,11 +62,25 @@ type ContainerImageIdentityClaimedExecer interface {
 // decisions into the shared fact store.
 type PostgresContainerImageIdentityWriter struct {
 	DB                  workloadIdentityExecer
+	ActivationLookup    ContainerImageIdentityActivationEpochLookup
 	Beginner            ContainerImageIdentityBeginner
 	CutoverLookup       ContainerImageIdentityCutoverLookup
 	LegacyCleanupLookup ContainerImageIdentityLegacyCleanupLookup
 	ClaimedExecer       ContainerImageIdentityClaimedExecer
 	Now                 func() time.Time
+}
+
+// ContainerImageIdentityActivationEpoch reads the lifecycle snapshot required
+// before the legacy writer's handler loads evidence.
+func (w PostgresContainerImageIdentityWriter) ContainerImageIdentityActivationEpoch(
+	ctx context.Context,
+	scopeID string,
+	generationID string,
+) (int64, error) {
+	if w.ActivationLookup == nil {
+		return 0, fmt.Errorf("container image identity activation lookup is required")
+	}
+	return w.ActivationLookup.ContainerImageIdentityActivationEpoch(ctx, scopeID, generationID)
 }
 
 // WriteContainerImageIdentityDecisions stores canonical image identity

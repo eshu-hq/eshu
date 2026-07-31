@@ -78,16 +78,21 @@ fact-store row can reject it at the fencing-token conflict guard. Correlate the
 counter with reducer execution failures, PostgreSQL query duration, and the
 current read result before diagnosing a missing row as retired.
 
-During the #5854 rolling format cutover,
-`container_image_identity_cutovers` is durable operator evidence that a scope
-generation has moved to `identity_format=image_ref_v2`. The compatibility
-trigger waits on the matching transaction lock and skips old outcome-keyed
-inserts after that marker commits. Later reducer passes read the marker by its
-primary key and do not reacquire the completed compatibility fence. Existing
-PostgreSQL query-duration telemetry shows lock wait and marker lookup duration,
-and a legacy writer using stronger-than-Read-Committed isolation fails through
-the existing reducer execution failure signals instead
-of risking a stale snapshot. This adds no unbounded metric label.
+During rolling upgrades, `container_image_identity_cutovers` remains durable
+evidence that the scope generation crossed the `image_ref_v2` compatibility
+fence. Digest-v3 authority is then visible per scope in
+`container_image_identity_scope_state`: `activation_epoch` fences lifecycle
+ABA, and non-null `active_set_id` names the only authoritative immutable support
+set. A generation activation clears that pointer immediately. The queue's v2
+and v3 authorization columns remain bound to the exact claim state, so a stale
+worker cannot publish after reclaim.
+
+Completeness holds issue a bounded prior-support query only for exact held
+image references. Existing `eshu_dp_postgres_query_duration_seconds` exposes
+that read and the final atomic publication; reducer execution/run duration and
+failure signals cover the owning pass. Decision, attempted-retirement,
+legacy-cleanup, and bounded hold outcomes remain on the two counters above.
+This adds no new metric or unbounded label.
 
 ## Change Gate
 

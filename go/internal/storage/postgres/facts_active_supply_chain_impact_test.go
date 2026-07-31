@@ -53,6 +53,34 @@ func TestListActiveSupplyChainImpactFactsQueryIsPackageBoundedAndPaged(t *testin
 	}
 }
 
+func TestListActiveSupplyChainImpactFactsQueryUnionsCanonicalIdentities(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"legacy_facts AS MATERIALIZED",
+		"COALESCE(fact.source_uri, '') AS source_uri",
+		"COALESCE(fact.source_record_id, '') AS source_record_id",
+		"identity_facts AS MATERIALIZED",
+		"FROM container_image_identity_current_support_facts_for(",
+		"$5::text[]",
+		"$9::text[]",
+		"$8::text[]",
+		"$11::text",
+		"CASE WHEN $19::boolean THEN 0 ELSE $12::integer END",
+		"UNION ALL",
+	} {
+		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
+			t.Fatalf("supply-chain loader missing canonical identity seam %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
+		}
+	}
+	legacyStart := strings.Index(listActiveSupplyChainImpactFactsQuery, "legacy_facts AS MATERIALIZED")
+	identityStart := strings.Index(listActiveSupplyChainImpactFactsQuery, "identity_facts AS MATERIALIZED")
+	legacyBranch := listActiveSupplyChainImpactFactsQuery[legacyStart:identityStart]
+	if strings.Contains(legacyBranch, "'reducer_container_image_identity'") {
+		t.Fatalf("legacy supply-chain branch must exclude v2 identity rows:\n%s", legacyBranch)
+	}
+}
+
 func TestListActiveSupplyChainImpactFactsQueryIncludesVulnerabilitySuppression(t *testing.T) {
 	t.Parallel()
 
@@ -118,7 +146,6 @@ func TestListActiveSupplyChainImpactFactsQueryBoundsRepositoryFollowUp(t *testin
 	for _, want := range []string{
 		"OR (\n          fact.fact_kind IN (",
 		"'vulnerability.suppression'",
-		"'reducer_container_image_identity'",
 		"'reducer_ci_cd_run_correlation'",
 		"'reducer_platform_materialization'",
 		"'reducer_service_catalog_correlation'",
@@ -140,8 +167,9 @@ func TestListActiveSupplyChainImpactFactsQueryBoundsRepositoryFollowUp(t *testin
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
 		}
 	}
-	if strings.Contains(listActiveSupplyChainImpactFactsQuery, "OR fact.payload->>'repository_id' = ANY($8::text[])") {
-		t.Fatalf("repository_id follow-up must be fact-kind gated:\n%s", listActiveSupplyChainImpactFactsQuery)
+	legacyBranch := strings.Split(listActiveSupplyChainImpactFactsQuery, "identity_facts AS MATERIALIZED")[0]
+	if strings.Contains(legacyBranch, "OR fact.payload->>'repository_id' = ANY($8::text[])") {
+		t.Fatalf("legacy repository_id follow-up must be fact-kind gated:\n%s", legacyBranch)
 	}
 }
 
@@ -157,12 +185,18 @@ func TestListActiveSupplyChainImpactFactsQueryLoadsPackageConsumptionByRepositor
 		t.Fatalf("repository follow-up branch end missing:\n%s", listActiveSupplyChainImpactFactsQuery)
 	}
 	repositoryBranch := listActiveSupplyChainImpactFactsQuery[repositoryBranchStart : repositoryBranchStart+repositoryBranchEnd]
+	if !strings.Contains(repositoryBranch, "'reducer_package_consumption_correlation'") {
+		t.Fatalf("legacy repository follow-up must load package-consumption rows:\n%s", repositoryBranch)
+	}
+	if strings.Contains(repositoryBranch, "'reducer_container_image_identity'") {
+		t.Fatalf("legacy repository follow-up must not load v2 identity rows:\n%s", repositoryBranch)
+	}
 	for _, want := range []string{
-		"'reducer_package_consumption_correlation'",
-		"'reducer_container_image_identity'",
+		"FROM container_image_identity_current_support_facts_for(",
+		"$8::text[]",
 	} {
-		if !strings.Contains(repositoryBranch, want) {
-			t.Fatalf("repository follow-up branch must load %s rows:\n%s", want, repositoryBranch)
+		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
+			t.Fatalf("canonical repository follow-up missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
 		}
 	}
 }

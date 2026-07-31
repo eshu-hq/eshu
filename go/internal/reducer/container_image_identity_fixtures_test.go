@@ -104,6 +104,14 @@ type recordingContainerImageIdentityWriter struct {
 	err   error
 }
 
+func (*recordingContainerImageIdentityWriter) ContainerImageIdentityActivationEpoch(
+	context.Context,
+	string,
+	string,
+) (int64, error) {
+	return 1, nil
+}
+
 func (w *recordingContainerImageIdentityWriter) WriteContainerImageIdentityDecisions(
 	_ context.Context,
 	write ContainerImageIdentityWrite,

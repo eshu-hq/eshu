@@ -55,6 +55,10 @@ SET status = 'succeeded',
         WHEN container_image_identity_v2_required THEN 'succeeded'
         ELSE ''
     END,
+    container_image_identity_v3_authorized_status = CASE
+        WHEN container_image_identity_v3_required THEN 'succeeded'
+        ELSE ''
+    END,
     lease_owner = NULL,
     claim_until = NULL,
     visible_at = NULL,
@@ -102,6 +106,10 @@ SET status = 'dead_letter',
         WHEN container_image_identity_v2_required THEN 'dead_letter'
         ELSE ''
     END,
+    container_image_identity_v3_authorized_status = CASE
+        WHEN container_image_identity_v3_required THEN 'dead_letter'
+        ELSE ''
+    END,
     lease_owner = NULL,
     claim_until = NULL,
     visible_at = NULL,
@@ -138,6 +146,10 @@ UPDATE fact_work_items
 SET status = 'retrying',
     container_image_identity_v2_authorized_status = CASE
         WHEN container_image_identity_v2_required THEN 'retrying'
+        ELSE ''
+    END,
+    container_image_identity_v3_authorized_status = CASE
+        WHEN container_image_identity_v3_required THEN 'retrying'
         ELSE ''
     END,
     lease_owner = NULL,

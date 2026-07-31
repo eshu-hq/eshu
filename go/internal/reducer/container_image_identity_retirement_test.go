@@ -139,6 +139,13 @@ func TestPlanContainerImageIdentityRetirementHonorsCompletenessSignals(t *testin
 			if !equalStringIntMaps(plan.HeldByReason, tt.wantHeld) {
 				t.Fatalf("held by reason = %v, want %v", plan.HeldByReason, tt.wantHeld)
 			}
+			wantHeldDecisions := 0
+			for _, count := range tt.wantHeld {
+				wantHeldDecisions += count
+			}
+			if got := len(plan.HeldDecisions); got != wantHeldDecisions {
+				t.Fatalf("held decisions = %v (len %d), want len %d", plan.HeldDecisions, got, wantHeldDecisions)
+			}
 			if tt.wantLegacyIDs == 0 {
 				return
 			}
@@ -219,6 +226,9 @@ func TestContainerImageIdentityHandlerPassesWarningGatedRetirementPlan(t *testin
 	}
 	if got := len(writer.write.TombstoneDecisions); got != 0 {
 		t.Fatalf("writer tombstones = %v, want none while tag list is truncated", writer.write.TombstoneDecisions)
+	}
+	if got := len(writer.write.HeldDecisions); got != 1 {
+		t.Fatalf("writer held decisions = %v, want the truncated tag ref", writer.write.HeldDecisions)
 	}
 	if got, want := result.SubSignals["retire_held_tag_list_truncated"], float64(1); got != want {
 		t.Fatalf("Handle().SubSignals[retire_held_tag_list_truncated] = %v, want %v", got, want)

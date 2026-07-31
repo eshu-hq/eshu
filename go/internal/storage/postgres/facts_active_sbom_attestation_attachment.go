@@ -11,6 +11,7 @@ import (
 )
 
 const listActiveSBOMAttestationAttachmentFactsQuery = `
+WITH legacy_facts AS MATERIALIZED (
 SELECT
     fact.fact_id,
     fact.scope_id,
@@ -23,8 +24,8 @@ SELECT
     fact.source_confidence,
     fact.source_system,
     fact.source_fact_key,
-    COALESCE(fact.source_uri, ''),
-    COALESCE(fact.source_record_id, ''),
+    COALESCE(fact.source_uri, '') AS source_uri,
+    COALESCE(fact.source_record_id, '') AS source_record_id,
     fact.observed_at,
     fact.is_tombstone,
     fact.payload
@@ -37,7 +38,6 @@ JOIN scope_generations AS generation
  AND generation.generation_id = fact.generation_id
 WHERE fact.fact_kind IN (
     'oci_registry.image_referrer',
-    'reducer_container_image_identity',
     'sbom.document',
     'sbom.component',
     'sbom.dependency_relationship',
@@ -59,7 +59,59 @@ WHERE fact.fact_kind IN (
       OR fact.payload->>'payload_digest' = ANY($1::text[])
       OR fact.payload->>'statement_id' = ANY($1::text[])
   )
-  AND ($2 = '' OR fact.fact_id > $2)
+),
+identity_facts AS MATERIALIZED (
+SELECT
+    fact.fact_id,
+    fact.scope_id,
+    fact.generation_id,
+    fact.fact_kind,
+    fact.stable_fact_key,
+    fact.schema_version,
+    fact.collector_kind,
+    fact.fencing_token,
+    fact.source_confidence,
+    fact.source_system,
+    fact.source_fact_key,
+    fact.source_uri,
+    fact.source_record_id,
+    fact.observed_at,
+    fact.is_tombstone,
+    fact.payload
+FROM container_image_identity_current_support_facts_for(
+    $1::text[],
+    '{}'::text[],
+    '{}'::text[],
+    '{}'::text[],
+    '{}'::text[],
+    $2::text,
+    $3::integer
+) AS fact
+),
+all_facts AS (
+    SELECT * FROM legacy_facts
+    UNION ALL
+    SELECT * FROM identity_facts
+)
+SELECT
+    fact.fact_id,
+    fact.scope_id,
+    fact.generation_id,
+    fact.fact_kind,
+    fact.stable_fact_key,
+    fact.schema_version,
+    fact.collector_kind,
+    fact.fencing_token,
+    fact.source_confidence,
+    fact.source_system,
+    fact.source_fact_key,
+    fact.source_uri,
+    fact.source_record_id,
+    fact.observed_at,
+    fact.is_tombstone,
+    fact.payload
+FROM all_facts AS fact
+WHERE ($2 = '' OR fact.fact_id > $2)
 ORDER BY fact.fact_id ASC
 LIMIT $3
 `

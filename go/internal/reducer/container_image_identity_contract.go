@@ -103,44 +103,48 @@ type ContainerImageIdentityDecision struct {
 
 // ContainerImageIdentityWrite carries decisions for durable publication.
 type ContainerImageIdentityWrite struct {
-	IntentID     string
-	ClaimEpoch   int64
-	ScopeID      string
-	GenerationID string
-	SourceSystem string
-	Cause        string
+	IntentID        string
+	ClaimEpoch      int64
+	ActivationEpoch int64
+	ScopeID         string
+	GenerationID    string
+	SourceSystem    string
+	Cause           string
 	// EvidenceAsOf is the moment this write's evidence was read, captured
-	// immediately before the handler's first fact load. It becomes the row's
-	// fact_records.fencing_token, which the shared batched insert's conflict
-	// guard ranks colliding passes by: a worker that stalled past its lease
-	// cannot overwrite the payload of the worker that overtook it with fresher
-	// evidence. Read time, not write time — write time ranks the stalled worker
-	// highest, which is backwards. It is required: a zero value is a hard error,
-	// never a defaulted or unfenced write. See reducerFactBatchInsertQuery.
+	// immediately before the handler's first fact load. The legacy writer stores
+	// it as fact_records.fencing_token; the digest-v3 writer stores the same
+	// ordering token on the scope's active support-set pointer. Read time, not
+	// write time, prevents a worker that stalled past its lease from advertising
+	// stale evidence as fresher. A zero value is always a hard error.
 	EvidenceAsOf time.Time
 	Decisions    []ContainerImageIdentityDecision
 	// TombstoneDecisions names evaluated, non-canonical image references whose
-	// durable logical identity must be retired. The writer publishes each as a
-	// fenced tombstone at the same outcome-independent fact ID a later
-	// canonical decision revives. Collector incompleteness holds exclude a
-	// decision from this slice.
+	// durable logical identity must be retired. The legacy writer publishes a
+	// fenced tombstone; the digest-v3 writer omits the support from its complete
+	// replacement set. Collector incompleteness holds exclude a decision from
+	// this slice.
 	TombstoneDecisions []ContainerImageIdentityDecision
-	// LegacyFactIDs names outcome-keyed IDs emitted before #5854. The writer
-	// deletes these unreachable keys in the same transaction as the new
-	// outcome-independent live rows and tombstones.
+	// HeldDecisions identifies evaluated references whose prior canonical
+	// support must remain authoritative because collector completeness is not
+	// strong enough to prove their absence.
+	HeldDecisions []ContainerImageIdentityDecision
+	// LegacyFactIDs names outcome-keyed IDs emitted before #5854. Legacy writers
+	// use the exact list; the digest-v3 authority switch deletes all legacy
+	// container-image-identity rows for the exact active scope generation.
 	LegacyFactIDs []string
 }
 
 // ContainerImageIdentityWriteResult summarizes durable publication.
 type ContainerImageIdentityWriteResult struct {
-	// CanonicalWrites counts the decisions this execution inserted or upserted.
+	// CanonicalWrites counts current canonical decisions published by this
+	// execution. Held prior supports carried into a digest-v3 set are excluded.
 	CanonicalWrites int
 	// RetirementAttempts counts logical identities this execution attempted to
-	// publish as fenced tombstones. A fresher row can reject the publication at
-	// the ON CONFLICT fence, so this is deliberately not an applied-row count.
+	// retire. A legacy writer may publish tombstones; a digest-v3 writer omits
+	// them from its complete set. This is deliberately not an applied-row count.
 	RetirementAttempts int
-	// LegacyRowsDeleted counts pre-#5854 outcome-keyed rows removed after their
-	// fact-ID derivation became unreachable to future writers.
+	// LegacyRowsDeleted counts pre-digest-v3 fact rows removed atomically when
+	// the exact scope generation switches to typed support-set authority.
 	LegacyRowsDeleted int
 	// EvidenceSummary is a short operator-facing description of the write.
 	EvidenceSummary string

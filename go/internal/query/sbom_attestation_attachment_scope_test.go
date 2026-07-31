@@ -289,9 +289,15 @@ func TestSBOMAttachmentSQLAppliesRepositoryGrantOverlap(t *testing.T) {
 		})
 	}
 	// Missing-evidence probe must be grant-bounded in BOTH CTEs so a scoped
-	// token cannot detect an out-of-grant image or attachment digest.
-	if got := strings.Count(sbomAttestationAttachmentMissingEvidenceQuery, "?| $5::text[]"); got != 2 {
-		t.Fatalf("missing-evidence query grant overlaps = %d, want 2 (active_images + active_attachments):\n%s", got, sbomAttestationAttachmentMissingEvidenceQuery)
+	// token cannot detect an out-of-grant image or attachment digest. Identity
+	// supports are typed arrays; attachment rows remain JSON payloads.
+	for _, want := range []string{
+		"support.source_repository_ids && $5::text[]",
+		"fact.payload->'repository_ids' ?| $5::text[]",
+	} {
+		if !strings.Contains(sbomAttestationAttachmentMissingEvidenceQuery, want) {
+			t.Fatalf("missing-evidence query missing grant overlap %q:\n%s", want, sbomAttestationAttachmentMissingEvidenceQuery)
+		}
 	}
 	if !strings.Contains(sbomAttestationAttachmentInventoryQueryTemplate, "LIMIT $10 OFFSET $11") {
 		t.Fatalf("inventory limit/offset must shift to $10/$11 after the grant array:\n%s", sbomAttestationAttachmentInventoryQueryTemplate)

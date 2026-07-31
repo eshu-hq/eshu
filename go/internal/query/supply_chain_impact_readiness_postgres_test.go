@@ -25,6 +25,11 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 		"fact.fact_kind = ANY($5::text[])",
 		"fact.fact_kind = ANY($6::text[])",
 		"fact.fact_kind = ANY($7::text[])",
+		"FROM container_image_identity_current_facts_for(",
+		"CASE WHEN $12 = '' THEN '{}'::text[] ELSE ARRAY[$12]::text[] END",
+		"CASE WHEN $14 = '' THEN '{}'::text[] ELSE ARRAY[$14]::text[] END",
+		"''::text",
+		"500::integer",
 		"fact.fact_kind = ANY($8::text[])",
 		// Active-fact gates are pushed into every per-family CTE.
 		"generation.status = 'active'",
@@ -179,6 +184,12 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 		if !strings.Contains(listSupplyChainImpactReadinessQuery, want) {
 			t.Fatalf("listSupplyChainImpactReadinessQuery missing %q:\n%s", want, listSupplyChainImpactReadinessQuery)
 		}
+	}
+	identityStart := strings.Index(listSupplyChainImpactReadinessQuery, "container_image_identity_active AS (")
+	identityEnd := strings.Index(listSupplyChainImpactReadinessQuery[identityStart:], "vulnerability_source_snapshot_active AS (")
+	identityBranch := listSupplyChainImpactReadinessQuery[identityStart : identityStart+identityEnd]
+	if strings.Contains(identityBranch, "FROM fact_records") {
+		t.Fatalf("container-image readiness must not read legacy fact_records:\n%s", identityBranch)
 	}
 }
 

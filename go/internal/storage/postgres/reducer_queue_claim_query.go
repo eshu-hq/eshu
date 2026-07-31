@@ -115,6 +115,18 @@ claimed AS (
                     THEN 'claimed'
                 ELSE work.container_image_identity_v2_authorized_status
             END,
+        container_image_identity_v3_required =
+            CASE
+                WHEN work.domain = 'container_image_identity'
+                    THEN TRUE
+                ELSE work.container_image_identity_v3_required
+            END,
+        container_image_identity_v3_authorized_status =
+            CASE
+                WHEN work.domain = 'container_image_identity'
+                    THEN 'claimed'
+                ELSE work.container_image_identity_v3_authorized_status
+            END,
         lease_owner = $3,
         claim_until = $4,
         last_attempt_at = $1,

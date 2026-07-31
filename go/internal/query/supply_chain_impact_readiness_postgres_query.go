@@ -156,16 +156,16 @@ sbom_attestation_active AS (
 ),
 container_image_identity_active AS (
     SELECT fact.payload, fact.observed_at
-    FROM fact_records AS fact
-    JOIN ingestion_scopes AS scope
-      ON scope.scope_id = fact.scope_id
-     AND scope.active_generation_id = fact.generation_id
-    JOIN scope_generations AS generation
-      ON generation.scope_id = fact.scope_id
-     AND generation.generation_id = fact.generation_id
+    FROM container_image_identity_current_facts_for(
+        CASE WHEN $12 = '' THEN '{}'::text[] ELSE ARRAY[$12]::text[] END,
+        CASE WHEN $14 = '' THEN '{}'::text[] ELSE ARRAY[$14]::text[] END,
+        '{}'::text[],
+        '{}'::text[],
+        '{}'::text[],
+        ''::text,
+        500::integer
+    ) AS fact
     WHERE fact.fact_kind = ANY($7::text[])
-      AND fact.is_tombstone = FALSE
-      AND generation.status = 'active'
 ),
 vulnerability_source_snapshot_active AS (
     SELECT fact.scope_id, fact.payload, fact.observed_at

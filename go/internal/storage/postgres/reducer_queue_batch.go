@@ -200,6 +200,11 @@ SET status = 'succeeded',
             THEN 'succeeded'
         ELSE ''
     END,
+    container_image_identity_v3_authorized_status = CASE
+        WHEN container_image_identity_v3_required
+            THEN 'succeeded'
+        ELSE ''
+    END,
     lease_owner = NULL,
     claim_until = NULL,
     visible_at = NULL,

@@ -19,7 +19,7 @@ func containerImageIdentityWriteResult(
 		RetirementAttempts: retirementAttempts,
 		LegacyRowsDeleted:  legacyRowsDeleted,
 		EvidenceSummary: fmt.Sprintf(
-			"wrote container image identity decisions %d attempted tombstone publications %d legacy rows deleted %d",
+			"wrote container image identity decisions %d attempted retirements %d legacy rows deleted %d",
 			canonicalWrites,
 			retirementAttempts,
 			legacyRowsDeleted,
