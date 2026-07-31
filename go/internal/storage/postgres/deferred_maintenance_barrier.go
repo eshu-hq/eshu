@@ -63,17 +63,23 @@ WHERE barrier_name = $1
 type DeferredMaintenanceBarrierConfig struct {
 	ShardCount int
 	ShardIndex int
-	// HasCommitted reports whether this shard actually committed a generation
-	// since its last barrier drain — the collector passes the same value it
-	// used to decide committedSinceDrain for this cycle (see
-	// collector.Service.Run). It gates a join-only invariant: a shard that has
-	// not committed anything may still join an epoch that is already open (that
-	// is what unblocks a fleet where one shard owns no repositories — #5852),
-	// but it must never be the one that OPENS a new epoch. Opening is reserved
-	// for shards that actually have committed work to account for; otherwise a
-	// quiet fleet where nothing ever commits would keep opening and completing
-	// empty epochs forever, running the corpus-wide maintenance pass against an
-	// unchanged corpus on every idle poll.
+	// HasCommitted reports whether this shard has actual committed work to
+	// account for. In the steady state the collector passes
+	// committedSinceDrain — true only when a real commit happened since the
+	// last drain — but collector.Service.Run overrides that for exactly one
+	// call per process: startupMaintenanceEscapeUsed latches true the FIRST
+	// time the never-committed empty-batch escape fires, and that one call
+	// reports HasCommitted true regardless of committedSinceDrain; every
+	// later escape call on the same shard reports the real, still-false
+	// status. HasCommitted gates a join-only invariant: a shard that reports
+	// false may still join an epoch that is already open (that is what
+	// unblocks a fleet where one shard owns no repositories — #5852), but it
+	// may open a new epoch only when HasCommitted is true. Without the
+	// once-per-process escape override, a quiet fleet where nothing ever
+	// commits would never run its one startup maintenance pass at all;
+	// without the join-only bound, it would instead reopen and rerun the
+	// corpus-wide maintenance pass against an unchanged corpus on every idle
+	// poll.
 	HasCommitted bool
 }
 

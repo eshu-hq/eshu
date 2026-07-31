@@ -103,9 +103,9 @@ func (s *scriptedPollSource) Next(context.Context) (CollectedGeneration, bool, e
 // observable — the drain count — rather than reasoning about the latch
 // flags, which is easy to get wrong from the source.
 //
-// The escape leg fires while `everCommitted` is false (service.go:226) and
+// The escape leg fires while `everCommitted` is false (service.go:223) and
 // `everCommitted` latches true permanently on this shard's first commit
-// (service.go:273) — it is never cleared again for the rest of the process.
+// (service.go:276) — it is never cleared again for the rest of the process.
 // So for a script that commits at least once, the escape leg can matter only
 // during the idle polls before that first commit; every commit-to-idle cycle
 // after it is driven by `committedSinceDrain` alone, on or off. (A shard that

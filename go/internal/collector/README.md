@@ -53,9 +53,13 @@ poll until this process's FIRST generation commit, then never again -- a shard
 that owns no repositories never commits, so it keeps arriving at the fleet
 barrier for its whole lifetime rather than arriving once and starving every later
 epoch (#5852). `AfterBatchDrained` takes a `hasCommitted bool` -- true when this
-drain follows a real commit since the last drain, false when it fires only from
-the empty-batch escape -- so a caller wiring a fleet barrier can tell a shard
-with real work from one that is only re-arriving with nothing to report. The
+drain follows a real commit since the last drain, OR when it is the
+never-committed empty-batch escape's own first-ever call in this process's
+lifetime (the `startupMaintenanceEscapeUsed` once-latch in
+`collector.Service.Run`); false for every later empty-batch-escape call on a
+shard that still has not committed -- so a caller wiring a fleet barrier can
+tell "this shard has real work, or is due its one startup pass" from "this
+shard is only re-arriving with nothing new to report." The
 ingester forwards this into
 `postgres.DeferredMaintenanceBarrierConfig.HasCommitted`, which keeps a
 never-committed shard's arrival join-only: it may join an epoch another shard
@@ -177,12 +181,16 @@ empty source batches to participate in a cross-process barrier. The empty path
 is gated on never-having-committed, not edge-triggered per drain window: it
 repeats on every idle poll until this process commits its first generation, and
 is permanently disabled by that commit. A shard that never commits therefore
-never stops re-arriving at the barrier (#5852) -- but "arriving" is join-only:
-`AfterBatchDrained`'s `hasCommitted` argument is false for every one of those
-calls, so a barrier implementation that honors it (as the ingester's does)
-lets the shard join an epoch another shard already opened without ever
-opening one on its own. A fleet where nothing has committed anywhere stays
-idle rather than opening and completing empty epochs forever.
+never stops re-arriving at the barrier (#5852) -- but "arriving" is join-only
+after the first call: `AfterBatchDrained`'s `hasCommitted` argument is true
+for exactly the FIRST empty-batch-escape call in this process's lifetime (the
+`startupMaintenanceEscapeUsed` once-latch), letting that one call open a
+barrier epoch, or join one, and get the one startup maintenance pass
+origin/main always ran; every later escape call on the same shard reports
+`false` and stays join-only, joining an epoch another shard already opened
+without ever opening one on its own. A fleet where nothing has committed
+anywhere therefore opens the barrier epoch at most once across the fleet's
+whole lifetime, then stays idle -- not zero opens, and not once per idle poll.
 
 The delta-generation, documentation-extraction, and `AfterEmptyBatchDrained`
 evidence for this section (No-Regression, Performance, and

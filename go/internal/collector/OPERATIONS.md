@@ -103,7 +103,8 @@ README.
   then run the corpus-wide `RunDeferredRelationshipMaintenance` pass against
   an unchanged corpus, complete the epoch, and the very next idle poll would
   open another one, forever. `AfterBatchDrained` now takes a `hasCommitted
-  bool` (`committedSinceDrain` at the point `Service.Run` calls it), and the
+  bool` (`committedSinceDrain` in the steady state, or `true` for the
+  once-per-process startup-escape call described below), and the
   ingester forwards it into
   `postgres.DeferredMaintenanceBarrierConfig.HasCommitted`: a shard may join
   an epoch another shard already opened regardless of this flag (the original
