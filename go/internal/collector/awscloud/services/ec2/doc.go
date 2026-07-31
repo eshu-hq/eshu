@@ -31,8 +31,20 @@
 // identity + ami_id only: it never carries any property the posture fact and
 // its CloudResource node materialization already own (see
 // go/internal/reducer/ec2_instance_identity_materialization.go for the
-// dual-writer safety argument). The instance->AMI relationship has no AMI
-// graph node to resolve against yet, so it stays Postgres-only.
+// dual-writer safety argument).
+//
+// The scanner also emits (#5717) one aws_resource fact for the AMI itself
+// (resource_type=aws_ec2_ami), deduplicated across every instance in the scan
+// that shares the same AMI id, so the instance->AMI relationship's edge
+// projection resolves against a real CloudResource node instead of always
+// falling through to unresolved. This is Pattern A, not a new node class: the
+// AMI materializes under the EXISTING CloudResource label through the SAME
+// generic AWS resource node materialization every other resource_type uses
+// (go/internal/reducer/aws_resource_materialization.go) — no dedicated
+// node/edge writer. It carries ONLY identity (account/region/resource_id),
+// never name/state/owner/creation-date metadata: that requires a
+// DescribeImages call this scanner deliberately does not make (see
+// ami_identity.go).
 //
 // The scanner also emits metadata-only aws_ec2_volume resource facts and
 // reported volume-to-KMS relationship facts from one boundary-scoped
