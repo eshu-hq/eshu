@@ -17,9 +17,12 @@ import (
 // volume, and topology relationship facts for one claimed account and region.
 // It also emits, per instance, one metadata-only ec2_instance_posture fact and
 // (#5448) one aws_resource identity fact carrying the launch AMI id plus an
-// instance->AMI aws_relationship fact when an AMI id is present — all three
-// from the existing DescribeInstances pass, with no additional AWS API call
-// and no user-data content ever read.
+// instance->AMI aws_relationship fact when an AMI id is present, and (#5717)
+// one aws_resource fact for the AMI itself — deduplicated across every
+// instance in the scan that shares the same AMI id — so the instance->AMI
+// relationship's edge projection resolves against a real CloudResource node.
+// All of these come from the existing DescribeInstances pass, with no
+// additional AWS API call and no user-data content ever read.
 type Scanner struct {
 	Client Client
 }
@@ -104,6 +107,11 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	if err != nil {
 		return nil, fmt.Errorf("list EC2 instances: %w", err)
 	}
+	// seenAMIIDs dedups the #5717 AMI resource fact across every instance in
+	// this scan: many instances commonly launch from the same AMI, and this
+	// boundary already scopes one account/region, so an AMI id is a valid
+	// dedup key for the whole loop below.
+	seenAMIIDs := make(map[string]struct{})
 	for _, instance := range instances {
 		instanceEnvelopes, err := instancePostureEnvelopes(boundary, instance)
 		if err != nil {
@@ -116,6 +124,12 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			return nil, err
 		}
 		envelopes = append(envelopes, identityEnvelopes...)
+
+		amiEnvelopes, err := amiResourceEnvelopes(boundary, instance, seenAMIIDs)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, amiEnvelopes...)
 	}
 
 	volumes, err := s.Client.ListVolumes(ctx)

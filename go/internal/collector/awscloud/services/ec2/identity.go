@@ -29,12 +29,12 @@ import (
 // EC2InstanceIdentityMaterialization domain augments the already-materialized
 // node with only the disjoint ami_id property.
 //
-// The AMI relationship stays Postgres-only in this increment: no AMI/
-// MachineImage CloudResource node class exists yet, so the generic AWS
-// relationship edge projection's target join never resolves it (counted as
-// unresolved, never fabricated). See
-// go/internal/collector/awscloud/constants_ec2.go's ResourceTypeEC2AMI doc and
-// the tracked follow-up for the AMI node class.
+// The AMI relationship this function emits resolves against the AMI's own
+// aws_resource identity fact (#5717, amiResourceEnvelopes in
+// ami_identity.go), which the caller (Scanner.Scan) emits separately —
+// deduplicated across every instance in the scan — because it is a
+// per-distinct-AMI fact, not a per-instance one. See
+// go/internal/collector/awscloud/constants_ec2.go's ResourceTypeEC2AMI doc.
 func instanceIdentityEnvelopes(boundary awscloud.Boundary, instance Instance) ([]facts.Envelope, error) {
 	resource, err := awscloud.NewResourceEnvelope(instanceIdentityObservation(boundary, instance))
 	if err != nil {
@@ -82,10 +82,11 @@ func instanceIdentityObservation(boundary awscloud.Boundary, instance Instance) 
 }
 
 // instanceAMIRelationship builds the instance->AMI aws_relationship
-// observation. The target is identified only by the AMI id: no AMI
-// aws_resource fact is ever emitted, so this relationship's graph edge
-// projection resolves as unresolved (Postgres-only) until a future AMI node
-// class lands.
+// observation. The target is identified only by the AMI id (bare id, no ARN):
+// amiResourceObservation (ami_identity.go) emits the matching aws_resource
+// identity fact with the SAME resource_id, so the generic AWS relationship
+// edge join (go/internal/reducer/aws_relationship_join.go) resolves this
+// target by bare id against a real CloudResource node.
 func instanceAMIRelationship(boundary awscloud.Boundary, instance Instance, amiID string) awscloud.RelationshipObservation {
 	sourceID := firstNonEmpty(strings.TrimSpace(instance.ID), strings.TrimSpace(instance.ARN))
 	return awscloud.RelationshipObservation{
