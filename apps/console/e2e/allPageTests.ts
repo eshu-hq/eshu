@@ -23,6 +23,7 @@ import { pageTest as pt_cloud } from "./pages/cloud.e2e.ts";
 import { pageTest as pt_cloudDrift } from "./pages/cloudDrift.e2e.ts";
 import { pageTest as pt_cloudInventoryPanel } from "./pages/cloudInventoryPanel.e2e.ts";
 import { pageTest as pt_codeGraph } from "./pages/codeGraph.e2e.ts";
+import { pageTest as pt_codeGraphBackForwardRace } from "./pages/codeGraphBackForwardRace.e2e.ts";
 import { pageTest as pt_collectorReadiness } from "./pages/collectorReadiness.e2e.ts";
 import { pageTest as pt_dashboard } from "./pages/dashboard.e2e.ts";
 import { pageTest as pt_dashboardRoot } from "./pages/dashboardRoot.e2e.ts";
@@ -110,6 +111,7 @@ export const allTests: readonly PageTest[] = [
   pt_cloudDrift,
   pt_cloudInventoryPanel,
   pt_codeGraph,
+  pt_codeGraphBackForwardRace,
   pt_collectorReadiness,
   pt_dashboard,
   pt_dashboardRoot,

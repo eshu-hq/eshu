@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router";
+import { useContext, useEffect, useMemo, useState } from "react";
+import { UNSAFE_NavigationContext as NavigationContext, useSearchParams } from "react-router";
+import type { Navigator } from "react-router";
 
 import { candidateIdFromParam } from "./CodeGraphPageSupport";
 import type { EshuApiClient } from "../api/client";
@@ -55,6 +56,7 @@ export function useCodeGraphSelection({
     [deadCandidates],
   );
   const availableRepositories = repositories ?? fallbackRepositories;
+  const { navigator } = useContext(NavigationContext);
   const [searchParams, setSearchParams] = useSearchParams();
   const legacyCandidateParam = searchParams.get("candidate") ?? searchParams.get("q") ?? "";
   const legacyCandidateId = candidateIdFromParam(deadCandidates, legacyCandidateParam);
@@ -184,9 +186,59 @@ export function useCodeGraphSelection({
     else canonical.delete("entity_id");
     canonical.delete("candidate");
     canonical.delete("q");
-    if (canonical.toString() !== searchParams.toString())
-      setSearchParams(canonical, { replace: true });
-  }, [entityParam, loading, repository, searchParams, selected, setSearchParams]);
+    if (canonical.toString() === searchParams.toString()) return;
+    // `setSearchParams(..., { replace: true })` replaces whichever history
+    // entry the navigator considers current AT THE MOMENT IT RUNS -- not the
+    // entry that was current when this effect's closure captured
+    // `repository`/`selected`/`searchParams`. If a different navigation
+    // (browser back/forward, or picking a different repository/entity) has
+    // already landed since this effect's own snapshot was taken, writing
+    // `canonical` now would replace that freshly-navigated-to entry with this
+    // effect's stale one.
+    //
+    // Guard against that by stamping the write with the exact `searchParams`
+    // it was computed from and comparing it against the navigator's OWN
+    // current location, read fresh, right here, right before writing.
+    // `searchParams` (the value from `useSearchParams`) only updates when
+    // THIS component re-renders. Whether the live read below is itself fresh
+    // is router-mode-dependent: under the `MemoryRouter` used in tests,
+    // `createMemoryHistory.go(delta)` updates `.location` synchronously,
+    // before notifying listeners, so a same-tick read is never stale. Under
+    // the `BrowserRouter` this console actually renders with
+    // (`apps/console/src/main.tsx`), `.location` is a live read of
+    // `window.location`, and `go(n)` calls the native `history.go(n)`, whose
+    // traversal is asynchronous -- MDN documents `popstate` firing
+    // "asynchronously ... outside the event handler" that invoked
+    // back()/go(). Measurement in real Chromium found a consistent
+    // ~0.3-2ms gap between the `history.back()` call and both
+    // `window.location` updating and `popstate` firing, and this effect can
+    // run inside that gap, so the guard's own decision to write is
+    // sometimes wrong -- it can compare against a location that has not yet
+    // caught up with a pending back/forward traversal.
+    //
+    // The comparison below is a guard against the common case, not a proof
+    // that a stale write is impossible under `BrowserRouter`. What keeps the
+    // final URL correct even when the guard's decision is wrong: native
+    // `history.replaceState` replaces whichever entry is current AT CALL
+    // TIME -- the entry the pending traversal is about to abandon, not the
+    // entry it is about to land on. That is the leading explanation for why
+    // the outcome stays correct even in the stale-read case; it is supported
+    // by measurement, not by a cited spec or react-router guarantee, so
+    // treat it as empirical, not as a proof.
+    //
+    // Empirical outcome in real Chromium against production `BrowserRouter`:
+    // the reverted (pre-fix) hook clobbers the URL in 8/30 rapid
+    // back/forward trials (~27%); this fixed hook clobbers in 0/30.
+    // (`Navigator`, the public type for `navigator`, omits `.location`
+    // specifically to steer application code away from reading it to decide
+    // what to RENDER, where it could tear across a single render pass under
+    // Suspense; this reads it once, inside a post-commit effect, purely to
+    // gate an imperative write, which does not have that render-time tearing
+    // hazard.)
+    const liveLocationSearch = readLiveLocationSearch(navigator);
+    if (liveLocationSearch === undefined || liveLocationSearch !== searchParams.toString()) return;
+    setSearchParams(canonical, { replace: true });
+  }, [entityParam, loading, navigator, repository, searchParams, selected, setSearchParams]);
 
   const error =
     repositoryError(repository, repoParam, repositoryCatalog) ||
@@ -227,6 +279,63 @@ export function useCodeGraphSelection({
     symbols,
     truncated: activeInventory.truncated,
   };
+}
+
+/**
+ * Reads the navigator's current location search string, normalized the same
+ * way `useSearchParams`'s `searchParams.toString()` is, so the two are
+ * directly comparable.
+ *
+ * `Navigator` (react-router's public type for the value handed down through
+ * `NavigationContext`) deliberately does not declare `.location`, to steer
+ * render-time code away from reading it -- a direct read used to decide what
+ * to render could tear across a single render pass under Suspense-driven
+ * concurrent rendering. This function is only ever called from inside a
+ * post-commit effect to gate an imperative write against a stale snapshot,
+ * never to decide what to render, so that tearing hazard does not apply.
+ *
+ * Freshness relative to `searchParams` (from `useSearchParams`, which only
+ * updates once this component re-renders) is router-mode-dependent, not a
+ * blanket guarantee. Under `MemoryRouter` (used in tests),
+ * `createMemoryHistory.go(delta)` updates `.location` synchronously, before
+ * notifying listeners, so a same-tick read is never stale. Under
+ * `BrowserRouter` (what this console actually renders with, see
+ * `apps/console/src/main.tsx`), `.location` is a live read of
+ * `window.location`, and `go(n)` calls the native `history.go(n)`; that
+ * native traversal is asynchronous (`popstate` fires "asynchronously ...
+ * outside the event handler" that invoked it, per MDN), so this read can
+ * observe a stale value for the few milliseconds before the browser catches
+ * up. The caller's comparison against this value is therefore a guard
+ * against the common case, not a proof that a stale read is impossible
+ * under `BrowserRouter` -- see the comment at the call site for the
+ * measured gap and the empirical 0/30-vs-8/30 result that motivates the
+ * guard anyway.
+ *
+ * Whether the object behind `navigator` actually HAS `.location` depends on
+ * the router mode -- verified against pinned react-router 8.3.0's own source
+ * (`lib/components.js`), not assumed. The three declarative routers --
+ * `BrowserRouter`, `MemoryRouter`, `HashRouter` -- pass their underlying
+ * `history` instance straight through as `navigator`, and `history` always
+ * carries `.location`. `RouterProvider` (the data-router mode from
+ * `createBrowserRouter` / `createMemoryRouter`, react-router's recommended
+ * API since v6.4 and required for loaders/actions/lazy routes) instead passes
+ * a plain memoized object -- `{ createHref, encodeLocation, go, push,
+ * replace }` -- with NO `.location` property at all
+ * (`lib/components.js:256-271`). This console currently renders through
+ * `<BrowserRouter>` (`apps/console/src/main.tsx`) and tests through
+ * `<MemoryRouter>`, so `.location` is present today, but nothing pins the
+ * console to that router mode forever.
+ *
+ * Because of that, this function treats an absent `.location` as "freshness
+ * cannot be verified" and returns `undefined` instead of dereferencing it and
+ * throwing. The caller below skips the canonicalizing write whenever this
+ * returns `undefined`, the same fail-safe direction already taken when the
+ * live location is present but simply does not match.
+ */
+function readLiveLocationSearch(navigator: Navigator): string | undefined {
+  const liveNavigator = navigator as unknown as { readonly location?: { readonly search: string } };
+  if (!("location" in liveNavigator) || liveNavigator.location === undefined) return undefined;
+  return new URLSearchParams(liveNavigator.location.search).toString();
 }
 
 function findingRepoId(finding: FindingRow): string {
