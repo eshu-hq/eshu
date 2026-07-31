@@ -39,6 +39,21 @@ bash -n "${matcher_lib}" || fail "golden-corpus-mirror-matcher.sh has a syntax e
 # shellcheck source=scripts/lib/golden-corpus-mirror-matcher.sh
 . "${matcher_lib}"
 
+# #5837 structural fix: committed negative tests for the matcher's own
+# exactly-one-non-comment-home invariant and the bracket-placement guard
+# built on it. The guard above has been evaded three times across review
+# rounds, each time only caught by a human or reviewer running a scratch
+# probe -- nothing committed asserted it. Extracted to its own lib chunk
+# (golden-corpus-phase-timing-cases.sh is already at 460 lines) with the same
+# gutted-or-early-return sentinel the other extracted case chunks use.
+matcher_guard_cases_lib="${repo_root}/scripts/lib/golden-corpus-matcher-guard-cases.sh"
+[[ -f "${matcher_guard_cases_lib}" ]] || fail "missing matcher guard cases lib: ${matcher_guard_cases_lib}"
+bash -n "${matcher_guard_cases_lib}" || fail "golden-corpus-matcher-guard-cases.sh has a syntax error"
+# shellcheck source=scripts/lib/golden-corpus-matcher-guard-cases.sh
+. "${matcher_guard_cases_lib}"
+[[ "${matcher_guard_cases_completed:-0}" -eq 1 ]] ||
+	fail "golden-corpus-matcher-guard-cases.sh did not run to completion (gutted, or returned early)"
+
 # The workflow's on.pull_request.paths filter must trigger this gate on every
 # source dir whose changes can alter emitted facts, graph/content projection,
 # or query/MCP truth the gate asserts (#5596, widened by #5538). Assertions
