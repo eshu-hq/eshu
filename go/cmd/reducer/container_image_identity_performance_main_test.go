@@ -12,8 +12,15 @@ import (
 
 const containerImageIdentityPerfHeadVariant = false
 
+func containerImageIdentityPerfPrepareIntent(intent *reducer.Intent) {
+	// The shared handler now validates the queue claim token before dispatching
+	// either writer. The legacy writer does not consume it.
+	intent.ClaimEpoch = 1
+}
+
 func containerImageIdentityPerfWriter(
 	database postgres.ExecQueryer,
 ) reducer.ContainerImageIdentityWriter {
-	return reducer.PostgresContainerImageIdentityWriter{DB: database}
+	store := postgres.NewFactStore(database)
+	return containerImageIdentityPerfLegacyWriter{store: store}
 }

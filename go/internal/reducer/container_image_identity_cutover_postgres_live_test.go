@@ -37,7 +37,6 @@ func TestPostgresContainerImageIdentityLegacyWriterFailsClosedAboveReadCommitted
 	if err != nil {
 		t.Fatalf("begin repeatable-read legacy transaction: %v", err)
 	}
-	defer func() { _ = tx.Rollback() }()
 	err = reducerBatchInsertFacts(
 		ctx,
 		tx,
@@ -48,6 +47,29 @@ func TestPostgresContainerImageIdentityLegacyWriterFailsClosedAboveReadCommitted
 		"legacy container image identity writes require read committed isolation",
 	) {
 		t.Fatalf("repeatable-read legacy insert error = %v, want fail-closed isolation error", err)
+	}
+	if err := tx.Rollback(); err != nil {
+		t.Fatalf("roll back repeatable-read legacy transaction: %v", err)
+	}
+
+	markerTx, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
+	if err != nil {
+		t.Fatalf("begin repeatable-read marker transaction: %v", err)
+	}
+	defer func() { _ = markerTx.Rollback() }()
+	err = execContainerImageIdentityCutoverFence(
+		ctx,
+		markerTx,
+		containerImageIdentityLiveScope,
+		containerImageIdentityLiveGeneration,
+		containerImageIdentityLiveWorkItemID(containerImageIdentityLiveGeneration),
+		1,
+	)
+	if err == nil || !strings.Contains(
+		err.Error(),
+		"legacy container image identity writes require read committed isolation",
+	) {
+		t.Fatalf("repeatable-read marker insert error = %v, want fail-closed isolation error", err)
 	}
 }
 
@@ -125,6 +147,8 @@ ON CONFLICT (generation_id) DO NOTHING;
 		tx,
 		containerImageIdentityLiveScope,
 		containerImageIdentityLiveGeneration,
+		containerImageIdentityLiveWorkItemID(containerImageIdentityLiveGeneration),
+		1,
 	); err != nil {
 		t.Fatalf("hold target cutover fence: %v", err)
 	}

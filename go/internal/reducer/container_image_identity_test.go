@@ -138,6 +138,8 @@ func TestContainerImageIdentityHandlerLoadsActiveRegistryFactsAndEmitsOutcomes(t
 		SourceSystem: "git",
 		Domain:       DomainContainerImageIdentity,
 		Cause:        "container image references observed",
+		AttemptCount: 7,
+		ClaimEpoch:   11,
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
@@ -147,6 +149,9 @@ func TestContainerImageIdentityHandlerLoadsActiveRegistryFactsAndEmitsOutcomes(t
 	}
 	if writer.calls != 1 {
 		t.Fatalf("WriteContainerImageIdentityDecisions() calls = %d, want 1", writer.calls)
+	}
+	if got := writer.write.ClaimEpoch; got != 11 {
+		t.Fatalf("write ClaimEpoch = %d, want 11", got)
 	}
 	if loader.activeCall != 1 {
 		t.Fatalf("ListActiveContainerImageIdentityFacts() calls = %d, want 1", loader.activeCall)

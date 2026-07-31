@@ -112,6 +112,47 @@ WHERE scope_id IN ($1, $2)
 	); err != nil {
 		t.Fatalf("activate performance generations: %v", err)
 	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO fact_work_items (
+    work_item_id, scope_id, generation_id, stage, domain,
+    conflict_domain, conflict_key, status, attempt_count,
+    lease_owner, claim_until, payload, created_at, updated_at
+) VALUES (
+    'intent-5854-performance', $1, $2, 'reducer',
+    'container_image_identity', 'intent', 'intent-5854-performance',
+    'claimed', 1, 'reducer-5854-performance',
+    '2026-07-29T21:00:00Z',
+    jsonb_build_object(
+        'entity_key', 'intent-5854-performance',
+        'reason', 'synthetic production-path performance proof',
+        'fact_id', 'intent-5854-performance',
+        'source_system', 'git'
+    ),
+    '2026-07-29T20:00:00Z', '2026-07-29T20:00:00Z'
+)
+`, containerImageIdentityPerfRepoScope, containerImageIdentityPerfRepoGeneration); err != nil {
+		t.Fatalf("seed performance reducer work item: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+DO $block$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM pg_attribute
+        WHERE attrelid = 'fact_work_items'::regclass
+          AND attname = 'container_image_identity_claim_epoch'
+          AND NOT attisdropped
+    ) THEN
+        EXECUTE
+            'UPDATE fact_work_items
+             SET container_image_identity_claim_epoch = 1
+             WHERE work_item_id = ''intent-5854-performance''';
+    END IF;
+END
+$block$
+`); err != nil {
+		t.Fatalf("seed performance reducer claim epoch: %v", err)
+	}
 
 	if _, err := db.ExecContext(ctx, `
 INSERT INTO fact_records (

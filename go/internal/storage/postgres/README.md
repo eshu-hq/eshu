@@ -67,22 +67,6 @@ in `internal/reducer`.
 High-signal invariants for this package:
 
 - Bootstrap DDL is idempotent and ordered through `BootstrapDefinitions`.
-- Migration 088 fences the `container_image_identity` outcome-keyed to
-  image-reference-keyed rolling cutover. New-format rows identify themselves
-  with `payload.identity_format=image_ref_v2` and bypass the trigger. Legacy
-  rows take a transaction advisory lock by `(scope_id, generation_id)` and are
-  skipped after the durable `container_image_identity_cutovers` marker commits.
-  The new writer takes the same lock before its first marker, publication, and
-  exact cleanup transaction. Later passes read the marker through its primary
-  key: bounded passes use one publication-plus-cleanup statement without an
-  explicit transaction, while multi-chunk passes retain one transaction but
-  skip the completed fence. Read Committed is part of the old-writer
-  compatibility contract; stronger snapshot isolation fails closed.
-  Performance Evidence: 100,000 unrelated inserts measured +0.48% median in
-  the pre-implementation trigger shim; 100,000 marker rows measured 0.053 ms
-  for an existing-key lookup and 0.044 ms for a miss; paired production-path
-  results and concurrency evidence live in
-  `docs/internal/evidence/5847-container-image-identity-retire.md`.
 - Cold-bootstrap content search indexing has a separate durable lifecycle in
   `content_substring_index_state`. Deferred schema creates the content tables
   without the three exact trigram GINs for file content, entity source, and
@@ -1450,22 +1434,6 @@ drives `eshu-bootstrap-index` for its maintenance passes — stayed green over t
 gap. One list plus one SQL shape means the gate's bootstrap passes are evidence
 about the ingester; only the call site differs. (The gate still does not start
 `eshu-ingester`, so the call site itself is not gate-covered.)
-
-Container-image identity retirement loads active OCI incompleteness warnings
-through `ListActiveContainerImageIdentityWarnings`. That loader is deliberately
-separate from the cached cross-scope identity-evidence query: warning churn does
-not invalidate or enlarge the shared evidence cache, and the query admits only
-non-tombstone `oci_registry.warning` facts on active generations. Migration 087
-adds the ordered partial
-`fact_records_active_oci_warning_idx (observed_at, fact_id, scope_id,
-generation_id)` for that global keyset scan. On 500,000 facts across 1,000
-active scopes with 1,000 warnings, it changed the exact query from 4.658 ms and
-1,000 scope-generation index probes plus a sort to 1.759 ms with one ordered
-warning-index scan; the first 500 IDs were identical (0/0 symmetric
-difference). The reducer uses those warnings to hold affected references. Its
-writer publishes outcome-independent live rows or tombstones, then deletes
-exact pre-#5854 outcome-keyed IDs through
-`ContainerImageIdentityBeginner` in the same transaction.
 
 These domains are deliberately NOT gated by the same-pass backfill skip-set
 described below. That set records which partitions committed no new BACKWARD

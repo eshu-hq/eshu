@@ -332,6 +332,7 @@ SELECT index_class.oid::bigint, pg_get_indexdef(index_class.oid),
 FROM pg_class AS index_class
 JOIN pg_index AS index ON index.indexrelid = index_class.oid
 WHERE index_class.relname = $1
+  AND index_class.relnamespace = to_regnamespace(current_schema())
 `, activeOCIWarningIndexName).Scan(
 		&state.oid,
 		&state.definition,
@@ -369,7 +370,10 @@ func assertActiveOCIWarningIndexAbsent(t *testing.T, ctx context.Context, db *sq
 	var count int
 	if err := db.QueryRowContext(
 		ctx,
-		"SELECT count(*) FROM pg_class WHERE relname = $1",
+		`SELECT count(*)
+		 FROM pg_class
+		 WHERE relname = $1
+		   AND relnamespace = to_regnamespace(current_schema())`,
 		activeOCIWarningIndexName,
 	).Scan(&count); err != nil {
 		t.Fatalf("inspect absent active OCI warning index: %v", err)

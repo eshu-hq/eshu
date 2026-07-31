@@ -94,7 +94,7 @@ import (
 // which of the two happened. Adding the readback here would need its own live
 // proof and its own concurrency argument, so it is stated rather than assumed
 // away.
-const reducerFactBatchInsertQuery = `
+const reducerFactBatchInsertPrefix = `
 INSERT INTO fact_records (
     fact_id,
     scope_id,
@@ -113,6 +113,9 @@ INSERT INTO fact_records (
     payload,
     fencing_token
 )
+`
+
+const reducerFactBatchInsertSource = `
 SELECT
     fact_id,
     scope_id,
@@ -165,6 +168,9 @@ FROM unnest(
     payload,
     fencing_token
 )
+`
+
+const reducerFactBatchInsertConflict = `
 ON CONFLICT (fact_id) DO UPDATE SET
     fact_kind         = EXCLUDED.fact_kind,
     stable_fact_key   = EXCLUDED.stable_fact_key,
@@ -181,6 +187,10 @@ ON CONFLICT (fact_id) DO UPDATE SET
     fencing_token     = EXCLUDED.fencing_token
 WHERE fact_records.fencing_token <= EXCLUDED.fencing_token
 `
+
+const reducerFactBatchInsertQuery = reducerFactBatchInsertPrefix +
+	reducerFactBatchInsertSource +
+	reducerFactBatchInsertConflict
 
 // reducerFactBatchSize bounds how many fact rows are sent per unnest statement.
 // Both inserts bind 16 columns per row — the unversioned one adds fencing_token,

@@ -1,33 +1,26 @@
 # #5847 — a reopened `container_image_identity` replay leaves the superseded decision live
 
-`container_image_identity` sits in the bootstrap maintenance reopen slice. Before
-#5854 its fact identity embedded `outcome` and the writer had no authoritative
-retire, so a replay that changed its answer left the superseded row live for the
-same active generation.
+`container_image_identity` sits in the bootstrap maintenance reopen slice, its
+fact identity embeds `outcome`, and the writer has no retire. A replay that
+reaches a different answer than the first execution therefore does not correct
+anything: it adds a second row and leaves the first one live for the same active
+generation.
 
-**#5854 closes #5847.** The logical fact identity is now
-`(scope_id, generation_id, image_ref)`, with outcome retained in payload.
-Canonical decisions upsert a live row; evaluated non-canonical decisions upsert
-a tombstone at that same key. Both carry the evidence-read fencing token, so a
-late stale worker cannot resurrect a row after a fresher demotion. Exact
-outcome-keyed IDs written before #5854 are unreachable under the new derivation
-and are deleted in the same transaction.
-
-The bounded-degradation objection that withdrew the first retire is also
-closed. Tag-list truncation emits a durable `tag_list_truncated` warning, and
-the retirement planner separately loads active OCI warnings whenever at least
-one decision is a destructive candidate. An all-canonical pass skips that read
-because no warning can demote a canonical publication. A destructive pass
-remains fail-closed if the warning read or decoding fails. The planner holds
-only the affected tag references for `tag_list_truncated` and the manifest
-digests mapped from `config_blob_unavailable`. A `missing_manifest_digest`
-warning holds the repository conservatively because the typed warning payload
-does not carry the scanned reference. It never converts collector-declared
-incompleteness into destructive absence.
+**#5847 is still open after this branch.** The branch was built as the retire
+that closes it, the retire was withdrawn under review, and what ships is the
+half that is safe on its own: the durable write now carries an evidence-read
+watermark and the shared batched insert's conflict clause is guarded on it, so
+two passes that COLLIDE on one `fact_id` resolve in favour of the fresher
+evidence. The duplicate-row half — deleting the superseded row a re-classified
+or demoted replay leaves behind — is tracked as **#5854**, and
+[Why the retire is not in this branch](#why-the-retire-is-not-in-this-branch)
+is the reason it cannot land until the OCI collector's bounded-degradation paths
+are fixed.
 
 This file keeps its original name because it is the #5847 record. Sections
-marked *(withdrawn retire)* describe measurements taken against the earlier
-generation-wide DELETE design; they are retained as rejected-design evidence.
+marked *(withdrawn retire)* describe measurements taken against the retire this
+branch no longer ships; they are retained because #5854 has to re-derive every
+one of them and should not pay for them twice.
 
 **On this file's length.** This record runs well past the general 500-line cap
 in `CLAUDE.md` — comfortably over 800 lines, and growing with each correction
@@ -50,20 +43,18 @@ have to be undone.
 The duplicate-row defect is the same one #5837 fixes for
 `aws_cloud_runtime_drift`, on a different domain.
 
-## What the identity was built from before #5854
+## What the identity is built from
 
 `containerImageIdentityIdentity`
-(`go/internal/reducer/container_image_identity_writer.go`) previously keyed on
-`scope_id`, `generation_id`, `image_ref`, and `outcome`.
+(`go/internal/reducer/container_image_identity_writer.go`) keys on `scope_id`,
+`generation_id`, `image_ref`, and `outcome`.
 `containerImageIdentityStableFactKey` and `canonicalContainerImageIdentityID`
-were both built from that same map, so `outcome` reached the `fact_id`.
+are both built from that same map, so `outcome` reaches the `fact_id`.
 
-The durable write was `reducerBatchInsertFacts`, whose statement is
+The durable write is `reducerBatchInsertFacts`, whose statement is
 `ON CONFLICT (fact_id) DO UPDATE` (`reducer_fact_batch_insert.go`). Conflict
-resolution is on `fact_id` alone, so before #5854 a decision that changed any
-identity field landed as a NEW row rather than replacing the old one. The
-current derivation excludes `outcome` and therefore collides on the logical
-`(scope_id, generation_id, image_ref)` identity.
+resolution is on `fact_id` alone, so a decision that changes any identity field
+lands as a NEW row rather than replacing the old one.
 
 ## Correction to the issue's premise
 
@@ -231,14 +222,13 @@ built to make a suspicious retire findable —
 `slog.Warn` lines — went with the DELETE rather than staying as flags that can
 never fire.
 
-## What #5847 shipped before #5854: the fenced upsert
+## What ships instead: the fenced upsert
 
-At #5847 merge time, nothing removed a row. That branch ordered the case where
-two passes wrote the SAME `fact_id`.
+Nothing here removes a row. What ships orders the case where two passes write the
+SAME `fact_id`.
 
-The pre-#5854 fact identity embedded only
-`(scope_id, generation_id, image_ref, outcome)`, while `source_revision`,
-`source_revision_provenance`,
+The fact identity embeds only `(scope_id, generation_id, image_ref, outcome)`,
+while `source_revision`, `source_revision_provenance`,
 `build_provenance_repository_ids` and `evidence_fact_ids` are payload-only and
 are filled in by cross-scope enrichment
 (`applyCIRunDigestRevision`/`applySLSADigestRevision`) whose visibility depends
@@ -276,11 +266,10 @@ its doc comment says so.
 The insert's conflict update is gated on `fact_records.fencing_token <=
 EXCLUDED.fencing_token`, so a stale pass's upsert is rejected WHOLE.
 
-An earlier #5847 revision raised only the token
+An earlier revision raised only the token
 (`fencing_token = GREATEST(existing, excluded)`) with the content columns
 assigned unconditionally. That protects the token and nothing else, and the
-combination is worse than no fence. At that point the fact identity embedded
-only
+combination is worse than no fence. The fact identity embeds only
 `(scope_id, generation_id, image_ref, outcome)`, while `source_revision`,
 `source_revision_provenance`, `build_provenance_repository_ids` and
 `evidence_fact_ids` are payload-only and are filled in by the cross-scope
@@ -882,297 +871,3 @@ file nor the epoch cache, and the failure is a timing budget rather than a
 correctness assertion, so it is recorded here and left alone: retuning an
 unrelated package's timing test on the strength of one reproduction does not
 belong in this change.
-
-## #5854 outcome-independent identity and fenced tombstones
-
-The completed design does not use the withdrawn generation-wide DELETE and does
-not rely on an advisory lock to order image-reference-keyed writers. Those
-writers still converge through one durable logical `fact_id` and its fencing
-token.
-
-Migration from the OLD outcome-keyed format needs an additional rolling-upgrade
-fence because an old binary derives a DIFFERENT `fact_id`. A preliminary review
-reproduced the missing ordering: the new writer published and deleted the known
-legacy row, committed, and then an old binary inserted that outcome-keyed row
-after cleanup. The logical-key token cannot conflict with a key it never sees.
-
-Migration 088 therefore installs a compatibility fence, not a steady-state
-writer serializer:
-
-1. New rows carry `payload.identity_format = image_ref_v2` and bypass the
-   compatibility trigger.
-2. Before the first publication and cleanup, the new writer starts a
-   transaction, takes one transaction advisory lock keyed by
-   `(scope_id, generation_id)`, and inserts a durable
-   `container_image_identity_cutovers` marker.
-3. The legacy-row trigger takes the same key before checking the marker. A
-   legacy insert that committed before the lock is visible to the cleanup's
-   next Read Committed statement; one that overlaps waits and is skipped after
-   the marker commits; one that starts later is skipped immediately.
-4. Marker, new-format rows, and cleanup commit or roll back together. The marker
-   survives commit, so release of the advisory lock cannot reopen the old key
-   space.
-5. Later passes read that marker through its primary key. A bounded
-   single-chunk pass then publishes and performs exact cleanup in one statement
-   without another explicit transaction. A larger pass retains one transaction
-   across its bounded chunks but skips the already-completed compatibility
-   fence.
-
-The trigger fails legacy writes closed above Read Committed isolation. The old
-writer uses an implicit Read Committed transaction; at that level PostgreSQL
-gives the trigger's post-lock marker lookup a current statement snapshot.
-Repeatable Read would retain the pre-lock snapshot and could miss a newly
-committed marker, so migration 088 raises an explicit error instead of guessing.
-New-format rows bypass the trigger and retain their existing logical-key
-concurrency.
-
-The shipped invariant is:
-
-> For one `(scope_id, generation_id, image_ref)`, future writers derive one
-> `fact_id`. A writer changes the row only when its evidence-read fencing token
-> is greater than or equal to the stored token. Canonical truth is a live row;
-> authoritative demotion is a tombstone. Collector-declared incompleteness
-> writes neither.
-
-This makes PostgreSQL's existing `ON CONFLICT (fact_id) DO UPDATE ... WHERE
-fact_records.fencing_token <= EXCLUDED.fencing_token` the durable ordering
-point. Equal-token delivery remains idempotent. Different fact IDs remain
-concurrent. A fresh later pass can revive a tombstone at the same key.
-
-### Prove-the-theory-first results
-
-The SQL theory shim ran against the isolated Postgres 16 container on port
-25432 with synthetic references under `registry.example.com`:
-
-1. Insert live token 9.
-2. Upsert tombstone token 10.
-3. Attempt stale live token 5: PostgreSQL returned `INSERT 0 0`; the stored row
-   remained tombstoned at token 10.
-4. Upsert fresh live token 11: the row became live at token 11.
-
-The post-review compatibility-fence shim ran against isolated Postgres 18 on
-the same port before tracked production code changed:
-
-- legacy-before was removed by the cutover;
-- a legacy insert started while cutover held the scope-generation lock waited
-  1.493 seconds, then returned `INSERT 0 0`;
-- legacy-after returned `INSERT 0 0` in 40 ms;
-- an injected cutover abort rolled back marker, publication, and cleanup, then
-  released the waiting legacy insert, and retry plus rerun converged to one
-  new-format row and one marker;
-- an unrelated scope committed in 40 ms while the target lock remained held.
-
-The trigger fast path was also measured before implementation with 100,000-row
-`EXPLAIN (ANALYZE, BUFFERS, WAL)`. Unrelated fact inserts moved from a
-135.213 ms median to 135.867 ms (**+0.48%**) with identical WAL. The deliberately
-worst-case all-container/new-format insert moved by **+2.8% to +3.7%** depending
-on whether the format discriminator used JSON existence or exact-value
-comparison, again with identical WAL. Production keeps the exact-value check
-for accuracy and is measured end to end below.
-
-The durable-marker steady-state lookup was proved separately with 100,000
-synthetic marker rows. PostgreSQL used the marker table's primary-key
-index-only scan; the existing-key median was **0.053 ms** and the missing-key
-median was **0.044 ms**. The production path uses that lookup only to remove
-the already-completed compatibility lock and transaction, never to decide
-whether the first cutover is safe.
-
-`TestContainerImageIdentityCutoverMigrationLifecycleLive` upgrades a populated
-10,000-row pre-088 fact table, preserves every row, checks the marker-table and
-trigger OIDs, and proves two full `ApplyBootstrap` reruns leave both catalog
-objects unchanged. It then executes a real cutover and proves a post-commit
-legacy insert affects zero rows while exactly one new-format row and one marker
-remain.
-
-The exact-key cleanup theory used 100,000 synthetic identity rows. Native pgx
-`[]string` binding for 99,500 evaluated legacy IDs measured:
-
-| run | exact-ID cleanup |
-| --- | ---: |
-| 1 | 380.513 ms |
-| 2 | 362.326 ms |
-| 3 | 349.957 ms |
-| 4 | 344.452 ms |
-| 5 | 337.447 ms |
-| median | **349.957 ms** |
-
-The same-run generation-wide baseline median was **388.634 ms**, so the bounded
-exact-ID cleanup was about 10% faster while preserving 500 non-evaluated rows.
-Set equivalence over the evaluated IDs was `old minus new = 0` and
-`new minus old = 0`. Alternative JSONB membership, unnest join, temp-table, and
-large two-column array shapes were rejected after measuring between roughly
-476 ms and 69 seconds on the same 100,000-row shape.
-
-The final planner generates at most one legacy ID per evaluated reference,
-based on the classifier invariant: digest-form references could only have
-published `exact_digest`, while tag-form references could only have published
-`tag_resolved`. It never invents cleanup keys for unevaluated references.
-
-Performance Evidence: the active-warning query was measured separately on
-500,000 synthetic facts
-across 1,000 active scopes with 1,000 active OCI warnings. Before the dedicated
-index, the exact loader query took **4.658 ms**, performed 1,000
-scope-generation index probes, and sorted the 1,000 warning rows. The
-`fact_records_active_oci_warning_idx` candidate changed that to one ordered
-partial-index scan at **1.759 ms**. The first-page result stayed exactly
-equivalent: 500/500 rows, baseline minus candidate 0, candidate minus baseline
-0. Migration 087 and the fresh-bootstrap schema both carry that index.
-
-The populated-table migration lifecycle is exercised separately by
-`TestActiveOCIWarningIndexMigrationLifecycleLive`. The test
-applies migration 087 to a populated fact table, proves an unrelated write can
-commit while `CREATE INDEX CONCURRENTLY` waits on an old snapshot, checks
-`pg_index.indisvalid` and `indisready`, and proves a repeated
-`ApplyBootstrap` preserves the same index OID and definition. It then cancels a
-second concurrent index build, observes the invalid catalog artifact, and
-proves `ApplyBootstrap` removes and recreates it without losing rows. A
-structural test also requires exactly one `CREATE INDEX CONCURRENTLY`
-statement, so a future non-concurrent replacement cannot satisfy the lifecycle
-test accidentally.
-
-The original single-statement shape was proved before production code changed.
-Against 500 synthetic publications, the existing explicit
-insert-plus-delete transaction had a **14.879 ms** median and the
-data-modifying CTE had a **14.159 ms** median, a **4.84% improvement**. Both
-produced the same 500-row snapshot checksum, and the candidate reduced two
-statements plus `BEGIN`/`COMMIT` to one statement.
-
-The review reproduction invalidated that optimization as the first-cutover
-shape. A statement takes its Read Committed snapshot before its CTE acquires the
-advisory lock, so an old writer can commit between snapshot acquisition and
-lock acquisition and remain invisible to that statement's DELETE. The first
-cutover therefore uses a separate lock-plus-marker statement followed by the
-publication and cleanup statement in one explicit transaction, including one
-bounded chunk. Once that transaction commits, the durable marker makes the
-single-statement shape safe for later bounded passes. Larger writes retain the
-1,000-row memory and lock-footprint bound, keep one transaction across chunks,
-skip the completed fence, and fuse cleanup into the final chunk.
-
-The finished production path was then compared with exact `origin/main` on the
-same Postgres instance. Each cell is the median of three independent runs; each
-representative run contains 20 measured handler calls and each 99,500-reference
-run contains three.
-
-| scenario | `origin/main` median | pre-fence #5854 median | delta | main p95 | pre-fence p95 | p95 delta | WAL delta |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 500 refs, zero legacy rows | 26.132 ms | 26.344 ms | +0.81% | 35.581 ms | 35.246 ms | -0.94% | -0.54% |
-| 500 refs, 100,000 stale warnings | 31.620 ms | 30.874 ms | -2.36% | 37.809 ms | 38.101 ms | +0.77% | -0.26% |
-| 99,500 refs, zero legacy rows | 12.923 s | 13.237 s | +2.44% | 13.604 s | 13.905 s | +2.22% | -4.90% |
-
-That table records the branch before the rolling-upgrade review fix. The final
-compatibility fence was then paired against exact commit `4b13c7d456` on the
-same host and Postgres 18 instance. Representative cases contain 20 measured
-handler calls; the 99,500-reference case contains three.
-
-| scenario | pre-fence median | final median | delta | pre-fence p95 | final p95 | p95 delta | WAL delta |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 500 refs, zero legacy rows | 26.023 ms | 26.287 ms | +1.02% | 36.540 ms | 34.968 ms | -4.30% | +0.57% |
-| 500 refs, 100,000 stale warnings | 30.278 ms | 30.118 ms | -0.53% | 42.148 ms | 39.875 ms | -5.39% | -2.95% |
-| 99,500 refs, zero legacy rows | 13.269 s | 12.846 s | -3.19% | 13.746 s | 13.452 s | -2.14% | +0.83% |
-
-The final common-path median remains within the 5% no-regression band and both
-representative p95s improve. Against the original `origin/main` table above,
-final medians are **+0.59%**, **-4.75%**, and **-0.60%** respectively.
-Worst-cardinality WAL is **397.1 MB**, still **4.82% below** `origin/main`'s
-417.2 MB. A completed representative cutover uses seven reads, one Exec, and no
-explicit transaction per handler call; the extra read is the measured
-primary-key marker lookup. The 99,500-row path uses 205 reads, 100 Exec calls,
-and one transaction while retaining its chunk bound. A single giant statement
-remains rejected because it abandons the measured per-statement memory and lock
-bound; a marker pre-check is used only after the first atomic cutover, and
-non-atomic chunk commits remain rejected because a failure can strand a mixed
-identity format.
-
-All three scenarios returned identical logical checksums between variants.
-`origin/main` retained 500 or 99,500 outcome-keyed rows; #5854 retained zero
-and exposed the same number of live logical identities.
-
-### Accuracy and concurrency proof
-
-`TestPostgresContainerImageIdentityTombstoneFencePreventsStaleResurrection`
-drives the production writer against live PostgreSQL. It proves a fresh
-tombstone rejects a later stale canonical write, then proves a still-fresher
-canonical write revives the same logical row.
-
-`TestPostgresContainerImageIdentityFactFenceSerializesOnlyMatchingLogicalKey`
-holds one same-key upsert uncommitted, observes the second same-key writer wait,
-and commits an unrelated fact ID while the conflict is held. After the first
-transaction releases, PostgreSQL rechecks the fence and the fresher tombstone
-wins. These rows carry `identity_format=image_ref_v2`, so the compatibility
-trigger is bypassed and distinct logical keys remain concurrent.
-
-`TestPostgresContainerImageIdentityMultiChunkWriterSerializesMatchingKeyAndCleansInterleavedLegacyWrite`
-holds a 1,001-row production transaction after its first chunk. Both a
-matching-key new writer and an old-binary legacy-key writer wait. After commit,
-the matching-key writer resumes and its fresher fencing token wins; the old
-writer rechecks the durable marker and inserts zero rows.
-
-`TestPostgresContainerImageIdentityMultiChunkFailureRollsBackAndRetryConverges`
-injects a failure into the third statement of a six-chunk production
-transaction. It proves zero partial new-format rows and the pre-existing
-legacy row remain after rollback, including no cutover marker, then retries
-through the production writer and proves all 5,001 new-format rows commit and
-the legacy row disappears.
-The unit proof also requires the conflict-key order to stay globally sorted
-across chunks, preventing opposite lock acquisition order between writers.
-
-`TestPostgresContainerImageIdentityCompletedCutoverRejectsLaterLegacyWriter`
-is the exact review regression: after the new transaction commits, an old
-binary attempts its outcome-keyed insert and PostgreSQL reports success with
-zero inserted rows.
-`TestPostgresContainerImageIdentityCutoverFenceKeepsOtherScopeConcurrent`
-holds one scope-generation fence and proves a legacy insert for another scope
-still commits.
-`TestPostgresContainerImageIdentityLegacyWriterFailsClosedAboveReadCommitted`
-proves the snapshot assumption cannot silently become false under Repeatable
-Read.
-
-`TestContainerImageIdentityRetirementProductionPathLive` drives the complete
-production path against PostgreSQL: active-generation `FactStore` evidence and
-warning loaders, `ContainerImageIdentityHandler`, the transactional writer, and
-the bounded query readback. Generation A writes both a config-label-only digest
-identity and a tag identity. Generation B removes the label and tag evidence
-while declaring `config_blob_unavailable` and `tag_list_truncated`; both rows
-remain visible. Generation C removes the truncation warning as well; the
-evaluated tag is tombstoned and disappears from the read model, while the
-unevaluated label-only digest remains. The live test passed in 0.53 seconds.
-
-Hostile safety cases fail closed before the writer: a
-`missing_manifest_digest` warning holds both tag- and digest-form references
-for its repository; absent, blank, placeholder, or malformed targeting values
-are rejected; and a warning read or decode failure stops a destructive pass.
-An all-canonical pass proves the warning loader is not called even when its
-test double is configured to fail.
-
-Focused commands:
-
-```bash
-cd go
-ESHU_POSTGRES_DSN='postgresql://eshu:change-me@127.0.0.1:25432/eshu' \
-  go test ./internal/reducer -run '^TestPostgresContainerImageIdentity' -count=1 -v
-ESHU_POSTGRES_DSN='postgresql://eshu:change-me@127.0.0.1:25432/eshu' \
-  go test ./internal/reducer -run '^TestPostgresContainerImageIdentityMultiChunk' -count=1 -v
-go test ./internal/reducer ./internal/storage/postgres ./internal/telemetry ./cmd/reducer -count=1
-go test ./... -count=1
-```
-
-The live PostgreSQL retirement, multi-chunk concurrency, migration lifecycle,
-focused-package, SDK, and complete Go-module suites passed. The fresh B-7 live
-golden-corpus gate completed in 109 seconds with 512 passes, 0 required
-failures, and one advisory graph-query timing warning. Its first drain took
-67 seconds against the 75-second baseline. Both
-the container-image identity list and aggregate inventory query assertions
-passed.
-
-### Operator evidence
-
-Observability Evidence:
-`eshu_dp_container_image_identity_retirements_total` uses bounded `domain` and
-`outcome` labels. Outcomes are `retirement_attempted`, `legacy_deleted`, and
-`held_<reason>`. `retirement_attempted` is deliberately not labeled
-`tombstoned`: a fresher row can reject the attempted publication at the
-conflict fence, and the writer does not issue an extra readback merely to
-inflate the write path. The separate active-warning loader keeps warning churn
-out of the cross-scope evidence cache and runs only when a destructive
-candidate needs it, while existing PostgreSQL query duration and reducer
-execution telemetry expose write latency and failures.

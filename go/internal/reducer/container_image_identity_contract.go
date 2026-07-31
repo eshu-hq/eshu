@@ -104,6 +104,7 @@ type ContainerImageIdentityDecision struct {
 // ContainerImageIdentityWrite carries decisions for durable publication.
 type ContainerImageIdentityWrite struct {
 	IntentID     string
+	ClaimEpoch   int64
 	ScopeID      string
 	GenerationID string
 	SourceSystem string

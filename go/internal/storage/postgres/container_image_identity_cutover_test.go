@@ -102,6 +102,38 @@ func TestContainerImageIdentityCutoverExistsFailsClosed(t *testing.T) {
 	}
 }
 
+func TestContainerImageIdentityLegacyCleanupComplete(t *testing.T) {
+	t.Parallel()
+
+	queryer := &containerImageIdentityCutoverQueryer{
+		rows: &containerImageIdentityCutoverRows{exists: true, hasRow: true},
+	}
+	store := NewContainerImageIdentityCutoverStore(queryer)
+	complete, err := store.ContainerImageIdentityLegacyCleanupComplete(
+		context.Background(),
+		"repository:synthetic",
+		"generation-5854",
+	)
+	if err != nil {
+		t.Fatalf("ContainerImageIdentityLegacyCleanupComplete() error = %v", err)
+	}
+	if !complete {
+		t.Fatal("ContainerImageIdentityLegacyCleanupComplete() = false, want true")
+	}
+	if queryer.query != containerImageIdentityLegacyCleanupCompleteQuery {
+		t.Fatalf("legacy cleanup query = %q", queryer.query)
+	}
+	for _, want := range []string{
+		"COALESCE(payload->>'identity_format', '') <> 'image_ref_v2'",
+		"ORDER BY fact_id",
+		"LIMIT 1",
+	} {
+		if !strings.Contains(queryer.query, want) {
+			t.Fatalf("legacy cleanup query missing %q", want)
+		}
+	}
+}
+
 type containerImageIdentityCutoverQueryer struct {
 	rows  *containerImageIdentityCutoverRows
 	err   error

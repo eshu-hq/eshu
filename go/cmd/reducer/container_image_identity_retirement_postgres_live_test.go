@@ -53,6 +53,7 @@ func TestContainerImageIdentityRetirementProductionPathLive(t *testing.T) {
 
 	now := time.Date(2026, time.July, 29, 18, 0, 0, 0, time.UTC)
 	seedRetirementLiveScope(t, ctx, db, retirementLiveRepoScope, retirementLiveRepoGen, "git", now)
+	seedRetirementLiveWorkItem(t, ctx, db, now)
 	storeDB := postgres.SQLDB{DB: db}
 	factStore := postgres.NewFactStore(storeDB)
 	if err := factStore.UpsertFacts(ctx, []facts.Envelope{
@@ -88,9 +89,12 @@ func TestContainerImageIdentityRetirementProductionPathLive(t *testing.T) {
 		t.Fatalf("seed repository facts: %v", err)
 	}
 
+	cutoverStore := postgres.NewContainerImageIdentityCutoverStore(storeDB)
 	writer := reducer.PostgresContainerImageIdentityWriter{
-		DB:            storeDB,
-		CutoverLookup: postgres.NewContainerImageIdentityCutoverStore(storeDB),
+		DB:                  storeDB,
+		CutoverLookup:       cutoverStore,
+		LegacyCleanupLookup: cutoverStore,
+		ClaimedExecer:       postgres.ContainerImageIdentityClaimedExecer{DB: storeDB},
 		Beginner: postgres.ContainerImageIdentityBeginner{
 			Beginner: storeDB,
 		},
@@ -107,6 +111,7 @@ func TestContainerImageIdentityRetirementProductionPathLive(t *testing.T) {
 	}
 	intent := reducer.Intent{
 		IntentID:     "intent-5854-live",
+		ClaimEpoch:   1,
 		Domain:       reducer.DomainContainerImageIdentity,
 		ScopeID:      retirementLiveRepoScope,
 		GenerationID: retirementLiveRepoGen,
@@ -210,6 +215,31 @@ func TestContainerImageIdentityRetirementProductionPathLive(t *testing.T) {
 	}
 	assertRetirementLiveIdentityCount(t, ctx, reader, labelRef, 1)
 	assertRetirementLiveIdentityCount(t, ctx, reader, tagRef, 0)
+}
+
+func seedRetirementLiveWorkItem(
+	t *testing.T,
+	ctx context.Context,
+	db *sql.DB,
+	now time.Time,
+) {
+	t.Helper()
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO fact_work_items (
+    work_item_id, scope_id, generation_id, stage, domain,
+    conflict_domain, conflict_key, status, attempt_count,
+    lease_owner, claim_until, payload, created_at, updated_at,
+    container_image_identity_claim_epoch
+) VALUES (
+    'intent-5854-live', $1, $2, 'reducer', 'container_image_identity',
+    'intent', 'intent-5854-live', 'claimed', 1,
+    'reducer-5854-live', $3::timestamptz + interval '1 hour',
+    '{"entity_key":"intent-5854-live","reason":"synthetic retirement integration proof"}',
+    $3, $3, 1
+)
+`, retirementLiveRepoScope, retirementLiveRepoGen, now); err != nil {
+		t.Fatalf("seed retirement reducer work item: %v", err)
+	}
 }
 
 func seedRetirementLiveScope(
@@ -401,6 +431,20 @@ func cleanupContainerImageIdentityRetirementLive(
 	t.Helper()
 
 	scopeIDs := []string{retirementLiveRepoScope, retirementLiveRegistryScope}
+	if _, err := db.ExecContext(
+		ctx,
+		`DELETE FROM container_image_identity_cutovers WHERE scope_id = ANY($1::text[])`,
+		scopeIDs,
+	); err != nil {
+		t.Fatalf("clean retirement live cutovers: %v", err)
+	}
+	if _, err := db.ExecContext(
+		ctx,
+		`DELETE FROM fact_work_items WHERE scope_id = ANY($1::text[])`,
+		scopeIDs,
+	); err != nil {
+		t.Fatalf("clean retirement live work items: %v", err)
+	}
 	if _, err := db.ExecContext(
 		ctx,
 		`DELETE FROM fact_records WHERE scope_id = ANY($1::text[])`,

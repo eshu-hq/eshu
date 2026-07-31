@@ -152,6 +152,7 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 
 	write := ContainerImageIdentityWrite{
 		IntentID:     intent.IntentID,
+		ClaimEpoch:   intent.ClaimEpoch,
 		ScopeID:      intent.ScopeID,
 		GenerationID: intent.GenerationID,
 		SourceSystem: intent.SourceSystem,

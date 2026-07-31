@@ -241,6 +241,7 @@ func openFactCrossBatchFencingSchema(t *testing.T, ctx context.Context, dsn stri
 	for _, stmt := range []string{
 		MigrationSQL("ingestion_scopes"),
 		MigrationSQL("scope_generations"),
+		MigrationSQL("fact_work_items"),
 		factRecordSchemaSQL,
 	} {
 		if _, err := db.ExecContext(ctx, stmt); err != nil {

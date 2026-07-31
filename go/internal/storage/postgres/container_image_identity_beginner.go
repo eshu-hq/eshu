@@ -39,6 +39,14 @@ func (tx containerImageIdentityTx) ExecContext(
 	return tx.tx.ExecContext(ctx, query, args...)
 }
 
+func (tx containerImageIdentityTx) ExecContainerImageIdentityClaimed(
+	ctx context.Context,
+	query string,
+	args ...any,
+) (int, bool, error) {
+	return execContainerImageIdentityClaimed(ctx, tx.tx, query, args...)
+}
+
 func (tx containerImageIdentityTx) Commit() error {
 	return tx.tx.Commit()
 }

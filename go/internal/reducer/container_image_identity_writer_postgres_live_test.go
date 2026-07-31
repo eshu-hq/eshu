@@ -216,6 +216,57 @@ func seedContainerImageIdentityLiveParents(t *testing.T, ctx context.Context, db
 	); err != nil {
 		t.Fatalf("seed live scope generation: %v", err)
 	}
+	seedContainerImageIdentityLiveWorkItem(
+		t,
+		ctx,
+		db,
+		containerImageIdentityLiveScope,
+		containerImageIdentityLiveGeneration,
+	)
+}
+
+func seedContainerImageIdentityLiveWorkItem(
+	t *testing.T,
+	ctx context.Context,
+	db *sql.DB,
+	scopeID string,
+	generationID string,
+) {
+	t.Helper()
+	if _, err := db.ExecContext(ctx, `
+DELETE FROM fact_work_items
+WHERE scope_id = $1
+  AND generation_id = $2
+  AND stage = 'reducer'
+  AND domain = 'container_image_identity'
+`, scopeID, generationID); err != nil {
+		t.Fatalf("reset live container image identity work item: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO fact_work_items (
+	work_item_id, scope_id, generation_id, stage, domain,
+	conflict_domain, conflict_key, status, attempt_count,
+	container_image_identity_claim_epoch,
+	lease_owner, claim_until, payload, created_at, updated_at
+) VALUES (
+	$3, $1, $2, 'reducer', 'container_image_identity',
+	'intent', $3, 'running', 1,
+	1,
+	'reducer', clock_timestamp() + interval '5 minutes',
+    jsonb_build_object(
+        'entity_key', $3::text,
+        'reason', 'synthetic container image identity live proof',
+        'source_system', 'git'
+    ),
+    clock_timestamp(), clock_timestamp()
+)
+`, scopeID, generationID, containerImageIdentityLiveWorkItemID(generationID)); err != nil {
+		t.Fatalf("seed live container image identity work item: %v", err)
+	}
+}
+
+func containerImageIdentityLiveWorkItemID(generationID string) string {
+	return "work-5854-container-image-identity:" + generationID
 }
 
 func containerImageIdentityLiveWrite(
@@ -225,7 +276,8 @@ func containerImageIdentityLiveWrite(
 	canonicalWrites int,
 ) ContainerImageIdentityWrite {
 	return ContainerImageIdentityWrite{
-		IntentID:     "intent-5854-live",
+		IntentID:     containerImageIdentityLiveWorkItemID(containerImageIdentityLiveGeneration),
+		ClaimEpoch:   1,
 		ScopeID:      containerImageIdentityLiveScope,
 		GenerationID: containerImageIdentityLiveGeneration,
 		SourceSystem: "git",

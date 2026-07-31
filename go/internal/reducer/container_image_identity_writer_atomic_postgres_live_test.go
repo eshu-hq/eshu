@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 )
@@ -40,13 +39,12 @@ func TestPostgresContainerImageIdentityCompletedCutoverRejectsLaterLegacyWriter(
 	}
 
 	legacyFactID := write.LegacyFactIDs[0]
-	if err := reducerBatchInsertFacts(
+	err := reducerBatchInsertFacts(
 		ctx,
 		db,
 		[]reducerFactRow{containerImageIdentityLegacyLiveRow(legacyFactID, 0, false)},
-	); err != nil {
-		t.Fatalf("run old-binary legacy writer after completed cutover: %v", err)
-	}
+	)
+	assertContainerImageIdentityLegacyStatementRejected(t, err)
 	assertContainerImageIdentityAtomicLiveCount(
 		t,
 		ctx,
@@ -57,7 +55,7 @@ func TestPostgresContainerImageIdentityCompletedCutoverRejectsLaterLegacyWriter(
 	)
 }
 
-func TestPostgresContainerImageIdentityMultiChunkWriterSerializesMatchingKeyAndCleansInterleavedLegacyWrite(
+func TestPostgresContainerImageIdentityCompletedCutoverRejectsStaleClaimEpoch(
 	t *testing.T,
 ) {
 	db := openContainerImageIdentityLivePostgres(t)
@@ -65,74 +63,136 @@ func TestPostgresContainerImageIdentityMultiChunkWriterSerializesMatchingKeyAndC
 	defer cancel()
 	seedContainerImageIdentityLiveParents(t, ctx, db)
 
-	write := containerImageIdentityAtomicLiveWrite(
-		"rolling-race",
-		reducerFactBatchSize+1,
+	anchor := containerImageIdentityAtomicLiveWrite(
+		"completed-cutover-anchor",
+		1,
+		time.Date(2026, time.July, 29, 15, 59, 0, 0, time.UTC),
+	)
+	stale := containerImageIdentityAtomicLiveWrite(
+		"completed-cutover-stale",
+		1,
 		time.Date(2026, time.July, 29, 16, 0, 0, 0, time.UTC),
 	)
-	cleanupContainerImageIdentityAtomicLiveWrite(t, db, write)
+	cleanupContainerImageIdentityAtomicLiveWrite(t, db, anchor)
 	t.Cleanup(func() {
+		cleanupContainerImageIdentityAtomicLiveWrite(t, db, anchor)
+		cleanupContainerImageIdentityAtomicLiveWrite(t, db, stale)
+	})
+
+	anchorWriter := PostgresContainerImageIdentityWriter{
+		DB:       db,
+		Beginner: &containerImageIdentityAtomicLiveBeginner{db: db},
+	}
+	if _, err := anchorWriter.WriteContainerImageIdentityDecisions(ctx, anchor); err != nil {
+		t.Fatalf("complete image-reference-keyed cutover: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+UPDATE fact_work_items
+SET container_image_identity_claim_epoch = 2
+WHERE work_item_id = $1
+`, stale.IntentID); err != nil {
+		t.Fatalf("advance completed-cutover claim epoch: %v", err)
+	}
+
+	staleWriter := PostgresContainerImageIdentityWriter{
+		DB:            db,
+		Beginner:      &containerImageIdentityAtomicLiveBeginner{db: db},
+		CutoverLookup: containerImageIdentityAtomicLiveCutoverLookup{db: db},
+		ClaimedExecer: containerImageIdentityAtomicLiveClaimedExecer{db: db},
+	}
+	if _, err := staleWriter.WriteContainerImageIdentityDecisions(ctx, stale); err == nil {
+		t.Fatal("stale completed-cutover write error = nil, want claim rejection")
+	}
+	assertContainerImageIdentityAtomicLiveCount(
+		t,
+		ctx,
+		db,
+		`SELECT count(*) FROM fact_records WHERE fact_id = $1`,
+		0,
+		containerImageIdentityFactID(stale, stale.Decisions[0]),
+	)
+}
+
+func TestPostgresContainerImageIdentityCompletedCutoverMultiChunkKeepsHeartbeatLive(
+	t *testing.T,
+) {
+	db := openContainerImageIdentityLivePostgres(t)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+	defer cancel()
+	seedContainerImageIdentityLiveParents(t, ctx, db)
+
+	anchor := containerImageIdentityAtomicLiveWrite(
+		"completed-heartbeat-anchor",
+		1,
+		time.Date(2026, time.July, 29, 16, 0, 0, 0, time.UTC),
+	)
+	write := containerImageIdentityAtomicLiveWrite(
+		"completed-heartbeat-multi",
+		reducerFactBatchSize+1,
+		time.Date(2026, time.July, 29, 16, 1, 0, 0, time.UTC),
+	)
+	cleanupContainerImageIdentityAtomicLiveWrite(t, db, anchor)
+	t.Cleanup(func() {
+		cleanupContainerImageIdentityAtomicLiveWrite(t, db, anchor)
 		cleanupContainerImageIdentityAtomicLiveWrite(t, db, write)
 	})
+	anchorWriter := PostgresContainerImageIdentityWriter{
+		DB:       db,
+		Beginner: &containerImageIdentityAtomicLiveBeginner{db: db},
+	}
+	if _, err := anchorWriter.WriteContainerImageIdentityDecisions(ctx, anchor); err != nil {
+		t.Fatalf("complete heartbeat-proof cutover: %v", err)
+	}
 
 	paused := make(chan struct{})
 	release := make(chan struct{})
-	beginner := &containerImageIdentityAtomicLiveBeginner{
-		db: db,
-		wrap: func(tx *sql.Tx) ContainerImageIdentityTransaction {
-			return &containerImageIdentityPausingLiveTx{
-				tx:      tx,
-				pauseAt: 3,
-				paused:  paused,
-				release: release,
-			}
-		},
-	}
 	writer := PostgresContainerImageIdentityWriter{
-		DB:       db,
-		Beginner: beginner,
+		DB:            db,
+		CutoverLookup: containerImageIdentityAtomicLiveCutoverLookup{db: db},
+		ClaimedExecer: containerImageIdentityAtomicLiveClaimedExecer{db: db},
+		Beginner: &containerImageIdentityAtomicLiveBeginner{
+			db: db,
+			wrap: func(tx *sql.Tx) ContainerImageIdentityTransaction {
+				return &containerImageIdentityPausingLiveTx{
+					tx: tx, pauseAt: 1, paused: paused, release: release,
+				}
+			},
+		},
 	}
 	writerDone := make(chan error, 1)
 	go func() {
 		_, err := writer.WriteContainerImageIdentityDecisions(ctx, write)
 		writerDone <- err
 	}()
-
 	select {
 	case <-paused:
 	case <-ctx.Done():
-		t.Fatal("multi-chunk writer did not pause before its final publication and cleanup")
+		t.Fatal("completed-cutover writer did not pause after claim lock")
 	}
 
-	firstDecision := write.Decisions[0]
-	firstFactID := containerImageIdentityFactID(write, firstDecision)
-	freshToken := write.EvidenceAsOf.Add(time.Second).UnixMicro()
-	conflictingDone := make(chan error, 1)
+	heartbeatDone := make(chan error, 1)
 	go func() {
-		conflictingDone <- reducerBatchInsertFacts(
-			ctx,
-			db,
-			[]reducerFactRow{containerImageIdentityLiveRow(firstFactID, freshToken, false)},
-		)
+		result, err := db.ExecContext(ctx, `
+UPDATE fact_work_items
+SET claim_until = clock_timestamp() + interval '5 minutes',
+    updated_at = clock_timestamp()
+WHERE work_item_id = $1
+  AND stage = 'reducer'
+  AND lease_owner = 'reducer'
+  AND status IN ('claimed', 'running')
+`, write.IntentID)
+		if err == nil {
+			var affected int64
+			affected, err = result.RowsAffected()
+			if err == nil && affected != 1 {
+				err = fmt.Errorf("heartbeat rows affected = %d, want 1", affected)
+			}
+		}
+		heartbeatDone <- err
 	}()
 	select {
-	case err := <-conflictingDone:
-		t.Fatalf("matching-key upsert returned before the multi-chunk transaction committed: %v", err)
-	case <-time.After(100 * time.Millisecond):
-	}
-
-	legacyFactID := write.LegacyFactIDs[len(write.LegacyFactIDs)-1]
-	legacyDone := make(chan error, 1)
-	go func() {
-		legacyDone <- reducerBatchInsertFacts(
-			ctx,
-			db,
-			[]reducerFactRow{containerImageIdentityLegacyLiveRow(legacyFactID, 0, false)},
-		)
-	}()
-	select {
-	case err := <-legacyDone:
-		t.Fatalf("legacy insert returned before the cutover transaction committed: %v", err)
+	case err := <-heartbeatDone:
+		t.Fatalf("heartbeat returned before completed-cutover commit: %v", err)
 	case <-time.After(100 * time.Millisecond):
 	}
 
@@ -140,130 +200,19 @@ func TestPostgresContainerImageIdentityMultiChunkWriterSerializesMatchingKeyAndC
 	select {
 	case err := <-writerDone:
 		if err != nil {
-			t.Fatalf("multi-chunk writer after interleaved legacy write: %v", err)
+			t.Fatalf("completed-cutover multi-chunk writer: %v", err)
 		}
 	case <-ctx.Done():
-		t.Fatal("multi-chunk writer did not finish after release")
+		t.Fatal("completed-cutover multi-chunk writer did not finish")
 	}
 	select {
-	case err := <-conflictingDone:
+	case err := <-heartbeatDone:
 		if err != nil {
-			t.Fatalf("matching-key upsert after transaction release: %v", err)
+			t.Fatalf("heartbeat after completed-cutover commit: %v", err)
 		}
 	case <-ctx.Done():
-		t.Fatal("matching-key upsert did not resume after transaction release")
+		t.Fatal("heartbeat did not resume after completed-cutover commit")
 	}
-	select {
-	case err := <-legacyDone:
-		if err != nil {
-			t.Fatalf("legacy insert after cutover release: %v", err)
-		}
-	case <-ctx.Done():
-		t.Fatal("legacy insert did not resume after cutover release")
-	}
-
-	assertContainerImageIdentityLiveRow(t, ctx, db, firstFactID, false, freshToken)
-	assertContainerImageIdentityAtomicLiveCount(
-		t,
-		ctx,
-		db,
-		`SELECT count(*) FROM fact_records WHERE fact_id = $1`,
-		0,
-		legacyFactID,
-	)
-	assertContainerImageIdentityAtomicLiveCount(
-		t,
-		ctx,
-		db,
-		`SELECT count(*) FROM fact_records WHERE fact_id = ANY($1::text[]) AND is_tombstone = FALSE`,
-		len(write.Decisions),
-		containerImageIdentityAtomicLiveFactIDs(write),
-	)
-}
-
-func TestPostgresContainerImageIdentityMultiChunkFailureRollsBackAndRetryConverges(
-	t *testing.T,
-) {
-	db := openContainerImageIdentityLivePostgres(t)
-	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
-	defer cancel()
-	seedContainerImageIdentityLiveParents(t, ctx, db)
-
-	write := containerImageIdentityAtomicLiveWrite(
-		"rollback-retry",
-		5*reducerFactBatchSize+1,
-		time.Date(2026, time.July, 29, 16, 1, 0, 0, time.UTC),
-	)
-	cleanupContainerImageIdentityAtomicLiveWrite(t, db, write)
-	t.Cleanup(func() {
-		cleanupContainerImageIdentityAtomicLiveWrite(t, db, write)
-	})
-
-	legacyFactID := write.LegacyFactIDs[0]
-	if err := reducerBatchInsertFacts(
-		ctx,
-		db,
-		[]reducerFactRow{containerImageIdentityLegacyLiveRow(legacyFactID, 0, false)},
-	); err != nil {
-		t.Fatalf("seed old-binary legacy row: %v", err)
-	}
-
-	failingWriter := PostgresContainerImageIdentityWriter{
-		DB: db,
-		Beginner: &containerImageIdentityAtomicLiveBeginner{
-			db: db,
-			wrap: func(tx *sql.Tx) ContainerImageIdentityTransaction {
-				return &containerImageIdentityFailingLiveTx{
-					tx:     tx,
-					failAt: 3,
-				}
-			},
-		},
-	}
-	_, err := failingWriter.WriteContainerImageIdentityDecisions(ctx, write)
-	if err == nil || !strings.Contains(err.Error(), "batch insert reducer facts") {
-		t.Fatalf("mid-transaction write error = %v, want injected chunk failure", err)
-	}
-	assertContainerImageIdentityAtomicLiveCount(
-		t,
-		ctx,
-		db,
-		`SELECT count(*) FROM fact_records WHERE source_fact_key = $1`,
-		0,
-		write.IntentID,
-	)
-	assertContainerImageIdentityAtomicLiveCount(
-		t,
-		ctx,
-		db,
-		`SELECT count(*) FROM fact_records WHERE fact_id = $1`,
-		1,
-		legacyFactID,
-	)
-
-	retryWriter := PostgresContainerImageIdentityWriter{
-		DB:       db,
-		Beginner: &containerImageIdentityAtomicLiveBeginner{db: db},
-	}
-	if _, err := retryWriter.WriteContainerImageIdentityDecisions(ctx, write); err != nil {
-		t.Fatalf("retry multi-chunk write after rollback: %v", err)
-	}
-	assertContainerImageIdentityAtomicLiveCount(
-		t,
-		ctx,
-		db,
-		`SELECT count(*) FROM fact_records WHERE fact_id = ANY($1::text[]) AND is_tombstone = FALSE`,
-		len(write.Decisions),
-		containerImageIdentityAtomicLiveFactIDs(write),
-	)
-	assertContainerImageIdentityAtomicLiveCount(
-		t,
-		ctx,
-		db,
-		`SELECT count(*) FROM fact_records WHERE fact_id = $1`,
-		0,
-		legacyFactID,
-	)
 }
 
 func containerImageIdentityAtomicLiveWrite(
@@ -272,7 +221,8 @@ func containerImageIdentityAtomicLiveWrite(
 	evidenceAsOf time.Time,
 ) ContainerImageIdentityWrite {
 	write := ContainerImageIdentityWrite{
-		IntentID:      "intent-5854-" + prefix,
+		IntentID:      containerImageIdentityLiveWorkItemID(containerImageIdentityLiveGeneration),
+		ClaimEpoch:    1,
 		ScopeID:       containerImageIdentityLiveScope,
 		GenerationID:  containerImageIdentityLiveGeneration,
 		SourceSystem:  "git",
@@ -365,6 +315,51 @@ type containerImageIdentityAtomicLiveBeginner struct {
 	wrap func(*sql.Tx) ContainerImageIdentityTransaction
 }
 
+type containerImageIdentityAtomicLiveCutoverLookup struct {
+	db *sql.DB
+}
+
+type containerImageIdentityAtomicLiveClaimedExecer struct {
+	db *sql.DB
+}
+
+func (execer containerImageIdentityAtomicLiveClaimedExecer) ExecContainerImageIdentityClaimed(
+	ctx context.Context,
+	query string,
+	args ...any,
+) (int, bool, error) {
+	rows, err := execer.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return 0, false, err
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		return 0, false, rows.Err()
+	}
+	var deleted int
+	if err := rows.Scan(&deleted); err != nil {
+		return 0, false, err
+	}
+	return deleted, true, rows.Err()
+}
+
+func (lookup containerImageIdentityAtomicLiveCutoverLookup) ContainerImageIdentityCutoverExists(
+	ctx context.Context,
+	scopeID string,
+	generationID string,
+) (bool, error) {
+	var exists bool
+	err := lookup.db.QueryRowContext(ctx, `
+SELECT EXISTS (
+    SELECT 1
+    FROM container_image_identity_cutovers
+    WHERE scope_id = $1
+      AND generation_id = $2
+)
+`, scopeID, generationID).Scan(&exists)
+	return exists, err
+}
+
 func (b *containerImageIdentityAtomicLiveBeginner) BeginContainerImageIdentityTx(
 	ctx context.Context,
 ) (ContainerImageIdentityTransaction, error) {
@@ -401,6 +396,26 @@ func (tx *containerImageIdentityPausingLiveTx) ExecContext(
 		}
 	}
 	return tx.tx.ExecContext(ctx, query, args...)
+}
+
+func (tx *containerImageIdentityPausingLiveTx) ExecContainerImageIdentityClaimed(
+	ctx context.Context,
+	query string,
+	args ...any,
+) (int, bool, error) {
+	rows, err := tx.tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		return 0, false, err
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		return 0, false, rows.Err()
+	}
+	var deleted int
+	if err := rows.Scan(&deleted); err != nil {
+		return 0, false, err
+	}
+	return deleted, true, rows.Err()
 }
 
 func (tx *containerImageIdentityPausingLiveTx) Commit() error {

@@ -12,6 +12,10 @@ import (
 
 const containerImageIdentityPerfHeadVariant = true
 
+func containerImageIdentityPerfPrepareIntent(intent *reducer.Intent) {
+	intent.ClaimEpoch = 1
+}
+
 func containerImageIdentityPerfWriter(
 	database postgres.ExecQueryer,
 ) reducer.ContainerImageIdentityWriter {
@@ -19,9 +23,12 @@ func containerImageIdentityPerfWriter(
 	if !ok {
 		return nil
 	}
+	cutoverStore := postgres.NewContainerImageIdentityCutoverStore(database)
 	return reducer.PostgresContainerImageIdentityWriter{
-		DB:            database,
-		CutoverLookup: postgres.NewContainerImageIdentityCutoverStore(database),
+		DB:                  database,
+		CutoverLookup:       cutoverStore,
+		LegacyCleanupLookup: cutoverStore,
+		ClaimedExecer:       postgres.ContainerImageIdentityClaimedExecer{DB: database},
 		Beginner: postgres.ContainerImageIdentityBeginner{
 			Beginner: beginner,
 		},

@@ -14,8 +14,15 @@ import (
 )
 
 type containerImageIdentityCutoverCatalogState struct {
-	tableOID   int64
-	triggerOID int64
+	tableOID             int64
+	factFunctionOID      int64
+	markerFunctionOID    int64
+	factUpdateTriggerOID int64
+	factInsertTriggerOID int64
+	markerTriggerOID     int64
+	ackConstraintOID     int64
+	requiredColumnNum    int16
+	authorizedColumnNum  int16
 }
 
 func TestContainerImageIdentityCutoverMigrationLifecycleLive(t *testing.T) {
@@ -54,8 +61,56 @@ func TestContainerImageIdentityCutoverMigrationLifecycleLive(t *testing.T) {
 	seedContainerImageIdentityCutoverMigrationProof(t, ctx, schemaDB)
 	rowsBefore := countContainerImageIdentityCutoverMigrationRows(t, ctx, schemaDB)
 
-	if err := ApplyDefinitions(ctx, exec, []Definition{migration}); err != nil {
-		t.Fatalf("apply migration 088 to populated fact table: %v", err)
+	blockingTx, err := schemaDB.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin migration writer blocker: %v", err)
+	}
+	if _, err := blockingTx.ExecContext(ctx, `
+INSERT INTO fact_records (
+    fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+    collector_kind, source_system, source_fact_key, observed_at, ingested_at,
+    payload
+) VALUES (
+    'cutover-migration-blocking-writer',
+    'repository:5854-cutover-migration',
+    'generation:5854-cutover-migration',
+    'content_entity',
+    'cutover-migration-blocking-writer',
+    'git',
+    'git',
+    'cutover-migration-blocking-writer',
+    '2026-07-29T22:00:01Z',
+    '2026-07-29T22:00:01Z',
+    '{"entity_name":"SyntheticBlockingWriter"}'
+)
+`); err != nil {
+		_ = blockingTx.Rollback()
+		t.Fatalf("hold populated fact_records writer lock: %v", err)
+	}
+	lockErr := ApplyDefinitionsWithLockTimeout(
+		ctx,
+		exec,
+		[]Definition{migration},
+		100*time.Millisecond,
+	)
+	if lockErr == nil || !strings.Contains(strings.ToLower(lockErr.Error()), "lock timeout") {
+		_ = blockingTx.Rollback()
+		t.Fatalf("migration 088 under active writer = %v, want bounded lock timeout", lockErr)
+	}
+	assertContainerImageIdentityCutoverObjectsAbsent(t, ctx, schemaDB)
+	if err := blockingTx.Rollback(); err != nil {
+		t.Fatalf("release migration writer blocker: %v", err)
+	}
+	proveContainerImageIdentityCutoverWorkItemLockRollback(
+		t,
+		ctx,
+		exec,
+		migration,
+		schemaDB,
+	)
+
+	if err := ApplyBootstrap(ctx, exec); err != nil {
+		t.Fatalf("retry migration 088 through ApplyBootstrap(): %v", err)
 	}
 	first := readContainerImageIdentityCutoverCatalogState(t, ctx, schemaDB)
 	if got := countContainerImageIdentityCutoverMigrationRows(t, ctx, schemaDB); got != rowsBefore {
@@ -78,6 +133,133 @@ func TestContainerImageIdentityCutoverMigrationLifecycleLive(t *testing.T) {
 	}
 
 	proveContainerImageIdentityCutoverMigrationBehavior(t, ctx, schemaDB)
+}
+
+func assertContainerImageIdentityCutoverObjectsAbsent(
+	t *testing.T,
+	ctx context.Context,
+	db *sql.DB,
+) {
+	t.Helper()
+	var (
+		tableExists             bool
+		factFunctionExists      bool
+		markerFunctionExists    bool
+		factUpdateTriggerExists bool
+		factInsertTriggerExists bool
+		markerTriggerExists     bool
+		ackConstraintExists     bool
+		requiredColumnExists    bool
+		authorizedColumnExists  bool
+	)
+	if err := db.QueryRowContext(ctx, `
+SELECT
+    to_regclass(
+        format('%I.container_image_identity_cutovers', current_schema())
+    ) IS NOT NULL,
+    to_regprocedure(
+        format(
+            '%I.guard_legacy_container_image_identity_statement()',
+            current_schema()
+        )
+    ) IS NOT NULL,
+    to_regprocedure(
+        format(
+            '%I.guard_container_image_identity_cutover_marker()',
+            current_schema()
+        )
+    ) IS NOT NULL,
+    EXISTS (
+        SELECT 1
+        FROM pg_trigger
+        WHERE tgrelid = to_regclass(
+                format('%I.fact_records', current_schema())
+              )
+          AND tgname =
+              'fact_records_legacy_container_image_identity_cutover_guard_update_statement'
+          AND NOT tgisinternal
+    ),
+    EXISTS (
+        SELECT 1
+        FROM pg_trigger
+        WHERE tgrelid = to_regclass(
+                format('%I.fact_records', current_schema())
+              )
+          AND tgname =
+              'fact_records_legacy_container_image_identity_cutover_guard_insert_statement'
+          AND NOT tgisinternal
+    ),
+    EXISTS (
+        SELECT 1
+        FROM pg_trigger
+        WHERE tgrelid = to_regclass(
+                format('%I.container_image_identity_cutovers', current_schema())
+              )
+          AND tgname = 'container_image_identity_cutover_marker_guard'
+          AND NOT tgisinternal
+    ),
+    EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conrelid = to_regclass(
+                format('%I.fact_work_items', current_schema())
+              )
+          AND conname =
+              'fact_work_items_container_image_identity_v2_status_check'
+    ),
+    EXISTS (
+        SELECT 1
+        FROM pg_attribute
+        WHERE attrelid = to_regclass(
+                format('%I.fact_work_items', current_schema())
+              )
+          AND attname = 'container_image_identity_v2_required'
+          AND NOT attisdropped
+    ),
+    EXISTS (
+        SELECT 1
+        FROM pg_attribute
+        WHERE attrelid = to_regclass(
+                format('%I.fact_work_items', current_schema())
+              )
+          AND attname = 'container_image_identity_v2_authorized_status'
+          AND NOT attisdropped
+    )
+`).Scan(
+		&tableExists,
+		&factFunctionExists,
+		&markerFunctionExists,
+		&factUpdateTriggerExists,
+		&factInsertTriggerExists,
+		&markerTriggerExists,
+		&ackConstraintExists,
+		&requiredColumnExists,
+		&authorizedColumnExists,
+	); err != nil {
+		t.Fatalf("read migration 088 objects after lock timeout: %v", err)
+	}
+	if tableExists ||
+		factFunctionExists ||
+		markerFunctionExists ||
+		factUpdateTriggerExists ||
+		factInsertTriggerExists ||
+		markerTriggerExists ||
+		ackConstraintExists ||
+		requiredColumnExists ||
+		authorizedColumnExists {
+		t.Fatalf(
+			"migration 088 partial objects after lock timeout = table %t fact_function %t marker_function %t fact_update_trigger %t fact_insert_trigger %t marker_trigger %t status_constraint %t required_column %t authorized_column %t, want all false",
+			tableExists,
+			factFunctionExists,
+			markerFunctionExists,
+			factUpdateTriggerExists,
+			factInsertTriggerExists,
+			markerTriggerExists,
+			ackConstraintExists,
+			requiredColumnExists,
+			authorizedColumnExists,
+		)
+	}
 }
 
 func containerImageIdentityCutoverUpgradeDefinitions(
@@ -128,6 +310,17 @@ INSERT INTO scope_generations (
 )`); err != nil {
 		t.Fatalf("seed identity-cutover generation: %v", err)
 	}
+	seedContainerImageIdentityAckWorkItem(
+		t,
+		ctx,
+		db,
+		"container-image-identity-5854-cutover-migration",
+		"repository:5854-cutover-migration",
+		"generation:5854-cutover-migration",
+		"reducer-5854-cutover-migration",
+		time.Date(2026, time.July, 29, 22, 10, 0, 0, time.UTC),
+		time.Date(2026, time.July, 29, 22, 0, 0, 0, time.UTC),
+	)
 	if _, err := db.ExecContext(ctx, `
 INSERT INTO fact_records (
     fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
@@ -160,14 +353,65 @@ func readContainerImageIdentityCutoverCatalogState(
 	t.Helper()
 	var state containerImageIdentityCutoverCatalogState
 	if err := db.QueryRowContext(ctx, `
-SELECT marker.oid::bigint, trigger.oid::bigint
-FROM pg_class AS marker
-CROSS JOIN pg_trigger AS trigger
-WHERE marker.oid = 'container_image_identity_cutovers'::regclass
-  AND trigger.tgrelid = 'fact_records'::regclass
-  AND trigger.tgname = 'fact_records_legacy_container_image_identity_cutover_guard'
-  AND NOT trigger.tgisinternal
-`).Scan(&state.tableOID, &state.triggerOID); err != nil {
+SELECT
+    'container_image_identity_cutovers'::regclass::oid::bigint,
+    'guard_legacy_container_image_identity_statement()'::regprocedure::oid::bigint,
+    'guard_container_image_identity_cutover_marker()'::regprocedure::oid::bigint,
+    (
+        SELECT oid::bigint
+        FROM pg_trigger
+        WHERE tgrelid = 'fact_records'::regclass
+          AND tgname =
+              'fact_records_legacy_container_image_identity_cutover_guard_update_statement'
+          AND NOT tgisinternal
+    ),
+    (
+        SELECT oid::bigint
+        FROM pg_trigger
+        WHERE tgrelid = 'fact_records'::regclass
+          AND tgname =
+              'fact_records_legacy_container_image_identity_cutover_guard_insert_statement'
+          AND NOT tgisinternal
+    ),
+    (
+        SELECT oid::bigint
+        FROM pg_trigger
+        WHERE tgrelid = 'container_image_identity_cutovers'::regclass
+          AND tgname = 'container_image_identity_cutover_marker_guard'
+          AND NOT tgisinternal
+    ),
+    (
+        SELECT oid::bigint
+        FROM pg_constraint
+        WHERE conrelid = 'fact_work_items'::regclass
+          AND conname =
+              'fact_work_items_container_image_identity_v2_status_check'
+    ),
+    (
+        SELECT attnum
+        FROM pg_attribute
+        WHERE attrelid = 'fact_work_items'::regclass
+          AND attname = 'container_image_identity_v2_required'
+          AND NOT attisdropped
+    ),
+    (
+        SELECT attnum
+        FROM pg_attribute
+        WHERE attrelid = 'fact_work_items'::regclass
+          AND attname = 'container_image_identity_v2_authorized_status'
+          AND NOT attisdropped
+    )
+`).Scan(
+		&state.tableOID,
+		&state.factFunctionOID,
+		&state.markerFunctionOID,
+		&state.factUpdateTriggerOID,
+		&state.factInsertTriggerOID,
+		&state.markerTriggerOID,
+		&state.ackConstraintOID,
+		&state.requiredColumnNum,
+		&state.authorizedColumnNum,
+	); err != nil {
 		t.Fatalf("read identity-cutover catalog state: %v", err)
 	}
 	return state
@@ -184,120 +428,4 @@ func countContainerImageIdentityCutoverMigrationRows(
 		t.Fatalf("count identity-cutover proof rows: %v", err)
 	}
 	return count
-}
-
-func proveContainerImageIdentityCutoverMigrationBehavior(
-	t *testing.T,
-	ctx context.Context,
-	db *sql.DB,
-) {
-	t.Helper()
-	const (
-		legacyFactID = "reducer_container_image_identity:5854-legacy-migration"
-		newFactID    = "reducer_container_image_identity:5854-v2-migration"
-		scopeID      = "repository:5854-cutover-migration"
-		generationID = "generation:5854-cutover-migration"
-	)
-	if _, err := db.ExecContext(ctx, `
-INSERT INTO fact_records (
-    fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
-    collector_kind, source_system, source_fact_key, observed_at, ingested_at,
-    payload
-) VALUES (
-    $1, $2, $3, 'reducer_container_image_identity', 'legacy:tag',
-    'reducer', 'git', 'legacy:tag',
-    '2026-07-29T22:01:00Z', '2026-07-29T22:01:00Z',
-    '{"image_ref":"registry.example.com/team/api:prod","outcome":"tag_resolved"}'
-)`, legacyFactID, scopeID, generationID); err != nil {
-		t.Fatalf("insert pre-cutover legacy row: %v", err)
-	}
-
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		t.Fatalf("begin identity-cutover proof transaction: %v", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx, `
-WITH locked AS MATERIALIZED (
-    SELECT pg_advisory_xact_lock(
-        hashtextextended($1 || E'\x1f' || $2, 5854)
-    )
-)
-INSERT INTO container_image_identity_cutovers (scope_id, generation_id)
-SELECT $1, $2 FROM locked
-ON CONFLICT (scope_id, generation_id) DO NOTHING
-`, scopeID, generationID); err != nil {
-		t.Fatalf("insert identity-cutover marker: %v", err)
-	}
-	if _, err := tx.ExecContext(ctx, `
-INSERT INTO fact_records (
-    fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
-    collector_kind, source_system, source_fact_key, observed_at, ingested_at,
-    payload
-) VALUES (
-    $1, $2, $3, 'reducer_container_image_identity', 'image-ref:prod',
-    'reducer', 'git', 'image-ref:prod',
-    '2026-07-29T22:02:00Z', '2026-07-29T22:02:00Z',
-    '{"identity_format":"image_ref_v2","image_ref":"registry.example.com/team/api:prod"}'
-)
-`, newFactID, scopeID, generationID); err != nil {
-		t.Fatalf("insert new-format identity row: %v", err)
-	}
-	if _, err := tx.ExecContext(ctx, "DELETE FROM fact_records WHERE fact_id = $1", legacyFactID); err != nil {
-		t.Fatalf("delete pre-cutover legacy row: %v", err)
-	}
-	if err := tx.Commit(); err != nil {
-		t.Fatalf("commit identity-cutover proof transaction: %v", err)
-	}
-
-	result, err := db.ExecContext(ctx, `
-INSERT INTO fact_records (
-    fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
-    collector_kind, source_system, source_fact_key, observed_at, ingested_at,
-    payload
-) VALUES (
-    $1, $2, $3, 'reducer_container_image_identity', 'legacy:tag',
-    'reducer', 'git', 'legacy:tag',
-    '2026-07-29T22:03:00Z', '2026-07-29T22:03:00Z',
-    '{"image_ref":"registry.example.com/team/api:prod","outcome":"tag_resolved"}'
-)
-`, legacyFactID, scopeID, generationID)
-	if err != nil {
-		t.Fatalf("attempt post-cutover legacy insert: %v", err)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		t.Fatalf("count post-cutover legacy insert: %v", err)
-	}
-	if affected != 0 {
-		t.Fatalf("post-cutover legacy inserted rows = %d, want 0", affected)
-	}
-
-	var (
-		legacyRows int
-		newRows    int
-		markers    int
-	)
-	if err := db.QueryRowContext(ctx, `
-SELECT
-    count(*) FILTER (WHERE fact_id = $1),
-    count(*) FILTER (WHERE fact_id = $2),
-    (SELECT count(*) FROM container_image_identity_cutovers
-     WHERE scope_id = $3 AND generation_id = $4)
-FROM fact_records
-`, legacyFactID, newFactID, scopeID, generationID).Scan(
-		&legacyRows,
-		&newRows,
-		&markers,
-	); err != nil {
-		t.Fatalf("read identity-cutover proof result: %v", err)
-	}
-	if legacyRows != 0 || newRows != 1 || markers != 1 {
-		t.Fatalf(
-			"identity-cutover rows = legacy %d new %d markers %d, want 0/1/1",
-			legacyRows,
-			newRows,
-			markers,
-		)
-	}
 }

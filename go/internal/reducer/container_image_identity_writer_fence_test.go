@@ -151,6 +151,26 @@ func TestContainerImageIdentityWriterRejectsMissingEvidenceAsOf(t *testing.T) {
 	}
 }
 
+func TestContainerImageIdentityWriterRejectsMissingClaimEpochForLegacyCleanup(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeWorkloadIdentityExecer{}
+	write := containerImageIdentityFenceWrite(
+		time.Date(2026, time.July, 30, 20, 0, 0, 0, time.UTC),
+		ContainerImageIdentityExactDigest,
+	)
+	write.LegacyFactIDs = []string{"reducer_container_image_identity:synthetic-legacy"}
+	writer := PostgresContainerImageIdentityWriter{DB: db}
+
+	_, err := writer.WriteContainerImageIdentityDecisions(context.Background(), write)
+	if err == nil || !strings.Contains(err.Error(), "claim_epoch") {
+		t.Fatalf("WriteContainerImageIdentityDecisions() error = %v, want missing claim_epoch", err)
+	}
+	if len(db.execs) != 0 {
+		t.Fatalf("statements issued = %d, want 0 for an unfenced cutover", len(db.execs))
+	}
+}
+
 // TestContainerImageIdentityHandlerStampsEvidenceReadTimeBeforeLoading proves
 // the watermark is taken BEFORE the evidence load, not after it.
 //
