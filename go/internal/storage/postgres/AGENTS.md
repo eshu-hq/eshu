@@ -388,6 +388,24 @@ shared-intent backlog/status queries and reducer code-call cycle logs.
   override — see the constant's doc comment. Cycles are broken by the
   per-expansion `visited` set tracked in `walkModulePrefixChain`.
 
+- **Per-address module-resolution confidence (issue #5572)** → edit
+  `tfstate_drift_evidence_module_confidence.go`. Companion to
+  `buildModulePrefixMap`: tracks a `moduleResolutionConfidenceMap`
+  (directory → unresolved reason) alongside the real `modulePrefixMap`,
+  populated for exactly two cases — `classifyModuleSource`'s
+  `external_registry` misclassification (speculatively re-resolved via
+  `resolveLocalCallee` purely to learn the candidate directory) and
+  `walkModulePrefixChain`'s `depth_exceeded` abandonment. `emitConfigRowsForEntry`
+  consults it through `moduleResolutionReasonForEntry`, comparing MATCH
+  DEPTH against `modulePrefixMap`'s own match (`modulePrefixForPathWithDepth`)
+  rather than trusting "zero prefixes" — `modulePrefixForPath`'s
+  longest-ancestor-match walk means an unresolved call is not reliably
+  visible as an empty result; see the file's package doc comment for why. A
+  non-empty `ResourceRow.ModuleResolutionReason` flows through
+  `tfconfigstate.BuildCandidates`'s `EvidenceTypeModuleResolutionConfidence`
+  atom to the reducer writer, which downgrades the finding's `Outcome` from
+  `"exact"` to `"derived"`.
+
 - **Prior-config walk for `removed_from_config`** → edit
   `tfstate_drift_evidence_prior_config.go`. `loadPriorConfigAddresses`
   queries prior repo-snapshot generations bounded by

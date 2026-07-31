@@ -327,11 +327,15 @@ func (l PostgresAWSCloudRuntimeDriftEvidenceLoader) loadConfigRowsForAnchor(
 		Instruments: l.Instruments,
 	}
 	recorder := loader.unresolvedRecorder()
-	prefixMap, err := loader.buildModulePrefixMap(ctx, anchor.ScopeID, anchor.CommitID, recorder)
+	prefixMap, confidenceMap, err := loader.buildModulePrefixMap(ctx, anchor.ScopeID, anchor.CommitID, recorder)
 	if err != nil {
 		return nil, err
 	}
-	configRows, err := loader.loadConfigByAddress(ctx, anchor.ScopeID, anchor.CommitID, prefixMap)
+	// AWS runtime drift consumes only the resolved address (row.Address
+	// below); it does not read ResourceRow.ModuleResolutionReason, so the
+	// confidence map is threaded through purely to satisfy loadConfigByAddress's
+	// shared signature — see tfstate_drift_evidence_module_confidence.go.
+	configRows, err := loader.loadConfigByAddress(ctx, anchor.ScopeID, anchor.CommitID, prefixMap, confidenceMap)
 	if err != nil {
 		return nil, err
 	}

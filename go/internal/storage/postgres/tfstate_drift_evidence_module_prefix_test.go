@@ -80,16 +80,31 @@ func loaderForBuildModulePrefixMap(rows []queueFakeRows) (PostgresDriftEvidenceL
 }
 
 // runBuildModulePrefixMap executes buildModulePrefixMap with a fake recorder
-// and returns the resulting map plus the recorded reasons.
+// and returns the resulting map plus the recorded reasons. Tests that also
+// need the module-resolution-confidence map (issue #5572) use
+// runBuildModulePrefixMapWithConfidence instead.
 func runBuildModulePrefixMap(t *testing.T, rows []queueFakeRows) (modulePrefixMap, *fakeUnresolvedRecorder) {
+	t.Helper()
+	out, _, rec := runBuildModulePrefixMapWithConfidence(t, rows)
+	return out, rec
+}
+
+// runBuildModulePrefixMapWithConfidence executes buildModulePrefixMap with a
+// fake recorder and returns all three results: the prefix map, the
+// module-resolution-confidence map (tfstate_drift_evidence_module_confidence.go),
+// and the recorder for asserting which unresolved reasons fired.
+func runBuildModulePrefixMapWithConfidence(
+	t *testing.T,
+	rows []queueFakeRows,
+) (modulePrefixMap, moduleResolutionConfidenceMap, *fakeUnresolvedRecorder) {
 	t.Helper()
 	loader, _ := loaderForBuildModulePrefixMap(rows)
 	rec := &fakeUnresolvedRecorder{}
-	out, err := loader.buildModulePrefixMap(context.Background(), "scope-x", "gen-x", rec)
+	out, confidence, err := loader.buildModulePrefixMap(context.Background(), "scope-x", "gen-x", rec)
 	if err != nil {
 		t.Fatalf("buildModulePrefixMap() error = %v", err)
 	}
-	return out, rec
+	return out, confidence, rec
 }
 
 // --- Phase 1: helper unit tests --------------------------------------------
@@ -344,7 +359,9 @@ func TestBuildModulePrefixMapHandlesBlankSource(t *testing.T) {
 
 // Loader integration tests for module-aware joining live in
 // tfstate_drift_evidence_module_integration_test.go (split for the
-// CLAUDE.md 500-line cap; same package, same fixtures).
+// CLAUDE.md 500-line cap; same package, same fixtures). Unit and
+// loader-integration tests for the module-resolution-confidence signal
+// (issue #5572) live in tfstate_drift_evidence_module_confidence_test.go.
 
 // --- helpers ---------------------------------------------------------------
 

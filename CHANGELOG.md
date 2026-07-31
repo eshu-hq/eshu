@@ -437,6 +437,358 @@ recent shipped work grouped by feature area.
   same commit as this entry): both are now proven, not merely locally
   plausible.
 
+### Config-vs-state drift: "derived" outcome for unresolved module-prefix addresses
+
+- **Split "exact" into "exact" vs "derived" by per-address module-resolution
+  confidence** ([#5572](https://github.com/eshu-hq/eshu/issues/5572)).
+  `go/internal/correlation/drift/tfconfigstate/doc.go`'s own recorded
+  limitation named the risk: a module-nested resource's config-side address
+  is computed by resolving `module {}` call chains
+  (`go/internal/storage/postgres/tfstate_drift_evidence_module_prefix.go`),
+  and two documented failure shapes can silently produce a wrong address --
+  `classifyModuleSource`'s Terraform-Registry-shorthand heuristic
+  misclassifying a genuinely local module source as external (the
+  "terraform-aws-modules" false-positive the ADR already names), or a
+  resolved local module chain abandoned mid-walk at `maxModulePrefixDepth`.
+  Both were previously invisible at the finding level: every per-address
+  outcome was stamped `"exact"` regardless, because the comparison step
+  genuinely was an exact string match even when its input address was not
+  trustworthy.
+
+  A new `moduleResolutionConfidenceMap`
+  (`go/internal/storage/postgres/tfstate_drift_evidence_module_confidence.go`)
+  tracks both failure shapes as a directory-keyed low-confidence signal,
+  populated by `buildModulePrefixMap` alongside the real `modulePrefixMap`.
+  `ResourceRow.ModuleResolutionReason` carries it onto the config-side row;
+  `BuildCandidates` attaches a new `terraform_module_resolution_confidence`
+  evidence atom when present; the reducer writer's `moduleResolutionOutcome`
+  downgrades `Outcome` from `"exact"` to `"derived"` whenever that atom is
+  present. One `"derived"` value covers both causes deliberately -- the
+  atom's `Value` carries the specific reason (`"external_registry"` or
+  `"depth_exceeded"`), preserved in the finding's `Evidence` array, so an
+  operator can still tell the two causes apart without the outcome
+  vocabulary growing per cause.
+
+  **A masking bug the naive design would have missed, found by TDD before
+  landing:** `modulePrefixMap.modulePrefixForPath`'s own longest-ancestor-
+  match walk means an unresolved module call is not reliably visible as
+  "zero prefixes returned." Both failure shapes are reached only after one
+  or more ancestor levels already resolved successfully (a depth-exceeded
+  callee requires depths 1..N-1 to have already succeeded; a nested
+  registry-misclassified call sits inside whatever module resolved its own
+  call site), so the immediately shallower ancestor directory almost always
+  has a real, populated prefix -- and the walk-up silently returns THAT
+  prefix instead of nothing, misattributing the resource to the wrong,
+  too-shallow parent module rather than falling back to a plainly
+  root-shaped address. Consulting the confidence map only when
+  `modulePrefixForPath` returned zero prefixes would have missed this,
+  demonstrably: a first version of the depth-exceeded integration test
+  failed with the resource silently getting a real (wrong) 10-level-deep
+  prefix instead of a root fallback. The fix compares MATCH SPECIFICITY —
+  `moduleResolutionReasonForEntry` prefers the confidence signal whenever
+  its matched directory is at least as deep as (as close to the file as)
+  whatever directory supplied the real prefix — so the masked case is
+  caught too, not just the plain "no prefix" case.
+
+  No schema or contract bump: `outcome` is `"type": "string"` with no
+  `enum`/`pattern`/`oneOf` in the generated JSON Schema
+  (`sdk/go/factschema/schema/reducer_terraform_config_state_drift_finding.v1.schema.json`),
+  and no field was added, removed, renamed, or retyped on
+  `TerraformConfigStateDriftFinding` -- `Evidence []map[string]any` already
+  carried arbitrary atoms before this change. `specs/fact-kind-registry.v1.yaml`
+  is unaffected for the same reason.
+
+  - No-Regression Evidence: see
+    `docs/internal/evidence/5572-drift-derived-outcome-module-resolution-confidence.md`
+    for the full complexity argument (zero new Postgres queries; the added
+    per-entry work is the same O(directory depth) walk-up shape
+    `modulePrefixForPath` already performs, doubled) and the green focused
+    test run across `internal/correlation/drift/tfconfigstate`,
+    `internal/storage/postgres`, `internal/reducer`, `internal/query`, and
+    `internal/mcp`.
+  - No-Observability-Change: reuses the existing
+    `eshu_dp_drift_unresolved_module_calls_total{reason}` counter path
+    (issue #169) unchanged; the new evidence atom flows through the
+    finding's existing `Evidence` field and the existing
+    `POST /api/v0/terraform/config-state-drift/findings` response shape, not
+    a new field, log, span, or metric.
+  - OpenAPI (`go/internal/query/openapi_paths_terraform_config_state_drift.go`),
+    the MCP tool description (`go/internal/mcp/tools_iac.go`), and both
+    outcome-filter validators
+    (`go/internal/query/terraform_config_state_drift.go`,
+    `go/internal/storage/postgres/terraform_config_state_drift_findings.go`)
+    now accept and document `"derived"` alongside `"exact"`, `"ambiguous"`,
+    and `"unresolved"`.
+
+- **Review follow-up: golden-corpus proof for the `external_registry` cause,
+  plus two stale doc-comment corrections.** Independent review confirmed the
+  masking-bug fix and traced the cause end to end to the read surface, but
+  flagged that a new, permanent, operator-visible outcome value threaded
+  into reducer-materialized truth, the OpenAPI enum, and the MCP contract
+  calls for cassette/golden replay proof, per issue #5594's precedent in
+  this same writer (#5594 added two fixture scopes specifically to prove its
+  new `"unresolved"` outcome fires end to end, rather than trusting unit
+  tests alone).
+  `tests/fixtures/ecosystems/terraform_comprehensive/terraform-aws-modules/vpc/aws/main.tf`
+  now gives modules.tf's pre-existing (previously dead) `module "vpc" {
+  source = "terraform-aws-modules/vpc/aws" }` reference a real target
+  directory containing a real resource
+  (`aws_security_group.vpc_endpoints`); the matching cassette-side
+  `module.vpc.aws_security_group.vpc_endpoints` resource
+  (`testdata/cassettes/terraformstate/supply-chain-demo.json`) makes both
+  sides genuinely drift, so a real `added_in_config`/`added_in_state` pair
+  materializes exactly as `tfconfigstate/doc.go` describes it. The new
+  `POST /api/v0/terraform/config-state-drift/findings?variant=derived`
+  snapshot entry (`testdata/golden/e2e-20repo-snapshot.json`) asserts
+  `outcome="derived"` AND, via `required_json_object_matches` (not two
+  independent wildcard checks that could accept unrelated fields), that the
+  same finding's evidence array carries a
+  `terraform_module_resolution_confidence` atom with
+  `value="external_registry"` on one correlated object -- proving the
+  specific cause survives to the read surface, the whole justification for
+  one `"derived"` outcome value instead of splitting per cause.
+  `depth_exceeded` deliberately keeps unit/integration-only coverage: an
+  11-level module chain is a heavy fixture for a rare shape the existing
+  focused tests already prove precisely; see the evidence doc's "Golden-
+  corpus coverage per cause" section for that explicit decision.
+  `cd go && go test ./cmd/golden-corpus-gate/... -count=1` passed after the
+  snapshot edit.
+
+  Review also flagged two doc comments this session's own tests disprove:
+  `tfstate_drift_evidence_config_row.go`'s `configRowFromParserEntry` doc
+  claimed the caller only ever passes a non-empty
+  `moduleResolutionReason` alongside an empty `modulePrefix` -- false,
+  proven false by `TestLoadDriftEvidenceMarksLowConfidenceForDepthExceededModuleChain`
+  itself, which passes a non-empty reason alongside a non-empty masked
+  prefix; and `classify.go`'s `ResourceRow.ModuleResolutionReason` doc
+  claimed both causes "fall back to a root-module address" -- true only for
+  `external_registry`, not `depth_exceeded` (which almost always produces
+  the masked wrong-ancestor address instead, per the masking-bug fix
+  above). Both corrected to describe the actual, tested behavior.
+
+- **Review follow-up: downgrade BOTH halves of a spurious mismatch pair, not
+  just the config-side half.** An unresolved module-prefix chain does not
+  make one address uncertain -- it makes the config/state join key wrong, so
+  the loader always produced TWO candidates for the same real resource: a
+  config-only `added_in_config` at the fallback address (correctly flagged
+  and downgraded, per the work above) and a state-only `added_in_state` at
+  the real, prefixed address, which stayed `"exact"` because
+  `ResourceRow.ModuleResolutionReason` only ever carried the reason on the
+  config-side row. A caller filtering `outcome=exact` still got back half of
+  a pair this feature exists to flag as uncertain. A related gap: the
+  prior-config walk that powers `removed_from_config`
+  (`PostgresDriftEvidenceLoader.loadPriorConfigAddresses`) built its own
+  `moduleResolutionConfidenceMap` per prior generation and discarded it
+  (`priorPrefixMap, _, err := l.buildModulePrefixMap(...)`), so a
+  `removed_from_config` finding promoted from a low-confidence prior-config
+  address also stayed `"exact"`.
+
+  A new `pairSpuriousModuleMismatches`
+  (`go/internal/storage/postgres/tfstate_drift_evidence_pairing.go`) runs
+  inside `mergeDriftRows` and mirrors `ModuleResolutionReason` onto the
+  paired state-only row, but only when the pairing is unambiguous: exactly
+  one low-confidence config-only row and exactly one state-only row share
+  the trailing `<type>.<name>[index]` resource key (`resourceAddressKey`,
+  derived purely from the address string -- no module-prefix-map lookup
+  needed). Ambiguous collisions (2+ candidates sharing a key on either side)
+  are left untouched deliberately: Terraform's own idiomatic "singleton
+  resource" naming convention (`aws_s3_bucket.this`, `aws_iam_role.this`,
+  and similar -- the exact convention `terraform-aws-modules` itself uses)
+  means the same `<type>.<name>` key legitimately recurs across unrelated,
+  independently resolved modules, so a blind match risks mirroring the
+  reason onto a genuinely unrelated resource. `collectPriorConfigAddresses`
+  now threads the prior generation's own confidence map through the same
+  `moduleResolutionReasonForEntry` comparison the current-generation path
+  already uses, and `BuildCandidates` gained a `row.State.ModuleResolutionReason`
+  branch symmetric with the pre-existing `row.Config` branch -- the reducer
+  writer's `moduleResolutionOutcome` needed no change, since it already only
+  checked atom presence, not which side attached it.
+  - No-Regression Evidence / Observability Evidence: see the "Follow-up: both
+    halves of a spurious mismatch pair now downgrade" section of
+    `docs/internal/evidence/5572-drift-derived-outcome-module-resolution-confidence.md`
+    for the complexity argument (zero new Postgres queries) and the green
+    focused test run across `internal/correlation/drift/tfconfigstate`,
+    `internal/storage/postgres`, `internal/reducer`, `internal/query`, and
+    `internal/mcp`, including new regression coverage for the pairing
+    (`TestPairSpuriousModuleMismatchesMirrorsReasonOntoUnambiguousStateOnlyRow`,
+    `TestPairSpuriousModuleMismatchesSkipsAmbiguousResourceKeyCollision`,
+    `TestLoadDriftEvidencePairsSpuriousMismatchAcrossModuleResolutionFailure`)
+    and the prior-config threading
+    (`TestPostgresDriftEvidenceLoaderPriorConfigConfidenceThreadedOntoRemovedFromConfigRow`).
+  - The `POST /api/v0/terraform/config-state-drift/findings?variant=derived`
+    golden-corpus entry's `minimum_results` is raised from `1` to `2` --
+    review correctly flagged that a floor of `1` plus existential
+    `drift_findings[].*` path matching could not distinguish "both halves
+    downgraded" from the exact bug this PR fixes ("only the config-side half
+    downgraded"), so the gate could not tell fixed from broken. The `2` was
+    derived by tracing the actual fixture and cassette content, not assumed:
+    this repo's single ingested generation flags exactly one directory
+    (`module.s3_bucket`'s local path and `module.eks`'s `git::` source are
+    both never flagged), that directory declares exactly one resource, and
+    the cassette carries exactly one state address sharing that resource's
+    `<type>.<name>` key -- an unambiguous 1:1 pairing, with no prior
+    generation in the corpus to promote a third `derived` finding through
+    `removed_from_config`. Two `required_json_object_matches` entries under
+    `drift_findings[]` now pin `outcome="derived"` to EACH specific address
+    independently (`aws_security_group.vpc_endpoints` for the config-only
+    half, `module.vpc.aws_security_group.vpc_endpoints` for the state-only
+    half) -- since one finding object cannot carry two different `address`
+    values at once, this proves two distinct derived findings exist, which a
+    bare count of 2 (satisfiable by two unrelated or duplicated config-side
+    findings) could not. `cd go && go test ./cmd/golden-corpus-gate/...
+    -count=1` is green against the updated snapshot.
+
+- **Review follow-up: fix a real false-pairing defect in `resourceAddressKey`
+  itself.** The pairing key computed by taking an address's last two
+  dot-separated segments (`strings.Split(address, ".")`) broke on any
+  address whose `for_each` index literally contains a dot -- proved
+  empirically: `aws_route53_record.this["api.example.com"]` and the
+  UNRELATED `aws_acm_certificate.cert["www.example.com"]` both collapsed to
+  the identical wrong key `example.com"]`, and `data.aws_ami.ubuntu`
+  collapsed onto the unrelated managed resource `aws_ami.ubuntu`. Either
+  collision, if it were the only one in a join, would satisfy
+  `pairSpuriousModuleMismatches`'s "exactly one candidate on each side"
+  ambiguity guard and mirror `ModuleResolutionReason` onto a genuinely
+  unrelated, real finding -- a false `derived` downgrade of true drift, the
+  precise failure the guard exists to prevent. `for_each` over domain names
+  or similar dotted strings is a common Terraform pattern, not an edge case.
+
+  `resourceAddressKey` now FRONT-strips leading `module.<name>[<index>]`
+  segments instead of taking the last two segments from the end, tracking
+  bracket depth and double-quote state (`skipModuleNameSegment`,
+  `hasResourceTypeNameShape`) so a `.` or `]` inside a quoted index --
+  whether on a `for_each` instance's own key or on an indexed MODULE NAME's
+  index (`module.vpc["a.b"].aws_x.y`) -- is never mistaken for a segment
+  boundary. Whatever remains after stripping every leading `module.` segment
+  is returned verbatim, byte-identical to what follows the address's own
+  last module prefix. A `data.` prefix is deliberately preserved rather than
+  stripped (Terraform itself treats `data.TYPE.NAME` and `TYPE.NAME` as
+  different resources): checked, not assumed, that this collision can only
+  threaten the STATE side of a pairing -- the HCL parser routes `data`
+  blocks into a separate `terraform_data_sources` bucket the drift loader's
+  config-side query never reads, but the collector's `resourceAddress`
+  (`internal/collector/terraformstate/identity.go`) does prefix `"data."`
+  onto a state-side data source's address with no mode filter on the
+  state-side query. Separately confirmed this collector's actual
+  `for_each`/`count` addressing never emits the literal-dot-in-index shape
+  at all (it appends a `facts.StableID` hash digest, `[key:<hash>]`, or a
+  plain integer `[index:<N>]`), so the collision could not occur through
+  today's data end to end -- the fix is still correct-by-construction
+  regardless, since a different or future ingestion path could plausibly
+  carry the literal Terraform-CLI-display shape.
+  - No-Regression Evidence: `cd go && go test
+    ./internal/storage/postgres/... -count=1` is green.
+    `TestResourceAddressKeyStripsModulePrefixes` was rewritten with the
+    reviewer's exact collision table plus an indexed-module-name case and
+    two explicit non-collision assertions; it reproduces every reported
+    collision as a genuine RED against the prior implementation and is
+    GREEN against the front-stripping one. The pre-existing
+    `TestPairSpuriousModuleMismatches*` tests are unaffected (their
+    addresses carry no brackets, so old and new implementations agree on
+    them).
+  - See the evidence doc's "Follow-up: front-stripping fix for
+    resourceAddressKey" section for the full RED output and the
+    data-source-reachability trace.
+
+- **Review follow-up: fix a P1 pairing no-op for every count/for_each
+  resource, and a P2 nondeterministic-ordering bug in the prior-config
+  confidence signal.** A second, independent review pass found two more
+  defects the first follow-up missed.
+
+  **P1 (verified against the committed code, not assumed):**
+  `resourceAddressKey`'s front-stripping only ever removed leading
+  `module.<name>` segments; it never touched a trailing per-instance index.
+  Config-side rows never carry one (the parser has no per-instance
+  information, only a static resource block), while state-side rows for a
+  `count`/`for_each` resource ALWAYS do
+  (`internal/collector/terraformstate/identity.go` appends `[index:<N>]` or
+  `[key:<hash>]`). So a config-only `aws_instance.web` could never equal a
+  state-only `aws_instance.web[index:0]` -- `pairSpuriousModuleMismatches`
+  silently never paired ANY indexed resource, regardless of module
+  resolution confidence. Fixed by stripping a trailing `[INDEX]` suffix too
+  (new `stripTrailingIndexSuffix`), using the same bracket/quote-depth
+  tracking rather than a naive first-`[` search. This correctly produces
+  TWO different outcomes depending on instance count: `count = 1` or a
+  single-key `for_each` now pairs (exactly one state instance shares the
+  stripped key); `count > 1` or a multi-key `for_each` correctly REFUSES to
+  pair (every instance shares one key, so the state side has 2+ candidates
+  and a spurious mismatch cannot be attributed to one specific sibling) --
+  a documented, intentional scope limitation, not a residual gap.
+
+  **P2 (proven via `EXPLAIN (ANALYZE, VERBOSE)` against a real Postgres 18
+  instance, per `eshu-postgres-rigor`):** `loadPriorConfigAddresses`'s
+  first-write-wins confidence threading assumed
+  `listPriorConfigAddressesQuery`'s row order was most-recent-generation-
+  first, but the query's OUTER `ORDER BY` was `pg.generation_id ASC,
+  fact.fact_id ASC` -- lexicographic on an opaque `TEXT PRIMARY KEY` with no
+  chronological relationship. The CTE's own `ORDER BY ingested_at DESC
+  LIMIT $3` bounds which generations are INCLUDED, never the outer row
+  order. Proven empirically: three prior generations seeded with
+  `generation_id` order (gen-alpha, gen-charlie, gen-omega) deliberately
+  scrambled relative to their true `ingested_at` order (gen-charlie,
+  gen-alpha, gen-omega) -- the unmodified query returned rows in
+  `generation_id` order, not recency order, and `EXPLAIN` showed the CTE
+  fully inlined into a Nested Loop on Postgres 18 (no separate CTE Scan
+  node). Fixed by exposing `ingested_at` from the CTE and ordering the
+  outer `SELECT` by it directly; the fixed query reuses the SAME
+  `scope_generations_scope_latest_lookup_idx` index at identical cost, no
+  new index needed.
+  - No-Regression Evidence: `cd go && go test ./internal/storage/postgres/...
+    -count=1` is green, including new coverage for both defects --
+    `TestPairSpuriousModuleMismatchesPairsSingleIndexedStateInstance` /
+    `TestPairSpuriousModuleMismatchesRefusesWhenMultipleIndexedStateInstancesShareStrippedKey`
+    for P1, and
+    `TestListPriorConfigAddressesQueryOrdersByIngestedAtDescending` (a SQL
+    constant text assertion -- fakeExecQueryer bypasses real SQL execution,
+    so only a real Postgres planner run, captured in the evidence doc, can
+    prove or disprove a row-ordering claim) plus
+    `TestPostgresDriftEvidenceLoaderPrefersMostRecentPriorGenerationConfidenceOnConflict`
+    (the first regression exercising two prior generations with conflicting
+    confidence for the same address) for P2.
+  - Doc comments on `resourceAddressKey` and `pairSpuriousModuleMismatches`
+    previously overclaimed "zero false pairings" unconditionally and "any
+    index suffix" handling; both now state the narrower, real guarantee and
+    name the known gaps (the count/for_each multi-instance miss;
+    unescaped-quote-inside-a-quoted-index edge case) explicitly.
+  - See the evidence doc's "Follow-up: two independent review findings the
+    first follow-up missed" section for the full EXPLAIN output from both
+    the broken and fixed query.
+
+- **Review follow-up: convert the P2 SQL-ordering proof from a throwaway
+  session into a committed, re-runnable integration test.** The prior
+  ordering proof (real Postgres 18, scrambled generations, EXPLAIN
+  confirming CTE inlining) lived only as prose and pasted plan output in
+  the evidence doc; the one committed test was a substring assertion on the
+  SQL constant, which cannot catch a syntactically different `ORDER BY`
+  that still contains the substring but produces the wrong order, and
+  cannot catch a planner-level regression at all.
+  `TestLoadPriorConfigAddressesPrefersMostRecentGenerationAgainstRealPostgres`
+  (new, `tfstate_drift_evidence_prior_config_ordering_live_test.go`) is the
+  committed evidence of record now: `ESHU_POSTGRES_DSN`-gated, follows this
+  package's established live-Postgres pattern (isolated `CREATE
+  SCHEMA`/`SET search_path`, `MigrationSQL`), seeds the same
+  three-scrambled-generation shape the throwaway proof used, calls
+  `loadPriorConfigAddresses` directly against real Postgres, and asserts
+  the most recently ingested generation's confidence wins. The connection
+  handle is capped at one (`SetMaxOpenConns(1)`/`SetMaxIdleConns(1)`),
+  matching `TestLatestGenerationCTETruthEquivalenceAndPlan`'s own guard
+  against `SET search_path` being connection-local while `*sql.DB` is a
+  pool -- the exact failure mode issue #4451 hit. Also asserts (mirroring
+  that same test's `SubPlan` check, the only existing fixture-plan pattern
+  in this package) that the `EXPLAIN` output contains no `CTE Scan` node.
+  - No-Regression Evidence: verified RED by temporarily restoring the
+    pre-fix outer `ORDER BY pg.generation_id ASC, fact.fact_id ASC` and
+    running the new test against a real Postgres 18 instance --
+    `out["aws_instance.web"] = "", want "external_registry"`, FAIL. GREEN
+    after restoring the fix, same seeded data, same instance. Confirmed
+    `ESHU_POSTGRES_DSN` unset skips cleanly (credential-free CI /
+    `make pre-pr` unaffected) and `git diff` on the SQL file was clean
+    after the temporary revert-and-restore cycle. The substring test
+    (`TestListPriorConfigAddressesQueryOrdersByIngestedAtDescending`) is
+    kept as a cheap, credential-free complement, not replaced.
+  - See the evidence doc's "Committed re-runnable proof" section for the
+    full RED and GREEN output.
+
 ### Route-fact-based Rails controller liveness
 
 - **Join the Rails controller dead-code-root verdict against real route facts**
