@@ -282,6 +282,26 @@ gates:
       - go
     ci_only_reason: ""
 
+  - id: skill-workflow-refs
+    name: Verify Skill Workflow References
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - ".agents/skills/**"
+      - ".github/workflows/**"
+      - "scripts/verify-skill-workflow-refs.sh"
+      - "scripts/test-verify-skill-workflow-refs.sh"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "bash scripts/verify-skill-workflow-refs.sh"
+      test_command: "bash scripts/test-verify-skill-workflow-refs.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify skill workflow refs gate"
+    requirements: []
+    ci_only_reason: ""
+
   - id: fact-kind-registry
     name: Verify Fact-Kind Registry
     category: exactness
@@ -714,9 +734,13 @@ gates:
     triggers:
       - "go/internal/**"
       - "go/cmd/**"
+      - "docs/public/observability/telemetry-coverage.md"
+      - "scripts/*verify-telemetry-coverage*.sh"
       - "scripts/lib/telemetry-coverage-bucket-check.sh"
       - "scripts/lib/telemetry-coverage-row-check.sh"
       - "scripts/lib/test-verify-telemetry-coverage-*"
+      - ".github/workflows/static-contract-gates.yml"
+      - "specs/ci-gates.v1.yaml"
     local:
       command: "bash scripts/verify-telemetry-coverage.sh"
       test_command: "bash scripts/test-verify-telemetry-coverage.sh"
@@ -740,6 +764,8 @@ gates:
       - "scripts/generate-operator-dashboard.sh"
       - "scripts/lib/operator-dashboard-*.json.tmpl"
       - "scripts/lib/operator-dashboard-metrics.sh"
+      - ".github/workflows/static-contract-gates.yml"
+      - "specs/ci-gates.v1.yaml"
     local:
       command: "bash scripts/generate-operator-dashboard.sh"
       test_command: "bash scripts/test-generate-operator-dashboard.sh"
@@ -2118,6 +2144,7 @@ gates:
       - "scripts/test-pre-pr-whole-module-gates.sh"
       - "scripts/generate-ci-gates-doc.sh"
       - "scripts/lib/ci-gates-doc-parse.awk"
+      - "scripts/lib/test-verify-ci-gates-registry-telemetry-cases.sh"
       - "scripts/test-generate-ci-gates-doc.sh"
       - "docs/public/reference/ci-gates.md"
       - ".github/workflows/**"
