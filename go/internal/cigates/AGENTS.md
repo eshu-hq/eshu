@@ -74,9 +74,10 @@ and `eshu-diagnostic-rigor`.
   `generate-contracttest.sh` where local runs `verify-contracttest.sh`), so the
   broad rule flags 16 gates of which 15 are correctly wired (#5748). A script no
   workflow runs, or several run, carries no signal and is skipped. Match the
-  script with a boundary check, never `strings.Contains` — `verify-X.sh` is a
-  substring of `test-verify-X.sh`, and that false match turns a real mismatch
-  into a pass.
+  script with a boundary check, never `strings.Contains` — a workflow running
+  `myscripts/verify-X.sh` contains `scripts/verify-X.sh` as a substring, and
+  counting it as a second host makes the "exactly one workflow" precondition
+  fail, silently skipping the gate and turning a real mismatch into a pass.
 
 ## Common changes
 

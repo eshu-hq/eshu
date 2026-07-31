@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 // verifyScriptRE captures a gate's own verify script from its local command.
@@ -18,14 +20,70 @@ import (
 // the self-test rather than the gate.
 var verifyScriptRE = regexp.MustCompile(`scripts/verify-[\w.-]+\.sh`)
 
+// runStep is the minimal shape needed to read a step's executable command.
+type runStep struct {
+	Run string `yaml:"run"`
+}
+
+type runJob struct {
+	Steps []runStep `yaml:"steps"`
+}
+
+type runWorkflowFile struct {
+	Jobs map[string]runJob `yaml:"jobs"`
+}
+
+// workflowRunCommands returns every step `run:` block in raw, which is the only
+// place a workflow actually executes a script.
+//
+// Scanning the whole file instead counts a mention as an invocation, and the
+// two are routinely different: a dorny paths filter WATCHES scripts so the job
+// re-runs when they change. scripts/verify-golden-corpus-gate.sh is watched by
+// static-contract-gates.yml's maturitydrift filter and executed only by
+// golden-corpus-gate.yml, so a whole-file scan sees two hosts, fails the
+// "exactly one workflow" precondition, and silently skips golden-corpus-gate --
+// letting a cross-wired entry through the check built to catch it (#5748
+// review).
+func workflowRunCommands(raw []byte) []string {
+	var wf runWorkflowFile
+	if err := yaml.Unmarshal(raw, &wf); err != nil {
+		return nil
+	}
+	var cmds []string
+	for _, job := range wf.Jobs {
+		for _, step := range job.Steps {
+			if step.Run != "" {
+				cmds = append(cmds, step.Run)
+			}
+		}
+	}
+	return cmds
+}
+
 // workflowRunsScript reports whether raw invokes exactly this script.
 //
-// The leading boundary matters and is the reason this is not a plain
-// strings.Contains: searching for "scripts/verify-fact-kind-registry.sh" as a
-// substring also matches "scripts/test-verify-fact-kind-registry.sh", which
-// makes a gate that CI never runs look correctly mapped. The substring is not
-// the check (#5748).
+// The leading boundary is why this is not a plain strings.Contains. A workflow
+// running "myscripts/verify-no-ai-attribution.sh" contains
+// "scripts/verify-no-ai-attribution.sh" as a substring while running a
+// different file. Counting it as a host gives the script two apparent owners,
+// which fails the "exactly one workflow" precondition below, which silently
+// skips the gate -- so a real mismatch becomes a pass, through the very check
+// meant to catch it (#5748).
+//
+// Note the sibling "scripts/test-verify-X.sh" harness is NOT such a case: the
+// "scripts/" prefix in the search string already excludes it. Only a path with
+// something glued to the left of "scripts/" collides.
 func workflowRunsScript(raw, script string) bool {
+	for _, cmd := range workflowRunCommands([]byte(raw)) {
+		if commandRunsScript(cmd, script) {
+			return true
+		}
+	}
+	return false
+}
+
+// commandRunsScript reports whether a single `run:` block invokes script.
+func commandRunsScript(raw, script string) bool {
 	for i := 0; i+len(script) <= len(raw); i++ {
 		if raw[i:i+len(script)] != script {
 			continue

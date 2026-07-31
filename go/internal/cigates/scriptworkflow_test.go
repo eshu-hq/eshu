@@ -83,18 +83,25 @@ func TestDriftCheck_VerifyScriptRunByNoWorkflowSkipped(t *testing.T) {
 	}
 }
 
-// TestDriftCheck_VerifyScriptSubstringNotMatched pins the boundary rule.
-// Searching for "scripts/verify-fact-kind-registry.sh" as a plain substring
-// also matches "scripts/test-verify-fact-kind-registry.sh", which would make a
-// workflow that only runs the self-test harness look like it runs the gate --
-// turning a real mismatch into a false pass (#5748).
+// TestDriftCheck_VerifyScriptSubstringNotMatched pins the boundary rule in
+// workflowRunsScript.
+//
+// A workflow mentioning "myscripts/verify-no-ai-attribution.sh" contains
+// "scripts/verify-no-ai-attribution.sh" as a plain substring while running a
+// completely different file. Under strings.Contains that workflow is counted as
+// a second host, the script then looks like it has two owners, the
+// "exactly one workflow" precondition fails, and the gate is skipped -- so a
+// real mismatch silently becomes a pass. That is the failure this check exists
+// to prevent, arriving through the check itself.
+//
+// Verified by mutation: replacing workflowRunsScript's body with
+// strings.Contains makes this test fail.
 func TestDriftCheck_VerifyScriptSubstringNotMatched(t *testing.T) {
 	t.Parallel()
 	root := buildDriftRepo(t, minimalPreCommit("my-gate"), nil)
-	writeWorkflow(t, root, "test.yml", runsNothingRelevant)
 	writeWorkflow(t, root, "harness.yml", "name: H\non: [push]\njobs:\n"+
 		"  h:\n    runs-on: ubuntu-latest\n    steps:\n"+
-		"      - run: scripts/test-verify-no-ai-attribution.sh\n")
+		"      - run: myscripts/verify-no-ai-attribution.sh\n")
 	writeWorkflow(t, root, "verify-agent-hygiene.yml", runsAttribution)
 
 	g := scriptGate("harness.yml", "bash scripts/verify-no-ai-attribution.sh")
@@ -108,6 +115,47 @@ func TestDriftCheck_VerifyScriptSubstringNotMatched(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Errorf("test-verify-*.sh must not satisfy a search for verify-*.sh; expected the mismatch to be reported")
+		t.Errorf("a path merely containing the script name must not count as a host; expected the mismatch to be reported")
+	}
+}
+
+// TestDriftCheck_VerifyScriptPathFilterMentionIsNotAHost pins that only an
+// executable invocation counts as a host.
+//
+// A workflow that merely watches the script in a dorny paths filter is not
+// running it. Counting that mention as a host gives the script two apparent
+// owners, the "exactly one workflow" precondition fails, and the gate is
+// silently skipped -- so a cross-wired gate passes unchecked, which is the
+// failure this check exists to prevent arriving through the check itself.
+//
+// Live instance this reproduces: scripts/verify-golden-corpus-gate.sh is
+// watched by static-contract-gates.yml's maturitydrift filter and executed only
+// by golden-corpus-gate.yml, so golden-corpus-gate went unvalidated (#5748
+// review).
+func TestDriftCheck_VerifyScriptPathFilterMentionIsNotAHost(t *testing.T) {
+	t.Parallel()
+	root := buildDriftRepo(t, minimalPreCommit("my-gate"), nil)
+	// Watches the script in a filter, never runs it.
+	writeWorkflow(t, root, "watcher.yml", "name: W\non: [push]\njobs:\n"+
+		"  changes:\n    runs-on: ubuntu-latest\n    steps:\n"+
+		"      - uses: dorny/paths-filter@v3\n        with:\n          filters: |\n"+
+		"            k:\n              - 'scripts/verify-no-ai-attribution.sh'\n")
+	writeWorkflow(t, root, "verify-agent-hygiene.yml", runsAttribution)
+
+	// The gate declares the watcher, which does not run it. With the mention
+	// counted as a host there are two owners and the gate is skipped silently;
+	// only executable-position matching reports the mismatch.
+	g := scriptGate("watcher.yml", "bash scripts/verify-no-ai-attribution.sh")
+	g.CI.Job = "changes"
+	reg := minimalReg([]cigates.Gate{g}, nil, nil)
+
+	found := false
+	for _, e := range cigates.DriftCheck(root, reg) {
+		if e != nil && containsAll(e.Error(), "no-ai-attribution", "verify-agent-hygiene.yml") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("a paths-filter mention must not count as a host; expected the mismatch to be reported")
 	}
 }
