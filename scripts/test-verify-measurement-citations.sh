@@ -69,6 +69,17 @@ printf '# New Finding\n\nA deadlock check ran clean: 0/30 trials failed.\n' \
   >"${uncited_repo}/docs/internal/evidence/new-finding.md"
 commit_change "${uncited_repo}" "add uncited measurement claim"
 expect_fail "${uncited_repo}" "uncited trial-shape claim must fail"
+
+# --- Case 1b: the SAME shape via "runs" instead of "trials". The gate's own
+# failure message and the agent guide both advertise `<N>/<M> runs` as a
+# recognized claim, but nothing tested it -- a mutation deleting the `runs`
+# alternative from claim_pattern passed the entire suite. An advertised branch
+# with no coverage is a promise the gate does not keep.
+uncited_runs_repo="$(init_repo uncited-runs)"
+printf '# New Finding\n\nThe retry probe was stable: 4/25 runs flaked.\n' \
+  >"${uncited_runs_repo}/docs/internal/evidence/new-finding-runs.md"
+commit_change "${uncited_runs_repo}" "add uncited runs-shape claim"
+expect_fail "${uncited_runs_repo}" "uncited runs-shape claim must fail"
 rg -q "cites no ledger row" /tmp/eshu-measurement-gate.err \
   || { printf 'expected failure message to explain the missing citation\n' >&2; exit 1; }
 

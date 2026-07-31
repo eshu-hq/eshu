@@ -454,11 +454,13 @@ gate. Widen the patterns only after the current ones prove out in practice.
 
 ### Frozen historical evidence
 
-Every existing `docs/internal/evidence/*.md` and `go/**/evidence-*.md`
-documents are FROZEN as historical artifacts. They are never edited again,
-including to fix a stale number — the fix is to add a ledger row and stop
-citing the frozen prose, not to patch it in place. A change that would have
-edited one of those documents' numbers instead:
+Existing `docs/internal/evidence/*.md` and `go/**/evidence-*.md` documents are
+frozen AS A RECORD OF THE NUMBERS THEY STATE: do not edit one to correct or
+re-derive a figure it already contains. Appending NEW evidence stays allowed —
+the Performance Evidence Gate expects `Performance Evidence:` lines to keep
+landing in existing `go/**/*.md` files, which is what #5869's scoping is for.
+
+A change that would have edited one of those documents' numbers instead:
 
 1. Adds the real figures to `docs/internal/measurements.jsonl` as one row per
    experiment cell.

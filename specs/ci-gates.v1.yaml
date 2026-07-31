@@ -1062,9 +1062,12 @@ gates:
     # and go/**/evidence-*.md write-ups, and no prior gate read prose numbers
     # at all (mkdocs --strict does not cover docs/internal — docs_dir: public).
     # Triggers cover docs/internal/** and docs/public/** (where a measurement
-    # claim can appear in prose) plus go/**/evidence-*.md (11 existing
-    # evidence write-ups live under go/, co-located with the code they
-    # measure, not under docs/). Also dual-wired as a pre-push hook
+    # claim can appear in prose) plus go/**/evidence-*.md (evidence write-ups
+    # also live under go/, co-located with the code they measure rather than
+    # under docs/; count them with `git ls-tree -r --name-only HEAD -- go |
+    # rg -c '/evidence-[^/]*\.md$'` rather than trusting a number here -- this
+    # file is not one the citation gate scans, so a figure written here can
+    # never self-correct). Also dual-wired as a pre-push hook
     # (hook_id, mirroring telemetry-coverage): the script is a bash+rg diff
     # scan with no Go build or network dependency beyond a `git fetch`,
     # measured at 0.549s total against this repo's real origin/main diff —
