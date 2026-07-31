@@ -65,11 +65,12 @@ func TestPostgresTerraformConfigStateDriftWriterPersistsOneFactPerFinding(t *tes
 	if got, want := result.CanonicalWrites, 2; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
-	if got, want := len(db.execs), 1; got != want {
-		t.Fatalf("ExecContext calls = %d, want %d (batched insert)", got, want)
+	if got, want := len(db.execs), 2; got != want {
+		t.Fatalf("ExecContext calls = %d, want %d (batched insert + generation-authoritative retire)", got, want)
 	}
+	assertTerraformConfigStateDriftRetireCall(t, db.execs[1], write.ScopeID, write.GenerationID)
 
-	rows := decodeBatchedVersionedFactCalls(t, db.execs)
+	rows := decodeBatchedVersionedFactCalls(t, db.execs[:1])
 	if got, want := len(rows), 2; got != want {
 		t.Fatalf("decoded rows = %d, want %d", got, want)
 	}
@@ -127,7 +128,11 @@ func TestPostgresTerraformConfigStateDriftWriterIsIdempotentAcrossReplays(t *tes
 		t.Fatalf("second write error = %v", err)
 	}
 
-	rows := decodeBatchedVersionedFactCalls(t, db.execs)
+	// Each write call is [insert, retire]; take just the two insert calls.
+	if len(db.execs) != 4 {
+		t.Fatalf("ExecContext calls = %d, want 4 (2 write calls x [insert, retire])", len(db.execs))
+	}
+	rows := decodeBatchedVersionedFactCalls(t, []fakeWorkloadIdentityExecCall{db.execs[0], db.execs[2]})
 	if len(rows) != 2 {
 		t.Fatalf("decoded rows = %d, want 2 (one per replay call)", len(rows))
 	}
@@ -165,8 +170,9 @@ func TestPostgresTerraformConfigStateDriftWriterPersistsAmbiguousOwnerFinding(t 
 	if got, want := result.CanonicalWrites, 1; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d (one scope-level ambiguous row)", got, want)
 	}
+	assertTerraformConfigStateDriftRetireCall(t, db.execs[1], write.ScopeID, write.GenerationID)
 
-	rows := decodeBatchedVersionedFactCalls(t, db.execs)
+	rows := decodeBatchedVersionedFactCalls(t, db.execs[:1])
 	if len(rows) != 1 {
 		t.Fatalf("decoded rows = %d, want 1", len(rows))
 	}
@@ -214,8 +220,9 @@ func TestPostgresTerraformConfigStateDriftWriterPersistsUnresolvedOwnerFinding(t
 	if got, want := result.CanonicalWrites, 1; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d (one scope-level unresolved row)", got, want)
 	}
+	assertTerraformConfigStateDriftRetireCall(t, db.execs[1], write.ScopeID, write.GenerationID)
 
-	rows := decodeBatchedVersionedFactCalls(t, db.execs)
+	rows := decodeBatchedVersionedFactCalls(t, db.execs[:1])
 	if len(rows) != 1 {
 		t.Fatalf("decoded rows = %d, want 1", len(rows))
 	}
@@ -289,12 +296,38 @@ func TestWriteTerraformConfigStateDriftFindingsBoundedExecCount(t *testing.T) {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
 
-	wantExecs := expectedBatchedExecCount(candidateCount)
+	// +1 for the trailing generation-authoritative retire call, on top of the
+	// bounded batched-insert count.
+	wantExecs := expectedBatchedExecCount(candidateCount) + 1
 	if got := len(db.execs); got != wantExecs {
-		t.Fatalf("ExecContext calls = %d for %d candidates, want %d (bounded batched inserts)", got, candidateCount, wantExecs)
+		t.Fatalf("ExecContext calls = %d for %d candidates, want %d (bounded batched inserts + 1 retire)", got, candidateCount, wantExecs)
 	}
-	if rows := decodeBatchedVersionedFactCalls(t, db.execs); len(rows) != candidateCount {
+	insertExecs := db.execs[:len(db.execs)-1]
+	if rows := decodeBatchedVersionedFactCalls(t, insertExecs); len(rows) != candidateCount {
 		t.Fatalf("decoded rows = %d, want %d", len(rows), candidateCount)
+	}
+	assertTerraformConfigStateDriftRetireCall(t, db.execs[len(db.execs)-1], "state_snapshot:s3:hash-1", "generation-batch")
+}
+
+// assertTerraformConfigStateDriftRetireCall proves one ExecContext call is
+// the generation-authoritative retire (terraformConfigStateDriftRetireQuery)
+// scoped to the expected (scope_id, generation_id).
+func assertTerraformConfigStateDriftRetireCall(t *testing.T, call fakeWorkloadIdentityExecCall, wantScopeID, wantGenerationID string) {
+	t.Helper()
+	if call.query != terraformConfigStateDriftRetireQuery {
+		t.Fatalf("retire call query = %q, want the generation-authoritative retire query", call.query)
+	}
+	if len(call.args) != 4 {
+		t.Fatalf("retire call args = %d, want 4 (fact_kind, scope_id, generation_id, keep_fact_ids)", len(call.args))
+	}
+	if got, want := call.args[0], terraformConfigStateDriftFactKind; got != want {
+		t.Fatalf("retire call fact_kind = %v, want %v", got, want)
+	}
+	if got, want := call.args[1], wantScopeID; got != want {
+		t.Fatalf("retire call scope_id = %v, want %v", got, want)
+	}
+	if got, want := call.args[2], wantGenerationID; got != want {
+		t.Fatalf("retire call generation_id = %v, want %v", got, want)
 	}
 }
 

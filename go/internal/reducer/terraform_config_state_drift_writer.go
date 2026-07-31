@@ -150,6 +150,22 @@ func (w PostgresTerraformConfigStateDriftWriter) WriteTerraformConfigStateDriftF
 		return TerraformConfigStateDriftWriteResult{}, fmt.Errorf("write terraform config state drift fact: %w", err)
 	}
 
+	// Generation-authoritative retire (review finding on #5594): this write
+	// is the complete, mutually-exclusive assessment of (ScopeID,
+	// GenerationID) for this pass, so any OTHER terraform config-state drift
+	// finding fact under the same (scope_id, generation_id) is stale --
+	// e.g. a prior "unresolved" row surviving alongside this pass's "exact"
+	// resolution. Runs after the insert succeeds so the retire only ever
+	// removes rows this pass's own fresh write has superseded, never a
+	// still-in-flight batch's rows.
+	factIDs := make([]string, 0, len(rows))
+	for _, row := range rows {
+		factIDs = append(factIDs, row.FactID)
+	}
+	if err := retireTerraformConfigStateDriftFindings(ctx, w.DB, write.ScopeID, write.GenerationID, factIDs); err != nil {
+		return TerraformConfigStateDriftWriteResult{}, err
+	}
+
 	return TerraformConfigStateDriftWriteResult{
 		CanonicalIDs:    canonicalIDs,
 		CanonicalWrites: len(canonicalIDs),
