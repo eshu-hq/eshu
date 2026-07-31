@@ -214,9 +214,9 @@ legacy cleanup set. `EXPLAIN (ANALYZE, BUFFERS, WAL)` measured its conservative
 prelock contribution at 0.150 milliseconds for zero rows, 0.130 milliseconds
 for one row, 0.582 milliseconds for 500 rows, and 57.696 milliseconds plus
 5.373 MB WAL for 99,500 existing rows. At worst cardinality that is about 1.3%
-of final writer latency and 1.4% of final writer-local WAL, while preventing a
-transaction-aborting deadlock. Completed-cutover writes do not run the
-prelock.
+of final writer latency while preventing a transaction-aborting deadlock.
+Completed-cutover writes do not run the prelock. The global WAL observation is
+reported below without attributing it to this transaction.
 
 The cache-warm production handler also returned the same checksum:
 

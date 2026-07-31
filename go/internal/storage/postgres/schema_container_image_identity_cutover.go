@@ -22,22 +22,18 @@ BEGIN
     $ddl$;
 
     ALTER TABLE fact_work_items
-        ADD COLUMN IF NOT EXISTS
-            container_image_identity_v2_required
+        ADD COLUMN IF NOT EXISTS container_image_identity_v2_required
             BOOLEAN NOT NULL DEFAULT FALSE,
-        ADD COLUMN IF NOT EXISTS
-            container_image_identity_claim_epoch BIGINT NOT NULL DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS
-            container_image_identity_v2_authorized_status
+        ADD COLUMN IF NOT EXISTS container_image_identity_claim_epoch
+            BIGINT NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS container_image_identity_v2_authorized_status
             TEXT NOT NULL DEFAULT '';
 
-    DROP TRIGGER IF EXISTS
-        fact_work_items_container_image_identity_claim_epoch_advance
+    DROP TRIGGER IF EXISTS fact_work_items_container_image_identity_claim_epoch_advance
         ON fact_work_items;
 
     UPDATE fact_work_items
-    SET container_image_identity_claim_epoch =
-            GREATEST(attempt_count::BIGINT, 1)
+    SET container_image_identity_claim_epoch = GREATEST(attempt_count::BIGINT, 1)
     WHERE stage = 'reducer'
       AND domain = 'container_image_identity'
       AND container_image_identity_claim_epoch = 0
@@ -97,12 +93,10 @@ BEGIN
         SELECT 1
         FROM pg_constraint
         WHERE conrelid = 'container_image_identity_cutovers'::regclass
-          AND conname =
-              'container_image_identity_cutovers_claim_epoch_check'
+          AND conname = 'container_image_identity_cutovers_claim_epoch_check'
     ) THEN
         ALTER TABLE container_image_identity_cutovers
-            ADD CONSTRAINT
-                container_image_identity_cutovers_claim_epoch_check
+            ADD CONSTRAINT container_image_identity_cutovers_claim_epoch_check
             CHECK (activated_by_claim_epoch > 0);
     END IF;
 
@@ -114,8 +108,7 @@ BEGIN
           AND work_item.container_image_identity_v2_required
           AND (
                 work_item.container_image_identity_v2_authorized_status = ''
-                OR work_item.status <>
-                    work_item.container_image_identity_v2_authorized_status
+                OR work_item.status <> work_item.container_image_identity_v2_authorized_status
                 OR work_item.status NOT IN (
                     'pending',
                     'claimed',
@@ -170,12 +163,10 @@ BEGIN
         SELECT 1
         FROM pg_constraint
         WHERE conrelid = 'fact_work_items'::regclass
-          AND conname =
-              'fact_work_items_container_image_identity_v2_status_check'
+          AND conname = 'fact_work_items_container_image_identity_v2_status_check'
     ) THEN
         ALTER TABLE fact_work_items
-            ADD CONSTRAINT
-                fact_work_items_container_image_identity_v2_status_check
+            ADD CONSTRAINT fact_work_items_container_image_identity_v2_status_check
             CHECK (
                 NOT container_image_identity_v2_required
                 OR status = container_image_identity_v2_authorized_status
@@ -209,8 +200,7 @@ BEGIN
                 length(NEW.scope_id)::TEXT || ':' || NEW.scope_id ||
                 length(NEW.generation_id)::TEXT || ':' || NEW.generation_id;
             marker_key_state := current_setting(
-                'eshu_internal.container_image_identity_marker_key_v1',
-                TRUE
+                'eshu_internal.container_image_identity_marker_key_v1', TRUE
             );
             IF COALESCE(marker_key_state, '') <> ''
                 AND marker_key_state <> cache_key THEN
@@ -222,10 +212,7 @@ BEGIN
                 status,
                 container_image_identity_v2_required,
                 container_image_identity_v2_authorized_status
-            INTO
-                work_item_status,
-                work_item_required,
-                work_item_authorized_status
+            INTO work_item_status, work_item_required, work_item_authorized_status
             FROM fact_work_items
             WHERE work_item_id = NEW.activated_by_work_item_id
               AND scope_id = NEW.scope_id
@@ -272,8 +259,7 @@ BEGIN
                     UPDATE fact_work_items AS work_item
                     SET status = 'running',
                         container_image_identity_v2_authorized_status = 'running'
-                    WHERE work_item.work_item_id =
-                              NEW.activated_by_work_item_id
+                    WHERE work_item.work_item_id = NEW.activated_by_work_item_id
                       AND work_item.scope_id = NEW.scope_id
                       AND work_item.generation_id = NEW.generation_id
                       AND work_item.stage = 'reducer'
@@ -282,8 +268,7 @@ BEGIN
                           NEW.activated_by_claim_epoch
                       AND work_item.container_image_identity_v2_required
                       AND work_item.status = 'claimed'
-                      AND work_item.container_image_identity_v2_authorized_status =
-                          'claimed';
+                      AND work_item.container_image_identity_v2_authorized_status = 'claimed';
                     GET DIAGNOSTICS work_item_count = ROW_COUNT;
                     IF work_item_count <> 1 THEN
                         RAISE EXCEPTION USING
@@ -296,8 +281,7 @@ BEGIN
                 SET status = 'running',
                     container_image_identity_v2_required = TRUE,
                     container_image_identity_v2_authorized_status = 'running'
-                WHERE work_item.work_item_id =
-                          NEW.activated_by_work_item_id
+                WHERE work_item.work_item_id = NEW.activated_by_work_item_id
                   AND work_item.scope_id = NEW.scope_id
                   AND work_item.generation_id = NEW.generation_id
                   AND work_item.stage = 'reducer'
