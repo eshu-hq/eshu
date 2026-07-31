@@ -316,7 +316,7 @@ INSERT INTO container_image_identity_cutovers (
 				)
 			},
 			func() {
-				resetContainerImageIdentityAckPerfPending(
+				resetContainerImageIdentityClaimLatchPerfPending(
 					t, ctx, candidateDB, now, unrelatedID,
 				)
 			},

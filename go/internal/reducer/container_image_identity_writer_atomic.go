@@ -48,8 +48,9 @@ WHERE fact.fact_id = ANY($17::text[])
 
 const containerImageIdentityCompletedCutoverWriteQuery = `
 WITH current_claim AS MATERIALIZED (
-    SELECT 1
-    FROM fact_work_items AS work_item
+    UPDATE fact_work_items AS work_item
+    SET status = 'running',
+        container_image_identity_v2_authorized_status = 'running'
     WHERE work_item.work_item_id = $21
       AND work_item.scope_id = $18
       AND work_item.generation_id = $19
@@ -64,7 +65,9 @@ WITH current_claim AS MATERIALIZED (
           WHERE cutover.scope_id = work_item.scope_id
             AND cutover.generation_id = work_item.generation_id
       )
-    FOR UPDATE OF work_item
+      AND work_item.container_image_identity_v2_authorized_status =
+          work_item.status
+    RETURNING 1
 ),
 published AS (
 ` + reducerFactBatchInsertPrefix +
@@ -90,8 +93,9 @@ FROM current_claim
 
 const containerImageIdentityCompletedCutoverPublishOnlyQuery = `
 WITH current_claim AS MATERIALIZED (
-    SELECT 1
-    FROM fact_work_items AS work_item
+    UPDATE fact_work_items AS work_item
+    SET status = 'running',
+        container_image_identity_v2_authorized_status = 'running'
     WHERE work_item.work_item_id = $21
       AND work_item.scope_id = $18
       AND work_item.generation_id = $19
@@ -106,7 +110,9 @@ WITH current_claim AS MATERIALIZED (
           WHERE cutover.scope_id = work_item.scope_id
             AND cutover.generation_id = work_item.generation_id
       )
-    FOR UPDATE OF work_item
+      AND work_item.container_image_identity_v2_authorized_status =
+          work_item.status
+    RETURNING 1
 ),
 legacy_cleanup_input AS MATERIALIZED (
     SELECT $17::text[] AS fact_ids, $20::bigint AS fencing_token
@@ -124,8 +130,9 @@ FROM current_claim, legacy_cleanup_input
 
 const containerImageIdentityCompletedCutoverClaimLockQuery = `
 WITH current_claim AS MATERIALIZED (
-    SELECT 1
-    FROM fact_work_items AS work_item
+    UPDATE fact_work_items AS work_item
+    SET status = 'running',
+        container_image_identity_v2_authorized_status = 'running'
     WHERE work_item.work_item_id = $3
       AND work_item.scope_id = $1
       AND work_item.generation_id = $2
@@ -140,7 +147,9 @@ WITH current_claim AS MATERIALIZED (
           WHERE cutover.scope_id = work_item.scope_id
             AND cutover.generation_id = work_item.generation_id
       )
-    FOR UPDATE OF work_item
+      AND work_item.container_image_identity_v2_authorized_status =
+          work_item.status
+    RETURNING 1
 )
 SELECT 0
 FROM current_claim

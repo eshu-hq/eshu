@@ -9,7 +9,48 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestContainerImageIdentityCutoverMigrationAcceptsDurableClaimLatchWithoutMarkerLive(
+	t *testing.T,
+) {
+	db := openContainerImageIdentityAckCapabilityProofDB(t)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+	defer cancel()
+
+	const (
+		scopeID      = "repository:5854-unmarked-claim-latch"
+		generationID = "generation:5854-unmarked-claim-latch"
+		workItemID   = "work-5854-unmarked-claim-latch"
+		owner        = "reducer-5854-unmarked-claim-latch"
+	)
+	now := time.Date(2026, time.July, 31, 13, 30, 0, 0, time.UTC)
+	seedContainerImageIdentityAckScope(t, ctx, db, scopeID)
+	seedContainerImageIdentityAckGeneration(t, ctx, db, scopeID, generationID)
+	seedContainerImageIdentityAckWorkItem(
+		t, ctx, db, workItemID, scopeID, generationID,
+		owner, now.Add(time.Minute), now,
+	)
+	if _, err := db.ExecContext(ctx, `
+UPDATE fact_work_items
+SET container_image_identity_v2_required = TRUE,
+    container_image_identity_v2_authorized_status = 'claimed'
+WHERE work_item_id = $1
+`, workItemID); err != nil {
+		t.Fatalf("seed durable pre-marker claim latch: %v", err)
+	}
+
+	if err := ApplyBootstrap(ctx, SQLDB{DB: db}); err != nil {
+		t.Fatalf("reapply migration with valid pre-marker claim latch: %v", err)
+	}
+	assertContainerImageIdentityClaimLatchState(
+		t, ctx, db, workItemID, "claimed", 1, true, "claimed",
+	)
+	assertContainerImageIdentityAckOrderingMarkerCount(
+		t, ctx, db, scopeID, generationID, 0,
+	)
+}
 
 func proveContainerImageIdentityCutoverMigrationRerunStates(
 	t *testing.T,

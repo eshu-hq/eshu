@@ -24,11 +24,6 @@ const containerImageIdentityClaimEpochTriggerSchemaSQL = `    EXECUTE $ddl$
                     ERRCODE = '55000',
                     MESSAGE = 'container image identity claim epoch must advance exactly once';
             END IF;
-            IF OLD.container_image_identity_v2_required THEN
-                NEW.status := 'running';
-                NEW.container_image_identity_v2_authorized_status :=
-                    'running';
-            END IF;
             RETURN NEW;
         END;
         $function$
@@ -43,11 +38,8 @@ const containerImageIdentityClaimEpochTriggerSchemaSQL = `    EXECUTE $ddl$
         FOR EACH ROW
         WHEN (
             OLD.domain = 'container_image_identity'
-            AND (
-                OLD.container_image_identity_v2_required
-                OR NEW.container_image_identity_claim_epoch <>
-                    OLD.container_image_identity_claim_epoch + 1
-            )
+            AND NEW.container_image_identity_claim_epoch <>
+                OLD.container_image_identity_claim_epoch + 1
         )
         EXECUTE FUNCTION advance_container_image_identity_claim_epoch()
     $ddl$;`

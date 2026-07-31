@@ -51,7 +51,7 @@ ORDER BY tgname
 		"fact_work_items_container_image_identity_claim_epoch_advance",
 		"BEFORE UPDATE OF last_attempt_at, container_image_identity_claim_epoch",
 		"WHEN (((old.domain = 'container_image_identity'::text)",
-		"old.container_image_identity_v2_required OR (new.container_image_identity_claim_epoch <> (old.container_image_identity_claim_epoch + 1))",
+		"new.container_image_identity_claim_epoch <> (old.container_image_identity_claim_epoch + 1)",
 		"advance_container_image_identity_claim_epoch()",
 	} {
 		if !strings.Contains(definitions[0], want) {
@@ -219,7 +219,7 @@ func TestContainerImageIdentityClaimEpochAdvancesOnceUnderCompetingClaimersLive(
 	)
 }
 
-func TestContainerImageIdentityCapableClaimQueriesAdvanceEpochExplicitly(
+func TestContainerImageIdentityCapableClaimQueriesLatchV2AndAdvanceEpochExplicitly(
 	t *testing.T,
 ) {
 	t.Parallel()
@@ -237,6 +237,24 @@ func TestContainerImageIdentityCapableClaimQueriesAdvanceEpochExplicitly(
                 ELSE work.container_image_identity_claim_epoch
             END,`) {
 				t.Fatalf("%s claim query does not explicitly advance claim epoch", name)
+			}
+			for _, want := range []string{
+				`container_image_identity_v2_required =
+            CASE
+                WHEN work.domain = 'container_image_identity'
+                    THEN TRUE
+                ELSE work.container_image_identity_v2_required
+            END,`,
+				`container_image_identity_v2_authorized_status =
+            CASE
+                WHEN work.domain = 'container_image_identity'
+                    THEN 'claimed'
+                ELSE work.container_image_identity_v2_authorized_status
+            END,`,
+			} {
+				if !strings.Contains(query, want) {
+					t.Fatalf("%s claim query does not durably latch %q", name, want)
+				}
 			}
 		})
 	}

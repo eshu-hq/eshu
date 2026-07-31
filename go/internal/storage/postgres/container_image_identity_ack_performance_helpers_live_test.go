@@ -77,6 +77,36 @@ WHERE work_item_id = $2
 	}
 }
 
+func resetContainerImageIdentityClaimLatchPerfPending(
+	t *testing.T,
+	ctx context.Context,
+	db *sql.DB,
+	now time.Time,
+	workItemID string,
+) {
+	t.Helper()
+	if _, err := db.ExecContext(ctx, `
+UPDATE fact_work_items
+SET status = 'pending',
+    container_image_identity_v2_authorized_status = CASE
+        WHEN container_image_identity_v2_required THEN 'pending'
+        ELSE ''
+    END,
+    attempt_count = 0,
+    lease_owner = NULL,
+    claim_until = NULL,
+    visible_at = $1,
+    next_attempt_at = NULL,
+    failure_class = NULL,
+    failure_message = NULL,
+    failure_details = NULL,
+    updated_at = $1
+WHERE work_item_id = $2
+`, now, workItemID); err != nil {
+		t.Fatalf("reset claim-latch perf pending row: %v", err)
+	}
+}
+
 func legacyContainerImageIdentityAckBatchQuery(
 	now time.Time,
 	owner string,

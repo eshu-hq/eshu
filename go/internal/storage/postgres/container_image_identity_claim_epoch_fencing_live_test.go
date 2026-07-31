@@ -88,6 +88,7 @@ $function$
 		status           string
 		attemptCount     int
 		claimEpoch       int64
+		required         bool
 		authorizedStatus string
 	)
 	if err := db.QueryRowContext(ctx, `
@@ -95,6 +96,7 @@ SELECT
     status,
     attempt_count,
     container_image_identity_claim_epoch,
+    container_image_identity_v2_required,
     container_image_identity_v2_authorized_status
 FROM fact_work_items
 WHERE work_item_id = $1
@@ -102,6 +104,7 @@ WHERE work_item_id = $1
 		&status,
 		&attemptCount,
 		&claimEpoch,
+		&required,
 		&authorizedStatus,
 	); err != nil {
 		t.Fatalf("read capable pre-cutover claim: %v", err)
@@ -109,15 +112,25 @@ WHERE work_item_id = $1
 	if status != "claimed" ||
 		attemptCount != 2 ||
 		claimEpoch != 2 ||
-		authorizedStatus != "" {
+		!required ||
+		authorizedStatus != "claimed" {
 		t.Fatalf(
-			"capable pre-cutover row = %s/%d/%d/%q, want claimed/2/2/empty",
+			"capable pre-cutover row = %s/%d/%d/%t/%q, want claimed/2/2/true/claimed",
 			status,
 			attemptCount,
 			claimEpoch,
+			required,
 			authorizedStatus,
 		)
 	}
+	legacyResult, legacyErr := db.ExecContext(
+		ctx,
+		legacyContainerImageIdentityAckQuery,
+		now,
+		workItemID,
+		owner,
+	)
+	assertContainerImageIdentityLegacyAckRejected(t, legacyResult, legacyErr)
 }
 
 func TestContainerImageIdentityCurrentBatchClaimAdvancesAndSucceedsLive(

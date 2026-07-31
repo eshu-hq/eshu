@@ -84,7 +84,7 @@ func TestContainerImageIdentityClaimFixedSchemaPerformanceLive(t *testing.T) {
 				return claimContainerImageIdentityPerformanceRow(
 					ctx,
 					candidateQueue,
-					claimReducerWorkQuery,
+					preLatchContainerImageIdentityClaimQuery,
 					workItemID,
 				)
 			},

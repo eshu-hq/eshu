@@ -66,14 +66,16 @@ the new writer cleans it:
 - the first v2 writer atomically creates a durable scope-generation cutover
   marker, publishes v2 rows, and removes exact eligible legacy rows; an empty
   cleanup list never bypasses this fence;
-- the marker trigger locks the exact reducer work item and sets
-  `container_image_identity_v2_required`;
-- the queue claim trigger increments
-  `container_image_identity_claim_epoch` only for this domain;
+- a capable queue claim first advances
+  `container_image_identity_claim_epoch` and durably sets
+  `container_image_identity_v2_required` with authorized `claimed` state;
+- the marker trigger locks that exact latched claim and transitions it to
+  authorized `running` state in the publication transaction;
 - ACK, retry, failure, replay, and recovery bind the epoch and maintain
   `container_image_identity_v2_authorized_status`;
-- the row constraint requires a marked row's status to equal its authorized
-  status, so old terminal SQL cannot certify a post-cutover transition;
+- the row constraint requires every latched row's status to equal its
+  authorized status, so an old same-owner ACK or reclaim cannot win after a
+  lock-busy marker rollback;
 - the statement-level legacy fact guard suppresses old-format writes after the
   marker while leaving unrelated scope generations concurrent.
 
@@ -97,6 +99,8 @@ Promotion requires:
 - tombstone stale-resurrection and fresh-revival proof;
 - old-writer INSERT/UPDATE behavior before, during, and after marker commit;
 - exact-epoch rejection after reclaim and replay;
+- lock-busy marker rollback followed by production queue Fail, stale legacy
+  ACK/reclaim rejection, and capable retry;
 - first-cutover and later-chunk rollback atomicity;
 - unrelated-key concurrency;
 - migration retry, backfill, and idempotence;

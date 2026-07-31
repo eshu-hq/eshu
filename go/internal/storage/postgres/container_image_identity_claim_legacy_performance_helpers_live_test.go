@@ -36,6 +36,22 @@ var legacyContainerImageIdentityClaimQuery = strings.NewReplacer(
             work.container_image_identity_claim_epoch,
 `,
 	"",
+	`        container_image_identity_v2_required =
+            CASE
+                WHEN work.domain = 'container_image_identity'
+                    THEN TRUE
+                ELSE work.container_image_identity_v2_required
+            END,
+`,
+	"",
+	`        container_image_identity_v2_authorized_status =
+            CASE
+                WHEN work.domain = 'container_image_identity'
+                    THEN 'claimed'
+                ELSE work.container_image_identity_v2_authorized_status
+            END,
+`,
+	"",
 	`        container_image_identity_v2_authorized_status = CASE
             WHEN work.domain = 'container_image_identity'
                 AND work.container_image_identity_v2_required
@@ -58,6 +74,7 @@ func TestLegacyContainerImageIdentityClaimPerformanceQueryIsDistinctOldShape(
 	}
 	for _, forbidden := range []string{
 		"container_image_identity_claim_epoch",
+		"container_image_identity_v2_required",
 		"container_image_identity_v2_authorized_status",
 	} {
 		if strings.Contains(legacyContainerImageIdentityClaimQuery, forbidden) {

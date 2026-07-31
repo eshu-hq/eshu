@@ -40,25 +40,30 @@ format-compatibility fence:
    path even when every eligible legacy row is held and the exact cleanup list
    is empty; cleanup eligibility never controls whether the compatibility
    fence is installed.
-3. The marker trigger locks the exact stable reducer work item, marks it
-   `container_image_identity_v2_required`, and normalizes it to
-   `status='running'` with
-   `container_image_identity_v2_authorized_status='running'`.
-4. A statement-level transition-table trigger rejects or suppresses legacy
+3. A capable claim atomically advances the claim epoch and durably latches
+   `container_image_identity_v2_required` with
+   `status='claimed'` and
+   `container_image_identity_v2_authorized_status='claimed'`. This capability
+   handoff survives a later first-cutover transaction rollback.
+4. The marker trigger locks that exact latched claim and transitions it to
+   `running/running` before publication. Marker, v2 publication, and exact
+   cleanup remain one atomic transaction.
+5. A statement-level transition-table trigger rejects or suppresses legacy
    outcome-keyed fact writes after the marker. It serializes only writers for
    the same scope generation; unrelated keys remain concurrent.
-5. The queue claim trigger is defined as `BEFORE UPDATE OF last_attempt_at,
+6. The queue claim trigger is defined as `BEFORE UPDATE OF last_attempt_at,
    container_image_identity_claim_epoch` with a domain predicate. Including the
    legacy claim timestamp lets the trigger advance the epoch for an old
-   same-owner re-claim before cutover and reject that old claim shape after
-   cutover. Every v2 target claim increments the epoch and authorizes `running`;
-   unrelated claims do not execute the trigger body.
-6. ACK, retry, and failure SQL bind the exact claim epoch and write the matching
+   same-owner re-claim before the capable handoff and reject that old shape
+   after the latch is durable. Every capable target claim increments the epoch
+   explicitly and authorizes `claimed`; unrelated claims do not execute the
+   trigger body.
+7. ACK, retry, and failure SQL bind the exact claim epoch and write the matching
    authorized terminal status. The row constraint requires
    `status = container_image_identity_v2_authorized_status` whenever the v2
    requirement is set. Old SQL cannot update that authorization and therefore
    cannot certify a post-cutover transition.
-7. Replay and recovery write matching authorization state. An old callback
+8. Replay and recovery write matching authorization state. An old callback
    carrying a stale epoch cannot ACK, retry, or fail a reclaimed item, including
    when the literal lease owner is reused.
 
@@ -87,9 +92,10 @@ All fixtures use public synthetic values such as
 `registry.example.com/performance/team-api` and placeholder SHA-256 digests.
 
 Performance Evidence: against the old outcome-keyed writer on the same
-PostgreSQL 18 backend and 99,500-reference input, the final v2 writer preserved
-the logical checksum and terminal 99,500-row count while improving median from
-6.281 seconds to 4.534 seconds and p95 from 6.470 seconds to 4.776 seconds. The
+PostgreSQL 18 backend and 99,500-reference input, the exact-head v2 writer
+preserved the logical checksum and terminal 99,500-row count while improving
+median from 6.281 seconds to 4.580 seconds and p95 from 6.470 seconds to 4.744
+seconds. The
 live golden gate terminated with zero residual work items, zero dead letters,
 517 passing assertions, zero required failures, and one advisory in 109 seconds
 (exit 0).
@@ -122,6 +128,13 @@ per-phase timings, so the faster path is not accepted on latency alone.
   20/20 live contention trials returned classified retryable lock-busy errors,
   rolled back marker/publication/cleanup, allowed the old writer to finish, and
   then converged on retry with no eligible legacy row left.
+- A production `Service` plus `ReducerQueue` proof forced the capable claim to
+  fail with the classified lock-busy error while a same-owner legacy ACK raced
+  the failure path. The claim-time latch survived marker rollback, rejected the
+  legacy ACK and legacy reclaim, committed `retrying/retrying`, advanced the
+  capable retry to epoch 3, and let the marker transition that exact claim to
+  `running/running`. Both the writer contention proof and this queue lifecycle
+  proof passed 20/20 repetitions.
 - A failed migration under a held fact-table lock left no partial table,
   column, function, trigger, or constraint. Retry through `ApplyBootstrap`
   preserved rows and remained idempotent.
@@ -158,6 +171,16 @@ The old-shape derivation guard also proves the performance baseline is distinct
 from the current query and contains neither the claim epoch nor authorization
 columns; it cannot silently measure the current query on both sides.
 
+The claim-time capability latch is also measured against the exact prior-head
+claim SQL on the same migrated schema. Six trials with 100 warmups and 1,000
+paired single claims moved median from 201.417 to 201.292 microseconds (-0.06%)
+and p95 from 231.375 to 231.958 microseconds (+0.25%). Production batch-query
+trials remained inside the same budgets: batch 1 moved +0.54% median/+1.80%
+p95, batch 16 +0.18%/-0.49%, and batch 64 +1.45%/-1.05%. The older
+pre-migration-to-prior-head comparison also remained green at +3.73% median
+and +3.47% p95. The latch adds no query round trip and does not serialize
+unrelated work.
+
 No-Observability-Change: claim attempts, failures, and Postgres duration remain
 visible through the existing reducer execution/run-duration and Postgres
 query-duration signals. The fence adds no worker, retry, queue, metric label,
@@ -176,13 +199,13 @@ The production-handler benchmark retains three distinct lanes:
 The final-head 99,500-reference writer-only confirmation on the same Postgres
 instance produced the identical logical checksum and terminal row count:
 
-| variant | median | p95 | write statements | attributable WAL |
-| --- | ---: | ---: | ---: | ---: |
-| old outcome-keyed writer | 6.281 s | 6.470 s | 199 | 451.8 MB/op |
-| final v2 writer | 4.534 s | 4.776 s | 100 | 384.6 MB/op |
+| variant | median | p95 | write statements |
+| --- | ---: | ---: | ---: |
+| old outcome-keyed writer | 6.281 s | 6.470 s | 199 |
+| final v2 writer | 4.580 s | 4.744 s | 100 |
 
-The final v2 writer is 27.8% faster at median, 26.2% faster at p95, and uses
-14.9% less writer-local WAL in that isolated lane. The exact first-marker
+The final v2 writer is 27.1% faster at median and 26.7% faster at p95. The
+exact first-marker
 operation on 100,000 historical rows measured 192.167 microseconds median and
 294.750 microseconds p95 against its 1,301.150-microsecond contribution budget.
 
@@ -200,9 +223,9 @@ The cache-warm production handler also returned the same checksum:
 | variant | median | p95 | queries/op |
 | --- | ---: | ---: | ---: |
 | old outcome-keyed writer | 6.825 s | 6.995 s | 5 |
-| final v2 writer | 5.112 s | 5.171 s | 8 |
+| final v2 writer | 5.308 s | 5.329 s | 8 |
 
-The final path was 25.1% faster at median and 26.1% faster at p95. The extra
+The final path was 22.2% faster at median and 23.8% faster at p95. The extra
 three queries are the exact cutover marker, zero-legacy probe, and claim check.
 The final-head run kept the same 99,500-row checksum, exactly one epoch probe
 per measured call, and zero paginated identity loads.
@@ -214,9 +237,10 @@ one second faster per operation. Query-call time for the shared evidence reads
 varied by more than two seconds per operation, so this lane is retained as a
 fallback guard and not used to attribute writer cost.
 
-Global-LSN WAL in the cache-warm lane was checkpoint-sensitive and is not used
-for an improvement claim. The isolated writer-only lane is the attributable
-WAL surface.
+The harness reads server-global `pg_current_wal_lsn()`, not transaction-local
+or schema-local WAL. Exact-head observations ranged from 384.6 to 493.9 MB/op
+as checkpoint/full-page-write state changed, so no WAL improvement claim is
+made for either the cache-warm or writer-only lane.
 
 ## Live acceptance proof
 

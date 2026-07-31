@@ -85,7 +85,7 @@ WHERE work_item_id = $4
 		t.Fatalf("stale new-binary ACK = %v, want claim rejection", err)
 	}
 	assertContainerImageIdentityAckWorkItemState(
-		t, ctx, db, workItemID, "running", owner,
+		t, ctx, db, workItemID, "claimed", owner,
 	)
 	legacyResult, legacyErr := db.ExecContext(
 		ctx,

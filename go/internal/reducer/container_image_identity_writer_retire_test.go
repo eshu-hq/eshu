@@ -13,6 +13,33 @@ import (
 	"time"
 )
 
+func TestContainerImageIdentityCompletedCutoverQueriesTransitionClaimedAttemptToRunning(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	for name, query := range map[string]string{
+		"single chunk cleanup": containerImageIdentityCompletedCutoverWriteQuery,
+		"publish only":         containerImageIdentityCompletedCutoverPublishOnlyQuery,
+		"multi chunk claim":    containerImageIdentityCompletedCutoverClaimLockQuery,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			for _, want := range []string{
+				"UPDATE fact_work_items AS work_item",
+				"SET status = 'running'",
+				"container_image_identity_v2_authorized_status = 'running'",
+				"container_image_identity_claim_epoch = $",
+				"RETURNING 1",
+			} {
+				if !strings.Contains(query, want) {
+					t.Fatalf("completed-cutover query missing %q:\n%s", want, query)
+				}
+			}
+		})
+	}
+}
+
 func TestWriteContainerImageIdentityDecisionsReusesCompletedSingleChunkCutover(
 	t *testing.T,
 ) {

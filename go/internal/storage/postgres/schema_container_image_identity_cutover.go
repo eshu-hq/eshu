@@ -109,15 +109,28 @@ BEGIN
     IF EXISTS (
         SELECT 1
         FROM fact_work_items AS work_item
-        LEFT JOIN container_image_identity_cutovers AS cutover
-          ON cutover.scope_id = work_item.scope_id
-         AND cutover.generation_id = work_item.generation_id
-        WHERE work_item.container_image_identity_v2_required
-          AND cutover.scope_id IS NULL
+        WHERE work_item.stage = 'reducer'
+          AND work_item.domain = 'container_image_identity'
+          AND work_item.container_image_identity_v2_required
+          AND (
+                work_item.container_image_identity_v2_authorized_status = ''
+                OR work_item.status <>
+                    work_item.container_image_identity_v2_authorized_status
+                OR work_item.status NOT IN (
+                    'pending',
+                    'claimed',
+                    'running',
+                    'retrying',
+                    'succeeded',
+                    'failed',
+                    'dead_letter',
+                    'superseded'
+                )
+          )
     ) THEN
         RAISE EXCEPTION USING
             ERRCODE = '55000',
-            MESSAGE = 'container image identity queue fence has no durable cutover marker';
+            MESSAGE = 'container image identity cutover has invalid queue fence state';
     END IF;
 
     IF EXISTS (
@@ -128,27 +141,8 @@ BEGIN
          AND work_item.generation_id = cutover.generation_id
          AND work_item.stage = 'reducer'
          AND work_item.domain = 'container_image_identity'
-        WHERE (
-                work_item.container_image_identity_v2_required
-                AND (
-                    work_item.container_image_identity_v2_authorized_status = ''
-                    OR work_item.status <>
-                        work_item.container_image_identity_v2_authorized_status
-                    OR work_item.status NOT IN (
-                        'pending',
-                        'running',
-                        'retrying',
-                        'succeeded',
-                        'failed',
-                        'dead_letter',
-                        'superseded'
-                    )
-                )
-              )
-           OR (
-                NOT work_item.container_image_identity_v2_required
-                AND work_item.status NOT IN ('claimed', 'running', 'succeeded')
-              )
+        WHERE NOT work_item.container_image_identity_v2_required
+          AND work_item.status NOT IN ('claimed', 'running', 'succeeded')
     ) THEN
         RAISE EXCEPTION USING
             ERRCODE = '55000',
@@ -258,6 +252,10 @@ BEGIN
                 IF NOT work_item_required
                     OR NOT (
                         (
+                            work_item_status = 'claimed'
+                            AND work_item_authorized_status = 'claimed'
+                        )
+                        OR (
                             work_item_status = 'running'
                             AND work_item_authorized_status = 'running'
                         )
@@ -269,6 +267,29 @@ BEGIN
                     RAISE EXCEPTION USING
                         ERRCODE = '55000',
                         MESSAGE = 'existing container image identity cutover has invalid queue fence state';
+                END IF;
+                IF work_item_status = 'claimed' THEN
+                    UPDATE fact_work_items AS work_item
+                    SET status = 'running',
+                        container_image_identity_v2_authorized_status = 'running'
+                    WHERE work_item.work_item_id =
+                              NEW.activated_by_work_item_id
+                      AND work_item.scope_id = NEW.scope_id
+                      AND work_item.generation_id = NEW.generation_id
+                      AND work_item.stage = 'reducer'
+                      AND work_item.domain = 'container_image_identity'
+                      AND work_item.container_image_identity_claim_epoch =
+                          NEW.activated_by_claim_epoch
+                      AND work_item.container_image_identity_v2_required
+                      AND work_item.status = 'claimed'
+                      AND work_item.container_image_identity_v2_authorized_status =
+                          'claimed';
+                    GET DIAGNOSTICS work_item_count = ROW_COUNT;
+                    IF work_item_count <> 1 THEN
+                        RAISE EXCEPTION USING
+                            ERRCODE = '55000',
+                            MESSAGE = 'existing container image identity cutover requires the exact active claim epoch';
+                    END IF;
                 END IF;
             ELSE
                 UPDATE fact_work_items AS work_item
@@ -282,8 +303,18 @@ BEGIN
                   AND work_item.stage = 'reducer'
                   AND work_item.domain = 'container_image_identity'
                   AND work_item.container_image_identity_claim_epoch = NEW.activated_by_claim_epoch
-                  AND NOT work_item.container_image_identity_v2_required
-                  AND work_item.status IN ('claimed', 'running');
+                  AND work_item.status IN ('claimed', 'running')
+                  AND (
+                        (
+                            NOT work_item.container_image_identity_v2_required
+                            AND work_item.container_image_identity_v2_authorized_status = ''
+                        )
+                        OR (
+                            work_item.container_image_identity_v2_required
+                            AND work_item.container_image_identity_v2_authorized_status =
+                                work_item.status
+                        )
+                  );
                 GET DIAGNOSTICS work_item_count = ROW_COUNT;
                 IF work_item_count <> 1 THEN
                     RAISE EXCEPTION USING
