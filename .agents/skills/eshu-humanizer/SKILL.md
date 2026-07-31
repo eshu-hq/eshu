@@ -85,7 +85,14 @@ which is the most complete catalogue anyone maintains.
 
 ### Banned words
 
-Never ship these: `delve`, `tapestry`, `landscape` (as metaphor), `realm`,
+**These apply to prose you are writing, never to text you are quoting.** Log
+lines, command output, test and identifier names, a reviewer's words, an issue
+title, a commit message you are citing — reproduce them exactly. Rewriting a
+banned word inside quoted evidence makes the reported evidence differ from what
+actually ran, which is a worse failure than the word.
+
+Never ship these in your own prose: `delve`, `tapestry`, `landscape` (as
+metaphor), `realm`,
 `robust`, `seamless`, `crucial`, `pivotal`, `vital`, `intricate`, `meticulous`,
 `comprehensive`, `holistic`, `nuanced`, `underscore`, `showcase`, `highlight`
 (as verb), `foster`, `garner`, `boast`, `testament`, `vibrant`, `rich`,
@@ -138,7 +145,8 @@ Same for `X rather than Y` used for drama, and `It's not about A, it's about B`.
 
 ### Stop inflating significance
 
-Machines end paragraphs by explaining why the thing mattered. Do not.
+Machines end paragraphs by restating that the thing was important, in the
+abstract, adding nothing.
 
 ```
 Bad:   ...which underscores the importance of rigorous verification in
@@ -149,6 +157,21 @@ Good:  (delete the sentence)
 Cut any clause starting `highlighting`, `underscoring`, `emphasizing`,
 `reflecting`, `symbolizing`, `demonstrating the importance of`,
 `contributing to`, `setting the stage for`, `marking a shift`.
+
+**Concrete consequence is not inflation — keep it.** A sentence naming who is
+affected and how is often the most useful one in a review comment or PR body,
+and deleting it turns a finding into a fact nobody can act on.
+
+```
+Keep:  An operator triaging this pair had nothing in the data telling them the
+       address was a guess.
+Keep:  A caller filtering outcome=exact still gets half of a known-spurious
+       pair.
+Cut:   ...thereby underscoring the critical importance of data quality.
+```
+
+The test: does the sentence name a real reader, a real consequence, or a real
+number? Keep it. Does it only assert that the topic matters? Cut it.
 
 ### Vary the rhythm
 
@@ -264,9 +287,10 @@ Not forced casualness. No jokes you had to reach for, no exclamation marks.
 
 - [ ] A developer outside this repo could follow it.
 - [ ] Every project term glossed on first use.
-- [ ] No banned words.
+- [ ] No banned words in your own prose (quoted text stays verbatim).
 - [ ] No rule of three, no "not just X but Y", no `serves as`.
-- [ ] No sentence explaining why the thing mattered.
+- [ ] No sentence that only asserts the topic matters — but concrete
+      consequence (who is affected, how) stays.
 - [ ] Sentence lengths vary. Read it aloud.
 - [ ] One em dash per paragraph at most.
 - [ ] Numbers where numbers exist; limits stated next to claims.
