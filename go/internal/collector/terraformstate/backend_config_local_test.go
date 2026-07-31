@@ -90,6 +90,44 @@ func TestEvaluateBackendConfigHonorsExplicitLocalBackendPath(t *testing.T) {
 	}
 }
 
+// TestEvaluateBackendConfigHonorsAbsoluteLocalBackendPath proves an explicit
+// ABSOLUTE "path" attribute (e.g. `path = "/var/lib/tfstate/terraform.tfstate"`)
+// is used literally, not joined against the backend block's directory.
+// Terraform itself treats an absolute local-backend path as the exact
+// filesystem location, independent of the module directory; only a relative
+// path is resolved against the backend block's directory. Review finding on
+// #5594 (P1): the pre-fix code unconditionally joined every "path" value —
+// relative or absolute — against repoLocalPath/relativeDir via filepath.Join,
+// which does not special-case an absolute later argument, so an absolute
+// path like "/var/lib/tfstate/terraform.tfstate" was silently mangled into
+// "<repoLocalPath>/<relativeDir>/var/lib/tfstate/terraform.tfstate" — a
+// locator that can never match the real state file's absolute path.
+func TestEvaluateBackendConfigHonorsAbsoluteLocalBackendPath(t *testing.T) {
+	t.Parallel()
+
+	repoLocalPath := filepath.FromSlash("/repos/platform-infra")
+	backendFilePath := filepath.Join(repoLocalPath, "env", "prod", "main.tf")
+	absoluteStatePath := filepath.FromSlash("/var/lib/tfstate/terraform.tfstate")
+
+	result := EvaluateBackendConfig("platform-infra", BackendConfigContext{
+		Backends:      []map[string]any{localBackendFixture(backendFilePath, absoluteStatePath)},
+		RepoLocalPath: repoLocalPath,
+	})
+
+	if len(result.Warnings) != 0 {
+		t.Fatalf("Warnings = %#v, want none for a resolvable absolute path", result.Warnings)
+	}
+	if got, want := len(result.Candidates), 1; got != want {
+		t.Fatalf("len(Candidates) = %d, want %d", got, want)
+	}
+	if got, want := result.Candidates[0].State.Locator, absoluteStatePath; got != want {
+		t.Fatalf("Locator = %q, want %q (an absolute path attribute must be used as-is, not joined against the repo/backend directory)", got, want)
+	}
+	if result.Candidates[0].LocatorDefaulted {
+		t.Fatal("LocatorDefaulted = true, want false for an explicit path attribute")
+	}
+}
+
 // TestEvaluateBackendConfigLocalBackendAtRepoRootUsesDefaultOnly proves the
 // directory-join logic degrades correctly when the backend block's .tf file
 // lives at the repo root (no subdirectory to join).

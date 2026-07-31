@@ -51,13 +51,32 @@ func backendConfigLocalCandidate(
 	if !ok {
 		return DiscoveryCandidate{}, false
 	}
+	// backendFileDirRelativeToRepo's ownership check runs regardless of
+	// whether statePath turns out absolute or relative below: it validates
+	// that the .tf file which DECLARED the backend block is itself a
+	// repo-owned path, a defensive invariant independent of the state path's
+	// own shape.
 	relativeDir, ok := backendFileDirRelativeToRepo(repoLocalPath, backendStringValue(backend, "path"))
 	if !ok {
 		return DiscoveryCandidate{}, false
 	}
 
-	cleanedRoot := filepath.Clean(repoLocalPath)
-	absoluteLocator := filepath.Clean(filepath.Join(cleanedRoot, relativeDir, filepath.FromSlash(statePath)))
+	// An absolute "path" attribute is Terraform's own literal filesystem
+	// location, independent of the module/backend-block directory — it must
+	// NOT be joined against repoLocalPath/relativeDir. filepath.Join does not
+	// special-case an absolute later argument (it just concatenates path
+	// segments and cleans), so joining unconditionally silently mangled a
+	// real absolute path like "/var/lib/tfstate/terraform.tfstate" into
+	// "<repoLocalPath>/<relativeDir>/var/lib/tfstate/terraform.tfstate" — a
+	// locator that can never match the real state file (review finding on
+	// #5594). Only a relative "path" (or the defaulted "terraform.tfstate")
+	// is resolved against the backend block's directory.
+	statePathClean := filepath.Clean(filepath.FromSlash(statePath))
+	absoluteLocator := statePathClean
+	if !filepath.IsAbs(absoluteLocator) {
+		cleanedRoot := filepath.Clean(repoLocalPath)
+		absoluteLocator = filepath.Clean(filepath.Join(cleanedRoot, relativeDir, statePathClean))
+	}
 	if !filepath.IsAbs(absoluteLocator) {
 		return DiscoveryCandidate{}, false
 	}
