@@ -159,8 +159,12 @@ gates:
       command: "bash scripts/verify-no-ai-attribution.sh"
       test_command: ""
     ci:
-      workflow: test.yml
-      job: "docs-helm-hygiene"
+      # The AI-attribution check runs in verify-agent-hygiene.yml's "No AI
+      # attribution" step, not in test.yml's docs-helm-hygiene job, which has
+      # no such step. Matches the sibling agent-canon gate in the same
+      # workflow (#5748).
+      workflow: verify-agent-hygiene.yml
+      job: "Agent hygiene gate"
     requirements:
       - go
     ci_only_reason: ""

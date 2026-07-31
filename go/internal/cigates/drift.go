@@ -75,6 +75,7 @@ func DriftCheck(repoRoot string, reg *Registry) []error {
 	errs = append(errs, checkWorkflowCompleteness(repoRoot, reg)...)
 	errs = append(errs, checkJobNamesResolve(repoRoot, reg)...)
 	errs = append(errs, checkPathFilterCoverage(repoRoot, reg)...)
+	errs = append(errs, checkVerifyScriptWorkflowMatch(repoRoot, reg)...)
 
 	return errs
 }
