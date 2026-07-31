@@ -26,6 +26,12 @@ const baselineHeader = `# heredoc-budget-baseline.txt
 # an already-baselined file's over-budget heredoc count. A file's count may
 # stay the same or decrease (burn-down progress) without failing the gate.
 #
+# An UNQUOTED heredoc (<<DELIM, not <<'DELIM'/<<"DELIM") is compared against a
+# stricter 384-byte margin, not the raw 512-byte budget: bash expands
+# ${var}/$(cmd) substitutions in its body at runtime, so a literal source
+# under 512 bytes can still cross the real deadlock threshold once expanded
+# (#5085). A quoted heredoc never expands and keeps the full 512-byte budget.
+#
 # Regenerate with:
 #   cd go && go run ./cmd/heredoc-budget -baseline ../scripts/heredoc-budget-baseline.txt -update
 #

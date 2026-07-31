@@ -20,72 +20,170 @@ type Heredoc struct {
 	// every body line between the opener and the closing delimiter line
 	// (exclusive of both).
 	Size int
+	// Unquoted is true when the delimiter was bare (`<<DELIM`), meaning bash
+	// performs parameter/command substitution inside the body. A body that
+	// is under the literal byte budget in source can still expand past it
+	// at runtime (#5085), so ScanTree applies a stricter effective threshold
+	// when this is true. False for `<<'DELIM'`/`<<"DELIM"`, which bash never
+	// expands.
+	Unquoted bool
 }
 
-// Violation is one Heredoc whose Size exceeds the configured budget, tagged
+// Violation is one Heredoc whose Size exceeds the effective budget, tagged
 // with the repo-relative file path it was found in.
 type Violation struct {
 	Path string
 	Line int
 	Size int
+	// Unquoted mirrors Heredoc.Unquoted: true when this violation was found
+	// only because the heredoc's bare delimiter allows runtime expansion
+	// (see Threshold and unquotedThreshold).
+	Unquoted bool
+	// Threshold is the effective byte threshold this heredoc was compared
+	// against: the raw budget for a quoted heredoc, or the stricter
+	// unquotedThreshold(budget) for an unquoted one.
+	Threshold int
 }
 
-// opener describes a recognized heredoc opener: its delimiter word and
-// whether it uses the `<<-` tab-stripping form.
-type opener struct {
-	delim    string
-	tabStrip bool
+// unquotedMarginDivisor sets how much stricter the effective budget is for
+// an UNQUOTED heredoc opener (`<<DELIM`, not `<<'DELIM'`/`<<"DELIM"`): bash
+// performs parameter/command substitution inside its body, so a body that is
+// under the literal byte budget in source can still expand past it at
+// runtime (#5085) — the concrete case was a 496-byte source heredoc whose
+// `${fact_families[*]}` expansion crossed the 512-byte macOS pipe-buffer
+// deadlock threshold. A quoted heredoc's body is never expanded, so it keeps
+// the full literal budget. The 25% margin (384 bytes for the default
+// 512-byte budget) is a conservative, documented choice, not a re-derived OS
+// constant; expansion only ever grows a body, never shrinks it, so a margin
+// below the raw budget is the safe direction to err.
+const unquotedMarginDivisor = 4
+
+// unquotedThreshold returns the effective byte threshold for an UNQUOTED
+// heredoc: budget reduced by a 1/unquotedMarginDivisor margin. See
+// unquotedMarginDivisor for the rationale.
+func unquotedThreshold(budget int) int {
+	return budget - budget/unquotedMarginDivisor
 }
 
 // ScanContent scans shell script source text for heredoc bodies and returns
 // one Heredoc per detected heredoc, in source order.
 //
 // `<<<` here-strings are never treated as heredoc openers. Only one heredoc
-// is tracked "open" at a time: once an opener is matched, every subsequent
+// body is measured at a time: once an opener is matched, every subsequent
 // line is treated purely as body content (or the close) until the exact
 // closing delimiter line is seen, so a DELIM-like word that belongs to a
-// different (past or future) heredoc cannot mis-close the current one. An
-// opener with no matching closing line (a malformed script) is dropped
-// rather than reported, since there is no well-formed body to measure.
+// different (past or future) heredoc cannot mis-close the current one. When
+// a line opens more than one heredoc (`cmd <<A <<B`), the extra openers are
+// queued and processed in order immediately after the current one closes —
+// matching bash, which reads their bodies back to back right after the
+// command line, before moving on. An opener with no matching closing line (a
+// malformed script) is dropped rather than reported, since there is no
+// well-formed body to measure.
+//
+// Quote/substitution context (see findAllOpeners in scanner_lexer.go)
+// persists across lines: a double-quoted string that spans multiple
+// physical lines stays "quoted" on every line until its closing quote is
+// actually found, and a `$(...)` opened on one line stays open across lines
+// too. Both are frozen (left untouched) while a heredoc body is being
+// consumed, since body lines are never lexed for quoting — they are raw
+// content, exactly as bash treats them.
+//
+// Before looking for openers or a full-line comment, ScanContent follows
+// backslash-newline line continuations (F3/2026-07 hardening review): a bare
+// trailing backslash at the end of a physical line, outside a single-quoted
+// or ANSI-C string, is spliced away by real bash BEFORE tokenizing, fusing
+// the next physical line directly onto this one with no separator. Handling
+// this at the line-joining level -- rather than special-casing '#' -- means
+// both the full-line-comment shortcut below and findAllOpeners's own
+// word-start tracking see the exact fused text a real bash parser would; see
+// findAllOpeners's continuesOnNextLine return value for the detection side.
+// This never applies to heredoc BODY lines: bash reads a heredoc body raw,
+// with no continuation splicing, so fusion is only attempted outside a body
+// (mirrored by the `if inBody` split below).
 func ScanContent(src string) []Heredoc {
 	var heredocs []Heredoc
 	lines := strings.Split(src, "\n")
 
 	var (
-		inBody   bool
-		current  opener
-		openLine int
-		bodySize int
+		inBody     bool
+		current    opener
+		pending    []opener
+		openLine   int
+		bodySize   int
+		quoteStack []byte
 	)
 
-	for i, line := range lines {
-		lineNo := i + 1
+	for lineIdx := 0; lineIdx < len(lines); {
+		line := lines[lineIdx]
 		if inBody {
 			if closesHeredoc(line, current) {
-				heredocs = append(heredocs, Heredoc{Line: openLine, Size: bodySize})
+				heredocs = append(heredocs, Heredoc{Line: openLine, Size: bodySize, Unquoted: !current.quoted})
+				if len(pending) > 0 {
+					current, pending = pending[0], pending[1:]
+					bodySize = 0
+					lineIdx++
+					continue
+				}
 				inBody = false
+				lineIdx++
 				continue
 			}
 			bodySize += len(line) + 1
+			lineIdx++
 			continue
 		}
-		// A full-line shell comment cannot open a heredoc. Skipping it keeps a
-		// `<<IDENT` written inside a comment (e.g. "# see the <<EOF below")
-		// from phantom-opening the scanner and desyncing it so a later real
-		// oversized heredoc is missed — the dangerous fail-open case for this
-		// gate. This applies only outside a heredoc body; a comment-looking
-		// line inside a body is body content, already handled above.
-		// A `<<IDENT` inside a string literal or a second opener on one line
-		// are known limitations (see the "Known limitations" note in doc.go).
-		if strings.HasPrefix(strings.TrimLeft(line, " \t"), "#") {
+		// A full-line shell comment cannot open a heredoc, UNLESS it is
+		// really a continuation of a still-open quoted string from an
+		// earlier line (e.g. the closing quote of a multi-line double-quoted
+		// string happens to be on a line that starts with "#"). Skipping it
+		// keeps a `<<IDENT` written inside a real comment (e.g. "# see the
+		// <<EOF below") from phantom-opening the scanner and desyncing it so
+		// a later real oversized heredoc is missed — the dangerous fail-open
+		// case for this gate. This applies only outside a heredoc body; a
+		// comment-looking line inside a body is body content, already
+		// handled above. A TRAILING comment (real code followed by a
+		// same-line "#", e.g. "echo x # <<EOF") is a different fail-open and
+		// is handled inside findAllOpeners itself (scanner_lexer.go), not
+		// here, since it needs the same character-by-character quote-aware
+		// scan findAllOpeners already does. This check runs against the
+		// FIRST physical line of the logical line only, before any
+		// continuation fusion below: a real bash comment consumes verbatim
+		// to its own end of line regardless of what follows it (backslash
+		// has no continuation effect once a comment has already started).
+		if !inQuoteFrame(quoteStack) && strings.HasPrefix(strings.TrimLeft(line, " \t"), "#") {
+			lineIdx++
 			continue
 		}
-		if o, ok := findOpener(line); ok {
+
+		openLine = lineIdx + 1
+		fused := line
+		consumed := 1
+		var (
+			openers   []opener
+			nextStack []byte
+			continues bool
+		)
+		for {
+			openers, nextStack, continues = findAllOpeners(fused, quoteStack)
+			if !continues || lineIdx+consumed >= len(lines) {
+				break
+			}
+			// Drop the dangling trailing backslash and fuse the next
+			// physical line directly onto it (no separator), then rescan
+			// the combined text from scratch -- a partial scan of the
+			// unfused fragment alone can misparse a delimiter or opener
+			// that actually continues past the line boundary (e.g. a
+			// delimiter word split right after "<<").
+			fused = fused[:len(fused)-1] + lines[lineIdx+consumed]
+			consumed++
+		}
+		quoteStack = nextStack
+		if len(openers) > 0 {
 			inBody = true
-			current = o
-			openLine = lineNo
+			current, pending = openers[0], openers[1:]
 			bodySize = 0
 		}
+		lineIdx += consumed
 	}
 	return heredocs
 }
@@ -124,8 +222,15 @@ func ScanTree(root string, budget int) (map[string][]Violation, error) {
 		}
 		relPath = filepath.ToSlash(relPath)
 		for _, h := range heredocs {
-			if h.Size > budget {
-				violations[relPath] = append(violations[relPath], Violation{Path: relPath, Line: h.Line, Size: h.Size})
+			threshold := budget
+			if h.Unquoted {
+				threshold = unquotedThreshold(budget)
+			}
+			if h.Size > threshold {
+				violations[relPath] = append(violations[relPath], Violation{
+					Path: relPath, Line: h.Line, Size: h.Size,
+					Unquoted: h.Unquoted, Threshold: threshold,
+				})
 			}
 		}
 		return nil
@@ -138,106 +243,15 @@ func ScanTree(root string, budget int) (map[string][]Violation, error) {
 
 // closesHeredoc reports whether line is the closing delimiter line for an
 // open heredoc. For the `<<-` form, leading tabs are stripped before
-// comparison (POSIX tab-stripping); a trailing "\r" is always stripped so
-// CRLF-terminated scripts compare correctly.
+// comparison (POSIX tab-stripping); a trailing "\r" is always stripped via
+// stripTrailingCR (scanner_delim.go) so CRLF-terminated scripts compare
+// correctly -- the SAME normalisation parseDelim applies to the opener's own
+// delimiter, so the two sides cannot drift apart the way they did before
+// P1-1 (codex review of PR #5890; see stripTrailingCR's doc comment).
 func closesHeredoc(line string, o opener) bool {
-	l := strings.TrimSuffix(line, "\r")
+	l := stripTrailingCR(line)
 	if o.tabStrip {
 		l = strings.TrimLeft(l, "\t")
 	}
 	return l == o.delim
-}
-
-// findOpener scans line for the first heredoc opener — `<<DELIM`,
-// `<<'DELIM'`, `<<"DELIM"`, or the `<<-` tab-stripped variant of each — and
-// returns it. `<<<` here-strings are recognized and skipped rather than
-// mistaken for a heredoc opener with an empty or malformed delimiter.
-func findOpener(line string) (opener, bool) {
-	for i := 0; i+1 < len(line); i++ {
-		if line[i] != '<' || line[i+1] != '<' {
-			continue
-		}
-		// `<<<` is a here-string, not a heredoc. Skip past the third '<' so
-		// the loop cannot re-match the trailing "<<" of "<<<" as its own
-		// (bogus) heredoc opener.
-		if i+2 < len(line) && line[i+2] == '<' {
-			i += 2
-			continue
-		}
-		rest := line[i+2:]
-		tabStrip := strings.HasPrefix(rest, "-")
-		if tabStrip {
-			rest = rest[1:]
-		}
-		// Bash allows optional blanks between `<<`/`<<-` and the delimiter
-		// (`cat << EOF`, `cat <<- 'EOF'`). Trim them so a whitespace-separated
-		// heredoc is not missed — a fail-open the gate exists to block. The
-		// delimiter must still start with a letter or `_` (parseDelim), so an
-		// arithmetic left-shift like `$(( x << 2 ))` is not mistaken for a
-		// heredoc opener.
-		rest = strings.TrimLeft(rest, " \t")
-		if delim, ok := parseDelim(rest); ok {
-			return opener{delim: delim, tabStrip: tabStrip}, true
-		}
-		// Not a valid delimiter after "<<" (e.g. no identifier follows) —
-		// keep scanning the rest of the line for another candidate.
-	}
-	return opener{}, false
-}
-
-// parseDelim parses a heredoc delimiter word from the start of s, which is
-// the text immediately following "<<" (and any "-"). It accepts a bare
-// identifier or a single- or double-quoted identifier, per DELIM =
-// [A-Za-z_][A-Za-z0-9_]*.
-func parseDelim(s string) (string, bool) {
-	if s == "" {
-		return "", false
-	}
-	if s[0] == '\'' || s[0] == '"' {
-		quote := s[0]
-		end := strings.IndexByte(s[1:], quote)
-		if end < 0 {
-			return "", false
-		}
-		name := s[1 : 1+end]
-		if isIdentifier(name) {
-			return name, true
-		}
-		return "", false
-	}
-	j := 0
-	for j < len(s) && isIdentByte(s[j], j == 0) {
-		j++
-	}
-	if j == 0 {
-		return "", false
-	}
-	return s[:j], true
-}
-
-// isIdentifier reports whether s matches [A-Za-z_][A-Za-z0-9_]* in full.
-func isIdentifier(s string) bool {
-	if s == "" {
-		return false
-	}
-	for i := 0; i < len(s); i++ {
-		if !isIdentByte(s[i], i == 0) {
-			return false
-		}
-	}
-	return true
-}
-
-// isIdentByte reports whether b is a valid byte at the given position of a
-// [A-Za-z_][A-Za-z0-9_]* identifier; first distinguishes the leading byte
-// (which cannot be a digit) from the rest.
-func isIdentByte(b byte, first bool) bool {
-	switch {
-	case b == '_', b >= 'A' && b <= 'Z', b >= 'a' && b <= 'z':
-		return true
-	case b >= '0' && b <= '9':
-		return !first
-	default:
-		return false
-	}
 }
