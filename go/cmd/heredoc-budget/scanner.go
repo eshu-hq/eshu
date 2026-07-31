@@ -87,6 +87,19 @@ func unquotedThreshold(budget int) int {
 // too. Both are frozen (left untouched) while a heredoc body is being
 // consumed, since body lines are never lexed for quoting — they are raw
 // content, exactly as bash treats them.
+//
+// Before looking for openers or a full-line comment, ScanContent follows
+// backslash-newline line continuations (F3/2026-07 hardening review): a bare
+// trailing backslash at the end of a physical line, outside a single-quoted
+// or ANSI-C string, is spliced away by real bash BEFORE tokenizing, fusing
+// the next physical line directly onto this one with no separator. Handling
+// this at the line-joining level -- rather than special-casing '#' -- means
+// both the full-line-comment shortcut below and findAllOpeners's own
+// word-start tracking see the exact fused text a real bash parser would; see
+// findAllOpeners's continuesOnNextLine return value for the detection side.
+// This never applies to heredoc BODY lines: bash reads a heredoc body raw,
+// with no continuation splicing, so fusion is only attempted outside a body
+// (mirrored by the `if inBody` split below).
 func ScanContent(src string) []Heredoc {
 	var heredocs []Heredoc
 	lines := strings.Split(src, "\n")
@@ -100,20 +113,23 @@ func ScanContent(src string) []Heredoc {
 		quoteStack []byte
 	)
 
-	for i, line := range lines {
-		lineNo := i + 1
+	for lineIdx := 0; lineIdx < len(lines); {
+		line := lines[lineIdx]
 		if inBody {
 			if closesHeredoc(line, current) {
 				heredocs = append(heredocs, Heredoc{Line: openLine, Size: bodySize, Unquoted: !current.quoted})
 				if len(pending) > 0 {
 					current, pending = pending[0], pending[1:]
 					bodySize = 0
+					lineIdx++
 					continue
 				}
 				inBody = false
+				lineIdx++
 				continue
 			}
 			bodySize += len(line) + 1
+			lineIdx++
 			continue
 		}
 		// A full-line shell comment cannot open a heredoc, UNLESS it is
@@ -129,18 +145,45 @@ func ScanContent(src string) []Heredoc {
 		// same-line "#", e.g. "echo x # <<EOF") is a different fail-open and
 		// is handled inside findAllOpeners itself (scanner_lexer.go), not
 		// here, since it needs the same character-by-character quote-aware
-		// scan findAllOpeners already does.
+		// scan findAllOpeners already does. This check runs against the
+		// FIRST physical line of the logical line only, before any
+		// continuation fusion below: a real bash comment consumes verbatim
+		// to its own end of line regardless of what follows it (backslash
+		// has no continuation effect once a comment has already started).
 		if !inQuoteFrame(quoteStack) && strings.HasPrefix(strings.TrimLeft(line, " \t"), "#") {
+			lineIdx++
 			continue
 		}
-		var openers []opener
-		openers, quoteStack = findAllOpeners(line, quoteStack)
+
+		openLine = lineIdx + 1
+		fused := line
+		consumed := 1
+		var (
+			openers   []opener
+			nextStack []byte
+			continues bool
+		)
+		for {
+			openers, nextStack, continues = findAllOpeners(fused, quoteStack)
+			if !continues || lineIdx+consumed >= len(lines) {
+				break
+			}
+			// Drop the dangling trailing backslash and fuse the next
+			// physical line directly onto it (no separator), then rescan
+			// the combined text from scratch -- a partial scan of the
+			// unfused fragment alone can misparse a delimiter or opener
+			// that actually continues past the line boundary (e.g. a
+			// delimiter word split right after "<<").
+			fused = fused[:len(fused)-1] + lines[lineIdx+consumed]
+			consumed++
+		}
+		quoteStack = nextStack
 		if len(openers) > 0 {
 			inBody = true
 			current, pending = openers[0], openers[1:]
-			openLine = lineNo
 			bodySize = 0
 		}
+		lineIdx += consumed
 	}
 	return heredocs
 }

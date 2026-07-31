@@ -158,29 +158,98 @@
 // and TestScanContent_RealWordBoundaryBeforeHashIsGenuineComment tests in
 // scanner_quoting_test.go for the transcripts and regression coverage.
 //
+// # 2026-07 hardening review: four more P1 fail-opens closed (F1-F4)
+//
+// A fourth review found four MORE constructs, each independently verified
+// against real /bin/bash and the production ScanContent, where the scanner
+// reported ZERO heredocs on a file containing a genuine over-budget one --
+// the exact live pipe-buffer hang risk this gate exists to catch. All four
+// are now fixed at the mechanism level, not by special-casing the four
+// reported inputs:
+//
+//   - F1 (arithmetic): `$((` opens bash arithmetic evaluation, not a command
+//     substitution. `<<` inside it is the shift operator, never a heredoc
+//     opener, but the scanner previously modeled only the FIRST `(` of
+//     `$((` (indistinguishable from plain `$(cmd)`), so `<<` inside an
+//     arithmetic expression was read as a real opener whenever its operand
+//     was identifier-shaped (`x=$(( flags << shiftamount ))`) rather than
+//     the purely-numeric shape the pre-existing mitigation blocked. Fixed by
+//     giving `$((` its own frameArith lexical frame (findAllOpeners,
+//     scanner_lexer.go), tracked with proper nested-paren depth so a
+//     grouping paren inside the expression does not close it early, and
+//     suppressing both heredoc-opener detection AND the `#`-comment rule
+//     while inside it (arithmetic has no comment syntax in real bash
+//     either -- verified). Nested command substitution inside arithmetic,
+//     and arithmetic nested inside a command substitution, both still work.
+//   - F2 (delimiter character set): parseDelim used to accept only
+//     [A-Za-z_][A-Za-z0-9_]* for an unquoted delimiter, an identifier
+//     approximation, not real bash's actual word rule. `cat <<E#F` (`#` is
+//     ordinary mid-word text in bash, only a WORD-STARTING `#` is a
+//     comment) truncated to delimiter "E", which never matched the real
+//     closing line "E#F", silently dropping the heredoc and everything
+//     after it. Fixed by deriving the accepted character set from
+//     isShellWordSeparator (scanner_delim.go) -- the same word-boundary
+//     notion F4 below introduces -- instead of an identifier shape. The
+//     same rewrite also dropped an identical, previously undocumented
+//     restriction on QUOTED delimiters (`<<'E#F'`/`<<"E#F"` were also
+//     wrongly rejected), added support for the classic `<<\DELIM`
+//     backslash-escaped-delimiter idiom (equivalent to full quoting) found
+//     via this pass's mandated adversarial probe for "a delimiter
+//     containing backslash", and for a quoted segment concatenated onto an
+//     unquoted prefix (`<<FOO'BAR'`, delimiter "FOOBAR") found via the
+//     probe for "a delimiter containing quotes" -- see scanner_delim.go and
+//     scanner_delim_test.go for each verified transcript. The pre-existing,
+//     intentional numeric-first-delimiter rejection (`cat <<123`, see
+//     below) is unchanged; frameArith from F1 is now its PRIMARY defense
+//     against the arithmetic misread, not this rejection.
+//   - F3 (line continuation): a bare trailing backslash at the end of a
+//     physical line is a real bash line continuation (`\<newline>` is
+//     spliced away before tokenizing) everywhere except inside a
+//     single-quoted or ANSI-C `$'...'` string, where backslash has no
+//     escape meaning at all. The scanner had no model of this: both the
+//     full-line-comment shortcut and findAllOpeners's per-line `wordStart`
+//     reset restarted fresh on every PHYSICAL line, so a continuation that
+//     fused mid-word onto a line beginning with `#` (which bash does NOT
+//     read as a comment there) was misread as one, silently dropping
+//     everything after it. Fixed at the line-joining level (ScanContent,
+//     scanner.go): findAllOpeners now reports whether a line ends in a
+//     splice-eligible dangling backslash, and ScanContent fuses the next
+//     physical line directly onto it (repeating for consecutive
+//     continuations) before either the comment shortcut or the opener scan
+//     ever runs, so both see the same fused text a real bash parser would.
+//     As a side effect (not one of the four originally reported
+//     constructs), this closed the "heredoc opener split immediately after
+//     `<<`/`<<-`" gap this doc previously listed under "Still open" --
+//     confirmed by TestScanContent_ContinuationSplitRightAfterHeredocOperatorNowClosed
+//     in scanner_continuation_test.go; that gap is REMOVED from the list
+//     below.
+//   - F4 (word-separator set): findAllOpeners's word-boundary rule (for
+//     recognizing a trailing `#` comment) only covered blank/`;`/`|`/`&`.
+//     Real bash also treats a bare `(` (subshell open), a bare `)` (e.g. a
+//     case-pattern terminator, NOT the `)` that closes `$(...)` -- that one
+//     is intentionally excluded, since bash concatenates a substitution's
+//     result into the surrounding word), a bare `<`, and a bare `>` as
+//     word-separating metacharacters, each verified against real bash (the
+//     `(`/`)` cases directly; the `<`/`>` cases via the real-bash SYNTAX
+//     ERROR that results when a comment right after one of them swallows a
+//     mandatory redirection target, which is only possible if bash's own
+//     lexer treats the position right after as a genuine word start).
+//     Fixed by adding all four to the shared isShellWordSeparator predicate
+//     (scanner_delim.go) that both findAllOpeners's wordStart tracking and
+//     parseDelim's unquoted-word scan (F2) now derive from, instead of two
+//     independently hand-maintained lists.
+//
+// See scanner_arith_test.go, scanner_delim_test.go, scanner_continuation_test.go,
+// scanner_wordsep_test.go, and scanner_probes_test.go for the full RED/GREEN
+// regression coverage, each with its own real-bash-verified transcript.
+// scanner_probes_test.go additionally records the mandated post-fix
+// adversarial hunt (`$((` nested in `$(`/`$(` nested in `$((`, `<<` inside
+// `[[ ]]`, `#` after `!`, `<<` inside an array literal via command
+// substitution, and `<<-` with mixed tabs/spaces) -- all of which matched
+// already-correct behavior except the two F2 findings folded in above.
+//
 // Still open (real, adversarially-found gaps):
 //
-//   - A heredoc opener split immediately after `<<`/`<<-` by a
-//     backslash-newline line continuation (`cat <<\` then a newline, then
-//     the delimiter on the next physical line) is valid bash -- the
-//     continuation is spliced away before tokenizing, so the delimiter
-//     still binds to the `<<` -- and opens a real heredoc this scanner
-//     never sees, since it lexes one physical line at a time and the `<<`
-//     has no delimiter text on its own line. Verified against real
-//     /bin/bash: a script whose first line is `cat <<\` (trailing
-//     backslash-newline) followed by `EOF` on the next line and a
-//     600-byte body prints the body and exits 0, while ScanContent on the
-//     same source reports zero heredocs. This is PRE-EXISTING, not
-//     introduced or fixed by the word-start work above, and considered low
-//     real-world likelihood. Closing it would mean splicing
-//     backslash-newline continuations before lexing, which is unsafe to do
-//     blindly: `\<newline>` is literal (kept, not spliced) inside a
-//     single-quoted string but IS a continuation inside double quotes or
-//     at the base level, and the splice would have to interact correctly
-//     with the persisted cross-line quote stack -- the same fragile
-//     mechanism this file's other quote-stack fixes required a full
-//     old-vs-new re-proof against real scripts/**/*.sh for. That proof was
-//     not done for this gap, so it is documented rather than fixed here.
 //   - The unquoted-heredoc runtime-expansion margin (#5085, see above) only
 //     narrows the window for a source body already close to budget; it does
 //     not catch a small literal body that references an unbounded runtime
@@ -201,10 +270,15 @@
 //     outer quoted string can still be missed.
 //   - A numeric-first delimiter (`cat <<123`) is rejected on purpose, to
 //     avoid mistaking a `$(( x << 2 ))` arithmetic shift for a heredoc — this
-//     is intentional design, not a limitation.
+//     is intentional design, not a limitation. The 2026-07 review's frameArith
+//     fix (F1, above) is now the primary defense against that misread; this
+//     restriction is kept as secondary, defense-in-depth.
 //
 // #5079 (quote/substitution-context desyncs) is likewise NOT fully closed by
 // this or any prior slice: it names a class of line-based-scanner false
 // negatives, and the "Still open" gaps above (backtick substitution in
 // particular) are further instances of that same class, not yet found ones.
+// #5085 (runtime-expansion blind spot) is likewise not closed, per the
+// unquoted-margin bullet above. Neither #5085 nor #5079 is closed by the
+// 2026-07 hardening review either.
 package main

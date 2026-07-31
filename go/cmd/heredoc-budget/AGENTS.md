@@ -40,14 +40,21 @@
   immediately after the command line (`TestScanContent_TwoOpenersOnOneLineBothMeasured`).
 - **`findAllOpeners` tracks quote/substitution context as a STACK, persisted
   ACROSS LINES.** It is not a per-line quote toggle. The stack (`frameSingle`
-  /`frameDouble`/`frameAnsiC`/`frameSubst` in `scanner_lexer.go`) models: a `'...'`
-  or `"..."` string (so a `<<IDENT` inside one is never mistaken for a real
-  opener — bash never treats `<<` as redirection inside a quoted string);
-  an ANSI-C `$'...'` string with backslash-escape awareness (so `\'` does
-  not end it early); and `$(...)` command substitution as a FRESH unquoted
-  scope that opens even while nested inside an outer double-quoted string
-  that has not closed yet (bash does not suppress command substitution
-  inside double quotes, only inside single quotes). `ScanContent` passes the
+  /`frameDouble`/`frameAnsiC`/`frameSubst`/`frameArith` in `scanner_lexer.go`)
+  models: a `'...'` or `"..."` string (so a `<<IDENT` inside one is never
+  mistaken for a real opener — bash never treats `<<` as redirection inside a
+  quoted string); an ANSI-C `$'...'` string with backslash-escape awareness
+  (so `\'` does not end it early); `$(...)` command substitution as a FRESH
+  unquoted scope that opens even while nested inside an outer double-quoted
+  string that has not closed yet (bash does not suppress command
+  substitution inside double quotes, only inside single quotes); and (2026-07
+  hardening review, F1) `$((...))` arithmetic evaluation as its OWN scope,
+  pushing one `frameArith` per open paren (so nested grouping parens inside
+  the expression are depth-tracked, not mistaken for the closing `))`) —
+  `<<` and word-starting `#` are both suppressed while `frameArith` is on
+  top, since arithmetic has no heredoc or comment syntax in real bash. See
+  the frameArith fix writeup further down for the fail-open this closed.
+  `ScanContent` passes the
   stack from one line's `findAllOpeners` call into the next — this is load
   bearing: a double-quoted string spanning multiple physical lines, or a
   `$(...)` opened on one line and closed on a later one, must stay open
@@ -130,37 +137,35 @@
   `TestScanContent_EscapedWhitespaceBeforeHashStaysLiteral` and
   `TestScanContent_RealWordBoundaryBeforeHashIsGenuineComment` in
   `scanner_quoting_test.go`, each verified against real `/bin/bash` first.
-  The `;`/`|`/`&` set is deliberately narrow — only the bytes actually
-  verified against real bash, not every bash operator (e.g. `(`, `)` outside
-  `$(...)`, redirection operators are NOT covered and remain whatever the
-  fallback default (`wordStart = false`) produces).
-- **Known gap (pre-existing, not introduced or fixed by the word-start work
-  above):** a heredoc opener split immediately after `<<`/`<<-` by a
+  The `;`/`|`/`&` set was, at the time, deliberately narrow — only the bytes
+  actually verified against real bash. **CLOSED (2026-07 hardening review,
+  F4):** a bare `(`, a bare `)` (not the one closing `$(...)`), a bare `<`,
+  and a bare `>` are now ALSO in the word-separator set (see
+  `isShellWordSeparator` in `scanner_delim.go` and the F4 writeup further
+  down) — do not describe this set as covering only `;`/`|`/`&` in new docs
+  or comments; it is shared between `findAllOpeners`'s `wordStart` and
+  `parseDelim`'s unquoted-word scan.
+- **CLOSED (2026-07 hardening review, F3), was previously a "Known gap"
+  here:** a heredoc opener split immediately after `<<`/`<<-` by a
   backslash-newline line continuation (`cat <<\` then a newline, then the
-  delimiter on the next physical line) is valid bash — the continuation is
-  spliced away before tokenizing, so the delimiter still binds to the `<<`
-  — and opens a real heredoc this scanner never sees, since it lexes one
-  physical line at a time and the `<<` has no delimiter text on its own
-  line. Verified against real `/bin/bash`: a script starting `cat <<\`
-  (trailing backslash-newline), then `EOF` on the next line, then a
-  600-byte body, prints the body and exits 0, while `ScanContent` on the
-  same source reports zero heredocs. Considered low real-world likelihood.
-  Not fixed here: splicing backslash-newline continuations before lexing
-  would have to interact correctly with the persisted cross-line quote
-  stack (`\<newline>` is literal — kept, not spliced — inside a
-  single-quoted string, but IS a real continuation inside double quotes or
-  at the base level), and this file's own prior quote-stack fixes required
-  a full old-vs-new re-proof against real `scripts/**/*.sh` before being
-  trusted (see the warning above); that proof was not done for this gap.
-  See `doc.go`/README "Still open" for the same writeup.
-- **`scanner.go` and `scanner_lexer.go` are one logical unit, split only to
-  stay under the repo's 500-line-per-file cap.** `scanner.go` owns the
-  line-by-line `ScanContent`/`ScanFile`/`ScanTree`/`closesHeredoc` state
-  machine; `scanner_lexer.go` owns the character-by-character
-  quote/substitution/comment lexer (`opener`, the `frame*` constants,
-  `inQuoteFrame`, `findAllOpeners`, `parseDelim`, `isIdentifier`,
-  `isIdentByte`) that `ScanContent` drives once per line. Change them
-  together; do not let one drift ahead of the other's tests.
+  delimiter on the next physical line) is valid bash, and this scanner now
+  finds it — see the line-continuation fix writeup further down.
+  `TestScanContent_ContinuationSplitRightAfterHeredocOperatorNowClosed` in
+  `scanner_continuation_test.go` is the regression proof. Do not
+  re-introduce a per-physical-line-only comment/opener scan in
+  `ScanContent` without re-checking that test.
+- **`scanner.go`, `scanner_lexer.go`, and `scanner_delim.go` are one logical
+  unit, split only to stay under the repo's 500-line-per-file cap.**
+  `scanner.go` owns the line-by-line `ScanContent`/`ScanFile`/`ScanTree`/
+  `closesHeredoc` state machine, including the backslash-newline
+  line-continuation fusion loop (F3, see below). `scanner_lexer.go` owns the
+  character-by-character quote/substitution/comment/arithmetic lexer
+  (`opener`, the `frame*` constants, `inQuoteFrame`, `findAllOpeners`) that
+  `ScanContent` drives once per (possibly fused) logical line.
+  `scanner_delim.go` owns `parseDelim` and the `isShellWordSeparator`
+  word-boundary predicate it shares with `findAllOpeners`'s `wordStart`
+  tracking. Change them together; do not let one drift ahead of the other's
+  tests.
 - **Unquoted heredocs get a stricter effective budget — but the margin is a
   heuristic, not a closed fix.** `Heredoc.Unquoted` (set from whether the
   delimiter was `<<'DELIM'`/`<<"DELIM"` vs bare `<<DELIM`) drives
@@ -190,22 +195,84 @@
   `<path> <count>`, not `<path> <line>`, specifically so an unrelated diff
   elsewhere in a script does not spuriously bump the count.
 
+## 2026-07 hardening review: F1-F4 (four more P1 fail-opens, closed)
+
+A fourth review found four more constructs where the scanner reported ZERO
+heredocs on a file with a genuine over-budget one, each verified against
+real `/bin/bash` and production `ScanContent` first. All four are fixed at
+the mechanism level; see `doc.go` for the full writeup and `scanner_arith_test.go`,
+`scanner_delim_test.go`, `scanner_continuation_test.go`, `scanner_wordsep_test.go`,
+and `scanner_probes_test.go` for the regression proof:
+
+- **F1 — arithmetic (`frameArith`, `scanner_lexer.go`).** `$((` now pushes
+  its own frame (one per open paren, so nested grouping parens are
+  depth-tracked), distinct from `frameSubst`. `<<` and word-starting `#` are
+  both suppressed while it is on top of the stack. Do not route `$((` through
+  the plain `$(` case — that is exactly the bug this closed (an identifier-
+  shaped shift operand, e.g. `x=$(( flags << shiftamount ))`, was read as a
+  real heredoc opener).
+- **F2 — delimiter character set (`parseDelim`, `scanner_delim.go`).**
+  `parseDelim` no longer uses an identifier-shaped character check. It now
+  derives the accepted character set from `isShellWordSeparator` (shared
+  with F4 below), handles a backslash anywhere in an unquoted delimiter as
+  an escape (stripped from the name, forces `quoted = true` — covers both
+  the `<<\DELIM` idiom and a mid-word escape), and handles a quote character
+  appearing MID-word as a concatenated quoted segment (`<<FOO'BAR'` →
+  delimiter "FOOBAR", `quoted = true`) rather than literal quote bytes in the
+  name. The QUOTED-delimiter branch no longer runs any identifier-shaped
+  check on its content either — any bytes between the matching quotes are
+  accepted, including empty. Do not reintroduce `isIdentByte`/`isIdentifier`
+  or an identifier-shaped restriction on either branch.
+- **F3 — line continuation (`ScanContent`, `scanner.go`).** Before checking
+  for a full-line comment or calling `findAllOpeners`, `ScanContent` now asks
+  `findAllOpeners` (via its third return value) whether the line ends in a
+  dangling backslash that real bash would splice onto the next physical
+  line, and if so fuses the next physical line directly onto it (repeating
+  for consecutive continuations) before doing anything else with the text.
+  This applies at the base level and inside `$(...)`/`$((...))`/double
+  quotes, but NOT inside a single-quoted or ANSI-C `$'...'` string (verified:
+  backslash has no escape meaning there, so a trailing one is kept literally,
+  never spliced). Do not special-case `#` instead of fixing this at the
+  line-joining level — that was the P1 shape of this exact bug (a
+  continuation fusing mid-word onto a line starting with `#` is NOT a real
+  bash comment, but a per-physical-line-only comment shortcut and
+  `wordStart` reset both wrongly treated it as one).
+- **F4 — word-separator set (`isShellWordSeparator`, `scanner_delim.go`).**
+  Bare `(`, `)` (excluding the one that closes `$(...)`), `<`, and `>` are
+  now word separators, alongside the pre-existing blank/`;`/`|`/`&`. Shared
+  by both `findAllOpeners`'s `wordStart` tracking and F2's `parseDelim`
+  unquoted-word scan — do not hand-maintain two separate separator lists
+  again; that drift is exactly what let F2's bug (an unquoted delimiter's
+  end-of-word rule not matching the comment rule's word-start definition)
+  exist in the first place.
+
+Also see `scanner_probes_test.go` for the mandated post-fix adversarial hunt
+(arithmetic nested both directions with command substitution, `<<` inside
+`[[ ]]`, `#` after `!`, `<<` inside an array literal, `<<-` with mixed
+tabs/spaces) — all matched already-correct behavior, recorded as named
+regression guards, except the two F2 findings folded into the bullet above.
+
 ## Common changes and how to scope them
 
 - **Changing the byte budget** → the `-budget` flag already supports this;
   do not hardcode a new constant. The default (512) is the macOS pipe-buffer
   size from the deadlock itself — changing it without re-deriving that
   number from the actual OS behavior would misrepresent the safety margin.
-- **New heredoc opener syntax to recognize** → extend `findAllOpeners` /
-  `parseDelim` in `scanner_lexer.go`, and add a fixture-backed test case mirroring
-  the existing `TestScanContent_*` tests in `scanner_test.go` or
-  `scanner_quoting_test.go` (quote/substitution-context cases live in the
-  latter) (see `golang-engineering`: tests must exercise the real scanner,
-  not a re-implementation of it). Before shipping a fix, reproduce the
-  claimed bug against REAL `/bin/bash` first (a throwaway script + `bash
-  script.sh`), not just against this scanner's own output — several of the
-  fixes in this file were adversarial-review findings that turned out to
-  need real-bash ground truth to pin down the exact broken construct.
+- **New heredoc opener syntax to recognize** → extend `findAllOpeners` in
+  `scanner_lexer.go` and/or `parseDelim`/`isShellWordSeparator` in
+  `scanner_delim.go`, and add a fixture-backed test case mirroring the
+  existing `TestScanContent_*` tests in `scanner_test.go`,
+  `scanner_quoting_test.go`, `scanner_arith_test.go`, `scanner_delim_test.go`,
+  `scanner_continuation_test.go`, or `scanner_wordsep_test.go` (quote/
+  substitution-context cases live in `scanner_quoting_test.go`; arithmetic,
+  delimiter-charset, continuation, and word-separator cases live in their
+  own like-named files) (see `golang-engineering`: tests must exercise the
+  real scanner, not a re-implementation of it). Before shipping a fix,
+  reproduce the claimed bug against REAL `/bin/bash` first (a throwaway
+  script + `bash script.sh`), not just against this scanner's own output —
+  several of the fixes in this file were adversarial-review findings that
+  turned out to need real-bash ground truth to pin down the exact broken
+  construct.
 - **Converting an offending script** (later slices) → after rewriting a
   script's heredocs, rerun `-update` so its baseline count drops (or its
   entry disappears entirely at zero); do not manually edit the baseline

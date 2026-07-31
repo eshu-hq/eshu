@@ -40,6 +40,20 @@ type opener struct {
 //     a fresh, UNQUOTED lexical scope — it is scanned exactly like the
 //     top-level (base) context, including recognizing further quotes,
 //     nested `$(`, and real heredoc openers — until its own closing `)`.
+//   - frameArith ($((...)), one frame PER open paren): bash arithmetic
+//     evaluation, entered via the three-byte "$((" opener. `<<` inside it is
+//     the arithmetic SHIFT operator, never a heredoc opener, and `#` is
+//     ordinary text, never a comment (verified against real bash: `(( 1
+//     <#comment\n2 ))` reports an arithmetic syntax error citing the literal
+//     "#comment" text, proving '#' is not stripped as a comment there).
+//     "$((" pushes TWO frameArith frames (one per paren beyond the leading
+//     "$"), and every literal `(` encountered while top-of-stack is
+//     frameArith pushes one more, popped by the next `)` — reusing the
+//     single-byte-per-frame stack as a paren-depth counter, so a grouping
+//     paren inside the expression (`$(( (a+b) * c ))`) does not close the
+//     frame early. Command substitution still works inside arithmetic (real
+//     bash allows `$(cmd)` inside `$((...))`), so a nested `$(` still pushes
+//     its own frameSubst on top, same as anywhere else (#5085/#5079 review).
 //
 // The "base" context (empty stack) behaves the same as frameSubst for
 // scanning purposes, except a stray `)` at the base has nothing to pop.
@@ -48,6 +62,7 @@ const (
 	frameDouble = '"'
 	frameAnsiC  = 'A'
 	frameSubst  = '('
+	frameArith  = 'M'
 )
 
 // inQuoteFrame reports whether the top of stack is a live quoted string
@@ -116,8 +131,31 @@ func inQuoteFrame(stack []byte) bool {
 // suppress command substitution inside double quotes (only inside single
 // quotes) — so a real heredoc inside `"...$(cat <<Y ... Y)..."` is still a
 // real heredoc, not string content.
-func findAllOpeners(line string, stack []byte) ([]opener, []byte) {
+//
+// findAllOpeners also recognizes bash arithmetic evaluation (`$((...))`,
+// tracked via the frameArith frame) as its own lexical scope distinct from
+// command substitution: `<<` inside it is the shift operator, never a
+// heredoc opener, and `#` is ordinary text, never a comment (2026-07
+// hardening review, F1). Before this, the scanner modeled only the FIRST `(`
+// of `$((` (indistinguishable from a plain `$(cmd)`), so `<<` inside an
+// arithmetic expression was read as a real heredoc opener whenever its
+// operand was identifier-shaped (`x=$(( flags << shiftamount ))`) rather
+// than the numeric shape the old parseDelim-only mitigation blocked.
+//
+// The third return value reports whether line ends in a "dangling" trailing
+// backslash that real bash splices onto the next physical line (a
+// `\<newline>` continuation) BEFORE either line is tokenized — true when the
+// backslash is the last byte of line and scanning was NOT inside a
+// single-quoted or ANSI-C string (2026-07 hardening review, F3; verified
+// against real bash that a trailing `\<newline>` is spliced away inside
+// double-quoted strings and at the base level, but is kept as two literal
+// characters inside `'...'` and `$'...'`). ScanContent uses this to fuse the
+// next physical line directly onto this one and rescan the combined text
+// from scratch, so a continuation that fuses mid-word onto a line beginning
+// with '#' (bash does NOT see a comment there) is not mistaken for one.
+func findAllOpeners(line string, stack []byte) ([]opener, []byte, bool) {
 	var openers []opener
+	var continuesOnNextLine bool
 
 	top := func() byte {
 		if len(stack) == 0 {
@@ -128,11 +166,13 @@ func findAllOpeners(line string, stack []byte) ([]opener, []byte) {
 
 	// wordStart is true when the position about to be examined is a genuine
 	// bash word boundary: the start of the line, or the byte immediately
-	// after real (unescaped, unquoted) whitespace or a statement-separator
-	// operator (`;`, `|`, `&`) that was itself consumed as its own token. It
-	// is explicit state, not a raw byte lookback -- see the doc comment on
-	// findAllOpeners for why a lookback is unsound after a variable-width
-	// consume (escape, quote close, substitution close).
+	// after real (unescaped, unquoted) whitespace or one of the operator
+	// characters this scanner recognizes as a word separator (see
+	// isShellWordSeparator: `;`, `|`, `&`, `<`, `>`, `(`, `)`) that was
+	// itself consumed as its own token. It is explicit state, not a raw byte
+	// lookback -- see the doc comment on findAllOpeners for why a lookback
+	// is unsound after a variable-width consume (escape, quote close,
+	// substitution close).
 	wordStart := true
 
 	for i := 0; i < len(line); {
@@ -166,8 +206,20 @@ func findAllOpeners(line string, stack []byte) ([]opener, []byte) {
 			}
 			i++
 		case frameDouble:
-			if c == '\\' && i+1 < len(line) {
-				i += 2
+			if c == '\\' {
+				if i+1 < len(line) {
+					i += 2
+					continue
+				}
+				// Dangling trailing backslash with nothing left on the line
+				// to escape: real bash splices this onto the next physical
+				// line even inside an open double-quoted string (verified:
+				// `echo "line one \` + newline + `continues"` prints "line
+				// one continues" -- both the backslash AND the newline are
+				// removed, F3/2026-07 hardening review). Report it so
+				// ScanContent can fuse the next line on and rescan.
+				continuesOnNextLine = true
+				i++
 				continue
 			}
 			if c == '"' {
@@ -175,16 +227,28 @@ func findAllOpeners(line string, stack []byte) ([]opener, []byte) {
 				i++
 				continue
 			}
-			// Command substitution is NOT suppressed inside double quotes,
-			// so `$(` still opens a fresh unquoted frame here.
+			// Command substitution and arithmetic evaluation are NOT
+			// suppressed inside double quotes, so `$(`/`$((` still open a
+			// fresh frame here, exactly like the default case below.
 			if c == '$' && i+1 < len(line) && line[i+1] == '(' {
+				if i+2 < len(line) && line[i+2] == '(' {
+					stack = append(stack, frameArith, frameArith)
+					i += 3
+					continue
+				}
 				stack = append(stack, frameSubst)
 				i += 2
 				continue
 			}
 			i++
-		default: // base context (empty stack) or inside an unquoted $(...)
+		default: // base context (empty stack), inside $(...), or inside $((...))
 			switch {
+			case c == '\\' && i+1 >= len(line):
+				// Dangling trailing backslash: see the identical frameDouble
+				// branch above. Applies at the base level and inside
+				// $(...)/$((...)) too (F3/2026-07 hardening review).
+				continuesOnNextLine = true
+				i++
 			case c == '\\' && i+1 < len(line):
 				// Backslash escapes the next char even outside any quote,
 				// e.g. the extremely common `'\''` idiom for embedding a
@@ -209,7 +273,7 @@ func findAllOpeners(line string, stack []byte) ([]opener, []byte) {
 				// escaped separator apart from a real one once `i` has
 				// jumped two bytes ahead.
 				i += 2
-			case c == '#' && atWordStart:
+			case c == '#' && atWordStart && top() != frameArith:
 				// An unquoted '#' that starts a word begins a real bash
 				// comment: the rest of the line is ignored, so anything
 				// after it that looks like a heredoc opener (e.g.
@@ -228,8 +292,14 @@ func findAllOpeners(line string, stack []byte) ([]opener, []byte) {
 				// default case at all (it is handled by the
 				// frameSingle/frameDouble/frameAnsiC cases above, where
 				// '#' has no special meaning), so quoted '#' is already
-				// correctly excluded.
-				return openers, stack
+				// correctly excluded. `top() != frameArith` excludes
+				// arithmetic evaluation too: '#' is never a comment inside
+				// `$((...))` (verified against real bash, F1/2026-07
+				// hardening review) -- without this guard, a real '#'
+				// inside an arithmetic expression would wrongly end
+				// scanning and could hide a real heredoc opener later on
+				// the same line.
+				return openers, stack, continuesOnNextLine
 			case c == '\'':
 				stack = append(stack, frameSingle)
 				i++
@@ -239,14 +309,73 @@ func findAllOpeners(line string, stack []byte) ([]opener, []byte) {
 			case c == '$' && i+1 < len(line) && line[i+1] == '\'':
 				stack = append(stack, frameAnsiC)
 				i += 2
+			case c == '$' && i+1 < len(line) && line[i+1] == '(' && i+2 < len(line) && line[i+2] == '(':
+				// "$((" opens arithmetic evaluation, not command
+				// substitution -- push TWO frameArith frames (F1/2026-07
+				// hardening review; see the frameArith doc comment above).
+				// Checked BEFORE the plain "$(" case below so it always
+				// wins when both would otherwise match.
+				stack = append(stack, frameArith, frameArith)
+				i += 3
 			case c == '$' && i+1 < len(line) && line[i+1] == '(':
 				stack = append(stack, frameSubst)
 				i += 2
+			case c == '(' && top() == frameArith:
+				// A literal grouping paren inside an arithmetic expression
+				// (`$(( (a+b) * c ))`) is one more nesting level, popped by
+				// its own matching `)` below -- not a subshell open, and
+				// not (yet) a word boundary (see the bare '(' case further
+				// down, which this must be checked before).
+				stack = append(stack, frameArith)
+				i++
+			case c == ')' && top() == frameArith:
+				stack = stack[:len(stack)-1]
+				i++
 			case c == ')' && top() == frameSubst:
 				stack = stack[:len(stack)-1]
 				i++
+			case c == '(':
+				// A bare '(' (subshell open, not part of "$(") IS a genuine
+				// bash word boundary (F4/2026-07 hardening review; verified
+				// against real bash: `(#<<NEVERCLOSES` / `echo x` / `)` /
+				// a real heredoc exits 0 with exactly the real heredoc
+				// found -- the `<<NEVERCLOSES` fragment right after '(' is
+				// inert comment text, not a phantom opener). Must be
+				// checked AFTER the frameArith-nesting case above so a
+				// literal paren inside arithmetic is not double-handled.
+				wordStart = true
+				i++
+			case c == ')':
+				// A bare ')' that is NOT closing a "$(...)" substitution --
+				// e.g. a case-pattern terminator ("*)") -- is also a
+				// genuine word boundary (F4/2026-07 hardening review;
+				// verified against real bash with a case-pattern `)`).
+				// Deliberately does NOT cover the frameSubst-closing case
+				// above: real bash concatenates a command substitution's
+				// result into the surrounding word (`$(true)#<<FAKE` is
+				// verified to phantom-open a REAL heredoc from the `<<FAKE`
+				// fragment, i.e. that ')' is NOT a word boundary), so that
+				// case is intentionally left as-is.
+				wordStart = true
+				i++
 			case c == '<':
+				if top() == frameArith {
+					// `<<` inside arithmetic is the shift operator, never a
+					// heredoc opener (F1/2026-07 hardening review) -- skip
+					// one '<' at a time; the next iteration reprocesses
+					// whatever follows normally.
+					i++
+					continue
+				}
 				if i+1 >= len(line) || line[i+1] != '<' {
+					// A bare '<' (redirection operator, not part of "<<")
+					// is a genuine bash word boundary too (F4/2026-07
+					// hardening review; verified against real bash: `cat
+					// <#<<FAKE` is a syntax error because the comment eats
+					// the mandatory redirection target, which is only
+					// possible if bash's own lexer treats '#' right after a
+					// bare '<' as a real word start).
+					wordStart = true
 					i++
 					continue
 				}
@@ -265,10 +394,7 @@ func findAllOpeners(line string, stack []byte) ([]opener, []byte) {
 				// Bash allows optional blanks between `<<`/`<<-` and the
 				// delimiter (`cat << EOF`, `cat <<- 'EOF'`). Trim them so a
 				// whitespace-separated heredoc is not missed — a fail-open
-				// the gate exists to block. The delimiter must still start
-				// with a letter or `_` (parseDelim), so an arithmetic
-				// left-shift like `$(( x << 2 ))` is not mistaken for a
-				// heredoc opener.
+				// the gate exists to block.
 				trimmed := strings.TrimLeft(rest, " \t")
 				blanks := len(rest) - len(trimmed)
 				if delim, quoted, consumed, ok := parseDelim(trimmed); ok {
@@ -291,8 +417,20 @@ func findAllOpeners(line string, stack []byte) ([]opener, []byte) {
 				// (`true;#<<EOF`, `true|#<<EOF` both discard the rest of
 				// the line as a comment, same as a plain blank); `&`
 				// behaves identically (background-job separator). This
-				// set is deliberately narrow — only the bytes actually
-				// verified — not every bash operator (see AGENTS.md).
+				// set, plus '(', ')', '<', and '>' above, is
+				// isShellWordSeparator (see scanner_delim.go) —
+				// deliberately narrow, covering only the bytes actually
+				// verified against real bash, not every bash operator (see
+				// AGENTS.md).
+				wordStart = true
+				i++
+			case c == '>':
+				// A bare '>' (output-redirection operator) is a genuine
+				// bash word boundary too (F4/2026-07 hardening review;
+				// verified against real bash the same way as bare '<'
+				// above: `cat >#<<FAKE` is a syntax error for the identical
+				// reason -- the comment eats the mandatory redirection
+				// target).
 				wordStart = true
 				i++
 			default:
@@ -300,65 +438,5 @@ func findAllOpeners(line string, stack []byte) ([]opener, []byte) {
 			}
 		}
 	}
-	return openers, stack
-}
-
-// parseDelim parses a heredoc delimiter word from the start of s, which is
-// the text immediately following "<<"/"<<-" and any blanks. It accepts a
-// bare identifier or a single- or double-quoted identifier, per DELIM =
-// [A-Za-z_][A-Za-z0-9_]*. It reports whether the delimiter was quoted (which
-// disables runtime expansion of the body, see Heredoc.Unquoted) and how many
-// bytes of s the delimiter token consumed, so the caller can resume scanning
-// immediately after it on the same line.
-func parseDelim(s string) (name string, quoted bool, consumed int, ok bool) {
-	if s == "" {
-		return "", false, 0, false
-	}
-	if s[0] == '\'' || s[0] == '"' {
-		q := s[0]
-		end := strings.IndexByte(s[1:], q)
-		if end < 0 {
-			return "", false, 0, false
-		}
-		name := s[1 : 1+end]
-		if !isIdentifier(name) {
-			return "", false, 0, false
-		}
-		return name, true, end + 2, true // consumed = opening quote + name + closing quote
-	}
-	j := 0
-	for j < len(s) && isIdentByte(s[j], j == 0) {
-		j++
-	}
-	if j == 0 {
-		return "", false, 0, false
-	}
-	return s[:j], false, j, true
-}
-
-// isIdentifier reports whether s matches [A-Za-z_][A-Za-z0-9_]* in full.
-func isIdentifier(s string) bool {
-	if s == "" {
-		return false
-	}
-	for i := 0; i < len(s); i++ {
-		if !isIdentByte(s[i], i == 0) {
-			return false
-		}
-	}
-	return true
-}
-
-// isIdentByte reports whether b is a valid byte at the given position of a
-// [A-Za-z_][A-Za-z0-9_]* identifier; first distinguishes the leading byte
-// (which cannot be a digit) from the rest.
-func isIdentByte(b byte, first bool) bool {
-	switch {
-	case b == '_', b >= 'A' && b <= 'Z', b >= 'a' && b <= 'z':
-		return true
-	case b >= '0' && b <= '9':
-		return !first
-	default:
-		return false
-	}
+	return openers, stack, continuesOnNextLine
 }

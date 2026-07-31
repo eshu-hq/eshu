@@ -163,19 +163,71 @@ word-start recognize an unquoted statement-separator operator (`;`, `|`,
 comments too, and the old raw-byte check missed both with the identical
 fail-open shape. Both verified against real `/bin/bash`.
 
+### 2026-07 hardening review: four more P1 fail-opens closed (F1-F4)
+
+A fourth review found four MORE constructs, each independently verified
+against real `/bin/bash` and the production `ScanContent`, where the scanner
+reported ZERO heredocs on a file containing a genuine over-budget one — the
+exact live pipe-buffer hang risk this gate exists to catch. All four are
+fixed at the mechanism level, not by special-casing the four reported
+inputs:
+
+- **F1 (arithmetic):** `$((` opens bash arithmetic evaluation, not a command
+  substitution. `<<` inside it is the shift operator, never a heredoc
+  opener, but the scanner previously modeled only the FIRST `(` of `$((`
+  (indistinguishable from plain `$(cmd)`), so `<<` inside an arithmetic
+  expression was read as a real opener whenever its operand was
+  identifier-shaped (`x=$(( flags << shiftamount ))`) rather than the
+  purely-numeric shape the pre-existing mitigation blocked. Fixed with a
+  dedicated `frameArith` lexical frame in `findAllOpeners`
+  (`scanner_lexer.go`), tracked with proper nested-paren depth, that
+  suppresses both heredoc-opener detection and the `#`-comment rule while
+  active (arithmetic has no comment syntax in real bash either — verified).
+- **F2 (delimiter character set):** `parseDelim` used to accept only
+  `[A-Za-z_][A-Za-z0-9_]*` for an unquoted delimiter, an identifier
+  approximation, not real bash's actual word rule. `cat <<E#F` (`#` is
+  ordinary mid-word text in bash) truncated to delimiter "E", which never
+  matched the real closing line "E#F", silently dropping the heredoc and
+  everything after it. Fixed by deriving the accepted character set from a
+  shared `isShellWordSeparator` predicate (`scanner_delim.go`) instead of an
+  identifier shape. The same rewrite dropped an identical, previously
+  undocumented restriction on QUOTED delimiters, added support for the
+  classic `<<\DELIM` backslash-escaped-delimiter idiom, and for a quoted
+  segment concatenated onto an unquoted prefix (`<<FOO'BAR'`, delimiter
+  "FOOBAR") — the latter two found via this pass's mandated adversarial
+  probe for a delimiter containing a backslash or a quote.
+- **F3 (line continuation):** a bare trailing backslash at the end of a
+  physical line is a real bash line continuation, spliced away before
+  tokenizing, everywhere except inside a single-quoted or ANSI-C `$'...'`
+  string. The scanner had no model of this, so a continuation that fused
+  mid-word onto a line beginning with `#` (which bash does NOT read as a
+  comment there) was misread as a full-line comment, silently dropping
+  everything after it. Fixed at the line-joining level (`ScanContent`,
+  `scanner.go`): `findAllOpeners` now reports a dangling-continuation
+  signal, and `ScanContent` fuses the next physical line on before either
+  the comment shortcut or the opener scan runs. As a side effect, this
+  closed the "heredoc opener split immediately after `<<`/`<<-`" gap
+  previously listed below — that entry is removed.
+- **F4 (word-separator set):** the word-boundary rule for recognizing a
+  trailing `#` comment only covered blank/`;`/`|`/`&`. Real bash also treats
+  a bare `(` (subshell open), a bare `)` (a case-pattern terminator, NOT the
+  `)` that closes `$(...)` — intentionally excluded, since bash concatenates
+  a substitution's result into the surrounding word), a bare `<`, and a bare
+  `>` as word-separating metacharacters. Fixed by adding all four to the
+  shared `isShellWordSeparator` predicate that both the word-boundary
+  tracking and F2's delimiter scan now derive from.
+
+See `scanner_arith_test.go`, `scanner_delim_test.go`,
+`scanner_continuation_test.go`, `scanner_wordsep_test.go`, and
+`scanner_probes_test.go` for the full regression coverage and real-bash
+transcripts. `scanner_probes_test.go` also records the mandated post-fix
+adversarial hunt (arithmetic nested both ways with command substitution,
+`<<` inside `[[ ]]`, `#` after `!`, `<<` inside an array literal, `<<-` with
+mixed tabs/spaces) — all matched already-correct behavior except the two F2
+findings folded in above.
+
 **Still open (real, adversarially-found gaps):**
 
-- A heredoc opener split immediately after `<<`/`<<-` by a
-  backslash-newline line continuation (`cat <<\` then a newline, then the
-  delimiter on the next physical line) is valid bash and opens a real
-  heredoc this line-based scanner never sees. Verified against real
-  `/bin/bash`. Pre-existing, not introduced or fixed by the word-start work
-  above; considered low real-world likelihood. Not fixed here because
-  splicing backslash-newline continuations before lexing would have to
-  interact correctly with the persisted cross-line quote stack (literal
-  inside single quotes, a real continuation inside double quotes or at the
-  base level) without the full old-vs-new re-proof this file's other
-  quote-stack fixes required.
 - The unquoted-heredoc runtime-expansion margin (#5085, above) narrows the
   window for a source body already close to budget; it does not catch a
   small literal body that references an unbounded runtime expansion (a large
@@ -188,16 +240,19 @@ fail-open shape. Both verified against real `/bin/bash`.
   introducing a different one elsewhere in the same file can leave the count
   unchanged and pass silently. Pre-existing, unrelated to this branch's
   fixes, and intentionally not redesigned here.
-- Legacy backtick command substitution (`` `cmd` ``) is not tracked as its
-  own lexical scope the way `$(...)` is.
+- Legacy backtick command substitution (backtick-delimited, not `$(...)`) is
+  not tracked as its own lexical scope the way `$(...)` is.
 - A numeric-first delimiter (`cat <<123`) is rejected on purpose, to avoid
   mistaking a `$(( x << 2 ))` arithmetic shift for a heredoc — intentional,
-  not a bug.
+  not a bug. The 2026-07 review's `frameArith` fix (F1, above) is now the
+  primary defense against that misread; this restriction is kept as
+  secondary, defense-in-depth.
 
 **#5079 is likewise NOT fully closed** by this or any prior slice: it names a
 class of line-based-scanner false negatives (quote/substitution-context
 desyncs), and the backtick-substitution gap above is a further instance of
-that same class, not yet a closed list.
+that same class, not yet a closed list. **Neither #5085 nor #5079 is closed
+by the 2026-07 hardening review either.**
 
 ## Tests
 
