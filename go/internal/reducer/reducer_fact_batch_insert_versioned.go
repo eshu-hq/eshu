@@ -12,17 +12,32 @@ import (
 // reducerFactBatchInsertVersionedQuery is the schema_version-carrying sibling
 // of reducerFactBatchInsertQuery.
 //
-// It does NOT carry fencing_token: no governed writer on this path ranks its
-// replays yet. A governed domain that grows that need must add the column here
-// the same way reducerFactBatchInsertQuery carries it — the bind AND the
-// `fact_records.fencing_token <= EXCLUDED.fencing_token` conflict guard, which
-// are two separate defects if only one is copied. Without the bind every row
-// rests at the table default 0, so the guard admits every pass unconditionally
-// and the domain looks fenced while behaving unfenced; without the guard, a
-// stalled worker's upsert overwrites a fresher row's content and leaves the
-// fresher token vouching for it. See the "Why fencing_token is written here" and
-// "Why the conflict clause is guarded rather than merged" sections on
-// reducerFactBatchInsertQuery.
+// It carries fencing_token (#5848) the same way reducerFactBatchInsertQuery
+// does for its unversioned callers: the bind ($17, appended last so the
+// existing $1..$16 mapping stays untouched) AND the
+// `fact_records.fencing_token <= EXCLUDED.fencing_token` conflict guard. Both
+// are required together — without the bind every row rests at the table
+// default 0 and the guard admits every pass unconditionally; without the
+// guard, a stalled worker's upsert overwrites a fresher row's content and
+// leaves the fresher token vouching for it. See "Why fencing_token is written
+// here" and "Why the conflict clause is guarded rather than merged" on
+// reducerFactBatchInsertQuery for the full rationale; it applies unchanged
+// here.
+//
+// aws_cloud_runtime_drift (#5848) is the first versioned writer to opt in.
+// Its identity embeds finding_kind, so a reclassification (e.g.
+// orphaned_cloud_resource -> image_version_drift as Terraform state activates
+// late, #5837) mints a NEW fact_id rather than colliding on the old one — this
+// guard alone does not protect against that shape; it only protects a retry or
+// redelivery that DOES collide on the same fact_id. The insert-admission
+// watermark in aws_cloud_runtime_drift_admission.go is what rejects a stale
+// pass before it reaches this statement at all, and the generation-authoritative
+// retire in aws_cloud_runtime_drift_writer_queries.go is what removes a
+// superseded row under a DIFFERENT fact_id once a fresher pass lands. All three
+// are required; this guard alone would not have closed #5848.
+//
+// A future versioned domain that grows the same need must add BOTH pieces the
+// same way, not just the column here.
 //
 // Otherwise it is byte-equivalent, column-for-column and
 // conflict-for-conflict, to the versioned single-row upsert every governed
@@ -54,7 +69,8 @@ INSERT INTO fact_records (
     observed_at,
     ingested_at,
     is_tombstone,
-    payload
+    payload,
+    fencing_token
 )
 SELECT
     fact_id,
@@ -72,7 +88,8 @@ SELECT
     observed_at,
     ingested_at,
     is_tombstone,
-    payload::jsonb
+    payload::jsonb,
+    fencing_token
 FROM unnest(
     $1::text[],
     $2::text[],
@@ -89,7 +106,8 @@ FROM unnest(
     $13::timestamptz[],
     $14::timestamptz[],
     $15::bool[],
-    $16::text[]
+    $16::text[],
+    $17::bigint[]
 ) AS t(
     fact_id,
     scope_id,
@@ -106,7 +124,8 @@ FROM unnest(
     observed_at,
     ingested_at,
     is_tombstone,
-    payload
+    payload,
+    fencing_token
 )
 ON CONFLICT (fact_id) DO UPDATE SET
     fact_kind         = EXCLUDED.fact_kind,
@@ -121,7 +140,9 @@ ON CONFLICT (fact_id) DO UPDATE SET
     observed_at       = EXCLUDED.observed_at,
     ingested_at       = EXCLUDED.ingested_at,
     is_tombstone      = EXCLUDED.is_tombstone,
-    payload           = EXCLUDED.payload
+    payload           = EXCLUDED.payload,
+    fencing_token     = EXCLUDED.fencing_token
+WHERE fact_records.fencing_token <= EXCLUDED.fencing_token
 `
 
 // reducerFactVersionedRow is one canonical fact-record row for a batched
@@ -146,6 +167,14 @@ type reducerFactVersionedRow struct {
 	IngestedAt       time.Time
 	IsTombstone      bool
 	Payload          string
+	// FencingToken is the row's write-ordering watermark, carried on the INSERT
+	// so the conflict guard has something to rank a colliding pass against.
+	// Leave it zero unless the domain's intent can be replayed by two workers
+	// holding different views of the evidence; see
+	// reducerFactBatchInsertVersionedQuery for why 0 is not a safe resting
+	// state for one that can, and reducerFactRow.FencingToken for the
+	// unversioned sibling this mirrors.
+	FencingToken int64
 }
 
 // reducerBatchInsertVersionedFacts upserts governed reducer-derived fact rows
@@ -197,6 +226,7 @@ func execReducerFactVersionedChunk(
 	ingestedAts := make([]time.Time, n)
 	isTombstones := make([]bool, n)
 	payloads := make([]string, n)
+	fencingTokens := make([]int64, n)
 
 	for i, row := range chunk {
 		factIDs[i] = row.FactID
@@ -215,6 +245,7 @@ func execReducerFactVersionedChunk(
 		ingestedAts[i] = row.IngestedAt
 		isTombstones[i] = row.IsTombstone
 		payloads[i] = row.Payload
+		fencingTokens[i] = row.FencingToken
 	}
 
 	if _, err := db.ExecContext(
@@ -236,6 +267,7 @@ func execReducerFactVersionedChunk(
 		ingestedAts,
 		isTombstones,
 		payloads,
+		fencingTokens,
 	); err != nil {
 		return fmt.Errorf("batch insert versioned reducer facts: %w", err)
 	}

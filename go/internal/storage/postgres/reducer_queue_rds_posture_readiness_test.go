@@ -60,6 +60,8 @@ func (db *rdsPostureReadinessQueueDB) QueryContext(_ context.Context, query stri
 		"gen-aws-1",
 		string(reducer.DomainRDSPostureMaterialization),
 		db.attemptCount + 1,
+		int64(0),
+		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"aws_resource_materialization:aws:111111111111:us-east-1:rds","reason":"rds posture observed","fact_id":"fact-rds-posture-1","source_system":"aws"}`),

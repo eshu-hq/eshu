@@ -1,0 +1,30 @@
+-- #5848/#5837 follow-up (round-3 review P2-2): a per-cycle readiness-defer
+-- anchor for fact_work_items, distinct from the immutable created_at.
+--
+-- created_at never changes across a row's lifetime, including reopen/replay
+-- (ReopenSucceeded/ReplayDomain reset attempt_count and visible_at but never
+-- touch created_at -- see reducer_queue_replay.go). A readiness defer bounded
+-- by elapsed time since created_at (aws_cloud_runtime_drift's
+-- awsCloudRuntimeDriftStatePendingMaxWait) therefore gets NO fresh grace
+-- window on a maintenance-triggered reopen: aws_cloud_runtime_drift is
+-- unconditionally reopened on every ingester shard drain and bootstrap
+-- maintenance pass (CrossScopeCorrelationReopenDomains), so for essentially
+-- every reopen in a real deployment more than the bound has already elapsed
+-- since the ORIGINAL enqueue, and a still-pending state_snapshot scope at
+-- that moment gets no wait at all before Handle commits a degraded verdict.
+--
+-- reopened_at closes that gap without touching created_at's semantics --
+-- several reducer domains read intent.EnqueuedAt (sourced from created_at) as
+-- a materialized fact's content timestamp (e.g.
+-- go/internal/reducer/code_call_materialization.go), so created_at's meaning
+-- must stay "the row's original enqueue" everywhere else.
+--
+-- Ordinary claim/retry/fail/ack never write reopened_at (see
+-- reducer_queue.go, reducer_queue_claim_query.go, reducer_queue_batch_query.go),
+-- so it stays freeze-immune the same way created_at does; only
+-- reopenSucceededReducerWorkQuery and replaySucceededReducerDomainQuery
+-- (reducer_queue_replay.go) set it, to the reopen/replay timestamp, giving
+-- the row's readiness-defer anchor (COALESCE(reopened_at, created_at)) a
+-- fresh start exactly when attempt_count also resets to 0.
+ALTER TABLE fact_work_items
+    ADD COLUMN IF NOT EXISTS reopened_at TIMESTAMPTZ NULL;

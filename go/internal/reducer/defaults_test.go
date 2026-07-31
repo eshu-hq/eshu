@@ -401,8 +401,9 @@ func TestImplementedDefaultDomainDefinitionsIncludesAWSCloudRuntimeDriftWhenAdap
 
 	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
 		DriftHandlers: DriftHandlers{
-			AWSCloudRuntimeDriftEvidenceLoader: &stubAWSCloudRuntimeDriftEvidenceLoader{},
-			AWSCloudRuntimeDriftWriter:         &stubAWSCloudRuntimeDriftFindingWriter{},
+			AWSCloudRuntimeDriftEvidenceLoader:     &stubAWSCloudRuntimeDriftEvidenceLoader{},
+			AWSCloudRuntimeDriftWriter:             &stubAWSCloudRuntimeDriftFindingWriter{},
+			AWSCloudRuntimeDriftFencingTokenIssuer: &stubAWSCloudRuntimeDriftFencingTokenIssuer{tokens: []int64{1}},
 		},
 	})
 	found := false
@@ -415,7 +416,7 @@ func TestImplementedDefaultDomainDefinitionsIncludesAWSCloudRuntimeDriftWhenAdap
 		}
 	}
 	if !found {
-		t.Fatal("aws_cloud_runtime_drift not registered after wiring loader+writer")
+		t.Fatal("aws_cloud_runtime_drift not registered after wiring loader+writer+fencing token issuer")
 	}
 }
 

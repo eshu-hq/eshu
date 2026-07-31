@@ -195,6 +195,7 @@ func TestCrossScopeCorrelationReopenDomainsPinsListAndReturnsFreshSlice(t *testi
 		string(reducer.DomainContainerImageIdentity),
 		string(reducer.DomainCICDRunCorrelation),
 		string(reducer.DomainSupplyChainImpact),
+		string(reducer.DomainAWSCloudRuntimeDrift),
 	}
 	if len(got) != len(want) {
 		t.Fatalf("CrossScopeCorrelationReopenDomains() = %v, want %v", got, want)

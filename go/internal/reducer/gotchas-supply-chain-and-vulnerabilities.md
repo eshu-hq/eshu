@@ -20,6 +20,73 @@ for the same reason.
   `AWSCloudRuntimeDriftHandler` writes `reducer_aws_cloud_runtime_drift_finding`
   facts through `PostgresAWSCloudRuntimeDriftWriter`; graph nodes and MCP/API
   read models need their own frozen shape before Cypher lands.
+
+  **The writer is transaction-backed and admission-gated (#5837, #5848).**
+  `PostgresAWSCloudRuntimeDriftWriter.WriteAWSCloudRuntimeDriftFindings` runs a
+  begin-before-mutate insert-admission check, the versioned upsert, and a
+  generation-authoritative retire inside one transaction
+  (`AWSCloudRuntimeDriftBeginner`/`AWSCloudRuntimeDriftTx`,
+  `aws_cloud_runtime_drift_admission.go`). The admission check is a
+  one-row-per-`(scope_id, generation_id)` watermark
+  (`aws_cloud_runtime_drift_write_admission`): a pass whose fencing token is
+  older than one already admitted for the same scope/generation is rejected
+  with `awsCloudRuntimeDriftWriteSupersededError` BEFORE it inserts or
+  retires anything. This closes the residual `#5847`'s pattern would
+  otherwise leave open here: the fact identity embeds `finding_kind`, so a
+  reclassified ARN mints a DIFFERENT `fact_id` and never collides on the
+  insert's own `ON CONFLICT` guard — only the admission check catches a
+  stalled worker's stale reclassification landing after a fresher one
+  already committed. The retire (`aws_cloud_runtime_drift_writer_queries.go`)
+  is what makes replaying a corrected pass safe at all: it removes a stale
+  finding for any ARN the current pass evaluated
+  (`AWSCloudRuntimeDriftWrite.EvaluatedARNs`) whose `fact_id` is not among
+  the rows it just wrote, bounded by the same fencing token.
+
+  The fencing token is a **database-issued Postgres sequence value**
+  (`aws_cloud_runtime_drift_fencing_token_seq`,
+  `AWSCloudRuntimeDriftFencingTokenIssuer`), not the reducer host's wall
+  clock — a round-5 review (#5875) found that a wall-clock token lets
+  cross-replica clock skew invert the admission ordering (an older worker on
+  a fast-clock host can outrank a genuinely fresher one). `Handle` issues the
+  token at evidence-read time, before the evidence load, the same point the
+  fencing watermark was always captured at; issuing it at write-commit time
+  instead would order by commit order rather than evidence recency and
+  reintroduce the original #5848 bug while fixing the clock-skew one.
+
+  `AWSCloudRuntimeDriftHandler.ReadinessChecker`
+  (`aws_cloud_runtime_drift_readiness.go`) addresses #5837's actual root cause —
+  a Terraform `state_snapshot:*` scope draining its generation AFTER the AWS
+  scope's drift intent, which made `cloudruntime.Classify` read absent state as
+  a verdict (`orphaned_cloud_resource`) rather than as "not ready" — with a
+  bounded defer: 30 minutes of ELAPSED WALL-CLOCK TIME
+  (`awsCloudRuntimeDriftStatePendingMaxWait`), not a retry-count bound, since
+  this defer's own non-counting failure class freezes
+  `fact_work_items.attempt_count` the moment the row is retried once,
+  making a retry-count bound unreachable against the real queue. The elapsed
+  time is measured from `Intent.CycleStartedAt`
+  (`COALESCE(reopened_at, created_at)`), not from the row's original
+  `created_at` alone: `aws_cloud_runtime_drift` is also now in
+  `postgres.CrossScopeCorrelationReopenDomains()`, mirroring the
+  `container_image_identity` precedent, so a lost race can still recover via the
+  bootstrap/ingester maintenance reopen — and because that reopen happens
+  unconditionally on every ingester shard drain and bootstrap maintenance pass,
+  `ReopenSucceeded`/`ReplayDomain` reset `reopened_at` (migration 088)
+  alongside `attempt_count = 0`, giving each reopen a genuinely fresh 30-minute
+  grace window instead of inheriting an already-elapsed one from the original
+  enqueue.
+
+  The readiness check runs BEFORE the evidence load, not after (round-5
+  review, #5875): checking after the load let a state_snapshot activation
+  landing between the evidence snapshot and the check make a stale
+  `orphaned_cloud_resource` verdict look "ready" to write. `Handle` captures
+  the pending signal first and combines it with the freshly loaded evidence's
+  own admitted candidates (`shouldDeferForLoadedEvidence`) to decide whether
+  to defer, preserving the "only defer when it could matter" optimization.
+
+  Full design, concurrency analysis, and live-Postgres proof (failing before,
+  passing after, for the interleaving, the retire, the readiness check, the
+  reopen anchor, and the fencing token) are in
+  `docs/internal/evidence/5837-aws-drift-reopen.md`.
 - **Multi-cloud runtime drift shares one path keyed on `cloud_resource_uid`, but
   AWS publication stays exclusive to `DomainAWSCloudRuntimeDrift`** —
   `MultiCloudRuntimeDriftHandler` reuses the AWS structural join

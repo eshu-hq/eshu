@@ -77,6 +77,8 @@ func (db *ec2InstanceNodeReadinessQueueDB) QueryContext(_ context.Context, query
 		// this domain for the real ec2_uses_profile_materialization clause.
 		string(reducer.DomainAWSRelationshipMaterialization),
 		db.attemptCount + 1,
+		int64(0),
+		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"ec2_instance_node_materialization:aws:123456789012:us-east-1:ec2","reason":"ec2 instance posture facts observed","fact_id":"fact-ec2-1","source_system":"aws"}`),
