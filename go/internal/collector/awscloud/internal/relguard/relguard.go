@@ -224,6 +224,7 @@ var factschemaResourceTypes = map[string]string{
 	"ResourceTypeEC2NetworkInterface":  awsv1.ResourceTypeEC2NetworkInterface,
 	"ResourceTypeEC2Volume":            awsv1.ResourceTypeEC2Volume,
 	"ResourceTypeEC2Instance":          awsv1.ResourceTypeEC2Instance,
+	"ResourceTypeEC2AMI":               awsv1.ResourceTypeEC2AMI,
 	"ResourceTypeIAMRole":              awsv1.ResourceTypeIAMRole,
 	"ResourceTypeIAMUser":              awsv1.ResourceTypeIAMUser,
 	"ResourceTypeIAMGroup":             awsv1.ResourceTypeIAMGroup,

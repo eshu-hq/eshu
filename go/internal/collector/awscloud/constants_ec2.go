@@ -34,14 +34,19 @@ const (
 	// identity fact only ever augments the node with the disjoint ami_id
 	// property (go/internal/reducer/ec2_instance_identity_materialization.go).
 	ResourceTypeEC2Instance = awsv1.ResourceTypeEC2Instance
-	// ResourceTypeEC2AMI identifies an EC2 AMI (machine image) as a
-	// relationship target (#5448). No aws_resource inventory fact is emitted
-	// for AMIs and no AMI graph node class exists yet (tracked follow-up:
-	// https://github.com/eshu-hq/eshu/issues/5717), so a relationship naming
-	// this target type always resolves as unresolved/Postgres-only — the raw
-	// aws_relationship fact still lands durably, and the reducer's edge
-	// projection counts and logs the miss, it never fabricates a node.
-	ResourceTypeEC2AMI = "aws_ec2_ami"
+	// ResourceTypeEC2AMI identifies an EC2 AMI (machine image), both as a
+	// relationship target (#5448) and, since #5717, as the resource_type of
+	// the AMI's own aws_resource identity fact (amiResourceObservation in
+	// go/internal/collector/awscloud/services/ec2/ami_identity.go). The AMI
+	// materializes as an ordinary CloudResource node — no dedicated node/edge
+	// writer, no new graph label — through the SAME generic AWS resource
+	// materialization and relationship-edge-join path every other resource
+	// type uses (go/internal/reducer/aws_resource_materialization.go,
+	// aws_relationship_join.go). It carries only identity: the EC2 scanner
+	// reads no DescribeImages data, so no name/state/owner/creation-date
+	// metadata is available this increment (a documented scope boundary, not
+	// a bug — enrichment via DescribeImages is a separate, costed change).
+	ResourceTypeEC2AMI = awsv1.ResourceTypeEC2AMI
 )
 
 const (
@@ -67,8 +72,9 @@ const (
 	// volume encryption.
 	RelationshipEC2VolumeUsesKMSKey = "ec2_volume_uses_kms_key"
 	// RelationshipEC2InstanceUsesAMI records the AMI (ImageId) an EC2 instance
-	// was launched from (#5448). The target type is ResourceTypeEC2AMI; no AMI
-	// CloudResource node exists yet, so this relationship stays Postgres-only
-	// until the follow-up AMI node class lands (see ResourceTypeEC2AMI doc).
+	// was launched from (#5448). The target type is ResourceTypeEC2AMI, which
+	// the AMI's own aws_resource identity fact (#5717) now materializes as a
+	// CloudResource node, so this relationship's edge projection resolves
+	// (see ResourceTypeEC2AMI doc).
 	RelationshipEC2InstanceUsesAMI = "ec2_instance_uses_ami"
 )
