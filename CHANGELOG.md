@@ -418,6 +418,25 @@ recent shipped work grouped by feature area.
     The live gate re-run that confirms this fix is not runnable in this
     environment.
 
+- **Fourth live golden-corpus-gate round trip: both fixes confirmed end to
+  end, closing out this section's earlier caveats.** [PR
+  #5882](https://github.com/eshu-hq/eshu/pull/5882)'s live
+  `bash scripts/verify-golden-corpus-gate.sh` run against the `results_field`
+  fix and the `sed`-escaping fix above proved the whole chain for the first
+  time on this branch: `[1a]`'s `ingestion_scopes` check shows the
+  local-backend state-snapshot scope landing under its computed identifier,
+  `POST /api/v0/terraform/config-state-drift/findings?variant=local-backend-resolved`
+  returns 4 `drift_findings` with `outcome: "exact"`, and
+  `...?variant=unresolved` returns 1 finding with `outcome: "unresolved"` --
+  distinguishable from the resolved case in the same run. This supersedes
+  every earlier "requires a fresh live-gate run, not yet re-proven, deferred
+  to the repo owner" caveat recorded above in this section (the "Live
+  golden-corpus-gate round trip" and "Third live golden-corpus-gate round
+  trip" entries, and the `?variant=local-backend-resolved`/`?variant=unresolved`
+  descriptions in `testdata/golden/e2e-20repo-snapshot.json`, updated in the
+  same commit as this entry): both are now proven, not merely locally
+  plausible.
+
 ### Route-fact-based Rails controller liveness
 
 - **Join the Rails controller dead-code-root verdict against real route facts**

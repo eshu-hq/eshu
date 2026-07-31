@@ -166,14 +166,13 @@ backslashes reach `sed` intact.
 - No-Observability-Change (#5594): a shell orchestration fix in a
   gate-support script; no runtime code path, metric, span, or log changed.
 
-**Corrected corpus-proof status.** Across all live rounds to date, the
-`backend "local" {}` default-path fix's `"exact"`-outcome path has never
-actually been proven end to end by a green
-`?variant=local-backend-resolved` assertion -- the state-snapshot scope that
-proof depends on had never reached Postgres under its intended identifier
-until this fix. Only the `"unresolved"`-outcome path (which never depended on
-this substitution) has live proof today. A fresh `bash
-scripts/verify-golden-corpus-gate.sh` run against this fix is required before
-the `"exact"`-outcome path can be called proven end to end; see
-`CHANGELOG.md`'s "Third live golden-corpus-gate round trip" entry for the
-full narrative.
+**Corpus-proof status (updated).** The status this section originally
+recorded -- that the `"exact"`-outcome path had never been proven end to end
+-- was corrected by [PR #5882](https://github.com/eshu-hq/eshu/pull/5882)'s
+live `bash scripts/verify-golden-corpus-gate.sh` run: the local-backend
+state-snapshot scope lands under its computed identifier, and
+`?variant=local-backend-resolved` returns 4 `drift_findings` with
+`outcome: "exact"`, `?variant=unresolved` returns 1 finding with
+`outcome: "unresolved"`, distinguishable in the same run. Both outcome paths
+now have live proof; see `CHANGELOG.md`'s "Fourth live golden-corpus-gate
+round trip" entry for the full narrative.
