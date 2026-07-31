@@ -204,23 +204,25 @@ func (quietFleetNoopCommitter) CommitScopeGeneration(context.Context, scope.Inge
 	return fmt.Errorf("quiet-restart fleet test: no generation should ever be committed")
 }
 
-// TestIngestionStoreShardDrainBarrierQuietRestartOpensExactlyOneEpochAcrossFleetLifetime
+// TestIngestionStoreShardDrainBarrierQuietRestartOpensExactlyOneEpochAcrossManyIdlePolls
 // is the P1 follow-up regression for #5852: N real collector.Service.Run
 // instances, one goroutine per shard, none of which ever commits a
 // generation, driven against the real join-only barrier
 // (ensureDeferredMaintenanceBarrierEpoch) and the real once-latch
-// (startupMaintenanceEscapeUsed in collector.Service.Run). Each shard's own
-// once-latch reports hasCommitted=true on its own first-ever escape call, so
-// all three shards independently believe they may open an epoch — proving the
-// property this test exists for: across the whole fleet's quiet-restart
-// lifetime (many idle polls per shard), the join-only barrier logic still
+// (startupMaintenanceEscapeUsed in collector.Service.Run). Each shard runs
+// exactly one Service.Run call for the life of the test (no process restart
+// is simulated); within that single call each shard's own once-latch
+// reports hasCommitted=true on its own first-ever escape call, so all three
+// shards independently believe they may open an epoch — proving the
+// property this test exists for: across many idle polls per shard within
+// that one quiet-restart process lifetime, the join-only barrier logic still
 // lets only ONE of those calls actually insert a new epoch; every other
 // arrival — including the other two shards' own "I may open" calls — joins
 // the epoch already open instead of inserting another. That is the fix for
 // the join-only-only design (this branch's prior state), which gated the
 // escape on a permanently-false HasCommitted and opened zero epochs ever,
 // silently dropping origin/main's one-time startup maintenance pass.
-func TestIngestionStoreShardDrainBarrierQuietRestartOpensExactlyOneEpochAcrossFleetLifetime(t *testing.T) {
+func TestIngestionStoreShardDrainBarrierQuietRestartOpensExactlyOneEpochAcrossManyIdlePolls(t *testing.T) {
 	t.Parallel()
 
 	const shardCount = 3

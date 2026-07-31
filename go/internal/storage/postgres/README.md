@@ -1684,13 +1684,17 @@ Postgres write happens beyond the epoch lookup and the idle log (rate-limited
 — see below). Because every shard independently gets its own once-per-process
 call, a fleet where no shard EVER commits anything can have every shard
 believe, on its own first check, that it may open an epoch; the join-only
-rule above still bounds the result to exactly one epoch opened across the
-fleet's whole lifetime, since only the first of those calls actually inserts
+rule above still bounds the result to exactly one epoch opened across that
+quiet fleet's shards, since only the first of those calls actually inserts
 and every other shard's own "I may open" call joins the epoch already open
-instead.
+instead. That bound is per process per shard, not per fleet lifetime: a
+process restart (pod eviction, rolling deploy, crash-loop) re-arms each
+shard's own once-latch, so a fleet that restarts while still quiet may open
+another epoch — intended, since a restarted fleet warrants its own startup
+pass, not a leak.
 
 No-Regression Evidence: `go test ./internal/storage/postgres -run
-'TestIngestionStoreShardDrainBarrier(QuietRestartOpensExactlyOneEpochAcrossFleetLifetime|SingleShardNeverCommittedSkipsMaintenance|SingleShardHasCommittedRunsMaintenance|NeverCommittedShardJoinsAlreadyOpenEpochAndBecomesLeader)|TestEnsureDeferredMaintenanceBarrierEpochNeverCommittedShard(DoesNotOpenNewEpoch|JoinsAlreadyOpenEpoch)'
+'TestIngestionStoreShardDrainBarrier(QuietRestartOpensExactlyOneEpochAcrossManyIdlePolls|SingleShardNeverCommittedSkipsMaintenance|SingleShardHasCommittedRunsMaintenance|NeverCommittedShardJoinsAlreadyOpenEpochAndBecomesLeader)|TestEnsureDeferredMaintenanceBarrierEpochNeverCommittedShard(DoesNotOpenNewEpoch|JoinsAlreadyOpenEpoch)'
 -count=1` proves a quiet fleet — driven by real `collector.Service.Run`
 instances, one goroutine per shard, against the real join-only barrier logic
 — opens exactly one epoch across many idle polls per shard, and that a

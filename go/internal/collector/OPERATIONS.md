@@ -68,6 +68,29 @@ README.
   files and Cortex scorecard descriptors stay ordinary content until a
   dedicated runtime slice opens that contract.
 
+## Documentation-only extraction lane
+
+A documentation-only lane normalizes repo-hosted Markdown, lightweight text,
+HTML, API contracts, notebooks, spreadsheets, DOCX/XLSX/PPTX summaries,
+bounded ZIP/TAR packets, and deterministic diagrams into source-neutral facts
+with repository target refs. Deterministic diagram document and section
+facts carry `incident_media_source_class=diagram_label` so later correlation
+work can preserve the media evidence boundary.
+
+Office annotations and hidden content stay metadata-only while visible
+content still emits facts. External relationships, embedded objects, macro
+content, malformed containers, unsafe paths, resource limits, and
+compression hazards block Office extraction; legacy `.xls` cell bytes stay
+metadata-only. Archive packets preflight first, preserve member path/hash
+provenance, skip unsupported/nested/credential-like members, and block
+unsafe or resource-hazard archives from emitting contained sections.
+
+Default-off helper packages may build OCR or media transcript documentation
+facts from reviewed local engine output after preflight, but those helpers
+do not enable repository media discovery, hosted runtime paths, or truth
+promotion. These claims remain document evidence only; projector, reducer,
+and query stages own correlation, drift, and truth decisions.
+
 ## Evidence
 
 - Performance Evidence: On 2026-07-02, a collector-discovered remote profile of
@@ -116,7 +139,7 @@ README.
   lifetime (the `startupMaintenanceEscapeUsed` once-latch — see below), and
   `false` for every later empty-batch-escape call. `go test
   ./internal/storage/postgres -run
-  'TestIngestionStoreShardDrainBarrier(QuietRestartOpensExactlyOneEpochAcrossFleetLifetime|SingleShardNeverCommittedSkipsMaintenance|SingleShardHasCommittedRunsMaintenance|NeverCommittedShardJoinsAlreadyOpenEpochAndBecomesLeader)|TestEnsureDeferredMaintenanceBarrierEpochNeverCommittedShard(DoesNotOpenNewEpoch|JoinsAlreadyOpenEpoch)'
+  'TestIngestionStoreShardDrainBarrier(QuietRestartOpensExactlyOneEpochAcrossManyIdlePolls|SingleShardNeverCommittedSkipsMaintenance|SingleShardHasCommittedRunsMaintenance|NeverCommittedShardJoinsAlreadyOpenEpochAndBecomesLeader)|TestEnsureDeferredMaintenanceBarrierEpochNeverCommittedShard(DoesNotOpenNewEpoch|JoinsAlreadyOpenEpoch)'
   -count=1` proves a fleet where nothing has committed opens exactly one
   epoch across many idle polls (multi-shard, driven by real
   `collector.Service.Run` instances against the real join-only barrier, and
@@ -136,7 +159,7 @@ README.
   join-only. `go test ./internal/collector -run
   TestServiceRunCallsAfterBatchDrainedForConfiguredEmptyBatch -count=1` proves
   the single-call case reports `true`; `go test ./internal/storage/postgres
-  -run TestIngestionStoreShardDrainBarrierQuietRestartOpensExactlyOneEpochAcrossFleetLifetime
+  -run TestIngestionStoreShardDrainBarrierQuietRestartOpensExactlyOneEpochAcrossManyIdlePolls
   -count=1` proves the fleet-wide effect: exactly one epoch opens across the
   whole run, not zero and not once per poll.
 - No-Observability-Change (#5852 follow-up): the join-only change adds one

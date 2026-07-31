@@ -162,18 +162,10 @@ package semantic context match a full snapshot.
 When the stream re-reads repo-hosted service-catalog descriptors
 (`catalog-info.yaml`, `opslevel.yml`, or `cortex.yaml`), it delegates to the
 `servicecatalog` normalizer and emits observed `service_catalog.*` facts under
-the same scope and generation. A documentation-only lane normalizes repo-hosted
-Markdown, lightweight text, HTML, API contracts, notebooks, spreadsheets,
-DOCX/XLSX/PPTX summaries, bounded ZIP/TAR packets, and deterministic diagrams
-into source-neutral facts with repository target refs. Deterministic diagram
-document and section facts carry `incident_media_source_class=diagram_label` so
-later correlation work can preserve the media evidence boundary.
-Office annotations and hidden content stay metadata-only while visible content still emits facts. External relationships, embedded objects, macro content, malformed containers, unsafe paths, resource limits, and compression hazards block Office extraction; legacy `.xls` cell bytes stay metadata-only. Archive packets preflight first, preserve member path/hash provenance, skip unsupported/nested/credential-like members, and block unsafe or resource-hazard archives from emitting contained sections.
-Default-off helper packages may build OCR or media transcript documentation facts
-from reviewed local engine output after preflight, but those helpers do not
-enable repository media discovery, hosted runtime paths, or truth promotion.
-These claims remain document evidence only; projector, reducer, and query stages
-own correlation, drift, and truth decisions.
+the same scope and generation. A documentation-only lane normalizes further
+repo-hosted document kinds (Markdown, HTML, Office, archives, diagrams) into
+source-neutral facts under the same scope and generation; see
+`OPERATIONS.md` for the per-kind extraction and safety-limit detail.
 `AfterBatchDrained` runs only after the service has committed at least one
 generation and then observes the source batch drain. Idle polls do not trigger
 it unless `AfterEmptyBatchDrained` is set for a caller that needs configured
@@ -189,8 +181,11 @@ barrier epoch, or join one, and get the one startup maintenance pass
 origin/main always ran; every later escape call on the same shard reports
 `false` and stays join-only, joining an epoch another shard already opened
 without ever opening one on its own. A fleet where nothing has committed
-anywhere therefore opens the barrier epoch at most once across the fleet's
-whole lifetime, then stays idle -- not zero opens, and not once per idle poll.
+anywhere therefore has each shard open the barrier epoch at most once per
+process per shard, not once per idle poll. A restart (pod eviction, rolling
+deploy, crash-loop) is a new process: it re-arms the once-latch, so a
+restarting shard may open another epoch. That is intended, since a
+restarted fleet warrants its own startup pass, not a leak.
 
 The delta-generation, documentation-extraction, and `AfterEmptyBatchDrained`
 evidence for this section (No-Regression, Performance, and

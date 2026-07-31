@@ -253,9 +253,13 @@ kind, not on commit status). `startupMaintenanceEscapeUsed` in
 escape's own first-ever call per process report `hasCommitted=true`, letting
 that one call open or join an epoch and get the one startup maintenance
 pass, while every later call on the same shard reports `false` and stays
-join-only. A fleet where nothing ever commits anywhere therefore opens the
-barrier epoch at most once across the fleet's whole lifetime — not zero, and
-not once per idle poll — including for `ESHU_REPO_SHARD_COUNT == 1`, whose
+join-only. A fleet where nothing ever commits anywhere therefore has each
+shard open the barrier epoch at most once per process per shard — not zero,
+and not once per idle poll. A process restart (pod eviction, rolling
+deploy, crash-loop) re-arms the once-latch, so a restarting shard opens
+another epoch by design — a restarted fleet warrants its own startup pass,
+not a leak. The same once-per-process bound holds for
+`ESHU_REPO_SHARD_COUNT == 1`, whose
 `RunDeferredRelationshipMaintenanceAfterShardDrain` short-circuit applies the
 identical rule directly: it runs maintenance when `HasCommitted` is true and
 skips it outright otherwise, so "at most once" is literally true there too
@@ -311,7 +315,7 @@ pre-first-commit drain, exactly as before. `go test ./internal/storage/postgres
 
 No-Regression Evidence (#5852 follow-up, join-only barrier arrivals plus the
 P1 startup-escape once-latch): `go test ./internal/storage/postgres -run
-'TestIngestionStoreShardDrainBarrier(QuietRestartOpensExactlyOneEpochAcrossFleetLifetime|SingleShardNeverCommittedSkipsMaintenance|SingleShardHasCommittedRunsMaintenance|NeverCommittedShardJoinsAlreadyOpenEpochAndBecomesLeader)|TestEnsureDeferredMaintenanceBarrierEpochNeverCommittedShard(DoesNotOpenNewEpoch|JoinsAlreadyOpenEpoch)'
+'TestIngestionStoreShardDrainBarrier(QuietRestartOpensExactlyOneEpochAcrossManyIdlePolls|SingleShardNeverCommittedSkipsMaintenance|SingleShardHasCommittedRunsMaintenance|NeverCommittedShardJoinsAlreadyOpenEpochAndBecomesLeader)|TestEnsureDeferredMaintenanceBarrierEpochNeverCommittedShard(DoesNotOpenNewEpoch|JoinsAlreadyOpenEpoch)'
 -count=1` proves a quiet fleet — driven by real `collector.Service.Run`
 instances, one per shard — opens exactly one epoch across many idle polls,
 not zero and not once per poll, while a never-committed shard can still

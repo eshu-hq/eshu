@@ -142,7 +142,7 @@ func TestIngestionStoreShardDrainBarrierNeverCommittedShardJoinsAlreadyOpenEpoch
 
 // quietFleetBarrierState, quietFleetDB, quietFleetTx, quietFleetIdleSource,
 // quietFleetNoopCommitter, and
-// TestIngestionStoreShardDrainBarrierQuietRestartOpensExactlyOneEpochAcrossFleetLifetime
+// TestIngestionStoreShardDrainBarrierQuietRestartOpensExactlyOneEpochAcrossManyIdlePolls
 // live in deferred_maintenance_barrier_quiet_fleet_test.go (split out to keep
 // this file under the 500-line cap).
 
