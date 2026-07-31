@@ -196,23 +196,45 @@ export function useCodeGraphSelection({
     // `canonical` now would replace that freshly-navigated-to entry with this
     // effect's stale one.
     //
-    // Make that impossible by construction instead of by timing: stamp the
-    // write with the exact `searchParams` it was computed from, and check
-    // that against the navigator's OWN current location, read fresh, right
-    // here, right before writing. `searchParams` (the value from
-    // `useSearchParams`) only updates when THIS component re-renders; the
-    // navigator's `location` is mutated synchronously by any push, replace,
-    // or back/forward the instant it is issued, independent of whether or
-    // when React has re-rendered this component for it. So this comparison
-    // can never be stale relative to this effect's own timing -- if the live
-    // location no longer matches what `canonical` was derived from, some
-    // other navigation has unconditionally already happened, and skipping is
-    // correct regardless of which of the two ran "first". (`Navigator`, the
-    // public type for `navigator`, omits `.location` specifically to steer
-    // application code away from reading it to decide what to RENDER, where
-    // it could tear across a single render pass under Suspense; this reads
-    // it once, inside a post-commit effect, purely to gate an imperative
-    // write, which does not have that render-time tearing hazard.)
+    // Guard against that by stamping the write with the exact `searchParams`
+    // it was computed from and comparing it against the navigator's OWN
+    // current location, read fresh, right here, right before writing.
+    // `searchParams` (the value from `useSearchParams`) only updates when
+    // THIS component re-renders. Whether the live read below is itself fresh
+    // is router-mode-dependent: under the `MemoryRouter` used in tests,
+    // `createMemoryHistory.go(delta)` updates `.location` synchronously,
+    // before notifying listeners, so a same-tick read is never stale. Under
+    // the `BrowserRouter` this console actually renders with
+    // (`apps/console/src/main.tsx`), `.location` is a live read of
+    // `window.location`, and `go(n)` calls the native `history.go(n)`, whose
+    // traversal is asynchronous -- MDN documents `popstate` firing
+    // "asynchronously ... outside the event handler" that invoked
+    // back()/go(). Measurement in real Chromium found a consistent
+    // ~0.3-2ms gap between the `history.back()` call and both
+    // `window.location` updating and `popstate` firing, and this effect can
+    // run inside that gap, so the guard's own decision to write is
+    // sometimes wrong -- it can compare against a location that has not yet
+    // caught up with a pending back/forward traversal.
+    //
+    // The comparison below is a guard against the common case, not a proof
+    // that a stale write is impossible under `BrowserRouter`. What keeps the
+    // final URL correct even when the guard's decision is wrong: native
+    // `history.replaceState` replaces whichever entry is current AT CALL
+    // TIME -- the entry the pending traversal is about to abandon, not the
+    // entry it is about to land on. That is the leading explanation for why
+    // the outcome stays correct even in the stale-read case; it is supported
+    // by measurement, not by a cited spec or react-router guarantee, so
+    // treat it as empirical, not as a proof.
+    //
+    // Empirical outcome in real Chromium against production `BrowserRouter`:
+    // the reverted (pre-fix) hook clobbers the URL in 8/30 rapid
+    // back/forward trials (~27%); this fixed hook clobbers in 0/30.
+    // (`Navigator`, the public type for `navigator`, omits `.location`
+    // specifically to steer application code away from reading it to decide
+    // what to RENDER, where it could tear across a single render pass under
+    // Suspense; this reads it once, inside a post-commit effect, purely to
+    // gate an imperative write, which does not have that render-time tearing
+    // hazard.)
     const liveLocationSearch = readLiveLocationSearch(navigator);
     if (liveLocationSearch === undefined || liveLocationSearch !== searchParams.toString()) return;
     setSearchParams(canonical, { replace: true });
@@ -270,11 +292,24 @@ export function useCodeGraphSelection({
  * to render could tear across a single render pass under Suspense-driven
  * concurrent rendering. This function is only ever called from inside a
  * post-commit effect to gate an imperative write against a stale snapshot,
- * never to decide what to render, so that tearing hazard does not apply --
- * and unlike `searchParams` from `useSearchParams` (which only updates once
- * this component re-renders), the navigator's location is mutated
- * synchronously the instant any push, replace, or history.go is issued, so
- * this read is never behind React's own render timing.
+ * never to decide what to render, so that tearing hazard does not apply.
+ *
+ * Freshness relative to `searchParams` (from `useSearchParams`, which only
+ * updates once this component re-renders) is router-mode-dependent, not a
+ * blanket guarantee. Under `MemoryRouter` (used in tests),
+ * `createMemoryHistory.go(delta)` updates `.location` synchronously, before
+ * notifying listeners, so a same-tick read is never stale. Under
+ * `BrowserRouter` (what this console actually renders with, see
+ * `apps/console/src/main.tsx`), `.location` is a live read of
+ * `window.location`, and `go(n)` calls the native `history.go(n)`; that
+ * native traversal is asynchronous (`popstate` fires "asynchronously ...
+ * outside the event handler" that invoked it, per MDN), so this read can
+ * observe a stale value for the few milliseconds before the browser catches
+ * up. The caller's comparison against this value is therefore a guard
+ * against the common case, not a proof that a stale read is impossible
+ * under `BrowserRouter` -- see the comment at the call site for the
+ * measured gap and the empirical 0/30-vs-8/30 result that motivates the
+ * guard anyway.
  *
  * Whether the object behind `navigator` actually HAS `.location` depends on
  * the router mode -- verified against pinned react-router 8.3.0's own source
