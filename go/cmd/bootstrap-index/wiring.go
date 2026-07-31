@@ -103,7 +103,12 @@ func buildBootstrapProjector(
 		StoreName:   "bootstrap-index",
 	}
 
-	projectorQueue := postgres.NewProjectorQueue(instrumentedDB, "bootstrap-index", time.Minute).
+	// LeaseOwner MUST be postgres.BootstrapIndexProjectorLeaseOwner, not a raw
+	// literal: postgres.ProjectorQueue's config-state-drift runtime guard
+	// (runConfigStateDriftTriggerHook) keys off this exact value to refuse
+	// firing ConfigStateDriftTrigger on bootstrap-index's queue. Passing any
+	// other string here would silently disable that guard.
+	projectorQueue := postgres.NewProjectorQueue(instrumentedDB, postgres.BootstrapIndexProjectorLeaseOwner, time.Minute).
 		WithClaimSourceSystem(string(scope.CollectorGit))
 	// Exponential backoff + jitter (#4450): the one-shot bootstrap-index
 	// projector must use the same PROJECTOR retry policy as the ingester so

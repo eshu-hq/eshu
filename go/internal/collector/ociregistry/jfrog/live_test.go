@@ -45,11 +45,11 @@ func TestLiveJFrogRepositoryTags(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build live JFrog repository client: %v", err)
 	}
-	tags, err := client.ListTags(context.Background(), imageRepository)
+	tagList, err := client.ListTags(context.Background(), imageRepository, 100)
 	if err != nil {
 		t.Fatalf("ListTags(%s) error = %v", imageRepository, err)
 	}
-	if len(tags) == 0 {
+	if len(tagList.Tags) == 0 {
 		t.Fatalf("ListTags(%s) returned no tags", imageRepository)
 	}
 	if reference := envFirst("ESHU_JFROG_OCI_REFERENCE", "JFROG_IMAGE_REFERENCE"); reference != "" {

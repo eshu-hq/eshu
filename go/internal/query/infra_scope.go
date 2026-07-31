@@ -12,7 +12,7 @@ import "net/http"
 // Both routes run their own whole-graph Cypher rather than the aggregate store,
 // so they reuse infraResourceScopePredicate (infra_scope_grant.go) to bound
 // results to resources attributable to a scoped token's granted repositories.
-// The predicate is fail-closed and admits a node through four disjunct
+// The predicate is fail-closed and admits a node through five disjunct
 // families OR-joined together (#5384, SHAPE-A; see infraResourceScopePredicate):
 //
 //  1. Direct ownership. Canonical IaC entity nodes (TerraformResource,
@@ -27,15 +27,21 @@ import "net/http"
 //     admission uses a pattern-predicate OR-chain of inline-map property terms —
 //     one per grant, e.g. `(n)<-[:USES]-(:WorkloadInstance {repo_id:$g})` —
 //     built by scopeGrantInlineMapDisjunction.
-//  3. DEPLOYMENT_SOURCE. A node deployed from a granted repository is admitted
+//  3. MATCHES_STATE inline-map (#5623). TerraformStateResource nodes carry no
+//     `repo_id` and anchor to a repository only through the MATCHES_STATE edge
+//     a config-declared TerraformResource writes to it, e.g.
+//     `(n)<-[:MATCHES_STATE]-(:TerraformResource {repo_id:$g})`. An unmatched
+//     state resource (no edge) or one matched to an ungranted repository stays
+//     invisible.
+//  4. DEPLOYMENT_SOURCE. A node deployed from a granted repository is admitted
 //     through a forward-anchored `EXISTS { (n)-[:DEPLOYMENT_SOURCE]->(:Repository) }`
 //     — the one EXISTS shape the pinned build evaluates correctly.
-//  4. DEFINES-collision inline-map. A Workload whose materialized `repo_id`
+//  5. DEFINES-collision inline-map. A Workload whose materialized `repo_id`
 //     names a different tenant but which a granted repository DEFINES is
 //     admitted through `(n)<-[:DEFINES]-(:Repository {id:$g})`, again as an
 //     inline-map term to avoid the mis-evaluated backward EXISTS.
 //
-// The inline-map families (2, 4) expand one term per grant and are capped at
+// The inline-map families (2, 3, 5) expand one term per grant and are capped at
 // maxScopeGrantInlineTerms with fail-closed degradation: past the cap only the
 // direct-ownership and DEPLOYMENT_SOURCE families still admit, so a pathological
 // >cap-grant token loses collision/USES admission for the overflow (missing

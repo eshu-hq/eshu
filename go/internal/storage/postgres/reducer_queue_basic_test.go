@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -90,6 +91,47 @@ func TestReducerQueueEnqueueAndClaimRoundTrip(t *testing.T) {
 	}
 	if !strings.Contains(db.execs[0].query, "INSERT INTO fact_work_items") {
 		t.Fatalf("enqueue query = %q, want fact_work_items insert", db.execs[0].query)
+	}
+}
+
+// TestReducerQueueEnqueueCountReflectsRowsAffectedNotAttemptCount proves the
+// issue #5593 fix: IntentResult.Count reports the underlying INSERT's
+// actual RowsAffected, not len(intents). Before the fix, Enqueue always
+// returned Count: len(intents) regardless of how many rows the
+// `ON CONFLICT (work_item_id) DO NOTHING` clause actually admitted, so a
+// caller enqueuing an intent another producer already wrote (e.g. the
+// config_state_drift runtime trigger racing bootstrap's Phase 3.5 sweep for
+// the same generation) reported "1 enqueued" for a call that inserted zero
+// rows -- indistinguishable, on the metric alone, from a real admission.
+func TestReducerQueueEnqueueCountReflectsRowsAffectedNotAttemptCount(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.April, 12, 11, 0, 0, 0, time.UTC)
+	db := &fakeExecQueryer{
+		// The batch INSERT's ON CONFLICT DO NOTHING admitted zero of the one
+		// attempted row -- exactly what a real Postgres command tag reports
+		// when every row in the batch already has a work_item_id.
+		execResults: []sql.Result{rowsAffectedResult{rowsAffected: 0}},
+	}
+	queue := ReducerQueue{
+		db:            db,
+		LeaseOwner:    "reducer-1",
+		LeaseDuration: time.Minute,
+		Now:           func() time.Time { return now },
+	}
+
+	result, err := queue.Enqueue(context.Background(), []projector.ReducerIntent{{
+		ScopeID:      "state_snapshot:s3:hash-1",
+		GenerationID: "gen-state-1",
+		Domain:       reducer.DomainConfigStateDrift,
+		Reason:       "test-reason",
+		SourceSystem: "test-system",
+	}})
+	if err != nil {
+		t.Fatalf("Enqueue() error = %v, want nil", err)
+	}
+	if got, want := result.Count, 0; got != want {
+		t.Fatalf("Enqueue().Count = %d, want %d (attempted 1 intent, DB admitted 0 via ON CONFLICT DO NOTHING)", got, want)
 	}
 }
 

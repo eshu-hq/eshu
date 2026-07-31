@@ -213,3 +213,277 @@ NornicDB write-loss shapes found but not fixed in the same change (a
 `WITH`-chained multi-clause edge-MERGE no-op in `canonicalNodeFileUpdateExistingCypher`,
 and an `UNWIND`-batched `DELETE` no-op in the retract/refresh statements) are
 in `docs/internal/evidence/5652-nornic-bare-match-writeloss.md`.
+
+## #5623 — MATCHES_STATE edge retract must run on delta cycles too
+
+`terraformStateMatchesConfigEdgeRetractStatements`
+(`tfstate_state_match_edge_retract.go`, #5443 P1) used to skip on
+`mat.FirstGeneration || mat.DeltaProjection`, copying
+`terraformStateResourceRetractStatements`' own `DeltaProjection` skip without
+re-deriving whether that reasoning transferred. It does not: the node-level
+retract is an ungated DETACH DELETE over the whole current-label population
+minus this generation, which really would mass-delete every resource a delta
+cycle did not touch if it ran unguarded. The edge-level retract's
+`s.generation_id = $generation_id` anchor already restricts it to state
+resources upserted THIS exact generation (the node upsert always runs before
+this retract, on every cycle) — a resource a delta cycle did not touch keeps
+an OLDER generation_id and never matches that anchor, so this retract has no
+mass-deletion exposure at all and is safe on delta cycles.
+
+The practical effect of the copied guard: `terraformStateMatchesConfigEdgeStatements`'
+MERGE (the edge WRITE) has no `DeltaProjection` guard and runs every cycle. So
+when a state resource's resolved `OwningRepoID` changed to a DIFFERENT repo on
+a delta cycle, the new edge was written immediately but the retract that
+would delete the old edge was skipped, leaving the state resource with
+`MATCHES_STATE` edges to two different repos simultaneously until the next
+full reconciliation generation (hours away per
+`ESHU_REPO_RECONCILE_INTERVAL_HOURS`). `go/internal/query/infra_scope_grant.go`'s
+scoped-token infra predicate (#5623, landed in the same PR that surfaced this
+finding in review) admits a `TerraformStateResource` via a `MATCHES_STATE`
+inline-map disjunct that assumes at most one such edge; during the leak
+window it admitted the resource for EITHER repo's scoped grant, including the
+repo that no longer owns it — a genuine tenant-visibility leak reproduced live
+through the real `CanonicalNodeWriter.Write` pipeline (not a raw seeded
+fixture), not merely a theoretical gap.
+
+Fix: removed the `DeltaProjection` skip, keeping only the `FirstGeneration`
+skip (nothing can be stale before any prior generation ever wrote an edge).
+
+No-Regression Evidence: the Cypher statement itself
+(`canonicalTerraformStateMatchesConfigEdgeRetractCypher`) is byte-identical;
+only the Go condition deciding whether to emit it changed. The already-passing
+non-delta (full reconciliation) path is unchanged.
+
+Live proof (RED via `git apply -R` on the fix, confirmed FAIL for the right
+reason; GREEN restored), both run through the real write pipeline across a
+full generation then a delta-cycle ownership reassignment against an isolated
+NornicDB (`timothyswt/nornicdb-cpu-bge:v1.1.11`):
+- `TestCanonicalNodeWriterRetractsStaleMatchesStateEdgeOnDeltaCycleLive`
+  (this package): after the delta-cycle reassignment, the stale edge is gone
+  and the new edge exists; a same-generation retry (partial-failure
+  simulation) is idempotent.
+- `TestLiveInfraScopeShapeMatchesStateStaleEdgeExcludedAfterDeltaReassignment`
+  (`go/internal/query`): after the same real pipeline sequence, the scoped
+  predicate admits only the current owner's grant, not the former owner's.
+
+Both tests deliberately run every write back-to-back with NO interleaved read
+between them, matching this package's existing #5443 live-test precedent
+(`TestCanonicalNodeWriterRetractsStaleMatchesStateEdgeLive`): the pinned local
+NornicDB image can silently drop a write that follows an interleaved read on
+the same node within one test process. An earlier draft of the delta-cycle
+test read between generation 1 and generation 2's writes and produced a false
+failure from this exact defect, not from the retract logic — moving all reads
+to a single block after every write fixed it.
+
+Unit proof: `TestTerraformStateMatchesConfigEdgeRetractStatementsRunsUnderDeltaProjection`
+replaces the old `...SkipsUnderDeltaProjection` test (which pinned the buggy
+behavior); `TestTerraformStateMatchesConfigEdgeRetractStatementsSkipsOnFirstGeneration`
+and `...RunsOnNonDeltaGeneration` are unchanged and still pass.
+
+No-Observability-Change: the retract is a Cypher WHERE/DELETE fragment with no
+span, metric, label, or log surface; no new telemetry signal is added or
+needed.
+
+## #5623 P1 — the delta-cycle retract fix above wiped a still-valid edge on a resolver hiccup
+
+Follow-up review finding on the #5623 fix immediately above. That fix's
+`s.generation_id = $generation_id` anchor proves "this generation upserted the
+node," which is NOT the same fact as "we know its correct owner this cycle."
+`TerraformStateOwnershipResolver.ResolveOwningRepoID` fails closed on ANY
+resolver error -- an ordinary transient Postgres timeout or pool exhaustion,
+not only a genuine "no owner" -- and every `cmd/*` wiring site
+(`cmd/bootstrap-index`, `cmd/ingester`, `cmd/projector`'s
+`terraform_state_ownership.go`) treats that identically to "no owner,"
+returning `row.OwningRepoID == ""`. The state resource's node still gets
+upserted that cycle regardless (row presence in `mat.TerraformStateResources`
+drives the upsert, independent of whether ownership resolved). So a resolver
+hiccup on a delta cycle for a resource whose node was still upserted: the
+retract's generation-only anchor could not distinguish "ownership genuinely
+changed" from "we simply failed to learn it this cycle" and deleted the
+existing, still-correct `MATCHES_STATE` edge either way; nothing rewrote it
+(`terraformStateMatchesConfigEdgeStatements`' MERGE already excludes
+`OwningRepoID == ""` rows for the identical reason). Fail-closed
+(under-authorization, never a leak) but a real accuracy regression, on every
+delta cycle instead of only full-reconciliation cycles.
+
+Fix: `terraformStateMatchesConfigEdgeRetractStatements` now filters
+`mat.TerraformStateResources` to rows with `OwningRepoID != ""`, collects
+their uids, batches by `w.batchSize`, and adds `AND s.uid IN $uids` to
+`canonicalTerraformStateMatchesConfigEdgeRetractCypher`'s WHERE clause. A row
+whose ownership did not resolve this cycle is excluded from the uid set, so
+its existing edge (correct or not) survives untouched -- symmetric with the
+MERGE's own exclusion. Batching mirrors
+`terraformStateResourceMigrationStatements`' existing uid-batching precedent
+(same file family, `tfstate_canonical_writer_retract.go`) rather than
+inventing a new shape.
+
+No-Regression Evidence: narrows the retract's candidate set to a strict subset
+of what it touched before (only rows with resolved ownership); never widens
+it. The resolved-ownership path (the common case, and the #5623 P0 fix's own
+delta-cycle-reassignment scenario) is unaffected in statement count or shape.
+Two pre-existing package tests needed fixture updates because they
+constructed rows with no `OwningRepoID` and asserted the OLD unconditional
+retract count:
+`TestTerraformStateMatchesConfigEdgeRetractStatementsRunsUnderDeltaProjection`
+and `...RunsOnNonDeltaGeneration` now seed a resolved `OwningRepoID` and assert
+the `uids` parameter; `TestCanonicalNodeWriterBuildsTerraformStateStatements`
+(`tfstate_canonical_writer_test.go`) drops from 8 to 7 expected statements
+(its fixture intentionally wires no ownership resolver) and its stale doc
+comment claiming the edge retract was "unconditional...a harmless no-op" is
+corrected -- that claim was exactly the P1 bug.
+
+Live proof (RED via `git apply -R` on this fix alone, keeping the #5623 P0
+delta-cycle fix applied; confirmed FAIL for the right reason; GREEN restored),
+run through the REAL `CanonicalNodeWriter.Write` pipeline across a full
+generation then a delta cycle where ownership resolution returns not-ok (not a
+raw seeded fixture):
+`TestCanonicalNodeWriterPreservesMatchesStateEdgeOnResolverHiccupDeltaCycleLive`.
+Re-ran the P0 delta-cycle-reassignment live regression
+(`TestCanonicalNodeWriterRetractsStaleMatchesStateEdgeOnDeltaCycleLive`) and
+its `internal/query` counterpart
+(`TestLiveInfraScopeShapeMatchesStateStaleEdgeExcludedAfterDeltaReassignment`)
+alongside this fix to confirm both directions: P1 closed, P0 not reopened --
+all pass together. Unit proof:
+`TestTerraformStateMatchesConfigEdgeRetractStatementsExcludesUnresolvedOwnershipRows`
+(all-unresolved emits nothing; mixed resolved/unresolved includes only the
+resolved uid).
+
+No-Observability-Change: the retract is a Cypher WHERE/DELETE fragment with no
+span, metric, label, or log surface; no new telemetry signal is added or
+needed.
+
+## #5623 P1 follow-up — NoOwner/AmbiguousOwner must retract, not preserve
+
+Follow-up review finding on the #5623 P1 fix immediately above. That fix
+excluded any row whose `OwningRepoID` was empty this cycle from the retract's
+uid set, reasoning it might be a transient resolver failure. But THREE
+distinct outcomes all leave `OwningRepoID` empty, and only one of them is
+transient:
+
+- a genuine resolver hiccup (Postgres timeout, pool exhaustion) -- correctly
+  excluded, preserve the edge;
+- `tfstatebackend.ErrNoConfigRepoOwnsBackend` -- an AUTHORITATIVE "no owner"
+  answer, wrongly excluded;
+- `tfstatebackend.ErrAmbiguousBackendOwner` -- an AUTHORITATIVE "not uniquely
+  owned" answer, wrongly excluded.
+
+The `(string, bool)` shape `TerraformStateOwnershipResolver.ResolveOwningRepoID`
+used could not distinguish these. A backend that previously resolved to a
+repo and later became unowned or ambiguous kept that repo's `MATCHES_STATE`
+edge indefinitely -- the #5623 P0 tenant-visibility leak, reintroduced through
+a narrower door.
+
+Fix: the interface now returns `(repoID string, outcome
+projector.TerraformStateOwnershipOutcome)` -- a four-value enum (Resolved,
+TransientFailure [zero value], NoOwner, AmbiguousOwner) defined in
+`internal/projector/tfstate_ownership_outcome.go`.
+`projector.TerraformStateResourceRow` gained a matching `OwnershipOutcome`
+field, set by the same enrichment pass that sets `OwningRepoID`
+(`resolveTerraformStateOwnership`, this package). The retract's uid filter
+changed from `row.OwningRepoID == ""` to
+`row.OwnershipOutcome == projector.TerraformStateOwnershipTransientFailure` --
+only the truly-unknown case is excluded now; Resolved, NoOwner, and
+AmbiguousOwner are all retract-eligible.
+
+The classification logic (mapping a `*tfstatebackend.Resolver` result to the
+outcome enum) is centralized in the NEW package
+`internal/relationships/tfstatebackend/canonicalwriter`
+(`ResolveOwningRepoIDOutcome`), not duplicated across
+`cmd/{bootstrap-index,ingester,projector}`'s three near-identical adapters as
+it was before -- each adapter is now a one-line delegate. The new package
+exists specifically because `internal/projector` (owner of the outcome enum)
+already transitively imports `internal/relationships/tfstatebackend` (via
+`internal/reducer` -> `internal/correlation/drift/tfconfigstate`), so
+`tfstatebackend` cannot import `projector` back without a cycle -- confirmed
+by an actual `go build` failure while developing this fix, and independently
+reproduced by the #5623 P1 follow-up review (a throwaway import reproduced
+the identical `import cycle not allowed` chain). This keeps the
+`TerraformStateOwnershipResolver` interface itself (`tfstate_state_match_edge.go`,
+this package) scoped to `projector` types only -- it does not import
+`tfstatebackend`, and `canonicalwriter` adds ZERO new transitive edge from
+this package to `tfstatebackend` beyond what already existed.
+
+Precision matters on that last point: `internal/storage/cypher` ALREADY
+depends on `tfstatebackend` transitively through a DIFFERENT, PRE-EXISTING,
+unrelated path this fix did not create -- `edge_writer.go` (this package)
+imports `internal/reducer`, and `internal/reducer` imports `tfstatebackend`
+directly (for example `terraform_config_state_drift.go`, wiring the
+drift-correlation resolver `cmd/reducer/wiring_handlers.go` already uses).
+`go list -deps ./internal/storage/cypher` shows
+`github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend` in the
+output for that reason, predating this branch entirely. Do not read that as
+a regression this change introduced.
+
+No-Regression Evidence: widens the retract's candidate set from "resolved
+rows only" to "resolved, no-owner, or ambiguous-owner rows" (narrower than
+the original pre-#5623-P1 "every row" set, since transient failures are still
+excluded). Every `cmd/*` adapter, the fake test resolver
+(`fakeTerraformStateOwnershipResolver`, this package), and every hand-built
+`TerraformStateResourceRow` fixture across `internal/storage/cypher`,
+`internal/query`, and `internal/replay/offlinetier` that sets `OwningRepoID`
+directly needed a matching `OwnershipOutcome` value -- the zero value
+(`TransientFailure`) would otherwise silently exclude a fixture row its test
+intends to be retract-eligible. Proof (failing-first, RED via a temporary
+one-line revert of the filter back to `row.OwningRepoID == ""`, confirmed
+FAIL for the right reason with rows 1-2 unaffected; GREEN restored): unit
+`TestTerraformStateMatchesConfigEdgeRetractStatementsIncludesAuthoritativeNonOwnerRows`
+(NoOwner and AmbiguousOwner both produce a retract-eligible uid) plus
+`internal/relationships/tfstatebackend/canonicalwriter`'s own four-outcome
+unit suite. Live (real `CanonicalNodeWriter.Write` pipeline, no raw seeded
+fixture, isolated NornicDB v1.1.11):
+`TestCanonicalNodeWriterRetractsMatchesStateEdgeOnAuthoritativeNonOwnerDeltaCycleLive`
+(both subtests) run together with the #5623 P0/P1 siblings
+(`TestCanonicalNodeWriterRetractsStaleMatchesStateEdgeOnDeltaCycleLive`,
+`TestCanonicalNodeWriterPreservesMatchesStateEdgeOnResolverHiccupDeltaCycleLive`)
+and the #5443 originals -- all pass in one run. `internal/query`'s
+`TestLiveInfraScopeShapeMatchesStateFormerOwnerExcludedOnAuthoritativeNonOwner`
+proves the scoped-token predicate itself no longer authorizes the former
+owner for both outcomes, run alongside
+`TestLiveInfraScopeShapeMatchesStateStaleEdgeExcludedAfterDeltaReassignment`.
+Also `go test ./internal/storage/cypher ./internal/query ./internal/projector
+./internal/relationships/... ./internal/replay/... ./cmd/ingester
+./cmd/projector ./cmd/bootstrap-index -count=1`.
+
+No-Observability-Change: the retract is a Cypher WHERE/DELETE fragment with no
+span, metric, label, or log surface; the new adapter package logs a warning
+for a genuine transient failure only, reusing the exact log line every prior
+per-adapter copy already emitted -- no new signal.
+
+AmbiguousOwner can itself be a byproduct of eventually-consistent ingestion,
+not just a genuinely contested backend, and this fix now retracts on it every
+cycle instead of only at full reconciliation -- worth stating explicitly
+rather than leaving it implicit (#5623 P1 follow-up review, third finding).
+`PostgresTerraformBackendQuery.ListTerraformBackendsByLocator`
+(`internal/storage/postgres/tfstate_backend_canonical.go`) joins each
+candidate `terraform_backends` fact through
+`scope.active_generation_id = fact.generation_id` -- i.e. it only sees a
+repo's CURRENTLY-ACTIVE generation, and every repo re-ingests independently
+and asynchronously. During a real backend-ownership migration (state moved
+from repo A to repo B -- teams do this), if repo A's next ingestion (which
+would drop its now-stale `terraform_backends` declaration) lags repo B's
+(which picks up the new one), the resolver observes BOTH as active claimants
+for one or more cycles and returns `ErrAmbiguousBackendOwner` -- not because
+ownership is contested, but because ingestion has not yet converged. Under
+this fix that transient ambiguity retracts the existing edge (repo A's
+authorization to this resource is now under-authorized, not extended, and
+repo B does not gain it yet either, since the MERGE never fires while
+`OwningRepoID` is empty), and the edge -- and the scoped-token visibility it
+gates -- flaps until both repos' ingestion converges and a single unambiguous
+owner emerges.
+
+This is judged acceptable, not a defect to fix here, for three reasons: (1) it
+fails safe in the same direction every prior fix in this chain converged on --
+under-authorization during the flap, never a cross-tenant leak, since neither
+the stale nor the new owner is over-admitted at any point in the sequence; (2)
+the flap window is bounded by ordinary delta-ingestion cadence for two
+actively-developed repos (commit-triggered, typically minutes), not by
+`ESHU_REPO_RECONCILE_INTERVAL_HOURS` (default 24h, the window the ORIGINAL
+#5623 P0 leak was bounded by) -- the window this fix can introduce is tighter
+than the window the fix it replaces left open; (3) it self-heals with no
+operator action: the next cycle that reprocesses this state resource after
+BOTH repos' active generations agree resolves cleanly to Resolved and the
+correct edge reappears, the same self-healing property TransientFailure
+already relies on. No code change is warranted for this alone -- if it proves
+operationally noisy in practice (repeated retract-then-reappear on the SAME
+backend across many cycles), that is a signal for a follow-up, not evidence
+this fix is wrong.

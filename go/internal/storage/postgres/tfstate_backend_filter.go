@@ -97,7 +97,13 @@ func scanTerraformBackendCandidateRows(rows Rows) ([]terraformstate.DiscoveryCan
 	}
 	var candidates []terraformstate.DiscoveryCandidate
 	for _, repoID := range order {
-		candidates = append(candidates, terraformBackendCandidatesFromContext(repoID, contexts[repoID])...)
+		// This filter-driven read is scoped by DiscoveryBackendFilter, which
+		// is S3-shaped only (bucket/key/region; see
+		// terraformStateBackendFilterQueryItem below), so no BackendLocal
+		// candidate would ever match here. Passing "" for repoLocalPath keeps
+		// that pre-existing behavior explicit rather than plumbing a value
+		// this query never fetches.
+		candidates = append(candidates, terraformBackendCandidatesFromContext(repoID, "", contexts[repoID])...)
 	}
 	return candidates, nil
 }

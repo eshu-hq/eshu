@@ -14,14 +14,18 @@ import (
 // Intent describes one durable reducer follow-up action keyed by scope
 // generation.
 type Intent struct {
-	IntentID        string
-	ScopeID         string
-	GenerationID    string
-	SourceSystem    string
-	Domain          Domain
-	Cause           string
-	Priority        int
-	AttemptCount    int
+	IntentID     string
+	ScopeID      string
+	GenerationID string
+	SourceSystem string
+	Domain       Domain
+	Cause        string
+	Priority     int
+	AttemptCount int
+	// ClaimEpoch is a monotonic execution fence for queue domains whose retry
+	// attempt count may be reset by replay. Zero means the domain has not
+	// opted into claim-epoch fencing.
+	ClaimEpoch      int64
 	EntityKeys      []string
 	RelatedScopeIDs []string
 	Payload         map[string]any

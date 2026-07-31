@@ -189,8 +189,8 @@ proves Azure image-reference generations enqueue the existing
 `container_image_identity` reducer domain. `go test ./internal/reducer -run
 'Test(ContainerImageIdentityFactKindsIncludesAzureImageReferences|BuildContainerImageIdentityDecisions(ConsumesAzureDigestReference|ResolvesAzureTagOnlyWithRegistryEvidence))'
 -count=1` proves `azure_image_reference` facts are loaded by the
-image-identity reducer, explicit Azure digests become exact digest-keyed
-identity decisions, tag-only Azure facts require OCI registry tag evidence, and
+image-identity reducer, explicit Azure digests become exact decisions keyed by
+the observed image reference, tag-only Azure facts require OCI registry tag evidence, and
 the owning ARM resource identity does not invent repository anchors. `go test
 ./internal/storage/postgres -run
 TestFactStoreListActiveContainerImageIdentityFactsUsesActiveIdentityGenerations

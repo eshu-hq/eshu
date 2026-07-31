@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -18,6 +17,17 @@ import (
 // It is gated to reducer-owning profiles; local_lightweight returns
 // unsupported_capability because it cannot materialize the
 // reducer_multi_cloud_runtime_drift_finding rows the readback lists.
+//
+// The readback advertises coverage across aws, gcp, and azure
+// (cloudRuntimeDriftProviders below) and genuinely delivers it: MultiCloudRuntimeDriftStore
+// aggregates reducer_multi_cloud_runtime_drift_finding (gcp/azure, and never
+// aws -- DomainMultiCloudRuntimeDrift's excludeAWSOwnedRows guarantees that)
+// with reducer_aws_cloud_runtime_drift_finding (aws, DomainAWSCloudRuntimeDrift's
+// exclusive fact kind) at read time (#5759 follow-up). Before that
+// aggregation existed, provider=aws returned an empty page indistinguishable
+// from "no AWS drift exists" even when DomainAWSCloudRuntimeDrift had live
+// findings -- the write-side partition was correct, but the read side never
+// followed it.
 const cloudRuntimeDriftReadbackCapability = "cloud_runtime_drift.readback.list"
 
 const (
@@ -101,6 +111,21 @@ type MultiCloudRuntimeDriftFindingRow struct {
 	DriftedAttributes []DriftedAttributeView
 }
 
+// The AWS-specific finding row (postgres.AWSCloudRuntimeDriftFindingRow) also
+// carries MatchedTerraformConfigFile/ModulePath, MatchedOtherIaCSource,
+// ServiceCandidates, EnvironmentCandidates, and DependencyPaths.
+// MultiCloudRuntimeDriftFindingRow deliberately does NOT project them
+// (#5759 follow-up P1-2, hostile-review finding): traced write to read,
+// reducerderivedv1.AWSCloudRuntimeDriftFinding has no fields for them,
+// awsCloudRuntimeDriftTypedPayload (go/internal/reducer/aws_cloud_runtime_drift_writer.go)
+// never sets them, and the evidence-atom shapes
+// iacManagementEvidenceEnrichment.recordEvidence matches are never emitted by
+// cloudruntime.buildOneCandidate -- confirmed by exhaustive repo search, zero
+// producers anywhere. They are structurally unreachable on any real fact, on
+// either the AWS-specific or the provider-neutral surface. Do not add them
+// back without first proving a real producer exists; a hand-built test
+// fixture that sets them proves nothing about production behavior.
+
 // DriftedAttributeView is one declared/observed value pair for an
 // image_version_drift finding's comparable attribute (ami, image_uri,
 // version, or the synthetic "image" key for the ECS container-image
@@ -114,11 +139,17 @@ type DriftedAttributeView struct {
 	Observed string `json:"observed_value"`
 }
 
-// MultiCloudRuntimeDriftStore reads active reducer-materialized provider-neutral
-// runtime drift findings. The query handler depends on this narrow interface so
-// unit tests can supply a fixture-backed reader without a live database, and the
-// Postgres adapter implements it over reducer_multi_cloud_runtime_drift_finding
-// facts.
+// MultiCloudRuntimeDriftStore reads active reducer-materialized runtime drift
+// findings across all three providers. The query handler depends on this
+// narrow interface so unit tests can supply a fixture-backed reader without a
+// live database. The Postgres adapter (PostgresMultiCloudRuntimeDriftStore)
+// aggregates BOTH reducer_multi_cloud_runtime_drift_finding (gcp, azure) and
+// reducer_aws_cloud_runtime_drift_finding (aws) so this interface's single
+// read reflects every provider it advertises (#5759 follow-up); every
+// consumer of this interface -- CloudRuntimeDriftHandler.listFindings AND
+// CloudRuntimeDriftHandler.getDriftPacket (investigation_packet_api_drift.go)
+// -- gets the aggregation for free since both depend on this same interface
+// over the same concrete store.
 type MultiCloudRuntimeDriftStore interface {
 	// ListActiveMultiCloudRuntimeDriftFindings returns one bounded page of active
 	// findings for the caller's scope.
@@ -134,14 +165,15 @@ type MultiCloudRuntimeDriftStore interface {
 	) (int, error)
 }
 
-// CloudRuntimeDriftHandler serves a bounded, paginated, truth-labeled readback of
-// provider-neutral runtime drift findings from the reducer-owned
-// reducer_multi_cloud_runtime_drift_finding rows. It is read-only and never
+// CloudRuntimeDriftHandler serves a bounded, paginated, truth-labeled readback
+// of runtime drift findings across every provider (aws, gcp, azure) from the
+// reducer-owned reducer_multi_cloud_runtime_drift_finding and
+// reducer_aws_cloud_runtime_drift_finding rows. It is read-only and never
 // fabricates truth: it projects only reducer-resolved canonical fields, never
 // raw provider locators, and refuses unsafe findings (reporting them as rejected
 // with a refused action) rather than silently omitting them.
 type CloudRuntimeDriftHandler struct {
-	// Store reads active provider-neutral runtime drift findings.
+	// Store reads active runtime drift findings across every provider.
 	Store MultiCloudRuntimeDriftStore
 	// Profile selects the active runtime profile for capability gating.
 	Profile QueryProfile
@@ -300,16 +332,19 @@ func (h *CloudRuntimeDriftHandler) writeCloudRuntimeDriftFindings(
 		"truth_basis":          "materialized_reducer_rows",
 		"analysis_status":      "materialized_multi_cloud_runtime_drift",
 		"limitations": []string{
-			"bounded to active provider-neutral runtime drift reducer facts for the requested scope",
+			"bounded to active runtime drift reducer facts for the requested scope, aggregated across " +
+				"reducer_multi_cloud_runtime_drift_finding (gcp, azure) and reducer_aws_cloud_runtime_drift_finding (aws)",
 			"source_state is derived from management status and the safety gate without promoting ownership",
 			"rejected findings are read-only and must not drive Terraform import or cleanup automation",
+			"cloud_resource_uid filtering matches only gcp/azure findings; an AWS-origin finding's canonical " +
+				"identity is resolved for display but is not a stored, filterable column on this fact kind",
 		},
 	}, BuildTruthEnvelope(
 		h.profile(),
 		cloudRuntimeDriftReadbackCapability,
 		TruthBasisSemanticFacts,
-		"resolved from active reducer-materialized provider-neutral runtime drift findings "+
-			"(reducer_multi_cloud_runtime_drift_finding)",
+		"resolved from active reducer-materialized runtime drift findings, aggregated across "+
+			"reducer_multi_cloud_runtime_drift_finding and reducer_aws_cloud_runtime_drift_finding",
 	))
 }
 
@@ -326,97 +361,6 @@ func (h *CloudRuntimeDriftHandler) writeContractError(
 		h.profile(),
 		requiredProfile(cloudRuntimeDriftReadbackCapability),
 	)
-}
-
-// cloudRuntimeDriftFindingViews projects reducer rows into the bounded wire shape.
-// Each view applies the shared safety gate so an unsafe finding is reported as
-// rejected with a refused action rather than dropped, and the provider-neutral
-// source state is resolved through the same taxonomy the AWS surface uses.
-func cloudRuntimeDriftFindingViews(rows []MultiCloudRuntimeDriftFindingRow) []CloudRuntimeDriftFindingView {
-	views := make([]CloudRuntimeDriftFindingView, 0, len(rows))
-	for _, row := range rows {
-		status := strings.TrimSpace(row.ManagementStatus)
-		gate := iacManagementSafetyGate(status, row.WarningFlags, nil)
-		views = append(views, CloudRuntimeDriftFindingView{
-			FactID:                       row.FactID,
-			Provider:                     strings.TrimSpace(row.Provider),
-			ScopeID:                      row.ScopeID,
-			GenerationID:                 row.GenerationID,
-			SourceSystem:                 row.SourceSystem,
-			CloudResourceUID:             row.CloudResourceUID,
-			FindingKind:                  strings.TrimSpace(row.FindingKind),
-			ManagementStatus:             status,
-			Confidence:                   row.Confidence,
-			SourceState:                  string(ResolveReplatformingSourceState(status, gate.ReviewRequired)),
-			MatchedTerraformStateAddress: row.MatchedTerraformStateAddress,
-			MissingEvidence:              row.MissingEvidence,
-			RecommendedAction:            row.RecommendedAction,
-			DriftedAttributes:            row.DriftedAttributes,
-			SafetyGate:                   gate,
-		})
-	}
-	return views
-}
-
-// cloudRuntimeDriftSourceStateGroup counts findings sharing one provider-neutral
-// source state for a quick rollup, with canonical uids attached for drilldown.
-type cloudRuntimeDriftSourceStateGroup struct {
-	SourceState       string   `json:"source_state"`
-	Count             int      `json:"count"`
-	CloudResourceUIDs []string `json:"cloud_resource_uids,omitempty"`
-}
-
-// cloudRuntimeDriftSourceStateGroups rolls views up by provider-neutral source
-// state in canonical order so callers can summarize refusal posture cheaply.
-func cloudRuntimeDriftSourceStateGroups(views []CloudRuntimeDriftFindingView) []cloudRuntimeDriftSourceStateGroup {
-	byState := map[string]*cloudRuntimeDriftSourceStateGroup{}
-	var states []string
-	for _, view := range views {
-		group := byState[view.SourceState]
-		if group == nil {
-			group = &cloudRuntimeDriftSourceStateGroup{SourceState: view.SourceState}
-			byState[view.SourceState] = group
-			states = append(states, view.SourceState)
-		}
-		group.Count++
-		group.CloudResourceUIDs = append(group.CloudResourceUIDs, view.CloudResourceUID)
-	}
-	sort.Strings(states)
-	out := make([]cloudRuntimeDriftSourceStateGroup, 0, len(states))
-	for _, state := range states {
-		group := byState[state]
-		sort.Strings(group.CloudResourceUIDs)
-		out = append(out, *group)
-	}
-	return out
-}
-
-func cloudRuntimeDriftStory(
-	filter MultiCloudRuntimeDriftFilter,
-	views []CloudRuntimeDriftFindingView,
-	total int,
-) string {
-	scope := filter.ScopeID
-	if filter.Provider != "" {
-		scope = filter.Provider + " resources in " + scope
-	}
-	return fmt.Sprintf(
-		"%d active multi-cloud runtime drift findings matched %s; %d returned in this page.",
-		total,
-		scope,
-		len(views),
-	)
-}
-
-func cloudRuntimeDriftTruncated(offset, pageLen, total int) bool {
-	return offset+pageLen < total
-}
-
-func cloudRuntimeDriftNextOffset(offset, pageLen, total int) int {
-	if offset+pageLen < total {
-		return offset + pageLen
-	}
-	return 0
 }
 
 // normalizeCloudRuntimeDriftRequest validates and bounds the readback request.

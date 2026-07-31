@@ -34,6 +34,19 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
   The code dead-code analysis reports HCL as `non_code_iac_evidence`; Terraform
   liveness belongs to infrastructure evidence, relationship evidence, state or
   plan comparison, and repository-context surfaces.
+- A `backend` block's `path` attribute is captured under `row["state_path"]`
+  (`go/internal/parser/hcl/terraform_backend.go`) — a dedicated key, separate
+  from `row["path"]`, which already carries the source `.tf` file's own path
+  for every backend row. A bare `backend "local" {}` block with no `path`
+  attribute at all is parsed the same way as one with an explicit `path`;
+  Terraform's own default (`"terraform.tfstate"`, relative to the backend
+  block's directory, not the process's working directory — see
+  https://developer.hashicorp.com/terraform/language/backend/local) is applied
+  downstream by the config-vs-state drift ownership resolver, not by the
+  parser itself. A `path` that is present but a dynamic expression (a
+  `var.*`/`local.*` reference, interpolation, or function call) that does not
+  resolve to an exact literal is reported as a warning rather than defaulted
+  or guessed.
 
 ## Dead-code Support
 
@@ -66,3 +79,14 @@ Not claimed today:
 - `count` and `for_each` meta-arguments are captured on resource rows, but are not expanded to model multiple resource instances
 - `dynamic` blocks within resources are not traversed for nested attribute extraction
 - Cross-file variable references (`var.name`, `module.name.output`) are not resolved at parse time. Terraform-state backend discovery later recovers only the exact same-module `var.*` / `local.*` literal subset needed to build safe state candidates.
+- Terragrunt's own `remote_state { backend = "local" }` block is not covered
+  by the local-backend default-path resolution described above. Terragrunt
+  renders that block into a generated `backend "local" { ... }` inside its
+  per-unit `.terragrunt-cache` working directory rather than the
+  `terragrunt.hcl` file's own directory, and Eshu's static parser never runs
+  Terragrunt, so it has no way to observe that generated working directory.
+  Applying the same default here would mean guessing a path Eshu cannot see,
+  so it is left unresolved rather than guessed
+  (`go/internal/collector/terraformstate/source_terragrunt.go`'s
+  `terragruntRemoteStateLocalCandidate` continues to require an explicit,
+  literal, absolute `path`).

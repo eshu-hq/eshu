@@ -43,6 +43,27 @@ func serviceMaterializationWriterFor(database postgres.ExecQueryer) reducer.Serv
 	}
 }
 
+// containerImageIdentityWriterFor builds the identity writer over one shared
+// Postgres transaction so current decisions and exact-key retirement commit or
+// roll back together. A database without transaction support leaves the domain
+// unwired rather than silently publishing without convergence.
+func containerImageIdentityWriterFor(
+	database postgres.ExecQueryer,
+) reducer.ContainerImageIdentityWriter {
+	beginner := reducerBeginner(database)
+	if database == nil || beginner == nil {
+		return nil
+	}
+	cutoverStore := postgres.NewContainerImageIdentityCutoverStore(database)
+	return reducer.PostgresContainerImageIdentityWriter{
+		DB:                  database,
+		Beginner:            postgres.ContainerImageIdentityBeginner{Beginner: beginner},
+		CutoverLookup:       cutoverStore,
+		LegacyCleanupLookup: cutoverStore,
+		ClaimedExecer:       postgres.ContainerImageIdentityClaimedExecer{DB: database},
+	}
+}
+
 // serviceDocumentationEvidenceLoaderFor builds the service-scoped documentation
 // evidence loader (#1988) over the shared reducer database. It backs the docs
 // evidence family from the active-generation documentation facts in

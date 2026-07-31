@@ -27,6 +27,10 @@ type activeContainerImageIdentityFactLoader interface {
 	ListActiveContainerImageIdentityFacts(ctx context.Context) ([]facts.Envelope, error)
 }
 
+type activeContainerImageIdentityWarningLoader interface {
+	ListActiveContainerImageIdentityWarnings(ctx context.Context) ([]facts.Envelope, error)
+}
+
 // activeContainerImageSLSAFactLoader is the #5456 PR #5707 P1-b cross-scope
 // bridge for attestation.statement/slsa_provenance/signature_verification
 // facts, mirroring activeContainerImageIdentityFactLoader for the OCI/AWS/
@@ -43,7 +47,7 @@ type activeContainerImageSLSAFactLoader interface {
 }
 
 // ContainerImageIdentityHandler joins Git/runtime image references with active
-// OCI registry facts and publishes digest-keyed identity decisions.
+// OCI registry facts and publishes image-reference-keyed identity decisions.
 type ContainerImageIdentityHandler struct {
 	FactLoader  FactLoader
 	Writer      ContainerImageIdentityWriter
@@ -138,16 +142,31 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 		return Result{}, fmt.Errorf("build container image identity decisions: %w", err)
 	}
 	counts := containerImageIdentityCounts(decisions)
+	var warnings []facts.Envelope
+	if containerImageIdentityRetirementNeedsWarnings(decisions) {
+		warnings, err = h.loadActiveContainerImageIdentityWarnings(ctx)
+		if err != nil {
+			return Result{}, fmt.Errorf("load active container image identity warnings: %w", err)
+		}
+	}
 
-	writeResult, err := h.Writer.WriteContainerImageIdentityDecisions(ctx, ContainerImageIdentityWrite{
+	write := ContainerImageIdentityWrite{
 		IntentID:     intent.IntentID,
+		ClaimEpoch:   intent.ClaimEpoch,
 		ScopeID:      intent.ScopeID,
 		GenerationID: intent.GenerationID,
 		SourceSystem: intent.SourceSystem,
 		Cause:        intent.Cause,
 		EvidenceAsOf: evidenceAsOf,
 		Decisions:    decisions,
-	})
+	}
+	retirement, err := planContainerImageIdentityRetirement(write, envelopes, warnings)
+	if err != nil {
+		return Result{}, fmt.Errorf("plan container image identity retirement: %w", err)
+	}
+	write.TombstoneDecisions = retirement.Tombstones
+	write.LegacyFactIDs = retirement.LegacyFactIDs
+	writeResult, err := h.Writer.WriteContainerImageIdentityDecisions(ctx, write)
 	if err != nil {
 		return Result{}, fmt.Errorf("write container image identity decisions: %w", err)
 	}
@@ -159,10 +178,15 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 	}
 
 	h.emitCounters(ctx, counts)
+	h.emitRetirementCounters(ctx, writeResult, retirement.HeldByReason)
 	quarantinedCount := recordQuarantinedFacts(
 		ctx, h.Instruments, DomainContainerImageIdentity, intent.ScopeID, intent.GenerationID, quarantined,
 	)
 
+	subSignals := containerImageIdentityRetireSubSignals(retirement.HeldByReason)
+	for key, value := range inputInvalidSubSignals(quarantinedCount) {
+		subSignals[key] = value
+	}
 	return Result{
 		IntentID: intent.IntentID,
 		Domain:   DomainContainerImageIdentity,
@@ -173,8 +197,36 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 			writeResult.CanonicalWrites,
 		),
 		CanonicalWrites: writeResult.CanonicalWrites,
-		SubSignals:      inputInvalidSubSignals(quarantinedCount),
+		SubSignals:      subSignals,
 	}, nil
+}
+
+func (h ContainerImageIdentityHandler) emitRetirementCounters(
+	ctx context.Context,
+	writeResult ContainerImageIdentityWriteResult,
+	heldByReason map[string]int,
+) {
+	if h.Instruments == nil {
+		return
+	}
+	emit := func(count int, outcome string) {
+		if count <= 0 {
+			return
+		}
+		h.Instruments.ContainerImageIdentityRetirements.Add(
+			ctx,
+			int64(count),
+			metric.WithAttributes(
+				telemetry.AttrDomain(string(DomainContainerImageIdentity)),
+				telemetry.AttrOutcome(outcome),
+			),
+		)
+	}
+	emit(writeResult.RetirementAttempts, "retirement_attempted")
+	emit(writeResult.LegacyRowsDeleted, "legacy_deleted")
+	for reason, count := range heldByReason {
+		emit(count, "held_"+reason)
+	}
 }
 
 func (h ContainerImageIdentityHandler) loadActiveContainerImageIdentityFacts(
@@ -185,6 +237,22 @@ func (h ContainerImageIdentityHandler) loadActiveContainerImageIdentityFacts(
 		return nil, nil
 	}
 	envelopes, err := loader.ListActiveContainerImageIdentityFacts(ctx)
+	if err != nil {
+		return nil, classifyFactLoadError(err)
+	}
+	return envelopes, nil
+}
+
+func (h ContainerImageIdentityHandler) loadActiveContainerImageIdentityWarnings(
+	ctx context.Context,
+) ([]facts.Envelope, error) {
+	loader, ok := h.FactLoader.(activeContainerImageIdentityWarningLoader)
+	if !ok {
+		return nil, fmt.Errorf(
+			"container image identity warning loader is required for retirement completeness",
+		)
+	}
+	envelopes, err := loader.ListActiveContainerImageIdentityWarnings(ctx)
 	if err != nil {
 		return nil, classifyFactLoadError(err)
 	}

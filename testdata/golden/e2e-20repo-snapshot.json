@@ -3371,15 +3371,17 @@
         "results_field": "resources"
       },
       "list_cloud_runtime_drift_findings": {
-        "description": "MCP tool coverage shape for list_cloud_runtime_drift_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). SHAPE-ONLY (minimum_results:0) by necessity: this tool reads reducer_multi_cloud_runtime_drift_finding facts, but the provider-neutral DomainMultiCloudRuntimeDrift domain is registered WITHOUT a projector intent builder (no buildMultiCloudRuntimeDriftReducerIntent in appendScopeGenerationReducerIntents), so it fires for NO scope or provider and writes zero findings -- a pre-existing registered-not-enqueued gap (domain built for #1997/#1998, predates #5453), confirmed empirically by a live corpus-gate DB query returning 0 reducer_multi_cloud_runtime_drift_finding rows. #5453's image_version_drift value drift IS proven non-vacuously through the sibling list_aws_runtime_drift_findings entry (reducer_aws_cloud_runtime_drift_finding, which IS enqueued). Wiring the multi-cloud domain (with duplicate-finding avoidance vs the AWS domain) is tracked as follow-up #5759.",
+        "description": "MCP tool coverage shape for list_cloud_runtime_drift_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5759 wired buildMultiCloudRuntimeDriftReducerIntent into appendScopeGenerationReducerIntents (triggering on gcp_cloud_resource or azure_cloud_resource facts) and added MultiCloudRuntimeDriftHandler.Handle's excludeAWSOwnedRows provider-partition filter, so DomainMultiCloudRuntimeDrift is enqueued for GCP/Azure scopes and no longer collides with DomainAWSCloudRuntimeDrift's own findings for the same AWS resource -- closing the pre-existing registered-not-enqueued gap (domain built for #1997/#1998, predates #5453). Non-vacuous: a live golden-corpus-gate run returned 10 drift_findings for this GCP scope (bounded by the requested limit:10 below, the same convention the sibling list_aws_runtime_drift_findings entry uses -- this corpus's gcp_cloud_resource cassette carries 110 keyable resources and no Terraform state/config fixture anywhere in the corpus declares a matching google_* resource, so far more than 10 orphaned findings are admitted; the request just asks for one page of 10). minimum_results is 1, which requires results_field (added here -- #5862 removed EvaluateQueryShape's implicit first-array-field inference, so an entry with minimum_results>0 and no results_field is now an unconditional hard failure regardless of live data); the row count above was established by a live golden-corpus-gate run against the underlying route before this results_field correction landed, and this corrected shape still needs confirmation on the next live run. #5453's image_version_drift value drift is separately proven non-vacuously through the sibling list_aws_runtime_drift_findings entry (reducer_aws_cloud_runtime_drift_finding, exclusively AWS-owned and unaffected by this change).",
         "required_response_fields": [
           "drift_findings",
           "findings_count",
           "total_findings_count"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "results_field": "drift_findings",
         "arguments": {
-          "scope_id": "aws:123456789012:us-east-1:ec2",
+          "scope_id": "gcp:project:supply-chain-demo-project",
+          "provider": "gcp",
           "limit": 10
         }
       },
@@ -3635,7 +3637,7 @@
         "minimum_results": 0
       },
       "list_container_image_identities": {
-        "description": "MCP tool coverage shape for list_container_image_identities; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5423 non-vacuous assertion: filtering on the ci.run's source git repository (repository:r_69256c06, github.com/eshu-hq/supply-chain-demo -- matched against the row's source_repository_ids) returns >=1 identity. That row exists only because the cicdrun cassette's container-image ci.artifact now triggers a CI-scope container_image_identity intent whose bare-digest ref (sha256:abcdef...ab) resolves against the unlabeled ociregistry manifest and carries the digest-matched run's source repository plus commit (source_revision_provenance=ci_run_commit). The count is provably zero on main: without the ci.artifact projector trigger no CI-scope decision exists, and OCI-only identity rows for this digest carry no git source repository. #5847 pins the CEILING at 1 as well. #5847 has TWO shapes and this ceiling covers ONE of them. The shape it covers is the DUPLICATE: this domain's fact identity embeds outcome and image_ref, so a replay that RE-CLASSIFIES an image writes a SECOND row under a new fact_id, and ListContainerImageIdentities -- which has no DISTINCT ON, GROUP BY, or per-digest latest-wins -- serves both. A floor alone cannot see that, because an at-least-one assertion passes identically on one correct row and on that row plus its superseded contradiction. That bug is still OPEN (the generation-authoritative retire that closes it is #5854), so for the duplicate shape this ceiling is the committed gate's detector rather than a regression guard on a shipped fix: if the corpus ever starts producing the duplicate, this shape reddens. The shape it does NOT cover is the DEMOTION: a replay that demotes an image out of the two canonical outcomes (exact_digest, tag_resolved) writes no row at all, so the stale row simply stays live, the count stays 1, and this ceiling passes. That gap is real and tracked -- the demoting fixture that would close it is #5853, and nothing in this branch covers it. The value 1 is an INFERENCE, not a measurement of this narrowing. The sibling list_supply_chain_impact_findings description below records, from the live corpus and post-#5810, that this DIGEST carries 16 reducer_container_image_identity rows and that only ONE of them names the BUILDING repository (github.com/eshu-hq/supply-chain-demo, repository:r_69256c06) -- which is the source_repository_ids value this assertion narrows on, the other fifteen naming only the deploying repository. That measurement is real and committed on origin/main, but it is DIGEST-scoped, while this query filters on source_repository_id across all digests and scopes; it therefore bounds a subset of the set this ceiling bounds, and the ceiling has never been run through the LIVE golden-corpus gate. The falsifier is direct: a live-gate count above 1 on this narrowing disproves the inference. The same scope mismatch is why docs/internal/evidence/5428-built-from-projection-rescinded.md's 'narrowing selects the same single row' is not the evidence either -- that sentence is about the reducer-internal cicdImageMatchesForRepository narrowing, which is likewise scoped to a single digest.",
+        "description": "MCP tool coverage shape for list_container_image_identities; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5423 non-vacuous assertion: filtering on the ci.run's source git repository (repository:r_69256c06, github.com/eshu-hq/supply-chain-demo -- matched against the row's source_repository_ids) returns exactly one identity. That row exists only because the cicdrun cassette's container-image ci.artifact triggers a CI-scope container_image_identity intent whose bare-digest ref (sha256:abcdef...ab) resolves against the unlabeled ociregistry manifest and carries the digest-matched run's source repository plus commit (source_revision_provenance=ci_run_commit). #5847/#5854 make the ceiling a regression guard on shipped logical uniqueness: fact identity is now (scope_id, generation_id, image_ref), outcome is payload, and a reclassification upserts that same key instead of adding a contradictory outcome-keyed sibling. A demotion publishes a fenced tombstone at the same key, but this authored cassette does not perform a two-pass demotion; TestContainerImageIdentityRetirementProductionPathLive separately binds the production FactStore loaders, handler, transactional writer, active-generation changes, and query readback for config soft-fail preservation, tag-eviction preservation, and genuine deletion. The live golden gate must still return exactly one row here: zero proves the CI-to-registry correlation path went inert, while more than one proves logical uniqueness regressed.",
         "required_response_fields": [
           "collector_readiness",
           "count",
@@ -4568,15 +4570,17 @@
         }
       },
       "export_cloud_runtime_drift_packet": {
-        "description": "MCP tool coverage shape for export_cloud_runtime_drift_packet; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for export_cloud_runtime_drift_packet; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5759 follow-up: this entry was shape-only for a DIFFERENT reason than the sibling list_cloud_runtime_drift_findings gap -- getDriftPacket (investigation_packet_api_drift.go) reads the SAME ListActiveMultiCloudRuntimeDriftFindings store that route reads, exact-matching on scope_id, but the prior arguments.scope_id here was \"supply-chain-demo\", a git-repo-shaped id that can never equal a written finding's cloud ingestion scope_id (\"aws:...\", \"gcp:project:...\", \"azure:...\" -- see the handler's own #5167 W5 comment: drift findings key on a cloud scope, not a repository). No production code was broken or changed for this entry; retargeted arguments.scope_id to the same GCP scope the sibling list_cloud_runtime_drift_findings entry proved non-vacuous live so this packet's driftSourceFacts (investigation_packet_drift.go, one PacketSourceFact per finding with a non-blank FactID) has real findings to map.",
         "required_response_fields": [
           "identity",
           "source_facts",
           "reproduce"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "results_field": "source_facts",
         "arguments": {
-          "scope_id": "supply-chain-demo",
+          "scope_id": "gcp:project:supply-chain-demo-project",
+          "provider": "gcp",
           "max_source_facts": 10
         }
       },
@@ -5480,6 +5484,38 @@
           ]
         }
       },
+      "POST /api/v0/infra/relationships?query_type=what_runs_lambda_image": {
+        "description": "#5738: AWS_lambda_function_uses_image read-path proof. #5450 (PR #5708) materialized the (:CloudResource)-[:AWS_lambda_function_uses_image]->(:ContainerImage) edge for the supply-chain-demo Lambda function, and #5751 (P1-B/P1-C) fixed the mixed-case canonical-value lookup and the relationships-catalog entry, but the analyze_infra_relationships MCP tool's query_type enum never advertised anything but a fixed set of semantic aliases (what_deploys, what_provisions, who_consumes_xrd, module_consumers, what_runs_image) -- it had no alias for this edge at all, so an MCP caller had no declared way to reach it. The '?query_type=...' suffix on this key is a disambiguator only (getRelationships never reads the request URL's query string); it exists because query_shapes.http is a single flat map and 'POST /api/v0/infra/relationships' is already claimed by the #5436 what_runs_image entry above. Anchored on the Lambda CloudResource (uid computed by aws_resource_materialization.go's cloudResourceUID over the awscloud cassette's aws_resource fact for arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo -- account_id, region, resource_id, resource_type), what_runs_lambda_image must resolve the AWS_lambda_function_uses_image edge to the ContainerImage node the oci_registry cassette's ECR image_manifest fact projects (digest sha256:...cc, descriptor_id oci-descriptor://123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo@sha256:...cc). Non-vacuous: the edge only exists because DomainAWSCloudImageMaterialization resolves the awscloud lambda_function_uses_image aws_relationship fact's resolved_image_uri against the oci_registry ECR scope manifest fixture (aws_cloud_image_join.go's containerImageNodeUIDFromDigestRef) -- neither cassette alone produces it (see rc-166's graph-materialization proof of the same edge), and before this change 'what_runs_lambda_image' was rejected 400 (unknown relationship_type), which the query-side regression test (TestInfraRelationshipsWhatRunsLambdaImageSurfacesOutgoingEdge / TestResolveInfraRelationshipTypes) also proves failing-then-green.",
+        "envelope": true,
+        "required_response_fields": [
+          "data",
+          "truth",
+          "error"
+        ],
+        "minimum_results": 0,
+        "request_body": {
+          "entity_id": "dafbedae2b62cb12dc97060debce1884305fd8dfdfb80f1fc8d514b17fae144f",
+          "relationship_type": "what_runs_lambda_image"
+        },
+        "required_json_paths": [
+          "data.id",
+          "data.outgoing[].type",
+          "data.outgoing[].target_id",
+          "data.outgoing[].target_labels"
+        ],
+        "required_json_values": {
+          "data.id": "dafbedae2b62cb12dc97060debce1884305fd8dfdfb80f1fc8d514b17fae144f",
+          "data.outgoing[].type": "AWS_lambda_function_uses_image"
+        },
+        "required_json_object_matches": {
+          "data.outgoing[]": [
+            {
+              "type": "AWS_lambda_function_uses_image",
+              "target_id": "oci-descriptor://123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo@sha256:0000000000000000000000000000000000000000000000000000000000cc"
+            }
+          ]
+        }
+      },
       "GET /api/v0/repositories": {
         "description": "Repository list endpoint (not /api/v0/repos)",
         "truth_class": "deterministic",
@@ -5531,6 +5567,20 @@
       },
       "GET /api/v0/cloud/inventory?provider=aws": {
         "description": "AWS-scoped cloud inventory readback (#5449). Scoping to provider=aws bounds the response to the awscloud supply-chain-demo resources (ecr.repository, ecs.service, ecs.task, lambda.function), so the ECS/Lambda image-attribute assertions are deterministic within the default page limit rather than depending on GCP-dominated uid ordering. required_json_values pins two independently-gated AWS allowlist paths, each provably zero without its fixture: (1) resources[].attributes.containers[].image -- the ecs.task aws_resource fact carries attributes.containers[].image (the nested-array allowlist path) alongside a raw cluster_arn/network_interfaces/container name/runtime_id the route drops; (2) resources[].attributes.image_uri -- the lambda.function aws_resource fact is the ONLY fixture carrying attributes.image_uri, locking the top-level scalar allowlist path (image_uri/resolved_image_uri/code_sha256/version) separately from the nested containers[] path. AWS attributes are NOT a raw passthrough like GCP: cloudInventoryRecordAttributes reduces them through awsCloudInventoryAttributeAllowlist (go/internal/storage/postgres/cloud_inventory_evidence.go), a bounded CLOSED allowlist scoped to task_definition_arn/image_uri/resolved_image_uri/code_sha256/version plus containers[] reduced to {image, image_digest}; cloudInventoryAttributes (go/internal/query/cloud_inventory_read_model.go) applies the same {image, image_digest} sub-key gate a second time on the read side. (3) resources[].code_sha256_correlation.unsupported_reason=zip_code_sha256_no_ci_counterpart (issue #5454): the awscloud cassette carries a SECOND lambda.function (supply-chain-demo-zip) with package_type=Zip + a synthetic code_sha256 and NO image_uri. cloudInventoryCodeCorrelationLabel (go/internal/query/cloud_inventory_code_correlation.go) attaches the bounded deployment-code correlation limitation to that zip Lambda -- its code_sha256 is base64(SHA256(the deployment .zip)) and no collected CI/package/OCI hash covers those bytes, so the readback states the gap programmatically rather than leaving it silent. Provably 0 without the label wiring AND without package_type in awsCloudInventoryAttributeAllowlist (the label keys on package_type=Zip). The negative control is the FIRST (image) lambda.function: package_type=Image, so it never carries this field (its deployment code is the container image #5450 correlates).",
+        "required_response_fields": [
+          "resources",
+          "count"
+        ],
+        "minimum_results": 1,
+        "results_field": "resources",
+        "required_json_values": {
+          "resources[].attributes.containers[].image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
+          "resources[].attributes.image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
+          "resources[].code_sha256_correlation.unsupported_reason": "zip_code_sha256_no_ci_counterpart"
+        }
+      },
+      "GET /api/v0/cloud/inventory?provider=aws&account_id=123456789012": {
+        "description": "AWS account_id selector non-vacuousness proof (#5238). Before the fix, account_id/project_id/subscription_id compared the caller's value directly against fact_records.scope_id -- an opaque, derived per-collector-partition identifier that is never literally the raw account number -- so this exact query returned zero rows against a live corpus even though the equivalent provider=aws query above returned the full awscloud supply-chain-demo set. The fix normalizes every provider's resolving source fact's own account/project/subscription identity field (aws_resource.account_id, gcp_cloud_resource.project_id, azure_cloud_resource.subscription_id) onto one canonical reducer_cloud_resource_identity payload key, \"account_id\" (go/internal/reducer/cloud_inventory_admission_writer.go), which go/internal/query/cloud_inventory_read_model.go's account_id/project_id/subscription_id selectors filter directly. The awscloud/supply-chain-demo cassette's every AWS resource carries account_id=123456789012 (ecr.repository, ecs.service, ecs.task, lambda.function), so this account_id-scoped query must return the SAME row set as the sibling provider=aws entry above -- same required_json_values, same minimum_results.",
         "required_response_fields": [
           "resources",
           "count"
@@ -5721,7 +5771,7 @@
         "minimum_results": 0
       },
       "POST /api/v0/cloud/runtime-drift/findings": {
-        "description": "Provider-neutral runtime drift findings for the synthetic GCP cloud scope; proves the reducer-derived drift read surface is mounted and bounded without requiring positive drift rows.",
+        "description": "Provider-neutral runtime drift findings for the synthetic GCP cloud scope. Non-vacuous (Refs #5759): the sibling list_cloud_runtime_drift_findings MCP shape proved >=1 admitted orphaned finding live for this exact scope_id/provider; this HTTP entry reads the same handleCloudRuntimeDriftFindings route and ListActiveMultiCloudRuntimeDriftFindings store. minimum_results stays 0 here deliberately -- not lowered, structurally inapplicable: this shape keeps the {data,truth,error} envelope (envelope:true) with only top-level required_response_fields, and EvaluateQueryShape's minimum_results check only scans top-level RequiredResponseFields for the first array-valued field (none of data/truth/error is one; data is an object), so setting minimum_results>0 here would hard-fail every run regardless of live data, not gate on row count. required_json_paths below is this codebase's own established mechanism for proving non-vacuousness on an envelope:true shape (mirrors the what_runs_image entry's data.outgoing[].type path) and requires data.drift_findings to be a non-empty array whose elements carry a real finding_kind.",
         "truth_class": "derived",
         "envelope": true,
         "request_body": {
@@ -5734,9 +5784,38 @@
           "truth",
           "error"
         ],
+        "required_json_paths": [
+          "data.drift_findings[].finding_kind"
+        ],
         "required_json_values": {
           "data.analysis_status": "materialized_multi_cloud_runtime_drift",
-          "data.truth_basis": "materialized_reducer_rows"
+          "data.truth_basis": "materialized_reducer_rows",
+          "data.drift_findings[].finding_kind": "orphaned_cloud_resource"
+        },
+        "minimum_results": 0
+      },
+      "POST /api/v0/cloud/runtime-drift/findings?assert=provider_aws_aggregation": {
+        "description": "Refs #5759 P1 golden proof: the SAME route, key, and store as the sibling gcp-scoped entry above (\"POST /api/v0/cloud/runtime-drift/findings\") but scope_id/provider point at the AWS scope list_aws_runtime_drift_findings already proves live has an admitted image_version_drift finding (see that entry's fixture-surgery detail: ARN re-key plus terraform_comprehensive config-owner resolution). The trailing ?assert=provider_aws_aggregation query string exists ONLY to give this entry a distinct map key from the sibling gcp entry above -- POST /api/v0/cloud/runtime-drift/findings's net/http.ServeMux route pattern matches on path only (query strings are never part of Go 1.22+ ServeMux pattern matching), and this route reads its filters from the JSON request_body, not the URL, so the query string reaches the handler unused. Before #5759's follow-up read-side aggregation, provider=aws on this NEUTRAL surface always returned an empty page (list_cloud_runtime_drift_findings/this route only ever queried reducer_multi_cloud_runtime_drift_finding, which excludeAWSOwnedRows guarantees never carries an AWS row) even though DomainAWSCloudRuntimeDrift had live findings -- a confidently-wrong empty page, not a genuinely empty one. This entry proves the aggregation: same finding_kind/drifted_attributes values the AWS-specific list_aws_runtime_drift_findings entry already proves live, now also visible through the provider-neutral surface for provider=aws. minimum_results stays 0 for the same structural reason as the sibling gcp entry (envelope:true, no top-level array field); required_json_paths/required_json_values below are the non-vacuous proof.",
+        "truth_class": "derived",
+        "envelope": true,
+        "request_body": {
+          "scope_id": "aws:123456789012:us-east-1:ec2",
+          "provider": "aws",
+          "limit": 10
+        },
+        "required_response_fields": [
+          "data",
+          "truth",
+          "error"
+        ],
+        "required_json_paths": [
+          "data.drift_findings[].finding_kind"
+        ],
+        "required_json_values": {
+          "data.analysis_status": "materialized_multi_cloud_runtime_drift",
+          "data.truth_basis": "materialized_reducer_rows",
+          "data.drift_findings[].finding_kind": "image_version_drift",
+          "data.drift_findings[].drifted_attributes[].attribute": "ami"
         },
         "minimum_results": 0
       },
@@ -5749,7 +5828,7 @@
         "minimum_results": 0
       },
       "GET /api/v0/iac/resources?limit=50&include_facets=true": {
-        "description": "Current active-generation IaC resource list and authoritative caller-visible summary from the terraform/IaC corpus.",
+        "description": "Current active-generation IaC resource list and authoritative caller-visible summary from the terraform/IaC corpus. count/summary.by_kind.resource raised 11 -> 13 and summary.total raised 19 -> 21 by issue #5594's terraform_local_backend_demo fixture (tests/fixtures/ecosystems/terraform_local_backend_demo/main.tf), which declares two resource blocks (aws_instance.local_backend_demo, aws_s3_bucket.local_backend_demo) and zero module/data blocks: this endpoint's kind=resource default list and summary.by_kind.resource both scan the TerraformResource graph label sourced from fact_kind='content_entity' config-side parsing (go/internal/query/iac_resources.go's iacResourceRow doc comment) -- unrelated to config-vs-state drift ownership resolution -- so +2 resource-kind content entities land regardless of drift-resolution outcome; summary.total sums all three kind counts (go/internal/query/iac_inventory_postgres.go's Summary: `summary.Total += count` per kind dimension row), so it moves by the same +2 with module/data-source counts unchanged (19 - 11 = 8 held constant, 13 + 8 = 21). count/summary.by_kind.resource raised 13 -> 14 and summary.total raised 21 -> 22 by issue #5572's golden-corpus fixture (tests/fixtures/ecosystems/terraform_comprehensive/terraform-aws-modules/vpc/aws/main.tf), which declares exactly one resource block (aws_security_group.vpc_endpoints) and zero module/data blocks -- the pre-existing `module \"vpc\"` block in modules.tf is unchanged, only its previously-dead source path now has a real target directory, so the module/data-source counts (8, unchanged since #5594) hold and this is a pure +1 resource-kind content entity, same mechanism as #5594's fixture, confirmed by a live golden-corpus-gate run against this exact scope.",
         "required_response_fields": [
           "resources",
           "count",
@@ -5763,9 +5842,9 @@
           "summary.by_kind.resource"
         ],
         "required_json_values": {
-          "count": 11,
-          "summary.total": 19,
-          "summary.by_kind.resource": 11
+          "count": 14,
+          "summary.total": 22,
+          "summary.by_kind.resource": 14
         }
       },
       "GET /api/v0/documentation/facts?fact_kind=source": {
@@ -6166,6 +6245,124 @@
         "request_body": {
           "scope_id": "state_snapshot:s3:299b28d40110e54bf81beb51e9459bdef688dbc58419782b29aa83a5930b48a7",
           "limit": 25
+        }
+      },
+      "POST /api/v0/terraform/config-state-drift/findings?variant=local-backend-resolved": {
+        "description": "Issue #5594 golden-corpus coverage for the `backend \"local\" {}` default-path fix itself: before this shape, the corpus had zero backend-local fixtures, so the default-path fix (go/internal/collector/terraformstate/backend_config_local.go) had no live golden-corpus coverage even though the shape above proved the read surface generally against the pre-existing S3 scope. The '?variant=local-backend-resolved' query-string suffix (following the precedent at 'POST /api/v0/impact/trace-deployment-chain?anchor=declared-object' above) exists only to give this entry a distinct map key -- go/cmd/golden-corpus-gate/query.go's parseHTTPShapeKey and Go's net/http.ServeMux both ignore the query string when routing, so this dispatches to the real, unmodified handler; the actual selector is scope_id in request_body, same as every other shape. scope_id is the $LOCAL_BACKEND_SCOPE_ID$ sentinel (see go/cmd/golden-corpus-gate/local_backend_scope_id.go and scripts/lib/golden-corpus-local-backend.sh for why a BackendLocal locator cannot be a literal here), substituted by golden-corpus-gate -local-backend-scope-id before this shape is asserted. tests/fixtures/ecosystems/terraform_local_backend_demo/main.tf declares a bare `backend \"local\" {}` block (no explicit path) with two resources; testdata/cassettes/terraformstate/supply-chain-demo.json's matching scope declares two different-address resources, so tfstatebackend.ResolveConfigCommitForBackend resolves this repo as the sole owner and both sides drift (added_in_config/added_in_state), materializing a real, non-vacuous outcome=\"exact\" finding. The outcome=\"exact\" request_body filter plus required_json_values prove this is a classified finding, not merely a resolved-with-zero-findings scope. minimum_results is 1. This entry originally omitted results_field, which EvaluateQueryShape (go/internal/goldengate/evaluate.go, since #5862) treats as an unconditional hard error for any shape setting minimum_results, and the sentinel-substitution sed bug in stage_local_backend_cassette (scripts/lib/golden-corpus-local-backend.sh) meant the state-snapshot scope this shape depends on never even reached Postgres -- so despite this description, no live run could have proven this assertion until both were fixed. A live golden-corpus-gate run against the fixed entries (PR #5882) has since confirmed it: the scope lands, and this shape now returns 4 drift_findings with outcome=\"exact\", not shape-only.",
+        "required_response_fields": [
+          "address",
+          "analysis_status",
+          "drift_findings",
+          "drift_kinds",
+          "findings_count",
+          "graph_projection_note",
+          "limit",
+          "limitations",
+          "next_offset",
+          "offset",
+          "outcome",
+          "outcome_groups",
+          "scope_id",
+          "story",
+          "total_findings_count",
+          "truncated",
+          "truth_basis"
+        ],
+        "minimum_results": 1,
+        "results_field": "drift_findings",
+        "request_body": {
+          "scope_id": "$LOCAL_BACKEND_SCOPE_ID$",
+          "outcome": "exact",
+          "limit": 25
+        },
+        "required_json_values": {
+          "outcome_groups[].outcome": "exact",
+          "drift_findings[].outcome": "exact"
+        }
+      },
+      "POST /api/v0/terraform/config-state-drift/findings?variant=unresolved": {
+        "description": "Issue #5594 golden-corpus coverage for the outcome=\"unresolved\" read-surface change: proves a rejected-with-no-config-owner scope is provably distinguishable, AT THE GATE, from the resolved-and-evaluated shapes above (both the pre-existing S3 scope and the new local-backend scope), not just in unit tests. The '?variant=unresolved' query-string suffix exists only to give this entry a distinct map key, same rationale as the local-backend-resolved shape above; the real selector is scope_id in request_body. scope_id=state_snapshot:s3:c56196104e4c2e4b00460def9a701a3d2b5e3098f3fccf4accaccd6e1c261efd (terraformstate.ScopeLocatorHash for bucket=golden-orphaned-tfstate-demo key=orphaned/terraform.tfstate) is a deliberately-orphaned backend: testdata/cassettes/terraformstate/supply-chain-demo.json carries its state side, but no fixture repo's .tf declares a matching `backend \"s3\"` block, so tfstatebackend.Resolver rejects every candidate with ErrNoConfigRepoOwnsBackend and the reducer writes outcome=\"unresolved\" (go/internal/reducer/terraform_config_state_drift_unresolved_owner.go, go/internal/reducer/terraform_config_state_drift_writer.go). The outcome=\"unresolved\" request_body filter plus required_json_values prove the single unresolved finding this scope produces (go/internal/query/terraform_config_state_drift.go's writeTerraformConfigStateDriftFindings: 'a scope whose backend never resolves to any config repo is reported as one \"unresolved\" finding, not an empty page') actually materializes. minimum_results is 1. This entry originally omitted results_field, which EvaluateQueryShape (go/internal/goldengate/evaluate.go, since #5862) treats as an unconditional hard error for any shape setting minimum_results -- so despite this description, no live run could have reached this assertion before results_field was added. A live golden-corpus-gate run against the fixed entry (PR #5882) has since confirmed it: this shape returns 1 drift_finding with outcome=\"unresolved\", distinguishable from the resolved case's 4 exact findings in the same run, not shape-only.",
+        "required_response_fields": [
+          "address",
+          "analysis_status",
+          "drift_findings",
+          "drift_kinds",
+          "findings_count",
+          "graph_projection_note",
+          "limit",
+          "limitations",
+          "next_offset",
+          "offset",
+          "outcome",
+          "outcome_groups",
+          "scope_id",
+          "story",
+          "total_findings_count",
+          "truncated",
+          "truth_basis"
+        ],
+        "minimum_results": 1,
+        "results_field": "drift_findings",
+        "request_body": {
+          "scope_id": "state_snapshot:s3:c56196104e4c2e4b00460def9a701a3d2b5e3098f3fccf4accaccd6e1c261efd",
+          "outcome": "unresolved",
+          "limit": 25
+        },
+        "required_json_values": {
+          "outcome_groups[].outcome": "unresolved",
+          "drift_findings[].outcome": "unresolved"
+        }
+      },
+      "POST /api/v0/terraform/config-state-drift/findings?variant=derived": {
+        "description": "Issue #5572 golden-corpus coverage for the outcome=\"derived\" read-surface change, proving BOTH halves of the spurious added_in_config/added_in_state mismatch pair reach \"derived\" at the gate, not only unit/loader-integration coverage. The '?variant=derived' query-string suffix exists only to give this entry a distinct map key, same rationale as the local-backend-resolved and unresolved shapes above; the real selector is scope_id plus the outcome filter in request_body. scope_id=state_snapshot:s3:299b28d40110e54bf81beb51e9459bdef688dbc58419782b29aa83a5930b48a7 is the pre-existing S3-backed scope shared with the default (unfiltered) shape above. tests/fixtures/ecosystems/terraform_comprehensive/terraform-aws-modules/vpc/aws/main.tf declares module.vpc's own registered source path (modules.tf: `module \"vpc\" { source = \"terraform-aws-modules/vpc/aws\" }`) as a REAL local directory containing a real resource (aws_security_group.vpc_endpoints) -- the exact false-positive shape the ADR names: classifyModuleSource's Terraform-Registry-shorthand heuristic (go/internal/storage/postgres/tfstate_drift_evidence_module_prefix.go) misclassifies that source as an external registry reference, so the directory is never walked as a resolved local callee even though it genuinely exists. The config-vs-state drift loader therefore addresses that resource as a plain root-module resource (aws_security_group.vpc_endpoints) instead of module.vpc.aws_security_group.vpc_endpoints. testdata/cassettes/terraformstate/supply-chain-demo.json's matching scope carries the CORRECT module-prefixed address (module.vpc.aws_security_group.vpc_endpoints) as a separate terraform_state_resource fact, so neither address matches the other: a spurious added_in_config fires for the wrongly-addressed config resource, flagged low-confidence (ModuleResolutionReason=\"external_registry\") and downgraded to outcome=\"derived\" by the reducer writer's moduleResolutionOutcome. The loader's pairSpuriousModuleMismatches (go/internal/storage/postgres/tfstate_drift_evidence_pairing.go) mirrors that same reason onto the paired spurious added_in_state finding for module.vpc.aws_security_group.vpc_endpoints -- it is the only state-only row that unambiguously shares the aws_security_group.vpc_endpoints resource key with the flagged config-only row -- so BOTH halves of the mismatch pair downgrade to outcome=\"derived\"; an outcome=\"exact\" query never returns either half of a known-spurious pair. minimum_results is 2, DERIVED (not assumed) by tracing the corpus fixtures rather than the live gate: buildModulePrefixMap's moduleResolutionConfidenceMap for this repo's ONE ingested config generation contains exactly one flagged directory (\"terraform-aws-modules/vpc/aws\", the only source in modules.tf classifyModuleSource misclassifies as external_registry -- module.s3_bucket's \"./modules/s3\" is a clean, if resourceless, local path, and module.eks's git:: source is external_git, which recordRegistryHeuristicCandidate never flags), and that directory contains exactly one declared resource (aws_security_group.vpc_endpoints), so exactly one config row ever carries ModuleResolutionReason. testdata/cassettes/terraformstate/supply-chain-demo.json's matching scope carries exactly four terraform_state_resource facts (aws_instance.supply-chain-demo, module.ecs.aws_ecs_cluster.supply-chain-demo, module.ecs.aws_ecs_service.supply-chain-demo, module.vpc.aws_security_group.vpc_endpoints), and module.vpc.aws_security_group.vpc_endpoints is the only one whose <type>.<name> resource key (aws_security_group.vpc_endpoints) matches the one flagged config-only row -- an unambiguous 1:1 pairing, so pairSpuriousModuleMismatches fires exactly once. This fixture repo has a single ingested generation (no prior-config walk promotes a removed_from_config candidate here), so no third finding can reach \"derived\" through the loadPriorConfigAddresses confidence-threading path either. The two required_json_object_matches entries under \"drift_findings[]\" below pin outcome=\"derived\" to EACH specific address independently (aws_security_group.vpc_endpoints for the config-only half, module.vpc.aws_security_group.vpc_endpoints for the state-only half) -- since a single finding object cannot satisfy two different address values at once, this proves two DISTINCT derived findings exist, not merely a count of 2 that a bug retaining only the config-side finding twice, or two unrelated config-side findings, could also satisfy. The pre-existing required_json_object_matches entry under \"drift_findings[].evidence[]\" additionally proves a finding's evidence array carries a terraform_module_resolution_confidence atom with value=\"external_registry\" on one correlated object, not two independent, potentially-unrelated field matches -- this is the assertion that proves the specific cause reaches the read surface, the whole justification for one \"derived\" outcome value covering both #5572 causes instead of splitting per cause. depth_exceeded (issue #5572's other documented cause) has no golden-corpus fixture: an 11-level module chain is a heavy fixture for a rare production shape unit/integration coverage already proves precisely; see docs/internal/evidence/5572-drift-derived-outcome-module-resolution-confidence.md for that explicit scoping decision.",
+        "required_response_fields": [
+          "address",
+          "analysis_status",
+          "drift_findings",
+          "drift_kinds",
+          "findings_count",
+          "graph_projection_note",
+          "limit",
+          "limitations",
+          "next_offset",
+          "offset",
+          "outcome",
+          "outcome_groups",
+          "scope_id",
+          "story",
+          "total_findings_count",
+          "truncated",
+          "truth_basis"
+        ],
+        "minimum_results": 2,
+        "results_field": "drift_findings",
+        "request_body": {
+          "scope_id": "state_snapshot:s3:299b28d40110e54bf81beb51e9459bdef688dbc58419782b29aa83a5930b48a7",
+          "outcome": "derived",
+          "limit": 25
+        },
+        "required_json_values": {
+          "outcome_groups[].outcome": "derived",
+          "drift_findings[].outcome": "derived",
+          "drift_findings[].evidence[].evidence_type": "terraform_module_resolution_confidence"
+        },
+        "required_json_object_matches": {
+          "drift_findings[]": [
+            {
+              "outcome": "derived",
+              "address": "aws_security_group.vpc_endpoints"
+            },
+            {
+              "outcome": "derived",
+              "address": "module.vpc.aws_security_group.vpc_endpoints"
+            }
+          ],
+          "drift_findings[].evidence[]": [
+            {
+              "evidence_type": "terraform_module_resolution_confidence",
+              "value": "external_registry"
+            }
+          ]
         }
       }
     }

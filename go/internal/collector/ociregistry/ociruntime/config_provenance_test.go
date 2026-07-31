@@ -187,8 +187,8 @@ type configBlobRegistryClient struct {
 
 func (c *configBlobRegistryClient) Ping(context.Context) error { return nil }
 
-func (c *configBlobRegistryClient) ListTags(context.Context, string) ([]string, error) {
-	return append([]string(nil), c.tags...), nil
+func (c *configBlobRegistryClient) ListTags(context.Context, string, int) (distribution.TagListResponse, error) {
+	return distribution.TagListResponse{Tags: append([]string(nil), c.tags...), Complete: true}, nil
 }
 
 func (c *configBlobRegistryClient) GetManifest(context.Context, string, string) (distribution.ManifestResponse, error) {

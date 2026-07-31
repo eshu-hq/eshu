@@ -145,14 +145,14 @@ func ecosystemTools() []ToolDefinition {
 		},
 		{
 			Name:        "analyze_infra_relationships",
-			Description: "Analyze infrastructure relationships: what deploys what, what provisions what, what image a workload runs, or what workloads run an image.",
+			Description: "Analyze infrastructure relationships: what deploys what, what provisions what, what image a workload runs, what workloads run an image, or what image a Lambda function uses.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"query_type": map[string]any{
 						"type":        "string",
 						"description": "Type of infrastructure relationship to analyze",
-						"enum":        []string{"what_deploys", "what_provisions", "who_consumes_xrd", "module_consumers", "what_runs_image"},
+						"enum":        []string{"what_deploys", "what_provisions", "who_consumes_xrd", "module_consumers", "what_runs_image", "what_runs_lambda_image"},
 					},
 					"target": map[string]any{
 						"type":        "string",

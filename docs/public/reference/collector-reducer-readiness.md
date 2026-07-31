@@ -228,7 +228,7 @@ the collector naming something truth. Current reducer-owned surfaces include:
 | `cloud_asset_resolution` | Cloud asset identity is admitted from source, applied, and observed resource layers. |
 | `config_state_drift` | Terraform config-vs-state drift v1 emits bounded counters and logs; it is not a graph write. |
 | `package_source_correlation` | Package source hints stay provenance until exact, derived, ambiguous, unresolved, stale, and rejected cases are proven. |
-| `container_image_identity` | Image identity is digest-keyed; weak, ambiguous, unresolved, or stale tag observations stay diagnostic. |
+| `container_image_identity` | Image evidence is correlated by digest while durable decisions are keyed by the observed image reference; weak, ambiguous, unresolved, or stale tag observations stay diagnostic. |
 | `aws_cloud_runtime_drift` | AWS drift findings are durable reducer facts with bounded Postgres reads; graph shape remains reducer-owned. |
 | `ci_cd_run_correlation` | Exact CI/CD correlation requires artifact identity evidence, not CI success alone. |
 | `service_catalog_correlation` | Catalog names, owners, and labels remain provenance until explicit repository evidence admits correlation. |

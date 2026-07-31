@@ -161,10 +161,16 @@ func TestPostgresTerraformBackendQuerySurvivesNullTerraformBackendsPath(t *testi
         }]}
     }`)
 
-	hash := terraformstate.LocatorHash(terraformstate.StateKey{
-		BackendKind: terraformstate.BackendS3,
-		Locator:     "s3://jsonb-null-bucket/prod/terraform.tfstate",
-	})
+	// ScopeLocatorHash, NOT LocatorHash: the canonical adapter joins on the
+	// version-agnostic hash (see tfstate_backend_canonical.go and issue
+	// #203). This test used the per-version LocatorHash by mistake, which
+	// digests a trailing VersionID byte LocatorHash always appends and
+	// ScopeLocatorHash never does, so the two never agree for an empty
+	// VersionID -- the mismatch silently zeroed out len(rows) every time this
+	// DSN-gated test actually ran against a real Postgres, masked locally
+	// because it skips without ESHU_POSTGRES_DSN set. Caught auditing the
+	// live-Postgres proof for issue #5594.
+	hash := terraformstate.ScopeLocatorHash(terraformstate.BackendS3, "s3://jsonb-null-bucket/prod/terraform.tfstate")
 
 	query := PostgresTerraformBackendQuery{DB: SQLDB{DB: db}}
 	rows, err := query.ListTerraformBackendsByLocator(context.Background(), "s3", hash)

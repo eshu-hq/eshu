@@ -61,7 +61,7 @@ func TestLiveECRDistributionTags(t *testing.T) {
 	if err := client.Ping(ctx); err != nil {
 		t.Fatalf("Ping() error = %v", err)
 	}
-	if _, err := client.ListTags(ctx, repository); err != nil {
+	if _, err := client.ListTags(ctx, repository, 100); err != nil {
 		t.Fatalf("ListTags() error = %v", err)
 	}
 	if reference := os.Getenv("ESHU_ECR_OCI_REFERENCE"); reference != "" {

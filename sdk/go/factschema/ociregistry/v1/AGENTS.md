@@ -53,14 +53,15 @@ schema-version-1 typed payload structs for the `oci_registry` fact family:
 - Removing, renaming, or narrowing a field is a major schema bump and needs a
   conversion shim in the parent package's decode seam (`decodeLatestMajor` in
   `../../decode.go`), not a silent edit here.
-- **`Warning` is DEFERRED — typed but not consumed.** No projector or reducer
-  read path decodes `oci_registry.warning` today (design §3.4). Keep the struct,
-  schema, fixturepack entry, and registry `payload_schema` ref so the kind is
-  contract-complete, but do NOT wire a decode site, `input_invalid` regression
-  test, or benchmark for it — there is no read path to convert. It migrates its
-  decode site WITH its future consumer, matching the gcp wave's deferred
-  `gcp_image_reference` / `gcp_tag_observation`. If you add a consumer, convert
-  its decode site and its accuracy proof in that change.
+- **`Warning` is consumed by container-image identity retirement.** The reducer
+  decodes active `oci_registry.warning` facts to distinguish genuine demotion
+  from bounded collector incompleteness (`config_blob_unavailable`,
+  `tag_list_truncated`, and `missing_manifest_digest`). Keep the typed decode
+  site fail-closed for malformed active warnings and incomplete code-specific
+  targets: all three codes require a concrete repository target, and
+  `config_blob_unavailable` also requires a lowercase sha256 digest. Keep the
+  warning-gated retirement tests, struct, schema, fixturepack entry, and
+  registry `payload_schema` ref in lockstep.
 - The reducer and projector decode only the latest struct per fact kind.
   Older-schema-major shims live in the parent package's `decodeLatestMajor`,
   never here or in handler code.

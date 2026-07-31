@@ -112,6 +112,7 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.ScannerWorkerFactsEmitted, "ScannerWorkerFactsEmitted counter should be registered")
 	assert.NotNil(t, inst.PackageSourceCorrelations, "PackageSourceCorrelations counter should be registered")
 	assert.NotNil(t, inst.ContainerImageIdentityDecisions, "ContainerImageIdentityDecisions counter should be registered")
+	assert.NotNil(t, inst.ContainerImageIdentityRetirements, "ContainerImageIdentityRetirements counter should be registered")
 	assert.NotNil(t, inst.CICDRunCorrelations, "CICDRunCorrelations counter should be registered")
 	assert.NotNil(t, inst.ServiceCatalogCorrelations, "ServiceCatalogCorrelations counter should be registered")
 	assert.NotNil(t, inst.ServiceCatalogCorrelationGuardrails, "ServiceCatalogCorrelationGuardrails counter should be registered")

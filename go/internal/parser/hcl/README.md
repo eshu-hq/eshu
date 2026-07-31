@@ -89,6 +89,18 @@ Terragrunt `remote_state` rows store the parser-side source file path under
 `source_path`, kept distinct from the local backend's `path` attribute so
 neither value silently overwrites the other (`terragrunt_remote_state.go:54`).
 
+`terraform_backends` rows (`terraform_backend.go`) solve the same collision
+the other way round: `row["path"]` was already the parser-side source file
+path before backends had a `path` attribute of their own, so the local
+backend's `path` attribute is captured under `row["state_path"]` instead
+(`backendAttributeRowKey`, issue #5594) — not `row["local_path"]`, because the
+durable `repository` fact already has an established `local_path` field
+meaning the repo checkout root, and reusing that name here would recreate the
+exact collision this split exists to avoid. A bare `backend "local" {}` with
+no `path` attribute omits `state_path` entirely — the config-vs-state drift
+resolver (`go/internal/collector/terraformstate.EvaluateBackendConfig`)
+applies Terraform's own default in that case, not this parser package.
+
 Terraform resource attribute extraction (`terraform_resource_attributes.go`)
 uses cty-value evaluation via `hclsyntax.Expression.Value(nil)` rather than
 byte-level source reads to produce the `attributes` and

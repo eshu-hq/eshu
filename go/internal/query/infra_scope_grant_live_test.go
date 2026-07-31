@@ -212,3 +212,122 @@ func TestLiveInfraScopeShapeShapeADiscriminates(t *testing.T) {
 		t.Fatalf("grant repo-b must admit exactly the tenant-B secret, got %d", got)
 	}
 }
+
+// seedLiveScopeShapeStateFixture writes the #5623 MATCHES_STATE topology into
+// the same sst-prefixed scratch namespace, reusing the sst-repo-a / sst-repo-b
+// Repository nodes seedLiveScopeShapeFixture already created (callers MUST run
+// that seed first): a matched-and-granted state resource (sst-ts-a,
+// MATCHES_STATE-linked to a repo-a TerraformResource), a matched-but-
+// cross-tenant state resource (sst-ts-b, linked to a repo-b TerraformResource
+// -- the genuine cross-tenant candidate row this fix must exclude), and an
+// unmatched state resource (sst-ts-unmatched, no MATCHES_STATE edge at all,
+// even though its config_repo_id PROPERTY names repo-a) that must stay
+// invisible regardless of the property value.
+func seedLiveScopeShapeStateFixture(t *testing.T, session neo4jdriver.SessionWithContext) {
+	t.Helper()
+	seed := "MATCH (ra:Repository {id:'sst-repo-a'}) " +
+		"MATCH (rb:Repository {id:'sst-repo-b'}) " +
+		"CREATE (tra:TerraformResource {id:'sst-tr-a', repo_id:'sst-repo-a', name:'aws_instance.web', sst:true}) " +
+		"CREATE (trb:TerraformResource {id:'sst-tr-b', repo_id:'sst-repo-b', name:'aws_instance.web', sst:true}) " +
+		"CREATE (tsa:TerraformStateResource {uid:'sst-ts-a', config_repo_id:'sst-repo-a', sst:true}) " +
+		"CREATE (tsb:TerraformStateResource {uid:'sst-ts-b', config_repo_id:'sst-repo-b', sst:true}) " +
+		"CREATE (tsu:TerraformStateResource {uid:'sst-ts-unmatched', config_repo_id:'sst-repo-a', sst:true}) " +
+		"CREATE (tra)-[:MATCHES_STATE]->(tsa) " +
+		"CREATE (trb)-[:MATCHES_STATE]->(tsb)"
+	liveScopeRun(t, session, seed, nil)
+}
+
+// TestLiveInfraScopeShapeMatchesStateDiscriminates is the #5623 real-backend
+// RED->GREEN regression for TerraformStateResource scoped-token visibility.
+// It proves, against the production infraResourceScopePredicate builder run
+// over a live NornicDB:
+//
+//   - RED (today, pre-fix baseline): the flat direct-ownership disjuncts alone
+//     admit ZERO TerraformStateResource nodes for any grant -- the reported
+//     coverage gap is real on this backend, not a theoretical worry.
+//   - RED (rejected alternative): a config_repo_id PROPERTY-only disjunct
+//     over-admits -- it counts the unmatched state resource (sst-ts-unmatched,
+//     no MATCHES_STATE edge) alongside the genuinely matched one, because the
+//     property is set from backend-ownership resolution alone and does not
+//     require an edge. This is why the fix traverses the edge instead of
+//     trusting the property.
+//   - GREEN (the fix): the production predicate, via its MATCHES_STATE
+//     inline-map disjunct, admits exactly the matched-and-granted state
+//     resource for a repo-a grant, and separately proves the cross-tenant
+//     matched-but-ungranted row (sst-ts-b, linked to repo-b) and the unmatched
+//     row (sst-ts-unmatched) both stay invisible.
+//
+// Gate: set ESHU_CYPHER_BOLT_DSN (e.g. bolt://localhost:27687) to the isolated
+// NornicDB. Run with:
+//
+//	go test -tags live_infra_scope_shape ./internal/query \
+//	  -run TestLiveInfraScopeShapeMatchesStateDiscriminates -count=1
+func TestLiveInfraScopeShapeMatchesStateDiscriminates(t *testing.T) {
+	session, closeFn := liveScopeShapeSession(t)
+	defer closeFn()
+	seedLiveScopeShapeFixture(t, session)
+	seedLiveScopeShapeStateFixture(t, session)
+	defer liveScopeRun(t, session, "MATCH (n) WHERE n.sst = true DETACH DELETE n", nil)
+
+	accessA := repositoryAccessFilter{
+		allowedRepositoryIDs: []string{"sst-repo-a"},
+		allowed:              map[string]struct{}{"sst-repo-a": {}},
+	}
+	scalarsA, _ := accessA.scopeGrantInlineScalars()
+	paramsA := map[string]any{"allowed_repository_ids": accessA.allowedRepositoryIDs, "allowed_scope_ids": []string{}}
+	bindScopeGrantInlineScalars(paramsA, scalarsA)
+
+	sst := " AND n.sst = true"
+
+	// RED 1: flat direct-ownership alone (pre-#5623 shape) sees no state
+	// resources at all, for any grant -- proving the reported gap.
+	flatOnly := "(n.repo_id IN $allowed_repository_ids OR n.repo_id IN $allowed_scope_ids OR " +
+		"n.id IN $allowed_repository_ids OR n.id IN $allowed_scope_ids)" + sst
+	if got := liveScopeCount(t, session, "n", "TerraformStateResource", flatOnly, paramsA); got != 0 {
+		t.Fatalf("RED expectation failed: flat-only disjuncts counted %d TerraformStateResource nodes, want 0 (proves the pre-#5623 coverage gap is real)", got)
+	}
+
+	// RED 2: a config_repo_id PROPERTY-only disjunct (the rejected design)
+	// over-admits: it counts sst-ts-a (matched+granted, correct) AND
+	// sst-ts-unmatched (no MATCHES_STATE edge, wrongly admitted because the
+	// property alone doesn't require a match) -- 2, not 1.
+	propertyOnly := "(n.config_repo_id IN $allowed_repository_ids OR n.config_repo_id IN $allowed_scope_ids)" + sst
+	if got := liveScopeCount(t, session, "n", "TerraformStateResource", propertyOnly, paramsA); got != 2 {
+		t.Fatalf("RED expectation failed: config_repo_id property-only disjunct counted %d, want 2 (proves the property alone wrongly admits the unmatched row)", got)
+	}
+
+	// GREEN: the production predicate admits exactly the matched-and-granted
+	// state resource for the repo-a grant.
+	shapeA := infraResourceScopePredicate("n", scalarsA) + sst
+	if got := liveScopeCount(t, session, "n", "TerraformStateResource", shapeA, paramsA); got != 1 {
+		t.Fatalf("GREEN failed: SHAPE-A counted %d TerraformStateResource nodes for grant repo-a, want 1 (only sst-ts-a)", got)
+	}
+
+	// NEGATIVE (cross-tenant): the repo-a grant must not see sst-ts-b, which is
+	// genuinely MATCHES_STATE-matched but to a repo-b TerraformResource.
+	crossTenant := infraResourceScopePredicate("n", scalarsA) + " AND n.uid = 'sst-ts-b'" + sst
+	if got := liveScopeCount(t, session, "n", "TerraformStateResource", crossTenant, paramsA); got != 0 {
+		t.Fatalf("NEGATIVE failed: repo-a grant admitted the cross-tenant matched row sst-ts-b (matched to repo-b), count=%d, want 0 -- this is the tenant-isolation regression this fix must prevent", got)
+	}
+
+	// NEGATIVE (unmatched): sst-ts-unmatched has no MATCHES_STATE edge at all,
+	// even though its config_repo_id property names the granted repo-a, and
+	// must stay invisible.
+	unmatched := infraResourceScopePredicate("n", scalarsA) + " AND n.uid = 'sst-ts-unmatched'" + sst
+	if got := liveScopeCount(t, session, "n", "TerraformStateResource", unmatched, paramsA); got != 0 {
+		t.Fatalf("NEGATIVE failed: repo-a grant admitted the unmatched row sst-ts-unmatched (no MATCHES_STATE edge), count=%d, want 0", got)
+	}
+
+	// GREEN: the repo-b grant admits exactly its own matched state resource.
+	accessB := repositoryAccessFilter{
+		allowedRepositoryIDs: []string{"sst-repo-b"},
+		allowed:              map[string]struct{}{"sst-repo-b": {}},
+	}
+	scalarsB, _ := accessB.scopeGrantInlineScalars()
+	paramsB := map[string]any{"allowed_repository_ids": accessB.allowedRepositoryIDs, "allowed_scope_ids": []string{}}
+	bindScopeGrantInlineScalars(paramsB, scalarsB)
+	shapeB := infraResourceScopePredicate("n", scalarsB) + sst
+	if got := liveScopeCount(t, session, "n", "TerraformStateResource", shapeB, paramsB); got != 1 {
+		t.Fatalf("grant repo-b must admit exactly its own matched state resource (sst-ts-b), got %d", got)
+	}
+}

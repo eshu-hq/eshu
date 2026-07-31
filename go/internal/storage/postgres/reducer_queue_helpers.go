@@ -120,6 +120,7 @@ func scanReducerIntent(rows Rows) (reducer.Intent, error) {
 	var generationID string
 	var domain string
 	var attemptCount int
+	var claimEpoch int64
 	var enqueuedAt time.Time
 	var availableAt time.Time
 	var rawPayload []byte
@@ -130,6 +131,7 @@ func scanReducerIntent(rows Rows) (reducer.Intent, error) {
 		&generationID,
 		&domain,
 		&attemptCount,
+		&claimEpoch,
 		&enqueuedAt,
 		&availableAt,
 		&rawPayload,
@@ -164,6 +166,7 @@ func scanReducerIntent(rows Rows) (reducer.Intent, error) {
 		Domain:          domainValue,
 		Cause:           reason,
 		AttemptCount:    attemptCount,
+		ClaimEpoch:      claimEpoch,
 		EntityKeys:      nil,
 		RelatedScopeIDs: []string{scopeID},
 		Payload:         intentPayload,
@@ -248,8 +251,24 @@ func (q ReducerQueue) failIntent(
 			intent.IntentID,
 			q.LeaseOwner,
 		}
-		if _, err := q.db.ExecContext(ctx, retryReducerWorkQuery, args...); err != nil {
+		query := retryReducerWorkQuery
+		target := intent.Domain == reducer.DomainContainerImageIdentity
+		if target {
+			query = retryContainerImageIdentityReducerWorkQuery
+			args = append(args, intent.ClaimEpoch)
+		}
+		result, err := q.db.ExecContext(ctx, query, args...)
+		if err != nil {
 			return fmt.Errorf("fail reducer work: %w", err)
+		}
+		if target {
+			rowsAffected, rowsErr := result.RowsAffected()
+			if rowsErr != nil {
+				return fmt.Errorf("fail reducer work: rows affected: %w", rowsErr)
+			}
+			if rowsAffected == 0 {
+				return ErrReducerClaimRejected
+			}
 		}
 		if q.Instruments != nil && q.Instruments.ReducerRetrySurge != nil {
 			q.Instruments.ReducerRetrySurge.Add(ctx, 1, metric.WithAttributes(
@@ -272,8 +291,24 @@ func (q ReducerQueue) failIntent(
 		intent.IntentID,
 		q.LeaseOwner,
 	}
-	if _, err := q.db.ExecContext(ctx, failReducerWorkQuery, args...); err != nil {
+	query := failReducerWorkQuery
+	target := intent.Domain == reducer.DomainContainerImageIdentity
+	if target {
+		query = failContainerImageIdentityReducerWorkQuery
+		args = append(args, intent.ClaimEpoch)
+	}
+	result, err := q.db.ExecContext(ctx, query, args...)
+	if err != nil {
 		return fmt.Errorf("fail reducer work: %w", err)
+	}
+	if target {
+		rowsAffected, rowsErr := result.RowsAffected()
+		if rowsErr != nil {
+			return fmt.Errorf("fail reducer work: rows affected: %w", rowsErr)
+		}
+		if rowsAffected == 0 {
+			return ErrReducerClaimRejected
+		}
 	}
 
 	return nil

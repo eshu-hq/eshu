@@ -35,6 +35,9 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := buildAWSCloudRuntimeDriftReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}
+	if intent, ok := buildMultiCloudRuntimeDriftReducerIntent(scopeValue, generation, index); ok {
+		intents = append(intents, intent)
+	}
 	if intent, ok := buildAWSResourceMaterializationReducerIntent(scopeValue, generation, index); ok {
 		intents = append(intents, intent)
 	}

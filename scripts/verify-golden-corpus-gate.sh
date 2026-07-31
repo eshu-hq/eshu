@@ -32,6 +32,11 @@ cd "${repo_root}"
 . "${repo_root}/scripts/lib/golden-corpus-readiness.sh"
 # shellcheck source=scripts/lib/golden-corpus-vulnerability-suppression.sh
 . "${repo_root}/scripts/lib/golden-corpus-vulnerability-suppression.sh"
+# issue #5594: resolves the non-deterministic backend-local fixture scope_id
+# and stages a sentinel-substituted runtime cassette copy (defines
+# stage_local_backend_cassette; see the lib's header for the full rationale).
+# shellcheck source=scripts/lib/golden-corpus-local-backend.sh
+. "${repo_root}/scripts/lib/golden-corpus-local-backend.sh"
 
 # ----------------------------------------------------------------------------
 # Configuration (override via environment).
@@ -254,6 +259,9 @@ log "bootstrap-index over minimal corpus (schema + filesystem facts + projection
 phase_bootstrap_end="$(date +%s)"
 phase_collect_start="${phase_bootstrap_end}"
 
+log "resolve local-backend fixture scope_id (issue #5594)"
+stage_local_backend_cassette
+
 log "replay B-10 cassette collectors (credential-free)"
 collector_pids=()
 collector_names=()
@@ -261,6 +269,12 @@ for spec in "${collector_specs[@]}"; do
 	cmd="${spec%%:*}"
 	dir="${spec##*:}"
 	cassette="${repo_root}/testdata/cassettes/${dir}/${cassette_recording}"
+	# terraformstate alone replays the sentinel-substituted runtime copy
+	# stage_local_backend_cassette wrote above; every other collector keeps
+	# its original, unmodified, committed cassette (issue #5594).
+	if [[ "${dir}" == "terraformstate" ]]; then
+		cassette="${local_backend_cassette_path}"
+	fi
 	[[ -f "${cassette}" ]] || die "cassette not found: ${cassette}"
 	start_bg "${cmd}" cpid "${bin_dir}/eshu-${cmd}" -mode=cassette -cassette-file="${cassette}"
 	collector_pids+=("${cpid}")
@@ -312,6 +326,14 @@ if ! "${bin_dir}/eshu-golden-corpus-gate" \
 	die "first drain pass failed"
 fi
 kill "${projector_pid}" "${reducer_pid}" >/dev/null 2>&1 || true
+# issue #5594: start the cumulative reducer-log history this pass, before
+# start_bg's truncating redirect overwrites reducer.log on the next drain.
+# See scripts/lib/golden-corpus-maintenance-drains.sh's matching append for
+# why this file exists (config_state_drift intents for cassette-landed
+# scopes are not enqueueable until bootstrap-index's Phase 3.5 re-runs
+# during the maintenance loop below, but capturing this pass too costs
+# nothing and removes a "was it actually this early" question later).
+cat "${log_dir}/reducer.log" >"${log_dir}/reducer-config-state-drift-history.log" 2>/dev/null || true
 phase_first_drain_end="$(date +%s)"
 phase_maintenance_start="${phase_first_drain_end}"
 
@@ -323,6 +345,9 @@ phase_maintenance_start="${phase_first_drain_end}"
 # shellcheck source=scripts/lib/golden-corpus-maintenance-drains.sh
 . "${repo_root}/scripts/lib/golden-corpus-maintenance-drains.sh"
 run_maintenance_drain_cycles
+
+log "local-backend drift diagnostics (issue #5594)"
+print_local_backend_drift_diagnostics
 
 pipeline_end="$(date +%s)"
 elapsed=$(( pipeline_end - pipeline_start ))
@@ -411,6 +436,7 @@ gate_status=0
 	-graph-required-only=false \
 	-required-node-labels="Repository,Directory,File,Function,AtlantisProject,AtlantisWorkflow,Platform,GitlabPipeline,GitlabJob,CloudAction" \
 	-required-correlations="all" \
+	-local-backend-scope-id="${local_backend_scope_id}" \
 	-budget-seconds="${GATE_BUDGET_SECONDS}" \
 	-budget-multiplier="${GATE_BUDGET_MULTIPLIER}" \
 	-elapsed-seconds="${elapsed}" \

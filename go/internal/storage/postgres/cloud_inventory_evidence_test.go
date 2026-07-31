@@ -32,7 +32,10 @@ func TestPostgresCloudInventoryEvidenceLoaderMapsProviderSourceFacts(t *testing.
 			{rows: [][]any{
 				{facts.AWSResourceFactKind, awsARN, []byte(`{
 					"arn":"` + awsARN + `",
-					"resource_type":"aws_s3_bucket"
+					"resource_type":"aws_s3_bucket",
+					"account_id":"111111111111",
+					"resource_id":"managed-bucket",
+					"region":"us-east-1"
 				}`)},
 				{facts.GCPCloudResourceFactKind, gcpName, []byte(`{
 					"full_resource_name":"` + gcpName + `",
@@ -40,7 +43,9 @@ func TestPostgresCloudInventoryEvidenceLoaderMapsProviderSourceFacts(t *testing.
 				}`)},
 				{facts.AzureCloudResourceFactKind, azureID, []byte(`{
 					"arm_resource_id":"` + azureID + `",
-					"resource_type":"microsoft.compute/virtualmachines"
+					"resource_type":"microsoft.compute/virtualmachines",
+					"subscription_id":"11111111-2222-3333-4444-555555555555",
+					"location":"eastus"
 				}`)},
 			}},
 		},
@@ -119,7 +124,7 @@ func TestPostgresCloudInventoryEvidenceLoaderSkipsBlankAndMalformedRows(t *testi
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{
-				{facts.AWSResourceFactKind, awsARN, []byte(`{"arn":"` + awsARN + `","resource_type":"aws_s3_bucket"}`)},
+				{facts.AWSResourceFactKind, awsARN, []byte(`{"arn":"` + awsARN + `","resource_type":"aws_s3_bucket","account_id":"111111111111","resource_id":"ok","region":"us-east-1"}`)},
 				// Blank raw identity: dropped.
 				{facts.GCPCloudResourceFactKind, "", []byte(`{"full_resource_name":"","asset_type":"x"}`)},
 				// Undecodable payload: dropped.

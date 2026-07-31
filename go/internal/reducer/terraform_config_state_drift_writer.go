@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/correlation/drift/tfconfigstate"
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
@@ -19,13 +20,19 @@ import (
 
 const terraformConfigStateDriftFactKind = facts.ReducerTerraformConfigStateDriftFindingFactKind
 
-// terraformConfigStateDriftOutcomeExact and terraformConfigStateDriftOutcome
-// Ambiguous are the two outcome values this domain reaches today. See
-// go/internal/correlation/drift/tfconfigstate/doc.go for why "derived",
-// "stale", "unresolved", and "rejected" are not emitted.
+// terraformConfigStateDriftOutcomeExact, terraformConfigStateDriftOutcome
+// Derived, terraformConfigStateDriftOutcomeAmbiguous, and
+// terraformConfigStateDriftOutcomeUnresolved are the four outcome values this
+// domain reaches today. See go/internal/correlation/drift/tfconfigstate/doc.go
+// for why "stale" is still not emitted, for the issue #5594 decision that
+// made "unresolved" durable (superseding the #5442-era "unresolved stays
+// log-only" call recorded there), and for issue #5572's per-address
+// module-resolution-confidence signal that makes "derived" reachable.
 const (
-	terraformConfigStateDriftOutcomeExact     = "exact"
-	terraformConfigStateDriftOutcomeAmbiguous = "ambiguous"
+	terraformConfigStateDriftOutcomeExact      = "exact"
+	terraformConfigStateDriftOutcomeDerived    = "derived"
+	terraformConfigStateDriftOutcomeAmbiguous  = "ambiguous"
+	terraformConfigStateDriftOutcomeUnresolved = "unresolved"
 )
 
 // TerraformConfigStateDriftFindingWriter persists admitted per-address drift
@@ -40,15 +47,21 @@ type TerraformConfigStateDriftFindingWriter interface {
 }
 
 // TerraformConfigStateDriftWrite is the durable publication request for one
-// terraform_config_state_drift reducer intent. Exactly one of Candidates or
-// AmbiguousOwners is populated per call:
+// terraform_config_state_drift reducer intent. Exactly one of Candidates,
+// AmbiguousOwners, or UnresolvedOwner is populated per call:
 //
 //   - Candidates carries the admitted per-address candidates from
-//     tfconfigstate.BuildCandidates (outcome "exact"); AmbiguousOwners is nil.
+//     tfconfigstate.BuildCandidates (outcome "exact"); the other two fields
+//     are zero.
 //   - AmbiguousOwners carries the competing config-repo candidate rows from
 //     tfstatebackend.AmbiguousBackendOwnerError (outcome "ambiguous");
-//     Candidates is nil because no single anchor was resolved to classify
-//     against.
+//     Candidates is nil and UnresolvedOwner is false because no single anchor
+//     was resolved to classify against.
+//   - UnresolvedOwner is true when tfstatebackend.ErrNoConfigRepoOwnsBackend
+//     was returned: zero config repos claim this backend at all, not even an
+//     ambiguous set (outcome "unresolved", issue #5594). Candidates and
+//     AmbiguousOwners are both nil/empty; there is no competing evidence to
+//     record, only the absence of any owner.
 type TerraformConfigStateDriftWrite struct {
 	IntentID        string
 	ScopeID         string
@@ -59,6 +72,7 @@ type TerraformConfigStateDriftWrite struct {
 	LocatorHash     string
 	Candidates      []model.Candidate
 	AmbiguousOwners []tfstatebackend.TerraformBackendRow
+	UnresolvedOwner bool
 }
 
 // TerraformConfigStateDriftWriteResult summarizes durable Terraform
@@ -77,10 +91,11 @@ type PostgresTerraformConfigStateDriftWriter struct {
 }
 
 // WriteTerraformConfigStateDriftFindings stores one durable fact per admitted
-// per-address candidate, or exactly one durable "ambiguous" fact for the
-// whole state scope when AmbiguousOwners is populated. Fact ids are stable by
-// finding identity so reducer retries and replays upsert the same row instead
-// of duplicating findings.
+// per-address candidate, exactly one durable "ambiguous" fact for the whole
+// state scope when AmbiguousOwners is populated, or exactly one durable
+// "unresolved" fact for the whole state scope when UnresolvedOwner is true.
+// Fact ids are stable by finding identity so reducer retries and replays
+// upsert the same row instead of duplicating findings.
 func (w PostgresTerraformConfigStateDriftWriter) WriteTerraformConfigStateDriftFindings(
 	ctx context.Context,
 	write TerraformConfigStateDriftWrite,
@@ -88,9 +103,19 @@ func (w PostgresTerraformConfigStateDriftWriter) WriteTerraformConfigStateDriftF
 	if w.DB == nil {
 		return TerraformConfigStateDriftWriteResult{}, fmt.Errorf("terraform config state drift database is required")
 	}
-	if len(write.Candidates) > 0 && len(write.AmbiguousOwners) > 0 {
+	writeModes := 0
+	if len(write.Candidates) > 0 {
+		writeModes++
+	}
+	if len(write.AmbiguousOwners) > 0 {
+		writeModes++
+	}
+	if write.UnresolvedOwner {
+		writeModes++
+	}
+	if writeModes > 1 {
 		return TerraformConfigStateDriftWriteResult{}, fmt.Errorf(
-			"terraform config state drift write must carry candidates or ambiguous owners, not both",
+			"terraform config state drift write must carry exactly one of candidates, ambiguous owners, or unresolved owner",
 		)
 	}
 
@@ -98,16 +123,24 @@ func (w PostgresTerraformConfigStateDriftWriter) WriteTerraformConfigStateDriftF
 	var rows []reducerFactVersionedRow
 	var canonicalIDs []string
 
-	if len(write.AmbiguousOwners) > 0 {
+	switch {
+	case write.UnresolvedOwner:
+		row, canonicalID, err := unresolvedOwnerFactRow(write, now)
+		if err != nil {
+			return TerraformConfigStateDriftWriteResult{}, err
+		}
+		rows = append(rows, row)
+		canonicalIDs = append(canonicalIDs, canonicalID)
+	case len(write.AmbiguousOwners) > 0:
 		row, canonicalID, err := ambiguousOwnerFactRow(write, now)
 		if err != nil {
 			return TerraformConfigStateDriftWriteResult{}, err
 		}
 		rows = append(rows, row)
 		canonicalIDs = append(canonicalIDs, canonicalID)
-	} else {
+	default:
 		for _, candidate := range write.Candidates {
-			row, canonicalID, err := exactFindingFactRow(write, candidate, now)
+			row, canonicalID, err := perAddressFindingFactRow(write, candidate, now)
 			if err != nil {
 				return TerraformConfigStateDriftWriteResult{}, err
 			}
@@ -120,6 +153,22 @@ func (w PostgresTerraformConfigStateDriftWriter) WriteTerraformConfigStateDriftF
 		return TerraformConfigStateDriftWriteResult{}, fmt.Errorf("write terraform config state drift fact: %w", err)
 	}
 
+	// Generation-authoritative retire (review finding on #5594): this write
+	// is the complete, mutually-exclusive assessment of (ScopeID,
+	// GenerationID) for this pass, so any OTHER terraform config-state drift
+	// finding fact under the same (scope_id, generation_id) is stale --
+	// e.g. a prior "unresolved" row surviving alongside this pass's "exact"
+	// resolution. Runs after the insert succeeds so the retire only ever
+	// removes rows this pass's own fresh write has superseded, never a
+	// still-in-flight batch's rows.
+	factIDs := make([]string, 0, len(rows))
+	for _, row := range rows {
+		factIDs = append(factIDs, row.FactID)
+	}
+	if err := retireTerraformConfigStateDriftFindings(ctx, w.DB, write.ScopeID, write.GenerationID, factIDs); err != nil {
+		return TerraformConfigStateDriftWriteResult{}, err
+	}
+
 	return TerraformConfigStateDriftWriteResult{
 		CanonicalIDs:    canonicalIDs,
 		CanonicalWrites: len(canonicalIDs),
@@ -127,12 +176,22 @@ func (w PostgresTerraformConfigStateDriftWriter) WriteTerraformConfigStateDriftF
 	}, nil
 }
 
-func exactFindingFactRow(
+// perAddressFindingFactRow builds the durable fact row for one admitted
+// per-address drift candidate. Named "perAddressFindingFactRow" rather than
+// the historical "exactFindingFactRow" (issue #5572): this row is no longer
+// always "exact" -- moduleResolutionOutcome downgrades Outcome to "derived"
+// when the candidate carries a EvidenceTypeModuleResolutionConfidence atom,
+// meaning the config-side Address the candidate was built from depended on
+// an unresolved module-prefix fallback (see
+// go/internal/correlation/drift/tfconfigstate/candidate.go and
+// go/internal/storage/postgres/tfstate_drift_evidence_module_confidence.go).
+func perAddressFindingFactRow(
 	write TerraformConfigStateDriftWrite,
 	candidate model.Candidate,
 	now time.Time,
 ) (reducerFactVersionedRow, string, error) {
 	driftKind := readDriftKindAtom(candidate)
+	outcome := moduleResolutionOutcome(candidate)
 	stableKey := strings.Join([]string{
 		"terraform_config_state_drift",
 		strings.TrimSpace(write.ScopeID),
@@ -161,7 +220,7 @@ func exactFindingFactRow(
 		CanonicalID:   canonicalID,
 		CandidateID:   candidate.ID,
 		CandidateKind: candidate.Kind,
-		Outcome:       terraformConfigStateDriftOutcomeExact,
+		Outcome:       outcome,
 		Address:       candidate.CorrelationKey,
 		DriftKind:     driftKind,
 		BackendKind:   write.BackendKind,
@@ -263,6 +322,81 @@ func ambiguousOwnerFactRow(
 	}, canonicalID, nil
 }
 
+// unresolvedOwnerFactRow persists tfstatebackend.ErrNoConfigRepoOwnsBackend as
+// exactly one durable "unresolved" row for the whole state-snapshot scope,
+// mirroring ambiguousOwnerFactRow's shape (Address/DriftKind empty, one row
+// per scope+generation, upserted by stable fact id across replays). Unlike
+// the ambiguous case there is no competing evidence to record --
+// AmbiguousOwnerCandidates stays nil -- because zero repos claim this
+// backend, not two-or-more. Issue #5594: before this, ErrNoConfigRepoOwnsBackend
+// was log-only, so a caller reading this scope's findings could not tell
+// "evaluated, no drift" (an empty page) apart from "ownership never
+// resolved" (also an empty page); this row makes the rejection visible at
+// the read surface the same way the ambiguous row already does.
+func unresolvedOwnerFactRow(
+	write TerraformConfigStateDriftWrite,
+	now time.Time,
+) (reducerFactVersionedRow, string, error) {
+	stableKey := strings.Join([]string{
+		"terraform_config_state_drift",
+		"unresolved_owner",
+		strings.TrimSpace(write.ScopeID),
+		strings.TrimSpace(write.GenerationID),
+	}, ":")
+	canonicalID := "canonical:" + stableKey
+	factID := terraformConfigStateDriftFactKind + ":" + facts.StableID(
+		terraformConfigStateDriftFactKind,
+		map[string]any{
+			"scope_id":      strings.TrimSpace(write.ScopeID),
+			"generation_id": strings.TrimSpace(write.GenerationID),
+			"outcome":       terraformConfigStateDriftOutcomeUnresolved,
+		},
+	)
+
+	payload, err := factschema.EncodeReducerTerraformConfigStateDriftFinding(reducerderivedv1.TerraformConfigStateDriftFinding{
+		ReducerDomain: string(DomainConfigStateDrift),
+		IntentID:      write.IntentID,
+		ScopeID:       write.ScopeID,
+		GenerationID:  write.GenerationID,
+		SourceSystem:  write.SourceSystem,
+		Cause:         write.Cause,
+		CanonicalID:   canonicalID,
+		CandidateID:   "unresolved_owner:" + write.ScopeID,
+		CandidateKind: "terraform_config_state_drift_unresolved_owner",
+		Outcome:       terraformConfigStateDriftOutcomeUnresolved,
+		BackendKind:   write.BackendKind,
+		LocatorHash:   write.LocatorHash,
+		Confidence:    1.0,
+		Evidence:      nonNilMapSlice(nil),
+		SourceLayers: []string{
+			"source_declaration",
+		},
+	})
+	if err != nil {
+		return reducerFactVersionedRow{}, "", fmt.Errorf("encode terraform config state drift unresolved payload: %w", err)
+	}
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return reducerFactVersionedRow{}, "", fmt.Errorf("marshal terraform config state drift unresolved payload: %w", err)
+	}
+
+	return reducerFactVersionedRow{
+		FactID:           factID,
+		ScopeID:          write.ScopeID,
+		GenerationID:     write.GenerationID,
+		FactKind:         terraformConfigStateDriftFactKind,
+		StableFactKey:    stableKey,
+		SchemaVersion:    facts.ReducerDerivedSchemaVersionV1,
+		CollectorKind:    reducerFactCollectorKind(write.SourceSystem),
+		SourceConfidence: facts.SourceConfidenceInferred,
+		SourceSystem:     write.SourceSystem,
+		SourceFactKey:    write.IntentID,
+		ObservedAt:       now,
+		IngestedAt:       now,
+		Payload:          string(payloadJSON),
+	}, canonicalID, nil
+}
+
 // ambiguousOwnerCandidatesPayload converts the resolver's competing rows into
 // the provenance-only evidence shape the payload carries. No candidate is
 // picked or ranked; the order mirrors the query port's return order.
@@ -280,6 +414,27 @@ func ambiguousOwnerCandidatesPayload(rows []tfstatebackend.TerraformBackendRow) 
 		})
 	}
 	return out
+}
+
+// moduleResolutionOutcome returns terraformConfigStateDriftOutcomeDerived
+// when candidate carries a EvidenceTypeModuleResolutionConfidence atom
+// (issue #5572) — the config-side address this candidate was built from
+// depended on an unresolved module-prefix fallback (a registry-shorthand
+// misclassification or a depth-exceeded module chain; see
+// tfstate_drift_evidence_module_confidence.go) — and
+// terraformConfigStateDriftOutcomeExact otherwise. The specific reason stays
+// in the atom's Value inside the row's Evidence array (driftEvidencePayload
+// below carries every atom verbatim) rather than becoming a second outcome
+// value per cause: an operator debugging a spurious finding reads the
+// evidence array for "which unresolved-module reason," and the Outcome
+// column stays a join-confidence signal, not a reason taxonomy.
+func moduleResolutionOutcome(candidate model.Candidate) string {
+	for _, atom := range candidate.Evidence {
+		if atom.EvidenceType == tfconfigstate.EvidenceTypeModuleResolutionConfidence {
+			return terraformConfigStateDriftOutcomeDerived
+		}
+	}
+	return terraformConfigStateDriftOutcomeExact
 }
 
 func driftEvidencePayload(evidence []model.EvidenceAtom) []map[string]any {

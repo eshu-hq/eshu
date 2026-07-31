@@ -67,7 +67,8 @@ func TestCanonicalNodeWriterRetractsStaleMatchesStateEdgeLive(t *testing.T) {
 	// Only ownerRepoA declares this address; ownerRepoB never does, so a
 	// resource resolved to ownerRepoB in generation 2 has no config match at
 	// all -- the exact "target no longer matches" case this fix covers.
-	if err := boltWriteStatement(ctx, runner,
+	if err := boltWriteStatement(
+		ctx, runner,
 		`CREATE (c:TerraformResource {repo_id: $repo_id, name: $name, path: $path, line_number: 1})`,
 		map[string]any{"repo_id": ownerRepoA, "name": address, "path": "envs/a/main.tf"},
 	); err != nil {
@@ -79,7 +80,8 @@ func TestCanonicalNodeWriterRetractsStaleMatchesStateEdgeLive(t *testing.T) {
 	genOneRow := projector.TerraformStateResourceRow{
 		UID: stateUID, Address: address, Mode: "managed", ResourceType: "aws_instance",
 		Name: "web", SourceConfidence: facts.SourceConfidenceObserved, CollectorKind: "terraform_state",
-		OwningRepoID: ownerRepoA,
+		OwningRepoID:     ownerRepoA,
+		OwnershipOutcome: projector.TerraformStateOwnershipResolved,
 	}
 	genOne := projector.CanonicalMaterialization{
 		ScopeID:                 scopeID,

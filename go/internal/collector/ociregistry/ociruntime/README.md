@@ -66,6 +66,15 @@ digests. Those values are high cardinality and may describe private topology.
 ## Invariants
 
 - Tags are mutable observations; digest identity wins.
+- The Distribution client returns a bounded tag window with an explicit
+  completeness bit. The runtime sorts and compacts that window, retains at
+  most `TagLimit` tags, and emits one `tag_list_truncated` warning whenever the
+  client reports an incomplete list or observes more than the limit. This also
+  covers a short first page with an OCI `rel="next"` continuation. The
+  container-image-identity reducer consumes the warning to hold evicted tag
+  references instead of treating a partial scan as authoritative absence. An
+  incomplete window may be shorter than `TagLimit` or empty; it still emits the
+  warning and never attempts to slice beyond the observed tags.
 - Claimed scans must match one configured target by normalized `scope_id`; an
   unmatched claim releases without emitting facts.
 - Referrers API absence emits a warning fact instead of false negative truth.

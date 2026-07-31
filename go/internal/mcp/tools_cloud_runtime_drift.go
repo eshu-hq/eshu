@@ -3,18 +3,23 @@
 
 package mcp
 
-// cloudRuntimeDriftTools returns the provider-neutral multi-cloud runtime drift
-// readback tool (issues #1997, #1998). It mirrors the
+// cloudRuntimeDriftTools returns the runtime drift readback tool spanning all
+// three providers (issues #1997, #1998, #5759 follow-up). It mirrors the
 // POST /api/v0/cloud/runtime-drift/findings route: a bounded, paginated,
-// truth-labeled list of reducer-owned reducer_multi_cloud_runtime_drift_finding
-// rows filterable by provider, canonical scope, canonical resource uid, and
-// finding_kind. The tool is read-only and never returns raw provider locators or
-// raw evidence atoms; unsafe findings are reported as rejected, not omitted.
+// truth-labeled list aggregating reducer-owned
+// reducer_multi_cloud_runtime_drift_finding rows (gcp, azure) with
+// reducer_aws_cloud_runtime_drift_finding rows (aws) in one query, filterable
+// by provider, canonical scope, canonical resource uid, and finding_kind.
+// provider=aws and an unfiltered query both return real AWS findings, not the
+// empty page this tool returned for aws before the aggregation existed. The
+// tool is read-only and never returns raw provider locators (including the
+// AWS ARN) or raw evidence atoms; unsafe findings are reported as rejected,
+// not omitted.
 func cloudRuntimeDriftTools() []ToolDefinition {
 	return []ToolDefinition{
 		{
 			Name:        "list_cloud_runtime_drift_findings",
-			Description: "List provider-neutral multi-cloud runtime drift findings (reducer_multi_cloud_runtime_drift_finding) for a bounded canonical scope across aws, gcp, and azure. Filterable by provider, canonical cloud_resource_uid, and finding_kind. Returns provider, normalized identity, finding_kind, management_status, provider-neutral source state, and refusal-safety posture; unsafe findings are reported as rejected, not omitted. Unsupported on lightweight local runtime.",
+			Description: "List runtime drift findings for a bounded canonical scope across aws, gcp, and azure, aggregating reducer_multi_cloud_runtime_drift_finding (gcp, azure) and reducer_aws_cloud_runtime_drift_finding (aws) in one query. Filterable by provider, canonical cloud_resource_uid, and finding_kind; cloud_resource_uid filtering matches only gcp/azure findings. Returns provider, normalized identity, finding_kind, management_status, provider-neutral source state, and refusal-safety posture; an aws-origin finding's safety verdict is derived through the same classification list_aws_runtime_drift_findings uses, so the identical row never disagrees across the two tools. Unsafe findings are reported as rejected, not omitted. Unsupported on lightweight local runtime.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

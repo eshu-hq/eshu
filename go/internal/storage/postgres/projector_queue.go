@@ -13,7 +13,6 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
-	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -52,6 +51,13 @@ type ProjectorQueue struct {
 	// doc comment for why this runs AFTER Ack's own transaction commits, not
 	// inside it.
 	CrossplaneRedrive CrossplaneRedriveSweeper
+	// ConfigStateDriftTrigger enqueues one config_state_drift reducer intent
+	// after Ack activates a state_snapshot:* scope generation (issue #5593),
+	// so drift evaluation follows the data instead of waiting for the next
+	// bootstrap-index Phase 3.5 sweep. Nil is safe (no-op). MUST NOT be wired
+	// on bootstrap-index's ProjectorQueue -- see
+	// runConfigStateDriftTriggerHook's doc comment for why.
+	ConfigStateDriftTrigger ConfigStateDriftTrigger
 }
 
 // ErrProjectorClaimRejected means the claimed projector work item no longer
@@ -218,6 +224,7 @@ func (q ProjectorQueue) Ack(
 	committed = true
 
 	q.runCrossplaneRedriveHook(ctx, work)
+	q.runConfigStateDriftTriggerHook(ctx, work)
 
 	return nil
 }
@@ -418,76 +425,4 @@ func (q ProjectorQueue) maxAttempts() int {
 	}
 
 	return 3
-}
-
-func scanProjectorWork(rows Rows) (projector.ScopeGenerationWork, error) {
-	var work projector.ScopeGenerationWork
-	var scopeKind string
-	var collectorKind string
-	var generationStatus string
-	var triggerKind string
-	var rawPayload []byte
-
-	if err := rows.Scan(
-		&work.Scope.ScopeID,
-		&work.Scope.SourceSystem,
-		&scopeKind,
-		&work.Scope.ParentScopeID,
-		&work.Scope.ActiveGenerationID,
-		&work.Scope.PreviousGenerationExists,
-		&collectorKind,
-		&work.Scope.PartitionKey,
-		&work.Generation.GenerationID,
-		&work.AttemptCount,
-		&work.Generation.ObservedAt,
-		&work.Generation.IngestedAt,
-		&generationStatus,
-		&triggerKind,
-		&work.Generation.FreshnessHint,
-		&rawPayload,
-	); err != nil {
-		return projector.ScopeGenerationWork{}, err
-	}
-
-	work.Scope.ScopeKind = scope.ScopeKind(scopeKind)
-	work.Scope.CollectorKind = scope.CollectorKind(collectorKind)
-	work.Generation.ScopeID = work.Scope.ScopeID
-	work.Generation.Status = scope.GenerationStatus(generationStatus)
-	work.Generation.TriggerKind = scope.TriggerKind(triggerKind)
-	work.Generation.ObservedAt = work.Generation.ObservedAt.UTC()
-	work.Generation.IngestedAt = work.Generation.IngestedAt.UTC()
-	work.Scope.Metadata = projectorScopeMetadata(rawPayload)
-
-	return work, nil
-}
-
-func projectorWorkItemID(scopeID string, generationID string) string {
-	return fmt.Sprintf("projector_%s_%s", scopeID, generationID)
-}
-
-func projectorScopeMetadata(rawPayload []byte) map[string]string {
-	payload, err := unmarshalPayload(rawPayload)
-	if err != nil || len(payload) == 0 {
-		return nil
-	}
-
-	metadata := make(map[string]string, len(payload))
-	for key, value := range payload {
-		switch typed := value.(type) {
-		case string:
-			if typed != "" {
-				metadata[key] = typed
-			}
-		case fmt.Stringer:
-			text := typed.String()
-			if text != "" {
-				metadata[key] = text
-			}
-		}
-	}
-	if len(metadata) == 0 {
-		return nil
-	}
-
-	return metadata
 }

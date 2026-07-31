@@ -19,6 +19,9 @@ func NewWarningEnvelope(observation WarningObservation) (facts.Envelope, error) 
 	if warningCode == "" {
 		return facts.Envelope{}, fmt.Errorf("oci registry warning code must not be blank")
 	}
+	if !ociregistryv1.IsKnownWarningCode(warningCode) {
+		return facts.Envelope{}, fmt.Errorf("unknown OCI registry warning code %q", warningCode)
+	}
 	if err := validateBoundary(observation.GenerationID, observation.CollectorInstanceID, "oci registry warning"); err != nil {
 		return facts.Envelope{}, err
 	}

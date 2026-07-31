@@ -303,8 +303,8 @@ func validateTerraformConfigStateDriftFindingFilter(
 	if !strings.HasPrefix(filter.ScopeID, "state_snapshot:") {
 		return fmt.Errorf("terraform config state drift finding filter scope_id must be a state_snapshot scope")
 	}
-	if filter.Outcome != "" && filter.Outcome != "exact" && filter.Outcome != "ambiguous" {
-		return fmt.Errorf("terraform config state drift finding filter outcome must be exact or ambiguous")
+	if filter.Outcome != "" && filter.Outcome != "exact" && filter.Outcome != "derived" && filter.Outcome != "ambiguous" && filter.Outcome != "unresolved" {
+		return fmt.Errorf("terraform config state drift finding filter outcome must be exact, derived, ambiguous, or unresolved")
 	}
 	return nil
 }

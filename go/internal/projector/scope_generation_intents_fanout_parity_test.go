@@ -157,6 +157,18 @@ var fanOutParityExpectations = map[reducer.Domain]fanOutParityExpectation{
 		factID: "k8s-pod-template-1", entityKey: "kubernetes_workload_materialization:mixed:fanout:demo",
 		reason: "kubernetes live workload pod-template facts observed", sourceSystem: "kubernetes_live",
 	},
+	reducer.DomainMultiCloudRuntimeDrift: {
+		// Earliest across {gcp_cloud_resource, azure_cloud_resource} is the
+		// gcp_cloud_resource fact (issue #5759). aws_resource is deliberately
+		// NOT one of this probe's candidate kinds even though
+		// aws-resource-generic-1 precedes azure-resource-1 in this fixture:
+		// DomainAWSCloudRuntimeDrift already owns AWS runtime-drift findings
+		// end-to-end, so an AWS-only signal must not enqueue this domain (see
+		// MultiCloudRuntimeDriftHandler.Handle's excludeAWSOwnedRows for the
+		// matching publish-time filter).
+		factID: "gcp-resource-1", entityKey: "multi_cloud_runtime_drift:mixed:fanout:demo",
+		reason: "gcp or azure cloud resource facts observed", sourceSystem: "gcp",
+	},
 	reducer.DomainObservabilityCoverageCorrelation: {
 		factID: "aws-resource-observability-1", entityKey: "observability_coverage_correlation:mixed:fanout:demo",
 		reason: "aws observability resource facts observed", sourceSystem: "aws",

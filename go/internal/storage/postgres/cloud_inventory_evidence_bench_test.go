@@ -21,6 +21,9 @@ func BenchmarkCloudInventoryRecordFromRowAWSAllowlist(b *testing.B) {
 	payload := []byte(`{
 		"arn":"` + arn + `",
 		"resource_type":"aws_ecs_task",
+		"account_id":"000000000000",
+		"resource_id":"bench-task",
+		"region":"us-east-1",
 		"attributes":{
 			"cluster_arn":"arn:aws:ecs:us-east-1:000000000000:cluster/bench-cluster",
 			"task_definition_arn":"arn:aws:ecs:us-east-1:000000000000:task-definition/bench:1",

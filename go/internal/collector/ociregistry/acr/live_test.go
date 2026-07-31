@@ -43,11 +43,11 @@ func TestLiveACRRepositoryTags(t *testing.T) {
 	if err := client.Ping(ctx); err != nil {
 		t.Fatalf("Ping() error = %v", err)
 	}
-	tags, err := client.ListTags(ctx, repository)
+	tagList, err := client.ListTags(ctx, repository, 100)
 	if err != nil {
 		t.Fatalf("ListTags(%s) error = %v", repository, err)
 	}
-	if len(tags) == 0 {
+	if len(tagList.Tags) == 0 {
 		t.Fatalf("ListTags(%s) returned no tags", repository)
 	}
 	if reference := firstEnv("ESHU_ACR_OCI_REFERENCE", "ACR_IMAGE_REFERENCE"); reference != "" {

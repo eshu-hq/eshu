@@ -41,11 +41,11 @@ func TestLiveGHCRRepositoryTags(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewDistributionClient() error = %v", err)
 	}
-	tags, err := client.ListTags(ctx, repository)
+	tagList, err := client.ListTags(ctx, repository, 100)
 	if err != nil {
 		t.Fatalf("ListTags(%s) error = %v", repository, err)
 	}
-	if len(tags) == 0 {
+	if len(tagList.Tags) == 0 {
 		t.Fatalf("ListTags(%s) returned no tags", repository)
 	}
 	if _, err := client.GetManifest(ctx, repository, reference); err != nil {

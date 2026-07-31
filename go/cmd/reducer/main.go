@@ -304,9 +304,7 @@ func buildReducerService(
 		EC2InternetExposureNodeWriter:      graphWriters.ec2InternetExposureNode,
 		EC2BlockDeviceKMSPostureNodeWriter: graphWriters.ec2BlockDeviceKMSPostureNode,
 		S3InternetExposureNodeWriter:       graphWriters.s3InternetExposureNode,
-		ContainerImageIdentityWriter: reducer.PostgresContainerImageIdentityWriter{
-			DB: database,
-		},
+		ContainerImageIdentityWriter:       containerImageIdentityWriterFor(database),
 		// PackageProvenanceEdgeWriter / ContainerImageProvenanceEdgeWriter
 		// (issue #5457) and ContainerImageDerivedFromEdgeWriter (issue #5460)
 		// share one ProvenanceEdgeWriter instance -- it implements all three

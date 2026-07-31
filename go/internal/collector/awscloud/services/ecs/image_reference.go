@@ -31,7 +31,7 @@ var ecrImageHostPattern = regexp.MustCompile(`^[0-9]{12}\.dkr\.ecr\.[a-z0-9-]+\.
 // TaskContainer.ImageDigest is the digest DescribeTasks reports for the
 // container actually running right now — the strongest available deployed-code
 // signal ECS offers. Before this change that digest was captured only inside
-// the task's aws_resource "containers[]" attribute, which the digest-keyed
+// the task's aws_resource "containers[]" attribute, which the digest-correlating
 // container_image_identity resolver never reads (it reads only
 // "*_image_reference" fact kinds). Promoting it to a first-class
 // aws_image_reference fact lets the existing resolver join a running task

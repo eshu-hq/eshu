@@ -48,6 +48,27 @@ WHERE work_item_id = $2
   AND status IN ('claimed', 'running')
 `
 
+const ackContainerImageIdentityReducerWorkQuery = `
+UPDATE fact_work_items
+SET status = 'succeeded',
+    container_image_identity_v2_authorized_status = CASE
+        WHEN container_image_identity_v2_required THEN 'succeeded'
+        ELSE ''
+    END,
+    lease_owner = NULL,
+    claim_until = NULL,
+    visible_at = NULL,
+    updated_at = $1,
+    failure_class = NULL,
+    failure_message = NULL,
+    failure_details = NULL
+WHERE work_item_id = $2
+  AND stage = 'reducer'
+  AND lease_owner = $3
+  AND status IN ('claimed', 'running')
+  AND container_image_identity_claim_epoch = $4
+`
+
 const heartbeatReducerWorkQuery = `
 UPDATE fact_work_items
 SET claim_until = $1,
@@ -74,6 +95,27 @@ WHERE work_item_id = $5
   AND status IN ('claimed', 'running')
 `
 
+const failContainerImageIdentityReducerWorkQuery = `
+UPDATE fact_work_items
+SET status = 'dead_letter',
+    container_image_identity_v2_authorized_status = CASE
+        WHEN container_image_identity_v2_required THEN 'dead_letter'
+        ELSE ''
+    END,
+    lease_owner = NULL,
+    claim_until = NULL,
+    visible_at = NULL,
+    updated_at = $1,
+    failure_class = $2,
+    failure_message = $3,
+    failure_details = $4
+WHERE work_item_id = $5
+  AND stage = 'reducer'
+  AND lease_owner = $6
+  AND status IN ('claimed', 'running')
+  AND container_image_identity_claim_epoch = $7
+`
+
 const retryReducerWorkQuery = `
 UPDATE fact_work_items
 SET status = 'retrying',
@@ -89,6 +131,28 @@ WHERE work_item_id = $6
   AND stage = 'reducer'
   AND lease_owner = $7
   AND status IN ('claimed', 'running')
+`
+
+const retryContainerImageIdentityReducerWorkQuery = `
+UPDATE fact_work_items
+SET status = 'retrying',
+    container_image_identity_v2_authorized_status = CASE
+        WHEN container_image_identity_v2_required THEN 'retrying'
+        ELSE ''
+    END,
+    lease_owner = NULL,
+    claim_until = NULL,
+    visible_at = $5,
+    next_attempt_at = $5,
+    updated_at = $1,
+    failure_class = $2,
+    failure_message = $3,
+    failure_details = $4
+WHERE work_item_id = $6
+  AND stage = 'reducer'
+  AND lease_owner = $7
+  AND status IN ('claimed', 'running')
+  AND container_image_identity_claim_epoch = $8
 `
 
 // ReducerQueue provides reducer-stage queue behavior over fact_work_items.
@@ -184,28 +248,38 @@ func (q ReducerQueue) Enqueue(
 
 	now := q.now()
 
-	// Enqueue in batches
+	// Enqueue in batches, summing each batch's actual RowsAffected -- not
+	// len(intents) -- so the returned Count reflects what the DB really
+	// admitted through ON CONFLICT (work_item_id) DO NOTHING (issue #5593;
+	// see IntentResult's doc comment in internal/projector/runtime.go).
+	var inserted int64
 	for i := 0; i < len(intents); i += reducerEnqueueBatchSize {
 		end := i + reducerEnqueueBatchSize
 		if end > len(intents) {
 			end = len(intents)
 		}
-		if err := q.enqueueReducerBatch(ctx, intents[i:end], now); err != nil {
+		batchInserted, err := q.enqueueReducerBatch(ctx, intents[i:end], now)
+		if err != nil {
 			return projector.IntentResult{}, err
 		}
+		inserted += batchInserted
 	}
 
-	return projector.IntentResult{Count: len(intents)}, nil
+	return projector.IntentResult{Count: int(inserted)}, nil
 }
 
-// enqueueReducerBatch inserts one batch of reducer intents using a multi-row INSERT.
+// enqueueReducerBatch inserts one batch of reducer intents using a multi-row
+// INSERT and returns the number of rows the DB actually inserted (excluding
+// rows skipped by ON CONFLICT (work_item_id) DO NOTHING), read from the
+// ExecContext result's RowsAffected -- not the batch size, which is only an
+// attempt count (issue #5593).
 func (q ReducerQueue) enqueueReducerBatch(
 	ctx context.Context,
 	batch []projector.ReducerIntent,
 	now time.Time,
-) error {
+) (int64, error) {
 	if len(batch) == 0 {
-		return nil
+		return 0, nil
 	}
 
 	args := make([]any, 0, len(batch)*columnsPerReducerEnqueue)
@@ -222,7 +296,7 @@ func (q ReducerQueue) enqueueReducerBatch(
 		payload["source_system"] = intent.SourceSystem
 		payloadJSON, err := marshalPayload(payload)
 		if err != nil {
-			return fmt.Errorf("marshal reducer payload: %w", err)
+			return 0, fmt.Errorf("marshal reducer payload: %w", err)
 		}
 
 		if i > 0 {
@@ -251,11 +325,16 @@ func (q ReducerQueue) enqueueReducerBatch(
 
 	query := enqueueReducerBatchPrefix + values.String() + enqueueReducerBatchSuffix
 
-	if _, err := q.db.ExecContext(ctx, query, args...); err != nil {
-		return fmt.Errorf("enqueue reducer batch (%d intents): %w", len(batch), err)
+	result, err := q.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, fmt.Errorf("enqueue reducer batch (%d intents): %w", len(batch), err)
+	}
+	inserted, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("enqueue reducer batch (%d intents): rows affected: %w", len(batch), err)
 	}
 
-	return nil
+	return inserted, nil
 }
 
 // Claim implements reducer.WorkSource over fact_work_items.
@@ -344,9 +423,26 @@ func (q ReducerQueue) Ack(ctx context.Context, intent reducer.Intent, _ reducer.
 		return err
 	}
 
-	_, err := q.db.ExecContext(ctx, ackReducerWorkQuery, q.now(), intent.IntentID, q.LeaseOwner)
+	query := ackReducerWorkQuery
+	if intent.Domain == reducer.DomainContainerImageIdentity {
+		query = ackContainerImageIdentityReducerWorkQuery
+	}
+	args := []any{q.now(), intent.IntentID, q.LeaseOwner}
+	if intent.Domain == reducer.DomainContainerImageIdentity {
+		args = append(args, intent.ClaimEpoch)
+	}
+	result, err := q.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("ack reducer work: %w", err)
+	}
+	if intent.Domain == reducer.DomainContainerImageIdentity {
+		rowsAffected, rowsErr := result.RowsAffected()
+		if rowsErr != nil {
+			return fmt.Errorf("ack reducer work: rows affected: %w", rowsErr)
+		}
+		if rowsAffected == 0 {
+			return ErrReducerClaimRejected
+		}
 	}
 
 	return nil
@@ -365,71 +461,5 @@ func (q ReducerQueue) Fail(ctx context.Context, intent reducer.Intent, cause err
 		return err
 	}
 
-	return nil
-}
-
-// validateShared runs the checks both enqueue and claim paths require, with
-// error messages that name the caller's side. Both validateEnqueue and
-// validateClaim delegate here so a db-nil or ClaimDomain failure carries the
-// correct side marker in error strings and wrapped stack traces.
-//
-// The earlier shape composed validateClaim on top of validateEnqueue, which
-// produced enqueue-marked errors on the claim path for shared-check failures
-// (see Copilot review of PR #196). Routing through validateShared with an
-// explicit side label fixes that without duplicating the check bodies.
-func (q ReducerQueue) validateShared(side string) error {
-	if q.db == nil {
-		return fmt.Errorf("reducer queue database is required for %s", side)
-	}
-	if q.ClaimDomain != "" && len(q.ClaimDomains) > 0 {
-		return fmt.Errorf("reducer queue claim domain and claim domains both set for %s", side)
-	}
-	for _, domain := range q.effectiveClaimDomains() {
-		if err := domain.Validate(); err != nil {
-			return fmt.Errorf("reducer queue claim domain invalid for %s: %w", side, err)
-		}
-	}
-	return nil
-}
-
-// validateEnqueue checks the inputs Enqueue needs to insert a reducer
-// fact_work_items row. The enqueue SQL writes NULL for lease_owner and
-// claim_until (see enqueueReducerBatchPrefix and the VALUES tuple in
-// enqueueReducerBatch), so LeaseOwner and LeaseDuration are not part of the
-// enqueue contract. Splitting the check off from validateClaim removes the
-// historical smell at drift_enqueue.go where producers had to fabricate
-// placeholder lease values just to construct a struct used for enqueue only.
-//
-// Every error returned here carries the side marker "for enqueue" so wrapped
-// errors and stack traces remain self-locating, including the shared checks
-// delegated to validateShared.
-func (q ReducerQueue) validateEnqueue() error {
-	return q.validateShared("enqueue")
-}
-
-// validateClaim checks the inputs Claim, Heartbeat, Ack, and Fail need to
-// fence reducer work by lease owner. LeaseOwner identifies the worker on the
-// fact_work_items UPDATE statements (claim_until = $1, lease_owner = $3 in
-// claimReducerWorkQuery; lease_owner = $3 in ackReducerWorkQuery and the
-// heartbeat/fail variants). LeaseDuration sets claim_until on claim and
-// renews it on heartbeat.
-//
-// validateClaim delegates the shared db != nil and ClaimDomain.Validate()
-// checks to validateShared with the claim-side marker, so shared-check
-// failures on the claim path are labeled "for claim/ack/heartbeat/fail"
-// instead of inheriting the enqueue-side marker.
-//
-// Every error returned here carries the side marker
-// "for claim/ack/heartbeat/fail" so wrapped errors remain self-locating.
-func (q ReducerQueue) validateClaim() error {
-	if err := q.validateShared("claim/ack/heartbeat/fail"); err != nil {
-		return err
-	}
-	if q.LeaseOwner == "" {
-		return errors.New("reducer queue lease owner is required for claim/ack/heartbeat/fail")
-	}
-	if q.LeaseDuration <= 0 {
-		return errors.New("reducer queue lease duration must be positive for claim/ack/heartbeat/fail")
-	}
 	return nil
 }
