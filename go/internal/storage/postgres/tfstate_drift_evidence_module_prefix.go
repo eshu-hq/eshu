@@ -239,13 +239,13 @@ func (l PostgresDriftEvidenceLoader) buildModulePrefixMap(
 	scopeID string,
 	generationID string,
 	recorder unresolvedRecorder,
-) (modulePrefixMap, error) {
+) (modulePrefixMap, moduleResolutionConfidenceMap, error) {
 	if recorder == nil {
 		recorder = nopUnresolvedRecorder{}
 	}
 	rows, err := l.DB.QueryContext(ctx, listModuleCallsForCommitQuery, scopeID, generationID)
 	if err != nil {
-		return nil, fmt.Errorf("list config terraform_modules: %w", err)
+		return nil, nil, fmt.Errorf("list config terraform_modules: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -253,11 +253,11 @@ func (l PostgresDriftEvidenceLoader) buildModulePrefixMap(
 	for rows.Next() {
 		var raw []byte
 		if err := rows.Scan(&raw); err != nil {
-			return nil, fmt.Errorf("scan config terraform_modules: %w", err)
+			return nil, nil, fmt.Errorf("scan config terraform_modules: %w", err)
 		}
 		decoded, err := decodeJSONArray(raw, "terraform_modules")
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, entry := range decoded {
 			name := strings.TrimSpace(coerceJSONString(entry["name"]))
@@ -272,10 +272,11 @@ func (l PostgresDriftEvidenceLoader) buildModulePrefixMap(
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate config terraform_modules: %w", err)
+		return nil, nil, fmt.Errorf("iterate config terraform_modules: %w", err)
 	}
+	confidence := moduleResolutionConfidenceMap{}
 	if len(entries) == 0 {
-		return modulePrefixMap{}, nil
+		return modulePrefixMap{}, confidence, nil
 	}
 
 	// Two passes. Pass 1: classify every call into (callerDir → call) edges
@@ -306,6 +307,7 @@ func (l PostgresDriftEvidenceLoader) buildModulePrefixMap(
 		callee, reason := classifyModuleSource(callSiteDir, entry.source)
 		if reason != "" {
 			recorder.record(ctx, reason)
+			recordRegistryHeuristicCandidate(confidence, reason, callSiteDir, entry.source)
 			continue
 		}
 		callerToCalls[callSiteDir] = append(callerToCalls[callSiteDir], moduleCallEdge{
@@ -315,7 +317,7 @@ func (l PostgresDriftEvidenceLoader) buildModulePrefixMap(
 		callees[callee] = struct{}{}
 	}
 	if len(callerToCalls) == 0 {
-		return modulePrefixMap{}, nil
+		return modulePrefixMap{}, confidence, nil
 	}
 
 	// Identify the true root call-sites: directories that host module {}
@@ -351,6 +353,7 @@ func (l PostgresDriftEvidenceLoader) buildModulePrefixMap(
 				1,
 				map[string]struct{}{call.callee: {}},
 				out,
+				confidence,
 				recorder,
 			)
 		}
@@ -361,7 +364,7 @@ func (l PostgresDriftEvidenceLoader) buildModulePrefixMap(
 	for key := range out {
 		sort.Strings(out[key])
 	}
-	return out, nil
+	return out, confidence, nil
 }
 
 // moduleCallEdge captures one resolved local-callee edge in the module call
@@ -382,6 +385,20 @@ type moduleCallEdge struct {
 // The function operates by side effect — it appends to `out` and records
 // telemetry through `recorder` — to keep the recursive signature short
 // and avoid per-step allocation of return slices.
+//
+// depth_exceeded (issue #5572): the depth check below returns BEFORE
+// `out[call.callee]` is populated, so `call.callee` — a real, already-
+// resolved local directory, unlike the classify-time reasons — is the one
+// case in this function that leaves a genuine gap in the prefix map.
+// `confidence` records that gap so the loader can mark any resource
+// declared under `call.callee` low-confidence instead of silently
+// addressing it as a root-module resource. cycle_detected, by contrast,
+// never leaves a gap: `out[call.callee]` is always populated on a node's
+// FIRST visit, before its children are walked, and the depth-first fallback
+// (buildModulePrefixMap's "walk every node as a root" branch for pure
+// cycles) guarantees every node in a cycle gets a first visit from some
+// root. cycle_detected only blocks RE-expansion past an already-populated
+// node, so it carries no confidence signal here.
 func walkModulePrefixChain(
 	ctx context.Context,
 	call moduleCallEdge,
@@ -390,10 +407,16 @@ func walkModulePrefixChain(
 	depth int,
 	visited map[string]struct{},
 	out modulePrefixMap,
+	confidence moduleResolutionConfidenceMap,
 	recorder unresolvedRecorder,
 ) {
 	if depth > maxModulePrefixDepth {
 		recorder.record(ctx, unresolvedReasonDepthExceeded)
+		if confidence != nil {
+			if _, exists := confidence[call.callee]; !exists {
+				confidence[call.callee] = unresolvedReasonDepthExceeded
+			}
+		}
 		return
 	}
 	out[call.callee] = appendUniquePrefix(out[call.callee], prefix)
@@ -412,6 +435,7 @@ func walkModulePrefixChain(
 			depth+1,
 			nextVisited,
 			out,
+			confidence,
 			recorder,
 		)
 	}
@@ -441,36 +465,9 @@ func cloneVisited(in map[string]struct{}) map[string]struct{} {
 	return out
 }
 
-// modulePrefixForPath returns the module-prefix strings that apply to a
-// parser entry's `path` field. The longest-matching callee directory wins
-// — a file at `modules/platform/vpc/main.tf` consults
-// `modules/platform/vpc` before `modules/platform` — but if the longest
-// match has multiple prefix entries (1→N case) the function returns all
-// of them. Empty slice means "no prefix; emit the root-module address."
-func (m modulePrefixMap) modulePrefixForPath(filePath string) []string {
-	if len(m) == 0 {
-		return nil
-	}
-	cleaned := path.Clean(filePath)
-	dir := path.Dir(cleaned)
-	if dir == "" {
-		dir = "."
-	}
-	// Walk up the directory chain until either a match is found or the
-	// chain reaches the snapshot root. The longest-prefix-wins property
-	// is a natural consequence of starting at the file's own directory
-	// and walking up.
-	for {
-		if prefixes, ok := m[dir]; ok && len(prefixes) > 0 {
-			return prefixes
-		}
-		if dir == "." || dir == "/" || dir == "" {
-			return nil
-		}
-		parent := path.Dir(dir)
-		if parent == dir {
-			return nil
-		}
-		dir = parent
-	}
-}
+// modulePrefixForPath and moduleResolutionConfidenceMap.reasonForPath
+// (the per-address module-resolution-confidence signal, issue #5572) live in
+// tfstate_drift_evidence_module_confidence.go — split out to keep this file
+// under the CLAUDE.md 500-line cap. Both do the same longest-matching-
+// ancestor-directory walk over a directory-keyed map; keeping them together
+// keeps that shared algorithm in one place.

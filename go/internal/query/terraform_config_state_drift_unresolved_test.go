@@ -144,9 +144,35 @@ func TestHandleTerraformConfigStateDriftFindingsAcceptsUnresolvedOutcomeFilter(t
 	}
 }
 
+// TestHandleTerraformConfigStateDriftFindingsAcceptsDerivedOutcomeFilter
+// proves outcome=derived (issue #5572) is a valid request-side filter value,
+// mirroring TestHandleTerraformConfigStateDriftFindingsAcceptsUnresolvedOutcomeFilter.
+func TestHandleTerraformConfigStateDriftFindingsAcceptsDerivedOutcomeFilter(t *testing.T) {
+	t.Parallel()
+
+	var observed TerraformConfigStateDriftFindingFilter
+	handler := &TerraformConfigStateDriftHandler{
+		Profile: ProfileLocalAuthoritative,
+		Store: fakeTerraformConfigStateDriftStore{
+			observedFilter: &observed,
+		},
+	}
+	payload := postTerraformConfigStateDriftFindings(t, handler, `{
+		"scope_id": "state_snapshot:local:hash-derived",
+		"outcome": "derived",
+		"limit": 10
+	}`)
+	if observed.Outcome != "derived" {
+		t.Fatalf("observed.Outcome = %q, want %q", observed.Outcome, "derived")
+	}
+	if got, want := payload["outcome"], "derived"; got != want {
+		t.Fatalf("payload[outcome] = %#v, want %q", got, want)
+	}
+}
+
 // TestHandleTerraformConfigStateDriftFindingsRejectsUnknownOutcome proves an
-// outcome value outside the closed set (exact/ambiguous/unresolved) is still
-// rejected with 400, not silently accepted.
+// outcome value outside the closed set (exact/derived/ambiguous/unresolved)
+// is still rejected with 400, not silently accepted.
 func TestHandleTerraformConfigStateDriftFindingsRejectsUnknownOutcome(t *testing.T) {
 	t.Parallel()
 

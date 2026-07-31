@@ -29,13 +29,27 @@ func (l PostgresDriftEvidenceLoader) effectivePriorConfigDepth() int {
 	return l.PriorConfigDepth
 }
 
-// loadPriorConfigAddresses returns the set of canonical Terraform resource
-// addresses declared in any of the most recent N prior repo-snapshot
-// generations for `scopeID`, excluding the current generation
-// `currentGenerationID`. Powers removed_from_config detection: state-only
-// addresses present in this set get PreviouslyDeclaredInConfig=true so the
-// classifier emits removed_from_config; operator-imported addresses (never in
-// any prior config) stay outside the set and surface as added_in_state.
+// loadPriorConfigAddresses returns the canonical Terraform resource addresses
+// declared in any of the most recent N prior repo-snapshot generations for
+// `scopeID`, excluding the current generation `currentGenerationID`, mapped
+// to the module-resolution reason (issue #5572) that made the PRIOR
+// generation's own address projection low-confidence, or "" when that prior
+// generation's module resolution was clean. Powers removed_from_config
+// detection: state-only addresses present in this map get
+// PreviouslyDeclaredInConfig=true so the classifier emits
+// removed_from_config; operator-imported addresses (never in any prior
+// config) stay outside the map and surface as added_in_state.
+//
+// The confidence value matters because a prior generation's module
+// resolution can fail exactly the same way a current generation's can (see
+// tfstate_drift_evidence_module_confidence.go): the projected prior-config
+// address may be a root-module or masked-prefix fallback that only
+// COINCIDENTALLY matches the current state address, not a certainly-correct
+// declaration. mergeDriftRows threads this reason onto the promoted
+// state-only row's ModuleResolutionReason so BuildCandidates attaches the
+// confidence atom and the reducer writer downgrades the resulting
+// removed_from_config finding to "derived" — the same treatment a
+// current-generation config row already gets.
 //
 // The walk is bounded by listPriorConfigAddressesQuery's LIMIT. Addresses
 // declared more than N generations ago are intentionally invisible — the
@@ -55,7 +69,7 @@ func (l PostgresDriftEvidenceLoader) effectivePriorConfigDepth() int {
 // caller prefix. mergeDriftRows then promotes the matching state-side
 // addresses to PreviouslyDeclaredInConfig=true individually.
 //
-// Returns an empty set when:
+// Returns an empty map when:
 //   - the scope has no prior generations matching the status filter, OR
 //   - prior generations exist but none declare any resources.
 //
@@ -67,7 +81,7 @@ func (l PostgresDriftEvidenceLoader) loadPriorConfigAddresses(
 	currentGenerationID string,
 	currentPrefixMap modulePrefixMap,
 	recorder unresolvedRecorder,
-) (map[string]struct{}, error) {
+) (map[string]string, error) {
 	if recorder == nil {
 		recorder = nopUnresolvedRecorder{}
 	}
@@ -110,11 +124,11 @@ func (l PostgresDriftEvidenceLoader) loadPriorConfigAddresses(
 		return nil, fmt.Errorf("iterate prior config terraform_resources: %w", err)
 	}
 
-	out := map[string]struct{}{}
+	out := map[string]string{}
 	seenModuleRename := map[string]struct{}{}
 	for _, generationID := range generationOrder {
 		group := groupsByGeneration[generationID]
-		priorPrefixMap, err := l.buildModulePrefixMap(ctx, scopeID, group.generationID, recorder)
+		priorPrefixMap, priorConfidenceMap, err := l.buildModulePrefixMap(ctx, scopeID, group.generationID, recorder)
 		if err != nil {
 			return nil, fmt.Errorf("build prior config module prefix map for generation %q: %w", group.generationID, err)
 		}
@@ -128,38 +142,54 @@ func (l PostgresDriftEvidenceLoader) loadPriorConfigAddresses(
 				priorPrefixMap,
 				seenModuleRename,
 			)
-			collectPriorConfigAddresses(entry, priorPrefixMap, out)
+			collectPriorConfigAddresses(entry, priorPrefixMap, priorConfidenceMap, out)
 		}
 	}
 	return out, nil
 }
 
 // collectPriorConfigAddresses unions canonical addresses derived from one
-// parser-emitted terraform_resources entry into `out`. Mirrors
-// emitConfigRowsForEntry's prefix-application contract: zero matching
-// prefixes adds the root-module address, N matching prefixes adds N
-// distinct module-prefixed addresses (1→N projection).
+// parser-emitted terraform_resources entry into `out`, mapped to the
+// module-resolution reason (issue #5572) the PRIOR generation's own
+// module-prefix resolution produced for that entry, or "" when resolution
+// was clean. Mirrors emitConfigRowsForEntry's prefix-application AND
+// confidence contract exactly: zero matching prefixes adds the root-module
+// address, N matching prefixes adds N distinct module-prefixed addresses
+// (1→N projection), and moduleResolutionReasonForEntry decides the reason
+// from the SAME match-specificity comparison emitConfigRowsForEntry uses for
+// the current generation.
+//
+// First-write-wins per address mirrors emitConfigRowsForEntry: a duplicate
+// address across prior-generation entries keeps whichever reason (or
+// cleanliness) was recorded first, so a later generation's re-declaration of
+// the same address cannot silently erase an earlier low-confidence flag.
 func collectPriorConfigAddresses(
 	entry map[string]any,
 	prefixMap modulePrefixMap,
-	out map[string]struct{},
+	confidenceMap moduleResolutionConfidenceMap,
+	out map[string]string,
 ) {
 	entryPath := strings.TrimSpace(coerceJSONString(entry["path"]))
-	prefixes := prefixMap.modulePrefixForPath(entryPath)
+	prefixes, prefixDepth := prefixMap.modulePrefixForPathWithDepth(entryPath)
+	reason := moduleResolutionReasonForEntry(confidenceMap, entryPath, prefixDepth)
 	if len(prefixes) == 0 {
-		row, ok := configRowFromParserEntry(entry, "")
+		row, ok := configRowFromParserEntry(entry, "", reason)
 		if !ok {
 			return
 		}
-		out[row.Address] = struct{}{}
+		if _, exists := out[row.Address]; !exists {
+			out[row.Address] = row.ModuleResolutionReason
+		}
 		return
 	}
 	for _, prefix := range prefixes {
-		row, ok := configRowFromParserEntry(entry, prefix)
+		row, ok := configRowFromParserEntry(entry, prefix, reason)
 		if !ok {
 			return
 		}
-		out[row.Address] = struct{}{}
+		if _, exists := out[row.Address]; !exists {
+			out[row.Address] = row.ModuleResolutionReason
+		}
 	}
 }
 

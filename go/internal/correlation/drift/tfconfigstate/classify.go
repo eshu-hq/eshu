@@ -40,6 +40,47 @@ type ResourceRow struct {
 	// state-only presence is not enough (it would otherwise collide with
 	// added_in_state for genuinely operator-owned resources).
 	PreviouslyDeclaredInConfig bool `json:"previously_declared_in_config,omitempty"`
+	// ModuleResolutionReason marks a row whose Address the evidence loader
+	// could not confidently derive because the module-call chain feeding it
+	// was unresolved (issue #5572). Set directly by PostgresDriftEvidenceLoader
+	// (tfstate_drift_evidence_module_confidence.go) on a CONFIG-side row when
+	// a `terraform_resources` entry's file falls under a directory that
+	// (a) classifyModuleSource's Terraform-Registry-shorthand heuristic
+	// misclassified as an external registry reference
+	// (unresolvedReasonExternalRegistry, e.g. a repo whose top-level directory
+	// is literally "terraform-aws-modules"), or (b) a resolved local module
+	// call's callee directory that the DFS abandoned at
+	// maxModulePrefixDepth (unresolvedReasonDepthExceeded). The two causes do
+	// NOT produce the same address shape: (a) genuinely falls back to a
+	// root-module address (`<type>.<name>`) when no resolved ancestor exists
+	// above the unresolved call; (b) almost always does NOT, because
+	// depth_exceeded is only reached after depths 1..N-1 already resolved, so
+	// modulePrefixMap's own longest-ancestor-match walk finds that shallower
+	// ancestor's real prefix and silently misattributes the resource to it
+	// instead of falling back to root — a masked, wrong, non-root address
+	// (see tfstate_drift_evidence_module_confidence.go's package doc comment).
+	// Either way the resulting Address may not match the real state address,
+	// so BuildCandidates attaches this value as a
+	// EvidenceTypeModuleResolutionConfidence atom and the reducer writer
+	// downgrades the finding's Outcome from "exact" to "derived". Empty means
+	// the address resolved cleanly (no module nesting, or every module call
+	// on the chain resolved) — the classifier and Classify never read this
+	// field; it is address-provenance metadata consumed only downstream of
+	// the join.
+	//
+	// PostgresDriftEvidenceLoader also MIRRORS a non-empty reason onto a
+	// STATE-side row in two cases (both loader-side, follow-up to issue
+	// #5572): (1) pairSpuriousModuleMismatches
+	// (tfstate_drift_evidence_pairing.go) when an unresolved module prefix
+	// produces a spurious added_in_config/added_in_state mismatch pair and
+	// the state-only half can be paired back to the low-confidence
+	// config-only half unambiguously; (2) mergeDriftRows
+	// (tfstate_drift_evidence_helpers.go) when a removed_from_config
+	// candidate is promoted from a prior-config address that was itself
+	// low-confidence (loadPriorConfigAddresses,
+	// tfstate_drift_evidence_prior_config.go). BuildCandidates reads this
+	// field the same way regardless of which side set it.
+	ModuleResolutionReason string `json:"module_resolution_reason,omitempty"`
 }
 
 // Classify dispatches one resource address through the five drift-kind

@@ -171,9 +171,39 @@ LIMIT 1
 // generation) with a JSONB array of terraform_resources entries. The loader
 // decodes each row, builds a module-prefix map for that same prior
 // generation, and unions the canonical addresses into a set.
+//
+// The OUTER `ORDER BY pg.ingested_at DESC, pg.generation_id ASC,
+// fact.fact_id ASC` is load-bearing, not cosmetic (issue #5572 follow-up,
+// review-found P2): loadPriorConfigAddresses's Go-side generationOrder is
+// built strictly from the order these rows arrive, and
+// collectPriorConfigAddresses's first-write-wins semantics mean whichever
+// generation's rows arrive FIRST permanently decides an address's
+// module-resolution confidence. `generation_id` is an opaque TEXT PRIMARY
+// KEY (schema/data-plane/postgres/002_scope_generations.sql) with no defined
+// chronological relationship — this codebase's own
+// scope_generations_scope_latest_lookup_idx (scope_id, ingested_at DESC,
+// generation_id DESC) exists specifically because generation_id is NOT
+// trusted as a recency proxy elsewhere, and an earlier version of this
+// query's OUTER SELECT ordered by `pg.generation_id ASC` alone — bounding
+// which generations were INCLUDED via the CTE's own `ORDER BY ingested_at
+// DESC LIMIT`, but never guaranteeing the OUTER result row order matched
+// that recency. Proven wrong empirically against a real Postgres 18
+// instance: three prior generations whose generation_id ASC order
+// (gen-alpha, gen-charlie, gen-omega) differed from their true ingested_at
+// DESC order (gen-charlie, gen-alpha, gen-omega) returned rows in
+// generation_id order, and EXPLAIN (ANALYZE, VERBOSE) showed the CTE fully
+// inlined into a Nested Loop against scope_generations (no separate CTE Scan
+// node) — see
+// docs/internal/evidence/5572-drift-derived-outcome-module-resolution-confidence.md
+// for the full plan output from both the broken and fixed query text.
+// Exposing `ingested_at` from the CTE and ordering the OUTER SELECT by it
+// directly reuses the same scope_generations_scope_latest_lookup_idx index
+// (confirmed via EXPLAIN — identical cost, no new index needed) and makes
+// the guarantee explicit in the query itself rather than implicit in the
+// CTE's now-irrelevant internal ordering.
 const listPriorConfigAddressesQuery = `
 WITH prior_generations AS (
-    SELECT generation_id
+    SELECT generation_id, ingested_at
     FROM scope_generations
     WHERE scope_id = $1
       AND generation_id <> $2
@@ -195,5 +225,5 @@ WHERE fact.scope_id = $1
         THEN jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_resources')
         ELSE 0
       END > 0
-ORDER BY pg.generation_id ASC, fact.fact_id ASC
+ORDER BY pg.ingested_at DESC, pg.generation_id ASC, fact.fact_id ASC
 `

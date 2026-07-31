@@ -113,11 +113,26 @@ type AWSCloudRuntimeDriftFinding struct {
 
 // TerraformConfigStateDriftFinding is the schema-version-1 payload for
 // "reducer_terraform_config_state_drift_finding" (issue #5442, extended by
-// #5594). It carries three distinct row shapes distinguished by Outcome:
+// #5594 and #5572). It carries four distinct row shapes distinguished by
+// Outcome:
 //
-//   - Outcome "exact": one row per drifted Terraform resource address, the
-//     durable form of the per-candidate telemetry the reducer already emits.
-//     Address and DriftKind are populated; AmbiguousOwnerCandidates is empty.
+//   - Outcome "exact": one row per drifted Terraform resource address whose
+//     config-side address resolved unambiguously, the durable form of the
+//     per-candidate telemetry the reducer already emits. Address and
+//     DriftKind are populated; AmbiguousOwnerCandidates is empty.
+//   - Outcome "derived": one row per drifted Terraform resource address
+//     whose config-side Address depended on an unresolved module-prefix
+//     fallback (issue #5572) — a Terraform-Registry-shorthand
+//     misclassification of a genuinely local module source, or a local
+//     module chain deeper than the resolver's depth bound. Address and
+//     DriftKind are populated exactly like "exact"; the difference is
+//     confidence, not shape. Evidence carries a
+//     "terraform_module_resolution_confidence" atom whose value names the
+//     specific reason ("external_registry" or "depth_exceeded") so an
+//     operator debugging a spurious finding can tell the two causes apart
+//     without a second outcome value per cause. See
+//     go/internal/correlation/drift/tfconfigstate/doc.go and
+//     go/internal/storage/postgres/tfstate_drift_evidence_module_confidence.go.
 //   - Outcome "ambiguous": one row per rejected state-snapshot scope where
 //     backend-owner resolution found more than one candidate config repo
 //     (tfstatebackend.ErrAmbiguousBackendOwner). Address and DriftKind are
@@ -134,10 +149,29 @@ type AWSCloudRuntimeDriftFinding struct {
 //     "evaluated, no drift" (zero rows) apart from "ownership never resolved
 //     at all" (this one row) — both looked identical before.
 //
-// "stale" and "derived" are not emitted by this version: see
-// go/internal/correlation/drift/tfconfigstate/doc.go for why each is either
-// unreachable with the evidence this handler has today or intentionally not
-// persisted.
+// "stale" is not emitted by this version: see
+// go/internal/correlation/drift/tfconfigstate/doc.go for why it is
+// unreachable with the evidence this handler has today.
+//
+// Schema version: adding "derived" (#5572) widened this closed label set
+// and narrowed what "exact" asserts, without a payload-schema major bump.
+// That is a deliberate owner decision, recorded here so it is not
+// re-litigated: the change is a CORRECTION, not a redefinition. Findings
+// whose config-side address came from a module-prefix heuristic were
+// already being labelled "exact" wrongly -- #5572 exists precisely because
+// that label was a lie on those rows -- so the implementation was brought
+// in line with what "exact" was always meant to assert, rather than the
+// meaning being changed out from under a reader.
+//
+// The contract-system policy's "change meaning implies major" rule
+// (docs/internal/design/contract-system-v1.md) targets the external
+// collector-to-core payload boundary. This kind is reducer_derived_findings:
+// written by Eshu's reducer and read by Eshu's own query and MCP layers, so
+// it does not cross that boundary. The generated JSON Schema carries no enum
+// on "outcome", so no schema-derived validator rejects the new value, and the
+// read surface (POST /api/v0/terraform/config-state-drift/findings) is v0,
+// explicitly pre-stable. A consumer that treated "exact" as "every classified
+// per-address finding" should read {"exact","derived"} for that meaning.
 type TerraformConfigStateDriftFinding struct {
 	ReducerDomain string `json:"reducer_domain"`
 	IntentID      string `json:"intent_id"`
@@ -148,15 +182,15 @@ type TerraformConfigStateDriftFinding struct {
 	CanonicalID   string `json:"canonical_id"`
 	CandidateID   string `json:"candidate_id"`
 	CandidateKind string `json:"candidate_kind"`
-	// Outcome is the closed join-confidence label: "exact", "ambiguous", or
-	// "unresolved".
+	// Outcome is the closed join-confidence label: "exact", "derived",
+	// "ambiguous", or "unresolved".
 	Outcome string `json:"outcome"`
 	// Address is the Terraform resource address (e.g.
-	// "module.app.aws_instance.web"). Empty for an "ambiguous" or
-	// "unresolved" row.
+	// "module.app.aws_instance.web"). Populated for "exact" and "derived";
+	// empty for an "ambiguous" or "unresolved" row.
 	Address string `json:"address"`
-	// DriftKind is one of the five tfconfigstate.DriftKind values. Empty for
-	// an "ambiguous" or "unresolved" row.
+	// DriftKind is one of the five tfconfigstate.DriftKind values. Populated
+	// for "exact" and "derived"; empty for an "ambiguous" or "unresolved" row.
 	DriftKind string `json:"drift_kind"`
 	// BackendKind and LocatorHash identify the Terraform state backend the
 	// finding was joined against (state_snapshot:<backend_kind>:<locator_hash>

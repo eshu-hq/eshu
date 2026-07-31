@@ -5828,7 +5828,7 @@
         "minimum_results": 0
       },
       "GET /api/v0/iac/resources?limit=50&include_facets=true": {
-        "description": "Current active-generation IaC resource list and authoritative caller-visible summary from the terraform/IaC corpus. count/summary.by_kind.resource raised 11 -> 13 and summary.total raised 19 -> 21 by issue #5594's terraform_local_backend_demo fixture (tests/fixtures/ecosystems/terraform_local_backend_demo/main.tf), which declares two resource blocks (aws_instance.local_backend_demo, aws_s3_bucket.local_backend_demo) and zero module/data blocks: this endpoint's kind=resource default list and summary.by_kind.resource both scan the TerraformResource graph label sourced from fact_kind='content_entity' config-side parsing (go/internal/query/iac_resources.go's iacResourceRow doc comment) -- unrelated to config-vs-state drift ownership resolution -- so +2 resource-kind content entities land regardless of drift-resolution outcome; summary.total sums all three kind counts (go/internal/query/iac_inventory_postgres.go's Summary: `summary.Total += count` per kind dimension row), so it moves by the same +2 with module/data-source counts unchanged (19 - 11 = 8 held constant, 13 + 8 = 21).",
+        "description": "Current active-generation IaC resource list and authoritative caller-visible summary from the terraform/IaC corpus. count/summary.by_kind.resource raised 11 -> 13 and summary.total raised 19 -> 21 by issue #5594's terraform_local_backend_demo fixture (tests/fixtures/ecosystems/terraform_local_backend_demo/main.tf), which declares two resource blocks (aws_instance.local_backend_demo, aws_s3_bucket.local_backend_demo) and zero module/data blocks: this endpoint's kind=resource default list and summary.by_kind.resource both scan the TerraformResource graph label sourced from fact_kind='content_entity' config-side parsing (go/internal/query/iac_resources.go's iacResourceRow doc comment) -- unrelated to config-vs-state drift ownership resolution -- so +2 resource-kind content entities land regardless of drift-resolution outcome; summary.total sums all three kind counts (go/internal/query/iac_inventory_postgres.go's Summary: `summary.Total += count` per kind dimension row), so it moves by the same +2 with module/data-source counts unchanged (19 - 11 = 8 held constant, 13 + 8 = 21). count/summary.by_kind.resource raised 13 -> 14 and summary.total raised 21 -> 22 by issue #5572's golden-corpus fixture (tests/fixtures/ecosystems/terraform_comprehensive/terraform-aws-modules/vpc/aws/main.tf), which declares exactly one resource block (aws_security_group.vpc_endpoints) and zero module/data blocks -- the pre-existing `module \"vpc\"` block in modules.tf is unchanged, only its previously-dead source path now has a real target directory, so the module/data-source counts (8, unchanged since #5594) hold and this is a pure +1 resource-kind content entity, same mechanism as #5594's fixture, confirmed by a live golden-corpus-gate run against this exact scope.",
         "required_response_fields": [
           "resources",
           "count",
@@ -5842,9 +5842,9 @@
           "summary.by_kind.resource"
         ],
         "required_json_values": {
-          "count": 13,
-          "summary.total": 21,
-          "summary.by_kind.resource": 13
+          "count": 14,
+          "summary.total": 22,
+          "summary.by_kind.resource": 14
         }
       },
       "GET /api/v0/documentation/facts?fact_kind=source": {
@@ -6311,6 +6311,58 @@
         "required_json_values": {
           "outcome_groups[].outcome": "unresolved",
           "drift_findings[].outcome": "unresolved"
+        }
+      },
+      "POST /api/v0/terraform/config-state-drift/findings?variant=derived": {
+        "description": "Issue #5572 golden-corpus coverage for the outcome=\"derived\" read-surface change, proving BOTH halves of the spurious added_in_config/added_in_state mismatch pair reach \"derived\" at the gate, not only unit/loader-integration coverage. The '?variant=derived' query-string suffix exists only to give this entry a distinct map key, same rationale as the local-backend-resolved and unresolved shapes above; the real selector is scope_id plus the outcome filter in request_body. scope_id=state_snapshot:s3:299b28d40110e54bf81beb51e9459bdef688dbc58419782b29aa83a5930b48a7 is the pre-existing S3-backed scope shared with the default (unfiltered) shape above. tests/fixtures/ecosystems/terraform_comprehensive/terraform-aws-modules/vpc/aws/main.tf declares module.vpc's own registered source path (modules.tf: `module \"vpc\" { source = \"terraform-aws-modules/vpc/aws\" }`) as a REAL local directory containing a real resource (aws_security_group.vpc_endpoints) -- the exact false-positive shape the ADR names: classifyModuleSource's Terraform-Registry-shorthand heuristic (go/internal/storage/postgres/tfstate_drift_evidence_module_prefix.go) misclassifies that source as an external registry reference, so the directory is never walked as a resolved local callee even though it genuinely exists. The config-vs-state drift loader therefore addresses that resource as a plain root-module resource (aws_security_group.vpc_endpoints) instead of module.vpc.aws_security_group.vpc_endpoints. testdata/cassettes/terraformstate/supply-chain-demo.json's matching scope carries the CORRECT module-prefixed address (module.vpc.aws_security_group.vpc_endpoints) as a separate terraform_state_resource fact, so neither address matches the other: a spurious added_in_config fires for the wrongly-addressed config resource, flagged low-confidence (ModuleResolutionReason=\"external_registry\") and downgraded to outcome=\"derived\" by the reducer writer's moduleResolutionOutcome. The loader's pairSpuriousModuleMismatches (go/internal/storage/postgres/tfstate_drift_evidence_pairing.go) mirrors that same reason onto the paired spurious added_in_state finding for module.vpc.aws_security_group.vpc_endpoints -- it is the only state-only row that unambiguously shares the aws_security_group.vpc_endpoints resource key with the flagged config-only row -- so BOTH halves of the mismatch pair downgrade to outcome=\"derived\"; an outcome=\"exact\" query never returns either half of a known-spurious pair. minimum_results is 2, DERIVED (not assumed) by tracing the corpus fixtures rather than the live gate: buildModulePrefixMap's moduleResolutionConfidenceMap for this repo's ONE ingested config generation contains exactly one flagged directory (\"terraform-aws-modules/vpc/aws\", the only source in modules.tf classifyModuleSource misclassifies as external_registry -- module.s3_bucket's \"./modules/s3\" is a clean, if resourceless, local path, and module.eks's git:: source is external_git, which recordRegistryHeuristicCandidate never flags), and that directory contains exactly one declared resource (aws_security_group.vpc_endpoints), so exactly one config row ever carries ModuleResolutionReason. testdata/cassettes/terraformstate/supply-chain-demo.json's matching scope carries exactly four terraform_state_resource facts (aws_instance.supply-chain-demo, module.ecs.aws_ecs_cluster.supply-chain-demo, module.ecs.aws_ecs_service.supply-chain-demo, module.vpc.aws_security_group.vpc_endpoints), and module.vpc.aws_security_group.vpc_endpoints is the only one whose <type>.<name> resource key (aws_security_group.vpc_endpoints) matches the one flagged config-only row -- an unambiguous 1:1 pairing, so pairSpuriousModuleMismatches fires exactly once. This fixture repo has a single ingested generation (no prior-config walk promotes a removed_from_config candidate here), so no third finding can reach \"derived\" through the loadPriorConfigAddresses confidence-threading path either. The two required_json_object_matches entries under \"drift_findings[]\" below pin outcome=\"derived\" to EACH specific address independently (aws_security_group.vpc_endpoints for the config-only half, module.vpc.aws_security_group.vpc_endpoints for the state-only half) -- since a single finding object cannot satisfy two different address values at once, this proves two DISTINCT derived findings exist, not merely a count of 2 that a bug retaining only the config-side finding twice, or two unrelated config-side findings, could also satisfy. The pre-existing required_json_object_matches entry under \"drift_findings[].evidence[]\" additionally proves a finding's evidence array carries a terraform_module_resolution_confidence atom with value=\"external_registry\" on one correlated object, not two independent, potentially-unrelated field matches -- this is the assertion that proves the specific cause reaches the read surface, the whole justification for one \"derived\" outcome value covering both #5572 causes instead of splitting per cause. depth_exceeded (issue #5572's other documented cause) has no golden-corpus fixture: an 11-level module chain is a heavy fixture for a rare production shape unit/integration coverage already proves precisely; see docs/internal/evidence/5572-drift-derived-outcome-module-resolution-confidence.md for that explicit scoping decision.",
+        "required_response_fields": [
+          "address",
+          "analysis_status",
+          "drift_findings",
+          "drift_kinds",
+          "findings_count",
+          "graph_projection_note",
+          "limit",
+          "limitations",
+          "next_offset",
+          "offset",
+          "outcome",
+          "outcome_groups",
+          "scope_id",
+          "story",
+          "total_findings_count",
+          "truncated",
+          "truth_basis"
+        ],
+        "minimum_results": 2,
+        "results_field": "drift_findings",
+        "request_body": {
+          "scope_id": "state_snapshot:s3:299b28d40110e54bf81beb51e9459bdef688dbc58419782b29aa83a5930b48a7",
+          "outcome": "derived",
+          "limit": 25
+        },
+        "required_json_values": {
+          "outcome_groups[].outcome": "derived",
+          "drift_findings[].outcome": "derived",
+          "drift_findings[].evidence[].evidence_type": "terraform_module_resolution_confidence"
+        },
+        "required_json_object_matches": {
+          "drift_findings[]": [
+            {
+              "outcome": "derived",
+              "address": "aws_security_group.vpc_endpoints"
+            },
+            {
+              "outcome": "derived",
+              "address": "module.vpc.aws_security_group.vpc_endpoints"
+            }
+          ],
+          "drift_findings[].evidence[]": [
+            {
+              "evidence_type": "terraform_module_resolution_confidence",
+              "value": "external_registry"
+            }
+          ]
         }
       }
     }
