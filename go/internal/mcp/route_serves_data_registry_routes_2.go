@@ -126,8 +126,8 @@ var routeServesDataRegistryPart2 = map[string]routeServesDataSource{
 	// (PostgresSBOMAttestationAttachmentStore): fact_kind = $1 bound to
 	// "reducer_sbom_attestation_attachment"
 	// (go/internal/query/sbom_attestation_attachments.go:28,223). The
-	// missing-evidence CTE also touches reducer_container_image_identity —
-	// disclosed, not served.
+	// missing-evidence CTE also touches the effective container-image-identity
+	// support view — disclosed, not served.
 	"GET /api/v0/supply-chain/sbom-attestations/attachments": {
 		RegistrationFile: "go/internal/query/supply_chain.go",
 		HandlerStruct:    "SupplyChainHandler",
@@ -148,9 +148,9 @@ var routeServesDataRegistryPart2 = map[string]routeServesDataSource{
 		}},
 		Disclosed: []routeDisclosure{{
 			Domain: "container_image_identity",
-			Reason: "missing-evidence signal only: the store's CTE counts reducer_container_image_identity rows to compute the missing_evidence flag; no image identity rows are returned. The kind's own read surface is GET /api/v0/images",
+			Reason: "missing-evidence signal only: the store's CTE reads container_image_identity_current_supports to compute the missing_evidence flag; no image identity rows are returned. The kind's own read surface is GET /api/v0/images",
 			Evidence: []routeReadEvidence{
-				{File: "go/internal/query/sbom_attestation_attachments.go", Marker: "reducer_container_image_identity"},
+				{File: "go/internal/query/sbom_attestation_attachments.go", Marker: "container_image_identity_current_supports"},
 			},
 		}},
 	},
