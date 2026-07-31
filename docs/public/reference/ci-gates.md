@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 91 gates. A row with no local command is
+The registry currently defines 92 gates. A row with no local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
 a laptop does not have); a row marked as an alias shares its check with the
 gate its reason names, under a different git hook stage.
@@ -29,6 +29,7 @@ gate its reason names, under a different git hook stage.
 | `edge-source-tool-coverage` | Verify Edge Source-Tool Coverage | exactness | pre-pr | true | `bash scripts/verify-edge-source-tool-coverage.sh` | static-contract-gates.yml / Verify edge source-tool coverage gate | 3 path(s): go/internal/relationships/**, go/internal/collector/**, specs/surface-inventory.v1.yaml |
 | `evidence-continuity` | Verify Evidence Continuity | exactness | pre-pr | true | `bash scripts/verify-evidence-continuity.sh` | static-contract-gates.yml / Verify evidence continuity gate | 4 path(s): go/internal/collector/**, go/internal/facts/**, go/internal/relationships/**, … |
 | `skill-roundtrip` | Verify Skill Roundtrip | exactness | pre-pr | true | `bash scripts/verify-skill-roundtrip.sh` | static-contract-gates.yml / Verify skillgen roundtrip gate | 3 path(s): go/cmd/skillgen/**, go/internal/skillgen/**, .agents/skills/** |
+| `skill-workflow-refs` | Verify Skill Workflow References | exactness | pre-pr | true | `bash scripts/verify-skill-workflow-refs.sh` | static-contract-gates.yml / Verify skill workflow refs gate | 5 path(s): .agents/skills/**, .github/workflows/**, scripts/verify-skill-workflow-refs.sh, … |
 | `fact-kind-registry` | Verify Fact-Kind Registry | exactness | pre-pr | true | `bash scripts/verify-fact-kind-registry.sh` | static-contract-gates.yml / Verify contract source-of-truth gate | 2 path(s): go/internal/facts/**, specs/fact-kind-registry.v1.yaml |
 | `contract-source-of-truth` | Contract Source of Truth (generate + drift) | exactness | pre-pr | true | `bash scripts/verify-contracttest.sh` | static-contract-gates.yml / Verify contract source-of-truth gate | 4 path(s): go/internal/facts/**, go/internal/collector/contracttest/**, specs/fact-kind-registry.v1.yaml, … |
 | `factschema-diff` | Fact Schema Diff (breaking-change gate) | exactness | pre-pr | true | `bash scripts/verify-factschema-diff.sh` | factschema-diff.yml / Verify factschema-diff gate | 5 path(s): sdk/go/factschema/schema/**, sdk/go/factschema/aws/v1/**, sdk/go/factschema/internal/schemagen/**, … |

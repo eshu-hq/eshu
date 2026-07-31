@@ -282,6 +282,26 @@ gates:
       - go
     ci_only_reason: ""
 
+  - id: skill-workflow-refs
+    name: Verify Skill Workflow References
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - ".agents/skills/**"
+      - ".github/workflows/**"
+      - "scripts/verify-skill-workflow-refs.sh"
+      - "scripts/test-verify-skill-workflow-refs.sh"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "bash scripts/verify-skill-workflow-refs.sh"
+      test_command: "bash scripts/test-verify-skill-workflow-refs.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify skill workflow refs gate"
+    requirements: []
+    ci_only_reason: ""
+
   - id: fact-kind-registry
     name: Verify Fact-Kind Registry
     category: exactness
