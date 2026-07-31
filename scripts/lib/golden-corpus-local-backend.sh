@@ -240,10 +240,12 @@ pg_diag() {
 # no_config_repo_owns_backend) or "drift candidate resolved via defaulted
 # locator" (ownership resolved, so a downstream zero-admitted-candidates
 # outcome is the more precise next question) for every scope the handler
-# actually processes. Uses grep, not jq: grep never errors on a line that
-# happens not to be valid JSON (a real risk in a log this script does not
-# fully control the content of -- see the docstring above), so it cannot
-# repeat the failure mode this diagnostic itself exists to catch. Every `|| true`
+# actually processes. Uses rg, not jq (and not grep -- AGENTS.md/CLAUDE.md's
+# repo-wide rule is rg for all text/content searching, never grep): rg never
+# errors on a line that happens not to be valid JSON (a real risk in a log
+# this script does not fully control the content of -- see the docstring
+# above), so it cannot repeat the failure mode this diagnostic itself exists
+# to catch. Every `|| true`
 # below is INSIDE the command substitution, guarding the one command that can
 # fail, not appended after the closing `)"` -- a trailing `|| true` on the
 # assignment line does not protect the assignment itself from `set -e`.
@@ -255,13 +257,13 @@ log_diag_local_backend_ownership_lines() {
 		return 0
 	fi
 	local scoped_lines
-	scoped_lines="$(grep -F "${local_backend_scope_id}" "${history}" 2>/dev/null || true)"
+	scoped_lines="$(rg -F "${local_backend_scope_id}" "${history}" 2>/dev/null || true)"
 	if [[ -z "${scoped_lines}" ]]; then
 		printf '%s: (0 log lines mention this scope_id across any drain pass -- the intent was likely never claimed; see [2])\n' "${label}"
 		return 0
 	fi
 	local outcome_lines
-	outcome_lines="$(printf '%s\n' "${scoped_lines}" | grep -E 'drift candidate (rejected|resolved via defaulted locator)' 2>/dev/null || true)"
+	outcome_lines="$(printf '%s\n' "${scoped_lines}" | rg 'drift candidate (rejected|resolved via defaulted locator)' 2>/dev/null || true)"
 	if [[ -z "${outcome_lines}" ]]; then
 		printf '%s: this scope_id appears in the reducer log, but never on a "drift candidate rejected"/"drift candidate resolved via defaulted locator" line. Every log line mentioning this scope_id (check for resolver_unavailable/evidence_loader_unavailable/scope_not_state_snapshot failure_class too):\n%s\n' \
 			"${label}" "${scoped_lines}"

@@ -90,7 +90,7 @@ run_maintenance_drain_cycles() {
 		# silently overwritten by the next pass before anything downstream can
 		# read it. Append (never truncate) into one cumulative file so
 		# print_local_backend_drift_diagnostics (golden-corpus-local-backend.sh),
-		# called once after the whole loop, can grep every pass's output.
+		# called once after the whole loop, can rg every pass's output.
 		cat "${log_dir}/reducer.log" >>"${log_dir}/reducer-config-state-drift-history.log" 2>/dev/null || true
 	done
 }
