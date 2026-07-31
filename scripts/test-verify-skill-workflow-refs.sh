@@ -429,6 +429,31 @@ test_bare_name_allowlisted_yaml_not_flagged() {
   fi
 }
 
+# Case 19: a bare, un-backticked, un-pathed prose mention of the ALLOWLISTED
+# `docker-compose.yaml` (the extension nearly every Compose file in this repo
+# actually uses -- docker-compose.yaml, docker-compose.e2e.yaml,
+# docs/public/run-locally/docker-compose.*.yaml) is not flagged even though
+# no matching file exists under workflows/. Regression guard for the F4 defect
+# found on this branch: the docker-compose allowlist case pattern covered only
+# `docker-compose*.yml`, so the `.yaml` sibling -- this repo's dominant
+# Compose extension -- fell through to a dangling-workflow false positive.
+# Case 10 above only ever exercised `docker-compose.yml`, so it could not
+# catch this.
+test_bare_prose_allowlisted_docker_compose_yaml_not_flagged() {
+  local root="${tmp_root}/case19"
+  local out="${tmp_root}/case19.out"
+  write_skill "${root}" "example/SKILL.md" \
+    '# example' \
+    '' \
+    'Bring the stack up with docker-compose.yaml before running the gate.'
+  if run_verifier "${root}" "${out}"; then
+    assert_contains "OK:" "${out}" "case19: allowlisted bare docker-compose.yaml mention is not flagged"
+  else
+    record_fail "case19: allowlisted bare docker-compose.yaml mention is not flagged (verifier exited non-zero)"
+    cat "${out}" >&2
+  fi
+}
+
 test_full_path_existing_passes
 test_full_path_missing_fails
 test_bare_name_existing_passes
@@ -447,6 +472,7 @@ test_bare_name_missing_yaml_fails
 test_bare_prose_existing_yaml_passes
 test_bare_prose_missing_yaml_fails
 test_bare_name_allowlisted_yaml_not_flagged
+test_bare_prose_allowlisted_docker_compose_yaml_not_flagged
 
 printf '\n%d passed, %d failed\n' "${PASS}" "${FAIL}"
 if [ "${FAIL}" -gt 0 ]; then

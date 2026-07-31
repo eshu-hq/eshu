@@ -38,11 +38,11 @@
 #      EXPLICIT, per-entry-commented allowlist (see
 #      bare_yaml_name_is_allowlisted below) of known non-workflow lowercase
 #      `<name>.yml`/`<name>.yaml` basenames -- Taskfile.yml, .golangci.yml,
-#      mkdocs.yml, docker-compose*.yml, values.yaml -- that can legitimately
-#      appear bare. This is not the blank-column `|| continue` silent
-#      exemption #5855 itself fixed: each allowlist entry names a real,
-#      non-workflow file with a one-line reason,
-#      reviewable in a diff, not an unnamed catch-all skip.
+#      mkdocs.yml, docker-compose*.yml/.yaml, values.yaml -- that can
+#      legitimately appear bare. This is not the blank-column `|| continue`
+#      silent exemption #5855 itself fixed: each allowlist entry names a
+#      real, non-workflow file with a one-line reason, reviewable in a diff,
+#      not an unnamed catch-all skip.
 #
 # Shapes 2 and 3 are deliberately restricted to a lowercase-leading character
 # class ([a-z][a-z0-9_-]*). This repo's own workflow basenames are all
@@ -169,7 +169,14 @@ bare_yaml_name_is_allowlisted() {
   case "$1" in
     golangci.yml)
       # go/.golangci.yml is the golangci-lint config, not a GH Actions
-      # workflow (see eshu-security-scan-gates/SKILL.md:102).
+      # workflow. The only current mention (eshu-security-scan-gates/
+      # SKILL.md:102) is path-prefixed (`` `go/.golangci.yml` ``), so it
+      # contains a `/` that shape 2 (bare backtick, no path) never matches,
+      # and sits right after a `/` that shape 3's lookbehind
+      # (`(?<![A-Za-z0-9_./`-])`) excludes -- neither shape can reach that
+      # citation today. This entry is forward defense against a future bare,
+      # unprefixed `golangci.yml` mention, not proof of a currently-reachable
+      # citation.
       return 0
       ;;
     taskfile.yml)
@@ -180,14 +187,26 @@ bare_yaml_name_is_allowlisted() {
       return 0
       ;;
     mkdocs.yml)
-      # docs/mkdocs.yml is the MkDocs site config, not a GH Actions workflow
-      # (see telemetry-coverage-discipline/SKILL.md).
+      # docs/mkdocs.yml is the MkDocs site config, not a GH Actions workflow.
+      # Both current mentions (telemetry-coverage-discipline/SKILL.md:148
+      # and :178) are path-prefixed (`docs/mkdocs.yml`) -- same as
+      # golangci.yml above, so neither shape 2 nor shape 3 can reach them
+      # today: the `/` is both an in-token character shape 2 requires absent
+      # and a character shape 3's lookbehind excludes matching after. This
+      # entry is forward defense against a future bare, unprefixed
+      # `mkdocs.yml` mention, not proof of a currently-reachable citation.
       return 0
       ;;
-    docker-compose*.yml)
-      # docker-compose.yml / docker-compose.override.yml / etc. are Compose
-      # stack files, not GH Actions workflows. No skill doc references one
-      # bare today; listed pre-emptively per the #5855 P2 fix request.
+    docker-compose*.yml | docker-compose*.yaml)
+      # docker-compose.yml / docker-compose.override.yml / docker-compose.yaml
+      # / docker-compose.e2e.yaml / etc. are Compose stack files, not GH
+      # Actions workflows. This repo's own Compose files are overwhelmingly
+      # `.yaml` (docker-compose.yaml, docker-compose.e2e.yaml,
+      # docs/public/run-locally/docker-compose.*.yaml) -- only
+      # docker-compose.telemetry.yml and docker-compose.neo4j.yml use `.yml`
+      # -- so both extensions must be covered, not just `.yml`. No skill doc
+      # references one bare today; listed pre-emptively per the #5855 P2 fix
+      # request.
       return 0
       ;;
     values.yaml)
