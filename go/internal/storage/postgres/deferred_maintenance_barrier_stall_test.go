@@ -127,6 +127,24 @@ func TestIngestionStoreWaitDeferredMaintenanceBarrierCompletionStallLogNamesMiss
 	}
 }
 
+// TestDeferredMaintenanceIdleLogGateShouldLogNilGateAlwaysLogs proves the nil
+// receiver branch of (*deferredMaintenanceIdleLogGate).shouldLog: a nil gate
+// must report true unconditionally, matching the "IngestionStore values built
+// without NewIngestionStore get the unthrottled default" contract documented
+// on shouldLog. Nothing else in this package calls shouldLog on a nil
+// receiver directly, so without this test a mutant that flips the nil branch
+// to `return false` survives — a nil gate would then silently suppress the
+// idle "no epoch to join" INFO log for every caller that never wires a real
+// gate, with no test failing to say so.
+func TestDeferredMaintenanceIdleLogGateShouldLogNilGateAlwaysLogs(t *testing.T) {
+	t.Parallel()
+
+	var gate *deferredMaintenanceIdleLogGate
+	if got := gate.shouldLog(time.Now()); got != true {
+		t.Fatalf("(*deferredMaintenanceIdleLogGate)(nil).shouldLog() = %v, want true", got)
+	}
+}
+
 // TestIngestionStoreRunDeferredRelationshipMaintenanceAfterShardDrainRateLimitsIdleLog
 // is the P2-1 fix on PR #5852: the "idle; no epoch to join" INFO log
 // (RunDeferredRelationshipMaintenanceAfterShardDrain in
