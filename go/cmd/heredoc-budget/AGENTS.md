@@ -252,6 +252,58 @@ Also see `scanner_probes_test.go` for the mandated post-fix adversarial hunt
 tabs/spaces) — all matched already-correct behavior, recorded as named
 regression guards, except the two F2 findings folded into the bullet above.
 
+## 2026-07 hardening review round 2: two more P1 fail-opens in F2 itself (P1-1, P1-2)
+
+A codex review of PR #5890 — the PR that shipped the F2 rewrite above — found
+two more constructs where F2's broadened word scan still reported ZERO
+heredocs (or a mismeasured one) on a script with a genuine over-budget body.
+Both live in `parseDelim` (`scanner_delim.go`); both verified against real
+`/bin/bash` first; see `scanner_crlf_test.go` and `scanner_quoted_prefix_test.go`
+for the transcripts and regression proof:
+
+- **P1-1 (CRLF bare delimiter, `stripTrailingCR`, `scanner_delim.go`).** F2's
+  word scan does not stop at `\r` (correctly — real bash does not treat `\r`
+  as a word separator either), so a CRLF script's bare opener parses to a
+  delimiter that keeps the trailing `\r`. `closesHeredoc` (`scanner.go`)
+  already stripped a trailing `\r` from the candidate closing line
+  (pre-existing CRLF tolerance, predating F2), so the two sides never
+  matched and the heredoc was dropped as unterminated. Fixed with ONE shared
+  `stripTrailingCR` helper that both `parseDelim` and `closesHeredoc` route
+  through. Do not reintroduce a second hand-written `TrimSuffix(x, "\r")` on
+  only one side — that asymmetry is exactly what caused this bug.
+- **P1-2 (quoted-leading concatenated delimiter, `parseDelim`,
+  `scanner_delim.go`).** The separate top-level branch that used to handle a
+  delimiter STARTING with a quote returned immediately once the quote
+  closed, instead of continuing to read the rest of the word the way the
+  mid-word quote case (`<<FOO'BAR'`) already did. An opener whose delimiter
+  was an empty quoted pair directly followed by a literal returned an empty
+  delimiter, so the scanner waited for a blank closing line and folded every
+  intervening line — including a real heredoc's own opener/body/closer text
+  — into one phantom "quoted" heredoc measured against the wrong (full, not
+  margin) budget. The severe consequence: a later genuine unquoted heredoc
+  in the 385-512 byte margin window could be swallowed into that phantom and
+  never independently measured against the margin, bypassing it entirely
+  (see `TestScanContent_PhantomQuotedBodySwallowsLaterUnquotedMarginHeredoc`).
+  Fixed by deleting the separate leading-quote branch entirely: a leading
+  quote now falls into the SAME word-scan loop and quote case that already
+  handles a quote appearing mid-word. Do not reintroduce a special-cased
+  leading-quote branch — the whole point of the fix is that leading and
+  mid-word quotes share one code path.
+
+This round's class hunt additionally probed a `\r` mid-word, `<<` at
+end-of-line, a delimiter that is only quotes, a quoted segment containing
+`\r` or a separator byte, a trailing backslash, CRLF combined with `<<-`, and
+CRLF combined with a line continuation — all either fixed by the same two
+changes above or already correct (see `scanner_crlf_test.go` and
+`scanner_quoted_prefix_test.go` for each as a named regression guard).
+
+Deliberate limitation kept from this round: `stripTrailingCR` normalises a
+trailing `\r` identically whether it is a CRLF artifact or genuinely quoted
+content, so a script with MISMATCHED opener/closing-line endings now closes
+under this scanner even though real bash would call it unterminated —
+intentional, safety-favoring leniency (see `stripTrailingCR`'s doc comment),
+not something to "fix" toward stricter bash fidelity.
+
 ## Common changes and how to scope them
 
 - **Changing the byte budget** → the `-budget` flag already supports this;

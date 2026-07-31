@@ -226,6 +226,66 @@ adversarial hunt (arithmetic nested both ways with command substitution,
 mixed tabs/spaces) — all matched already-correct behavior except the two F2
 findings folded in above.
 
+### 2026-07 hardening review round 2: two more P1 fail-opens in F2 itself (P1-1, P1-2)
+
+A codex review of PR #5890 — the PR that shipped the F2 rewrite above — found
+two more constructs where F2's broadened word scan still reported ZERO
+heredocs (or a mismeasured one) on a script with a genuine over-budget body.
+Both live in `parseDelim` (`scanner_delim.go`), both verified against real
+`/bin/bash` first:
+
+- **P1-1 (CRLF bare delimiter):** on a CRLF-line-ending script, F2's word scan
+  does not stop at `\r` (real bash does not treat `\r` as a word separator
+  either), so a bare opener like `cat <<EOF\r\n` parses to delimiter `EOF\r`.
+  `closesHeredoc`, however, already stripped a trailing `\r` from the
+  candidate closing line (pre-existing CRLF tolerance, predating F2). The two
+  independently-normalised sides never matched, so the heredoc was dropped as
+  unterminated and its body, however oversized, was never measured. Fixed by
+  routing BOTH the parsed delimiter (`parseDelim`) and the candidate closing
+  line (`closesHeredoc`, `scanner.go`) through one shared `stripTrailingCR`
+  helper (`scanner_delim.go`), instead of a second hand-written `TrimSuffix`
+  on only one side. See `scanner_crlf_test.go` for transcripts and coverage,
+  including the `<<-` and quoted-delimiter variants.
+- **P1-2 (quoted-leading concatenated delimiter):** a delimiter word that
+  STARTS with a quote (`<<'DELIM'...`) had its own top-level branch that
+  returned immediately once the quote closed, never continuing to read the
+  rest of the word — unlike the unquoted-prefix branch's mid-word quote
+  handling (`<<FOO'BAR'`, delimiter "FOOBAR"), which already continues
+  correctly. An opener whose delimiter is an empty quoted pair directly
+  followed by "E" returned delimiter "" instead of real bash's "E", so the
+  scanner waited for a BLANK closing line instead of the real "E" line —
+  silently folding every intervening line, including any real heredoc's own
+  opener/body/closer text, into ONE phantom "quoted" heredoc measured
+  against the FULL budget instead of the stricter 384-byte
+  unquoted-expansion margin (#5085). The severe consequence: a later genuine
+  unquoted heredoc sized in the 385-512 byte margin window could be folded
+  into that phantom body and never independently measured against the
+  margin that actually applies to it, bypassing it entirely. Fixed by
+  deleting the separate leading-quote branch: a leading quote now falls into
+  the SAME general word-scan loop and quote case that already handles a
+  quote appearing mid-word. See `scanner_quoted_prefix_test.go` for
+  transcripts, the class hunt (only-quotes delimiters, mixed quote styles, a
+  quoted segment containing a separator byte), and the severe margin-bypass
+  regression test.
+
+This round's class hunt additionally probed a `\r` mid-word (already
+correct), `<<` at end-of-line (already correct), a delimiter that is only
+quotes (fixed by the same P1-2 change), a quoted segment containing `\r` or a
+separator byte (already correct), a trailing backslash (already correct, F3),
+CRLF combined with `<<-` (fixed by P1-1), and CRLF combined with a line
+continuation (already correct in both directions — a trailing backslash is
+only a real continuation immediately before `\n`; on a CRLF line it instead
+escapes the `\r` itself, matching real bash's own unterminated verdict for
+that construct).
+
+One deliberate, documented limitation: `stripTrailingCR` normalises a
+trailing `\r` the same way regardless of whether it is a CRLF artifact or
+genuinely quoted content, so a script with MISMATCHED line endings between
+its heredoc opener and closing line now closes under this scanner even
+though real bash would call it unterminated — an intentional,
+safety-favoring choice (see `stripTrailingCR`'s doc comment), not an
+oversight.
+
 **Still open (real, adversarially-found gaps):**
 
 - The unquoted-heredoc runtime-expansion margin (#5085, above) narrows the
@@ -247,6 +307,12 @@ findings folded in above.
   not a bug. The 2026-07 review's `frameArith` fix (F1, above) is now the
   primary defense against that misread; this restriction is kept as
   secondary, defense-in-depth.
+- `stripTrailingCR` (P1-1, above) normalises a trailing `\r` the same way
+  regardless of whether it is a CRLF line-ending artifact or genuinely
+  quoted content, so a script whose heredoc opener and closing line have
+  MISMATCHED line endings now closes under this scanner even though real
+  bash would call it unterminated — intentional, safety-favoring leniency,
+  not an oversight.
 
 **#5079 is likewise NOT fully closed** by this or any prior slice: it names a
 class of line-based-scanner false negatives (quote/substitution-context

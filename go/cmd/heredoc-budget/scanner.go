@@ -243,10 +243,13 @@ func ScanTree(root string, budget int) (map[string][]Violation, error) {
 
 // closesHeredoc reports whether line is the closing delimiter line for an
 // open heredoc. For the `<<-` form, leading tabs are stripped before
-// comparison (POSIX tab-stripping); a trailing "\r" is always stripped so
-// CRLF-terminated scripts compare correctly.
+// comparison (POSIX tab-stripping); a trailing "\r" is always stripped via
+// stripTrailingCR (scanner_delim.go) so CRLF-terminated scripts compare
+// correctly -- the SAME normalisation parseDelim applies to the opener's own
+// delimiter, so the two sides cannot drift apart the way they did before
+// P1-1 (codex review of PR #5890; see stripTrailingCR's doc comment).
 func closesHeredoc(line string, o opener) bool {
-	l := strings.TrimSuffix(line, "\r")
+	l := stripTrailingCR(line)
 	if o.tabStrip {
 		l = strings.TrimLeft(l, "\t")
 	}

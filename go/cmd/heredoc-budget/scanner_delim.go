@@ -28,7 +28,12 @@ import "strings"
 // concatenated word, not three. Also
 // excludes backslash, which escapes the next byte rather than separating a
 // word from what follows it (see parseDelim's own backslash handling below,
-// and findAllOpeners's escape branches).
+// and findAllOpeners's escape branches). Also deliberately excludes '\r':
+// real bash does not treat it as whitespace or a word boundary either --
+// verified against real bash, a CRLF script's heredoc delimiter genuinely
+// keeps the trailing '\r' as part of the word (see stripTrailingCR below for
+// where and why that trailing byte is normalised away instead, P1-1/2026-07
+// hardening review round 2).
 func isShellWordSeparator(b byte) bool {
 	switch b {
 	case ' ', '\t', ';', '|', '&', '<', '>', '(', ')':
@@ -50,25 +55,39 @@ func isShellWordSeparator(b byte) bool {
 // disables runtime expansion of the body, see Heredoc.Unquoted) and how many
 // bytes of s the delimiter token consumed, so the caller can resume scanning
 // immediately after it on the same line.
+//
+// A delimiter that STARTS with a quote (`<<'DELIM'...`, `<<"DELIM"...`) used
+// to be handled by a separate top-level branch here that returned
+// immediately once the opening quote closed, never continuing to read the
+// rest of the word. That is wrong whenever anything follows the closing
+// quote on the same word: real bash keeps reading -- ordinary word
+// concatenation, the same rule that already made `<<FOO'BAR'` (an unquoted
+// prefix followed by a quoted segment) resolve to delimiter "FOOBAR" in the
+// loop below. An EMPTY quoted pair immediately followed by unquoted text
+// needs the identical treatment in the other order (P1-2, codex review of PR
+// #5890): bash reads a heredoc opened by two adjacent single quotes directly
+// followed by the letter E as delimiter "E", not "". The old early-return
+// version returned delimiter "" there, so the scanner waited for a BLANK
+// closing line instead of the real "E" line -- silently folding every
+// intervening line, including any real heredoc's own opener/body/closer
+// text, into one phantom "quoted" heredoc body measured against the wrong
+// (full, not margin) budget. Fixed by deleting that separate branch: a
+// leading quote now falls straight into the general word-scan loop below and
+// is handled by the SAME quote case that already handles a quote appearing
+// mid-word, so both continue reading the rest of the word after the quote
+// closes.
+//
+// Verified against real bash: an opener whose delimiter is an empty quoted
+// pair directly followed by "E" closes on "E"; `<<'A'B` closes on "AB";
+// `<<A'` followed immediately by another empty quoted pair then `B` (already
+// correct pre-fix, since it never went through the separate leading-quote
+// branch) closes on "AB"; a delimiter made of two adjacent empty quoted
+// pairs back to back closes on an empty line; and `<<'A'"B"C` (mixed quote
+// styles) closes on "ABC" -- see scanner_quoted_prefix_test.go for each
+// transcript.
 func parseDelim(s string) (name string, quoted bool, consumed int, ok bool) {
 	if s == "" {
 		return "", false, 0, false
-	}
-	if s[0] == '\'' || s[0] == '"' {
-		q := s[0]
-		end := strings.IndexByte(s[1:], q)
-		if end < 0 {
-			return "", false, 0, false
-		}
-		// A quoted delimiter's content is exactly the bytes between the
-		// matching quote characters, whatever they are -- real bash places
-		// no identifier-shaped restriction on it. "<<'E#F'", "<<'has
-		// spaces'", and even "<<''" (an empty delimiter, matched by a blank
-		// closing line) are all valid, verified against real bash. Unlike
-		// the unquoted branch below, quoting already marks exactly where
-		// the word starts and ends, so no separator/escape handling applies
-		// here.
-		return s[1 : 1+end], true, end + 2, true
 	}
 	if s[0] == '#' {
 		// The position right after "<<"/"<<-" and any blanks is itself a
@@ -107,18 +126,21 @@ func parseDelim(s string) (name string, quoted bool, consumed int, ok bool) {
 	// detects and reports the continuation (see continuesOnNextLine,
 	// F3/2026-07 hardening review).
 	//
-	// A quote character appearing MID-WORD (not at s[0], which the
-	// fully-quoted branch above already intercepts) starts a quoted SEGMENT
-	// of the same word, exactly like ordinary bash word concatenation
-	// (`echo FOO'BAR'` prints "FOOBAR", one word) -- found via this pass's
-	// mandated adversarial probe for "a delimiter containing ... quotes",
-	// not one of the four assigned bugs. Before this, the byte-scan treated
-	// the quote characters as literal delimiter bytes, computing "FOO'BAR'"
-	// instead of the real bash delimiter "FOOBAR", which then never matched
-	// the true (quote-free) closing line and silently dropped the heredoc as
-	// unterminated. Verified against real bash: `cat <<FOO'BAR'` closes on a
-	// literal "FOOBAR" line and disables body expansion, exactly like a
-	// fully-quoted delimiter.
+	// A quote character -- whether it opens the word at s[0] (P1-2 above) or
+	// appears MID-WORD -- starts a quoted SEGMENT of the same word, exactly
+	// like ordinary bash word concatenation (`echo FOO'BAR'` prints
+	// "FOOBAR", one word; `echo '<<'"'"'foo'"'"'"` idioms compose the same
+	// way). The mid-word case was found via this pass's mandated adversarial
+	// probe for "a delimiter containing ... quotes", not one of the four
+	// originally assigned bugs. Before that probe's fix, the byte-scan
+	// treated the quote characters as literal delimiter bytes, computing
+	// "FOO'BAR'" instead of the real bash delimiter "FOOBAR", which then
+	// never matched the true (quote-free) closing line and silently dropped
+	// the heredoc as unterminated. Verified against real bash: `cat
+	// <<FOO'BAR'` closes on a literal "FOOBAR" line and disables body
+	// expansion, exactly like a fully-quoted delimiter -- and, per P1-2
+	// above, so does the leading-quote direction (`<<'FOO'BAR`, delimiter
+	// "FOOBAR").
 	var b strings.Builder
 	j := 0
 	for j < len(s) && !isShellWordSeparator(s[j]) {
@@ -147,5 +169,47 @@ func parseDelim(s string) (name string, quoted bool, consumed int, ok bool) {
 	if j == 0 {
 		return "", false, 0, false
 	}
-	return b.String(), quoted, j, true
+	// stripTrailingCR is the P1-1 fix (codex review of PR #5890): see its
+	// own doc comment for why a trailing '\r' captured here (real bash does
+	// not treat '\r' as a word separator, so a CRLF script's bare delimiter
+	// legitimately includes it) must be normalised away here, matching
+	// closesHeredoc's (scanner.go) pre-existing normalisation of the
+	// candidate closing line, through the SAME shared function.
+	return stripTrailingCR(b.String()), quoted, j, true
+}
+
+// stripTrailingCR removes exactly one trailing '\r' byte, if present. It is
+// the ONE shared CRLF-tolerance rule parseDelim (above) and closesHeredoc
+// (scanner.go) both route through, so a CRLF-terminated script's heredoc
+// delimiter and its candidate closing line are normalised identically before
+// they are compared.
+//
+// Before this helper existed, the two sides normalised '\r' independently:
+// closesHeredoc already stripped it (pre-existing, to tolerate a
+// CRLF-terminated closing line), but parseDelim's broadened word scan
+// (F2/2026-07 hardening review) did not, so on a CRLF script a bare
+// delimiter like "EOF" now legitimately captured the line's trailing '\r' as
+// an ordinary word byte -- "EOF\r" -- since isShellWordSeparator
+// deliberately does not treat '\r' as a real bash word separator (real bash
+// itself does not; see its doc comment). The two independently-normalised
+// sides then never matched, so the heredoc was dropped as unterminated and
+// its body, however oversized, was never measured (P1-1, codex review of PR
+// #5890). Routing both call sites through this one function, instead of a
+// second hand-written `strings.TrimSuffix(x, "\r")`, is what keeps them from
+// drifting apart the same way isShellWordSeparator already does for
+// word-boundary bytes.
+//
+// This is deliberately a byte-level normalisation, not a bash-fidelity
+// simulation: real bash treats a delimiter's or a closing line's trailing
+// '\r' as ordinary content (see isShellWordSeparator's doc comment), so a
+// script with INCONSISTENT line endings within one heredoc (a CRLF opener
+// but an LF-only closing line, or vice versa) is unterminated in real bash
+// but closes under this scanner's more lenient, symmetric stripping. That is
+// an intentional choice, not an oversight: this scanner's job is to catch a
+// real oversized heredoc body before it becomes a #5074 hang, and erring
+// toward still finding and measuring a body in an inconsistent-line-ending
+// script is the safer direction than matching bash's stricter (and, for a
+// heredoc, silently-swallow-the-rest-of-the-file) failure mode exactly.
+func stripTrailingCR(s string) string {
+	return strings.TrimSuffix(s, "\r")
 }
