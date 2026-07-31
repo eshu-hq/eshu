@@ -300,16 +300,20 @@ const (
 )
 
 type stubRegistryClient struct {
-	tags        []string
-	manifest    distribution.ManifestResponse
-	manifestErr error
-	referrers   distribution.ReferrersResponse
+	tags              []string
+	tagListIncomplete bool
+	manifest          distribution.ManifestResponse
+	manifestErr       error
+	referrers         distribution.ReferrersResponse
 }
 
 func (s *stubRegistryClient) Ping(context.Context) error { return nil }
 
-func (s *stubRegistryClient) ListTags(context.Context, string) ([]string, error) {
-	return append([]string(nil), s.tags...), nil
+func (s *stubRegistryClient) ListTags(context.Context, string, int) (distribution.TagListResponse, error) {
+	return distribution.TagListResponse{
+		Tags:     append([]string(nil), s.tags...),
+		Complete: !s.tagListIncomplete,
+	}, nil
 }
 
 func (s *stubRegistryClient) GetManifest(context.Context, string, string) (distribution.ManifestResponse, error) {

@@ -271,7 +271,11 @@ claimed AS (
     SET status = 'claimed',
         attempt_count = ` + reducerClaimAttemptCountCaseSQL() + `,
         container_image_identity_claim_epoch =
-            work.container_image_identity_claim_epoch,
+            CASE
+                WHEN work.domain = 'container_image_identity'
+                    THEN work.container_image_identity_claim_epoch + 1
+                ELSE work.container_image_identity_claim_epoch
+            END,
         lease_owner = $3,
         claim_until = $4,
         last_attempt_at = $1,

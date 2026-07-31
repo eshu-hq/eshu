@@ -5,6 +5,7 @@ package ociruntime
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -17,19 +18,40 @@ func TestSourceNextDeclaresTagListTruncationInBand(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		tags        []string
-		wantWarning bool
+		name              string
+		tags              []string
+		tagLimit          int
+		tagListIncomplete bool
+		wantWarning       bool
+		wantTags          []string
 	}{
 		{
 			name:        "over limit",
 			tags:        []string{"v2", "v1"},
+			tagLimit:    1,
 			wantWarning: true,
+			wantTags:    []string{"v1"},
+		},
+		{
+			name:              "short page below limit with continuation",
+			tags:              []string{"v1"},
+			tagLimit:          3,
+			tagListIncomplete: true,
+			wantWarning:       true,
+			wantTags:          []string{"v1"},
+		},
+		{
+			name:              "empty incomplete page",
+			tagLimit:          3,
+			tagListIncomplete: true,
+			wantWarning:       true,
 		},
 		{
 			name:        "exactly at limit",
 			tags:        []string{"v1"},
+			tagLimit:    1,
 			wantWarning: false,
+			wantTags:    []string{"v1"},
 		},
 	}
 	for _, tt := range tests {
@@ -38,7 +60,8 @@ func TestSourceNextDeclaresTagListTruncationInBand(t *testing.T) {
 			t.Parallel()
 
 			client := &stubRegistryClient{
-				tags: tt.tags,
+				tags:              tt.tags,
+				tagListIncomplete: tt.tagListIncomplete,
 				manifest: distribution.ManifestResponse{
 					Digest:    testManifestDigest,
 					MediaType: ociregistry.MediaTypeOCIImageManifest,
@@ -53,7 +76,7 @@ func TestSourceNextDeclaresTagListTruncationInBand(t *testing.T) {
 						Provider:     ociregistry.ProviderGHCR,
 						Registry:     "registry.example.com",
 						Repository:   "team/api",
-						TagLimit:     1,
+						TagLimit:     tt.tagLimit,
 						FencingToken: 11,
 					}},
 				},
@@ -90,8 +113,8 @@ func TestSourceNextDeclaresTagListTruncationInBand(t *testing.T) {
 			if got := len(warnings); got != boolCount(tt.wantWarning) {
 				t.Fatalf("tag-list truncation warnings = %d, want %d", got, boolCount(tt.wantWarning))
 			}
-			if len(observedTags) != 1 || observedTags[0] != "v1" {
-				t.Fatalf("observed tags = %v, want [v1]", observedTags)
+			if !slices.Equal(observedTags, tt.wantTags) {
+				t.Fatalf("observed tags = %v, want %v", observedTags, tt.wantTags)
 			}
 			if !tt.wantWarning {
 				return

@@ -89,6 +89,105 @@ WHERE work_item_id = 'ack-5854-cutover-backfill-0'
 	}
 }
 
+func TestContainerImageIdentityCutoverMigrationBackfillsOnlyActiveLegacyClaimEpochsLive(
+	t *testing.T,
+) {
+	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
+	if dsn == "" {
+		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the cutover claim-epoch backfill proof")
+	}
+
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+	defer cancel()
+	db := openContainerImageIdentityCutoverBackfillProofDB(t, ctx, dsn)
+	exec := SQLDB{DB: db}
+	preUpgrade, migration := containerImageIdentityCutoverUpgradeDefinitions(t)
+	if err := ApplyDefinitions(ctx, exec, preUpgrade); err != nil {
+		t.Fatalf("apply pre-088 definitions: %v", err)
+	}
+
+	for index, status := range []string{
+		"pending",
+		"claimed",
+		"running",
+		"retrying",
+		"succeeded",
+		"failed",
+		"dead_letter",
+		"superseded",
+	} {
+		scopeID := fmt.Sprintf("repository:5854-epoch-backfill-%d", index)
+		generationID := fmt.Sprintf("generation:5854-epoch-backfill-%d", index)
+		workItemID := fmt.Sprintf("ack-5854-epoch-backfill-%d", index)
+		seedContainerImageIdentityAckScope(t, ctx, db, scopeID)
+		seedContainerImageIdentityAckGeneration(t, ctx, db, scopeID, generationID)
+		seedContainerImageIdentityAckWorkItem(
+			t,
+			ctx,
+			db,
+			workItemID,
+			scopeID,
+			generationID,
+			"legacy-reducer-5854",
+			time.Date(2026, time.July, 31, 1, 0, 0, 0, time.UTC),
+			time.Date(2026, time.July, 31, 0, 0, 0, 0, time.UTC),
+		)
+		if _, err := db.ExecContext(ctx, `
+UPDATE fact_work_items
+SET status = $2,
+    attempt_count = 7
+WHERE work_item_id = $1
+`, workItemID, status); err != nil {
+			t.Fatalf("seed %s pre-v2 work item: %v", status, err)
+		}
+	}
+
+	if err := ApplyDefinitions(ctx, exec, []Definition{migration}); err != nil {
+		t.Fatalf("apply migration 088: %v", err)
+	}
+
+	rows, err := db.QueryContext(ctx, `
+SELECT status, container_image_identity_claim_epoch
+FROM fact_work_items
+WHERE work_item_id LIKE 'ack-5854-epoch-backfill-%'
+ORDER BY work_item_id
+`)
+	if err != nil {
+		t.Fatalf("read claim-epoch backfill rows: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+	got := make(map[string]int64)
+	for rows.Next() {
+		var (
+			status string
+			epoch  int64
+		)
+		if err := rows.Scan(&status, &epoch); err != nil {
+			t.Fatalf("scan claim-epoch backfill row: %v", err)
+		}
+		got[status] = epoch
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate claim-epoch backfill rows: %v", err)
+	}
+	for _, status := range []string{"claimed", "running", "succeeded"} {
+		if got[status] != 7 {
+			t.Errorf("%s claim epoch = %d, want 7", status, got[status])
+		}
+	}
+	for _, status := range []string{
+		"pending",
+		"retrying",
+		"failed",
+		"dead_letter",
+		"superseded",
+	} {
+		if got[status] != 0 {
+			t.Errorf("%s claim epoch = %d, want 0", status, got[status])
+		}
+	}
+}
+
 func openContainerImageIdentityCutoverBackfillProofDB(
 	t *testing.T,
 	ctx context.Context,

@@ -106,14 +106,16 @@ func TestContainerImageIdentityClaimQueriesDispatchEpochTrigger(t *testing.T) {
 	for _, query := range []string{claimReducerWorkQuery, claimReducerWorkBatchQuery} {
 		for _, want := range []string{
 			"SET status = 'claimed'",
-			"container_image_identity_claim_epoch =\n            work.container_image_identity_claim_epoch",
+			"WHEN work.domain = 'container_image_identity'",
+			"THEN work.container_image_identity_claim_epoch + 1",
+			"ELSE work.container_image_identity_claim_epoch",
 		} {
 			if !strings.Contains(query, want) {
 				t.Fatalf("claim query missing %q:\n%s", want, query)
 			}
 		}
 		for _, forbidden := range []string{
-			"container_image_identity_claim_epoch = CASE",
+			"container_image_identity_claim_epoch =\n            work.container_image_identity_claim_epoch,",
 		} {
 			if strings.Contains(query, forbidden) {
 				t.Fatalf("claim query retained per-row branching %q:\n%s", forbidden, query)

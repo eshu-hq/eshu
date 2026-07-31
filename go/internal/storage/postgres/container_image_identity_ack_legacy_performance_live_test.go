@@ -187,7 +187,6 @@ SET status = CASE
     lease_owner = $1,
     claim_until = $2,
     visible_at = NULL,
-    last_attempt_at = $3,
     next_attempt_at = NULL,
     failure_class = NULL,
     failure_message = NULL,

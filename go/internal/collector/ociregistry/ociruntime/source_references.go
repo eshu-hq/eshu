@@ -10,6 +10,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/distribution"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -21,19 +22,20 @@ func (s *Source) listReferences(
 	if len(target.References) > 0 {
 		return append([]string(nil), target.References...), false, nil
 	}
-	var tags []string
+	var response distribution.TagListResponse
 	err := s.recordAPICall(ctx, target, "list_tags", func(context.Context) error {
 		var err error
-		tags, err = client.ListTags(ctx, target.Repository)
+		response, err = client.ListTags(ctx, target.Repository, target.TagLimit)
 		return err
 	})
 	if err != nil {
 		return nil, false, fmt.Errorf("list OCI registry tags: %w", err)
 	}
+	tags := response.Tags
 	slices.Sort(tags)
 	tags = slices.Compact(tags)
-	truncated := len(tags) > target.TagLimit
-	if truncated {
+	truncated := !response.Complete || len(tags) > target.TagLimit
+	if len(tags) > target.TagLimit {
 		tags = tags[:target.TagLimit]
 	}
 	if s.Instruments != nil {

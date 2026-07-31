@@ -17,7 +17,9 @@ reference, and publication plus exact cleanup commits atomically.
 Collector-declared incompleteness is fail-closed:
 
 - `tag_list_truncated` holds affected tag references.
-- `config_blob_unavailable` holds manifest digests mapped from the warning.
+- `config_blob_unavailable` holds manifest digests mapped from the warning. If
+  the active manifest set cannot map the config digest, retirement holds that
+  warning's repository and continues for unrelated repositories.
 - `missing_manifest_digest` holds the named repository conservatively.
 - malformed, unreadable, or unavailable warning-loader state stops a
   destructive pass before the writer runs.
@@ -45,10 +47,12 @@ format-compatibility fence:
 4. A statement-level transition-table trigger rejects or suppresses legacy
    outcome-keyed fact writes after the marker. It serializes only writers for
    the same scope generation; unrelated keys remain concurrent.
-5. The queue claim trigger is defined as `BEFORE UPDATE OF
-   container_image_identity_claim_epoch` with a domain predicate. Every target
-   claim increments the epoch and authorizes `running`; unrelated claims do not
-   execute the trigger body.
+5. The queue claim trigger is defined as `BEFORE UPDATE OF last_attempt_at,
+   container_image_identity_claim_epoch` with a domain predicate. Including the
+   legacy claim timestamp lets the trigger advance the epoch for an old
+   same-owner re-claim before cutover and reject that old claim shape after
+   cutover. Every v2 target claim increments the epoch and authorizes `running`;
+   unrelated claims do not execute the trigger body.
 6. ACK, retry, and failure SQL bind the exact claim epoch and write the matching
    authorized terminal status. The row constraint requires
    `status = container_image_identity_v2_authorized_status` whenever the v2
@@ -87,7 +91,8 @@ PostgreSQL 18 backend and 99,500-reference input, the final v2 writer preserved
 the logical checksum and terminal 99,500-row count while improving median from
 6.281 seconds to 4.576 seconds and p95 from 6.470 seconds to 4.875 seconds. The
 live golden gate terminated with zero residual work items, zero dead letters,
-515 passing assertions, and zero required failures.
+517 passing assertions, zero required failures, and one advisory in 109 seconds
+(exit 0).
 
 Observability Evidence: the bounded
 `eshu_dp_container_image_identity_decisions_total` and
@@ -125,9 +130,33 @@ cover unrelated claim, ACK, failure, target scalar ACK, and target batch ACK.
 The unrelated paths remain inside the repository's 5% median, 10% p95, and
 25-microsecond absolute-p95 policies. Batch sizes 1, 16, and 64 preserve exact
 row selection. The live claim-trigger catalog proof requires exactly one
-user-defined `fact_work_items` trigger, the `UPDATE OF claim_epoch` column list,
-and the target-domain predicate. Two competing claimers produce one successful
-claim and one epoch increment.
+user-defined `fact_work_items` trigger, the `UPDATE OF last_attempt_at,
+container_image_identity_claim_epoch` column list, and the target-domain
+predicate. Two competing claimers produce one successful claim and one epoch
+increment.
+
+No-Regression Evidence: the final claim-fence rerun kept all measured shapes
+inside those budgets. The pre-cutover target-domain claim moved from 1,206.875
+to 1,262.792 microseconds at median (+4.63%) and from 2,181.458 to 2,229.959
+microseconds at p95 (+2.22%). A separate unrelated-domain claim rerun moved
+from 1,847.834 to 1,860.375 microseconds at median (+0.68%) and from 2,385.417
+to 2,436.792 microseconds at p95 (+2.15%); this is the `ownership` row for
+which the target-only epoch `CASE` must retain epoch zero. The single-row
+target ACK moved from 729.979 to 735.375 microseconds at median (+0.74%) and
+from 1,196.000 to 1,168.708 microseconds at p95 (-2.28%). The legacy
+pre-cutover batch-16 ACK moved from 2,042.958 to 1,986.459 microseconds at
+median (-2.77%) and from 3,524.875 to 3,595.125 microseconds at p95 (+1.99%).
+The target batch-64 ACK moved from 1,821.333 to 1,853.146 microseconds at
+median (+1.75%) and from 3,097.063 to 3,102.229 microseconds at p95 (+0.17%).
+The old-shape derivation guard also proves the performance baseline is distinct
+from the current query and contains neither the claim epoch nor authorization
+columns; it cannot silently measure the current query on both sides.
+
+No-Observability-Change: claim attempts, failures, and Postgres duration remain
+visible through the existing reducer execution/run-duration and Postgres
+query-duration signals. The fence adds no worker, retry, queue, metric label,
+or runtime knob; SQLSTATE `55000` distinguishes rejected legacy or invalid
+claim epochs in the existing error path.
 
 ### Production writer performance
 
@@ -151,10 +180,11 @@ was 29.8% faster at median, 26.3% faster at p95, and used 14.6% less
 writer-local WAL in that isolated lane.
 
 After the review fix that requires the marker even when the cleanup list is
-empty, a final-head writer-only confirmation measured 4.576 s median and
-4.875 s p95 with the same checksum, 100 write statements, and 387.3 MB/op
-attributable WAL. That remains 27.2% faster at median and 24.6% faster at p95
-than the old-writer baseline above. The exact first-marker operation on
+empty, an isolated warmed final-head writer-only confirmation measured 4.683 s
+median and 4.914 s p95 with the same checksum, 100 write statements, and
+389.6 MB/op attributable WAL. That remains 25.4% faster at median, 24.0%
+faster at p95, and uses 13.8% less writer-local WAL than the old-writer
+baseline above. The exact first-marker operation on
 100,000 historical rows measured 192.167 microseconds median and 294.750
 microseconds p95 against its 1,301.150-microsecond contribution budget.
 
@@ -167,8 +197,8 @@ The cache-warm production handler also returned the same checksum:
 
 The final path was 23.2% faster at median and 24.3% faster at p95. The extra
 three queries are the exact cutover marker, zero-legacy probe, and claim check.
-A final-head post-fix confirmation measured 5.405 s median and 5.469 s p95,
-still 20.8% and 21.8% faster than the old-writer baseline, with the same
+A final-head post-fix confirmation measured 5.308 s median and 5.329 s p95,
+still 22.2% and 23.8% faster than the old-writer baseline, with the same
 99,500-row checksum, exactly one epoch probe per measured call, and zero
 paginated identity loads.
 

@@ -102,7 +102,7 @@ var (
 func BenchmarkContainerImageIdentityRetirementImageRefParsing(b *testing.B) {
 	imageRef := "registry.example.com/team/api:prod"
 
-	b.Run("current_two_parses", func(b *testing.B) {
+	b.Run("legacy_two_parses", func(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
 			benchmarkRetirementParsed, benchmarkRetirementOK = parseContainerImageRef(imageRef)

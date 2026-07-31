@@ -31,7 +31,10 @@ flowchart LR
 - `TokenConfig` — Distribution bearer-token request settings.
 - `Ping` — validates a registry API endpoint or auth challenge.
 - `FetchBearerToken` — requests a pull token from a token service.
-- `ListTags` — reads tag names for one repository.
+- `ListTags` — reads a bounded tag window for one repository and reports
+  whether that window is complete.
+- `TagListResponse` — unique observed tags plus the explicit completeness bit
+  consumed by the OCI runtime.
 - `GetManifest` — reads manifest or index bytes plus digest/media metadata.
 - `GetBlob` — reads a content blob by digest with a bounded body cap.
 - `ListReferrers` — reads descriptors attached to one subject digest.
@@ -57,6 +60,12 @@ client in the future claim-driven collector.
 - `FetchBearerToken` accepts both `token` and `access_token` response fields.
 - Request paths escape repository names and references segment-by-segment while
   preserving repository slashes.
+- Tag listing requests `limit+1` entries and follows OCI `rel="next"` links
+  only while the unique result remains below the requested limit. Continuation
+  URLs must keep the original scheme, host, port, and exact repository
+  `/tags/list` path. Cycles, pages that make no progress, unsafe links, page
+  count limits, and response-size limits return the bounded partial result with
+  `Complete=false`.
 - Endpoint resolution preserves the `/v2/` trailing slash required by registry
   challenge probes.
 - Credentials are request headers only. Error text and failure details include
@@ -80,6 +89,36 @@ No-Observability-Change (#2381): Distribution remains telemetry-free. The OCI ru
 No-Regression Evidence (#3113): the client now owns an explicit redirect credential policy. `NewClient` returns a per-client shallow copy of the caller's `*http.Client` carrying a `CheckRedirect` bound to that client's registry host and credentials, so a shared `*http.Client` reused across registries keeps independent per-host redirect policies (`Transport`/`Timeout`/`Jar` preserved). Same-host redirect hops re-authenticate and cross-host hops never receive the credential. Input shape: one manifest/blob GET that the registry answers with a same-host or cross-host redirect; no graph, queue, or backend writes are involved. Proven by `go test ./internal/collector/ociregistry/distribution -count=1` (20 tests), including `TestClientGetBlobKeepsAuthOnSameHostRedirect`, `TestClientGetBlobDropsAuthOnCrossHostRedirect`, and `TestNewClientDoesNotMutateSharedHTTPClientRedirectPolicy`. The first redirect test fails with `registry_auth_denied` before the fix.
 
 No-Observability-Change (#3113): the redirect policy adds no metrics, spans, or status fields and logs nothing. The credential is request-header only and never appears in error text, logs, or metric labels; operators continue to diagnose auth failures through the existing registry failure class/details surface.
+
+No-Observability-Change (#5854): tag pagination adds no metric labels, logs, or
+status fields. The OCI runtime already records `list_tags` API-call outcomes,
+counts retained tags, and emits `tag_list_truncated` warning evidence whenever
+`TagListResponse.Complete` is false. Continuation validation happens before a
+request, so credentials are never sent to a different origin or repository
+path.
+
+Collector Performance Evidence: Benchmark Evidence (#5854) on an Apple M5 Max,
+`go test ./internal/collector/ociregistry/distribution -run '^$' -bench '^BenchmarkClientListTagsSinglePage$' -benchmem -count=5`
+measured the same one-page, two-tag `httptest` response before and after
+Link-aware pagination. Median latency improved from 38,430 ns/op to
+36,878 ns/op (4.0% lower). Median allocation moved from 6,359 B/op and
+80 allocs/op to 6,556 B/op and 83 allocs/op (3.1% and 3.8% higher) for the
+explicit limit query and completeness contract. The success path still makes
+one request. `TestClientListTagsStopsAtLimitPlusOne` proves a registry that
+ignores the requested page size retains at most `limit+1` unique tags and makes
+one request; `TestClientListTagsStopsAtPageBound` proves continuation traffic
+stops at 32 requests.
+
+Collector Observability Evidence: `eshu_dp_oci_registry_api_calls_total` with
+`operation="list_tags"` records request success or failure,
+`eshu_dp_oci_registry_tags_observed_total` records the retained window, and the
+existing `tag_list_truncated` warning fact records incomplete enumeration for
+the reducer.
+
+Collector Deployment Evidence: the change adds no runtime, port, process,
+Service, ServiceMonitor, Helm value, environment variable, or resource
+requirement. Existing OCI registry collector deployments use the same client
+factory and runtime wiring.
 
 ## Related docs
 

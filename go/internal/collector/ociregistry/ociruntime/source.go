@@ -26,7 +26,7 @@ import (
 // RegistryClient is the narrow OCI Distribution contract used by the runtime.
 type RegistryClient interface {
 	Ping(context.Context) error
-	ListTags(context.Context, string) ([]string, error)
+	ListTags(context.Context, string, int) (distribution.TagListResponse, error)
 	GetManifest(context.Context, string, string) (distribution.ManifestResponse, error)
 	GetBlob(context.Context, string, string) (distribution.BlobResponse, error)
 	ListReferrers(context.Context, string, string) (distribution.ReferrersResponse, error)

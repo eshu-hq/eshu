@@ -82,9 +82,11 @@ type PostgresContainerImageIdentityWriter struct {
 // the retired row after the fresher pass commits.
 //
 // Legacy outcome-keyed rows are deleted only after the new derivation makes
-// those keys unreachable to every future writer. Publication and that one-way
-// cleanup share a transaction so readers never observe both formats from a
-// completed pass.
+// those keys unreachable to every future writer. Publication and eligible
+// one-way cleanup share a transaction. A completeness warning can deliberately
+// hold a legacy row while the same completed pass publishes stronger v2 truth;
+// readers may therefore observe both formats until the warning clears and a
+// later pass retires the held row.
 func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisions(
 	ctx context.Context,
 	write ContainerImageIdentityWrite,

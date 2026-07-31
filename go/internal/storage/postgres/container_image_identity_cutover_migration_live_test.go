@@ -133,6 +133,12 @@ INSERT INTO fact_records (
 	}
 
 	proveContainerImageIdentityCutoverMigrationBehavior(t, ctx, schemaDB)
+	proveContainerImageIdentityCutoverMigrationRerunStates(
+		t,
+		ctx,
+		exec,
+		schemaDB,
+	)
 }
 
 func assertContainerImageIdentityCutoverObjectsAbsent(

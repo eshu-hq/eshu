@@ -73,6 +73,7 @@ func planContainerImageIdentityRetirement(
 ) (containerImageIdentityRetirementPlan, error) {
 	configManifestDigests := containerImageIdentityConfigManifestDigests(evidence)
 	heldManifestDigests := make(map[containerImageIdentityRepositoryDigest]struct{})
+	unmappedConfigWarningRepositories := make(map[string]struct{})
 	truncatedRepositories := make(map[string]struct{})
 	missingManifestRepositories := make(map[string]struct{})
 
@@ -120,10 +121,15 @@ func planContainerImageIdentityRetirement(
 					warningCode,
 				)
 			}
-			for _, manifest := range configManifestDigests[containerImageIdentityRepositoryConfig{
+			manifests := configManifestDigests[containerImageIdentityRepositoryConfig{
 				repositoryID: repositoryID,
 				configDigest: configDigest,
-			}] {
+			}]
+			if len(manifests) == 0 {
+				unmappedConfigWarningRepositories[repositoryID] = struct{}{}
+				continue
+			}
+			for _, manifest := range manifests {
 				heldManifestDigests[manifest] = struct{}{}
 			}
 		case containerImageIdentityWarningHoldTagList:
@@ -154,6 +160,7 @@ func planContainerImageIdentityRetirement(
 		if reason := containerImageIdentityRetireHoldReason(
 			decision,
 			heldManifestDigests,
+			unmappedConfigWarningRepositories,
 			truncatedRepositories,
 			missingManifestRepositories,
 		); reason != "" {
@@ -277,7 +284,9 @@ func containerImageIdentityConfigManifestDigests(
 		repositoryID := strings.TrimSpace(manifest.RepositoryID)
 		manifestDigest := strings.TrimSpace(manifest.Digest)
 		configDigest := strings.TrimSpace(derefString(manifest.Config.Digest))
-		if repositoryID == "" || manifestDigest == "" || configDigest == "" {
+		if repositoryID == "" ||
+			!validContainerImageIdentityRetirementDigest(manifestDigest) ||
+			configDigest == "" {
 			continue
 		}
 		key := containerImageIdentityRepositoryConfig{
@@ -295,6 +304,7 @@ func containerImageIdentityConfigManifestDigests(
 func containerImageIdentityRetireHoldReason(
 	decision ContainerImageIdentityDecision,
 	heldManifestDigests map[containerImageIdentityRepositoryDigest]struct{},
+	unmappedConfigWarningRepositories map[string]struct{},
 	truncatedRepositories map[string]struct{},
 	missingManifestRepositories map[string]struct{},
 ) string {
@@ -307,6 +317,9 @@ func containerImageIdentityRetireHoldReason(
 		repositoryID: repositoryID,
 		digest:       strings.TrimSpace(decision.Digest),
 	}]; held {
+		return containerImageIdentityRetireHoldConfigBlobUnavailable
+	}
+	if _, held := unmappedConfigWarningRepositories[repositoryID]; held {
 		return containerImageIdentityRetireHoldConfigBlobUnavailable
 	}
 

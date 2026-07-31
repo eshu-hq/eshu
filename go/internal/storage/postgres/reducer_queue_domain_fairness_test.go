@@ -285,6 +285,7 @@ func openReducerFairnessDBWithSchema(t *testing.T, ctx context.Context, dsn stri
 		MigrationSQL("ingestion_scopes"),
 		MigrationSQL("scope_generations"),
 		MigrationSQL("fact_work_items"),
+		reducerClaimCapabilityColumnsSchemaSQL,
 		graphProjectionPhaseStateSchemaSQL,
 	} {
 		if _, err := db.ExecContext(ctx, stmt); err != nil {

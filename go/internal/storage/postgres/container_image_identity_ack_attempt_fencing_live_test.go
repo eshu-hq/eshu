@@ -40,7 +40,7 @@ func TestContainerImageIdentityAckAttemptFenceSurvivesSameOwnerReclaimAndReplayL
 		now.Add(-2*time.Minute),
 	)
 	insertContainerImageIdentityCutoverMarker(t, ctx, db, scopeID, generationID)
-	legacyClaimResult, legacyClaimErr := db.ExecContext(ctx, `
+	_, legacyClaimErr := db.ExecContext(ctx, `
 UPDATE fact_work_items
 SET status = 'claimed',
     attempt_count = attempt_count + 1,
@@ -53,10 +53,11 @@ WHERE work_item_id = $4
   AND status IN ('pending', 'retrying', 'claimed', 'running')
   AND (claim_until IS NULL OR claim_until <= $1)
 `, now, owner, now.Add(time.Minute), workItemID)
-	assertContainerImageIdentityLegacyAckRejected(
+	assertContainerImageIdentitySQLState(
 		t,
-		legacyClaimResult,
 		legacyClaimErr,
+		"55000",
+		"post-cutover legacy reclaim",
 	)
 
 	queue := ReducerQueue{

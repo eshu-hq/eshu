@@ -47,7 +47,9 @@ legacy cleanup share one transaction. It never uses a generation-wide DELETE.
 Collector incompleteness blocks destructive absence:
 
 - `tag_list_truncated` holds affected tag references.
-- `config_blob_unavailable` holds mapped manifest digests.
+- `config_blob_unavailable` holds mapped manifest digests. If active manifest
+  evidence cannot map the config digest, the hold widens only to that warning's
+  repository; unrelated repositories keep retiring.
 - `missing_manifest_digest` holds the named repository conservatively.
 - malformed, unreadable, or unavailable warning-loader state stops the
   destructive pass before the writer runs.

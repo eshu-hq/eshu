@@ -31,13 +31,17 @@ BEGIN
             container_image_identity_v2_authorized_status
             TEXT NOT NULL DEFAULT '';
 
+    DROP TRIGGER IF EXISTS
+        fact_work_items_container_image_identity_claim_epoch_advance
+        ON fact_work_items;
+
     UPDATE fact_work_items
     SET container_image_identity_claim_epoch =
             GREATEST(attempt_count::BIGINT, 1)
     WHERE stage = 'reducer'
       AND domain = 'container_image_identity'
       AND container_image_identity_claim_epoch = 0
-      AND status IN ('claimed', 'running', 'succeeded', 'retrying', 'dead_letter');
+      AND status IN ('claimed', 'running', 'succeeded');
 
     ALTER TABLE container_image_identity_cutovers
         ADD COLUMN IF NOT EXISTS activated_by_work_item_id TEXT,
@@ -124,7 +128,27 @@ BEGIN
          AND work_item.generation_id = cutover.generation_id
          AND work_item.stage = 'reducer'
          AND work_item.domain = 'container_image_identity'
-        WHERE work_item.status NOT IN ('claimed', 'running', 'succeeded')
+        WHERE (
+                work_item.container_image_identity_v2_required
+                AND (
+                    work_item.container_image_identity_v2_authorized_status = ''
+                    OR work_item.status <>
+                        work_item.container_image_identity_v2_authorized_status
+                    OR work_item.status NOT IN (
+                        'pending',
+                        'running',
+                        'retrying',
+                        'succeeded',
+                        'failed',
+                        'dead_letter',
+                        'superseded'
+                    )
+                )
+              )
+           OR (
+                NOT work_item.container_image_identity_v2_required
+                AND work_item.status NOT IN ('claimed', 'running', 'succeeded')
+              )
     ) THEN
         RAISE EXCEPTION USING
             ERRCODE = '55000',
@@ -164,41 +188,7 @@ BEGIN
             );
     END IF;
 
-    EXECUTE $ddl$
-        CREATE OR REPLACE FUNCTION advance_container_image_identity_claim_epoch()
-        RETURNS trigger
-        LANGUAGE plpgsql
-        AS $function$
-        BEGIN
-            NEW.container_image_identity_claim_epoch :=
-                OLD.container_image_identity_claim_epoch + 1;
-            IF OLD.container_image_identity_v2_required THEN
-                NEW.status := 'running';
-                NEW.container_image_identity_v2_authorized_status :=
-                    'running';
-            END IF;
-            RETURN NEW;
-        END;
-        $function$
-    $ddl$;
-
-    IF NOT EXISTS (
-        SELECT 1
-        FROM pg_trigger
-        WHERE tgrelid = 'fact_work_items'::regclass
-          AND tgname =
-              'fact_work_items_container_image_identity_claim_epoch_advance'
-          AND NOT tgisinternal
-    ) THEN
-        EXECUTE $ddl$
-            CREATE TRIGGER fact_work_items_container_image_identity_claim_epoch_advance
-            BEFORE UPDATE OF container_image_identity_claim_epoch
-            ON fact_work_items
-            FOR EACH ROW
-            WHEN (OLD.domain = 'container_image_identity')
-            EXECUTE FUNCTION advance_container_image_identity_claim_epoch()
-        $ddl$;
-    END IF;
+` + containerImageIdentityClaimEpochTriggerSchemaSQL + `
 
     EXECUTE $ddl$
         CREATE OR REPLACE FUNCTION guard_container_image_identity_cutover_marker()

@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"testing"
 	"time"
 )
 
@@ -23,11 +24,12 @@ var legacyContainerImageIdentityClaimQuery = strings.NewReplacer(
         END,
 `,
 	"    SET status = 'claimed',\n",
-	`        container_image_identity_claim_epoch = CASE
-            WHEN work.domain = 'container_image_identity'
-                THEN work.container_image_identity_claim_epoch + 1
-            ELSE work.container_image_identity_claim_epoch
-        END,
+	`        container_image_identity_claim_epoch =
+            CASE
+                WHEN work.domain = 'container_image_identity'
+                    THEN work.container_image_identity_claim_epoch + 1
+                ELSE work.container_image_identity_claim_epoch
+            END,
 `,
 	"",
 	`        container_image_identity_claim_epoch =
@@ -47,6 +49,34 @@ var legacyContainerImageIdentityClaimQuery = strings.NewReplacer(
 	"    container_image_identity_claim_epoch,\n",
 	"",
 ).Replace(claimReducerWorkQuery)
+
+func TestLegacyContainerImageIdentityClaimPerformanceQueryIsDistinctOldShape(
+	t *testing.T,
+) {
+	if legacyContainerImageIdentityClaimQuery == claimReducerWorkQuery {
+		t.Fatal("derived legacy claim query equals current claim query")
+	}
+	for _, forbidden := range []string{
+		"container_image_identity_claim_epoch",
+		"container_image_identity_v2_authorized_status",
+	} {
+		if strings.Contains(legacyContainerImageIdentityClaimQuery, forbidden) {
+			t.Fatalf("derived legacy claim query retains %q", forbidden)
+		}
+	}
+	if !strings.Contains(
+		legacyContainerImageIdentityClaimQuery,
+		"    SET status = 'claimed',\n",
+	) {
+		t.Fatal("derived legacy claim query does not retain the old claimed transition")
+	}
+	if !strings.Contains(
+		claimReducerWorkQuery,
+		"THEN work.container_image_identity_claim_epoch + 1",
+	) {
+		t.Fatal("current claim query does not carry the explicit capable epoch advance")
+	}
+}
 
 func claimContainerImageIdentityLegacyPerformanceRow(
 	ctx context.Context,
