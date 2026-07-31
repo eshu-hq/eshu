@@ -129,6 +129,56 @@
   rows before querying; do not add unbounded fact-table scans for management
   APIs.
 
+- **AWS runtime drift write admission (#5848)** — the
+  `aws_cloud_runtime_drift_write_admission` begin-before-mutate check
+  (`AWSCloudRuntimeDriftAdmissionBeginner`,
+  `hasPendingStateSnapshotGenerationQuery`) MUST run as the FIRST statement in
+  `PostgresAWSCloudRuntimeDriftWriter`'s transaction, before the versioned
+  insert and the retire. A pass whose evidence-read watermark is older than one
+  already admitted for the same `(scope_id, generation_id)` must be rejected
+  before any other statement runs — checking admission after the insert, or in
+  a separate unwrapped transaction, reopens the exact race #5848 closed (a
+  reclassified ARN mints a different `fact_id`, so the insert's own
+  `ON CONFLICT` guard cannot catch it). Do not add a domain-wide exclusive lock
+  or reduce reducer worker/batch concurrency as a substitute; the conflict
+  domain is already partitioned by `(scope_id, generation_id)`.
+- **AWS runtime drift retire is bounded to evaluated ARNs** —
+  `retireAWSCloudRuntimeDriftFindings`'s `evaluatedARNs` argument must be every
+  ARN the CURRENT pass's evidence load covered, not only the ones that produced
+  an admitted candidate. Narrowing it to admitted-candidate ARNs would stop
+  retiring a converged (no-longer-drifted) ARN's stale prior finding.
+- **AWS runtime drift readiness defer is opt-in and bounded by elapsed time,
+  not retry count** — `AWSCloudRuntimeDriftHandler.ReadinessChecker` being nil
+  must leave `Handle` writing its best-available classification
+  unconditionally (pre-#5848 behavior). When wired, the defer must stay
+  bounded by `awsCloudRuntimeDriftStatePendingMaxWait`, an ELAPSED-TIME bound
+  compared against `Intent.CycleStartedAt` (falling back to `Intent.EnqueuedAt`
+  only for a hand-built `Intent` that does not populate it) — never a
+  `Intent.AttemptCount` comparison. `AttemptCount` is frozen by this defer's
+  own non-counting failure class the moment the row is retried once
+  (`nonCountingReducerRetryFailureClasses` in
+  `reducer_queue_readiness_sql.go`), so a retry-count bound can never fire
+  against the real queue. `CycleStartedAt` (not `EnqueuedAt` alone) is the
+  correct anchor because `EnqueuedAt`/`created_at` is immutable across a
+  reopen, and this domain is unconditionally reopened on every ingester shard
+  drain and bootstrap maintenance pass
+  (`postgres.CrossScopeCorrelationReopenDomains`) — anchoring on `EnqueuedAt`
+  alone would give a maintenance-triggered reopen NO grace window at all,
+  since the original enqueue is almost always already past the bound by the
+  time a reopen happens. `ReopenSucceeded`/`ReplayDomain`
+  (`reducer_queue_replay.go`) reset `fact_work_items.reopened_at` in the same
+  statement that resets `attempt_count = 0`, so a reopened row's
+  `CycleStartedAt` (`COALESCE(reopened_at, created_at)`, computed by the claim
+  query) gets a genuinely fresh window; see
+  `go/internal/reducer/aws_cloud_runtime_drift_readiness.go`'s
+  `awsCloudRuntimeDriftStatePendingMaxWait` doc comment,
+  `TestAWSCloudRuntimeDriftHandlerConvergesAfterElapsedBoundOverRealQueueLive`
+  for the attempt_count-freeze mechanism and real-queue proof, and
+  `TestAWSCloudRuntimeDriftReopenGetsFreshElapsedBoundWhileStatePendingLive`
+  for the reopen-anchor proof. An unbounded (or unreachably-bounded, or
+  no-grace-window-on-reopen) defer would starve a genuine orphan (a resource
+  with no Terraform state anywhere, ever) forever.
+
 ## Evidence notes
 
 No-Regression Evidence: #4444 review (codex P1) changes upsertStreamingFacts's

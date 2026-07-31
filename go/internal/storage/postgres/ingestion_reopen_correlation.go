@@ -75,12 +75,30 @@ import (
 //     corpus: the correlation reached outcome=exact with provenance_only=false and
 //     environment=prod while the finding anchored to that same artifact digest
 //     still reported an empty environments list.
+//   - aws_cloud_runtime_drift (#5837, #5848) has the same cross-scope shape as
+//     container_image_identity, except its producer is raw Terraform-state
+//     collector evidence in any state_snapshot:* scope, not another reducer
+//     domain's canonical output -- crossScopeDependencyCatalog only models
+//     reducer-domain producers, so this domain is a deliberate superset member
+//     the same way deployable_unit_correlation and
+//     kubernetes_correlation_materialization already are. The AWS EC2 scope is
+//     often small and drains its drift intent before the tfstate scope's
+//     generation activates, so cloudruntime.Classify durably wrote
+//     orphaned_cloud_resource for a resource Terraform actually owns -- as a
+//     success, with no failed work item, because absent state was read as a
+//     verdict rather than as "not ready". This reopen is the pre-#5848 repair
+//     path for that race; #5848's insert-admission fence makes the reopen SAFE
+//     (a reclassification retires the stale finding_kind-keyed row instead of
+//     leaving two contradictory findings for one ARN), and #5848's readiness
+//     defer (aws_cloud_runtime_drift_readiness.go) reduces how often the race is
+//     hit at all. The writer's stable fact key makes the replay idempotent.
 var crossScopeCorrelationReopenDomains = []reducer.Domain{
 	reducer.DomainDeployableUnitCorrelation,
 	reducer.DomainKubernetesCorrelationMaterialization,
 	reducer.DomainContainerImageIdentity,
 	reducer.DomainCICDRunCorrelation,
 	reducer.DomainSupplyChainImpact,
+	reducer.DomainAWSCloudRuntimeDrift,
 }
 
 // CrossScopeCorrelationReopenDomains returns the reducer domains replayed after

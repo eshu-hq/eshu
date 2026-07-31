@@ -89,6 +89,33 @@ func awsCloudRuntimeDriftFixtureCandidates() []model.Candidate {
 	}
 }
 
+// awsCloudRuntimeDriftFixtureARNs are the two ARNs awsCloudRuntimeDriftFixtureCandidates
+// evaluates, reused as AWSCloudRuntimeDriftWrite.EvaluatedARNs so the
+// generation-authoritative retire (#5848) runs for real in these fixtures
+// instead of short-circuiting on an empty evaluated set -- matching what a
+// production Handle call always populates from its evidence load.
+var awsCloudRuntimeDriftFixtureARNs = []string{
+	"arn:aws:lambda:us-east-1:123456789012:function:orphan",
+	"arn:aws:lambda:us-east-1:123456789012:function:unmanaged",
+}
+
+// awsCloudRuntimeDriftFixtureEvidenceAsOf is the fixed evidence-read watermark
+// every fixture write in this file uses. WriteAWSCloudRuntimeDriftFindings
+// hard-errors on a zero EvidenceAsOf (#5848), and the exact value does not
+// matter for these cost scenarios since nothing here contends for admission.
+var awsCloudRuntimeDriftFixtureEvidenceAsOf = time.Date(2026, time.July, 12, 12, 0, 0, 0, time.UTC)
+
+// awsCloudRuntimeDriftFixtureFencingToken is the fixed fencing token every
+// fixture write in this file uses. WriteAWSCloudRuntimeDriftFindings
+// hard-errors on a zero FencingToken (#5875 P1: the writer no longer derives
+// it from EvidenceAsOf, so leaving this field unset -- as these fixtures did
+// before that fix -- is a real rejection, not a stand-in value): a real
+// Postgres sequence never issues 0 (ascending sequences default to MINVALUE
+// 1), so 0 unambiguously means "never issued". The exact nonzero value does
+// not matter for these cost scenarios since nothing here contends for
+// admission.
+const awsCloudRuntimeDriftFixtureFencingToken int64 = 1
+
 // postgresExecCountingQueryer is an in-memory postgres.ExecQueryer that
 // records each ExecContext call. QueryContext is never exercised by
 // PostgresAWSCloudRuntimeDriftWriter (it only writes) and is implemented as a
@@ -107,6 +134,36 @@ func (q *postgresExecCountingQueryer) QueryContext(_ context.Context, _ string, 
 }
 
 func (q *postgresExecCountingQueryer) count() int64 { return q.execCalls.Load() }
+
+// Begin lets postgresExecCountingQueryer double as a postgres.Beginner, so
+// InstrumentedDB.Begin can wrap it (#5848: PostgresAWSCloudRuntimeDriftWriter
+// now writes through a transaction for the insert-admission check, the
+// versioned upsert, and the generation-authoritative retire). ExecContext
+// calls made through the returned transaction still route through this same
+// counting queryer, so both the raw exec count and the instrumented histogram
+// observation count stay meaningful.
+func (q *postgresExecCountingQueryer) Begin(context.Context) (postgres.Transaction, error) {
+	return postgresCountingTx{q: q}, nil
+}
+
+// postgresCountingTx adapts postgresExecCountingQueryer into a no-op
+// postgres.Transaction: ExecContext/QueryContext forward to the same counting
+// queryer, Commit/Rollback are no-ops. There is no real transactional
+// isolation here; this fixture only needs call counting.
+type postgresCountingTx struct {
+	q *postgresExecCountingQueryer
+}
+
+func (tx postgresCountingTx) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	return tx.q.ExecContext(ctx, query, args...)
+}
+
+func (tx postgresCountingTx) QueryContext(ctx context.Context, query string, args ...any) (postgres.Rows, error) {
+	return tx.q.QueryContext(ctx, query, args...)
+}
+
+func (postgresCountingTx) Commit() error   { return nil }
+func (postgresCountingTx) Rollback() error { return nil }
 
 // postgresFakeResult is a no-op sql.Result for the counting queryer above.
 type postgresFakeResult struct{}
@@ -140,7 +197,7 @@ func newInstrumentedAWSCloudRuntimeDriftWriter(t *testing.T) (
 	exec = &postgresExecCountingQueryer{}
 	instrumentedDB := &postgres.InstrumentedDB{Inner: exec, Instruments: inst, StoreName: "reducer"}
 	writer = reducer.PostgresAWSCloudRuntimeDriftWriter{
-		DB:  instrumentedDB,
+		DB:  postgres.AWSCloudRuntimeDriftAdmissionBeginner{Beginner: instrumentedDB},
 		Now: func() time.Time { return time.Date(2026, time.July, 12, 12, 0, 0, 0, time.UTC) },
 	}
 	return writer, exec, manualReader
@@ -184,14 +241,15 @@ func collectHistogramCount(rm metricdata.ResourceMetrics, name string) uint64 {
 //
 // Instrument read: eshu_dp_postgres_query_duration_seconds (a histogram, not a
 // counter — see collectHistogramCount).
-// WriteAWSCloudRuntimeDriftFindings now calls the shared
-// reducerBatchInsertVersionedFacts bounded chunked bulk insert
-// (go/internal/reducer/reducer_fact_batch_insert.go, issue #5317) instead of
-// one ExecContext per candidate, so two admitted candidates fit one chunk and
-// give exactly 1 observation. The companion N+1 negative control below still
-// exercises the real regression shape for this domain: a duplicate
-// invocation (retry without idempotency, or a dedup bug) now costs 2 batched
-// round-trips instead of 1, which still exceeds this tightened budget.
+// WriteAWSCloudRuntimeDriftFindings now runs THREE statements per call inside
+// one transaction (#5848): the insert-admission check, the batched versioned
+// upsert (reducerBatchInsertVersionedFacts,
+// go/internal/reducer/reducer_fact_batch_insert.go, issue #5317 — two
+// admitted candidates still fit one chunk), and the generation-authoritative
+// retire. That raised this budget from 1 to 3; the companion N+1 negative
+// controls below still exceed the tightened budget because a duplicate
+// invocation or a within-call N+1 both multiply all three statements, not
+// just the insert.
 func TestCostBudget_AWSCloudRuntimeDrift(t *testing.T) {
 	t.Parallel()
 
@@ -199,12 +257,15 @@ func TestCostBudget_AWSCloudRuntimeDrift(t *testing.T) {
 	writer, exec, reader := newInstrumentedAWSCloudRuntimeDriftWriter(t)
 
 	if _, err := writer.WriteAWSCloudRuntimeDriftFindings(context.Background(), reducer.AWSCloudRuntimeDriftWrite{
-		IntentID:     "intent-aws-drift-cost",
-		ScopeID:      "aws:123456789012:us-east-1",
-		GenerationID: "generation-aws-cost",
-		SourceSystem: "aws",
-		Cause:        "reducer/aws_cloud_runtime_drift",
-		Candidates:   awsCloudRuntimeDriftFixtureCandidates(),
+		IntentID:      "intent-aws-drift-cost",
+		ScopeID:       "aws:123456789012:us-east-1",
+		GenerationID:  "generation-aws-cost",
+		SourceSystem:  "aws",
+		Cause:         "reducer/aws_cloud_runtime_drift",
+		EvidenceAsOf:  awsCloudRuntimeDriftFixtureEvidenceAsOf,
+		FencingToken:  awsCloudRuntimeDriftFixtureFencingToken,
+		Candidates:    awsCloudRuntimeDriftFixtureCandidates(),
+		EvaluatedARNs: awsCloudRuntimeDriftFixtureARNs,
 	}); err != nil {
 		t.Fatalf("WriteAWSCloudRuntimeDriftFindings() error = %v", err)
 	}
@@ -282,12 +343,15 @@ func TestCostBudget_AWSCloudRuntimeDrift_N1_ExceedsBudget(t *testing.T) {
 
 	for i := 0; i < 2; i++ {
 		if _, err := writer.WriteAWSCloudRuntimeDriftFindings(context.Background(), reducer.AWSCloudRuntimeDriftWrite{
-			IntentID:     "intent-aws-drift-cost",
-			ScopeID:      "aws:123456789012:us-east-1",
-			GenerationID: "generation-aws-cost",
-			SourceSystem: "aws",
-			Cause:        "reducer/aws_cloud_runtime_drift",
-			Candidates:   candidates,
+			IntentID:      "intent-aws-drift-cost",
+			ScopeID:       "aws:123456789012:us-east-1",
+			GenerationID:  "generation-aws-cost",
+			SourceSystem:  "aws",
+			Cause:         "reducer/aws_cloud_runtime_drift",
+			EvidenceAsOf:  awsCloudRuntimeDriftFixtureEvidenceAsOf,
+			FencingToken:  awsCloudRuntimeDriftFixtureFencingToken,
+			Candidates:    candidates,
+			EvaluatedARNs: awsCloudRuntimeDriftFixtureARNs,
 		}); err != nil {
 			t.Fatalf("N+1 (duplicate invocation %d) WriteAWSCloudRuntimeDriftFindings() error = %v", i, err)
 		}
@@ -341,12 +405,15 @@ func TestCostBudget_AWSCloudRuntimeDrift_WithinCallN1_ExceedsBudget(t *testing.T
 
 	for _, candidate := range candidates {
 		if _, err := writer.WriteAWSCloudRuntimeDriftFindings(context.Background(), reducer.AWSCloudRuntimeDriftWrite{
-			IntentID:     "intent-aws-drift-cost",
-			ScopeID:      "aws:123456789012:us-east-1",
-			GenerationID: "generation-aws-cost",
-			SourceSystem: "aws",
-			Cause:        "reducer/aws_cloud_runtime_drift",
-			Candidates:   []model.Candidate{candidate},
+			IntentID:      "intent-aws-drift-cost",
+			ScopeID:       "aws:123456789012:us-east-1",
+			GenerationID:  "generation-aws-cost",
+			SourceSystem:  "aws",
+			Cause:         "reducer/aws_cloud_runtime_drift",
+			EvidenceAsOf:  awsCloudRuntimeDriftFixtureEvidenceAsOf,
+			FencingToken:  awsCloudRuntimeDriftFixtureFencingToken,
+			Candidates:    []model.Candidate{candidate},
+			EvaluatedARNs: awsCloudRuntimeDriftFixtureARNs,
 		}); err != nil {
 			t.Fatalf("within-call N+1 WriteAWSCloudRuntimeDriftFindings() error = %v", err)
 		}

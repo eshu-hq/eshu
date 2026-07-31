@@ -123,6 +123,7 @@ func scanReducerIntent(rows Rows) (reducer.Intent, error) {
 	var claimEpoch int64
 	var enqueuedAt time.Time
 	var availableAt time.Time
+	var cycleStartedAt time.Time
 	var rawPayload []byte
 
 	if err := rows.Scan(
@@ -134,6 +135,7 @@ func scanReducerIntent(rows Rows) (reducer.Intent, error) {
 		&claimEpoch,
 		&enqueuedAt,
 		&availableAt,
+		&cycleStartedAt,
 		&rawPayload,
 	); err != nil {
 		return reducer.Intent{}, err
@@ -173,6 +175,7 @@ func scanReducerIntent(rows Rows) (reducer.Intent, error) {
 		Status:          reducer.IntentStatusClaimed,
 		EnqueuedAt:      enqueuedAt.UTC(),
 		AvailableAt:     availableAt.UTC(),
+		CycleStartedAt:  cycleStartedAt.UTC(),
 	}
 	if entityKey != "" {
 		intent.EntityKeys = []string{entityKey}

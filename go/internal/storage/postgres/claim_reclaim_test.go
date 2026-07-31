@@ -174,6 +174,8 @@ func TestReducerQueueClaimIncludesExpiredLeaseReclaimPredicates(t *testing.T) {
 					"generation-456",
 					"workload_identity",
 					1,
+					int64(0),
+					now,
 					now,
 					now,
 					[]byte(`{"entity_key":"repo-123","reason":"shared follow-up","fact_id":"fact-1","source_system":"git"}`),

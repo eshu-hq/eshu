@@ -73,6 +73,8 @@ func (db *gcpRelationshipReadinessQueueDB) QueryContext(_ context.Context, query
 		"gen-gcp-1",
 		string(reducer.DomainGCPRelationshipMaterialization),
 		db.attemptCount + 1,
+		int64(0),
+		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"gcp_resource_materialization:gcp:my-project:us-central1:compute","reason":"gcp runtime relationship facts observed","fact_id":"fact-gcp-rel-1","source_system":"gcp"}`),

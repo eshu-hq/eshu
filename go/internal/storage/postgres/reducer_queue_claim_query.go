@@ -130,6 +130,7 @@ claimed AS (
         work.container_image_identity_claim_epoch,
         work.created_at,
         COALESCE(work.visible_at, work.created_at) AS available_at,
+        COALESCE(work.reopened_at, work.created_at) AS cycle_started_at,
         work.payload
 )
 SELECT
@@ -141,6 +142,7 @@ SELECT
     container_image_identity_claim_epoch,
     created_at,
     available_at,
+    cycle_started_at,
     payload
 FROM claimed
 `

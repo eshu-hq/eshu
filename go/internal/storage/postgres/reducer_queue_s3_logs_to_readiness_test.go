@@ -69,6 +69,8 @@ func (db *s3LogsToReadinessQueueDB) QueryContext(_ context.Context, query string
 		"gen-aws-1",
 		string(reducer.DomainS3LogsToMaterialization),
 		db.attemptCount + 1,
+		int64(0),
+		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"aws_resource_materialization:aws:111111111111:us-east-1:s3","reason":"s3 bucket access logging observed","fact_id":"fact-logging-1","source_system":"aws"}`),

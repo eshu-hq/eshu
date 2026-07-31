@@ -106,7 +106,8 @@ func expectedBatchedExecCount(rowCount int) int {
 
 // decodedBatchedVersionedFactRow is one row recovered from a
 // reducerFactBatchInsertVersionedQuery ExecContext call. It mirrors
-// decodedBatchedFactRow with an added SchemaVersion field.
+// decodedBatchedFactRow with an added SchemaVersion field, plus FencingToken
+// (#5848) now that the versioned insert carries it too.
 type decodedBatchedVersionedFactRow struct {
 	FactID           string
 	ScopeID          string
@@ -124,6 +125,7 @@ type decodedBatchedVersionedFactRow struct {
 	IngestedAt       time.Time
 	IsTombstone      bool
 	Payload          []byte
+	FencingToken     int64
 }
 
 // decodeBatchedVersionedFactCalls flattens every batched ExecContext call
@@ -146,8 +148,8 @@ func decodeBatchedVersionedFactCalls(t *testing.T, calls []fakeWorkloadIdentityE
 // single batched versioned insert call back into per-row records.
 func decodeBatchedVersionedFactCall(t *testing.T, call fakeWorkloadIdentityExecCall) []decodedBatchedVersionedFactRow {
 	t.Helper()
-	if len(call.args) != 16 {
-		t.Fatalf("batched versioned insert args = %d, want 16", len(call.args))
+	if len(call.args) != 17 {
+		t.Fatalf("batched versioned insert args = %d, want 17", len(call.args))
 	}
 	factIDs := stringArg(t, call.args[0], "fact_id")
 	scopeIDs := stringArg(t, call.args[1], "scope_id")
@@ -165,6 +167,7 @@ func decodeBatchedVersionedFactCall(t *testing.T, call fakeWorkloadIdentityExecC
 	ingestedAts := timeArg(t, call.args[13], "ingested_at")
 	isTombstones := boolArg(t, call.args[14], "is_tombstone")
 	payloads := stringArg(t, call.args[15], "payload")
+	fencingTokens := int64Arg(t, call.args[16], "fencing_token")
 
 	n := len(factIDs)
 	rows := make([]decodedBatchedVersionedFactRow, n)
@@ -186,6 +189,7 @@ func decodeBatchedVersionedFactCall(t *testing.T, call fakeWorkloadIdentityExecC
 			IngestedAt:       ingestedAts[i],
 			IsTombstone:      isTombstones[i],
 			Payload:          []byte(payloads[i]),
+			FencingToken:     fencingTokens[i],
 		}
 	}
 	return rows

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
 	"github.com/eshu-hq/eshu/go/internal/correlation/engine"
@@ -54,6 +55,29 @@ type AWSCloudRuntimeDriftWrite struct {
 	Cause        string
 	Candidates   []model.Candidate
 	Summary      cloudruntime.Summary
+	// EvidenceAsOf is the moment this write's evidence was read, captured
+	// BEFORE the evidence load in Handle (see AWSCloudRuntimeDriftHandler.Handle).
+	// Used only for the writer's own required-field guard and as an audit
+	// timestamp; it no longer drives the fencing token (#5875 P1 moved that to
+	// FencingToken below).
+	EvidenceAsOf time.Time
+	// FencingToken is the database-issued, cross-worker-ordering value the
+	// admission check and fact_records rows are stamped with (#5848, #5875
+	// P1). Populated by AWSCloudRuntimeDriftHandler.Handle from
+	// AWSCloudRuntimeDriftFencingTokenIssuer, called at the SAME point
+	// EvidenceAsOf used to drive the token from: right before the evidence
+	// load, so a worker that stalled inside a slow cross-scope load still
+	// carries the token value that correctly reflects "evidence read before
+	// the stall", not one that could be pushed later by the stall itself. See
+	// awsCloudRuntimeDriftFencingToken's doc comment
+	// (aws_cloud_runtime_drift_admission.go) for why this must be a
+	// database-issued value, not the reducer host's wall clock.
+	FencingToken int64
+	// EvaluatedARNs is every ARN this pass's evidence load covered, whether or
+	// not it produced an admitted candidate. The generation-authoritative
+	// retire uses it to bound which prior findings it may remove: an ARN
+	// outside this set is left untouched regardless of its fact_id.
+	EvaluatedARNs []string
 }
 
 // AWSCloudRuntimeDriftWriteResult summarizes durable AWS runtime drift
@@ -61,6 +85,9 @@ type AWSCloudRuntimeDriftWrite struct {
 type AWSCloudRuntimeDriftWriteResult struct {
 	CanonicalIDs    []string
 	CanonicalWrites int
+	// Retired counts the stale findings the generation-authoritative retire
+	// removed for a reclassified or converged ARN (#5848).
+	Retired         int
 	EvidenceSummary string
 }
 
@@ -71,6 +98,25 @@ type AWSCloudRuntimeDriftHandler struct {
 	Writer         AWSCloudRuntimeDriftFindingWriter
 	Instruments    *telemetry.Instruments
 	Logger         *slog.Logger
+	// ReadinessChecker reports whether a Terraform state_snapshot scope is still
+	// mid-ingestion, so Handle can defer a not-yet-final orphaned_cloud_resource
+	// classification instead of writing it as a durable verdict (#5848,
+	// #5837's root cause). Nil disables the gate: Handle always writes its
+	// best-available classification, matching pre-#5848 behavior.
+	ReadinessChecker AWSCloudRuntimeDriftReadinessChecker
+	// FencingTokenIssuer supplies the database-issued, cross-worker-ordering
+	// fencing token (#5875 P1). Required, like EvidenceLoader and Writer: a
+	// nil issuer is a hard Handle() error, never a silent fallback to the
+	// host clock -- see AWSCloudRuntimeDriftWrite.FencingToken and
+	// awsCloudRuntimeDriftFencingToken's doc comment
+	// (aws_cloud_runtime_drift_admission.go) for why a wall-clock fallback
+	// would silently reintroduce the exact clock-skew vulnerability this gate
+	// exists to close.
+	FencingTokenIssuer AWSCloudRuntimeDriftFencingTokenIssuer
+	// Now supplies the evidence-read watermark. Left nil it falls back to the
+	// process clock; tests inject a deterministic one. See
+	// AWSCloudRuntimeDriftWrite.EvidenceAsOf.
+	Now func() time.Time
 }
 
 // Handle executes one AWS runtime drift publication intent.
@@ -86,6 +132,42 @@ func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent Intent) 
 	}
 	if h.Writer == nil {
 		return Result{}, fmt.Errorf("aws cloud runtime drift writer is required")
+	}
+	if h.FencingTokenIssuer == nil {
+		return Result{}, fmt.Errorf("aws cloud runtime drift fencing token issuer is required")
+	}
+
+	// Read the fencing watermark BEFORE the evidence load, not after. It must
+	// express "how fresh is the world this pass looked at", excluding however
+	// long the load, classification, and admission then took (#5848; mirrors
+	// containerImageIdentityEvidenceAsOf, #5847).
+	evidenceAsOf := reducerWriterNow(h.Now)
+
+	// Issue the cross-worker fencing token at the SAME point evidenceAsOf was
+	// captured -- before the evidence load, not at write-commit time (#5875
+	// P1). This must stay a database-issued value, immune to any individual
+	// reducer host's clock; see awsCloudRuntimeDriftFencingToken's doc
+	// comment (aws_cloud_runtime_drift_admission.go) for why capturing it
+	// here (evidence-read time) rather than in the writer (write-commit time)
+	// is load-bearing, not a style choice: a write-time token would order by
+	// commit order instead of evidence recency, silently reintroducing the
+	// original #5848 bug while fixing this one.
+	fencingToken, err := h.FencingTokenIssuer.NextAWSCloudRuntimeDriftFencingToken(ctx)
+	if err != nil {
+		return Result{}, fmt.Errorf("issue aws cloud runtime drift fencing token: %w", err)
+	}
+
+	// Check readiness BEFORE loading evidence, not after (#5875 P1). See
+	// checkAWSCloudRuntimeDriftReadinessBeforeLoad's doc comment for the
+	// TOCTOU this ordering closes: a state_snapshot activation landing
+	// between a POST-load readiness check and the evidence snapshot it would
+	// have checked against could make a stale orphaned_cloud_resource verdict
+	// look "ready" to write. The actual defer decision (shouldDeferForLoadedEvidence)
+	// runs after classification, combining this pre-load signal with whether
+	// the freshly loaded evidence actually contains an orphaned candidate.
+	readinessSignal, err := h.checkAWSCloudRuntimeDriftReadinessBeforeLoad(ctx, intent, evidenceAsOf)
+	if err != nil {
+		return Result{}, fmt.Errorf("check aws cloud runtime drift state readiness: %w", err)
 	}
 
 	rows, err := h.EvidenceLoader.LoadAWSCloudRuntimeDriftEvidence(ctx, intent.ScopeID, intent.GenerationID)
@@ -103,16 +185,27 @@ func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent Intent) 
 	admitted := admittedAWSCloudRuntimeDriftCandidates(evaluation)
 	summary := summarizeAWSCloudRuntimeDriftCandidates(admitted)
 
+	if shouldDeferForLoadedEvidence(readinessSignal, admitted) {
+		h.logStatePendingDefer(ctx, intent, admitted, evidenceAsOf)
+		return Result{}, newAWSCloudRuntimeDriftStatePendingError(intent.ScopeID, intent.GenerationID)
+	}
+
 	writeResult, err := h.Writer.WriteAWSCloudRuntimeDriftFindings(ctx, AWSCloudRuntimeDriftWrite{
-		IntentID:     intent.IntentID,
-		ScopeID:      intent.ScopeID,
-		GenerationID: intent.GenerationID,
-		SourceSystem: intent.SourceSystem,
-		Cause:        intent.Cause,
-		Candidates:   admitted,
-		Summary:      summary,
+		IntentID:      intent.IntentID,
+		ScopeID:       intent.ScopeID,
+		GenerationID:  intent.GenerationID,
+		SourceSystem:  intent.SourceSystem,
+		Cause:         intent.Cause,
+		Candidates:    admitted,
+		Summary:       summary,
+		EvidenceAsOf:  evidenceAsOf,
+		FencingToken:  fencingToken,
+		EvaluatedARNs: evaluatedAWSCloudRuntimeDriftARNs(rows),
 	})
 	if err != nil {
+		if isAWSCloudRuntimeDriftWriteSuperseded(err) {
+			h.logWriteSuperseded(ctx, intent)
+		}
 		return Result{}, fmt.Errorf("write aws cloud runtime drift findings: %w", err)
 	}
 
