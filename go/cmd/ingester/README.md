@@ -192,11 +192,15 @@ the escape during its pre-first-commit startup window, after which
 `committedSinceDrain` is decisive for the rest of the process — exactly as
 before #5852. That window is not bounded in code: it is one escape-driven drain
 per idle poll until this shard's own first commit, where the old latch allowed
-exactly one per process. Every escape-driven call passes `hasCommitted=false`
-to `AfterBatchDrained`, so it never opens a new barrier epoch on its own; it
-becomes a full barrier round-trip — and, if it is the epoch's last arriver, a
-corpus-wide `RunDeferredRelationshipMaintenance` pass — only when it finds an
-epoch another shard already opened to join. When no epoch is open it is a
+exactly one per process. Only the FIRST-EVER escape-driven call in this
+shard's process lifetime passes `hasCommitted=true` to `AfterBatchDrained`
+(the `startupMaintenanceEscapeUsed` once-latch — see below); every later
+escape-driven call passes `hasCommitted=false`, so only that first call may
+open a new barrier epoch on its own. Every call becomes a full barrier
+round-trip — and, if it is the epoch's last arriver, a corpus-wide
+`RunDeferredRelationshipMaintenance` pass — when it finds an epoch another
+shard already opened to join, or when it is the one call allowed to open a
+new one itself. When no epoch is open and this call may not open one, it is a
 single read-only check that returns immediately. In practice the pre-first-commit
 window is one poll, because the ingester queues repositories from startup —
 but a shard that starts with an empty queue and gains work later pays one
@@ -235,16 +239,24 @@ poll opened an epoch, the completing shard ran the corpus-wide
 `RunDeferredRelationshipMaintenance` pass against an unchanged corpus, the
 epoch completed, and the very next idle poll opened another one — forever. The
 follow-up fix makes a never-committed shard's check join-only:
-`AfterBatchDrained`'s `hasCommitted` argument (true only when this drain
-follows a real commit) flows into
-`DeferredMaintenanceBarrierConfig.HasCommitted`, and
+`AfterBatchDrained`'s `hasCommitted` argument (true for a drain that follows a
+real commit) flows into `DeferredMaintenanceBarrierConfig.HasCommitted`, and
 `ensureDeferredMaintenanceBarrierEpoch` lets any shard join an epoch that is
 already open regardless of that flag — preserving the original #5852 stall
-fix — but only opens a new epoch when it is true. A fleet where nothing has
-committed anywhere opens zero epochs and runs zero maintenance passes,
-including for `ESHU_REPO_SHARD_COUNT == 1`, whose short-circuit had the exact
-same defect before the follow-up: it ran maintenance unconditionally on every
-idle poll rather than only when this single shard had actually committed.
+fix — but only opens a new epoch when it is true. Gated on nothing but a real
+commit, that traded the storm for a different regression: a shard that owns
+no repositories would then never be allowed to open an epoch either, ever —
+silently dropping the one startup maintenance pass origin/main always runs
+(gated there on `emptyDrainObserved`, which latches on the FIRST drain of any
+kind, not on commit status). `startupMaintenanceEscapeUsed` in
+`collector.Service.Run` closes that gap: it makes the never-committed
+escape's own first-ever call per process report `hasCommitted=true`, letting
+that one call open or join an epoch and get the one startup maintenance
+pass, while every later call on the same shard reports `false` and stays
+join-only. A fleet where nothing ever commits anywhere therefore opens the
+barrier epoch at most once across the fleet's whole lifetime — not zero, and
+not once per idle poll — including for `ESHU_REPO_SHARD_COUNT == 1`, whose
+short-circuit applies the identical rule directly.
 
 What both fixes deliberately leave unbounded is
 `waitDeferredMaintenanceBarrierCompletion` itself: it still has no arrival
@@ -252,12 +264,18 @@ deadline or partial-arrival quorum, because this barrier's whole point is to
 stop deferred maintenance from running while any shard might still be
 mid-ingest, and a timeout or quorum bypass would run maintenance against a
 fleet that has not actually reached a quiescent point — trading correctness
-for liveness. A shard that has genuinely crashed or lost connectivity (as
-opposed to one that is alive but has nothing to ingest) still strands the
-barrier with no deadline; that failure mode is observable via the
-stall-watchdog log described below, not eliminated. Changing shard count while
-an epoch is open fails closed; operators should let the current epoch complete
-before scaling charted ingester replicas.
+for liveness. That unbounded wait covers more than a genuinely crashed or
+disconnected shard: a shard that HAS committed at least once and then goes
+idle (its repository partition simply stopped changing) also never arrives
+again, because `everCommitted` latches permanently on that first commit and
+neither `committedSinceDrain` nor the once-per-process startup escape ever
+re-fires for it afterward. That shard is fully healthy, live, and connected
+to Postgres, yet it strands the barrier with no deadline all the same — this
+mechanism cannot distinguish it from a shard that actually crashed; both
+simply never arrive. That ambiguity is observable via the stall-watchdog log
+described below, not eliminated. Changing shard count while an epoch is open
+fails closed; operators should let the current epoch complete before scaling
+charted ingester replicas.
 
 A shard genuinely stuck in `waitDeferredMaintenanceBarrierCompletion` — dead,
 partitioned, or otherwise never arriving — logs a WARN
@@ -278,16 +296,20 @@ pre-first-commit drain, exactly as before. `go test ./internal/storage/postgres
 -run TestIngestionStoreWaitDeferredMaintenanceBarrierCompletionLogsStallBeforeCompleting
 -count=1` proves the stall-watchdog log fires before the barrier completes.
 
-No-Regression Evidence (#5852 follow-up, join-only barrier arrivals): `go test
+No-Regression Evidence (#5852 follow-up, join-only barrier arrivals plus the
+P1 startup-escape once-latch): `go test ./internal/storage/postgres -run
+'TestIngestionStoreShardDrainBarrier(QuietRestartOpensExactlyOneEpochAcrossFleetLifetime|SingleShardNeverCommittedSkipsMaintenance|SingleShardHasCommittedRunsMaintenance|NeverCommittedShardJoinsAlreadyOpenEpochAndBecomesLeader)|TestEnsureDeferredMaintenanceBarrierEpochNeverCommittedShard(DoesNotOpenNewEpoch|JoinsAlreadyOpenEpoch)'
+-count=1` proves a quiet fleet — driven by real `collector.Service.Run`
+instances, one per shard — opens exactly one epoch across many idle polls,
+not zero and not once per poll, while a never-committed shard can still
+join, and even lead, an epoch a committing shard already opened. `go test
 ./internal/storage/postgres -run
-'TestIngestionStoreShardDrainBarrier(QuietRestartNeverOpensEpochAcrossManyIdlePolls|SingleShardNeverCommittedSkipsMaintenance|SingleShardHasCommittedRunsMaintenance|NeverCommittedShardJoinsAlreadyOpenEpochAndBecomesLeader)|TestEnsureDeferredMaintenanceBarrierEpochNeverCommittedShard(DoesNotOpenNewEpoch|JoinsAlreadyOpenEpoch)'
--count=1` proves a quiet fleet (multi-shard and `ShardCount==1`) opens zero
-epochs and runs zero maintenance passes across many idle polls, while a
-never-committed shard can still join, and even lead, an epoch a committing
-shard already opened. `go test ./internal/storage/postgres -run
 TestIngestionStoreWaitDeferredMaintenanceBarrierCompletionStallLogNamesMissingShards
 -count=1` proves the stall warning names the specific missing shard indexes,
-not just a count.
+not just a count. `go test ./internal/storage/postgres -run
+TestIngestionStoreRunDeferredRelationshipMaintenanceAfterShardDrainRateLimitsIdleLog
+-count=1` proves the idle "no epoch to join" INFO log is rate-limited to at
+most one line per `deferredMaintenanceBarrierStallLogInterval`.
 
 No-Regression Evidence: `go test ./internal/storage/postgres -run
 'TestIngestionStore(CommitScopeGenerationTakesSharedMaintenanceBarrier|RunDeferredRelationshipMaintenanceTakesExclusiveBarrier|ShardDrainBarrier)'
