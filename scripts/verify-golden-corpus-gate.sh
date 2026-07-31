@@ -370,7 +370,20 @@ done
 [[ "${api_ready}" == "true" ]] || { tail -30 "${log_dir}/api.log" >&2 || true; die "eshu-api /readyz never returned on port ${GATE_API_PORT}"; }
 
 log "B-7 suppression producer truth: active -> hidden -> expired"
+# #5837: this proof runs inside the phase_graph_query window but is assertion
+# work, not pipeline startup — and it cannot go faster than the fixed 20s expiry
+# wait it schedules for itself (golden_suppression_expiry_epoch = now + 20). Left
+# unbracketed it billed that 20s to graph_query, whose effective ceiling is 8s
+# (3s baseline + 5s absolute_slack_seconds) -- so 20 > 8 fails on any host, from
+# source alone, with no pipeline slowdown behind it. The ~23s figure quoted
+# around this change is an illustrative local reading, not a captured
+# measurement; see docs/internal/evidence/5837-aws-drift-reopen.md, "Golden-gate
+# phase-timing note". Bracket it so the phase keeps measuring what the
+# baseline note says it measures: eshu-api + eshu-mcp-server startup. Move these
+# stamps if the proof moves; do not delete them to "fix" a timing warning.
+phase_graph_query_excluded_starts+=("$(date +%s)")
 golden_suppression_verify_producer_truth
+phase_graph_query_excluded_ends+=("$(date +%s)")
 
 log "start eshu-mcp-server (http) for MCP query truth"
 ESHU_MCP_TRANSPORT=http ESHU_MCP_ADDR=":${GATE_MCP_PORT}" \

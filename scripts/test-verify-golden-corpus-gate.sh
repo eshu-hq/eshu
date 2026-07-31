@@ -317,20 +317,15 @@ bash -n "${timing_lib}" || fail "phase-timing lib has a syntax error"
 dead_code_lib="${repo_root}/scripts/lib/golden-corpus-dead-code-fixtures.sh"
 [[ -f "${dead_code_lib}" ]] || fail "missing dead-code fixture lib: ${dead_code_lib}"
 bash -n "${dead_code_lib}" || fail "dead-code fixture lib has a syntax error"
-# require_lib: require_in against the phase-timing lib. The non-comment
-# anchoring matters here too — that lib's own header prose names
-# phase-timings.json, so a whole-file match is satisfied with no emission code.
-require_lib() {
-	require_in "$1" "${timing_lib}" "$2"
-}
-# Anchored on the ASSIGNMENT, not the bare filename: the else-branch log message
-# ("emitted phase-timings.json for seeding") is a second non-comment home, so a
-# bare-filename needle stays green when the emission target is renamed or the
-# whole emission block is replaced.
-# shellcheck disable=SC2016  # the needle is the literal lib source line
-require_lib "phase-timings emission" 'phase_timings_file="${log_dir}/phase-timings.json"'
-require_lib "phase baseline default" "e2e-baseline.json"
-require_lib "per-phase gate flag" "-phase-timings-file="
+
+# B-11 per-phase timing cases (#5837): the graph_query phase must exclude
+# assertion work bracketed inside its own window. Extracted to a lib chunk to
+# keep this mirror test under the 500-line cap; the sentinel below catches a
+# gutted or early-returning chunk, the same guard the lock cases use.
+# shellcheck source=scripts/lib/golden-corpus-phase-timing-cases.sh
+. "${repo_root}/scripts/lib/golden-corpus-phase-timing-cases.sh"
+[[ "${phase_timing_cases_completed:-0}" -eq 1 ]] ||
+	fail "golden-corpus-phase-timing-cases.sh did not run to completion (gutted, or returned early)"
 
 # #5813: the "wait for backends" loop must gate Postgres readiness on a
 # HOST-side TCP connect, not only the in-container pg_isready socket probe —
