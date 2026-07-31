@@ -16,16 +16,24 @@ type terraformBackendFactContext struct {
 	Locals    []map[string]any `json:"terraform_locals"`
 }
 
+// terraformBackendCandidatesFromContext derives candidates for one repo
+// generation's parsed backend/variable/local facts. repoLocalPath is the
+// repository checkout root (repository.payload->>'local_path') for that same
+// generation; it is required to compute an absolute BackendLocal locator
+// (issue #5594) and is safe to leave blank for callers that only need
+// S3-shaped candidates (BackendLocal simply resolves to no candidate).
 func terraformBackendCandidatesFromContext(
 	repoID string,
+	repoLocalPath string,
 	contextValue terraformBackendFactContext,
 ) []terraformstate.DiscoveryCandidate {
 	return terraformstate.EvaluateBackendConfig(
 		repoID,
 		terraformstate.BackendConfigContext{
-			Backends:  contextValue.Backends,
-			Variables: contextValue.Variables,
-			Locals:    contextValue.Locals,
+			Backends:      contextValue.Backends,
+			Variables:     contextValue.Variables,
+			Locals:        contextValue.Locals,
+			RepoLocalPath: repoLocalPath,
 		},
 	).Candidates
 }

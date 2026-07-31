@@ -51,6 +51,14 @@ type DiscoveryCandidate struct {
 	PreviousETag      string
 	PriorGenerationID string
 	StateInVCS        bool
+	// LocatorDefaulted is true when this candidate's locator was built from
+	// an implicit backend default rather than an explicit, authored
+	// attribute value — currently only the local backend's "path" attribute,
+	// defaulted to "terraform.tfstate" per Terraform's own documented
+	// default (issue #5594). It exists so a successful ownership resolution
+	// can tell an operator "resolved via explicit path" apart from "resolved
+	// via implicit default" instead of looking identical in logs.
+	LocatorDefaulted bool
 }
 
 // DiscoveryQuery scopes graph-backed Terraform backend fact reads.

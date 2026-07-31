@@ -15,6 +15,7 @@ corpus_fixtures=(
 	python_comprehensive
 	sql_comprehensive
 	terraform_comprehensive
+	terraform_local_backend_demo
 	terragrunt_comprehensive
 	kubernetes_comprehensive
 	helm_argocd_platform

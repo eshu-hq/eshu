@@ -367,9 +367,9 @@ response body and out of metric labels.
 state-snapshot scope (issue #5442). It requires an exact `scope_id` in the
 `state_snapshot:<backend_kind>:<locator_hash>` shape; there is no
 account-wide fallback for this domain, unlike the AWS route's `account_id`
-filter. Optional `address`, `outcome` (`exact` or `ambiguous`), and
-`drift_kinds` filters narrow the page. `limit` defaults to 100 and is capped
-at 500; use `offset` with `next_offset` when `truncated` is true.
+filter. Optional `address`, `outcome` (`exact`, `ambiguous`, or `unresolved`),
+and `drift_kinds` filters narrow the page. `limit` defaults to 100 and is
+capped at 500; use `offset` with `next_offset` when `truncated` is true.
 
 This route is provider-neutral and separate from the AWS and multi-cloud
 runtime-drift routes above: config-vs-state drift is not cloud-specific.
@@ -392,9 +392,17 @@ Each `drift_findings[]` item carries an `outcome`:
   The finding's `outcome` always stays `"ambiguous"` in that case -- filtering
   never downgrades a genuinely ambiguous finding into something that looks
   clean just because the caller cannot see every competing repo.
+- `unresolved` — backend-owner resolution found **zero** candidate config
+  repos for the state snapshot: no Eshu-tracked repo declares this backend
+  at all, so no per-address classification ran (issue #5594). `address` and
+  `drift_kind` are empty, and `ambiguous_owner_candidates` is empty too --
+  unlike the ambiguous case there is no competing evidence to record, only
+  the absence of any owner. One `unresolved` row is written per
+  state-snapshot scope, so a scope whose backend never resolves is
+  distinguishable from a scope that resolved cleanly and simply has no
+  drift: both would otherwise return an identical empty page.
 
-`stale`, `derived`, `unresolved`, and `rejected` outcomes are not emitted by
-this version; see
+`stale` and `derived` outcomes are not emitted by this version; see
 `go/internal/correlation/drift/tfconfigstate/doc.go` for why each is either
 unreachable with the evidence this handler has today or intentionally not
 persisted. This route never runs Terraform, imports resources, or mutates

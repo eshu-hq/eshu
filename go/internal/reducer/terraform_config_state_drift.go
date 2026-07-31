@@ -171,6 +171,13 @@ func (h TerraformConfigStateDriftHandler) Handle(
 			FailureClass: "no_config_repo_owns_backend",
 			Reason:       resolveErr.Error(),
 		})
+		// Unlike writeAmbiguousOwner below, a write failure here IS returned
+		// as a Handle() error so the queue retries the intent — see
+		// writeUnresolvedOwner's doc comment for why a permanently-unresolved
+		// backend has no other recovery path for a lost write.
+		if writeErr := h.writeUnresolvedOwner(ctx, intent, backendKind, locatorHash); writeErr != nil {
+			return Result{}, fmt.Errorf("write terraform config state drift unresolved owner finding: %w", writeErr)
+		}
 		return Result{
 			IntentID: intent.IntentID,
 			Domain:   intent.Domain,
@@ -192,6 +199,7 @@ func (h TerraformConfigStateDriftHandler) Handle(
 	if resolveErr != nil {
 		return Result{}, fmt.Errorf("resolve config commit: %w", resolveErr)
 	}
+	h.logDefaultedLocatorResolution(ctx, intent, anchor)
 
 	if h.EvidenceLoader == nil {
 		h.logRejection(ctx, intent, DriftRejection{
@@ -438,5 +446,32 @@ func (h TerraformConfigStateDriftHandler) logRejection(ctx context.Context, inte
 		log.GenerationID(intent.GenerationID),
 		log.FailureClass(rejection.FailureClass),
 		slog.String("rejection.reason", rejection.Reason),
+	)
+}
+
+// logDefaultedLocatorResolution emits an operator-visible info log the one
+// time ownership resolved via an implicit backend default (currently only a
+// bare `backend "local" {}` block's Terraform-default path, issue #5594)
+// rather than an explicit, authored attribute value. Without this, a
+// defaulted resolution and an explicit one produce identical evidence and an
+// operator investigating a wrong config-owner match has no way to tell them
+// apart. A no-op when the anchor was not defaulted, so the ordinary S3 path
+// (which never defaults) gains no new log volume.
+func (h TerraformConfigStateDriftHandler) logDefaultedLocatorResolution(
+	ctx context.Context,
+	intent Intent,
+	anchor tfstatebackend.CommitAnchor,
+) {
+	if h.Logger == nil || !anchor.LocatorDefaulted {
+		return
+	}
+	h.Logger.LogAttrs(
+		ctx, slog.LevelInfo, "drift candidate resolved via defaulted locator",
+		log.Domain(string(intent.Domain)),
+		log.ScopeID(intent.ScopeID),
+		log.GenerationID(intent.GenerationID),
+		slog.String("backend_kind", anchor.BackendKind),
+		slog.String("owner_repo_id", anchor.RepoID),
+		slog.Bool("locator_defaulted", true),
 	)
 }

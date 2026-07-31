@@ -69,6 +69,7 @@ func TestPostgresTerraformBackendQuerySingleOwnerSingleSnapshot(t *testing.T) {
 			"repository:repo-infra",
 			"gen-abc",
 			observed,
+			"",
 			fixtureBackendFact("s3", bucket, key, "us-east-1"),
 		}}}},
 	}
@@ -125,6 +126,7 @@ func TestPostgresTerraformBackendQueryFiltersByCompositeKey(t *testing.T) {
 				"repository:repo-match",
 				"gen-1",
 				observed,
+				"",
 				fixtureBackendFact("s3", matchBucket, matchKey, "us-east-1"),
 			},
 			{
@@ -132,6 +134,7 @@ func TestPostgresTerraformBackendQueryFiltersByCompositeKey(t *testing.T) {
 				"repository:repo-other",
 				"gen-2",
 				observed,
+				"",
 				fixtureBackendFact("s3", otherBucket, otherKey, "us-east-1"),
 			},
 		}}},
@@ -167,6 +170,7 @@ func TestPostgresTerraformBackendQuerySurfacesAmbiguousOwners(t *testing.T) {
 				"repository:repo-a",
 				"gen-a1",
 				observed,
+				"",
 				fixtureBackendFact("s3", bucket, key, "us-east-1"),
 			},
 			{
@@ -174,6 +178,7 @@ func TestPostgresTerraformBackendQuerySurfacesAmbiguousOwners(t *testing.T) {
 				"repository:repo-b",
 				"gen-b1",
 				observed,
+				"",
 				fixtureBackendFact("s3", bucket, key, "us-east-1"),
 			},
 		}}},
@@ -215,6 +220,7 @@ func TestPostgresTerraformBackendQueryReturnsMultipleSnapshotsForSingleOwner(t *
 				"repository:repo-mono",
 				"gen-old",
 				earlier,
+				"",
 				fixtureBackendFact("s3", bucket, key, "us-east-1"),
 			},
 			{
@@ -222,6 +228,7 @@ func TestPostgresTerraformBackendQueryReturnsMultipleSnapshotsForSingleOwner(t *
 				"repository:repo-mono",
 				"gen-new",
 				later,
+				"",
 				fixtureBackendFact("s3", bucket, key, "us-east-1"),
 			},
 		}}},
@@ -320,6 +327,7 @@ func TestPostgresTerraformBackendQueryMatchesScopeIDDerivedHash(t *testing.T) {
 			"repository:repo-infra",
 			"gen-abc",
 			observed,
+			"",
 			fixtureBackendFact("s3", bucket, key, "us-east-1"),
 		}}}},
 	}
@@ -380,6 +388,7 @@ func TestPostgresTerraformBackendQueryAmbiguousScopeIDDerivedHash(t *testing.T) 
 				"repository:repo-team-a",
 				"gen-team-a",
 				observed,
+				"",
 				fixtureBackendFact("s3", bucket, key, "us-east-1"),
 			},
 			{
@@ -387,6 +396,7 @@ func TestPostgresTerraformBackendQueryAmbiguousScopeIDDerivedHash(t *testing.T) 
 				"repository:repo-team-b",
 				"gen-team-b",
 				observed,
+				"",
 				fixtureBackendFact("s3", bucket, key, "us-east-1"),
 			},
 		}}},
@@ -446,6 +456,7 @@ func TestPostgresTerraformBackendQueryRejectsLocatorHashWithVersionDigest(t *tes
 			"repository:repo-infra",
 			"gen-abc",
 			observed,
+			"",
 			fixtureBackendFact("s3", bucket, key, "us-east-1"),
 		}}}},
 	}

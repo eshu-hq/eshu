@@ -18,10 +18,30 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 	if err != nil {
 		return err
 	}
+	// Compute-and-print mode (issue #5594) bypasses every phase: the
+	// orchestrator calls this after bootstrap-index has committed the
+	// terraform_local_backend_demo fixture's repository fact, to learn the
+	// scope_id the run's own (non-deterministic, mktemp-rooted) checkout path
+	// resolves to before it invokes the query phase. See
+	// local_backend_scope_id.go.
+	if strings.TrimSpace(o.printLocalBackendRepoPath) != "" {
+		scopeID, err := computeLocalBackendScopeID(o.printLocalBackendRepoPath)
+		if err != nil {
+			return err
+		}
+		_, _ = fmt.Fprintln(stdout, scopeID)
+		return nil
+	}
 	snap, err := LoadSnapshot(o.snapshotPath)
 	if err != nil {
 		return err
 	}
+	// Issue #5594: substitute the run-time computed local-backend scope_id
+	// into the snapshot's $LOCAL_BACKEND_SCOPE_ID$ sentinel before any phase
+	// reads it. A no-op when the flag is unset, so every existing invocation
+	// (and every focused local test that does not pass this flag) is
+	// unaffected.
+	substituteLocalBackendScopeID(&snap, strings.TrimSpace(o.localBackendScopeID))
 
 	phases := phaseSet(o.phase)
 	var r Report

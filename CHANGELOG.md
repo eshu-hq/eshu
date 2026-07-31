@@ -9,6 +9,434 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Bare `backend "local" {}` drift ownership resolution
+
+- **Apply Terraform's own default local-backend path when resolving
+  config-vs-state drift ownership** ([#5594](https://github.com/eshu-hq/eshu/issues/5594)).
+  A `backend "local" {}` block written with no `path` attribute — the
+  ordinary way to write a local backend, since Terraform itself defaults
+  `path` to `"terraform.tfstate"` relative to the root module directory
+  (https://developer.hashicorp.com/terraform/language/backend/local) —
+  produced no config-side `DiscoveryCandidate` at all:
+  `EvaluateBackendConfig`/`backendConfigCandidate`
+  (`go/internal/collector/terraformstate/backend_config.go`) only derived a
+  candidate for `s3` backends, so every drift candidate for a local backend
+  was rejected with `failure_class: no_config_repo_owns_backend`, with or
+  without an explicit `path`. `backendConfigCandidate` now also derives a
+  `BackendLocal` candidate, applying Terraform's default when the attribute
+  is absent. The HCL parser (`go/internal/parser/hcl/terraform_backend.go`)
+  now captures the local backend's `path` attribute under
+  `row["state_path"]` — a new key, since `row["path"]` already held the
+  source `.tf` file's own path for every backend row (and `"local_path"`
+  was rejected as a candidate name: the durable `repository` fact already
+  uses that key for a differently-scoped value, the repo checkout root).
+  A `BackendLocal` candidate's locator is an absolute path matching the
+  repository checkout root (`BackendConfigContext.RepoLocalPath`, the
+  durable `repository` fact's `local_path`), joined in
+  `go/internal/storage/postgres/tfstate_backend_canonical.go` by a
+  `repo_local_paths` CTE keyed on `(scope_id, generation_id, repo_id)` with
+  `DISTINCT ON` + latest-`observed_at`-wins, mirroring
+  `listTerraformBackendFactsQuery`'s existing `active_repositories`
+  convention — an earlier unfiltered, unordered version of this join could
+  cross-contaminate `local_path` across repos sharing one
+  `(scope_id, generation_id)` and could fan out duplicate rows (including
+  for the pre-existing `s3` path) when more than one `repository` fact
+  existed per repo; both are covered by a new
+  `ESHU_POSTGRES_DSN`-gated integration test proven against a real
+  Postgres 16 instance. Without a resolvable `repoLocalPath`, no candidate
+  is produced rather than a guessed locator. Backend kinds Eshu does not
+  model (`gcs`, `azurerm`, `remote`, `http`, ...) were audited and confirmed
+  to still produce neither a candidate nor a warning, unchanged. Terragrunt's
+  own `remote_state { backend = "local" }` config was investigated
+  separately and is NOT defaulted by this change — see the open question
+  below.
+  - No-Regression Evidence: `go test ./internal/parser/ ./internal/collector/
+    ./internal/collector/terraformstate/... ./internal/storage/postgres/...
+    ./internal/relationships/tfstatebackend/... ./internal/reducer/ -count=1`
+    is green. `TestPostgresTerraformBackendQueryResolvesBareLocalBackendDefaultPath`,
+    `TestEvaluateBackendConfigDefaultsBareLocalBackendPath`, and the parser-level
+    `TestDefaultEngineParsePathHCLLocalBackendBareBlockOmitsPathAttribute` fail
+    before this change (zero candidates / no `state_path` field) and pass after.
+    `TestPostgresTerraformBackendQueryRepoLocalPathJoinIsRepoScopedAndLatest`
+    (`go/internal/storage/postgres/tfstate_backend_canonical_repo_local_path_integration_test.go`)
+    was run against a real, freshly schema-migrated Postgres 16 container
+    (isolated, not the shared Compose stack): fails against the pre-fix join
+    (0 rows where 1 was expected), passes against the fix. The full
+    `TestPostgresTerraformBackendQuery*` and
+    `TestPostgresDriftEvidenceLoaderSurvivesNull*` set (22 tests) also passed
+    against that same live instance. `EXPLAIN (ANALYZE, BUFFERS)` on a
+    200-repo seeded corpus showed no measurable regression: 2.890 ms
+    (pre-fix) vs. 2.873 ms (fixed), both returning the correct 200 rows with
+    no duplication.
+  - No-Observability-Change (rejection path): the reducer's existing `"drift
+    candidate rejected"` structured log
+    (`go/internal/reducer/terraform_config_state_drift.go:logRejection`,
+    `failure_class`/`rejection.reason` fields) already covers this path; the
+    fix reduces how often `failure_class=no_config_repo_owns_backend` fires
+    for the ordinary bare-local-backend spelling, it does not add a stage,
+    query, worker, or metric.
+  - Observability Evidence (success path): added
+    `DiscoveryCandidate.LocatorDefaulted`, threaded through
+    `TerraformBackendRow`/`CommitAnchor` unchanged, and a new info-level
+    `"drift candidate resolved via defaulted locator"` log
+    (`locator_defaulted=true`) in the reducer handler, gated so the ordinary
+    explicit-path and `s3` flows gain no new log volume — an operator could
+    not otherwise tell a defaulted resolution apart from an explicit one.
+    `TestDriftHandlerLogsDefaultedLocatorResolution` and
+    `TestDriftHandlerDoesNotLogDefaultedLocatorForExplicitResolution`
+    (`go/internal/reducer/terraform_config_state_drift_defaulted_locator_test.go`)
+    cover both cases.
+  - Adjacent fix found while proving the above against a live database:
+    `TestPostgresTerraformBackendQuerySurvivesNullTerraformBackendsPath`
+    computed its expected hash with `terraformstate.LocatorHash` instead of
+    the canonical adapter's `ScopeLocatorHash` — issue #203's exact
+    hash-mismatch class, in a test this time, not production code — so it
+    silently returned 0 rows every time it actually ran against Postgres,
+    masked locally because it is DSN-gated and skips without
+    `ESHU_POSTGRES_DSN` set. Fixed inline; verified green against the same
+    live instance.
+
+  **Terragrunt finding (informational, not fixed):** Terragrunt's own
+  `remote_state { backend = "local" }` was investigated per hostile-review
+  follow-up. Terragrunt's docs (`docs.terragrunt.com/features/units/state-backend`)
+  state that `local` is not one of its specially-bootstrapped backend kinds
+  (only `s3`, `gcs`, `azurerm` are); for any other backend the `remote_state`
+  block "operates in the same manner as `generate`" — Terragrunt renders the
+  `config` map verbatim into a generated Terraform `backend "local" { ... }`
+  block and lets Terraform interpret it, rather than documenting any default
+  of its own. Terraform's own default would technically apply once that
+  block is generated — but the working directory it is generated into is
+  Terragrunt's per-unit `.terragrunt-cache` path, not the `terragrunt.hcl`
+  file's own directory, so Eshu's static parser (which never runs Terragrunt)
+  has no way to reproduce or observe that path. Applying "the same" default
+  here would mean guessing a working directory Eshu cannot see, which the
+  correlation-truth rules forbid without stronger evidence. Left unchanged:
+  `go/internal/collector/terraformstate/source_terragrunt.go`'s
+  `terragruntRemoteStateLocalCandidate` continues to require an explicit,
+  literal, absolute `path` for its (separately security-gated, operator-approval-required)
+  local-state-reading candidate; the ownership-join path never modeled
+  Terragrunt as its own backend kind and still does not. The repo owner
+  resolved the open question this raised (below): rather than guessing a
+  path Eshu cannot observe, make the resulting rejection visible at the read
+  surface instead.
+
+- **Surface rejected/ambiguous config-vs-state drift candidates at the read
+  edge, closing the general `no_config_repo_owns_backend` visibility gap**
+  ([#5594](https://github.com/eshu-hq/eshu/issues/5594) follow-up; owner
+  decision, not a reviewer suggestion). The Terragrunt finding above is one
+  instance of a broader, pre-existing gap: a state-snapshot scope whose
+  backend never resolved to any config repo
+  (`tfstatebackend.ErrNoConfigRepoOwnsBackend`) was log-only since issue
+  #5442's durability work, so `POST /api/v0/terraform/config-state-drift/findings`
+  returned an identical empty page for "evaluated, no drift" and "ownership
+  never resolved at all." The repo owner put the disposition to a
+  hostile-review pass and chose: fix the general visibility gap inline,
+  covering both pre-existing rejection classes
+  (`no_config_repo_owns_backend` and the already-durable
+  `ambiguous_backend_owner`), not just the Terragrunt symptom.
+  `TerraformConfigStateDriftWrite` gains a third write mode,
+  `UnresolvedOwner`, persisting exactly one durable `"unresolved"` finding
+  per state-snapshot scope (`Address`/`DriftKind` empty,
+  `AmbiguousOwnerCandidates` also empty — no competing evidence to record,
+  only the absence of any owner), mirroring the existing `"ambiguous"` write
+  in every respect: same upsert-by-stable-fact-id idempotency, same
+  non-fatal write-failure handling, same
+  `eshu_dp_drift_ambiguous_owner_write_failed_total`-style counter pattern.
+  The read surface (`go/internal/query/terraform_config_state_drift.go`),
+  its OpenAPI contract
+  (`go/internal/query/openapi_paths_terraform_config_state_drift.go`), and
+  its MCP tool (`list_terraform_config_state_drift_findings`,
+  `go/internal/mcp/tools_iac.go`) all accept and document `"unresolved"`
+  alongside `exact`/`ambiguous` in the same change, per the repo's
+  OpenAPI/MCP lockstep rule. Matched to existing prior art rather than
+  inventing new vocabulary: the `relationships_complete`/
+  `k8s_relationships_complete` partial-truth disclosure convention
+  (`go/internal/query/entity_context_content.go`,
+  `impact_trace_deployment_k8s_select.go`) and, more directly, the CI/CD run
+  correlation aggregate handler's existing
+  exact/derived/ambiguous/unresolved/rejected outcome enum
+  (`go/internal/query/ci_cd_run_correlation_aggregates_handler.go:318`),
+  which already uses `"unresolved"` for this exact semantic per the
+  six-value vocabulary in
+  `docs/internal/design/391-observability-coverage-correlation.md`.
+  `go/internal/correlation/drift/tfconfigstate/doc.go` records this as a
+  decision superseding the #5442-era "unresolved stays log-only" call, with
+  the reasoning for why the reopened "unbounded write volume" concern is
+  addressed (same per-scope-per-generation cadence the already-accepted
+  `"ambiguous"` write has always had, not a new unbounded category), a
+  post-deployment volume watch note (the *cadence* per key is proven
+  identical, but a partially-onboarded org could still see materially more
+  distinct scopes land in `"unresolved"` than ever go `"ambiguous"`, since an
+  unonboarded repo's backend is the default case for
+  `no_config_repo_owns_backend` — worth watching after rollout, not a defect
+  today). This write path, and the `backend "local" {}` default-path fix
+  itself, are now both proven end-to-end by the golden corpus (see the
+  golden-corpus fixture entry below).
+  - Observability Evidence: `eshu_dp_drift_unresolved_owner_write_failed_total`
+    (`go/internal/telemetry/instruments.go`, registered alongside
+    `DriftAmbiguousOwnerWriteFailed`), with its X1 contract row in
+    `docs/public/observability/telemetry-coverage.md` (two rows: the
+    `terraform_config_state_drift.go` call-site row and a dedicated row for
+    the new `terraform_config_state_drift_unresolved_owner.go` file). Also
+    closed a stale X1 gap surfaced while adding this row: an earlier commit
+    on this branch (`go/internal/collector/terraformstate/backend_config_local.go`)
+    had landed without its own X1 coverage row; added a
+    `No-Observability-Change:` row for it in the same change. Verified with
+    `bash scripts/test-verify-telemetry-coverage.sh` (15/15) and
+    `ESHU_TELEMETRY_COVERAGE_BASE=origin/main bash scripts/verify-telemetry-coverage.sh`
+    (clean, no drift), plus `bash scripts/test-generate-operator-dashboard.sh`
+    (9/9) and a re-run of `scripts/generate-operator-dashboard.sh` confirming
+    no diff (idempotent, no dashboard update needed).
+  - No-Regression Evidence: `go test ./internal/reducer/... ./internal/query/...
+    ./internal/storage/postgres/... ./internal/mcp/... ./internal/telemetry/...
+    ./internal/correlation/... -count=1` is green (all packages `ok`). TDD:
+    `TestPostgresTerraformConfigStateDriftWriterPersistsUnresolvedOwnerFinding`,
+    `TestDriftHandlerNoOwnerWritesDurableUnresolvedFinding`, and
+    `TestHandleTerraformConfigStateDriftFindingsDistinguishesUnresolvedFromNoDrift`
+    each fail before the corresponding production change (missing field /
+    zero writes / identical empty page for both cases) and pass after.
+    `TestDriftHandlerAmbiguousOwnerStillWritesAmbiguousNotUnresolved` and
+    `TestTerraformConfigStateDriftFindingStoreFiltersByOutcome` (pre-existing)
+    both stayed green throughout, proving the pre-existing
+    `"ambiguous"` path is untouched. Golden-corpus fixtures for both the
+    `"unresolved"` write path and the `backend "local" {}` default-path fix
+    landed in a follow-up commit on this branch (see below); at the time of
+    this commit the corpus's one Terraform-state cassette/fixture pair
+    (`testdata/cassettes/terraformstate/supply-chain-demo.json`,
+    `tests/fixtures/ecosystems/terraform_comprehensive/main.tf`) was still
+    deliberately backend-aligned by #5442's own design so ownership
+    resolution always succeeds — confirmed by direct corpus scan (exactly
+    one `backend` block across all 20 fixture repos, exactly one
+    `terraformstate` cassette, both in that same aligned pair) — so the new
+    `"unresolved"` write path could not yet fire against the existing corpus.
+
+- **Golden-corpus fixtures proving both the `backend "local" {}`
+  default-path fix and the `"unresolved"` outcome fire for real**
+  ([#5594](https://github.com/eshu-hq/eshu/issues/5594)). Neither change
+  above had live golden-corpus coverage: the corpus's only Terraform backend
+  fixture (`terraform_comprehensive`) is deliberately S3-aligned by #5442's
+  design, so it can prove neither a bare local backend's default-path
+  resolution nor a genuinely-unowned backend's `"unresolved"` write. Added
+  two new scopes to `testdata/cassettes/terraformstate/supply-chain-demo.json`
+  and one new fixture repo, `tests/fixtures/ecosystems/terraform_local_backend_demo`
+  (a bare `backend "local" {}` block, no `path`, at repo root), alongside —
+  not replacing — the existing S3-aligned pair: (1) a resolvable local-backend
+  scope whose state resources deliberately do not overlap the new fixture's
+  declared resources, proving `tfstatebackend.ResolveConfigCommitForBackend`
+  resolves the default-path locator and materializes a real
+  `outcome: "exact"` finding; (2) a deliberately orphaned S3 bucket/key no
+  fixture's config declares, proving `outcome: "unresolved"` fires. A
+  `BackendLocal` locator is an absolute path rooted at the fixture's real,
+  run-time git-checkout location (`scripts/verify-golden-corpus-gate.sh`
+  stages every fixture inside a fresh `mktemp -d` per run), so neither the
+  cassette nor the snapshot can pin its resolved `scope_id` as a literal;
+  both instead carry a `$LOCAL_BACKEND_SCOPE_ID$` sentinel. Added
+  `go/cmd/golden-corpus-gate/local_backend_scope_id.go` (a
+  `-print-local-backend-scope-id` compute-and-print mode reproducing
+  production's join-key formula, pinned against the real
+  `terraformstate.ScopeLocatorHash` by
+  `TestComputeLocalBackendScopeIDMatchesScopeLocatorHash`, plus a
+  `-local-backend-scope-id` flag that substitutes the sentinel into the
+  loaded snapshot's query shapes before the query phase runs) and
+  `scripts/lib/golden-corpus-local-backend.sh` (`stage_local_backend_cassette`:
+  resolves the fixture's `local_path` from Postgres after bootstrap-index,
+  computes the real `scope_id`, and writes a sentinel-substituted runtime
+  copy of the cassette that only the `terraformstate` collector replays —
+  every other collector keeps its original, unmodified, committed cassette).
+  Added two new HTTP query shapes to `testdata/golden/e2e-20repo-snapshot.json`
+  (`POST /api/v0/terraform/config-state-drift/findings?variant=local-backend-resolved`
+  and `...?variant=unresolved`; the query-string suffix exists only to give
+  each entry a distinct map key — `net/http.ServeMux` ignores it when
+  routing, and `parseHTTPShapeKey` passes it straight through — the real
+  selector is `scope_id` in `request_body`, matching the precedent already
+  in this file at `POST /api/v0/impact/trace-deployment-chain?anchor=declared-object`),
+  each filtering by `outcome` and asserting `required_json_values` on
+  `outcome_groups[].outcome`/`drift_findings[].outcome`, so the two new
+  scopes are provably distinguishable from each other and from the
+  pre-existing S3 scope's shape at the gate, not just in unit tests. No new
+  MCP query shape: `list_terraform_config_state_drift_findings` is the one
+  registered MCP tool name for this capability, and the snapshot's MCP shape
+  map key is dispatched as the literal `tools/call` tool name, so only one
+  MCP entry can exist for it; the existing S3-scope MCP entry already proves
+  the MCP tool layer itself dispatches this capability correctly, and it is
+  left unchanged. Updated `go/internal/correlation/drift/tfconfigstate/doc.go`
+  and this file's earlier "known gap" entries above to describe what these
+  fixtures now prove instead of recording the gap as deferred.
+  - Local verification: `cd go && go test ./internal/replay/schema/...
+    ./cmd/golden-corpus-gate/... ./internal/goldengate/... -count=1` is
+    green; `bash scripts/test-verify-golden-corpus-gate.sh` passes;
+    `testdata/cassettes/terraformstate/supply-chain-demo.json` and
+    `testdata/golden/e2e-20repo-snapshot.json` are both valid JSON and the
+    former passes `TestCommittedCassettesValid`'s schema/loader validation.
+    The live `bash scripts/verify-golden-corpus-gate.sh` run (Docker,
+    real Postgres/graph backend) that proves the two new query shapes and
+    the corpus-wide count ranges is not runnable in this environment; see
+    the PR description for that evidence.
+
+- **Live golden-corpus-gate round trip on the new fixtures (superseded by the
+  correction below).** A live run found two failures the local-only
+  verification above could not catch: `?variant=local-backend-resolved`
+  returned zero findings instead of the expected `outcome: "exact"` finding,
+  and `GET /api/v0/iac/resources` count drifted from the new fixture's own
+  resources. `?variant=unresolved` passed at the time. **Correction:** this
+  run predates the branch being rebased onto a base carrying #5862, which made
+  `results_field` mandatory for any query shape setting `minimum_results`
+  (`EvaluateQueryShape` now hard-errors before evaluating the array instead of
+  inferring the first array-valued field). Neither of these two entries ever
+  set `results_field` (confirmed by `git log -p` across every commit that
+  touched them), so on the rebased base both `?variant=local-backend-resolved`
+  and `?variant=unresolved` hard-fail with `"results_field is required when
+  minimum_results ... is set"` before the `outcome_groups[].outcome` assertion
+  ever runs -- the "`?variant=unresolved` passed" result above no longer holds
+  against the currently committed snapshot and must not be read as current
+  proof. Fixed by adding `"results_field": "drift_findings"` to both entries,
+  matching the pre-existing S3-scope sibling shape immediately above them.
+  `cd go && go test ./cmd/golden-corpus-gate/... -count=1` is green after the
+  fix (was `--- FAIL: TestQueryClientChecksHTTPShapes` naming both entries
+  before it). Confirmed the assertion is not vacuous once the missing-field
+  error is gone: evaluating each shape against a synthetic response with an
+  empty `drift_findings` array (all other required fields present) fails with
+  `"drift_findings" has 0 results, want >= 1`, not the results_field error --
+  proving `minimum_results` genuinely binds. This local proof only establishes
+  that the shape assertion itself is sound; it does not re-establish that
+  `?variant=unresolved` produces a real, distinguishable `"unresolved"` finding
+  against the live corpus. That requires a fresh `bash
+  scripts/verify-golden-corpus-gate.sh` run against the fixed entries, which
+  is the repo owner's to run, not restated as proven here.
+  For the first failure: built an offline reproduction
+  (`TestEvaluateBackendConfigLocalBackendThroughRealParser`,
+  `go/internal/collector/terraformstate/backend_config_local_parser_integration_test.go`)
+  that parses the real fixture `.tf` content with the real
+  `go/internal/parser/hcl` package and feeds the result straight into
+  `EvaluateBackendConfig` -- no hand-built row, unlike every pre-existing
+  `backendConfigLocalCandidate` test -- and it passes, proving the
+  candidate-derivation algorithm, the parser's absolute-path row shape, and
+  the locator/hash formula are all correct for this exact fixture shape.
+  That ruled out a production-code defect in the default-path fix itself.
+  The remaining, most likely explanation: `scripts/lib/golden-corpus-local-backend.sh`'s
+  `stage_local_backend_cassette` computed the fixture's `local_path` from
+  `ingestion_scopes.payload`, but the resolver's actual join
+  (`go/internal/storage/postgres/tfstate_backend_canonical.go`'s
+  `repo_local_paths` CTE) reads it from `fact_records WHERE fact_kind =
+  'repository'` instead -- a different table. Tracing the write path shows
+  both should carry the identical value (same `repositoryidentity.Metadata`
+  struct field, written into both places by the same collector call), so
+  this was not provably the defect, but it was a real, unverified gap
+  between what the orchestrator precomputed and what the resolver actually
+  reads. Fixed by reading the identical table/predicate/tiebreak the
+  resolver's own CTE uses, removing the gap rather than relying on the two
+  staying in sync; also added a diagnostic print of the repository fact's
+  and the active backend-bearing file fact's generation_id side by side,
+  since the canonical join requires them to match exactly. For the second
+  failure: `GET /api/v0/iac/resources`'s `kind=resource` list and
+  `summary.by_kind.resource` both scan the `TerraformResource` graph label
+  sourced from `fact_kind='content_entity'` config-side parsing
+  (`go/internal/query/iac_resources.go`), unrelated to drift-ownership
+  resolution, so the fixture's two resource blocks
+  (`aws_instance.local_backend_demo`, `aws_s3_bucket.local_backend_demo`)
+  landed regardless of the first failure; `count`/`summary.by_kind.resource`
+  raised 11 -> 13 and `summary.total` (the sum of all three kind counts,
+  `go/internal/query/iac_inventory_postgres.go`) raised 19 -> 21, with the
+  module/data-source counts (19 - 11 = 8) held constant.
+  `node_count_Repository: 30` passed against range `[15,30]` on this live
+  run -- exactly at the ceiling. Left unchanged (correct today), but the
+  **next** fixture repo added to this corpus will break that assertion;
+  whoever adds it must raise the ceiling deliberately, not be surprised by
+  a red gate.
+  - Local verification: `cd go && go test ./internal/collector/terraformstate/...
+    -run TestEvaluateBackendConfigLocalBackendThroughRealParser -v -count=1`
+    passes; `bash scripts/test-verify-golden-corpus-gate.sh` passes;
+    `testdata/golden/e2e-20repo-snapshot.json` is valid JSON. The live gate
+    re-run that confirms this fix is not runnable in this environment.
+
+- **Third live golden-corpus-gate round trip: the actual root cause of the
+  zero-finding failure, found once the `results_field` fix above let the
+  assertion evaluate at all.** With `results_field` fixed,
+  `?variant=local-backend-resolved` still failed live: `"drift_findings" has
+  0 results, want >= 1`. Direct diagnostic queries against that run
+  (`print_local_backend_drift_diagnostics`'s `[1a]`) showed **zero**
+  `ingestion_scopes` rows for the computed scope_id
+  `state_snapshot:local:10ae50af...` -- no scope, no state-snapshot fact, no
+  work item, nothing for the resolver or the evidence loader to ever see.
+  The fixture repo itself landed and processed correctly (confirmed
+  separately: `deployable_unit_correlation` ran against
+  `repo:terraform_local_backend_demo`), so this was not a repo-ingestion
+  problem -- the *state-snapshot scope specifically* never landed under the
+  identifier the orchestrator computed.
+  The root cause: `stage_local_backend_cassette`'s `sed` substitution
+  (`scripts/lib/golden-corpus-local-backend.sh`) has never actually
+  substituted anything, since the commit that introduced it
+  (`1e4d37089`). The `-e` arguments were double-quoted --
+  `"s|\$LOCAL_BACKEND_SCOPE_ID\$|${local_backend_scope_id}|g"` -- so bash's
+  own double-quote parsing consumes the backslash before each `\$`,
+  and `sed` receives a bare, unescaped `$LOCAL_BACKEND_SCOPE_ID$` pattern.
+  In a BRE, an unescaped trailing `$` is an end-of-line anchor, so the
+  pattern only ever matches "...SCOPE_ID$" immediately followed by end of
+  line -- never true in the cassette, where the sentinel is always followed
+  by a closing quote and more JSON. `sed` exits 0 having substituted
+  nothing, on every occurrence, every run. Verified directly: re-running the
+  exact pre-fix `-e` arguments against the real committed cassette left all
+  four sentinel occurrences (including the one inside the scope's own
+  descriptive `"note"` field) byte-identical in the output. The runtime
+  cassette copy the terraformstate collector actually replayed therefore
+  still carried the literal, un-substituted string `$LOCAL_BACKEND_SCOPE_ID$`
+  as its `scope_id` -- a value that can never match the hash-based scope_id
+  the diagnostic query (correctly) checked for, hence zero rows. This also
+  explains why the sibling `?variant=unresolved` scope landed and passed
+  live: its `scope_id` is a plain literal hash, never routed through this
+  broken sentinel substitution at all.
+  This was not the `3c7b1f844` local_path-source alignment fix's territory
+  after all -- that fix targeted which Postgres table/predicate
+  `stage_local_backend_cassette` reads `repo_local_path` from, and was
+  itself never confirmed live (see above); the actual defect was in a wholly
+  different step (the `sed` escaping), present since the cassette-staging
+  mechanism was first introduced, and never previously observable because no
+  live run had ever gotten past the `results_field` hard-error to reach the
+  count assertion that would have revealed it.
+  Fixed by single-quoting the `\$`-escaped pattern segments and concatenating
+  the variable-bearing replacement as a separate double-quoted segment
+  (`'s|\$LOCAL_BACKEND_SCOPE_ID\$|'"${local_backend_scope_id}"'|g'`), so the
+  backslashes reach `sed` intact. Verified by sourcing the actual patched
+  `stage_local_backend_cassette` function (stubbing `pg`/`bin_dir`, not
+  reimplementing the sed call by hand) against the real committed cassette:
+  the output carries zero remaining sentinel occurrences and the correct
+  substituted `scope_id`/`partition_key`/`payload.locator_hash` values.
+  **What the corpus has and has not proven, plainly stated:** across all
+  three live rounds to date, the `backend "local" {}` default-path fix and
+  the `"unresolved"` outcome have never both been proven end to end by a
+  live golden-corpus-gate run with a green `?variant=local-backend-resolved`
+  assertion -- the state-snapshot scope this proof depends on has never
+  actually reached Postgres under its intended identifier until this fix.
+  Every prior claim of corpus proof for the `"exact"`-outcome local-backend
+  path in this file was, in hindsight, unearned; only the `"unresolved"`
+  path (which never depended on this substitution) has live proof today. A
+  fresh `bash scripts/verify-golden-corpus-gate.sh` run against this fix is
+  required before the `"exact"`-outcome path can be called proven, and that
+  run is the repo owner's to make, not restated as proven here.
+  - Local verification: `bash scripts/test-verify-golden-corpus-gate.sh`
+    passes. `bash -n scripts/lib/golden-corpus-local-backend.sh` is clean.
+    The live gate re-run that confirms this fix is not runnable in this
+    environment.
+
+- **Fourth live golden-corpus-gate round trip: both fixes confirmed end to
+  end, closing out this section's earlier caveats.** [PR
+  #5882](https://github.com/eshu-hq/eshu/pull/5882)'s live
+  `bash scripts/verify-golden-corpus-gate.sh` run against the `results_field`
+  fix and the `sed`-escaping fix above proved the whole chain for the first
+  time on this branch: `[1a]`'s `ingestion_scopes` check shows the
+  local-backend state-snapshot scope landing under its computed identifier,
+  `POST /api/v0/terraform/config-state-drift/findings?variant=local-backend-resolved`
+  returns 4 `drift_findings` with `outcome: "exact"`, and
+  `...?variant=unresolved` returns 1 finding with `outcome: "unresolved"` --
+  distinguishable from the resolved case in the same run. This supersedes
+  every earlier "requires a fresh live-gate run, not yet re-proven, deferred
+  to the repo owner" caveat recorded above in this section (the "Live
+  golden-corpus-gate round trip" and "Third live golden-corpus-gate round
+  trip" entries, and the `?variant=local-backend-resolved`/`?variant=unresolved`
+  descriptions in `testdata/golden/e2e-20repo-snapshot.json`, updated in the
+  same commit as this entry): both are now proven, not merely locally
+  plausible.
+
 ### Route-fact-based Rails controller liveness
 
 - **Join the Rails controller dead-code-root verdict against real route facts**
