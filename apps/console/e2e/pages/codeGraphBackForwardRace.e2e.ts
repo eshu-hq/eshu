@@ -106,7 +106,8 @@ async function runTrial(page: Page): Promise<string> {
 
   const repoSelect = page.getByRole("combobox", { name: "Repository" });
   await page.waitForFunction(
-    () => new URL(window.location.href).searchParams.get("repo_id") === "repository:checkout-service",
+    () =>
+      new URL(window.location.href).searchParams.get("repo_id") === "repository:checkout-service",
     { timeout: 10000 },
   );
   await page.waitForFunction(
@@ -115,8 +116,9 @@ async function runTrial(page: Page): Promise<string> {
   );
   await page.waitForFunction(
     () =>
-      (document.querySelector<HTMLSelectElement>('select[aria-label="Symbol"]')?.value ?? "")
-        .includes("raceAlphaSymbol"),
+      (
+        document.querySelector<HTMLSelectElement>('select[aria-label="Symbol"]')?.value ?? ""
+      ).includes("raceAlphaSymbol"),
     { timeout: 10000 },
   );
 
