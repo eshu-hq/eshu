@@ -199,11 +199,14 @@ expect_fail "fails when a new go/internal/content/shape file is not covered by t
 case_gitdir="$(init_repo case-gitdir)"
 mkdir -p "${case_gitdir}/scripts/lib"
 cp "${verifier}" "${case_gitdir}/scripts/verify-telemetry-coverage.sh"
-# The bucket-agreement check now lives in a sourced lib chunk (#5855); the
-# copied verifier sources it relative to its own location (script_dir), so
-# the fixture needs the sibling file too, not just the verifier itself.
+# The bucket-agreement check and the stage-table row check now live in
+# sourced lib chunks (#5855); the copied verifier sources both relative to
+# its own location (script_dir), so the fixture needs both sibling files
+# too, not just the verifier itself.
 cp "${repo_root}/scripts/lib/telemetry-coverage-bucket-check.sh" \
   "${case_gitdir}/scripts/lib/telemetry-coverage-bucket-check.sh"
+cp "${repo_root}/scripts/lib/telemetry-coverage-row-check.sh" \
+  "${case_gitdir}/scripts/lib/telemetry-coverage-row-check.sh"
 git -C "${case_gitdir}" add .
 git -C "${case_gitdir}" commit -q -m "copy verifier into fixture scripts"
 if env -u ESHU_TELEMETRY_COVERAGE_REPO_ROOT -u GITHUB_BASE_REF \
