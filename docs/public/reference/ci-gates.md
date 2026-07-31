@@ -23,7 +23,7 @@ gate its reason names, under a different git hook stage.
 | `package-docs` | Go package docs coverage | hygiene | pre-pr | true | `bash scripts/verify-package-docs.sh` | test.yml / verify-contracts | 1 path(s): go/** |
 | `agent-canon` | Agent canon check | hygiene | pre-pr | true | `bash scripts/verify-agent-canon.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 9 path(s): go/**, .agents/**, .claude/skills/**, … |
 | `no-ai-attribution` | No AI attribution in commits/docs | hygiene | pre-commit | true | `bash scripts/verify-no-ai-attribution.sh` | test.yml / docs-helm-hygiene | 6 path(s): go/**, docs/**, specs/**, … |
-| `license-header` | Go license header verification | hygiene | pre-commit | true | `bash scripts/verify-license-header.sh` | test.yml / verify-contracts | 1 path(s): go/** |
+| `license-header` | Go license header verification | hygiene | pre-commit | true | `bash scripts/verify-license-header.sh` | test.yml / verify-contracts | 1 path(s): **/*.go |
 | `openapi-surface` | Verify OpenAPI Surface | exactness | pre-pr | true | `bash scripts/verify-openapi.sh` | static-contract-gates.yml / Verify OpenAPI gate | 5 path(s): go/internal/query/**, go/internal/mcp/**, specs/surface-inventory.v1.yaml, … |
 | `route-coverage` | Verify Route Coverage | exactness | pre-pr | true | `bash scripts/verify-route-coverage.sh` | static-contract-gates.yml / Verify route coverage gate | 2 path(s): go/internal/query/**, go/cmd/api/** |
 | `edge-source-tool-coverage` | Verify Edge Source-Tool Coverage | exactness | pre-pr | true | `bash scripts/verify-edge-source-tool-coverage.sh` | static-contract-gates.yml / Verify edge source-tool coverage gate | 3 path(s): go/internal/relationships/**, go/internal/collector/**, specs/surface-inventory.v1.yaml |

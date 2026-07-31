@@ -172,7 +172,15 @@ gates:
     tier: pre-commit
     blocking: true
     triggers:
-      - "go/**"
+      # Must match the scope verify-license-header.sh actually scans -- every
+      # .go file in the repo, not only go/**. 312 tracked .go files live under
+      # sdk/go/** and examples/collector-extensions/**, and while the trigger
+      # read "go/**" a PR touching only those passed `make pre-pr` and first
+      # failed in CI's verify-contracts job (#5535). Keyed on *.go rather than
+      # a directory list so a future top-level Go directory is covered the day
+      # it is added; this also stops a non-Go change under go/ (a README, a
+      # fixture) from selecting a gate that would not inspect it.
+      - "**/*.go"
     local:
       command: "bash scripts/verify-license-header.sh"
       test_command: "bash scripts/test-verify-license-header.sh"
