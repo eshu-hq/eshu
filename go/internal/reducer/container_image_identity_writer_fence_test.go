@@ -41,6 +41,7 @@ func containerImageIdentityFenceWrite(
 ) ContainerImageIdentityWrite {
 	return ContainerImageIdentityWrite{
 		IntentID:     "intent-image-identity",
+		ClaimEpoch:   1,
 		ScopeID:      "repo:team-api",
 		GenerationID: "generation-git",
 		SourceSystem: "git",
@@ -99,7 +100,7 @@ func TestContainerImageIdentityWriterStampsTheFencingTokenOnTheInsert(t *testing
 
 	evidenceAsOf := time.Date(2026, time.July, 27, 10, 0, 0, 0, time.UTC)
 	db := &fakeWorkloadIdentityExecer{}
-	writer := PostgresContainerImageIdentityWriter{DB: db}
+	writer := newContainerImageIdentityUnitWriter(db)
 	if _, err := writer.WriteContainerImageIdentityDecisions(
 		context.Background(),
 		containerImageIdentityFenceWrite(evidenceAsOf, ContainerImageIdentityExactDigest),
@@ -148,6 +149,27 @@ func TestContainerImageIdentityWriterRejectsMissingEvidenceAsOf(t *testing.T) {
 	}
 	if len(db.execs) != 0 {
 		t.Fatalf("statements issued = %d, want 0; an unfenced write must not reach the database", len(db.execs))
+	}
+}
+
+func TestContainerImageIdentityWriterRejectsMissingClaimEpochForLegacyCleanup(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeWorkloadIdentityExecer{}
+	write := containerImageIdentityFenceWrite(
+		time.Date(2026, time.July, 30, 20, 0, 0, 0, time.UTC),
+		ContainerImageIdentityExactDigest,
+	)
+	write.ClaimEpoch = 0
+	write.LegacyFactIDs = []string{"reducer_container_image_identity:synthetic-legacy"}
+	writer := PostgresContainerImageIdentityWriter{DB: db}
+
+	_, err := writer.WriteContainerImageIdentityDecisions(context.Background(), write)
+	if err == nil || !strings.Contains(err.Error(), "claim_epoch") {
+		t.Fatalf("WriteContainerImageIdentityDecisions() error = %v, want missing claim_epoch", err)
+	}
+	if len(db.execs) != 0 {
+		t.Fatalf("statements issued = %d, want 0 for an unfenced cutover", len(db.execs))
 	}
 }
 

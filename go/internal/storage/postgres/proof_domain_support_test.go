@@ -33,6 +33,9 @@ func (r *proofRows) Scan(dest ...any) error {
 		return errors.New("scan called without row")
 	}
 	row := r.rows[r.index]
+	if len(dest) == 9 && len(row) == 8 {
+		row = append(row[:5:5], append([]any{int64(0)}, row[5:]...)...)
+	}
 	if len(dest) != len(row) {
 		return fmt.Errorf("scan destination count = %d, want %d", len(dest), len(row))
 	}

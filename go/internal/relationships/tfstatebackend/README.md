@@ -60,6 +60,28 @@ relationship-mapping contract.
 - No cross-repo dependency resolution (state in repo A, modules in
   repo B). The terraform_backends parser fact must live in the same
   repo as the state.
+- A `local` backend candidate requires the repository checkout root
+  (`repository` fact's `local_path`) to build a matching absolute locator; a
+  repo generation without that fact yields no candidate for its local
+  backends (recorded honestly as "no owner", not a guessed locator).
+
+## Related packages
+
+- `tfstatebackend/canonicalwriter` (`go/internal/relationships/tfstatebackend/canonicalwriter`)
+  adapts `Resolver.ResolveConfigCommitForBackend` for the canonical writer's
+  `MATCHES_STATE` edge scoping (`internal/storage/cypher`'s
+  `TerraformStateOwnershipResolver` port, #5623), classifying a result into
+  `projector.TerraformStateOwnershipOutcome` (Resolved / TransientFailure /
+  NoOwner / AmbiguousOwner) rather than the bare `(string, bool)` this package
+  itself returns. It lives in a separate package specifically because
+  `internal/projector` (owner of that outcome type) already transitively
+  imports this package, so this package cannot import `projector` back
+  without a cycle. See that package's own README for the full rationale and
+  for the AmbiguousOwner eventual-consistency caveat (this package's ambiguity
+  detection depends on every claimant repo's `active_generation_id` having
+  converged; a backend mid-migration between two repos can transiently
+  resolve as ambiguous purely because ingestion hasn't caught up yet, not
+  because ownership is genuinely contested).
 
 ## Implementation status
 
@@ -70,7 +92,13 @@ caller's responsibility — the resolver does not own a backend adapter.
 The production adapter is the PostgresTerraformBackendQuery type in
 `go/internal/storage/postgres/tfstate_backend_canonical.go`. It reads
 sealed `terraform_backends` parser facts and recomputes each row's safe
-locator hash with `terraformstate.LocatorHash` so the join key matches
-the state-side collector emission. `cmd/reducer/main.go` wires the
+locator hash with `terraformstate.ScopeLocatorHash` (the version-agnostic
+hash — using `terraformstate.LocatorHash` here was issue #203's bug) so the
+join key matches the state-side collector emission. It derives an `s3`
+candidate from bucket/key/region, and a `local` candidate from the backend
+block's `path` attribute — applying Terraform's own default,
+`terraform.tfstate` relative to the root module directory, when the
+attribute is absent (issue #5594) — via
+`terraformstate.EvaluateBackendConfig`. `cmd/reducer/main.go` wires the
 adapter into the reducer's default handlers (TerraformBackendResolver
 field on the DefaultHandlers struct).

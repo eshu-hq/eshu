@@ -97,7 +97,7 @@ const (
 	// (issue #3642).
 	DomainCodeImportRepoEdge Domain = "code_import_repo_edge"
 	// DomainContainerImageIdentity joins Git, registry, and runtime image
-	// evidence into digest-keyed container image identity decisions.
+	// evidence into digest-correlated, image-reference-keyed identity decisions.
 	DomainContainerImageIdentity Domain = "container_image_identity"
 	// DomainCICDRunCorrelation correlates provider CI/CD runs, artifacts, and
 	// environment observations with reducer-owned artifact identity evidence.
@@ -128,10 +128,18 @@ const (
 	DomainAWSCloudRuntimeDrift Domain = "aws_cloud_runtime_drift"
 	// DomainMultiCloudRuntimeDrift publishes admitted provider-neutral
 	// runtime-vs-IaC drift findings keyed on canonical cloud_resource_uid for
-	// AWS, GCP, and Azure (issues #1997, #1998). It mirrors
+	// GCP and Azure (issues #1997, #1998, #5759). It mirrors
 	// DomainAWSCloudRuntimeDrift but joins on the shared identity keyspace so the
 	// orphaned/unmanaged/ambiguous/unknown vocabulary is shared across providers.
-	// The domain stays graph-neutral until the drift node and query shape freeze.
+	// Provider partitioning (#5759): AWS is exclusively owned by
+	// DomainAWSCloudRuntimeDrift, which already publishes
+	// reducer_aws_cloud_runtime_drift_finding end-to-end. This domain's shared
+	// evidence loader still joins AWS inventory facts into the same
+	// cloud_resource_uid keyspace for implementation reuse, but
+	// MultiCloudRuntimeDriftHandler.Handle drops every AWS-provider row before
+	// publication (see excludeAWSOwnedRows), so the two domains never disagree
+	// about the same AWS resource. The domain stays graph-neutral until the
+	// drift node and query shape freeze.
 	DomainMultiCloudRuntimeDrift Domain = "multi_cloud_runtime_drift"
 	// DomainAWSResourceMaterialization materializes aws_resource facts into
 	// canonical CloudResource graph nodes. It is the node substrate the AWS

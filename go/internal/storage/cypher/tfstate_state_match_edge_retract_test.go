@@ -32,14 +32,28 @@ func TestTerraformStateMatchesConfigEdgeRetractStatementsSkipsOnFirstGeneration(
 	}
 }
 
-// TestTerraformStateMatchesConfigEdgeRetractStatementsSkipsUnderDeltaProjection
-// proves the guard mirroring terraformStateResourceRetractStatements' own
-// DeltaProjection skip: mat.TerraformStateResources is populated only from
-// terraform_state envelopes present in THIS materialization's input, so a
-// delta cycle triggered by an unrelated file edit carries none, and an
-// unscoped generation-gated edge retract would delete every MATCHES_STATE
-// edge for state resources this delta cycle never touched.
-func TestTerraformStateMatchesConfigEdgeRetractStatementsSkipsUnderDeltaProjection(t *testing.T) {
+// TestTerraformStateMatchesConfigEdgeRetractStatementsRunsUnderDeltaProjection
+// proves the #5623 fix: UNLIKE terraformStateResourceRetractStatements' own
+// DeltaProjection skip (which exists because that whole-population DETACH
+// DELETE would mass-delete every state resource a delta cycle did not touch),
+// this edge-level retract still emits its statement on a delta cycle. Its
+// `s.generation_id = $generation_id` anchor already restricts it to state
+// resources upserted THIS exact generation (buildTerraformStateStatements
+// always runs the resource upsert first, delta or full), so it never touches
+// a resource this delta cycle did not process -- there is no mass-deletion
+// risk to guard against. Skipping it on delta cycles instead left a real
+// window: a resource whose OwningRepoID changes on a delta cycle gets its NEW
+// MATCHES_STATE edge written immediately (the MERGE has no DeltaProjection
+// guard) but kept its OLD edge to the now-orphaned repo until the next full
+// reconciliation, so the state resource carried two edges to two different
+// repos simultaneously and infra_scope_grant.go's scope predicate -- which
+// assumes at most one edge -- admitted it for either repo's grant (a
+// tenant-visibility leak; see TestLiveInfraScopeShapeMatchesStateStaleEdgeExcluded
+// in internal/query for the live proof of the leak this closes). The row
+// carries a resolved OwningRepoID so it is included in the retract's uid set
+// (see TestTerraformStateMatchesConfigEdgeRetractStatementsExcludesUnresolvedOwnershipRows
+// for the #5623 P1 review fix that excludes unresolved rows).
+func TestTerraformStateMatchesConfigEdgeRetractStatementsRunsUnderDeltaProjection(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
@@ -48,11 +62,155 @@ func TestTerraformStateMatchesConfigEdgeRetractStatementsSkipsUnderDeltaProjecti
 		GenerationID:    "tf-generation-p1a-2",
 		FirstGeneration: false,
 		DeltaProjection: true,
+		TerraformStateResources: []projector.TerraformStateResourceRow{{
+			UID:              "tf-resource-p1a-2",
+			Address:          "aws_instance.web",
+			SourceConfidence: facts.SourceConfidenceObserved,
+			CollectorKind:    "terraform_state",
+			OwningRepoID:     "repo-p1a-2",
+			OwnershipOutcome: projector.TerraformStateOwnershipResolved,
+		}},
 	}
 
 	statements := writer.terraformStateMatchesConfigEdgeRetractStatements(mat)
-	if len(statements) != 0 {
-		t.Fatalf("terraformStateMatchesConfigEdgeRetractStatements() under DeltaProjection = %d statements, want 0: %#v", len(statements), statements)
+	if got, want := len(statements), 1; got != want {
+		t.Fatalf("terraformStateMatchesConfigEdgeRetractStatements() under DeltaProjection = %d statements, want %d (the retract must run on delta cycles too, #5623): %#v", got, want, statements)
+	}
+	stmt := statements[0]
+	if !strings.Contains(stmt.Cypher, "s.generation_id = $generation_id") {
+		t.Fatalf("Cypher = %q, want the generation anchor that scopes this retract to resources upserted THIS cycle (the property that makes running on delta cycles safe)", stmt.Cypher)
+	}
+	if got, want := stmt.Parameters["generation_id"], "tf-generation-p1a-2"; got != want {
+		t.Fatalf("generation_id = %#v, want %q", got, want)
+	}
+	uids, ok := stmt.Parameters["uids"].([]string)
+	if !ok || len(uids) != 1 || uids[0] != "tf-resource-p1a-2" {
+		t.Fatalf("uids = %#v, want [tf-resource-p1a-2]", stmt.Parameters["uids"])
+	}
+}
+
+// TestTerraformStateMatchesConfigEdgeRetractStatementsExcludesUnresolvedOwnershipRows
+// proves the #5623 P1 review fix: "this generation upserted the node" is not
+// the same fact as "we know its correct owner this cycle." A row whose
+// OwnershipOutcome is TerraformStateOwnershipTransientFailure this cycle
+// (TerraformStateOwnershipResolver.ResolveOwningRepoID fails closed on ANY
+// resolver error, including an ordinary transient Postgres timeout, not just
+// genuine "no owner") must NOT have its existing MATCHES_STATE edge
+// retracted -- doing so would wipe a still-correct edge on an ordinary
+// resolver hiccup instead of leaving it alone until a future cycle resolves
+// successfully. Proves both the all-unresolved case (0 statements) and the
+// mixed case (the resolved row's uid is included, the unresolved row's uid is
+// not).
+func TestTerraformStateMatchesConfigEdgeRetractStatementsExcludesUnresolvedOwnershipRows(t *testing.T) {
+	t.Parallel()
+
+	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
+
+	t.Run("all rows unresolved emits nothing", func(t *testing.T) {
+		t.Parallel()
+		mat := projector.CanonicalMaterialization{
+			ScopeID:         "tf-scope-p1-unresolved",
+			GenerationID:    "tf-generation-p1-unresolved",
+			FirstGeneration: false,
+			DeltaProjection: true,
+			TerraformStateResources: []projector.TerraformStateResourceRow{{
+				UID:              "tf-resource-p1-unresolved",
+				Address:          "aws_instance.web",
+				SourceConfidence: facts.SourceConfidenceObserved,
+				CollectorKind:    "terraform_state",
+				OwningRepoID:     "", // resolver hiccup this cycle
+				OwnershipOutcome: projector.TerraformStateOwnershipTransientFailure,
+			}},
+		}
+		statements := writer.terraformStateMatchesConfigEdgeRetractStatements(mat)
+		if len(statements) != 0 {
+			t.Fatalf("terraformStateMatchesConfigEdgeRetractStatements() with only unresolved rows = %d statements, want 0 (a resolver hiccup must not wipe an existing edge): %#v", len(statements), statements)
+		}
+	})
+
+	t.Run("mixed resolved and unresolved rows includes only the resolved uid", func(t *testing.T) {
+		t.Parallel()
+		mat := projector.CanonicalMaterialization{
+			ScopeID:         "tf-scope-p1-mixed",
+			GenerationID:    "tf-generation-p1-mixed",
+			FirstGeneration: false,
+			DeltaProjection: true,
+			TerraformStateResources: []projector.TerraformStateResourceRow{
+				{
+					UID:              "tf-resource-p1-mixed-resolved",
+					Address:          "aws_instance.web",
+					SourceConfidence: facts.SourceConfidenceObserved,
+					CollectorKind:    "terraform_state",
+					OwningRepoID:     "repo-p1-mixed-resolved",
+					OwnershipOutcome: projector.TerraformStateOwnershipResolved,
+				},
+				{
+					UID:              "tf-resource-p1-mixed-unresolved",
+					Address:          "aws_instance.db",
+					SourceConfidence: facts.SourceConfidenceObserved,
+					CollectorKind:    "terraform_state",
+					OwningRepoID:     "", // resolver hiccup this cycle
+					OwnershipOutcome: projector.TerraformStateOwnershipTransientFailure,
+				},
+			},
+		}
+		statements := writer.terraformStateMatchesConfigEdgeRetractStatements(mat)
+		if got, want := len(statements), 1; got != want {
+			t.Fatalf("statements = %d, want %d: %#v", got, want, statements)
+		}
+		uids, ok := statements[0].Parameters["uids"].([]string)
+		if !ok || len(uids) != 1 || uids[0] != "tf-resource-p1-mixed-resolved" {
+			t.Fatalf("uids = %#v, want exactly [tf-resource-p1-mixed-resolved] (the unresolved row's uid must be excluded)", statements[0].Parameters["uids"])
+		}
+	})
+}
+
+// TestTerraformStateMatchesConfigEdgeRetractStatementsIncludesAuthoritativeNonOwnerRows
+// is the #5623 P1 review FOLLOW-UP finding: NoOwner and AmbiguousOwner are
+// AUTHORITATIVE answers, not failures, and must be INCLUDED in the retract's
+// uid set -- the opposite of TransientFailure above. A prior version of this
+// fix's own filter (row.OwningRepoID != "") accidentally excluded these two
+// outcomes too, since both also leave OwningRepoID empty, reintroducing the
+// #5623 P0 tenant-visibility leak through a narrower door: a backend that
+// previously resolved to a repo and later became unowned or ambiguous kept
+// that repo's MATCHES_STATE edge indefinitely.
+func TestTerraformStateMatchesConfigEdgeRetractStatementsIncludesAuthoritativeNonOwnerRows(t *testing.T) {
+	t.Parallel()
+
+	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
+
+	for _, tc := range []struct {
+		name    string
+		outcome projector.TerraformStateOwnershipOutcome
+	}{
+		{name: "no owner", outcome: projector.TerraformStateOwnershipNoOwner},
+		{name: "ambiguous owner", outcome: projector.TerraformStateOwnershipAmbiguousOwner},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			mat := projector.CanonicalMaterialization{
+				ScopeID:         "tf-scope-p1-authoritative-" + tc.name,
+				GenerationID:    "tf-generation-p1-authoritative-" + tc.name,
+				FirstGeneration: false,
+				DeltaProjection: true,
+				TerraformStateResources: []projector.TerraformStateResourceRow{{
+					UID:              "tf-resource-p1-authoritative",
+					Address:          "aws_instance.web",
+					SourceConfidence: facts.SourceConfidenceObserved,
+					CollectorKind:    "terraform_state",
+					OwningRepoID:     "", // no unique owner this cycle
+					OwnershipOutcome: tc.outcome,
+				}},
+			}
+			statements := writer.terraformStateMatchesConfigEdgeRetractStatements(mat)
+			if got, want := len(statements), 1; got != want {
+				t.Fatalf("statements = %d, want %d (an authoritative %s answer must retract a stale edge, not preserve it): %#v", got, want, tc.name, statements)
+			}
+			uids, ok := statements[0].Parameters["uids"].([]string)
+			if !ok || len(uids) != 1 || uids[0] != "tf-resource-p1-authoritative" {
+				t.Fatalf("uids = %#v, want [tf-resource-p1-authoritative]", statements[0].Parameters["uids"])
+			}
+		})
 	}
 }
 
@@ -74,6 +232,14 @@ func TestTerraformStateMatchesConfigEdgeRetractStatementsRunsOnNonDeltaGeneratio
 		GenerationID:    "tf-generation-p1a-3",
 		FirstGeneration: false,
 		DeltaProjection: false,
+		TerraformStateResources: []projector.TerraformStateResourceRow{{
+			UID:              "tf-resource-p1a-3",
+			Address:          "aws_instance.web",
+			SourceConfidence: facts.SourceConfidenceObserved,
+			CollectorKind:    "terraform_state",
+			OwningRepoID:     "repo-p1a-3",
+			OwnershipOutcome: projector.TerraformStateOwnershipResolved,
+		}},
 	}
 
 	statements := writer.terraformStateMatchesConfigEdgeRetractStatements(mat)
@@ -94,6 +260,9 @@ func TestTerraformStateMatchesConfigEdgeRetractStatementsRunsOnNonDeltaGeneratio
 	if !strings.Contains(stmt.Cypher, "s.generation_id = $generation_id") {
 		t.Fatalf("Cypher = %q, want the anchor scoped to state resources refreshed THIS generation", stmt.Cypher)
 	}
+	if !strings.Contains(stmt.Cypher, "s.uid IN $uids") {
+		t.Fatalf("Cypher = %q, want the uid filter that restricts this retract to rows whose ownership actually resolved this cycle (#5623 P1 review fix)", stmt.Cypher)
+	}
 	if !strings.Contains(stmt.Cypher, "e.generation_id <> $generation_id") {
 		t.Fatalf("Cypher = %q, want the generation-gated staleness predicate on the edge", stmt.Cypher)
 	}
@@ -111,6 +280,9 @@ func TestTerraformStateMatchesConfigEdgeRetractStatementsRunsOnNonDeltaGeneratio
 	}
 	if got, want := stmt.Parameters["generation_id"], "tf-generation-p1a-3"; got != want {
 		t.Fatalf("generation_id = %#v, want %q", got, want)
+	}
+	if uids, ok := stmt.Parameters["uids"].([]string); !ok || len(uids) != 1 || uids[0] != "tf-resource-p1a-3" {
+		t.Fatalf("uids = %#v, want [tf-resource-p1a-3]", stmt.Parameters["uids"])
 	}
 }
 
@@ -141,6 +313,7 @@ func TestBuildTerraformStateStatementsRetractsEdgeBeforeMerge(t *testing.T) {
 			SourceConfidence: facts.SourceConfidenceObserved,
 			CollectorKind:    "terraform_state",
 			OwningRepoID:     "repo-p1a-order",
+			OwnershipOutcome: projector.TerraformStateOwnershipResolved,
 		}},
 	}
 

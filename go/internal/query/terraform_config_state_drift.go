@@ -17,6 +17,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+// File-size note (flagged in issue #5594 review): this file is close to the
+// repo's 500-line cap as of the "unresolved" outcome addition. Not a
+// violation, but the next change here should split a cohesive chunk (the
+// access-filtering helpers, or the request/response shaping helpers) into a
+// sibling file before adding more, rather than pushing past the cap. See
+// terraform_config_state_drift_evidence_access.go and
+// terraform_config_state_drift_writer_integration_test.go (reducer package)
+// for the precedent this package already follows elsewhere.
 const terraformConfigStateDriftFindingsCapability = "terraform_config_state_drift.findings.list"
 
 const (
@@ -391,8 +399,9 @@ func writeTerraformConfigStateDriftFindings(
 		"graph_projection_note": "read-model-backed drift surface; graph projection remains deferred, mirroring the AWS and multi-cloud runtime drift domains",
 		"limitations": []string{
 			"bounded to active Terraform config-vs-state drift reducer facts for the requested state-snapshot scope",
-			"outcome is either \"exact\" (a classified per-address finding) or \"ambiguous\" (backend-owner resolution found more than one candidate config repo; no per-address classification ran)",
-			"\"stale\", \"derived\", \"unresolved\", and \"rejected\" outcomes are not emitted by this version -- see go/internal/correlation/drift/tfconfigstate/doc.go",
+			"outcome is one of: \"exact\" (a classified per-address finding); \"ambiguous\" (backend-owner resolution found more than one candidate config repo; no per-address classification ran); or \"unresolved\" (backend-owner resolution found zero candidate config repos -- no Eshu-tracked repo declares this backend at all -- so no per-address classification ran)",
+			"a scope whose backend never resolves to any config repo is reported as one \"unresolved\" finding, not an empty page, so it can be told apart from a scope that resolved cleanly and simply has no drift",
+			"\"stale\" and \"derived\" outcomes are not emitted by this version -- see go/internal/correlation/drift/tfconfigstate/doc.go",
 		},
 	}, BuildTruthEnvelope(
 		h.profile(),
@@ -458,8 +467,8 @@ func normalizeTerraformConfigStateDriftRequest(req terraformConfigStateDriftRequ
 	if !strings.HasPrefix(filter.ScopeID, "state_snapshot:") {
 		return TerraformConfigStateDriftFindingFilter{}, fmt.Errorf("scope_id must be a state_snapshot scope")
 	}
-	if filter.Outcome != "" && filter.Outcome != "exact" && filter.Outcome != "ambiguous" {
-		return TerraformConfigStateDriftFindingFilter{}, fmt.Errorf("outcome must be exact or ambiguous")
+	if filter.Outcome != "" && filter.Outcome != "exact" && filter.Outcome != "ambiguous" && filter.Outcome != "unresolved" {
+		return TerraformConfigStateDriftFindingFilter{}, fmt.Errorf("outcome must be exact, ambiguous, or unresolved")
 	}
 	if filter.Limit <= 0 {
 		filter.Limit = terraformConfigStateDriftDefaultLimit

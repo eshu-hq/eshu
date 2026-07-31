@@ -29,6 +29,7 @@ import (
 const (
 	gcpOrphanID  = "//compute.googleapis.com/projects/proj/zones/z/instances/orphan"
 	azureUnmgdID = "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Storage/storageAccounts/unmanaged"
+	awsOrphanARN = "arn:aws:ec2:us-east-1:123456789012:instance/i-0aws0000000000000"
 )
 
 type stubMultiCloudRuntimeDriftEvidenceLoader struct {
@@ -95,6 +96,23 @@ func gcpAndAzureDriftRows() []multicloud.Row {
 	}
 }
 
+// awsAndGCPAndAzureDriftRows mirrors gcpAndAzureDriftRows but adds an
+// AWS-provider orphaned row. PostgresMultiCloudRuntimeDriftEvidenceLoader's SQL
+// deliberately joins all three providers' inventory facts into one
+// cloud_resource_uid keyspace (see multiCloudSourceFactProvider in
+// go/internal/storage/postgres/multi_cloud_runtime_drift_evidence.go), so a real
+// scope that carries AWS facts alongside GCP/Azure facts returns AWS rows here
+// too -- this fixture reproduces that shape.
+func awsAndGCPAndAzureDriftRows() []multicloud.Row {
+	rows := gcpAndAzureDriftRows()
+	return append(rows, multicloud.Row{
+		Provider:    cloudinventory.ProviderAWS,
+		RawIdentity: awsOrphanARN,
+		ScopeID:     "aws:123456789012:us-east-1:ec2",
+		Cloud:       &cloudruntime.ResourceRow{ARN: awsOrphanARN, ScopeID: "aws:123456789012:us-east-1:ec2"},
+	})
+}
+
 func multiCloudDriftIntent() Intent {
 	return Intent{
 		IntentID:        "intent-multi-drift",
@@ -149,6 +167,47 @@ func TestMultiCloudRuntimeDriftHandlerPublishesGCPAndAzureFindings(t *testing.T)
 		telemetry.MetricDimensionRule: rules.MultiCloudRuntimeDriftRuleAdmitFinding,
 	}); got != 1 {
 		t.Fatalf("unmanaged detected counter = %d, want 1", got)
+	}
+}
+
+// TestMultiCloudRuntimeDriftHandlerExcludesAWSOwnedRowsFromPublication is the
+// #5759 provider-partitioning regression: DomainAWSCloudRuntimeDrift already
+// publishes AWS runtime-drift findings end-to-end
+// (reducer_aws_cloud_runtime_drift_finding). The shared
+// cloud_resource_uid evidence loader joins AWS, GCP, and Azure inventory facts
+// into one keyspace for implementation reuse, so a real scope carrying AWS
+// facts alongside GCP/Azure facts returns AWS rows from
+// LoadMultiCloudRuntimeDriftEvidence too. Without a publish-time filter, this
+// domain would silently republish every AWS finding a second time under
+// reducer_multi_cloud_runtime_drift_finding -- a duplicate of what
+// list_aws_runtime_drift_findings already reports for the same resource. This
+// test fails red without excludeAWSOwnedRows: CanonicalWrites would be 3 (the
+// AWS orphan plus the GCP orphan and Azure unmanaged rows) instead of 2, and
+// the AWS provider would appear in the written candidates.
+func TestMultiCloudRuntimeDriftHandlerExcludesAWSOwnedRowsFromPublication(t *testing.T) {
+	t.Parallel()
+
+	loader := &stubMultiCloudRuntimeDriftEvidenceLoader{rows: awsAndGCPAndAzureDriftRows()}
+	writer := &stubMultiCloudRuntimeDriftFindingWriter{}
+	handler := MultiCloudRuntimeDriftHandler{EvidenceLoader: loader, Writer: writer}
+
+	result, err := handler.Handle(context.Background(), multiCloudDriftIntent())
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+	if got, want := result.CanonicalWrites, 2; got != want {
+		t.Fatalf("Handle().CanonicalWrites = %d, want %d (AWS row must be excluded)", got, want)
+	}
+	if got, want := len(writer.write.Candidates), 2; got != want {
+		t.Fatalf("writer candidates = %d, want %d (AWS row must be excluded)", got, want)
+	}
+	for _, candidate := range writer.write.Candidates {
+		if provider := multicloud.ProviderFromCandidate(candidate); provider == cloudinventory.ProviderAWS {
+			t.Fatalf("writer received an AWS-provider candidate %q; DomainAWSCloudRuntimeDrift already owns AWS findings", candidate.ID)
+		}
+	}
+	if strings.Contains(result.EvidenceSummary, "evaluated=3") {
+		t.Fatalf("Handle().EvidenceSummary = %q, AWS row leaked into evaluated count", result.EvidenceSummary)
 	}
 }
 

@@ -65,11 +65,12 @@ func TestPostgresTerraformConfigStateDriftWriterPersistsOneFactPerFinding(t *tes
 	if got, want := result.CanonicalWrites, 2; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
-	if got, want := len(db.execs), 1; got != want {
-		t.Fatalf("ExecContext calls = %d, want %d (batched insert)", got, want)
+	if got, want := len(db.execs), 2; got != want {
+		t.Fatalf("ExecContext calls = %d, want %d (batched insert + generation-authoritative retire)", got, want)
 	}
+	assertTerraformConfigStateDriftRetireCall(t, db.execs[1], write.ScopeID, write.GenerationID)
 
-	rows := decodeBatchedVersionedFactCalls(t, db.execs)
+	rows := decodeBatchedVersionedFactCalls(t, db.execs[:1])
 	if got, want := len(rows), 2; got != want {
 		t.Fatalf("decoded rows = %d, want %d", got, want)
 	}
@@ -127,7 +128,11 @@ func TestPostgresTerraformConfigStateDriftWriterIsIdempotentAcrossReplays(t *tes
 		t.Fatalf("second write error = %v", err)
 	}
 
-	rows := decodeBatchedVersionedFactCalls(t, db.execs)
+	// Each write call is [insert, retire]; take just the two insert calls.
+	if len(db.execs) != 4 {
+		t.Fatalf("ExecContext calls = %d, want 4 (2 write calls x [insert, retire])", len(db.execs))
+	}
+	rows := decodeBatchedVersionedFactCalls(t, []fakeWorkloadIdentityExecCall{db.execs[0], db.execs[2]})
 	if len(rows) != 2 {
 		t.Fatalf("decoded rows = %d, want 2 (one per replay call)", len(rows))
 	}
@@ -165,8 +170,9 @@ func TestPostgresTerraformConfigStateDriftWriterPersistsAmbiguousOwnerFinding(t 
 	if got, want := result.CanonicalWrites, 1; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d (one scope-level ambiguous row)", got, want)
 	}
+	assertTerraformConfigStateDriftRetireCall(t, db.execs[1], write.ScopeID, write.GenerationID)
 
-	rows := decodeBatchedVersionedFactCalls(t, db.execs)
+	rows := decodeBatchedVersionedFactCalls(t, db.execs[:1])
 	if len(rows) != 1 {
 		t.Fatalf("decoded rows = %d, want 1", len(rows))
 	}
@@ -182,6 +188,79 @@ func TestPostgresTerraformConfigStateDriftWriterPersistsAmbiguousOwnerFinding(t 
 	}
 	if len(decoded.AmbiguousOwnerCandidates) != 2 {
 		t.Fatalf("len(AmbiguousOwnerCandidates) = %d, want 2 (no winner picked)", len(decoded.AmbiguousOwnerCandidates))
+	}
+}
+
+// TestPostgresTerraformConfigStateDriftWriterPersistsUnresolvedOwnerFinding
+// proves the no-owner rejection (tfstatebackend.ErrNoConfigRepoOwnsBackend) is
+// recorded as one durable, provenance-only "unresolved" finding per
+// state-snapshot scope, so a caller reading this scope's findings can tell
+// "evaluated, no drift" (an empty page) apart from "could not resolve
+// ownership at all" (one unresolved row) instead of both looking identical
+// (issue #5594 follow-up). Address/DriftKind stay empty, matching the
+// ambiguous row's shape: no anchor was resolved to classify against.
+// AmbiguousOwnerCandidates stays empty too -- unlike the ambiguous case there
+// is no competing evidence to record, only the absence of any owner.
+func TestPostgresTerraformConfigStateDriftWriterPersistsUnresolvedOwnerFinding(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeWorkloadIdentityExecer{}
+	writer := PostgresTerraformConfigStateDriftWriter{DB: db}
+
+	write := TerraformConfigStateDriftWrite{
+		IntentID: "intent-unresolved-1", ScopeID: "state_snapshot:local:hash-2", GenerationID: "generation-1",
+		SourceSystem: "collector/terraform-state", BackendKind: "local", LocatorHash: "hash-2",
+		UnresolvedOwner: true,
+	}
+
+	result, err := writer.WriteTerraformConfigStateDriftFindings(context.Background(), write)
+	if err != nil {
+		t.Fatalf("WriteTerraformConfigStateDriftFindings() error = %v, want nil", err)
+	}
+	if got, want := result.CanonicalWrites, 1; got != want {
+		t.Fatalf("CanonicalWrites = %d, want %d (one scope-level unresolved row)", got, want)
+	}
+	assertTerraformConfigStateDriftRetireCall(t, db.execs[1], write.ScopeID, write.GenerationID)
+
+	rows := decodeBatchedVersionedFactCalls(t, db.execs[:1])
+	if len(rows) != 1 {
+		t.Fatalf("decoded rows = %d, want 1", len(rows))
+	}
+	var decoded reducerderivedv1.TerraformConfigStateDriftFinding
+	if err := json.Unmarshal([]byte(rows[0].Payload), &decoded); err != nil {
+		t.Fatalf("unmarshal payload: %v", err)
+	}
+	if decoded.Outcome != "unresolved" {
+		t.Fatalf("Outcome = %q, want %q", decoded.Outcome, "unresolved")
+	}
+	if decoded.Address != "" || decoded.DriftKind != "" {
+		t.Fatalf("Address/DriftKind = %q/%q, want both empty for an unresolved row", decoded.Address, decoded.DriftKind)
+	}
+	if len(decoded.AmbiguousOwnerCandidates) != 0 {
+		t.Fatalf("len(AmbiguousOwnerCandidates) = %d, want 0 (no competing evidence for an unresolved row)", len(decoded.AmbiguousOwnerCandidates))
+	}
+	if decoded.BackendKind != "local" || decoded.LocatorHash != "hash-2" {
+		t.Fatalf("BackendKind/LocatorHash = %q/%q, want local/hash-2", decoded.BackendKind, decoded.LocatorHash)
+	}
+}
+
+// TestWriteTerraformConfigStateDriftFindingsRejectsMultipleWriteModes proves
+// the writer refuses a request that sets more than one of
+// Candidates/AmbiguousOwners/UnresolvedOwner, extending the existing
+// Candidates+AmbiguousOwners guard to the new three-way split.
+func TestWriteTerraformConfigStateDriftFindingsRejectsMultipleWriteModes(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeWorkloadIdentityExecer{}
+	writer := PostgresTerraformConfigStateDriftWriter{DB: db}
+
+	_, err := writer.WriteTerraformConfigStateDriftFindings(context.Background(), TerraformConfigStateDriftWrite{
+		IntentID: "intent-bad", ScopeID: "state_snapshot:s3:hash-1", GenerationID: "generation-1",
+		AmbiguousOwners: []tfstatebackend.TerraformBackendRow{{RepoID: "repo-a"}},
+		UnresolvedOwner: true,
+	})
+	if err == nil {
+		t.Fatal("WriteTerraformConfigStateDriftFindings() error = nil, want non-nil for AmbiguousOwners + UnresolvedOwner both set")
 	}
 }
 
@@ -217,12 +296,38 @@ func TestWriteTerraformConfigStateDriftFindingsBoundedExecCount(t *testing.T) {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
 
-	wantExecs := expectedBatchedExecCount(candidateCount)
+	// +1 for the trailing generation-authoritative retire call, on top of the
+	// bounded batched-insert count.
+	wantExecs := expectedBatchedExecCount(candidateCount) + 1
 	if got := len(db.execs); got != wantExecs {
-		t.Fatalf("ExecContext calls = %d for %d candidates, want %d (bounded batched inserts)", got, candidateCount, wantExecs)
+		t.Fatalf("ExecContext calls = %d for %d candidates, want %d (bounded batched inserts + 1 retire)", got, candidateCount, wantExecs)
 	}
-	if rows := decodeBatchedVersionedFactCalls(t, db.execs); len(rows) != candidateCount {
+	insertExecs := db.execs[:len(db.execs)-1]
+	if rows := decodeBatchedVersionedFactCalls(t, insertExecs); len(rows) != candidateCount {
 		t.Fatalf("decoded rows = %d, want %d", len(rows), candidateCount)
+	}
+	assertTerraformConfigStateDriftRetireCall(t, db.execs[len(db.execs)-1], "state_snapshot:s3:hash-1", "generation-batch")
+}
+
+// assertTerraformConfigStateDriftRetireCall proves one ExecContext call is
+// the generation-authoritative retire (terraformConfigStateDriftRetireQuery)
+// scoped to the expected (scope_id, generation_id).
+func assertTerraformConfigStateDriftRetireCall(t *testing.T, call fakeWorkloadIdentityExecCall, wantScopeID, wantGenerationID string) {
+	t.Helper()
+	if call.query != terraformConfigStateDriftRetireQuery {
+		t.Fatalf("retire call query = %q, want the generation-authoritative retire query", call.query)
+	}
+	if len(call.args) != 4 {
+		t.Fatalf("retire call args = %d, want 4 (fact_kind, scope_id, generation_id, keep_fact_ids)", len(call.args))
+	}
+	if got, want := call.args[0], terraformConfigStateDriftFactKind; got != want {
+		t.Fatalf("retire call fact_kind = %v, want %v", got, want)
+	}
+	if got, want := call.args[1], wantScopeID; got != want {
+		t.Fatalf("retire call scope_id = %v, want %v", got, want)
+	}
+	if got, want := call.args[2], wantGenerationID; got != want {
+		t.Fatalf("retire call generation_id = %v, want %v", got, want)
 	}
 }
 

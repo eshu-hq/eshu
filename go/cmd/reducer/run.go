@@ -104,6 +104,7 @@ func run(parent context.Context) error {
 	defer stop()
 
 	startSearchDocumentSweeper(ctx, db, logger)
+	startConfigStateDriftCatchUpSweeper(ctx, db, instruments, logger)
 
 	return service.Run(ctx)
 }

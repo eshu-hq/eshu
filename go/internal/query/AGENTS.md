@@ -388,8 +388,9 @@
   `getRelationships` (`infra_relationship_filter.go`) decodes the optional
   `relationship_type` and resolves it through `resolveInfraRelationshipTypes`'s
   fixed allowlist (semantic MCP aliases `what_deploys` / `what_provisions` /
-  `module_consumers` / `who_consumes_xrd` / `what_runs_image` plus canonical
-  edge types such as `DEPLOYS_FROM`, `USES_MODULE`, `RUNS_IMAGE`). The resolved
+  `module_consumers` / `who_consumes_xrd` / `what_runs_image` /
+  `what_runs_lambda_image` plus canonical edge types such as `DEPLOYS_FROM`,
+  `USES_MODULE`, `RUNS_IMAGE`, `AWS_lambda_function_uses_image`). The resolved
   types render into the
   `OPTIONAL MATCH (n)-[r:TYPE_A|TYPE_B]->(...)` pattern as an inline
   relationship-type filter. An empty argument keeps the prior bare untyped
@@ -492,6 +493,205 @@
   No-Observability-Change: the scope predicate is a Cypher WHERE fragment with no
   span, metric, label, or log surface; the relationship read still reports the
   #3492 `query.infra_relationships` span and `eshu.relationship_filter` attribute.
+
+- **Scope predicate admits `TerraformStateResource` via `MATCHES_STATE` (#5623)**
+  — `TerraformStateResource` (#5443, state-observed Terraform resources) carries
+  no `repo_id`; before this fix none of `infraResourceScopeCoreDisjuncts`'s
+  disjuncts admitted it, so it was invisible to every scoped-token infra read
+  (fail-closed coverage gap, not a leak). The predicate now adds a fifth
+  inline-map disjunct, `(alias)<-[:MATCHES_STATE]-(:TerraformResource
+  {repo_id:$g})`: a state resource is admitted when the config-declared
+  `TerraformResource` it MATCHES_STATE-links to (#5443,
+  `canonicalTerraformStateMatchesConfigEdgeCypher`) has a granted `repo_id`. This
+  deliberately traverses the edge rather than trusting the node's own
+  `config_repo_id` property: that property is set from backend-ownership
+  resolution alone (`resolveTerraformStateOwnership`) and can be non-null even
+  when no MATCHES_STATE edge was ever written (ambiguous address match, or no
+  config resource at that address — the "applied-only" state), so a
+  property-only disjunct would wrongly admit an unmatched state resource
+  whenever its backend happens to be owned by a granted repo. Proven live on the
+  pinned NornicDB image: a property-only disjunct returned 2 rows (matched +
+  unmatched) for a fixture with exactly 1 matched-and-granted node, while the
+  edge-traversal disjunct correctly returns 1. Added to the shared core
+  (`infraResourceScopeCoreDisjuncts`), not gated like the DEFINES disjunct,
+  because a `TerraformStateResource` can have at most one MATCHES_STATE edge
+  (the config-match resolver anchors on a single resolved `OwningRepoID` and
+  excludes ambiguous matches from the edge write), so there is no name-collision
+  over-exposure risk for direct-projection callers such as
+  `relationshipEndpointScopePredicate`.
+
+  No-Regression Evidence: pure coverage fix; the predicate gains one fail-closed
+  disjunct and removes none. Baseline = predicate without the MATCHES_STATE
+  disjunct (TerraformStateResource always invisible to scoped tokens); after =
+  same plus the MATCHES_STATE inline-map term. Backend NornicDB (Neo4j
+  compatibility unaffected); the new disjunct is inert (empty pattern match) for
+  every other label in `allInfraLabels`, since only TerraformStateResource has
+  inbound MATCHES_STATE edges, so unscoped and non-state-resource scoped Cypher
+  shape and cost are unchanged. The new term is one more inline-map OR-branch,
+  same O(grant) cost class and cap (`maxScopeGrantInlineTerms`) as the existing
+  USES/DEFINES disjuncts — no new round trip, no unbounded scan. Proof: `go test
+  ./internal/query -run
+  'TestInfraResourceScopePredicateComposesShapeAAndRejectsForbiddenShapes' -v
+  -count=1` (predicate shape pinned) plus the live regression
+  `go test -tags live_infra_scope_shape ./internal/query -run
+  TestLiveInfraScopeShapeMatchesStateDiscriminates -count=1` against an isolated
+  NornicDB (matched+granted visible, cross-tenant matched excluded, unmatched
+  excluded despite a matching config_repo_id property) and `go test
+  ./internal/query -count=1`.
+
+  No-Observability-Change: the scope predicate is a Cypher WHERE fragment with
+  no span, metric, label, or log surface; no new telemetry signal is added or
+  needed.
+
+- **MATCHES_STATE disjunct's "at most one edge" invariant closed a real
+  tenant-visibility leak, not just a theoretical one (#5623 P0 review
+  follow-up)** — the disjunct above assumes a `TerraformStateResource` has at
+  most one `MATCHES_STATE` edge. That assumption depends entirely on
+  `terraformStateMatchesConfigEdgeRetractStatements`
+  (`go/internal/storage/cypher/tfstate_state_match_edge_retract.go`) deleting
+  the old edge whenever a state resource's resolved owning repo changes. The
+  first #5623 patch's version of that retract skipped on delta cycles (copying
+  the node-level retract's `DeltaProjection` guard without re-deriving whether
+  the reasoning transferred); it did not. A state resource reassigned to a
+  DIFFERENT owning repo on a delta cycle got its NEW `MATCHES_STATE` edge
+  written immediately (the MERGE has no `DeltaProjection` guard) but kept its
+  OLD edge until the next full reconciliation generation (hours away per
+  `ESHU_REPO_RECONCILE_INTERVAL_HOURS`), so it carried edges to two different
+  repos simultaneously and this predicate admitted it for EITHER repo's
+  grant — including the repo that no longer owns it. The fix removed the
+  `DeltaProjection` skip from that retract (kept only the `FirstGeneration`
+  skip): the retract's own `s.generation_id = $generation_id` anchor already
+  restricts it to state resources upserted THIS exact generation, so — unlike
+  the node-level retract's whole-population sweep — it never mass-deletes
+  edges for resources a delta cycle did not touch, and is safe to run on every
+  cycle after the first.
+
+  No-Regression Evidence: closes a real tenant-isolation gap, widening exactly
+  one retract's trigger condition and narrowing nothing else. Baseline =
+  `terraformStateMatchesConfigEdgeRetractStatements` skipped on
+  `FirstGeneration || DeltaProjection`; after = skipped only on
+  `FirstGeneration`. Backend NornicDB (Neo4j compatibility unaffected); the
+  Cypher statement itself is byte-identical, only the Go condition that decides
+  whether to emit it changed, so the non-delta (full reconciliation) path is
+  unchanged and already-passing. Proof (failing-first, RED via `git apply -R`
+  on the fix / GREEN restored, both cited in the PR): `go test
+  ./internal/storage/cypher -run
+  'TestTerraformStateMatchesConfigEdgeRetractStatementsRunsUnderDeltaProjection|TestTerraformStateMatchesConfigEdgeRetractStatementsSkipsOnFirstGeneration|TestTerraformStateMatchesConfigEdgeRetractStatementsRunsOnNonDeltaGeneration'
+  -v -count=1` (statement-shape unit proof) plus two live regressions against
+  an isolated NornicDB, both run through the REAL `CanonicalNodeWriter.Write`
+  pipeline across a full generation then a delta-cycle ownership reassignment
+  (not a raw seeded fixture): `go test ./internal/storage/cypher -run
+  TestCanonicalNodeWriterRetractsStaleMatchesStateEdgeOnDeltaCycleLive -count=1`
+  (this test has no build tag -- gated only by ESHU_CYPHER_BOLT_DSN, matching
+  every other `_live_test.go` in that package) (proves the stale edge is gone
+  after the delta cycle, and that a
+  partial-failure retry of the same generation is idempotent) and `go test
+  -tags live_infra_scope_shape ./internal/query -run
+  TestLiveInfraScopeShapeMatchesStateStaleEdgeExcludedAfterDeltaReassignment
+  -count=1` (proves the scope predicate in THIS package reflects only the
+  current owner afterward) and `go test ./internal/storage/cypher
+  ./internal/query -count=1`.
+
+  No-Observability-Change: both the retract Cypher and this package's scope
+  predicate remain Cypher fragments with no span, metric, label, or log
+  surface; no new telemetry signal is added or needed.
+
+- **The delta-cycle retract fix above wiped a still-valid edge on an ordinary
+  resolver hiccup (#5623 P1 review follow-up)** — `terraformStateMatchesConfigEdgeRetractStatements`'
+  `s.generation_id = $generation_id` anchor (the fix above) proves "this
+  generation upserted the node," not "we know its correct owner this cycle."
+  `TerraformStateOwnershipResolver.ResolveOwningRepoID` fails closed on ANY
+  resolver error -- an ordinary transient Postgres timeout or pool exhaustion,
+  not only a genuine "no owner" -- and every `cmd/*` wiring site
+  (`cmd/bootstrap-index`, `cmd/ingester`, `cmd/projector`'s
+  `terraform_state_ownership.go`) treats that identically to "no owner,"
+  returning `row.OwningRepoID == ""`. The state resource's node still gets
+  upserted that cycle regardless, so on a delta cycle where a resolver hiccup
+  hit a resource whose node was still upserted, the retract could not
+  distinguish "ownership genuinely changed" from "we simply failed to learn it
+  this cycle" -- it deleted the existing, still-correct `MATCHES_STATE` edge
+  either way, and nothing rewrote it (the MERGE excludes `OwningRepoID == ""`
+  rows). Fail-closed (under-authorization, never a leak) but a real accuracy
+  regression on every delta cycle instead of only full-reconciliation cycles.
+  Fixed by restricting the retract's `s.uid IN $uids` set to rows whose
+  `OwningRepoID` actually resolved THIS cycle (non-empty), batched by
+  `w.batchSize` mirroring `terraformStateResourceMigrationStatements`' own
+  uid-batching precedent (same file family,
+  `tfstate_canonical_writer_retract.go`) rather than inventing a new batching
+  shape. A row with `OwningRepoID == ""` this cycle is simply excluded from
+  the uid set, so its existing edge survives untouched -- symmetric with the
+  MERGE, which already excludes the same rows for the same reason.
+
+  No-Regression Evidence: fail-closed accuracy fix; narrows the retract's uid
+  set to a strict subset of what it touched before (rows with resolved
+  ownership), never widens it. Baseline = every row this generation upserted
+  is a retract candidate regardless of resolution outcome; after = only rows
+  with `OwningRepoID != ""` are candidates. The Cypher statement gains one
+  `AND s.uid IN $uids` clause; the resolved-ownership path (the common case)
+  is unaffected in count or shape. Proof (failing-first, RED via `git apply -R`
+  on this fix alone -- keeping the delta-cycle fix above applied -- confirmed
+  FAIL for the right reason; GREEN restored): `go test ./internal/storage/cypher
+  -run 'TestTerraformStateMatchesConfigEdgeRetractStatementsExcludesUnresolvedOwnershipRows|TestTerraformStateMatchesConfigEdgeRetractStatementsRunsUnderDeltaProjection|TestTerraformStateMatchesConfigEdgeRetractStatementsRunsOnNonDeltaGeneration|TestBuildTerraformStateStatementsRetractsEdgeBeforeMerge'
+  -v -count=1` (unit proof: all-unresolved emits nothing, mixed
+  resolved/unresolved includes only the resolved uid, resolved-ownership path
+  unchanged) plus a live regression against an isolated NornicDB, run through
+  the REAL `CanonicalNodeWriter.Write` pipeline across a full generation then a
+  delta cycle where ownership resolution returns not-ok (not a raw seeded
+  fixture): `go test ./internal/storage/cypher -run
+  TestCanonicalNodeWriterPreservesMatchesStateEdgeOnResolverHiccupDeltaCycleLive
+  -count=1` (this test has no build tag, matching every other `_live_test.go`
+  in that package). Re-ran the delta-cycle-reassignment P0 regressions
+  (`TestCanonicalNodeWriterRetractsStaleMatchesStateEdgeOnDeltaCycleLive` and
+  `TestLiveInfraScopeShapeMatchesStateStaleEdgeExcludedAfterDeltaReassignment`)
+  alongside this fix to confirm it does not reopen the delta-cycle leak the
+  fix above closed -- both still pass. Also `go test ./internal/storage/cypher
+  ./internal/query ./cmd/... -count=1`.
+
+  No-Observability-Change: the retract remains a Cypher WHERE/DELETE fragment
+  with no span, metric, label, or log surface; no new telemetry signal is
+  added or needed.
+
+- **NoOwner/AmbiguousOwner must retract too, not just Resolved (#5623 P1
+  review follow-up to the fix above)** — the fix above's `row.OwningRepoID !=
+  ""` filter correctly excluded a genuine resolver hiccup from the retract's
+  uid set, but ALSO excluded two AUTHORITATIVE non-owner answers
+  (`tfstatebackend.ErrNoConfigRepoOwnsBackend`,
+  `tfstatebackend.ErrAmbiguousBackendOwner`) that also leave `OwningRepoID`
+  empty. A backend that previously resolved to a repo and later became
+  unowned or ambiguous kept that repo's `MATCHES_STATE` edge indefinitely --
+  the #5623 P0 tenant-visibility leak, reintroduced through a narrower door.
+  `TerraformStateOwnershipResolver.ResolveOwningRepoID` now returns `(repoID
+  string, outcome projector.TerraformStateOwnershipOutcome)` instead of
+  `(string, bool)` -- a four-value enum (Resolved, TransientFailure [zero
+  value], NoOwner, AmbiguousOwner). The retract's uid filter changed to
+  `row.OwnershipOutcome == projector.TerraformStateOwnershipTransientFailure`:
+  only the truly-unknown case is excluded now. The classification (mapping a
+  `*tfstatebackend.Resolver` result to this outcome) is centralized in the new
+  `internal/relationships/tfstatebackend/canonicalwriter` package rather than
+  duplicated across the three `cmd/*` adapters, which now each delegate in one
+  line.
+
+  No-Regression Evidence: widens the retract's candidate set from "resolved
+  rows only" back toward (but not identical to) the pre-#5623-P1 "every row"
+  set -- Resolved, NoOwner, and AmbiguousOwner are all retract-eligible now;
+  only TransientFailure stays excluded. Proof (failing-first, RED via a
+  temporary one-line revert of the filter to `row.OwningRepoID == ""`,
+  confirmed FAIL for the right reason with the reassignment/hiccup cases
+  unaffected; GREEN restored): `go test -tags live_infra_scope_shape
+  ./internal/query -run
+  TestLiveInfraScopeShapeMatchesStateFormerOwnerExcludedOnAuthoritativeNonOwner
+  -v -count=1` (both NoOwner and AmbiguousOwner subtests; proves THIS
+  package's scope predicate no longer authorizes the former owner) run
+  together with `TestLiveInfraScopeShapeMatchesStateStaleEdgeExcludedAfterDeltaReassignment`
+  and `go test ./internal/storage/cypher -run
+  TestCanonicalNodeWriterRetractsMatchesStateEdgeOnAuthoritativeNonOwnerDeltaCycleLive
+  -v -count=1` (both subtests) run together with the #5623 P0/P1 siblings in
+  that package. See `internal/storage/cypher/AGENTS-evidence-history.md`'s own
+  `#5623 P1 follow-up` entry for the full unit and package-boundary detail.
+
+  No-Observability-Change: the scope predicate and the retract both remain
+  Cypher fragments with no span, metric, label, or log surface; no new
+  telemetry signal is added or needed.
 
 ## Common changes and how to scope them
 

@@ -27,6 +27,12 @@
 // AWS resource observations stay source-local until buildAWSCloudRuntimeDriftReducerIntent
 // emits one aws_cloud_runtime_drift reducer intent for the AWS scope
 // generation; the reducer owns ARN joins and unmanaged/orphan admission.
+// GCP and Azure cloud resource observations emit one multi_cloud_runtime_drift
+// reducer intent via buildMultiCloudRuntimeDriftReducerIntent (issue #5759); AWS
+// resource facts alone do not trigger it, since aws_cloud_runtime_drift
+// exclusively owns AWS drift findings and the reducer filters any AWS-provider
+// row its shared canonical-uid evidence loader also resolves before
+// publication.
 // Direct code_interproc_evidence facts emit direct interproc reducer intents;
 // code_function_summary facts emit summary persistence intents, and the reducer
 // runs fixpoint TAINT_FLOWS_TO projection only after its durable

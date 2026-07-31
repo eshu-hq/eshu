@@ -21,10 +21,21 @@ import (
 // cmd/bootstrap-index) adapts *tfstatebackend.Resolver to this interface.
 type TerraformStateOwnershipResolver interface {
 	// ResolveOwningRepoID returns the single config repo ID that owns the
-	// given (backend_kind, locator_hash) pair, and false when no repo or more
-	// than one distinct repo claims it. Never guesses: an ambiguous or absent
-	// resolution must return false, ok, never a best-effort repo ID.
-	ResolveOwningRepoID(ctx context.Context, backendKind, locatorHash string) (repoID string, ok bool)
+	// given (backend_kind, locator_hash) pair this cycle, and the outcome
+	// classifying why (#5623 P1 review, second finding). repoID is
+	// non-empty ONLY when outcome is projector.TerraformStateOwnershipResolved
+	// -- never guesses, never a best-effort repo ID for any other outcome.
+	// The outcome distinction is load-bearing, not cosmetic:
+	// terraformStateMatchesConfigEdgeRetractStatements treats
+	// TerraformStateOwnershipTransientFailure as "we don't know this cycle,
+	// preserve any existing MATCHES_STATE edge" but treats
+	// TerraformStateOwnershipNoOwner and TerraformStateOwnershipAmbiguousOwner
+	// as authoritative answers that must retract an existing edge. Collapsing
+	// any of these three into the others reintroduces the tenant-visibility
+	// leak #5623 closed (through the wipe-everything door) or the accuracy
+	// regression the P1 follow-up closed (through the preserve-too-much
+	// door) -- see that function's own doc comment for the full history.
+	ResolveOwningRepoID(ctx context.Context, backendKind, locatorHash string) (repoID string, outcome projector.TerraformStateOwnershipOutcome)
 }
 
 // TerraformStateConfigMatchQuery identifies one #5443 MATCHES_STATE
@@ -89,16 +100,18 @@ MERGE (c)-[e:MATCHES_STATE]->(s)
 SET e.evidence_source = 'projector/tfstate',
     e.generation_id = row.generation_id`
 
-// resolveTerraformStateOwnership enriches rows with OwningRepoID before the
-// pure Cypher builders run. Memoized per distinct (backend_kind,
-// locator_hash) pair within this batch -- one resolver call per distinct
-// backend, not one per resource -- mirroring the memoization already used
-// for the equivalent drift-correlation lookup
+// resolveTerraformStateOwnership enriches rows with OwningRepoID and
+// OwnershipOutcome before the pure Cypher builders run. Memoized per distinct
+// (backend_kind, locator_hash) pair within this batch -- one resolver call
+// per distinct backend, not one per resource -- mirroring the memoization
+// already used for the equivalent drift-correlation lookup
 // (incident_repository_correlation_build.go). A nil resolver (the default;
 // see WithTerraformStateOwnershipResolver) or a row with a blank backend
-// identity leaves OwningRepoID empty, which downstream (config_repo_id node
-// property, terraformStateMatchesConfigEdgeStatements) is the honest
-// "ownership not resolved" state, never a guess.
+// identity leaves OwningRepoID empty and OwnershipOutcome at its zero value
+// (projector.TerraformStateOwnershipTransientFailure), which downstream
+// (config_repo_id node property, terraformStateMatchesConfigEdgeStatements,
+// terraformStateMatchesConfigEdgeRetractStatements) is the honest "ownership
+// not resolved this cycle, for any reason" state, never a guess.
 func (w *CanonicalNodeWriter) resolveTerraformStateOwnership(
 	ctx context.Context,
 	rows []projector.TerraformStateResourceRow,
@@ -108,7 +121,11 @@ func (w *CanonicalNodeWriter) resolveTerraformStateOwnership(
 	}
 
 	type ownerKey struct{ backendKind, locatorHash string }
-	memo := make(map[ownerKey]string, len(rows))
+	type ownerResult struct {
+		repoID  string
+		outcome projector.TerraformStateOwnershipOutcome
+	}
+	memo := make(map[ownerKey]ownerResult, len(rows))
 	out := make([]projector.TerraformStateResourceRow, len(rows))
 	for i, row := range rows {
 		out[i] = row
@@ -116,14 +133,14 @@ func (w *CanonicalNodeWriter) resolveTerraformStateOwnership(
 			continue
 		}
 		key := ownerKey{row.BackendKind, row.LocatorHash}
-		repoID, cached := memo[key]
+		result, cached := memo[key]
 		if !cached {
-			if resolved, ok := w.tfStateOwnershipResolver.ResolveOwningRepoID(ctx, row.BackendKind, row.LocatorHash); ok {
-				repoID = resolved
-			}
-			memo[key] = repoID
+			repoID, outcome := w.tfStateOwnershipResolver.ResolveOwningRepoID(ctx, row.BackendKind, row.LocatorHash)
+			result = ownerResult{repoID: repoID, outcome: outcome}
+			memo[key] = result
 		}
-		out[i].OwningRepoID = repoID
+		out[i].OwningRepoID = result.repoID
+		out[i].OwnershipOutcome = result.outcome
 	}
 	return out
 }

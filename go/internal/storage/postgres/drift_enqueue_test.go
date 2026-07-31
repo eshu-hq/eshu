@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 	"testing"
 
@@ -193,6 +194,13 @@ func TestEnqueueConfigStateDriftIntentsAdvancesEnqueueCounterByScopeCount(t *tes
 				{"state_snapshot:s3:hash-3", "gen-state-3"},
 			}},
 		},
+		// All three scopes are fresh admissions (no runtime-trigger race for
+		// any of them yet) -- RowsAffected == the attempted row count, so this
+		// test still proves the "3 scopes in -> counter advances by 3" shape,
+		// now via the real INSERT result instead of a bare len(intents) echo
+		// (issue #5593; see TestEnqueueConfigStateDriftIntentsCounterReflectsActualInsertionsAcrossProducers
+		// below for the case where a row is skipped).
+		execResults: []sql.Result{rowsAffectedResult{rowsAffected: 3}},
 	}
 	store := NewIngestionStore(db)
 
@@ -208,6 +216,47 @@ func TestEnqueueConfigStateDriftIntentsAdvancesEnqueueCounterByScopeCount(t *tes
 	}
 	if got, want := counterTotal(rm, "eshu_dp_correlation_drift_intents_enqueued_total"), int64(3); got != want {
 		t.Fatalf("enqueue counter = %d, want %d", got, want)
+	}
+}
+
+// TestEnqueueConfigStateDriftIntentsCounterReflectsActualInsertionsAcrossProducers
+// proves the issue #5593 fix from the bootstrap Phase 3.5 side: when the
+// runtime delta-trigger (ConfigStateDriftRuntimeTrigger) already enqueued one
+// of the three active scopes before this sweep runs, ON CONFLICT DO NOTHING
+// admits only 2 of the 3 attempted rows, and the counter must advance by 2,
+// not 3 -- otherwise the two producers' combined
+// CorrelationDriftIntentsEnqueued total over-reports actual admissions for
+// exactly the generation both producers target.
+func TestEnqueueConfigStateDriftIntentsCounterReflectsActualInsertionsAcrossProducers(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{
+				{"state_snapshot:s3:hash-1", "gen-state-1"},
+				{"state_snapshot:s3:hash-2", "gen-state-2"},
+				{"state_snapshot:s3:hash-3", "gen-state-3"},
+			}},
+		},
+		// One of the three scopes was already enqueued by the runtime
+		// delta-trigger, so the DB's ON CONFLICT DO NOTHING clause admits
+		// only 2 of the 3 attempted rows.
+		execResults: []sql.Result{rowsAffectedResult{rowsAffected: 2}},
+	}
+	store := NewIngestionStore(db)
+
+	inst, reader := newEnqueueInstruments(t)
+
+	if err := store.EnqueueConfigStateDriftIntents(context.Background(), nil, inst); err != nil {
+		t.Fatalf("EnqueueConfigStateDriftIntents() error = %v, want nil", err)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if got, want := counterTotal(rm, "eshu_dp_correlation_drift_intents_enqueued_total"), int64(2); got != want {
+		t.Fatalf("enqueue counter = %d, want %d (3 attempted, 1 already enqueued by the runtime trigger)", got, want)
 	}
 }
 

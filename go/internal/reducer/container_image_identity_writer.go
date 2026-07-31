@@ -15,34 +15,78 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
-const containerImageIdentityFactKind = "reducer_container_image_identity"
+const (
+	containerImageIdentityFactKind       = "reducer_container_image_identity"
+	containerImageIdentityFormatImageRef = "image_ref_v2"
+)
 
-// PostgresContainerImageIdentityWriter persists digest-keyed image identity
-// decisions into the shared fact store.
-type PostgresContainerImageIdentityWriter struct {
-	DB  workloadIdentityExecer
-	Now func() time.Time
+// ContainerImageIdentityTransaction is the narrow atomic write surface used by
+// the identity writer for outcome-independent publications followed by cleanup
+// of unreachable legacy outcome-keyed rows.
+type ContainerImageIdentityTransaction interface {
+	workloadIdentityExecer
+	Commit() error
+	Rollback() error
 }
 
-// WriteContainerImageIdentityDecisions stores only canonical image identity
-// decisions. Weak, missing, ambiguous, or stale tag outcomes stay diagnostic
-// reducer output until a stronger source can prove digest identity.
+// ContainerImageIdentityBeginner opens the identity writer's publication and
+// legacy-cleanup transaction.
+type ContainerImageIdentityBeginner interface {
+	BeginContainerImageIdentityTx(context.Context) (ContainerImageIdentityTransaction, error)
+}
+
+// ContainerImageIdentityCutoverLookup reads the durable format-transition
+// marker that makes the bounded steady-state cleanup safe without reacquiring
+// the rolling-upgrade lock.
+type ContainerImageIdentityCutoverLookup interface {
+	ContainerImageIdentityCutoverExists(context.Context, string, string) (bool, error)
+}
+
+// ContainerImageIdentityLegacyCleanupLookup proves whether a completed cutover
+// has no held legacy-format rows left to retire.
+type ContainerImageIdentityLegacyCleanupLookup interface {
+	ContainerImageIdentityLegacyCleanupComplete(context.Context, string, string) (bool, error)
+}
+
+// ContainerImageIdentityClaimedExecer runs a statement that locks and verifies
+// the exact active claim epoch before returning its legacy cleanup count.
+type ContainerImageIdentityClaimedExecer interface {
+	ExecContainerImageIdentityClaimed(
+		context.Context,
+		string,
+		...any,
+	) (deleted int, claimValid bool, err error)
+}
+
+// PostgresContainerImageIdentityWriter persists image-reference-keyed identity
+// decisions into the shared fact store.
+type PostgresContainerImageIdentityWriter struct {
+	DB                  workloadIdentityExecer
+	Beginner            ContainerImageIdentityBeginner
+	CutoverLookup       ContainerImageIdentityCutoverLookup
+	LegacyCleanupLookup ContainerImageIdentityLegacyCleanupLookup
+	ClaimedExecer       ContainerImageIdentityClaimedExecer
+	Now                 func() time.Time
+}
+
+// WriteContainerImageIdentityDecisions stores canonical image identity
+// decisions and fenced tombstones for evaluated demotions. Weak, missing,
+// ambiguous, or stale outcomes stay diagnostic reducer output unless the
+// retirement planner proves the reference was evaluated authoritatively.
 //
-// The fact id is stable by decision identity, so a retry that reaches the same
-// classification upserts the same rows, and the insert's fencing guard keeps a
-// pass that read STALE evidence from overwriting a fresher pass's payload on
-// that shared fact id (reducerFactBatchInsertQuery).
+// The fact ID is stable by logical image identity: scope, generation, and image
+// reference. Outcome is payload, not identity. A reclassification therefore
+// collides on the same primary key, where the shared insert's fencing guard
+// rejects an older evidence read. A demotion writes a tombstone at that same
+// key, preserving the durable fence so a stalled older pass cannot resurrect
+// the retired row after the fresher pass commits.
 //
-// What this write is NOT is generation-authoritative. The identity embeds
-// `outcome` and `image_ref`, so a replay that RE-CLASSIFIES an image lands under
-// a new fact id beside the old one, and a replay that demotes an image out of
-// the canonical outcomes produces no row to upsert over the stale one at all.
-// Both leave a superseded decision live for the same active generation, which
-// PostgresContainerImageIdentityStore.ListContainerImageIdentities serves — it
-// has no DISTINCT ON, GROUP BY, or per-digest latest-wins. Closing that needs a
-// retire pass whose deletes are safe against the OCI collector's bounded
-// degradation (a soft-failed config blob and a truncated tag list both shrink a
-// generation with no registry-side assertion), which is tracked as #5854.
+// Legacy outcome-keyed rows are deleted only after the new derivation makes
+// those keys unreachable to every future writer. Publication and eligible
+// one-way cleanup share a transaction. A completeness warning can deliberately
+// hold a legacy row while the same completed pass publishes stronger v2 truth;
+// readers may therefore observe both formats until the warning clears and a
+// later pass retires the held row.
 func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisions(
 	ctx context.Context,
 	write ContainerImageIdentityWrite,
@@ -61,14 +105,47 @@ func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisio
 	// Stamped on the INSERT, which is the only statement that stamps it. See
 	// reducerFactBatchInsertQuery for why a row at 0 defeats its own guard.
 	fencingToken := containerImageIdentityFencingToken(write)
-	decisions := containerImageIdentityCanonicalDecisions(write.Decisions)
+	rows, canonicalWrites, retirementAttempts, err := buildContainerImageIdentityRows(write, now, fencingToken)
+	if err != nil {
+		return ContainerImageIdentityWriteResult{}, err
+	}
+	if (len(rows) > 0 || len(write.LegacyFactIDs) > 0) && write.ClaimEpoch <= 0 {
+		return ContainerImageIdentityWriteResult{}, errors.New(
+			"container image identity claim_epoch must be positive for v2 publication or legacy cleanup",
+		)
+	}
+	legacyRowsDeleted, err := w.writeContainerImageIdentityRows(
+		ctx,
+		write,
+		rows,
+		fencingToken,
+	)
+	if err != nil {
+		return ContainerImageIdentityWriteResult{}, err
+	}
+	return containerImageIdentityWriteResult(
+		canonicalWrites,
+		retirementAttempts,
+		legacyRowsDeleted,
+	), nil
+}
+
+func buildContainerImageIdentityRows(
+	write ContainerImageIdentityWrite,
+	now time.Time,
+	fencingToken int64,
+) ([]reducerFactRow, int, int, error) {
+	publications := planContainerImageIdentityPublications(write)
 	collectorKind := reducerFactCollectorKind(write.SourceSystem)
-	rows := make([]reducerFactRow, 0, len(decisions))
-	for _, decision := range decisions {
+	rows := make([]reducerFactRow, 0, len(publications))
+	canonicalWrites := 0
+	retirementAttempts := 0
+	for _, publication := range publications {
+		decision := publication.decision
 		canonicalID := canonicalContainerImageIdentityID(write, decision)
 		payloadJSON, err := json.Marshal(containerImageIdentityPayload(write, decision, canonicalID))
 		if err != nil {
-			return ContainerImageIdentityWriteResult{}, fmt.Errorf("marshal container image identity payload: %w", err)
+			return nil, 0, 0, fmt.Errorf("marshal container image identity payload: %w", err)
 		}
 		rows = append(rows, reducerFactRow{
 			FactID:           containerImageIdentityFactID(write, decision),
@@ -82,19 +159,164 @@ func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisio
 			SourceFactKey:    write.IntentID,
 			ObservedAt:       now,
 			IngestedAt:       now,
+			IsTombstone:      publication.tombstone,
 			Payload:          string(payloadJSON),
 			FencingToken:     fencingToken,
 		})
+		if publication.tombstone {
+			retirementAttempts++
+		} else {
+			canonicalWrites++
+		}
 	}
-	// Bounded chunked bulk insert: canonical decisions are upserted in
-	// O(N/batchSize) round-trips rather than one ExecContext per decision.
-	if err := reducerBatchInsertFacts(ctx, w.DB, rows); err != nil {
-		return ContainerImageIdentityWriteResult{}, fmt.Errorf("write container image identity fact: %w", err)
+	return rows, canonicalWrites, retirementAttempts, nil
+}
+
+func (w PostgresContainerImageIdentityWriter) writeContainerImageIdentityRows(
+	ctx context.Context,
+	write ContainerImageIdentityWrite,
+	rows []reducerFactRow,
+	fencingToken int64,
+) (int, error) {
+	exec := w.DB
+	var tx ContainerImageIdentityTransaction
+	rollbackNeeded := false
+	legacyRowsDeleted := 0
+	if len(rows) > 0 || len(write.LegacyFactIDs) > 0 {
+		cutoverComplete := false
+		var err error
+		if w.CutoverLookup != nil {
+			cutoverComplete, err = w.CutoverLookup.ContainerImageIdentityCutoverExists(
+				ctx,
+				write.ScopeID,
+				write.GenerationID,
+			)
+			if err != nil {
+				return 0, fmt.Errorf(
+					"read container image identity cutover: %w",
+					err,
+				)
+			}
+		}
+		skipLegacyCleanup := false
+		if cutoverComplete && w.LegacyCleanupLookup != nil {
+			skipLegacyCleanup, err = w.LegacyCleanupLookup.ContainerImageIdentityLegacyCleanupComplete(
+				ctx,
+				write.ScopeID,
+				write.GenerationID,
+			)
+			if err != nil {
+				return 0, fmt.Errorf(
+					"read container image identity legacy cleanup state: %w",
+					err,
+				)
+			}
+		}
+		if cutoverComplete && len(rows) <= reducerFactBatchSize {
+			if w.ClaimedExecer == nil {
+				return 0, fmt.Errorf(
+					"container image identity claimed executor is required for completed cutover",
+				)
+			}
+			var claimValid bool
+			var err error
+			legacyRowsDeleted, claimValid, err = execContainerImageIdentityCompletedCutoverWrite(
+				ctx,
+				w.ClaimedExecer,
+				rows,
+				write.LegacyFactIDs,
+				skipLegacyCleanup,
+				write.ScopeID,
+				write.GenerationID,
+				fencingToken,
+				write.IntentID,
+				write.ClaimEpoch,
+			)
+			if err != nil {
+				return 0, err
+			}
+			if !claimValid {
+				return 0, ErrContainerImageIdentityClaimRejected
+			}
+			return legacyRowsDeleted, nil
+		}
+		if w.Beginner == nil {
+			return 0, fmt.Errorf(
+				"container image identity transaction beginner is required for v2 publication or legacy cleanup",
+			)
+		}
+		tx, err = w.Beginner.BeginContainerImageIdentityTx(ctx)
+		if err != nil {
+			return 0, fmt.Errorf(
+				"begin container image identity write: %w",
+				err,
+			)
+		}
+		exec = tx
+		rollbackNeeded = true
+		defer func() {
+			if rollbackNeeded {
+				_ = tx.Rollback()
+			}
+		}()
+		if cutoverComplete {
+			claimedExecer, ok := tx.(ContainerImageIdentityClaimedExecer)
+			if !ok {
+				return 0, fmt.Errorf(
+					"container image identity transaction cannot validate completed-cutover claim",
+				)
+			}
+			claimValid, err := lockContainerImageIdentityCompletedCutoverClaim(
+				ctx,
+				claimedExecer,
+				write.ScopeID,
+				write.GenerationID,
+				write.IntentID,
+				write.ClaimEpoch,
+			)
+			if err != nil {
+				return 0, err
+			}
+			if !claimValid {
+				return 0, ErrContainerImageIdentityClaimRejected
+			}
+		} else if err := execContainerImageIdentityFirstCutover(
+			ctx,
+			exec,
+			write,
+			fencingToken,
+		); err != nil {
+			return 0, err
+		}
+		if cutoverComplete && skipLegacyCleanup {
+			err = reducerBatchInsertFacts(ctx, exec, rows)
+		} else {
+			legacyRowsDeleted, err = execContainerImageIdentityPublicationsAndCleanup(
+				ctx,
+				exec,
+				rows,
+				write.LegacyFactIDs,
+				write.ScopeID,
+				write.GenerationID,
+				fencingToken,
+			)
+		}
+		if err != nil {
+			return 0, err
+		}
+	} else if err := reducerBatchInsertFacts(ctx, exec, rows); err != nil {
+		return 0, fmt.Errorf("write container image identity fact: %w", err)
 	}
-	return ContainerImageIdentityWriteResult{
-		CanonicalWrites: len(decisions),
-		EvidenceSummary: fmt.Sprintf("wrote container image identity decisions %d", len(decisions)),
-	}, nil
+	if tx != nil {
+		if err := tx.Commit(); err != nil {
+			return 0, fmt.Errorf(
+				"commit container image identity write: %w",
+				err,
+			)
+		}
+		rollbackNeeded = false
+	}
+	return legacyRowsDeleted, nil
 }
 
 // errContainerImageIdentityMissingEvidenceAsOf is returned when a write reaches
@@ -169,7 +391,6 @@ func containerImageIdentityStableFactKey(
 		strings.TrimSpace(fmt.Sprint(identity["scope_id"])),
 		strings.TrimSpace(fmt.Sprint(identity["generation_id"])),
 		strings.TrimSpace(fmt.Sprint(identity["image_ref"])),
-		strings.TrimSpace(fmt.Sprint(identity["outcome"])),
 	}, ":")
 }
 
@@ -188,8 +409,19 @@ func containerImageIdentityIdentity(
 		"scope_id":      strings.TrimSpace(write.ScopeID),
 		"generation_id": strings.TrimSpace(write.GenerationID),
 		"image_ref":     strings.TrimSpace(decision.ImageRef),
-		"outcome":       string(decision.Outcome),
 	}
+}
+
+func legacyContainerImageIdentityFactID(
+	write ContainerImageIdentityWrite,
+	decision ContainerImageIdentityDecision,
+) string {
+	identity := containerImageIdentityIdentity(write, decision)
+	identity["outcome"] = string(decision.Outcome)
+	return containerImageIdentityFactKind + ":" + facts.StableID(
+		containerImageIdentityFactKind,
+		identity,
+	)
 }
 
 func containerImageIdentityPayload(
@@ -198,6 +430,7 @@ func containerImageIdentityPayload(
 	canonicalID string,
 ) map[string]any {
 	return map[string]any{
+		"identity_format":            containerImageIdentityFormatImageRef,
 		"reducer_domain":             string(DomainContainerImageIdentity),
 		"intent_id":                  write.IntentID,
 		"scope_id":                   write.ScopeID,

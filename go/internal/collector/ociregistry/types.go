@@ -3,7 +3,11 @@
 
 package ociregistry
 
-import "time"
+import (
+	"time"
+
+	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
+)
 
 // CollectorKind is the durable collector family name for OCI registry facts.
 const CollectorKind = "oci_registry"
@@ -70,16 +74,22 @@ const (
 	RedactedValue = "[redacted]"
 	// WarningUnsupportedReferrersAPI marks registries without Referrers API
 	// support.
-	WarningUnsupportedReferrersAPI = "unsupported_referrers_api"
+	WarningUnsupportedReferrersAPI = ociregistryv1.WarningCodeUnsupportedReferrersAPI
 	// WarningComputedManifestDigest marks registries that returned manifest
 	// bytes without a Docker-Content-Digest header.
-	WarningComputedManifestDigest = "computed_manifest_digest"
+	WarningComputedManifestDigest = ociregistryv1.WarningCodeComputedManifestDigest
 	// WarningConfigBlobUnavailable marks an image config blob that could not be
 	// read without failing the registry scan.
-	WarningConfigBlobUnavailable = "config_blob_unavailable"
+	WarningConfigBlobUnavailable = ociregistryv1.WarningCodeConfigBlobUnavailable
 	// WarningConfigBlobOversized marks an image config blob that exceeded the
 	// collector's bounded provenance label read limit.
-	WarningConfigBlobOversized = "config_blob_oversized"
+	WarningConfigBlobOversized = ociregistryv1.WarningCodeConfigBlobOversized
+	// WarningTagListTruncated marks a repository whose discovered tag list
+	// exceeded the configured bounded collection window.
+	WarningTagListTruncated = ociregistryv1.WarningCodeTagListTruncated
+	// WarningMissingManifestDigest marks a manifest response without a usable
+	// header or computable body digest.
+	WarningMissingManifestDigest = ociregistryv1.WarningCodeMissingManifestDigest
 	// SeverityInfo marks informational warnings.
 	SeverityInfo = "info"
 	// ReferrersUnsupported records unsupported Referrers API state.

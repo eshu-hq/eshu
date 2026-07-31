@@ -43,6 +43,8 @@ func TestReducerQueueReopenSucceededResetsSucceededWorkItemToPending(t *testing.
 		"UPDATE fact_work_items",
 		"status = 'pending'",
 		"attempt_count = 0",
+		"container_image_identity_v2_authorized_status = CASE",
+		"THEN 'pending'",
 		"stage = 'reducer'",
 		"status = 'succeeded'",
 		"next_attempt_at = NULL",
@@ -125,6 +127,8 @@ func TestReducerQueueReplayDomainReopensSucceededWorkItem(t *testing.T) {
 		"domain = $4",
 		"status = 'succeeded'",
 		"status = 'pending'",
+		"container_image_identity_v2_authorized_status = CASE",
+		"THEN 'pending'",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("ReplayDomain query missing %q:\n%s", want, query)

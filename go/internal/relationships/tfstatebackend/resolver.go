@@ -31,6 +31,13 @@ type CommitAnchor struct {
 	BackendKind string
 	// LocatorHash is the safe locator hash that produced the join key.
 	LocatorHash string
+	// LocatorDefaulted is true when the config-side candidate's locator was
+	// built from an implicit backend default rather than an explicit,
+	// authored attribute value — currently only a bare `backend "local" {}`
+	// block's "terraform.tfstate" default (issue #5594). Lets a successful
+	// resolution log distinguish "resolved via explicit path" from "resolved
+	// via implicit default" instead of the two looking identical.
+	LocatorDefaulted bool
 }
 
 // TerraformBackendRow is one sealed config-side row from a
@@ -44,6 +51,10 @@ type TerraformBackendRow struct {
 	CommitObservedAt time.Time
 	BackendKind      string
 	LocatorHash      string
+	// LocatorDefaulted mirrors CommitAnchor.LocatorDefaulted; kept in the
+	// same field order as CommitAnchor because ResolveConfigCommitForBackend
+	// converts a winning row directly via CommitAnchor(winner).
+	LocatorDefaulted bool
 }
 
 // TerraformBackendQuery is the narrow port the resolver depends on. The port

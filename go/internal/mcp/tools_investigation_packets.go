@@ -78,7 +78,7 @@ func investigationPacketTools() []ToolDefinition {
 		},
 		{
 			Name:        "export_cloud_runtime_drift_packet",
-			Description: "Export an investigation_evidence_packet.v2 artifact for bounded provider-neutral runtime drift findings. The packet preserves source-state, safety/refusal posture, missing evidence, and reproduce handles for a canonical cloud scope.",
+			Description: "Export an investigation_evidence_packet.v2 artifact for bounded runtime drift findings across aws, gcp, and azure. Reads the same aggregated store list_cloud_runtime_drift_findings does (reducer_multi_cloud_runtime_drift_finding merged with reducer_aws_cloud_runtime_drift_finding), so provider=aws and an unfiltered query both include real AWS findings, with the same safety verdict list_cloud_runtime_drift_findings and list_aws_runtime_drift_findings report for the same row. The packet preserves source-state, safety/refusal posture, missing evidence, and reproduce handles for a canonical cloud scope.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": investigationPacketProperties(map[string]any{

@@ -44,8 +44,9 @@ ORDER BY scope.scope_id ASC
 const driftIntentReason = "bootstrap_phase_3_5_drift_trigger"
 
 // driftIntentSourceSystem labels the producer of the intent for telemetry
-// purposes — distinguishes bootstrap-emitted drift intents from any future
-// runtime delta-trigger that emits the same domain.
+// purposes — distinguishes bootstrap-emitted drift intents from the runtime
+// delta-trigger (ConfigStateDriftRuntimeTrigger, issue #5593) that emits the
+// same domain from ProjectorQueue.Ack.
 const driftIntentSourceSystem = "bootstrap_index"
 
 // EnqueueConfigStateDriftIntents implements the Phase 3.5 trigger required by
@@ -83,7 +84,7 @@ func (s IngestionStore) EnqueueConfigStateDriftIntents(
 		return err
 	}
 	if len(intents) == 0 {
-		recordDriftEnqueueCounter(ctx, instruments, 0)
+		recordDriftEnqueueCounter(ctx, instruments, 0, driftIntentSourceSystem)
 		log.Printf("config_state_drift_intents_enqueued count=0 duration_s=%.2f", time.Since(start).Seconds())
 		return nil
 	}
@@ -96,17 +97,23 @@ func (s IngestionStore) EnqueueConfigStateDriftIntents(
 	if s.Now != nil {
 		queue.Now = s.Now
 	}
-	if _, err := queue.Enqueue(ctx, intents); err != nil {
+	result, err := queue.Enqueue(ctx, intents)
+	if err != nil {
 		return fmt.Errorf("enqueue config_state_drift intents: %w", err)
 	}
 
-	// Phase 3.5 succeeded. Record enqueue volume so dashboards can decouple
-	// "trigger fired N intents" from "reducer admitted M drift candidates"
-	// downstream (CorrelationDriftDetected). See instruments.go for the
-	// label-set rationale.
-	recordDriftEnqueueCounter(ctx, instruments, len(intents))
+	// Phase 3.5 succeeded. Record ACTUAL insertions (result.Count, from the
+	// INSERT's RowsAffected), not len(intents): the runtime delta-trigger
+	// (ConfigStateDriftRuntimeTrigger, issue #5593) can enqueue the identical
+	// (scope_id, generation_id, domain) work_item_id before this sweep runs,
+	// in which case ON CONFLICT DO NOTHING admits zero rows for that scope
+	// here. Reporting len(intents) would double-count that generation across
+	// the two producers' combined CorrelationDriftIntentsEnqueued total, which
+	// defeats the "decouple trigger-fired from reducer-admitted" purpose this
+	// counter exists for (see instruments.go for the label-set rationale).
+	recordDriftEnqueueCounter(ctx, instruments, result.Count, driftIntentSourceSystem)
 	log.Printf("config_state_drift_intents_enqueued count=%d duration_s=%.2f",
-		len(intents), time.Since(start).Seconds())
+		result.Count, time.Since(start).Seconds())
 
 	return nil
 }
@@ -150,10 +157,16 @@ func listActiveStateSnapshotScopes(ctx context.Context, db ExecQueryer) ([]proje
 }
 
 // recordDriftEnqueueCounter advances the CorrelationDriftIntentsEnqueued
-// counter by `count` with the bounded label set `pack` +
-// `source=bootstrap_index`. Tolerates a nil instruments handle so callers
-// without telemetry wired (early bootstrap test paths) remain operable.
-func recordDriftEnqueueCounter(ctx context.Context, instruments *telemetry.Instruments, count int) {
+// counter by `count` with the bounded label set `pack` + `source`. `source`
+// is one of the three producers of this domain: driftIntentSourceSystem
+// (bootstrap Phase 3.5), driftRuntimeTriggerSourceSystem
+// (ConfigStateDriftRuntimeTrigger, issue #5593), or the reducer's own
+// config_state_drift catch-up sweep (projector.ConfigStateDriftCatchUpSweeper,
+// source "reducer_catch_up_sweep", recorded from the projector package
+// directly since it has no dependency on this postgres-package helper).
+// Tolerates a nil instruments handle so callers without telemetry wired
+// (early bootstrap test paths) remain operable.
+func recordDriftEnqueueCounter(ctx context.Context, instruments *telemetry.Instruments, count int, source string) {
 	if instruments == nil || instruments.CorrelationDriftIntentsEnqueued == nil {
 		return
 	}
@@ -162,7 +175,7 @@ func recordDriftEnqueueCounter(ctx context.Context, instruments *telemetry.Instr
 		int64(count),
 		metric.WithAttributes(
 			attribute.String(telemetry.MetricDimensionPack, rules.TerraformConfigStateDriftPackName),
-			telemetry.AttrSource(driftIntentSourceSystem),
+			telemetry.AttrSource(source),
 		),
 	)
 }

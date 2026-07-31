@@ -63,6 +63,17 @@ type CloudInventoryRecord struct {
 	RawIdentity string
 	// ResourceType is the provider resource type, kept as bounded evidence.
 	ResourceType string
+	// AccountID is the raw provider account/tenant identifier read directly
+	// from the source fact's own identity fields: aws_resource.account_id,
+	// gcp_cloud_resource.project_id, or azure_cloud_resource.subscription_id
+	// (go/internal/storage/postgres/cloud_inventory_evidence.go's
+	// cloudInventorySourceFactMapping.accountIDKey). It is never derived from
+	// the ingestion scope: a canonical scope id is a derived, opaque per-
+	// collector-partition identifier (for AWS, one partition per
+	// account+region+service claim) that can differ from the account number
+	// even within one account, so scope_id was never a safe stand-in for it
+	// (#5238).
+	AccountID string
 	// SourceLayer classifies the evidence layer of this record.
 	SourceLayer SourceLayer
 	// Attributes carries bounded redaction-safe typed-depth attributes from the
@@ -82,6 +93,14 @@ type AdmittedCloudResource struct {
 	RawIdentity string
 	// ResourceType is the provider resource type evidence.
 	ResourceType string
+	// AccountID is the raw provider account/project/subscription identifier
+	// carried from the first contributing record that had one (see
+	// CloudInventoryRecord.AccountID). It is persisted onto the canonical
+	// payload as "account_id" uniformly across providers, mirroring the field
+	// go/internal/reducer/{aws,gcp,azure}_resource_materialization.go already
+	// write onto graph_node_owner.winning_row for the GET /api/v0/cloud/resources
+	// route (#5238).
+	AccountID string
 	// FactKinds lists the contributing provider source fact kinds, sorted.
 	FactKinds []string
 	// ManagementOrigin is the strongest contributing evidence layer.
@@ -375,6 +394,7 @@ func foldAdmittedRecord(
 			Provider:         resolution.Provider,
 			RawIdentity:      record.RawIdentity,
 			ResourceType:     record.ResourceType,
+			AccountID:        record.AccountID,
 			ManagementOrigin: ManagementOriginObserved,
 		}
 		byUID[uid] = resource
@@ -382,6 +402,9 @@ func foldAdmittedRecord(
 	}
 	if resource.ResourceType == "" {
 		resource.ResourceType = record.ResourceType
+	}
+	if resource.AccountID == "" {
+		resource.AccountID = record.AccountID
 	}
 	if record.FactKind != "" {
 		factKinds[uid][record.FactKind] = struct{}{}

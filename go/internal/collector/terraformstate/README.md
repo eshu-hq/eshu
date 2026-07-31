@@ -63,6 +63,24 @@ leaving this package is a redacted fact, warning, identity, or bounded summary.
   unambiguous literal value. Duplicate names, `module.*` references,
   `terraform.workspace`, functions, and unresolved interpolations stay
   non-candidates because `DiscoveryCandidate` is an exact state object.
+- `EvaluateBackendConfig` is a second, separate consumer of the same
+  `terraform_backends` parser facts: the config-vs-state drift resolver's
+  ownership join (`go/internal/storage/postgres/tfstate_backend_canonical.go`,
+  `go/internal/relationships/tfstatebackend`). It answers "which repo owns
+  this backend", not "should Eshu open this state file" — the discovery
+  candidates above answer the latter and keep requiring explicit approval for
+  any local path. `EvaluateBackendConfig` derives an S3 candidate the same way
+  discovery does, and also derives a `BackendLocal` candidate for
+  `backend "local" {}` blocks: when the `path` attribute is absent it applies
+  Terraform's own default, `"terraform.tfstate"` relative to the root module
+  directory (https://developer.hashicorp.com/terraform/language/backend/local),
+  so the ordinary way of writing a local backend resolves ownership instead of
+  silently rejecting every drift candidate with `no_config_repo_owns_backend`
+  (issue #5594). A `BackendLocal` candidate's locator is an absolute path
+  matching the repository's checkout root (`BackendConfigContext.RepoLocalPath`,
+  the durable `repository` fact's `local_path`); without it, no candidate is
+  produced. Backend kinds Eshu does not model here (`gcs`, `azurerm`, `remote`,
+  `http`, ...) yield neither a candidate nor a warning.
 - Git HCL parsing also emits `terragrunt_remote_states` metadata for
   Terragrunt `remote_state` blocks, including blocks resolved through nested
   `include` chains. `TerragruntRemoteStateCandidate` translates each row

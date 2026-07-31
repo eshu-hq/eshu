@@ -157,8 +157,8 @@ proves the shared tag-evidence loader accepts GCP tag facts, reads
 in lockstep with the Go mapping. `go test ./internal/reducer -run
 'Test(ContainerImageIdentityFactKindsIncludesGCPImageReferences|BuildContainerImageIdentityDecisions(ConsumesGCPDigestReference|ResolvesGCPTagOnlyWithRegistryEvidence))'
 -count=1` proves `gcp_image_reference` facts are loaded by the
-`container_image_identity` domain, explicit GCP digests become exact
-digest-keyed identity decisions, tag-only GCP facts require OCI registry tag
+`container_image_identity` domain, explicit GCP digests become exact decisions
+keyed by the observed image reference, tag-only GCP facts require OCI registry tag
 evidence, and the GCP owning resource identity does not invent repository
 anchors. `go test ./internal/storage/postgres -run
 TestFactStoreListActiveContainerImageIdentityFactsUsesActiveIdentityGenerations

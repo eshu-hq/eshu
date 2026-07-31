@@ -269,7 +269,7 @@ func openDerivedEvidenceFencingSchema(t *testing.T, ctx context.Context, dsn str
 	t.Cleanup(func() {
 		_, _ = db.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
 	})
-	if _, err := db.ExecContext(ctx, "SET search_path TO "+schemaName); err != nil {
+	if _, err := db.ExecContext(ctx, "SET search_path TO "+schemaName+", public"); err != nil {
 		t.Fatalf("set search_path: %v", err)
 	}
 

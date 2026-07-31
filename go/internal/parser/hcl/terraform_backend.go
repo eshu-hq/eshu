@@ -14,8 +14,34 @@ var discoverySafeBackendAttributes = map[string]struct{}{
 	"bucket":               {},
 	"dynamodb_table":       {},
 	"key":                  {},
+	"path":                 {},
 	"region":               {},
 	"workspace_key_prefix": {},
+}
+
+// backendAttributeRowKey returns the row map key used to store one parsed
+// backend attribute value. Every row already carries a "path" key set to the
+// repo-relative path of the .tf file the backend block was found in (see the
+// row literal below); Terraform's local backend also names its state-file
+// locator attribute "path" (see
+// https://developer.hashicorp.com/terraform/language/backend/local). Storing
+// the attribute under the same key would silently overwrite the file path
+// with the state-file locator, breaking every consumer that reads row["path"]
+// expecting the file path (backendModuleDir's variable/local scoping in
+// go/internal/collector/terraformstate/backend_config_resolution.go). The
+// attribute is stored under "state_path" instead so both values survive.
+// "state_path" was chosen over an earlier "local_path" candidate because the
+// durable `repository` fact ALREADY has an established, differently-scoped
+// "local_path" payload field meaning the repo checkout root (see
+// go/internal/collector/git_content_fact_envelopes.go); reusing that name
+// here for a completely different value (the backend's own path attribute)
+// would recreate the exact class of collision this function exists to avoid
+// (issue #5594).
+func backendAttributeRowKey(name string) string {
+	if name == "path" {
+		return "state_path"
+	}
+	return name
 }
 
 func parseTerraformBackends(body *hclsyntax.Body, source []byte, path string) []map[string]any {
@@ -47,9 +73,10 @@ func parseTerraformBackends(body *hclsyntax.Body, source []byte, path string) []
 				if value == "" {
 					continue
 				}
-				row[item.name] = value
-				row[item.name+"_is_literal"] = isLiteralStringAttribute(item.attribute, source)
-				row[item.name+"_line_number"] = item.attribute.NameRange.Start.Line
+				rowKey := backendAttributeRowKey(item.name)
+				row[rowKey] = value
+				row[rowKey+"_is_literal"] = isLiteralStringAttribute(item.attribute, source)
+				row[rowKey+"_line_number"] = item.attribute.NameRange.Start.Line
 			}
 			rows = append(rows, row)
 		}

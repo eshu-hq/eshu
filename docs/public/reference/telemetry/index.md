@@ -60,6 +60,35 @@ Do not treat a green pod as proof that the graph is complete.
 Use `/admin/status` and queue metrics when the user-facing question is
 freshness, convergence, or "why is this repo still not reflected?"
 
+## Container Image Identity Retirement
+
+Use `eshu_dp_container_image_identity_retirements_total` when a replay changes
+the canonical answer for an image reference. Its bounded `outcome` values
+separate attempted retirements and exact legacy-row cleanup from references held
+because the OCI collector declared incomplete evidence:
+
+- `retirement_attempted`
+- `legacy_deleted`
+- `held_config_blob_unavailable`
+- `held_tag_list_truncated`
+- `held_missing_manifest_digest`
+
+An attempted retirement is not proof that a tombstone committed: a fresher
+fact-store row can reject it at the fencing-token conflict guard. Correlate the
+counter with reducer execution failures, PostgreSQL query duration, and the
+current read result before diagnosing a missing row as retired.
+
+During the #5854 rolling format cutover,
+`container_image_identity_cutovers` is durable operator evidence that a scope
+generation has moved to `identity_format=image_ref_v2`. The compatibility
+trigger waits on the matching transaction lock and skips old outcome-keyed
+inserts after that marker commits. Later reducer passes read the marker by its
+primary key and do not reacquire the completed compatibility fence. Existing
+PostgreSQL query-duration telemetry shows lock wait and marker lookup duration,
+and a legacy writer using stronger-than-Read-Committed isolation fails through
+the existing reducer execution failure signals instead
+of risking a stale snapshot. This adds no unbounded metric label.
+
 ## Change Gate
 
 Runtime-affecting changes must keep telemetry useful. A PR that touches

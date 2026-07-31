@@ -62,11 +62,23 @@ func (i ReducerIntent) ScopeGenerationKey() string {
 	return fmt.Sprintf("%s:%s", i.ScopeID, i.GenerationID)
 }
 
+// IntentResult reports the outcome of one Enqueue call. Count is the number
+// of reducer intents actually admitted -- for postgres.ReducerQueue's
+// implementation (the only production ReducerIntentWriter), that is the
+// underlying INSERT's RowsAffected, NOT len(intents) (issue #5593): the
+// enqueue SQL's `ON CONFLICT (work_item_id) DO NOTHING` silently skips any
+// intent whose work_item_id another producer already wrote, so an "attempted"
+// count would over-report for every domain more than one producer can enqueue
+// into, including config_state_drift (bootstrap Phase 3.5 and the runtime
+// delta-trigger both target the same work_item_id per generation).
 type IntentResult struct {
 	Count int
 }
 
 type ReducerIntentWriter interface {
+	// Enqueue admits intents into the reducer queue and reports how many rows
+	// were actually inserted in the returned IntentResult.Count -- see
+	// IntentResult's doc comment for why that is not always len(intents).
 	Enqueue(context.Context, []ReducerIntent) (IntentResult, error)
 }
 

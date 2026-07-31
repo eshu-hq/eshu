@@ -39,25 +39,27 @@ func main() {
 }
 
 type options struct {
-	snapshotPath            string
-	phase                   string
-	apiBaseURL              string
-	mcpBaseURL              string
-	demoManifestPath        string
-	drainTimeout            time.Duration
-	drainPoll               time.Duration
-	budgetSeconds           float64
-	budgetMultiplier        float64
-	elapsedSeconds          float64
-	graphRequiredOnly       bool
-	requiredCorrelations    string
-	requiredNodeLabels      string
-	drainAdvisoryDomains    string
-	requirePopulatedDomains string
-	phaseTimingsPath        string
-	phaseBaselinePath       string
-	phaseRegressionBand     float64
-	phaseRegressionAdvisory bool
+	snapshotPath              string
+	phase                     string
+	apiBaseURL                string
+	mcpBaseURL                string
+	demoManifestPath          string
+	drainTimeout              time.Duration
+	drainPoll                 time.Duration
+	budgetSeconds             float64
+	budgetMultiplier          float64
+	elapsedSeconds            float64
+	graphRequiredOnly         bool
+	requiredCorrelations      string
+	requiredNodeLabels        string
+	drainAdvisoryDomains      string
+	requirePopulatedDomains   string
+	phaseTimingsPath          string
+	phaseBaselinePath         string
+	phaseRegressionBand       float64
+	phaseRegressionAdvisory   bool
+	printLocalBackendRepoPath string
+	localBackendScopeID       string
 }
 
 func parseFlags(args []string) (options, error) {
@@ -82,6 +84,8 @@ func parseFlags(args []string) (options, error) {
 	fs.StringVar(&o.phaseBaselinePath, "phase-baseline-file", "testdata/golden/e2e-baseline.json", "path to the committed B-11 per-phase baseline (used with -phase-timings-file)")
 	fs.Float64Var(&o.phaseRegressionBand, "phase-regression-band", 0, "override the baseline's regression band (0 = use the band in the baseline file)")
 	fs.BoolVar(&o.phaseRegressionAdvisory, "phase-regression-advisory", false, "downgrade per-phase regression findings to advisory (use on shared CI runners whose hardware variance exceeds the band; the committed baseline is captured on the controlled validation host)")
+	fs.StringVar(&o.printLocalBackendRepoPath, "print-local-backend-scope-id", "", "compute-and-print mode (issue #5594): given the terraform_local_backend_demo fixture repo's real, run-time git-checkout absolute path (the repository fact's local_path), print the state_snapshot:local:<hash> scope_id a bare backend \"local\" {} block at repo root would resolve to, then exit 0 without running any phase. A BackendLocal locator is an absolute path derived from that run-time checkout root, unlike every other backend kind, so the snapshot cannot pin it as a literal string; the orchestrator resolves it after bootstrap-index and feeds it back via -local-backend-scope-id.")
+	fs.StringVar(&o.localBackendScopeID, "local-backend-scope-id", "", "the real, run-time computed scope_id for the terraform_local_backend_demo fixture (from -print-local-backend-scope-id), substituted into the snapshot's $LOCAL_BACKEND_SCOPE_ID$ sentinel before the query phase runs. Empty (default) leaves the snapshot unchanged.")
 	if err := fs.Parse(args); err != nil {
 		return options{}, err
 	}

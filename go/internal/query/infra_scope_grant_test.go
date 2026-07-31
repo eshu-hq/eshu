@@ -94,9 +94,9 @@ func TestBindScopeGrantInlineScalarsBindsIndexedKeys(t *testing.T) {
 
 // TestInfraResourceScopePredicateComposesShapeAAndRejectsForbiddenShapes pins
 // the composed SHAPE-A predicate: flat direct-ownership + USES inline-map +
-// forward DEPLOYMENT_SOURCE EXISTS + DEFINES inline-map, and proves the two
-// NornicDB-mis-evaluated shapes (dead n-last bridge, always-true
-// backward-EXISTS-with-WHERE) are absent.
+// MATCHES_STATE inline-map (#5623) + forward DEPLOYMENT_SOURCE EXISTS +
+// DEFINES inline-map, and proves the two NornicDB-mis-evaluated shapes (dead
+// n-last bridge, always-true backward-EXISTS-with-WHERE) are absent.
 func TestInfraResourceScopePredicateComposesShapeAAndRejectsForbiddenShapes(t *testing.T) {
 	t.Parallel()
 
@@ -109,6 +109,7 @@ func TestInfraResourceScopePredicateComposesShapeAAndRejectsForbiddenShapes(t *t
 		"n.id IN $allowed_repository_ids",
 		"n.id IN $allowed_scope_ids",
 		"(n)<-[:USES]-(:WorkloadInstance {repo_id:$scope_grant_0})",
+		"(n)<-[:MATCHES_STATE]-(:TerraformResource {repo_id:$scope_grant_0})",
 		"EXISTS { MATCH (n)-[:DEPLOYMENT_SOURCE]->(scopeDeployRepo:Repository) WHERE (scopeDeployRepo.id IN $allowed_repository_ids OR scopeDeployRepo.id IN $allowed_scope_ids) }",
 		"(n)<-[:DEFINES]-(:Repository {id:$scope_grant_0})",
 	} {

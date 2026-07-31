@@ -6,6 +6,7 @@ package tfstatebackend
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -174,6 +175,53 @@ func TestResolverSingleOwnerTieBreaksByCommitIDAscending(t *testing.T) {
 	}
 	if anchor.CommitID != "aaa" {
 		t.Fatalf("CommitID = %q, want %q (lex ascending tie-break)", anchor.CommitID, "aaa")
+	}
+}
+
+// TestResolverSingleOwnerPreservesLocatorDefaulted proves
+// ResolveConfigCommitForBackend's `return CommitAnchor(winner), nil` — a
+// direct positional struct conversion, per the doc comment on
+// TerraformBackendRow.LocatorDefaulted requiring the two structs to stay in
+// identical field order — actually carries LocatorDefaulted through from the
+// winning TerraformBackendRow into the returned CommitAnchor (issue #5594).
+// No other test in the repo exercises this specific conversion path: the
+// collector-level test (backend_config_local_test.go) only proves the
+// candidate's own LocatorDefaulted is set correctly before it ever reaches
+// the resolver, and the reducer-level test
+// (terraform_config_state_drift_defaulted_locator_test.go) hand-builds a
+// CommitAnchor directly rather than calling ResolveConfigCommitForBackend, so
+// a field reordering between CommitAnchor and TerraformBackendRow that broke
+// the positional conversion (silently mapping LocatorDefaulted onto the wrong
+// field, or vice versa, since the conversion compiles as long as the field
+// types line up positionally) would go undetected without this test.
+func TestResolverSingleOwnerPreservesLocatorDefaulted(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
+	for _, defaulted := range []bool{true, false} {
+		t.Run(fmt.Sprintf("defaulted=%v", defaulted), func(t *testing.T) {
+			t.Parallel()
+
+			rows := []TerraformBackendRow{
+				{
+					RepoID:           "repo-a",
+					ScopeID:          "repo:repo-a@1",
+					CommitID:         "aaa",
+					CommitObservedAt: observedAt,
+					BackendKind:      "local",
+					LocatorHash:      "hash-1",
+					LocatorDefaulted: defaulted,
+				},
+			}
+			r := NewResolver(&stubQuery{rows: rows})
+			anchor, err := r.ResolveConfigCommitForBackend(context.Background(), "local", "hash-1")
+			if err != nil {
+				t.Fatalf("err = %v, want nil", err)
+			}
+			if anchor.LocatorDefaulted != defaulted {
+				t.Fatalf("anchor.LocatorDefaulted = %v, want %v", anchor.LocatorDefaulted, defaulted)
+			}
+		})
 	}
 }
 

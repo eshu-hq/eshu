@@ -73,8 +73,10 @@ under the repository's 500-line cap (issue #5786):
   recovery, poison dead-letter liveness recovery, the graph orphan sweep, and
   cross-scope node ownership.
 - [`cloud-projections.md`](cloud-projections.md) — GCP cloud resource and
-  relationship materialization, the secrets/IAM trust-chain read model,
-  multi-cloud runtime drift, and the S3/RDS/EC2/PagerDuty projections.
+  relationship materialization, the secrets/IAM trust-chain read model, and
+  the S3/RDS/EC2/PagerDuty projections.
+- [`multi-cloud-runtime-drift.md`](multi-cloud-runtime-drift.md) — GCP/Azure
+  runtime drift provider partitioning and the read-side AWS aggregation.
 - [`search-and-runtime-projections.md`](search-and-runtime-projections.md) —
   the live-workload `RUNS_IMAGE` edge projection and the curated
   `EshuSearchDocument` search read model.
@@ -86,8 +88,8 @@ under the repository's 500-line cap (issue #5786):
   domain-shape, drift, SBOM, supply-chain-impact, suppression, and
   ecosystem-parity invariants.
 - [`container-image-identity.md`](container-image-identity.md) — digest-first
-  identity admission, the `#5847` not-generation-authoritative writer bug, and
-  the `EvidenceAsOf` fencing-token upsert guard.
+  identity admission, logical-key retirement, rolling-upgrade cutover fencing,
+  and the `EvidenceAsOf` stale-writer guard.
 - [`gotchas-correlation-queue-and-graph-security.md`](gotchas-correlation-queue-and-graph-security.md) —
   service-catalog and observability correlation, Kubernetes correlation,
   queue/generation invariants, code-call edge rules, and the
@@ -302,8 +304,10 @@ values each counter carries.
 - **Container image identity is digest-first and fencing-guarded** — writes
   land only for explicit digest or single-tag-to-digest matches, and a
   fencing token (`ContainerImageIdentityWrite.EvidenceAsOf`) rejects a stale
-  pass's upsert whole; see `container-image-identity.md`. The writer is
-  **not** generation-authoritative (#5847 is the open bug).
+  pass's upsert whole. Reclassification is authoritative within the scope
+  generation: demotions tombstone the logical key, and the same transaction
+  removes only eligible legacy outcome-keyed rows. Completeness warnings hold
+  destructive cleanup; see `container-image-identity.md`.
 - **SecurityGroup/IAM graph projections are conservative and security-sensitive**
   — `CAN_ESCALATE_TO` and `CAN_PERFORM` edges are written only for exact,
   unambiguous, non-conditioned grants; see

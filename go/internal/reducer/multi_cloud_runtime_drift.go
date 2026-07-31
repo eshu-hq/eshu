@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/multicloud"
 	"github.com/eshu-hq/eshu/go/internal/correlation/engine"
@@ -97,6 +98,7 @@ func (h MultiCloudRuntimeDriftHandler) Handle(ctx context.Context, intent Intent
 	if err != nil {
 		return Result{}, fmt.Errorf("load multi cloud runtime drift evidence: %w", err)
 	}
+	rows = excludeAWSOwnedRows(rows)
 
 	candidates := multicloud.BuildCandidates(rows, intent.ScopeID)
 	pack := rules.MultiCloudRuntimeDriftRulePack()
@@ -135,6 +137,36 @@ func (h MultiCloudRuntimeDriftHandler) Handle(ctx context.Context, intent Intent
 		),
 		CanonicalWrites: writeResult.CanonicalWrites,
 	}, nil
+}
+
+// excludeAWSOwnedRows drops AWS-provider rows before multi-cloud candidate
+// construction (issue #5759 provider partitioning). DomainAWSCloudRuntimeDrift
+// already publishes AWS runtime-drift findings end-to-end
+// (reducer_aws_cloud_runtime_drift_finding); DomainMultiCloudRuntimeDrift owns
+// GCP and Azure. PostgresMultiCloudRuntimeDriftEvidenceLoader's SQL
+// deliberately joins all three providers' inventory facts into one
+// cloud_resource_uid keyspace (see multiCloudSourceFactProvider in
+// go/internal/storage/postgres/multi_cloud_runtime_drift_evidence.go) so AWS,
+// GCP, and Azure state/config resolution share one implementation -- not
+// because multi-cloud should ALSO publish an AWS finding. Without this filter,
+// a scope that carries both AWS and GCP/Azure facts (which enqueues this
+// domain for its GCP/Azure coverage; see buildMultiCloudRuntimeDriftReducerIntent)
+// would silently republish every AWS orphaned/unmanaged/ambiguous/unknown
+// finding a second time under reducer_multi_cloud_runtime_drift_finding,
+// duplicating what list_aws_runtime_drift_findings already reports for the
+// same resource.
+func excludeAWSOwnedRows(rows []multicloud.Row) []multicloud.Row {
+	if len(rows) == 0 {
+		return rows
+	}
+	out := make([]multicloud.Row, 0, len(rows))
+	for _, row := range rows {
+		if strings.EqualFold(strings.TrimSpace(row.Provider), cloudinventory.ProviderAWS) {
+			continue
+		}
+		out = append(out, row)
+	}
+	return out
 }
 
 func admittedMultiCloudRuntimeDriftCandidates(evaluation engine.Evaluation) []model.Candidate {

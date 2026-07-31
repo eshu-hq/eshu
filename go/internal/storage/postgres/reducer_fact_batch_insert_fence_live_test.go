@@ -46,6 +46,7 @@ func containerImageIdentityEnrichedWrite(
 	write := containerImageIdentityLiveWrite(
 		scopeID, generationID, suffix, evidenceAsOf, reducer.ContainerImageIdentityExactDigest,
 	)
+	write.ClaimEpoch = 1
 	write.Decisions[0].SourceRevision = sourceRevision
 	if sourceRevision != "" {
 		write.Decisions[0].SourceRevisionProvenance = "ci_run_commit"
@@ -75,6 +76,40 @@ func containerImageIdentityStoredPayload(
 		t.Fatalf("read stored identity payload for %s/%s: %v", scopeID, generationID, err)
 	}
 	return sourceRevision, provenance, fencingToken
+}
+
+func containerImageIdentityFenceLiveWriter(
+	db *sql.DB,
+) reducer.PostgresContainerImageIdentityWriter {
+	adapter := SQLDB{DB: db}
+	cutoverStore := NewContainerImageIdentityCutoverStore(adapter)
+	return reducer.PostgresContainerImageIdentityWriter{
+		DB:                  adapter,
+		Beginner:            ContainerImageIdentityBeginner{Beginner: adapter},
+		CutoverLookup:       cutoverStore,
+		LegacyCleanupLookup: cutoverStore,
+		ClaimedExecer:       ContainerImageIdentityClaimedExecer{DB: adapter},
+	}
+}
+
+func seedContainerImageIdentityFenceLiveClaim(
+	t *testing.T,
+	ctx context.Context,
+	db *sql.DB,
+	write reducer.ContainerImageIdentityWrite,
+) {
+	t.Helper()
+	seedContainerImageIdentityAckWorkItem(
+		t,
+		ctx,
+		db,
+		write.IntentID,
+		write.ScopeID,
+		write.GenerationID,
+		"reducer-"+write.IntentID,
+		time.Now().UTC().Add(5*time.Minute),
+		time.Now().UTC(),
+	)
 }
 
 // TestReducerFactBatchInsertRejectsStaleContentUpsertLive is the regression for
@@ -108,13 +143,15 @@ func TestReducerFactBatchInsertRejectsStaleContentUpsertLive(t *testing.T) {
 	freshEvidenceAsOf := time.Now().UTC()
 	staleEvidenceAsOf := freshEvidenceAsOf.Add(-5 * time.Minute)
 
-	writer := reducer.PostgresContainerImageIdentityWriter{DB: sqlDB}
+	freshWrite := containerImageIdentityEnrichedWrite(
+		scopeID, generationID, suffix, freshEvidenceAsOf, "commit-fresh",
+	)
+	seedContainerImageIdentityFenceLiveClaim(t, ctx, sqlDB, freshWrite)
+	writer := containerImageIdentityFenceLiveWriter(sqlDB)
 
 	// Worker B: read after the CI generation activated, so its decision carries
 	// the build provenance. Lands first.
-	if _, err := writer.WriteContainerImageIdentityDecisions(ctx, containerImageIdentityEnrichedWrite(
-		scopeID, generationID, suffix, freshEvidenceAsOf, "commit-fresh",
-	)); err != nil {
+	if _, err := writer.WriteContainerImageIdentityDecisions(ctx, freshWrite); err != nil {
 		t.Fatalf("fresh write error = %v, want nil", err)
 	}
 
@@ -160,11 +197,13 @@ func TestReducerFactBatchInsertAppliesEqualTokenRetryLive(t *testing.T) {
 	seedContainerImageIdentityScopeGeneration(t, ctx, sqlDB, scopeID, generationID)
 
 	evidenceAsOf := time.Now().UTC()
-	writer := reducer.PostgresContainerImageIdentityWriter{DB: sqlDB}
-
-	if _, err := writer.WriteContainerImageIdentityDecisions(ctx, containerImageIdentityEnrichedWrite(
+	firstWrite := containerImageIdentityEnrichedWrite(
 		scopeID, generationID, suffix, evidenceAsOf, "",
-	)); err != nil {
+	)
+	seedContainerImageIdentityFenceLiveClaim(t, ctx, sqlDB, firstWrite)
+	writer := containerImageIdentityFenceLiveWriter(sqlDB)
+
+	if _, err := writer.WriteContainerImageIdentityDecisions(ctx, firstWrite); err != nil {
 		t.Fatalf("first write error = %v, want nil", err)
 	}
 	// Same watermark, richer payload: the retry of a pass that got further.

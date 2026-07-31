@@ -91,13 +91,13 @@ The resolver-owned typed relationship enum lives in
 | `READS_CONFIG_FROM` | The source is granted read access to target configuration. |
 
 Related graph edges such as `PROVISIONS_PLATFORM`, `DEFINES`, `INSTANCE_OF`,
-and `DEPLOYMENT_SOURCE` are real runtime topology edges, but they are not
-resolver-owned relationship types. They are written by reducer/materializer
-paths and read by repository, workload, service, and deployment trace surfaces.
-Deployment trace responses preserve `DEPLOYMENT_SOURCE` separately from
-`DEPLOYS_FROM` and return each row's canonical `source_id` and `target_id` so
-clients do not invent a repository-to-repository edge from instance admission
-evidence.
+`DEPLOYMENT_SOURCE`, and `MATCHES_STATE` are real runtime topology edges, but
+they are not resolver-owned relationship types. They are written by
+reducer/materializer paths and read by repository, workload, service, and
+deployment trace surfaces. Deployment trace responses preserve
+`DEPLOYMENT_SOURCE` separately from `DEPLOYS_FROM` and return each row's
+canonical `source_id` and `target_id` so clients do not invent a
+repository-to-repository edge from instance admission evidence.
 
 ## Traversal Rule
 
@@ -169,6 +169,82 @@ Target-resource matching remains path-bounded. The normalized controller root
 must contain the resource's safe relative path; `.` and `./` mean the target
 repository root and match safe relative paths. Empty, unsafe, or otherwise
 unusable roots do not become repository-wide matches.
+
+## Terraform State MATCHES_STATE Edge Existence
+
+`MATCHES_STATE` links a config-declared `TerraformResource` to the
+`TerraformStateResource` it matches by exact address equality (#5443). It
+exists only while that config resource's Terraform backend resolves to a
+single, unambiguous owning repository whose declared address matches the
+state resource's address; it does not exist merely because a state resource
+was observed.
+
+Backend ownership resolution runs every materialization generation (not only
+full reconciliation) and classifies into one of four outcomes, only one of
+which preserves a prior edge unexamined:
+
+- **Resolved** — a single repository owns the backend. The edge is written
+  (or rewritten, if ownership moved to a different repository since the last
+  generation) to that repository's matching config resource; any edge to a
+  *different* prior repository is retracted the same cycle.
+- **No owner** — no config repository currently declares this backend. Any
+  existing edge is retracted; a state resource stays "applied-only" until a
+  config declaration reappears.
+- **Ambiguous owner** — more than one repository currently declares the same
+  backend. Any existing edge is retracted, the same as no owner: ownership is
+  not uniquely determined, so no edge should point at either candidate.
+- **Transient resolution failure** — the ownership query itself did not
+  complete this cycle (for example a Postgres timeout). Any existing edge is
+  left untouched: a cycle that learned nothing about ownership must not act
+  as though it learned something.
+
+Because ambiguous-owner detection compares each candidate repository's
+CURRENTLY-ACTIVE ingestion generation, and repositories ingest independently
+and asynchronously, a genuine backend-ownership migration between two
+repositories can transiently resolve as ambiguous purely because one
+repository's ingestion has not yet caught up to the other's — not because
+ownership is actually contested. During that window the edge (and anything
+that reads it, including scoped-token infra authorization) can flap: retracted
+while ambiguous, rewritten once both repositories' ingestion converges on a
+single owner. This is bounded, self-healing, and fails toward absence, never
+toward a wrong or extra edge — see `internal/storage/cypher/AGENTS-evidence-history.md`'s
+`#5623 P1 follow-up` entry for the full mechanism and why the window is
+tighter than the reconciliation interval it replaced.
+
+### Bare Local-Backend Default-Path Resolution And The "unresolved" Finding
+
+Before issue #5594, a bare `backend "local" {}` block with no explicit `path`
+attribute — the ordinary way to write a local backend, since Terraform itself
+defaults `path` to `"terraform.tfstate"` relative to the backend block's own
+directory — produced no config-side candidate at all. Ownership resolution for
+that backend was therefore always **No owner**, permanently, regardless of
+whether a real owning repository existed: `MATCHES_STATE` could never form for
+a bare local backend no matter what. `backendConfigCandidate`
+(`go/internal/collector/terraformstate/backend_config.go`) now also derives a
+`BackendLocal` candidate, applying Terraform's own default when the attribute
+is absent, so these repos can reach **Resolved** and materialize
+`MATCHES_STATE` for the first time. This changes which candidates are
+*eligible* to compete for ownership; it does not change the
+Resolved/No owner/Ambiguous owner/Transient-failure classification logic
+above. A `path` present but unresolved (a dynamic expression) still yields no
+candidate rather than a guessed locator, same as every other unresolved
+backend attribute.
+
+The **No owner** outcome (`tfstatebackend.ErrNoConfigRepoOwnsBackend`) was
+log-only at the read edge until #5594: `POST
+/api/v0/terraform/config-state-drift/findings` and
+`list_terraform_config_state_drift_findings` returned an identical empty page
+for "evaluated, no drift" and "ownership never resolved at all," with no way
+for a caller to tell the two apart. `TerraformConfigStateDriftWrite` now
+persists exactly one durable `outcome: "unresolved"` finding per
+state-snapshot scope for this case
+(`go/internal/reducer/terraform_config_state_drift_unresolved_owner.go`),
+mirroring the pre-existing `"ambiguous"` write in every respect (same
+upsert-by-stable-fact-id idempotency, same non-fatal write-failure handling).
+This is the caller-visible complement to the graph-level edge retraction this
+section already documents: the `MATCHES_STATE` edge silently disappears from
+the graph on a **No owner** cycle, and the drift-findings read surface now
+says why, distinguishable from a scope that resolved cleanly with zero drift.
 
 ## Safe Extension Checklist
 

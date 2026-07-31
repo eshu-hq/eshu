@@ -9,25 +9,61 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
+// awsCloudRuntimeDriftDerivedStatus is the single, shared read-time
+// derivation of a reducer_aws_cloud_runtime_drift_finding row's management
+// status, missing-evidence, and warning-flags fields (#5759 follow-up P1-1).
+// BOTH awsRuntimeDriftRowToIaCManagement below (list_aws_runtime_drift_findings,
+// find_unmanaged_resources) and awsCloudRuntimeDriftRowToNeutral
+// (cloud_runtime_drift_aggregate.go, the provider-neutral aggregate surface)
+// call this, so the identical reducer row can never produce two different
+// safety verdicts depending on which surface reads it.
+//
+// warningFlagsForManagementFinding classifies the ARN's resource type
+// (security_sensitive_resource for iam/kms/secretsmanager/ssm/rds/certain ec2
+// subtypes/elasticloadbalancing/cloudfront/route53) and whether raw tag
+// evidence is present (raw_tags_provenance_only). Neither flag is ever
+// written by the reducer -- both are computed only at read time from the ARN
+// and the row's evidence atoms -- so a naive copy of row.WarningFlags (as the
+// aggregate surface did before this fix) silently under-reports the safety
+// gate for a security-sensitive AWS resource: the AWS-specific surface would
+// show security_review_required/review_required=true for the same row the
+// naive copy showed read_only_allowed/review_required=false for.
+func awsCloudRuntimeDriftDerivedStatus(
+	row postgres.AWSCloudRuntimeDriftFindingRow,
+) (status string, missingEvidence []string, warningFlags []string) {
+	parsed := parseAWSManagementARN(row.ARN)
+	statusInput := iacManagementStatusInput{FindingKind: strings.TrimSpace(row.FindingKind)}
+	hasTagEvidence := false
+	for _, atom := range row.Evidence {
+		statusInput.recordEvidence(atom.EvidenceType)
+		if strings.EqualFold(atom.EvidenceType, "aws_raw_tag") && strings.HasPrefix(atom.Key, "tag:") {
+			hasTagEvidence = true
+		}
+	}
+	status = normalizeIaCManagementStatus(row.ManagementStatus, deriveIaCManagementStatus(statusInput))
+	missingEvidence = firstNonEmptySlice(row.MissingEvidence, missingEvidenceForManagementStatus(status))
+	warningFlags = iacMergeStringSets(
+		row.WarningFlags,
+		warningFlagsForManagementFinding(status, parsed.resourceType, parsed.resourceID, hasTagEvidence),
+	)
+	return status, missingEvidence, warningFlags
+}
+
 // awsRuntimeDriftRowToIaCManagement maps one reducer-materialized AWS runtime
 // drift fact row onto the query package's stable IaC management response
 // contract, deriving management status, missing evidence, warning flags, and
-// the safety gate from the row's evidence atoms. Split out of
-// iac_management.go (with parseAWSManagementARN and awsManagementARN) to keep
-// that file under the repository's file-size cap.
+// the safety gate from the row's evidence atoms via awsCloudRuntimeDriftDerivedStatus.
+// Split out of iac_management.go (with parseAWSManagementARN and
+// awsManagementARN) to keep that file under the repository's file-size cap.
 func awsRuntimeDriftRowToIaCManagement(
 	row postgres.AWSCloudRuntimeDriftFindingRow,
 ) IaCManagementFindingRow {
 	parsed := parseAWSManagementARN(row.ARN)
 	evidence := make([]IaCManagementEvidenceRow, 0, len(row.Evidence))
-	statusInput := iacManagementStatusInput{
-		FindingKind: strings.TrimSpace(row.FindingKind),
-	}
 	tags := map[string]string{}
 	var redactions []string
 	enrichment := iacManagementEvidenceEnrichment{}
 	for _, atom := range row.Evidence {
-		statusInput.recordEvidence(atom.EvidenceType)
 		enrichment.recordEvidence(atom)
 		evidenceRow, redacted := sanitizeIaCManagementEvidence(atom)
 		if redacted {
@@ -41,12 +77,7 @@ func awsRuntimeDriftRowToIaCManagement(
 	if len(tags) == 0 {
 		tags = nil
 	}
-	status := normalizeIaCManagementStatus(row.ManagementStatus, deriveIaCManagementStatus(statusInput))
-	missingEvidence := firstNonEmptySlice(row.MissingEvidence, missingEvidenceForManagementStatus(status))
-	warningFlags := iacMergeStringSets(
-		row.WarningFlags,
-		warningFlagsForManagementFinding(status, parsed.resourceType, parsed.resourceID, tags),
-	)
+	status, missingEvidence, warningFlags := awsCloudRuntimeDriftDerivedStatus(row)
 	finding := IaCManagementFindingRow{
 		ID:                           row.FactID,
 		Provider:                     "aws",

@@ -48,7 +48,7 @@ locks the two together.
 | `DomainPackageSourceCorrelation` | Classify package-registry source hints and package-version publication evidence without ownership promotion |
 | `DomainCodeImportRepoEdge` | Project repo→repo `DEPENDS_ON` edges from per-file external import sources correlated to package-registry ownership (`projection/code-imports`) |
 | `DomainAWSCloudRuntimeDrift` | Publish admitted AWS runtime orphan, unmanaged, unknown, and ambiguous drift findings as canonical reducer facts |
-| `DomainMultiCloudRuntimeDrift` | Publish admitted provider-neutral runtime orphan, unmanaged, ambiguous, and unknown drift findings keyed on canonical `cloud_resource_uid` for AWS, GCP, and Azure |
+| `DomainMultiCloudRuntimeDrift` | Publish admitted provider-neutral runtime orphan, unmanaged, ambiguous, and unknown drift findings keyed on canonical `cloud_resource_uid` for GCP and Azure; AWS rows the shared loader also returns are dropped before publication because `DomainAWSCloudRuntimeDrift` already owns AWS findings (issue #5759) |
 | `DomainContainerImageIdentity` | Join Git, OCI registry, and runtime image references into digest-keyed reducer facts |
 | `DomainCICDRunCorrelation` | Correlate CI/CD runs, artifacts, and environments with artifact identity evidence |
 | `DomainServiceCatalogCorrelation` | Correlate service-catalog entities with explicit repository links, repo-local descriptor scope, and ownership evidence without inventing workloads |

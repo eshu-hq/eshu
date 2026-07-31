@@ -1,0 +1,48 @@
+-- #5593: prove-theory-first index for the reducer's config-state-drift
+-- catch-up sweep's ListActiveStateSnapshotScopes query
+-- (go/internal/storage/postgres/drift_catchup_lister.go), which runs on a
+-- fixed interval (default 5 minutes) forever in the steady-state reducer.
+--
+-- The originally shipped query filtered `scope_id LIKE 'state_snapshot:%'`
+-- with `ORDER BY scope_id ASC LIMIT $1`. Under the database's default
+-- en_US.utf8 collation, `ingestion_scopes_pkey` (a plain btree on scope_id)
+-- cannot service a LIKE-prefix predicate as a range scan -- there is no
+-- text_pattern_ops index -- so the LIMIT forced the planner into an Index
+-- Scan over ingestion_scopes_pkey IN SCOPE_ID ORDER, applying the LIKE
+-- filter row by row, until it found 500 matches. Because 'state_snapshot:'
+-- sorts lexically after the dominant real scope_id prefixes
+-- ('git-repository-scope:', 'aws:cloud:', 'gcp:project:'), that scan walked
+-- past nearly the entire table on every single sweep tick. Measured on a
+-- throwaway Postgres 16 container, 2.5% state_snapshot rows (matching the
+-- go/internal/scope/tfstate.go NewTerraformStateSnapshotScope /
+-- go/internal/scope/scope.go KindStateSnapshot cardinality on a realistic
+-- corpus): ~51-76 ms at 500K total rows (487,573 rows removed by filter),
+-- ~360-506 ms at 2M total rows (1,950,061 rows removed by filter), scaling
+-- with total corpus size, not with the number of state_snapshot scopes.
+-- Adding a text_pattern_ops index without changing the query's predicate
+-- did NOT change the plan (still ~370-509 ms at 2M rows): the LIKE-prefix
+-- rewrite the planner needs did not trigger against this query shape.
+--
+-- The query was rewritten (drift_catchup_lister.go) to filter on
+-- `scope_kind = 'state_snapshot'` instead of a LIKE on scope_id.
+-- scope_kind is already a real, populated, indexed-equality-friendly column
+-- -- NewTerraformStateSnapshotScope
+-- (go/internal/scope/tfstate.go) sets ScopeKind: KindStateSnapshot on every
+-- row this query targets, in the same construction as the scope_id prefix,
+-- so the two predicates select the identical row set for every scope this
+-- codebase writes today. This index matches that rewritten predicate
+-- exactly. Measured after the query rewrite plus this index: ~0.5-1.2 ms at
+-- 500K rows, ~0.6-0.7 ms at 2M rows -- flat with total table size because
+-- the index only ever contains state_snapshot rows with an active
+-- generation, not the whole table. See
+-- docs/internal/evidence/5593-config-state-drift-catchup-lister-query.md for
+-- the full EXPLAIN (ANALYZE, BUFFERS) ladder, row counts, and write-cost
+-- measurement.
+--
+-- Partial (WHERE scope_kind = 'state_snapshot' AND active_generation_id IS
+-- NOT NULL) so write amplification is confined to the small minority of
+-- ingestion_scopes rows that are state_snapshot scopes with an active
+-- generation, not the dominant repository/region/gcp_project scope kinds.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS ingestion_scopes_active_state_snapshot_idx
+    ON ingestion_scopes (scope_id)
+    WHERE scope_kind = 'state_snapshot' AND active_generation_id IS NOT NULL;

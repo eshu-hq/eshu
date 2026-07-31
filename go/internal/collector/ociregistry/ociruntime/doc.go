@@ -6,10 +6,13 @@
 //
 // Source implements collector.Source for configured-target polling, while
 // ClaimedSource implements collector.ClaimedSource for workflow-owned claims.
-// Both call a provider-supplied RegistryClient for ping, tag list, manifest,
-// and referrer reads. The runtime parses OCI and Docker-compatible manifest
-// bytes, preserves digest identity, emits warning facts for non-fatal
-// capability gaps such as missing referrers, and records bounded OCI registry
-// metrics and spans without placing registry hosts, repository names, tags, or
-// digests in metric labels.
+// Both call a provider-supplied RegistryClient for ping, bounded tag list,
+// manifest, and referrer reads. The tag-list contract carries explicit
+// completeness so a short paginated response cannot become authoritative
+// absence, including when the bounded partial window is empty. The runtime
+// parses OCI and Docker-compatible manifest bytes, preserves digest identity,
+// emits warning facts for incomplete collection and non-fatal capability gaps
+// such as missing referrers, and records bounded OCI registry metrics and spans
+// without placing registry hosts, repository names, tags, or digests in metric
+// labels.
 package ociruntime

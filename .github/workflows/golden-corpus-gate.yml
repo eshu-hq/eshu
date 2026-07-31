@@ -28,6 +28,93 @@ on:
       - 'go/cmd/api/**'
       - 'go/cmd/golden-corpus-gate/**'
       - 'go/internal/demospec/**'
+      # #5538 wider audit: every other package `go list -deps` confirms is
+      # compiled into the six binaries this gate builds (bootstrap-index,
+      # projector, reducer, api, mcp-server, golden-corpus-gate) and that can
+      # alter projected graph, content, or query/MCP truth. See
+      # scripts/lib/golden-corpus-mirror-workflow-paths.sh for the rationale
+      # behind each entry.
+      - 'go/cmd/mcp-server/**'
+      - 'go/internal/mcp/**'
+      - 'go/internal/goldengate/**'
+      - 'go/internal/graph/**'
+      - 'go/internal/graphowner/**'
+      - 'go/internal/graphschemacompat/**'
+      - 'go/internal/graphbackpressure/**'
+      - 'go/internal/facts/**'
+      - 'go/internal/queue/**'
+      - 'go/internal/replay/**'
+      - 'go/internal/content/**'
+      - 'go/internal/contentrefs/**'
+      - 'go/internal/codeprovenance/**'
+      - 'go/internal/packageidentity/**'
+      - 'go/internal/repositoryidentity/**'
+      - 'go/internal/sourcetool/**'
+      - 'go/internal/terraformschema/**'
+      # Reachability-checked against the B-12 snapshot's asserted MCP/query
+      # shapes (not assumed): each backs a non-trivial asserted response.
+      - 'go/internal/environment/**'
+      - 'go/internal/exposure/**'
+      - 'go/internal/doctruth/**'
+      - 'go/internal/serviceintel/**'
+      - 'go/internal/serviceintelhttp/**'
+      # #5538 review follow-up: correcting two wrong exclusions from the prior
+      # widening round. "reducer correlation" was excluded as "owned by other
+      # lanes" -- wrong, see scripts/lib/golden-corpus-mirror-workflow-paths.sh
+      # for the direct-import evidence against rc-1 (CORRELATES_DEPLOYABLE_UNIT).
+      - 'go/internal/correlation/**'
+      - 'go/internal/truth/**'
+      - 'go/internal/scope/**'
+      - 'go/internal/factenvelope/**'
+      - 'go/internal/ghactionsref/**'
+      # "workflowimage" was excluded as "adjacent to the container_image_identity
+      # lane" -- also wrong, see the lib file for the direct-import evidence.
+      - 'go/internal/workflowimage/**'
+      # The search/semantic family backing the search_semantic_context MCP tool
+      # shape (14 required_response_fields, asserted live). See the lib file for
+      # the per-package import evidence and the packages checked and left out.
+      - 'go/internal/searchretrieval/**'
+      - 'go/internal/searchdocs/**'
+      - 'go/internal/searchbench/**'
+      - 'go/internal/searchdecay/**'
+      - 'go/internal/searchhybrid/**'
+      - 'go/internal/searchrerank/**'
+      - 'go/internal/searchembed/**'
+      - 'go/internal/searchembedprovider/**'
+      - 'go/internal/searchembedruntime/**'
+      - 'go/internal/searchvector/**'
+      - 'go/internal/semanticqueue/**'
+      - 'go/internal/semanticpolicy/**'
+      - 'go/internal/semanticguard/**'
+      - 'go/internal/semanticprofile/**'
+      - 'go/internal/iacreachability/**'
+      - 'go/internal/rubycontroller/**'
+      # #5538 second review round: capability/status/version surface backing
+      # get_capability_catalog, get_surface_inventory,
+      # list_collector_extraction_readiness, get_collector_extraction_readiness,
+      # get_hosted_governance_status, get_ingester_status, get_index_status,
+      # list_collectors, list_ingesters, get_hosted_readiness. See the lib file
+      # for the per-package import evidence, and for why internal/component was
+      # checked and confirmed correctly excluded (unlike the two corrections
+      # above).
+      - 'go/internal/capabilitycatalog/**'
+      - 'go/internal/extraction/**'
+      - 'go/internal/governanceaudit/**'
+      - 'go/internal/status/**'
+      - 'go/internal/buildinfo/**'
+      # #5877 review: two exclusions were wrong. internal/boundedset backs
+      # DedupeSortCap, called directly by the already-covered internal/query
+      # and internal/reducer (sbom_attestation_attachment_rows.go,
+      # sbom_attestation_attachment_evidence_bounds.go) to shape the
+      # asserted attachments[].component_count/component_evidence_truncated/
+      # component_evidence[] fields. internal/tfstatewarning was excluded as
+      # "not one of the 9 credentialed collectors" -- wrong, terraform-state
+      # IS cassette-replayed; internal/status/tfstate.go (already-covered
+      # internal/status) unconditionally classifies its recent warnings into
+      # get_index_status's required "terraform_state" field. See the lib file
+      # for the per-package import evidence.
+      - 'go/internal/boundedset/**'
+      - 'go/internal/tfstatewarning/**'
       - 'testdata/golden/**'
       - 'testdata/cassettes/**'
       - 'tests/fixtures/ecosystems/**'

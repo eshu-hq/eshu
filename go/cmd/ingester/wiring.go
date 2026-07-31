@@ -252,6 +252,27 @@ func buildIngesterProjectorService(
 	projectorQueue.MaxRetryDelay = retryPolicy.MaxRetryDelay
 	projectorQueue.JitterFraction = retryPolicy.JitterFraction
 	projectorQueue.Instruments = instruments
+	// ConfigStateDriftTrigger (issue #5593): a terraform_state_snapshot scope
+	// generation that activates here -- from collector-terraform-state facts
+	// committed through the normal ingestion boundary and drained by this
+	// same projector service -- gets a config_state_drift reducer intent
+	// immediately, instead of waiting for the next bootstrap-index Phase 3.5
+	// sweep. Reuses reducerWriter (the same admission-aware
+	// ReducerIntentWriter the projector runtime itself enqueues through) so
+	// this trigger observes the same graph-write-pressure backpressure as
+	// every other reducer intent. MUST NOT be copied to
+	// cmd/bootstrap-index/wiring.go -- see
+	// postgres.ProjectorQueue.ConfigStateDriftTrigger's doc comment for why.
+	// This type has no redrive/retry of its own -- see
+	// ConfigStateDriftRuntimeTrigger's doc comment
+	// (internal/storage/postgres/drift_runtime_trigger.go) for why a bounded
+	// redrive for the "no config repo owns this backend" rejection was
+	// built, reviewed, and removed, and why the race it would have covered
+	// self-heals on the next terraform apply instead.
+	projectorQueue.ConfigStateDriftTrigger = postgres.ConfigStateDriftRuntimeTrigger{
+		Queue:       reducerWriter,
+		Instruments: instruments,
+	}
 	runner, err := buildIngesterProjectorRuntime(database, canonicalWriter, reducerWriter, retryInjector, getenv, tracer, instruments, logger)
 	if err != nil {
 		return projector.Service{}, err

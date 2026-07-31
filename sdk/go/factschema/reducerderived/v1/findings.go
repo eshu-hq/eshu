@@ -112,8 +112,8 @@ type AWSCloudRuntimeDriftFinding struct {
 }
 
 // TerraformConfigStateDriftFinding is the schema-version-1 payload for
-// "reducer_terraform_config_state_drift_finding" (issue #5442). It carries two
-// distinct row shapes distinguished by Outcome:
+// "reducer_terraform_config_state_drift_finding" (issue #5442, extended by
+// #5594). It carries three distinct row shapes distinguished by Outcome:
 //
 //   - Outcome "exact": one row per drifted Terraform resource address, the
 //     durable form of the per-candidate telemetry the reducer already emits.
@@ -124,11 +124,20 @@ type AWSCloudRuntimeDriftFinding struct {
 //     empty — no per-address classification ran because no single anchor was
 //     resolved — and AmbiguousOwnerCandidates carries every competing owner's
 //     identity so the finding stays provenance-only (no repo is picked).
+//   - Outcome "unresolved": one row per rejected state-snapshot scope where
+//     backend-owner resolution found ZERO candidate config repos
+//     (tfstatebackend.ErrNoConfigRepoOwnsBackend) — no Eshu-tracked repo
+//     declares this backend at all. Address and DriftKind are empty, and
+//     AmbiguousOwnerCandidates is empty too: unlike the ambiguous case there
+//     is no competing evidence to record, only the absence of any owner.
+//     Added by issue #5594 so a caller reading this scope's findings can tell
+//     "evaluated, no drift" (zero rows) apart from "ownership never resolved
+//     at all" (this one row) — both looked identical before.
 //
-// "stale", "derived", "unresolved", and "rejected" are not emitted by this
-// version: see go/internal/correlation/drift/tfconfigstate/doc.go for why each
-// is either unreachable with the evidence this handler has today or
-// intentionally not persisted.
+// "stale" and "derived" are not emitted by this version: see
+// go/internal/correlation/drift/tfconfigstate/doc.go for why each is either
+// unreachable with the evidence this handler has today or intentionally not
+// persisted.
 type TerraformConfigStateDriftFinding struct {
 	ReducerDomain string `json:"reducer_domain"`
 	IntentID      string `json:"intent_id"`
@@ -139,13 +148,15 @@ type TerraformConfigStateDriftFinding struct {
 	CanonicalID   string `json:"canonical_id"`
 	CandidateID   string `json:"candidate_id"`
 	CandidateKind string `json:"candidate_kind"`
-	// Outcome is the closed join-confidence label: "exact" or "ambiguous".
+	// Outcome is the closed join-confidence label: "exact", "ambiguous", or
+	// "unresolved".
 	Outcome string `json:"outcome"`
 	// Address is the Terraform resource address (e.g.
-	// "module.app.aws_instance.web"). Empty for an "ambiguous" row.
+	// "module.app.aws_instance.web"). Empty for an "ambiguous" or
+	// "unresolved" row.
 	Address string `json:"address"`
 	// DriftKind is one of the five tfconfigstate.DriftKind values. Empty for
-	// an "ambiguous" row.
+	// an "ambiguous" or "unresolved" row.
 	DriftKind string `json:"drift_kind"`
 	// BackendKind and LocatorHash identify the Terraform state backend the
 	// finding was joined against (state_snapshot:<backend_kind>:<locator_hash>
@@ -155,7 +166,8 @@ type TerraformConfigStateDriftFinding struct {
 	Confidence  float64 `json:"confidence"`
 	// AmbiguousOwnerCandidates carries the competing config-repo identities
 	// for an "ambiguous" row (repo_id, scope_id, commit_id per candidate).
-	// Always empty for an "exact" row.
+	// Always empty for an "exact" or "unresolved" row -- an unresolved row has
+	// no competing owners to record, only the absence of any owner.
 	AmbiguousOwnerCandidates []map[string]any `json:"ambiguous_owner_candidates,omitempty"`
 	Evidence                 []map[string]any `json:"evidence"`
 	SourceLayers             []string         `json:"source_layers"`

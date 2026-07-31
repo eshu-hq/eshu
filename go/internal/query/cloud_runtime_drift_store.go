@@ -14,16 +14,20 @@ import (
 )
 
 // PostgresMultiCloudRuntimeDriftStore adapts active reducer-materialized
-// provider-neutral runtime drift facts to the query package's stable readback
-// contract. It is the Postgres-backed implementation of
-// MultiCloudRuntimeDriftStore over reducer_multi_cloud_runtime_drift_finding rows.
+// runtime drift facts to the query package's stable readback contract. It is
+// the Postgres-backed implementation of MultiCloudRuntimeDriftStore,
+// aggregating BOTH reducer_multi_cloud_runtime_drift_finding (gcp, azure) and
+// reducer_aws_cloud_runtime_drift_finding (aws) rows via
+// postgres.MultiCloudRuntimeDriftFindingStore.ListActiveFindingsAcrossProviders
+// / CountActiveFindingsAcrossProviders (#5759 follow-up) -- one bounded,
+// globally ordered SQL query per call, not a per-provider fan-out.
 type PostgresMultiCloudRuntimeDriftStore struct {
 	store postgres.MultiCloudRuntimeDriftFindingStore
 }
 
 // NewPostgresMultiCloudRuntimeDriftStore creates a query adapter over
-// provider-neutral runtime drift reducer facts in Postgres, instrumenting the
-// underlying database so the readback inherits the shared store telemetry.
+// runtime drift reducer facts in Postgres, instrumenting the underlying
+// database so the readback inherits the shared store telemetry.
 func NewPostgresMultiCloudRuntimeDriftStore(db *sql.DB) *PostgresMultiCloudRuntimeDriftStore {
 	storeDB := &postgres.InstrumentedDB{
 		Inner:     postgres.SQLDB{DB: db},
@@ -35,8 +39,10 @@ func NewPostgresMultiCloudRuntimeDriftStore(db *sql.DB) *PostgresMultiCloudRunti
 	}
 }
 
-// ListActiveMultiCloudRuntimeDriftFindings returns one bounded page of active
-// provider-neutral runtime drift findings for the caller's scope.
+// ListActiveMultiCloudRuntimeDriftFindings returns one bounded, globally
+// ordered page of active runtime drift findings for the caller's scope,
+// aggregated across the provider-neutral (gcp, azure) and AWS-specific fact
+// kinds (#5759 follow-up) via postgres.ListActiveFindingsAcrossProviders.
 func (s *PostgresMultiCloudRuntimeDriftStore) ListActiveMultiCloudRuntimeDriftFindings(
 	ctx context.Context,
 	filter MultiCloudRuntimeDriftFilter,
@@ -44,19 +50,20 @@ func (s *PostgresMultiCloudRuntimeDriftStore) ListActiveMultiCloudRuntimeDriftFi
 	if s == nil {
 		return nil, nil
 	}
-	rows, err := s.store.ListActiveFindings(ctx, multiCloudRuntimeDriftFilterToStore(filter))
+	rows, err := s.store.ListActiveFindingsAcrossProviders(ctx, cloudRuntimeDriftAggregateFilterToStore(filter))
 	if err != nil {
 		return nil, err
 	}
 	out := make([]MultiCloudRuntimeDriftFindingRow, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, multiCloudRuntimeDriftRowFromStore(row))
+		out = append(out, cloudRuntimeDriftAggregateRowFromStore(row))
 	}
 	return out, nil
 }
 
 // CountActiveMultiCloudRuntimeDriftFindings returns the total active finding
-// count for the same bounded filters used by the list path.
+// count for the same bounded, provider-aggregated filters used by the list
+// path.
 func (s *PostgresMultiCloudRuntimeDriftStore) CountActiveMultiCloudRuntimeDriftFindings(
 	ctx context.Context,
 	filter MultiCloudRuntimeDriftFilter,
@@ -64,20 +71,7 @@ func (s *PostgresMultiCloudRuntimeDriftStore) CountActiveMultiCloudRuntimeDriftF
 	if s == nil {
 		return 0, nil
 	}
-	return s.store.CountActiveFindings(ctx, multiCloudRuntimeDriftFilterToStore(filter))
-}
-
-func multiCloudRuntimeDriftFilterToStore(
-	filter MultiCloudRuntimeDriftFilter,
-) postgres.MultiCloudRuntimeDriftFindingFilter {
-	return postgres.MultiCloudRuntimeDriftFindingFilter{
-		ScopeID:          filter.ScopeID,
-		Provider:         filter.Provider,
-		CloudResourceUID: filter.CloudResourceUID,
-		FindingKinds:     filter.FindingKinds,
-		Limit:            filter.Limit,
-		Offset:           filter.Offset,
-	}
+	return s.store.CountActiveFindingsAcrossProviders(ctx, cloudRuntimeDriftAggregateFilterToStore(filter))
 }
 
 func multiCloudRuntimeDriftRowFromStore(

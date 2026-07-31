@@ -6,7 +6,9 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -65,8 +67,10 @@ func (q ReducerQueue) ClaimBatch(ctx context.Context, limit int) ([]reducer.Inte
 	return intents, nil
 }
 
-// AckBatch acknowledges multiple claimed reducer work items in a single
-// round-trip. Implements reducer.BatchWorkSink.
+// AckBatch acknowledges multiple claimed reducer work items. Target-domain
+// rows use exact claim epochs; mixed-domain batches use one exact target update
+// and one legacy update so unrelated success cannot mask a fully stale target
+// subset. Implements reducer.BatchWorkSink.
 func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, _ []reducer.Result) error {
 	if err := q.validateClaim(); err != nil {
 		return err
@@ -77,20 +81,145 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, _ 
 
 	now := q.now()
 
-	ids := make([]string, len(intents))
-	for i, intent := range intents {
-		ids[i] = intent.IntentID
+	targetIntents, unrelatedIntents, err := splitReducerAckBatchIntents(intents)
+	if err != nil {
+		return err
 	}
 
-	placeholders := make([]string, len(ids))
-	args := make([]any, 0, len(ids)+2)
-	args = append(args, now, q.LeaseOwner)
-	for i, id := range ids {
-		placeholders[i] = fmt.Sprintf("$%d", i+3)
-		args = append(args, id)
+	targetClaimRejected := false
+	if len(targetIntents) > 0 {
+		query, args := ackContainerImageIdentityReducerWorkBatchQuery(
+			now,
+			q.LeaseOwner,
+			targetIntents,
+		)
+		result, err := q.db.ExecContext(ctx, query, args...)
+		if err != nil {
+			return fmt.Errorf(
+				"batch ack reducer work (%d target items): %w",
+				len(targetIntents),
+				err,
+			)
+		}
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("batch ack reducer work: rows affected: %w", err)
+		}
+		targetClaimRejected = rowsAffected == 0
 	}
 
-	query := fmt.Sprintf(`
+	if len(unrelatedIntents) > 0 {
+		args := make([]any, 0, len(unrelatedIntents)+2)
+		args = append(args, now, q.LeaseOwner)
+		for _, intent := range unrelatedIntents {
+			args = append(args, intent.IntentID)
+		}
+
+		query := ackReducerWorkBatchQuery(len(unrelatedIntents))
+
+		if _, err := q.db.ExecContext(ctx, query, args...); err != nil {
+			return fmt.Errorf(
+				"batch ack reducer work (%d unrelated items): %w",
+				len(unrelatedIntents),
+				err,
+			)
+		}
+	}
+
+	if targetClaimRejected {
+		return ErrReducerClaimRejected
+	}
+
+	return nil
+}
+
+func splitReducerAckBatchIntents(
+	intents []reducer.Intent,
+) ([]reducer.Intent, []reducer.Intent, error) {
+	seen := make(map[string]reducer.Intent, len(intents))
+	target := make([]reducer.Intent, 0, len(intents))
+	unrelated := make([]reducer.Intent, 0, len(intents))
+	for _, intent := range intents {
+		if prior, ok := seen[intent.IntentID]; ok {
+			if prior.Domain != intent.Domain ||
+				prior.ClaimEpoch != intent.ClaimEpoch {
+				return nil, nil, fmt.Errorf(
+					"batch ack reducer work item %q has conflicting claim epochs or domains",
+					intent.IntentID,
+				)
+			}
+			continue
+		}
+		seen[intent.IntentID] = intent
+		if intent.Domain == reducer.DomainContainerImageIdentity {
+			target = append(target, intent)
+			continue
+		}
+		unrelated = append(unrelated, intent)
+	}
+	return target, unrelated, nil
+}
+
+func ackContainerImageIdentityReducerWorkBatchQuery(
+	now time.Time,
+	leaseOwner string,
+	intents []reducer.Intent,
+) (string, []any) {
+	idsByEpoch := make(map[int64][]string)
+	for _, intent := range intents {
+		idsByEpoch[intent.ClaimEpoch] = append(
+			idsByEpoch[intent.ClaimEpoch],
+			intent.IntentID,
+		)
+	}
+	epochs := make([]int64, 0, len(idsByEpoch))
+	for epoch := range idsByEpoch {
+		epochs = append(epochs, epoch)
+	}
+	sort.Slice(epochs, func(i, j int) bool { return epochs[i] < epochs[j] })
+
+	args := []any{now, leaseOwner}
+	predicates := make([]string, 0, len(epochs))
+	for _, epoch := range epochs {
+		idsPlaceholder := len(args) + 1
+		args = append(args, idsByEpoch[epoch])
+		epochPlaceholder := len(args) + 1
+		args = append(args, epoch)
+		predicates = append(predicates, fmt.Sprintf(
+			"(work_item_id = ANY($%d::text[]) AND container_image_identity_claim_epoch = $%d)",
+			idsPlaceholder,
+			epochPlaceholder,
+		))
+	}
+
+	return `
+UPDATE fact_work_items
+SET status = 'succeeded',
+    container_image_identity_v2_authorized_status = CASE
+        WHEN container_image_identity_v2_required
+            THEN 'succeeded'
+        ELSE ''
+    END,
+    lease_owner = NULL,
+    claim_until = NULL,
+    visible_at = NULL,
+    updated_at = $1,
+    failure_class = NULL,
+    failure_message = NULL,
+    failure_details = NULL
+WHERE (` + strings.Join(predicates, " OR ") + `)
+  AND stage = 'reducer'
+  AND lease_owner = $2
+  AND status IN ('claimed', 'running')
+`, args
+}
+
+func ackReducerWorkBatchQuery(itemCount int) string {
+	placeholders := make([]string, itemCount)
+	for index := range itemCount {
+		placeholders[index] = fmt.Sprintf("$%d", index+3)
+	}
+	return fmt.Sprintf(`
 UPDATE fact_work_items
 SET status = 'succeeded',
     lease_owner = NULL,
@@ -105,12 +234,6 @@ WHERE work_item_id IN (%s)
   AND lease_owner = $2
   AND status IN ('claimed', 'running')
 `, strings.Join(placeholders, ", "))
-
-	if _, err := q.db.ExecContext(ctx, query, args...); err != nil {
-		return fmt.Errorf("batch ack reducer work (%d items): %w", len(intents), err)
-	}
-
-	return nil
 }
 
 // FailBatch marks multiple claimed reducer work items as failed in a single

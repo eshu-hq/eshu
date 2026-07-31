@@ -113,7 +113,7 @@ func normalizeIaCManagementFindingSafety(finding *IaCManagementFindingRow) {
 			finding.ManagementStatus,
 			finding.ResourceType,
 			finding.ResourceID,
-			finding.Tags,
+			len(finding.Tags) > 0,
 		),
 	)
 	finding.SafetyGate = iacManagementSafetyGate(

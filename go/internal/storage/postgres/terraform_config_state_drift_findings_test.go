@@ -116,6 +116,31 @@ func TestTerraformConfigStateDriftFindingStoreFiltersByOutcome(t *testing.T) {
 	}
 }
 
+// TestTerraformConfigStateDriftFindingStoreFiltersByUnresolvedOutcome proves
+// "unresolved" is a valid Outcome filter value (issue #5594 follow-up), the
+// same SQL-predicate path "ambiguous" already exercises above.
+func TestTerraformConfigStateDriftFindingStoreFiltersByUnresolvedOutcome(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{}}}
+	store := NewTerraformConfigStateDriftFindingStore(db)
+
+	_, err := store.ListActiveFindings(context.Background(), TerraformConfigStateDriftFindingFilter{
+		ScopeID: "state_snapshot:local:hash-1",
+		Outcome: "unresolved",
+	})
+	if err != nil {
+		t.Fatalf("ListActiveFindings() error = %v, want nil", err)
+	}
+	query := db.queries[0].query
+	if !strings.Contains(query, "fact.payload->>'outcome' = $3") {
+		t.Fatalf("query missing outcome predicate: %s", query)
+	}
+	if got, want := db.queries[0].args[2], "unresolved"; got != want {
+		t.Fatalf("outcome arg = %#v, want %#v", got, want)
+	}
+}
+
 // TestTerraformConfigStateDriftFindingStoreRejectsUnboundedFilters proves
 // ScopeID is mandatory (no account-wide fan-out exists for this domain,
 // unlike AWS's account_id fallback) and that a non-state_snapshot scope_id is
