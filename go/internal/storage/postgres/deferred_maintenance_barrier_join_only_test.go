@@ -6,7 +6,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -141,102 +140,11 @@ func TestIngestionStoreShardDrainBarrierNeverCommittedShardJoinsAlreadyOpenEpoch
 	}
 }
 
-// quietRestartBarrierDB simulates a fresh Postgres instance where the
-// deferred-maintenance barrier has never been opened, for the #5852
-// follow-up quiet-restart regression: N shards that never commit repeatedly
-// check the barrier without any of them ever having new work. It counts how
-// many epochs it observes being opened and fails any call this scenario
-// should never reach (arrival recording or maintenance writes), because
-// under the join-only fix a never-committed shard must never create or join
-// an epoch when none is open.
-type quietRestartBarrierDB struct {
-	epochInserts int
-}
-
-func (d *quietRestartBarrierDB) Begin(context.Context) (Transaction, error) {
-	return &quietRestartBarrierTx{db: d}, nil
-}
-
-func (d *quietRestartBarrierDB) ExecContext(_ context.Context, query string, _ ...any) (sql.Result, error) {
-	return nil, fmt.Errorf("unexpected outer ExecContext in quiet-restart fake: %s", query)
-}
-
-func (d *quietRestartBarrierDB) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
-	return nil, fmt.Errorf("unexpected outer QueryContext in quiet-restart fake: %s", query)
-}
-
-type quietRestartBarrierTx struct {
-	db *quietRestartBarrierDB
-}
-
-func (tx *quietRestartBarrierTx) ExecContext(_ context.Context, query string, _ ...any) (sql.Result, error) {
-	switch {
-	case strings.Contains(query, "pg_advisory_xact_lock"):
-		return fakeResult{}, nil
-	case strings.Contains(query, "INSERT INTO deferred_maintenance_barriers"):
-		tx.db.epochInserts++
-		return fakeResult{}, nil
-	default:
-		return nil, fmt.Errorf("unexpected exec in quiet-restart fake (would open/join an epoch this scenario must never reach): %s", query)
-	}
-}
-
-func (tx *quietRestartBarrierTx) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
-	if strings.Contains(query, "FROM deferred_maintenance_barriers") {
-		return &queueFakeRows{}, nil // no epoch has ever existed
-	}
-	return nil, fmt.Errorf("unexpected query in quiet-restart fake: %s", query)
-}
-
-func (tx *quietRestartBarrierTx) Commit() error   { return nil }
-func (tx *quietRestartBarrierTx) Rollback() error { return nil }
-
-// TestIngestionStoreShardDrainBarrierQuietRestartNeverOpensEpochAcrossManyIdlePolls
-// is the regression for the codex P1 finding on PR #5852: N shards, none of
-// which ever commits, must never open a barrier epoch across many idle
-// polls. Before the join-only fix, ensureDeferredMaintenanceBarrierEpoch
-// ignored commit status entirely and opened an epoch on the very first idle
-// poll of the very first never-committed shard to check in, then tried to
-// record that shard's arrival and (once every shard eventually re-polled and
-// arrived) ran the corpus-wide maintenance pass — against an unchanged
-// corpus — before opening the next epoch and repeating, forever. Watched-fail
-// evidence for this exact test against the pre-fix code is in the PR/handoff
-// report; it failed on the first shard's first poll with "unexpected exec in
-// quiet-restart fake ... INSERT INTO deferred_maintenance_barrier_arrivals",
-// proving an epoch was opened and an arrival attempted despite no shard ever
-// having committed anything.
-func TestIngestionStoreShardDrainBarrierQuietRestartNeverOpensEpochAcrossManyIdlePolls(t *testing.T) {
-	t.Parallel()
-
-	const shardCount = 3
-	const idlePollsPerShard = 25
-
-	db := &quietRestartBarrierDB{}
-	store := NewIngestionStore(db)
-	store.Now = func() time.Time { return time.Date(2026, time.July, 27, 9, 0, 0, 0, time.UTC) }
-
-	for poll := 0; poll < idlePollsPerShard; poll++ {
-		for shardIndex := 0; shardIndex < shardCount; shardIndex++ {
-			err := store.RunDeferredRelationshipMaintenanceAfterShardDrain(
-				context.Background(),
-				DeferredMaintenanceBarrierConfig{
-					ShardCount:   shardCount,
-					ShardIndex:   shardIndex,
-					HasCommitted: false,
-				},
-				nil,
-				nil,
-			)
-			if err != nil {
-				t.Fatalf("RunDeferredRelationshipMaintenanceAfterShardDrain(shard=%d, poll=%d) error = %v, want nil (a never-committed shard must never open or join an epoch when none is open)", shardIndex, poll, err)
-			}
-		}
-	}
-
-	if got := db.epochInserts; got != 0 {
-		t.Fatalf("epoch inserts across %d idle polls x %d shards = %d, want 0 (quiet restart: no shard ever committed, no epoch should ever open)", idlePollsPerShard, shardCount, got)
-	}
-}
+// quietFleetBarrierState, quietFleetDB, quietFleetTx, quietFleetIdleSource,
+// quietFleetNoopCommitter, and
+// TestIngestionStoreShardDrainBarrierQuietRestartOpensExactlyOneEpochAcrossFleetLifetime
+// live in deferred_maintenance_barrier_quiet_fleet_test.go (split out to keep
+// this file under the 500-line cap).
 
 // alwaysFailBarrierDB fails any DB interaction. It proves a never-committed
 // single-shard drain takes a no-op join-only path without touching Postgres

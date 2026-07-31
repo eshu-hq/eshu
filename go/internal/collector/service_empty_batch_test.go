@@ -70,8 +70,8 @@ func TestServiceRunCallsAfterBatchDrainedForConfiguredEmptyBatch(t *testing.T) {
 	if got, want := hookCalls, 1; got != want {
 		t.Fatalf("AfterBatchDrained() calls = %d, want %d", got, want)
 	}
-	if got, want := hasCommittedValues, []bool{false}; len(got) != 1 || got[0] != want[0] {
-		t.Fatalf("AfterBatchDrained() hasCommitted values = %v, want %v (the never-committed escape must report hasCommitted=false so callers never open a barrier epoch on its behalf)", got, want)
+	if got, want := hasCommittedValues, []bool{true}; len(got) != 1 || got[0] != want[0] {
+		t.Fatalf("AfterBatchDrained() hasCommitted values = %v, want %v (the never-committed escape's first-ever call in this process must report hasCommitted=true — the startupMaintenanceEscapeUsed once-latch — so a shard that owns no repositories still gets the one-time startup maintenance pass)", got, want)
 	}
 }
 
@@ -179,14 +179,22 @@ func TestServiceRunEmptyBatchEscapeAddsExactlyOneDrainPerProcess(t *testing.T) {
 // fresh arrival from every shard, including this one, each epoch, and has no
 // arrival deadline.
 //
-// Before the fix, this test failed: emptyDrainObserved latched true after the
-// first drain and nothing but a commit ever cleared it, so hookCalls stayed
-// at 1 no matter how many idle polls followed. The fix re-arms the escape on
-// "has this shard ever committed," not on "did the last drain happen" — a
-// shard that has never committed keeps re-firing on every idle poll, one
-// arrival attempt per barrier cycle, for as long as it stays empty. A shard
-// that does commit is unaffected: `committedSinceDrain` takes over as soon as
-// its first commit lands, exactly as before.
+// Before the first fix, this test failed: emptyDrainObserved latched true
+// after the first drain and nothing but a commit ever cleared it, so
+// hookCalls stayed at 1 no matter how many idle polls followed. The
+// `everCommitted` fix re-arms the escape on "has this shard ever committed,"
+// not on "did the last drain happen" — a shard that has never committed keeps
+// re-firing on every idle poll, one arrival attempt per barrier cycle, for as
+// long as it stays empty. A shard that does commit is unaffected:
+// `committedSinceDrain` takes over as soon as its first commit lands, exactly
+// as before.
+//
+// The P1 follow-up adds startupMaintenanceEscapeUsed: only the FIRST of these
+// recurring escape calls reports hasCommitted=true (letting this shard open
+// the fleet barrier's first epoch and receive the one-time startup
+// maintenance pass origin/main always ran); every later call reports false
+// and stays join-only, so a quiet fleet does not reopen and rerun the
+// corpus-wide maintenance pass on every idle poll.
 func TestServiceRunCallsEmptyBatchDrainHookOnEveryIdlePollForANeverCommittingShard(t *testing.T) {
 	t.Parallel()
 
@@ -225,9 +233,13 @@ func TestServiceRunCallsEmptyBatchDrainHookOnEveryIdlePollForANeverCommittingSha
 	if got, want := hookCalls, wantIdlePolls; got != want {
 		t.Fatalf("AfterBatchDrained() calls = %d, want %d (a shard that never commits must re-arrive at the barrier every idle poll, not just once)", got, want)
 	}
+	want := []bool{true, false, false}
+	if len(hasCommittedValues) != len(want) {
+		t.Fatalf("AfterBatchDrained() hasCommitted values = %v, want %v", hasCommittedValues, want)
+	}
 	for i, hasCommitted := range hasCommittedValues {
-		if hasCommitted {
-			t.Fatalf("AfterBatchDrained() hasCommitted[%d] = true, want false for every call on a shard that never commits (it must never be allowed to open a barrier epoch)", i)
+		if hasCommitted != want[i] {
+			t.Fatalf("AfterBatchDrained() hasCommitted[%d] = %v, want %v (only the first-ever escape call may open a barrier epoch; every later call on a shard that never commits must stay join-only)", i, hasCommitted, want[i])
 		}
 	}
 }
