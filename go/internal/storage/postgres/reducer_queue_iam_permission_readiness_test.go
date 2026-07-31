@@ -156,6 +156,7 @@ func (db *iamPermissionReadinessQueueDB) QueryContext(_ context.Context, query s
 		"gen-aws-1",
 		string(db.domain),
 		1,
+		int64(0),
 		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),

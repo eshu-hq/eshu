@@ -61,6 +61,7 @@ func (db *iamInstanceProfileRoleReadinessQueueDB) QueryContext(_ context.Context
 		"gen-aws-1",
 		string(reducer.DomainIAMInstanceProfileRoleMaterialization),
 		1,
+		int64(0),
 		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),

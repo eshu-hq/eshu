@@ -52,6 +52,7 @@ func TestReducerQueuePreservesIntentPayloadMetadata(t *testing.T) {
 		"gen-1",
 		string(reducer.DomainCodeFunctionSummary),
 		1,
+		int64(0),
 		now,
 		now,
 		now,

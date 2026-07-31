@@ -174,6 +174,7 @@ func TestReducerQueueClaimIncludesExpiredLeaseReclaimPredicates(t *testing.T) {
 					"generation-456",
 					"workload_identity",
 					1,
+					int64(0),
 					now,
 					now,
 					now,

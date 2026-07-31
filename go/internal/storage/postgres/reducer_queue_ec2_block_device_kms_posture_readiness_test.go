@@ -62,6 +62,7 @@ func (db *ec2BlockDeviceKMSPostureReadinessQueueDB) QueryContext(_ context.Conte
 		"gen-aws-1",
 		string(reducer.DomainEC2BlockDeviceKMSPostureMaterialization),
 		1,
+		int64(0),
 		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),

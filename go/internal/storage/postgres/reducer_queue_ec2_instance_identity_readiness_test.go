@@ -66,6 +66,7 @@ func (db *ec2InstanceIdentityReadinessQueueDB) QueryContext(_ context.Context, q
 		"gen-aws-1",
 		string(reducer.DomainEC2InstanceIdentityMaterialization),
 		db.attemptCount + 1,
+		int64(0),
 		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),

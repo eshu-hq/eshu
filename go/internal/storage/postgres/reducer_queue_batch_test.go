@@ -78,8 +78,8 @@ func TestClaimBatchReturnsClaimedIntents(t *testing.T) {
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{
-				{"item-1", "scope-1", "gen-1", "code_call_materialization", 1, now, now, now, []byte(`{"entity_key":"key-1","reason":"test","fact_id":"f1","source_system":"git"}`)},
-				{"item-2", "scope-2", "gen-2", "code_call_materialization", 1, now, now, now, []byte(`{"entity_key":"key-2","reason":"test","fact_id":"f2","source_system":"git"}`)},
+				{"item-1", "scope-1", "gen-1", "code_call_materialization", 1, int64(0), now, now, now, []byte(`{"entity_key":"key-1","reason":"test","fact_id":"f1","source_system":"git"}`)},
+				{"item-2", "scope-2", "gen-2", "code_call_materialization", 1, int64(0), now, now, now, []byte(`{"entity_key":"key-2","reason":"test","fact_id":"f2","source_system":"git"}`)},
 			}},
 		},
 	}

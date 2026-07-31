@@ -58,6 +58,10 @@ func (db *awsCloudRuntimeDriftElapsedBoundQueueDB) QueryContext(
 		"gen-elapsed-bound",
 		string(reducer.DomainAWSCloudRuntimeDrift),
 		db.attemptCount,
+		// container_image_identity_claim_epoch: this test never exercises the
+		// container_image_identity domain, so the epoch stays at its zero
+		// opt-out value.
+		int64(0),
 		db.enqueuedAt,
 		db.enqueuedAt,
 		// cycle_started_at: this test proves the attempt_count freeze, not the

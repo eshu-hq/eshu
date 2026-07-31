@@ -73,6 +73,7 @@ func (db *gcpRelationshipReadinessQueueDB) QueryContext(_ context.Context, query
 		"gen-gcp-1",
 		string(reducer.DomainGCPRelationshipMaterialization),
 		db.attemptCount + 1,
+		int64(0),
 		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),

@@ -384,6 +384,10 @@ func (db *proofDomainDB) claimReducerWork(now time.Time, leaseOwner string, clai
 			item.generationID,
 			item.domain,
 			item.attemptCount,
+			// container_image_identity_claim_epoch: this harness never
+			// exercises the container_image_identity domain, so the epoch
+			// stays at its zero opt-out value.
+			int64(0),
 			item.createdAt,
 			item.visibleAt,
 			// cycle_started_at: this harness never exercises reopen, so it
