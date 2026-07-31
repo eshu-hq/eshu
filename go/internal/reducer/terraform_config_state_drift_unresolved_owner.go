@@ -17,15 +17,22 @@ import (
 
 // writeUnresolvedOwner persists one durable "unresolved" finding for the
 // whole state-snapshot scope when backend-owner resolution finds zero
-// candidate config repos (tfstatebackend.ErrNoConfigRepoOwnsBackend).
-// Mirrors writeAmbiguousOwner in every respect except which write mode it
-// requests: no-op when Writer is nil (counters/logs-only mode); write
-// failures are logged and counted, never returned as a Handle() error,
-// because "no repo owns this backend" is already a non-fatal,
-// operator-actionable rejection (DriftRejection's contract,
-// Result{Status: Succeeded}) with no retry that could fix it — failing the
-// whole intent over a best-effort durability write would turn that warning
-// into a retry storm.
+// candidate config repos (tfstatebackend.ErrNoConfigRepoOwnsBackend). No-op
+// when Writer is nil (counters/logs-only mode).
+//
+// A write failure is returned to the caller as an error, which Handle()
+// propagates as a retriable Handle() failure — deliberately NOT swallowed
+// the way writeAmbiguousOwner swallows its own write failure. The two cases
+// differ in what recovers a lost write: a resolvable backend whose owner
+// later changes gets a fresh chance on the next apply's new state_snapshot
+// generation regardless of whether this write succeeded, but a
+// permanently-unresolved backend's state produces no such future generation
+// to retry against — losing this write is not "eventually corrected," it is
+// simply lost, with the durable "unresolved" row (and everything reading it)
+// silently reverting to indistinguishable-from-empty. This matches the
+// existing "exact"-outcome write path in Handle(), which already treats an
+// identical WriteTerraformConfigStateDriftFindings failure as fatal for the
+// same reason.
 //
 // Issue #5594: before this, ErrNoConfigRepoOwnsBackend was log-only, so a
 // caller reading POST /api/v0/terraform/config-state-drift/findings for this
@@ -40,9 +47,9 @@ func (h TerraformConfigStateDriftHandler) writeUnresolvedOwner(
 	intent Intent,
 	backendKind string,
 	locatorHash string,
-) {
+) error {
 	if h.Writer == nil {
-		return
+		return nil
 	}
 	_, writeErr := h.Writer.WriteTerraformConfigStateDriftFindings(ctx, TerraformConfigStateDriftWrite{
 		IntentID:        intent.IntentID,
@@ -55,7 +62,7 @@ func (h TerraformConfigStateDriftHandler) writeUnresolvedOwner(
 		UnresolvedOwner: true,
 	})
 	if writeErr == nil {
-		return
+		return nil
 	}
 	if h.Instruments != nil && h.Instruments.DriftUnresolvedOwnerWriteFailed != nil {
 		h.Instruments.DriftUnresolvedOwnerWriteFailed.Add(ctx, 1, metric.WithAttributes(
@@ -71,4 +78,5 @@ func (h TerraformConfigStateDriftHandler) writeUnresolvedOwner(
 			slog.String("write.error", writeErr.Error()),
 		)
 	}
+	return writeErr
 }

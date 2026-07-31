@@ -171,7 +171,13 @@ func (h TerraformConfigStateDriftHandler) Handle(
 			FailureClass: "no_config_repo_owns_backend",
 			Reason:       resolveErr.Error(),
 		})
-		h.writeUnresolvedOwner(ctx, intent, backendKind, locatorHash)
+		// Unlike writeAmbiguousOwner below, a write failure here IS returned
+		// as a Handle() error so the queue retries the intent — see
+		// writeUnresolvedOwner's doc comment for why a permanently-unresolved
+		// backend has no other recovery path for a lost write.
+		if writeErr := h.writeUnresolvedOwner(ctx, intent, backendKind, locatorHash); writeErr != nil {
+			return Result{}, fmt.Errorf("write terraform config state drift unresolved owner finding: %w", writeErr)
+		}
 		return Result{
 			IntentID: intent.IntentID,
 			Domain:   intent.Domain,

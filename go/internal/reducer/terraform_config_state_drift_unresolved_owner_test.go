@@ -86,13 +86,29 @@ func TestDriftHandlerAmbiguousOwnerStillWritesAmbiguousNotUnresolved(t *testing.
 	}
 }
 
-// TestDriftHandlerNoOwnerWriteFailureStaysNonFatal proves a durability write
-// failure on the unresolved path does not turn an already operator-actionable,
-// non-fatal rejection into a retriable Handle() error, mirroring
-// TestDriftHandlerAmbiguousOwnerWriteFailureStaysNonFatal. It also proves the
-// failure is not invisible to metrics:
-// eshu_dp_drift_unresolved_owner_write_failed_total increments once.
-func TestDriftHandlerNoOwnerWriteFailureStaysNonFatal(t *testing.T) {
+// TestDriftHandlerNoOwnerWriteFailureIsRetriable proves a durability write
+// failure on the unresolved path turns Handle() into a retriable error, so
+// the reducer queue's existing retry/backoff and dead-letter policy re-runs
+// the intent instead of the finding being silently lost for this generation
+// with nothing left to repair it. This deliberately diverges from
+// writeAmbiguousOwner's swallow-on-failure design (unchanged, see
+// TestDriftHandlerAmbiguousOwnerWriteFailureStaysNonFatal): a transient
+// Postgres error here has no other recovery path at all -- unlike a
+// resolvable scope, which self-heals via the next apply's new
+// state_snapshot generation, a permanently-unresolved backend's state never
+// produces another generation to retry against, so losing this one write is
+// permanent, not "eventually corrected." Review finding on #5594 (P1):
+// before this, the pre-existing swallow-and-log pattern was copied onto the
+// unresolved path without weighing that difference; this handler's own
+// "exact"-outcome write path already treats the identical writer failure as
+// fatal (Handle() -> Result{}, fmt.Errorf(...)) precisely so the queue
+// retries it, so this restores that same treatment for consistency instead
+// of leaving the unresolved path as the only durability-losing branch.
+// The failure counter still increments -- telemetry is not the recovery
+// mechanism here, retry is, but the counter remains valuable for operators
+// watching write-failure rate independent of whether retry eventually
+// succeeds.
+func TestDriftHandlerNoOwnerWriteFailureIsRetriable(t *testing.T) {
 	t.Parallel()
 
 	inst, reader := newDriftInstruments(t)
@@ -103,12 +119,9 @@ func TestDriftHandlerNoOwnerWriteFailureStaysNonFatal(t *testing.T) {
 		Writer:         writer,
 		Instruments:    inst,
 	}
-	res, err := h.Handle(context.Background(), validIntent())
-	if err != nil {
-		t.Fatalf("Handle() err = %v, want nil even when the durable write fails", err)
-	}
-	if res.Status != ResultStatusSucceeded {
-		t.Fatalf("res.Status = %q, want Succeeded", res.Status)
+	_, err := h.Handle(context.Background(), validIntent())
+	if err == nil {
+		t.Fatal("Handle() err = nil, want non-nil so the queue retries this intent")
 	}
 
 	var rm metricdata.ResourceMetrics
