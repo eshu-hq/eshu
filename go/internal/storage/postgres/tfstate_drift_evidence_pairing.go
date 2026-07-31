@@ -32,6 +32,18 @@
 // "aws_iam_role.this", …) means the same resource key legitimately recurs
 // across unrelated modules, so this file refuses to guess whenever more than
 // one candidate shares a key on either side.
+//
+// KNOWN, INTENTIONAL GAP: a `count`/`for_each` resource with more than one
+// live instance NEVER pairs, even when every instance is genuinely part of
+// the same spurious mismatch. resourceAddressKey strips per-instance index
+// suffixes so same-resource instances share one key (see its own doc
+// comment), which means N>1 instances make that key ambiguous on the state
+// side — the correct, conservative outcome per this file's "refuse rather
+// than guess" contract, since a spurious mismatch genuinely cannot be
+// attributed to one of several siblings. Those findings stay "exact" rather
+// than "derived" until an address-level (not just resource-level) pairing
+// strategy is designed; see the resourceAddressKey doc comment for the
+// exact guarantee this mechanism does and does not provide.
 package postgres
 
 import (
@@ -40,29 +52,48 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/tfconfigstate"
 )
 
-// resourceAddressKey returns the trailing "TYPE.NAME[INDEX]" portion of a
-// canonical Terraform resource address (or, for a state-side data source,
-// "data.TYPE.NAME[INDEX]" — see the "data. prefix" section below), by
-// FRONT-stripping leading "module.<name>[<index>]." pairs rather than taking
-// the last two dot-separated segments.
+// resourceAddressKey returns a pairing key for a canonical Terraform
+// resource address: "TYPE.NAME" (or, for a state-side data source,
+// "data.TYPE.NAME" — see the "data. prefix" section below), with any
+// leading "module.<name>[<index>]." chain AND any trailing per-instance
+// "[INDEX]" suffix stripped.
 //
-// Front-stripping, not end-taking, is required for correctness. A full
-// Terraform address is built left-to-right as
-// ("module.<name>[<index>]." )* "TYPE.NAME[INDEX]", and EITHER a module
-// call's own name (`module.vpc["a.b"].aws_x.y`) OR a for_each instance's
-// index key (`aws_route53_record.this["api.example.com"]`) can itself
-// contain a literal "." or "]" inside its quoted brackets. This function's
-// earlier shape — `strings.Split(address, ".")`, keep the last two segments
-// — took the LAST two "." positions regardless of what produced them, so it
-// silently truncated mid-index on any dotted key: reviewer-supplied,
-// empirically-run proof showed `aws_route53_record.this["api.example.com"]`
-// and the UNRELATED `aws_acm_certificate.cert["www.example.com"]` both
-// collapsing to the identical wrong key `example.com"]`. Front-stripping
-// instead walks the address from the LEFT, consuming and discarding one
-// "module.<name>[<index>]." segment at a time (skipModuleNameSegment), so
-// bracket/quote content is never mistaken for a "." boundary; whatever is
-// left after the loop is returned verbatim, byte-identical to what follows
-// the address's own last module prefix.
+// TWO independent things are stripped, found by two separate reviewers of
+// this same file, and both required for the key to mean "the same logical
+// resource, regardless of where it sits in the module tree or which
+// instance it is":
+//
+//  1. Leading module prefixes, via FRONT-stripping rather than taking the
+//     last two dot-separated segments. A full Terraform address is built
+//     left-to-right as ("module.<name>[<index>]." )* "TYPE.NAME[INDEX]",
+//     and EITHER a module call's own name (`module.vpc["a.b"].aws_x.y`) OR
+//     a for_each instance's index key
+//     (`aws_route53_record.this["api.example.com"]`) can itself contain a
+//     literal "." or "]" inside its quoted brackets. This function's
+//     earlier shape — `strings.Split(address, ".")`, keep the last two
+//     segments — took the LAST two "." positions regardless of what
+//     produced them, so it silently truncated mid-index on any dotted key:
+//     empirically-run proof showed `aws_route53_record.this["api.example.com"]`
+//     and the UNRELATED `aws_acm_certificate.cert["www.example.com"]` both
+//     collapsing to the identical wrong key `example.com"]`. Front-stripping
+//     instead walks the address from the LEFT, consuming and discarding one
+//     "module.<name>[<index>]." segment at a time (skipModuleNameSegment),
+//     so bracket/quote content is never mistaken for a "." boundary.
+//
+//  2. A trailing per-instance index suffix, via stripTrailingIndexSuffix.
+//     Config-side rows NEVER carry one — the parser only sees a static
+//     resource block, with no notion of how many instances a
+//     `count`/`for_each` produces (configRowFromParserEntry builds
+//     addresses as exactly `TYPE.NAME`, nothing more). State-side rows for
+//     an indexed resource ALWAYS carry one — the collector's own
+//     resourceAddress (internal/collector/terraformstate/identity.go)
+//     appends "[index:<N>]" for a `count` instance or "[key:<hash>]" for a
+//     `for_each` instance. Without stripping, a config-only "aws_instance.web"
+//     could never equal a state-only "aws_instance.web[index:0]" —
+//     pairSpuriousModuleMismatches was a silent no-op for EVERY
+//     count/for_each resource, found by a second, independent review pass;
+//     the first fix (front-stripping module prefixes alone) never touched
+//     this suffix at all.
 //
 // The "data." prefix (deliberate decision, not an oversight): when present,
 // it is preserved as part of the returned key, NOT stripped. Terraform
@@ -82,25 +113,39 @@ import (
 // legitimately can. Preserving the prefix here — rather than special-casing
 // it away — keeps such a row from silently colliding with an unrelated
 // managed resource sharing the same type and name; it falls out naturally
-// from front-stripping ONLY "module." segments and returning everything
-// else verbatim.
+// from front-stripping ONLY "module." segments and leaving everything else
+// (other than the trailing index) untouched.
 //
 // Bracket/quote handling: the scan (skipModuleNameSegment,
-// hasResourceTypeNameShape) tracks bracket depth and double-quote state, so
-// a "." or "]" inside a quoted index string is never mistaken for a segment
-// boundary. It does not handle a literal double-quote character escaped
-// inside a quoted index key (vanishingly rare in practice — a for_each key
-// that itself contains a `"`); such an address either fails the trailing
-// structural-validity check (returns false, refusing to pair) or, if it
-// happens to parse to some other shape, cannot silently collide with a
-// GENUINE resource's key, since real Terraform addresses never contain an
-// unescaped `"` outside a quoted index.
+// hasResourceTypeNameShape, stripTrailingIndexSuffix) tracks bracket depth
+// and double-quote state, so a "." or "]" inside a quoted index string is
+// never mistaken for a segment boundary. It does not handle a literal
+// double-quote character escaped inside a quoted index key (vanishingly
+// rare in practice — a for_each key that itself contains a `"`); such an
+// address either fails a structural-validity check (returns false, refusing
+// to pair) or, if it happens to parse to some other shape, cannot silently
+// collide with a GENUINE resource's key, since real Terraform addresses
+// never contain an unescaped `"` outside a quoted index.
+//
+// What this function does NOT guarantee: it does not by itself prevent
+// pairSpuriousModuleMismatches from mirroring a reason onto the wrong
+// resource. It only guarantees that two addresses naming the SAME logical
+// resource (same type, same name, same module path, any instance) produce
+// the SAME key, and that two addresses naming genuinely DIFFERENT resources
+// (different type, different name, or an unrelated data source) never do.
+// Turning "same key" into "safe to pair" is pairSpuriousModuleMismatches's
+// job — see its own doc comment for the unambiguous-cardinality contract
+// that does the actual safety work, including why a `count`/`for_each`
+// resource with more than one live instance correctly REFUSES to pair (a
+// spurious mismatch cannot be attributed to one of several sibling
+// instances) even though every instance shares one key here.
 //
 // Returns ("", false) when the address does not resolve to a well-formed
-// TYPE.NAME shape after stripping module prefixes — a malformed address, an
-// address that is only a module chain with no trailing resource, or an
-// unterminated bracket/quote. Callers MUST treat this as "refuse to pair,"
-// never as "pair anyway."
+// TYPE.NAME shape after stripping module prefixes and the trailing index —
+// a malformed address, an address that is only a module chain with no
+// trailing resource, or an unterminated bracket/quote anywhere in the
+// address. Callers MUST treat this as "refuse to pair," never as "pair
+// anyway."
 func resourceAddressKey(address string) (string, bool) {
 	remaining := address
 	for {
@@ -117,7 +162,73 @@ func resourceAddressKey(address string) (string, bool) {
 	if !hasResourceTypeNameShape(remaining) {
 		return "", false
 	}
-	return remaining, true
+	stripped, ok := stripTrailingIndexSuffix(remaining)
+	if !ok {
+		return "", false
+	}
+	return stripped, true
+}
+
+// stripTrailingIndexSuffix removes a well-formed trailing "[INDEX]" bracket
+// group from `s` — the collector's own "[index:<N>]"/"[key:<hash>]" shapes,
+// or a Terraform-CLI-display shape such as `["key"]` or `[0]` — using the
+// same bracket/quote-depth tracking used elsewhere in this file rather than
+// a naive first-"[" search, since a for_each key can itself contain a
+// literal "[" character.
+//
+// Returns (s, true) UNCHANGED when `s` carries no trailing index at all (an
+// unindexed resource, or a `count`/`for_each` instance the collector
+// happens to address without a suffix — see identity.go's resourceAddress,
+// which omits the suffix for a count instance at array position 0). Also
+// returns (s, true) unchanged — deliberately not stripping — when a bracket
+// group is present but does not run cleanly to the very end of the string
+// (content after the closing "]"): that is not a shape any address builder
+// in this package emits, and guessing at a strip in that case risks
+// producing a wrong key; leaving the suffix in place instead means the
+// pairing simply will not match, the safe default.
+//
+// Returns ("", false) when the bracket/quote structure is unterminated
+// (more "[" than "]", or a quote that never closes) — refusing to guess
+// through a malformed address, per resourceAddressKey's "refuse to pair"
+// contract.
+func stripTrailingIndexSuffix(s string) (string, bool) {
+	depth := 0
+	inQuotes := false
+	openIdx := -1
+	closeIdx := -1
+	for i := 0; i < len(s); i++ {
+		switch c := s[i]; {
+		case c == '"':
+			inQuotes = !inQuotes
+		case inQuotes:
+			// Inside a quoted index key: "[" and "]" are literal key
+			// content, not bracket structure.
+		case c == '[':
+			if depth == 0 {
+				openIdx = i
+				closeIdx = -1
+			}
+			depth++
+		case c == ']':
+			depth--
+			if depth < 0 {
+				return "", false
+			}
+			if depth == 0 {
+				closeIdx = i
+			}
+		}
+	}
+	if inQuotes || depth != 0 {
+		return "", false
+	}
+	if openIdx == -1 {
+		return s, true
+	}
+	if closeIdx != len(s)-1 {
+		return s, true
+	}
+	return s[:openIdx], true
 }
 
 // skipModuleNameSegment consumes one module-call name — and its optional
@@ -194,15 +305,25 @@ func hasResourceTypeNameShape(remaining string) bool {
 // on resource type+name alone: Terraform's own idiomatic "singleton
 // resource" naming convention (terraform-aws-modules's "aws_s3_bucket.this",
 // "aws_iam_role.this", and similar) means the same <type>.<name> key
-// routinely recurs across unrelated, independently-resolved modules. Pairing
-// on a 1:2+ or 2+:1 collision would risk mirroring the reason onto a
-// genuinely unrelated resource that merely shares a name — worse than
-// leaving the known half-fixed gap, because it would manufacture a false
-// "derived" downgrade on a real, independent finding. Refusing ambiguous
-// collisions accepts a narrower, explicitly-scoped miss (the loader will not
-// pair when a repo happens to have both an unresolved module AND an
-// unrelated genuinely-added resource sharing the exact same key in the same
-// generation) in exchange for zero false pairings.
+// routinely recurs across unrelated, independently-resolved modules, and a
+// `count`/`for_each` resource legitimately produces MULTIPLE state instances
+// sharing one key (resourceAddressKey strips the per-instance index — see
+// its own doc comment). Pairing on a 1:2+ or 2+:1 collision would risk
+// mirroring the reason onto a genuinely unrelated resource that merely
+// shares a name, or arbitrarily picking one sibling instance out of several
+// equally-plausible candidates — worse than leaving the known gap, because
+// it would manufacture a false "derived" downgrade on a real, independent
+// finding. Refusing ambiguous collisions accepts a narrower,
+// explicitly-scoped miss (the loader will not pair when a repo has an
+// unrelated resource sharing the exact same key, and will not pair ANY
+// instance of a multi-instance count/for_each resource) in exchange for a
+// real, provable guarantee: THIS cardinality check never manufactures a
+// false pairing on its own. That guarantee is only as good as
+// resourceAddressKey's own promise that same-key implies same-resource and
+// different-resource implies different-key — a promise this file's own
+// history shows is worth re-verifying whenever the address grammar this
+// function parses changes, not asserting as self-evident (see
+// resourceAddressKey's doc comment for the exact, narrower claim it makes).
 func pairSpuriousModuleMismatches(
 	config, state map[string]*tfconfigstate.ResourceRow,
 ) {

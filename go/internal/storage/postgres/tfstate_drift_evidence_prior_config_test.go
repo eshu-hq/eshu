@@ -281,6 +281,13 @@ func TestPostgresDriftEvidenceLoaderPriorConfigConfidenceThreadedOntoRemovedFrom
 	}
 }
 
+// Row-ordering regression tests for loadPriorConfigAddresses
+// (TestListPriorConfigAddressesQueryOrdersByIngestedAtDescending,
+// TestCollectPriorConfigAddressesFirstWriteWinsDependsOnCallOrder,
+// TestPostgresDriftEvidenceLoaderPrefersMostRecentPriorGenerationConfidenceOnConflict)
+// live in tfstate_drift_evidence_prior_config_ordering_test.go, split out to
+// stay under the CLAUDE.md 500-line cap.
+
 func TestRecordModuleRenameIfPrefixChangedRecordsOncePerPath(t *testing.T) {
 	t.Parallel()
 

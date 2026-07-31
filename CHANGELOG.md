@@ -690,6 +690,70 @@ recent shipped work grouped by feature area.
     resourceAddressKey" section for the full RED output and the
     data-source-reachability trace.
 
+- **Review follow-up: fix a P1 pairing no-op for every count/for_each
+  resource, and a P2 nondeterministic-ordering bug in the prior-config
+  confidence signal.** A second, independent review pass found two more
+  defects the first follow-up missed.
+
+  **P1 (verified against the committed code, not assumed):**
+  `resourceAddressKey`'s front-stripping only ever removed leading
+  `module.<name>` segments; it never touched a trailing per-instance index.
+  Config-side rows never carry one (the parser has no per-instance
+  information, only a static resource block), while state-side rows for a
+  `count`/`for_each` resource ALWAYS do
+  (`internal/collector/terraformstate/identity.go` appends `[index:<N>]` or
+  `[key:<hash>]`). So a config-only `aws_instance.web` could never equal a
+  state-only `aws_instance.web[index:0]` -- `pairSpuriousModuleMismatches`
+  silently never paired ANY indexed resource, regardless of module
+  resolution confidence. Fixed by stripping a trailing `[INDEX]` suffix too
+  (new `stripTrailingIndexSuffix`), using the same bracket/quote-depth
+  tracking rather than a naive first-`[` search. This correctly produces
+  TWO different outcomes depending on instance count: `count = 1` or a
+  single-key `for_each` now pairs (exactly one state instance shares the
+  stripped key); `count > 1` or a multi-key `for_each` correctly REFUSES to
+  pair (every instance shares one key, so the state side has 2+ candidates
+  and a spurious mismatch cannot be attributed to one specific sibling) --
+  a documented, intentional scope limitation, not a residual gap.
+
+  **P2 (proven via `EXPLAIN (ANALYZE, VERBOSE)` against a real Postgres 18
+  instance, per `eshu-postgres-rigor`):** `loadPriorConfigAddresses`'s
+  first-write-wins confidence threading assumed
+  `listPriorConfigAddressesQuery`'s row order was most-recent-generation-
+  first, but the query's OUTER `ORDER BY` was `pg.generation_id ASC,
+  fact.fact_id ASC` -- lexicographic on an opaque `TEXT PRIMARY KEY` with no
+  chronological relationship. The CTE's own `ORDER BY ingested_at DESC
+  LIMIT $3` bounds which generations are INCLUDED, never the outer row
+  order. Proven empirically: three prior generations seeded with
+  `generation_id` order (gen-alpha, gen-charlie, gen-omega) deliberately
+  scrambled relative to their true `ingested_at` order (gen-charlie,
+  gen-alpha, gen-omega) -- the unmodified query returned rows in
+  `generation_id` order, not recency order, and `EXPLAIN` showed the CTE
+  fully inlined into a Nested Loop on Postgres 18 (no separate CTE Scan
+  node). Fixed by exposing `ingested_at` from the CTE and ordering the
+  outer `SELECT` by it directly; the fixed query reuses the SAME
+  `scope_generations_scope_latest_lookup_idx` index at identical cost, no
+  new index needed.
+  - No-Regression Evidence: `cd go && go test ./internal/storage/postgres/...
+    -count=1` is green, including new coverage for both defects --
+    `TestPairSpuriousModuleMismatchesPairsSingleIndexedStateInstance` /
+    `TestPairSpuriousModuleMismatchesRefusesWhenMultipleIndexedStateInstancesShareStrippedKey`
+    for P1, and
+    `TestListPriorConfigAddressesQueryOrdersByIngestedAtDescending` (a SQL
+    constant text assertion -- fakeExecQueryer bypasses real SQL execution,
+    so only a real Postgres planner run, captured in the evidence doc, can
+    prove or disprove a row-ordering claim) plus
+    `TestPostgresDriftEvidenceLoaderPrefersMostRecentPriorGenerationConfidenceOnConflict`
+    (the first regression exercising two prior generations with conflicting
+    confidence for the same address) for P2.
+  - Doc comments on `resourceAddressKey` and `pairSpuriousModuleMismatches`
+    previously overclaimed "zero false pairings" unconditionally and "any
+    index suffix" handling; both now state the narrower, real guarantee and
+    name the known gaps (the count/for_each multi-instance miss;
+    unescaped-quote-inside-a-quoted-index edge case) explicitly.
+  - See the evidence doc's "Follow-up: two independent review findings the
+    first follow-up missed" section for the full EXPLAIN output from both
+    the broken and fixed query.
+
 ### Route-fact-based Rails controller liveness
 
 - **Join the Rails controller dead-code-root verdict against real route facts**

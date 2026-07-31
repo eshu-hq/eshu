@@ -410,3 +410,198 @@ accompanies this specific follow-up (the orchestrating PR owner runs it as
 part of `make pre-pr` immediately before push, per this repo's
 orchestration split between focused-verification authors and the
 `make pre-pr` orchestrator).
+
+## Follow-up: two independent review findings the first follow-up missed
+
+A second review pass found TWO further defects, both confirmed against the
+committed code before any fix was written, per this repo's
+"verify yourself, do not take the reviewer's word for it" convention.
+
+### P1 — the pairing was a silent no-op for every count/for_each resource
+
+Verified directly: `resourceAddressKey("aws_instance.web")` (a config-only
+key -- config rows never carry a per-instance index, since
+`configRowFromParserEntry` builds addresses from only `resource_type` +
+`resource_name`, no instance data) returned `"aws_instance.web"`, while
+`resourceAddressKey("module.x.aws_instance.web[index:0]")` (the real state
+address for the same resource) returned `"aws_instance.web[index:0]"`
+UNCHANGED -- front-stripping (the first follow-up's fix) only ever touched
+leading `module.` segments, never the trailing per-instance index. The two
+keys never matched, so `pairSpuriousModuleMismatches` never paired ANY
+indexed resource, regardless of module resolution confidence.
+
+**Fix:** `resourceAddressKey` now also strips a trailing `[INDEX]` suffix
+(new `stripTrailingIndexSuffix`, `tfstate_drift_evidence_pairing.go`), using
+the same bracket/quote-depth tracking `skipModuleNameSegment` already uses,
+not a naive first-`[` search (a `for_each` key can itself contain a literal
+`[`). Two behaviors fall out of this correctly, both proven by test:
+
+- `count = 1` or a single-key `for_each`: exactly one state instance shares
+  the stripped key with the one config-only row, so the pairing is
+  genuinely unambiguous and fires
+  (`TestPairSpuriousModuleMismatchesPairsSingleIndexedStateInstance`).
+- `count > 1` or a multi-key `for_each`: every instance strips to the SAME
+  key, so the state side has 2+ candidates and the existing unambiguity
+  guard correctly REFUSES -- a spurious mismatch genuinely cannot be
+  attributed to one of several sibling instances, so this stays "exact"
+  rather than "derived" for every instance
+  (`TestPairSpuriousModuleMismatchesRefusesWhenMultipleIndexedStateInstancesShareStrippedKey`).
+  This is a documented, intentional scope limitation, not a residual bug —
+  named explicitly in both `resourceAddressKey`'s and
+  `pairSpuriousModuleMismatches`'s doc comments.
+
+- No-Regression Evidence: `cd go && go test ./internal/storage/postgres/...
+  -count=1` is green, including
+  `TestResourceAddressKeyStripsModulePrefixes`'s extended table (now
+  covering `[index:N]`, `[key:<hash>]`, and module-prefixed variants of
+  each — RED against the pre-fix implementation, reproducing exactly the
+  missing-strip symptom, GREEN after) and the two new
+  `TestPairSpuriousModuleMismatches*` cardinality tests above.
+- Observability Evidence: none — same private pairing-key helper, no new
+  metric, span, or response field.
+
+### P2 — the prior-config confidence's "first-write-wins" guarantee rested on an unguaranteed row order
+
+`loadPriorConfigAddresses` (the second Follow-up section above) relies on
+`generationOrder` being most-recent-generation-first so
+`collectPriorConfigAddresses`'s first-write-wins map update keeps the
+freshest generation's confidence signal. `listPriorConfigAddressesQuery`'s
+CTE bounds WHICH generations are included via `ORDER BY ingested_at DESC
+LIMIT $3`, but the OUTER SELECT had its own, different `ORDER BY
+pg.generation_id ASC, fact.fact_id ASC` — lexicographic on `generation_id
+TEXT PRIMARY KEY` (schema/data-plane/postgres/002_scope_generations.sql),
+an opaque key with no defined chronological relationship. This codebase's
+own `scope_generations_scope_latest_lookup_idx (scope_id, ingested_at DESC,
+generation_id DESC)` exists specifically because `generation_id` is NOT
+trusted as a recency proxy anywhere else in this codebase — the CTE
+comment's "ordered ingested_at DESC — the most recent N" was true of
+membership only, never of the returned row order, with or without Postgres
+inlining the CTE.
+
+**Proof, per `eshu-postgres-rigor`'s "prove the ordering claim rather than
+asserting it," run against a real Postgres 18 instance (`postgres:18-alpine`
+in a throwaway Docker container on a private port, torn down after; schema
+files `001_ingestion_scopes.sql`, `002_scope_generations.sql`,
+`003_fact_records.sql` applied directly via `psql`, no live-gate script
+involved):**
+
+Seeded `repository:repo-a` with three prior generations whose
+`generation_id` ASC order differs from their true `ingested_at` order:
+
+```
+ generation_id | ingested_at (most recent first)
+---------------+---------------------------------
+ gen-charlie   | 2026-07-30 08:15:27 (newest)
+ gen-alpha     | 2026-07-29 08:15:27
+ gen-omega     | 2026-07-28 08:15:27 (oldest)
+```
+
+Running the UNMODIFIED, committed `listPriorConfigAddressesQuery` text
+returned rows in this order:
+
+```
+ generation_id |                              terraform_resources
+---------------+--------------------------------------------------------------------------------
+ gen-alpha     | [{"path": "main.tf", ...}]
+ gen-charlie   | [{"path": "main.tf", ...}]
+ gen-omega     | [{"path": "main.tf", ...}]
+```
+
+`gen-alpha, gen-charlie, gen-omega` — `generation_id` ASC, NOT the true
+recency order `gen-charlie, gen-alpha, gen-omega`. `EXPLAIN (ANALYZE,
+VERBOSE, BUFFERS)` on the same query showed:
+
+```
+Incremental Sort  (cost=16.39..16.44 rows=2 width=96) (actual time=0.064..0.064 rows=3.00 loops=1)
+  Sort Key: scope_generations.generation_id, fact.fact_id
+  Presorted Key: scope_generations.generation_id
+  ->  Nested Loop  (cost=0.29..16.39 rows=1 width=96) ...
+        ->  Index Scan using fact_records_scope_generation_idx on fact_records fact ...
+        ->  Limit (cost=0.15..8.17 rows=1 width=40) (actual time=0.003..0.004 rows=3.00 loops=3)
+              ->  Index Scan using scope_generations_scope_latest_lookup_idx on scope_generations ...
+Planning Time: 6.169 ms
+Execution Time: 0.105 ms
+```
+
+The `prior_generations` CTE is fully INLINED on Postgres 18 — there is no
+separate CTE Scan node; `scope_generations` is scanned directly under the
+`Nested Loop`'s inner side, `loops=3` (re-executed once per outer-loop
+row), confirming the CTE's own internal ordering is not preserved as a
+standalone materialized step. The FINAL `Incremental Sort`'s `Sort Key` is
+`generation_id, fact_id` — confirming the OUTER `ORDER BY` clause, not
+`ingested_at`, is what actually determines the returned row order,
+matching the empirical row order above exactly.
+
+**Fix:** exposed `ingested_at` from the CTE and changed the outer `ORDER
+BY` to `pg.ingested_at DESC, pg.generation_id ASC, fact.fact_id ASC`.
+Re-run against the same seeded data:
+
+```
+ generation_id |                              terraform_resources
+---------------+--------------------------------------------------------------------------------
+ gen-charlie   | [{"path": "main.tf", ...}]
+ gen-alpha     | [{"path": "main.tf", ...}]
+ gen-omega     | [{"path": "main.tf", ...}]
+```
+
+Correct: `gen-charlie, gen-alpha, gen-omega`, matching true `ingested_at`
+recency. `EXPLAIN (ANALYZE, VERBOSE, BUFFERS)` on the fixed query:
+
+```
+Incremental Sort  (cost=16.38..16.43 rows=2 width=104) (actual time=0.085..0.086 rows=3.00 loops=1)
+  Sort Key: scope_generations.ingested_at DESC, scope_generations.generation_id, fact.fact_id
+  Presorted Key: scope_generations.ingested_at
+  ->  Nested Loop  (cost=0.29..16.38 rows=1 width=104) ...
+        ->  Limit (cost=0.15..8.17 rows=1 width=40) (actual time=0.009..0.010 rows=3.00 loops=1)
+              ->  Index Scan using scope_generations_scope_latest_lookup_idx on scope_generations ...
+        ->  Index Scan using fact_records_scope_generation_idx on fact_records fact ...
+Planning Time: 6.225 ms
+Execution Time: 0.139 ms
+```
+
+Same cost (16.38 vs 16.39 — statistically identical), same
+`scope_generations_scope_latest_lookup_idx` index, no new index needed —
+this index's own column order `(scope_id, ingested_at DESC, generation_id
+DESC)` already matches the new requirement exactly, so the inner scan's
+`Presorted Key: scope_generations.ingested_at` now feeds the outer sort
+almost for free. No query-plan regression; this is a pure correctness fix.
+
+- No-Regression Evidence:
+  `TestListPriorConfigAddressesQueryOrdersByIngestedAtDescending` asserts
+  the SQL constant text contains the correct outer `ORDER BY` — RED against
+  the pre-fix text (which lacked `ORDER BY pg.ingested_at DESC` on the
+  outer SELECT entirely), GREEN after. This is a text assertion, not a
+  fakeExecQueryer behavioral test, because fakeExecQueryer bypasses real
+  SQL execution and returns whatever row order a test hands it regardless
+  of the query text — only a real Postgres planner run (above) can prove or
+  disprove a row-ordering claim.
+  `TestCollectPriorConfigAddressesFirstWriteWinsDependsOnCallOrder` proves,
+  directly and without any DB fixture, that reversing the call order on the
+  SAME two conflicting entries flips the winning reason — the mechanism the
+  SQL fix protects.
+  `TestPostgresDriftEvidenceLoaderPrefersMostRecentPriorGenerationConfidenceOnConflict`
+  is the first regression in this package to exercise TWO prior generations
+  declaring the same address with conflicting confidence (none existed
+  before, which is why this went unnoticed); it feeds the fixture rows in
+  the fixed query's guaranteed order and proves the full loader wiring
+  (per-generation `buildModulePrefixMap`, `mergeDriftRows`'s promotion)
+  carries the correct, most-recent generation's reason through to the
+  durable `AddressedRow`. `cd go && go test
+  ./internal/storage/postgres/... -count=1` is green.
+- Observability Evidence: none — pure query-text and Go-side ordering fix,
+  no new field, metric, span, or log line; the existing
+  `logPriorConfigWalk` INFO log is unaffected.
+
+### Doc comments corrected (review finding #4)
+
+`resourceAddressKey`'s and `pairSpuriousModuleMismatches`'s doc comments
+previously claimed the unambiguity guard "bounds false pairings to zero"
+unconditionally, and that the key "recovers... the last two dot-separated
+segments... regardless of index suffix" — both false, as the two defects
+above prove. Both doc comments now state the real, narrower guarantee
+(same key implies same logical resource and vice versa, GIVEN a correct
+resourceAddressKey; the cardinality check itself never manufactures a false
+pairing on top of that) and name the known gaps explicitly: the
+count/for_each multi-instance miss (intentional, documented above), and the
+unescaped-double-quote-inside-a-quoted-index edge case (vanishingly rare,
+fails closed rather than silently misparsing).
