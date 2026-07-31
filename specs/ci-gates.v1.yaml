@@ -714,9 +714,13 @@ gates:
     triggers:
       - "go/internal/**"
       - "go/cmd/**"
+      - "docs/public/observability/telemetry-coverage.md"
+      - "scripts/*verify-telemetry-coverage*.sh"
       - "scripts/lib/telemetry-coverage-bucket-check.sh"
       - "scripts/lib/telemetry-coverage-row-check.sh"
       - "scripts/lib/test-verify-telemetry-coverage-*"
+      - ".github/workflows/static-contract-gates.yml"
+      - "specs/ci-gates.v1.yaml"
     local:
       command: "bash scripts/verify-telemetry-coverage.sh"
       test_command: "bash scripts/test-verify-telemetry-coverage.sh"
@@ -740,6 +744,8 @@ gates:
       - "scripts/generate-operator-dashboard.sh"
       - "scripts/lib/operator-dashboard-*.json.tmpl"
       - "scripts/lib/operator-dashboard-metrics.sh"
+      - ".github/workflows/static-contract-gates.yml"
+      - "specs/ci-gates.v1.yaml"
     local:
       command: "bash scripts/generate-operator-dashboard.sh"
       test_command: "bash scripts/test-generate-operator-dashboard.sh"
