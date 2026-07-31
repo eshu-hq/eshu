@@ -65,6 +65,20 @@ and `eshu-diagnostic-rigor`.
   naming the gate and the conflicting keys, so the ambiguity is fixed instead
   of silently picked one way or the other.
 
+- **Correspondence is only checkable for the sound subset.**
+  `checkVerifyScriptWorkflowMatch` asserts that a gate whose
+  `scripts/verify-*.sh` is invoked by exactly ONE workflow declares that
+  workflow. Do not broaden it to "the declared job must run the gate's local
+  command": a gate's local and CI entrypoints are legitimately different
+  artifacts (CI runs golangci-lint where local runs `precommit-go.sh`, and
+  `generate-contracttest.sh` where local runs `verify-contracttest.sh`), so the
+  broad rule flags 16 gates of which 15 are correctly wired (#5748). A script no
+  workflow runs, or several run, carries no signal and is skipped. Match the
+  script with a boundary check, never `strings.Contains` — a workflow running
+  `myscripts/verify-X.sh` contains `scripts/verify-X.sh` as a substring, and
+  counting it as a second host makes the "exactly one workflow" precondition
+  fail, silently skipping the gate and turning a real mismatch into a pass.
+
 ## Common changes
 
 - Adding a new category or requirement: add the constant, add to the validation
