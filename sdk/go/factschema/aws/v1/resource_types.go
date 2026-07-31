@@ -23,6 +23,14 @@ const (
 	ResourceTypeEC2Volume = "aws_ec2_volume"
 	// ResourceTypeEC2Instance identifies an EC2 instance.
 	ResourceTypeEC2Instance = "aws_ec2_instance"
+	// ResourceTypeEC2AMI identifies an EC2 AMI (machine image). It is the
+	// #5717 node-class target of the instance->AMI relationship the EC2
+	// scanner emits (RelationshipEC2InstanceUsesAMI): the AMI materializes as
+	// an ordinary CloudResource node under this resource_type, carrying only
+	// identity (account/region/resource_id) — no name, state, owner, or
+	// creation-date metadata, since that requires a DescribeImages call the
+	// EC2 scanner does not make (see awscloud.ResourceTypeEC2AMI doc).
+	ResourceTypeEC2AMI = "aws_ec2_ami"
 
 	// ResourceTypeIAMRole identifies an IAM role.
 	ResourceTypeIAMRole = "aws_iam_role"
