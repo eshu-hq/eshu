@@ -9,16 +9,23 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
 )
 
 const (
-	containerImageIdentityWarningConfigBlobUnavailable = "config_blob_unavailable"
-	containerImageIdentityWarningTagListTruncated      = "tag_list_truncated"
-	containerImageIdentityWarningMissingManifestDigest = "missing_manifest_digest"
-
 	containerImageIdentityRetireHoldConfigBlobUnavailable = "config_blob_unavailable"
 	containerImageIdentityRetireHoldTagListTruncated      = "tag_list_truncated"
 	containerImageIdentityRetireHoldMissingManifestDigest = "missing_manifest_digest"
+)
+
+type containerImageIdentityWarningDisposition uint8
+
+const (
+	containerImageIdentityWarningInvalid containerImageIdentityWarningDisposition = iota
+	containerImageIdentityWarningNoRetirementHold
+	containerImageIdentityWarningHoldConfigBlob
+	containerImageIdentityWarningHoldTagList
+	containerImageIdentityWarningHoldMissingManifest
 )
 
 type containerImageIdentityRetirementPlan struct {
@@ -82,8 +89,23 @@ func planContainerImageIdentityRetirement(
 			)
 		}
 		warningCode := strings.TrimSpace(warning.WarningCode)
-		switch warningCode {
-		case containerImageIdentityWarningConfigBlobUnavailable:
+		disposition, err := classifyContainerImageIdentityWarning(warningCode)
+		if err != nil {
+			return containerImageIdentityRetirementPlan{}, fmt.Errorf(
+				"active OCI registry retirement warning %q: %w",
+				envelope.FactID,
+				err,
+			)
+		}
+		switch disposition {
+		case containerImageIdentityWarningInvalid:
+			return containerImageIdentityRetirementPlan{}, fmt.Errorf(
+				"active OCI registry retirement warning %q classified invalid",
+				envelope.FactID,
+			)
+		case containerImageIdentityWarningNoRetirementHold:
+			continue
+		case containerImageIdentityWarningHoldConfigBlob:
 			repositoryID, err := containerImageIdentityRetirementWarningRepositoryID(
 				warningCode,
 				derefString(warning.RepositoryID),
@@ -104,7 +126,7 @@ func planContainerImageIdentityRetirement(
 			}] {
 				heldManifestDigests[manifest] = struct{}{}
 			}
-		case containerImageIdentityWarningTagListTruncated:
+		case containerImageIdentityWarningHoldTagList:
 			repositoryID, err := containerImageIdentityRetirementWarningRepositoryID(
 				warningCode,
 				derefString(warning.RepositoryID),
@@ -113,7 +135,7 @@ func planContainerImageIdentityRetirement(
 				return containerImageIdentityRetirementPlan{}, err
 			}
 			truncatedRepositories[repositoryID] = struct{}{}
-		case containerImageIdentityWarningMissingManifestDigest:
+		case containerImageIdentityWarningHoldMissingManifest:
 			repositoryID, err := containerImageIdentityRetirementWarningRepositoryID(
 				warningCode,
 				derefString(warning.RepositoryID),
@@ -161,6 +183,28 @@ func planContainerImageIdentityRetirement(
 	})
 	sort.Strings(plan.LegacyFactIDs)
 	return plan, nil
+}
+
+func classifyContainerImageIdentityWarning(
+	warningCode string,
+) (containerImageIdentityWarningDisposition, error) {
+	switch strings.TrimSpace(warningCode) {
+	case ociregistryv1.WarningCodeUnsupportedReferrersAPI,
+		ociregistryv1.WarningCodeComputedManifestDigest,
+		ociregistryv1.WarningCodeConfigBlobOversized:
+		return containerImageIdentityWarningNoRetirementHold, nil
+	case ociregistryv1.WarningCodeConfigBlobUnavailable:
+		return containerImageIdentityWarningHoldConfigBlob, nil
+	case ociregistryv1.WarningCodeTagListTruncated:
+		return containerImageIdentityWarningHoldTagList, nil
+	case ociregistryv1.WarningCodeMissingManifestDigest:
+		return containerImageIdentityWarningHoldMissingManifest, nil
+	default:
+		return containerImageIdentityWarningInvalid, fmt.Errorf(
+			"unrecognized OCI registry warning code %q",
+			strings.TrimSpace(warningCode),
+		)
+	}
 }
 
 func containerImageIdentityRetirementWarningRepositoryID(
@@ -255,10 +299,9 @@ func containerImageIdentityRetireHoldReason(
 	missingManifestRepositories map[string]struct{},
 ) string {
 	repositoryID := strings.TrimSpace(decision.RepositoryID)
-	if repositoryID == "" {
-		if parsed, ok := parseContainerImageRef(decision.ImageRef); ok {
-			repositoryID = repositoryIDFromKey(parsed.repositoryKey)
-		}
+	parsed, parsedOK := parseContainerImageRef(decision.ImageRef)
+	if repositoryID == "" && parsedOK {
+		repositoryID = repositoryIDFromKey(parsed.repositoryKey)
 	}
 	if _, held := heldManifestDigests[containerImageIdentityRepositoryDigest{
 		repositoryID: repositoryID,
@@ -267,7 +310,6 @@ func containerImageIdentityRetireHoldReason(
 		return containerImageIdentityRetireHoldConfigBlobUnavailable
 	}
 
-	parsed, parsedOK := parseContainerImageRef(decision.ImageRef)
 	if _, held := missingManifestRepositories[repositoryID]; held {
 		return containerImageIdentityRetireHoldMissingManifestDigest
 	}

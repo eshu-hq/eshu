@@ -23,8 +23,6 @@ import (
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
-const warningMissingManifestDigest = "missing_manifest_digest"
-
 // RegistryClient is the narrow OCI Distribution contract used by the runtime.
 type RegistryClient interface {
 	Ping(context.Context) error
@@ -202,7 +200,7 @@ func (s *Source) buildEnvelopes(
 		}
 		digest, digestWarning, ok := manifestDigest(manifest)
 		if !ok {
-			warning, warningErr := s.warningEnvelope(target, collectorInstanceID, generationID, observedAt, warningMissingManifestDigest, reference, "")
+			warning, warningErr := s.warningEnvelope(target, collectorInstanceID, generationID, observedAt, ociregistry.WarningMissingManifestDigest, reference, "")
 			if warningErr != nil {
 				return nil, warningErr
 			}

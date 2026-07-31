@@ -53,7 +53,9 @@
 // config_blob_unavailable also requires a lowercase sha256 digest. A malformed,
 // incomplete, or registry-wide placeholder warning fails the retirement pass
 // closed, so bounded collector incompleteness is not mistaken for authoritative
-// demotion.
+// demotion. KnownWarningCodes publishes the closed schema-v1 warning
+// vocabulary; the collector rejects codes outside it, and the reducer gives
+// every known code an explicit retirement disposition.
 //
 // The reducer and projector decode only the latest struct for each kind.
 // Version shims for an older schema major live in the parent factschema

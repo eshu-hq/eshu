@@ -3,6 +3,56 @@
 
 package v1
 
+const (
+	// WarningCodeUnsupportedReferrersAPI marks registries without Referrers
+	// API support.
+	WarningCodeUnsupportedReferrersAPI = "unsupported_referrers_api"
+	// WarningCodeComputedManifestDigest marks manifests whose digest was
+	// computed because the registry omitted its digest header.
+	WarningCodeComputedManifestDigest = "computed_manifest_digest"
+	// WarningCodeConfigBlobUnavailable marks config blobs that could not be
+	// read during bounded collection.
+	WarningCodeConfigBlobUnavailable = "config_blob_unavailable"
+	// WarningCodeConfigBlobOversized marks config blobs that exceeded the
+	// bounded provenance-label read limit.
+	WarningCodeConfigBlobOversized = "config_blob_oversized"
+	// WarningCodeTagListTruncated marks repositories whose tag list exceeded
+	// the configured collection window.
+	WarningCodeTagListTruncated = "tag_list_truncated"
+	// WarningCodeMissingManifestDigest marks manifest responses without a
+	// usable header or computable body digest.
+	WarningCodeMissingManifestDigest = "missing_manifest_digest"
+)
+
+// KnownWarningCodes returns the complete schema-v1 warning-code vocabulary.
+// The returned slice is independent and safe for callers to modify.
+func KnownWarningCodes() []string {
+	return []string{
+		WarningCodeUnsupportedReferrersAPI,
+		WarningCodeComputedManifestDigest,
+		WarningCodeConfigBlobUnavailable,
+		WarningCodeConfigBlobOversized,
+		WarningCodeTagListTruncated,
+		WarningCodeMissingManifestDigest,
+	}
+}
+
+// IsKnownWarningCode reports whether code is in the schema-v1 warning
+// vocabulary.
+func IsKnownWarningCode(code string) bool {
+	switch code {
+	case WarningCodeUnsupportedReferrersAPI,
+		WarningCodeComputedManifestDigest,
+		WarningCodeConfigBlobUnavailable,
+		WarningCodeConfigBlobOversized,
+		WarningCodeTagListTruncated,
+		WarningCodeMissingManifestDigest:
+		return true
+	default:
+		return false
+	}
+}
+
 // Warning is the schema-version-1 typed payload for the
 // "oci_registry.warning" fact kind (Contract System v1 §3.1,
 // docs/internal/design/contract-system-v1.md).

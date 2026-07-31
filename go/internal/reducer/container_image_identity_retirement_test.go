@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
 )
 
 const (
@@ -313,61 +314,61 @@ func TestContainerImageIdentityHandlerFailsClosedOnIncompleteSafetyWarningTarget
 	}{
 		{
 			name:        "tag truncation missing repository",
-			warningCode: containerImageIdentityWarningTagListTruncated,
+			warningCode: ociregistryv1.WarningCodeTagListTruncated,
 			wantField:   "repository_id",
 		},
 		{
 			name:         "tag truncation blank repository",
-			warningCode:  containerImageIdentityWarningTagListTruncated,
+			warningCode:  ociregistryv1.WarningCodeTagListTruncated,
 			repositoryID: stringPointer(" "),
 			wantField:    "repository_id",
 		},
 		{
 			name:         "tag truncation placeholder repository",
-			warningCode:  containerImageIdentityWarningTagListTruncated,
+			warningCode:  ociregistryv1.WarningCodeTagListTruncated,
 			repositoryID: stringPointer("oci-registry://warnings"),
 			wantField:    "repository_id",
 		},
 		{
 			name:        "missing manifest digest missing repository",
-			warningCode: containerImageIdentityWarningMissingManifestDigest,
+			warningCode: ociregistryv1.WarningCodeMissingManifestDigest,
 			wantField:   "repository_id",
 		},
 		{
 			name:         "missing manifest digest redacted repository",
-			warningCode:  containerImageIdentityWarningMissingManifestDigest,
+			warningCode:  ociregistryv1.WarningCodeMissingManifestDigest,
 			repositoryID: stringPointer("[redacted]"),
 			wantField:    "repository_id",
 		},
 		{
 			name:         "config blob warning missing digest",
-			warningCode:  containerImageIdentityWarningConfigBlobUnavailable,
+			warningCode:  ociregistryv1.WarningCodeConfigBlobUnavailable,
 			repositoryID: stringPointer(retirementTestRepositoryID),
 			wantField:    "digest",
 		},
 		{
 			name:         "config blob warning blank digest",
-			warningCode:  containerImageIdentityWarningConfigBlobUnavailable,
+			warningCode:  ociregistryv1.WarningCodeConfigBlobUnavailable,
 			repositoryID: stringPointer(retirementTestRepositoryID),
 			digest:       stringPointer(" "),
 			wantField:    "digest",
 		},
 		{
 			name:         "config blob warning placeholder digest",
-			warningCode:  containerImageIdentityWarningConfigBlobUnavailable,
+			warningCode:  ociregistryv1.WarningCodeConfigBlobUnavailable,
 			repositoryID: stringPointer(retirementTestRepositoryID),
 			digest:       stringPointer("sha256:placeholder"),
 			wantField:    "digest",
 		},
 		{
 			name:        "config blob warning missing repository",
-			warningCode: containerImageIdentityWarningConfigBlobUnavailable,
+			warningCode: ociregistryv1.WarningCodeConfigBlobUnavailable,
 			digest:      stringPointer(retirementTestConfigDigest),
 			wantField:   "repository_id",
 		},
 		{
 			name:         "config blob warning placeholder repository",
-			warningCode:  containerImageIdentityWarningConfigBlobUnavailable,
+			warningCode:  ociregistryv1.WarningCodeConfigBlobUnavailable,
 			repositoryID: stringPointer("oci-registry://warnings"),
 			digest:       stringPointer(retirementTestConfigDigest),
 			wantField:    "repository_id",

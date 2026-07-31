@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
 )
 
 func TestWarningEnvelopeRedactsURLsAndCredentials(t *testing.T) {
@@ -64,5 +65,41 @@ func TestWarningEnvelopeRejectsBlankWarningCode(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatalf("NewWarningEnvelope(blank code) error = nil, want non-nil")
+	}
+}
+
+func TestWarningEnvelopeRejectsUnknownWarningCode(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewWarningEnvelope(WarningObservation{
+		WarningCode:         "future_completeness_warning",
+		GenerationID:        "generation-warning",
+		CollectorInstanceID: "synthetic-registry",
+	})
+	if err == nil {
+		t.Fatal("NewWarningEnvelope(unknown code) error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "unknown OCI registry warning code") {
+		t.Fatalf("NewWarningEnvelope(unknown code) error = %q, want classified rejection", err)
+	}
+}
+
+func TestWarningEnvelopeAcceptsSchemaWarningCatalog(t *testing.T) {
+	t.Parallel()
+
+	for _, warningCode := range ociregistryv1.KnownWarningCodes() {
+		warningCode := warningCode
+		t.Run(warningCode, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := NewWarningEnvelope(WarningObservation{
+				WarningCode:         warningCode,
+				GenerationID:        "generation-warning",
+				CollectorInstanceID: "synthetic-registry",
+			})
+			if err != nil {
+				t.Fatalf("NewWarningEnvelope(%q) error = %v", warningCode, err)
+			}
+		})
 	}
 }

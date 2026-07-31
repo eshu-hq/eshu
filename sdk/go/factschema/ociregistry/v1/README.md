@@ -94,6 +94,13 @@ and `config_blob_unavailable` also requires a lowercase sha256 digest. Missing,
 malformed, or registry-wide placeholder targets fail closed. The typed decode
 keeps that accuracy gate on the versioned payload contract.
 
+The schema-v1 warning vocabulary is closed and published by
+`KnownWarningCodes`. The remaining codes (`unsupported_referrers_api`,
+`computed_manifest_digest`, and `config_blob_oversized`) are explicit
+non-retirement warnings. Collectors reject unknown codes, and retirement fails
+closed if an unknown active warning reaches the consumer during a rolling
+upgrade.
+
 ## Changing a struct
 
 Any field change here is a payload-schema change.
