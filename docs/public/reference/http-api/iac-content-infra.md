@@ -379,20 +379,34 @@ Each `drift_findings[]` item carries an `outcome`:
 - `exact` — a classified per-address finding. `address` and `drift_kind` are
   populated; `drift_kind` is one of `added_in_state`, `added_in_config`,
   `attribute_drift`, `removed_from_state`, or `removed_from_config`.
-- `derived` — a classified per-address finding whose config-side `address`
-  depended on an unresolved module-prefix fallback (issue #5572), so the
-  address itself is a heuristic rather than a resolved fact. `address` and
-  `drift_kind` are populated exactly as for `exact`; the difference is
-  confidence, not shape. The finding's `evidence[]` carries a
-  `terraform_module_resolution_confidence` atom whose `value` names the
-  cause — `external_registry` (a genuinely local module source shaped like
-  Terraform Registry shorthand, so its prefix never resolved) or
-  `depth_exceeded` (a local module chain deeper than the resolver's bound).
-  Expect these findings to appear as spurious `added_in_config` /
-  `added_in_state` pairs for the same resource, because the config-side
-  address the loader computed does not match the address Terraform state
-  records — root-shaped for `external_registry`, or a wrongly-shallow
-  module prefix inherited from an ancestor for `depth_exceeded`.
+- `derived` — a classified per-address finding whose `address` depended on an
+  unresolved module-prefix fallback (issue #5572), so the address itself is a
+  heuristic rather than a resolved fact. `address` and `drift_kind` are
+  populated exactly as for `exact`; the difference is confidence, not shape.
+  The finding's `evidence[]` carries a `terraform_module_resolution_confidence`
+  atom whose `value` names the cause — `external_registry` (a genuinely local
+  module source shaped like Terraform Registry shorthand, so its prefix never
+  resolved) or `depth_exceeded` (a local module chain deeper than the
+  resolver's bound). Expect these findings to appear as spurious
+  `added_in_config` / `added_in_state` pairs for the same resource, because
+  the config-side address the loader computed does not match the address
+  Terraform state records — root-shaped for `external_registry`, or a
+  wrongly-shallow module prefix inherited from an ancestor for
+  `depth_exceeded`. **Both members of the pair carry `derived`, not just the
+  config-side half**: when the loader can unambiguously tell the two findings
+  are the same real resource (exactly one low-confidence config-only finding
+  and exactly one state-only finding share the same resource type and name),
+  it mirrors the confidence cause onto the state-side finding too, so a
+  caller filtering `outcome=exact` never gets back one half of a
+  known-spurious pair. A `removed_from_config` finding can also carry
+  `derived` for the analogous reason: the prior config declaration that
+  activated it may itself have depended on the same unresolved-module
+  fallback in an earlier generation. The pairing intentionally does not fire
+  when a resource type/name combination recurs across more than one
+  candidate on either side in the same join (a common shape with generic
+  per-module resource names such as `aws_s3_bucket.this`) — an ambiguous
+  collision is left at its unpaired outcome rather than risk mirroring the
+  cause onto an unrelated resource.
 - `ambiguous` — backend-owner resolution found more than one candidate config
   repo for the state snapshot, so no per-address classification ran.
   `address` and `drift_kind` are empty; `ambiguous_owner_candidates` carries

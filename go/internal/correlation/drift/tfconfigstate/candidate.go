@@ -202,6 +202,32 @@ func buildOneCandidate(
 			Value:        row.State.Address,
 			Confidence:   driftConfidence,
 		})
+		// Module-resolution-confidence atom (issue #5572 follow-up) —
+		// symmetric with the row.Config branch above. An unresolved
+		// module-prefix chain produces a spurious MISMATCH PAIR: the
+		// config-only candidate at the fallback address and a state-only
+		// candidate at the real, prefixed address for the SAME resource
+		// (they never share a join key, so BuildCandidates emits both
+		// added_in_config and added_in_state). The loader
+		// (postgres.pairSpuriousModuleMismatches) mirrors
+		// ModuleResolutionReason onto the paired state-only row when the
+		// pairing is unambiguous; the loader also threads it onto a
+		// removed_from_config state row promoted from a low-confidence
+		// prior-config address (postgres.loadPriorConfigAddresses). Either
+		// way, both halves of the pair must downgrade to "derived" — a
+		// query for outcome=exact must never return one half of a
+		// known-spurious pair.
+		if row.State.ModuleResolutionReason != "" {
+			evidence = append(evidence, model.EvidenceAtom{
+				ID:           candidateID + "/module_resolution_state",
+				SourceSystem: driftSourceSystem,
+				EvidenceType: EvidenceTypeModuleResolutionConfidence,
+				ScopeID:      stateScopeID,
+				Key:          EvidenceKeyModuleResolutionReason,
+				Value:        row.State.ModuleResolutionReason,
+				Confidence:   driftConfidence,
+			})
+		}
 	}
 	if row.Prior != nil {
 		evidence = append(evidence, model.EvidenceAtom{

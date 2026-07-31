@@ -175,6 +175,61 @@ func TestBuildCandidatesOmitsModuleResolutionConfidenceAtomWhenConfigRowIsClean(
 	}
 }
 
+// TestBuildCandidatesAttachesModuleResolutionConfidenceAtomWhenStateRowFlagsIt
+// proves the state-only half of a spurious config/state mismatch pair (issue
+// #5572 follow-up) also carries the confidence atom. An unresolved
+// module-prefix chain produces TWO candidates for one real resource — a
+// config-only added_in_config candidate (the loader's fallback address) and a
+// state-only added_in_state candidate (the real, prefixed state address).
+// Before this fix, only the config-side ResourceRow ever carried
+// ModuleResolutionReason, so only half of the spurious pair downgraded to
+// "derived" — an outcome=exact query still returned the other half of a
+// known-spurious pair. The loader now mirrors the reason onto the paired
+// state-only row (see postgres.pairSpuriousModuleMismatches); this test
+// proves BuildCandidates reads that mirrored value symmetrically with the
+// existing row.Config branch.
+func TestBuildCandidatesAttachesModuleResolutionConfidenceAtomWhenStateRowFlagsIt(t *testing.T) {
+	t.Parallel()
+
+	rows := []AddressedRow{
+		{
+			Address:      "module.vpc.aws_security_group.vpc_endpoints",
+			ResourceType: "aws_security_group",
+			State: &ResourceRow{
+				Address:                "module.vpc.aws_security_group.vpc_endpoints",
+				ResourceType:           "aws_security_group",
+				ModuleResolutionReason: "external_registry",
+			},
+		},
+	}
+	got := BuildCandidates(rows, sampleAnchor(), "state_snapshot:s3:hash-1")
+	if len(got) != 1 {
+		t.Fatalf("BuildCandidates() = %d, want 1", len(got))
+	}
+	if err := got[0].Validate(); err != nil {
+		t.Fatalf("Candidate.Validate() error = %v", err)
+	}
+
+	var confidenceAtom *model.EvidenceAtom
+	for i := range got[0].Evidence {
+		if got[0].Evidence[i].EvidenceType == EvidenceTypeModuleResolutionConfidence {
+			confidenceAtom = &got[0].Evidence[i]
+		}
+	}
+	if confidenceAtom == nil {
+		t.Fatal("missing module resolution confidence atom on the state-only candidate")
+	}
+	if confidenceAtom.Key != EvidenceKeyModuleResolutionReason {
+		t.Fatalf("confidence atom key = %q, want %q", confidenceAtom.Key, EvidenceKeyModuleResolutionReason)
+	}
+	if confidenceAtom.Value != "external_registry" {
+		t.Fatalf("confidence atom value = %q, want %q", confidenceAtom.Value, "external_registry")
+	}
+	if confidenceAtom.ScopeID != "state_snapshot:s3:hash-1" {
+		t.Fatalf("confidence atom scope = %q, want the state scope (state-side provenance)", confidenceAtom.ScopeID)
+	}
+}
+
 func TestBuildCandidatesAdmitsThroughEngineAcrossAllDriftKinds(t *testing.T) {
 	t.Parallel()
 

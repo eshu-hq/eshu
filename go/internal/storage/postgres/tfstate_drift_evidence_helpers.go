@@ -38,18 +38,34 @@ func hasStateOnlyAddress(
 // and tfconfigstate.BuildCandidates drops them before they reach the engine.
 //
 // PreviouslyDeclaredInConfig is set to true on state-only addresses present
-// in priorConfigAddresses (the set returned by loadPriorConfigAddresses).
-// State-only addresses absent from that set keep PreviouslyDeclaredInConfig
+// in priorConfigAddresses (the map returned by loadPriorConfigAddresses).
+// State-only addresses absent from that map keep PreviouslyDeclaredInConfig
 // false and surface as added_in_state — the conservative outside-window
 // fallback for operator-imported resources that were never in config or
 // whose declaration falls outside the PriorConfigDepth window.
+//
+// When a promoted address's priorConfigAddresses value is non-empty (issue
+// #5572), the prior generation's own module resolution was low-confidence
+// for that address, so the promotion mirrors the reason onto
+// ResourceRow.ModuleResolutionReason — same treatment as a current-generation
+// config row (tfstate_drift_evidence.go's emitConfigRowsForEntry) and the
+// spurious-mismatch pairing above, so BuildCandidates attaches the
+// confidence atom and the writer downgrades the resulting
+// removed_from_config finding to "derived".
 //
 // Hoisted from tfstate_drift_evidence.go (issue #169) to keep the loader file
 // under the CLAUDE.md 500-line cap; behavior is unchanged.
 func mergeDriftRows(
 	config, state, prior map[string]*tfconfigstate.ResourceRow,
-	priorConfigAddresses map[string]struct{},
+	priorConfigAddresses map[string]string,
 ) []tfconfigstate.AddressedRow {
+	// Mirror ModuleResolutionReason onto the paired state-only half of any
+	// spurious config/state mismatch pair an unresolved module-prefix chain
+	// produced (issue #5572 follow-up; see
+	// tfstate_drift_evidence_pairing.go's package doc comment). Must run
+	// before the per-address loop below reads `state[address]`.
+	pairSpuriousModuleMismatches(config, state)
+
 	addresses := map[string]struct{}{}
 	for address := range config {
 		addresses[address] = struct{}{}
@@ -78,8 +94,11 @@ func mergeDriftRows(
 			resourceType = pr.ResourceType
 		}
 		if cfg == nil && st != nil {
-			if _, declared := priorConfigAddresses[address]; declared {
+			if reason, declared := priorConfigAddresses[address]; declared {
 				st.PreviouslyDeclaredInConfig = true
+				if reason != "" {
+					st.ModuleResolutionReason = reason
+				}
 			}
 		}
 		out = append(out, tfconfigstate.AddressedRow{

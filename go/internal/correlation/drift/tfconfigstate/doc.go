@@ -114,6 +114,31 @@
 //     so an operator debugging a spurious finding can still tell the two
 //     causes apart without the outcome vocabulary growing per cause.
 //
+//     An unresolved module prefix does not just make one address uncertain
+//     -- it makes the config/state JOIN KEY wrong, so the loader always
+//     produces TWO candidates for the same real resource: a config-only
+//     added_in_config at the fallback address and a state-only
+//     added_in_state at the real, prefixed Terraform address (they never
+//     share a join key). PostgresDriftEvidenceLoader's
+//     pairSpuriousModuleMismatches
+//     (go/internal/storage/postgres/tfstate_drift_evidence_pairing.go)
+//     mirrors ModuleResolutionReason onto the paired state-only row when the
+//     pairing is unambiguous (exactly one low-confidence config-only row and
+//     exactly one state-only row share the same trailing <type>.<name>
+//     resource key), so both halves of the mismatch pair reach "derived" --
+//     querying outcome=exact never returns one half of a known-spurious
+//     pair. The pairing deliberately refuses ambiguous collisions (2+
+//     candidates sharing a key on either side): Terraform's own idiomatic
+//     "singleton resource" naming convention (aws_s3_bucket.this,
+//     aws_iam_role.this, and similar) means the same <type>.<name> key
+//     legitimately recurs across unrelated, independently resolved modules,
+//     so a blind match would risk mirroring the reason onto a genuinely
+//     unrelated resource. The same mirroring applies to removed_from_config:
+//     mergeDriftRows (go/internal/storage/postgres/tfstate_drift_evidence_
+//     helpers.go) threads the reason from loadPriorConfigAddresses when the
+//     PRIOR generation's own module resolution was itself low-confidence for
+//     the promoted address.
+//
 //     A pre-#5572 mitigation remains in place alongside this: a
 //     TerraformConfigStateDriftFinding row's own Evidence atom is
 //     finding-scoped, but eshu_dp_drift_unresolved_module_calls_total{reason}

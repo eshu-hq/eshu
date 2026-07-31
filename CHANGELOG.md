@@ -566,6 +566,63 @@ recent shipped work grouped by feature area.
   the masked wrong-ancestor address instead, per the masking-bug fix
   above). Both corrected to describe the actual, tested behavior.
 
+- **Review follow-up: downgrade BOTH halves of a spurious mismatch pair, not
+  just the config-side half.** An unresolved module-prefix chain does not
+  make one address uncertain -- it makes the config/state join key wrong, so
+  the loader always produced TWO candidates for the same real resource: a
+  config-only `added_in_config` at the fallback address (correctly flagged
+  and downgraded, per the work above) and a state-only `added_in_state` at
+  the real, prefixed address, which stayed `"exact"` because
+  `ResourceRow.ModuleResolutionReason` only ever carried the reason on the
+  config-side row. A caller filtering `outcome=exact` still got back half of
+  a pair this feature exists to flag as uncertain. A related gap: the
+  prior-config walk that powers `removed_from_config`
+  (`PostgresDriftEvidenceLoader.loadPriorConfigAddresses`) built its own
+  `moduleResolutionConfidenceMap` per prior generation and discarded it
+  (`priorPrefixMap, _, err := l.buildModulePrefixMap(...)`), so a
+  `removed_from_config` finding promoted from a low-confidence prior-config
+  address also stayed `"exact"`.
+
+  A new `pairSpuriousModuleMismatches`
+  (`go/internal/storage/postgres/tfstate_drift_evidence_pairing.go`) runs
+  inside `mergeDriftRows` and mirrors `ModuleResolutionReason` onto the
+  paired state-only row, but only when the pairing is unambiguous: exactly
+  one low-confidence config-only row and exactly one state-only row share
+  the trailing `<type>.<name>[index]` resource key (`resourceAddressKey`,
+  derived purely from the address string -- no module-prefix-map lookup
+  needed). Ambiguous collisions (2+ candidates sharing a key on either side)
+  are left untouched deliberately: Terraform's own idiomatic "singleton
+  resource" naming convention (`aws_s3_bucket.this`, `aws_iam_role.this`,
+  and similar -- the exact convention `terraform-aws-modules` itself uses)
+  means the same `<type>.<name>` key legitimately recurs across unrelated,
+  independently resolved modules, so a blind match risks mirroring the
+  reason onto a genuinely unrelated resource. `collectPriorConfigAddresses`
+  now threads the prior generation's own confidence map through the same
+  `moduleResolutionReasonForEntry` comparison the current-generation path
+  already uses, and `BuildCandidates` gained a `row.State.ModuleResolutionReason`
+  branch symmetric with the pre-existing `row.Config` branch -- the reducer
+  writer's `moduleResolutionOutcome` needed no change, since it already only
+  checked atom presence, not which side attached it.
+  - No-Regression Evidence / Observability Evidence: see the "Follow-up: both
+    halves of a spurious mismatch pair now downgrade" section of
+    `docs/internal/evidence/5572-drift-derived-outcome-module-resolution-confidence.md`
+    for the complexity argument (zero new Postgres queries) and the green
+    focused test run across `internal/correlation/drift/tfconfigstate`,
+    `internal/storage/postgres`, `internal/reducer`, `internal/query`, and
+    `internal/mcp`, including new regression coverage for the pairing
+    (`TestPairSpuriousModuleMismatchesMirrorsReasonOntoUnambiguousStateOnlyRow`,
+    `TestPairSpuriousModuleMismatchesSkipsAmbiguousResourceKeyCollision`,
+    `TestLoadDriftEvidencePairsSpuriousMismatchAcrossModuleResolutionFailure`)
+    and the prior-config threading
+    (`TestPostgresDriftEvidenceLoaderPriorConfigConfidenceThreadedOntoRemovedFromConfigRow`).
+  - The `POST /api/v0/terraform/config-state-drift/findings?variant=derived`
+    golden-corpus entry's description was corrected (it previously asserted
+    the state-side finding "stays outcome=\"exact\""); no assertion or count
+    changed, since `required_json_values`/`required_json_object_matches` use
+    existential array-path matching that holds whether the `outcome=derived`
+    filter now returns one finding or two. `cd go && go test
+    ./cmd/golden-corpus-gate/... -count=1` is green.
+
 ### Route-fact-based Rails controller liveness
 
 - **Join the Rails controller dead-code-root verdict against real route facts**

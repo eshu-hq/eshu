@@ -156,3 +156,135 @@ fixture repo in the corpus, check
 `GET /api/v0/iac/resources?limit=50&include_facets=true`'s
 `required_json_values` and its lock-in test for the count this block
 type will move, and update both together in the same change.
+
+## Follow-up: both halves of a spurious mismatch pair now downgrade
+
+The original change above only flagged the CONFIG-side half of a spurious
+`added_in_config`/`added_in_state` mismatch pair as low-confidence. An
+unresolved module-prefix chain does not make one address uncertain; it makes
+the config/state JOIN KEY wrong, so `mergeDriftRows` always emitted TWO
+candidates for the SAME real resource -- a config-only `added_in_config` at
+the fallback address (correctly flagged and downgraded to `derived`) and a
+state-only `added_in_state` at the real, prefixed address (left at
+`exact`, since `ResourceRow.ModuleResolutionReason` was documented as
+"CONFIG-side only"). A caller filtering `outcome=exact` still got back half
+of a pair this feature exists specifically to flag as uncertain. A second,
+related gap: `PostgresDriftEvidenceLoader.loadPriorConfigAddresses` computed
+its own `moduleResolutionConfidenceMap` per prior generation
+(`priorPrefixMap, _, err := l.buildModulePrefixMap(...)`) and discarded it,
+so a `removed_from_config` finding promoted from a low-confidence
+prior-config address also stayed `exact`.
+
+Touched hot-path files this follow-up covers (additive to the list above):
+
+- `go/internal/storage/postgres/tfstate_drift_evidence_pairing.go` (new)
+- `go/internal/storage/postgres/tfstate_drift_evidence_helpers.go`
+- `go/internal/storage/postgres/tfstate_drift_evidence_prior_config.go`
+- `go/internal/correlation/drift/tfconfigstate/candidate.go`
+
+### Fix shape
+
+1. `pairSpuriousModuleMismatches` (new,
+   `tfstate_drift_evidence_pairing.go`) runs inside `mergeDriftRows` before
+   the per-address loop. It mirrors `ModuleResolutionReason` from a
+   config-only row onto its paired state-only row ONLY when the pairing is
+   unambiguous: exactly one low-confidence config-only row and exactly one
+   state-only row share the same trailing `<type>.<name>[index]` resource
+   key (`resourceAddressKey`, pure string manipulation over the address --
+   Terraform's address grammar guarantees the last two dot-separated
+   segments are always type and name, regardless of how many
+   `module.<name>.` prefixes precede them, so no module-prefix-map lookup is
+   needed at pairing time). The ambiguous case (2+ candidates share a key on
+   either side) is left untouched on purpose: Terraform's own idiomatic
+   "singleton resource" naming convention
+   (`aws_s3_bucket.this`, `aws_iam_role.this`, and similar, the exact
+   convention `terraform-aws-modules` itself uses) means the same
+   `<type>.<name>` key legitimately recurs across unrelated, independently
+   resolved modules, so a blind match risks mirroring the reason onto a
+   genuinely unrelated resource. Refusing ambiguous collisions accepts a
+   narrower, explicitly-scoped miss (ambiguous-collision repos keep today's
+   partial behavior) over any risk of a false "derived" downgrade on a real,
+   independent finding.
+2. `collectPriorConfigAddresses` (`tfstate_drift_evidence_prior_config.go`)
+   now threads the PRIOR generation's own `moduleResolutionConfidenceMap`
+   through the same `moduleResolutionReasonForEntry` match-specificity
+   comparison `emitConfigRowsForEntry` already uses for the current
+   generation, and `loadPriorConfigAddresses` returns `map[string]string`
+   (address -> reason, `""` when clean) instead of `map[string]struct{}`.
+   `mergeDriftRows` sets `ResourceRow.ModuleResolutionReason` alongside
+   `PreviouslyDeclaredInConfig` whenever the promoted address carries a
+   non-empty reason.
+3. `BuildCandidates` (`candidate.go`) gained a `row.State != nil &&
+   row.State.ModuleResolutionReason != ""` branch symmetric with the
+   pre-existing `row.Config` branch, so both code paths above reach the
+   read surface through the same, already-load-bearing
+   `EvidenceTypeModuleResolutionConfidence` atom and the reducer writer's
+   existing `moduleResolutionOutcome` (which only checks atom presence, not
+   which side it came from -- no writer change was needed).
+
+### Why this adds no new query, join, or scan pattern
+
+`pairSpuriousModuleMismatches` operates entirely on the `config`/`state`
+in-memory maps `mergeDriftRows` already receives -- zero new Postgres
+queries. Its cost is two linear passes building small per-key buckets (one
+entry per row that is config-only-with-a-reason or state-only, respectively,
+both subsets of a join that is already bounded by one state-snapshot scope's
+resource count) plus a linear pass over the resulting key buckets; no
+per-entry Postgres round trip, no change to any existing query's count,
+shape, or predicates. `collectPriorConfigAddresses`'s added work is one
+`moduleResolutionReasonForEntry` call per prior-config entry -- the exact
+same O(directory depth), already-bounded (`maxModulePrefixDepth` = 10)
+walk-up-the-directory-chain lookup `emitConfigRowsForEntry` already performs
+per current-generation entry, just applied to the prior-generation entries
+that were already being walked.
+
+- No-Regression Evidence (#5572 follow-up): `cd go && go test
+  ./internal/correlation/drift/tfconfigstate/...
+  ./internal/storage/postgres/... ./internal/reducer/... ./internal/query/...
+  ./internal/mcp/... -count=1` is green, including every pre-existing
+  prior-config and module-confidence test
+  (`TestPostgresDriftEvidenceLoaderPriorConfigDeclarationActivatesRemovedFromConfig`,
+  `TestPostgresDriftEvidenceLoaderPriorConfigNeverDeclaredLeavesFlagFalse`,
+  `TestPostgresDriftEvidenceLoaderPriorConfigOutsideDepthWindowLeavesFlagFalse`,
+  `TestLoadPriorConfigAddressesAppliesModulePrefix`,
+  `TestLoadPriorConfigAddressesUsesPriorGenerationModulePrefixOnRename`,
+  `TestLoadDriftEvidenceMarksLowConfidenceForRegistryHeuristicMisclassifiedLocalModule`,
+  `TestLoadDriftEvidenceMarksLowConfidenceForDepthExceededModuleChain`) with
+  byte-identical addresses, prefixes, and `PreviouslyDeclaredInConfig`
+  outcomes to before this change. New regression coverage proves the fix
+  itself: `TestPairSpuriousModuleMismatchesMirrorsReasonOntoUnambiguousStateOnlyRow`,
+  `TestPairSpuriousModuleMismatchesSkipsAmbiguousResourceKeyCollision`,
+  `TestPairSpuriousModuleMismatchesIgnoresCleanConfigRows`,
+  `TestLoadDriftEvidencePairsSpuriousMismatchAcrossModuleResolutionFailure`,
+  `TestPostgresDriftEvidenceLoaderPriorConfigConfidenceThreadedOntoRemovedFromConfigRow`,
+  and `TestBuildCandidatesAttachesModuleResolutionConfidenceAtomWhenStateRowFlagsIt`.
+- Observability Evidence (#5572 follow-up): no new metric or span. The state-
+  side atom reuses the exact same `EvidenceTypeModuleResolutionConfidence`
+  atom shape, evidence-array field, and API/MCP response path the
+  config-side atom already used; the reducer writer's
+  `moduleResolutionOutcome` is unchanged (it already checked atom presence
+  generically, not which side attached it).
+
+### Golden-corpus snapshot text updated, no assertion or count changed
+
+The `external_registry` golden fixture's `POST
+/api/v0/terraform/config-state-drift/findings?variant=derived` entry's
+`description` field explicitly (and, before this follow-up, incorrectly)
+asserted the state-only half "stays outcome=\"exact\" (state-side rows are
+never confidence-flagged)". That sentence was factually wrong after this
+fix and was corrected in `testdata/golden/e2e-20repo-snapshot.json` to
+describe both halves downgrading to `derived`. No `required_json_values` or
+`required_json_object_matches` entry needed to change: both use existential
+(`drift_findings[].*`) path semantics (`go/internal/goldengate/query_shape_paths.go`'s
+`hasMatchingJSONValue`/`hasMatchingJSONObject` match on ANY array element,
+not ALL), so the assertions hold whether the `outcome=derived` filter now
+returns one finding (before this fix) or two (after it). `go test
+./cmd/golden-corpus-gate/... -count=1` is green against the corrected
+snapshot text; `go/cmd/golden-corpus-gate/snapshot_iac_inventory_test.go`
+has no drift/outcome-coupled hardcoded counts (checked; this fix changes an
+existing finding's `outcome` field value, not the finding count, resource
+count, or any IaC inventory aggregate). No live golden-corpus-gate run
+accompanies this specific follow-up (the orchestrating PR owner runs it as
+part of `make pre-pr` immediately before push, per this repo's
+orchestration split between focused-verification authors and the
+`make pre-pr` orchestrator).

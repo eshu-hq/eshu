@@ -165,7 +165,7 @@ func (l PostgresDriftEvidenceLoader) LoadDriftEvidence(
 		}
 	}
 
-	var priorConfigAddresses map[string]struct{}
+	var priorConfigAddresses map[string]string
 	if hasStateOnlyAddress(configByAddress, stateByAddress) {
 		priorConfigAddresses, err = l.loadPriorConfigAddresses(ctx, configScopeID, configGenerationID, prefixMap, recorder)
 		if err != nil {
@@ -433,7 +433,7 @@ func (l PostgresDriftEvidenceLoader) logPriorConfigWalk(
 	ctx context.Context,
 	scopeID string,
 	generationID string,
-	priorConfig map[string]struct{},
+	priorConfig map[string]string,
 	merged []tfconfigstate.AddressedRow,
 ) {
 	if l.Logger == nil {
