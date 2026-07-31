@@ -244,43 +244,15 @@ Observability Evidence: GCP grant observations flow through the existing
 and `severity`, so an operator sees GCP standing-access posture alongside the AWS
 wildcard-trust posture without a new metric.
 
-## Multi-Cloud Runtime Drift (issues #1997, #1998)
+## Multi-Cloud Runtime Drift (issues #1997, #1998, #5759)
 
-`DomainMultiCloudRuntimeDrift` reuses the AWS structural drift join
-(`cloudruntime.Classify`) but keys every candidate on canonical
-`cloud_resource_uid` so AWS, GCP, and Azure share one
-orphaned/unmanaged/ambiguous/unknown vocabulary instead of three forked paths.
-`multicloud.BuildCandidates` skips rows whose provider identity does not resolve
-to a canonical uid (counted as unresolved, never fabricated), emits config
-evidence only when a config layer is actually present (so an unmanaged resource
-is never falsely promoted to managed), and lets a reducer `ambiguous`/`unknown`
-override win over the bare structural join so conflicting or unproven ownership
-is never presented as managed. `MultiCloudRuntimeDriftHandler` writes
-`reducer_multi_cloud_runtime_drift_finding` facts through
-`PostgresMultiCloudRuntimeDriftWriter`, read back by
-`postgres.MultiCloudRuntimeDriftFindingStore`. The domain is graph-neutral and
-additive: it registers only when both a `MultiCloudRuntimeDriftEvidenceLoader`
-and writer are wired.
-
-No-Regression Evidence: `go test ./internal/correlation/drift/multicloud
-./internal/correlation/rules -count=1` proves the GCP/Azure orphaned, unmanaged,
-ambiguous, and unknown classifications, uid keying, unresolved/converged skips,
-and declared-config non-overwrite. `go test ./internal/reducer -run 'MultiCloud'
--race -count=1` proves publication, no-emit-before-durable-write, redaction,
-idempotent replay (stable fact id and stable_fact_key), and concurrent-worker
-key stability. `go test ./internal/storage/postgres -run 'MultiCloud' -count=1`
-proves the scope-bounded, active-generation-joined read surface. `go test
-./internal/correlation/drift/cloudruntime ./internal/reducer -run
-'AWSCloudRuntimeDrift' -count=1` proves the AWS drift path did not regress.
-
-Observability Evidence: the handler reuses the existing
-`eshu_dp_correlation_orphan_detected_total`,
-`eshu_dp_correlation_unmanaged_detected_total`, and
-`eshu_dp_correlation_rule_matches_total` counters, labeled by the bounded
-`multi_cloud_runtime_drift` pack name and rule name only — never the canonical
-uid, raw identity, provider scope, tags, or addresses. Admitted-finding logs
-carry a bounded `drift.provider` label and route the correlation key through
-`telemetry.SafeResourceLogAttrs`, so raw provider identities never reach logs.
+Split into [`multi-cloud-runtime-drift.md`](multi-cloud-runtime-drift.md)
+(issue #5759 follow-up) to keep this file under the repository's 500-line
+cap. That file covers `DomainMultiCloudRuntimeDrift` /
+`MultiCloudRuntimeDriftHandler`, the GCP/Azure-vs-AWS provider partitioning
+(`excludeAWSOwnedRows`), the read-side AWS aggregation
+(`ListActiveFindingsAcrossProviders`), and the full No-Regression /
+Observability test evidence.
 
 ## S3 External Principal Grant Projection (issue #1231)
 

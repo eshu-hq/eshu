@@ -288,12 +288,14 @@ func awsCloudRuntimeDriftDomainDefinition() DomainDefinition {
 }
 
 // multiCloudRuntimeDriftDomainDefinition returns the additive definition for the
-// provider-neutral runtime drift publication path (issues #1997, #1998). The
-// domain consumes admitted multi_cloud_runtime_drift candidates keyed on
-// canonical cloud_resource_uid and writes durable reducer facts for AWS, GCP, and
-// Azure through one drift path. Like the AWS drift domain it deliberately does
-// not declare graph writes until the drift node and query surface shape are
-// frozen in the active ADR.
+// provider-neutral runtime drift publication path (issues #1997, #1998, #5759).
+// The domain consumes admitted multi_cloud_runtime_drift candidates keyed on
+// canonical cloud_resource_uid and writes durable reducer facts for GCP and
+// Azure through the same drift vocabulary AWS uses; AWS itself stays exclusively
+// DomainAWSCloudRuntimeDrift's (excludeAWSOwnedRows drops any AWS-provider row
+// the shared evidence loader also resolves). Like the AWS drift domain it
+// deliberately does not declare graph writes until the drift node and query
+// surface shape are frozen in the active ADR.
 func multiCloudRuntimeDriftDomainDefinition() DomainDefinition {
 	return DomainDefinition{
 		Domain:  DomainMultiCloudRuntimeDrift,

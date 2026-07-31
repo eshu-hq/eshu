@@ -73,8 +73,10 @@ under the repository's 500-line cap (issue #5786):
   recovery, poison dead-letter liveness recovery, the graph orphan sweep, and
   cross-scope node ownership.
 - [`cloud-projections.md`](cloud-projections.md) — GCP cloud resource and
-  relationship materialization, the secrets/IAM trust-chain read model,
-  multi-cloud runtime drift, and the S3/RDS/EC2/PagerDuty projections.
+  relationship materialization, the secrets/IAM trust-chain read model, and
+  the S3/RDS/EC2/PagerDuty projections.
+- [`multi-cloud-runtime-drift.md`](multi-cloud-runtime-drift.md) — GCP/Azure
+  runtime drift provider partitioning and the read-side AWS aggregation.
 - [`search-and-runtime-projections.md`](search-and-runtime-projections.md) —
   the live-workload `RUNS_IMAGE` edge projection and the curated
   `EshuSearchDocument` search read model.

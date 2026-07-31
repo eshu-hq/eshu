@@ -306,24 +306,52 @@ Raw tag values that look credential-like are redacted as `[REDACTED]`.
 
 ## Provider-Neutral Cloud Runtime Drift
 
-`POST /api/v0/cloud/runtime-drift/findings` reads active
-`reducer_multi_cloud_runtime_drift_finding` rows for a bounded canonical cloud
-scope across AWS, GCP, and Azure. It requires one scope selector:
-`scope_id`, `account_id`, `project_id`, or `subscription_id`.
+`POST /api/v0/cloud/runtime-drift/findings` reads active runtime drift
+findings for a bounded canonical cloud scope across AWS, GCP, and Azure. It
+requires one scope selector: `scope_id`, `account_id`, `project_id`, or
+`subscription_id`.
+
+The route aggregates two fact kinds in one query (#5759 follow-up):
+`reducer_multi_cloud_runtime_drift_finding` (GCP and Azure findings) and
+`reducer_aws_cloud_runtime_drift_finding` (AWS findings; the same fact kind
+`POST /api/v0/aws/runtime-drift/findings` reads). `DomainAWSCloudRuntimeDrift`
+stays the sole writer for AWS findings, and `DomainMultiCloudRuntimeDrift`
+never publishes one for an AWS resource -- this route's aggregation is a
+read-side merge, not a change to which reducer domain writes what. An
+unfiltered request or `provider=aws` genuinely returns AWS findings;
+`provider=gcp` or `provider=azure` reads only the provider-neutral fact kind,
+unchanged from before this aggregation existed.
 
 Optional `provider`, `cloud_resource_uid`, and `finding_kinds` filters narrow
 the page. `finding_kinds` accepts the provider-neutral drift taxonomy values
 such as `orphaned_cloud_resource`, `unmanaged_cloud_resource`,
-`unknown_cloud_resource`, and `ambiguous_cloud_resource`. `limit` defaults to
-100 and is capped at 500; use `offset` with `next_offset` when `truncated` is
-true.
+`unknown_cloud_resource`, and `ambiguous_cloud_resource`. `cloud_resource_uid`
+filtering matches only GCP/Azure findings: an AWS finding's canonical identity
+is resolved and returned for display, but it is not a stored, filterable
+column on `reducer_aws_cloud_runtime_drift_finding`. `limit` defaults to 100
+and is capped at 500; use `offset` with `next_offset` when `truncated` is
+true. Ordering (`observed_at` descending, then `fact_id`) and pagination are
+computed by one query across both fact kinds, so a page stays correct and
+duplicate-free across the merged, multi-provider result set.
 
 Each `drift_findings[]` item carries a provider-neutral identity, finding kind,
 management status, source state, missing evidence, recommended action, and
-safety gate. Raw provider locators and raw evidence atoms are not returned.
-Unsafe or ambiguous findings are reported with rejected source state and refused
-actions rather than silently omitted. Lightweight local profiles return
-`501 unsupported_capability`.
+safety gate. Raw provider locators (including the AWS ARN) and raw evidence
+atoms are not returned. An AWS-origin finding's management status, missing
+evidence, and warning flags (folded into `safety_gate`) are derived through
+`awsCloudRuntimeDriftDerivedStatus`, the SAME classification
+`POST /api/v0/aws/runtime-drift/findings` uses -- not a verbatim copy of the
+reducer's stored fields -- so the identical underlying row can never produce
+two different safety verdicts depending on which route reads it (#5759
+follow-up: a naive copy previously under-reported `security_review_required`
+for security-sensitive AWS resource types such as `iam`/`kms`/`rds`). Unsafe
+or ambiguous findings are reported with rejected source state and refused
+actions rather than silently omitted. Lightweight local profiles return `501
+unsupported_capability`.
+
+`GET /api/v0/investigations/drift/packet` (`export_cloud_runtime_drift_packet`
+over MCP) reads the same aggregated store, so it also returns AWS findings for
+`provider=aws` or an unfiltered request, with the same safety verdict.
 
 ### Provider-neutral cloud runtime drift observability
 

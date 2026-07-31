@@ -10,13 +10,14 @@ import "github.com/eshu-hq/eshu/go/internal/facts"
 // every build*ReducerIntent probe appendScopeGenerationReducerIntents calls
 // (issue #4875). Before the index, the then-38 probes independently re-scanned
 // the full inputFacts slice, so a generation with N facts paid O(38*N)
-// comparisons. The current 41 probes all use the index: it groups fact
-// positions by FactKind in one O(N) pass, then each probe looks up only the
-// positions for the kind(s) it cares about.
+// comparisons. The current 44 probes all use the index (see
+// documentedReducerIntentProbeCount): it groups fact positions by FactKind in
+// one O(N) pass, then each probe looks up only the positions for the kind(s)
+// it cares about.
 //
 // inputFacts is immutable once a scope generation is claimed for projection
 // (buildProjection never mutates it — see TestBuildProjectionDoesNotMutateInputFactPayloads),
-// so building this index once and sharing it read-only across all 41 probes
+// so building this index once and sharing it read-only across all 44 probes
 // is concurrency-safe: there is no writer to race against, and the index
 // itself is never mutated after newReducerIntentFactIndex returns.
 //
@@ -146,3 +147,16 @@ func (idx *reducerIntentFactIndex) firstMatchingKindPredicate(
 	}
 	return idx.firstAcrossKinds(accept, kinds...)
 }
+
+// documentedReducerIntentProbeCount is the number of distinct
+// build*ReducerIntent probes appendScopeGenerationReducerIntents calls, cited
+// in prose above and in README.md. This exact number went stale silently
+// twice: the doc said "41" while the source already called 43, and the #5759
+// change that added a 44th probe bumped the prose to "42" instead of 44.
+// TestReducerIntentProbeCountMatchesDocumentedCount parses
+// scope_generation_intents.go with go/ast (not a regex, so reordering,
+// comments, and formatting cannot fool it) and fails the moment this constant
+// stops matching the real call count -- update this constant AND the "44
+// probes" prose above and in README.md in the SAME change that adds or
+// removes a probe.
+const documentedReducerIntentProbeCount = 44

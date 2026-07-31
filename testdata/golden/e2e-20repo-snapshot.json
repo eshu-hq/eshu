@@ -3371,15 +3371,17 @@
         "results_field": "resources"
       },
       "list_cloud_runtime_drift_findings": {
-        "description": "MCP tool coverage shape for list_cloud_runtime_drift_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). SHAPE-ONLY (minimum_results:0) by necessity: this tool reads reducer_multi_cloud_runtime_drift_finding facts, but the provider-neutral DomainMultiCloudRuntimeDrift domain is registered WITHOUT a projector intent builder (no buildMultiCloudRuntimeDriftReducerIntent in appendScopeGenerationReducerIntents), so it fires for NO scope or provider and writes zero findings -- a pre-existing registered-not-enqueued gap (domain built for #1997/#1998, predates #5453), confirmed empirically by a live corpus-gate DB query returning 0 reducer_multi_cloud_runtime_drift_finding rows. #5453's image_version_drift value drift IS proven non-vacuously through the sibling list_aws_runtime_drift_findings entry (reducer_aws_cloud_runtime_drift_finding, which IS enqueued). Wiring the multi-cloud domain (with duplicate-finding avoidance vs the AWS domain) is tracked as follow-up #5759.",
+        "description": "MCP tool coverage shape for list_cloud_runtime_drift_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5759 wired buildMultiCloudRuntimeDriftReducerIntent into appendScopeGenerationReducerIntents (triggering on gcp_cloud_resource or azure_cloud_resource facts) and added MultiCloudRuntimeDriftHandler.Handle's excludeAWSOwnedRows provider-partition filter, so DomainMultiCloudRuntimeDrift is enqueued for GCP/Azure scopes and no longer collides with DomainAWSCloudRuntimeDrift's own findings for the same AWS resource -- closing the pre-existing registered-not-enqueued gap (domain built for #1997/#1998, predates #5453). Non-vacuous: a live golden-corpus-gate run returned 10 drift_findings for this GCP scope (bounded by the requested limit:10 below, the same convention the sibling list_aws_runtime_drift_findings entry uses -- this corpus's gcp_cloud_resource cassette carries 110 keyable resources and no Terraform state/config fixture anywhere in the corpus declares a matching google_* resource, so far more than 10 orphaned findings are admitted; the request just asks for one page of 10). minimum_results is 1, which requires results_field (added here -- #5862 removed EvaluateQueryShape's implicit first-array-field inference, so an entry with minimum_results>0 and no results_field is now an unconditional hard failure regardless of live data); the row count above was established by a live golden-corpus-gate run against the underlying route before this results_field correction landed, and this corrected shape still needs confirmation on the next live run. #5453's image_version_drift value drift is separately proven non-vacuously through the sibling list_aws_runtime_drift_findings entry (reducer_aws_cloud_runtime_drift_finding, exclusively AWS-owned and unaffected by this change).",
         "required_response_fields": [
           "drift_findings",
           "findings_count",
           "total_findings_count"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "results_field": "drift_findings",
         "arguments": {
-          "scope_id": "aws:123456789012:us-east-1:ec2",
+          "scope_id": "gcp:project:supply-chain-demo-project",
+          "provider": "gcp",
           "limit": 10
         }
       },
@@ -4568,15 +4570,17 @@
         }
       },
       "export_cloud_runtime_drift_packet": {
-        "description": "MCP tool coverage shape for export_cloud_runtime_drift_packet; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for export_cloud_runtime_drift_packet; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5759 follow-up: this entry was shape-only for a DIFFERENT reason than the sibling list_cloud_runtime_drift_findings gap -- getDriftPacket (investigation_packet_api_drift.go) reads the SAME ListActiveMultiCloudRuntimeDriftFindings store that route reads, exact-matching on scope_id, but the prior arguments.scope_id here was \"supply-chain-demo\", a git-repo-shaped id that can never equal a written finding's cloud ingestion scope_id (\"aws:...\", \"gcp:project:...\", \"azure:...\" -- see the handler's own #5167 W5 comment: drift findings key on a cloud scope, not a repository). No production code was broken or changed for this entry; retargeted arguments.scope_id to the same GCP scope the sibling list_cloud_runtime_drift_findings entry proved non-vacuous live so this packet's driftSourceFacts (investigation_packet_drift.go, one PacketSourceFact per finding with a non-blank FactID) has real findings to map.",
         "required_response_fields": [
           "identity",
           "source_facts",
           "reproduce"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "results_field": "source_facts",
         "arguments": {
-          "scope_id": "supply-chain-demo",
+          "scope_id": "gcp:project:supply-chain-demo-project",
+          "provider": "gcp",
           "max_source_facts": 10
         }
       },
@@ -5767,7 +5771,7 @@
         "minimum_results": 0
       },
       "POST /api/v0/cloud/runtime-drift/findings": {
-        "description": "Provider-neutral runtime drift findings for the synthetic GCP cloud scope; proves the reducer-derived drift read surface is mounted and bounded without requiring positive drift rows.",
+        "description": "Provider-neutral runtime drift findings for the synthetic GCP cloud scope. Non-vacuous (Refs #5759): the sibling list_cloud_runtime_drift_findings MCP shape proved >=1 admitted orphaned finding live for this exact scope_id/provider; this HTTP entry reads the same handleCloudRuntimeDriftFindings route and ListActiveMultiCloudRuntimeDriftFindings store. minimum_results stays 0 here deliberately -- not lowered, structurally inapplicable: this shape keeps the {data,truth,error} envelope (envelope:true) with only top-level required_response_fields, and EvaluateQueryShape's minimum_results check only scans top-level RequiredResponseFields for the first array-valued field (none of data/truth/error is one; data is an object), so setting minimum_results>0 here would hard-fail every run regardless of live data, not gate on row count. required_json_paths below is this codebase's own established mechanism for proving non-vacuousness on an envelope:true shape (mirrors the what_runs_image entry's data.outgoing[].type path) and requires data.drift_findings to be a non-empty array whose elements carry a real finding_kind.",
         "truth_class": "derived",
         "envelope": true,
         "request_body": {
@@ -5780,9 +5784,38 @@
           "truth",
           "error"
         ],
+        "required_json_paths": [
+          "data.drift_findings[].finding_kind"
+        ],
         "required_json_values": {
           "data.analysis_status": "materialized_multi_cloud_runtime_drift",
-          "data.truth_basis": "materialized_reducer_rows"
+          "data.truth_basis": "materialized_reducer_rows",
+          "data.drift_findings[].finding_kind": "orphaned_cloud_resource"
+        },
+        "minimum_results": 0
+      },
+      "POST /api/v0/cloud/runtime-drift/findings?assert=provider_aws_aggregation": {
+        "description": "Refs #5759 P1 golden proof: the SAME route, key, and store as the sibling gcp-scoped entry above (\"POST /api/v0/cloud/runtime-drift/findings\") but scope_id/provider point at the AWS scope list_aws_runtime_drift_findings already proves live has an admitted image_version_drift finding (see that entry's fixture-surgery detail: ARN re-key plus terraform_comprehensive config-owner resolution). The trailing ?assert=provider_aws_aggregation query string exists ONLY to give this entry a distinct map key from the sibling gcp entry above -- POST /api/v0/cloud/runtime-drift/findings's net/http.ServeMux route pattern matches on path only (query strings are never part of Go 1.22+ ServeMux pattern matching), and this route reads its filters from the JSON request_body, not the URL, so the query string reaches the handler unused. Before #5759's follow-up read-side aggregation, provider=aws on this NEUTRAL surface always returned an empty page (list_cloud_runtime_drift_findings/this route only ever queried reducer_multi_cloud_runtime_drift_finding, which excludeAWSOwnedRows guarantees never carries an AWS row) even though DomainAWSCloudRuntimeDrift had live findings -- a confidently-wrong empty page, not a genuinely empty one. This entry proves the aggregation: same finding_kind/drifted_attributes values the AWS-specific list_aws_runtime_drift_findings entry already proves live, now also visible through the provider-neutral surface for provider=aws. minimum_results stays 0 for the same structural reason as the sibling gcp entry (envelope:true, no top-level array field); required_json_paths/required_json_values below are the non-vacuous proof.",
+        "truth_class": "derived",
+        "envelope": true,
+        "request_body": {
+          "scope_id": "aws:123456789012:us-east-1:ec2",
+          "provider": "aws",
+          "limit": 10
+        },
+        "required_response_fields": [
+          "data",
+          "truth",
+          "error"
+        ],
+        "required_json_paths": [
+          "data.drift_findings[].finding_kind"
+        ],
+        "required_json_values": {
+          "data.analysis_status": "materialized_multi_cloud_runtime_drift",
+          "data.truth_basis": "materialized_reducer_rows",
+          "data.drift_findings[].finding_kind": "image_version_drift",
+          "data.drift_findings[].drifted_attributes[].attribute": "ami"
         },
         "minimum_results": 0
       },

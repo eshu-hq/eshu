@@ -760,6 +760,11 @@ scoped `AGENTS.md` entry instead of expanding this index.
 
 - `internal/buildinfo` — `AppVersion()` embedded in the OpenAPI spec
 - `internal/contentrefs` — content reference utilities used in content query paths
+- `internal/correlation/cloudinventory` — `ResolveProviderIdentity`, used by
+  `awsCloudRuntimeDriftRowToNeutral` (`cloud_runtime_drift_aggregate.go`) to
+  compute the same canonical `cloud_resource_uid` keyspace for an AWS-origin
+  finding merged onto the provider-neutral runtime drift surface that GCP/Azure
+  findings already carry (#5759 follow-up)
 - `internal/iacreachability` — IaC reachability row types consumed by
   `PostgresIaCReachabilityStore`
 - `internal/parser` — entity and language classification constants used for
@@ -767,9 +772,11 @@ scoped `AGENTS.md` entry instead of expanding this index.
 - `internal/recovery` — `RecoveryService` port satisfied by `recovery.Handler`;
   wired into `AdminHandler.Recovery`
 - `internal/status` — `status.Reader` consumed by `StatusHandler.StatusReader`
-- `internal/storage/postgres` — status, recovery, IaC reachability, and AWS
-  runtime drift finding adapters; query handlers never import concrete
-  Postgres drivers directly — they go through query package adapters and ports
+- `internal/storage/postgres` — status, recovery, IaC reachability, AWS
+  runtime drift finding, and multi-cloud/AWS aggregate runtime drift finding
+  (`MultiCloudRuntimeDriftFindingStore.ListActiveFindingsAcrossProviders`,
+  #5759 follow-up) adapters; query handlers never import concrete Postgres
+  drivers directly — they go through query package adapters and ports
 - `internal/telemetry` — `EventAttr`, `DefaultServiceNamespace`, span constants
   `SpanQueryRelationshipEvidence`, `SpanQueryDeadIaC`,
   `SpanQueryIaCUnmanagedResources`, `SpanQueryIaCTerraformImportPlan`, `SpanQueryInfraResourceSearch`, `SpanQueryCodeTopicInvestigation`,
