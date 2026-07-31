@@ -313,6 +313,72 @@ func TestPostgresAWSCloudRuntimeDriftEvidenceLoaderRedactsDecodeFailureResourceL
 	}
 }
 
+// TestPostgresAWSCloudRuntimeDriftEvidenceLoaderFlagsDegradedContainerImages
+// proves the loader surfaces "container_images_unreadable" on a row whose
+// Terraform-state container_definitions attribute exists but could not be
+// read -- the terraform-state collector's fail-closed redaction marker
+// (a JSON object in place of the expected JSON string) is exactly this shape
+// (#5837). Without this test, deleting containerImagesUnreadableWarning's
+// body (aws_cloud_runtime_drift_value_attributes.go:166) changes nothing any
+// test observes.
+func TestPostgresAWSCloudRuntimeDriftEvidenceLoaderFlagsDegradedContainerImages(t *testing.T) {
+	t.Parallel()
+
+	const (
+		awsScopeID    = "aws:123456789012:us-east-1:ecs"
+		awsGeneration = "aws-gen-1"
+		stateScopeID  = "state_snapshot:s3:degraded-owner"
+		stateGen      = "state-gen-1"
+	)
+	taskDefARN := "arn:aws:ecs:us-east-1:123456789012:task-definition/prod-worker:3"
+
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{
+				{taskDefARN, []byte(`{
+					"arn":"` + taskDefARN + `",
+					"resource_id":"prod-worker",
+					"resource_type":"aws_ecs_task_definition"
+				}`)},
+			}},
+			{rows: [][]any{
+				{stateScopeID, stateGen, "aws_ecs_task_definition.worker", []byte(`{
+					"address":"aws_ecs_task_definition.worker",
+					"mode":"managed",
+					"type":"aws_ecs_task_definition",
+					"name":"worker",
+					"attributes":{
+						"arn":"` + taskDefARN + `",
+						"container_definitions":{"redacted":true}
+					}
+				}`)},
+			}},
+		},
+	}
+	loader := PostgresAWSCloudRuntimeDriftEvidenceLoader{
+		DB:             db,
+		ConfigResolver: &stubAWSRuntimeDriftConfigResolver{},
+	}
+
+	rows, err := loader.LoadAWSCloudRuntimeDriftEvidence(context.Background(), awsScopeID, awsGeneration)
+	if err != nil {
+		t.Fatalf("LoadAWSCloudRuntimeDriftEvidence() error = %v, want nil", err)
+	}
+	if got, want := len(rows), 1; got != want {
+		t.Fatalf("len(rows) = %d, want %d", got, want)
+	}
+	row := rows[0]
+	if row.State == nil || !row.State.ContainerImagesDegraded {
+		t.Fatalf("row.State = %#v, want ContainerImagesDegraded=true", row.State)
+	}
+	if !stringSliceContains(row.WarningFlags, "container_images_unreadable") {
+		t.Fatalf("row.WarningFlags = %#v, want container_images_unreadable", row.WarningFlags)
+	}
+	if stringSliceContains(row.WarningFlags, "container_images_truncated") {
+		t.Fatalf("row.WarningFlags = %#v, want no truncation warning for a degraded (not truncated) row", row.WarningFlags)
+	}
+}
+
 func TestPostgresAWSCloudRuntimeDriftEvidenceLoaderRequiresDatabase(t *testing.T) {
 	t.Parallel()
 
