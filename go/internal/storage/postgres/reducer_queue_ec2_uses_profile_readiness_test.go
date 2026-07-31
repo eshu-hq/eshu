@@ -94,6 +94,8 @@ func (db *ec2UsesProfileReadinessQueueDB) QueryContext(_ context.Context, query 
 		"gen-aws-1",
 		string(reducer.DomainEC2UsesProfileMaterialization),
 		db.attemptCount + 1,
+		int64(0),
+		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"ec2_uses_profile_materialization:aws:111122223333:us-east-1:ec2","reason":"ec2 instance profile usage observed","fact_id":"fact-profile-1","source_system":"aws"}`),

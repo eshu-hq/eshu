@@ -13,6 +13,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
+// reopenSucceededReducerWorkQuery resets a succeeded row to pending for
+// replay. It resets reopened_at to the reopen timestamp ($1) alongside
+// attempt_count -- both mark the start of a fresh repair cycle -- but never
+// touches created_at, which stays the row's original enqueue time for every
+// other consumer of Intent.EnqueuedAt (see migration 088's doc comment).
 const reopenSucceededReducerWorkQuery = `
 UPDATE fact_work_items
 SET status = 'pending',
@@ -26,6 +31,7 @@ SET status = 'pending',
     visible_at = $1,
     next_attempt_at = NULL,
     updated_at = $1,
+    reopened_at = $1,
     failure_class = NULL,
     failure_message = NULL,
     failure_details = NULL
@@ -34,6 +40,8 @@ WHERE work_item_id = $2
   AND status = 'succeeded'
 `
 
+// replaySucceededReducerDomainQuery is ReopenSucceeded's domain-wide sibling
+// (see that query's doc comment for why reopened_at resets here too).
 const replaySucceededReducerDomainQuery = `
 UPDATE fact_work_items
 SET status = 'pending',
@@ -47,6 +55,7 @@ SET status = 'pending',
     visible_at = $1,
     next_attempt_at = NULL,
     updated_at = $1,
+    reopened_at = $1,
     failure_class = NULL,
     failure_message = NULL,
     failure_details = NULL

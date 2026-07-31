@@ -35,6 +35,20 @@ var nonCountingReducerRetryFailureClasses = []string{
 	// readiness-defer slice wires a handler to return
 	// crossScopeProducerNotReadyError; nothing produces this class yet.
 	reducer.CrossScopeProducerNotReadyFailureClass,
+	// #5848: aws_cloud_runtime_drift's own readiness-defer and insert-admission
+	// classes. Both MUST be enrolled here, not just declared as constants next
+	// to the error types that return them (go/internal/reducer/aws_cloud_runtime_drift_readiness.go,
+	// aws_cloud_runtime_drift_admission.go) -- a declared-but-unregistered class
+	// is invisible to retryable()/reducerClaimAttemptCountCaseSQL and counts
+	// toward maxAttempts exactly like an ordinary failure, which silently
+	// falsifies the "never dead-letters a normal race" guarantee both error
+	// types' own doc comments claim. Found by pre-PR review after this exact
+	// gap shipped once already; TestReducerQueueFailDefersAWSCloudRuntime
+	// DriftWriteSupersededPastAttemptBudget and
+	// TestReducerQueueFailDefersAWSCloudRuntimeDriftStatePendingPastAttemptBudget
+	// are the regression.
+	reducer.AWSCloudRuntimeDriftWriteSupersededFailureClass,
+	reducer.AWSCloudRuntimeDriftStatePendingFailureClass,
 }
 
 // IsNonCountingReducerRetryFailureClass reports whether failureClass is exempt

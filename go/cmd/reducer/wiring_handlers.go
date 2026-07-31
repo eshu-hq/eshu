@@ -15,6 +15,23 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+// awsCloudRuntimeDriftWriterFor builds the transaction-backed AWS
+// cloud-runtime drift writer (#5848: insert-admission check, versioned
+// upsert, and generation-authoritative retire commit atomically). When the
+// database does not expose a transaction beginner the writer is nil, so
+// appendSecretsAndDriftAdditiveDomains's nil-adapter gate keeps the domain
+// unregistered rather than wiring a writer that would panic on first use.
+// Mirrors serviceMaterializationWriterFor.
+func awsCloudRuntimeDriftWriterFor(database postgres.ExecQueryer) reducer.AWSCloudRuntimeDriftFindingWriter {
+	beginner := reducerBeginner(database)
+	if beginner == nil {
+		return nil
+	}
+	return reducer.PostgresAWSCloudRuntimeDriftWriter{
+		DB: postgres.AWSCloudRuntimeDriftAdmissionBeginner{Beginner: beginner},
+	}
+}
+
 // buildReducerDriftHandlers assembles the provider config-vs-state and
 // cloud-runtime drift adapters (reducer.DriftHandlers; see
 // internal/reducer/defaults_handlers.go). All three terraform members must be
@@ -63,11 +80,16 @@ func buildReducerDriftHandlers(
 			Logger:      logger,
 			Instruments: instruments,
 		},
-		AWSCloudRuntimeDriftWriter:           reducer.PostgresAWSCloudRuntimeDriftWriter{DB: database},
-		AWSCloudRuntimeDriftLogger:           logger,
-		MultiCloudRuntimeDriftEvidenceLoader: multiCloudRuntimeDriftEvidenceLoader,
-		MultiCloudRuntimeDriftWriter:         multiCloudRuntimeDriftWriter,
-		MultiCloudRuntimeDriftLogger:         multiCloudRuntimeDriftLogger,
+		AWSCloudRuntimeDriftWriter:           awsCloudRuntimeDriftWriterFor(database),
+		AWSCloudRuntimeDriftReadinessChecker: postgres.PostgresAWSCloudRuntimeDriftReadinessChecker{DB: database},
+		// FencingTokenIssuer must be wired whenever the writer is (#5875 P1):
+		// AWSCloudRuntimeDriftHandler.Handle hard-errors without one rather
+		// than silently falling back to the host clock.
+		AWSCloudRuntimeDriftFencingTokenIssuer: postgres.PostgresAWSCloudRuntimeDriftFencingTokenIssuer{DB: database},
+		AWSCloudRuntimeDriftLogger:             logger,
+		MultiCloudRuntimeDriftEvidenceLoader:   multiCloudRuntimeDriftEvidenceLoader,
+		MultiCloudRuntimeDriftWriter:           multiCloudRuntimeDriftWriter,
+		MultiCloudRuntimeDriftLogger:           multiCloudRuntimeDriftLogger,
 	}
 }
 

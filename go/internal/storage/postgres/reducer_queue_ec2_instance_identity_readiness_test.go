@@ -66,6 +66,8 @@ func (db *ec2InstanceIdentityReadinessQueueDB) QueryContext(_ context.Context, q
 		"gen-aws-1",
 		string(reducer.DomainEC2InstanceIdentityMaterialization),
 		db.attemptCount + 1,
+		int64(0),
+		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"ec2_instance_node_materialization:aws:123456789012:us-east-1:ec2","reason":"aws resource facts observed for ec2 instance identity projection","fact_id":"fact-aws-resource-1","source_system":"aws"}`),

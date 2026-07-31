@@ -544,6 +544,14 @@ Primary groups:
   repository-scoped API/MCP readbacks.
 - Terraform and AWS drift adapters that keep reducer joins bounded by scope,
   generation, ARN allowlists, backend ownership, and active read-model indexes.
+  `AWSCloudRuntimeDriftAdmissionBeginner` (#5848) adapts the shared `Beginner`
+  into `reducer.AWSCloudRuntimeDriftBeginner`/`Tx`, wiring
+  `PostgresAWSCloudRuntimeDriftWriter`'s begin-before-mutate insert-admission
+  check, versioned upsert, and generation-authoritative retire into one
+  transaction — mirroring `ServiceMaterializationBeginner`.
+  `PostgresAWSCloudRuntimeDriftReadinessChecker` reports whether a Terraform
+  `state_snapshot:*` scope is still mid-ingestion, backing the reducer's bounded
+  readiness defer for #5837's cross-scope activation race.
 - `EshuSearchDocumentStore` reads curated design-430 search documents
   (`reducer_eshu_search_document`) for a scope's active generation, bounded by
   repository, source kind, and a capped page.
@@ -589,6 +597,14 @@ Primary groups:
   `InstrumentedDB`
 - Spans: `postgres.exec` and `postgres.query` from `InstrumentedDB`; carry
   `db.system=postgresql`, `db.operation`, and `eshu.store` attributes
+- `InstrumentedDB.Begin` (#5848 adjacent fix) wraps the returned transaction
+  (`instrumented_transaction.go`) so `ExecContext`/`QueryContext` calls issued
+  through it still record `eshu_dp_postgres_query_duration_seconds` — before
+  this the transaction was returned unwrapped and every statement inside it
+  bypassed the histogram silently. Any caller that opens a transaction over an
+  `InstrumentedDB`-wrapped connection (`PostgresServiceMaterializationWriter`,
+  `PostgresAWSCloudRuntimeDriftWriter`) now keeps the same observability
+  non-transactional writes get.
 - `AWSPaginationCheckpointStore` records AWS checkpoint load, save, resume,
   expiry, and failure events through
   `eshu_dp_aws_pagination_checkpoint_events_total`.

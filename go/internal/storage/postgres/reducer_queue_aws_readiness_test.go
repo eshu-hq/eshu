@@ -172,6 +172,8 @@ func (db *awsRelationshipReadinessQueueDB) QueryContext(_ context.Context, query
 		"gen-aws-1",
 		string(reducer.DomainAWSRelationshipMaterialization),
 		db.item.attemptCount + 1,
+		int64(0),
+		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"aws_resource_materialization:aws:123456789012:us-east-1:lambda","reason":"aws runtime relationship facts observed","fact_id":"fact-rel-1","source_system":"aws"}`),

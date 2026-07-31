@@ -61,6 +61,8 @@ func (db *iamInstanceProfileRoleReadinessQueueDB) QueryContext(_ context.Context
 		"gen-aws-1",
 		string(reducer.DomainIAMInstanceProfileRoleMaterialization),
 		1,
+		int64(0),
+		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
 		db.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"aws_resource_materialization:aws:123456789012:aws-global:iam","reason":"iam instance profile roles observed","fact_id":"fact-profile-1","source_system":"aws"}`),
