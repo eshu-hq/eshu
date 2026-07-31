@@ -212,14 +212,12 @@ Touched hot-path files this follow-up covers (additive to the list above):
    the per-address loop. It mirrors `ModuleResolutionReason` from a
    config-only row onto its paired state-only row ONLY when the pairing is
    unambiguous: exactly one low-confidence config-only row and exactly one
-   state-only row share the same trailing `<type>.<name>[index]` resource
-   key (`resourceAddressKey`, pure string manipulation over the address --
-   Terraform's address grammar guarantees the last two dot-separated
-   segments are always type and name, regardless of how many
-   `module.<name>.` prefixes precede them, so no module-prefix-map lookup is
-   needed at pairing time). The ambiguous case (2+ candidates share a key on
-   either side) is left untouched on purpose: Terraform's own idiomatic
-   "singleton resource" naming convention
+   state-only row share the same `resourceAddressKey` (see the "Follow-up:
+   front-stripping fix" section below for that function's exact contract --
+   an earlier last-two-segments shape shipped with this pairing was itself
+   defective and was fixed before this branch merged). The ambiguous case
+   (2+ candidates share a key on either side) is left untouched on purpose:
+   Terraform's own idiomatic "singleton resource" naming convention
    (`aws_s3_bucket.this`, `aws_iam_role.this`, and similar, the exact
    convention `terraform-aws-modules` itself uses) means the same
    `<type>.<name>` key legitimately recurs across unrelated, independently
@@ -287,6 +285,107 @@ that were already being walked.
   config-side atom already used; the reducer writer's
   `moduleResolutionOutcome` is unchanged (it already checked atom presence
   generically, not which side attached it).
+
+### Follow-up: front-stripping fix for resourceAddressKey (dotted index / data-source collisions)
+
+Review found a real defect in `resourceAddressKey`'s FIRST shape (the one
+that shipped in the commit adding `tfstate_drift_evidence_pairing.go`):
+`strings.Split(address, ".")`, keep the last two segments. Proved
+empirically by extracting the function and running it against realistic
+addresses:
+
+```
+aws_route53_record.this["api.example.com"]            -> "example.com\"]"
+module.dns.aws_route53_record.this["api.example.com"] -> "example.com\"]"
+aws_acm_certificate.cert["www.example.com"]            -> "example.com\"]"   <-- collision
+data.aws_ami.ubuntu                                    -> "aws_ami.ubuntu"
+aws_ami.ubuntu                                         -> "aws_ami.ubuntu"   <-- collision
+```
+
+Two distinct false-pairing paths, both defeating the "unambiguous 1:1"
+guard `pairSpuriousModuleMismatches` relies on for safety: a `for_each` key
+containing a literal `.` collapses two UNRELATED resources
+(`aws_route53_record.this[...]` and `aws_acm_certificate.cert[...]`) to the
+identical wrong key, and a `data.` source collapses onto a managed resource
+of the same type/name. Either one, if it happened to be the ONLY collision
+in a join, would satisfy the "exactly one on each side" ambiguity check and
+mirror a `ModuleResolutionReason` onto a real, unrelated finding -- a false
+`derived` downgrade of true drift, the precise failure mode the ambiguity
+guard exists to prevent.
+
+**Fix: front-stripping, not end-taking.** `resourceAddressKey` now walks the
+address from the LEFT, consuming and discarding one `module.<name>[<index>]`
+segment at a time (`skipModuleNameSegment`), tracking bracket depth and
+double-quote state so a `.` or `]` inside a quoted index key -- on either a
+for_each instance's own index, or an indexed MODULE NAME's index
+(`module.vpc["a.b"].aws_x.y`) -- is never mistaken for a segment boundary.
+Whatever remains after stripping every leading `module.` segment is returned
+verbatim (`hasResourceTypeNameShape` only validates the shape; it does not
+re-split or transform). This is provably safe by construction: front-strip
+mechanically removes exactly the module-prefix bytes prepended by
+`configRowFromParserEntry`/`resourceAddress`, and returns everything after
+that untouched.
+
+**`data.` prefix decision, made deliberately and documented in
+`resourceAddressKey`'s doc comment:** preserve it, never strip it. Terraform
+itself treats `data.TYPE.NAME` and `TYPE.NAME` as different resources.
+Checked whether a `data.`-prefixed address can actually reach either side of
+`pairSpuriousModuleMismatches`'s maps, rather than assuming:
+
+- Config-only rows can NEVER carry a `data.` prefix. The HCL parser routes
+  `data` blocks into a separate `terraform_data_sources` bucket
+  (`internal/parser/hcl/parser.go`'s `case "data":` branch,
+  `shared.AppendBucket(payload, "terraform_data_sources", row)`), and
+  `PostgresDriftEvidenceLoader`'s config-side query only ever reads
+  `parsed_file_data->'terraform_resources'`
+  (`tfstate_drift_evidence_sql.go`'s `listConfigResourcesForCommitQuery` /
+  `listPriorConfigAddressesQuery`) -- `terraform_data_sources` is never
+  queried by this domain at all.
+- State-only rows CAN carry a `data.` prefix. The collector's
+  `resourceAddress` (`internal/collector/terraformstate/identity.go:29-45`)
+  explicitly prefixes `"data."` when `resource.Mode == "data"`, and
+  `validateResourceIdentity` accepts both `"managed"` and `"data"` as valid
+  modes -- the state-side SQL query
+  (`listStateResourcesForGenerationQuery`) has no mode filter, so a
+  `data.`-prefixed `terraform_state_resource` fact reaches `stateByAddress`
+  unfiltered.
+
+So the collision can only threaten the state side, and preserving the
+`data.` prefix (which falls out naturally from front-stripping -- no special
+case needed) closes it.
+
+**A related finding, not a defect, worth recording:** the coordinator's
+proof table used Terraform CLI-display-format addresses
+(`type.name["literal-key"]`, `type.name[0]`). Checked this collector's ACTUAL
+state-side address synthesis and found it does NOT emit that literal shape
+at all for `for_each`/`count` instances: `resourceAddress` appends
+`[key:<hash>]` (a `facts.StableID` digest of the raw index value, never the
+literal key string) for a `for_each` instance, or `[index:<N>]` for a
+`count` instance (`identity.go:38-43`). Since the digest is always
+hex/alphanumeric, a literal-dot-in-index collision cannot occur through
+THIS collector's own data today. `resourceAddressKey` is fixed to be
+correct regardless -- the coordinator's directive was to implement the
+robust front-stripping parse on its own merits, not merely to patch around
+today's one collector's happen-to-be-safe hashing, since a different or
+future ingestion path (a fixture built by hand, a different backend
+collector) could plausibly carry the literal CLI-display shape.
+
+- No-Regression Evidence (#5572 follow-up, resourceAddressKey fix): `cd go
+  && go test ./internal/storage/postgres/... -count=1` is green, including
+  the pre-existing `TestPairSpuriousModuleMismatches*` and
+  `TestLoadDriftEvidencePairsSpuriousMismatchAcrossModuleResolutionFailure`
+  tests (unchanged addresses, no brackets involved, so their expected keys
+  are identical under both the old and new `resourceAddressKey`).
+  `TestResourceAddressKeyStripsModulePrefixes` was rewritten with the
+  reviewer's exact table plus an indexed-module-name case
+  (`module.vpc["a.b"].aws_x.y`) and two explicit non-collision assertions;
+  it reproduces every reported collision as a genuine RED against the old
+  implementation and is GREEN against the new one.
+- Observability Evidence (#5572 follow-up, resourceAddressKey fix): no
+  metric, span, or read-surface field changed -- `resourceAddressKey` is a
+  private pairing-key helper; its output never reaches the API/MCP response
+  shape directly, only gates whether `ModuleResolutionReason` mirrors onto a
+  state row (already-covered evidence path).
 
 ### Golden-corpus snapshot text updated, no assertion or count changed
 

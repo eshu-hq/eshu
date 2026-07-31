@@ -638,6 +638,58 @@ recent shipped work grouped by feature area.
     findings) could not. `cd go && go test ./cmd/golden-corpus-gate/...
     -count=1` is green against the updated snapshot.
 
+- **Review follow-up: fix a real false-pairing defect in `resourceAddressKey`
+  itself.** The pairing key computed by taking an address's last two
+  dot-separated segments (`strings.Split(address, ".")`) broke on any
+  address whose `for_each` index literally contains a dot -- proved
+  empirically: `aws_route53_record.this["api.example.com"]` and the
+  UNRELATED `aws_acm_certificate.cert["www.example.com"]` both collapsed to
+  the identical wrong key `example.com"]`, and `data.aws_ami.ubuntu`
+  collapsed onto the unrelated managed resource `aws_ami.ubuntu`. Either
+  collision, if it were the only one in a join, would satisfy
+  `pairSpuriousModuleMismatches`'s "exactly one candidate on each side"
+  ambiguity guard and mirror `ModuleResolutionReason` onto a genuinely
+  unrelated, real finding -- a false `derived` downgrade of true drift, the
+  precise failure the guard exists to prevent. `for_each` over domain names
+  or similar dotted strings is a common Terraform pattern, not an edge case.
+
+  `resourceAddressKey` now FRONT-strips leading `module.<name>[<index>]`
+  segments instead of taking the last two segments from the end, tracking
+  bracket depth and double-quote state (`skipModuleNameSegment`,
+  `hasResourceTypeNameShape`) so a `.` or `]` inside a quoted index --
+  whether on a `for_each` instance's own key or on an indexed MODULE NAME's
+  index (`module.vpc["a.b"].aws_x.y`) -- is never mistaken for a segment
+  boundary. Whatever remains after stripping every leading `module.` segment
+  is returned verbatim, byte-identical to what follows the address's own
+  last module prefix. A `data.` prefix is deliberately preserved rather than
+  stripped (Terraform itself treats `data.TYPE.NAME` and `TYPE.NAME` as
+  different resources): checked, not assumed, that this collision can only
+  threaten the STATE side of a pairing -- the HCL parser routes `data`
+  blocks into a separate `terraform_data_sources` bucket the drift loader's
+  config-side query never reads, but the collector's `resourceAddress`
+  (`internal/collector/terraformstate/identity.go`) does prefix `"data."`
+  onto a state-side data source's address with no mode filter on the
+  state-side query. Separately confirmed this collector's actual
+  `for_each`/`count` addressing never emits the literal-dot-in-index shape
+  at all (it appends a `facts.StableID` hash digest, `[key:<hash>]`, or a
+  plain integer `[index:<N>]`), so the collision could not occur through
+  today's data end to end -- the fix is still correct-by-construction
+  regardless, since a different or future ingestion path could plausibly
+  carry the literal Terraform-CLI-display shape.
+  - No-Regression Evidence: `cd go && go test
+    ./internal/storage/postgres/... -count=1` is green.
+    `TestResourceAddressKeyStripsModulePrefixes` was rewritten with the
+    reviewer's exact collision table plus an indexed-module-name case and
+    two explicit non-collision assertions; it reproduces every reported
+    collision as a genuine RED against the prior implementation and is
+    GREEN against the front-stripping one. The pre-existing
+    `TestPairSpuriousModuleMismatches*` tests are unaffected (their
+    addresses carry no brackets, so old and new implementations agree on
+    them).
+  - See the evidence doc's "Follow-up: front-stripping fix for
+    resourceAddressKey" section for the full RED output and the
+    data-source-reachability trace.
+
 ### Route-fact-based Rails controller liveness
 
 - **Join the Rails controller dead-code-root verdict against real route facts**

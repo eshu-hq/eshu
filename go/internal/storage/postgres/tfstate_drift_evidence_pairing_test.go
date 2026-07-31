@@ -12,27 +12,113 @@ import (
 )
 
 // TestResourceAddressKeyStripsModulePrefixes proves resourceAddressKey
-// recovers the trailing "<type>.<name>" segment regardless of how many
-// "module.<name>." pairs precede it, since Terraform's address grammar
-// guarantees the last two dot-separated segments are always the resource
-// type and name.
+// recovers the trailing "TYPE.NAME[INDEX]" segment of a canonical Terraform
+// address by FRONT-stripping leading "module.<name>[<index>]." pairs, not by
+// taking the last two dot-separated segments (that end-taking shape was the
+// bug: reviewer-supplied empirical proof showed
+// `aws_route53_record.this["api.example.com"]` and
+// `aws_acm_certificate.cert["www.example.com"]` collapsing to the identical,
+// wrong key "example.com\"]", and `data.aws_ami.ubuntu` colliding with the
+// unrelated managed resource `aws_ami.ubuntu`). Front-stripping instead
+// walks from the left, so a dot or "]" INSIDE a quoted for_each key, or
+// inside an indexed MODULE name's own index, is never mistaken for a
+// segment boundary.
 func TestResourceAddressKeyStripsModulePrefixes(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
+		name    string
 		address string
 		want    string
 		wantOK  bool
 	}{
-		{"aws_security_group.vpc_endpoints", "aws_security_group.vpc_endpoints", true},
-		{"module.vpc.aws_security_group.vpc_endpoints", "aws_security_group.vpc_endpoints", true},
-		{"module.platform.module.vpc.aws_instance.web", "aws_instance.web", true},
-		{"aws_instance.web[0]", "aws_instance.web[0]", true},
-		{"", "", false},
-		{"aws_instance", "", false},
+		{
+			name:    "plain root resource",
+			address: "aws_security_group.vpc_endpoints",
+			want:    "aws_security_group.vpc_endpoints",
+			wantOK:  true,
+		},
+		{
+			name:    "single module prefix",
+			address: "module.vpc.aws_security_group.vpc_endpoints",
+			want:    "aws_security_group.vpc_endpoints",
+			wantOK:  true,
+		},
+		{
+			name:    "nested module prefix",
+			address: "module.platform.module.vpc.aws_instance.web",
+			want:    "aws_instance.web",
+			wantOK:  true,
+		},
+		{
+			name:    "numeric count index, no dots",
+			address: "aws_instance.web[0]",
+			want:    "aws_instance.web[0]",
+			wantOK:  true,
+		},
+		{
+			name:    "for_each key containing dots, no module prefix",
+			address: `aws_route53_record.this["api.example.com"]`,
+			want:    `aws_route53_record.this["api.example.com"]`,
+			wantOK:  true,
+		},
+		{
+			name:    "for_each key containing dots, with module prefix",
+			address: `module.dns.aws_route53_record.this["api.example.com"]`,
+			want:    `aws_route53_record.this["api.example.com"]`,
+			wantOK:  true,
+		},
+		{
+			name:    "different resource, same dotted-index tail, must not collapse",
+			address: `aws_acm_certificate.cert["www.example.com"]`,
+			want:    `aws_acm_certificate.cert["www.example.com"]`,
+			wantOK:  true,
+		},
+		{
+			name:    "data source keeps its data. token, distinct from a managed resource",
+			address: "data.aws_ami.ubuntu",
+			want:    "data.aws_ami.ubuntu",
+			wantOK:  true,
+		},
+		{
+			name:    "managed resource sharing a data source's type and name",
+			address: "aws_ami.ubuntu",
+			want:    "aws_ami.ubuntu",
+			wantOK:  true,
+		},
+		{
+			name:    "indexed module name whose own index contains a dot",
+			address: `module.vpc["a.b"].aws_security_group.x`,
+			want:    "aws_security_group.x",
+			wantOK:  true,
+		},
+		{
+			name:    "empty address",
+			address: "",
+			want:    "",
+			wantOK:  false,
+		},
+		{
+			name:    "single segment, no type.name shape",
+			address: "aws_instance",
+			want:    "",
+			wantOK:  false,
+		},
+		{
+			name:    "module name consumes the whole address, no trailing resource",
+			address: "module.vpc",
+			want:    "",
+			wantOK:  false,
+		},
+		{
+			name:    "unterminated bracket refuses to guess",
+			address: `module.vpc["unterminated.aws_instance.web`,
+			want:    "",
+			wantOK:  false,
+		},
 	}
 	for _, tc := range cases {
-		t.Run(tc.address, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			got, ok := resourceAddressKey(tc.address)
 			if ok != tc.wantOK {
@@ -43,6 +129,34 @@ func TestResourceAddressKeyStripsModulePrefixes(t *testing.T) {
 			}
 		})
 	}
+
+	// Explicit non-collision assertions mirroring the reviewer's empirical
+	// proof of the old end-taking bug: these two pairs MUST resolve to
+	// different keys, or pairSpuriousModuleMismatches's "unambiguous 1:1"
+	// guard would see a false-unambiguous match and mirror a
+	// ModuleResolutionReason onto a genuinely unrelated resource.
+	t.Run("dotted for_each keys of different resources never collide", func(t *testing.T) {
+		t.Parallel()
+		key1, ok1 := resourceAddressKey(`aws_route53_record.this["api.example.com"]`)
+		key2, ok2 := resourceAddressKey(`aws_acm_certificate.cert["www.example.com"]`)
+		if !ok1 || !ok2 {
+			t.Fatalf("resourceAddressKey() ok = (%v, %v), want (true, true)", ok1, ok2)
+		}
+		if key1 == key2 {
+			t.Fatalf("collision: both resolved to %q", key1)
+		}
+	})
+	t.Run("data source never collides with a managed resource of the same type and name", func(t *testing.T) {
+		t.Parallel()
+		key1, ok1 := resourceAddressKey("data.aws_ami.ubuntu")
+		key2, ok2 := resourceAddressKey("aws_ami.ubuntu")
+		if !ok1 || !ok2 {
+			t.Fatalf("resourceAddressKey() ok = (%v, %v), want (true, true)", ok1, ok2)
+		}
+		if key1 == key2 {
+			t.Fatalf("collision: both resolved to %q", key1)
+		}
+	})
 }
 
 // TestPairSpuriousModuleMismatchesMirrorsReasonOntoUnambiguousStateOnlyRow is
