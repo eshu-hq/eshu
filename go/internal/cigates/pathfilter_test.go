@@ -160,6 +160,64 @@ func TestDriftCheck_PathFilterCoverage_UnresolvedKeySkipped(t *testing.T) {
 	}
 }
 
+// TestDriftCheck_PathFilterCoverage_DuplicateDisplayNameAmbiguous proves that
+// two append_gate calls sharing a display name but naming DIFFERENT dorny
+// filter keys are reported as ambiguous rather than silently collapsed onto
+// whichever call's key a plain map[display]key assignment happened to
+// process last. A silent last-write-wins collapse would check every
+// registry gate naming that display against an arbitrary key, which can
+// either wrongly pass (the guessed key's filter happens to cover the
+// trigger) or wrongly fail (it does not) purely depending on append_gate
+// call order in the workflow file -- neither is a real signal, so the fix
+// must report the ambiguity instead of guessing, and must not also emit the
+// guessed-key "not matched by any pattern" message.
+func TestDriftCheck_PathFilterCoverage_DuplicateDisplayNameAmbiguous(t *testing.T) {
+	t.Parallel()
+
+	root := buildDriftRepo(t, minimalPreCommit("my-gate"), nil)
+	writeWorkflow(t, root, "matrix.yml", "name: Static Contract Gates\non: [push, pull_request]\njobs:\n"+
+		"  changes:\n    runs-on: ubuntu-latest\n    steps:\n"+
+		"      - uses: dorny/paths-filter@v3\n"+
+		"        with:\n"+
+		"          filters: |\n"+
+		"            telemetry:\n"+
+		"              - 'scripts/known-file.sh'\n"+
+		"            other:\n"+
+		"              - 'totally/unrelated/*.sh'\n"+
+		"  gate:\n    name: ${{ matrix.display }}\n    runs-on: ubuntu-latest\n    steps:\n"+
+		"      - run: |\n"+
+		"          append_gate \"${{ steps.filter.outputs.telemetry }}\" \"telemetry\" \"Verify telemetry coverage gate\" \"cmd\" \"cmd\"\n"+
+		"          append_gate \"${{ steps.filter.outputs.other }}\" \"other\" \"Verify telemetry coverage gate\" \"cmd\" \"cmd\"\n")
+
+	g := gateWith("telemetry-coverage", "my-gate", "matrix.yml")
+	g.CI.Job = "Verify telemetry coverage gate"
+	g.Triggers = []string{"scripts/known-file.sh"}
+	reg := minimalReg([]cigates.Gate{g}, nil, nil)
+
+	errs := cigates.DriftCheck(root, reg)
+
+	foundAmbiguous := false
+	foundMismatch := false
+	for _, e := range errs {
+		if e == nil {
+			continue
+		}
+		msg := e.Error()
+		if containsAll(msg, "telemetry-coverage", "ambiguous") {
+			foundAmbiguous = true
+		}
+		if containsAll(msg, "telemetry-coverage", "not matched by any pattern") {
+			foundMismatch = true
+		}
+	}
+	if !foundAmbiguous {
+		t.Errorf("expected an ambiguous-display-name drift error naming the gate, got: %v", errs)
+	}
+	if foundMismatch {
+		t.Errorf("must not fall through to a guessed-key trigger-mismatch error once the display name is ambiguous, got: %v", errs)
+	}
+}
+
 // containsAll reports whether s contains every one of substrs.
 func containsAll(s string, substrs ...string) bool {
 	for _, sub := range substrs {

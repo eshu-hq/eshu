@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -68,18 +69,51 @@ func dornyFilters(raw []byte) map[string][]string {
 	return nil
 }
 
-// appendGateKeysByDisplay returns a map of append_gate display name -> dorny
-// filter key, parsed from every append_gate call found in raw.
-func appendGateKeysByDisplay(raw []byte) map[string]string {
-	out := make(map[string]string)
+// appendGateKeysByDisplay returns two maps parsed from every append_gate call
+// found in raw: display name -> dorny filter key, for every display name
+// that resolves to exactly one key, and display name -> the distinct keys
+// seen, for every display name two or more append_gate calls name with
+// DIFFERENT keys. A plain map[display]key assignment silently keeps only the
+// last-seen key when two append_gate calls share a display name but pass
+// different filter keys, so every registry gate naming that display would be
+// validated against whichever call happened to appear last in the workflow
+// file -- an ambiguous mapping, not a real signal, that can wrongly pass or
+// wrongly fail a trigger check purely depending on append_gate call order
+// (#5855 review). checkPathFilterCoverage treats an ambiguous display as
+// unmapped for glob-matching purposes (consistent with this file's existing
+// "skip rather than guess" convention for an unresolved ci.job) but reports
+// the ambiguity as a drift finding rather than silently picking one key.
+func appendGateKeysByDisplay(raw []byte) (keys map[string]string, ambiguous map[string][]string) {
+	seen := make(map[string]map[string]struct{})
 	for _, m := range appendGateKeyDisplayRE.FindAllSubmatch(raw, -1) {
 		key := string(m[1])
 		display := string(m[2])
-		if key != "" && display != "" {
-			out[display] = key
+		if key == "" || display == "" {
+			continue
+		}
+		if seen[display] == nil {
+			seen[display] = make(map[string]struct{})
+		}
+		seen[display][key] = struct{}{}
+	}
+
+	keys = make(map[string]string)
+	ambiguous = make(map[string][]string)
+	for display, keySet := range seen {
+		if len(keySet) > 1 {
+			ks := make([]string, 0, len(keySet))
+			for k := range keySet {
+				ks = append(ks, k)
+			}
+			sort.Strings(ks)
+			ambiguous[display] = ks
+			continue
+		}
+		for k := range keySet {
+			keys[display] = k
 		}
 	}
-	return out
+	return keys, ambiguous
 }
 
 // isLiteralTrigger reports whether a registry trigger names a single
@@ -114,6 +148,7 @@ func checkPathFilterCoverage(repoRoot string, reg *Registry) []error {
 	rawCache := make(map[string][]byte)
 	filtersCache := make(map[string]map[string][]string)
 	keysCache := make(map[string]map[string]string)
+	ambiguousCache := make(map[string]map[string][]string)
 
 	var errs []error
 	for _, g := range reg.Gates {
@@ -149,11 +184,29 @@ func checkPathFilterCoverage(repoRoot string, reg *Registry) []error {
 			continue
 		}
 
-		keys, cached := keysCache[g.CI.Workflow]
-		if !cached {
-			keys = appendGateKeysByDisplay(raw)
+		keys, keysCached := keysCache[g.CI.Workflow]
+		ambiguous, ambiguousCached := ambiguousCache[g.CI.Workflow]
+		if !keysCached || !ambiguousCached {
+			keys, ambiguous = appendGateKeysByDisplay(raw)
 			keysCache[g.CI.Workflow] = keys
+			ambiguousCache[g.CI.Workflow] = ambiguous
 		}
+
+		if ambiguousKeys, isAmbiguous := ambiguous[g.CI.Job]; isAmbiguous {
+			// Two or more append_gate calls in this workflow share g.CI.Job as
+			// their display name but pass DIFFERENT dorny filter keys. Report
+			// the ambiguity as a drift finding rather than silently checking
+			// this gate's triggers against whichever key a plain map
+			// assignment happened to keep last -- that would be a guess, not
+			// a signal, and could wrongly pass or wrongly fail depending on
+			// append_gate call order.
+			errs = append(errs, fmt.Errorf(
+				"drift: gate %q's ci.job %q matches multiple append_gate calls in %q with different dorny filter keys (%s) -- give each append_gate call a distinct display name, or reconcile the keys, so the gate-to-filter-key mapping is unambiguous",
+				g.ID, g.CI.Job, g.CI.Workflow, strings.Join(ambiguousKeys, ", "),
+			))
+			continue
+		}
+
 		key, ok := keys[g.CI.Job]
 		if !ok {
 			// No append_gate call names this gate's ci.job; the mapping from
