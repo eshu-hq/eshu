@@ -1,12 +1,94 @@
 -- SPDX-License-Identifier: MIT
 -- Copyright (c) 2025-2026 eshu-hq
 
+-- Acquire the first-upgrade lock before creating any digest-v3 object. Schema
+-- definitions commit independently, so taking this lock later could leave a
+-- partial support store when lock_timeout rejects the fact_work_items ALTER.
+-- Repeated bootstrap skips the lock once both columns and the constraint are
+-- present.
+DO $upgrade_lock$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM (VALUES
+            ('container_image_identity_v3_required'),
+            ('container_image_identity_v3_authorized_status')
+        ) AS required(attname)
+        WHERE NOT EXISTS (
+            SELECT 1 FROM pg_attribute
+            WHERE attrelid = 'fact_work_items'::regclass
+              AND pg_attribute.attname = required.attname
+              AND NOT attisdropped
+        )
+    ) OR NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'fact_work_items'::regclass
+          AND conname = 'fact_work_items_container_image_identity_v3_status_check'
+    ) THEN
+        LOCK TABLE fact_work_items IN ACCESS EXCLUSIVE MODE;
+    END IF;
+END;
+$upgrade_lock$;
+
+DO $columns$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_attribute
+        WHERE attrelid = 'fact_work_items'::regclass
+          AND attname = 'container_image_identity_v3_required'
+          AND NOT attisdropped
+    ) THEN
+        ALTER TABLE fact_work_items
+            ADD COLUMN container_image_identity_v3_required
+                BOOLEAN NOT NULL DEFAULT FALSE;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_attribute
+        WHERE attrelid = 'fact_work_items'::regclass
+          AND attname = 'container_image_identity_v3_authorized_status'
+          AND NOT attisdropped
+    ) THEN
+        ALTER TABLE fact_work_items
+            ADD COLUMN container_image_identity_v3_authorized_status
+                TEXT NOT NULL DEFAULT '';
+    END IF;
+END;
+$columns$;
+
+DO $constraint$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conrelid = 'fact_work_items'::regclass
+          AND conname = 'fact_work_items_container_image_identity_v3_status_check'
+    ) THEN
+        ALTER TABLE fact_work_items
+            ADD CONSTRAINT fact_work_items_container_image_identity_v3_status_check
+            CHECK (
+                NOT container_image_identity_v3_required
+                OR status = container_image_identity_v3_authorized_status
+            ) NOT VALID;
+    END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conrelid = 'fact_work_items'::regclass
+          AND conname = 'fact_work_items_container_image_identity_v3_status_check'
+          AND NOT convalidated
+    ) THEN
+        ALTER TABLE fact_work_items
+            VALIDATE CONSTRAINT fact_work_items_container_image_identity_v3_status_check;
+    END IF;
+END;
+$constraint$;
+
 CREATE SEQUENCE IF NOT EXISTS container_image_identity_activation_epoch_seq;
 
 CREATE TABLE IF NOT EXISTS container_image_identity_support_sets (
-    set_id BYTEA PRIMARY KEY,
+    set_id BYTEA PRIMARY KEY CHECK (octet_length(set_id) = 32),
     scope_id TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,
-    content_hash BYTEA NOT NULL,
+    content_hash BYTEA NOT NULL CHECK (octet_length(content_hash) = 32),
     support_count INTEGER NOT NULL CHECK (support_count >= 0),
     created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
     UNIQUE (scope_id, content_hash),
@@ -17,7 +99,7 @@ CREATE TABLE IF NOT EXISTS container_image_identity_supports (
     set_id BYTEA NOT NULL
         REFERENCES container_image_identity_support_sets(set_id) ON DELETE CASCADE,
     digest TEXT NOT NULL CHECK (digest <> ''),
-    support_id BYTEA NOT NULL CHECK (octet_length(support_id) > 0),
+    support_id BYTEA NOT NULL CHECK (octet_length(support_id) = 32),
     image_ref TEXT NOT NULL DEFAULT '',
     repository_id TEXT NOT NULL DEFAULT '',
     outcome TEXT NOT NULL CHECK (
@@ -48,37 +130,13 @@ CREATE INDEX IF NOT EXISTS container_image_identity_supports_outcome_idx
 CREATE INDEX IF NOT EXISTS container_image_identity_supports_source_repositories_idx
     ON container_image_identity_supports USING GIN (source_repository_ids);
 
-ALTER TABLE fact_work_items
-    ADD COLUMN IF NOT EXISTS container_image_identity_v3_required
-        BOOLEAN NOT NULL DEFAULT FALSE,
-    ADD COLUMN IF NOT EXISTS container_image_identity_v3_authorized_status
-        TEXT NOT NULL DEFAULT '';
-
-DO $constraint$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1
-        FROM pg_constraint
-        WHERE conrelid = 'fact_work_items'::regclass
-          AND conname = 'fact_work_items_container_image_identity_v3_status_check'
-    ) THEN
-        ALTER TABLE fact_work_items
-            ADD CONSTRAINT fact_work_items_container_image_identity_v3_status_check
-            CHECK (
-                NOT container_image_identity_v3_required
-                OR status = container_image_identity_v3_authorized_status
-            );
-    END IF;
-END;
-$constraint$;
-
 CREATE TABLE IF NOT EXISTS container_image_identity_scope_state (
     scope_id TEXT PRIMARY KEY REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,
     active_generation_id TEXT,
     activation_epoch BIGINT NOT NULL CHECK (activation_epoch > 0),
     active_set_id BYTEA,
     last_set_id BYTEA,
-    last_set_hash BYTEA,
+    last_set_hash BYTEA CHECK (last_set_hash IS NULL OR octet_length(last_set_hash) = 32),
     published_claim_epoch BIGINT NOT NULL DEFAULT 0 CHECK (published_claim_epoch >= 0),
     source_system TEXT NOT NULL DEFAULT 'unknown',
     collector_kind TEXT NOT NULL DEFAULT 'unknown',
@@ -103,6 +161,59 @@ CREATE INDEX IF NOT EXISTS container_image_identity_scope_state_active_set_idx
     ON container_image_identity_scope_state (active_set_id, scope_id)
     WHERE active_set_id IS NOT NULL;
 
+CREATE TABLE IF NOT EXISTS container_image_identity_storage_cutover (
+    singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
+    identity_format TEXT NOT NULL CHECK (identity_format = 'digest_v3'),
+    cutover_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
+);
+
+CREATE OR REPLACE FUNCTION reset_container_image_identity_scope_state()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $function$
+BEGIN
+    IF TG_OP = 'INSERT' AND NEW.active_generation_id IS NULL THEN
+        RETURN NEW;
+    END IF;
+    IF TG_OP = 'UPDATE' AND NEW.active_generation_id IS NOT DISTINCT FROM OLD.active_generation_id THEN
+        RETURN NEW;
+    END IF;
+    INSERT INTO container_image_identity_scope_state (
+        scope_id, active_generation_id, activation_epoch
+    ) VALUES (
+        NEW.scope_id,
+        NEW.active_generation_id,
+        nextval('container_image_identity_activation_epoch_seq')
+    )
+    ON CONFLICT (scope_id) DO UPDATE
+    SET active_generation_id = EXCLUDED.active_generation_id,
+        activation_epoch = EXCLUDED.activation_epoch,
+        active_set_id = NULL,
+        published_claim_epoch = 0,
+        source_fact_key = '',
+        fencing_token = 0,
+        updated_at = clock_timestamp();
+    RETURN NEW;
+END;
+$function$;
+
+DO $trigger$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_trigger
+        WHERE tgrelid = 'ingestion_scopes'::regclass
+          AND tgname = 'ingestion_scopes_container_image_identity_state_reset'
+          AND NOT tgisinternal
+    ) THEN
+        CREATE TRIGGER ingestion_scopes_container_image_identity_state_reset
+        AFTER INSERT OR UPDATE OF active_generation_id ON ingestion_scopes
+        FOR EACH ROW
+        EXECUTE FUNCTION reset_container_image_identity_scope_state();
+    END IF;
+END;
+$trigger$;
+
 INSERT INTO container_image_identity_scope_state (
     scope_id,
     active_generation_id,
@@ -113,13 +224,13 @@ SELECT
     scope.active_generation_id,
     nextval('container_image_identity_activation_epoch_seq')
 FROM ingestion_scopes AS scope
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM container_image_identity_storage_cutover
+    WHERE singleton
+      AND identity_format = 'digest_v3'
+)
 ON CONFLICT (scope_id) DO NOTHING;
-
-CREATE TABLE IF NOT EXISTS container_image_identity_storage_cutover (
-    singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
-    identity_format TEXT NOT NULL CHECK (identity_format = 'digest_v3'),
-    cutover_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
-);
 
 -- The marker advertises schema capability, not global read authority. Read
 -- authority cuts over per scope when a digest-v3-capable writer installs that
@@ -157,10 +268,20 @@ BEGIN
 END;
 $function$;
 
-DROP TRIGGER IF EXISTS fact_records_reject_container_image_identity_v2
-    ON fact_records;
-CREATE TRIGGER fact_records_reject_container_image_identity_v2
-BEFORE INSERT OR UPDATE ON fact_records
-FOR EACH ROW
-WHEN (NEW.fact_kind = 'reducer_container_image_identity')
-EXECUTE FUNCTION reject_container_image_identity_fact_record_write();
+DO $trigger$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_trigger
+        WHERE tgrelid = 'fact_records'::regclass
+          AND tgname = 'fact_records_reject_container_image_identity_v2'
+          AND NOT tgisinternal
+    ) THEN
+        CREATE TRIGGER fact_records_reject_container_image_identity_v2
+        BEFORE INSERT OR UPDATE ON fact_records
+        FOR EACH ROW
+        WHEN (NEW.fact_kind = 'reducer_container_image_identity')
+        EXECUTE FUNCTION reject_container_image_identity_fact_record_write();
+    END IF;
+END;
+$trigger$;

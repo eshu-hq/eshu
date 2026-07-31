@@ -6,6 +6,24 @@
 -- their domain-specific winner selection runs. Public query surfaces continue
 -- to use container_image_identity_current_facts_for and its one-row-per-digest
 -- aggregate.
+CREATE OR REPLACE FUNCTION container_image_identity_try_decode_utf8_hex(value TEXT)
+RETURNS TEXT
+LANGUAGE plpgsql
+IMMUTABLE
+STRICT
+PARALLEL SAFE
+AS $function$
+BEGIN
+    IF value !~ '^([0-9a-f]{2})+$' THEN
+        RETURN NULL;
+    END IF;
+    RETURN convert_from(decode(value, 'hex'), 'UTF8');
+EXCEPTION
+    WHEN SQLSTATE '22021' OR SQLSTATE '22023' THEN
+        RETURN NULL;
+END;
+$function$;
+
 CREATE OR REPLACE FUNCTION container_image_identity_current_support_facts_for(
     digests TEXT[],
     image_refs TEXT[],
@@ -38,17 +56,29 @@ STABLE
 SECURITY INVOKER
 PARALLEL SAFE
 AS $function$
-WITH cursor_boundary AS MATERIALIZED (
+WITH cursor_parts AS MATERIALIZED (
+    SELECT regexp_split_to_array($6, ':') AS parts
+),
+cursor_boundary AS MATERIALIZED (
     SELECT
-        CASE WHEN starts_with($6, 'reducer_container_image_identity_support:')
-            THEN convert_from(decode(split_part($6, ':', 2), 'hex'), 'UTF8')
-        END AS scope_id,
-        CASE WHEN starts_with($6, 'reducer_container_image_identity_support:')
-            THEN convert_from(decode(split_part($6, ':', 3), 'hex'), 'UTF8')
-        END AS digest,
-        CASE WHEN starts_with($6, 'reducer_container_image_identity_support:')
-            THEN decode(split_part($6, ':', 4), 'hex')
-        END AS support_id
+        decoded.scope_id,
+        decoded.digest,
+        decoded.support_id,
+        cardinality(parts.parts) = 4
+            AND parts.parts[1] = 'reducer_container_image_identity_support'
+            AND decoded.scope_id IS NOT NULL
+            AND decoded.digest IS NOT NULL
+            AND decoded.support_id IS NOT NULL
+            AND octet_length(decoded.support_id) = 32 AS is_canonical
+    FROM cursor_parts AS parts
+    CROSS JOIN LATERAL (
+        SELECT
+            container_image_identity_try_decode_utf8_hex(parts.parts[2]) AS scope_id,
+            container_image_identity_try_decode_utf8_hex(parts.parts[3]) AS digest,
+            CASE WHEN parts.parts[4] ~ '^([0-9a-f]{2})+$'
+                THEN decode(parts.parts[4], 'hex')
+            END AS support_id
+    ) AS decoded
 ),
 v3_candidates AS MATERIALIZED (
     SELECT
@@ -90,6 +120,7 @@ v3_candidates AS MATERIALIZED (
      AND generation.status = 'active'
     JOIN container_image_identity_supports AS support
       ON support.set_id = state.active_set_id
+    CROSS JOIN cursor_boundary AS cursor
     WHERE state.active_set_id IS NOT NULL
       AND (
           (COALESCE(cardinality($1), 0) > 0 AND support.digest = ANY($1))
@@ -101,15 +132,16 @@ v3_candidates AS MATERIALIZED (
       AND (
           $6 = ''
           OR (
-              NOT starts_with($6, 'reducer_container_image_identity_support:')
-              AND 'reducer_container_image_identity_support:' > $6
+              NOT cursor.is_canonical
+              AND 'reducer_container_image_identity_support:' ||
+                  encode(convert_to(state.scope_id, 'UTF8'), 'hex') || ':' ||
+                  encode(convert_to(support.digest, 'UTF8'), 'hex') || ':' ||
+                  encode(support.support_id, 'hex') > $6
           )
           OR (
-              starts_with($6, 'reducer_container_image_identity_support:')
-              AND (state.scope_id, support.digest, support.support_id) > (
-                  SELECT cursor.scope_id, cursor.digest, cursor.support_id
-                  FROM cursor_boundary AS cursor
-              )
+              cursor.is_canonical
+              AND (state.scope_id, support.digest, support.support_id) >
+                  (cursor.scope_id, cursor.digest, cursor.support_id)
           )
       )
     ORDER BY state.scope_id, support.digest, support.support_id
@@ -158,6 +190,7 @@ legacy_candidates AS MATERIALIZED (
      AND fact.generation_id = state.active_generation_id
      AND fact.fact_kind = 'reducer_container_image_identity'
      AND NOT fact.is_tombstone
+    CROSS JOIN cursor_boundary AS cursor
     WHERE state.active_set_id IS NULL
       AND COALESCE(fact.payload->>'digest', '') <> ''
       AND (
@@ -170,15 +203,16 @@ legacy_candidates AS MATERIALIZED (
       AND (
           $6 = ''
           OR (
-              NOT starts_with($6, 'reducer_container_image_identity_support:')
-              AND 'reducer_container_image_identity_support:' > $6
+              NOT cursor.is_canonical
+              AND 'reducer_container_image_identity_support:' ||
+                  encode(convert_to(state.scope_id, 'UTF8'), 'hex') || ':' ||
+                  encode(convert_to(fact.payload->>'digest', 'UTF8'), 'hex') || ':' ||
+                  encode(sha256(convert_to(fact.fact_id, 'UTF8')), 'hex') > $6
           )
           OR (
-              starts_with($6, 'reducer_container_image_identity_support:')
-              AND (state.scope_id, fact.payload->>'digest', sha256(convert_to(fact.fact_id, 'UTF8'))) > (
-                  SELECT cursor.scope_id, cursor.digest, cursor.support_id
-                  FROM cursor_boundary AS cursor
-              )
+              cursor.is_canonical
+              AND (state.scope_id, fact.payload->>'digest', sha256(convert_to(fact.fact_id, 'UTF8'))) >
+                  (cursor.scope_id, cursor.digest, cursor.support_id)
           )
       )
     ORDER BY state.scope_id, fact.payload->>'digest', sha256(convert_to(fact.fact_id, 'UTF8'))

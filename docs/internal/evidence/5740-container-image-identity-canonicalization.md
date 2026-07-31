@@ -31,7 +31,7 @@ The focused live proof is:
 ```bash
 ESHU_POSTGRES_TEST_DSN='postgresql://eshu:change-me@127.0.0.1:25432/eshu?sslmode=disable' \
   go test ./internal/reducer ./internal/storage/postgres \
-  -run 'TestContainerImageIdentitySupportWriter.*PostgresLive|TestContainerImageIdentityHeldSupportStorePostgresLive' \
+  -run 'TestContainerImageIdentitySupportWriter.*PostgresLive|TestContainerImageIdentityHeldSupportStorePostgresLive|TestContainerImageIdentityCurrentSupportFacts(PreserveGrain|LegacyCutoverParity)PostgresLive|TestContainerImageIdentityV3MigrationPopulatedUpgradeLive' \
   -count=1
 ```
 
@@ -57,6 +57,16 @@ It proves:
   all or none of the support rows without decode errors;
 - pre-pointer legacy and post-pointer typed reads preserve the same semantic
   digest, image, repository, outcome, strength, and source repository fields.
+- malformed, non-UTF8, truncated, short-ID, and foreign-namespace cursors use
+  lexical namespace ordering without decode errors or broken keyset bounds;
+- populated first upgrade takes a real lock barrier, leaves no partial support
+  store on lock timeout, creates no eager typed rows, preserves legacy read
+  authority, and keeps trigger/catalog/activation state stable on restart;
+- the first fenced digest-v3 publication after upgrade carries a warning-held
+  legacy support and atomically removes the exact 10,000-row legacy generation;
+- `BUILT_FROM` and `DERIVED_FROM` use the writer-accepted effective support set,
+  retain held edges, make no graph calls after a rejected write, and match the
+  compatibility decision builders row for row.
 
 The in-process normalization/replay proof is:
 
@@ -70,7 +80,33 @@ It covers generation-independent set identity, semantic support-ID
 recomputation, current/prior deduplication, exact held-reference loading, the
 no-hold fast path, missing-prior behavior, and stale-claim rejection.
 
+The writer-accepted graph regressions run explicitly with:
+
+```bash
+go test ./internal/reducer \
+  -run 'TestContainerImage(BuiltFromSupportRowsMatchDecisionRows|DerivedFromSupportRowsMatchDecisionRows|IdentityHandlerProjectsWarningHeldEffectiveSupports|IdentityHandlerRejectsMissingEffectiveGraphProjection|IdentityHandlerDoesNotProjectRejectedPublication)' \
+  -count=1
+```
+
 ## Prove-the-theory-first performance evidence
+
+Performance Evidence: OLD and NEW measurements below use synthetic
+`registry.example.com` inputs on the same Apple M5 Max host. Postgres plans use
+the same Postgres 18 container, warm storage, selectors, row counts, and
+buffers. The graph benchmarks compare equivalent normalized decision and
+support inputs. The migration comparison intentionally changes behavior: OLD
+eagerly converted all active legacy facts into an unused typed set during
+startup; NEW retains legacy read authority until the first fenced publication.
+
+No-Observability-Change: existing reducer execution/run duration,
+`eshu_dp_container_image_identity_decisions_total`,
+`eshu_dp_container_image_identity_retirements_total`, Postgres query-duration,
+queue residual/dead-letter status, and structured reducer failure reporting
+cover the changed paths. Missing effective projection is a new fail-closed
+validation error surfaced through those existing reducer error and queue
+signals; it adds no new retry or operational failure class, runtime label, or
+worker. The final live gate must end at zero residual and dead-letter work
+items.
 
 All comparisons used the same Postgres 18 container, schema, synthetic
 `registry.example.com` data, and 99,500-row support corpus.
@@ -95,6 +131,25 @@ Concurrent 1,000-row publications also preserved or improved throughput:
 The partial-overlap lanes at 25%, 50%, and 75% overlap completed without
 failure. The terminal invariant was 16 committed sets, 16 active scope rows,
 and zero orphan/mismatched supports.
+
+### Populated upgrade
+
+The rejected OLD `092a` eager backfill and accepted NEW upgrade were run in
+isolated schemas containing the same 10,000 synthetic active legacy facts and
+10,000 reducer work items. The OLD SQL was loaded from pre-repair commit
+`7eb43b2c7304474e6b3335a46df97c14e3044272`; the throwaway timing harness was
+removed after the proof. OLD took 365.293 ms and created one typed set plus
+10,000 support rows. NEW full upgrade took 56.600 ms and created no typed rows,
+an 84.5% startup improvement despite timing more migration work. Its idempotent
+restart took 18.690 ms. A five-run NEW confirmation had 53.987 ms first-upgrade
+and 18.283 ms restart medians.
+
+NEW preserves all 10,000 legacy rows through the compatibility view. The first
+fenced v3 publication is the conversion seam: the live test proves it carries
+the requested held support, moves the pointer, and deletes all 10,000 legacy
+rows atomically. Explicit `pg_locks` barriers prove bounded lock timeout and
+correct handling of scope activation immediately before and after trigger
+installation.
 
 ### Bounded reads
 
@@ -132,6 +187,40 @@ repository, and source-repository GIN indexes were sufficient; no new index was
 needed. A live 513-support regression proves page continuity, uniqueness, and
 field correlation through all three reducer loaders.
 
+The repaired cursor parser was also measured by swapping OLD and NEW function
+definitions against the same warm 99,500-row corpus and running five broad
+500-row pages each with `EXPLAIN (ANALYZE, BUFFERS, WAL, FORMAT JSON)`. OLD had
+a 58.282 ms median; NEW had a 56.755 ms median, 2.6% faster. Both used 6,744
+shared-buffer hits and wrote zero temporary blocks. The safe parser therefore
+fixes malformed-cursor accuracy without regressing the production broad-page
+path.
+
+### Writer-accepted graph rows
+
+The accepted effective-support projection avoids converting the support set
+back into public decision objects. The longer matched benchmark ran five 500
+ms samples per shape:
+
+```bash
+go test ./internal/reducer -run '^$' \
+  -bench '^BenchmarkContainerImageIdentityGraphRows$' \
+  -benchmem -benchtime=500ms -count=5
+```
+
+| Builder | Rows | OLD decisions median | NEW supports median | Change |
+| --- | ---: | ---: | ---: | ---: |
+| `BUILT_FROM` | 1,000 | 206.589 us | 167.445 us | 18.9% faster |
+| `BUILT_FROM` | 5,000 | 848.540 us | 735.437 us | 13.3% faster |
+| `DERIVED_FROM` | 1,000 | 196.923 us | 200.949 us | 2.0% slower |
+| `DERIVED_FROM` | 5,000 | 863.516 us | 819.291 us | 5.1% faster |
+
+At 5,000 rows, `BUILT_FROM` allocations fell from 25,013 to 20,014 and bytes
+from 2,354,113 to 2,274,129. `DERIVED_FROM` retained the same 25,013 allocations
+and approximately 2,818,882 bytes. The representative 5,000-row combined graph
+path improves; the 1,000-row `DERIVED_FROM` result is near-neutral and is
+reported rather than generalized away. Direct differential tests prove both
+builders return identical rows for equivalent inputs.
+
 ### Warning-held prior support
 
 `EXPLAIN (ANALYZE, BUFFERS, WAL)` on the accepted typed loader used
@@ -162,8 +251,8 @@ GOCACHE=$PWD/.gocache ESHU_POSTGRES_PORT=25432 \
   bash scripts/verify-golden-corpus-gate.sh
 ```
 
-It completed in 110 seconds with 518 passes, zero required failures, and one
-advisory timing warning. Every drain reported `residual=0` and `dead_letter=0`.
+It completed in 112 seconds with 517 passes, zero required failures, and two
+advisory timing warnings. Every drain reported `residual=0` and `dead_letter=0`.
 The workload-scoped `CVE-2026-00010` comprehensive-profile assertion passed
 with the expected runtime context and suppression state, proving the reducer
 consumed support-grain identity evidence rather than the digest-level

@@ -122,6 +122,8 @@ func (w *recordingContainerImageIdentityWriter) WriteContainerImageIdentityDecis
 		return ContainerImageIdentityWriteResult{}, w.err
 	}
 	return ContainerImageIdentityWriteResult{
-		CanonicalWrites: len(containerImageIdentityCanonicalDecisions(write.Decisions)),
+		CanonicalWrites:            len(containerImageIdentityCanonicalDecisions(write.Decisions)),
+		effectiveDecisions:         write.Decisions,
+		effectiveProjectionPresent: true,
 	}, nil
 }

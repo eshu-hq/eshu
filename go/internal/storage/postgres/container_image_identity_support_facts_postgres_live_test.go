@@ -103,6 +103,49 @@ FROM container_image_identity_current_support_facts_for(
 			}
 		})
 	}
+	for _, test := range []struct {
+		name      string
+		cursor    string
+		wantCount int
+	}{
+		{
+			name:   "non-hex support cursor",
+			cursor: "reducer_container_image_identity_support:zz:zz:zz",
+		},
+		{
+			name:   "non-UTF8 support cursor",
+			cursor: "reducer_container_image_identity_support:ff:ff:ff",
+		},
+		{
+			name:   "truncated support cursor",
+			cursor: "reducer_container_image_identity_support:zz",
+		},
+		{
+			name:      "short valid hex support cursor",
+			cursor:    "reducer_container_image_identity_support:61:62:aa",
+			wantCount: 500,
+		},
+		{
+			name:      "non-hex support id after lexical prefix",
+			cursor:    "reducer_container_image_identity_support:61:62:zz",
+			wantCount: 500,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var count int
+			if err := db.QueryRowContext(ctx, `
+SELECT count(*)
+FROM container_image_identity_current_support_facts_for(
+    ARRAY[$1]::text[], '{}'::text[], '{}'::text[], '{}'::text[], '{}'::text[], $2, 500
+)
+`, digest, test.cursor).Scan(&count); err != nil {
+				t.Fatalf("load after malformed same-prefix cursor %q: %v", test.cursor, err)
+			}
+			if count != test.wantCount {
+				t.Fatalf("support rows after malformed same-prefix cursor %q = %d, want %d from lexical foreign-cursor ordering", test.cursor, count, test.wantCount)
+			}
+		})
+	}
 }
 
 func TestContainerImageIdentityCurrentSupportFactsLegacyCutoverParityPostgresLive(t *testing.T) {

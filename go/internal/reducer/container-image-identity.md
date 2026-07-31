@@ -80,6 +80,22 @@ the warning clears, omission from the next complete set retires the support.
 An all-canonical pass performs no prior-support read because it cannot demote a
 canonical publication.
 
+## Writer-accepted graph projection
+
+`BUILT_FROM` and `DERIVED_FROM` are projected only after the Postgres writer
+accepts the exact claim and activation fence. Digest-v3 publication returns
+the normalized effective support set that was selected for the new pointer;
+the handler projects that set directly instead of projecting the pre-write
+decisions. Warning-held supports therefore retain their graph edges, while a
+rejected or stale publication makes no retract or write call to the graph.
+
+The legacy compatibility writer returns its accepted canonical decisions
+through the same private result seam. A writer wired to either graph adapter
+must explicitly mark the effective projection present; omission fails closed.
+Verification must prove that support-row and compatibility-decision builders
+produce identical `BUILT_FROM` and `DERIVED_FROM` rows for equivalent input,
+in addition to proving retained-edge and rejected-publication behavior.
+
 ## Bounded reads and indexes
 
 Public query surfaces call `container_image_identity_current_facts_for` with at
@@ -114,6 +130,8 @@ Promotion requires:
 
 - typed-set and pre-v3 legacy support carry while a warning holds;
 - warning-clear retirement and a hold with no prior support;
+- writer-accepted effective-set graph projection, row equivalence, retained
+  held edges, and zero graph calls after rejected publication;
 - exact-claim rejection and activation-ABA rejection after prior support loads;
 - current-plus-retained semantic deduplication and replay idempotence;
 - explicit empty-set publication and absence of v3 `fact_records` shadows;

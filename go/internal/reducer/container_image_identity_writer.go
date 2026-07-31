@@ -70,19 +70,6 @@ type PostgresContainerImageIdentityWriter struct {
 	Now                 func() time.Time
 }
 
-// ContainerImageIdentityActivationEpoch reads the lifecycle snapshot required
-// before the legacy writer's handler loads evidence.
-func (w PostgresContainerImageIdentityWriter) ContainerImageIdentityActivationEpoch(
-	ctx context.Context,
-	scopeID string,
-	generationID string,
-) (int64, error) {
-	if w.ActivationLookup == nil {
-		return 0, fmt.Errorf("container image identity activation lookup is required")
-	}
-	return w.ActivationLookup.ContainerImageIdentityActivationEpoch(ctx, scopeID, generationID)
-}
-
 // WriteContainerImageIdentityDecisions stores canonical image identity
 // decisions and fenced tombstones for evaluated demotions. Weak, missing,
 // ambiguous, or stale outcomes stay diagnostic reducer output unless the
@@ -137,11 +124,14 @@ func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisio
 	if err != nil {
 		return ContainerImageIdentityWriteResult{}, err
 	}
-	return containerImageIdentityWriteResult(
+	result := containerImageIdentityWriteResult(
 		canonicalWrites,
 		retirementAttempts,
 		legacyRowsDeleted,
-	), nil
+	)
+	result.effectiveDecisions = containerImageIdentityCanonicalDecisions(write.Decisions)
+	result.effectiveProjectionPresent = true
+	return result, nil
 }
 
 func buildContainerImageIdentityRows(

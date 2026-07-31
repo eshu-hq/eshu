@@ -6,10 +6,131 @@ package reducer
 import (
 	"context"
 	"database/sql"
+	"testing"
 	"time"
 
 	"github.com/lib/pq"
 )
+
+func insertContainerImageIdentityLegacyLiveFact(
+	db *sql.DB,
+	scopeID string,
+	generationID string,
+	digest string,
+) error {
+	now := time.Unix(1_700_000_000, 0).UTC()
+	_, err := db.Exec(`
+INSERT INTO fact_records (
+    fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+    source_system, source_fact_key, observed_at, ingested_at, payload
+) VALUES (
+    'legacy:v3-live', $1, $2, 'reducer_container_image_identity',
+    'container_image_identity:legacy', 'git', 'legacy:intent', $4, $4,
+    jsonb_build_object(
+        'digest', $3::text,
+        'image_ref', 'registry.example.com/team/legacy@' || $3::text,
+        'repository_id', 'repository:legacy',
+        'outcome', 'exact_digest',
+        'source_repository_ids', jsonb_build_array('repository:legacy')
+    )
+)
+`, scopeID, generationID, digest, now)
+	return err
+}
+
+func seedContainerImageIdentityLiveScope(
+	t *testing.T,
+	db *sql.DB,
+	scopeID string,
+	generationID string,
+) {
+	t.Helper()
+	now := time.Unix(1_700_000_000, 0).UTC()
+	if _, err := db.Exec(`
+INSERT INTO ingestion_scopes (
+    scope_id, scope_kind, source_system, source_key, collector_kind,
+    partition_key, observed_at, ingested_at, status, payload
+) VALUES ($1, 'repository', 'git', $1, 'git', $1, $2, $2, 'active', '{}'::jsonb);
+`, scopeID, now); err != nil {
+		t.Fatalf("insert scope: %v", err)
+	}
+	seedContainerImageIdentityLiveGeneration(t, db, scopeID, generationID, "active")
+	if _, err := db.Exec(`
+UPDATE ingestion_scopes SET active_generation_id = $2 WHERE scope_id = $1
+`, scopeID, generationID); err != nil {
+		t.Fatalf("activate scope generation: %v", err)
+	}
+}
+
+func seedContainerImageIdentityLiveGeneration(
+	t *testing.T,
+	db *sql.DB,
+	scopeID string,
+	generationID string,
+	status string,
+) {
+	t.Helper()
+	now := time.Unix(1_700_000_000, 0).UTC()
+	if _, err := db.Exec(`
+INSERT INTO scope_generations (
+    generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, payload
+) VALUES ($1, $2, 'test', $3, $3, $4, '{}'::jsonb)
+`, generationID, scopeID, now, status); err != nil {
+		t.Fatalf("insert generation: %v", err)
+	}
+}
+
+func seedContainerImageIdentityLiveWork(
+	t *testing.T,
+	db *sql.DB,
+	intentID string,
+	scopeID string,
+	generationID string,
+	claimEpoch int64,
+) {
+	t.Helper()
+	now := time.Unix(1_700_000_000, 0).UTC()
+	if _, err := db.Exec(`
+INSERT INTO fact_work_items (
+    work_item_id, scope_id, generation_id, stage, domain, status,
+    created_at, updated_at, container_image_identity_v2_required,
+    container_image_identity_claim_epoch, container_image_identity_v2_authorized_status,
+    container_image_identity_v3_required, container_image_identity_v3_authorized_status
+) VALUES ($1, $2, $3, 'reducer', 'container_image_identity', 'claimed',
+          $5, $5, TRUE, $4, 'claimed', TRUE, 'claimed')
+`, intentID, scopeID, generationID, claimEpoch, now); err != nil {
+		t.Fatalf("insert work item: %v", err)
+	}
+}
+
+func containerImageIdentityLiveEpoch(
+	t *testing.T,
+	db *sql.DB,
+	scopeID string,
+	generationID string,
+) int64 {
+	t.Helper()
+	var epoch int64
+	if err := db.QueryRow(`
+SELECT activation_epoch
+FROM container_image_identity_scope_state
+WHERE scope_id = $1 AND active_generation_id = $2
+`, scopeID, generationID).Scan(&epoch); err != nil {
+		t.Fatalf("read activation epoch: %v", err)
+	}
+	return epoch
+}
+
+func containerImageIdentityLiveVisibleCount(t *testing.T, db *sql.DB, digest string) int {
+	t.Helper()
+	var count int
+	if err := db.QueryRow(`
+SELECT count(*) FROM container_image_identity_current_supports WHERE digest = $1
+`, digest).Scan(&count); err != nil {
+		t.Fatalf("count current supports: %v", err)
+	}
+	return count
+}
 
 func containerImageIdentitySupportLiveWrite(
 	intentID string,

@@ -166,6 +166,13 @@ func TestSupportWriterLoadsPriorSupportOnlyForHeldReferences(t *testing.T) {
 	if result.CanonicalWrites != 0 {
 		t.Fatalf("canonical writes = %d, want current decisions only", result.CanonicalWrites)
 	}
+	if !result.effectiveProjectionPresent || len(result.effectiveSupports) != 1 {
+		t.Fatalf("effective projection present/supports = %t/%d, want true/1", result.effectiveProjectionPresent, len(result.effectiveSupports))
+	}
+	if support := result.effectiveSupports[0]; support.Digest != "sha256:bbbbbbbb" ||
+		support.ImageRef != "registry.example.com/team/held@sha256:bbbbbbbb" {
+		t.Fatalf("effective held support = %#v, want retained exact support", support)
+	}
 	if !strings.Contains(db.supportJSON, `"sha256:bbbbbbbb"`) {
 		t.Fatalf("published supports = %s, want retained prior support", db.supportJSON)
 	}

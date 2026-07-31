@@ -116,6 +116,35 @@ func containerImageBuiltFromRows(decisions []ContainerImageIdentityDecision) []m
 	return rows
 }
 
+func containerImageBuiltFromSupportRows(
+	supports []containerImageIdentitySupport,
+) []map[string]any {
+	type builtFromKey struct{ digest, repositoryID string }
+	rows := make([]map[string]any, 0, len(supports))
+	seen := make(map[builtFromKey]struct{}, len(supports))
+	for _, support := range supports {
+		digest := exactContainerImageSupportDigest(support)
+		if digest == "" {
+			continue
+		}
+		for _, repositoryID := range support.BuildProvenanceRepositoryIDs {
+			if repositoryID == "" {
+				continue
+			}
+			key := builtFromKey{digest: digest, repositoryID: repositoryID}
+			if _, duplicate := seen[key]; duplicate {
+				continue
+			}
+			seen[key] = struct{}{}
+			rows = append(rows, map[string]any{
+				"digest":        digest,
+				"repository_id": repositoryID,
+			})
+		}
+	}
+	return rows
+}
+
 // projectContainerImageBuiltFromEdges retracts this generation's prior
 // BUILT_FROM edges owned by this evidence_source and re-projects the current
 // exact_digest decisions. It is a no-op when no ProvenanceEdgeWriter is
@@ -134,14 +163,31 @@ func (h ContainerImageIdentityHandler) projectContainerImageBuiltFromEdges(
 	if h.ProvenanceEdgeWriter == nil {
 		return nil
 	}
+	return h.projectContainerImageBuiltFromRows(ctx, intent, containerImageBuiltFromRows(decisions))
+}
 
+func (h ContainerImageIdentityHandler) projectContainerImageBuiltFromSupportEdges(
+	ctx context.Context,
+	intent Intent,
+	supports []containerImageIdentitySupport,
+) error {
+	if h.ProvenanceEdgeWriter == nil {
+		return nil
+	}
+	return h.projectContainerImageBuiltFromRows(ctx, intent, containerImageBuiltFromSupportRows(supports))
+}
+
+func (h ContainerImageIdentityHandler) projectContainerImageBuiltFromRows(
+	ctx context.Context,
+	intent Intent,
+	rows []map[string]any,
+) error {
 	if err := h.ProvenanceEdgeWriter.RetractBuiltFromEdges(
 		ctx, intent.ScopeID, intent.GenerationID, containerImageBuiltFromProvenanceEvidenceSource,
 	); err != nil {
 		return fmt.Errorf("retract container image built_from provenance edges: %w", err)
 	}
 
-	rows := containerImageBuiltFromRows(decisions)
 	h.emitProvenanceEdgeCounter(ctx, "materialized", len(rows))
 	if len(rows) == 0 {
 		return nil

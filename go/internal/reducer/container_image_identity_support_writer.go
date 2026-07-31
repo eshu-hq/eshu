@@ -106,11 +106,14 @@ func (w PostgresContainerImageIdentitySupportWriter) WriteContainerImageIdentity
 	if !claimValid {
 		return ContainerImageIdentityWriteResult{}, ErrContainerImageIdentityClaimRejected
 	}
-	return containerImageIdentityWriteResult(
+	result := containerImageIdentityWriteResult(
 		supportSet.CurrentSupportCount,
 		len(write.TombstoneDecisions),
 		legacyRowsDeleted,
-	), nil
+	)
+	result.effectiveSupports = supportSet.Supports
+	result.effectiveProjectionPresent = true
+	return result, nil
 }
 
 func (w PostgresContainerImageIdentitySupportWriter) loadHeldContainerImageIdentitySupports(

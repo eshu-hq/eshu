@@ -146,6 +146,17 @@ type ContainerImageIdentityWriteResult struct {
 	// LegacyRowsDeleted counts pre-digest-v3 fact rows removed atomically when
 	// the exact scope generation switches to typed support-set authority.
 	LegacyRowsDeleted int
+	// effectiveSupports is the normalized digest-v3 support set accepted by the
+	// writer's publication fence. It deliberately remains internal so the graph
+	// projection can borrow the writer-owned immutable slice without a second
+	// public contract or a deep copy of every nested support field.
+	effectiveSupports []containerImageIdentitySupport
+	// effectiveDecisions is the compatibility projection for the pre-v3 writer
+	// and test writers. Production digest-v3 publication uses effectiveSupports.
+	effectiveDecisions []ContainerImageIdentityDecision
+	// effectiveProjectionPresent distinguishes an accepted empty support set
+	// from a writer that omitted the graph projection contract entirely.
+	effectiveProjectionPresent bool
 	// EvidenceSummary is a short operator-facing description of the write.
 	EvidenceSummary string
 }

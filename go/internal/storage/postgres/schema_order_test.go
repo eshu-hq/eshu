@@ -176,7 +176,7 @@ var orderedBootstrapDefinitionNames = []string{
 	"ingestion_scopes_active_state_snapshot_index",
 	// migration 092 (#5740 anchor-free digest-v3 identity support store).
 	"container_image_identity_support_store",
-	"container_image_identity_support_store_backfill",
+	"container_image_identity_support_current_view",
 	"container_image_identity_current_facts_function",
 	"container_image_identity_current_support_facts_function",
 }

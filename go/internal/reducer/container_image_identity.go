@@ -181,10 +181,7 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 	if err != nil {
 		return Result{}, fmt.Errorf("write container image identity decisions: %w", err)
 	}
-	if err := h.projectContainerImageBuiltFromEdges(ctx, intent, decisions); err != nil {
-		return Result{}, err
-	}
-	if err := h.projectContainerImageDerivedFromEdges(ctx, intent, decisions); err != nil {
+	if err := h.projectEffectiveContainerImageIdentityEdges(ctx, intent, writeResult); err != nil {
 		return Result{}, err
 	}
 
