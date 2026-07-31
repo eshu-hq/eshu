@@ -147,6 +147,35 @@ README.
   -count=1` proves the rate limit) on the new no-op path and reuses every
   existing metric, span, and log field on the paths that already ran. It adds
   no new metric, span, worker, queue, or runtime knob.
+- Cost Evidence (#5852 P1/P2 follow-up, recurring idle-path transaction;
+  reasoned, not measured): the once-latch fix turns what was a
+  once-per-process barrier transaction (before this branch) into a 1 Hz
+  per-empty-shard transaction. Every shard that has not committed keeps
+  calling `RunDeferredRelationshipMaintenanceAfterShardDrain` on every idle
+  poll (`ingesterCollectorPollInterval` is 1s in `cmd/ingester`) for the life
+  of the process. Once `startupMaintenanceEscapeUsed` has consumed its
+  one-time `true`, every later call on that path runs exactly one Postgres
+  transaction: `BEGIN` -> `pg_advisory_xact_lock(0x455348554d4253)`
+  (`deferredMaintenanceBarrierStateLockKey`) -> `SELECT epoch, shard_count,
+  completed_at FROM deferred_maintenance_barriers ... ORDER BY epoch DESC
+  LIMIT 1 FOR UPDATE` -> `COMMIT`, with no epoch to join so no arrival row is
+  written. The advisory lock is process-wide (one key for the whole
+  `deferred_maintenance_barriers` state, not per-repository), so it
+  serializes this SELECT fleet-wide against every other shard's barrier
+  transaction and against the leader's own arrival/epoch-open transaction —
+  but it is held only for that one indexed, single-row lookup and the commit
+  that follows it, in `postgres.RunDeferredRelationshipMaintenanceAfterShardDrain`.
+  It is never held across `waitDeferredMaintenanceBarrierCompletion`'s
+  unbounded poll loop, which starts only after this transaction has already
+  committed and released the lock, and never across the leader's
+  `RunDeferredRelationshipMaintenance` corpus-wide pass, which the leader
+  begins only after committing and releasing its own arrival transaction.
+  The added cost is therefore one short, indexed, single-row Postgres round
+  trip per second per empty shard, not an unbounded or corpus-scaled hold.
+  This is reasoned from the transaction boundaries and lock scope in
+  `deferred_maintenance_barrier.go`, not measured against a live Postgres
+  instance: no before/after transaction-latency benchmark was run for this
+  note.
 - No-Regression Evidence: `go test ./internal/collector ./internal/doctruth ./internal/query ./internal/mcp ./internal/storage/postgres -count=1` covers DOCX, CSV/TSV, XLSX, PPTX, ZIP packet summaries, deterministic diagrams, claim hints, repository fact readback, and MCP routing.
 - No-Observability-Change: documentation extraction stays inside existing `collector.observe`, body-free snapshot metadata, and stream-time re-reads. It adds no worker, queue, graph write, metric label, runtime knob, or deployment profile.
 - No-Regression Evidence: delta generation handling is covered by `go test ./internal/collector -run

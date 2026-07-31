@@ -1701,6 +1701,35 @@ shard already opened. `go test ./internal/collector -run
 the escape's own first-ever call per process, and `false` for every later
 escape call on a shard that never commits.
 
+Cost Evidence (recurring idle-path transaction; reasoned, not measured): both
+No-Regression Evidence entries above prove correctness of the row set opened,
+joined, and completed, but neither measures the Postgres cost of the
+transaction that now runs on every idle poll for every empty shard, once
+`startupMaintenanceEscapeUsed` has spent its one-time `true`. That transaction
+is `BEGIN` -> `pg_advisory_xact_lock(0x455348554d4253)`
+(`deferredMaintenanceBarrierStateLockKey`) -> `SELECT epoch, shard_count,
+completed_at FROM deferred_maintenance_barriers ... ORDER BY epoch DESC LIMIT
+1 FOR UPDATE` -> `COMMIT`, with `hasEpoch` false so no arrival row is written
+(`ensureDeferredMaintenanceBarrierEpoch` in `deferred_maintenance_barrier.go`).
+The advisory lock key is process-wide for the whole barrier, not
+per-repository, so it serializes this SELECT fleet-wide against every other
+shard's barrier transaction and against the leader's arrival/epoch-open
+transaction — but the lock is held only across that one indexed, single-row
+lookup and the commit that follows, inside
+`RunDeferredRelationshipMaintenanceAfterShardDrain`. It is released before
+`waitDeferredMaintenanceBarrierCompletion`'s unbounded poll loop starts (that
+function runs only after this transaction has already committed) and before
+the leader's `RunDeferredRelationshipMaintenance` corpus-wide pass begins (the
+leader commits and releases its own arrival transaction first — see the
+"Commit the leader's arrival and release the barrier state lock before
+running maintenance" comment ahead of that call). The added cost per empty
+shard is therefore one short, indexed, single-row Postgres round trip per
+second (`ingesterCollectorPollInterval` is 1s), never a hold across the
+unbounded wait or the maintenance pass. This is reasoned from the transaction
+and lock boundaries in `deferred_maintenance_barrier.go`, not measured
+against a live Postgres instance — no before/after transaction-latency
+benchmark backs this note.
+
 The idle "no epoch to join" INFO log is rate-limited
 (`deferredMaintenanceIdleLogGate`, sharing
 `deferredMaintenanceBarrierStallLogInterval`'s cadence with the stall WARN
