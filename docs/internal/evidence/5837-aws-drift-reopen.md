@@ -1385,7 +1385,7 @@ The gate's `graph_query` phase has an effective pass ceiling of 8 seconds when
 run blocking (`GATE_PHASE_REGRESSION_ADVISORY=false`), derived from the
 committed baseline, not from a live run:
 
-- `testdata/golden/e2e-baseline.json:33` — `graph_query.baseline_seconds: 3`.
+- `testdata/golden/e2e-baseline.json:34` — `graph_query.baseline_seconds: 3`.
 - `testdata/golden/e2e-baseline.json:11` — `absolute_slack_seconds: 5` (repo-wide).
 - `testdata/golden/e2e-baseline.json:40` — the regression rule: `observed_seconds
   <= baseline_seconds * (1 + regression_band) OR observed_seconds <=
@@ -1445,6 +1445,39 @@ backed by a captured artifact should re-run
 branch and this branch's predecessor with `-phase-timings-file` capture
 enabled, and commit the resulting `phase-timings.json` alongside the host and
 commit SHA it was captured on.
+
+### Proof status on this HEAD
+
+This is a gate-harness accounting fix, not a runtime code path, so "proof"
+here means the gate's own bookkeeping is correct, not a measured speedup.
+Three tiers of proof exist on this commit, and a fourth is explicitly
+outstanding:
+
+- **Source-provable arithmetic**: `20 > 8` (the suppression proof's fixed
+  20-second floor against the phase's 8-second effective ceiling) follows
+  from the committed baseline numbers and the fixed expiry wait cited above,
+  with no measurement required.
+- **Static mirror**: `bash scripts/test-verify-golden-corpus-gate.sh` passes
+  on this HEAD (Docker/Postgres-free structural test; it does not execute
+  `verify-golden-corpus-gate.sh`, only asserts its source shape).
+- **Mutation kills**: the phase-timing-cases mirror
+  (`scripts/lib/golden-corpus-phase-timing-cases.sh`) fails loudly for
+  unequal-length exclusion arrays, a negative bracket span, disallowed
+  content between the exclusion stamps, and (added in the same P2 pass that
+  produced this note) a bracket whose two stamp lines are relocated together
+  to sit wholly above the `phase_graph_query_start=` assignment -- a shape
+  the content allowlist alone cannot see, since it checks what rides between
+  the stamps, not where the stamps themselves sit in the file. Each case was
+  confirmed by applying the mutation, watching the assertion fail, and
+  reverting.
+- **Live gate run: PENDING.** `scripts/verify-golden-corpus-gate.sh` itself
+  (the Docker-based end-to-end run that actually exercises the bracketed
+  suppression proof against a live Postgres/NornicDB stack) has NOT been run
+  on this HEAD as part of this fix. `verify-golden-corpus-gate.sh` binds
+  fixed host ports and holds a cross-worktree mutex, so it is sequenced by
+  the orchestrating session rather than run ad hoc from this worktree. Until
+  that run lands, this section's claim is bounded to the three tiers above,
+  not to an observed passing live run.
 
 ## No-regression measurement for the sixth reopen domain
 
