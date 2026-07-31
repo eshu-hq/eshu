@@ -62,8 +62,8 @@ tell "this shard has real work, or is due its one startup pass" from "this
 shard is only re-arriving with nothing new to report." The
 ingester forwards this into
 `postgres.DeferredMaintenanceBarrierConfig.HasCommitted`, which keeps a
-never-committed shard's arrival join-only: it may join an epoch another shard
-already opened, but it never opens one itself (see
+never-committed shard's arrival join-only past its startup escape: it may join an
+epoch another shard already opened, but it never opens one itself (see
 `go/internal/storage/postgres/README.md`). Cadence is therefore not uniformly
 barrier-paced: a never-committed shard's call returns immediately when no
 epoch is open, and only blocks synchronously until the epoch finishes when it

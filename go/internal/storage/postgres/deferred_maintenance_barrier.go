@@ -270,12 +270,15 @@ func acquireDeferredMaintenanceStateBarrier(ctx context.Context, db ExecQueryer)
 // (not yet completed), every shard may join it regardless of canOpenEpoch —
 // that is the #5852 stall fix: a never-committed shard must still be able to
 // unblock a fleet another shard already started draining. When no epoch is
-// open, only a shard that has actual committed work to account for
-// (canOpenEpoch true) may open a new one; a shard with nothing to report gets
-// hasEpoch false and must not create one. This is the join-only half of the
-// design: opening is reserved for shards with real work, joining is open to
-// everyone, so a quiet fleet where nothing ever commits never opens an epoch
-// at all (see DeferredMaintenanceBarrierConfig.HasCommitted).
+// open, only a shard whose canOpenEpoch is true may open a new one; a shard
+// with canOpenEpoch false gets hasEpoch false and must not create one. This
+// is the join-only half of the design: opening is reserved for shards
+// canOpenEpoch marks eligible, joining is open to everyone. The caller passes
+// config.HasCommitted as canOpenEpoch, which is true for a real commit AND
+// for a never-committed shard's own first-ever call per process
+// (startupMaintenanceEscapeUsed in collector.Service.Run), so a quiet fleet
+// where nothing ever commits still opens exactly one epoch per shard's
+// process lifetime, not zero (see DeferredMaintenanceBarrierConfig.HasCommitted).
 func ensureDeferredMaintenanceBarrierEpoch(
 	ctx context.Context,
 	tx Transaction,
