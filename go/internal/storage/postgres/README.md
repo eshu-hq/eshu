@@ -1582,7 +1582,11 @@ a networked Postgres pays more per round-trip.
 No-Regression Evidence: #5837 adds `aws_cloud_runtime_drift` as a sixth
 reopened domain, so the five-domain figures above were re-run at six rather
 than scaled on paper. Same test, same corpus shape, same loopback topology,
-Postgres 16.14:
+Postgres 16.14. Measured on the pre-reconcile branch tip
+(`5837-drift-reopen-prereconcile` = `12bd12dc8`), carried forward unchanged
+into this reconciled branch rather than re-measured on this diff's HEAD — the
+six-domain figures below are inherited provenance, not a claim proven on this
+commit:
 
 | | five domains | six domains |
 | --- | --- | --- |
