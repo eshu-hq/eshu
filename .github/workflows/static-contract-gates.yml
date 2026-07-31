@@ -34,6 +34,7 @@ jobs:
       edge: ${{ steps.filter.outputs.edge }}
       evidence: ${{ steps.filter.outputs.evidence }}
       skill: ${{ steps.filter.outputs.skill }}
+      skillworkflowrefs: ${{ steps.filter.outputs.skillworkflowrefs }}
       telemetry: ${{ steps.filter.outputs.telemetry }}
       dashboard: ${{ steps.filter.outputs.dashboard }}
       envdoc: ${{ steps.filter.outputs.envdoc }}
@@ -101,6 +102,12 @@ jobs:
               - '.agents/skills/**'
               - 'skill-fragments/**'
               - 'scripts/*verify-skill-roundtrip*.sh'
+            skillworkflowrefs:
+              - '.github/workflows/static-contract-gates.yml'
+              - 'specs/ci-gates.v1.yaml'
+              - '.agents/skills/**'
+              - '.github/workflows/**'
+              - 'scripts/*verify-skill-workflow-refs*.sh'
             telemetry:
               - '.github/workflows/static-contract-gates.yml'
               - 'specs/ci-gates.v1.yaml'
@@ -108,6 +115,7 @@ jobs:
               - 'go/cmd/**'
               - 'docs/public/observability/telemetry-coverage.md'
               - 'scripts/*verify-telemetry-coverage*.sh'
+              - 'scripts/lib/telemetry-coverage-*.sh'
               - 'scripts/lib/test-verify-telemetry-coverage-*'
             dashboard:
               - '.github/workflows/static-contract-gates.yml'
@@ -223,6 +231,7 @@ jobs:
               - 'scripts/verify-maturity-drift-guard.sh'
               - 'scripts/test-verify-maturity-drift-guard.sh'
               - 'scripts/lib/maturity-drift-guard-language-extensions.sh'
+              - 'scripts/lib/golden-corpus-fixtures.sh'
       - name: Build selected gate matrix
         id: gate-matrix
         run: |
@@ -252,6 +261,7 @@ jobs:
           append_gate "${{ steps.filter.outputs.edge }}" "edge" "Verify edge source-tool coverage gate" "bash scripts/test-verify-edge-source-tool-coverage.sh" "scripts/verify-edge-source-tool-coverage.sh"
           append_gate "${{ steps.filter.outputs.evidence }}" "evidence" "Verify evidence continuity gate" "scripts/test-verify-evidence-continuity.sh" "scripts/verify-evidence-continuity.sh"
           append_gate "${{ steps.filter.outputs.skill }}" "skill" "Verify skillgen roundtrip gate" "scripts/test-verify-skill-roundtrip.sh" "scripts/verify-skill-roundtrip.sh"
+          append_gate "${{ steps.filter.outputs.skillworkflowrefs }}" "skillworkflowrefs" "Verify skill workflow refs gate" "bash scripts/test-verify-skill-workflow-refs.sh" "bash scripts/verify-skill-workflow-refs.sh"
           append_gate "${{ steps.filter.outputs.telemetry }}" "telemetry" "Verify telemetry coverage gate" "scripts/test-verify-telemetry-coverage.sh" "scripts/verify-telemetry-coverage.sh"
           append_gate "${{ steps.filter.outputs.dashboard }}" "dashboard" "Verify generate-operator-dashboard gate" "scripts/test-generate-operator-dashboard.sh" "scripts/generate-operator-dashboard.sh && git diff --exit-code -- docs/public/observability/dashboards/eshu-operator-overview.json"
           append_gate "${{ steps.filter.outputs.envdoc }}" "envdoc" "Verify environment registry reference gate" "scripts/test-generate-env-registry-doc.sh" "scripts/verify-env-registry-doc.sh"

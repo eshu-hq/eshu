@@ -197,8 +197,16 @@ expect_fail "fails when a new go/internal/content/shape file is not covered by t
 # with GIT_DIR set and ESHU_TELEMETRY_COVERAGE_REPO_ROOT unset; it must resolve
 # the fixture root and PASS.
 case_gitdir="$(init_repo case-gitdir)"
-mkdir -p "${case_gitdir}/scripts"
+mkdir -p "${case_gitdir}/scripts/lib"
 cp "${verifier}" "${case_gitdir}/scripts/verify-telemetry-coverage.sh"
+# The bucket-agreement check and the stage-table row check now live in
+# sourced lib chunks (#5855); the copied verifier sources both relative to
+# its own location (script_dir), so the fixture needs both sibling files
+# too, not just the verifier itself.
+cp "${repo_root}/scripts/lib/telemetry-coverage-bucket-check.sh" \
+  "${case_gitdir}/scripts/lib/telemetry-coverage-bucket-check.sh"
+cp "${repo_root}/scripts/lib/telemetry-coverage-row-check.sh" \
+  "${case_gitdir}/scripts/lib/telemetry-coverage-row-check.sh"
 git -C "${case_gitdir}" add .
 git -C "${case_gitdir}" commit -q -m "copy verifier into fixture scripts"
 if env -u ESHU_TELEMETRY_COVERAGE_REPO_ROOT -u GITHUB_BASE_REF \
@@ -347,6 +355,62 @@ MD
 git -C "${case_buckets_multiline}" add .
 git -C "${case_buckets_multiline}" commit -q -m "add multi-line bucket literal"
 expect_pass "passes when bucket set spans multiple lines in code" "${case_buckets_multiline}"
+
+# Case 15 (#5855): a doc row names a file that does not exist anywhere in
+# the repo (a stale row — e.g. left behind after the file it described was
+# deleted or renamed). The verifier must fail and name the row plus the
+# missing path; check (3) alone never catches this because it only diffs
+# *new* files against the doc, not existing rows against the filesystem.
+case_stale_target="$(init_repo case-stale-target)"
+cat >>"${case_stale_target}/docs/public/observability/telemetry-coverage.md" <<'MD'
+
+| ghost row | go/internal/reducer/deleted_stage.go:9 | `eshu_dp_queue_claim_duration_seconds` | reducer runtime |
+MD
+git -C "${case_stale_target}" add .
+git -C "${case_stale_target}" commit -q -m "add row naming a nonexistent file"
+expect_fail "fails when a doc row's file target does not exist" "${case_stale_target}"
+
+# Case 16 (#5855): the exact mutation the issue describes — an instrumented
+# file is deleted from the repo, but the doc rows that name it are left in
+# place. This is the reproduction for the issue's acceptance criterion "a
+# file deletion in an instrumented package fails the gate until its row is
+# removed, proven by mutation."
+case_deleted_file="$(init_repo case-deleted-file)"
+git -C "${case_deleted_file}" rm -q go/internal/reducer/service.go
+git -C "${case_deleted_file}" commit -q -m "delete instrumented file, leaving stale doc rows behind"
+expect_fail "fails when an instrumented file is deleted but its doc rows remain" "${case_deleted_file}"
+
+# Case 17 (#5855): a row whose second column is a glob (e.g.
+# dir/*.go — the form used pervasively in the real X1 doc for parser and
+# collector language sub-packages) must pass when the glob matches at
+# least one real file.
+case_glob_target="$(init_repo case-glob-target)"
+cat >>"${case_glob_target}/docs/public/observability/telemetry-coverage.md" <<'MD'
+
+| glob stage | go/internal/reducer/*.go | `eshu_dp_queue_claim_duration_seconds` | reducer runtime |
+MD
+git -C "${case_glob_target}" add .
+git -C "${case_glob_target}" commit -q -m "add glob-form row matching an existing file"
+expect_pass "passes when a glob-form row matches an existing file" "${case_glob_target}"
+
+# Case 18 (#5855): a row whose glob matches nothing is the glob-form
+# equivalent of a stale row and must fail the same way.
+case_glob_missing="$(init_repo case-glob-missing)"
+cat >>"${case_glob_missing}/docs/public/observability/telemetry-coverage.md" <<'MD'
+
+| ghost glob stage | go/internal/reducer/ghoststage/*.go | `eshu_dp_queue_claim_duration_seconds` | reducer runtime |
+MD
+git -C "${case_glob_missing}" add .
+git -C "${case_glob_missing}" commit -q -m "add glob-form row matching no files"
+expect_fail "fails when a glob-form row matches no files" "${case_glob_missing}"
+
+# Cases 19-26 (#5855 malformed/stale-row series, including the third review
+# round's row-selection P1): extracted to keep this orchestrator under the
+# 500-line cap. Sourced, not executed -- reuses
+# init_repo/expect_pass/expect_fail/run_verifier/record_pass/record_fail and
+# case_pass from case 1 above.
+# shellcheck source=scripts/lib/test-verify-telemetry-coverage-row-selection-cases.sh
+. "${repo_root}/scripts/lib/test-verify-telemetry-coverage-row-selection-cases.sh"
 
 if [ "${FAIL}" -ne 0 ]; then
   printf 'verify-telemetry-coverage tests FAILED: %d/%d failed\n' "${FAIL}" "${TOTAL}" >&2

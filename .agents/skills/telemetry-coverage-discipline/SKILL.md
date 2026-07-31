@@ -6,7 +6,8 @@ description: |
   doc at `docs/public/observability/telemetry-coverage.md`, the public
   operator reference at `docs/public/reference/telemetry/index.md`, the
   static-analysis verifier `scripts/verify-telemetry-coverage.sh`, the CI
-  workflow `.github/workflows/verify-telemetry-coverage.yml`, the operator
+  gate (the "Verify telemetry coverage gate" matrix entry in
+  `.github/workflows/static-contract-gates.yml`), the operator
   dashboard `docs/public/observability/dashboards/eshu-operator-overview.json`,
   or when adding a new `eshu_dp_*` metric or a new pipeline stage. Also
   activate when investigating an operator report of "the metric we expect
@@ -23,8 +24,9 @@ Use this skill whenever a change touches `go/internal/telemetry/instruments.go`,
 `go/internal/telemetry/contract.go` or any `contract_*.go`, the X1 contract doc
 at `docs/public/observability/telemetry-coverage.md`, the public operator
 reference at `docs/public/reference/telemetry/index.md`, the X2 verifier
-`scripts/verify-telemetry-coverage.sh`, the X3 CI workflow
-`.github/workflows/verify-telemetry-coverage.yml`, the X4 dashboard
+`scripts/verify-telemetry-coverage.sh`, the X3 CI gate (the
+"Verify telemetry coverage gate" matrix entry in
+`.github/workflows/static-contract-gates.yml`), the X4 dashboard
 `docs/public/observability/dashboards/eshu-operator-overview.json`, or the
 X4 generator `scripts/generate-operator-dashboard.sh`. Also activate when
 adding a new `eshu_dp_*` metric, a new pipeline stage, or investigating an
@@ -55,7 +57,7 @@ those incidents. The discipline replaces the human audit with a CI gate.
 | --- | --- | --- |
 | X1 | `docs/public/observability/telemetry-coverage.md` | Single source of truth: every stage → metric or `No-Observability-Change:` marker. |
 | X2 | `scripts/verify-telemetry-coverage.sh` + test mirror | Static-analysis verifier: diffs X1 against `go/internal/telemetry/instruments.go` and against new files. |
-| X3 | `.github/workflows/verify-telemetry-coverage.yml` | CI gate: runs X2 on every PR and push to `main`. |
+| X3 | `.github/workflows/static-contract-gates.yml` ("Verify telemetry coverage gate" matrix entry) | CI gate: runs X2 on every PR and push to `main`. |
 | X4 | `docs/public/observability/dashboards/eshu-operator-overview.json` + generator | Operator-visible artifact: 20-panel Grafana dashboard with the headline alarm row. |
 
 The maintainer and contributor guide that ties these together is

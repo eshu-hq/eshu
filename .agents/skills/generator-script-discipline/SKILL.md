@@ -182,8 +182,21 @@ worked examples. The patterns that caught real bugs:
 
 ## CI Workflow Shape
 
-Mirror the existing `verify-skill-roundtrip.yml` and
-`verify-telemetry-coverage.yml` workflows:
+Older generators (skillgen roundtrip, telemetry coverage) each shipped as
+their own single-purpose workflow file with this two-job shape. Since the
+#4218 consolidation, new gates are added as a matrix entry inside
+`.github/workflows/static-contract-gates.yml` instead of a new workflow
+file — see the `skill` and `telemetry` entries there (the "Verify
+skillgen roundtrip gate" and "Verify telemetry coverage gate" matrix jobs)
+for the current pattern: one `changes` job filters paths with
+`dorny/paths-filter`, and one shared matrix job runs each selected gate's
+`test` command then its `gate` command, reusing one checkout/Go/ripgrep
+setup instead of duplicating it per generator.
+
+A standalone workflow is still the right shape when a generator's drift
+check needs its own trigger, permissions, or artifact upload that does not
+fit the shared matrix — for example, if the drift log itself must be
+uploaded on failure:
 
 ```yaml
 name: Generate <Name>
@@ -237,7 +250,9 @@ jobs:
 Two jobs: `test-generate` (mirror) and `generate` (gate). The `generate`
 job re-runs the generator and uses `git diff --exit-code` to assert the
 output is in sync. On failure, the drift log is uploaded as an artifact
-so the reviewer can see what changed.
+so the reviewer can see what changed. Prefer adding a matrix entry to
+`.github/workflows/static-contract-gates.yml` over this standalone shape
+unless the artifact-upload or bespoke-trigger need above applies.
 
 ## Failure Modes
 

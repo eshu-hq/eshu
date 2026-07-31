@@ -203,7 +203,12 @@ ifa-determinism|scripts/lib/ifa_sql_delta_live.sh|pre-pr
 ifa-fault-injection|scripts/lib/ifa_determinism_common.sh|pre-pr
 docs-build-changed|scripts/lib/test-verify-docs-build-changed-fake-uv.sh|pre-push
 maturity-drift-guard|scripts/lib/golden-corpus-fixtures.sh|pre-pr
+ci-gate-registry|scripts/lib/test-verify-ci-gates-registry-telemetry-cases.sh|pre-pr
 SOURCED_LIB_GATES
+
+# shellcheck source=scripts/lib/test-verify-ci-gates-registry-telemetry-cases.sh
+. "${repo_root}/scripts/lib/test-verify-ci-gates-registry-telemetry-cases.sh"
+check_telemetry_coverage_trigger_parity
 
 for sql_fixture in \
 	'scripts/lib/console-retained-create-proof-schema.sql' \
