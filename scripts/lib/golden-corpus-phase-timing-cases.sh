@@ -406,4 +406,35 @@ while IFS= read -r phase_graph_query_excluded_region_line; do
 		fail "phase_graph_query excluded region contains an unexpected line -- everything inside these stamps is silently deducted from graph_query forever, so only the suppression producer proof call belongs here: ${phase_graph_query_excluded_region_trimmed} (#5837)"
 done < <(printf '%s\n' "${phase_graph_query_excluded_region}")
 
+# ---------------------------------------------------------------------------
+# #5837 P2 review follow-up: everything above guards region CONTENT (what
+# rides between the two stamp lines), not region PLACEMENT (whether the whole
+# bracket sits inside the graph_query window at all). A bracket relocated
+# wholly ABOVE phase_graph_query_start= -- both stamps moved together, same
+# three allowed lines, same relative order -- passes every check above
+# unchanged: sed's pattern-range match finds the same two lines wherever they
+# sit in the file. The runtime `excluded > window` die
+# (golden-corpus-phase-timings.sh:90-92) is what actually catches that shape
+# today, not this static gate. This block closes the static gap by asserting
+# the bracket's own source line numbers fall strictly between the
+# phase_graph_query_start= assignment and the emit_phase_timings_and_flags
+# call that consumes it.
+# ---------------------------------------------------------------------------
+phase_graph_query_start_line="$(rg -n --fixed-strings --max-count=1 -- 'phase_graph_query_start=' "${script}" | cut -d: -f1)"
+[[ -n "${phase_graph_query_start_line}" ]] ||
+	fail "phase_graph_query_start= assignment not found in $(basename "${script}")"
+phase_graph_query_excluded_open_line="$(rg -n --fixed-strings --max-count=1 -- "${phase_graph_query_excluded_region_allowed[0]}" "${script}" | cut -d: -f1)"
+[[ -n "${phase_graph_query_excluded_open_line}" ]] ||
+	fail "phase_graph_query_excluded_starts+= stamp not found in $(basename "${script}")"
+phase_graph_query_excluded_close_line="$(rg -n --fixed-strings --max-count=1 -- "${phase_graph_query_excluded_region_allowed[2]}" "${script}" | cut -d: -f1)"
+[[ -n "${phase_graph_query_excluded_close_line}" ]] ||
+	fail "phase_graph_query_excluded_ends+= stamp not found in $(basename "${script}")"
+phase_graph_query_emit_line="$(rg -n --fixed-strings --max-count=1 --line-regexp -- 'emit_phase_timings_and_flags' "${script}" | cut -d: -f1)"
+[[ -n "${phase_graph_query_emit_line}" ]] ||
+	fail "emit_phase_timings_and_flags invocation not found in $(basename "${script}")"
+(( phase_graph_query_start_line < phase_graph_query_excluded_open_line )) ||
+	fail "phase_graph_query excluded-span open stamp (line ${phase_graph_query_excluded_open_line}) is not after phase_graph_query_start= (line ${phase_graph_query_start_line}) in $(basename "${script}") -- a bracket relocated above the start assignment mismeasures the window without tripping any content check"
+(( phase_graph_query_excluded_close_line < phase_graph_query_emit_line )) ||
+	fail "phase_graph_query excluded-span close stamp (line ${phase_graph_query_excluded_close_line}) is not before emit_phase_timings_and_flags (line ${phase_graph_query_emit_line}) in $(basename "${script}")"
+
 phase_timing_cases_completed=1
