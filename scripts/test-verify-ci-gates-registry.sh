@@ -203,59 +203,12 @@ ifa-determinism|scripts/lib/ifa_sql_delta_live.sh|pre-pr
 ifa-fault-injection|scripts/lib/ifa_determinism_common.sh|pre-pr
 docs-build-changed|scripts/lib/test-verify-docs-build-changed-fake-uv.sh|pre-push
 maturity-drift-guard|scripts/lib/golden-corpus-fixtures.sh|pre-pr
+ci-gate-registry|scripts/lib/test-verify-ci-gates-registry-telemetry-cases.sh|pre-pr
 SOURCED_LIB_GATES
 
-# #5855 P2 re-review: telemetry-coverage's own X1 contract doc and its
-# verify/test scripts were absent from its registry triggers even though the
-# CI workflow's `telemetry:` paths-filter (dorny/paths-filter, 14-space
-# single-quoted list, distinct from the native `on:.paths:` blocks checked
-# above) already covered them. A doc/script-only change to this exact surface
-# - the surface #5855 itself touches - selected NO local gate, so `make
-# pre-pr` silently skipped the gate whose whole purpose is auditing telemetry
-# coverage, and only CI would have caught a regression. Assert the registry
-# trigger mirrors each CI filter line first (both sources of truth agree),
-# then prove concrete real files under that surface actually select the gate
-# for the right reason - membership only, since heredoc-budget's
-# "scripts/**/*.sh" trigger also legitimately matches the two scripts.
-require_workflow_filter_line() {
-	local haystack="$1" needle="$2" message="$3"
-	printf '%s\n' "${haystack}" |
-		rg --fixed-strings --line-regexp --quiet -- "              - '${needle}'" ||
-		fail "${message}: expected the exact line \`              - '${needle}'\` (14 spaces, single-quoted)"
-}
-
-telemetry_coverage_gate="$(
-	sed -n '/^  - id: telemetry-coverage$/,/^  - id:/p' "${registry}"
-)"
-telemetry_workflow_filter="$(
-	sed -n '/^            telemetry:$/,/^            dashboard:$/p' "${static_contract_workflow}"
-)"
-[[ -n "${telemetry_workflow_filter}" ]] ||
-	fail "could not extract the telemetry: paths-filter block from ${static_contract_workflow}"
-
-for telemetry_trigger in \
-	'docs/public/observability/telemetry-coverage.md' \
-	'scripts/*verify-telemetry-coverage*.sh' \
-	'scripts/lib/test-verify-telemetry-coverage-*'; do
-	require_workflow_filter_line "${telemetry_workflow_filter}" "${telemetry_trigger}" \
-		"telemetry: CI paths-filter no longer covers ${telemetry_trigger}"
-	require_path_line "${telemetry_coverage_gate}" "${telemetry_trigger}" \
-		"telemetry-coverage registry triggers omit ${telemetry_trigger}"
-done
-
-for telemetry_input in \
-	'docs/public/observability/telemetry-coverage.md' \
-	'scripts/verify-telemetry-coverage.sh' \
-	'scripts/test-verify-telemetry-coverage.sh'; do
-	telemetry_selection="$(
-		printf '%s\n' "${telemetry_input}" |
-			(cd "${repo_root}/go" && go run ./cmd/ci-gates select \
-				--registry "${registry}" --tier pre-pr --paths-from - --explain)
-	)"
-	printf '%s\n' "${telemetry_selection}" |
-		rg --quiet '^SELECTED[[:space:]]+telemetry-coverage[[:space:]]' ||
-		fail "a change to ${telemetry_input} did not select telemetry-coverage"
-done
+# shellcheck source=scripts/lib/test-verify-ci-gates-registry-telemetry-cases.sh
+. "${repo_root}/scripts/lib/test-verify-ci-gates-registry-telemetry-cases.sh"
+check_telemetry_coverage_trigger_parity
 
 for sql_fixture in \
 	'scripts/lib/console-retained-create-proof-schema.sql' \
