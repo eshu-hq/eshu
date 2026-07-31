@@ -704,3 +704,43 @@ pairing on top of that) and name the known gaps explicitly: the
 count/for_each multi-instance miss (intentional, documented above), and the
 unescaped-double-quote-inside-a-quoted-index edge case (vanishingly rare,
 fails closed rather than silently misparsing).
+
+## Schema-versioning decision (owner call, review round 4)
+
+Codex raised a P1 on `terraform_config_state_drift_writer.go`: emitting the new
+closed-label value `derived` while the fact envelope stays schema version
+`1.0.0`, and simultaneously narrowing what `exact` asserts, is classified as a
+major change by `docs/internal/design/contract-system-v1.md` ("Major = remove/
+rename key, narrow a type, change stable-key derivation, change meaning").
+
+The citation is accurate, and the alternatives were real: a schema major
+`2.0.0` plus a decoder compatibility shim, or keeping v1 semantics and carrying
+the signal only in an additive optional field. The repo owner decided: **no
+major bump; treat it as a correction.**
+
+Recorded here and in `sdk/go/factschema/reducerderived/v1/findings.go` so the
+reasoning survives, rather than living only in a resolved review thread:
+
+- #5572 exists *because* `exact` was already wrong on heuristically-addressed
+  findings. Those rows were never entitled to the label, so aligning the
+  implementation with what `exact` was always meant to assert is a correction,
+  not a redefinition of a previously-honest value.
+- The policy's payload-schema major rule governs the external
+  collector-to-core boundary. `reducer_terraform_config_state_drift_finding`
+  sits in `reducer_domain: reducer_derived_findings` -- produced by the reducer,
+  consumed by Eshu's own query/MCP layers -- and does not cross it.
+- `sdk/go/factschema/schema/reducer_terraform_config_state_drift_finding.v1.schema.json`
+  types `outcome` as an unconstrained string with no enum, so no schema-derived
+  validator rejects `derived`, and the `verify-contracts` and payload-usage
+  manifest gates see no field change.
+- The read surface is `/api/v0`, explicitly pre-stable, and its OpenAPI, the MCP
+  tool contract, and the capability matrix were all updated in this PR.
+
+Honest limit of that last point: neither the schema-diff gate nor the
+payload-usage manifest can detect a *semantic* narrowing of an existing field's
+value domain. Their passing is not evidence that no break occurred -- it only
+confirms the break, if one exists, is of the kind those gates were never able to
+catch. The decision rests on the reasoning above, not on the green gates.
+
+A consumer that read `outcome == "exact"` as "every classified per-address
+finding" should now read `outcome IN ("exact","derived")` for that meaning.

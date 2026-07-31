@@ -152,6 +152,26 @@ type AWSCloudRuntimeDriftFinding struct {
 // "stale" is not emitted by this version: see
 // go/internal/correlation/drift/tfconfigstate/doc.go for why it is
 // unreachable with the evidence this handler has today.
+//
+// Schema version: adding "derived" (#5572) widened this closed label set
+// and narrowed what "exact" asserts, without a payload-schema major bump.
+// That is a deliberate owner decision, recorded here so it is not
+// re-litigated: the change is a CORRECTION, not a redefinition. Findings
+// whose config-side address came from a module-prefix heuristic were
+// already being labelled "exact" wrongly -- #5572 exists precisely because
+// that label was a lie on those rows -- so the implementation was brought
+// in line with what "exact" was always meant to assert, rather than the
+// meaning being changed out from under a reader.
+//
+// The contract-system policy's "change meaning implies major" rule
+// (docs/internal/design/contract-system-v1.md) targets the external
+// collector-to-core payload boundary. This kind is reducer_derived_findings:
+// written by Eshu's reducer and read by Eshu's own query and MCP layers, so
+// it does not cross that boundary. The generated JSON Schema carries no enum
+// on "outcome", so no schema-derived validator rejects the new value, and the
+// read surface (POST /api/v0/terraform/config-state-drift/findings) is v0,
+// explicitly pre-stable. A consumer that treated "exact" as "every classified
+// per-address finding" should read {"exact","derived"} for that meaning.
 type TerraformConfigStateDriftFinding struct {
 	ReducerDomain string `json:"reducer_domain"`
 	IntentID      string `json:"intent_id"`
