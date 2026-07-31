@@ -754,6 +754,41 @@ recent shipped work grouped by feature area.
     first follow-up missed" section for the full EXPLAIN output from both
     the broken and fixed query.
 
+- **Review follow-up: convert the P2 SQL-ordering proof from a throwaway
+  session into a committed, re-runnable integration test.** The prior
+  ordering proof (real Postgres 18, scrambled generations, EXPLAIN
+  confirming CTE inlining) lived only as prose and pasted plan output in
+  the evidence doc; the one committed test was a substring assertion on the
+  SQL constant, which cannot catch a syntactically different `ORDER BY`
+  that still contains the substring but produces the wrong order, and
+  cannot catch a planner-level regression at all.
+  `TestLoadPriorConfigAddressesPrefersMostRecentGenerationAgainstRealPostgres`
+  (new, `tfstate_drift_evidence_prior_config_ordering_live_test.go`) is the
+  committed evidence of record now: `ESHU_POSTGRES_DSN`-gated, follows this
+  package's established live-Postgres pattern (isolated `CREATE
+  SCHEMA`/`SET search_path`, `MigrationSQL`), seeds the same
+  three-scrambled-generation shape the throwaway proof used, calls
+  `loadPriorConfigAddresses` directly against real Postgres, and asserts
+  the most recently ingested generation's confidence wins. The connection
+  handle is capped at one (`SetMaxOpenConns(1)`/`SetMaxIdleConns(1)`),
+  matching `TestLatestGenerationCTETruthEquivalenceAndPlan`'s own guard
+  against `SET search_path` being connection-local while `*sql.DB` is a
+  pool -- the exact failure mode issue #4451 hit. Also asserts (mirroring
+  that same test's `SubPlan` check, the only existing fixture-plan pattern
+  in this package) that the `EXPLAIN` output contains no `CTE Scan` node.
+  - No-Regression Evidence: verified RED by temporarily restoring the
+    pre-fix outer `ORDER BY pg.generation_id ASC, fact.fact_id ASC` and
+    running the new test against a real Postgres 18 instance --
+    `out["aws_instance.web"] = "", want "external_registry"`, FAIL. GREEN
+    after restoring the fix, same seeded data, same instance. Confirmed
+    `ESHU_POSTGRES_DSN` unset skips cleanly (credential-free CI /
+    `make pre-pr` unaffected) and `git diff` on the SQL file was clean
+    after the temporary revert-and-restore cycle. The substring test
+    (`TestListPriorConfigAddressesQueryOrdersByIngestedAtDescending`) is
+    kept as a cheap, credential-free complement, not replaced.
+  - See the evidence doc's "Committed re-runnable proof" section for the
+    full RED and GREEN output.
+
 ### Route-fact-based Rails controller liveness
 
 - **Join the Rails controller dead-code-root verdict against real route facts**

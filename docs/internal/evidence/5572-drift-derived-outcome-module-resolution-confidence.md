@@ -478,12 +478,22 @@ comment's "ordered ingested_at DESC — the most recent N" was true of
 membership only, never of the returned row order, with or without Postgres
 inlining the CTE.
 
-**Proof, per `eshu-postgres-rigor`'s "prove the ordering claim rather than
-asserting it," run against a real Postgres 18 instance (`postgres:18-alpine`
-in a throwaway Docker container on a private port, torn down after; schema
-files `001_ingestion_scopes.sql`, `002_scope_generations.sql`,
-`003_fact_records.sql` applied directly via `psql`, no live-gate script
-involved):**
+**The committed, re-runnable evidence of record for this fix is
+`TestLoadPriorConfigAddressesPrefersMostRecentGenerationAgainstRealPostgres`**
+(`go/internal/storage/postgres/tfstate_drift_evidence_prior_config_ordering_live_test.go`),
+gated on `ESHU_POSTGRES_DSN` — see "Committed re-runnable proof" below. The
+throwaway `psql`/EXPLAIN session that first found and diagnosed this bug is
+preserved below for the diagnostic narrative (how the CTE inlining and the
+outer sort key were identified), but it is not itself re-runnable evidence;
+do not treat the pasted output below as the proof of record — the committed
+test is.
+
+**Investigation, run against a real Postgres 18 instance
+(`postgres:18-alpine` in a throwaway Docker container on a private port,
+torn down after; schema files `001_ingestion_scopes.sql`,
+`002_scope_generations.sql`, `003_fact_records.sql` applied directly via
+`psql`, no live-gate script involved), per `eshu-postgres-rigor`'s "prove
+the ordering claim rather than asserting it":**
 
 Seeded `repository:repo-a` with three prior generations whose
 `generation_id` ASC order differs from their true `ingested_at` order:
@@ -566,28 +576,117 @@ DESC)` already matches the new requirement exactly, so the inner scan's
 `Presorted Key: scope_generations.ingested_at` now feeds the outer sort
 almost for free. No query-plan regression; this is a pure correctness fix.
 
+### Committed re-runnable proof (review follow-up: close the P2 evidence gap)
+
+The first version of this fix had no committed evidence that could
+re-detect a regression at the Postgres planner level -- only the throwaway
+session above and a substring assertion on the SQL constant. Review
+correctly flagged that gap: a substring test cannot catch a syntactically
+different `ORDER BY` that still contains the matched text but produces the
+wrong order, and it cannot catch a planner-level regression (e.g. the
+query stops using `scope_generations_scope_latest_lookup_idx`, or Postgres
+starts materializing the CTE) at all.
+
+`TestLoadPriorConfigAddressesPrefersMostRecentGenerationAgainstRealPostgres`
+(new, `tfstate_drift_evidence_prior_config_ordering_live_test.go`) converts
+the throwaway proof into a permanent, DSN-gated integration test, following
+this package's established live-Postgres pattern (`ESHU_POSTGRES_DSN`,
+isolated `CREATE SCHEMA`/`SET search_path`, `MigrationSQL` for the three
+migrations the query depends on -- mirrors
+`openStaticGrantPolicyHashLiveSchema` and `openProviderConfigLiveSchema`):
+
+- Seeds THREE prior generations (the same shape the throwaway proof used,
+  since that is what actually distinguishes the two orderings) whose
+  `generation_id` lexical order (`gen-alpha, gen-charlie, gen-omega`) is
+  scrambled relative to their true `ingested_at` order (`gen-charlie`
+  newest, `gen-alpha` middle, `gen-omega` oldest). `gen-charlie` (the most
+  recent) carries a registry-shorthand module-resolution failure
+  (`ModuleResolutionReason = "external_registry"`); the other two resolve
+  cleanly.
+- Calls `loadPriorConfigAddresses` directly against the real Postgres
+  connection and asserts `out["aws_instance.web"] == "external_registry"`
+  -- only correct if the query's row order genuinely lets the most recent
+  generation win first-write-wins.
+- Caps the handle at one connection
+  (`db.SetMaxOpenConns(1)`/`db.SetMaxIdleConns(1)`), mirroring
+  `TestLatestGenerationCTETruthEquivalenceAndPlan`'s identical guard:
+  `SET search_path` is connection-local, and a `*sql.DB` is a pool that can
+  silently hand a later query a different, unconfigured connection if left
+  uncapped -- the exact failure mode issue #4451 hit.
+- Additionally asserts (mirroring `TestLatestGenerationCTETruthEquivalenceAndPlan`'s
+  `SubPlan`-node assertion, the only existing fixture-plan pattern in this
+  package) that the `EXPLAIN` output contains no `CTE Scan` node -- a cheap
+  plan-shape corroboration, not an ordering proof by itself, since both the
+  broken and fixed query text inline identically on Postgres 18+; it guards
+  against a future edit that accidentally forces materialization.
+
+**RED, reproduced by temporarily restoring the pre-fix outer `ORDER BY
+pg.generation_id ASC, fact.fact_id ASC` and running the new test against a
+real Postgres 18 instance:**
+
+```
+=== RUN   TestLoadPriorConfigAddressesPrefersMostRecentGenerationAgainstRealPostgres
+    tfstate_drift_evidence_prior_config_ordering_live_test.go:71: out["aws_instance.web"] = "", want "external_registry" — the most recently ingested prior generation (gen-charlie) carries the flagged confidence; getting anything else (typically "" from an older, clean generation winning first) means listPriorConfigAddressesQuery's row order is not genuinely most-recent-first
+--- FAIL: TestLoadPriorConfigAddressesPrefersMostRecentGenerationAgainstRealPostgres (0.28s)
+FAIL
+```
+
+**GREEN after restoring the fixed `ORDER BY pg.ingested_at DESC,
+pg.generation_id ASC, fact.fact_id ASC`, same seeded data, same Postgres
+instance:**
+
+```
+=== RUN   TestLoadPriorConfigAddressesPrefersMostRecentGenerationAgainstRealPostgres
+--- PASS: TestLoadPriorConfigAddressesPrefersMostRecentGenerationAgainstRealPostgres (0.37s)
+PASS
+```
+
+`git diff go/internal/storage/postgres/tfstate_drift_evidence_sql.go`
+confirmed clean (no diff) after the temporary revert-and-restore cycle --
+the committed query text was never actually changed.
+
+Skip behavior confirmed with `ESHU_POSTGRES_DSN` unset (the credential-free
+CI / `make pre-pr` path):
+
+```
+=== RUN   TestLoadPriorConfigAddressesPrefersMostRecentGenerationAgainstRealPostgres
+    tfstate_drift_evidence_prior_config_ordering_live_test.go:53: set ESHU_POSTGRES_DSN to run the real-Postgres prior-config ordering proof
+--- SKIP: TestLoadPriorConfigAddressesPrefersMostRecentGenerationAgainstRealPostgres (0.00s)
+PASS
+```
+
 - No-Regression Evidence:
-  `TestListPriorConfigAddressesQueryOrdersByIngestedAtDescending` asserts
-  the SQL constant text contains the correct outer `ORDER BY` — RED against
-  the pre-fix text (which lacked `ORDER BY pg.ingested_at DESC` on the
-  outer SELECT entirely), GREEN after. This is a text assertion, not a
-  fakeExecQueryer behavioral test, because fakeExecQueryer bypasses real
-  SQL execution and returns whatever row order a test hands it regardless
-  of the query text — only a real Postgres planner run (above) can prove or
-  disprove a row-ordering claim.
+  `TestLoadPriorConfigAddressesPrefersMostRecentGenerationAgainstRealPostgres`
+  (above) is the committed, re-runnable real-Postgres proof; it is not run
+  by default `go test ./...` (skips cleanly without `ESHU_POSTGRES_DSN`),
+  so it does not affect credential-free CI or `make pre-pr`, but it is the
+  evidence of record for this specific ordering claim, re-provable any time
+  a reviewer sets the DSN.
+  `TestListPriorConfigAddressesQueryOrdersByIngestedAtDescending` is kept
+  as a cheap, credential-free complement -- it asserts the SQL constant
+  text contains the correct outer `ORDER BY` — RED against the pre-fix text
+  (which lacked `ORDER BY pg.ingested_at DESC` on the outer SELECT
+  entirely), GREEN after. This is a text assertion, not a fakeExecQueryer
+  behavioral test, because fakeExecQueryer bypasses real SQL execution and
+  returns whatever row order a test hands it regardless of the query text
+  -- only a real Postgres planner run can prove or disprove a row-ordering
+  claim, which is exactly the gap the new live test closes.
   `TestCollectPriorConfigAddressesFirstWriteWinsDependsOnCallOrder` proves,
   directly and without any DB fixture, that reversing the call order on the
   SAME two conflicting entries flips the winning reason — the mechanism the
   SQL fix protects.
   `TestPostgresDriftEvidenceLoaderPrefersMostRecentPriorGenerationConfidenceOnConflict`
-  is the first regression in this package to exercise TWO prior generations
-  declaring the same address with conflicting confidence (none existed
-  before, which is why this went unnoticed); it feeds the fixture rows in
-  the fixed query's guaranteed order and proves the full loader wiring
-  (per-generation `buildModulePrefixMap`, `mergeDriftRows`'s promotion)
-  carries the correct, most-recent generation's reason through to the
-  durable `AddressedRow`. `cd go && go test
-  ./internal/storage/postgres/... -count=1` is green.
+  is the first fakeExecQueryer-based regression in this package to exercise
+  TWO prior generations declaring the same address with conflicting
+  confidence (none existed before, which is why this went unnoticed); it
+  feeds the fixture rows in the fixed query's guaranteed order and proves
+  the full loader wiring (per-generation `buildModulePrefixMap`,
+  `mergeDriftRows`'s promotion) carries the correct, most-recent
+  generation's reason through to the durable `AddressedRow`. `cd go && go
+  test ./internal/storage/postgres/... -count=1` is green (DSN unset, so
+  the new live test skips in this run; separately re-run with
+  `ESHU_POSTGRES_DSN` set against a scratch Postgres 18 instance and
+  confirmed green above).
 - Observability Evidence: none — pure query-text and Go-side ordering fix,
   no new field, metric, span, or log line; the existing
   `logPriorConfigWalk` INFO log is unaffected.
