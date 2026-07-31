@@ -33,7 +33,7 @@ const (
 //
 // What this proof measures:
 //
-//   - the whole production call, five domains, listing plus one round-trip per
+//   - the whole production call, six domains, listing plus one round-trip per
 //     reopened row, against a real Postgres;
 //   - the same call with nothing left to reopen (listings only), which isolates
 //     the listing cost from the round-trip cost;
@@ -42,7 +42,7 @@ const (
 //
 // What it does NOT measure, and what no shim here can: the downstream cost of
 // the reducer RE-EXECUTING every reopened work item. Each drain hands the
-// reducer one item per active scope per domain, forever; two of the five
+// reducer one item per active scope per domain, forever; two of the six
 // domains (deployable_unit_correlation,
 // kubernetes_correlation_materialization) write GRAPH EDGES when they run. That
 // steady-state queue pressure is the dominant real cost of this change and is
@@ -50,7 +50,7 @@ const (
 // than O(active scopes x generations).
 //
 // Gated on its own DSN variable rather than the shared proof DSN because the
-// unbounded arm deliberately issues 112 500 round-trips and takes minutes.
+// unbounded arm deliberately issues 135 000 round-trips and takes minutes.
 func TestCorrelationReopenPerDrainCostProof(t *testing.T) {
 	dsn := os.Getenv("ESHU_CORRELATION_REOPEN_COST_PROOF_DSN")
 	if dsn == "" {
@@ -69,7 +69,7 @@ func TestCorrelationReopenPerDrainCostProof(t *testing.T) {
 	reopened := countWorkItems(t, ctx, db, "pending")
 
 	// Nothing left in 'succeeded': the listings run and match no rows, so this
-	// isolates the five listings from the round-trips.
+	// isolates the six listings from the round-trips.
 	listingsOnly := timeCorrelationReopen(t, ctx, store, domains)
 
 	// Steady state: the reducer re-succeeds everything it was handed, then the
