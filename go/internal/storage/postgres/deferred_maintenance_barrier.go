@@ -148,7 +148,13 @@ func (s IngestionStore) RunDeferredRelationshipMaintenanceAfterShardDrain(
 			return fmt.Errorf("commit deferred maintenance barrier (no epoch to join): %w", err)
 		}
 		committed = true
-		if s.Logger != nil {
+		// Rate-limited: AfterEmptyBatchDrained re-checks this on every idle
+		// poll for as long as this shard never commits (see
+		// startupMaintenanceEscapeUsed in collector.Service.Run), and the
+		// ingester's poll interval is 1s — unthrottled this is one identical
+		// INFO line per second forever. idleMaintenanceLogGate caps it at one
+		// line per deferredMaintenanceBarrierStallLogInterval.
+		if s.Logger != nil && s.idleMaintenanceLogGate.shouldLog(now) {
 			s.Logger.InfoContext(
 				ctx, "deferred maintenance barrier idle; no epoch to join",
 				telemetry.PhaseAttr("deferred_maintenance_barrier"),

@@ -126,3 +126,70 @@ func TestIngestionStoreWaitDeferredMaintenanceBarrierCompletionStallLogNamesMiss
 		t.Fatalf("logs = %q, want missing_shard_indexes=[1,3] naming the shards that have NOT arrived, not just a count", logged)
 	}
 }
+
+// TestIngestionStoreRunDeferredRelationshipMaintenanceAfterShardDrainRateLimitsIdleLog
+// is the P2-1 fix on PR #5852: the "idle; no epoch to join" INFO log
+// (RunDeferredRelationshipMaintenanceAfterShardDrain in
+// deferred_maintenance_barrier.go) fires at most once per
+// deferredMaintenanceBarrierStallLogInterval, not once per poll.
+// ingesterCollectorPollInterval is 1s, and AfterEmptyBatchDrained re-checks
+// this exact path on every idle poll for as long as a shard never commits
+// (see startupMaintenanceEscapeUsed in collector.Service.Run), so
+// unthrottled this was ~86,400 identical lines/day/empty shard with no state
+// change between them — the same rate the stall WARN in
+// waitDeferredMaintenanceBarrierCompletion is already rate-limited at.
+func TestIngestionStoreRunDeferredRelationshipMaintenanceAfterShardDrainRateLimitsIdleLog(t *testing.T) {
+	t.Parallel()
+
+	base := time.Date(2026, time.April, 20, 9, 0, 0, 0, time.UTC)
+	const pollsWithinInterval = 5
+	// One "no epoch" response per call: pollsWithinInterval calls inside the
+	// interval, plus one more call after crossing it.
+	responses := make([]queueFakeRows, 0, pollsWithinInterval+1)
+	for range pollsWithinInterval + 1 {
+		responses = append(responses, queueFakeRows{})
+	}
+	tx := &fakeTx{queryResponses: responses}
+	db := &fakeTransactionalDB{tx: tx}
+
+	var logs bytes.Buffer
+	store := NewIngestionStore(db)
+	store.Logger = slog.New(slog.NewJSONHandler(&logs, nil))
+
+	var now time.Time
+	store.Now = func() time.Time { return now }
+
+	for i := 0; i < pollsWithinInterval; i++ {
+		// Each poll is 1s apart (ingesterCollectorPollInterval), well inside
+		// deferredMaintenanceBarrierStallLogInterval (30s).
+		now = base.Add(time.Duration(i) * time.Second)
+		err := store.RunDeferredRelationshipMaintenanceAfterShardDrain(
+			context.Background(),
+			DeferredMaintenanceBarrierConfig{ShardCount: 2, ShardIndex: 0, HasCommitted: false},
+			nil,
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("RunDeferredRelationshipMaintenanceAfterShardDrain(poll=%d) error = %v, want nil", i, err)
+		}
+	}
+
+	idleLine := "deferred maintenance barrier idle; no epoch to join"
+	if got := strings.Count(logs.String(), idleLine); got != 1 {
+		t.Fatalf("idle log lines across %d polls within one interval = %d, want exactly 1 (rate-limited)", pollsWithinInterval, got)
+	}
+
+	// Advance past the interval: the next poll must log again.
+	now = base.Add(deferredMaintenanceBarrierStallLogInterval)
+	if err := store.RunDeferredRelationshipMaintenanceAfterShardDrain(
+		context.Background(),
+		DeferredMaintenanceBarrierConfig{ShardCount: 2, ShardIndex: 0, HasCommitted: false},
+		nil,
+		nil,
+	); err != nil {
+		t.Fatalf("RunDeferredRelationshipMaintenanceAfterShardDrain(after interval) error = %v, want nil", err)
+	}
+	if got := strings.Count(logs.String(), idleLine); got != 2 {
+		t.Fatalf("idle log lines after crossing the interval = %d, want exactly 2 (one more line once the interval elapses)", got)
+	}
+}

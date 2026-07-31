@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -22,8 +23,46 @@ const (
 	// barrier completes, so an operator grepping logs at 3 AM can find the
 	// stalled epoch, which shards have (and have not) arrived, and how long
 	// it has been stuck without having to correlate silence across shards.
+	//
+	// deferredMaintenanceIdleLogGate reuses this same interval for the idle
+	// "no epoch to join" INFO log, so idle and stall logging share one
+	// cadence an operator only has to learn once.
 	deferredMaintenanceBarrierStallLogInterval = 30 * time.Second
 )
+
+// deferredMaintenanceIdleLogGate rate-limits the deferred-maintenance
+// barrier's "idle; no epoch to join" INFO log
+// (RunDeferredRelationshipMaintenanceAfterShardDrain in
+// deferred_maintenance_barrier.go). ingesterCollectorPollInterval is 1s, and
+// AfterEmptyBatchDrained on a shard that never commits re-fires that idle
+// check on every poll for as long as the shard stays empty (see
+// startupMaintenanceEscapeUsed in collector.Service.Run) — unthrottled, that
+// is ~86,400 identical INFO lines a day per empty shard, with no state change
+// to report between them. Gating on deferredMaintenanceBarrierStallLogInterval
+// caps it at one line per interval, matching the stall WARN's cadence.
+type deferredMaintenanceIdleLogGate struct {
+	mu        sync.Mutex
+	nextLogAt time.Time
+}
+
+// shouldLog reports whether an idle-barrier log line is due at now, and if so
+// advances the gate so the next line is due no earlier than
+// deferredMaintenanceBarrierStallLogInterval later. A nil gate always
+// reports true: IngestionStore values built without NewIngestionStore (some
+// tests construct the struct literal directly) get the unthrottled default
+// rather than a gate that silently never logs.
+func (g *deferredMaintenanceIdleLogGate) shouldLog(now time.Time) bool {
+	if g == nil {
+		return true
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if now.Before(g.nextLogAt) {
+		return false
+	}
+	g.nextLogAt = now.Add(deferredMaintenanceBarrierStallLogInterval)
+	return true
+}
 
 const selectDeferredMaintenanceBarrierCompletedSQL = `
 SELECT completed_at
@@ -48,20 +87,31 @@ ORDER BY shard_index
 // still be mid-ingest, and a quorum or timeout bypass would let maintenance
 // run against a fleet that has not actually reached a quiescent point,
 // trading a correctness guarantee (the repo's accuracy-first priority) for
-// liveness. #5852 fixed the actual cause of an indefinite wait here — a
+// liveness. #5852 fixed one specific cause of an indefinite wait here — a
 // shard that owns no repositories and never commits used to arrive at the
 // barrier once, at startup, and then never again (see
-// collector.Service.Run's everCommitted latch) — so every shard that is
-// still running now keeps arriving every epoch for as long as it is alive
-// and connected to Postgres, as soon as one is open for it to join (see
-// DeferredMaintenanceBarrierConfig.HasCommitted for the join-only rule that
-// keeps a never-committing shard from opening epochs on its own — without
-// it, the same fix would run maintenance against an unchanged corpus on
-// every idle poll of a quiet fleet). What remains unbounded on purpose is
-// the case this function cannot fix: a shard that has actually crashed,
-// hung, or lost connectivity. Waiting shards observe that as a stall with no
-// deadline, by design, rather than risk running maintenance early against
-// live data from a shard that turns out not to be dead.
+// collector.Service.Run's everCommitted latch). The once-latch startup pass
+// plus the join-only rule (see DeferredMaintenanceBarrierConfig.HasCommitted)
+// now let that shard keep arriving at every later epoch it can join, without
+// ever opening one itself.
+//
+// A different case remains unfixed here, unchanged from origin/main: a shard
+// that HAS committed at least once and then goes idle — its repository
+// partition simply stopped changing — also never arrives again.
+// everCommitted latches true permanently on that shard's first commit, so its
+// own empty-batch escape never re-fires; with no further commits,
+// committedSinceDrain never goes true again either (see shouldDrain in
+// collector.Service.Run). That shard is fully healthy, live, and connected to
+// Postgres, yet it stalls the fleet indefinitely all the same — this function
+// cannot tell that case apart from a shard that has actually crashed, hung,
+// or lost connectivity; both simply never arrive. Waiting shards observe
+// either as a stall with no deadline, by design, rather than risk running
+// maintenance early against live data from a shard that turns out not to be
+// dead. The stall warning's missing_shard_indexes field (see
+// deferredMaintenanceBarrierArrivedShardIndexes) is the operator-facing
+// diagnostic for exactly this ambiguity: it names which shards have not
+// arrived so an operator can go check, from outside this process, whether
+// each one is dead or merely quiet.
 func (s IngestionStore) waitDeferredMaintenanceBarrierCompletion(
 	ctx context.Context,
 	epoch int64,
