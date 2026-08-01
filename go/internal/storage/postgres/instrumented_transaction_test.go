@@ -21,10 +21,18 @@ import (
 // WRAPPER InstrumentedDB.Begin applies, not from the fake itself.
 type instrumentedTestBeginner struct {
 	instrumentedTestExecQueryer
-	txExecCalls int
+	txExecCalls        int
+	readSnapshotBegins int
 }
 
 func (f *instrumentedTestBeginner) Begin(ctx context.Context) (Transaction, error) {
+	return &instrumentedTestTx{parent: f}, nil
+}
+
+func (f *instrumentedTestBeginner) BeginReadOnlyRepeatableRead(
+	ctx context.Context,
+) (Transaction, error) {
+	f.readSnapshotBegins++
 	return &instrumentedTestTx{parent: f}, nil
 }
 
@@ -122,5 +130,69 @@ func TestInstrumentedDBBeginReturnsErrorWhenInnerCannotBegin(t *testing.T) {
 
 	if _, err := instrumented.Begin(context.Background()); err == nil {
 		t.Fatal("Begin() error = nil, want error for a non-Beginner Inner")
+	}
+}
+
+func TestInstrumentedDBBeginReadOnlyRepeatableReadWrapsTransaction(t *testing.T) {
+	fake := &instrumentedTestBeginner{}
+	metricReader := metric.NewManualReader()
+	meterProvider := metric.NewMeterProvider(metric.WithReader(metricReader))
+	instruments, err := telemetry.NewInstruments(meterProvider.Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments failed: %v", err)
+	}
+	instrumented := &InstrumentedDB{
+		Inner: fake, Instruments: instruments, StoreName: "facts",
+	}
+
+	ctx := context.Background()
+	tx, err := instrumented.BeginReadOnlyRepeatableRead(ctx)
+	if err != nil {
+		t.Fatalf("BeginReadOnlyRepeatableRead() error = %v", err)
+	}
+	rows, err := tx.QueryContext(ctx, "SELECT 1")
+	if err != nil {
+		t.Fatalf("tx.QueryContext() error = %v", err)
+	}
+	if err := rows.Close(); err != nil {
+		t.Fatalf("rows.Close() error = %v", err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("tx.Commit() error = %v", err)
+	}
+	if fake.readSnapshotBegins != 1 {
+		t.Fatalf("inner read-snapshot begins = %d, want 1", fake.readSnapshotBegins)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := metricReader.Collect(ctx, &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	var observations uint64
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name != "eshu_dp_postgres_query_duration_seconds" {
+				continue
+			}
+			hist, ok := m.Data.(metricdata.Histogram[float64])
+			if !ok {
+				t.Fatalf("expected Histogram data type, got %T", m.Data)
+			}
+			for _, point := range hist.DataPoints {
+				observations += point.Count
+			}
+		}
+	}
+	if observations != 1 {
+		t.Fatalf("transaction query duration observations = %d, want 1", observations)
+	}
+}
+
+func TestInstrumentedDBBeginReadOnlyRepeatableReadRequiresCapability(t *testing.T) {
+	instrumented := &InstrumentedDB{Inner: &instrumentedTestExecQueryer{}, StoreName: "facts"}
+
+	_, err := instrumented.BeginReadOnlyRepeatableRead(context.Background())
+	if err == nil {
+		t.Fatal("BeginReadOnlyRepeatableRead() error = nil, want capability error")
 	}
 }

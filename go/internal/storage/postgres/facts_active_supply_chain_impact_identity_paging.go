@@ -100,22 +100,34 @@ func (s FactStore) ListActiveSupplyChainImpactFacts(
 		return nil, false, nil
 	}
 
-	state := supplyChainImpactPagingState{seenFactIDs: make(map[string]struct{})}
-	for !state.legacyDone || !state.identityDone {
-		if err := s.loadActiveSupplyChainImpactFactPagePair(ctx, filter, &state); err != nil {
-			return nil, false, err
+	var loaded []facts.Envelope
+	var truncated bool
+	err := withReadOnlyRepeatableRead(ctx, s.db, func(queryer Queryer) error {
+		state := supplyChainImpactPagingState{seenFactIDs: make(map[string]struct{})}
+		for !state.legacyDone || !state.identityDone {
+			if loadErr := loadActiveSupplyChainImpactFactPagePair(
+				ctx, queryer, filter, &state,
+			); loadErr != nil {
+				return loadErr
+			}
 		}
+		loaded = make([]facts.Envelope, 0,
+			len(state.coreFacts)+len(state.identityFacts)+len(state.suppressionFacts))
+		loaded = append(loaded, state.coreFacts...)
+		loaded = append(loaded, state.identityFacts...)
+		loaded = append(loaded, state.suppressionFacts...)
+		truncated = state.suppressionTruncated
+		return nil
+	})
+	if err != nil {
+		return nil, false, err
 	}
-	loaded := make([]facts.Envelope, 0,
-		len(state.coreFacts)+len(state.identityFacts)+len(state.suppressionFacts))
-	loaded = append(loaded, state.coreFacts...)
-	loaded = append(loaded, state.identityFacts...)
-	loaded = append(loaded, state.suppressionFacts...)
-	return loaded, state.suppressionTruncated, nil
+	return loaded, truncated, nil
 }
 
-func (s FactStore) loadActiveSupplyChainImpactFactPagePair(
+func loadActiveSupplyChainImpactFactPagePair(
 	ctx context.Context,
+	queryer Queryer,
 	filter reducer.SupplyChainImpactFactFilter,
 	state *supplyChainImpactPagingState,
 ) error {
@@ -127,7 +139,7 @@ func (s FactStore) loadActiveSupplyChainImpactFactPagePair(
 	if state.identityDone {
 		identityLimit = 0
 	}
-	rows, err := s.db.QueryContext(
+	rows, err := queryer.QueryContext(
 		ctx,
 		listActiveSupplyChainImpactFactPagesQuery,
 		filter.PackageIDs,

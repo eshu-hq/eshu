@@ -53,6 +53,12 @@ func TestCurrentContainerImageIdentitySupportLoaderRejectsNonAdvancingPage(t *te
 	if err == nil || !strings.Contains(err.Error(), "cursor did not advance") {
 		t.Fatalf("loader error = %v, want non-advancing cursor rejection", err)
 	}
+	if db.transactionCommitCalls != 0 || db.transactionRollbackCalls != 1 {
+		t.Fatalf(
+			"transaction completion = commit:%d rollback:%d, want 0/1",
+			db.transactionCommitCalls, db.transactionRollbackCalls,
+		)
+	}
 }
 
 func TestCurrentContainerImageIdentitySupportLoaderRejectsMalformedFactID(t *testing.T) {
@@ -66,6 +72,12 @@ func TestCurrentContainerImageIdentitySupportLoaderRejectsMalformedFactID(t *tes
 	)
 	if err == nil || !strings.Contains(err.Error(), "invalid fact ID") {
 		t.Fatalf("loader error = %v, want malformed fact ID rejection", err)
+	}
+	if db.transactionCommitCalls != 0 || db.transactionRollbackCalls != 1 {
+		t.Fatalf(
+			"transaction completion = commit:%d rollback:%d, want 0/1",
+			db.transactionCommitCalls, db.transactionRollbackCalls,
+		)
 	}
 }
 

@@ -124,12 +124,32 @@ func (s FactStore) listCurrentContainerImageIdentitySupportFacts(
 	if filter.empty() {
 		return nil, nil
 	}
+	var loaded []facts.Envelope
+	err := withReadOnlyRepeatableRead(ctx, s.db, func(queryer Queryer) error {
+		var loadErr error
+		loaded, loadErr = listCurrentContainerImageIdentitySupportFactsFrom(
+			ctx, queryer, filter,
+		)
+		return loadErr
+	})
+	if err != nil {
+		return nil, err
+	}
+	return loaded, nil
+}
 
+func listCurrentContainerImageIdentitySupportFactsFrom(
+	ctx context.Context,
+	queryer Queryer,
+	filter containerImageIdentitySupportFactFilter,
+) ([]facts.Envelope, error) {
 	var loaded []facts.Envelope
 	var cursorFactID string
 	var priorCursor *containerImageIdentitySupportCursor
 	for {
-		page, err := s.listCurrentContainerImageIdentitySupportFactsPage(ctx, filter, cursorFactID)
+		page, err := listCurrentContainerImageIdentitySupportFactsPage(
+			ctx, queryer, filter, cursorFactID,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -155,12 +175,13 @@ func (s FactStore) listCurrentContainerImageIdentitySupportFacts(
 	}
 }
 
-func (s FactStore) listCurrentContainerImageIdentitySupportFactsPage(
+func listCurrentContainerImageIdentitySupportFactsPage(
 	ctx context.Context,
+	queryer Queryer,
 	filter containerImageIdentitySupportFactFilter,
 	cursorFactID string,
 ) ([]facts.Envelope, error) {
-	rows, err := s.db.QueryContext(
+	rows, err := queryer.QueryContext(
 		ctx,
 		listCurrentContainerImageIdentitySupportFactsQuery,
 		filter.digests,

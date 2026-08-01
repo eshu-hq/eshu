@@ -98,39 +98,47 @@ func (s FactStore) ListActiveSBOMAttestationAttachmentFacts(
 		return nil, nil
 	}
 
-	var legacyFacts []facts.Envelope
-	var cursorFactID string
-	for {
-		page, err := s.listActiveSBOMAttestationAttachmentFactsPage(ctx, digests, cursorFactID)
-		if err != nil {
-			return nil, err
+	var loaded []facts.Envelope
+	err := withReadOnlyRepeatableRead(ctx, s.db, func(queryer Queryer) error {
+		var legacyFacts []facts.Envelope
+		var cursorFactID string
+		for {
+			page, loadErr := listActiveSBOMAttestationAttachmentFactsPage(
+				ctx, queryer, digests, cursorFactID,
+			)
+			if loadErr != nil {
+				return loadErr
+			}
+			legacyFacts = append(legacyFacts, page...)
+			if len(page) < listFactsByKindPageSize {
+				break
+			}
+			cursorFactID = page[len(page)-1].FactID
 		}
-		legacyFacts = append(legacyFacts, page...)
-		if len(page) < listFactsByKindPageSize {
-			break
+		identityFacts, loadErr := listCurrentContainerImageIdentitySupportFactsFrom(
+			ctx,
+			queryer,
+			containerImageIdentitySupportFactFilter{digests: digests},
+		)
+		if loadErr != nil {
+			return fmt.Errorf("list active sbom attestation attachment identity facts: %w", loadErr)
 		}
-		cursorFactID = page[len(page)-1].FactID
-	}
-	identityFacts, err := s.listCurrentContainerImageIdentitySupportFacts(
-		ctx,
-		containerImageIdentitySupportFactFilter{digests: digests},
-	)
-	if err != nil {
-		return nil, fmt.Errorf("list active sbom attestation attachment identity facts: %w", err)
-	}
-	loaded, err := combineDistinctFactStreams(legacyFacts, identityFacts)
+		loaded, loadErr = combineDistinctFactStreams(legacyFacts, identityFacts)
+		return loadErr
+	})
 	if err != nil {
 		return nil, fmt.Errorf("list active sbom attestation attachment facts: %w", err)
 	}
 	return loaded, nil
 }
 
-func (s FactStore) listActiveSBOMAttestationAttachmentFactsPage(
+func listActiveSBOMAttestationAttachmentFactsPage(
 	ctx context.Context,
+	queryer Queryer,
 	digests []string,
 	cursorFactID string,
 ) ([]facts.Envelope, error) {
-	rows, err := s.db.QueryContext(
+	rows, err := queryer.QueryContext(
 		ctx,
 		listActiveSBOMAttestationAttachmentFactsQuery,
 		digests,

@@ -240,6 +240,67 @@ All paired calls returned identical FactID sets. The default-collation and ICU
 live regressions each returned all 502 prefix-boundary rows through production
 callers, including the long-prefix row after the 500-row boundary.
 
+The final loaders also hold one read-only `REPEATABLE READ` transaction across
+each complete public call. This prevents an atomic active-set replacement from
+mixing pages or, for SBOM and supply-chain reads, mixing evidence streams. Live
+Postgres regressions switch the active set at each boundary and prove:
+
+- a typed A-to-B replacement returns the complete A snapshot;
+- a legacy-v2-to-typed-v3 replacement returns the complete legacy snapshot;
+- an SBOM read that establishes an empty generation-A snapshot stays empty
+  when populated generation B is activated before the identity statement; an
+  autocommit control observes B and proves the regression discriminates the
+  old behavior;
+- SBOM legacy and canonical-identity streams share one snapshot; and
+- every supply-chain legacy/identity page pair shares one snapshot.
+
+Unit contracts additionally prove exact `REPEATABLE READ` plus read-only SQL
+options, one transaction per public call, rollback on every error, commit only
+on success, no returned rows or truncation state after a failed commit,
+retained query instrumentation, and fail-closed behavior when a store cannot
+provide the required snapshot capability.
+
+The snapshot boundary was measured separately from the full-PR OLD/NEW table
+above. After five warmups, 100 alternating matched calls compared the repaired
+private query path without a transaction to the final public production path
+with begin and commit included:
+
+| Production call | Without snapshot median / p95 | Final snapshot median / p95 |
+| --- | ---: | ---: |
+| CI/CD, digest with 16 supports | 2.408 / 2.793 ms | 2.700 / 3.019 ms |
+| SBOM, digest with 16 supports | 2.321 / 2.619 ms | 2.578 / 3.102 ms |
+| supply chain, repository with 500 rows | 101.064 / 105.851 ms | 101.752 / 104.577 ms |
+
+All paired calls returned identical FactID sets. The mandatory snapshot adds
+12.1% to the CI/CD median and 11.1% to the SBOM median in this sub-3 ms isolated
+harness; SBOM p95 rises 18.4%. The absolute median cost is about 0.3 ms. Supply
+is neutral at +0.7% median and improves p95 by 1.2%. The no-snapshot control is
+not an acceptable implementation because it mixes active generations; these
+numbers isolate the correctness cost rather than define the PR acceptance
+baseline. Absolute values from this harness are not compared to the earlier
+full-PR harness because their query shapes and timing boundaries differ.
+
+The final concurrency acceptance proof compares the exact `origin/main` source
+to the final source, not the invalid no-snapshot control. Both used Postgres 18,
+source-appropriate isolated databases, a 99,500-row synthetic corpus, a
+30-connection production pool, 16 workers, five warmups, and three alternating
+warm repetitions. Every repetition returned the same normalized semantic row
+digests for 16 SBOM rows and 500 supply rows:
+
+| 16-worker production call | Origin median wall | Final median wall | Change |
+| --- | ---: | ---: | ---: |
+| SBOM, 20 calls per worker | 667.257 ms | 183.397 ms | 72.5% faster |
+| supply, 10 calls per worker | 9,842.110 ms | 834.315 ms | 91.5% faster |
+
+Median request p50/p95 improved from 30.370/42.972 ms to 5.853/14.830 ms
+for SBOM and from 941.381/1,455.185 ms to 69.053/137.930 ms for supply. Final
+begin p95 medians were 3.285 ms for SBOM and 1.082 ms for supply; commit p95
+medians were 2.274 ms and 1.749 ms. Full-transaction p95 medians were 13.878 ms
+and 137.418 ms. `database/sql` reported zero pool waits and zero wait duration
+for both source versions in every repetition. The accuracy boundary therefore
+has a measured local tax while the actual PR materially improves concurrent
+throughput over the pre-PR implementation.
+
 ### Writer-accepted graph rows
 
 The accepted effective-support projection avoids converting the support set
@@ -330,8 +391,8 @@ GOCACHE=$PWD/.gocache ESHU_POSTGRES_PORT=25432 \
   bash scripts/verify-golden-corpus-gate.sh
 ```
 
-It completed in 112 seconds with 517 passes, zero required failures, and two
-advisory timing warnings. Every drain reported `residual=0` and `dead_letter=0`.
+It completed in 114 seconds with 519 passes, zero required failures, and zero
+advisory warnings. Every drain reported `residual=0` and `dead_letter=0`.
 The workload-scoped `CVE-2026-00010` comprehensive-profile assertion passed
 with the expected runtime context and suppression state, proving the reducer
 consumed support-grain identity evidence rather than the digest-level
