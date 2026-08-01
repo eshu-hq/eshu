@@ -301,6 +301,9 @@ func (s IngestionStore) commitScopeGeneration(
 				generation.GenerationID,
 				len(evidence),
 			)
+			if s.Instruments != nil && s.Instruments.EvidenceFactsDiscovered != nil {
+				s.Instruments.EvidenceFactsDiscovered.Add(ctx, int64(len(evidence)))
+			}
 			if err := relationshipStore.UpsertEvidenceFacts(ctx, generation.GenerationID, evidence); err != nil {
 				return fmt.Errorf("persist relationship evidence: %w", err)
 			}

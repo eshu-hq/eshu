@@ -85,6 +85,7 @@ doc_required_tmp="$(mktemp)"
 doc_documented_tmp="$(mktemp)"
 doc_files_tmp="$(mktemp)"
 instruments_metrics_tmp="$(mktemp)"
+registered_anywhere_tmp="$(mktemp)"
 new_stages_tmp="$(mktemp)"
 tmp_diff="$(mktemp)"
 trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instruments_metrics_tmp" "$new_stages_tmp" "$tmp_diff"' EXIT
@@ -138,7 +139,32 @@ sort -u -o "$doc_files_tmp" "$doc_files_tmp"
 # open paren and the metric name. The set below covers the constructors
 # used by Eshu today (Counter, Histogram, ObservableGauge, Gauge, plus
 # the UpDownCounter/ObservableCounter variants for forward compatibility).
-rg -UPo '\.(?:Int64|Float64)(?:Counter|Histogram|UpDownCounter|Gauge|ObservableGauge|ObservableCounter|ObservableUpDownCounter)\(\s*"([a-zA-Z0-9_]+)"' \
+# Scanned across the whole tree, not only instruments.go. Several
+# first-party metrics are registered in a dedicated *_metrics.go beside
+# the code that emits them -- request_metrics.go, cloud_resources_metrics.go,
+# iac_resources_metrics.go, transport_auth_metrics.go and others. Reading
+# only instruments.go made those look unregistered, so the doc rows citing
+# them could not be validated at all (#5548).
+# Two sets, because the two checks ask different questions.
+#
+# registered_anywhere_tmp answers "is this documented metric real?" and so
+# searches the whole tree. Several first-party metrics are registered in a
+# dedicated *_metrics.go beside the code that emits them --
+# request_metrics.go, cloud_resources_metrics.go, iac_resources_metrics.go,
+# transport_auth_metrics.go. Reading only instruments.go made those look
+# unregistered, so the doc rows citing them could not be validated (#5548).
+rg -UPo --no-filename --glob '!**/*_test.go' \
+  '\.(?:Int64|Float64)(?:Counter|Histogram|UpDownCounter|Gauge|ObservableGauge|ObservableCounter|ObservableUpDownCounter)\(\s*"([a-zA-Z0-9_]+)"' \
+  --replace '$1' "$repo_root/go" "$repo_root/sdk" "$repo_root/examples" 2>/dev/null \
+  | rg '^eshu_dp_' \
+  | sort -u >"$registered_anywhere_tmp" || true
+
+# instruments_metrics_tmp answers "is every canonical instrument documented?"
+# and stays scoped to instruments.go, the canonical registry. Widening it
+# would demand X1 rows for collector-family metrics that have never had them
+# -- a real gap, but a pre-existing one and not this change's subject.
+rg -UPo --no-filename \
+  '\.(?:Int64|Float64)(?:Counter|Histogram|UpDownCounter|Gauge|ObservableGauge|ObservableCounter|ObservableUpDownCounter)\(\s*"([a-zA-Z0-9_]+)"' \
   --replace '$1' "$repo_root/$instruments_path" 2>/dev/null \
   | rg '^eshu_dp_' \
   | sort -u >"$instruments_metrics_tmp" || true
@@ -231,8 +257,8 @@ report=""
 # This is the spec's "missing metric registration" failure.
 while IFS= read -r metric; do
   [ -n "$metric" ] || continue
-  if ! rg -qx "$metric" "$instruments_metrics_tmp"; then
-    report="${report}  - doc references metric \`${metric}\` but it is not registered in ${instruments_path}
+  if ! rg -qx "$metric" "$registered_anywhere_tmp"; then
+    report="${report}  - doc references metric \`${metric}\` but no Go file registers it
 "
     drift=1
   fi
@@ -295,6 +321,37 @@ done <"$new_stages_tmp"
 # shellcheck source=scripts/lib/telemetry-coverage-row-check.sh
 source "${script_dir}/lib/telemetry-coverage-row-check.sh"
 check_stage_table_rows
+
+# (5) Registered but never emitted (#5548). A synchronous instrument on the
+# Instruments struct whose field is referenced nowhere outside instruments.go
+# is registered, documented, and dead: it produces no samples, so an operator
+# following its X1 row to a dashboard finds an empty panel. Registration is
+# not emission, and until this check existed nothing said so -- 23 such
+# instruments had accumulated.
+#
+# Observable instruments are exempt by construction: they are written from a
+# RegisterCallback inside instruments.go via o.Observe(...), so their field
+# legitimately appears nowhere else.
+#
+# A reference, not a `.Add(`/`.Record(` call, is the signal. Several
+# instruments are emitted indirectly -- passed into a struct field and
+# recorded from there, as go/cmd/mcp-server/wiring.go does with
+# GovernanceAuditAllowedEmitted -- and requiring a literal call site at the
+# field would flag those as dead when they are not.
+while IFS= read -r field; do
+  [ -n "$field" ] || continue
+  if ! rg -q --glob '!**/telemetry/instruments.go' --glob '!**/*_test.go' \
+       --glob '!**/README.md' -P "\\b${field}\\b" \
+       "$repo_root/go" "$repo_root/sdk" "$repo_root/examples" 2>/dev/null; then
+    report="${report}  - instruments.go registers \`${field}\` but nothing outside instruments.go references it: registered and documented, never emitted
+"
+    drift=1
+  fi
+done < <(
+  rg -UPo --no-filename \
+    'inst\.(\w+), err = meter\.(?:Int64|Float64)(?:Counter|Histogram|UpDownCounter|Gauge)\(' \
+    --replace '$1' "$repo_root/$instruments_path" 2>/dev/null | sort -u
+)
 
 # (4) Histogram bucket boundary assertion. Parses documented bucket sets
 # from the X1 doc's histogram-buckets section and bucket boundary

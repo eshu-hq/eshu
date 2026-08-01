@@ -180,10 +180,10 @@ or marker that already diagnoses it.
 | graph write (NornicDB SQL relationship autocommit) | go/internal/storage/cypher/edge_writer.go | `No-Observability-Change: NornicDB SQL relationship writes bypass managed ExecuteGroup because that backend can acknowledge the statement without persisting the edge (#5410); the existing shared-edge write log records dispatch=single, domain, evidence source, input/written rows, route count, batch size, duration, and statement summaries, while reducer execution/failure/status telemetry and the persistent retry wrapper remain unchanged. Neo4j and every non-SQL domain retain the shared-edge group metrics above` | reducer graph write |
 | graph write (source-capability retract omission) | go/internal/storage/cypher/edge_writer_retract_repo.go | `eshu_dp_shared_edge_runs_on_retract_omissions_total` | reducer graph write |
 | graph write (code-call edges) | go/internal/storage/cypher/edge_writer.go | `eshu_dp_code_call_edge_batches_total`, `eshu_dp_code_call_edge_batch_duration_seconds` | reducer graph write |
-| graph write (canonical atomic) | go/internal/storage/cypher/canonical_node_writer.go | `eshu_dp_canonical_atomic_writes_total`, `eshu_dp_canonical_atomic_fallbacks_total`, `eshu_dp_canonical_projection_duration_seconds`, `eshu_dp_canonical_phase_duration_seconds` | reducer graph write |
+| graph write (canonical atomic) | go/internal/storage/cypher/canonical_node_writer.go | `eshu_dp_canonical_atomic_writes_total`, `eshu_dp_canonical_atomic_fallbacks_total`, `eshu_dp_canonical_projection_duration_seconds` | reducer graph write |
 | graph write (NornicDB retry) | go/internal/storage/cypher/retrying_executor.go | `eshu_dp_neo4j_deadlock_retries_total` (`write_phase`; bounded `reason`: `connectivity_error`, `transient_error`, `write_conflict`, or `commit_unique_conflict`), `eshu_dp_neo4j_query_duration_seconds`, `eshu_dp_graph_write_backpressure_engaged_total`, `eshu_dp_graph_write_backpressure_wait_seconds` | reducer graph write |
 | graph write (batch size) | go/internal/storage/cypher/edge_writer.go | `eshu_dp_neo4j_batch_size`, `eshu_dp_neo4j_batches_executed_total` | reducer graph write |
-| canonical projection (nodes/edges) | go/internal/storage/cypher/canonical_node_writer_entities.go | `eshu_dp_canonical_nodes_written_total`, `eshu_dp_canonical_edges_written_total`, `eshu_dp_canonical_write_duration_seconds`, `eshu_dp_canonical_retract_duration_seconds`, `eshu_dp_canonical_batch_size` | reducer canonical |
+| canonical projection (nodes/edges) | go/internal/storage/cypher/canonical_node_writer_entities.go | `eshu_dp_canonical_writes_total`, `eshu_dp_canonical_write_duration_seconds`, `eshu_dp_canonical_projection_duration_seconds` | reducer canonical |
 | ack/retry | go/internal/collector/claimed_service_backpressure_metrics.go:41 | `eshu_dp_workflow_claim_retries_total`, `eshu_dp_workflow_claim_attempt_budget_exhausted_total`, `eshu_dp_workflow_claim_provider_throttle_total` | reducer queue |
 | dead-letter | go/internal/collector/claimed_service_backpressure_metrics.go:60 | `eshu_dp_workflow_claim_provider_throttle_total` | reducer queue |
 | generation retention | go/internal/reducer/generation_retention_runner.go:144 | `eshu_dp_generation_retention_generations_pruned_total`, `eshu_dp_generation_retention_rows_pruned_total`, `eshu_dp_generation_retention_failures_total`, `eshu_dp_generation_retention_skipped_total`, `eshu_dp_generation_retention_duration_seconds`, `eshu_dp_generation_retention_batch_size`, `eshu_dp_generation_retention_oldest_eligible_age_seconds` | reducer retention |
@@ -195,7 +195,7 @@ or marker that already diagnoses it.
 | extraction provenance — edges by source tool | go/internal/telemetry/instruments.go (RegisterEdgesBySourceToolObservableGauge) | `eshu_dp_edges_by_source_tool` | reducer graph |
 | extraction provenance — files by language | go/internal/telemetry/instruments.go (RegisterFilesByLanguageObservableGauge) | `eshu_dp_files_by_language` | reducer graph |
 | search decay scoring | go/internal/searchdecaytelemetry/observer.go:31 | `eshu_dp_search_decay_policy_applications_total` | reducer search |
-| shared acceptance read model | go/internal/storage/postgres/code_call_intent_writer.go:37 | `eshu_dp_shared_acceptance_rows`, `eshu_dp_shared_acceptance_upserts_total`, `eshu_dp_shared_acceptance_lookup_errors_total`, `eshu_dp_shared_acceptance_upsert_duration_seconds`, `eshu_dp_shared_acceptance_lookup_duration_seconds`, `eshu_dp_shared_acceptance_prefetch_size` | reducer shared acceptance |
+| shared acceptance read model | go/internal/storage/postgres/code_call_intent_writer.go:37 | `eshu_dp_shared_acceptance_rows`, `eshu_dp_shared_acceptance_upserts_total`, `eshu_dp_shared_acceptance_lookup_errors_total`, `eshu_dp_shared_acceptance_upsert_duration_seconds`, `eshu_dp_shared_acceptance_lookup_duration_seconds` | reducer shared acceptance |
 | typed-payload decode quarantine | go/internal/reducer/factschema_decode_quarantine_record.go:61 | `eshu_dp_reducer_input_invalid_facts_total`, `eshu_dp_reducer_input_invalid_fact_write_batch_size`, `eshu_dp_reducer_input_invalid_facts_committed_total`, `eshu_dp_reducer_input_invalid_fact_write_errors_total` | reducer typed decode |
 | durable input_invalid quarantine writer (issue #4630) | go/internal/reducer/quarantine_writer.go | No-Observability-Change: this file holds only the QuarantinedFactRecord row type, the QuarantinedFactWriter interface, and the WithQuarantineWriter/quarantineWriterFromContext context plumbing — no metric emission of its own. recordQuarantinedFacts/persistQuarantinedFacts (factschema_decode_quarantine_record.go, row above) call through this interface and register the write-path counters/histogram; `eshu_dp_query_input_invalid_facts_duration_seconds` and `eshu_dp_query_input_invalid_facts_errors_total` are registered by the query-surface reader in go/internal/query/admin_input_invalid_facts.go, which reads the durable rows this writer persists | reducer typed decode |
 | typed-payload decode quarantine (classification machinery) | go/internal/reducer/factschema_decode.go | No-Observability-Change: recordQuarantinedFacts and persistQuarantinedFacts (the metric-emitting code documented above) moved to factschema_decode_quarantine_record.go to keep this file under the 500-line cap (#4630); this file retains factDecodeError, quarantinedFact, partitionDecodeFailures, the attribute-shape adapters, and the per-kind decode wrappers, none of which emit a metric directly | reducer typed decode |
@@ -284,7 +284,7 @@ queue-depth and claim-wait surfaces with the reducer.
 | fact commit | go/internal/collector/git_source_processing.go:217 | `eshu_dp_fact_emit_duration_seconds`, `eshu_dp_facts_emitted_total`, `eshu_dp_facts_committed_total`, `eshu_dp_fact_batches_committed_total`, `eshu_dp_generation_fact_count` | projector fact commit |
 | content re-read | go/internal/telemetry/instruments.go:795 | `No-Observability-Change: eshu_dp_content_rereads_total and eshu_dp_content_reread_skips_total counters are registered but no longer emit; facts emitted/fact batches committed cover the path` | projector fact commit |
 | content shape tables | go/internal/content/shape/materialize_tables.go | `No-Observability-Change: static bucket-to-label slice and label sets extracted verbatim from materialize.go (pure data, no telemetry seam); content-entity emission for this stage is covered by eshu_dp_content_entity_emitted_total` | projector fact commit |
-| phase publish | go/internal/projector/service.go (publish_phases) | `eshu_dp_canonical_phase_duration_seconds`, `eshu_dp_deployment_mapping_reopened_total`, `eshu_dp_code_import_repo_edge_reopened_total`, `eshu_dp_correlation_reopened_total` | projector phase publish |
+| phase publish | go/internal/projector/service.go (publish_phases) | `eshu_dp_canonical_projection_duration_seconds`, `eshu_dp_deployment_mapping_reopened_total`, `eshu_dp_code_import_repo_edge_reopened_total`, `eshu_dp_correlation_reopened_total` | projector phase publish |
 | ack/retry | go/internal/collector/claimed_service_backpressure_metrics.go:41 | `eshu_dp_workflow_claim_retries_total`, `eshu_dp_workflow_claim_attempt_budget_exhausted_total` | projector queue |
 | dead-letter | go/internal/collector/git_selection_baseline.go:187 | `eshu_dp_collector_reconciliation_full_snapshots_total`, `eshu_dp_reconciliation_drift_retractions_total`, `eshu_dp_reconciliation_convergence_total` | projector dead-letter |
 | deferred backfill | go/internal/storage/postgres/ingestion_backfill.go:103 | `eshu_dp_deferred_backfill_duration_seconds`, `eshu_dp_deferred_backfill_batch_duration_seconds`, `eshu_dp_deferred_backfill_batches_completed_total`, `eshu_dp_deferred_backfill_evidence_total` | projector backfill |
@@ -317,7 +317,7 @@ land at the same call sites.
 | bootstrap collector cycle | go/cmd/bootstrap-index/main.go (drainCollector) | `eshu_dp_bootstrap_pipeline_phase_seconds`, `eshu_dp_content_entity_emitted_total` | collector chokepoint |
 | bootstrap pipeline overlap | go/cmd/bootstrap-index/main.go:420 | `eshu_dp_pipeline_overlap_seconds` | collector chokepoint |
 | content substring index finalization | go/cmd/bootstrap-index/main.go | `eshu_dp_bootstrap_pipeline_phase_seconds{bootstrap_phase="content_index_finalization",collector_kind="bootstrap-index"}` plus start/terminal logs with bounded `index_state`, `duration_seconds`, and `failure_class`; `content_substring_index_state` persists not_built/building/ready/failed across restarts | bootstrap storage finalization |
-| bootstrap NornicDB entity-phase dispatch | go/cmd/bootstrap-index/nornicdb_entity_phase_group_concurrent.go | No-Observability-Change: covered by `eshu_dp_canonical_write_duration_seconds`, `eshu_dp_canonical_phase_duration_seconds`, `eshu_dp_neo4j_query_duration_seconds`, and structured `bootstrap nornicdb phase-group chunk completed` logs with bounded phase, label, chunk, duration, and concurrency fields | collector chokepoint |
+| bootstrap NornicDB entity-phase dispatch | go/cmd/bootstrap-index/nornicdb_entity_phase_group_concurrent.go | No-Observability-Change: covered by `eshu_dp_canonical_write_duration_seconds`, `eshu_dp_canonical_projection_duration_seconds`, `eshu_dp_neo4j_query_duration_seconds`, and structured `bootstrap nornicdb phase-group chunk completed` logs with bounded phase, label, chunk, duration, and concurrency fields | collector chokepoint |
 | repo snapshot | go/internal/collector/git_source_processing.go:211 | `eshu_dp_repo_snapshot_duration_seconds`, `eshu_dp_repos_snapshotted_total`, `eshu_dp_files_parsed_total` | collector per-collector |
 | snapshot stage timing | go/internal/collector/git_snapshot_native.go:330 | `eshu_dp_collector_snapshot_stage_duration_seconds` | collector per-collector |
 | snapshot helper defaulting and parser construction | go/internal/collector/git_snapshot_native_helpers.go | No-Observability-Change: pure in-process defaulting for parser workers and parser engine/registry construction extracted from git_snapshot_native.go for the 500-line cap; the discovery, pre-scan, parse, and materialization work remains timed by `eshu_dp_collector_snapshot_stage_duration_seconds`, while repository-level completion remains covered by `eshu_dp_repo_snapshot_duration_seconds`; this file emits no metric of its own | collector per-collector |
@@ -577,7 +577,7 @@ Each domain has a depth/age gauge pair sourced from the queue observer.
 | --- | --- | --- | --- |
 | reducer queue | go/internal/storage/postgres/queue_observer.go:112 | `eshu_dp_queue_depth`, `eshu_dp_queue_oldest_age_seconds`, `eshu_dp_queue_source_depth`, `eshu_dp_queue_source_oldest_age_seconds`, `eshu_dp_workflow_family_queue_depth` | queue domain |
 | projector queue | go/internal/storage/postgres/queue_observer.go:112 (stage=projector) | `eshu_dp_queue_depth`, `eshu_dp_queue_oldest_age_seconds`, `eshu_dp_queue_source_depth`, `eshu_dp_queue_source_oldest_age_seconds`, `eshu_dp_workflow_family_queue_depth` | queue domain |
-| semantic extraction queue | go/internal/storage/postgres/queue_observer.go:57 (semanticQueueDepthQuery) | `eshu_dp_semantic_extraction_queue_events_total`, `eshu_dp_semantic_extraction_budget_tokens_total`, `eshu_dp_semantic_extraction_budget_cost_micros_total` | queue domain |
+| semantic extraction queue | go/internal/storage/postgres/queue_observer.go:57 (semanticQueueDepthQuery) | `eshu_dp_queue_depth` | queue domain |
 | worker pool active | go/internal/telemetry/instruments.go:3617 | `eshu_dp_worker_pool_active` | queue runtime |
 | workflow claim lease age | go/internal/collector/claimed_service_backpressure_metrics.go:78 | `eshu_dp_workflow_claim_lease_age_seconds` | queue runtime |
 | go runtime memory limit | go/cmd/ingester/main.go:61 | `eshu_dp_gomemlimit_bytes` | queue runtime |
@@ -608,18 +608,18 @@ diagnose failure causes. Each row maps a canonical phase to its metric.
 
 | stage | file:line | required metric name(s) | category |
 | --- | --- | --- | --- |
-| entities (canonical nodes) | go/internal/storage/cypher/phase_group_metadata.go:26 | `eshu_dp_canonical_nodes_written_total`, `eshu_dp_canonical_phase_duration_seconds` | cypher phase |
-| entity_containment | go/internal/storage/cypher/phase_group_metadata.go:29 | `eshu_dp_canonical_edges_written_total`, `eshu_dp_canonical_phase_duration_seconds` | cypher phase |
-| directories | go/internal/storage/cypher/phase_group_metadata.go:31 | `eshu_dp_canonical_nodes_written_total`, `eshu_dp_canonical_phase_duration_seconds` | cypher phase |
-| files | go/internal/storage/cypher/phase_group_metadata.go:33 | `eshu_dp_canonical_nodes_written_total`, `eshu_dp_canonical_phase_duration_seconds` | cypher phase |
-| retract (pre-upsert) | go/internal/storage/cypher/canonical_node_writer.go | `eshu_dp_canonical_retract_duration_seconds` | cypher phase |
-| entity_retract | go/internal/storage/cypher/canonical_node_writer.go | `eshu_dp_canonical_retract_duration_seconds`, `eshu_dp_canonical_phase_duration_seconds` | cypher phase |
-| repository_cleanup | go/internal/storage/cypher/canonical_node_writer.go | `eshu_dp_canonical_retract_duration_seconds` | cypher phase |
-| repository | go/internal/storage/cypher/canonical_node_writer.go | `eshu_dp_canonical_nodes_written_total`, `eshu_dp_canonical_phase_duration_seconds` | cypher phase |
-| terraform_state | go/internal/storage/cypher/canonical_node_writer.go | `eshu_dp_canonical_nodes_written_total`, `eshu_dp_canonical_phase_duration_seconds` | cypher phase |
-| oci_registry | go/internal/storage/cypher/canonical_node_writer.go | `eshu_dp_canonical_nodes_written_total`, `eshu_dp_canonical_phase_duration_seconds` | cypher phase |
-| modules | go/internal/storage/cypher/canonical_node_writer.go | `eshu_dp_canonical_nodes_written_total`, `eshu_dp_canonical_phase_duration_seconds` | cypher phase |
-| structural_edges | go/internal/storage/cypher/canonical_node_writer.go | `eshu_dp_canonical_edges_written_total`, `eshu_dp_canonical_phase_duration_seconds` | cypher phase |
+| entities (canonical nodes) | go/internal/storage/cypher/phase_group_metadata.go:26 | `eshu_dp_canonical_writes_total`, `eshu_dp_canonical_projection_duration_seconds` | cypher phase |
+| entity_containment | go/internal/storage/cypher/phase_group_metadata.go:29 | `eshu_dp_canonical_writes_total`, `eshu_dp_canonical_projection_duration_seconds` | cypher phase |
+| directories | go/internal/storage/cypher/phase_group_metadata.go:31 | `eshu_dp_canonical_writes_total`, `eshu_dp_canonical_projection_duration_seconds` | cypher phase |
+| files | go/internal/storage/cypher/phase_group_metadata.go:33 | `eshu_dp_canonical_writes_total`, `eshu_dp_canonical_projection_duration_seconds` | cypher phase |
+| retract (pre-upsert) | go/internal/storage/cypher/canonical_node_writer.go | `eshu_dp_canonical_projection_duration_seconds` | cypher phase |
+| entity_retract | go/internal/storage/cypher/canonical_node_writer.go | `eshu_dp_canonical_projection_duration_seconds` | cypher phase |
+| repository_cleanup | go/internal/storage/cypher/canonical_node_writer.go | `eshu_dp_canonical_projection_duration_seconds` | cypher phase |
+| repository | go/internal/storage/cypher/canonical_node_writer.go | `eshu_dp_canonical_writes_total`, `eshu_dp_canonical_projection_duration_seconds` | cypher phase |
+| terraform_state | go/internal/storage/cypher/canonical_node_writer.go | `eshu_dp_canonical_writes_total`, `eshu_dp_canonical_projection_duration_seconds` | cypher phase |
+| oci_registry | go/internal/storage/cypher/canonical_node_writer.go | `eshu_dp_canonical_writes_total`, `eshu_dp_canonical_projection_duration_seconds` | cypher phase |
+| modules | go/internal/storage/cypher/canonical_node_writer.go | `eshu_dp_canonical_writes_total`, `eshu_dp_canonical_projection_duration_seconds` | cypher phase |
+| structural_edges | go/internal/storage/cypher/canonical_node_writer.go | `eshu_dp_canonical_writes_total`, `eshu_dp_canonical_projection_duration_seconds` | cypher phase |
 
 <!-- eshu:metric:section=mcp-api-routes -->
 ## MCP / API Routes
@@ -714,7 +714,7 @@ the right name when adding a new stage.
 | reducer.secrets_iam_graph_projection | go/internal/telemetry/contract.go:376 | `eshu_dp_secrets_iam_graph_nodes_written_total` | span reducer |
 | canonical.write | go/internal/telemetry/contract.go:377 | `eshu_dp_canonical_write_duration_seconds` | span canonical |
 | canonical.projection | go/internal/telemetry/contract.go:378 | `eshu_dp_canonical_projection_duration_seconds` | span canonical |
-| canonical.retract | go/internal/telemetry/contract.go:379 | `eshu_dp_canonical_retract_duration_seconds` | span canonical |
+| canonical.retract | go/internal/telemetry/contract.go:379 | `eshu_dp_canonical_projection_duration_seconds` | span canonical |
 | ingestion.evidence_discovery | go/internal/telemetry/contract.go:381 | `eshu_dp_evidence_facts_discovered_total` | span ingestion |
 | iac_reachability.materialize | go/internal/telemetry/contract.go:382 | `eshu_dp_iac_reachability_materialization_duration_seconds` | span IaC |
 | reducer.sql_relationship_materialization | go/internal/telemetry/contract.go:383 | `eshu_dp_postgres_query_duration_seconds` | span reducer |
@@ -889,7 +889,6 @@ set, and every documented set has a matching variable in the code.
 | postgres-query-seconds | 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5 |
 | canonical-phase-seconds | 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5 |
 | acceptance-lookup-seconds | 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30 |
-| acceptance-prefetch-count | 1, 2, 4, 8, 16, 32, 64, 128, 256, 512 |
 | shared-projection-processing-seconds | 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60 |
 | collector-stage-seconds | 0.005, 0.025, 0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120 |
 | scip-process-wait-seconds | 0, 0.01, 0.05, 0.1, 0.5, 1, 5, 10, 30, 60 |
@@ -898,7 +897,6 @@ set, and every documented set has a matching variable in the code.
 | large-repo-semaphore-seconds | 0, 0.1, 0.5, 1, 5, 10, 30, 60, 120, 300 |
 | batch-claim-count | 1, 4, 8, 16, 32, 64, 128 |
 | neo4j-batch-count | 1, 10, 50, 100, 250, 500, 1000 |
-| cloud-resource-page-count | 0, 1, 2, 5, 10, 25, 50, 100, 201 |
 | shared-edge-statement-count | 1, 2, 4, 8, 16, 32, 64, 128 |
 | code-call-edge-seconds | 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5 |
 | cross-repo-resolution-seconds | 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30 |
@@ -910,3 +908,9 @@ set, and every documented set has a matching variable in the code.
 | deferred-backfill-partition-workers-count | 1, 2, 4, 8, 16, 32 |
 | reducer-input-invalid-fact-write-batch-size | 0, 1, 2, 5, 10, 25, 50, 100, 250, 500 |
 | query-input-invalid-facts-duration-seconds | 0, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10 |
+
+Bucket sets for `eshu_dp_cloud_resource_list_*` are defined in
+`go/internal/query/cloud_resources_metrics.go`, next to the code that emits
+them, rather than in `go/internal/telemetry/instruments.go`. The table above
+covers instruments registered in `instruments.go`, which is what the bucket
+check reads, so those sets are deliberately absent from it (#5548).
