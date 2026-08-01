@@ -374,7 +374,7 @@ Every code PR that touches user-visible wire contracts, CLI flags, environment
 variables, runtime profiles, capability ports, collector contracts, or chunk
 boundaries MUST update affected docs in the same PR.
 
-Document every new or touched exported Go type, interface, function, method,
+MUST document every new or touched exported Go type, interface, function, method,
 constant group, and variable with a useful Go doc comment. Placeholder comments
 that only repeat the identifier are not acceptable.
 
@@ -386,16 +386,16 @@ Every Go package directory in `go/` has three files: `doc.go`, `README.md`, and
 - `AGENTS.md` for scoped agent instructions that Codex and other harnesses load
   for that directory tree.
 
-Do not remove scoped `AGENTS.md` files unless the replacement is proven to be
+MUST NOT remove scoped `AGENTS.md` files unless the replacement is proven to be
 loaded by the target harness with the same scope and precedence.
 
-Keep OpenAPI changes in lockstep with `go/internal/query/openapi*.go`, handler
+MUST keep OpenAPI changes in lockstep with `go/internal/query/openapi*.go`, handler
 tests, and [HTTP API Reference](docs/public/reference/http-api.md).
 
 ## Verification Defaults
 
-Use [Local Testing](docs/public/reference/local-testing.md) as the source of
-truth for gates.
+MUST use [Local Testing](docs/public/reference/local-testing.md) as the source
+of truth for gates.
 
 After focused local proof and a preliminary full `eshu-code-review` with zero
 P0/P1/P2 findings, run `make pre-pr` once, immediately before the intended push
@@ -404,7 +404,7 @@ runs the credential-free gates required by changed paths; it is not an early
 discovery loop. Exactness and race gates are blocking. Use `make pre-pr-full`,
 `make frontend-preflight`, and `make security-preflight` for the heavier lanes.
 Run the final full `eshu-code-review` on the exact post-preflight diff before
-push. CI stays authoritative, but it should not be the first place a
+push. CI stays authoritative, but MUST NOT be the first place a
 credential-free failure appears.
 
 Common checks:
@@ -425,8 +425,8 @@ Docs, root agent files, and README changes require the docs build plus
 
 ## Orchestration, PR, And CI Discipline
 
-- Prefer dispatching subagents for substantive implementation, review, and
-  research. Match model capability to task difficulty using the tier map in
+- MUST dispatch subagents for substantive implementation, review, and
+  research rather than doing everything in one context. Match model capability to task difficulty using the tier map in
   [Agent Orchestration Model](docs/internal/agent-orchestration.md#roles-models-and-tools).
   A subagent never downgrades its own model.
 - Only the **orchestrator** runs `make pre-pr`, exactly once, immediately before
@@ -437,15 +437,18 @@ Docs, root agent files, and README changes require the docs build plus
 - MUST check open PRs and recent commits for the same root cause before starting
   a newly filed issue, and MUST isolate formatter drift into its own commit:
   [duplicate-work and formatter-drift guards](docs/internal/agent-guide.md#duplicate-work-and-formatter-drift-guards).
-- Before claiming merge-ready, the PR **title AND description** must both match
+- Before claiming merge-ready, the PR **title AND description** MUST both match
   the final diff, and the description MUST carry the before/after evidence.
-- CI is complete ONLY after **two consecutive stable reads of the full check
-  set** (`pending == 0`, total count unchanged) — large sets register in waves,
+- CI MUST be treated as complete ONLY after **two consecutive stable reads of
+  the full check set** (`pending == 0`, total count unchanged) — large sets register in waves,
   so a single `0-pending` read is a false done. State the query used. Reconcile
   the review-thread API against displayed unresolved comments before declaring
   threads clear.
 
 ## Pre-Ready Checklist
+
+Every line MUST be true before claiming work is ready. An unchecked line is a
+blocker, not a nice-to-have.
 
 - Relevant local docs read.
 - Relevant project skill used.
