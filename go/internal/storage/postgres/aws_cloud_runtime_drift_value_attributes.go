@@ -75,14 +75,7 @@ func cloudObservedValueAttributes(
 			return map[string]string{"ami": v}, nil, false, false
 		}
 	case cloudResourceTypeLambdaFunction, cloudResourceTypeLambdaFunctionProd:
-		out := map[string]string{}
-		if v := comparableScalarAttr(attributes, "image_uri"); v != "" {
-			out["image_uri"] = v
-		}
-		if v := comparableScalarAttr(attributes, "version"); v != "" {
-			out["version"] = v
-		}
-		if len(out) > 0 {
+		if out := comparableScalarAttrSet(attributes, "image_uri", "version"); len(out) > 0 {
 			return out, nil, false, false
 		}
 	case cloudResourceTypeECSTaskDefinition, cloudResourceTypeECSTaskDefinitionProd:
@@ -120,14 +113,7 @@ func stateDeclaredValueAttributes(
 			return map[string]string{"ami": v}, nil, false, false
 		}
 	case terraformResourceTypeAWSLambdaFunction:
-		out := map[string]string{}
-		if v := comparableScalarAttr(attributes, "image_uri"); v != "" {
-			out["image_uri"] = v
-		}
-		if v := comparableScalarAttr(attributes, "version"); v != "" {
-			out["version"] = v
-		}
-		if len(out) > 0 {
+		if out := comparableScalarAttrSet(attributes, "image_uri", "version"); len(out) > 0 {
 			return out, nil, false, false
 		}
 	case terraformResourceTypeAWSECSTaskDefinition:
@@ -170,6 +156,57 @@ func comparableScalarAttr(attributes map[string]any, key string) string {
 		return ""
 	}
 	return strings.TrimSpace(coerceJSONString(value))
+}
+
+// comparableScalarAttrSet reads every allowlisted scalar comparable a resource
+// type is covered for, under an all-or-nothing rule: if ANY of keys is a
+// redaction marker, it returns nil and no comparison runs for this pair, even
+// for the keys that were readable.
+//
+// The rule exists because per-attribute suppression is only safe when
+// suppression cannot be mistaken for convergence, and for a multi-attribute
+// type it can. cloudruntime.ClassifyValueComparison reports
+// Inconclusive() as Comparable > 0 && Compared == 0, so erasing the sole
+// comparable of a one-attribute type (aws_instance's "ami") lands on
+// value_comparison_inconclusive and keeps a durable row. Erasing ONE of
+// aws_lambda_function's two, while the other compares equal, does not: it
+// leaves Comparable=2, Compared=1, no drift, and Classify returns "" --
+// convergence. BuildCandidates then drops the ARN and the
+// generation-authoritative retire deletes whatever finding it held (#5837).
+// Measured on this branch before this rule:
+//
+//	Comparable=2 Compared=1 Drifted=0 Inconclusive=false  Classify() = ""
+//
+// Deleting a true finding on unreadable evidence is worse than the
+// garbage-string false positive #5859 started as, and the condition is sticky
+// per deployment, so a replay repeats it. Suppressing the whole set drops
+// Compared to 0 and reports uncertainty instead.
+//
+// The cost is deliberate: a real "version" drift alongside an unreadable
+// "image_uri" reports as inconclusive rather than as drift. That is still a
+// durable row naming the gap, it can never delete, and it matches how the ECS
+// side already behaves -- an unreadable container_definitions makes the whole
+// image comparison uncomparable rather than partial.
+//
+// Only a REDACTED comparable suppresses the set. A genuinely absent one does
+// not, or every zip-packaged Lambda (no "image_uri" by design) would go
+// inconclusive -- the objection #5861 records against widening this further.
+func comparableScalarAttrSet(attributes map[string]any, keys ...string) map[string]string {
+	for _, key := range keys {
+		if redactedAnywhere(attributes[key]) {
+			return nil
+		}
+	}
+	out := make(map[string]string, len(keys))
+	for _, key := range keys {
+		if v := strings.TrimSpace(coerceJSONString(attributes[key])); v != "" {
+			out[key] = v
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // redactedAnywhere reports whether value is itself a redaction marker map, or

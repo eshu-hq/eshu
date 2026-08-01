@@ -246,6 +246,124 @@ func TestAWSRuntimeStateRowFromPayloadPreservesValueResemblingMarkerText(t *test
 	}
 }
 
+// TestClassifyLambdaPartialRedactionDoesNotConverge is the regression for the
+// worst failure this branch could have introduced. Suppressing a redacted
+// value is only safe while suppression cannot be mistaken for convergence.
+//
+// aws_instance has ONE allowlisted comparable, so erasing it leaves
+// Comparable=1, Compared=0 -- #5837's value_comparison_inconclusive, a durable
+// row. aws_lambda_function has TWO. Erase only image_uri and leave version
+// comparing equal, and a naive per-attribute suppression yields Comparable=2,
+// Compared=1: Inconclusive() is false because Compared != 0, Classify returns
+// "", BuildCandidates drops the ARN, and the generation-authoritative retire
+// DELETES whatever finding that ARN held. Measured on this branch before the
+// all-or-nothing rule:
+//
+//	Comparable=2 Compared=1 Drifted=0 Inconclusive=false  Classify() = ""
+//
+// That is strictly worse than the bug being fixed. The old garbage-string
+// behavior at least left a durable (wrong) row; this would delete a true one,
+// silently, on a condition that is sticky per deployment. So a redacted
+// comparable suppresses its resource type's WHOLE scalar set: no comparison
+// runs, Compared drops to 0, and the pair reports uncertainty instead.
+//
+// The cost is deliberate and bounded -- a real `version` drift alongside an
+// unreadable `image_uri` reports as inconclusive rather than as drift. That
+// still names a gap on a durable row an operator can act on, and it can never
+// delete. It also matches how main already treats the ECS side, where an
+// unreadable container_definitions makes the whole image comparison
+// uncomparable rather than partial.
+func TestClassifyLambdaPartialRedactionDoesNotConverge(t *testing.T) {
+	t.Parallel()
+
+	statePayload := []byte(`{
+		"address": "module.fn.aws_lambda_function.demo",
+		"type": "aws_lambda_function",
+		"attributes": {
+			"arn": "arn:aws:lambda:us-east-1:123456789012:function:demo",
+			"image_uri": ` + redactionMarkerJSON("unknown_provider_schema", "resources.*.attributes.image_uri") + `,
+			"version": "7"
+		}
+	}`)
+	state, ok := awsRuntimeStateRowFromPayload("state_snapshot:s3:hash", "module.fn.aws_lambda_function.demo", statePayload)
+	if !ok {
+		t.Fatalf("awsRuntimeStateRowFromPayload() ok = false, want true")
+	}
+	if _, present := state.Attributes["image_uri"]; present {
+		t.Fatalf("row.Attributes = %#v, want no image_uri (a redacted comparable must not survive)", state.Attributes)
+	}
+	if _, present := state.Attributes["version"]; present {
+		t.Fatalf("row.Attributes = %#v, want no version either: one redacted comparable suppresses the whole "+
+			"scalar set, or a partial comparison converges and the retire deletes a true finding", state.Attributes)
+	}
+
+	cloudPayload := []byte(`{
+		"arn": "arn:aws:lambda:us-east-1:123456789012:function:demo",
+		"resource_id": "arn:aws:lambda:us-east-1:123456789012:function:demo",
+		"resource_type": "aws_lambda_function",
+		"attributes": {"image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/demo:v9", "version": "7"}
+	}`)
+	cloud, ok := awsRuntimeResourceRowFromPayload("aws:123456789012:us-east-1:lambda", cloudPayload)
+	if !ok {
+		t.Fatalf("awsRuntimeResourceRowFromPayload() ok = false, want true")
+	}
+	config := &cloudruntime.ResourceRow{Address: state.Address, ResourceType: state.ResourceType}
+
+	comparison := cloudruntime.ClassifyValueComparison(cloud, state)
+	if comparison.Compared != 0 {
+		t.Fatalf("ClassifyValueComparison() Compared = %d, want 0 (a partial comparison is what converges)", comparison.Compared)
+	}
+	if kind := cloudruntime.Classify(cloud, state, config); kind != cloudruntime.FindingKindValueComparisonInconclusive {
+		t.Fatalf("Classify() = %q, want %q -- convergence here would let the retire delete a still-true finding",
+			kind, cloudruntime.FindingKindValueComparisonInconclusive)
+	}
+}
+
+// TestClassifyLambdaUnredactedPartialEvidenceStillCompares is the
+// false-positive guard for the all-or-nothing rule above: image_uri is
+// legitimately absent on every zip-packaged Lambda, and that must stay a
+// verdict rather than becoming inconclusive on most functions in a corpus
+// (the #5861 objection). Only a REDACTED comparable suppresses the set; a
+// genuinely missing one does not.
+func TestClassifyLambdaUnredactedPartialEvidenceStillCompares(t *testing.T) {
+	t.Parallel()
+
+	statePayload := []byte(`{
+		"address": "module.fn.aws_lambda_function.zip",
+		"type": "aws_lambda_function",
+		"attributes": {
+			"arn": "arn:aws:lambda:us-east-1:123456789012:function:zip",
+			"version": "7"
+		}
+	}`)
+	state, ok := awsRuntimeStateRowFromPayload("state_snapshot:s3:hash", "module.fn.aws_lambda_function.zip", statePayload)
+	if !ok {
+		t.Fatalf("awsRuntimeStateRowFromPayload() ok = false, want true")
+	}
+	want := map[string]string{"version": "7"}
+	if !reflect.DeepEqual(state.Attributes, want) {
+		t.Fatalf("row.Attributes = %#v, want %#v (a genuinely absent image_uri must not suppress version)",
+			state.Attributes, want)
+	}
+
+	cloudPayload := []byte(`{
+		"arn": "arn:aws:lambda:us-east-1:123456789012:function:zip",
+		"resource_id": "arn:aws:lambda:us-east-1:123456789012:function:zip",
+		"resource_type": "aws_lambda_function",
+		"attributes": {"version": "9"}
+	}`)
+	cloud, ok := awsRuntimeResourceRowFromPayload("aws:123456789012:us-east-1:lambda", cloudPayload)
+	if !ok {
+		t.Fatalf("awsRuntimeResourceRowFromPayload() ok = false, want true")
+	}
+	config := &cloudruntime.ResourceRow{Address: state.Address, ResourceType: state.ResourceType}
+
+	if kind := cloudruntime.Classify(cloud, state, config); kind != cloudruntime.FindingKindImageVersionDrift {
+		t.Fatalf("Classify() = %q, want %q (a real version drift on a zip Lambda is still a verdict)",
+			kind, cloudruntime.FindingKindImageVersionDrift)
+	}
+}
+
 // BenchmarkStateDeclaredValueAttributes measures the decode path this branch
 // changed, on the shape it runs on in production: a real, non-redacted scalar.
 // comparableScalarAttr adds two failed type assertions per allowlisted key
