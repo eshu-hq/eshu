@@ -109,9 +109,9 @@ executor, land production code, or open a PR on a theory that has not been
 proven, and MUST stop any executor already dispatched on an unproven theory
 until the proof lands.
 
-The required proof shape — OLD-vs-NEW on representative data, the
-output-preserving-vs-behavior-change equivalence split, and the
-disproven-theory/PR-acceptance rules — is in
+A diagnosis is a theory too: state a cause only with the observation behind it,
+and never treat one passing sample as proof. The required proof shape, the
+diagnosis rules, and the disproven-theory/PR-acceptance rules are in
 [Agent Engineering Guide](docs/internal/agent-guide.md#prove-the-theory-first);
 it complements [Evidence Rules](#evidence-rules) and
 [Serialization Is Not A Fix](#serialization-is-not-a-fix).

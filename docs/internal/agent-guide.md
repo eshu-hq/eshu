@@ -215,6 +215,42 @@ equivalence or expected-delta check — is recorded alongside the finished
 change's local proof. PRs MUST NOT be accepted on the expectation that a
 rewrite is faster; the number and the equivalence MUST be shown.
 
+### Diagnosis Is A Theory Too
+
+Prove-The-Theory-First is usually read as covering performance work before
+implementation. It also covers WHY something broke. A diagnosis written with the
+confidence of a finding gets built on: an executor is dispatched, a fix is
+written, and the fix does nothing because the cause was never established.
+
+Rules:
+
+- State a cause only alongside the observation that establishes it. "The node is
+  present in all four runs and the edge is absent in three" is an observation.
+  "The two stages race" is a conclusion, and without the observation it is a
+  guess.
+- Label an unproven cause as unproven in the sentence itself, not in a caveat
+  further down. A reader cannot recover the difference from confident phrasing.
+- Do NOT put an unproven hypothesis into a subagent's prompt. A dispatched agent
+  looks for confirmation of whatever it was handed. Give it the symptom and the
+  evidence, and let it find the cause.
+- Check the evidence already on disk before theorizing. Logs, prior gate runs,
+  and captured output routinely contain the answer while a theory is being built
+  around them.
+- Re-state the confidence when a claim is repeated. A guess restated reads as
+  established fact unless it is re-labelled.
+
+**One passing sample is not proof of a behavior.** Sampling once and reporting
+the result as the behavior cannot distinguish "works" from "works sometimes".
+Where a result could be intermittent, sample until the rate is known and report
+the rate. A feature reported as working on one green run turned out to work in
+one run of four (#5717); the green run was the outlier.
+
+Evidence docs that assert a cause carry a `Root-Cause Evidence:` marker naming
+the observation, checked by `scripts/verify-root-cause-evidence.sh`. That gate
+verifies the evidence was written down, never that it is sound, and it cannot
+see a cause asserted in a PR description or a chat message. The rules above are
+the substance; the gate is the part a script can reach.
+
 ### Evidence Capture Pitfalls
 
 Two rules about how proof is captured, both learned from real false greens:
