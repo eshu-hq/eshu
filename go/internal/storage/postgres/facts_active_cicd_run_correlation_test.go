@@ -15,24 +15,25 @@ func TestListActiveCICDRunCorrelationFactsQueryIsArtifactBoundedAndPaged(t *test
 		"FROM container_image_identity_current_support_facts_for(",
 		"$1::text[]",
 		"$2::text[]",
-		"'{}'::text[]",
-		"$3::text",
-		"$4::integer",
-		"($3 = '' OR convert_to(fact.fact_id, 'UTF8') > convert_to($3, 'UTF8'))",
-		"ORDER BY convert_to(fact.fact_id, 'UTF8') ASC",
-		"LIMIT $4",
+		"$3::text[]",
+		"$4::text[]",
+		"$5::text[]",
+		"$6::text",
+		"$7::integer",
 	} {
-		if !strings.Contains(listActiveCICDRunCorrelationFactsQuery, want) {
-			t.Fatalf("listActiveCICDRunCorrelationFactsQuery missing %q", want)
+		if !strings.Contains(listCurrentContainerImageIdentitySupportFactsQuery, want) {
+			t.Fatalf("listCurrentContainerImageIdentitySupportFactsQuery missing %q", want)
 		}
 	}
-	if strings.Contains(listActiveCICDRunCorrelationFactsQuery, "FROM fact_records") {
-		t.Fatalf("CI/CD identity loader must not read legacy fact_records:\n%s", listActiveCICDRunCorrelationFactsQuery)
+	for _, forbidden := range []string{"FROM fact_records", "WHERE", "ORDER BY", "LIMIT"} {
+		if strings.Contains(listCurrentContainerImageIdentitySupportFactsQuery, forbidden) {
+			t.Fatalf("direct identity loader contains outer %q operation:\n%s", forbidden, listCurrentContainerImageIdentitySupportFactsQuery)
+		}
 	}
-	if strings.Contains(listActiveCICDRunCorrelationFactsQuery, "container_image_identity_current_facts AS") {
-		t.Fatalf("CI/CD identity loader must use the bounded current-facts function:\n%s", listActiveCICDRunCorrelationFactsQuery)
+	if strings.Contains(listCurrentContainerImageIdentitySupportFactsQuery, "container_image_identity_current_facts AS") {
+		t.Fatalf("CI/CD identity loader must use the bounded current-facts function:\n%s", listCurrentContainerImageIdentitySupportFactsQuery)
 	}
-	if strings.Contains(listActiveCICDRunCorrelationFactsQuery, "container_image_identity_current_facts_for(") {
-		t.Fatalf("CI/CD reducer loader must preserve support-grain correlation:\n%s", listActiveCICDRunCorrelationFactsQuery)
+	if strings.Contains(listCurrentContainerImageIdentitySupportFactsQuery, "container_image_identity_current_facts_for(") {
+		t.Fatalf("CI/CD reducer loader must preserve support-grain correlation:\n%s", listCurrentContainerImageIdentitySupportFactsQuery)
 	}
 }

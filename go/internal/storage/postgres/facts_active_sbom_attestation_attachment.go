@@ -59,39 +59,6 @@ WHERE fact.fact_kind IN (
       OR fact.payload->>'payload_digest' = ANY($1::text[])
       OR fact.payload->>'statement_id' = ANY($1::text[])
   )
-),
-identity_facts AS MATERIALIZED (
-SELECT
-    fact.fact_id,
-    fact.scope_id,
-    fact.generation_id,
-    fact.fact_kind,
-    fact.stable_fact_key,
-    fact.schema_version,
-    fact.collector_kind,
-    fact.fencing_token,
-    fact.source_confidence,
-    fact.source_system,
-    fact.source_fact_key,
-    fact.source_uri,
-    fact.source_record_id,
-    fact.observed_at,
-    fact.is_tombstone,
-    fact.payload
-FROM container_image_identity_current_support_facts_for(
-    $1::text[],
-    '{}'::text[],
-    '{}'::text[],
-    '{}'::text[],
-    '{}'::text[],
-    $2::text,
-    $3::integer
-) AS fact
-),
-all_facts AS (
-    SELECT * FROM legacy_facts
-    UNION ALL
-    SELECT * FROM identity_facts
 )
 SELECT
     fact.fact_id,
@@ -110,7 +77,7 @@ SELECT
     fact.observed_at,
     fact.is_tombstone,
     fact.payload
-FROM all_facts AS fact
+FROM legacy_facts AS fact
 WHERE ($2 = '' OR convert_to(fact.fact_id, 'UTF8') > convert_to($2, 'UTF8'))
 ORDER BY convert_to(fact.fact_id, 'UTF8') ASC
 LIMIT $3
@@ -131,19 +98,31 @@ func (s FactStore) ListActiveSBOMAttestationAttachmentFacts(
 		return nil, nil
 	}
 
-	var loaded []facts.Envelope
+	var legacyFacts []facts.Envelope
 	var cursorFactID string
 	for {
 		page, err := s.listActiveSBOMAttestationAttachmentFactsPage(ctx, digests, cursorFactID)
 		if err != nil {
 			return nil, err
 		}
-		loaded = append(loaded, page...)
+		legacyFacts = append(legacyFacts, page...)
 		if len(page) < listFactsByKindPageSize {
-			return loaded, nil
+			break
 		}
 		cursorFactID = page[len(page)-1].FactID
 	}
+	identityFacts, err := s.listCurrentContainerImageIdentitySupportFacts(
+		ctx,
+		containerImageIdentitySupportFactFilter{digests: digests},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list active sbom attestation attachment identity facts: %w", err)
+	}
+	loaded, err := combineDistinctFactStreams(legacyFacts, identityFacts)
+	if err != nil {
+		return nil, fmt.Errorf("list active sbom attestation attachment facts: %w", err)
+	}
+	return loaded, nil
 }
 
 func (s FactStore) listActiveSBOMAttestationAttachmentFactsPage(

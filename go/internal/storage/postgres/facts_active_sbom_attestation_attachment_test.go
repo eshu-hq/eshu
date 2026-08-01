@@ -15,12 +15,9 @@ func TestListActiveSBOMAttestationAttachmentFactsQueryIsDigestBoundedAndPaged(t 
 		"legacy_facts AS MATERIALIZED",
 		"COALESCE(fact.source_uri, '') AS source_uri",
 		"COALESCE(fact.source_record_id, '') AS source_record_id",
-		"container_image_identity_current_support_facts_for(",
 		"$1::text[]",
-		"'{}'::text[]",
-		"$2::text",
-		"$3::integer",
-		"UNION ALL",
+		"$2 = ''",
+		"LIMIT $3",
 		"fact.fact_kind IN (",
 		"'oci_registry.image_referrer'",
 		"'sbom.document'",
@@ -44,14 +41,16 @@ func TestListActiveSBOMAttestationAttachmentFactsQueryIsDigestBoundedAndPaged(t 
 			t.Fatalf("listActiveSBOMAttestationAttachmentFactsQuery missing %q:\n%s", want, listActiveSBOMAttestationAttachmentFactsQuery)
 		}
 	}
-	legacyStart := strings.Index(listActiveSBOMAttestationAttachmentFactsQuery, "legacy_facts AS MATERIALIZED")
-	identityStart := strings.Index(listActiveSBOMAttestationAttachmentFactsQuery, "identity_facts AS MATERIALIZED")
-	if legacyStart < 0 || identityStart < 0 || identityStart <= legacyStart {
-		t.Fatalf("SBOM loader must keep legacy and canonical identity sources distinct:\n%s", listActiveSBOMAttestationAttachmentFactsQuery)
+	if strings.Contains(listActiveSBOMAttestationAttachmentFactsQuery, "'reducer_container_image_identity'") {
+		t.Fatalf("legacy SBOM query must exclude identity rows:\n%s", listActiveSBOMAttestationAttachmentFactsQuery)
 	}
-	legacyBranch := listActiveSBOMAttestationAttachmentFactsQuery[legacyStart:identityStart]
-	if strings.Contains(legacyBranch, "'reducer_container_image_identity'") {
-		t.Fatalf("legacy SBOM branch must exclude v2 identity rows:\n%s", legacyBranch)
+	for _, forbidden := range []string{"identity_facts AS MATERIALIZED", "UNION ALL", "container_image_identity_current_support_facts_for("} {
+		if strings.Contains(listActiveSBOMAttestationAttachmentFactsQuery, forbidden) {
+			t.Fatalf("legacy SBOM query retains mixed identity operation %q:\n%s", forbidden, listActiveSBOMAttestationAttachmentFactsQuery)
+		}
+	}
+	if !strings.Contains(listCurrentContainerImageIdentitySupportFactsQuery, "container_image_identity_current_support_facts_for(") {
+		t.Fatalf("separate SBOM identity stream must use the support-grain function:\n%s", listCurrentContainerImageIdentitySupportFactsQuery)
 	}
 	if strings.Contains(listActiveSBOMAttestationAttachmentFactsQuery, "container_image_identity_current_facts AS") {
 		t.Fatalf("SBOM loader must use the bounded current-facts function:\n%s", listActiveSBOMAttestationAttachmentFactsQuery)

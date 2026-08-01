@@ -54,31 +54,36 @@ func TestListActiveSupplyChainImpactFactsQueryIsPackageBoundedAndPaged(t *testin
 	}
 }
 
-func TestListActiveSupplyChainImpactFactsQueryUnionsCanonicalIdentities(t *testing.T) {
+func TestListActiveSupplyChainImpactFactsQuerySeparatesCanonicalIdentities(t *testing.T) {
 	t.Parallel()
 
 	for _, want := range []string{
 		"legacy_facts AS MATERIALIZED",
 		"COALESCE(fact.source_uri, '') AS source_uri",
 		"COALESCE(fact.source_record_id, '') AS source_record_id",
-		"identity_facts AS MATERIALIZED",
-		"FROM container_image_identity_current_support_facts_for(",
-		"$5::text[]",
-		"$9::text[]",
-		"$8::text[]",
-		"$11::text",
-		"CASE WHEN $19::boolean THEN 0 ELSE $12::integer END",
-		"UNION ALL",
 	} {
 		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
-			t.Fatalf("supply-chain loader missing canonical identity seam %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
+			t.Fatalf("supply-chain legacy loader missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
 		}
 	}
-	legacyStart := strings.Index(listActiveSupplyChainImpactFactsQuery, "legacy_facts AS MATERIALIZED")
-	identityStart := strings.Index(listActiveSupplyChainImpactFactsQuery, "identity_facts AS MATERIALIZED")
-	legacyBranch := listActiveSupplyChainImpactFactsQuery[legacyStart:identityStart]
-	if strings.Contains(legacyBranch, "'reducer_container_image_identity'") {
-		t.Fatalf("legacy supply-chain branch must exclude v2 identity rows:\n%s", legacyBranch)
+	for _, forbidden := range []string{"identity_facts AS MATERIALIZED", "UNION ALL", "container_image_identity_current_support_facts_for(", "'reducer_container_image_identity'"} {
+		if strings.Contains(listActiveSupplyChainImpactFactsQuery, forbidden) {
+			t.Fatalf("supply-chain legacy loader retains mixed identity operation %q:\n%s", forbidden, listActiveSupplyChainImpactFactsQuery)
+		}
+	}
+	if !strings.Contains(listCurrentContainerImageIdentitySupportFactsQuery, "container_image_identity_current_support_facts_for(") {
+		t.Fatalf("separate supply-chain identity stream must use the support-grain function:\n%s", listCurrentContainerImageIdentitySupportFactsQuery)
+	}
+	for _, want := range []string{
+		"WITH legacy_page AS MATERIALIZED",
+		"PARTITION BY (fact.fact_kind = 'vulnerability.suppression')",
+		"1 AS stream_rank",
+		"$20::text, $21::integer",
+		"ORDER BY stream_rank, stream_ordinal",
+	} {
+		if !strings.Contains(listActiveSupplyChainImpactFactPagesQuery, want) {
+			t.Fatalf("combined independent pager missing %q:\n%s", want, listActiveSupplyChainImpactFactPagesQuery)
+		}
 	}
 }
 
@@ -168,9 +173,8 @@ func TestListActiveSupplyChainImpactFactsQueryBoundsRepositoryFollowUp(t *testin
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
 		}
 	}
-	legacyBranch := strings.Split(listActiveSupplyChainImpactFactsQuery, "identity_facts AS MATERIALIZED")[0]
-	if strings.Contains(legacyBranch, "OR fact.payload->>'repository_id' = ANY($8::text[])") {
-		t.Fatalf("legacy repository_id follow-up must be fact-kind gated:\n%s", legacyBranch)
+	if strings.Contains(listActiveSupplyChainImpactFactsQuery, "OR fact.payload->>'repository_id' = ANY($8::text[])") {
+		t.Fatalf("legacy repository_id follow-up must be fact-kind gated:\n%s", listActiveSupplyChainImpactFactsQuery)
 	}
 }
 
@@ -194,10 +198,12 @@ func TestListActiveSupplyChainImpactFactsQueryLoadsPackageConsumptionByRepositor
 	}
 	for _, want := range []string{
 		"FROM container_image_identity_current_support_facts_for(",
-		"$8::text[]",
+		"$3::text[]",
+		"$4::text[]",
+		"$5::text[]",
 	} {
-		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
-			t.Fatalf("canonical repository follow-up missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
+		if !strings.Contains(listCurrentContainerImageIdentitySupportFactsQuery, want) {
+			t.Fatalf("canonical repository follow-up missing %q:\n%s", want, listCurrentContainerImageIdentitySupportFactsQuery)
 		}
 	}
 }

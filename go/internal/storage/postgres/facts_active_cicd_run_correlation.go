@@ -5,44 +5,11 @@ package postgres
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
-
-const listActiveCICDRunCorrelationFactsQuery = `
-SELECT
-    fact.fact_id,
-    fact.scope_id,
-    fact.generation_id,
-    fact.fact_kind,
-    fact.stable_fact_key,
-    fact.schema_version,
-    fact.collector_kind,
-    fact.fencing_token,
-    fact.source_confidence,
-    fact.source_system,
-    fact.source_fact_key,
-    COALESCE(fact.source_uri, ''),
-    COALESCE(fact.source_record_id, ''),
-    fact.observed_at,
-    fact.is_tombstone,
-    fact.payload
-FROM container_image_identity_current_support_facts_for(
-    $1::text[],
-    $2::text[],
-    '{}'::text[],
-    '{}'::text[],
-    '{}'::text[],
-    $3::text,
-    $4::integer
-) AS fact
-WHERE ($3 = '' OR convert_to(fact.fact_id, 'UTF8') > convert_to($3, 'UTF8'))
-ORDER BY convert_to(fact.fact_id, 'UTF8') ASC
-LIMIT $4
-`
 
 // ListActiveCICDRunCorrelationFacts loads active reducer-owned container image
 // identity rows for the artifact digests or image refs observed in one CI/CD
@@ -52,61 +19,10 @@ func (s FactStore) ListActiveCICDRunCorrelationFacts(
 	digests []string,
 	imageRefs []string,
 ) ([]facts.Envelope, error) {
-	if s.db == nil {
-		return nil, fmt.Errorf("fact store database is required")
-	}
-	digests = cleanStringFilterValues(digests)
-	imageRefs = cleanStringFilterValues(imageRefs)
-	if len(digests) == 0 && len(imageRefs) == 0 {
-		return nil, nil
-	}
-
-	var loaded []facts.Envelope
-	var cursorFactID string
-	for {
-		page, err := s.listActiveCICDRunCorrelationFactsPage(ctx, digests, imageRefs, cursorFactID)
-		if err != nil {
-			return nil, err
-		}
-		loaded = append(loaded, page...)
-		if len(page) < listFactsByKindPageSize {
-			return loaded, nil
-		}
-		cursorFactID = page[len(page)-1].FactID
-	}
-}
-
-func (s FactStore) listActiveCICDRunCorrelationFactsPage(
-	ctx context.Context,
-	digests []string,
-	imageRefs []string,
-	cursorFactID string,
-) ([]facts.Envelope, error) {
-	rows, err := s.db.QueryContext(
-		ctx,
-		listActiveCICDRunCorrelationFactsQuery,
-		digests,
-		imageRefs,
-		cursorFactID,
-		listFactsByKindPageSize,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("list active ci/cd run correlation facts: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	loaded := make([]facts.Envelope, 0, len(digests))
-	for rows.Next() {
-		envelope, scanErr := scanFactEnvelope(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("list active ci/cd run correlation facts: %w", scanErr)
-		}
-		loaded = append(loaded, envelope)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list active ci/cd run correlation facts: %w", err)
-	}
-	return loaded, nil
+	return s.listCurrentContainerImageIdentitySupportFacts(ctx, containerImageIdentitySupportFactFilter{
+		digests:   digests,
+		imageRefs: imageRefs,
+	})
 }
 
 func cleanStringFilterValues(values []string) []string {

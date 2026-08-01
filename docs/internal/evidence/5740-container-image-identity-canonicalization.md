@@ -72,9 +72,10 @@ It proves:
   valid child-to-base `DERIVED_FROM` edge;
 - readiness by mutable image reference includes all 513 current digests rather
   than truncating at the first 500 support envelopes;
-- support keyset pagination remains complete under an ICU database collation,
-  and every reducer caller uses the same UTF-8 byte ordering as the canonical
-  support cursor;
+- support keyset pagination remains complete for prefix-related scope IDs under
+  both the default and ICU database collations; reducer callers page the raw
+  `(scope_id, digest, support_id)` tuple owned by the support function instead
+  of reordering its encoded FactID;
 - the older image-ref-v2 cutover marker and the digest-v3 claim latch advance
   `claimed` to `running` atomically, while a synthetic legacy-v2 attempt keeps
   `container_image_identity_v3_required = FALSE` and an empty v3 authorization.
@@ -205,6 +206,39 @@ a 58.282 ms median; NEW had a 56.755 ms median, 2.6% faster. Both used 6,744
 shared-buffer hits and wrote zero temporary blocks. The safe parser therefore
 fixes malformed-cursor accuracy without regressing the production broad-page
 path.
+
+The final caller review found a distinct pagination boundary: a canonical
+support FactID hex-encodes the raw tuple, so ordering the encoded identifier is
+not equivalent to ordering prefix-related raw values (`a` and `aa`). A live
+501-plus-1 boundary first returned 501 of 502 rows through the production
+callers. The accepted loader leaves ordering and pagination inside the support
+function, validates that every decoded tuple advances, and rejects malformed,
+duplicate, or cross-stream FactIDs. The supply-chain loader retains one
+statement snapshot and one round trip, but gives the legacy evidence stream and
+canonical identity stream independent cursors, limits, ordinals, and completion
+state. Its suppression sentinel can stop only the legacy tail while identity
+pagination continues.
+
+Several fixes were measured before production code was selected. Re-encoding
+the raw tuple into a sortable framed FactID inside the function was rejected:
+the 500-row source-repository selector slowed 19.5% and the two broad pages
+slowed 35.9% and 66.1%. Decoding and sorting an outer 500-row page was also
+rejected after the source-repository path slowed 114.5%. Issuing separate
+supply-chain queries was correct but regressed its matched median/p95 from
+68.737/75.407 ms to 74.774/97.156 ms.
+
+The accepted direct callers and one-statement dual pager were then measured in
+20-run alternating Go store calls against the same warm Postgres 18 corpus:
+
+| Production call | OLD median / p95 | NEW median / p95 |
+| --- | ---: | ---: |
+| CI/CD, digest with 16 supports | 18.746 / 24.628 ms | 5.856 / 8.080 ms |
+| SBOM, digest with 16 supports | 18.294 / 24.173 ms | 5.372 / 7.109 ms |
+| supply chain, repository with 500 rows | 55.812 / 62.442 ms | 35.721 / 37.097 ms |
+
+All paired calls returned identical FactID sets. The default-collation and ICU
+live regressions each returned all 502 prefix-boundary rows through production
+callers, including the long-prefix row after the 500-row boundary.
 
 ### Writer-accepted graph rows
 
