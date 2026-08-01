@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // pgx stdlib driver for database/sql
@@ -68,6 +69,10 @@ WHERE projection_domain = ANY(string_to_array($1, ','))`
 // consumed so tests can fake it without a database.
 type drainQuerier interface {
 	Counts(ctx context.Context) (DrainCounts, error)
+	// ResidualBreakdown groups the rows Counts counted as residual. Called only
+	// when the drain has already failed, so its cost never lands on a passing
+	// run, and a failure to read it degrades the message rather than the verdict.
+	ResidualBreakdown(ctx context.Context) ([]residualRow, error)
 }
 
 // sqlDrainQuerier reads drain counts from Postgres. advisoryDomains is the
@@ -182,4 +187,103 @@ func pollUntilDrained(
 		case <-time.After(poll):
 		}
 	}
+}
+
+// residualRow is one (domain, status, failure_class) group of work items left
+// behind when the drain gave up. The drain already counts these rows; grouping
+// them costs one extra query and turns an unactionable number into a diagnosis.
+type residualRow struct {
+	Domain       string
+	Status       string
+	FailureClass string
+	Count        int64
+}
+
+// residualBreakdownSQL groups whatever the residual count counted. Same
+// predicate as factWorkItemsResidualSQL so the totals cannot disagree.
+const residualBreakdownSQL = `
+SELECT domain, status, COALESCE(failure_class, ''), count(*)
+FROM fact_work_items
+WHERE status NOT IN ('succeeded', 'superseded')
+GROUP BY domain, status, COALESCE(failure_class, '')
+ORDER BY count(*) DESC, domain, status`
+
+// readinessDeferredFailureClasses are the failure classes a work item
+// self-assigns when a readiness gate defers it: it is waiting for an upstream
+// phase to commit, not failing on its own merits. The reducer exempts these from
+// the retry budget for that reason (nonCountingReducerRetryFailureClasses in
+// go/internal/storage/postgres/reducer_queue_readiness_sql.go).
+//
+// Listed here rather than imported because this is a diagnostic label, not a
+// control decision: a class missing from this list is reported as live work,
+// which is a slightly less precise message and never a wrong verdict. Keeping
+// the gate free of a dependency on reducer internals is worth that trade.
+var readinessDeferredFailureClasses = map[string]bool{
+	"aws_cloud_runtime_drift_state_pending":    true,
+	"aws_cloud_runtime_drift_write_superseded": true,
+	"secrets_iam_endpoint_not_ready":           true,
+	"kubernetes_correlation_nodes_not_ready":   true,
+	"gcp_relationship_nodes_not_ready":         true,
+	"ec2_instance_identity_nodes_not_ready":    true,
+	"cross_scope_producer_not_ready":           true,
+}
+
+// formatResidualBreakdown renders the residual rows as one line for the drain
+// timeout message.
+//
+// The distinction it draws is the one the bare count cannot: residual made
+// entirely of readiness deferrals means the pipeline stopped making progress and
+// is waiting on a precondition, which more time will not fix if nothing is left
+// to satisfy it. Residual containing live work means the drain simply ran out of
+// budget. Those need opposite responses, and today both print "residual=N".
+func formatResidualBreakdown(rows []residualRow) string {
+	if len(rows) == 0 {
+		return ""
+	}
+
+	var live, deferred, deadLetter int64
+	details := make([]string, 0, len(rows))
+	for _, row := range rows {
+		switch {
+		case row.Status == "dead_letter":
+			deadLetter += row.Count
+		case readinessDeferredFailureClasses[row.FailureClass]:
+			deferred += row.Count
+		default:
+			live += row.Count
+		}
+		detail := fmt.Sprintf("%s/%s", row.Domain, row.Status)
+		if row.FailureClass != "" {
+			detail += "/" + row.FailureClass
+		}
+		details = append(details, fmt.Sprintf("%s=%d", detail, row.Count))
+	}
+
+	summary := fmt.Sprintf("live=%d readiness-deferred=%d dead_letter=%d", live, deferred, deadLetter)
+	if live == 0 && deferred > 0 {
+		summary += " — no live work remained: every residual row is waiting on a readiness precondition, so more drain time would not have helped"
+	}
+	return summary + " [" + strings.Join(details, " ") + "]"
+}
+
+// ResidualBreakdown implements drainQuerier.
+func (q *sqlDrainQuerier) ResidualBreakdown(ctx context.Context) ([]residualRow, error) {
+	rows, err := q.db.QueryContext(ctx, residualBreakdownSQL)
+	if err != nil {
+		return nil, fmt.Errorf("residual breakdown: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var out []residualRow
+	for rows.Next() {
+		var r residualRow
+		if err := rows.Scan(&r.Domain, &r.Status, &r.FailureClass, &r.Count); err != nil {
+			return nil, fmt.Errorf("scan residual breakdown: %w", err)
+		}
+		out = append(out, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate residual breakdown: %w", err)
+	}
+	return out, nil
 }

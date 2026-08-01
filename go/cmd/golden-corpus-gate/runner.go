@@ -118,6 +118,15 @@ func runDrains(ctx context.Context, o options, getenv func(string) string, snap 
 		_, _ = fmt.Fprintf(stderr, "drains: not satisfied after %s (fact residual=%d, required intents=%d, populated domains=%d/%d)\n",
 			o.drainTimeout, counts.FactWorkItemsResidual, counts.SharedIntentsRequiredNonterminal,
 			counts.PopulatedDomainsPresent, len(populatedDomains))
+		// The count alone cannot say whether the pipeline was still working or had
+		// stopped and was waiting on a precondition. Read the rows behind it now,
+		// while the database is still up — the stack is torn down on exit and this
+		// is the last moment the evidence exists.
+		if breakdown, bErr := q.ResidualBreakdown(ctx); bErr != nil {
+			_, _ = fmt.Fprintf(stderr, "drains: residual breakdown unavailable: %v\n", bErr)
+		} else if line := formatResidualBreakdown(breakdown); line != "" {
+			_, _ = fmt.Fprintf(stderr, "drains: residual %s\n", line)
+		}
 	}
 	EvaluateDrains(counts, snap.DrainAssertions, len(populatedDomains), r)
 	return nil
