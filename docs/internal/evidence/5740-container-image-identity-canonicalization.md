@@ -67,6 +67,17 @@ It proves:
 - `BUILT_FROM` and `DERIVED_FROM` use the writer-accepted effective support set,
   retain held edges, make no graph calls after a rejected write, and match the
   compatibility decision builders row for row.
+- warning-held base-image supports retain their repository attribution during
+  the first typed-set publication, so the accepted support set still emits the
+  valid child-to-base `DERIVED_FROM` edge;
+- readiness by mutable image reference includes all 513 current digests rather
+  than truncating at the first 500 support envelopes;
+- support keyset pagination remains complete under an ICU database collation,
+  and every reducer caller uses the same UTF-8 byte ordering as the canonical
+  support cursor;
+- the older image-ref-v2 cutover marker and the digest-v3 claim latch advance
+  `claimed` to `running` atomically, while a synthetic legacy-v2 attempt keeps
+  `container_image_identity_v3_required = FALSE` and an empty v3 authorization.
 
 The in-process normalization/replay proof is:
 
@@ -240,6 +251,40 @@ The finished in-process normalization/hash benchmark ran 10 iterations three
 times. Median samples were 6.823 ms for 1,000 current supports and 13.668 ms
 for 1,000 current plus 1,000 held supports. The additional work is linear in
 the explicitly held rows and does not affect the no-hold loader path.
+
+### Review-remediation measurements
+
+The readiness and locale-ordering reviews were proved before implementation
+against the same isolated Postgres 18 service. With 700 digests sharing one
+synthetic mutable reference, the old readiness path returned only 500 rows and
+took 45.016 ms with 21,296 shared hits. The grouped current-support candidate
+returned all 700 rows in 1.766 ms with 5,142 shared hits; neither plan read or
+wrote temporary blocks. The finished 513-digest live regression returns 513
+rows for both `container_image.identity` and `scanner_worker.analysis`.
+
+An ICU `en-US` database ordered mixed-case identifiers differently from UTF-8
+byte order and reproduced duplicate support rows across a two-row cursor page.
+The bytewise tuple candidate took 1.820 ms versus 1.889 ms for the old raw-text
+support page on the same warm corpus, with 5,142 shared hits and no reads or
+temporary blocks in either plan. The finished ICU regression pages four mixed-
+case scopes exactly once, and static contracts cover all three reducer callers.
+
+The v2-marker/v3-latch compatibility repair adds no query or lock. Its exact
+100,000-row marker-lock harness measured 100 one-row marker inserts at
+203.709 us median and 335.042 us p95, below the existing 1,301.150 us p95
+contribution budget. The populated 10,000-row migration and immediate rerun
+completed in 34.742 ms and 9.551 ms respectively after the final function
+replacement; the lifecycle test also proved lock-timeout rollback and stable
+catalog state across repeated bootstrap applications.
+
+The PR's first full GitHub check set exposed a minimal-schema drift in the
+real-Postgres contention harness: production Claim/ClaimBatch SQL referenced
+the two digest-v3 latch columns, but the deliberately reduced test schema still
+declared only the image-ref-v2 fields. A five-column static contract went red
+for the missing fields before the harness was corrected. GitHub's exact
+race-enabled PostgreSQL 18 command then passed every contention, fencing,
+fairness, and sign-in-policy test. Its 5,000-row rank-once candidate select
+measured 26.836 ms against the existing 8-second latency budget.
 
 ## Promotion gates
 

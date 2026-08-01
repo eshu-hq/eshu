@@ -43,8 +43,9 @@ func TestListActiveSupplyChainImpactFactsQueryIsPackageBoundedAndPaged(t *testin
 		"fact.payload->>'document_id' = ANY($7::text[])",
 		"fact.payload->>'repository_id' = ANY($8::text[])",
 		"fact.payload->>'image_ref' = ANY($9::text[])",
-		"OR (fact.fact_kind = 'vulnerability.suppression', fact.fact_id) > ($19::boolean, $11)",
-		"ORDER BY (fact.fact_kind = 'vulnerability.suppression') ASC, fact.fact_id ASC",
+		"convert_to(fact.fact_id, 'UTF8')",
+		"convert_to($11, 'UTF8')",
+		"(fact.fact_kind = 'vulnerability.suppression') ASC",
 		"LIMIT $12",
 	} {
 		if !strings.Contains(executableQuery, want) {
@@ -223,8 +224,9 @@ func TestListActiveSupplyChainImpactFactsQuerySeparatesParserFileFollowUp(t *tes
 		"ANY($10::text[])",
 		"fact.payload->'parsed_file_data'->>'language'",
 		"'javascript', 'jsx', 'typescript', 'tsx'",
-		"OR (fact.fact_kind = 'vulnerability.suppression', fact.fact_id) > ($19::boolean, $11)",
-		"ORDER BY (fact.fact_kind = 'vulnerability.suppression') ASC, fact.fact_id ASC",
+		"convert_to(fact.fact_id, 'UTF8')",
+		"convert_to($11, 'UTF8')",
+		"(fact.fact_kind = 'vulnerability.suppression') ASC",
 		"LIMIT $12",
 	} {
 		if !strings.Contains(executableQuery, want) {

@@ -133,18 +133,31 @@ v3_candidates AS MATERIALIZED (
           $6 = ''
           OR (
               NOT cursor.is_canonical
-              AND 'reducer_container_image_identity_support:' ||
-                  encode(convert_to(state.scope_id, 'UTF8'), 'hex') || ':' ||
-                  encode(convert_to(support.digest, 'UTF8'), 'hex') || ':' ||
-                  encode(support.support_id, 'hex') > $6
+              AND convert_to(
+                  'reducer_container_image_identity_support:' ||
+                      encode(convert_to(state.scope_id, 'UTF8'), 'hex') || ':' ||
+                      encode(convert_to(support.digest, 'UTF8'), 'hex') || ':' ||
+                      encode(support.support_id, 'hex'),
+                  'UTF8'
+              ) > convert_to($6, 'UTF8')
           )
           OR (
               cursor.is_canonical
-              AND (state.scope_id, support.digest, support.support_id) >
-                  (cursor.scope_id, cursor.digest, cursor.support_id)
+              AND (
+                  convert_to(state.scope_id, 'UTF8'),
+                  convert_to(support.digest, 'UTF8'),
+                  support.support_id
+              ) > (
+                  convert_to(cursor.scope_id, 'UTF8'),
+                  convert_to(cursor.digest, 'UTF8'),
+                  cursor.support_id
+              )
           )
       )
-    ORDER BY state.scope_id, support.digest, support.support_id
+    ORDER BY
+        convert_to(state.scope_id, 'UTF8'),
+        convert_to(support.digest, 'UTF8'),
+        support.support_id
     LIMIT GREATEST($7, 0)
 ),
 legacy_candidates AS MATERIALIZED (
@@ -204,25 +217,42 @@ legacy_candidates AS MATERIALIZED (
           $6 = ''
           OR (
               NOT cursor.is_canonical
-              AND 'reducer_container_image_identity_support:' ||
-                  encode(convert_to(state.scope_id, 'UTF8'), 'hex') || ':' ||
-                  encode(convert_to(fact.payload->>'digest', 'UTF8'), 'hex') || ':' ||
-                  encode(sha256(convert_to(fact.fact_id, 'UTF8')), 'hex') > $6
+              AND convert_to(
+                  'reducer_container_image_identity_support:' ||
+                      encode(convert_to(state.scope_id, 'UTF8'), 'hex') || ':' ||
+                      encode(convert_to(fact.payload->>'digest', 'UTF8'), 'hex') || ':' ||
+                      encode(sha256(convert_to(fact.fact_id, 'UTF8')), 'hex'),
+                  'UTF8'
+              ) > convert_to($6, 'UTF8')
           )
           OR (
               cursor.is_canonical
-              AND (state.scope_id, fact.payload->>'digest', sha256(convert_to(fact.fact_id, 'UTF8'))) >
-                  (cursor.scope_id, cursor.digest, cursor.support_id)
+              AND (
+                  convert_to(state.scope_id, 'UTF8'),
+                  convert_to(fact.payload->>'digest', 'UTF8'),
+                  sha256(convert_to(fact.fact_id, 'UTF8'))
+              ) > (
+                  convert_to(cursor.scope_id, 'UTF8'),
+                  convert_to(cursor.digest, 'UTF8'),
+                  cursor.support_id
+              )
           )
       )
-    ORDER BY state.scope_id, fact.payload->>'digest', sha256(convert_to(fact.fact_id, 'UTF8'))
+    ORDER BY
+        convert_to(state.scope_id, 'UTF8'),
+        convert_to(fact.payload->>'digest', 'UTF8'),
+        sha256(convert_to(fact.fact_id, 'UTF8'))
     LIMIT GREATEST($7, 0)
 ),
-selected_supports AS MATERIALIZED (
+selected_support_candidates AS MATERIALIZED (
     SELECT * FROM v3_candidates
     UNION ALL
     SELECT * FROM legacy_candidates
-    ORDER BY scope_id, digest, support_id
+),
+selected_supports AS MATERIALIZED (
+    SELECT *
+    FROM selected_support_candidates
+    ORDER BY convert_to(scope_id, 'UTF8'), convert_to(digest, 'UTF8'), support_id
     LIMIT GREATEST($7, 0)
 )
 SELECT
@@ -274,5 +304,8 @@ SELECT
         'missing_evidence', to_jsonb(support.missing_evidence)
     )
 FROM selected_supports AS support
-ORDER BY support.scope_id, support.digest, support.support_id;
+ORDER BY
+    convert_to(support.scope_id, 'UTF8'),
+    convert_to(support.digest, 'UTF8'),
+    support.support_id;
 $function$;

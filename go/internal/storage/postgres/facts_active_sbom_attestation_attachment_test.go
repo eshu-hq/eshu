@@ -36,8 +36,8 @@ func TestListActiveSBOMAttestationAttachmentFactsQueryIsDigestBoundedAndPaged(t 
 		"fact.payload->>'referrer_digest' = ANY($1::text[])",
 		"fact.payload->>'document_digest' = ANY($1::text[])",
 		"fact.payload->>'document_id' = ANY($1::text[])",
-		"fact.fact_id > $2",
-		"ORDER BY fact.fact_id ASC",
+		"convert_to(fact.fact_id, 'UTF8') > convert_to($2, 'UTF8')",
+		"ORDER BY convert_to(fact.fact_id, 'UTF8') ASC",
 		"LIMIT $3",
 	} {
 		if !strings.Contains(listActiveSBOMAttestationAttachmentFactsQuery, want) {

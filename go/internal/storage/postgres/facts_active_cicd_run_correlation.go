@@ -39,8 +39,8 @@ FROM container_image_identity_current_support_facts_for(
     $3::text,
     $4::integer
 ) AS fact
-WHERE ($3 = '' OR fact.fact_id > $3)
-ORDER BY fact.fact_id ASC
+WHERE ($3 = '' OR convert_to(fact.fact_id, 'UTF8') > convert_to($3, 'UTF8'))
+ORDER BY convert_to(fact.fact_id, 'UTF8') ASC
 LIMIT $4
 `
 

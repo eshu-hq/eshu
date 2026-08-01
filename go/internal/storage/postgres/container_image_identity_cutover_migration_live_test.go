@@ -273,16 +273,16 @@ func containerImageIdentityCutoverUpgradeDefinitions(
 ) ([]Definition, Definition) {
 	t.Helper()
 	definitions := BootstrapDefinitions()
-	preUpgrade := make([]Definition, 0, len(definitions)-1)
+	preUpgrade := make([]Definition, 0, len(definitions))
 	var migration Definition
 	for _, definition := range definitions {
 		if definition.Name == "container_image_identity_cutover_guard" {
 			migration = definition
-			continue
+			break
 		}
 		preUpgrade = append(preUpgrade, definition)
 	}
-	if migration.Name == "" || len(preUpgrade) != len(definitions)-1 {
+	if migration.Name == "" {
 		t.Fatal("migration 088 missing from bootstrap definitions")
 	}
 	return preUpgrade, migration

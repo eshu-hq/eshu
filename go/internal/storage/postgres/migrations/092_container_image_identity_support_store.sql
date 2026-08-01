@@ -83,6 +83,171 @@ BEGIN
 END;
 $constraint$;
 
+-- The image_ref_v2 cutover marker predates the digest-v3 claim latch. Replace
+-- its guard only after the v3 columns and constraint exist so its authorized
+-- claimed-to-running transition advances both latches atomically. Legacy v2
+-- attempts keep v3_required = FALSE and retain an empty v3 authorization.
+CREATE OR REPLACE FUNCTION guard_container_image_identity_cutover_marker()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $function$
+DECLARE
+    cache_key TEXT;
+    marker_key_state TEXT;
+    marker_exists BOOLEAN;
+    work_item_count INTEGER;
+    work_item_required BOOLEAN;
+    work_item_status TEXT;
+    work_item_authorized_status TEXT;
+BEGIN
+    IF current_setting('transaction_isolation') NOT IN (
+        'read committed',
+        'read uncommitted'
+    ) THEN
+        RAISE EXCEPTION
+            'legacy container image identity writes require read committed isolation during image_ref_v2 cutover';
+    END IF;
+    cache_key :=
+        length(NEW.scope_id)::TEXT || ':' || NEW.scope_id ||
+        length(NEW.generation_id)::TEXT || ':' || NEW.generation_id;
+    marker_key_state := current_setting(
+        'eshu_internal.container_image_identity_marker_key_v1', TRUE
+    );
+    IF COALESCE(marker_key_state, '') <> ''
+        AND marker_key_state <> cache_key THEN
+        RAISE EXCEPTION USING
+            ERRCODE = '55000',
+            MESSAGE = 'container image identity cutover supports one scope generation per transaction';
+    END IF;
+    SELECT
+        status,
+        container_image_identity_v2_required,
+        container_image_identity_v2_authorized_status
+    INTO work_item_status, work_item_required, work_item_authorized_status
+    FROM fact_work_items
+    WHERE work_item_id = NEW.activated_by_work_item_id
+      AND scope_id = NEW.scope_id
+      AND generation_id = NEW.generation_id
+      AND stage = 'reducer'
+      AND domain = 'container_image_identity'
+      AND container_image_identity_claim_epoch =
+          NEW.activated_by_claim_epoch
+    FOR UPDATE;
+    GET DIAGNOSTICS work_item_count = ROW_COUNT;
+    IF work_item_count <> 1 THEN
+        RAISE EXCEPTION USING
+            ERRCODE = '55000',
+            MESSAGE = 'container image identity cutover requires the exact current claim epoch';
+    END IF;
+    SELECT EXISTS (
+        SELECT 1
+        FROM container_image_identity_cutovers
+        WHERE scope_id = NEW.scope_id
+          AND generation_id = NEW.generation_id
+    )
+    INTO marker_exists;
+    IF marker_exists THEN
+        IF NOT work_item_required
+            OR NOT (
+                (
+                    work_item_status = 'claimed'
+                    AND work_item_authorized_status = 'claimed'
+                )
+                OR (
+                    work_item_status = 'running'
+                    AND work_item_authorized_status = 'running'
+                )
+                OR (
+                    work_item_status = 'succeeded'
+                    AND work_item_authorized_status = 'succeeded'
+                )
+            ) THEN
+            RAISE EXCEPTION USING
+                ERRCODE = '55000',
+                MESSAGE = 'existing container image identity cutover has invalid queue fence state';
+        END IF;
+        IF work_item_status = 'claimed' THEN
+            UPDATE fact_work_items AS work_item
+            SET status = 'running',
+                container_image_identity_v2_authorized_status = 'running',
+                container_image_identity_v3_authorized_status = CASE
+                    WHEN work_item.container_image_identity_v3_required THEN 'running'
+                    ELSE work_item.container_image_identity_v3_authorized_status
+                END
+            WHERE work_item.work_item_id = NEW.activated_by_work_item_id
+              AND work_item.scope_id = NEW.scope_id
+              AND work_item.generation_id = NEW.generation_id
+              AND work_item.stage = 'reducer'
+              AND work_item.domain = 'container_image_identity'
+              AND work_item.container_image_identity_claim_epoch =
+                  NEW.activated_by_claim_epoch
+              AND work_item.container_image_identity_v2_required
+              AND work_item.status = 'claimed'
+              AND work_item.container_image_identity_v2_authorized_status = 'claimed'
+              AND (
+                  NOT work_item.container_image_identity_v3_required
+                  OR work_item.container_image_identity_v3_authorized_status = 'claimed'
+              );
+            GET DIAGNOSTICS work_item_count = ROW_COUNT;
+            IF work_item_count <> 1 THEN
+                RAISE EXCEPTION USING
+                    ERRCODE = '55000',
+                    MESSAGE = 'existing container image identity cutover requires the exact active claim epoch';
+            END IF;
+        END IF;
+    ELSE
+        UPDATE fact_work_items AS work_item
+        SET status = 'running',
+            container_image_identity_v2_required = TRUE,
+            container_image_identity_v2_authorized_status = 'running',
+            container_image_identity_v3_authorized_status = CASE
+                WHEN work_item.container_image_identity_v3_required THEN 'running'
+                ELSE work_item.container_image_identity_v3_authorized_status
+            END
+        WHERE work_item.work_item_id = NEW.activated_by_work_item_id
+          AND work_item.scope_id = NEW.scope_id
+          AND work_item.generation_id = NEW.generation_id
+          AND work_item.stage = 'reducer'
+          AND work_item.domain = 'container_image_identity'
+          AND work_item.container_image_identity_claim_epoch = NEW.activated_by_claim_epoch
+          AND work_item.status IN ('claimed', 'running')
+          AND (
+              NOT work_item.container_image_identity_v3_required
+              OR work_item.container_image_identity_v3_authorized_status = work_item.status
+          )
+          AND (
+                (
+                    NOT work_item.container_image_identity_v2_required
+                    AND work_item.container_image_identity_v2_authorized_status = ''
+                )
+                OR (
+                    work_item.container_image_identity_v2_required
+                    AND work_item.container_image_identity_v2_authorized_status =
+                        work_item.status
+                )
+          );
+        GET DIAGNOSTICS work_item_count = ROW_COUNT;
+        IF work_item_count <> 1 THEN
+            RAISE EXCEPTION USING
+                ERRCODE = '55000',
+                MESSAGE = 'container image identity first cutover requires the exact active claim epoch';
+        END IF;
+    END IF;
+    PERFORM pg_advisory_xact_lock(
+        hashtextextended(
+            NEW.scope_id || E'\x1f' || NEW.generation_id,
+            5854
+        )
+    );
+    PERFORM set_config(
+        'eshu_internal.container_image_identity_marker_key_v1',
+        cache_key,
+        TRUE
+    );
+    RETURN NEW;
+END;
+$function$;
+
 CREATE SEQUENCE IF NOT EXISTS container_image_identity_activation_epoch_seq;
 
 CREATE TABLE IF NOT EXISTS container_image_identity_support_sets (

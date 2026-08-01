@@ -111,8 +111,8 @@ SELECT
     fact.is_tombstone,
     fact.payload
 FROM all_facts AS fact
-WHERE ($2 = '' OR fact.fact_id > $2)
-ORDER BY fact.fact_id ASC
+WHERE ($2 = '' OR convert_to(fact.fact_id, 'UTF8') > convert_to($2, 'UTF8'))
+ORDER BY convert_to(fact.fact_id, 'UTF8') ASC
 LIMIT $3
 `
 

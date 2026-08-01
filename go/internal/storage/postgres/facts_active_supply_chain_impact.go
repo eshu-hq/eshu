@@ -239,7 +239,13 @@ SELECT
 FROM all_facts AS fact
 WHERE (
     $11 = ''
-    OR (fact.fact_kind = 'vulnerability.suppression', fact.fact_id) > ($19::boolean, $11)
+    OR (
+        fact.fact_kind = 'vulnerability.suppression',
+        convert_to(fact.fact_id, 'UTF8')
+    ) > (
+        $19::boolean,
+        convert_to($11, 'UTF8')
+    )
 )
 -- #5466 round-8 review F-3: every non-suppression row sorts before every
 -- vulnerability.suppression row (the boolean ASC term), so the row cap
@@ -248,10 +254,12 @@ WHERE (
 -- component/... evidence -- see that function's doc for the full
 -- reasoning. The compound keyset cursor ($19 + $11, a Postgres row-value
 -- comparison) is required to paginate correctly against this two-part
--- ordering; a plain "fact.fact_id > $11" cursor would skip or repeat rows
+-- ordering; a locale-sensitive "fact.fact_id > $11" cursor would skip or repeat rows
 -- once pagination crosses from the non-suppression group into the
 -- suppression group.
-ORDER BY (fact.fact_kind = 'vulnerability.suppression') ASC, fact.fact_id ASC
+ORDER BY
+    (fact.fact_kind = 'vulnerability.suppression') ASC,
+    convert_to(fact.fact_id, 'UTF8') ASC
 LIMIT $12
 `
 

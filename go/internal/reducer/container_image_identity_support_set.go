@@ -75,6 +75,17 @@ func buildContainerImageIdentitySupportSet(
 	})
 	supports := make([]containerImageIdentitySupport, 0, len(publications)+len(prior))
 	seen := make(map[string]struct{}, len(publications)+len(prior))
+	heldBaseRepositories := make(map[string][]string, len(write.HeldDecisions))
+	for _, held := range write.HeldDecisions {
+		imageRef := strings.TrimSpace(held.ImageRef)
+		if imageRef == "" {
+			continue
+		}
+		heldBaseRepositories[imageRef] = uniqueSortedStrings(append(
+			heldBaseRepositories[imageRef],
+			held.BaseImageForRepositoryIDs...,
+		))
+	}
 	currentSupportCount := 0
 	for _, publication := range publications {
 		if publication.tombstone {
@@ -92,6 +103,10 @@ func buildContainerImageIdentitySupportSet(
 		supports = append(supports, row)
 	}
 	for _, retained := range prior {
+		retained.BaseImageForRepositoryIDs = append(
+			retained.BaseImageForRepositoryIDs,
+			heldBaseRepositories[strings.TrimSpace(retained.ImageRef)]...,
+		)
 		row, err := containerImageIdentitySupportFromPrior(retained)
 		if err != nil {
 			return containerImageIdentitySupportSet{}, err

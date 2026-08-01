@@ -127,6 +127,74 @@ func TestBuildContainerImageIdentitySupportSetRetainsAndDeduplicatesHeldSupport(
 	}
 }
 
+func TestBuildContainerImageIdentitySupportSetPreservesHeldBaseAttribution(t *testing.T) {
+	t.Parallel()
+
+	const repositoryID = "repository:synthetic"
+	childDigest := "sha256:" + strings.Repeat("57", 32)
+	baseDigest := "sha256:" + strings.Repeat("40", 32)
+	baseRef := "registry.example.com/team/base@" + baseDigest
+	unrelatedRef := "registry.example.com/team/unrelated@sha256:" + strings.Repeat("aa", 32)
+	write := ContainerImageIdentityWrite{
+		ScopeID: "repository:synthetic",
+		HeldDecisions: []ContainerImageIdentityDecision{
+			{
+				ImageRef:                  baseRef,
+				Digest:                    baseDigest,
+				Outcome:                   ContainerImageIdentityExactDigest,
+				BaseImageForRepositoryIDs: []string{repositoryID},
+			},
+			{
+				ImageRef:                  " " + baseRef + " ",
+				Digest:                    baseDigest,
+				Outcome:                   ContainerImageIdentityExactDigest,
+				BaseImageForRepositoryIDs: []string{repositoryID, repositoryID},
+			},
+		},
+	}
+	prior := []ContainerImageIdentityPriorSupport{
+		{
+			Digest:                       childDigest,
+			ImageRef:                     "registry.example.com/team/app@" + childDigest,
+			Outcome:                      string(ContainerImageIdentityExactDigest),
+			CanonicalWrites:              1,
+			BuildProvenanceRepositoryIDs: []string{repositoryID},
+		},
+		{
+			Digest:          baseDigest,
+			ImageRef:        baseRef,
+			Outcome:         string(ContainerImageIdentityExactDigest),
+			CanonicalWrites: 1,
+		},
+		{
+			Digest:          "sha256:" + strings.Repeat("aa", 32),
+			ImageRef:        unrelatedRef,
+			Outcome:         string(ContainerImageIdentityExactDigest),
+			CanonicalWrites: 1,
+		},
+	}
+	set, err := buildContainerImageIdentitySupportSet(write, prior)
+	if err != nil {
+		t.Fatalf("build held support set: %v", err)
+	}
+	for _, support := range set.Supports {
+		switch support.ImageRef {
+		case baseRef:
+			if got := strings.Join(support.BaseImageForRepositoryIDs, ","); got != repositoryID {
+				t.Fatalf("held base attribution = %q, want %q", got, repositoryID)
+			}
+		case unrelatedRef:
+			if len(support.BaseImageForRepositoryIDs) != 0 {
+				t.Fatalf("unrelated support attribution = %v, want empty", support.BaseImageForRepositoryIDs)
+			}
+		}
+	}
+	rows := containerImageDerivedFromSupportRows(set.Supports, repositoryID)
+	if len(rows) != 1 || rows[0]["digest"] != childDigest || rows[0]["base_digest"] != baseDigest {
+		t.Fatalf("held DERIVED_FROM rows = %#v, want child %q -> base %q", rows, childDigest, baseDigest)
+	}
+}
+
 func TestSupportWriterLoadsPriorSupportOnlyForHeldReferences(t *testing.T) {
 	t.Parallel()
 

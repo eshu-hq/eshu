@@ -32,6 +32,9 @@ func TestContainerImageIdentitySupportStoreSchemaContract(t *testing.T) {
 		"container_image_identity_v3_required",
 		"container_image_identity_v3_authorized_status",
 		"fact_work_items_container_image_identity_v3_status_check",
+		"CREATE OR REPLACE FUNCTION guard_container_image_identity_cutover_marker()",
+		"WHEN work_item.container_image_identity_v3_required THEN 'running'",
+		"OR work_item.container_image_identity_v3_authorized_status = work_item.status",
 		"active_generation_id TEXT",
 		"activation_epoch BIGINT NOT NULL",
 		"active_set_id BYTEA",
@@ -67,7 +70,7 @@ func TestContainerImageIdentitySupportStoreSchemaContract(t *testing.T) {
 		"cursor_boundary AS MATERIALIZED",
 		"v3_candidates AS MATERIALIZED",
 		"legacy_candidates AS MATERIALIZED",
-		"ORDER BY state.scope_id, support.digest, support.support_id",
+		"ORDER BY\n        convert_to(state.scope_id, 'UTF8'),",
 		"after_fact_id TEXT",
 		"result_limit INTEGER",
 		"SECURITY INVOKER",
@@ -112,6 +115,41 @@ func TestContainerImageIdentitySupportStoreIsLastBootstrapDefinition(t *testing.
 	defs := BootstrapDefinitions()
 	if got := defs[len(defs)-1].Name; got != "container_image_identity_current_support_facts_function" {
 		t.Fatalf("last bootstrap definition = %q, want container_image_identity_current_support_facts_function", got)
+	}
+}
+
+func TestContainerImageIdentitySupportPaginationUsesBytewiseFactIDOrder(t *testing.T) {
+	t.Parallel()
+
+	sql := MigrationSQL("container_image_identity_current_support_facts_function")
+	for _, want := range []string{
+		"convert_to(state.scope_id, 'UTF8')",
+		"convert_to(support.digest, 'UTF8')",
+		"convert_to(fact.payload->>'digest', 'UTF8')",
+		"convert_to(cursor.scope_id, 'UTF8')",
+		"convert_to(cursor.digest, 'UTF8')",
+	} {
+		if !strings.Contains(sql, want) {
+			t.Fatalf("support pagination migration missing bytewise key %q:\n%s", want, sql)
+		}
+	}
+	for _, forbidden := range []string{
+		"(state.scope_id, support.digest, support.support_id) >",
+		"ORDER BY state.scope_id, support.digest, support.support_id",
+		"(state.scope_id, fact.payload->>'digest', sha256(convert_to(fact.fact_id, 'UTF8'))) >",
+	} {
+		if strings.Contains(sql, forbidden) {
+			t.Fatalf("support pagination migration retains collation-sensitive key %q:\n%s", forbidden, sql)
+		}
+	}
+	executableQuery := sqlWithoutLineComments(listActiveSupplyChainImpactFactsQuery)
+	for _, want := range []string{
+		"convert_to(fact.fact_id, 'UTF8')",
+		"convert_to($11, 'UTF8')",
+	} {
+		if !strings.Contains(executableQuery, want) {
+			t.Fatalf("supply-chain caller missing bytewise cursor key %q:\n%s", want, executableQuery)
+		}
 	}
 }
 
