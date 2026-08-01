@@ -251,6 +251,35 @@ verifies the evidence was written down, never that it is sound, and it cannot
 see a cause asserted in a PR description or a chat message. The rules above are
 the substance; the gate is the part a script can reach.
 
+### Diff-Scoped Gates Default To HEAD~1
+
+Every gate that scopes itself to "the diff" computes that diff against `HEAD~1`
+by default, not against `origin/main`. On a branch with more than one commit this
+silently under-covers: the gate inspects only the last commit, finds nothing to
+check, and passes.
+
+Export the base explicitly before `make pre-pr`:
+
+```
+ESHU_PARSER_RELATIONSHIP_KIT_BASE=origin/main
+ESHU_PERFORMANCE_EVIDENCE_BASE=origin/main
+```
+
+The two known members of this family fail in OPPOSITE directions, which decides
+which one you notice. `parser-relationship-kit` false-FAILS, because the docs
+that pair with a parser change landed in an earlier commit the window cannot see
+— loud and self-announcing. `verify-performance-evidence` false-PASSES: run bare
+on a multi-commit branch it reported "no hot files" and exited 0, having examined
+only the final commit while the hot-path files and their markers sat in earlier
+ones.
+
+The dangerous one is the gate that goes green having looked at nothing, since
+that is indistinguishable from a gate that verified your change. When a
+diff-scoped gate passes suspiciously fast, or reports "no <thing> found" on a
+branch you know touches that thing, re-run it with the base pinned before
+believing it. Assume other members of this family exist; the default is
+repo-wide, not per-script.
+
 ### Evidence Capture Pitfalls
 
 Two rules about how proof is captured, both learned from real false greens:
