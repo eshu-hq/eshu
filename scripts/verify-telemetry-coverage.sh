@@ -153,7 +153,8 @@ sort -u -o "$doc_files_tmp" "$doc_files_tmp"
 # request_metrics.go, cloud_resources_metrics.go, iac_resources_metrics.go,
 # transport_auth_metrics.go. Reading only instruments.go made those look
 # unregistered, so the doc rows citing them could not be validated (#5548).
-rg -UPo --no-filename --glob '!**/*_test.go' \
+rg -UPo --no-filename --glob '*.go' --glob '!**/*_test.go' \
+  --glob '!**/testdata/**' --glob '!**/fixtures/**' \
   '\.(?:Int64|Float64)(?:Counter|Histogram|UpDownCounter|Gauge|ObservableGauge|ObservableCounter|ObservableUpDownCounter)\(\s*"([a-zA-Z0-9_]+)"' \
   --replace '$1' "$repo_root/go" "$repo_root/sdk" "$repo_root/examples" 2>/dev/null \
   | rg '^eshu_dp_' \
@@ -229,7 +230,7 @@ cell_has_signal() {
 # column blank or TODO, which would defeat the "every stage must register
 # telemetry" policy. Format: <file> <signal> where signal is 1 or 0.
 doc_row_signals_tmp="$(mktemp)"
-trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instruments_metrics_tmp" "$new_stages_tmp" "$tmp_diff" "$all_rows_tmp" "$required_rows_tmp" "$doc_row_signals_tmp" "$doc_buckets_tmp" "$code_buckets_tmp"' EXIT
+trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instruments_metrics_tmp" "$new_stages_tmp" "$tmp_diff" "$all_rows_tmp" "$required_rows_tmp" "$doc_row_signals_tmp" "$doc_buckets_tmp" "$code_buckets_tmp" "$registered_anywhere_tmp"' EXIT
 : >"$doc_row_signals_tmp"
 if [ -s "$all_rows_tmp" ]; then
   while IFS= read -r row; do
