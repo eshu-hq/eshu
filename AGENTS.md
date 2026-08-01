@@ -276,6 +276,10 @@ skills are active.
   change, edits to `sdk/go/factschema` or `sdk/go/collector`, edits to
   `specs/fact-kind-registry.v1.yaml`, fixture packs, or an Odù overlapping a
   cassette or the B-12 snapshot.
+- MUST add `eshu-humanizer` as the last pass over anything a human reads: PR
+  titles and bodies, review comments and replies, issue comments, commit
+  messages, evidence docs, CHANGELOG entries, and status updates. Applies to
+  text a subagent drafted, not only your own.
 
 ## Golden Rules
 
