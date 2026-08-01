@@ -251,34 +251,62 @@ verifies the evidence was written down, never that it is sound, and it cannot
 see a cause asserted in a PR description or a chat message. The rules above are
 the substance; the gate is the part a script can reach.
 
+### Evidence Must Come From The Failing Run
+
+Do not reason about a failure using state captured from a different run, even on
+the same commit. A run that succeeded proves nothing about the one that failed.
+
+Investigating an intermittent golden-corpus assertion (#5717), three observations
+— edge present, assertion passes by hand, every work item succeeded — all came
+from stacks belonging to runs that had NOT failed; the failing runs were torn
+down on exit with their evidence. An hour of confident reasoning followed, and
+its conclusion was unsupported.
+
+When a harness destroys state on exit, capture what you need DURING the failing
+run (`--keep`, a poller, a dump) or accept that you have none. Before citing an
+artifact, confirm which run produced it.
+
+### Do Not Defer, And Verify The Wiring
+
+"Deserves a fresh start" and "leave it for later" are how a known defect becomes
+someone else's surprise. Fix it now, or name what blocks it.
+
+A function nobody calls is dead code, and a green unit test does not prove the
+feature runs. A formatter with passing tests and no caller shipped here; only a
+full-package build caught it.
+
+### Delegate An Undecided Design, Do Not Escalate It
+
+When evidence contradicts itself or a design has two defensible shapes, dispatch
+a Deep-tier agent to decide (per-harness map in
+[Agent Orchestration Model](agent-orchestration.md#roles-models-and-tools) —
+Fable under Claude Code, Sol under Codex; never assume the other harness has your
+model). Reserve questions for the owner for what only they can know: production
+facts, ownership, business calls.
+
+Give it the symptom and raw observations, never your hypothesis. Twice in one
+session a Deep-tier investigation rejected the framing it was handed and found
+the real mechanism — which worked only because the framing was labelled a guess.
+
+### Test Filters Fail Silently
+
+`-run` and its equivalents are case-sensitive and match zero tests on a typo,
+which reads exactly like a pass. `-run 'IacInventory'` matched nothing where the
+test was `IaCInventory`, and "tests pass" was reported on an empty run. Count the
+tests that ran.
+
 ### Diff-Scoped Gates Default To HEAD~1
 
-Every gate that scopes itself to "the diff" computes that diff against `HEAD~1`
-by default, not against `origin/main`. On a branch with more than one commit this
-silently under-covers: the gate inspects only the last commit, finds nothing to
-check, and passes.
+Gates that scope to "the diff" compute it against `HEAD~1` unless given a base,
+so on a multi-commit branch they inspect only the last commit. Export
+`ESHU_PARSER_RELATIONSHIP_KIT_BASE=origin/main` and
+`ESHU_PERFORMANCE_EVIDENCE_BASE=origin/main` before `make pre-pr`.
 
-Export the base explicitly before `make pre-pr`:
-
-```
-ESHU_PARSER_RELATIONSHIP_KIT_BASE=origin/main
-ESHU_PERFORMANCE_EVIDENCE_BASE=origin/main
-```
-
-The two known members of this family fail in OPPOSITE directions, which decides
-which one you notice. `parser-relationship-kit` false-FAILS, because the docs
-that pair with a parser change landed in an earlier commit the window cannot see
-— loud and self-announcing. `verify-performance-evidence` false-PASSES: run bare
-on a multi-commit branch it reported "no hot files" and exited 0, having examined
-only the final commit while the hot-path files and their markers sat in earlier
-ones.
-
-The dangerous one is the gate that goes green having looked at nothing, since
-that is indistinguishable from a gate that verified your change. When a
-diff-scoped gate passes suspiciously fast, or reports "no <thing> found" on a
-branch you know touches that thing, re-run it with the base pinned before
-believing it. Assume other members of this family exist; the default is
-repo-wide, not per-script.
+The two known members fail in OPPOSITE directions, which decides which you
+notice: `parser-relationship-kit` false-FAILS loudly; `verify-performance-evidence`
+false-PASSES, reporting "no hot files" and exiting 0 with the hot files in earlier
+commits. A gate green from examining nothing is indistinguishable from one that
+verified your change. Assume other members exist.
 
 ### Evidence Capture Pitfalls
 
