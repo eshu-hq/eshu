@@ -127,6 +127,37 @@ has no reader anywhere; per-attribute redaction flags on
 `TestClassifyLambdaOneOfTwoComparisonsIsStillAVerdict` pins the residual so it
 stays a known gap rather than a surprise.
 
+### A redacted attribute is "no signal", not a comparable value (#5859)
+
+`ResourceRow.Attributes` never carries a collector's redaction marker as a
+string. When the terraform-state or AWS-cloud collector fail-closed-redacts
+a scalar (unknown/unparseable provider schema, or a known-sensitive key),
+the persisted attribute is a `{"marker","reason","source"}` object
+(`go/internal/redact.Value`), not a plain string. The `postgres` package
+loaders (`cloudObservedValueAttributes`/`stateDeclaredValueAttributes` in
+`go/internal/storage/postgres/aws_cloud_runtime_drift_value_attributes.go`)
+recognize that shape via `redact.IsRedactedValue` and omit the key from
+`ResourceRow.Attributes` entirely, before `ClassifyValueDrift` ever runs --
+so this package stays ignorant of the marker encoding and a redacted scalar
+falls into the same "missing on this side" bucket as a genuinely absent
+attribute. Before this, a redacted attribute survived the decode as a
+non-empty garbage string (the marker map rendered through `fmt.Sprint`),
+which compared unequal to a real value on the other side and produced a
+false `image_version_drift` whose "declared" or "observed" evidence was an
+internal collector encoding, not real Terraform or AWS data.
+
+This is the input half of the #5837 outcome above, and the two compose: the
+loader turns the marker into an absent attribute, and
+`ClassifyValueComparison` then counts that key as `Uncomparable` rather than
+compared. For `aws_instance`, whose sole allowlisted attribute is `ami`, the
+result is `Comparable=1, Compared=0` -- `value_comparison_inconclusive`, a
+durable row -- rather than either the old false drift or a silent
+convergence the retire would read as permission to delete. Distinguishing
+"genuinely missing" from "redacted, so unknown" per attribute, rather than
+folding both into the same uncomparable bucket, is the residual #5861 tracks
+above; it needs collector-side completeness plumbing and is not something
+this fix resolves.
+
 ### Lambda `version` accuracy note (gated on both sides present)
 
 `aws_lambda_function.version` is a Terraform-computed, not user-declared,

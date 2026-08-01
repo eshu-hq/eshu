@@ -96,6 +96,37 @@ func Scalar(raw any, reason string, source string, key Key) Value {
 	return Bytes(bytes, reason, source, key)
 }
 
+// IsRedactedValue reports whether v is the JSON round-trip shape of a Value
+// produced by String, Bytes, or Scalar: a map[string]any carrying a "marker"
+// field that starts with markerPrefix.
+//
+// Producers embed Value into fact payloads as a plain map (see for example
+// the terraform-state collector's redactionMap and the AWS-cloud collector's
+// RedactString/ClassifyStackOutput helpers) rather than the typed Value
+// struct, because the struct itself never survives a Postgres JSON
+// round-trip: callers that later decode an attributes object generically as
+// `any` only ever see map[string]any, never Value. IsRedactedValue lets those
+// callers recognize a still-redacted leaf after that round-trip and treat it
+// as absent, rather than formatting, comparing, or joining on the marker
+// string as if it were genuine data.
+//
+// The check is shape-based, not a textual prefix match on a raw string
+// value: only a decoded JSON object with a "marker" field qualifies, so a
+// genuine scalar string that merely happens to start with the same text
+// (vanishingly unlikely, but not impossible for free-form input) is never
+// misclassified as redacted.
+func IsRedactedValue(v any) bool {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return false
+	}
+	marker, ok := m["marker"].(string)
+	if !ok {
+		return false
+	}
+	return strings.HasPrefix(marker, markerPrefix)
+}
+
 func marker(raw []byte, reason string, source string, key Key) string {
 	sum := hmac.New(sha256.New, key.material)
 	writeField(sum, []byte("redact.v1"))

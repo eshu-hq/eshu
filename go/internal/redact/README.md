@@ -50,6 +50,10 @@ does not persist raw input or emit telemetry.
   bytes.
 - `Scalar(raw any, reason, source string, key Key) Value` — redacts scalar
   values and fails closed for unsupported values.
+- `IsRedactedValue(v any) bool` — recognizes a JSON round-tripped `Value`
+  (a `map[string]any` with a `"marker"` field carrying the marker prefix) so
+  callers that decode attributes generically after a storage round-trip can
+  treat a still-redacted leaf as absent instead of comparable data.
 
 ## Invariants
 

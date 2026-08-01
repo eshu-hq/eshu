@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
+	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
 // cloudResourceTypeEC2Instance and its siblings are the AWS collector's OWN
@@ -70,15 +71,15 @@ func cloudObservedValueAttributes(
 	}
 	switch resourceType {
 	case cloudResourceTypeEC2Instance:
-		if v := strings.TrimSpace(coerceJSONString(attributes["ami_id"])); v != "" {
+		if v := comparableScalarAttr(attributes, "ami_id"); v != "" {
 			return map[string]string{"ami": v}, nil, false, false
 		}
 	case cloudResourceTypeLambdaFunction, cloudResourceTypeLambdaFunctionProd:
 		out := map[string]string{}
-		if v := strings.TrimSpace(coerceJSONString(attributes["image_uri"])); v != "" {
+		if v := comparableScalarAttr(attributes, "image_uri"); v != "" {
 			out["image_uri"] = v
 		}
-		if v := strings.TrimSpace(coerceJSONString(attributes["version"])); v != "" {
+		if v := comparableScalarAttr(attributes, "version"); v != "" {
 			out["version"] = v
 		}
 		if len(out) > 0 {
@@ -115,15 +116,15 @@ func stateDeclaredValueAttributes(
 	}
 	switch resourceType {
 	case terraformResourceTypeAWSInstance:
-		if v := strings.TrimSpace(coerceJSONString(attributes["ami"])); v != "" {
+		if v := comparableScalarAttr(attributes, "ami"); v != "" {
 			return map[string]string{"ami": v}, nil, false, false
 		}
 	case terraformResourceTypeAWSLambdaFunction:
 		out := map[string]string{}
-		if v := strings.TrimSpace(coerceJSONString(attributes["image_uri"])); v != "" {
+		if v := comparableScalarAttr(attributes, "image_uri"); v != "" {
 			out["image_uri"] = v
 		}
-		if v := strings.TrimSpace(coerceJSONString(attributes["version"])); v != "" {
+		if v := comparableScalarAttr(attributes, "version"); v != "" {
 			out["version"] = v
 		}
 		if len(out) > 0 {
@@ -134,6 +135,41 @@ func stateDeclaredValueAttributes(
 		return nil, result.Images, result.Truncated, result.Degraded
 	}
 	return nil, nil, false, false
+}
+
+// comparableScalarAttr reads one leaf attribute intended for allowlisted
+// value-drift comparison (cloudruntime.ValueAttributeAllowlistFor) off a
+// JSON-decoded attributes object. It returns "" when the attribute is
+// absent, blank, or is still a redact.Value marker map rather than genuine
+// declared/observed data.
+//
+// A redacted scalar must never reach cloudruntime.attrValue as a non-empty
+// string: coerceJSONString has no redaction concept and falls through its
+// default fmt.Sprint(value) branch for an unrecognized map, which previously
+// rendered a redacted "ami" as a garbage string like
+// "map[marker:redacted:hmac-sha256:... reason:unknown_provider_schema
+// source:resources.*.attributes.ami]". That string is present and non-empty,
+// so it compared unequal to a real observed value and fired a false
+// image_version_drift finding whose "declared" evidence was an internal
+// collector encoding, not a value Terraform ever declared (#5859).
+//
+// Recognition happens here, at the decoder boundary, rather than by teaching
+// coerceJSONString or cloudruntime about the redact.Value shape: this keeps
+// the general-purpose leaf coercion helper (used for resource_type, address,
+// and other identity fields that are never redacted) and the
+// backend/provider-neutral cloudruntime package both ignorant of a
+// collector-specific encoding detail. The terraform-state collector already
+// counts every redaction at emission time via the
+// eshu_dp_tfstate_redactions_applied_total{reason} counter (see
+// go/internal/collector/tfstateruntime/metrics.go); this function only stops
+// that already-recorded condition from being misread as comparable data
+// downstream, so it does not need its own counter.
+func comparableScalarAttr(attributes map[string]any, key string) string {
+	value, ok := attributes[key]
+	if !ok || redact.IsRedactedValue(value) {
+		return ""
+	}
+	return strings.TrimSpace(coerceJSONString(value))
 }
 
 // containerImagesTruncatedWarning returns the "container_images_truncated"
