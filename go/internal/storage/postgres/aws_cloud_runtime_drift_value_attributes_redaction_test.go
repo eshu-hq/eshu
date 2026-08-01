@@ -245,3 +245,26 @@ func TestAWSRuntimeStateRowFromPayloadPreservesValueResemblingMarkerText(t *test
 		t.Fatalf("row.Attributes = %#v, want %#v (a plain string must never be treated as a redaction marker)", row.Attributes, want)
 	}
 }
+
+// BenchmarkStateDeclaredValueAttributes measures the decode path this branch
+// changed, on the shape it runs on in production: a real, non-redacted scalar.
+// comparableScalarAttr adds two failed type assertions per allowlisted key
+// (map[string]any, then []any) ahead of the coerceJSONString call the old code
+// made directly, so the cost is the assertions and nothing else -- no
+// allocation, no parsing, no I/O. Recorded so the No-Regression Evidence in
+// go/internal/storage/postgres/README.md names a measurement rather than an
+// assumption.
+func BenchmarkStateDeclaredValueAttributes(b *testing.B) {
+	attributes := map[string]any{
+		"arn":           "arn:aws:ec2:us-east-1:123456789012:instance/i-0123456789abcdef0",
+		"ami":           "ami-0123456789abcdef0",
+		"instance_type": "t3.micro",
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		attrs, _, _, _ := stateDeclaredValueAttributes("aws_instance", attributes)
+		if len(attrs) != 1 {
+			b.Fatalf("stateDeclaredValueAttributes() = %#v, want one comparable attribute", attrs)
+		}
+	}
+}

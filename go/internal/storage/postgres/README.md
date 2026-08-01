@@ -639,6 +639,42 @@ Primary groups:
   `Summary.ValueComparisonInconclusiveResources` (#5837). That is the signal
   an operator reads; a second loader-side detector of the same condition
   could only disagree with it.
+
+No-Regression Evidence (#5859): the redaction check sits on the value-drift
+decode path, so it was measured rather than assumed.
+`BenchmarkStateDeclaredValueAttributes` (in
+`aws_cloud_runtime_drift_value_attributes_redaction_test.go`) runs the
+production shape -- an `aws_instance` payload whose `ami` is a real,
+non-redacted string -- through `stateDeclaredValueAttributes`. Old shape
+(`strings.TrimSpace(coerceJSONString(attributes[key]))`, measured by reverting
+`comparableScalarAttr` in place on this same branch and restoring it
+byte-identically afterwards) against new shape, `-benchtime=2s -count=5`, Go
+1.26 on an Apple M1 Max:
+
+```text
+OLD  118.9  119.6  119.7  120.6  119.6 ns/op   336 B/op   2 allocs/op
+NEW  126.4  121.8  121.0  121.4  121.6 ns/op   336 B/op   2 allocs/op
+```
+
+About +2 ns/op on a ~120 ns/op call, and byte-for-byte identical allocation.
+That is the cost of two failed type assertions per allowlisted key
+(`map[string]any`, then `[]any`) ahead of the coercion the old code called
+directly -- no allocation, no parsing, no extra read. The path runs at most
+twice per state row (`aws_lambda_function` is the widest allowlist entry at two
+keys), so it does not move the reducer's per-generation drift budget. The join
+key's guard (`awsRuntimeStateRowFromPayload`) and `flattenStateAttributes`
+each add one such check per row and per map node respectively, on the same
+no-allocation shape.
+
+No-Observability-Change (#5859): no new metric, span, queue, lease, worker, or
+runtime knob. The one new signal is a `failure_class` value
+(`state_resource_arn_redacted`) on the loader's already-registered decode WARN
+described above; the value-suppression case surfaces through #5837's existing
+`value_comparison_inconclusive` finding kind and its
+`Summary.ValueComparisonInconclusiveResources` counter, not through anything
+added here. The terraform-state collector already counts every redaction at
+emission time on `eshu_dp_tfstate_redactions_applied_total{reason}`.
+
 - `CICDRunWatermarkStore` emits no metrics or spans of its own. Gap
   detection is observed through `ghactionsruntime`'s existing
   `eshu_dp_ci_cd_run_partial_generations_total{reason="runs_backfill_gap"}`
