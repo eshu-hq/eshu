@@ -133,6 +133,9 @@ fixture corpora or offline tooling.
 
 ## Non-Negotiable Rules
 
+Detail and the incident behind each git/worktree rule:
+[Agent Git And Worktree Hygiene](docs/internal/agent-git-hygiene.md).
+
 - MUST use `rg` for all text searches. NEVER use `grep`.
 - MUST use `rg --files` or globbing for file discovery. NEVER use `find`.
 - MUST read local repo docs before searching code or the web.
@@ -141,55 +144,26 @@ fixture corpora or offline tooling.
 - MUST apply TDD when writing or modifying code.
 - MUST keep files under 500 lines; split before they approach the limit.
 - MUST NOT add AI attribution to commits, PRs, or docs.
-- MUST install the repo's pre-commit hooks once per clone
-  (`scripts/dev/bootstrap-hooks.sh`; idempotent, shared across worktrees) and
-  MUST NOT `--no-verify` a commit or a push. The commit-stage gates are fast. The
-  pre-push gate is now fronted by a fast **pre-pr stamp check**: `make pre-pr`
-  writes a per-SHA stamp on success (`scripts/dev/prepr-stamp-verify.sh`), and the
-  push is blocked unless every commit being pushed carries that stamp — so a green
-  local gate is a hard push-time requirement, not something CI first catches. (The
-  existing slow pre-push hooks still run after the stamp check passes, until the
-  follow-up trimming the now-redundant ones lands.) A rebase or amend after
-  `make pre-pr` invalidates the stamp; re-run `make pre-pr` before pushing. The only sanctioned bypass is `ESHU_ALLOW_UNSTAMPED_PUSH=1`, used only
-  when you accept CI as the first gate for that push. CI re-checks every gate
-  regardless and stays the non-bypassable source of truth.
 - MUST NOT push to `main` or `master`.
-- MUST synchronize source to remote test machines through Git fetch and
-  checkout/fast-forward of the reviewed branch. MUST NOT use `rsync` or copy an
-  unreviewed worktree as performance evidence.
-- MUST create git worktrees before executing plans or PRDs.
-- MUST verify `pwd` matches the intended feature worktree before any Edit or
-  Write operation. Run `pwd` and confirm it is the feature worktree path, not
-  the main repo checkout. If an edit lands in the wrong path, stop immediately,
-  report it, and let the user decide how to recover.
+- MUST install the repo's pre-commit hooks once per clone
+  (`scripts/dev/bootstrap-hooks.sh`) and MUST NOT `--no-verify`. `make pre-pr`
+  writes a per-SHA stamp the push requires; a rebase or amend invalidates it.
+- MUST create git worktrees before executing plans or PRDs, and MUST verify
+  `pwd` is that worktree before any Edit or Write.
+- MUST run any tracked-file-mutating command (regenerators, formatters,
+  `go mod tidy`) inside a worktree, including for diagnostics. The main checkout
+  stays a clean fast-forward of `origin/main`.
+- MUST NOT use `git stash` when multiple worktrees may be active — the stash
+  stack is shared and concurrent agents corrupt each other.
+- MUST verify HEAD is on a named branch before every commit
+  (`git symbolic-ref -q HEAD`), and confirm the pushed SHA equals local HEAD
+  before opening or updating a PR.
+- MUST NOT put issue-closing keywords (`Fixes`, `Closes`, `Resolves`, …) in a
+  commit message or PR body unless that issue is meant to close on merge.
+- MUST synchronize remote test machines by Git fetch and checkout of the
+  reviewed branch. NEVER `rsync` an unreviewed worktree as performance evidence.
 - MUST use the same branch/worktree name across repos when one workflow touches
   multiple repos.
-- MUST NOT use `git stash` (or stash pop/apply) when multiple worktrees may be
-  active. The stash stack is shared across all worktrees of a repo, so
-  concurrent agents stashing in different worktrees corrupt each other's
-  uncommitted work. To compare against a clean tree use `git diff`,
-  `git show <ref>:<path>`, or a throwaway worktree.
-- MUST run any command that mutates a tracked file (regenerators,
-  formatters, `go mod tidy`, `go run ./cmd/... -mode generate`, etc.)
-  inside a worktree, even for diagnostic or investigative purposes. The
-  main checkout must remain a clean fast-forward of `origin/main`
-  between merges. A dirty main checkout confuses the next agent and
-  makes the user's own uncommitted work look like the agent's. If a
-  diagnostic mutation has already leaked into the main checkout, stop,
-  run `git restore <file>` against the uncommitted change, fetch, and
-  re-apply the equivalent regeneration inside a worktree if the result
-  is still needed.
-- MUST verify HEAD is on a named branch before every commit: `git symbolic-ref
-  -q HEAD` must succeed. A detached HEAD means a rebase, `checkout <sha>`, or
-  interrupted operation left the branch ref behind; committing there advances
-  nothing, so a later push silently omits the commit. Reattach
-  (`git switch <branch>` / `git rebase --continue`) before committing. After any
-  push, confirm the branch ref advanced — the pushed SHA equals local HEAD —
-  before opening or updating a PR.
-- MUST NOT auto-close issues by accident: never put closing keywords (`Fixes`,
-  `Closes`, `Resolves`, `Partial-closes`, etc.) in a commit message or PR body
-  unless that exact issue is meant to close on merge. Reference issues as
-  `#NNNN` without a closing keyword otherwise.
 - MUST follow Effective Go for Go, Google Python style for Python fixtures or
   tools, strict typing for TypeScript, HashiCorp Terraform practices, and Helm
   chart best practices.
@@ -451,40 +425,25 @@ Docs, root agent files, and README changes require the docs build plus
 
 ## Orchestration, PR, And CI Discipline
 
-These make the marathon multi-PR workflow reliable without re-prompting:
-
-- Prefer dispatching subagents/teams for substantive implementation, review, and
-  research rather than doing everything in one context. Match model capability to
-  task difficulty using the default tier map in
-  [Agent Orchestration Model](docs/internal/agent-orchestration.md#roles-models-and-tools)
-  (Deep / Workhorse / Fast, per harness; Kimi K3 always high). A subagent never
-  downgrades its own model.
+- Prefer dispatching subagents for substantive implementation, review, and
+  research. Match model capability to task difficulty using the tier map in
+  [Agent Orchestration Model](docs/internal/agent-orchestration.md#roles-models-and-tools).
+  A subagent never downgrades its own model.
 - Only the **orchestrator** runs `make pre-pr`, exactly once, immediately before
-  the intended push. Subagents/teams MUST NOT each run `make pre-pr` — the full
-  gate is expensive, and running it per-agent is wasted CPU. Subagents run only
-  the focused verification for their surface and paste it in the handoff. This
-  is not only about cost: `verify-golden-corpus-gate.sh` binds fixed host ports
-  and now holds a cross-worktree mutex for that reason — see
-  [Agent Engineering Guide](docs/internal/agent-guide.md#live-gate-serialization-and-contention)
-  for the failure signature and the serialization/contention rules that follow
-  from it, including checking load before calling an intermittent failure a
-  flake.
-- MUST check open PRs and recent commits for the same root cause before
-  starting work on a newly filed issue, and MUST isolate a pure formatter-drift
-  reformat into its own commit rather than blending it with a real change — see
-  [Agent Engineering Guide](docs/internal/agent-guide.md#duplicate-work-and-formatter-drift-guards)
-  for the incidents both rules were learned from.
-- Before claiming a PR merge-ready: the PR **title AND description** must both be
-  current for the final diff (a reworked approach needs a reworked title, not
-  just a body), and the description MUST include the before/after evidence the
-  change is proven by. Update these as the last step before the readiness claim.
-- When waiting on CI, treat a `gh pr checks` result as complete ONLY after **two
-  consecutive stable reads of the full check set** (`pending == 0` and the total
-  check count unchanged). GitHub registers large check sets in waves, so a single
-  `0-pending` read is a false "done"; never claim CI status or merge on it. State
-  the exact query used when reporting CI status, and reconcile the review-thread
-  API against the PR's displayed unresolved comments before declaring threads
-  clear.
+  the intended push. Subagents MUST NOT each run it — the full gate is expensive
+  and per-agent runs are wasted CPU. They run focused verification only and paste
+  it in the handoff. The live gate binds fixed host ports and holds a cross-worktree mutex:
+  [serialization and contention](docs/internal/agent-guide.md#live-gate-serialization-and-contention).
+- MUST check open PRs and recent commits for the same root cause before starting
+  a newly filed issue, and MUST isolate formatter drift into its own commit:
+  [duplicate-work and formatter-drift guards](docs/internal/agent-guide.md#duplicate-work-and-formatter-drift-guards).
+- Before claiming merge-ready, the PR **title AND description** must both match
+  the final diff, and the description MUST carry the before/after evidence.
+- CI is complete ONLY after **two consecutive stable reads of the full check
+  set** (`pending == 0`, total count unchanged) — large sets register in waves,
+  so a single `0-pending` read is a false done. State the query used. Reconcile
+  the review-thread API against displayed unresolved comments before declaring
+  threads clear.
 
 ## Pre-Ready Checklist
 
