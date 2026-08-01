@@ -140,8 +140,8 @@ func stateDeclaredValueAttributes(
 // comparableScalarAttr reads one leaf attribute intended for allowlisted
 // value-drift comparison (cloudruntime.ValueAttributeAllowlistFor) off a
 // JSON-decoded attributes object. It returns "" when the attribute is
-// absent, blank, or is still a redact.Value marker map rather than genuine
-// declared/observed data.
+// absent, blank, or is still a redaction marker (see redactedAnywhere)
+// rather than genuine declared/observed data.
 //
 // A redacted scalar must never reach cloudruntime.attrValue as a non-empty
 // string: coerceJSONString has no redaction concept and falls through its
@@ -166,10 +166,40 @@ func stateDeclaredValueAttributes(
 // downstream, so it does not need its own counter.
 func comparableScalarAttr(attributes map[string]any, key string) string {
 	value, ok := attributes[key]
-	if !ok || redact.IsRedactedValue(value) {
+	if !ok || redactedAnywhere(value) {
 		return ""
 	}
 	return strings.TrimSpace(coerceJSONString(value))
+}
+
+// redactedAnywhere reports whether value is itself a redaction marker map, or
+// an array wrapping one. terraformstate.applyLeafClassification recurses
+// redaction into array elements for composite (repeated-block) attributes,
+// so a future addition to cloudruntime.ValueAttributeAllowlistFor that names
+// a composite attribute would decode as []any{map[string]any{marker}} rather
+// than a bare marker map. redact.IsRedactedValue alone only recognizes the
+// bare-map shape, so without this the same garbage-string bug
+// comparableScalarAttr exists to prevent (#5859) would resurface silently
+// the moment such an attribute was allowlisted. None of today's three
+// allowlisted keys (ami, image_uri, version) are ever emitted as arrays, so
+// this is a latent guard, not a live fix -- see
+// TestComparableScalarAttrTreatsArrayWrappedRedactionMarkerAsAbsent, which
+// pins the boundary by failing if this function is reverted to a bare
+// redact.IsRedactedValue(value) check.
+func redactedAnywhere(value any) bool {
+	if redact.IsRedactedValue(value) {
+		return true
+	}
+	arr, ok := value.([]any)
+	if !ok {
+		return false
+	}
+	for _, elem := range arr {
+		if redact.IsRedactedValue(elem) {
+			return true
+		}
+	}
+	return false
 }
 
 // containerImagesTruncatedWarning returns the "container_images_truncated"
