@@ -135,11 +135,37 @@ func TestExtractDeclaredContainerImagesNeverLeaksNonImageFields(t *testing.T) {
 		t.Fatalf("ExtractDeclaredContainerImages() leaked a secret ARN reference into its result: %s", rendered)
 	}
 
-	// The result type itself must carry no field capable of holding
-	// anything but the bounded image list and the truncation flag.
+	// The result type itself must carry no field capable of holding source
+	// content. The bound is asserted structurally rather than by field count
+	// alone: Images is the only field permitted to carry a value read out of
+	// the container definitions, and every other field must be a bool, so no
+	// future edit can smuggle an environment map or a secret ARN through by
+	// adding a string or an any-typed field.
 	resultType := reflect.TypeOf(got)
-	if resultType.NumField() != 2 {
-		t.Fatalf("ContainerImageExtractionResult has %d fields, want exactly 2 (Images, Truncated) to keep the security bound reviewable: %#v", resultType.NumField(), got)
+	wantFields := map[string]reflect.Kind{
+		"Images":    reflect.Slice,
+		"Truncated": reflect.Bool,
+		"Degraded":  reflect.Bool,
+	}
+	if resultType.NumField() != len(wantFields) {
+		t.Fatalf(
+			"ContainerImageExtractionResult has %d fields, want exactly %d (%v) to keep the security bound reviewable: %#v",
+			resultType.NumField(), len(wantFields), wantFields, got,
+		)
+	}
+	for i := range resultType.NumField() {
+		field := resultType.Field(i)
+		wantKind, allowed := wantFields[field.Name]
+		if !allowed {
+			t.Fatalf("ContainerImageExtractionResult carries unexpected field %q: only %v are permitted", field.Name, wantFields)
+		}
+		if field.Type.Kind() != wantKind {
+			t.Fatalf(
+				"ContainerImageExtractionResult.%s is %s, want %s: only Images may carry a value read out of the "+
+					"container definitions",
+				field.Name, field.Type.Kind(), wantKind,
+			)
+		}
 	}
 }
 
@@ -233,5 +259,69 @@ func TestExtractObservedContainerImagesCapsAtBound(t *testing.T) {
 	}
 	if !got.Truncated {
 		t.Fatalf("ExtractObservedContainerImages() Truncated = false, want true when source exceeds the bound")
+	}
+}
+
+// TestExtractContainerImagesDistinguishesDegradedFromAbsent covers the #5837
+// half of this file: an unreadable container-definitions value must not be
+// reported the same way as an absent one.
+//
+// The terraform-state collector fail-closed-redacts scalar attributes when its
+// provider-schema resolver is nil or a schema bundle fails to parse, replacing
+// the JSON string with a marker OBJECT. That failed the string type assertion
+// and yielded an empty image set with a nil error, so the comparison came out
+// ambiguous and — before the value_comparison_inconclusive kind existed —
+// classified as convergence, letting the retire delete a true drift finding.
+func TestExtractContainerImagesDistinguishesDegradedFromAbsent(t *testing.T) {
+	t.Parallel()
+
+	declaredCases := []struct {
+		name         string
+		input        any
+		wantImages   int
+		wantDegraded bool
+	}{
+		{name: "absent_nil", input: nil},
+		{name: "absent_blank_string", input: "   "},
+		{name: "degraded_redaction_marker_object", input: map[string]any{"redacted": true}, wantDegraded: true},
+		{name: "degraded_already_decoded_slice", input: []any{map[string]any{"image": "repo/app:v1"}}, wantDegraded: true},
+		{name: "degraded_unparseable_string", input: "{not json", wantDegraded: true},
+		{name: "readable", input: `[{"image":"repo/app:v1"}]`, wantImages: 1},
+	}
+	for _, tc := range declaredCases {
+		t.Run("declared_"+tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := ExtractDeclaredContainerImages(tc.input)
+			if len(got.Images) != tc.wantImages {
+				t.Fatalf("Images = %#v, want %d", got.Images, tc.wantImages)
+			}
+			if got.Degraded != tc.wantDegraded {
+				t.Fatalf("Degraded = %v, want %v for %#v", got.Degraded, tc.wantDegraded, tc.input)
+			}
+		})
+	}
+
+	observedCases := []struct {
+		name         string
+		input        any
+		wantImages   int
+		wantDegraded bool
+	}{
+		{name: "absent_nil", input: nil},
+		{name: "degraded_redaction_marker_object", input: map[string]any{"redacted": true}, wantDegraded: true},
+		{name: "degraded_string", input: `[{"image":"repo/app:v1"}]`, wantDegraded: true},
+		{name: "readable", input: []any{map[string]any{"image": "repo/app:v1"}}, wantImages: 1},
+	}
+	for _, tc := range observedCases {
+		t.Run("observed_"+tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := ExtractObservedContainerImages(tc.input)
+			if len(got.Images) != tc.wantImages {
+				t.Fatalf("Images = %#v, want %d", got.Images, tc.wantImages)
+			}
+			if got.Degraded != tc.wantDegraded {
+				t.Fatalf("Degraded = %v, want %v for %#v", got.Degraded, tc.wantDegraded, tc.input)
+			}
+		})
 	}
 }

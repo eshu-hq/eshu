@@ -24,12 +24,12 @@ const MaxContainerImagesPerResource = 8
 // this as an operator-facing warning rather than silently dropping the
 // excess containers.
 //
-// This struct intentionally carries no field beyond Images and Truncated --
-// see TestExtractDeclaredContainerImagesNeverLeaksNonImageFields, which
-// fails the build's own review contract if a future edit adds one. Every
-// other property of a container definition (environment, secrets,
-// logConfiguration, command, entryPoint, portMappings, ...) must never
-// reach this type.
+// This struct intentionally carries no field beyond Images and the two
+// bounded booleans -- see TestExtractDeclaredContainerImagesNeverLeaksNonImageFields,
+// which fails the build's own review contract if a future edit adds a field
+// capable of holding source content. Every other property of a container
+// definition (environment, secrets, logConfiguration, command, entryPoint,
+// portMappings, ...) must never reach this type.
 type ContainerImageExtractionResult struct {
 	// Images is the bounded, deduplicated list of container image
 	// references, in first-seen source order.
@@ -37,6 +37,17 @@ type ContainerImageExtractionResult struct {
 	// Truncated is true when the source container list carried more
 	// distinct images than MaxContainerImagesPerResource.
 	Truncated bool
+	// Degraded is true when the source carried a container-definitions value
+	// that could NOT be read: a non-string container_definitions (a redaction
+	// marker object, for instance), a non-slice observed containers value, or
+	// a container_definitions string that failed to parse as JSON.
+	//
+	// It is not the same as absent. An absent value (nil, or a blank string)
+	// leaves Degraded false, because there is genuinely nothing to compare.
+	// A degraded value means evidence EXISTS and we could not use it, which is
+	// what an operator has to fix. Both yield an empty Images, so without this
+	// flag the two are indistinguishable downstream (#5837).
+	Degraded bool
 }
 
 // declaredContainerDefinition is the ONLY shape ExtractDeclaredContainerImages
@@ -57,20 +68,30 @@ type declaredContainerDefinition struct {
 // field of each container, bounded at MaxContainerImagesPerResource.
 //
 // containerDefinitions must be the raw attribute value as decoded from the
-// terraform_state_resource payload's attributes map (a string; any other
-// Go type, including an already-decoded []any, yields an empty result
-// because the collector never emits container_definitions pre-parsed).
-// Malformed JSON, a non-array top-level value, or a nil input all yield an
-// empty, non-truncated result rather than an error -- the caller treats
-// missing declared evidence as "no signal", never as a value mismatch.
+// terraform_state_resource payload's attributes map (a string; the collector
+// never emits container_definitions pre-parsed). Malformed JSON, a non-array
+// top-level value, a non-string Go type, or a nil input all yield an empty
+// result rather than an error -- the caller treats missing declared evidence
+// as "no signal", never as a value mismatch.
+//
+// The empty results are not all the same, though, and the Degraded flag is
+// the difference. A nil or blank input is genuinely ABSENT. A non-string value
+// -- which is exactly what the terraform-state collector's fail-closed
+// redaction produces when its provider-schema resolver is nil or a schema
+// bundle failed to parse, replacing the scalar with a marker OBJECT -- is
+// DEGRADED, as is a string that will not parse. Reporting those as absent is
+// what let a value comparison collapse into a false convergence (#5837).
 func ExtractDeclaredContainerImages(containerDefinitions any) ContainerImageExtractionResult {
 	raw, ok := containerDefinitions.(string)
-	if !ok || strings.TrimSpace(raw) == "" {
+	if !ok {
+		return ContainerImageExtractionResult{Degraded: containerDefinitions != nil}
+	}
+	if strings.TrimSpace(raw) == "" {
 		return ContainerImageExtractionResult{}
 	}
 	var parsed []declaredContainerDefinition
 	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
-		return ContainerImageExtractionResult{}
+		return ContainerImageExtractionResult{Degraded: true}
 	}
 	images := make([]string, 0, len(parsed))
 	for _, container := range parsed {
@@ -91,11 +112,13 @@ func ExtractDeclaredContainerImages(containerDefinitions any) ContainerImageExtr
 // this function reads only the "image" key off each element and never
 // touches any other key, so those fields never reach the drift evidence
 // surface. A non-[]any input, a non-map element, or a missing/blank "image"
-// key is skipped rather than erroring.
+// key is skipped rather than erroring. A non-nil value of any other Go type is
+// reported as Degraded, on the same absent-versus-unreadable distinction
+// ExtractDeclaredContainerImages documents (#5837).
 func ExtractObservedContainerImages(containers any) ContainerImageExtractionResult {
 	list, ok := containers.([]any)
 	if !ok {
-		return ContainerImageExtractionResult{}
+		return ContainerImageExtractionResult{Degraded: containers != nil}
 	}
 	images := make([]string, 0, len(list))
 	for _, item := range list {
@@ -135,5 +158,7 @@ func boundedContainerImages(images []string) ContainerImageExtractionResult {
 	if len(out) == 0 {
 		out = nil
 	}
+	// Degraded stays false here: this path was reached with a value that
+	// parsed, so anything missing from it was genuinely absent from the source.
 	return ContainerImageExtractionResult{Images: out, Truncated: truncated}
 }

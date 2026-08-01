@@ -336,7 +336,7 @@ func awsRuntimeDriftFindingsSchema() map[string]any {
 			"finding_kinds": map[string]any{
 				"type":        "array",
 				"items":       map[string]any{"type": "string"},
-				"description": "Optional finding kinds: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, ambiguous_cloud_resource, or image_version_drift",
+				"description": "Optional finding kinds: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, ambiguous_cloud_resource, image_version_drift, or value_comparison_inconclusive",
 			},
 			"limit": map[string]any{
 				"type":        "integer",

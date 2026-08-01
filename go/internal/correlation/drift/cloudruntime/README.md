@@ -75,6 +75,58 @@ signal", never a false-positive drift (mirrors
 precedence: value drift can only fire once cloud+state+config are already
 known to converge.
 
+### "No signal" is a finding, not silence (#5837)
+
+`ClassifyValueComparison` is the authority behind all of this, and it reports
+three things rather than one: which comparisons DRIFTED, which were actually
+COMPARED, and which were UNCOMPARABLE. `Classify` needs the distinction because
+the drifted list is empty both when every comparison agreed and when none could
+be made, and those two must not produce the same answer.
+
+An empty return from `Classify` means CONVERGENCE, and that is load-bearing
+downstream: `BuildCandidates` drops the ARN, so the reducer's
+generation-authoritative retire deletes whatever finding the ARN previously
+held. So when a resource type value drift COVERS has zero successful
+comparisons, `Classify` returns `value_comparison_inconclusive` instead --
+a durable finding whose `management_status` is `unknown_management`, whose
+`missing_evidence` names each uncomparable attribute as
+`comparable_attribute:<key>`, and whose recommended action is
+`expand_collector_coverage_or_permissions`.
+
+That path is reachable with nothing upstream asserting a failure. The
+terraform-state collector fail-closed-redacts scalar attributes when its
+provider-schema resolver is nil or a schema bundle fails to parse
+(`terraformstate/schema_resolver.go`; `LoadPackagedSchemaResolver` returns
+`nil, nil` and `parseSchemaInto` skips a corrupt bundle, and
+`cmd/collector-terraform-state/config.go` accepts a nil resolver as non-fatal).
+The condition is sticky per deployment, so a replay repeats the deletion rather
+than healing it. Reporting explicit uncertainty replaces the stale drift claim
+instead of destroying it, and the finding self-heals into `image_version_drift`
+-- or into nothing, on a real convergence -- the moment the evidence returns.
+
+A resource type with no allowlist entry, and which is not the ECS task
+definition, is NOT covered and never becomes inconclusive: it has nothing to
+compare by design, so it still converges.
+
+### The value-completeness residual this does NOT close (#5861)
+
+`value_comparison_inconclusive` fires only when NOT ONE comparison succeeded.
+`aws_lambda_function` is covered for two attributes, so a pass where `image_uri`
+is redacted while `version` compares equal has one successful comparison, is
+therefore a verdict, and an `image_uri` drift that exists in reality is still
+retired. Making one-of-two inconclusive is not the fix: `image_uri` is
+legitimately absent for every zip-packaged Lambda, so that would put a finding
+on most functions in a corpus.
+
+Closing it needs per-attribute completeness plumbing from the collector -- a
+declared-side signal saying "this attribute was redacted" as opposed to "this
+attribute is not set". The durable, fenced `aws_scan_status` table
+(`go/internal/storage/postgres/aws_scan_status.go`) is half of it and currently
+has no reader anywhere; per-attribute redaction flags on
+`terraform_state_resource` would be the other half. Tracked as #5861;
+`TestClassifyLambdaOneOfTwoComparisonsIsStillAVerdict` pins the residual so it
+stays a known gap rather than a surprise.
+
 ### Lambda `version` accuracy note (gated on both sides present)
 
 `aws_lambda_function.version` is a Terraform-computed, not user-declared,
@@ -107,7 +159,15 @@ discarded by `json.Unmarshal` itself or never read. Both are capped at
 `MaxContainerImagesPerResource` (8) images; a source carrying more sets
 `ContainerImageExtractionResult.Truncated`, which the postgres loaders
 surface as the `container_images_truncated` warning flag rather than
-silently dropping the excess. See
+silently dropping the excess.
+
+A value that cannot be READ is separate from one that is absent. A non-string
+`container_definitions` (the redaction marker is an OBJECT), a non-slice
+observed `containers`, or a `container_definitions` string that fails to parse
+all set `ContainerImageExtractionResult.Degraded`, which the loaders surface as
+the `container_images_unreadable` warning flag (#5837). Both cases still yield
+an empty image set, so the comparison is uncomparable either way -- but only the
+degraded one tells an operator there is something to fix. See
 `container_image_extract_test.go`'s `TestExtract*NeverLeaksNonImageFields`
 and `TestExtract*CapsAtBound` for the enforced proof.
 
@@ -124,6 +184,25 @@ corresponds to by position or name; a genuinely drifted non-essential
 container in a multi-container task definition is under-reported rather than
 risking a false positive. Promoting this to a name-keyed per-container
 comparison is a follow-up, not part of #5453's scope.
+
+Since #5837 the two ambiguous shapes take DIFFERENT outcomes, and the line
+between them is whether the gap can change from one pass to the next:
+
+- **Either side empty** -- the images were unreadable (`Degraded`) or the
+  collector never produced them. A healthier pass on the same ARN can carry
+  images and reach a real verdict, so silence here would let the
+  generation-authoritative retire delete the verdict that pass wrote. This
+  counts as covered-but-uncomparable and classifies
+  `value_comparison_inconclusive`.
+- **More than one observed image** -- both sides carry images and only the
+  pairing is undecidable. That is the task definition's own shape, identical
+  on every pass, so no pass ever produced a finding here and none can lose
+  one. It stays the bounded under-reporting gap described above: value drift
+  simply does not cover the shape, and a healthy multi-container task
+  definition produces no finding at all. Emitting inconclusive for it would
+  put an un-actionable row on every sidecar task definition in a corpus,
+  forever -- the same noise argument that keeps the #5861 lambda residual
+  from being "fixed" the same wrong way.
 
 ### RDS/generic `engine_version` drift is a documented bounded gap
 

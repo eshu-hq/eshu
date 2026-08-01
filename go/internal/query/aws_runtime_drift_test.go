@@ -381,12 +381,17 @@ func TestHandleAWSRuntimeDriftFindingsDefaultKindsIncludeImageVersionDrift(t *te
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
+	// value_comparison_inconclusive (#5837) is in the default set for the same
+	// reason image_version_drift is: it REPLACES a drift finding whose evidence
+	// went unreadable, so excluding it by default would put the drift row's
+	// disappearance back on this page with nothing in its place.
 	wantKinds := []string{
 		"ambiguous_cloud_resource",
 		"image_version_drift",
 		"orphaned_cloud_resource",
 		"unknown_cloud_resource",
 		"unmanaged_cloud_resource",
+		"value_comparison_inconclusive",
 	}
 	if got := observed.FindingKinds; !reflect.DeepEqual(got, wantKinds) {
 		t.Fatalf("observed.FindingKinds = %#v, want %#v", got, wantKinds)
@@ -440,14 +445,19 @@ func TestHandleAWSRuntimeDriftFindingsBlankKindsStillWidenDefault(t *testing.T) 
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
+	// value_comparison_inconclusive (#5837) is in the default set for the same
+	// reason image_version_drift is: it REPLACES a drift finding whose evidence
+	// went unreadable, so excluding it by default would put the drift row's
+	// disappearance back on this page with nothing in its place.
 	wantKinds := []string{
 		"ambiguous_cloud_resource",
 		"image_version_drift",
 		"orphaned_cloud_resource",
 		"unknown_cloud_resource",
 		"unmanaged_cloud_resource",
+		"value_comparison_inconclusive",
 	}
 	if got := observed.FindingKinds; !reflect.DeepEqual(got, wantKinds) {
-		t.Fatalf("observed.FindingKinds = %#v, want %#v (blank kinds must not skip the image_version_drift widening)", got, wantKinds)
+		t.Fatalf("observed.FindingKinds = %#v, want %#v (blank kinds must not skip the value-drift widening)", got, wantKinds)
 	}
 }

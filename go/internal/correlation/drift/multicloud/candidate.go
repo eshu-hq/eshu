@@ -145,6 +145,24 @@ func appendManagementEvidence(
 		evidence = append(evidence, atom(candidateID+"/missing/"+missing, evidenceType, scope, "missing_evidence", missing))
 	}
 
+	// Row.MissingEvidence is loader-populated and describes EXISTENCE gaps (a
+	// whole layer absent). value_comparison_inconclusive is a VALUE gap: every
+	// layer is present and no attribute could be compared, so the names live in
+	// the comparison rather than on the row. Deriving them here is what makes
+	// the OpenAPI promise -- that this kind names the unreadable attributes in
+	// missing_evidence -- true on this route as well as the AWS one (#5837).
+	if kind == cloudruntime.FindingKindValueComparisonInconclusive {
+		for _, attr := range cloudruntime.ClassifyValueComparison(row.Cloud, row.State).Uncomparable {
+			evidence = append(evidence, atom(
+				candidateID+"/uncomparable/"+attr,
+				EvidenceTypeCoverageGap,
+				scope,
+				"missing_evidence",
+				"comparable_attribute:"+attr,
+			))
+		}
+	}
+
 	for _, warning := range sortedNonEmpty(row.WarningFlags) {
 		evidenceType := EvidenceTypeWarningFlag
 		if status == cloudruntime.ManagementStatusAmbiguous {
@@ -279,6 +297,15 @@ func managementStatusForFinding(kind cloudruntime.FindingKind) string {
 		return cloudruntime.ManagementStatusUnknown
 	case cloudruntime.FindingKindAmbiguousCloudResource:
 		return cloudruntime.ManagementStatusAmbiguous
+	case cloudruntime.FindingKindValueComparisonInconclusive:
+		// Mirrors cloudruntime.managementStatusForFinding: ownership is already
+		// proven for this kind, so the status carries the COVERAGE verdict
+		// instead, and unknown_management is what routes the finding to
+		// expand_collector_coverage_or_permissions rather than the generic
+		// review_evidence (#5837). image_version_drift deliberately keeps the
+		// empty fallthrough in both paths -- there the evidence WAS readable,
+		// so there is no coverage verdict to carry.
+		return cloudruntime.ManagementStatusUnknown
 	default:
 		return ""
 	}

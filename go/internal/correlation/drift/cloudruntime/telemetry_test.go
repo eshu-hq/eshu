@@ -68,6 +68,39 @@ func TestRecordEvaluationEmitsOrphanAndUnmanagedCounters(t *testing.T) {
 	})
 }
 
+// TestRecordEvaluationCountsValueComparisonInconclusiveResources proves
+// Summary.ValueComparisonInconclusiveResources increments for an admitted
+// value_comparison_inconclusive finding (#5837): an EC2 instance whose
+// Terraform-declared and AWS-observed "ami" attribute are both missing, so
+// value drift covers the resource type (ValueAttributeAllowlistFor(
+// "aws_instance") returns ["ami"]) but not one comparable value could be
+// compared. Without this test, ValueComparisonInconclusiveResources never
+// incrementing is unobserved by any test.
+func TestRecordEvaluationCountsValueComparisonInconclusiveResources(t *testing.T) {
+	t.Parallel()
+
+	inst, _ := newCloudRuntimeInstruments(t)
+	arn := "arn:aws:ec2:us-east-1:123456789012:instance/i-degraded"
+	candidates := BuildCandidates([]AddressedRow{
+		{
+			ARN:          arn,
+			ResourceType: "aws_instance",
+			Cloud:        &ResourceRow{ARN: arn, ResourceType: "aws_instance"},
+			State:        &ResourceRow{ARN: arn, ResourceType: "aws_instance"},
+			Config:       &ResourceRow{ARN: arn, ResourceType: "aws_instance"},
+		},
+	}, "aws_account:123456789012:us-east-1")
+
+	evaluation, err := engine.Evaluate(rules.AWSCloudRuntimeDriftRulePack(), candidates)
+	if err != nil {
+		t.Fatalf("Evaluate() error = %v, want nil", err)
+	}
+	summary := RecordEvaluation(context.Background(), inst, evaluation)
+	if summary.ValueComparisonInconclusiveResources != 1 {
+		t.Fatalf("summary.ValueComparisonInconclusiveResources = %d, want 1", summary.ValueComparisonInconclusiveResources)
+	}
+}
+
 func TestRecordEvaluationKeepsARNOutOfMetricLabels(t *testing.T) {
 	t.Parallel()
 

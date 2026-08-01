@@ -1441,13 +1441,14 @@ candidate/skipped/loaded counts. A high skip ratio against a stable catalog is
 the operator-visible signal the memo is effective; a skip ratio that collapses to
 zero signals a catalog churn or a memo-write regression.
 
-### Cross-scope correlation reopen (#5423 / #5710 / #5426)
+### Cross-scope correlation reopen (#5423 / #5710 / #5426 / #5837)
 
 `CrossScopeCorrelationReopenDomains` (`ingestion_reopen_correlation.go`) is the
 single source of truth for the reducer domains replayed after a maintenance
 pass: `deployable_unit_correlation`,
 `kubernetes_correlation_materialization`, `container_image_identity`,
-`ci_cd_run_correlation`, `supply_chain_impact`. Both runtimes consume it — the
+`ci_cd_run_correlation`, `supply_chain_impact`, `aws_cloud_runtime_drift`. Both
+runtimes consume it — the
 ingester on every shard drain through `reopenMaintenanceWorkItemsInTransaction`,
 and `eshu-bootstrap-index` once through its `correlation_reopen` phase.
 
@@ -1538,8 +1539,10 @@ Postgres 16.14, floor-only spans 19.2-20.3 ms and floor plus
 original claim rested on cannot establish a constant, so its "+0.3 ms constant"
 wording claimed more than it had. What the accumulated pairs do establish is a
 small, reproducible cost of about +0.3 ms — roughly 2% of the listing, under
-0.05% of the pass's 5.5 s once the five listings are counted. Immaterial, but a
-cost, not noise.
+0.05% of the pass's 5.5 s once the five listings are counted (the five-domain
+pass; #5837 added a sixth and re-measured it at 5.927 s, which only makes the
+fraction smaller — see the six-domain no-regression table below).
+Immaterial, but a cost, not noise.
 
 Judge it on the paired gap's sign, not on either arm's spread across runs: the
 arms share a machine, a script, and a run, so pairing cancels the between-run
@@ -1585,11 +1588,37 @@ versus 2 m 17 s and 112 500 round-trips unbounded (22 500 x 5). Measured by
 (`ESHU_CORRELATION_REOPEN_COST_PROOF_DSN`-gated), over a loopback connection —
 a networked Postgres pays more per round-trip.
 
+No-Regression Evidence: #5837 adds `aws_cloud_runtime_drift` as a sixth
+reopened domain, so the five-domain figures above were re-run at six rather
+than scaled on paper. Same test, same corpus shape, same loopback topology,
+Postgres 16.14. Measured on the pre-reconcile branch tip
+(`5837-drift-reopen-prereconcile` = `12bd12dc8`), carried forward unchanged
+into this reconciled branch rather than re-measured on this diff's HEAD — the
+six-domain figures below are inherited provenance, not a claim proven on this
+commit:
+
+| | five domains | six domains |
+| --- | --- | --- |
+| bounded pass | 5.5 s, 4500 rows | **5.927 s, 5400 rows** |
+| listings only | 74 ms | **91 ms** |
+| unbounded pass | 2 m 17 s, 112 500 rows | **2 m 31.7 s, 135 000 rows** |
+
+Bounded steady state re-measured at 5.801 s. The added domain costs about
++0.4 s per drain on this corpus, against +20% reopened rows (4500 -> 5400) —
+sublinear, because the per-domain listing is 91 ms across all six and the round
+trips dominate (91 ms is the total across all six listings, about 15 ms each).
+Nothing here is a regression in the per-row cost; the pass got
+proportionally bigger, not slower per unit of work. `docker run postgres:16` on
+a throwaway container, `TestCorrelationReopenPerDrainCostProof` with
+`ESHU_CORRELATION_REOPEN_COST_PROOF_DSN` set, exit 0 in 171 s.
+
 **Not measured**: the downstream cost of the reducer RE-EXECUTING each reopened
 item. The steady state is one work item per active scope per domain handed back
-to the reducer on every drain, indefinitely — 4500 at this corpus size — and two
-of the five domains write graph edges when they run. The floor bounds that count
-at O(active scopes); it does not remove it. The durable fix is #5709's
+to the reducer on every drain, indefinitely — 5400 at this corpus size — and two
+of the six domains write graph edges when they run
+(`aws_cloud_runtime_drift` writes durable fact rows via
+`WriteAWSCloudRuntimeDriftFindings`, not graph edges). The floor bounds that
+count at O(active scopes); it does not remove it. The durable fix is #5709's
 activation-driven re-enqueue, which replaces the replay rather than bounding it.
 `docs/internal/evidence/5426-reopen-update-cost.sql` remains for history; its
 server-side `UPDATE` loop excludes exactly the round-trips that dominate here.
@@ -1836,7 +1865,7 @@ every shard's own logs.
 `TestIngestionStoreWaitDeferredMaintenanceBarrierCompletionStallLogNamesMissingShards`
 proves the missing set is named directly, not just a count.
 
-All five domains reopen in one
+All six domains reopen in one
 unordered transaction, so a `container_image_identity` ->
 `ci_cd_run_correlation` -> `supply_chain_impact` chain advances by at most one
 link per drain — measured on the gate corpus, one maintenance pass leaves the

@@ -33,7 +33,7 @@
     "graph_query": {
       "baseline_seconds": 3,
       "gated": true,
-      "note": "eshu-api + eshu-mcp-server startup before the assertion phase (excludes the gate's own assertion time)"
+      "note": "eshu-api + eshu-mcp-server startup before the assertion phase (excludes the gate's own assertion time). #5837: assertion work that runs BETWEEN the phase's start and end stamps must be bracketed by the orchestrator (phase_graph_query_excluded_starts/_ends, one matching-index pair per bracket, summed -- #5837 P2-8/156c8d2d1) so it is subtracted, not billed to startup. #5465's suppression producer proof is the first such block, and it floors itself at 20s via its own expiry wait -- above this phase's 8s effective ceiling (3s baseline + 5s absolute_slack_seconds) on any host, provable from source without a measurement. (The ~23s figure quoted elsewhere for this phase is an illustrative local reading, not a captured one.) Bracket any future in-window proof the same way rather than widening this number."
     }
   },
   "regression_policy": {

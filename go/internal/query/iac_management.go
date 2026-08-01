@@ -28,6 +28,13 @@ const (
 	// layer's classifier, not a query-facing type), so the literal is kept in
 	// lockstep by hand and by TestNormalizeIaCManagementFindingKindsAcceptsImageVersionDrift.
 	findingKindImageVersionDrift = "image_version_drift"
+	// findingKindValueComparisonInconclusive is
+	// cloudruntime.FindingKindValueComparisonInconclusive (#5837), restated here
+	// for the same layering reason as the constant above. It is the value axis's
+	// degraded-evidence outcome: cloud, state, and config all agree the resource
+	// is Terraform-managed, but not one comparable value could be compared, so
+	// the finding asserts uncertainty rather than convergence.
+	findingKindValueComparisonInconclusive = "value_comparison_inconclusive"
 )
 
 // IaCManagementStore reads reducer-materialized cloud management findings.
@@ -395,6 +402,10 @@ func normalizeIaCManagementFindingKinds(raw []string) ([]string, error) {
 		findingKindUnmanagedCloudResource: true,
 		findingKindUnknownCloudResource:   true,
 		findingKindImageVersionDrift:      true,
+		// #5837: a caller must be able to ASK for the degraded-evidence rows,
+		// otherwise the only way to see them is to widen a page that also
+		// carries real drift.
+		findingKindValueComparisonInconclusive: true,
 	}
 	seen := map[string]struct{}{}
 	var kinds []string

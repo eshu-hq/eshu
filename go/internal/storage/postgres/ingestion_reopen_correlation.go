@@ -134,8 +134,9 @@ func CrossScopeCorrelationReopenDomains() []string {
 // on every drain, growing linearly with generation count, and the reducer would
 // then re-terminalize it — pure churn. Measured on 900 scopes x 25 generations
 // (docs/internal/evidence/5426-reopen-bound-proof.sql): 22 551 rows unbounded
-// versus 903 with the floor, per domain; 112 500 versus 4 500 across the five
-// domains this pass replays.
+// versus 903 with the floor, per domain; 135 000 versus 5 400 across the six
+// domains this pass replays (#5837 adds aws_cloud_runtime_drift as the sixth;
+// see the six-domain No-Regression Evidence table in this package's README).
 //
 // The floor must cover THREE shapes of "no active generation", not just the
 // happy one, because active_generation_id is nullable AND carries no foreign
@@ -238,8 +239,8 @@ func CrossScopeCorrelationReopenDomains() []string {
 // 902, the whole difference being the failed scope's one perpetually-churning
 // row.
 //
-// A pass runs five of these listings, so the exclusion is under 0.05% of its
-// 5.5 s wall time — cheap against the churn it removes.
+// A pass runs six of these listings, so the exclusion is under 0.05% of its
+// 5.927 s wall time — cheap against the churn it removes.
 //
 // The work_generation join is inner, which is safe only because both of its
 // legs hold for every row.
@@ -272,8 +273,8 @@ func CrossScopeCorrelationReopenDomains() []string {
 //
 // The listing is NOT where this pass spends its time. Production issues one
 // client round-trip per reopened row (ReopenSucceededReducerWorkItems loops over
-// queue.ReopenSucceeded), so at the same scale the five listings cost 74 ms
-// together while the whole pass costs 5.5 s — and the pre-change ingester
+// queue.ReopenSucceeded), so at the same scale the six listings cost 91 ms
+// together while the whole pass costs 5.927 s — and the pre-change ingester
 // baseline was ZERO, because it ran none of this. See
 // TestCorrelationReopenPerDrainCostProof for the measurement and for the part
 // no shim measures: the reducer re-executing every reopened item on every
