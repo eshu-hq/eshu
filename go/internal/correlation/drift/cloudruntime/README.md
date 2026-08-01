@@ -156,7 +156,10 @@ convergence the retire would read as permission to delete. Distinguishing
 "genuinely missing" from "redacted, so unknown" per attribute, rather than
 folding both into the same uncomparable bucket, is the residual #5861 tracks
 above; it needs collector-side completeness plumbing and is not something
-this fix resolves.
+this fix resolves. Whether the collector should fail-closed-redact at all
+when its provider-schema resolver is nil -- and whether identity anchors
+such as `arn` should be exempt from that fail-closure -- is the upstream
+policy question, tracked on #5870.
 
 ### Lambda `version` accuracy note (gated on both sides present)
 

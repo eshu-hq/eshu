@@ -203,7 +203,18 @@ func (l PostgresAWSCloudRuntimeDriftEvidenceLoader) loadActiveStateResourcesByAR
 		}
 		resource, ok := awsRuntimeStateRowFromPayload(scopeID, address, payload)
 		if !ok {
-			l.logDecodeFailure(ctx, scopeID, generationID, address, "state_resource_payload_decode")
+			// A redacted join key gets its own failure class. It is not payload
+			// noise: it means this deployment has no usable provider-schema
+			// bundle, so EVERY declared row is dropping out of the join and every
+			// cloud resource under it is about to reclassify as
+			// orphaned_cloud_resource. An operator watching an account go orphaned
+			// needs to land on the schema bundle, not on a generic decode warning
+			// (#5859, #5870).
+			failureClass := "state_resource_payload_decode"
+			if redact.IsRedactedValue(decodedStateARN(payload)) {
+				failureClass = "state_resource_arn_redacted"
+			}
+			l.logDecodeFailure(ctx, scopeID, generationID, address, failureClass)
 			continue
 		}
 		out[resource.ARN] = append(out[resource.ARN], awsRuntimeStateResourceRow{
@@ -350,103 +361,6 @@ func (l PostgresAWSCloudRuntimeDriftEvidenceLoader) loadConfigRowsForAnchor(
 		}
 	}
 	return out, nil
-}
-
-func awsRuntimeResourceRowFromPayload(scopeID string, payload []byte) (*cloudruntime.ResourceRow, bool) {
-	var decoded struct {
-		ARN          string         `json:"arn"`
-		ResourceID   string         `json:"resource_id"`
-		ResourceType string         `json:"resource_type"`
-		Tags         map[string]any `json:"tags"`
-		Attributes   map[string]any `json:"attributes"`
-	}
-	if len(payload) > 0 {
-		if err := json.Unmarshal(payload, &decoded); err != nil {
-			return nil, false
-		}
-	}
-	arn := strings.TrimSpace(decoded.ARN)
-	if arn == "" {
-		return nil, false
-	}
-	resourceType := strings.TrimSpace(decoded.ResourceType)
-	attributes, containerImages, truncated, degraded := cloudObservedValueAttributes(resourceType, decoded.Attributes)
-	return &cloudruntime.ResourceRow{
-		ARN:                      arn,
-		ResourceID:               strings.TrimSpace(decoded.ResourceID),
-		ResourceType:             resourceType,
-		ScopeID:                  strings.TrimSpace(scopeID),
-		Tags:                     coerceStringTags(decoded.Tags),
-		Attributes:               attributes,
-		ContainerImages:          containerImages,
-		ContainerImagesTruncated: truncated,
-		ContainerImagesDegraded:  degraded,
-	}, true
-}
-
-func awsRuntimeStateRowFromPayload(scopeID, address string, payload []byte) (*cloudruntime.ResourceRow, bool) {
-	var decoded struct {
-		Address    string         `json:"address"`
-		Type       string         `json:"type"`
-		Attributes map[string]any `json:"attributes"`
-	}
-	if len(payload) > 0 {
-		if err := json.Unmarshal(payload, &decoded); err != nil {
-			return nil, false
-		}
-	}
-	if decoded.Address != "" {
-		address = decoded.Address
-	}
-	address = strings.TrimSpace(address)
-	// "arn" is the join key, not a value, so a redacted one has to be REJECTED
-	// rather than carried. LoadPackagedSchemaResolver returns (nil, nil) when no
-	// provider-schema bundle parses, and schemaTrust answers SchemaUnknown for
-	// every attribute against a nil resolver, so the state parser fail-closed-
-	// redacts "arn" along with everything else. coerceJSONString renders that
-	// marker map through fmt.Sprint into a NON-EMPTY garbage string, which
-	// satisfies the emptiness guard below and then keys stateByARN. It matches no
-	// observed ARN, so the declared side does not lose a comparison -- it leaves
-	// the join, and every cloud resource under that bundle reclassifies as
-	// orphaned_cloud_resource. Dropping the row instead surfaces as missing
-	// declared evidence, which is what the empty-ARN guard already means (#5870).
-	if redact.IsRedactedValue(decoded.Attributes["arn"]) {
-		return nil, false
-	}
-	arn := strings.TrimSpace(coerceJSONString(decoded.Attributes["arn"]))
-	if address == "" || arn == "" {
-		return nil, false
-	}
-	resourceType := strings.TrimSpace(decoded.Type)
-	attributes, containerImages, truncated, degraded := stateDeclaredValueAttributes(resourceType, decoded.Attributes)
-	return &cloudruntime.ResourceRow{
-		ARN:                      arn,
-		Address:                  address,
-		ResourceType:             resourceType,
-		ScopeID:                  strings.TrimSpace(scopeID),
-		Attributes:               attributes,
-		ContainerImages:          containerImages,
-		ContainerImagesTruncated: truncated,
-		ContainerImagesDegraded:  degraded,
-	}, true
-}
-
-func coerceStringTags(tags map[string]any) map[string]string {
-	if len(tags) == 0 {
-		return nil
-	}
-	out := make(map[string]string, len(tags))
-	for key, value := range tags {
-		key = strings.TrimSpace(key)
-		if key == "" {
-			continue
-		}
-		out[key] = coerceJSONString(value)
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
 }
 
 func parseStateSnapshotScope(scopeID string) (backendKind, locatorHash string, ok bool) {

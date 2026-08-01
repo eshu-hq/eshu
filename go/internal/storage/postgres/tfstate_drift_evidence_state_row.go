@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/tfconfigstate"
+	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -97,6 +98,16 @@ func flattenStateAttributes(
 	prefix string,
 	out map[string]string,
 ) {
+	// A redaction marker is a map, so recursing into it would turn one redacted
+	// attribute into `<attr>.marker`, `<attr>.reason`, `<attr>.source` and lose the
+	// literal key entirely. classifyAttributeDrift happens to skip the attribute
+	// today because that literal key is then missing, but nothing asserts it and
+	// the leaves are one allowlist entry away from being compared as declared
+	// values. Treat the marker as absent, matching comparableScalarAttr on the
+	// cloudruntime side (#5859).
+	if redact.IsRedactedValue(value) {
+		return
+	}
 	switch typed := value.(type) {
 	case map[string]any:
 		for key, child := range typed {
