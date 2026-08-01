@@ -68,6 +68,29 @@ README.
   files and Cortex scorecard descriptors stay ordinary content until a
   dedicated runtime slice opens that contract.
 
+## Documentation-only extraction lane
+
+A documentation-only lane normalizes repo-hosted Markdown, lightweight text,
+HTML, API contracts, notebooks, spreadsheets, DOCX/XLSX/PPTX summaries,
+bounded ZIP/TAR packets, and deterministic diagrams into source-neutral facts
+with repository target refs. Deterministic diagram document and section
+facts carry `incident_media_source_class=diagram_label` so later correlation
+work can preserve the media evidence boundary.
+
+Office annotations and hidden content stay metadata-only while visible
+content still emits facts. External relationships, embedded objects, macro
+content, malformed containers, unsafe paths, resource limits, and
+compression hazards block Office extraction; legacy `.xls` cell bytes stay
+metadata-only. Archive packets preflight first, preserve member path/hash
+provenance, skip unsupported/nested/credential-like members, and block
+unsafe or resource-hazard archives from emitting contained sections.
+
+Default-off helper packages may build OCR or media transcript documentation
+facts from reviewed local engine output after preflight, but those helpers
+do not enable repository media discovery, hosted runtime paths, or truth
+promotion. These claims remain document evidence only; projector, reducer,
+and query stages own correlation, drift, and truth decisions.
+
 ## Evidence
 
 - Performance Evidence: On 2026-07-02, a collector-discovered remote profile of
@@ -86,12 +109,97 @@ README.
   graph write, span, metric name, runtime knob, or status field.
 - No-Regression Evidence: `AfterEmptyBatchDrained` behavior is covered by
   `go test ./internal/collector -run
-  'TestServiceRun(CallsAfterBatchDrainedOnceAfterCommittedBatch|SkipsAfterBatchDrainedOnEmptyBatchByDefault|CallsAfterBatchDrainedForConfiguredEmptyBatch|CallsEmptyBatchDrainHookOnceWhileIdle)'
-  -count=1`, which proves the default hook remains commit-gated and the
-  empty-batch hook is opt-in and not an idle timer.
+  'TestServiceRun(CallsAfterBatchDrainedOnceAfterCommittedBatch|SkipsAfterBatchDrainedOnEmptyBatchByDefault|CallsAfterBatchDrainedForConfiguredEmptyBatch|CallsEmptyBatchDrainHookOnEveryIdlePollForANeverCommittingShard|EmptyBatchEscapeAddsExactlyOneDrainPerProcess)'
+  -count=1`, which proves the default hook remains commit-gated, that a shard
+  which never commits keeps arriving at the barrier, and that a shard which does
+  commit gains exactly one extra drain per process. The fourth name was
+  `CallsEmptyBatchDrainHookOnceWhileIdle` before #5852 renamed it; `go test -run`
+  silently matches nothing for a stale name and still exits 0, so this command
+  passed while never running the regression it cites.
 - No-Observability-Change: `AfterEmptyBatchDrained` only changes whether the
   caller-supplied drain hook runs once for an exhausted empty batch. It adds no
   metric, span, status field, worker, queue, graph write, or runtime label.
+- No-Regression Evidence (#5852 follow-up, join-only barrier arrivals): the
+  #5852 fix above stopped the fleet-barrier stall but, on a quiet restart
+  where no shard has anything new to commit, made every shard's idle-poll
+  arrival capable of opening a new barrier epoch — the barrier's leader would
+  then run the corpus-wide `RunDeferredRelationshipMaintenance` pass against
+  an unchanged corpus, complete the epoch, and the very next idle poll would
+  open another one, forever. `AfterBatchDrained` now takes a `hasCommitted
+  bool` (`committedSinceDrain` in the steady state, or `true` for the
+  once-per-process startup-escape call described below), and the
+  ingester forwards it into
+  `postgres.DeferredMaintenanceBarrierConfig.HasCommitted`: a shard may join
+  an epoch another shard already opened regardless of this flag (the original
+  #5852 stall fix), but it may open a new epoch only when the flag is true.
+  `go test ./internal/collector -run
+  'TestServiceRun(CallsAfterBatchDrainedOnceAfterCommittedBatch|CallsAfterBatchDrainedForConfiguredEmptyBatch|CallsEmptyBatchDrainHookOnEveryIdlePollForANeverCommittingShard)'
+  -count=1` proves the hook reports `hasCommitted=true` for a real commit AND
+  for the empty-batch escape's own first-ever call in this process's
+  lifetime (the `startupMaintenanceEscapeUsed` once-latch — see below), and
+  `false` for every later empty-batch-escape call. `go test
+  ./internal/storage/postgres -run
+  'TestIngestionStoreShardDrainBarrier(QuietRestartOpensExactlyOneEpochAcrossManyIdlePolls|SingleShardNeverCommittedSkipsMaintenance|SingleShardHasCommittedRunsMaintenance|NeverCommittedShardJoinsAlreadyOpenEpochAndBecomesLeader)|TestEnsureDeferredMaintenanceBarrierEpochNeverCommittedShard(DoesNotOpenNewEpoch|JoinsAlreadyOpenEpoch)'
+  -count=1` proves a fleet where nothing has committed opens exactly one
+  epoch across many idle polls (multi-shard, driven by real
+  `collector.Service.Run` instances against the real join-only barrier, and
+  the `ShardCount==1` single-shard path, which applies the same rule
+  directly), while a never-committed shard can still join and even lead an
+  epoch a committing shard already opened.
+- No-Regression Evidence (#5852 P1 follow-up, startup-escape once-latch):
+  gating `HasCommitted` on nothing but a real commit (the join-only fix
+  above) traded the storm for a silent regression — a shard that owns no
+  repositories then never opened a barrier epoch either, ever, dropping the
+  one startup maintenance pass origin/main always runs (gated there on
+  `emptyDrainObserved`, which latches on the first drain of any kind, not on
+  commit status). `startupMaintenanceEscapeUsed` in `collector.Service.Run`
+  makes only the empty-batch escape's first-ever call per process report
+  `hasCommitted=true`, restoring that one startup pass without reopening the
+  storm: every later escape call on the same shard reports `false` and stays
+  join-only. `go test ./internal/collector -run
+  TestServiceRunCallsAfterBatchDrainedForConfiguredEmptyBatch -count=1` proves
+  the single-call case reports `true`; `go test ./internal/storage/postgres
+  -run TestIngestionStoreShardDrainBarrierQuietRestartOpensExactlyOneEpochAcrossManyIdlePolls
+  -count=1` proves the fleet-wide effect: exactly one epoch opens across the
+  whole run, not zero and not once per poll.
+- No-Observability-Change (#5852 follow-up): the join-only change adds one
+  rate-limited INFO log line (`deferred maintenance barrier idle; no epoch to
+  join`, at most one per `deferredMaintenanceBarrierStallLogInterval` — `go
+  test ./internal/storage/postgres -run
+  TestIngestionStoreRunDeferredRelationshipMaintenanceAfterShardDrainRateLimitsIdleLog
+  -count=1` proves the rate limit) on the new no-op path and reuses every
+  existing metric, span, and log field on the paths that already ran. It adds
+  no new metric, span, worker, queue, or runtime knob.
+- Cost Evidence (#5852 P1/P2 follow-up, recurring idle-path transaction;
+  measured): the once-latch fix turns what was a once-per-process barrier
+  transaction (before this branch) into a 1 Hz per-empty-shard transaction.
+  Every shard that has not committed keeps calling
+  `RunDeferredRelationshipMaintenanceAfterShardDrain` on every idle poll
+  (`ingesterCollectorPollInterval` is 1s in `cmd/ingester`) for the life of
+  the process. Once `startupMaintenanceEscapeUsed` has consumed its one-time
+  `true`, every later call on that path runs exactly one Postgres
+  transaction: `BEGIN` -> `pg_advisory_xact_lock(0x455348554d4253)`
+  (`deferredMaintenanceBarrierStateLockKey`) -> `SELECT epoch, shard_count,
+  completed_at FROM deferred_maintenance_barriers WHERE barrier_name = $1
+  ORDER BY epoch DESC LIMIT 1 FOR UPDATE` -> `COMMIT`, with no epoch to join
+  so no arrival row is written. Measured against Postgres 18.4
+  (`postgres:18-alpine`, the image `docker-compose.yaml` pins), single-node,
+  with one seeded completed `deferred_maintenance_barriers` row (the real
+  steady-state shape) and the migration-016 schema as shipped: an
+  uncontended transaction runs p50 0.89ms / p99 4.31ms (pgbench, 6,532
+  iterations); under sustained all-clients-hammering contention on the same
+  fleet-wide advisory-lock key, 10 concurrent clients still clear 1,325 tx/s
+  aggregate at p50 7.26ms / p99 14.51ms — about 130x the ~10 tx/s a real
+  10-empty-shard fleet generates at the actual 1 Hz cadence, so the real
+  cadence sees no queueing (steady-state Postgres duty cycle for that fleet
+  is ~10 x 1.53ms per second, roughly 1.5%). `EXPLAIN (ANALYZE, BUFFERS)`
+  confirms the SELECT is a single-row `Index Scan Backward` on
+  `deferred_maintenance_barriers_pkey`, 3 shared buffer hits, 0.080ms
+  execution. Full methodology, per-N-client numbers (3/5/10), and host
+  conditions are recorded in `go/internal/storage/postgres/README.md`'s Cost
+  Evidence entry for this same transaction — this file states the same
+  conclusion to keep the collector-side call site and the Postgres-side
+  transaction documented together, not to duplicate the raw data.
 - No-Regression Evidence: `go test ./internal/collector ./internal/doctruth ./internal/query ./internal/mcp ./internal/storage/postgres -count=1` covers DOCX, CSV/TSV, XLSX, PPTX, ZIP packet summaries, deterministic diagrams, claim hints, repository fact readback, and MCP routing.
 - No-Observability-Change: documentation extraction stays inside existing `collector.observe`, body-free snapshot metadata, and stream-time re-reads. It adds no worker, queue, graph write, metric label, runtime knob, or deployment profile.
 - No-Regression Evidence: delta generation handling is covered by `go test ./internal/collector -run

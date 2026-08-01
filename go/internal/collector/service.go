@@ -11,7 +11,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
@@ -25,27 +24,6 @@ import (
 // Source yields one collected scope generation at a time for durable commit.
 type Source interface {
 	Next(context.Context) (CollectedGeneration, bool, error)
-}
-
-// StartObserveFunc starts a collector observe span around source work that has
-// proven it is attempting a generation instead of reporting an idle poll.
-type StartObserveFunc func(context.Context) CollectorObservation
-
-// CollectorObservation carries the context and start time for one
-// collector.observe span. Sources that implement ObservedSource return this
-// value so Service can finish the same span after durable commit.
-type CollectorObservation struct {
-	Context   context.Context
-	Span      trace.Span
-	StartedAt time.Time
-}
-
-// ObservedSource lets a source delay collector.observe creation until it knows
-// the poll is a real collection attempt. This avoids emitting trace spans for
-// idle polls while still allowing synchronous sources to include source reads
-// in the same span as durable commit.
-type ObservedSource interface {
-	NextObserved(context.Context, StartObserveFunc) (CollectedGeneration, bool, CollectorObservation, error)
 }
 
 // CollectedGeneration is one repo-scoped source generation gathered by the
@@ -172,13 +150,30 @@ type Service struct {
 	Committer    Committer
 	DeadLetters  GenerationDeadLetterSink // optional durable quarantine for commit failures
 	PollInterval time.Duration
-	// AfterBatchDrained runs once after at least one committed generation and
-	// the current source batch is exhausted.
-	AfterBatchDrained func(context.Context) error
-	// AfterEmptyBatchDrained also runs AfterBatchDrained once when the current
-	// source batch is exhausted without commits. Repeated idle polls are
-	// suppressed until another generation is committed. Use only for runtimes
-	// that need configured empty shards to participate in a fleet barrier.
+	// AfterBatchDrained runs once after the current source batch is exhausted,
+	// via a real commit or the AfterEmptyBatchDrained escape (see shouldDrain
+	// in Run). Its bool arg, hasCommitted, is true for a real commit and for
+	// the escape's first-ever call in this process's lifetime (the
+	// startupMaintenanceEscapeUsed once-latch in Run); every later escape
+	// call reports false. A fleet-barrier caller must forward this value so
+	// an empty shard opens a new barrier epoch at most once per process and
+	// otherwise only joins one already open.
+	AfterBatchDrained func(context.Context, bool) error
+	// AfterEmptyBatchDrained also runs AfterBatchDrained when the current
+	// source batch is exhausted without commits. The escape is LEVEL-gated on
+	// everCommitted, not edge-gated on the last drain: it fires on EVERY idle
+	// poll for as long as this process has never committed, and the first
+	// commit suppresses it permanently. A shard that owns no repositories
+	// therefore keeps arriving for the lifetime of the process, which is the
+	// #5852 fix -- the earlier edge-gated form arrived once at startup and
+	// then never again, stalling every other shard on the barrier.
+	//
+	// Recurring arrivals are safe because only the first one may OPEN a
+	// barrier epoch (see AfterBatchDrained's hasCommitted arg and the
+	// startupMaintenanceEscapeUsed once-latch in Run); every later arrival can
+	// only join an epoch already open, so a quiet fleet does not reopen one
+	// per poll. Use only for runtimes that need configured empty shards to
+	// participate in a fleet barrier.
 	AfterEmptyBatchDrained bool
 	Tracer                 trace.Tracer           // optional — nil means no tracing
 	Instruments            *telemetry.Instruments // optional — nil means no metrics
@@ -198,7 +193,29 @@ func (s Service) Run(ctx context.Context) error {
 	}
 
 	committedSinceDrain := false
-	emptyDrainObserved := false
+	// everCommitted latches true on the first commit and never clears again,
+	// unlike committedSinceDrain (which resets on every drain). #5852: gating
+	// the AfterEmptyBatchDrained escape on a drain-cleared flag meant a shard
+	// that never commits (owns no repositories) escaped once at startup and
+	// then never again, starving every later barrier epoch of its arrival.
+	// Gating on !everCommitted instead re-fires the escape on every idle poll
+	// until this shard's first commit, if any — recurring for the process
+	// lifetime when there is none, and yielding to committedSinceDrain as
+	// soon as one lands.
+	everCommitted := false
+	// startupMaintenanceEscapeUsed latches true the first time the
+	// never-committed empty-batch escape (emptyBatchEscape below) calls
+	// AfterBatchDrained in this process's lifetime. That one call reports
+	// hasCommitted=true so a shard that owns no repositories can still open
+	// the fleet barrier's first epoch and get the one-time startup
+	// maintenance pass every shard triggered on origin/main via its
+	// emptyDrainObserved latch (#5852 P1 follow-up). Every later
+	// emptyBatchEscape call after that reports the shard's real (still
+	// false) commit status and stays join-only (see
+	// DeferredMaintenanceBarrierConfig.HasCommitted), so a quiet fleet does
+	// not reopen and rerun the corpus-wide maintenance pass on every idle
+	// poll — the storm the everCommitted latch alone would otherwise cause.
+	startupMaintenanceEscapeUsed := false
 	for {
 		if ctx.Err() != nil {
 			return nil
@@ -214,13 +231,18 @@ func (s Service) Run(ctx context.Context) error {
 		}
 		if !ok {
 			s.endCollectorObserve(observation, nil)
-			shouldDrain := committedSinceDrain || (s.AfterEmptyBatchDrained && !emptyDrainObserved)
+			emptyBatchEscape := s.AfterEmptyBatchDrained && !everCommitted
+			shouldDrain := committedSinceDrain || emptyBatchEscape
 			if shouldDrain && s.AfterBatchDrained != nil {
-				if err := s.AfterBatchDrained(ctx); err != nil {
+				hasCommitted := committedSinceDrain
+				if emptyBatchEscape && !startupMaintenanceEscapeUsed {
+					hasCommitted = true
+					startupMaintenanceEscapeUsed = true
+				}
+				if err := s.AfterBatchDrained(ctx, hasCommitted); err != nil {
 					return fmt.Errorf("after collector batch drained: %w", err)
 				}
 				committedSinceDrain = false
-				emptyDrainObserved = true
 			}
 			if err := waitForNextPoll(ctx, s.PollInterval); err != nil {
 				return nil
@@ -262,60 +284,13 @@ func (s Service) Run(ctx context.Context) error {
 		}
 		s.endCollectorObserve(observation, nil)
 		committedSinceDrain = true
-		emptyDrainObserved = false
+		everCommitted = true
 	}
 }
 
-func (s Service) nextWithObservation(ctx context.Context) (
-	CollectedGeneration,
-	bool,
-	CollectorObservation,
-	error,
-) {
-	if observed, ok := s.Source.(ObservedSource); ok {
-		return observed.NextObserved(ctx, s.startCollectorObserve)
-	}
-	collected, ok, err := s.Source.Next(ctx)
-	return collected, ok, CollectorObservation{}, err
-}
-
-func (s Service) startCollectorObserve(ctx context.Context) CollectorObservation {
-	observeStartedAt := time.Now()
-	if s.Tracer != nil {
-		observedCtx, span := s.Tracer.Start(ctx, telemetry.SpanCollectorObserve)
-		return CollectorObservation{
-			Context:   observedCtx,
-			Span:      span,
-			StartedAt: observeStartedAt,
-		}
-	}
-	return CollectorObservation{
-		Context:   ctx,
-		StartedAt: observeStartedAt,
-	}
-}
-
-func (s Service) annotateCollectorObserve(observation CollectorObservation, collected CollectedGeneration) {
-	if observation.Span == nil {
-		return
-	}
-	observation.Span.SetAttributes(
-		telemetry.AttrScopeID(collected.Scope.ScopeID),
-		telemetry.AttrSourceSystem(collected.Scope.SourceSystem),
-		telemetry.AttrCollectorKind(string(collected.Scope.CollectorKind)),
-	)
-}
-
-func (s Service) endCollectorObserve(observation CollectorObservation, err error) {
-	if observation.Span == nil {
-		return
-	}
-	if err != nil {
-		observation.Span.RecordError(err)
-		observation.Span.SetStatus(codes.Error, err.Error())
-	}
-	observation.Span.End()
-}
+// nextWithObservation, startCollectorObserve, annotateCollectorObserve, and
+// endCollectorObserve live in service_observation.go, alongside the
+// CollectorObservation/ObservedSource types they operate on.
 
 // recordGenerationDeadLetterOnly quarantines a failed generation for durable
 // replay and returns only the dead-letter store error. It returns nil when no

@@ -138,7 +138,7 @@ func TestIngestionStoreShardDrainBarrierNonLeaderWaitsForCompletion(t *testing.T
 
 	err := store.RunDeferredRelationshipMaintenanceAfterShardDrain(
 		context.Background(),
-		DeferredMaintenanceBarrierConfig{ShardCount: 2, ShardIndex: 0},
+		DeferredMaintenanceBarrierConfig{ShardCount: 2, ShardIndex: 0, HasCommitted: true},
 		nil,
 		nil,
 	)
@@ -218,7 +218,7 @@ func TestIngestionStoreShardDrainBarrierLeaderRunsMaintenanceAfterAllShardsArriv
 
 	err := store.RunDeferredRelationshipMaintenanceAfterShardDrain(
 		context.Background(),
-		DeferredMaintenanceBarrierConfig{ShardCount: 2, ShardIndex: 1},
+		DeferredMaintenanceBarrierConfig{ShardCount: 2, ShardIndex: 1, HasCommitted: true},
 		nil,
 		nil,
 	)
@@ -298,7 +298,7 @@ func TestIngestionStoreShardDrainBarrierLeaderReentryRerunsMaintenance(t *testin
 
 	err := store.RunDeferredRelationshipMaintenanceAfterShardDrain(
 		context.Background(),
-		DeferredMaintenanceBarrierConfig{ShardCount: 2, ShardIndex: 0},
+		DeferredMaintenanceBarrierConfig{ShardCount: 2, ShardIndex: 0, HasCommitted: true},
 		nil,
 		nil,
 	)
@@ -321,9 +321,12 @@ func TestEnsureDeferredMaintenanceBarrierEpochClosesLatestRowsBeforeInsert(t *te
 	rows := &closeTrackingRows{}
 	tx := &openRowsRejectingTx{latestRows: rows}
 
-	epoch, err := ensureDeferredMaintenanceBarrierEpoch(context.Background(), tx, 2, now)
+	epoch, hasEpoch, err := ensureDeferredMaintenanceBarrierEpoch(context.Background(), tx, 2, now, true)
 	if err != nil {
 		t.Fatalf("ensureDeferredMaintenanceBarrierEpoch() error = %v, want nil", err)
+	}
+	if !hasEpoch {
+		t.Fatal("hasEpoch = false, want true")
 	}
 	if epoch != 1 {
 		t.Fatalf("epoch = %d, want 1", epoch)
@@ -346,7 +349,7 @@ func TestEnsureDeferredMaintenanceBarrierEpochClosesLatestRowsOnScanError(t *tes
 	}
 	tx := &openRowsRejectingTx{latestRows: rows}
 
-	_, err := ensureDeferredMaintenanceBarrierEpoch(context.Background(), tx, 2, now)
+	_, _, err := ensureDeferredMaintenanceBarrierEpoch(context.Background(), tx, 2, now, true)
 	if err == nil {
 		t.Fatal("ensureDeferredMaintenanceBarrierEpoch() error = nil, want scan error")
 	}
@@ -376,7 +379,7 @@ func TestIngestionStoreShardDrainBarrierRejectsShardCountChangeDuringOpenEpoch(t
 
 	err := store.RunDeferredRelationshipMaintenanceAfterShardDrain(
 		context.Background(),
-		DeferredMaintenanceBarrierConfig{ShardCount: 2, ShardIndex: 1},
+		DeferredMaintenanceBarrierConfig{ShardCount: 2, ShardIndex: 1, HasCommitted: true},
 		nil,
 		nil,
 	)
@@ -419,10 +422,19 @@ func assertExecContains(t *testing.T, execs []fakeExecCall, substring string) {
 	t.Fatalf("execs missing query containing %q", substring)
 }
 
+// closeTrackingRows fakes the single-row "latest barrier epoch" query. With
+// next=false it reports no existing epoch row (the common quiet-fleet case).
+// With next=true and scanErr nil, Scan reports the epoch/shardCount/
+// completedAt fields below (used to simulate an already-open epoch a shard
+// can join); with next=true and scanErr set, Scan fails (used to prove close
+// still happens on a scan error).
 type closeTrackingRows struct {
-	next    bool
-	closed  bool
-	scanErr error
+	next        bool
+	closed      bool
+	scanErr     error
+	epoch       int64
+	shardCount  int
+	completedAt sql.NullTime
 }
 
 func (r *closeTrackingRows) Next() bool {
@@ -433,11 +445,26 @@ func (r *closeTrackingRows) Next() bool {
 	return true
 }
 
-func (r *closeTrackingRows) Scan(...any) error {
+func (r *closeTrackingRows) Scan(dest ...any) error {
 	if r.scanErr != nil {
 		return r.scanErr
 	}
-	return errors.New("scan called unexpectedly")
+	epochDest, ok := dest[0].(*int64)
+	if !ok {
+		return errors.New("scan called unexpectedly")
+	}
+	shardCountDest, ok := dest[1].(*int)
+	if !ok {
+		return errors.New("scan called unexpectedly")
+	}
+	completedAtDest, ok := dest[2].(*sql.NullTime)
+	if !ok {
+		return errors.New("scan called unexpectedly")
+	}
+	*epochDest = r.epoch
+	*shardCountDest = r.shardCount
+	*completedAtDest = r.completedAt
+	return nil
 }
 
 func (r *closeTrackingRows) Err() error { return nil }

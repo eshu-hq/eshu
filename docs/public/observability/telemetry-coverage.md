@@ -311,6 +311,7 @@ land at the same call sites.
 | stage | file:line | required metric name(s) | category |
 | --- | --- | --- | --- |
 | collector.observe (claim → complete) | go/internal/collector/service.go:393 | `eshu_dp_collector_observe_duration_seconds`, `eshu_dp_workflow_claim_wait_seconds` | collector chokepoint |
+| collector.observe span plumbing (split from service.go) | go/internal/collector/service_observation.go | No-Observability-Change: `nextWithObservation`, `startCollectorObserve`, `annotateCollectorObserve`, and `endCollectorObserve` start/annotate/end the pre-existing `collector.observe` trace span (`telemetry.SpanCollectorObserve`); split out of service.go for the 500-line cap (#5852); the span's duration is still recorded by `eshu_dp_collector_observe_duration_seconds` at the unmoved chokepoint in service.go (see the collector.observe (claim → complete) row above); this file emits no metric of its own | collector chokepoint |
 | collector.claimed_run (per-cycle outcome) | go/internal/collector/claimed_service_run_metrics.go:36 | `eshu_dp_workflow_claim_run_duration_seconds`, `eshu_dp_workflow_claim_facts_emitted_total` | collector chokepoint |
 | collector.stream (streaming read) | go/internal/collector/git_source_stream.go:325 | `eshu_dp_collector_observe_duration_seconds`, `eshu_dp_facts_emitted_total` | collector chokepoint |
 | bootstrap collector cycle | go/cmd/bootstrap-index/main.go (drainCollector) | `eshu_dp_bootstrap_pipeline_phase_seconds`, `eshu_dp_content_entity_emitted_total` | collector chokepoint |

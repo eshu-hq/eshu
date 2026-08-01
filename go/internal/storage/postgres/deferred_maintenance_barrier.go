@@ -17,7 +17,6 @@ import (
 const (
 	deferredMaintenanceBarrierName         = "ingester_deferred_relationship_maintenance"
 	deferredMaintenanceBarrierStateLockKey = 0x455348554d4253
-	deferredMaintenanceBarrierPollInterval = 250 * time.Millisecond
 )
 
 const selectLatestDeferredMaintenanceBarrierSQL = `
@@ -59,18 +58,29 @@ WHERE barrier_name = $1
   AND epoch = $2
 `
 
-const selectDeferredMaintenanceBarrierCompletedSQL = `
-SELECT completed_at
-FROM deferred_maintenance_barriers
-WHERE barrier_name = $1
-  AND epoch = $2
-`
-
 // DeferredMaintenanceBarrierConfig identifies one sharded ingester's
 // participation in the fleet-wide deferred-maintenance barrier.
 type DeferredMaintenanceBarrierConfig struct {
 	ShardCount int
 	ShardIndex int
+	// HasCommitted reports whether this shard has actual committed work to
+	// account for. In the steady state the collector passes
+	// committedSinceDrain — true only when a real commit happened since the
+	// last drain — but collector.Service.Run overrides that for exactly one
+	// call per process: startupMaintenanceEscapeUsed latches true the FIRST
+	// time the never-committed empty-batch escape fires, and that one call
+	// reports HasCommitted true regardless of committedSinceDrain; every
+	// later escape call on the same shard reports the real, still-false
+	// status. HasCommitted gates a join-only invariant: a shard that reports
+	// false may still join an epoch that is already open (that is what
+	// unblocks a fleet where one shard owns no repositories — #5852), but it
+	// may open a new epoch only when HasCommitted is true. Without the
+	// once-per-process escape override, a quiet fleet where nothing ever
+	// commits would never run its one startup maintenance pass at all;
+	// without the join-only bound, it would instead reopen and rerun the
+	// corpus-wide maintenance pass against an unchanged corpus on every idle
+	// poll.
+	HasCommitted bool
 }
 
 func (c DeferredMaintenanceBarrierConfig) validate() error {
@@ -88,7 +98,14 @@ func (c DeferredMaintenanceBarrierConfig) validate() error {
 
 // RunDeferredRelationshipMaintenanceAfterShardDrain records this shard's drain
 // arrival and runs global deferred maintenance only after every shard in the
-// current epoch has arrived. Single-shard runtimes run maintenance directly.
+// current epoch has arrived.
+//
+// Single-shard runtimes ARE the entire fleet, so the same join-only invariant
+// collapses to a direct check: a single shard that has not committed anything
+// since its last drain has nothing to account for and skips maintenance
+// outright, rather than running it unconditionally on every idle poll. A
+// single shard that has committed runs maintenance directly, matching the
+// original single-shard behavior.
 func (s IngestionStore) RunDeferredRelationshipMaintenanceAfterShardDrain(
 	ctx context.Context,
 	config DeferredMaintenanceBarrierConfig,
@@ -99,6 +116,9 @@ func (s IngestionStore) RunDeferredRelationshipMaintenanceAfterShardDrain(
 		return err
 	}
 	if config.ShardCount == 1 {
+		if !config.HasCommitted {
+			return nil
+		}
 		return s.RunDeferredRelationshipMaintenance(ctx, tracer, instruments)
 	}
 	if s.beginner == nil {
@@ -120,9 +140,35 @@ func (s IngestionStore) RunDeferredRelationshipMaintenanceAfterShardDrain(
 		return fmt.Errorf("acquire deferred maintenance state barrier: %w", err)
 	}
 	now := s.now()
-	epoch, err := ensureDeferredMaintenanceBarrierEpoch(ctx, tx, config.ShardCount, now)
+	epoch, hasEpoch, err := ensureDeferredMaintenanceBarrierEpoch(ctx, tx, config.ShardCount, now, config.HasCommitted)
 	if err != nil {
 		return err
+	}
+	if !hasEpoch {
+		// No epoch is open and this shard has not committed anything since its
+		// last drain: there is nothing to join and this shard must not be the
+		// one that opens a new epoch (see DeferredMaintenanceBarrierConfig.
+		// HasCommitted). Release the barrier state lock and return without
+		// recording an arrival or waiting — a quiet fleet stays quiet.
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit deferred maintenance barrier (no epoch to join): %w", err)
+		}
+		committed = true
+		// Rate-limited: AfterEmptyBatchDrained re-checks this on every idle
+		// poll for as long as this shard never commits (see
+		// startupMaintenanceEscapeUsed in collector.Service.Run), and the
+		// ingester's poll interval is 1s — unthrottled this is one identical
+		// INFO line per second forever. idleMaintenanceLogGate caps it at one
+		// line per deferredMaintenanceBarrierStallLogInterval.
+		if s.Logger != nil && s.idleMaintenanceLogGate.shouldLog(now) {
+			s.Logger.InfoContext(
+				ctx, "deferred maintenance barrier idle; no epoch to join",
+				telemetry.PhaseAttr("deferred_maintenance_barrier"),
+				"shard_count", config.ShardCount,
+				"shard_index", config.ShardIndex,
+			)
+		}
+		return nil
 	}
 	arrivedCount, err := recordDeferredMaintenanceBarrierArrival(ctx, tx, epoch, config.ShardIndex, now)
 	if err != nil {
@@ -209,56 +255,40 @@ func (s IngestionStore) markDeferredMaintenanceBarrierComplete(
 	return nil
 }
 
-func (s IngestionStore) waitDeferredMaintenanceBarrierCompletion(
-	ctx context.Context,
-	epoch int64,
-	config DeferredMaintenanceBarrierConfig,
-) error {
-	if s.db == nil {
-		return fmt.Errorf("ingestion store db is required")
-	}
-
-	ticker := time.NewTicker(deferredMaintenanceBarrierPollInterval)
-	defer ticker.Stop()
-	for {
-		completed, err := deferredMaintenanceBarrierCompleted(ctx, s.db, epoch)
-		if err != nil {
-			return err
-		}
-		if completed {
-			if s.Logger != nil {
-				s.Logger.InfoContext(
-					ctx, "deferred maintenance barrier observed completion",
-					telemetry.PhaseAttr("deferred_maintenance_barrier"),
-					"epoch", epoch,
-					"shard_count", config.ShardCount,
-					"shard_index", config.ShardIndex,
-				)
-			}
-			return nil
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-		}
-	}
-}
+// waitDeferredMaintenanceBarrierCompletion (deferred_maintenance_barrier_stall.go)
+// blocks a non-leader shard until the leader marks epoch complete, logging a
+// stall warning — naming arrived and missing shard indexes — if the wait runs
+// long. See that file's doc comment for the unbounded-wait rationale.
 
 func acquireDeferredMaintenanceStateBarrier(ctx context.Context, db ExecQueryer) error {
 	_, err := db.ExecContext(ctx, "SELECT pg_advisory_xact_lock($1)", deferredMaintenanceBarrierStateLockKey)
 	return err
 }
 
+// ensureDeferredMaintenanceBarrierEpoch resolves the epoch this shard should
+// join, or reports that there is none to join. When an epoch is already open
+// (not yet completed), every shard may join it regardless of canOpenEpoch —
+// that is the #5852 stall fix: a never-committed shard must still be able to
+// unblock a fleet another shard already started draining. When no epoch is
+// open, only a shard whose canOpenEpoch is true may open a new one; a shard
+// with canOpenEpoch false gets hasEpoch false and must not create one. This
+// is the join-only half of the design: opening is reserved for shards
+// canOpenEpoch marks eligible, joining is open to everyone. The caller passes
+// config.HasCommitted as canOpenEpoch, which is true for a real commit AND
+// for a never-committed shard's own first-ever call per process
+// (startupMaintenanceEscapeUsed in collector.Service.Run), so a quiet fleet
+// where nothing ever commits still opens exactly one epoch per shard's
+// process lifetime, not zero (see DeferredMaintenanceBarrierConfig.HasCommitted).
 func ensureDeferredMaintenanceBarrierEpoch(
 	ctx context.Context,
 	tx Transaction,
 	shardCount int,
 	now time.Time,
-) (int64, error) {
+	canOpenEpoch bool,
+) (epoch int64, hasEpoch bool, err error) {
 	rows, err := tx.QueryContext(ctx, selectLatestDeferredMaintenanceBarrierSQL, deferredMaintenanceBarrierName)
 	if err != nil {
-		return 0, fmt.Errorf("query deferred maintenance barrier: %w", err)
+		return 0, false, fmt.Errorf("query deferred maintenance barrier: %w", err)
 	}
 
 	var latestEpoch int64
@@ -271,20 +301,23 @@ func ensureDeferredMaintenanceBarrierEpoch(
 		}
 	}
 	if err := rows.Close(); err != nil {
-		return 0, fmt.Errorf("close deferred maintenance barrier rows: %w", err)
+		return 0, false, fmt.Errorf("close deferred maintenance barrier rows: %w", err)
 	}
 	if scanErr != nil {
-		return 0, scanErr
+		return 0, false, scanErr
 	}
 	if err := rows.Err(); err != nil {
-		return 0, fmt.Errorf("scan deferred maintenance barrier rows: %w", err)
+		return 0, false, fmt.Errorf("scan deferred maintenance barrier rows: %w", err)
 	}
 
 	if latestEpoch > 0 && !completedAt.Valid && latestShardCount != shardCount {
-		return 0, fmt.Errorf("deferred maintenance barrier epoch %d is open with shard count %d, refusing shard count %d", latestEpoch, latestShardCount, shardCount)
+		return 0, false, fmt.Errorf("deferred maintenance barrier epoch %d is open with shard count %d, refusing shard count %d", latestEpoch, latestShardCount, shardCount)
 	}
 	if latestEpoch > 0 && !completedAt.Valid {
-		return latestEpoch, nil
+		return latestEpoch, true, nil
+	}
+	if !canOpenEpoch {
+		return 0, false, nil
 	}
 	nextEpoch := latestEpoch + 1
 	if _, err := tx.ExecContext(
@@ -295,9 +328,9 @@ func ensureDeferredMaintenanceBarrierEpoch(
 		shardCount,
 		now,
 	); err != nil {
-		return 0, fmt.Errorf("insert deferred maintenance barrier epoch: %w", err)
+		return 0, false, fmt.Errorf("insert deferred maintenance barrier epoch: %w", err)
 	}
-	return nextEpoch, nil
+	return nextEpoch, true, nil
 }
 
 func recordDeferredMaintenanceBarrierArrival(
@@ -335,27 +368,10 @@ func recordDeferredMaintenanceBarrierArrival(
 	return arrivedCount, nil
 }
 
-func deferredMaintenanceBarrierCompleted(ctx context.Context, queryer Queryer, epoch int64) (bool, error) {
-	rows, err := queryer.QueryContext(ctx, selectDeferredMaintenanceBarrierCompletedSQL, deferredMaintenanceBarrierName, epoch)
-	if err != nil {
-		return false, fmt.Errorf("query deferred maintenance barrier completion: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return false, fmt.Errorf("scan deferred maintenance barrier completion rows: %w", err)
-		}
-		return false, fmt.Errorf("deferred maintenance barrier epoch %d not found", epoch)
-	}
-	var completedAt sql.NullTime
-	if err := rows.Scan(&completedAt); err != nil {
-		return false, fmt.Errorf("scan deferred maintenance barrier completion: %w", err)
-	}
-	if err := rows.Err(); err != nil {
-		return false, fmt.Errorf("scan deferred maintenance barrier completion rows: %w", err)
-	}
-	return completedAt.Valid, nil
-}
+// deferredMaintenanceBarrierCompleted, deferredMaintenanceBarrierArrivedShardIndexes,
+// and missingDeferredMaintenanceBarrierShardIndexes live in
+// deferred_maintenance_barrier_stall.go, alongside the stall-watchdog wait
+// loop that is their only caller.
 
 func completeDeferredMaintenanceBarrier(
 	ctx context.Context,

@@ -177,8 +177,37 @@
 - `AfterBatchDrained` call semantics — removing or reordering the
   backfill and deployment-mapping reopen calls (wired via `AfterBatchDrained`
   in `cmd/ingester`) breaks the bootstrap phase contract defined in CLAUDE.md.
-  Empty-batch drain hooks must remain opt-in and edge-triggered so idle
-  collectors do not run global maintenance on every poll.
+  Empty-batch drain hooks must remain opt-in. They are NOT edge-triggered per
+  drain window: before #5852 they were, and a shard owning no repositories
+  drained once at startup and then starved every later fleet-barrier epoch,
+  blocking every shard that had already arrived. The gate is
+  never-having-committed (`everCommitted`), so the hook repeats while a shard has
+  no work and stops permanently at its first commit. Do not "restore" edge
+  triggering; that reintroduces #5852.
+- `AfterBatchDrained`'s `hasCommitted bool` argument — in the steady state
+  this is `committedSinceDrain`, true only when a real commit happened since
+  the last drain. `Service.Run` deliberately overrides that for exactly ONE
+  call per process: `startupMaintenanceEscapeUsed` latches true the first
+  time the never-committed empty-batch escape fires, and that one call
+  reports `hasCommitted = true` regardless of `committedSinceDrain`; every
+  later escape call on the same shard reports the real, still-false status.
+  Do NOT "simplify" this back to always forwarding `committedSinceDrain` — that
+  was tried (the #5852 P1 follow-up) and it silently dropped the one startup
+  maintenance pass origin/main always runs (there gated on
+  `emptyDrainObserved`, which latches on the first drain of ANY kind, not on
+  commit status): a shard that owns no repositories would then never be
+  allowed to open a barrier epoch, ever. Do NOT hardcode `hasCommitted` to
+  `true` or remove the once-per-process latch either — that reintroduces the
+  original codex #5852-follow-up storm: a quiet fleet where nothing has
+  committed would open and complete an empty barrier epoch on every idle
+  poll, running the corpus-wide maintenance pass against an unchanged corpus
+  forever. A barrier caller (the ingester) forwards this value into
+  `postgres.DeferredMaintenanceBarrierConfig.HasCommitted`, which stays
+  join-only regardless of which of the two true-producing paths set it: a
+  shard may join an epoch another shard already opened no matter what
+  `HasCommitted` says, but it may open a new epoch only when `HasCommitted`
+  is true. See `go/internal/storage/postgres/deferred_maintenance_barrier.go`
+  and its README for the epoch-open decision this gates.
 
 ## Evidence
 

@@ -59,6 +59,15 @@ type IngestionStore struct {
 	// directly.
 	maintenanceWorkers int
 	catalogCache       *repositoryCatalogCache
+	// idleMaintenanceLogGate rate-limits the deferred-maintenance barrier's
+	// "idle; no epoch to join" INFO log (see
+	// RunDeferredRelationshipMaintenanceAfterShardDrain in
+	// deferred_maintenance_barrier.go) so an empty shard connected to
+	// Postgres does not emit one line per PollInterval forever. It is a
+	// pointer for the same reason as catalogCache: value copies of the store
+	// share one gate. A nil gate (a store built without NewIngestionStore)
+	// always logs, preserving the unthrottled default.
+	idleMaintenanceLogGate *deferredMaintenanceIdleLogGate
 }
 
 // NewIngestionStore constructs a transactional storage boundary for projection
@@ -66,9 +75,10 @@ type IngestionStore struct {
 // reloads stay O(1) across the lifetime of the store (issue #3481).
 func NewIngestionStore(db ExecQueryer) IngestionStore {
 	store := IngestionStore{
-		db:                 db,
-		catalogCache:       newRepositoryCatalogCache(),
-		maintenanceWorkers: deferredBackfillWorkerCount(),
+		db:                     db,
+		catalogCache:           newRepositoryCatalogCache(),
+		maintenanceWorkers:     deferredBackfillWorkerCount(),
+		idleMaintenanceLogGate: &deferredMaintenanceIdleLogGate{},
 	}
 	if beginner, ok := db.(Beginner); ok {
 		store.beginner = beginner

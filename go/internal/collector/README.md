@@ -48,9 +48,26 @@ commit. When no generation is ready, the service calls `AfterBatchDrained` if
 at least one generation was committed since the last drain, then waits
 `PollInterval` (1 second in `cmd/ingester`). Runtimes that must include empty
 source batches in a fleet barrier may set `AfterEmptyBatchDrained`; the default
-keeps idle polls from running drain hooks, and the opt-in path suppresses
-repeated idle-poll hooks until a later generation commit starts a new drain
-window. On receipt of a generation it calls `Committer.CommitScopeGeneration`
+keeps idle polls from running drain hooks. The opt-in path fires on every idle
+poll until this process's FIRST generation commit, then never again -- a shard
+that owns no repositories never commits, so it keeps arriving at the fleet
+barrier for its whole lifetime rather than arriving once and starving every later
+epoch (#5852). `AfterBatchDrained` takes a `hasCommitted bool` -- true when this
+drain follows a real commit since the last drain, OR when it is the
+never-committed empty-batch escape's own first-ever call in this process's
+lifetime (the `startupMaintenanceEscapeUsed` once-latch in
+`collector.Service.Run`); false for every later empty-batch-escape call on a
+shard that still has not committed -- so a caller wiring a fleet barrier can
+tell "this shard has real work, or is due its one startup pass" from "this
+shard is only re-arriving with nothing new to report." The
+ingester forwards this into
+`postgres.DeferredMaintenanceBarrierConfig.HasCommitted`, which keeps a
+never-committed shard's arrival join-only past its startup escape: it may join an
+epoch another shard already opened, but it never opens one itself (see
+`go/internal/storage/postgres/README.md`). Cadence is therefore not uniformly
+barrier-paced: a never-committed shard's call returns immediately when no
+epoch is open, and only blocks synchronously until the epoch finishes when it
+actually joins one. On receipt of a generation it calls `Committer.CommitScopeGeneration`
 with the `facts.Envelope` channel and records
 `CollectorObserveDuration`, `FactsEmitted`, `GenerationFactCount`, and
 `FactsCommitted`.
@@ -145,24 +162,30 @@ package semantic context match a full snapshot.
 When the stream re-reads repo-hosted service-catalog descriptors
 (`catalog-info.yaml`, `opslevel.yml`, or `cortex.yaml`), it delegates to the
 `servicecatalog` normalizer and emits observed `service_catalog.*` facts under
-the same scope and generation. A documentation-only lane normalizes repo-hosted
-Markdown, lightweight text, HTML, API contracts, notebooks, spreadsheets,
-DOCX/XLSX/PPTX summaries, bounded ZIP/TAR packets, and deterministic diagrams
-into source-neutral facts with repository target refs. Deterministic diagram
-document and section facts carry `incident_media_source_class=diagram_label` so
-later correlation work can preserve the media evidence boundary.
-Office annotations and hidden content stay metadata-only while visible content still emits facts. External relationships, embedded objects, macro content, malformed containers, unsafe paths, resource limits, and compression hazards block Office extraction; legacy `.xls` cell bytes stay metadata-only. Archive packets preflight first, preserve member path/hash provenance, skip unsupported/nested/credential-like members, and block unsafe or resource-hazard archives from emitting contained sections.
-Default-off helper packages may build OCR or media transcript documentation facts
-from reviewed local engine output after preflight, but those helpers do not
-enable repository media discovery, hosted runtime paths, or truth promotion.
-These claims remain document evidence only; projector, reducer, and query stages
-own correlation, drift, and truth decisions.
+the same scope and generation. A documentation-only lane normalizes further
+repo-hosted document kinds (Markdown, HTML, Office, archives, diagrams) into
+source-neutral facts under the same scope and generation; see
+`OPERATIONS.md` for the per-kind extraction and safety-limit detail.
 `AfterBatchDrained` runs only after the service has committed at least one
 generation and then observes the source batch drain. Idle polls do not trigger
 it unless `AfterEmptyBatchDrained` is set for a caller that needs configured
 empty source batches to participate in a cross-process barrier. The empty path
-is edge-triggered: it runs once for an empty drain window and does not repeat
-until a later generation commit resets the window.
+is gated on never-having-committed, not edge-triggered per drain window: it
+repeats on every idle poll until this process commits its first generation, and
+is permanently disabled by that commit. A shard that never commits therefore
+never stops re-arriving at the barrier (#5852) -- but "arriving" is join-only
+after the first call: `AfterBatchDrained`'s `hasCommitted` argument is true
+for exactly the FIRST empty-batch-escape call in this process's lifetime (the
+`startupMaintenanceEscapeUsed` once-latch), letting that one call open a
+barrier epoch, or join one, and get the one startup maintenance pass
+origin/main always ran; every later escape call on the same shard reports
+`false` and stays join-only, joining an epoch another shard already opened
+without ever opening one on its own. A fleet where nothing has committed
+anywhere therefore has each shard open the barrier epoch at most once per
+process per shard, not once per idle poll. A restart (pod eviction, rolling
+deploy, crash-loop) is a new process: it re-arms the once-latch, so a
+restarting shard may open another epoch. That is intended, since a
+restarted fleet warrants its own startup pass, not a leak.
 
 The delta-generation, documentation-extraction, and `AfterEmptyBatchDrained`
 evidence for this section (No-Regression, Performance, and
