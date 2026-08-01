@@ -115,6 +115,19 @@ func Scalar(raw any, reason string, source string, key Key) Value {
 // genuine scalar string that merely happens to start with the same text
 // (vanishingly unlikely, but not impossible for free-form input) is never
 // misclassified as redacted.
+//
+// The cost of that choice is a deliberate blind spot, and callers must know
+// it: this reports false for a BARE marker string persisted on its own,
+// without the surrounding "reason"/"source" object. Several collectors do
+// exactly that for fingerprint fields — gcpcloud and azurecloud store
+// String(...).Marker directly into keys such as "container_name_fingerprint",
+// "etag_fingerprint", and redacted tag/DNS values. Those are opaque
+// fingerprints meant to be carried and compared as values, not placeholders
+// meant to be treated as absent, so answering false for them is correct
+// behavior rather than a gap. A caller that needs to recognize one of those
+// needs its own check against the producer's shape; do not widen this
+// function to a prefix match, which would reintroduce the false positive the
+// shape check exists to prevent.
 func IsRedactedValue(v any) bool {
 	m, ok := v.(map[string]any)
 	if !ok {

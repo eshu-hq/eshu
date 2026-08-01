@@ -48,10 +48,37 @@ func awsRuntimeResourceRowFromPayload(scopeID string, payload []byte) (*cloudrun
 	}, true
 }
 
+// Failure classes for a terraform_state_resource row awsRuntimeStateRowFromPayload
+// refused. They are log labels, not finding kinds: the correlation outcome is the
+// same for both (see the join-key comment in awsRuntimeStateRowFromPayload). The
+// split exists so an operator can tell which one they are looking at.
+const (
+	// stateResourceDecodeFailure is ordinary malformed-payload noise: bad JSON,
+	// a missing address, or a missing arn.
+	stateResourceDecodeFailure = "state_resource_payload_decode"
+	// stateResourceARNRedacted means the join key itself came back redacted, so
+	// this deployment has no usable provider-schema bundle and EVERY declared
+	// row under it is dropping out of the join. The action is to fix the bundle,
+	// not to investigate one payload (#5859, #5870).
+	stateResourceARNRedacted = "state_resource_arn_redacted"
+)
+
+// stateResourceDecodeFailureClass names why awsRuntimeStateRowFromPayload
+// refused a payload, for the caller's WARN label. It re-reads only the "arn"
+// attribute rather than duplicating the rejection logic it describes, so the
+// classification cannot drift away from the guard that produced it.
+//
+// Only call this after awsRuntimeStateRowFromPayload returned false; on a row
+// that decoded successfully the answer is meaningless.
+func stateResourceDecodeFailureClass(payload []byte) string {
+	if redact.IsRedactedValue(decodedStateARN(payload)) {
+		return stateResourceARNRedacted
+	}
+	return stateResourceDecodeFailure
+}
+
 // decodedStateARN re-reads only the "arn" attribute from a terraform_state_resource
-// payload so the caller can tell a redacted join key apart from ordinary decode
-// noise, without duplicating awsRuntimeStateRowFromPayload's rejection logic.
-// Returns nil when the payload does not parse or carries no arn.
+// payload. Returns nil when the payload does not parse or carries no arn.
 func decodedStateARN(payload []byte) any {
 	if len(payload) == 0 {
 		return nil
@@ -80,17 +107,25 @@ func awsRuntimeStateRowFromPayload(scopeID, address string, payload []byte) (*cl
 		address = decoded.Address
 	}
 	address = strings.TrimSpace(address)
-	// "arn" is the join key, not a value, so a redacted one has to be REJECTED
-	// rather than carried. LoadPackagedSchemaResolver returns (nil, nil) when no
+	// "arn" is the join key, not a value, so a redacted one is rejected rather
+	// than carried. LoadPackagedSchemaResolver returns (nil, nil) when no
 	// provider-schema bundle parses, and schemaTrust answers SchemaUnknown for
 	// every attribute against a nil resolver, so the state parser fail-closed-
 	// redacts "arn" along with everything else. coerceJSONString renders that
 	// marker map through fmt.Sprint into a NON-EMPTY garbage string, which
-	// satisfies the emptiness guard below and then keys stateByARN. It matches no
-	// observed ARN, so the declared side does not lose a comparison -- it leaves
-	// the join, and every cloud resource under that bundle reclassifies as
-	// orphaned_cloud_resource. Dropping the row instead surfaces as missing
-	// declared evidence, which is what the empty-ARN guard already means (#5870).
+	// satisfies the emptiness guard below and then keys stateByARN.
+	//
+	// Be precise about what this does and does not change. The correlation
+	// OUTCOME is the same either way: the caller iterates observed ARNs and
+	// looks up stateByARN[arn], so a garbage key is simply never read, and the
+	// resource classifies orphaned_cloud_resource whether the row was stored
+	// under a key nothing matches or never stored at all. What rejecting buys
+	// is that the failure becomes VISIBLE -- the caller can tell a redacted
+	// join key apart from ordinary decode noise and log
+	// state_resource_arn_redacted, which points an operator at the schema
+	// bundle instead of at a generic malformed-payload warning. Whether the
+	// collector should fail-closed-redact an identity anchor at all is the
+	// upstream policy question, and stays open on #5870.
 	if redact.IsRedactedValue(decoded.Attributes["arn"]) {
 		return nil, false
 	}

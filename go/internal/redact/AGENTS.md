@@ -43,7 +43,16 @@
   `registry_test.go` case, and update
   `docs/public/reference/hosted-redaction-registry.md`.
 - **Change marker format** — treat this as a compatibility change. Existing
-  facts may depend on stable marker strings across generations.
+  facts may depend on stable marker strings across generations. Since #5859
+  this covers the persisted map's FIELD NAMES as well as the marker string:
+  `IsRedactedValue` recognizes a round-tripped marker by its `"marker"` key,
+  and `go/internal/storage/postgres` reads it to keep a redacted value out of
+  drift comparison. Renaming that field silently turns every redacted value
+  back into comparable garbage, and no test in this package would catch it.
+- **Change what `IsRedactedValue` accepts** — it deliberately matches only the
+  `{marker,reason,source}` object shape, never a bare marker string. Widening
+  it to a prefix match would misclassify genuine values; see the godoc for the
+  fingerprint fields that legitimately store a bare marker.
 
 ## Anti-patterns specific to this package
 

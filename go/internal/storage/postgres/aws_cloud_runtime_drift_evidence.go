@@ -15,7 +15,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
-	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -206,15 +205,10 @@ func (l PostgresAWSCloudRuntimeDriftEvidenceLoader) loadActiveStateResourcesByAR
 			// A redacted join key gets its own failure class. It is not payload
 			// noise: it means this deployment has no usable provider-schema
 			// bundle, so EVERY declared row is dropping out of the join and every
-			// cloud resource under it is about to reclassify as
-			// orphaned_cloud_resource. An operator watching an account go orphaned
-			// needs to land on the schema bundle, not on a generic decode warning
-			// (#5859, #5870).
-			failureClass := "state_resource_payload_decode"
-			if redact.IsRedactedValue(decodedStateARN(payload)) {
-				failureClass = "state_resource_arn_redacted"
-			}
-			l.logDecodeFailure(ctx, scopeID, generationID, address, failureClass)
+			// cloud resource under it reads as orphaned_cloud_resource. An
+			// operator watching an account go orphaned needs to land on the schema
+			// bundle, not on a generic decode warning (#5859, #5870).
+			l.logDecodeFailure(ctx, scopeID, generationID, address, stateResourceDecodeFailureClass(payload))
 			continue
 		}
 		out[resource.ARN] = append(out[resource.ARN], awsRuntimeStateResourceRow{

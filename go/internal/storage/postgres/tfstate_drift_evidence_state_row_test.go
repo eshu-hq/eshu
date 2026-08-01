@@ -205,3 +205,53 @@ func TestFlattenStateAttributesTreatsARedactionMarkerAsAbsent(t *testing.T) {
 		t.Fatalf("instance_type = %q, want t3.micro; unredacted attributes must survive", out["instance_type"])
 	}
 }
+
+// benchStateAttributes builds a Terraform-state-shaped attributes tree with a
+// realistic mix of scalars, nested maps, and the singleton-array repeated-block
+// shape the flattener is written around.
+func benchStateAttributes() map[string]any {
+	block := func(i int) any {
+		return []any{map[string]any{
+			"from_port": i,
+			"to_port":   i + 1,
+			"protocol":  "tcp",
+			"cidr_blocks": []any{map[string]any{
+				"cidr": "10.0.0.0/16",
+				"desc": "internal",
+			}},
+		}}
+	}
+	attrs := map[string]any{
+		"arn":           "arn:aws:ec2:us-east-1:123456789012:instance/i-0123456789abcdef0",
+		"ami":           "ami-0123456789abcdef0",
+		"instance_type": "t3.micro",
+		"monitoring":    false,
+		"tags": map[string]any{
+			"Name": "demo", "Env": "prod", "Team": "platform", "Cost": "cc-1",
+		},
+	}
+	for i := range 8 {
+		attrs["ingress_"+strings.Repeat("x", i%3)+string(rune('a'+i))] = block(i)
+	}
+	return attrs
+}
+
+// BenchmarkFlattenStateAttributes measures the widest of the three paths this
+// branch added a redaction check to. Unlike the value-drift decoders, which
+// read at most two allowlisted keys per row, flattenStateAttributes calls
+// redact.IsRedactedValue once per node VISITED -- every map, every array, and
+// every scalar leaf of a whole state resource's attribute tree. It backs the
+// No-Regression Evidence in go/internal/storage/postgres/README.md, which would
+// otherwise be asserting the cost of the one path it did not measure.
+func BenchmarkFlattenStateAttributes(b *testing.B) {
+	attrs := benchStateAttributes()
+	ctx := context.Background()
+	b.ReportAllocs()
+	for b.Loop() {
+		out := make(map[string]string, 64)
+		flattenStateAttributes(ctx, nil, attrs, "", out)
+		if len(out) == 0 {
+			b.Fatalf("flattenStateAttributes() produced no leaves")
+		}
+	}
+}

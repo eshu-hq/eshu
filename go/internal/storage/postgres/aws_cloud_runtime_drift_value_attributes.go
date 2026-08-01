@@ -210,18 +210,29 @@ func comparableScalarAttrSet(attributes map[string]any, keys ...string) map[stri
 }
 
 // redactedAnywhere reports whether value is itself a redaction marker map, or
-// an array wrapping one. terraformstate.applyLeafClassification recurses
-// redaction into array elements for composite (repeated-block) attributes,
-// so a future addition to cloudruntime.ValueAttributeAllowlistFor that names
-// a composite attribute would decode as []any{map[string]any{marker}} rather
-// than a bare marker map. redact.IsRedactedValue alone only recognizes the
-// bare-map shape, so without this the same garbage-string bug
-// comparableScalarAttr exists to prevent (#5859) would resurface silently
-// the moment such an attribute was allowlisted. None of today's three
-// allowlisted keys (ami, image_uri, version) are ever emitted as arrays, so
-// this is a latent guard, not a live fix -- see
-// TestComparableScalarAttrTreatsArrayWrappedRedactionMarkerAsAbsent, which
-// pins the boundary by failing if this function is reverted to a bare
+// an array wrapping one.
+//
+// The two shapes come from different branches of the collector, and the
+// distinction is worth stating precisely because the array one is NOT
+// produced by the nil-resolver condition #5859 is about. Under
+// redact.ActionRedact the terraform-state parser replaces the whole attribute
+// with a single redactionMap (terraformstate/attributes.go:231), which is the
+// bare-map shape. The array shape comes from the other branch: an
+// ActionPreserve composite goes through applyLeafClassification, which
+// recurses into array elements (attributes.go:264-268) and classifies each
+// leaf with redact.SchemaKnown hardcoded (attributes.go:272), so a
+// sensitive-NAMED leaf inside a repeated block is redacted individually and
+// decodes as []any{map[string]any{marker}}.
+//
+// So this is a latent guard, not a live fix, on two counts: none of today's
+// three allowlisted keys (ami, image_uri, version) is a composite, and the
+// producing condition is a sensitive-key match under a known schema rather
+// than #5859's unknown one. It is kept because the cost is one type
+// assertion and the failure mode is silent -- allowlisting a composite
+// attribute would otherwise reintroduce the exact garbage-string bug
+// comparableScalarAttr exists to prevent.
+// TestComparableScalarAttrTreatsArrayWrappedRedactionMarkerAsAbsent pins the
+// boundary by failing if this function is reverted to a bare
 // redact.IsRedactedValue(value) check.
 func redactedAnywhere(value any) bool {
 	if redact.IsRedactedValue(value) {

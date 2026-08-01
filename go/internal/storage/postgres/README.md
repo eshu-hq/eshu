@@ -661,10 +661,29 @@ That is the cost of two failed type assertions per allowlisted key
 (`map[string]any`, then `[]any`) ahead of the coercion the old code called
 directly -- no allocation, no parsing, no extra read. The path runs at most
 twice per state row (`aws_lambda_function` is the widest allowlist entry at two
-keys), so it does not move the reducer's per-generation drift budget. The join
-key's guard (`awsRuntimeStateRowFromPayload`) and `flattenStateAttributes`
-each add one such check per row and per map node respectively, on the same
-no-allocation shape.
+keys).
+
+`flattenStateAttributes` is the widest of the three changed paths and is
+measured separately, because asserting it from the narrow one would have
+understated it: the check runs once per node VISITED -- every map, every array,
+and every scalar leaf of a whole state resource's attribute tree, not once per
+row or per map. `BenchmarkFlattenStateAttributes` (in
+`tfstate_drift_evidence_state_row_test.go`) walks a realistic tree of scalars,
+a tag map, and eight singleton-array repeated blocks, measured the same way:
+
+```text
+OLD  4125  4061  4057  4053  4112 ns/op   6241 B/op   55 allocs/op
+NEW  4376  4370  4365  4349  4367 ns/op   6241 B/op   55 allocs/op
+```
+
+About +280 ns/op, roughly +7% on this shape, with allocation again identical.
+That is the largest relative cost in the change and it is stated plainly rather
+than rounded away: it is one type assertion per visited node, it does not
+allocate, and it is bounded by the tree the flattener already walks. At ~4.4 µs
+per state resource the absolute cost stays well inside the per-generation drift
+budget. The join key's guard (`awsRuntimeStateRowFromPayload`) adds one such
+check per rejected row and is not separately benchmarked -- it runs once per
+row on the same no-allocation shape as the decoder path above.
 
 No-Observability-Change (#5859): no new metric, span, queue, lease, worker, or
 runtime knob. The one new signal is a `failure_class` value
@@ -685,7 +704,7 @@ emission time on `eshu_dp_tfstate_redactions_applied_total{reason}`.
   scoped out of #5429; wire one if per-store-operation telemetry becomes
   necessary.
 - `cloudObservedValueAttributes`/`stateDeclaredValueAttributes`
-  (`aws_cloud_runtime_drift_evidence.go`, reused by
+  (`aws_cloud_runtime_drift_value_attributes.go`, reused by
   `multi_cloud_runtime_drift_evidence.go`) normalize the bounded,
   allowlisted `cloudruntime.ResourceRow.Attributes`/`ContainerImages` value-
   drift comparison fields (#5453) off the AWS-observed and Terraform-declared
