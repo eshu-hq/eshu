@@ -335,6 +335,7 @@ check_stage_table_rows
 # field would flag those as dead when they are not.
 sync_fields_tmp="$(mktemp)"
 referenced_fields_tmp="$(mktemp)"
+referenced_fields_all_tmp="$(mktemp)"
 rg -Uo --no-filename \
   'inst\.(\w+), err = meter\.(?:Int64|Float64)(?:Counter|Histogram|UpDownCounter|Gauge)\(' \
   --replace '$1' "$repo_root/$instruments_path" 2>/dev/null | sort -u >"$sync_fields_tmp" || true
@@ -350,16 +351,33 @@ rg -Uo --no-filename \
 # (#5548 review). Reading the field list out of one match set has no exit code
 # to misread, and drops the gate from 357 subprocesses to one.
 #
-# Plain regex, not -P: \b and alternation are supported by rg's default
-# engine, so the check no longer depends on the local ripgrep being built with
-# PCRE2. CI installs ripgrep from apt, whose build options are not ours to
-# choose.
+# git grep, not rg, and deliberately so.
+#
+# Two rg-based versions of this scan passed locally and failed in CI, flagging
+# 112 then 113 fields that are demonstrably referenced in the tree. The cause
+# was never pinned down -- CI installs ripgrep from apt (14.1.0) against a
+# local 15.2.0, and the two disagree about which files this search reaches.
+# Rather than keep guessing at the difference, this asks git for the file set
+# instead of asking a tree-walker to rediscover it. `git grep` searches tracked
+# files, which is exactly what CI checks out, so the search set is the same
+# everywhere and does not depend on ignore-file handling, glob semantics, or
+# traversal order.
+#
+# -w is git grep's whole-word flag. -E is POSIX ERE, which has no \b -- using
+# it silently matched nothing at all, which the empty-result guard below caught
+# rather than reporting every instrument as dead.
 if [ -s "$sync_fields_tmp" ]; then
   field_alternation="$(paste -sd'|' - <"$sync_fields_tmp")"
-  rg -o --no-filename \
-    --glob '!**/telemetry/instruments.go' --glob '!**/*_test.go' --glob '!**/README.md' \
-    "\\b(${field_alternation})\\b" \
-    "$repo_root/go" "$repo_root/sdk" "$repo_root/examples" 2>/dev/null \
+  git -C "$repo_root" grep -h -o -w -E "(${field_alternation})" -- \
+    go sdk examples 2>/dev/null \
+    | sort -u >"$referenced_fields_all_tmp" || true
+  # Drop the registration site and test files. Filtering after the search
+  # rather than with pathspecs keeps the pathspec syntax simple and its
+  # behaviour obvious.
+  git -C "$repo_root" grep -h -o -w -E "(${field_alternation})" -- \
+    go sdk examples \
+    ':(exclude)go/internal/telemetry/instruments.go' \
+    ':(exclude,glob)**/*_test.go' 2>/dev/null \
     | sort -u >"$referenced_fields_tmp" || true
 
   # A tool failure must not read as a wall of findings. Every registered
@@ -367,21 +385,20 @@ if [ -s "$sync_fields_tmp" ]; then
   # it means the search did not run. Fail loudly on that instead of emitting
   # 357 confident-looking "dead metric" lines.
   if [ ! -s "$referenced_fields_tmp" ]; then
-    printf 'verify-telemetry-coverage: the instrument reference scan produced no matches at all.\n' >&2
-    printf '  That is a search failure, not %d dead metrics. Check that ripgrep ran over\n' "$(wc -l <"$sync_fields_tmp" | tr -d ' ')" >&2
-    printf '  %s/{go,sdk,examples} and that the pattern compiled.\n' "$repo_root" >&2
-    rm -f "$sync_fields_tmp" "$referenced_fields_tmp"
-    exit 1
-  fi
-
-  while IFS= read -r field; do
-    [ -n "$field" ] || continue
-    report="${report}  - instruments.go registers \`${field}\` but nothing outside instruments.go references it: registered and documented, never emitted
+    report="${report}  - the instrument reference scan matched nothing at all across $(wc -l <"$sync_fields_tmp" | tr -d ' ') registered instruments. That is a search failure, not a repository full of dead metrics: check that git grep ran over ${repo_root}/{go,sdk,examples} and that the pattern compiled.
 "
     drift=1
-  done < <(comm -23 "$sync_fields_tmp" "$referenced_fields_tmp")
+  else
+
+    while IFS= read -r field; do
+      [ -n "$field" ] || continue
+      report="${report}  - instruments.go registers \`${field}\` but nothing outside instruments.go references it: registered and documented, never emitted
+"
+      drift=1
+    done < <(comm -23 "$sync_fields_tmp" "$referenced_fields_tmp")
+  fi
 fi
-rm -f "$sync_fields_tmp" "$referenced_fields_tmp"
+rm -f "$sync_fields_tmp" "$referenced_fields_tmp" "$referenced_fields_all_tmp"
 
 # (4) Histogram bucket boundary assertion. Parses documented bucket sets
 # from the X1 doc's histogram-buckets section and bucket boundary
