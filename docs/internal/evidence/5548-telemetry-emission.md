@@ -22,7 +22,7 @@ registrations that nothing emitted, plus 6 bucket-boundary slices only those
 registrations used. Startup registers 23 fewer instruments; nothing else about
 the path changes.
 
-**No-Regression Evidence:** the two added calls are OpenTelemetry counter
+No-Regression Evidence: the two added calls are OpenTelemetry counter
 increments on code paths that already execute, with no new query, allocation,
 lock, or I/O. No benchmark was run and none is claimed — a counter `.Add()`
 beside three existing `.Add()`/`.Record()` calls at the same site is not a
@@ -30,7 +30,7 @@ measurable change against this repo's collector-run baselines, and inventing a
 before/after number for it would be worse than saying so. The deletions can
 only reduce startup work.
 
-**Observability Evidence:** this change is entirely about observability, and
+Observability Evidence: this change is entirely about observability, and
 the operator-visible effect is the point.
 
 - Two stages that emitted nothing now emit. `eshu_dp_evidence_facts_discovered_total`
