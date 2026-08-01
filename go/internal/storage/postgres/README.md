@@ -620,7 +620,25 @@ Primary groups:
 - `PostgresAWSCloudRuntimeDriftEvidenceLoader` logs malformed AWS runtime
   resource rows with `resource.fingerprint`, `resource.identity_kind`, and
   `resource.type`; it does not put raw ARNs, Terraform addresses, or
-  secret-shaped resource names in operator logs.
+  secret-shaped resource names in operator logs. Two `failure_class` values
+  distinguish causes an operator has to act on differently:
+  `state_resource_payload_decode` is ordinary malformed-payload noise, while
+  `state_resource_arn_redacted` means the join key itself was redacted -- the
+  provider-schema bundle is unusable, so EVERY declared row is leaving the join
+  and the account is about to read as orphaned (#5859, #5870).
+- The same loader and its multi-cloud sibling
+  (`PostgresMultiCloudRuntimeDriftEvidenceLoader`) drop a redacted comparable
+  attribute from `ResourceRow.Attributes` rather than passing the marker
+  through as a value (`comparableScalarAttr` in
+  `aws_cloud_runtime_drift_value_attributes.go`). There is no loader-side log
+  for that: when redaction erases every comparable attribute for a covered
+  resource type, `cloudruntime.ClassifyValueComparison` reports
+  `Comparable > 0, Compared == 0` and `Classify` returns
+  `value_comparison_inconclusive`, which is a durable finding row carrying
+  `comparable_attribute:<key>` in `missing_evidence` and counted on
+  `Summary.ValueComparisonInconclusiveResources` (#5837). That is the signal
+  an operator reads; a second loader-side detector of the same condition
+  could only disagree with it.
 - `CICDRunWatermarkStore` emits no metrics or spans of its own. Gap
   detection is observed through `ghactionsruntime`'s existing
   `eshu_dp_ci_cd_run_partial_generations_total{reason="runs_backfill_gap"}`
