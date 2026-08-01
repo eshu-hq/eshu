@@ -313,14 +313,6 @@ func (s *GitSource) snapshotOneRepository(
 				telemetry.AttrScopeKind(scopeKind),
 			),
 		)
-		s.Instruments.FactBatchesCommitted.Add(
-			ctx, 1,
-			metric.WithAttributes(
-				telemetry.AttrCollectorKind("git"),
-				telemetry.AttrSourceSystem("git"),
-				telemetry.AttrScopeKind(scopeKind),
-			),
-		)
 	}
 
 	// Log completion

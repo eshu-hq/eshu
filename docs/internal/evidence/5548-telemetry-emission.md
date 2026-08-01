@@ -1,29 +1,38 @@
 # 5548 — telemetry coverage gate: emission, not just registration
 
 Validation record for the change that made `scripts/verify-telemetry-coverage.sh`
-check that a documented metric is actually emitted, wired the two instruments
-that turned out to be genuine gaps, and deleted 23 that were dead.
+check that a documented metric is actually emitted, wired the one instrument
+that turned out to be a genuine gap, and deleted 24 that were dead.
 
 ## What changed on a runtime path
 
-Two counter increments, both inside branches that already ran:
+One counter increment, inside a branch that already ran:
 
 | site | added | guard |
 | --- | --- | --- |
 | `go/internal/storage/postgres/ingestion.go` | `EvidenceFactsDiscovered.Add(ctx, int64(len(evidence)))` | nil-checked, and only reached when `len(evidence) > 0` |
-| `go/internal/collector/git_source_processing.go` | `FactBatchesCommitted.Add(ctx, 1)` | inside the existing `s.Instruments != nil` block, beside three sibling emissions |
+
+A second wiring was attempted and then withdrawn. `FactBatchesCommitted` was
+placed at the git snapshot site, which fires before the facts reach Postgres
+and fires once per snapshot regardless of how many multi-row batches the stream
+becomes — so it would have counted snapshots under a name that says batches.
+Review caught it. There is no batch count to emit: `CommitScopeGeneration`
+returns only an error, and counting real batches would mean plumbing a count
+back through the committer interface. `eshu_dp_facts_committed_total` already
+fires on that path after a successful commit, so the metric was deleted with
+the other dead ones rather than wired somewhere convenient.
 
 `len(evidence)` is already computed on that line — the log statement
 immediately below it prints the same value. Neither site adds a query, an
 allocation, a lock, or an I/O call.
 
-`go/internal/telemetry/instruments.go` lost 264 lines: 23 instrument
+`go/internal/telemetry/instruments.go` lost 264 lines: 24 instrument
 registrations that nothing emitted, plus 6 bucket-boundary slices only those
 registrations used. Startup registers 23 fewer instruments; nothing else about
 the path changes.
 
-No-Regression Evidence: the two added calls are OpenTelemetry counter
-increments on code paths that already execute, with no new query, allocation,
+No-Regression Evidence: the one added call is an OpenTelemetry counter
+increment on a code path that already executes, with no new query, allocation,
 lock, or I/O. No benchmark was run and none is claimed — a counter `.Add()`
 beside three existing `.Add()`/`.Record()` calls at the same site is not a
 measurable change against this repo's collector-run baselines, and inventing a
@@ -33,12 +42,11 @@ only reduce startup work.
 Observability Evidence: this change is entirely about observability, and
 the operator-visible effect is the point.
 
-- Two stages that emitted nothing now emit. `eshu_dp_evidence_facts_discovered_total`
-  counts facts found per evidence-discovery pass; `eshu_dp_fact_batches_committed_total`
-  counts git-collector fact batches committed.
-- 23 metrics that were registered and documented but never emitted are gone.
+- One stage that emitted nothing now emits: `eshu_dp_evidence_facts_discovered_total`
+  counts facts found per evidence-discovery pass.
+- 24 metrics that were registered and documented but never emitted are gone.
   Each was checked against `docs/public/observability/dashboards/eshu-operator-overview.json`
-  first: the 11 never-emitted ones had **zero** dashboard references, so no
+  first: the 12 never-emitted ones had **zero** dashboard references, so no
   panel or alert could have been reading them. A metric with no emission site
   has never produced a sample.
 - The 12 duplicate registrations are deleted from `instruments.go` only. Each
@@ -78,7 +86,7 @@ Verifier exits 1. Removing the probe returns it to 0.
 
 ## Why this is safe
 
-The runtime change is two counter increments on paths that already ran. The
+The runtime change is one counter increment on a path that already ran. The
 deletions remove instruments that produced no samples, or duplicates whose
 live registration is untouched. The one behavioural risk worth naming is the
 widened registration discovery: check (1) now searches the whole tree, so a

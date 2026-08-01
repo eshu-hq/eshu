@@ -81,7 +81,6 @@ Use these to locate the phase that changed before opening logs or traces:
 | `eshu_dp_fact_emit_duration_seconds` | Fact emission cost. |
 | `eshu_dp_facts_emitted_total` | Collector fact output volume. |
 | `eshu_dp_facts_committed_total` | Durable fact commit volume. |
-| `eshu_dp_fact_batches_committed_total` | Streaming fact batch commits. |
 | `eshu_dp_generation_fact_count` | Fact volume per scope generation. |
 | `eshu_dp_collector_delta_baseline_fallback_total` | Git delta syncs that fell back to a full snapshot, by `skip_reason`. |
 | `eshu_dp_collector_reconciliation_full_snapshots_total` | Git scopes forced to a full reconciliation snapshot to retract delta-path drift. |
@@ -108,9 +107,6 @@ Use these to locate the phase that changed before opening logs or traces:
 | `eshu_dp_graph_orphan_nodes` | Bounded zero-relationship graph node count by closed `node_label`. |
 | `eshu_dp_canonical_write_duration_seconds` | Canonical graph/content write latency. |
 | `eshu_dp_search_decay_policy_applications_total` | Search decay scoring decisions by policy id, evidence class, and outcome. |
-| `eshu_dp_semantic_extraction_queue_events_total` | Semantic extraction queue lifecycle events by bounded source, provider, profile class, status, failure class, and budget class. |
-| `eshu_dp_semantic_extraction_budget_tokens_total` | Semantic extraction estimated and actual token budget consumption by bounded source, provider, profile class, and budget class. |
-| `eshu_dp_semantic_extraction_budget_cost_micros_total` | Semantic extraction estimated and actual cost budget consumption in micros by bounded source, provider, profile class, and budget class. |
 
 `eshu_dp_projector_stage_duration_seconds` uses bounded `stage` values such as
 `build_projection`, `graph_write`, `content_write`, and `intent_enqueue`.
@@ -132,7 +128,7 @@ Use these to locate the phase that changed before opening logs or traces:
 | Runtime health | `eshu_runtime_health_state`, `eshu_runtime_queue_outstanding`, `eshu_runtime_queue_oldest_outstanding_age_seconds`, `eshu_runtime_stage_items`, `eshu_runtime_domain_oldest_age_seconds` |
 | Ingest throughput | `eshu_dp_repos_snapshotted_total`, `eshu_dp_files_parsed_total`, `eshu_dp_facts_emitted_total`, `eshu_dp_collector_observe_duration_seconds`, `eshu_dp_projector_run_duration_seconds`, `eshu_dp_reducer_run_duration_seconds` |
 | Webhook intake | `eshu_dp_webhook_requests_total`, `eshu_dp_webhook_trigger_decisions_total`, `eshu_dp_webhook_store_operations_total`, `eshu_dp_webhook_request_duration_seconds`, `eshu_dp_webhook_store_duration_seconds` |
-| Semantic extraction | `eshu_dp_queue_depth{queue="semantic_extraction"}`, `eshu_dp_queue_oldest_age_seconds{queue="semantic_extraction"}`, `eshu_dp_semantic_extraction_queue_events_total`, `eshu_dp_semantic_extraction_budget_tokens_total`, `eshu_dp_semantic_extraction_budget_cost_micros_total` |
+| Semantic extraction | `eshu_dp_queue_depth{queue="semantic_extraction"}`, `eshu_dp_queue_oldest_age_seconds{queue="semantic_extraction"}` |
 | Shared follow-up | `eshu_dp_shared_projection_cycles_total`, `eshu_dp_shared_projection_intent_wait_seconds`, `eshu_dp_shared_projection_processing_seconds`, `eshu_dp_shared_projection_stale_intents_total`, `eshu_dp_shared_acceptance_lookup_duration_seconds` |
 | Generation retention | `eshu_dp_generation_retention_generations_pruned_total`, `eshu_dp_generation_retention_rows_pruned_total`, `eshu_dp_generation_retention_failures_total`, `eshu_dp_generation_retention_skipped_total`, `eshu_dp_generation_retention_duration_seconds`, `eshu_dp_generation_retention_batch_size`, `eshu_dp_generation_retention_oldest_eligible_age_seconds` |
 | Generation liveness | `eshu_dp_active_generations`, `eshu_dp_generation_liveness_recovered_total`, `eshu_dp_generation_liveness_superseded_total`, `eshu_dp_generation_liveness_failures_total` |

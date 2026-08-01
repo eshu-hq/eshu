@@ -139,12 +139,6 @@ sort -u -o "$doc_files_tmp" "$doc_files_tmp"
 # open paren and the metric name. The set below covers the constructors
 # used by Eshu today (Counter, Histogram, ObservableGauge, Gauge, plus
 # the UpDownCounter/ObservableCounter variants for forward compatibility).
-# Scanned across the whole tree, not only instruments.go. Several
-# first-party metrics are registered in a dedicated *_metrics.go beside
-# the code that emits them -- request_metrics.go, cloud_resources_metrics.go,
-# iac_resources_metrics.go, transport_auth_metrics.go and others. Reading
-# only instruments.go made those look unregistered, so the doc rows citing
-# them could not be validated at all (#5548).
 # Two sets, because the two checks ask different questions.
 #
 # registered_anywhere_tmp answers "is this documented metric real?" and so
@@ -339,20 +333,55 @@ check_stage_table_rows
 # recorded from there, as go/cmd/mcp-server/wiring.go does with
 # GovernanceAuditAllowedEmitted -- and requiring a literal call site at the
 # field would flag those as dead when they are not.
-while IFS= read -r field; do
-  [ -n "$field" ] || continue
-  if ! rg -q --glob '!**/telemetry/instruments.go' --glob '!**/*_test.go' \
-       --glob '!**/README.md' -P "\\b${field}\\b" \
-       "$repo_root/go" "$repo_root/sdk" "$repo_root/examples" 2>/dev/null; then
+sync_fields_tmp="$(mktemp)"
+referenced_fields_tmp="$(mktemp)"
+rg -Uo --no-filename \
+  'inst\.(\w+), err = meter\.(?:Int64|Float64)(?:Counter|Histogram|UpDownCounter|Gauge)\(' \
+  --replace '$1' "$repo_root/$instruments_path" 2>/dev/null | sort -u >"$sync_fields_tmp" || true
+
+# One rg pass over the tree with every field name in a single alternation,
+# rather than one invocation per field.
+#
+# The per-field loop this replaces asked `rg -q` 357 times and treated any
+# non-zero exit as "not referenced". rg exits 1 for no-match and 2 for an
+# error, so anything that made rg fail -- an unsupported flag, an unreadable
+# path -- was silently reported as a dead metric. That is a false failure in
+# the direction that blocks a merge, and it fired in CI while passing locally
+# (#5548 review). Reading the field list out of one match set has no exit code
+# to misread, and drops the gate from 357 subprocesses to one.
+#
+# Plain regex, not -P: \b and alternation are supported by rg's default
+# engine, so the check no longer depends on the local ripgrep being built with
+# PCRE2. CI installs ripgrep from apt, whose build options are not ours to
+# choose.
+if [ -s "$sync_fields_tmp" ]; then
+  field_alternation="$(paste -sd'|' - <"$sync_fields_tmp")"
+  rg -o --no-filename \
+    --glob '!**/telemetry/instruments.go' --glob '!**/*_test.go' --glob '!**/README.md' \
+    "\\b(${field_alternation})\\b" \
+    "$repo_root/go" "$repo_root/sdk" "$repo_root/examples" 2>/dev/null \
+    | sort -u >"$referenced_fields_tmp" || true
+
+  # A tool failure must not read as a wall of findings. Every registered
+  # instrument being unreferenced at once is not a plausible repository state;
+  # it means the search did not run. Fail loudly on that instead of emitting
+  # 357 confident-looking "dead metric" lines.
+  if [ ! -s "$referenced_fields_tmp" ]; then
+    printf 'verify-telemetry-coverage: the instrument reference scan produced no matches at all.\n' >&2
+    printf '  That is a search failure, not %d dead metrics. Check that ripgrep ran over\n' "$(wc -l <"$sync_fields_tmp" | tr -d ' ')" >&2
+    printf '  %s/{go,sdk,examples} and that the pattern compiled.\n' "$repo_root" >&2
+    rm -f "$sync_fields_tmp" "$referenced_fields_tmp"
+    exit 1
+  fi
+
+  while IFS= read -r field; do
+    [ -n "$field" ] || continue
     report="${report}  - instruments.go registers \`${field}\` but nothing outside instruments.go references it: registered and documented, never emitted
 "
     drift=1
-  fi
-done < <(
-  rg -UPo --no-filename \
-    'inst\.(\w+), err = meter\.(?:Int64|Float64)(?:Counter|Histogram|UpDownCounter|Gauge)\(' \
-    --replace '$1' "$repo_root/$instruments_path" 2>/dev/null | sort -u
-)
+  done < <(comm -23 "$sync_fields_tmp" "$referenced_fields_tmp")
+fi
+rm -f "$sync_fields_tmp" "$referenced_fields_tmp"
 
 # (4) Histogram bucket boundary assertion. Parses documented bucket sets
 # from the X1 doc's histogram-buckets section and bucket boundary

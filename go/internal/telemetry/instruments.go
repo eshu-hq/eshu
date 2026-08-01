@@ -1211,9 +1211,7 @@ type Instruments struct {
 	SCIPSnapshotAttempts           metric.Int64Counter
 	SCIPProcessWaitDuration        metric.Float64Histogram
 
-	// Streaming fact production metrics
-	FactBatchesCommitted metric.Int64Counter
-	GenerationFactCount  metric.Float64Histogram
+	GenerationFactCount metric.Float64Histogram
 
 	// Discovery skip counters — per-name breakdown of what discovery prunes
 	DiscoveryDirsSkipped  metric.Int64Counter
@@ -4072,14 +4070,6 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SCIPProcessWaitDuration histogram: %w", err)
-	}
-
-	inst.FactBatchesCommitted, err = meter.Int64Counter(
-		"eshu_dp_fact_batches_committed_total",
-		metric.WithDescription("Total fact batches committed to Postgres during streaming ingestion"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register FactBatchesCommitted counter: %w", err)
 	}
 
 	// Use wide buckets for fact counts — repos range from 5 to 295k facts

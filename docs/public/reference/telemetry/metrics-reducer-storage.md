@@ -90,7 +90,6 @@ without repository paths, resource identifiers, or generation ids.
 | `eshu_dp_shared_acceptance_lookup_errors_total` | counter | Shared acceptance lookup failures. |
 | `eshu_dp_shared_acceptance_upsert_duration_seconds` | histogram | Shared acceptance write latency. |
 | `eshu_dp_shared_acceptance_upserts_total` | counter | Shared acceptance write volume. |
-| `eshu_dp_shared_acceptance_prefetch_size` | histogram | Shared acceptance prefetch size. |
 | `eshu_dp_shared_acceptance_rows` | observable gauge | Durable shared acceptance row count. |
 | `eshu_dp_shared_edge_write_groups_total` | counter | Shared edge write group volume. |
 | `eshu_dp_shared_edge_write_group_duration_seconds` | histogram | Shared edge write group latency. |
@@ -117,12 +116,7 @@ or generation context.
 | `eshu_dp_canonical_write_duration_seconds` | histogram | Canonical graph/content write latency. |
 | `eshu_dp_canonical_atomic_writes_total` | counter | Atomic canonical write attempts. |
 | `eshu_dp_canonical_atomic_fallbacks_total` | counter | Atomic write fallbacks. |
-| `eshu_dp_canonical_nodes_written_total` | counter | Canonical node write volume. |
-| `eshu_dp_canonical_edges_written_total` | counter | Canonical edge write volume. |
 | `eshu_dp_canonical_projection_duration_seconds` | histogram | Canonical projection phase cost. |
-| `eshu_dp_canonical_retract_duration_seconds` | histogram | Canonical retract phase cost. |
-| `eshu_dp_canonical_batch_size` | histogram | Canonical write batch size. |
-| `eshu_dp_canonical_phase_duration_seconds` | histogram | Canonical phase-level cost. |
 | `eshu_dp_graph_write_backpressure_engaged_total` | counter | Graph writes that blocked for an in-flight permit (write-path backpressure engaged), labeled by operation and gate (`canonical` or `semantic`; the projector has a single pool and always reports `canonical`). |
 | `eshu_dp_graph_write_backpressure_wait_seconds` | histogram | Time a graph write blocked waiting for an in-flight permit, labeled by operation and gate (`canonical` or `semantic`). |
 
