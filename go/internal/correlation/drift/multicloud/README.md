@@ -27,6 +27,12 @@ package unchanged; this package adds the provider-neutral path beside it.
   the AWS-specific path. GCP/Azure resources carry no allowlist entries
   today (their resource type strings never match the AWS-only allowlist
   keys), so this is currently AWS-only in practice, not by a provider check.
+  The same delegation carries the #5837 `value_comparison_inconclusive` kind:
+  when the resource type IS covered and not one comparable value could be
+  compared, the shared classifier answers uncertainty rather than convergence,
+  and `Summary.ValueComparisonInconclusiveResources` counts it. A resource type
+  with no allowlist entry is not covered and still converges, so GCP and Azure
+  resources never acquire the kind today.
 - `Row.EffectiveFindingKind()` lets the reducer override the structural join
   with a stronger deterministic signal: `ambiguous` (conflicting ownership) or
   `unknown` (coverage gap). An override of ambiguous or unknown wins even when
@@ -60,3 +66,25 @@ management-status mapping in
 `terraform_state_only` are `derived`, `ambiguous_management` is `ambiguous`, and
 `unknown_management` is `unknown`. See
 `docs/public/reference/replatforming-source-state-taxonomy.md`.
+
+## Evidence for the inconclusive value outcome
+
+No-Regression Evidence: the `value_comparison_inconclusive` outcome adds no
+query, no statement, and no index to the multi-cloud read path. Baseline and
+after are the same SQL: `listMultiCloudRuntimeDriftEvidence` still issues one
+`SELECT` per generation over `fact_records`, and the change is confined to how
+`BuildCandidates` classifies rows already in memory. Backend Postgres 16.14,
+input shape unchanged (the golden corpus's 30-repo generation, terminal queue
+counts residual=0 dead_letter=0 on every drain of the reconciliation run), and
+`testdata/cassettes/replayoffline/aws-cloud-runtime-drift.cost-budget.json`
+still pins the same statement count, so a new statement would fail that budget
+rather than land unnoticed. The safety argument is that the outcome only
+converts a case that previously produced NO candidate into one durable row, so
+the write path gains rows in exactly the situation where it used to delete them.
+
+No-Observability-Change: no new metric, span, or log shape. The new outcome is
+carried on the existing `Summary.ValueComparisonInconclusiveResources` counter
+and the existing per-evaluation summary log line, both already registered in
+`telemetry.go` and already covered by the row in
+`docs/public/observability/telemetry-coverage.md`. An operator sees the same
+fields with one additional count, not a new signal to learn.

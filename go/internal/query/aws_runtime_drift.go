@@ -185,7 +185,16 @@ func normalizeAWSRuntimeDriftFindingsRequest(req iacManagementRequest) (IaCManag
 		}
 	}
 	if !callerNamedKind {
-		filter.FindingKinds = append(filter.FindingKinds, findingKindImageVersionDrift)
+		filter.FindingKinds = append(
+			filter.FindingKinds,
+			findingKindImageVersionDrift,
+			// #5837: value_comparison_inconclusive is on the default page for
+			// the reason it exists. It replaces a drift finding whose evidence
+			// went unreadable; excluding it by default would restore the exact
+			// symptom the finding was added to prevent -- the drift row
+			// disappearing from this page with nothing in its place.
+			findingKindValueComparisonInconclusive,
+		)
 		sort.Strings(filter.FindingKinds)
 	}
 	return filter, nil

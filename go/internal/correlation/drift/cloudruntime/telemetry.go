@@ -28,6 +28,18 @@ type Summary struct {
 	// recordRuleMatches below, so this field exists for the reducer's own
 	// operator-facing summary log line, not a new metric.
 	ImageVersionDriftResources int
+	// ValueComparisonInconclusiveResources counts admitted
+	// value_comparison_inconclusive findings (#5837) -- ARNs whose cloud, state,
+	// and config all agree, whose resource type value drift covers, and for
+	// which not one comparable value could actually be compared.
+	//
+	// It shares the ImageVersionDriftResources reasoning about metrics (every
+	// admitted result already increments eshu_dp_correlation_rule_matches_total),
+	// but this count is the one an operator should watch: a healthy deployment
+	// produces zero, and a non-zero value means the terraform-state collector is
+	// redacting declared attributes or the AWS collector is not observing them.
+	// It reaches operators through the reducer's summary log line.
+	ValueComparisonInconclusiveResources int
 }
 
 // RecordEvaluation emits bounded metrics for one AWS cloud-runtime drift
@@ -52,6 +64,8 @@ func RecordEvaluation(ctx context.Context, instruments *telemetry.Instruments, e
 			summary.UnknownResources++
 		case FindingKindImageVersionDrift:
 			summary.ImageVersionDriftResources++
+		case FindingKindValueComparisonInconclusive:
+			summary.ValueComparisonInconclusiveResources++
 		}
 	}
 	return summary

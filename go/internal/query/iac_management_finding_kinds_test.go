@@ -3,7 +3,11 @@
 
 package query
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
+)
 
 // TestNormalizeIaCManagementFindingKindsAcceptsImageVersionDrift proves the
 // finding_kinds allowlist admits "image_version_drift" (#5453) so
@@ -19,6 +23,29 @@ func TestNormalizeIaCManagementFindingKindsAcceptsImageVersionDrift(t *testing.T
 	want := []string{"image_version_drift"}
 	if len(got) != 1 || got[0] != want[0] {
 		t.Fatalf("normalizeIaCManagementFindingKinds() = %#v, want %#v", got, want)
+	}
+}
+
+// TestNormalizeIaCManagementFindingKindsAcceptsValueComparisonInconclusive
+// proves the finding_kinds allowlist admits "value_comparison_inconclusive"
+// (#5837) so list_cloud_runtime_drift_findings and
+// list_aws_runtime_drift_findings can filter to the degraded-evidence rows
+// without widening a page that also carries real drift. It also pins the
+// query package's hand-restated findingKindValueComparisonInconclusive
+// literal against cloudruntime.FindingKindValueComparisonInconclusive, the
+// lower layer's own constant this package must not import in production code
+// (see the doc comment on findingKindValueComparisonInconclusive) -- so the
+// two strings cannot silently drift apart.
+func TestNormalizeIaCManagementFindingKindsAcceptsValueComparisonInconclusive(t *testing.T) {
+	t.Parallel()
+
+	got, err := normalizeIaCManagementFindingKinds([]string{"value_comparison_inconclusive"})
+	if err != nil {
+		t.Fatalf("normalizeIaCManagementFindingKinds([value_comparison_inconclusive]) error = %v, want nil", err)
+	}
+	want := string(cloudruntime.FindingKindValueComparisonInconclusive)
+	if len(got) != 1 || got[0] != want {
+		t.Fatalf("normalizeIaCManagementFindingKinds() = %#v, want [%q]", got, want)
 	}
 }
 

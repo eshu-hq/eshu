@@ -1269,3 +1269,234 @@ instrument. `AWSCloudRuntimeDriftHandler` additionally emits its own structured
 The `InstrumentedDB.Begin` fix restores `eshu_dp_postgres_query_duration_seconds`
 coverage for every statement this writer's transaction issues, closing a gap
 this branch's own architecture change would otherwise have introduced silently.
+
+## Follow-on work carried on top of the landed design
+
+The sections below were developed alongside the reopen and admission work but do
+not depend on it. They survive the mechanism this branch shipped unchanged: the
+value axis is a `Classify` precondition the retire relies on regardless of how
+admission is ordered, and the two gate sections are accounting and coverage
+findings with no drift-domain coupling at all. The rest of that line of work --
+a per-ARN evidence watermark ranking a fenced delete-then-insert -- was
+superseded by the transactional admission design documented above, which orders
+passes by a database-issued sequence rather than by comparing two collectors'
+clocks, and is deliberately not carried here.
+
+### The retire's second precondition: the VALUE axis (#5837)
+
+The retire above is only correct while every path that drops an ARN from the
+keep-set is a real verdict, because a retire deletes on the strength of
+ABSENCE. `Classify` satisfies that on the EXISTENCE axis by construction — a
+missing state row writes `orphaned_cloud_resource` and a missing config row
+writes `unmanaged_cloud_resource`, so degraded evidence still produces a row.
+
+It did NOT satisfy it on the VALUE axis. With cloud, state, and config all
+present and no comparable attribute left to compare, `classify.go` returned
+`""`, `candidate.go` did `kind == "" -> continue`, the keep-set emptied, and the
+retire deleted a still-true `image_version_drift` finding.
+
+Probed through the real handler on one `(scope, generation)`:
+
+```
+PASS 1: state carries attributes.ami   candidates=1  keep_set=[reducer_aws_cloud_runtime_drift_finding:f4e35f...]
+PASS 2: SAME state row, ami absent     candidates=0  keep_set=[]
+```
+
+Reachable with nothing upstream asserting a failure. The terraform-state
+collector fail-closed-redacts scalars when its provider-schema resolver is nil
+or a bundle fails to parse, silently:
+`LoadPackagedSchemaResolver` returns `nil, nil`, `parseSchemaInto` skips a
+corrupt bundle (`terraformstate/schema_resolver.go`), and
+`go/cmd/collector-terraform-state/config.go` accepts a nil resolver as
+non-fatal. For ECS the equivalent is `container_image_extract.go`'s
+`containerDefinitions.(string)` assertion, which a redaction-marker MAP fails,
+yielding an empty image set with a nil error and therefore an ambiguous
+comparison.
+
+Those conditions are STICKY — a corrupt bundle persists for the life of a
+deployment — so a replay repeats the deletion rather than healing it. That is
+what makes it a data-loss hazard rather than a transient one.
+
+## The B-7 gate cannot reach the ECS value-comparison branch at all
+
+Recorded because a green gate on this branch must not be read as coverage of
+the classifier change, and because that gap is exactly what let a defect
+through three green gate runs before review caught it.
+
+`ClassifyValueComparison`'s ECS branch is guarded by
+`state.ResourceType == "aws_ecs_task_definition"`, and value drift only runs
+once cloud, state, AND config rows all exist for the ARN. The golden corpus has
+no declared-side ECS task definition anywhere:
+
+```
+$ rg -l "aws_ecs_task_definition" testdata/ tests/fixtures/
+$ echo $?
+1
+```
+
+The cloud side alone is present -- `testdata/cassettes/awscloud/supply-chain-demo.json`
+carries one `ecs.task_definition` `aws_resource` fact -- but with no
+Terraform-state row for that ARN the join never produces a state side, so the
+branch is unreachable. Both ECS cloud rows in the cassette also carry exactly
+one container, so even the reachable half never exercises a multi-image
+observed set.
+
+The consequence is concrete. The `value_comparison_inconclusive` outcome
+originally fired for EVERY ambiguous container-image shape, including a
+converged multi-container task definition whose declared and observed image
+sets are identical -- an un-actionable finding on healthy input. Three gate
+runs passed green over that defect, and could not have done otherwise: no
+corpus input reaches the code. It was found by running the production
+classifier directly on a converged multi-container pair, and is now pinned by
+`TestClassifyHealthyMultiContainerTaskDefinitionStaysSilent` and
+`TestClassifyDegradedContainerImagesIsStillInconclusive` in
+`go/internal/correlation/drift/cloudruntime/value_comparison_test.go`.
+
+Closing the gate-level gap needs a declared/observed ECS pair added to the
+corpus -- a terraform-state `aws_ecs_task_definition` row plus its config row,
+plus snapshot recalibration for the nodes and edges they add. That is corpus
+coverage work rather than part of this fix, and it is deliberately NOT done
+here: adding it late to an otherwise-green branch trades a real regression fix
+for an unbounded recalibration loop. Until it lands, the unit tests above are
+the only coverage of the ECS value-comparison branch, and a green B-7 asserts
+nothing about it.
+
+## Golden-gate phase-timing note: the suppression proof's 20s floor vs the graph_query phase's 8s ceiling
+
+Unrelated to the retire fence above, but discovered on this branch and worth a
+committed home: `scripts/verify-golden-corpus-gate.sh`,
+`scripts/lib/golden-corpus-phase-timings.sh`, and
+`scripts/lib/golden-corpus-phase-timing-cases.sh`, and the `graph_query` note in
+`testdata/golden/e2e-baseline.json` all reference a "4s -> 23s" reading of the
+gate's `graph_query` phase before it was fixed. Exactly one of the four states
+the figure (`golden-corpus-phase-timing-cases.sh`); the other three only
+disclaim it, and all four now carry an explicit not-captured qualifier. None
+cites a captured `phase-timings.json`, a host, or a run manifest —
+this repository has no such artifact checked in (`rg --files -g
+'phase-timings*.json'` over the whole tree returns nothing, and `git log --all
+-- '**/phase-timings.json'` returns no history). Treat the "4s -> 23s" figure
+in those four files as **illustrative**, not as measured evidence cited from
+an artifact. What follows instead is the structural defect, provable from
+source alone with no timing capture required.
+
+### The defect, independent of any measurement
+
+The gate's `graph_query` phase has an effective pass ceiling of 8 seconds when
+run blocking (`GATE_PHASE_REGRESSION_ADVISORY=false`), derived from the
+committed baseline, not from a live run:
+
+- `testdata/golden/e2e-baseline.json:34` — `graph_query.baseline_seconds: 3`.
+- `testdata/golden/e2e-baseline.json:11` — `absolute_slack_seconds: 5` (repo-wide).
+- `testdata/golden/e2e-baseline.json:40` — the regression rule: `observed_seconds
+  <= baseline_seconds * (1 + regression_band) OR observed_seconds <=
+  baseline_seconds + absolute_slack_seconds`.
+- For `graph_query`, the absolute-slack branch governs (`3 + 5 = 8` seconds
+  exceeds `3 * 1.15 = 3.45` seconds), so **8 seconds is the effective ceiling**
+  for a blocking run, fixed by these three committed numbers alone.
+
+Meanwhile `#5465`'s suppression-producer proof floors itself at a **fixed 20
+seconds**, also fixed by source, also independent of any live run:
+
+- `scripts/lib/golden-corpus-vulnerability-suppression.sh:34` —
+  `golden_suppression_prepare_payloads` sets
+  `golden_suppression_expiry_epoch=$(( $(date -u '+%s') + 20 ))`.
+- `scripts/lib/golden-corpus-vulnerability-suppression.sh:338-339` —
+  `golden_suppression_wait_for_expiry` spins `while (( $(date -u '+%s') <
+  golden_suppression_expiry_epoch )); do ...`, so it cannot return before that
+  20-second deadline on any host, however fast.
+- `scripts/lib/golden-corpus-vulnerability-suppression.sh:380-410` —
+  `golden_suppression_verify_producer_truth` calls
+  `golden_suppression_prepare_payloads` at `:384` and, later in the same
+  function, `golden_suppression_wait_for_expiry` at `:410`, so every
+  invocation of the producer-truth proof unconditionally blocks for at least
+  20 seconds.
+- `scripts/verify-golden-corpus-gate.sh:355` opens the `graph_query` phase's
+  timing window (`phase_graph_query_start="${pipeline_end}"`), and
+  `scripts/verify-golden-corpus-gate.sh:385` invokes
+  `golden_suppression_verify_producer_truth` — the 20-second-floored proof —
+  inside that window, now bracketed at `:384`/`:386`
+  (`phase_graph_query_excluded_starts+=`/`_ends+=`, appended rather than
+  assigned so multiple brackets accumulate instead of the last one silently
+  discarding the rest -- #5837 P2-8/156c8d2d1) so the wait is subtracted
+  before the phase duration is computed
+  (`scripts/lib/golden-corpus-phase-timings.sh:103`).
+
+`20 > 8` by construction: the fixed wait (source items above) exceeds the
+effective ceiling (baseline-file items above) on every host, for every corpus,
+on every run, with no relationship to actual pipeline speed. Before the
+bracket existed, any invocation of the suppression-producer proof inside the
+unbracketed `graph_query` window made a blocking run of the phase-regression
+check fail deterministically. The "4s -> 23s" framing is
+consistent with this structural bound (23 falls inside a 20s-wait-plus-phase-
+work range, and 23 > 8), but the structural bound above holds regardless of
+whether that specific pair of numbers was ever captured to an artifact.
+
+### What this section does not claim
+
+This section does not assert that "4s -> 23s" is a verified measurement — no
+`phase-timings.json`, host record, or run manifest for that specific pair was
+found on this branch or in git history. It asserts only the source-provable
+defect (20s fixed floor inside an 8s-ceiling phase) and cites the bracket
+(`scripts/verify-golden-corpus-gate.sh:384-386`,
+`scripts/lib/golden-corpus-phase-timings.sh:73-103`) that now excludes the
+floor from the phase's billed duration. Anyone who wants the "4s -> 23s" claim
+backed by a captured artifact should re-run
+`scripts/test-verify-golden-corpus-gate.sh` (or the full gate) against this
+branch and this branch's predecessor with `-phase-timings-file` capture
+enabled, and commit the resulting `phase-timings.json` alongside the host and
+commit SHA it was captured on.
+
+### Proof status on this HEAD
+
+This is a gate-harness accounting fix, not a runtime code path, so "proof"
+here means the gate's own bookkeeping is correct, not a measured speedup.
+Three tiers of proof exist on this commit, and a fourth is explicitly
+outstanding:
+
+- **Source-provable arithmetic**: `20 > 8` (the suppression proof's fixed
+  20-second floor against the phase's 8-second effective ceiling) follows
+  from the committed baseline numbers and the fixed expiry wait cited above,
+  with no measurement required.
+- **Static mirror**: `bash scripts/test-verify-golden-corpus-gate.sh` passes
+  on this HEAD (Docker/Postgres-free structural test; it does not execute
+  `verify-golden-corpus-gate.sh`, only asserts its source shape).
+- **Mutation kills**: the phase-timing-cases mirror
+  (`scripts/lib/golden-corpus-phase-timing-cases.sh`) fails loudly for
+  unequal-length exclusion arrays, a negative bracket span, disallowed
+  content between the exclusion stamps, and (added in the same P2 pass that
+  produced this note) a bracket whose two stamp lines are relocated together
+  to sit wholly above the `phase_graph_query_start=` assignment -- a shape
+  the content allowlist alone cannot see, since it checks what rides between
+  the stamps, not where the stamps themselves sit in the file. Each case was
+  confirmed by applying the mutation, watching the assertion fail, and
+  reverting.
+- **Live gate run: PENDING.** `scripts/verify-golden-corpus-gate.sh` itself
+  (the Docker-based end-to-end run that actually exercises the bracketed
+  suppression proof against a live Postgres/NornicDB stack) has NOT been run
+  on this HEAD as part of this fix. `verify-golden-corpus-gate.sh` binds
+  fixed host ports and holds a cross-worktree mutex, so it is sequenced by
+  the orchestrating session rather than run ad hoc from this worktree. Until
+  that run lands, this section's claim is bounded to the three tiers above,
+  not to an observed passing live run.
+
+## No-regression measurement for the sixth reopen domain
+
+`crossScopeCorrelationReopenDomains` gained `aws_cloud_runtime_drift` as a sixth
+entry, but `TestCorrelationReopenPerDrainCostProof` and the README section that
+cites it as the authority both still described a five-domain pass, and the
+per-drain cost proof carried no evidence marker for the added domain. The proof
+drives its round trips off `CrossScopeCorrelationReopenDomains()` directly, so
+the row counts were already a mechanical recount; the wall clock was not, and
+scaling it on paper is the kind of unmeasured claim the evidence rules exclude.
+
+Six-domain provenance: measured on the pre-reconcile branch tip
+(`5837-drift-reopen-prereconcile` = `12bd12dc8`), same test, same corpus
+shape, same loopback topology, Postgres 16.14 -- carried forward unchanged
+into this reconciled branch rather than re-measured on this HEAD. The
+figures, the sublinearity argument, and this same provenance caveat live with
+the proof they belong to, in `go/internal/storage/postgres/README.md`'s
+cross-scope correlation reopen section under its `No-Regression Evidence:`
+marker. Summary: bounded pass 5.5 s / 4500 rows -> 5.927 s / 5400 rows,
+listings only 74 ms -> 91 ms, unbounded pass 2 m 17 s / 112 500 ->
+2 m 31.7 s / 135 000. About +0.4 s per drain against +20% reopened rows, so
+the pass got proportionally bigger rather than slower per unit of work.

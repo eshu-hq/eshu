@@ -56,10 +56,17 @@ func TestClassifyImageVersionDriftAMIMatchNoDrift(t *testing.T) {
 	}
 }
 
-// TestClassifyImageVersionDriftMissingSideIsAmbiguousNotDrift proves that
-// when the comparable value is missing on either side, Classify treats it
-// as "no signal" -- never a false-positive drift finding.
-func TestClassifyImageVersionDriftMissingSideIsAmbiguousNotDrift(t *testing.T) {
+// TestClassifyImageVersionDriftMissingSideIsInconclusiveNotDrift proves that
+// when the comparable value is missing on either side, Classify never invents a
+// drift finding -- and, since #5837, never reports convergence either.
+//
+// "No signal" used to mean an empty return, which the candidate builder reads
+// as "drop this ARN". That made the value axis a data-loss hazard the moment
+// the generation-authoritative retire landed: an ARN whose declared value the
+// terraform-state collector silently redacted vanished from the keep-set, and
+// the retire deleted its still-true drift finding. The correct answer to "I
+// could not compare" is an explicit finding, not silence.
+func TestClassifyImageVersionDriftMissingSideIsInconclusiveNotDrift(t *testing.T) {
 	t.Parallel()
 
 	arn := "arn:aws:ec2:us-east-1:123456789012:instance/i-0123456789abcdef0"
@@ -92,8 +99,18 @@ func TestClassifyImageVersionDriftMissingSideIsAmbiguousNotDrift(t *testing.T) {
 			t.Parallel()
 			config := &ResourceRow{ARN: arn, ResourceType: "aws_instance"}
 			got := Classify(tc.cloud, tc.state, config)
-			if got != "" {
-				t.Fatalf("Classify() = %q, want no finding (ambiguous, not drift) when a value is missing on one side", got)
+			if got == FindingKindImageVersionDrift {
+				t.Fatalf("Classify() = %q, want no drift claim when a comparable value is missing on one side", got)
+			}
+			if got != FindingKindValueComparisonInconclusive {
+				t.Fatalf(
+					"Classify() = %q, want %q: an empty return reads as convergence downstream and lets the "+
+						"generation-authoritative retire delete a still-true finding (#5837)",
+					got, FindingKindValueComparisonInconclusive,
+				)
+			}
+			if drifted := ClassifyValueDrift(tc.cloud, tc.state); len(drifted) != 0 {
+				t.Fatalf("ClassifyValueDrift() = %#v, want none: an uncomparable value is not a mismatch", drifted)
 			}
 		})
 	}

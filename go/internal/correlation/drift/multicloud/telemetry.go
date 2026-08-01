@@ -29,6 +29,12 @@ type Summary struct {
 	// admitted result already increments eshu_dp_correlation_rule_matches_total
 	// via recordRuleMatches below.
 	ImageVersionDriftResources int
+	// ValueComparisonInconclusiveResources counts admitted
+	// value_comparison_inconclusive findings (#5837), mirroring
+	// cloudruntime.Summary. A non-zero value means declared or observed
+	// comparable values were unreadable for a resource whose ownership is
+	// proven; a healthy deployment reports zero.
+	ValueComparisonInconclusiveResources int
 }
 
 // RecordEvaluation emits bounded metrics for one multi-cloud runtime drift
@@ -55,6 +61,8 @@ func RecordEvaluation(ctx context.Context, instruments *telemetry.Instruments, e
 			summary.UnknownResources++
 		case cloudruntime.FindingKindImageVersionDrift:
 			summary.ImageVersionDriftResources++
+		case cloudruntime.FindingKindValueComparisonInconclusive:
+			summary.ValueComparisonInconclusiveResources++
 		}
 	}
 	return summary
