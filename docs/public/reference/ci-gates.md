@@ -8,16 +8,10 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 97 gates. A row with no local command is
+The registry currently defines 95 gates. A row with no local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
 a laptop does not have); a row marked as an alias shares its check with the
 gate its reason names, under a different git hook stage.
-
-Blocking is an enforcement contract, not descriptive metadata. The trusted
-default-branch `required-gates-complete` publisher selects every matching
-blocking row, waits for its exact workflow/check identity on the pull request
-head, and fails closed on a failed, skipped, missing, or timed-out check.
-Advisory rows remain visible but do not block merge.
 
 | Gate id | Name | Category | Tier | Blocking | Local command | CI workflow / job | Triggers |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -28,7 +22,7 @@ Advisory rows remain visible but do not block merge.
 | `go-file-cap` | Go 500-line file cap | hygiene | pre-commit | true | `bash scripts/dev/precommit-go.sh filecap-all` | test.yml / go-core | 1 path(s): go/** |
 | `package-docs` | Go package docs coverage | hygiene | pre-pr | true | `bash scripts/verify-package-docs.sh` | test.yml / verify-contracts | 1 path(s): go/** |
 | `agent-canon` | Agent canon check | hygiene | pre-pr | true | `bash scripts/verify-agent-canon.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 9 path(s): go/**, .agents/**, .claude/skills/**, … |
-| `no-ai-attribution` | No AI attribution in commits/docs | hygiene | pre-commit | true | `bash scripts/verify-no-ai-attribution.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 1 path(s): ** |
+| `no-ai-attribution` | No AI attribution in commits/docs | hygiene | pre-commit | true | `bash scripts/verify-no-ai-attribution.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 6 path(s): go/**, docs/**, specs/**, … |
 | `license-header` | Go license header verification | hygiene | pre-commit | true | `bash scripts/verify-license-header.sh` | test.yml / verify-contracts | 1 path(s): **/*.go |
 | `openapi-surface` | Verify OpenAPI Surface | exactness | pre-pr | true | `bash scripts/verify-openapi.sh` | static-contract-gates.yml / Verify OpenAPI gate | 5 path(s): go/internal/query/**, go/internal/mcp/**, specs/surface-inventory.v1.yaml, … |
 | `route-coverage` | Verify Route Coverage | exactness | pre-pr | true | `bash scripts/verify-route-coverage.sh` | static-contract-gates.yml / Verify route coverage gate | 2 path(s): go/internal/query/**, go/cmd/api/** |
@@ -61,8 +55,8 @@ Advisory rows remain visible but do not block merge.
 | `race-graph-writes` | Race detector — graph writes | race | pre-pr | true | `cd go && go test -race -count=1 -timeout 600s ./cmd/ingester/... ./cmd/projector/... ./internal/storage/cypher/... ./internal/storage/nornicdb/... ./internal/reducer/... ./internal/projector/... ./internal/correlation/... ./internal/content/shape/... ./internal/relationships/...` | race-graph-writes.yml / race | 10 path(s): go/cmd/ingester/**, go/cmd/projector/**, go/internal/storage/cypher/**, … |
 | `reducer-contention` | Reducer Contention Gate (real Postgres) | race | pre-pr | true | — (CI-only: needs Postgres service container (GitHub Actions)) | reducer-contention-gate.yml / reducer contention gate | 3 path(s): go/internal/storage/postgres/**, go/internal/reducer/**, schema/data-plane/postgres/** |
 | `claude-rules-scope` | Claude path-scoped rules | exactness | pre-pr | true | `bash scripts/dev/claude-rules-lint.sh` | static-contract-gates.yml / Verify Claude path-scoped rules gate | 4 path(s): .claude/rules/**, scripts/dev/claude-rules-lint.sh, scripts/test-claude-rules-lint.sh, … |
-| `docs-catalog-metadata` | Docs catalog metadata | exactness | pre-pr | true | `bash scripts/verify-docs-catalog.sh` | test.yml / docs-helm-hygiene | 5 path(s): docs/public/**, docs/mkdocs.yml, scripts/verify-docs-catalog.sh, … |
-| `storage-doc-bundled-nornicdb-example` | Storage doc bundled-NornicDB Helm example renders | exactness | pre-pr | true | `bash scripts/verify-storage-doc-bundled-nornicdb-example.sh` | test.yml / docs-helm-hygiene | 6 path(s): docs/public/deploy/kubernetes/storage.md, deploy/helm/eshu/**, scripts/verify-storage-doc-bundled-nornicdb-example.sh, … |
+| `docs-catalog-metadata` | Docs catalog metadata | exactness | pre-pr | true | `bash scripts/verify-docs-catalog.sh` | — | 5 path(s): docs/public/**, docs/mkdocs.yml, scripts/verify-docs-catalog.sh, … |
+| `storage-doc-bundled-nornicdb-example` | Storage doc bundled-NornicDB Helm example renders | exactness | pre-pr | true | `bash scripts/verify-storage-doc-bundled-nornicdb-example.sh` | — | 6 path(s): docs/public/deploy/kubernetes/storage.md, deploy/helm/eshu/**, scripts/verify-storage-doc-bundled-nornicdb-example.sh, … |
 | `docs-prose-quality` | Docs prose quality advisory | docs | pre-pr | false | `bash scripts/verify-docs-prose-quality.sh` | — | 5 path(s): docs/public/**, docs/mkdocs.yml, scripts/verify-docs-prose-quality.sh, … |
 | `docs-contradiction` | Docs self-contradiction advisory | exactness | pre-pr | false | `bash scripts/verify-docs-contradiction.sh` | — | 7 path(s): docs/public/**, docs/mkdocs.yml, scripts/verify-docs-contradiction.sh, … |
 | `docs-refs` | Docs script reference existence | exactness | pre-pr | true | `bash scripts/verify-docs-refs.sh` | static-contract-gates.yml / Verify docs-refs gate | 6 path(s): docs/public/**, docs/mkdocs.yml, scripts/verify-docs-refs.sh, … |
@@ -100,18 +94,15 @@ Advisory rows remain visible but do not block merge.
 | `code-coverage-report` | Go Code Coverage Report | exactness | pre-pr | false | `bash scripts/generate-code-coverage-report.sh` | code-coverage-report.yml / Generate Go code coverage report | 6 path(s): go/**, scripts/generate-code-coverage-report.sh, scripts/test-generate-code-coverage-report.sh, … |
 | `e2e-tests` | End-to-end tests (Docker stack) | exactness | ci-heavy | true | — (CI-only: requires Docker Compose service stack) | e2e-tests.yml / test | 4 path(s): go/**, docker-compose*.yaml, docker-compose*.yml, … |
 | `auth-mcp-e2e` | MCP-identity auth E2E (browser + scripted OAuth, fresh stack) | exactness | ci-heavy | true | `bash scripts/run-auth-mcp-e2e.sh` | frontend.yml / MCP-identity auth E2E (browser + scripted OAuth, fresh stack) | 19 path(s): apps/console/e2e/**, scripts/lib/auth_e2e_cli.sh, scripts/test-auth-e2e-cli.sh, … |
-| `trivy-image` | Trivy image scan (GHCR) | security | ci-heavy | false | — (CI-only: requires published container image and GHCR credentials) | security-scan.yml / Trivy image scan (ghcr.io/eshu-hq/eshu) | 3 path(s): go/**, Dockerfile, deploy/helm/** |
-| `docker-image-build` | Docker image build smoke | build | ci-heavy | true | — (CI-only: requires hosted Docker Buildx; PR runs build with push disabled) | docker-publish.yml / build-and-push-image | 3 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml |
-| `docker-image-reproducibility` | Docker image reproducibility | build | ci-heavy | true | — (CI-only: requires two clean hosted Docker Buildx builds) | docker-publish.yml / verify-reproducibility | 3 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml |
-| `helm-package` | Helm chart lint and package | release | ci-heavy | true | — (CI-only: requires the hosted Helm packaging lane; PR runs skip the registry push) | docker-publish.yml / package-and-push-chart | 2 path(s): deploy/helm/**, .github/workflows/docker-publish.yml |
-| `docker-publish` | Docker image and Helm publication | release | manual | false | — (CI-only: post-merge publication requires registry push credentials and cannot block its own merge) | docker-publish.yml / build-and-push-image | 3 path(s): go/**, Dockerfile, deploy/helm/** |
+| `trivy-image` | Trivy image scan (GHCR) | security | ci-heavy | true | — (CI-only: requires published container image and GHCR credentials) | security-scan.yml / Trivy image scan (ghcr.io/eshu-hq/eshu) | 3 path(s): go/**, Dockerfile, deploy/helm/** |
+| `docker-publish` | Docker image publish | release | manual | true | — (CI-only: requires registry push credentials) | docker-publish.yml / build-and-push-image | 3 path(s): go/**, Dockerfile, deploy/helm/** |
 | `macos-build` | macOS build verification | build | ci-heavy | true | — (CI-only: requires macOS hosted runner) | macos.yml / macos | 1 path(s): go/** |
 | `root-cause-evidence` | Root-cause claims carry observed evidence | exactness | pre-pr | false | `bash scripts/verify-root-cause-evidence.sh` | — | 4 path(s): docs/internal/evidence/**, scripts/verify-root-cause-evidence.sh, scripts/test-verify-root-cause-evidence.sh, … |
 | `perf-evidence` | Hot-path performance evidence | telemetry | pre-push | true | `bash scripts/dev/precommit-go.sh perf-evidence` | test.yml / verify-contracts | 5 path(s): go/internal/storage/**, go/internal/reducer/**, go/internal/collector/**, … |
 | `product-claim-ledger` | Product Claim Ledger (deterministic verify) | exactness | pre-pr | true | `cd go && go run ./cmd/capability-inventory -mode product-claims` | product-claim-ledger.yml / Verify product claim ledger | 3 path(s): specs/product-claims.v1.yaml, specs/capability-catalog.v1.yaml, specs/capability-matrix.v1.yaml |
 | `replay-tier` | Replay tier (offline cassette replay) | exactness | ci-heavy | true | `bash scripts/verify-replay-tier.sh` | verify-replay-tier.yml / Offline replay tier vs real NornicDB | 12 path(s): go/cmd/ingester/**, go/cmd/projector/**, go/internal/replay/**, … |
 | `go-test-race` | Go tests with race detector | race | pre-pr | true | `cd go && go test -race -count=1 -timeout 300s ./internal/replay/inputtape/... ./internal/replay/schedulereplay/... ./internal/replay/crashreplay/... ./internal/replay/concurrentreplay/... ./internal/replay/costcounting/...` | test.yml / go-race-complete | 6 path(s): go/internal/replay/inputtape/**, go/internal/replay/schedulereplay/**, go/internal/replay/crashreplay/**, … |
-| `ci-gate-registry` | CI gate registry + drift | hygiene | pre-pr | true | `bash scripts/verify-ci-gates-registry.sh --drift` | verify-ci-gate-registry.yml / Verify ci-gate registry + drift | 16 path(s): specs/ci-gates.v1.yaml, go/internal/cigates/**, go/cmd/ci-gates/**, … |
+| `ci-gate-registry` | CI gate registry + drift | hygiene | pre-pr | true | `bash scripts/verify-ci-gates-registry.sh --drift` | verify-ci-gate-registry.yml / Verify ci-gate registry + drift | 14 path(s): specs/ci-gates.v1.yaml, go/internal/cigates/**, go/cmd/ci-gates/**, … |
 | `no-ai-attribution-message` | *(alias — commit-msg-stage variant of the no-ai-attribution gate (same check, different stage))* | — | — | — | — | — | — |
 | `frontend-format-staged` | *(alias — staged-file variant of frontend-format-changed (same prettier check, pre-commit stage))* | — | — | — | — | — | — |
 | `frontend-format-verifier-tests` | *(alias — self-test of the frontend-format verifier + hook wiring)* | — | — | — | — | — | — |
