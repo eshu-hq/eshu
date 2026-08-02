@@ -52,10 +52,24 @@ trap cleanup EXIT
 
 if [ -f "${ledger_abs_path}" ]; then
   # Extract each row's top-level "id" value. The schema is intentionally flat
-  # (see the agent guide), so no other field is named "id".
+  # (see the agent guide), so no other field is named "id". rg exits 1 for a
+  # ledger with zero id rows -- a legitimate empty state -- but exit 2+ means a
+  # real read/write failure (a bad regex, an unreadable file, or the redirect
+  # itself failing under disk pressure). A silently truncated or empty
+  # extraction here makes every valid citation in the diff look unknown, which
+  # is a false NEGATIVE this gate must never produce quietly: it would report
+  # "not in ledger" against a row that is actually present. Swallowing only
+  # exit 1 keeps the "no rows yet" case working without hiding a genuine I/O
+  # failure behind a misleading citation error.
+  extract_status=0
   rg -o '"id"[[:space:]]*:[[:space:]]*"[^"]+"' "${ledger_abs_path}" \
     | sed -E 's/.*"id"[[:space:]]*:[[:space:]]*"([^"]+)"/\1/' \
-    >"${ledger_ids_path}" || true
+    >"${ledger_ids_path}" || extract_status=$?
+  if [ "${extract_status}" -gt 1 ]; then
+    printf 'verify-measurement-citations: failed to read %s (exit %s); refusing to report an unknown citation against a possibly-truncated ledger index\n' \
+      "${ledger_rel_path}" "${extract_status}" >&2
+    exit 2
+  fi
 fi
 
 is_known_ledger_id() {

@@ -192,4 +192,30 @@ printf '# Not the gate\n\nDrain retry probe: 3/40 trials failed.\n' \
 commit_change "${nearmiss_repo}" "add a same-prefix, non-exempt file with an uncited claim"
 expect_fail "${nearmiss_repo}" "a file merely sharing the exempted script's name prefix must still be scanned"
 
+# A read failure on the ledger during id extraction must be a loud error
+# (exit 2), never a silent "citation unknown" against a row that is actually
+# present. The extraction pipeline used to swallow every failure with
+# `|| true`; an unreadable ledger file then produced an EMPTY id list, and a
+# perfectly valid, already-committed citation was reported as missing from
+# the ledger -- indistinguishable from a genuinely uncited claim. This is
+# not a hypothetical: it produced exactly that false report against a real
+# push on this branch, non-reproducibly, and the root cause traced to a
+# transient read failure under the extraction's swallowed error path.
+unreadable_repo="$(init_repo unreadable)"
+printf '# New Finding\n\nA deadlock check ran clean: 0/30 trials failed (ledger:9999-known-row).\n' \
+  >"${unreadable_repo}/docs/internal/evidence/new-finding.md"
+commit_change "${unreadable_repo}" "add a properly cited claim"
+chmod 000 "${unreadable_repo}/docs/internal/measurements.jsonl"
+if run_verifier "${unreadable_repo}"; then
+  chmod 644 "${unreadable_repo}/docs/internal/measurements.jsonl"
+  printf '[unreadable ledger must fail loudly] expected the verifier to fail\n' >&2
+  exit 1
+fi
+chmod 644 "${unreadable_repo}/docs/internal/measurements.jsonl"
+rg -q "failed to read .*measurements\.jsonl" /tmp/eshu-measurement-gate.err \
+  || { printf 'expected an explicit read-failure message, not a citation-unknown report\n' >&2; \
+       sed -n '1,20p' /tmp/eshu-measurement-gate.err >&2; exit 1; }
+rg -q "cites ledger id" /tmp/eshu-measurement-gate.err \
+  && { printf 'read failure must not be reported as an unknown citation\n' >&2; exit 1; }
+
 printf 'verify-measurement-citations tests passed\n'
