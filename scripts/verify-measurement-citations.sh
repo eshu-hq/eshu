@@ -5,9 +5,8 @@ set -euo pipefail
 # in trial/rate shape (e.g. "30/30 trials") or carrying an explicit
 # "Measurement:" marker must cite a docs/internal/measurements.jsonl row id
 # via a "ledger:<id>" token on the same line, and that id must exist in the
-# ledger. See docs/internal/agent-guide.md#measurement-ledger for the schema,
-# the exact patterns this gate matches, and what it deliberately does not
-# catch.
+# ledger. See docs/internal/measurement-ledger.md for the schema, the exact
+# patterns this gate matches, and what it deliberately does not catch.
 #
 # Base-commit resolution mirrors scripts/verify-performance-evidence.sh:
 # explicit env override, then CI's PR base, then HEAD~1 locally.
@@ -145,7 +144,7 @@ fi
   printf '  Measurement: 0/210 trials (ledger:5837-deadlock-plain-total)\n\n'
   printf 'This gate only recognizes "<N>/<M> trials", "<N>/<M> runs", and an explicit\n'
   printf '"Measurement:" marker. It does not catch every restated figure -- see\n'
-  printf 'docs/internal/agent-guide.md#measurement-ledger for the documented blind spots.\n'
+  printf 'docs/internal/measurement-ledger.md for the documented blind spots.\n'
 } >&2
 
 exit 1
