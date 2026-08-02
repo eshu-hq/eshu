@@ -21,6 +21,26 @@ var dataflowGateBenchLanguages = map[string]string{
 	"javascript": ".js",
 }
 
+// dataflowGateBenchOptions mirrors what snapshotParserOptions
+// (go/internal/collector/git_snapshot_parser_options.go) hands the parser on
+// the real ingest path, because that is what decides how much value-flow work
+// the gate actually triggers.
+//
+// RepositoryID and GoPackageImportPath are load-bearing, not decoration:
+// several languages suppress their interprocedural ids without a repository
+// id, and Go skips its durable dataflow_summaries and dataflow_sources
+// buckets. Benchmarking without them measures a cheaper gate than any operator
+// ever enables, and reports a ratio that is a lower bound rather than a cost.
+func dataflowGateBenchOptions(emitDataflow bool, goImportPath string) Options {
+	return Options{
+		IndexSource:         true,
+		VariableScope:       "all",
+		RepositoryID:        "repository:dataflow-gate-bench",
+		GoPackageImportPath: goImportPath,
+		EmitDataflow:        emitDataflow,
+	}
+}
+
 // dataflowGateBenchFiles collects the fixture files for one language.
 func dataflowGateBenchFiles(b *testing.B, fixture, ext string) (string, []string) {
 	b.Helper()
@@ -64,12 +84,17 @@ func BenchmarkDataflowGateEmissionCost(b *testing.B) {
 	for fixture, ext := range dataflowGateBenchLanguages {
 		root, files := dataflowGateBenchFiles(b, fixture+"_comprehensive", ext)
 
+		goImportPath := ""
+		if fixture == "go" {
+			goImportPath = "github.com/eshu-hq/dataflow-gate-bench"
+		}
+
 		for _, gate := range []struct {
 			name string
 			opts Options
 		}{
-			{"gate=off", Options{IndexSource: true}},
-			{"gate=on", Options{IndexSource: true, EmitDataflow: true}},
+			{"gate=off", dataflowGateBenchOptions(false, goImportPath)},
+			{"gate=on", dataflowGateBenchOptions(true, goImportPath)},
 		} {
 			b.Run(fixture+"/"+gate.name, func(b *testing.B) {
 				b.ReportAllocs()

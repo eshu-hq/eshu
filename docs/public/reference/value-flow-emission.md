@@ -151,22 +151,37 @@ parse; setting it on one does not enable it for another.
 
 Measured by `BenchmarkDataflowGateEmissionCost`
 (`go/internal/parser/dataflow_gate_bench_test.go`), parsing the same corpus
-fixture files with the gate off and on. Median of 3 runs at `-benchtime=10x`,
-Apple silicon, `-12` procs:
+fixture files with the gate off and on, through the same parser options the
+real ingest path uses (`snapshotParserOptions`). Median of 3 runs at
+`-benchtime=10x`, Apple silicon, `-12` procs:
 
 | Language fixture | Parse, gate off | Parse, gate on | Time | Allocs off | Allocs on | Allocs |
 | --- | --- | --- | --- | --- | --- | --- |
-| `go_comprehensive` | 37.3 ms | 57.1 ms | **1.53x** | 134,048 | 221,395 | **1.65x** |
-| `python_comprehensive` | 28.6 ms | 45.5 ms | **1.59x** | 92,296 | 169,294 | **1.83x** |
-| `javascript_comprehensive` | 16.1 ms | 27.8 ms | **1.73x** | 48,861 | 100,875 | **2.06x** |
+| `go_comprehensive` | 29.7 ms | 41.0 ms | ~1.4x | 134,476 | 222,070 | **1.65x** |
+| `python_comprehensive` | 18.6 ms | 27.3 ms | ~1.5x | 92,280 | 169,277 | **1.83x** |
+| `javascript_comprehensive` | 7.9 ms | 16.3 ms | ~2.1x | 48,940 | 100,953 | **2.06x** |
+
+Read the allocation columns as the signal and the time columns as approximate.
+Allocation counts are deterministic run to run; the wall-clock numbers moved by
+up to 40% across repeats on the JavaScript fixture, so the time ratios are
+rounded and should not be quoted to two decimal places.
+
+The parser options matter more than they look. `RepositoryID` and, for Go,
+`GoPackageImportPath` decide how much value-flow work the gate triggers at all:
+without them several languages suppress their interprocedural ids and Go skips
+its durable `dataflow_summaries` and `dataflow_sources` buckets. An earlier
+version of this table was measured without them and reported a cheaper gate
+than any operator can actually enable — the JavaScript ratio in particular was
+understated (1.7x against the 2.1x above).
 
 Value-flow lowering runs per function on every parsed file in a covered
 language, so the cost is roughly proportional to how much code a repository
-holds, not to how many findings come out. Half again the parse time and close
-to double the allocations is why the gate stays opt-in and off by default. Do
-not flip the default on the strength of a small repository: re-run the
-benchmark on a representative corpus first, and treat any proposal to change
-the default as a change to the ingest performance contract.
+holds, not to how many findings come out. Somewhere between a third again and
+double the parse time, with close to double the allocations, is why the gate
+stays opt-in and off by default. Do not flip the default on the strength of
+these fixtures: they are small, single-language corpora. Re-run the benchmark
+on a representative corpus first, and treat any proposal to change the default
+as a change to the ingest performance contract.
 
 To reproduce:
 

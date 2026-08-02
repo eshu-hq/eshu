@@ -50,7 +50,12 @@ func TestRealParserDataflowFactCarriesTheReachingDefReadContract(t *testing.T) {
 		t.Fatal("real parser produced no dataflow functions with the gate on")
 	}
 
-	repoPath := t.TempDir()
+	// The fact builder must see the same repository root the snapshotter
+	// parsed. A fresh temp dir here would leave the emitted envelopes' source
+	// URIs and generation metadata pointing at a directory the snapshot never
+	// came from, and would hide any repo-root-dependent behaviour in
+	// buildStreamingGeneration.
+	repoPath := snapshot.RepoPath
 	observedAt := time.Date(2026, time.August, 2, 12, 0, 0, 0, time.UTC)
 	repo := testCollectorRepositoryMetadata(repoPath)
 	envelopes := drainFactChannel(
