@@ -75,8 +75,9 @@ cd "${repo_root}"
 # machine gets before the gate fails loudly. Default is generous headroom over
 # the highest value agents have historically needed to bump it to under real
 # machine load (75s, see docs/internal/evidence/5426-golden-corpus-coverage.md
-# and 5428-built-from-projection-rescinded.md) — raising it further only helps
-# the genuinely-slow case, since the fast case never waits that long anyway.
+# and docs/internal/evidence/5428-built-from-projection-rescinded.md) — raising
+# it further only helps the genuinely-slow case, since the fast case never
+# waits that long anyway.
 : "${GATE_COLLECTOR_SETTLE_SECONDS:=90}"
 : "${GATE_COLLECTOR_SETTLE_POLL_SECONDS:=2}"
 
@@ -277,6 +278,7 @@ stage_local_backend_cassette
 log "replay B-10 cassette collectors (credential-free)"
 collector_pids=()
 collector_names=()
+GATE_EXPECTED_TOTAL_SCOPES=0
 for spec in "${collector_specs[@]}"; do
 	cmd="${spec%%:*}"
 	dir="${spec##*:}"
@@ -288,21 +290,37 @@ for spec in "${collector_specs[@]}"; do
 		cassette="${local_backend_cassette_path}"
 	fi
 	[[ -f "${cassette}" ]] || die "cassette not found: ${cassette}"
+	# cassette.Source.Next (go/internal/replay/cassette/source.go) emits one
+	# scope per call, and collector.Service's Run loop commits every scope of a
+	# cassette back-to-back with no sleep between them (only the drained,
+	# empty-batch case waits for the poll interval). A cassette carries 1-6
+	# scopes; count them here so the settle wait below can require every scope
+	# to land, not just the first one per collector. A bare `cassette_scopes=$(jq
+	# ...)` assignment would abort the whole gate under set -e the instant jq
+	# failed (the same class of bug golden-corpus-local-backend.sh's header
+	# documents for its own jq call), so the fallback lives on the same line.
+	cassette_scopes="$(jq -r '.scopes | length' "${cassette}")" || die "failed to count scopes in cassette: ${cassette}"
+	[[ "${cassette_scopes}" =~ ^[0-9]+$ ]] || die "cassette scope count is not numeric: ${cassette} -> ${cassette_scopes}"
+	GATE_EXPECTED_TOTAL_SCOPES=$(( GATE_EXPECTED_TOTAL_SCOPES + cassette_scopes ))
 	start_bg "${cmd}" cpid "${bin_dir}/eshu-${cmd}" -mode=cassette -cassette-file="${cassette}"
 	collector_pids+=("${cpid}")
 	collector_names+=("${cmd}")
 done
 : "${GATE_MIN_COLLECTOR_SOURCES:=${#collector_specs[@]}}"
-printf 'launched %d collectors; polling for first-pass commit (interval %ss, deadline %ss)\n' \
-	"${#collector_pids[@]}" "${GATE_COLLECTOR_SETTLE_POLL_SECONDS}" "${GATE_COLLECTOR_SETTLE_SECONDS}"
+printf 'launched %d collectors; polling for full cassette replay (%d total scopes, interval %ss, deadline %ss)\n' \
+	"${#collector_pids[@]}" "${GATE_EXPECTED_TOTAL_SCOPES}" "${GATE_COLLECTOR_SETTLE_POLL_SECONDS}" "${GATE_COLLECTOR_SETTLE_SECONDS}"
 
 # Prove the cassette facts actually landed: each credentialed collector must have
-# produced at least one ingestion scope. Without this, every collector could
-# no-op and the gate would still pass (Repository nodes come from filesystem
-# discovery, not collectors). wait_for_collector_settle (extracted to
-# scripts/lib/golden-corpus-collector-settle.sh to keep this orchestrator under
-# the 500-line cap and independently testable) polls for that count instead of
-# sleeping a fixed duration — see the lib's header for why.
+# produced at least one ingestion scope, AND every scope of every cassette must
+# have landed -- not just the first one per collector. A distinct-source-count
+# threshold alone is satisfied the moment each collector commits its FIRST
+# scope; killing the collectors right there truncates every scope after that
+# for any collector whose cassette carries more than one (1-6 per cassette
+# here), which would silently feed the rest of the pipeline an incomplete
+# corpus while the gate reports success. wait_for_collector_settle (extracted
+# to scripts/lib/golden-corpus-collector-settle.sh to keep this orchestrator
+# under the 500-line cap and independently testable) polls for both counts
+# instead of sleeping a fixed duration — see the lib's header for why.
 # shellcheck source=scripts/lib/golden-corpus-collector-settle.sh
 . "${repo_root}/scripts/lib/golden-corpus-collector-settle.sh"
 wait_for_collector_settle
