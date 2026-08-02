@@ -857,6 +857,25 @@ gates:
 
   # ─── DOCS ──────────────────────────────────────────────────────────────────
 
+  - id: claude-rules-scope
+    name: Claude path-scoped rules
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - ".claude/rules/**"
+      - "scripts/dev/claude-rules-lint.sh"
+      - "scripts/test-claude-rules-lint.sh"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "bash scripts/dev/claude-rules-lint.sh"
+      test_command: "bash scripts/test-claude-rules-lint.sh"
+    ci:
+      workflow: "static-contract-gates.yml"
+      job: "Verify Claude path-scoped rules gate"
+    requirements: []
+    ci_only_reason: ""
+
   - id: docs-catalog-metadata
     name: Docs catalog metadata
     category: exactness
