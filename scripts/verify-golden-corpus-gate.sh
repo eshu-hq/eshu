@@ -81,7 +81,9 @@ fi
 
 # shellcheck source=scripts/lib/golden-corpus-fixtures.sh
 source "${repo_root}/scripts/lib/golden-corpus-fixtures.sh"
-# 9 credentialed collectors and their B-10 cassette directories.
+# The credentialed collectors and their B-10 cassette directories. Do not restate
+# the count here: GATE_MIN_COLLECTOR_SOURCES derives it from this array, and a
+# hand-maintained number drifted to half the real value before (#5717 follow-up).
 collector_specs=(
 	"collector-kubernetes-live:kuberneteslive"
 	"collector-aws-cloud:awscloud"

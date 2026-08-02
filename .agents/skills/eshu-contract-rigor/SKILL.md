@@ -107,15 +107,6 @@ When a fixture pack change also touches a cassette or the B-12 snapshot
 (`testdata/golden/e2e-20repo-snapshot.json`), load `eshu-golden-corpus-rigor`
 in addition to this skill — that skill owns the golden-corpus gate contract.
 
-## `proto/eshu/data_plane` is not a source of truth
-
-The design (section 3.3, section 9) demotes the unwired
-`proto/eshu/data_plane` tree: it is a future transport candidate that may
-later be generated **from** the Go schema package, or deleted outright. Do not
-treat it as authoritative for payload shape, and do not hand-edit it to keep
-it "in sync" with `sdk/go/factschema`. That direction of sync does not exist
-in this design.
-
 ## Missing required fields dead-letter, they never silently zero out
 
 A missing required field on decode is a classified `input_invalid` dead letter

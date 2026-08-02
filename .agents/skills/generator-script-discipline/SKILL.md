@@ -163,9 +163,11 @@ generator reaches 200 lines, not after it crosses 500.
 
 ## Test Cases That Catch Real Bugs
 
-The 8/8 cases in `scripts/test-verify-telemetry-coverage.sh` and the
-7/7 cases in `scripts/test-generate-operator-dashboard.sh` are the
-worked examples. The patterns that caught real bugs:
+The cases in `scripts/test-verify-telemetry-coverage.sh` and
+`scripts/test-generate-operator-dashboard.sh` are the worked examples. Run them
+for the current count — both print `tests passed: N/N` — rather than trusting a
+number written here, which is how the counts quoted in this section went stale.
+The patterns that caught real bugs:
 
 - **Idempotency** (above).
 - **Top-level shape**: parse the JSON / YAML with `jq` or `yq` and

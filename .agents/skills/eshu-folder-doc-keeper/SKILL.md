@@ -91,11 +91,12 @@ not acceptable. This rule is in `CLAUDE.md`.
 
 ## Voice
 
-If the `humanizer` skill is available (it ships at `~/.claude/skills/humanizer`
-for Claude Code and `~/.codex/skills/humanizer` for Codex), invoke it before
-finalizing prose. If it is not installed, apply the same rules manually: the
-checklist below captures the high-impact ones. Concrete nouns, active verbs,
-no inflated significance. The house style is set by
+Invoke the repo-owned `eshu-humanizer` skill (`.agents/skills/eshu-humanizer`,
+symlinked into `.claude/skills/` and `.codex/skills/`) before finalizing prose.
+It travels with the repository, so it is available to every harness working here
+and needs no per-machine install. The checklist below repeats its high-impact
+rules for quick reference: concrete nouns, active verbs, no inflated
+significance. The house style is set by
 `go/internal/runtime/README.md` and `go/internal/storage/cypher/README.md` —
 short, technical, factual.
 
