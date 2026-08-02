@@ -1,6 +1,6 @@
 ---
 paths:
-  - ".claude/rules/*.md"
+  - ".claude/rules/**/*.md"
 ---
 
 # Path-scoped rules for Claude Code
