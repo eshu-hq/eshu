@@ -12,15 +12,47 @@ import (
 	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
 )
 
-// importIdentity is the canonical identity of one File-[:IMPORTS]->Module edge.
-// It mirrors the MERGE key canonicalNodeImportEdgeCypher writes, so two parser
-// entries that collapse to the same edge are folded here — deterministically,
-// keeping the first source line — rather than racing to overwrite each other's
-// properties at write time.
+// importIdentity is the identity of one File-[:IMPORTS]->Module edge: its two
+// endpoints, and nothing else.
+//
+// That is not a simplification, it is what the graph backend enforces. A
+// relationship property map in a MERGE pattern — `MERGE (f)-[r:IMPORTS
+// {imported_name: row.imported_name}]->(m)` — is NOT part of relationship
+// identity on the pinned NornicDB build: a second MERGE with a different
+// property value matches the first edge and overwrites it, leaving one edge
+// where Cypher semantics call for two. That was measured against the pinned
+// build before this extractor was written; see
+// docs/public/reference/nornicdb-pitfalls.md.
+//
+// So the extractor folds every parser entry for one (file, module) pair into
+// the single edge the backend can actually hold, and only carries a per-symbol
+// property onto that edge when every entry agrees on it. Emitting one row per
+// symbol would not have produced one edge per symbol — it would have produced
+// one edge whose properties were decided by batch ordering.
 type importIdentity struct {
-	filePath     string
-	moduleName   string
-	importedName string
+	filePath   string
+	moduleName string
+}
+
+// importAccumulator folds the parser's per-symbol import entries for one
+// (file, module) pair into the properties their shared edge can honestly carry.
+type importAccumulator struct {
+	filePath   string
+	moduleName string
+
+	// importedName and alias hold the agreed value across every folded entry;
+	// nameConflict / aliasConflict record that the entries disagreed, in which
+	// case the edge carries no value rather than an arbitrary one.
+	importedName  string
+	nameConflict  bool
+	alias         string
+	aliasConflict bool
+
+	// lineNumber is the earliest attributed source line, so the edge points at
+	// the first place the file imports the module.
+	lineNumber int
+
+	order int
 }
 
 // extractImportsFromFiles builds the generation's File-[:IMPORTS]->Module edge
@@ -28,12 +60,12 @@ type importIdentity struct {
 // the language parsers write into every file fact's parsed_file_data.
 //
 // This is the producer issue #5691 found missing. The canonical writer, the
-// delta refresh, the retract path, and the /code/import-dependencies read
-// surface were all complete; nothing populated CanonicalMaterialization.Imports,
-// so a freshly indexed stack carried zero IMPORTS edges and symbol_graph.imports
-// answered empty. The legacy extractRelationships path only matched the
-// Python-runtime-era module_name/imported_module fact payloads, which no Go
-// collector emits.
+// delta refresh, the retract path and the /code/import-dependencies read
+// surface were all complete; nothing populated
+// CanonicalMaterialization.Imports, so a freshly indexed stack carried zero
+// IMPORTS edges and symbol_graph.imports answered empty. The legacy
+// extractRelationships path only matches the Python-runtime-era
+// module_name/imported_module fact payloads, which no Go collector emits.
 //
 // Normalization across the language parsers reduces to one rule, because the
 // bucket carries at most two name keys: the module is Source when the parser
@@ -52,8 +84,7 @@ func extractImportsFromFiles(envelopes []facts.Envelope, repoPath string) ([]Imp
 		return nil, nil
 	}
 
-	rows := make([]ImportRow, 0, len(fileFacts))
-	rowIndex := make(map[importIdentity]int, len(fileFacts))
+	folded := make(map[importIdentity]*importAccumulator, len(fileFacts))
 	moduleLanguages := make(map[string]string)
 
 	for i := range fileFacts {
@@ -85,38 +116,104 @@ func extractImportsFromFiles(envelopes []facts.Envelope, repoPath string) ([]Imp
 		fileLanguage := strings.TrimSpace(codegraphDerefString(file.Language))
 
 		for _, entry := range entries {
-			row, ok := importRowFromEntry(entry, filePath)
+			moduleName, importedName, alias, lineNumber, ok := normalizeImportEntry(entry)
 			if !ok {
 				continue
 			}
-			identity := importIdentity{row.FilePath, row.ModuleName, row.ImportedName}
-			if at, duplicate := rowIndex[identity]; duplicate {
-				if preferImportRow(row, rows[at]) {
-					rows[at] = row
+			identity := importIdentity{filePath: filePath, moduleName: moduleName}
+			acc, known := folded[identity]
+			if !known {
+				acc = &importAccumulator{
+					filePath:     filePath,
+					moduleName:   moduleName,
+					importedName: importedName,
+					alias:        alias,
+					lineNumber:   lineNumber,
+					order:        len(folded),
 				}
+				folded[identity] = acc
+				recordModuleLanguage(moduleLanguages, moduleName, fileLanguage)
 				continue
 			}
-			rowIndex[identity] = len(rows)
-			rows = append(rows, row)
-			recordModuleLanguage(moduleLanguages, row.ModuleName, fileLanguage)
+			acc.fold(importedName, alias, lineNumber)
 		}
 	}
 
-	return rows, moduleRowsFromLanguages(moduleLanguages)
+	return importRowsFrom(folded), moduleRowsFromLanguages(moduleLanguages)
 }
 
-// preferImportRow decides which of two parser entries that collapse to the same
-// IMPORTS edge supplies the edge's properties. The graph carries one line number
-// per edge, so the choice must not depend on bucket ordering — the parsers sort
-// the imports bucket by name, leaving same-identity ties in an order no
-// producer guarantees. The earliest attributed source line wins, and a known
-// line always beats an unattributed 0, which the extractor reads as "unknown
-// line" rather than line zero.
-func preferImportRow(candidate, current ImportRow) bool {
-	if current.LineNumber == 0 {
-		return candidate.LineNumber != 0
+// fold merges one more parser entry into an existing (file, module) edge.
+func (a *importAccumulator) fold(importedName, alias string, lineNumber int) {
+	if importedName != a.importedName {
+		a.nameConflict = true
 	}
-	return candidate.LineNumber != 0 && candidate.LineNumber < current.LineNumber
+	if alias != a.alias {
+		a.aliasConflict = true
+	}
+	if lineNumber != 0 && (a.lineNumber == 0 || lineNumber < a.lineNumber) {
+		a.lineNumber = lineNumber
+	}
+}
+
+// importRowsFrom flattens the folded edges into writer rows in discovery order,
+// dropping any property the folded entries disagreed on.
+func importRowsFrom(folded map[importIdentity]*importAccumulator) []ImportRow {
+	if len(folded) == 0 {
+		return nil
+	}
+	accs := make([]*importAccumulator, 0, len(folded))
+	for _, acc := range folded {
+		accs = append(accs, acc)
+	}
+	sort.Slice(accs, func(i, j int) bool { return accs[i].order < accs[j].order })
+
+	rows := make([]ImportRow, 0, len(accs))
+	for _, acc := range accs {
+		row := ImportRow{
+			FilePath:     acc.filePath,
+			ModuleName:   acc.moduleName,
+			ImportedName: acc.importedName,
+			Alias:        acc.alias,
+			LineNumber:   acc.lineNumber,
+		}
+		if acc.nameConflict {
+			row.ImportedName = ""
+		}
+		if acc.aliasConflict {
+			row.Alias = ""
+		}
+		rows = append(rows, row)
+	}
+	return rows
+}
+
+// normalizeImportEntry maps one parser import entry onto the edge properties.
+// ok is false when the entry names no importable module — an entry with neither
+// name nor source is a malformed producer emission, and minting an empty-named
+// Module node for it would put an anonymous global node in the graph that every
+// repository's unusable imports then attach to.
+func normalizeImportEntry(entry codegraphv1.Import) (moduleName, importedName, alias string, lineNumber int, ok bool) {
+	name := strings.TrimSpace(entry.Name)
+	source := strings.TrimSpace(entry.Source)
+
+	moduleName = source
+	if moduleName == "" {
+		moduleName = name
+	}
+	if moduleName == "" {
+		return "", "", "", 0, false
+	}
+
+	if source != "" && name != source {
+		importedName = name
+	}
+
+	lineNumber = entry.LineNumber
+	if lineNumber < 0 {
+		lineNumber = 0
+	}
+
+	return moduleName, importedName, strings.TrimSpace(entry.Alias), lineNumber, true
 }
 
 // recordModuleLanguage keeps one language per imported module, chosen
@@ -128,49 +225,11 @@ func preferImportRow(candidate, current ImportRow) bool {
 func recordModuleLanguage(moduleLanguages map[string]string, moduleName, fileLanguage string) {
 	current, known := moduleLanguages[moduleName]
 	switch {
-	case !known:
-		moduleLanguages[moduleName] = fileLanguage
-	case current == "":
+	case !known, current == "":
 		moduleLanguages[moduleName] = fileLanguage
 	case fileLanguage != "" && fileLanguage < current:
 		moduleLanguages[moduleName] = fileLanguage
 	}
-}
-
-// importRowFromEntry normalizes one parser import entry into an edge row. ok is
-// false when the entry names no importable module — an entry with neither name
-// nor source is a malformed producer emission, and minting an empty-named
-// Module node for it would put an anonymous global node in the graph that every
-// repository's unusable imports then attach to.
-func importRowFromEntry(entry codegraphv1.Import, filePath string) (ImportRow, bool) {
-	name := strings.TrimSpace(entry.Name)
-	source := strings.TrimSpace(entry.Source)
-
-	moduleName := source
-	if moduleName == "" {
-		moduleName = name
-	}
-	if moduleName == "" {
-		return ImportRow{}, false
-	}
-
-	importedName := ""
-	if source != "" && name != source {
-		importedName = name
-	}
-
-	lineNumber := entry.LineNumber
-	if lineNumber < 0 {
-		lineNumber = 0
-	}
-
-	return ImportRow{
-		FilePath:     filePath,
-		ModuleName:   moduleName,
-		ImportedName: importedName,
-		Alias:        strings.TrimSpace(entry.Alias),
-		LineNumber:   lineNumber,
-	}, true
 }
 
 // moduleRowsFromLanguages turns the deduped module-name set into ModuleRow
