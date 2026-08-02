@@ -35,8 +35,9 @@ operator-side signal gap.
 This is the Epic X discipline. It exists because the **telemetry inventory
 drift** class — metrics defined in code but never documented, or referenced
 in the contract but never registered — has recurred in this repo. The
-historical note in `docs/public/reference/telemetry/index.md:140-156`
-describes the prior instances; the maintainer narrative at
+historical note under the `## Extraction-provenance drift gauges` heading in
+`docs/public/reference/telemetry/index.md` describes the prior instances; the
+maintainer narrative at
 `docs/internal/telemetry-discipline-precedent.md` ties the discipline to
 those incidents. The discipline replaces the human audit with a CI gate.
 
@@ -88,7 +89,7 @@ check.
    Go code.
 2. **Register in `go/internal/telemetry/instruments.go`.** Add a typed
    field on the `Instruments` struct and a registration call inside
-   `InitInstruments` using the appropriate `meter.<Type>(...)`
+   `NewInstruments` using the appropriate `meter.<Type>(...)`
    constructor.
 3. **Emit from the dispatcher.** Pick the chokepoint (the function or
    goroutine that owns the seam), not the leaves.
@@ -157,8 +158,10 @@ git diff --check
   than to ephemeral issue numbers in this skill.
 - `docs/public/observability/telemetry-coverage.md` — the X1 contract doc
 - `docs/public/reference/telemetry/index.md` — the public operator
-  reference; the per-endpoint metrics section lives at lines 223-254;
-  the historical drift note lives at lines 140-156
+  reference. Find sections by heading, not line number: the
+  `## Per-Endpoint Request Metrics` and `## Extraction-provenance drift gauges`
+  headings are the anchors. (Line numbers were cited here once and drifted
+  more than 250 lines before anyone noticed.)
 - `go/internal/telemetry/instruments.go` — metric source of truth
 - `go/internal/telemetry/contract.go` and `contract_*.go` — dimensions,
   span names, log keys

@@ -19,7 +19,7 @@ import (
 // via telemetry.NewProviders -- the same self-contained-package pattern
 // go/internal/query/request_metrics.go uses for eshu_dp_api_request_*. The
 // instrument name is also registered in
-// go/internal/telemetry/instruments.go's InitInstruments so the
+// go/internal/telemetry/instruments.go's NewInstruments so the
 // telemetry-coverage (X2) contract check finds it there.
 const mcpAuthMeterName = "eshu/go/internal/mcp"
 

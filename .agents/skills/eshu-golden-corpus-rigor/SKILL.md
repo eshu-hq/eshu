@@ -51,8 +51,9 @@ fixture.
 
 ## Cassette vs fixture (which input to update)
 
-- **Live-collector edges** (anything from the 9 credentialed collectors: cloud,
-  k8s, vault, OCI, package, terraform-state, prometheus) come from **cassettes**.
+- **Live-collector edges** (anything replayed from the collectors listed in
+  `collector_specs` in `scripts/verify-golden-corpus-gate.sh`: cloud, k8s, vault,
+  OCI, package, terraform-state, prometheus, and the rest) come from **cassettes**.
   Change the recorded facts in `testdata/cassettes/<collector>/`.
 - **Static-parse edges** (code, gitlab, atlantis, terragrunt, kustomize, ...)
   come from **fixture repos** under `tests/fixtures/ecosystems/`. Add/adjust the
@@ -60,7 +61,7 @@ fixture.
 
 ## Cassette contract
 
-- **`fact_kind` is replayed verbatim** (`collector/cassette/source.go` sets the
+- **`fact_kind` is replayed verbatim** (`go/internal/replay/cassette/source.go` sets the
   envelope kind to the JSON string as-is — no namespace transform). It must be
   byte-equal to the constant the consuming reducer matches (some families match
   an UNPREFIXED kind, e.g. `facts.VaultAuthRoleFactKind == "vault_auth_role"`). A
@@ -117,6 +118,6 @@ pipeline change done until the gate is green with your fixture update. Never
 
 - Editing the gate command itself or its evidence: see
   `go/cmd/golden-corpus-gate/AGENTS.md`.
-- Cassette replay internals: see `go/internal/collector/cassette/AGENTS.md`.
+- Cassette replay internals: see `go/internal/replay/cassette/AGENTS.md`.
 - Hot-path Cypher/perf evidence on graph writes: add `cypher-query-rigor`.
 - Correlation/materialization truth: add `eshu-correlation-truth`.
