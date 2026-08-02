@@ -130,6 +130,51 @@ Recorded explicitly so launch and product reviewers can cite it:
 - The gate is read per collector process from the environment; there is no
   per-repository override in the gate itself.
 
+### Which processes read the gate
+
+Every process that parses source reads `ESHU_EMIT_DATAFLOW`:
+
+| Process | Reads the gate | Role |
+| --- | --- | --- |
+| `bootstrap-index` | yes | one-shot local or deployment seeding |
+| `ingester` | yes | ongoing repo sync and parse |
+| `collector-git` | yes | standalone git collector |
+
+Until issue #5692 only `collector-git` read it, and the default stack does not
+run that binary. An operator who set the variable and re-indexed therefore got
+no `code_dataflow_function` facts at all: `code_flow.reaching_def` answered
+empty with `coverage.state` `partial`, and nothing in the logs said the setting
+had been ignored. Set the variable on whichever of these processes performs the
+parse; setting it on one does not enable it for another.
+
+### What the gate costs
+
+Measured by `BenchmarkDataflowGateEmissionCost`
+(`go/internal/parser/dataflow_gate_bench_test.go`), parsing the same corpus
+fixture files with the gate off and on. Median of 3 runs at `-benchtime=10x`,
+Apple silicon, `-12` procs:
+
+| Language fixture | Parse, gate off | Parse, gate on | Time | Allocs off | Allocs on | Allocs |
+| --- | --- | --- | --- | --- | --- | --- |
+| `go_comprehensive` | 37.3 ms | 57.1 ms | **1.53x** | 134,048 | 221,395 | **1.65x** |
+| `python_comprehensive` | 28.6 ms | 45.5 ms | **1.59x** | 92,296 | 169,294 | **1.83x** |
+| `javascript_comprehensive` | 16.1 ms | 27.8 ms | **1.73x** | 48,861 | 100,875 | **2.06x** |
+
+Value-flow lowering runs per function on every parsed file in a covered
+language, so the cost is roughly proportional to how much code a repository
+holds, not to how many findings come out. Half again the parse time and close
+to double the allocations is why the gate stays opt-in and off by default. Do
+not flip the default on the strength of a small repository: re-run the
+benchmark on a representative corpus first, and treat any proposal to change
+the default as a change to the ingest performance contract.
+
+To reproduce:
+
+```bash
+cd go && go test ./internal/parser -run '^$' \
+  -bench BenchmarkDataflowGateEmissionCost -benchtime=10x -count=3
+```
+
 No-Regression Evidence: `go test ./internal/collector ./internal/query
 ./internal/mcp ./cmd/api ./cmd/mcp-server ./cmd/capability-inventory
 ./internal/capabilitycatalog -count=1` covers the collector/API/MCP readback.
