@@ -233,12 +233,12 @@ type QueryShape struct {
 	// decision-derived field, a replay that reaches a different answer writes a
 	// SECOND row under a new fact_id beside the first, and read paths that filter
 	// on is_tombstone plus the active-generation join serve both
-	// (eshu-hq/eshu#5847, open). An "at least one identity for this repository"
+	// (eshu-hq/eshu#5847). An "at least one identity for this repository"
 	// assertion passes identically on one correct row and on that row plus its
 	// superseded contradiction. Pinning the ceiling is what lets the committed
-	// gate see that shape at all — either as the open defect surfacing in the
-	// corpus, or, once eshu-hq/eshu#5854 lands the retire that removes the
-	// duplicate, as that fix regressing.
+	// gate see that shape at all. #5854 first retired the superseded row, and
+	// #5740 replaced that writer with digest-v3 active support sets; the ceiling
+	// keeps the historical failure visible if either authority rule regresses.
 	//
 	// This is the query-shape counterpart to RequiredNode's
 	// MaximumNodePropertyCount, and it is set for the same reason.

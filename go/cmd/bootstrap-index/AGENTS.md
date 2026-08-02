@@ -92,18 +92,19 @@ what the fact identity is built from before adding a domain here:
 - If the domain can decide "nothing qualifies" on the replay, no row is written
   at all and an upsert overwrites nothing.
 
-Both leave stale rows that the read surfaces serve, since the fact read paths
-filter on `is_tombstone` plus the active-generation join and do not pick a
-latest row per key. `container_image_identity` has exactly this shape and it is
-an open bug (#5847); the fix is tracked as #5854.
+Both leave stale rows when the read surface treats every active-generation fact
+as current. This was the `container_image_identity` failure in #5847 before
+#5854 and #5740 replaced its outcome-keyed facts with digest-keyed immutable
+support sets. The current writer atomically moves one `active_set_id` per scope;
+reclassification selects a replacement set, and demotion selects an explicit
+empty set. Older sets remain stored but are not current.
 
-The obvious remedy — a retire pass after the insert, deleting the domain's own
-`fact_kind` for `(scope_id, generation_id)` minus the fact ids just written, as
-`eshuSearchDocumentRetireQuery` does — has a precondition that is easy to miss
-and expensive to get wrong. **A retire deletes on the strength of ABSENCE, so it
-is only correct when a pass can never see LESS than the source currently holds.**
-Before adding one, audit the collector's error model for paths that produce a
-SMALLER generation without any upstream failure being asserted:
+The obvious remedy — delete every prior row absent from the replay's output —
+has a precondition that is easy to miss and expensive to get wrong. **A retire
+deletes on the strength of absence, so it is only correct when a pass can never
+see less than the source currently holds.** Before adding one, audit the
+collector's error model for paths that produce a smaller generation without any
+upstream failure being asserted:
 
 - a soft-failed sub-fetch downgraded to a warning envelope, where the caller
   emits the parent fact anyway with the missing field simply omitted — if that
@@ -113,35 +114,32 @@ SMALLER generation without any upstream failure being asserted:
   evicted entry's observation silently vanishes.
 
 `container_image_identity` has both (`ociruntime/config_provenance.go` returns
-nil labels with a nil error on a `GetBlob` failure; `source.go` truncates the tag
-list to `TagLimit`). Under additive semantics those cost only under-reporting,
-which is benign; a retire converts them into destruction of valid rows. Fix the
-collector first, or scope the retire so it cannot act on evidence a degraded scan
-could have dropped.
+nil labels plus a warning envelope on a `GetBlob` failure;
+`ociruntime/source_references.go` bounds the tag list). Its current planner
+carries only the affected prior supports while the warning remains and retires
+them after a complete scan clears the warning. A new domain needs an equivalent,
+evidence-specific hold; do not treat an activated generation as complete merely
+because the collector returned no error.
 
-The retire must also be **fenced**, and the reducer queue does not fence it for
-you. The claim batch's in-flight exclusion requires a LIVE lease, while the base
-predicate re-admits an item whose lease has already expired — and lease expiry is
-exactly the stalled-worker case, since heartbeat loss is quarantined only after
-`Handle` returns. So a worker that stalled past its lease still writes, and an
-unfenced retire lets it DELETE the rows of the worker that overtook it: strictly
-worse than the stale row it was added to remove. Rank writers by when their
-evidence was READ (never by write time, which ranks the stalled worker highest),
-stamp `fact_records.fencing_token` with that watermark, and delete only rows at
-or below it.
+The replacement or retire must also be **fenced**, and the reducer queue does not
+fence it for you. The claim batch's in-flight exclusion requires a live lease,
+while the base predicate re-admits an item whose lease has expired. A worker that
+stalled past its lease can still reach the write path after another worker has
+published fresher truth. The current container-image writer checks the exact
+work-item claim epoch and the scope activation epoch in the same statement that
+moves `active_set_id`; a stale worker cannot publish or retire current support.
 
-Two of those pieces already ship, because the same watermark orders the ordinary
-upsert collision: `container_image_identity` stamps `fencing_token` on the
-INSERT and the shared batched insert's conflict clause is guarded on it
-(`reducer_fact_batch_insert.go`). Three traps are recorded from building the
-retire on top of them, in `docs/internal/evidence/5847-container-image-identity-retire.md`:
+The earlier v2 `fact_records` writer used an evidence-read watermark and a
+guarded upsert. Its three implementation traps remain useful for another domain
+that cannot use active-set replacement; they are recorded in
+`docs/internal/evidence/5847-container-image-identity-retire.md`:
 
 - A zero watermark must be a hard error. It is what rows carry by table default,
   so a domain that forgets it looks fenced and behaves unfenced.
 - The token must be stamped by the INSERT, not by a later statement. A row left
   at `0` in between is durable, visible, and — to a retire — deletable by any
   concurrent stalled worker.
-- Stamp it on the INSERT and NOWHERE ELSE. Re-stamping the keep-set from the
+- Stamp it on the INSERT and nowhere else. Re-stamping the keep-set from the
   retire (the `WITH stamped AS (UPDATE ...)` shape) is redundant once the insert
   carries the token, and redundant is not free: Postgres has no in-place UPDATE,
   so a no-op stamp still writes a second row version per row per execution

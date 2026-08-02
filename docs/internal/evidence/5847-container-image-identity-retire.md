@@ -1,5 +1,10 @@
 # #5847 — a reopened `container_image_identity` replay leaves the superseded decision live
 
+> **Current status (2026-08-02): fixed on `main`.** #5854 replaced the
+> outcome-keyed writer with an authoritative cutover, and #5740 superseded it
+> with digest-v3 immutable support sets. The record below preserves the earlier
+> branch's withdrawn-retire evidence and its then-current open-issue status.
+
 `container_image_identity` sits in the bootstrap maintenance reopen slice, its
 fact identity embeds `outcome`, and the writer has no retire. A replay that
 reaches a different answer than the first execution therefore does not correct

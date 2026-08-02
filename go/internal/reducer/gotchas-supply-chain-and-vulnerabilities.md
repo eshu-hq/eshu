@@ -109,13 +109,16 @@ for the same reason.
   `go/internal/query`), so `provider=aws` genuinely returns data even though
   the reducer never publishes an AWS row on this fact kind — see
   `multi-cloud-runtime-drift.md` for the full write-side/read-side split.
-- **Container image identity is digest-first and fencing-guarded** — writes
-  land only for explicit digest or single-tag-to-digest matches, and a
-  fencing token (`ContainerImageIdentityWrite.EvidenceAsOf`) rejects a stale
-  pass's upsert whole. The writer is **not** generation-authoritative
-  (#5847 is the open bug that names why). See
+- **Container image identity is digest-first and active-set authoritative** —
+  only explicit digests or single-tag-to-digest matches enter a complete,
+  immutable digest-v3 support set. Publication atomically moves the scope's
+  `active_set_id` after checking the exact claim and activation epoch; a stale
+  worker cannot replace current truth. Reclassification selects a replacement
+  set, demotion selects an explicit empty set, and completeness warnings carry
+  only the affected prior supports. This closes #5847's superseded-decision
+  failure without treating incomplete evidence as destructive absence. See
   [`container-image-identity.md`](container-image-identity.md) for the full
-  digest-matching, fencing-token, and test-evidence detail.
+  authority, fencing, bounded-hold, and test-evidence detail.
 - **SBOM attachment keeps trust dimensions separate** —
   `SBOMAttestationAttachmentHandler` writes
   `reducer_sbom_attestation_attachment` facts for attached verified,
