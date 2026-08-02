@@ -176,4 +176,20 @@ printf '%s\n' \
 commit_change "${describing_repo}" "describe the gate in a config comment"
 expect_pass "${describing_repo}" "prose describing the gate mid-line must not trip it"
 
+# The self-exemption must match ONLY the gate's own two files by exact path, not
+# by prefix. A mutation widening the case-statement patterns from
+# "scripts/verify-measurement-citations.sh)" to "scripts/verify-measurement-citations*)"
+# (and the test-mirror equivalent) passed the entire suite above -- every
+# existing case either targets the exact exempted filename or a file that
+# shares no prefix with it, so none of them can tell an exact match from a
+# glob. A real, unrelated file that merely shares the exempted script's name
+# PREFIX -- a hypothetical v2 draft or backup left mid-refactor -- would then
+# carry an uncited claim through silently.
+nearmiss_repo="$(init_repo nearmiss)"
+mkdir -p "${nearmiss_repo}/scripts"
+printf '# Not the gate\n\nDrain retry probe: 3/40 trials failed.\n' \
+  >"${nearmiss_repo}/scripts/verify-measurement-citations-v2-notes.md"
+commit_change "${nearmiss_repo}" "add a same-prefix, non-exempt file with an uncited claim"
+expect_fail "${nearmiss_repo}" "a file merely sharing the exempted script's name prefix must still be scanned"
+
 printf 'verify-measurement-citations tests passed\n'
