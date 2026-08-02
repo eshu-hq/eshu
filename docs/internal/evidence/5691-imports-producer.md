@@ -109,6 +109,17 @@ every other canonical row family. No new metric is warranted for a producer that
 feeds an already-instrumented write path; the corresponding
 `docs/public/observability/telemetry-coverage.md` row records the same.
 
+The extractor does add one operator-visible signal, through an existing
+instrument rather than a new one: a `parsed_file_data.imports` value that fails
+to decode is appended to the same `quarantinedFact` slice
+`recordProjectorQuarantinedFacts` reports as
+`eshu_dp_projector_input_invalid_facts_total`, with the file fact's id and the
+offending field. That is deliberate. Skipping a malformed bucket silently would
+be worse than a missing edge: the delta refresh deletes a file's existing
+IMPORTS edges before this extractor runs, so a bucket that fails to decode
+would leave the file with no import edges, its File node intact, and no way to
+tell that from a file that genuinely imports nothing.
+
 ## Related
 
 - [NornicDB Pitfalls](../../public/reference/nornicdb-pitfalls.md) — the
