@@ -48,10 +48,13 @@ type PhaseBaseline struct {
 type PhaseBaselineEntry struct {
 	// BaselineSeconds is the expected normal wall-clock for the phase.
 	BaselineSeconds float64 `json:"baseline_seconds"`
-	// Gated marks whether a regression in this phase blocks the gate. Phases
-	// dominated by a fixed cost (e.g. a constant collector settle sleep) are
-	// recorded for visibility but not gated, because their wall-clock reflects a
-	// configured constant, not pipeline work that can regress.
+	// Gated marks whether a regression in this phase blocks the gate. A phase
+	// is left ungated when its wall-clock is dominated by something the
+	// regression band cannot read as pipeline work. For collect that is the
+	// collector settle poll, which waits for every cassette to finish
+	// replaying, so its duration tracks host load rather than a configured
+	// constant -- ordinary contention on a shared runner moves it further than
+	// a real regression would.
 	Gated bool `json:"gated"`
 	// Note is human-facing and not asserted.
 	Note string `json:"note"`

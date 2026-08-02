@@ -75,8 +75,10 @@ relative band catches real regressions on the larger phases, while the absolute
 slack absorbs integer-second timing jitter on the small phases.
 
 - **`collect`** is recorded but **not gated** — it is dominated by the collector
-  settle poll (waits only until the landed-source count reaches the threshold,
-  bounded by `GATE_COLLECTOR_SETTLE_SECONDS` as a deadline), not pipeline work.
+  settle poll, which waits until every credentialed collector's cassette has
+  fully replayed (both the distinct-source count and the total-scope count
+  reach their thresholds), bounded by `GATE_COLLECTOR_SETTLE_SECONDS` as a
+  deadline, not pipeline work.
 - **On shared CI runners** the check is **advisory** (`-phase-regression-advisory`):
   GitHub's hosted runners vary run-to-run by more than the band, so a per-PR
   regression is reported as a `WARN` without a false red — the same reasoning
