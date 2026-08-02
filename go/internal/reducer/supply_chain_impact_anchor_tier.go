@@ -136,9 +136,34 @@ func singleSupplyChainRepositoryID(repositoryIDs []string) string {
 // singleSupplyChainImageSourceRepositoryID applies to ONE row must not also
 // let that row win the CROSS-ROW vote merely for having build evidence, when
 // other rows agree by source alone). Between two rows in the SAME tier, the
-// lexicographically smaller factID wins -- an arbitrary but STABLE choice, so
-// the same winner is reached regardless of which order the envelopes arrive
-// in, including across repeated runs and reprocessing.
+// lexicographically smaller factID wins -- arbitrary, and order-independent
+// (folding the same set of rows in any order reaches the same minimum), but
+// NOT stable run to run: factID is a SHA-256 over an identity that includes
+// generation_id (facts.StableID, containerImageIdentityIdentity), and a row
+// derived from a live git snapshot gets a fresh generation_id every
+// collector run (git_source_processing.go's sourceRunID embeds the run's
+// wall-clock observed_at). Two same-tier rows that disagree on repository
+// can therefore pick a DIFFERENT winner on every run even though nothing
+// about the underlying evidence changed -- see issue #5887, where this
+// bare function's tie-break was exactly that failure mode.
+//
+// preferSupplyChainImageIdentityConsensus (supply_chain_impact_anchor_consensus.go)
+// is the run-stable replacement bestSupplyChainImageIdentitiesByDigest and
+// addSupplyChainImpactIndexEntry actually use: it defers to this function
+// for the tier check and for any same-repository or unresolved-repository
+// comparison (behavior identical to here), but breaks a same-tier,
+// different-repository disagreement by corroboration count instead of
+// factID -- and when that count also ties, by comparing the repository ID
+// strings themselves (still not factID), which DOES decide the winning
+// repository in that case. This bare function's own factID tie-break is
+// reachable from preferSupplyChainImageIdentityConsensus only when the two
+// rows already resolve to the SAME repository (or one/both do not resolve at
+// all), so which row wins there is cosmetic -- it changes which factID gets
+// cited as evidence, never which repository is selected. This bare function
+// is kept for direct row-pair tier tests and that same-repository/unresolved
+// fallback; it is not itself run-stable in isolation, which is exactly why
+// preferSupplyChainImageIdentityConsensus exists as the caller both real call
+// sites use.
 func preferSupplyChainImageIdentity(existing, candidate supplyChainImageIdentity) supplyChainImageIdentity {
 	existingTier := supplyChainImageIdentityAnchorTier(existing)
 	candidateTier := supplyChainImageIdentityAnchorTier(candidate)
@@ -234,13 +259,15 @@ func supplyChainImageIdentityAnchorTier(row supplyChainImageIdentity) int {
 
 // bestSupplyChainImageIdentitiesByDigest folds every
 // reducer_container_image_identity envelope in envelopes into one
-// deterministic winner per digest via preferSupplyChainImageIdentity. Exposed
-// as its own batch helper (rather than inlined into
+// deterministic winner per digest via preferSupplyChainImageIdentityConsensus
+// (#5887; see that function's doc for why the bare factID tie-break alone is
+// not run-stable). Exposed as its own batch helper (rather than inlined into
 // addSupplyChainImpactIndexEntry's per-envelope case in
 // supply_chain_impact_index_build.go) so any future consumer that needs the
 // same digest-to-repository resolution over a whole envelope batch can reuse
 // this exact tie-break instead of re-deriving it.
 func bestSupplyChainImageIdentitiesByDigest(envelopes []facts.Envelope) map[string]supplyChainImageIdentity {
+	consensus := buildSupplyChainImageIdentityConsensus(envelopes)
 	winners := make(map[string]supplyChainImageIdentity)
 	for _, envelope := range envelopes {
 		if envelope.FactKind != containerImageIdentityFactKind {
@@ -251,7 +278,7 @@ func bestSupplyChainImageIdentitiesByDigest(envelopes []facts.Envelope) map[stri
 			continue
 		}
 		if existing, ok := winners[image.digest]; ok {
-			image = preferSupplyChainImageIdentity(existing, image)
+			image = preferSupplyChainImageIdentityConsensus(existing, image, consensus)
 		}
 		winners[image.digest] = image
 	}

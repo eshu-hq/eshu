@@ -4,6 +4,7 @@
 package reducer
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -411,5 +412,82 @@ func TestPreferSupplyChainImageIdentityAcceptedLimitationLoneDeployRowBeatsBuild
 			"index.images[digest] repository = %q, want the lone deploy-only row's repository %q (accepted limitation, see supplyChainImageIdentityAnchorTier)",
 			got, deployRepoID,
 		)
+	}
+}
+
+// TestPreferSupplyChainImageIdentityConsensusSurvivesUnluckyFactIDDraw is the
+// #5887 regression guard.
+//
+// #5854 made reducer_container_image_identity's fact ID outcome-independent
+// (containerImageIdentityIdentity, container_image_identity_writer.go), which
+// can collapse a scope's canonical decision down to a single
+// source_repository_ids entry. That single-entry shape flips the row from
+// tier B/C to tier A (supplyChainImageIdentityAnchorTier), and once every row
+// for a digest is tier A, preferSupplyChainImageIdentity's same-tier
+// tie-break falls back to comparing factID -- a SHA-256
+// (facts.StableID/StableID) whose input embeds generation_id. Nine of the
+// live corpus's twenty rows for digest sha256:abcdef...ab derive
+// generation_id from GitCollectorSnapshotRun's wall-clock observed_at
+// (go/internal/collector/git_source_processing.go: sourceRunID ->
+// buildGeneration -> scope.ScopeGeneration.GenerationID), so their factIDs
+// are a fresh, unpredictable draw on every collector run -- confirmed by
+// reading that source, not assumed.
+//
+// This test forces one such unlucky draw directly rather than looping and
+// hoping to catch a ~7%-of-runs flake: the lone build-repo row's factID is
+// hardcoded as the global lexicographic minimum across all 20 rows, exactly
+// reproducing a run where the per-run hash happened to sort that way. Before
+// the #5887 fix, bestSupplyChainImageIdentitiesByDigest and
+// buildSupplyChainImpactIndexWithQuarantine both let that one row win the
+// digest purely on factID, anchoring every finding to the BUILDING
+// repository instead of the deploying one. After the fix, corroboration
+// count (nineteen deploy-repo rows agreeing vs. one build-repo row) decides
+// the winner, so the deploy repo wins regardless of which way the per-run
+// factID draw goes.
+func TestPreferSupplyChainImageIdentityConsensusSurvivesUnluckyFactIDDraw(t *testing.T) {
+	t.Parallel()
+
+	const (
+		digest       = "sha256:5887unlucky000000000000000000000000000000000000000000000000000"
+		deployRepoID = "repository:r_217415d9"
+		buildRepoID  = "repository:r_69256c06"
+		decoy        = "oci-registry://registry.example/5887-unlucky-app"
+	)
+
+	// The lone build-repo row's factID is deliberately the GLOBAL MINIMUM
+	// across all 20 rows -- the "unlucky draw" from #5887 where the per-run
+	// generation_id hash happens to sort the CI/build row's factID below
+	// every deploy-repo row's.
+	ciRow := containerImageIdentityImpactFactWithSourceRepositoryIDs(
+		"0000-5887-ci-row-wins-every-bare-lexicographic-tiebreak", digest, decoy, buildRepoID,
+	)
+	deployRows := make([]facts.Envelope, 0, 19)
+	for i := 0; i < 19; i++ {
+		deployRows = append(deployRows, containerImageIdentityImpactFactWithSourceRepositoryIDs(
+			fmt.Sprintf("zzzz-5887-deploy-row-%02d", i), digest, decoy, deployRepoID,
+		))
+	}
+	envelopes := append([]facts.Envelope{ciRow}, deployRows...)
+
+	index, quarantined, err := buildSupplyChainImpactIndexWithQuarantine(envelopes)
+	if err != nil {
+		t.Fatalf("buildSupplyChainImpactIndexWithQuarantine() error = %v", err)
+	}
+	if len(quarantined) != 0 {
+		t.Fatalf("quarantined = %#v, want none", quarantined)
+	}
+
+	winner := index.images[digest]
+	if got := singleSupplyChainImageSourceRepositoryID(winner); got != deployRepoID {
+		t.Fatalf(
+			"index.images[digest] repository = %q, want the deploying repository %q: the lone build-repo row's factID %q sorts below all 19 deploy-repo rows' factIDs, so a bare lexicographic tie-break wrongly lets it win; corroboration (19 rows vs 1) must decide instead",
+			got, deployRepoID, ciRow.FactID,
+		)
+	}
+
+	// The batch helper must reach the identical winner.
+	winners := bestSupplyChainImageIdentitiesByDigest(envelopes)
+	if got := singleSupplyChainImageSourceRepositoryID(winners[digest]); got != deployRepoID {
+		t.Fatalf("bestSupplyChainImageIdentitiesByDigest winner repository = %q, want %q", got, deployRepoID)
 	}
 }

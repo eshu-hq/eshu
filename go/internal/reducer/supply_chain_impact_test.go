@@ -475,13 +475,25 @@ func sbomAttachmentImpactFact(factID string, documentID string, subjectDigest st
 	}
 }
 
+// containerImageIdentityImpactFact builds a reducer_container_image_identity
+// envelope. ScopeID/GenerationID/image_ref derive from factID so distinct
+// calls produce distinct logical rows (containerImageIdentityLogicalKey,
+// supply_chain_impact_anchor_consensus.go): the dedup there must not collapse
+// unrelated synthetic rows just because this fixture left them blank. A test
+// simulating a legacy/v2 duplicate must override these fields to match
+// between the two envelopes and override/delete identity_format for the
+// legacy side (see TestBuildSupplyChainImageIdentityConsensusCollapsesLegacyAndV2Duplicate).
 func containerImageIdentityImpactFact(factID string, digest string, repositoryID string) facts.Envelope {
 	return facts.Envelope{
-		FactID:   factID,
-		FactKind: containerImageIdentityFactKind,
+		FactID:       factID,
+		FactKind:     containerImageIdentityFactKind,
+		ScopeID:      "scope:" + factID,
+		GenerationID: "generation:" + factID,
 		Payload: map[string]any{
 			"digest":           digest,
 			"repository_id":    repositoryID,
+			"image_ref":        "registry.example/synthetic-image-ref:" + factID,
+			"identity_format":  containerImageIdentityFormatImageRef,
 			"canonical_writes": 1,
 		},
 	}

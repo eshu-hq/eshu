@@ -39,9 +39,15 @@ func buildSupplyChainImpactIndexWithQuarantine(envelopes []facts.Envelope) (supp
 		pythonReachability:      map[string]pythonReachabilityRepositoryEvidence{},
 		jvmReachability:         buildJVMReachabilityIndex(envelopes),
 	}
+	// Computed once over the full batch (#5887): the consensus-aware winner
+	// pick addSupplyChainImpactIndexEntry uses for containerImageIdentityFactKind
+	// needs every row's tier+repository up front to count corroboration, not
+	// just the two rows being compared at this instant. See
+	// preferSupplyChainImageIdentityConsensus's doc for why.
+	imageConsensus := buildSupplyChainImageIdentityConsensus(envelopes)
 	var quarantined []quarantinedFact
 	for _, envelope := range envelopes {
-		q, isQuarantine, fatal := addSupplyChainImpactIndexEntry(&index, envelope)
+		q, isQuarantine, fatal := addSupplyChainImpactIndexEntry(&index, envelope, imageConsensus)
 		if fatal != nil {
 			return supplyChainImpactIndex{}, nil, fatal
 		}
@@ -76,7 +82,11 @@ func buildSupplyChainImpactIndexWithQuarantine(envelopes []facts.Envelope) (supp
 // returned as fatal so the caller fails the whole intent. An envelope kind
 // this index does not track is a silent no-op, matching the pre-typing
 // switch's default behavior.
-func addSupplyChainImpactIndexEntry(index *supplyChainImpactIndex, envelope facts.Envelope) (quarantinedFact, bool, error) {
+func addSupplyChainImpactIndexEntry(
+	index *supplyChainImpactIndex,
+	envelope facts.Envelope,
+	imageConsensus map[supplyChainImageIdentityConsensusKey]int,
+) (quarantinedFact, bool, error) {
 	switch envelope.FactKind {
 	case facts.VulnerabilityCVEFactKind:
 		cve, err := supplyChainCVEFromEnvelope(envelope)
@@ -152,7 +162,7 @@ func addSupplyChainImpactIndexEntry(index *supplyChainImpactIndex, envelope fact
 		image := supplyChainImageIdentityFromEnvelope(envelope)
 		if image.digest != "" {
 			if existing, ok := index.images[image.digest]; ok {
-				image = preferSupplyChainImageIdentity(existing, image)
+				image = preferSupplyChainImageIdentityConsensus(existing, image, imageConsensus)
 			}
 			index.images[image.digest] = image
 		}
