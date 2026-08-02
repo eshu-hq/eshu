@@ -37,6 +37,10 @@ func main() {
 		err = runSelect(args)
 	case "run":
 		err = runRun(args)
+	case "await":
+		err = runAwait(args)
+	case "contexts":
+		err = runContexts(args)
 	case "validate":
 		err = runValidate(args)
 	case "uncovered":
@@ -50,14 +54,6 @@ func main() {
 		_, _ = fmt.Fprintf(os.Stderr, "ci-gates %s: %v\n", sub, err)
 		os.Exit(1)
 	}
-}
-
-func usage(w io.Writer) {
-	_, _ = fmt.Fprintln(w, "usage: ci-gates <select|run|validate> [flags]")
-	_, _ = fmt.Fprintln(w, "  select   --registry <path> --tier <tier> [--base <ref>] [--paths-from <file|->] [--category <list>] [--explain] [--json]")
-	_, _ = fmt.Fprintln(w, "  run      --registry <path> --tier <tier> [--base <ref>] [--paths-from <file|->] [--category <list>] [--repo-root <path>]")
-	_, _ = fmt.Fprintln(w, "  validate --registry <path> --repo-root <path> [--drift]")
-	_, _ = fmt.Fprintln(w, "  uncovered --registry <path> --category <list> --tier <tier> [--base <ref>] [--paths-from <file|->]")
 }
 
 // --- select subcommand ---

@@ -221,11 +221,14 @@ for sql_fixture in \
 			(cd "${repo_root}/go" && go run ./cmd/ci-gates select \
 				--registry "${registry}" --tier pre-push --paths-from - --explain)
 	)"
-	[[ "$(printf '%s\n' "${selection}" | rg --count '^SELECTED[[:space:]]+' || true)" == "1" ]] ||
-		fail "retained SQL fixture must select exactly one gate (${sql_fixture})"
+	[[ "$(printf '%s\n' "${selection}" | rg --count '^SELECTED[[:space:]]+' || true)" == "2" ]] ||
+		fail "retained SQL fixture must select its surface gate plus the PR-wide attribution gate (${sql_fixture})"
 	printf '%s\n' "${selection}" |
 		rg --quiet '^SELECTED[[:space:]]+frontend-console-checks[[:space:]]' ||
 		fail "retained SQL fixture did not select frontend-console-checks (${sql_fixture})"
+	printf '%s\n' "${selection}" |
+		rg --quiet '^SELECTED[[:space:]]+no-ai-attribution[[:space:]]' ||
+		fail "retained SQL fixture did not select the PR-wide attribution gate (${sql_fixture})"
 	printf '%s\n' "${selection}" |
 		rg --fixed-strings --quiet -- "matched trigger \"${sql_fixture}\" on path \"${sql_fixture}\"" ||
 		fail "frontend-console-checks selected for the wrong reason (${sql_fixture})"
@@ -261,8 +264,8 @@ for cloudflare_input in '.nvmrc' 'CLOUDFLARE_PAGES.md'; do
 		"frontend-site registry triggers omit Cloudflare Pages input"
 
 	selection="$(select_explain "${cloudflare_input}")"
-	[[ "$(printf '%s\n' "${selection}" | rg --count '^SELECTED[[:space:]]+' || true)" == "1" ]] ||
-		fail "Cloudflare Pages input must select exactly one gate (${cloudflare_input})"
+	[[ "$(printf '%s\n' "${selection}" | rg --count '^SELECTED[[:space:]]+' || true)" == "2" ]] ||
+		fail "Cloudflare Pages input must select its surface gate plus the PR-wide attribution gate (${cloudflare_input})"
 	printf '%s\n' "${selection}" |
 		rg --quiet '^SELECTED[[:space:]]+frontend-site[[:space:]]' ||
 		fail "Cloudflare Pages input did not select frontend-site (${cloudflare_input})"
@@ -294,8 +297,9 @@ for bundle_input in \
 	fi
 
 	selection="$(select_explain "${bundle_input}")"
-	[[ "$(printf '%s\n' "${selection}" | rg --count '^SELECTED[[:space:]]+' || true)" == "${expected_gates}" ]] ||
-		fail "console bundle-budget input must select exactly ${expected_gates} gate(s) (${bundle_input})"
+	expected_with_pr_wide="$((expected_gates + 1))"
+	[[ "$(printf '%s\n' "${selection}" | rg --count '^SELECTED[[:space:]]+' || true)" == "${expected_with_pr_wide}" ]] ||
+		fail "console bundle-budget input must select ${expected_gates} surface gate(s) plus the PR-wide attribution gate (${bundle_input})"
 	printf '%s\n' "${selection}" |
 		rg --quiet '^SELECTED[[:space:]]+frontend-console-checks[[:space:]]' ||
 		fail "console bundle-budget input did not select frontend-console-checks (${bundle_input})"
@@ -324,8 +328,8 @@ for marketing_input in \
 		"frontend-site registry triggers omit marketing-review input"
 
 	selection="$(select_explain "${marketing_input}")"
-	[[ "$(printf '%s\n' "${selection}" | rg --count '^SELECTED[[:space:]]+' || true)" == "2" ]] ||
-		fail "marketing-review input must select exactly two gates (${marketing_input})"
+	[[ "$(printf '%s\n' "${selection}" | rg --count '^SELECTED[[:space:]]+' || true)" == "3" ]] ||
+		fail "marketing-review input must select two surface gates plus the PR-wide attribution gate (${marketing_input})"
 	printf '%s\n' "${selection}" |
 		rg --quiet '^SELECTED[[:space:]]+frontend-site[[:space:]]' ||
 		fail "marketing-review input did not select frontend-site (${marketing_input})"
@@ -371,8 +375,8 @@ public_asset="${public_assets%%$'\n'*}"
 [[ -n "${public_asset}" ]] ||
 	fail "no tracked public/ asset found - the public/** assertion would be vacuous"
 selection="$(select_explain "${public_asset}")"
-[[ "$(printf '%s\n' "${selection}" | rg --count '^SELECTED[[:space:]]+' || true)" == "1" ]] ||
-	fail "a published public asset must select exactly one gate (${public_asset})"
+[[ "$(printf '%s\n' "${selection}" | rg --count '^SELECTED[[:space:]]+' || true)" == "2" ]] ||
+	fail "a published public asset must select its surface gate plus the PR-wide attribution gate (${public_asset})"
 printf '%s\n' "${selection}" |
 	rg --quiet '^SELECTED[[:space:]]+frontend-site[[:space:]]' ||
 	fail "public asset did not select frontend-site (${public_asset})"

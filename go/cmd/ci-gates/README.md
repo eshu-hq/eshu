@@ -2,8 +2,8 @@
 
 The `ci-gates` command is the CLI front end for the CI gate registry
 ([#4213](https://github.com/eshu-hq/eshu/issues/4213)). It gives any local
-workflow a single command to find out which credential-free CI verifiers apply
-to the files you just changed.
+workflow a single command to find out which local verifiers apply and which
+blocking GitHub checks a pull request must pass.
 
 The backing registry is `specs/ci-gates.v1.yaml`. The typed loader, selector,
 validator, and glob matcher live in [`internal/cigates`](../../internal/cigates).
@@ -68,6 +68,36 @@ qualifying bash (PATH, then `/opt/homebrew/bin/bash`, then
 the common case passes outright; each such script also carries its own
 bash >= 4.4 precondition guard as defense-in-depth.
 
+### await
+
+```bash
+ci-gates await \
+  --registry specs/ci-gates.v1.yaml \
+  --repo-root /trusted/default-branch/checkout \
+  --repo eshu-hq/eshu \
+  --pr 42 \
+  --head-sha <exact-pr-head>
+```
+
+Used by the trusted `required-gates-complete` publisher. It verifies the pull
+request head, fetches every changed file, selects all matching blocking gates,
+resolves exact workflow/check identities from the trusted checkout, and polls
+until they pass. Failed, skipped, neutral, missing, and timed-out selected
+checks fail closed. Renames select against both the old and new path, so moving
+a file out of a gated tree cannot bypass its verifier. It verifies the head
+again before returning success. Pending reads back off from 30 seconds to five
+minutes; relevant workflow start/completion events wake a fresh aggregate, so
+reruns invalidate old success without a high steady-state API polling rate.
+
+### contexts
+
+```bash
+ci-gates contexts --registry specs/ci-gates.v1.yaml [--json]
+```
+
+Prints the required-status manifest. JSON includes each context's pinned GitHub
+App integration ID and is consumed by the live effective-rules verifier.
+
 ### validate
 
 ```bash
@@ -117,9 +147,11 @@ local command) does not count as covering.
 
 ## Ownership boundary
 
-This command owns only CLI parsing and output formatting. All selection,
-validation, and glob-matching logic lives in `internal/cigates`. This command
-does not own fact emission, graph writes, or telemetry.
+This command owns CLI parsing, Git/GitHub boundary calls, polling, and output
+formatting. Selection, required-gate evaluation, validation, and glob matching
+live in `internal/cigates`. Only `await` requires network access and GitHub
+credentials; the other subcommands remain hermetic. This command does not own
+fact emission, graph writes, or telemetry.
 
 ## Tests
 

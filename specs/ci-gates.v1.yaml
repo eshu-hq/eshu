@@ -7,6 +7,27 @@
 
 version: v1
 
+# Repository-owned mirror of the active main ruleset. The two Go umbrellas stay
+# required during rollout; required-gates-complete is the trusted default-branch
+# status publisher that aggregates every path-selected blocking gate below.
+required_status_checks:
+  - context: go-core-complete
+    workflow: test.yml
+    job: go-core-complete
+    integration_id: 15368
+    aggregates_blocking_gates: false
+  - context: go-race-complete
+    workflow: test.yml
+    job: go-race-complete
+    integration_id: 15368
+    aggregates_blocking_gates: false
+  - context: required-gates-complete
+    workflow: required-gates.yml
+    job: aggregate
+    source_workflow: Build Test
+    integration_id: 15368
+    aggregates_blocking_gates: true
+
 gates:
 
   # ─── HYGIENE / GO CORE ─────────────────────────────────────────────────────
@@ -149,12 +170,9 @@ gates:
     tier: pre-commit
     blocking: true
     triggers:
-      - "go/**"
-      - "docs/**"
-      - "specs/**"
-      - ".agents/**"
-      - "AGENTS.md"
-      - "CLAUDE.md"
+      # The CI check scans every commit message and every added diff line, so
+      # required-gate selection must wait for it on every non-empty PR.
+      - "**"
     local:
       command: "bash scripts/verify-no-ai-attribution.sh"
       test_command: ""
@@ -891,11 +909,11 @@ gates:
       command: "bash scripts/verify-docs-catalog.sh"
       test_command: "bash scripts/test-verify-docs-catalog.sh"
     ci:
-      workflow: ""
-      job: ""
+      workflow: test.yml
+      job: "docs-helm-hygiene"
     requirements: []
     ci_only_reason: ""
-    local_only_reason: "First #5015 local/pre-pr metadata ratchet; CI wiring can follow once the required subset stabilizes."
+    local_only_reason: ""
 
   - id: storage-doc-bundled-nornicdb-example
     name: Storage doc bundled-NornicDB Helm example renders
@@ -913,11 +931,11 @@ gates:
       command: "bash scripts/verify-storage-doc-bundled-nornicdb-example.sh"
       test_command: "bash scripts/test-verify-storage-doc-bundled-nornicdb-example.sh"
     ci:
-      workflow: ""
-      job: ""
+      workflow: test.yml
+      job: "docs-helm-hygiene"
     requirements: []
     ci_only_reason: ""
-    local_only_reason: "#5103 follow-up; needs a docs-workflow home with helm installed before CI wiring — triggers on both the doc and the chart so a future required-value tightening in deploy/helm/eshu (the #5103 root cause) reruns this locally."
+    local_only_reason: ""
 
   - id: docs-prose-quality
     name: Docs prose quality advisory
@@ -1601,6 +1619,8 @@ gates:
     ci:
       workflow: golden-corpus-gate.yml
       job: "corpus-gate"
+      check_names:
+        - "corpus-gate (nornicdb)"
     requirements:
       - go
       - docker
@@ -1947,6 +1967,9 @@ gates:
     ci:
       workflow: e2e-tests.yml
       job: "test"
+      check_names:
+        - "test (nornicdb)"
+        - "test (neo4j)"
     requirements:
       - go
       - docker
@@ -1997,7 +2020,9 @@ gates:
     name: Trivy image scan (GHCR)
     category: security
     tier: ci-heavy
-    blocking: true
+    # Post-publish evidence: the image does not exist until docker-publish has
+    # completed on main, so this cannot honestly be a pre-merge blocker.
+    blocking: false
     triggers:
       - "go/**"
       - "Dockerfile"
@@ -2009,11 +2034,58 @@ gates:
       - credentials
     ci_only_reason: "requires published container image and GHCR credentials"
 
+  - id: docker-image-build
+    name: Docker image build smoke
+    category: build
+    tier: ci-heavy
+    blocking: true
+    triggers:
+      - "Dockerfile"
+      - ".dockerignore"
+      - ".github/workflows/docker-publish.yml"
+    ci:
+      workflow: docker-publish.yml
+      job: "build-and-push-image"
+    requirements:
+      - docker
+    ci_only_reason: "requires hosted Docker Buildx; PR runs build with push disabled"
+
+  - id: docker-image-reproducibility
+    name: Docker image reproducibility
+    category: build
+    tier: ci-heavy
+    blocking: true
+    triggers:
+      - "Dockerfile"
+      - ".dockerignore"
+      - ".github/workflows/docker-publish.yml"
+    ci:
+      workflow: docker-publish.yml
+      job: "verify-reproducibility"
+    requirements:
+      - docker
+    ci_only_reason: "requires two clean hosted Docker Buildx builds"
+
+  - id: helm-package
+    name: Helm chart lint and package
+    category: release
+    tier: ci-heavy
+    blocking: true
+    triggers:
+      - "deploy/helm/**"
+      - ".github/workflows/docker-publish.yml"
+    ci:
+      workflow: docker-publish.yml
+      job: "package-and-push-chart"
+    requirements:
+      - go
+    ci_only_reason: "requires the hosted Helm packaging lane; PR runs skip the registry push"
+
   - id: docker-publish
-    name: Docker image publish
+    name: Docker image and Helm publication
     category: release
     tier: manual
-    blocking: true
+    blocking: false
     triggers:
       - "go/**"
       - "Dockerfile"
@@ -2024,7 +2096,7 @@ gates:
     requirements:
       - credentials
       - release_token
-    ci_only_reason: "requires registry push credentials"
+    ci_only_reason: "post-merge publication requires registry push credentials and cannot block its own merge"
 
   - id: macos-build
     name: macOS build verification
@@ -2172,6 +2244,8 @@ gates:
       - "scripts/dev/pre-pr.sh"
       - "scripts/dev/precommit-go.sh"
       - "scripts/test-verify-ci-gates-registry.sh"
+      - "scripts/verify-live-required-status-checks.sh"
+      - "scripts/test-verify-live-required-status-checks.sh"
       - "scripts/test-pre-pr-whole-module-gates.sh"
       - "scripts/generate-ci-gates-doc.sh"
       - "scripts/lib/ci-gates-doc-parse.awk"
@@ -2181,7 +2255,7 @@ gates:
       - ".github/workflows/**"
     local:
       command: "bash scripts/verify-ci-gates-registry.sh --drift"
-      test_command: "bash scripts/test-verify-ci-gates-registry.sh && bash scripts/test-pre-pr-whole-module-gates.sh && bash scripts/test-generate-ci-gates-doc.sh"
+      test_command: "bash scripts/test-verify-ci-gates-registry.sh && bash scripts/test-pre-pr-whole-module-gates.sh && bash scripts/test-generate-ci-gates-doc.sh && bash scripts/test-verify-live-required-status-checks.sh"
     ci:
       workflow: verify-ci-gate-registry.yml
       job: "Verify ci-gate registry + drift"

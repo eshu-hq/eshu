@@ -24,7 +24,7 @@ import (
 // CI-only gates (Local==nil) skip the script check but still require the
 // workflow file to be present.
 func (r *Registry) Validate(repoRoot string) []error {
-	var errs []error
+	errs := r.ValidateRequiredStatusChecks()
 	for _, g := range r.Gates {
 		if g.Local != nil {
 			if err := checkScript(repoRoot, g.ID, g.Local.Command); err != nil {
@@ -41,6 +41,19 @@ func (r *Registry) Validate(repoRoot string) []error {
 			if _, err := os.Stat(wfPath); os.IsNotExist(err) {
 				errs = append(errs, fmt.Errorf("gate %q: workflow file %q not found", g.ID, wfPath))
 			}
+		}
+	}
+	for _, check := range r.RequiredStatusChecks {
+		if check.Workflow == "" {
+			continue
+		}
+		wfPath := filepath.Join(repoRoot, ".github", "workflows", check.Workflow)
+		if _, err := os.Stat(wfPath); os.IsNotExist(err) {
+			errs = append(errs, fmt.Errorf(
+				"required status context %q: workflow file %q not found",
+				check.Context,
+				wfPath,
+			))
 		}
 	}
 	return errs

@@ -451,3 +451,29 @@ func TestDriftCheck_CIJobMatchesMatrixJobKey(t *testing.T) {
 		t.Error("a non-existent matrix job key must still error")
 	}
 }
+
+func TestDriftCheck_ConcreteMatrixCheckNamesMustResolve(t *testing.T) {
+	t.Parallel()
+
+	root := buildDriftRepo(t, minimalPreCommit("my-gate"), nil)
+	writeWorkflow(t, root, "matrix.yml", "name: End-to-end Tests\non: [pull_request]\njobs:\n"+
+		"  test:\n    name: test (${{ matrix.graph_backend }})\n    runs-on: ubuntu-latest\n"+
+		"    strategy:\n      matrix:\n        include:\n          - graph_backend: nornicdb\n          - graph_backend: neo4j\n    steps: []\n")
+	g := gateWith("my-gate", "my-gate", "matrix.yml")
+	g.CI.Job = "test"
+	g.CI.CheckNames = []string{"test (nornicdb)", "test (typo)"}
+
+	errs := cigates.DriftCheck(root, minimalReg([]cigates.Gate{g}, nil, nil))
+	if len(errs) == 0 {
+		t.Fatal("a declared concrete matrix check name that cannot run must fail drift")
+	}
+	found := false
+	for _, err := range errs {
+		if strings.Contains(err.Error(), "test (typo)") && strings.Contains(err.Error(), "check_names") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected unresolved concrete check_names error, got: %v", errs)
+	}
+}

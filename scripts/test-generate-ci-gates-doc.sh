@@ -115,7 +115,16 @@ else
 	record_fail "${bad_rows} row(s) have the wrong column count (an unescaped '|' likely broke the table)"
 fi
 
-# Case 9 (negative case): a registry with zero gate records must fail the
+# Case 9: the generated preamble must explain that `blocking: true` is an
+# enforced merge contract, not merely table metadata.
+if rg -q 'Blocking is an enforcement contract' "${expected_path}" \
+	&& rg -q '`required-gates-complete`' "${expected_path}"; then
+	record_pass "generated reference explains trusted blocking-gate enforcement"
+else
+	record_fail "generated reference does not explain required-gates-complete enforcement"
+fi
+
+# Case 10 (negative case): a registry with zero gate records must fail the
 # parser loudly, never emit a silently empty table.
 empty_registry="${tmp_root}/empty-registry.yaml"
 printf 'version: v1\ngates:\n' >"${empty_registry}"
@@ -129,7 +138,7 @@ else
 	fi
 fi
 
-# Case 10 (regression): a non_gate_workflows `  - file:` entry carries its own
+# Case 11 (regression): a non_gate_workflows `  - file:` entry carries its own
 # `reason:`. It must NOT bleed into the last gate/alias record (which stays open
 # because no `  - id:` follows it). Regression for the prepr-stamp-verify row
 # rendering refresh-cassettes.yml's "scheduled/manual cassette refresh" reason.

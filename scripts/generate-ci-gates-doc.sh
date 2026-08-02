@@ -46,6 +46,11 @@ gate_count="$(rg -c '^  - id: ' "${registry}")"
 	printf 'CI-only (it needs a credential, a service container, or hosted infrastructure\n'
 	printf 'a laptop does not have); a row marked as an alias shares its check with the\n'
 	printf 'gate its reason names, under a different git hook stage.\n\n'
+	printf 'Blocking is an enforcement contract, not descriptive metadata. The trusted\n'
+	printf 'default-branch `required-gates-complete` publisher selects every matching\n'
+	printf 'blocking row, waits for its exact workflow/check identity on the pull request\n'
+	printf 'head, and fails closed on a failed, skipped, missing, or timed-out check.\n'
+	printf 'Advisory rows remain visible but do not block merge.\n\n'
 	printf '| Gate id | Name | Category | Tier | Blocking | Local command | CI workflow / job | Triggers |\n'
 	printf '| --- | --- | --- | --- | --- | --- | --- | --- |\n'
 

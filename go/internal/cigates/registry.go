@@ -106,6 +106,28 @@ type CI struct {
 	Workflow string
 	// Job is the display name of the CI job.
 	Job string
+	// CheckNames lists the concrete API-visible check names for a matrix job.
+	// It is empty when Job itself is the concrete check name.
+	CheckNames []string
+}
+
+// RequiredStatusCheck is a GitHub ruleset status context declared by the
+// repository. Exactly one entry aggregates all path-selected blocking gates.
+type RequiredStatusCheck struct {
+	// Context is the status-check context configured in the GitHub ruleset.
+	Context string
+	// Workflow is the GitHub Actions workflow filename that reports Context.
+	Workflow string
+	// Job is the workflow job that reports or publishes Context.
+	Job string
+	// SourceWorkflow is the trusted workflow_run source that wakes an aggregate
+	// publisher. It is empty for directly required workflow jobs.
+	SourceWorkflow string
+	// IntegrationID pins the GitHub App allowed to report Context.
+	IntegrationID int64
+	// AggregatesBlockingGates marks the required context that waits for every
+	// path-selected gate whose Blocking field is true.
+	AggregatesBlockingGates bool
 }
 
 // Gate is a single CI/local gate entry in the registry.
@@ -169,15 +191,19 @@ type Registry struct {
 	HygieneHooks []HygieneHook
 	// NonGateWorkflows lists .github/workflows/*.yml files that are not PR gates.
 	NonGateWorkflows []NonGateWorkflow
+	// RequiredStatusChecks is the repository-owned manifest of status contexts
+	// configured as required by the live GitHub ruleset.
+	RequiredStatusChecks []RequiredStatusCheck
 }
 
 // --- YAML parse types ---
 
 type registryFile struct {
-	Version          string                `yaml:"version"`
-	Gates            []gateFile            `yaml:"gates"`
-	HygieneHooks     []hygieneHookFile     `yaml:"hygiene_hooks"`
-	NonGateWorkflows []nonGateWorkflowFile `yaml:"non_gate_workflows"`
+	Version              string                    `yaml:"version"`
+	Gates                []gateFile                `yaml:"gates"`
+	HygieneHooks         []hygieneHookFile         `yaml:"hygiene_hooks"`
+	NonGateWorkflows     []nonGateWorkflowFile     `yaml:"non_gate_workflows"`
+	RequiredStatusChecks []requiredStatusCheckFile `yaml:"required_status_checks"`
 }
 
 type gateFile struct {
@@ -201,8 +227,9 @@ type localFile struct {
 }
 
 type ciFile struct {
-	Workflow string `yaml:"workflow"`
-	Job      string `yaml:"job"`
+	Workflow   string   `yaml:"workflow"`
+	Job        string   `yaml:"job"`
+	CheckNames []string `yaml:"check_names"`
 }
 
 type hygieneHookFile struct {
@@ -213,6 +240,15 @@ type hygieneHookFile struct {
 type nonGateWorkflowFile struct {
 	File   string `yaml:"file"`
 	Reason string `yaml:"reason"`
+}
+
+type requiredStatusCheckFile struct {
+	Context                 string `yaml:"context"`
+	Workflow                string `yaml:"workflow"`
+	Job                     string `yaml:"job"`
+	SourceWorkflow          string `yaml:"source_workflow"`
+	IntegrationID           int64  `yaml:"integration_id"`
+	AggregatesBlockingGates bool   `yaml:"aggregates_blocking_gates"`
 }
 
 // validCategories is the closed set of allowed Category values.
@@ -323,14 +359,18 @@ func Load(path string) (*Registry, error) {
 		localOnlyReason := strings.TrimSpace(gf.LocalOnlyReason)
 
 		reg.Gates = append(reg.Gates, Gate{
-			ID:              id,
-			Name:            strings.TrimSpace(gf.Name),
-			Category:        cat,
-			Tier:            tier,
-			Blocking:        gf.Blocking,
-			Triggers:        gf.Triggers,
-			Local:           local,
-			CI:              CI{Workflow: strings.TrimSpace(gf.CI.Workflow), Job: strings.TrimSpace(gf.CI.Job)},
+			ID:       id,
+			Name:     strings.TrimSpace(gf.Name),
+			Category: cat,
+			Tier:     tier,
+			Blocking: gf.Blocking,
+			Triggers: gf.Triggers,
+			Local:    local,
+			CI: CI{
+				Workflow:   strings.TrimSpace(gf.CI.Workflow),
+				Job:        strings.TrimSpace(gf.CI.Job),
+				CheckNames: trimNonEmpty(gf.CI.CheckNames),
+			},
 			Requirements:    reqs,
 			CIOnlyReason:    ciOnlyReason,
 			LocalOnlyReason: localOnlyReason,
@@ -362,5 +402,30 @@ func Load(path string) (*Registry, error) {
 		})
 	}
 
+	for i, rf := range parsed.RequiredStatusChecks {
+		context := strings.TrimSpace(rf.Context)
+		if context == "" {
+			return nil, fmt.Errorf("ci-gates registry %s: required_status_checks[%d] has blank context", path, i)
+		}
+		reg.RequiredStatusChecks = append(reg.RequiredStatusChecks, RequiredStatusCheck{
+			Context:                 context,
+			Workflow:                strings.TrimSpace(rf.Workflow),
+			Job:                     strings.TrimSpace(rf.Job),
+			SourceWorkflow:          strings.TrimSpace(rf.SourceWorkflow),
+			IntegrationID:           rf.IntegrationID,
+			AggregatesBlockingGates: rf.AggregatesBlockingGates,
+		})
+	}
+
 	return reg, nil
+}
+
+func trimNonEmpty(values []string) []string {
+	trimmed := make([]string, 0, len(values))
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			trimmed = append(trimmed, value)
+		}
+	}
+	return trimmed
 }

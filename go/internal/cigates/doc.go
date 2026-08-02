@@ -3,9 +3,8 @@
 
 // Package cigates is the typed core of the CI gate registry (#4213, drift #4220).
 //
-// It answers one question: given the set of paths changed in a PR and a tier
-// ceiling, which credential-free CI verifiers should run locally — and which
-// are registered but CI-only or out of scope?
+// It answers both which credential-free verifiers should run locally and which
+// path-selected blocking CI checks must pass before a pull request can merge.
 //
 // # Registry
 //
@@ -23,6 +22,13 @@
 // gate was chosen, skipped (trigger mismatch or tier exceeded), or CI-only. The
 // function is a pure, hermetic function of its inputs — git is touched only at
 // the CLI boundary in cmd/ci-gates.
+//
+// # Required checks
+//
+// (*Registry).RequiredGates(changed []string) selects every matching blocking
+// CI job regardless of local tier or availability. The top-level required
+// status manifest names the GitHub ruleset contexts and exactly one trusted
+// aggregate publisher. Matrix jobs use explicit concrete check names.
 //
 // # Validation
 //
@@ -53,8 +59,10 @@
 // as running a script, since a paths filter watches a path rather than
 // invoking it, and it skips rather than reports when no workflow runs the
 // script (CI legitimately uses a different entrypoint than the local gate) or
-// when several do (no single owner). Like the rest of the package it needs no
-// network, Docker, or credentials.
+// when several do (no single owner). It also validates the trusted aggregate
+// publisher's workflow_run source, event boundary, permissions, default-branch
+// checkout, secret independence, and status-publishing command. Like the rest
+// of the package it needs no network, Docker, or credentials.
 //
 // # Glob matching
 //
