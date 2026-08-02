@@ -205,10 +205,16 @@ func TestRepositoryDocumentationStandardsAreEnforced(t *testing.T) {
 	if agents != claude {
 		t.Fatal("AGENTS.md and CLAUDE.md diverged; agent standards must stay in lockstep")
 	}
+	// Match on the substantive clause, not the sentence-initial verb. These
+	// rules get restated as obligations over time ("Document every ..." becomes
+	// "MUST document every ..."), which changes the leading verb's case and
+	// nothing else. Pinning the verb makes this guard fail on a reword that
+	// strengthens the rule -- which is exactly what happened. The fragments
+	// below are still specific enough that deleting a rule fails the test.
 	for _, required := range []string{
 		"golangci-lint run ./...",
-		"Document every new or touched exported Go type",
-		"Keep OpenAPI changes in lockstep",
+		"every new or touched exported Go type",
+		"OpenAPI changes in lockstep",
 		"Every Go package directory in `go/` has three files: `doc.go`,",
 	} {
 		if !strings.Contains(agents, required) {
