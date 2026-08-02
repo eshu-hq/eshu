@@ -171,3 +171,37 @@ func TestZeroCorrelationDiagnosisStaysAdvisoryForNonBlocking(t *testing.T) {
 		t.Fatal("no diagnosis emitted for a zero advisory correlation")
 	}
 }
+
+// When the assertion was evidence-filtered, the retry must use the SAME query.
+// Dropping the filter reads a shared relationship's other evidence kinds and
+// reports read instability where the real finding is a stable evidence-kind
+// regression (codex/Copilot review of #5902).
+func TestZeroCorrelationDiagnosisRetriesWithTheEvidenceFilter(t *testing.T) {
+	t.Parallel()
+
+	snap := zeroCorrelationSnapshot()
+	snap.Graph.RequiredCorrelations[0].Relationship = "DEPLOYS_FROM"
+	snap.Graph.RequiredCorrelations[0].EvidenceKinds = []string{"argocd"}
+
+	c := fakeCounter{
+		nodes: map[string]int64{"CloudResource": 118},
+		edges: map[string]int64{"DEPLOYS_FROM": 4},
+		// Unfiltered count is nonzero (other evidence kinds exist)...
+		corr: map[string]int64{"CloudResource|DEPLOYS_FROM|CloudResource": 4},
+		// ...but the asserted evidence kind genuinely has none.
+		corrEv: map[string]int64{},
+	}
+	r := &goldengate.Report{}
+	if err := checkGraph(context.Background(), c, snap, true,
+		map[string]bool{"rc-test": true}, r); err != nil {
+		t.Fatalf("checkGraph() error = %v, want nil", err)
+	}
+
+	detail := diagnosisDetail(t, r)
+	if strings.Contains(detail, "read instability") {
+		t.Errorf("retry dropped the evidence filter and misread a stable regression: %s", detail)
+	}
+	if !strings.Contains(detail, "evidence") {
+		t.Errorf("diagnosis does not name the evidence-kind narrowing as the cause: %s", detail)
+	}
+}

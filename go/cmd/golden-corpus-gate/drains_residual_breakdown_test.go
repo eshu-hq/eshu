@@ -99,3 +99,42 @@ func TestResidualBreakdownCountsDeadLetterSeparately(t *testing.T) {
 		t.Errorf("breakdown does not total dead-lettered rows: %s", got)
 	}
 }
+
+// A dead-lettered row is a terminal failure sitting in the residual, not work
+// waiting on a precondition. When both are present, saying "every residual row
+// is waiting on readiness" is false and points the reader away from the real
+// problem (codex/Copilot review of #5902).
+func TestResidualBreakdownDoesNotClaimAllDeferredWhenDeadLettersPresent(t *testing.T) {
+	t.Parallel()
+
+	rows := []residualRow{
+		{Domain: "aws_cloud_runtime_drift", Status: "retrying", FailureClass: "aws_cloud_runtime_drift_state_pending", Count: 3},
+		{Domain: "supply_chain_impact", Status: "dead_letter", FailureClass: "input_invalid", Count: 1},
+	}
+	got := formatResidualBreakdown(rows)
+
+	if strings.Contains(got, "no live work remained") {
+		t.Errorf("claims all-deferred while dead letters are present: %s", got)
+	}
+	if !strings.Contains(got, "dead_letter=1") {
+		t.Errorf("breakdown does not surface the dead letter: %s", got)
+	}
+}
+
+// `failed` is a terminal residual state in the drain contract, so counting it as
+// live work misreports a stuck pipeline as a busy one.
+func TestResidualBreakdownCountsFailedAsTerminalNotLive(t *testing.T) {
+	t.Parallel()
+
+	rows := []residualRow{
+		{Domain: "repo_dependency", Status: "failed", FailureClass: "input_invalid", Count: 2},
+	}
+	got := formatResidualBreakdown(rows)
+
+	if strings.Contains(got, "live=2") {
+		t.Errorf("counts terminal failed rows as live: %s", got)
+	}
+	if !strings.Contains(got, "failed=2") {
+		t.Errorf("breakdown does not total failed rows separately: %s", got)
+	}
+}

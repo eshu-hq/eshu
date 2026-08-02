@@ -241,12 +241,19 @@ func formatResidualBreakdown(rows []residualRow) string {
 		return ""
 	}
 
-	var live, deferred, deadLetter int64
+	var live, deferred, deadLetter, failed int64
 	details := make([]string, 0, len(rows))
 	for _, row := range rows {
 		switch {
 		case row.Status == "dead_letter":
 			deadLetter += row.Count
+		// `failed` is terminal, same as dead_letter. Postgres already draws this
+		// line: the outstanding-work count in generation_lifecycle_sql.go is
+		// `status IN ('pending','claimed','running','retrying')`, which excludes
+		// it. Counting a failed row as live would report a stuck pipeline as a
+		// busy one and send the reader looking for progress that is not coming.
+		case row.Status == "failed":
+			failed += row.Count
 		case readinessDeferredFailureClasses[row.FailureClass]:
 			deferred += row.Count
 		default:
@@ -259,8 +266,12 @@ func formatResidualBreakdown(rows []residualRow) string {
 		details = append(details, fmt.Sprintf("%s=%d", detail, row.Count))
 	}
 
-	summary := fmt.Sprintf("live=%d readiness-deferred=%d dead_letter=%d", live, deferred, deadLetter)
-	if live == 0 && deferred > 0 {
+	summary := fmt.Sprintf("live=%d readiness-deferred=%d dead_letter=%d failed=%d", live, deferred, deadLetter, failed)
+	// Only claim "every residual row is waiting" when that is literally true.
+	// A terminal row in the residual is a different failure with a different
+	// owner, and burying it under a readiness story sends the reader the wrong
+	// way — so any dead_letter or failed row suppresses the claim.
+	if live == 0 && deferred > 0 && deadLetter == 0 && failed == 0 {
 		summary += " — no live work remained: every residual row is waiting on a readiness precondition, so more drain time would not have helped"
 	}
 	return summary + " [" + strings.Join(details, " ") + "]"

@@ -277,12 +277,18 @@ full-package build caught it.
 
 ### Delegate An Undecided Design, Do Not Escalate It
 
-When evidence contradicts itself or a design has two defensible shapes, dispatch
-a Deep-tier agent to decide (per-harness map in
+Subordinate to Mandatory Startup: while the correct owner, design intent,
+performance contract, or verification gate is unclear, the answer is still to
+stop and ask. No agent resolves an unowned design decision by dispatching an
+agent at it.
+
+Once those four are settled, a remaining technical question is a research task.
+When evidence contradicts itself, or the settled intent admits two defensible
+implementations, dispatch a Deep-tier agent to adjudicate rather than parking the
+work (per-harness map in
 [Agent Orchestration Model](agent-orchestration.md#roles-models-and-tools) —
 Fable under Claude Code, Sol under Codex; never assume the other harness has your
-model). Reserve questions for the owner for what only they can know: production
-facts, ownership, business calls.
+model). Production facts and business calls still go to the owner.
 
 Give it the symptom and raw observations, never your hypothesis. Twice in one
 session a Deep-tier investigation rejected the framing it was handed and found

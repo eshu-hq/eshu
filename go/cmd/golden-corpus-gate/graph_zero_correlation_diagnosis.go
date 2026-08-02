@@ -62,21 +62,52 @@ func diagnoseZeroCorrelation(ctx context.Context, c graphCounter, rc RequiredCor
 		}
 	}
 
-	retry, retryErr := c.CountCorrelation(ctx, rc.FromLabel, rc.Relationship, rc.ToLabel)
+	// The retry must be the SAME query the assertion ran. When the assertion is
+	// evidence-filtered, retrying the unfiltered count reads a shared
+	// relationship's other evidence kinds, so a stable evidence-kind regression
+	// would come back nonzero and be reported as read instability — the one
+	// conclusion that sends the reader looking at the backend instead of the
+	// writer.
+	narrowed := len(rc.EvidenceKinds) > 0
+	var retry int64
+	var retryErr error
+	if narrowed {
+		retry, retryErr = c.CountCorrelationWithEvidence(ctx, rc.FromLabel, rc.Relationship, rc.ToLabel, rc.EvidenceKinds)
+	} else {
+		retry, retryErr = c.CountCorrelation(ctx, rc.FromLabel, rc.Relationship, rc.ToLabel)
+	}
 	if retryErr != nil {
 		parts = append(parts, fmt.Sprintf("retry=ERR(%v)", retryErr))
 	} else {
 		parts = append(parts, fmt.Sprintf("retry=%d", retry))
 	}
 
+	// For a narrowed assertion the unfiltered count is the read that separates
+	// "the shape is missing" from "the shape is there but carries different
+	// evidence" — a distinction with different owners and different fixes.
+	var unfiltered int64
+	var unfilteredErr error
+	if narrowed {
+		unfiltered, unfilteredErr = c.CountCorrelation(ctx, rc.FromLabel, rc.Relationship, rc.ToLabel)
+		if unfilteredErr != nil {
+			parts = append(parts, fmt.Sprintf("unfiltered=ERR(%v)", unfilteredErr))
+		} else {
+			parts = append(parts, fmt.Sprintf("unfiltered=%d", unfiltered))
+		}
+	}
+
 	cause := ""
 	switch {
 	case retryErr == nil && retry > 0:
 		cause = "read instability: the same query returned a different count on retry"
+	case narrowed && unfilteredErr == nil && unfiltered > 0:
+		cause = fmt.Sprintf("the correlation exists but no path carries the asserted evidence kind(s) %s", strings.Join(rc.EvidenceKinds, ","))
 	case emptyLabel != "":
 		cause = fmt.Sprintf("endpoint label %s has no nodes, so this correlation can never match", emptyLabel)
 	case err == nil && untyped == 0:
 		cause = "no edge of this type exists in the graph — nothing was written"
+	case err == nil && untyped > 0 && narrowed:
+		cause = "the edge exists but neither its endpoint labels nor its evidence kinds match the assertion"
 	case err == nil && untyped > 0:
 		cause = "the edge exists but its endpoint labels do not match the assertion"
 	default:
