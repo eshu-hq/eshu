@@ -32,10 +32,12 @@ off raw map lookups (issue #4750): the typed inner structs live in
 `parsed_file_data.go` and are decoded on demand through the parent module's
 `DecodeParsedFileData*` accessors (`decode_parsed_file_data.go`). S1 types the
 five closed-shape, single-producer keys — `gomod_state`, `function_calls_scip`,
-`dockerfile_stages`, `pipeline_calls`, `dead_code_file_root_kinds`. The wide
-per-language AST buckets (`imports`, `functions`, `function_calls`, `classes`,
-`variables`, `framework_semantics`) are still read raw until their own #4750
-increment. Only the container's identity fields and object-ness are validated at
+`dockerfile_stages`, `pipeline_calls`, `dead_code_file_root_kinds`. `imports` is the first of the wide per-language AST buckets to be typed
+(issue #5691): `Import` names only the four fields a consumer joins on and
+carries every per-language extra in an open `Attributes` remainder, so no
+producer field is dropped. The remaining wide buckets (`functions`,
+`function_calls`, `classes`, `variables`, `framework_semantics`) are still read
+raw until their own #4750 increment. Only the container's identity fields and object-ness are validated at
 the envelope level.
 
 ## Ownership boundary

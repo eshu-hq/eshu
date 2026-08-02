@@ -91,6 +91,14 @@ type parsedFileRef struct {
 	Path           string
 	Language       string
 	ParsedFileData map[string]any
+
+	// FactID and FactKind identify the file fact this reference came from, so
+	// an extractor that cannot read one of its parser buckets can quarantine
+	// the fact by name instead of silently reading it as "this file has
+	// nothing". Without them a malformed bucket is invisible: the delta
+	// refresh still deletes the file's edges and then writes none.
+	FactID   string
+	FactKind string
 }
 
 // extractFilesWithQuarantine builds FileRow entries from typed file fact
@@ -146,6 +154,8 @@ func extractFilesWithQuarantine(envelopes []facts.Envelope, repoID, repoPath str
 			Path:           fullPath,
 			Language:       strings.TrimSpace(language),
 			ParsedFileData: file.ParsedFileData,
+			FactID:         fileFacts[i].FactID,
+			FactKind:       fileFacts[i].FactKind,
 		})
 	}
 

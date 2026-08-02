@@ -44,7 +44,12 @@ func importEdgeCleanup(ctx context.Context, t *testing.T, exec liveExecutor) {
 		{`MATCH (f:File) WHERE f.repo_id = $repo_id DETACH DELETE f`, map[string]any{"repo_id": importEdgeRepoID}},
 		{`MATCH (d:Directory) WHERE d.repo_id = $repo_id DETACH DELETE d`, map[string]any{"repo_id": importEdgeRepoID}},
 		{`MATCH (r:Repository {id: $repo_id}) DETACH DELETE r`, map[string]any{"repo_id": importEdgeRepoID}},
-		{`MATCH (m:Module) WHERE m.name IN $names DETACH DELETE m`, map[string]any{"names": []any{"express", "fmt"}}},
+		// Module nodes are global -- MERGEd on name alone, with no repo_id -- so
+		// this test uses names no real repository imports, and deletes only
+		// those. Cleaning up by a real module name ("fmt", "express") would
+		// detach unrelated repositories' import edges on any shared or reused
+		// backend.
+		{`MATCH (m:Module) WHERE m.name IN $names DETACH DELETE m`, map[string]any{"names": []any{"5691-test-express", "5691-test-fmt"}}},
 	}
 	for _, s := range stmts {
 		if err := exec.Execute(ctx, cypher.Statement{Cypher: s.cypher, Parameters: s.params}); err != nil {
@@ -69,8 +74,8 @@ func importEdgeMaterialization(generationID string, first bool, imports []projec
 			{Path: importEdgeRepoPath + "/src/main.go", RelativePath: "src/main.go", Name: "main.go", Language: "go", RepoID: importEdgeRepoID, DirPath: importEdgeRepoPath + "/src"},
 		},
 		Modules: []projector.ModuleRow{
-			{Name: "express", Language: "typescript"},
-			{Name: "fmt", Language: "go"},
+			{Name: "5691-test-express", Language: "typescript"},
+			{Name: "5691-test-fmt", Language: "go"},
 		},
 		Imports: imports,
 	}
@@ -78,8 +83,8 @@ func importEdgeMaterialization(generationID string, first bool, imports []projec
 
 func importEdgeRows() []projector.ImportRow {
 	return []projector.ImportRow{
-		{FilePath: importEdgeRepoPath + "/src/app.ts", ModuleName: "express", ImportedName: "Router", Alias: "R", LineNumber: 2},
-		{FilePath: importEdgeRepoPath + "/src/main.go", ModuleName: "fmt", ImportedName: "", LineNumber: 4},
+		{FilePath: importEdgeRepoPath + "/src/app.ts", ModuleName: "5691-test-express", ImportedName: "Router", Alias: "R", LineNumber: 2},
+		{FilePath: importEdgeRepoPath + "/src/main.go", ModuleName: "5691-test-fmt", ImportedName: "", LineNumber: 4},
 	}
 }
 
@@ -153,8 +158,8 @@ RETURN f.relative_path AS file, m.name AS module, r.imported_name AS imported_na
 	})
 
 	want := []edge{
-		{"src/app.ts", "express", "Router", "R", 2},
-		{"src/main.go", "fmt", "", "", 4},
+		{"src/app.ts", "5691-test-express", "Router", "R", 2},
+		{"src/main.go", "5691-test-fmt", "", "", 4},
 	}
 
 	t.Logf("%s: projected IMPORTS edges = %+v", label, got)

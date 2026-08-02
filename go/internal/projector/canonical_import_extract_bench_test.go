@@ -44,7 +44,7 @@ func BenchmarkExtractImportsFromFiles(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				rows, modules := extractImportsFromFiles(parsed)
+				rows, modules, _ := extractImportsFromFiles(parsed)
 				if len(rows) == 0 || len(modules) == 0 {
 					b.Fatal("extractor produced nothing")
 				}

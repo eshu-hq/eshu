@@ -77,16 +77,21 @@ type importAccumulator struct {
 // The input is the parsedFileRef slice extractFilesWithQuarantine already built
 // while decoding each file fact, so no file fact is decoded twice.
 //
-// A file whose imports bucket is malformed is skipped rather than failing the
-// generation: the rest of that repository's graph truth still projects, matching
-// how extractFilesWithQuarantine treats an undecodable file fact.
-func extractImportsFromFiles(files []parsedFileRef) ([]ImportRow, []ModuleRow) {
+// A file whose imports bucket is malformed is skipped AND quarantined, so it
+// reaches the operator as an input_invalid dead-letter rather than as silence.
+// Skipping alone would be an accuracy hole with teeth: on a delta or
+// reconciliation write the refresh statement deletes that file's existing
+// IMPORTS edges before this extractor runs, so a bucket that fails to decode
+// would leave the file with no import edges, its File node intact, and nothing
+// in the metrics or logs to say why.
+func extractImportsFromFiles(files []parsedFileRef) ([]ImportRow, []ModuleRow, []quarantinedFact) {
 	if len(files) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	folded := make(map[importIdentity]*importAccumulator, len(files))
 	moduleLanguages := make(map[string]string)
+	var quarantined []quarantinedFact
 
 	for _, file := range files {
 		// The extractor reads only the named fields, so the per-entry
@@ -96,7 +101,16 @@ func extractImportsFromFiles(files []parsedFileRef) ([]ImportRow, []ModuleRow) {
 			file.ParsedFileData,
 			factschema.WithoutAttributesRemainder(),
 		)
-		if err != nil || len(entries) == 0 {
+		if err != nil {
+			quarantined = append(quarantined, quarantinedFact{
+				factID:         file.FactID,
+				factKind:       file.FactKind,
+				field:          "parsed_file_data.imports",
+				classification: factschema.ClassificationInputInvalid,
+			})
+			continue
+		}
+		if len(entries) == 0 {
 			continue
 		}
 
@@ -127,7 +141,7 @@ func extractImportsFromFiles(files []parsedFileRef) ([]ImportRow, []ModuleRow) {
 		}
 	}
 
-	return importRowsFrom(folded), moduleRowsFromLanguages(moduleLanguages)
+	return importRowsFrom(folded), moduleRowsFromLanguages(moduleLanguages), quarantined
 }
 
 // fold merges one more parser entry into an existing (file, module) edge.
@@ -247,16 +261,23 @@ func mergeImportModules(existing []ModuleRow, discovered []ModuleRow) []ModuleRo
 	if len(discovered) == 0 {
 		return existing
 	}
-	seen := make(map[string]struct{}, len(existing))
-	for _, m := range existing {
-		seen[m.Name] = struct{}{}
+	at := make(map[string]int, len(existing))
+	for i, m := range existing {
+		at[m.Name] = i
 	}
 	for _, m := range discovered {
-		if _, ok := seen[m.Name]; ok {
+		index, known := at[m.Name]
+		if !known {
+			at[m.Name] = len(existing)
+			existing = append(existing, m)
 			continue
 		}
-		seen[m.Name] = struct{}{}
-		existing = append(existing, m)
+		// The entity-derived row wins on identity, but not on evidence: when it
+		// carries no language and the importing file does, keep the language
+		// rather than discarding the only attribution available.
+		if existing[index].Language == "" && m.Language != "" {
+			existing[index].Language = m.Language
+		}
 	}
 	return existing
 }

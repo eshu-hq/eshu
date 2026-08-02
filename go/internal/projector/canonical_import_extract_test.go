@@ -312,17 +312,27 @@ func TestExtractImportsFromFilesIgnoresNonImportBuckets(t *testing.T) {
 			"functions":      []any{map[string]any{"name": "main", "line_number": 10}},
 			"function_calls": []any{map[string]any{"name": "Println", "line_number": 11}},
 		}},
-		// A malformed imports bucket is skipped, not guessed at.
-		{Path: "/repos/my-project/bad.go", Language: "go", ParsedFileData: map[string]any{
+		// A malformed imports bucket is skipped, not guessed at -- and reported.
+		{Path: "/repos/my-project/bad.go", Language: "go", FactID: "f-bad", FactKind: "file", ParsedFileData: map[string]any{
 			"imports": "fmt",
 		}},
 	}
 
-	rows, modules := extractImportsFromFiles(files)
+	rows, modules, quarantined := extractImportsFromFiles(files)
 	if len(rows) != 0 {
 		t.Errorf("len(rows) = %d, want 0: %+v", len(rows), rows)
 	}
 	if len(modules) != 0 {
 		t.Errorf("len(modules) = %d, want 0: %+v", len(modules), modules)
+	}
+	// The malformed bucket must be visible, not merely skipped.
+	if len(quarantined) != 1 {
+		t.Fatalf("quarantined = %d, want 1 for the malformed imports bucket: %+v", len(quarantined), quarantined)
+	}
+	if quarantined[0].factID != "f-bad" {
+		t.Errorf("quarantined factID = %q, want f-bad", quarantined[0].factID)
+	}
+	if quarantined[0].field != "parsed_file_data.imports" {
+		t.Errorf("quarantined field = %q, want parsed_file_data.imports", quarantined[0].field)
 	}
 }

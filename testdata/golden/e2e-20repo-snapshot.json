@@ -2164,6 +2164,7 @@
         "required_json_object_matches": {
           "dependencies[]": [
             {
+              "source_file": "main.go",
               "target_module": "github.com/acme/lib-common",
               "relationship_type": "IMPORTS",
               "alias": "lib",

@@ -41,7 +41,7 @@ corpus). Every one of these read zero, or was absent, before this change:
 | `node_count_Module` | 72, snapshot range `[20, 5000]` |
 | `rc-171` `(File)-[:IMPORTS]->(Module)` | count 63, want >= 30 |
 | `rc-171_edge_prop_evidence_source` | 0/63 matching edges offending |
-| `mcp:investigate_import_dependencies` | 1 result, object match on the pinned row |
+| `mcp:investigate_import_dependencies` | 1 result, object match on the pinned row (source_file, module, alias, line) |
 
 The gate's own floors were vacuous before: `IMPORTS` carried `min: 0`, `Module`
 had no node-count row, and the MCP query shape asked for `minimum_results: 0`.
