@@ -142,6 +142,7 @@ func TestContainerImageIdentityPublicationCanNarrowSourceRepositoryIDs(t *testin
 		GenerationID: "generation-5887",
 		SourceSystem: "git",
 		EvidenceAsOf: time.Date(2026, time.July, 29, 14, 2, 0, 0, time.UTC),
+		FencingToken: 1,
 		Decisions:    []ContainerImageIdentityDecision{tag, exact},
 	}
 	db := &fakeWorkloadIdentityExecer{}
