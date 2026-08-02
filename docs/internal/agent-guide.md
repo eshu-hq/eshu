@@ -303,16 +303,13 @@ tests that ran.
 
 ### Diff-Scoped Gates Default To HEAD~1
 
-Gates that scope to "the diff" compute it against `HEAD~1` unless given a base,
-so on a multi-commit branch they inspect only the last commit. Export
-`ESHU_PARSER_RELATIONSHIP_KIT_BASE=origin/main` and
-`ESHU_PERFORMANCE_EVIDENCE_BASE=origin/main` before `make pre-pr`.
+Gates scoped to "the diff" compute it against `HEAD~1` unless given a base, so
+a multi-commit branch shows only its last commit. Export
+`ESHU_{PARSER_RELATIONSHIP_KIT,PERFORMANCE_EVIDENCE,MEASUREMENT_CITATIONS}_BASE=origin/main` before `make pre-pr`.
 
-The two known members fail in OPPOSITE directions, which decides which you
-notice: `parser-relationship-kit` false-FAILS loudly; `verify-performance-evidence`
-false-PASSES, reporting "no hot files" and exiting 0 with the hot files in earlier
-commits. A gate green from examining nothing is indistinguishable from one that
-verified your change. Assume other members exist.
+These fail in different directions: `parser-relationship-kit` false-FAILS
+loudly; `verify-performance-evidence` and `verify-measurement-citations`
+false-PASS silently, examining nothing. Assume other members exist.
 
 ### Evidence Capture Pitfalls
 
@@ -373,25 +370,9 @@ keeps the reviewable diff reviewable. Never `--no-verify` past a format hook.
 
 ## Measurement Ledger
 
-`docs/internal/measurements.jsonl` is the single source of truth for numeric
-claims: benchmark trial counts, deadlock rates, wall-time before/afters, and
-row counts. Prose in evidence docs, PR bodies, and design docs MUST cite a
-ledger row id (`ledger:<id>`) rather than restate the numbers, because
-restated numbers drift — on one branch (#5837) six of eleven review findings
-were exactly that, and none was catchable by any prior gate, because
-`mkdocs --strict` does not validate `docs/internal/` and no gate read prose
-numbers at all. Existing `docs/internal/evidence/*.md` and
-`go/**/evidence-*.md` documents are frozen as a record of the numbers they
-already state — do not edit one to correct a figure — but appending NEW
-evidence to them stays allowed.
-
-`scripts/verify-measurement-citations.sh` (test mirror:
-`scripts/test-verify-measurement-citations.sh`) enforces this on every ADDED
-diff line shaped like `<N>/<M> trials`, `<N>/<M> runs`, or a `Measurement:`
-marker: it must carry a `ledger:<id>` token resolving to a real row. See
-[Measurement Ledger](measurement-ledger.md) for the full row schema, the
-gate's exact match patterns and documented blind spots, and the frozen-doc
-append rule.
+Cite a `docs/internal/measurements.jsonl` row id (`ledger:<id>`) instead of
+restating a number; `scripts/verify-measurement-citations.sh` enforces it.
+See [Measurement Ledger](measurement-ledger.md) for schema and gate details.
 
 ## API, MCP, And Query Reads
 
