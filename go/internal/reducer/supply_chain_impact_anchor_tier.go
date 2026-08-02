@@ -234,13 +234,15 @@ func supplyChainImageIdentityAnchorTier(row supplyChainImageIdentity) int {
 
 // bestSupplyChainImageIdentitiesByDigest folds every
 // reducer_container_image_identity envelope in envelopes into one
-// deterministic winner per digest via preferSupplyChainImageIdentity. Exposed
-// as its own batch helper (rather than inlined into
+// deterministic winner per digest via preferSupplyChainImageIdentityConsensus
+// (#5887; see that function's doc for why the bare factID tie-break alone is
+// not run-stable). Exposed as its own batch helper (rather than inlined into
 // addSupplyChainImpactIndexEntry's per-envelope case in
 // supply_chain_impact_index_build.go) so any future consumer that needs the
 // same digest-to-repository resolution over a whole envelope batch can reuse
 // this exact tie-break instead of re-deriving it.
 func bestSupplyChainImageIdentitiesByDigest(envelopes []facts.Envelope) map[string]supplyChainImageIdentity {
+	consensus := buildSupplyChainImageIdentityConsensus(envelopes)
 	winners := make(map[string]supplyChainImageIdentity)
 	for _, envelope := range envelopes {
 		if envelope.FactKind != containerImageIdentityFactKind {
@@ -251,7 +253,7 @@ func bestSupplyChainImageIdentitiesByDigest(envelopes []facts.Envelope) map[stri
 			continue
 		}
 		if existing, ok := winners[image.digest]; ok {
-			image = preferSupplyChainImageIdentity(existing, image)
+			image = preferSupplyChainImageIdentityConsensus(existing, image, consensus)
 		}
 		winners[image.digest] = image
 	}
