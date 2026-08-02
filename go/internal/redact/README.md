@@ -50,6 +50,15 @@ does not persist raw input or emit telemetry.
   bytes.
 - `Scalar(raw any, reason, source string, key Key) Value` — redacts scalar
   values and fails closed for unsupported values.
+- `IsRedactedValue(v any) bool` — recognizes a JSON round-tripped `Value`
+  (a `map[string]any` with a `"marker"` field carrying the marker prefix) so
+  callers that decode attributes generically after a storage round-trip can
+  treat a still-redacted leaf as absent instead of comparable data. It
+  deliberately answers `false` for a bare marker string stored without its
+  `reason`/`source` siblings — the `*_fingerprint` fields `gcpcloud` and
+  `azurecloud` persist are opaque values to be carried, not placeholders to be
+  treated as absent. See the godoc for why widening this to a prefix match
+  would be wrong.
 
 ## Invariants
 

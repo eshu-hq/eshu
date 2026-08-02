@@ -180,7 +180,7 @@ func TestAWSRuntimeStateRowFromPayloadPopulatesDeclaredAMI(t *testing.T) {
 		}
 	}`)
 
-	row, ok := awsRuntimeStateRowFromPayload("state_snapshot:s3:hash", "module.ecs.aws_instance.supply-chain-demo", payload)
+	row, ok, _ := awsRuntimeStateRowFromPayload("state_snapshot:s3:hash", "module.ecs.aws_instance.supply-chain-demo", payload)
 	if !ok {
 		t.Fatalf("awsRuntimeStateRowFromPayload() ok = false, want true")
 	}
@@ -206,7 +206,7 @@ func TestAWSRuntimeStateRowFromPayloadPopulatesDeclaredLambdaImageAndVersion(t *
 		}
 	}`)
 
-	row, ok := awsRuntimeStateRowFromPayload("state_snapshot:s3:hash", "aws_lambda_function.supply-chain-demo", payload)
+	row, ok, _ := awsRuntimeStateRowFromPayload("state_snapshot:s3:hash", "aws_lambda_function.supply-chain-demo", payload)
 	if !ok {
 		t.Fatalf("awsRuntimeStateRowFromPayload() ok = false, want true")
 	}
@@ -242,7 +242,7 @@ func TestAWSRuntimeStateRowFromPayloadPopulatesDeclaredECSContainerImages(t *tes
 		}
 	}`)
 
-	row, ok := awsRuntimeStateRowFromPayload("state_snapshot:s3:hash", "module.ecs.aws_ecs_task_definition.supply-chain-demo", payload)
+	row, ok, _ := awsRuntimeStateRowFromPayload("state_snapshot:s3:hash", "module.ecs.aws_ecs_task_definition.supply-chain-demo", payload)
 	if !ok {
 		t.Fatalf("awsRuntimeStateRowFromPayload() ok = false, want true")
 	}

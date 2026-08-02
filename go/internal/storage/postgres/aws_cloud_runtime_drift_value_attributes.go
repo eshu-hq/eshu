@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
+	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
 // cloudResourceTypeEC2Instance and its siblings are the AWS collector's OWN
@@ -70,18 +71,11 @@ func cloudObservedValueAttributes(
 	}
 	switch resourceType {
 	case cloudResourceTypeEC2Instance:
-		if v := strings.TrimSpace(coerceJSONString(attributes["ami_id"])); v != "" {
+		if v := comparableScalarAttr(attributes, "ami_id"); v != "" {
 			return map[string]string{"ami": v}, nil, false, false
 		}
 	case cloudResourceTypeLambdaFunction, cloudResourceTypeLambdaFunctionProd:
-		out := map[string]string{}
-		if v := strings.TrimSpace(coerceJSONString(attributes["image_uri"])); v != "" {
-			out["image_uri"] = v
-		}
-		if v := strings.TrimSpace(coerceJSONString(attributes["version"])); v != "" {
-			out["version"] = v
-		}
-		if len(out) > 0 {
+		if out := comparableScalarAttrSet(attributes, "image_uri", "version"); len(out) > 0 {
 			return out, nil, false, false
 		}
 	case cloudResourceTypeECSTaskDefinition, cloudResourceTypeECSTaskDefinitionProd:
@@ -115,18 +109,11 @@ func stateDeclaredValueAttributes(
 	}
 	switch resourceType {
 	case terraformResourceTypeAWSInstance:
-		if v := strings.TrimSpace(coerceJSONString(attributes["ami"])); v != "" {
+		if v := comparableScalarAttr(attributes, "ami"); v != "" {
 			return map[string]string{"ami": v}, nil, false, false
 		}
 	case terraformResourceTypeAWSLambdaFunction:
-		out := map[string]string{}
-		if v := strings.TrimSpace(coerceJSONString(attributes["image_uri"])); v != "" {
-			out["image_uri"] = v
-		}
-		if v := strings.TrimSpace(coerceJSONString(attributes["version"])); v != "" {
-			out["version"] = v
-		}
-		if len(out) > 0 {
+		if out := comparableScalarAttrSet(attributes, "image_uri", "version"); len(out) > 0 {
 			return out, nil, false, false
 		}
 	case terraformResourceTypeAWSECSTaskDefinition:
@@ -134,6 +121,133 @@ func stateDeclaredValueAttributes(
 		return nil, result.Images, result.Truncated, result.Degraded
 	}
 	return nil, nil, false, false
+}
+
+// comparableScalarAttr reads one leaf attribute intended for allowlisted
+// value-drift comparison (cloudruntime.ValueAttributeAllowlistFor) off a
+// JSON-decoded attributes object. It returns "" when the attribute is
+// absent, blank, or is still a redaction marker (see redactedAnywhere)
+// rather than genuine declared/observed data.
+//
+// A redacted scalar must never reach cloudruntime.attrValue as a non-empty
+// string: coerceJSONString has no redaction concept and falls through its
+// default fmt.Sprint(value) branch for an unrecognized map, which previously
+// rendered a redacted "ami" as a garbage string like
+// "map[marker:redacted:hmac-sha256:... reason:unknown_provider_schema
+// source:resources.*.attributes.ami]". That string is present and non-empty,
+// so it compared unequal to a real observed value and fired a false
+// image_version_drift finding whose "declared" evidence was an internal
+// collector encoding, not a value Terraform ever declared (#5859).
+//
+// Recognition happens here, at the decoder boundary, rather than by teaching
+// coerceJSONString or cloudruntime about the redact.Value shape: this keeps
+// the general-purpose leaf coercion helper (used for resource_type, address,
+// and other identity fields that are never redacted) and the
+// backend/provider-neutral cloudruntime package both ignorant of a
+// collector-specific encoding detail. The terraform-state collector already
+// counts every redaction at emission time via the
+// eshu_dp_tfstate_redactions_applied_total{reason} counter (see
+// go/internal/collector/tfstateruntime/metrics.go); this function only stops
+// that already-recorded condition from being misread as comparable data
+// downstream, so it does not need its own counter.
+func comparableScalarAttr(attributes map[string]any, key string) string {
+	value, ok := attributes[key]
+	if !ok || redactedAnywhere(value) {
+		return ""
+	}
+	return strings.TrimSpace(coerceJSONString(value))
+}
+
+// comparableScalarAttrSet reads every allowlisted scalar comparable a resource
+// type is covered for, under an all-or-nothing rule: if ANY of keys is a
+// redaction marker, it returns nil and no comparison runs for this pair, even
+// for the keys that were readable.
+//
+// The rule exists because per-attribute suppression is only safe when
+// suppression cannot be mistaken for convergence, and for a multi-attribute
+// type it can. cloudruntime.ClassifyValueComparison reports
+// Inconclusive() as Comparable > 0 && Compared == 0, so erasing the sole
+// comparable of a one-attribute type (aws_instance's "ami") lands on
+// value_comparison_inconclusive and keeps a durable row. Erasing ONE of
+// aws_lambda_function's two, while the other compares equal, does not: it
+// leaves Comparable=2, Compared=1, no drift, and Classify returns "" --
+// convergence. BuildCandidates then drops the ARN and the
+// generation-authoritative retire deletes whatever finding it held (#5837).
+// Measured on this branch before this rule:
+//
+//	Comparable=2 Compared=1 Drifted=0 Inconclusive=false  Classify() = ""
+//
+// Deleting a true finding on unreadable evidence is worse than the
+// garbage-string false positive #5859 started as, and the condition is sticky
+// per deployment, so a replay repeats it. Suppressing the whole set drops
+// Compared to 0 and reports uncertainty instead.
+//
+// The cost is deliberate: a real "version" drift alongside an unreadable
+// "image_uri" reports as inconclusive rather than as drift. That is still a
+// durable row naming the gap, it can never delete, and it matches how the ECS
+// side already behaves -- an unreadable container_definitions makes the whole
+// image comparison uncomparable rather than partial.
+//
+// Only a REDACTED comparable suppresses the set. A genuinely absent one does
+// not, or every zip-packaged Lambda (no "image_uri" by design) would go
+// inconclusive -- the objection #5861 records against widening this further.
+func comparableScalarAttrSet(attributes map[string]any, keys ...string) map[string]string {
+	for _, key := range keys {
+		if redactedAnywhere(attributes[key]) {
+			return nil
+		}
+	}
+	out := make(map[string]string, len(keys))
+	for _, key := range keys {
+		if v := strings.TrimSpace(coerceJSONString(attributes[key])); v != "" {
+			out[key] = v
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// redactedAnywhere reports whether value is itself a redaction marker map, or
+// an array wrapping one.
+//
+// The two shapes come from different branches of the collector, and the
+// distinction is worth stating precisely because the array one is NOT
+// produced by the nil-resolver condition #5859 is about. Under
+// redact.ActionRedact the terraform-state parser replaces the whole attribute
+// with a single redactionMap (terraformstate/attributes.go:231), which is the
+// bare-map shape. The array shape comes from the other branch: an
+// ActionPreserve composite goes through applyLeafClassification, which
+// recurses into array elements (attributes.go:264-268) and classifies each
+// leaf with redact.SchemaKnown hardcoded (attributes.go:272), so a
+// sensitive-NAMED leaf inside a repeated block is redacted individually and
+// decodes as []any{map[string]any{marker}}.
+//
+// So this is a latent guard, not a live fix, on two counts: none of today's
+// three allowlisted keys (ami, image_uri, version) is a composite, and the
+// producing condition is a sensitive-key match under a known schema rather
+// than #5859's unknown one. It is kept because the cost is one type
+// assertion and the failure mode is silent -- allowlisting a composite
+// attribute would otherwise reintroduce the exact garbage-string bug
+// comparableScalarAttr exists to prevent.
+// TestComparableScalarAttrTreatsArrayWrappedRedactionMarkerAsAbsent pins the
+// boundary by failing if this function is reverted to a bare
+// redact.IsRedactedValue(value) check.
+func redactedAnywhere(value any) bool {
+	if redact.IsRedactedValue(value) {
+		return true
+	}
+	arr, ok := value.([]any)
+	if !ok {
+		return false
+	}
+	for _, elem := range arr {
+		if redact.IsRedactedValue(elem) {
+			return true
+		}
+	}
+	return false
 }
 
 // containerImagesTruncatedWarning returns the "container_images_truncated"

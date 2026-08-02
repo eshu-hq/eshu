@@ -204,3 +204,109 @@ func TestScalarDoesNotLeakUnsupportedValues(t *testing.T) {
 		t.Fatalf("Scalar().Marker = %q, leaked unsupported raw value", redacted.Marker)
 	}
 }
+
+// jsonRoundTripAny encodes v to JSON and decodes it back into `any`, the
+// same path a Postgres-stored fact payload takes before a decoder reads its
+// attributes generically. This is what turns a redact.Value struct into a
+// map[string]any in the first place.
+func jsonRoundTripAny(t *testing.T, v any) any {
+	t.Helper()
+	encoded, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("json.Marshal(%#v) error = %v, want nil", v, err)
+	}
+	var decoded any
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
+		t.Fatalf("json.Unmarshal(%s) error = %v, want nil", encoded, err)
+	}
+	return decoded
+}
+
+// TestIsRedactedValueRecognizesJSONRoundTrippedMarker is the #5859
+// regression: a collector-produced redact.Value survives storage only as a
+// generic map after a JSON round-trip (the typed struct is gone), and a
+// downstream decoder reading attributes as `any` must still recognize it as
+// redacted rather than treating it as comparable data.
+func TestIsRedactedValueRecognizesJSONRoundTrippedMarker(t *testing.T) {
+	t.Parallel()
+
+	value := redact.String("ami-0123456789abcdef0", "unknown_provider_schema", "resources.*.attributes.ami", testKey(t))
+	decoded := jsonRoundTripAny(t, value)
+
+	if !redact.IsRedactedValue(decoded) {
+		t.Fatalf("IsRedactedValue(%#v) = false, want true for a JSON round-tripped redact.Value", decoded)
+	}
+}
+
+// TestIsRedactedValueRejectsPlainMapWithoutMarkerPrefix proves the check is
+// shape- AND prefix-specific: an ordinary map that happens to have a
+// "marker" key with unrelated text must not be misclassified as redacted.
+func TestIsRedactedValueRejectsPlainMapWithoutMarkerPrefix(t *testing.T) {
+	t.Parallel()
+
+	notAMarker := map[string]any{"marker": "some-unrelated-value", "reason": "n/a", "source": "n/a"}
+	if redact.IsRedactedValue(notAMarker) {
+		t.Fatalf("IsRedactedValue(%#v) = true, want false: no redact marker prefix present", notAMarker)
+	}
+}
+
+// TestIsRedactedValueRejectsIncompleteMarkerShape proves the shape check
+// requires the complete {marker,reason,source} object the package contract
+// promises (AGENTS.md:52-55), not merely a "marker" field with the expected
+// prefix. A map that carries only "marker" is not the JSON round-trip shape
+// of a redact.Value -- it never came from String/Bytes/Scalar -- so treating
+// it as redacted would be over-broad: callers either drop the whole object in
+// flattenStateAttributes or suppress a resource's entire comparable
+// attribute set, turning real map data into absent evidence and changing
+// drift truth the same false-negative direction as the bug #5859 fixes.
+// Each field is covered on its own, not only in combination. A single
+// "marker alone" case cannot tell the two field checks apart: dropping either
+// one leaves the other still rejecting that input, so the case passes while
+// half the contract goes unenforced. Verified by mutation -- deleting the
+// "reason" check alone left the earlier single-case version green.
+func TestIsRedactedValueRejectsIncompleteMarkerShape(t *testing.T) {
+	t.Parallel()
+
+	validMarker := "redacted:hmac-sha256:" + strings.Repeat("0", 64)
+	for name, incomplete := range map[string]map[string]any{
+		"missing reason only": {
+			"marker": validMarker,
+			"source": "resources.*.attributes.ami",
+		},
+		"missing source only": {
+			"marker": validMarker,
+			"reason": "unknown_provider_schema",
+		},
+		"missing both": {
+			"marker": validMarker,
+		},
+	} {
+		if redact.IsRedactedValue(incomplete) {
+			t.Fatalf("IsRedactedValue(%s = %#v) = true, want false: an incomplete shape is not a round-tripped redact.Value",
+				name, incomplete)
+		}
+	}
+}
+
+// TestIsRedactedValueRejectsNonMarkerShapes proves ordinary scalar and
+// composite values used elsewhere in decoded attributes never trip the
+// marker check, so IsRedactedValue is safe to call unconditionally on any
+// decoded JSON leaf.
+func TestIsRedactedValueRejectsNonMarkerShapes(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]any{
+		"nil":                nil,
+		"plain string":       "ami-0123456789abcdef0",
+		"marker-like string": "redacted:hmac-sha256:deadbeef",
+		"number":             float64(42),
+		"bool":               true,
+		"slice":              []any{"a", "b"},
+		"map without marker": map[string]any{"reason": "unknown_provider_schema", "source": "attributes.ami"},
+	}
+	for name, value := range cases {
+		if redact.IsRedactedValue(value) {
+			t.Fatalf("IsRedactedValue(%s = %#v) = true, want false", name, value)
+		}
+	}
+}

@@ -200,9 +200,19 @@ func (l PostgresAWSCloudRuntimeDriftEvidenceLoader) loadActiveStateResourcesByAR
 		if err := rows.Scan(&scopeID, &generationID, &address, &payload); err != nil {
 			return nil, fmt.Errorf("scan active terraform state resource for aws arn: %w", err)
 		}
-		resource, ok := awsRuntimeStateRowFromPayload(scopeID, address, payload)
+		resource, ok, failureClass := awsRuntimeStateRowFromPayload(scopeID, address, payload)
 		if !ok {
-			l.logDecodeFailure(ctx, scopeID, generationID, address, "state_resource_payload_decode")
+			// A redacted join key gets its own failure class. It is not payload
+			// noise: it means this deployment has no usable provider-schema
+			// bundle, so EVERY declared row is dropping out of the join and every
+			// cloud resource under it reads as orphaned_cloud_resource. An
+			// operator watching an account go orphaned needs to land on the schema
+			// bundle, not on a generic decode warning (#5859, #5870).
+			// failureClass came back from the same decode awsRuntimeStateRowFromPayload
+			// already did; re-parsing the payload here would make the double
+			// unmarshal the hot path of exactly the degraded run this branch exists
+			// to diagnose.
+			l.logDecodeFailure(ctx, scopeID, generationID, address, failureClass)
 			continue
 		}
 		out[resource.ARN] = append(out[resource.ARN], awsRuntimeStateResourceRow{
@@ -349,89 +359,6 @@ func (l PostgresAWSCloudRuntimeDriftEvidenceLoader) loadConfigRowsForAnchor(
 		}
 	}
 	return out, nil
-}
-
-func awsRuntimeResourceRowFromPayload(scopeID string, payload []byte) (*cloudruntime.ResourceRow, bool) {
-	var decoded struct {
-		ARN          string         `json:"arn"`
-		ResourceID   string         `json:"resource_id"`
-		ResourceType string         `json:"resource_type"`
-		Tags         map[string]any `json:"tags"`
-		Attributes   map[string]any `json:"attributes"`
-	}
-	if len(payload) > 0 {
-		if err := json.Unmarshal(payload, &decoded); err != nil {
-			return nil, false
-		}
-	}
-	arn := strings.TrimSpace(decoded.ARN)
-	if arn == "" {
-		return nil, false
-	}
-	resourceType := strings.TrimSpace(decoded.ResourceType)
-	attributes, containerImages, truncated, degraded := cloudObservedValueAttributes(resourceType, decoded.Attributes)
-	return &cloudruntime.ResourceRow{
-		ARN:                      arn,
-		ResourceID:               strings.TrimSpace(decoded.ResourceID),
-		ResourceType:             resourceType,
-		ScopeID:                  strings.TrimSpace(scopeID),
-		Tags:                     coerceStringTags(decoded.Tags),
-		Attributes:               attributes,
-		ContainerImages:          containerImages,
-		ContainerImagesTruncated: truncated,
-		ContainerImagesDegraded:  degraded,
-	}, true
-}
-
-func awsRuntimeStateRowFromPayload(scopeID, address string, payload []byte) (*cloudruntime.ResourceRow, bool) {
-	var decoded struct {
-		Address    string         `json:"address"`
-		Type       string         `json:"type"`
-		Attributes map[string]any `json:"attributes"`
-	}
-	if len(payload) > 0 {
-		if err := json.Unmarshal(payload, &decoded); err != nil {
-			return nil, false
-		}
-	}
-	if decoded.Address != "" {
-		address = decoded.Address
-	}
-	address = strings.TrimSpace(address)
-	arn := strings.TrimSpace(coerceJSONString(decoded.Attributes["arn"]))
-	if address == "" || arn == "" {
-		return nil, false
-	}
-	resourceType := strings.TrimSpace(decoded.Type)
-	attributes, containerImages, truncated, degraded := stateDeclaredValueAttributes(resourceType, decoded.Attributes)
-	return &cloudruntime.ResourceRow{
-		ARN:                      arn,
-		Address:                  address,
-		ResourceType:             resourceType,
-		ScopeID:                  strings.TrimSpace(scopeID),
-		Attributes:               attributes,
-		ContainerImages:          containerImages,
-		ContainerImagesTruncated: truncated,
-		ContainerImagesDegraded:  degraded,
-	}, true
-}
-
-func coerceStringTags(tags map[string]any) map[string]string {
-	if len(tags) == 0 {
-		return nil
-	}
-	out := make(map[string]string, len(tags))
-	for key, value := range tags {
-		key = strings.TrimSpace(key)
-		if key == "" {
-			continue
-		}
-		out[key] = coerceJSONString(value)
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
 }
 
 func parseStateSnapshotScope(scopeID string) (backendKind, locatorHash string, ok bool) {
