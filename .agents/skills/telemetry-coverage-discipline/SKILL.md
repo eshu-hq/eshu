@@ -35,8 +35,9 @@ operator-side signal gap.
 This is the Epic X discipline. It exists because the **telemetry inventory
 drift** class — metrics defined in code but never documented, or referenced
 in the contract but never registered — has recurred in this repo. The
-historical note in `docs/public/reference/telemetry/index.md:140-156`
-describes the prior instances; the maintainer narrative at
+historical note under the `## Extraction-provenance drift gauges` heading in
+`docs/public/reference/telemetry/index.md` describes the prior instances; the
+maintainer narrative at
 `docs/internal/telemetry-discipline-precedent.md` ties the discipline to
 those incidents. The discipline replaces the human audit with a CI gate.
 

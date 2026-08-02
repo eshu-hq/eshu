@@ -61,7 +61,7 @@ fixture.
 
 ## Cassette contract
 
-- **`fact_kind` is replayed verbatim** (`replay/cassette/source.go` sets the
+- **`fact_kind` is replayed verbatim** (`go/internal/replay/cassette/source.go` sets the
   envelope kind to the JSON string as-is — no namespace transform). It must be
   byte-equal to the constant the consuming reducer matches (some families match
   an UNPREFIXED kind, e.g. `facts.VaultAuthRoleFactKind == "vault_auth_role"`). A

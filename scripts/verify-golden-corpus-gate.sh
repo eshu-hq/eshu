@@ -83,7 +83,7 @@ fi
 source "${repo_root}/scripts/lib/golden-corpus-fixtures.sh"
 # The credentialed collectors and their B-10 cassette directories. Do not restate
 # the count here: GATE_MIN_COLLECTOR_SOURCES derives it from this array, and a
-# hand-maintained number drifted to half the real value before (#5717 follow-up).
+# hand-maintained number drifted to half the real value before it was noticed.
 collector_specs=(
 	"collector-kubernetes-live:kuberneteslive"
 	"collector-aws-cloud:awscloud"
@@ -173,7 +173,7 @@ export ESHU_API_ADDR=":${GATE_API_PORT}"
 # without it eshu-api fails closed at startup and /readyz never returns.
 # Fixed, publicly-known, all-zero dev-only placeholder — never a real secret.
 export ESHU_AUTH_SECRET_ENC_KEY="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
-# Every Lifecycle binary (the 9 collectors, projector, reducer) starts an
+# Every Lifecycle binary (each collector in collector_specs, projector, reducer) starts an
 # operator status server on ESHU_LISTEN_ADDR and a metrics scrape server on
 # ESHU_METRICS_ADDR, both defaulting to fixed ports (8080 / 9464). Run
 # concurrently they would all collide on those ports and exit on startup, so each
@@ -296,7 +296,7 @@ done
 for pid in "${collector_pids[@]}"; do kill "${pid}" >/dev/null 2>&1 || true; done
 
 # Prove the cassette facts actually landed: each credentialed collector must have
-# produced at least one ingestion scope. Without this, all 9 collectors could
+# produced at least one ingestion scope. Without this, every collector could
 # no-op and the gate would still pass (Repository nodes come from filesystem
 # discovery, not collectors).
 collector_sources="$(pg "SELECT count(DISTINCT source_system) FROM ingestion_scopes WHERE source_system <> 'git';" | tr -d '[:space:]')"

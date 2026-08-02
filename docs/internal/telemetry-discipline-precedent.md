@@ -28,7 +28,7 @@ operator discovers the gap when the incident already has them on the call.
 
 | When | Where | What broke |
 | --- | --- | --- |
-| Pre-2026-06-23 | `docs/public/reference/telemetry/index.md:140-156` (historical note) | `eshu_dp_shared_acceptance_rows` and `eshu_dp_worker_pool_active` were defined-but-never-registered for an extended period. |
+| Pre-2026-06-23 | `docs/public/reference/telemetry/index.md`, `## Extraction-provenance drift gauges` (historical note) | `eshu_dp_shared_acceptance_rows` and `eshu_dp_worker_pool_active` were defined-but-never-registered for an extended period. |
 | 2026-06-23 | [#3633](https://github.com/eshu-hq/eshu/issues/3633) (closed) | Generation-liveness counters (`eshu_dp_generation_liveness_*`) were defined in code but missing from the telemetry README and the public docs index. The X1 doc references this issue as the root-cause class. |
 | 2026-06-24 (open) | [#3680](https://github.com/eshu-hq/eshu/issues/3680) | Per-collector telemetry work in flight; the adopted discipline is the X1-X4 contract. |
 
@@ -86,7 +86,7 @@ Use this runbook when adding a new `eshu_dp_*` metric or a new pipeline stage.
 2. **Register the instrument in `go/internal/telemetry/instruments.go`.**
    - Add a typed field on the `Instruments` struct (see existing
      `ActiveGenerations`, `QueueDepth`, `WorkerPoolActive` for shape).
-   - Add a registration call inside `InitInstruments` using the
+   - Add a registration call inside `NewInstruments` using the
      `meter.<Type>("<name>", ...)` constructor.
 3. **Emit the metric from the dispatcher.** The first arg of the constructor
    is the metric name; the call site is the dispatcher. Pick the chokepoint
@@ -232,7 +232,7 @@ the code agree.
   or `No-Observability-Change:` in a tracked repo file.
 - `docs/public/reference/telemetry/index.md` — the public contract
   documentation that surfaces the same metric names to operators.
-- `docs/public/reference/telemetry/index.md:223-254` — the per-endpoint
+- `docs/public/reference/telemetry/index.md`, `## Per-Endpoint Request Metrics` — the per-endpoint
   metrics section, the implementation reference for API request counters.
 - `go/internal/telemetry/instruments.go` — the metric source of truth.
 - `go/internal/telemetry/contract.go` and `contract_*.go` — dimensions, span
