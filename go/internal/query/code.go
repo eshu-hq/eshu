@@ -6,6 +6,7 @@ package query
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 )
@@ -22,6 +23,11 @@ type CodeHandler struct {
 	// BM25+vector relevance using the shipped local embedder. It is optional:
 	// when nil the handler serves the lexical content order unchanged.
 	HybridRanker CodeResultReranker
+	// Logger is forwarded to the language-query sub-handler
+	// (LanguageQueryHandler.Logger) so a generic language-query failure
+	// records its unmodified cause to the operator log while the response
+	// body stays static. Nil is tolerated; logging is skipped.
+	Logger *slog.Logger
 }
 
 // Mount registers all /api/v0/code/* routes on the given mux.
@@ -53,7 +59,7 @@ func (h *CodeHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/code/bundles", h.handleSearchBundles)
 
 	// Language-specific queries.
-	lq := &LanguageQueryHandler{Neo4j: h.Neo4j, Content: h.Content, Profile: h.profile()}
+	lq := &LanguageQueryHandler{Neo4j: h.Neo4j, Content: h.Content, Profile: h.profile(), Logger: h.Logger}
 	lq.Mount(mux)
 }
 

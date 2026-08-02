@@ -1,0 +1,394 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package query
+
+import (
+	"go/ast"
+	"go/token"
+	"strconv"
+)
+
+// capabilitySweep and its resolvers are split out of
+// graph_read_error_capability_sweep_test.go: that file crossed the repo's
+// 500-line cap once the resolved-call-site floor was added. The assertion
+// lives there; the AST machinery that feeds it lives here.
+
+type capabilitySweep struct {
+	constStrings map[string]string
+	funcDecls    map[string]*ast.FuncDecl
+	// callSites maps a called function/method name (by its Ident/Selector
+	// name only -- receiver type is not tracked) to every call site of it
+	// across the package, so a capability parameter threaded into
+	// WriteGraphReadError through a helper (e.g. applyRepositorySelectorForCapability)
+	// can be resolved back to what each caller actually passed.
+	callSites map[string][]capabilityCallSite
+	fset      *token.FileSet
+}
+
+// capabilityCallSite is one call expression together with the *ast.FuncDecl it
+// appears inside, so parameter-forwarding resolution can recurse into the
+// caller's own locals/parameters.
+type capabilityCallSite struct {
+	call      *ast.CallExpr
+	enclosing *ast.FuncDecl
+}
+
+func newCapabilitySweep(fset *token.FileSet) *capabilitySweep {
+	return &capabilitySweep{
+		constStrings: map[string]string{},
+		funcDecls:    map[string]*ast.FuncDecl{},
+		callSites:    map[string][]capabilityCallSite{},
+		fset:         fset,
+	}
+}
+
+// collectCallSites records every call expression in file against its callee
+// name (Ident.Name for a free function, SelectorExpr.Sel.Name for a method
+// call) and its enclosing function declaration.
+func (s *capabilitySweep) collectCallSites(file *ast.File) {
+	var funcStack []*ast.FuncDecl
+	var visit func(ast.Node) bool
+	visit = func(n ast.Node) bool {
+		switch node := n.(type) {
+		case *ast.FuncDecl:
+			funcStack = append(funcStack, node)
+			if node.Body != nil {
+				ast.Inspect(node.Body, visit)
+			}
+			funcStack = funcStack[:len(funcStack)-1]
+			return false
+		case *ast.CallExpr:
+			name := calleeName(node.Fun)
+			if name == "" {
+				break
+			}
+			var enclosing *ast.FuncDecl
+			if len(funcStack) > 0 {
+				enclosing = funcStack[len(funcStack)-1]
+			}
+			s.callSites[name] = append(s.callSites[name], capabilityCallSite{call: node, enclosing: enclosing})
+		}
+		return true
+	}
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Body == nil {
+			continue
+		}
+		visit(fn)
+	}
+}
+
+// calleeName returns the plain name of a call's callee: the identifier for a
+// free-function call, or the selected method name for a method call. Anything
+// else (a func literal invoked inline, a map/slice index, etc.) reports "".
+func calleeName(fun ast.Expr) string {
+	switch f := fun.(type) {
+	case *ast.Ident:
+		return f.Name
+	case *ast.SelectorExpr:
+		return f.Sel.Name
+	default:
+		return ""
+	}
+}
+
+// paramIndex returns the zero-based position of a parameter named name in
+// fn's signature, flattening grouped parameter names (func f(a, b string)).
+func paramIndex(fn *ast.FuncDecl, name string) (int, bool) {
+	if fn.Type.Params == nil {
+		return 0, false
+	}
+	index := 0
+	for _, field := range fn.Type.Params.List {
+		if len(field.Names) == 0 {
+			index++
+			continue
+		}
+		for _, fieldName := range field.Names {
+			if fieldName.Name == name {
+				return index, true
+			}
+			index++
+		}
+	}
+	return 0, false
+}
+
+// capabilitySweepDocumentedExceptions lists capability strings that are
+// deliberately absent from capabilityMatrix, with the reason, so the sweep
+// does not misreport a documented design choice as a gap. Adding an entry here
+// requires the same justification a reviewer would want in the source: why the
+// route bypasses the matrix's BuildTruthEnvelope panic-guard.
+var capabilitySweepDocumentedExceptions = map[string]string{
+	"repository_freshness.status": "repository_freshness.go's repositoryFreshnessTruth builds its " +
+		"TruthEnvelope directly from Postgres runtime state rather than through " +
+		"capabilityMatrix/BuildTruthEnvelope, and says so in its doc comment; not a gap.",
+}
+
+// collectDecls records every single-value string const and every function
+// declaration in file, so later resolution can look identifiers and calls up
+// regardless of which file declared them.
+func (s *capabilitySweep) collectDecls(file *ast.File) {
+	for _, decl := range file.Decls {
+		switch d := decl.(type) {
+		case *ast.GenDecl:
+			if d.Tok != token.CONST {
+				continue
+			}
+			for _, spec := range d.Specs {
+				valueSpec, ok := spec.(*ast.ValueSpec)
+				if !ok || len(valueSpec.Names) != 1 || len(valueSpec.Values) != 1 {
+					continue
+				}
+				if lit, ok := stringLiteral(valueSpec.Values[0]); ok {
+					s.constStrings[valueSpec.Names[0].Name] = lit
+				}
+			}
+		case *ast.FuncDecl:
+			if d.Body != nil {
+				s.funcDecls[d.Name.Name] = d
+			}
+		}
+	}
+}
+
+// findCallSites returns one failure message per WriteGraphReadError call site
+// in file whose capability argument could not be resolved to only-known-good
+// capabilityMatrix keys, plus the total count of WriteGraphReadError call
+// sites matched in file (by callee name and 4-argument arity), regardless of
+// whether resolution succeeded. The caller sums that count across every file
+// so the test can distinguish "examined N call sites and found them clean"
+// from "matched nothing."
+func (s *capabilitySweep) findCallSites(file *ast.File) ([]string, int) {
+	var findings []string
+	matched := 0
+	var funcStack []*ast.FuncDecl
+
+	var visit func(ast.Node) bool
+	visit = func(n ast.Node) bool {
+		switch node := n.(type) {
+		case *ast.FuncDecl:
+			funcStack = append(funcStack, node)
+			ast.Inspect(node.Body, visit)
+			funcStack = funcStack[:len(funcStack)-1]
+			return false
+		case *ast.CallExpr:
+			ident, ok := node.Fun.(*ast.Ident)
+			if !ok || ident.Name != "WriteGraphReadError" || len(node.Args) != 4 {
+				break
+			}
+			matched++
+			var enclosing *ast.FuncDecl
+			if len(funcStack) > 0 {
+				enclosing = funcStack[len(funcStack)-1]
+			}
+			values, resolved := s.resolveCapabilityArg(node.Args[3], enclosing, map[string]bool{})
+			if !resolved {
+				findings = append(findings, "unresolvable WriteGraphReadError capability argument at "+
+					s.fset.Position(node.Pos()).String()+" (extend TestWriteGraphReadErrorCapabilitiesExistInMatrix's sweep)")
+				break
+			}
+			for _, value := range values {
+				if _, ok := capabilityMatrix[value]; ok {
+					continue
+				}
+				if _, documented := capabilitySweepDocumentedExceptions[value]; documented {
+					continue
+				}
+				findings = append(findings, "WriteGraphReadError capability "+value+
+					" is not a capabilityMatrix key at "+s.fset.Position(node.Pos()).String())
+			}
+		}
+		return true
+	}
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Body == nil {
+			continue
+		}
+		visit(fn)
+	}
+	return findings, matched
+}
+
+// resolveCapabilityArg resolves expr to the set of string literals it can
+// evaluate to. enclosing is the *ast.FuncDecl the expression appears in (for
+// local-variable resolution); visitedFuncs guards against infinite recursion
+// through function calls.
+func (s *capabilitySweep) resolveCapabilityArg(expr ast.Expr, enclosing *ast.FuncDecl, visitedFuncs map[string]bool) ([]string, bool) {
+	if lit, ok := stringLiteral(expr); ok {
+		return []string{lit}, true
+	}
+	switch e := expr.(type) {
+	case *ast.Ident:
+		if lit, ok := s.constStrings[e.Name]; ok {
+			return []string{lit}, true
+		}
+		if enclosing == nil {
+			return nil, false
+		}
+		return s.resolveLocalIdent(e.Name, enclosing, visitedFuncs)
+	case *ast.CallExpr:
+		callee, ok := e.Fun.(*ast.Ident)
+		if !ok {
+			return nil, false
+		}
+		return s.resolveFuncReturns(callee.Name, visitedFuncs)
+	default:
+		return nil, false
+	}
+}
+
+// resolveLocalIdent collects every literal (or further-resolvable) value
+// assigned to name anywhere in enclosing's body, via both `:=` and `=`. When
+// name is not locally assigned at all, it may be one of enclosing's own
+// parameters (e.g. applyRepositorySelectorForCapability's capability
+// parameter, forwarded straight into WriteGraphReadError); in that case
+// resolution recurses into every call site of enclosing across the package,
+// resolving whatever expression each caller passed for that parameter
+// position.
+func (s *capabilitySweep) resolveLocalIdent(name string, enclosing *ast.FuncDecl, visitedFuncs map[string]bool) ([]string, bool) {
+	var values []string
+	assigned := false
+	ok := true
+	ast.Inspect(enclosing.Body, func(n ast.Node) bool {
+		switch node := n.(type) {
+		case *ast.AssignStmt:
+			for i, lhs := range node.Lhs {
+				lhsIdent, isIdent := lhs.(*ast.Ident)
+				if !isIdent || lhsIdent.Name != name || i >= len(node.Rhs) {
+					continue
+				}
+				assigned = true
+				resolved, rOK := s.resolveCapabilityArg(node.Rhs[i], enclosing, visitedFuncs)
+				if !rOK {
+					ok = false
+					continue
+				}
+				values = append(values, resolved...)
+			}
+		case *ast.GenDecl:
+			// A local `const capability = "..."` inside the function body
+			// (code_symbol.go's handleSymbolSearch pattern), not a
+			// package-level const, so collectDecls never saw it.
+			if node.Tok != token.CONST {
+				break
+			}
+			for _, spec := range node.Specs {
+				valueSpec, isValueSpec := spec.(*ast.ValueSpec)
+				if !isValueSpec {
+					continue
+				}
+				for i, ident := range valueSpec.Names {
+					if ident.Name != name || i >= len(valueSpec.Values) {
+						continue
+					}
+					assigned = true
+					resolved, rOK := s.resolveCapabilityArg(valueSpec.Values[i], enclosing, visitedFuncs)
+					if !rOK {
+						ok = false
+						continue
+					}
+					values = append(values, resolved...)
+				}
+			}
+		}
+		return true
+	})
+	if assigned {
+		if len(values) == 0 {
+			return nil, false
+		}
+		return values, ok
+	}
+	return s.resolveParam(name, enclosing, visitedFuncs)
+}
+
+// resolveParam handles name being a parameter of enclosing rather than a
+// locally assigned variable: it locates the parameter's position and resolves
+// every call site of enclosing (by name) at that argument position.
+func (s *capabilitySweep) resolveParam(name string, enclosing *ast.FuncDecl, visitedFuncs map[string]bool) ([]string, bool) {
+	index, isParam := paramIndex(enclosing, name)
+	if !isParam {
+		return nil, false
+	}
+	funcKey := enclosing.Name.Name
+	if visitedFuncs[funcKey] {
+		return nil, false
+	}
+	visitedFuncs[funcKey] = true
+
+	callers := s.callSites[funcKey]
+	if len(callers) == 0 {
+		return nil, false
+	}
+	var values []string
+	allOK := true
+	for _, caller := range callers {
+		if index >= len(caller.call.Args) {
+			allOK = false
+			continue
+		}
+		resolved, rOK := s.resolveCapabilityArg(caller.call.Args[index], caller.enclosing, visitedFuncs)
+		if !rOK {
+			allOK = false
+			continue
+		}
+		values = append(values, resolved...)
+	}
+	if len(values) == 0 {
+		return nil, false
+	}
+	return values, allOK
+}
+
+// resolveFuncReturns collects every literal value a single-return-value,
+// package-level function can return, by walking its body for return
+// statements. It recurses at most one level deep per distinct function name to
+// stay terminating.
+func (s *capabilitySweep) resolveFuncReturns(name string, visitedFuncs map[string]bool) ([]string, bool) {
+	if visitedFuncs[name] {
+		return nil, false
+	}
+	fn, ok := s.funcDecls[name]
+	if !ok || fn.Body == nil {
+		return nil, false
+	}
+	visitedFuncs[name] = true
+
+	var values []string
+	allOK := true
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		ret, isReturn := n.(*ast.ReturnStmt)
+		if !isReturn || len(ret.Results) != 1 {
+			return true
+		}
+		resolved, rOK := s.resolveCapabilityArg(ret.Results[0], fn, visitedFuncs)
+		if !rOK {
+			allOK = false
+			return true
+		}
+		values = append(values, resolved...)
+		return true
+	})
+	if len(values) == 0 {
+		return nil, false
+	}
+	return values, allOK
+}
+
+// stringLiteral returns the unquoted value of expr when it is a string
+// BasicLit, else ("", false).
+func stringLiteral(expr ast.Expr) (string, bool) {
+	lit, ok := expr.(*ast.BasicLit)
+	if !ok || lit.Kind != token.STRING {
+		return "", false
+	}
+	unquoted, err := strconv.Unquote(lit.Value)
+	if err != nil {
+		return "", false
+	}
+	return unquoted, true
+}

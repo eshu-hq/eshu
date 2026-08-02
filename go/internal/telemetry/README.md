@@ -409,6 +409,7 @@ Pipeline spans: `SpanCollectorObserve`, `SpanCollectorStream`, `SpanScopeAssign`
 `SpanQueryWorkItemEvidence`,
 `SpanQueryVulnerabilitySuppressionMutation`,
 `SpanQuerySupplyChainImpactExplanation`,
+`SpanQueryLanguageQuery`,
 `SpanScannerWorkerClaimProcess`, `SpanScannerWorkerAnalyze`,
 `SpanScannerWorkerFactEmitBatch`, `SpanTerraformStateClaimProcess`,
 `SpanTerraformStateDiscoveryResolve`, `SpanTerraformStateSourceOpen`,

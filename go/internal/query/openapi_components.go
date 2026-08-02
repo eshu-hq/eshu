@@ -416,7 +416,8 @@ const openAPIComponents = `  "components": {
           "results": {
             "type": "array",
             "items": {"$ref": "#/components/schemas/CodeSearchResult"}
-          }
+          },
+          "source_backend": {"type": "string", "enum": ["graph", "hybrid_graph_and_content", "postgres_content_store", "unavailable"], "description": "Which backend actually served this response: \"graph\" for an authoritative graph-only read, \"hybrid_graph_and_content\" when content-store metadata was merged into graph rows, \"postgres_content_store\" when the content store served the entire answer (no graph reader configured, or a graph-first read returned zero rows), \"unavailable\" as a defensive fallback for a truth basis this route does not otherwise recognize."}
         }
       },
 ` + openAPIComponentsWorkloadSession + openAPIComponentsLocalIdentity + `

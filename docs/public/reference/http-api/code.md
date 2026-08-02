@@ -330,6 +330,7 @@ single function. Without a single selector, it returns a bounded deterministic
 recommended next calls in the response.
 
 `POST /api/v0/code/language-query` requires `language` and `entity_type`.
+`limit` defaults to `50` and is silently clamped to `200`.
 Use focused routes first when they answer the question; use language-query for
 language/entity-type contracts that do not fit symbol, relationship,
 inventory, dependency, or dead-code routes.

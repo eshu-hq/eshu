@@ -42,4 +42,34 @@ func init() {
 		ProductionMax:         &truthExact,
 		RequiredProfile:       ProfileLocalAuthoritative,
 	}
+	capabilityMatrix["symbol_graph.language_entities"] = capabilitySupport{
+		// POST /api/v0/code/language-query (#5761) had no capability of its
+		// own before this entry. Its MCP tool, execute_language_query, is
+		// already bound to five symbol_graph.* facets (decorators,
+		// argument_names, class_methods, imports, inheritance), but each of
+		// those names one specific semantic facet, not "look up entities of
+		// kind K in language L" -- the route's actual behavior. Reusing one of
+		// them would gate the whole route on a facet it may not even be
+		// exercising for a given call, and code_symbol.go already owns
+		// code_search.symbol_lookup for a different route
+		// (POST /api/v0/code/symbols/search), so sharing it here would let one
+		// id gate two unrelated routes with different failure semantics. This
+		// capability names the route itself. Content-only entity kinds are
+		// servable without a graph sidecar (derived truth), so
+		// local_lightweight is supported; graph-backed and graph-first entity
+		// kinds need the graph sidecar for exact truth.
+		LocalLightweightMax:   &truthDerived,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         &truthExact,
+		// #5761 F1: local_authoritative is the first tier with a graph
+		// sidecar (required_runtime: local_host_plus_graph), so it is the
+		// correct requiredProfile() answer for the graph-only-entity-kind
+		// 501 residue at language_queries.go. Without this, requiredProfile
+		// falls through to its ProfileLocalFullStack default, which
+		// overstates the tier an operator needs and contradicts this row's
+		// own local_lightweight: supported entry for every other entity
+		// kind.
+		RequiredProfile: ProfileLocalAuthoritative,
+	}
 }

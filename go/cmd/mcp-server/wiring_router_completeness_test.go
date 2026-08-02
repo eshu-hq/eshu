@@ -5,6 +5,8 @@ package main
 
 import (
 	"database/sql"
+	"io"
+	"log/slog"
 	"reflect"
 	"testing"
 
@@ -60,6 +62,56 @@ func TestNewMCPQueryRouterWiresImpactInstruments(t *testing.T) {
 	}
 	if router.Impact.Instruments != instruments {
 		t.Errorf("newMCPQueryRouter().Impact.Instruments = %p, want the passed instruments %p (the k8s SELECTS truncation counter would never fire on the MCP transport)", router.Impact.Instruments, instruments)
+	}
+}
+
+// TestNewMCPQueryRouterWiresCodeLogger is the #5761 P1-1 review-fix
+// regression, mirroring cmd/api's TestNewRouterWiresCodeLogger: the
+// reflective sweep in assertRouterFieldsWired only checks nil *interface*
+// fields (see its Kind() != reflect.Interface guard below), so a
+// *slog.Logger field -- a concrete pointer type -- is invisible to it, and
+// TestNewMCPQueryRouterWiresEveryFieldOrDocumentsWhyNot always passes nil
+// for the logger parameter anyway. In production, LanguageQueryHandler is
+// only ever constructed via CodeHandler.Mount forwarding CodeHandler.Logger
+// -- the sole operator signal for a generic (non-bounded) language-query
+// failure, since the 500 response body stays static -- so a silently
+// dropped `Logger: logger` line here (wiring_router.go) means the
+// standalone MCP server logs nothing for that failure. This test passes a
+// real, distinguishable logger through newMCPQueryRouter and asserts
+// pointer identity against the constructed router.Code.Logger.
+func TestNewMCPQueryRouterWiresCodeLogger(t *testing.T) {
+	t.Parallel()
+
+	db, err := sql.Open("pgx", "postgres://example.invalid/eshu")
+	if err != nil {
+		t.Fatalf("sql.Open() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+
+	router := newMCPQueryRouter(
+		db,
+		query.NewNeo4jReader(nil, ""),
+		query.NewContentReader(db),
+		staticStatusReader{},
+		query.ProfileLocalFullStack,
+		query.GraphBackendNornicDB,
+		logger,
+		nil,
+		"",
+		"",
+		component.Policy{},
+		query.GovernanceStatusConfig{},
+		nil,
+		false,
+	)
+
+	if router.Code == nil {
+		t.Fatal("newMCPQueryRouter().Code = nil, want wired")
+	}
+	if router.Code.Logger != logger {
+		t.Errorf("newMCPQueryRouter().Code.Logger = %p, want the passed logger %p (a generic language-query failure would log to nowhere)", router.Code.Logger, logger)
 	}
 }
 

@@ -39,6 +39,20 @@ func NewNeo4jReader(driver neo4jdriver.DriverWithContext, database string, optio
 	return reader
 }
 
+// GraphConfigured reports whether r has a live driver or session factory
+// wired, as opposed to merely being a non-nil *Neo4jReader. NewNeo4jReader is
+// called unconditionally by cmd/api/wiring.go and cmd/mcp-server/wiring.go,
+// even when openQueryGraph returns a nil driver for local_lightweight or
+// ESHU_DISABLE_NEO4J=true (cmd/api/wiring_graph.go), so a driverless
+// *Neo4jReader is a normal production shape, not a test-only edge case. A
+// caller comparing a GraphQuery field to nil cannot detect this; it must ask
+// GraphConfigured instead (#5761 F1). A nil receiver reports false rather
+// than panicking, so callers can call it through a possibly-nil GraphQuery
+// field without an extra nil check first.
+func (r *Neo4jReader) GraphConfigured() bool {
+	return r != nil && (r.driver != nil || r.sessionFactory != nil)
+}
+
 // Run executes a read-only Cypher query and returns results as maps.
 func (r *Neo4jReader) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 	return r.runRead(ctx, cypher, params)

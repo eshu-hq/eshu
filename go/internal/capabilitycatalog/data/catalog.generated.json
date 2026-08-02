@@ -11140,6 +11140,73 @@
       }
     },
     {
+      "capability": "symbol_graph.language_entities",
+      "display_name": "Symbol Graph Language Entities",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
+      "surfaces": [
+        {
+          "tool": "execute_language_query",
+          "kind": "mcp"
+        }
+      ],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 800,
+          "max_scope_size": "active_repo"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "exact",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 800,
+          "max_scope_size": "indexed_workspace"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "local_host",
+          "p95_latency_ms": 800,
+          "max_scope_size": "active_repo"
+        },
+        "production": {
+          "status": "experimental",
+          "max_truth_level": "exact",
+          "required_runtime": "deployed_services",
+          "p95_latency_ms": 1200,
+          "max_scope_size": "multi_repo_platform"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "repository_content",
+        "action": "repository.content.read",
+        "data_classes": [
+          "repository_metadata",
+          "source_content"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace",
+          "repository"
+        ],
+        "default_roles": [
+          "developer",
+          "owner"
+        ],
+        "sensitive_data": true
+      }
+    },
+    {
       "capability": "terraform_config_state_drift.findings.list",
       "display_name": "Terraform Config State Drift Findings List",
       "maturity": "experimental",

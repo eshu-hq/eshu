@@ -236,6 +236,7 @@ func TestSpanNames(t *testing.T) {
 		"query.ci_cd_run_correlation_aggregate",
 		"query.dependencies",
 		"query.codeowners_ownership",
+		"query.language_query",
 		"query.container_image_tag_history",
 		"scanner_worker.claim.process",
 		"scanner_worker.analyze",

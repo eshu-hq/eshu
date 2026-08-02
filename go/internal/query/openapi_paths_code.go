@@ -97,7 +97,7 @@ const openAPIPathsCode = `
                   },
                   "query": {"type": "string", "description": "Optional name filter"},
                   "repo_id": {"type": "string", "description": "Optional repository selector (canonical ID, name, slug, or path)"},
-                  "limit": {"type": "integer", "description": "Max results (default 50)", "default": 50}
+                  "limit": {"type": "integer", "description": "Max results (default 50, maximum 200)", "default": 50, "minimum": 1, "maximum": 200}
                 }
               }
             }
@@ -113,7 +113,10 @@ const openAPIPathsCode = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"}
         }
       }
     },

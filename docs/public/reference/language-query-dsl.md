@@ -34,7 +34,7 @@ returns the data object itself.
 | `entity_type` | yes | string | — | Entity kind to search for. See [Entity types](#entity-types). |
 | `query` | no | string | empty | Optional name-substring filter applied to the entity. Empty = list all matching entities. |
 | `repo_id` | no | string | empty | Optional canonical repository id to scope the search. |
-| `limit` | no | integer | 50 | Maximum number of results. |
+| `limit` | no | integer | 50 | Maximum number of results. Values above 200 are silently clamped to 200. |
 
 ## Supported languages
 
@@ -120,10 +120,20 @@ capabilities are:
 | `symbol_graph.argument_names` | `derived` | `exact` | `exact` | `exact` |
 | `symbol_graph.imports` | `derived` | `exact` | `exact` | `exact` |
 | `symbol_graph.inheritance` | `derived` | `exact` | `exact` | `exact` |
+| `symbol_graph.language_entities` | `derived` | `exact` | `exact` | `exact` |
 
 Under `local_lightweight`, answers are served from indexed entities and
 relational content without the authoritative graph. Higher profiles serve the
 authoritative graph and upgrade to `exact`.
+
+`symbol_graph.language_entities` -- the route-level capability backing this
+`/api/v0/code/language-query` route's entity lookups across the graph-backed,
+graph-first-content, and content-only entity-type families -- is
+`production: experimental` in the capability matrix
+(`specs/capability-matrix/language-entities.v1.yaml`): the query handler is
+proven by `go_test`, but no deployed-readback `remote_validation` artifact
+exists yet for this route-level capability, so it stays experimental until one
+is committed.
 
 ## Example request
 
@@ -161,9 +171,19 @@ Direct HTTP response:
       "end_line": 87,
       "metadata": { "semantic_kind": "data_class" }
     }
-  ]
+  ],
+  "source_backend": "graph"
 }
 ```
+
+`source_backend` reports which backend actually served the response:
+
+| Value | Meaning |
+| --- | --- |
+| `graph` | An authoritative graph-only read served every result, with nothing for the content store to add (or no content reader configured). |
+| `hybrid_graph_and_content` | The graph served the result and at least one row was enriched with Postgres content-store metadata. |
+| `postgres_content_store` | The Postgres content store served the entire answer -- either the entity type is content-only, no live graph backend is configured (the normal shape for a graphless profile: `local_lightweight` or `ESHU_DISABLE_NEO4J=true` wire a driverless `*Neo4jReader` rather than a nil one, and this route treats that the same as no graph reader), or a graph-first read returned zero rows and the content-store fallback served the result instead. |
+| `unavailable` | Defensive fallback for a truth basis this route does not otherwise recognize. Not reachable under the current dispatch: every branch of `handleLanguageQuery` only ever passes `TruthBasisAuthoritativeGraph`, `TruthBasisHybrid`, or `TruthBasisContentIndex` to this field. |
 
 ## Errors
 
@@ -173,6 +193,10 @@ Direct HTTP response:
 | HTTP 400 `entity_type is required` | `entity_type` missing or empty. |
 | HTTP 400 `unsupported language "<x>"` | `language` not in the canonical set. |
 | HTTP 400 `unsupported entity_type "<x>"` | `entity_type` not in the enum. |
+| HTTP 500 `language query failed` | An unrecognized error from the graph or content read path -- one `WriteGraphReadError` does not map to a bounded sentinel (400/501/503/504). This is the route's most likely non-sentinel failure. The response body stays static on purpose; the operator log carries the unmodified cause plus a bounded `failure_class` key for triage. |
+| HTTP 501 `unsupported_capability` | Two distinct causes share this status, distinguished by the response `message`. Reachable today: `entity_type` is one of the graph-only kinds (`repository`, `directory`, `file`) and no live graph backend is configured -- `local_lightweight` and `ESHU_DISABLE_NEO4J=true` both wire a driverless `*Neo4jReader` (`cmd/api/wiring_graph.go`), which this route treats the same as no reader, and those entity types have no content-store equivalent to fall back to. Not reachable today: the running profile's capability-matrix ceiling is unset for `symbol_graph.language_entities`; every profile currently committed in `specs/capability-matrix/language-entities.v1.yaml` has a non-nil ceiling, so the profile-level gate cannot fire under the current matrix, though the handler still checks it first. |
+| HTTP 503 `backend_unavailable` | The graph backend is unavailable for this bounded read. Retry with backoff. |
+| HTTP 504 `backend_timeout` | The graph-read deadline expired before this bounded read completed. Retry with backoff. |
 
 ## Adding Or Promoting Language Query Support
 

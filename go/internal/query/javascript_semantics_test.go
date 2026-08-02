@@ -126,7 +126,7 @@ func TestEnrichLanguageResultsWithContentMetadataJavaScriptMethod(t *testing.T) 
 		},
 	}
 
-	got, err := handler.enrichLanguageResultsWithContentMetadata(
+	got, _, err := handler.enrichLanguageResultsWithContentMetadata(
 		context.Background(),
 		graphResults,
 		"javascript",
@@ -256,7 +256,7 @@ func TestEnrichLanguageResultsWithContentMetadataPreservesGraphJavaScriptFields(
 		},
 	}
 
-	got, err := handler.enrichLanguageResultsWithContentMetadata(
+	got, _, err := handler.enrichLanguageResultsWithContentMetadata(
 		context.Background(),
 		graphResults,
 		"javascript",
