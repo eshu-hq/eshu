@@ -8,8 +8,10 @@
 // (testdata/golden/e2e-20repo-snapshot.json) and asserts the B-7 acceptance
 // buckets:
 //
-//   - drains: fact_work_items residual rows and shared_projection_intents
-//     nonterminal rows both reach their snapshot bound. The
+//   - drains: one atomic Postgres snapshot proves fact_work_items residual rows
+//     and shared_projection_intents nonterminal rows reach their bounds and
+//     cross_scope_completion_events reaches zero. The completion ledger must be
+//     empty because it atomically reopens downstream reducer work. The
 //     shared_projection_intents check is the B-13 (#3859) gate — a zero
 //     fact_work_items queue alone misses held projection intents, so this gate
 //     also waits for the projection-intent ledger to reach a terminal state.

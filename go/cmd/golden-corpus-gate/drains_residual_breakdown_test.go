@@ -138,3 +138,22 @@ func TestResidualBreakdownCountsFailedAsTerminalNotLive(t *testing.T) {
 		t.Errorf("breakdown does not total failed rows separately: %s", got)
 	}
 }
+
+func TestCompletionEventBreakdownNamesProducerAndStatus(t *testing.T) {
+	t.Parallel()
+
+	rows := []completionEventRow{
+		{ProducerDomain: "container_image_identity", Status: "pending", Count: 2},
+		{ProducerDomain: "ci_cd_run_correlation", Status: "running", Count: 1},
+	}
+	got := formatCompletionEventBreakdown(rows)
+
+	for _, want := range []string{
+		"container_image_identity/pending=2",
+		"ci_cd_run_correlation/running=1",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("completion breakdown missing %q: %s", want, got)
+		}
+	}
+}

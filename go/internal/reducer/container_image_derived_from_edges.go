@@ -150,6 +150,54 @@ func containerImageDerivedFromRows(
 	return rows
 }
 
+func containerImageDerivedFromSupportRows(
+	supports []containerImageIdentitySupport,
+	owningRepositoryID string,
+) []map[string]any {
+	if owningRepositoryID == "" {
+		return nil
+	}
+	baseDigests := make(map[string]struct{})
+	for _, support := range supports {
+		digest := exactContainerImageSupportDigest(support)
+		if digest != "" && slices.Contains(support.BaseImageForRepositoryIDs, owningRepositoryID) {
+			baseDigests[digest] = struct{}{}
+		}
+	}
+	if len(baseDigests) != 1 {
+		return nil
+	}
+	var baseDigest string
+	for digest := range baseDigests {
+		baseDigest = digest
+	}
+
+	rows := make([]map[string]any, 0, len(supports))
+	seen := make(map[string]struct{}, len(supports))
+	for _, support := range supports {
+		digest := exactContainerImageSupportDigest(support)
+		if digest == "" ||
+			!slices.Contains(support.BuildProvenanceRepositoryIDs, owningRepositoryID) ||
+			baseDigest == digest {
+			continue
+		}
+		key := digest + "\x00" + baseDigest
+		if _, duplicate := seen[key]; duplicate {
+			continue
+		}
+		seen[key] = struct{}{}
+		rows = append(rows, map[string]any{
+			"digest":            digest,
+			"base_digest":       baseDigest,
+			"attribution_basis": containerImageDerivedFromBasisRepositorySingleBase,
+		})
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	return rows
+}
+
 // exactContainerImageDigest returns a decision's digest when the decision is an
 // exact_digest outcome carrying a non-empty digest, and an empty string
 // otherwise. It is the single gate both DERIVED_FROM endpoints pass through,
@@ -160,6 +208,16 @@ func exactContainerImageDigest(decision ContainerImageIdentityDecision) string {
 		return ""
 	}
 	return strings.TrimSpace(decision.Digest)
+}
+
+func exactContainerImageSupportDigest(support containerImageIdentitySupport) string {
+	if support.Outcome != string(ContainerImageIdentityExactDigest) {
+		return ""
+	}
+	// Digest-v3 supports are private normalized values built by
+	// buildContainerImageIdentitySupportSet; unlike compatibility decisions,
+	// graph projection does not need to trim them again on every edge pass.
+	return support.Digest
 }
 
 // projectContainerImageDerivedFromEdges retracts this generation's prior
@@ -181,14 +239,39 @@ func (h ContainerImageIdentityHandler) projectContainerImageDerivedFromEdges(
 	if h.DerivedFromEdgeWriter == nil {
 		return nil
 	}
+	return h.projectContainerImageDerivedFromRows(
+		ctx,
+		intent,
+		containerImageDerivedFromRows(decisions, repositoryIDFromReducerScope(intent.ScopeID)),
+	)
+}
 
+func (h ContainerImageIdentityHandler) projectContainerImageDerivedFromSupportEdges(
+	ctx context.Context,
+	intent Intent,
+	supports []containerImageIdentitySupport,
+) error {
+	if h.DerivedFromEdgeWriter == nil {
+		return nil
+	}
+	return h.projectContainerImageDerivedFromRows(
+		ctx,
+		intent,
+		containerImageDerivedFromSupportRows(supports, repositoryIDFromReducerScope(intent.ScopeID)),
+	)
+}
+
+func (h ContainerImageIdentityHandler) projectContainerImageDerivedFromRows(
+	ctx context.Context,
+	intent Intent,
+	rows []map[string]any,
+) error {
 	if err := h.DerivedFromEdgeWriter.RetractDerivedFromEdges(
 		ctx, intent.ScopeID, intent.GenerationID, containerImageDerivedFromProvenanceEvidenceSource,
 	); err != nil {
 		return fmt.Errorf("retract container image derived_from provenance edges: %w", err)
 	}
 
-	rows := containerImageDerivedFromRows(decisions, repositoryIDFromReducerScope(intent.ScopeID))
 	h.emitDerivedFromEdgeCounter(ctx, "materialized", len(rows))
 	if len(rows) == 0 {
 		return nil

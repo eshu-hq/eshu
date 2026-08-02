@@ -106,6 +106,10 @@ SET status = 'pending',
         WHEN target.container_image_identity_v2_required THEN 'pending'
         ELSE ''
     END,
+    container_image_identity_v3_authorized_status = CASE
+        WHEN target.container_image_identity_v3_required THEN 'pending'
+        ELSE ''
+    END,
     lease_owner = NULL,
     claim_until = NULL,
     visible_at = $1,

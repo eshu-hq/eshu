@@ -155,17 +155,17 @@ sbom_attestation_active AS (
       AND generation.status = 'active'
 ),
 container_image_identity_active AS (
-    SELECT fact.payload, fact.observed_at
-    FROM fact_records AS fact
-    JOIN ingestion_scopes AS scope
-      ON scope.scope_id = fact.scope_id
-     AND scope.active_generation_id = fact.generation_id
-    JOIN scope_generations AS generation
-      ON generation.scope_id = fact.scope_id
-     AND generation.generation_id = fact.generation_id
-    WHERE fact.fact_kind = ANY($7::text[])
-      AND fact.is_tombstone = FALSE
-      AND generation.status = 'active'
+    SELECT
+        support.digest,
+        MAX(support.observed_at) AS observed_at,
+        BOOL_OR($14 <> '' AND support.image_ref = $14) AS matches_image_ref
+    FROM container_image_identity_current_supports AS support
+    WHERE 'reducer_container_image_identity' = ANY($7::text[])
+      AND (
+          ($12 <> '' AND support.digest = $12)
+          OR ($14 <> '' AND support.image_ref = $14)
+      )
+    GROUP BY support.digest
 ),
 vulnerability_source_snapshot_active AS (
     SELECT fact.scope_id, fact.payload, fact.observed_at
@@ -184,11 +184,11 @@ target_image_digests AS (
     SELECT DISTINCT NULLIF(TRIM($12), '') AS digest
     WHERE $12 <> ''
     UNION
-    SELECT DISTINCT NULLIF(TRIM(identity.payload->>'digest'), '') AS digest
+    SELECT DISTINCT NULLIF(TRIM(identity.digest), '') AS digest
     FROM container_image_identity_active AS identity
     WHERE $14 <> ''
-      AND identity.payload->>'image_ref' = $14
-      AND NULLIF(TRIM(identity.payload->>'digest'), '') IS NOT NULL
+      AND identity.matches_image_ref
+      AND NULLIF(TRIM(identity.digest), '') IS NOT NULL
 ),
 target_vulnerability_source_ecosystems AS (
     SELECT DISTINCT NULLIF(LOWER(TRIM(payload->'entity_metadata'->>'package_manager')), '') AS ecosystem
@@ -396,8 +396,8 @@ container_image_identity AS (
         NULL::text AS source_states_json,
         NULL::text AS unsupported_targets_json
     FROM container_image_identity_active
-    WHERE payload->>'digest' IN (SELECT digest FROM target_image_digests)
-       OR ($14 <> '' AND payload->>'image_ref' = $14)
+    WHERE digest IN (SELECT digest FROM target_image_digests)
+       OR ($14 <> '' AND matches_image_ref)
 ),
 vulnerability_source_snapshot AS (
     SELECT

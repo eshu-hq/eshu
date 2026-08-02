@@ -11,6 +11,7 @@ import (
 )
 
 const listActiveSBOMAttestationAttachmentFactsQuery = `
+WITH legacy_facts AS MATERIALIZED (
 SELECT
     fact.fact_id,
     fact.scope_id,
@@ -23,8 +24,8 @@ SELECT
     fact.source_confidence,
     fact.source_system,
     fact.source_fact_key,
-    COALESCE(fact.source_uri, ''),
-    COALESCE(fact.source_record_id, ''),
+    COALESCE(fact.source_uri, '') AS source_uri,
+    COALESCE(fact.source_record_id, '') AS source_record_id,
     fact.observed_at,
     fact.is_tombstone,
     fact.payload
@@ -37,7 +38,6 @@ JOIN scope_generations AS generation
  AND generation.generation_id = fact.generation_id
 WHERE fact.fact_kind IN (
     'oci_registry.image_referrer',
-    'reducer_container_image_identity',
     'sbom.document',
     'sbom.component',
     'sbom.dependency_relationship',
@@ -59,8 +59,27 @@ WHERE fact.fact_kind IN (
       OR fact.payload->>'payload_digest' = ANY($1::text[])
       OR fact.payload->>'statement_id' = ANY($1::text[])
   )
-  AND ($2 = '' OR fact.fact_id > $2)
-ORDER BY fact.fact_id ASC
+)
+SELECT
+    fact.fact_id,
+    fact.scope_id,
+    fact.generation_id,
+    fact.fact_kind,
+    fact.stable_fact_key,
+    fact.schema_version,
+    fact.collector_kind,
+    fact.fencing_token,
+    fact.source_confidence,
+    fact.source_system,
+    fact.source_fact_key,
+    fact.source_uri,
+    fact.source_record_id,
+    fact.observed_at,
+    fact.is_tombstone,
+    fact.payload
+FROM legacy_facts AS fact
+WHERE ($2 = '' OR convert_to(fact.fact_id, 'UTF8') > convert_to($2, 'UTF8'))
+ORDER BY convert_to(fact.fact_id, 'UTF8') ASC
 LIMIT $3
 `
 
@@ -80,26 +99,46 @@ func (s FactStore) ListActiveSBOMAttestationAttachmentFacts(
 	}
 
 	var loaded []facts.Envelope
-	var cursorFactID string
-	for {
-		page, err := s.listActiveSBOMAttestationAttachmentFactsPage(ctx, digests, cursorFactID)
-		if err != nil {
-			return nil, err
+	err := withReadOnlyRepeatableRead(ctx, s.db, func(queryer Queryer) error {
+		var legacyFacts []facts.Envelope
+		var cursorFactID string
+		for {
+			page, loadErr := listActiveSBOMAttestationAttachmentFactsPage(
+				ctx, queryer, digests, cursorFactID,
+			)
+			if loadErr != nil {
+				return loadErr
+			}
+			legacyFacts = append(legacyFacts, page...)
+			if len(page) < listFactsByKindPageSize {
+				break
+			}
+			cursorFactID = page[len(page)-1].FactID
 		}
-		loaded = append(loaded, page...)
-		if len(page) < listFactsByKindPageSize {
-			return loaded, nil
+		identityFacts, loadErr := listCurrentContainerImageIdentitySupportFactsFrom(
+			ctx,
+			queryer,
+			containerImageIdentitySupportFactFilter{digests: digests},
+		)
+		if loadErr != nil {
+			return fmt.Errorf("list active sbom attestation attachment identity facts: %w", loadErr)
 		}
-		cursorFactID = page[len(page)-1].FactID
+		loaded, loadErr = combineDistinctFactStreams(legacyFacts, identityFacts)
+		return loadErr
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list active sbom attestation attachment facts: %w", err)
 	}
+	return loaded, nil
 }
 
-func (s FactStore) listActiveSBOMAttestationAttachmentFactsPage(
+func listActiveSBOMAttestationAttachmentFactsPage(
 	ctx context.Context,
+	queryer Queryer,
 	digests []string,
 	cursorFactID string,
 ) ([]facts.Envelope, error) {
-	rows, err := s.db.QueryContext(
+	rows, err := queryer.QueryContext(
 		ctx,
 		listActiveSBOMAttestationAttachmentFactsQuery,
 		digests,

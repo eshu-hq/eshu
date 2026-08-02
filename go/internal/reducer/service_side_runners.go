@@ -56,6 +56,9 @@ func (s Service) startSideRunners(
 	if s.SearchVectorBuildRunner != nil {
 		startServiceSideRunner(ctx, wg, recordErr, s.SearchVectorBuildRunner)
 	}
+	if s.CrossScopeCompletionRunner != nil {
+		startServiceSideRunner(ctx, wg, recordErr, s.CrossScopeCompletionRunner)
+	}
 }
 
 func startServiceSideRunner(

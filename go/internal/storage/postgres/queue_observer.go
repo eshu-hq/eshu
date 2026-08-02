@@ -106,7 +106,14 @@ FROM semantic_extraction_jobs
 WHERE status IN ('pending', 'claimed', 'retrying')
   AND provider_job = true
 GROUP BY status
-ORDER BY status
+UNION ALL
+SELECT 'cross_scope_completion.' || producer_domain AS queue,
+       status,
+       COUNT(*)::BIGINT AS count
+FROM cross_scope_completion_events
+WHERE status IN ('pending', 'claimed', 'running', 'retrying')
+GROUP BY producer_domain, status
+ORDER BY queue, status
 `
 
 const semanticQueueOldestAgeQuery = `
@@ -127,6 +134,16 @@ SELECT 'semantic_extraction' AS queue,
 FROM semantic_extraction_jobs
 WHERE status IN ('pending', 'claimed', 'retrying')
   AND provider_job = true
+HAVING COUNT(*) > 0
+UNION ALL
+SELECT 'cross_scope_completion.' || producer_domain AS queue,
+       GREATEST(
+         COALESCE(EXTRACT(EPOCH FROM ($1 - MIN(created_at))), 0),
+         0
+       ) AS oldest_age_seconds
+FROM cross_scope_completion_events
+WHERE status IN ('pending', 'claimed', 'running', 'retrying')
+GROUP BY producer_domain
 HAVING COUNT(*) > 0
 `
 

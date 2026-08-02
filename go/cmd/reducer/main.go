@@ -445,12 +445,17 @@ func buildReducerService(
 		GraphOrphanSweepRunner:          graphOrphanSweepRunner,
 		CodeValueFlowStaleCleanupRunner: codeValueFlowStaleCleanupRunner,
 		SearchVectorBuildRunner:         searchVectorBuildRunner,
-		QuarantineWriter:                postgres.NewReducerInputInvalidFactStore(database),
-		Workers:                         workers,
-		BatchClaimSize:                  loadReducerBatchClaimSize(getenv, workers, graphBackend),
-		Tracer:                          tracer,
-		Instruments:                     instruments,
-		Logger:                          logger,
+		CrossScopeCompletionRunner: &reducer.CrossScopeCompletionRunner{
+			Queue:      postgres.NewCrossScopeCompletionStore(database),
+			LeaseOwner: defaultCrossScopeCompletionLeaseOwner(),
+			Logger:     logger,
+		},
+		QuarantineWriter: postgres.NewReducerInputInvalidFactStore(database),
+		Workers:          workers,
+		BatchClaimSize:   loadReducerBatchClaimSize(getenv, workers, graphBackend),
+		Tracer:           tracer,
+		Instruments:      instruments,
+		Logger:           logger,
 	}, nil
 }
 

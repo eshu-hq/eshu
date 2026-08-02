@@ -31,6 +31,7 @@ const (
 type containerImageIdentityRetirementPlan struct {
 	Tombstones    []ContainerImageIdentityDecision
 	LegacyFactIDs []string
+	HeldDecisions []ContainerImageIdentityDecision
 	HeldByReason  map[string]int
 }
 
@@ -155,6 +156,7 @@ func planContainerImageIdentityRetirement(
 
 	legacyFactIDs := make(map[string]struct{}, len(write.Decisions))
 	tombstones := make([]ContainerImageIdentityDecision, 0, len(write.Decisions))
+	heldDecisions := make([]ContainerImageIdentityDecision, 0)
 	heldByReason := make(map[string]int)
 	for _, decision := range write.Decisions {
 		if reason := containerImageIdentityRetireHoldReason(
@@ -165,6 +167,7 @@ func planContainerImageIdentityRetirement(
 			missingManifestRepositories,
 		); reason != "" {
 			heldByReason[reason]++
+			heldDecisions = append(heldDecisions, decision)
 			continue
 		}
 		if decision.CanonicalWrites <= 0 {
@@ -179,6 +182,7 @@ func planContainerImageIdentityRetirement(
 	plan := containerImageIdentityRetirementPlan{
 		Tombstones:    tombstones,
 		LegacyFactIDs: make([]string, 0, len(legacyFactIDs)),
+		HeldDecisions: heldDecisions,
 		HeldByReason:  heldByReason,
 	}
 	for factID := range legacyFactIDs {
@@ -187,6 +191,10 @@ func planContainerImageIdentityRetirement(
 	sort.Slice(plan.Tombstones, func(i, j int) bool {
 		return strings.TrimSpace(plan.Tombstones[i].ImageRef) <
 			strings.TrimSpace(plan.Tombstones[j].ImageRef)
+	})
+	sort.Slice(plan.HeldDecisions, func(i, j int) bool {
+		return containerImageIdentityDecisionSortKey(plan.HeldDecisions[i]) <
+			containerImageIdentityDecisionSortKey(plan.HeldDecisions[j])
 	})
 	sort.Strings(plan.LegacyFactIDs)
 	return plan, nil

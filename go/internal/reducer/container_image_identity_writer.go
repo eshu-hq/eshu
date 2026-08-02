@@ -62,6 +62,7 @@ type ContainerImageIdentityClaimedExecer interface {
 // decisions into the shared fact store.
 type PostgresContainerImageIdentityWriter struct {
 	DB                  workloadIdentityExecer
+	ActivationLookup    ContainerImageIdentityActivationEpochLookup
 	Beginner            ContainerImageIdentityBeginner
 	CutoverLookup       ContainerImageIdentityCutoverLookup
 	LegacyCleanupLookup ContainerImageIdentityLegacyCleanupLookup
@@ -123,11 +124,14 @@ func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisio
 	if err != nil {
 		return ContainerImageIdentityWriteResult{}, err
 	}
-	return containerImageIdentityWriteResult(
+	result := containerImageIdentityWriteResult(
 		canonicalWrites,
 		retirementAttempts,
 		legacyRowsDeleted,
-	), nil
+	)
+	result.effectiveDecisions = containerImageIdentityCanonicalDecisions(write.Decisions)
+	result.effectiveProjectionPresent = true
+	return result, nil
 }
 
 func buildContainerImageIdentityRows(

@@ -17,6 +17,7 @@ import (
 
 // ContainerImageIdentityWriter persists reducer-owned image identity truth.
 type ContainerImageIdentityWriter interface {
+	ContainerImageIdentityActivationEpoch(context.Context, string, string) (int64, error)
 	WriteContainerImageIdentityDecisions(
 		context.Context,
 		ContainerImageIdentityWrite,
@@ -78,6 +79,14 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 	}
 	if h.Writer == nil {
 		return Result{}, fmt.Errorf("container image identity writer is required")
+	}
+	activationEpoch, err := h.Writer.ContainerImageIdentityActivationEpoch(
+		ctx,
+		intent.ScopeID,
+		intent.GenerationID,
+	)
+	if err != nil {
+		return Result{}, fmt.Errorf("read container image identity activation epoch: %w", err)
 	}
 
 	// Read the fencing watermark BEFORE the first load, not after the last one.
@@ -151,29 +160,28 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 	}
 
 	write := ContainerImageIdentityWrite{
-		IntentID:     intent.IntentID,
-		ClaimEpoch:   intent.ClaimEpoch,
-		ScopeID:      intent.ScopeID,
-		GenerationID: intent.GenerationID,
-		SourceSystem: intent.SourceSystem,
-		Cause:        intent.Cause,
-		EvidenceAsOf: evidenceAsOf,
-		Decisions:    decisions,
+		IntentID:        intent.IntentID,
+		ClaimEpoch:      intent.ClaimEpoch,
+		ActivationEpoch: activationEpoch,
+		ScopeID:         intent.ScopeID,
+		GenerationID:    intent.GenerationID,
+		SourceSystem:    intent.SourceSystem,
+		Cause:           intent.Cause,
+		EvidenceAsOf:    evidenceAsOf,
+		Decisions:       decisions,
 	}
 	retirement, err := planContainerImageIdentityRetirement(write, envelopes, warnings)
 	if err != nil {
 		return Result{}, fmt.Errorf("plan container image identity retirement: %w", err)
 	}
 	write.TombstoneDecisions = retirement.Tombstones
+	write.HeldDecisions = retirement.HeldDecisions
 	write.LegacyFactIDs = retirement.LegacyFactIDs
 	writeResult, err := h.Writer.WriteContainerImageIdentityDecisions(ctx, write)
 	if err != nil {
 		return Result{}, fmt.Errorf("write container image identity decisions: %w", err)
 	}
-	if err := h.projectContainerImageBuiltFromEdges(ctx, intent, decisions); err != nil {
-		return Result{}, err
-	}
-	if err := h.projectContainerImageDerivedFromEdges(ctx, intent, decisions); err != nil {
+	if err := h.projectEffectiveContainerImageIdentityEdges(ctx, intent, writeResult); err != nil {
 		return Result{}, err
 	}
 

@@ -43,12 +43,46 @@ func TestListActiveSupplyChainImpactFactsQueryIsPackageBoundedAndPaged(t *testin
 		"fact.payload->>'document_id' = ANY($7::text[])",
 		"fact.payload->>'repository_id' = ANY($8::text[])",
 		"fact.payload->>'image_ref' = ANY($9::text[])",
-		"OR (fact.fact_kind = 'vulnerability.suppression', fact.fact_id) > ($19::boolean, $11)",
-		"ORDER BY (fact.fact_kind = 'vulnerability.suppression') ASC, fact.fact_id ASC",
+		"convert_to(fact.fact_id, 'UTF8')",
+		"convert_to($11, 'UTF8')",
+		"(fact.fact_kind = 'vulnerability.suppression') ASC",
 		"LIMIT $12",
 	} {
 		if !strings.Contains(executableQuery, want) {
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
+		}
+	}
+}
+
+func TestListActiveSupplyChainImpactFactsQuerySeparatesCanonicalIdentities(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"legacy_facts AS MATERIALIZED",
+		"COALESCE(fact.source_uri, '') AS source_uri",
+		"COALESCE(fact.source_record_id, '') AS source_record_id",
+	} {
+		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
+			t.Fatalf("supply-chain legacy loader missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
+		}
+	}
+	for _, forbidden := range []string{"identity_facts AS MATERIALIZED", "UNION ALL", "container_image_identity_current_support_facts_for(", "'reducer_container_image_identity'"} {
+		if strings.Contains(listActiveSupplyChainImpactFactsQuery, forbidden) {
+			t.Fatalf("supply-chain legacy loader retains mixed identity operation %q:\n%s", forbidden, listActiveSupplyChainImpactFactsQuery)
+		}
+	}
+	if !strings.Contains(listCurrentContainerImageIdentitySupportFactsQuery, "container_image_identity_current_support_facts_for(") {
+		t.Fatalf("separate supply-chain identity stream must use the support-grain function:\n%s", listCurrentContainerImageIdentitySupportFactsQuery)
+	}
+	for _, want := range []string{
+		"WITH legacy_page AS MATERIALIZED",
+		"PARTITION BY (fact.fact_kind = 'vulnerability.suppression')",
+		"1 AS stream_rank",
+		"$20::text, $21::integer",
+		"ORDER BY stream_rank, stream_ordinal",
+	} {
+		if !strings.Contains(listActiveSupplyChainImpactFactPagesQuery, want) {
+			t.Fatalf("combined independent pager missing %q:\n%s", want, listActiveSupplyChainImpactFactPagesQuery)
 		}
 	}
 }
@@ -118,7 +152,6 @@ func TestListActiveSupplyChainImpactFactsQueryBoundsRepositoryFollowUp(t *testin
 	for _, want := range []string{
 		"OR (\n          fact.fact_kind IN (",
 		"'vulnerability.suppression'",
-		"'reducer_container_image_identity'",
 		"'reducer_ci_cd_run_correlation'",
 		"'reducer_platform_materialization'",
 		"'reducer_service_catalog_correlation'",
@@ -141,7 +174,7 @@ func TestListActiveSupplyChainImpactFactsQueryBoundsRepositoryFollowUp(t *testin
 		}
 	}
 	if strings.Contains(listActiveSupplyChainImpactFactsQuery, "OR fact.payload->>'repository_id' = ANY($8::text[])") {
-		t.Fatalf("repository_id follow-up must be fact-kind gated:\n%s", listActiveSupplyChainImpactFactsQuery)
+		t.Fatalf("legacy repository_id follow-up must be fact-kind gated:\n%s", listActiveSupplyChainImpactFactsQuery)
 	}
 }
 
@@ -157,12 +190,20 @@ func TestListActiveSupplyChainImpactFactsQueryLoadsPackageConsumptionByRepositor
 		t.Fatalf("repository follow-up branch end missing:\n%s", listActiveSupplyChainImpactFactsQuery)
 	}
 	repositoryBranch := listActiveSupplyChainImpactFactsQuery[repositoryBranchStart : repositoryBranchStart+repositoryBranchEnd]
+	if !strings.Contains(repositoryBranch, "'reducer_package_consumption_correlation'") {
+		t.Fatalf("legacy repository follow-up must load package-consumption rows:\n%s", repositoryBranch)
+	}
+	if strings.Contains(repositoryBranch, "'reducer_container_image_identity'") {
+		t.Fatalf("legacy repository follow-up must not load v2 identity rows:\n%s", repositoryBranch)
+	}
 	for _, want := range []string{
-		"'reducer_package_consumption_correlation'",
-		"'reducer_container_image_identity'",
+		"FROM container_image_identity_current_support_facts_for(",
+		"$3::text[]",
+		"$4::text[]",
+		"$5::text[]",
 	} {
-		if !strings.Contains(repositoryBranch, want) {
-			t.Fatalf("repository follow-up branch must load %s rows:\n%s", want, repositoryBranch)
+		if !strings.Contains(listCurrentContainerImageIdentitySupportFactsQuery, want) {
+			t.Fatalf("canonical repository follow-up missing %q:\n%s", want, listCurrentContainerImageIdentitySupportFactsQuery)
 		}
 	}
 }
@@ -189,8 +230,9 @@ func TestListActiveSupplyChainImpactFactsQuerySeparatesParserFileFollowUp(t *tes
 		"ANY($10::text[])",
 		"fact.payload->'parsed_file_data'->>'language'",
 		"'javascript', 'jsx', 'typescript', 'tsx'",
-		"OR (fact.fact_kind = 'vulnerability.suppression', fact.fact_id) > ($19::boolean, $11)",
-		"ORDER BY (fact.fact_kind = 'vulnerability.suppression') ASC, fact.fact_id ASC",
+		"convert_to(fact.fact_id, 'UTF8')",
+		"convert_to($11, 'UTF8')",
+		"(fact.fact_kind = 'vulnerability.suppression') ASC",
 		"LIMIT $12",
 	} {
 		if !strings.Contains(executableQuery, want) {

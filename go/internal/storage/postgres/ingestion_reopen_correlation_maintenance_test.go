@@ -141,39 +141,19 @@ func TestRunDeferredRelationshipMaintenanceSkipsSupersededCorrelationWorkItems(t
 	}
 }
 
-// TestCrossScopeCorrelationReopenDomainsCoversDeclaredConsumers is the drift
-// gate on the shared reopen list: every consumer domain the reducer's
-// cross-scope dependency catalog declares must appear in it.
-//
-// The expectation is DERIVED from reducer.CrossScopeConsumerDomains(), not
-// restated. The earlier form of this coverage claim hardcoded the same five
-// constants the production list hardcodes and compared them to themselves, so
-// the two could never disagree: adding a consumer to
-// crossScopeDependencyCatalog without touching the reopen list still passed.
-// That is the same silent under-replay this change fixes one level up — a
-// consumer that waits on another scope's generation, with nothing to replay it,
-// keeps its empty-join decision forever.
-//
-// The assertion is one-directional on purpose. Every declared CONSUMER must be
-// reopened, because until the #5709 readiness-defer and activation re-enqueue
-// slices land this reopen is the only thing that re-runs it. The reopen list is
-// allowed to be a strict superset: deployable_unit_correlation and
-// kubernetes_correlation_materialization wait on resolved relationships and
-// cross-scope OCI manifest FACTS rather than on another reducer domain's
-// output, so they are legitimately absent from a catalog that models only
-// reducer-domain producers.
-func TestCrossScopeCorrelationReopenDomainsCoversDeclaredConsumers(t *testing.T) {
+// TestCrossScopeCorrelationReopenDomainsExcludesCompletionDrivenChain pins the
+// ownership split: raw OCI activation still replays identity, then producer ACK
+// completion events converge CI/CD and supply-chain consumers.
+func TestCrossScopeCorrelationReopenDomainsExcludesCompletionDrivenChain(t *testing.T) {
 	t.Parallel()
 
 	reopened := CrossScopeCorrelationReopenDomains()
-	for _, consumer := range reducer.CrossScopeConsumerDomains() {
-		if !slices.Contains(reopened, string(consumer)) {
-			t.Errorf(
-				"cross-scope consumer domain %q declares a producer in crossScopeDependencyCatalog "+
-					"but is not in CrossScopeCorrelationReopenDomains() = %v; nothing replays it after "+
-					"the producer scope's generation activates, so it keeps its empty-join decision forever",
-				consumer, reopened,
-			)
+	for _, domain := range []reducer.Domain{
+		reducer.DomainCICDRunCorrelation,
+		reducer.DomainSupplyChainImpact,
+	} {
+		if slices.Contains(reopened, string(domain)) {
+			t.Errorf("completion-driven domain %q remains in blanket reopen list %v", domain, reopened)
 		}
 	}
 }
@@ -182,9 +162,8 @@ func TestCrossScopeCorrelationReopenDomainsCoversDeclaredConsumers(t *testing.T)
 // exact contents and order of the shared reopen list, and its defensive copy.
 // Both the ingester maintenance pass and eshu-bootstrap-index consume this one
 // list, so a domain dropped here cannot be replayed by one runtime and not the
-// other — the exact split the PR #5846 codex P1 reported. Coverage of the
-// declared cross-scope chain is asserted separately, and derived, by
-// TestCrossScopeCorrelationReopenDomainsCoversDeclaredConsumers.
+// other — the exact split the PR #5846 review reported. The completion-driven
+// chain is excluded by the separate test above.
 func TestCrossScopeCorrelationReopenDomainsPinsListAndReturnsFreshSlice(t *testing.T) {
 	t.Parallel()
 
@@ -193,8 +172,6 @@ func TestCrossScopeCorrelationReopenDomainsPinsListAndReturnsFreshSlice(t *testi
 		string(reducer.DomainDeployableUnitCorrelation),
 		string(reducer.DomainKubernetesCorrelationMaterialization),
 		string(reducer.DomainContainerImageIdentity),
-		string(reducer.DomainCICDRunCorrelation),
-		string(reducer.DomainSupplyChainImpact),
 		string(reducer.DomainAWSCloudRuntimeDrift),
 	}
 	if len(got) != len(want) {

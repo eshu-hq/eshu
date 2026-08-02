@@ -74,6 +74,9 @@ func TestListActiveSupplyChainImpactFactsBindsNormalizedSuppressionScopeSiblings
 	if got, want := len(db.queries), 1; got != want {
 		t.Fatalf("query count = %d, want %d", got, want)
 	}
+	if !strings.Contains(db.queries[0].query, "container_image_identity_current_support_facts_for(") {
+		t.Fatalf("combined query must load the independent identity stream:\n%s", db.queries[0].query)
+	}
 
 	// args are 0-indexed; $13 is args[12] ... $17 is args[16].
 	cases := []struct {

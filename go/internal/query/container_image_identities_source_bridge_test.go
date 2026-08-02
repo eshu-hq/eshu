@@ -182,10 +182,10 @@ func TestContainerImageIdentityQueryUsesSourceRepositoryAnchor(t *testing.T) {
 	t.Parallel()
 
 	for _, want := range []string{
-		"fact.payload->'source_repository_ids' ? $4",
-		"fact.payload->>'repository_id' = $5",
-		"fact.payload->>'outcome' = $6",
-		"fact.fact_id > $7",
+		"$3 = ANY(support.source_repository_ids)",
+		"support.repository_id = $4",
+		"support.outcome = $5",
+		"support.identity_id > $6",
 	} {
 		if !strings.Contains(listContainerImageIdentitiesQuery, want) {
 			t.Fatalf("listContainerImageIdentitiesQuery missing %q:\n%s", want, listContainerImageIdentitiesQuery)

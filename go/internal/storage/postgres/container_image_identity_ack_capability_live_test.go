@@ -44,6 +44,7 @@ func TestContainerImageIdentityAckAttemptFenceMixedVersionLive(t *testing.T) {
 		scopeMarkedBatch   = "repository:5854-ack-marked-batch"
 		scopeUnmarkedBatch = "repository:5854-ack-unmarked-batch"
 		scopeReclaim       = "repository:5854-ack-reclaim"
+		scopeLegacyV2      = "repository:5854-ack-legacy-v2"
 		legacyOwner        = "legacy-reducer-5854"
 		capableOwner       = "capable-reducer-5854"
 		markedSingle       = "generation:5854-ack-marked-single"
@@ -51,6 +52,7 @@ func TestContainerImageIdentityAckAttemptFenceMixedVersionLive(t *testing.T) {
 		markedBatch        = "generation:5854-ack-marked-batch"
 		unmarkedBatch      = "generation:5854-ack-unmarked-batch"
 		reclaimGen         = "generation:5854-ack-reclaim"
+		legacyV2Gen        = "generation:5854-ack-legacy-v2"
 	)
 	for _, fixture := range []struct {
 		scopeID      string
@@ -61,6 +63,7 @@ func TestContainerImageIdentityAckAttemptFenceMixedVersionLive(t *testing.T) {
 		{scopeMarkedBatch, markedBatch},
 		{scopeUnmarkedBatch, unmarkedBatch},
 		{scopeReclaim, reclaimGen},
+		{scopeLegacyV2, legacyV2Gen},
 	} {
 		seedContainerImageIdentityAckScope(t, ctx, db, fixture.scopeID)
 		seedContainerImageIdentityAckGeneration(
@@ -77,6 +80,41 @@ func TestContainerImageIdentityAckAttemptFenceMixedVersionLive(t *testing.T) {
 		legacyOwner, now.Add(time.Minute), now,
 	)
 	insertContainerImageIdentityCutoverMarker(t, ctx, db, scopeMarkedSingle, markedSingle)
+	// The replacement guard must also preserve an existing marker without
+	// advancing either claim latch a second time.
+	insertContainerImageIdentityCutoverMarker(t, ctx, db, scopeMarkedSingle, markedSingle)
+
+	seedContainerImageIdentityAckWorkItem(
+		t, ctx, db, "ack-5854-legacy-v2", scopeLegacyV2, legacyV2Gen,
+		legacyOwner, now.Add(time.Minute), now,
+	)
+	if _, err := db.ExecContext(ctx, `
+UPDATE fact_work_items
+SET container_image_identity_v3_required = FALSE,
+    container_image_identity_v3_authorized_status = ''
+WHERE work_item_id = 'ack-5854-legacy-v2'
+`); err != nil {
+		t.Fatalf("mark synthetic legacy-v2 attempt: %v", err)
+	}
+	insertContainerImageIdentityCutoverMarker(t, ctx, db, scopeLegacyV2, legacyV2Gen)
+	var legacyV2Status, legacyV2V3Authorized string
+	var legacyV2V3Required bool
+	if err := db.QueryRowContext(ctx, `
+SELECT status, container_image_identity_v3_required,
+       container_image_identity_v3_authorized_status
+FROM fact_work_items
+WHERE work_item_id = 'ack-5854-legacy-v2'
+`).Scan(&legacyV2Status, &legacyV2V3Required, &legacyV2V3Authorized); err != nil {
+		t.Fatalf("read synthetic legacy-v2 attempt: %v", err)
+	}
+	if legacyV2Status != "running" || legacyV2V3Required || legacyV2V3Authorized != "" {
+		t.Fatalf(
+			"legacy-v2 marker state = %q required=%t authorized=%q, want running/false/empty",
+			legacyV2Status,
+			legacyV2V3Required,
+			legacyV2V3Authorized,
+		)
+	}
 	insertContainerImageIdentityV2Fact(t, ctx, db, scopeMarkedSingle, markedSingle, "single")
 	_, err := db.ExecContext(
 		ctx,

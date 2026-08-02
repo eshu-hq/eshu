@@ -425,15 +425,19 @@ func TestSBOMAttestationAttachmentMissingEvidenceQueryExplainsScopedGaps(t *test
 	t.Parallel()
 
 	for _, want := range []string{
-		"reducer_container_image_identity",
-		"source_repository_ids",
-		"fact.payload->>'outcome' IN ('exact_digest', 'tag_resolved')",
+		"FROM container_image_identity_current_supports AS support",
+		"support.source_repository_ids",
+		"support.outcome IN ('exact_digest', 'tag_resolved')",
 		"missing_image",
 		"missing_attachment",
 	} {
 		if !strings.Contains(sbomAttestationAttachmentMissingEvidenceQuery, want) {
 			t.Fatalf("sbomAttestationAttachmentMissingEvidenceQuery missing %q:\n%s", want, sbomAttestationAttachmentMissingEvidenceQuery)
 		}
+	}
+	activeImages := strings.Split(sbomAttestationAttachmentMissingEvidenceQuery, "active_attachments AS")[0]
+	if strings.Contains(activeImages, "FROM fact_records") {
+		t.Fatalf("active-images probe must not read legacy fact_records:\n%s", activeImages)
 	}
 }
 

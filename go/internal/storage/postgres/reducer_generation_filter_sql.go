@@ -64,6 +64,10 @@ superseded_stale_reducer_generations AS (
     UPDATE fact_work_items AS stale
     SET status = 'superseded',
         container_image_identity_v2_authorized_status = 'superseded',
+        container_image_identity_v3_authorized_status = CASE
+            WHEN stale.container_image_identity_v3_required THEN 'superseded'
+            ELSE ''
+        END,
         lease_owner = NULL,
         claim_until = NULL,
         visible_at = NULL,

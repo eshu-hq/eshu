@@ -22,6 +22,14 @@ type containerImageIdentityPerfLegacyWriter struct {
 	store *postgres.FactStore
 }
 
+func (containerImageIdentityPerfLegacyWriter) ContainerImageIdentityActivationEpoch(
+	context.Context,
+	string,
+	string,
+) (int64, error) {
+	return 1, nil
+}
+
 func (w containerImageIdentityPerfLegacyWriter) WriteContainerImageIdentityDecisions(
 	ctx context.Context,
 	write reducer.ContainerImageIdentityWrite,

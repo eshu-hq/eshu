@@ -184,7 +184,13 @@ separate Postgres read model. Container image identity reads require a digest,
 image reference, repository, or outcome anchor plus `limit`, and they keep
 `identity_strength`, source layers, and evidence fact IDs visible so callers can
 inspect digest admission without turning weak or stale tag diagnostics into
-deployment truth.
+deployment truth. The read model is canonical by digest: current support sets
+from every active scope fold to one logical identity and a digest-derived stable
+cursor. Scoped-token grants filter supports before that fold, so the returned
+repository, workload, service, and evidence arrays contain only associations
+the caller is allowed to observe. Activation clears a scope's current support
+pointer before its reducer refresh completes; stale generations therefore stop
+contributing immediately instead of remaining visible until a later write.
 The same handler exposes source-only advisory evidence through a Postgres
 read model over active `vulnerability.*` facts. Advisory evidence reads require
 a CVE, advisory, package, repository, service, or workload anchor plus `limit`.
@@ -458,9 +464,22 @@ classes exposed by the list route.
 of the dimensions `outcome`, `identity_strength`, or `repository_id`. The
 aggregate replaces the page-and-iterate caller workflow for ecosystem-level
 questions like "how many images resolved by exact digest vs tag?" exposed by
-`list_container_image_identities`. It re-uses the existing partial indexes on
-`fact_records` for `reducer_container_image_identity` (digest, image_ref,
-repository_id, outcome); no new schema or graph migration is needed.
+`list_container_image_identities`. Totals, outcome buckets, and identity-strength
+buckets count one canonical digest after authorization and filtering.
+Repository inventory counts each visible digest once per repository support;
+because one digest can legitimately be supported by multiple repositories,
+repository buckets are deliberately non-additive. These queries use the typed
+`container_image_identity_current_supports` projection and its set-first
+digest/ref/repository/outcome indexes rather than JSON predicates over
+`fact_records`.
+
+The public digest aggregate is intentionally not the reducer evidence seam.
+Supply-chain impact, CI/CD correlation, and SBOM attachment load bounded rows
+from `container_image_identity_current_support_facts_for`, which preserves one
+support's correlated image, registry repository, source repository, build
+provenance, and runtime fields. Those reducers keep their existing domain
+selection and ambiguity rules; only list, aggregate, authorization, and source
+bridge presentation folds supports to one logical digest identity.
 
 No-Regression Evidence: `go test ./internal/query -run
 'TestContainerImageIdentityAggregate|TestContainerImageIdentityInventoryGroupExpression|TestNextContainerImageIdentityAggregateOffset'

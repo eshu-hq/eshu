@@ -101,79 +101,6 @@ func NewPostgresContainerImageIdentityAggregateStore(
 	return PostgresContainerImageIdentityAggregateStore{DB: db}
 }
 
-const containerImageIdentityAggregateTotalQuery = `
-SELECT COUNT(*) AS total
-FROM fact_records AS fact
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = fact.scope_id
- AND scope.active_generation_id = fact.generation_id
-JOIN scope_generations AS generation
-  ON generation.scope_id = fact.scope_id
- AND generation.generation_id = fact.generation_id
-WHERE fact.fact_kind = 'reducer_container_image_identity'
-  AND fact.is_tombstone = FALSE
-  AND generation.status = 'active'
-  AND ($1 = '' OR fact.payload->>'digest' = $1)
-  AND ($2 = '' OR fact.payload->>'image_ref' = $2)
-  AND ($3 = '' OR fact.payload->'source_repository_ids' ? $3)
-  AND ($4 = '' OR fact.payload->>'repository_id' = $4)
-  AND ($5 = '' OR fact.payload->>'outcome' = $5)
-  AND (
-        COALESCE(cardinality($6::text[]), 0) = 0
-        OR fact.payload->'source_repository_ids' ?| $6::text[]
-      );
-`
-
-const containerImageIdentityAggregateGroupQueryTemplate = `
-SELECT %s AS bucket, COUNT(*) AS bucket_count
-FROM fact_records AS fact
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = fact.scope_id
- AND scope.active_generation_id = fact.generation_id
-JOIN scope_generations AS generation
-  ON generation.scope_id = fact.scope_id
- AND generation.generation_id = fact.generation_id
-WHERE fact.fact_kind = 'reducer_container_image_identity'
-  AND fact.is_tombstone = FALSE
-  AND generation.status = 'active'
-  AND ($1 = '' OR fact.payload->>'digest' = $1)
-  AND ($2 = '' OR fact.payload->>'image_ref' = $2)
-  AND ($3 = '' OR fact.payload->'source_repository_ids' ? $3)
-  AND ($4 = '' OR fact.payload->>'repository_id' = $4)
-  AND ($5 = '' OR fact.payload->>'outcome' = $5)
-  AND (
-        COALESCE(cardinality($6::text[]), 0) = 0
-        OR fact.payload->'source_repository_ids' ?| $6::text[]
-      )
-GROUP BY bucket;
-`
-
-const containerImageIdentityInventoryQueryTemplate = `
-SELECT %s AS bucket, COUNT(*) AS bucket_count
-FROM fact_records AS fact
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = fact.scope_id
- AND scope.active_generation_id = fact.generation_id
-JOIN scope_generations AS generation
-  ON generation.scope_id = fact.scope_id
- AND generation.generation_id = fact.generation_id
-WHERE fact.fact_kind = 'reducer_container_image_identity'
-  AND fact.is_tombstone = FALSE
-  AND generation.status = 'active'
-  AND ($1 = '' OR fact.payload->>'digest' = $1)
-  AND ($2 = '' OR fact.payload->>'image_ref' = $2)
-  AND ($3 = '' OR fact.payload->'source_repository_ids' ? $3)
-  AND ($4 = '' OR fact.payload->>'repository_id' = $4)
-  AND ($5 = '' OR fact.payload->>'outcome' = $5)
-  AND (
-        COALESCE(cardinality($6::text[]), 0) = 0
-        OR fact.payload->'source_repository_ids' ?| $6::text[]
-      )
-GROUP BY bucket
-ORDER BY bucket_count DESC, bucket
-LIMIT $7 OFFSET $8;
-`
-
 // CountContainerImageIdentities returns the cheap-summary totals envelope for
 // the scoped identity slice.
 func (s PostgresContainerImageIdentityAggregateStore) CountContainerImageIdentities(
@@ -204,10 +131,10 @@ func (s PostgresContainerImageIdentityAggregateStore) CountContainerImageIdentit
 		ByOutcome:          map[string]int{},
 		ByIdentityStrength: map[string]int{},
 	}
-	if err := s.fillBuckets(ctx, args, "COALESCE(NULLIF(fact.payload->>'outcome', ''), 'unknown')", out.ByOutcome); err != nil {
+	if err := s.fillBuckets(ctx, args, "COALESCE(NULLIF(canonical.outcome, ''), 'unknown')", out.ByOutcome); err != nil {
 		return ContainerImageIdentityAggregateCount{}, err
 	}
-	if err := s.fillBuckets(ctx, args, "COALESCE(NULLIF(fact.payload->>'identity_strength', ''), 'unknown')", out.ByIdentityStrength); err != nil {
+	if err := s.fillBuckets(ctx, args, "COALESCE(NULLIF(canonical.identity_strength, ''), 'unknown')", out.ByIdentityStrength); err != nil {
 		return ContainerImageIdentityAggregateCount{}, err
 	}
 	return out, nil
@@ -261,7 +188,10 @@ func (s PostgresContainerImageIdentityAggregateStore) ContainerImageIdentityInve
 	if offset < 0 {
 		offset = 0
 	}
-	q := fmt.Sprintf(containerImageIdentityInventoryQueryTemplate, groupExpr)
+	q := containerImageIdentityInventoryQueryTemplate
+	if dimension != ContainerImageIdentityInventoryByRepository {
+		q = fmt.Sprintf(containerImageIdentityCanonicalInventoryQueryTemplate, groupExpr)
+	}
 	rows, err := s.DB.QueryContext(
 		ctx,
 		q,
@@ -306,11 +236,11 @@ func containerImageIdentityInventoryGroupExpression(
 ) (string, error) {
 	switch dimension {
 	case ContainerImageIdentityInventoryByOutcome:
-		return "COALESCE(NULLIF(fact.payload->>'outcome', ''), 'unknown')", nil
+		return "COALESCE(NULLIF(canonical.outcome, ''), 'unknown')", nil
 	case ContainerImageIdentityInventoryByIdentityStrength:
-		return "COALESCE(NULLIF(fact.payload->>'identity_strength', ''), 'unknown')", nil
+		return "COALESCE(NULLIF(canonical.identity_strength, ''), 'unknown')", nil
 	case ContainerImageIdentityInventoryByRepository:
-		return "COALESCE(NULLIF(fact.payload->>'repository_id', ''), 'unknown')", nil
+		return "COALESCE(NULLIF(support.repository_id, ''), 'unknown')", nil
 	default:
 		return "", fmt.Errorf("unsupported container image identity inventory dimension: %q", dimension)
 	}

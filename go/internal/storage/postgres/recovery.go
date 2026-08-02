@@ -29,6 +29,10 @@ WITH replayed AS (
             WHEN container_image_identity_v2_required THEN 'pending'
             ELSE ''
         END,
+        container_image_identity_v3_authorized_status = CASE
+            WHEN container_image_identity_v3_required THEN 'pending'
+            ELSE ''
+        END,
         lease_owner = NULL,
         claim_until = NULL,
         visible_at = $1,
@@ -66,6 +70,10 @@ WITH replayed AS (
         attempt_count = GREATEST(attempt_count, 1),
         container_image_identity_v2_authorized_status = CASE
             WHEN container_image_identity_v2_required THEN 'pending'
+            ELSE ''
+        END,
+        container_image_identity_v3_authorized_status = CASE
+            WHEN container_image_identity_v3_required THEN 'pending'
             ELSE ''
         END,
         lease_owner = NULL,

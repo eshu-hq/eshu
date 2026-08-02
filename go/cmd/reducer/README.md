@@ -36,6 +36,7 @@ flowchart TB
   Build --> OrphanSweep["GraphOrphanSweepRunner\nbounded zero-relationship graph cleanup"]
   Build --> ValueFlowCleanup["CodeValueFlowStaleCleanupRunner\nbounded stale evidence cleanup"]
   Build --> SearchVectorBuild["SearchVectorBuildRunner\nopt-in local search vector build"]
+  Build --> CompletionFanout["CrossScopeCompletionRunner\ndurable producer-to-consumer convergence"]
   Build --> SvcObj["reducer.Service"]
   SvcObj --> AdminSurface["app.NewHostedWithStatusServer\n/healthz /readyz /metrics /admin/status"]
   AdminSurface --> RunLoop["service.Run(ctx)\nblocks until SIGINT/SIGTERM"]
@@ -492,6 +493,10 @@ ESHU_POSTGRES_DSN.
 - Postgres instrumentation: `postgres.InstrumentedDB{StoreName: "reducer"}`.
 - Graph instrumentation: `sourcecypher.InstrumentedExecutor`.
 - Queue depth: `postgres.NewQueueObserverStore` → `telemetry.RegisterObservableGauges`.
+- Cross-scope completion: the same queue gauges report
+  `queue=cross_scope_completion.<producer_domain>`; successful cycles log the
+  producer domain, coalesced producer item count, scheduled canonical consumer
+  count, and fanout duration, while failures log the fenced retry error.
 - Generation retention: bounded cleanup cycles emit generation, row, skip-reason,
   duration, batch-size, oldest-eligible-age, and failure metrics without raw
   scope or generation identifiers.

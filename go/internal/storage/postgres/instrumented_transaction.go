@@ -41,7 +41,25 @@ func (db *InstrumentedDB) Begin(ctx context.Context) (Transaction, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &instrumentedTransaction{tx: tx, instruments: db.Instruments, storeName: db.StoreName}, nil
+	return db.instrumentTransaction(tx), nil
+}
+
+// BeginReadOnlyRepeatableRead proxies the snapshot transaction capability and
+// preserves query instrumentation inside the returned transaction.
+func (db *InstrumentedDB) BeginReadOnlyRepeatableRead(ctx context.Context) (Transaction, error) {
+	beginner, ok := db.Inner.(ReadOnlyRepeatableReadBeginner)
+	if !ok {
+		return nil, fmt.Errorf("inner database does not support read-only repeatable-read transactions")
+	}
+	tx, err := beginner.BeginReadOnlyRepeatableRead(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return db.instrumentTransaction(tx), nil
+}
+
+func (db *InstrumentedDB) instrumentTransaction(tx Transaction) Transaction {
+	return &instrumentedTransaction{tx: tx, instruments: db.Instruments, storeName: db.StoreName}
 }
 
 // instrumentedTransaction wraps a Transaction so its ExecContext/QueryContext

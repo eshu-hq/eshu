@@ -10,7 +10,7 @@ buckets.
 
 | Phase  | Bucket    | Required findings | Advisory findings |
 |--------|-----------|-------------------|-------------------|
-| drains | B-7(a)    | `fact_work_items` residual ≤ bound; `shared_projection_intents` nonterminal ≤ bound (B-13 / #3859 gate, incl. `repo_dependency` subset detail) | — |
+| drains | B-7(a)    | one atomic Postgres snapshot proves `fact_work_items` residual ≤ bound, `shared_projection_intents` nonterminal ≤ bound (B-13 / #3859 gate, incl. `repo_dependency` subset detail), and zero `cross_scope_completion_events` | — |
 | graph  | B-7(b)    | required correlations exist (rc-1 deployable-unit, rc-3 DEPENDS_ON, ...); required edge/node **properties** present (e.g. `source_tool` on Tier-2 edges, `language` on `File` nodes) | per-label node / per-relationship edge counts vs snapshot tolerances |
 | query  | B-7(c)    | each `query_shapes.http` response is 2xx and carries its required fields, minimum results, and declared deep JSON fields / values | — |
 | demo-answers | #4776 | each of the five `specs/demo-first-answers.v1.yaml` questions, executed live with its **specific** pinned arguments (a playbook via its `surface.execute` target), returns a populated answer (required fields present, `minimum_results` met) | — |
@@ -40,7 +40,7 @@ the shell orchestrator thin.
 ## Running
 
 ```bash
-# Drains only (poll Postgres until both queues terminal, or time out):
+# Drains only (poll Postgres until all three ledgers are terminal, or time out):
 ESHU_POSTGRES_DSN=... golden-corpus-gate -phase=drains \
   -snapshot=testdata/golden/e2e-20repo-snapshot.json -drain-timeout=10m
 

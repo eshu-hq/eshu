@@ -65,6 +65,25 @@ func TestEvaluateDrains(t *testing.T) {
 			t.Error("missing shared_projection_intents_nonterminal finding")
 		}
 	})
+	t.Run("cross-scope completion event blocks drain", func(t *testing.T) {
+		var r Report
+		EvaluateDrains(DrainCounts{CrossScopeCompletionEventsNonterminal: 1}, a, 0, &r)
+		if !r.Failed() {
+			t.Error("nonterminal cross-scope completion event must fail")
+		}
+		var found bool
+		for _, f := range r.Findings {
+			if f.Check == "cross_scope_completion_events_nonterminal" {
+				found = true
+				if !contains(f.Detail, "nonterminal=1") {
+					t.Errorf("detail missing completion-event count: %q", f.Detail)
+				}
+			}
+		}
+		if !found {
+			t.Error("missing cross_scope_completion_events_nonterminal finding")
+		}
+	})
 	t.Run("unpopulated pipeline fails the populated-then-drained guard", func(t *testing.T) {
 		var r Report
 		// Queues read empty but the reducer emitted nothing — must fail.
@@ -120,6 +139,9 @@ func TestDrainCountsDrained(t *testing.T) {
 	}
 	if (DrainCounts{SharedIntentsRequiredNonterminal: 1}).Drained(a) {
 		t.Error("required nonterminal=1 must not be drained")
+	}
+	if (DrainCounts{CrossScopeCompletionEventsNonterminal: 1}).Drained(a) {
+		t.Error("cross-scope completion nonterminal=1 must not be drained")
 	}
 	// Advisory-only nonterminal still counts as drained for poll convergence.
 	if !(DrainCounts{SharedIntentsNonterminal: 5, SharedIntentsAdvisoryNonterminal: 5}).Drained(a) {

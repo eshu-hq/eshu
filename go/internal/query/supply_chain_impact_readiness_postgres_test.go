@@ -24,7 +24,10 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 		"fact.fact_kind = ANY($4::text[])",
 		"fact.fact_kind = ANY($5::text[])",
 		"fact.fact_kind = ANY($6::text[])",
-		"fact.fact_kind = ANY($7::text[])",
+		"'reducer_container_image_identity' = ANY($7::text[])",
+		"FROM container_image_identity_current_supports AS support",
+		"GROUP BY support.digest",
+		"BOOL_OR($14 <> '' AND support.image_ref = $14)",
 		"fact.fact_kind = ANY($8::text[])",
 		// Active-fact gates are pushed into every per-family CTE.
 		"generation.status = 'active'",
@@ -102,8 +105,8 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 		"scanner_worker_warning_active AS (",
 		"fact.fact_kind = 'scanner_worker.warning'",
 		"target_image_digests AS (",
-		"identity.payload->>'image_ref' = $14",
-		"OR ($14 <> '' AND payload->>'image_ref' = $14)",
+		"identity.matches_image_ref",
+		"OR ($14 <> '' AND matches_image_ref)",
 		"FROM scanner_worker_warning_active AS warn",
 		"warn.payload->>'target_kind' = 'image'",
 		"warn.payload->>'reason' IN ('analyzer_not_configured', 'image_analyzer_unsupported_target')",
@@ -178,6 +181,41 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 	} {
 		if !strings.Contains(listSupplyChainImpactReadinessQuery, want) {
 			t.Fatalf("listSupplyChainImpactReadinessQuery missing %q:\n%s", want, listSupplyChainImpactReadinessQuery)
+		}
+	}
+	identityStart := strings.Index(listSupplyChainImpactReadinessQuery, "container_image_identity_active AS (")
+	identityEnd := strings.Index(listSupplyChainImpactReadinessQuery[identityStart:], "vulnerability_source_snapshot_active AS (")
+	identityBranch := listSupplyChainImpactReadinessQuery[identityStart : identityStart+identityEnd]
+	if strings.Contains(identityBranch, "FROM fact_records") {
+		t.Fatalf("container-image readiness must not read legacy fact_records:\n%s", identityBranch)
+	}
+}
+
+func TestListSupplyChainImpactReadinessQueryDoesNotCapMutableRefDigests(t *testing.T) {
+	t.Parallel()
+
+	identityStart := strings.Index(listSupplyChainImpactReadinessQuery, "container_image_identity_active AS (")
+	identityEnd := strings.Index(listSupplyChainImpactReadinessQuery[identityStart:], "vulnerability_source_snapshot_active AS (")
+	if identityStart < 0 || identityEnd < 0 {
+		t.Fatalf("container-image readiness branch missing:\n%s", listSupplyChainImpactReadinessQuery)
+	}
+	identityBranch := listSupplyChainImpactReadinessQuery[identityStart : identityStart+identityEnd]
+	for _, want := range []string{
+		"FROM container_image_identity_current_supports AS support",
+		"GROUP BY support.digest",
+		"MAX(support.observed_at)",
+	} {
+		if !strings.Contains(identityBranch, want) {
+			t.Fatalf("container-image readiness branch missing complete aggregate %q:\n%s", want, identityBranch)
+		}
+	}
+	for _, forbidden := range []string{
+		"container_image_identity_current_facts_for(",
+		"500::integer",
+		"LIMIT 500",
+	} {
+		if strings.Contains(identityBranch, forbidden) {
+			t.Fatalf("container-image readiness branch retains truncating seam %q:\n%s", forbidden, identityBranch)
 		}
 	}
 }

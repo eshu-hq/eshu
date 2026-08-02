@@ -35,6 +35,11 @@ type DrainCounts struct {
 	// SharedIntentsAdvisoryNonterminal is the nonterminal count in the advisory
 	// domains; reported but never blocking.
 	SharedIntentsAdvisoryNonterminal int64
+	// CrossScopeCompletionEventsNonterminal is the number of producer-completion
+	// events still waiting to fan out into their consumer reducer domains. Every
+	// persisted event is live work; completion deletes the row atomically with
+	// reopening its canonical consumers.
+	CrossScopeCompletionEventsNonterminal int64
 	// RepoDependencyNonterminal is the repo_dependency-domain subset of
 	// SharedIntentsNonterminal. Per B-13 (#3859) it is the primary signal that
 	// the relationship-generation activation gate drained correctly; reported as
@@ -54,7 +59,8 @@ type DrainCounts struct {
 // so a quarantined domain does not keep the poll from converging.
 func (d DrainCounts) Drained(a DrainAssertions) bool {
 	return d.FactWorkItemsResidual <= a.FactWorkItems.Limit() &&
-		d.SharedIntentsRequiredNonterminal <= a.SharedProjectionIntents.Limit()
+		d.SharedIntentsRequiredNonterminal <= a.SharedProjectionIntents.Limit() &&
+		d.CrossScopeCompletionEventsNonterminal == 0
 }
 
 // EvaluateDrains turns observed drain counts into required findings.
@@ -78,6 +84,11 @@ func EvaluateDrains(d DrainCounts, a DrainAssertions, expectedPopulatedDomains i
 		d.SharedIntentsRequiredNonterminal <= intentLimit, true,
 		fmt.Sprintf("required-nonterminal=%d (limit %d; completed_at IS NULL, excl advisory domains; repo_dependency subset=%d; total=%d)",
 			d.SharedIntentsRequiredNonterminal, intentLimit, d.RepoDependencyNonterminal, d.SharedIntentsNonterminal))
+
+	r.AddCheck("drains", "cross_scope_completion_events_nonterminal",
+		d.CrossScopeCompletionEventsNonterminal == 0, true,
+		fmt.Sprintf("nonterminal=%d (limit 0; pending,claimed,running,retrying)",
+			d.CrossScopeCompletionEventsNonterminal))
 
 	// Advisory: nonterminal intents in quarantined domains (e.g. code_calls).
 	// Reported so a known-held domain stays visible without blocking the gate.
