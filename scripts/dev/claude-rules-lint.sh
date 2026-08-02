@@ -43,9 +43,19 @@ if [[ ! -d "${rules_dir}" ]]; then
 	exit 0
 fi
 
-shopt -s nullglob
-rule_files=("${rules_dir}"/*.md "${rules_dir}"/**/*.md)
-shopt -u nullglob
+# globstar is REQUIRED here and is off by default in bash. Without it `**`
+# behaves as a single `*` and reaches exactly one level below .claude/rules, so a
+# rule at .claude/rules/backend/deep/x.md is never seen and the linter exits 0
+# reporting nothing to check. Claude Code discovers rule files recursively, so a
+# nested rule is legitimate and skipping it is precisely the silent bypass this
+# script exists to prevent.
+#
+# With globstar, `**/*.md` already covers files directly in rules_dir as well as
+# nested ones, so listing `*.md` separately would double-count every top-level
+# rule.
+shopt -s nullglob globstar
+rule_files=("${rules_dir}"/**/*.md)
+shopt -u nullglob globstar
 
 if ((${#rule_files[@]} == 0)); then
 	note "claude-rules-lint: .claude/rules exists but holds no .md files"
@@ -67,14 +77,59 @@ for rule in "${rule_files[@]}"; do
 		continue
 	fi
 
-	# Collect the glob list: `  - "pattern"` lines inside the frontmatter block.
+	# Collect the glob list from the `paths:` block ONLY.
+	#
+	# The first version of this collected every `- item` line anywhere in the
+	# frontmatter. A rule with an empty `paths:` followed by an unrelated list
+	# (`tags:` with items under it) therefore passed, because those items were
+	# read as globs -- while Claude Code saw a null `paths` and loaded the rule
+	# unconditionally. The rule looked scoped and was not.
+	#
+	# So: enter the block at a `paths:` key, take only lines indented deeper than
+	# that key, and leave the block at the next key at the same or shallower
+	# indentation. Flow style (`paths: ["a", "b"]`) is handled on the key line
+	# itself, since it is valid YAML that Claude Code accepts.
 	mapfile -t globs < <(
-		awk 'NR==1&&/^---$/{infm=1;next} infm&&/^---$/{exit} infm&&/^[[:space:]]*-[[:space:]]*/{
-			line=$0
-			sub(/^[[:space:]]*-[[:space:]]*/,"",line)
-			gsub(/^"|"$/,"",line)
-			gsub(/^'"'"'|'"'"'$/,"",line)
-			print line
+		awk '
+		NR==1 && /^---$/ { infm=1; next }
+		infm && /^---$/ { exit }
+		!infm { next }
+		{
+			indent = match($0, /[^ \t]/) - 1
+			if ($0 ~ /^[ \t]*paths[ \t]*:/) {
+				inpaths = 1
+				paths_indent = indent
+				rest = $0
+				sub(/^[ \t]*paths[ \t]*:[ \t]*/, "", rest)
+				# Flow style: pull each quoted or bare item out of the brackets.
+				if (rest ~ /^\[/) {
+					gsub(/^\[|\][ \t]*$/, "", rest)
+					n = split(rest, parts, ",")
+					for (i = 1; i <= n; i++) {
+						item = parts[i]
+						gsub(/^[ \t]+|[ \t]+$/, "", item)
+						gsub(/^"|"$/, "", item)
+						gsub(/^'"'"'|'"'"'$/, "", item)
+						if (item != "") print item
+					}
+					inpaths = 0
+				}
+				next
+			}
+			if (!inpaths) next
+			# A key at the same or shallower indentation ends the paths block.
+			if ($0 ~ /^[ \t]*[A-Za-z_][A-Za-z0-9_-]*[ \t]*:/ && indent <= paths_indent) {
+				inpaths = 0
+				next
+			}
+			if ($0 ~ /^[ \t]*-[ \t]*/ && indent > paths_indent) {
+				item = $0
+				sub(/^[ \t]*-[ \t]*/, "", item)
+				gsub(/[ \t]+$/, "", item)
+				gsub(/^"|"$/, "", item)
+				gsub(/^'"'"'|'"'"'$/, "", item)
+				if (item != "") print item
+			}
 		}' "${rule}"
 	)
 

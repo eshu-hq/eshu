@@ -871,8 +871,8 @@ gates:
       command: "bash scripts/dev/claude-rules-lint.sh"
       test_command: "bash scripts/test-claude-rules-lint.sh"
     ci:
-      workflow: ""
-      job: ""
+      workflow: "static-contract-gates.yml"
+      job: "Verify Claude path-scoped rules gate"
     requirements: []
     ci_only_reason: ""
 
