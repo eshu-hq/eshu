@@ -16,16 +16,21 @@ between:
 - a `GOMEMLIMIT` value that is too low and thrashing garbage collection versus
   one that is too high and risks out-of-memory termination
 
-## Fact Batch Commits
+## Fact Commits
 
-`eshu_dp_fact_batches_committed_total` counts streaming multi-row fact commits
-to Postgres.
+`eshu_dp_facts_committed_total` counts facts persisted to Postgres, recorded
+after the commit returns without error (`go/internal/collector/service.go:438`).
 
 Use it to answer:
 
 - Is fact persistence still moving?
 - Did commit throughput drop while parsing stayed steady?
-- Did a new repository add unusually high batch volume?
+- Did a new repository add unusually high fact volume?
+
+This section previously named `eshu_dp_fact_batches_committed_total`. That
+counter was registered but never emitted, so the queries here returned nothing.
+It is removed (#5548); counting batches rather than facts would need the batch
+count plumbed back through the committer interface, which does not report one.
 
 Compare it with `eshu_dp_repo_snapshot_duration_seconds` and
 `eshu_dp_postgres_query_duration_seconds` to decide whether the bottleneck is
@@ -64,7 +69,7 @@ Is it OOMing?
          RSS much higher than GOMEMLIMIT? Investigate non-heap memory.
 
 Is ingestion slow?
-  YES -> Check eshu_dp_fact_batches_committed_total rate.
+  YES -> Check eshu_dp_facts_committed_total rate.
          Dropping? Check Postgres latency and contention.
          Steady but slow? Check eshu_dp_generation_fact_count for outliers.
          Zero? Check collector and parser spans for a blocked producer.

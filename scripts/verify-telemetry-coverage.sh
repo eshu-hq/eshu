@@ -85,6 +85,7 @@ doc_required_tmp="$(mktemp)"
 doc_documented_tmp="$(mktemp)"
 doc_files_tmp="$(mktemp)"
 instruments_metrics_tmp="$(mktemp)"
+registered_anywhere_tmp="$(mktemp)"
 new_stages_tmp="$(mktemp)"
 tmp_diff="$(mktemp)"
 trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instruments_metrics_tmp" "$new_stages_tmp" "$tmp_diff"' EXIT
@@ -138,7 +139,27 @@ sort -u -o "$doc_files_tmp" "$doc_files_tmp"
 # open paren and the metric name. The set below covers the constructors
 # used by Eshu today (Counter, Histogram, ObservableGauge, Gauge, plus
 # the UpDownCounter/ObservableCounter variants for forward compatibility).
-rg -UPo '\.(?:Int64|Float64)(?:Counter|Histogram|UpDownCounter|Gauge|ObservableGauge|ObservableCounter|ObservableUpDownCounter)\(\s*"([a-zA-Z0-9_]+)"' \
+# Two sets, because the two checks ask different questions.
+#
+# registered_anywhere_tmp answers "is this documented metric real?" and so
+# searches the whole tree. Several first-party metrics are registered in a
+# dedicated *_metrics.go beside the code that emits them --
+# request_metrics.go, cloud_resources_metrics.go, iac_resources_metrics.go,
+# transport_auth_metrics.go. Reading only instruments.go made those look
+# unregistered, so the doc rows citing them could not be validated (#5548).
+rg -UPo --no-filename --glob '*.go' --glob '!**/*_test.go' \
+  --glob '!**/testdata/**' --glob '!**/fixtures/**' \
+  '\.(?:Int64|Float64)(?:Counter|Histogram|UpDownCounter|Gauge|ObservableGauge|ObservableCounter|ObservableUpDownCounter)\(\s*"([a-zA-Z0-9_]+)"' \
+  --replace '$1' "$repo_root/go" "$repo_root/sdk" "$repo_root/examples" 2>/dev/null \
+  | rg '^eshu_dp_' \
+  | sort -u >"$registered_anywhere_tmp" || true
+
+# instruments_metrics_tmp answers "is every canonical instrument documented?"
+# and stays scoped to instruments.go, the canonical registry. Widening it
+# would demand X1 rows for collector-family metrics that have never had them
+# -- a real gap, but a pre-existing one and not this change's subject.
+rg -UPo --no-filename \
+  '\.(?:Int64|Float64)(?:Counter|Histogram|UpDownCounter|Gauge|ObservableGauge|ObservableCounter|ObservableUpDownCounter)\(\s*"([a-zA-Z0-9_]+)"' \
   --replace '$1' "$repo_root/$instruments_path" 2>/dev/null \
   | rg '^eshu_dp_' \
   | sort -u >"$instruments_metrics_tmp" || true
@@ -203,7 +224,7 @@ cell_has_signal() {
 # column blank or TODO, which would defeat the "every stage must register
 # telemetry" policy. Format: <file> <signal> where signal is 1 or 0.
 doc_row_signals_tmp="$(mktemp)"
-trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instruments_metrics_tmp" "$new_stages_tmp" "$tmp_diff" "$all_rows_tmp" "$required_rows_tmp" "$doc_row_signals_tmp" "$doc_buckets_tmp" "$code_buckets_tmp"' EXIT
+trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instruments_metrics_tmp" "$new_stages_tmp" "$tmp_diff" "$all_rows_tmp" "$required_rows_tmp" "$doc_row_signals_tmp" "$doc_buckets_tmp" "$code_buckets_tmp" "$registered_anywhere_tmp"' EXIT
 : >"$doc_row_signals_tmp"
 if [ -s "$all_rows_tmp" ]; then
   while IFS= read -r row; do
@@ -231,8 +252,8 @@ report=""
 # This is the spec's "missing metric registration" failure.
 while IFS= read -r metric; do
   [ -n "$metric" ] || continue
-  if ! rg -qx "$metric" "$instruments_metrics_tmp"; then
-    report="${report}  - doc references metric \`${metric}\` but it is not registered in ${instruments_path}
+  if ! rg -qx "$metric" "$registered_anywhere_tmp"; then
+    report="${report}  - doc references metric \`${metric}\` but no Go file registers it
 "
     drift=1
   fi
@@ -295,6 +316,89 @@ done <"$new_stages_tmp"
 # shellcheck source=scripts/lib/telemetry-coverage-row-check.sh
 source "${script_dir}/lib/telemetry-coverage-row-check.sh"
 check_stage_table_rows
+
+# (5) Registered but never emitted (#5548). A synchronous instrument on the
+# Instruments struct whose field is referenced nowhere outside instruments.go
+# is registered, documented, and dead: it produces no samples, so an operator
+# following its X1 row to a dashboard finds an empty panel. Registration is
+# not emission, and until this check existed nothing said so -- 23 such
+# instruments had accumulated.
+#
+# Observable instruments are exempt by construction: they are written from a
+# RegisterCallback inside instruments.go via o.Observe(...), so their field
+# legitimately appears nowhere else.
+#
+# A reference, not a `.Add(`/`.Record(` call, is the signal. Several
+# instruments are emitted indirectly -- passed into a struct field and
+# recorded from there, as go/cmd/mcp-server/wiring.go does with
+# GovernanceAuditAllowedEmitted -- and requiring a literal call site at the
+# field would flag those as dead when they are not.
+sync_fields_tmp="$(mktemp)"
+referenced_fields_tmp="$(mktemp)"
+referenced_fields_all_tmp="$(mktemp)"
+rg -Uo --no-filename \
+  'inst\.(\w+), err = meter\.(?:Int64|Float64)(?:Counter|Histogram|UpDownCounter|Gauge)\(' \
+  --replace '$1' "$repo_root/$instruments_path" 2>/dev/null | sort -u >"$sync_fields_tmp" || true
+
+# One rg pass over the tree with every field name in a single alternation,
+# rather than one invocation per field.
+#
+# The per-field loop this replaces asked `rg -q` 357 times and treated any
+# non-zero exit as "not referenced". rg exits 1 for no-match and 2 for an
+# error, so anything that made rg fail -- an unsupported flag, an unreadable
+# path -- was silently reported as a dead metric. That is a false failure in
+# the direction that blocks a merge, and it fired in CI while passing locally
+# (#5548 review). Reading the field list out of one match set has no exit code
+# to misread, and drops the gate from 357 subprocesses to one.
+#
+# git grep, not rg, and deliberately so.
+#
+# Two rg-based versions of this scan passed locally and failed in CI, flagging
+# 112 then 113 fields that are demonstrably referenced in the tree. The cause
+# was never pinned down -- CI installs ripgrep from apt (14.1.0) against a
+# local 15.2.0, and the two disagree about which files this search reaches.
+# Rather than keep guessing at the difference, this asks git for the file set
+# instead of asking a tree-walker to rediscover it. `git grep` searches tracked
+# files, which is exactly what CI checks out, so the search set is the same
+# everywhere and does not depend on ignore-file handling, glob semantics, or
+# traversal order.
+#
+# -w is git grep's whole-word flag. -E is POSIX ERE, which has no \b -- using
+# it silently matched nothing at all, which the empty-result guard below caught
+# rather than reporting every instrument as dead.
+if [ -s "$sync_fields_tmp" ]; then
+  field_alternation="$(paste -sd'|' - <"$sync_fields_tmp")"
+  git -C "$repo_root" grep -h -o -w -E "(${field_alternation})" -- \
+    go sdk examples 2>/dev/null \
+    | sort -u >"$referenced_fields_all_tmp" || true
+  # Drop the registration site and test files. Filtering after the search
+  # rather than with pathspecs keeps the pathspec syntax simple and its
+  # behaviour obvious.
+  git -C "$repo_root" grep -h -o -w -E "(${field_alternation})" -- \
+    go sdk examples \
+    ':(exclude)go/internal/telemetry/instruments.go' \
+    ':(exclude,glob)**/*_test.go' 2>/dev/null \
+    | sort -u >"$referenced_fields_tmp" || true
+
+  # A tool failure must not read as a wall of findings. Every registered
+  # instrument being unreferenced at once is not a plausible repository state;
+  # it means the search did not run. Fail loudly on that instead of emitting
+  # 357 confident-looking "dead metric" lines.
+  if [ ! -s "$referenced_fields_tmp" ]; then
+    report="${report}  - the instrument reference scan matched nothing at all across $(wc -l <"$sync_fields_tmp" | tr -d ' ') registered instruments. That is a search failure, not a repository full of dead metrics: check that git grep ran over ${repo_root}/{go,sdk,examples} and that the pattern compiled.
+"
+    drift=1
+  else
+
+    while IFS= read -r field; do
+      [ -n "$field" ] || continue
+      report="${report}  - instruments.go registers \`${field}\` but nothing outside instruments.go references it: registered and documented, never emitted
+"
+      drift=1
+    done < <(comm -23 "$sync_fields_tmp" "$referenced_fields_tmp")
+  fi
+fi
+rm -f "$sync_fields_tmp" "$referenced_fields_tmp" "$referenced_fields_all_tmp"
 
 # (4) Histogram bucket boundary assertion. Parses documented bucket sets
 # from the X1 doc's histogram-buckets section and bucket boundary

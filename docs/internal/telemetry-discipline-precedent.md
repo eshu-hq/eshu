@@ -181,6 +181,17 @@ The verifier catches:
   so a pre-existing dangling row is caught too, not only one introduced
   by the current change.
 
+- (#5548) A registered instrument that nothing emits. A synchronous
+  instrument on the `Instruments` struct whose field is referenced nowhere
+  outside `instruments.go` is registered, documented, and dead — it produces
+  no samples, so the X1 row leads an operator to an empty panel.
+  Registration is not emission, and until this check existed nothing said so:
+  23 such instruments had accumulated. Observable instruments are exempt,
+  since they are written from a `RegisterCallback` inside `instruments.go`.
+  The signal is a *reference*, not a literal `.Add(`/`.Record(` at the field,
+  because several instruments are emitted indirectly after being passed into
+  another struct.
+
 The verifier does not catch:
 
 - A new pipeline stage added *inside* an existing Go file with no new
@@ -209,6 +220,9 @@ The verifier does not catch:
   `go/internal/telemetry/instruments.go`. It does not surface drift that
   was already on `main` when the X2 PR landed. A periodic human audit of
   the X1 doc is still required to catch this class.
+- An instrument that is referenced outside `instruments.go` but only in dead
+  code, or behind a condition that never fires. The #5548 check proves a
+  reference exists, not that the line runs.
 - A label cardinality explosion, a missing dimension, a wrong unit suffix,
   or any semantic change to a metric that does not change its name. The
   verifier compares names; everything else is out of scope.

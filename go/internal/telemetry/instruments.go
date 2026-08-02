@@ -218,7 +218,6 @@ type Instruments struct {
 	TerraformStateWarningsEmitted             metric.Int64Counter
 	TerraformStateRedactionsApplied           metric.Int64Counter
 	TerraformStateS3ConditionalGetNotModified metric.Int64Counter
-	TerraformStateDiscoveryCandidates         metric.Int64Counter
 	OCIRegistryAPICalls                       metric.Int64Counter
 	OCIRegistryTagsObserved                   metric.Int64Counter
 	OCIRegistryManifestsObserved              metric.Int64Counter
@@ -1003,17 +1002,6 @@ type Instruments struct {
 	// WebhookStoreOperations counts durable trigger upserts attempted by the
 	// webhook listener, labeled by provider, outcome, and stored status.
 	WebhookStoreOperations metric.Int64Counter
-	// SemanticExtractionQueueEvents counts semantic extraction queue lifecycle
-	// events by bounded source/provider/profile/budget/status classes. Provider
-	// profile IDs, source IDs, prompts, and provider responses must never be
-	// metric labels.
-	SemanticExtractionQueueEvents metric.Int64Counter
-	// SemanticExtractionBudgetTokens counts semantic extraction token consumption
-	// and estimates by bounded source/provider/profile/budget classes.
-	SemanticExtractionBudgetTokens metric.Int64Counter
-	// SemanticExtractionBudgetCostMicros counts semantic extraction cost micros
-	// and estimates by bounded source/provider/profile/budget classes.
-	SemanticExtractionBudgetCostMicros metric.Int64Counter
 
 	// DriftSchemaUnknownComposite counts Terraform-state composite attributes
 	// the streaming nested walker dropped because the loaded
@@ -1125,28 +1113,6 @@ type Instruments struct {
 	QueueClaimDuration                   metric.Float64Histogram
 	PostgresQueryDuration                metric.Float64Histogram
 	Neo4jQueryDuration                   metric.Float64Histogram
-	// IaCResourceListDuration measures the GET /api/v0/iac/resources handler
-	// duration, and IaCResourceListErrors counts handler failures. They let an
-	// operator see IaC inventory read latency and error rate without parsing
-	// traces. The query package records both through the global meter using the
-	// same instrument names registered here so the frozen contract stays
-	// authoritative.
-	IaCResourceListDuration      metric.Float64Histogram
-	IaCResourceListErrors        metric.Int64Counter
-	CloudResourceListDuration    metric.Float64Histogram
-	CloudResourceListErrors      metric.Int64Counter
-	CloudResourceListScannedRows metric.Int64Histogram
-	CloudResourceListPageSize    metric.Int64Histogram
-	CloudResourceListTruncations metric.Int64Counter
-	// APIRequestDuration measures per-endpoint HTTP handler latency for every
-	// query API and MCP read route, labeled by the matched low-cardinality route
-	// pattern (which already encodes the method) and response status_class. Its
-	// _count series also gives per-endpoint request totals. APIRequestErrors
-	// counts server-side (5xx) failures per route. Together they give operators
-	// uniform latency and error-rate signal across all read endpoints, not only
-	// the handful with bespoke instruments.
-	APIRequestDuration metric.Float64Histogram
-	APIRequestErrors   metric.Int64Counter
 	// RelationshipBreakdownPermitWaitDuration measures time spent waiting for
 	// one of the four handler-wide relationship source-tool breakdown permits.
 	// RelationshipBreakdownQueued and RelationshipBreakdownInFlight expose the
@@ -1156,25 +1122,7 @@ type Instruments struct {
 	RelationshipBreakdownPermitWaitDuration metric.Float64Histogram
 	RelationshipBreakdownQueued             metric.Int64UpDownCounter
 	RelationshipBreakdownInFlight           metric.Int64UpDownCounter
-	// SearchHybridDegraded counts POST /api/v0/search/semantic requests served
-	// without semantic ranking (hybrid degraded to BM25, or semantic refused) by
-	// query_type and reason. Like APIRequestDuration it is recorded from the query
-	// package through the global meter (see
-	// go/internal/query/semantic_search_telemetry.go); it is declared here so the
-	// metric is registered on the API and MCP providers and tracked by the
-	// telemetry-coverage contract. Degraded search is expected in no-embedder mode.
-	SearchHybridDegraded metric.Int64Counter
-	OIDCLoginThrottled   metric.Int64Counter
-	// MCPTransportAuthDenied counts MCP transport-level authentication
-	// denials by mcp_method and reason (unauthenticated,
-	// session_principal_mismatch), so an operator can see catalog-enumeration
-	// or session-hijack attempts against initialize/tools/list/tools/call/
-	// ping/SSE (issue #5168). Like APIRequestDuration/APIRequestErrors, it is
-	// recorded from go/internal/mcp through the global meter (see
-	// go/internal/mcp/transport_auth_metrics.go), not through this struct's
-	// field; the field exists so the metric is registered and tracked by the
-	// telemetry-coverage contract.
-	MCPTransportAuthDenied metric.Int64Counter
+	OIDCLoginThrottled                      metric.Int64Counter
 	// GovernanceAuditAllowedEmitted, GovernanceAuditAllowedDropped, and
 	// GovernanceAuditAllowedPersistFailures are the F-9 (#5170) allowed-read
 	// governance-audit drop-observability triad. The mcp-server transport auth
@@ -1239,7 +1187,6 @@ type Instruments struct {
 	AuthRequireSSOLoginGateTotal       metric.Int64Counter
 	SharedAcceptanceUpsertDuration     metric.Float64Histogram
 	SharedAcceptanceLookupDuration     metric.Float64Histogram
-	SharedAcceptancePrefetchSize       metric.Int64Histogram
 	SharedProjectionIntentWaitDuration metric.Float64Histogram
 	SharedProjectionProcessingDuration metric.Float64Histogram
 	SharedProjectionStepDuration       metric.Float64Histogram
@@ -1264,11 +1211,7 @@ type Instruments struct {
 	SCIPSnapshotAttempts           metric.Int64Counter
 	SCIPProcessWaitDuration        metric.Float64Histogram
 
-	// Streaming fact production metrics
-	FactBatchesCommitted metric.Int64Counter
-	GenerationFactCount  metric.Float64Histogram
-	ContentReReads       metric.Int64Counter
-	ContentReReadSkips   metric.Int64Counter
+	GenerationFactCount metric.Float64Histogram
 
 	// Discovery skip counters — per-name breakdown of what discovery prunes
 	DiscoveryDirsSkipped  metric.Int64Counter
@@ -1314,13 +1257,7 @@ type Instruments struct {
 	CodeCallEdgeBatches                metric.Int64Counter
 	CodeCallEdgeDuration               metric.Float64Histogram
 
-	// Canonical projection metrics
-	CanonicalNodesWritten       metric.Int64Counter
-	CanonicalEdgesWritten       metric.Int64Counter
 	CanonicalProjectionDuration metric.Float64Histogram
-	CanonicalRetractDuration    metric.Float64Histogram
-	CanonicalBatchSize          metric.Float64Histogram
-	CanonicalPhaseDuration      metric.Float64Histogram
 
 	// Canonical atomic write metrics
 	CanonicalAtomicWrites    metric.Int64Counter
@@ -1892,14 +1829,6 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register TerraformStateS3ConditionalGetNotModified counter: %w", err)
-	}
-
-	inst.TerraformStateDiscoveryCandidates, err = meter.Int64Counter(
-		"eshu_dp_tfstate_discovery_candidates_total",
-		metric.WithDescription("Total Terraform state discovery candidates resolved by source"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register TerraformStateDiscoveryCandidates counter: %w", err)
 	}
 
 	inst.OCIRegistryAPICalls, err = meter.Int64Counter(
@@ -3286,30 +3215,6 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register WebhookStoreOperations counter: %w", err)
 	}
 
-	inst.SemanticExtractionQueueEvents, err = meter.Int64Counter(
-		"eshu_dp_semantic_extraction_queue_events_total",
-		metric.WithDescription("Total semantic extraction queue lifecycle events by bounded source, provider, provider profile class, status, failure class, budget state, and budget reason"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register SemanticExtractionQueueEvents counter: %w", err)
-	}
-
-	inst.SemanticExtractionBudgetTokens, err = meter.Int64Counter(
-		"eshu_dp_semantic_extraction_budget_tokens_total",
-		metric.WithDescription("Total semantic extraction estimated and actual token budget usage by bounded source, provider, provider profile class, budget state, and budget reason"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register SemanticExtractionBudgetTokens counter: %w", err)
-	}
-
-	inst.SemanticExtractionBudgetCostMicros, err = meter.Int64Counter(
-		"eshu_dp_semantic_extraction_budget_cost_micros_total",
-		metric.WithDescription("Total semantic extraction estimated and actual cost budget usage in micros by bounded source, provider, provider profile class, budget state, and budget reason"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register SemanticExtractionBudgetCostMicros counter: %w", err)
-	}
-
 	// Register histograms with explicit bucket boundaries where specified
 	collectorBuckets := []float64{0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}
 	inst.CollectorObserveDuration, err = meter.Float64Histogram(
@@ -3888,88 +3793,6 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register Neo4jQueryDuration histogram: %w", err)
 	}
 
-	iacResourceListBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}
-	inst.IaCResourceListDuration, err = meter.Float64Histogram(
-		"eshu_dp_iac_resource_list_duration_seconds",
-		metric.WithDescription("Bounded IaC resource list (GET /api/v0/iac/resources) handler duration"),
-		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(iacResourceListBuckets...),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register IaCResourceListDuration histogram: %w", err)
-	}
-
-	inst.IaCResourceListErrors, err = meter.Int64Counter(
-		"eshu_dp_iac_resource_list_errors_total",
-		metric.WithDescription("Bounded IaC resource list (GET /api/v0/iac/resources) handler errors"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register IaCResourceListErrors counter: %w", err)
-	}
-
-	inst.CloudResourceListDuration, err = meter.Float64Histogram(
-		"eshu_dp_cloud_resource_list_duration_seconds",
-		metric.WithDescription("Cloud resource list query duration for GET /api/v0/cloud/resources"),
-		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(neo4jQueryBuckets...),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register CloudResourceListDuration histogram: %w", err)
-	}
-
-	inst.CloudResourceListErrors, err = meter.Int64Counter(
-		"eshu_dp_cloud_resource_list_errors_total",
-		metric.WithDescription("Cloud resource list query errors for GET /api/v0/cloud/resources"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register CloudResourceListErrors counter: %w", err)
-	}
-
-	cloudResourceListRowBuckets := []float64{0, 1, 2, 5, 10, 25, 50, 100, 201}
-	inst.CloudResourceListScannedRows, err = meter.Int64Histogram(
-		"eshu_dp_cloud_resource_list_scanned_rows",
-		metric.WithDescription("Owner-ledger candidate rows returned by the bounded cloud resource page selection"),
-		metric.WithExplicitBucketBoundaries(cloudResourceListRowBuckets...),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register CloudResourceListScannedRows histogram: %w", err)
-	}
-
-	inst.CloudResourceListPageSize, err = meter.Int64Histogram(
-		"eshu_dp_cloud_resource_list_page_size",
-		metric.WithDescription("Cloud resources returned by one GET /api/v0/cloud/resources page"),
-		metric.WithExplicitBucketBoundaries(cloudResourceListRowBuckets...),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register CloudResourceListPageSize histogram: %w", err)
-	}
-
-	inst.CloudResourceListTruncations, err = meter.Int64Counter(
-		"eshu_dp_cloud_resource_list_truncations_total",
-		metric.WithDescription("Cloud resource list pages with another page available"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register CloudResourceListTruncations counter: %w", err)
-	}
-
-	inst.APIRequestDuration, err = meter.Float64Histogram(
-		"eshu_dp_api_request_duration_seconds",
-		metric.WithDescription("Per-endpoint query API/MCP read handler duration, labeled by route and status_class"),
-		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(neo4jQueryBuckets...),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register APIRequestDuration histogram: %w", err)
-	}
-
-	inst.APIRequestErrors, err = meter.Int64Counter(
-		"eshu_dp_api_request_errors_total",
-		metric.WithDescription("Per-endpoint query API/MCP read handler server errors (5xx), labeled by route and status_class"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register APIRequestErrors counter: %w", err)
-	}
-
 	relationshipBreakdownWaitBuckets := []float64{0, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30}
 	inst.RelationshipBreakdownPermitWaitDuration, err = meter.Float64Histogram(
 		"eshu_dp_relationship_breakdown_permit_wait_seconds",
@@ -3999,28 +3822,12 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register RelationshipBreakdownInFlight up/down counter: %w", err)
 	}
 
-	inst.SearchHybridDegraded, err = meter.Int64Counter(
-		"eshu_dp_search_hybrid_degraded_total",
-		metric.WithDescription("Semantic/hybrid search requests served without semantic ranking (degraded to BM25, or refused) by query_type and reason. Expected, not an error, in no-embedder mode."),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register SearchHybridDegraded counter: %w", err)
-	}
-
 	inst.OIDCLoginThrottled, err = meter.Int64Counter(
 		"eshu_dp_oidc_login_throttled_total",
 		metric.WithDescription("OIDC login requests rejected by per-IP or per-user rate limiter"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register OIDCLoginThrottled counter: %w", err)
-	}
-
-	inst.MCPTransportAuthDenied, err = meter.Int64Counter(
-		"eshu_dp_mcp_transport_auth_denied_total",
-		metric.WithDescription("MCP transport-level authentication denials by mcp_method and reason, so an operator can see catalog-enumeration or session-hijack attempts against initialize/tools/list/tools/call/ping/SSE"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register MCPTransportAuthDenied counter: %w", err)
 	}
 
 	inst.GovernanceAuditAllowedEmitted, err = meter.Int64Counter(
@@ -4121,16 +3928,6 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SharedAcceptanceLookupDuration histogram: %w", err)
-	}
-
-	acceptancePrefetchBuckets := []float64{1, 2, 4, 8, 16, 32, 64, 128, 256, 512}
-	inst.SharedAcceptancePrefetchSize, err = meter.Int64Histogram(
-		"eshu_dp_shared_acceptance_prefetch_size",
-		metric.WithDescription("Shared acceptance bounded-unit prefetch size"),
-		metric.WithExplicitBucketBoundaries(acceptancePrefetchBuckets...),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register SharedAcceptancePrefetchSize histogram: %w", err)
 	}
 
 	sharedProjectionWaitBuckets := []float64{0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300, 900, 1800, 3600, 21600}
@@ -4275,14 +4072,6 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register SCIPProcessWaitDuration histogram: %w", err)
 	}
 
-	inst.FactBatchesCommitted, err = meter.Int64Counter(
-		"eshu_dp_fact_batches_committed_total",
-		metric.WithDescription("Total fact batches committed to Postgres during streaming ingestion"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register FactBatchesCommitted counter: %w", err)
-	}
-
 	// Use wide buckets for fact counts — repos range from 5 to 295k facts
 	generationFactBuckets := []float64{10, 50, 100, 500, 1000, 5000, 10000, 50000, 100000, 300000}
 	inst.GenerationFactCount, err = meter.Float64Histogram(
@@ -4292,22 +4081,6 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register GenerationFactCount histogram: %w", err)
-	}
-
-	inst.ContentReReads, err = meter.Int64Counter(
-		"eshu_dp_content_rereads_total",
-		metric.WithDescription("Total content file re-reads from disk during two-phase streaming"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register ContentReReads counter: %w", err)
-	}
-
-	inst.ContentReReadSkips, err = meter.Int64Counter(
-		"eshu_dp_content_reread_skips_total",
-		metric.WithDescription("Content re-reads skipped due to missing file or read error"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register ContentReReadSkips counter: %w", err)
 	}
 
 	inst.DiscoveryDirsSkipped, err = meter.Int64Counter(
@@ -4462,21 +4235,6 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 
 	// Canonical projection instruments
-	inst.CanonicalNodesWritten, err = meter.Int64Counter(
-		"eshu_dp_canonical_nodes_written_total",
-		metric.WithDescription("Total canonical nodes written to Neo4j, labeled by node type"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register CanonicalNodesWritten counter: %w", err)
-	}
-
-	inst.CanonicalEdgesWritten, err = meter.Int64Counter(
-		"eshu_dp_canonical_edges_written_total",
-		metric.WithDescription("Total canonical edges written to Neo4j, labeled by edge type"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register CanonicalEdgesWritten counter: %w", err)
-	}
 
 	canonicalProjectionBuckets := []float64{0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}
 	inst.CanonicalProjectionDuration, err = meter.Float64Histogram(
@@ -4487,38 +4245,6 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CanonicalProjectionDuration histogram: %w", err)
-	}
-
-	canonicalRetractBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5}
-	inst.CanonicalRetractDuration, err = meter.Float64Histogram(
-		"eshu_dp_canonical_retract_duration_seconds",
-		metric.WithDescription("Duration of canonical node retraction per repository"),
-		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(canonicalRetractBuckets...),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register CanonicalRetractDuration histogram: %w", err)
-	}
-
-	canonicalBatchBuckets := []float64{1, 10, 50, 100, 250, 500, 1000}
-	inst.CanonicalBatchSize, err = meter.Float64Histogram(
-		"eshu_dp_canonical_batch_size",
-		metric.WithDescription("Rows per canonical UNWIND batch execution"),
-		metric.WithExplicitBucketBoundaries(canonicalBatchBuckets...),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register CanonicalBatchSize histogram: %w", err)
-	}
-
-	canonicalPhaseBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}
-	inst.CanonicalPhaseDuration, err = meter.Float64Histogram(
-		"eshu_dp_canonical_phase_duration_seconds",
-		metric.WithDescription("Duration of each canonical write phase (repository, directories, files, entities, etc.)"),
-		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(canonicalPhaseBuckets...),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("register CanonicalPhaseDuration histogram: %w", err)
 	}
 
 	// Evidence discovery instruments (during ingestion)

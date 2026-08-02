@@ -75,8 +75,6 @@ when the reducer has a graph orphan observer.
 | `SearchIndexMutations` | `eshu_dp_search_index_mutations_total` |
 | `SearchIndexErrors` | `eshu_dp_search_index_errors_total` |
 | `CanonicalWrites` | `eshu_dp_canonical_writes_total` |
-| `CanonicalNodesWritten` | `eshu_dp_canonical_nodes_written_total` |
-| `CanonicalEdgesWritten` | `eshu_dp_canonical_edges_written_total` |
 | `CanonicalAtomicWrites` | `eshu_dp_canonical_atomic_writes_total` |
 | `CanonicalAtomicFallbacks` | `eshu_dp_canonical_atomic_fallbacks_total` |
 | `SharedProjectionCycles` | `eshu_dp_shared_projection_cycles_total` |
@@ -106,9 +104,6 @@ when the reducer has a graph orphan observer.
 | `FilesParsed` | `eshu_dp_files_parsed_total` |
 | `SCIPSnapshotAttempts` | `eshu_dp_scip_snapshot_attempts_total` |
 | `SCIPProcessWaitDuration` | `eshu_dp_scip_process_wait_seconds` |
-| `FactBatchesCommitted` | `eshu_dp_fact_batches_committed_total` |
-| `ContentReReads` | `eshu_dp_content_rereads_total` |
-| `ContentReReadSkips` | `eshu_dp_content_reread_skips_total` |
 | `DiscoveryDirsSkipped` | `eshu_dp_discovery_dirs_skipped_total` |
 | `DiscoveryFilesSkipped` | `eshu_dp_discovery_files_skipped_total` |
 | `LargeRepoClassifications` | `eshu_dp_large_repo_classifications_total` |
@@ -301,28 +296,15 @@ module prefixes across generations.
 | `GenerationRetentionOldestEligibleAge` | `eshu_dp_generation_retention_oldest_eligible_age_seconds` | 1h–90d |
 | `CanonicalWriteDuration` | `eshu_dp_canonical_write_duration_seconds` | 0.01–60 s |
 | `CanonicalProjectionDuration` | `eshu_dp_canonical_projection_duration_seconds` | 0.01–60 s |
-| `CanonicalRetractDuration` | `eshu_dp_canonical_retract_duration_seconds` | 0.001–2.5 s |
-| `CanonicalBatchSize` | `eshu_dp_canonical_batch_size` | 1–1000 rows |
-| `CanonicalPhaseDuration` | `eshu_dp_canonical_phase_duration_seconds` | 0.001–5 s |
 | `QueueClaimDuration` | `eshu_dp_queue_claim_duration_seconds` | default |
 | `PostgresQueryDuration` | `eshu_dp_postgres_query_duration_seconds` | 0.001–2.5 s |
 | `Neo4jQueryDuration` | `eshu_dp_neo4j_query_duration_seconds` | 0.001–10 s |
-| `IaCResourceListDuration` | `eshu_dp_iac_resource_list_duration_seconds` | 0.001–5 s |
-| `IaCResourceListErrors` | `eshu_dp_iac_resource_list_errors_total` (Int64) | counter |
-| `CloudResourceListDuration` | `eshu_dp_cloud_resource_list_duration_seconds` | 0.001–10 s |
-| `CloudResourceListErrors` | `eshu_dp_cloud_resource_list_errors_total` (Int64) | counter |
-| `CloudResourceListScannedRows` | `eshu_dp_cloud_resource_list_scanned_rows` (Int64) | 0–201 logical owner-ledger candidates |
-| `CloudResourceListPageSize` | `eshu_dp_cloud_resource_list_page_size` (Int64) | 0–201 resources |
-| `CloudResourceListTruncations` | `eshu_dp_cloud_resource_list_truncations_total` (Int64) | counter |
-| `APIRequestDuration` | `eshu_dp_api_request_duration_seconds` (labels: `route`, `status_class`) | 0.001–10 s |
-| `APIRequestErrors` | `eshu_dp_api_request_errors_total` (Int64; labels: `route`, `status_class`) | counter |
 | `RelationshipBreakdownPermitWaitDuration` | `eshu_dp_relationship_breakdown_permit_wait_seconds` | 0–30 s; no labels |
 | `RelationshipBreakdownQueued` | `eshu_dp_relationship_breakdown_queued` (Int64 UpDownCounter) | current waiters; no labels |
 | `RelationshipBreakdownInFlight` | `eshu_dp_relationship_breakdown_in_flight` (Int64 UpDownCounter) | current permit holders; no labels |
 | `Neo4jBatchSize` | `eshu_dp_neo4j_batch_size` | 1–1000 rows |
 | `SharedAcceptanceUpsertDuration` | `eshu_dp_shared_acceptance_upsert_duration_seconds` | default |
 | `SharedAcceptanceLookupDuration` | `eshu_dp_shared_acceptance_lookup_duration_seconds` | default |
-| `SharedAcceptancePrefetchSize` | `eshu_dp_shared_acceptance_prefetch_size` (Int64) | 1–512 rows |
 | `SharedProjectionIntentWaitDuration` | `eshu_dp_shared_projection_intent_wait_seconds` | 0.001–21600 s |
 | `SharedProjectionProcessingDuration` | `eshu_dp_shared_projection_processing_seconds` | 0.001–60 s |
 | `SharedProjectionStepDuration` | `eshu_dp_shared_projection_step_seconds` | 0.001–60 s |
