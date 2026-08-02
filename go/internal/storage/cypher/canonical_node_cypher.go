@@ -292,11 +292,25 @@ SET m.lang = coalesce(m.lang, row.language),
 
 // --- Phase G: Structural edge Cypher ---
 
+// canonicalNodeImportEdgeCypher upserts the File -> Module IMPORTS edges the
+// projector's import extractor produces (issue #5691).
+//
+// imported_name is part of the MERGE key, not a SET target. The extractor emits
+// one row per imported symbol, so `import { Router, json } from "express"` is
+// two rows against the same file and module; keyed on the endpoints alone both
+// rows would MERGE onto one edge and the second row's SET would overwrite the
+// first, leaving /code/import-dependencies reporting one arbitrary symbol of
+// the two. A module-level import (Go's `import "fmt"`, a side-effect
+// `import "x"`) carries an empty imported_name, which keys one edge per file
+// and module exactly as before.
+//
+// The SET body stays single-variable so NornicDB's executeUnwindMergeChainBatch
+// fast path engages, matching canonicalNodeHasParameterEdgeCypher's constraint.
 const canonicalNodeImportEdgeCypher = `UNWIND $rows AS row
 MATCH (f:File {path: row.file_path})
 MATCH (m:Module {name: row.module_name})
-MERGE (f)-[r:IMPORTS]->(m)
-SET r.imported_name = row.imported_name, r.alias = row.alias, r.line_number = row.line_number,
+MERGE (f)-[r:IMPORTS {imported_name: row.imported_name}]->(m)
+SET r.alias = row.alias, r.line_number = row.line_number,
     r.evidence_source = 'projector/canonical', r.generation_id = row.generation_id`
 
 // canonicalNodeHasParameterEdgeCypher upserts Parameter nodes and the

@@ -81,6 +81,16 @@ func buildCanonicalMaterialization(
 	// (module_name, imported_module, param_name, etc.) and merges any
 	// additionally discovered modules into the set above.
 	extractRelationships(inputFacts, &mat)
+
+	// Extract File -> Module IMPORTS edges from the per-file "imports" bucket
+	// the language parsers write into parsed_file_data. This is the only
+	// producer of those edges on the Go runtime (issue #5691); the
+	// extractRelationships pass above matches the Python-era module_name /
+	// imported_module fact payloads, which no Go collector emits.
+	importRows, importModules := extractImportsFromFiles(inputFacts, repoPath)
+	mat.Imports = append(mat.Imports, importRows...)
+	mat.Modules = mergeImportModules(mat.Modules, importModules)
+
 	quarantined = append(quarantined, extractTerraformStateRows(&mat, inputFacts)...)
 	quarantined = append(quarantined, extractOCIRegistryRows(&mat, inputFacts)...)
 	quarantined = append(quarantined, extractPackageRegistryRows(&mat, inputFacts)...)
