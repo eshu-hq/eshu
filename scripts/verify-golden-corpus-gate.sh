@@ -68,7 +68,17 @@ cd "${repo_root}"
 : "${GATE_DRAIN_TIMEOUT:=10m}"
 : "${GATE_BUDGET_SECONDS:=900}"   # baseline wall-time budget; ceiling is 2x.
 : "${GATE_BUDGET_MULTIPLIER:=2}"
-: "${GATE_COLLECTOR_SETTLE_SECONDS:=20}"
+# GATE_COLLECTOR_SETTLE_SECONDS is a DEADLINE, not a sleep duration: the collect
+# phase polls landed-source count every GATE_COLLECTOR_SETTLE_POLL_SECONDS and
+# returns the moment the threshold is met, so a quiet machine finishes in a few
+# seconds. The deadline only bounds how long a genuinely slow or contended
+# machine gets before the gate fails loudly. Default is generous headroom over
+# the highest value agents have historically needed to bump it to under real
+# machine load (75s, see docs/internal/evidence/5426-golden-corpus-coverage.md
+# and 5428-built-from-projection-rescinded.md) — raising it further only helps
+# the genuinely-slow case, since the fast case never waits that long anyway.
+: "${GATE_COLLECTOR_SETTLE_SECONDS:=90}"
+: "${GATE_COLLECTOR_SETTLE_POLL_SECONDS:=2}"
 
 compose_file="docker-compose.yaml"
 graph_service="nornicdb"
@@ -282,29 +292,20 @@ for spec in "${collector_specs[@]}"; do
 	collector_pids+=("${cpid}")
 	collector_names+=("${cmd}")
 done
-printf 'launched %d collectors; settling %ss for first-pass commit\n' "${#collector_pids[@]}" "${GATE_COLLECTOR_SETTLE_SECONDS}"
-sleep "${GATE_COLLECTOR_SETTLE_SECONDS}"
-# A collector that crashed on startup (cassette parse, Postgres connect) exited
-# during the settle. Catch that before killing, so a silently-dead collector does
-# not let the gate pass with the cassette half of the pipeline unverified.
-for i in "${!collector_pids[@]}"; do
-	if ! kill -0 "${collector_pids[$i]}" >/dev/null 2>&1; then
-		tail -20 "${log_dir}/${collector_names[$i]}.log" >&2 || true
-		die "collector ${collector_names[$i]} exited during settle (did not stay up to commit)"
-	fi
-done
-for pid in "${collector_pids[@]}"; do kill "${pid}" >/dev/null 2>&1 || true; done
+: "${GATE_MIN_COLLECTOR_SOURCES:=${#collector_specs[@]}}"
+printf 'launched %d collectors; polling for first-pass commit (interval %ss, deadline %ss)\n' \
+	"${#collector_pids[@]}" "${GATE_COLLECTOR_SETTLE_POLL_SECONDS}" "${GATE_COLLECTOR_SETTLE_SECONDS}"
 
 # Prove the cassette facts actually landed: each credentialed collector must have
 # produced at least one ingestion scope. Without this, every collector could
 # no-op and the gate would still pass (Repository nodes come from filesystem
-# discovery, not collectors).
-collector_sources="$(pg "SELECT count(DISTINCT source_system) FROM ingestion_scopes WHERE source_system <> 'git';" | tr -d '[:space:]')"
-: "${GATE_MIN_COLLECTOR_SOURCES:=${#collector_specs[@]}}"
-if [[ -z "${collector_sources}" ]] || (( collector_sources < GATE_MIN_COLLECTOR_SOURCES )); then
-	die "only ${collector_sources:-0} credentialed collector source(s) landed facts; want >= ${GATE_MIN_COLLECTOR_SOURCES} (cassette replay did not commit)"
-fi
-printf 'cassette facts landed: %s credentialed collector sources\n' "${collector_sources}"
+# discovery, not collectors). wait_for_collector_settle (extracted to
+# scripts/lib/golden-corpus-collector-settle.sh to keep this orchestrator under
+# the 500-line cap and independently testable) polls for that count instead of
+# sleeping a fixed duration — see the lib's header for why.
+# shellcheck source=scripts/lib/golden-corpus-collector-settle.sh
+. "${repo_root}/scripts/lib/golden-corpus-collector-settle.sh"
+wait_for_collector_settle
 phase_collect_end="$(date +%s)"
 phase_first_drain_start="${phase_collect_end}"
 
