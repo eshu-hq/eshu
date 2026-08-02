@@ -88,6 +88,21 @@ func (db *containerImageIdentityRetireDirectDB) ExecContainerImageIdentityClaime
 	return int(db.retired), db.claimValid, nil
 }
 
+// ExecContainerImageIdentityClaimedAdmission is the method the writer's
+// completed-cutover single-round-trip path actually calls (#5874). This fake
+// predates the admission CAS and its owning tests exercise the claim/legacy
+// cleanup control flow, not admission itself, so admitted mirrors claimValid
+// (matching the previous always-succeeds-when-claim-valid behavior).
+func (db *containerImageIdentityRetireDirectDB) ExecContainerImageIdentityClaimedAdmission(
+	_ context.Context,
+	query string,
+	args ...any,
+) (int, bool, bool, error) {
+	db.queries = append(db.queries, query)
+	db.args = append(db.args, append([]any(nil), args...))
+	return int(db.retired), db.claimValid, db.claimValid, nil
+}
+
 type containerImageIdentityRetireTx struct {
 	queries    []string
 	args       [][]any
@@ -111,6 +126,14 @@ func (tx *containerImageIdentityRetireTx) ExecContext(
 	if query == containerImageIdentityPublishAndLegacyCleanupQuery {
 		return containerImageIdentityRetireResult(tx.retired), nil
 	}
+	if query == containerImageIdentityAdmissionQuery {
+		// The admission CAS (#5874) is the FIRST statement this fake's owning
+		// tests now see; they predate admission and exercise the surrounding
+		// cutover/legacy-cleanup control flow, not admission itself, so it
+		// always reports one row affected (admitted) unless the test wired
+		// this exact query as tx.failQuery above.
+		return containerImageIdentityRetireResult(1), nil
+	}
 	return containerImageIdentityRetireResult(0), nil
 }
 
@@ -125,6 +148,27 @@ func (tx *containerImageIdentityRetireTx) ExecContainerImageIdentityClaimed(
 		return 0, false, errors.New("synthetic transaction failure")
 	}
 	return int(tx.retired), tx.claimValid, nil
+}
+
+// ExecContainerImageIdentityClaimedAdmission satisfies
+// ContainerImageIdentityClaimedExecer's admission-aware method (#5874) so
+// tests routing cutoverComplete through the transactional path (the
+// oversized-batch shape, not the single-round-trip fast path) still succeed
+// the tx.(ContainerImageIdentityClaimedExecer) assertion in
+// writeContainerImageIdentityRows. This fake's owning tests exercise the
+// claim/legacy cleanup control flow, not admission itself, so admitted
+// mirrors claimValid.
+func (tx *containerImageIdentityRetireTx) ExecContainerImageIdentityClaimedAdmission(
+	_ context.Context,
+	query string,
+	args ...any,
+) (int, bool, bool, error) {
+	tx.queries = append(tx.queries, query)
+	tx.args = append(tx.args, append([]any(nil), args...))
+	if query == tx.failQuery {
+		return 0, false, false, errors.New("synthetic transaction failure")
+	}
+	return int(tx.retired), tx.claimValid, tx.claimValid, nil
 }
 
 func (tx *containerImageIdentityRetireTx) Commit() error {

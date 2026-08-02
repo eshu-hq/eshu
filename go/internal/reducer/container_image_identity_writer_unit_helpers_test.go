@@ -38,13 +38,37 @@ func (e containerImageIdentityUnitClaimedExecer) ExecContainerImageIdentityClaim
 	if query != containerImageIdentityCompletedCutoverPublishOnlyQuery {
 		return 0, false, fmt.Errorf("unexpected unit completed-cutover query")
 	}
-	if len(args) != 22 {
-		return 0, false, fmt.Errorf("completed-cutover args = %d, want 22", len(args))
+	if len(args) != 26 {
+		return 0, false, fmt.Errorf("completed-cutover args = %d, want 26", len(args))
 	}
 	if _, err := e.db.ExecContext(ctx, reducerFactBatchInsertQuery, args[:16]...); err != nil {
 		return 0, false, err
 	}
 	return 0, true, nil
+}
+
+// ExecContainerImageIdentityClaimedAdmission is the method the writer's
+// completed-cutover path actually calls (#5874); the OLD 3-return method
+// above stays only to satisfy ContainerImageIdentityClaimedExecer's other
+// requirement. This fake predates the admission CAS and its owning tests
+// exercise the surrounding legacy-cleanup control flow, not admission itself,
+// so admitted is unconditionally true here -- matching the previous
+// always-succeeds behavior.
+func (e containerImageIdentityUnitClaimedExecer) ExecContainerImageIdentityClaimedAdmission(
+	ctx context.Context,
+	query string,
+	args ...any,
+) (int, bool, bool, error) {
+	if query != containerImageIdentityCompletedCutoverPublishOnlyQuery {
+		return 0, false, false, fmt.Errorf("unexpected unit completed-cutover query")
+	}
+	if len(args) != 26 {
+		return 0, false, false, fmt.Errorf("completed-cutover args = %d, want 26", len(args))
+	}
+	if _, err := e.db.ExecContext(ctx, reducerFactBatchInsertQuery, args[:16]...); err != nil {
+		return 0, false, false, err
+	}
+	return 0, true, true, nil
 }
 
 func newContainerImageIdentityUnitWriter(

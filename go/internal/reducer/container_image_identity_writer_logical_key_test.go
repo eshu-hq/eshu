@@ -15,6 +15,7 @@ func TestContainerImageIdentityFactIDExcludesOutcome(t *testing.T) {
 
 	write := containerImageIdentityFenceWrite(
 		time.Date(2026, time.July, 29, 14, 0, 0, 0, time.UTC),
+		1,
 		ContainerImageIdentityExactDigest,
 	)
 	exact := write.Decisions[0]
@@ -59,6 +60,7 @@ func TestContainerImageIdentityPublicationPrefersCanonicalExactDigest(t *testing
 		GenerationID:       "generation-5854",
 		SourceSystem:       "git",
 		EvidenceAsOf:       time.Date(2026, time.July, 29, 14, 1, 0, 0, time.UTC),
+		FencingToken:       1,
 		Decisions:          []ContainerImageIdentityDecision{tag, exact, unresolved},
 		TombstoneDecisions: []ContainerImageIdentityDecision{unresolved},
 	}
@@ -190,6 +192,7 @@ func TestContainerImageIdentityWriterPublishesFencedTombstone(t *testing.T) {
 		GenerationID:       "generation-5854",
 		SourceSystem:       "git",
 		EvidenceAsOf:       time.Date(2026, time.July, 29, 14, 2, 0, 0, time.UTC),
+		FencingToken:       9,
 		Decisions:          []ContainerImageIdentityDecision{decision},
 		TombstoneDecisions: []ContainerImageIdentityDecision{decision},
 	}
@@ -207,7 +210,7 @@ func TestContainerImageIdentityWriterPublishesFencedTombstone(t *testing.T) {
 	if !rows[0].IsTombstone {
 		t.Fatal("published row is live, want tombstone")
 	}
-	if got, want := rows[0].FencingToken, write.EvidenceAsOf.UnixMicro(); got != want {
+	if got, want := rows[0].FencingToken, write.FencingToken; got != want {
 		t.Fatalf("tombstone fencing token = %d, want %d", got, want)
 	}
 	if got, want := result.RetirementAttempts, 1; got != want {

@@ -35,8 +35,16 @@ func TestPostgresContainerImageIdentityMultiChunkWriterSerializesMatchingKeyAndC
 		db: db,
 		wrap: func(tx *sql.Tx) ContainerImageIdentityTransaction {
 			return &containerImageIdentityPausingLiveTx{
-				tx:      tx,
-				pauseAt: 4,
+				tx: tx,
+				// #5874: the container_image_identity_write_admission CAS is
+				// now this transaction's FIRST ExecContext call, shifting
+				// every later call index by one (admission=1, fence=2,
+				// prelock=3, chunk1=4, final combined chunk=5). This test
+				// wants to pause right BEFORE the final combined
+				// publish+legacy-cleanup chunk, after chunk 1 (which
+				// contains the "matching key" row this test races against)
+				// has already committed within the still-open transaction.
+				pauseAt: 5,
 				paused:  paused,
 				release: release,
 			}
@@ -166,8 +174,14 @@ func TestPostgresContainerImageIdentityMultiChunkFailureRollsBackAndRetryConverg
 			db: db,
 			wrap: func(tx *sql.Tx) ContainerImageIdentityTransaction {
 				return &containerImageIdentityFailingLiveTx{
-					tx:     tx,
-					failAt: 3,
+					tx: tx,
+					// #5874: the admission CAS shifts this transaction's
+					// statement indices by one (admission=1, fence=2,
+					// prelock=3, chunk1=4), so the injected failure must
+					// target 4 to land inside the first plain batch-insert
+					// chunk, matching the "batch insert reducer facts" error
+					// this test asserts on.
+					failAt: 4,
 				}
 			},
 		},

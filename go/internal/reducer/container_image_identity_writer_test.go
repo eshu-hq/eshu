@@ -33,6 +33,7 @@ func TestPostgresContainerImageIdentityWriterPersistsCanonicalDecisions(t *testi
 		GenerationID: "generation-git",
 		SourceSystem: "git",
 		EvidenceAsOf: time.Date(2026, time.July, 27, 10, 0, 0, 0, time.UTC),
+		FencingToken: 1,
 		Cause:        "container image references observed",
 		Decisions: []ContainerImageIdentityDecision{
 			{
@@ -97,6 +98,7 @@ func TestPostgresContainerImageIdentityWriterUsesStableTagReferenceIdentity(t *t
 		GenerationID: "generation-git",
 		SourceSystem: "git",
 		EvidenceAsOf: time.Date(2026, time.July, 27, 10, 0, 0, 0, time.UTC),
+		FencingToken: 1,
 		Cause:        "container image references observed",
 		Decisions: []ContainerImageIdentityDecision{
 			{
@@ -155,6 +157,7 @@ func TestPostgresContainerImageIdentityWriterPublishesKnownTruthLayers(t *testin
 		GenerationID: "generation-git",
 		SourceSystem: "git",
 		EvidenceAsOf: time.Date(2026, time.July, 27, 10, 0, 0, 0, time.UTC),
+		FencingToken: 1,
 		Cause:        "container image references observed",
 		Decisions: []ContainerImageIdentityDecision{
 			{

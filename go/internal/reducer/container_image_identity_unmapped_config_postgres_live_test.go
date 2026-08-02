@@ -74,7 +74,8 @@ func TestPostgresContainerImageIdentityHandlerKeepsUnmappedConfigWarningReposito
 			DB:       db,
 			Beginner: &containerImageIdentityAtomicLiveBeginner{db: db},
 		},
-		Now: func() time.Time { return write.EvidenceAsOf },
+		Now:                func() time.Time { return write.EvidenceAsOf },
+		FencingTokenIssuer: &stubContainerImageIdentityFencingTokenIssuer{tokens: []int64{100}},
 	}
 	result, err := handler.Handle(ctx, Intent{
 		IntentID:     write.IntentID,

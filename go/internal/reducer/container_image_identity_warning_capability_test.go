@@ -21,8 +21,9 @@ func TestContainerImageIdentityHandlerRequiresWarningLoaderForDemotion(t *testin
 	}
 	writer := &recordingContainerImageIdentityWriter{}
 	handler := ContainerImageIdentityHandler{
-		FactLoader: loader,
-		Writer:     writer,
+		FactLoader:         loader,
+		Writer:             writer,
+		FencingTokenIssuer: &stubContainerImageIdentityFencingTokenIssuer{tokens: []int64{1}},
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{

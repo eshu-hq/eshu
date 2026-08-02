@@ -64,8 +64,15 @@ func TestPostgresContainerImageIdentityTombstoneFencePreventsStaleResurrection(t
 		1,
 	)
 	stale.Decisions[0].Digest = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-	if _, err := writer.WriteContainerImageIdentityDecisions(ctx, stale); err != nil {
-		t.Fatalf("write stale canonical identity: %v", err)
+	// #5874: the container_image_identity_write_admission CAS now rejects this
+	// pass BEFORE it issues any row-level write at all -- stale.FencingToken
+	// (base+1s) is older than the watermark tombstone's pass (base+2s) already
+	// raised for this (scope, generation). Before #5874 this call succeeded
+	// with no error and relied entirely on the PER-ROW conflict guard to keep
+	// the row from regressing; now the whole-pass admission check catches it
+	// earlier, returning the retryable superseded error instead.
+	if _, err := writer.WriteContainerImageIdentityDecisions(ctx, stale); !isContainerImageIdentityWriteSuperseded(err) {
+		t.Fatalf("write stale canonical identity: err = %v, want the admission-superseded error", err)
 	}
 	assertContainerImageIdentityLiveRow(
 		t,
@@ -247,6 +254,20 @@ WHERE scope_id = $1
 `, scopeID, generationID); err != nil {
 		t.Fatalf("reset live container image identity work item: %v", err)
 	}
+	// #5874: reset the admission watermark for this (scope, generation) too.
+	// Every live test in this package's suite shares the SAME
+	// containerImageIdentityLiveScope/containerImageIdentityLiveGeneration
+	// constants (pre-dating the admission CAS), so without this reset a
+	// PRIOR test's higher watermark would leak into a LATER test's admission
+	// check within the same `go test` run, rejecting a write the later test
+	// never intended to race against.
+	if _, err := db.ExecContext(ctx, `
+DELETE FROM container_image_identity_write_admission
+WHERE scope_id = $1
+  AND generation_id = $2
+`, scopeID, generationID); err != nil {
+		t.Fatalf("reset live container image identity admission watermark: %v", err)
+	}
 	if _, err := db.ExecContext(ctx, `
 INSERT INTO fact_work_items (
 	work_item_id, scope_id, generation_id, stage, domain,
@@ -288,6 +309,12 @@ func containerImageIdentityLiveWrite(
 		SourceSystem: "git",
 		Cause:        "synthetic live proof",
 		EvidenceAsOf: evidenceAsOf,
+		// FencingToken (#5874) mirrors evidenceAsOf.UnixMicro() so this file's
+		// existing fencing_token-column assertions (assertContainerImageIdentityLiveRow
+		// comparing against write.EvidenceAsOf.UnixMicro()) stay valid: the
+		// stored column now comes from FencingToken, not a re-derivation of
+		// EvidenceAsOf, so the two must be kept equal here explicitly.
+		FencingToken: evidenceAsOf.UTC().UnixMicro(),
 		Decisions: []ContainerImageIdentityDecision{{
 			ImageRef:        imageRef,
 			Digest:          retirementTestDigest,

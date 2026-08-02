@@ -81,6 +81,7 @@ func TestContainerImageIdentityHandlerProjectsDerivedFromEdgeFromSLSAOnlyEvidenc
 		FactLoader:            loader,
 		Writer:                writer,
 		DerivedFromEdgeWriter: derivedFromWriter,
+		FencingTokenIssuer:    &stubContainerImageIdentityFencingTokenIssuer{tokens: []int64{1}},
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{

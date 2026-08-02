@@ -215,7 +215,11 @@ func TestContainerImageIdentityHandlerQuarantineReplayIsIdempotent(t *testing.T)
 	for i := 0; i < 2; i++ {
 		loader := &stubContainerImageIdentityFactLoader{scopeFacts: []facts.Envelope{malformed, valid}}
 		writer := &recordingContainerImageIdentityWriter{}
-		handler := ContainerImageIdentityHandler{FactLoader: loader, Writer: writer}
+		handler := ContainerImageIdentityHandler{
+			FactLoader:         loader,
+			Writer:             writer,
+			FencingTokenIssuer: &stubContainerImageIdentityFencingTokenIssuer{tokens: []int64{1}},
+		}
 		result, err := handler.Handle(context.Background(), intent)
 		if err != nil {
 			t.Fatalf("replay %d: Handle returned error %v, want nil (per-fact quarantine, never a whole-intent failure)", i, err)
@@ -247,7 +251,11 @@ func runContainerImageIdentityHandler(
 
 	loader := &stubContainerImageIdentityFactLoader{scopeFacts: envelopes}
 	writer := &recordingContainerImageIdentityWriter{}
-	handler := ContainerImageIdentityHandler{FactLoader: loader, Writer: writer}
+	handler := ContainerImageIdentityHandler{
+		FactLoader:         loader,
+		Writer:             writer,
+		FencingTokenIssuer: &stubContainerImageIdentityFencingTokenIssuer{tokens: []int64{1}},
+	}
 
 	result, err := handler.Handle(context.Background(), Intent{
 		IntentID:     "intent-container-image-quarantine",

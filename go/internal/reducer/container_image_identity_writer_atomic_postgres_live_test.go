@@ -6,7 +6,6 @@ package reducer
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -153,8 +152,17 @@ func TestPostgresContainerImageIdentityCompletedCutoverMultiChunkKeepsHeartbeatL
 		Beginner: &containerImageIdentityAtomicLiveBeginner{
 			db: db,
 			wrap: func(tx *sql.Tx) ContainerImageIdentityTransaction {
+				// #5874: the admission CAS runs via tx.ExecContext (call 1)
+				// before lockContainerImageIdentityCompletedCutoverClaim
+				// (which uses the separate ExecContainerImageIdentityClaimed
+				// method and so does not advance tx.calls). The first plain
+				// ExecContext call after that claim-lock is now the first
+				// batch-insert chunk, at tx.calls == 2, which is where this
+				// test needs to pause so the claim-lock's own row-level
+				// effect on fact_work_items is already held (uncommitted)
+				// when the concurrent heartbeat races it.
 				return &containerImageIdentityPausingLiveTx{
-					tx: tx, pauseAt: 1, paused: paused, release: release,
+					tx: tx, pauseAt: 2, paused: paused, release: release,
 				}
 			},
 		},
@@ -221,13 +229,21 @@ func containerImageIdentityAtomicLiveWrite(
 	evidenceAsOf time.Time,
 ) ContainerImageIdentityWrite {
 	write := ContainerImageIdentityWrite{
-		IntentID:      containerImageIdentityLiveWorkItemID(containerImageIdentityLiveGeneration),
-		ClaimEpoch:    1,
-		ScopeID:       containerImageIdentityLiveScope,
-		GenerationID:  containerImageIdentityLiveGeneration,
-		SourceSystem:  "git",
-		Cause:         "synthetic atomic live proof",
-		EvidenceAsOf:  evidenceAsOf,
+		IntentID:     containerImageIdentityLiveWorkItemID(containerImageIdentityLiveGeneration),
+		ClaimEpoch:   1,
+		ScopeID:      containerImageIdentityLiveScope,
+		GenerationID: containerImageIdentityLiveGeneration,
+		SourceSystem: "git",
+		Cause:        "synthetic atomic live proof",
+		EvidenceAsOf: evidenceAsOf,
+		// FencingToken (#5874) stands in for a real sequence-issued value in
+		// these fixtures. Reusing evidenceAsOf's already-distinct, carefully
+		// ordered instant per call site preserves each test's intended
+		// relative ordering between its own writes without each call site
+		// needing its own real issuer wiring; no test in this file asserts
+		// evidence-freshness-vs-token ordering itself (that property is
+		// covered hermetically by TestContainerImageIdentityWriterAdmissionConvergence).
+		FencingToken:  evidenceAsOf.UTC().UnixMicro(),
 		Decisions:     make([]ContainerImageIdentityDecision, 0, decisionCount),
 		LegacyFactIDs: make([]string, 0, decisionCount),
 	}
@@ -290,164 +306,4 @@ func containerImageIdentityAtomicLiveFactIDs(
 		factIDs = append(factIDs, containerImageIdentityFactID(write, decision))
 	}
 	return factIDs
-}
-
-func assertContainerImageIdentityAtomicLiveCount(
-	t *testing.T,
-	ctx context.Context,
-	db *sql.DB,
-	query string,
-	want int,
-	args ...any,
-) {
-	t.Helper()
-	var got int
-	if err := db.QueryRowContext(ctx, query, args...).Scan(&got); err != nil {
-		t.Fatalf("read atomic live row count: %v", err)
-	}
-	if got != want {
-		t.Fatalf("atomic live row count = %d, want %d", got, want)
-	}
-}
-
-type containerImageIdentityAtomicLiveBeginner struct {
-	db   *sql.DB
-	wrap func(*sql.Tx) ContainerImageIdentityTransaction
-}
-
-type containerImageIdentityAtomicLiveCutoverLookup struct {
-	db *sql.DB
-}
-
-type containerImageIdentityAtomicLiveClaimedExecer struct {
-	db *sql.DB
-}
-
-func (execer containerImageIdentityAtomicLiveClaimedExecer) ExecContainerImageIdentityClaimed(
-	ctx context.Context,
-	query string,
-	args ...any,
-) (int, bool, error) {
-	rows, err := execer.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return 0, false, err
-	}
-	defer func() { _ = rows.Close() }()
-	if !rows.Next() {
-		return 0, false, rows.Err()
-	}
-	var deleted int
-	if err := rows.Scan(&deleted); err != nil {
-		return 0, false, err
-	}
-	return deleted, true, rows.Err()
-}
-
-func (lookup containerImageIdentityAtomicLiveCutoverLookup) ContainerImageIdentityCutoverExists(
-	ctx context.Context,
-	scopeID string,
-	generationID string,
-) (bool, error) {
-	var exists bool
-	err := lookup.db.QueryRowContext(ctx, `
-SELECT EXISTS (
-    SELECT 1
-    FROM container_image_identity_cutovers
-    WHERE scope_id = $1
-      AND generation_id = $2
-)
-`, scopeID, generationID).Scan(&exists)
-	return exists, err
-}
-
-func (b *containerImageIdentityAtomicLiveBeginner) BeginContainerImageIdentityTx(
-	ctx context.Context,
-) (ContainerImageIdentityTransaction, error) {
-	tx, err := b.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	if b.wrap != nil {
-		return b.wrap(tx), nil
-	}
-	return tx, nil
-}
-
-type containerImageIdentityPausingLiveTx struct {
-	tx      *sql.Tx
-	pauseAt int
-	calls   int
-	paused  chan<- struct{}
-	release <-chan struct{}
-}
-
-func (tx *containerImageIdentityPausingLiveTx) ExecContext(
-	ctx context.Context,
-	query string,
-	args ...any,
-) (sql.Result, error) {
-	tx.calls++
-	if tx.calls == tx.pauseAt {
-		close(tx.paused)
-		select {
-		case <-tx.release:
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		}
-	}
-	return tx.tx.ExecContext(ctx, query, args...)
-}
-
-func (tx *containerImageIdentityPausingLiveTx) ExecContainerImageIdentityClaimed(
-	ctx context.Context,
-	query string,
-	args ...any,
-) (int, bool, error) {
-	rows, err := tx.tx.QueryContext(ctx, query, args...)
-	if err != nil {
-		return 0, false, err
-	}
-	defer func() { _ = rows.Close() }()
-	if !rows.Next() {
-		return 0, false, rows.Err()
-	}
-	var deleted int
-	if err := rows.Scan(&deleted); err != nil {
-		return 0, false, err
-	}
-	return deleted, true, rows.Err()
-}
-
-func (tx *containerImageIdentityPausingLiveTx) Commit() error {
-	return tx.tx.Commit()
-}
-
-func (tx *containerImageIdentityPausingLiveTx) Rollback() error {
-	return tx.tx.Rollback()
-}
-
-type containerImageIdentityFailingLiveTx struct {
-	tx     *sql.Tx
-	failAt int
-	calls  int
-}
-
-func (tx *containerImageIdentityFailingLiveTx) ExecContext(
-	ctx context.Context,
-	query string,
-	args ...any,
-) (sql.Result, error) {
-	tx.calls++
-	if tx.calls == tx.failAt {
-		return nil, errors.New("synthetic mid-transaction chunk failure")
-	}
-	return tx.tx.ExecContext(ctx, query, args...)
-}
-
-func (tx *containerImageIdentityFailingLiveTx) Commit() error {
-	return tx.tx.Commit()
-}
-
-func (tx *containerImageIdentityFailingLiveTx) Rollback() error {
-	return tx.tx.Rollback()
 }

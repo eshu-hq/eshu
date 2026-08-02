@@ -80,6 +80,7 @@ func TestContainerImageIdentityHandlerProjectsDerivedFromEdgeFromCrossScopeCIEvi
 		FactLoader:            loader,
 		Writer:                writer,
 		DerivedFromEdgeWriter: derivedFromWriter,
+		FencingTokenIssuer:    &stubContainerImageIdentityFencingTokenIssuer{tokens: []int64{1}},
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{
@@ -159,6 +160,7 @@ func TestContainerImageIdentityHandlerCIScopeIntentWithCrossScopeCIEvidenceWrite
 		FactLoader:            loader,
 		Writer:                writer,
 		DerivedFromEdgeWriter: derivedFromWriter,
+		FencingTokenIssuer:    &stubContainerImageIdentityFencingTokenIssuer{tokens: []int64{1}},
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{
@@ -239,7 +241,11 @@ func TestContainerImageIdentityHandlerDedupesCICDArtifactSeenThroughBothLoaders(
 		ciActive:   []facts.Envelope{malformed},
 	}
 	writer := &recordingContainerImageIdentityWriter{}
-	handler := ContainerImageIdentityHandler{FactLoader: loader, Writer: writer}
+	handler := ContainerImageIdentityHandler{
+		FactLoader:         loader,
+		Writer:             writer,
+		FencingTokenIssuer: &stubContainerImageIdentityFencingTokenIssuer{tokens: []int64{1}},
+	}
 
 	result, err := handler.Handle(context.Background(), Intent{
 		IntentID:     "intent-dedupe-quarantine",

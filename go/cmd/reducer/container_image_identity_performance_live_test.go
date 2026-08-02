@@ -186,6 +186,7 @@ func runContainerImageIdentityPerfCase(
 			return time.Date(2026, time.July, 29, 20, 0, 0, 0, time.UTC).
 				Add(time.Duration(tick) * time.Microsecond)
 		},
+		FencingTokenIssuer: postgres.PostgresContainerImageIdentityFencingTokenIssuer{DB: countingDB},
 	}
 	intent := reducer.Intent{
 		IntentID:     "intent-5854-performance",

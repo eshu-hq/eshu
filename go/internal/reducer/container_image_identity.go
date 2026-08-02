@@ -66,6 +66,15 @@ type ContainerImageIdentityHandler struct {
 	// nil it falls back to the process clock; tests inject a deterministic one.
 	// See ContainerImageIdentityWrite.EvidenceAsOf.
 	Now func() time.Time
+	// FencingTokenIssuer supplies the database-issued, cross-worker-ordering
+	// fencing token (#5874). Required, like FactLoader and Writer: a nil issuer
+	// is a hard Handle() error, never a silent fallback to the host clock -- see
+	// ContainerImageIdentityWrite.FencingToken and
+	// containerImageIdentityAdmissionQuery's doc comment
+	// (container_image_identity_admission.go) for why a wall-clock fallback
+	// would silently reintroduce the exact clock-skew vulnerability this gate
+	// exists to close.
+	FencingTokenIssuer ContainerImageIdentityFencingTokenIssuer
 }
 
 // Handle executes one container image identity reducer intent.
@@ -79,6 +88,9 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 	if h.Writer == nil {
 		return Result{}, fmt.Errorf("container image identity writer is required")
 	}
+	if h.FencingTokenIssuer == nil {
+		return Result{}, fmt.Errorf("container image identity fencing token issuer is required")
+	}
 
 	// Read the fencing watermark BEFORE the first load, not after the last one.
 	// It has to express "how fresh is the world this pass looked at", so it must
@@ -87,6 +99,21 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 	// worker that read the database after it when the two collide on the durable
 	// insert's conflict guard.
 	evidenceAsOf := containerImageIdentityEvidenceAsOf(h.Now)
+
+	// Issue the cross-worker fencing token at the SAME point evidenceAsOf was
+	// captured -- before the first fact load, not at write-commit time (#5874,
+	// mirroring #5875 P1 on aws_cloud_runtime_drift). This must stay a
+	// database-issued value, immune to any individual reducer host's clock; see
+	// containerImageIdentityAdmissionQuery's doc comment
+	// (container_image_identity_admission.go) for why capturing it here
+	// (evidence-read time) rather than in the writer (write-commit time) is
+	// load-bearing: a write-time token would order by commit order instead of
+	// evidence recency, silently reintroducing the original wall-clock
+	// inversion while fixing the clock-skew one.
+	fencingToken, err := h.FencingTokenIssuer.NextContainerImageIdentityFencingToken(ctx)
+	if err != nil {
+		return Result{}, fmt.Errorf("issue container image identity fencing token: %w", err)
+	}
 
 	envelopes, err := loadFactsForKinds(
 		ctx,
@@ -158,6 +185,7 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent Intent
 		SourceSystem: intent.SourceSystem,
 		Cause:        intent.Cause,
 		EvidenceAsOf: evidenceAsOf,
+		FencingToken: fencingToken,
 		Decisions:    decisions,
 	}
 	retirement, err := planContainerImageIdentityRetirement(write, envelopes, warnings)
@@ -395,78 +423,4 @@ func BuildContainerImageIdentityDecisionsWithQuarantine(
 		return decisions[i].ImageRef < decisions[j].ImageRef
 	})
 	return decisions, quarantined, nil
-}
-
-func containerImageIdentityFactKinds() []string {
-	return []string{
-		factKindContentEntity,
-		factKindRepository,
-		facts.CICDWorkflowImageEvidenceFactKind,
-		facts.CICDRunFactKind,
-		facts.CICDArtifactFactKind,
-		facts.AWSRelationshipFactKind,
-		facts.AWSImageReferenceFactKind,
-		facts.AzureImageReferenceFactKind,
-		facts.GCPImageReferenceFactKind,
-		facts.OCIImageTagObservationFactKind,
-		facts.OCIImageManifestFactKind,
-		facts.OCIImageIndexFactKind,
-		facts.OCIImageReferrerFactKind,
-		facts.AttestationStatementFactKind,
-		facts.AttestationSLSAProvenanceFactKind,
-		facts.AttestationSignatureVerificationFactKind,
-	}
-}
-
-func containerImageIdentityOutcomes() []ContainerImageIdentityOutcome {
-	return []ContainerImageIdentityOutcome{
-		ContainerImageIdentityExactDigest,
-		ContainerImageIdentityTagResolved,
-		ContainerImageIdentityAmbiguousTag,
-		ContainerImageIdentityUnresolved,
-		ContainerImageIdentityStaleTag,
-	}
-}
-
-func containerImageIdentityCounts(
-	decisions []ContainerImageIdentityDecision,
-) map[ContainerImageIdentityOutcome]int {
-	counts := make(map[ContainerImageIdentityOutcome]int, len(containerImageIdentityOutcomes()))
-	for _, decision := range decisions {
-		counts[decision.Outcome]++
-	}
-	return counts
-}
-
-// containerImageIdentitySummary renders the operator-facing evidence line for
-// one handled intent: the decision counts this pass evaluated, and how many of
-// them the writer published durably.
-func containerImageIdentitySummary(
-	evaluated int,
-	counts map[ContainerImageIdentityOutcome]int,
-	canonicalWrites int,
-) string {
-	return fmt.Sprintf(
-		"container image identity evaluated=%d exact_digest=%d tag_resolved=%d ambiguous_tag=%d unresolved=%d stale_tag=%d canonical_writes=%d",
-		evaluated,
-		counts[ContainerImageIdentityExactDigest],
-		counts[ContainerImageIdentityTagResolved],
-		counts[ContainerImageIdentityAmbiguousTag],
-		counts[ContainerImageIdentityUnresolved],
-		counts[ContainerImageIdentityStaleTag],
-		canonicalWrites,
-	)
-}
-
-func containerImageIdentityCanonicalDecisions(
-	decisions []ContainerImageIdentityDecision,
-) []ContainerImageIdentityDecision {
-	out := make([]ContainerImageIdentityDecision, 0, len(decisions))
-	for _, decision := range decisions {
-		if decision.CanonicalWrites <= 0 {
-			continue
-		}
-		out = append(out, decision)
-	}
-	return out
 }

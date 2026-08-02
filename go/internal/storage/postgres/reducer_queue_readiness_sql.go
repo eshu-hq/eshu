@@ -49,6 +49,15 @@ var nonCountingReducerRetryFailureClasses = []string{
 	// are the regression.
 	reducer.AWSCloudRuntimeDriftWriteSupersededFailureClass,
 	reducer.AWSCloudRuntimeDriftStatePendingFailureClass,
+	// #5874: container_image_identity's own insert-admission class, the same
+	// port of #5848/#5875 P1 the comment above documents for
+	// aws_cloud_runtime_drift. MUST be enrolled here for the identical reason:
+	// a declared-but-unregistered class is invisible to
+	// retryable()/reducerClaimAttemptCountCaseSQL and counts toward
+	// maxAttempts exactly like an ordinary failure, silently dead-lettering a
+	// normal admission race instead of letting the retry re-read evidence with
+	// a fresh token.
+	reducer.ContainerImageIdentityWriteSupersededFailureClass,
 }
 
 // IsNonCountingReducerRetryFailureClass reports whether failureClass is exempt

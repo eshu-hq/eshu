@@ -108,6 +108,7 @@ func TestContainerImageIdentityRetirementProductionPathLive(t *testing.T) {
 			handlerClock = handlerClock.Add(time.Second)
 			return current
 		},
+		FencingTokenIssuer: postgres.PostgresContainerImageIdentityFencingTokenIssuer{DB: storeDB},
 	}
 	intent := reducer.Intent{
 		IntentID:     "intent-5854-live",

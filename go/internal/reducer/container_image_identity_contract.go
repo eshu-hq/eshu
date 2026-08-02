@@ -110,14 +110,29 @@ type ContainerImageIdentityWrite struct {
 	SourceSystem string
 	Cause        string
 	// EvidenceAsOf is the moment this write's evidence was read, captured
-	// immediately before the handler's first fact load. It becomes the row's
-	// fact_records.fencing_token, which the shared batched insert's conflict
-	// guard ranks colliding passes by: a worker that stalled past its lease
-	// cannot overwrite the payload of the worker that overtook it with fresher
-	// evidence. Read time, not write time — write time ranks the stalled worker
-	// highest, which is backwards. It is required: a zero value is a hard error,
-	// never a defaulted or unfenced write. See reducerFactBatchInsertQuery.
+	// immediately before the handler's first fact load. It remains a required
+	// audit timestamp and the readiness-bound elapsed-time input, but it no
+	// longer drives the fencing token (#5874 moved that to FencingToken below,
+	// mirroring #5875 P1 on the sibling aws_cloud_runtime_drift domain): a
+	// wall-clock-derived token is unsound under cross-replica clock skew. It is
+	// still required: a zero value is a hard error, never a defaulted write.
 	EvidenceAsOf time.Time
+	// FencingToken is the database-issued, cross-worker-ordering value the
+	// admission check and fact_records rows are stamped with (#5874). Populated
+	// by ContainerImageIdentityHandler.Handle from
+	// ContainerImageIdentityFencingTokenIssuer, called at the SAME point
+	// EvidenceAsOf used to drive the token from: right before the first fact
+	// load, so a worker that stalled inside a slow cross-scope load still
+	// carries the token value that correctly reflects "evidence read before the
+	// stall", not one the stall itself could push later. See
+	// containerImageIdentityFencingToken's doc comment
+	// (container_image_identity_writer.go) and
+	// containerImageIdentityAdmissionQuery's doc comment
+	// (container_image_identity_admission.go) for why this must be a
+	// database-issued value, not the reducer host's wall clock. A zero value is
+	// a hard error, never a defaulted or unfenced write. See
+	// reducerFactBatchInsertQuery.
+	FencingToken int64
 	Decisions    []ContainerImageIdentityDecision
 	// TombstoneDecisions names evaluated, non-canonical image references whose
 	// durable logical identity must be retired. The writer publishes each as a

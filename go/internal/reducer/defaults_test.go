@@ -504,8 +504,9 @@ func TestImplementedDefaultDomainDefinitionsIncludesContainerImageIdentityWhenAd
 
 	loader := &stubFactLoader{}
 	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
-		FactLoader:                   loader,
-		ContainerImageIdentityWriter: &recordingContainerImageIdentityWriter{},
+		FactLoader:                               loader,
+		ContainerImageIdentityWriter:             &recordingContainerImageIdentityWriter{},
+		ContainerImageIdentityFencingTokenIssuer: &stubContainerImageIdentityFencingTokenIssuer{tokens: []int64{1}},
 	})
 	found := false
 	for _, def := range definitions {

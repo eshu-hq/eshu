@@ -33,10 +33,13 @@ func containerImageIdentityDecisionForOutcome(
 }
 
 // containerImageIdentityFenceWrite builds a one-decision write whose evidence
-// was read at evidenceAsOf — the moment that decides which of two racing
-// workers holds the fresher view of the world.
+// was read at evidenceAsOf (audit timestamp only, #5874) and whose fencing
+// token is the database-issued value fencingToken — the value that actually
+// decides which of two racing workers holds precedence on the write conflict
+// guard and the admission CAS.
 func containerImageIdentityFenceWrite(
 	evidenceAsOf time.Time,
+	fencingToken int64,
 	outcome ContainerImageIdentityOutcome,
 ) ContainerImageIdentityWrite {
 	return ContainerImageIdentityWrite{
@@ -46,6 +49,7 @@ func containerImageIdentityFenceWrite(
 		GenerationID: "generation-git",
 		SourceSystem: "git",
 		EvidenceAsOf: evidenceAsOf,
+		FencingToken: fencingToken,
 		Decisions: []ContainerImageIdentityDecision{
 			containerImageIdentityDecisionForOutcome(
 				"registry.example.com/team/api:prod",
@@ -56,34 +60,30 @@ func containerImageIdentityFenceWrite(
 	}
 }
 
-// TestContainerImageIdentityFencingTokenOrdersByEvidenceReadTime pins the
-// DIRECTION of the fence, which is the part that is easy to get backwards.
-//
-// The stale worker is the one that READ ITS EVIDENCE EARLIER, not the one that
-// wrote later. A worker can stall for a whole lease between loading evidence and
-// writing, then land after a worker that loaded fresh evidence and overtook it.
-// So the token is derived from EvidenceAsOf — captured before the evidence load
-// — and NOT from the writer's clock at write time, which would rank the stalled
-// worker highest precisely when it matters, letting its poorer payload win the
-// insert's conflict guard.
-func TestContainerImageIdentityFencingTokenOrdersByEvidenceReadTime(t *testing.T) {
+// TestContainerImageIdentityFencingTokenIsTheIssuedTokenNotEvidenceTime pins
+// the #5874 replacement invariant: the token stamped on the row and the
+// admission CAS is EXACTLY the database-issued value the caller supplied
+// (ContainerImageIdentityWrite.FencingToken), never re-derived from
+// EvidenceAsOf. The prior wall-clock scheme (EvidenceAsOf.UnixMicro()) is
+// gone; see containerImageIdentityFencingToken's doc comment for why deriving
+// from EvidenceAsOf again would reintroduce the exact cross-replica
+// clock-skew inversion this change closes. This deliberately does NOT assert
+// "later evidence read implies higher token" -- no token issued before the
+// reads can guarantee that ordering (the irreducible nextval()-to-first-SELECT
+// window); the design instead guarantees convergence via admission CAS +
+// reopen replay, which TestContainerImageIdentityWriterAdmissionConvergence
+// covers.
+func TestContainerImageIdentityFencingTokenIsTheIssuedTokenNotEvidenceTime(t *testing.T) {
 	t.Parallel()
 
-	stale := time.Date(2026, time.July, 27, 10, 0, 0, 0, time.UTC)
-	fresh := stale.Add(90 * time.Second)
+	evidenceAsOf := time.Date(2026, time.July, 27, 10, 0, 0, 0, time.UTC)
+	const issuedToken int64 = 42
 
-	staleToken := containerImageIdentityFencingToken(
-		containerImageIdentityFenceWrite(stale, ContainerImageIdentityTagResolved),
+	got := containerImageIdentityFencingToken(
+		containerImageIdentityFenceWrite(evidenceAsOf, issuedToken, ContainerImageIdentityExactDigest),
 	)
-	freshToken := containerImageIdentityFencingToken(
-		containerImageIdentityFenceWrite(fresh, ContainerImageIdentityExactDigest),
-	)
-
-	if staleToken >= freshToken {
-		t.Fatalf(
-			"fencing tokens = stale %d, fresh %d; the later evidence read must rank higher",
-			staleToken, freshToken,
-		)
+	if got != issuedToken {
+		t.Fatalf("containerImageIdentityFencingToken() = %d, want the issued token %d, not a value derived from EvidenceAsOf", got, issuedToken)
 	}
 }
 
@@ -99,11 +99,12 @@ func TestContainerImageIdentityWriterStampsTheFencingTokenOnTheInsert(t *testing
 	t.Parallel()
 
 	evidenceAsOf := time.Date(2026, time.July, 27, 10, 0, 0, 0, time.UTC)
+	const issuedToken int64 = 7
 	db := &fakeWorkloadIdentityExecer{}
 	writer := newContainerImageIdentityUnitWriter(db)
 	if _, err := writer.WriteContainerImageIdentityDecisions(
 		context.Background(),
-		containerImageIdentityFenceWrite(evidenceAsOf, ContainerImageIdentityExactDigest),
+		containerImageIdentityFenceWrite(evidenceAsOf, issuedToken, ContainerImageIdentityExactDigest),
 	); err != nil {
 		t.Fatalf("WriteContainerImageIdentityDecisions() error = %v, want nil", err)
 	}
@@ -112,11 +113,11 @@ func TestContainerImageIdentityWriterStampsTheFencingTokenOnTheInsert(t *testing
 	if len(rows) != 1 {
 		t.Fatalf("inserted rows = %d, want 1", len(rows))
 	}
-	if want := evidenceAsOf.UnixMicro(); rows[0].FencingToken != want {
+	if rows[0].FencingToken != issuedToken {
 		t.Fatalf(
 			"inserted fencing_token = %d, want %d; a row durable at 0 makes the conflict guard inert, "+
 				"so a stalled worker's poorer payload wins",
-			rows[0].FencingToken, want,
+			rows[0].FencingToken, issuedToken,
 		)
 	}
 }
@@ -158,6 +159,7 @@ func TestContainerImageIdentityWriterRejectsMissingClaimEpochForLegacyCleanup(t 
 	db := &fakeWorkloadIdentityExecer{}
 	write := containerImageIdentityFenceWrite(
 		time.Date(2026, time.July, 30, 20, 0, 0, 0, time.UTC),
+		1,
 		ContainerImageIdentityExactDigest,
 	)
 	write.ClaimEpoch = 0
@@ -194,9 +196,10 @@ func TestContainerImageIdentityHandlerStampsEvidenceReadTimeBeforeLoading(t *tes
 	loader := &containerImageIdentityFenceProbeLoader{clock: clock}
 	writer := &recordingContainerImageIdentityWriter{}
 	handler := ContainerImageIdentityHandler{
-		FactLoader: loader,
-		Writer:     writer,
-		Now:        clock,
+		FactLoader:         loader,
+		Writer:             writer,
+		Now:                clock,
+		FencingTokenIssuer: &stubContainerImageIdentityFencingTokenIssuer{tokens: []int64{1}},
 	}
 
 	if _, err := handler.Handle(context.Background(), Intent{

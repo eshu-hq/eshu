@@ -64,6 +64,23 @@ func (p containerImageIdentityCompletedCutoverCostPath) ExecContainerImageIdenti
 	return 0, true, nil
 }
 
+// ExecContainerImageIdentityClaimedAdmission is the admission-aware method
+// (#5874) the writer's completed-cutover single-round-trip path actually
+// calls in production; this cost-scenario fixture discards row VALUES the
+// same way ExecContainerImageIdentityClaimed above does (round-trip COUNT is
+// what the cost budget measures, not the admission verdict), so admitted is
+// unconditionally true here.
+func (p containerImageIdentityCompletedCutoverCostPath) ExecContainerImageIdentityClaimedAdmission(
+	ctx context.Context,
+	query string,
+	args ...any,
+) (int, bool, bool, error) {
+	if _, err := p.db.ExecContext(ctx, query, args...); err != nil {
+		return 0, false, false, err
+	}
+	return 0, true, true, nil
+}
+
 // containerImageIdentityFixtureDecisions is the deterministic input for the
 // positive and N+1 scenarios: two canonical (CanonicalWrites=1) exact-digest
 // decisions for distinct image references in one scope. Both survive
@@ -142,6 +159,7 @@ func TestCostBudget_ContainerImageIdentity(t *testing.T) {
 		GenerationID: "generation-container-image-identity-cost",
 		SourceSystem: "git",
 		EvidenceAsOf: time.Date(2026, time.July, 27, 10, 0, 0, 0, time.UTC),
+		FencingToken: 1,
 		Cause:        "reducer/container_image_identity",
 		Decisions:    containerImageIdentityFixtureDecisions(),
 	})
@@ -223,6 +241,7 @@ func TestCostBudget_ContainerImageIdentity_N1_ExceedsBudget(t *testing.T) {
 			GenerationID: "generation-container-image-identity-cost",
 			SourceSystem: "git",
 			EvidenceAsOf: time.Date(2026, time.July, 27, 10, 0, 0, 0, time.UTC),
+			FencingToken: 1,
 			Cause:        "reducer/container_image_identity",
 			Decisions:    []reducer.ContainerImageIdentityDecision{decision},
 		}); err != nil {

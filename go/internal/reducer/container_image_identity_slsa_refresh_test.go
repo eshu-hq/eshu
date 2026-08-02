@@ -45,8 +45,9 @@ func TestContainerImageIdentityHandlerAppliesSLSATierFromCrossScopeActiveFacts(t
 	}
 	writer := &recordingContainerImageIdentityWriter{}
 	handler := ContainerImageIdentityHandler{
-		FactLoader: loader,
-		Writer:     writer,
+		FactLoader:         loader,
+		Writer:             writer,
+		FencingTokenIssuer: &stubContainerImageIdentityFencingTokenIssuer{tokens: []int64{1}},
 	}
 
 	result, err := handler.Handle(context.Background(), Intent{

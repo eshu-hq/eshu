@@ -39,6 +39,7 @@ func TestWriteContainerImageIdentityDecisionsBoundedExecCount(t *testing.T) {
 		GenerationID: "gen-batch",
 		SourceSystem: "git",
 		EvidenceAsOf: time.Date(2026, time.July, 27, 10, 0, 0, 0, time.UTC),
+		FencingToken: 1,
 		Decisions:    decisions,
 	})
 	if err != nil {

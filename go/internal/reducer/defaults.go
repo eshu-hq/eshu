@@ -339,6 +339,14 @@ type DefaultHandlers struct {
 	// ContainerImageIdentityWriter persists image-reference-keyed identity
 	// decisions for Git, OCI registry, and runtime image evidence.
 	ContainerImageIdentityWriter ContainerImageIdentityWriter
+	// ContainerImageIdentityFencingTokenIssuer supplies the database-issued
+	// cross-worker fencing token (#5874, mirroring
+	// AWSCloudRuntimeDriftFencingTokenIssuer). Required alongside the writer
+	// above -- a nil issuer makes ContainerImageIdentityHandler.Handle
+	// hard-error rather than silently falling back to the host clock, so the
+	// registry must not register the domain with a writer wired but no
+	// issuer.
+	ContainerImageIdentityFencingTokenIssuer ContainerImageIdentityFencingTokenIssuer
 
 	// PackageProvenanceEdgeWriter projects exact/derived package-ownership and
 	// package-publication decisions into canonical PUBLISHES graph edges

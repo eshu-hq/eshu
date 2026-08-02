@@ -56,6 +56,19 @@ type ContainerImageIdentityClaimedExecer interface {
 		string,
 		...any,
 	) (deleted int, claimValid bool, err error)
+	// ExecContainerImageIdentityClaimedAdmission runs one exact-claim statement
+	// that ALSO carries a leading container_image_identity_write_admission CAS
+	// (#5874), and reports both the claim verdict and whether the admission CAS
+	// itself succeeded. Used only by the completed-cutover, single-round-trip
+	// write path (execContainerImageIdentityCompletedCutoverWrite): that path
+	// has no separate transaction statement to run the admission check as, so
+	// the check is woven into the same combined statement instead. See
+	// containerImageIdentityCompletedCutoverWriteQuery's doc comment.
+	ExecContainerImageIdentityClaimedAdmission(
+		context.Context,
+		string,
+		...any,
+	) (deleted int, admitted bool, claimValid bool, err error)
 }
 
 // PostgresContainerImageIdentityWriter persists image-reference-keyed identity
@@ -100,6 +113,13 @@ func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisio
 	if err := validateContainerImageIdentityFence(write); err != nil {
 		return ContainerImageIdentityWriteResult{}, err
 	}
+	// FencingToken (#5874) is the value actually stamped on rows and the
+	// admission watermark; a zero value here means a caller forgot to wire
+	// ContainerImageIdentityFencingTokenIssuer, which must fail loudly rather
+	// than silently defaulting. See validateContainerImageIdentityFencingToken.
+	if err := validateContainerImageIdentityFencingToken(write.FencingToken); err != nil {
+		return ContainerImageIdentityWriteResult{}, err
+	}
 
 	now := reducerWriterNow(w.Now)
 	// Stamped on the INSERT, which is the only statement that stamps it. See
@@ -119,6 +139,7 @@ func (w PostgresContainerImageIdentityWriter) WriteContainerImageIdentityDecisio
 		write,
 		rows,
 		fencingToken,
+		now,
 	)
 	if err != nil {
 		return ContainerImageIdentityWriteResult{}, err
@@ -172,153 +193,6 @@ func buildContainerImageIdentityRows(
 	return rows, canonicalWrites, retirementAttempts, nil
 }
 
-func (w PostgresContainerImageIdentityWriter) writeContainerImageIdentityRows(
-	ctx context.Context,
-	write ContainerImageIdentityWrite,
-	rows []reducerFactRow,
-	fencingToken int64,
-) (int, error) {
-	exec := w.DB
-	var tx ContainerImageIdentityTransaction
-	rollbackNeeded := false
-	legacyRowsDeleted := 0
-	if len(rows) > 0 || len(write.LegacyFactIDs) > 0 {
-		cutoverComplete := false
-		var err error
-		if w.CutoverLookup != nil {
-			cutoverComplete, err = w.CutoverLookup.ContainerImageIdentityCutoverExists(
-				ctx,
-				write.ScopeID,
-				write.GenerationID,
-			)
-			if err != nil {
-				return 0, fmt.Errorf(
-					"read container image identity cutover: %w",
-					err,
-				)
-			}
-		}
-		skipLegacyCleanup := false
-		if cutoverComplete && w.LegacyCleanupLookup != nil {
-			skipLegacyCleanup, err = w.LegacyCleanupLookup.ContainerImageIdentityLegacyCleanupComplete(
-				ctx,
-				write.ScopeID,
-				write.GenerationID,
-			)
-			if err != nil {
-				return 0, fmt.Errorf(
-					"read container image identity legacy cleanup state: %w",
-					err,
-				)
-			}
-		}
-		if cutoverComplete && len(rows) <= reducerFactBatchSize {
-			if w.ClaimedExecer == nil {
-				return 0, fmt.Errorf(
-					"container image identity claimed executor is required for completed cutover",
-				)
-			}
-			var claimValid bool
-			var err error
-			legacyRowsDeleted, claimValid, err = execContainerImageIdentityCompletedCutoverWrite(
-				ctx,
-				w.ClaimedExecer,
-				rows,
-				write.LegacyFactIDs,
-				skipLegacyCleanup,
-				write.ScopeID,
-				write.GenerationID,
-				fencingToken,
-				write.IntentID,
-				write.ClaimEpoch,
-			)
-			if err != nil {
-				return 0, err
-			}
-			if !claimValid {
-				return 0, ErrContainerImageIdentityClaimRejected
-			}
-			return legacyRowsDeleted, nil
-		}
-		if w.Beginner == nil {
-			return 0, fmt.Errorf(
-				"container image identity transaction beginner is required for v2 publication or legacy cleanup",
-			)
-		}
-		tx, err = w.Beginner.BeginContainerImageIdentityTx(ctx)
-		if err != nil {
-			return 0, fmt.Errorf(
-				"begin container image identity write: %w",
-				err,
-			)
-		}
-		exec = tx
-		rollbackNeeded = true
-		defer func() {
-			if rollbackNeeded {
-				_ = tx.Rollback()
-			}
-		}()
-		if cutoverComplete {
-			claimedExecer, ok := tx.(ContainerImageIdentityClaimedExecer)
-			if !ok {
-				return 0, fmt.Errorf(
-					"container image identity transaction cannot validate completed-cutover claim",
-				)
-			}
-			claimValid, err := lockContainerImageIdentityCompletedCutoverClaim(
-				ctx,
-				claimedExecer,
-				write.ScopeID,
-				write.GenerationID,
-				write.IntentID,
-				write.ClaimEpoch,
-			)
-			if err != nil {
-				return 0, err
-			}
-			if !claimValid {
-				return 0, ErrContainerImageIdentityClaimRejected
-			}
-		} else if err := execContainerImageIdentityFirstCutover(
-			ctx,
-			exec,
-			write,
-			fencingToken,
-		); err != nil {
-			return 0, err
-		}
-		if cutoverComplete && skipLegacyCleanup {
-			err = reducerBatchInsertFacts(ctx, exec, rows)
-		} else {
-			legacyRowsDeleted, err = execContainerImageIdentityPublicationsAndCleanup(
-				ctx,
-				exec,
-				rows,
-				write.LegacyFactIDs,
-				write.ScopeID,
-				write.GenerationID,
-				fencingToken,
-			)
-		}
-		if err != nil {
-			return 0, err
-		}
-	} else if err := reducerBatchInsertFacts(ctx, exec, rows); err != nil {
-		return 0, fmt.Errorf("write container image identity fact: %w", err)
-	}
-	if tx != nil {
-		if err := tx.Commit(); err != nil {
-			return 0, fmt.Errorf(
-				"commit container image identity write: %w",
-				err,
-			)
-		}
-		rollbackNeeded = false
-	}
-	return legacyRowsDeleted, nil
-}
-
 // errContainerImageIdentityMissingEvidenceAsOf is returned when a write reaches
 // the writer without the evidence-read watermark the durable row is stamped
 // with.
@@ -326,21 +200,33 @@ var errContainerImageIdentityMissingEvidenceAsOf = errors.New(
 	"container image identity write requires evidence_as_of: the durable row has no watermark to be stamped with",
 )
 
-// containerImageIdentityFencingToken renders the write's evidence-read watermark
-// as the BIGINT fact_records.fencing_token carries.
+// containerImageIdentityFencingToken renders the write's database-issued
+// fencing token as the BIGINT fact_records.fencing_token carries.
 //
-// Microsecond resolution matches Postgres' own timestamp resolution and leaves
-// int64 headroom for ~294,000 years, so no saturation handling is needed.
+// #5874: this used to be write.EvidenceAsOf.UTC().UnixMicro() -- the REDUCER
+// HOST'S wall clock. With modest clock skew between reducer replicas, a
+// worker that started LATER on a fast-clock host could carry a SMALLER token
+// than a worker that started EARLIER on a correct clock, so the conflict
+// guard (reducerFactBatchInsertQuery, fact_records.fencing_token <=
+// EXCLUDED.fencing_token) could admit a genuinely staler pass over a fresher
+// one -- the same inversion #5848/#5875 P1 already fixed for the sibling
+// aws_cloud_runtime_drift domain (container_image_identity_admission.go's
+// containerImageIdentityAdmissionQuery doc comment has the full argument).
 //
-// The token is a wall-clock microsecond reading, so it is monotonic across
-// reopens and retries without needing a durable counter — unlike the queue's
-// attempt_count, which the reopen-succeeded statement deliberately resets to 0
-// and which therefore cannot rank a reopened replay against the run it is
-// repairing. Two reducer processes read their own clocks, so the ordering is
-// only as good as NTP between them; the hazard window is a whole lease duration,
-// which is orders of magnitude larger than realistic host clock skew.
+// write.FencingToken is issued by ContainerImageIdentityFencingTokenIssuer
+// (a Postgres sequence, container_image_identity_fencing_token_seq, migration
+// 093), drawn in ContainerImageIdentityHandler.Handle at the SAME point
+// EvidenceAsOf used to be captured -- before the first fact load, not at
+// write-commit time. Every reducer replica issues nextval() against the SAME
+// shared Postgres instance, so the value reflects real invocation order,
+// immune to any individual host's clock. It remains monotonic across reopens
+// and retries the same way the wall clock was, without needing a durable
+// per-domain counter that resets: unlike the queue's attempt_count, which the
+// reopen-succeeded statement deliberately resets to 0 and which therefore
+// cannot rank a reopened replay against the run it is repairing, nextval()
+// never returns a value already issued.
 func containerImageIdentityFencingToken(write ContainerImageIdentityWrite) int64 {
-	return write.EvidenceAsOf.UTC().UnixMicro()
+	return write.FencingToken
 }
 
 // validateContainerImageIdentityFence rejects a write with no evidence-read

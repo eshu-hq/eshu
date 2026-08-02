@@ -305,6 +305,10 @@ func buildReducerService(
 		EC2BlockDeviceKMSPostureNodeWriter: graphWriters.ec2BlockDeviceKMSPostureNode,
 		S3InternetExposureNodeWriter:       graphWriters.s3InternetExposureNode,
 		ContainerImageIdentityWriter:       containerImageIdentityWriterFor(database),
+		// ContainerImageIdentityFencingTokenIssuer must be wired whenever the
+		// writer is (#5874): ContainerImageIdentityHandler.Handle hard-errors
+		// without one rather than silently falling back to the host clock.
+		ContainerImageIdentityFencingTokenIssuer: postgres.PostgresContainerImageIdentityFencingTokenIssuer{DB: database},
 		// PackageProvenanceEdgeWriter / ContainerImageProvenanceEdgeWriter
 		// (issue #5457) and ContainerImageDerivedFromEdgeWriter (issue #5460)
 		// share one ProvenanceEdgeWriter instance -- it implements all three

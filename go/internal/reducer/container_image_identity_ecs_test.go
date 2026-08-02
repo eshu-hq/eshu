@@ -191,6 +191,7 @@ func TestPostgresContainerImageIdentityWriterDedupSurvivorForConvergedECSAndCICD
 		GenerationID: "generation-ecs",
 		SourceSystem: "aws",
 		EvidenceAsOf: time.Date(2026, time.July, 27, 10, 0, 0, 0, time.UTC),
+		FencingToken: 1,
 		Cause:        "container image references observed",
 		Decisions:    decisions,
 	}); err != nil {
@@ -291,6 +292,7 @@ func TestPostgresContainerImageIdentityWriterPersistsExplicitDigestForFixedECSGo
 		GenerationID: "generation-ecs",
 		SourceSystem: "aws",
 		EvidenceAsOf: time.Date(2026, time.July, 27, 10, 0, 0, 0, time.UTC),
+		FencingToken: 1,
 		Cause:        "container image references observed",
 		Decisions:    decisions,
 	}); err != nil {

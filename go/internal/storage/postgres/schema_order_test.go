@@ -174,4 +174,19 @@ var orderedBootstrapDefinitionNames = []string{
 	// numbered 091 rather than the then-next-available 087 because this branch
 	// had already claimed 087-090; with both merged, the range is contiguous.
 	"ingestion_scopes_active_state_snapshot_index",
+	// migration 092 (#5874: container_image_identity's own admission
+	// watermark, porting #5848's aws_cloud_runtime_drift_write_admission
+	// table). One row per (scope, generation) records the highest
+	// evidence-read fencing_token any pass has been admitted to write with.
+	"container_image_identity_write_admission",
+	// migration 093 (#5874, porting #5875 P1): a Postgres sequence replacing
+	// the host-wall-clock-derived container_image_identity fencing token, so
+	// cross-reducer-replica clock skew can no longer invert the admission
+	// CAS's ordering.
+	"container_image_identity_fencing_token_sequence",
+	// migration 094 (#5874, porting #5875 P2 / migration 090's precedent): the
+	// partial index migration 093's own seed query needs, split into its own
+	// file for the same CREATE INDEX CONCURRENTLY / multi-statement-bootstrap
+	// reason migration 090 documents.
+	"fact_records_container_image_identity_fencing_token_idx",
 }

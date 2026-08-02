@@ -1,0 +1,33 @@
+-- Mirrors migration 090_fact_records_aws_cloud_runtime_drift_fencing_token_idx.sql
+-- for the container_image_identity domain (#5874). Migration 093's seed query
+-- (`MAX(fencing_token) FROM fact_records WHERE fact_kind =
+-- 'reducer_container_image_identity'`) resolves through
+-- fact_records_scope_generation_idx, where fact_kind is the THIRD column -- a
+-- full index traversal (every fact_records entry, not a seek), not bounded to
+-- the matching fact_kind. Because that seed query re-runs on every
+-- bootstrap-SQL re-apply (every reducer process start, not once), its cost
+-- scales with TOTAL fact_records size on every restart, not just at first
+-- deploy -- the identical anti-pattern migration 090 already paid down for
+-- aws_cloud_runtime_drift_finding.
+--
+-- CONCURRENTLY, not plain CREATE INDEX, for the same reason migration 090
+-- uses it: a plain CREATE INDEX takes a SHARE lock for the full index build,
+-- blocking every write to fact_records (the central facts table) for that
+-- duration; CONCURRENTLY avoids that at the cost of a longer, non-blocking
+-- build. This statement is the SOLE content of this file (see migration 093's
+-- comment for why it cannot share a file with any other statement).
+--
+-- Measured impact on an isolated scratch postgres:18-alpine (matching this
+-- repo's docker-compose.yaml pin), synthetic fact_records seeded with 200,000
+-- rows across 40 fact_kind values (1,000 matching
+-- reducer_container_image_identity, fencing_token stamped with realistic
+-- UnixMicro values), ANALYZEd, then EXPLAIN (ANALYZE, BUFFERS) on the seed
+-- query before and after this index: planner cost dropped from ~6079
+-- (Bitmap Heap Scan over fact_records_scope_generation_idx, ~1.5ms) to ~0.42
+-- (Index Only Scan Backward + LIMIT 1 rewrite, ~0.03ms) -- roughly three to
+-- four orders of magnitude, matching migration 090's own measured drop for
+-- the sibling aws_cloud_runtime_drift_finding domain on the same corpus
+-- shape.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS fact_records_container_image_identity_fencing_token_idx
+    ON fact_records (fencing_token)
+    WHERE fact_kind = 'reducer_container_image_identity';

@@ -64,7 +64,11 @@ func TestContainerImageIdentityHandlerForeignSLSAAnchorStaysOutOfRepositoryScope
 		},
 	}
 	writer := &recordingContainerImageIdentityWriter{}
-	handler := ContainerImageIdentityHandler{FactLoader: loader, Writer: writer}
+	handler := ContainerImageIdentityHandler{
+		FactLoader:         loader,
+		Writer:             writer,
+		FencingTokenIssuer: &stubContainerImageIdentityFencingTokenIssuer{tokens: []int64{1}},
+	}
 
 	_, err := handler.Handle(context.Background(), Intent{
 		IntentID:     "intent-5810slsa-foreign",

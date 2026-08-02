@@ -49,8 +49,12 @@ func TestPostgresContainerImageIdentityFirstCutoverRetriesExistingLegacyUpsertWi
 			db: db,
 			wrap: func(tx *sql.Tx) ContainerImageIdentityTransaction {
 				return &containerImageIdentityPauseAfterLiveTx{
-					tx:      tx,
-					pauseAt: 1,
+					tx: tx,
+					// #5874: the admission CAS is now this transaction's
+					// FIRST ExecContext call, shifting the cutover fence
+					// (the marker this test needs committed-but-uncommitted
+					// before releasing) to position 2.
+					pauseAt: 2,
 					paused:  markerCommitted,
 					release: releaseMarker,
 				}

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 )
 
 const containerImageIdentityCutoverFenceQuery = `
@@ -46,8 +47,42 @@ WHERE fact.fact_id = ANY($17::text[])
   AND fact.fencing_token <= $20
 `
 
+// containerImageIdentityCompletedCutoverAdmissionCTE is the
+// container_image_identity_write_admission CAS (#5874), woven as a leading
+// CTE into the completed-cutover single-round-trip queries below rather than
+// issued as a separate ExecContext call, because THIS path (unlike the
+// transactional paths in container_image_identity_writer_publish.go)
+// deliberately has no Go-level BEGIN/COMMIT to run a second statement inside
+// -- it is atomic only because it is one combined SQL statement. It is
+// intentionally NOT gated on current_claim (or vice versa): both CAS checks
+// are independent and unconditional, mirroring
+// awsCloudRuntimeDriftAdmissionQuery's "first statement, no other guard"
+// shape. A data-modifying CTE (INSERT/UPDATE/DELETE) is never inlined or
+// skipped by the planner even when nothing downstream references it, so this
+// always runs regardless of whether current_claim or the WHERE clauses below
+// end up admitting anything.
+//
+// Placeholder numbers $23-$26 are chosen to not collide with the existing
+// $1-$22 the surrounding queries already bind; Postgres placeholders do not
+// need to appear in ascending textual order, and the Go call site appends
+// these four values to the end of the existing args slice rather than
+// renumbering anything already reviewed.
+const containerImageIdentityCompletedCutoverAdmissionCTE = `
+admission AS MATERIALIZED (
+    INSERT INTO container_image_identity_write_admission (
+        scope_id, generation_id, fencing_token, updated_at
+    ) VALUES ($23, $24, $25, $26)
+    ON CONFLICT (scope_id, generation_id) DO UPDATE SET
+        fencing_token = EXCLUDED.fencing_token,
+        updated_at    = EXCLUDED.updated_at
+    WHERE container_image_identity_write_admission.fencing_token <= EXCLUDED.fencing_token
+    RETURNING 1
+),
+`
+
 const containerImageIdentityCompletedCutoverWriteQuery = `
-WITH current_claim AS MATERIALIZED (
+WITH ` + containerImageIdentityCompletedCutoverAdmissionCTE + `
+current_claim AS MATERIALIZED (
     UPDATE fact_work_items AS work_item
     SET status = 'running',
         container_image_identity_v2_authorized_status = 'running'
@@ -72,7 +107,7 @@ WITH current_claim AS MATERIALIZED (
 published AS (
 ` + reducerFactBatchInsertPrefix +
 	reducerFactBatchInsertSource + `
-WHERE EXISTS (SELECT 1 FROM current_claim)
+WHERE EXISTS (SELECT 1 FROM current_claim) AND EXISTS (SELECT 1 FROM admission)
 ` + reducerFactBatchInsertConflict + `
 RETURNING 1
 ),
@@ -85,14 +120,16 @@ deleted AS (
       AND fact.generation_id = $19
       AND fact.fencing_token <= $20
       AND EXISTS (SELECT 1 FROM current_claim)
+      AND EXISTS (SELECT 1 FROM admission)
     RETURNING 1
 )
-SELECT COALESCE((SELECT count(*) FROM deleted), 0)
+SELECT COALESCE((SELECT count(*) FROM deleted), 0), EXISTS (SELECT 1 FROM admission)
 FROM current_claim
 `
 
 const containerImageIdentityCompletedCutoverPublishOnlyQuery = `
-WITH current_claim AS MATERIALIZED (
+WITH ` + containerImageIdentityCompletedCutoverAdmissionCTE + `
+current_claim AS MATERIALIZED (
     UPDATE fact_work_items AS work_item
     SET status = 'running',
         container_image_identity_v2_authorized_status = 'running'
@@ -120,11 +157,11 @@ legacy_cleanup_input AS MATERIALIZED (
 published AS (
 ` + reducerFactBatchInsertPrefix +
 	reducerFactBatchInsertSource + `
-WHERE EXISTS (SELECT 1 FROM current_claim)
+WHERE EXISTS (SELECT 1 FROM current_claim) AND EXISTS (SELECT 1 FROM admission)
 ` + reducerFactBatchInsertConflict + `
 RETURNING 1
 )
-SELECT 0
+SELECT 0, EXISTS (SELECT 1 FROM admission)
 FROM current_claim, legacy_cleanup_input
 `
 
@@ -349,6 +386,15 @@ func execContainerImageIdentityPublicationsAndCleanup(
 	return int(affected), nil
 }
 
+// execContainerImageIdentityCompletedCutoverWrite runs the completed-cutover
+// single-round-trip publication, now carrying a woven-in
+// container_image_identity_write_admission CAS (#5874,
+// containerImageIdentityCompletedCutoverAdmissionCTE): the four returned
+// values are (legacy rows deleted, whether the admission CAS admitted this
+// pass, whether the claim-epoch check passed, error). now is the admission
+// row's updated_at watermark ($26); it is independent of the fact rows'
+// own observed_at/ingested_at, which the caller already stamped when
+// building rows.
 func execContainerImageIdentityCompletedCutoverWrite(
 	ctx context.Context,
 	db ContainerImageIdentityClaimedExecer,
@@ -360,7 +406,8 @@ func execContainerImageIdentityCompletedCutoverWrite(
 	fencingToken int64,
 	workItemID string,
 	claimEpoch int64,
-) (int, bool, error) {
+	now time.Time,
+) (int, bool, bool, error) {
 	args := append(
 		reducerFactChunkArgs(rows),
 		legacyFactIDs,
@@ -369,23 +416,32 @@ func execContainerImageIdentityCompletedCutoverWrite(
 		fencingToken,
 		workItemID,
 		claimEpoch,
+		// $23-$26: containerImageIdentityCompletedCutoverAdmissionCTE's INSERT
+		// values. scopeID/generationID/fencingToken are the SAME values already
+		// bound above at $18/$19/$20 -- Postgres args are positional, so a
+		// value used by two different placeholder numbers must be passed
+		// twice, once per position.
+		scopeID,
+		generationID,
+		fencingToken,
+		now,
 	)
 	query := containerImageIdentityCompletedCutoverWriteQuery
 	if skipLegacyCleanup {
 		query = containerImageIdentityCompletedCutoverPublishOnlyQuery
 	}
-	deleted, claimValid, err := db.ExecContainerImageIdentityClaimed(
+	deleted, admitted, claimValid, err := db.ExecContainerImageIdentityClaimedAdmission(
 		ctx,
 		query,
 		args...,
 	)
 	if err != nil {
-		return 0, false, fmt.Errorf(
+		return 0, false, false, fmt.Errorf(
 			"publish completed-cutover container image identities: %w",
 			err,
 		)
 	}
-	return deleted, claimValid, nil
+	return deleted, admitted, claimValid, nil
 }
 
 func lockContainerImageIdentityCompletedCutoverClaim(

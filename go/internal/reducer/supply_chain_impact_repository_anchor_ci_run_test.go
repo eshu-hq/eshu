@@ -95,7 +95,11 @@ func TestSupplyChainImpactHandlerEndToEndCrossScopeCIRunDoesNotBlankRepositoryID
 		},
 	}
 	identityWriter := &recordingContainerImageIdentityWriter{}
-	identityHandler := ContainerImageIdentityHandler{FactLoader: identityLoader, Writer: identityWriter}
+	identityHandler := ContainerImageIdentityHandler{
+		FactLoader:         identityLoader,
+		Writer:             identityWriter,
+		FencingTokenIssuer: &stubContainerImageIdentityFencingTokenIssuer{tokens: []int64{1}},
+	}
 
 	if _, err := identityHandler.Handle(context.Background(), Intent{
 		IntentID:     "intent-5810ci-e2e-identity",

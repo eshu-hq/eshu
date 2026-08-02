@@ -25,7 +25,8 @@ func TestContainerImageIdentityHandlerFailsClosedOnUnknownRetirementWarning(t *t
 				retirementWarningEnvelope("future_completeness_warning", ""),
 			},
 		},
-		Writer: writer,
+		Writer:             writer,
+		FencingTokenIssuer: &stubContainerImageIdentityFencingTokenIssuer{tokens: []int64{1}},
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{

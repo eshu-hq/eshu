@@ -126,9 +126,10 @@ func TestContainerImageIdentityHandlerLoadsActiveRegistryFactsAndEmitsOutcomes(t
 	}
 	writer := &recordingContainerImageIdentityWriter{}
 	handler := ContainerImageIdentityHandler{
-		FactLoader:  loader,
-		Writer:      writer,
-		Instruments: inst,
+		FactLoader:         loader,
+		Writer:             writer,
+		Instruments:        inst,
+		FencingTokenIssuer: &stubContainerImageIdentityFencingTokenIssuer{tokens: []int64{1}},
 	}
 
 	result, err := handler.Handle(context.Background(), Intent{
@@ -202,7 +203,8 @@ func TestContainerImageIdentityHandlerDoesNotEmitOutcomesBeforeDurableWrite(t *t
 		Writer: &recordingContainerImageIdentityWriter{
 			err: errors.New("database unavailable"),
 		},
-		Instruments: inst,
+		Instruments:        inst,
+		FencingTokenIssuer: &stubContainerImageIdentityFencingTokenIssuer{tokens: []int64{1}},
 	}
 
 	_, err = handler.Handle(context.Background(), Intent{
