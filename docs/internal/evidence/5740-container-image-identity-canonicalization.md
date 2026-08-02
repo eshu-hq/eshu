@@ -328,13 +328,12 @@ reported rather than generalized away. Direct differential tests prove both
 builders return identical rows for equivalent inputs.
 
 The post-rebase combined-tree confirmation repeated five 500 ms samples on the
-same host. At 5,000 rows, the decision/support medians were 772.591/656.861 us
-for `BUILT_FROM` (15.0% faster) and 778.152/813.760 us for `DERIVED_FROM` (4.6%
+same host. At 5,000 rows, decision/support medians were 772.591/656.861 us for
+`BUILT_FROM` (15.0% faster) and 778.152/813.760 us for `DERIVED_FROM` (4.6%
 slower), making the representative combined path 5.2% faster overall. At 1,000
-rows the combined path was 10.2% faster. The base branch's newly merged
-supply-chain anchor-consensus benchmark also retained its documented relative
-shape: the bare and consensus medians were 216.362 us and 602.808 us for 1,000
-envelopes (2.8x), with identical allocation counts to its accepted evidence.
+rows it was 10.2% faster. The base branch's newly merged supply-chain
+anchor-consensus benchmark retained its documented relative shape: bare and
+consensus medians were 216.362/602.808 us for 1,000 envelopes (2.8x), with unchanged allocation counts.
 
 ### Warning-held prior support
 
