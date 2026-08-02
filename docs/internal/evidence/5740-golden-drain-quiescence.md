@@ -42,5 +42,5 @@ fresh synthetic 30-repository corpus. Every initial, maintenance, and
 suppression drain observed zero completion events. The active, ignored-hidden,
 ignored-audit, identical-retry, and expired-visible suppression states all
 passed. The retained exact-head result was 518 passes, 0 required failures, 1
-advisory maintenance-drain timing warning, and 120 seconds total against the
-1,800-second ceiling.
+advisory warning because the maintenance drains took 27 seconds, and 118
+seconds total against the 1,800-second ceiling.
