@@ -35,6 +35,12 @@ type Beginner interface {
 	Begin(context.Context) (Transaction, error)
 }
 
+// ReadOnlyRepeatableReadBeginner constructs a read-only transaction whose
+// statements share one repeatable-read snapshot.
+type ReadOnlyRepeatableReadBeginner interface {
+	BeginReadOnlyRepeatableRead(context.Context) (Transaction, error)
+}
+
 // SQLDB adapts a *sql.DB into the combined storage interface surface.
 type SQLDB struct {
 	DB *sql.DB
@@ -286,6 +292,19 @@ func quoteSQLIdentifier(identifier string) string {
 // Begin opens a transaction against the wrapped database.
 func (db SQLDB) Begin(ctx context.Context) (Transaction, error) {
 	tx, err := db.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return SQLTx{Tx: tx}, nil
+}
+
+// BeginReadOnlyRepeatableRead opens a read-only repeatable-read transaction.
+func (db SQLDB) BeginReadOnlyRepeatableRead(ctx context.Context) (Transaction, error) {
+	tx, err := db.DB.BeginTx(ctx, &sql.TxOptions{
+		Isolation: sql.LevelRepeatableRead,
+		ReadOnly:  true,
+	})
 	if err != nil {
 		return nil, err
 	}

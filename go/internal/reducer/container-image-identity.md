@@ -1,109 +1,141 @@
 # Reducer Gotchas — Container Image Identity
 
 Split from `gotchas-supply-chain-and-vulnerabilities.md` to keep reducer
-documentation bounded. The detailed migration and performance record is
-`docs/internal/evidence/5854-container-image-identity-cutover.md`.
+documentation bounded. The format-cutover evidence is recorded in
+`docs/internal/evidence/5854-container-image-identity-cutover.md`; the
+digest-v3 canonicalization proof is in
+`docs/internal/evidence/5740-container-image-identity-canonicalization.md`.
 
 ## Digest-first admission
 
-`ContainerImageIdentityHandler` writes `reducer_container_image_identity` facts
-for explicit digest references or a tag resolved to one digest. Ambiguous,
-unresolved, and stale tag outcomes remain diagnostic until stronger evidence
-proves safe identity.
+`ContainerImageIdentityHandler` admits only explicit digest references or a
+tag resolved to one digest. Ambiguous, unresolved, and stale tag outcomes
+remain diagnostic until stronger evidence proves safe identity.
 
 Git parser facts can expose image references through
 `entity_metadata.container_images`; the reducer accepts the older
 `metadata.container_images` fixture shape for compatibility. CI/CD
 `container_image` artifacts can seed identity when they carry a digest. A
-matching CI run contributes its repository anchor, and immutable digests outrank
-mutable tags. Digest-only artifacts with multiple observed registry
+matching CI run contributes its repository anchor, and immutable digests
+outrank mutable tags. Digest-only artifacts observed under multiple registry
 repositories remain ambiguous.
 
-## Logical identity and stale-writer fence
+## Digest-v3 authority
 
-The durable logical key is `(scope_id, generation_id, image_ref)`. Outcome is
-payload, not identity. A reclassification therefore collides on the same
-`fact_id`; an authoritative demotion writes a tombstone at that key.
+The durable logical identity is the image digest. Each independent evidence
+path becomes one normalized row in `container_image_identity_supports`; rows
+with the same digest deliberately coexist when their image reference,
+repository anchor, provenance, or evidence differs. The stable compatibility
+`fact_id` and `canonical_id` are derived from the digest only.
 
-Every write carries `ContainerImageIdentityWrite.EvidenceAsOf`, captured before
-the handler's first fact load and persisted as `fact_records.fencing_token`.
-The conflict update is guarded:
+Each reducer pass constructs a complete, immutable support set. The set ID is a
+content hash of its normalized rows plus the scope, so an unchanged replay is
+idempotent across generations. Publication inserts the set and its supports,
+then moves `container_image_identity_scope_state.active_set_id` atomically.
+Readers never union historical sets.
 
-```sql
-WHERE fact_records.fencing_token <= EXCLUDED.fencing_token
-```
+Before a scope's first digest-v3 publication, the compatibility view exposes
+active-generation legacy `fact_records`. Once `active_set_id` is non-null,
+only the active typed set is authoritative; the same fenced statement removes
+the exact scope generation's legacy rows. A trigger rejects later legacy
+writes for that scope.
 
-The guard rejects a stale pass whole, content included. Raising only the token
-while assigning stale content would advertise freshness the payload does not
-have. Equal tokens remain accepted so retry, redelivery, and later chunks of
-the same pass are idempotent. A missing evidence watermark is a hard error.
+## Lifecycle and claim fences
 
-## Authoritative retirement
+The handler snapshots `activation_epoch` before loading evidence. Generation
+activation increments that epoch and clears `active_set_id`, so stale truth
+becomes invisible immediately, including an activation ABA that returns to the
+same generation ID.
 
-The planner derives only the legacy outcome-keyed ID the old writer could have
-published for each evaluated reference. Publication, tombstone, and exact
-legacy cleanup share one transaction. It never uses a generation-wide DELETE.
+The final publication locks and verifies all of these in one statement:
+
+- exact scope and active generation;
+- exact activation epoch;
+- exact reducer work-item ID and claim epoch;
+- both v2 and v3 queue authorization latches.
+
+A stale or reclaimed worker therefore cannot move the pointer. Empty output is
+published as an explicit empty set rather than leaving old authority visible.
+
+## Authoritative retirement and holds
 
 Collector incompleteness blocks destructive absence:
 
-- `tag_list_truncated` holds affected tag references.
-- `config_blob_unavailable` holds mapped manifest digests. If active manifest
-  evidence cannot map the config digest, the hold widens only to that warning's
-  repository; unrelated repositories keep retiring.
-- `missing_manifest_digest` holds the named repository conservatively.
+- `tag_list_truncated` holds affected tag references;
+- `config_blob_unavailable` holds mapped manifest digests, widening only to
+  that warning's repository when the active manifest cannot map its config;
+- `missing_manifest_digest` holds the named repository conservatively;
 - malformed, unreadable, or unavailable warning-loader state stops the
   destructive pass before the writer runs.
 
-An all-canonical pass skips the warning read because it cannot demote a
+Only a pass with held decisions loads prior support. That read is bounded by
+the exact scope, generation, activation epoch, and normalized held image
+references. It reads the current typed set, or active-generation legacy rows
+only while `active_set_id` is null; it never falls back to `last_set_id` from a
+superseded generation. Current and retained rows are normalized, assigned new
+semantic support IDs, deduplicated, sorted, and hashed together before the
+atomic publication fence. A hold with no prior support invents nothing. When
+the warning clears, omission from the next complete set retires the support.
+
+An all-canonical pass performs no prior-support read because it cannot demote a
 canonical publication.
 
-## Rolling-upgrade compatibility
+## Writer-accepted graph projection
 
-Migration 088 prevents an old binary from recreating an outcome-keyed row after
-the new writer cleans it:
+`BUILT_FROM` and `DERIVED_FROM` are projected only after the Postgres writer
+accepts the exact claim and activation fence. Digest-v3 publication returns
+the normalized effective support set that was selected for the new pointer;
+the handler projects that set directly instead of projecting the pre-write
+decisions. Warning-held supports therefore retain their graph edges, while a
+rejected or stale publication makes no retract or write call to the graph.
 
-- v2 rows declare `payload.identity_format=image_ref_v2`;
-- the first v2 writer atomically creates a durable scope-generation cutover
-  marker, publishes v2 rows, and removes exact eligible legacy rows; an empty
-  cleanup list never bypasses this fence;
-- a capable queue claim first advances
-  `container_image_identity_claim_epoch` and durably sets
-  `container_image_identity_v2_required` with authorized `claimed` state;
-- the marker trigger locks that exact latched claim and transitions it to
-  authorized `running` state in the publication transaction;
-- ACK, retry, failure, replay, and recovery bind the epoch and maintain
-  `container_image_identity_v2_authorized_status`;
-- the row constraint requires every latched row's status to equal its
-  authorized status, so an old same-owner ACK or reclaim cannot win after a
-  lock-busy marker rollback;
-- the statement-level legacy fact guard suppresses old-format writes after the
-  marker while leaving unrelated scope generations concurrent.
+The legacy compatibility writer returns its accepted canonical decisions
+through the same private result seam. A writer wired to either graph adapter
+must explicitly mark the effective projection present; omission fails closed.
+Verification must prove that support-row and compatibility-decision builders
+produce identical `BUILT_FROM` and `DERIVED_FROM` rows for equivalent input,
+in addition to proving retained-edge and rejected-publication behavior.
 
-A partial legacy-row index backs a bounded `ORDER BY fact_id LIMIT 1` cleanup
-probe. Marker plus zero-legacy proof enables the publication-only steady-state
-path. Held legacy rows keep exact cleanup enabled until the warning clears.
+## Bounded reads and indexes
+
+Public query surfaces call `container_image_identity_current_facts_for` with at
+least one selector and a keyset cursor plus result limit. It selects digests,
+then folds their supports into one presentation row per digest.
+
+Reducer consumers call
+`container_image_identity_current_support_facts_for` instead. It returns one
+bounded envelope per immutable support so image, repository, source repository,
+build provenance, and runtime fields stay correlated until the owning reducer
+applies its established selection rules. Its cursor encodes the ordered
+scope/digest/support tuple; foreign cursors from unioned fact kinds are handled
+by namespace ordering rather than decoded as support cursors. Pre-pointer
+legacy rows use the same adapter only while a scope has no active typed set.
+
+Typed support indexes are scoped by `set_id`: the primary key covers
+`(set_id, digest, support_id)`, B-trees cover image reference, repository, and
+outcome selectors, and GIN covers `source_repository_ids`. Held-support loads
+reuse the image-reference B-tree after resolving the exact active set.
 
 ## Operational signals
 
 `eshu_dp_container_image_identity_decisions_total` records decision outcomes.
 `eshu_dp_container_image_identity_retirements_total` records bounded outcomes:
 `retirement_attempted`, `legacy_deleted`, and `held_<reason>`. Existing reducer
-run spans, execution status, and Postgres query-duration metrics expose
-failures and latency without high-cardinality labels.
+execution/run duration and Postgres query-duration telemetry cover the support
+load and atomic publication without new high-cardinality labels.
 
 ## Verification contract
 
 Promotion requires:
 
-- mixed eligible and held rows followed by warning-clear retirement;
-- tombstone stale-resurrection and fresh-revival proof;
-- old-writer INSERT/UPDATE behavior before, during, and after marker commit;
-- exact-epoch rejection after reclaim and replay;
-- lock-busy marker rollback followed by production queue Fail, stale legacy
-  ACK/reclaim rejection, and capable retry;
-- first-cutover and later-chunk rollback atomicity;
-- unrelated-key concurrency;
-- migration retry, backfill, and idempotence;
-- partial-index cleanup probe plans;
-- writer-only, cache-warm, and uncached production-handler performance lanes;
+- typed-set and pre-v3 legacy support carry while a warning holds;
+- warning-clear retirement and a hold with no prior support;
+- writer-accepted effective-set graph projection, row equivalence, retained
+  held edges, and zero graph calls after rejected publication;
+- exact-claim rejection and activation-ABA rejection after prior support loads;
+- current-plus-retained semantic deduplication and replay idempotence;
+- explicit empty-set publication and absence of v3 `fact_records` shadows;
+- bounded read plans on a production-shaped support set;
+- one-row and representative worst-case held-support loader plans;
+- concurrent shared, disjoint, and partially overlapping publication proof;
 - the live golden-corpus gate.

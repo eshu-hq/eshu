@@ -26,13 +26,10 @@ import (
 // These domains share a dependency the deployment_mapping /
 // code_import_repo_edge reopens do NOT have. Those two wait on backward
 // evidence the SAME maintenance pass commits, so this pass's backfill skip-set
-// gates them exactly. Every domain listed here instead waits on ANOTHER
-// SCOPE's generation activating (crossScopeDependencyCatalog in
-// go/internal/reducer/cross_scope_dependencies.go declares the
-// container_image_identity -> ci_cd_run_correlation -> supply_chain_impact
-// chain), which this pass's backfill skip-set says nothing about. Gating them
-// on that skip-set would skip exactly the replay the activation race needs, so
-// they are deliberately reopened outside it and bounded instead by generation
+// gates them exactly. Every domain listed here instead waits on another scope's
+// generation or relationship projection, which this pass's skip-set says
+// nothing about. Gating them on that set would skip the replay the activation
+// race needs, so they are reopened outside it and bounded by generation
 // supersession (see listSucceededReducerWorkItemsByDomainQuery).
 //
 // Keeping the list here rather than at each call site is what makes the
@@ -54,34 +51,10 @@ import (
 //     kubernetes_workload_materialization node domain is deliberately absent: it
 //     consumes only in-scope pod-template facts and has no cross-scope dependency
 //     to replay.
-//   - container_image_identity (#5423) has the same dependency: a ci.artifact's
-//     container-image digest resolves only against the cross-scope active OCI
-//     manifest facts, which may not be active when the CI scope's intent first
-//     drains.
-//   - ci_cd_run_correlation (#5710) sits one hop further along that chain — it
-//     joins a CI scope's ci.run/ci.artifact evidence against the cross-scope
-//     active reducer_container_image_identity rows the domain above materializes.
-//     Its minimum_results floor does not depend on replay (it writes a durable
-//     decision fact for every outcome), but a later pass can upgrade a "derived"
-//     decision to a more evidence-complete one as identity rows commit.
-//   - supply_chain_impact (#5426) is the third link. matchingSupplyChainDeployments
-//     rejects a provenance-only correlation, so a finding classified before the
-//     correlation resolved its artifact identity keeps an empty environments list,
-//     an empty environment_evidence map, and a standing "deployment evidence
-//     provenance-only" in missing_evidence indefinitely: the impact intent is
-//     triggered by its own vulnerability scope's facts
-//     (projector/supply_chain_impact_intents.go), and nothing re-triggers it when
-//     a correlation in a different scope later improves. Measured on the live B-7
-//     corpus: the correlation reached outcome=exact with provenance_only=false and
-//     environment=prod while the finding anchored to that same artifact digest
-//     still reported an empty environments list.
 //   - aws_cloud_runtime_drift (#5837, #5848) has the same cross-scope shape as
-//     container_image_identity, except its producer is raw Terraform-state
-//     collector evidence in any state_snapshot:* scope, not another reducer
-//     domain's canonical output -- crossScopeDependencyCatalog only models
-//     reducer-domain producers, so this domain is a deliberate superset member
-//     the same way deployable_unit_correlation and
-//     kubernetes_correlation_materialization already are. The AWS EC2 scope is
+//     the completion-driven identity chain, except its producer is raw
+//     Terraform-state collector evidence in any state_snapshot:* scope, not
+//     another reducer domain's canonical output. The AWS EC2 scope is
 //     often small and drains its drift intent before the tfstate scope's
 //     generation activates, so cloudruntime.Classify durably wrote
 //     orphaned_cloud_resource for a resource Terraform actually owns -- as a
@@ -96,8 +69,6 @@ var crossScopeCorrelationReopenDomains = []reducer.Domain{
 	reducer.DomainDeployableUnitCorrelation,
 	reducer.DomainKubernetesCorrelationMaterialization,
 	reducer.DomainContainerImageIdentity,
-	reducer.DomainCICDRunCorrelation,
-	reducer.DomainSupplyChainImpact,
 	reducer.DomainAWSCloudRuntimeDrift,
 }
 
@@ -106,11 +77,10 @@ var crossScopeCorrelationReopenDomains = []reducer.Domain{
 // takes. It returns a fresh slice on every call so a caller cannot corrupt the
 // shared list.
 //
-// Listing order is documentation only. Nothing drains the reducer queue between
-// domains, so the reopened work items are claimed by concurrent workers in no
-// guaranteed order; convergence along the chain comes from maintenance running
-// more than once, not from this order. Every listed domain upserts its decision
-// on a stable fact key, so replay is idempotent.
+// Identity remains because it consumes raw cross-scope OCI facts whose source
+// activation has no reducer-domain ACK event. Its replay ACK then drives CI/CD
+// and supply-chain through durable completion events. CI/CD and supply-chain
+// themselves are deliberately absent from blanket replay.
 func CrossScopeCorrelationReopenDomains() []string {
 	domains := make([]string, 0, len(crossScopeCorrelationReopenDomains))
 	for _, domain := range crossScopeCorrelationReopenDomains {
@@ -135,8 +105,8 @@ func CrossScopeCorrelationReopenDomains() []string {
 // then re-terminalize it — pure churn. Measured on 900 scopes x 25 generations
 // (docs/internal/evidence/5426-reopen-bound-proof.sql): 22 551 rows unbounded
 // versus 903 with the floor, per domain; 135 000 versus 5 400 across the six
-// domains this pass replays (#5837 adds aws_cloud_runtime_drift as the sixth;
-// see the six-domain No-Regression Evidence table in this package's README).
+// domains measured before completion-driven replay removed CI/CD and supply.
+// See the historical six-domain evidence table in this package's README.
 //
 // The floor must cover THREE shapes of "no active generation", not just the
 // happy one, because active_generation_id is nullable AND carries no foreign
@@ -273,8 +243,8 @@ func CrossScopeCorrelationReopenDomains() []string {
 //
 // The listing is NOT where this pass spends its time. Production issues one
 // client round-trip per reopened row (ReopenSucceededReducerWorkItems loops over
-// queue.ReopenSucceeded), so at the same scale the six listings cost 91 ms
-// together while the whole pass costs 5.927 s — and the pre-change ingester
+// queue.ReopenSucceeded), so in the historical six-domain measurement the
+// listings cost 91 ms while the whole pass cost 5.927 s. The pre-change ingester
 // baseline was ZERO, because it ran none of this. See
 // TestCorrelationReopenPerDrainCostProof for the measurement and for the part
 // no shim measures: the reducer re-executing every reopened item on every

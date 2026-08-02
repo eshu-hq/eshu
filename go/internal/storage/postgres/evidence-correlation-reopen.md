@@ -11,13 +11,13 @@ Superseded by the cross-scope correlation reopen section in `README.md` (#5846).
 The bootstrap-index phase described here was, until that change, the ONLY caller:
 the ingester's `RunDeferredRelationshipMaintenance` replayed just the two
 relationship domains, so under normal ingestion these correlation domains were
-never replayed at all. The domain list now lives in
-`CrossScopeCorrelationReopenDomains` and both runtimes consume it, and the
-listing query is bounded by a per-scope replay floor because the ingester runs
-it on every shard drain rather than once. Read the README section for the
-current contract, the per-drain bound, its measured cost, and what that
-measurement does not cover; the numbers below are the original single-domain
-bootstrap-only baseline.
+never replayed at all. The remaining blanket-replay domain list now lives in
+`CrossScopeCorrelationReopenDomains` and both runtimes consume it. The identity
+-> CI/CD -> supply-chain chain moved to the durable producer-completion queue in
+#5740, because unordered maintenance could leave a quiet corpus one link short.
+Read the README section for the current split, per-drain bound, and
+completion-event lease/fanout contract; the numbers below are the original
+single-domain bootstrap-only baseline.
 
 ## Performance Evidence
 

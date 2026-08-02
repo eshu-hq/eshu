@@ -279,26 +279,17 @@ LIMIT $11
 
 const sbomAttestationAttachmentMissingEvidenceQuery = `
 WITH active_images AS (
-    SELECT DISTINCT fact.payload->>'digest' AS digest
-    FROM fact_records AS fact
-    JOIN ingestion_scopes AS scope
-      ON scope.scope_id = fact.scope_id
-     AND scope.active_generation_id = fact.generation_id
-    JOIN scope_generations AS generation
-      ON generation.scope_id = fact.scope_id
-     AND generation.generation_id = fact.generation_id
-    WHERE fact.fact_kind = 'reducer_container_image_identity'
-      AND fact.is_tombstone = FALSE
-      AND generation.status = 'active'
-      AND COALESCE(NULLIF(fact.payload->>'canonical_writes', ''), '0')::int > 0
-      AND fact.payload->>'outcome' IN ('exact_digest', 'tag_resolved')
-      AND ($1 = '' OR fact.payload->>'digest' = $1)
-      AND ($2 = '' OR fact.payload->'source_repository_ids' ? $2)
-      AND ($3 = '' OR fact.payload->'workload_ids' ? $3)
-      AND ($4 = '' OR fact.payload->'service_ids' ? $4)
+    SELECT DISTINCT support.digest
+    FROM container_image_identity_current_supports AS support
+    WHERE support.canonical_writes > 0
+      AND support.outcome IN ('exact_digest', 'tag_resolved')
+      AND ($1 = '' OR support.digest = $1)
+      AND ($2 = '' OR $2 = ANY(support.source_repository_ids))
+      AND ($3 = '' OR $3 = ANY(support.workload_ids))
+      AND ($4 = '' OR $4 = ANY(support.service_ids))
       AND (
             COALESCE(cardinality($5::text[]), 0) = 0
-            OR fact.payload->'source_repository_ids' ?| $5::text[]
+            OR support.source_repository_ids && $5::text[]
           )
 ),
 active_attachments AS (

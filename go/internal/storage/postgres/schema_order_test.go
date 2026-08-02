@@ -174,4 +174,15 @@ var orderedBootstrapDefinitionNames = []string{
 	// numbered 091 rather than the then-next-available 087 because this branch
 	// had already claimed 087-090; with both merged, the range is contiguous.
 	"ingestion_scopes_active_state_snapshot_index",
+	// migration 092 (#5740 anchor-free digest-v3 identity support store).
+	"container_image_identity_support_store",
+	"container_image_identity_support_current_view",
+	"container_image_identity_current_facts_function",
+	"container_image_identity_current_support_facts_function",
+	// migration 093 (#5740 durable producer-completion fanout queue).
+	"cross_scope_completion_queue",
+	// migration 094 (#5740 non-blocking source-intent lookup index).
+	"fact_work_items_cross_scope_source_idx",
+	// migration 095 (#5740 quiet-upgrade producer replay seed).
+	"cross_scope_completion_upgrade_seed",
 }

@@ -457,10 +457,10 @@ func TestContainerImageIdentityAggregateQueriesUseSourceRepositoryAnchor(t *test
 		containerImageIdentityAggregateGroupQueryTemplate,
 		containerImageIdentityInventoryQueryTemplate,
 	} {
-		if !strings.Contains(query, "fact.payload->'source_repository_ids' ? $3") {
+		if !strings.Contains(query, "$3 = ANY(support.source_repository_ids)") {
 			t.Fatalf("aggregate query missing source repository predicate:\n%s", query)
 		}
-		if !strings.Contains(query, "fact.payload->>'repository_id' = $4") {
+		if !strings.Contains(query, "support.repository_id = $4") {
 			t.Fatalf("aggregate query must keep repository_id as OCI predicate:\n%s", query)
 		}
 	}

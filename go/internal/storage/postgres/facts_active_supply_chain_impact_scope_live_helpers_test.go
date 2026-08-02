@@ -118,6 +118,40 @@ CREATE TABLE fact_records (
     is_tombstone BOOLEAN NOT NULL DEFAULT FALSE,
     payload JSONB NOT NULL DEFAULT '{}'::jsonb
 );
+
+CREATE FUNCTION container_image_identity_current_support_facts_for(
+    TEXT[], TEXT[], TEXT[], TEXT[], TEXT[], TEXT, INTEGER
+)
+RETURNS TABLE (
+    fact_id TEXT,
+    scope_id TEXT,
+    generation_id TEXT,
+    fact_kind TEXT,
+    stable_fact_key TEXT,
+    schema_version TEXT,
+    collector_kind TEXT,
+    fencing_token BIGINT,
+    source_confidence TEXT,
+    source_system TEXT,
+    source_fact_key TEXT,
+    source_uri TEXT,
+    source_record_id TEXT,
+    observed_at TIMESTAMPTZ,
+    is_tombstone BOOLEAN,
+    payload JSONB
+)
+LANGUAGE sql
+STABLE
+AS $function$
+    SELECT
+        fact.fact_id, fact.scope_id, fact.generation_id, fact.fact_kind,
+        fact.stable_fact_key, fact.schema_version, fact.collector_kind,
+        fact.fencing_token, fact.source_confidence, fact.source_system,
+        fact.source_fact_key, fact.source_uri, fact.source_record_id,
+        fact.observed_at, fact.is_tombstone, fact.payload
+    FROM fact_records AS fact
+    WHERE FALSE
+$function$;
 `); err != nil {
 		t.Fatalf("create isolated proof tables: %v", err)
 	}

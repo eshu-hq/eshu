@@ -3,14 +3,7 @@
 
 package postgres
 
-import (
-	"context"
-	"fmt"
-	"strings"
-
-	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
-)
+import "strings"
 
 // suppressionScopeTrimCharactersSQL is PostgreSQL's explicit spelling of the
 // Unicode White_Space set used by strings.TrimSpace. Keeping the sets equal
@@ -19,6 +12,7 @@ import (
 const suppressionScopeTrimCharactersSQL = `U&'\0009\000A\000B\000C\000D\0020\0085\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000'`
 
 const listActiveSupplyChainImpactFactsQuery = `
+WITH legacy_facts AS MATERIALIZED (
 SELECT
     fact.fact_id,
     fact.scope_id,
@@ -31,8 +25,8 @@ SELECT
     fact.source_confidence,
     fact.source_system,
     fact.source_fact_key,
-    COALESCE(fact.source_uri, ''),
-    COALESCE(fact.source_record_id, ''),
+    COALESCE(fact.source_uri, '') AS source_uri,
+    COALESCE(fact.source_record_id, '') AS source_record_id,
     fact.observed_at,
     fact.is_tombstone,
     fact.payload
@@ -54,7 +48,6 @@ WHERE fact.fact_kind IN (
     'reducer_package_consumption_correlation',
     'sbom.component',
     'reducer_sbom_attestation_attachment',
-    'reducer_container_image_identity',
     'reducer_ci_cd_run_correlation',
     'reducer_platform_materialization',
     'reducer_service_catalog_correlation',
@@ -130,7 +123,6 @@ WHERE fact.fact_kind IN (
           fact.fact_kind IN (
               'vulnerability.suppression',
               'reducer_package_consumption_correlation',
-              'reducer_container_image_identity',
               'reducer_ci_cd_run_correlation',
               'reducer_platform_materialization',
               'reducer_service_catalog_correlation',
@@ -186,10 +178,35 @@ WHERE fact.fact_kind IN (
           AND lower(btrim(fact.payload->'scope'->>'advisory_id', ` + suppressionScopeTrimCharactersSQL + `)) = ANY($18::text[])
       )
   )
-  AND (
-      $11 = ''
-      OR (fact.fact_kind = 'vulnerability.suppression', fact.fact_id) > ($19::boolean, $11)
-  )
+)
+SELECT
+    fact.fact_id,
+    fact.scope_id,
+    fact.generation_id,
+    fact.fact_kind,
+    fact.stable_fact_key,
+    fact.schema_version,
+    fact.collector_kind,
+    fact.fencing_token,
+    fact.source_confidence,
+    fact.source_system,
+    fact.source_fact_key,
+    fact.source_uri,
+    fact.source_record_id,
+    fact.observed_at,
+    fact.is_tombstone,
+    fact.payload
+FROM legacy_facts AS fact
+WHERE (
+    $11 = ''
+    OR (
+        fact.fact_kind = 'vulnerability.suppression',
+        convert_to(fact.fact_id, 'UTF8')
+    ) > (
+        $19::boolean,
+        convert_to($11, 'UTF8')
+    )
+)
 -- #5466 round-8 review F-3: every non-suppression row sorts before every
 -- vulnerability.suppression row (the boolean ASC term), so the row cap
 -- below (ListActiveSupplyChainImpactFacts) can bound ONLY the suppression
@@ -197,10 +214,12 @@ WHERE fact.fact_kind IN (
 -- component/... evidence -- see that function's doc for the full
 -- reasoning. The compound keyset cursor ($19 + $11, a Postgres row-value
 -- comparison) is required to paginate correctly against this two-part
--- ordering; a plain "fact.fact_id > $11" cursor would skip or repeat rows
+-- ordering; a locale-sensitive "fact.fact_id > $11" cursor would skip or repeat rows
 -- once pagination crosses from the non-suppression group into the
 -- suppression group.
-ORDER BY (fact.fact_kind = 'vulnerability.suppression') ASC, fact.fact_id ASC
+ORDER BY
+    (fact.fact_kind = 'vulnerability.suppression') ASC,
+    convert_to(fact.fact_id, 'UTF8') ASC
 LIMIT $12
 `
 
@@ -234,131 +253,6 @@ LIMIT $12
 // `var`, not a `const`, so hermetic tests can lower it without seeding
 // thousands of rows.
 var maxSupplyChainImpactActiveEvidenceRowsPerCall = 2000
-
-// ListActiveSupplyChainImpactFacts loads active package, SBOM, image, and
-// risk evidence for one bounded supply-chain impact reducer intent. The
-// bool return reports whether maxSupplyChainImpactActiveEvidenceRowsPerCall
-// truncated the vulnerability.suppression tail before every matching
-// suppression row was loaded -- core (non-suppression) evidence is never
-// truncated by this cap; see that var's doc for why.
-func (s FactStore) ListActiveSupplyChainImpactFacts(
-	ctx context.Context,
-	filter reducer.SupplyChainImpactFactFilter,
-) ([]facts.Envelope, bool, error) {
-	if s.db == nil {
-		return nil, false, fmt.Errorf("fact store database is required")
-	}
-	filter.PackageIDs = cleanStringFilterValues(filter.PackageIDs)
-	filter.PURLs = cleanStringFilterValues(filter.PURLs)
-	filter.CVEIDs = cleanStringFilterValues(filter.CVEIDs)
-	filter.AdvisoryIDs = cleanStringFilterValues(filter.AdvisoryIDs)
-	filter.SubjectDigests = cleanStringFilterValues(filter.SubjectDigests)
-	filter.DocumentIDs = cleanStringFilterValues(filter.DocumentIDs)
-	filter.ProductCriteria = cleanStringFilterValues(filter.ProductCriteria)
-	filter.RepositoryIDs = cleanStringFilterValues(filter.RepositoryIDs)
-	filter.FileRepositoryIDs = cleanStringFilterValues(filter.FileRepositoryIDs)
-	filter.ImageRefs = cleanStringFilterValues(filter.ImageRefs)
-	if len(filter.PackageIDs) == 0 && len(filter.PURLs) == 0 &&
-		len(filter.CVEIDs) == 0 && len(filter.AdvisoryIDs) == 0 && len(filter.SubjectDigests) == 0 &&
-		len(filter.DocumentIDs) == 0 && len(filter.ProductCriteria) == 0 &&
-		len(filter.RepositoryIDs) == 0 && len(filter.FileRepositoryIDs) == 0 &&
-		len(filter.ImageRefs) == 0 {
-		return nil, false, nil
-	}
-
-	var loaded []facts.Envelope
-	var suppressionLoaded int
-	var cursorFactID string
-	var cursorIsSuppression bool
-	for {
-		page, err := s.listActiveSupplyChainImpactFactsPage(ctx, filter, cursorFactID, cursorIsSuppression)
-		if err != nil {
-			return nil, false, err
-		}
-		for _, envelope := range page {
-			if envelope.FactKind == facts.VulnerabilitySuppressionFactKind {
-				if suppressionLoaded == maxSupplyChainImpactActiveEvidenceRowsPerCall {
-					return loaded, true, nil
-				}
-				suppressionLoaded++
-			}
-			loaded = append(loaded, envelope)
-		}
-		if len(page) < listFactsByKindPageSize {
-			return loaded, false, nil
-		}
-		last := page[len(page)-1]
-		cursorFactID = last.FactID
-		cursorIsSuppression = last.FactKind == facts.VulnerabilitySuppressionFactKind
-	}
-}
-
-func (s FactStore) listActiveSupplyChainImpactFactsPage(
-	ctx context.Context,
-	filter reducer.SupplyChainImpactFactFilter,
-	cursorFactID string,
-	cursorIsSuppression bool,
-) ([]facts.Envelope, error) {
-	rows, err := s.db.QueryContext(
-		ctx,
-		listActiveSupplyChainImpactFactsQuery,
-		filter.PackageIDs,
-		filter.PURLs,
-		filter.CVEIDs,
-		filter.AdvisoryIDs,
-		filter.SubjectDigests,
-		filter.ProductCriteria,
-		filter.DocumentIDs,
-		filter.RepositoryIDs,
-		filter.ImageRefs,
-		filter.FileRepositoryIDs,
-		cursorFactID,
-		listFactsByKindPageSize,
-		// $13-$17 are lower(btrim(...)) normalized siblings of the
-		// exact-match ->'scope'->>'package_id'/'purl'/'cve_id'/
-		// 'subject_digest'/'repository_id' predicates bound to $1-$3/$5/$8
-		// (#5466 round-3 review F-6; no exact-match fallback remains for
-		// these "scope"-nested comparisons). They reuse the SAME filter
-		// values as $1/$2/$3/$5/$8 -- normalized here, not by mutating
-		// filter.* -- because $1-$3/$5/$8 are ALSO bound to the top-level
-		// (non-"scope") sibling predicates serving other fact kinds, whose exact-match
-		// behavior must not change.
-		lowerCleanedStringFilterValues(filter.PackageIDs),
-		lowerCleanedStringFilterValues(filter.PURLs),
-		lowerCleanedStringFilterValues(filter.CVEIDs),
-		lowerCleanedStringFilterValues(filter.SubjectDigests),
-		lowerCleanedStringFilterValues(filter.RepositoryIDs),
-		// $18 is the lower(btrim(...)) normalized replacement for #5465's
-		// exact nested advisory_id comparison. The same AdvisoryIDs values
-		// still bind the top-level exact-match predicate at $4.
-		lowerCleanedStringFilterValues(filter.AdvisoryIDs),
-		// $19 is the second half of the compound keyset cursor (#5466
-		// round-8 review F-3): paired with $11 (cursorFactID), it resumes
-		// pagination correctly against the query's two-part ORDER BY
-		// (non-suppression rows before suppression rows, each fact_id-
-		// ordered). Ignored by the query when $11 = '' (first page).
-		cursorIsSuppression,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("list active supply chain impact facts: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	loaded := make([]facts.Envelope, 0,
-		len(filter.PackageIDs)+len(filter.PURLs)+len(filter.CVEIDs)+len(filter.AdvisoryIDs)+len(filter.SubjectDigests)+
-			len(filter.DocumentIDs)+len(filter.ProductCriteria)+len(filter.FileRepositoryIDs))
-	for rows.Next() {
-		envelope, scanErr := scanFactEnvelope(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("list active supply chain impact facts: %w", scanErr)
-		}
-		loaded = append(loaded, envelope)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list active supply chain impact facts: %w", err)
-	}
-	return loaded, nil
-}
 
 // lowerCleanedStringFilterValues lowercases every value and re-runs
 // cleanStringFilterValues (trim, drop-empty, dedupe, sort) so the result is a

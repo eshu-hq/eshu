@@ -15,8 +15,11 @@ import (
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 )
 
-// SQL for the B-7(a) drain gate. The status set and completed_at semantics match
-// the reducer/projector queue contract (see go/internal/storage/postgres):
+// SQL for the B-7(a) drain gate. One statement is deliberate: Postgres gives
+// every scalar subquery the same MVCC snapshot, so producer completion cannot
+// disappear between one ledger read and the consumer work it atomically opens.
+// The status set and completed_at semantics match the reducer/projector queue
+// contract (see go/internal/storage/postgres):
 //
 //   - fact_work_items residual: any row not in a clean terminal status. A
 //     'dead_letter' or 'failed' row counts as residual on purpose — a drained
@@ -24,46 +27,26 @@ import (
 //   - shared_projection_intents nonterminal: completed_at IS NULL. Per B-13
 //     (#3859), the repo_dependency domain is the primary gate, so its subset is
 //     reported separately.
-const (
-	factWorkItemsResidualSQL = `
-SELECT count(*) FROM fact_work_items
-WHERE status NOT IN ('succeeded', 'superseded')`
-
-	factWorkItemsDeadLetterSQL = `
-SELECT count(*) FROM fact_work_items
-WHERE status = 'dead_letter'`
-
-	sharedIntentsNonterminalSQL = `
-SELECT count(*) FROM shared_projection_intents
-WHERE completed_at IS NULL`
-
-	// $1 is a comma-separated advisory-domain list. string_to_array('', ',')
-	// yields an empty array, so `projection_domain = ANY(...)` is false for every
-	// row and an empty advisory list cleanly degrades to "required = total,
-	// advisory = 0". The caller trims each element before joining, so a list like
-	// "a, b" cannot smuggle a leading space into a domain name.
-	sharedIntentsRequiredNonterminalSQL = `
-SELECT count(*) FROM shared_projection_intents
-WHERE completed_at IS NULL
-  AND NOT (projection_domain = ANY(string_to_array($1, ',')))`
-
-	sharedIntentsAdvisoryNonterminalSQL = `
-SELECT count(*) FROM shared_projection_intents
-WHERE completed_at IS NULL
-  AND projection_domain = ANY(string_to_array($1, ','))`
-
-	repoDependencyNonterminalSQL = `
-SELECT count(*) FROM shared_projection_intents
-WHERE completed_at IS NULL AND projection_domain = 'repo_dependency'`
-
-	// Counts how many of the require-populated domains have at least one intent
-	// (completed or not). Counting completed rows too is deliberate: even if the
-	// reducer emitted and completed a domain's intents before the first poll, we
-	// still observe that it ran — only a reducer that never ran reads 0 here.
-	sharedIntentsPopulatedDomainsSQL = `
-SELECT count(DISTINCT projection_domain) FROM shared_projection_intents
-WHERE projection_domain = ANY(string_to_array($1, ','))`
-)
+const drainCountsSQL = `
+SELECT
+    (SELECT count(*) FROM fact_work_items
+     WHERE status NOT IN ('succeeded', 'superseded')),
+    (SELECT count(*) FROM fact_work_items
+     WHERE status = 'dead_letter'),
+    (SELECT count(*) FROM shared_projection_intents
+     WHERE completed_at IS NULL),
+    (SELECT count(*) FROM shared_projection_intents
+     WHERE completed_at IS NULL
+       AND NOT (projection_domain = ANY(string_to_array($1, ',')))),
+    (SELECT count(*) FROM shared_projection_intents
+     WHERE completed_at IS NULL
+       AND projection_domain = ANY(string_to_array($1, ','))),
+    (SELECT count(*) FROM shared_projection_intents
+     WHERE completed_at IS NULL AND projection_domain = 'repo_dependency'),
+    (SELECT count(DISTINCT projection_domain) FROM shared_projection_intents
+     WHERE projection_domain = ANY(string_to_array($2, ','))),
+    (SELECT count(*) FROM cross_scope_completion_events
+     WHERE status IN ('pending', 'claimed', 'running', 'retrying'))`
 
 // drainQuerier reads the current queue residuals. Defined here where it is
 // consumed so tests can fake it without a database.
@@ -73,6 +56,9 @@ type drainQuerier interface {
 	// when the drain has already failed, so its cost never lands on a passing
 	// run, and a failure to read it degrades the message rather than the verdict.
 	ResidualBreakdown(ctx context.Context) ([]residualRow, error)
+	// CompletionEventBreakdown names the producer queues keeping the completion
+	// ledger nonterminal. Like ResidualBreakdown, it is failure-path only.
+	CompletionEventBreakdown(ctx context.Context) ([]completionEventRow, error)
 }
 
 // sqlDrainQuerier reads drain counts from Postgres. advisoryDomains is the
@@ -94,55 +80,22 @@ func openDrainQuerier(ctx context.Context, getenv func(string) string, advisoryD
 	return &sqlDrainQuerier{db: db, advisoryDomains: advisoryDomains, populatedDomains: populatedDomains}, func() { _ = db.Close() }, nil
 }
 
-func (q *sqlDrainQuerier) scalar(ctx context.Context, query string, args ...any) (int64, error) {
-	var n int64
-	if err := q.db.QueryRowContext(ctx, query, args...).Scan(&n); err != nil {
-		return 0, err
-	}
-	return n, nil
-}
-
 func (q *sqlDrainQuerier) Counts(ctx context.Context) (DrainCounts, error) {
-	fact, err := q.scalar(ctx, factWorkItemsResidualSQL)
+	var counts DrainCounts
+	err := q.db.QueryRowContext(ctx, drainCountsSQL, q.advisoryDomains, q.populatedDomains).Scan(
+		&counts.FactWorkItemsResidual,
+		&counts.FactWorkItemsDeadLetter,
+		&counts.SharedIntentsNonterminal,
+		&counts.SharedIntentsRequiredNonterminal,
+		&counts.SharedIntentsAdvisoryNonterminal,
+		&counts.RepoDependencyNonterminal,
+		&counts.PopulatedDomainsPresent,
+		&counts.CrossScopeCompletionEventsNonterminal,
+	)
 	if err != nil {
-		return DrainCounts{}, fmt.Errorf("fact_work_items residual: %w", err)
+		return DrainCounts{}, fmt.Errorf("read atomic drain snapshot: %w", err)
 	}
-	deadLetter, err := q.scalar(ctx, factWorkItemsDeadLetterSQL)
-	if err != nil {
-		return DrainCounts{}, fmt.Errorf("fact_work_items dead_letter: %w", err)
-	}
-	intents, err := q.scalar(ctx, sharedIntentsNonterminalSQL)
-	if err != nil {
-		return DrainCounts{}, fmt.Errorf("shared_projection_intents nonterminal: %w", err)
-	}
-	required, err := q.scalar(ctx, sharedIntentsRequiredNonterminalSQL, q.advisoryDomains)
-	if err != nil {
-		return DrainCounts{}, fmt.Errorf("shared_projection_intents required nonterminal: %w", err)
-	}
-	advisory, err := q.scalar(ctx, sharedIntentsAdvisoryNonterminalSQL, q.advisoryDomains)
-	if err != nil {
-		return DrainCounts{}, fmt.Errorf("shared_projection_intents advisory nonterminal: %w", err)
-	}
-	repoDep, err := q.scalar(ctx, repoDependencyNonterminalSQL)
-	if err != nil {
-		return DrainCounts{}, fmt.Errorf("repo_dependency nonterminal: %w", err)
-	}
-	var populated int64
-	if q.populatedDomains != "" {
-		populated, err = q.scalar(ctx, sharedIntentsPopulatedDomainsSQL, q.populatedDomains)
-		if err != nil {
-			return DrainCounts{}, fmt.Errorf("populated domains present: %w", err)
-		}
-	}
-	return DrainCounts{
-		FactWorkItemsResidual:            fact,
-		FactWorkItemsDeadLetter:          deadLetter,
-		SharedIntentsNonterminal:         intents,
-		SharedIntentsRequiredNonterminal: required,
-		SharedIntentsAdvisoryNonterminal: advisory,
-		RepoDependencyNonterminal:        repoDep,
-		PopulatedDomainsPresent:          populated,
-	}, nil
+	return counts, nil
 }
 
 // pollUntilDrained polls q until the queues are within the snapshot bounds AND
@@ -297,4 +250,47 @@ func (q *sqlDrainQuerier) ResidualBreakdown(ctx context.Context) ([]residualRow,
 		return nil, fmt.Errorf("iterate residual breakdown: %w", err)
 	}
 	return out, nil
+}
+
+type completionEventRow struct {
+	ProducerDomain string
+	Status         string
+	Count          int64
+}
+
+const completionEventBreakdownSQL = `
+SELECT producer_domain, status, count(*)
+FROM cross_scope_completion_events
+WHERE status IN ('pending', 'claimed', 'running', 'retrying')
+GROUP BY producer_domain, status
+ORDER BY count(*) DESC, producer_domain, status`
+
+// CompletionEventBreakdown implements drainQuerier.
+func (q *sqlDrainQuerier) CompletionEventBreakdown(ctx context.Context) ([]completionEventRow, error) {
+	rows, err := q.db.QueryContext(ctx, completionEventBreakdownSQL)
+	if err != nil {
+		return nil, fmt.Errorf("completion-event breakdown: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var out []completionEventRow
+	for rows.Next() {
+		var row completionEventRow
+		if err := rows.Scan(&row.ProducerDomain, &row.Status, &row.Count); err != nil {
+			return nil, fmt.Errorf("scan completion-event breakdown: %w", err)
+		}
+		out = append(out, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate completion-event breakdown: %w", err)
+	}
+	return out, nil
+}
+
+func formatCompletionEventBreakdown(rows []completionEventRow) string {
+	details := make([]string, 0, len(rows))
+	for _, row := range rows {
+		details = append(details, fmt.Sprintf("%s/%s=%d", row.ProducerDomain, row.Status, row.Count))
+	}
+	return strings.Join(details, " ")
 }

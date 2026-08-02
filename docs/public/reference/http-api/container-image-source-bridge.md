@@ -65,9 +65,11 @@ No-Observability-Change: source-repository bridge reads reuse the existing
 `query.container_image_identities` and
 `query.container_image_identity_aggregate` spans, HTTP/MCP envelopes, response
 `count`, `limit`, `truncated`, and `next_cursor` or `next_offset` fields, and
-Postgres fact-read instrumentation. The query shape is bounded by
-`fact_kind='reducer_container_image_identity'`, active generation predicates,
-the GIN-indexed `payload->'source_repository_ids' ? $n` predicate, caller
-`limit+1` pagination for list/inventory, and deterministic fact-id or bucket
-ordering. After selector resolution, the identity read performs no whole-graph
-fanout, no reducer work, no queue work, and no runtime configuration change.
+Postgres fact-read instrumentation. The query shape resolves only the current
+digest-v3 support set for each active scope. A GIN overlap predicate on typed
+`source_repository_ids` selects matching digests, and the compatibility fold
+materializes only those selected digests under a keyset cursor and explicit
+result limit; list/inventory still use caller `limit+1` pagination and
+deterministic fact-id or bucket ordering. After selector resolution, the
+identity read performs no generation-wide JSON expansion, whole-graph fanout,
+reducer work, queue work, or runtime configuration change.

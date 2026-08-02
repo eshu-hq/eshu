@@ -66,9 +66,9 @@ for the same reason.
   time is measured from `Intent.CycleStartedAt`
   (`COALESCE(reopened_at, created_at)`), not from the row's original
   `created_at` alone: `aws_cloud_runtime_drift` is also now in
-  `postgres.CrossScopeCorrelationReopenDomains()`, mirroring the
-  `container_image_identity` precedent, so a lost race can still recover via the
-  bootstrap/ingester maintenance reopen — and because that reopen happens
+  `postgres.CrossScopeCorrelationReopenDomains()`, so a lost race can still
+  recover via the bootstrap/ingester maintenance reopen — and because that
+  reopen happens
   unconditionally on every ingester shard drain and bootstrap maintenance pass,
   `ReopenSucceeded`/`ReplayDomain` reset `reopened_at` (migration 088)
   alongside `attempt_count = 0`, giving each reopen a genuinely fresh 30-minute

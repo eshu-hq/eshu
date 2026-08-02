@@ -35,6 +35,36 @@ States: `pending` → `claimed` → `running` → `succeeded` / `failed`.
 `RepoDependencyProjectionRunner`, and `GraphProjectionPhaseRepairer` as
 concurrent goroutines. Any runner error cancels the shared context.
 
+## Cross-scope producer completion
+
+`container_image_identity` and `ci_cd_run_correlation` ACKs append one durable
+producer-completion event in the same Postgres statement that marks the work
+item batch succeeded. `CrossScopeCompletionRunner` leases those events with an
+owner plus monotonic claim epoch, coalesces an exact bounded event set, updates
+current-generation canonical consumer rows in place, and deletes only the
+captured event set in the same transaction. A succeeded consumer returns to
+pending; an already claimed or running consumer records
+`cross_scope_replay_required` so its ACK must reopen it once. Pending and
+retrying rows already guarantee a future execution, and dead-letter rows remain
+terminal.
+
+The dependency edges are identity -> CI/CD, identity -> supply-chain impact,
+and CI/CD -> supply-chain impact. The direct identity -> supply-chain edge lets
+new image truth refresh findings promptly; the later CI/CD completion refreshes
+the supply-chain consumer again so an early supply-chain run cannot strand a
+partial identity snapshot. Fanout never clones a work item, so retained queue
+history cannot multiply the replay workload.
+
+Failures persist as one bounded-backoff queued retry per producer domain,
+merged with any event that arrived while the failed lease was live.
+Expired leases are reclaimable, but every heartbeat, retry, and fanout is
+fenced by the exact event, producer domain, owner, and claim epoch. The generic
+queue gauges expose a bounded name such as
+`queue=cross_scope_completion.container_image_identity`; a growing depth or
+oldest age means convergence is delayed even if the main reducer queue is
+otherwise empty. Successful cycle logs include the producer domain, coalesced
+producer item count, scheduled consumer count, and fanout duration.
+
 ## Repo-dependency acceptance-unit concurrency
 
 `RepoDependencyProjectionRunner` shards work by the source-repository

@@ -125,12 +125,20 @@ type fakeExecQueryer struct {
 	// path (content_writer_batch.go) issues concurrent ExecContext calls per
 	// upsert batch; the prior unguarded slice appends were racy under -race
 	// and produced flaky ordering in tests that index db.execs.
-	mu             sync.Mutex
-	execs          []fakeExecCall
-	execErrors     []error
-	execResults    []sql.Result
-	queries        []fakeQueryCall
-	queryResponses []queueFakeRows
+	mu                               sync.Mutex
+	execs                            []fakeExecCall
+	execErrors                       []error
+	execResults                      []sql.Result
+	queries                          []fakeQueryCall
+	queryResponses                   []queueFakeRows
+	beginReadOnlyRepeatableReadCalls int
+	transactionQueryCalls            int
+	transactionExecCalls             int
+	transactionCommitCalls           int
+	transactionRollbackCalls         int
+	beginReadOnlyRepeatableReadErr   error
+	transactionCommitErr             error
+	transactionRollbackErr           error
 
 	// deferredFactsByScope, when non-nil, routes the per-scope deferred backfill
 	// fact query (listDeferredScopedRelationshipFactRecordsQuery, issue #3710) to a

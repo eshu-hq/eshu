@@ -31,6 +31,8 @@ func TestQueueObserverStoreQueueDepths(t *testing.T) {
 					{"semantic_extraction", "pending", int64(2)},
 					{"semantic_extraction", "claimed", int64(1)},
 					{"semantic_extraction", "retrying", int64(1)},
+					{"cross_scope_completion.container_image_identity", "pending", int64(3)},
+					{"cross_scope_completion.ci_cd_run_correlation", "running", int64(1)},
 				},
 			},
 		},
@@ -68,6 +70,12 @@ func TestQueueObserverStoreQueueDepths(t *testing.T) {
 	}
 	if got, want := depths["semantic_extraction"]["retrying"], int64(1); got != want {
 		t.Fatalf("semantic_extraction retrying = %d, want %d", got, want)
+	}
+	if got, want := depths["cross_scope_completion.container_image_identity"]["pending"], int64(3); got != want {
+		t.Fatalf("cross_scope_completion pending = %d, want %d", got, want)
+	}
+	if got, want := depths["cross_scope_completion.ci_cd_run_correlation"]["in_flight"], int64(1); got != want {
+		t.Fatalf("cross_scope_completion in_flight = %d, want %d", got, want)
 	}
 }
 
@@ -308,6 +316,7 @@ func TestQueueObserverStoreQueueOldestAge(t *testing.T) {
 			{
 				rows: [][]any{
 					{"semantic_extraction", 30.0},
+					{"cross_scope_completion.container_image_identity", 12.5},
 				},
 			},
 		},
@@ -327,6 +336,24 @@ func TestQueueObserverStoreQueueOldestAge(t *testing.T) {
 	}
 	if ages["semantic_extraction"] != 30.0 {
 		t.Fatalf("semantic_extraction age = %f, want 30.0", ages["semantic_extraction"])
+	}
+	if ages["cross_scope_completion.container_image_identity"] != 12.5 {
+		t.Fatalf("cross_scope_completion identity age = %f, want 12.5", ages["cross_scope_completion.container_image_identity"])
+	}
+}
+
+func TestQueueObserverAuxiliaryQueriesIncludeCompletionBacklog(t *testing.T) {
+	t.Parallel()
+	for name, query := range map[string]string{
+		"depth": semanticQueueDepthQuery,
+		"age":   semanticQueueOldestAgeQuery,
+	} {
+		if !strings.Contains(query, "cross_scope_completion_events") {
+			t.Fatalf("%s auxiliary queue query omits completion backlog:\n%s", name, query)
+		}
+		if !strings.Contains(query, "status IN ('pending', 'claimed', 'running', 'retrying')") {
+			t.Fatalf("%s auxiliary queue query omits live event states:\n%s", name, query)
+		}
 	}
 }
 

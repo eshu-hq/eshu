@@ -620,7 +620,80 @@ Primary groups:
 - `PostgresAWSCloudRuntimeDriftEvidenceLoader` logs malformed AWS runtime
   resource rows with `resource.fingerprint`, `resource.identity_kind`, and
   `resource.type`; it does not put raw ARNs, Terraform addresses, or
-  secret-shaped resource names in operator logs.
+  secret-shaped resource names in operator logs. Two `failure_class` values
+  distinguish causes an operator has to act on differently:
+  `state_resource_payload_decode` is ordinary malformed-payload noise, while
+  `state_resource_arn_redacted` means the join key itself was redacted -- the
+  provider-schema bundle is unusable, so EVERY declared row is leaving the join
+  and the account is about to read as orphaned (#5859, #5870).
+- The same loader and its multi-cloud sibling
+  (`PostgresMultiCloudRuntimeDriftEvidenceLoader`) drop a redacted comparable
+  attribute from `ResourceRow.Attributes` rather than passing the marker
+  through as a value (`comparableScalarAttr` in
+  `aws_cloud_runtime_drift_value_attributes.go`). There is no loader-side log
+  for that: when redaction erases every comparable attribute for a covered
+  resource type, `cloudruntime.ClassifyValueComparison` reports
+  `Comparable > 0, Compared == 0` and `Classify` returns
+  `value_comparison_inconclusive`, which is a durable finding row carrying
+  `comparable_attribute:<key>` in `missing_evidence` and counted on
+  `Summary.ValueComparisonInconclusiveResources` (#5837). That is the signal
+  an operator reads; a second loader-side detector of the same condition
+  could only disagree with it.
+
+No-Regression Evidence (#5859): the redaction check sits on the value-drift
+decode path, so it was measured rather than assumed.
+`BenchmarkStateDeclaredValueAttributes` (in
+`aws_cloud_runtime_drift_value_attributes_redaction_test.go`) runs the
+production shape -- an `aws_instance` payload whose `ami` is a real,
+non-redacted string -- through `stateDeclaredValueAttributes`. Old shape
+(`strings.TrimSpace(coerceJSONString(attributes[key]))`, measured by reverting
+`comparableScalarAttr` in place on this same branch and restoring it
+byte-identically afterwards) against new shape, `-benchtime=2s -count=5`, Go
+1.26 on an Apple M1 Max:
+
+```text
+OLD  118.9  119.6  119.7  120.6  119.6 ns/op   336 B/op   2 allocs/op
+NEW  126.4  121.8  121.0  121.4  121.6 ns/op   336 B/op   2 allocs/op
+```
+
+About +2 ns/op on a ~120 ns/op call, and byte-for-byte identical allocation.
+That is the cost of two failed type assertions per allowlisted key
+(`map[string]any`, then `[]any`) ahead of the coercion the old code called
+directly -- no allocation, no parsing, no extra read. The path runs at most
+twice per state row (`aws_lambda_function` is the widest allowlist entry at two
+keys).
+
+`flattenStateAttributes` is the widest of the three changed paths and is
+measured separately, because asserting it from the narrow one would have
+understated it: the check runs once per node VISITED -- every map, every array,
+and every scalar leaf of a whole state resource's attribute tree, not once per
+row or per map. `BenchmarkFlattenStateAttributes` (in
+`tfstate_drift_evidence_state_row_test.go`) walks a realistic tree of scalars,
+a tag map, and eight singleton-array repeated blocks, measured the same way:
+
+```text
+OLD  4125  4061  4057  4053  4112 ns/op   6241 B/op   55 allocs/op
+NEW  4376  4370  4365  4349  4367 ns/op   6241 B/op   55 allocs/op
+```
+
+About +280 ns/op, roughly +7% on this shape, with allocation again identical.
+That is the largest relative cost in the change and it is stated plainly rather
+than rounded away: it is one type assertion per visited node, it does not
+allocate, and it is bounded by the tree the flattener already walks. At ~4.4 µs
+per state resource the absolute cost stays well inside the per-generation drift
+budget. The join key's guard (`awsRuntimeStateRowFromPayload`) adds one such
+check per rejected row and is not separately benchmarked -- it runs once per
+row on the same no-allocation shape as the decoder path above.
+
+No-Observability-Change (#5859): no new metric, span, queue, lease, worker, or
+runtime knob. The one new signal is a `failure_class` value
+(`state_resource_arn_redacted`) on the loader's already-registered decode WARN
+described above; the value-suppression case surfaces through #5837's existing
+`value_comparison_inconclusive` finding kind and its
+`Summary.ValueComparisonInconclusiveResources` counter, not through anything
+added here. The terraform-state collector already counts every redaction at
+emission time on `eshu_dp_tfstate_redactions_applied_total{reason}`.
+
 - `CICDRunWatermarkStore` emits no metrics or spans of its own. Gap
   detection is observed through `ghactionsruntime`'s existing
   `eshu_dp_ci_cd_run_partial_generations_total{reason="runs_backfill_gap"}`
@@ -631,7 +704,7 @@ Primary groups:
   scoped out of #5429; wire one if per-store-operation telemetry becomes
   necessary.
 - `cloudObservedValueAttributes`/`stateDeclaredValueAttributes`
-  (`aws_cloud_runtime_drift_evidence.go`, reused by
+  (`aws_cloud_runtime_drift_value_attributes.go`, reused by
   `multi_cloud_runtime_drift_evidence.go`) normalize the bounded,
   allowlisted `cloudruntime.ResourceRow.Attributes`/`ContainerImages` value-
   drift comparison fields (#5453) off the AWS-observed and Terraform-declared
@@ -1441,16 +1514,29 @@ candidate/skipped/loaded counts. A high skip ratio against a stable catalog is
 the operator-visible signal the memo is effective; a skip ratio that collapses to
 zero signals a catalog churn or a memo-write regression.
 
-### Cross-scope correlation reopen (#5423 / #5710 / #5426 / #5837)
+### Cross-scope completion and correlation reopen (#5423 / #5710 / #5426 / #5837 / #5740)
 
 `CrossScopeCorrelationReopenDomains` (`ingestion_reopen_correlation.go`) is the
-single source of truth for the reducer domains replayed after a maintenance
-pass: `deployable_unit_correlation`,
-`kubernetes_correlation_materialization`, `container_image_identity`,
-`ci_cd_run_correlation`, `supply_chain_impact`, `aws_cloud_runtime_drift`. Both
+single source of truth for reducer domains that still need blanket replay after
+a maintenance pass: `deployable_unit_correlation`,
+`kubernetes_correlation_materialization`, and `aws_cloud_runtime_drift`. Both
 runtimes consume it — the
 ingester on every shard drain through `reopenMaintenanceWorkItemsInTransaction`,
 and `eshu-bootstrap-index` once through its `correlation_reopen` phase.
+
+The identity -> CI/CD -> supply-chain chain no longer relies on unordered
+blanket replay. A successful `container_image_identity` or
+`ci_cd_run_correlation` ACK appends a row to
+`cross_scope_completion_events` atomically with the producer success. The
+resolution engine leases that durable queue and fans out current-generation
+canonical consumer rows in one fenced statement, deleting only the captured
+event set after the updates succeed. Succeeded consumers return to pending;
+claimed or running consumers carry `cross_scope_replay_required` until their
+ACK reopens them. Identity completion targets both
+CI/CD and supply-chain impact; CI/CD completion targets supply-chain impact
+again, guaranteeing final convergence when the first supply-chain run raced
+ahead of CI/CD. Fanout never inserts work items, so retained generation history
+cannot multiply recursively.
 
 Sharing the list is the point, not tidiness. Until #5846 the correlation reopen
 had exactly one caller, `bootstrap-index`, so these domains were never replayed
@@ -1461,13 +1547,16 @@ gap. One list plus one SQL shape means the gate's bootstrap passes are evidence
 about the ingester; only the call site differs. (The gate still does not start
 `eshu-ingester`, so the call site itself is not gate-covered.)
 
-These domains are deliberately NOT gated by the same-pass backfill skip-set
-described below. That set records which partitions committed no new BACKWARD
-EVIDENCE this pass; the correlation domains wait on a different signal —
-another scope's generation activating — so gating them on it would skip exactly
-the replay the activation race needs. The durable fix is #5709's readiness-defer
-and activation-driven re-enqueue (`crossScopeDependencyCatalog` already declares
-the chain); until then this replay is the recovery path.
+The remaining blanket domains are deliberately NOT gated by the same-pass
+backfill skip-set described below. That set records which partitions committed
+no new BACKWARD EVIDENCE this pass; the correlation domains wait on a different
+signal — another scope's generation activating — so gating them on it would
+skip exactly the replay the activation race needs. The completion-driven chain
+is intentionally excluded: its retrying event queue is durable, independently
+leased, and visible through the generic queue depth and oldest-age gauges as
+`cross_scope_completion.<producer_domain>`. Retry merges the failed live lease
+with any queued event for that producer, keeping one queued and at most one live
+row per producer domain.
 
 The bound is a per-scope REPLAY FLOOR instead.
 `listSucceededReducerWorkItemsByDomainQuery` keeps only the work items on a
@@ -1612,14 +1701,14 @@ proportionally bigger, not slower per unit of work. `docker run postgres:16` on
 a throwaway container, `TestCorrelationReopenPerDrainCostProof` with
 `ESHU_CORRELATION_REOPEN_COST_PROOF_DSN` set, exit 0 in 171 s.
 
-**Not measured**: the downstream cost of the reducer RE-EXECUTING each reopened
-item. The steady state is one work item per active scope per domain handed back
-to the reducer on every drain, indefinitely — 5400 at this corpus size — and two
-of the six domains write graph edges when they run
+**Not measured in the historical table**: the downstream cost of the reducer
+RE-EXECUTING each reopened item. That six-domain steady state was 5400 work
+items at this corpus size, including two domains that write graph edges
 (`aws_cloud_runtime_drift` writes durable fact rows via
-`WriteAWSCloudRuntimeDriftFindings`, not graph edges). The floor bounds that
-count at O(active scopes); it does not remove it. The durable fix is #5709's
-activation-driven re-enqueue, which replaces the replay rather than bounding it.
+`WriteAWSCloudRuntimeDriftFindings`, not graph edges). Completion events now
+remove CI/CD and supply-chain from blanket replay; four domains remain, with
+identity retained because raw OCI activation has no reducer ACK. The floor
+still bounds those four at O(active scopes); it does not remove their replay.
 `docs/internal/evidence/5426-reopen-update-cost.sql` remains for history; its
 server-side `UPDATE` loop excludes exactly the round-trips that dominate here.
 
@@ -1865,16 +1954,12 @@ every shard's own logs.
 `TestIngestionStoreWaitDeferredMaintenanceBarrierCompletionStallLogNamesMissingShards`
 proves the missing set is named directly, not just a count.
 
-All six domains reopen in one
-unordered transaction, so a `container_image_identity` ->
-`ci_cd_run_correlation` -> `supply_chain_impact` chain advances by at most one
-link per drain — measured on the gate corpus, one maintenance pass leaves the
-tail without `environment_evidence` and two converge
-(`docs/internal/evidence/5426-golden-corpus-coverage.md`). A corpus that goes
-quiet right after the head decision commits therefore keeps the tail's
-empty-join output until the next committed generation or an
-`eshu-bootstrap-index` run; those are the two levers an operator has. #5709's
-activation-driven re-enqueue ends the dependence on drain count.
+The old six-domain transaction was unordered: one pass could advance the
+identity -> CI/CD -> supply-chain chain by only one link, leaving a quiet corpus
+with partial findings until another drain. Completion events remove that drain
+count dependency. A producer ACK is the ordering signal, failed fanout retries
+indefinitely with bounded backoff, and an expired owner can be replaced without
+letting a stale claim commit.
 
 Live proofs (`ESHU_DEFERRED_PARTITION_PROOF_DSN`-gated):
 `TestRunDeferredRelationshipMaintenanceReopensCrossScopeCorrelationDomains`,

@@ -13,13 +13,16 @@ import (
 )
 
 // suppressionRowCapFakePage builds one page of `count` fake
-// vulnerability.suppression rows in scanFactEnvelope's 16-column order, for
+// vulnerability.suppression rows in the combined pager's tagged 18-column
+// order, for
 // TestListActiveSupplyChainImpactFactsCapsRowsPerCall below.
 func suppressionRowCapFakePage(startIndex, count int, baseTime time.Time) [][]any {
 	page := make([][]any, count)
 	for i := range page {
 		factID := fmt.Sprintf("vuln-suppression:row-cap-%04d", startIndex+i)
 		page[i] = []any{
+			2,
+			int64(i + 1),
 			factID,
 			"vex-scope:row-cap",
 			"generation-1",

@@ -178,9 +178,9 @@ func cicdRunCorrelationDomainDefinition() DomainDefinition {
 				truth.LayerObservedResource,
 			},
 		},
-		// #5709: the correlation reads container_image_identity output across
-		// scopes; carrying the declared dependency on the registered definition
-		// is what the readiness/re-enqueue slices consume.
+		// The correlation reads container_image_identity output across scopes;
+		// carrying this dependency on the registered definition keeps declared
+		// truth and completion fanout in lockstep.
 		CrossScopeDependencies: crossScopeDependenciesForRegistration(DomainCICDRunCorrelation),
 	}
 }
@@ -252,11 +252,10 @@ func supplyChainImpactDomainDefinition() DomainDefinition {
 				truth.LayerObservedResource,
 			},
 		},
-		// #5709: the finding reads ci_cd_run_correlation output across scopes
-		// for its deployment context and environment evidence (#5426). The
-		// readiness/re-enqueue slices read the declaration off the registered
-		// definition, not the standalone catalog, so leaving it unwired here
-		// would let the early empty-join execution stand.
+		// The finding reads ci_cd_run_correlation output across scopes for its
+		// deployment context and environment evidence (#5426). Completion fanout
+		// consumes the registered declaration, so leaving it unwired here would
+		// let the early empty-join execution stand.
 		CrossScopeDependencies: crossScopeDependenciesForRegistration(DomainSupplyChainImpact),
 	}
 }

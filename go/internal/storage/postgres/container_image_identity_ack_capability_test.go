@@ -238,6 +238,8 @@ func assertContainerImageIdentityAttemptBoundAckQuery(t *testing.T, query string
 		"container_image_identity_v2_authorized_status",
 		"THEN 'succeeded'",
 		"container_image_identity_claim_epoch",
+		"domain = 'container_image_identity'",
+		"INSERT INTO cross_scope_completion_events",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("reducer ACK query missing %q:\n%s", want, query)

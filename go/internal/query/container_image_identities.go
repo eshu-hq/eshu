@@ -12,8 +12,6 @@ import (
 	"github.com/lib/pq"
 )
 
-const containerImageIdentityFactKind = "reducer_container_image_identity"
-
 // ContainerImageIdentityStore reads reducer-owned container image identity
 // facts.
 type ContainerImageIdentityStore interface {
@@ -106,7 +104,6 @@ func (s PostgresContainerImageIdentityStore) ListContainerImageIdentities(
 	rows, err := s.DB.QueryContext(
 		ctx,
 		listContainerImageIdentitiesQuery,
-		containerImageIdentityFactKind,
 		filter.Digest,
 		filter.ImageRef,
 		filter.SourceRepositoryID,
@@ -140,32 +137,6 @@ func (s PostgresContainerImageIdentityStore) ListContainerImageIdentities(
 	}
 	return out, nil
 }
-
-const listContainerImageIdentitiesQuery = `
-SELECT fact.fact_id, fact.source_confidence, fact.payload
-FROM fact_records AS fact
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = fact.scope_id
- AND scope.active_generation_id = fact.generation_id
-JOIN scope_generations AS generation
-  ON generation.scope_id = fact.scope_id
- AND generation.generation_id = fact.generation_id
-WHERE fact.fact_kind = $1
-  AND fact.is_tombstone = FALSE
-  AND generation.status = 'active'
-  AND ($2 = '' OR fact.payload->>'digest' = $2)
-  AND ($3 = '' OR fact.payload->>'image_ref' = $3)
-  AND ($4 = '' OR fact.payload->'source_repository_ids' ? $4)
-  AND ($5 = '' OR fact.payload->>'repository_id' = $5)
-  AND ($6 = '' OR fact.payload->>'outcome' = $6)
-  AND ($7 = '' OR fact.fact_id > $7)
-  AND (
-        COALESCE(cardinality($9::text[]), 0) = 0
-        OR fact.payload->'source_repository_ids' ?| $9::text[]
-      )
-ORDER BY fact.fact_id ASC
-LIMIT $8
-`
 
 func (f ContainerImageIdentityFilter) hasScope() bool {
 	return f.Digest != "" || f.ImageRef != "" || f.SourceRepositoryID != "" ||

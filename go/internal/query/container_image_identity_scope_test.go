@@ -314,25 +314,25 @@ func TestContainerImageIdentitySQLAppliesSourceRepositoryGrantOverlap(t *testing
 			name:       "list",
 			query:      listContainerImageIdentitiesQuery,
 			beforeText: "ORDER BY",
-			predicate:  "fact.payload->'source_repository_ids' ?| $9::text[]",
+			predicate:  "support.source_repository_ids && $8::text[]",
 		},
 		{
 			name:       "total",
 			query:      containerImageIdentityAggregateTotalQuery,
 			beforeText: ";",
-			predicate:  "fact.payload->'source_repository_ids' ?| $6::text[]",
+			predicate:  "support.source_repository_ids && $6::text[]",
 		},
 		{
 			name:       "group",
 			query:      containerImageIdentityAggregateGroupQueryTemplate,
 			beforeText: "GROUP BY",
-			predicate:  "fact.payload->'source_repository_ids' ?| $6::text[]",
+			predicate:  "support.source_repository_ids && $6::text[]",
 		},
 		{
 			name:       "inventory",
 			query:      containerImageIdentityInventoryQueryTemplate,
 			beforeText: "GROUP BY",
-			predicate:  "fact.payload->'source_repository_ids' ?| $6::text[]",
+			predicate:  "support.source_repository_ids && $6::text[]",
 		},
 	} {
 		tc := tc
