@@ -103,22 +103,22 @@ go test ./internal/reducer \
 ## Prove-the-theory-first performance evidence
 
 Performance Evidence: OLD and NEW measurements below use synthetic
-`registry.example.com` inputs on the same Apple M5 Max host. Postgres plans use
+`registry.example.com` inputs on the same local host. Postgres plans use
 the same Postgres 18 container, warm storage, selectors, row counts, and
 buffers. The graph benchmarks compare equivalent normalized decision and
 support inputs. The migration comparison intentionally changes behavior: OLD
 eagerly converted all active legacy facts into an unused typed set during
 startup; NEW retains legacy read authority until the first fenced publication.
 
-No-Observability-Change: existing reducer execution/run duration,
+Observability Evidence: existing reducer execution/run duration,
 `eshu_dp_container_image_identity_decisions_total`,
 `eshu_dp_container_image_identity_retirements_total`, Postgres query-duration,
 queue residual/dead-letter status, and structured reducer failure reporting
-cover the changed paths. Missing effective projection is a new fail-closed
-validation error surfaced through those existing reducer error and queue
-signals; it adds no new retry or operational failure class, runtime label, or
-worker. The final live gate must end at zero residual and dead-letter work
-items.
+cover identity publication. The durable completion lane reuses
+`eshu_dp_queue_depth` and `eshu_dp_queue_oldest_age_seconds` with bounded
+`queue=cross_scope_completion.<producer_domain>` values. It logs the producer
+domain, coalesced producer item count, scheduled canonical consumer count, and
+fanout duration, or a fenced retry error. It adds no unbounded metric dimension.
 
 All comparisons used the same Postgres 18 container, schema, synthetic
 `registry.example.com` data, and 99,500-row support corpus.
@@ -381,9 +381,100 @@ race-enabled PostgreSQL 18 command then passed every contention, fencing,
 fairness, and sign-in-policy test. Its 5,000-row rank-once candidate select
 measured 26.836 ms against the existing 8-second latency budget.
 
+### Producer-completion convergence
+
+The live gate exposed a race that the old three-domain maintenance reopen could
+hide: identity, CI/CD, and supply-chain work items were reopened together and
+claimed concurrently, so supply-chain impact could persist a partial identity
+snapshot. The accepted design appends one durable event in the same statement
+as a successful identity or CI/CD ACK. New binaries increment an ACK epoch and
+aggregate the event in the ACK statement. A narrow `AFTER UPDATE OF status`
+trigger emits for a rolling old binary only when that epoch did not advance.
+The fenced runner atomically updates current-generation canonical consumer rows
+in place and deletes only the captured event set. Succeeded consumers return to
+pending; an in-flight consumer becomes dirty, and its database-level ACK fence
+reopens it once. Identity completion targets CI/CD and supply-chain; CI/CD
+completion targets supply-chain again, so the tail converges even if its first
+run preceded CI/CD.
+
+The first prove-the-theory candidate cloned one consumer per producer event.
+At 57 ACK batches and 1,800 consumers that produced 102,600 new work rows and
+86.738 ms of insert work. It was rejected. The accepted canonical-state update
+measured 3.383 ms across 1,800 consumers, and a second already-coalesced wave
+measured 0.093 ms. Events are bounded to one queued row and at most one live row
+per producer domain; retry merges those rows instead of retaining terminal
+event history.
+
+The final paired benchmark used a true pre-migration baseline: no completion
+tables, functions, triggers, columns, or fanout index. Both arms used the same
+Postgres service and synthetic 32 KiB work-item payloads. The candidate was the
+exact ACK-epoch/event SQL and narrow status triggers:
+
+| Operation | OLD p95 | Final p95 | Absolute change |
+| --- | ---: | ---: | ---: |
+| identity ACK, batch 1 | 0.195 ms | 0.233 ms | +0.037 ms |
+| identity ACK, batch 50 | 1.188 ms | 1.268 ms | +0.081 ms |
+| identity ACK, batch 500 | 10.870 ms | 11.133 ms | +0.263 ms |
+| mixed identity + CI/CD + unrelated ACK, batch 48 | 1.524 ms | 1.965 ms | +0.441 ms |
+| 16 concurrent clients, identity batch 50 each | 10.641 ms | 11.138 ms | +0.497 ms |
+
+The final implementation was then re-run in three independent fresh-schema
+trials under variable host load. Median p95 deltas were +0.036 ms (batch 1),
++0.148 ms (batch 50), +0.691 ms (batch 500), +0.349 ms (mixed batch 48), and
++0.653 ms (16 concurrent clients). The unrelated ACK and `ClaimBatch` controls
+had median deltas of +0.005 ms and -2.528 ms. Individual marginal-p95 samples
+varied with host load, including one batch-500 +1.419 ms sample paired with a
++3.524 ms unrelated-claim regression, so that read did not isolate completion
+cost. The final isolated invocation passed every assertion: +0.649 ms for batch
+500, +0.304 ms for mixed batch 48, +0.713 ms for the concurrent case,
+-0.099 ms for unrelated ACK, and -2.528 ms for unrelated `ClaimBatch`.
+
+The initial paired run in the table also measured unrelated queue paths,
+including the tuple-width
+cost of the two added columns. Batch-500 ACK improved by 0.699 ms p95 and
+batch-500 `ClaimBatch` improved by 1.949 ms. Single-row heartbeat, retry, and
+terminal-fail p95 changed by +0.004 ms, +0.017 ms, and +0.026 ms respectively.
+The triggers are declared `UPDATE OF status`, so heartbeat-only writes do not
+evaluate either row trigger.
+
+The final-shape scale proof retained 25 generations for 900 scopes: 67,500
+work rows in total and 2,700 current canonical rows. It used 57 sequential ACK
+batches, the real Postgres completion store, and the real
+`CrossScopeCompletionRunner.RunOnce`. The reachable worst ordering completed
+supply-chain once before CI/CD, then replayed it after CI/CD, for 3,600
+synthetic ACK state transitions. Five isolated runs measured 499-505 ms wall,
+16,333,000-16,333,040 WAL bytes, 63.102-64.435 ms identity fanout, and
+31.611-32.394 ms CI/CD fanout. Sequential identity ACK p95 was
+1.177-1.322 ms; sequential CI/CD ACK p95 was 2.415-2.546 ms. These are queue
+state transitions, not claims that the domain handlers executed; the live
+golden gate is the handler/pipeline proof.
+
+Live Postgres regressions prove one live owner per producer domain under 16
+concurrent claimers, monotonic epoch takeover, stale-owner rejection, root-first
+bounded fanout, atomic rollback of canonical scheduling and captured-event
+deletion, one coalesced event per producer domain, migration lock-timeout
+rollback and stable reapply, and the complete
+identity -> CI/CD -> supply-chain convergence chain:
+
+```bash
+ESHU_POSTGRES_TEST_DSN='postgresql://eshu:change-me@127.0.0.1:25432/eshu?sslmode=disable' \
+  go test ./internal/storage/postgres \
+  -run '^TestCrossScopeCompletion|^TestReducerAckBatchAppendsOneCompletionEventPerProducerDomainLive$' \
+  -count=1
+```
+
+The final paired performance command is:
+
+```bash
+ESHU_POSTGRES_TEST_DSN='postgresql://eshu:change-me@127.0.0.1:25432/eshu?sslmode=disable' \
+  go test -tags='perf5854_ack perf5740_completion' \
+  ./internal/storage/postgres \
+  -run '^TestCrossScopeCompletionFinalShapePerformanceLive$' -count=1 -v
+```
+
 ## Promotion gates
 
-The final clean B-7 run used the required comprehensive profile:
+The final clean B-7 run uses the required comprehensive profile:
 
 ```bash
 GOCACHE=$PWD/.gocache ESHU_POSTGRES_PORT=25432 \
@@ -391,14 +482,6 @@ GOCACHE=$PWD/.gocache ESHU_POSTGRES_PORT=25432 \
   bash scripts/verify-golden-corpus-gate.sh
 ```
 
-It completed in 114 seconds with 519 passes, zero required failures, and zero
-advisory warnings. Every drain reported `residual=0` and `dead_letter=0`.
-The workload-scoped `CVE-2026-00010` comprehensive-profile assertion passed
-with the expected runtime context and suppression state, proving the reducer
-consumed support-grain identity evidence rather than the digest-level
-presentation union.
-
-Focused query/reducer/storage tests, their race variants, the live Postgres
-support tests, telemetry verifier, and strict documentation build also passed
-after the final implementation edits. Preliminary/final `eshu-code-review`
-and `make pre-pr` remain the last local promotion steps before push.
+The pull request records the exact final pass count, required-failure count,
+advisory count, and wall time from this command on the frozen implementation
+diff. Focused and promotion evidence must postdate every implementation edit.

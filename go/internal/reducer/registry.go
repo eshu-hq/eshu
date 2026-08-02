@@ -68,9 +68,9 @@ type DomainDefinition struct {
 	TruthContract truth.Contract
 	Handler       Handler
 	// CrossScopeDependencies declares the producer domains this domain reads
-	// across ingestion scopes (#5709). It is optional and declarative: the
-	// readiness-defer and activation re-enqueue that consume it land in
-	// follow-up slices, so a definition without it behaves exactly as before.
+	// across ingestion scopes. The producer-completion fanout derives runtime
+	// scheduling edges from the same catalog used to populate this declaration,
+	// so registered truth and convergence behavior stay in lockstep.
 	CrossScopeDependencies []CrossScopeDependency
 }
 

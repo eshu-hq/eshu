@@ -32,47 +32,6 @@ const enqueueReducerBatchSuffix = `
 ON CONFLICT (work_item_id) DO NOTHING
 `
 
-const ackReducerWorkQuery = `
-UPDATE fact_work_items
-SET status = 'succeeded',
-    lease_owner = NULL,
-    claim_until = NULL,
-    visible_at = NULL,
-    updated_at = $1,
-    failure_class = NULL,
-    failure_message = NULL,
-    failure_details = NULL
-WHERE work_item_id = $2
-  AND stage = 'reducer'
-  AND lease_owner = $3
-  AND status IN ('claimed', 'running')
-`
-
-const ackContainerImageIdentityReducerWorkQuery = `
-UPDATE fact_work_items
-SET status = 'succeeded',
-    container_image_identity_v2_authorized_status = CASE
-        WHEN container_image_identity_v2_required THEN 'succeeded'
-        ELSE ''
-    END,
-    container_image_identity_v3_authorized_status = CASE
-        WHEN container_image_identity_v3_required THEN 'succeeded'
-        ELSE ''
-    END,
-    lease_owner = NULL,
-    claim_until = NULL,
-    visible_at = NULL,
-    updated_at = $1,
-    failure_class = NULL,
-    failure_message = NULL,
-    failure_details = NULL
-WHERE work_item_id = $2
-  AND stage = 'reducer'
-  AND lease_owner = $3
-  AND status IN ('claimed', 'running')
-  AND container_image_identity_claim_epoch = $4
-`
-
 const heartbeatReducerWorkQuery = `
 UPDATE fact_work_items
 SET claim_until = $1,
@@ -86,6 +45,7 @@ WHERE work_item_id = $3
 const failReducerWorkQuery = `
 UPDATE fact_work_items
 SET status = 'dead_letter',
+    cross_scope_replay_required = FALSE,
     lease_owner = NULL,
     claim_until = NULL,
     visible_at = NULL,
@@ -102,6 +62,7 @@ WHERE work_item_id = $5
 const failContainerImageIdentityReducerWorkQuery = `
 UPDATE fact_work_items
 SET status = 'dead_letter',
+    cross_scope_replay_required = FALSE,
     container_image_identity_v2_authorized_status = CASE
         WHEN container_image_identity_v2_required THEN 'dead_letter'
         ELSE ''
@@ -127,6 +88,7 @@ WHERE work_item_id = $5
 const retryReducerWorkQuery = `
 UPDATE fact_work_items
 SET status = 'retrying',
+    cross_scope_replay_required = FALSE,
     lease_owner = NULL,
     claim_until = NULL,
     visible_at = $5,
@@ -144,6 +106,7 @@ WHERE work_item_id = $6
 const retryContainerImageIdentityReducerWorkQuery = `
 UPDATE fact_work_items
 SET status = 'retrying',
+    cross_scope_replay_required = FALSE,
     container_image_identity_v2_authorized_status = CASE
         WHEN container_image_identity_v2_required THEN 'retrying'
         ELSE ''
@@ -435,9 +398,14 @@ func (q ReducerQueue) Ack(ctx context.Context, intent reducer.Intent, _ reducer.
 		return err
 	}
 
-	query := ackReducerWorkQuery
-	if intent.Domain == reducer.DomainContainerImageIdentity {
+	var query string
+	switch intent.Domain {
+	case reducer.DomainContainerImageIdentity:
 		query = ackContainerImageIdentityReducerWorkQuery
+	case reducer.DomainCICDRunCorrelation:
+		query = ackCICDRunCorrelationReducerWorkQuery
+	default:
+		query = ackReducerWorkQuery
 	}
 	args := []any{q.now(), intent.IntentID, q.LeaseOwner}
 	if intent.Domain == reducer.DomainContainerImageIdentity {
@@ -447,7 +415,8 @@ func (q ReducerQueue) Ack(ctx context.Context, intent reducer.Intent, _ reducer.
 	if err != nil {
 		return fmt.Errorf("ack reducer work: %w", err)
 	}
-	if intent.Domain == reducer.DomainContainerImageIdentity {
+	if intent.Domain == reducer.DomainContainerImageIdentity ||
+		intent.Domain == reducer.DomainCICDRunCorrelation {
 		rowsAffected, rowsErr := result.RowsAffected()
 		if rowsErr != nil {
 			return fmt.Errorf("ack reducer work: rows affected: %w", rowsErr)

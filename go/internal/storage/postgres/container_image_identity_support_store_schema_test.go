@@ -109,12 +109,25 @@ func TestContainerImageIdentitySupportStoreSchemaContract(t *testing.T) {
 	}
 }
 
-func TestContainerImageIdentitySupportStoreIsLastBootstrapDefinition(t *testing.T) {
+func TestContainerImageIdentitySupportStoreCutoverDefinitionsStayAdjacent(t *testing.T) {
 	t.Parallel()
 
 	defs := BootstrapDefinitions()
-	if got := defs[len(defs)-1].Name; got != "container_image_identity_current_support_facts_function" {
-		t.Fatalf("last bootstrap definition = %q, want container_image_identity_current_support_facts_function", got)
+	lastCutover := -1
+	for index, def := range defs {
+		if def.Name == "container_image_identity_current_support_facts_function" {
+			lastCutover = index
+			break
+		}
+	}
+	if lastCutover < 0 {
+		t.Fatal("container image identity cutover definition missing")
+	}
+	if lastCutover+1 >= len(defs) {
+		t.Fatal("cross-scope completion queue must follow the identity cutover")
+	}
+	if got := defs[lastCutover+1].Name; got != "cross_scope_completion_queue" {
+		t.Fatalf("definition after identity cutover = %q, want cross_scope_completion_queue", got)
 	}
 }
 
@@ -166,8 +179,18 @@ func TestContainerImageIdentityCutoverFilesAreAdjacentAndFailClosed(t *testing.T
 		"container_image_identity_current_facts_function",
 		"container_image_identity_current_support_facts_function",
 	}
+	start := -1
+	for index, def := range defs {
+		if def.Name == want[0] {
+			start = index
+			break
+		}
+	}
+	if start < 0 || start+len(want) > len(defs) {
+		t.Fatal("container image identity cutover definitions missing")
+	}
 	for i, name := range want {
-		if got := defs[len(defs)-4+i].Name; got != name {
+		if got := defs[start+i].Name; got != name {
 			t.Fatalf("cutover definition %d = %q, want %q", i, got, name)
 		}
 	}

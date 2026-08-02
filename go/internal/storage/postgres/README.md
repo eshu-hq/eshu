@@ -1514,16 +1514,29 @@ candidate/skipped/loaded counts. A high skip ratio against a stable catalog is
 the operator-visible signal the memo is effective; a skip ratio that collapses to
 zero signals a catalog churn or a memo-write regression.
 
-### Cross-scope correlation reopen (#5423 / #5710 / #5426 / #5837)
+### Cross-scope completion and correlation reopen (#5423 / #5710 / #5426 / #5837 / #5740)
 
 `CrossScopeCorrelationReopenDomains` (`ingestion_reopen_correlation.go`) is the
-single source of truth for the reducer domains replayed after a maintenance
-pass: `deployable_unit_correlation`,
-`kubernetes_correlation_materialization`, `container_image_identity`,
-`ci_cd_run_correlation`, `supply_chain_impact`, `aws_cloud_runtime_drift`. Both
+single source of truth for reducer domains that still need blanket replay after
+a maintenance pass: `deployable_unit_correlation`,
+`kubernetes_correlation_materialization`, and `aws_cloud_runtime_drift`. Both
 runtimes consume it — the
 ingester on every shard drain through `reopenMaintenanceWorkItemsInTransaction`,
 and `eshu-bootstrap-index` once through its `correlation_reopen` phase.
+
+The identity -> CI/CD -> supply-chain chain no longer relies on unordered
+blanket replay. A successful `container_image_identity` or
+`ci_cd_run_correlation` ACK appends a row to
+`cross_scope_completion_events` atomically with the producer success. The
+resolution engine leases that durable queue and fans out current-generation
+canonical consumer rows in one fenced statement, deleting only the captured
+event set after the updates succeed. Succeeded consumers return to pending;
+claimed or running consumers carry `cross_scope_replay_required` until their
+ACK reopens them. Identity completion targets both
+CI/CD and supply-chain impact; CI/CD completion targets supply-chain impact
+again, guaranteeing final convergence when the first supply-chain run raced
+ahead of CI/CD. Fanout never inserts work items, so retained generation history
+cannot multiply recursively.
 
 Sharing the list is the point, not tidiness. Until #5846 the correlation reopen
 had exactly one caller, `bootstrap-index`, so these domains were never replayed
@@ -1534,13 +1547,16 @@ gap. One list plus one SQL shape means the gate's bootstrap passes are evidence
 about the ingester; only the call site differs. (The gate still does not start
 `eshu-ingester`, so the call site itself is not gate-covered.)
 
-These domains are deliberately NOT gated by the same-pass backfill skip-set
-described below. That set records which partitions committed no new BACKWARD
-EVIDENCE this pass; the correlation domains wait on a different signal —
-another scope's generation activating — so gating them on it would skip exactly
-the replay the activation race needs. The durable fix is #5709's readiness-defer
-and activation-driven re-enqueue (`crossScopeDependencyCatalog` already declares
-the chain); until then this replay is the recovery path.
+The remaining blanket domains are deliberately NOT gated by the same-pass
+backfill skip-set described below. That set records which partitions committed
+no new BACKWARD EVIDENCE this pass; the correlation domains wait on a different
+signal — another scope's generation activating — so gating them on it would
+skip exactly the replay the activation race needs. The completion-driven chain
+is intentionally excluded: its retrying event queue is durable, independently
+leased, and visible through the generic queue depth and oldest-age gauges as
+`cross_scope_completion.<producer_domain>`. Retry merges the failed live lease
+with any queued event for that producer, keeping one queued and at most one live
+row per producer domain.
 
 The bound is a per-scope REPLAY FLOOR instead.
 `listSucceededReducerWorkItemsByDomainQuery` keeps only the work items on a
@@ -1685,14 +1701,14 @@ proportionally bigger, not slower per unit of work. `docker run postgres:16` on
 a throwaway container, `TestCorrelationReopenPerDrainCostProof` with
 `ESHU_CORRELATION_REOPEN_COST_PROOF_DSN` set, exit 0 in 171 s.
 
-**Not measured**: the downstream cost of the reducer RE-EXECUTING each reopened
-item. The steady state is one work item per active scope per domain handed back
-to the reducer on every drain, indefinitely — 5400 at this corpus size — and two
-of the six domains write graph edges when they run
+**Not measured in the historical table**: the downstream cost of the reducer
+RE-EXECUTING each reopened item. That six-domain steady state was 5400 work
+items at this corpus size, including two domains that write graph edges
 (`aws_cloud_runtime_drift` writes durable fact rows via
-`WriteAWSCloudRuntimeDriftFindings`, not graph edges). The floor bounds that
-count at O(active scopes); it does not remove it. The durable fix is #5709's
-activation-driven re-enqueue, which replaces the replay rather than bounding it.
+`WriteAWSCloudRuntimeDriftFindings`, not graph edges). Completion events now
+remove CI/CD and supply-chain from blanket replay; four domains remain, with
+identity retained because raw OCI activation has no reducer ACK. The floor
+still bounds those four at O(active scopes); it does not remove their replay.
 `docs/internal/evidence/5426-reopen-update-cost.sql` remains for history; its
 server-side `UPDATE` loop excludes exactly the round-trips that dominate here.
 
@@ -1938,16 +1954,12 @@ every shard's own logs.
 `TestIngestionStoreWaitDeferredMaintenanceBarrierCompletionStallLogNamesMissingShards`
 proves the missing set is named directly, not just a count.
 
-All six domains reopen in one
-unordered transaction, so a `container_image_identity` ->
-`ci_cd_run_correlation` -> `supply_chain_impact` chain advances by at most one
-link per drain — measured on the gate corpus, one maintenance pass leaves the
-tail without `environment_evidence` and two converge
-(`docs/internal/evidence/5426-golden-corpus-coverage.md`). A corpus that goes
-quiet right after the head decision commits therefore keeps the tail's
-empty-join output until the next committed generation or an
-`eshu-bootstrap-index` run; those are the two levers an operator has. #5709's
-activation-driven re-enqueue ends the dependence on drain count.
+The old six-domain transaction was unordered: one pass could advance the
+identity -> CI/CD -> supply-chain chain by only one link, leaving a quiet corpus
+with partial findings until another drain. Completion events remove that drain
+count dependency. A producer ACK is the ordering signal, failed fanout retries
+indefinitely with bounded backoff, and an expired owner can be replaced without
+letting a stale claim commit.
 
 Live proofs (`ESHU_DEFERRED_PARTITION_PROOF_DSN`-gated):
 `TestRunDeferredRelationshipMaintenanceReopensCrossScopeCorrelationDomains`,

@@ -37,8 +37,8 @@ func TestCrossScopeDependencyValidate(t *testing.T) {
 
 // TestCrossScopeDependencyCatalogIsValid asserts every entry in the single
 // source of truth names a registered consumer and only registered producers, so
-// a typo in the catalog fails here rather than silently disabling the future
-// readiness gate.
+// a typo in the catalog fails here rather than silently disabling completion
+// replay.
 func TestCrossScopeDependencyCatalogIsValid(t *testing.T) {
 	t.Parallel()
 
@@ -52,6 +52,60 @@ func TestCrossScopeDependencyCatalogIsValid(t *testing.T) {
 		}
 		if err := dependency.Validate(); err != nil {
 			t.Errorf("catalog entry for consumer %q is invalid: %v", consumer, err)
+		}
+	}
+}
+
+func TestCrossScopeCompletionEdgesExposeCatalogExactly(t *testing.T) {
+	t.Parallel()
+	want := []CrossScopeCompletionEdge{
+		{Producer: DomainCICDRunCorrelation, Consumer: DomainSupplyChainImpact},
+		{Producer: DomainContainerImageIdentity, Consumer: DomainCICDRunCorrelation},
+		{Producer: DomainContainerImageIdentity, Consumer: DomainSupplyChainImpact},
+	}
+	if got := CrossScopeCompletionEdges(); !slices.Equal(got, want) {
+		t.Fatalf("CrossScopeCompletionEdges() = %v, want %v", got, want)
+	}
+}
+
+func TestCrossScopeCompletionEdgesFormUniqueDAG(t *testing.T) {
+	t.Parallel()
+	edges := CrossScopeCompletionEdges()
+	seen := make(map[CrossScopeCompletionEdge]struct{}, len(edges))
+	adjacency := make(map[Domain][]Domain)
+	for _, edge := range edges {
+		if edge.Producer == edge.Consumer {
+			t.Fatalf("completion dependency contains self-edge %v", edge)
+		}
+		if _, duplicate := seen[edge]; duplicate {
+			t.Fatalf("completion dependency contains duplicate edge %v", edge)
+		}
+		seen[edge] = struct{}{}
+		adjacency[edge.Producer] = append(adjacency[edge.Producer], edge.Consumer)
+	}
+	visiting := make(map[Domain]bool)
+	visited := make(map[Domain]bool)
+	var visit func(Domain) bool
+	visit = func(domain Domain) bool {
+		if visiting[domain] {
+			return false
+		}
+		if visited[domain] {
+			return true
+		}
+		visiting[domain] = true
+		for _, consumer := range adjacency[domain] {
+			if !visit(consumer) {
+				return false
+			}
+		}
+		visiting[domain] = false
+		visited[domain] = true
+		return true
+	}
+	for producer := range adjacency {
+		if !visit(producer) {
+			t.Fatalf("completion dependency catalog contains a cycle through %s", producer)
 		}
 	}
 }
@@ -105,10 +159,9 @@ func TestDomainDefinitionValidatesCrossScopeDependencies(t *testing.T) {
 
 // TestCICDRunCorrelationDefinitionCarriesCatalogDependency proves the catalog is
 // actually wired onto the registered ci_cd_run_correlation definition, not just
-// present in the standalone map. The readiness/re-enqueue slices read the
-// dependency off the registered DomainDefinition, so an unwired constructor
-// would discover no producer and permit the early empty-join execution this
-// contract prevents (#5709 review).
+// present in the standalone map. The completion runner derives its fanout
+// edges from the same dependency carried by the registered DomainDefinition,
+// so an unwired constructor would let early empty-join output stand.
 func TestCICDRunCorrelationDefinitionCarriesCatalogDependency(t *testing.T) {
 	t.Parallel()
 
@@ -126,14 +179,14 @@ func TestCICDRunCorrelationDefinitionCarriesCatalogDependency(t *testing.T) {
 }
 
 // TestSupplyChainImpactDefinitionCarriesCatalogDependency pins the third link of
-// the same chain. supply_chain_impact reads ci_cd_run_correlation output across
-// scopes for its deployment context and #5426 environment evidence, and
+// the same chain. supply_chain_impact reads container_image_identity directly
+// for its repository anchor and ci_cd_run_correlation for deployment context,
+// and
 // matchingSupplyChainDeployments rejects a correlation that has not yet resolved
-// its artifact identity -- so a finding classified before that correlation's
-// generation is active keeps an empty environments list until something replays
-// it. The catalog is the stated single source of truth for #5709, and the
-// readiness/re-enqueue slices read the declaration off the REGISTERED
-// definition, so both halves are asserted here.
+// its artifact identity -- so a finding classified before that correlation
+// commits keeps an empty environments list until producer completion schedules
+// it again. The catalog and registered definition are both asserted here so
+// scheduling and declared truth cannot drift.
 func TestSupplyChainImpactDefinitionCarriesCatalogDependency(t *testing.T) {
 	t.Parallel()
 
@@ -145,7 +198,8 @@ func TestSupplyChainImpactDefinitionCarriesCatalogDependency(t *testing.T) {
 		t.Fatalf("supply_chain_impact must declare exactly one cross-scope dependency, got %d", len(def.CrossScopeDependencies))
 	}
 	producers := def.CrossScopeDependencies[0].ProducerDomains
-	if len(producers) != 1 || producers[0] != DomainCICDRunCorrelation {
-		t.Fatalf("supply_chain_impact cross-scope producer = %v, want [%s]", producers, DomainCICDRunCorrelation)
+	want := []Domain{DomainContainerImageIdentity, DomainCICDRunCorrelation}
+	if !slices.Equal(producers, want) {
+		t.Fatalf("supply_chain_impact cross-scope producers = %v, want %v", producers, want)
 	}
 }

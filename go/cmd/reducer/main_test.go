@@ -96,6 +96,12 @@ func TestBuildReducerServiceWiresDefaultRuntimeAndQueue(t *testing.T) {
 	if service.RepoDependencyProjectionRunner == nil {
 		t.Fatal("buildReducerService() repo dependency projection runner = nil, want non-nil")
 	}
+	if service.CrossScopeCompletionRunner == nil {
+		t.Fatal("buildReducerService() cross-scope completion runner = nil, want non-nil")
+	}
+	if got := service.CrossScopeCompletionRunner.LeaseOwner; !strings.HasPrefix(got, "cross-scope-completion-runner:") {
+		t.Fatalf("buildReducerService() cross-scope completion lease owner = %q, want per-process prefix", got)
+	}
 	if got := service.RepoDependencyProjectionRunner.Config.PollInterval; got <= 0 {
 		t.Fatalf("buildReducerService() repo dependency poll interval = %v, want positive", got)
 	}

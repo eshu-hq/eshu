@@ -397,6 +397,14 @@ func defaultCollectorEvidenceSummaryLeaseOwner() string {
 	return fmt.Sprintf("collector-evidence-summary-maintainer:%s:%d", hostname, os.Getpid())
 }
 
+func defaultCrossScopeCompletionLeaseOwner() string {
+	hostname, err := os.Hostname()
+	if err != nil || strings.TrimSpace(hostname) == "" {
+		hostname = "unknown-host"
+	}
+	return fmt.Sprintf("cross-scope-completion-runner:%s:%d", hostname, os.Getpid())
+}
+
 func loadStringOrDefault(getenv func(string) string, key string, defaultValue string) string {
 	raw := strings.TrimSpace(getenv(key))
 	if raw == "" {

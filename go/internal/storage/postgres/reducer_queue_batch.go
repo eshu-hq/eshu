@@ -81,7 +81,7 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, _ 
 
 	now := q.now()
 
-	targetIntents, unrelatedIntents, err := splitReducerAckBatchIntents(intents)
+	targetIntents, cicdIntents, unrelatedIntents, err := splitReducerAckBatchIntents(intents)
 	if err != nil {
 		return err
 	}
@@ -106,6 +106,28 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, _ 
 			return fmt.Errorf("batch ack reducer work: rows affected: %w", err)
 		}
 		targetClaimRejected = rowsAffected == 0
+	}
+	if len(cicdIntents) > 0 {
+		query, args := ackCICDRunCorrelationReducerWorkBatchQuery(
+			now,
+			q.LeaseOwner,
+			cicdIntents,
+		)
+		result, err := q.db.ExecContext(ctx, query, args...)
+		if err != nil {
+			return fmt.Errorf(
+				"batch ack reducer work (%d CI/CD items): %w",
+				len(cicdIntents),
+				err,
+			)
+		}
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("batch ack reducer CI/CD work: rows affected: %w", err)
+		}
+		if rowsAffected == 0 {
+			targetClaimRejected = true
+		}
 	}
 
 	if len(unrelatedIntents) > 0 {
@@ -135,15 +157,16 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, _ 
 
 func splitReducerAckBatchIntents(
 	intents []reducer.Intent,
-) ([]reducer.Intent, []reducer.Intent, error) {
+) ([]reducer.Intent, []reducer.Intent, []reducer.Intent, error) {
 	seen := make(map[string]reducer.Intent, len(intents))
 	target := make([]reducer.Intent, 0, len(intents))
+	cicd := make([]reducer.Intent, 0, len(intents))
 	unrelated := make([]reducer.Intent, 0, len(intents))
 	for _, intent := range intents {
 		if prior, ok := seen[intent.IntentID]; ok {
 			if prior.Domain != intent.Domain ||
 				prior.ClaimEpoch != intent.ClaimEpoch {
-				return nil, nil, fmt.Errorf(
+				return nil, nil, nil, fmt.Errorf(
 					"batch ack reducer work item %q has conflicting claim epochs or domains",
 					intent.IntentID,
 				)
@@ -155,9 +178,13 @@ func splitReducerAckBatchIntents(
 			target = append(target, intent)
 			continue
 		}
+		if intent.Domain == reducer.DomainCICDRunCorrelation {
+			cicd = append(cicd, intent)
+			continue
+		}
 		unrelated = append(unrelated, intent)
 	}
-	return target, unrelated, nil
+	return target, cicd, unrelated, nil
 }
 
 func ackContainerImageIdentityReducerWorkBatchQuery(
@@ -193,8 +220,10 @@ func ackContainerImageIdentityReducerWorkBatchQuery(
 	}
 
 	return `
-UPDATE fact_work_items
+WITH acknowledged AS MATERIALIZED (
+UPDATE fact_work_items AS work
 SET status = 'succeeded',
+    cross_scope_completion_ack_epoch = cross_scope_completion_ack_epoch + 1,
     container_image_identity_v2_authorized_status = CASE
         WHEN container_image_identity_v2_required
             THEN 'succeeded'
@@ -214,9 +243,92 @@ SET status = 'succeeded',
     failure_details = NULL
 WHERE (` + strings.Join(predicates, " OR ") + `)
   AND stage = 'reducer'
+  AND domain = 'container_image_identity'
   AND lease_owner = $2
   AND status IN ('claimed', 'running')
+RETURNING work.work_item_id, work.status
+), emission_clock AS MATERIALIZED (
+    SELECT clock_timestamp() AS emitted_at
+), emitted AS (
+INSERT INTO cross_scope_completion_events (
+    producer_domain, producer_item_count, status,
+    visible_at, created_at, updated_at
+)
+SELECT 'container_image_identity', count(*)::BIGINT, 'pending',
+       emission_clock.emitted_at + INTERVAL '250 milliseconds',
+       emission_clock.emitted_at, emission_clock.emitted_at
+FROM acknowledged
+CROSS JOIN emission_clock
+WHERE acknowledged.status = 'succeeded'
+GROUP BY emission_clock.emitted_at
+ON CONFLICT (producer_domain) WHERE status IN ('pending', 'retrying') DO UPDATE SET
+    producer_item_count = cross_scope_completion_events.producer_item_count + EXCLUDED.producer_item_count,
+    visible_at = CASE
+        WHEN cross_scope_completion_events.status = 'retrying'
+            THEN cross_scope_completion_events.visible_at
+        ELSE LEAST(cross_scope_completion_events.created_at + INTERVAL '2 seconds', EXCLUDED.visible_at)
+    END,
+    updated_at = EXCLUDED.updated_at
+RETURNING 1
+)
+SELECT 1 FROM acknowledged LIMIT 1
 `, args
+}
+
+func ackCICDRunCorrelationReducerWorkBatchQuery(
+	now time.Time,
+	leaseOwner string,
+	intents []reducer.Intent,
+) (string, []any) {
+	ids := make([]string, 0, len(intents))
+	for _, intent := range intents {
+		ids = append(ids, intent.IntentID)
+	}
+	sort.Strings(ids)
+	return `
+WITH acknowledged AS MATERIALIZED (
+UPDATE fact_work_items AS work
+SET status = 'succeeded',
+    cross_scope_completion_ack_epoch = cross_scope_completion_ack_epoch + 1,
+    lease_owner = NULL,
+    claim_until = NULL,
+    visible_at = NULL,
+    updated_at = $1,
+    failure_class = NULL,
+    failure_message = NULL,
+    failure_details = NULL
+WHERE work.work_item_id = ANY($3::text[])
+  AND stage = 'reducer'
+  AND domain = 'ci_cd_run_correlation'
+  AND lease_owner = $2
+  AND status IN ('claimed', 'running')
+RETURNING work.work_item_id, work.status
+), emission_clock AS MATERIALIZED (
+    SELECT clock_timestamp() AS emitted_at
+), emitted AS (
+INSERT INTO cross_scope_completion_events (
+    producer_domain, producer_item_count, status,
+    visible_at, created_at, updated_at
+)
+SELECT 'ci_cd_run_correlation', count(*)::BIGINT, 'pending',
+       emission_clock.emitted_at + INTERVAL '250 milliseconds',
+       emission_clock.emitted_at, emission_clock.emitted_at
+FROM acknowledged
+CROSS JOIN emission_clock
+WHERE acknowledged.status = 'succeeded'
+GROUP BY emission_clock.emitted_at
+ON CONFLICT (producer_domain) WHERE status IN ('pending', 'retrying') DO UPDATE SET
+    producer_item_count = cross_scope_completion_events.producer_item_count + EXCLUDED.producer_item_count,
+    visible_at = CASE
+        WHEN cross_scope_completion_events.status = 'retrying'
+            THEN cross_scope_completion_events.visible_at
+        ELSE LEAST(cross_scope_completion_events.created_at + INTERVAL '2 seconds', EXCLUDED.visible_at)
+    END,
+    updated_at = EXCLUDED.updated_at
+RETURNING 1
+)
+SELECT 1 FROM acknowledged LIMIT 1
+`, []any{now, leaseOwner, ids}
 }
 
 func ackReducerWorkBatchQuery(itemCount int) string {
