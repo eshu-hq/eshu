@@ -259,15 +259,32 @@ func TestIsRedactedValueRejectsPlainMapWithoutMarkerPrefix(t *testing.T) {
 // flattenStateAttributes or suppress a resource's entire comparable
 // attribute set, turning real map data into absent evidence and changing
 // drift truth the same false-negative direction as the bug #5859 fixes.
+// Each field is covered on its own, not only in combination. A single
+// "marker alone" case cannot tell the two field checks apart: dropping either
+// one leaves the other still rejecting that input, so the case passes while
+// half the contract goes unenforced. Verified by mutation -- deleting the
+// "reason" check alone left the earlier single-case version green.
 func TestIsRedactedValueRejectsIncompleteMarkerShape(t *testing.T) {
 	t.Parallel()
 
-	prefixedButIncomplete := map[string]any{
-		"marker": "redacted:hmac-sha256:" + strings.Repeat("0", 64),
-	}
-	if redact.IsRedactedValue(prefixedButIncomplete) {
-		t.Fatalf("IsRedactedValue(%#v) = true, want false: missing reason/source is not a round-tripped redact.Value",
-			prefixedButIncomplete)
+	validMarker := "redacted:hmac-sha256:" + strings.Repeat("0", 64)
+	for name, incomplete := range map[string]map[string]any{
+		"missing reason only": {
+			"marker": validMarker,
+			"source": "resources.*.attributes.ami",
+		},
+		"missing source only": {
+			"marker": validMarker,
+			"reason": "unknown_provider_schema",
+		},
+		"missing both": {
+			"marker": validMarker,
+		},
+	} {
+		if redact.IsRedactedValue(incomplete) {
+			t.Fatalf("IsRedactedValue(%s = %#v) = true, want false: an incomplete shape is not a round-tripped redact.Value",
+				name, incomplete)
+		}
 	}
 }
 
