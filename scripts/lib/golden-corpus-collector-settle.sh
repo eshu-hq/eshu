@@ -15,15 +15,18 @@
 # actually runs.
 
 # wait_for_collector_settle polls the landed credentialed-collector-source count
-# in Postgres until it reaches GATE_MIN_COLLECTOR_SOURCES, or until
+# in Postgres until it reaches GATE_MIN_COLLECTOR_SOURCES (itself derived from
+# len(collector_specs), never restated here as a literal — see that array's own
+# comment for why a hand-maintained count drifts), or until
 # GATE_COLLECTOR_SETTLE_SECONDS elapses — whichever comes first. It replaces a
 # fixed `sleep "${GATE_COLLECTOR_SETTLE_SECONDS}"`: a fixed sleep sized for an
 # idle machine has zero margin once host load or Docker I/O contention slows
 # down fact commit (observed failing under host load ~6-13 with 36 concurrent
-# containers: "only 5 credentialed collector source(s) landed facts; want >=
-# 18"). Polling returns as soon as the threshold is met, so the common case gets
-# FASTER, while the deadline still bounds the wait so a genuinely broken
-# cassette replay fails loudly instead of hanging, or worse, passing anyway.
+# containers: only a fraction of the credentialed collector sources had landed
+# facts by the time the fixed sleep gave up). Polling returns as soon as the
+# threshold is met, so the common case gets FASTER, while the deadline still
+# bounds the wait so a genuinely broken cassette replay fails loudly instead of
+# hanging, or worse, passing anyway.
 #
 # On success it prints the observed settle duration — the margin data that made
 # this bug invisible before, since nobody could see how close to the fixed 20s
