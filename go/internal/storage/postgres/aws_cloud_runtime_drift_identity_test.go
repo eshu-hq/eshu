@@ -38,7 +38,7 @@ import (
 // rather than as generic decode noise, which is the difference between an
 // operator landing on the provider-schema bundle and sifting malformed-payload
 // warnings while an account reads as unmanaged. This test pins the rejection;
-// TestStateResourceDecodeFailureClass below pins the label it produces.
+// TestAWSRuntimeStateRowFromPayloadFailureClass below pins the label it produces.
 //
 // Whether an identity anchor should be fail-closed-redacted at all is the
 // upstream policy question and stays open on #5870.
@@ -78,78 +78,118 @@ func TestStateRowFromPayloadRejectsARedactedARN(t *testing.T) {
 			if err != nil {
 				t.Fatalf("marshal payload: %v", err)
 			}
-			row, ok := awsRuntimeStateRowFromPayload("state_snapshot:s3:hash", "module.ecs.aws_instance.supply-chain-demo", payload)
+			row, ok, failureClass := awsRuntimeStateRowFromPayload("state_snapshot:s3:hash", "module.ecs.aws_instance.supply-chain-demo", payload)
 			if ok {
 				t.Fatalf("awsRuntimeStateRowFromPayload() accepted a redacted ARN as the join key: ARN=%q\n"+
 					"a garbage ARN matches no observed resource, so the row is unreachable either way; "+
 					"rejecting it is what lets the caller name the cause as %s", row.ARN, stateResourceARNRedacted)
 			}
+			if failureClass != stateResourceARNRedacted {
+				t.Fatalf("awsRuntimeStateRowFromPayload() failureClass = %q, want %q", failureClass, stateResourceARNRedacted)
+			}
 		})
 	}
 }
 
-// TestStateResourceDecodeFailureClass pins the label the redacted-join-key
-// rejection exists to produce. The rejection itself changes no finding
-// outcome -- a garbage ARN key and an absent row are indistinguishable to the
-// observed-ARN lookup that reads stateByARN -- so this label IS the
-// deliverable, and it was untested until this case.
+// TestAWSRuntimeStateRowFromPayloadFailureClass pins the label
+// awsRuntimeStateRowFromPayload returns alongside ok=false for the caller's
+// WARN log. It was previously covered indirectly through a standalone
+// stateResourceDecodeFailureClass(payload []byte) helper that re-unmarshaled
+// the payload a second time; that helper was folded into the decoder itself
+// (Copilot review on #5904) so the hot path of a broken-provider-schema-bundle
+// run -- where EVERY state row takes the !ok branch -- does not pay for a
+// second json.Unmarshal per row. This table now calls
+// awsRuntimeStateRowFromPayload directly, the seam the classification
+// actually runs on, rather than asserting against a copy of the logic the
+// production path no longer executes.
 //
 // The false-positive half matters as much as the true-positive half: ordinary
 // malformed payloads must keep the generic class, or the signal that says
 // "your provider-schema bundle is broken" fires on every bad row and stops
 // meaning anything.
-func TestStateResourceDecodeFailureClass(t *testing.T) {
+func TestAWSRuntimeStateRowFromPayloadFailureClass(t *testing.T) {
 	t.Parallel()
 
 	redactedARN := `{"marker":"redacted:hmac-sha256:` + strings.Repeat("0", 64) +
 		`","reason":"unknown_provider_schema","source":"resources.*.attributes.arn"}`
 
 	for _, tc := range []struct {
-		name    string
-		payload string
-		want    string
+		name        string
+		address     string
+		payload     string
+		wantOK      bool
+		wantFailure string
 	}{
 		{
-			name:    "redacted arn",
-			payload: `{"address":"a","type":"aws_instance","attributes":{"arn":` + redactedARN + `}}`,
-			want:    stateResourceARNRedacted,
+			name:        "redacted arn",
+			address:     "a",
+			payload:     `{"address":"a","type":"aws_instance","attributes":{"arn":` + redactedARN + `}}`,
+			wantOK:      false,
+			wantFailure: stateResourceARNRedacted,
 		},
 		{
-			name:    "real arn that failed for another reason",
-			payload: `{"type":"aws_instance","attributes":{"arn":"arn:aws:ec2:us-east-1:1:instance/i-0"}}`,
-			want:    stateResourceDecodeFailure,
+			// No "address" field in the payload AND a blank address argument:
+			// the row is unusable for a reason unrelated to redaction, so this
+			// must keep the generic class rather than being swept into
+			// state_resource_arn_redacted.
+			name:        "real arn but blank address",
+			address:     "",
+			payload:     `{"type":"aws_instance","attributes":{"arn":"arn:aws:ec2:us-east-1:1:instance/i-0"}}`,
+			wantOK:      false,
+			wantFailure: stateResourceDecodeFailure,
 		},
 		{
-			name:    "missing arn",
-			payload: `{"address":"a","type":"aws_instance","attributes":{"ami":"ami-0"}}`,
-			want:    stateResourceDecodeFailure,
+			name:        "missing arn",
+			address:     "a",
+			payload:     `{"address":"a","type":"aws_instance","attributes":{"ami":"ami-0"}}`,
+			wantOK:      false,
+			wantFailure: stateResourceDecodeFailure,
 		},
 		{
-			name:    "unparseable payload",
-			payload: `{not json`,
-			want:    stateResourceDecodeFailure,
+			name:        "unparseable payload",
+			address:     "a",
+			payload:     `{not json`,
+			wantOK:      false,
+			wantFailure: stateResourceDecodeFailure,
 		},
 		{
-			name:    "empty payload",
-			payload: ``,
-			want:    stateResourceDecodeFailure,
+			name:        "empty payload",
+			address:     "",
+			payload:     ``,
+			wantOK:      false,
+			wantFailure: stateResourceDecodeFailure,
 		},
 		{
+			// A map-shaped "arn" that lacks the marker/reason/source shape is
+			// NOT a redaction marker (redact.IsRedactedValue says false) and is
+			// not otherwise rejected -- it decodes successfully with a
+			// fmt.Sprint-rendered garbage ARN. Proving that case succeeds is
+			// what makes the redacted-arn rejection above a true positive and
+			// not an accidental "any map in the arn slot fails" rule.
 			name:    "arn is a map but not a marker",
+			address: "a",
 			payload: `{"address":"a","attributes":{"arn":{"some":"object"}}}`,
-			want:    stateResourceDecodeFailure,
+			wantOK:  true,
 		},
 		{
-			name: "arn string merely resembling marker text",
+			// A plain string that merely starts with the marker prefix is not
+			// the shape IsRedactedValue matches (it requires a decoded JSON
+			// object), so it is carried as a literal ARN value, not rejected.
+			name:    "arn string merely resembling marker text",
+			address: "a",
 			payload: `{"address":"a","attributes":{"arn":"redacted:hmac-sha256:` +
 				strings.Repeat("0", 64) + `"}}`,
-			want: stateResourceDecodeFailure,
+			wantOK: true,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if got := stateResourceDecodeFailureClass([]byte(tc.payload)); got != tc.want {
-				t.Fatalf("stateResourceDecodeFailureClass(%s) = %q, want %q", tc.payload, got, tc.want)
+			row, ok, failureClass := awsRuntimeStateRowFromPayload("state_snapshot:s3:hash", tc.address, []byte(tc.payload))
+			if ok != tc.wantOK {
+				t.Fatalf("awsRuntimeStateRowFromPayload(%s) ok = %v (row=%#v), want %v", tc.payload, ok, row, tc.wantOK)
+			}
+			if !tc.wantOK && failureClass != tc.wantFailure {
+				t.Fatalf("awsRuntimeStateRowFromPayload(%s) failureClass = %q, want %q", tc.payload, failureClass, tc.wantFailure)
 			}
 		})
 	}

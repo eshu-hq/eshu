@@ -56,7 +56,7 @@ func TestAWSRuntimeStateRowFromPayloadTreatsRedactionMarkerAsAbsentAMI(t *testin
 		}
 	}`)
 
-	row, ok := awsRuntimeStateRowFromPayload("state_snapshot:s3:hash", "module.ecs.aws_instance.supply-chain-demo", payload)
+	row, ok, _ := awsRuntimeStateRowFromPayload("state_snapshot:s3:hash", "module.ecs.aws_instance.supply-chain-demo", payload)
 	if !ok {
 		t.Fatalf("awsRuntimeStateRowFromPayload() ok = false, want true")
 	}
@@ -93,7 +93,7 @@ func TestClassifyValueDriftSuppressesRedactionMarkerDeclaredSide(t *testing.T) {
 			"ami": ` + redactionMarkerJSON("unknown_provider_schema", "resources.*.attributes.ami") + `
 		}
 	}`)
-	state, ok := awsRuntimeStateRowFromPayload("state_snapshot:s3:hash", "module.ecs.aws_instance.supply-chain-demo", statePayload)
+	state, ok, _ := awsRuntimeStateRowFromPayload("state_snapshot:s3:hash", "module.ecs.aws_instance.supply-chain-demo", statePayload)
 	if !ok {
 		t.Fatalf("awsRuntimeStateRowFromPayload() ok = false, want true")
 	}
@@ -144,7 +144,7 @@ func TestClassifyValueDriftSuppressesRedactionMarkerObservedSide(t *testing.T) {
 			"ami": "ami-0123456789abcdef0"
 		}
 	}`)
-	state, ok := awsRuntimeStateRowFromPayload("state_snapshot:s3:hash", "module.ecs.aws_instance.supply-chain-demo", statePayload)
+	state, ok, _ := awsRuntimeStateRowFromPayload("state_snapshot:s3:hash", "module.ecs.aws_instance.supply-chain-demo", statePayload)
 	if !ok {
 		t.Fatalf("awsRuntimeStateRowFromPayload() ok = false, want true")
 	}
@@ -188,7 +188,7 @@ func TestClassifyValueDriftSuppressesRedactionMarkerBothSides(t *testing.T) {
 			"ami": ` + redactionMarkerJSON("unknown_provider_schema", "resources.*.attributes.ami") + `
 		}
 	}`)
-	state, ok := awsRuntimeStateRowFromPayload("state_snapshot:s3:hash", "module.ecs.aws_instance.supply-chain-demo", statePayload)
+	state, ok, _ := awsRuntimeStateRowFromPayload("state_snapshot:s3:hash", "module.ecs.aws_instance.supply-chain-demo", statePayload)
 	if !ok {
 		t.Fatalf("awsRuntimeStateRowFromPayload() ok = false, want true")
 	}
@@ -236,7 +236,7 @@ func TestAWSRuntimeStateRowFromPayloadPreservesValueResemblingMarkerText(t *test
 		}
 	}`)
 
-	row, ok := awsRuntimeStateRowFromPayload("state_snapshot:s3:hash", "module.ecs.aws_instance.supply-chain-demo", payload)
+	row, ok, _ := awsRuntimeStateRowFromPayload("state_snapshot:s3:hash", "module.ecs.aws_instance.supply-chain-demo", payload)
 	if !ok {
 		t.Fatalf("awsRuntimeStateRowFromPayload() ok = false, want true")
 	}
@@ -285,7 +285,7 @@ func TestClassifyLambdaPartialRedactionDoesNotConverge(t *testing.T) {
 			"version": "7"
 		}
 	}`)
-	state, ok := awsRuntimeStateRowFromPayload("state_snapshot:s3:hash", "module.fn.aws_lambda_function.demo", statePayload)
+	state, ok, _ := awsRuntimeStateRowFromPayload("state_snapshot:s3:hash", "module.fn.aws_lambda_function.demo", statePayload)
 	if !ok {
 		t.Fatalf("awsRuntimeStateRowFromPayload() ok = false, want true")
 	}
@@ -336,7 +336,7 @@ func TestClassifyLambdaUnredactedPartialEvidenceStillCompares(t *testing.T) {
 			"version": "7"
 		}
 	}`)
-	state, ok := awsRuntimeStateRowFromPayload("state_snapshot:s3:hash", "module.fn.aws_lambda_function.zip", statePayload)
+	state, ok, _ := awsRuntimeStateRowFromPayload("state_snapshot:s3:hash", "module.fn.aws_lambda_function.zip", statePayload)
 	if !ok {
 		t.Fatalf("awsRuntimeStateRowFromPayload() ok = false, want true")
 	}

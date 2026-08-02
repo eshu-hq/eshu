@@ -200,7 +200,7 @@ func (l PostgresAWSCloudRuntimeDriftEvidenceLoader) loadActiveStateResourcesByAR
 		if err := rows.Scan(&scopeID, &generationID, &address, &payload); err != nil {
 			return nil, fmt.Errorf("scan active terraform state resource for aws arn: %w", err)
 		}
-		resource, ok := awsRuntimeStateRowFromPayload(scopeID, address, payload)
+		resource, ok, failureClass := awsRuntimeStateRowFromPayload(scopeID, address, payload)
 		if !ok {
 			// A redacted join key gets its own failure class. It is not payload
 			// noise: it means this deployment has no usable provider-schema
@@ -208,7 +208,11 @@ func (l PostgresAWSCloudRuntimeDriftEvidenceLoader) loadActiveStateResourcesByAR
 			// cloud resource under it reads as orphaned_cloud_resource. An
 			// operator watching an account go orphaned needs to land on the schema
 			// bundle, not on a generic decode warning (#5859, #5870).
-			l.logDecodeFailure(ctx, scopeID, generationID, address, stateResourceDecodeFailureClass(payload))
+			// failureClass came back from the same decode awsRuntimeStateRowFromPayload
+			// already did; re-parsing the payload here would make the double
+			// unmarshal the hot path of exactly the degraded run this branch exists
+			// to diagnose.
+			l.logDecodeFailure(ctx, scopeID, generationID, address, failureClass)
 			continue
 		}
 		out[resource.ARN] = append(out[resource.ARN], awsRuntimeStateResourceRow{

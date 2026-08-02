@@ -97,8 +97,9 @@ func Scalar(raw any, reason string, source string, key Key) Value {
 }
 
 // IsRedactedValue reports whether v is the JSON round-trip shape of a Value
-// produced by String, Bytes, or Scalar: a map[string]any carrying a "marker"
-// field that starts with markerPrefix.
+// produced by String, Bytes, or Scalar: a map[string]any carrying the
+// complete "marker", "reason", and "source" fields, with "marker" starting
+// with markerPrefix.
 //
 // Producers embed Value into fact payloads as a plain map (see for example
 // the terraform-state collector's redactionMap and the AWS-cloud collector's
@@ -111,15 +112,22 @@ func Scalar(raw any, reason string, source string, key Key) Value {
 // string as if it were genuine data.
 //
 // The check is shape-based, not a textual prefix match on a raw string
-// value: only a decoded JSON object with a "marker" field qualifies, so a
-// genuine scalar string that merely happens to start with the same text
+// value: only a decoded JSON object carrying all three fields qualifies, so
+// a genuine scalar string that merely happens to start with the same text
 // (vanishingly unlikely, but not impossible for free-form input) is never
-// misclassified as redacted.
+// misclassified as redacted. Requiring "reason" and "source" alongside
+// "marker" matters beyond that: a map that merely has a prefixed "marker"
+// key is not proof it round-tripped through String, Bytes, or Scalar, and
+// misclassifying it as redacted turns real map data into absent evidence for
+// every caller here (flattenStateAttributes drops the whole object;
+// comparableScalarAttr suppresses a resource's entire comparable attribute
+// set) — the same false-negative direction the marker check exists to
+// prevent, not merely a narrower version of it.
 //
-// The cost of that choice is a deliberate blind spot, and callers must know
-// it: this reports false for a BARE marker string persisted on its own,
-// without the surrounding "reason"/"source" object. Several collectors do
-// exactly that for fingerprint fields — gcpcloud and azurecloud store
+// The cost of the shape-based choice is a deliberate blind spot, and callers
+// must know it: this reports false for a BARE marker string persisted on its
+// own, without the surrounding "reason"/"source" object. Several collectors
+// do exactly that for fingerprint fields — gcpcloud and azurecloud store
 // String(...).Marker directly into keys such as "container_name_fingerprint",
 // "etag_fingerprint", and redacted tag/DNS values. Those are opaque
 // fingerprints meant to be carried and compared as values, not placeholders
@@ -137,7 +145,16 @@ func IsRedactedValue(v any) bool {
 	if !ok {
 		return false
 	}
-	return strings.HasPrefix(marker, markerPrefix)
+	if !strings.HasPrefix(marker, markerPrefix) {
+		return false
+	}
+	if _, ok := m["reason"].(string); !ok {
+		return false
+	}
+	if _, ok := m["source"].(string); !ok {
+		return false
+	}
+	return true
 }
 
 func marker(raw []byte, reason string, source string, key Key) string {

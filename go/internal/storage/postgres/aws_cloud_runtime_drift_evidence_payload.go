@@ -63,36 +63,14 @@ const (
 	stateResourceARNRedacted = "state_resource_arn_redacted"
 )
 
-// stateResourceDecodeFailureClass names why awsRuntimeStateRowFromPayload
-// refused a payload, for the caller's WARN label. It re-reads only the "arn"
-// attribute rather than duplicating the rejection logic it describes, so the
-// classification cannot drift away from the guard that produced it.
-//
-// Only call this after awsRuntimeStateRowFromPayload returned false; on a row
-// that decoded successfully the answer is meaningless.
-func stateResourceDecodeFailureClass(payload []byte) string {
-	if redact.IsRedactedValue(decodedStateARN(payload)) {
-		return stateResourceARNRedacted
-	}
-	return stateResourceDecodeFailure
-}
-
-// decodedStateARN re-reads only the "arn" attribute from a terraform_state_resource
-// payload. Returns nil when the payload does not parse or carries no arn.
-func decodedStateARN(payload []byte) any {
-	if len(payload) == 0 {
-		return nil
-	}
-	var decoded struct {
-		Attributes map[string]any `json:"attributes"`
-	}
-	if err := json.Unmarshal(payload, &decoded); err != nil {
-		return nil
-	}
-	return decoded.Attributes["arn"]
-}
-
-func awsRuntimeStateRowFromPayload(scopeID, address string, payload []byte) (*cloudruntime.ResourceRow, bool) {
+// awsRuntimeStateRowFromPayload decodes one terraform_state_resource payload
+// into a cloudruntime.ResourceRow. On failure it returns (nil, false,
+// failureClass) so the caller can log why without re-unmarshaling the payload
+// it already decoded: in the broken-provider-schema-bundle case (#5859,
+// #5870) EVERY state row takes this branch, so a second json.Unmarshal here
+// would be the hot path of the degraded run, not a rare fallback. failureClass
+// is meaningless when ok is true.
+func awsRuntimeStateRowFromPayload(scopeID, address string, payload []byte) (row *cloudruntime.ResourceRow, ok bool, failureClass string) {
 	var decoded struct {
 		Address    string         `json:"address"`
 		Type       string         `json:"type"`
@@ -100,7 +78,7 @@ func awsRuntimeStateRowFromPayload(scopeID, address string, payload []byte) (*cl
 	}
 	if len(payload) > 0 {
 		if err := json.Unmarshal(payload, &decoded); err != nil {
-			return nil, false
+			return nil, false, stateResourceDecodeFailure
 		}
 	}
 	if decoded.Address != "" {
@@ -127,11 +105,11 @@ func awsRuntimeStateRowFromPayload(scopeID, address string, payload []byte) (*cl
 	// collector should fail-closed-redact an identity anchor at all is the
 	// upstream policy question, and stays open on #5870.
 	if redact.IsRedactedValue(decoded.Attributes["arn"]) {
-		return nil, false
+		return nil, false, stateResourceARNRedacted
 	}
 	arn := strings.TrimSpace(coerceJSONString(decoded.Attributes["arn"]))
 	if address == "" || arn == "" {
-		return nil, false
+		return nil, false, stateResourceDecodeFailure
 	}
 	resourceType := strings.TrimSpace(decoded.Type)
 	attributes, containerImages, truncated, degraded := stateDeclaredValueAttributes(resourceType, decoded.Attributes)
@@ -144,7 +122,7 @@ func awsRuntimeStateRowFromPayload(scopeID, address string, payload []byte) (*cl
 		ContainerImages:          containerImages,
 		ContainerImagesTruncated: truncated,
 		ContainerImagesDegraded:  degraded,
-	}, true
+	}, true, ""
 }
 
 func coerceStringTags(tags map[string]any) map[string]string {

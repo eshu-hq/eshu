@@ -250,6 +250,27 @@ func TestIsRedactedValueRejectsPlainMapWithoutMarkerPrefix(t *testing.T) {
 	}
 }
 
+// TestIsRedactedValueRejectsIncompleteMarkerShape proves the shape check
+// requires the complete {marker,reason,source} object the package contract
+// promises (AGENTS.md:52-55), not merely a "marker" field with the expected
+// prefix. A map that carries only "marker" is not the JSON round-trip shape
+// of a redact.Value -- it never came from String/Bytes/Scalar -- so treating
+// it as redacted would be over-broad: callers either drop the whole object in
+// flattenStateAttributes or suppress a resource's entire comparable
+// attribute set, turning real map data into absent evidence and changing
+// drift truth the same false-negative direction as the bug #5859 fixes.
+func TestIsRedactedValueRejectsIncompleteMarkerShape(t *testing.T) {
+	t.Parallel()
+
+	prefixedButIncomplete := map[string]any{
+		"marker": "redacted:hmac-sha256:" + strings.Repeat("0", 64),
+	}
+	if redact.IsRedactedValue(prefixedButIncomplete) {
+		t.Fatalf("IsRedactedValue(%#v) = true, want false: missing reason/source is not a round-tripped redact.Value",
+			prefixedButIncomplete)
+	}
+}
+
 // TestIsRedactedValueRejectsNonMarkerShapes proves ordinary scalar and
 // composite values used elsewhere in decoded attributes never trip the
 // marker check, so IsRedactedValue is safe to call unconditionally on any
