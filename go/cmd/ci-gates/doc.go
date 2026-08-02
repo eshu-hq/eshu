@@ -3,17 +3,28 @@
 
 // Command ci-gates is the CLI for the CI gate registry (#4213).
 //
-// It provides three subcommands that together give any local workflow
-// a single source of truth for which CI verifiers apply to a given set
-// of changed paths:
+// It provides six subcommands that give local workflows and the trusted CI
+// publisher one source of truth for path-selected verification:
 //
 //	ci-gates select   — print or explain which gates match the changed paths
 //	ci-gates run      — execute the selected gates and report PASS/FAIL/SKIP
+//	ci-gates await    — wait for exact blocking checks on an exact PR head
+//	ci-gates contexts — print the required-status context manifest
 //	ci-gates validate — verify that every registry entry's script and workflow exist
+//	ci-gates uncovered — print changed paths without local category coverage
 //
 // The backing registry is specs/ci-gates.v1.yaml, loaded and validated by the
-// internal/cigates package. All subcommands are credential-free and
-// Docker-free; they work offline once the repo is cloned.
+// internal/cigates package. All but await are credential-free and work offline
+// once the repo is cloned. Await uses GitHub's pull-request files and check
+// rollup APIs; no subcommand requires Docker directly.
+//
+// # await and contexts
+//
+// Await verifies an exact PR head, selects every matching blocking gate without
+// applying the local tier ceiling, resolves concrete workflow/check identities
+// from a trusted default-branch checkout, and fails closed until every selected
+// check passes. Contexts exposes the repository-owned required-status manifest,
+// including pinned GitHub App integration IDs for live ruleset verification.
 //
 // # select
 //

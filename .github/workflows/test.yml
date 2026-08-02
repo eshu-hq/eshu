@@ -397,6 +397,11 @@ jobs:
           scripts/test-verify-docs-only-ci-skip.sh
           scripts/verify-docs-only-ci-skip.sh
 
+      - name: Verify docs catalog metadata
+        run: |
+          scripts/test-verify-docs-catalog.sh
+          scripts/verify-docs-catalog.sh
+
       - name: Set up Helm
         uses: azure/setup-helm@v5.0.0
         with:
@@ -408,6 +413,11 @@ jobs:
 
       - name: Lint Helm chart
         run: helm lint deploy/helm/eshu
+
+      - name: Verify bundled NornicDB storage example
+        run: |
+          scripts/test-verify-storage-doc-bundled-nornicdb-example.sh
+          scripts/verify-storage-doc-bundled-nornicdb-example.sh
 
       - name: Verify docs build
         run: |

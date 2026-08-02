@@ -1,0 +1,164 @@
+name: Required Gates
+
+# This workflow is a trusted status publisher. workflow_run always executes the
+# version on the default branch, so a pull request cannot weaken the registry,
+# selector, or publisher that judges its own head. It never checks out PR code.
+# The leaf checks remain ordinary pull-request CI and rely on branch-protected
+# review; this publisher is not an immutable-CI boundary against a collaborator
+# who can both rewrite a leaf check and approve or merge that rewrite.
+on:
+  workflow_run:
+    workflows:
+      - Build Test
+      - End-to-end Tests
+      - Fact Schema Diff
+      - Frontend
+      - Golden Corpus Gate
+      - Ifa Determinism Gate
+      - macOS CI
+      - MCP Schema Drift
+      - Payload Usage Manifest
+      - Product Claim Ledger
+      - Publish Image and Helm Chart
+      - Race Graph Writes
+      - Reducer Contention Gate
+      - Replay Coverage Gate
+      - Replay Tier (offline NornicDB)
+      - Scorecard Example Conformance
+      - SDK Go Modules
+      - Security Scan
+      - Static Contract Gates
+      - Verify Agent Hygiene
+      - Verify CI Gate Registry
+    types: [in_progress, completed]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */6 * * *"
+
+concurrency:
+  group: required-gates-${{ github.event.workflow_run.head_sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'workflow_run' }}
+
+permissions:
+  contents: read
+
+jobs:
+  aggregate:
+    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+      pull-requests: read
+      statuses: write
+    steps:
+      - name: Check out trusted default-branch policy
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Publish pending required status
+        id: pending
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" \
+            -f state=pending \
+            -f context=required-gates-complete \
+            -f description='Waiting for path-selected blocking gates' \
+            -f target_url="${TARGET_URL}"
+
+      - name: Resolve pull request identity
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          pulls="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/pulls")"
+          matches="$(jq -c --arg base "${DEFAULT_BRANCH}" \
+            '[.[] | select(.state == "open" and .base.ref == $base)]' <<<"${pulls}")"
+          count="$(jq 'length' <<<"${matches}")"
+          if [[ "${count}" -ne 1 ]]; then
+            echo "::error::expected exactly one open ${DEFAULT_BRANCH} PR for ${HEAD_SHA}; got ${count}"
+            exit 1
+          fi
+          echo "number=$(jq -r '.[0].number' <<<"${matches}")" >> "${GITHUB_OUTPUT}"
+
+      - name: Await every selected blocking gate
+        id: aggregate
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GOCACHE: ${{ runner.temp }}/go-build-required-gates
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+        working-directory: go
+        run: |
+          go run ./cmd/ci-gates await \
+            --registry ../specs/ci-gates.v1.yaml \
+            --repo-root .. \
+            --repo "${GITHUB_REPOSITORY}" \
+            --pr "${PR_NUMBER}" \
+            --head-sha "${HEAD_SHA}" \
+            --poll-interval 30s \
+            --timeout 55m
+
+      - name: Publish terminal required status
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          PENDING_OUTCOME: ${{ steps.pending.outcome }}
+          AGGREGATE_OUTCOME: ${{ steps.aggregate.outcome }}
+        run: |
+          state=failure
+          description='Required gate aggregation failed'
+          if [[ "${PENDING_OUTCOME}" == "success" && "${AGGREGATE_OUTCOME}" == "success" ]]; then
+            state=success
+            description='All path-selected blocking gates passed'
+          fi
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" \
+            -f state="${state}" \
+            -f context=required-gates-complete \
+            -f description="${description}" \
+            -f target_url="${TARGET_URL}"
+          [[ "${state}" == "success" ]]
+
+  verify-live-ruleset:
+    if: ${{ github.event_name != 'workflow_run' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check out default branch
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Verify effective required-status rules
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GOCACHE: ${{ runner.temp }}/go-build-required-rules
+          # GitHub omits bypass_actors unless the caller can write the ruleset.
+          # The scheduled token audits every read-visible field; an admin-run
+          # invocation of the script retains the privileged no-bypass check.
+          ESHU_REQUIRE_VISIBLE_BYPASS_ACTORS: "false"
+        run: scripts/verify-live-required-status-checks.sh

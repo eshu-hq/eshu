@@ -170,25 +170,55 @@ gates its changed paths select:
   bare `*.md` negation is **root-anchored** (`README.md`, not nested markdown),
   so `go/**/*.md` still counts as code; `.agents/**` is negated explicitly
   (#5818). Any PR mixing docs with code runs the full set. `main`, the nightly
-  schedule, and tag pushes run everything unconditionally. Branch protection
-  points at two umbrellas: `go-core-complete` (**compilation gate** — whole-module
+  schedule, and tag pushes run everything unconditionally. The repository's
+  required-status manifest keeps the two existing umbrellas:
+  `go-core-complete` (**compilation gate** — whole-module
   `cd go && go build ./...` plus lint/fmt, catching a merge result that does not
   compile though every PR was green, #5814) and `go-race-complete` (**race gate**
-  over the sharded `go test -race` matrix). Both `go-core-complete` and
-  `go-race-complete` are required status checks on `main` today. Each stays green when its own lane is legitimately
-  skipped, so neither strands a docs-only PR — but each also depends on
-  `changes` and fails if `changes` did not, since GitHub marks a job `skipped`
-  (not `failed`) when a dependency fails, and an umbrella reading only its own
-  lane would report green after a broken filter stopped anything building.
+  over the sharded `go test -race` matrix). Each stays green when its own lane
+  is legitimately skipped, so neither strands a docs-only PR — but each also
+  depends on `changes` and fails if `changes` did not, since GitHub marks a job
+  `skipped` (not `failed`) when a dependency fails.
+- **Trusted blocking-gate aggregate:** the manifest also declares
+  `required-gates-complete`. A `workflow_run` publisher executes the policy from
+  the default branch, never checks out pull-request code, and evaluates the
+  exact pull-request head. It maps changed paths to every registry row marked
+  `blocking: true`, then waits for the exact workflow/check names declared by
+  those rows. A selected failed, skipped, missing, or timed-out check makes the
+  aggregate fail. This closes the gap where a blocking registry row could be
+  visible locally yet absent from GitHub's two Go umbrellas.
+- **Trust boundary:** the aggregate policy, selector, and status publisher come
+  from the default branch and cannot be rewritten by the pull request they
+  evaluate. The selected leaf checks remain ordinary pull-request CI: their
+  workflow and test code are reviewable changes in the repository. Enforcement
+  therefore assumes branch-protected review and does not claim to resist a
+  collaborator who can both weaken a leaf check and approve or merge that same
+  change. That stronger adversarial boundary requires organization-level
+  immutable required workflows or an external GitHub App.
+- **Ruleset drift:** rollout retains `go-core-complete` and
+  `go-race-complete`, then adds `required-gates-complete` only after its trusted
+  publisher is present on the default branch. The scheduled/manual live
+  verifier checks that the named owning ruleset is active and scoped to the
+  default branch, proves that ruleset itself owns the exact strict context and
+  integration-ID manifest, then makes the same comparison against GitHub's
+  effective `main` rules. It fails on a missing, extra, or differently owned
+  context. GitHub hides bypass actors from the read-only scheduled token, so
+  the scheduled audit does not claim to prove their absence; an
+  admin-authenticated invocation requires the field and verifies that it is
+  empty. The verifier also fails if a merge-queue rule appears: the current
+  publisher evaluates pull-request heads, so `merge_group` support must land
+  before merge queue is enabled.
 - **Advisory:** the benchmark regression check (`BENCH_REGRESSION_ENFORCE=false`)
   and the changed-file Prettier check do not block merge.
-- **CI-only / release-only:** Trivy image scan, GHCR/package publication, and
-  release-attestation checks require credentials and never run locally or on a
-  normal PR.
+- **CI-only / release-only:** PR image-build, reproducibility, and Helm-package
+  proof are blocking hosted lanes. The post-publish Trivy image scan,
+  GHCR/package publication, and release-attestation checks require credentials
+  and cannot block the merge that creates their artifacts.
 
-Exactness and race gates stay **blocking** when their matching code, spec,
-fixture, or generated-contract inputs change — consolidation changed where they
-run, not whether they block.
+`blocking: true` is an enforced merge contract when a row's triggers match, not
+only a local/preflight label. Exactness and race gates stay blocking when their
+matching code, spec, fixture, or generated-contract inputs change —
+consolidation changed where they run, not whether they block.
 
 ### What `make pre-pr` selects, by change type
 

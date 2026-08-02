@@ -20,6 +20,8 @@ import (
 // name is a ${{ matrix.display }} expression.
 var appendGateDisplayRE = regexp.MustCompile(`append_gate\s+"[^"]*"\s+"[^"]*"\s+"([^"]*)"`)
 
+var matrixVariableRE = regexp.MustCompile(`\$\{\{\s*matrix\.([A-Za-z0-9_]+)\s*\}\}`)
+
 // DriftCheck validates that .pre-commit-config.yaml and .github/workflows/ are
 // consistent with the gate registry. It accumulates all errors rather than
 // stopping at the first; a nil or empty slice means the tree is drift-free.
@@ -87,6 +89,7 @@ func DriftCheck(repoRoot string, reg *Registry) []error {
 	errs = append(errs, checkJobNamesResolve(repoRoot, reg)...)
 	errs = append(errs, checkPathFilterCoverage(repoRoot, reg)...)
 	errs = append(errs, checkVerifyScriptWorkflowMatch(repoRoot, reg)...)
+	errs = append(errs, checkRequiredStatusWorkflows(repoRoot, reg)...)
 
 	return errs
 }
@@ -112,6 +115,7 @@ func DriftCheck(repoRoot string, reg *Registry) []error {
 func checkJobNamesResolve(repoRoot string, reg *Registry) []error {
 	wfDir := filepath.Join(repoRoot, ".github", "workflows")
 	cache := make(map[string]map[string]struct{})
+	concreteCache := make(map[string]map[string]struct{})
 	var errs []error
 	for _, g := range reg.Gates {
 		if g.CI.Workflow == "" || g.CI.Job == "" {
@@ -130,6 +134,7 @@ func checkJobNamesResolve(repoRoot string, reg *Registry) []error {
 				names = nil
 			} else {
 				names = workflowCheckNames(raw)
+				concreteCache[g.CI.Workflow] = workflowConcreteCheckNames(raw)
 			}
 			cache[g.CI.Workflow] = names
 		}
@@ -143,8 +148,69 @@ func checkJobNamesResolve(repoRoot string, reg *Registry) []error {
 				g.ID, g.CI.Job, g.CI.Workflow,
 			))
 		}
+		concrete := concreteCache[g.CI.Workflow]
+		for _, checkName := range g.CI.CheckNames {
+			if _, ok := concrete[checkName]; ok {
+				continue
+			}
+			errs = append(errs, fmt.Errorf(
+				"drift: gate %q ci.check_names entry %q is not a concrete check name produced by workflow %q",
+				g.ID,
+				checkName,
+				g.CI.Workflow,
+			))
+		}
 	}
 	return errs
+}
+
+func workflowConcreteCheckNames(raw []byte) map[string]struct{} {
+	names := workflowCheckNames(raw)
+	if names == nil {
+		names = make(map[string]struct{})
+	}
+	var workflow struct {
+		Jobs map[string]struct {
+			Name     string `yaml:"name"`
+			Strategy struct {
+				Matrix map[string]any `yaml:"matrix"`
+			} `yaml:"strategy"`
+		} `yaml:"jobs"`
+	}
+	if err := yaml.Unmarshal(raw, &workflow); err != nil {
+		return names
+	}
+	for _, job := range workflow.Jobs {
+		matches := matrixVariableRE.FindAllStringSubmatch(job.Name, -1)
+		if len(matches) != 1 {
+			continue
+		}
+		expression := matches[0][0]
+		key := matches[0][1]
+		for _, value := range matrixValues(job.Strategy.Matrix, key) {
+			name := strings.ReplaceAll(job.Name, expression, fmt.Sprint(value))
+			names[name] = struct{}{}
+		}
+	}
+	return names
+}
+
+func matrixValues(matrix map[string]any, key string) []any {
+	var values []any
+	if axis, ok := matrix[key].([]any); ok {
+		values = append(values, axis...)
+	}
+	includes, _ := matrix["include"].([]any)
+	for _, item := range includes {
+		entry, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		if value, ok := entry[key]; ok {
+			values = append(values, value)
+		}
+	}
+	return values
 }
 
 // workflowCheckNames returns the set of GitHub check names a workflow can
@@ -330,6 +396,11 @@ func checkWorkflowCompleteness(repoRoot string, reg *Registry) []error {
 	for _, g := range reg.Gates {
 		if g.CI.Workflow != "" {
 			gateWFs[g.CI.Workflow] = struct{}{}
+		}
+	}
+	for _, check := range reg.RequiredStatusChecks {
+		if check.Workflow != "" {
+			gateWFs[check.Workflow] = struct{}{}
 		}
 	}
 
