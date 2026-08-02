@@ -133,6 +133,10 @@ services:
       ESHU_PROJECTION_WORKERS: ${ESHU_PROJECTION_WORKERS:-}
       ESHU_SNAPSHOT_WORKERS: ${ESHU_SNAPSHOT_WORKERS:-}
       ESHU_PARSE_WORKERS: ${ESHU_PARSE_WORKERS:-}
+      # Opt-in value-flow emission (issue #5692). Both parsing services must
+      # receive it: the Go wiring reads the variable, but a container that is
+      # never handed it reads empty and silently emits no dataflow facts.
+      ESHU_EMIT_DATAFLOW: ${ESHU_EMIT_DATAFLOW:-}
       ESHU_LARGE_REPO_FILE_THRESHOLD: ${ESHU_LARGE_REPO_FILE_THRESHOLD:-}
       ESHU_LARGE_REPO_MAX_CONCURRENT: ${ESHU_LARGE_REPO_MAX_CONCURRENT:-2}
       GOMEMLIMIT: ${GOMEMLIMIT:-}
@@ -289,6 +293,10 @@ services:
       ESHU_SNAPSHOT_WORKERS: ${ESHU_SNAPSHOT_WORKERS:-}
       ESHU_PROJECTOR_WORKERS: ${ESHU_PROJECTOR_WORKERS:-}
       ESHU_PARSE_WORKERS: ${ESHU_PARSE_WORKERS:-}
+      # Opt-in value-flow emission (issue #5692). Both parsing services must
+      # receive it: the Go wiring reads the variable, but a container that is
+      # never handed it reads empty and silently emits no dataflow facts.
+      ESHU_EMIT_DATAFLOW: ${ESHU_EMIT_DATAFLOW:-}
       ESHU_LARGE_REPO_FILE_THRESHOLD: ${ESHU_LARGE_REPO_FILE_THRESHOLD:-}
       ESHU_LARGE_REPO_MAX_CONCURRENT: ${ESHU_LARGE_REPO_MAX_CONCURRENT:-2}
       GOMEMLIMIT: ${GOMEMLIMIT:-}

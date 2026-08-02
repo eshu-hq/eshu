@@ -150,38 +150,45 @@ parse; setting it on one does not enable it for another.
 ### What the gate costs
 
 Measured by `BenchmarkDataflowGateEmissionCost`
-(`go/internal/parser/dataflow_gate_bench_test.go`), parsing the same corpus
-fixture files with the gate off and on, through the same parser options the
-real ingest path uses (`snapshotParserOptions`). Median of 3 runs at
-`-benchtime=10x`, Apple silicon, `-12` procs:
+(`go/internal/parser/dataflow_gate_bench_test.go`), parsing the corpus fixture
+files for every language the gate activates, with the gate off and on, through
+the same parser options the real ingest path uses (`snapshotParserOptions`).
+Median of 3 runs at `-benchtime=10x`, Apple silicon, `-12` procs:
 
 | Language fixture | Parse, gate off | Parse, gate on | Time | Allocs off | Allocs on | Allocs |
 | --- | --- | --- | --- | --- | --- | --- |
-| `go_comprehensive` | 29.7 ms | 41.0 ms | ~1.4x | 134,476 | 222,070 | **1.65x** |
-| `python_comprehensive` | 18.6 ms | 27.3 ms | ~1.5x | 92,280 | 169,277 | **1.83x** |
-| `javascript_comprehensive` | 7.9 ms | 16.3 ms | ~2.1x | 48,940 | 100,953 | **2.06x** |
+| `java_comprehensive` | 6.1 ms | 17.4 ms | **2.8x** | 37,563 | 126,303 | **3.36x** |
+| `csharp_comprehensive` | 2.8 ms | 6.5 ms | **2.3x** | 15,565 | 47,159 | **3.03x** |
+| `javascript_comprehensive` | 7.2 ms | 12.7 ms | 1.8x | 48,940 | 100,952 | 2.06x |
+| `typescript_comprehensive` | 16.1 ms | 25.3 ms | 1.6x | 114,458 | 200,536 | 1.75x |
+| `python_comprehensive` | 13.7 ms | 21.4 ms | 1.6x | 92,280 | 169,269 | 1.83x |
+| `go_comprehensive` | 17.8 ms | 27.2 ms | 1.5x | 134,472 | 222,074 | 1.65x |
 
-Read the allocation columns as the signal and the time columns as approximate.
-Allocation counts are deterministic run to run; the wall-clock numbers moved by
-up to 40% across repeats on the JavaScript fixture, so the time ratios are
-rounded and should not be quoted to two decimal places.
+**The cost is not uniform, and Go is the cheap end of it.** An earlier version
+of this table measured only Go, Python and JavaScript and quoted a single
+"roughly 1.5x" range. Java costs nearly twice that — 2.8x the parse time and
+3.4x the allocations — and C# is close behind. A JVM or .NET repository sized
+from the Go number would be under-provisioned by a factor of two.
 
-The parser options matter more than they look. `RepositoryID` and, for Go,
-`GoPackageImportPath` decide how much value-flow work the gate triggers at all:
-without them several languages suppress their interprocedural ids and Go skips
-its durable `dataflow_summaries` and `dataflow_sources` buckets. An earlier
-version of this table was measured without them and reported a cheaper gate
-than any operator can actually enable — the JavaScript ratio in particular was
-understated (1.7x against the 2.1x above).
+Read the allocation columns as the primary signal: they are deterministic run
+to run, while wall-clock varies with machine load.
+
+The parser options matter as much as the language. `RepositoryID` and, for the
+languages that emit them, the package or namespace import path decide how much
+value-flow work the gate triggers at all: without them several languages
+suppress their interprocedural ids and Go, Java and C# skip their durable
+`dataflow_summaries` and `dataflow_sources` buckets entirely. Measuring without
+those options reports a cheaper gate than any operator can actually enable.
 
 Value-flow lowering runs per function on every parsed file in a covered
 language, so the cost is roughly proportional to how much code a repository
-holds, not to how many findings come out. Somewhere between a third again and
-double the parse time, with close to double the allocations, is why the gate
-stays opt-in and off by default. Do not flip the default on the strength of
-these fixtures: they are small, single-language corpora. Re-run the benchmark
-on a representative corpus first, and treat any proposal to change the default
-as a change to the ingest performance contract.
+holds, not to how many findings come out. Between one and a half and nearly
+three times the parse time, with up to triple the allocations, is why the gate
+stays opt-in and off by default. Size from the row matching your dominant
+language, not from the table's average, and re-run the benchmark on a
+representative corpus before changing anything: these are small, single-language
+fixture families. Treat any proposal to flip the default as a change to the
+ingest performance contract.
 
 To reproduce:
 

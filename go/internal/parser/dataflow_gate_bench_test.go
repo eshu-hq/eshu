@@ -15,10 +15,18 @@ import (
 // rather than a synthesized document, so the ratio it reports is the cost an
 // operator actually pays for setting ESHU_EMIT_DATAFLOW on a repository of
 // ordinary code.
+// Every language the shared gate activates is measured. Java and C# emit the
+// same buckets Go does (including the durable summaries/sources pair), and
+// TypeScript routes through the JavaScript adapter but is a distinct fixture
+// family with its own cost, so a sizing number quoted from Go alone would not
+// hold for a JVM or .NET repository.
 var dataflowGateBenchLanguages = map[string]string{
 	"go":         ".go",
 	"python":     ".py",
 	"javascript": ".js",
+	"typescript": ".ts",
+	"java":       ".java",
+	"csharp":     ".cs",
 }
 
 // dataflowGateBenchOptions mirrors what snapshotParserOptions
