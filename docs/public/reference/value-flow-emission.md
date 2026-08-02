@@ -175,6 +175,31 @@ cd go && go test ./internal/parser -run '^$' \
   -bench BenchmarkDataflowGateEmissionCost -benchtime=10x -count=3
 ```
 
+Benchmark Evidence: the table above is the baseline (gate off) and after
+measurement (gate on) on the same input shape — the same corpus fixture files,
+parsed through the same engine, Apple silicon, `-benchtime=10x -count=3`,
+median of 3. Backend/version: no backend involved; this is parser-local cost
+measured before any fact is committed. Terminal counts: the gate-on runs emit
+`dataflow_functions` rows per parsed function in a covered language, which is
+the volume the ratio is a proxy for.
+
+No-Regression Evidence: wiring the gate into `bootstrap-index` and the
+`ingester` (issue #5692) changes nothing while the gate is unset, which is its
+default. `TestBuildBootstrapCollectorLeavesDataflowOffByDefault` and
+`TestBuildIngesterCollectorServiceLeavesDataflowOffByDefault` cover unset,
+empty, `false`, and an unrecognized value; `TestSnapshotterEmitDataflowOffKeepsSnapshotClean`
+proves the snapshot carries no value-flow rows in that state, so the default
+payload shape and its parse cost are unchanged. The cost in the table is paid
+only by an operator who opts in.
+
+No-Observability-Change: no new metric. The gate feeds the existing snapshot
+and fact-emission path, already covered by
+`eshu_dp_collector_snapshot_stage_duration_seconds`,
+`eshu_dp_facts_emitted_total`, and `eshu_dp_generation_fact_count`; the
+snapshot's `dataflow_scanned` field and the collector's snapshot log line
+already tell an operator whether the gate was active for a given run, which is
+the question this issue existed because nobody could answer.
+
 No-Regression Evidence: `go test ./internal/collector ./internal/query
 ./internal/mcp ./cmd/api ./cmd/mcp-server ./cmd/capability-inventory
 ./internal/capabilitycatalog -count=1` covers the collector/API/MCP readback.
