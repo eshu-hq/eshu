@@ -136,9 +136,27 @@ func singleSupplyChainRepositoryID(repositoryIDs []string) string {
 // singleSupplyChainImageSourceRepositoryID applies to ONE row must not also
 // let that row win the CROSS-ROW vote merely for having build evidence, when
 // other rows agree by source alone). Between two rows in the SAME tier, the
-// lexicographically smaller factID wins -- an arbitrary but STABLE choice, so
-// the same winner is reached regardless of which order the envelopes arrive
-// in, including across repeated runs and reprocessing.
+// lexicographically smaller factID wins -- arbitrary, and order-independent
+// (folding the same set of rows in any order reaches the same minimum), but
+// NOT stable run to run: factID is a SHA-256 over an identity that includes
+// generation_id (facts.StableID, containerImageIdentityIdentity), and a row
+// derived from a live git snapshot gets a fresh generation_id every
+// collector run (git_source_processing.go's sourceRunID embeds the run's
+// wall-clock observed_at). Two same-tier rows that disagree on repository
+// can therefore pick a DIFFERENT winner on every run even though nothing
+// about the underlying evidence changed -- see issue #5887, where this
+// bare function's tie-break was exactly that failure mode.
+//
+// preferSupplyChainImageIdentityConsensus (supply_chain_impact_anchor_consensus.go)
+// is the run-stable replacement bestSupplyChainImageIdentitiesByDigest and
+// addSupplyChainImpactIndexEntry actually use: it defers to this function
+// for the tier check and for any same-repository or unresolved-repository
+// comparison (behavior identical to here), but breaks a same-tier,
+// different-repository disagreement by corroboration count instead of
+// factID. This bare function is kept for direct row-pair tier tests and as
+// the final fallback once repository identity and corroboration count both
+// tie -- at that point which specific row wins cannot change the resolved
+// repository, so factID's per-run instability no longer matters.
 func preferSupplyChainImageIdentity(existing, candidate supplyChainImageIdentity) supplyChainImageIdentity {
 	existingTier := supplyChainImageIdentityAnchorTier(existing)
 	candidateTier := supplyChainImageIdentityAnchorTier(candidate)
