@@ -42,6 +42,11 @@ func (f *fakeDrainQuerier) ResidualBreakdown(_ context.Context) ([]residualRow, 
 	return f.breakdown, f.breakdownErr
 }
 
+// CompletionEventBreakdown implements drainQuerier.
+func (*fakeDrainQuerier) CompletionEventBreakdown(_ context.Context) ([]completionEventRow, error) {
+	return nil, nil
+}
+
 func (f *fakeDrainQuerier) Counts(_ context.Context) (DrainCounts, error) {
 	f.i++
 	if f.errOn == f.i {
@@ -86,6 +91,23 @@ func TestPollUntilDrainedWaitsForPopulation(t *testing.T) {
 	}
 	if q.i < 3 {
 		t.Errorf("converged after %d polls; must wait for population (>=3)", q.i)
+	}
+}
+
+func TestPollUntilDrainedWaitsForCrossScopeCompletionEvents(t *testing.T) {
+	q := &fakeDrainQuerier{seq: []DrainCounts{
+		{CrossScopeCompletionEventsNonterminal: 1},
+		{},
+	}}
+	counts, ok, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 0, time.Second, time.Millisecond)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if !ok {
+		t.Fatalf("expected convergence after completion event drained, got %+v", counts)
+	}
+	if q.i < 2 {
+		t.Errorf("converged after %d poll; must wait for completion event", q.i)
 	}
 }
 

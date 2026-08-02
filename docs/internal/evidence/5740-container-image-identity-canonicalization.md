@@ -474,6 +474,10 @@ ESHU_POSTGRES_TEST_DSN='postgresql://eshu:change-me@127.0.0.1:25432/eshu?sslmode
 
 ## Promotion gates
 
+The completion-ledger false-drain reproduction, atomic-snapshot plan, and final
+live proof are recorded in
+[`5740-golden-drain-quiescence.md`](5740-golden-drain-quiescence.md).
+
 The final clean B-7 run uses the required comprehensive profile:
 
 ```bash
