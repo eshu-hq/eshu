@@ -47,41 +47,11 @@ WHERE fact.fact_id = ANY($17::text[])
   AND fact.fencing_token <= $20
 `
 
-// containerImageIdentityCompletedCutoverAdmissionCTE is the
-// container_image_identity_write_admission CAS (#5874), woven as a leading
-// CTE into the completed-cutover single-round-trip queries below rather than
-// issued as a separate ExecContext call, because THIS path (unlike the
-// transactional paths in container_image_identity_writer_publish.go)
-// deliberately has no Go-level BEGIN/COMMIT to run a second statement inside
-// -- it is atomic only because it is one combined SQL statement. It is
-// intentionally NOT gated on current_claim (or vice versa): both CAS checks
-// are independent and unconditional, mirroring
-// awsCloudRuntimeDriftAdmissionQuery's "first statement, no other guard"
-// shape. A data-modifying CTE (INSERT/UPDATE/DELETE) is never inlined or
-// skipped by the planner even when nothing downstream references it, so this
-// always runs regardless of whether current_claim or the WHERE clauses below
-// end up admitting anything.
-//
-// Placeholder numbers $23-$26 are chosen to not collide with the existing
-// $1-$22 the surrounding queries already bind; Postgres placeholders do not
-// need to appear in ascending textual order, and the Go call site appends
-// these four values to the end of the existing args slice rather than
-// renumbering anything already reviewed.
-const containerImageIdentityCompletedCutoverAdmissionCTE = `
-admission AS MATERIALIZED (
-    INSERT INTO container_image_identity_write_admission (
-        scope_id, generation_id, fencing_token, updated_at
-    ) VALUES ($23, $24, $25, $26)
-    ON CONFLICT (scope_id, generation_id) DO UPDATE SET
-        fencing_token = EXCLUDED.fencing_token,
-        updated_at    = EXCLUDED.updated_at
-    WHERE container_image_identity_write_admission.fencing_token <= EXCLUDED.fencing_token
-    RETURNING 1
-),
-`
-
-const containerImageIdentityCompletedCutoverWriteQuery = `
-WITH ` + containerImageIdentityCompletedCutoverAdmissionCTE + `
+// containerImageIdentityCompletedCutoverClaimCTE is the exact-claim-epoch
+// check shared by both completed-cutover single-round-trip queries below. It
+// MUST be the first CTE in the WITH list -- containerImageIdentityCompletedCutoverAdmissionCTE
+// depends on it (see that constant's doc comment for why).
+const containerImageIdentityCompletedCutoverClaimCTE = `
 current_claim AS MATERIALIZED (
     UPDATE fact_work_items AS work_item
     SET status = 'running',
@@ -104,6 +74,56 @@ current_claim AS MATERIALIZED (
           work_item.status
     RETURNING 1
 ),
+`
+
+// containerImageIdentityCompletedCutoverAdmissionCTE is the
+// container_image_identity_write_admission CAS (#5874), woven as a CTE into
+// the completed-cutover single-round-trip queries below rather than issued
+// as a separate ExecContext call, because THIS path (unlike the
+// transactional paths in container_image_identity_writer_publish.go)
+// deliberately has no Go-level BEGIN/COMMIT to run a second statement inside
+// -- it is atomic only because it is one combined SQL statement.
+//
+// GATED on current_claim (pre-PR-review P1 fix): the INSERT's own SELECT
+// carries `WHERE EXISTS (SELECT 1 FROM current_claim)`, so a claim-rejected
+// pass inserts/updates ZERO rows here and never advances the watermark.
+// Without this gate, a pass whose claim epoch has already been superseded by
+// a newer claimant (its own write is rejected regardless) could still win
+// the admission CAS if its token happened to be issued LATER than the
+// legitimate claimant's -- reachable under redelivery: an old worker's
+// nextval() call landing, in wall-clock terms, after the reclaiming worker's,
+// even though the reclaim itself happened first. That advanced watermark
+// would then wrongly reject the legitimate claimant's OWN retry, which is
+// exactly the "superseded" outcome the admission table exists to prevent, not
+// cause. Referencing current_claim in admission's SELECT creates a genuine
+// CTE data dependency, so Postgres evaluates current_claim (a data-modifying
+// CTE) first and admission's INSERT sees its result, not just typical planner
+// behavior -- this is why containerImageIdentityCompletedCutoverClaimCTE must
+// be the FIRST CTE in the WITH list, textually before this one.
+//
+// Placeholder numbers $23-$26 are chosen to not collide with the existing
+// $1-$22 the surrounding queries already bind; Postgres placeholders do not
+// need to appear in ascending textual order, and the Go call site appends
+// these four values to the end of the existing args slice rather than
+// renumbering anything already reviewed.
+const containerImageIdentityCompletedCutoverAdmissionCTE = `
+admission AS MATERIALIZED (
+    INSERT INTO container_image_identity_write_admission (
+        scope_id, generation_id, fencing_token, updated_at
+    )
+    SELECT $23, $24, $25, $26
+    WHERE EXISTS (SELECT 1 FROM current_claim)
+    ON CONFLICT (scope_id, generation_id) DO UPDATE SET
+        fencing_token = EXCLUDED.fencing_token,
+        updated_at    = EXCLUDED.updated_at
+    WHERE container_image_identity_write_admission.fencing_token <= EXCLUDED.fencing_token
+    RETURNING 1
+),
+`
+
+const containerImageIdentityCompletedCutoverWriteQuery = `
+WITH ` + containerImageIdentityCompletedCutoverClaimCTE +
+	containerImageIdentityCompletedCutoverAdmissionCTE + `
 published AS (
 ` + reducerFactBatchInsertPrefix +
 	reducerFactBatchInsertSource + `
@@ -128,29 +148,8 @@ FROM current_claim
 `
 
 const containerImageIdentityCompletedCutoverPublishOnlyQuery = `
-WITH ` + containerImageIdentityCompletedCutoverAdmissionCTE + `
-current_claim AS MATERIALIZED (
-    UPDATE fact_work_items AS work_item
-    SET status = 'running',
-        container_image_identity_v2_authorized_status = 'running'
-    WHERE work_item.work_item_id = $21
-      AND work_item.scope_id = $18
-      AND work_item.generation_id = $19
-      AND work_item.stage = 'reducer'
-      AND work_item.domain = 'container_image_identity'
-      AND work_item.status IN ('claimed', 'running')
-      AND work_item.container_image_identity_claim_epoch = $22
-      AND work_item.container_image_identity_v2_required
-      AND EXISTS (
-          SELECT 1
-          FROM container_image_identity_cutovers AS cutover
-          WHERE cutover.scope_id = work_item.scope_id
-            AND cutover.generation_id = work_item.generation_id
-      )
-      AND work_item.container_image_identity_v2_authorized_status =
-          work_item.status
-    RETURNING 1
-),
+WITH ` + containerImageIdentityCompletedCutoverClaimCTE +
+	containerImageIdentityCompletedCutoverAdmissionCTE + `
 legacy_cleanup_input AS MATERIALIZED (
     SELECT $17::text[] AS fact_ids, $20::bigint AS fencing_token
 ),

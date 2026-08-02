@@ -11,6 +11,112 @@ import (
 	"time"
 )
 
+// TestPostgresContainerImageIdentityCompletedCutoverAdmissionIgnoresClaimRejectedWatermark
+// is the regression for a pre-push review finding (#5874 P1): the completed-
+// cutover fast path's admission CTE used to be unconditional on current_claim,
+// so a pass whose claim epoch had already been superseded could still win the
+// admission CAS if its token happened to be issued later than the legitimate
+// claimant's -- reachable under redelivery, where an old worker's nextval()
+// call can land, in wall-clock terms, after the reclaiming worker's, even
+// though the reclaim itself happened first. That would advance the watermark
+// and wrongly reject the legitimate claimant's own retry. The fix gates the
+// admission INSERT's SELECT on current_claim succeeding, so a claim-rejected
+// pass advances nothing.
+//
+// This test proves the fixed direction end to end: a "zombie" pass with a
+// STALE claim epoch but a numerically HIGHER token than any subsequent
+// legitimate write is rejected on its claim (not admission), and the
+// legitimate claimant's own later write -- carrying a LOWER token than the
+// zombie's -- still succeeds, because the zombie never touched the
+// watermark.
+func TestPostgresContainerImageIdentityCompletedCutoverAdmissionIgnoresClaimRejectedWatermark(
+	t *testing.T,
+) {
+	db := openContainerImageIdentityLivePostgres(t)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+	defer cancel()
+	seedContainerImageIdentityLiveParents(t, ctx, db)
+
+	anchor := containerImageIdentityAtomicLiveWrite(
+		"admission-ignores-rejected-anchor",
+		1,
+		time.Date(2026, time.August, 1, 12, 0, 0, 0, time.UTC),
+	)
+	// zombie carries a token FAR higher than anchor's or legit's -- if the
+	// pre-fix bug were still present, this token would win the admission CAS
+	// despite the claim rejection, and legit's lower token would then be
+	// wrongly bounced as superseded.
+	zombie := containerImageIdentityAtomicLiveWrite(
+		"admission-ignores-rejected-zombie",
+		1,
+		time.Date(2026, time.August, 1, 13, 0, 0, 0, time.UTC),
+	)
+	legit := containerImageIdentityAtomicLiveWrite(
+		"admission-ignores-rejected-legit",
+		1,
+		time.Date(2026, time.August, 1, 12, 30, 0, 0, time.UTC),
+	)
+	cleanupContainerImageIdentityAtomicLiveWrite(t, db, anchor)
+	t.Cleanup(func() {
+		cleanupContainerImageIdentityAtomicLiveWrite(t, db, anchor)
+		cleanupContainerImageIdentityAtomicLiveWrite(t, db, zombie)
+		cleanupContainerImageIdentityAtomicLiveWrite(t, db, legit)
+	})
+
+	anchorWriter := PostgresContainerImageIdentityWriter{
+		DB:       db,
+		Beginner: &containerImageIdentityAtomicLiveBeginner{db: db},
+	}
+	if _, err := anchorWriter.WriteContainerImageIdentityDecisions(ctx, anchor); err != nil {
+		t.Fatalf("complete image-reference-keyed cutover: %v", err)
+	}
+
+	// Reclaim: advance the claim epoch as a fresh claimant would, stranding
+	// the (not-yet-attempted) zombie pass at the old epoch.
+	if _, err := db.ExecContext(ctx, `
+UPDATE fact_work_items
+SET container_image_identity_claim_epoch = 2
+WHERE work_item_id = $1
+`, zombie.IntentID); err != nil {
+		t.Fatalf("advance completed-cutover claim epoch: %v", err)
+	}
+
+	staleWriter := PostgresContainerImageIdentityWriter{
+		DB:            db,
+		CutoverLookup: containerImageIdentityAtomicLiveCutoverLookup{db: db},
+		ClaimedExecer: containerImageIdentityAtomicLiveClaimedExecer{db: db},
+	}
+	if _, err := staleWriter.WriteContainerImageIdentityDecisions(ctx, zombie); err == nil {
+		t.Fatal("zombie completed-cutover write error = nil, want claim rejection")
+	}
+
+	// legit reuses the SAME (now-current) claim epoch 2 and a LOWER token
+	// than zombie's. Before the fix, zombie's higher token would already
+	// have raised the watermark and this write would be rejected as
+	// superseded instead of succeeding.
+	legit.ClaimEpoch = 2
+	legitWriter := PostgresContainerImageIdentityWriter{
+		DB:            db,
+		CutoverLookup: containerImageIdentityAtomicLiveCutoverLookup{db: db},
+		ClaimedExecer: containerImageIdentityAtomicLiveClaimedExecer{db: db},
+	}
+	if _, err := legitWriter.WriteContainerImageIdentityDecisions(ctx, legit); err != nil {
+		t.Fatalf(
+			"legit completed-cutover write error = %v, want nil: the rejected zombie pass "+
+				"must not have advanced the admission watermark",
+			err,
+		)
+	}
+	assertContainerImageIdentityAtomicLiveCount(
+		t,
+		ctx,
+		db,
+		`SELECT count(*) FROM fact_records WHERE fact_id = $1`,
+		1,
+		containerImageIdentityFactID(legit, legit.Decisions[0]),
+	)
+}
+
 func TestPostgresContainerImageIdentityCompletedCutoverRejectsLaterLegacyWriter(
 	t *testing.T,
 ) {
