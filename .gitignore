@@ -72,6 +72,8 @@ docs/site/
 !.claude/hooks/**
 !.claude/skills/
 !.claude/skills/**
+!.claude/rules/
+!.claude/rules/**
 .worktrees/
 node_modules/
 dist/
