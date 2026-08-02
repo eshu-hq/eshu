@@ -30,6 +30,16 @@ type fakeDrainQuerier struct {
 	seq   []DrainCounts
 	i     int
 	errOn int // 1-based index to return an error on; 0 disables
+	// breakdown is returned by ResidualBreakdown, which the runner calls only
+	// after a drain has already failed. breakdownErr models the read failing:
+	// the runner must degrade its message, never its verdict.
+	breakdown    []residualRow
+	breakdownErr error
+}
+
+// ResidualBreakdown implements drainQuerier.
+func (f *fakeDrainQuerier) ResidualBreakdown(_ context.Context) ([]residualRow, error) {
+	return f.breakdown, f.breakdownErr
 }
 
 func (f *fakeDrainQuerier) Counts(_ context.Context) (DrainCounts, error) {

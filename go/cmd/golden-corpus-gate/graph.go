@@ -426,7 +426,20 @@ func checkGraph(ctx context.Context, c graphCounter, snap Snapshot, requiredOnly
 		if err != nil {
 			return fmt.Errorf("count correlation %s: %w", rc.ID, err)
 		}
-		r.Add(EvaluateRequiredCorrelation(rc, count, blockingCorrelations[rc.ID]))
+		finding := EvaluateRequiredCorrelation(rc, count, blockingCorrelations[rc.ID])
+		r.Add(finding)
+		// Diagnose only a zero, and only while the graph is still reachable. A
+		// nonzero-but-short count already names its own shortfall; a zero does
+		// not, and the stack is gone by the time anyone reads the log.
+		if !finding.OK && count == 0 {
+			r.Add(Finding{
+				Phase:    "graph",
+				Check:    rc.ID + "/diagnosis",
+				OK:       true,
+				Required: false,
+				Detail:   diagnoseZeroCorrelation(ctx, c, rc),
+			})
+		}
 		for _, prop := range rc.RequiredEdgeProperties {
 			values, err := c.ListCorrelationEdgeProperty(ctx, rc.FromLabel, rc.Relationship, rc.ToLabel, rc.EvidenceKinds, prop)
 			if err != nil {
