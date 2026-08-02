@@ -79,13 +79,40 @@ func extractRepositoryWithQuarantine(envelopes []facts.Envelope) (*RepositoryRow
 	return nil, quarantined
 }
 
+// parsedFileRef is one decoded, materializable file fact, handed to the
+// extractors that read the parser's per-file buckets out of parsed_file_data.
+//
+// It exists so those extractors do not decode the same file fact a second time.
+// decodeCodegraphFile runs a reflect-based typed decode per envelope; on a
+// 2,000-file generation a second pass costs about 1ms and 7,900 allocations for
+// data extractFilesWithQuarantine already holds. Path and Language are carried
+// alongside so a consumer does not recompute the repo-qualified path either.
+type parsedFileRef struct {
+	Path           string
+	Language       string
+	ParsedFileData map[string]any
+
+	// FactID and FactKind identify the file fact this reference came from, so
+	// an extractor that cannot read one of its parser buckets can quarantine
+	// the fact by name instead of silently reading it as "this file has
+	// nothing". Without them a malformed bucket is invisible: the delta
+	// refresh still deletes the file's edges and then writes none.
+	FactID   string
+	FactKind string
+}
+
 // extractFilesWithQuarantine builds FileRow entries from typed file fact
 // envelopes. A fact missing a required typed identity field is quarantined and
 // skipped; present-but-empty identity fields still decode and are dropped by the
 // row builder's materialization gate, matching the pre-typing behavior.
-func extractFilesWithQuarantine(envelopes []facts.Envelope, repoID, repoPath string) ([]FileRow, []quarantinedFact) {
+//
+// It also returns one parsedFileRef per materialized file, in the same order,
+// so the parsed_file_data extractors (currently the import extractor, issue
+// #5691) can read the parser buckets off an already-decoded file.
+func extractFilesWithQuarantine(envelopes []facts.Envelope, repoID, repoPath string) ([]FileRow, []parsedFileRef, []quarantinedFact) {
 	fileFacts := FilterFileFacts(envelopes)
 	var rows []FileRow
+	var parsed []parsedFileRef
 	var quarantined []quarantinedFact
 
 	for i := range fileFacts {
@@ -123,7 +150,14 @@ func extractFilesWithQuarantine(envelopes []facts.Envelope, repoID, repoPath str
 			RepoID:       repoID,
 			DirPath:      dirPath,
 		})
+		parsed = append(parsed, parsedFileRef{
+			Path:           fullPath,
+			Language:       strings.TrimSpace(language),
+			ParsedFileData: file.ParsedFileData,
+			FactID:         fileFacts[i].FactID,
+			FactKind:       fileFacts[i].FactKind,
+		})
 	}
 
-	return rows, quarantined
+	return rows, parsed, quarantined
 }
