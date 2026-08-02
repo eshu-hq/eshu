@@ -4641,7 +4641,7 @@
         }
       },
       "list_semantic_code_hints": {
-        "description": "MCP tool coverage shape for list_semantic_code_hints; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for list_semantic_code_hints; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). minimum_results stays 0 DELIBERATELY, not by oversight: issue #5693 gave semantic.code_hint a producer (go/internal/semanticcode) proven end-to-end into the read answer, but no runtime process calls it, so the corpus carries no code hints to assert. Raise this to 1 in the same change that wires a semantic extraction process into the gate's collector set -- until then a floor of 1 would assert a capability the corpus cannot exercise. The producer itself is guarded by go test ./internal/semanticcode and TestCodeHintsReadAnswersFromTheRealProducer.",
         "required_response_fields": [
           "code_hints",
           "count",
