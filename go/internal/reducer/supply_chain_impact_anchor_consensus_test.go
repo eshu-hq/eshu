@@ -117,3 +117,109 @@ func TestSupplyChainImpactFindingIdentityStableAcrossAnchorFactIDDraws(t *testin
 		t.Fatalf("supplyChainImpactFindingID differs across draws: draw one = %q, draw two = %q", idOne, idTwo)
 	}
 }
+
+// TestBuildSupplyChainImageIdentityConsensusCollapsesLegacyAndV2Duplicate is
+// a #5887 follow-up regression guard (found in review by codex on PR #5908).
+//
+// WriteContainerImageIdentityDecisions' doc comment
+// (container_image_identity_writer.go) explains that during the #5854 v2
+// cutover, a completeness warning can deliberately hold a legacy
+// outcome-keyed row live in the same pass that publishes its stronger v2
+// replacement for the IDENTICAL (scope_id, generation_id, image_ref)
+// decision. Both rows land in the same envelope batch with two DIFFERENT
+// fact IDs. Before this test's fix, buildSupplyChainImageIdentityConsensus
+// counted one vote per envelope, so that ONE decision cast TWO votes for its
+// repository while the legacy row was held -- and the count silently
+// dropped back to one, potentially flipping the winning repository, the
+// instant a later pass retired the legacy row. That is the SAME class of bug
+// #5887 fixed (the anchor moving with no change in underlying evidence),
+// reached through the cutover boundary instead of a per-run factID draw.
+//
+// This test constructs exactly that shape: repoLegacyV2Dup is asserted by
+// TWO envelopes sharing one logical key (same ScopeID, GenerationID, and
+// image_ref; different FactID; one tagged as the v2 format, one left
+// untagged to represent the held legacy row), competing against a single
+// row for repoSingleWriter. repoLegacyV2Dup's ID is chosen to sort AFTER
+// repoSingleWriter's, so a real (not merely double-counted-vs-tied) 2-vs-1
+// win is on the line: before the fix, repoLegacyV2Dup wins while both rows
+// are live (2 votes beats 1), then the winner FLIPS to repoSingleWriter the
+// moment the legacy row is removed and the count drops to a 1-1 tie broken
+// by repository ID ordering. After the fix, both physical rows collapse to
+// ONE logical vote for repoLegacyV2Dup, so removing the legacy row changes
+// nothing: repoSingleWriter wins in both scenarios.
+func TestBuildSupplyChainImageIdentityConsensusCollapsesLegacyAndV2Duplicate(t *testing.T) {
+	t.Parallel()
+
+	const (
+		digest             = "sha256:5887legacyv2dup00000000000000000000000000000000000000000000000"
+		repoLegacyV2Dup    = "repository:r_zzz_legacy_v2_dup"
+		repoSingleWriter   = "repository:r_aaa_single_writer"
+		sharedScopeID      = "repository:5887-legacy-v2-dup-scope"
+		sharedGenerationID = "generation-5887-legacy-v2-dup"
+		sharedImageRef     = "registry.example/5887-legacy-v2-dup-app:prod"
+		legacyRowFactID    = "identity-5887-legacy-row"
+		v2RowFactID        = "identity-5887-v2-row"
+		singleWriterFactID = "identity-5887-single-writer-row"
+		decoyRepositoryID  = "oci-registry://registry.example/5887-legacy-v2-dup-app"
+	)
+
+	// The v2 row: current format, tagged identity_format=image_ref_v2.
+	v2Row := facts.Envelope{
+		FactID:       v2RowFactID,
+		FactKind:     containerImageIdentityFactKind,
+		ScopeID:      sharedScopeID,
+		GenerationID: sharedGenerationID,
+		Payload: map[string]any{
+			"digest":                digest,
+			"repository_id":         decoyRepositoryID,
+			"image_ref":             sharedImageRef,
+			"identity_format":       containerImageIdentityFormatImageRef,
+			"source_repository_ids": []string{repoLegacyV2Dup},
+			"canonical_writes":      1,
+		},
+	}
+	// The legacy row: SAME logical key (scope/generation/image_ref) and the
+	// same asserted repository, but a DIFFERENT fact ID and no
+	// identity_format marker -- a held-over pre-#5854 row.
+	legacyRow := facts.Envelope{
+		FactID:       legacyRowFactID,
+		FactKind:     containerImageIdentityFactKind,
+		ScopeID:      sharedScopeID,
+		GenerationID: sharedGenerationID,
+		Payload: map[string]any{
+			"digest":                digest,
+			"repository_id":         decoyRepositoryID,
+			"image_ref":             sharedImageRef,
+			"source_repository_ids": []string{repoLegacyV2Dup},
+			"canonical_writes":      1,
+		},
+	}
+	singleWriterRow := containerImageIdentityImpactFactWithSourceRepositoryIDs(
+		singleWriterFactID, digest, decoyRepositoryID, repoSingleWriter,
+	)
+
+	withLegacyHeld := []facts.Envelope{legacyRow, v2Row, singleWriterRow}
+	legacyCleanedUp := []facts.Envelope{v2Row, singleWriterRow}
+
+	winnerWithLegacyHeld := singleSupplyChainImageSourceRepositoryID(
+		bestSupplyChainImageIdentitiesByDigest(withLegacyHeld)[digest],
+	)
+	winnerAfterCleanup := singleSupplyChainImageSourceRepositoryID(
+		bestSupplyChainImageIdentitiesByDigest(legacyCleanedUp)[digest],
+	)
+
+	if winnerWithLegacyHeld != winnerAfterCleanup {
+		t.Fatalf(
+			"anchor moved when the legacy row was removed: with legacy held = %q, after cleanup = %q -- "+
+				"a legacy/v2 duplicate pair must cast one vote, not two, or cleanup silently flips the anchor",
+			winnerWithLegacyHeld, winnerAfterCleanup,
+		)
+	}
+	if winnerAfterCleanup != repoSingleWriter {
+		t.Fatalf(
+			"winner = %q, want %q: with the duplicate correctly counted as one vote, the single-writer "+
+				"repository's smaller repository ID should win the resulting 1-1 tie",
+			winnerAfterCleanup, repoSingleWriter,
+		)
+	}
+}

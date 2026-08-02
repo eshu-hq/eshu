@@ -153,10 +153,17 @@ func singleSupplyChainRepositoryID(repositoryIDs []string) string {
 // for the tier check and for any same-repository or unresolved-repository
 // comparison (behavior identical to here), but breaks a same-tier,
 // different-repository disagreement by corroboration count instead of
-// factID. This bare function is kept for direct row-pair tier tests and as
-// the final fallback once repository identity and corroboration count both
-// tie -- at that point which specific row wins cannot change the resolved
-// repository, so factID's per-run instability no longer matters.
+// factID -- and when that count also ties, by comparing the repository ID
+// strings themselves (still not factID), which DOES decide the winning
+// repository in that case. This bare function's own factID tie-break is
+// reachable from preferSupplyChainImageIdentityConsensus only when the two
+// rows already resolve to the SAME repository (or one/both do not resolve at
+// all), so which row wins there is cosmetic -- it changes which factID gets
+// cited as evidence, never which repository is selected. This bare function
+// is kept for direct row-pair tier tests and that same-repository/unresolved
+// fallback; it is not itself run-stable in isolation, which is exactly why
+// preferSupplyChainImageIdentityConsensus exists as the caller both real call
+// sites use.
 func preferSupplyChainImageIdentity(existing, candidate supplyChainImageIdentity) supplyChainImageIdentity {
 	existingTier := supplyChainImageIdentityAnchorTier(existing)
 	candidateTier := supplyChainImageIdentityAnchorTier(candidate)
