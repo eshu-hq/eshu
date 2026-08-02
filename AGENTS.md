@@ -432,13 +432,12 @@ Docs, root agent files, and README changes require the docs build plus
 
 ## Orchestration, PR, And CI Discipline
 
-- The coordinator MUST dispatch subagents for substantive implementation,
-  review, and research rather than doing everything in one context. A leaf role
-  (executor, debugger, performance, reviewer) whose task permission is denied is
-  exempt and MUST complete its assigned work directly. Match model capability to
-  task difficulty using the tier map in
+- For substantive implementation, review, and research, the orchestrator MUST
+  dispatch subagents rather than doing everything in one context. Match model
+  capability to task difficulty using the tier map in
   [Agent Orchestration Model](docs/internal/agent-orchestration.md#roles-models-and-tools).
-  A subagent never downgrades its own model.
+  A subagent never downgrades its own model. Leaf agents (executor, debugger,
+  reviewer, performance engineer) may not dispatch.
 - Only the **orchestrator** runs `make pre-pr`, exactly once, immediately before
   the intended push. Subagents MUST NOT each run it — the full gate is expensive
   and per-agent runs are wasted CPU. They run focused verification only and paste
