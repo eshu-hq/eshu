@@ -133,8 +133,14 @@ fixture corpora or offline tooling.
 
 ## Non-Negotiable Rules
 
-Detail and the incident behind each git/worktree rule:
-[Agent Git And Worktree Hygiene](docs/internal/agent-git-hygiene.md).
+Agents MUST read
+[Agent Git And Worktree Hygiene](docs/internal/agent-git-hygiene.md) before any
+git, worktree, stash, or push action; it carries the wrong-worktree recovery
+procedure and the incident behind each rule below.
+
+- If an edit lands outside the intended feature worktree, agents MUST stop
+  immediately, report it, and let the owner decide the recovery. MUST NOT
+  self-recover silently.
 
 - MUST use `rg` for all text searches. NEVER use `grep`.
 - MUST use `rg --files` or globbing for file discovery. NEVER use `find`.
@@ -160,6 +166,7 @@ Detail and the incident behind each git/worktree rule:
   before opening or updating a PR.
 - MUST NOT put issue-closing keywords (`Fixes`, `Closes`, `Resolves`, …) in a
   commit message or PR body unless that issue is meant to close on merge.
+  Reference issues as `#NNNN` otherwise.
 - MUST synchronize remote test machines by Git fetch and checkout of the
   reviewed branch. NEVER `rsync` an unreviewed worktree as performance evidence.
 - MUST use the same branch/worktree name across repos when one workflow touches
@@ -425,8 +432,11 @@ Docs, root agent files, and README changes require the docs build plus
 
 ## Orchestration, PR, And CI Discipline
 
-- MUST dispatch subagents for substantive implementation, review, and
-  research rather than doing everything in one context. Match model capability to task difficulty using the tier map in
+- The coordinator MUST dispatch subagents for substantive implementation,
+  review, and research rather than doing everything in one context. A leaf role
+  (executor, debugger, performance, reviewer) whose task permission is denied is
+  exempt and MUST complete its assigned work directly. Match model capability to
+  task difficulty using the tier map in
   [Agent Orchestration Model](docs/internal/agent-orchestration.md#roles-models-and-tools).
   A subagent never downgrades its own model.
 - Only the **orchestrator** runs `make pre-pr`, exactly once, immediately before

@@ -13,11 +13,15 @@ Install the repo's hooks once per clone: `scripts/dev/bootstrap-hooks.sh`. It is
 idempotent and shared across worktrees.
 
 Never `--no-verify` a commit or a push. Commit-stage gates are fast. The push is
-fronted by a per-SHA stamp: `make pre-pr` writes one on success
-(`scripts/dev/prepr-stamp-verify.sh`), and the push is blocked unless every
-commit being pushed carries it. A green local gate is therefore a hard push-time
-requirement, not something CI discovers later. The slower pre-push hooks still
-run after the stamp check passes.
+fronted by a per-SHA stamp: `make pre-pr` writes one on success, and
+`scripts/dev/prepr-stamp-verify.sh` blocks the push unless the stamp exists.
+
+Be precise about what it checks, because the looser reading gives false comfort:
+it validates the **tip SHA of each non-delete ref being pushed**, one per ref —
+not every commit in the range. Intermediate commits on a branch are never
+stamped and are not expected to be. A green local gate on the tip is therefore a
+hard push-time requirement; it is not a per-commit guarantee. The slower
+pre-push hooks still run after the stamp check passes.
 
 A rebase or amend after `make pre-pr` invalidates the stamp — re-run it before
 pushing. This bites most often when a coverage or generated artifact is committed
@@ -66,12 +70,16 @@ before opening or updating a PR.
 ## Issue-closing keywords
 
 Never put `Fixes`, `Closes`, `Resolves`, `Partial-closes`, or similar in a commit
-message or PR body unless that exact issue is meant to close on merge. Reference
-issues as `#NNNN` with no keyword otherwise.
+message or PR body unless that exact issue is meant to close on merge.
 
-Note that git strips message lines beginning with `#NNNN` during
-`rebase --continue` and some commit paths — use `Refs #NNNN` or
-`--cleanup=verbatim` when the reference must survive.
+How to reference the issue instead depends on where the text goes:
+
+- **PR title and body:** `#NNNN` on its own is fine and renders as a link.
+- **Commit messages:** use `Refs #NNNN`. Git treats a line *beginning* with `#`
+  as a comment and silently strips it during `rebase --continue` and other
+  commit paths, so a bare `#NNNN` at the start of a line disappears without
+  warning. `--cleanup=verbatim` also preserves it, but `Refs #NNNN` needs no
+  flag and survives every path.
 
 ## Remote test machines
 
