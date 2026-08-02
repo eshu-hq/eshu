@@ -160,7 +160,8 @@ procedure and the incident behind each rule below.
   `go mod tidy`) inside a worktree, including for diagnostics. The main checkout
   stays a clean fast-forward of `origin/main`.
 - MUST NOT use `git stash` when multiple worktrees may be active — the stash
-  stack is shared and concurrent agents corrupt each other.
+  stack is shared and concurrent agents corrupt each other. To compare against a
+  clean tree use `git diff`, `git show <ref>:<path>`, or a throwaway worktree.
 - MUST verify HEAD is on a named branch before every commit
   (`git symbolic-ref -q HEAD`), and confirm the pushed SHA equals local HEAD
   before opening or updating a PR.
