@@ -365,12 +365,19 @@ func workflowTriggerKeys(raw []byte) (map[string]struct{}, error) {
 		return nil, err
 	}
 	keys := make(map[string]struct{})
-	if on.Kind == yaml.ScalarNode {
+	switch on.Kind {
+	case yaml.ScalarNode:
 		keys[on.Value] = struct{}{}
-		return keys, nil
-	}
-	for j := 0; j+1 < len(on.Content); j += 2 {
-		keys[on.Content[j].Value] = struct{}{}
+	case yaml.SequenceNode:
+		for _, event := range on.Content {
+			keys[event.Value] = struct{}{}
+		}
+	case yaml.MappingNode:
+		for j := 0; j+1 < len(on.Content); j += 2 {
+			keys[on.Content[j].Value] = struct{}{}
+		}
+	default:
+		return nil, fmt.Errorf("on trigger has unsupported YAML node kind %d", on.Kind)
 	}
 	return keys, nil
 }
