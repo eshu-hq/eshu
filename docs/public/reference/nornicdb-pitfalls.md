@@ -890,14 +890,30 @@ more than one relationship of a type, either:
   rather than a coin-flip symbol); or
 - give the distinguishing value its own node and hang the edges off that.
 
-Two writers in this repository were authored against the Cypher semantics and
-carry doc comments asserting the property-keyed MERGE keeps their edges
-parallel — `batchCanonicalCodeownersOwnershipEdgeCypher` (`DECLARES_CODEOWNER`,
-keyed on `pattern`/`source_path`) and `batchCanonicalSubmodulePinEdgeCypher`
-(`PINS_SUBMODULE`, keyed on `path`). On Neo4j they behave as documented. On the
-pinned NornicDB build they do not, and neither has a backend-required test that
-would have caught it. Verify both against a live backend before trusting their
-edge counts.
+### Two shipped writers are affected
+
+`batchCanonicalCodeownersOwnershipEdgeCypher` (`DECLARES_CODEOWNER`, keyed on
+`pattern`/`source_path`) and `batchCanonicalSubmodulePinEdgeCypher`
+(`PINS_SUBMODULE`, keyed on `path`) were both authored against the Cypher
+semantics, and each carries a doc comment asserting the property key is what
+keeps their edges parallel. On Neo4j it does. Running their EXACT shipped
+statements against the pinned build:
+
+| Writer | Rows written | Edges after | Surviving edge |
+| --- | --- | --- | --- |
+| `DECLARES_CODEOWNER`, patterns `/src/*` then `/docs/*` | 2 | **1** | `pattern=/src/*`, `order_index=2` |
+| `PINS_SUBMODULE`, paths `vendor/a` then `vendor/b` | 2 | **1** | `path=vendor/a`, `pinned_sha=<vendor/b's sha>` |
+
+The result is worse than a lost row. The surviving edge keeps the FIRST row's
+merge-key properties and takes the SECOND row's `SET` properties, so it is a
+blend of two different declarations: a `PINS_SUBMODULE` edge that says
+`vendor/a` is pinned at `vendor/b`'s commit. Neither writer has a
+backend-required test, so nothing catches it. A repository with two CODEOWNERS
+patterns owned by one team, or two submodules pointing at one target
+repository, is the ordinary case rather than a corner case.
+
+Both need the endpoint-identity treatment above. Until then, do not trust their
+edge counts or their per-edge properties on a NornicDB deployment.
 
 ### Reproducing
 

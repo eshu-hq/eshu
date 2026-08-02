@@ -260,3 +260,69 @@ func TestBuildCanonicalMaterializationImportRowsAreOrderStable(t *testing.T) {
 		}
 	}
 }
+
+// TestBuildCanonicalMaterializationDropsRemovedImports is the delta half of the
+// producer's contract. The writer already deletes a file's IMPORTS edges before
+// rewriting them (canonicalNodeRefreshCurrentFileImportEdgesCypher, proven live
+// by TestRefreshFileImportEdgesGraphTruth), so a stale edge survives only if the
+// extractor keeps emitting a row for an import the file no longer has.
+func TestBuildCanonicalMaterializationDropsRemovedImports(t *testing.T) {
+	t.Parallel()
+
+	gen1, _ := buildCanonicalMaterialization(testScope(), testGeneration(), []facts.Envelope{
+		importRepositoryFact(),
+		fileFactWithImports("f-go", "main.go", "go", []map[string]any{
+			{"name": "fmt", "line_number": 3},
+			{"name": "os", "line_number": 4},
+		}),
+	})
+	if len(gen1.Imports) != 2 {
+		t.Fatalf("gen1 len(Imports) = %d, want 2: %+v", len(gen1.Imports), gen1.Imports)
+	}
+
+	// gen2: the same file, with the "os" import removed.
+	gen2, _ := buildCanonicalMaterialization(testScope(), testGeneration(), []facts.Envelope{
+		importRepositoryFact(),
+		fileFactWithImports("f-go", "main.go", "go", []map[string]any{
+			{"name": "fmt", "line_number": 3},
+		}),
+	})
+	if len(gen2.Imports) != 1 {
+		t.Fatalf("gen2 len(Imports) = %d, want 1: %+v", len(gen2.Imports), gen2.Imports)
+	}
+	if gen2.Imports[0].ModuleName != "fmt" {
+		t.Errorf("gen2 surviving import = %q, want fmt", gen2.Imports[0].ModuleName)
+	}
+	for _, m := range gen2.Modules {
+		if m.Name == "os" {
+			t.Errorf("gen2 still mints the Module node for the removed import: %+v", gen2.Modules)
+		}
+	}
+}
+
+// TestExtractImportsFromFilesIgnoresNonImportBuckets guards the blast radius of
+// reading parsed_file_data: a file whose parser wrote other buckets but no
+// imports must contribute nothing, rather than mistaking a neighbouring bucket
+// for an import.
+func TestExtractImportsFromFilesIgnoresNonImportBuckets(t *testing.T) {
+	t.Parallel()
+
+	files := []parsedFileRef{
+		{Path: "/repos/my-project/main.go", Language: "go", ParsedFileData: map[string]any{
+			"functions":      []any{map[string]any{"name": "main", "line_number": 10}},
+			"function_calls": []any{map[string]any{"name": "Println", "line_number": 11}},
+		}},
+		// A malformed imports bucket is skipped, not guessed at.
+		{Path: "/repos/my-project/bad.go", Language: "go", ParsedFileData: map[string]any{
+			"imports": "fmt",
+		}},
+	}
+
+	rows, modules := extractImportsFromFiles(files)
+	if len(rows) != 0 {
+		t.Errorf("len(rows) = %d, want 0: %+v", len(rows), rows)
+	}
+	if len(modules) != 0 {
+		t.Errorf("len(modules) = %d, want 0: %+v", len(modules), modules)
+	}
+}

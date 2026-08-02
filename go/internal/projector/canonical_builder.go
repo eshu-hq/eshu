@@ -62,7 +62,8 @@ func buildCanonicalMaterialization(
 	mat.ReconciliationProjection = extractReconciliationProjection(inputFacts) && !mat.DeltaProjection
 
 	// Extract files.
-	mat.Files, codegraphQuarantined = extractFilesWithQuarantine(inputFacts, repoID, repoPath)
+	var parsedFiles []parsedFileRef
+	mat.Files, parsedFiles, codegraphQuarantined = extractFilesWithQuarantine(inputFacts, repoID, repoPath)
 	quarantined = append(quarantined, codegraphQuarantined...)
 
 	// Build directory chain from file paths.
@@ -87,7 +88,7 @@ func buildCanonicalMaterialization(
 	// producer of those edges on the Go runtime (issue #5691); the
 	// extractRelationships pass above matches the Python-era module_name /
 	// imported_module fact payloads, which no Go collector emits.
-	importRows, importModules := extractImportsFromFiles(inputFacts, repoPath)
+	importRows, importModules := extractImportsFromFiles(parsedFiles)
 	mat.Imports = append(mat.Imports, importRows...)
 	mat.Modules = mergeImportModules(mat.Modules, importModules)
 

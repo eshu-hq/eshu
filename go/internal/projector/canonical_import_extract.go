@@ -7,7 +7,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
 )
@@ -75,32 +74,21 @@ type importAccumulator struct {
 // `import "fmt"` or JavaScript's side-effect `import "x"` repeats the module in
 // both keys and must not claim to import a symbol named after its own module.
 //
+// The input is the parsedFileRef slice extractFilesWithQuarantine already built
+// while decoding each file fact, so no file fact is decoded twice.
+//
 // A file whose imports bucket is malformed is skipped rather than failing the
 // generation: the rest of that repository's graph truth still projects, matching
 // how extractFilesWithQuarantine treats an undecodable file fact.
-func extractImportsFromFiles(envelopes []facts.Envelope, repoPath string) ([]ImportRow, []ModuleRow) {
-	fileFacts := FilterFileFacts(envelopes)
-	if len(fileFacts) == 0 {
+func extractImportsFromFiles(files []parsedFileRef) ([]ImportRow, []ModuleRow) {
+	if len(files) == 0 {
 		return nil, nil
 	}
 
-	folded := make(map[importIdentity]*importAccumulator, len(fileFacts))
+	folded := make(map[importIdentity]*importAccumulator, len(files))
 	moduleLanguages := make(map[string]string)
 
-	for i := range fileFacts {
-		if fileFacts[i].IsTombstone {
-			continue
-		}
-
-		file, err := decodeCodegraphFile(fileFacts[i])
-		if err != nil {
-			continue
-		}
-		relativePath := strings.TrimSpace(file.RelativePath)
-		if relativePath == "" {
-			continue
-		}
-
+	for _, file := range files {
 		// The extractor reads only the named fields, so the per-entry
 		// Attributes remainder map would be allocated and immediately discarded
 		// for every import in the repository.
@@ -112,8 +100,8 @@ func extractImportsFromFiles(envelopes []facts.Envelope, repoPath string) ([]Imp
 			continue
 		}
 
-		filePath := qualifyPath(repoPath, relativePath)
-		fileLanguage := strings.TrimSpace(codegraphDerefString(file.Language))
+		filePath := file.Path
+		fileLanguage := file.Language
 
 		for _, entry := range entries {
 			moduleName, importedName, alias, lineNumber, ok := normalizeImportEntry(entry)
