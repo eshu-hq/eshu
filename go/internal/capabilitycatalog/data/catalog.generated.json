@@ -9392,6 +9392,10 @@
         {
           "kind": "go_test",
           "ref": "./internal/query"
+        },
+        {
+          "kind": "go_test",
+          "ref": "./internal/semanticcode"
         }
       ],
       "console": false,
