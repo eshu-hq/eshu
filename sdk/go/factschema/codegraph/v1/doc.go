@@ -46,11 +46,14 @@
 // slice 1 added eight more IaC-evidence keys consumed by
 // go/internal/relationships: terraform_modules, terragrunt_dependencies,
 // terragrunt_configs, helm_charts, helm_values, argocd_applications,
-// argocd_applicationsets, and flux_git_repositories. The wide per-language AST
-// buckets (imports, functions, function_calls, classes, variables,
-// framework_semantics), whose element shape is a union of many per-language
-// field sets, are deferred to later increments and continue to be read as
-// untyped map slices until then.
+// argocd_applicationsets, and flux_git_repositories. Issue #5691 typed the
+// first of the wide per-language AST buckets, imports: because its element
+// shape is a union of many per-language field sets, Import names only the
+// fields a consumer joins on and carries the rest in an open Attributes
+// remainder rather than enumerating every parser's extras. The remaining wide
+// buckets (functions, function_calls, classes, variables,
+// framework_semantics) are deferred to later increments and continue to be
+// read as untyped map slices until then.
 //
 // Each struct's required fields are non-pointer with no omitempty tag; the
 // decode seam rejects a payload that omits one, or supplies an explicit JSON

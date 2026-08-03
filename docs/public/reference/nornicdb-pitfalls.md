@@ -844,3 +844,88 @@ fail-loud patches more than once. When the fix is a Cypher executor bug:
 
 This is the standing contract; `.agents/skills/cypher-query-rigor` carries the
 same rule for query authoring.
+
+## Pitfall: A Relationship Property Map Is Not Part Of `MERGE` Identity
+
+### Observed shape
+
+Cypher says `MERGE (a)-[r:REL {k: 'one'}]->(b)` matches only a `REL`
+relationship whose `k` is `'one'`, and creates one otherwise. On the pinned
+NornicDB build the property map is ignored for matching: the second MERGE below
+binds the relationship the first one created, so one edge exists where the
+spec calls for two.
+
+Measured against `eshu-nornicdb-pr261:149245885258` (the `docker-compose.yaml`
+default) while implementing issue #5691, through Eshu's own Bolt driver:
+
+| Statement shape | Rows written | Edges after | `r.k` |
+| --- | --- | --- | --- |
+| two separate single `MERGE`s | 2 | **1** | `one` |
+| one `UNWIND` batch, two rows | 2 | **1** | `one` |
+| `UNWIND` batch, `k` also in the `SET` body | 2 | **1** | `two` |
+| `UNWIND`, one row per statement | 2 | **1** | `one` |
+
+Every shape collapses. This is not the `executeUnwindMergeChainBatch` fast
+path — the single-statement case behaves identically — so splitting the batch,
+shrinking `batchSize`, or re-running the statement does not recover the lost
+edge. (Serializing the write would not fix it either; the second write matches
+the first edge no matter how far apart the two run.)
+
+### Why it matters
+
+A writer that keys parallel relationships between the same two nodes on a
+property does not get parallel relationships. It gets one edge whose properties
+are whichever row the backend wrote last, with no error and no dead letter —
+the same silent-empty failure class as the other pitfalls on this page, except
+it under-reports rather than empties.
+
+### What to do
+
+Model the edge so its identity lives in its ENDPOINTS. If a pair of nodes needs
+more than one relationship of a type, either:
+
+- fold the rows into one edge and carry only the properties every folded row
+  agrees on — never an arbitrary winner (what `go/internal/projector/canonical_import_extract.go`
+  does for `File-[:IMPORTS]->Module`, so a two-symbol import reports no symbol
+  rather than a coin-flip symbol); or
+- give the distinguishing value its own node and hang the edges off that.
+
+### Two shipped writers are affected
+
+`batchCanonicalCodeownersOwnershipEdgeCypher` (`DECLARES_CODEOWNER`, keyed on
+`pattern`/`source_path`) and `batchCanonicalSubmodulePinEdgeCypher`
+(`PINS_SUBMODULE`, keyed on `path`) were both authored against the Cypher
+semantics, and each carries a doc comment asserting the property key is what
+keeps their edges parallel. On Neo4j it does. Running their EXACT shipped
+statements against the pinned build:
+
+| Writer | Rows written | Edges after | Surviving edge |
+| --- | --- | --- | --- |
+| `DECLARES_CODEOWNER`, patterns `/src/*` then `/docs/*` | 2 | **1** | `pattern=/src/*`, `order_index=2` |
+| `PINS_SUBMODULE`, paths `vendor/a` then `vendor/b` | 2 | **1** | `path=vendor/a`, `pinned_sha=<vendor/b's sha>` |
+
+The result is worse than a lost row. The surviving edge keeps the FIRST row's
+merge-key properties and takes the SECOND row's `SET` properties, so it is a
+blend of two different declarations: a `PINS_SUBMODULE` edge that says
+`vendor/a` is pinned at `vendor/b`'s commit. Neither writer has a
+backend-required test, so nothing catches it. A repository with two CODEOWNERS
+patterns owned by one team, or two submodules pointing at one target
+repository, is the ordinary case rather than a corner case.
+
+Both need the endpoint-identity treatment above. Until then, do not trust their
+edge counts or their per-edge properties on a NornicDB deployment.
+
+### Reproducing
+
+Point the offline replay tier at a NornicDB and run the committed IMPORTS proof,
+which fails on any regression of the fold:
+
+```bash
+ESHU_REPLAY_TIER_LIVE=1 NEO4J_URI=bolt://localhost:7687 \
+NEO4J_USERNAME=neo4j NEO4J_PASSWORD=change-me NEO4J_DATABASE=nornic \
+go test ./internal/replay/offlinetier -run TestCanonicalImportEdgesGraphTruth -count=1 -v
+```
+
+Re-run it when the pinned NornicDB version changes: if a later build honors the
+property map, the fold stays correct (it is a narrowing, not a lie) but a
+per-symbol edge model becomes available again.

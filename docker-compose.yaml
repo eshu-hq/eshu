@@ -172,6 +172,10 @@ services:
       ESHU_PROJECTION_WORKERS: ${ESHU_PROJECTION_WORKERS:-}
       ESHU_SNAPSHOT_WORKERS: ${ESHU_SNAPSHOT_WORKERS:-}
       ESHU_PARSE_WORKERS: ${ESHU_PARSE_WORKERS:-}
+      # Opt-in value-flow emission (issue #5692). Both parsing services must
+      # receive it: the Go wiring reads the variable, but a container that is
+      # never handed it reads empty and silently emits no dataflow facts.
+      ESHU_EMIT_DATAFLOW: ${ESHU_EMIT_DATAFLOW:-}
       ESHU_CANONICAL_WRITE_TIMEOUT: ${ESHU_CANONICAL_WRITE_TIMEOUT:-}
       # Bound concurrent graph writes to NornicDB's zero-timeout plateau so a
       # bootstrap+reducer write storm cannot push past the throughput knee and
@@ -367,6 +371,10 @@ services:
       ESHU_SNAPSHOT_WORKERS: ${ESHU_SNAPSHOT_WORKERS:-}
       ESHU_PROJECTOR_WORKERS: ${ESHU_PROJECTOR_WORKERS:-}
       ESHU_PARSE_WORKERS: ${ESHU_PARSE_WORKERS:-}
+      # Opt-in value-flow emission (issue #5692). Both parsing services must
+      # receive it: the Go wiring reads the variable, but a container that is
+      # never handed it reads empty and silently emits no dataflow facts.
+      ESHU_EMIT_DATAFLOW: ${ESHU_EMIT_DATAFLOW:-}
       ESHU_CANONICAL_WRITE_TIMEOUT: ${ESHU_CANONICAL_WRITE_TIMEOUT:-}
       # Bound the ingester's concurrent canonical graph writes to NornicDB's
       # throughput plateau (issue #4729 / #4456), matching bootstrap-index and
