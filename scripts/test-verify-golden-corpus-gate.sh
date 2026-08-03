@@ -245,6 +245,8 @@ require "corpus staging lib source" "golden-corpus-stage.sh"
 require_invocation "corpus staging invocation" "stage_minimal_corpus"
 require "maintenance drains lib source" "golden-corpus-maintenance-drains.sh"
 require_invocation "maintenance drains invocation" "run_maintenance_drain_cycles"
+require "collector settle lib source" "golden-corpus-collector-settle.sh"
+require_invocation "collector settle invocation" "wait_for_collector_settle"
 cleanup_lib="${repo_root}/scripts/lib/golden-corpus-cleanup.sh"
 [[ -f "${cleanup_lib}" ]] || fail "missing cleanup lib: ${cleanup_lib}"
 bash -n "${cleanup_lib}" || fail "cleanup lib has a syntax error"
@@ -257,6 +259,9 @@ bash -n "${stage_lib}" || fail "corpus staging lib has a syntax error"
 maintenance_lib="${repo_root}/scripts/lib/golden-corpus-maintenance-drains.sh"
 [[ -f "${maintenance_lib}" ]] || fail "missing maintenance drains lib: ${maintenance_lib}"
 bash -n "${maintenance_lib}" || fail "maintenance drains lib has a syntax error"
+collector_settle_lib="${repo_root}/scripts/lib/golden-corpus-collector-settle.sh"
+[[ -f "${collector_settle_lib}" ]] || fail "missing collector settle lib: ${collector_settle_lib}"
+bash -n "${collector_settle_lib}" || fail "collector settle lib has a syntax error"
 # The convergence margin the three maintenance cycles buy (#5426) is the whole
 # reason the loop is not two passes; a silent drop back to two would sit exactly
 # on the boundary again. The loop lives in the extracted lib chunk now.
@@ -269,12 +274,16 @@ require_in "parent-shell pid capture" "${host_helpers_lib}" "printf -v"
 # Failure must surface the host-binary logs before the work dir is removed. That
 # logic lives in the extracted cleanup lib chunk now, not the orchestrator body.
 require_in "failure log dump" "${cleanup_lib}" "host binary logs (failure)"
-# A collector that no-ops must not let the gate pass: liveness + facts-landed.
-require "collector liveness check" "exited during settle"
-# Anchored on the arithmetic guard, not on its message: the phrase "credentialed
-# collector source" also appears in the success printf one line below, so a
-# needle on the phrase has two homes and deleting the guard leaves it green.
-require "cassette facts landed check" "(( collector_sources < GATE_MIN_COLLECTOR_SOURCES ))"
+# A collector that no-ops must not let the gate pass: liveness + facts-landed
+# checks, the fixed-sleep regression guard, and a functional exercise of
+# wait_for_collector_settle against a mocked pg()/die() all live in the
+# extracted cases lib chunk (same reason the B-11 phase-timing cases and the
+# matcher-guard cases are extracted, to keep this mirror test under the
+# 500-line cap). The sentinel catches a gutted or early-returning chunk.
+# shellcheck source=scripts/lib/golden-corpus-collector-settle-cases.sh
+. "${repo_root}/scripts/lib/golden-corpus-collector-settle-cases.sh"
+[[ "${collector_settle_cases_completed:-0}" -eq 1 ]] ||
+	fail "golden-corpus-collector-settle-cases.sh did not run to completion (gutted, or returned early)"
 
 # Drives every pipeline stage end to end.
 require "bootstrap stage" "eshu-bootstrap-index"

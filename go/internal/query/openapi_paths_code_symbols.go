@@ -158,7 +158,7 @@ const openAPIPathsCodeSymbols = `
                   "properties": {
                     "query_type": {"type": "string"},
                     "scope": {"type": "object", "additionalProperties": true},
-                    "dependencies": {"type": "array", "description": "Canonical rows for imports_by_file, importers, and module_dependencies query_type values.", "items": {"type": "object", "additionalProperties": true}},
+                    "dependencies": {"type": "array", "description": "Canonical rows for imports_by_file, importers, and module_dependencies query_type values. One row per (file, module) pair, which is the identity of the underlying File-[:IMPORTS]->Module edge. imported_name and alias are populated only when every import statement joining that file to that module agrees on them: a file importing two symbols from one module returns the row with both fields empty rather than naming an arbitrary one of the two.", "items": {"type": "object", "additionalProperties": true}},
                     "modules": {"type": "array", "description": "Canonical rows for package_imports query_type.", "items": {"type": "object", "additionalProperties": true}},
                     "cycles": {
                       "type": "array",

@@ -18,7 +18,7 @@
     "collect": {
       "baseline_seconds": 20,
       "gated": false,
-      "note": "cassette replay + the fixed GATE_COLLECTOR_SETTLE_SECONDS settle window + facts-landed verification. Dominated by the configured settle constant, not pipeline work, so it is recorded for visibility but not gated."
+      "note": "cassette replay + the collector settle poll (waits until every credentialed collector's cassette has fully replayed -- both the distinct-source count reaches GATE_MIN_COLLECTOR_SOURCES and the total landed-scope count reaches GATE_EXPECTED_TOTAL_SCOPES -- bounded by the GATE_COLLECTOR_SETTLE_SECONDS deadline) + facts-landed verification. Dominated by how long fact commit actually takes on this run, not a fixed constant, so it is recorded for visibility but not gated."
     },
     "first_drain": {
       "baseline_seconds": 75,

@@ -96,6 +96,14 @@ the graph are unaffected.
   not an absolute server path.
 - `repo_access` tells a client whether it may need to ask the user for a local
   checkout path or clone decision.
+- `POST /api/v0/code/import-dependencies` returns one dependency row per
+  `(file, module)` pair, because that pair is the identity of the underlying
+  `File-[:IMPORTS]->Module` edge. `imported_name` and `alias` are populated only
+  when every import statement joining that file to that module agrees on them:
+  a file importing two symbols from one module returns one row with both fields
+  empty, rather than naming an arbitrary one of the two. Read an empty
+  `imported_name` as "this file imports this module", not as "this file imports
+  a symbol with no name".
 - Path-based context routes require canonical entity IDs.
 - Repository-oriented routes accept a public repository selector and normalize
   it to the canonical `repo_id` server-side.
