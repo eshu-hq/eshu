@@ -80,20 +80,18 @@ would need its own citation and value-verification rules this gate does not
 implement.
 
 Citing a real row is not enough on its own: the cited row's own `value` (and
-`trials`, for the ratio shape) must agree with the number in the claim.
-Citing `ledger:9999-known-row` (`value: 0, trials: 10`) for `0/30 trials` is
-rejected exactly like citing an unknown id — a citation to the wrong figure is
-worse than no citation, because it carries the ledger's authority without the
-ledger's accuracy. This value check only ever applies to the `<N>/<M>
-trials`/`<N>/<M> runs` shape, which is fully structured; a `Measurement:` line
-whose figure is NOT in that shape (a duration, a percentage, a row count) is a
-figure this gate cannot verify against the row's structured fields, so it
-requires the prose to drop the figure and cite only — `Measurement: bounded
-pass, no regression detected (ledger:9999-known-row)` passes, but
-`Measurement: bounded pass 5.9s (ledger:9999-known-row)` does not, even though
-the id it cites is real. Restate that duration as a ledger row's `value`/`unit`
-and use the ratio shape, or use a fresh `Measurement:` line with no figure at
-all and let the ledger row carry the number.
+`trials`, for the ratio shape) must agree with the number in the claim. The
+right id with the wrong number is rejected exactly like citing an unknown id
+— a citation to the wrong figure is worse than no citation, because it
+carries the ledger's authority without the ledger's accuracy. This value
+check only ever applies to the `<N>/<M> trials`/`<N>/<M> runs` shape, which is
+fully structured; a `Measurement:` line whose figure is NOT in that shape (a
+duration, a percentage, a row count) is a figure this gate cannot verify
+against the row's structured fields, so it requires the prose to drop the
+figure and cite only, rather than restate a number the gate never checks.
+Restate a duration as a ledger row's `value`/`unit` and use the ratio shape
+instead, or cite with no figure at all and let the ledger row carry the
+number.
 
 The ledger itself is checked for append-only-ness independent of any added
 prose line: a commit that edits or deletes a row already present at the diff
@@ -115,6 +113,11 @@ This is deliberately narrow. It does NOT catch:
   that happens to numerically agree with the cited row anyway — the gate
   requires such lines to drop the figure rather than attempting to parse and
   verify an arbitrary duration/percentage/count shape
+- the ratio-shape value check compares digits as text, not numbers: a row
+  whose `value` or `trials` is written with a decimal (`0.0`) will not match
+  a claim that (correctly, for a whole trial count) writes the same number
+  without one (`0`). Trial-shape rows should use plain integers for `value`
+  and `trials` for this reason
 - anything under `testdata/` or in the gate's own two files (their regex
   source and test fixtures necessarily contain the trigger patterns without
   being claims about Eshu's behavior)

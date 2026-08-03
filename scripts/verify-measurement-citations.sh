@@ -67,7 +67,8 @@ ledger_abs_path="${repo_root}/${ledger_rel_path}"
 ledger_ids_path="$(mktemp "${TMPDIR:-/tmp}/eshu-measurement-ledger-ids.XXXXXX")"
 diff_path="$(mktemp "${TMPDIR:-/tmp}/eshu-measurement-citations-diff.XXXXXX")"
 old_ledger_path="$(mktemp "${TMPDIR:-/tmp}/eshu-measurement-ledger-old.XXXXXX")"
-cleanup() { rm -f "${ledger_ids_path}" "${diff_path}" "${old_ledger_path}"; }
+missing_or_changed_path="$(mktemp "${TMPDIR:-/tmp}/eshu-measurement-ledger-missing.XXXXXX")"
+cleanup() { rm -f "${ledger_ids_path}" "${diff_path}" "${old_ledger_path}" "${missing_or_changed_path}"; }
 trap cleanup EXIT
 
 if [ -f "${ledger_abs_path}" ]; then
@@ -137,22 +138,33 @@ violations=()
 # every row present at the diff base against the current ledger by exact
 # line content; a missing or changed line is a violation regardless of
 # whether anything else in the diff would otherwise trip the gate.
+#
+# `comm` does that comparison in a single pass (two `sort`s plus one `comm`,
+# independent of ledger size) instead of one `rg` subprocess spawn per
+# historical row. The ledger only grows over its lifetime, so an
+# unmeasured per-row-subprocess design would get linearly slower on every
+# push forever; this keeps the common case (nothing changed) at a small
+# constant number of subprocesses, and pays the per-row `rg` lookup below
+# only for rows `comm` actually flags as missing or changed -- which should
+# be zero on almost every push.
 if git -C "${repo_root}" show "${base}:${ledger_rel_path}" >"${old_ledger_path}" 2>/dev/null; then
+  if [ -f "${ledger_abs_path}" ]; then
+    comm -23 <(sort "${old_ledger_path}") <(sort "${ledger_abs_path}") >"${missing_or_changed_path}" || true
+  else
+    sort "${old_ledger_path}" >"${missing_or_changed_path}"
+  fi
   while IFS= read -r old_line; do
     [ -n "${old_line}" ] || continue
     old_id="$(printf '%s' "${old_line}" \
       | rg -o '"id"[[:space:]]*:[[:space:]]*"[^"]+"' \
       | sed -E 's/.*"id"[[:space:]]*:[[:space:]]*"([^"]+)"/\1/' || true)"
     [ -n "${old_id}" ] || continue
-    if [ -f "${ledger_abs_path}" ] && rg -qxF -- "${old_line}" "${ledger_abs_path}"; then
-      continue
-    fi
     if [ -f "${ledger_abs_path}" ] && rg -qF -- "\"id\":\"${old_id}\"" "${ledger_abs_path}"; then
       violations+=("${ledger_rel_path}: row '${old_id}' was modified; the ledger is append-only -- add a new row instead of editing an existing one")
     else
       violations+=("${ledger_rel_path}: row '${old_id}' was deleted; the ledger is append-only and existing rows must never be removed")
     fi
-  done <"${old_ledger_path}"
+  done <"${missing_or_changed_path}"
 fi
 
 if git -C "$repo_root" diff -U0 --no-color "$base"...HEAD >"${diff_path}" 2>/dev/null; then
