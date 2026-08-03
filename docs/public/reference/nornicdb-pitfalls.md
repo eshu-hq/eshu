@@ -804,6 +804,31 @@ returned zero. See
 `docs/internal/evidence/5681-nornicdb-optional-match-relationship-projection.md`
 for the before/after and the isolated executor characterization.
 
+### The boundary is wider than "function-call projection"
+
+Measured against the pinned build while proving issue #5694, with a committed
+regression at `go/internal/replay/offlinetier/nornicdb_function_projection_live_test.go`:
+
+| Shape | Column read | Result |
+| --- | --- | --- |
+| no `OPTIONAL MATCH` | `type(rel)`, `coalesce(...)` | correct |
+| one `OPTIONAL MATCH`, read its own variable | `f.relative_path` | correct |
+| two chained, read the FIRST one's variable | `f.relative_path` | correct |
+| two chained, read the SECOND one's variable | `r.id` — a plain property read | **`"r.id"`** |
+| two chained, no relationship bound anywhere | `r.id` | **`"r.id"`** |
+
+So neither the relationship binding nor the function call is required. What
+corrupts is reading a variable bound by a SECOND `OPTIONAL MATCH` that matched
+on a variable the first one bound. The function-call symptom above is the
+narrower case of it, and plain property reads are affected too.
+
+A query that genuinely needs the second hop — repository identity behind a file,
+for example — cannot rewrite its way out. `go/internal/query/code_relationship_story_nornicdb.go`
+handles that by pairing every second-hop column with its own literal placeholder
+through `nornicDBStoryProjection` and collapsing any value equal to that text,
+so the corruption is detected rather than served. Follow that pattern when a
+second hop is unavoidable; avoid the second hop otherwise.
+
 ## When To Patch NornicDB
 
 Patch NornicDB only when evidence supports one of these:
