@@ -237,3 +237,115 @@ func TestEmitDefaultsAreTheConservativeReading(t *testing.T) {
 		t.Errorf("SourceConfidence = %q, want %q", got, facts.SourceConfidenceDerived)
 	}
 }
+
+// TestEmitRefusesProviderSuppliedCorroboration is the review finding that
+// mattered most: the emitter accepted a caller-supplied corroboration state, so
+// provider output could arrive claiming "corroborated" and the read surface
+// would label model output as confirmed evidence. Nothing deterministic has run
+// by the time a hint reaches this package, so nothing here can honestly say it.
+func TestEmitRefusesProviderSuppliedCorroboration(t *testing.T) {
+	t.Parallel()
+
+	emitter, err := NewEmitter(testConfig())
+	if err != nil {
+		t.Fatalf("NewEmitter() error = %v", err)
+	}
+
+	for _, state := range []string{
+		facts.SemanticCorroborationCorroborated,
+		facts.SemanticCorroborationAmbiguous,
+		facts.SemanticCorroborationContradicted,
+	} {
+		hint := testHint()
+		hint.CorroborationState = state
+		if _, err := emitter.Emit(context.Background(), testSpan(), []HintInput{hint}); err == nil {
+			t.Errorf("corroboration_state %q: Emit() error = nil, want a refusal", state)
+		}
+	}
+
+	// The two a provider may legitimately report both claim less, not more.
+	for _, state := range []string{"", facts.SemanticCorroborationUncorroborated, facts.SemanticCorroborationUnsupported} {
+		hint := testHint()
+		hint.CorroborationState = state
+		if _, err := emitter.Emit(context.Background(), testSpan(), []HintInput{hint}); err != nil {
+			t.Errorf("corroboration_state %q: Emit() error = %v, want nil", state, err)
+		}
+	}
+}
+
+// TestNewEmitterRefusesUnsafeRedactionState keeps content the redaction gate
+// rejected from being serialized at all. unsafe_payload means the payload
+// should have been quarantined; emitting under it would persist the very text
+// that was withheld and the read model would serve it.
+func TestNewEmitterRefusesUnsafeRedactionState(t *testing.T) {
+	t.Parallel()
+
+	config := testConfig()
+	config.RedactionState = facts.SemanticRedactionUnsafePayload
+	if _, err := NewEmitter(config); err == nil {
+		t.Fatal("NewEmitter() error = nil for redaction_state unsafe_payload, want a refusal")
+	}
+}
+
+// TestEmitRejectsMalformedObjectRefs proves a reference naming nothing fails the
+// batch rather than vanishing from it. Dropping it silently would ship a
+// relationship hint with a partial target list that reads as the provider's
+// actual answer.
+func TestEmitRejectsMalformedObjectRefs(t *testing.T) {
+	t.Parallel()
+
+	emitter, err := NewEmitter(testConfig())
+	if err != nil {
+		t.Fatalf("NewEmitter() error = %v", err)
+	}
+	hint := testHint()
+	hint.ObjectRefs = []facts.SemanticCodeEntityRef{
+		{EntityKind: "function", EntityID: "entity:orders-api:log.go:Info"},
+		{EntityKind: "function", EntityID: "   "},
+	}
+	if _, err := emitter.Emit(context.Background(), testSpan(), []HintInput{hint}); err == nil {
+		t.Fatal("Emit() error = nil for a blank object_ref entity_id, want a refusal")
+	}
+}
+
+// TestEmitIdentityIsIndependentOfBatchOrder guards the retry path: the same
+// hints returned in a different order must keep their fact keys, or an
+// unchanged hint reads as churn and a retry can leave duplicate rows.
+func TestEmitIdentityIsIndependentOfBatchOrder(t *testing.T) {
+	t.Parallel()
+
+	emitter, err := NewEmitter(testConfig())
+	if err != nil {
+		t.Fatalf("NewEmitter() error = %v", err)
+	}
+
+	second := testHint()
+	second.HintText = "a different observation about the same span"
+	second.Subject.EntityID = "entity:orders-api:main.go:helper"
+
+	forward, err := emitter.Emit(context.Background(), testSpan(), []HintInput{testHint(), second})
+	if err != nil {
+		t.Fatalf("Emit() forward error = %v", err)
+	}
+	reversed, err := emitter.Emit(context.Background(), testSpan(), []HintInput{second, testHint()})
+	if err != nil {
+		t.Fatalf("Emit() reversed error = %v", err)
+	}
+
+	keys := func(envelopes []facts.Envelope) map[string]bool {
+		out := map[string]bool{}
+		for _, e := range envelopes {
+			out[e.StableFactKey] = true
+		}
+		return out
+	}
+	forwardKeys, reversedKeys := keys(forward), keys(reversed)
+	if len(forwardKeys) != 2 {
+		t.Fatalf("forward produced %d distinct keys, want 2", len(forwardKeys))
+	}
+	for key := range forwardKeys {
+		if !reversedKeys[key] {
+			t.Errorf("key %q disappeared when the batch order changed; identity still depends on position", key)
+		}
+	}
+}

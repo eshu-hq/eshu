@@ -64,6 +64,17 @@ func validateConfig(config Config) error {
 	if config.Provider.ProviderKind == "" {
 		return fmt.Errorf("provider_kind must not be blank")
 	}
+	// unsafe_payload means the redaction gate REJECTED this content. Emitting a
+	// hint under that state would persist the very text the gate withheld, and
+	// the read model would serve it. There is no safe way to carry hint text,
+	// confidence rationale, missing-evidence notes or entity references through
+	// a state that says the payload should have been quarantined.
+	if config.RedactionState == facts.SemanticRedactionUnsafePayload {
+		return fmt.Errorf(
+			"redaction_state %q cannot emit: it marks content the redaction gate rejected, "+
+				"so the hint must be dropped rather than serialized",
+			facts.SemanticRedactionUnsafePayload)
+	}
 
 	probe := facts.SemanticCodeHintPayload{
 		HintID:   "config-probe",
@@ -117,6 +128,16 @@ func validateSpan(span CodeSpanInput) error {
 		if strings.TrimSpace(value) == "" {
 			return fmt.Errorf("%s must not be blank", field)
 		}
+	}
+
+	// A span a reader cannot open is not provenance. Zero means "unattributed"
+	// and is allowed; a negative or reversed range is a producer bug that would
+	// otherwise ship as a hint pointing at an impossible place in the file.
+	if span.LineStart < 0 || span.LineEnd < 0 {
+		return fmt.Errorf("line range %d-%d is negative", span.LineStart, span.LineEnd)
+	}
+	if span.LineStart > 0 && span.LineEnd > 0 && span.LineEnd < span.LineStart {
+		return fmt.Errorf("line range %d-%d ends before it starts", span.LineStart, span.LineEnd)
 	}
 	return nil
 }
