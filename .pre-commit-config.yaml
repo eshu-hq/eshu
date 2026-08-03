@@ -188,6 +188,20 @@ repos:
         require_serial: true
         stages: [pre-push]
 
+      # Measurement-ledger citation gate (static-contract-gates.yml "Verify
+      # measurement-citations gate"): a newly added line stating a measurement
+      # in "<N>/<M> trials" or "Measurement:" shape must cite a
+      # docs/internal/measurements.jsonl row. Diffs the branch against
+      # origin/main, so it runs at push time, same as perf-evidence/telemetry.
+      - id: go-measurement-citations
+        name: measurement ledger citation
+        entry: scripts/dev/precommit-go.sh measurement-citations
+        language: script
+        always_run: true
+        pass_filenames: false
+        require_serial: true
+        stages: [pre-push]
+
       # Frontend changed-file Prettier gate (frontend.yml "Prettier format check"):
       # at commit time, inspect the git index and check only staged frontend
       # JS/TS files so contributors get the same focused format feedback before

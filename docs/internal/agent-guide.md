@@ -303,16 +303,13 @@ tests that ran.
 
 ### Diff-Scoped Gates Default To HEAD~1
 
-Gates that scope to "the diff" compute it against `HEAD~1` unless given a base,
-so on a multi-commit branch they inspect only the last commit. Export
-`ESHU_PARSER_RELATIONSHIP_KIT_BASE=origin/main` and
-`ESHU_PERFORMANCE_EVIDENCE_BASE=origin/main` before `make pre-pr`.
+Gates scoped to "the diff" compute it against `HEAD~1` unless given a base, so
+a multi-commit branch shows only its last commit. Export
+`ESHU_{PARSER_RELATIONSHIP_KIT,PERFORMANCE_EVIDENCE,MEASUREMENT_CITATIONS}_BASE=origin/main` before `make pre-pr`.
 
-The two known members fail in OPPOSITE directions, which decides which you
-notice: `parser-relationship-kit` false-FAILS loudly; `verify-performance-evidence`
-false-PASSES, reporting "no hot files" and exiting 0 with the hot files in earlier
-commits. A gate green from examining nothing is indistinguishable from one that
-verified your change. Assume other members exist.
+These fail in different directions: `parser-relationship-kit` false-FAILS
+loudly; `verify-performance-evidence` and `verify-measurement-citations`
+false-PASS silently, examining nothing. Assume other members exist.
 
 ### Evidence Capture Pitfalls
 
@@ -370,6 +367,12 @@ lines. Do NOT run the formatter across the whole changed set and commit it as
 one blob; commit the pure reformat first (stating that it is formatting-only
 and verifiable with `--list-different`), then the real change on top. That
 keeps the reviewable diff reviewable. Never `--no-verify` past a format hook.
+
+## Measurement Ledger
+
+Cite a `docs/internal/measurements.jsonl` row id (`ledger:<id>`) instead of
+restating a number; `scripts/verify-measurement-citations.sh` enforces it.
+See [Measurement Ledger](measurement-ledger.md) for schema and gate details.
 
 ## API, MCP, And Query Reads
 
