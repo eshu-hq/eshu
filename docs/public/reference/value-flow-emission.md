@@ -130,6 +130,98 @@ Recorded explicitly so launch and product reviewers can cite it:
 - The gate is read per collector process from the environment; there is no
   per-repository override in the gate itself.
 
+### Which processes read the gate
+
+Every process that parses source reads `ESHU_EMIT_DATAFLOW`:
+
+| Process | Reads the gate | Role |
+| --- | --- | --- |
+| `bootstrap-index` | yes | one-shot local or deployment seeding |
+| `ingester` | yes | ongoing repo sync and parse |
+| `collector-git` | yes | standalone git collector |
+
+Until issue #5692 only `collector-git` read it, and the default stack does not
+run that binary. An operator who set the variable and re-indexed therefore got
+no `code_dataflow_function` facts at all: `code_flow.reaching_def` answered
+empty with `coverage.state` `partial`, and nothing in the logs said the setting
+had been ignored. Set the variable on whichever of these processes performs the
+parse; setting it on one does not enable it for another.
+
+### What the gate costs
+
+Measured by `BenchmarkDataflowGateEmissionCost`
+(`go/internal/parser/dataflow_gate_bench_test.go`), parsing the corpus fixture
+files for every language the gate activates, with the gate off and on, through
+the same parser options the real ingest path uses (`snapshotParserOptions`).
+Median of 3 runs at `-benchtime=10x`, Apple silicon, `-12` procs:
+
+| Language fixture | Parse, gate off | Parse, gate on | Time | Allocs off | Allocs on | Allocs |
+| --- | --- | --- | --- | --- | --- | --- |
+| `java_comprehensive` | 6.1 ms | 17.4 ms | **2.8x** | 37,563 | 126,303 | **3.36x** |
+| `csharp_comprehensive` | 2.8 ms | 6.5 ms | **2.3x** | 15,565 | 47,159 | **3.03x** |
+| `javascript_comprehensive` | 7.2 ms | 12.7 ms | 1.8x | 48,940 | 100,952 | 2.06x |
+| `typescript_comprehensive` | 16.1 ms | 25.3 ms | 1.6x | 114,458 | 200,536 | 1.75x |
+| `python_comprehensive` | 13.7 ms | 21.4 ms | 1.6x | 92,280 | 169,269 | 1.83x |
+| `go_comprehensive` | 17.8 ms | 27.2 ms | 1.5x | 134,472 | 222,074 | 1.65x |
+
+**The cost is not uniform, and Go is the cheap end of it.** An earlier version
+of this table measured only Go, Python and JavaScript and quoted a single
+"roughly 1.5x" range. Java costs nearly twice that — 2.8x the parse time and
+3.4x the allocations — and C# is close behind. A JVM or .NET repository sized
+from the Go number would be under-provisioned by a factor of two.
+
+Read the allocation columns as the primary signal: they are deterministic run
+to run, while wall-clock varies with machine load.
+
+The parser options matter as much as the language. `RepositoryID` and, for the
+languages that emit them, the package or namespace import path decide how much
+value-flow work the gate triggers at all: without them several languages
+suppress their interprocedural ids and Go, Java and C# skip their durable
+`dataflow_summaries` and `dataflow_sources` buckets entirely. Measuring without
+those options reports a cheaper gate than any operator can actually enable.
+
+Value-flow lowering runs per function on every parsed file in a covered
+language, so the cost is roughly proportional to how much code a repository
+holds, not to how many findings come out. Between one and a half and nearly
+three times the parse time, with up to triple the allocations, is why the gate
+stays opt-in and off by default. Size from the row matching your dominant
+language, not from the table's average, and re-run the benchmark on a
+representative corpus before changing anything: these are small, single-language
+fixture families. Treat any proposal to flip the default as a change to the
+ingest performance contract.
+
+To reproduce:
+
+```bash
+cd go && go test ./internal/parser -run '^$' \
+  -bench BenchmarkDataflowGateEmissionCost -benchtime=10x -count=3
+```
+
+Benchmark Evidence: the table above is the baseline (gate off) and after
+measurement (gate on) on the same input shape — the same corpus fixture files,
+parsed through the same engine, Apple silicon, `-benchtime=10x -count=3`,
+median of 3. Backend/version: no backend involved; this is parser-local cost
+measured before any fact is committed. Terminal counts: the gate-on runs emit
+`dataflow_functions` rows per parsed function in a covered language, which is
+the volume the ratio is a proxy for.
+
+No-Regression Evidence: wiring the gate into `bootstrap-index` and the
+`ingester` (issue #5692) changes nothing while the gate is unset, which is its
+default. `TestBuildBootstrapCollectorLeavesDataflowOffByDefault` and
+`TestBuildIngesterCollectorServiceLeavesDataflowOffByDefault` cover unset,
+empty, `false`, and an unrecognized value; `TestSnapshotterEmitDataflowOffKeepsSnapshotClean`
+proves the snapshot carries no value-flow rows in that state, so the default
+payload shape and its parse cost are unchanged. The cost in the table is paid
+only by an operator who opts in.
+
+No-Observability-Change: no new metric. The gate feeds the existing snapshot
+and fact-emission path, already covered by
+`eshu_dp_collector_snapshot_stage_duration_seconds`,
+`eshu_dp_facts_emitted_total`, and `eshu_dp_generation_fact_count`; the
+snapshot's `dataflow_scanned` field and the collector's snapshot log line
+already tell an operator whether the gate was active for a given run, which is
+the question this issue existed because nobody could answer.
+
 No-Regression Evidence: `go test ./internal/collector ./internal/query
 ./internal/mcp ./cmd/api ./cmd/mcp-server ./cmd/capability-inventory
 ./internal/capabilitycatalog -count=1` covers the collector/API/MCP readback.
