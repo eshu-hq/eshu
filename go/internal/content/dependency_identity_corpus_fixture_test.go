@@ -1,69 +1,143 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package content
+package content_test
 
-import "testing"
+import (
+	"path/filepath"
+	"runtime"
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/content"
+	"github.com/eshu-hq/eshu/go/internal/parser"
+)
 
 // TestGoldenCorpusManifestFixturesGetSectionKeyedIdentity is the durable
-// regression #5509 asks for, at the identity layer.
+// regression #5509 asks for.
 //
 // #5357 made npm and composer dependency Variables use a line-independent,
-// section-keyed canonical identity. The unit coverage for that was strong, but
-// the 20-repo golden corpus contained no package.json or composer.json at all,
-// so the B-7/B-12 gate structurally could not exercise it: a change that
+// section-keyed canonical identity. The unit coverage was strong, but the
+// 20-repo golden corpus contained no package.json or composer.json at all, so
+// the B-7/B-12 gate structurally could not exercise it: a change that
 // reintroduced line-churn, or worse collapsed two sections onto one identity,
 // would leave every gate green.
 //
-// This pins the exact identities the corpus fixtures now produce
-// (tests/fixtures/ecosystems/lib-common/package.json and composer.json), using
-// the same rows the parsers emit for them. The cross-section pairs are the
-// load-bearing cases: lodash appears in dependencies AND devDependencies,
-// monolog/monolog in require AND require-dev. Same name, same file, different
-// section — they must not collapse, and neither may move when a line does.
+// This drives the REAL parser over the REAL corpus fixtures and mints
+// identities from the metadata those parsers actually emit. That matters more
+// than it looks. An earlier draft of this test fabricated the metadata, and
+// fabricating it wrong is easy: the section-keyed path is gated on config_kind
+// AND package_manager together, and a plausible-looking map missing either one
+// silently falls back to the line-bearing identity — so a line-independence
+// assertion would pass for the wrong reason. Parsing the fixture means the test
+// fails if the PARSER stops emitting what the identity path needs, which is the
+// coupling that actually breaks.
 func TestGoldenCorpusManifestFixturesGetSectionKeyedIdentity(t *testing.T) {
 	t.Parallel()
 
 	const repoID = "repository:lib-common"
 
-	npmID := func(name, section string, line int) string {
-		return CanonicalEntityIDWithMetadata(repoID, "package.json", "variable", name, line,
-			map[string]any{"config_kind": "dependency", "package_manager": "npm", "section": section})
-	}
-	composerID := func(name, section string, line int) string {
-		return CanonicalEntityIDWithMetadata(repoID, "composer.json", "variable", name, line,
-			map[string]any{"config_kind": "dependency", "package_manager": "composer", "section": section})
-	}
-
-	// Cross-section distinctness: the same package in two sections is two
-	// dependencies, not one. A collapse here is a silent truth loss.
-	lodashRuntime := npmID("lodash", "dependencies", 9)
-	lodashDev := npmID("lodash", "devDependencies", 13)
-	if lodashRuntime == lodashDev {
-		t.Error("npm lodash collapsed across dependencies and devDependencies into one identity")
-	}
-	monologRuntime := composerID("monolog/monolog", "require", 7)
-	monologDev := composerID("monolog/monolog", "require-dev", 11)
-	if monologRuntime == monologDev {
-		t.Error("composer monolog/monolog collapsed across require and require-dev into one identity")
-	}
-
-	// Line independence: reordering a manifest must not churn identities. This
-	// is what makes the corpus fixture a reorder-regression guard rather than a
-	// snapshot of today's line numbers.
-	for name, pair := range map[string][2]string{
-		"npm lodash/dependencies":      {lodashRuntime, npmID("lodash", "dependencies", 41)},
-		"npm express/dependencies":     {npmID("express", "dependencies", 8), npmID("express", "dependencies", 80)},
-		"composer monolog/require":     {monologRuntime, composerID("monolog/monolog", "require", 44)},
-		"composer phpunit/require-dev": {composerID("phpunit/phpunit", "require-dev", 10), composerID("phpunit/phpunit", "require-dev", 99)},
+	for _, tc := range []struct {
+		manifest     string
+		duplicate    string
+		sections     [2]string
+		otherPackage string
+	}{
+		{manifest: "package.json", duplicate: "lodash", sections: [2]string{"dependencies", "devDependencies"}, otherPackage: "express"},
+		{manifest: "composer.json", duplicate: "monolog/monolog", sections: [2]string{"require", "require-dev"}, otherPackage: "phpunit/phpunit"},
 	} {
-		if pair[0] != pair[1] {
-			t.Errorf("%s identity moved when only the line number changed: %q vs %q", name, pair[0], pair[1])
+		t.Run(tc.manifest, func(t *testing.T) {
+			t.Parallel()
+			rows := parseCorpusManifestRows(t, tc.manifest)
+
+			idFor := func(name, section string, lineOverride int) string {
+				row := findManifestRow(t, rows, name, section)
+				line := intFromRow(row, "line_number")
+				if lineOverride > 0 {
+					line = lineOverride
+				}
+				return content.CanonicalEntityIDWithMetadata(
+					repoID, tc.manifest, "variable", name, line, row)
+			}
+
+			// Cross-section distinctness: the same package in two sections is
+			// two dependencies, not one. A collapse here is silent truth loss.
+			first := idFor(tc.duplicate, tc.sections[0], 0)
+			second := idFor(tc.duplicate, tc.sections[1], 0)
+			if first == second {
+				t.Errorf("%s collapsed across %s and %s into one identity", tc.duplicate, tc.sections[0], tc.sections[1])
+			}
+
+			// Line independence: reordering a manifest must not churn identity.
+			if moved := idFor(tc.duplicate, tc.sections[0], 4242); moved != first {
+				t.Errorf("%s/%s identity moved when only the line changed: %q vs %q",
+					tc.duplicate, tc.sections[0], first, moved)
+			}
+
+			// Distinct packages stay distinct.
+			other := idFor(tc.otherPackage, sectionOf(t, rows, tc.otherPackage), 0)
+			if other == first || other == second {
+				t.Errorf("%s shares an identity with %s", tc.otherPackage, tc.duplicate)
+			}
+		})
+	}
+}
+
+// parseCorpusManifestRows runs the real parser over one corpus fixture manifest
+// and returns its dependency Variable rows.
+func parseCorpusManifestRows(t *testing.T, manifest string) []map[string]any {
+	t.Helper()
+	_, thisFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	root := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "tests", "fixtures", "ecosystems", "lib-common")
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		t.Fatalf("parser.DefaultEngine() error = %v", err)
+	}
+	payload, err := engine.ParsePath(root, filepath.Join(root, manifest), false, parser.Options{IndexSource: true})
+	if err != nil {
+		t.Fatalf("ParsePath(%s) error = %v", manifest, err)
+	}
+	rows, ok := payload["variables"].([]map[string]any)
+	if !ok || len(rows) == 0 {
+		t.Fatalf("%s produced no variable rows; the corpus fixture is not being parsed", manifest)
+	}
+	return rows
+}
+
+func findManifestRow(t *testing.T, rows []map[string]any, name, section string) map[string]any {
+	t.Helper()
+	for _, row := range rows {
+		if row["name"] == name && row["section"] == section {
+			return row
 		}
 	}
+	t.Fatalf("no parsed row for %q in section %q", name, section)
+	return nil
+}
 
-	// Distinct packages in the same section stay distinct.
-	if npmID("express", "dependencies", 8) == npmID("lodash", "dependencies", 9) {
-		t.Error("two different npm packages in one section share an identity")
+func sectionOf(t *testing.T, rows []map[string]any, name string) string {
+	t.Helper()
+	for _, row := range rows {
+		if row["name"] == name {
+			if section, ok := row["section"].(string); ok {
+				return section
+			}
+		}
 	}
+	t.Fatalf("no parsed row for %q", name)
+	return ""
+}
+
+func intFromRow(row map[string]any, key string) int {
+	switch value := row[key].(type) {
+	case int:
+		return value
+	case int64:
+		return int(value)
+	case float64:
+		return int(value)
+	}
+	return 0
 }
