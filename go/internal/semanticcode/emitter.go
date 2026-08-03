@@ -130,8 +130,8 @@ func (e *Emitter) Emit(ctx context.Context, span CodeSpanInput, hints []HintInpu
 	}
 
 	envelopes := make([]facts.Envelope, 0, len(hints))
-	for index, hint := range hints {
-		payload, err := e.payload(span, hint, index)
+	for _, hint := range hints {
+		payload, err := e.payload(span, hint)
 		if err != nil {
 			return nil, err
 		}

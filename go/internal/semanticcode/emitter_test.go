@@ -422,3 +422,43 @@ func TestConfigClockWinsOverSpanTimestamp(t *testing.T) {
 		t.Errorf("ObservedAt = %v, want the config clock %v", got, configTime)
 	}
 }
+
+// TestEmitRejectsImpossibleEntityLineRanges extends the span-range check to the
+// code entities a hint points at. Those ranges come from the same untrusted
+// provider output, and provenance a reader cannot open is no better on a
+// subject or object reference than it is on the span.
+func TestEmitRejectsImpossibleEntityLineRanges(t *testing.T) {
+	t.Parallel()
+
+	emitter, err := NewEmitter(testConfig())
+	if err != nil {
+		t.Fatalf("NewEmitter() error = %v", err)
+	}
+
+	reversedSubject := testHint()
+	reversedSubject.Subject.LineStart, reversedSubject.Subject.LineEnd = 40, 10
+	if _, err := emitter.Emit(context.Background(), testSpan(), []HintInput{reversedSubject}); err == nil {
+		t.Error("reversed subject range: Emit() error = nil, want a refusal")
+	}
+
+	negativeSubject := testHint()
+	negativeSubject.Subject.LineStart = -1
+	if _, err := emitter.Emit(context.Background(), testSpan(), []HintInput{negativeSubject}); err == nil {
+		t.Error("negative subject range: Emit() error = nil, want a refusal")
+	}
+
+	reversedRef := testHint()
+	reversedRef.ObjectRefs = []facts.SemanticCodeEntityRef{
+		{EntityKind: "function", EntityID: "entity:orders-api:log.go:Info", LineStart: 90, LineEnd: 12},
+	}
+	if _, err := emitter.Emit(context.Background(), testSpan(), []HintInput{reversedRef}); err == nil {
+		t.Error("reversed object_ref range: Emit() error = nil, want a refusal")
+	}
+
+	// Zero stays allowed: it means the provider did not attribute a line.
+	unattributed := testHint()
+	unattributed.Subject.LineStart, unattributed.Subject.LineEnd = 0, 0
+	if _, err := emitter.Emit(context.Background(), testSpan(), []HintInput{unattributed}); err != nil {
+		t.Errorf("unattributed range: Emit() error = %v, want nil", err)
+	}
+}

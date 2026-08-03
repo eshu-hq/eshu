@@ -20,8 +20,7 @@ import (
 // would read as churn against the previous generation and a retry inside one
 // generation could leave duplicate rows behind. Content-derived identity makes
 // re-emitting the same hint idempotent regardless of batch ordering.
-func (e *Emitter) payload(span CodeSpanInput, hint HintInput, index int) (facts.SemanticCodeHintPayload, error) {
-	_ = index
+func (e *Emitter) payload(span CodeSpanInput, hint HintInput) (facts.SemanticCodeHintPayload, error) {
 	hintType := strings.TrimSpace(hint.HintType)
 	if hintType == "" {
 		return facts.SemanticCodeHintPayload{}, fmt.Errorf("hint_type must not be blank")
@@ -69,6 +68,12 @@ func (e *Emitter) payload(span CodeSpanInput, hint HintInput, index int) (facts.
 	}
 
 	subject := hint.Subject
+	// The subject's range comes from the same untrusted provider output the
+	// span's does, and shipping provenance a reader cannot open is no better
+	// here than it was there.
+	if err := validateEntityLines("subject", subject.LineStart, subject.LineEnd); err != nil {
+		return facts.SemanticCodeHintPayload{}, err
+	}
 	if strings.TrimSpace(subject.RepositoryID) == "" {
 		subject.RepositoryID = span.RepositoryID
 	}
@@ -141,6 +146,9 @@ func normalizeObjectRefs(refs []facts.SemanticCodeEntityRef, span CodeSpanInput)
 		if strings.TrimSpace(ref.EntityID) == "" {
 			return nil, fmt.Errorf("object_refs[%d] has a blank entity_id: a reference that names nothing cannot be emitted", index)
 		}
+		if err := validateEntityLines(fmt.Sprintf("object_refs[%d]", index), ref.LineStart, ref.LineEnd); err != nil {
+			return nil, err
+		}
 		if strings.TrimSpace(ref.RepositoryID) == "" {
 			ref.RepositoryID = span.RepositoryID
 		}
@@ -198,4 +206,17 @@ func compactStrings(values []string) []string {
 		return nil
 	}
 	return out
+}
+
+// validateEntityLines rejects a code-entity range a reader could not open.
+// Zero means "unattributed" and is allowed; negative or reversed is a producer
+// bug that would otherwise ship as provenance pointing at an impossible place.
+func validateEntityLines(field string, start, end int) error {
+	if start < 0 || end < 0 {
+		return fmt.Errorf("%s line range %d-%d is negative", field, start, end)
+	}
+	if start > 0 && end > 0 && end < start {
+		return fmt.Errorf("%s line range %d-%d ends before it starts", field, start, end)
+	}
+	return nil
 }
