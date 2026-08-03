@@ -4,7 +4,10 @@
 package mcp
 
 import (
+	"io/fs"
+	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -44,8 +47,8 @@ func evaluateLanguageParityClaim(entry replaycoverage.LanguageLedgerEntry, surfa
 	if proof, ok := queryProofFor(entry.Language, surface); ok {
 		return languageParityClaimVerdict{OK: true, Reason: "chained proof " + proof.Test}
 	}
-	if len(entry.PartialFeatures) > 0 {
-		return languageParityClaimVerdict{OK: true, Reason: "row declares partial_features"}
+	if feature, ok := partialFeatureExcuses(surface, entry.PartialFeatures); ok {
+		return languageParityClaimVerdict{OK: true, Reason: "row declares partial feature " + feature}
 	}
 	if reason, ok := exemptionFor(entry.Language, surface); ok {
 		return languageParityClaimVerdict{OK: true, Reason: "tracked exemption: " + reason}
@@ -222,4 +225,72 @@ func TestLanguageParityQueryProofRegistryIsNotStale(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestLanguageParityQueryProofTestsExist closes the second half of the
+// registry's honesty problem.
+//
+// languageQueryProof.Test is free-form text. Go does not fail when a test
+// disappears, so a renamed or deleted proof leaves the registry asserting a
+// chain that nothing runs — the map entry keeps excusing the claim, and the
+// gate keeps passing. That is the same "cited artifact does not exist" defect
+// the existence gate was built for, reintroduced one layer up.
+//
+// Resolves each registered Test back to a real `func Test...` declaration in
+// the repository, stripping the package qualifier and any /subtest suffix.
+func TestLanguageParityQueryProofTestsExist(t *testing.T) {
+	t.Parallel()
+
+	declared := declaredGoTestNames(t)
+	if len(declared) < 100 {
+		t.Fatalf("only found %d test declarations; the scan is broken and would pass vacuously", len(declared))
+	}
+
+	for _, language := range sortedLanguages(languageParityQueryProofs) {
+		for surface, proof := range languageParityQueryProofs[language] {
+			name := proof.Test
+			if idx := strings.Index(name, "/"); idx >= 0 {
+				name = name[:idx] // drop a /subtest suffix
+			}
+			if idx := strings.LastIndex(name, "."); idx >= 0 {
+				name = name[idx+1:] // drop the package qualifier
+			}
+			if !declared[name] {
+				t.Errorf("%q/%q registers proof %q, but no func %s exists in the repository -- "+
+					"the proof was renamed or removed and the registry is now excusing a claim "+
+					"nothing runs", language, surface, proof.Test, name)
+			}
+			if strings.TrimSpace(proof.Chain) == "" {
+				t.Errorf("%q/%q registers proof %q with no Chain description; a reviewer cannot tell "+
+					"a real chain from a handler test with a hand-built fixture", language, surface, proof.Test)
+			}
+		}
+	}
+}
+
+// declaredGoTestNames scans the repository's Go test files for top-level test
+// function declarations.
+func declaredGoTestNames(t *testing.T) map[string]bool {
+	t.Helper()
+
+	root := filepath.Join(readSurfaceGateSpecsDir(t), "..", "go")
+	declared := map[string]bool{}
+	pattern := regexp.MustCompile(`(?m)^func (Test[A-Za-z0-9_]+)\(`)
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, "_test.go") {
+			return nil //nolint:nilerr // an unreadable entry is skipped, not fatal
+		}
+		body, readErr := os.ReadFile(path) // #nosec G304 -- repository-local test sources
+		if readErr != nil {
+			return nil //nolint:nilerr // same
+		}
+		for _, match := range pattern.FindAllSubmatch(body, -1) {
+			declared[string(match[1])] = true
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan test declarations: %v", err)
+	}
+	return declared
 }

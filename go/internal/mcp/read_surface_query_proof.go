@@ -3,7 +3,10 @@
 
 package mcp
 
-import "sort"
+import (
+	"sort"
+	"strings"
+)
 
 // This file holds the #5510 semantic half of the language-parity read-surface
 // gate.
@@ -74,6 +77,42 @@ var readSurfaceClaimClasses = map[string]readSurfaceClaimClass{
 
 	// The honest "no consumer" sentinel claims nothing.
 	languageParityReadSurfaceNone: claimGenericRead,
+}
+
+// readSurfacePartialTokens maps a queryable-truth surface to the substrings a
+// partial_features entry must contain to excuse THAT surface.
+//
+// Without this, "the row declares some partial feature" excuses every surface
+// the row cites, so a language could mark one unrelated feature partial and
+// avoid proving all of them -- a blanket waiver, and exactly the false-green
+// this gate exists to remove. A partial feature only speaks for the claim it
+// names.
+var readSurfacePartialTokens = map[string][]string{
+	"trace_route_callers":         {"route"},
+	"get_code_relationship_story": {"relationship", "call", "outbound-contracts"},
+	"content_relationships":       {"relationship", "reference", "dependenc"},
+	"list_relationship_edges":     {"relationship", "edge", "dependenc"},
+	"find_dead_code":              {"dead-code", "dead_code", "reachab"},
+	"trace_deployment_chain":      {"deploy", "manifest", "render"},
+	"trace_resource_to_code":      {"resource", "deploy", "provision"},
+}
+
+// partialFeatureExcuses reports whether any of the row's partial features
+// actually speaks to this surface's claim.
+func partialFeatureExcuses(surface string, partialFeatures []string) (string, bool) {
+	tokens, ok := readSurfacePartialTokens[surface]
+	if !ok {
+		return "", false
+	}
+	for _, feature := range partialFeatures {
+		lowered := strings.ToLower(feature)
+		for _, token := range tokens {
+			if strings.Contains(lowered, token) {
+				return feature, true
+			}
+		}
+	}
+	return "", false
 }
 
 // languageQueryProof names the chained end-to-end test that backs one
@@ -170,31 +209,110 @@ func queryProofFor(language, surface string) (languageQueryProof, bool) {
 // longer needs it fails the staleness check below, so the list cannot quietly
 // outlive its reason.
 var languageParityQueryProofExemptions = map[string]map[string]string{
-	// The six gaps this gate found on the day it was written. Each row cites a
-	// queryable-truth surface, declares no partial feature, and has no chained
-	// proof -- so today nothing verifies that THIS language's parser output
-	// actually reaches that surface. The existence gate passed them all,
-	// because the tools they cite are real and registered.
+	// The gaps this gate found the day it was written: 27 (language, surface)
+	// pairs citing a queryable-truth surface with no chained proof and no
+	// partial feature that speaks to that surface. Every one passes the
+	// existence gate today, because the tools they cite are real and
+	// registered. Nothing verifies that these languages' parser output
+	// actually reaches those surfaces.
 	//
-	// They are recorded rather than fixed here for the reason #5510 gives:
-	// writing six chained fixture->parser->materialization->query proofs is the
-	// work each row deserves, and doing it inside the gate's own change would
-	// bury six substantive proofs in a gate PR. Tracked by #5510.
+	// The first draft of this gate found only 6, because it let ANY partial
+	// feature excuse EVERY surface on a row. Review (#5918) caught that blanket
+	// waiver; scoping a partial feature to the surface it names surfaced the
+	// other 21. That correction is the difference between a gate that looks
+	// strict and one that is.
+	//
+	// Recorded rather than fixed here: 27 chained
+	// fixture->parser->materialization->query proofs is substantial work per
+	// row, and burying it inside the gate's own change would hide it. Each
+	// entry is a debt with a name on it, staleness-checked so it cannot outlive
+	// its reason. Tracked by #5510.
+	"c": {
+		"find_dead_code": "#5510: no chained proof that c parse output reaches find_dead_code",
+	},
+	"cloudformation": {
+		"content_relationships": "#5510: no chained proof that cloudformation parse output reaches content_relationships",
+	},
+	"cpp": {
+		"find_dead_code": "#5510: no chained proof that cpp parse output reaches find_dead_code",
+	},
+	"crossplane": {
+		"content_relationships": "#5510: no chained proof that crossplane parse output reaches content_relationships",
+	},
+	"csharp": {
+		"find_dead_code": "#5510: no chained proof that csharp parse output reaches find_dead_code",
+	},
+	"helm": {
+		"content_relationships": "#5510: no chained proof that helm parse output reaches content_relationships",
+	},
+	"java": {
+		"find_dead_code": "#5510: no chained proof that java parse output reaches find_dead_code",
+	},
+	"javascript": {
+		"find_dead_code": "#5510: no chained proof that javascript parse output reaches find_dead_code",
+	},
+	"json": {
+		"content_relationships": "#5510: no chained proof that json parse output reaches content_relationships",
+	},
+	"kotlin": {
+		"find_dead_code": "#5510: no chained proof that kotlin parse output reaches find_dead_code",
+	},
+	"kubernetes": {
+		"content_relationships":  "#5510: no chained proof that kubernetes parse output reaches content_relationships",
+		"trace_deployment_chain": "#5510: no chained proof that kubernetes parse output reaches trace_deployment_chain",
+	},
+	"perl": {
+		"find_dead_code": "#5510: no chained proof that perl parse output reaches find_dead_code",
+	},
+	"php": {
+		"find_dead_code":              "#5510: no chained proof that php parse output reaches find_dead_code",
+		"get_code_relationship_story": "#5510: no chained proof that php parse output reaches get_code_relationship_story",
+	},
+	"python": {
+		"find_dead_code": "#5510: no chained proof that python parse output reaches find_dead_code",
+	},
+	"ruby": {
+		"find_dead_code": "#5510: no chained proof that ruby parse output reaches find_dead_code",
+	},
+	"rust": {
+		"find_dead_code":              "#5510: no chained proof that rust parse output reaches find_dead_code",
+		"get_code_relationship_story": "#5510: no chained proof that rust parse output reaches get_code_relationship_story",
+	},
+	"scala": {
+		"find_dead_code": "#5510: no chained proof that scala parse output reaches find_dead_code",
+	},
+	"swift": {
+		"find_dead_code": "#5510: no chained proof that swift parse output reaches find_dead_code",
+	},
+	"terraform": {
+		"content_relationships":  "#5510: no chained proof that terraform parse output reaches content_relationships",
+		"trace_resource_to_code": "#5510: no chained proof that terraform parse output reaches trace_resource_to_code",
+	},
+	"terragrunt": {
+		"content_relationships": "#5510: no chained proof that terragrunt parse output reaches content_relationships",
+	},
+	"typescript": {
+		"find_dead_code": "#5510: no chained proof that typescript parse output reaches find_dead_code",
+	},
+	"typescriptjsx": {
+		"find_dead_code":              "#5510: no chained proof that typescriptjsx parse output reaches find_dead_code",
+		"get_code_relationship_story": "#5510: no chained proof that typescriptjsx parse output reaches get_code_relationship_story",
+	},
 	"argocd": {
-		"trace_deployment_chain": "#5510: no chained proof that ArgoCD Application parse output reaches trace_deployment_chain",
+		"trace_deployment_chain": "#5510: no chained proof that argocd parse output reaches trace_deployment_chain",
 	},
 	"atlantis": {
-		"list_relationship_edges": "#5510: no chained proof that Atlantis project/workflow edges reach list_relationship_edges",
+		"list_relationship_edges": "#5510: no chained proof that atlantis parse output reaches list_relationship_edges",
 	},
 	"flux": {
-		"list_relationship_edges": "#5510: no chained proof that Flux Kustomization/HelmRelease edges reach list_relationship_edges",
-		"trace_deployment_chain":  "#5510: no chained proof that Flux parse output reaches trace_deployment_chain",
+		"list_relationship_edges": "#5510: no chained proof that flux parse output reaches list_relationship_edges",
+		"trace_deployment_chain":  "#5510: no chained proof that flux parse output reaches trace_deployment_chain",
 	},
 	"groovy": {
-		"content_relationships": "#5510: no chained proof that Groovy/Jenkinsfile parse output reaches content_relationships",
+		"content_relationships": "#5510: no chained proof that groovy parse output reaches content_relationships",
 	},
 	"kustomize": {
-		"content_relationships": "#5510: no chained proof that Kustomize overlay parse output reaches content_relationships",
+		"content_relationships": "#5510: no chained proof that kustomize parse output reaches content_relationships",
 	},
 }
 
