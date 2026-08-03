@@ -4,15 +4,22 @@
 package offlinetier_test
 
 // nornicdb_function_projection_live_test.go is the standing backend proof for
-// issue #5694: on the pinned NornicDB build, a relationship-bound MATCH
-// followed by an OPTIONAL MATCH makes every function-call projection in the
-// RETURN — type(rel), coalesce(...), head(labels(...)) — evaluate to its own
-// literal source text instead of a value.
+// issue #5694: on the pinned NornicDB build, an OPTIONAL MATCH can make a
+// RETURN column evaluate to its own literal source text instead of a value.
+//
+// Two distinct shapes trigger it, and the second is wider than what
+// nornicdb-pitfalls.md originally recorded:
+//
+//   - a relationship-bound MATCH followed by an OPTIONAL MATCH corrupts every
+//     function-call projection — type(rel), coalesce(...), head(labels(...));
+//   - a SECOND chained OPTIONAL MATCH, matching on a variable the first bound,
+//     corrupts even a PLAIN property read on its own variable — with no
+//     relationship bound anywhere in the query.
 //
 // The query builders already avoid the shape (see
 // docs/public/reference/nornicdb-pitfalls.md, "Trailing OPTIONAL MATCH Corrupts
 // Every Function-Call Projection"), and unit tests assert the emitted Cypher
-// text. What no test did was hold the BACKEND behaviour those rewrites exist
+// text. What no test did was hold the BACKEND behavior those rewrites exist
 // for. That gap matters in both directions:
 //
 //   - if a future build fixes the defect, this test starts failing and the
@@ -74,7 +81,7 @@ func functionProjectionSeed(ctx context.Context, t *testing.T, exec liveExecutor
 }
 
 // TestNornicDBFunctionProjectionCorruptsAfterOptionalMatch pins the defect
-// itself. It asserts the CURRENT backend behaviour, corruption included, so the
+// itself. It asserts the CURRENT backend behavior, corruption included, so the
 // rewrites elsewhere in the query layer have a stated reason a reader can
 // verify rather than a comment they have to trust.
 //
@@ -220,6 +227,29 @@ RETURN 'IMPORTS' AS type,
 
 	// The second chained OPTIONAL MATCH does not. This is a plain property
 	// read, not a function call, which is the part the pitfall page understated.
+	// The variant the pitfalls table records but a relationship-bound query
+	// cannot demonstrate: no relationship anywhere, same corruption. Without
+	// this the doc claims a boundary the regression does not hold.
+	nodeOnly, err := exec.Run(ctx, `MATCH (source:`+p+`Fn)
+OPTIONAL MATCH (source)<-[:CONTAINS]-(sourceFile:`+p+`File)
+OPTIONAL MATCH (sourceRepo:`+p+`Repo)-[:REPO_CONTAINS]->(sourceFile)
+RETURN sourceFile.relative_path AS source_file_path,
+       sourceRepo.id AS source_repo_id`, nil)
+	if err != nil {
+		t.Fatalf("node-only read: %v", err)
+	}
+	if len(nodeOnly) != 1 {
+		t.Fatalf("node-only rows = %d, want 1: %+v", len(nodeOnly), nodeOnly)
+	}
+	t.Logf("no relationship bound: %+v", nodeOnly[0])
+	if got := nodeOnly[0]["source_file_path"]; got != "app.ts" {
+		t.Errorf("node-only source_file_path = %v, want app.ts — the first hop still binds", got)
+	}
+	if got := nodeOnly[0]["source_repo_id"]; got != "sourceRepo.id" {
+		t.Errorf("node-only source_repo_id = %v, want the literal %q: the corruption does not need a relationship bound anywhere, "+
+			"which is the part nornicdb-pitfalls.md originally understated", got, "sourceRepo.id")
+	}
+
 	if got := rows[0]["source_repo_id"]; got != "sourceRepo.id" {
 		t.Errorf("source_repo_id = %v; the pinned build is expected to return the literal %q. "+
 			"If it now returns repo-1, the defect is narrower than recorded: revisit "+
