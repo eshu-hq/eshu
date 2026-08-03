@@ -32,6 +32,18 @@ machine's full-corpus target. The branch changes comments, Markdown, and a
 golden description; it changes no executable statement, worker, query, schema,
 fixture input, assertion field, or runtime knob.
 
+### Post-rebase exact-head revalidation (2026-08-03)
+
+After rebasing the unchanged patch onto `origin/main` at
+`d38cc8deaa8bd9a541136015708fa2deb9e8ddc0`, the exact candidate parent
+`3cc2740ee9331a3da97fcbdd00dc802b888d23be` passed the same local B-7 gate in
+116 s (1m56s): 521 required assertions passed, none failed, and the fact-work,
+shared-projection, and cross-scope-completion queues were terminal. The three
+additional assertions came from the advanced base rather than this patch, so
+the 521 count is exact-head correctness evidence, not a like-for-like
+performance comparison with the 518-assertion measurements above. This
+evidence-only child edit changes no executable or assertion input.
+
 No-Observability-Change: this disposition adds no metric, span, structured-log
 field, status field, or dashboard contract. Operators still see publication
 through `eshu_dp_container_image_identity_decisions_total`, bounded holds and
