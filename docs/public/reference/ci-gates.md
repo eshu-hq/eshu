@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 97 gates. A row with no local command is
+The registry currently defines 98 gates. A row with no local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
 a laptop does not have); a row marked as an alias shares its check with the
 gate its reason names, under a different git hook stage.
@@ -67,6 +67,7 @@ Advisory rows remain visible but do not block merge.
 | `docs-contradiction` | Docs self-contradiction advisory | exactness | pre-pr | false | `bash scripts/verify-docs-contradiction.sh` | — | 7 path(s): docs/public/**, docs/mkdocs.yml, scripts/verify-docs-contradiction.sh, … |
 | `docs-refs` | Docs script reference existence | exactness | pre-pr | true | `bash scripts/verify-docs-refs.sh` | static-contract-gates.yml / Verify docs-refs gate | 6 path(s): docs/public/**, docs/mkdocs.yml, scripts/verify-docs-refs.sh, … |
 | `doc-citations` | Doc test/fixture citation existence | exactness | pre-pr | true | `bash scripts/verify-doc-citations.sh` | static-contract-gates.yml / Verify doc-citations gate | 8 path(s): docs/public/languages/**, docs/public/reference/parity-closure-matrix.md, go/internal/**/*_test.go, … |
+| `measurement-citations` | Measurement ledger citation gate | exactness | pre-pr | true | `bash scripts/verify-measurement-citations.sh` | static-contract-gates.yml / Verify measurement-citations gate | 7 path(s): docs/internal/**, docs/public/**, go/**/evidence-*.md, … |
 | `remote-validation-artifacts` | Remote-validation artifact-existence gate | exactness | pre-pr | true | `bash scripts/verify-remote-validation-artifacts.sh` | static-contract-gates.yml / Verify remote-validation-artifacts gate | 10 path(s): specs/capability-matrix.v1.yaml, specs/capability-matrix/**, go/internal/capabilitycatalog/**, … |
 | `maturity-drift-guard` | Support-maturity matrix live-gate drift guard | exactness | pre-pr | true | `bash scripts/verify-maturity-drift-guard.sh` | static-contract-gates.yml / Verify maturity-drift-guard gate | 10 path(s): scripts/verify-golden-corpus-gate.sh, testdata/golden/e2e-20repo-snapshot.json, docs/public/languages/support-maturity.md, … |
 | `mcp-client-auth-doc` | MCP client-auth doc lockstep guard | exactness | pre-pr | false | `bash scripts/verify-mcp-client-auth-doc.sh` | — | 7 path(s): docs/public/operate/mcp-client-auth.md, go/cmd/eshu/mcp_setup_doc_lockstep_test.go, go/cmd/eshu/mcp_setup_snippet.go, … |
