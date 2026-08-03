@@ -12,7 +12,11 @@ tmp_root="$(mktemp -d)"
 # output and could make one run assert against the OTHER run's result.
 gate_out="$(mktemp "${TMPDIR:-/tmp}/eshu-measurement-gate-out.XXXXXX")"
 gate_err="$(mktemp "${TMPDIR:-/tmp}/eshu-measurement-gate-err.XXXXXX")"
-trap 'rm -rf "${tmp_root}" "${gate_out}" "${gate_err}" 2>/dev/null || true' EXIT
+# shim_dir is created much later (the PATH-shim case) and is empty until then.
+# The trap body is single-quoted so it expands at exit, not here, and rm on an
+# empty operand is harmless under the existing suppression.
+trap 'rm -rf "${tmp_root}" "${gate_out}" "${gate_err}" "${shim_dir}" 2>/dev/null || true' EXIT
+shim_dir=""
 
 # init_repo seeds a throwaway git repo with a ledger carrying exactly one
 # known row, "9999-known-row" (value:0, unit:trials, trials:10), so tests can
