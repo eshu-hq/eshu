@@ -283,6 +283,22 @@ printf '%s\n' \
 commit_change "${self_edit_repo}" "edit the gate itself"
 expect_pass "${self_edit_repo}" "editing the gate's own script must not trip the gate on its own regex literals"
 
+# The mirror test's exemption is the second half of that case statement and was
+# itself untested: the suite only ever runs against throwaway repos, never
+# against this file, so deleting the mirror's `continue` arm survived the whole
+# suite. That arm is load-bearing -- this file is full of claim-shaped fixture
+# text like the "0/30 trials" strings above -- so without a case, the exemption
+# that lets this branch commit its own tests had nothing proving it works.
+self_edit_test_repo="$(init_repo self-edit-test)"
+mkdir -p "${self_edit_test_repo}/scripts"
+printf '%s\n' \
+  '#!/bin/bash' \
+  '# A mirror-test edit carrying fixture text: 0/30 trials failed, and a' \
+  '# Measurement: line, both uncited -- exempt because this file IS the mirror.' \
+  >"${self_edit_test_repo}/scripts/test-verify-measurement-citations.sh"
+commit_change "${self_edit_test_repo}" "edit the mirror test itself"
+expect_pass "${self_edit_test_repo}" "editing the gate's own mirror test must not trip the gate on its fixture text"
+
 # The same must hold for prose ABOUT the gate that lives outside those two files.
 # An unanchored `Measurement:` alternative matched the substring anywhere on a
 # line, so a comment in .pre-commit-config.yaml describing the gate tripped it
