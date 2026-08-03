@@ -149,15 +149,21 @@ func normalizeObjectRefs(refs []facts.SemanticCodeEntityRef, span CodeSpanInput)
 	return out, nil
 }
 
+// semanticSourceID identifies the source span. source_system is part of the
+// identity because repository ids and paths are only unique WITHIN a source
+// system: two systems can both hold "orders-api/main.go", and without this they
+// would collapse onto one source id.
 func semanticSourceID(span CodeSpanInput) string {
-	return prefixedHash("semantic-code-source", map[string]any{
+	return stableIdentity("semantic-code-source", map[string]any{
+		"source_system": span.SourceSystem,
 		"repository_id": span.RepositoryID,
 		"relative_path": span.RelativePath,
 	})
 }
 
 func semanticChunkID(config Config, span CodeSpanInput) string {
-	return prefixedHash("semantic-code-chunk-id", map[string]any{
+	return stableIdentity("semantic-code-chunk-id", map[string]any{
+		"source_system":     span.SourceSystem,
 		"span_id":           span.SpanID,
 		"prompt_version":    config.PromptVersion,
 		"redaction_version": config.RedactionVersion,
@@ -165,8 +171,17 @@ func semanticChunkID(config Config, span CodeSpanInput) string {
 	})
 }
 
-func prefixedHash(kind string, identity map[string]any) string {
+// stableIdentity builds an *_id value: a bare digest, because an id is an
+// opaque handle rather than a claim about how it was computed.
+func stableIdentity(kind string, identity map[string]any) string {
 	return facts.StableID(kind, identity)
+}
+
+// prefixedHash builds a *_hash value. The "sha256:" prefix is the convention
+// the semanticdocs twin uses (semanticdocs/emitter.go prefixedHash), and it is
+// what tells a reader the field names an algorithm rather than an opaque id.
+func prefixedHash(kind string, identity map[string]any) string {
+	return "sha256:" + facts.StableID(kind, identity)
 }
 
 func compactStrings(values []string) []string {

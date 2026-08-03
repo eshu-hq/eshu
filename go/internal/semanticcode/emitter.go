@@ -167,12 +167,19 @@ func (e *Emitter) Emit(ctx context.Context, span CodeSpanInput, hints []HintInpu
 	return envelopes, nil
 }
 
+// observedAt resolves the hint's timestamp, config first.
+//
+// The order matches the semanticdocs twin deliberately. Config-first makes an
+// injected clock authoritative: a caller that sets Config.Now is stating "this
+// is the time for everything I emit", and a span that happens to carry its own
+// ObservedAt should not quietly override that. Span-first would make a test
+// clock silently ineffective whenever the fixture also set a span time.
 func (e *Emitter) observedAt(span CodeSpanInput) time.Time {
-	if !span.ObservedAt.IsZero() {
-		return span.ObservedAt.UTC()
-	}
 	if e.config.Now != nil {
 		return e.config.Now().UTC()
+	}
+	if !span.ObservedAt.IsZero() {
+		return span.ObservedAt.UTC()
 	}
 	return time.Now().UTC()
 }

@@ -5,6 +5,7 @@ package semanticcode
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -347,5 +348,77 @@ func TestEmitIdentityIsIndependentOfBatchOrder(t *testing.T) {
 		if !reversedKeys[key] {
 			t.Errorf("key %q disappeared when the batch order changed; identity still depends on position", key)
 		}
+	}
+}
+
+// TestEmitHashFieldsCarryTheAlgorithmPrefix keeps *_hash and *_id formatting
+// distinct, matching the semanticdocs twin: a hash names the algorithm that
+// produced it, an id is an opaque handle. Mixing them makes a reader guess.
+func TestEmitHashFieldsCarryTheAlgorithmPrefix(t *testing.T) {
+	t.Parallel()
+
+	emitter, err := NewEmitter(testConfig())
+	if err != nil {
+		t.Fatalf("NewEmitter() error = %v", err)
+	}
+	envelopes, err := emitter.Emit(context.Background(), testSpan(), []HintInput{testHint()})
+	if err != nil {
+		t.Fatalf("Emit() error = %v", err)
+	}
+	payload := envelopes[0].Payload
+
+	for _, key := range []string{"hint_hash"} {
+		value, _ := payload[key].(string)
+		if !strings.HasPrefix(value, "sha256:") {
+			t.Errorf("%s = %q, want a sha256: prefix", key, value)
+		}
+	}
+	chunk, _ := payload["chunk"].(map[string]any)
+	if chunk != nil {
+		for _, key := range []string{"chunk_hash"} {
+			value, _ := chunk[key].(string)
+			if !strings.HasPrefix(value, "sha256:") {
+				t.Errorf("chunk.%s = %q, want a sha256: prefix", key, value)
+			}
+		}
+	}
+}
+
+// TestSourceIDSeparatesSourceSystems guards an identity collision: repository
+// ids and paths are unique only WITHIN a source system, so two systems holding
+// the same repo/path would otherwise share one source id.
+func TestSourceIDSeparatesSourceSystems(t *testing.T) {
+	t.Parallel()
+
+	git := testSpan()
+	other := testSpan()
+	other.SourceSystem = "gerrit"
+
+	if semanticSourceID(git) == semanticSourceID(other) {
+		t.Error("source ids collide across source systems; source_system is not part of the identity")
+	}
+}
+
+// TestConfigClockWinsOverSpanTimestamp pins the config-first order the
+// semanticdocs twin uses. Span-first would make an injected clock silently
+// ineffective whenever a fixture also set a span time.
+func TestConfigClockWinsOverSpanTimestamp(t *testing.T) {
+	t.Parallel()
+
+	configTime := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	config := testConfig()
+	config.Now = func() time.Time { return configTime }
+	emitter, err := NewEmitter(config)
+	if err != nil {
+		t.Fatalf("NewEmitter() error = %v", err)
+	}
+
+	span := testSpan() // carries its own, different ObservedAt
+	envelopes, err := emitter.Emit(context.Background(), span, []HintInput{testHint()})
+	if err != nil {
+		t.Fatalf("Emit() error = %v", err)
+	}
+	if got := envelopes[0].ObservedAt; !got.Equal(configTime) {
+		t.Errorf("ObservedAt = %v, want the config clock %v", got, configTime)
 	}
 }
