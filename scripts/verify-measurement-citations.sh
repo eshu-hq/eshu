@@ -13,8 +13,22 @@ set -euo pipefail
 
 repo_root="${ESHU_MEASUREMENT_CITATIONS_REPO_ROOT:-}"
 if [ -z "$repo_root" ]; then
-  repo_root="$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null \
-    || (cd "$(dirname "$0")/.." && pwd))"
+  # Derive the repo root from the script's own location, NOT
+  # `git rev-parse --show-toplevel`. Git hooks (pre-commit/pre-push) export
+  # GIT_DIR, and with GIT_DIR set `git -C scripts rev-parse --show-toplevel`
+  # returns the -C directory (<repo>/scripts) instead of the repo root --
+  # confirmed live: a real `git push` (which exports GIT_DIR to the hook
+  # process tree) resolved repo_root to .../scripts, so the ledger path
+  # ("${repo_root}/docs/internal/measurements.jsonl") pointed at a path that
+  # does not exist, silently emptying the extracted ledger-id index and
+  # reporting a real, present citation as unknown. A manual invocation of the
+  # same hook script (no GIT_DIR exported) always passed, which is what made
+  # this non-reproducible outside a real push. The script always lives at
+  # <repo>/scripts/, so dirname/.. is the repo root and is both worktree- and
+  # hook-safe. verify-telemetry-coverage.sh carries the identical fix for the
+  # identical bug; this adopts that fix rather than repeating the
+  # misdiagnosis.
+  repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 fi
 
 base="${ESHU_MEASUREMENT_CITATIONS_BASE:-}"

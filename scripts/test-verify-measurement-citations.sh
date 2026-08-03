@@ -218,4 +218,37 @@ rg -q "failed to read .*measurements\.jsonl" /tmp/eshu-measurement-gate.err \
 rg -q "cites ledger id" /tmp/eshu-measurement-gate.err \
   && { printf 'read failure must not be reported as an unknown citation\n' >&2; exit 1; }
 
+# --- Case 10 (repo-root under GIT_DIR): the verifier must derive repo_root
+# from its own location, not `git rev-parse --show-toplevel`. Git hooks
+# (pre-commit/pre-push) export GIT_DIR, and with GIT_DIR set
+# `git -C scripts rev-parse --show-toplevel` returns <repo>/scripts instead of
+# the repo root, so `${repo_root}/docs/internal/measurements.jsonl` resolves
+# to a path that does not exist, silently emptying the ledger-id index and
+# reporting an already-present, correctly cited row as unknown. This is not
+# hypothetical: it produced exactly that false report against a real `git
+# push` on this branch (GIT_DIR exported by the real hook process), while
+# every manual reproduction of the same hook script (no GIT_DIR exported)
+# passed -- the mismatch between "manual invocation passes" and "real push
+# fails" was the whole symptom. Run a COPY of the verifier from the fixture's
+# scripts/ with GIT_DIR set and ESHU_MEASUREMENT_CITATIONS_REPO_ROOT unset; it
+# must resolve the fixture root and PASS. Mirrors
+# test-verify-telemetry-coverage.sh's case 9 for the identical bug class.
+case_gitdir="$(init_repo case-gitdir)"
+mkdir -p "${case_gitdir}/scripts"
+cp "${verifier}" "${case_gitdir}/scripts/verify-measurement-citations.sh"
+printf '# New Finding\n\nA deadlock check ran clean: 0/30 trials failed (ledger:9999-known-row).\n' \
+  >"${case_gitdir}/docs/internal/evidence/gitdir-finding.md"
+git -C "${case_gitdir}" add .
+git -C "${case_gitdir}" commit -q -m "copy verifier into fixture scripts, add cited claim"
+if env -u ESHU_MEASUREMENT_CITATIONS_REPO_ROOT -u GITHUB_BASE_REF \
+    GIT_DIR="${case_gitdir}/.git" ESHU_MEASUREMENT_CITATIONS_BASE=HEAD~1 \
+    "${case_gitdir}/scripts/verify-measurement-citations.sh" \
+    >/tmp/eshu-measurement-gate.out 2>/tmp/eshu-measurement-gate.err; then
+  :
+else
+  printf '[resolves repo_root from script location under GIT_DIR] expected the verifier to pass\n' >&2
+  sed -n '1,120p' /tmp/eshu-measurement-gate.err >&2
+  exit 1
+fi
+
 printf 'verify-measurement-citations tests passed\n'
