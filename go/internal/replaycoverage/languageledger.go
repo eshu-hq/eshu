@@ -44,6 +44,12 @@ type LanguageLedgerEntry struct {
 	// claims (e.g. "execute_language_query", "content_relationships"). Each
 	// label must resolve through the #5335 backing map to a live consumer.
 	ReadSurfaces []string
+	// PartialFeatures are the features this row declares as partially
+	// supported rather than supported. The #5510 semantic gate reads them
+	// because "partial" is one of the two honest ways a language row may cite
+	// a queryable-truth read surface without a chained end-to-end proof: the
+	// row is already saying the claim is incomplete.
+	PartialFeatures []string
 }
 
 type languageLedgerFile struct {
@@ -52,8 +58,9 @@ type languageLedgerFile struct {
 }
 
 type languageLedgerFileFeature struct {
-	Language     string   `yaml:"language"`
-	ReadSurfaces []string `yaml:"read_surfaces"`
+	Language        string   `yaml:"language"`
+	ReadSurfaces    []string `yaml:"read_surfaces"`
+	PartialFeatures []string `yaml:"partial_features"`
 }
 
 // LoadLanguageLedger reads the language-feature-parity ledger from path and
@@ -89,7 +96,17 @@ func LoadLanguageLedger(path string) (LanguageLedger, error) {
 			}
 			readSurfaces = append(readSurfaces, trimmed)
 		}
-		ledger.Languages = append(ledger.Languages, LanguageLedgerEntry{Language: name, ReadSurfaces: readSurfaces})
+		partialFeatures := make([]string, 0, len(rec.PartialFeatures))
+		for _, feature := range rec.PartialFeatures {
+			if trimmed := strings.TrimSpace(feature); trimmed != "" {
+				partialFeatures = append(partialFeatures, trimmed)
+			}
+		}
+		ledger.Languages = append(ledger.Languages, LanguageLedgerEntry{
+			Language:        name,
+			ReadSurfaces:    readSurfaces,
+			PartialFeatures: partialFeatures,
+		})
 	}
 	sort.Slice(ledger.Languages, func(i, j int) bool {
 		return ledger.Languages[i].Language < ledger.Languages[j].Language
