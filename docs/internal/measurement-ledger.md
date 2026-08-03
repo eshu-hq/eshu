@@ -65,8 +65,41 @@ matching one of two narrow patterns to carry a `ledger:<id>` token that
 resolves to a real row in the ledger:
 
 - `<N>/<M> trials` or `<N>/<M> runs`, cited on the same line — for example `0/210 trials (ledger:5837-deadlock-plain-total)`
-- a line starting with the word `Measurement`, immediately followed by a
-  colon, then the figure and its citation
+- a line starting (after optional indentation) with the bare word
+  `Measurement`, immediately followed by a colon, then the figure and its
+  citation — `Measurement: 0/210 trials (ledger:5837-deadlock-plain-total)`
+
+The `Measurement:` trigger is prose-only: a Markdown heading
+(`# Measurement:`, `## Measurement:`, ...) or a source-code comment marker
+(`# Measurement:`, `// Measurement:`, `-- Measurement:`, ...) is never
+recognized, at any heading level or comment style, regardless of how many `#`
+characters or what comment prefix precede it. This is a deliberate exclusion,
+not an oversight: every `Measurement:` marker that exists in this repo today
+is mid-sentence prose, not a heading or a comment, and a comment/heading form
+would need its own citation and value-verification rules this gate does not
+implement.
+
+Citing a real row is not enough on its own: the cited row's own `value` (and
+`trials`, for the ratio shape) must agree with the number in the claim.
+Citing `ledger:9999-known-row` (`value: 0, trials: 10`) for `0/30 trials` is
+rejected exactly like citing an unknown id — a citation to the wrong figure is
+worse than no citation, because it carries the ledger's authority without the
+ledger's accuracy. This value check only ever applies to the `<N>/<M>
+trials`/`<N>/<M> runs` shape, which is fully structured; a `Measurement:` line
+whose figure is NOT in that shape (a duration, a percentage, a row count) is a
+figure this gate cannot verify against the row's structured fields, so it
+requires the prose to drop the figure and cite only — `Measurement: bounded
+pass, no regression detected (ledger:9999-known-row)` passes, but
+`Measurement: bounded pass 5.9s (ledger:9999-known-row)` does not, even though
+the id it cites is real. Restate that duration as a ledger row's `value`/`unit`
+and use the ratio shape, or use a fresh `Measurement:` line with no figure at
+all and let the ledger row carry the number.
+
+The ledger itself is checked for append-only-ness independent of any added
+prose line: a commit that edits or deletes a row already present at the diff
+base is rejected even if it adds no new measurement-shaped claim, because a
+mutated or removed row silently changes what every existing citation to it
+means.
 
 This is deliberately narrow. It does NOT catch:
 
@@ -75,6 +108,13 @@ This is deliberately narrow. It does NOT catch:
 - a single-run claim with no denominator (`ran clean`, `no deadlocks observed`)
 - a citation that sits elsewhere in the same paragraph but not the same line
 - a number inside a table cell whose line doesn't say "trials" or "runs"
+- a `Measurement:` marker inside a Markdown heading or a source-code comment
+  (`# Measurement:`, `## Measurement:`, `// Measurement:`, ...) — excluded by
+  design, see above
+- a `Measurement:` figure outside the `<N>/<M> trials`/`<N>/<M> runs` shape
+  that happens to numerically agree with the cited row anyway — the gate
+  requires such lines to drop the figure rather than attempting to parse and
+  verify an arbitrary duration/percentage/count shape
 - anything under `testdata/` or in the gate's own two files (their regex
   source and test fixtures necessarily contain the trigger patterns without
   being claims about Eshu's behavior)

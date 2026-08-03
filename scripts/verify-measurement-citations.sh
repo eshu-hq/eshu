@@ -5,8 +5,13 @@ set -euo pipefail
 # in trial/rate shape (e.g. "30/30 trials") or carrying an explicit
 # "Measurement:" marker must cite a docs/internal/measurements.jsonl row id
 # via a "ledger:<id>" token on the same line, and that id must exist in the
-# ledger. See docs/internal/measurement-ledger.md for the schema, the exact
-# patterns this gate matches, and what it deliberately does not catch.
+# ledger AND the cited row's own value/trials must agree with the claimed
+# figure -- citing a real row for the WRONG number is worse than no gate,
+# because the citation carries false authority a reader stops checking. The
+# ledger itself must also stay append-only: a later commit that edits or
+# deletes an existing row is rejected even if it adds no new prose claim.
+# See docs/internal/measurement-ledger.md for the schema, the exact patterns
+# this gate matches, and what it deliberately does not catch.
 #
 # Base-commit resolution mirrors scripts/verify-performance-evidence.sh:
 # explicit env override, then CI's PR base, then HEAD~1 locally.
@@ -61,7 +66,8 @@ ledger_abs_path="${repo_root}/${ledger_rel_path}"
 
 ledger_ids_path="$(mktemp "${TMPDIR:-/tmp}/eshu-measurement-ledger-ids.XXXXXX")"
 diff_path="$(mktemp "${TMPDIR:-/tmp}/eshu-measurement-citations-diff.XXXXXX")"
-cleanup() { rm -f "${ledger_ids_path}" "${diff_path}"; }
+old_ledger_path="$(mktemp "${TMPDIR:-/tmp}/eshu-measurement-ledger-old.XXXXXX")"
+cleanup() { rm -f "${ledger_ids_path}" "${diff_path}" "${old_ledger_path}"; }
 trap cleanup EXIT
 
 if [ -f "${ledger_abs_path}" ]; then
@@ -92,6 +98,63 @@ is_known_ledger_id() {
   rg -qxF -- "${id}" "${ledger_ids_path}"
 }
 
+# ledger_row_line prints the raw JSON line for ledger row id $1, or nothing
+# if the id is absent (callers only use this after is_known_ledger_id has
+# already confirmed the id exists).
+ledger_row_line() {
+  local id="$1"
+  [ -f "${ledger_abs_path}" ] || return 0
+  # `|| true`: under `set -o pipefail`, a no-match `rg` here would otherwise
+  # make this function's own return status non-zero even though `head`
+  # succeeds, aborting the caller's `row_line="$(ledger_row_line ...)"`
+  # under `set -e` instead of yielding an empty (not-found) result. See
+  # extract_ratio's comment for the same failure shape.
+  rg -F -- "\"id\":\"${id}\"" "${ledger_abs_path}" | head -n1 || true
+}
+
+# ledger_row_field prints field $2's raw JSON value (a bare number or the
+# literal `null`) from row-JSON line $1, or nothing if the field is absent.
+ledger_row_field() {
+  local row="$1" field="$2"
+  # `|| true` for the same pipefail reason as extract_ratio and
+  # ledger_row_line: a field genuinely absent from $1 must yield an empty
+  # result, not abort the script.
+  printf '%s' "${row}" \
+    | rg -o "\"${field}\"[[:space:]]*:[[:space:]]*(-?[0-9]+(\\.[0-9]+)?|null)" \
+    | sed -E "s/.*\"${field}\"[[:space:]]*:[[:space:]]*//" \
+    || true
+}
+
+violations=()
+
+# The ledger's own schema doc calls it append-only: existing rows are never
+# edited or renumbered, because a citation's whole value depends on the row
+# it points at staying exactly what it was when the citation was written. The
+# scan below only ever inspects ADDED lines, and the ledger file itself is
+# skipped by that scan (a new row is not a "claim" needing a citation) -- so
+# nothing previously noticed a later commit silently editing or deleting an
+# existing row's line while adding no new measurement-shaped prose. Compare
+# every row present at the diff base against the current ledger by exact
+# line content; a missing or changed line is a violation regardless of
+# whether anything else in the diff would otherwise trip the gate.
+if git -C "${repo_root}" show "${base}:${ledger_rel_path}" >"${old_ledger_path}" 2>/dev/null; then
+  while IFS= read -r old_line; do
+    [ -n "${old_line}" ] || continue
+    old_id="$(printf '%s' "${old_line}" \
+      | rg -o '"id"[[:space:]]*:[[:space:]]*"[^"]+"' \
+      | sed -E 's/.*"id"[[:space:]]*:[[:space:]]*"([^"]+)"/\1/' || true)"
+    [ -n "${old_id}" ] || continue
+    if [ -f "${ledger_abs_path}" ] && rg -qxF -- "${old_line}" "${ledger_abs_path}"; then
+      continue
+    fi
+    if [ -f "${ledger_abs_path}" ] && rg -qF -- "\"id\":\"${old_id}\"" "${ledger_abs_path}"; then
+      violations+=("${ledger_rel_path}: row '${old_id}' was modified; the ledger is append-only -- add a new row instead of editing an existing one")
+    else
+      violations+=("${ledger_rel_path}: row '${old_id}' was deleted; the ledger is append-only and existing rows must never be removed")
+    fi
+  done <"${old_ledger_path}"
+fi
+
 if git -C "$repo_root" diff -U0 --no-color "$base"...HEAD >"${diff_path}" 2>/dev/null; then
   :
 else
@@ -102,11 +165,59 @@ fi
 # claim" that needs a citation. See the agent guide for the rationale and the
 # blind spots this leaves (bare durations, percentages, single-run counts,
 # prose restating a number without "trials"/"runs"/"Measurement:").
-claim_pattern='[0-9]+/[0-9]+[[:space:]]+(trials|runs)\b|^[[:space:]]*#?[[:space:]]*Measurement:'
+#
+# The "Measurement:" trigger is PROSE-ONLY, deliberately: it matches a line
+# starting (after optional indentation) with the bare word "Measurement:",
+# never a Markdown heading ("# Measurement:", "## Measurement:", ...) or a
+# source-code comment marker ("# Measurement:", "// Measurement:", "--
+# Measurement:", ...). An earlier version of this pattern accepted exactly
+# one optional leading "#" and not two or more -- an artifact of how the
+# regex was first written, not a real decision, and unconnected to any actual
+# usage: every existing "Measurement:" marker in this repo
+# (go/internal/storage/cypher/evidence-3559-reconciliation.md,
+# go/internal/reducer/evidence-3617-atomic-publish-fence.md) is mid-sentence
+# prose, not a heading or a comment. Comment/heading markers are excluded on
+# purpose, not merely unhandled -- see the Citation gate section of
+# docs/internal/measurement-ledger.md for the full included/excluded set.
+claim_pattern='[0-9]+/[0-9]+[[:space:]]+(trials|runs)\b|^[[:space:]]*Measurement:'
 citation_pattern='ledger:([A-Za-z0-9][A-Za-z0-9_-]*)'
 
-violations=()
+# extract_ratio prints "<N> <M>" for the FIRST "<N>/<M> trials|runs" match in
+# $1, or nothing if the line has no such match (e.g. a "Measurement:" line
+# whose figure isn't in that shape).
+extract_ratio() {
+  # The trailing `|| true` is load-bearing under `set -o pipefail`: when $1
+  # has no ratio-shaped match, the inner `rg -o` stages legitimately exit 1
+  # (no match), and pipefail then makes the whole pipeline's status
+  # non-zero even though `sed` itself succeeds -- which, under `set -e`,
+  # would abort the entire script from inside a command substitution
+  # (`ratio="$(extract_ratio ...)"`) instead of just yielding an empty
+  # result, the correct outcome for "this line has no ratio to check".
+  printf '%s' "$1" \
+    | rg -o '[0-9]+/[0-9]+[[:space:]]+(trials|runs)\b' \
+    | head -n1 \
+    | rg -o '^[0-9]+/[0-9]+' \
+    | sed -E 's#([0-9]+)/([0-9]+)#\1 \2#' \
+    || true
+}
+
 current_file=""
+# in_body tracks whether the reader is inside a file section's diff BODY
+# (context/added/removed lines, each unconditionally prefixed by ' '/'+'/'-')
+# or still in that section's HEADER block (diff --git/index/mode/---/+++,
+# never prefixed by +/-/space). current_file is set ONLY from a line that
+# starts with the literal, unforgeable "diff --git a/" -- never from
+# pattern-matching "+++ b/" anywhere in the stream. An ADDED line whose own
+# CONTENT happens to read "++ b/scripts/verify-measurement-citations.sh"
+# renders in the diff as "+++ b/scripts/verify-measurement-citations.sh",
+# indistinguishable BY CONTENT from a genuine file-header line -- content
+# matching on "+++ b/" would let that forged line switch current_file to the
+# exempt gate script and silently exempt every claim after it. It cannot
+# forge "diff --git a/", because a "+"-prefixed body line's raw text always
+# starts with "+", never with the bare word "diff". Everything else in a
+# header block is likewise recognized purely by POSITION (in_body==0, before
+# the section's "@@ " hunk marker), never by re-matching its content.
+in_body=0
 
 # Read the pre-captured diff from a real file (not a heredoc or here-string):
 # this repo's Homebrew bash 5.3.15 deadlocks on a `<<<` here-string feeding a
@@ -114,17 +225,30 @@ current_file=""
 # redirection never touches that pipe-buffer path.
 while IFS= read -r line; do
   case "$line" in
-    "+++ b/"*)
-      current_file="${line#+++ b/}"
+    "diff --git a/"*)
+      rest="${line#diff --git a/}"
+      current_file="${rest##* b/}"
+      in_body=0
       continue
       ;;
-    "+++ /dev/null")
-      current_file=""
-      continue
-      ;;
-    "--- "*)
-      continue
-      ;;
+  esac
+
+  if [ "${in_body}" -eq 0 ]; then
+    case "$line" in
+      "@@ "*)
+        in_body=1
+        continue
+        ;;
+      *)
+        # Header/metadata line for the current section (index, mode,
+        # similarity/rename, ---, +++, or a blank separator) -- never body
+        # content, regardless of what it says.
+        continue
+        ;;
+    esac
+  fi
+
+  case "$line" in
     "+"*)
       ;;
     *)
@@ -154,6 +278,39 @@ while IFS= read -r line; do
   fi
   if ! is_known_ledger_id "${citation}"; then
     violations+=("${current_file}: cites ledger id '${citation}', which is not in ${ledger_rel_path} -> ${payload}")
+    continue
+  fi
+
+  # Membership alone does not prove the claim is CORRECT: citing a real row
+  # for the wrong number is the exact drift the ledger exists to prevent, and
+  # it is worse than no citation at all, because the reader sees "(ledger:...)"
+  # and stops checking. Verify the claimed figure against the cited row's own
+  # value/trials wherever the claim's shape is comparable.
+  row_line="$(ledger_row_line "${citation}")"
+  ratio="$(extract_ratio "${payload}")"
+  if [ -n "${ratio}" ]; then
+    claimed_value="${ratio%% *}"
+    claimed_trials="${ratio##* }"
+    row_value="$(ledger_row_field "${row_line}" value)"
+    row_trials="$(ledger_row_field "${row_line}" trials)"
+    if [ "${claimed_value}" != "${row_value}" ] || [ "${claimed_trials}" != "${row_trials}" ]; then
+      violations+=("${current_file}: cites ledger:${citation} for '${claimed_value}/${claimed_trials}', but that row states value=${row_value:-<missing>} trials=${row_trials:-<missing>} -> ${payload}")
+    fi
+  else
+    # A "Measurement:" line with no "<N>/<M> trials|runs" ratio to check
+    # against the row's structured fields. This gate cannot verify an
+    # arbitrary duration, percentage, or count against value/unit, so it
+    # requires the prose to drop the figure rather than let an unverifiable
+    # number pass silently -- see docs/internal/measurement-ledger.md's
+    # Citation gate blind spots. Strip the citation token (parenthesized or
+    # not) before checking for a leftover digit, so the ledger id's own
+    # digits never trigger a false positive.
+    marker_figure="${payload#*Measurement:}"
+    marker_figure="${marker_figure%%(*}"
+    marker_figure="$(printf '%s' "${marker_figure}" | sed -E 's/ledger:[A-Za-z0-9_-]+//g')"
+    if printf '%s' "${marker_figure}" | rg -q '[0-9]'; then
+      violations+=("${current_file}: Measurement: line restates a figure this gate cannot verify against ledger:${citation} (only \"<N>/<M> trials\"/\"<N>/<M> runs\" is checked); drop the number and keep only the citation, or use that shape -> ${payload}")
+    fi
   fi
 done <"${diff_path}"
 
