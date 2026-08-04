@@ -1,5 +1,58 @@
 # #5847 — a reopened `container_image_identity` replay leaves the superseded decision live
 
+> **Current status (2026-08-02): fixed on `main`.** #5854 replaced the
+> outcome-keyed writer with an authoritative cutover, and #5740 superseded it
+> with digest-v3 immutable support sets. The record below preserves the earlier
+> branch's withdrawn-retire evidence and its then-current open-issue status.
+
+## Current-main disposition proof (2026-08-02)
+
+No-Regression Evidence: the baseline source basis was `origin/main` at
+`9696f2d9db596120d332c7b17bc9f80bb34b8fa0`; its worktree carried only the
+comment and Markdown corrections that do not change a B-7 fixture, assertion,
+or executable statement. The measured candidate was
+`dd37fc413f7d38dee6af9b6f70667385e81dafcc`. Both local B-7 runs used
+`scripts/verify-golden-corpus-gate.sh`, the same 30-repository fixture corpus,
+the same 18 B-10 cassette collectors, clean Compose volumes, Postgres
+`18-alpine` (18.4), and NornicDB image
+`eshu-nornicdb-pr261:149245885258`. The primary interval was script launch to
+the final B-7 PASS after terminal queue, graph, HTTP, and MCP assertions.
+
+| Metric | Baseline | Candidate | Delta |
+| --- | ---: | ---: | ---: |
+| B-7 pipeline wall time | 115 s (1m55s) | 122 s (2m02s) | +7 s (+6.1%) |
+| Required assertions | 518 pass, 0 fail | 518 pass, 0 fail | unchanged |
+| Nonterminal fact work items | 0 | 0 | unchanged |
+| Nonterminal shared projection intents | 0 | 0 | unchanged |
+| Nonterminal cross-scope completion events | 0 | 0 | unchanged |
+
+The local delta is below the repository's 10% or 60-second stop threshold and
+is a same-host bounded-corpus check, not a claim against the remote reference
+machine's full-corpus target. The branch changes comments, Markdown, and a
+golden description; it changes no executable statement, worker, query, schema,
+fixture input, assertion field, or runtime knob.
+
+### Post-rebase exact-head revalidation (2026-08-03)
+
+After rebasing the unchanged patch onto `origin/main` at
+`d38cc8deaa8bd9a541136015708fa2deb9e8ddc0`, the exact candidate parent
+`3cc2740ee9331a3da97fcbdd00dc802b888d23be` passed the same local B-7 gate in
+116 s (1m56s): 521 required assertions passed, none failed, and the fact-work,
+shared-projection, and cross-scope-completion queues were terminal. The three
+additional assertions came from the advanced base rather than this patch, so
+the 521 count is exact-head correctness evidence, not a like-for-like
+performance comparison with the 518-assertion measurements above. This
+evidence-only child edit changes no executable or assertion input.
+
+No-Observability-Change: this disposition adds no metric, span, structured-log
+field, status field, or dashboard contract. Operators still see publication
+through `eshu_dp_container_image_identity_decisions_total`, bounded holds and
+retirements through `eshu_dp_container_image_identity_retirements_total`, and
+execution/query cost through `eshu_dp_reducer_run_duration_seconds` and
+`eshu_dp_postgres_query_duration_seconds`. The candidate B-7 run also reached
+the same observable terminal state above with zero residual, dead-letter, or
+nonterminal shared work and complete API/MCP readback.
+
 `container_image_identity` sits in the bootstrap maintenance reopen slice, its
 fact identity embeds `outcome`, and the writer has no retire. A replay that
 reaches a different answer than the first execution therefore does not correct

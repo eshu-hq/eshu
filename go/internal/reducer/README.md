@@ -301,13 +301,13 @@ values each counter carries.
 - **Phase publications and graph writes are not atomic** — if a graph write
   commits but the phase publication fails, `GraphProjectionPhaseRepairQueue`
   captures the retry.
-- **Container image identity is digest-first and fencing-guarded** — writes
-  land only for explicit digest or single-tag-to-digest matches, and a
-  fencing token (`ContainerImageIdentityWrite.EvidenceAsOf`) rejects a stale
-  pass's upsert whole. Reclassification is authoritative within the scope
-  generation: demotions tombstone the logical key, and the same transaction
-  removes only eligible legacy outcome-keyed rows. Completeness warnings hold
-  destructive cleanup; see `container-image-identity.md`.
+- **Container image identity is digest-first and active-set authoritative** —
+  only explicit digests or single-tag-to-digest matches enter a complete,
+  immutable digest-v3 support set. Publication atomically moves the scope's
+  `active_set_id` after checking the exact claim and activation epoch.
+  Reclassification selects a replacement set, demotion selects an explicit
+  empty set, and completeness warnings carry only affected prior supports; see
+  `container-image-identity.md`.
 - **SecurityGroup/IAM graph projections are conservative and security-sensitive**
   — `CAN_ESCALATE_TO` and `CAN_PERFORM` edges are written only for exact,
   unambiguous, non-conditioned grants; see

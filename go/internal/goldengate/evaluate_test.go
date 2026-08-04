@@ -259,9 +259,9 @@ func TestEvaluateQueryShape(t *testing.T) {
 	// A floor alone cannot see a DUPLICATE. A shape asserting "at least one
 	// identity for this repository" passes identically whether the reducer
 	// serves one correct row or that row plus a superseded, contradictory one —
-	// which is the whole class eshu-hq/eshu#5847 is about, and that defect is
-	// still open. MaximumResults is the ceiling that makes the duplicate visible
-	// to the committed gate.
+	// which is the whole class eshu-hq/eshu#5847 exposed. #5854 and #5740 fixed
+	// the writer authority; MaximumResults remains the ceiling that makes a
+	// regression visible to the committed gate.
 	t.Run("maximum results ceiling", func(t *testing.T) {
 		shape := QueryShape{
 			RequiredResponseFields: []string{"identities"},

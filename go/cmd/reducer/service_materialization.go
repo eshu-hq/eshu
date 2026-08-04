@@ -43,10 +43,12 @@ func serviceMaterializationWriterFor(database postgres.ExecQueryer) reducer.Serv
 	}
 }
 
-// containerImageIdentityWriterFor builds the identity writer over one shared
-// Postgres transaction so current decisions and exact-key retirement commit or
-// roll back together. A database without transaction support leaves the domain
-// unwired rather than silently publishing without convergence.
+// containerImageIdentityWriterFor builds the digest-v3 identity support writer
+// over the shared reducer database. Each publication installs one complete,
+// immutable support set and moves active_set_id in the same statement after
+// validating the exact claim and activation epoch. A database without
+// transaction support leaves the domain unwired rather than silently
+// publishing without convergence.
 func containerImageIdentityWriterFor(
 	database postgres.ExecQueryer,
 ) reducer.ContainerImageIdentityWriter {
