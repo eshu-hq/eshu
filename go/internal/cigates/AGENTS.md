@@ -79,6 +79,24 @@ and `eshu-diagnostic-rigor`.
   counting it as a second host makes the "exactly one workflow" precondition
   fail, silently skipping the gate and turning a real mismatch into a pass.
 
+- **Argument parity is checkable where correspondence is not.**
+  `checkVerifyScriptWorkflowMatch` deliberately refuses to require that a local
+  script appear in its CI job, because the two entrypoints are legitimately
+  different artifacts — and `trivy-fs-local.sh` is one of the examples it cites.
+  That does not make the pair uncoupled. `checkTrivySkipDirsParity`
+  (`trivyskipdirs.go`) asserts the narrower, sound thing: whatever the two
+  entrypoints are, they must skip the same directories. Prefer this shape when a
+  local wrapper and its CI job share a semantic argument — assert the argument,
+  not the invocation.
+
+  Compare as a SET, not a string: `--skip-dirs` is unordered, so a reorder is
+  semantically identical and failing on it trains people to edit the check
+  instead of the drift. Fail loudly when the marker is missing or duplicated
+  rather than skipping — a parity check that silently passes when it cannot find
+  its subject is worse than none, because green reads as proof of agreement. The
+  one legitimate skip is both artifacts being absent, which is the shape of this
+  package's synthetic drift fixtures; exactly one present is itself drift.
+
 ## Common changes
 
 - Adding a new category or requirement: add the constant, add to the validation

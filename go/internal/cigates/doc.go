@@ -52,7 +52,9 @@
 // (#5855) or through a job gated on a paths-filter output via
 // needs.<job>.outputs.<key> (#5546) — or when a gate whose
 // scripts/verify-*.sh is executed by exactly one workflow declares a
-// different ci.workflow (#5748). Filter matching mirrors dorny's own rule:
+// different ci.workflow (#5748) — or when scripts/dev/trivy-fs-local.sh's
+// skip_dirs disagrees, as a set, with security-scan.yml's trivy-fs skip-dirs
+// input. Filter matching mirrors dorny's own rule:
 // each pattern is compiled separately, a leading ! negates that pattern, and
 // the predicate-quantifier decides whether ANY (default) or EVERY pattern must
 // match. The script-correspondence check counts only executable `run:` blocks

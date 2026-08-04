@@ -19,6 +19,7 @@ It answers two related questions:
 | `requiredworkflow.go` | trusted required-status publisher validation: trigger, source workflow, permissions, checkout, and status command |
 | `scriptworkflow.go` | `checkVerifyScriptWorkflowMatch`, called from `DriftCheck` — a gate whose `verify-*.sh` is executed by exactly one workflow must declare that workflow ([#5748](https://github.com/eshu-hq/eshu/issues/5748)) |
 | `pathfilter.go` | `checkPathFilterCoverage`, called from `DriftCheck` — registry trigger vs. CI `dorny/paths-filter` glob cross-check ([#5855](https://github.com/eshu-hq/eshu/issues/5855)), resolving a gate's filter key through `append_gate` or through a job's `if:` on a paths-filter output ([#5546](https://github.com/eshu-hq/eshu/issues/5546)) |
+| `trivyskipdirs.go` | `checkTrivySkipDirsParity`, called from `DriftCheck` — `scripts/dev/trivy-fs-local.sh`'s `skip_dirs` must equal `security-scan.yml`'s trivy-fs `skip-dirs`, compared as a set (rationale in `AGENTS.md`) |
 | `glob.go` | `MatchGlob` — doublestar matcher, no external deps |
 
 ## Registry format
@@ -83,9 +84,10 @@ Patterns with a leading `/` or trailing `/` never match.
 4. a gate's `ci.job` does not name a real check in its `ci.workflow` — a job `name:`, a job key, or an `append_gate` display, not the workflow title ([#5010](https://github.com/eshu-hq/eshu/issues/5010));
 5. a gate's literal (non-glob) trigger is not matched by its CI workflow's `dorny/paths-filter` block, for a `ci.job` that resolves to a filter key either via `append_gate` in a matrix-dispatch workflow such as `static-contract-gates.yml` ([#5855](https://github.com/eshu-hq/eshu/issues/5855)) or via a job whose `if:` is gated on a paths-filter output, the shape `test.yml` / `security-scan.yml` / `mcp-schema-drift.yml` use ([#5546](https://github.com/eshu-hq/eshu/issues/5546));
 6. a gate whose `scripts/verify-*.sh` is executed by exactly one workflow declares a different `ci.workflow` ([#5748](https://github.com/eshu-hq/eshu/issues/5748)). Only executable `run:` blocks count as executing the script — a `dorny/paths-filter` entry watches a path, it does not invoke it. Skipped, not reported, when no workflow runs the script (CI legitimately uses a different entrypoint) or when several do (no single owner);
-7. the required-status manifest or its trusted aggregator workflow violates the source, trigger, permission, checkout, secret, or publisher-command contract.
+7. `scripts/dev/trivy-fs-local.sh`'s `skip_dirs` disagrees, as a set, with `security-scan.yml`'s trivy-fs `skip-dirs` input. Whitespace is compared literally — trivy comma-splits `--skip-dirs` without trimming, so a padded entry is a different directory pattern to trivy and must not compare equal here;
+8. the required-status manifest or its trusted aggregator workflow violates the source, trigger, permission, checkout, secret, or publisher-command contract.
 
-Checks 4, 5 and 6 skip rather than false-error when they cannot resolve an unambiguous mapping — an unparseable workflow, a `ci.job` with no matching append_gate call, (check 5 only) a glob-form trigger, or (check 6 only) a verify script that no workflow runs (CI legitimately uses a different entrypoint than the local gate) or that several run (no single owner). It is exposed via `ci-gates validate --drift` and needs no network, Docker, or credentials.
+Checks 4, 5, 6 and 7 skip rather than false-error when they cannot resolve an unambiguous mapping — an unparseable workflow, a `ci.job` with no matching append_gate call, (check 5 only) a glob-form trigger, (check 6 only) a verify script that no workflow runs (CI legitimately uses a different entrypoint than the local gate) or that several run (no single owner), or (check 7 only) neither trivy artifact being present, which is the shape of this package's synthetic drift fixtures rather than a real tree. It is exposed via `ci-gates validate --drift` and needs no network, Docker, or credentials.
 
 ## Tests
 

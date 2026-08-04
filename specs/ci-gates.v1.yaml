@@ -2284,6 +2284,7 @@ gates:
       - ".pre-commit-config.yaml"
       - "scripts/dev/pre-pr.sh"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/dev/trivy-fs-local.sh"
       - "scripts/test-verify-ci-gates-registry.sh"
       - "scripts/verify-live-required-status-checks.sh"
       - "scripts/test-verify-live-required-status-checks.sh"

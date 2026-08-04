@@ -73,6 +73,11 @@ var matrixVariableRE = regexp.MustCompile(`\$\{\{\s*matrix\.([A-Za-z0-9_]+)\s*\}
 //     command": local and CI entrypoints legitimately differ, so the broad rule
 //     flags 16 gates of which 15 are correctly wired. A script no workflow runs,
 //     or several run, carries no correspondence signal and is skipped.
+//
+//  7. Trivy skip-dirs parity: scripts/dev/trivy-fs-local.sh's skip_dirs must
+//     equal, as a set, the skip-dirs input of security-scan.yml's trivy-fs job.
+//     See checkTrivySkipDirsParity for why argument parity is checkable even
+//     where invocation correspondence (check 6) is not.
 func DriftCheck(repoRoot string, reg *Registry) []error {
 	var errs []error
 
@@ -89,6 +94,7 @@ func DriftCheck(repoRoot string, reg *Registry) []error {
 	errs = append(errs, checkJobNamesResolve(repoRoot, reg)...)
 	errs = append(errs, checkPathFilterCoverage(repoRoot, reg)...)
 	errs = append(errs, checkVerifyScriptWorkflowMatch(repoRoot, reg)...)
+	errs = append(errs, checkTrivySkipDirsParity(repoRoot)...)
 	errs = append(errs, checkRequiredStatusWorkflows(repoRoot, reg)...)
 
 	return errs
