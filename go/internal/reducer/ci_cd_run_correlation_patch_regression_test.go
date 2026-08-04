@@ -67,6 +67,148 @@ func TestCICDRunCorrelationArtifactPatchRetainsWorkflowImageEvidence(t *testing.
 	}
 }
 
+func TestCICDRunCorrelationArtifactPatchHonorsCurrentWorkflowImageTombstone(t *testing.T) {
+	t.Parallel()
+
+	const (
+		imageRef  = "registry.example.com/team/api:retired"
+		stableKey = "workflow-image-retired-key"
+	)
+	retainedWorkflowImage := facts.Envelope{
+		FactID:        "workflow-image-retained",
+		FactKind:      facts.CICDWorkflowImageEvidenceFactKind,
+		StableFactKey: stableKey,
+		Payload: map[string]any{
+			"repository_id":  "repo-api",
+			"commit_sha":     "abc123",
+			"workflow_path":  ".github/workflows/release.yml",
+			"command_kind":   "run",
+			"evidence_class": "workflow_image_ref",
+			"image_ref":      imageRef,
+		},
+	}
+	loader := &crossGenerationCICDRunFactLoader{
+		currentFacts: []facts.Envelope{
+			ciArtifactFact("artifact-later-generic", "run-workflow", ""),
+			{
+				FactID:        "workflow-image-tombstone",
+				FactKind:      facts.CICDWorkflowImageEvidenceFactKind,
+				StableFactKey: stableKey,
+				IsTombstone:   true,
+				Payload:       map[string]any{},
+			},
+		},
+		historicalRunFacts: []facts.Envelope{
+			ciRunFact("run-workflow", "github_actions", "repo-api", "abc123"),
+			retainedWorkflowImage,
+		},
+		activeFacts: []facts.Envelope{
+			containerImageIdentityFact(
+				"image-workflow-support",
+				"repo-api",
+				imageRef,
+				"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			),
+		},
+	}
+	writer := &recordingCICDRunCorrelationWriter{}
+	handler := CICDRunCorrelationHandler{FactLoader: loader, Writer: writer}
+
+	result, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-workflow-image-tombstone-patch",
+		ScopeID:      "ci://github-actions/acme/api",
+		GenerationID: "generation-2",
+		SourceSystem: "ci_cd_run",
+		Domain:       DomainCICDRunCorrelation,
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+
+	decision := cicdDecisionsByRun(writer.write.Decisions)["github_actions:run-workflow:1"]
+	assertCICDDecision(t, decision, CICDRunCorrelationDerived, 0)
+	if decision.ImageRef != "" || stringSliceContains(decision.EvidenceFactIDs, retainedWorkflowImage.FactID) {
+		t.Fatalf("retired workflow-image decision = %#v, want no retained image evidence", decision)
+	}
+	if len(result.SubSignals) != 0 {
+		t.Fatalf("SubSignals = %#v, want current tombstone treated as control evidence", result.SubSignals)
+	}
+}
+
+func TestCICDRunCorrelationArtifactPatchHonorsCurrentLiveWorkflowImage(t *testing.T) {
+	t.Parallel()
+
+	const (
+		retainedImageRef = "registry.example.com/team/api:retained"
+		currentImageRef  = "registry.example.com/team/api:current"
+		stableKey        = "workflow-image-live-key"
+	)
+	workflowImage := func(factID, imageRef string) facts.Envelope {
+		return facts.Envelope{
+			FactID:        factID,
+			FactKind:      facts.CICDWorkflowImageEvidenceFactKind,
+			StableFactKey: stableKey,
+			Payload: map[string]any{
+				"repository_id":  "repo-api",
+				"commit_sha":     "abc123",
+				"workflow_path":  ".github/workflows/release.yml",
+				"command_kind":   "run",
+				"evidence_class": "workflow_image_ref",
+				"image_ref":      imageRef,
+			},
+		}
+	}
+	retainedWorkflowImage := workflowImage("workflow-image-retained", retainedImageRef)
+	currentWorkflowImage := workflowImage("workflow-image-current", currentImageRef)
+	loader := &crossGenerationCICDRunFactLoader{
+		currentFacts: []facts.Envelope{
+			ciArtifactFact("artifact-later-generic", "run-workflow", ""),
+			currentWorkflowImage,
+		},
+		historicalRunFacts: []facts.Envelope{
+			ciRunFact("run-workflow", "github_actions", "repo-api", "abc123"),
+			retainedWorkflowImage,
+		},
+		activeFacts: []facts.Envelope{
+			containerImageIdentityFact(
+				"image-retained-support",
+				"repo-api",
+				retainedImageRef,
+				"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			),
+			containerImageIdentityFact(
+				"image-current-support",
+				"repo-api",
+				currentImageRef,
+				"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+			),
+		},
+	}
+	writer := &recordingCICDRunCorrelationWriter{}
+	handler := CICDRunCorrelationHandler{FactLoader: loader, Writer: writer}
+
+	_, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-workflow-image-live-patch",
+		ScopeID:      "ci://github-actions/acme/api",
+		GenerationID: "generation-2",
+		SourceSystem: "ci_cd_run",
+		Domain:       DomainCICDRunCorrelation,
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+
+	decision := cicdDecisionsByRun(writer.write.Decisions)["github_actions:run-workflow:1"]
+	assertCICDDecision(t, decision, CICDRunCorrelationExact, 1)
+	if decision.ImageRef != currentImageRef {
+		t.Fatalf("ImageRef = %q, want current workflow image %q", decision.ImageRef, currentImageRef)
+	}
+	if !stringSliceContains(decision.EvidenceFactIDs, currentWorkflowImage.FactID) ||
+		stringSliceContains(decision.EvidenceFactIDs, retainedWorkflowImage.FactID) {
+		t.Fatalf("EvidenceFactIDs = %#v, want only current workflow-image evidence", decision.EvidenceFactIDs)
+	}
+}
+
 func TestCICDRunCorrelationArtifactTombstoneRetractsPriorArtifactDecision(t *testing.T) {
 	t.Parallel()
 

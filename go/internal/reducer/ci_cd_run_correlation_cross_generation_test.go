@@ -226,7 +226,7 @@ func TestCICDRunCorrelationHandlerRejectsOversizedPatchSnapshot(t *testing.T) {
 	}
 }
 
-func TestExcludeSupersededCICDArtifactsUsesCurrentKeyWithoutDigest(t *testing.T) {
+func TestExcludeSupersededCICDFactsUsesCurrentArtifactKeyWithoutDigest(t *testing.T) {
 	t.Parallel()
 
 	historical := []facts.Envelope{
@@ -242,7 +242,15 @@ func TestExcludeSupersededCICDArtifactsUsesCurrentKeyWithoutDigest(t *testing.T)
 	if err != nil {
 		t.Fatalf("build patch directives: %v", err)
 	}
-	filtered := excludeSupersededCICDArtifacts(historical, directives.liveRunKeys, nil)
+	filtered, err := excludeSupersededCICDFacts(
+		historical,
+		current,
+		directives.liveRunKeys,
+		directives.liveStableKeys,
+	)
+	if err != nil {
+		t.Fatalf("exclude superseded facts: %v", err)
+	}
 	got := make(map[string]struct{}, len(filtered))
 	for _, envelope := range filtered {
 		got[envelope.FactID] = struct{}{}
@@ -254,5 +262,140 @@ func TestExcludeSupersededCICDArtifactsUsesCurrentKeyWithoutDigest(t *testing.T)
 		if _, exists := got[factID]; !exists {
 			t.Fatalf("filtered facts = %#v, want unaffected %q", got, factID)
 		}
+	}
+}
+
+func TestExcludeSupersededCICDFactsHonorsTypedCurrentTombstones(t *testing.T) {
+	t.Parallel()
+
+	factKinds := []string{
+		facts.CICDArtifactFactKind,
+		facts.CICDEnvironmentObservationFactKind,
+		facts.CICDDeploymentEventFactKind,
+		facts.CICDTriggerEdgeFactKind,
+		facts.CICDStepFactKind,
+		facts.CICDWorkflowImageEvidenceFactKind,
+	}
+	historical := make([]facts.Envelope, 0, len(factKinds)+3)
+	current := make([]facts.Envelope, 0, len(factKinds))
+	for _, factKind := range factKinds {
+		stableKey := factKind + "-retired-key"
+		historical = append(historical, facts.Envelope{
+			FactID:        factKind + "-retained",
+			FactKind:      factKind,
+			StableFactKey: stableKey,
+		})
+		current = append(current, facts.Envelope{
+			FactID:        factKind + "-tombstone",
+			FactKind:      factKind,
+			StableFactKey: stableKey,
+			IsTombstone:   true,
+		})
+	}
+	historical = append(historical, facts.Envelope{
+		FactID:        "run-with-colliding-stable-key",
+		FactKind:      facts.CICDRunFactKind,
+		StableFactKey: facts.CICDWorkflowImageEvidenceFactKind + "-retired-key",
+	})
+	historical = append(historical, facts.Envelope{
+		FactID:        "environment-different-key",
+		FactKind:      facts.CICDEnvironmentObservationFactKind,
+		StableFactKey: "environment-still-live-key",
+	})
+	historical = append(historical, facts.Envelope{
+		FactID:        "workflow-image-whitespace-distinct-key",
+		FactKind:      facts.CICDWorkflowImageEvidenceFactKind,
+		StableFactKey: " " + facts.CICDWorkflowImageEvidenceFactKind + "-retired-key",
+	})
+
+	directives, err := cicdArtifactPatchDirectivesFromCurrent(current)
+	if err != nil {
+		t.Fatalf("build patch directives: %v", err)
+	}
+	filtered, err := excludeSupersededCICDFacts(
+		historical,
+		current,
+		nil,
+		mergeCICDArtifactStableKeys(directives.liveStableKeys, directives.tombstoneStableKeys),
+	)
+	if err != nil {
+		t.Fatalf("exclude superseded facts: %v", err)
+	}
+	got := make(map[string]struct{}, len(filtered))
+	for _, envelope := range filtered {
+		got[envelope.FactID] = struct{}{}
+	}
+	for _, factID := range []string{
+		"run-with-colliding-stable-key",
+		"environment-different-key",
+		"workflow-image-whitespace-distinct-key",
+	} {
+		if _, exists := got[factID]; !exists {
+			t.Fatalf("filtered facts = %#v, want unaffected %q", filtered, factID)
+		}
+	}
+	if len(filtered) != 3 {
+		t.Fatalf("filtered facts = %#v, want only different-kind and unrelated-key evidence", filtered)
+	}
+}
+
+func TestExcludeSupersededCICDFactsHonorsTypedCurrentLiveFacts(t *testing.T) {
+	t.Parallel()
+
+	const stableKey = "shared-live-key"
+	historical := []facts.Envelope{
+		{
+			FactID:        "environment-retained",
+			FactKind:      facts.CICDEnvironmentObservationFactKind,
+			StableFactKey: stableKey,
+		},
+		{
+			FactID:        "workflow-image-same-key",
+			FactKind:      facts.CICDWorkflowImageEvidenceFactKind,
+			StableFactKey: stableKey,
+		},
+		{
+			FactID:        "environment-whitespace-distinct-key",
+			FactKind:      facts.CICDEnvironmentObservationFactKind,
+			StableFactKey: " " + stableKey,
+		},
+	}
+	current := []facts.Envelope{{
+		FactID:        "environment-current",
+		FactKind:      facts.CICDEnvironmentObservationFactKind,
+		StableFactKey: stableKey,
+	}}
+
+	filtered, err := excludeSupersededCICDFacts(historical, current, nil, nil)
+	if err != nil {
+		t.Fatalf("exclude superseded facts: %v", err)
+	}
+	got := make(map[string]struct{}, len(filtered))
+	for _, envelope := range filtered {
+		got[envelope.FactID] = struct{}{}
+	}
+	if _, exists := got["environment-retained"]; exists {
+		t.Fatalf("filtered facts = %#v, must remove the exact typed retained identity", filtered)
+	}
+	for _, factID := range []string{
+		"workflow-image-same-key",
+		"environment-whitespace-distinct-key",
+	} {
+		if _, exists := got[factID]; !exists {
+			t.Fatalf("filtered facts = %#v, want unaffected %q", filtered, factID)
+		}
+	}
+}
+
+func TestExcludeSupersededCICDFactsRejectsUnidentifiableTombstone(t *testing.T) {
+	t.Parallel()
+
+	_, err := excludeSupersededCICDFacts(nil, []facts.Envelope{{
+		FactID:      "workflow-image-tombstone",
+		FactKind:    facts.CICDWorkflowImageEvidenceFactKind,
+		IsTombstone: true,
+	}}, nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "has no stable fact key") {
+		t.Fatalf("exclude superseded facts error = %v, want fail-closed stable-key error", err)
 	}
 }

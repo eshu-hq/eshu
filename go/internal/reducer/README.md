@@ -298,7 +298,7 @@ values each counter carries.
 - **Artifact-only CI/CD generations are patches** — a generation containing a
   `ci.artifact` but no `ci.run` rebuilds the complete bounded run snapshot from
   the newest older generation containing `ci.run`, then unions exact current
-  artifact routing keys and overlays current artifact control rows. It does not
+  artifact routing keys and overlays current-generation control rows. It does not
   depend on an immediately preceding derived snapshot: queue supersession can
   legitimately prevent that snapshot from being published. Rebuilding the
   latest normal run window keeps its unaffected runs visible behind the
@@ -314,7 +314,12 @@ values each counter carries.
   payload-bearing row, uses that row only to route the patch, and removes the
   retired artifact from classification. Missing identity fails the intent
   closed; a valid tombstone is control evidence and is not quarantined as a
-  malformed live artifact.
+  malformed live artifact. Current non-artifact facts replace retained history
+  only by the exact `(fact kind, stable key)` pair, so workflow-image,
+  environment, deployment, trigger, and step tombstones retract their older
+  evidence without crossing fact-kind or unrelated-key boundaries. Every valid
+  current tombstone is removed before typed classification; a blank identity
+  fails the patch closed.
   The reducer result reports every rebuilt decision as `evaluated`; `preserved`
   remains zero because no prior derived decision is copied. Outcome totals
   describe the complete snapshot written for the target generation.

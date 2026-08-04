@@ -278,10 +278,10 @@ CI/CD run correlation also uses a reducer-owned handoff. A generation with a
 `ci.run` or `ci.artifact` fact emits one `ci_cd_run_correlation` intent. A run
 starts a normal full snapshot. An artifact without a run starts a bounded patch:
 the reducer rebuilds the newest older run-window snapshot from source evidence,
-unions exact current artifact routing keys, applies the current artifact control
-rows, and publishes the complete target generation without depending on a prior
-derived result. The projector only selects the trigger fact; it does not perform
-the cross-generation join.
+unions exact current artifact routing keys, applies current-generation live and
+tombstone control rows by typed stable identity, and publishes the complete
+target generation without depending on a prior derived result. The projector
+only selects the trigger fact; it does not perform the cross-generation join.
 SBOM and attestation documents use the same reducer-owned boundary. When a
 generation contains an `sbom.document`, `attestation.statement`, or OCI
 referrer fact,

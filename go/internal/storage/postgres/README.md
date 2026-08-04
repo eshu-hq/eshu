@@ -531,7 +531,9 @@ Primary groups:
   evidence by recovered repository. It accepts payload-empty artifact tombstone
   stable keys and returns the latest older payload-bearing artifact only as
   routing identity, while the reducer excludes that row from live
-  classification and fails closed when identity is missing.
+  classification, applies current non-artifact facts by exact typed stable
+  identity, removes valid current tombstone controls before classification, and
+  fails closed when tombstone identity is missing.
 - Governance audit store for validation-safe private event persistence,
   authorized bounded detailed reads, retention pruning, and aggregate-only
   status readback.

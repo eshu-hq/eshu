@@ -130,7 +130,7 @@ func TestCICDRunCorrelationArtifactPatchAgainstRealPostgres(t *testing.T) {
 			},
 		},
 	}
-	_, err = handler.Handle(ctx, reducer.Intent{
+	result, err := handler.Handle(ctx, reducer.Intent{
 		IntentID:     "intent-artifact-patch",
 		ScopeID:      "scope-ci",
 		GenerationID: "gen-3",
@@ -140,6 +140,9 @@ func TestCICDRunCorrelationArtifactPatchAgainstRealPostgres(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+	if got := result.SubSignals["input_invalid_facts"]; got != 1 {
+		t.Fatalf("input_invalid_facts = %v, want only the malformed live artifact", got)
 	}
 	first := loadCICDRunHistoryLiveCorrelations(t, ctx, db)
 	_, err = handler.Handle(ctx, reducer.Intent{
@@ -216,8 +219,8 @@ ORDER BY payload->>'run_id'`)
 	if err := rows.Err(); err != nil {
 		t.Fatalf("iterate active patched correlations: %v", err)
 	}
-	if len(got) != 8 {
-		t.Fatalf("active rebuilt correlations = %#v, want all eight latest retained runs", got)
+	if len(got) != 10 {
+		t.Fatalf("active rebuilt correlations = %#v, want all ten latest retained runs", got)
 	}
 	runA := got["run-a:1"]
 	if runA.RepositoryID != "repo-api" || runA.CommitSHA != "abc123" ||
@@ -261,6 +264,21 @@ ORDER BY payload->>'run_id'`)
 	}
 	if containsCICDRunHistoryLiveString(malformed.EvidenceFactIDs, "artifact-malformed-gen-1") {
 		t.Fatalf("malformed-current-artifact evidence = %#v, must exclude retained artifact", malformed.EvidenceFactIDs)
+	}
+	retiredEnvironment := got["run-current-environment-tombstone:1"]
+	if retiredEnvironment.Environment != "" || retiredEnvironment.EnvironmentKind != "" {
+		t.Fatalf("current environment tombstone decision = %#v, want retired environment", retiredEnvironment)
+	}
+	if containsCICDRunHistoryLiveString(retiredEnvironment.EvidenceFactIDs, "environment-current-retired-gen-1") {
+		t.Fatalf("current environment tombstone evidence = %#v, must exclude retained observation", retiredEnvironment.EvidenceFactIDs)
+	}
+	currentEnvironment := got["run-current-environment-live:1"]
+	if currentEnvironment.Environment != "stage" || currentEnvironment.EnvironmentKind != "declared" {
+		t.Fatalf("current live environment decision = %#v, want normalized stage from current observation", currentEnvironment)
+	}
+	if !containsCICDRunHistoryLiveString(currentEnvironment.EvidenceFactIDs, "environment-current-live-gen-3") ||
+		containsCICDRunHistoryLiveString(currentEnvironment.EvidenceFactIDs, "environment-current-live-gen-1") {
+		t.Fatalf("current live environment evidence = %#v, want only current observation", currentEnvironment.EvidenceFactIDs)
 	}
 	return got
 }
@@ -366,6 +384,17 @@ INSERT INTO scope_generations (
 	insertCICDRunHistoryLiveFact(t, ctx, db, "workflow-image-retired-gen-1", "gen-1", "ci.workflow_image_evidence", "workflow-image-retired-key", false,
 		`{"repository_id":"repo-workflow","commit_sha":"workflow123","workflow_path":".github/workflows/retired.yml","command_kind":"run","evidence_class":"workflow_image_ref","image_ref":"registry.example.invalid/team/retired:latest"}`)
 	insertCICDRunHistoryLiveFact(t, ctx, db, "workflow-image-retired-gen-2", "gen-2", "ci.workflow_image_evidence", "workflow-image-retired-key", true, `{}`)
+	insertCICDRunHistoryLiveFact(t, ctx, db, "run-current-environment-tombstone-gen-1", "gen-1", "ci.run", "run-current-environment-tombstone-key", false,
+		`{"provider":"github_actions","run_id":"run-current-environment-tombstone","run_attempt":"1","repository_id":"repo-api","commit_sha":"environment123","status":"completed","result":"success"}`)
+	insertCICDRunHistoryLiveFact(t, ctx, db, "environment-current-retired-gen-1", "gen-1", "ci.environment_observation", "environment-current-retired-key", false,
+		`{"provider":"github_actions","run_id":"run-current-environment-tombstone","run_attempt":"1","environment":"production","source":"deploy_event"}`)
+	insertCICDRunHistoryLiveFact(t, ctx, db, "environment-current-retired-gen-3", "gen-3", "ci.environment_observation", "environment-current-retired-key", true, `{}`)
+	insertCICDRunHistoryLiveFact(t, ctx, db, "run-current-environment-live-gen-1", "gen-1", "ci.run", "run-current-environment-live-key", false,
+		`{"provider":"github_actions","run_id":"run-current-environment-live","run_attempt":"1","repository_id":"repo-api","commit_sha":"environment456","status":"completed","result":"success"}`)
+	insertCICDRunHistoryLiveFact(t, ctx, db, "environment-current-live-gen-1", "gen-1", "ci.environment_observation", "environment-current-live-key", false,
+		`{"provider":"github_actions","run_id":"run-current-environment-live","run_attempt":"1","environment":"production","source":"deploy_event"}`)
+	insertCICDRunHistoryLiveFact(t, ctx, db, "environment-current-live-gen-3", "gen-3", "ci.environment_observation", "environment-current-live-key", false,
+		`{"provider":"github_actions","run_id":"run-current-environment-live","run_attempt":"1","environment":"staging","source":"deploy_event"}`)
 	insertCICDRunHistoryLiveFact(t, ctx, db, "run-retired-artifact-gen-1", "gen-1", "ci.run", "run-retired-artifact-key", false,
 		`{"provider":"github_actions","run_id":"run-retired-artifact","run_attempt":"1","repository_id":"repo-api","commit_sha":"retired123","status":"completed","result":"success"}`)
 	insertCICDRunHistoryLiveFact(t, ctx, db, "artifact-retired-gen-1", "gen-1", "ci.artifact", "artifact-retired-key", false,

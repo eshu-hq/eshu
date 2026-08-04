@@ -194,45 +194,79 @@ func requireHistoricalCICDRuns(
 	return nil
 }
 
-// excludeSupersededCICDArtifacts keeps current artifact snapshots authoritative
-// by run and stable identity, including malformed live facts that only retain
-// their opaque stable key. Retained non-artifact evidence still participates in
-// the recomputation.
-func excludeSupersededCICDArtifacts(
+type cicdStableFactIdentity struct {
+	factKind  string
+	stableKey string
+}
+
+// excludeSupersededCICDFacts keeps current non-artifact facts authoritative by
+// exact raw typed stable identity. Artifacts retain their normalized stable-key
+// semantics, and current live artifacts additionally replace retained
+// artifacts for the same run even when their stable keys differ.
+func excludeSupersededCICDFacts(
 	historical []facts.Envelope,
-	currentKeys []cicdRunCorrelationPatchKey,
-	currentStableKeys []string,
-) []facts.Envelope {
-	currentKeySet := make(map[cicdRunCorrelationPatchKey]struct{}, len(currentKeys))
-	for _, key := range currentKeys {
-		currentKeySet[key] = struct{}{}
+	current []facts.Envelope,
+	currentArtifactKeys []cicdRunCorrelationPatchKey,
+	currentArtifactStableKeys []string,
+) ([]facts.Envelope, error) {
+	currentArtifactKeySet := make(map[cicdRunCorrelationPatchKey]struct{}, len(currentArtifactKeys))
+	for _, key := range currentArtifactKeys {
+		currentArtifactKeySet[key] = struct{}{}
 	}
-	currentStableKeySet := make(map[string]struct{}, len(currentStableKeys))
-	for _, stableKey := range currentStableKeys {
-		currentStableKeySet[stableKey] = struct{}{}
+	currentArtifactStableKeySet := make(map[string]struct{}, len(currentArtifactStableKeys))
+	for _, stableKey := range currentArtifactStableKeys {
+		currentArtifactStableKeySet[stableKey] = struct{}{}
 	}
+	currentStableIdentities := make(map[cicdStableFactIdentity]struct{}, len(current))
+	for _, envelope := range current {
+		if envelope.FactKind == facts.CICDArtifactFactKind {
+			continue
+		}
+		stableKey := envelope.StableFactKey
+		if envelope.IsTombstone && strings.TrimSpace(stableKey) == "" {
+			return nil, fmt.Errorf(
+				"load ci/cd run correlation patch: %s tombstone %q has no stable fact key",
+				envelope.FactKind,
+				envelope.FactID,
+			)
+		}
+		if strings.TrimSpace(stableKey) == "" {
+			continue
+		}
+		currentStableIdentities[cicdStableFactIdentity{
+			factKind:  envelope.FactKind,
+			stableKey: stableKey,
+		}] = struct{}{}
+	}
+
 	filtered := make([]facts.Envelope, 0, len(historical))
 	for _, envelope := range historical {
 		if envelope.FactKind == facts.CICDArtifactFactKind {
-			if _, superseded := currentStableKeySet[strings.TrimSpace(envelope.StableFactKey)]; superseded {
+			stableKey := strings.TrimSpace(envelope.StableFactKey)
+			if _, superseded := currentArtifactStableKeySet[stableKey]; stableKey != "" && superseded {
+				continue
+			}
+		} else if stableKey := envelope.StableFactKey; strings.TrimSpace(stableKey) != "" {
+			identity := cicdStableFactIdentity{factKind: envelope.FactKind, stableKey: stableKey}
+			if _, superseded := currentStableIdentities[identity]; superseded {
 				continue
 			}
 		}
 		key, ok := cicdArtifactPatchKeyFromEnvelope(envelope)
 		if ok {
-			if _, superseded := currentKeySet[key]; superseded {
+			if _, superseded := currentArtifactKeySet[key]; superseded {
 				continue
 			}
 		}
 		filtered = append(filtered, envelope)
 	}
-	return filtered
+	return filtered, nil
 }
 
-func excludeCICDArtifactTombstones(envelopes []facts.Envelope) []facts.Envelope {
+func excludeCICDTombstones(envelopes []facts.Envelope) []facts.Envelope {
 	filtered := make([]facts.Envelope, 0, len(envelopes))
 	for _, envelope := range envelopes {
-		if envelope.FactKind == facts.CICDArtifactFactKind && envelope.IsTombstone {
+		if envelope.IsTombstone {
 			continue
 		}
 		filtered = append(filtered, envelope)

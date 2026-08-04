@@ -45,6 +45,11 @@ operational lessons that future storage changes still need to respect.
   runs that window omitted, even when an unpublished predecessor reducer result
   was superseded. It preserves the typed optional-repository fallback when
   either side omits `repository_id` and rejects more than 12,000 returned facts.
+  After this read, the reducer gives every current non-artifact fact authority
+  over retained history only for its exact raw `(fact_kind, stable_fact_key)`
+  identity, while artifacts retain their normalized stable-key and live run-key
+  rules. Valid current tombstones are control rows and never reach typed decode;
+  a blank tombstone identity fails closed instead of leaving stale evidence live.
   These reads support the reducer's patch path only; a generation containing a
   run stays on the existing same-generation path.
 - `ListOwnedPackageDependencyTargets` serves workflow-coordinator derivation.

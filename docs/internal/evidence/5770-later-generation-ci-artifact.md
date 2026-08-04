@@ -34,10 +34,11 @@ A generation containing `ci.artifact` but no run is a domain patch:
    those keys. Also reload the latest live `ci.workflow_image_evidence` rows for
    each recovered repository; the existing classifier still chooses exact
    commit evidence over repository fallback.
-4. Remove retained artifacts superseded by a current live artifact, and remove
-   the exact retained artifact named by a tombstone. The payload-bearing row
-   used to route a tombstone is never classified as live evidence, and the
-   tombstone control row is not quarantined as malformed input.
+4. Make current source facts authoritative over retained history. Artifacts use
+   their normalized stable identity plus live run identity; every other fact
+   kind uses the exact `(fact_kind, stable_fact_key)` pair. Remove all valid
+   current tombstones before typed decoding. A blank tombstone identity fails
+   closed, and a control tombstone is not quarantined as malformed input.
 5. Recompute the complete bounded patch snapshot and write it into the artifact
    generation. No prior derived correlation result is copied, so queue
    supersession of an unpublished predecessor cannot drop unaffected runs, while
@@ -57,6 +58,22 @@ the handler returned that old digest before examining the current artifact.
 The production-path regression now requires the current digest and image, and
 a focused edge test proves an empty current digest does not resurrect the old
 one.
+
+A fresh exact-head review found the same precedence gap for non-artifact
+evidence. An artifact patch carrying a current workflow-image tombstone first
+failed with an `exact` outcome and an `input_invalid` quarantine because the
+older workflow image remained live. The corrected path removes retained
+workflow-image, environment, deployment, trigger, and step facts only when a
+current fact has the same typed stable identity. Tests also preserve an
+unrelated fact with the same stable key under a different kind and a same-kind
+fact with a different or whitespace-distinct raw key. A mutation that limited
+the new precedence map to tombstones made both the direct live-identity test and
+the handler's current-workflow-image test fail; restoring live-row authority
+made both pass. The real PostgreSQL path carries a current environment
+tombstone and a current live environment replacement through the loader,
+handler, and durable writer. The retired environment stays absent, the live row
+normalizes `staging` to `stage`, both remain stable on identical replay, and the
+tombstone does not increment `input_invalid_facts`.
 
 The result summary counts the complete rebuilt source snapshot as `evaluated`;
 `preserved` is zero because the handler no longer copies prior derived rows.
@@ -143,8 +160,8 @@ older payload-bearing artifact identities behind intervening tombstones, and 90
 retained same-repository workflow-image rows, and removed all seeded prior
 correlation decisions. The fixture instead carries 1,000 retained `ci.run`
 source rows, so every output must be rebuilt even though the current generation
-patches only 90 runs. The complete handler took 0.930285292 seconds: 0.875116125
-seconds for retained source history and 0.044975125 seconds for the writer. It
+patches only 90 runs. The complete handler took 0.940901083 seconds: 0.882566458
+seconds for retained source history and 0.045969917 seconds for the writer. It
 remained inside the five-second budget without restoring the global stable-key
 index removed in migration 049. This final measurement is a correctness and
 no-regression proof, not a direct speedup comparison with the prior overlay
@@ -182,10 +199,10 @@ ESHU_POSTGRES_DSN=<local-test-dsn> \
   -run 'TestCICDRunCorrelationArtifactPatch(AgainstRealPostgres|RebuildsUnpublishedPredecessor|UsesLatestRunSnapshot)' \
   -count=1 -v
 
---- PASS: TestCICDRunCorrelationArtifactPatchUsesLatestRunSnapshot (0.60s)
---- PASS: TestCICDRunCorrelationArtifactPatchAgainstRealPostgres (0.35s)
---- PASS: TestCICDRunCorrelationArtifactPatchRebuildsUnpublishedPredecessor (0.23s)
-ok github.com/eshu-hq/eshu/go/internal/storage/postgres 4.573s
+--- PASS: TestCICDRunCorrelationArtifactPatchUsesLatestRunSnapshot (0.47s)
+--- PASS: TestCICDRunCorrelationArtifactPatchAgainstRealPostgres (0.29s)
+--- PASS: TestCICDRunCorrelationArtifactPatchRebuildsUnpublishedPredecessor (0.22s)
+ok github.com/eshu-hq/eshu/go/internal/storage/postgres 4.762s
 exit 0
 ```
 
@@ -229,8 +246,8 @@ The opt-in scale regression runs the shipped handler, retained source read,
 ```text
 manifest scopes=1 generations=25 retained_step_rows=216000
 live_artifact_keys=90 tombstone_keys=90 workflow_rows=90
-prior_decisions=0 output_decisions=1000 duration=930.285292ms
-history=875.116125ms writer=44.975125ms budget=5s
+prior_decisions=0 output_decisions=1000 duration=940.901083ms
+history=882.566458ms writer=45.969917ms budget=5s
 exit 0
 ```
 

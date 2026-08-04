@@ -86,12 +86,16 @@ func (h CICDRunCorrelationHandler) loadCICDRunCorrelationPatchFacts(
 	if err := requireHistoricalCICDRuns(historical, allTombstoneRunKeys); err != nil {
 		return nil, true, err
 	}
-	historical = excludeSupersededCICDArtifacts(
+	historical, err = excludeSupersededCICDFacts(
 		historical,
+		current,
 		directives.liveRunKeys,
 		mergeCICDArtifactStableKeys(directives.liveStableKeys, directives.tombstoneStableKeys),
 	)
-	current = excludeCICDArtifactTombstones(current)
+	if err != nil {
+		return nil, true, err
+	}
+	current = excludeCICDTombstones(current)
 	combined := make([]facts.Envelope, 0, len(historical)+len(current))
 	combined = append(combined, historical...)
 	combined = append(combined, current...)
