@@ -70,6 +70,10 @@
 // JSONB-incompatible U+0000 characters without changing literal source text
 // such as `\u0000`. Payload value filters are available only for top-level
 // payload fields that are part of a reducer domain's truth contract. Active
+// CI/CD artifact-patch reads treat the newest older normal run generation as
+// the ancillary-evidence lower bound. Exact live artifacts may recover an older
+// ci.run anchor, while artifact tombstones remain negative stable-key controls
+// and never add an omitted run to the rebuilt snapshot. Active
 // code-call symbol definition reads join
 // through ingestion_scopes.active_generation_id and only return non-tombstoned
 // file facts whose parsed definitions match the requested stable symbol

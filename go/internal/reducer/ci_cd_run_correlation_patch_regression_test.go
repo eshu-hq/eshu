@@ -266,7 +266,7 @@ func TestCICDRunCorrelationArtifactTombstoneRetractsPriorArtifactDecision(t *tes
 	}
 }
 
-func TestCICDRunCorrelationArtifactTombstoneFailsClosedWithoutRetainedIdentity(t *testing.T) {
+func TestCICDRunCorrelationArtifactTombstoneWithoutRetainedIdentityIsNoOp(t *testing.T) {
 	t.Parallel()
 
 	loader := &crossGenerationCICDRunFactLoader{
@@ -278,20 +278,27 @@ func TestCICDRunCorrelationArtifactTombstoneFailsClosedWithoutRetainedIdentity(t
 			Payload:       map[string]any{},
 		}},
 	}
+	writer := &recordingCICDRunCorrelationWriter{}
 	handler := CICDRunCorrelationHandler{
 		FactLoader: loader,
-		Writer:     &recordingCICDRunCorrelationWriter{},
+		Writer:     writer,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), Intent{
 		IntentID:     "intent-unresolved-artifact-tombstone",
 		ScopeID:      "ci://github-actions/acme/api",
 		GenerationID: "generation-2",
 		SourceSystem: "ci_cd_run",
 		Domain:       DomainCICDRunCorrelation,
 	})
-	if err == nil || !strings.Contains(err.Error(), "has no retained payload identity") {
-		t.Fatalf("Handle() error = %v, want fail-closed retained-identity error", err)
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want absent retained identity treated as a stable-key no-op", err)
+	}
+	if len(writer.write.Decisions) != 0 {
+		t.Fatalf("written decisions = %#v, want tombstone not to seed an omitted run", writer.write.Decisions)
+	}
+	if len(result.SubSignals) != 0 {
+		t.Fatalf("SubSignals = %#v, want tombstone treated as control evidence", result.SubSignals)
 	}
 }
 

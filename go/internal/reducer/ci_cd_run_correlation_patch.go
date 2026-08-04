@@ -20,7 +20,6 @@ type cicdRunCorrelationPatchFactLoader interface {
 		providers []string,
 		runIDs []string,
 		runAttempts []string,
-		artifactTombstoneKeys []string,
 	) ([]facts.Envelope, error)
 }
 
@@ -31,12 +30,9 @@ type cicdRunCorrelationPatchKey struct {
 }
 
 type cicdArtifactPatchDirectives struct {
-	liveRunKeys             []cicdRunCorrelationPatchKey
-	liveStableKeys          []string
-	payloadRunKeys          []cicdRunCorrelationPatchKey
-	tombstoneRunKeys        []cicdRunCorrelationPatchKey
-	tombstoneStableKeys     []string
-	unresolvedTombstoneKeys []string
+	liveRunKeys         []cicdRunCorrelationPatchKey
+	liveStableKeys      []string
+	tombstoneStableKeys []string
 }
 
 // loadCICDRunCorrelationPatchFacts expands an artifact-only generation into a
@@ -59,7 +55,7 @@ func (h CICDRunCorrelationHandler) loadCICDRunCorrelationPatchFacts(
 	if err != nil {
 		return nil, true, err
 	}
-	providers, runIDs, runAttempts := splitCICDArtifactPatchRunKeys(directives.payloadRunKeys)
+	providers, runIDs, runAttempts := splitCICDArtifactPatchRunKeys(directives.liveRunKeys)
 	historical, err := loader.ListCICDRunFactsForScopePatch(
 		ctx,
 		intent.ScopeID,
@@ -67,24 +63,9 @@ func (h CICDRunCorrelationHandler) loadCICDRunCorrelationPatchFacts(
 		providers,
 		runIDs,
 		runAttempts,
-		directives.unresolvedTombstoneKeys,
 	)
 	if err != nil {
 		return nil, true, fmt.Errorf("load historical ci/cd run facts: %w", classifyFactLoadError(err))
-	}
-	resolvedTombstoneKeys, err := resolveCICDArtifactTombstoneRunKeys(
-		historical,
-		directives.unresolvedTombstoneKeys,
-	)
-	if err != nil {
-		return nil, true, err
-	}
-	allTombstoneRunKeys := mergeCICDArtifactPatchRunKeys(
-		directives.tombstoneRunKeys,
-		resolvedTombstoneKeys,
-	)
-	if err := requireHistoricalCICDRuns(historical, allTombstoneRunKeys); err != nil {
-		return nil, true, err
 	}
 	historical, err = excludeSupersededCICDFacts(
 		historical,

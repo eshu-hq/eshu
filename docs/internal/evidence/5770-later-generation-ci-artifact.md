@@ -23,22 +23,24 @@ run from the newly active correlation snapshot.
 A generation containing any `ci.run` keeps the existing full-snapshot behavior.
 A generation containing `ci.artifact` but no run is a domain patch:
 
-1. Extract the artifact's exact provider, run ID, and run-attempt keys.
-2. For a payload-empty artifact tombstone, recover its provider/run/attempt
-   routing identity from the latest payload-bearing predecessor with the same
-   opaque stable fact key. Missing, blank, or pruned identity fails the intent
-   closed instead of preserving a stale exact decision.
-3. Select the newest older successful generation containing `ci.run` as the
-   normal run-window baseline, then union exact current artifact and recovered
-   tombstone-routing keys. Load the latest retained run-scoped facts for only
-   those keys. Also reload the latest live `ci.workflow_image_evidence` rows for
-   each recovered repository; the existing classifier still chooses exact
-   commit evidence over repository fallback.
+1. Extract exact provider, run ID, and run-attempt keys from live artifacts.
+   Artifact tombstones contribute only their opaque stable fact key; they never
+   add a run key.
+2. Select the newest older successful generation containing `ci.run` as the
+   normal run-window baseline, then union its run keys with exact live artifact
+   keys. The baseline is the lower bound for ancillary evidence. A live artifact
+   for an omitted run may recover only that run's older `ci.run` anchor.
+3. Load baseline and later run-scoped evidence for those keys. Reload live
+   `ci.workflow_image_evidence` rows for each recovered repository and matching
+   deployment events only from the same authoritative window; the existing
+   classifier still chooses exact commit evidence over repository fallback.
 4. Make current source facts authoritative over retained history. Artifacts use
    their normalized stable identity plus live run identity; every other fact
    kind uses the exact `(fact_kind, stable_fact_key)` pair. Remove all valid
-   current tombstones before typed decoding. A blank tombstone identity fails
-   closed, and a control tombstone is not quarantined as malformed input.
+   current tombstones before typed decoding. A tombstone retracts matching
+   evidence inside the window, is a no-op when that identity is already absent,
+   and never revives an omitted run. A blank identity fails closed, and a
+   control tombstone is not quarantined as malformed input.
 5. Recompute the complete bounded patch snapshot and write it into the artifact
    generation. No prior derived correlation result is copied, so queue
    supersession of an unpublished predecessor cannot drop unaffected runs, while
@@ -97,11 +99,11 @@ after:  ok github.com/eshu-hq/eshu/go/internal/storage/postgres
 
 Normal historical selection ranks a tombstone before filtering it, so a
 retracted run or artifact cannot return as live evidence through an older row.
-For a requested payload-empty artifact tombstone stable key only, the query
-separately recovers the latest older payload-bearing artifact as routing
-identity. The reducer removes that exact stable key before classification, so
-the routing row cannot become evidence. The history query rejects more than
-12,000 facts, and the handler rejects more than 1,000 rebuilt decisions. A
+The separate exact-history API can still recover a payload-bearing artifact for
+an explicitly requested tombstone stable key. The scope-patch reducer does not
+request that routing row: tombstones are negative stable-key controls, and only
+live artifacts may expand the baseline run set. The history query rejects more
+than 12,000 facts, and the handler rejects more than 1,000 rebuilt decisions. A
 storage adapter that lacks the patch read fails the reducer intent instead of
 acknowledging an empty result.
 
@@ -109,9 +111,8 @@ The two post-publication review regressions failed first: the storage query did
 not contain a workflow-image history lane, and a payload-empty artifact
 tombstone left the preceding exact artifact decision unchanged while also
 emitting a false `input_invalid` quarantine. The corrected path keeps workflow
-evidence tombstone-aware and repository-scoped, skips intervening empty
-tombstones only for routing identity, and retracts the retired artifact from the
-recomputed decision.
+evidence tombstone-aware and repository-scoped, and retracts a baseline artifact
+without using its tombstone to seed a run.
 
 Every decision is rebuilt from current retained source evidence, so evidence
 fact IDs remain resolvable for the same retention window as their source facts
@@ -154,7 +155,7 @@ patched exactly 90 decisions. This comparison establishes that the original
 query shape was unacceptable and that the shipped handler meets the local
 scale budget; it is not a general product speedup claim.
 
-The final post-review proof kept the same 216,000 retained step rows and
+The first post-review proof kept the same 216,000 retained step rows and
 1,000-decision output, added 90 payload-empty current artifact tombstones, 90
 older payload-bearing artifact identities behind intervening tombstones, and 90
 retained same-repository workflow-image rows, and removed all seeded prior
@@ -166,6 +167,19 @@ remained inside the five-second budget without restoring the global stable-key
 index removed in migration 049. This final measurement is a correctness and
 no-regression proof, not a direct speedup comparison with the prior overlay
 fixture.
+
+The later exact-head review found two authoritative-window violations. A global
+stable-key rank could return generation-one environment, step, or trigger
+evidence after a generation-two normal snapshot omitted it, and payload-empty
+tombstone routing could add a run that the newer snapshot omitted. Both focused
+regressions failed before the correction. The final query treats the newest
+normal run generation as the ancillary-evidence lower bound, allows an exact
+live artifact to recover only an older `ci.run` anchor, and never treats a
+tombstone as a positive run key. A scratch PostgreSQL statement proved the
+selection shape in 0.099 ms before production SQL changed. The shipped scale
+path then rebuilt 1,000 decisions over 216,000 retained steps in 911.249542 ms:
+853.030584 ms for history and 48.631459 ms for the writer, still below the
+five-second budget without a new index.
 
 Other candidates were rejected before implementation:
 
@@ -235,10 +249,10 @@ covers both optional-repository fallbacks: a run without
 repository-scoped run can attach an event that omits `repository_id`. Replaying
 the same reducer intent writes the same fact IDs and payloads without duplicate
 rows. It now also proves retained workflow-image evidence is loaded by
-repository without resurrecting a tombstoned workflow row, and that a repeated
-payload-empty artifact tombstone can route through its older payload-bearing
-identity, overwrite the stale exact decision, remove the artifact/image
-evidence, and avoid a false quarantine.
+repository without resurrecting a tombstoned workflow row. A baseline artifact
+tombstone removes artifact/image evidence without seeding an omitted run or
+producing a false quarantine; a tombstone whose identity is already outside the
+authoritative window is a no-op.
 
 The opt-in scale regression runs the shipped handler, retained source read,
 1,000-decision rebuild, and durable writer:
@@ -250,6 +264,11 @@ prior_decisions=0 output_decisions=1000 duration=910.34875ms
 history=858.709625ms writer=40.798708ms budget=5s
 exit 0
 ```
+
+After the final source and test bytes, the tracked coverage generator reported
+76.1% exact Go coverage, the canonical report and shield remained at 76%, and
+the report included 4,813 files. Regeneration produced no tracked diff, which
+proves the checked-in generated artifacts already match this change.
 
 The active image-identity loader returns one envelope per evidence support, not
 one envelope per canonical image. The delayed GitHub artifact has no active
@@ -276,11 +295,11 @@ drains: 0 residual work, 0 nonterminal shared intents, 0 nonterminal completion 
 mcp:list_ci_cd_run_correlations: 1 result
 mcp:list_container_image_identities: 1 result
 summary: 522 pass, 0 required-fail, 1 advisory-warn
-pipeline wall time: 126s (blocking ceiling 1800s)
+pipeline wall time: 124s (blocking ceiling 1800s)
 exit 0
 ```
 
-The advisory was `phase_maintenance_drains`: 27 seconds against its 19-second
+The advisory was `phase_maintenance_drains`: 25 seconds against its 19-second
 advisory ceiling. It did not affect the blocking pipeline budget or any truth,
 drain, replay, graph, HTTP, or MCP assertion.
 

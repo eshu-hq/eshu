@@ -28,7 +28,6 @@ func (l *timedCICDRunHistoryScaleLoader) ListCICDRunFactsForScopePatch(
 	providers []string,
 	runIDs []string,
 	runAttempts []string,
-	artifactTombstoneKeys []string,
 ) ([]facts.Envelope, error) {
 	started := time.Now()
 	loaded, err := l.FactStore.ListCICDRunFactsForScopePatch(
@@ -38,7 +37,6 @@ func (l *timedCICDRunHistoryScaleLoader) ListCICDRunFactsForScopePatch(
 		providers,
 		runIDs,
 		runAttempts,
-		artifactTombstoneKeys,
 	)
 	l.historyDuration = time.Since(started)
 	return loaded, err
@@ -61,12 +59,13 @@ func (w *timedCICDRunHistoryScaleWriter) WriteCICDRunCorrelations(
 
 // TestCICDRunCorrelationArtifactPatchAtRetainedHistoryScale runs the shipped
 // handler, history read, decoder, 1,000-decision rebuild, and writer against a
-// retained same-scope backlog. The patch contains 90 live artifacts and 90
-// payload-empty tombstones whose latest payload-bearing identities predate an
-// intervening tombstone, plus retained repository workflow-image evidence. No
-// prior correlation decisions are seeded, so all 1,000 outputs must come from
-// retained source facts. It is opt-in because seeding 216,000 step facts is too
-// expensive for the normal focused package loop.
+// retained same-scope backlog. The patch contains 90 live artifacts, 90
+// payload-empty tombstones that must not seed run keys, and retained repository
+// workflow-image evidence. The normal baseline already contains all 1,000 runs,
+// so its tombstones act only as stable-key controls. No prior correlation
+// decisions are seeded; every output must come from retained source facts. The
+// test is opt-in because seeding 216,000 step facts is too expensive for the
+// normal focused package loop.
 func TestCICDRunCorrelationArtifactPatchAtRetainedHistoryScale(t *testing.T) {
 	if os.Getenv("ESHU_CICD_RUN_HISTORY_SCALE_PROOF") != "1" {
 		t.Skip("set ESHU_CICD_RUN_HISTORY_SCALE_PROOF=1 for the retained-history performance proof")

@@ -94,6 +94,7 @@ ranked_run_facts AS MATERIALIZED (
         fact.observed_at,
         fact.is_tombstone,
         fact.payload,
+        fact.generation_ingested_at,
         ROW_NUMBER() OVER (
             PARTITION BY fact.fact_kind, fact.stable_fact_key
             ORDER BY fact.generation_ingested_at DESC,
@@ -121,6 +122,7 @@ ranked_tombstone_artifact_identities AS MATERIALIZED (
         fact.observed_at,
         fact.is_tombstone,
         fact.payload,
+        fact.generation_ingested_at,
         ROW_NUMBER() OVER (
             PARTITION BY fact.stable_fact_key
             ORDER BY fact.generation_ingested_at DESC,
@@ -129,7 +131,8 @@ ranked_tombstone_artifact_identities AS MATERIALIZED (
                      fact.fact_id DESC
         ) AS fact_rank
     FROM retained_run_facts AS fact
-    WHERE fact.fact_kind = 'ci.artifact'
+    WHERE NOT $9::boolean
+      AND fact.fact_kind = 'ci.artifact'
       AND fact.is_tombstone = FALSE
       AND BTRIM(fact.payload->>'provider') <> ''
       AND BTRIM(fact.payload->>'run_id') <> ''
@@ -145,7 +148,7 @@ latest_tombstone_artifact_identities AS MATERIALIZED (
     WHERE fact.fact_rank = 1
 ),
 latest_scope_run_generation AS MATERIALIZED (
-    SELECT fact.generation_id
+    SELECT fact.generation_id, fact.generation_ingested_at
     FROM retained_run_facts AS fact
     WHERE $9::boolean
       AND fact.fact_kind = 'ci.run'
@@ -161,6 +164,7 @@ effective_run_keys AS MATERIALIZED (
         BTRIM(fact.payload->>'run_id'),
         COALESCE(NULLIF(BTRIM(fact.payload->>'run_attempt'), ''), '1')
     FROM latest_tombstone_artifact_identities AS fact
+    WHERE NOT $9::boolean
     UNION
     SELECT
         BTRIM(fact.payload->>'provider'),
@@ -187,6 +191,16 @@ latest_run_facts AS MATERIALIZED (
             AND BTRIM(fact.payload->>'run_id') = requested.run_id
             AND COALESCE(NULLIF(BTRIM(fact.payload->>'run_attempt'), ''), '1') = requested.run_attempt
       )
+      AND (
+          NOT $9::boolean
+          OR fact.fact_kind = 'ci.run'
+          OR EXISTS (
+              SELECT 1
+              FROM latest_scope_run_generation AS snapshot
+              WHERE (fact.generation_ingested_at, fact.generation_id)
+                    >= (snapshot.generation_ingested_at, snapshot.generation_id)
+          )
+      )
 ),
 selected_runs AS MATERIALIZED (
     SELECT DISTINCT
@@ -202,6 +216,15 @@ latest_workflow_image_facts AS MATERIALIZED (
     WHERE fact.fact_rank = 1
       AND fact.fact_kind = 'ci.workflow_image_evidence'
       AND fact.is_tombstone = FALSE
+      AND (
+          NOT $9::boolean
+          OR EXISTS (
+              SELECT 1
+              FROM latest_scope_run_generation AS snapshot
+              WHERE (fact.generation_ingested_at, fact.generation_id)
+                    >= (snapshot.generation_ingested_at, snapshot.generation_id)
+          )
+      )
       AND EXISTS (
           SELECT 1
           FROM selected_runs AS run
@@ -227,6 +250,7 @@ ranked_deployment_facts AS MATERIALIZED (
         fact.observed_at,
         fact.is_tombstone,
         fact.payload,
+        generation.ingested_at AS generation_ingested_at,
         ROW_NUMBER() OVER (
             PARTITION BY fact.fact_kind, fact.stable_fact_key
             ORDER BY generation.ingested_at DESC,
@@ -250,6 +274,15 @@ latest_deployment_facts AS MATERIALIZED (
     FROM ranked_deployment_facts AS fact
     WHERE fact.fact_rank = 1
       AND fact.is_tombstone = FALSE
+      AND (
+          NOT $9::boolean
+          OR EXISTS (
+              SELECT 1
+              FROM latest_scope_run_generation AS snapshot
+              WHERE (fact.generation_ingested_at, fact.generation_id)
+                    >= (snapshot.generation_ingested_at, snapshot.generation_id)
+          )
+      )
       AND EXISTS (
           SELECT 1
           FROM selected_runs AS run
@@ -321,10 +354,10 @@ func (s FactStore) ListCICDRunFactsForRunKeys(
 	)
 }
 
-// ListCICDRunFactsForScopePatch returns the latest older run-window snapshot
-// plus exact evidence requested by an artifact-only generation. Rebuilding from
-// source evidence keeps the target generation complete without resurrecting
-// runs omitted by a newer normal snapshot.
+// ListCICDRunFactsForScopePatch returns the latest older normal run snapshot,
+// later retained patch evidence, and ci.run anchors for exact live artifact
+// keys. Evidence older than the normal snapshot stays excluded except for those
+// run anchors, and artifact tombstones never seed omitted runs.
 func (s FactStore) ListCICDRunFactsForScopePatch(
 	ctx context.Context,
 	scopeID string,
@@ -332,7 +365,6 @@ func (s FactStore) ListCICDRunFactsForScopePatch(
 	providers []string,
 	runIDs []string,
 	runAttempts []string,
-	artifactTombstoneKeys []string,
 ) ([]facts.Envelope, error) {
 	return s.listCICDRunFacts(
 		ctx,
@@ -341,7 +373,7 @@ func (s FactStore) ListCICDRunFactsForScopePatch(
 		providers,
 		runIDs,
 		runAttempts,
-		artifactTombstoneKeys,
+		nil,
 		true,
 	)
 }

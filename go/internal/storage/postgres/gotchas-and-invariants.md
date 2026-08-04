@@ -38,13 +38,18 @@ operational lessons that future storage changes still need to respect.
   it separately returns the latest older payload-bearing artifact as routing
   identity; the reducer must remove that exact stable key before classification.
   `ListCICDRunFactsForScopePatch` selects run keys from the newest older
-  generation containing `ci.run`, then unions exact current artifact and
-  tombstone-routing keys. It reloads tombstone-aware workflow-image evidence by
-  recovered repository and matching deployment events by recovered run commit.
-  This keeps unaffected runs from the latest normal window without resurrecting
-  runs that window omitted, even when an unpublished predecessor reducer result
-  was superseded. It preserves the typed optional-repository fallback when
-  either side omits `repository_id` and rejects more than 12,000 returned facts.
+  generation containing `ci.run`, then unions exact keys from current live artifacts.
+  The normal generation is a lower bound for run-scoped, workflow-image, and
+  deployment evidence. A live artifact may recover an older omitted `ci.run`
+  anchor, but it cannot recover that run's pre-baseline environment, step,
+  trigger, workflow-image, deployment, or artifact evidence. Current artifact
+  tombstones are stable-key controls only; they never add a run key, and an
+  identity already absent from the authoritative window is a no-op. This keeps
+  unaffected runs from the latest normal window without resurrecting runs or
+  evidence that window omitted, even when an unpublished predecessor reducer
+  result was superseded. It preserves the typed optional-repository fallback
+  when either side omits `repository_id` and rejects more than 12,000 returned
+  facts.
   After this read, the reducer gives every current non-artifact fact authority
   over retained history only for its exact raw `(fact_kind, stable_fact_key)`
   identity, while artifacts retain their normalized stable-key and live run-key

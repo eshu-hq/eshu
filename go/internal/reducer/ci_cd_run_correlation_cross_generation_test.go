@@ -39,7 +39,7 @@ func (l *crossGenerationCICDRunFactLoader) ListFactsByKind(
 func (l *crossGenerationCICDRunFactLoader) ListCICDRunFactsForScopePatch(
 	_ context.Context,
 	_, _ string,
-	_, _, _, _ []string,
+	_, _, _ []string,
 ) ([]facts.Envelope, error) {
 	l.historicalCalls++
 	return append([]facts.Envelope(nil), l.historicalRunFacts...), nil

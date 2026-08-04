@@ -16,10 +16,7 @@ func cicdArtifactPatchDirectivesFromCurrent(
 ) (cicdArtifactPatchDirectives, error) {
 	liveKeys := make(map[cicdRunCorrelationPatchKey]struct{})
 	liveStableKeys := make(map[string]struct{})
-	payloadKeys := make(map[cicdRunCorrelationPatchKey]struct{})
-	tombstoneRunKeys := make(map[cicdRunCorrelationPatchKey]struct{})
 	tombstoneStableKeys := make(map[string]struct{})
-	unresolvedTombstoneKeys := make(map[string]struct{})
 	for _, envelope := range envelopes {
 		if envelope.FactKind != facts.CICDArtifactFactKind {
 			continue
@@ -31,7 +28,6 @@ func cicdArtifactPatchDirectivesFromCurrent(
 			}
 			if decoded {
 				liveKeys[key] = struct{}{}
-				payloadKeys[key] = struct{}{}
 			}
 			continue
 		}
@@ -43,33 +39,12 @@ func cicdArtifactPatchDirectivesFromCurrent(
 			)
 		}
 		tombstoneStableKeys[stableKey] = struct{}{}
-		if decoded {
-			payloadKeys[key] = struct{}{}
-			tombstoneRunKeys[key] = struct{}{}
-			continue
-		}
-		unresolvedTombstoneKeys[stableKey] = struct{}{}
 	}
 	return cicdArtifactPatchDirectives{
-		liveRunKeys:             sortedCICDArtifactPatchRunKeys(liveKeys),
-		liveStableKeys:          sortedCICDArtifactStableKeys(liveStableKeys),
-		payloadRunKeys:          sortedCICDArtifactPatchRunKeys(payloadKeys),
-		tombstoneRunKeys:        sortedCICDArtifactPatchRunKeys(tombstoneRunKeys),
-		tombstoneStableKeys:     sortedCICDArtifactStableKeys(tombstoneStableKeys),
-		unresolvedTombstoneKeys: sortedCICDArtifactStableKeys(unresolvedTombstoneKeys),
+		liveRunKeys:         sortedCICDArtifactPatchRunKeys(liveKeys),
+		liveStableKeys:      sortedCICDArtifactStableKeys(liveStableKeys),
+		tombstoneStableKeys: sortedCICDArtifactStableKeys(tombstoneStableKeys),
 	}, nil
-}
-
-func mergeCICDArtifactPatchRunKeys(
-	groups ...[]cicdRunCorrelationPatchKey,
-) []cicdRunCorrelationPatchKey {
-	unique := make(map[cicdRunCorrelationPatchKey]struct{})
-	for _, group := range groups {
-		for _, key := range group {
-			unique[key] = struct{}{}
-		}
-	}
-	return sortedCICDArtifactPatchRunKeys(unique)
 }
 
 func sortedCICDArtifactPatchRunKeys(
@@ -116,82 +91,6 @@ func mergeCICDArtifactStableKeys(groups ...[]string) []string {
 		}
 	}
 	return sortedCICDArtifactStableKeys(unique)
-}
-
-func resolveCICDArtifactTombstoneRunKeys(
-	historical []facts.Envelope,
-	requested []string,
-) ([]cicdRunCorrelationPatchKey, error) {
-	if len(requested) == 0 {
-		return nil, nil
-	}
-	requestedSet := make(map[string]struct{}, len(requested))
-	for _, stableKey := range requested {
-		requestedSet[stableKey] = struct{}{}
-	}
-	resolved := make(map[string]cicdRunCorrelationPatchKey, len(requested))
-	for _, envelope := range historical {
-		stableKey := strings.TrimSpace(envelope.StableFactKey)
-		if _, wanted := requestedSet[stableKey]; !wanted {
-			continue
-		}
-		key, ok := cicdArtifactPatchKeyFromEnvelope(envelope)
-		if !ok {
-			continue
-		}
-		if prior, exists := resolved[stableKey]; exists && prior != key {
-			return nil, fmt.Errorf(
-				"load ci/cd run correlation patch: artifact tombstone key %q resolved to conflicting run identities",
-				stableKey,
-			)
-		}
-		resolved[stableKey] = key
-	}
-	keys := make(map[cicdRunCorrelationPatchKey]struct{}, len(resolved))
-	for _, stableKey := range requested {
-		key, ok := resolved[stableKey]
-		if !ok {
-			return nil, fmt.Errorf(
-				"load ci/cd run correlation patch: artifact tombstone key %q has no retained payload identity",
-				stableKey,
-			)
-		}
-		keys[key] = struct{}{}
-	}
-	return sortedCICDArtifactPatchRunKeys(keys), nil
-}
-
-func requireHistoricalCICDRuns(
-	historical []facts.Envelope,
-	keys []cicdRunCorrelationPatchKey,
-) error {
-	if len(keys) == 0 {
-		return nil
-	}
-	available := make(map[cicdRunCorrelationPatchKey]struct{}, len(keys))
-	for _, envelope := range historical {
-		if envelope.FactKind != facts.CICDRunFactKind {
-			continue
-		}
-		run, err := decodeCICDRun(envelope)
-		if err != nil {
-			continue
-		}
-		available[cicdRunCorrelationPatchKey{
-			provider:   trimmedCICDField(run.Provider),
-			runID:      trimmedCICDField(run.RunID),
-			runAttempt: defaultCICDRunAttempt(trimmedCICDPtr(run.RunAttempt)),
-		}] = struct{}{}
-	}
-	for _, key := range keys {
-		if _, ok := available[key]; !ok {
-			return fmt.Errorf(
-				"load ci/cd run correlation patch: artifact tombstone run %q has no retained ci.run identity",
-				cicdRunCorrelationPatchKeyString(key),
-			)
-		}
-	}
-	return nil
 }
 
 type cicdStableFactIdentity struct {

@@ -77,7 +77,6 @@ func TestListCICDRunFactsForScopePatchUsesLatestOlderRunSnapshot(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		nil,
 	)
 	if err != nil {
 		t.Fatalf("ListCICDRunFactsForScopePatch() error = %v, want nil", err)
@@ -88,11 +87,14 @@ func TestListCICDRunFactsForScopePatchUsesLatestOlderRunSnapshot(t *testing.T) {
 	query := db.queries[0].query
 	for _, want := range []string{
 		"latest_scope_run_generation AS MATERIALIZED",
+		"SELECT fact.generation_id, fact.generation_ingested_at",
 		"WHERE $9::boolean",
 		"fact.fact_kind = 'ci.run'",
 		"ORDER BY fact.generation_ingested_at DESC, fact.generation_id DESC",
 		"JOIN latest_scope_run_generation AS snapshot",
 		"ON snapshot.generation_id = fact.generation_id",
+		">= (snapshot.generation_ingested_at, snapshot.generation_id)",
+		"OR fact.fact_kind = 'ci.run'",
 		"fact.fact_rank = 1",
 		"fact.is_tombstone = FALSE",
 	} {
