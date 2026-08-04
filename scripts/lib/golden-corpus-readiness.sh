@@ -26,3 +26,39 @@ host_tcp_port_open() {
 	local host="$1" port="$2"
 	(exec 3<>"/dev/tcp/${host}/${port}") 2>/dev/null
 }
+
+# start_golden_corpus_backends owns Compose startup and the paired graph plus
+# Postgres readiness loop. The caller provides the gate's configuration, log(),
+# and die(); keeping orchestration here gives the top-level gate file headroom.
+start_golden_corpus_backends() {
+	local backends_ready graph_ready
+	[[ "${use_compose}" -eq 1 ]] || return 0
+
+	log "start Postgres + ${graph_service}"
+	ESHU_NEO4J_PASSWORD="${ESHU_NEO4J_PASSWORD}" ESHU_POSTGRES_PASSWORD="${ESHU_POSTGRES_PASSWORD}" \
+		docker compose -f "${compose_file}" up -d "${graph_service}" postgres
+
+	log "wait for backends"
+	backends_ready=false
+	for _ in $(seq 1 60); do
+		graph_ready=false
+		# NornicDB is one process whose HTTP and Bolt listeners start together;
+		# this health request performs a real TCP and HTTP round trip.
+		if [[ "${graph_service}" == "nornicdb" ]]; then
+			docker compose -f "${compose_file}" exec -T nornicdb wget --spider -q http://localhost:7474/health >/dev/null 2>&1 && graph_ready=true
+		else
+			docker compose -f "${compose_file}" exec -T neo4j cypher-shell -u neo4j -p "${ESHU_NEO4J_PASSWORD}" "RETURN 1" >/dev/null 2>&1 && graph_ready=true
+		fi
+		# Require both the container socket probe and the host TCP path used by
+		# every following consumer; either check alone can report too early.
+		if [[ "${graph_ready}" == "true" ]] && \
+			docker compose -f "${compose_file}" exec -T postgres pg_isready -U eshu -d eshu >/dev/null 2>&1 && \
+			host_tcp_port_open 127.0.0.1 "${ESHU_POSTGRES_PORT}"; then
+			backends_ready=true
+			break
+		fi
+		sleep 2
+	done
+	[[ "${backends_ready}" == "true" ]] ||
+		die "Postgres + ${graph_service} did not become ready within budget"
+}

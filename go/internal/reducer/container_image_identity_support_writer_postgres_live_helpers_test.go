@@ -103,6 +103,19 @@ INSERT INTO fact_work_items (
 	}
 }
 
+func completeContainerImageIdentityLiveWork(t *testing.T, db *sql.DB, intentID string) {
+	t.Helper()
+	if _, err := db.Exec(`
+UPDATE fact_work_items
+SET status = 'succeeded',
+    container_image_identity_v2_authorized_status = 'succeeded',
+    container_image_identity_v3_authorized_status = 'succeeded'
+WHERE work_item_id = $1
+`, intentID); err != nil {
+		t.Fatalf("complete work item %q: %v", intentID, err)
+	}
+}
+
 func containerImageIdentityLiveEpoch(
 	t *testing.T,
 	db *sql.DB,
