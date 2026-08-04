@@ -181,20 +181,37 @@ func TestCICDRunCorrelationArtifactTombstoneRejectsBlankStableKey(t *testing.T) 
 	}
 }
 
-func TestCICDRunCorrelationPayloadEmptyLiveArtifactStillQuarantines(t *testing.T) {
+func TestCICDRunCorrelationPayloadEmptyLiveArtifactRetractsRetainedIdentityAndQuarantines(t *testing.T) {
 	t.Parallel()
 
+	const digest = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+	const stableKey = "malformed-live-key"
+	priorArtifact := ciArtifactFact("artifact-prior", "run-malformed-artifact", digest)
+	priorArtifact.StableFactKey = stableKey
 	loader := &crossGenerationCICDRunFactLoader{
 		currentFacts: []facts.Envelope{{
 			FactID:        "artifact-malformed-live",
 			FactKind:      facts.CICDArtifactFactKind,
-			StableFactKey: "malformed-live-key",
+			StableFactKey: stableKey,
 			Payload:       map[string]any{},
 		}},
+		historicalRunFacts: []facts.Envelope{
+			ciRunFact("run-malformed-artifact", "github_actions", "repo-api", "abc123"),
+			priorArtifact,
+		},
+		activeFacts: []facts.Envelope{
+			containerImageIdentityFact(
+				"image-prior",
+				"repo-api",
+				"registry.example.com/team/api@"+digest,
+				digest,
+			),
+		},
 	}
+	writer := &recordingCICDRunCorrelationWriter{}
 	handler := CICDRunCorrelationHandler{
 		FactLoader: loader,
-		Writer:     &recordingCICDRunCorrelationWriter{},
+		Writer:     writer,
 	}
 
 	result, err := handler.Handle(context.Background(), Intent{
@@ -209,5 +226,14 @@ func TestCICDRunCorrelationPayloadEmptyLiveArtifactStillQuarantines(t *testing.T
 	}
 	if got := result.SubSignals["input_invalid_facts"]; got != 1 {
 		t.Fatalf("input_invalid_facts = %v, want 1 malformed live artifact", got)
+	}
+	decision := cicdDecisionsByRun(writer.write.Decisions)["github_actions:run-malformed-artifact:1"]
+	assertCICDDecision(t, decision, CICDRunCorrelationDerived, 0)
+	if decision.ArtifactDigest != "" || decision.ImageRef != "" {
+		t.Fatalf("malformed current artifact decision = %#v, want no retained artifact identity", decision)
+	}
+	if stringSliceContains(decision.EvidenceFactIDs, "artifact-prior") ||
+		stringSliceContains(decision.EvidenceFactIDs, "image-prior") {
+		t.Fatalf("EvidenceFactIDs = %#v, must not resurrect superseded artifact evidence", decision.EvidenceFactIDs)
 	}
 }

@@ -32,6 +32,7 @@ type cicdRunCorrelationPatchKey struct {
 
 type cicdArtifactPatchDirectives struct {
 	liveRunKeys             []cicdRunCorrelationPatchKey
+	liveStableKeys          []string
 	payloadRunKeys          []cicdRunCorrelationPatchKey
 	tombstoneRunKeys        []cicdRunCorrelationPatchKey
 	tombstoneStableKeys     []string
@@ -88,7 +89,7 @@ func (h CICDRunCorrelationHandler) loadCICDRunCorrelationPatchFacts(
 	historical = excludeSupersededCICDArtifacts(
 		historical,
 		directives.liveRunKeys,
-		directives.tombstoneStableKeys,
+		mergeCICDArtifactStableKeys(directives.liveStableKeys, directives.tombstoneStableKeys),
 	)
 	current = excludeCICDArtifactTombstones(current)
 	combined := make([]facts.Envelope, 0, len(historical)+len(current))

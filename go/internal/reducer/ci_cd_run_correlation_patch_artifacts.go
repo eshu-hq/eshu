@@ -15,6 +15,7 @@ func cicdArtifactPatchDirectivesFromCurrent(
 	envelopes []facts.Envelope,
 ) (cicdArtifactPatchDirectives, error) {
 	liveKeys := make(map[cicdRunCorrelationPatchKey]struct{})
+	liveStableKeys := make(map[string]struct{})
 	payloadKeys := make(map[cicdRunCorrelationPatchKey]struct{})
 	tombstoneRunKeys := make(map[cicdRunCorrelationPatchKey]struct{})
 	tombstoneStableKeys := make(map[string]struct{})
@@ -25,6 +26,9 @@ func cicdArtifactPatchDirectivesFromCurrent(
 		}
 		key, decoded := cicdArtifactPatchKeyFromEnvelope(envelope)
 		if !envelope.IsTombstone {
+			if stableKey := strings.TrimSpace(envelope.StableFactKey); stableKey != "" {
+				liveStableKeys[stableKey] = struct{}{}
+			}
 			if decoded {
 				liveKeys[key] = struct{}{}
 				payloadKeys[key] = struct{}{}
@@ -48,6 +52,7 @@ func cicdArtifactPatchDirectivesFromCurrent(
 	}
 	return cicdArtifactPatchDirectives{
 		liveRunKeys:             sortedCICDArtifactPatchRunKeys(liveKeys),
+		liveStableKeys:          sortedCICDArtifactStableKeys(liveStableKeys),
 		payloadRunKeys:          sortedCICDArtifactPatchRunKeys(payloadKeys),
 		tombstoneRunKeys:        sortedCICDArtifactPatchRunKeys(tombstoneRunKeys),
 		tombstoneStableKeys:     sortedCICDArtifactStableKeys(tombstoneStableKeys),
@@ -101,6 +106,16 @@ func sortedCICDArtifactStableKeys(unique map[string]struct{}) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+func mergeCICDArtifactStableKeys(groups ...[]string) []string {
+	unique := make(map[string]struct{})
+	for _, group := range groups {
+		for _, stableKey := range group {
+			unique[stableKey] = struct{}{}
+		}
+	}
+	return sortedCICDArtifactStableKeys(unique)
 }
 
 func resolveCICDArtifactTombstoneRunKeys(
@@ -179,27 +194,27 @@ func requireHistoricalCICDRuns(
 	return nil
 }
 
-// excludeSupersededCICDArtifacts keeps current live artifact snapshots
-// authoritative by run key and artifact tombstones authoritative by stable
-// identity. Retained run, environment, trigger, step, workflow-image, and
-// deployment evidence still participates in the recomputation.
+// excludeSupersededCICDArtifacts keeps current artifact snapshots authoritative
+// by run and stable identity, including malformed live facts that only retain
+// their opaque stable key. Retained non-artifact evidence still participates in
+// the recomputation.
 func excludeSupersededCICDArtifacts(
 	historical []facts.Envelope,
 	currentKeys []cicdRunCorrelationPatchKey,
-	tombstoneStableKeys []string,
+	currentStableKeys []string,
 ) []facts.Envelope {
 	currentKeySet := make(map[cicdRunCorrelationPatchKey]struct{}, len(currentKeys))
 	for _, key := range currentKeys {
 		currentKeySet[key] = struct{}{}
 	}
-	tombstoneKeySet := make(map[string]struct{}, len(tombstoneStableKeys))
-	for _, stableKey := range tombstoneStableKeys {
-		tombstoneKeySet[stableKey] = struct{}{}
+	currentStableKeySet := make(map[string]struct{}, len(currentStableKeys))
+	for _, stableKey := range currentStableKeys {
+		currentStableKeySet[stableKey] = struct{}{}
 	}
 	filtered := make([]facts.Envelope, 0, len(historical))
 	for _, envelope := range historical {
 		if envelope.FactKind == facts.CICDArtifactFactKind {
-			if _, retired := tombstoneKeySet[strings.TrimSpace(envelope.StableFactKey)]; retired {
+			if _, superseded := currentStableKeySet[strings.TrimSpace(envelope.StableFactKey)]; superseded {
 				continue
 			}
 		}

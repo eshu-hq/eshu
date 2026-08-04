@@ -216,8 +216,8 @@ ORDER BY payload->>'run_id'`)
 	if err := rows.Err(); err != nil {
 		t.Fatalf("iterate active patched correlations: %v", err)
 	}
-	if len(got) != 7 {
-		t.Fatalf("active rebuilt correlations = %#v, want all seven latest retained runs", got)
+	if len(got) != 8 {
+		t.Fatalf("active rebuilt correlations = %#v, want all eight latest retained runs", got)
 	}
 	runA := got["run-a:1"]
 	if runA.RepositoryID != "repo-api" || runA.CommitSHA != "abc123" ||
@@ -251,6 +251,16 @@ ORDER BY payload->>'run_id'`)
 		if containsCICDRunHistoryLiveString(retired.EvidenceFactIDs, stale) {
 			t.Fatalf("retired-artifact evidence = %#v, must exclude %q", retired.EvidenceFactIDs, stale)
 		}
+	}
+	malformed := got["run-malformed-artifact:1"]
+	if malformed.Outcome != "derived" || malformed.CanonicalWrites != 0 {
+		t.Fatalf("malformed-current-artifact outcome = %#v, want derived with no canonical write", malformed)
+	}
+	if malformed.ArtifactDigest != "" || malformed.ImageRef != "" {
+		t.Fatalf("malformed-current-artifact identity = %#v, want retracted retained identity", malformed)
+	}
+	if containsCICDRunHistoryLiveString(malformed.EvidenceFactIDs, "artifact-malformed-gen-1") {
+		t.Fatalf("malformed-current-artifact evidence = %#v, must exclude retained artifact", malformed.EvidenceFactIDs)
 	}
 	return got
 }
@@ -362,6 +372,11 @@ INSERT INTO scope_generations (
 		`{"provider":"github_actions","run_id":"run-retired-artifact","run_attempt":"1","artifact_id":"artifact-retired","artifact_type":"container_image","artifact_digest":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}`)
 	insertCICDRunHistoryLiveFact(t, ctx, db, "artifact-retired-gen-2", "gen-2", "ci.artifact", "artifact-retired-key", true, `{}`)
 	insertCICDRunHistoryLiveFact(t, ctx, db, "artifact-retired-gen-3", "gen-3", "ci.artifact", "artifact-retired-key", true, `{}`)
+	insertCICDRunHistoryLiveFact(t, ctx, db, "run-malformed-artifact-gen-1", "gen-1", "ci.run", "run-malformed-artifact-key", false,
+		`{"provider":"github_actions","run_id":"run-malformed-artifact","run_attempt":"1","repository_id":"repo-api","commit_sha":"malformed123","status":"completed","result":"success"}`)
+	insertCICDRunHistoryLiveFact(t, ctx, db, "artifact-malformed-gen-1", "gen-1", "ci.artifact", "artifact-malformed-key", false,
+		`{"provider":"github_actions","run_id":"run-malformed-artifact","run_attempt":"1","artifact_id":"artifact-malformed","artifact_type":"container_image","artifact_digest":"sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}`)
+	insertCICDRunHistoryLiveFact(t, ctx, db, "artifact-malformed-gen-3", "gen-3", "ci.artifact", "artifact-malformed-key", false, `{}`)
 
 	insertCICDRunHistoryLiveFact(t, ctx, db, "correlation-a-gen-2", "gen-2", "reducer_ci_cd_run_correlation", "correlation-a-key", false,
 		`{"provider":"github_actions","run_id":"run-a","run_attempt":"1","repository_id":"repo-api","commit_sha":"abc123","environment":"prod","environment_evidence":"deploy_event","artifact_digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","image_ref":"registry.example.invalid/team/old@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","outcome":"exact","reason":"prior exact artifact","provenance_only":false,"canonical_writes":1,"evidence_fact_ids":["run-a-gen-1","deployment-a-gen-1","artifact-a-old","image-a-old"]}`)
