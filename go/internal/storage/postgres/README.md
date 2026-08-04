@@ -1514,18 +1514,20 @@ candidate/skipped/loaded counts. A high skip ratio against a stable catalog is
 the operator-visible signal the memo is effective; a skip ratio that collapses to
 zero signals a catalog churn or a memo-write regression.
 
-### Cross-scope completion and correlation reopen (#5423 / #5710 / #5426 / #5837 / #5740)
+### Cross-scope completion and correlation reopen (#5423 / #5710 / #5426 / #5837 / #5699 / #5740)
 
 `CrossScopeCorrelationReopenDomains` (`ingestion_reopen_correlation.go`) is the
 single source of truth for reducer domains that still need blanket replay after
 a maintenance pass: `deployable_unit_correlation`,
-`kubernetes_correlation_materialization`, and `aws_cloud_runtime_drift`. Both
-runtimes consume it — the
+`kubernetes_correlation_materialization`, `container_image_identity`, and
+`aws_cloud_runtime_drift`. Container image identity needs this replay when a
+cloud image-reference decision succeeds before the matching OCI registry
+generation activates. Both runtimes consume the list — the
 ingester on every shard drain through `reopenMaintenanceWorkItemsInTransaction`,
 and `eshu-bootstrap-index` once through its `correlation_reopen` phase.
 
-The identity -> CI/CD -> supply-chain chain no longer relies on unordered
-blanket replay. A successful `container_image_identity` or
+Downstream of identity, the identity -> CI/CD -> supply-chain chain no longer
+relies on unordered blanket replay. A successful `container_image_identity` or
 `ci_cd_run_correlation` ACK appends a row to
 `cross_scope_completion_events` atomically with the producer success. The
 resolution engine leases that durable queue and fans out current-generation

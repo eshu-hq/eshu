@@ -23,8 +23,9 @@ require_matches "container image identity demotion command must be exact and fai
 demotion_block_pattern='^\tif ! \(\n\t\tcd "\$\{repo_root\}/go"\n\t\tESHU_POSTGRES_TEST_DSN="\$\{ESHU_POSTGRES_DSN\}" go test \./internal/reducer -run "\^\$\{test_name\}\$" -count=1 -timeout=60s -json\n\t\) >"\$\{proof_json\}" 2>"\$\{proof_stderr\}"; then\n\t\tcat "\$\{proof_stderr\}"\n\t\tgolden_corpus_render_test_output "\$\{proof_json\}"\n\t\tdie "container image identity canonical-to-demoted lifecycle proof failed"\n\tfi$'
 require_matches "container image identity demotion block must propagate failure" \
 	"${demotion_lib}" "${demotion_block_pattern}"
-require_in "demotion proof event-count validation" "${demotion_lib}" \
-	'golden_corpus_exact_test_passed "${proof_json}" "${test_name}" ||'
+demotion_event_count_pattern='^\tgolden_corpus_exact_test_passed "\$\{proof_json\}" "\$\{test_name\}" \|\|\n\t\tdie "container image identity demotion proof must report exactly one run, one pass, and zero skips"$'
+require_matches "demotion proof event-count validation" \
+	"${demotion_lib}" "${demotion_event_count_pattern}"
 
 demotion_command_fixture="$(mktemp -t golden-corpus-demotion-command.XXXXXX)"
 demotion_command='ESHU_POSTGRES_TEST_DSN="${ESHU_POSTGRES_DSN}" go test ./internal/reducer -run "^${test_name}$" -count=1 -timeout=60s -json'
@@ -86,7 +87,25 @@ if golden_corpus_exact_test_passed "${demotion_event_fixture}" "${demotion_test_
 fi
 rm -f "${demotion_event_fixture}"
 unset demotion_block_pattern demotion_command demotion_command_fixture demotion_command_pattern
+unset demotion_event_count_pattern
 unset demotion_event_fixture demotion_lib demotion_test_name
+
+cloud_reopen_lib="${repo_root}/scripts/lib/golden-corpus-container-image-demotion.sh"
+require_invocation "cloud image reopen ordering proof invocation" \
+	"run_container_image_identity_cloud_reopen_ordering_proof"
+require_in "exact cloud image reopen ordering test name" "${cloud_reopen_lib}" \
+	'test_name="TestContainerImageIdentityCloudReferenceReopenOrderingPostgresLive"'
+cloud_reopen_command_pattern='^\t\tESHU_POSTGRES_DSN="\$\{ESHU_POSTGRES_DSN\}" go test \./internal/storage/postgres -run "\^\$\{test_name\}\$" -count=1 -timeout=120s -json$'
+require_matches "cloud image reopen ordering command must be exact and fail closed" \
+	"${cloud_reopen_lib}" "${cloud_reopen_command_pattern}"
+cloud_reopen_block_pattern='^\tif ! \(\n\t\tcd "\$\{repo_root\}/go"\n\t\tESHU_POSTGRES_DSN="\$\{ESHU_POSTGRES_DSN\}" go test \./internal/storage/postgres -run "\^\$\{test_name\}\$" -count=1 -timeout=120s -json\n\t\) >"\$\{proof_json\}" 2>"\$\{proof_stderr\}"; then\n\t\tcat "\$\{proof_stderr\}"\n\t\tgolden_corpus_render_test_output "\$\{proof_json\}"\n\t\tdie "container image identity cloud reopen ordering proof failed"\n\tfi$'
+require_matches "cloud image reopen ordering block must propagate failure" \
+	"${cloud_reopen_lib}" "${cloud_reopen_block_pattern}"
+cloud_reopen_event_count_pattern='^\tgolden_corpus_exact_test_passed "\$\{proof_json\}" "\$\{test_name\}" \|\|\n\t\tdie "cloud reopen ordering proof must report exactly one run, one pass, and zero skips"$'
+require_matches "cloud image reopen ordering event-count validation" \
+	"${cloud_reopen_lib}" "${cloud_reopen_event_count_pattern}"
+unset cloud_reopen_block_pattern cloud_reopen_command_pattern cloud_reopen_event_count_pattern
+unset cloud_reopen_lib
 
 require "cassette replay" "-mode=cassette"
 require "projector drain" "eshu-projector"

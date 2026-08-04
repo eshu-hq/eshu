@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deterministic container image identity demotion proof for B-7. The caller
+# Deterministic container image identity lifecycle proofs for B-7. The caller
 # provides repo_root, log_dir, ESHU_POSTGRES_DSN, log(), and die().
 
 golden_corpus_exact_test_passed() {
@@ -41,4 +41,27 @@ run_container_image_identity_demotion_proof() {
 	golden_corpus_exact_test_passed "${proof_json}" "${test_name}" ||
 		die "container image identity demotion proof must report exactly one run, one pass, and zero skips"
 	log "container image identity demotion proof completed in $(( $(date +%s) - proof_start ))s"
+}
+
+run_container_image_identity_cloud_reopen_ordering_proof() {
+	local proof_start proof_json proof_stderr test_name
+	test_name="TestContainerImageIdentityCloudReferenceReopenOrderingPostgresLive"
+	proof_json="${log_dir}/container-image-identity-cloud-reopen-ordering.json"
+	proof_stderr="${log_dir}/container-image-identity-cloud-reopen-ordering.stderr.log"
+
+	log "B-7 container image identity cloud-before-OCI reopen ordering proof"
+	proof_start="$(date +%s)"
+	if ! (
+		cd "${repo_root}/go"
+		ESHU_POSTGRES_DSN="${ESHU_POSTGRES_DSN}" go test ./internal/storage/postgres -run "^${test_name}$" -count=1 -timeout=120s -json
+	) >"${proof_json}" 2>"${proof_stderr}"; then
+		cat "${proof_stderr}"
+		golden_corpus_render_test_output "${proof_json}"
+		die "container image identity cloud reopen ordering proof failed"
+	fi
+	cat "${proof_stderr}"
+	golden_corpus_render_test_output "${proof_json}"
+	golden_corpus_exact_test_passed "${proof_json}" "${test_name}" ||
+		die "cloud reopen ordering proof must report exactly one run, one pass, and zero skips"
+	log "container image identity cloud reopen ordering proof completed in $(( $(date +%s) - proof_start ))s"
 }
