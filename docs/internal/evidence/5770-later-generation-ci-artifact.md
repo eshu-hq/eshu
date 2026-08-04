@@ -160,8 +160,8 @@ older payload-bearing artifact identities behind intervening tombstones, and 90
 retained same-repository workflow-image rows, and removed all seeded prior
 correlation decisions. The fixture instead carries 1,000 retained `ci.run`
 source rows, so every output must be rebuilt even though the current generation
-patches only 90 runs. The complete handler took 0.940901083 seconds: 0.882566458
-seconds for retained source history and 0.045969917 seconds for the writer. It
+patches only 90 runs. The complete handler took 0.91034875 seconds: 0.858709625
+seconds for retained source history and 0.040798708 seconds for the writer. It
 remained inside the five-second budget without restoring the global stable-key
 index removed in migration 049. This final measurement is a correctness and
 no-regression proof, not a direct speedup comparison with the prior overlay
@@ -199,10 +199,10 @@ ESHU_POSTGRES_DSN=<local-test-dsn> \
   -run 'TestCICDRunCorrelationArtifactPatch(AgainstRealPostgres|RebuildsUnpublishedPredecessor|UsesLatestRunSnapshot)' \
   -count=1 -v
 
---- PASS: TestCICDRunCorrelationArtifactPatchUsesLatestRunSnapshot (0.47s)
---- PASS: TestCICDRunCorrelationArtifactPatchAgainstRealPostgres (0.29s)
---- PASS: TestCICDRunCorrelationArtifactPatchRebuildsUnpublishedPredecessor (0.22s)
-ok github.com/eshu-hq/eshu/go/internal/storage/postgres 4.762s
+--- PASS: TestCICDRunCorrelationArtifactPatchUsesLatestRunSnapshot (0.42s)
+--- PASS: TestCICDRunCorrelationArtifactPatchAgainstRealPostgres (0.26s)
+--- PASS: TestCICDRunCorrelationArtifactPatchRebuildsUnpublishedPredecessor (0.17s)
+ok github.com/eshu-hq/eshu/go/internal/storage/postgres 4.091s
 exit 0
 ```
 
@@ -246,8 +246,8 @@ The opt-in scale regression runs the shipped handler, retained source read,
 ```text
 manifest scopes=1 generations=25 retained_step_rows=216000
 live_artifact_keys=90 tombstone_keys=90 workflow_rows=90
-prior_decisions=0 output_decisions=1000 duration=940.901083ms
-history=882.566458ms writer=45.969917ms budget=5s
+prior_decisions=0 output_decisions=1000 duration=910.34875ms
+history=858.709625ms writer=40.798708ms budget=5s
 exit 0
 ```
 
