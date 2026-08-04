@@ -425,6 +425,7 @@ func readCloudReopenOrderingTruth(
 	fixture cloudReopenOrderingTestFixture,
 ) cloudReopenOrderingTruth {
 	t.Helper()
+	assertCloudReopenOrderingSupportCount(t, ctx, db, fixture.cloudScopeID, 1)
 	var truth cloudReopenOrderingTruth
 	var evidenceJSON []byte
 	if err := db.QueryRowContext(ctx, `
