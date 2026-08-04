@@ -285,62 +285,14 @@ require_in "failure log dump" "${cleanup_lib}" "host binary logs (failure)"
 [[ "${collector_settle_cases_completed:-0}" -eq 1 ]] ||
 	fail "golden-corpus-collector-settle-cases.sh did not run to completion (gutted, or returned early)"
 
-# Drives every pipeline stage end to end.
-require "bootstrap stage" "eshu-bootstrap-index"
-require "cassette replay" "-mode=cassette"
-require "projector drain" "eshu-projector"
-require "reducer drain" "eshu-reducer"
-# `eshu-api` also names the /readyz failure message, and `eshu-golden-corpus-gate`
-# names BOTH gate invocations; both are pinned to the one line that must exist.
-# The two gate invocations themselves are covered by the -phase assertions below.
-# shellcheck disable=SC2016  # the needle is the literal orchestrator source line
-require "api for query truth" 'start_bg api api_pid "${bin_dir}/eshu-api"'
-require "gate binary built" "build_bin golden-corpus-gate"
-require "corpus fixture inventory source" "golden-corpus-fixtures.sh"
-require_in "SQL relationship corpus fixture" "${fixture_lib}" $'\tsql_comprehensive'
-# The next two targets are a .sql fixture and a .json snapshot, which is why the
-# matcher derives the comment marker per target instead of assuming `#`. `.sql`
-# comments with `--`, and line 1 of the DROP fixture IS such a comment, so a
-# `#`-only matcher passed with the real DDL commented out (reproduced: mirror
-# printed `pass`, rc=0). JSON (RFC 8259) genuinely has no comment syntax, so
-# every line there is a real home.
-require_in "direct comma-separated SQL DROP migration fixture" "${sql_drop_fixture}" \
-	'DROP TABLE IF EXISTS public.users, public.orgs;'
-require_in "SQL DROP required correlation in B-12 snapshot" "${snapshot}" '"id": "rc-163"'
-
-# Asserts all four B-7 buckets. The snapshot flag is passed to BOTH gate
-# invocations, so it is asserted once per invocation region rather than once
-# file-wide — a file-wide needle has two homes and dropping it from either phase
-# would go unnoticed.
-require "drains phase" "-phase=drains"
-require "graph+query+timing phase" "-phase=graph,query,timing"
-require_region "snapshot contract (drains phase)" \
-	"/-phase=drains/,/-drain-timeout=/" "-snapshot=testdata/golden/e2e-20repo-snapshot.json"
-require_region "runtime snapshot contract (graph,query,timing phase)" \
-	"/-phase=graph,query,timing,demo-answers/,/-elapsed-seconds=/" '-snapshot="${golden_suppression_runtime_snapshot}"'
-require "timing budget" "-budget-multiplier"
-# #4596: the blocking-correlation set must be single-sourced from the
-# snapshot's own required_correlations ids via the "all" sentinel, not a
-# second, hand-maintained comma-separated id list duplicated here.
-require "single-sourced required-correlations" '-required-correlations="all"'
-if rg --pcre2 --quiet -- '-required-correlations="rc-[0-9]+,rc-' "${script}"; then
-	fail "-required-correlations reverted to a hand-maintained comma-separated id list (#4596 regression)"
-fi
-# B-11 (#3804) macro per-phase wall-clock: the orchestrator sources the timing
-# helper lib and invokes it; the emission + gate wiring live in that lib chunk
-# (extracted to keep this orchestrator under the 500-line cap).
-require "phase-timing lib source" "golden-corpus-phase-timings.sh"
-require_invocation "phase-timing invocation" "emit_phase_timings_and_flags"
-require "passes phase flags to gate" "phase_flags"
-require "cross-repo dead-code fixture source" "golden-corpus-dead-code-fixtures.sh"
-require_invocation "cross-repo dead-code fixture invocation" "seed_cross_repo_dead_code_fixture"
-
-timing_lib="${repo_root}/scripts/lib/golden-corpus-phase-timings.sh"
-[[ -f "${timing_lib}" ]] || fail "missing phase-timing lib: ${timing_lib}"
-bash -n "${timing_lib}" || fail "phase-timing lib has a syntax error"
-dead_code_lib="${repo_root}/scripts/lib/golden-corpus-dead-code-fixtures.sh"
-[[ -f "${dead_code_lib}" ]] || fail "missing dead-code fixture lib: ${dead_code_lib}"
-bash -n "${dead_code_lib}" || fail "dead-code fixture lib has a syntax error"
+# Pipeline stage, snapshot, timing, and exact demotion-command cases live in a
+# sourced chunk so this mirror retains room below the 500-line cap. Its negative
+# probes prove the demotion command cannot gain a fail-open suffix or weaken its
+# package, test regex, or timeout while the mirror remains green.
+# shellcheck source=scripts/lib/golden-corpus-pipeline-cases.sh
+. "${repo_root}/scripts/lib/golden-corpus-pipeline-cases.sh"
+[[ "${pipeline_cases_completed:-0}" -eq 1 ]] ||
+	fail "golden-corpus-pipeline-cases.sh did not run to completion (gutted, or returned early)"
 
 # B-11 per-phase timing cases (#5837): the graph_query phase must exclude
 # assertion work bracketed inside its own window. Extracted to a lib chunk to
@@ -360,17 +312,18 @@ readiness_lib="${repo_root}/scripts/lib/golden-corpus-readiness.sh"
 bash -n "${readiness_lib}" || fail "golden-corpus-readiness.sh has a syntax error"
 require "readiness lib sourced" "golden-corpus-readiness.sh"
 require_in "host TCP probe function definition" "${readiness_lib}" "host_tcp_port_open()"
-require "wait loop calls host TCP probe" "host_tcp_port_open 127.0.0.1"
+require_invocation "backend startup invocation" "start_golden_corpus_backends"
+require_in "wait loop calls host TCP probe" "${readiness_lib}" "host_tcp_port_open 127.0.0.1"
 # pg_isready staying present is REQUIRED, not banned: an earlier iteration
 # replaced it outright with an in-container `psql -c 'select 1'`, which still
 # never exercised the HOST-side TCP path real consumers use, so it did not close
 # the race. #5813's host-TCP probe is the evidenced fix, alongside pg_isready.
-require "wait loop keeps in-container pg_isready" "pg_isready -U eshu -d eshu"
+require_in "wait loop keeps in-container pg_isready" "${readiness_lib}" "pg_isready -U eshu -d eshu"
 # The two checks must be ANDed in the SAME condition (belt and braces), not one
 # replacing the other — a loosened wait loop that keeps only one of them
 # reopens exactly the race this fix closes.
 require_matches "Postgres readiness must require BOTH pg_isready AND host_tcp_port_open in one condition" \
-	"${script}" \
+	"${readiness_lib}" \
 	'^(?!\s*#)[^\n]*pg_isready -U eshu -d eshu >/dev/null 2>&1 && \\\s*\n\s*host_tcp_port_open 127\.0\.0\.1'
 
 # Genuinely exercise the probe logic (not just its source text) against a real

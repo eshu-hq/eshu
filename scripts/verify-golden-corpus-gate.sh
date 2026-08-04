@@ -37,6 +37,8 @@ cd "${repo_root}"
 # stage_local_backend_cassette; see the lib's header for the full rationale).
 # shellcheck source=scripts/lib/golden-corpus-local-backend.sh
 . "${repo_root}/scripts/lib/golden-corpus-local-backend.sh"
+# shellcheck source=scripts/lib/golden-corpus-container-image-demotion.sh
+. "${repo_root}/scripts/lib/golden-corpus-container-image-demotion.sh"
 
 # ----------------------------------------------------------------------------
 # Configuration (override via environment).
@@ -218,45 +220,7 @@ build_bin mcp-server
 build_bin golden-corpus-gate
 for spec in "${collector_specs[@]}"; do build_bin "${spec%%:*}"; done
 
-if [[ "${use_compose}" -eq 1 ]]; then
-	log "start Postgres + ${graph_service}"
-	ESHU_NEO4J_PASSWORD="${ESHU_NEO4J_PASSWORD}" ESHU_POSTGRES_PASSWORD="${ESHU_POSTGRES_PASSWORD}" \
-		docker compose -f "${compose_file}" up -d "${graph_service}" postgres
-
-	log "wait for backends"
-	backends_ready=false
-	for _ in $(seq 1 60); do
-		graph_ready=false
-		# NornicDB has no analogue to Postgres's initdb temp-server dance below:
-		# it is a single Go binary whose HTTP and Bolt listeners both come up in
-		# one startup sequence (docker logs show the HTTP "ready" banner and the
-		# "bolt server listening" line land within the same startup burst, not
-		# across a shutdown/restart), and this check performs a real TCP+HTTP
-		# round trip rather than a socket-only probe like pg_isready's default.
-		# So an in-container success here is not a false positive relative to
-		# the host mapping — verified live: a host `curl` against the mapped
-		# port succeeds the moment this in-container check does. No
-		# host-vs-container fix needed for this branch.
-		if [[ "${graph_service}" == "nornicdb" ]]; then
-			docker compose -f "${compose_file}" exec -T nornicdb wget --spider -q http://localhost:7474/health >/dev/null 2>&1 && graph_ready=true
-		else
-			docker compose -f "${compose_file}" exec -T neo4j cypher-shell -u neo4j -p "${ESHU_NEO4J_PASSWORD}" "RETURN 1" >/dev/null 2>&1 && graph_ready=true
-		fi
-		# Postgres readiness requires BOTH the in-container socket probe AND a
-		# HOST-side TCP connect (host_tcp_port_open, golden-corpus-readiness.sh)
-		# — belt and braces. Do NOT drop either: pg_isready alone races the
-		# initdb temp-server window (see the lib's header); the TCP probe alone
-		# would drop the existing container-side signal for no reason.
-		if [[ "${graph_ready}" == "true" ]] && \
-			docker compose -f "${compose_file}" exec -T postgres pg_isready -U eshu -d eshu >/dev/null 2>&1 && \
-			host_tcp_port_open 127.0.0.1 "${ESHU_POSTGRES_PORT}"; then
-			backends_ready=true
-			break
-		fi
-		sleep 2
-	done
-	[[ "${backends_ready}" == "true" ]] || die "Postgres + ${graph_service} did not become ready within budget"
-fi
+start_golden_corpus_backends
 
 pipeline_start="$(date +%s)"
 # B-11 (#3804) macro per-phase wall-clock capture. Integer-second epochs are used
@@ -270,7 +234,9 @@ log "bootstrap-index over minimal corpus (schema + filesystem facts + projection
 "${bin_dir}/eshu-bootstrap-index" >"${log_dir}/bootstrap-index.log" 2>&1 \
 	|| { tail -40 "${log_dir}/bootstrap-index.log"; die "bootstrap-index failed"; }
 phase_bootstrap_end="$(date +%s)"
-phase_collect_start="${phase_bootstrap_end}"
+
+run_container_image_identity_demotion_proof
+phase_collect_start="$(date +%s)"
 
 log "resolve local-backend fixture scope_id (issue #5594)"
 stage_local_backend_cassette

@@ -21,6 +21,14 @@ The gate asserts the four B-7 acceptance buckets:
 | (c) query truth | Canonical HTTP responses (`GET /api/v0/repositories`, `GET /api/v0/status/operator-control-plane`) carry their required shape. |
 | (d) timing | The total pipeline wall time stays within a budget multiple, and — when the orchestrator supplies per-phase timings (B-11, #3804) — each gated phase stays within its `e2e-baseline.json` baseline. See [Macro per-phase regression (B-11)](#macro-per-phase-regression-b-11). |
 
+Before cassette replay, the orchestrator also runs a bounded Postgres lifecycle
+proof for container image identity demotion (#5853). It publishes one current
+`tag_resolved` support, follows it with `stale_tag`, and requires the production
+support writer to select an explicit empty current set. This transition cannot
+be expressed deterministically by the static cassette corpus after collector
+settle; the proof runs against the same initialized Postgres and fails B-7
+before collection if the retirement path stops biting.
+
 ## Moving parts
 
 - **B-10 cassettes** (`testdata/cassettes/<collector>/supply-chain-demo.json`)
@@ -31,8 +39,9 @@ The gate asserts the four B-7 acceptance buckets:
 - **`golden-corpus-gate`** (`go/cmd/golden-corpus-gate`) is the typed,
   unit-tested assertion binary.
 - **`scripts/verify-golden-corpus-gate.sh`** is the orchestrator that brings up
-  Postgres + the graph backend, runs `bootstrap-index`, replays the cassettes,
-  drains the projector and reducer, starts `eshu-api`, and invokes the gate.
+  Postgres + the graph backend, runs `bootstrap-index` and the bounded demotion
+  lifecycle proof, replays the cassettes, drains the projector and reducer,
+  starts `eshu-api`, and invokes the gate.
 
 ## Minimal-then-grow
 
