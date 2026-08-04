@@ -123,16 +123,20 @@ repos:
         require_serial: true
 
       # Gate-registry drift (mirrors verify-ci-gate-registry.yml): when the gate
-      # registry, its loader/CLI, this hook config, pre-pr, or any workflow
-      # changes, verify the pre-commit hooks and .github/workflows/ stay in
-      # lockstep with specs/ci-gates.v1.yaml. Credential-free, Docker-free.
+      # registry, its loader/CLI, this hook config, pre-pr, the trivy-fs local
+      # wrapper, or any workflow changes, verify the pre-commit hooks and
+      # .github/workflows/ stay in lockstep with specs/ci-gates.v1.yaml.
+      # Credential-free, Docker-free.
       # (pre-pr step reconciliation lands in #4214 via the registry-driven
-      # selector; pre-pr.sh is a trigger here so this re-runs when it changes.)
+      # selector; pre-pr.sh is a trigger here so this re-runs when it changes.
+      # trivy-fs-local.sh is a trigger because DriftCheck's check 7 asserts its
+      # skip_dirs against security-scan.yml's, so editing it alone must still
+      # run this hook.)
       - id: gate-registry-drift
         name: ci-gate registry + hook/workflow drift
         entry: scripts/verify-ci-gates-registry.sh --drift
         language: script
-        files: '^(specs/ci-gates\.v1\.yaml|go/internal/cigates/|go/cmd/ci-gates/|\.pre-commit-config\.yaml|scripts/dev/pre-pr\.sh|\.github/workflows/.*\.ya?ml)$'
+        files: '^(specs/ci-gates\.v1\.yaml|go/internal/cigates/.*|go/cmd/ci-gates/.*|\.pre-commit-config\.yaml|scripts/dev/pre-pr\.sh|scripts/dev/trivy-fs-local\.sh|\.github/workflows/.*\.ya?ml)$'
         pass_filenames: false
         require_serial: true
 

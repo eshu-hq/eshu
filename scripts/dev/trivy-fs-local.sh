@@ -20,9 +20,16 @@ fi
 printf 'trivy-fs: scanning working tree (vuln + secret + config, CRITICAL/HIGH)...\n'
 # Mirror .github/workflows/security-scan.yml trivy-fs: CRITICAL,HIGH only,
 # ignore-unfixed, and the same skip-dirs (intentionally-vulnerable fixtures,
-# example artifacts, parser fixtures, node_modules) so local findings match CI
-# rather than reporting noise CI suppresses.
-skip_dirs="go/cmd/eshu/testdata/vuln_scan_repo_fixtures,go/internal/collector/vulnerabilityintelligence/testdata,go/internal/replay/parserfixture/testdata,tests/fixtures,examples,node_modules,apps/console/node_modules"
+# example artifacts, parser fixtures, node_modules, and the mock OIDC IdP whose
+# keys.go embeds a committed synthetic RSA test key -- see that workflow's
+# comment for why each is skipped) so local findings match CI rather than
+# reporting noise CI suppresses.
+#
+# This list is not merely conventionally in sync: cigates.DriftCheck compares it
+# against the workflow's skip-dirs input as a set and fails the gate-registry
+# drift gate on any difference (go/internal/cigates/trivyskipdirs.go). Keep the
+# two in step -- CI is authoritative.
+skip_dirs="go/cmd/eshu/testdata/vuln_scan_repo_fixtures,go/internal/collector/vulnerabilityintelligence/testdata,go/internal/replay/parserfixture/testdata,tests/fixtures,examples,node_modules,apps/console/node_modules,go/cmd/mock-oidc-idp"
 exec trivy fs \
 	--scanners vuln,secret,misconfig \
 	--severity CRITICAL,HIGH \
