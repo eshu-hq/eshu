@@ -114,6 +114,10 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent Intent) (R
 	if err != nil {
 		return Result{}, fmt.Errorf("load ci/cd run correlation facts: %w", err)
 	}
+	envelopes, patchGeneration, err := h.loadCICDRunCorrelationPatchFacts(ctx, intent, envelopes)
+	if err != nil {
+		return Result{}, err
+	}
 	active, err := h.loadActiveCICDRunCorrelationFacts(ctx, ciArtifactDigests(envelopes), ciWorkflowImageRefs(envelopes))
 	if err != nil {
 		return Result{}, fmt.Errorf("load active ci/cd artifact identity facts: %w", err)
@@ -123,6 +127,14 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent Intent) (R
 	decisions, quarantined, deploymentEventsSkipped, err := buildCICDRunCorrelationDecisionsWithQuarantine(envelopes)
 	if err != nil {
 		return Result{}, fmt.Errorf("build ci/cd run correlation decisions: %w", err)
+	}
+	evaluatedCount := len(decisions)
+	preservedCount := 0
+	if patchGeneration && len(decisions) > maxCICDRunCorrelationPatchDecisions {
+		return Result{}, fmt.Errorf(
+			"rebuild ci/cd run correlation patch: decisions exceed safety cap %d",
+			maxCICDRunCorrelationPatchDecisions,
+		)
 	}
 	counts := cicdRunCorrelationCounts(decisions)
 	writeResult, err := h.Writer.WriteCICDRunCorrelations(ctx, CICDRunCorrelationWrite{
@@ -144,7 +156,7 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent Intent) (R
 		IntentID:        intent.IntentID,
 		Domain:          DomainCICDRunCorrelation,
 		Status:          ResultStatusSucceeded,
-		EvidenceSummary: cicdRunCorrelationSummary(len(decisions), counts, writeResult.CanonicalWrites),
+		EvidenceSummary: cicdRunCorrelationSummary(evaluatedCount, preservedCount, counts, writeResult.CanonicalWrites),
 		CanonicalWrites: writeResult.CanonicalWrites,
 		SubSignals:      inputInvalidSubSignals(quarantinedCount),
 	}, nil
@@ -239,10 +251,16 @@ func cicdRunCorrelationCounts(decisions []CICDRunCorrelationDecision) map[CICDRu
 	return counts
 }
 
-func cicdRunCorrelationSummary(evaluated int, counts map[CICDRunCorrelationOutcome]int, canonicalWrites int) string {
+func cicdRunCorrelationSummary(
+	evaluated int,
+	preserved int,
+	counts map[CICDRunCorrelationOutcome]int,
+	canonicalWrites int,
+) string {
 	return fmt.Sprintf(
-		"ci/cd run correlation evaluated=%d exact=%d derived=%d ambiguous=%d unresolved=%d rejected=%d canonical_writes=%d",
+		"ci/cd run correlation evaluated=%d preserved=%d exact=%d derived=%d ambiguous=%d unresolved=%d rejected=%d canonical_writes=%d",
 		evaluated,
+		preserved,
 		counts[CICDRunCorrelationExact],
 		counts[CICDRunCorrelationDerived],
 		counts[CICDRunCorrelationAmbiguous],
@@ -336,7 +354,10 @@ func classifyCICDRunEvidence(ev *cicdRunEvidence, imageIndex map[string][]cicdIm
 			decision.CanonicalTarget = "container_image"
 			decision.CorrelationKind = "artifact_image"
 			decision.ImageRef = matches[0].imageRef
-			decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, matches[0].factID)
+			decision.EvidenceFactIDs = append(
+				decision.EvidenceFactIDs,
+				cicdImageIdentityEvidenceFactIDs(matches[0])...,
+			)
 			decision.SourceLayerKinds = []string{"reported", "observed_resource"}
 			return decision
 		default:
@@ -344,7 +365,10 @@ func classifyCICDRunEvidence(ev *cicdRunEvidence, imageIndex map[string][]cicdIm
 			decision.Reason = "artifact digest matches multiple container image identity rows"
 			decision.CorrelationKind = "artifact_image"
 			for _, match := range matches {
-				decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, match.factID)
+				decision.EvidenceFactIDs = append(
+					decision.EvidenceFactIDs,
+					cicdImageIdentityEvidenceFactIDs(match)...,
+				)
 			}
 			return decision
 		}

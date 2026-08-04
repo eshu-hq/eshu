@@ -274,7 +274,7 @@ for spec in "${collector_specs[@]}"; do
 	collector_names+=("${cmd}")
 done
 : "${GATE_MIN_COLLECTOR_SOURCES:=${#collector_specs[@]}}"
-printf 'launched %d collectors; polling for full cassette replay (%d total scopes, interval %ss, deadline %ss)\n' \
+printf 'launched %d collectors; polling for full cassette replay (%d scope generations, interval %ss, deadline %ss)\n' \
 	"${#collector_pids[@]}" "${GATE_EXPECTED_TOTAL_SCOPES}" "${GATE_COLLECTOR_SETTLE_POLL_SECONDS}" "${GATE_COLLECTOR_SETTLE_SECONDS}"
 
 # Prove the cassette facts actually landed: each credentialed collector must have

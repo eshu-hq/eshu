@@ -63,20 +63,12 @@ func TestBuildProjectionQueuesSingleCICDRunCorrelationIntentForRunFact(t *testin
 	}
 }
 
-// TestBuildProjectionQueuesNoCICDRunCorrelationIntentForArtifactOnlyGeneration
-// proves an artifact-only generation (no ci.run) does NOT enqueue an intent.
-// CICDRunCorrelationHandler.Handle loads facts strictly scoped to the
-// triggering intent's own (scope, generation) and
-// buildCICDRunCorrelationDecisionsWithQuarantine only emits a decision for
-// evidence anchored by a ci.run (ev.run.FactID == "" is skipped) — so an
-// artifact-only generation's intent would load only the artifact, produce
-// ZERO decisions, and succeed as a silent no-op: the artifact's evidence is
-// simply discarded, not deferred, because nothing ever re-visits this
-// generation once the intent succeeds. Triggering on the anchor (ci.run)
-// only avoids enqueuing that wasted intent. Correlating a later-generation
-// artifact against an earlier-generation run is a real gap the
-// single-generation handler cannot close; tracked as a follow-up (#5710).
-func TestBuildProjectionQueuesNoCICDRunCorrelationIntentForArtifactOnlyGeneration(t *testing.T) {
+// TestBuildProjectionQueuesCICDRunCorrelationIntentForArtifactOnlyGeneration
+// proves a later artifact observation retriggers correlation even when its
+// matching ci.run belongs to an earlier generation. The handler resolves the
+// historical run anchor and writes the patched correlation snapshot into this
+// generation, so dropping the intent here would permanently lose the artifact.
+func TestBuildProjectionQueuesCICDRunCorrelationIntentForArtifactOnlyGeneration(t *testing.T) {
 	t.Parallel()
 
 	scopeValue := scope.IngestionScope{
@@ -99,10 +91,12 @@ func TestBuildProjectionQueuesNoCICDRunCorrelationIntentForArtifactOnlyGeneratio
 	if err != nil {
 		t.Fatalf("buildProjection() error = %v, want nil", err)
 	}
-	for _, intent := range projection.reducerIntents {
-		if intent.Domain == reducer.DomainCICDRunCorrelation {
-			t.Fatalf("unexpected ci_cd_run_correlation intent for an artifact-only generation (no ci.run anchor): %+v", intent)
-		}
+	intent := requireCICDRunCorrelationIntent(t, projection.reducerIntents)
+	if got, want := intent.FactID, "fact-ci-artifact-1"; got != want {
+		t.Fatalf("intent.FactID = %q, want later artifact %q", got, want)
+	}
+	if got, want := intent.Reason, "ci/cd run-scoped evidence observed"; got != want {
+		t.Fatalf("intent.Reason = %q, want %q", got, want)
 	}
 }
 

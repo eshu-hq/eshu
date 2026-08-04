@@ -22,8 +22,10 @@ reducer/query adapter.
 - `FactStore` / `NewFactStore` — `UpsertFacts`, `LoadFacts`, `ListFacts`,
   `ListFactsByKind`, `ListFactsByKindAndPayloadValue`,
   `LoadActiveCodeCallSymbolDefinitionFacts`, `LoadIncidentRoutingRawEvidence`,
-  `ListActiveRepositoryFacts`, `ListActivePackageOwnershipFacts`, `CountFacts`,
-  `ListOSPackageAdvisoryTargets`, and `ListSBOMComponentAdvisoryTargets`
+  `ListActiveRepositoryFacts`, `ListActivePackageOwnershipFacts`,
+  `ListCICDRunFactsForRunKeys`, `ListCICDRunFactsForScopePatch`,
+  `CountFacts`, `ListOSPackageAdvisoryTargets`, and
+  `ListSBOMComponentAdvisoryTargets`
 - `ServiceIncidentEvidenceLoader` / `NewServiceIncidentEvidenceLoader` —
   service-scoped incidents evidence loader for reducer service materialization;
   it resolves PagerDuty provider service ids to catalog service ids through

@@ -55,7 +55,11 @@
 // ambiguous branches remain explicit missing evidence. Supply-chain impact
 // version matching is ecosystem-aware for npm, Cargo, Pub, Swift, NuGet, Maven,
 // and PyPI PEP 440 exact-version evidence; unsupported or malformed ranges fail
-// closed with explicit missing evidence. For CI/CD deployment correlations,
+// closed with explicit missing evidence. Artifact-only CI/CD run generations
+// rebuild from the newest older normal run snapshot plus later evidence. Live
+// artifacts may recover only an older omitted run's ci.run anchor; tombstones
+// are negative stable-key controls and never seed omitted runs. For CI/CD
+// deployment correlations,
 // the handler persists a declared digest and image reference only when one
 // deployment matches the finding by digest or image reference. It selects the
 // first exact subject-digest match before any mutable image-reference match,

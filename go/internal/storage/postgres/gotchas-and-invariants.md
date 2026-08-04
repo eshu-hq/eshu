@@ -30,6 +30,33 @@ operational lessons that future storage changes still need to respect.
 
 ## Fact Readback Invariants
 
+- `ListCICDRunFactsForRunKeys` is the narrow history read for a generation that
+  contains a `ci.artifact` but no `ci.run`. It accepts exact
+  provider/run/attempt keys plus stable keys for payload-empty artifact
+  tombstones, reads only the same scope, and ranks tombstones before filtering
+  normal retained evidence. For a requested artifact tombstone stable key only,
+  it separately returns the latest older payload-bearing artifact as routing
+  identity; the reducer must remove that exact stable key before classification.
+  `ListCICDRunFactsForScopePatch` selects run keys from the newest older
+  generation containing `ci.run`, then unions exact keys from current live artifacts.
+  The normal generation is a lower bound for run-scoped, workflow-image, and
+  deployment evidence. A live artifact may recover an older omitted `ci.run`
+  anchor, but it cannot recover that run's pre-baseline environment, step,
+  trigger, workflow-image, deployment, or artifact evidence. Current artifact
+  tombstones are stable-key controls only; they never add a run key, and an
+  identity already absent from the authoritative window is a no-op. This keeps
+  unaffected runs from the latest normal window without resurrecting runs or
+  evidence that window omitted, even when an unpublished predecessor reducer
+  result was superseded. It preserves the typed optional-repository fallback
+  when either side omits `repository_id` and rejects more than 12,000 returned
+  facts.
+  After this read, the reducer gives every current non-artifact fact authority
+  over retained history only for its exact raw `(fact_kind, stable_fact_key)`
+  identity, while artifacts retain their normalized stable-key and live run-key
+  rules. Valid current tombstones are control rows and never reach typed decode;
+  a blank tombstone identity fails closed instead of leaving stale evidence live.
+  These reads support the reducer's patch path only; a generation containing a
+  run stays on the existing same-generation path.
 - `ListOwnedPackageDependencyTargets` serves workflow-coordinator derivation.
   Package-registry callers use package-level identities so repeated versions of
   one package cannot starve later packages. Vulnerability-intelligence callers

@@ -12,8 +12,7 @@ import (
 )
 
 // buildCICDRunCorrelationReducerIntent enqueues one ci_cd_run_correlation
-// reducer intent per scope generation that observed a CI/CD run — i.e. that
-// carries a ci.run fact, the correlation's join anchor.
+// reducer intent per scope generation that observed a CI/CD run or artifact.
 //
 // #5710: CICDRunCorrelationHandler has been registered and wired in
 // cmd/reducer/main.go since the domain was added, but no builder here ever
@@ -25,26 +24,16 @@ import (
 // CICDRunCorrelationHandler.Handle loads for one intent
 // (cicdRunCorrelationFactKinds in ci_cd_run_correlation.go: ci.run,
 // ci.artifact, ci.workflow_image_evidence, ci.environment_observation,
-// ci.trigger_edge, ci.step) — it fires only on ci.run, not on any of the
-// other five kinds alone. buildCICDRunCorrelationDecisionsWithQuarantine
-// only emits a decision for evidence anchored by a ci.run
-// (ci_cd_run_correlation_decode.go: `if ev.run.FactID == "" { continue }`),
-// and Handle's fact load is scoped strictly to the triggering intent's own
-// (scope, generation) — loadFactsForKinds is a generation_id equality
-// filter (facts_filtered.go), not cumulative across generations. So an
-// artifact-only generation's intent (no ci.run) would load only the
-// artifact, the decode loop would produce zero decisions, and the intent
-// would still succeed: a silent no-op that discards the artifact's evidence
-// rather than deferring it, because nothing ever re-visits that generation
-// once the intent has succeeded. Anchoring on ci.run avoids enqueuing that
-// wasted intent. When ci.run and ci.artifact land in the SAME generation
-// (the common case), Handle's own bulk load of that generation still picks
-// up the co-located artifact — no separate per-artifact trigger is needed.
-// Correlating a later-generation artifact against an earlier-generation run
-// is a real gap the single-generation handler cannot close; filed as a
-// follow-up (https://github.com/eshu-hq/eshu/issues/5766 tracks a related
-// join-key gap in the same handler; the cross-generation load gap itself
-// needs its own follow-up before it can be implemented).
+// ci.trigger_edge, ci.step) — it fires on ci.run and ci.artifact only. A run
+// anchors a normal authoritative snapshot. An artifact without a co-located
+// run is a domain patch: the handler rebuilds the complete bounded latest-live
+// run snapshot from retained source evidence, applies the current artifact
+// control rows, and writes the result into the artifact generation. This keeps
+// unaffected runs visible under the active-generation read fence even if queue
+// supersession prevented the preceding reducer work item from publishing.
+// The other loaded kinds cannot independently establish this patch contract:
+// workflow-image evidence is repository-scoped, and environment, trigger, and
+// step evidence do not provide the artifact arrival signal #5770 addresses.
 //
 // The correlation also reads reducer_container_image_identity rows across
 // scopes (the CI scope's run/artifact evidence joins against the OCI/cloud
@@ -69,14 +58,17 @@ func buildCICDRunCorrelationReducerIntent(
 ) (ReducerIntent, bool) {
 	envelope, ok := index.firstOfKind(facts.CICDRunFactKind)
 	if !ok {
-		return ReducerIntent{}, false
+		envelope, ok = index.firstOfKind(facts.CICDArtifactFactKind)
+		if !ok {
+			return ReducerIntent{}, false
+		}
 	}
 	return ReducerIntent{
 		ScopeID:      scopeValue.ScopeID,
 		GenerationID: generation.GenerationID,
 		Domain:       reducer.DomainCICDRunCorrelation,
 		EntityKey:    "ci_cd_run_correlation:" + scopeValue.ScopeID,
-		Reason:       "ci/cd run evidence observed",
+		Reason:       "ci/cd run-scoped evidence observed",
 		FactID:       envelope.FactID,
 		SourceSystem: cicdRunCorrelationSourceSystem(envelope),
 	}, true
