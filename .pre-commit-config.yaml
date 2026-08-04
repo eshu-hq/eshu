@@ -129,14 +129,22 @@ repos:
       # Credential-free, Docker-free.
       # (pre-pr step reconciliation lands in #4214 via the registry-driven
       # selector; pre-pr.sh is a trigger here so this re-runs when it changes.
-      # trivy-fs-local.sh is a trigger because DriftCheck's check 7 asserts its
-      # skip_dirs against security-scan.yml's, so editing it alone must still
-      # run this hook.)
+      # trivy-fs-local.sh, trivy-skip-dirs.sh, and trivy-skip-dirs.txt are
+      # triggers because DriftCheck's check 7 (checkTrivySkipDirsParity)
+      # asserts that scripts/lib/trivy-skip-dirs.sh -- the shared skip-dirs
+      # derivation -- reads specs/trivy-skip-dirs.txt, and that
+      # trivy-fs-local.sh and security-scan.yml's trivy-fs job are both wired
+      # to that helper, so editing any one of the three alone must still run
+      # this hook. The registry (specs/ci-gates.v1.yaml) already lists
+      # specs/trivy-skip-dirs.txt and scripts/lib/trivy-skip-dirs.sh as
+      # triggers for the trivy-fs and ci-gate-registry gates; they are listed
+      # again here so this hook's own drift coverage does not silently skip on
+      # an edit to either file alone.)
       - id: gate-registry-drift
         name: ci-gate registry + hook/workflow drift
         entry: scripts/verify-ci-gates-registry.sh --drift
         language: script
-        files: '^(specs/ci-gates\.v1\.yaml|go/internal/cigates/.*|go/cmd/ci-gates/.*|\.pre-commit-config\.yaml|scripts/dev/pre-pr\.sh|scripts/dev/trivy-fs-local\.sh|\.github/workflows/.*\.ya?ml)$'
+        files: '^(specs/ci-gates\.v1\.yaml|specs/trivy-skip-dirs\.txt|go/internal/cigates/.*|go/cmd/ci-gates/.*|\.pre-commit-config\.yaml|scripts/dev/pre-pr\.sh|scripts/dev/trivy-fs-local\.sh|scripts/lib/trivy-skip-dirs\.sh|\.github/workflows/.*\.ya?ml)$'
         pass_filenames: false
         require_serial: true
 

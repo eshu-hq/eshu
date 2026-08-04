@@ -37,6 +37,7 @@ jobs:
           scripts/test-pre-pr-whole-module-gates.sh
           scripts/test-generate-ci-gates-doc.sh
           scripts/test-verify-live-required-status-checks.sh
+          (cd go && go test ./internal/cigates -count=1)
 
   verify:
     name: Verify ci-gate registry + drift

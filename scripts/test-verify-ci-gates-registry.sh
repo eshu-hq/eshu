@@ -61,6 +61,9 @@ require "pre-pr cache-isolation CI mirror" \
 require "generated CI-gates doc CI mirror" \
 	"scripts/test-generate-ci-gates-doc.sh" \
 	"${registry_workflow}"
+require "cigates Go test CI mirror" \
+	"go test ./internal/cigates" \
+	"${registry_workflow}"
 
 # A registry gate's own test inputs must select that gate. Otherwise changing a
 # regression test can silently skip the check that is supposed to execute it.

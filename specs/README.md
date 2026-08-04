@@ -77,6 +77,16 @@ documentation.
   `go/internal/replaycoverage` machinery unchanged; only the `odu` scenario
   kind and `go/internal/ifa`'s own resolver are new. Reconciled by
   `go/internal/ifa.RunCoverage` and `go/cmd/ifa`.
+- `trivy-skip-dirs.txt` is the single authoritative list of directories the
+  Trivy filesystem scan skips (one per line, `#` comments carry the
+  per-directory rationale). `scripts/lib/trivy-skip-dirs.sh` is the single
+  shared derivation that reads it and prints the comma-joined value Trivy's
+  `--skip-dirs` flag wants; `scripts/dev/trivy-fs-local.sh` and
+  `.github/workflows/security-scan.yml`'s `trivy-fs` job both source that
+  helper and call it rather than reading the specs file or re-deriving the
+  list themselves, so the two scans cannot drift apart the way two
+  separately-maintained derivation pipelines could (#5925). Enforced by
+  `go/internal/cigates` (`checkTrivySkipDirsParity`).
 
 Treat edits here as contract changes. Update matching docs and verification in
 the same PR.

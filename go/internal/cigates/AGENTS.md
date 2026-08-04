@@ -79,23 +79,210 @@ and `eshu-diagnostic-rigor`.
   counting it as a second host makes the "exactly one workflow" precondition
   fail, silently skipping the gate and turning a real mismatch into a pass.
 
-- **Argument parity is checkable where correspondence is not.**
-  `checkVerifyScriptWorkflowMatch` deliberately refuses to require that a local
-  script appear in its CI job, because the two entrypoints are legitimately
-  different artifacts — and `trivy-fs-local.sh` is one of the examples it cites.
-  That does not make the pair uncoupled. `checkTrivySkipDirsParity`
-  (`trivyskipdirs.go`) asserts the narrower, sound thing: whatever the two
-  entrypoints are, they must skip the same directories. Prefer this shape when a
-  local wrapper and its CI job share a semantic argument — assert the argument,
-  not the invocation.
+- **One authoritative list, one shared derivation, every side provably wired
+  to it — not values compared.** `checkTrivySkipDirsParity` (`trivyskipdirs.go`)
+  used to compare two independently-maintained `--skip-dirs` string literals —
+  one bash, one YAML — for set equality. That is the shape #5925 shipped. The
+  attempts to also prove each literal GOVERNED its own scan (flag arity,
+  invocation arity, comment stripping) were tried and discarded here rather
+  than shipped: across three review rounds (#5925) that direction accumulated
+  eighteen ways to defeat it, and round 3's findings were rounds 1 and 2's
+  re-expressed in different bash syntax — proof the "parse bash correctly" bar
+  was itself the unsound part of the design, not any one fix.
+  The first redesign pass removed the parsing problem by making
+  `specs/trivy-skip-dirs.txt` the single authoritative skip-dirs list and
+  requiring both consumers to read it directly — but that still left
+  `scripts/dev/trivy-fs-local.sh` and `security-scan.yml`'s `trivy-fs` job each
+  carrying their OWN copy of the same `grep -v '^#' | grep -v '^$' | paste -sd,
+  -` derivation pipeline. Identical today, enforced by nothing: a change to one
+  side (e.g. adding inline-comment support) would silently diverge the two
+  without failing any check — a smaller-scale replay of the original
+  two-string-literals bug. `scripts/lib/trivy-skip-dirs.sh` (#5925 F2) removes
+  that too: it is the ONE place the derivation pipeline exists
+  (`trivy_skip_dirs_csv`, sourced by both consumers), and both
+  `scripts/dev/trivy-fs-local.sh` and `security-scan.yml`'s `trivy-fs` job must
+  be provably wired to INVOKE it — not to independently derive or hard-code a
+  value that might no longer match it. Do not add back a second,
+  separately-maintained derivation or list on either side.
 
-  Compare as a SET, not a string: `--skip-dirs` is unordered, so a reorder is
-  semantically identical and failing on it trains people to edit the check
-  instead of the drift. Fail loudly when the marker is missing or duplicated
-  rather than skipping — a parity check that silently passes when it cannot find
-  its subject is worse than none, because green reads as proof of agreement. The
-  one legitimate skip is both artifacts being absent, which is the shape of this
-  package's synthetic drift fixtures; exactly one present is itself drift.
+  **This check proves wiring, not value flow — say so, don't overclaim.** It
+  confirms the helper reads the specs file, and that the local script and the
+  CI producer step each `source` the helper and call the function it defines,
+  `trivy_skip_dirs_csv` (`checkSourcedAndCalled`); it does NOT interpret shell
+  control or data flow to confirm nothing downstream of that call later
+  overwrites the value (e.g. a producer step that correctly sources and calls
+  the helper and then appends `echo "dirs=." >> "$GITHUB_OUTPUT"`, or a local
+  script that calls the helper and then reassigns `skip_dirs="."` on the next
+  line). That is deliberately out of scope: proving it would mean re-deriving
+  exactly the kind of shell-semantics parser this redesign exists to avoid. It
+  is a downstream mutation of an otherwise correctly-wired invocation, and it
+  would be visible in review of a security-workflow diff the same way any
+  other suspicious edit to a CI security gate would.
+
+  `checkSourcedAndCalled` (#5927 review) replaced an earlier, weaker shape:
+  the producer step and local script used to only need to MENTION the
+  helper's path anywhere in whole-line-comment-stripped content
+  (`strings.Contains` / bare reference-counting via
+  `checkFileReferencesPathOnce`), so a mention inside a string literal or an
+  echo — while a hard-coded value governed the actually emitted skip-dirs —
+  read as "invokes the helper". Requiring proof of BOTH a
+  `source` (or `. `) line AND a call to `trivy_skip_dirs_csv` closes that
+  class for the SOURCE half structurally: the source-line matcher anchors on
+  the command word at the start of a line, so a bare mention that is not
+  itself a `source`/`.` command — including one placed in a trailing comment
+  on the SAME line as unrelated code — never matches. The CALL half is a
+  plain word-bounded identifier match over the same whole-line-comment-stripped
+  content, so it keeps the same narrower, long-standing residual gap the rest
+  of this file accepts: a mention of `trivy_skip_dirs_csv` in a trailing
+  comment on the SAME line as otherwise unrelated code is not (in principle)
+  distinguished from a live call. Closing that would mean reintroducing the
+  mid-line bash parsing this redesign exists to avoid; it is left as the same
+  kind of review-visible risk as the downstream-mutation gap above, not a
+  defect in this check.
+
+  **The SOURCE half's structural closure carries a fail-closed limitation of
+  its own (P3-1, #5927 round-5 review).** `trivySourceLineRE` and
+  `trivyPipefailRE` anchor on the command word at the start of a line — that
+  is what makes a mention inside a trailing comment or a string literal
+  unable to match. The same anchor also rejects a `source` or
+  `set -o pipefail` that is a real, live command but does not sit at column
+  0 of its own line: after a `;`, `&&`, or `||` on a shared line, inside a
+  one-line `{ }` or `( )` group, after a line continuation, or inside
+  `if …; then source scripts/lib/trivy-skip-dirs.sh; fi`. None of these are
+  hypothetical — they are ordinary bash a script could legitimately be
+  written in. The failure direction is the same fail-closed shape as the
+  rest of this file: a script written this way reads as NOT sourcing the
+  helper (or not setting pipefail) and fails the drift gate loudly, a false
+  alarm a maintainer can see and fix by moving the command to its own line,
+  rather than a script that never sources the helper passing silently.
+  Recognizing a command anywhere a shell could start one needs the same
+  command-separator tracking this package's design exists to avoid.
+
+  The check makes four assertions, in order: (1) the specs file exists, is
+  non-empty, has no duplicate entries, no entry with leading/trailing
+  whitespace (the shell and Go derivations could otherwise tokenize
+  differently, #5925 F5), no entry containing a comma — the delimiter the
+  shared derivation's `paste -sd, -` joins entries with, so an embedded comma
+  would smuggle extra entries past every other per-entry check (single-source
+  review F1) — no entry containing a `#` — only a WHOLE-LINE comment is
+  supported (a line whose first non-whitespace character is `#`), never a
+  trailing one, so a mid-entry `#` is rejected rather than silently kept as
+  part of the directory trivy actually receives (round-2 review P2-2: proven
+  against real trivy — `--skip-dirs 'alpha'` skips alpha, `--skip-dirs 'alpha
+  # rationale'` skips nothing, because the shared derivation's
+  `grep -v '^[[:space:]]*#'` only drops whole comment lines) — no entry
+  containing a glob metacharacter (`*`, `?`, `[`, `]`, `{`, `}`) — trivy's
+  `--skip-dirs` wants a literal repo-relative path per entry, not a pattern
+  — and no entry that NORMALIZES (`filepath.Clean`, the way trivy's own
+  `CleanSkipPaths` does, then a trimmed leading `/`) to `.` or `""` — a
+  catch-all that would disable the scan's coverage entirely — or to `..`,
+  which is rejected for a narrower, DIFFERENT reason its own error message
+  states: proven against real trivy 0.72.0, `--skip-dirs '..'` does not
+  disable coverage the way `.` does (both planted secrets in the proof
+  fixture stayed findable); it is rejected because it escapes the repository
+  root the list is defined relative to, not because it defeats the scan
+  (#5925 F6, closed structurally by round-2 review P1-1 after proving the original
+  entry-specific literal check — reject only `.`, `*`, or a leading `/` as
+  the WHOLE entry — defeated against real trivy 0.72.0 by `**`, `**/*`,
+  `./`, `.//`, `./.`, and `?`); and no entry that is itself an absolute path
+  (a leading `/`) — checked on the RAW entry, not the normalized value: the
+  `filepath.Clean` + trimmed-leading-`/` normalization the catch-all and
+  escape-root checks above use would otherwise strip a leading `/` before
+  either of those questions is asked, letting `/etc` read as the bare
+  relative entry `etc` (round-4 review: this is a separate rule, not a
+  special case of the catch-all or escape-root normalization above it);
+  (2) `scripts/lib/trivy-skip-dirs.sh` references the specs file's path exactly
+  once, counted over whole-line-comment-stripped content — never truncating
+  mid-line at `#`, so a misclassified line can only lower the count, never
+  raise it; for the 0/1 boundary this check gates on, lowering can only fail
+  red (a drop from 2 to 1 would silently pass instead, but that needs a live
+  reference to sit on a line a plain bash script would never format as a
+  whole-line comment, so no known input reaches it) — this is what mid-line
+  `#` parsing kept failing at across all three review rounds; (3) the
+  local script both `source`s the HELPER exactly once and calls
+  `trivy_skip_dirs_csv` exactly once, same comment-stripping rule — not
+  merely a mention of the helper's path once, and not zero or more than one of
+  either half — and `set`s pipefail (`set -euo pipefail` or `set -o
+  pipefail`), the local-script half of the failure-mode-parity requirement
+  (4) enforces CI-side via `shell: bash` (round-2 review P2-3); (4) the CI
+  workflow's `trivy-fs` job's `aquasecurity/trivy-action` step's `skip-dirs`
+  input is EXACTLY a `${{ steps.<id>.outputs.<name> }}` expression —
+  full-string match, not a value that merely contains one — and the step
+  with that id both `source`s the HELPER and calls `trivy_skip_dirs_csv` in
+  its `run:` block, the same source-and-call proof as (3), also over
+  whole-line-comment-stripped content (#5925 F3 stripped whole comment lines
+  before this question was asked at all; #5927 replaced the mention-counting
+  question itself with the source-and-call one). Exact string equality on
+  the workflow input kills the append-a-directory-at-the-call-site bypass
+  class for free: there is no partial-match branch left to defeat by
+  appending `,node_modules` after the expression.
+
+  The CI-side read stays job-scoped via YAML, never regexed file-wide, for the
+  same reason it always was: `security-scan.yml` has multiple jobs, and a
+  whole-file scan cannot tell a `skip-dirs` input or a step id that belongs to
+  `trivy-fs` from one that belongs to an unrelated job. Fail loudly at every
+  step rather than skipping — a parity check that silently passes when it
+  cannot find its subject is worse than none, because green reads as proof of
+  agreement. The one legitimate skip is all four artifacts being absent, which
+  is the shape of this package's synthetic drift fixtures; any subset present
+  is itself checkable and any failure to wire up is reported.
+
+  The CI-side check (`checkCIWorkflowSkipDirsFromHelper`) also asserts the
+  producer step declares `shell: bash` — GitHub Actions' default `run:` shell
+  omits `-o pipefail`, so without it an unreadable specs file failing inside
+  `trivy_skip_dirs_csv`'s pipeline would silently produce an empty skip-dirs
+  value instead of failing the step.
+
+  **The output-name-write assertion was attempted and retired (#5927, five
+  review rounds).** A `trivyOutputAssignmentPattern` line-regex used to also
+  require the producer step's `run:` block to WRITE the exact output name the
+  trivy-action step's `skip-dirs` expression references into
+  `$GITHUB_OUTPUT`, via an `echo`/`printf` line assigning that name
+  (single-source review F7, F8; round-2 P2-1 tightened F8's original bare
+  `strings.Contains(runBlock, outputName)` check, which the step's own
+  sourcing/calling lines could satisfy regardless of what its output line
+  wrote). Rounds 3 and 4 each closed one further boundary defect in that same
+  pattern — a `\b` word boundary letting a hyphenated sibling key like
+  `skip-dirs=` read as writing `dirs`, then four more sibling-key shapes
+  (`my.dirs=`, `a/dirs=`, `a:dirs=`, `v1.dirs=`) defeating the denylist round
+  3 built to fix it. Round 5 did not find a sixth instance; it proved the
+  premise false instead. The pattern's own doc comment justified its LEFT
+  boundary — `[ \t"']`, "immediately after whitespace or an opening quote
+  character" — by arguing "a real key assignment can only begin where a new
+  shell word begins". That is true only in **unquoted** shell text. Every
+  assignment this pattern was ever asked to match lives **inside a quoted
+  argument** (`echo "dirs=${d}"`), where whitespace does not start a shell
+  word — so `[ \t"']` is exactly the complement `[^ \t"']` round 4's denylist
+  was, rewritten from the other side. Proven against real bash and
+  end-to-end through this package's own drift check:
+  `echo "my dirs=${d}" >> "$GITHUB_OUTPUT"` is accepted with a real key of
+  `"my dirs"` (`outputs.dirs` stays empty); `echo 'a dirs=x' >>
+  "$GITHUB_OUTPUT"` is accepted with a real key of `"a dirs"`; `echo
+  "pre"dirs=x >> "$GITHUB_OUTPUT"` is accepted with a real key of
+  `"predirs"`; and `echo "dirs=${d}" >> "${GITHUB_OUTPUT}x"` /
+  `echo "dirs=${d}" >> "$GITHUB_OUTPUT.bak"` are both accepted while writing
+  to a different file entirely. Deciding which shell word an `=` belongs to
+  needs quote and command-separator tracking — mid-line bash parsing, the
+  same unsound bar the top of this file documents this package's design as
+  existing to avoid. The pinning test suite carried no information about the
+  class either: all four of round 4's negative cases use separators the
+  round-3 allowlist already excluded, so a green suite never exercised the
+  gap round 5 found.
+
+  `trivyOutputAssignmentPattern` and its call site in
+  `checkCIWorkflowSkipDirsFromHelper` were deleted rather than patched a
+  sixth time. **This is a narrowing of the check, not a strengthening.**
+  `checkCIWorkflowSkipDirsFromHelper` itself is still live — what remains
+  proves the producer step is sourced, called, `shell: bash`-declared, and
+  that the trivy-action step's
+  `skip-dirs` input references some output of that same step by id — it does
+  NOT verify the producer step writes that exact output key. A key mismatch
+  (a typo, a wrong-cased name, or any of the shapes above) now yields an
+  empty `skip-dirs` value at scan time: trivy scans everything instead of
+  skipping the intentionally-vulnerable fixture directories, and the
+  `trivy-fs` job fails loudly on its own findings. The consequence is
+  diagnosis time, not scan coverage — the job does not go green on a
+  misconfigured skip list, it fails for a different, less obvious reason.
 
 ## Common changes
 

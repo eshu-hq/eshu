@@ -1512,6 +1512,19 @@ gates:
       - "go/go.mod"
       - "go/go.sum"
       - "package-lock.json"
+      # The gate that actually EXECUTES trivy-fs-local.sh must itself be
+      # selected by an edit to that script, the shared skip-dirs derivation it
+      # sources, the specs file that derivation reads, or the CI job it must
+      # stay wired to -- otherwise a change to any one selects some other
+      # mix of unrelated gates (varying by path -- e.g. docs-build-changed
+      # for the specs file, heredoc-budget for the shell scripts, plus
+      # ci-gate-registry and/or no-ai-attribution's blanket "**" trigger on
+      # some of them), but never the trivy-fs gate whose local.command runs
+      # the edited script (#5925 review, F3; F8; single-source review P3-2).
+      - "scripts/dev/trivy-fs-local.sh"
+      - "scripts/lib/trivy-skip-dirs.sh"
+      - "specs/trivy-skip-dirs.txt"
+      - ".github/workflows/security-scan.yml"
     # Optional: trivy is not a required local tool. The script runs the scan when
     # trivy is installed and otherwise prints setup guidance and defers to CI —
     # it never passes silently as if the scan ran. Advisory locally; CI's
@@ -2285,6 +2298,8 @@ gates:
       - "scripts/dev/pre-pr.sh"
       - "scripts/dev/precommit-go.sh"
       - "scripts/dev/trivy-fs-local.sh"
+      - "scripts/lib/trivy-skip-dirs.sh"
+      - "specs/trivy-skip-dirs.txt"
       - "scripts/test-verify-ci-gates-registry.sh"
       - "scripts/verify-live-required-status-checks.sh"
       - "scripts/test-verify-live-required-status-checks.sh"
@@ -2297,7 +2312,7 @@ gates:
       - ".github/workflows/**"
     local:
       command: "bash scripts/verify-ci-gates-registry.sh --drift"
-      test_command: "bash scripts/test-verify-ci-gates-registry.sh && bash scripts/test-pre-pr-whole-module-gates.sh && bash scripts/test-generate-ci-gates-doc.sh && bash scripts/test-verify-live-required-status-checks.sh"
+      test_command: "bash scripts/test-verify-ci-gates-registry.sh && bash scripts/test-pre-pr-whole-module-gates.sh && bash scripts/test-generate-ci-gates-doc.sh && bash scripts/test-verify-live-required-status-checks.sh && (cd go && go test ./internal/cigates -count=1)"
     ci:
       workflow: verify-ci-gate-registry.yml
       job: "Verify ci-gate registry + drift"
