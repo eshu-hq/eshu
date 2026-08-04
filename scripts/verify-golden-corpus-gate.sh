@@ -236,6 +236,7 @@ log "bootstrap-index over minimal corpus (schema + filesystem facts + projection
 phase_bootstrap_end="$(date +%s)"
 
 run_container_image_identity_demotion_proof
+run_container_image_identity_cloud_reopen_ordering_proof
 phase_collect_start="$(date +%s)"
 
 log "resolve local-backend fixture scope_id (issue #5594)"
