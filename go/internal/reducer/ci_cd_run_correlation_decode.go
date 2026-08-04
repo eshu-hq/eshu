@@ -285,6 +285,11 @@ func ensureCICDRunEvidence(runs map[string]*cicdRunEvidence, key string) *cicdRu
 // buildCICDImageIdentityIndex indexes by digest.
 type cicdImageIdentity struct {
 	factID string
+	// evidenceFactIDs preserves every support-grain fact that agreed on this
+	// digest-qualified image identity. The support store intentionally returns
+	// one envelope per evidence source; CI/CD correlation must count distinct
+	// image identities, not those support rows.
+	evidenceFactIDs []string
 	// buildProvenanceRepositoryIDs carries only the repositories the identity
 	// decision attributed BUILD evidence to, the narrow set #5796 established
 	// for this exact distinction. It is the sole join key for repository
@@ -299,6 +304,7 @@ type cicdImageIdentity struct {
 
 func buildCICDImageIdentityIndex(envelopes []facts.Envelope) map[string][]cicdImageIdentity {
 	index := map[string][]cicdImageIdentity{}
+	positions := map[string]map[string]int{}
 	for _, envelope := range envelopes {
 		if envelope.FactKind != containerImageIdentityFactKind {
 			continue
@@ -307,16 +313,47 @@ func buildCICDImageIdentityIndex(envelopes []facts.Envelope) map[string][]cicdIm
 		if digest == "" {
 			continue
 		}
-		index[digest] = append(index[digest], cicdImageIdentity{
-			factID: envelope.FactID,
+		identity := cicdImageIdentity{
+			factID:          envelope.FactID,
+			evidenceFactIDs: []string{envelope.FactID},
 			buildProvenanceRepositoryIDs: payloadOrderedStrings(
 				envelope.Payload, "build_provenance_repository_ids",
 			),
 			imageRef: payloadString(envelope.Payload, "image_ref"),
 			digest:   digest,
-		})
+		}
+		if identity.imageRef == "" {
+			index[digest] = append(index[digest], identity)
+			continue
+		}
+		if positions[digest] == nil {
+			positions[digest] = map[string]int{}
+		}
+		if position, ok := positions[digest][identity.imageRef]; ok {
+			existing := &index[digest][position]
+			existing.evidenceFactIDs = uniqueSortedStrings(append(
+				existing.evidenceFactIDs, envelope.FactID,
+			))
+			existing.buildProvenanceRepositoryIDs = uniqueSortedStrings(append(
+				existing.buildProvenanceRepositoryIDs,
+				identity.buildProvenanceRepositoryIDs...,
+			))
+			continue
+		}
+		positions[digest][identity.imageRef] = len(index[digest])
+		index[digest] = append(index[digest], identity)
 	}
 	return index
+}
+
+func cicdImageIdentityEvidenceFactIDs(identity cicdImageIdentity) []string {
+	if len(identity.evidenceFactIDs) > 0 {
+		return identity.evidenceFactIDs
+	}
+	if identity.factID == "" {
+		return nil
+	}
+	return []string{identity.factID}
 }
 
 // cicdRunKeyFromParts builds the reducer's run join key from typed decoded

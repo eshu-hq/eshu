@@ -524,7 +524,9 @@ Primary groups:
 
 - Database adapters: `ExecQueryer`, `Transaction`, `Beginner`, `SQLDB`,
   `SQLTx`, `InstrumentedDB`.
-- Fact, queue, recovery, status, workflow, and webhook stores.
+- Fact, queue, recovery, status, workflow, and webhook stores. `FactStore` also
+  provides bounded CI/CD run-history and immediate-predecessor snapshot reads
+  for artifact-only correlation patches.
 - Governance audit store for validation-safe private event persistence,
   authorized bounded detailed reads, retention pruning, and aggregate-only
   status readback.

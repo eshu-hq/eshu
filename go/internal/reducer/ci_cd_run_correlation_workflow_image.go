@@ -167,7 +167,10 @@ func classifyCICDWorkflowImagePass(
 			decision.CanonicalTarget = "container_image"
 			decision.CorrelationKind = "workflow_image"
 			decision.ArtifactDigest = matches[0].digest
-			decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, matches[0].factID)
+			decision.EvidenceFactIDs = append(
+				decision.EvidenceFactIDs,
+				cicdImageIdentityEvidenceFactIDs(matches[0])...,
+			)
 			decision.SourceLayerKinds = []string{"observed", "observed_resource"}
 			return decision, true
 		default:
@@ -175,7 +178,10 @@ func classifyCICDWorkflowImagePass(
 			decision.Reason = "workflow image ref matches multiple container image identity rows"
 			decision.CorrelationKind = "workflow_image"
 			for _, match := range matches {
-				decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, match.factID)
+				decision.EvidenceFactIDs = append(
+					decision.EvidenceFactIDs,
+					cicdImageIdentityEvidenceFactIDs(match)...,
+				)
 			}
 			return decision, true
 		}

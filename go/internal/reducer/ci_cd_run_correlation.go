@@ -114,6 +114,10 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent Intent) (R
 	if err != nil {
 		return Result{}, fmt.Errorf("load ci/cd run correlation facts: %w", err)
 	}
+	envelopes, previousDecisions, patchGeneration, err := h.loadCICDRunCorrelationPatchFacts(ctx, intent, envelopes)
+	if err != nil {
+		return Result{}, err
+	}
 	active, err := h.loadActiveCICDRunCorrelationFacts(ctx, ciArtifactDigests(envelopes), ciWorkflowImageRefs(envelopes))
 	if err != nil {
 		return Result{}, fmt.Errorf("load active ci/cd artifact identity facts: %w", err)
@@ -123,6 +127,12 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent Intent) (R
 	decisions, quarantined, deploymentEventsSkipped, err := buildCICDRunCorrelationDecisionsWithQuarantine(envelopes)
 	if err != nil {
 		return Result{}, fmt.Errorf("build ci/cd run correlation decisions: %w", err)
+	}
+	if patchGeneration {
+		decisions, err = mergeCICDRunCorrelationPatchDecisions(previousDecisions, decisions)
+		if err != nil {
+			return Result{}, fmt.Errorf("merge ci/cd run correlation patch: %w", err)
+		}
 	}
 	counts := cicdRunCorrelationCounts(decisions)
 	writeResult, err := h.Writer.WriteCICDRunCorrelations(ctx, CICDRunCorrelationWrite{
@@ -336,7 +346,10 @@ func classifyCICDRunEvidence(ev *cicdRunEvidence, imageIndex map[string][]cicdIm
 			decision.CanonicalTarget = "container_image"
 			decision.CorrelationKind = "artifact_image"
 			decision.ImageRef = matches[0].imageRef
-			decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, matches[0].factID)
+			decision.EvidenceFactIDs = append(
+				decision.EvidenceFactIDs,
+				cicdImageIdentityEvidenceFactIDs(matches[0])...,
+			)
 			decision.SourceLayerKinds = []string{"reported", "observed_resource"}
 			return decision
 		default:
@@ -344,7 +357,10 @@ func classifyCICDRunEvidence(ev *cicdRunEvidence, imageIndex map[string][]cicdIm
 			decision.Reason = "artifact digest matches multiple container image identity rows"
 			decision.CorrelationKind = "artifact_image"
 			for _, match := range matches {
-				decision.EvidenceFactIDs = append(decision.EvidenceFactIDs, match.factID)
+				decision.EvidenceFactIDs = append(
+					decision.EvidenceFactIDs,
+					cicdImageIdentityEvidenceFactIDs(match)...,
+				)
 			}
 			return decision
 		}

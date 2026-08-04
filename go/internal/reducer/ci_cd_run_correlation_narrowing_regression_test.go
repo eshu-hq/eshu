@@ -4,6 +4,7 @@
 package reducer
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -63,11 +64,18 @@ func TestCICDNarrowingSelectsTheBuilderFromPublishedFacts(t *testing.T) {
 	})
 
 	matches := index[digest]
-	if len(matches) != 2 {
-		t.Fatalf("index[%q] = %d rows, want 2", digest, len(matches))
+	if len(matches) != 1 {
+		t.Fatalf("index[%q] = %d identities, want one image identity backed by two support facts", digest, len(matches))
+	}
+	if got := matches[0].evidenceFactIDs; !slices.Equal(
+		got,
+		[]string{"identity-builder", "identity-deployer-reference"},
+	) {
+		t.Fatalf("identity evidence = %#v, want both support facts", got)
 	}
 
-	// #5766: the builder must narrow to exactly its own row.
+	// #5766: the builder must narrow to the canonical identity because one of
+	// its support rows carries this repository's build provenance.
 	builderMatches := cicdImageMatchesForRepository(matches, builderRepo)
 	if len(builderMatches) != 1 || builderMatches[0].factID != "identity-builder" {
 		t.Fatalf("narrowing for the builder = %d rows (%#v), want exactly the identity-builder row; "+

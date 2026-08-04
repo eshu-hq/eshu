@@ -30,6 +30,18 @@ operational lessons that future storage changes still need to respect.
 
 ## Fact Readback Invariants
 
+- `ListCICDRunFactsForRunKeys` is the narrow history read for a generation that
+  contains a `ci.artifact` but no `ci.run`. It accepts exact
+  provider/run/attempt keys, reads only the same scope, ranks tombstones before
+  filtering them even when their payload is empty, reloads matching deployment
+  events by the recovered run commit, preserves the typed optional-repository
+  fallback when either side omits `repository_id`, and rejects more than 10,000
+  returned facts. The companion
+  `ListPreviousCICDRunCorrelationFacts` reads the immediately preceding
+  successful generation even when that generation has no correlation facts;
+  skipping an empty predecessor would resurrect a stale snapshot. Its result is
+  capped at 1,000 facts. These reads support the reducer's patch path only; a
+  generation containing a run stays on the existing same-generation path.
 - `ListOwnedPackageDependencyTargets` serves workflow-coordinator derivation.
   Package-registry callers use package-level identities so repeated versions of
   one package cannot starve later packages. Vulnerability-intelligence callers

@@ -28,9 +28,9 @@
 #     len(collector_specs), never restated here as a literal — see that
 #     array's own comment for why a hand-maintained count drifts): every
 #     credentialed collector landed at least one scope.
-#   - landed_scopes >= GATE_EXPECTED_TOTAL_SCOPES (the sum of every cassette's
-#     scope count, computed by the orchestrator via jq): every scope of every
-#     cassette actually landed, not just the first one per collector.
+#   - landed_generations >= GATE_EXPECTED_TOTAL_SCOPES (the sum of every
+#     cassette's scope-generation records, computed by the orchestrator via
+#     jq): every generation actually landed, including repeated scope IDs.
 #
 # The second condition is load-bearing on its own, not a nice-to-have: a
 # cassette.Source.Next call (go/internal/replay/cassette/source.go) emits one
@@ -59,11 +59,11 @@
 wait_for_collector_settle() {
 	local settle_start settle_elapsed i pid
 	local remaining_seconds sleep_seconds
-	local settle_probe_line raw_collector_sources raw_landed_scopes
-	local collector_sources landed_scopes
+	local settle_probe_line raw_collector_sources raw_landed_generations
+	local collector_sources landed_generations
 	settle_start="$(date +%s)"
 	collector_sources=0
-	landed_scopes=0
+	landed_generations=0
 	while true; do
 		# A collector that crashed on startup (cassette parse, Postgres connect)
 		# exited during the settle. Catch that before killing, so a
@@ -93,26 +93,31 @@ wait_for_collector_settle() {
 SELECT
   (SELECT count(DISTINCT source_system) FROM ingestion_scopes WHERE source_system <> 'git')
   || ' ' ||
-  (SELECT count(*) FROM ingestion_scopes WHERE source_system <> 'git');
+  (SELECT count(*)
+     FROM scope_generations AS generation
+     JOIN ingestion_scopes AS scope
+       ON scope.scope_id = generation.scope_id
+    WHERE scope.source_system <> 'git'
+      AND generation.status IN ('pending', 'active', 'completed', 'superseded'));
 ")" || settle_probe_line=""
-		read -r raw_collector_sources raw_landed_scopes <<<"${settle_probe_line}"
+		read -r raw_collector_sources raw_landed_generations <<<"${settle_probe_line}"
 		if [[ "${raw_collector_sources}" =~ ^[0-9]+$ ]]; then
 			collector_sources="${raw_collector_sources}"
 		else
 			collector_sources=0
 		fi
-		if [[ "${raw_landed_scopes}" =~ ^[0-9]+$ ]]; then
-			landed_scopes="${raw_landed_scopes}"
+		if [[ "${raw_landed_generations}" =~ ^[0-9]+$ ]]; then
+			landed_generations="${raw_landed_generations}"
 		else
-			landed_scopes=0
+			landed_generations=0
 		fi
-		if (( collector_sources >= GATE_MIN_COLLECTOR_SOURCES && landed_scopes >= GATE_EXPECTED_TOTAL_SCOPES )); then
+		if (( collector_sources >= GATE_MIN_COLLECTOR_SOURCES && landed_generations >= GATE_EXPECTED_TOTAL_SCOPES )); then
 			break
 		fi
 
 		settle_elapsed=$(( $(date +%s) - settle_start ))
 		if (( settle_elapsed >= GATE_COLLECTOR_SETTLE_SECONDS )); then
-			die "collector settle poll timed out after ${settle_elapsed}s (deadline ${GATE_COLLECTOR_SETTLE_SECONDS}s): ${collector_sources} credentialed collector source(s) landed facts (want >= ${GATE_MIN_COLLECTOR_SOURCES}), ${landed_scopes} total scopes landed (want >= ${GATE_EXPECTED_TOTAL_SCOPES}) (cassette replay did not fully commit)"
+			die "collector settle poll timed out after ${settle_elapsed}s (deadline ${GATE_COLLECTOR_SETTLE_SECONDS}s): ${collector_sources} credentialed collector source(s) landed facts (want >= ${GATE_MIN_COLLECTOR_SOURCES}), ${landed_generations} scope generations landed (want >= ${GATE_EXPECTED_TOTAL_SCOPES}) (cassette replay did not fully commit)"
 		fi
 		# Sleep min(poll interval, remaining time), never the full interval
 		# unconditionally: sleeping the full GATE_COLLECTOR_SETTLE_POLL_SECONDS
@@ -130,7 +135,7 @@ SELECT
 	done
 	settle_elapsed=$(( $(date +%s) - settle_start ))
 	for pid in "${collector_pids[@]}"; do kill "${pid}" >/dev/null 2>&1 || true; done
-	printf 'cassette facts settled in %ss: %s credentialed collector sources (want >= %s), %s total scopes landed (want >= %s)\n' \
+	printf 'cassette facts settled in %ss: %s credentialed collector sources (want >= %s), %s scope generations landed (want >= %s)\n' \
 		"${settle_elapsed}" "${collector_sources}" "${GATE_MIN_COLLECTOR_SOURCES}" \
-		"${landed_scopes}" "${GATE_EXPECTED_TOTAL_SCOPES}"
+		"${landed_generations}" "${GATE_EXPECTED_TOTAL_SCOPES}"
 }

@@ -44,28 +44,6 @@
           }
         },
         {
-          "fact_kind": "ci.artifact",
-          "stable_fact_key": "ci_cd_run:github_actions:supply-chain-demo:run:5150:artifact:image",
-          "schema_version": "1.0.0",
-          "collector_kind": "ci_cd_run",
-          "fencing_token": 1,
-          "source_confidence": "reported",
-          "payload": {
-            "collector_instance_id": "cicd-collector-scd",
-            "provider": "github_actions",
-            "run_id": "5150",
-            "run_attempt": "1",
-            "artifact_id": "art-image-5150",
-            "artifact_name": "supply-chain-demo-image",
-            "artifact_type": "container_image",
-            "artifact_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
-            "correlation_anchors": [
-              "github_actions::5150",
-              "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
-            ]
-          }
-        },
-        {
           "fact_kind": "ci.deployment_event",
           "stable_fact_key": "ci_cd_run:github_actions:supply-chain-demo:deployment:9001:status:77001",
           "schema_version": "1.0.0",
@@ -117,6 +95,44 @@
             "updated_at": "2026-06-25T00:07:00Z",
             "environment_url": "https://demo.example.invalid",
             "log_url": "https://github.com/eshu-hq/supply-chain-demo/deployments/9001"
+          }
+        }
+      ]
+    },
+    {
+      "scope_id": "ci_cd_run:github_actions:eshu-hq:supply-chain-demo",
+      "source_system": "ci_cd_run",
+      "scope_kind": "ci_cd_run",
+      "collector_kind": "ci_cd_run",
+      "partition_key": "ci_cd_run:github_actions:eshu-hq:supply-chain-demo",
+      "metadata": {
+        "provider": "github_actions",
+        "repository": "eshu-hq/supply-chain-demo"
+      },
+      "generation_id": "cassette-cicd-scd-gen2-artifact",
+      "observed_at": "2026-06-25T00:10:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "ci.artifact",
+          "stable_fact_key": "ci_cd_run:github_actions:supply-chain-demo:run:5150:artifact:image",
+          "schema_version": "1.0.0",
+          "collector_kind": "ci_cd_run",
+          "fencing_token": 2,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "cicd-collector-scd",
+            "provider": "github_actions",
+            "run_id": "5150",
+            "run_attempt": "1",
+            "artifact_id": "art-image-5150",
+            "artifact_name": "supply-chain-demo-image",
+            "artifact_type": "container_image",
+            "artifact_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
+            "correlation_anchors": [
+              "github_actions::5150",
+              "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
+            ]
           }
         }
       ]
@@ -177,6 +193,28 @@
             "stage": "build",
             "status": "success",
             "result": "success"
+          }
+        },
+        {
+          "fact_kind": "ci.artifact",
+          "stable_fact_key": "ci_cd_run:gitlab_ci:supply-chain-demo:run:7700:artifact:image",
+          "schema_version": "1.0.0",
+          "collector_kind": "ci_cd_run",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "cicd-collector-gitlab-scd",
+            "provider": "gitlab_ci",
+            "run_id": "7700",
+            "run_attempt": "1",
+            "artifact_id": "art-image-7700",
+            "artifact_name": "supply-chain-demo-image",
+            "artifact_type": "container_image",
+            "artifact_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
+            "correlation_anchors": [
+              "gitlab_ci::7700",
+              "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
+            ]
           }
         }
       ]

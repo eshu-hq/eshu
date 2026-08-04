@@ -25,7 +25,20 @@ require_in "collector liveness check" "${collector_settle_lib}" "exited during s
 # failed loudly).
 require_in "settle break condition requires BOTH source breadth AND full scope replay" \
 	"${collector_settle_lib}" \
-	"if (( collector_sources >= GATE_MIN_COLLECTOR_SOURCES && landed_scopes >= GATE_EXPECTED_TOTAL_SCOPES )); then"
+	"if (( collector_sources >= GATE_MIN_COLLECTOR_SOURCES && landed_generations >= GATE_EXPECTED_TOTAL_SCOPES )); then"
+# Repeated scope IDs are valid cassette input when two observations represent
+# successive generations of one scope. Counting ingestion_scopes can never
+# distinguish whether the second generation committed, so the proof must count
+# successful scope_generations while still excluding bootstrap git scopes.
+require_in "settle probe counts every committed cassette generation" \
+	"${collector_settle_lib}" \
+	"FROM scope_generations AS generation"
+require_in "settle generation count excludes bootstrap git scopes" \
+	"${collector_settle_lib}" \
+	"JOIN ingestion_scopes AS scope"
+require_in "settle generation count includes collector-committed pending rows" \
+	"${collector_settle_lib}" \
+	"generation.status IN ('pending', 'active', 'completed', 'superseded')"
 # The settle window must be POLLED, not slept for a fixed duration: a fixed
 # `sleep "${GATE_COLLECTOR_SETTLE_SECONDS}"` has zero margin once host load or
 # Docker I/O contention slows down fact commit (the exact regression this
@@ -116,7 +129,7 @@ if (
 fi
 rg --fixed-strings --quiet -- 'collector settle poll timed out after' "${collector_settle_case_a_err}" ||
 	fail "wait_for_collector_settle timeout message must report the timeout"
-rg --fixed-strings --quiet -- '0 credentialed collector source(s) landed facts (want >= 2), 0 total scopes landed (want >= 5)' \
+rg --fixed-strings --quiet -- '0 credentialed collector source(s) landed facts (want >= 2), 0 scope generations landed (want >= 5)' \
 	"${collector_settle_case_a_err}" ||
 	fail "wait_for_collector_settle timeout message must report both counts reached (0, 0) and both thresholds (2, 5)"
 
@@ -184,7 +197,7 @@ if (
 fi
 rg --fixed-strings --quiet -- 'collector settle poll timed out after' "${collector_settle_case_c_err}" ||
 	fail "a non-numeric pg() response must still produce the deadline-timeout message, not a bash arithmetic syntax error"
-rg --fixed-strings --quiet -- '0 credentialed collector source(s) landed facts (want >= 2), 0 total scopes landed (want >= 5)' \
+rg --fixed-strings --quiet -- '0 credentialed collector source(s) landed facts (want >= 2), 0 scope generations landed (want >= 5)' \
 	"${collector_settle_case_c_err}" ||
 	fail "a non-numeric pg() response must be treated as 0 for both counts, not corrupt the arithmetic comparison"
 if rg --fixed-strings --quiet -- 'syntax error' "${collector_settle_case_c_err}"; then
@@ -221,14 +234,14 @@ if (
 	fail "wait_for_collector_settle must exit non-zero when neither threshold is reached (case D)"
 fi
 collector_settle_case_d_elapsed=$(( $(date +%s) - collector_settle_case_d_start ))
-rg --fixed-strings --quiet -- 'collector settle poll timed out after 3s (deadline 3s)' \
+rg --pcre2 --quiet -- 'collector settle poll timed out after [3-5]s \(deadline 3s\)' \
 	"${collector_settle_case_d_err}" ||
-	fail "wait_for_collector_settle with a 10s poll interval and a 3s deadline must report timing out at 3s, not overshoot to ~10s: $(cat "${collector_settle_case_d_err}")"
+	fail "wait_for_collector_settle with a 10s poll interval and a 3s deadline must report timing out within the accepted 3-5s scheduler margin, not overshoot to ~10s: $(cat "${collector_settle_case_d_err}")"
 [[ "${collector_settle_case_d_elapsed}" -le 5 ]] ||
 	fail "wait_for_collector_settle must honor the 3s deadline despite a 10s poll interval, not wait out the full interval (measured ${collector_settle_case_d_elapsed}s wall-clock)"
 
 # Case E (P1 regression, codex review on #5909): the distinct-source-count
-# threshold is met immediately, but total landed scopes stays short of the
+# threshold is met immediately, but total landed generations stay short of the
 # expected total forever -- simulating a collector that committed its FIRST
 # scope (satisfying GATE_MIN_COLLECTOR_SOURCES) while cassette.Source.Next
 # still has more scopes queued for that same collector. The function must NOT
@@ -262,7 +275,7 @@ if (
 ) >/dev/null 2>"${collector_settle_case_e_err}"; then
 	fail "wait_for_collector_settle must NOT declare success while total scopes (2) is short of the expected total (5), even though the distinct-source threshold (2) is already met -- this is the #5909 P1 truncation regression"
 fi
-rg --fixed-strings --quiet -- '2 credentialed collector source(s) landed facts (want >= 2), 2 total scopes landed (want >= 5)' \
+rg --fixed-strings --quiet -- '2 credentialed collector source(s) landed facts (want >= 2), 2 scope generations landed (want >= 5)' \
 	"${collector_settle_case_e_err}" ||
 	fail "case E timeout message must show the source threshold met (2/2) alongside the scope total still short (2/5)"
 
@@ -301,7 +314,7 @@ if (
 fi
 rg --fixed-strings --quiet -- 'collector settle poll timed out after' "${collector_settle_case_f_err}" ||
 	fail "a failing pg() probe must survive to wait_for_collector_settle's own timeout message under set -e, not abort the subshell silently on the first failed probe: $(cat "${collector_settle_case_f_err}")"
-rg --fixed-strings --quiet -- '0 credentialed collector source(s) landed facts (want >= 2), 0 total scopes landed (want >= 5)' \
+rg --fixed-strings --quiet -- '0 credentialed collector source(s) landed facts (want >= 2), 0 scope generations landed (want >= 5)' \
 	"${collector_settle_case_f_err}" ||
 	fail "a failing pg() probe must be treated as 0 for both counts and keep polling until the deadline, not corrupt state"
 

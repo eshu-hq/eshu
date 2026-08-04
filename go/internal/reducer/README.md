@@ -295,6 +295,21 @@ values each counter carries.
 - **Generation supersession** — `Runtime.execute` calls `GenerationCheck`
   before dispatching to `Handler.Handle`; a superseded intent returns without
   projecting stale truth.
+- **Artifact-only CI/CD generations are patches** — a generation containing a
+  `ci.artifact` but no `ci.run` loads retained evidence only for the artifact's
+  exact provider/run/attempt keys. The handler copies the immediately preceding
+  correlation snapshot, overlays the recomputed runs, and writes a complete new
+  snapshot so the active-generation fence does not hide unaffected runs. A
+  generation containing any `ci.run` remains a normal full replacement.
+  Deployment events join by commit SHA rather than run key, so the history read
+  reloads them after recovering the run and the normal classifier reselects the
+  environment. The active container-image loader returns support-grain rows;
+  correlation groups rows that agree on the same non-empty digest and image
+  reference before deciding cardinality, preserving all support fact IDs. Two
+  different image references for one digest remain ambiguous. Evidence IDs on
+  unaffected carried decisions are best-effort links to retained superseded
+  facts. Later full CI/CD snapshots can rebase the chain; after retention, an
+  older carried link may no longer resolve.
 - **`deployment_mapping` requires post-Phase-3 reopen** — any domain
   consuming `resolved_relationships` needs its own post-Phase-3 reopen
   mechanism (see `queue-and-runners.md`'s Facts-First Bootstrap Ordering).

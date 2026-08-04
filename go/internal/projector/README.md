@@ -274,6 +274,12 @@ container-image relationships, or Git content-entity image references,
 `container_image_identity` reducer intent for that scope/generation. The
 projector still does not join images to workloads or runtime evidence; the
 reducer owns digest-first admission after source-local projection succeeds.
+CI/CD run correlation also uses a reducer-owned handoff. A generation with a
+`ci.run` or `ci.artifact` fact emits one `ci_cd_run_correlation` intent. A run
+starts a normal full snapshot. An artifact without a run starts a bounded patch:
+the reducer loads the matching retained run evidence, updates those runs, and
+carries the unaffected decisions into the new generation. The projector only
+selects the trigger fact; it does not perform the cross-generation join.
 SBOM and attestation documents use the same reducer-owned boundary. When a
 generation contains an `sbom.document`, `attestation.statement`, or OCI
 referrer fact,
