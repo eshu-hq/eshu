@@ -26,9 +26,11 @@ A generation containing `ci.artifact` but no run is a domain patch:
 1. Extract the artifact's exact provider, run ID, and run-attempt keys.
 2. Load the latest retained run-scoped facts for only those keys from older
    successful generations in the same scope.
-3. Load the immediately preceding successful correlation snapshot, including an
+3. Remove retained artifacts for any key present in the current generation, so
+   the triggering artifact is authoritative even when its digest is empty.
+4. Load the immediately preceding successful correlation snapshot, including an
    empty predecessor.
-4. Recompute the affected runs, overlay them on the preceding snapshot, and
+5. Recompute the affected runs, overlay them on the preceding snapshot, and
    write the complete result into the artifact generation.
 
 Deployment events do not carry a run ID; they join to runs by commit SHA. After
@@ -38,6 +40,35 @@ its exact evidence fact. It does not copy old artifact or image-identity links
 from the prior decision. Repository ID is optional on both facts: a matching
 commit remains sufficient when either side omits it, while two populated,
 different repositories do not join.
+
+A post-publication regression reproduced a retained artifact whose old digest
+still matched an active image identity. Before filtering superseded artifacts,
+the handler returned that old digest before examining the current artifact.
+The production-path regression now requires the current digest and image, and
+a focused edge test proves an empty current digest does not resurrect the old
+one.
+
+The same review pass removed a JSON marshal/unmarshal round trip from carried
+decision decoding. The direct decoder accepts both in-memory writer values and
+Postgres JSON values, rejects fractional counters, and normalizes evidence
+arrays. The result summary now distinguishes decisions recomputed from current
+artifact evidence (`evaluated`) from unchanged prior decisions (`preserved`);
+outcome counts continue to describe the complete snapshot written.
+
+```text
+go test ./internal/reducer \
+  -run '^TestCICDRunCorrelationHandlerPatchesLaterArtifactAndCarriesPreviousSnapshot$' \
+  -count=1
+
+before: ArtifactDigest = "sha256:bbbb...", want current "sha256:cccc..."
+after:  ok github.com/eshu-hq/eshu/go/internal/reducer
+
+go test ./internal/reducer \
+  -run 'TestCICDRunCorrelationDecisionFromPayloadAcceptsPersistedJSONShapes|TestMergeCICDRunCorrelationPatchDecisionsRejectsFractionalCanonicalWrites' \
+  -count=1
+
+after:  ok github.com/eshu-hq/eshu/go/internal/reducer
+```
 
 Historical selection ranks a tombstone before filtering it, so a retracted run
 or artifact cannot return through an older row. The history query rejects more
@@ -56,7 +87,8 @@ its carried evidence link no longer resolves.
 Performance Evidence: PostgreSQL 16 processed the same one-scope, 25-generation
 input before and after the query rewrite: 216,000 retained step facts, 90 patch
 keys, 1,000 prior decisions, and 1,000 terminal output rows. The full handler
-fell from a 91.586-second baseline to 0.777 seconds, while existing reducer and
+fell from a 91.586-second baseline to 0.740 seconds after the review fix that
+filters superseded artifacts before classification. Existing reducer and
 Postgres duration metrics retain operator visibility.
 
 The performance question was whether the artifact-patch handler could remain
@@ -72,10 +104,10 @@ expected 9,090 facts in 559.362 ms before the production SQL was changed.
 
 | Full-handler measurement | Before | After |
 | --- | ---: | ---: |
-| Total handler | 91.586 s | 0.777 s |
-| Historical evidence read | 91.524 s | 0.713 s |
-| Previous snapshot read | 7.990 ms | 5.971 ms |
-| Durable writer | 43.347 ms | 45.664 ms |
+| Total handler | 91.586 s | 0.740 s |
+| Historical evidence read | 91.524 s | 0.679 s |
+| Previous snapshot read | 7.990 ms | 6.238 ms |
+| Durable writer | 43.347 ms | 44.719 ms |
 | Result | Failed 5 s budget | Passed 5 s budget |
 
 Both runs used the same PostgreSQL 16 input: one scope, 25 generations,
@@ -138,8 +170,8 @@ decision decoder, 1,000-decision overlay, and durable writer:
 
 ```text
 manifest scopes=1 generations=25 retained_step_rows=216000 patch_keys=90
-prior_decisions=1000 output_decisions=1000 duration=777.166708ms
-history=713.016167ms previous=5.971375ms writer=45.663833ms budget=5s
+prior_decisions=1000 output_decisions=1000 duration=740.272333ms
+history=679.407666ms previous=6.238417ms writer=44.719166ms budget=5s
 exit 0
 ```
 

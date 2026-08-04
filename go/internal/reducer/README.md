@@ -300,7 +300,13 @@ values each counter carries.
   exact provider/run/attempt keys. The handler copies the immediately preceding
   correlation snapshot, overlays the recomputed runs, and writes a complete new
   snapshot so the active-generation fence does not hide unaffected runs. A
-  generation containing any `ci.run` remains a normal full replacement.
+  generation containing any `ci.run` remains a normal full replacement. For a
+  patched run, current-generation artifacts replace retained artifacts even
+  when the current payload has no digest; older run-scoped fact kinds remain
+  available to the classifier without resurrecting a stale artifact identity.
+  The reducer result reports current patch work as `evaluated` and unchanged
+  carried decisions as `preserved`, while outcome totals still describe the
+  complete snapshot written for the target generation.
   Deployment events join by commit SHA rather than run key, so the history read
   reloads them after recovering the run and the normal classifier reselects the
   environment. The active container-image loader returns support-grain rows;

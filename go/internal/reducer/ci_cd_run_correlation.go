@@ -128,11 +128,14 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent Intent) (R
 	if err != nil {
 		return Result{}, fmt.Errorf("build ci/cd run correlation decisions: %w", err)
 	}
+	evaluatedCount := len(decisions)
+	preservedCount := 0
 	if patchGeneration {
 		decisions, err = mergeCICDRunCorrelationPatchDecisions(previousDecisions, decisions)
 		if err != nil {
 			return Result{}, fmt.Errorf("merge ci/cd run correlation patch: %w", err)
 		}
+		preservedCount = len(decisions) - evaluatedCount
 	}
 	counts := cicdRunCorrelationCounts(decisions)
 	writeResult, err := h.Writer.WriteCICDRunCorrelations(ctx, CICDRunCorrelationWrite{
@@ -154,7 +157,7 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent Intent) (R
 		IntentID:        intent.IntentID,
 		Domain:          DomainCICDRunCorrelation,
 		Status:          ResultStatusSucceeded,
-		EvidenceSummary: cicdRunCorrelationSummary(len(decisions), counts, writeResult.CanonicalWrites),
+		EvidenceSummary: cicdRunCorrelationSummary(evaluatedCount, preservedCount, counts, writeResult.CanonicalWrites),
 		CanonicalWrites: writeResult.CanonicalWrites,
 		SubSignals:      inputInvalidSubSignals(quarantinedCount),
 	}, nil
@@ -249,10 +252,16 @@ func cicdRunCorrelationCounts(decisions []CICDRunCorrelationDecision) map[CICDRu
 	return counts
 }
 
-func cicdRunCorrelationSummary(evaluated int, counts map[CICDRunCorrelationOutcome]int, canonicalWrites int) string {
+func cicdRunCorrelationSummary(
+	evaluated int,
+	preserved int,
+	counts map[CICDRunCorrelationOutcome]int,
+	canonicalWrites int,
+) string {
 	return fmt.Sprintf(
-		"ci/cd run correlation evaluated=%d exact=%d derived=%d ambiguous=%d unresolved=%d rejected=%d canonical_writes=%d",
+		"ci/cd run correlation evaluated=%d preserved=%d exact=%d derived=%d ambiguous=%d unresolved=%d rejected=%d canonical_writes=%d",
 		evaluated,
+		preserved,
 		counts[CICDRunCorrelationExact],
 		counts[CICDRunCorrelationDerived],
 		counts[CICDRunCorrelationAmbiguous],

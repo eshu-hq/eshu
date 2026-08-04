@@ -66,12 +66,14 @@ func (l *crossGenerationCICDRunFactLoader) ListActiveCICDRunCorrelationFacts(
 func TestCICDRunCorrelationHandlerPatchesLaterArtifactAndCarriesPreviousSnapshot(t *testing.T) {
 	t.Parallel()
 
+	const historicalDigest = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	loader := &crossGenerationCICDRunFactLoader{
 		currentFacts: []facts.Envelope{
 			ciArtifactFact("artifact-later", "run-upgraded", testCICDDigest),
 		},
 		historicalRunFacts: []facts.Envelope{
 			ciRunFact("run-upgraded", "github_actions", "repo-api", "abc123"),
+			ciArtifactFact("artifact-historical", "run-upgraded", historicalDigest),
 			{
 				FactID:   "deployment-event:abc123",
 				FactKind: facts.CICDDeploymentEventFactKind,
@@ -120,6 +122,12 @@ func TestCICDRunCorrelationHandlerPatchesLaterArtifactAndCarriesPreviousSnapshot
 		},
 		activeFacts: []facts.Envelope{
 			containerImageIdentityFact(
+				"image-historical-support",
+				"repo-api",
+				"registry.example.com/team/old@"+historicalDigest,
+				historicalDigest,
+			),
+			containerImageIdentityFact(
 				"image-upgraded-support-1",
 				"repo-api",
 				"registry.example.com/team/api@"+testCICDDigest,
@@ -136,7 +144,7 @@ func TestCICDRunCorrelationHandlerPatchesLaterArtifactAndCarriesPreviousSnapshot
 	writer := &recordingCICDRunCorrelationWriter{}
 	handler := CICDRunCorrelationHandler{FactLoader: loader, Writer: writer}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), Intent{
 		IntentID:     "intent-artifact-later",
 		ScopeID:      "ci://github-actions/acme/api",
 		GenerationID: "generation-2",
@@ -147,6 +155,12 @@ func TestCICDRunCorrelationHandlerPatchesLaterArtifactAndCarriesPreviousSnapshot
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
+	if !strings.Contains(result.EvidenceSummary, "evaluated=1 preserved=1") {
+		t.Fatalf(
+			"EvidenceSummary = %q, want one recomputed and one preserved decision",
+			result.EvidenceSummary,
+		)
+	}
 
 	got := cicdDecisionsByRun(writer.write.Decisions)
 	if len(got) != 2 {
@@ -154,6 +168,12 @@ func TestCICDRunCorrelationHandlerPatchesLaterArtifactAndCarriesPreviousSnapshot
 	}
 	upgraded := got["github_actions:run-upgraded:1"]
 	assertCICDDecision(t, upgraded, CICDRunCorrelationExact, 1)
+	if upgraded.ArtifactDigest != testCICDDigest {
+		t.Fatalf("upgraded ArtifactDigest = %q, want current-generation digest %q", upgraded.ArtifactDigest, testCICDDigest)
+	}
+	if upgraded.ImageRef != "registry.example.com/team/api@"+testCICDDigest {
+		t.Fatalf("upgraded ImageRef = %q, want current-generation image", upgraded.ImageRef)
+	}
 	for _, factID := range []string{
 		"ci.run:run-upgraded",
 		"artifact-later",
@@ -174,7 +194,12 @@ func TestCICDRunCorrelationHandlerPatchesLaterArtifactAndCarriesPreviousSnapshot
 	if !stringSliceContains(upgraded.EvidenceFactIDs, "deployment-event:abc123") {
 		t.Fatalf("upgraded EvidenceFactIDs = %#v, want carried deployment event", upgraded.EvidenceFactIDs)
 	}
-	for _, staleFactID := range []string{"artifact-old", "image-old"} {
+	for _, staleFactID := range []string{
+		"artifact-old",
+		"image-old",
+		"artifact-historical",
+		"image-historical-support",
+	} {
 		if stringSliceContains(upgraded.EvidenceFactIDs, staleFactID) {
 			t.Fatalf("upgraded EvidenceFactIDs = %#v, must exclude stale %q", upgraded.EvidenceFactIDs, staleFactID)
 		}
@@ -212,6 +237,33 @@ func TestCICDRunCorrelationHandlerRejectsArtifactPatchWithoutHistoryLoader(t *te
 	}
 }
 
+func TestExcludeSupersededCICDArtifactsUsesCurrentKeyWithoutDigest(t *testing.T) {
+	t.Parallel()
+
+	historical := []facts.Envelope{
+		ciRunFact("run-upgraded", "github_actions", "repo-api", "abc123"),
+		ciArtifactFact("artifact-historical", "run-upgraded", testCICDDigest),
+		ciArtifactFact("artifact-other-run", "run-other", testCICDDigest),
+	}
+	current := []facts.Envelope{
+		ciArtifactFact("artifact-current-without-digest", "run-upgraded", ""),
+	}
+
+	filtered := excludeSupersededCICDArtifacts(historical, current)
+	got := make(map[string]struct{}, len(filtered))
+	for _, envelope := range filtered {
+		got[envelope.FactID] = struct{}{}
+	}
+	if _, exists := got["artifact-historical"]; exists {
+		t.Fatalf("filtered facts = %#v, must not resurrect a retained digest when the current artifact omits it", got)
+	}
+	for _, factID := range []string{"ci.run:run-upgraded", "artifact-other-run"} {
+		if _, exists := got[factID]; !exists {
+			t.Fatalf("filtered facts = %#v, want unaffected %q", got, factID)
+		}
+	}
+}
+
 func TestMergeCICDRunCorrelationPatchDecisionsRejectsFractionalCanonicalWrites(t *testing.T) {
 	t.Parallel()
 
@@ -227,6 +279,37 @@ func TestMergeCICDRunCorrelationPatchDecisionsRejectsFractionalCanonicalWrites(t
 	_, err := mergeCICDRunCorrelationPatchDecisions([]facts.Envelope{prior}, nil)
 	if err == nil || !strings.Contains(err.Error(), "canonical_writes") {
 		t.Fatalf("mergeCICDRunCorrelationPatchDecisions() error = %v, want invalid canonical_writes rejection", err)
+	}
+}
+
+func TestCICDRunCorrelationDecisionFromPayloadAcceptsPersistedJSONShapes(t *testing.T) {
+	t.Parallel()
+
+	payload := cicdRunCorrelationPayload(CICDRunCorrelationWrite{}, CICDRunCorrelationDecision{
+		Provider:         "github_actions",
+		RunID:            "run-1",
+		RunAttempt:       "1",
+		Outcome:          CICDRunCorrelationExact,
+		CanonicalWrites:  1,
+		EvidenceFactIDs:  []string{"fact-b", "fact-a", "fact-b"},
+		SourceLayerKinds: []string{"artifact", "run", "artifact"},
+	})
+	payload["canonical_writes"] = float64(1)
+	payload["evidence_fact_ids"] = []any{"fact-b", "fact-a", "fact-b"}
+	payload["source_layer_kinds"] = []any{"artifact", "run", "artifact"}
+
+	decision, err := cicdRunCorrelationDecisionFromPayload(payload)
+	if err != nil {
+		t.Fatalf("cicdRunCorrelationDecisionFromPayload() error = %v, want nil", err)
+	}
+	if decision.CanonicalWrites != 1 {
+		t.Fatalf("CanonicalWrites = %d, want 1", decision.CanonicalWrites)
+	}
+	if got, want := strings.Join(decision.EvidenceFactIDs, ","), "fact-a,fact-b"; got != want {
+		t.Fatalf("EvidenceFactIDs = %q, want %q", got, want)
+	}
+	if got, want := strings.Join(decision.SourceLayerKinds, ","), "artifact,run"; got != want {
+		t.Fatalf("SourceLayerKinds = %q, want %q", got, want)
 	}
 }
 

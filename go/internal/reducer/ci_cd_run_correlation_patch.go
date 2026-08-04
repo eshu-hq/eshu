@@ -5,8 +5,8 @@ package reducer
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 
@@ -63,6 +63,7 @@ func (h CICDRunCorrelationHandler) loadCICDRunCorrelationPatchFacts(
 	if err != nil {
 		return nil, nil, true, fmt.Errorf("load historical ci/cd run facts: %w", classifyFactLoadError(err))
 	}
+	historical = excludeSupersededCICDArtifacts(historical, current)
 	previous, err := loader.ListPreviousCICDRunCorrelationFacts(ctx, intent.ScopeID, intent.GenerationID)
 	if err != nil {
 		return nil, nil, true, fmt.Errorf("load previous ci/cd run correlation facts: %w", classifyFactLoadError(err))
@@ -85,19 +86,8 @@ func hasCICDFactKind(envelopes []facts.Envelope, factKind string) bool {
 func cicdArtifactPatchRunKeys(envelopes []facts.Envelope) ([]string, []string, []string) {
 	unique := make(map[cicdRunCorrelationPatchKey]struct{})
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.CICDArtifactFactKind {
-			continue
-		}
-		artifact, err := decodeCICDArtifact(envelope)
-		if err != nil {
-			continue
-		}
-		key := cicdRunCorrelationPatchKey{
-			provider:   trimmedCICDField(artifact.Provider),
-			runID:      trimmedCICDField(artifact.RunID),
-			runAttempt: defaultCICDRunAttempt(trimmedCICDPtr(artifact.RunAttempt)),
-		}
-		if key.provider == "" || key.runID == "" {
+		key, ok := cicdArtifactPatchKeyFromEnvelope(envelope)
+		if !ok {
 			continue
 		}
 		unique[key] = struct{}{}
@@ -118,6 +108,46 @@ func cicdArtifactPatchRunKeys(envelopes []facts.Envelope) ([]string, []string, [
 		runAttempts = append(runAttempts, key.runAttempt)
 	}
 	return providers, runIDs, runAttempts
+}
+
+// excludeSupersededCICDArtifacts keeps current-generation artifact facts
+// authoritative for every patched run. Retained run, environment, trigger,
+// step, and deployment evidence still participates in the recomputation.
+func excludeSupersededCICDArtifacts(historical, current []facts.Envelope) []facts.Envelope {
+	currentKeys := make(map[cicdRunCorrelationPatchKey]struct{})
+	for _, envelope := range current {
+		key, ok := cicdArtifactPatchKeyFromEnvelope(envelope)
+		if ok {
+			currentKeys[key] = struct{}{}
+		}
+	}
+	filtered := make([]facts.Envelope, 0, len(historical))
+	for _, envelope := range historical {
+		key, ok := cicdArtifactPatchKeyFromEnvelope(envelope)
+		if ok {
+			if _, superseded := currentKeys[key]; superseded {
+				continue
+			}
+		}
+		filtered = append(filtered, envelope)
+	}
+	return filtered
+}
+
+func cicdArtifactPatchKeyFromEnvelope(envelope facts.Envelope) (cicdRunCorrelationPatchKey, bool) {
+	if envelope.FactKind != facts.CICDArtifactFactKind {
+		return cicdRunCorrelationPatchKey{}, false
+	}
+	artifact, err := decodeCICDArtifact(envelope)
+	if err != nil {
+		return cicdRunCorrelationPatchKey{}, false
+	}
+	key := cicdRunCorrelationPatchKey{
+		provider:   trimmedCICDField(artifact.Provider),
+		runID:      trimmedCICDField(artifact.RunID),
+		runAttempt: defaultCICDRunAttempt(trimmedCICDPtr(artifact.RunAttempt)),
+	}
+	return key, key.provider != "" && key.runID != ""
 }
 
 func mergeCICDRunCorrelationPatchDecisions(
@@ -151,50 +181,51 @@ func mergeCICDRunCorrelationPatchDecisions(
 }
 
 func cicdRunCorrelationDecisionFromPayload(payload map[string]any) (CICDRunCorrelationDecision, error) {
-	encoded, err := json.Marshal(payload)
+	var decision CICDRunCorrelationDecision
+	stringFields := []struct {
+		key    string
+		target *string
+	}{
+		{key: "provider", target: &decision.Provider},
+		{key: "run_id", target: &decision.RunID},
+		{key: "run_attempt", target: &decision.RunAttempt},
+		{key: "repository_id", target: &decision.RepositoryID},
+		{key: "commit_sha", target: &decision.CommitSHA},
+		{key: "environment", target: &decision.Environment},
+		{key: "environment_evidence", target: &decision.EnvironmentEvidence},
+		{key: "artifact_digest", target: &decision.ArtifactDigest},
+		{key: "image_ref", target: &decision.ImageRef},
+		{key: "reason", target: &decision.Reason},
+		{key: "canonical_target", target: &decision.CanonicalTarget},
+		{key: "correlation_kind", target: &decision.CorrelationKind},
+	}
+	for _, field := range stringFields {
+		value, err := cicdRunCorrelationPayloadString(payload, field.key)
+		if err != nil {
+			return CICDRunCorrelationDecision{}, err
+		}
+		*field.target = value
+	}
+	outcome, err := cicdRunCorrelationPayloadString(payload, "outcome")
 	if err != nil {
-		return CICDRunCorrelationDecision{}, fmt.Errorf("encode correlation payload: %w", err)
+		return CICDRunCorrelationDecision{}, err
 	}
-	var decoded struct {
-		Provider            string                    `json:"provider"`
-		RunID               string                    `json:"run_id"`
-		RunAttempt          string                    `json:"run_attempt"`
-		RepositoryID        string                    `json:"repository_id"`
-		CommitSHA           string                    `json:"commit_sha"`
-		Environment         string                    `json:"environment"`
-		EnvironmentEvidence string                    `json:"environment_evidence"`
-		ArtifactDigest      string                    `json:"artifact_digest"`
-		ImageRef            string                    `json:"image_ref"`
-		Outcome             CICDRunCorrelationOutcome `json:"outcome"`
-		Reason              string                    `json:"reason"`
-		ProvenanceOnly      bool                      `json:"provenance_only"`
-		CanonicalWrites     int                       `json:"canonical_writes"`
-		EvidenceFactIDs     []string                  `json:"evidence_fact_ids"`
-		CanonicalTarget     string                    `json:"canonical_target"`
-		CorrelationKind     string                    `json:"correlation_kind"`
-		SourceLayerKinds    []string                  `json:"source_layer_kinds"`
+	decision.Outcome = CICDRunCorrelationOutcome(outcome)
+	decision.ProvenanceOnly, err = cicdRunCorrelationPayloadBool(payload, "provenance_only")
+	if err != nil {
+		return CICDRunCorrelationDecision{}, err
 	}
-	if err := json.Unmarshal(encoded, &decoded); err != nil {
-		return CICDRunCorrelationDecision{}, fmt.Errorf("decode correlation payload: %w", err)
+	decision.CanonicalWrites, err = cicdRunCorrelationPayloadInt(payload, "canonical_writes")
+	if err != nil {
+		return CICDRunCorrelationDecision{}, err
 	}
-	decision := CICDRunCorrelationDecision{
-		Provider:            strings.TrimSpace(decoded.Provider),
-		RunID:               strings.TrimSpace(decoded.RunID),
-		RunAttempt:          strings.TrimSpace(decoded.RunAttempt),
-		RepositoryID:        strings.TrimSpace(decoded.RepositoryID),
-		CommitSHA:           strings.TrimSpace(decoded.CommitSHA),
-		Environment:         strings.TrimSpace(decoded.Environment),
-		EnvironmentEvidence: strings.TrimSpace(decoded.EnvironmentEvidence),
-		ArtifactDigest:      strings.TrimSpace(decoded.ArtifactDigest),
-		ImageRef:            strings.TrimSpace(decoded.ImageRef),
-		Outcome:             decoded.Outcome,
-		Reason:              strings.TrimSpace(decoded.Reason),
-		ProvenanceOnly:      decoded.ProvenanceOnly,
-		CanonicalWrites:     decoded.CanonicalWrites,
-		EvidenceFactIDs:     uniqueSortedStrings(decoded.EvidenceFactIDs),
-		CanonicalTarget:     strings.TrimSpace(decoded.CanonicalTarget),
-		CorrelationKind:     strings.TrimSpace(decoded.CorrelationKind),
-		SourceLayerKinds:    uniqueSortedStrings(decoded.SourceLayerKinds),
+	decision.EvidenceFactIDs, err = cicdRunCorrelationPayloadStrings(payload, "evidence_fact_ids")
+	if err != nil {
+		return CICDRunCorrelationDecision{}, err
+	}
+	decision.SourceLayerKinds, err = cicdRunCorrelationPayloadStrings(payload, "source_layer_kinds")
+	if err != nil {
+		return CICDRunCorrelationDecision{}, err
 	}
 	if decision.RunAttempt == "" {
 		decision.RunAttempt = defaultCICDRunAttempt("")
@@ -209,6 +240,74 @@ func cicdRunCorrelationDecisionFromPayload(payload map[string]any) (CICDRunCorre
 		return CICDRunCorrelationDecision{}, fmt.Errorf("canonical_writes must be non-negative")
 	}
 	return decision, nil
+}
+
+func cicdRunCorrelationPayloadString(payload map[string]any, key string) (string, error) {
+	value, exists := payload[key]
+	if !exists || value == nil {
+		return "", nil
+	}
+	text, ok := value.(string)
+	if !ok {
+		return "", fmt.Errorf("%s must be a string", key)
+	}
+	return strings.TrimSpace(text), nil
+}
+
+func cicdRunCorrelationPayloadBool(payload map[string]any, key string) (bool, error) {
+	value, exists := payload[key]
+	if !exists || value == nil {
+		return false, nil
+	}
+	boolean, ok := value.(bool)
+	if !ok {
+		return false, fmt.Errorf("%s must be a boolean", key)
+	}
+	return boolean, nil
+}
+
+func cicdRunCorrelationPayloadInt(payload map[string]any, key string) (int, error) {
+	value, exists := payload[key]
+	if !exists || value == nil {
+		return 0, nil
+	}
+	switch number := value.(type) {
+	case int:
+		return number, nil
+	case float64:
+		maxInt := int(^uint(0) >> 1)
+		if math.IsNaN(number) || math.IsInf(number, 0) || math.Trunc(number) != number ||
+			number >= float64(maxInt) || number <= float64(-maxInt-1) {
+			return 0, fmt.Errorf("%s must be an integer", key)
+		}
+		return int(number), nil
+	default:
+		return 0, fmt.Errorf("%s must be an integer", key)
+	}
+}
+
+func cicdRunCorrelationPayloadStrings(payload map[string]any, key string) ([]string, error) {
+	value, exists := payload[key]
+	if !exists || value == nil {
+		return nil, nil
+	}
+	var stringsValue []string
+	switch list := value.(type) {
+	case []string:
+		stringsValue = append(stringsValue, list...)
+	case []any:
+		stringsValue = make([]string, 0, len(list))
+		for _, item := range list {
+			text, ok := item.(string)
+			if !ok {
+				return nil, fmt.Errorf("%s must contain only strings", key)
+			}
+			stringsValue = append(stringsValue, text)
+		}
+	default:
+		return nil, fmt.Errorf("%s must be an array of strings", key)
+	}
+	return uniqueSortedStrings(stringsValue), nil
 }
 
 func cicdRunCorrelationDecisionKey(decision CICDRunCorrelationDecision) string {
