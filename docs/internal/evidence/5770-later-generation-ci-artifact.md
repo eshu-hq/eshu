@@ -28,17 +28,20 @@ A generation containing `ci.artifact` but no run is a domain patch:
    routing identity from the latest payload-bearing predecessor with the same
    opaque stable fact key. Missing, blank, or pruned identity fails the intent
    closed instead of preserving a stale exact decision.
-3. Load every latest retained live run from older successful generations in the
-   same scope, plus run-scoped facts for those keys. Also reload the latest live
-   `ci.workflow_image_evidence` rows for each recovered repository; the existing
-   classifier still chooses exact commit evidence over repository fallback.
+3. Select the newest older successful generation containing `ci.run` as the
+   normal run-window baseline, then union exact current artifact and recovered
+   tombstone-routing keys. Load the latest retained run-scoped facts for only
+   those keys. Also reload the latest live `ci.workflow_image_evidence` rows for
+   each recovered repository; the existing classifier still chooses exact
+   commit evidence over repository fallback.
 4. Remove retained artifacts superseded by a current live artifact, and remove
    the exact retained artifact named by a tombstone. The payload-bearing row
    used to route a tombstone is never classified as live evidence, and the
    tombstone control row is not quarantined as malformed input.
-5. Recompute the complete bounded source snapshot and write it into the artifact
+5. Recompute the complete bounded patch snapshot and write it into the artifact
    generation. No prior derived correlation result is copied, so queue
-   supersession of an unpublished predecessor cannot drop unaffected runs.
+   supersession of an unpublished predecessor cannot drop unaffected runs, while
+   a newer normal run window remains authoritative for omitted runs.
 
 Deployment events do not carry a run ID; they join to runs by commit SHA. After
 the history read recovers a run, it loads retained deployment events for that
@@ -140,8 +143,8 @@ older payload-bearing artifact identities behind intervening tombstones, and 90
 retained same-repository workflow-image rows, and removed all seeded prior
 correlation decisions. The fixture instead carries 1,000 retained `ci.run`
 source rows, so every output must be rebuilt even though the current generation
-patches only 90 runs. The complete handler took 0.914404208 seconds: 0.858194417
-seconds for retained source history and 0.045260625 seconds for the writer. It
+patches only 90 runs. The complete handler took 0.930285292 seconds: 0.875116125
+seconds for retained source history and 0.044975125 seconds for the writer. It
 remained inside the five-second budget without restoring the global stable-key
 index removed in migration 049. This final measurement is a correctness and
 no-regression proof, not a direct speedup comparison with the prior overlay
@@ -176,14 +179,24 @@ handler, and durable write together:
 ```text
 ESHU_POSTGRES_DSN=<local-test-dsn> \
   go test ./internal/storage/postgres \
-  -run 'TestCICDRunCorrelationArtifactPatch(AgainstRealPostgres|RebuildsUnpublishedPredecessor)' \
+  -run 'TestCICDRunCorrelationArtifactPatch(AgainstRealPostgres|RebuildsUnpublishedPredecessor|UsesLatestRunSnapshot)' \
   -count=1 -v
 
---- PASS: TestCICDRunCorrelationArtifactPatchAgainstRealPostgres (0.26s)
---- PASS: TestCICDRunCorrelationArtifactPatchRebuildsUnpublishedPredecessor (0.21s)
-ok github.com/eshu-hq/eshu/go/internal/storage/postgres 3.685s
+--- PASS: TestCICDRunCorrelationArtifactPatchUsesLatestRunSnapshot (0.60s)
+--- PASS: TestCICDRunCorrelationArtifactPatchAgainstRealPostgres (0.35s)
+--- PASS: TestCICDRunCorrelationArtifactPatchRebuildsUnpublishedPredecessor (0.23s)
+ok github.com/eshu-hq/eshu/go/internal/storage/postgres 4.573s
 exit 0
 ```
+
+`TestCICDRunCorrelationArtifactPatchUsesLatestRunSnapshot` adds the replacement
+window case. Generation 1 contains runs A and B, generation 2 is a newer normal
+run snapshot containing only B, and generation 3 carries an artifact patch for
+B. Before the query fix, the handler incorrectly resurrected A from generation
+1; after the fix, it publishes only B. A companion case patches A explicitly in
+generation 3 and publishes A and B, proving that the newest older normal run
+snapshot is authoritative while an exact current-generation patch key can
+still route its older run payload.
 
 `TestCICDRunCorrelationArtifactPatchRebuildsUnpublishedPredecessor` exercises
 the production queue shape directly: generation 1 contains runs A and B with a
@@ -195,8 +208,9 @@ source-of-truth guarantee from queue timing and makes retries idempotent against
 the same retained facts.
 
 That regression proves a generation-three artifact can recover its
-generation-one run and rebuild every unaffected latest retained run into the
-target generation without reading prior derived decisions. It also proves
+generation-one run and rebuild every unaffected run from the latest older
+normal run window into the target generation without reading prior derived
+decisions. It also proves
 failed and future generations are excluded, distinct run attempts remain
 distinct, and a payload-empty tombstone suppresses an older live fact. It also
 covers both optional-repository fallbacks: a run without
@@ -215,8 +229,8 @@ The opt-in scale regression runs the shipped handler, retained source read,
 ```text
 manifest scopes=1 generations=25 retained_step_rows=216000
 live_artifact_keys=90 tombstone_keys=90 workflow_rows=90
-prior_decisions=0 output_decisions=1000 duration=914.404208ms
-history=858.194417ms writer=45.260625ms budget=5s
+prior_decisions=0 output_decisions=1000 duration=930.285292ms
+history=875.116125ms writer=44.975125ms budget=5s
 exit 0
 ```
 

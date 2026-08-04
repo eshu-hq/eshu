@@ -526,11 +526,12 @@ Primary groups:
   `SQLTx`, `InstrumentedDB`.
 - Fact, queue, recovery, status, workflow, and webhook stores. `FactStore` also
   provides a bounded CI/CD source-snapshot rebuild for artifact-only correlation
-  patches. The history read reloads every latest retained live run plus
-  tombstone-aware workflow-image evidence by recovered repository and accepts
-  payload-empty artifact tombstone stable keys; it returns the latest older
-  payload-bearing artifact only as routing identity, while the reducer excludes
-  that row from live classification and fails closed when identity is missing.
+  patches. The history read selects the newest older generation containing
+  `ci.run`, unions exact patch keys, and reloads tombstone-aware workflow-image
+  evidence by recovered repository. It accepts payload-empty artifact tombstone
+  stable keys and returns the latest older payload-bearing artifact only as
+  routing identity, while the reducer excludes that row from live
+  classification and fails closed when identity is missing.
 - Governance audit store for validation-safe private event persistence,
   authorized bounded detailed reads, retention pruning, and aggregate-only
   status readback.

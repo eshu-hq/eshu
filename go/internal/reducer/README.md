@@ -297,12 +297,14 @@ values each counter carries.
   projecting stale truth.
 - **Artifact-only CI/CD generations are patches** — a generation containing a
   `ci.artifact` but no `ci.run` rebuilds the complete bounded run snapshot from
-  latest retained source evidence, then overlays current artifact control rows.
-  It does not depend on an immediately preceding derived snapshot: queue
-  supersession can legitimately prevent that snapshot from being published.
-  Rebuilding every retained live run keeps unaffected runs visible behind the
-  active-generation fence. A
-  generation containing any `ci.run` remains a normal full replacement. For a
+  the newest older generation containing `ci.run`, then unions exact current
+  artifact routing keys and overlays current artifact control rows. It does not
+  depend on an immediately preceding derived snapshot: queue supersession can
+  legitimately prevent that snapshot from being published. Rebuilding the
+  latest normal run window keeps its unaffected runs visible behind the
+  active-generation fence without resurrecting runs that a newer normal window
+  omitted. A generation containing any `ci.run` remains a normal full
+  replacement. For a
   patched run, current-generation artifacts replace retained artifacts even
   when the current payload has no digest; older run-scoped fact kinds remain
   available to the classifier without resurrecting a stale artifact identity.
@@ -323,8 +325,9 @@ values each counter carries.
   reference before deciding cardinality, preserving all support fact IDs. Two
   different image references for one digest remain ambiguous. Evidence IDs on
   unaffected rebuilt decisions are best-effort links to retained superseded
-  facts. Later full CI/CD snapshots can rebase the chain; after retention, an
-  older retained-source link may no longer resolve.
+  facts. Each newer full CI/CD run window immediately rebases the patch
+  baseline; after retention, an older retained-source link may no longer
+  resolve.
 - **`deployment_mapping` requires post-Phase-3 reopen** — any domain
   consuming `resolved_relationships` needs its own post-Phase-3 reopen
   mechanism (see `queue-and-runners.md`'s Facts-First Bootstrap Ordering).

@@ -65,7 +65,7 @@ func TestListCICDRunFactsForRunKeysUsesBoundedTombstoneAwareHistory(t *testing.T
 	}
 }
 
-func TestListCICDRunFactsForScopePatchIncludesEveryLatestLiveRun(t *testing.T) {
+func TestListCICDRunFactsForScopePatchUsesLatestOlderRunSnapshot(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{}}}
@@ -87,8 +87,12 @@ func TestListCICDRunFactsForScopePatchIncludesEveryLatestLiveRun(t *testing.T) {
 	}
 	query := db.queries[0].query
 	for _, want := range []string{
+		"latest_scope_run_generation AS MATERIALIZED",
 		"WHERE $9::boolean",
 		"fact.fact_kind = 'ci.run'",
+		"ORDER BY fact.generation_ingested_at DESC, fact.generation_id DESC",
+		"JOIN latest_scope_run_generation AS snapshot",
+		"ON snapshot.generation_id = fact.generation_id",
 		"fact.fact_rank = 1",
 		"fact.is_tombstone = FALSE",
 	} {

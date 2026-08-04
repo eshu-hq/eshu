@@ -6,7 +6,6 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/lib/pq"
@@ -145,6 +144,14 @@ latest_tombstone_artifact_identities AS MATERIALIZED (
     FROM ranked_tombstone_artifact_identities AS fact
     WHERE fact.fact_rank = 1
 ),
+latest_scope_run_generation AS MATERIALIZED (
+    SELECT fact.generation_id
+    FROM retained_run_facts AS fact
+    WHERE $9::boolean
+      AND fact.fact_kind = 'ci.run'
+    ORDER BY fact.generation_ingested_at DESC, fact.generation_id DESC
+    LIMIT 1
+),
 effective_run_keys AS MATERIALIZED (
     SELECT provider, run_id, run_attempt
     FROM requested_run_keys
@@ -160,8 +167,9 @@ effective_run_keys AS MATERIALIZED (
         BTRIM(fact.payload->>'run_id'),
         COALESCE(NULLIF(BTRIM(fact.payload->>'run_attempt'), ''), '1')
     FROM ranked_run_facts AS fact
-    WHERE $9::boolean
-      AND fact.fact_rank = 1
+    JOIN latest_scope_run_generation AS snapshot
+      ON snapshot.generation_id = fact.generation_id
+    WHERE fact.fact_rank = 1
       AND fact.fact_kind = 'ci.run'
       AND fact.is_tombstone = FALSE
       AND BTRIM(fact.payload->>'provider') <> ''
@@ -313,10 +321,10 @@ func (s FactStore) ListCICDRunFactsForRunKeys(
 	)
 }
 
-// ListCICDRunFactsForScopePatch returns the complete retained run snapshot plus
-// the exact evidence requested by an artifact-only generation. Rebuilding from
-// source evidence keeps the target generation complete even when an older
-// reducer work item was superseded before it published a derived snapshot.
+// ListCICDRunFactsForScopePatch returns the latest older run-window snapshot
+// plus exact evidence requested by an artifact-only generation. Rebuilding from
+// source evidence keeps the target generation complete without resurrecting
+// runs omitted by a newer normal snapshot.
 func (s FactStore) ListCICDRunFactsForScopePatch(
 	ctx context.Context,
 	scopeID string,
@@ -393,70 +401,6 @@ func (s FactStore) listCICDRunFacts(
 		)
 	}
 	return loaded, nil
-}
-
-func cleanCICDArtifactTombstoneKeys(keys []string) []string {
-	unique := make(map[string]struct{}, len(keys))
-	for _, key := range keys {
-		if key = strings.TrimSpace(key); key != "" {
-			unique[key] = struct{}{}
-		}
-	}
-	cleaned := make([]string, 0, len(unique))
-	for key := range unique {
-		cleaned = append(cleaned, key)
-	}
-	sort.Strings(cleaned)
-	return cleaned
-}
-
-type cicdRunHistoryKey struct {
-	provider   string
-	runID      string
-	runAttempt string
-}
-
-func cleanCICDRunHistoryKeys(providers, runIDs, runAttempts []string) ([]cicdRunHistoryKey, error) {
-	if len(providers) != len(runIDs) || len(providers) != len(runAttempts) {
-		return nil, fmt.Errorf("ci/cd run history key columns must have equal lengths")
-	}
-	unique := make(map[cicdRunHistoryKey]struct{}, len(providers))
-	for index := range providers {
-		key := cicdRunHistoryKey{
-			provider:   strings.TrimSpace(providers[index]),
-			runID:      strings.TrimSpace(runIDs[index]),
-			runAttempt: strings.TrimSpace(runAttempts[index]),
-		}
-		if key.runAttempt == "" {
-			key.runAttempt = "1"
-		}
-		if key.provider == "" || key.runID == "" {
-			continue
-		}
-		unique[key] = struct{}{}
-	}
-	keys := make([]cicdRunHistoryKey, 0, len(unique))
-	for key := range unique {
-		keys = append(keys, key)
-	}
-	sort.Slice(keys, func(i, j int) bool {
-		left := keys[i].provider + "\x00" + keys[i].runID + "\x00" + keys[i].runAttempt
-		right := keys[j].provider + "\x00" + keys[j].runID + "\x00" + keys[j].runAttempt
-		return left < right
-	})
-	return keys, nil
-}
-
-func splitCICDRunHistoryKeys(keys []cicdRunHistoryKey) ([]string, []string, []string) {
-	providers := make([]string, 0, len(keys))
-	runIDs := make([]string, 0, len(keys))
-	runAttempts := make([]string, 0, len(keys))
-	for _, key := range keys {
-		providers = append(providers, key.provider)
-		runIDs = append(runIDs, key.runID)
-		runAttempts = append(runAttempts, key.runAttempt)
-	}
-	return providers, runIDs, runAttempts
 }
 
 func scanCICDRunHistoryRows(rows Rows, operation string) ([]facts.Envelope, error) {

@@ -337,7 +337,7 @@ INSERT INTO scope_generations (
 		`{"provider":"github_actions","run_id":"run-a","run_attempt":"1","repository_id":"repo-api","commit_sha":"abc123","status":"completed","result":"success"}`)
 	insertCICDRunHistoryLiveFact(t, ctx, db, "run-b-gen-1", "gen-1", "ci.run", "run-b-key", false,
 		`{"provider":"github_actions","run_id":"run-b","run_attempt":"1","repository_id":"repo-api","commit_sha":"def456","status":"completed","result":"success"}`)
-	insertCICDRunHistoryLiveFact(t, ctx, db, "run-a-attempt-2", "gen-2", "ci.run", "run-a-attempt-2-key", false,
+	insertCICDRunHistoryLiveFact(t, ctx, db, "run-a-attempt-2", "gen-1", "ci.run", "run-a-attempt-2-key", false,
 		`{"provider":"github_actions","run_id":"run-a","run_attempt":"2","repository_id":"wrong-attempt","commit_sha":"bad","status":"completed","result":"success"}`)
 	insertCICDRunHistoryLiveFact(t, ctx, db, "run-a-failed", "gen-failed", "ci.run", "run-a-key", false,
 		`{"provider":"github_actions","run_id":"run-a","run_attempt":"1","repository_id":"wrong-failed","commit_sha":"bad","status":"completed","result":"success"}`)
@@ -349,7 +349,7 @@ INSERT INTO scope_generations (
 		`{"provider":"github_actions","deployment_id":"deployment-a","status_id":"status-a","environment":"production","sha":"abc123","state":"success","repository_id":"repo-api"}`)
 	insertCICDRunHistoryLiveFact(t, ctx, db, "run-tombstoned-gen-1", "gen-1", "ci.run", "run-tombstoned-key", false,
 		`{"provider":"github_actions","run_id":"run-tombstoned","run_attempt":"1","repository_id":"repo-api","commit_sha":"old","status":"completed","result":"success"}`)
-	insertCICDRunHistoryLiveFact(t, ctx, db, "run-tombstoned-gen-2", "gen-2", "ci.run", "run-tombstoned-key", true,
+	insertCICDRunHistoryLiveFact(t, ctx, db, "run-tombstoned-gen-1-tombstone", "gen-1", "ci.run", "run-tombstoned-key", true,
 		`{}`)
 	insertCICDRunHistoryLiveFact(t, ctx, db, "run-repository-omitted-gen-1", "gen-1", "ci.run", "run-repository-omitted-key", false,
 		`{"provider":"github_actions","run_id":"run-repository-omitted","run_attempt":"1","commit_sha":"commit-run-repository-omitted","status":"completed","result":"success"}`)

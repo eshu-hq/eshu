@@ -37,14 +37,16 @@ operational lessons that future storage changes still need to respect.
   normal retained evidence. For a requested artifact tombstone stable key only,
   it separately returns the latest older payload-bearing artifact as routing
   identity; the reducer must remove that exact stable key before classification.
-  `ListCICDRunFactsForScopePatch` also reloads every latest retained live run,
-  tombstone-aware workflow-image evidence by recovered repository, and matching
-  deployment events by recovered run commit. Rebuilding the bounded source
-  snapshot prevents an unpublished or superseded predecessor reducer result
-  from dropping unaffected runs. It preserves the typed optional-repository
-  fallback when either side omits `repository_id` and rejects more than 12,000
-  returned facts. These reads support the reducer's patch path only; a generation
-  containing a run stays on the existing same-generation path.
+  `ListCICDRunFactsForScopePatch` selects run keys from the newest older
+  generation containing `ci.run`, then unions exact current artifact and
+  tombstone-routing keys. It reloads tombstone-aware workflow-image evidence by
+  recovered repository and matching deployment events by recovered run commit.
+  This keeps unaffected runs from the latest normal window without resurrecting
+  runs that window omitted, even when an unpublished predecessor reducer result
+  was superseded. It preserves the typed optional-repository fallback when
+  either side omits `repository_id` and rejects more than 12,000 returned facts.
+  These reads support the reducer's patch path only; a generation containing a
+  run stays on the existing same-generation path.
 - `ListOwnedPackageDependencyTargets` serves workflow-coordinator derivation.
   Package-registry callers use package-level identities so repeated versions of
   one package cannot starve later packages. Vulnerability-intelligence callers
