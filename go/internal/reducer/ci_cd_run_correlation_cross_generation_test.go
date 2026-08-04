@@ -5,6 +5,7 @@ package reducer
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -14,10 +15,8 @@ import (
 type crossGenerationCICDRunFactLoader struct {
 	currentFacts       []facts.Envelope
 	historicalRunFacts []facts.Envelope
-	previousDecisions  []facts.Envelope
 	activeFacts        []facts.Envelope
 	historicalCalls    int
-	previousCalls      int
 }
 
 func (l *crossGenerationCICDRunFactLoader) ListFacts(
@@ -37,22 +36,13 @@ func (l *crossGenerationCICDRunFactLoader) ListFactsByKind(
 	return append([]facts.Envelope(nil), l.currentFacts...), nil
 }
 
-func (l *crossGenerationCICDRunFactLoader) ListCICDRunFactsForRunKeys(
+func (l *crossGenerationCICDRunFactLoader) ListCICDRunFactsForScopePatch(
 	_ context.Context,
 	_, _ string,
-	_, _, _ []string,
+	_, _, _, _ []string,
 ) ([]facts.Envelope, error) {
 	l.historicalCalls++
 	return append([]facts.Envelope(nil), l.historicalRunFacts...), nil
-}
-
-func (l *crossGenerationCICDRunFactLoader) ListPreviousCICDRunCorrelationFacts(
-	context.Context,
-	string,
-	string,
-) ([]facts.Envelope, error) {
-	l.previousCalls++
-	return append([]facts.Envelope(nil), l.previousDecisions...), nil
 }
 
 func (l *crossGenerationCICDRunFactLoader) ListActiveCICDRunCorrelationFacts(
@@ -63,7 +53,7 @@ func (l *crossGenerationCICDRunFactLoader) ListActiveCICDRunCorrelationFacts(
 	return append([]facts.Envelope(nil), l.activeFacts...), nil
 }
 
-func TestCICDRunCorrelationHandlerPatchesLaterArtifactAndCarriesPreviousSnapshot(t *testing.T) {
+func TestCICDRunCorrelationHandlerRebuildsCompleteSourceSnapshotForLaterArtifact(t *testing.T) {
 	t.Parallel()
 
 	const historicalDigest = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
@@ -73,6 +63,7 @@ func TestCICDRunCorrelationHandlerPatchesLaterArtifactAndCarriesPreviousSnapshot
 		},
 		historicalRunFacts: []facts.Envelope{
 			ciRunFact("run-upgraded", "github_actions", "repo-api", "abc123"),
+			ciRunFact("run-unaffected", "github_actions", "repo-api", "def456"),
 			ciArtifactFact("artifact-historical", "run-upgraded", historicalDigest),
 			{
 				FactID:   "deployment-event:abc123",
@@ -86,39 +77,6 @@ func TestCICDRunCorrelationHandlerPatchesLaterArtifactAndCarriesPreviousSnapshot
 					"repository_id": "repo-api",
 				},
 			},
-		},
-		previousDecisions: []facts.Envelope{
-			priorCICDRunCorrelationFact("prior-upgraded", CICDRunCorrelationDecision{
-				Provider:            "github_actions",
-				RunID:               "run-upgraded",
-				RunAttempt:          "1",
-				RepositoryID:        "repo-api",
-				CommitSHA:           "abc123",
-				Environment:         "prod",
-				EnvironmentEvidence: supplyChainEnvironmentEvidenceDeployEvent,
-				ArtifactDigest:      "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-				ImageRef:            "registry.example.com/team/old@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-				Outcome:             CICDRunCorrelationExact,
-				Reason:              "prior artifact matched old image identity",
-				CanonicalWrites:     1,
-				EvidenceFactIDs: []string{
-					"ci.run:run-upgraded",
-					"deployment-event:abc123",
-					"artifact-old",
-					"image-old",
-				},
-			}),
-			priorCICDRunCorrelationFact("prior-unaffected", CICDRunCorrelationDecision{
-				Provider:        "github_actions",
-				RunID:           "run-unaffected",
-				RunAttempt:      "1",
-				RepositoryID:    "repo-api",
-				CommitSHA:       "def456",
-				Outcome:         CICDRunCorrelationDerived,
-				Reason:          "run has provider evidence but no explicit artifact identity anchor",
-				ProvenanceOnly:  true,
-				EvidenceFactIDs: []string{"ci.run:run-unaffected"},
-			}),
 		},
 		activeFacts: []facts.Envelope{
 			containerImageIdentityFact(
@@ -155,16 +113,16 @@ func TestCICDRunCorrelationHandlerPatchesLaterArtifactAndCarriesPreviousSnapshot
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
-	if !strings.Contains(result.EvidenceSummary, "evaluated=1 preserved=1") {
+	if !strings.Contains(result.EvidenceSummary, "evaluated=2 preserved=0") {
 		t.Fatalf(
-			"EvidenceSummary = %q, want one recomputed and one preserved decision",
+			"EvidenceSummary = %q, want the complete source snapshot rebuilt",
 			result.EvidenceSummary,
 		)
 	}
 
 	got := cicdDecisionsByRun(writer.write.Decisions)
 	if len(got) != 2 {
-		t.Fatalf("written decisions = %d, want patched run plus carried prior snapshot: %#v", len(got), got)
+		t.Fatalf("written decisions = %d, want the complete rebuilt source snapshot: %#v", len(got), got)
 	}
 	upgraded := got["github_actions:run-upgraded:1"]
 	assertCICDDecision(t, upgraded, CICDRunCorrelationExact, 1)
@@ -204,14 +162,10 @@ func TestCICDRunCorrelationHandlerPatchesLaterArtifactAndCarriesPreviousSnapshot
 			t.Fatalf("upgraded EvidenceFactIDs = %#v, must exclude stale %q", upgraded.EvidenceFactIDs, staleFactID)
 		}
 	}
-	carried := got["github_actions:run-unaffected:1"]
-	assertCICDDecision(t, carried, CICDRunCorrelationDerived, 0)
-	if loader.historicalCalls != 1 || loader.previousCalls != 1 {
-		t.Fatalf(
-			"cross-generation calls = historical:%d previous:%d, want 1 each",
-			loader.historicalCalls,
-			loader.previousCalls,
-		)
+	unaffected := got["github_actions:run-unaffected:1"]
+	assertCICDDecision(t, unaffected, CICDRunCorrelationDerived, 0)
+	if loader.historicalCalls != 1 {
+		t.Fatalf("cross-generation calls = historical:%d, want 1", loader.historicalCalls)
 	}
 }
 
@@ -237,6 +191,41 @@ func TestCICDRunCorrelationHandlerRejectsArtifactPatchWithoutHistoryLoader(t *te
 	}
 }
 
+func TestCICDRunCorrelationHandlerRejectsOversizedPatchSnapshot(t *testing.T) {
+	t.Parallel()
+
+	historical := make([]facts.Envelope, 0, maxCICDRunCorrelationPatchDecisions+1)
+	for index := 0; index <= maxCICDRunCorrelationPatchDecisions; index++ {
+		historical = append(historical, ciRunFact(
+			fmt.Sprintf("run-%d", index),
+			"github_actions",
+			"repo-api",
+			fmt.Sprintf("commit-%d", index),
+		))
+	}
+	loader := &crossGenerationCICDRunFactLoader{
+		currentFacts: []facts.Envelope{
+			ciArtifactFact("artifact-later", "run-0", testCICDDigest),
+		},
+		historicalRunFacts: historical,
+	}
+	handler := CICDRunCorrelationHandler{
+		FactLoader: loader,
+		Writer:     &recordingCICDRunCorrelationWriter{},
+	}
+
+	_, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-oversized-patch",
+		ScopeID:      "ci://github-actions/acme/api",
+		GenerationID: "generation-2",
+		SourceSystem: "ci_cd_run",
+		Domain:       DomainCICDRunCorrelation,
+	})
+	if err == nil || !strings.Contains(err.Error(), "decisions exceed safety cap 1000") {
+		t.Fatalf("Handle() error = %v, want patch decision safety-cap rejection", err)
+	}
+}
+
 func TestExcludeSupersededCICDArtifactsUsesCurrentKeyWithoutDigest(t *testing.T) {
 	t.Parallel()
 
@@ -249,7 +238,11 @@ func TestExcludeSupersededCICDArtifactsUsesCurrentKeyWithoutDigest(t *testing.T)
 		ciArtifactFact("artifact-current-without-digest", "run-upgraded", ""),
 	}
 
-	filtered := excludeSupersededCICDArtifacts(historical, current)
+	directives, err := cicdArtifactPatchDirectivesFromCurrent(current)
+	if err != nil {
+		t.Fatalf("build patch directives: %v", err)
+	}
+	filtered := excludeSupersededCICDArtifacts(historical, directives.liveRunKeys, nil)
 	got := make(map[string]struct{}, len(filtered))
 	for _, envelope := range filtered {
 		got[envelope.FactID] = struct{}{}
@@ -261,62 +254,5 @@ func TestExcludeSupersededCICDArtifactsUsesCurrentKeyWithoutDigest(t *testing.T)
 		if _, exists := got[factID]; !exists {
 			t.Fatalf("filtered facts = %#v, want unaffected %q", got, factID)
 		}
-	}
-}
-
-func TestMergeCICDRunCorrelationPatchDecisionsRejectsFractionalCanonicalWrites(t *testing.T) {
-	t.Parallel()
-
-	prior := priorCICDRunCorrelationFact("prior-corrupt", CICDRunCorrelationDecision{
-		Provider:        "github_actions",
-		RunID:           "run-1",
-		RunAttempt:      "1",
-		Outcome:         CICDRunCorrelationDerived,
-		CanonicalWrites: 1,
-	})
-	prior.Payload["canonical_writes"] = 1.5
-
-	_, err := mergeCICDRunCorrelationPatchDecisions([]facts.Envelope{prior}, nil)
-	if err == nil || !strings.Contains(err.Error(), "canonical_writes") {
-		t.Fatalf("mergeCICDRunCorrelationPatchDecisions() error = %v, want invalid canonical_writes rejection", err)
-	}
-}
-
-func TestCICDRunCorrelationDecisionFromPayloadAcceptsPersistedJSONShapes(t *testing.T) {
-	t.Parallel()
-
-	payload := cicdRunCorrelationPayload(CICDRunCorrelationWrite{}, CICDRunCorrelationDecision{
-		Provider:         "github_actions",
-		RunID:            "run-1",
-		RunAttempt:       "1",
-		Outcome:          CICDRunCorrelationExact,
-		CanonicalWrites:  1,
-		EvidenceFactIDs:  []string{"fact-b", "fact-a", "fact-b"},
-		SourceLayerKinds: []string{"artifact", "run", "artifact"},
-	})
-	payload["canonical_writes"] = float64(1)
-	payload["evidence_fact_ids"] = []any{"fact-b", "fact-a", "fact-b"}
-	payload["source_layer_kinds"] = []any{"artifact", "run", "artifact"}
-
-	decision, err := cicdRunCorrelationDecisionFromPayload(payload)
-	if err != nil {
-		t.Fatalf("cicdRunCorrelationDecisionFromPayload() error = %v, want nil", err)
-	}
-	if decision.CanonicalWrites != 1 {
-		t.Fatalf("CanonicalWrites = %d, want 1", decision.CanonicalWrites)
-	}
-	if got, want := strings.Join(decision.EvidenceFactIDs, ","), "fact-a,fact-b"; got != want {
-		t.Fatalf("EvidenceFactIDs = %q, want %q", got, want)
-	}
-	if got, want := strings.Join(decision.SourceLayerKinds, ","), "artifact,run"; got != want {
-		t.Fatalf("SourceLayerKinds = %q, want %q", got, want)
-	}
-}
-
-func priorCICDRunCorrelationFact(factID string, decision CICDRunCorrelationDecision) facts.Envelope {
-	return facts.Envelope{
-		FactID:   factID,
-		FactKind: cicdRunCorrelationFactKind,
-		Payload:  cicdRunCorrelationPayload(CICDRunCorrelationWrite{}, decision),
 	}
 }

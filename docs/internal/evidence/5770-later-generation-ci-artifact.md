@@ -16,7 +16,7 @@ digest, repository, or commit evidence needed to upgrade the earlier run.
 
 Queuing the artifact alone was not enough. Reducer reads are fenced to the
 active generation, so writing only the affected run would hide every unaffected
-run from the previous correlation snapshot.
+run from the newly active correlation snapshot.
 
 ## Chosen behavior
 
@@ -24,14 +24,21 @@ A generation containing any `ci.run` keeps the existing full-snapshot behavior.
 A generation containing `ci.artifact` but no run is a domain patch:
 
 1. Extract the artifact's exact provider, run ID, and run-attempt keys.
-2. Load the latest retained run-scoped facts for only those keys from older
-   successful generations in the same scope.
-3. Remove retained artifacts for any key present in the current generation, so
-   the triggering artifact is authoritative even when its digest is empty.
-4. Load the immediately preceding successful correlation snapshot, including an
-   empty predecessor.
-5. Recompute the affected runs, overlay them on the preceding snapshot, and
-   write the complete result into the artifact generation.
+2. For a payload-empty artifact tombstone, recover its provider/run/attempt
+   routing identity from the latest payload-bearing predecessor with the same
+   opaque stable fact key. Missing, blank, or pruned identity fails the intent
+   closed instead of preserving a stale exact decision.
+3. Load every latest retained live run from older successful generations in the
+   same scope, plus run-scoped facts for those keys. Also reload the latest live
+   `ci.workflow_image_evidence` rows for each recovered repository; the existing
+   classifier still chooses exact commit evidence over repository fallback.
+4. Remove retained artifacts superseded by a current live artifact, and remove
+   the exact retained artifact named by a tombstone. The payload-bearing row
+   used to route a tombstone is never classified as live evidence, and the
+   tombstone control row is not quarantined as malformed input.
+5. Recompute the complete bounded source snapshot and write it into the artifact
+   generation. No prior derived correlation result is copied, so queue
+   supersession of an unpublished predecessor cannot drop unaffected runs.
 
 Deployment events do not carry a run ID; they join to runs by commit SHA. After
 the history read recovers a run, it loads retained deployment events for that
@@ -48,48 +55,58 @@ The production-path regression now requires the current digest and image, and
 a focused edge test proves an empty current digest does not resurrect the old
 one.
 
-The same review pass removed a JSON marshal/unmarshal round trip from carried
-decision decoding. The direct decoder accepts both in-memory writer values and
-Postgres JSON values, rejects fractional counters, and normalizes evidence
-arrays. The result summary now distinguishes decisions recomputed from current
-artifact evidence (`evaluated`) from unchanged prior decisions (`preserved`);
-outcome counts continue to describe the complete snapshot written.
+The result summary counts the complete rebuilt source snapshot as `evaluated`;
+`preserved` is zero because the handler no longer copies prior derived rows.
+Outcome counts continue to describe the complete snapshot written.
 
 ```text
 go test ./internal/reducer \
-  -run '^TestCICDRunCorrelationHandlerPatchesLaterArtifactAndCarriesPreviousSnapshot$' \
+  -run '^TestCICDRunCorrelationHandlerRebuildsCompleteSourceSnapshotForLaterArtifact$' \
   -count=1
 
 before: ArtifactDigest = "sha256:bbbb...", want current "sha256:cccc..."
 after:  ok github.com/eshu-hq/eshu/go/internal/reducer
 
-go test ./internal/reducer \
-  -run 'TestCICDRunCorrelationDecisionFromPayloadAcceptsPersistedJSONShapes|TestMergeCICDRunCorrelationPatchDecisionsRejectsFractionalCanonicalWrites' \
+ESHU_POSTGRES_DSN=<local-test-dsn> go test ./internal/storage/postgres \
+  -run '^TestCICDRunCorrelationArtifactPatchRebuildsUnpublishedPredecessor$' \
   -count=1
 
-after:  ok github.com/eshu-hq/eshu/go/internal/reducer
+before: active generation run IDs = ["run-a"], want ["run-a", "run-b"]
+after:  ok github.com/eshu-hq/eshu/go/internal/storage/postgres
 ```
 
-Historical selection ranks a tombstone before filtering it, so a retracted run
-or artifact cannot return through an older row. The history query rejects more
-than 10,000 facts; the predecessor query rejects more than 1,000. A storage
-adapter that lacks the two patch reads fails the reducer intent instead of
+Normal historical selection ranks a tombstone before filtering it, so a
+retracted run or artifact cannot return as live evidence through an older row.
+For a requested payload-empty artifact tombstone stable key only, the query
+separately recovers the latest older payload-bearing artifact as routing
+identity. The reducer removes that exact stable key before classification, so
+the routing row cannot become evidence. The history query rejects more than
+12,000 facts, and the handler rejects more than 1,000 rebuilt decisions. A
+storage adapter that lacks the patch read fails the reducer intent instead of
 acknowledging an empty result.
 
-Carried decisions retain their original evidence fact IDs. Those IDs are useful
-while superseded generations remain stored, but they are not permanent foreign
-keys. A later full CI/CD snapshot can recompute the decisions against current
-evidence and rebase that chain. If retention removes an older generation first,
-its carried evidence link no longer resolves.
+The two post-publication review regressions failed first: the storage query did
+not contain a workflow-image history lane, and a payload-empty artifact
+tombstone left the preceding exact artifact decision unchanged while also
+emitting a false `input_invalid` quarantine. The corrected path keeps workflow
+evidence tombstone-aware and repository-scoped, skips intervening empty
+tombstones only for routing identity, and retracts the retired artifact from the
+recomputed decision.
+
+Every decision is rebuilt from current retained source evidence, so evidence
+fact IDs remain resolvable for the same retention window as their source facts
+and cannot silently depend on an unpublished derived generation.
 
 ## Theory and performance checks
 
 Performance Evidence: PostgreSQL 16 processed the same one-scope, 25-generation
-input before and after the query rewrite: 216,000 retained step facts, 90 patch
-keys, 1,000 prior decisions, and 1,000 terminal output rows. The full handler
-fell from a 91.586-second baseline to 0.740 seconds after the review fix that
-filters superseded artifacts before classification. Existing reducer and
-Postgres duration metrics retain operator visibility.
+input before and after the retained-history query rewrite: 216,000 retained step
+facts, 90 patch keys, 1,000 prior decisions, and 1,000 terminal output rows. The
+full handler fell from a 91.586-second baseline to 0.740 seconds after ranking
+the retained same-scope facts once. A later correctness review changed the
+production path from prior-decision overlay to a full source-snapshot rebuild;
+that final shape has its own measurement below and is not compared as a speedup.
+Existing reducer and Postgres duration metrics retain operator visibility.
 
 The performance question was whether the artifact-patch handler could remain
 bounded on the existing fact indexes, or whether it needed a new JSON
@@ -102,7 +119,7 @@ The replacement theory ranks the retained same-scope CI facts once, then
 filters the latest rows to the requested keys. A test-only query selected the
 expected 9,090 facts in 559.362 ms before the production SQL was changed.
 
-| Full-handler measurement | Before | After |
+| Comparable query-rewrite measurement | Before | After |
 | --- | ---: | ---: |
 | Total handler | 91.586 s | 0.740 s |
 | Historical evidence read | 91.524 s | 0.679 s |
@@ -117,13 +134,26 @@ patched exactly 90 decisions. This comparison establishes that the original
 query shape was unacceptable and that the shipped handler meets the local
 scale budget; it is not a general product speedup claim.
 
+The final post-review proof kept the same 216,000 retained step rows and
+1,000-decision output, added 90 payload-empty current artifact tombstones, 90
+older payload-bearing artifact identities behind intervening tombstones, and 90
+retained same-repository workflow-image rows, and removed all seeded prior
+correlation decisions. The fixture instead carries 1,000 retained `ci.run`
+source rows, so every output must be rebuilt even though the current generation
+patches only 90 runs. The complete handler took 0.914404208 seconds: 0.858194417
+seconds for retained source history and 0.045260625 seconds for the writer. It
+remained inside the five-second budget without restoring the global stable-key
+index removed in migration 049. This final measurement is a correctness and
+no-regression proof, not a direct speedup comparison with the prior overlay
+fixture.
+
 Other candidates were rejected before implementation:
 
 | Candidate | Representative result | Accuracy | Disposition |
 | --- | ---: | --- | --- |
 | Broad provider/run/attempt expression index | 101 facts in 0.170 ms on a 92,500-row corpus | Passed | Rejected. The 9,544 kB index was about three times the existing 3,288 kB index and would add write cost to the highest-volume fact table. |
 | Recompute only the artifact's run | Fastest write set | Failed | Rejected because the active-generation fence would make every unaffected prior run disappear. |
-| Search backward for the latest non-empty snapshot | Bounded lookup | Failed | Rejected because an empty immediate predecessor is an authoritative empty snapshot; skipping it resurrects stale decisions. |
+| Copy or search backward for a derived snapshot | Bounded lookup | Failed | Rejected because reducer queue supersession can leave the predecessor unpublished; an empty read is not proof of an authoritative empty source snapshot. |
 
 ## Test-first and live proof
 
@@ -131,7 +161,7 @@ The first focused test run failed for both missing behaviors:
 
 ```text
 go test ./internal/projector ./internal/reducer \
-  -run 'TestBuildProjectionQueuesCICDRunCorrelationIntentForArtifactOnlyGeneration|TestCICDRunCorrelationHandlerPatchesLaterArtifactAndCarriesPreviousSnapshot' \
+  -run 'TestBuildProjectionQueuesCICDRunCorrelationIntentForArtifactOnlyGeneration|TestCICDRunCorrelationHandlerRebuildsCompleteSourceSnapshotForLaterArtifact' \
   -count=1
 
 artifact-only intent: missing
@@ -146,32 +176,47 @@ handler, and durable write together:
 ```text
 ESHU_POSTGRES_DSN=<local-test-dsn> \
   go test ./internal/storage/postgres \
-  -run '^TestCICDRunCorrelationArtifactPatchAgainstRealPostgres$' \
+  -run 'TestCICDRunCorrelationArtifactPatch(AgainstRealPostgres|RebuildsUnpublishedPredecessor)' \
   -count=1 -v
 
---- PASS: TestCICDRunCorrelationArtifactPatchAgainstRealPostgres (0.22s)
-ok github.com/eshu-hq/eshu/go/internal/storage/postgres 3.513s
+--- PASS: TestCICDRunCorrelationArtifactPatchAgainstRealPostgres (0.26s)
+--- PASS: TestCICDRunCorrelationArtifactPatchRebuildsUnpublishedPredecessor (0.21s)
+ok github.com/eshu-hq/eshu/go/internal/storage/postgres 3.685s
 exit 0
 ```
 
+`TestCICDRunCorrelationArtifactPatchRebuildsUnpublishedPredecessor` exercises
+the production queue shape directly: generation 1 contains runs A and B with a
+pending correlation item, generation 2 activates with an artifact only for A,
+the claim supersession sweep terminalizes generation 1 before it publishes any
+correlation facts, and generation 2 is claimed. The pre-fix handler then wrote
+only A; the rebuilt source snapshot writes both A and B. This separates the
+source-of-truth guarantee from queue timing and makes retries idempotent against
+the same retained facts.
+
 That regression proves a generation-three artifact can recover its
-generation-one run and upgrade it to exact while carrying an unaffected run
-from generation two. It also proves failed and future generations are excluded,
-run attempt 2 cannot satisfy attempt 1, a payload-empty tombstone suppresses an
-older live fact, and an empty immediate predecessor does not resurrect a still
-older snapshot. It also covers both optional-repository fallbacks: a run without
+generation-one run and rebuild every unaffected latest retained run into the
+target generation without reading prior derived decisions. It also proves
+failed and future generations are excluded, distinct run attempts remain
+distinct, and a payload-empty tombstone suppresses an older live fact. It also
+covers both optional-repository fallbacks: a run without
 `repository_id` can attach a repository-scoped deployment event, and a
 repository-scoped run can attach an event that omits `repository_id`. Replaying
 the same reducer intent writes the same fact IDs and payloads without duplicate
-rows.
+rows. It now also proves retained workflow-image evidence is loaded by
+repository without resurrecting a tombstoned workflow row, and that a repeated
+payload-empty artifact tombstone can route through its older payload-bearing
+identity, overwrite the stale exact decision, remove the artifact/image
+evidence, and avoid a false quarantine.
 
-The opt-in scale regression runs the shipped handler, storage reads, strict
-decision decoder, 1,000-decision overlay, and durable writer:
+The opt-in scale regression runs the shipped handler, retained source read,
+1,000-decision rebuild, and durable writer:
 
 ```text
-manifest scopes=1 generations=25 retained_step_rows=216000 patch_keys=90
-prior_decisions=1000 output_decisions=1000 duration=740.272333ms
-history=679.407666ms previous=6.238417ms writer=44.719166ms budget=5s
+manifest scopes=1 generations=25 retained_step_rows=216000
+live_artifact_keys=90 tombstone_keys=90 workflow_rows=90
+prior_decisions=0 output_decisions=1000 duration=914.404208ms
+history=858.194417ms writer=45.260625ms budget=5s
 exit 0
 ```
 
@@ -187,9 +232,10 @@ case remains ambiguous.
 
 The credential-free B-7 run keeps the older container-image identity proof
 independent through a same-generation GitLab run/artifact pair, while GitHub
-Actions run 5150 is split across two generations for this regression. The B-12
-query requires one object carrying the provider, run ID, repository, digest,
-exact outcome, canonical write, environment, and environment evidence together:
+Actions runs 5150 and 5151 share generation 1 and only run 5150 receives an
+artifact in generation 2. The B-12 query requires one exact object for 5150 and
+a separate one-row derived object for unaffected 5151, so the corpus cannot stay
+green if the active generation drops its sibling:
 
 ```text
 bash scripts/verify-golden-corpus-gate.sh
@@ -198,12 +244,12 @@ cassette facts settled: 18 collector sources, 33 scope generations
 drains: 0 residual work, 0 nonterminal shared intents, 0 nonterminal completion events
 mcp:list_ci_cd_run_correlations: 1 result
 mcp:list_container_image_identities: 1 result
-summary: 521 pass, 0 required-fail, 1 advisory-warn
+summary: 522 pass, 0 required-fail, 1 advisory-warn
 pipeline wall time: 126s (blocking ceiling 1800s)
 exit 0
 ```
 
-The advisory was `phase_maintenance_drains`: 25 seconds against its 19-second
+The advisory was `phase_maintenance_drains`: 27 seconds against its 19-second
 advisory ceiling. It did not affect the blocking pipeline budget or any truth,
 drain, replay, graph, HTTP, or MCP assertion.
 

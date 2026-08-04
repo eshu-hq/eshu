@@ -74,18 +74,19 @@ func TestCICDNarrowingSelectsTheBuilderFromPublishedFacts(t *testing.T) {
 		t.Fatalf("identity evidence = %#v, want both support facts", got)
 	}
 
-	// #5766: the builder must narrow to the canonical identity because one of
-	// its support rows carries this repository's build provenance.
+	// #5766: the builder must retain the grouped canonical identity because one
+	// of its support rows carries this repository's build provenance.
 	builderMatches := cicdImageMatchesForRepository(matches, builderRepo)
 	if len(builderMatches) != 1 || builderMatches[0].factID != "identity-builder" {
-		t.Fatalf("narrowing for the builder = %d rows (%#v), want exactly the identity-builder row; "+
+		t.Fatalf("narrowing for the builder = %d identities (%#v), want the grouped identity represented by identity-builder; "+
 			"comparing the identity's OCI repository_id against a canonical repository:r_... id never matches (#5766)",
 			len(builderMatches), builderMatches)
 	}
 
-	// #5823: a repository that only references the digest must narrow to
-	// nothing, so the caller keeps the ambiguous two-row set instead of
-	// promoting a non-builder to exact.
+	// #5823: a repository that only references the digest contributes no build-
+	// provenance narrowing. The caller therefore falls back to the unfiltered
+	// grouped identity, which remains one truthful canonical target rather than
+	// treating its two support facts as two competing images.
 	if got := cicdImageMatchesForRepository(matches, deployingRepo); len(got) != 0 {
 		t.Fatalf("narrowing for the deploying repository = %#v, want 0 rows: "+
 			"source_repository_ids conflates built-from with referenced-by (#5823)", got)

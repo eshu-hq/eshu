@@ -44,6 +44,33 @@
           }
         },
         {
+          "fact_kind": "ci.run",
+          "stable_fact_key": "ci_cd_run:github_actions:supply-chain-demo:run:5151",
+          "schema_version": "1.0.0",
+          "collector_kind": "ci_cd_run",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "cicd-collector-scd",
+            "provider": "github_actions",
+            "run_id": "5151",
+            "run_attempt": "1",
+            "run_number": "129",
+            "workflow_name": "verification",
+            "event": "push",
+            "status": "completed",
+            "result": "success",
+            "branch": "main",
+            "commit_sha": "1a2b3c4d5e6f7081928374655647382910abcdef",
+            "repository_id": "repository:r_69256c06",
+            "provider_repository_id": "github.com/eshu-hq/supply-chain-demo",
+            "repository_url": "https://github.com/eshu-hq/supply-chain-demo",
+            "correlation_anchors": [
+              "github_actions::5151"
+            ]
+          }
+        },
+        {
           "fact_kind": "ci.deployment_event",
           "stable_fact_key": "ci_cd_run:github_actions:supply-chain-demo:deployment:9001:status:77001",
           "schema_version": "1.0.0",

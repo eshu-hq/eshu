@@ -296,26 +296,35 @@ values each counter carries.
   before dispatching to `Handler.Handle`; a superseded intent returns without
   projecting stale truth.
 - **Artifact-only CI/CD generations are patches** — a generation containing a
-  `ci.artifact` but no `ci.run` loads retained evidence only for the artifact's
-  exact provider/run/attempt keys. The handler copies the immediately preceding
-  correlation snapshot, overlays the recomputed runs, and writes a complete new
-  snapshot so the active-generation fence does not hide unaffected runs. A
+  `ci.artifact` but no `ci.run` rebuilds the complete bounded run snapshot from
+  latest retained source evidence, then overlays current artifact control rows.
+  It does not depend on an immediately preceding derived snapshot: queue
+  supersession can legitimately prevent that snapshot from being published.
+  Rebuilding every retained live run keeps unaffected runs visible behind the
+  active-generation fence. A
   generation containing any `ci.run` remains a normal full replacement. For a
   patched run, current-generation artifacts replace retained artifacts even
   when the current payload has no digest; older run-scoped fact kinds remain
   available to the classifier without resurrecting a stale artifact identity.
-  The reducer result reports current patch work as `evaluated` and unchanged
-  carried decisions as `preserved`, while outcome totals still describe the
-  complete snapshot written for the target generation.
+  Retained workflow-image evidence reloads by recovered repository and keeps
+  the existing exact-commit versus repository-fallback rule. A payload-empty
+  artifact tombstone resolves its opaque stable key through the latest older
+  payload-bearing row, uses that row only to route the patch, and removes the
+  retired artifact from classification. Missing identity fails the intent
+  closed; a valid tombstone is control evidence and is not quarantined as a
+  malformed live artifact.
+  The reducer result reports every rebuilt decision as `evaluated`; `preserved`
+  remains zero because no prior derived decision is copied. Outcome totals
+  describe the complete snapshot written for the target generation.
   Deployment events join by commit SHA rather than run key, so the history read
   reloads them after recovering the run and the normal classifier reselects the
   environment. The active container-image loader returns support-grain rows;
   correlation groups rows that agree on the same non-empty digest and image
   reference before deciding cardinality, preserving all support fact IDs. Two
   different image references for one digest remain ambiguous. Evidence IDs on
-  unaffected carried decisions are best-effort links to retained superseded
+  unaffected rebuilt decisions are best-effort links to retained superseded
   facts. Later full CI/CD snapshots can rebase the chain; after retention, an
-  older carried link may no longer resolve.
+  older retained-source link may no longer resolve.
 - **`deployment_mapping` requires post-Phase-3 reopen** — any domain
   consuming `resolved_relationships` needs its own post-Phase-3 reopen
   mechanism (see `queue-and-runners.md`'s Facts-First Bootstrap Ordering).

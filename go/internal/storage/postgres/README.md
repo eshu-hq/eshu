@@ -525,8 +525,12 @@ Primary groups:
 - Database adapters: `ExecQueryer`, `Transaction`, `Beginner`, `SQLDB`,
   `SQLTx`, `InstrumentedDB`.
 - Fact, queue, recovery, status, workflow, and webhook stores. `FactStore` also
-  provides bounded CI/CD run-history and immediate-predecessor snapshot reads
-  for artifact-only correlation patches.
+  provides a bounded CI/CD source-snapshot rebuild for artifact-only correlation
+  patches. The history read reloads every latest retained live run plus
+  tombstone-aware workflow-image evidence by recovered repository and accepts
+  payload-empty artifact tombstone stable keys; it returns the latest older
+  payload-bearing artifact only as routing identity, while the reducer excludes
+  that row from live classification and fails closed when identity is missing.
 - Governance audit store for validation-safe private event persistence,
   authorized bounded detailed reads, retention pruning, and aggregate-only
   status readback.

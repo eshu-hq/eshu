@@ -26,11 +26,11 @@ import (
 // ci.artifact, ci.workflow_image_evidence, ci.environment_observation,
 // ci.trigger_edge, ci.step) — it fires on ci.run and ci.artifact only. A run
 // anchors a normal authoritative snapshot. An artifact without a co-located
-// run is a domain patch: the handler loads the matching run-scoped evidence
-// from prior successful generations, overlays the recomputed run onto the
-// immediately preceding correlation snapshot, and writes the full merged
-// snapshot into the artifact generation. This preserves unaffected runs under
-// the active-generation read fence while avoiding whole-history reprocessing.
+// run is a domain patch: the handler rebuilds the complete bounded latest-live
+// run snapshot from retained source evidence, applies the current artifact
+// control rows, and writes the result into the artifact generation. This keeps
+// unaffected runs visible under the active-generation read fence even if queue
+// supersession prevented the preceding reducer work item from publishing.
 // The other loaded kinds cannot independently establish this patch contract:
 // workflow-image evidence is repository-scoped, and environment, trigger, and
 // step evidence do not provide the artifact arrival signal #5770 addresses.

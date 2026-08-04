@@ -23,7 +23,7 @@ reducer/query adapter.
   `ListFactsByKind`, `ListFactsByKindAndPayloadValue`,
   `LoadActiveCodeCallSymbolDefinitionFacts`, `LoadIncidentRoutingRawEvidence`,
   `ListActiveRepositoryFacts`, `ListActivePackageOwnershipFacts`,
-  `ListCICDRunFactsForRunKeys`, `ListPreviousCICDRunCorrelationFacts`,
+  `ListCICDRunFactsForRunKeys`, `ListCICDRunFactsForScopePatch`,
   `CountFacts`, `ListOSPackageAdvisoryTargets`, and
   `ListSBOMComponentAdvisoryTargets`
 - `ServiceIncidentEvidenceLoader` / `NewServiceIncidentEvidenceLoader` —

@@ -114,7 +114,7 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent Intent) (R
 	if err != nil {
 		return Result{}, fmt.Errorf("load ci/cd run correlation facts: %w", err)
 	}
-	envelopes, previousDecisions, patchGeneration, err := h.loadCICDRunCorrelationPatchFacts(ctx, intent, envelopes)
+	envelopes, patchGeneration, err := h.loadCICDRunCorrelationPatchFacts(ctx, intent, envelopes)
 	if err != nil {
 		return Result{}, err
 	}
@@ -130,12 +130,11 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent Intent) (R
 	}
 	evaluatedCount := len(decisions)
 	preservedCount := 0
-	if patchGeneration {
-		decisions, err = mergeCICDRunCorrelationPatchDecisions(previousDecisions, decisions)
-		if err != nil {
-			return Result{}, fmt.Errorf("merge ci/cd run correlation patch: %w", err)
-		}
-		preservedCount = len(decisions) - evaluatedCount
+	if patchGeneration && len(decisions) > maxCICDRunCorrelationPatchDecisions {
+		return Result{}, fmt.Errorf(
+			"rebuild ci/cd run correlation patch: decisions exceed safety cap %d",
+			maxCICDRunCorrelationPatchDecisions,
+		)
 	}
 	counts := cicdRunCorrelationCounts(decisions)
 	writeResult, err := h.Writer.WriteCICDRunCorrelations(ctx, CICDRunCorrelationWrite{

@@ -16,90 +16,31 @@ import (
 
 const cicdRunHistoryScaleBudget = 5 * time.Second
 
-const cicdRunHistoryScopeRankTheoryQuery = `
-WITH requested_run_keys AS MATERIALIZED (
-    SELECT
-        'github_actions'::text AS provider,
-        FORMAT('run-%s', run_number)::text AS run_id,
-        '1'::text AS run_attempt
-    FROM GENERATE_SERIES(1, 90) AS run_number
-),
-ranked_run_facts AS MATERIALIZED (
-    SELECT
-        fact.fact_kind,
-        fact.stable_fact_key,
-        fact.is_tombstone,
-        fact.payload,
-        ROW_NUMBER() OVER (
-            PARTITION BY fact.fact_kind, fact.stable_fact_key
-            ORDER BY generation.ingested_at DESC,
-                     generation.generation_id DESC,
-                     fact.observed_at DESC,
-                     fact.fact_id DESC
-        ) AS fact_rank
-    FROM fact_records AS fact
-    JOIN scope_generations AS generation
-      ON generation.scope_id = fact.scope_id
-     AND generation.generation_id = fact.generation_id
-    WHERE fact.scope_id = 'scope-ci-scale'
-      AND fact.fact_kind = ANY(ARRAY[
-          'ci.run',
-          'ci.artifact',
-          'ci.environment_observation',
-          'ci.trigger_edge',
-          'ci.step'
-      ]::text[])
-      AND generation.status IN ('active', 'completed', 'superseded')
-      AND (generation.ingested_at, generation.generation_id)
-          < ('2026-08-04T13:00:25Z'::timestamptz, 'perf-gen-25')
-)
-SELECT COUNT(*)
-FROM ranked_run_facts AS fact
-WHERE fact.fact_rank = 1
-  AND fact.is_tombstone = FALSE
-  AND EXISTS (
-      SELECT 1
-      FROM requested_run_keys AS requested
-      WHERE BTRIM(fact.payload->>'provider') = requested.provider
-        AND BTRIM(fact.payload->>'run_id') = requested.run_id
-        AND COALESCE(NULLIF(BTRIM(fact.payload->>'run_attempt'), ''), '1') = requested.run_attempt
-  )`
-
 type timedCICDRunHistoryScaleLoader struct {
 	cicdRunHistoryLiveLoader
-	historyDuration  time.Duration
-	previousDuration time.Duration
+	historyDuration time.Duration
 }
 
-func (l *timedCICDRunHistoryScaleLoader) ListCICDRunFactsForRunKeys(
+func (l *timedCICDRunHistoryScaleLoader) ListCICDRunFactsForScopePatch(
 	ctx context.Context,
 	scopeID string,
 	targetGenerationID string,
 	providers []string,
 	runIDs []string,
 	runAttempts []string,
+	artifactTombstoneKeys []string,
 ) ([]facts.Envelope, error) {
 	started := time.Now()
-	loaded, err := l.FactStore.ListCICDRunFactsForRunKeys(
+	loaded, err := l.FactStore.ListCICDRunFactsForScopePatch(
 		ctx,
 		scopeID,
 		targetGenerationID,
 		providers,
 		runIDs,
 		runAttempts,
+		artifactTombstoneKeys,
 	)
 	l.historyDuration = time.Since(started)
-	return loaded, err
-}
-
-func (l *timedCICDRunHistoryScaleLoader) ListPreviousCICDRunCorrelationFacts(
-	ctx context.Context,
-	scopeID string,
-	targetGenerationID string,
-) ([]facts.Envelope, error) {
-	started := time.Now()
-	loaded, err := l.FactStore.ListPreviousCICDRunCorrelationFacts(ctx, scopeID, targetGenerationID)
-	l.previousDuration = time.Since(started)
 	return loaded, err
 }
 
@@ -119,9 +60,13 @@ func (w *timedCICDRunHistoryScaleWriter) WriteCICDRunCorrelations(
 }
 
 // TestCICDRunCorrelationArtifactPatchAtRetainedHistoryScale runs the shipped
-// handler, history reads, decoder, 1,000-decision merge, and writer against a
-// retained same-scope backlog. It is opt-in because seeding 216,000 step facts
-// is too expensive for the normal focused package loop.
+// handler, history read, decoder, 1,000-decision rebuild, and writer against a
+// retained same-scope backlog. The patch contains 90 live artifacts and 90
+// payload-empty tombstones whose latest payload-bearing identities predate an
+// intervening tombstone, plus retained repository workflow-image evidence. No
+// prior correlation decisions are seeded, so all 1,000 outputs must come from
+// retained source facts. It is opt-in because seeding 216,000 step facts is too
+// expensive for the normal focused package loop.
 func TestCICDRunCorrelationArtifactPatchAtRetainedHistoryScale(t *testing.T) {
 	if os.Getenv("ESHU_CICD_RUN_HISTORY_SCALE_PROOF") != "1" {
 		t.Skip("set ESHU_CICD_RUN_HISTORY_SCALE_PROOF=1 for the retained-history performance proof")
@@ -179,11 +124,10 @@ func TestCICDRunCorrelationArtifactPatchAtRetainedHistoryScale(t *testing.T) {
 	}
 	if elapsed > cicdRunHistoryScaleBudget {
 		t.Fatalf(
-			"Handle() scale duration = %s, budget %s (history=%s previous=%s writer=%s)",
+			"Handle() scale duration = %s, budget %s (history=%s writer=%s)",
 			elapsed,
 			cicdRunHistoryScaleBudget,
 			store.historyDuration,
-			store.previousDuration,
 			writer.duration,
 		)
 	}
@@ -216,10 +160,9 @@ WHERE scope_id = 'scope-ci-scale'
 		)
 	}
 	t.Logf(
-		"manifest scopes=1 generations=25 retained_step_rows=216000 patch_keys=90 prior_decisions=1000 output_decisions=1000 duration=%s history=%s previous=%s writer=%s budget=%s",
+		"manifest scopes=1 generations=25 retained_step_rows=216000 live_artifact_keys=90 tombstone_keys=90 workflow_rows=90 prior_decisions=0 output_decisions=1000 duration=%s history=%s writer=%s budget=%s",
 		elapsed,
 		store.historyDuration,
-		store.previousDuration,
 		writer.duration,
 		cicdRunHistoryScaleBudget,
 	)
@@ -281,7 +224,87 @@ SELECT
         'repository_id', 'repository:r_scale',
         'commit_sha', FORMAT('commit-%s', run_number)
     )
+FROM GENERATE_SERIES(1, 1000) AS run_number;
+
+INSERT INTO fact_records (
+    fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+    schema_version, collector_kind, source_confidence, source_system,
+    source_fact_key, observed_at, ingested_at, is_tombstone, payload
+)
+SELECT
+    FORMAT('perf-workflow-image-%s', run_number),
+    'scope-ci-scale',
+    'perf-gen-01',
+    'ci.workflow_image_evidence',
+    FORMAT('perf-workflow-image-key-%s', run_number),
+    '1.0.0',
+    'git',
+    'observed',
+    'git',
+    FORMAT('perf-workflow-image-key-%s', run_number),
+    '2026-08-04T13:00:01Z',
+    '2026-08-04T13:00:01Z',
+    FALSE,
+    JSONB_BUILD_OBJECT(
+        'repository_id', 'repository:r_scale',
+        'commit_sha', FORMAT('commit-%s', run_number),
+        'workflow_path', FORMAT('.github/workflows/build-%s.yml', run_number),
+        'command_kind', 'run',
+        'evidence_class', 'workflow_image_unresolved',
+        'reason', 'scale fixture intentionally has no static image ref'
+    )
 FROM GENERATE_SERIES(1, 90) AS run_number;
+
+INSERT INTO fact_records (
+    fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+    schema_version, collector_kind, source_confidence, source_system,
+    source_fact_key, observed_at, ingested_at, is_tombstone, payload
+)
+SELECT
+    FORMAT('perf-retired-artifact-live-%s', run_number),
+    'scope-ci-scale',
+    'perf-gen-01',
+    'ci.artifact',
+    FORMAT('perf-retired-artifact-key-%s', run_number),
+    '1.0.0',
+    'ci_cd_run',
+    'reported',
+    'ci_cd_run',
+    FORMAT('perf-retired-artifact-key-%s', run_number),
+    '2026-08-04T13:00:01Z',
+    '2026-08-04T13:00:01Z',
+    FALSE,
+    JSONB_BUILD_OBJECT(
+        'provider', 'github_actions',
+        'run_id', FORMAT('run-%s', run_number),
+        'run_attempt', '1',
+        'artifact_id', FORMAT('retired-artifact-%s', run_number),
+        'artifact_type', 'container_image',
+        'artifact_digest', 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+    )
+FROM GENERATE_SERIES(91, 180) AS run_number;
+
+INSERT INTO fact_records (
+    fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+    schema_version, collector_kind, source_confidence, source_system,
+    source_fact_key, observed_at, ingested_at, is_tombstone, payload
+)
+SELECT
+    FORMAT('perf-retired-artifact-prior-tombstone-%s', run_number),
+    'scope-ci-scale',
+    'perf-gen-24',
+    'ci.artifact',
+    FORMAT('perf-retired-artifact-key-%s', run_number),
+    '1.0.0',
+    'ci_cd_run',
+    'reported',
+    'ci_cd_run',
+    FORMAT('perf-retired-artifact-key-%s', run_number),
+    '2026-08-04T13:00:24Z',
+    '2026-08-04T13:00:24Z',
+    TRUE,
+    '{}'::jsonb
+FROM GENERATE_SERIES(91, 180) AS run_number;
 
 INSERT INTO fact_records (
     fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
@@ -318,39 +341,6 @@ INSERT INTO fact_records (
     source_fact_key, observed_at, ingested_at, is_tombstone, payload
 )
 SELECT
-    FORMAT('perf-prior-correlation-%s', run_number),
-    'scope-ci-scale',
-    'perf-gen-24',
-    'reducer_ci_cd_run_correlation',
-    FORMAT('perf-prior-correlation-key-%s', run_number),
-    '1.0.0',
-    'ci_cd_run',
-    'reported',
-    'ci_cd_run',
-    FORMAT('perf-prior-correlation-key-%s', run_number),
-    '2026-08-04T13:00:24Z',
-    '2026-08-04T13:00:24Z',
-    FALSE,
-    JSONB_BUILD_OBJECT(
-        'provider', 'github_actions',
-        'run_id', FORMAT('run-%s', run_number),
-        'run_attempt', '1',
-        'repository_id', 'repository:r_scale',
-        'commit_sha', FORMAT('commit-%s', run_number),
-        'outcome', 'derived',
-        'reason', 'prior retained decision',
-        'provenance_only', TRUE,
-        'canonical_writes', 0,
-        'evidence_fact_ids', JSONB_BUILD_ARRAY(FORMAT('perf-run-%s', run_number))
-    )
-FROM GENERATE_SERIES(1, 1000) AS run_number;
-
-INSERT INTO fact_records (
-    fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
-    schema_version, collector_kind, source_confidence, source_system,
-    source_fact_key, observed_at, ingested_at, is_tombstone, payload
-)
-SELECT
     FORMAT('perf-current-artifact-%s', run_number),
     'scope-ci-scale',
     'perf-gen-25',
@@ -372,7 +362,29 @@ SELECT
         'artifact_type', 'container_image',
         'artifact_digest', 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
     )
-FROM GENERATE_SERIES(1, 90) AS run_number;`)
+FROM GENERATE_SERIES(1, 90) AS run_number;
+
+INSERT INTO fact_records (
+    fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+    schema_version, collector_kind, source_confidence, source_system,
+    source_fact_key, observed_at, ingested_at, is_tombstone, payload
+)
+SELECT
+    FORMAT('perf-current-artifact-tombstone-%s', run_number),
+    'scope-ci-scale',
+    'perf-gen-25',
+    'ci.artifact',
+    FORMAT('perf-retired-artifact-key-%s', run_number),
+    '1.0.0',
+    'ci_cd_run',
+    'reported',
+    'ci_cd_run',
+    FORMAT('perf-retired-artifact-key-%s', run_number),
+    '2026-08-04T13:00:25Z',
+    '2026-08-04T13:00:25Z',
+    TRUE,
+    '{}'::jsonb
+FROM GENERATE_SERIES(91, 180) AS run_number;`)
 	if err != nil {
 		t.Fatalf("seed retained-history scale fixture: %v", err)
 	}

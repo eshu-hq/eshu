@@ -33,9 +33,9 @@ func (cicdRunHistoryLiveLoader) ListActiveCICDRunCorrelationFacts(
 
 // TestCICDRunCorrelationArtifactPatchAgainstRealPostgres proves the complete
 // #5770 storage/handler/write path. Generation 3 contains only an artifact for
-// run A; the handler recovers A's generation-1 run, overlays it onto the
-// generation-2 A+B correlation snapshot, and publishes both A and unaffected
-// B into active generation 3.
+// run A; the handler rebuilds the latest retained source snapshot and publishes
+// both A and unaffected B into active generation 3 without reading a prior
+// derived correlation snapshot.
 func TestCICDRunCorrelationArtifactPatchAgainstRealPostgres(t *testing.T) {
 	dsn := os.Getenv("ESHU_POSTGRES_DSN")
 	if dsn == "" {
@@ -54,6 +54,7 @@ func TestCICDRunCorrelationArtifactPatchAgainstRealPostgres(t *testing.T) {
 		[]string{"github_actions"},
 		[]string{"run-tombstoned"},
 		[]string{"1"},
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("load tombstoned historical run: %v", err)
@@ -68,6 +69,7 @@ func TestCICDRunCorrelationArtifactPatchAgainstRealPostgres(t *testing.T) {
 		[]string{"github_actions", "github_actions"},
 		[]string{"run-repository-omitted", "deployment-repository-omitted"},
 		[]string{"1", "1"},
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("load historical runs with optional repository anchors: %v", err)
@@ -80,6 +82,43 @@ func TestCICDRunCorrelationArtifactPatchAgainstRealPostgres(t *testing.T) {
 	} {
 		if !containsCICDRunHistoryLiveEnvelope(optionalRepositoryFacts, factID) {
 			t.Fatalf("optional-repository history = %#v, want %q", optionalRepositoryFacts, factID)
+		}
+	}
+	workflowFacts, err := store.ListCICDRunFactsForRunKeys(
+		ctx,
+		"scope-ci",
+		"gen-3",
+		[]string{"github_actions"},
+		[]string{"run-workflow"},
+		[]string{"1"},
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("load historical workflow-image evidence: %v", err)
+	}
+	for _, factID := range []string{"run-workflow-gen-1", "workflow-image-live-gen-1"} {
+		if !containsCICDRunHistoryLiveEnvelope(workflowFacts, factID) {
+			t.Fatalf("workflow history = %#v, want %q", workflowFacts, factID)
+		}
+	}
+	if containsCICDRunHistoryLiveEnvelope(workflowFacts, "workflow-image-retired-gen-1") {
+		t.Fatalf("workflow history = %#v, must not resurrect tombstoned evidence", workflowFacts)
+	}
+	tombstoneRouting, err := store.ListCICDRunFactsForRunKeys(
+		ctx,
+		"scope-ci",
+		"gen-3",
+		nil,
+		nil,
+		nil,
+		[]string{"artifact-retired-key"},
+	)
+	if err != nil {
+		t.Fatalf("recover payload-empty artifact tombstone identity: %v", err)
+	}
+	for _, factID := range []string{"run-retired-artifact-gen-1", "artifact-retired-gen-1"} {
+		if !containsCICDRunHistoryLiveEnvelope(tombstoneRouting, factID) {
+			t.Fatalf("tombstone routing history = %#v, want %q", tombstoneRouting, factID)
 		}
 	}
 	handler := reducer.CICDRunCorrelationHandler{
@@ -118,14 +157,6 @@ func TestCICDRunCorrelationArtifactPatchAgainstRealPostgres(t *testing.T) {
 	if !reflect.DeepEqual(second, first) {
 		t.Fatalf("replayed correlations changed:\nfirst=%#v\nsecond=%#v", first, second)
 	}
-
-	previous, err := store.ListPreviousCICDRunCorrelationFacts(ctx, "scope-ci", "gen-target")
-	if err != nil {
-		t.Fatalf("load correlation snapshot before target with empty predecessor: %v", err)
-	}
-	if len(previous) != 0 {
-		t.Fatalf("empty immediate predecessor resurrected older correlations: %#v", previous)
-	}
 }
 
 type cicdRunHistoryLiveCorrelation struct {
@@ -134,6 +165,9 @@ type cicdRunHistoryLiveCorrelation struct {
 	RepositoryID    string   `json:"repository_id"`
 	CommitSHA       string   `json:"commit_sha"`
 	ArtifactDigest  string   `json:"artifact_digest"`
+	ImageRef        string   `json:"image_ref"`
+	Outcome         string   `json:"outcome"`
+	CanonicalWrites int      `json:"canonical_writes"`
 	Environment     string   `json:"environment"`
 	EnvironmentKind string   `json:"environment_evidence"`
 	EvidenceFactIDs []string `json:"evidence_fact_ids"`
@@ -182,8 +216,8 @@ ORDER BY payload->>'run_id'`)
 	if err := rows.Err(); err != nil {
 		t.Fatalf("iterate active patched correlations: %v", err)
 	}
-	if len(got) != 2 {
-		t.Fatalf("active patched correlations = %#v, want run-a and unaffected run-b", got)
+	if len(got) != 7 {
+		t.Fatalf("active rebuilt correlations = %#v, want all seven latest retained runs", got)
 	}
 	runA := got["run-a:1"]
 	if runA.RepositoryID != "repo-api" || runA.CommitSHA != "abc123" ||
@@ -205,6 +239,18 @@ ORDER BY payload->>'run_id'`)
 	}
 	if _, ok := got["run-b:1"]; !ok {
 		t.Fatalf("run-b disappeared from active generation after run-a patch: %#v", got)
+	}
+	retired := got["run-retired-artifact:1"]
+	if retired.Outcome != "derived" || retired.CanonicalWrites != 0 {
+		t.Fatalf("retired-artifact outcome = %#v, want derived with no canonical write", retired)
+	}
+	if retired.ArtifactDigest != "" || retired.ImageRef != "" {
+		t.Fatalf("retired-artifact identity = %#v, want retracted artifact and image", retired)
+	}
+	for _, stale := range []string{"artifact-retired-gen-1", "image-retired"} {
+		if containsCICDRunHistoryLiveString(retired.EvidenceFactIDs, stale) {
+			t.Fatalf("retired-artifact evidence = %#v, must exclude %q", retired.EvidenceFactIDs, stale)
+		}
 	}
 	return got
 }
@@ -279,6 +325,8 @@ INSERT INTO scope_generations (
 
 	insertCICDRunHistoryLiveFact(t, ctx, db, "run-a-gen-1", "gen-1", "ci.run", "run-a-key", false,
 		`{"provider":"github_actions","run_id":"run-a","run_attempt":"1","repository_id":"repo-api","commit_sha":"abc123","status":"completed","result":"success"}`)
+	insertCICDRunHistoryLiveFact(t, ctx, db, "run-b-gen-1", "gen-1", "ci.run", "run-b-key", false,
+		`{"provider":"github_actions","run_id":"run-b","run_attempt":"1","repository_id":"repo-api","commit_sha":"def456","status":"completed","result":"success"}`)
 	insertCICDRunHistoryLiveFact(t, ctx, db, "run-a-attempt-2", "gen-2", "ci.run", "run-a-attempt-2-key", false,
 		`{"provider":"github_actions","run_id":"run-a","run_attempt":"2","repository_id":"wrong-attempt","commit_sha":"bad","status":"completed","result":"success"}`)
 	insertCICDRunHistoryLiveFact(t, ctx, db, "run-a-failed", "gen-failed", "ci.run", "run-a-key", false,
@@ -301,11 +349,26 @@ INSERT INTO scope_generations (
 		`{"provider":"github_actions","run_id":"deployment-repository-omitted","run_attempt":"1","repository_id":"repo-api","commit_sha":"commit-deployment-repository-omitted","status":"completed","result":"success"}`)
 	insertCICDRunHistoryLiveFact(t, ctx, db, "deployment-repository-omitted-gen-1", "gen-1", "ci.deployment_event", "deployment-repository-omitted-key", false,
 		`{"provider":"github_actions","deployment_id":"deployment-repository-omitted","status_id":"status-2","environment":"production","sha":"commit-deployment-repository-omitted","state":"success"}`)
+	insertCICDRunHistoryLiveFact(t, ctx, db, "run-workflow-gen-1", "gen-1", "ci.run", "run-workflow-key", false,
+		`{"provider":"github_actions","run_id":"run-workflow","run_attempt":"1","repository_id":"repo-workflow","commit_sha":"workflow123","status":"completed","result":"success"}`)
+	insertCICDRunHistoryLiveFact(t, ctx, db, "workflow-image-live-gen-1", "gen-1", "ci.workflow_image_evidence", "workflow-image-live-key", false,
+		`{"repository_id":"repo-workflow","commit_sha":"workflow123","workflow_path":".github/workflows/release.yml","command_kind":"run","evidence_class":"workflow_image_ref","image_ref":"registry.example.invalid/team/workflow:latest"}`)
+	insertCICDRunHistoryLiveFact(t, ctx, db, "workflow-image-retired-gen-1", "gen-1", "ci.workflow_image_evidence", "workflow-image-retired-key", false,
+		`{"repository_id":"repo-workflow","commit_sha":"workflow123","workflow_path":".github/workflows/retired.yml","command_kind":"run","evidence_class":"workflow_image_ref","image_ref":"registry.example.invalid/team/retired:latest"}`)
+	insertCICDRunHistoryLiveFact(t, ctx, db, "workflow-image-retired-gen-2", "gen-2", "ci.workflow_image_evidence", "workflow-image-retired-key", true, `{}`)
+	insertCICDRunHistoryLiveFact(t, ctx, db, "run-retired-artifact-gen-1", "gen-1", "ci.run", "run-retired-artifact-key", false,
+		`{"provider":"github_actions","run_id":"run-retired-artifact","run_attempt":"1","repository_id":"repo-api","commit_sha":"retired123","status":"completed","result":"success"}`)
+	insertCICDRunHistoryLiveFact(t, ctx, db, "artifact-retired-gen-1", "gen-1", "ci.artifact", "artifact-retired-key", false,
+		`{"provider":"github_actions","run_id":"run-retired-artifact","run_attempt":"1","artifact_id":"artifact-retired","artifact_type":"container_image","artifact_digest":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}`)
+	insertCICDRunHistoryLiveFact(t, ctx, db, "artifact-retired-gen-2", "gen-2", "ci.artifact", "artifact-retired-key", true, `{}`)
+	insertCICDRunHistoryLiveFact(t, ctx, db, "artifact-retired-gen-3", "gen-3", "ci.artifact", "artifact-retired-key", true, `{}`)
 
 	insertCICDRunHistoryLiveFact(t, ctx, db, "correlation-a-gen-2", "gen-2", "reducer_ci_cd_run_correlation", "correlation-a-key", false,
 		`{"provider":"github_actions","run_id":"run-a","run_attempt":"1","repository_id":"repo-api","commit_sha":"abc123","environment":"prod","environment_evidence":"deploy_event","artifact_digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","image_ref":"registry.example.invalid/team/old@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","outcome":"exact","reason":"prior exact artifact","provenance_only":false,"canonical_writes":1,"evidence_fact_ids":["run-a-gen-1","deployment-a-gen-1","artifact-a-old","image-a-old"]}`)
 	insertCICDRunHistoryLiveFact(t, ctx, db, "correlation-b-gen-2", "gen-2", "reducer_ci_cd_run_correlation", "correlation-b-key", false,
 		`{"provider":"github_actions","run_id":"run-b","run_attempt":"1","repository_id":"repo-api","commit_sha":"def456","outcome":"derived","reason":"unaffected prior run","provenance_only":true,"canonical_writes":0,"evidence_fact_ids":["run-b-gen-1"]}`)
+	insertCICDRunHistoryLiveFact(t, ctx, db, "correlation-retired-artifact-gen-2", "gen-2", "reducer_ci_cd_run_correlation", "correlation-retired-artifact-key", false,
+		`{"provider":"github_actions","run_id":"run-retired-artifact","run_attempt":"1","repository_id":"repo-api","commit_sha":"retired123","artifact_digest":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","image_ref":"registry.example.invalid/team/retired@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","outcome":"exact","reason":"prior exact artifact","provenance_only":false,"canonical_writes":1,"evidence_fact_ids":["run-retired-artifact-gen-1","artifact-retired-gen-1","image-retired"]}`)
 }
 
 func insertCICDRunHistoryLiveFact(
