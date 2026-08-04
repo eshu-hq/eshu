@@ -419,7 +419,7 @@ func TestHandleLanguageQuery_TypeScriptClassFamilyUsesGraphMetadataWithoutConten
 				Neo4j: &mockLanguageQueryGraphReader{rows: []map[string]any{tt.row}},
 			}
 
-			results, err := handler.queryByLanguageWithSemanticFilter(
+			results, _, err := handler.queryByLanguageWithSemanticFilter(
 				context.Background(),
 				"typescript",
 				tt.wantLabel,

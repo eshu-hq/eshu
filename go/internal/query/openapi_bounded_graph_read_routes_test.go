@@ -30,11 +30,7 @@ type boundedGraphReadRoute struct {
 // inside BuildServiceStoryEnvelope, neither of which is the function registered
 // with the mux. An enclosing-function-only sweep misses exactly those cases.
 //
-// Two known exclusions:
-//   - POST /api/v0/code/language-query is guarded nowhere: the error envelope
-//     carries a capability and that route has none in the capability catalog,
-//     so rather than invent one it still returns 500
-//     (see docs/public/reference/telemetry/graph-read-safety.md).
+// One known exclusion:
 //   - POST /api/v0/code/visualize IS guarded but has no OpenAPI path entry at
 //     all, predating this change; it cannot carry response codes until that
 //     entry exists.
@@ -101,6 +97,7 @@ var boundedGraphReadRoutes = []boundedGraphReadRoute{
 	{method: "post", path: "/api/v0/code/flow/reaching-def"},
 	{method: "post", path: "/api/v0/code/flow/taint-path"},
 	{method: "post", path: "/api/v0/code/imports/investigate"},
+	{method: "post", path: "/api/v0/code/language-query"},
 	{method: "post", path: "/api/v0/code/quality/inspect"},
 	{method: "post", path: "/api/v0/code/relationships"},
 	{method: "post", path: "/api/v0/code/relationships/story"},

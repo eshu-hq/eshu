@@ -56,7 +56,7 @@ func TestHandleLanguageQueryProjectsTypeScriptGraphMetadata(t *testing.T) {
 		},
 	}
 
-	results, err := handler.queryByLanguageWithSemanticFilter(
+	results, _, err := handler.queryByLanguageWithSemanticFilter(
 		context.Background(),
 		"typescript",
 		"TypeAlias",

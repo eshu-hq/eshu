@@ -163,6 +163,21 @@ uses `postgres.query` with `db.operation=list_semantic_evidence`, letting
 operators separate opt-in semantic observation or code-hint inspection from
 deterministic documentation, code, and graph-truth reads.
 
+The language-specific entity query route (`POST /api/v0/code/language-query`)
+uses `query.language_query` with the same stable `http.route` and
+`eshu.capability` span attributes, `eshu.capability` carrying
+`symbol_graph.language_entities`. This lets operators distinguish the route's
+graph-backed, graph-first-content, and content-only entity-type reads from the
+other `symbol_graph.*` and `code_search.*` query spans in this package. The
+route's bounded graph-read failures map through the same `503
+backend_unavailable` / `504 backend_timeout` vocabulary as its siblings; a
+non-bounded failure is logged with a `failure_class` key
+(`language_query.guard`, `language_query.graph_backed`,
+`language_query.graph_first_content_backed`, or
+`language_query.content_backed`) identifying which of the route's four
+guarded call sites failed, while the response body stays the static
+`"language query failed"` message.
+
 ## Reducer worker-pool gauge
 
 The reducer publishes `eshu_dp_worker_pool_active` (labeled `pool="reducer"`),

@@ -133,6 +133,7 @@ func newRouterWithSemanticEmbedding(
 			CodeFlow:     query.NewPostgresCodeFlowStore(db),
 			Profile:      queryProfile,
 			HybridRanker: newCodeHybridRanker(semanticSearchEmbedding),
+			Logger:       logger,
 		},
 		Content: &query.ContentHandler{
 			Content:      contentReader,

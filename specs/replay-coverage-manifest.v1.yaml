@@ -340,6 +340,7 @@ coverage:
   - {surface: capability:symbol_graph.decorators, scenario: capability_claim, scenario_type: baseline, ref: symbol_graph.decorators, proof_gate: capability-inventory}
   - {surface: capability:symbol_graph.import_dependencies, scenario: capability_claim, scenario_type: baseline, ref: symbol_graph.import_dependencies, proof_gate: capability-inventory}
   - {surface: capability:symbol_graph.imports, scenario: capability_claim, scenario_type: baseline, ref: symbol_graph.imports, proof_gate: capability-inventory}
+  - {surface: capability:symbol_graph.language_entities, scenario: capability_claim, scenario_type: baseline, ref: symbol_graph.language_entities, proof_gate: capability-inventory}
   - {surface: capability:visualization.graph_query, scenario: capability_claim, scenario_type: baseline, ref: visualization.graph_query, proof_gate: capability-inventory}
   - {surface: capability:visualization.packet_derivation, scenario: capability_claim, scenario_type: baseline, ref: visualization.packet_derivation, proof_gate: capability-inventory}
   - {surface: capability:work_item.evidence.list, scenario: capability_claim, scenario_type: baseline, ref: work_item.evidence.list, proof_gate: capability-inventory}

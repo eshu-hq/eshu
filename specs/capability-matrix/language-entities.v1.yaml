@@ -1,0 +1,8 @@
+capabilities:
+  - capability: symbol_graph.language_entities
+    tools: [execute_language_query]
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: bounded per-language entity-kind lookup over parser-derived semantic facts; graph-only entity kinds are unavailable without a graph sidecar}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: graph sidecar serves durable entity-kind facts for graph-backed and graph-first entity kinds; content-only entity kinds are served from the content index}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 800, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: durable entity-kind facts across the graph-backed, graph-first, and content-only entity kind families}
+      production: {status: experimental, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1200, max_scope_size: multi_repo_platform, verification: [{go_test: ./internal/query}], notes: query handler proven by go_test but no deployed-readback remote_validation artifact exists yet for this route-level capability; downgraded to experimental until one is committed}

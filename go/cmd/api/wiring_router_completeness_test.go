@@ -7,6 +7,8 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -53,6 +55,63 @@ func TestNewRouterWiresEveryFieldOrDocumentsWhyNot(t *testing.T) {
 	router := newFullyWiredTestRouter(t)
 
 	assertRouterFieldsWired(t, router, routerFieldsNotWiredByNewRouter)
+}
+
+// TestNewRouterWiresCodeLogger is the #5761 P1-1 review-fix regression: the
+// reflective sweep in assertRouterFieldsWired only checks nil *interface*
+// fields (see its Kind() != reflect.Interface guard below), so a
+// *slog.Logger field -- a concrete pointer type, not an interface -- is
+// invisible to it. newFullyWiredTestRouter also always passes nil for the
+// logger parameter, so router.Code.Logger is trivially nil there regardless
+// of whether newRouter's `Logger: logger` line (wiring_router.go) exists.
+// In production, LanguageQueryHandler's only construction path is
+// CodeHandler.Mount forwarding CodeHandler.Logger -- the sole operator
+// signal for a generic (non-bounded) language-query failure, since the 500
+// response body stays static -- so a silently-dropped Logger field here
+// means an operator gets nothing at 3 AM. This test passes a real,
+// distinguishable logger through newRouter and asserts pointer identity
+// against the constructed router.Code.Logger, catching a deleted or
+// mis-wired `Logger: logger` line that the reflective sweep and
+// newFullyWiredTestRouter both miss.
+func TestNewRouterWiresCodeLogger(t *testing.T) {
+	t.Parallel()
+
+	db, err := sql.Open("pgx", "postgres://example.invalid/eshu")
+	if err != nil {
+		t.Fatalf("sql.Open() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+
+	router, err := newRouter(
+		db,
+		query.NewNeo4jReader(nil, ""),
+		query.NewContentReader(db),
+		staticStatusReader{},
+		staticMetricsSource{},
+		query.ProfileLocalFullStack,
+		query.GraphBackendNornicDB,
+		logger,
+		nil,
+		"",
+		"",
+		component.Policy{},
+		query.GovernanceStatusConfig{},
+		nil,
+		false,
+		query.CookieSecureAuto,
+	)
+	if err != nil {
+		t.Fatalf("newRouter() error = %v, want nil", err)
+	}
+
+	if router.Code == nil {
+		t.Fatal("newRouter().Code = nil, want wired")
+	}
+	if router.Code.Logger != logger {
+		t.Errorf("newRouter().Code.Logger = %p, want the passed logger %p (a generic language-query failure would log to nowhere)", router.Code.Logger, logger)
+	}
 }
 
 // newFullyWiredTestRouter builds a *query.APIRouter the same way

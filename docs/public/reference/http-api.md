@@ -76,8 +76,8 @@ addresses, Cypher text, or raw driver errors. Clients should treat them as
 retryable, unlike a `500`. The routes carrying this contract advertise `503`
 and `504` in the OpenAPI spec; the deadline, retry, and telemetry semantics
 behind it are owned by
-[Graph-read safety](telemetry/graph-read-safety.md), which also records the two
-routes still exempt. Routes backed by Postgres or the content store rather than
+[Graph-read safety](telemetry/graph-read-safety.md), which also records the one
+route still exempt. Routes backed by Postgres or the content store rather than
 the graph are unaffected.
 
 ## Shared Model Rules

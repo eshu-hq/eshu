@@ -1130,3 +1130,181 @@ publisher present) cases.
 No-Observability-Change: no route, graph write, queue, worker, runtime knob,
 or metric instrument/label is added; the change is a new additive response
 field derived from an existing bounded Postgres read.
+
+## Language query gets a route-level capability, bounded-error mapping, and a span (#5761)
+
+`POST /api/v0/code/language-query` (`language_queries.go`) previously ran with
+no capability of its own, answered every bounded graph-read failure with a
+generic HTTP 500 plus the raw driver error text, and opened no dedicated span.
+`LanguageQueryHandler.handleLanguageQuery` now:
+
+- Gates on the new `symbol_graph.language_entities` capability
+  (`contract_capability_matrix_ext.go`) via `capabilityUnsupported` before any
+  of its four guarded call sites (`entity_type=="guard"`,
+  `graphBackedEntityTypes`, `graphFirstContentBackedEntityTypes`,
+  `contentBackedEntityTypes`) touch `GraphQuery` or `ContentStore`, returning
+  `501 unsupported_capability` through `WriteContractError` when the running
+  profile's ceiling is nil -- the AGENTS.md "capability gate before any read"
+  invariant, now honored by this route too. `local_lightweight` gets
+  `derived` (content-only entity kinds are servable without the graph
+  sidecar); `local_authoritative`/`local_full_stack`/`production` get
+  `exact`. No profile committed in
+  `specs/capability-matrix/language-entities.v1.yaml` is actually nil today,
+  so this profile-level gate's 501 is NOT reachable via a real profile today
+  (`TestHandleLanguageQueryCapabilityGateReturns501WhenUnsupported` proves the
+  gate mechanism itself by temporarily forcing the matrix entry unsupported
+  and restoring it). A second, distinct 501 IS reachable in a shipped
+  configuration -- see "F1/F2: the graphless path and the graph-only 501
+  residue" below.
+- Opens span `query.language_query` (`telemetry.SpanQueryLanguageQuery`,
+  registered in `contract_language_query.go` and pinned by
+  `telemetry.TestSpanNames`) via `startQueryHandlerSpan`, carrying the stable
+  `http.route` / `eshu.capability` attributes every other query-handler span
+  in this package carries
+  (`TestHandleLanguageQueryEmitsLanguageQuerySpan`).
+- Maps every one of its four guarded call sites' bounded graph-read errors
+  through the shared `WriteGraphReadError` (`graph_read_http_error.go`):
+  `ErrGraphUnavailable` -> `503 backend_unavailable`, `ErrGraphReadDeadline`
+  -> `504 backend_timeout`. Before #5761 all four sites answered any error,
+  bounded or not, with a bare `500` and `err.Error()` in the body, leaking
+  driver text and giving callers no way to distinguish "retry with backoff"
+  from "your request was malformed"
+  (`TestHandleLanguageQueryMapsGraphReadAvailabilityErrors`,
+  `TestHandleLanguageQueryContentBackedBranchMapsGraphReadAvailabilityErrors`).
+- Records the unmodified cause of a genuine (non-bounded) failure to the
+  operator log, while the response body stays static, via the new
+  `LanguageQueryHandler.Logger *slog.Logger` field and `logQueryFailure`
+  before answering the now-static `500 language query failed` body. The
+  bounded `failure_class` key (`language_query.guard`,
+  `language_query.graph_backed`, `language_query.graph_first_content_backed`,
+  `language_query.content_backed`) names which of the four call sites failed,
+  alongside `language`, `entity_type`, and the error, so an operator can
+  triage a degraded entity-type family without the response body carrying
+  any backend detail. `CodeHandler.Mount` (`code.go`) forwards its own
+  `Logger` field into the `LanguageQueryHandler` it constructs; a nil
+  `Logger` on either struct is tolerated and simply skips logging.
+
+### F1/F2: the graphless path and the graph-only 501 residue
+
+Landed in this same #5761 commit, alongside the capability gate, error
+mapping, and span work above.
+
+- **F1 -- a driverless `*Neo4jReader` is not the same as no reader.**
+  `cmd/api/wiring_graph.go`'s `openQueryGraph` returns a nil `*neo4j.Driver`
+  for `ProfileLocalLightweight` or `ESHU_DISABLE_NEO4J=true`, but
+  `cmd/api/wiring.go` and `cmd/mcp-server/wiring.go` still call
+  `NewNeo4jReader(nil, database)` unconditionally, so `LanguageQueryHandler.Neo4j`
+  is always non-nil in production even under a graphless profile. Before F1,
+  every call site that checked `h.Neo4j != nil` treated that driverless reader
+  as configured and sent it a `Run` that always failed. `Neo4jReader.GraphConfigured()`
+  (`neo4j.go`) now reports whether a driver or session factory is actually
+  wired, and the package-level `languageQueryGraphConfigured` helper
+  (`language_query_graph_configured.go`) calls it through the optional
+  `graphConfiguredReader` interface -- falling back to a plain non-nil check
+  for `GraphQuery` fakes that do not implement it, so existing test doubles
+  keep working. `queryByLanguageWithSemanticFilter` and
+  `queryGraphFirstContentByLanguageWithSemanticFilter` (`language_queries.go`)
+  both gate on `languageQueryGraphConfigured(h.Neo4j)` instead of a nil check,
+  so a graphless deployment now takes the Postgres content-store fallback
+  instead of failing every graph-backed and graph-first read.
+- **501 residue for graph-only entity types.** `Repository`, `Directory`, and
+  `File` have no content-store equivalent (`graphLabelToContentEntityType`
+  returns `""` for all three, `language_query_entities.go`), so under a
+  graphless profile the content fallback has nothing to query.
+  `queryByLanguageWithSemanticFilter` returns the sentinel
+  `errLanguageQueryGraphOnlyEntityUnavailable` in that case, and
+  `handleLanguageQuery`'s `graphBackedEntityTypes` branch maps it to
+  `501 unsupported_capability` via `writeLanguageQueryUnsupportedCapability`
+  rather than routing it through `WriteGraphReadError`'s 503/504 bounded-retry
+  vocabulary -- no retry or backend recovery changes the answer for these
+  three labels under a graphless profile, so it is a capability-shaped
+  failure, not a transient one. This is a second, distinct 501 cause from the
+  profile-level gate above, and (#5761 P2-5) it carries its own message --
+  `entity type "<x>" requires a graph backend` -- naming the offending entity
+  kind, instead of reusing the gate's "language query requires a supported
+  query profile" wording (`TestHandleLanguageQueryUnconfiguredReaderReturns501ForGraphOnlyEntityType`).
+  Unlike the profile-level gate, this residue 501 IS reachable in a shipped
+  configuration: `local_lightweight` or `ESHU_DISABLE_NEO4J=true` plus
+  `entity_type: repository|directory|file`.
+- **F2 -- the `guard` content fallback must filter by entity type, not
+  label.** `queryGraphFirstContentByLanguageWithSemanticFilter` takes a
+  `contentEntityType` parameter distinct from the Neo4j `label` it uses for
+  the graph read. Every `graphFirstContentBackedEntityTypes` caller passes the
+  same value for both, but `entity_type=="guard"` diverges: its graph read
+  uses `label="Function"` plus a `semantic_kind=guard` Cypher filter, while
+  its content fallback must query `contentEntityType="guard"` so
+  `contentEntityTypeFilter` (`elixir_semantic_types.go`) applies the matching
+  `entity_type=Function AND metadata->>semantic_kind=guard` predicate. Before
+  F2, the guard call site passed `label` ("Function") to the fallback too, so
+  a graphless or zero-row guard read silently returned every `Function`
+  instead of only guard clauses
+  (`TestHandleLanguageQueryUnconfiguredReaderGuardEntityTypeServesGuardsOnlyFromContent`).
+
+Proof for F1/F2 and the 501 residue: `go test ./internal/query -run
+'TestHandleLanguageQueryUnconfiguredReader|TestHandleLanguageQueryCapabilityGateReturns501WhenUnsupported'
+-v -count=1` (`language_query_graphless_reader_test.go`,
+`language_query_graph_error_test.go`).
+
+No-Regression Evidence: the one hot-path file this PR's
+`scripts/verify-performance-evidence.sh` run actually flags is `code.go`, and
+it is flagged because it already contains pre-existing Cypher
+(`lookupComplexityRow`'s `MATCH (e) WHERE e.id = $entity_id` plus three
+`OPTIONAL MATCH` lines, `code.go:445-448`) -- `is_hot_path_by_content`
+(`scripts/verify-performance-evidence.sh`) matches the gate's own
+hot-path-by-content patterns against a file's current content, not this PR's
+diff, so any file carrying that Cypher is flagged regardless of what changed.
+This PR's actual diff to `code.go` is a `Logger *slog.Logger` field on
+`CodeHandler` plus one changed constructor line (`lq :=
+&LanguageQueryHandler{Neo4j: h.Neo4j, Content: h.Content, Profile:
+h.profile(), Logger: h.Logger}`) -- a struct field addition and a
+pass-through, nothing else. This adds no hot-path query work: running the gate's own
+hot-path-by-content patterns -- use them exactly as
+`scripts/verify-performance-evidence.sh` defines them, since they are
+word-anchored and dropping the anchors makes `chan` match prose in a comment
+-- over `code.go`'s post-change content returns 4 matches, all pre-existing
+Cypher in `lookupComplexityRow`, none of them touched by this PR's diff. Baseline = pre-#5761 `code.go` (`CodeHandler`
+with no `Logger` field, `LanguageQueryHandler{Neo4j, Content, Profile}`
+construction); after = the field plus the pass-through line above. No Cypher
+statement, `MATCH` pattern, round trip, worker/lease/batch parameter, or
+concurrency primitive is added or changed by this file, or by this PR at all:
+the route's actual Cypher (`buildLanguageCypherWithSemanticFilter`,
+`language_query_cypher.go`) is untouched by #5761 -- the Cypher text, its
+`LIMIT $limit` shape, and its `ORDER BY` are unchanged.
+
+Row counts are unchanged **or lower**, not simply unchanged. Alongside the
+control-flow and truth-basis bookkeeping in `language_queries.go`,
+`language_query_metadata.go`, and `language_query_reasons.go`, this PR adds
+`languageQueryMaxLimit = 200` and clamps `req.Limit` to it. The builders splice
+`params["limit"]` verbatim into `LIMIT $limit` with no ceiling of their own, so
+before this change a caller could pass an arbitrarily large `limit` and have
+every matching row collected, enriched, and serialized, held back only by the
+read policy's time budget. For `limit <= 200` the terminal row count for every
+entity-type family is identical to before; above it the count is bounded at
+200. The clamp only ever reduces work, so the no-regression conclusion holds in
+both directions. That bound is what the `label_inventory` disposition for
+`(*LanguageQueryHandler).queryByLanguageWithSemanticFilter` asserts as
+`max_results: 200` in `go/internal/queryplan/testdata/query-source-coverage.yaml`,
+replacing the grandfathered prose `non_hot_reason` that the threading change
+invalidated.
+
+Backend NornicDB (canonical, default per AGENTS.md); Neo4j compatibility mode
+unaffected for the same reason -- no Cypher changed. Input shape unchanged: the
+same `{language, entity_type, query, repo_id, limit}` request body, with
+`limit` now documented as capped at 200 in the OpenAPI schema and the
+`execute_language_query` MCP tool schema. Proof: `go
+test ./internal/query ./internal/mcp ./internal/telemetry -count=1` and, for
+the specific behavior this entry documents, `go test ./internal/query -run
+'TestHandleLanguageQuery|TestLanguageQueryCarriesLanguageEntitiesCapability|TestOpenAPILanguageQueryDocuments501'
+-v -count=1`.
+
+Observability Evidence: the route now opens span `query.language_query`
+(`telemetry.SpanQueryLanguageQuery`) carrying `http.route` /
+`eshu.capability` attributes, proven emitted exactly once per request by
+`TestHandleLanguageQueryEmitsLanguageQuerySpan`
+(`language_query_span_test.go`). The new `logQueryFailure` structured log
+(`slog.WarnContext`, message `"language query failed"`) carries the bounded
+`failure_class` key described above plus `language`, `entity_type`, and
+`error`, mirroring the existing `neo4j_read_policy.go` decode-drop /
+read-attempt log shape this package already uses for operator triage. No new
+metric instrument or metric label is added; the span and log are the only new
+observability signals, both scoped to this route.

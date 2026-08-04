@@ -2,12 +2,12 @@
   "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
-    "total": 431,
-    "covered": 416,
+    "total": 432,
+    "covered": 417,
     "uncovered": 3,
     "unresolved": 0,
     "exempt": 12,
-    "percent_satisfied": 99.3
+    "percent_satisfied": 99.31
   },
   "registry_summaries": [
     {
@@ -21,8 +21,8 @@
     },
     {
       "registry": "capability_matrix",
-      "total": 137,
-      "covered": 137,
+      "total": 138,
+      "covered": 138,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
@@ -113,8 +113,8 @@
   "scenario_type_summaries": [
     {
       "scenario_type": "baseline",
-      "total": 221,
-      "covered": 216,
+      "total": 222,
+      "covered": 217,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 5,
@@ -1736,6 +1736,16 @@
       "ref": "rc-12",
       "proof_gate": "golden-corpus-gate",
       "detail": "snapshot required correlation \"rc-12\""
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:symbol_graph.language_entities",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "symbol_graph.language_entities",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"symbol_graph.language_entities\" matrix profile proofs present (supported=4 refusal=0)"
     },
     {
       "registry": "capability_matrix",

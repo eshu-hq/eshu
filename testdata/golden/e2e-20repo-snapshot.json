@@ -2726,18 +2726,22 @@
         "minimum_results": 0
       },
       "execute_language_query": {
-        "description": "MCP tool coverage shape for execute_language_query; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for execute_language_query; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5761 F5: source_backend is a required field (writeLanguageQueryResult has emitted it on every response since #5761) and minimum_results is non-vacuous, mirroring investigate_import_dependencies' #5691 fix above. The shape deliberately sends no repo_id: repo_id in the graph is an opaque generated id (repository:r_8477a002 in this corpus), not a human repo name, so filtering by a readable name matched zero rows and made minimum_results unsatisfiable -- the golden-corpus-gate run that caught this reported '\"results\" has 0 results, want >= 1'. Without the filter the corpus carries 44 language=go Function entities, so a silently-empty read now fails this gate. This shape does not pin truth.basis, and not because no other shape pins it -- 11 shapes here do. The constraint is that minimum_results (results_field: results) requires Envelope: false for top-level array counting, while pinning truth.basis via required_json_values requires Envelope: true; snapshot.go's contract makes the two mutually exclusive, so truth.basis stays unpinned on purpose. source_backend is pinned to \"graph\" via required_json_values, so a regression that mis-attributes a content-served row keeps this gate red rather than green. The literal was measured, not guessed: the gate was run with --keep and eshu-api started against the retained stack, and this exact request (language=go, entity_type=Function, limit=10) returned source_backend=graph with truth.basis=authoritative_graph and truth.level=exact -- content enrichment merges nothing for these rows, so the read is pure graph. The gate itself reports only pass/fail and never echoes response bodies, and a value mismatch prints the expected value rather than the observed one, so guessing a literal here would have been unfalsifiable from gate output alone.",
         "required_response_fields": [
           "entity_type",
           "language",
           "query",
-          "results"
+          "results",
+          "source_backend"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "results_field": "results",
+        "required_json_values": {
+          "source_backend": "graph"
+        },
         "arguments": {
           "language": "go",
           "entity_type": "Function",
-          "repo_id": "orders-api",
           "limit": 10
         }
       },

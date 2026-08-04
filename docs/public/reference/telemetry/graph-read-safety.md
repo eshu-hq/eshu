@@ -43,17 +43,26 @@ rather than a generic transport failure:
 
 Responses do not expose Bolt addresses, Cypher text, or raw driver errors.
 
-Two known gaps, both tracked separately:
+One known gap, tracked separately:
 
-- `POST /api/v0/code/language-query` still returns HTTP 500 for a bounded
-  graph-read failure. The envelope carries a `capability`, and that route has
-  never been assigned one in the capability catalog. Nothing technically
-  prevents emitting the envelope — the field is free-form and unvalidated — but
-  putting an invented capability in front of operators is worse than the honest
-  gap, so the route waits on a real capability assignment.
 - `POST /api/v0/code/visualize` does follow the contract at runtime, but has no
   OpenAPI path entry at all — a gap that predates this contract — so it cannot
   advertise `503`/`504` until that entry exists.
+
+`POST /api/v0/code/language-query` was the other gap. It now maps like every
+other guarded route, reporting `symbol_graph.language_entities` — a
+route-level capability minted for this route (#5761), not a reused id. The
+route's own MCP tool, `execute_language_query`, is already bound to five
+`symbol_graph.*` facets (`decorators`, `argument_names`, `class_methods`,
+`imports`, `inheritance`) in `specs/capability-matrix.v1.yaml`, but each of
+those names one specific semantic facet, not "look up entities of kind K in
+language L" — what this route actually does across its graph-backed,
+graph-first-content, and content-only entity-type families. Reusing
+`code_search.symbol_lookup` (a different route's capability, owned by
+`POST /api/v0/code/symbols/search`) was considered and rejected: sharing one id
+across two unrelated routes with different failure semantics would make an
+operator's capability-keyed triage ambiguous about which route actually
+failed.
 
 Every route in `boundedGraphReadRoutes` follows the table above and advertises
 both statuses in the OpenAPI spec. That list is the enforced set — read it as
@@ -70,8 +79,11 @@ call graph rather than by inspection, since a guard often sits in a helper
 several frames below the registered handler.
 
 Routes that reach Postgres or the content store rather than the graph are
-unaffected — their failures are not graph-read sentinels and keep their existing
-status.
+unaffected, unless their failure carries a graph-read sentinel, as with the
+graph-first fallback paths above — a route whose content-only entity-type
+families never touch the graph keeps those branches' existing status, but a
+branch that reaches the graph first and falls back to content on a bounded
+graph-read sentinel still reports `503`/`504` for that sentinel.
 
 ## Operator signals
 

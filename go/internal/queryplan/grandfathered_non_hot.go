@@ -63,7 +63,6 @@ var grandfatheredNonHotSourceDigests = map[string]string{
 	"infra_relationship_filter.go:(*InfraHandler).getRelationships":                                       "3c08459927862991c8038bb3c0b2cd4f5c8d5af624059c8c0ad2530d64d9d8e6",
 	"infra_resource_aggregates.go:(GraphInfraResourceAggregateStore).CountInfraResources":                 "9bd2b91998d9fc7f71d43e83f81ff50b5decdd35736ff06f9707478c82c37117",
 	"infra_resource_aggregates.go:(GraphInfraResourceAggregateStore).InfraResourceInventory":              "7e1258c40386cdd5205151bb85a028927ff5c99a1b1628a9ebbab1769440d082",
-	"language_queries.go:(*LanguageQueryHandler).queryByLanguageWithSemanticFilter":                       "36ef952a8ee516cf14038f7d9fd045c24b596d15654cf767210a7a6bd7a45ee4",
 	"neo4j.go:(*Neo4jReader).RelationshipTypes":                                                           "0a1d2ac1a82d38e0bd8766758df6b1f894f95c94a169c2419666ab521f8bcce4",
 	"neo4j.go:(*Neo4jReader).RunSingle":                                                                   "b77731433ac905d12ca935b11decf557c81280901ef22fcdfb0a3bf2dedf1227",
 	"package_registry_aggregates.go:(GraphPackageRegistryAggregateStore).CountPackageRegistryPackages":    "17436e4034f0d986cc2c8c9342783a36803d087ab9a44f791ac4f4922a6ad623",

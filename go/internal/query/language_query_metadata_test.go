@@ -4,12 +4,8 @@
 package query
 
 import (
-	"bytes"
 	"context"
 	"database/sql/driver"
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"reflect"
 	"testing"
 )
@@ -61,7 +57,7 @@ func TestEnrichLanguageResultsWithContentMetadata(t *testing.T) {
 		},
 	}
 
-	got, err := handler.enrichLanguageResultsWithContentMetadata(
+	got, _, err := handler.enrichLanguageResultsWithContentMetadata(
 		context.Background(),
 		graphResults,
 		"python",
@@ -143,7 +139,7 @@ func TestEnrichLanguageResultsWithContentMetadataPromotesExistingPythonSemantics
 		},
 	}
 
-	got, err := handler.enrichLanguageResultsWithContentMetadata(
+	got, _, err := handler.enrichLanguageResultsWithContentMetadata(
 		context.Background(),
 		graphResults,
 		"python",
@@ -212,7 +208,7 @@ func TestEnrichLanguageResultsWithContentMetadataSkipsUnmatchedRows(t *testing.T
 		},
 	}
 
-	got, err := handler.enrichLanguageResultsWithContentMetadata(
+	got, merged, err := handler.enrichLanguageResultsWithContentMetadata(
 		context.Background(),
 		graphResults,
 		"python",
@@ -223,6 +219,14 @@ func TestEnrichLanguageResultsWithContentMetadataSkipsUnmatchedRows(t *testing.T
 	)
 	if err != nil {
 		t.Fatalf("enrichLanguageResultsWithContentMetadata() error = %v, want nil", err)
+	}
+	// Graph rows and content rows are both present here, but no row's match
+	// key (file_path|label|name|start_line) matches the other's -- this is
+	// the merged=false boundary classifyAnswerTruth relies on to select
+	// TruthBasisAuthoritativeGraph (not TruthBasisHybrid) when graph and
+	// content simply never overlapped (#5761 P2-1).
+	if merged {
+		t.Fatalf("enrichLanguageResultsWithContentMetadata() merged = %v, want false", merged)
 	}
 	if _, ok := got[0]["metadata"]; ok {
 		t.Fatalf("results[0][metadata] = %#v, want metadata to remain absent", got[0]["metadata"])
@@ -267,7 +271,7 @@ func TestEnrichLanguageResultsWithContentMetadataAnnotation(t *testing.T) {
 		},
 	}
 
-	got, err := handler.enrichLanguageResultsWithContentMetadata(
+	got, _, err := handler.enrichLanguageResultsWithContentMetadata(
 		context.Background(),
 		graphResults,
 		"java",
@@ -331,7 +335,7 @@ func TestEnrichLanguageResultsWithContentMetadataRustImplBlock(t *testing.T) {
 		},
 	}
 
-	got, err := handler.enrichLanguageResultsWithContentMetadata(
+	got, _, err := handler.enrichLanguageResultsWithContentMetadata(
 		context.Background(),
 		graphResults,
 		"rust",
@@ -359,266 +363,6 @@ func TestEnrichLanguageResultsWithContentMetadataRustImplBlock(t *testing.T) {
 	}
 	if gotValue, want := got[0]["semantic_summary"], "ImplBlock Point implements Display for Point."; gotValue != want {
 		t.Fatalf("results[0][semantic_summary] = %#v, want %#v", gotValue, want)
-	}
-}
-
-func TestHandleLanguageQuery_RustImplBlockPrefersGraphPathAndEnrichesMetadata(t *testing.T) {
-	t.Parallel()
-
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
-		{
-			columns: []string{
-				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
-				"start_line", "end_line", "language", "source_cache", "metadata",
-			},
-			rows: [][]driver.Value{
-				{
-					"content-1", "repo-1", "src/point.rs", "ImplBlock", "Point",
-					int64(1), int64(18), "rust", "impl Display for Point {}", []byte(`{"kind":"trait_impl","trait":"Display","target":"Point"}`),
-				},
-			},
-		},
-	})
-
-	handler := &LanguageQueryHandler{
-		Neo4j: &mockLanguageQueryGraphReader{rows: []map[string]any{
-			{
-				"entity_id":  "graph-1",
-				"name":       "Point",
-				"labels":     []string{"ImplBlock"},
-				"file_path":  "src/point.rs",
-				"repo_id":    "repo-1",
-				"repo_name":  "repo-1",
-				"language":   "rust",
-				"start_line": int64(1),
-				"end_line":   int64(18),
-			},
-		}},
-		Content: NewContentReader(db),
-	}
-	mux := http.NewServeMux()
-	handler.Mount(mux)
-
-	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/language-query",
-		bytes.NewBufferString(`{"language":"rust","entity_type":"impl_block","query":"Point","repo_id":"repo-1"}`))
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
-	}
-
-	var resp map[string]any
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
-	}
-
-	results, ok := resp["results"].([]any)
-	if !ok || len(results) != 1 {
-		t.Fatalf("results = %#v, want one graph-backed impl block", resp["results"])
-	}
-	result, ok := results[0].(map[string]any)
-	if !ok {
-		t.Fatalf("result type = %T, want map[string]any", results[0])
-	}
-	if got, want := result["entity_id"], "graph-1"; got != want {
-		t.Fatalf("result[entity_id] = %#v, want %#v", got, want)
-	}
-	if got, want := result["semantic_summary"], "ImplBlock Point implements Display for Point."; got != want {
-		t.Fatalf("result[semantic_summary] = %#v, want %#v", got, want)
-	}
-	metadata, ok := result["metadata"].(map[string]any)
-	if !ok {
-		t.Fatalf("result[metadata] type = %T, want map[string]any", result["metadata"])
-	}
-	if got, want := metadata["kind"], "trait_impl"; got != want {
-		t.Fatalf("metadata[kind] = %#v, want %#v", got, want)
-	}
-}
-
-func TestHandleLanguageQuery_AnnotationPrefersGraphPathAndEnrichesMetadata(t *testing.T) {
-	t.Parallel()
-
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
-		{
-			columns: []string{
-				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
-				"start_line", "end_line", "language", "source_cache", "metadata",
-			},
-			rows: [][]driver.Value{
-				{
-					"annotation-1", "repo-1", "src/Logged.java", "Annotation", "Logged",
-					int64(2), int64(2), "java", "@Logged", []byte(`{"kind":"applied","target_kind":"method_declaration"}`),
-				},
-			},
-		},
-	})
-
-	handler := &LanguageQueryHandler{
-		Neo4j: &mockLanguageQueryGraphReader{rows: []map[string]any{
-			{
-				"entity_id":  "graph-1",
-				"name":       "Logged",
-				"labels":     []string{"Annotation"},
-				"file_path":  "src/Logged.java",
-				"repo_id":    "repo-1",
-				"repo_name":  "repo-1",
-				"language":   "java",
-				"start_line": int64(2),
-				"end_line":   int64(2),
-			},
-		}},
-		Content: NewContentReader(db),
-	}
-	mux := http.NewServeMux()
-	handler.Mount(mux)
-
-	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/language-query",
-		bytes.NewBufferString(`{"language":"java","entity_type":"annotation","query":"Logged","repo_id":"repo-1"}`))
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
-	}
-
-	var resp map[string]any
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
-	}
-
-	results, ok := resp["results"].([]any)
-	if !ok || len(results) != 1 {
-		t.Fatalf("results = %#v, want one graph-backed annotation", resp["results"])
-	}
-	result, ok := results[0].(map[string]any)
-	if !ok {
-		t.Fatalf("result type = %T, want map[string]any", results[0])
-	}
-	if got, want := result["entity_id"], "graph-1"; got != want {
-		t.Fatalf("result[entity_id] = %#v, want %#v", got, want)
-	}
-	if got, want := result["semantic_summary"], "Annotation Logged is applied to a method declaration."; got != want {
-		t.Fatalf("result[semantic_summary] = %#v, want %#v", got, want)
-	}
-	profile, ok := result["semantic_profile"].(map[string]any)
-	if !ok {
-		t.Fatalf("result[semantic_profile] type = %T, want map[string]any", result["semantic_profile"])
-	}
-	if got, want := profile["surface_kind"], "applied_annotation"; got != want {
-		t.Fatalf("result[semantic_profile][surface_kind] = %#v, want %#v", got, want)
-	}
-}
-
-func TestHandleLanguageQuery_AnnotationFallsBackToContentWhenGraphMissing(t *testing.T) {
-	t.Parallel()
-
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
-		{
-			columns: []string{
-				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
-				"start_line", "end_line", "language", "source_cache", "metadata",
-			},
-			rows: [][]driver.Value{
-				{
-					"annotation-1", "repo-1", "src/Logged.java", "Annotation", "Logged",
-					int64(2), int64(2), "java", "@Logged", []byte(`{"kind":"applied","target_kind":"method_declaration"}`),
-				},
-			},
-		},
-	})
-
-	handler := &LanguageQueryHandler{
-		Neo4j:   &mockLanguageQueryGraphReader{},
-		Content: NewContentReader(db),
-	}
-	mux := http.NewServeMux()
-	handler.Mount(mux)
-
-	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/language-query",
-		bytes.NewBufferString(`{"language":"java","entity_type":"annotation","query":"Logged","repo_id":"repo-1"}`))
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
-	}
-
-	var resp map[string]any
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
-	}
-
-	results, ok := resp["results"].([]any)
-	if !ok || len(results) != 1 {
-		t.Fatalf("results = %#v, want one content-backed annotation", resp["results"])
-	}
-	result, ok := results[0].(map[string]any)
-	if !ok {
-		t.Fatalf("result type = %T, want map[string]any", results[0])
-	}
-	if got, want := result["entity_id"], "annotation-1"; got != want {
-		t.Fatalf("result[entity_id] = %#v, want %#v", got, want)
-	}
-	if got, want := result["semantic_summary"], "Annotation Logged is applied to a method declaration."; got != want {
-		t.Fatalf("result[semantic_summary] = %#v, want %#v", got, want)
-	}
-}
-
-func TestHandleLanguageQuery_AnnotationUsesGraphMetadataWithoutContent(t *testing.T) {
-	t.Parallel()
-
-	handler := &LanguageQueryHandler{
-		Neo4j: &mockLanguageQueryGraphReader{rows: []map[string]any{
-			{
-				"entity_id":   "graph-annotation-1",
-				"name":        "Logged",
-				"labels":      []string{"Annotation"},
-				"file_path":   "src/Logged.java",
-				"repo_id":     "repo-1",
-				"repo_name":   "repo-1",
-				"language":    "java",
-				"start_line":  int64(2),
-				"end_line":    int64(2),
-				"kind":        "applied",
-				"target_kind": "method_declaration",
-			},
-		}},
-	}
-	mux := http.NewServeMux()
-	handler.Mount(mux)
-
-	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/language-query",
-		bytes.NewBufferString(`{"language":"java","entity_type":"annotation","query":"Logged","repo_id":"repo-1"}`))
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
-	}
-
-	var resp map[string]any
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
-	}
-
-	results, ok := resp["results"].([]any)
-	if !ok || len(results) != 1 {
-		t.Fatalf("results = %#v, want one graph-backed annotation", resp["results"])
-	}
-	result, ok := results[0].(map[string]any)
-	if !ok {
-		t.Fatalf("result type = %T, want map[string]any", results[0])
-	}
-	if got, want := result["semantic_summary"], "Annotation Logged is applied to a method declaration."; got != want {
-		t.Fatalf("result[semantic_summary] = %#v, want %#v", got, want)
-	}
-	profile, ok := result["semantic_profile"].(map[string]any)
-	if !ok {
-		t.Fatalf("result[semantic_profile] type = %T, want map[string]any", result["semantic_profile"])
-	}
-	if got, want := profile["surface_kind"], "applied_annotation"; got != want {
-		t.Fatalf("result[semantic_profile][surface_kind] = %#v, want %#v", got, want)
 	}
 }
 
@@ -657,7 +401,7 @@ func TestEnrichLanguageResultsWithContentMetadataPreservesPythonGraphMetadata(t 
 		},
 	}
 
-	got, err := handler.enrichLanguageResultsWithContentMetadata(
+	got, _, err := handler.enrichLanguageResultsWithContentMetadata(
 		context.Background(),
 		graphResults,
 		"python",

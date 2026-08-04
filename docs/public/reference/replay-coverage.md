@@ -4,14 +4,14 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 428/431 surfaces satisfied (99.30%)** — mode: blocking.
+**Overall: 429/432 surfaces satisfied (99.31%)** — mode: blocking.
 
 ## Coverage by axis
 
 | Axis | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | authorization_catalog | 24 | 24 | 100.00% | 0 | 0 |
-| Capability claims | 137 | 137 | 100.00% | 0 | 0 |
+| Capability claims | 138 | 138 | 100.00% | 0 | 0 |
 | Read surfaces (CLI) | 7 | 7 | 100.00% | 0 | 0 |
 | Read surfaces (API/MCP) | 25 | 25 | 100.00% | 0 | 1 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
@@ -21,13 +21,13 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Retractable edge types (delta) | 61 | 64 | 95.31% | 3 | 1 |
 | Retractable node types (delta) | 95 | 95 | 100.00% | 0 | 1 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **428** | **431** | **99.30%** | **3** | **12** |
+| **Total** | **429** | **432** | **99.31%** | **3** | **12** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| baseline | 221 | 221 | 100.00% | 0 | 5 |
+| baseline | 222 | 222 | 100.00% | 0 | 5 |
 | cost | 28 | 28 | 100.00% | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
 | delta_tombstone | 157 | 160 | 98.13% | 3 | 2 |
@@ -52,7 +52,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 - `retractable_edge:DERIVED_FROM` (delta_tombstone)
 - `retractable_edge:PUBLISHES` (delta_tombstone)
 
-## Covered surfaces (428)
+## Covered surfaces (429)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -213,6 +213,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 | `capability:symbol_graph.import_dependencies` | baseline | capability_claim | capability-inventory | `symbol_graph.import_dependencies` |
 | `capability:symbol_graph.imports` | baseline | capability_claim | capability-inventory | `symbol_graph.imports` |
 | `capability:symbol_graph.inheritance` | baseline | correlation | golden-corpus-gate | `rc-12` |
+| `capability:symbol_graph.language_entities` | baseline | capability_claim | capability-inventory | `symbol_graph.language_entities` |
 | `capability:terraform_config_state_drift.findings.list` | baseline | capability_claim | capability-inventory | `terraform_config_state_drift.findings.list` |
 | `capability:visualization.graph_query` | baseline | capability_claim | capability-inventory | `visualization.graph_query` |
 | `capability:visualization.packet_derivation` | baseline | capability_claim | capability-inventory | `visualization.packet_derivation` |
