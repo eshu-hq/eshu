@@ -9,6 +9,8 @@ single-cluster installs:
 nornicdb:
   enabled: true
   bindAddress: 0.0.0.0
+  capabilities:
+    relationshipMergePropertyIdentity: true
 
 neo4j:
   uri: bolt://eshu-nornicdb:7687
