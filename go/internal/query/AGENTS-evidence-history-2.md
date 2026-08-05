@@ -24,7 +24,7 @@ pointer to it says so). See
 [AGENTS-evidence-history-3.md](AGENTS-evidence-history-3.md) (part 3, issues
 #5761 and #5764), and
 [AGENTS-evidence-history-4.md](AGENTS-evidence-history-4.md) (part 4, the
-#5764 round-6 and round-7 review follow-ups).
+#5764 rounds 6-9 review follow-ups).
 
 ## Evidence
 
