@@ -3,7 +3,32 @@
 
 package goldengate
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
+
+func TestEvaluateQueryShapeRequiredJSONValueFailureReportsObservedValues(t *testing.T) {
+	t.Parallel()
+
+	shape := QueryShape{
+		RequiredResponseFields: []string{"result_limits"},
+		RequiredJSONValues: map[string]any{
+			"result_limits.relationship_count": 1,
+		},
+	}
+	finding := EvaluateQueryShape(
+		"diagnostic-observed-value",
+		shape,
+		[]byte(`{"result_limits":{"relationship_count":2}}`),
+	)
+	if finding.OK {
+		t.Fatal("mismatched required JSON value passed")
+	}
+	if !strings.Contains(finding.Detail, "observed [2]") {
+		t.Fatalf("detail = %q, want observed value", finding.Detail)
+	}
+}
 
 // TestEvaluateQueryShapeRequiredAbsentWhenPresent proves the four cell
 // combinations of the mutual-exclusion primitive in isolation: the assertion

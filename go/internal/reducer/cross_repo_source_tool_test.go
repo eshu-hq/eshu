@@ -69,6 +69,7 @@ func TestSourceToolForEvidenceKind(t *testing.T) {
 		{relationships.EvidenceKindGCPCloudRelationship, "gcp"},
 		{relationships.EvidenceKind("PACKAGE_PUBLICATION_CORRELATION"), "unknown"},
 		{relationships.EvidenceKind("PACKAGE_OWNERSHIP_CORRELATION"), "unknown"},
+		{relationships.EvidenceKind("CI_CD_RUN_WORKFLOW_IMAGE_CORRELATION"), "github_actions"},
 	}
 	for _, tc := range cases {
 		if got := sourceToolForEvidenceKind(string(tc.kind)); got != tc.want {

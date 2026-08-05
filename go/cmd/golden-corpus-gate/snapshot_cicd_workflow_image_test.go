@@ -5,10 +5,42 @@ package main
 
 import (
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 )
+
+func TestGoldenSnapshotRequiresWorkflowImageBuiltFromCorrelation(t *testing.T) {
+	t.Parallel()
+
+	snapshot, err := LoadSnapshot(goldenSnapshotPath())
+	if err != nil {
+		t.Fatalf("LoadSnapshot() error = %v", err)
+	}
+	for _, correlation := range snapshot.Graph.RequiredCorrelations {
+		if correlation.ID != "rc-173" {
+			continue
+		}
+		if correlation.Relationship != "BUILT_FROM" || correlation.FromLabel != "ContainerImage" || correlation.ToLabel != "Repository" {
+			t.Fatalf("rc-173 = %+v, want ContainerImage-[:BUILT_FROM]->Repository", correlation)
+		}
+		if correlation.MinimumCount != 1 {
+			t.Fatalf("rc-173 minimum_count = %d, want 1", correlation.MinimumCount)
+		}
+		if !slices.Equal(correlation.EvidenceKinds, []string{"CI_CD_RUN_WORKFLOW_IMAGE_CORRELATION"}) {
+			t.Fatalf("rc-173 evidence_kinds = %v, want workflow-image-specific token", correlation.EvidenceKinds)
+		}
+		if !slices.Equal(correlation.RequiredEdgeProperties, []string{"source_tool"}) {
+			t.Fatalf("rc-173 required_edge_properties = %v, want [source_tool]", correlation.RequiredEdgeProperties)
+		}
+		if got := correlation.AllowedEdgePropertyValues["source_tool"]; !slices.Equal(got, []string{"github_actions"}) {
+			t.Fatalf("rc-173 source_tool values = %v, want [github_actions]", got)
+		}
+		return
+	}
+	t.Fatal("required_correlations missing rc-173 workflow-image BUILT_FROM proof")
+}
 
 const (
 	containerCILineageWorkflowImageQuery = "GET /api/v0/ci-cd/run-correlations?image_ref=ghcr.io/acme/container-ci-lineage:1.0.0&limit=10&outcome=exact&provider=github_actions&repository_id=repository:r_19519f37&run_id=9100"

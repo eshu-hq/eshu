@@ -143,7 +143,11 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	}
 	commitSHA := repository.SourceCommitSHA
 	if commitSHA == "" {
-		commitSHA = gitCommitSHAFn(ctx, repoPath)
+		// In filesystem managed-copy mode repoPath intentionally has no .git;
+		// gitTreePath is the source checkout whose committed tree backs that
+		// copy. Reading HEAD there preserves commit-scoped facts without
+		// switching the whole collector to filesystem-direct semantics.
+		commitSHA = gitCommitSHAFn(ctx, gitTreePath)
 	}
 	snapshot.HeadCommitSHA = commitSHA
 	for i := range workflowImageFileMetas {
