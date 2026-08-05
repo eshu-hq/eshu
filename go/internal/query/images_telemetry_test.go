@@ -139,7 +139,7 @@ func TestImageHandlerNilBackendRecordsBackendUnavailableOutcome(t *testing.T) {
 
 // TestImageHandlerGraphReadErrorRecordsBackendUnavailableOutcome pins the
 // outcome="backend_unavailable" metric-label contract on the
-// WriteGraphReadError guard branch (images.go:153-157), distinct from the
+// WriteGraphReadError guard branch (images.go:154-156), distinct from the
 // nil-backend branch above: this one actually invokes h.Neo4j.Run (a
 // configured reader) and only trips because that call returned
 // ErrGraphUnavailable. Before this test, that branch returned without

@@ -39,6 +39,14 @@ import (
 // Capturing previous before the throwaway install (not after) matters for
 // cleanup: capturing it after would restore the throwaway itself, leaving
 // the process-global provider reader-less for whatever test runs next.
+//
+// Callers must not call t.Parallel(): this installs a process-global OTel
+// meter provider and zeroes package-level sync.Once/instrument vars, so a
+// caller running concurrently with another test through this same helper (or
+// through any test that resolves a package-var-cached meter) would race on
+// shared process state, mirroring the "not parallel" note on
+// TestRequestMetricsMiddlewareEmitsPerEndpointMetrics in
+// request_metrics_test.go.
 func withPackageMetricReader(t *testing.T, reset func()) *sdkmetric.ManualReader {
 	t.Helper()
 	previous := otel.GetMeterProvider()
