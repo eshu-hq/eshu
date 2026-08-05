@@ -66,9 +66,11 @@ against a fixed list of prose deferral phrases: `scripts/verify-openapi.sh`
 now fails before it evaluates any route drift if a known-drift comment line
 contains a TODO/TO-DO/FIXME/XXX/HACK/TBD/WIP-style deferral marker (including
 plural forms), one of a fixed set of prose deferral phrases such as
-"not written", "written yet", "pending", "predates", or "later", or if a route
-entry has no preceding, substantive justification comment of its own — see
-the "Known-drift exclusions" section of
+"not written", "written yet", "pending", "predates", or "later", if a route
+entry has no preceding, substantive justification comment of its own, or if a
+justification repeats the immediately preceding justification (whitespace and
+a leading `#` normalized away first) — see the "Known-drift exclusions"
+section of
 [3738-openapi-discipline](https://github.com/eshu-hq/eshu/blob/main/docs/internal/design/3738-openapi-discipline.md)
 for the exact rules. The marker check is a closed, conventional token set and
 is exhaustive for those tokens. The prose check is not exhaustive: it is a

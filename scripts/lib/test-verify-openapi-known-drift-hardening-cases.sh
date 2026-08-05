@@ -241,3 +241,172 @@ test_known_drift_duplicate_justification_red() {
 
   run_verifier "$dir" "known-drift byte-identical consecutive justifications exits non-zero" "fail"
 }
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Test 37 — red: rule 4's duplicate check compares MEANING, not bytes -- two
+# justifications differing only by one doubled internal space still count as
+# the same justification (#5762 follow-up P2-1). Probed directly against the
+# pre-fix code: byte-identical was blocked, but this single-internal-space
+# variant was ALLOWED (exit 0), because the old check compared
+# $known_drift_trimmed byte-for-byte with no whitespace normalization.
+test_known_drift_duplicate_justification_internal_space_red() {
+  local dir
+  dir="$(setup_repo "known-drift-duplicate-internal-space")"
+
+  write_known_drift "$dir" \
+    '# Documentation UI -- serves HTML, not an API surface, permanently excluded.' \
+    'GET /api/v0/docs-ui-one' \
+    '# Documentation UI --  serves HTML, not an API surface, permanently excluded.' \
+    'GET /api/v0/docs-ui-two'
+
+  run_verifier "$dir" "known-drift justifications differing by one internal space exit non-zero" "fail"
+}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Test 38 — red: rule 4's duplicate check survives the "#Foo" vs "# Foo"
+# spacing variant too (#5762 follow-up P2-1). The comment-text extraction
+# strips exactly one leading "#" (verify-openapi.sh's
+# known_drift_comment_text="${known_drift_trimmed#\#}"), so "#Foo" and "# Foo"
+# produce "Foo" and " Foo" respectively -- a leading-space difference that
+# byte comparison treated as two different justifications. Probed directly:
+# pre-fix, this pair was ALLOWED (exit 0).
+test_known_drift_duplicate_justification_hash_spacing_red() {
+  local dir
+  dir="$(setup_repo "known-drift-duplicate-hash-spacing")"
+
+  write_known_drift "$dir" \
+    '#Same underlying reason text here.' \
+    'GET /api/v0/docs-ui-one' \
+    '# Same underlying reason text here.' \
+    'GET /api/v0/docs-ui-two'
+
+  run_verifier "$dir" "known-drift justifications differing only by '#Foo' vs '# Foo' spacing exit non-zero" "fail"
+}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Test 39/40 — the F7 exit-code check (verify-openapi.sh:
+# "[ \"$known_drift_marker_rc\" -gt 1 ] || [ \"$known_drift_prose_rc\" -gt 1 ]")
+# is a disjunction of two independent rc checks. Test 35's rg shim fails BOTH
+# the marker scan and the prose scan at once, so deleting either half of the
+# "||" alone left the suite green: mutant N5 (drop the prose-rc half) and
+# mutant N6 (drop the marker-rc half) both SURVIVED the full 39-case suite
+# (#5762 round 7, P1-2/P1-3) -- the same "fixture trips both halves of a
+# conjunction/disjunction at once, proving neither half" class the round-6 F2
+# finding named for rule 3. These two shims each fail exactly ONE scan,
+# leaving the other to run against the real `rg`, so each can only be
+# rescued by the specific rc check it names.
+#
+# Sourced fixture uses a clean, well-justified known-drift entry (no marker
+# or prose deferral words), so the untouched scan legitimately returns rc=1
+# (no match) through the real `rg` -- the ONLY way either shim's gate failure
+# can fire is the targeted scan's simulated rc=2.
+# shellcheck disable=SC2154 # tmp_root, verifier: defined by the sourcing script
+test_known_drift_rg_hard_error_marker_only_fails_closed_red() {
+  local dir shim_dir verifier_tmp code real_rg
+  dir="$(setup_repo "known-drift-rg-hard-error-marker-only")"
+
+  write_known_drift "$dir" \
+    '# Documentation UI -- serves HTML, not an API surface, permanently excluded.' \
+    'GET /api/v0/docs-ui'
+
+  shim_dir="${tmp_root}/rg-shim-marker-only"
+  mkdir -p "$shim_dir"
+  real_rg="$(command -v rg)"
+  # shellcheck disable=SC2016
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'for arg in "$@"; do\n'
+    printf '  case "$arg" in\n'
+    printf "    *'TO[-_ ]?DO'*) exit 2 ;;\n"
+    printf '  esac\n'
+    printf 'done\n'
+    printf 'exec %q "$@"\n' "$real_rg"
+  } > "${shim_dir}/rg"
+  chmod +x "${shim_dir}/rg"
+
+  verifier_tmp="${tmp_root}/verifier-tmp-rg-hard-error-marker-only"
+  mkdir -p "$verifier_tmp"
+
+  set +e
+  PATH="${shim_dir}:${PATH}" \
+    ESHU_OPENAPI_VERIFY_REPO_ROOT="$dir" \
+    ESHU_OPENAPI_VERIFY_TMPDIR="$verifier_tmp" \
+    bash "$verifier" \
+    > "${tmp_root}/rg-hard-error-marker-only-stdout" 2> "${tmp_root}/rg-hard-error-marker-only-stderr"
+  code=$?
+  set -e
+
+  if [ "$code" -ne 0 ] && rg -q 'KNOWN-DRIFT SCAN FAILED' "${tmp_root}/rg-hard-error-marker-only-stdout"; then
+    record_pass "rg hard error on ONLY the marker scan makes the gate fail closed"
+  else
+    record_fail "rg hard error on ONLY the marker scan makes the gate fail closed (code=$code)"
+  fi
+}
+
+# shellcheck disable=SC2154 # tmp_root, verifier: defined by the sourcing script
+test_known_drift_rg_hard_error_prose_only_fails_closed_red() {
+  local dir shim_dir verifier_tmp code real_rg
+  dir="$(setup_repo "known-drift-rg-hard-error-prose-only")"
+
+  write_known_drift "$dir" \
+    '# Documentation UI -- serves HTML, not an API surface, permanently excluded.' \
+    'GET /api/v0/docs-ui'
+
+  shim_dir="${tmp_root}/rg-shim-prose-only"
+  mkdir -p "$shim_dir"
+  real_rg="$(command -v rg)"
+  # shellcheck disable=SC2016
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'for arg in "$@"; do\n'
+    printf '  case "$arg" in\n'
+    printf "    *'not[[:space:]]+written'*) exit 2 ;;\n"
+    printf '  esac\n'
+    printf 'done\n'
+    printf 'exec %q "$@"\n' "$real_rg"
+  } > "${shim_dir}/rg"
+  chmod +x "${shim_dir}/rg"
+
+  verifier_tmp="${tmp_root}/verifier-tmp-rg-hard-error-prose-only"
+  mkdir -p "$verifier_tmp"
+
+  set +e
+  PATH="${shim_dir}:${PATH}" \
+    ESHU_OPENAPI_VERIFY_REPO_ROOT="$dir" \
+    ESHU_OPENAPI_VERIFY_TMPDIR="$verifier_tmp" \
+    bash "$verifier" \
+    > "${tmp_root}/rg-hard-error-prose-only-stdout" 2> "${tmp_root}/rg-hard-error-prose-only-stderr"
+  code=$?
+  set -e
+
+  if [ "$code" -ne 0 ] && rg -q 'KNOWN-DRIFT SCAN FAILED' "${tmp_root}/rg-hard-error-prose-only-stdout"; then
+    record_pass "rg hard error on ONLY the prose scan makes the gate fail closed"
+  else
+    record_fail "rg hard error on ONLY the prose scan makes the gate fail closed (code=$code)"
+  fi
+}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Test 41 — red: an unjustified comment between two real justifications does
+# NOT reset $known_drift_prev_justification, so a repeat of the earlier
+# justification is still caught as a duplicate across the gap (#5762 follow-up
+# P1-4). "# ---" here is decoration-only (fails rule 3) but is immediately
+# followed by another COMMENT line, not a route line, so it never trips the
+# separate UNJUSTIFIED_ENTRY check on its own -- this fixture is red for
+# DUPLICATE_JUSTIFICATION alone, proving the specific invariant documented at
+# verify-openapi.sh ("an unjustified comment never updates
+# $known_drift_prev_justification, so it cannot mask a real duplicate two
+# entries later"), not any other rule.
+test_known_drift_duplicate_justification_across_unjustified_gap_red() {
+  local dir
+  dir="$(setup_repo "known-drift-duplicate-across-gap")"
+
+  write_known_drift "$dir" \
+    '# Documentation UI -- serves HTML, not an API surface, permanently excluded.' \
+    'GET /api/v0/docs-ui-a' \
+    '# ---' \
+    '# Documentation UI -- serves HTML, not an API surface, permanently excluded.' \
+    'GET /api/v0/docs-ui-b'
+
+  run_verifier "$dir" "known-drift duplicate justification across an unjustified decoration comment exits non-zero" "fail"
+}

@@ -345,6 +345,30 @@ test_drift_removed_green() {
   run_verifier "$dir" "drift removed exits 0" "pass"
 }
 
+# ══════════════════════════════════════════════════════════════════════════════
+# Test 10b — green: a HandleFunc registration inside a "*_test.go" file is
+# never scanned (#5762 follow-up P1-5). The scan-dir file collection
+# (verify-openapi.sh's `rg --files ... -g '!*_test.go' ...`) excludes test
+# files by design -- a test helper that stands up its own mux with a
+# throwaway route must not force a matching openapi_paths_*.go entry. Proven
+# against the real repo this session: dropping the "!*_test.go" glob left
+# the real corpus at 257 routes vs 254 (3 spurious matches from test files),
+# so the glob is load-bearing; this fixture pins the same behavior on a
+# synthetic repo so a regression here fails fast, in a 39-test suite, instead
+# of only on the real 254-route corpus.
+test_scan_excludes_test_go_files_green() {
+  local dir
+  dir="$(setup_repo "test-go-excluded")"
+
+  write_handler "$dir" "scan_test.go" \
+    'func TestMount(t *testing.T) {' \
+    '	var mux http.ServeMux' \
+    '	mux.HandleFunc("GET /api/v0/should-not-be-scanned", func(w http.ResponseWriter, _ *http.Request) {})' \
+    '}'
+
+  run_verifier "$dir" "HandleFunc inside a _test.go file is excluded from the scan, exits 0" "pass"
+}
+
 # Tests 11-24 (the known-drift self-validation regression suite, #5762) are
 # extracted to scripts/lib/test-verify-openapi-known-drift-cases.sh to keep
 # this file under the repo's 500-line cap. The sourced file defines
@@ -374,6 +398,7 @@ test_string_concat_green
 test_health_in_openapi_green
 test_planted_drift_red
 test_drift_removed_green
+test_scan_excludes_test_go_files_green
 test_known_drift_deferral_marker_red
 test_known_drift_deferral_marker_hack_red
 test_known_drift_deferral_marker_tbd_red
@@ -403,6 +428,11 @@ test_known_drift_prose_deferral_predate_singular_red
 test_known_drift_prose_deferral_later_only_red
 test_known_drift_rg_hard_error_fails_closed_red
 test_known_drift_duplicate_justification_red
+test_known_drift_duplicate_justification_internal_space_red
+test_known_drift_duplicate_justification_hash_spacing_red
+test_known_drift_rg_hard_error_marker_only_fails_closed_red
+test_known_drift_rg_hard_error_prose_only_fails_closed_red
+test_known_drift_duplicate_justification_across_unjustified_gap_red
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 

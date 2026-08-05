@@ -118,11 +118,21 @@ below trips:
    a route line resets the justification state, so neither a bare route, a
    bare `#`, nor a comment shared across a group of routes can justify more
    than the one route line immediately following it.
-4. **A justification may not be byte-identical to the one before it.** Rule
+4. **A justification may not repeat the one immediately before it.** Rule
    3's "cannot be shared across a group of routes" was enforced only by
    position, so a copy-pasted duplicate still counted as each route having
    "its own" comment (#5762 round 6, F14). Give each route its own wording,
    even when the underlying reason is the same for both.
+   **This rule is also a best-effort convenience, not a closure guarantee,**
+   the same way rule 2 is. The comparison normalizes whitespace and the
+   leading `#` before comparing (so `#Foo` and `# Foo`, or a doubled internal
+   space, both count as the same justification, closed in #5762 follow-up
+   P2-1), but it only ever compares a justification against the one
+   immediately before it. A route repeating a justification from two or more
+   entries earlier in the file (an A, B, A pattern) is not caught — that
+   gap is open by design, not by oversight, and closing it would mean
+   comparing every justification against every other one in the file, which
+   this line-by-line pass does not do.
 
 `scripts/lib/test-verify-openapi-known-drift-cases.sh` and
 `scripts/lib/test-verify-openapi-known-drift-hardening-cases.sh` (both
@@ -146,6 +156,15 @@ prose alternatives that were never independently pinned ("not written",
 also proves the singular/plural fix), an `rg`-hard-error case proving the
 known-drift scan fails closed instead of reporting a false-clean gate, and a
 duplicate-justification case for rule 4.
+
+Round 7 (#5762 follow-up) adds: two rule-4 normalization cases (a doubled
+internal space, and the `#Foo`/`# Foo` spacing variant), two cases that split
+the fail-closed rc check so a hard `rg` error on only the marker scan or only
+the prose scan is each caught independently (the round-6 single case failed
+both scans at once and could not tell the two rc checks apart), a case
+proving an unjustified decoration comment between two real justifications
+does not reset the duplicate-detection state, and a case proving a
+`*_test.go` file's `HandleFunc` registration is excluded from the scan.
 
 **Dynamic-route escape hatch:** the verifier resolves route constants and string
 concatenation (patterns 1b/1c) via regex, not AST. A route whose METHOD or path

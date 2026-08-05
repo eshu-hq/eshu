@@ -44,6 +44,21 @@ for dir in "${scan_dirs[@]}"; do
   # "|| true": unlike `find`, `rg --files` exits 1 (not 0) when a directory
   # has zero matching files -- under `set -e` that would abort the whole
   # script instead of just producing an empty file list for this dir.
+  #
+  # "--max-depth 1" and "!openapi_*.go" are semantic constraints, not bugs
+  # fixed against an observed failure: neither $query_dir nor $si_dir has a
+  # subdirectory today, and no non-"openapi_paths_*.go" file starting with
+  # "openapi_" exists in either, so removing either flag changes nothing on
+  # this repo (verified this session: 254/254 routes match with both flags
+  # dropped, same as with them present) -- they are equivalent mutants on the
+  # current corpus, not gaps in test coverage. They stay because the
+  # constraint they express is real: a future subpackage under $query_dir
+  # would otherwise be scanned depth-first for routes it does not own, and a
+  # future "openapi_helpers.go" would otherwise be misread as a HandleFunc
+  # source file. Left undocumented by a synthetic fixture (#5762 follow-up
+  # P3-1) because a fixture that only reproduces this comment's own claim
+  # -- and passes before AND after the flag is removed -- asserts nothing a
+  # reviewer could not already read here.
   rg --files --max-depth 1 -g '*.go' -g '!*_test.go' -g '!openapi_*.go' \
     "$dir" 2>/dev/null \
   >> "$gofiles_tmp" || true
@@ -214,6 +229,17 @@ if [ -f "$known_drift_file" ]; then
         if [ "$known_drift_comment_tokens" -ge 2 ] \
           && printf '%s' "$known_drift_comment_text" | rg -q '[[:alpha:]]{4,}'; then
           known_drift_justified=1
+          # Rule 4 compares MEANING, not bytes: collapse runs of whitespace to
+          # one space and trim the ends before comparing, so "#Foo" vs "# Foo"
+          # (the leading "#" is stripped above, leaving a leading-space
+          # difference) and a single doubled internal space both count as the
+          # same justification instead of dodging the check on formatting
+          # alone (#5762 follow-up P2-1). This still compares only against
+          # the immediately preceding justification -- a non-adjacent
+          # A,B,A repeat is not caught; that gap is documented, not silently
+          # assumed away, in docs/internal/design/3738-openapi-discipline.md
+          # rule 4.
+          known_drift_comment_normalized="$(printf '%s' "$known_drift_comment_text" | tr -s '[:space:]' ' ' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
           # A copy-pasted justification still counts as "its own" comment
           # under rule 3's positional check, so a duplicate needs its own
           # rule (#5762 round 6, F14). Compare against the last comment that
@@ -221,10 +247,10 @@ if [ -f "$known_drift_file" ]; then
           # $known_drift_prev_justification, so it cannot mask a real
           # duplicate two entries later.
           if [ -n "$known_drift_prev_justification" ] \
-            && [ "$known_drift_trimmed" = "$known_drift_prev_justification" ]; then
+            && [ "$known_drift_comment_normalized" = "$known_drift_prev_justification" ]; then
             known_drift_duplicate_justifications="${known_drift_duplicate_justifications}${known_drift_file}:${known_drift_lineno}: \"${known_drift_trimmed}\""$'\n'
           fi
-          known_drift_prev_justification="$known_drift_trimmed"
+          known_drift_prev_justification="$known_drift_comment_normalized"
         else
           known_drift_justified=0
         fi

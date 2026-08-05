@@ -227,7 +227,7 @@ gates:
       - "specs/surface-inventory.v1.yaml"
       - "specs/capability-catalog.v1.yaml"
       - "specs/capability-matrix.v1.yaml"
-      - "scripts/lib/test-verify-openapi-known-drift-cases.sh"
+      - "scripts/lib/test-verify-openapi-known-drift-*.sh"
       - ".github/openapi-known-drift.txt"
     local:
       command: "bash scripts/verify-openapi.sh"
