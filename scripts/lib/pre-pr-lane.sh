@@ -21,30 +21,56 @@
 # pre_pr_git_state_init still fails closed rather than tripping `set -u`:
 #   pre_pr_state_dir         temp dir; the caller owns removing it on EXIT
 #   pre_pr_diff_fail_marker  exists iff some git collector call failed
+#   pre_pr_state_sentinel    the probe file init left behind; see below
+#   pre_pr_state_probe_path  the file the LAST probe left behind
 #   pre_pr_state_broken      empty iff the state channel is usable; any other
 #                            value is an operator-facing reason that forces FULL
 #
-# shellcheck disable=SC2034  # all three are read by the sourcing caller.
+# shellcheck disable=SC2034  # all five are read by the sourcing caller.
 pre_pr_state_dir=""
 pre_pr_diff_fail_marker=""
+pre_pr_state_sentinel=""
+pre_pr_state_probe_path=""
 pre_pr_state_broken="pre-pr never initialized its per-run state directory, so a failed git command could not have been recorded"
 
+# Distinguishes one probe file from the next; see pre_pr_state_probe.
+pre_pr_state_probe_seq=0
+
 # pre_pr_state_probe <dir>
-# Returns 0 only when <dir> is a directory that accepts a write and hands the
-# same bytes back. Creating the directory is not enough: the failure this whole
-# channel exists to record is a git command dying, and a full disk (ENOSPC)
-# makes git die AND makes the record of it impossible to write. That conjunction
-# is the one that matters, so the write is probed rather than assumed.
+# Returns 0 only when <dir> is a directory that accepts a NEW file and hands the
+# same bytes back, and publishes that file's path in pre_pr_state_probe_path.
+#
+# Creating the directory is not enough: the failure this whole channel exists to
+# record is a git command dying, and a full disk (ENOSPC) makes git die AND
+# makes the record of it impossible to write. That conjunction is the one that
+# matters, so the write is probed rather than assumed.
+#
+# Two details of HOW it is probed are load-bearing.
+#
+# The name is different on every call, so each probe creates a file rather than
+# truncating one. A directory that has lost write permission still lets an
+# existing file be rewritten, so a probe that reused one fixed name would report
+# a healthy channel on a directory that can no longer accept the failure marker.
+#
+# The file is left behind rather than removed. That is what lets the init probe
+# double as a durable sentinel: a tmp reaper that deletes a directory's CONTENTS
+# leaves the directory itself writable, so re-probing alone still passes while
+# the failure marker that was reaped alongside reads as "no failure recorded".
+# pre_pr_git_state_check requires the init sentinel to still be there for
+# exactly that case. Both files die with the directory, which the caller removes
+# on EXIT.
 pre_pr_state_probe() {
 	local dir="$1" probe
+	pre_pr_state_probe_path=""
 	[[ -n "${dir}" && -d "${dir}" ]] || return 1
-	probe="${dir}/.probe"
+	pre_pr_state_probe_seq=$((pre_pr_state_probe_seq + 1))
+	probe="${dir}/.probe.${pre_pr_state_probe_seq}"
 	# The 2>/dev/null comes FIRST: redirections are applied left to right, so a
 	# trailing one is too late to catch the shell's own "Permission denied" for
 	# the redirect beside it. The caller reports this failure in its own words.
 	printf 'pre-pr\n' 2>/dev/null >"${probe}" || return 1
 	[[ "$(cat "${probe}" 2>/dev/null)" == "pre-pr" ]] || return 1
-	rm -f "${probe}" 2>/dev/null
+	pre_pr_state_probe_path="${probe}"
 	return 0
 }
 
@@ -62,6 +88,7 @@ pre_pr_git_state_init() {
 	local dir
 	pre_pr_state_dir=""
 	pre_pr_diff_fail_marker=""
+	pre_pr_state_sentinel=""
 	pre_pr_state_broken=""
 	dir="$(mktemp -d 2>/dev/null)" || dir=""
 	if [[ -z "${dir}" || ! -d "${dir}" ]]; then
@@ -70,18 +97,32 @@ pre_pr_git_state_init() {
 	fi
 	pre_pr_state_dir="${dir}"
 	pre_pr_diff_fail_marker="${dir}/diff-failed"
-	pre_pr_state_probe "${dir}" ||
+	if pre_pr_state_probe "${dir}"; then
+		pre_pr_state_sentinel="${pre_pr_state_probe_path}"
+	else
 		pre_pr_state_broken="the per-run state directory ${dir} did not accept a test write, so a failed git command could not have been recorded"
+	fi
 	return 0
 }
 
 # pre_pr_git_state_check
-# Re-probes the state channel after the collectors have run, in the parent
+# Re-checks the state channel after the collectors have run, in the parent
 # shell. The init probe cannot see a directory that filled up, was reaped, or
 # lost write permission mid-run; this one can. The first reason recorded wins,
 # because it is the one closest to the cause.
+#
+# Two different failures, so two checks. A directory that stopped accepting
+# writes is caught by re-probing. A directory whose CONTENTS were reaped while
+# it stayed writable is not -- the re-probe passes, and the failure marker that
+# was reaped alongside reads as "no failure", which is a FAST verdict on a run
+# whose record was deleted underneath it. The sentinel init wrote is what spans
+# that gap: it is gone if and only if something reaped this directory's files.
 pre_pr_git_state_check() {
 	[[ -z "${pre_pr_state_broken}" ]] || return 0
+	if [[ -z "${pre_pr_state_sentinel}" || ! -e "${pre_pr_state_sentinel}" ]]; then
+		pre_pr_state_broken="the sentinel file pre-pr wrote into its per-run state directory is gone, so that directory's contents were reaped mid-run and a failed git command's marker could have gone with it"
+		return 0
+	fi
 	pre_pr_state_probe "${pre_pr_state_dir}" ||
 		pre_pr_state_broken="the per-run state directory stopped accepting writes during this run, so a failed git command may not have been recorded"
 	return 0
@@ -152,9 +193,10 @@ git_untracked_names() {
 # The classifier decides which gates the current run is allowed to skip, and
 # nothing downstream re-checks a FAST verdict: `make pre-pr` writes a per-SHA
 # stamp and scripts/dev/prepr-stamp-verify.sh lets the push through on it. Both
-# suites are hermetic (no Go toolchain, no network) and together cost a few
-# seconds, so running them every time is cheaper than any of the outcomes of not
-# running them.
+# suites are self-contained -- no Go toolchain, no network, and no dependency on
+# the developer's git config -- and add a couple of seconds to a run that
+# otherwise costs minutes, so running them every time is cheaper than any of the
+# outcomes of not running them.
 pre_pr_run_classifier_selfcheck() {
 	local repo_root="$1" rc=0 suite
 	printf '\n\033[1m==> docs fast-path classifier self-check\033[0m\n'
@@ -174,7 +216,11 @@ pre_pr_run_classifier_selfcheck() {
 # <diff-failed> is read from a marker file, so when the marker could not be
 # written it reads 0 for the same reason a clean run does.
 pre_pr_lane_paths_status() {
-	if [[ $# -lt 5 ]]; then
+	# Exact arity, not a minimum. An extra argument means the caller and this
+	# helper disagree about the argument list, and the most likely shape of that
+	# disagreement is an inserted one -- which silently shifts every check below
+	# onto the wrong value.
+	if [[ $# -ne 5 ]]; then
 		printf 'pre-pr called the lane status helper with %d argument(s) instead of 5, so the lane decision has nothing to check\n' "$#"
 		return 0
 	fi
@@ -222,20 +268,42 @@ pre_pr_decide_lane() {
 	# arguments. The collectors and the verdict therefore always talk about the
 	# same ref, even if a caller's global `base` were to say otherwise.
 	local root="$1" base="$2" base_status="$3" paths_fn="$4"
-	local start=${SECONDS} p
+	local start=${SECONDS} p paths_file
 
 	PRE_PR_LANE_SELFCHECK_OK=1
 	pre_pr_run_classifier_selfcheck "${root}" || PRE_PR_LANE_SELFCHECK_OK=0
 	PRE_PR_LANE_SELFCHECK_SECONDS=$((SECONDS - start))
 
+	# The changed-path source arrives as a NAME, so check that the name resolves
+	# before believing what it did or did not print. A typo, a renamed function,
+	# or a non-function like `false` runs nothing, prints nothing, and reads as
+	# "no path changed" -- round 7's failed-collector defect one level up. The
+	# marker cannot save this one: no collector ran to write it.
+	if ! declare -F "${paths_fn}" >/dev/null 2>&1; then
+		pre_pr_state_broken="pre-pr named '${paths_fn}' as its changed-path source, but no such function exists"
+	fi
+
 	# Blank lines are dropped here so a trailing newline never becomes an array
 	# element. The classifier rejects an empty path too, but fail-closed (empty
 	# => FULL); filtering here keeps a normal run from taking the FULL lane over
 	# a blank line, and keeps the array count honest.
+	#
+	# The collector's output goes through a FILE, not `done < <(fn)`. A process
+	# substitution throws the function's exit status away and leaves `$?` holding
+	# the status of `read`, so a collector that printed one path and then died
+	# looked exactly like a collector that finished. That is the same rule the
+	# git wrappers above follow -- capture the status directly -- applied one
+	# level up, to the call that invokes them.
 	PRE_PR_LANE_CHANGED_PATHS=()
-	while IFS= read -r p; do
-		[[ -n "${p}" ]] && PRE_PR_LANE_CHANGED_PATHS+=("${p}")
-	done < <("${paths_fn}")
+	paths_file="${pre_pr_state_dir}/paths"
+	if [[ -n "${pre_pr_state_dir}" ]] && : 2>/dev/null >"${paths_file}"; then
+		{ "${paths_fn}" || pre_pr_record_git_failure "$?" "${paths_fn}"; } >"${paths_file}"
+		while IFS= read -r p; do
+			[[ -n "${p}" ]] && PRE_PR_LANE_CHANGED_PATHS+=("${p}")
+		done <"${paths_file}"
+	else
+		pre_pr_record_git_failure 1 "opening ${paths_file} to capture the changed-path list"
+	fi
 
 	pre_pr_git_state_check
 	PRE_PR_LANE_DIFF_FAILED=0

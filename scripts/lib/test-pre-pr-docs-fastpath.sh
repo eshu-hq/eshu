@@ -21,6 +21,19 @@
 #   bash scripts/lib/test-pre-pr-docs-fastpath.sh
 set -uo pipefail
 
+# The cases below build throwaway repositories with `git init` and `git commit`,
+# and git reads the developer's ~/.gitconfig in every one of them. A global
+# `commit.gpgsign = true` makes those commits ask for a signing key they will
+# not get; a global `core.hooksPath` pointing at a rejecting pre-commit hook
+# stops them outright. Either one reds this suite, and `make pre-pr` runs it on
+# every run and fails the run when it reds -- so a contributor who signs their
+# commits would be unable to push anything, and the summary line would blame the
+# classifier rather than their git config. Pin all three knobs: GIT_CONFIG_GLOBAL
+# and GIT_CONFIG_SYSTEM name the files, and GIT_CONFIG_NOSYSTEM covers the
+# git versions that honour it instead. Do not remove this -- the fixtures are
+# about the classifier, not about how anyone has configured git.
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null GIT_CONFIG_NOSYSTEM=1
+
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 lib="${repo_root}/scripts/lib/pre-pr-docs-fastpath.sh"
 

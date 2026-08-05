@@ -123,7 +123,18 @@ FAST stamp on a tree that does not compile.
 So untracked paths join that list, and the allowlist judges them like any other
 path: an untracked `.go` file is not fast-path-safe, so it forces FULL.
 `--exclude-standard` honours `.gitignore`, so build caches and editor droppings
-stay out of it. Ignored files stay invisible — that is what ignoring them means.
+stay out of it — along with `.git/info/exclude` and whatever `core.excludesFile`
+points at, both of which are local to the machine and invisible to pre-pr.
+
+Ignored files stay invisible to the lane decision, which is what ignoring them
+means. It is not what the FULL lane does with them: several of this repo's
+ignore rules (`playground/`, `dist/`, `build/`, `env/`, `venv/`,
+`node_modules/`) are unanchored and so match at any depth, including under
+`go/`, and `go build ./...` compiles an ignored `go/internal/playground/main.go`
+that `--exclude-standard` never reports. An ignored file is never pushed and CI
+never sees it, so the lane decision is right to skip it and the FULL lane's
+compilation of it is the anomaly — but if you keep scratch Go code somewhere
+ignored, that is why FULL can fail on a file FAST does not mention.
 
 The fourth command feeds the lane decision **only**. Every other gate keeps
 reasoning about tracked content: the pre-pr stamp gates a push, an untracked
@@ -140,10 +151,11 @@ the git wrappers, the status precedence, and the whole decision end to end.
 
 Nothing downstream re-checks a FAST verdict: the per-SHA stamp is written and
 `scripts/dev/prepr-stamp-verify.sh` lets the push through on it. Those two
-suites are the only thing watching this decision. Both are hermetic (no Go
-toolchain, no network); measured on a loaded 18-core dev box they cost about
-1.1 s and 2.3 s respectively. A failing self-check fails the run and forces the
-FULL lane.
+suites are the only thing watching this decision. Both are self-contained — no
+Go toolchain, no network, and no dependency on your git config — and add a
+couple of seconds to a run that otherwise costs minutes, so running them on
+every `make pre-pr` is cheaper than any outcome of not running them. A failing
+self-check fails the run and forces the FULL lane.
 
 ## What still runs on the fast path
 

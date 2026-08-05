@@ -426,7 +426,12 @@ else
 	pre_pr_print_lane_banner "${base}"
 fi
 
-if [[ "${PRE_PR_FASTPATH_LANE}" == "full" ]]; then
+# Both lane gates ask whether the lane is NOT "fast", never whether it is
+# "full", and pre_pr_print_lane_banner asks the same way. A third value cannot
+# be produced today, but if one ever were, `== "full"` here would skip the Go
+# lanes while the banner said FULL and the run still stamped the SHA -- the
+# invisible-failure shape this whole fast path exists to prevent.
+if [[ "${PRE_PR_FASTPATH_LANE}" != "fast" ]]; then
 	run_whole_module_gates_parallel
 	run_step "go test (changed packages)" step_test
 else
@@ -437,7 +442,7 @@ fi
 run_step "500-line file cap" step_filecap
 run_step "package docs" step_docs
 run_step "selected exactness + telemetry gates" step_exactness
-if [[ "${PRE_PR_FASTPATH_LANE}" == "full" ]]; then
+if [[ "${PRE_PR_FASTPATH_LANE}" != "fast" ]]; then
 	run_step "race lane (Go changes)" step_race
 else
 	results+=("SKIP  race lane (Go changes) (documentation-only fast path)")

@@ -19,58 +19,29 @@
 #      that cannot record its own failures.
 #   3. The git boundary: git_changed_names and git_untracked_names against
 #      throwaway repositories, including two independent ways for a base diff
-#      to fail.
+#      to fail and one for the untracked listing.
 #   4. pre_pr_run_classifier_selfcheck, against stub suites that pass and fail.
 #   5. pre_pr_decide_lane end to end, which is the function `make pre-pr`
-#      actually calls, and pre_pr_print_lane_banner on the result.
+#      actually calls -- including the three ways the changed-path source it is
+#      handed BY NAME can fail to produce a list -- and pre_pr_print_lane_banner
+#      on the result.
+#
+# The environment, the assertions, and the throwaway repositories live in
+# scripts/lib/test-pre-pr-lane-fixtures.sh -- the two together crossed the
+# repo's 500-line cap, and the cases are the half worth reading in one piece.
 #
 # Run with:
 #   bash scripts/lib/test-pre-pr-lane.sh
 set -uo pipefail
 
 suite_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-for _lib in pre-pr-docs-fastpath pre-pr-lane; do
-	if [[ ! -f "${suite_root}/scripts/lib/${_lib}.sh" ]]; then
-		echo "test-pre-pr-lane: missing library at ${suite_root}/scripts/lib/${_lib}.sh" >&2
-		exit 1
-	fi
-	# shellcheck source=/dev/null
-	source "${suite_root}/scripts/lib/${_lib}.sh"
-done
-
-failures=0
-cases_run=0
-scratch="$(mktemp -d)"
-# A case below drops write permission on a directory on purpose; put it back
-# before removing the tree, or the cleanup leaves the scratch dir behind.
-trap 'chmod -R u+rwX "${scratch}" >/dev/null 2>&1; rm -rf "${scratch}"' EXIT
-
-fail() {
-	echo "FAIL $*" >&2
-	failures=$((failures + 1))
-}
-
-# assert_eq <case-name> <want> <got>
-assert_eq() {
-	local name="$1" want="$2" got="$3"
-	cases_run=$((cases_run + 1))
-	if [[ "${got}" != "${want}" ]]; then
-		fail "${name}: want '${want}', got '${got}'"
-		return
-	fi
-	echo "PASS ${name}"
-}
-
-# assert_contains <case-name> <needle> <haystack>
-assert_contains() {
-	local name="$1" needle="$2" haystack="$3"
-	cases_run=$((cases_run + 1))
-	if [[ "${haystack}" != *"${needle}"* ]]; then
-		fail "${name}: want output containing '${needle}', got '${haystack}'"
-		return
-	fi
-	echo "PASS ${name}"
-}
+_fixtures="${suite_root}/scripts/lib/test-pre-pr-lane-fixtures.sh"
+if [[ ! -f "${_fixtures}" ]]; then
+	echo "test-pre-pr-lane: missing fixtures at ${_fixtures}" >&2
+	exit 1
+fi
+# shellcheck source=scripts/lib/test-pre-pr-lane-fixtures.sh
+source "${_fixtures}"
 
 # ─── Layer 1: pre_pr_lane_paths_status ────────────────────────────────────
 # The four inputs are independent, so the table is the full 2x2x2x2 product.
@@ -130,6 +101,11 @@ assert_contains "paths_status_rejects_no_arguments" "${arity_msg_prefix} 0 argum
 	"$(pre_pr_lane_paths_status)"
 assert_contains "paths_status_rejects_four_arguments" "${arity_msg_prefix} 4 argument(s)" \
 	"$(pre_pr_lane_paths_status ok origin/main 0 1)"
+# An EXTRA argument is the same disagreement wearing the other hat: the likely
+# shape is one inserted in the middle, which shifts every check onto the wrong
+# value while every check still has something to read.
+assert_contains "paths_status_rejects_six_arguments" "${arity_msg_prefix} 6 argument(s)" \
+	"$(pre_pr_lane_paths_status ok origin/main 0 0 1 "")"
 
 # ─── Layer 2: the state channel ───────────────────────────────────────────
 
@@ -138,7 +114,7 @@ assert_contains "paths_status_rejects_four_arguments" "${arity_msg_prefix} 4 arg
 assert_eq "uninitialized_state_is_broken" "broken" \
 	"$(bash -c 'set -u; source "$1/scripts/lib/pre-pr-lane.sh"; [[ -n "${pre_pr_state_broken}" ]] && echo broken || echo fine' _ "${suite_root}")"
 
-pre_pr_git_state_init
+init_state
 # shellcheck disable=SC2154  # pre_pr_state_dir/_diff_fail_marker are set by the
 # sourced library, which is the thing under test here.
 assert_eq "state_init_creates_a_directory" "dir" \
@@ -148,13 +124,31 @@ assert_eq "state_init_marker_sits_in_that_directory" "${pre_pr_state_dir}/diff-f
 	"${pre_pr_diff_fail_marker}"
 assert_eq "state_init_reports_a_usable_channel" "" "${pre_pr_state_broken}"
 
+# Init has to leave something DURABLE behind. A probe that cleans up after
+# itself proves the channel worked at init and nothing more, and the gap between
+# init and the post-collector check is exactly where a tmp reaper does its work.
+# shellcheck disable=SC2154  # set by the sourced library.
+assert_eq "state_init_leaves_a_durable_sentinel" "present" \
+	"$([[ -n "${pre_pr_state_sentinel}" && -e "${pre_pr_state_sentinel}" ]] && echo present || echo absent)"
+
+# The reaped-contents shape: the directory is still there and still writable, so
+# re-probing it passes -- but the failure marker that was in it is gone, and a
+# marker that was never written and a marker that was deleted read identically.
+# Only the sentinel tells them apart.
+_reaped_sentinel="${pre_pr_state_sentinel}"
+rm -f "${_reaped_sentinel}" "${pre_pr_diff_fail_marker}"
+pre_pr_git_state_check
+assert_eq "state_check_catches_a_reaped_sentinel" "broken" \
+	"$([[ -n "${pre_pr_state_broken}" ]] && echo broken || echo fine)"
+assert_contains "state_check_reaped_sentinel_says_why" "reaped mid-run" "${pre_pr_state_broken}"
+
 # A fixed state-dir path would carry a marker from a previous run into this one,
 # and a run that never failed would take the FULL lane forever. Each init gets
 # its own directory, so a stale marker cannot reach the next run.
 : >"${pre_pr_diff_fail_marker}"
 _stale_marker="${pre_pr_diff_fail_marker}"
 _first_state_dir="${pre_pr_state_dir}"
-pre_pr_git_state_init
+init_state
 assert_eq "state_init_does_not_reuse_the_previous_directory" "different" \
 	"$([[ "${pre_pr_state_dir}" != "${_first_state_dir}" ]] && echo different || echo same)"
 assert_eq "state_init_does_not_inherit_a_stale_marker" "absent" \
@@ -169,69 +163,55 @@ rm -rf "${_first_state_dir}" "${_stale_marker}"
 # when TMPDIR points nowhere, so pointing TMPDIR at a missing path proves
 # nothing.
 mktemp() { return 1; }
-pre_pr_git_state_init
+init_state
 assert_eq "state_init_without_mktemp_reports_broken" "broken" \
 	"$([[ -n "${pre_pr_state_broken}" ]] && echo broken || echo fine)"
 assert_eq "state_init_without_mktemp_leaves_no_marker_path" "" "${pre_pr_diff_fail_marker}"
 
 # mktemp succeeding but naming something that is not a directory is the same
 # hazard wearing a different hat.
+# shellcheck disable=SC2154  # scratch is set by the sourced fixtures.
 mktemp() { printf '%s\n' "${scratch}/not-a-directory"; }
 : >"${scratch}/not-a-directory"
-pre_pr_git_state_init
+init_state
 assert_eq "state_init_with_a_non_directory_reports_broken" "broken" \
 	"$([[ -n "${pre_pr_state_broken}" ]] && echo broken || echo fine)"
 unset -f mktemp
 
 # A directory that exists but rejects writes is the ENOSPC / reaped-tmpdir
 # shape: `mktemp -d` succeeded, so the old code believed the channel worked.
-pre_pr_git_state_init
-chmod 500 "${pre_pr_state_dir}"
-pre_pr_git_state_check
-assert_eq "state_check_catches_an_unwritable_directory" "broken" \
-	"$([[ -n "${pre_pr_state_broken}" ]] && echo broken || echo fine)"
-chmod 700 "${pre_pr_state_dir}"
+if running_as_root; then
+	skip_case "state_check_catches_an_unwritable_directory" "root ignores the mode bits"
+else
+	init_state
+	chmod 500 "${pre_pr_state_dir}"
+	pre_pr_git_state_check
+	assert_eq "state_check_catches_an_unwritable_directory" "broken" \
+		"$([[ -n "${pre_pr_state_broken}" ]] && echo broken || echo fine)"
+	chmod 700 "${pre_pr_state_dir}"
+	rm -rf "${pre_pr_state_dir}"
+fi
+
+# The other half of the ENOSPC conjunction the probe exists for: the write
+# REPORTS success and the bytes do not come back. A probe that stops after the
+# write is green on exactly this, which is the case where the failure marker
+# would also be written, also report success, and also not be there to read.
+# `cat` is shadowed because a filesystem that accepts a write and returns
+# nothing cannot be produced on a working machine -- the same reason mktemp is
+# shadowed above.
+init_state
+cat() { return 0; }
+pre_pr_state_probe "${pre_pr_state_dir}"
+assert_eq "state_probe_rejects_a_write_whose_bytes_do_not_come_back" "1" "$?"
+unset -f cat
 rm -rf "${pre_pr_state_dir}"
 
 # ─── Layer 3: the git boundary ────────────────────────────────────────────
-
-# new_repo <name> — throwaway repository with one commit on `main`, plus an
-# origin/main ref pointing at it and a `feature` branch one docs commit ahead.
-new_repo() {
-	local dir="${scratch}/$1"
-	mkdir -p "${dir}/docs"
-	git init -q -b main "${dir}"
-	git -C "${dir}" config user.email test@example.invalid
-	git -C "${dir}" config user.name test
-	: >"${dir}/README.md"
-	git -C "${dir}" add README.md
-	git -C "${dir}" commit -qm first
-	git -C "${dir}" update-ref refs/remotes/origin/main HEAD
-	git -C "${dir}" checkout -q -b feature
-	: >"${dir}/docs/page.md"
-	git -C "${dir}" add docs/page.md
-	git -C "${dir}" commit -qm docs
-	printf '%s\n' "${dir}"
-}
-
-# orphan_repo <name> — origin/main resolves but shares no history with HEAD, so
-# `git diff origin/main...HEAD` exits 128 with "fatal: no merge base" and prints
-# nothing. This is the shape that used to read as a clean tree.
-orphan_repo() {
-	local dir
-	dir="$(new_repo "$1")"
-	git -C "${dir}" checkout -q --orphan detached
-	git -C "${dir}" rm -q -rf . >/dev/null 2>&1
-	mkdir -p "${dir}/docs"
-	: >"${dir}/docs/page.md"
-	git -C "${dir}" add docs/page.md
-	git -C "${dir}" commit -qm orphan
-	printf '%s\n' "${dir}"
-}
+# new_repo and orphan_repo are in the fixtures file.
 
 repo_ok="$(new_repo repo-ok)"
 repo_root="${repo_ok}"
-pre_pr_git_state_init
+init_state
 assert_eq "changed_names_reports_the_branch_diff" "docs/page.md" \
 	"$(git_changed_names 'origin/main...HEAD')"
 assert_eq "successful_diff_leaves_no_marker" "absent" \
@@ -250,7 +230,7 @@ rm -rf "${repo_ok}/go"
 # Failure shape 1: no merge base.
 repo_orphan="$(orphan_repo repo-orphan)"
 repo_root="${repo_orphan}"
-pre_pr_git_state_init
+init_state
 assert_eq "no_merge_base_diff_prints_nothing" "" "$(git_changed_names 'origin/main...HEAD' 2>/dev/null)"
 assert_eq "no_merge_base_diff_writes_the_marker" "present" \
 	"$([[ -e "${pre_pr_diff_fail_marker}" ]] && echo present || echo absent)"
@@ -263,24 +243,31 @@ repo_broken="$(new_repo repo-broken-tree)"
 _tree="$(git -C "${repo_broken}" rev-parse 'origin/main^{tree}')"
 rm -f "${repo_broken}/.git/objects/${_tree:0:2}/${_tree:2}"
 repo_root="${repo_broken}"
-pre_pr_git_state_init
+init_state
 assert_eq "missing_tree_object_diff_prints_nothing" "" \
 	"$(git_changed_names 'origin/main...HEAD' 2>/dev/null)"
 assert_eq "missing_tree_object_diff_writes_the_marker" "present" \
 	"$([[ -e "${pre_pr_diff_fail_marker}" ]] && echo present || echo absent)"
 
-# ─── Layer 4: pre_pr_run_classifier_selfcheck ─────────────────────────────
+# Failure shape 3, for the untracked collector rather than the diff one.
+# `git ls-files` reads the index, so an unreadable index makes it exit 128 with
+# an empty stdout -- the same shape a corrupt .git/info/exclude, an unreadable
+# core.excludesFile, or a sparse-checkout error produces. Without the status
+# guard that prints nothing, records nothing, leaves the status "ok", and lets
+# an untracked .go file ride the FAST lane. A corrupt index is used rather than
+# a chmod because it does not depend on the mode bits meaning anything, so this
+# case still runs as root.
+repo_no_index="$(new_repo repo-no-index)"
+printf 'not-an-index' >"${repo_no_index}/.git/index"
+repo_root="${repo_no_index}"
+init_state
+assert_eq "unreadable_index_untracked_listing_prints_nothing" "" \
+	"$(git_untracked_names 2>/dev/null)"
+assert_eq "unreadable_index_untracked_listing_writes_the_marker" "present" \
+	"$([[ -e "${pre_pr_diff_fail_marker}" ]] && echo present || echo absent)"
 
-# fake_root <name> <docs-suite-rc> <lane-suite-rc> — a repo-shaped directory
-# holding stub suites, so the self-check's own pass/fail handling is tested
-# without running (or recursing into) the real suites.
-fake_root() {
-	local dir="${scratch}/$1" docs_rc="$2" lane_rc="$3"
-	mkdir -p "${dir}/scripts/lib"
-	printf '#!/usr/bin/env bash\nexit %s\n' "${docs_rc}" >"${dir}/scripts/lib/test-pre-pr-docs-fastpath.sh"
-	printf '#!/usr/bin/env bash\nexit %s\n' "${lane_rc}" >"${dir}/scripts/lib/test-pre-pr-lane.sh"
-	printf '%s\n' "${dir}"
-}
+# ─── Layer 4: pre_pr_run_classifier_selfcheck ─────────────────────────────
+# fake_root is in the fixtures file.
 
 root_pass="$(fake_root root-pass 0 0)"
 pre_pr_run_classifier_selfcheck "${root_pass}" >/dev/null 2>&1
@@ -314,7 +301,7 @@ decide() {
 	repo_root="$2"
 	# shellcheck disable=SC2034  # read by the sourced classifier.
 	PRE_PR_FASTPATH_ROOT="$2"
-	pre_pr_git_state_init
+	init_state
 	pre_pr_decide_lane "$1" origin/main "$3" "$4" >/dev/null 2>&1
 }
 
@@ -356,30 +343,35 @@ assert_eq "decide_untrustworthy_base_says_why" "${base_not_ok}" \
 # The state channel is a precondition, not a convenience. With it broken, the
 # marker reads 0 for the same reason a clean run does, so the run must not be
 # able to reach FAST -- even though nothing else about it is wrong.
-repo_root="${repo_ok}"
-# shellcheck disable=SC2034  # read by the sourced classifier.
-PRE_PR_FASTPATH_ROOT="${repo_ok}"
-pre_pr_git_state_init
-chmod 500 "${pre_pr_state_dir}"
-pre_pr_decide_lane "${root_pass}" origin/main ok paths_from_diff >/dev/null 2>&1
-assert_eq "decide_unwritable_state_dir_is_full" "full" "${PRE_PR_FASTPATH_LANE}"
-assert_eq "decide_unwritable_state_dir_reports_zero_diff_failures" "0" "${PRE_PR_LANE_DIFF_FAILED}"
-assert_contains "decide_unwritable_state_dir_says_why" "state directory" \
-	"${PRE_PR_FASTPATH_FORCED_FULL_REASON}"
-chmod 700 "${pre_pr_state_dir}"
+if running_as_root; then
+	skip_case "decide_unwritable_state_dir_is_full" "root ignores the mode bits"
+	skip_case "decide_unwritable_state_dir_with_failed_diff_is_full" "root ignores the mode bits"
+else
+	repo_root="${repo_ok}"
+	# shellcheck disable=SC2034  # read by the sourced classifier.
+	PRE_PR_FASTPATH_ROOT="${repo_ok}"
+	init_state
+	chmod 500 "${pre_pr_state_dir}"
+	pre_pr_decide_lane "${root_pass}" origin/main ok paths_from_diff >/dev/null 2>&1
+	assert_eq "decide_unwritable_state_dir_is_full" "full" "${PRE_PR_FASTPATH_LANE}"
+	assert_eq "decide_unwritable_state_dir_reports_zero_diff_failures" "0" "${PRE_PR_LANE_DIFF_FAILED}"
+	assert_contains "decide_unwritable_state_dir_says_why" "state directory" \
+		"${PRE_PR_FASTPATH_FORCED_FULL_REASON}"
+	chmod 700 "${pre_pr_state_dir}"
 
-# The correlated case: a full disk makes the base diff fail AND makes the record
-# of it unwritable. Before the state channel was a precondition this pair
-# classified FAST, on a run that had looked at nothing.
-# shellcheck disable=SC2034  # read by the sourced git wrappers.
-repo_root="${repo_orphan}"
-# shellcheck disable=SC2034  # read by the sourced classifier.
-PRE_PR_FASTPATH_ROOT="${repo_orphan}"
-pre_pr_git_state_init
-chmod 500 "${pre_pr_state_dir}"
-pre_pr_decide_lane "${root_pass}" origin/main ok paths_from_diff >/dev/null 2>&1
-assert_eq "decide_unwritable_state_dir_with_failed_diff_is_full" "full" "${PRE_PR_FASTPATH_LANE}"
-chmod 700 "${pre_pr_state_dir}"
+	# The correlated case: a full disk makes the base diff fail AND makes the
+	# record of it unwritable. Before the state channel was a precondition this
+	# pair classified FAST, on a run that had looked at nothing.
+	# shellcheck disable=SC2034  # read by the sourced git wrappers.
+	repo_root="${repo_orphan}"
+	# shellcheck disable=SC2034  # read by the sourced classifier.
+	PRE_PR_FASTPATH_ROOT="${repo_orphan}"
+	init_state
+	chmod 500 "${pre_pr_state_dir}"
+	pre_pr_decide_lane "${root_pass}" origin/main ok paths_from_diff >/dev/null 2>&1
+	assert_eq "decide_unwritable_state_dir_with_failed_diff_is_full" "full" "${PRE_PR_FASTPATH_LANE}"
+	chmod 700 "${pre_pr_state_dir}"
+fi
 
 # An untracked .go file on an otherwise docs-only branch: no `git diff` sees it,
 # and on the FAST lane no `go build` would either.
@@ -391,7 +383,40 @@ assert_eq "decide_untracked_go_file_is_the_trigger" "go/internal/newpkg/new.go" 
 	"${PRE_PR_FASTPATH_TRIGGERS[*]}"
 rm -rf "${repo_ok}/go"
 
-# ─── Layer 5b: the banner the operator reads ──────────────────────────────
+# ─── Layer 5b: the changed-path source is a NAME ──────────────────────────
+# pre-pr.sh hands pre_pr_decide_lane the name of a function, not the paths. Three
+# ways that name can fail to produce a path list, and all three used to arrive as
+# a silent empty list -- which, with a status of "ok", is the one empty shape the
+# classifier is allowed to call FAST. This is round 7's defect one level up: not
+# a collector that failed, but a collector that was never called.
+
+paths_fn_that_fails_late() {
+	git_changed_names 'origin/main...HEAD'
+	return 7
+}
+
+# 1. A name that resolves to nothing at all -- a typo, or a function that was
+#    renamed out from under the call site.
+decide "${root_pass}" "${repo_ok}" ok lane_input_paths_TYPO
+assert_eq "decide_unresolvable_paths_fn_is_full" "full" "${PRE_PR_FASTPATH_LANE}"
+assert_contains "decide_unresolvable_paths_fn_names_it" "lane_input_paths_TYPO" \
+	"${PRE_PR_FASTPATH_FORCED_FULL_REASON}"
+
+# 2. A name that resolves to something runnable that is not a function. `false`
+#    is the honest worst case: it exists, it runs, it prints nothing, it fails.
+decide "${root_pass}" "${repo_ok}" ok false
+assert_eq "decide_non_function_paths_fn_is_full" "full" "${PRE_PR_FASTPATH_LANE}"
+
+# 3. A real function that prints part of the list and then dies. This is the one
+#    a process substitution cannot catch: the paths arrive, so nothing looks
+#    empty, and the status is discarded on the way out.
+decide "${root_pass}" "${repo_ok}" ok paths_fn_that_fails_late
+assert_eq "decide_paths_fn_failing_late_is_full" "full" "${PRE_PR_FASTPATH_LANE}"
+assert_eq "decide_paths_fn_failing_late_sets_diff_failed" "1" "${PRE_PR_LANE_DIFF_FAILED}"
+assert_eq "decide_paths_fn_failing_late_kept_what_it_printed" "docs/page.md" \
+	"${PRE_PR_LANE_CHANGED_PATHS[*]}"
+
+# ─── Layer 5c: the banner the operator reads ──────────────────────────────
 
 PRE_PR_FASTPATH_LANE="full"
 PRE_PR_FASTPATH_TRIGGERS=()
@@ -414,6 +439,8 @@ assert_contains "banner_fast_warns_when_a_path_is_under_go" \
 	"$(pre_pr_print_lane_banner origin/main go/internal/capabilitycatalog/data/catalog.generated.json)"
 
 echo ""
+# shellcheck disable=SC2154  # cases_run/failures are maintained by the sourced
+# fixtures' assertions.
 echo "test-pre-pr-lane: ${cases_run} case(s) run, ${failures} failure(s)"
 if [[ "${failures}" -ne 0 ]]; then
 	exit 1
