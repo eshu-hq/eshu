@@ -33,9 +33,14 @@ import "testing"
 // flag makes production code fail closed on the real repo (proven directly
 // against trivyskipdirs_test.go/trivyskipdirs_ci_test.go/
 // trivyskipdirs_helper_test.go, which each read a real multi-line script or
-// workflow), but every OTHER case in this matrix is a single physical line,
-// so nothing in this matrix itself had noticed '(?m)' going missing until
-// this row. It is the matrix's only killer of '(?m)', but -- because
+// workflow), but "pipefail_on_later_line" is the only row in this matrix
+// whose verdict CHANGES when '(?m)' is removed. The matrix has one other
+// multi-line row, "newline_before_flag_cluster", but it wants false and
+// stays false either way: `[^\n#;&|]*` already stops at the newline and
+// blocks the cross-line reach regardless of multiline mode, so removing
+// '(?m)' does not touch its verdict. Nothing in this matrix itself had
+// noticed '(?m)' going missing until this row. It is the matrix's only
+// killer of '(?m)', but -- because
 // proving multi-line matching needs a genuine second-line invocation, and a
 // genuine invocation needs every other required element too -- it also
 // co-kills several mutations that already had a dedicated killer before this
@@ -199,12 +204,14 @@ func TestTrivyPipefailRE_AcceptanceMatrix(t *testing.T) {
 		// round-10 mutation kill: dropping the '(?m)' flag makes '^' anchor
 		// only the start of the WHOLE input instead of the start of every
 		// line, so a real `set -euo pipefail` on any line after the first
-		// stops matching. Every other case in this matrix is a single
-		// physical line, so none of them notices '(?m)' going missing --
-		// this is the one case built to depend on matching past the first
-		// line. Must match -- a script's `set -euo pipefail` is ordinarily
-		// preceded by a shebang line, the same shape checkScriptInvokesHelper
-		// reads from a real file, not a bare one-line string.
+		// stops matching. This is the only row in the matrix whose verdict
+		// changes when '(?m)' is removed -- the other multi-line row,
+		// "newline_before_flag_cluster", wants false and stays false either
+		// way, because the negated class stops at the newline regardless of
+		// multiline mode. Must match -- a script's `set -euo pipefail` is
+		// ordinarily preceded by a shebang line, the same shape
+		// checkScriptInvokesHelper reads from a real file, not a bare
+		// one-line string.
 		{"pipefail_on_later_line", "#!/bin/bash\nset -euo pipefail", true},
 	}
 	for _, c := range cases {
