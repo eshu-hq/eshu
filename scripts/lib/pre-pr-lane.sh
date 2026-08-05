@@ -321,6 +321,30 @@ pre_pr_decide_lane() {
 	return 0
 }
 
+# pre_pr_fast_lane_skip_steps
+# The step labels pre-pr.sh reports as SKIPPED on the FAST lane.
+#
+# `go test (changed packages)` is deliberately absent from this list. It used to
+# be in it, which made the FAST lane skip step_test wholesale -- and step_test
+# is where fixture_consumer_dirs lives, the table that maps a CLAUDE.md/
+# AGENTS.md-only change to ./internal/runtime, the package whose
+# TestRepositoryDocumentationStandardsAreEnforced guards their lockstep and
+# required-rule text (eshu-hq/eshu#5935 review; the mapping itself dates to
+# #5903, which hit CI red because nothing local ran that test on a canon-only
+# reword). A root-agent-file-only diff is exactly the shape that both
+# classifies FAST and needs that guard to run, so step_test now runs
+# unconditionally in scripts/dev/pre-pr.sh -- its own scope already narrows to
+# nothing on a genuinely docs-only diff, so this costs nothing there.
+# scripts/lib/test-pre-pr-lane.sh asserts `go test (changed packages)` is never
+# a member of this list, so a regression that re-adds it fails closed.
+pre_pr_fast_lane_skip_steps() {
+	printf '%s\n' \
+		"gofumpt (whole module)" \
+		"golangci-lint (whole module)" \
+		"go build ./..." \
+		"go vet ./..."
+}
+
 # pre_pr_print_lane_banner <base> <path...>
 # Prints the FAST/FULL banner for the lane already in PRE_PR_FASTPATH_LANE.
 pre_pr_print_lane_banner() {
@@ -343,20 +367,21 @@ pre_pr_print_lane_banner() {
 	fi
 
 	printf '\n\033[1m==> pre-pr lane: FAST (documentation/specs-only)\033[0m\n'
-	printf 'no build-affecting path changed vs %s. Skipping: whole-module go build and go vet, whole-module gofumpt and golangci-lint, the changed-package go test lane, and the race lane.\n' "${base}"
+	printf 'no build-affecting path changed vs %s. Skipping: whole-module go build and go vet, whole-module gofumpt and golangci-lint, and the race lane. The changed-package go test lane still runs, narrowed to any fixture-consumer packages (e.g. a root AGENTS.md/CLAUDE.md change selects ./internal/runtime) -- see fixture_consumer_dirs in scripts/dev/pre-pr.sh.\n' "${base}"
 
 	# An allowlisted path can still live under go/ -- the go:embed'd
 	# capabilitycatalog data is the one case. For those the gate registry still
 	# selects go-fmt, go-lint, go-vet, go-file-cap and package-docs in the
 	# selected-gates step, so "the Go lanes were skipped" would be false. Only
-	# build, test and race genuinely skip for them. Say which case this run is
-	# rather than printing a saving the operator is not getting.
+	# build and race genuinely skip for them; test runs but is a no-op unless the
+	# path also happens to be a fixture_consumer_dirs match. Say which case this
+	# run is rather than printing a saving the operator is not getting.
 	local p go_paths=()
 	for p in "$@"; do
 		case "${p}" in go/*) go_paths+=("${p}") ;; esac
 	done
 	[[ ${#go_paths[@]} -gt 0 ]] || return 0
-	printf 'note: %d changed path(s) live under go/, so the gate registry still selects go-fmt, go-lint, go-vet, go-file-cap and package-docs in the selected-gates step below. For those paths only build, test and race actually skip:\n' \
+	printf 'note: %d changed path(s) live under go/, so the gate registry still selects go-fmt, go-lint, go-vet, go-file-cap and package-docs in the selected-gates step below. For those paths only build and race actually skip:\n' \
 		"${#go_paths[@]}"
 	for p in "${go_paths[@]}"; do
 		printf '  - %s\n' "${p}"

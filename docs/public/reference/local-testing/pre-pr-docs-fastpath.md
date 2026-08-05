@@ -1,19 +1,34 @@
 # Pre-PR Documentation Fast Path
 
-For a diff that is provably documentation/specs-only, `make pre-pr` skips four
+For a diff that is provably documentation/specs-only, `make pre-pr` skips three
 lanes (#5721):
 
 - the whole-module `go build` and `go vet`
 - the whole-module `gofumpt` and `golangci-lint`
-- the changed-package `go test` lane
 - the race lane
 
-Those four are the long part of a `make pre-pr` run, and on a diff the
+Those three are the long part of a `make pre-pr` run, and on a diff the
 classifier can prove is documentation-only they have nothing to inspect.
 Skipping them also avoids the failure mode where they fail on unrelated packages
 hitting per-test timeouts under concurrent-worktree CPU load — a red gate with
 nothing to do with the diff, which had been forcing a manual override on
 otherwise-clean docs PRs.
+
+The changed-package `go test` lane is deliberately **not** in that list. It
+always runs, fast lane or full, because its own scope — changed Go package
+dirs plus `fixture_consumer_dirs` in `scripts/dev/pre-pr.sh` — already narrows
+to nothing on a genuinely docs-only diff, the same way the file-cap and
+package-docs gates below do. That scope is also where a root `AGENTS.md`/
+`CLAUDE.md`-only diff maps to `./internal/runtime`, the package whose
+`TestRepositoryDocumentationStandardsAreEnforced` asserts the two files stay
+byte-identical and keep required rule text. A root-agent-file-only diff both
+qualifies for FAST (markdown cannot break `go build`) and needs that specific
+guard to run, so `go test` cannot be on the FAST-lane skip list without
+reopening the gap `fixture_consumer_dirs` exists to close (eshu-hq/eshu#5935
+review). `scripts/lib/pre-pr-lane.sh`'s `pre_pr_fast_lane_skip_steps` is the
+one place that lists what genuinely skips; a table test in
+`scripts/lib/test-pre-pr-lane.sh` asserts `go test (changed packages)` is never
+a member of it.
 
 "Nothing to inspect" is a claim about the whole working tree, not just the
 committed diff, which is why untracked files are collected too — see
@@ -203,8 +218,10 @@ lives under `go/**`, which several registry gates trigger on. Selecting for that
 one path returns `go-fmt`, `go-lint`, `go-vet`, `go-file-cap` and `package-docs`
 among others — so for that input, `gofumpt`, `golangci-lint` and `go vet` still
 run, just as registry gates rather than as the whole-module lanes. Only `go
-build`, `go test` and the race lane genuinely skip. `make pre-pr` says so in the
-lane banner when any fast-path path is under `go/`.
+build` and the race lane genuinely skip; `go test` runs on every lane (see
+above) but is a no-op here too, since that generated JSON is not one of
+`fixture_consumer_dirs`'s mapped paths. `make pre-pr` says so in the lane
+banner when any fast-path path is under `go/`.
 
 ## Relationship to CI's own docs-only skip
 

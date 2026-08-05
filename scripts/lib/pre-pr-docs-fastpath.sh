@@ -15,8 +15,12 @@
 # spuriously on unrelated packages hitting per-test timeouts -- a red gate
 # with nothing to do with the diff (#5721). This library decides, from a list
 # of changed repo-relative paths, whether the diff is provably
-# documentation/specs-only (the FAST lane, which skips the four Go
-# build/lint/test/race lanes) or must take the FULL lane.
+# documentation/specs-only (the FAST lane, which skips the whole-module Go
+# build/lint/vet/race lanes; the changed-package go test lane stays narrowly
+# scoped rather than skipping, so a fixture-consumer mapping such as root
+# AGENTS.md/CLAUDE.md -> ./internal/runtime still runs -- see
+# fixture_consumer_dirs and pre_pr_fast_lane_skip_steps) or must take the FULL
+# lane.
 #
 # Two independent fail-closed rules, because the allowlist alone is not
 # enough:

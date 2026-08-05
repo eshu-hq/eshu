@@ -438,6 +438,34 @@ assert_contains "banner_fast_warns_when_a_path_is_under_go" \
 	"1 changed path(s) live under go/" \
 	"$(pre_pr_print_lane_banner origin/main go/internal/capabilitycatalog/data/catalog.generated.json)"
 
+# ─── Layer 6: the FAST-lane skip list must never include go test ──────────
+# eshu-hq/eshu#5935 review: a root AGENTS.md/CLAUDE.md-only diff classifies FAST
+# (correctly -- markdown cannot break go build/vet/lint), but pre-pr.sh used to
+# skip step_test wholesale on the FAST lane, which made fixture_consumer_dirs's
+# CLAUDE.md/AGENTS.md -> ./internal/runtime mapping dead code for the one diff
+# shape it exists to catch: TestRepositoryDocumentationStandardsAreEnforced,
+# which asserts the two files stay byte-identical and keep required rule text,
+# never ran locally on that shape. scripts/dev/pre-pr.sh now runs
+# `go test (changed packages)` unconditionally and only loops
+# pre_pr_fast_lane_skip_steps for the SKIP-only lines it prints, so this is the
+# one place that regression can reappear: someone reads "four lanes to skip",
+# adds go test back to this list, and the guard goes dead again silently -- no
+# other test in either suite would fail from that regression, because neither
+# execs pre-pr.sh or step_test.
+_fast_skips="$(pre_pr_fast_lane_skip_steps)"
+assert_not_contains "fast_lane_skip_steps_never_skips_go_test" \
+	"go test (changed packages)" "${_fast_skips}"
+assert_contains "fast_lane_skip_steps_still_skips_go_build" \
+	"go build ./..." "${_fast_skips}"
+assert_contains "fast_lane_skip_steps_still_skips_go_vet" \
+	"go vet ./..." "${_fast_skips}"
+assert_contains "fast_lane_skip_steps_still_skips_gofumpt" \
+	"gofumpt (whole module)" "${_fast_skips}"
+assert_contains "fast_lane_skip_steps_still_skips_golangci_lint" \
+	"golangci-lint (whole module)" "${_fast_skips}"
+assert_eq "fast_lane_skip_steps_has_exactly_four_entries" "4" \
+	"$(printf '%s\n' "${_fast_skips}" | rg -c '\S')"
+
 echo ""
 # shellcheck disable=SC2154  # cases_run/failures are maintained by the sourced
 # fixtures' assertions.

@@ -109,6 +109,17 @@ assert_contains() {
 	echo "PASS ${name}"
 }
 
+# assert_not_contains <case-name> <needle> <haystack>
+assert_not_contains() {
+	local name="$1" needle="$2" haystack="$3"
+	cases_run=$((cases_run + 1))
+	if [[ "${haystack}" == *"${needle}"* ]]; then
+		fail "${name}: want output NOT containing '${needle}', got '${haystack}'"
+		return
+	fi
+	echo "PASS ${name}"
+}
+
 # new_repo <name> — throwaway repository with one commit on `main`, plus an
 # origin/main ref pointing at it and a `feature` branch one docs commit ahead.
 new_repo() {

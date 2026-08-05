@@ -58,15 +58,17 @@ run locally prints why and names the CI gate that remains authoritative.
 ### Documentation-only fast path
 
 For a diff that is provably documentation/specs-only, `make pre-pr` skips the
-whole-module `go build`, `go vet`, `gofumpt`, `golangci-lint`, the
-changed-package `go test` lane, and the race lane (#5721). The lane's own path
-list includes untracked files, so a forgotten `git add` on a new `.go` file
-forces FULL rather than riding a skipped build. It also classifies FULL when the
-list itself cannot be trusted — an unresolved `origin/main`, any `git` command
-that exited non-zero, or a run that could not have recorded such a failure. See
-[Pre-PR Documentation Fast Path](local-testing/pre-pr-docs-fastpath.md) for
-the classifier's exact allowlist, both fail-closed rules, what still runs on
-the fast path, and how it relates to CI's own docs-only skip definition.
+whole-module `go build`, `go vet`, `gofumpt`, `golangci-lint`, and the race
+lane (#5721); the changed-package `go test` lane always runs and is narrowed,
+never skipped, to any fixture-consumer package the diff maps to (e.g. a root
+`AGENTS.md`/`CLAUDE.md` change selects `./internal/runtime`). The lane's own
+path list includes untracked files, so a forgotten `git add` on a new `.go`
+file forces FULL rather than riding a skipped build. It also classifies FULL
+when the list itself cannot be trusted — an unresolved `origin/main`, any
+`git` command that exited non-zero, or a run that could not have recorded such
+a failure. See [Pre-PR Documentation Fast Path](local-testing/pre-pr-docs-fastpath.md)
+for the classifier's exact allowlist, both fail-closed rules, what still runs
+on the fast path, and how it relates to CI's own docs-only skip definition.
 
 Outside the documentation-only fast path above, it runs gofumpt and
 golangci-lint over the **whole** module (catching cross-package consequences
@@ -244,7 +246,7 @@ have to remember the matching verifier — the selector picks it.
 
 | You changed | `make pre-pr` additionally runs | Also run |
 | --- | --- | --- |
-| Docs only (fast-path-recognized paths — see above) | whole-module Go build/vet/fmt/lint, changed-package `go test`, and race lanes SKIPPED; the selected exactness/telemetry/hygiene/docs gates still run, as do file cap and package docs (both no-ops with no changed Go file) | docs build (pre-push) |
+| Docs only (fast-path-recognized paths — see above) | whole-module Go build/vet/fmt/lint and race lanes SKIPPED; changed-package `go test` still runs, narrowed to any fixture-consumer package (e.g. root `AGENTS.md`/`CLAUDE.md` maps to `./internal/runtime`) and a no-op otherwise; the selected exactness/telemetry/hygiene/docs gates still run, as do file cap and package docs (both no-ops with no changed Go file) | docs build (pre-push) |
 | Frontend only (`src/**`, `apps/console/**`) | nothing backend | `make frontend-preflight` |
 | Parser (`go/internal/parser/**`) | parser relationship kit, accuracy golden gate, scoped race | — |
 | Reducer / storage (`go/internal/reducer/**`, `storage/**`) | query-plan regression, scale gates, **targeted graph-write race** | reducer-contention is CI-only (Postgres) |

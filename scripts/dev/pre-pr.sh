@@ -400,9 +400,14 @@ step_live() {
 
 # --- documentation-only fast-path classification -----------------------------
 # #5721: a docs/specs-only diff should never pay for the whole-module Go
-# build/lint/test/race lanes. The allowlist classifier and the lane wiring live
-# in scripts/lib/pre-pr-docs-fastpath.sh and scripts/lib/pre-pr-lane.sh; the
-# rules and the failure classes they guard against are documented there and in
+# build/lint/vet/race lanes. The changed-package go test lane (step_test below)
+# is never skipped wholesale -- it stays narrowly scoped to changed Go packages
+# plus fixture_consumer_dirs on every run, fast or full, which is what still
+# runs TestRepositoryDocumentationStandardsAreEnforced for a root
+# AGENTS.md/CLAUDE.md-only diff (eshu-hq/eshu#5935 review). The allowlist
+# classifier and the lane wiring live in scripts/lib/pre-pr-docs-fastpath.sh and
+# scripts/lib/pre-pr-lane.sh; the rules and the failure classes they guard
+# against are documented there and in
 # docs/public/reference/local-testing/pre-pr-docs-fastpath.md.
 #
 # The decision itself is pre_pr_decide_lane, in the lane library, so a test can
@@ -433,12 +438,21 @@ fi
 # invisible-failure shape this whole fast path exists to prevent.
 if [[ "${PRE_PR_FASTPATH_LANE}" != "fast" ]]; then
 	run_whole_module_gates_parallel
-	run_step "go test (changed packages)" step_test
 else
-	for pre_pr_skip_name in "gofumpt (whole module)" "golangci-lint (whole module)" "go build ./..." "go vet ./..." "go test (changed packages)"; do
+	while IFS= read -r pre_pr_skip_name; do
 		results+=("SKIP  ${pre_pr_skip_name} (documentation-only fast path)")
-	done
+	done < <(pre_pr_fast_lane_skip_steps)
 fi
+# go test runs on BOTH lanes, always. Its own scope (changed-Go-package dirs
+# plus fixture_consumer_dirs) already narrows to nothing on a genuinely
+# docs-only diff -- see the file-cap and package-docs steps below for the same
+# always-run-but-no-op pattern. Skipping this step wholesale on the FAST lane,
+# as pre-pr.sh used to do, made fixture_consumer_dirs's CLAUDE.md/AGENTS.md
+# mapping dead code for the one diff shape it exists to catch: a root-agent-
+# file-only change both qualifies for FAST and needs that guard to run
+# (eshu-hq/eshu#5935 review). See pre_pr_fast_lane_skip_steps in
+# scripts/lib/pre-pr-lane.sh for the regression guard.
+run_step "go test (changed packages)" step_test
 run_step "500-line file cap" step_filecap
 run_step "package docs" step_docs
 run_step "selected exactness + telemetry gates" step_exactness
