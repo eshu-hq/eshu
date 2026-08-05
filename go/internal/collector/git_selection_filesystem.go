@@ -16,6 +16,14 @@ import (
 	"strings"
 )
 
+// FilesystemSyncSelection captures the managed paths and copy-bound commit
+// identities selected during one filesystem synchronization cycle.
+type FilesystemSyncSelection struct {
+	SelectedRepoPaths         []string
+	SourceCommitSHAByRepoPath map[string]string
+	CorpusChanged             bool
+}
+
 // syncFilesystemRepositories materializes the selected filesystem repositories
 // for one collector cycle and reports whether the on-disk corpus changed.
 //
@@ -33,66 +41,75 @@ func syncFilesystemRepositories(
 	ctx context.Context,
 	config RepoSyncConfig,
 	repositoryIDs []string,
-) (selectedPaths []string, changed bool, err error) {
+) (FilesystemSyncSelection, error) {
 	if strings.TrimSpace(config.FilesystemRoot) == "" {
-		return nil, false, fmt.Errorf("filesystem source mode requires ESHU_FILESYSTEM_ROOT")
+		return FilesystemSyncSelection{}, fmt.Errorf("filesystem source mode requires ESHU_FILESYSTEM_ROOT")
 	}
 	currentManifest, err := fingerprintTree(config.FilesystemRoot)
 	if err != nil {
-		return nil, false, err
+		return FilesystemSyncSelection{}, err
 	}
 	manifestPath := filepath.Join(config.ReposDir, ".eshu-fixture-manifest")
 	previousManifest, err := os.ReadFile(manifestPath) // #nosec G304 -- reads internal fixture-manifest file at a path derived from config.ReposDir, not user-supplied input
 	if err == nil && strings.TrimSpace(string(previousManifest)) == currentManifest {
-		return nil, false, nil
+		return FilesystemSyncSelection{}, nil
 	}
 	if err != nil && !os.IsNotExist(err) {
-		return nil, false, fmt.Errorf("read filesystem manifest: %w", err)
+		return FilesystemSyncSelection{}, fmt.Errorf("read filesystem manifest: %w", err)
 	}
 
 	if err := os.MkdirAll(config.ReposDir, 0o750); err != nil { // #nosec G301 -- internal repos workspace directory
-		return nil, false, fmt.Errorf("create repos dir %q: %w", config.ReposDir, err)
+		return FilesystemSyncSelection{}, fmt.Errorf("create repos dir %q: %w", config.ReposDir, err)
 	}
 	if config.FilesystemDirect {
 		selectedPaths := make([]string, 0, len(repositoryIDs))
 		for _, repoID := range repositoryIDs {
 			if err := ctx.Err(); err != nil {
-				return nil, false, err
+				return FilesystemSyncSelection{}, err
 			}
 			sourcePath, _, err := filesystemRepoPaths(config, repoID)
 			if err != nil {
-				return nil, false, err
+				return FilesystemSyncSelection{}, err
 			}
 			selectedPaths = append(selectedPaths, sourcePath)
 		}
 		if err := os.WriteFile(manifestPath, []byte(currentManifest), 0o600); err != nil { // #nosec G306 -- internal manifest file, owner-only access is correct
-			return nil, false, fmt.Errorf("write filesystem manifest: %w", err)
+			return FilesystemSyncSelection{}, fmt.Errorf("write filesystem manifest: %w", err)
 		}
-		return selectedPaths, true, nil
+		return FilesystemSyncSelection{SelectedRepoPaths: selectedPaths, CorpusChanged: true}, nil
 	}
 	if err := cleanManagedWorkspace(config.ReposDir); err != nil {
-		return nil, false, err
+		return FilesystemSyncSelection{}, err
 	}
 
-	selectedPaths = make([]string, 0, len(repositoryIDs))
+	selectedPaths := make([]string, 0, len(repositoryIDs))
+	copyBoundCommits := make(map[string]string, len(repositoryIDs))
 	for _, repoID := range repositoryIDs {
 		if err := ctx.Err(); err != nil {
-			return nil, false, err
+			return FilesystemSyncSelection{}, err
 		}
 		sourcePath, targetPath, err := filesystemRepoPaths(config, repoID)
 		if err != nil {
-			return nil, false, err
+			return FilesystemSyncSelection{}, err
 		}
-		if err := copyRepositoryTree(ctx, sourcePath, targetPath); err != nil {
-			return nil, false, fmt.Errorf("copy filesystem repository %q: %w", repoID, err)
+		beforeCopyCommit := gitCleanWorktreeCommitSHAFn(ctx, sourcePath)
+		if err := copyRepositoryTreeFn(ctx, sourcePath, targetPath); err != nil {
+			return FilesystemSyncSelection{}, fmt.Errorf("copy filesystem repository %q: %w", repoID, err)
+		}
+		if beforeCopyCommit != "" && managedCopyMatchesCommit(ctx, sourcePath, targetPath, beforeCopyCommit) {
+			copyBoundCommits[canonicalLocalPath(targetPath)] = beforeCopyCommit
 		}
 		selectedPaths = append(selectedPaths, targetPath)
 	}
 
 	if err := os.WriteFile(manifestPath, []byte(currentManifest), 0o600); err != nil { // #nosec G306 -- internal manifest file, owner-only access is correct
-		return nil, false, fmt.Errorf("write filesystem manifest: %w", err)
+		return FilesystemSyncSelection{}, fmt.Errorf("write filesystem manifest: %w", err)
 	}
-	return selectedPaths, true, nil
+	return FilesystemSyncSelection{
+		SelectedRepoPaths:         selectedPaths,
+		SourceCommitSHAByRepoPath: copyBoundCommits,
+		CorpusChanged:             true,
+	}, nil
 }
 
 func filesystemRepoPaths(
@@ -317,6 +334,10 @@ func copyRepositoryTree(ctx context.Context, sourceRoot string, targetRoot strin
 		return nil
 	})
 }
+
+// copyRepositoryTreeFn is the managed-copy seam used by race regressions that
+// mutate the source at the precise copy boundary.
+var copyRepositoryTreeFn = copyRepositoryTree
 
 func copyRepositoryFile(sourcePath string, targetPath string) error {
 	sourceFile, err := os.Open(sourcePath) // #nosec G304 -- reads indexed repo file at an internally-constructed source path during filesystem copy, not user-supplied input

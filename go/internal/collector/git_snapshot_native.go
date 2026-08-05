@@ -143,15 +143,12 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	}
 	commitSHA := repository.SourceCommitSHA
 	if commitSHA == "" {
-		// In filesystem managed-copy mode repoPath intentionally has no .git;
-		// gitTreePath is the source checkout. The copy contains live working-tree
-		// bytes, so it may inherit that checkout's HEAD only while the source is
-		// clean. Otherwise commit-scoped facts fail closed instead of labeling
-		// dirty tracked or eligible untracked content as committed truth.
+		// Filesystem managed-copy mode may carry only the commit identity bound
+		// around copyRepositoryTree by syncFilesystemRepositories. Re-reading the
+		// source checkout here is racy: it may have changed after the managed bytes
+		// were copied. Ordinary direct/sync repositories keep the legacy fallback.
 		managedCopy := canonicalLocalPath(repoPath) != canonicalLocalPath(gitTreePath)
-		if managedCopy {
-			commitSHA = gitCleanWorktreeCommitSHAFn(ctx, gitTreePath)
-		} else {
+		if !managedCopy {
 			commitSHA = gitCommitSHAFn(ctx, gitTreePath)
 		}
 	}

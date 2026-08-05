@@ -165,7 +165,7 @@ func TestSnapshotFallsBackToGitCommitSHA(t *testing.T) {
 	}
 }
 
-func TestSnapshotFallsBackToFilesystemSourceGitTreeCommitSHA(t *testing.T) {
+func TestSnapshotUsesCopyBoundFilesystemSourceCommitSHA(t *testing.T) {
 	t.Parallel()
 
 	sourcePath := t.TempDir()
@@ -180,11 +180,35 @@ func TestSnapshotFallsBackToFilesystemSourceGitTreeCommitSHA(t *testing.T) {
 	runGit(t, sourcePath, "add", ".")
 	runGit(t, sourcePath, "commit", "-m", "initial commit")
 	wantCommit := runGit(t, sourcePath, "rev-parse", "HEAD")
-
-	managedPath := filepath.Join(t.TempDir(), "managed")
-	if err := copyRepositoryTree(context.Background(), sourcePath, managedPath); err != nil {
-		t.Fatalf("copyRepositoryTree() error = %v", err)
+	if got := gitCleanWorktreeCommitSHA(context.Background(), sourcePath); got != wantCommit {
+		t.Fatalf("gitCleanWorktreeCommitSHA() = %q, want clean HEAD %q", got, wantCommit)
 	}
+
+	config := RepoSyncConfig{SourceMode: "filesystem", FilesystemRoot: sourcePath, ReposDir: t.TempDir()}
+	synced, err := syncFilesystemRepositories(context.Background(), config, []string{"."})
+	if err != nil {
+		t.Fatalf("syncFilesystemRepositories() error = %v", err)
+	}
+	if len(synced.SelectedRepoPaths) != 1 {
+		t.Fatalf("SelectedRepoPaths = %#v, want one managed repository", synced.SelectedRepoPaths)
+	}
+	repositories := buildSelectedRepositories(
+		config,
+		synced.SelectedRepoPaths,
+		nil,
+		nil,
+		synced.SourceCommitSHAByRepoPath,
+		nil,
+		nil,
+	)
+	attachFilesystemGitTreePaths(config, []string{"."}, repositories)
+	if len(repositories) != 1 {
+		t.Fatalf("repositories = %#v, want one selected repository", repositories)
+	}
+	if got := repositories[0].SourceCommitSHA; got != wantCommit {
+		t.Fatalf("selected SourceCommitSHA = %q, want copy-bound %q", got, wantCommit)
+	}
+	managedPath := repositories[0].RepoPath
 	engine, err := parser.DefaultEngine()
 	if err != nil {
 		t.Fatalf("DefaultEngine() error = %v", err)
@@ -193,10 +217,11 @@ func TestSnapshotFallsBackToFilesystemSourceGitTreeCommitSHA(t *testing.T) {
 	snapshot, err := snapshotter.SnapshotRepository(
 		context.Background(),
 		SelectedRepository{
-			RepoPath:    managedPath,
-			GitTreePath: sourcePath,
-			Delta:       true,
-			FileTargets: []string{filepath.Join(managedPath, "main.py")},
+			RepoPath:        managedPath,
+			GitTreePath:     repositories[0].GitTreePath,
+			SourceCommitSHA: repositories[0].SourceCommitSHA,
+			Delta:           true,
+			FileTargets:     []string{filepath.Join(managedPath, "main.py")},
 		},
 	)
 	if err != nil {
@@ -254,22 +279,38 @@ func TestSnapshotManagedCopyOmitsCommitSHAForDivergentSource(t *testing.T) {
 			runGit(t, sourcePath, "commit", "-m", "initial commit")
 			test.diverge(t, sourcePath)
 
-			managedPath := filepath.Join(t.TempDir(), "managed")
-			if err := copyRepositoryTree(context.Background(), sourcePath, managedPath); err != nil {
-				t.Fatalf("copyRepositoryTree() error = %v", err)
+			config := RepoSyncConfig{SourceMode: "filesystem", FilesystemRoot: sourcePath, ReposDir: t.TempDir()}
+			synced, err := syncFilesystemRepositories(context.Background(), config, []string{"."})
+			if err != nil {
+				t.Fatalf("syncFilesystemRepositories() error = %v", err)
 			}
+			if len(synced.SelectedRepoPaths) != 1 {
+				t.Fatalf("SelectedRepoPaths = %#v, want one managed repository", synced.SelectedRepoPaths)
+			}
+			managedPath := synced.SelectedRepoPaths[0]
+			if got := synced.SourceCommitSHAByRepoPath[canonicalLocalPath(managedPath)]; got != "" {
+				t.Fatalf("copy-bound SourceCommitSHA = %q, want empty for divergent source", got)
+			}
+			repositories := buildSelectedRepositories(
+				config,
+				synced.SelectedRepoPaths,
+				nil,
+				nil,
+				synced.SourceCommitSHAByRepoPath,
+				nil,
+				nil,
+			)
+			attachFilesystemGitTreePaths(config, []string{"."}, repositories)
 			engine, err := parser.DefaultEngine()
 			if err != nil {
 				t.Fatalf("DefaultEngine() error = %v", err)
 			}
+			repository := repositories[0]
+			repository.Delta = true
+			repository.FileTargets = []string{filepath.Join(managedPath, "main.py")}
 			snapshot, err := (NativeRepositorySnapshotter{Engine: engine}).SnapshotRepository(
 				context.Background(),
-				SelectedRepository{
-					RepoPath:    managedPath,
-					GitTreePath: sourcePath,
-					Delta:       true,
-					FileTargets: []string{filepath.Join(managedPath, "main.py")},
-				},
+				repository,
 			)
 			if err != nil {
 				t.Fatalf("SnapshotRepository() error = %v", err)

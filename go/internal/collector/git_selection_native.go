@@ -21,7 +21,7 @@ type NativeRepositorySelector struct {
 	Config            RepoSyncConfig
 	Now               func() time.Time
 	DiscoverSelection func(context.Context, RepoSyncConfig, string) (RepositorySelection, error)
-	SyncFilesystem    func(context.Context, RepoSyncConfig, []string) ([]string, bool, error)
+	SyncFilesystem    func(context.Context, RepoSyncConfig, []string) (FilesystemSyncSelection, error)
 	SyncGit           func(context.Context, RepoSyncConfig, []string) (GitSyncSelection, error)
 	Logger            *slog.Logger
 	// BaselineResolver supplies the last-projected commit per scope so git delta
@@ -71,7 +71,7 @@ func (s NativeRepositorySelector) SelectRepositories(
 		if syncFilesystemFn == nil {
 			syncFilesystemFn = syncFilesystemRepositories
 		}
-		repoPaths, corpusChanged, err := syncFilesystemFn(ctx, s.Config, repositoryIDs)
+		synced, err := syncFilesystemFn(ctx, s.Config, repositoryIDs)
 		if err != nil {
 			return SelectionBatch{}, err
 		}
@@ -106,10 +106,18 @@ func (s NativeRepositorySelector) SelectRepositories(
 		//    silent on an unchanged re-poll (corpusChanged == false). At the
 		//    unsharded default this is equivalent to the old len(repoPaths) > 0
 		//    gate, since shard 0 then owns the full set.
-		if s.Config.RepoShardIndex == 0 && corpusChanged {
+		if s.Config.RepoShardIndex == 0 && synced.CorpusChanged {
 			reportRepositoryBasenameCollisions(ctx, selection.RepositoryIDs, s.Logger, s.Instruments)
 		}
-		repositories := buildSelectedRepositories(s.Config, repoPaths, nil, nil, nil, collectLocalRefs(ctx, s.Logger, s.Config, selection.RepositoryIDs, repoPaths), nil)
+		repositories := buildSelectedRepositories(
+			s.Config,
+			synced.SelectedRepoPaths,
+			nil,
+			nil,
+			synced.SourceCommitSHAByRepoPath,
+			collectLocalRefs(ctx, s.Logger, s.Config, selection.RepositoryIDs, synced.SelectedRepoPaths),
+			nil,
+		)
 		attachFilesystemGitTreePaths(s.Config, selection.RepositoryIDs, repositories)
 		return SelectionBatch{ObservedAt: observedAt, Repositories: repositories}, nil
 	case "explicit", "githubOrg":
