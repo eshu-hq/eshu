@@ -14,3 +14,16 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build and publish the fixture image
         run: docker buildx build --push --tag ghcr.io/acme/container-ci-lineage:1.0.0 .
+      - name: Leave the templated image unresolved
+        run: docker build -t ${{ env.REGISTRY }}/acme/container-ci-lineage:${{ github.sha }} .
+      - name: Preserve an ambiguous multi-image command
+        run: >-
+          docker build
+          -t ghcr.io/acme/container-ci-lineage:candidate
+          -t ghcr.io/acme/container-ci-lineage:latest
+          .
+
+  scan:
+    uses: acme/platform/.github/workflows/scan-image.yml@v1
+    with:
+      image: ghcr.io/acme/container-ci-lineage:1.0.0

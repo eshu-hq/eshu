@@ -278,7 +278,7 @@
             "status": "completed",
             "result": "success",
             "branch": "main",
-            "commit_sha": "2a3b4c5d6e7f80912a3b4c5d6e7f80912a3b4c5d",
+            "commit_sha": "fe05491e32178ca002832c23a04f9c061046ea94",
             "repository_id": "repository:r_19519f37",
             "provider_repository_id": "github.com/acme/container-ci-lineage",
             "repository_url": "https://github.com/acme/container-ci-lineage",
@@ -355,6 +355,49 @@
             "correlation_anchors": [
               "github_actions::9101",
               "sha256:0000000000000000000000000000000000000000000000000000000000aa"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "scope_id": "ci_cd_run:github_actions:acme:github_actions_workflows",
+      "source_system": "ci_cd_run",
+      "scope_kind": "ci_cd_run",
+      "collector_kind": "ci_cd_run",
+      "partition_key": "ci_cd_run:github_actions:acme:github_actions_workflows",
+      "metadata": {
+        "provider": "github_actions",
+        "repository": "acme/github_actions_workflows"
+      },
+      "generation_id": "cassette-cicd-workflow-input-gen1",
+      "observed_at": "2026-06-25T00:11:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "ci.run",
+          "stable_fact_key": "ci_cd_run:github_actions:github_actions_workflows:run:9200",
+          "schema_version": "1.0.0",
+          "collector_kind": "ci_cd_run",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "cicd-collector-workflow-input",
+            "provider": "github_actions",
+            "run_id": "9200",
+            "run_attempt": "1",
+            "run_number": "1",
+            "workflow_name": "ci",
+            "event": "push",
+            "status": "completed",
+            "result": "success",
+            "branch": "main",
+            "commit_sha": "f05ee5fe06b37d7cc0cce8150b50b74fc8b0882d",
+            "repository_id": "repository:r_f252e384",
+            "provider_repository_id": "github.com/acme/github_actions_workflows",
+            "repository_url": "https://github.com/acme/github_actions_workflows",
+            "correlation_anchors": [
+              "github_actions::9200"
             ]
           }
         }

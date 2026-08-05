@@ -6,6 +6,7 @@
 
 # Drives every pipeline stage end to end.
 require "bootstrap stage" "eshu-bootstrap-index"
+require "filesystem-direct staged Git history" 'export ESHU_FILESYSTEM_DIRECT="true"'
 
 # Pin the extracted helper, exact test name, complete executable line, and its
 # failure branch. The JSON event cases below additionally prove that a zero-test
