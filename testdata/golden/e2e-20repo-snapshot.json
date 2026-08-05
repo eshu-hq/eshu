@@ -4216,7 +4216,7 @@
         }
       },
       "get_entity_context": {
-        "description": "Canonical GitHub Actions workflow entity context proves one structured DEPENDS_ON edge and excludes the run-block octocat foil.",
+        "description": "Canonical GitHub Actions workflow entity context proves the structured action dependency and reusable-workflow deployment edge while excluding the run-block octocat foil.",
         "required_response_fields": [
           "relationships",
           "id",
@@ -4234,7 +4234,7 @@
         "required_json_values": {
           "id": "content-entity:e_1dc76e780ac6",
           "entity_id": "content-entity:e_1dc76e780ac6",
-          "result_limits.relationship_count": 1,
+          "result_limits.relationship_count": 2,
           "result_limits.truncated": false
         },
         "required_json_object_matches": {
@@ -4243,6 +4243,11 @@
               "type": "DEPENDS_ON",
               "target_name": "hashicorp/setup-terraform",
               "reason": "github_actions_action_repository"
+            },
+            {
+              "type": "DEPLOYS_FROM",
+              "target_name": "acme/platform",
+              "reason": "github_actions_reusable_workflow_ref"
             }
           ]
         },
@@ -5324,7 +5329,7 @@
     },
     "http": {
       "GET /api/v0/entities/content-entity:e_1dc76e780ac6/context": {
-        "description": "Canonical GitHub Actions workflow entity context proves one structured DEPENDS_ON edge and excludes the run-block octocat foil.",
+        "description": "Canonical GitHub Actions workflow entity context proves the structured action dependency and reusable-workflow deployment edge while excluding the run-block octocat foil.",
         "required_response_fields": [
           "relationships",
           "id",
@@ -5342,7 +5347,7 @@
         "required_json_values": {
           "id": "content-entity:e_1dc76e780ac6",
           "entity_id": "content-entity:e_1dc76e780ac6",
-          "result_limits.relationship_count": 1,
+          "result_limits.relationship_count": 2,
           "result_limits.truncated": false
         },
         "required_json_object_matches": {
@@ -5351,6 +5356,11 @@
               "type": "DEPENDS_ON",
               "target_name": "hashicorp/setup-terraform",
               "reason": "github_actions_action_repository"
+            },
+            {
+              "type": "DEPLOYS_FROM",
+              "target_name": "acme/platform",
+              "reason": "github_actions_reusable_workflow_ref"
             }
           ]
         }
