@@ -345,13 +345,21 @@ test_drift_removed_green() {
   run_verifier "$dir" "drift removed exits 0" "pass"
 }
 
-# Tests 11-18 (the known-drift self-validation regression suite, #5762) are
+# Tests 11-24 (the known-drift self-validation regression suite, #5762) are
 # extracted to scripts/lib/test-verify-openapi-known-drift-cases.sh to keep
 # this file under the repo's 500-line cap. The sourced file defines
 # test_known_drift_* and reuses setup_repo(), write_handler(),
 # write_openapi_path(), write_known_drift(), and run_verifier() from above.
 # shellcheck source=scripts/lib/test-verify-openapi-known-drift-cases.sh
 . "${repo_root}/scripts/lib/test-verify-openapi-known-drift-cases.sh"
+
+# Tests 25-36 (#5762 round 6 hardening: rule-3 conjunction proof, the
+# FIXME/XXX markers, marker case-insensitivity, 5 previously-unpinned prose
+# alternatives, the rg hard-error fail-closed fix, and the duplicate-
+# justification rule) are extracted the same way, to a second lib file so
+# neither file crosses the 500-line cap.
+# shellcheck source=scripts/lib/test-verify-openapi-known-drift-hardening-cases.sh
+. "${repo_root}/scripts/lib/test-verify-openapi-known-drift-hardening-cases.sh"
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Run all tests
@@ -377,13 +385,24 @@ test_known_drift_deferral_marker_plural_red
 test_known_drift_prose_deferral_not_written_yet_red
 test_known_drift_prose_deferral_pending_red
 test_known_drift_route_after_justified_route_red
-test_known_drift_bare_hash_unjustified_red
 test_known_drift_route_path_contains_marker_word_green
 test_known_drift_justification_contains_wipes_green
 test_known_drift_decoration_only_hashes_red
 test_known_drift_decoration_only_dashes_red
 test_known_drift_indented_route_trimmed_green
 test_known_drift_unjustified_message_states_actual_rule_red
+test_known_drift_rule3_two_tokens_no_long_word_red
+test_known_drift_rule3_single_long_word_red
+test_known_drift_deferral_marker_fixme_red
+test_known_drift_deferral_marker_xxx_red
+test_known_drift_deferral_marker_lowercase_red
+test_known_drift_prose_deferral_not_written_only_red
+test_known_drift_prose_deferral_written_yet_only_red
+test_known_drift_prose_deferral_not_yet_written_only_red
+test_known_drift_prose_deferral_predate_singular_red
+test_known_drift_prose_deferral_later_only_red
+test_known_drift_rg_hard_error_fails_closed_red
+test_known_drift_duplicate_justification_red
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 

@@ -15,7 +15,8 @@
 # non-zero (#5762). A TODO asserts "fixable, later," which contradicts
 # "permanent, intentional exclusion" -- this is exactly the shape that hid
 # POST /api/v0/code/visualize's real gap behind "TODO(#3781): add ... fragment"
-# for years. The fixture is deliberately prose-free (no "later"/"pending"/etc)
+# for the six weeks since #3781 was filed. The fixture is deliberately
+# prose-free (no "later"/"pending"/etc)
 # so it exercises only the marker rule, not the separate prose rule (#5762
 # round 3, P1-A) -- a fixture that trips both rules cannot prove the marker
 # rule alone is doing anything.
@@ -147,10 +148,13 @@ test_known_drift_deferral_marker_plural_red() {
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Test 15 — red: a prose deferral phrase with no TODO/FIXME/XXX-style marker
-# still trips (#5762 follow-up). "Fragment not written yet, tracked in
-# #3781." is the verbatim shape that hid POST /api/v0/code/visualize's real
-# gap for years -- it never used a TODO/FIXME/XXX marker, so the marker-only
-# rule alone would not have caught it.
+# still trips (#5762 follow-up). This fixture is a synthetic prose-only
+# deferral, not a quote of history: POST /api/v0/code/visualize's real
+# known-drift entry used a TODO marker (`# TODO(#3781): add
+# openapi_paths_code_visualize fragment for this route.`), so rule 1 (the
+# marker check) alone would already have caught it -- rule 2 exists for the
+# prospective case, a future entry that defers itself in prose without ever
+# using a marker word (#5762 round 6, F11 correction).
 test_known_drift_prose_deferral_not_written_yet_red() {
   local dir
   dir="$(setup_repo "known-drift-prose-not-written-yet")"
@@ -195,20 +199,11 @@ test_known_drift_route_after_justified_route_red() {
   run_verifier "$dir" "known-drift route appended after a justified route exits non-zero" "fail"
 }
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Test 18 — red: a bare "#" (or a "#" plus a token too short to explain
-# anything, like "# .") does not count as a justification comment (#5762
-# follow-up).
-test_known_drift_bare_hash_unjustified_red() {
-  local dir
-  dir="$(setup_repo "known-drift-bare-hash")"
-
-  write_known_drift "$dir" \
-    '#' \
-    'GET /api/v0/fake-bare-hash-route'
-
-  run_verifier "$dir" "known-drift bare # comment exits non-zero" "fail"
-}
+# Test 18 (a bare "#" comment counts as unjustified) was removed in #5762
+# round 6, F6: it used the identical fixture shape as test 24 below (a bare
+# "#" followed by a route) with strictly less coverage -- test 24 additionally
+# pins the exact UNJUSTIFIED_ENTRY message text against the same fixture, so
+# test 18 asserted nothing test 24 does not already assert.
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Test 19 — green: a route whose own PATH contains a marker word (here,

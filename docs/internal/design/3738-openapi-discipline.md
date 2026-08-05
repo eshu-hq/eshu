@@ -63,15 +63,16 @@ exclusions while catching new drift.
 **The file is not a backlog (#5762 correction).** The original design
 (above) let a route sit here because it was a "pre-existing gap," on the same
 footing as a genuine permanent exclusion. That third, unstated category is
-exactly what let `POST /api/v0/code/visualize` sit here for years under a
-"the fragment hasn't been written yet" comment, invisible to the drift gate
-that would otherwise have forced the fragment to be written (see
+exactly what let `POST /api/v0/code/visualize` sit here for the six weeks
+since #3781 was filed under `# TODO(#3781): add openapi_paths_code_visualize
+fragment for this route.`, invisible to the drift gate that would otherwise
+have forced the fragment to be written (see
 [Graph-read safety](../../public/reference/telemetry/graph-read-safety.md)
 for the full incident). An entry in this file must assert "this route is not
 OpenAPI," never "the OpenAPI fragment has not been written yet" — the second
 claim means the route belongs in `openapi_paths_*.go`, not here.
 `scripts/verify-openapi.sh` now enforces that distinction structurally,
-before it evaluates route drift, and fails closed if any of the three checks
+before it evaluates route drift, and fails closed if any of the four checks
 below trips:
 
 1. **No deferral markers, on a comment line.** No comment line in the file
@@ -91,11 +92,16 @@ below trips:
    including the justification itself.
 2. **No prose deferral phrases, on a comment line.** No comment line may
    contain a deferral claim spelled out in words instead of a marker —
-   shapes like "not written", "written yet", "pending", "predates", "later",
-   or "to be added/written". This is the same self-refuting signal as rule
-   1; a route can defer itself just as effectively in prose as with a TODO.
-   This rule is what would have caught `POST /api/v0/code/visualize`'s own
-   real justification comment, which never used a TODO/FIXME/XXX marker.
+   shapes like "not written", "written yet", "pending", "predate(s)",
+   "later", or "to be added/written". This is the same self-refuting signal
+   as rule 1; a route can defer itself just as effectively in prose as with
+   a TODO. This rule is prospective, not retrospective: `POST
+   /api/v0/code/visualize`'s real justification comment
+   (`# TODO(#3781): add openapi_paths_code_visualize fragment for this
+   route.`) used a TODO marker, so rule 1 alone would already have caught
+   it — rule 2 exists so the next entry that defers itself in prose,
+   without ever using a marker word, does not slip past rule 1 the way this
+   one would have.
    **This rule is a best-effort convenience, not a closure guarantee.** The
    phrase list is fixed and finite; an English deferral phrased outside it
    will not be caught, and each review round of #5762 found more surviving
@@ -112,21 +118,34 @@ below trips:
    a route line resets the justification state, so neither a bare route, a
    bare `#`, nor a comment shared across a group of routes can justify more
    than the one route line immediately following it.
+4. **A justification may not be byte-identical to the one before it.** Rule
+   3's "cannot be shared across a group of routes" was enforced only by
+   position, so a copy-pasted duplicate still counted as each route having
+   "its own" comment (#5762 round 6, F14). Give each route its own wording,
+   even when the underlying reason is the same for both.
 
-`scripts/lib/test-verify-openapi-known-drift-cases.sh` (sourced by
-`scripts/test-verify-openapi.sh`) carries synthetic fixtures for all three
-rules: a TODO-marked entry, its plural form, the TO-DO spelling, the HACK/
-TBD/WIP markers, two prose-deferral shapes, a bare unjustified entry, a bare
-`#` comment, two decoration-only comments (`####`, `# ---`), a route riding
-in immediately after an already-justified route, a well-justified entry with
-no deferral marker, a route whose own path contains a marker word
+`scripts/lib/test-verify-openapi-known-drift-cases.sh` and
+`scripts/lib/test-verify-openapi-known-drift-hardening-cases.sh` (both
+sourced by `scripts/test-verify-openapi.sh`) carry synthetic fixtures for all
+four rules: a TODO-marked entry, its plural form, the TO-DO spelling, the
+HACK/TBD/WIP markers, two prose-deferral shapes, a bare unjustified entry, a
+bare `#` comment, two decoration-only comments (`####`, `# ---`), a route
+riding in immediately after an already-justified route, a well-justified
+entry with no deferral marker, a route whose own path contains a marker word
 (`/todo-board`) proving the comment-only scan does not block a legitimately
-excluded route, and a route (`/cache/wipe`) whose real justification comment
+excluded route, a route (`/cache/wipe`) whose real justification comment
 contains the marker substring "wipes," proving the trailing word-boundary
-guard stops the marker rule from false-tripping on it — alongside the
-pre-existing route-diff fixtures, a fixture proving a leading-whitespace
-route line is still trimmed and subtracted from the drift diff, and a
-fixture pinning the exact wording of the unjustified-entry failure message.
+guard stops the marker rule from false-tripping on it, a leading-whitespace
+route line still trimmed and subtracted from the drift diff, and a fixture
+pinning the exact wording of the unjustified-entry failure message. The
+round-6 file adds: fixtures that isolate each half of rule 3's token-count
+and 4+-letter-word conjunction, the previously-unfixtured FIXME and XXX
+markers, a lowercase marker (proving the case-insensitive match), five
+prose alternatives that were never independently pinned ("not written",
+"written yet", "not yet written", "predate", "later" — the "predate" case
+also proves the singular/plural fix), an `rg`-hard-error case proving the
+known-drift scan fails closed instead of reporting a false-clean gate, and a
+duplicate-justification case for rule 4.
 
 **Dynamic-route escape hatch:** the verifier resolves route constants and string
 concatenation (patterns 1b/1c) via regex, not AST. A route whose METHOD or path
@@ -151,9 +170,10 @@ for routes that are merely undocumented yet.
 - Routes whose METHOD/path is computed at runtime or lives outside scan dirs
   must be listed in `.github/openapi-known-drift.txt`.
 - A known-drift entry may never carry a deferral marker, a prose deferral
-  phrase, or lack a preceding justification comment (#5762) —
-  `scripts/verify-openapi.sh` fails the whole gate on any of those three
-  shapes before it evaluates route drift.
+  phrase, lack a preceding justification comment, or repeat the immediately
+  preceding justification byte-for-byte (#5762) — `scripts/verify-openapi.sh`
+  fails the whole gate on any of those four shapes before it evaluates route
+  drift.
 
 ## Verification
 

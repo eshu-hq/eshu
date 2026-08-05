@@ -41,11 +41,12 @@ scan_dirs=()
 gofiles_tmp="${tmpdir}/gofiles.txt"
 : > "$gofiles_tmp"
 for dir in "${scan_dirs[@]}"; do
-  find "$dir" -maxdepth 1 -name '*.go' \
-    ! -name '*_test.go' \
-    ! -name 'openapi_*.go' \
-    2>/dev/null \
-  >> "$gofiles_tmp"
+  # "|| true": unlike `find`, `rg --files` exits 1 (not 0) when a directory
+  # has zero matching files -- under `set -e` that would abort the whole
+  # script instead of just producing an empty file list for this dir.
+  rg --files --max-depth 1 -g '*.go' -g '!*_test.go' -g '!openapi_*.go' \
+    "$dir" 2>/dev/null \
+  >> "$gofiles_tmp" || true
 done
 
 # When no Go files exist, rg with empty args would search $PWD. Use /dev/null
@@ -126,11 +127,11 @@ known_drift_file="${repo_root}/.github/openapi-known-drift.txt"
 # METHOD/path, or when the route is not an API operation at all -- never
 # because the fragment is simply missing so far. That third, unstated
 # category is exactly what let POST /api/v0/code/visualize sit here under a
-# "TODO(#3781): add ... fragment" comment for years: a deferral marker or a
-# deferral phrase is self-refuting evidence that the entry is NOT a
-# permanent, intentional exclusion, it is a known-but-deferred gap wearing an
-# exclusion entry as camouflage. Three rules are enforced on every line
-# before the file is used to suppress anything:
+# "TODO(#3781): add ... fragment" comment for the six weeks since #3781 was
+# filed: a deferral marker or a deferral phrase is self-refuting evidence
+# that the entry is NOT a permanent, intentional exclusion, it is a
+# known-but-deferred gap wearing an exclusion entry as camouflage. Four rules
+# are enforced on every line before the file is used to suppress anything:
 #
 #   1. No COMMENT line may contain a TODO/TO-DO/FIXME/XXX/HACK/TBD/WIP
 #      deferral marker (case-insensitive; matches the plural form too, e.g.
@@ -152,6 +153,12 @@ known_drift_file="${repo_root}/.github/openapi-known-drift.txt"
 #      "# ---" cannot pass as a justification. Neither a bare route nor a
 #      bare "#" can be appended silently, and one justification cannot be
 #      shared across a group of routes.
+#   4. A justification comment may not be byte-identical to the justification
+#      immediately before it. "Cannot be shared across a group of routes"
+#      (rule 3) was enforced only by position -- a copy-pasted duplicate
+#      still counts as each route having "its own" comment line, so it slid
+#      past rule 3 (#5762 round 6, F14). Give each route its own wording, even
+#      when the underlying reason is the same for both.
 if [ -f "$known_drift_file" ]; then
   # Anchored to "^[[:space:]]*#.*" so only comment lines are scanned -- a
   # route path such as "/api/v0/todo-board" or "/api/v0/cache/wipe" must
@@ -159,10 +166,34 @@ if [ -f "$known_drift_file" ]; then
   # trailing "s?\b" lets the plural "TODOs" match while stopping "WIP" from
   # matching inside an unrelated word like "wipes".
   known_drift_marker_pattern='^[[:space:]]*#.*\b(TO[-_ ]?DO|FIXME|XXX|HACK|TBD|WIP)s?\b'
-  known_drift_prose_pattern='^[[:space:]]*#.*(not[[:space:]]+written|written[[:space:]]+yet|not[[:space:]]+yet[[:space:]]+written|\bpending\b|\bpredates\b|\blater\b|to be (added|written))'
-  known_drift_deferral_hits="$(rg -in "$known_drift_marker_pattern" "$known_drift_file" || true)"
-  known_drift_prose_hits="$(rg -in "$known_drift_prose_pattern" "$known_drift_file" || true)"
+  known_drift_prose_pattern='^[[:space:]]*#.*(not[[:space:]]+written|written[[:space:]]+yet|not[[:space:]]+yet[[:space:]]+written|\bpending\b|\bpredate[sd]?\b|\blater\b|to be (added|written))'
+
+  # rg exits 1 for "no match" (expected -- most known-drift files have none)
+  # and 2 for a hard error (unreadable file, a pattern the installed rg
+  # rejects). "|| true" used to swallow both alike, so a hard rg failure
+  # silently produced empty hits and let the gate print "OpenAPI surface
+  # clean" instead of failing (#5762 round 6, F7). Capture the exit code
+  # directly and treat anything above 1 as fatal.
+  set +e
+  known_drift_deferral_hits="$(rg -in "$known_drift_marker_pattern" "$known_drift_file")"
+  known_drift_marker_rc=$?
+  known_drift_prose_hits="$(rg -in "$known_drift_prose_pattern" "$known_drift_file")"
+  known_drift_prose_rc=$?
+  set -e
+  if [ "$known_drift_marker_rc" -gt 1 ] || [ "$known_drift_prose_rc" -gt 1 ]; then
+    echo "KNOWN-DRIFT SCAN FAILED: ${known_drift_file}"
+    echo ""
+    echo "rg exited with a hard error (marker scan rc=${known_drift_marker_rc},"
+    echo "prose scan rc=${known_drift_prose_rc}) instead of 0 (match) or 1 (no"
+    echo "match). Treating this as a gate failure instead of silently reporting"
+    echo "a clean surface -- an unreadable file or a pattern rg rejects must not"
+    echo "look the same as \"no known-drift entries defer themselves.\""
+    exit 1
+  fi
+
   known_drift_unjustified=""
+  known_drift_duplicate_justifications=""
+  known_drift_prev_justification=""
   known_drift_justified=0
   known_drift_lineno=0
   while IFS= read -r known_drift_line || [ -n "$known_drift_line" ]; do
@@ -183,6 +214,17 @@ if [ -f "$known_drift_file" ]; then
         if [ "$known_drift_comment_tokens" -ge 2 ] \
           && printf '%s' "$known_drift_comment_text" | rg -q '[[:alpha:]]{4,}'; then
           known_drift_justified=1
+          # A copy-pasted justification still counts as "its own" comment
+          # under rule 3's positional check, so a duplicate needs its own
+          # rule (#5762 round 6, F14). Compare against the last comment that
+          # itself passed rule 3 -- an unjustified comment never updates
+          # $known_drift_prev_justification, so it cannot mask a real
+          # duplicate two entries later.
+          if [ -n "$known_drift_prev_justification" ] \
+            && [ "$known_drift_trimmed" = "$known_drift_prev_justification" ]; then
+            known_drift_duplicate_justifications="${known_drift_duplicate_justifications}${known_drift_file}:${known_drift_lineno}: \"${known_drift_trimmed}\""$'\n'
+          fi
+          known_drift_prev_justification="$known_drift_trimmed"
         else
           known_drift_justified=0
         fi
@@ -200,7 +242,8 @@ if [ -f "$known_drift_file" ]; then
     esac
   done < "$known_drift_file"
 
-  if [ -n "$known_drift_deferral_hits" ] || [ -n "$known_drift_prose_hits" ] || [ -n "$known_drift_unjustified" ]; then
+  if [ -n "$known_drift_deferral_hits" ] || [ -n "$known_drift_prose_hits" ] \
+    || [ -n "$known_drift_unjustified" ] || [ -n "$known_drift_duplicate_justifications" ]; then
     echo "KNOWN-DRIFT FILE INVALID: ${known_drift_file}"
     echo ""
     echo "This file is a permanent-exclusion list, not a backlog. An entry must"
@@ -236,6 +279,15 @@ if [ -f "$known_drift_file" ]; then
       while IFS= read -r entry; do
         [ -n "$entry" ] && echo "  ${entry}"
       done <<< "$known_drift_unjustified"
+      echo ""
+    fi
+    if [ -n "$known_drift_duplicate_justifications" ]; then
+      echo "DUPLICATE_JUSTIFICATION: a justification comment byte-identical to"
+      echo "the one before it is a copy-paste, not its own reason -- give this"
+      echo "route its own wording, even if the underlying reason is the same:"
+      while IFS= read -r entry; do
+        [ -n "$entry" ] && echo "  ${entry}"
+      done <<< "$known_drift_duplicate_justifications"
     fi
     exit 1
   fi

@@ -16,11 +16,16 @@
 # its own non-empty, substantive comment justifying it; a justification
 # cannot be shared across a group of routes.
 #
-# Format: METHOD /path (one per line, comments start with #)
+# Format: METHOD /path (one per line, comments start with #). A route line
+# must contain nothing but "METHOD /path" -- no trailing inline "# ..."
+# comment. The comment-line rules above are anchored to a line that starts
+# with "#", so a trailing comment on a route line is never scanned by them;
+# put the justification on its own preceding line instead.
 #
-# Documentation UIs — these serve HTML documentation, not an API surface.
+# Documentation UI — serves the interactive Swagger/OpenAPI HTML page, not an
+# API surface.
 GET /api/v0/docs
-# Documentation UIs — these serve HTML documentation, not an API surface.
+# Documentation UI — serves the ReDoc HTML viewer, not an API surface.
 GET /api/v0/redoc
 # RFC 9728 OAuth 2.0 Protected Resource Metadata (#5163, F-2). Served on the MCP
 # origin's unauthenticated well-known surface, not the /api/v0 API — it is a
