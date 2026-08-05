@@ -10,18 +10,30 @@ dirtiness records immediately before `copyRepositoryTree` with
 `git status --porcelain=v2`, then loads the immutable commit's blob identities
 with `git ls-tree`. The managed-copy walk hashes each regular file as a Git
 blob while streaming those same bytes to the destination, so validation does
-not reread the copied tree. Changed or extra copied paths fail closed;
-submodule content also fails closed unless it is an outer-tree blob. Paths
-intentionally excluded by collector filters need not be present in the copy.
-The snapshot never re-reads the source checkout for a managed copy. Dirty
-tracked content, admitted untracked content, conflicts, dirty submodules, an
-unborn branch, Git command errors, clean-to-dirty-to-clean changes during the
-copy, and working-tree clean-filter, encoding, or line-ending transforms all
-produce no source commit SHA. The validator does not ask Git to apply clean
-filters, because a repository-local filter driver can execute an external
-command. Tests exercise clean and divergent fact emission, interleaving and
-untracked-file races, CRLF fail-closed behavior, and hostile-filter
-non-execution.
+not reread the copied tree. The walk accounts for every immutable tracked
+path: a copied path must match its committed blob, while a path omitted by an
+observed collector-policy decision is discharged without opening its excluded
+payload. Each directory's `.eshuignore` is read once. A tracked control must
+match its immutable blob; an ignored, untracked local control remains
+authoritative operator policy. Changed, extra, or unexpectedly missing copied
+paths fail closed; submodule content also fails closed unless it is an
+outer-tree blob.
+
+On Unix, the copy pins the source root and current directory ancestry, opens
+directories and files relative to those descriptors without following
+symlinks, and compares pre-open, opened, and post-open file identity before
+reading bytes. The Windows path is root-confined and uses the same identity
+checks. The snapshot never re-reads the source checkout for a managed copy.
+Dirty tracked content, admitted untracked content, conflicts, dirty
+submodules, an unborn branch, Git command errors, clean-to-dirty-to-clean
+changes during the copy, symlink swaps, and working-tree clean-filter,
+encoding, or line-ending transforms all produce no source commit SHA. The
+validator does not ask Git to apply clean filters, because a repository-local
+filter driver can execute an external command. Tests exercise clean and
+divergent fact emission, omitted tracked workflows, interleaving and
+untracked-file races, policy-control mutation, excluded-payload privacy,
+bounded descriptor use, symlink swaps, CRLF fail-closed behavior, and
+hostile-filter non-execution.
 
 GitHub Actions workflow-image evidence is also provider-owned. A non-GitHub run
 for the same repository and commit cannot attach that evidence, and the graph
@@ -41,16 +53,30 @@ behavior. Provider isolation adds one bounded string comparison per run during
 attachment and one per candidate graph row; it does not add a query, graph
 write, queue item, retry, or lock for accepted GitHub rows.
 
-The representative large-repository rung used the clean Eshu checkout at
-`bf6e6b480119e1eacdbdfb3626167da1a02df459`: 17,886 admitted regular files and
-117,362,746 copied bytes on the same Apple M5 Max. Five one-iteration samples
-measured the complete old copy-plus-`rev-parse` path at 7.032, 14.177, 12.551,
-7.763, and 10.280 seconds (median 10.280 seconds). The integrated copy-bound
-path measured 9.522, 9.629, 11.528, 9.637, and 7.504 seconds (median 9.629
-seconds). The median changed by -0.651 seconds, or -6.33%; because the ranges
-overlap and host variance was wide, this establishes no median regression but
-does not claim a speedup. Exact command:
-`GOMAXPROCS=1 ESHU_BENCHMARK_REPOSITORY=<clean-eshu-checkout> go test ./internal/collector -run '^$' -bench 'BenchmarkFilesystemManagedCopyCommitAttributionLargeRepository/(prior-full-managed-copy|copy-bound-full-managed-copy)$' -benchtime=1x -count=5`.
+The post-rebase representative large-repository rung used the clean parent
+checkout at `108e0f9326bcc95a29d1072c926bf18128c5ea41`: 17,892 admitted
+regular files and 117,411,148 copied bytes on the same Apple M5 Max. Five
+adjacent pairs alternated the complete old copy-plus-`rev-parse` path with the
+integrated copy-bound path to prevent a changing host load from biasing one
+whole sample group. Old-path samples were 8.654, 9.308, 8.586, 14.432, and
+16.132 seconds (median 9.308 seconds). Copy-bound samples were 8.193, 11.961,
+8.310, 22.342, and 10.498 seconds (median 10.498 seconds). Independently
+sorting the noisy groups yields a +1.190-second (+12.78%) median difference;
+the adjacent-pair deltas were -0.461, +2.653, -0.275, +7.910, and -5.635
+seconds, whose median is -0.275 seconds (median pair percentage -3.21%). The
+ranges overlap, the pair distribution straddles zero, and three of five
+copy-bound pairs were faster, so the run establishes no consistent regression
+and makes no speedup claim. Exact invocation, run in `prior, copy-bound` order
+five times:
+`GOMAXPROCS=1 ESHU_BENCHMARK_REPOSITORY=<clean-parent-checkout> go test ./internal/collector -run '^$' -bench '^BenchmarkFilesystemManagedCopyCommitAttributionLargeRepository/<case>$' -benchtime=1x -count=1`.
+
+The skip-heavy worst case used 1,000 sibling directories with 100 immutable
+paths each, all omitted by observed collector policy. The prior repeated map
+scan measured 474.130, 509.606, and 482.807 milliseconds (median 482.807
+milliseconds). Sorted-prefix discharge measured 19.048, 17.767, and 19.021
+milliseconds (median 19.021 milliseconds): 96.06% lower, or 25.38x faster.
+Exact command:
+`GOMAXPROCS=1 go test ./internal/collector -run '^$' -bench '^BenchmarkManagedCopyDischargeSkippedDirectories$' -benchtime=1x -count=3`.
 
 The old path could publish false commit provenance, while the integrated path
 verifies every admitted regular-file byte against the immutable tree during
