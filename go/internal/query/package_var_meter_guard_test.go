@@ -54,12 +54,20 @@ import (
 //
 // One shape that does keep the resolving call in the initializer is caught:
 // `var p = otel.GetMeterProvider()` followed by `var m = p.Meter("name")`,
-// which binds the same delegate at package-init time through an intermediate
-// provider var. packageLevelOtelMeterVarNames collects those provider vars
-// first and then treats `.Meter(...)` on them as a hit. The catch is
-// file-scoped, since the walk parses one file at a time with no type
-// information: a provider var declared in a different file of the same package
-// is still invisible to it.
+// which reaches the same delegate through an intermediate provider var.
+// packageLevelOtelMeterVarNames collects those provider vars first and then
+// treats `.Meter(...)` on them as a hit.
+//
+// Keeping the resolving call in the initializer is not on its own enough to be
+// caught, so do not read that catch as a general rule. A provider var is
+// recognized only when its initializer is literally `<otelPkg>.GetMeterProvider()`.
+// `var p = makeProvider()` and the method value `var p = otel.GetMeterProvider`
+// used as `var m = p().Meter("name")` both stay green, for the same
+// no-type-resolution reason as the two gaps above. The catch is also
+// file-scoped, since the walk parses one file at a time: a provider var
+// declared in a different file of the same package is invisible to it.
+// TestPackageLevelOtelMeterVarNames pins every one of these cases, caught and
+// uncaught alike.
 func TestNoPackageLevelMeterVarInitializersAcrossModule(t *testing.T) {
 	t.Parallel()
 
@@ -247,9 +255,11 @@ func otelImportNames(file *ast.File) []string {
 // permanently via the OTel global proxy: `<otelPkg>.Meter(...)`,
 // `<otelPkg>.GetMeterProvider().Meter(...)`, and `<providerVar>.Meter(...)`
 // for a providerVar in providerVars. All three resolve through
-// global.MeterProvider() under the hood, so all three bind the delegate at
-// package-init time. Under a dot import the first two lose their qualifier and
-// appear as bare `Meter(...)` and `GetMeterProvider().Meter(...)`.
+// global.MeterProvider() under the hood, so at package-init time all three hand
+// back a proxy meter whose delegate is then bound permanently by the first
+// otel.SetMeterProvider call in the process. Under a dot import the first two
+// lose their qualifier and appear as bare `Meter(...)` and
+// `GetMeterProvider().Meter(...)`.
 func isOtelMeterCall(expr ast.Expr, otelPkgs, providerVars []string) bool {
 	call, ok := expr.(*ast.CallExpr)
 	if !ok {

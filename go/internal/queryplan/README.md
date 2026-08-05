@@ -59,8 +59,10 @@ audit. Editing a grandfathered symbol is what forces that conversion. Note what
 the digest covers: `discoverFileQueryCallsites` hashes the symbol's signature
 and body, from the `func` keyword through the closing brace, so an edit to the
 doc comment above the symbol leaves the gate green. The conversion requirement
-does not rest on the digest tripping — `AGENTS.md` mandates it for any edit to a
-grandfathered symbol, doc comment included. When the digest does trip, the fix
+does not rest on the digest tripping — the `grandfatheredNonHotSourceDigests`
+invariant in this directory's `AGENTS.md` mandates conversion for any edit to a
+grandfathered symbol's source, doc comment included, precisely because CI cannot
+see that case. When the digest does trip, the fix
 is a typed `non_hot` audit plus removal from `grandfatheredNonHotSourceDigests`,
 never a re-frozen digest.
 Source-digest revalidation also applies to entries using the typed `non_hot`
