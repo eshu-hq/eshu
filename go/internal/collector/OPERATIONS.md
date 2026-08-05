@@ -203,17 +203,41 @@ and query stages own correlation, drift, and truth decisions.
 - No-Regression Evidence: `go test ./internal/collector ./internal/doctruth ./internal/query ./internal/mcp ./internal/storage/postgres -count=1` covers DOCX, CSV/TSV, XLSX, PPTX, ZIP packet summaries, deterministic diagrams, claim hints, repository fact readback, and MCP routing.
 - No-Observability-Change: documentation extraction stays inside existing `collector.observe`, body-free snapshot metadata, and stream-time re-reads. It adds no worker, queue, graph write, metric label, runtime knob, or deployment profile.
 - No-Regression Evidence: delta generation handling is covered by `go test ./internal/collector -run
-  'Test(NativeRepositorySnapshotterCarriesDeletedOnlyDeltaMetadata|NativeRepositorySnapshotterDeltaTargetsKeepFullPreScanContext|NativeRepositorySnapshotterPreservesDeltaMetadataPathWhitespace|UpdateRepositoryReturnsChangedAndDeletedFileTargets|BuildSelectedRepositoriesCarriesGitDeltaFileTargets|BuildStreamingGenerationEmitsDeltaMetadataAndDeletedTombstones|BuildStreamingGenerationPreservesDeltaPathWhitespace|BuildStreamingGenerationDeltaChangedFileFactsMatchFullSnapshot|BuildStreamingGenerationSkipsRepoWideReducerFollowupsForDelta)'
+  'Test(NativeRepositorySnapshotterCarriesDeletedOnlyDeltaMetadata|NativeRepositorySnapshotterDeltaTargetsKeepFullPreScanContext|NativeRepositorySnapshotterPreservesDeltaMetadataPathWhitespace|NativeRepositorySnapshotterDeltaCarriesCurrentWorkflowImageSnapshot|NativeRepositorySnapshotterDeltaChangedWorkflowReplacesEvidence|NativeRepositorySnapshotterDeltaDeletedWorkflowRemovesEvidence|UpdateRepositoryReturnsChangedAndDeletedFileTargets|BuildSelectedRepositoriesCarriesGitDeltaFileTargets|BuildStreamingGenerationEmitsDeltaMetadataAndDeletedTombstones|BuildStreamingGenerationPreservesDeltaPathWhitespace|BuildStreamingGenerationDeltaChangedFileFactsMatchFullSnapshot|BuildStreamingGenerationSkipsRepoWideReducerFollowupsForDelta)'
   -count=1`, which proves Git delta parsing, selector propagation, deleted-only
   snapshot metadata, full-context pre-scan for targeted deltas, symlink-normalized
   path metadata with legal whitespace preserved, tombstone emission, changed-file
-  fact payload parity against full snapshots, fact count agreement, and
-  suppression of unsafe repo-wide reducer follow-ups for delta generations.
+  fact payload parity against full snapshots, complete current workflow-image
+  evidence across unrelated changes, changed workflows, and deletions, fact
+  count agreement, and suppression of unsafe repo-wide reducer follow-ups for
+  delta generations.
 - Performance Evidence: `go test ./internal/collector -run '^$' -bench
   'BenchmarkNativeRepositorySnapshotter(FullFixture|DeltaSingleFileFixture)$'
   -benchtime=1x -count=1` on an Apple M4 Pro measured a generated 400-file
   fixture full snapshot at `107796250 ns/op` and a one-file delta snapshot at
   `34240667 ns/op`.
+- Performance Evidence: `go test ./internal/collector -run '^$' -bench
+  'BenchmarkNativeRepositoryDeltaGenerationWithWorkflowSnapshot' -benchmem
+  -benchtime=3x -count=3` measured the complete local generation path from
+  snapshot start through fact-stream drain on darwin/arm64, Apple M5 Max. Each
+  case used 400 ordinary source files and one changed file. Median results:
+
+  | Current workflows | ns/op | B/op | allocs/op |
+  | ---: | ---: | ---: | ---: |
+  | 0 | 42,203,639 | 7,825,221 | 178,323 |
+  | 1 | 40,069,972 | 7,854,565 | 178,647 |
+  | 5 | 40,600,236 | 7,970,504 | 179,890 |
+  | 10 | 47,969,792 | 8,110,320 | 181,420 |
+  | 100 | 47,307,555 | 10,624,261 | 209,078 |
+
+  The 1- and 5-workflow timings stayed inside run noise. The 10- and
+  100-workflow inputs added 5.8 ms and 5.1 ms against the zero-workflow median.
+  Heap and allocations scale with extraction cardinality. A separate paired
+  snapshot benchmark rejected routing unchanged workflows through the full
+  parser/content pipeline: at 100 workflows, the body-free metadata lane cut
+  incremental heap from 3.90 MB to 0.59 MB (84.8%) and incremental allocations
+  from 36,420 to 3,746 (89.7%). This is a measured correctness cost, not an
+  end-to-end speedup claim.
 - No-Observability-Change: delta parsing reuses hosted git sync logs, snapshot
   stage logs, `collector.observe`, fact emission counts, and projector/reducer
   queues. It adds no metric name or label and does not log file paths in sync

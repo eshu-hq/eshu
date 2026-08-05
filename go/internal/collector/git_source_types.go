@@ -95,6 +95,10 @@ type RepositorySnapshot struct {
 	// DocumentationFileMetas holds body-free repository documentation metadata
 	// for files that should emit documentation facts without parser content rows.
 	DocumentationFileMetas []ContentFileMeta `json:"documentation_file_metas,omitempty"`
+	// WorkflowImageFileMetas holds current workflow files that were not part of
+	// an ordinary delta target. streamFacts reads them only for static image
+	// evidence, without creating source-local file or content rows.
+	WorkflowImageFileMetas []ContentFileMeta `json:"workflow_image_file_metas,omitempty"`
 	// Delta marks snapshots that contain only file-scoped changes from a Git
 	// resync rather than a full repository view.
 	Delta bool `json:"delta,omitempty"`

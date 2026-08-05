@@ -83,6 +83,125 @@ func TestBuildProjectionDoesNotQueueContainerImageIdentityForNonContainerCICDArt
 	}
 }
 
+func TestBuildProjectionQueuesContainerImageIdentityForWorkflowImageEvidence(t *testing.T) {
+	t.Parallel()
+
+	scopeValue, generation := workflowImageGitScopeGeneration()
+	projection, err := buildProjection(scopeValue, generation, []facts.Envelope{
+		workflowImageEvidenceEnvelope("fact-workflow-image-1", scopeValue.ScopeID, generation.GenerationID),
+	})
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil", err)
+	}
+
+	intent := requireContainerImageIdentityIntent(t, projection.reducerIntents)
+	if got, want := intent.FactID, "fact-workflow-image-1"; got != want {
+		t.Fatalf("intent.FactID = %q, want %q", got, want)
+	}
+	if got, want := intent.SourceSystem, "git"; got != want {
+		t.Fatalf("intent.SourceSystem = %q, want %q", got, want)
+	}
+}
+
+func TestBuildProjectionQueuesContainerImageIdentityForDeletedWorkflowFileTombstone(t *testing.T) {
+	t.Parallel()
+
+	scopeValue, generation := workflowImageGitScopeGeneration()
+	projection, err := buildProjection(scopeValue, generation, []facts.Envelope{
+		deletedWorkflowFileEnvelope("fact-workflow-file-deleted", scopeValue.ScopeID, generation.GenerationID, ".github/workflows/deploy.yml"),
+	})
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil", err)
+	}
+
+	intent := requireContainerImageIdentityIntent(t, projection.reducerIntents)
+	if got, want := intent.FactID, "fact-workflow-file-deleted"; got != want {
+		t.Fatalf("intent.FactID = %q, want tombstone %q", got, want)
+	}
+}
+
+func TestBuildProjectionDoesNotQueueContainerImageIdentityForUnrelatedYAMLTombstone(t *testing.T) {
+	t.Parallel()
+
+	scopeValue, generation := workflowImageGitScopeGeneration()
+	for _, relativePath := range []string{
+		"deploy/config.yml",
+		".github/workflows/readme.md",
+		".github/workflows/nested/deploy.yml",
+	} {
+		projection, err := buildProjection(scopeValue, generation, []facts.Envelope{
+			deletedWorkflowFileEnvelope("fact-unrelated-yaml-deleted", scopeValue.ScopeID, generation.GenerationID, relativePath),
+		})
+		if err != nil {
+			t.Fatalf("buildProjection(%q) error = %v, want nil", relativePath, err)
+		}
+		for _, intent := range projection.reducerIntents {
+			if intent.Domain == reducer.DomainContainerImageIdentity {
+				t.Fatalf("unrelated tombstone %q queued container_image_identity", relativePath)
+			}
+		}
+	}
+}
+
+func workflowImageGitScopeGeneration() (scope.IngestionScope, scope.ScopeGeneration) {
+	scopeValue := scope.IngestionScope{
+		ScopeID:      "git-repository-scope:workflow-image-test",
+		ScopeKind:    "repository",
+		SourceSystem: "git",
+	}
+	return scopeValue, scope.ScopeGeneration{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: "git-generation-workflow-image",
+		ObservedAt:   time.Date(2026, time.August, 4, 12, 0, 0, 0, time.UTC),
+		IngestedAt:   time.Date(2026, time.August, 4, 12, 0, 1, 0, time.UTC),
+		Status:       scope.GenerationStatusPending,
+	}
+}
+
+func workflowImageEvidenceEnvelope(factID, scopeID, generationID string) facts.Envelope {
+	return facts.Envelope{
+		FactID:        factID,
+		ScopeID:       scopeID,
+		GenerationID:  generationID,
+		FactKind:      facts.CICDWorkflowImageEvidenceFactKind,
+		SchemaVersion: facts.CICDSchemaVersion,
+		CollectorKind: "git",
+		SourceRef: facts.Ref{
+			SourceSystem: "git",
+		},
+		Payload: map[string]any{
+			"repository_id":  "repository:test-workflow-image",
+			"workflow_path":  ".github/workflows/deploy.yml",
+			"command_kind":   "docker_push",
+			"evidence_class": "workflow_image_ref",
+			"image_ref":      "ghcr.io/acme/api:v1",
+		},
+	}
+}
+
+// deletedWorkflowFileEnvelope mirrors collector.fileTombstoneEnvelope: Git
+// deletions carry a generic `file` tombstone, not a hand-authored
+// ci.workflow_image_evidence tombstone.
+func deletedWorkflowFileEnvelope(factID, scopeID, generationID, relativePath string) facts.Envelope {
+	repoID := "repository:test-workflow-image"
+	return facts.Envelope{
+		FactID:        factID,
+		ScopeID:       scopeID,
+		GenerationID:  generationID,
+		FactKind:      FactKindFileObserved,
+		CollectorKind: "git",
+		SourceRef:     facts.Ref{SourceSystem: "git"},
+		Payload: map[string]any{
+			"graph_id":      repoID + ":" + relativePath,
+			"graph_kind":    "file",
+			"repo_id":       repoID,
+			"relative_path": relativePath,
+			"is_dependency": false,
+		},
+		IsTombstone: true,
+	}
+}
+
 func cicdContainerArtifactEnvelope(factID, scopeID, generationID string) facts.Envelope {
 	return facts.Envelope{
 		FactID:           factID,

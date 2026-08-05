@@ -535,6 +535,12 @@ Primary groups:
   reducer applies current non-artifact facts by exact typed stable identity,
   removes valid tombstone controls before classification, and fails closed only
   when a tombstone has no stable identity.
+  For static workflow correlation, `ListActiveCICDWorkflowImageFacts` resolves
+  the CI runs' canonical repository owners through the indexed Git scope
+  `partition_key`, admits active default and explicit-ref scopes only, excludes
+  tombstones and inactive generations, and returns deterministic rows with a
+  12,000-fact cap-plus-sentinel failure. The reducer applies a second typed
+  owner fence before using those facts.
 - Governance audit store for validation-safe private event persistence,
   authorized bounded detailed reads, retention pruning, and aggregate-only
   status readback.
@@ -1549,6 +1555,14 @@ CI/CD and supply-chain impact; CI/CD completion targets supply-chain impact
 again, guaranteeing final convergence when the first supply-chain run raced
 ahead of CI/CD. Fanout never inserts work items, so retained generation history
 cannot multiply recursively.
+
+Git workflow-image generations enter that existing chain by triggering
+`container_image_identity` in the repository scope. A direct workflow-file
+deletion arrives as a generic `file` tombstone and triggers the same domain.
+When identity ACKs, completion fanout reopens the current CI correlation, whose
+owner-bounded loader now sees the active Git workflow snapshot (or its absence
+after deletion). This is source-activation convergence through the existing
+producer contract, not a second replay queue.
 
 Sharing the list is the point, not tidiness. Until #5846 the correlation reopen
 had exactly one caller, `bootstrap-index`, so these domains were never replayed

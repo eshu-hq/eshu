@@ -5,6 +5,31 @@ package collector
 
 import "testing"
 
+func TestSnapshotFreshnessHintFoldsWorkflowImageFileMetas(t *testing.T) {
+	t.Parallel()
+
+	base := RepositorySnapshot{FileCount: 1}
+	withWorkflow := base
+	withWorkflow.WorkflowImageFileMetas = []ContentFileMeta{{
+		RelativePath: ".github/workflows/deploy.yml",
+		Digest:       "sha256:workflow-v1",
+	}}
+	changedWorkflow := base
+	changedWorkflow.WorkflowImageFileMetas = []ContentFileMeta{{
+		RelativePath: ".github/workflows/deploy.yml",
+		Digest:       "sha256:workflow-v2",
+	}}
+
+	baseHint := snapshotFreshnessHint(base)
+	workflowHint := snapshotFreshnessHint(withWorkflow)
+	if workflowHint == baseHint {
+		t.Fatalf("workflow metadata did not change freshness hint %q", baseHint)
+	}
+	if changedHint := snapshotFreshnessHint(changedWorkflow); changedHint == workflowHint {
+		t.Fatalf("changed workflow digest did not change freshness hint %q", workflowHint)
+	}
+}
+
 // TestSnapshotFreshnessHintFoldsFunctionSummaries proves the freshness hint
 // changes when FunctionSummaries (carrying the new graph_uid payload) are
 // present, so upgrading to the graph_uid-emitting commit does not leave an

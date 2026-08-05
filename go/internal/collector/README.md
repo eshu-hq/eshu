@@ -155,10 +155,16 @@ until reducer-owned shared projection domains have their own file-scoped delta
 contract. Full snapshots emit the shell-exec follow-up alongside SQL and
 inheritance follow-ups so stale command-execution edges retract when command
 calls disappear. Source-local projection and content writes still run for the
-changed files in the generation. Delta parsing limits
-parse/materialization/fact emission to changed file targets, but keeps pre-scan
-over the full discovered parser file set plus explicit targets so imports and Go
-package semantic context match a full snapshot.
+changed files in the generation. One evidence family is deliberately complete:
+every delta also reads the current `.github/workflows/*.yml|yaml` files through
+a body-free workflow metadata lane so advancing the active generation cannot
+retire unchanged `ci.workflow_image_evidence`. This lane extracts only static
+image evidence; unchanged workflows do not enter the parser or create file and
+content rows. A changed workflow still follows the ordinary delta path and
+replaces its prior evidence. A deleted workflow is absent from the new
+generation. Pre-scan still covers the full discovered parser file set plus
+explicit targets so imports and Go package semantic context match a full
+snapshot.
 When the stream re-reads repo-hosted service-catalog descriptors
 (`catalog-info.yaml`, `opslevel.yml`, or `cortex.yaml`), it delegates to the
 `servicecatalog` normalizer and emits observed `service_catalog.*` facts under

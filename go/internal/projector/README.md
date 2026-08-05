@@ -268,12 +268,19 @@ node and `aws_resource_materialization:<scope>` for the EBS/KMS facts. The
 projector does not join block devices to volumes or KMS keys and does not set
 EC2 graph properties.
 Container-image identity follows the same handoff rule: when a generation
-contains OCI digest/tag/referrer facts, AWS, Azure, or GCP image-reference facts, AWS
-container-image relationships, or Git content-entity image references,
+contains OCI digest/tag/referrer facts, AWS, Azure, or GCP image-reference facts,
+AWS container-image relationships, Git content-entity image references, or
+static `ci.workflow_image_evidence`,
 `buildContainerImageIdentityReducerIntent` emits one
 `container_image_identity` reducer intent for that scope/generation. The
 projector still does not join images to workloads or runtime evidence; the
 reducer owns digest-first admission after source-local projection succeeds.
+Workflow evidence uses this existing identity intent because it lives in the
+Git repository scope. The durable identity-completion chain then reopens CI/CD
+run correlation after the workflow generation becomes active. The Git
+collector represents a deleted workflow as a generic `file` tombstone. The
+projector recognizes that tombstone only under `.github/workflows/*.yml|yaml`
+and schedules the same identity refresh so the prior image input can retract.
 CI/CD run correlation also uses a reducer-owned handoff. A generation with a
 `ci.run` or `ci.artifact` fact emits one `ci_cd_run_correlation` intent. A run
 starts a normal full snapshot. An artifact without a run starts a bounded patch:

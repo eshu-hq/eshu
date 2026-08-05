@@ -84,6 +84,10 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	deltaChangedRelativePaths := relativePathsForSnapshotTargets(repoPath, repository.FileTargets)
 	deltaDeletedRelativePaths := normalizeSnapshotRelativePaths(repository.DeletedRelativePaths)
 	deltaRelativePaths := sortUniquePathStrings(append(deltaChangedRelativePaths, deltaDeletedRelativePaths...))
+	var workflowImageFileMetas []ContentFileMeta
+	if repository.Delta {
+		workflowImageFileMetas = currentWorkflowImageFileMetas(repoPath, fileSet.Files, fullFileSet.Files)
+	}
 	var tfstateCandidates []TerraformStateCandidate
 	fileSet.Files, tfstateCandidates = extractTerraformStateCandidates(repoPath, fileSet.Files)
 	// .gitmodules is diverted the same way tfstate candidates are: removed
@@ -142,6 +146,10 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		commitSHA = gitCommitSHAFn(ctx, repoPath)
 	}
 	snapshot.HeadCommitSHA = commitSHA
+	for i := range workflowImageFileMetas {
+		workflowImageFileMetas[i].CommitSHA = commitSHA
+	}
+	snapshot.WorkflowImageFileMetas = workflowImageFileMetas
 	// Built here (before the zero-remaining-files early return) so a
 	// repository whose only discovered file is .gitmodules or a CODEOWNERS
 	// candidate still carries it, mirroring how TerraformStateCandidates
