@@ -86,7 +86,7 @@ and `eshu-diagnostic-rigor`.
   attempts to also prove each literal GOVERNED its own scan (flag arity,
   invocation arity, comment stripping) were tried and discarded here rather
   than shipped: across three review rounds (#5925) that direction accumulated
-  eighteen ways to defeat it, and round 3's findings were rounds 1 and 2's
+  repeated ways to defeat it, and round 3's findings were rounds 1 and 2's
   re-expressed in different bash syntax — proof the "parse bash correctly" bar
   was itself the unsound part of the design, not any one fix.
   The first redesign pass removed the parsing problem by making
@@ -174,8 +174,17 @@ and `eshu-diagnostic-rigor`.
   containing a glob metacharacter (`*`, `?`, `[`, `]`, `{`, `}`) — trivy's
   `--skip-dirs` wants a literal repo-relative path per entry, not a pattern
   — and no entry that NORMALIZES (`filepath.Clean`, the way trivy's own
-  `CleanSkipPaths` does, then a trimmed leading `/`) to `.` or `""` — a
-  catch-all that would disable the scan's coverage entirely — or to `..`,
+  `CleanSkipPaths` does, then a trimmed leading `/`) to `.` — the catch-all
+  that would disable the scan's coverage entirely — or to `""`, which is
+  rejected for a DIFFERENT reason its own error message states: proven
+  against real trivy 0.72.0 on a fixture with 2 planted secrets, an entry
+  normalizing to `""` (e.g. `/`, `//`, or `/.`) left both secrets findable,
+  unlike `.` which found zero. Read against trivy's own source
+  (`pkg/fanal/utils/utils.go`), `CleanSkipPaths` does not drop an
+  empty-after-clean entry; `SkipPath`'s `doublestar.Match` against an empty
+  pattern simply never matches a real repo-relative path, so the entry
+  disables nothing — it is dead weight, the opposite of a catch-all
+  (#5925/#5927 round-7 review F1) — or to `..`,
   which is rejected for a narrower, DIFFERENT reason its own error message
   states: proven against real trivy 0.72.0, `--skip-dirs '..'` does not
   disable coverage the way `.` does (both planted secrets in the proof

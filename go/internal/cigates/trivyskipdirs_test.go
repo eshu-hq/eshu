@@ -6,6 +6,7 @@ package cigates_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/cigates"
@@ -253,13 +254,20 @@ func TestTrivySkipDirsParity_SpecsFileCRLFLineEndingsAccepted(t *testing.T) {
 
 // TestTrivySkipDirsParity_SpecsFileCatchAllEntryFailsLoudly pins #5925 F6: an
 // entry that would disable the whole-tree secret scanner entirely -- ".",
-// "*", "/", or any absolute path -- is rejected with a clear message. It also
+// "*", or any absolute path -- is rejected with a clear message. It also
 // pins #5925 (single-source review) F1: a comma inside an entry is rejected
 // too, because ',' is the delimiter the shared derivation's `paste -sd, -`
 // joins entries with -- an entry like "examples,." would otherwise smuggle a
 // catch-all past every per-entry check (each individual entry is neither ".",
 // "*", nor absolute) while the comma-joined value trivy actually receives
 // contains a bare "." skip-dir.
+//
+// "/" (and any other entry that normalizes to the empty string, e.g. "//" or
+// "/.") is a DIFFERENT case, pinned separately below: proven against real
+// trivy 0.72.0 on a fixture with 2 planted secrets, --skip-dirs "" left both
+// findable, unlike --skip-dirs '.' which found zero (#5927 round-7 review
+// F1). It is rejected because it is dead weight, not because it disables the
+// scan -- do not assert "catch-all" against its message.
 //
 // Round-2 review (P1-1) proved the original entry-specific literal check --
 // reject only ".", "*", or a leading "/" as the WHOLE entry -- defeated
@@ -300,7 +308,6 @@ func TestTrivySkipDirsParity_SpecsFileCatchAllEntryFailsLoudly(t *testing.T) {
 		{"./", "catch-all"},
 		{".//", "catch-all"},
 		{"./.", "catch-all"},
-		{"/", "catch-all"},
 		{"/etc", "absolute path"},
 		{"*", "glob metacharacter"},
 		{"**", "glob metacharacter"},
@@ -326,6 +333,45 @@ func TestTrivySkipDirsParity_SpecsFileCatchAllEntryFailsLoudly(t *testing.T) {
 			}
 			if !containsAll(got, c.want) {
 				t.Errorf("error should mention %q, got: %s", c.want, got)
+			}
+		})
+	}
+}
+
+// TestTrivySkipDirsParity_SpecsFileEmptyNormalizingEntryFailsLoudly pins
+// #5925/#5927 round-7 review F1: an entry that normalizes to the empty
+// string -- "/", "//", or "/." -- is rejected too, but NOT for the
+// catch-all reason. Proven against real trivy 0.72.0 on a fixture with 2
+// planted secrets: --skip-dirs '.' found 0 (genuinely disables the scan),
+// while --skip-dirs "" (and '/', '//', '/.') found 2 -- both secrets stayed
+// findable. Read against trivy's own source (pkg/fanal/utils/utils.go),
+// CleanSkipPaths does not drop an empty-after-clean entry; SkipPath's
+// doublestar.Match against an empty pattern simply never matches a real
+// repo-relative path, so the entry disables nothing. It is rejected because
+// it is dead weight, not because it is a catch-all -- the negative
+// assertion below fails if a future edit reverts to the old, false
+// "catch-all" wording for this case.
+func TestTrivySkipDirsParity_SpecsFileEmptyNormalizingEntryFailsLoudly(t *testing.T) {
+	t.Parallel()
+
+	for _, entry := range []string{"/", "//", "/."} {
+		entry := entry
+		t.Run(entry, func(t *testing.T) {
+			t.Parallel()
+
+			root := buildDriftRepo(t, minimalPreCommit("my-gate"), nil)
+			writeTrivyArtifacts(t, root, "tests/fixtures\n"+entry+"\n",
+				validHelperScriptBody(), validLocalScriptBody(), validWorkflowBody())
+
+			got := driftFor(root)
+			if got == "" {
+				t.Fatalf("expected an error when the specs file lists entry %q", entry)
+			}
+			if !containsAll(got, "dead weight") {
+				t.Errorf("error should mention %q, got: %s", "dead weight", got)
+			}
+			if strings.Contains(got, "catch-all") {
+				t.Errorf("error must NOT claim %q is a catch-all -- it does not disable the scan, got: %s", entry, got)
 			}
 		})
 	}

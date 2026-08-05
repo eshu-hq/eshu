@@ -112,12 +112,37 @@ func trivySkipDirsSpecEntries(specsPath string) ([]string, error) {
 		// review P1-1, proven against real trivy 0.72.0: with any of those
 		// four as --skip-dirs, a fixture tree with 2 planted secrets found 0).
 		norm := strings.TrimLeft(filepath.ToSlash(filepath.Clean(trimmed)), "/")
-		if norm == "." || norm == "" {
+		if norm == "." {
 			return nil, fmt.Errorf(
 				"trivy skip-dirs parity: %s lists %q -- normalizes to %q, a catch-all entry that would "+
 					"disable the repo's only whole-tree secret scanner; use a specific repo-relative "+
 					"directory",
 				trivySkipDirsSpecPath, trimmed, norm,
+			)
+		}
+		// A slash-only or otherwise all-slash entry (e.g. "/", "//", "/.")
+		// normalizes to the empty string here, NOT to ".". That is a
+		// DIFFERENT failure mode than the catch-all above and the message
+		// says so rather than reusing it: proven against real trivy 0.72.0
+		// on the same 2-planted-secret fixture, --skip-dirs '' (and '/',
+		// '//', '/.') left both secrets findable, unlike --skip-dirs '.'
+		// which found zero. Read against trivy's own source
+		// (pkg/fanal/utils/utils.go): CleanSkipPaths does NOT drop an
+		// empty-after-clean entry, it keeps it in the list unchanged; the
+		// no-op comes one step later, in SkipPath, which matches each
+		// remaining pattern against the walked path with
+		// doublestar.Match(pattern, path) -- an empty pattern only matches
+		// an empty path string, and no real repo-relative file path
+		// normalizes to empty, so the entry can never match anything trivy
+		// walks. This entry protects nothing -- it is dead weight, the
+		// opposite of a catch-all, and is rejected for that reason
+		// (#5925/#5927 round-7 review F1).
+		if norm == "" {
+			return nil, fmt.Errorf(
+				"trivy skip-dirs parity: %s lists %q -- normalizes to the empty string, which trivy's "+
+					"path matcher can never match against a real repo-relative file path; this entry "+
+					"skips nothing, it is dead weight -- use a specific repo-relative directory",
+				trivySkipDirsSpecPath, trimmed,
 			)
 		}
 		// ".." -- and any deeper escape sharing its "../" prefix, e.g.

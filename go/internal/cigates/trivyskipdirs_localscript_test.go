@@ -194,6 +194,34 @@ func TestTrivySkipDirsParity_LocalScriptMissingPipefailFailsLoudly(t *testing.T)
 	}
 }
 
+// TestTrivySkipDirsParity_LocalScriptSetPlusOPipefailFailsLoudly pins
+// #5925/#5927 round-7 review F2: `set +o pipefail` DISABLES pipefail (`+o`
+// turns an option off in bash, `-o` turns it on), but trivyPipefailRE only
+// checked for the word "set" followed eventually by the word "pipefail" --
+// it never distinguished `+o` from `-o`, so a script that explicitly turns
+// pipefail OFF read as having set it. Same fail-open class as the round-3
+// (trailing-comment) and round-6 (command-separator) holes this file
+// already closed; this one was neither closed nor documented.
+func TestTrivySkipDirsParity_LocalScriptSetPlusOPipefailFailsLoudly(t *testing.T) {
+	t.Parallel()
+
+	root := buildDriftRepo(t, minimalPreCommit("my-gate"), nil)
+	body := "#!/usr/bin/env bash\n" +
+		"set +o pipefail\n" +
+		"source scripts/lib/trivy-skip-dirs.sh\n" +
+		"skip_dirs=\"$(trivy_skip_dirs_csv .)\"\n" +
+		"exec trivy fs --skip-dirs \"${skip_dirs}\" .\n"
+	writeTrivyArtifacts(t, root, validSpecsBody, validHelperScriptBody(), body, validWorkflowBody())
+
+	got := driftFor(root)
+	if got == "" {
+		t.Fatal("expected an error when the local script explicitly disables pipefail with `set +o pipefail`")
+	}
+	if !containsAll(got, "pipefail") {
+		t.Errorf("error should say the script does not set pipefail, got: %s", got)
+	}
+}
+
 // TestTrivySkipDirsParity_LocalScriptPipefailOnlyInTrailingCommentFailsLoudly
 // pins round-3 review P2-2: trivyPipefailRE used to have no right boundary
 // excluding '#', so `[^\n]*` could cross into a trailing comment on the SAME

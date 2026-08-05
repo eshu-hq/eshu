@@ -15,9 +15,12 @@
 # own comment line above the entry instead, since there is NO trailing- or
 # mid-entry-comment support; no comma (the shared derivation joins entries
 # with ','); no glob metacharacter ('*', '?', '[', ']', '{', '}' -- a
-# literal path is required, not a pattern); it must not normalize to a
-# catch-all ('.' or '' -- it would disable the scan's coverage entirely) or
-# a path escaping the repository root ('..', or anything starting '../');
+# literal path is required, not a pattern); it must not normalize to the
+# catch-all '.' (it would disable the scan's coverage entirely) or to '' (a
+# slash-only entry such as '/' -- trivy's path matcher can never match an
+# empty pattern against a real repo-relative file, so this skips nothing and
+# is dead weight, not a catch-all) or a path escaping the repository root
+# ('..', or anything starting '../');
 # and it must not itself be an absolute path (a leading '/'). No entry may
 # repeat. go/internal/cigates (checkTrivySkipDirsParity) rejects the whole
 # file at drift-check time if any of the above is violated.

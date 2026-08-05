@@ -119,7 +119,23 @@ var trivySkipDirsCsvCallRE = regexp.MustCompile(`\btrivy_skip_dirs_csv\b`)
 // characters appearing inside a quoted string between `set` and `pipefail`
 // would still stop the match early, the same fail-closed shape as the rest
 // of this file.
-var trivyPipefailRE = regexp.MustCompile(`(?m)^[ \t]*set\b[^\n#;&|]*\bpipefail\b`)
+//
+// The word "pipefail" must be the argument to a `-`-prefixed flag cluster
+// containing `o` (`-o`, `-eo`, `-euo`, ...), not merely present anywhere on
+// the line -- #5925/#5927 round-7 review F2. `set +o pipefail` DISABLES
+// pipefail (bash's `+o` turns an option OFF, `-o` turns it ON), but the
+// pattern used to require only the bare word "pipefail" somewhere after
+// "set", with no check on the sign of the flag introducing it, so `set +o
+// pipefail` read as establishing pipefail when it does the opposite -- the
+// same fail-open class as the round-3 and round-6 holes documented above,
+// left neither closed nor documented until now. Requiring a literal `-`
+// immediately before the `o`-containing flag cluster that directly precedes
+// "pipefail" closes it: `set -euo pipefail`, `set -o pipefail`, and
+// `set -eo pipefail` still match (the flag cluster starts with `-`), while
+// `set +o pipefail` does not (the cluster starts with `+`, so the pattern's
+// literal `-` cannot align, and no other `-`-prefixed `o` cluster precedes
+// "pipefail" on the line).
+var trivyPipefailRE = regexp.MustCompile(`(?m)^[ \t]*set\b[^\n#;&|]*[ \t]-[a-zA-Z]*o[a-zA-Z]*[ \t]+pipefail\b`)
 
 // checkTrivySkipDirsParity validates that scripts/lib/trivy-skip-dirs.sh,
 // scripts/dev/trivy-fs-local.sh, and .github/workflows/security-scan.yml's
@@ -135,7 +151,7 @@ var trivyPipefailRE = regexp.MustCompile(`(?m)^[ \t]*set\b[^\n#;&|]*\bpipefail\b
 // Successive attempts to also prove each literal GOVERNED its own scan --
 // flag arity, invocation arity, comment stripping -- were tried and
 // discarded here rather than shipped; across three review rounds (#5925) that
-// direction accumulated eighteen ways to defeat it, and round 3's findings
+// direction accumulated repeated ways to defeat it, and round 3's findings
 // were rounds 1 and 2's re-expressed in different bash syntax. That is the
 // proof the "parse bash correctly" bar was itself the unsound part, not any
 // one fix.
@@ -201,8 +217,14 @@ var trivyPipefailRE = regexp.MustCompile(`(?m)^[ \t]*set\b[^\n#;&|]*\bpipefail\b
 //     containing a glob metacharacter ('*', '?', '[', ']', '{', '}' -- a
 //     literal repo-relative path is required, not a pattern), no entry that
 //     NORMALIZES (filepath.Clean, the way trivy's own CleanSkipPaths does) to
-//     a catch-all ("." or "") that would disable the scan's coverage
-//     entirely, no entry that normalizes to ".." or a path escaping the
+//     the catch-all "." that would disable the scan's coverage entirely, no
+//     entry that normalizes to the empty string -- rejected for a
+//     DIFFERENT reason its own error message states: proven against real
+//     trivy 0.72.0 and trivy's own source, an empty-normalizing entry (e.g.
+//     "/") is not dropped by CleanSkipPaths, but SkipPath's
+//     doublestar.Match against an empty pattern never matches any real
+//     repo-relative path, so it disables nothing and is dead weight, not a
+//     catch-all -- no entry that normalizes to ".." or a path escaping the
 //     repository root via a leading "../" -- rejected for a narrower,
 //     DIFFERENT reason its own error message states: proven against real
 //     trivy 0.72.0, ".." alone does not disable coverage the way "." does,
