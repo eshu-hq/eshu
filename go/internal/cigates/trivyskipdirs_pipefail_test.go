@@ -18,14 +18,23 @@ import "testing"
 // `-[a-zA-Z]*o[a-zA-Z]*[ \t]+pipefail\b` tail -- is strong enough on its own
 // to survive removal of each OTHER guard this file's doc comment documents,
 // with nothing in this matrix or trivyskipdirs_localscript_test.go noticing.
-// The two cases tagged "round-8 mutation kill" close the same gap for the
-// remaining two untested guards round-8 review found: the '\n' stop in the
-// negated class, and the mandatory whitespace immediately before the
-// '-'-prefixed flag cluster. Every one of these nine cases is a regex mutant
-// proven to flip trivyPipefailRE from reject to accept when the named
-// element is removed from trivyskipdirs.go's `trivyPipefailRE`; each has a
-// true sibling already in this matrix (named in its own comment) proving the
-// same mutation does not touch the legitimate forms.
+// The two cases tagged "round-8 mutation kill" close the same gap for two
+// more untested guards round-8 review found: the '\n' stop in the negated
+// class, and the mandatory whitespace immediately before the '-'-prefixed
+// flag cluster. The four cases tagged "round-9 mutation kill" close it for
+// the remaining four: dropping '&' or '|' from the negated class each let an
+// `-o`-shaped cluster in an unrelated command sharing the same `set`-prefixed
+// line reach "pipefail" (fail-open, the same direction as the round-7/8
+// cases above); dropping the second `[a-zA-Z]*` or the whole negated-class
+// run each reject a legitimate invocation instead (fail-closed, the opposite
+// direction -- `set -oe pipefail` and `set -e -o pipefail` both genuinely set
+// pipefail). Every one of these thirteen cases is a regex mutant proven,
+// this session for the round-9 four and in the review round that added them
+// for the rest, to flip trivyPipefailRE's verdict on its own named input when
+// the named element is removed from trivyskipdirs.go's `trivyPipefailRE`;
+// each has a true sibling already in this matrix (named in its own comment,
+// or already present as its own row) proving the same mutation does not
+// touch the legitimate forms it must still accept.
 //
 // package cigates (not cigates_test) so this test can reference the
 // unexported trivyPipefailRE directly, the same internal-test-package
@@ -130,6 +139,41 @@ func TestTrivyPipefailRE_AcceptanceMatrix(t *testing.T) {
 		{"no_space_before_flag_cluster", "set -e --foo-o pipefail", false},
 		// True sibling: "o_only" above already proves a flag cluster that IS
 		// its own whitespace-separated word still matches.
+
+		// round-9 mutation kill: dropping '&' from the negated class lets an
+		// `-o`-shaped cluster inside an unrelated command joined by '&&' on
+		// the same `set`-prefixed line reach "pipefail". Must NOT match --
+		// proven against real bash: `set -e && echo -o pipefail` leaves
+		// pipefail off (`set -o | grep pipefail` reports "off").
+		{"ampersand_before_flag_cluster", "set -e && echo -o pipefail", false},
+		// True sibling: "trailing_command" above already proves a real
+		// invocation followed by an unrelated command on the same line still
+		// matches.
+
+		// round-9 mutation kill: dropping '|' from the negated class lets an
+		// `-o`-shaped cluster inside an unrelated command joined by '|' on
+		// the same `set`-prefixed line reach "pipefail". Must NOT match --
+		// proven against real bash: `set -e | grep -o pipefail` leaves
+		// pipefail off.
+		{"pipe_before_flag_cluster", "set -e | grep -o pipefail", false},
+		// True sibling: "trailing_command" above already proves a real
+		// invocation followed by an unrelated command on the same line still
+		// matches.
+
+		// round-9 mutation kill: dropping the second '[a-zA-Z]*' lets a flag
+		// cluster with a letter AFTER the 'o' (e.g. "-oe") fail to match.
+		// Must match -- proven against real bash: `set -oe pipefail` sets
+		// pipefail (`set -o | grep pipefail` reports "on"), and no true case
+		// above puts a letter after the 'o'.
+		{"o_then_letters", "set -oe pipefail", true},
+
+		// round-9 mutation kill: dropping the whole negated-class run
+		// '[^\n#;&|]*' leaves nothing between "set" and the '-'-prefixed flag
+		// cluster, so a second, separate flag cluster preceding the one
+		// bearing 'o' fails to match. Must match -- proven against real bash:
+		// `set -e -o pipefail` sets pipefail, and no true case above has two
+		// separate flag clusters.
+		{"two_flag_clusters", "set -e -o pipefail", true},
 	}
 	for _, c := range cases {
 		c := c
