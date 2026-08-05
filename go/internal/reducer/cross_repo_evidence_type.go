@@ -113,6 +113,16 @@ var evidenceKindToSourceTool = map[relationships.EvidenceKind]string{
 	relationships.EvidenceKindGCPCloudRelationship:                 "gcp",
 }
 
+// sourceToolExactFallback classifies non-EvidenceKind provenance tokens that
+// the golden corpus uses to narrow Tier-1 edges. Package publication and
+// ownership decisions do not carry a truthful package-ecosystem discriminator,
+// so their explicit source_tool contract is unknown rather than an inferred
+// gomod/npm/pip/maven/cargo token.
+var sourceToolExactFallback = map[string]string{
+	"PACKAGE_OWNERSHIP_CORRELATION":   sourceToolUnknown,
+	"PACKAGE_PUBLICATION_CORRELATION": sourceToolUnknown,
+}
+
 // sourceToolPrefixFallback classifies generated/runtime EvidenceKinds that are
 // not named constants by their family prefix. The Terraform schema extractor
 // synthesizes per-resource kinds at runtime (terraform_schema.go:
@@ -172,6 +182,9 @@ func sourceToolForEvidenceKind(kind string) string {
 		return mapped
 	}
 	upper := strings.ToUpper(trimmed)
+	if mapped, ok := sourceToolExactFallback[upper]; ok {
+		return mapped
+	}
 	for _, fam := range sourceToolPrefixFallback {
 		if strings.HasPrefix(upper, fam.prefix) {
 			return fam.tool

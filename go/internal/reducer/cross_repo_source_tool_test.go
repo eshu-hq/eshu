@@ -25,6 +25,11 @@ func TestSourceToolValuesAreCanonical(t *testing.T) {
 			t.Errorf("evidenceKindToSourceTool[%q] = %q is not in sourcetool.Canonical", kind, tool)
 		}
 	}
+	for kind, tool := range sourceToolExactFallback {
+		if !sourcetool.IsValid(tool) {
+			t.Errorf("sourceToolExactFallback[%q] = %q is not in sourcetool.Canonical", kind, tool)
+		}
+	}
 	for _, fam := range sourceToolPrefixFallback {
 		if !sourcetool.IsValid(fam.tool) {
 			t.Errorf("sourceToolPrefixFallback %q -> %q is not in sourcetool.Canonical", fam.prefix, fam.tool)
@@ -62,6 +67,8 @@ func TestSourceToolForEvidenceKind(t *testing.T) {
 		{relationships.EvidenceKindPuppetModuleReference, "puppet"},
 		{relationships.EvidenceKindChefCookbookDependency, "chef"},
 		{relationships.EvidenceKindGCPCloudRelationship, "gcp"},
+		{relationships.EvidenceKind("PACKAGE_PUBLICATION_CORRELATION"), "unknown"},
+		{relationships.EvidenceKind("PACKAGE_OWNERSHIP_CORRELATION"), "unknown"},
 	}
 	for _, tc := range cases {
 		if got := sourceToolForEvidenceKind(string(tc.kind)); got != tc.want {

@@ -23,6 +23,13 @@ statement still matched the first relationship. Neo4j's relationship `MERGE`
 contract includes the pattern properties in the match, so the backend behavior
 was a compatibility defect.
 
+Root-Cause Evidence: the live legacy-row reproduction began with one
+endpoint-only relationship, then collapsed two owner-scoped assertions until
+the backend matched `MERGE` pattern properties. The first full-corpus drain also
+left one migration-flagged item recycling once per second after batch ACK; the
+retained backlog drained after both production batch ACK paths atomically
+cleared the flag.
+
 ## Backend prerequisite
 
 The correction is orneryd/NornicDB#290 at exact source revision
@@ -137,6 +144,12 @@ flagged claim/retry transitions out of PL/pgSQL. The final median was 27.299 ms
 without the triggers and 29.051 ms with them: 1.753 ms per batch, or 3.505
 microseconds per item.
 
+Performance Evidence: on live Postgres using migration 096 and the same
+500-item affected-domain enqueue, claim, and ACK input, the seven-sample median
+was 27.299 ms before and 29.051 ms after, a bounded 3.505 microseconds per item.
+The exact NornicDB #290 source build completed the 20-repository B-7 run in 118
+seconds with zero residual queue items, required failures, or advisory warnings.
+
 ```text
 go test ./internal/storage/postgres \
   -run 'TestProvenanceEdgeIdentityUpgrade(SeedsCurrentReplayOnce|TriggerNoRegression)Live' \
@@ -203,6 +216,12 @@ bounded gauges `eshu_runtime_provenance_edge_identity_upgrade_applied` and
 service name. A nonzero required count after an old reducer reports successful
 ACKs attributes the drain loop to migration 096 rather than graph latency or
 ordinary retry pressure.
+
+Observability Evidence: the live status proof reported the migration as applied
+with seven replay-required items before terminal transitions and one deliberately
+retained item afterward. Operators can observe those same bounded counts in
+JSON, text status, and the two service-labeled gauges without per-item or
+high-cardinality identifiers.
 
 Existing provenance-edge counters still measure submitted materialization
 rows; issue #5828 separately corrects those counters to distinguish attempted
