@@ -38,6 +38,25 @@
   openers (`pending` in `ScanContent`) and processes them in order right
   after the current one closes — bash reads their bodies back to back
   immediately after the command line (`TestScanContent_TwoOpenersOnOneLineBothMeasured`).
+  A dequeued opener (the `pending[0], pending[1:]` -> `current` promotion in
+  `scanner.go`) keeps its OWN `quoted` and `tabStrip` state (`opener` fields
+  in `scanner_lexer.go`) and its OWN `bodySize`, reset to `0` on every
+  dequeue — it must never inherit the just-closed opener's state. A leaked
+  `quoted` flag either hides a real unquoted-margin violation
+  (quoted-leaks-onto-bare) or wrongly tightens a heredoc bash never expands
+  (bare-leaks-onto-quoted); a leaked `tabStrip` misapplies `<<-` dash-stripping
+  to the wrong opener's closing line; a leaked (non-reset) `bodySize` folds
+  the previous opener's byte count into the next one's measurement. Guarded
+  by `TestScanContent_PerOpenerQuotedSurvivesQueue`. A leaked `quoted` reds all
+  three of its subtests; the other invariants each have a mutation that no other
+  test in this package catches: dropping the `bodySize = 0` reset on dequeue
+  is caught only by its `quoted_then_bare` subtest; a `tabStrip` leak
+  (`nextOpener.tabStrip = current.tabStrip`) is caught only by
+  `bare_then_dash_quoted` — the `<<-'B'` form there is chosen specifically
+  because it is the only construct in the package that can observe a
+  `tabStrip` leak through the queue, not merely "the dash form too"; and LIFO
+  dequeue order, or capping openers at two, is caught only by
+  `three_openers_alternating`.
 - **`findAllOpeners` tracks quote/substitution context as a STACK, persisted
   ACROSS LINES.** It is not a per-line quote toggle. The stack (`frameSingle`
   /`frameDouble`/`frameAnsiC`/`frameSubst`/`frameArith` in `scanner_lexer.go`)
@@ -63,7 +82,8 @@
   regression tests guard (`TestScanContent_HeredocMarkerInsideStringLiteralNotPhantomOpened`,
   `TestScanContent_AnsiCQuoteEscapedApostropheNotMisreadAsClose`,
   `TestScanContent_CommandSubstitutionInsideDoubleQuoteRecognizesHeredoc`,
-  `TestScanContent_DoubleQuoteSpanningMultipleLinesTracksAcrossLines`, in
+  `TestScanContent_DoubleQuoteSpanningMultipleLinesTracksAcrossLines`,
+  `TestScanContent_QuoteCharacterInsideOtherQuoteTypeStaysInert`, in
   `scanner_test.go`/`scanner_quoting_test.go`). The full-line `#`-comment
   shortcut in `ScanContent` is gated on `inQuoteFrame` for the same reason: a
   "#"-looking line that is really the tail of a still-open multi-line string

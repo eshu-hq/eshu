@@ -27,6 +27,14 @@ import (
 //
 // Verified against real bash: `echo $'a\'b <<X inside ansi-c string'` opens
 // no heredoc at all; the following `cat <<EOF ... EOF` is the only heredoc.
+//
+// The `<<X` fragment inside the `$'...'` string is deliberate and kept by
+// intent, though the proof does not depend on it: strip the fragment and the
+// escape-awareness mutations still red this test, because the trailing `'`
+// alone opens a persistent single-quote frame that swallows the real
+// `cat <<EOF`. It is kept because it is the package's only in-fixture record
+// of #5079's ANSI-C string-literal sub-case, and it should not be simplified
+// out of the fixture.
 func TestScanContent_AnsiCQuoteEscapedApostropheNotMisreadAsClose(t *testing.T) {
 	body := strings.Repeat("z", 600) + "\n" // over budget
 	src := `echo $'a\'b <<X inside ansi-c string'` + "\ncat <<EOF\n" + body + "EOF\n"
@@ -349,6 +357,58 @@ func TestScanContent_HashNotStartingWordStaysLiteral(t *testing.T) {
 
 			if len(heredocs) != 1 {
 				t.Fatalf("expected the real EOF heredoc to be detected despite the non-comment '#', got %d: %+v", len(heredocs), heredocs)
+			}
+			if heredocs[0].Size <= defaultBudget {
+				t.Fatalf("expected over-budget body, got %d", heredocs[0].Size)
+			}
+		})
+	}
+}
+
+// TestScanContent_QuoteCharacterInsideOtherQuoteTypeStaysInert guards #5079's
+// "quote inside the other quote type" case explicitly: a `"` byte appearing
+// inside a `'...'` string, and a `'` byte appearing inside a `"..."` string,
+// must both be inert (real bash never treats the "wrong" quote character as
+// special once already inside a string of the other kind -- only the
+// matching quote closes it). findAllOpeners already gets this right BY
+// CONSTRUCTION: the frameSingle case's switch has no branch for `"`, and the
+// frameDouble case's switch has no branch for `'`, so an off-type quote byte
+// just falls through to the default `i++` in each case. This test locks that
+// in as a named regression guard rather than leaving it as an unstated
+// property of the code.
+//
+// Each case is a SINGLE line with the real heredoc opener chained after the
+// string via `&&`, so a lexer that wrongly nested the off-type quote (pushing
+// a second frame instead of treating it as literal) can be told apart from
+// correct behavior without spanning lines: the erroneous nested frame would
+// swallow the string's own real closing quote as inert content (since the
+// wrong frame is listening for the OTHER quote character), leaving the stack
+// corrupted for the rest of the line -- so the real `<<EOF` opener that
+// follows is never reached in the base/default lexer context that heredoc
+// detection requires, and 0 heredocs are found instead of 1. Reproduced
+// against real /bin/bash first: `echo 'abc "def' && cat <<EOF` and `echo
+// "abc 'def" && cat <<EOF` each print their literal string (embedded
+// off-type quote included) and then read the heredoc normally.
+func TestScanContent_QuoteCharacterInsideOtherQuoteTypeStaysInert(t *testing.T) {
+	tests := []struct {
+		name string
+		line string
+	}{
+		{"double_quote_inside_single_quoted_string", `echo 'abc "def' && cat <<EOF`},
+		{"single_quote_inside_double_quoted_string", `echo "abc 'def" && cat <<EOF`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := strings.Repeat("z", 600) + "\n" // over budget
+			src := tt.line + "\n" + body + "EOF\n"
+
+			heredocs := ScanContent(src)
+
+			if len(heredocs) != 1 {
+				t.Fatalf("expected the real EOF heredoc to be detected despite the off-type quote byte inside the string, got %d: %+v", len(heredocs), heredocs)
+			}
+			if heredocs[0].Line != 1 {
+				t.Fatalf("expected the opener on line 1 (chained after the string via &&), got line %d", heredocs[0].Line)
 			}
 			if heredocs[0].Size <= defaultBudget {
 				t.Fatalf("expected over-budget body, got %d", heredocs[0].Size)

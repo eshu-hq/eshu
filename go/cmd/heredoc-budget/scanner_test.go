@@ -317,6 +317,92 @@ func TestScanContent_TwoOpenersOnOneLineBothMeasured(t *testing.T) {
 	}
 }
 
+// TestScanContent_PerOpenerQuotedSurvivesQueue guards #5079's multi-opener
+// sub-case against a fail-open the existing TestScanContent_TwoOpenersOnOneLineBothMeasured
+// cannot see: it only exercises two BARE openers, so it cannot tell whether a
+// DEQUEUED opener (ScanContent's `pending` -> `current` promotion in
+// scanner.go) keeps ITS OWN quoted-ness or wrongly inherits the
+// already-closed opener's. A body whose delimiter was bare (`<<DELIM`) must
+// be measured against the stricter unquotedThreshold margin (#5085); a
+// dequeued opener that inherits the wrong quoted flag either hides a real
+// margin violation (quoted-leaks-onto-bare) or wrongly tightens a heredoc
+// that bash never expands (bare-leaks-onto-quoted). Each case below pairs
+// openers of different quotedness so a leak in either direction, and across
+// more than one dequeue in the three-opener case, flips an assertion.
+func TestScanContent_PerOpenerQuotedSurvivesQueue(t *testing.T) {
+	t.Run("quoted_then_bare_second_opener_measured_unquoted", func(t *testing.T) {
+		bodyA := strings.Repeat("a", 50) + "\n"
+		bodyB := strings.Repeat("s", 399) + "\n" // 400 bytes: in the 385-512 margin window
+		src := "cat <<'A' <<B\n" + bodyA + "A\n" + bodyB + "B\n"
+
+		got := ScanContent(src)
+
+		if len(got) != 2 {
+			t.Fatalf("expected 2 heredocs, got %d: %+v", len(got), got)
+		}
+		if got[0].Unquoted {
+			t.Fatalf("opener A (<<'A'>) is quoted, must not be marked Unquoted, got %+v", got[0])
+		}
+		if !got[1].Unquoted {
+			t.Fatalf("opener B (bare <<B, dequeued after quoted <<'A'>) must be marked Unquoted on its own merits, got %+v", got[1])
+		}
+		if got[1].Size != 400 {
+			t.Fatalf("expected opener B's body size 400, got %d", got[1].Size)
+		}
+		// 400 > unquotedThreshold(defaultBudget) (384) always holds given the
+		// size assertion above, so this next check adds no independent
+		// coverage. It is kept as documentation of the margin window itself
+		// -- calling the real production unquotedThreshold rather than
+		// re-implementing the 384 constant -- not to catch a regression the
+		// size check wouldn't already catch.
+		if got[1].Size <= unquotedThreshold(defaultBudget) {
+			t.Fatalf("expected opener B's body over the unquoted margin (%d), got %d", unquotedThreshold(defaultBudget), got[1].Size)
+		}
+	})
+
+	t.Run("bare_then_dash_quoted_second_opener_stays_quoted", func(t *testing.T) {
+		bodyA := strings.Repeat("a", 50) + "\n"
+		bodyB := strings.Repeat("b", 50) + "\n"
+		// <<-'B' both dash-strips leading tabs on close AND is quoted; the
+		// closing line's leading tab exercises the dash form too.
+		src := "cat <<A <<-'B'\n" + bodyA + "A\n" + bodyB + "\tB\n"
+
+		got := ScanContent(src)
+
+		if len(got) != 2 {
+			t.Fatalf("expected 2 heredocs, got %d: %+v", len(got), got)
+		}
+		if !got[0].Unquoted {
+			t.Fatalf("opener A (bare <<A) must be marked Unquoted, got %+v", got[0])
+		}
+		if got[1].Unquoted {
+			t.Fatalf("opener B (<<-'B'>, dequeued after bare <<A) must stay quoted, not inherit A's bare-ness, got %+v", got[1])
+		}
+	})
+
+	t.Run("three_openers_alternating_quoted_survive_two_dequeues", func(t *testing.T) {
+		bodyA := strings.Repeat("a", 30) + "\n"
+		bodyB := strings.Repeat("b", 30) + "\n"
+		bodyC := strings.Repeat("c", 30) + "\n"
+		src := "cat <<'A' <<B <<'C'\n" + bodyA + "A\n" + bodyB + "B\n" + bodyC + "C\n"
+
+		got := ScanContent(src)
+
+		if len(got) != 3 {
+			t.Fatalf("expected 3 heredocs, got %d: %+v", len(got), got)
+		}
+		wantUnquoted := []bool{false, true, false}
+		for i, h := range got {
+			if h.Line != 1 {
+				t.Fatalf("heredoc %d: expected opener line 1 (all three openers share the command line), got %d", i, h.Line)
+			}
+			if h.Unquoted != wantUnquoted[i] {
+				t.Fatalf("heredoc %d: expected Unquoted=%v, got %v (%+v)", i, wantUnquoted[i], h.Unquoted, h)
+			}
+		}
+	})
+}
+
 // --- tree walking tests --------------------------------------------------
 
 func mustWriteFile(t *testing.T, path, content string) {
