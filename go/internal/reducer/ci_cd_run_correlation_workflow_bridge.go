@@ -74,7 +74,8 @@ func (h CICDRunCorrelationHandler) loadActiveCICDRunCorrelationFacts(
 // filterCICDWorkflowImageFactsForRepositories is the reducer-side ownership
 // fence for the cross-scope storage seam. The Postgres query is owner-bounded
 // for performance, while this typed check keeps any alternative or faulty
-// adapter from attaching malformed or foreign workflow evidence to a run.
+// adapter from attaching foreign workflow evidence to a run. Decode failures
+// stay in the batch so the quarantine-aware core can classify them per fact.
 func filterCICDWorkflowImageFactsForRepositories(
 	loaded []facts.Envelope,
 	repositoryIDs []string,
@@ -89,16 +90,15 @@ func filterCICDWorkflowImageFactsForRepositories(
 		if envelope.FactKind != facts.CICDWorkflowImageEvidenceFactKind {
 			continue
 		}
-		evidence, err := decodeCICDWorkflowImageEvidence(envelope)
-		if err != nil {
-			continue
-		}
-		repositoryID := trimmedCICDField(evidence.RepositoryID)
-		if _, ok := requested[repositoryID]; !ok {
-			continue
-		}
 		if _, duplicate := seenFactIDs[envelope.FactID]; duplicate {
 			continue
+		}
+		evidence, err := decodeCICDWorkflowImageEvidence(envelope)
+		if err == nil {
+			repositoryID := trimmedCICDField(evidence.RepositoryID)
+			if _, ok := requested[repositoryID]; !ok {
+				continue
+			}
 		}
 		seenFactIDs[envelope.FactID] = struct{}{}
 		filtered = append(filtered, envelope)

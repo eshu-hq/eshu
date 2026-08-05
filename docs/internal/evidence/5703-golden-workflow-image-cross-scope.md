@@ -27,8 +27,9 @@ The Postgres bridge uses `ingestion_scopes.partition_key` as the repository
 owner boundary. It accepts active default and explicit-ref Git scopes, requires
 the scope and generation to be active, excludes tombstones, orders by
 `(observed_at, fact_id)`, and reads one row beyond a 12,000-fact safety cap so
-overflow fails closed. The reducer decodes the returned rows again and drops
-foreign owners, malformed payloads, wrong fact kinds, and duplicate fact IDs.
+overflow fails closed. The reducer decodes the returned rows again, drops
+foreign owners, wrong fact kinds, and duplicate fact IDs, and retains malformed
+rows for the existing typed quarantine or fatal-schema handling.
 
 Git delta generations carry a complete current workflow-evidence snapshot.
 Unchanged workflows use a body-free extraction-only lane, changed workflows use
@@ -125,6 +126,24 @@ ok github.com/eshu-hq/eshu/go/cmd/golden-corpus-gate
 go test ./cmd/golden-corpus-gate -run '^TestGoldenOCICassetteResolvesContainerCILineageWorkflowTag$' -count=1
 ok github.com/eshu-hq/eshu/go/cmd/golden-corpus-gate
 ```
+
+PR review found that the cross-scope ownership fence dropped a malformed
+workflow fact before the typed classifier could quarantine it. A regression
+fixture with `repository_id` absent reproduced the silent loss:
+
+```text
+go test ./internal/reducer \
+  -run '^TestCICDRunCorrelationHandlerBridgesGitWorkflowImagesByRunRepository$' \
+  -count=1
+
+input_invalid_facts = 0, want 1 because malformed bridge rows must reach quarantine
+exit_code=1
+```
+
+The fence now retains decode failures for the existing per-fact quarantine or
+fatal-schema path while continuing to reject successfully decoded foreign
+owners, wrong fact kinds, and duplicate fact IDs. The focused test, full
+reducer suite, and focused race run all pass after that change.
 
 ## Full B-7 result
 

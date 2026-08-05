@@ -339,9 +339,10 @@ values each counter carries.
   rebuilt CI run snapshot supplies the distinct typed `repository_id` values.
   Before deriving image references, the handler asks the fact store for active
   Git `ci.workflow_image_evidence` in the matching default and explicit-ref
-  scopes. The reducer decodes those rows again and rejects malformed payloads,
-  foreign owners, wrong fact kinds, and duplicate fact IDs. The storage read is
-  capped and fails closed rather than truncating evidence. Static workflow
+  scopes. The reducer decodes those rows again, rejects foreign owners, wrong
+  fact kinds, and duplicate fact IDs, and leaves malformed rows for the typed
+  quarantine-aware classifier. The storage read is capped and fails closed
+  rather than truncating evidence. Static workflow
   generations and direct workflow-file deletions trigger
   `container_image_identity`; its durable completion event reopens only current
   `ci_cd_run_correlation` work, so Git-before-CI and CI-before-Git activation

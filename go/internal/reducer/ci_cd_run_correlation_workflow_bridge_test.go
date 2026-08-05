@@ -53,6 +53,13 @@ func TestCICDRunCorrelationHandlerBridgesGitWorkflowImagesByRunRepository(t *tes
 	t.Parallel()
 
 	const imageRef = "registry.example.com/team/api:prod"
+	malformedWorkflow := commitScopedWorkflowImageFact(
+		"workflow-malformed",
+		"repository:api",
+		"commit-api",
+		"registry.example.com/malformed:latest",
+	)
+	delete(malformedWorkflow.Payload, "repository_id")
 	loader := &workflowBridgeCICDRunFactLoader{
 		scopeFacts: []facts.Envelope{
 			ciRunFact("run-api", "github_actions", "repository:api", "commit-api"),
@@ -63,7 +70,7 @@ func TestCICDRunCorrelationHandlerBridgesGitWorkflowImagesByRunRepository(t *tes
 		workflowFacts: []facts.Envelope{
 			commitScopedWorkflowImageFact("workflow-api", "repository:api", "commit-api", imageRef),
 			commitScopedWorkflowImageFact("workflow-foreign", "repository:foreign", "commit-api", "registry.example.com/foreign:latest"),
-			commitScopedWorkflowImageFact("workflow-malformed", "", "commit-api", "registry.example.com/malformed:latest"),
+			malformedWorkflow,
 		},
 		identityFact: containerImageIdentityFact("identity-api", "repository:api", imageRef, testCICDDigest),
 	}
@@ -97,8 +104,8 @@ func TestCICDRunCorrelationHandlerBridgesGitWorkflowImagesByRunRepository(t *tes
 			t.Fatalf("run-api EvidenceFactIDs = %#v, must defense-filter %q", decision.EvidenceFactIDs, factID)
 		}
 	}
-	if got := result.SubSignals["input_invalid_facts"]; got != 0 {
-		t.Fatalf("input_invalid_facts = %v, want 0 because malformed bridge rows are defense-filtered", got)
+	if got := result.SubSignals["input_invalid_facts"]; got != 1 {
+		t.Fatalf("input_invalid_facts = %v, want 1 because malformed bridge rows must reach quarantine", got)
 	}
 	if _, ok := result.SubDurations["workflow_image_bridge_load"]; !ok {
 		t.Fatalf("SubDurations = %#v, want workflow_image_bridge_load timing", result.SubDurations)
