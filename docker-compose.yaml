@@ -1,18 +1,19 @@
 services:
   nornicdb:
     # Temporary exact-source default for the same-UID UNIQUE commit-lock fix in
-    # orneryd/NornicDB#261. Keep this full commit pin until a released image
-    # containing the fix is pinned by digest and the Eshu performance/correctness
-    # proof is repeated on that artifact. The default build policy makes clean
-    # machines build this exact source. Controlled comparisons may set both
-    # NORNICDB_IMAGE and NORNICDB_PULL_POLICY explicitly.
-    image: ${NORNICDB_IMAGE:-eshu-nornicdb-pr261:149245885258}
+    # orneryd/NornicDB#261 and relationship MERGE property-identity fix in
+    # orneryd/NornicDB#290. Keep this full commit pin until a released image
+    # containing both fixes is pinned by digest and the Eshu
+    # performance/correctness proof is repeated on that artifact. The default
+    # build policy makes clean machines build this exact source. Controlled
+    # comparisons may set both NORNICDB_IMAGE and NORNICDB_PULL_POLICY explicitly.
+    image: ${NORNICDB_IMAGE:-eshu-nornicdb-pr290:5d2731ae1b33}
     pull_policy: ${NORNICDB_PULL_POLICY:-build}
     build:
-      context: https://github.com/orneryd/NornicDB.git#1492458852588c884c32f70d27ea2ee07086769c
+      context: "https://github.com/orneryd/NornicDB.git?ref=pull/290/head&checksum=5d2731ae1b3328708f74f12c21658786abac641a"
       dockerfile: docker/Dockerfile.cpu-bge
       labels:
-        org.opencontainers.image.revision: 1492458852588c884c32f70d27ea2ee07086769c
+        org.opencontainers.image.revision: 5d2731ae1b3328708f74f12c21658786abac641a
         org.opencontainers.image.source: https://github.com/orneryd/NornicDB
     platform: ${NORNICDB_PLATFORM:-}
     ports:

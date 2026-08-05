@@ -143,7 +143,7 @@ addition, never by free-form values.
 | `aws` | AWS cloud-resource writers / SDK-call analysis | Tier 1 |
 | `azure` | Azure cloud-resource writers | Tier 1 |
 | `kubernetes` | Kubernetes correlation / live workload writers | Tier 1 |
-| `oci` | `BUILT_FROM` edges from container-image-identity correlation (issue #5457), the sole writer of this edge type today -- a #5428 `reducer/ci-cd-run-correlation` writer that would have shared this token was implemented and then rescinded before shipping (`docs/internal/evidence/5428-built-from-projection-rescinded.md`); see that record for why a second BUILT_FROM writer needs issue #5827 fixed first | Tier 1 |
+| `oci` | `BUILT_FROM` edges from container-image-identity correlation (issue #5457). A #5428 `reducer/ci-cd-run-correlation` writer that would have shared this token was implemented and then rescinded before shipping (`docs/internal/evidence/5428-built-from-projection-rescinded.md`). Issue #5827 now isolates same-pair assertions by `scope_id` and `evidence_source`, so another truthful writer can coexist without edge collapse. | Tier 1 |
 | `unknown` | explicit fallback when no tool is provable | — |
 
 **`unknown` rule.** An edge whose tool cannot be proven from its evidence gets
@@ -227,8 +227,8 @@ each by tier; only Tier-1/Tier-2 carry a tool.
 | `RUNS_IN` | runtime (reducer workload binding) | `canonical_runs_in_edges.go:27` |
 | `RUNS_IMAGE` | `kubernetes` | `kubernetes_correlation_edge_writer.go:54` |
 | `CORRELATES_DEPLOYABLE_UNIT` | hybrid ² | `canonical_deployable_unit_edges.go:9` |
-| `PUBLISHES` | not stamped (no ecosystem-detection wired yet; issue #5457) | `storage/cypher/provenance_edge_writer.go` |
-| `BUILT_FROM` | `oci` (single-owner today -- container-image-identity is the only writer; see `oci` vocabulary entry) | `storage/cypher/provenance_edge_writer.go` |
+| `PUBLISHES` | `unknown` (explicit fallback until ecosystem evidence is wired; issues #5457 and #5827) | `storage/cypher/provenance_edge_writer.go` |
+| `BUILT_FROM` | `oci` (same-pair writer/scope assertions are isolated by #5827) | `storage/cypher/provenance_edge_writer.go` |
 
 The cloud/IAM/security-group/secrets reducer edges (`CAN_PERFORM`,
 `CAN_ASSUME`, `CAN_ESCALATE_TO`, `USES_PROFILE`, `HAS_ROLE`, `GRANTS_ACCESS_TO`,

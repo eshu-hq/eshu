@@ -90,7 +90,7 @@ follow-up):
 | Missing endpoint -> no-op, never fabricate | `TestProvenanceEdgeWriterWritePublishesPackageMatchMatchMerge` / `TestProvenanceEdgeWriterWriteBuiltFromMatchesByDigest` assert two MATCHes precede every MERGE and no endpoint label is ever MERGEd | green |
 | Retraction (retract-first per generation, idempotent re-run) | `TestProjectPackageProvenanceEdgesRetractsFirstThenWritesBothEvidenceSources`, `TestProjectPackageProvenanceEdgesRetractsEvenWhenNoRowsToWrite`, `TestProjectContainerImageBuiltFromEdgesRetractsFirstThenWrites`, `TestProjectContainerImageBuiltFromEdgesRetractsEvenWhenNoRowsToWrite` | green |
 | Retract dispatch never uses ExecuteGroup | `TestProvenanceEdgeWriterRetractPublishesUsesSequentialExecuteNeverGroup`, `TestProvenanceEdgeWriterRetractBuiltFromUsesSequentialExecuteNeverGroup` | green |
-| Concurrency/isolation (scope_id+evidence_source is the conflict domain) | `TestProvenanceEdgeWriterRetractPublishesUsesSequentialExecuteNeverGroup` asserts the retract predicate is scoped by both `scope_id` and `evidence_source`; ownership and publication use distinct evidence sources so their retracts never collide even within the same scope; BUILT_FROM's evidence_source (`reducer/container-image-identity`) never collides with the shared-edge-type `#5428` domain (`reducer/ci-cd-run-correlation`) | green (unit-level; no global lock introduced -- writes partition naturally by scope_id+evidence_source, never globally serialized) |
+| Concurrency/isolation (`scope_id+evidence_source` is the conflict domain) | #5827 live Bolt proof replays duplicate and eight-writer concurrent same-pair assertions, then retracts one source and reads the surviving source; unit tests also require both identity properties in every `MERGE` and retract predicate | green on exact NornicDB #290 source pin; no global lock or writer serialization introduced |
 
 ## Observability
 
@@ -115,59 +115,55 @@ commit `fb5e2d73c5`): the `package_registry.source_hint` fact for
 
 `testdata/golden/e2e-20repo-snapshot.json` now carries:
 
-- `edge_counts.PUBLISHES`: `{min: 1, max: 20}`. `github.com/acme/lib-common`'s
+- `edge_counts.PUBLISHES`: `{min: 2, max: 20}`. `github.com/acme/lib-common`'s
   single `source_hint` resolves (its `normalized_url`,
   `https://github.com/acme/lib-common`, matches the in-corpus `lib-common`
   fixture repo's `ESHU_GITHUB_ORG=acme`-synthesized remote) to one exact/derived
   decision via BOTH the ownership path and the publication join-by-version
-  path, converging on **one** `Repository->PackageVersion` edge -- Cypher
-  `MERGE` identity is the pattern only, so both writes upsert the SAME edge;
-  properties come from whichever call ran last. `projectPackageProvenanceEdges`
-  always writes ownership rows before publication rows within one `Handle()`
-  call, so the edge's `evidence_kinds`/`evidence_source` deterministically end
-  up publication's. (This is the min/max only; the `PUBLISHES`
+  path, producing **two** `Repository->PackageVersion` edges with the same
+  endpoints but distinct `evidence_source` identity. rc-164 filters
+  `PACKAGE_PUBLICATION_CORRELATION`, and rc-172 independently filters
+  `PACKAGE_OWNERSHIP_CORRELATION`, so neither assertion can satisfy the other. (The
+  `PUBLISHES`
   `Repository->Package` target is never hit by this cassette, since the one
   hint always carries a version-scoped id, per `packageOwnershipPublishesRows`'
   version-over-package precedence -- that target still no-ops safely, per the
   proof matrix above, if a future package-level-only hint is added.)
-- `edge_counts.BUILT_FROM`: `{min: 1, max: 10}`. The `cicdrun` cassette's
+- `edge_counts.BUILT_FROM`: `{min: 1, max: 40}`. The `cicdrun` cassette's
   `ci.run` `artifact_digest` exactly matches the `ociregistry` cassette's
   `OciImageManifest` digest and carries `repository_id: repository:r_69256c06`,
   so `container_image_identity` resolves one `exact_digest` decision with that
   repository in `SourceRepositoryIDs`.
-- `required_correlations` rc-164 (`PUBLISHES`, `Repository`->`PackageVersion`,
-  `minimum_count: 1`, no `evidence_kinds`) and rc-165 (`BUILT_FROM`,
+- `required_correlations` rc-164 and rc-172 (`PUBLISHES`,
+  `Repository`->`PackageVersion`, `minimum_count: 1`, each filtering its
+  distinct `evidence_kinds` token and requiring `source_tool=unknown`) and rc-165 (`BUILT_FROM`,
   `ContainerImage`->`Repository`, `minimum_count: 1`,
   `evidence_kinds: [CONTAINER_IMAGE_IDENTITY_EXACT_DIGEST]`,
   `required_edge_properties: [source_tool]`,
   `allowed_edge_property_values.source_tool: [oci]`).
 
-**Why rc-164 has no `evidence_kinds` narrowing but rc-165 does.** The golden
+**Why rc-164/rc-172 use `source_tool=unknown`.** The golden
 gate's shared-verb isolation (`RequiredCorrelation.EvidenceKinds`,
 `CountCorrelationWithEvidence` in `go/cmd/golden-corpus-gate/graph.go`) filters
 by the edge's `evidence_kinds` list property in application code, not Cypher --
 a NornicDB `WHERE` clause over an arbitrary relationship property does not
-filter (see that function's own comment). `PUBLISHES` is written by no other
-reducer domain, so it needs no narrowing (Tier-1 self-labeling by edge type,
-the same class as rc-24 `HAS_VERSION`/rc-9 `DEPENDS_ON_PACKAGE`, per
-`docs/public/reference/edge-source-tool-provenance.md`). `BUILT_FROM` IS shared
-with the #5428 `reducer/ci-cd-run-correlation` domain, so rc-165 must narrow --
-and `go/cmd/golden-corpus-gate/snapshot_test.go`'s
+filter (see that function's own comment). The two PUBLISHES assertions exercise
+the exact identity dimension #5827 adds, so they filter independently by their
+ownership/publication evidence tokens. There is no truthful package ecosystem
+available on these correlation decisions; the canonical explicit `unknown`
+tool token exposes that gap without guessing. `BUILT_FROM` is narrowed by its
+OCI evidence kind, and `go/cmd/golden-corpus-gate/snapshot_test.go`'s
 `TestEvidenceNarrowedCorrelationsRequireSourceTool` additionally requires any
 `evidence_kinds`-narrowed rc to also pin `source_tool`. `provenance_edge_writer.go`
 now stamps `rel.evidence_kinds` on every edge (all three evidence sources) and
 `rel.source_tool = "oci"` specifically for `container-image-identity`
 (added to the canonical vocabulary,
-`docs/public/reference/edge-source-tool-provenance.md`); `PUBLISHES` rows are
-never given a `source_tool` (no ecosystem-detection wired to the decision, so
-an absent value beats a guessed one).
+`docs/public/reference/edge-source-tool-provenance.md`); `PUBLISHES` rows carry
+the explicit `unknown` fallback until ecosystem evidence is wired.
 
-Verification: `go test ./cmd/golden-corpus-gate ./internal/goldengate -count=1`
-passes (snapshot parses, `TestEvidenceNarrowedCorrelationsRequireSourceTool`
-and every other snapshot-shape test green). Live confirmation that these
-counts actually materialize against the Docker `supply-chain-demo` corpus is
-the orchestrator's Docker golden-corpus gate run, per the task boundary this
-executor was given.
+The detailed legacy-row migration, duplicate/concurrent replay, retract
+isolation, and backend performance evidence is in
+`docs/internal/evidence/5827-provenance-edge-identity.md`.
 
 ## Truth-contract decision (item 7): no separate materialization domain needed
 
@@ -228,8 +224,8 @@ source label. The same projectors therefore execute their real retract-first
 paths with zero admitted rows. The live test reads the graph back and proves
 all three edges are gone, all endpoints survive, a second generation-2 replay is
 idempotent, and out-of-scope controls survive. Those controls use completely
-different endpoint pairs: sharing either pair would be a false isolation test
-while #5827's canonical MERGE identity omits scope and evidence source.
+different endpoint pairs so an in-scope relationship cannot satisfy an
+out-of-scope survivor assertion, independent of relationship-identity behavior.
 
 The packet has fixed O(1) client-side work per generation: package projection
 always issues two bounded auto-commit retract statements (ownership and

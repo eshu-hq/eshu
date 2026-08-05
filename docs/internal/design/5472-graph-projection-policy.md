@@ -54,12 +54,11 @@ The spine domains get a graph-projection policy in this order:
    `addCICDArtifactImageReference` folds CI-run digest evidence into
    `BuildProvenanceRepositoryIDs`, and #5457's writer projects the resulting
    `BUILT_FROM` edge under `evidence_source=reducer/container-image-identity`.
-   A second writer on the same (image, repository) pair is unsound today: the
-   canonical writer's `MERGE` identity is (start, end, type) only, so same-pair
-   edges from two evidence sources collapse and one domain's retract deletes
-   the other's assertion (#5827). BUILT_FROM is therefore a single-owner edge
-   type until #5827 lands. Correlation truth (run identity, outcome tier,
-   environment) stays Postgres-only and disclosed.
+   Relationship identity is `(start, end, type, scope_id, evidence_source)` on
+   the #5827 writer and the NornicDB #290 source pin. Same-pair assertions from
+   independent scopes or writers therefore coexist, and a scoped retract
+   removes only its owner's assertion. Correlation truth (run identity, outcome
+   tier, environment) stays Postgres-only and disclosed.
 
    `ci.job`, `ci.pipeline_definition`, and `ci.warning` kinds: registry
    disclosure comments only (no silent dead weight) — these have no reducer
@@ -85,9 +84,9 @@ The spine domains get a graph-projection policy in this order:
 
 | Domain | Decision | Evidence source | Edge type | Implementer |
 | --- | --- | --- | --- | --- |
-| ci_cd_run_correlation | FEEDS via container_image_identity (single-owner BUILT_FROM); Postgres-only read-model (disclosed) | N/A (rescinded, PR #5824) | N/A | #5428 (rescinded), #5827 |
+| ci_cd_run_correlation | FEEDS via container_image_identity; Postgres-only read-model (disclosed) | N/A (rescinded, PR #5824) | N/A | #5428 (rescinded), #5827 |
 | ci.job / ci.pipeline_definition / ci.warning | DISCLOSURE (registry comments) | N/A | N/A | #5428 |
-| container_image_identity | PROJECT (exact_digest, BuildProvenanceRepositoryIDs non-empty) | `reducer/container-image-identity` | `BUILT_FROM` (single owner) | #5457, gate narrowed by #5796 |
+| container_image_identity | PROJECT (exact_digest, BuildProvenanceRepositoryIDs non-empty) | `reducer/container-image-identity` | `BUILT_FROM` | #5457, gate narrowed by #5796, identity isolated by #5827 |
 | container_image_identity base images | PROJECT (exact_digest on BOTH endpoints, single distinct base per repository) | `reducer/container-image-base-image` | `DERIVED_FROM` (ContainerImage → ContainerImage) | #5460 |
 | container_image_identity workload/service ids | POSTGRES-ONLY (policy v1) | N/A | N/A | — |
 | package ownership correlation | PROJECT (exact/derived, non-empty source ids) | `reducer/package-ownership` | `PUBLISHES` (Repository → Package/PackageVersion) | #5457 |

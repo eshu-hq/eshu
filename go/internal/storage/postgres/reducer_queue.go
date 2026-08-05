@@ -46,6 +46,7 @@ const failReducerWorkQuery = `
 UPDATE fact_work_items
 SET status = 'dead_letter',
     cross_scope_replay_required = FALSE,
+    provenance_edge_identity_upgrade_required = FALSE,
     lease_owner = NULL,
     claim_until = NULL,
     visible_at = NULL,
@@ -63,6 +64,7 @@ const failContainerImageIdentityReducerWorkQuery = `
 UPDATE fact_work_items
 SET status = 'dead_letter',
     cross_scope_replay_required = FALSE,
+    provenance_edge_identity_upgrade_required = FALSE,
     container_image_identity_v2_authorized_status = CASE
         WHEN container_image_identity_v2_required THEN 'dead_letter'
         ELSE ''

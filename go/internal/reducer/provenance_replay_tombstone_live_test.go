@@ -244,14 +244,14 @@ func assertProvenanceReplayGenerationOne(
 	), map[string]any{
 		"scope_id": provenanceReplayScopeID, "generation_id": "replay-provenance-gen1",
 		"evidence_source": "reducer/package-ownership", "evidence_kinds": "PACKAGE_OWNERSHIP_CORRELATION",
-		"source_tool": nil,
+		"source_tool": "unknown",
 	})
 	assertProvenanceReplayRelationship(t, readProvenanceReplayPublishes(
 		ctx, t, executor, provenanceReplayPackageRepoID, "PackageVersion", "uid", provenanceReplayVersionID,
 	), map[string]any{
 		"scope_id": provenanceReplayScopeID, "generation_id": "replay-provenance-gen1",
 		"evidence_source": "reducer/package-publication", "evidence_kinds": "PACKAGE_PUBLICATION_CORRELATION",
-		"source_tool": nil,
+		"source_tool": "unknown",
 	})
 	assertProvenanceReplayRelationship(t, readProvenanceReplayBuiltFrom(
 		ctx, t, executor, provenanceReplayContainerDigest, provenanceReplayBuildRepoID,

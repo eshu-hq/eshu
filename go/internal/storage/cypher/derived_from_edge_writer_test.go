@@ -40,13 +40,18 @@ func TestProvenanceEdgeWriterWriteDerivedFromMatchesBothEndpointsByDigest(t *tes
 	for _, want := range []string{
 		"MATCH (img:ContainerImage {digest: row.digest})",
 		"MATCH (base:ContainerImage {digest: row.base_digest})",
-		"MERGE (img)-[rel:DERIVED_FROM]->(base)",
+		"MERGE (img)-[rel:DERIVED_FROM {",
+		"scope_id: row.scope_id",
+		"evidence_source: row.evidence_source",
 		"rel.attribution_basis = row.attribution_basis",
 		"rel.source_tool = row.source_tool",
 	} {
 		if !strings.Contains(cypher, want) {
 			t.Fatalf("cypher missing %q:\n%s", want, cypher)
 		}
+	}
+	if strings.Contains(cypher, "rel.scope_id = row.scope_id") || strings.Contains(cypher, "rel.evidence_source = row.evidence_source") {
+		t.Fatalf("identity properties must not be mutable SET assignments:\n%s", cypher)
 	}
 
 	rowsParam, ok := executor.calls[0].Parameters["rows"].([]map[string]any)
@@ -100,8 +105,8 @@ func TestProvenanceEdgeWriterWriteDerivedFromUsesSequentialExecuteNeverGroup(t *
 	if len(executor.executeCalls) != 1 {
 		t.Fatalf("executeCalls = %d, want 1 (one batch, sequential autocommit)", len(executor.executeCalls))
 	}
-	if !strings.Contains(executor.executeCalls[0].Cypher, "MERGE (img)-[rel:DERIVED_FROM]->(base)") {
-		t.Fatalf("write cypher must MERGE the DERIVED_FROM edge:\n%s", executor.executeCalls[0].Cypher)
+	if !strings.Contains(executor.executeCalls[0].Cypher, "MERGE (img)-[rel:DERIVED_FROM {") {
+		t.Fatalf("write cypher must MERGE the DERIVED_FROM assertion identity:\n%s", executor.executeCalls[0].Cypher)
 	}
 }
 

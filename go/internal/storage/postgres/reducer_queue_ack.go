@@ -6,6 +6,7 @@ package postgres
 const ackReducerWorkQuery = `
 UPDATE fact_work_items
 SET status = 'succeeded', lease_owner = NULL, claim_until = NULL,
+    provenance_edge_identity_upgrade_required = FALSE,
     visible_at = NULL, updated_at = $1,
     failure_class = NULL, failure_message = NULL, failure_details = NULL
 WHERE work_item_id = $2
@@ -18,6 +19,7 @@ const ackContainerImageIdentityReducerWorkQuery = `
 WITH acknowledged AS MATERIALIZED (
     UPDATE fact_work_items AS work
     SET status = 'succeeded',
+        provenance_edge_identity_upgrade_required = FALSE,
         cross_scope_completion_ack_epoch = cross_scope_completion_ack_epoch + 1,
         container_image_identity_v2_authorized_status = CASE
             WHEN container_image_identity_v2_required THEN 'succeeded' ELSE '' END,

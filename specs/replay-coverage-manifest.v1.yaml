@@ -538,8 +538,8 @@ coverage:
   # Provenance edges (#5712): a two-generation cassette drives the real
   # decision builders and package-private retract-first projectors through the
   # production ProvenanceEdgeWriter against NornicDB. Generation 2 keeps every
-  # endpoint but drops the producing evidence; distinct endpoint pairs protect
-  # out-of-scope survivor controls from #5827's shared-pair MERGE identity.
+  # endpoint but drops the producing evidence; distinct endpoint pairs keep
+  # each out-of-scope survivor control independent from the retracted pair.
   - {surface: retractable_edge:PUBLISHES, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/reducer/provenance_replay_tombstone_live_test.go, proof_gate: replay-tier}
   - {surface: retractable_edge:BUILT_FROM, scenario: go_test, scenario_type: delta_tombstone, ref: go/internal/reducer/provenance_replay_tombstone_live_test.go, proof_gate: replay-tier}
   # Reducer-materialized code-call edges (#5116): the offline canonical writer
