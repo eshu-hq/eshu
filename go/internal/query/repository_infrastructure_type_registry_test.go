@@ -10,15 +10,45 @@ import (
 	"testing"
 )
 
-// repositoryInfrastructureCypherLabelPattern extracts the label names from the
-// `WHERE infra:X OR infra:Y ...` disjunction in the production Cypher. `\s*`
-// before the colon matters: Cypher accepts whitespace between a variable and
-// its label colon (`infra :AnsiblePlaybook` parses the same as
-// `infra:AnsiblePlaybook`), and a bare `infra:` pattern misses that spelling
-// -- an added disjunct in that form would still change what the graph read
-// matches while evading this extraction (#5764 round-8 P3-2 review
-// follow-up).
-var repositoryInfrastructureCypherLabelPattern = regexp.MustCompile(`infra\s*:([A-Za-z0-9_]+)`)
+// repositoryInfrastructureCypherLabelPattern extracts the label names the
+// production Cypher tests for, across the two spellings
+// queryRepoInfrastructureFromGraph's disjunction can use for the same
+// predicate: `infra:X` (label syntax, `\s*` before the colon because Cypher
+// accepts whitespace there -- `infra :AnsiblePlaybook` parses the same as
+// `infra:AnsiblePlaybook`, round-8 P3-2 review follow-up) and
+// `'X' IN labels(infra)` (the idiomatic membership-test spelling of the same
+// check). Widening to the second form is round-9's P3-2 review follow-up.
+//
+// This pattern is lexical, not a Cypher parser, and it is scoped to exactly
+// the two spellings above -- it is not, and cannot cheaply be made, total.
+// Known gaps, left as disclosed residual exposure rather than chased:
+//   - a comment between `infra` and its colon (`infra /* x */ :X`) evades
+//     the first form; closing this needs a comment-aware preprocessor
+//     (nested comments, string literals containing "/*"), disproportionate
+//     for a test-only guard.
+//   - other Cypher label-membership idioms, for example
+//     `ANY(l IN labels(infra) WHERE l = 'X')`, evade the second form; each
+//     added spelling only narrows, never closes, this gap.
+//   - a backtick-quoted label is unreachable today regardless: the
+//     production Cypher is a Go raw string literal, which cannot contain a
+//     backtick.
+//
+// If a future review finds the production Cypher written in one of the
+// undetected forms above, that is this pattern reaching its documented
+// limit, not a silent regression.
+var repositoryInfrastructureCypherLabelPattern = regexp.MustCompile(
+	`infra\s*:([A-Za-z0-9_]+)|'([A-Za-z0-9_]+)'\s+IN\s+labels\(\s*infra\s*\)`,
+)
+
+// repositoryInfrastructureCypherLabelMatch returns whichever capture group in
+// a repositoryInfrastructureCypherLabelPattern match is non-empty: group 1 for
+// the `infra:X` spelling, group 2 for the `'X' IN labels(infra)` spelling.
+func repositoryInfrastructureCypherLabelMatch(match []string) string {
+	if match[1] != "" {
+		return match[1]
+	}
+	return match[2]
+}
 
 // TestRepositoryInfrastructureEntryFromContentClassifiesEveryCanonicalType
 // pins repositoryInfrastructureEntryFromContent's switch to the canonical
@@ -100,12 +130,13 @@ func TestRepositoryInfrastructureGraphCypherMatchesCanonicalTypes(t *testing.T) 
 	cypherLabels := make([]string, 0, len(matches))
 	seen := make(map[string]struct{}, len(matches))
 	for _, match := range matches {
-		if _, exists := seen[match[1]]; exists {
-			t.Errorf("cypher lists label %q more than once", match[1])
+		label := repositoryInfrastructureCypherLabelMatch(match)
+		if _, exists := seen[label]; exists {
+			t.Errorf("cypher lists label %q more than once", label)
 			continue
 		}
-		seen[match[1]] = struct{}{}
-		cypherLabels = append(cypherLabels, match[1])
+		seen[label] = struct{}{}
+		cypherLabels = append(cypherLabels, label)
 	}
 
 	goTypes := append([]string(nil), repositoryInfrastructureEntityTypes...)

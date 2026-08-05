@@ -297,12 +297,24 @@ query bind arg $1 = "{\"K8sResource\",\"TerraformResource\"}" (string), want
 "repo-1" (string)`, exit 1) before the fix reached this test, GREEN (exit 0)
 after reverting.
 
-Folded into the same fix (P3-6): `entity_type = ANY($2)` gained the
-`::text[]` cast every one of the other 14 `= ANY($N)` call sites in this
-package already carries. Postgres already infers `text[]` here from the
-UNKNOWN-typed `pq.Array` argument against a `text` column, so the missing
-cast was not a live defect -- just the one site out of step with the rest of
-the package, now consistent.
+Folded into the same fix (P3-6): `entity_type = ANY($2)` gained a `::text[]`
+cast. This entry originally justified it as matching "every one of the other
+14 `= ANY($N)` call sites in this package already carries" -- wrong, and
+corrected here rather than left standing (#5764 round-9 P2-1 review
+follow-up). Re-derived directly against `go/internal/query`'s non-test `.go`
+files with `rg -o '= ANY\(\$[0-9]+(::[a-zA-Z_\[\]]+)?\)' -g '*.go' -g
+'!*_test.go' .`: 94 `= ANY($N)` call sites exist, not 15 (14 plus this one),
+and `rg -o '= ANY\(\$[0-9]+\)' -g '*.go' -g '!*_test.go' .` finds 22 of them
+uncast, across 7 files -- including two siblings in the same `ContentReader`
+family this fix itself touches, `content_reader_entities_by_ids.go:53` and
+`content_reader_entities_by_paths.go:47`, plus eight more in
+`content_reader_language_inventory.go`. The cast remains correct and inert:
+`content_entities.entity_type` is `TEXT`
+(`schema/data-plane/postgres/004_content_store.sql:22`), and Postgres already
+infers `text[]` from the UNKNOWN-typed `pq.Array` argument against a `text`
+column, so nothing behaves differently with or without it. What was wrong is
+the "everyone else already does this" justification -- the package is not
+consistent on this point, and this one-site cast does not make it so.
 
 Third, `TestListRepoEntitiesByTypesIssuesTypeFilteredQuery`'s doc comment
 claimed its named mutations "has to fail here" without qualifying what "here"
@@ -352,3 +364,94 @@ stage-log attribute was added or changed. This round only touched an OpenAPI
 description string, test-only fake-driver plumbing, two doc comments, a test
 regex, and one query-text cast that Postgres already resolved the same way at
 runtime.
+
+### A test-infra panic, an undisclosed regex boundary, and one false provenance claim, on the same infrastructure panel (round-9 review follow-up to #5764)
+
+Four findings from a sixth review pass: one new test-infrastructure bug, one
+test guard whose round-8 widening left a second evasion undisclosed, and two
+accuracy corrections to what round-8 entries' prose claimed.
+
+First, `contentReaderArgEqual` (`content_reader_driver_test.go`) fell through
+to plain `got == want` for any bind value that was not an `int`/`int64` pair.
+Go panics comparing two interface values that hold the same uncomparable
+dynamic type, and `[]byte` -- the shape this package's JSONB bind parameters
+take -- is uncomparable, so a `wantArgs` entry set to a `[]byte` panicked
+instead of reporting a mismatch. No current test exercised this path.
+`contentReaderArgEqual` now compares a `[]byte`/`[]byte` pair with
+`bytes.Equal` before the `==` fallthrough.
+`TestContentReaderCheckArgsComparesByteSliceBindArgsWithoutPanicking` proves
+it: removing the new branch panics with `comparing uncomparable type
+[]uint8` (exit 1, via `go test`'s nonzero process exit on an unrecovered test
+panic); restoring it passes (exit 0).
+
+Second, the round-8 P3-2 fix widened `repositoryInfrastructureCypherLabelPattern`
+to `infra\s*:` but left two evasions undisclosed: a comment between `infra`
+and its colon, and Cypher's other spelling for the same predicate, `'X' IN
+labels(infra)`. The comment case needs a comment-aware preprocessor to close
+and is left as a documented, accepted gap -- disproportionate cost for a
+test-only guard. The `IN labels(...)` case was cheap to close: the pattern now
+also matches `'([A-Za-z0-9_]+)'\s+IN\s+labels\(\s*infra\s*\)`, and
+`repositoryInfrastructureCypherLabelMatch` picks whichever of the two capture
+groups a match populated. Proven with the OLD pattern in place: adding `OR
+'AnsiblePlaybook' IN labels(infra)` to the production disjunction left
+`TestRepositoryInfrastructureGraphCypherMatchesCanonicalTypes` passing (exit
+0, undetected -- the gap the review flagged). With the widened pattern and the
+same mutant Cypher: `sets differ in size` (exit 1). Reverting the mutant
+Cypher restores a pass (exit 0). The round-8 space-before-colon case
+(`infra :AnsiblePlaybook`) re-run against the widened pattern still reds the
+same way, so the widening is additive, not a replacement. The doc comment on
+`repositoryInfrastructureCypherLabelPattern` now states both covered
+spellings and the remaining gaps (an inserted comment; other Cypher
+label-membership idioms such as `ANY(l IN labels(infra) WHERE l = 'X')`; the
+already-unreachable backtick case) instead of leaving them undisclosed.
+
+Third, the round-8 P3-1 declination of a mechanical family cross-check rested
+on a false premise: that deriving an OpenAPI family word from a canonical
+type name needs "a fifth hand-maintained enumeration of the same 20 types."
+It does not. `repositoryInfrastructureTypeFamily`
+(`repository_infrastructure_openapi_family_test.go`) derives a type's family
+token from its leading CamelCase word (`^[A-Z][a-z0-9]*`, e.g. `Terraform`
+from `TerraformResource`, `Argo` from `ArgoCDApplication`) with one alias,
+`K8s -> Kubernetes`; every other type's leading word is already a substring of
+its family name in the OpenAPI prose (`Argo` in `ArgoCD`, `Cloud` in
+`CloudFormation`). `TestRepositoryInfrastructureOpenAPIDescriptionNamesEveryCanonicalFamily`
+substring-matches every canonical type's family token against the
+`infrastructure` field's OpenAPI description
+(`openAPIComponentsWorkloadSession`, extracted by regex so the test cannot
+drift from what ships). Proven by reverting the description to the exact
+pre-round-8 text (missing Terragrunt): the test fails naming
+`TerragruntConfig` and `TerragruntDependency` (exit 1) -- the precise drift
+round-8 found and fixed. Restoring the current description passes (exit 0).
+The four prose copies this check cannot reach --
+`repository_infrastructure.go`'s doc comment,
+`docs/public/reference/http-api/repositories-ingesters-bundles.md`, and
+`docs/public/reference/telemetry/graph-read-safety.md` -- remain a disclosed,
+unmechanized gap; the OpenAPI description is the one copy now pinned.
+
+Fourth, the round-8 P3-6 entry's `::text[]` cast justification was wrong on
+its own terms: it claimed the cast matched "every one of the other 14 `=
+ANY($N)` call sites in this package already carries." Re-derived directly
+(command and corrected numbers in that entry above, not repeated here): 94
+non-test call sites exist, 22 of them uncast across 7 files. The cast itself
+was never wrong -- `content_entities.entity_type` is `TEXT`, so Postgres
+already inferred `text[]` -- only the false consistency claim is corrected,
+in place, in the P3-6 paragraph above.
+
+No-Regression Evidence: `go test ./internal/query -run
+'TestContentReaderCheckArgsComparesByteSliceBindArgsWithoutPanicking|TestRepositoryInfrastructureGraphCypherMatchesCanonicalTypes|TestRepositoryInfrastructureOpenAPIDescriptionNamesEveryCanonicalFamily'
+-v -count=1`, each mutation re-run as a RED/GREEN pair via `go test
+./internal/query -run '<test name>' -v -count=1` with exit codes captured
+directly per invocation, as detailed above; plus `cd go && go build ./...`,
+`go test ./internal/query ./internal/queryplan ./internal/mcp -count=1`, `go
+test -race ./internal/query -count=1`, `golangci-lint run ./...`, `go run
+./cmd/capability-inventory -mode=verify`, `bash
+scripts/verify-route-coverage.sh`,
+`ESHU_PERFORMANCE_EVIDENCE_BASE=origin/main bash
+scripts/verify-performance-evidence.sh`, and the strict mkdocs build via
+`ESHU_DOCS_BUILD_BASE=origin/main bash scripts/verify-docs-build-changed.sh`.
+
+No-Observability-Change: no span, metric instrument, metric label, or
+stage-log attribute was added or changed. This round touched a test-only
+fake-driver comparison helper, a test-only Cypher-label extraction regex, one
+new test file deriving an OpenAPI family word from existing canonical type
+names, and prose corrections to two round-8 entries above.

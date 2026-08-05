@@ -4,6 +4,7 @@
 package query
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"database/sql/driver"
@@ -256,14 +257,51 @@ func contentReaderCheckArgs(args []driver.NamedValue, want []driver.Value) error
 // expected value, tolerating int vs int64 the same way
 // numericDriverValue (content_reader_cross_repo_test.go) does: a want value
 // written as a plain Go int still matches the int64
-// driver.DefaultParameterConverter actually produces.
+// driver.DefaultParameterConverter actually produces. A []byte bind value
+// (this package binds JSONB parameters as []byte) is compared with
+// bytes.Equal before the plain `==` fallthrough: Go panics comparing two
+// interface values holding the same uncomparable dynamic type, and []byte is
+// uncomparable, so `got == want` on two []byte args panics instead of
+// reporting a mismatch (#5764 round-9 P3-3 review follow-up).
 func contentReaderArgEqual(got, want driver.Value) bool {
 	if gotInt, ok := contentReaderAsInt64(got); ok {
 		if wantInt, ok := contentReaderAsInt64(want); ok {
 			return gotInt == wantInt
 		}
 	}
+	if gotBytes, ok := got.([]byte); ok {
+		wantBytes, ok := want.([]byte)
+		if !ok {
+			return false
+		}
+		return bytes.Equal(gotBytes, wantBytes)
+	}
 	return got == want
+}
+
+// TestContentReaderCheckArgsComparesByteSliceBindArgsWithoutPanicking proves
+// contentReaderArgEqual's []byte branch: before the fix, a wantArgs entry
+// holding a []byte (this package's shape for a JSONB bind parameter) reached
+// the `got == want` fallthrough with both sides typed []byte -- the same
+// uncomparable dynamic type on both interface values -- and panicked with
+// "comparing uncomparable type []uint8" instead of returning a mismatch error
+// (#5764 round-9 P3-3 review follow-up).
+func TestContentReaderCheckArgsComparesByteSliceBindArgsWithoutPanicking(t *testing.T) {
+	t.Parallel()
+
+	args := []driver.NamedValue{{Ordinal: 1, Value: []byte(`{"a":1}`)}}
+
+	if err := contentReaderCheckArgs(args, []driver.Value{[]byte(`{"a":1}`)}); err != nil {
+		t.Fatalf("contentReaderCheckArgs() error = %v, want nil for equal []byte bind args", err)
+	}
+
+	err := contentReaderCheckArgs(args, []driver.Value{[]byte(`{"a":2}`)})
+	if err == nil {
+		t.Fatalf("contentReaderCheckArgs() error = nil, want a mismatch error for differing []byte bind args")
+	}
+	if !strings.Contains(err.Error(), "bind arg $1") {
+		t.Fatalf("contentReaderCheckArgs() error = %q, want it to name the mismatched arg", err.Error())
+	}
 }
 
 func contentReaderAsInt64(v driver.Value) (int64, bool) {
