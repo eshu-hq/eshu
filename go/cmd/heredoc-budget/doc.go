@@ -330,7 +330,64 @@
 //     expansion (a large array via `${arr[*]}`, a large command
 //     substitution). This is a fundamental limit of any literal-byte-count
 //     heuristic, not a bug to fix in this pass. #5085's runtime-expansion
-//     blind spot is NOT closed by this package; it is only narrowed.
+//     blind spot is NOT closed by this package; it is only narrowed. This is
+//     not a hypothetical count: 40 unquoted heredocs in scripts/ today sit
+//     at or under the 384-byte margin threshold and pass silently
+//     (verified by walking every *.sh file under scripts/ and counting
+//     Heredoc{Unquoted: true, Size<=384}); a 100-byte body containing
+//     `${arr[*]}` over a 10 KB array would be one more. No literal-byte
+//     threshold closes this — it would require either executing bash (this
+//     package deliberately never does) or flagging by construct
+//     (`$(...)`/`${arr[*]}` regardless of size), which was measured and
+//     rejected as too noisy to ship (see above).
+//   - The scan root is always dirname(baseline) (main.go: `scanRoot :=
+//     filepath.Dir(*baselinePath)`), i.e. scripts/. 23 *.sh files outside
+//     it are never scanned as of this writing: 14 under examples/
+//     (collector-extension and supply-chain-demo proof scripts), 7 under
+//     tests/ (2 directly, 5 under tests/fixtures/), and 2 under
+//     .claude/hooks/ and .codex/hooks/ (agent doc-staleness hooks) —
+//     verified with `git ls-files '*.sh' | rg -v '^scripts/'`, which
+//     (unlike an un-hidden `rg --files -g '*.sh'`) also finds the two
+//     dotdir hooks.
+//   - Only *.sh files are scanned at all. Makefile recipes, GitHub Actions
+//     `run:` blocks, `bash -c` strings, and heredocs embedded in Go string
+//     literals execute as real shell but are invisible to this gate.
+//     Confirmed live instances in this repository: a heredoc inside a
+//     `run:` step in .github/workflows/generate-bundle-on-demand.yml, and
+//     Go string literal heredocs used as test fixtures in this very
+//     package (main_test.go, scanner_test.go) — neither is a *.sh file
+//     under scripts/, so neither is ever scanned.
+//   - A heredoc opener nested inside another heredoc's own UNQUOTED body
+//     (`cat <<OUTER` whose body contains `$(cat <<INNER ... INNER)`) is a
+//     real, valid bash construct: verified against real bash, which
+//     executes it and reads the inner heredoc as its own construct. This
+//     scanner has no model of that: the inBody branch of ScanContent only
+//     compares each body line against the CURRENT heredoc's own delimiter
+//     (closesHeredoc) and otherwise adds it to bodySize as raw content; it
+//     never re-invokes findAllOpeners on a body line. The inner heredoc's
+//     body and delimiter lines are folded into the outer's Size and
+//     reported as one Heredoc under the outer's Line and Unquoted —
+//     verified directly against this scanner (ScanContent on the fixture
+//     above returns exactly one Heredoc, not two). This does not by itself
+//     undercount the combined byte total: the inner's bytes are still
+//     summed into the outer's, and the outer's stricter unquoted threshold
+//     still applies to the merged total whenever the outer is unquoted.
+//     What is lost is attribution — the inner heredoc is never
+//     independently reported with its own line number, size, or Unquoted
+//     status.
+//   - A flagged heredoc's reported Size is its LITERAL SOURCE byte count,
+//     never what bash actually delivers to the pipe at runtime. The margin
+//     bullet above covers delivered bytes exceeding the literal count; the
+//     reverse also happens and is by design not a concern. An unquoted
+//     body whose substitutions reference unset or empty variables can
+//     deliver FEWER bytes than its source — sometimes dramatically fewer:
+//     a 30-byte source body of `${V}${V}${V}${LONG_UNSET_VAR}` (the
+//     scanner's own reported Size) with every variable unset delivers 1 byte
+//     at runtime (verified against real bash). A heredoc flagged only
+//     because of this shape is a false positive, not a missed detection —
+//     the gate never fails to flag a heredoc that is actually dangerous
+//     because of shrinkage; at worst it occasionally flags one that turns
+//     out to be safe.
 //   - The baseline burn-down comparison (CheckBaseline in baseline.go) keys
 //     on a per-file violation COUNT, not the identity of which heredoc it
 //     is. Fixing one baselined violation while introducing a different,

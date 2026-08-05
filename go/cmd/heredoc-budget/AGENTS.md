@@ -206,7 +206,16 @@
   existing baselined files, almost all ordinary bounded command
   substitution — too noisy to ship. See `doc.go`/README "Known limitations"
   for the full writeup; do not re-run that measurement without cause, it is
-  already recorded.
+  already recorded. **Do not restate the margin's justification as resting
+  on expansion being one-directional** — unset or empty variable references
+  SHRINK a body at runtime (proven against real bash: a 30-byte source body
+  of `${V}${V}${V}${LONG_UNSET_VAR}`, the scanner's own reported `Size`,
+  delivers 1 byte with every variable unset), so shrinkage alone would not
+  justify comparing against a threshold below the raw budget. The actual
+  justification is that a body's growth at runtime is statically
+  unbounded — an array or command substitution can expand to any size — so
+  any margin below the raw budget can only ADD flags relative to the raw
+  budget alone, never remove any.
 - **Baseline is generated, never hand-written.** `RenderBaseline` is the only
   writer; it must exactly match what `ScanTree` finds, or the gate becomes
   unreliable (either extra false failures or holes an author could hide new
