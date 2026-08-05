@@ -1533,8 +1533,9 @@ predicate with a Go-side anti-join between an S1 candidate read and an S2
 connected-keys read (`UNWIND $keys AS candidate_key MATCH (n:Label {key:
 candidate_key})-[r]-(m) RETURN DISTINCT n.key`). That S2 read's own
 per-statement cost scales super-linearly with the size of the `$keys` list on
-both pinned NornicDB backends (v1.1.11 and PR261/compose-default), independent
-of the anti-join's correctness, which was proven separately.
+both NornicDB backends used for the recorded proof (v1.1.11 and the former
+PR #261 Compose image), independent of the anti-join's correctness, which was
+proven separately.
 
 Measured (throwaway shim, deleted after recording; 5,000-node populated `File`
 label, 4,000 connected + 1,000 orphan, `17688`): the UNWIND-anchored form goes

@@ -262,9 +262,9 @@ recollection. Do not make Eshu silently delete graph data at startup.
 
 ### Observed shape
 
-On both pinned NornicDB backends (v1.1.11 and the PR261/compose-default
-image), every Cypher shape that asks "does this node have any relationship"
-without binding a concrete relationship variable is wrong:
+On both NornicDB backends used for the recorded proof (v1.1.11 and the former
+PR #261 Compose image), every Cypher shape that asks "does this node have any
+relationship" without binding a concrete relationship variable is wrong:
 
 - `NOT (n)--()` (intended: "n has no relationship") always evaluates false --
   it matches nothing, ever, even for a node with zero relationships.
@@ -317,10 +317,10 @@ live proof.
 
 While proving the anti-join replacement, reusing the `UNWIND` binding
 variable's name as the `RETURN ... AS` alias silently broke the query on both
-pinned backends:
+proof backends:
 
 ```cypher
--- BROKEN: returns zero rows on both pinned NornicDB backends, no error
+-- BROKEN: returns zero rows on both proof backends, no error
 UNWIND $keys AS key
 MATCH (n:Label {id: key})-[r]-(m)
 RETURN DISTINCT n.id AS key
@@ -346,15 +346,15 @@ matching rows" without checking for this shadowing shape first.
 -count=1` (the second env-gated on `ESHU_CYPHER_BOLT_DSN`) proves the
 concrete-relationship-variable form and the UNWIND/alias distinction hold, and
 that the anti-join correctly detects a true orphan that the old `NOT
-(n)--()` predicate silently ignored, on both the pinned v1.1.11 and the
-PR261/compose-default NornicDB images.
+(n)--()` predicate silently ignored, on the pinned v1.1.11 and former PR #261
+Compose images used for that proof.
 
 ## Pitfall: `OPTIONAL MATCH` + Aggregate Collapses Every Zero-Match Group Into One Row
 
 ### Observed shape
 
 Measured directly over the HTTP `tx/commit` endpoint and independently via
-`neo4j-go-driver/v5` (both paths reproduce it) against the canonical
+`neo4j-go-driver/v5` (both paths reproduce it) against the then-current
 `eshu-nornicdb-pr261:149245885258` pin:
 
 ```cypher
@@ -459,7 +459,7 @@ full before/after tables including the rejected candidates, the
 
 ### Observed shape
 
-On the pinned PR261/compose-default NornicDB image, combining an inline
+On the former PR #261 Compose image, combining an inline
 property pattern on a `MATCH` with a `WHERE` clause that filters a DIFFERENT
 property silently drops the inline pattern's filter -- the query falls back to
 an unfiltered label scan instead of erroring or returning an unfiltered-but-
@@ -516,7 +516,7 @@ combined-`WHERE` form and explicitly rejects the inline-pattern-plus-trailing-
 
 ### Observed shape
 
-On the pinned PR261/compose-default NornicDB image, `EXISTS { MATCH (pattern)
+On the former PR #261 Compose image, `EXISTS { MATCH (pattern)
 WHERE (filter on the far variable) }` evaluates correctly only for one specific
 shape. Measured against representative and worst-case fixture data (500-1000
 row fan-out) while redesigning the infra scoped-token authorization predicate
@@ -711,9 +711,10 @@ proof above when the pinned NornicDB version changes.
 
 ### Observed shape
 
-On both pinned NornicDB backends (v1.1.11 and the PR261/compose-default image)
-a read query whose primary `MATCH` binds a relationship pattern, followed by one
-or more trailing `OPTIONAL MATCH` clauses with no `WITH` in between, returns
+On both NornicDB backends used for the recorded proof (v1.1.11 and the former
+PR #261 Compose image), a read query whose primary `MATCH` binds a relationship
+pattern, followed by one or more trailing `OPTIONAL MATCH` clauses with no
+`WITH` in between, returns
 every function-call expression in the `RETURN` as its **literal source text**
 instead of the evaluated value. Reproduced identically via the HTTP
 `/db/nornic/tx/commit` endpoint and the real Bolt driver
