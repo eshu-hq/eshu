@@ -26,7 +26,8 @@ require_precommit() {
 require_block() {
 	local label="$1" needle="$2"
 	rg --multiline --fixed-strings --quiet -- "${needle}" "${script}" || \
-		fail "missing ${label}: ${needle}"
+		fail "missing ${label}: ${needle}
+(this needle is matched whitespace-exact: a reformat -- tabs-to-spaces, a trailing-whitespace cleanup, CRLF line endings -- trips this the same as a real deletion. Before assuming the code is gone, diff ${script} for a reformat first.)"
 }
 
 reject() {
