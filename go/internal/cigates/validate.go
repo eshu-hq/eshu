@@ -77,35 +77,56 @@ func checkScript(repoRoot, gateID, command string) error {
 	return nil
 }
 
-// extractScriptPath returns the repo-relative script path from a shell command
-// string, or "" when the command does not reference a script file (e.g. an
-// inline go-toolchain invocation like "cd go && go test ...").
+// extractScriptPaths returns every repo-relative scripts/ token in command,
+// in left-to-right order, or nil when command references no scripts/ file
+// (e.g. an inline go-toolchain invocation like "cd go && go test ..."). A
+// gate's local command can chain more than one scripts/ invocation with
+// "&&" — frontend-console-checks and ci-gate-registry both do — and every one
+// of them is a file a caller may need to see, not only the first.
 //
 // Recognised patterns:
 //
-//   - "bash scripts/foo.sh [args]"  → "scripts/foo.sh"
-//   - "scripts/foo.sh [args]"       → "scripts/foo.sh"
-//   - "cd go && go test ..."        → "" (inline go command, no script to check)
-//   - "cd go && go run ..."         → "" (inline go command, no script to check)
+//   - "bash scripts/foo.sh [args]"       → ["scripts/foo.sh"]
+//   - "scripts/foo.sh [args]"            → ["scripts/foo.sh"]
+//   - "a && bash scripts/b.sh"           → ["scripts/b.sh"] (every scripts/ token)
+//   - "cd go && go test ..."             → nil (inline go command, no script)
+//   - "cd go && go run ..."              → nil (inline go command, no script)
 //
 // Only words beginning with "scripts/" are treated as script refs. Words that
 // start with "go/" are Go package paths passed to the toolchain, not files to
-// stat. Commands starting with "cd " are inline shell pipelines; they are
-// considered valid (not pointing at a missing file) so the validator skips the
-// script-existence check rather than erroring on them.
-func extractScriptPath(command string) string {
+// stat. A word that references a scripts/ file through a relative prefix
+// ("../scripts/foo.txt") is not recognised — heredoc-budget's local.command
+// is the one gate command in the registry with that shape, and its file is
+// covered by an explicit registry trigger instead of being derived here (see
+// checkScriptTriggerCoverage's doc comment in scripttrigger.go). Commands
+// starting with "cd " are inline shell pipelines; they are considered valid
+// (not pointing at a missing file) so callers skip rather than error on them.
+func extractScriptPaths(command string) []string {
 	trimmed := strings.TrimSpace(command)
 
 	// Inline shell pipeline starting with "cd" — no script file to check.
 	if strings.HasPrefix(trimmed, "cd ") {
-		return ""
+		return nil
 	}
 
-	words := strings.Fields(trimmed)
-	for _, w := range words {
+	var out []string
+	for _, w := range strings.Fields(trimmed) {
 		if strings.HasPrefix(w, "scripts/") {
-			return w
+			out = append(out, w)
 		}
 	}
-	return ""
+	return out
+}
+
+// extractScriptPath returns the leading repo-relative script path from a
+// shell command string — the one Validate stat-checks for existence — or ""
+// when the command references no scripts/ file. Use extractScriptPaths
+// directly when every scripts/ token in a compound command matters, not only
+// the first.
+func extractScriptPath(command string) string {
+	paths := extractScriptPaths(command)
+	if len(paths) == 0 {
+		return ""
+	}
+	return paths[0]
 }

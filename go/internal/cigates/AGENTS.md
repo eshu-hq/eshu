@@ -302,6 +302,23 @@ and `eshu-diagnostic-rigor`.
   diagnosis time, not scan coverage — the job does not go green on a
   misconfigured skip list, it fails for a different, less obvious reason.
 
+- **checkScriptTriggerCoverage (`scripttrigger.go`, check 8) requires triggers
+  to be declared, not derived.** An implicit rule — treating a gate's own
+  `local` scripts, and whatever they source, as triggers automatically —
+  would make this check's drift impossible by construction and would have
+  cut the 53-line registry fix the check required on landing (#5762) to
+  zero. Declaring keeps the registry the single readable answer to "what
+  selects this gate": a reviewer reads `triggers:` and knows the whole
+  selection surface without also reading the gate's local command and every
+  script it sources. Sourcing is followed transitively — a visited set makes
+  the walk cycle-safe, since golden-corpus-lock-cases.sh sources two more
+  case files that are themselves one level deeper than the gate's own
+  `local.command` names — and every `scripts/`-prefixed token in a compound
+  `local.command` is checked, not only the first, the shape
+  ci-gate-registry's and frontend-console-checks's chained commands both
+  have. See checkScriptTriggerCoverage's doc comment for the two narrowings
+  that remain intentional.
+
 ## Common changes
 
 - Adding a new category or requirement: add the constant, add to the validation

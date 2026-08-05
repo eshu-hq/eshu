@@ -122,6 +122,80 @@ func TestDriftCheck_SourcedCaseFileNotCoveredByOwnTriggers(t *testing.T) {
 	}
 }
 
+// A file reached only by sourcing a sourced file (level 2) is the
+// golden-corpus-lock-cases.sh shape in the real registry:
+// scripts/test-verify-golden-corpus-gate.sh sources it directly, and it in
+// turn sources golden-corpus-lock-parse-cases.sh and
+// golden-corpus-lock-race-cases.sh. Before the walk below followed sourcing
+// transitively, a level-2 file was invisible to check 8 even though editing
+// it alone could leave the gate unselected (#5762 round 9, P1-1).
+func TestDriftCheck_TransitivelySourcedFileNotCoveredByOwnTriggers(t *testing.T) {
+	t.Parallel()
+
+	root := buildDriftRepo(t, minimalPreCommit("my-gate"), []string{"verify.yml"})
+	writeScript(t, root, "scripts/verify-thing.sh", "#!/usr/bin/env bash\ntrue\n")
+	writeScript(t, root, "scripts/test-verify-thing.sh",
+		"#!/usr/bin/env bash\n"+
+			". \"${repo_root}/scripts/lib/thing-level1-cases.sh\"\n")
+	writeScript(t, root, "scripts/lib/thing-level1-cases.sh",
+		"#!/usr/bin/env bash\n"+
+			". \"${repo_root}/scripts/lib/thing-level2-cases.sh\"\n")
+	writeScript(t, root, "scripts/lib/thing-level2-cases.sh", "#!/usr/bin/env bash\ntrue\n")
+
+	g := gateWith("my-gate", "my-gate", "verify.yml")
+	g.Triggers = []string{
+		"go/**",
+		"scripts/*verify-thing*.sh",
+		"scripts/lib/thing-level1-cases.sh",
+		// scripts/lib/thing-level2-cases.sh is deliberately absent — it is
+		// only reachable by sourcing the level-1 file.
+	}
+	g.Local = &cigates.Local{
+		Command:     "bash scripts/verify-thing.sh",
+		TestCommand: "bash scripts/test-verify-thing.sh",
+	}
+
+	errs := scriptTriggerErrs(t, root, minimalReg([]cigates.Gate{g}, nil, nil))
+	if len(errs) != 1 {
+		t.Fatalf("expected exactly 1 transitively-sourced-file error, got %d: %v", len(errs), errs)
+	}
+	if !strings.Contains(errs[0], `sources "scripts/lib/thing-level2-cases.sh"`) {
+		t.Errorf("error should name the uncovered level-2 file, got: %s", errs[0])
+	}
+}
+
+// A gate whose local command chains more than one scripts/ invocation with
+// "&&" is the ci-gate-registry / frontend-console-checks shape in the real
+// registry. Before the fix, check 8 derived only the leading scripts/ token
+// from a command, so a second (or third, or fourth) chained script was
+// invisible to the coverage check (#5762 round 9, P2-2).
+func TestDriftCheck_SecondScriptInCompoundCommandNotCoveredByOwnTriggers(t *testing.T) {
+	t.Parallel()
+
+	root := buildDriftRepo(t, minimalPreCommit("my-gate"), []string{"verify.yml"})
+	writeScript(t, root, "scripts/test-verify-thing-a.sh", "#!/usr/bin/env bash\ntrue\n")
+	writeScript(t, root, "scripts/test-verify-thing-b.sh", "#!/usr/bin/env bash\ntrue\n")
+
+	g := gateWith("my-gate", "my-gate", "verify.yml")
+	g.Triggers = []string{
+		"go/**",
+		"scripts/test-verify-thing-a.sh",
+		// scripts/test-verify-thing-b.sh is deliberately absent — it is the
+		// second scripts/ token in a chained local.command.
+	}
+	g.Local = &cigates.Local{
+		Command: "bash scripts/test-verify-thing-a.sh && bash scripts/test-verify-thing-b.sh",
+	}
+
+	errs := scriptTriggerErrs(t, root, minimalReg([]cigates.Gate{g}, nil, nil))
+	if len(errs) != 1 {
+		t.Fatalf("expected exactly 1 second-script error, got %d: %v", len(errs), errs)
+	}
+	if !strings.Contains(errs[0], `runs "scripts/test-verify-thing-b.sh"`) {
+		t.Errorf("error should name the uncovered second script, got: %s", errs[0])
+	}
+}
+
 // The `# shellcheck source=` directive on its own must not count as a
 // dependency: the fixture below sources nothing, so a gate that lists only its
 // two scripts is clean.

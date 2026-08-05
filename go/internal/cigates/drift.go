@@ -85,10 +85,11 @@ var matrixVariableRE = regexp.MustCompile(`\$\{\{\s*matrix\.([A-Za-z0-9_]+)\s*\}
 //     value flow: see checkTrivySkipDirsParity for the four assertions this
 //     makes and the boundary it deliberately stops at.
 //
-//  8. Gate script → own trigger coverage (#5762): every gate's local.command and
-//     local.test_command script path — and every scripts/ file those two source
-//     — must be matched by one of that gate's own triggers, so a PR editing only
-//     the verifier or one of its case files still selects the gate locally
+//  8. Gate script → own trigger coverage (#5762): every scripts/ token in a
+//     gate's local.command and local.test_command — and every scripts/ file
+//     those source, at any depth — must be matched by one of that gate's own
+//     triggers, so a PR editing only the verifier, a chained second script, or
+//     a case file sourced two levels deep still selects the gate locally
 //     instead of first failing in CI. See checkScriptTriggerCoverage.
 func DriftCheck(repoRoot string, reg *Registry) []error {
 	var errs []error
