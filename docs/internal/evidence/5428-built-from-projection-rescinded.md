@@ -394,8 +394,10 @@ review workload.
   and `scope_id`, collapsing same-pair edges across domains and scopes. Live for
   `PUBLISHES` on `main` today and recorded in the B-12 snapshot's rc-164.
   `BUILT_FROM` stays single-owner until it lands.
-- **#5828** — `eshu_dp_provenance_edges_total` counts submitted rows as
-  `materialized`, including rows whose endpoint node was absent.
+- **#5828** — resolved: `eshu_dp_provenance_edges_total` now labels rows
+  accepted by successful writer calls as `submitted`. A missing endpoint remains
+  a submitted writer no-op, and a successful retry can count the same identity
+  again, so the event counter is not a unique durable-edge gauge.
 - **#5822** — the golden corpus never reaches an `exact` ci_cd_run correlation,
   so the exact path has no deterministic fixture.
 - **#5830** — the corpus contains no `ci.workflow_image_evidence` at all, so the

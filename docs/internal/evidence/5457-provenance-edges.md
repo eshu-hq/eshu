@@ -97,7 +97,13 @@ follow-up):
 Observability Evidence: `eshu_dp_provenance_edges_total` (registered
 `go/internal/telemetry/instruments.go`), labeled by `domain` (the producing
 evidence_source: `reducer/package-ownership`, `reducer/package-publication`,
-`reducer/container-image-identity`) and `outcome` (`materialized`). X1 rows
+`reducer/container-image-identity`, `reducer/container-image-base-image`) and
+`outcome` (`submitted`). The counter is added after each successful writer call
+and measures rows that call accepted. Rows from a failed call emit no point;
+retract errors, empty projections, and unwired writers emit none. A missing
+endpoint is still a submitted writer no-op, and a successful retry can count
+the same identity again, so this is an event counter rather than a unique
+durable-edge gauge. X1 rows
 added to `docs/public/observability/telemetry-coverage.md` for
 `package_provenance_edges.go` and `container_image_provenance_edges.go`;
 `scripts/verify-telemetry-coverage.sh` passes.

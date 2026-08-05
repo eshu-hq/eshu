@@ -149,6 +149,10 @@ Performance Evidence: on live Postgres using migration 096 and the same
 was 27.299 ms before and 29.051 ms after, a bounded 3.505 microseconds per item.
 The exact NornicDB #290 source build completed the 20-repository B-7 run in 118
 seconds with zero residual queue items, required failures, or advisory warnings.
+The #5828 counter correction adds no graph query, loop, or batch allocation: the
+same single counter add moves from before each writer call to its successful
+return and changes only the bounded outcome label. Successful nonempty writes
+therefore keep the same operation count, while failed writes do less work.
 
 ```text
 go test ./internal/storage/postgres \
@@ -223,8 +227,11 @@ retained item afterward. Operators can observe those same bounded counts in
 JSON, text status, and the two service-labeled gauges without per-item or
 high-cardinality identifiers.
 
-Existing provenance-edge counters still measure submitted materialization
-rows; issue #5828 separately corrects those counters to distinguish attempted
-from durably materialized outcomes. The status query adds one aggregate filter
+`eshu_dp_provenance_edges_total{outcome="submitted"}` now measures rows accepted
+by each successful provenance writer call across all four writer shapes. Rows
+from a failed call emit no point; retract errors, empty projections, and unwired
+writers emit none. A missing endpoint remains a submitted writer no-op, and a
+successful retry can count the same identity again, so this event counter is
+not a unique durable-edge gauge. The status query adds one aggregate filter
 over the already-scanned active queue snapshot and one indexed marker lookup;
 it adds no queue mutation, per-item labels, spans, or logs.

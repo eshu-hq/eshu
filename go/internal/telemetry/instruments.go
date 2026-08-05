@@ -310,13 +310,14 @@ type Instruments struct {
 	CodeImportRepoEdges               metric.Int64Counter
 	ContainerImageIdentityDecisions   metric.Int64Counter
 	ContainerImageIdentityRetirements metric.Int64Counter
-	// ProvenanceEdges counts canonical PUBLISHES and BUILT_FROM graph
-	// provenance edges materialized from package-ownership,
-	// package-publication, and container-image-identity correlation
-	// decisions, labeled by the producing evidence_source domain and outcome
-	// (currently always "materialized"; the outcome label is retained for a
-	// future skipped series). See
-	// docs/internal/design/5472-graph-projection-policy.md and issue #5457.
+	// ProvenanceEdges counts canonical PUBLISHES, BUILT_FROM, and DERIVED_FROM
+	// rows accepted by successful graph-writer calls. It is labeled by the
+	// producing evidence_source domain and outcome="submitted". A submitted row
+	// can still be a missing-endpoint no-op, and successful retries can count the
+	// same identity again, so this event counter is not a unique durable-edge
+	// gauge. Rows from a failed writer call are not counted. See
+	// docs/internal/design/5472-graph-projection-policy.md and issues #5457 and
+	// #5828.
 	ProvenanceEdges            metric.Int64Counter
 	CICDRunCorrelations        metric.Int64Counter
 	ServiceCatalogCorrelations metric.Int64Counter
@@ -2434,7 +2435,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.ProvenanceEdges, err = meter.Int64Counter(
 		"eshu_dp_provenance_edges_total",
-		metric.WithDescription("Total canonical PUBLISHES/BUILT_FROM graph provenance edges materialized by evidence_source domain and outcome"),
+		metric.WithDescription("Total canonical PUBLISHES, BUILT_FROM, and DERIVED_FROM rows accepted by successful graph-writer calls, by evidence_source domain and outcome"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ProvenanceEdges counter: %w", err)

@@ -206,12 +206,16 @@ B-9 cost-budget benchmark for this row builder) is unaffected in shape --
 workload the committed budget was measured against, not a smaller one; see
 the benchmark output above.
 
-## No-Observability-Change
+## Observability impact
 
-No-Observability-Change: no metric, span, log, or status field is added,
+Observability Evidence: no metric name, span, log, or status field is added,
 removed, or renamed. `emitProvenanceEdgeCounter` still emits the same
 `ProvenanceEdges` counter, labeled by the same `containerImageBuiltFromProvenanceEvidenceSource`
-domain and `"materialized"` outcome, over whatever row count
-`containerImageBuiltFromRows` returns -- a narrower row count changes the
-counter's VALUE for corpora with reference-only repositories, exactly as
-intended, but changes no instrument, label set, or telemetry contract.
+domain. Its bounded outcome is now `"submitted"`, recorded after each successful
+graph-writer call accepts the rows from `containerImageBuiltFromRows`. A
+narrower row set still changes the counter's value for corpora with
+reference-only repositories, as intended. Rows from a failed call emit no
+point; retract errors, empty projections, and unwired writers emit none. A
+missing endpoint remains a submitted writer no-op, and a successful retry can
+count the same identity again, so this is an event counter rather than a unique
+durable-edge gauge.

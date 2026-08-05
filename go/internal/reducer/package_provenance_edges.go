@@ -119,32 +119,31 @@ func (h PackageSourceCorrelationHandler) projectPackageProvenanceEdges(
 	}
 
 	ownershipRows := packageOwnershipPublishesRows(ownershipDecisions)
-	h.emitProvenanceEdgeCounter(ctx, packageOwnershipProvenanceEvidenceSource, "materialized", len(ownershipRows))
 	if len(ownershipRows) > 0 {
 		if err := h.ProvenanceEdgeWriter.WritePublishesEdges(
 			ctx, ownershipRows, intent.ScopeID, intent.GenerationID, packageOwnershipProvenanceEvidenceSource,
 		); err != nil {
 			return fmt.Errorf("write package ownership provenance edges: %w", err)
 		}
+		h.emitProvenanceEdgeCounter(ctx, packageOwnershipProvenanceEvidenceSource, "submitted", len(ownershipRows))
 	}
 
 	publicationRows := packagePublicationPublishesRows(publicationDecisions)
-	h.emitProvenanceEdgeCounter(ctx, packagePublicationProvenanceEvidenceSource, "materialized", len(publicationRows))
 	if len(publicationRows) > 0 {
 		if err := h.ProvenanceEdgeWriter.WritePublishesEdges(
 			ctx, publicationRows, intent.ScopeID, intent.GenerationID, packagePublicationProvenanceEvidenceSource,
 		); err != nil {
 			return fmt.Errorf("write package publication provenance edges: %w", err)
 		}
+		h.emitProvenanceEdgeCounter(ctx, packagePublicationProvenanceEvidenceSource, "submitted", len(publicationRows))
 	}
 	return nil
 }
 
-// emitProvenanceEdgeCounter records a ProvenanceEdges counter sample labeled
-// by the producing evidence_source domain and outcome (currently always
-// "materialized"; the outcome label is retained for a future skipped series).
-// It is a no-op when no Instruments are wired or the count is zero, matching
-// emitRepoEdgeCounter's shape.
+// emitProvenanceEdgeCounter records rows submitted by a successful writer call,
+// labeled by the producing evidence_source domain. It is a no-op when no
+// Instruments are wired or the count is zero, matching emitRepoEdgeCounter's
+// shape.
 func (h PackageSourceCorrelationHandler) emitProvenanceEdgeCounter(ctx context.Context, evidenceSource, outcome string, count int) {
 	if h.Instruments == nil || h.Instruments.ProvenanceEdges == nil || count <= 0 {
 		return

@@ -272,7 +272,6 @@ func (h ContainerImageIdentityHandler) projectContainerImageDerivedFromRows(
 		return fmt.Errorf("retract container image derived_from provenance edges: %w", err)
 	}
 
-	h.emitDerivedFromEdgeCounter(ctx, "materialized", len(rows))
 	if len(rows) == 0 {
 		return nil
 	}
@@ -281,12 +280,13 @@ func (h ContainerImageIdentityHandler) projectContainerImageDerivedFromRows(
 	); err != nil {
 		return fmt.Errorf("write container image derived_from provenance edges: %w", err)
 	}
+	h.emitDerivedFromEdgeCounter(ctx, "submitted", len(rows))
 	return nil
 }
 
-// emitDerivedFromEdgeCounter records a ProvenanceEdges counter sample for the
-// DERIVED_FROM projection, labeled by outcome. It is a no-op when no
-// Instruments are wired or the count is zero.
+// emitDerivedFromEdgeCounter records DERIVED_FROM rows submitted by a
+// successful writer call. It is a no-op when no Instruments are wired or the
+// count is zero.
 func (h ContainerImageIdentityHandler) emitDerivedFromEdgeCounter(ctx context.Context, outcome string, count int) {
 	if h.Instruments == nil || h.Instruments.ProvenanceEdges == nil || count <= 0 {
 		return
