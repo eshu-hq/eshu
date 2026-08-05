@@ -35,9 +35,9 @@ cleared the flag.
 The correction is orneryd/NornicDB#290 at exact source revision
 `5d2731ae1b3328708f74f12c21658786abac641a`. Eshu's default Compose tag is
 `eshu-nornicdb-pr290:5d2731ae1b33`, built from that full revision and labeled
-with it. Until the commit is reachable from upstream `main`, the Git build
-context selects `pull/290/head` and verifies that ref against the full revision
-checksum.
+with it. The Git build context uses the full 40-character commit fragment, so
+older and newer Docker builders resolve the same immutable source without the
+newer Git-context checksum query feature.
 
 The backend change covers plain `MERGE`, generic and specialized `UNWIND`,
 explicit transactions, deterministic concurrent create, numeric-width

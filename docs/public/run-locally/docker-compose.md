@@ -179,9 +179,9 @@ fix from #290. Compose tags the local image
 `eshu-nornicdb-pr290:5d2731ae1b33`, records the full revision as an OCI image
 label, and uses the default pull policy `build`. This makes a clean machine
 build the proven source instead of trying to pull the local tag from a registry.
-The Git context selects upstream `pull/290/head` and supplies the full revision
-as a checksum, so a moved PR ref fails the build instead of silently changing
-the backend source.
+The Git context uses the full 40-character commit fragment, so both older and
+newer Docker builders resolve the same immutable backend source without relying
+on the newer Git-context checksum query feature.
 
 Controlled backend comparisons retain the existing override contract. Set
 `NORNICDB_IMAGE` and `NORNICDB_PULL_POLICY` together: use `always` for an

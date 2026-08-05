@@ -10,7 +10,7 @@ services:
     image: ${NORNICDB_IMAGE:-eshu-nornicdb-pr290:5d2731ae1b33}
     pull_policy: ${NORNICDB_PULL_POLICY:-build}
     build:
-      context: "https://github.com/orneryd/NornicDB.git?ref=pull/290/head&checksum=5d2731ae1b3328708f74f12c21658786abac641a"
+      context: https://github.com/orneryd/NornicDB.git#5d2731ae1b3328708f74f12c21658786abac641a
       dockerfile: docker/Dockerfile.cpu-bge
       labels:
         org.opencontainers.image.revision: 5d2731ae1b3328708f74f12c21658786abac641a

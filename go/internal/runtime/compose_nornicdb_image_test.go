@@ -20,13 +20,17 @@ func TestNornicDBComposeDefaultPinsPR290ExactSourceCommit(t *testing.T) {
 	for _, want := range []string{
 		"image: ${NORNICDB_IMAGE:-eshu-nornicdb-pr290:5d2731ae1b33}",
 		"pull_policy: ${NORNICDB_PULL_POLICY:-build}",
-		`context: "https://github.com/orneryd/NornicDB.git?ref=pull/290/head&checksum=5d2731ae1b3328708f74f12c21658786abac641a"`,
+		"context: https://github.com/orneryd/NornicDB.git#5d2731ae1b3328708f74f12c21658786abac641a",
 		"dockerfile: docker/Dockerfile.cpu-bge",
 		"org.opencontainers.image.revision: 5d2731ae1b3328708f74f12c21658786abac641a",
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("docker-compose.yaml missing temporary exact NornicDB PR #290 pin %q", want)
 		}
+	}
+
+	if strings.Contains(content, "checksum=") {
+		t.Fatal("docker-compose.yaml must not require the BuildKit source.git.checksum query feature")
 	}
 }
 
