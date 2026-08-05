@@ -29,6 +29,20 @@ func resetAPIRequestMetricsForTest() {
 
 func TestRequestMetricsMiddlewareEmitsPerEndpointMetrics(t *testing.T) {
 	// Not parallel: installs a process-global meter provider.
+	//
+	// This setup is intentionally not routed through the shared
+	// withPackageMetricReader (metric_reader_test.go): that helper returns a
+	// *sdkmetric.ManualReader, but this test needs to assert against scraped
+	// Prometheus exposition text, so it wires a Prometheus registry and
+	// otelprom.Exporter as its sdkmetric.Reader instead. Generalizing the
+	// shared helper to accept either reader type is possible but not free —
+	// it would touch this already-passing, unrelated test's setup for a
+	// concern (the OTel global-proxy delegate-once) that request-metrics
+	// instruments do not share: apiRequestInstrumentsVal is package-scoped
+	// like the image-list/tag-history instruments, but this test is the only
+	// one in the package that installs a Prometheus-backed provider, so it
+	// has no sibling telemetry test file that could win the delegate-once
+	// race against it. Left alone rather than forced into the shared shape.
 	registry := prometheus.NewRegistry()
 	exporter, err := otelprom.New(otelprom.WithRegisterer(registry))
 	if err != nil {

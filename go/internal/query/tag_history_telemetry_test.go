@@ -10,7 +10,6 @@ import (
 	"sync"
 	"testing"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
@@ -29,35 +28,14 @@ func resetTagHistoryInstrumentsForTest() {
 
 // withTagHistoryMetricReader installs a process-global manual-reader meter
 // provider and resets the lazily registered tag-history instruments so the
-// test observes only its own datapoints (mirrors withDegradedCounterReader).
-//
-// Before installing the reader's own provider, it burns the OTel global
-// delegate-once on a throwaway provider. otel.Meter() inside a sync.Once
-// resolves its meter from whichever provider is current at the moment that
-// Once fires; if some other test file's sync.Once fires first in this
-// process and its own SetMeterProvider call is the very first one ever made,
-// the OTel global proxy binds that meter's delegate permanently to it (see
-// initTagHistoryQueryInstruments' doc comment). Without this throwaway call,
-// this test would only be defended by being first among the package's test
-// files to install a provider — an accident of alphabetical file ordering,
-// not a property of the code under test. Burning the delegate-once here
-// first guarantees any package-var-cached meter is bound to the throwaway,
-// never to this test's reader, so a buggy handler that caches its meter at
-// init time fails deterministically instead of passing by file-order luck.
+// test observes only its own datapoints. It is a thin wrapper around the
+// shared withPackageMetricReader (metric_reader_test.go), which also backs
+// withImageMetricReader in images_telemetry_test.go; see that helper's doc
+// comment for why the throwaway-provider install and the previous-provider
+// capture order both matter.
 func withTagHistoryMetricReader(t *testing.T) *sdkmetric.ManualReader {
 	t.Helper()
-	otel.SetMeterProvider(sdkmetric.NewMeterProvider())
-	reader := sdkmetric.NewManualReader()
-	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
-	previous := otel.GetMeterProvider()
-	otel.SetMeterProvider(provider)
-	resetTagHistoryInstrumentsForTest()
-	t.Cleanup(func() {
-		otel.SetMeterProvider(previous)
-		resetTagHistoryInstrumentsForTest()
-		_ = provider.Shutdown(context.Background())
-	})
-	return reader
+	return withPackageMetricReader(t, resetTagHistoryInstrumentsForTest)
 }
 
 func collectTagHistoryMetrics(t *testing.T, reader *sdkmetric.ManualReader) metricdata.ResourceMetrics {

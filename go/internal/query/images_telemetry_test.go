@@ -10,7 +10,6 @@ import (
 	"sync"
 	"testing"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
@@ -29,37 +28,14 @@ func resetImageInstrumentsForTest() {
 
 // withImageMetricReader installs a process-global manual-reader meter
 // provider and resets the lazily registered image-list instruments so the
-// test observes only its own datapoints (mirrors withTagHistoryMetricReader).
-//
-// Before installing the reader's own provider, it burns the OTel global
-// delegate-once on a throwaway provider. otel.Meter() inside a sync.Once
-// resolves its meter from whichever provider is current at the moment that
-// Once fires; if some other test file's sync.Once fires first in this
-// process and its own SetMeterProvider call is the very first one ever made,
-// the OTel global proxy binds that meter's delegate permanently to it (see
-// initImageQueryInstruments' doc comment). Without this throwaway call, this
-// test would only be defended by being first among the package's test files
-// to install a provider — an accident of alphabetical file ordering
-// (images_telemetry_test.go sorts before request_metrics_, semantic_search_,
-// and tag_history_ telemetry test files), not a property of the code under
-// test. Burning the delegate-once here first guarantees any
-// package-var-cached meter is bound to the throwaway, never to this test's
-// reader, so a buggy handler that caches its meter at init time fails
-// deterministically instead of passing by file-order luck.
+// test observes only its own datapoints. It is a thin wrapper around the
+// shared withPackageMetricReader (metric_reader_test.go), which also backs
+// withTagHistoryMetricReader in tag_history_telemetry_test.go; see that
+// helper's doc comment for why the throwaway-provider install and the
+// previous-provider capture order both matter.
 func withImageMetricReader(t *testing.T) *sdkmetric.ManualReader {
 	t.Helper()
-	otel.SetMeterProvider(sdkmetric.NewMeterProvider())
-	reader := sdkmetric.NewManualReader()
-	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
-	previous := otel.GetMeterProvider()
-	otel.SetMeterProvider(provider)
-	resetImageInstrumentsForTest()
-	t.Cleanup(func() {
-		otel.SetMeterProvider(previous)
-		resetImageInstrumentsForTest()
-		_ = provider.Shutdown(context.Background())
-	})
-	return reader
+	return withPackageMetricReader(t, resetImageInstrumentsForTest)
 }
 
 func collectImageMetrics(t *testing.T, reader *sdkmetric.ManualReader) metricdata.ResourceMetrics {
@@ -126,18 +102,18 @@ func imageDurationOutcomeCount(t *testing.T, rm metricdata.ResourceMetrics, want
 // guard branch (images.go:122-136), and — more importantly — proves the
 // lazily registered image-list instruments actually observe datapoints
 // against a meter provider installed by the test rather than a stale one
-// captured at package-init time. Before the fix, imageQueryMeter was a
-// package-level var initialized via otel.Meter(...) once at package load,
-// before any test installs a meter provider; the OTel global proxy binds
-// such a meter's delegate permanently on the first ever
-// otel.SetMeterProvider call in the process, so a later test installing its
-// own reader would silently record onto an earlier (possibly already
-// shut-down) provider instead of its own manual reader. Running this test
-// twice in the same process (-count=2) or alongside the tag-history tests
-// (which also install their own meter provider) reproduces that: on the
-// second SetMeterProvider install, imageQueryMeter still resolves against
-// the first provider it ever saw, so this test's manual reader observes zero
-// datapoints and the assertions below fail.
+// captured earlier in the process. initImageQueryInstruments (images_telemetry.go)
+// fetches its meter from the current global provider inside a sync.Once, so a
+// meter resolved before any provider is installed would bind permanently to
+// whichever provider first calls otel.SetMeterProvider in the process — see
+// that function's doc comment for the OTel global-proxy mechanics. Because
+// withImageMetricReader (via the shared withPackageMetricReader in
+// metric_reader_test.go) always burns that delegate-once on a throwaway
+// provider before installing this test's own reader, a handler that wrongly
+// cached its meter would fail this assertion even running this single test
+// alone at -count=1 — the throwaway install is itself the first
+// SetMeterProvider call in that run, so the bug no longer needs -count=2 or
+// another telemetry test file running first to reproduce.
 func TestImageHandlerNilBackendRecordsBackendUnavailableOutcome(t *testing.T) {
 	reader := withImageMetricReader(t)
 
@@ -150,6 +126,45 @@ func TestImageHandlerNilBackendRecordsBackendUnavailableOutcome(t *testing.T) {
 
 	if got, want := w.Code, http.StatusServiceUnavailable; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+
+	rm := collectImageMetrics(t, reader)
+	if got, want := imageErrorCounterValue(t, rm, "backend_unavailable"), int64(1); got != want {
+		t.Fatalf("errors counter reason=backend_unavailable = %d, want %d", got, want)
+	}
+	if got, want := imageDurationOutcomeCount(t, rm, "backend_unavailable"), uint64(1); got != want {
+		t.Fatalf("duration histogram outcome=backend_unavailable count = %d, want %d", got, want)
+	}
+}
+
+// TestImageHandlerGraphReadErrorRecordsBackendUnavailableOutcome pins the
+// outcome="backend_unavailable" metric-label contract on the
+// WriteGraphReadError guard branch (images.go:153-157), distinct from the
+// nil-backend branch above: this one actually invokes h.Neo4j.Run (a
+// configured reader) and only trips because that call returned
+// ErrGraphUnavailable. Before this test, that branch returned without
+// recording either instrument, so a real graph outage or read-deadline on
+// GET /api/v0/images produced a correct 503/504 response but zero
+// datapoints on eshu_dp_query_image_list_duration_seconds and
+// eshu_dp_query_image_list_errors_total. Asserting fakeReader.lastCypher is
+// non-empty proves the graph-read-error branch, not the nil-backend branch,
+// was exercised.
+func TestImageHandlerGraphReadErrorRecordsBackendUnavailableOutcome(t *testing.T) {
+	reader := withImageMetricReader(t)
+
+	fakeReader := &fakeImageGraphReader{err: ErrGraphUnavailable}
+	handler := &ImageHandler{Neo4j: fakeReader, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, newImageRequest("/api/v0/images?limit=5"))
+
+	if got, want := w.Code, http.StatusServiceUnavailable; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if fakeReader.lastCypher == "" {
+		t.Fatalf("h.Neo4j.Run was never called; test did not exercise the graph-read-error guard branch")
 	}
 
 	rm := collectImageMetrics(t, reader)
