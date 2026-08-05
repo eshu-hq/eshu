@@ -459,7 +459,16 @@ func serviceInvestigationCoverage(
 		"evidence_family_count":            len(evidenceFamilies),
 		"result_limit":                     serviceStoryItemLimit,
 		"downstream_read_limit":            boundedTraceEnrichmentLimit(0),
-		"truncated":                        serviceInvestigationRepositoriesTruncated(repositories) || upstreamTruncated,
+		// PR #5933 review fix (Codex, service_story_dossier.go:308 sibling):
+		// consumer_repositories_truncated (folded into upstreamTruncated
+		// above) can fire purely because the service repository's own
+		// indexed-file list hit serviceEvidenceFileLimit
+		// (service_evidence_types.go), a bound with no relation to
+		// downstream_read_limit. Naming it here keeps this route's coverage
+		// summary honest about which bound fired, matching
+		// buildServiceResultLimitsWithContext's evidence_file_read_limit.
+		"evidence_file_read_limit": serviceEvidenceFileLimit,
+		"truncated":                serviceInvestigationRepositoriesTruncated(repositories) || upstreamTruncated,
 	}
 }
 

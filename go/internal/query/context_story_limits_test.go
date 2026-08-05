@@ -168,6 +168,64 @@ func TestWorkloadContextResultLimitsNotTruncatedUnderLimit(t *testing.T) {
 	}
 }
 
+// TestWorkloadContextResultLimitsReflectsUpstreamTruncationFlags is the PR
+// #5933 review fix (Codex, service_query_enrichment.go:190).
+// service_query_enrichment.go sets dependents_truncated,
+// consumer_repositories_truncated, and provisioning_source_chains_truncated on
+// the workload context whenever the provisioning-candidate, evidence-file,
+// hostname, or consumer-search reads underneath those lists hit their own
+// bound -- a bound well below contextStoryItemLimit (50). Before this fix,
+// workloadContextResultLimits only ORed the in-place fan-out caps, so a
+// caller reading result_limits.truncated on GET
+// /api/v0/workloads/{id}/context or /story could see false next to a true
+// dependents_truncated: the exact false-complete signal these flags exist to
+// prevent (docs/public/reference/http-api/context-and-stories.md), and the
+// same signal buildServiceResultLimitsWithContext (service_story_dossier.go)
+// already ORs in for the service story route.
+func TestWorkloadContextResultLimitsReflectsUpstreamTruncationFlags(t *testing.T) {
+	t.Parallel()
+
+	for _, flag := range []string{
+		"dependents_truncated",
+		"consumer_repositories_truncated",
+		"provisioning_source_chains_truncated",
+	} {
+		t.Run(flag, func(t *testing.T) {
+			ctx := map[string]any{
+				"dependents": []any{map[string]any{"id": 1}, map[string]any{"id": 2}},
+				flag:         true,
+			}
+
+			limits := workloadContextResultLimits(ctx, "workload-1", "context")
+
+			if truncated, _ := limits["truncated"].(bool); !truncated {
+				t.Fatalf(
+					"result_limits.truncated = false with %s = true, want true (a bounded upstream read below contextStoryItemLimit still truncated the underlying evidence)",
+					flag,
+				)
+			}
+		})
+	}
+}
+
+// TestWorkloadContextResultLimitsNotTruncatedWithoutUpstreamFlags proves a
+// workload with no in-place cap and no upstream truncation flag is not
+// falsely marked truncated by the fix above.
+func TestWorkloadContextResultLimitsNotTruncatedWithoutUpstreamFlags(t *testing.T) {
+	t.Parallel()
+
+	ctx := map[string]any{
+		"dependents":            []any{map[string]any{"id": 1}},
+		"consumer_repositories": []any{map[string]any{"id": 2}},
+	}
+
+	limits := workloadContextResultLimits(ctx, "workload-1", "context")
+
+	if truncated, _ := limits["truncated"].(bool); truncated {
+		t.Fatal("result_limits.truncated = true, want false with no in-place cap and no upstream truncation flag")
+	}
+}
+
 func contextEnvelopeHTTPData(t *testing.T, mux *http.ServeMux, path, pathKey, pathValue string) map[string]any {
 	t.Helper()
 

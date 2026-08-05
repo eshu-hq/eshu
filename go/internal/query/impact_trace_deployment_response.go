@@ -68,7 +68,13 @@ func buildDeploymentTraceFields(serviceName string, workloadContext map[string]a
 	// #5720 round-2 P1-1: threads queryProvisioningRepositoryCandidates's
 	// truncated bool (set on workloadContext by service_query_enrichment.go)
 	// onto the trace-deployment-chain response, mirroring
-	// uncorrelatedCloudResourcesTruncated below.
+	// uncorrelatedCloudResourcesTruncated below. That is exact for
+	// dependentsTruncated and provisioningSourceChainsTruncated. PR #5933
+	// review fix (Copilot): consumerRepositoriesTruncated is not that same
+	// bool -- since round 9 it is the merged consumersTruncated signal
+	// loadConsumerRepositoryEnrichmentFromCandidates returns, which folds in
+	// the candidate bound plus the evidence-file, hostname, and
+	// content-search bounds underneath consumer_repositories.
 	f.dependentsTruncated = BoolVal(workloadContext, "dependents_truncated")
 	f.consumerRepositoriesTruncated = BoolVal(workloadContext, "consumer_repositories_truncated")
 	f.provisioningSourceChainsTruncated = BoolVal(workloadContext, "provisioning_source_chains_truncated")

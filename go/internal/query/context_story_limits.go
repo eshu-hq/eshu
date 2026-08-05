@@ -77,7 +77,23 @@ func workloadContextResultLimits(ctx map[string]any, workloadID, surface string)
 	if consumerTotal > 0 {
 		ctx["consumer_repositories"] = cappedConsumers
 	}
-	truncated := instTrunc || depTrunc || conTrunc
+	// #5720 PR #5933 review fix (Codex, service_query_enrichment.go:190):
+	// dependents_truncated, consumer_repositories_truncated, and
+	// provisioning_source_chains_truncated are set on ctx whenever the
+	// provisioning-candidate, evidence-file, hostname, or consumer-search
+	// reads feeding those lists hit their own bound -- a bound
+	// (defaultIndirectEvidenceSearchLimit, 25) well below contextStoryItemLimit
+	// (50), so instTrunc/depTrunc/conTrunc above can never observe it. Without
+	// this OR, a caller could see result_limits.truncated: false next to a
+	// true dependents_truncated on this route family, the false-complete
+	// signal these flags exist to prevent. buildServiceResultLimitsWithContext
+	// (service_story_dossier.go) already ORs the same flags into the service
+	// story result_limits; this closes the same gap for
+	// GET /api/v0/workloads/{id}/context and /story.
+	upstreamTruncated := BoolVal(ctx, "dependents_truncated") ||
+		BoolVal(ctx, "consumer_repositories_truncated") ||
+		BoolVal(ctx, "provisioning_source_chains_truncated")
+	truncated := instTrunc || depTrunc || conTrunc || upstreamTruncated
 	drilldownTool := "get_workload_story"
 	if surface == "story" {
 		drilldownTool = "get_workload_context"

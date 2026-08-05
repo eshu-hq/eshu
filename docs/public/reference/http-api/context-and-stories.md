@@ -610,9 +610,21 @@ service context, and workload context/story, and `coverage_summary.truncated`
 on `GET /api/v0/investigations/services/{service_name}`. Both blocks also
 report `downstream_read_limit`, the bound that actually fires on the
 downstream lists (25 by default). Read it rather than `result_limits.limit` or
-`coverage_summary.result_limit`, which report the 50-row rendering cap: when
-`truncated` is true the honest statement is "more than `downstream_read_limit`
-existed", not "more than the rendering cap existed".
+`coverage_summary.result_limit`, which report the 50-row rendering cap.
+
+`downstream_read_limit` is not the only bound behind `truncated`, though.
+`dependents_truncated` and `provisioning_source_chains_truncated` reflect the
+provisioning-candidate graph read alone, so when either one drives
+`truncated` to true the honest statement is "more than `downstream_read_limit`
+existed". `consumer_repositories_truncated` can also fire from the other six
+sources in the enumeration above -- most notably the service repository's own
+5,000-file read, reported alongside as `evidence_file_read_limit`. When
+`truncated` is true only because of `consumer_repositories_truncated`, and the
+returned `dependents`/`consumer_repositories` counts sit under
+`downstream_read_limit`, the bound that fired is `evidence_file_read_limit` or
+one of its siblings, not `downstream_read_limit` -- "more than the rendering
+cap existed" is still wrong, but so is assuming `downstream_read_limit` itself
+was exceeded.
 
 A scoped token receives these flags computed from the pre-authorization read.
 The backend applies its row bound before the caller's repository grant is

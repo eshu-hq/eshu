@@ -58,6 +58,14 @@ func buildSpecFileResolver(ctx context.Context, reader serviceEvidenceReader, re
 		}
 		// Resolve relative path against the base spec file's directory.
 		resolved := openAPIRefFilePath(baseRelativePath, ref)
+		if resolved == "" {
+			// PR #5933 review fix (Copilot): a fragment-only $ref (e.g.
+			// "#/components/schemas/Widget") resolves to no external file.
+			// Reading through to the store with an empty relative path is a
+			// needless query and, on a backend that rejects an empty path,
+			// produces a confusing `get referenced spec file ""` error.
+			return "", nil
+		}
 
 		fc, err := reader.GetFileContent(ctx, repoID, resolved)
 		if err != nil {
