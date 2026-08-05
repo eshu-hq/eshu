@@ -30,9 +30,10 @@ var sourcedScriptRE = regexp.MustCompile(`(?m)^[ \t]*(?:\.|source)[ \t]+[^\n]*?(
 // stays authoritative, but MUST NOT be the first place a credential-free
 // failure appears").
 //
-// This check has several intentional narrowings. The list below is not a
-// closed count — do not summarize it as "narrow in N ways" in a comment or
-// commit message; a new one has been missed twice already (#5762 round 10).
+// This check has several narrowings, some intentional and some accidental —
+// see each item below for which. The list is not a closed count either way;
+// do not summarize it as "narrow in N ways" in a comment or commit message. A
+// narrowing has been missed twice already (#5762 round 10).
 //
 //   - It only looks at the scripts/ tokens extractScriptPaths derives from
 //     each command, once tokenized. A command with no such token (e.g. "cd go
@@ -63,18 +64,22 @@ var sourcedScriptRE = regexp.MustCompile(`(?m)^[ \t]*(?:\.|source)[ \t]+[^\n]*?(
 //     `. "${script_dir}/lib/maturity-drift-guard-language-extensions.sh"` in
 //     scripts/verify-maturity-drift-guard.sh — is invisible to the walk, at
 //     any depth: sourcedScriptRE never matches it, so the walk cannot find
-//     the file to check it against. Measured directly against the committed
-//     registry (`go test ./internal/cigates -run
-//     TestZZZDebugUnresolvedSourceTokens`, a throwaway, not committed): 37
-//     unresolved source lines against 26 resolved, across the 130 scripts
-//     reachable from a gate's own local.command/local.test_command. Five real
-//     gates source a lib this way — parser-relationship-kit,
-//     telemetry-coverage (twice), operator-dashboard, and
-//     maturity-drift-guard — and each of those five libs is independently an
-//     explicit trigger on its gate (verified against specs/ci-gates.v1.yaml),
-//     so no gate is false-green from this gap today. The gap is real, not
-//     hypothetical, and this delta does not close it: widening
-//     sourcedScriptRE to resolve computed paths is a separate change.
+//     the file to check it against. Measured this session by walking every
+//     script reachable from a gate's own local.command/local.test_command (as
+//     this check itself does) and counting `source`/`.` lines with and
+//     without literal "scripts/" text in the target: 37 unresolved lines
+//     against 26 resolved, across 130 reachable scripts. (Not cited as a
+//     runnable command here — the throwaway test that produced it is not
+//     committed, and a reader running a `-run` filter that matches nothing
+//     gets a silently passing `ok`, which is the exact false-green shape
+//     #5762 exists to remove.) Five such source lines, across four real gates
+//     — parser-relationship-kit, telemetry-coverage (twice),
+//     operator-dashboard, and maturity-drift-guard — name a lib this way, and
+//     each of those five libs is independently an explicit trigger on its
+//     gate (verified against specs/ci-gates.v1.yaml), so no gate is
+//     false-green from this gap today. The gap is real, not hypothetical, and
+//     this delta does not close it: widening sourcedScriptRE to resolve
+//     computed paths is a separate change.
 //     TestDriftCheck_VariableSourcedFileNotResolved pins the boundary with an
 //     uncovered `${script_dir}`-sourced lib that produces 0 check-8 errors.
 //   - It does NOT check the reverse direction. A trigger matching no file on
