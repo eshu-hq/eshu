@@ -306,18 +306,25 @@ and `eshu-diagnostic-rigor`.
   to be declared, not derived.** An implicit rule — treating a gate's own
   `local` scripts, and whatever they source, as triggers automatically —
   would make this check's drift impossible by construction and would have
-  cut the 53-line registry fix the check required on landing (#5762) to
-  zero. Declaring keeps the registry the single readable answer to "what
-  selects this gate": a reviewer reads `triggers:` and knows the whole
-  selection surface without also reading the gate's local command and every
-  script it sources. Sourcing is followed transitively — a visited set makes
-  the walk cycle-safe, since golden-corpus-lock-cases.sh sources two more
-  case files that are themselves one level deeper than the gate's own
-  `local.command` names — and every `scripts/`-prefixed token in a compound
-  `local.command` is checked, not only the first, the shape
-  ci-gate-registry's and frontend-console-checks's chained commands both
-  have. See checkScriptTriggerCoverage's doc comment for the two narrowings
-  that remain intentional.
+  cut the 55-line registry fix the check required on landing (#5762,
+  `git diff --numstat origin/main HEAD -- specs/ci-gates.v1.yaml`) to zero.
+  Declaring keeps the registry the single readable answer to "what selects
+  this gate": a reviewer reads `triggers:` and knows the whole selection
+  surface without also reading the gate's local command and every script it
+  sources.
+
+  Sourcing is followed transitively: golden-corpus-lock-cases.sh is the real
+  case, sourced directly by scripts/test-verify-golden-corpus-gate.sh and
+  itself sourcing two more case files the gate's `local.command` never names.
+  The walk uses a visited set so a sourcing cycle cannot hang it — no script
+  in this repo sources one that sources it back today, but the walk must stay
+  safe regardless. Every `scripts/`-prefixed token in a compound
+  `local.command` is checked too, not only the first: ci-gate-registry's
+  `local.test_command` chains four scripts/ invocations with `&&`, and
+  frontend-console-checks's `local.command` chains two. See
+  checkScriptTriggerCoverage's doc comment for the full, open-ended list of
+  narrowings this check has — it is not a fixed count, and a comment claiming
+  one has already been wrong twice (#5762 rounds 9 and 10).
 
 ## Common changes
 

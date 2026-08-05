@@ -98,13 +98,22 @@ func checkScript(repoRoot, gateID, command string) error {
 // ("../scripts/foo.txt") is not recognised — heredoc-budget's local.command
 // is the one gate command in the registry with that shape, and its file is
 // covered by an explicit registry trigger instead of being derived here (see
-// checkScriptTriggerCoverage's doc comment in scripttrigger.go). Commands
-// starting with "cd " are inline shell pipelines; they are considered valid
-// (not pointing at a missing file) so callers skip rather than error on them.
+// checkScriptTriggerCoverage's doc comment in scripttrigger.go, which also
+// documents this function's other narrowings in full).
+//
+// A command starting with "cd " is skipped BEFORE the word loop below runs at
+// all — not because that loop found no "scripts/" word. A "cd "-prefixed
+// command that does carry a later "scripts/" token (none do in the committed
+// registry today) is skipped just the same; see
+// checkScriptTriggerCoverage's doc comment for why that is a real, if
+// currently harmless, gap rather than a safe-by-construction one.
 func extractScriptPaths(command string) []string {
 	trimmed := strings.TrimSpace(command)
 
-	// Inline shell pipeline starting with "cd" — no script file to check.
+	// Skip before tokenizing: a "cd "-prefixed command is an inline shell
+	// pipeline, and any word after the "cd" — including one that looks like a
+	// scripts/ path — is not confidently repo-root-relative. Callers treat
+	// that as "no script to check" rather than erroring on it.
 	if strings.HasPrefix(trimmed, "cd ") {
 		return nil
 	}

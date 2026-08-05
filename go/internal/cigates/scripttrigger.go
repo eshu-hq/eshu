@@ -30,31 +30,67 @@ var sourcedScriptRE = regexp.MustCompile(`(?m)^[ \t]*(?:\.|source)[ \t]+[^\n]*?(
 // stays authoritative, but MUST NOT be the first place a credential-free
 // failure appears").
 //
-// The check is narrow in two ways, both intentional.
+// This check has several intentional narrowings. The list below is not a
+// closed count — do not summarize it as "narrow in N ways" in a comment or
+// commit message; a new one has been missed twice already (#5762 round 10).
 //
-//  1. It only looks at the scripts/ tokens extractScriptPaths derives from
-//     each command. A command with no such token (e.g. "cd go && go vet
-//     ./...") is skipped — there is no file whose edit could go unselected.
-//     CI-only gates (Local == nil) are skipped for the same reason: they have
-//     no local command to derive a script from. One command in the registry
-//     references a scripts/ file through a relative token instead of a
-//     leading "scripts/" one — heredoc-budget's local.command passes
-//     "-baseline ../scripts/heredoc-budget-baseline.txt" — and
-//     extractScriptPaths does not recognise that shape, so it is not derived
-//     here either. That file is already an explicit trigger on the
-//     heredoc-budget gate (specs/ci-gates.v1.yaml), so nothing goes
-//     unselected today; widen extractScriptPaths if that stops being true.
-//  2. It does NOT check the reverse direction. A trigger matching no file on
+//   - It only looks at the scripts/ tokens extractScriptPaths derives from
+//     each command, once tokenized. A command with no such token (e.g. "cd go
+//     && go vet ./...") is skipped — there is no file whose edit could go
+//     unselected.
+//   - A command starting with "cd " is skipped BEFORE tokenizing runs at all,
+//     not because tokenizing found no scripts/ token — extractScriptPaths
+//     returns nil on that prefix unconditionally. Every cd-prefixed command
+//     in the registry today carries no bare "scripts/" token after the "cd"
+//     (verified: 0 of the registry's 20 cd-prefixed local.command /
+//     local.test_command entries), so this coincides with the token-based
+//     skip above in practice, but a future
+//     "cd apps/console && bash scripts/x.sh" would be exempted too, silently.
+//     TestDriftCheck_CdPrefixedCommandWithScriptsTokenSkipped pins today's
+//     exemption so a reader sees it demonstrated, not only asserted.
+//   - CI-only gates (Local == nil) are skipped: no local command means no
+//     script to derive.
+//   - heredoc-budget's local.command references a scripts/ file through a
+//     relative token ("-baseline ../scripts/heredoc-budget-baseline.txt")
+//     that extractScriptPaths does not recognise — it only matches a leading
+//     "scripts/" prefix, not "../scripts/". That file is already an explicit
+//     trigger on the heredoc-budget gate (specs/ci-gates.v1.yaml), so nothing
+//     goes unselected today; widen extractScriptPaths if that stops being
+//     true.
+//   - sourcedScripts (and therefore the transitive walk below) only resolves
+//     a `source`/`.` line whose LITERAL TEXT contains "scripts/". A line that
+//     sources a computed or variable path — for example
+//     `. "${script_dir}/lib/maturity-drift-guard-language-extensions.sh"` in
+//     scripts/verify-maturity-drift-guard.sh — is invisible to the walk, at
+//     any depth: sourcedScriptRE never matches it, so the walk cannot find
+//     the file to check it against. Measured directly against the committed
+//     registry (`go test ./internal/cigates -run
+//     TestZZZDebugUnresolvedSourceTokens`, a throwaway, not committed): 37
+//     unresolved source lines against 26 resolved, across the 130 scripts
+//     reachable from a gate's own local.command/local.test_command. Five real
+//     gates source a lib this way — parser-relationship-kit,
+//     telemetry-coverage (twice), operator-dashboard, and
+//     maturity-drift-guard — and each of those five libs is independently an
+//     explicit trigger on its gate (verified against specs/ci-gates.v1.yaml),
+//     so no gate is false-green from this gap today. The gap is real, not
+//     hypothetical, and this delta does not close it: widening
+//     sourcedScriptRE to resolve computed paths is a separate change.
+//     TestDriftCheck_VariableSourcedFileNotResolved pins the boundary with an
+//     uncovered `${script_dir}`-sourced lib that produces 0 check-8 errors.
+//   - It does NOT check the reverse direction. A trigger matching no file on
 //     disk is a separate concern, and a gate is free to declare triggers well
 //     beyond its own scripts.
 //
-// Sourcing is followed transitively, with a visited set so a cycle cannot
-// hang the walk (no script in this repo sources one that sources it back
-// today, but the walk must stay safe if that changes). A script reached only
-// through another sourced script — for example
-// golden-corpus-lock-parse-cases.sh, which golden-corpus-lock-cases.sh
-// sources and which the golden-corpus-mirror gate's local.command never names
-// directly — is checked exactly like a directly sourced one.
+// Within those narrowings, sourcing IS followed transitively, with a visited
+// set so a sourcing cycle cannot hang the walk — no script in this repo
+// sources one that sources it back today, but the walk must stay safe if that
+// changes. golden-corpus-lock-cases.sh is the real transitivity case:
+// scripts/test-verify-golden-corpus-gate.sh sources it directly, and it in
+// turn sources golden-corpus-lock-parse-cases.sh and
+// golden-corpus-lock-race-cases.sh, neither of which the gate's local.command
+// names directly. Both are resolved (their source lines carry the literal
+// "scripts/" text) and are checked exactly like a directly sourced file once
+// the walk reaches them.
 func checkScriptTriggerCoverage(repoRoot string, reg *Registry) []error {
 	var errs []error
 	for _, g := range reg.Gates {

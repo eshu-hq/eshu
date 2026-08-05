@@ -230,3 +230,54 @@ func TestDriftCheck_InlineToolchainCommandSkipped(t *testing.T) {
 		t.Errorf("expected no script-trigger errors for an inline command, got %d: %v", len(errs), errs)
 	}
 }
+
+// sourcedScripts only resolves a `source`/`.` line whose LITERAL TEXT
+// contains "scripts/" (#5762 round 10, P2-1). A line that sources a computed
+// path through a variable — the shape scripts/verify-maturity-drift-guard.sh
+// and four other real gate scripts use — is invisible to the walk, at any
+// depth. This pins that boundary: scripts/lib/thing-variable-cases.sh is a
+// real, uncovered file the command reaches, but check 8 reports 0 errors
+// because it never resolves the variable to discover the file.
+func TestDriftCheck_VariableSourcedFileNotResolved(t *testing.T) {
+	t.Parallel()
+
+	root := buildDriftRepo(t, minimalPreCommit("my-gate"), []string{"verify.yml"})
+	writeScript(t, root, "scripts/verify-thing.sh",
+		"#!/usr/bin/env bash\n"+
+			"script_dir=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\n"+
+			". \"${script_dir}/lib/thing-variable-cases.sh\"\n")
+	writeScript(t, root, "scripts/lib/thing-variable-cases.sh", "#!/usr/bin/env bash\ntrue\n")
+
+	g := gateWith("my-gate", "my-gate", "verify.yml")
+	g.Triggers = []string{"go/**", "scripts/verify-thing.sh"}
+	// scripts/lib/thing-variable-cases.sh is deliberately absent from
+	// triggers. Check 8 must not flag it: it cannot see past the
+	// variable-sourced line to learn the file exists.
+	g.Local = &cigates.Local{Command: "bash scripts/verify-thing.sh"}
+
+	if errs := scriptTriggerErrs(t, root, minimalReg([]cigates.Gate{g}, nil, nil)); len(errs) != 0 {
+		t.Errorf("variable-sourced file must not be discovered by the literal-text-only walk, got %d errors: %v", len(errs), errs)
+	}
+}
+
+// extractScriptPaths returns nil for any command starting with "cd ", BEFORE
+// it tokenizes anything — so a cd-prefixed command that does carry a
+// scripts/ token later in the pipeline is exempted from check 8 exactly like
+// one that carries none (#5762 round 10, P2-2). This pins that exemption:
+// scripts/uncovered.sh is a real, uncovered file the command names, and check
+// 8 still reports 0 errors because the "cd " prefix skips it before the
+// scripts/ token is ever seen.
+func TestDriftCheck_CdPrefixedCommandWithScriptsTokenSkipped(t *testing.T) {
+	t.Parallel()
+
+	root := buildDriftRepo(t, minimalPreCommit("my-gate"), []string{"verify.yml"})
+	writeScript(t, root, "scripts/uncovered.sh", "#!/usr/bin/env bash\ntrue\n")
+
+	g := gateWith("my-gate", "my-gate", "verify.yml")
+	g.Triggers = []string{"go/**"} // scripts/uncovered.sh is deliberately absent
+	g.Local = &cigates.Local{Command: "cd apps/console && bash scripts/uncovered.sh"}
+
+	if errs := scriptTriggerErrs(t, root, minimalReg([]cigates.Gate{g}, nil, nil)); len(errs) != 0 {
+		t.Errorf("cd-prefixed command must be exempted regardless of its scripts/ tokens, got %d errors: %v", len(errs), errs)
+	}
+}
