@@ -3,6 +3,8 @@
 
 package reducer
 
+const cicdWorkflowImageProvider = "github_actions"
+
 // attachWorkflowImagesToRuns joins each already-decoded
 // ci.workflow_image_evidence (decodedCICDWorkflowImage, decoded once during
 // the build phase and never re-decoded here) to the runs sharing its
@@ -30,6 +32,9 @@ func attachWorkflowImagesToRuns(runs map[string]*cicdRunEvidence, workflowImages
 	// (#5424). Trimming both sides preserves the pre-migration payloadString
 	// byte-parity a padded repository_id relied on.
 	for _, ev := range runs {
+		if trimmedCICDField(ev.runDecoded.Provider) != cicdWorkflowImageProvider {
+			continue
+		}
 		runRepositoryID := trimmedCICDPtr(ev.runDecoded.RepositoryID)
 		if runRepositoryID == "" {
 			continue

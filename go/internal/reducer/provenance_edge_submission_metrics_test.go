@@ -57,6 +57,7 @@ func TestProvenanceEdgeCounterRecordsSubmittedRowsAfterSuccessfulWrites(t *testi
 		context.Background(),
 		intent,
 		[]CICDRunCorrelationDecision{{
+			Provider:        "github_actions",
 			RepositoryID:    "repository-1",
 			ArtifactDigest:  "sha256:workflow-child",
 			Outcome:         CICDRunCorrelationExact,
@@ -156,6 +157,7 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 						context.Background(),
 						Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
 						[]CICDRunCorrelationDecision{{
+							Provider:        "github_actions",
 							RepositoryID:    "repository-1",
 							ArtifactDigest:  "sha256:child",
 							Outcome:         CICDRunCorrelationExact,
@@ -249,6 +251,7 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 					context.Background(),
 					Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
 					[]CICDRunCorrelationDecision{{
+						Provider:        "github_actions",
 						RepositoryID:    "repository-1",
 						ArtifactDigest:  "sha256:child",
 						Outcome:         CICDRunCorrelationExact,
