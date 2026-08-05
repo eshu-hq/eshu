@@ -13,15 +13,17 @@ import "testing"
 // word "pipefail" somewhere after "set" with no check on which sign
 // introduced it.
 //
-// The seven cases below (comment tagged "round-7 mutation kill") were added
-// after #5927 round-7 review found that round-7's own tightening -- the
+// The seven cases tagged "round-7 mutation kill" were added after #5927
+// round-7 review found that round-7's own tightening -- the
 // `-[a-zA-Z]*o[a-zA-Z]*[ \t]+pipefail\b` tail -- is strong enough on its own
 // to survive removal of each OTHER guard this file's doc comment documents,
 // with nothing in this matrix or trivyskipdirs_localscript_test.go noticing.
-// Each is a regex mutant that was proven, this session, to flip
-// trivyPipefailRE from reject to accept when the named element is removed
-// from trivyskipdirs.go's `trivyPipefailRE` -- see the mutation/RED/revert/
-// GREEN evidence in the #5927 round-8 PR discussion. Each false case has a
+// The two cases tagged "round-8 mutation kill" close the same gap for the
+// remaining two untested guards round-8 review found: the '\n' stop in the
+// negated class, and the mandatory whitespace immediately before the
+// '-'-prefixed flag cluster. Every one of these nine cases is a regex mutant
+// proven to flip trivyPipefailRE from reject to accept when the named
+// element is removed from trivyskipdirs.go's `trivyPipefailRE`; each has a
 // true sibling already in this matrix (named in its own comment) proving the
 // same mutation does not touch the legitimate forms.
 //
@@ -106,6 +108,28 @@ func TestTrivyPipefailRE_AcceptanceMatrix(t *testing.T) {
 		{"no_trailing_word_boundary", "set -o pipefailoption", false},
 		// True sibling: "o_only" above already proves the exact word
 		// "pipefail" still matches.
+
+		// round-8 mutation kill: dropping '\n' from the negated class lets
+		// the scan cross a line break and treat a later line as if it were
+		// still the `set` command's own argument list. Must NOT match -- a
+		// `set` invocation with no pipefail flag on its own line, followed on
+		// a LATER line by an unrelated command that happens to contain an
+		// `-o`-shaped cluster next to "pipefail", is not the `set` command
+		// establishing pipefail.
+		{"newline_before_flag_cluster", "set -x\necho -o pipefail", false},
+		// True sibling: every legitimate case above ("euo", "o_only", "eo",
+		// "indented", "tab_indented", "trailing_command") is confined to one
+		// physical line, so the '\n' stop never keeps a real invocation from
+		// matching.
+
+		// round-8 mutation kill: dropping the mandatory '[ \t]' immediately
+		// before the '-'-prefixed flag cluster lets that cluster be found
+		// anywhere after "set", including glued onto an unrelated hyphenated
+		// token instead of starting its own shell word. Must NOT match --
+		// "--foo-o" is one word, not `set`'s own "-o" flag.
+		{"no_space_before_flag_cluster", "set -e --foo-o pipefail", false},
+		// True sibling: "o_only" above already proves a flag cluster that IS
+		// its own whitespace-separated word still matches.
 	}
 	for _, c := range cases {
 		c := c
