@@ -81,8 +81,8 @@ The old path could publish false commit provenance, while the integrated path
 verifies every admitted regular-file byte against the immutable tree during
 the required copy. It is bounded to changed, clean filesystem managed-copy
 repositories; unchanged manifest polls perform neither the copy nor the
-verification, and other source modes are unaffected. The same-machine B-7 rung
-below kept collection at 15 seconds and total wall time within the required
+verification, and other source modes are unaffected. The rebased code-head B-7
+run below kept collection at 16 seconds and total wall time within the required
 ceiling.
 
 No-Observability-Change: No metric instrument, attribute key, span, structured
@@ -99,8 +99,8 @@ commit-matched exact correlation.
 
 ## Verification
 
-No-Regression Evidence: A same-machine B-7 comparison used the same 30-repository
-corpus, Postgres path, exact NornicDB source commit
+No-Regression Evidence: An earlier same-machine B-7 comparison used the same
+30-repository corpus, Postgres path, exact NornicDB source commit
 `5d2731ae1b3328708f74f12c21658786abac641a`, start event, and terminal green
 gate event. Before the managed-copy and provider guards, B-7 completed in 125
 seconds; its reported phases summed to 107 seconds (bootstrap 3, collect 15,
@@ -112,7 +112,15 @@ increased by 4 seconds and the instrumented pipeline phases by 2 seconds
 speedup is claimed. Every required timing remained inside its gate ceiling;
 maintenance drains exceeded the advisory 19-second ceiling by 1 second.
 
-The post-fix gate reported 529 passes, zero required failures, and one timing
+The rebased code head `36c3dbd3cf21d40e853338dbd9a44c9aabc0a6a0`
+completed B-7 in 139 seconds. Its phases summed to 121 seconds (bootstrap 4,
+collect 16, first drain 64, maintenance drains 35, graph/query 2). All required
+timings remained inside their gate ceilings; maintenance drains produced the
+single timing advisory. The repeated isolated final-parent benchmark above is
+the collector-path no-regression evidence; the variable maintenance phase is
+reported here without attributing it to the collector or claiming a speedup.
+
+That exact run reported 529 passes, zero required failures, and one timing
 advisory. `fact_work_items`, required shared projection intents, and cross-scope
 completion events each had zero nonterminal rows; dead letters were zero.
 rc-165 retained 24 exact-digest OCI `BUILT_FROM` assertions. rc-173 retained
