@@ -223,18 +223,28 @@ func TestTrivySkipDirsParity_LocalScriptSetPlusOPipefailFailsLoudly(t *testing.T
 }
 
 // TestTrivySkipDirsParity_LocalScriptPipefailOnlyInTrailingCommentFailsLoudly
-// pins round-3 review P2-2: trivyPipefailRE used to have no right boundary
-// excluding '#', so `[^\n]*` could cross into a trailing comment on the SAME
-// physical line and be satisfied by a mention of "pipefail" that is not part
-// of the `set` command's own arguments at all -- `set -euo nounset  #
-// pipefail deliberately not set` does NOT establish pipefail, yet the
-// un-anchored pattern read it as if it did.
+// pins round-3 review P2-2: trivyPipefailRE must not let a trailing comment
+// on a `set`-prefixed line satisfy the pattern. The comment below --
+// `# -o pipefail` -- deliberately contains the exact `-o pipefail` shape the
+// pattern requires, so this fixture also discriminates the '#'-in-the-
+// negated-class element specifically (#5927 round-7 review P2-1): round-7
+// added a requirement that "pipefail" follow a `-`-prefixed flag cluster
+// containing `o`, and the ORIGINAL comment here (`# pipefail deliberately
+// not set`) has no such cluster anywhere in it, so it stopped discriminating
+// the '#' guard once that requirement landed -- the check would still fail
+// this fixture with '#' removed from trivyPipefailRE's negated class,
+// because there is still no "-o pipefail" run before the '#' either way.
+// Putting a real "-o pipefail" INSIDE the comment restores the discriminating
+// power: with '#' correctly in the negated class, the run stops before the
+// comment and this does not establish pipefail (expected); with '#' dropped,
+// the negated-class run would cross into the comment and find "-o pipefail"
+// there, incorrectly matching.
 func TestTrivySkipDirsParity_LocalScriptPipefailOnlyInTrailingCommentFailsLoudly(t *testing.T) {
 	t.Parallel()
 
 	root := buildDriftRepo(t, minimalPreCommit("my-gate"), nil)
 	body := "#!/usr/bin/env bash\n" +
-		"set -euo nounset  # pipefail deliberately not set\n" +
+		"set -x # -o pipefail\n" +
 		"source scripts/lib/trivy-skip-dirs.sh\n" +
 		"skip_dirs=\"$(trivy_skip_dirs_csv .)\"\n" +
 		"exec trivy fs --skip-dirs \"${skip_dirs}\" .\n"
@@ -255,15 +265,29 @@ func TestTrivySkipDirsParity_LocalScriptPipefailOnlyInTrailingCommentFailsLoudly
 // that later mentions "pipefail" in an unrelated command sharing the same
 // physical line -- after a ';', '&&', or '|' -- read as establishing it, the
 // opposite failure direction (fail-OPEN) from every other limitation this
-// package documents. `set -eu; printf "remember pipefail\n"` never sets
-// pipefail -- "pipefail" only appears inside the unrelated printf call's
-// string argument -- yet the pre-fix pattern matched it.
+// package documents.
+//
+// The command after the ';' below -- `echo -o pipefail` -- deliberately
+// contains a real "-o pipefail" run, not just the bare word "pipefail" the
+// original fixture used (`printf "remember pipefail\n"`). #5927 round-7
+// review P2-1 found that round-7's added requirement -- "pipefail" must
+// follow a `-`-prefixed flag cluster containing `o` -- means a bare mention
+// of the word no longer reaches a match even with ';' unguarded, so the
+// original fixture stopped discriminating the ';&|' guard once that
+// requirement landed: it would still correctly fail this check with ';&|'
+// removed from trivyPipefailRE's negated class, because "remember pipefail"
+// has no "-o"-shaped cluster anywhere in it. Using "echo -o pipefail"
+// restores the discriminating power: with ';' correctly in the negated
+// class, the run stops before the semicolon and this does not establish
+// pipefail (expected); with ';&|' dropped, the negated-class run would cross
+// the semicolon and find "-o pipefail" in the unrelated echo, incorrectly
+// matching.
 func TestTrivySkipDirsParity_LocalScriptPipefailMentionAfterSemicolonFailsLoudly(t *testing.T) {
 	t.Parallel()
 
 	root := buildDriftRepo(t, minimalPreCommit("my-gate"), nil)
 	body := "#!/usr/bin/env bash\n" +
-		"set -eu; printf \"remember pipefail\\n\"\n" +
+		"set -e; echo -o pipefail\n" +
 		"source scripts/lib/trivy-skip-dirs.sh\n" +
 		"skip_dirs=\"$(trivy_skip_dirs_csv .)\"\n" +
 		"exec trivy fs --skip-dirs \"${skip_dirs}\" .\n"

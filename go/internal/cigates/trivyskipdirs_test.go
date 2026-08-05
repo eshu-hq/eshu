@@ -6,7 +6,6 @@ package cigates_test
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/cigates"
@@ -370,12 +369,17 @@ func TestTrivySkipDirsParity_SpecsFileEmptyNormalizingEntryFailsLoudly(t *testin
 			if !containsAll(got, "dead weight") {
 				t.Errorf("error should mention %q, got: %s", "dead weight", got)
 			}
-			if strings.Contains(got, "catch-all") {
+			if containsCatchAllClaim(got) {
 				t.Errorf("error must NOT claim %q is a catch-all -- it does not disable the scan, got: %s", entry, got)
 			}
 		})
 	}
 }
+
+// containsCatchAllClaim (used above) and its own pinning test,
+// TestContainsCatchAllClaim, live in trivyskipdirs_catchallclaim_test.go --
+// split out to keep this file under the package's 500-line-per-file limit
+// (see go/internal/cigates/AGENTS.md).
 
 // TestTrivySkipDirsParity_SpecsFileTrailingCommentEntryFailsLoudly pins
 // single-source review P2-2: only a WHOLE-LINE comment is supported (a line
