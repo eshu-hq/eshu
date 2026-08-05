@@ -306,12 +306,12 @@ and `eshu-diagnostic-rigor`.
   to be declared, not derived.** An implicit rule — treating a gate's own
   `local` scripts, and whatever they source, as triggers automatically —
   would make this check's drift impossible by construction. This branch's
-  registry diff is 55 lines (`git diff --numstat origin/main HEAD --
-  specs/ci-gates.v1.yaml`); 53 of them are `scripts/` trigger paths check 8
+  registry diff is 54 lines (`git diff --numstat origin/main HEAD --
+  specs/ci-gates.v1.yaml`); 52 of them are `scripts/` trigger paths check 8
   required on landing (#5762) — the other 2
   (`go/internal/serviceintelhttp/**`, `.github/openapi-known-drift.txt`)
   predate check 8 by two commits and are unrelated. An implicit-derivation
-  rule would have cut those 53 lines to zero, not the whole 55. Declaring
+  rule would have cut those 52 lines to zero, not the whole 54. Declaring
   keeps the registry the single readable answer to "what selects
   this gate": a reviewer reads `triggers:` and knows the whole selection
   surface without also reading the gate's local command and every script it

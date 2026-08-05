@@ -72,14 +72,24 @@ var sourcedScriptRE = regexp.MustCompile(`(?m)^[ \t]*(?:\.|source)[ \t]+[^\n]*?(
 //     runnable command here — the throwaway test that produced it is not
 //     committed, and a reader running a `-run` filter that matches nothing
 //     gets a silently passing `ok`, which is the exact false-green shape
-//     #5762 exists to remove.) Five such source lines, across four real gates
-//     — parser-relationship-kit, telemetry-coverage (twice),
-//     operator-dashboard, and maturity-drift-guard — name a lib this way, and
-//     each of those five libs is independently an explicit trigger on its
-//     gate (verified against specs/ci-gates.v1.yaml), so no gate is
-//     false-green from this gap today. The gap is real, not hypothetical, and
-//     this delta does not close it: widening sourcedScriptRE to resolve
-//     computed paths is a separate change.
+//     #5762 exists to remove.) Counting only the lines in a gate's OWN entry
+//     script — the file its local.command or local.test_command names
+//     directly, NOT the case libs that file transitively sources — 11 such
+//     lines name a lib this way, reached by 7 gates:
+//     parser-relationship-kit, operator-dashboard and maturity-drift-guard
+//     (one line each), telemetry-coverage (two), and three gates that share
+//     two test harnesses — scripts/test-verify-golden-corpus-gate.sh carries
+//     five and is BOTH golden-corpus-mirror's local.command and
+//     golden-corpus-gate's local.test_command, and
+//     scripts/test-verify-ifa-fault-injection.sh carries one. That sharing is
+//     why 11 distinct lines make 16 gate-line pairs. All 16 pairs resolve to
+//     a file that is independently an explicit trigger on that gate (verified
+//     against specs/ci-gates.v1.yaml), so no gate is false-green from this
+//     gap today. The rest of the 37 sit in transitively-sourced case libs and
+//     are mostly `. "$1"` dispatch, which names no fixed target to check. The
+//     gap is real, not hypothetical, and this delta does not close it:
+//     widening sourcedScriptRE to resolve computed paths is a separate
+//     change.
 //     TestDriftCheck_VariableSourcedFileNotResolved pins the boundary with an
 //     uncovered `${script_dir}`-sourced lib that produces 0 check-8 errors.
 //   - It does NOT check the reverse direction. A trigger matching no file on
