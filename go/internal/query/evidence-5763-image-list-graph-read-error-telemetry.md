@@ -2,11 +2,22 @@
 
 Hot-file evidence for `images.go`'s `listImages` handler. The
 `verify-performance-evidence.sh` gate classifies `images.go` as a changed hot
-file for this branch (it lives under `go/internal/query`, a
-`go/internal/*` hot-path location) because two statements were added to its
-`WriteGraphReadError` guard branch. This note carries the required
-`No-Regression Evidence` and `Observability Evidence` markers for that
-change.
+file for this branch by content, not by location: `is_hot_path_by_content`
+(`scripts/verify-performance-evidence.sh:84-94`) matches the `MATCH` in
+`imageListCypher` (`images.go:31`). `go/internal/query` carries no
+`is_hot_path_by_location` arm (`scripts/verify-performance-evidence.sh:61-82`)
+— that function's list is `storage/cypher`, `storage/neo4j`,
+`storage/postgres`, `collector`, `graph`, `projector`, `reducer`, `queue`,
+`runtime`, `workflow`, plus four `go/cmd/*` arms, and `go/internal/*` appears
+only in the separate `is_go_runtime_file` *eligibility* predicate
+(`scripts/verify-performance-evidence.sh:56`). Because `images.go` is hot by
+content, the gate also required evidence when two statements were added to
+its `WriteGraphReadError` guard branch. The sibling telemetry files in this
+same directory, `images_telemetry.go` and `tag_history_telemetry.go`, do not
+match the content probe and are therefore not hot files under this gate; a
+future edit to either does not by itself trigger this evidence requirement.
+This note carries the required `No-Regression Evidence` and `Observability
+Evidence` markers for the `images.go` change.
 
 ## What changed
 
@@ -31,11 +42,15 @@ A doc comment was also added immediately above the guard (comment-only,
 statement additions above in the same hot file) explaining that this
 handler-level outcome label deliberately folds `ErrGraphUnavailable` and
 `ErrGraphReadDeadline` into a single `backend_unavailable` outcome, matching
-`tag_history.go`'s identical (untouched, on `origin/main`) guard, and pointing
-at the lower-level `eshu_dp_neo4j_query_duration_seconds{outcome="deadline"}`
-vs. `{outcome="unavailable"}` instrument
-(`recordGraphReadTelemetry` in `neo4j_read_policy.go`) for an operator who
-needs to distinguish the two cases for this route.
+`tag_history.go`'s identical (untouched, on `origin/main`) guard. The comment
+also points at the lower-level `eshu_dp_neo4j_query_duration_seconds{outcome="deadline"}`
+vs. `{outcome="unavailable"}` instrument (`recordGraphReadTelemetry` in
+`neo4j_read_policy.go`), and is careful to say that instrument records the
+same outage/deadline split on every bounded graph read process-wide, with no
+route dimension — it cannot attribute a given outage or deadline to this
+route specifically. Per-request attribution for this route lives on the
+`neo4j.query` span's `telemetry.SpanAttrGraphReadOutcome` attribute
+(`neo4j_read_policy.go:347`) instead.
 
 No-Regression Evidence: this is not a performance change: no Cypher statement, graph write, query
 plan, loop, or retry/backoff behavior changed. The two added statements sit

@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -85,11 +86,20 @@ func TestNoPackageLevelMeterVariablesAcrossModule(t *testing.T) {
 }
 
 // packageLevelOtelMeterVarNames returns the names of every package-level
-// (top-level, non-const) var in file whose initializer is a direct call to
-// otel.Meter(...). It only inspects file-scope declarations, so a local
-// `meter := otel.Meter(...)` inside a function body (the correct, in-once
-// pattern every current handler in this module uses) never matches.
+// (top-level, non-const) var in file whose initializer resolves an OTel
+// meter directly — either `<otelPkg>.Meter(...)` or
+// `<otelPkg>.GetMeterProvider().Meter(...)`, the same delegate-once failure
+// mode under a different call shape (`otel.Meter` and
+// `otel.GetMeterProvider().Meter` both resolve through the process-global
+// delegating proxy, see isOtelMeterCall). It only inspects file-scope
+// declarations, so a local `meter := otel.Meter(...)` inside a function body
+// (the correct, in-once pattern every current handler in this module uses)
+// never matches.
 func packageLevelOtelMeterVarNames(file *ast.File) []string {
+	otelPkg := otelImportName(file)
+	if otelPkg == "" {
+		return nil
+	}
 	var names []string
 	for _, decl := range file.Decls {
 		gen, ok := decl.(*ast.GenDecl)
@@ -102,7 +112,7 @@ func packageLevelOtelMeterVarNames(file *ast.File) []string {
 				continue
 			}
 			for i, value := range valueSpec.Values {
-				if !isOtelMeterCall(value) {
+				if !isOtelMeterCall(value, otelPkg) {
 					continue
 				}
 				name := "?"
@@ -116,14 +126,34 @@ func packageLevelOtelMeterVarNames(file *ast.File) []string {
 	return names
 }
 
-// isOtelMeterCall reports whether expr is exactly a call of the form
-// otel.Meter(...). It deliberately does not resolve import aliases: every
-// current import of "go.opentelemetry.io/otel" in this module uses the
-// default package name "otel" (confirmed via `rg -n
-// '"go.opentelemetry.io/otel"' go/ --type go` returning no aliased imports),
-// matching the identifier-matching approach the sibling capability sweep in
-// graph_read_error_capability_sweep_test.go already uses in this package.
-func isOtelMeterCall(expr ast.Expr) bool {
+// otelImportName returns the identifier a file uses to reference
+// "go.opentelemetry.io/otel": the import's explicit alias when the import is
+// aliased, otherwise the package's default name "otel". Returns "" when the
+// file does not import the package at all, so callers can skip files that
+// cannot possibly contain a package-level otel.Meter var.
+func otelImportName(file *ast.File) string {
+	for _, imp := range file.Imports {
+		path, err := strconv.Unquote(imp.Path.Value)
+		if err != nil || path != "go.opentelemetry.io/otel" {
+			continue
+		}
+		if imp.Name != nil {
+			return imp.Name.Name
+		}
+		return "otel"
+	}
+	return ""
+}
+
+// isOtelMeterCall reports whether expr resolves an OTel meter through
+// otelPkg (the file's actual import name for "go.opentelemetry.io/otel",
+// alias-resolved by otelImportName) in either of the two shapes that bind a
+// meter's delegate permanently via the OTel global proxy:
+// `<otelPkg>.Meter(...)`, and `<otelPkg>.GetMeterProvider().Meter(...)` —
+// the latter is the same delegate-once failure mode reached through
+// GetMeterProvider() instead of the Meter(...) shortcut, since both resolve
+// through global.MeterProvider() under the hood.
+func isOtelMeterCall(expr ast.Expr, otelPkg string) bool {
 	call, ok := expr.(*ast.CallExpr)
 	if !ok {
 		return false
@@ -132,6 +162,19 @@ func isOtelMeterCall(expr ast.Expr) bool {
 	if !ok || sel.Sel.Name != "Meter" {
 		return false
 	}
-	ident, ok := sel.X.(*ast.Ident)
-	return ok && ident.Name == "otel"
+	switch x := sel.X.(type) {
+	case *ast.Ident:
+		// <otelPkg>.Meter(...)
+		return x.Name == otelPkg
+	case *ast.CallExpr:
+		// <otelPkg>.GetMeterProvider().Meter(...)
+		innerSel, ok := x.Fun.(*ast.SelectorExpr)
+		if !ok || innerSel.Sel.Name != "GetMeterProvider" {
+			return false
+		}
+		ident, ok := innerSel.X.(*ast.Ident)
+		return ok && ident.Name == otelPkg
+	default:
+		return false
+	}
 }

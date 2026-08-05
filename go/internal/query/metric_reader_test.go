@@ -37,8 +37,14 @@ import (
 // deterministically instead of passing by file-order luck.
 //
 // Capturing previous before the throwaway install (not after) matters for
-// cleanup: capturing it after would restore the throwaway itself, leaving
-// the process-global provider reader-less for whatever test runs next.
+// cleanup: capturing it after would restore the throwaway instead of
+// whatever provider genuinely preceded this test, discarding that real prior
+// state for whatever test runs next. This ordering does not avoid a
+// reader-less restored proxy -- the process-global default delegating proxy
+// burns its delegate-once on the throwaway's SetMeterProvider call, so the
+// proxy keeps delegating to the (shut-down) throwaway even after this
+// cleanup calls SetMeterProvider(previous) again -- it only avoids losing
+// track of what "previous" actually was.
 //
 // Callers must not call t.Parallel(): this installs a process-global OTel
 // meter provider and zeroes package-level sync.Once/instrument vars, so a
@@ -63,7 +69,8 @@ func withPackageMetricReader(t *testing.T, reset func()) *sdkmetric.ManualReader
 		otel.SetMeterProvider(previous)
 		reset()
 		_ = provider.Shutdown(context.Background())
-		_ = throwaway.Shutdown(context.Background())
+		// throwaway is never read by anything -- no meter, no reader, no
+		// datapoint ever touches it -- so it needs no shutdown call.
 	})
 	return reader
 }
