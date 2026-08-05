@@ -295,11 +295,14 @@ site silent.
   same file already truncates silently at this exact constant
   (`queryRepoInfrastructureFromContent`'s `ListRepoEntities` call), so
   capping the graph fallback here is parity with already-shipped behavior in
-  terms of the bound's existence, not a new bound. **Unlike the content
-  path's pre-existing silent truncation, a healthy graph read landing exactly
-  on the bound IS disclosed** (P2-2 review follow-up): the new bool return is
-  `len(rows) == limit`, threaded through `queryRepoInfrastructure` as a third
-  return value and surfaced via the new `infrastructureTruncatedReason`
+  terms of the bound's existence, not a new bound. **A healthy graph read
+  landing PAST the bound IS disclosed** (P2-2 review follow-up, corrected: an
+  earlier draft of this entry said "exactly on" the bound with
+  `len(rows) == limit`, which cannot distinguish "exactly limit rows exist"
+  from "more rows exist past the bound" -- see the accurate statement at
+  "The two reasons are mutually exclusive per read" below): the bool return
+  is `len(rows) > limit`, threaded through `queryRepoInfrastructure` as a
+  third return value and surfaced via the new `infrastructureTruncatedReason`
   (`"infrastructure_truncated"`, `repository_infrastructure_degrade.go`)
   alongside the existing degraded reason -- distinct because a truncated read
   returned real rows (just possibly not all of them) where a degraded read
@@ -352,6 +355,25 @@ site silent.
     past `repositoryInfrastructureEntityLimit` -- more rows exist beyond it
     (P2-2 review follow-up). The two reasons are mutually exclusive per read:
     a failed read has no rows to bound, and a bounded read did not fail.
+  - **P2-3 review follow-up:** the content path was the unqualified gap the
+    public contract (`openapi_paths_repositories.go`,
+    `docs/public/reference/telemetry/graph-read-safety.md`) did not disclose:
+    `queryRepoInfrastructureRows` tries `queryRepoInfrastructureFromContent`
+    first, and on a normally-wired deployment (content store configured) that
+    path answers before the graph fallback ever runs, so a truncation signal
+    that fired only on the graph path could never surface in production.
+    `queryRepoInfrastructureFromContent` now requests
+    `repositoryInfrastructureEntityLimit+1` from `ListRepoEntities`, caps in
+    Go, and returns its own `truncated` bool (`len(entities) > limit`) that
+    `queryRepoInfrastructureRows` forwards unchanged instead of the prior
+    hardcoded `false`. **This fix was itself wrong** (round-6 P1 review
+    follow-up, corrected in
+    [AGENTS-evidence-history-4.md](AGENTS-evidence-history-4.md)):
+    `ListRepoEntities` has no `entity_type` predicate, so the bool it
+    produced meant "this repo has more than 5000 content entities of ANY
+    type" (true for nearly every real repository), not "the infrastructure
+    panel was clipped." Read part 4 for the type-filtered fix
+    (`ContentStore.ListRepoEntitiesByTypes`) before touching this call site.
   - Every infrastructure-read call site that runs under a
     `repositoryQueryStageTimer`/`serviceQueryStageTimer` also passes both
     signals through that stage's existing `Done` call: `slog.String(

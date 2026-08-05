@@ -113,7 +113,7 @@ func TestQueryRepoInfrastructureUsesContentRowsBeforeGraph(t *testing.T) {
 		t.Fatalf("queryRepoInfrastructureRows() error = %v, want nil", err)
 	}
 	if truncated {
-		t.Fatal("truncated = true, want false: the content path's own silent truncation is not signaled here")
+		t.Fatal("truncated = true, want false for an entity count under the limit")
 	}
 	if len(got) != 1 {
 		t.Fatalf("len(queryRepoInfrastructureRows) = %d, want 1 content row: %#v", len(got), got)
@@ -123,6 +123,78 @@ func TestQueryRepoInfrastructureUsesContentRowsBeforeGraph(t *testing.T) {
 	}
 	if got, want := StringVal(got[0], "kind"), "Deployment"; got != want {
 		t.Fatalf("kind = %q, want %q", got, want)
+	}
+}
+
+// TestQueryRepoInfrastructureFromContentSignalsTruncationAtLimit is the P2-3
+// follow-up to #5764: on a normally-wired deployment the content read model is
+// tried first (TestQueryRepoInfrastructureUsesContentRowsBeforeGraph above),
+// so a truncation signal that fired only on the graph fallback would never
+// disclose the common case where content itself clipped at
+// repositoryInfrastructureEntityLimit. A HEALTHY content read that returns
+// MORE than repositoryInfrastructureEntityLimit entities must report
+// truncated=true and cap the result, mirroring
+// TestQueryRepoInfrastructureFromGraphSignalsTruncationAtLimit's graph-path
+// proof.
+func TestQueryRepoInfrastructureFromContentSignalsTruncationAtLimit(t *testing.T) {
+	t.Parallel()
+
+	reader := fakeRepoGraphReader{
+		run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+			t.Fatal("graph read called, want content rows to satisfy the read without a graph fallback")
+			return nil, nil
+		},
+	}
+	entities := make([]EntityContent, repositoryInfrastructureEntityLimit+1)
+	for i := range entities {
+		entities[i] = EntityContent{
+			EntityType:   "K8sResource",
+			EntityName:   fmt.Sprintf("res-%d", i),
+			RelativePath: fmt.Sprintf("deploy/res-%d.yaml", i),
+		}
+	}
+	content := fakePortContentStore{entities: entities}
+
+	got, truncated, err := queryRepoInfrastructureRows(
+		t.Context(),
+		reader,
+		content,
+		map[string]any{"repo_id": "repo-1"},
+	)
+	if err != nil {
+		t.Fatalf("queryRepoInfrastructureRows() error = %v, want nil", err)
+	}
+	if !truncated {
+		t.Fatal("truncated = false, want true when the content entity count exceeds repositoryInfrastructureEntityLimit")
+	}
+	if len(got) != repositoryInfrastructureEntityLimit {
+		t.Fatalf("len(got) = %d, want %d (capped)", len(got), repositoryInfrastructureEntityLimit)
+	}
+}
+
+// TestQueryRepoInfrastructureFromContentNoTruncationAtLimit is the negative
+// companion: a healthy content read that returns EXACTLY
+// repositoryInfrastructureEntityLimit entities -- the content store had no
+// more to give -- must not report truncation.
+func TestQueryRepoInfrastructureFromContentNoTruncationAtLimit(t *testing.T) {
+	t.Parallel()
+
+	entities := make([]EntityContent, repositoryInfrastructureEntityLimit)
+	for i := range entities {
+		entities[i] = EntityContent{
+			EntityType:   "K8sResource",
+			EntityName:   fmt.Sprintf("res-%d", i),
+			RelativePath: fmt.Sprintf("deploy/res-%d.yaml", i),
+		}
+	}
+	content := fakePortContentStore{entities: entities}
+
+	got, truncated := queryRepoInfrastructureFromContent(t.Context(), content, "repo-1")
+	if truncated {
+		t.Fatal("truncated = true, want false when the entity count exactly equals repositoryInfrastructureEntityLimit")
+	}
+	if len(got) != repositoryInfrastructureEntityLimit {
+		t.Fatalf("len(got) = %d, want %d", len(got), repositoryInfrastructureEntityLimit)
 	}
 }
 
@@ -160,6 +232,60 @@ func TestQueryRepoInfrastructureFromGraphSignalsTruncationAtLimit(t *testing.T) 
 	}
 	if len(got) != repositoryInfrastructureEntityLimit {
 		t.Fatalf("len(got) = %d, want %d (capped)", len(got), repositoryInfrastructureEntityLimit)
+	}
+}
+
+// TestQueryRepoInfrastructureFromContentIgnoresNonInfrastructureEntityCount is
+// the regression test for the #5764 P1 review finding that inverted the
+// defect #5764 exists to remove: queryRepoInfrastructureFromContent used to
+// call the UNTYPED ListRepoEntities, so "truncated" reported whether the
+// repository had more than repositoryInfrastructureEntityLimit content
+// entities of ANY type (functions, classes, structs -- every parsed entity;
+// true for nearly every real repository), not whether the infrastructure
+// panel itself was clipped. A repository with a handful of infrastructure
+// entities buried in a much larger non-infrastructure population must NOT be
+// reported as truncated, and every infrastructure row must still be present.
+// Both existing content-path tests above
+// (TestQueryRepoInfrastructureUsesContentRowsBeforeGraph and
+// TestQueryRepoInfrastructureFromContentSignalsTruncationAtLimit) populate
+// 100% K8sResource entities, the one population shape where this bug is
+// invisible -- this test uses a MIXED population instead, exactly limit+1
+// entities total, of which only 3 are infrastructure-typed.
+func TestQueryRepoInfrastructureFromContentIgnoresNonInfrastructureEntityCount(t *testing.T) {
+	t.Parallel()
+
+	const nonInfraCount = repositoryInfrastructureEntityLimit - 2 // 4998
+	entities := make([]EntityContent, 0, nonInfraCount+3)
+	for i := 0; i < nonInfraCount; i++ {
+		entities = append(entities, EntityContent{
+			EntityType:   "Function",
+			EntityName:   fmt.Sprintf("fn-%d", i),
+			RelativePath: fmt.Sprintf("src/fn-%d.go", i),
+		})
+	}
+	for i := 0; i < 3; i++ {
+		entities = append(entities, EntityContent{
+			EntityType:   "TerraformResource",
+			EntityName:   fmt.Sprintf("tf-%d", i),
+			RelativePath: fmt.Sprintf("infra/tf-%d.tf", i),
+		})
+	}
+	if len(entities) != repositoryInfrastructureEntityLimit+1 {
+		t.Fatalf("test setup: len(entities) = %d, want %d (limit+1)", len(entities), repositoryInfrastructureEntityLimit+1)
+	}
+	content := fakePortContentStore{entities: entities}
+
+	got, truncated := queryRepoInfrastructureFromContent(t.Context(), content, "repo-1")
+	if truncated {
+		t.Fatal("truncated = true, want false: only 3 infrastructure-typed entities exist, far under the limit, even though the repo's total content-entity count (including non-infrastructure types) exceeds it")
+	}
+	if len(got) != 3 {
+		t.Fatalf("len(got) = %d, want 3 infrastructure rows: %#v", len(got), got)
+	}
+	for _, entry := range got {
+		if got, want := StringVal(entry, "type"), "TerraformResource"; got != want {
+			t.Fatalf("type = %q, want %q", got, want)
+		}
 	}
 }
 

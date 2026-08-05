@@ -334,7 +334,7 @@ const openAPIPathsRepositories = `
                       "description": "Explicit reasons the story is partial, e.g. infrastructure_read_degraded when the auxiliary infrastructure graph read failed, infrastructure_truncated when a healthy infrastructure read landed past its bound, or story_rows_truncated when the workload/platform/language narrative rows landed past their bound; always present so the envelope shape is stable.",
                       "items": {"type": "string"}
                     },
-                    "truncated": {"type": "boolean", "description": "True when the workload/platform/language narrative rows landed past repositoryStoryStringRowLimit and were capped; always present so the envelope shape is stable."},
+                    "truncated": {"type": "boolean", "description": "True when the workload/platform/language narrative rows landed past repositoryStoryStringRowLimit and were capped, OR the auxiliary infrastructure read landed past its own bound; always present so the envelope shape is stable."},
                     "drilldowns": {"type": "object"},
                     "answer_metadata": {"type": "object", "description": "Normalized additive answer metadata with schema_version, evidence_handles, missing_evidence, limitations, truncated, coverage, partial_reasons, and recommended_next_calls."},
                     "evidence_boundaries": ` + openAPIEvidenceBoundariesSchema + `

@@ -390,18 +390,28 @@ field derived from an existing bounded Postgres read.
 
 The `repositoryStoryStringRowLimit` bound introduced above (500 rows, added
 by #5764 itself) reintroduced exactly the defect #5764 exists to remove: on a
-repository with more than 500 workloads, the graph read landed on the LIMIT,
+repository with more than 500 DISTINCT WORKLOAD NAMES (the same #5764 change
+added `RETURN DISTINCT w.name`, so the bound is on distinct names, not on
+workload node count), the graph read landed on the LIMIT,
 `queryRepositoryStoryGraphSummary` returned the capped list with no
 indication anything was clipped, and `workload_count`/`platform_count` (the
 story's `graph_summary` stage log, `repository_story.go`'s "%d workload(s)
 and %d platform signal(s)" narrative, and `buildRepositoryStory`'s own
 narrative sentence) are `len()` of these bounded lists, NOT separate
 `count()` queries -- only `file_count` and `dependency_count` come from the
-separate exact counts in `repository_context_counts.go`. Runtime-proven on a
-600-workload repository: `status=200
-deployment_summary="500 workload(s) and 0 platform signal(s)"
-answer_metadata.truncated=false` with no truncation reason in
-`partial_reasons` -- an affirmative false claim that nothing was clipped.
+separate exact counts in `repository_context_counts.go`. Proven by
+`TestGetRepositoryStoryRowsTruncatedIsDisclosed`
+(`repository_story_rows_truncated_test.go`), which simulates a backend
+honoring the Cypher's own `LIMIT $limit` clause by returning exactly
+`repositoryStoryStringRowLimit+1` distinct workload rows: before this fix
+that response would have answered `answer_metadata.truncated=false` with no
+truncation reason in `partial_reasons` -- an affirmative false claim that
+nothing was clipped. The 500/501 row-count boundary itself is proven by
+`TestQueryRepositoryStoryStringRowsBoundsRowsWithNamedLimit` and
+`TestQueryRepositoryStoryStringRowsDetectsExactTruncation`
+(`repository_story_counts_limit_test.go`), and the healthy-under-limit
+negative case by `TestGetRepositoryStoryRowsHealthyUnderLimitDoesNotDisclose`
+(same file as the first test above).
 
 Fixed three ways. First, `queryRepositoryStoryStringRows`
 (`repository_story_counts.go`) now requests
@@ -444,3 +454,10 @@ stage log gained a `slog.Bool("truncated", ...)` attribute mirroring the
 existing convention (`service_workload_resolution.go`, `repository_stats.go`,
 and this same file's `infrastructureDegradeLogAttrs`); no new span, metric
 instrument, or metric label was added.
+
+A further round-6 P1/P2/P3 review follow-up to #5764 -- the infrastructure
+content-path bound itself inverting the defect it fixed, a stale truncated
+bool surviving the read-model graph fallback, and an OpenAPI guard gap on the
+read-model path -- is recorded in
+[AGENTS-evidence-history-4.md](AGENTS-evidence-history-4.md) to keep this
+file under the repository's 500-line cap.

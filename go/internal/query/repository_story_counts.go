@@ -7,7 +7,10 @@ import "context"
 
 // repositoryStoryStringRowLimit bounds queryRepositoryStoryStringRows's
 // per-read row count. 500 mirrors the repo's established defensive-backstop
-// tier (nornicDBOneHopRelationships / enrichNornicDBRelationshipRows use 501).
+// tier (code_relationships_nornicdb.go's nornicDBRelationshipRowLimit is also
+// 500; its sibling nornicDBRelationshipFetchLimit over-fetches one row past
+// that ceiling, to 501, so truncation is detectable -- the same limit+1
+// idiom this file's own queryRepositoryStoryStringRows uses below).
 // Unlike a genuinely unreachable defensive backstop, real repositories CAN
 // hit this bound on the graph-fallback path -- the read-model path in
 // repository_read_model_summary.go is unbounded (P1 review follow-up to

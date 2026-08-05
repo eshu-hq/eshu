@@ -5,7 +5,6 @@ package query
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 )
@@ -151,6 +150,33 @@ func (f fakePortContentStore) ListRepoEntitiesByType(_ context.Context, repoID, 
 	return filtered, nil
 }
 
+// ListRepoEntitiesByTypes filters f.entities by entity_type SET membership
+// before applying limit, mirroring the production
+// ContentReader.ListRepoEntitiesByTypes predicate order (`entity_type =
+// ANY($types)` then `LIMIT`) so callers exercising the double see the same
+// type-filtered-bound behavior the real query provides (#5764 P1 review
+// follow-up).
+func (f fakePortContentStore) ListRepoEntitiesByTypes(_ context.Context, repoID string, entityTypes []string, limit int) ([]EntityContent, error) {
+	allowed := make(map[string]struct{}, len(entityTypes))
+	for _, entityType := range entityTypes {
+		allowed[entityType] = struct{}{}
+	}
+	filtered := make([]EntityContent, 0, len(f.entities))
+	for _, entity := range f.entities {
+		if repoID != "" && entity.RepoID != "" && entity.RepoID != repoID {
+			continue
+		}
+		if _, ok := allowed[entity.EntityType]; !ok {
+			continue
+		}
+		filtered = append(filtered, entity)
+		if limit > 0 && len(filtered) >= limit {
+			break
+		}
+	}
+	return filtered, nil
+}
+
 func (f fakePortContentStore) ListRepoEntitiesByPaths(
 	_ context.Context,
 	repoID string,
@@ -189,190 +215,12 @@ func (f fakePortContentStore) RepositoryCoverage(context.Context, string) (Repos
 	return f.coverage, nil
 }
 
-func (f fakePortContentStore) CountRepositoriesByLanguage(
-	_ context.Context,
-	languages []string,
-	allScopes bool,
-	allowedRepositoryIDs []string,
-	allowedScopeIDs []string,
-) (RepositoryLanguageAggregate, error) {
-	if f.languageCounts == nil {
-		return RepositoryLanguageAggregate{}, nil
-	}
-	if !allScopes {
-		filtered := fakeFilterLanguageRepos(f.languageRepos, allowedRepositoryIDs, allowedScopeIDs)
-		var aggregate RepositoryLanguageAggregate
-		for _, repo := range filtered {
-			aggregate.RepositoryCount++
-			aggregate.FileCount += repo.FileCount
-			if repo.IndexedAt.After(aggregate.LastIndexedAt) {
-				aggregate.LastIndexedAt = repo.IndexedAt
-			}
-		}
-		return aggregate, nil
-	}
-	return f.languageCounts[strings.Join(languages, ",")], nil
-}
-
-func (f fakePortContentStore) ListRepositoriesByLanguage(
-	_ context.Context,
-	_ []string,
-	limit int,
-	offset int,
-	allScopes bool,
-	allowedRepositoryIDs []string,
-	allowedScopeIDs []string,
-) ([]RepositoryLanguageRepository, error) {
-	all := f.languageRepos
-	if !allScopes {
-		all = fakeFilterLanguageRepos(all, allowedRepositoryIDs, allowedScopeIDs)
-	}
-	if offset >= len(all) {
-		return nil, nil
-	}
-	rows := all[offset:]
-	if limit > 0 && limit < len(rows) {
-		rows = rows[:limit]
-	}
-	return append([]RepositoryLanguageRepository(nil), rows...), nil
-}
-
-// fakeFilterLanguageRepos restricts languageRepos to those whose repository ID
-// is in the merged allowed set, mirroring the real ContentReader's
-// repo_id = ANY(allowed_repository_ids) OR repo_id = ANY(allowed_scope_ids)
-// predicate for #5167 scoped-token test coverage.
-func fakeFilterLanguageRepos(
-	repos []RepositoryLanguageRepository,
-	allowedRepositoryIDs []string,
-	allowedScopeIDs []string,
-) []RepositoryLanguageRepository {
-	allowed := make(map[string]struct{}, len(allowedRepositoryIDs)+len(allowedScopeIDs))
-	for _, id := range allowedRepositoryIDs {
-		allowed[id] = struct{}{}
-	}
-	for _, id := range allowedScopeIDs {
-		allowed[id] = struct{}{}
-	}
-	filtered := make([]RepositoryLanguageRepository, 0, len(repos))
-	for _, repo := range repos {
-		if _, ok := allowed[repo.Repository.ID]; ok {
-			filtered = append(filtered, repo)
-		}
-	}
-	return filtered
-}
-
-func (f fakePortContentStore) RepositoryLanguageInventory(
-	_ context.Context,
-	limit int,
-	offset int,
-	allScopes bool,
-	allowedRepositoryIDs []string,
-	allowedScopeIDs []string,
-) ([]RepositoryLanguageInventoryRow, error) {
-	all := f.languageInventory
-	if !allScopes {
-		// The fake has no per-language repo_id linkage to intersect against a
-		// grant, so a scoped caller with any grant sees no synthesized
-		// inventory rows in tests that do not set up scoped fixtures directly.
-		all = nil
-	}
-	if offset >= len(all) {
-		return nil, nil
-	}
-	rows := all[offset:]
-	if limit > 0 && limit < len(rows) {
-		rows = rows[:limit]
-	}
-	return append([]RepositoryLanguageInventoryRow(nil), rows...), nil
-}
-
-func (f fakePortContentStore) repositoryReadModelSummary(context.Context, string) (repositoryReadModelSummary, error) {
-	return f.summary, nil
-}
-
-func (f fakePortContentStore) repositoryRelationshipReadModel(context.Context, string) (repositoryRelationshipReadModel, error) {
-	return f.relationshipReadModel, nil
-}
-
-func (f fakePortContentStore) repositoryEntryPoints(context.Context, string) (repositoryEntryPointReadModel, error) {
-	return f.entryPoints, nil
-}
-
-func (f fakePortContentStore) repositoryDeploymentEvidence(context.Context, string) (repositoryDeploymentEvidenceReadModel, error) {
-	if f.deploymentEvidenceErr != nil {
-		return repositoryDeploymentEvidenceReadModel{}, f.deploymentEvidenceErr
-	}
-	return f.deploymentEvidence, nil
-}
-
-func (f fakePortContentStore) relationshipEvidenceByResolvedID(context.Context, string) (relationshipEvidenceReadModel, error) {
-	return f.relationshipEvidence, nil
-}
-
-func (f fakePortContentStore) documentationFindings(_ context.Context, filter documentationFindingFilter) (documentationFindingListReadModel, error) {
-	if f.documentationFindingsFilter != nil {
-		*f.documentationFindingsFilter = filter
-	}
-	if f.documentationFindingsErr != nil {
-		return documentationFindingListReadModel{}, f.documentationFindingsErr
-	}
-	return f.documentationFindingsModel, nil
-}
-
-func (f fakePortContentStore) documentationFacts(_ context.Context, filter documentationFactFilter) (documentationFactListReadModel, error) {
-	if f.documentationFactsFilter != nil {
-		*f.documentationFactsFilter = filter
-	}
-	if f.documentationFactsErr != nil {
-		return documentationFactListReadModel{}, f.documentationFactsErr
-	}
-	return f.documentationFactsModel, nil
-}
-
-func (f fakePortContentStore) documentationEvidencePacket(context.Context, string) (documentationEvidencePacketReadModel, error) {
-	if f.documentationPacketErr != nil {
-		return documentationEvidencePacketReadModel{}, f.documentationPacketErr
-	}
-	return f.documentationPacketModel, nil
-}
-
-func (f fakePortContentStore) documentationEvidencePacketWithFilter(
-	_ context.Context,
-	filter documentationEvidencePacketFilter,
-) (documentationEvidencePacketReadModel, error) {
-	if f.documentationPacketFilter != nil {
-		*f.documentationPacketFilter = filter
-	}
-	if f.documentationPacketErr != nil {
-		return documentationEvidencePacketReadModel{}, f.documentationPacketErr
-	}
-	return f.documentationPacketModel, nil
-}
-
-func (f fakePortContentStore) documentationEvidencePacketFreshness(
-	context.Context,
-	string,
-	string,
-) (documentationEvidencePacketFreshnessReadModel, error) {
-	if f.documentationFreshnessErr != nil {
-		return documentationEvidencePacketFreshnessReadModel{}, f.documentationFreshnessErr
-	}
-	return f.documentationFreshnessModel, nil
-}
-
-func (f fakePortContentStore) documentationEvidencePacketFreshnessWithFilter(
-	_ context.Context,
-	filter documentationEvidencePacketFreshnessFilter,
-) (documentationEvidencePacketFreshnessReadModel, error) {
-	if f.documentationFreshnessFilter != nil {
-		*f.documentationFreshnessFilter = filter
-	}
-	if f.documentationFreshnessErr != nil {
-		return documentationEvidencePacketFreshnessReadModel{}, f.documentationFreshnessErr
-	}
-	return f.documentationFreshnessModel, nil
-}
+// fakePortContentStore's language-inventory and documentation-read-model
+// methods (CountRepositoriesByLanguage through
+// documentationEvidencePacketFreshnessWithFilter, plus the
+// fakeFilterLanguageRepos helper) live in
+// ports_test_language_documentation_test.go, split out to keep this file under
+// the repository's 500-line cap.
 
 func (f fakePortContentStore) ListRepositories(context.Context) ([]RepositoryCatalogEntry, error) {
 	return append([]RepositoryCatalogEntry(nil), f.repositories...), nil

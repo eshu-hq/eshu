@@ -30,6 +30,17 @@ type ContentStore interface {
 	ListRepoFiles(ctx context.Context, repoID string, limit int) ([]FileContent, error)
 	ListRepoEntities(ctx context.Context, repoID string, limit int) ([]EntityContent, error)
 	ListRepoEntitiesByType(ctx context.Context, repoID, entityType string, limit int) ([]EntityContent, error)
+	// ListRepoEntitiesByTypes returns entities filtered to a SET of
+	// entity_type values in one query (`entity_type = ANY($types)`), so a
+	// caller that cares about several types together -- such as the
+	// repository infrastructure panel spanning K8sResource, TerraformResource,
+	// ArgoCDApplication, and the rest of isRepositoryInfrastructureType's list
+	// -- can bound its LIMIT on that combined type-filtered set instead of
+	// either the repo's total entity count (ListRepoEntities, which can push
+	// the caller's actual type family past LIMIT while irrelevant types fill
+	// the page) or issuing one ListRepoEntitiesByType call per type (#5764 P1
+	// review follow-up).
+	ListRepoEntitiesByTypes(ctx context.Context, repoID string, entityTypes []string, limit int) ([]EntityContent, error)
 	ListRepoEntitiesByPaths(ctx context.Context, repoID string, relativePaths []string, limit int) ([]EntityContent, error)
 	// ListRepoEntitiesByIDs hydrates the wide EntityContent rows for a bounded
 	// entity-ID set (the impact-trace directed SELECTS scan re-fetches only the

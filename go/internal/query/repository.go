@@ -303,6 +303,7 @@ func (h *RepositoryHandler) getRepositoryStory(w http.ResponseWriter, r *http.Re
 	var infrastructureOverview map[string]any
 	narrativeFiles := []FileContent(nil)
 	storyLimitations := []string{}
+	storyTruncated := storySummary.truncated
 	if storySummary.truncated {
 		storyLimitations = append(storyLimitations, storyRowsTruncatedReason)
 	}
@@ -325,6 +326,14 @@ func (h *RepositoryHandler) getRepositoryStory(w http.ResponseWriter, r *http.Re
 		}
 		if infrastructureTruncated {
 			storyLimitations = append(storyLimitations, infrastructureTruncatedReason)
+			// P3 review follow-up to #5764: fold the infrastructure panel's own
+			// truncation into the top-level "truncated" field below, not only
+			// storyLimitations/answer_metadata.partial_reasons. Before this fix
+			// answer_metadata.truncated stayed false whenever only the
+			// infrastructure read (not the headline workload/platform/language
+			// rows) landed past its bound -- the same affirmative-false-claim
+			// shape #5764 exists to remove from the story rows themselves.
+			storyTruncated = true
 		}
 		infrastructureOverview = buildRepositoryInfrastructureOverview(infrastructure, files)
 		timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "deployment_artifacts")
@@ -395,7 +404,7 @@ func (h *RepositoryHandler) getRepositoryStory(w http.ResponseWriter, r *http.Re
 		semanticOverview,
 		coverageSummary,
 		storyLimitations,
-		storySummary.truncated,
+		storyTruncated,
 	)
 	timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "target_documentation")
 	targetDocumentation, err := loadRepositoryStoryTargetDocumentation(r.Context(), h.Content, repoID)

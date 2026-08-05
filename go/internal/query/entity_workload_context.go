@@ -146,8 +146,19 @@ func (h *EntityHandler) fetchWorkloadContextForOperation(ctx context.Context, wh
 			// Surface the degradation on the result map itself (#5764 follow-up):
 			// this map is returned verbatim as the /services/{name}/context and
 			// /workloads/{id}/context response body. /services/{name}/story
-			// copies this "limitations" slice into its own "limitations" field
-			// (service_story_dossier.go's whitelist loop), but
+			// surfaces this reason through TWO independent copies on the
+			// dossier response (P3 review follow-up, correcting the prior
+			// wrong description here): buildServiceIdentity
+			// (service_story_dossier.go:57-74) writes it into
+			// response["service_identity"]["limitations"], and the sibling
+			// whitelist loop (service_story_dossier.go:23-36) separately
+			// mirrors workloadContext["limitations"] onto the response's own
+			// top-level "limitations" key. Either copy alone is sufficient:
+			// answerMetadataLimitations (answer_metadata.go) reads both
+			// data["limitations"] and
+			// mapValue(data, "service_identity")["limitations"] before
+			// deduping by reason, and that dedup is how a single degrade
+			// reaches answer_metadata.partial_reasons exactly once.
 			// /workloads/{id}/story builds a fresh response with no
 			// "limitations" key at all (entity_workload_handlers.go's
 			// getWorkloadStory) -- there the reason reaches callers only through
@@ -199,7 +210,7 @@ func (h *EntityHandler) fetchServiceReadModelWorkloadContext(ctx context.Context
 
 	repoParams := map[string]any{"repo_id": repo.ID}
 	limitations := []string{"workload_identity_not_materialized"}
-	infrastructure := queryRepoInfrastructureFromContent(ctx, h.Content, repo.ID)
+	infrastructure, infrastructureTruncated := queryRepoInfrastructureFromContent(ctx, h.Content, repo.ID)
 	if len(infrastructure) == 0 && h.Neo4j != nil {
 		// A graph-read failure here degrades to an empty infrastructure list
 		// rather than propagating: this is a read-model-only path serving
@@ -210,12 +221,23 @@ func (h *EntityHandler) fetchServiceReadModelWorkloadContext(ctx context.Context
 		graphInfrastructure, graphTruncated, err := queryRepoInfrastructureFromGraph(ctx, h.Neo4j, repoParams)
 		if err != nil {
 			limitations = append(limitations, infrastructureReadDegradedReason)
+			// Reset the stale content-read truncated bool (#5764 P2 review
+			// follow-up): a failed read has no rows to bound, so it must not
+			// carry forward a truncated=true left over from the content
+			// attempt above, mirroring queryRepoInfrastructure's own
+			// forced-false-on-error branch (repository_context_helpers.go).
+			// Without this reset, degraded and truncated -- asserted
+			// mutually exclusive per read everywhere else in this package --
+			// could both land in limitations for the SAME read: "more rows
+			// may exist" attached to an EMPTY infrastructure panel.
+			infrastructureTruncated = false
 		} else {
 			infrastructure = graphInfrastructure
-			if graphTruncated {
-				limitations = append(limitations, infrastructureTruncatedReason)
-			}
+			infrastructureTruncated = graphTruncated
 		}
+	}
+	if infrastructureTruncated {
+		limitations = append(limitations, infrastructureTruncatedReason)
 	}
 	dependencies := []map[string]any{}
 	if h.Neo4j != nil {

@@ -26,25 +26,16 @@ const infrastructureTruncatedReason = "infrastructure_truncated"
 
 // infrastructureDegradeLogAttrs builds the stage-log attributes a
 // repositoryQueryStageTimer/serviceQueryStageTimer Done call attaches after an
-// infrastructure read: row_count and truncated always, plus a bounded
-// failure_class only when the read degraded, mirroring the #5761
-// failure_class convention.
+// infrastructure read (#5764, the infrastructure panel, shared by the
+// repository-context/story and workload/service-context call sites): row_count
+// and truncated always, plus a bounded failure_class only when the read
+// degraded, mirroring the #5761 failure_class convention. Infrastructure
+// answers 200 either way, so this stage log -- not a new response field -- is
+// the mechanism that keeps a degraded auxiliary read from being silent.
 func infrastructureDegradeLogAttrs(rowCount int, degraded bool, truncated bool) []slog.Attr {
-	attrs := repositoryContextDegradeLogAttrs(rowCount, degraded, infrastructureReadDegradedReason)
-	return append(attrs, slog.Bool("truncated", truncated))
-}
-
-// repositoryContextDegradeLogAttrs builds the stage-log attributes for a
-// repository-context auxiliary read that degrades instead of failing the
-// whole response on a graph-read error (#5764, the infrastructure panel):
-// row_count always, plus a bounded failure_class only when the read
-// degraded. Infrastructure answers 200 either way, so this stage log -- not
-// a new response field -- is the mechanism that keeps a degraded auxiliary
-// read from being silent, mirroring the #5761 failure_class convention.
-func repositoryContextDegradeLogAttrs(rowCount int, degraded bool, failureClass string) []slog.Attr {
 	attrs := []slog.Attr{slog.Int("row_count", rowCount)}
 	if degraded {
-		attrs = append(attrs, slog.String("failure_class", failureClass))
+		attrs = append(attrs, slog.String("failure_class", infrastructureReadDegradedReason))
 	}
-	return attrs
+	return append(attrs, slog.Bool("truncated", truncated))
 }

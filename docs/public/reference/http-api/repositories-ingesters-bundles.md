@@ -59,16 +59,19 @@ headline facts: a graph-read failure there keeps the response at `200` with
 an empty panel instead, and `context` carries an additive `partial_reasons`
 array (always present, listing `infrastructure_read_degraded` when that read
 failed, or `infrastructure_truncated` when a healthy read landed past its own
-5000-row bound) while `story` folds the same reasons into its existing
+5000-row bound on infrastructure-typed entities -- Kubernetes, Terraform,
+Terragrunt, ArgoCD, Helm, Kustomize, Crossplane, and CloudFormation, never the
+repository's total entity count of any type) while `story` folds the same
+reasons into its existing
 `limitations` array. This mirrors the `partial_reasons` shape the inventory
 route already uses (below) rather than inventing a new one. `entry_points`,
 `languages` (context route), `relationships`, `relationship_overview`,
 `source_tool_breakdown`, `consumers`, `api_surface`, the deployable-unit
 relationship supplement, and the deployment/infrastructure overview builder
-(whose error both routes discard) remain a known, unwidened gap — including
-but not limited to this list: a graph-read failure on any of those still
-silently returns an empty panel, indistinguishable from "no data", pending a
-follow-up that bounds their unbounded reads.
+(whose error both routes discard) are not yet bounded or disclosed the way
+`infrastructure` is above — including but not limited to this list: a
+graph-read failure on any of those still silently returns an empty panel,
+indistinguishable from "no data".
 
 `GET /api/v0/repositories` accepts `limit` and `offset` and returns
 `truncated=true` when more indexed repositories are available. If the graph
