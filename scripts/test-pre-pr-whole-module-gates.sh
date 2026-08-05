@@ -331,4 +331,37 @@ if printf '%s\n' "${registry_lookalike_dirs}" | rg --fixed-strings --quiet -- '.
 	fail "an unanchored specs/ match selected ./internal/cigates for a lookalike path (got: ${registry_lookalike_dirs})"
 fi
 
+# ─── fixture_consumer_dirs branch coverage (#5721 follow-up) ────────────────
+# fixture_consumer_dirs (scripts/dev/pre-pr.sh) maps two non-Go fixture changes
+# to the Go package whose tests actually load them: the B-12 golden snapshot to
+# ./cmd/golden-corpus-gate, and a root CLAUDE.md/AGENTS.md edit to
+# ./internal/runtime (TestRepositoryDocumentationStandardsAreEnforced). Before
+# this pin, nothing outside pre-pr.sh itself asserted either mapping: every
+# other mention of fixture_consumer_dirs in this suite, in
+# scripts/lib/test-pre-pr-lane.sh, and in pre-pr-lane.sh/pre-pr-docs-fastpath.sh
+# is a comment, not an assertion. Replacing either `if` with `if false` (or
+# deleting the branch outright) left this suite, test-pre-pr-lane.sh, and
+# test-pre-pr-docs-fastpath.sh all green while step_test silently selected
+# nothing for a canon-only CLAUDE.md/AGENTS.md diff -- the same failure mode
+# #5935 shipped to close, reopened one call deeper.
+#
+# Each needle pins the WHOLE branch -- trigger condition, printf target, and
+# the closing `fi` -- as one exact multiline block, matching the require_block
+# style already used above for lane_input_paths. A presence check on a smaller
+# fragment (e.g. just the trigger pattern, or just the target path alone) can
+# be satisfied by a stray comment mentioning the same string -- the class of
+# false-green a bare `rg -c` line count already has above (lane_gate_count is
+# satisfiable by two comment lines matching that pattern). Pinning the full
+# `if ... rg -q '<pattern>'; then / printf '<target>\n' / fi` shape closes that
+# gap: no comment reproduces that exact three-line shell-syntax block, so the
+# needle can only be satisfied by live code.
+# shellcheck disable=SC2016 # The needles must stay literal shell source.
+require_block "golden snapshot fixture consumer mapping" '	if printf '"'"'%s\n'"'"' "${all}" | rg -q '"'"'^testdata/golden/'"'"'; then
+		printf '"'"'./cmd/golden-corpus-gate\n'"'"'
+	fi'
+# shellcheck disable=SC2016
+require_block "CLAUDE/AGENTS fixture consumer mapping" '	if printf '"'"'%s\n'"'"' "${all}" | rg -q '"'"'^(CLAUDE|AGENTS)\.md$'"'"'; then
+		printf '"'"'./internal/runtime\n'"'"'
+	fi'
+
 printf 'PASS: pre-pr scheduling, worktree cache isolation, and lane wiring are pinned\n'
