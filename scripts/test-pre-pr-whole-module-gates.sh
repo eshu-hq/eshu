@@ -217,7 +217,7 @@ require_block "a red self-check fails the run" \
 require_block "module gates gated on a non-fast lane" \
 	'if [[ "${PRE_PR_FASTPATH_LANE}" != "fast" ]]; then
 	run_whole_module_gates_parallel
-	run_step "go test (changed packages)" step_test'
+else'
 # shellcheck disable=SC2016
 require_block "race lane gated on a non-fast lane" \
 	'if [[ "${PRE_PR_FASTPATH_LANE}" != "fast" ]]; then
@@ -230,5 +230,48 @@ lane_gate_count="$(rg --fixed-strings -c -- 'if [[ "${PRE_PR_FASTPATH_LANE}" != 
 reject "lane gate asking whether the lane IS fast" '"${PRE_PR_FASTPATH_LANE}" == "fast"'
 # shellcheck disable=SC2016
 reject "lane gate asking whether the lane IS full" '"${PRE_PR_FASTPATH_LANE}" == "full"'
+
+# eshu-hq/eshu#5935 review: `go test (changed packages)` must be reached on
+# BOTH lanes, unconditionally -- its own scope (changed-Go-package dirs plus
+# fixture_consumer_dirs) is what still runs TestRepositoryDocumentationStandards-
+# AreEnforced for a root AGENTS.md/CLAUDE.md-only diff. A future edit that
+# re-wraps the `run_step "go test (changed packages)" step_test` line back
+# inside the whole-module-gates if/fi block -- restoring the shape just above,
+# where it used to sit right after run_whole_module_gates_parallel -- would
+# silently reopen that bug: the classifier still says FAST, but step_test (and
+# the fixture_consumer_dirs mapping inside it) would only run on FULL again.
+# Neither scripts/lib/test-pre-pr-lane.sh nor scripts/lib/test-pre-pr-docs-
+# fastpath.sh can catch this: neither execs pre-pr.sh or step_test, both only
+# drive the classifier and pre_pr_decide_lane in isolation. This is a purely
+# static, line-position check -- it locates the first fast/full `if` (the
+# whole-module-gates one), its matching top-level `fi`, and the one `run_step
+# "go test (changed packages)" step_test` call, and asserts the call's line is
+# outside the `[if, fi]` span. It cannot see whether step_test is *reachable*
+# at runtime (that would need to execute pre-pr.sh, which this suite
+# deliberately does not do), only whether it is textually gated by this
+# specific if/fi -- which is exactly the shape the regression takes.
+awk '
+	/if \[\[ "\$\{PRE_PR_FASTPATH_LANE\}" != "fast" \]\]; then/ && !if_line { if_line = NR }
+	if_line && !fi_line && /^fi$/ { fi_line = NR }
+	/run_step "go test \(changed packages\)" step_test/ { test_count++; test_line = NR }
+	END {
+		if (!if_line) {
+			print "could not find the whole-module-gates fast/full if" > "/dev/stderr"
+			exit 1
+		}
+		if (!fi_line) {
+			print "could not find that if'"'"'s matching fi" > "/dev/stderr"
+			exit 1
+		}
+		if (test_count != 1) {
+			print "found " test_count " `go test (changed packages)` run_step call(s), want exactly 1" > "/dev/stderr"
+			exit 1
+		}
+		if (test_line > if_line && test_line < fi_line) {
+			print "go test (changed packages) is gated INSIDE the whole-module-gates if/fi (line " test_line ", block " if_line "-" fi_line "); it must run unconditionally on both lanes" > "/dev/stderr"
+			exit 1
+		}
+	}
+' "${script}" || fail "go test (changed packages) is not reached on both lanes"
 
 printf 'PASS: pre-pr scheduling, worktree cache isolation, and lane wiring are pinned\n'
