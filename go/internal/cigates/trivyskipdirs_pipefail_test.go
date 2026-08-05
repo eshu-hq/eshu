@@ -39,14 +39,15 @@ import "testing"
 // proving multi-line matching needs a genuine second-line invocation, and a
 // genuine invocation needs every other required element too -- it also
 // co-kills several mutations that already had a dedicated killer before this
-// row existed (the literal "set", the '-', the first `[a-zA-Z]*`, the
-// `[ \t]+` before "pipefail", and the indent/negated-class/first-`[a-zA-Z]*`
-// quantifier tightenings). That overlap is expected, not a defect: it never
-// gives an element ITS FIRST killer, only an additional one alongside a
-// pre-existing named row, the same shape round-7's '#' and ';&|' fixes
-// already have (each already reds both a matrix row and an end-to-end
-// fixture in trivyskipdirs_localscript_test.go). Every one of these eighteen
-// cases is a regex mutant proven,
+// row existed (the '-', the first `[a-zA-Z]*`, the `[ \t]+` before
+// "pipefail", and the indent/negated-class/second-`[a-zA-Z]*` quantifier
+// tightenings; dropping the literal "set" itself does NOT co-kill this row --
+// '\b' still matches at the start of line two either way). That overlap is
+// expected, not a defect: it never gives an element ITS FIRST killer, only an
+// additional one alongside a pre-existing named row, the same shape round-7's
+// '#' and ';&|' fixes already have (each already reds both a matrix row and
+// an end-to-end fixture in trivyskipdirs_localscript_test.go). Every one of
+// these fourteen cases is a regex mutant proven,
 // this session for the round-9 and round-10 additions and in the review
 // round that added them for the rest, to flip trivyPipefailRE's verdict on
 // its own named input when the named element is removed from
