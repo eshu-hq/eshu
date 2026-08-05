@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 )
 
 // sourcedScriptRE captures a repo-relative scripts/ path from a shell `source`
@@ -186,7 +187,20 @@ func allSourcedScripts(repoRoot, script string) []string {
 // script yields no paths: its absence is already reported by Validate's
 // on-disk check, and double-reporting it here would bury the real finding.
 func sourcedScripts(repoRoot, script string) []string {
-	raw, err := os.ReadFile(filepath.Join(repoRoot, script)) // #nosec G304 -- repoRoot is the operator-provided repo root; script comes from the committed registry
+	// script is a regex capture from a shell `source`/`.` line (sourcedScriptRE
+	// above), not a value the committed registry itself controls -- its
+	// character class allows "." and "/" after the literal "scripts/" prefix,
+	// so a source line such as "source scripts/../../../etc/passwd" captures
+	// a script argument that filepath.Join cleans to a path OUTSIDE repoRoot.
+	// Reject that before opening anything: an escaping path is never a real
+	// in-repo script, so it is treated the same as an unreadable one (#5934
+	// review).
+	full := filepath.Join(repoRoot, script)
+	root := filepath.Clean(repoRoot)
+	if full != root && !strings.HasPrefix(full, root+string(filepath.Separator)) {
+		return nil
+	}
+	raw, err := os.ReadFile(full) // #nosec G304 -- full is confirmed to resolve within repoRoot above
 	if err != nil {
 		return nil
 	}
