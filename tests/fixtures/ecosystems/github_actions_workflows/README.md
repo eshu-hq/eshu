@@ -43,11 +43,12 @@ covered by the live golden gate:
   content-entity id derived from the fixture repository, workflow path, `File`
   label, `ci` name, and line 1; it still has no parser or graph counterpart.
   B-12 exercises that entity through both the HTTP entity-context route and the
-  MCP `get_entity_context` tool. Each live shape requires
-  `result_limits.relationship_count=1` and the exact `DEPENDS_ON`
-  `hashicorp/setup-terraform` relationship. The paired mutation proof rejects a
-  second `octocat/example-action` relationship, keeping the `run:`-block foil
-  excluded from both surfaces.
+  MCP `get_entity_context` tool. Each live shape requires exactly two
+  relationships: `DEPENDS_ON hashicorp/setup-terraform` and the legitimate
+  `DEPLOYS_FROM acme/platform` reusable-workflow edge added for the input-only
+  image fixture. The paired mutation proof adds a third
+  `octocat/example-action` relationship and must fail, keeping the `run:`-block
+  foil excluded from both surfaces.
 
 Ifá materialized-edge coverage is **N/A**: no reducer/graph edge is produced for
 this fixture's external action target, and the detector adds no

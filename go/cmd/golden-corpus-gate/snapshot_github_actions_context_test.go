@@ -39,8 +39,11 @@ func TestGoldenSnapshotGitHubActionsEntityContextShape(t *testing.T) {
 	valid := []byte(`{
 		"id":"` + entityID + `",
 		"entity_id":"` + entityID + `",
-		"relationships":[{"type":"DEPENDS_ON","target_name":"hashicorp/setup-terraform","reason":"github_actions_action_repository"}],
-		"result_limits":{"relationship_count":1,"truncated":false},
+		"relationships":[
+			{"type":"DEPENDS_ON","target_name":"hashicorp/setup-terraform","reason":"github_actions_action_repository"},
+			{"type":"DEPLOYS_FROM","target_name":"acme/platform","reason":"github_actions_reusable_workflow_ref"}
+		],
+		"result_limits":{"relationship_count":2,"truncated":false},
 		"partial_reasons":[]
 	}`)
 	for name, shape := range map[string]QueryShape{"http": httpShape, "mcp": mcpShape} {
@@ -54,14 +57,15 @@ func TestGoldenSnapshotGitHubActionsEntityContextShape(t *testing.T) {
 		"entity_id":"` + entityID + `",
 		"relationships":[
 			{"type":"DEPENDS_ON","target_name":"hashicorp/setup-terraform","reason":"github_actions_action_repository"},
+			{"type":"DEPLOYS_FROM","target_name":"acme/platform","reason":"github_actions_reusable_workflow_ref"},
 			{"type":"DEPENDS_ON","target_name":"octocat/example-action","reason":"github_actions_action_repository"}
 		],
-		"result_limits":{"relationship_count":2,"truncated":false},
+		"result_limits":{"relationship_count":3,"truncated":false},
 		"partial_reasons":[]
 	}`)
 	for name, shape := range map[string]QueryShape{"http": httpShape, "mcp": mcpShape} {
 		if finding := EvaluateQueryShape(name+":github-actions-context-mutated", shape, mutated); finding.OK {
-			t.Fatalf("%s accepted run-block octocat foil and relationship_count=2", name)
+			t.Fatalf("%s accepted run-block octocat foil and relationship_count=3", name)
 		}
 	}
 }

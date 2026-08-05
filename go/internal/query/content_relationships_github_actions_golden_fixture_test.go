@@ -52,6 +52,9 @@ func TestGitHubActionsGoldenFixtureDiscriminatesRunBlockUses(t *testing.T) {
 	if !relationshipHasTarget(relationships, "DEPENDS_ON", "github_actions_action_repository", "hashicorp/setup-terraform") {
 		t.Fatalf("missing DEPENDS_ON hashicorp/setup-terraform action edge: %#v", relationships.outgoing)
 	}
+	if !relationshipHasTarget(relationships, "DEPLOYS_FROM", "github_actions_reusable_workflow_ref", "acme/platform") {
+		t.Fatalf("missing DEPLOYS_FROM acme/platform reusable-workflow edge: %#v", relationships.outgoing)
+	}
 	// FOIL: the uses: line inside the run: block scalar must not be extracted.
 	if relationshipHasTarget(relationships, "DEPENDS_ON", "github_actions_action_repository", "octocat/example-action") {
 		t.Fatalf("run:-block uses: octocat/example-action must NOT become a DEPENDS_ON edge: %#v", relationships.outgoing)
@@ -64,5 +67,8 @@ func TestGitHubActionsGoldenFixtureDiscriminatesRunBlockUses(t *testing.T) {
 	// fails if the run:-block foil is ever extracted as a second edge.
 	if got, want := relationshipReasonCount(relationships, "DEPENDS_ON", "github_actions_action_repository"), 1; got != want {
 		t.Fatalf("DEPENDS_ON action-repository edge count = %d, want %d: %#v", got, want, relationships.outgoing)
+	}
+	if got, want := len(relationships.outgoing), 2; got != want {
+		t.Fatalf("outgoing relationship count = %d, want %d: %#v", got, want, relationships.outgoing)
 	}
 }
