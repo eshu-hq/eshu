@@ -294,7 +294,52 @@ oversight.
   array, a large command substitution) — see above for the measurement
   behind not implementing a construct-based rule instead. **#5085's
   runtime-expansion blind spot is NOT closed by this package; it is only
-  narrowed.**
+  narrowed.** This is not hypothetical: 40 unquoted heredocs in `scripts/`
+  today sit at or under the 384-byte margin threshold and pass silently
+  (verified by walking every `*.sh` file under `scripts/` and counting the
+  unquoted heredocs at 384 bytes or less); a 100-byte body containing
+  `${arr[*]}` over a 10 KB array would be one more.
+- The scan root is always the baseline file's own directory (`scripts/`). 23
+  `*.sh` files outside it are never scanned as of this writing: 14 under
+  `examples/` (collector-extension and supply-chain-demo proof scripts), 7
+  under `tests/` (2 directly, 5 under `tests/fixtures/`), and 2 under
+  `.claude/hooks/` and `.codex/hooks/` (agent doc-staleness hooks) —
+  verified with `git ls-files '*.sh' | rg -v '^scripts/'`, which (unlike an
+  un-hidden `rg --files -g '*.sh'`) also finds the two dotdir hooks.
+- Only `*.sh` files are scanned at all. Makefile recipes, GitHub Actions
+  `run:` blocks, `bash -c` strings, and heredocs embedded in Go string
+  literals execute as real shell but are invisible to this gate. Confirmed
+  live instances in this repository: a heredoc inside a `run:` step in
+  `.github/workflows/generate-bundle-on-demand.yml`, and Go string literal
+  heredocs used as test fixtures in this very package (`main_test.go`,
+  `scanner_test.go`) — neither is a `*.sh` file under `scripts/`, so neither
+  is ever scanned.
+- A heredoc opener nested inside another heredoc's own UNQUOTED body
+  (`cat <<OUTER` whose body contains `$(cat <<INNER ... INNER)`) is a real,
+  valid bash construct — verified against real bash, which executes it and
+  reads the inner heredoc as its own construct. This scanner has no model of
+  that: a body line is only ever compared against the current heredoc's own
+  closing delimiter, then added to the running byte total as raw content —
+  the scanner never re-scans a body line for a nested opener. The inner
+  heredoc's body and delimiter lines are folded into the outer's size and
+  reported as one heredoc under the outer's line number and quoting —
+  verified directly against this scanner. This does not by itself undercount
+  the combined byte total (the inner's bytes are still summed into the
+  outer's, and the outer's stricter unquoted threshold still applies to the
+  merged total whenever the outer is unquoted), but the inner heredoc is
+  never independently reported with its own line number, size, or quoting.
+- A flagged heredoc's reported size is its literal source byte count, never
+  what bash actually delivers to the pipe at runtime. The margin bullet
+  above covers delivered bytes exceeding the literal count; the reverse also
+  happens and is by design not a concern. An unquoted body whose
+  substitutions reference unset or empty variables can deliver far fewer
+  bytes than its source — a 30-byte source body of
+  `${V}${V}${V}${LONG_UNSET_VAR}` (the scanner's own reported size) with
+  every variable unset delivers 1 byte at runtime (verified against real
+  bash). A heredoc flagged only because of this shape is a false positive,
+  not a missed detection: the gate never
+  fails to flag a heredoc that is actually dangerous because of shrinkage;
+  at worst it occasionally flags one that turns out to be safe.
 - The baseline burn-down comparison keys on a per-file violation **count**,
   not the identity of which heredoc it is. Fixing one violation while
   introducing a different one elsewhere in the same file can leave the count

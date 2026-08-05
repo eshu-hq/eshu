@@ -302,16 +302,39 @@ JSON
 # registry is mounted and enforced.
 # ---------------------------------------------------------------------------
 tokens_file="${work_dir}/scoped-tokens.json"
-cat >"${tokens_file}" <<JSON
-{
-  "version": 1,
-  "tokens": [
-    {"token_sha256": "$(sha256_hex "${admin_token}")", "tenant_id": "tenant-admin", "workspace_id": "ws-admin", "all_scopes": true},
-    {"token_sha256": "$(sha256_hex "${team_a_token}")", "tenant_id": "tenant-a", "workspace_id": "ws-a", "allowed_repository_ids": ["${repo_a}"]},
-    {"token_sha256": "$(sha256_hex "${team_b_token}")", "tenant_id": "tenant-b", "workspace_id": "ws-b", "allowed_repository_ids": ["${repo_b}"]}
-  ]
-}
-JSON
+admin_hash="$(sha256_hex "${admin_token}")"
+team_a_hash="$(sha256_hex "${team_a_token}")"
+team_b_hash="$(sha256_hex "${team_b_token}")"
+# printf, not a heredoc: Homebrew bash >= 5.1 writes an entire heredoc body
+# to a pipe before forking the reader, and macOS's 512-byte pipe buffer
+# deadlocks on any body over that size (#5074). This 464-byte source sits in
+# the unquoted-heredoc runtime-expansion margin (#5085): the
+# token_sha256/allowed_repository_ids lines expand ${admin_hash}/
+# ${team_a_hash}/${team_b_hash}/${repo_a}/${repo_b} at runtime, pushing the
+# delivered body further past the literal count. The three token hashes are
+# hoisted into variables (matching the Compose sibling,
+# scripts/run-two-team-governance-proof.sh) instead of calling sha256_hex
+# inline, so the printf conversion below only needs simple ${var}
+# expansion. This hoisting also changes `set -e` behavior for a sha256_hex
+# failure: inline inside the old heredoc body, a failing
+# `$(sha256_hex ...)` command substitution was just interpolated into data
+# being redirected to `cat`, so `cat`'s own exit status (0) was what `set -e`
+# saw and the script silently wrote an empty token_sha256; hoisted into a
+# bare `admin_hash="$(sha256_hex ...)"` assignment, the substitution's exit
+# status IS the assignment's own exit status, so the same failure now aborts
+# the script under `set -e` instead (verified: a failing sha256_hex left the
+# old heredoc form at rc=0 with an empty hash, the hoisted form at a nonzero
+# rc). Expanding lines are double-quoted (JSON double-quotes
+# escaped); literal lines stay single-quoted.
+printf '%s\n' \
+	'{' \
+	'  "version": 1,' \
+	'  "tokens": [' \
+	"    {\"token_sha256\": \"${admin_hash}\", \"tenant_id\": \"tenant-admin\", \"workspace_id\": \"ws-admin\", \"all_scopes\": true}," \
+	"    {\"token_sha256\": \"${team_a_hash}\", \"tenant_id\": \"tenant-a\", \"workspace_id\": \"ws-a\", \"allowed_repository_ids\": [\"${repo_a}\"]}," \
+	"    {\"token_sha256\": \"${team_b_hash}\", \"tenant_id\": \"tenant-b\", \"workspace_id\": \"ws-b\", \"allowed_repository_ids\": [\"${repo_b}\"]}" \
+	'  ]' \
+	'}' >"${tokens_file}"
 
 printf '==> creating scoped-token registry Secret and enabling enforcement via helm upgrade\n'
 kc create secret generic eshu-scoped-tokens --from-file=scoped-tokens.json="${tokens_file}" >/dev/null

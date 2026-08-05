@@ -201,16 +201,24 @@ admin_hash="$(sha256_hex "${admin_token}")"
 team_a_hash="$(sha256_hex "${team_a_token}")"
 team_b_hash="$(sha256_hex "${team_b_token}")"
 
-cat >"${tokens_file}" <<JSON
-{
-  "version": 1,
-  "tokens": [
-    {"token_sha256": "${admin_hash}", "tenant_id": "tenant-admin", "workspace_id": "ws-admin", "all_scopes": true},
-    {"token_sha256": "${team_a_hash}", "tenant_id": "tenant-a", "workspace_id": "ws-a", "allowed_repository_ids": ["${repo_a}"]},
-    {"token_sha256": "${team_b_hash}", "tenant_id": "tenant-b", "workspace_id": "ws-b", "allowed_repository_ids": ["${repo_b}"]}
-  ]
-}
-JSON
+# printf, not a heredoc: Homebrew bash >= 5.1 writes an entire heredoc body
+# to a pipe before forking the reader, and macOS's 512-byte pipe buffer
+# deadlocks on any body over that size (#5074). This 413-byte source sits in
+# the unquoted-heredoc runtime-expansion margin (#5085): the
+# token_sha256/allowed_repository_ids lines expand ${admin_hash}/
+# ${team_a_hash}/${team_b_hash}/${repo_a}/${repo_b} at runtime, pushing the
+# delivered body further past the literal count. Expanding lines are
+# double-quoted (JSON double-quotes escaped); literal lines stay
+# single-quoted.
+printf '%s\n' \
+	'{' \
+	'  "version": 1,' \
+	'  "tokens": [' \
+	"    {\"token_sha256\": \"${admin_hash}\", \"tenant_id\": \"tenant-admin\", \"workspace_id\": \"ws-admin\", \"all_scopes\": true}," \
+	"    {\"token_sha256\": \"${team_a_hash}\", \"tenant_id\": \"tenant-a\", \"workspace_id\": \"ws-a\", \"allowed_repository_ids\": [\"${repo_a}\"]}," \
+	"    {\"token_sha256\": \"${team_b_hash}\", \"tenant_id\": \"tenant-b\", \"workspace_id\": \"ws-b\", \"allowed_repository_ids\": [\"${repo_b}\"]}" \
+	'  ]' \
+	'}' >"${tokens_file}"
 
 printf '==> remounting scoped-token registry and recreating API + MCP\n'
 export ESHU_SCOPED_TOKENS_FILE="/run/secrets/scoped-tokens.json"

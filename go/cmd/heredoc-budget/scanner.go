@@ -54,8 +54,20 @@ type Violation struct {
 // deadlock threshold. A quoted heredoc's body is never expanded, so it keeps
 // the full literal budget. The 25% margin (384 bytes for the default
 // 512-byte budget) is a conservative, documented choice, not a re-derived OS
-// constant; expansion only ever grows a body, never shrinks it, so a margin
-// below the raw budget is the safe direction to err.
+// constant. Unquoted expansion is NOT one-directional: a body whose
+// substitutions reference unset or empty variables can SHRINK at runtime
+// (e.g. a 30-byte source body of `${V}${V}${V}${LONG_UNSET_VAR}` (the
+// scanner's own reported Size) with every variable unset delivers 1 byte,
+// verified against real bash), so shrinkage alone does not justify
+// comparing against a threshold below the raw budget. The real
+// justification is that a body's growth at runtime is statically
+// unbounded — an array or command substitution can expand to any size — so
+// no literal-byte threshold can bound it in the growth direction. Any
+// margin below the raw budget therefore only ever ADDS flags relative to
+// the raw budget alone, never removes any (the added flags are a mix of
+// true positives — the 496-byte case above — and false positives,
+// including bodies that shrink); it can never flag fewer. That is the safe
+// direction to err.
 const unquotedMarginDivisor = 4
 
 // unquotedThreshold returns the effective byte threshold for an UNQUOTED

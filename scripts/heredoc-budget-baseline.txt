@@ -21,7 +21,7 @@
 #
 # <relative/path> <count-of-heredocs-over-budget>
 scripts/lib/golden-corpus-phase-timings.sh 1
-scripts/run-k8s-two-team-governance-proof.sh 2
-scripts/run-two-team-governance-proof.sh 2
+scripts/run-k8s-two-team-governance-proof.sh 1
+scripts/run-two-team-governance-proof.sh 1
 scripts/verify-hosted-auth-audit-proof.sh 1
 scripts/verify-hosted-governance-helm-proof.sh 1
