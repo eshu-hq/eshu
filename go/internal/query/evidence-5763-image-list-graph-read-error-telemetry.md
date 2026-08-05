@@ -37,9 +37,7 @@ vs. `{outcome="unavailable"}` instrument
 (`recordGraphReadTelemetry` in `neo4j_read_policy.go`) for an operator who
 needs to distinguish the two cases for this route.
 
-## No-Regression Evidence
-
-This is not a performance change: no Cypher statement, graph write, query
+No-Regression Evidence: this is not a performance change: no Cypher statement, graph write, query
 plan, loop, or retry/backoff behavior changed. The two added statements sit
 on an already-failing response path — the handler has already decided to
 return `503`/`504` via `WriteGraphReadError` before either statement runs —
@@ -63,9 +61,7 @@ added statements and re-running: `errors counter reason=backend_unavailable =
 0, want 1`) and `cd go && go test ./internal/query -count=1 -race` (full
 package, unaffected).
 
-## Observability Evidence
-
-Two existing instruments — `eshu_dp_query_image_list_duration_seconds`
+Observability Evidence: two existing instruments — `eshu_dp_query_image_list_duration_seconds`
 (`imageListDuration`, a `Float64Histogram`) and
 `eshu_dp_query_image_list_errors_total` (`imageListErrors`, an
 `Int64Counter`), both registered by `initImageQueryInstruments` in
