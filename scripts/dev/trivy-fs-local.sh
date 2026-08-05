@@ -19,17 +19,18 @@ fi
 
 printf 'trivy-fs: scanning working tree (vuln + secret + config, CRITICAL/HIGH)...\n'
 # Mirror .github/workflows/security-scan.yml trivy-fs: CRITICAL,HIGH only,
-# ignore-unfixed, and the same skip-dirs (intentionally-vulnerable fixtures,
-# example artifacts, parser fixtures, node_modules, and the mock OIDC IdP whose
-# keys.go embeds a committed synthetic RSA test key -- see that workflow's
-# comment for why each is skipped) so local findings match CI rather than
-# reporting noise CI suppresses.
+# ignore-unfixed, and the same skip-dirs so local findings match CI rather
+# than reporting noise CI suppresses.
 #
-# This list is not merely conventionally in sync: cigates.DriftCheck compares it
-# against the workflow's skip-dirs input as a set and fails the gate-registry
-# drift gate on any difference (go/internal/cigates/trivyskipdirs.go). Keep the
-# two in step -- CI is authoritative.
-skip_dirs="go/cmd/eshu/testdata/vuln_scan_repo_fixtures,go/internal/collector/vulnerabilityintelligence/testdata,go/internal/replay/parserfixture/testdata,tests/fixtures,examples,node_modules,apps/console/node_modules,go/cmd/mock-oidc-idp"
+# scripts/lib/trivy-skip-dirs.sh is the single shared derivation of the
+# skip-dirs list from specs/trivy-skip-dirs.txt; both this script and the CI
+# workflow invoke it, so the two sides cannot drift apart the way two
+# separately-maintained derivation pipelines could. go/internal/cigates
+# (checkTrivySkipDirsParity) asserts both sides are wired to it -- see
+# go/internal/cigates/AGENTS.md.
+# shellcheck source=scripts/lib/trivy-skip-dirs.sh
+source "${repo_root}/scripts/lib/trivy-skip-dirs.sh"
+skip_dirs="$(trivy_skip_dirs_csv "${repo_root}")"
 exec trivy fs \
 	--scanners vuln,secret,misconfig \
 	--severity CRITICAL,HIGH \

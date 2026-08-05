@@ -74,10 +74,14 @@ var matrixVariableRE = regexp.MustCompile(`\$\{\{\s*matrix\.([A-Za-z0-9_]+)\s*\}
 //     flags 16 gates of which 15 are correctly wired. A script no workflow runs,
 //     or several run, carries no correspondence signal and is skipped.
 //
-//  7. Trivy skip-dirs parity: scripts/dev/trivy-fs-local.sh's skip_dirs must
-//     equal, as a set, the skip-dirs input of security-scan.yml's trivy-fs job.
-//     See checkTrivySkipDirsParity for why argument parity is checkable even
-//     where invocation correspondence (check 6) is not.
+//  7. Trivy skip-dirs wiring: scripts/lib/trivy-skip-dirs.sh (the single
+//     shared skip-dirs derivation), scripts/dev/trivy-fs-local.sh, and
+//     security-scan.yml's trivy-fs job must all be provably wired to
+//     specs/trivy-skip-dirs.txt, the single authoritative skip-dirs list —
+//     the helper reading it, and the other two invoking the helper rather
+//     than deriving or hard-coding their own value. This proves wiring, not
+//     value flow: see checkTrivySkipDirsParity for the four assertions this
+//     makes and the boundary it deliberately stops at.
 func DriftCheck(repoRoot string, reg *Registry) []error {
 	var errs []error
 

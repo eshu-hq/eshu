@@ -142,6 +142,29 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+      # scripts/lib/trivy-skip-dirs.sh is the single shared derivation of the
+      # skip-dirs list from specs/trivy-skip-dirs.txt (per-directory rationale
+      # lives there as comments); this and scripts/dev/trivy-fs-local.sh both
+      # invoke it, so local and CI scans cannot drift apart the way two
+      # separately-maintained derivation pipelines could. go/internal/cigates
+      # (checkTrivySkipDirsParity) asserts both sides stay wired to it.
+      - name: Read trivy skip-dirs from scripts/lib/trivy-skip-dirs.sh
+        id: skipdirs
+        # Explicit `bash` (not the implicit `bash -e {0}` GHA defaults `run:`
+        # to) so this step runs under `-eo pipefail`: without pipefail, an
+        # unreadable specs file makes `sed` fail inside trivy_skip_dirs_csv's
+        # `sed | grep | grep | paste` pipeline below, but the pipeline's exit
+        # status is `paste`'s (0), so the step still exits 0 with an empty
+        # `dirs=` output, sending the scan red on unskipped fixtures instead of
+        # on the real cause -- the opposite of trivy-fs-local.sh's
+        # `set -euo pipefail`, which does fail loudly on the same condition
+        # (#5925 F12: local and CI must not diverge on failure mode).
+        shell: bash
+        run: |
+          source scripts/lib/trivy-skip-dirs.sh
+          dirs="$(trivy_skip_dirs_csv .)"
+          echo "dirs=${dirs}" >> "${GITHUB_OUTPUT}"
+
       - name: Run Trivy filesystem scan (vuln + secret + config)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -160,22 +183,7 @@ jobs:
           ignore-unfixed: true
           format: sarif
           output: trivy-fs.sarif
-          # Skip non-product trees: intentionally-vulnerable govuln test
-          # fixtures (they embed known CVEs to test the vulnerability-
-          # intelligence collector and MUST NOT be "fixed"), the example
-          # collector-extension artifacts (e.g. the scorecard OCI worker that
-          # runs as root by design to read the mounted docker socket), and the
-          # replay parser-fixture source trees (synthetic Terraform/Kubernetes/
-          # Dockerfile inputs that exist to exercise the parsers, not to deploy —
-          # Trivy misconfig findings on them are noise, like tests/fixtures), and
-          # the mock OIDC IdP (#4971) whose keys.go embeds a fixed, committed,
-          # synthetic RSA signing key — a documented non-secret test constant
-          # (already `#nosec G101`) that Trivy's secret scanner flags HIGH
-          # (AsymmetricPrivateKey). The mock IdP is a test-only binary: its
-          # Dockerfile stage is never COPYed into the released final image (only
-          # docker-compose.e2e.yaml builds/runs it), so the image scan below
-          # never sees it.
-          skip-dirs: go/cmd/eshu/testdata/vuln_scan_repo_fixtures,go/internal/collector/vulnerabilityintelligence/testdata,go/internal/replay/parserfixture/testdata,tests/fixtures,examples,node_modules,apps/console/node_modules,go/cmd/mock-oidc-idp
+          skip-dirs: ${{ steps.skipdirs.outputs.dirs }}
 
       - name: Upload Trivy fs SARIF to GitHub Security tab
         if: always()
