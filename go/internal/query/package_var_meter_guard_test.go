@@ -16,17 +16,18 @@ import (
 	"testing"
 )
 
-// TestNoPackageLevelMeterVarInitializersAcrossModule is the round-7 P2-1
-// structural guard. c3ada216 (see its commit message, "fix(query): resolve
-// image-list and tag-history meters inside sync.Once") fixed both the
-// image-list and tag-history handlers because each cached its OTel meter in a
-// package-level var initialized outside any sync.Once (the pre-fix shape was
-// `var imageQueryMeter = otel.Meter(imageQueryMeterName)`, evaluated once at
-// package-init time). The OTel global proxy binds such a meter's delegate
-// permanently to whichever provider first calls otel.SetMeterProvider in the
-// process, so a test that later installs its own manual-reader provider
-// silently records onto the wrong (possibly already shut down) provider
-// instead — see initImageQueryInstruments's doc comment in
+// TestNoPackageLevelMeterVarInitializersAcrossModule is a structural guard
+// against a bug this package already shipped once. The image-list and the
+// tag-history handler each cached their OTel meter in a package-level var
+// initialized outside any sync.Once. The pre-fix shape was
+// `var imageQueryMeter = otel.Meter(imageQueryMeterName)`, evaluated at
+// package-init time. Both now resolve inside a sync.Once; the landing sites are
+// initImageQueryInstruments in images_telemetry.go and
+// initTagHistoryQueryInstruments in tag_history_telemetry.go. The OTel global
+// proxy binds such a meter's delegate permanently to whichever provider first
+// calls otel.SetMeterProvider in the process, so a test that later installs its
+// own manual-reader provider silently records onto the wrong (possibly already
+// shut down) provider instead — see initImageQueryInstruments's doc comment in
 // images_telemetry.go for the full mechanics. request_metrics.go was never
 // exposed to this bug: apiRequestMetrics calls otel.Meter(apiRequestMeterName)
 // from *inside* apiRequestInstrumentsOnce.Do (request_metrics.go), not from a
@@ -49,8 +50,9 @@ import (
 // local helper that returns otel.Meter(...) — because both put the resolving
 // call somewhere other than the var's initializer, and following them would
 // need type resolution rather than a single-file AST walk. They are a
-// deliberate gap, not an oversight: the pre-fix shape c3ada216 removed, and
-// the one a future handler is most likely to copy, is the direct initializer.
+// deliberate gap, not an oversight: the direct initializer is both the shape
+// the sync.Once fix removed and the one a future handler is most likely to
+// copy.
 //
 // One shape that does keep the resolving call in the initializer is caught:
 // `var p = otel.GetMeterProvider()` followed by `var m = p.Meter("name")`,
@@ -101,10 +103,9 @@ func TestNoPackageLevelMeterVarInitializersAcrossModule(t *testing.T) {
 			t.Errorf("%s: package-level var %q is initialized directly by an "+
 				"otel Meter(...) call; the OTel global proxy binds a meter resolved "+
 				"outside a sync.Once permanently to whichever provider first "+
-				"calls otel.SetMeterProvider in the process (the bug class "+
-				"c3ada216 fixed) — resolve the meter from inside a sync.Once "+
-				"instead, see initImageQueryInstruments in "+
-				"go/internal/query/images_telemetry.go", path, name)
+				"calls otel.SetMeterProvider in the process — resolve the meter "+
+				"from inside a sync.Once instead, see initImageQueryInstruments "+
+				"in go/internal/query/images_telemetry.go", path, name)
 		}
 		return nil
 	})
