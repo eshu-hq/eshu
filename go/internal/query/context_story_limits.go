@@ -3,7 +3,10 @@
 
 package query
 
-import "sort"
+import (
+	"slices"
+	"sort"
+)
 
 // contextStoryItemLimit bounds relationship and instance fan-out attached to
 // entity and workload context/story payloads so a single prompt-ready read
@@ -90,9 +93,21 @@ func workloadContextResultLimits(ctx map[string]any, workloadID, surface string)
 	// (service_story_dossier.go) already ORs the same flags into the service
 	// story result_limits; this closes the same gap for
 	// GET /api/v0/workloads/{id}/context and /story.
+	//
+	// PR #5933 review follow-up: a fourth signal joins these three.
+	// fetchWorkloadContextForOperation (entity_workload_context.go) appends
+	// "infrastructure_truncated" onto ctx["limitations"] when the repository's
+	// infrastructure-entity read hits repositoryInfrastructureEntityLimit
+	// (repository_infrastructure.go) -- the same class of bound, well below
+	// contextStoryItemLimit, that the three flags above already exist to
+	// disclose. contextPartialReasons (below) already surfaces it on
+	// partial_reasons by reading the same ctx["limitations"] slice; without
+	// also ORing it in here, a caller could see partial_reasons contain
+	// "infrastructure_truncated" right next to result_limits.truncated: false.
 	upstreamTruncated := BoolVal(ctx, "dependents_truncated") ||
 		BoolVal(ctx, "consumer_repositories_truncated") ||
-		BoolVal(ctx, "provisioning_source_chains_truncated")
+		BoolVal(ctx, "provisioning_source_chains_truncated") ||
+		slices.Contains(StringSliceVal(ctx, "limitations"), "infrastructure_truncated")
 	truncated := instTrunc || depTrunc || conTrunc || upstreamTruncated
 	drilldownTool := "get_workload_story"
 	if surface == "story" {

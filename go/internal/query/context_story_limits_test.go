@@ -5,6 +5,7 @@ package query
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -269,5 +270,132 @@ func requireContextResultLimits(t *testing.T, data map[string]any, wantTool, wan
 	}
 	if _, ok := data["partial_reasons"]; !ok {
 		t.Fatal("data.partial_reasons missing, want explicit partial reason slot")
+	}
+}
+
+// infrastructureOverflowContentStore is a ContentStore double for
+// TestGetWorkloadContextAndStoryResultLimitsReflectInfrastructureTruncated
+// below. It embeds fakePortContentStore's zero-value (empty) behavior for
+// every method the service-context enrichment pipeline calls besides
+// ListRepoEntitiesByTypes -- all safe no-op reads, since this test seeds no
+// files, entities, or hostnames for them to find -- and overrides ONLY
+// ListRepoEntitiesByTypes, the type-filtered read
+// queryRepoInfrastructureFromContent (repository_infrastructure.go) actually
+// calls (P1 review follow-up to #5764; the untyped ListRepoEntities is no
+// longer on this path). Unlike fakePortContentStore's own
+// ListRepoEntitiesByTypes (which self-clamps to the caller's limit, mirroring
+// a real SQL LIMIT), this override ignores the type list and limit arguments
+// and returns every seeded row unconditionally, so the production code's own
+// `len(entities) > repositoryInfrastructureEntityLimit` check -- not a
+// client-side fake clamp -- is what decides truncation.
+type infrastructureOverflowContentStore struct {
+	fakePortContentStore
+	infrastructureEntities []EntityContent
+}
+
+func (s infrastructureOverflowContentStore) ListRepoEntitiesByTypes(_ context.Context, _ string, _ []string, _ int) ([]EntityContent, error) {
+	return s.infrastructureEntities, nil
+}
+
+func overflowingInfrastructureEntities(n int) []EntityContent {
+	entities := make([]EntityContent, 0, n)
+	for i := 0; i < n; i++ {
+		entities = append(entities, EntityContent{
+			RepoID:       "repo-1",
+			EntityType:   "K8sResource",
+			EntityName:   fmt.Sprintf("resource-%05d", i),
+			RelativePath: fmt.Sprintf("deploy/resource-%05d.yaml", i),
+		})
+	}
+	return entities
+}
+
+// TestGetWorkloadContextAndStoryResultLimitsReflectInfrastructureTruncated is
+// the PR #5933 review follow-up: workloadContextResultLimits ORs
+// dependents_truncated, consumer_repositories_truncated, and
+// provisioning_source_chains_truncated, but did not read ctx["limitations"]
+// for infrastructure_truncated, even though fetchWorkloadContextForOperation
+// (entity_workload_context.go) appends that reason when the repository's
+// infrastructure-entity read hits repositoryInfrastructureEntityLimit. This
+// drives a genuine repositoryInfrastructureEntityLimit+1-row overflow through
+// the real mounted /api/v0/workloads/{id}/context and /story routes -- with no
+// dependents, consumer, or provisioning-source-chain overflow at all, so
+// infrastructure_truncated is the ONLY bound that fires -- through
+// handler.Mount(mux) and mux.ServeHTTP, decoding the actual JSON wire body, and
+// proves result_limits.truncated reflects it.
+func TestGetWorkloadContextAndStoryResultLimitsReflectInfrastructureTruncated(t *testing.T) {
+	t.Parallel()
+
+	content := infrastructureOverflowContentStore{
+		infrastructureEntities: overflowingInfrastructureEntities(repositoryInfrastructureEntityLimit + 1),
+	}
+	// fetchWorkloadRepositoryForAccess (entity_workload_context.go) re-resolves
+	// repo_id through its own DEFINES-anchored candidate query before the
+	// infrastructure read runs; workloadEnvelopeGraphReader's default runByMatch
+	// table has no entry for it, which would leave repoID empty and skip the
+	// infrastructure fetch entirely. A custom run func answers only that exact
+	// query (matched on its distinctive RETURN clause) and leaves every other
+	// query -- topology, dependencies, provisioning candidates, the graph
+	// infrastructure fallback -- returning empty, so infrastructure_truncated
+	// stays the only bound this test can fire.
+	graphReader := fakeWorkloadGraphReader{
+		runSingleByMatch: map[string]map[string]any{
+			"MATCH (w:Workload)": {
+				"id": "workload-1", "name": "order-service", "kind": "Deployment",
+				"repo_id": "repo-1", "repo_name": "order-service", "instances": []any{},
+			},
+		},
+		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+			if strings.Contains(cypher, "RETURN DISTINCT r.id as repo_id, r.name as repo_name") {
+				return []map[string]any{{"repo_id": "repo-1", "repo_name": "order-service"}}, nil
+			}
+			return nil, nil
+		},
+	}
+
+	for _, path := range []string{
+		"/api/v0/workloads/workload-1/context",
+		"/api/v0/workloads/workload-1/story",
+	} {
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+
+			handler := &EntityHandler{
+				Neo4j:   graphReader,
+				Content: content,
+			}
+			mux := http.NewServeMux()
+			handler.Mount(mux)
+
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			req.SetPathValue("workload_id", "workload-1")
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", w.Code)
+			}
+			var body map[string]any
+			if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+				t.Fatalf("unmarshal error = %v", err)
+			}
+			// The route legitimately returns up to repositoryInfrastructureEntityLimit
+			// raw infrastructure rows; the response body is large by design and left
+			// out of failure messages below so a failing run stays readable.
+			limits := mapValue(body, "result_limits")
+			partialReasons := StringSliceVal(body, "partial_reasons")
+			if !strings.Contains(strings.Join(partialReasons, ","), "infrastructure_truncated") {
+				t.Fatalf(
+					"partial_reasons = %v, want it to contain %q (the seeded overflow must reach ctx[\"limitations\"] before result_limits can ever reflect it)",
+					partialReasons, "infrastructure_truncated",
+				)
+			}
+			if truncated, _ := limits["truncated"].(bool); !truncated {
+				t.Fatalf(
+					"result_limits.truncated = %#v, want true (a genuine %d-row infrastructure overflow with no other bound firing, and partial_reasons already contains infrastructure_truncated: %v)",
+					limits["truncated"], repositoryInfrastructureEntityLimit+1, partialReasons,
+				)
+			}
+		})
 	}
 }
