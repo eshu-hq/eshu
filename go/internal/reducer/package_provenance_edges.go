@@ -26,9 +26,10 @@ const (
 // PackageProvenanceEdgeWriter persists and retracts canonical PUBLISHES edges
 // between a Repository and the Package or PackageVersion it owns or
 // published. Implementations MUST be idempotent by (repository id, PUBLISHES,
-// package/version uid) so reducer retries and re-projected generations
-// converge on one edge, and MUST NOT fabricate an endpoint node: a row whose
-// repository or package/version node is absent is a no-op.
+// package/version uid, scope_id, evidence_source) so reducer retries and
+// re-projected generations converge on one assertion, and MUST NOT fabricate
+// an endpoint node: a row whose repository or package/version node is absent is
+// a no-op.
 type PackageProvenanceEdgeWriter interface {
 	WritePublishesEdges(ctx context.Context, rows []map[string]any, scopeID, generationID, evidenceSource string) error
 	RetractPublishesEdges(ctx context.Context, scopeID, generationID, evidenceSource string) error

@@ -186,14 +186,17 @@ func classifyTransientNeo4jError(err error) string {
 		return ""
 	}
 	msg := err.Error()
+	// NornicDB reports relationship snapshot conflicts with a transient code.
+	// Classify the narrow conflict shape before the generic TransientError
+	// fallback so retry telemetry preserves the actionable reason.
+	if isNornicDBWriteConflict(msg) {
+		return graphWriteRetryReasonWriteConflict
+	}
 	if strings.Contains(msg, "TransientError") ||
 		strings.Contains(msg, "DeadlockDetected") ||
 		strings.Contains(msg, "LockClient") ||
 		strings.Contains(msg, "lock acquisition") {
 		return graphWriteRetryReasonTransient
-	}
-	if isNornicDBWriteConflict(msg) {
-		return graphWriteRetryReasonWriteConflict
 	}
 	return ""
 }

@@ -26,9 +26,12 @@ set -euo pipefail
 #       [--image-repo REPO] [--image-tag TAG] [--namespace NS] [--release NAME]
 #       [--no-build]
 #
-# Environment overrides mirror the flags (K8S_GOV_*). The chart image must
-# already exist on the cluster's Docker daemon (OrbStack shares the daemon);
-# without --no-build the driver builds eshu:local and a seed image from it.
+# Environment overrides mirror the flags (K8S_GOV_*). Without --no-build, the
+# driver builds the chart image and exact pinned NornicDB image, then builds the
+# seed image from the chart image. With --no-build, the chart and pinned
+# NornicDB images must already exist on the cluster's Docker daemon (OrbStack
+# shares the daemon); the driver still builds the seed image from the chart
+# image.
 
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "$0")/.." && pwd))"
 

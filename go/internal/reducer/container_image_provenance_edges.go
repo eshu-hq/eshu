@@ -14,23 +14,21 @@ import (
 )
 
 // containerImageBuiltFromProvenanceEvidenceSource tags BUILT_FROM edges
-// projected from container_image_identity decisions. container_image_identity
-// is the sole writer of BUILT_FROM today. A #5428 ci_cd_run_correlation writer
-// sharing this edge type was implemented and then rescinded before shipping
-// (docs/internal/evidence/5428-built-from-projection-rescinded.md): the
-// canonical MERGE identity matches on (start, end, type) only, ignoring
-// evidence_source, so a second writer on the same (digest, repository) pair
-// would collapse onto this domain's edge instead of being isolated from it
-// by evidence_source (#5827). A second BUILT_FROM writer MUST NOT land until
-// #5827 is fixed (docs/internal/design/5472-graph-projection-policy.md).
+// projected from container_image_identity decisions. The #5428
+// ci_cd_run_correlation writer was rescinded before shipping, but independent
+// domains can now safely assert the same endpoint pair because canonical
+// relationship identity includes scope_id and evidence_source (#5827). Each
+// domain must use its own stable evidence source and retract only that identity
+// (docs/internal/design/5472-graph-projection-policy.md).
 const containerImageBuiltFromProvenanceEvidenceSource = "reducer/container-image-identity"
 
 // ContainerImageProvenanceEdgeWriter persists and retracts canonical
 // BUILT_FROM edges between a ContainerImage and the Repository its identity
 // decision resolved as build source. Implementations MUST be idempotent by
-// (image digest, BUILT_FROM, repository id) so reducer retries and
-// re-projected generations converge on one edge, and MUST NOT fabricate an
-// endpoint node: a row whose image or repository node is absent is a no-op.
+// (image digest, BUILT_FROM, repository id, scope_id, evidence_source) so
+// reducer retries and re-projected generations converge on one assertion, and
+// MUST NOT fabricate an endpoint node: a row whose image or repository node is
+// absent is a no-op.
 type ContainerImageProvenanceEdgeWriter interface {
 	WriteBuiltFromEdges(ctx context.Context, rows []map[string]any, scopeID, generationID, evidenceSource string) error
 	RetractBuiltFromEdges(ctx context.Context, scopeID, generationID, evidenceSource string) error

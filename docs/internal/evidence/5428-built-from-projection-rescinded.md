@@ -388,12 +388,14 @@ crashed, so this is host contention, not a pipeline defect.
 `phase_maintenance_drains` is 1s over its ceiling on a host also running the
 review workload.
 
-## Open issues this work produced
+## Follow-up issues and dispositions
 
-- **#5827** — the provenance writer's `MERGE` identity omits `evidence_source`
-  and `scope_id`, collapsing same-pair edges across domains and scopes. Live for
-  `PUBLISHES` on `main` today and recorded in the B-12 snapshot's rc-164.
-  `BUILT_FROM` stays single-owner until it lands.
+- **#5827** — resolved: provenance relationship identity now includes
+  `scope_id` and `evidence_source` alongside the endpoint pair and edge type.
+  Same-pair assertions from independent scopes or evidence domains remain
+  isolated, and retract removes only the matching assertion. A future
+  `BUILT_FROM` producer may share the edge type when it supplies its own stable
+  evidence source and follows the same retract contract.
 - **#5828** — resolved: `eshu_dp_provenance_edges_total` now labels rows
   accepted by successful writer calls as `submitted`. A missing endpoint remains
   a submitted writer no-op, and a successful retry can count the same identity

@@ -39,9 +39,10 @@ const containerImageDerivedFromBasisRepositorySingleBase = "repository_single_ba
 // ContainerImageDerivedFromEdgeWriter persists and retracts canonical
 // DERIVED_FROM edges between a built ContainerImage and the base ContainerImage
 // its repository's Dockerfile declared. Implementations MUST be idempotent by
-// (image digest, DERIVED_FROM, base digest) so reducer retries and re-projected
-// generations converge on one edge, and MUST NOT fabricate an endpoint node: a
-// row whose image or base node is absent is a no-op.
+// (image digest, DERIVED_FROM, base digest, scope_id, evidence_source) so
+// reducer retries and re-projected generations converge on one assertion, and
+// MUST NOT fabricate an endpoint node: a row whose image or base node is absent
+// is a no-op.
 type ContainerImageDerivedFromEdgeWriter interface {
 	WriteDerivedFromEdges(ctx context.Context, rows []map[string]any, scopeID, generationID, evidenceSource string) error
 	RetractDerivedFromEdges(ctx context.Context, scopeID, generationID, evidenceSource string) error
