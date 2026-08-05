@@ -2,7 +2,8 @@
 
 Part 2 of 4 of the dated, per-issue evidence and rationale entries for
 `go/internal/query`, split out of [AGENTS.md](AGENTS.md) to keep the
-read-first guidance under the repository's 500-line cap. Read the entry for a
+read-first guidance under CLAUDE.md's 500-line-per-file convention (not a
+repo-enforced gate; no CI check counts Markdown lines). Read the entry for a
 specific issue number before touching the routes, helpers, or call sites that
 issue names. Add new dated per-issue entries to whichever part is closest in
 issue number, not in AGENTS.md.
@@ -462,4 +463,5 @@ content-path bound itself inverting the defect it fixed, a stale truncated
 bool surviving the read-model graph fallback, and an OpenAPI guard gap on the
 read-model path -- is recorded in
 [AGENTS-evidence-history-4.md](AGENTS-evidence-history-4.md) to keep this
-file under the repository's 500-line cap.
+file under CLAUDE.md's 500-line-per-file convention (not a repo-enforced
+gate).

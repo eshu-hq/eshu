@@ -1,8 +1,9 @@
 # internal/query evidence and change history
 
 Dated, per-issue evidence and rationale entries for `go/internal/query`, split
-out of [AGENTS.md](AGENTS.md) to keep the read-first guidance under the
-repository's 500-line cap. Read the entry for a specific issue number before
+out of [AGENTS.md](AGENTS.md) to keep the read-first guidance under
+CLAUDE.md's 500-line-per-file convention (not a repo-enforced gate; no CI
+check counts Markdown lines). Read the entry for a specific issue number before
 touching the routes, helpers, or call sites that issue names. Add new dated
 per-issue entries here (or to a sibling part below), not in AGENTS.md; keep
 AGENTS.md itself the scoped-instructions surface (invariants, common changes,

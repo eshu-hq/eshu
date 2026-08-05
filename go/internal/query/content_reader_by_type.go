@@ -58,7 +58,7 @@ func (cr *ContentReader) ListRepoEntitiesByType(ctx context.Context, repoID, ent
 
 // ListRepoEntitiesByTypes returns indexed entities for one repository
 // filtered to a SET of content entity_type values in one query
-// (`entity_type = ANY($2)`). Like ListRepoEntitiesByType, the LIMIT applies
+// (`entity_type = ANY($2::text[])`). Like ListRepoEntitiesByType, the LIMIT applies
 // to the TYPE-FILTERED row set, not the repo's total entity count: a caller
 // bounding a multi-type family (for example the repository infrastructure
 // panel's K8sResource/TerraformResource/ArgoCDApplication/... set) needs its
@@ -97,7 +97,7 @@ func (cr *ContentReader) ListRepoEntitiesByTypes(ctx context.Context, repoID str
 		       start_line, end_line, coalesce(language, ''), coalesce(source_cache, ''),
 		       metadata
 		FROM content_entities
-		WHERE repo_id = $1 AND entity_type = ANY($2)
+		WHERE repo_id = $1 AND entity_type = ANY($2::text[])
 		ORDER BY relative_path, start_line, entity_id
 		LIMIT $3
 	`, repoID, pq.Array(entityTypes), limit)

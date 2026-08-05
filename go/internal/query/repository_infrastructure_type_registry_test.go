@@ -11,8 +11,14 @@ import (
 )
 
 // repositoryInfrastructureCypherLabelPattern extracts the label names from the
-// `WHERE infra:X OR infra:Y ...` disjunction in the production Cypher.
-var repositoryInfrastructureCypherLabelPattern = regexp.MustCompile(`infra:([A-Za-z0-9_]+)`)
+// `WHERE infra:X OR infra:Y ...` disjunction in the production Cypher. `\s*`
+// before the colon matters: Cypher accepts whitespace between a variable and
+// its label colon (`infra :AnsiblePlaybook` parses the same as
+// `infra:AnsiblePlaybook`), and a bare `infra:` pattern misses that spelling
+// -- an added disjunct in that form would still change what the graph read
+// matches while evading this extraction (#5764 round-8 P3-2 review
+// follow-up).
+var repositoryInfrastructureCypherLabelPattern = regexp.MustCompile(`infra\s*:([A-Za-z0-9_]+)`)
 
 // TestRepositoryInfrastructureEntryFromContentClassifiesEveryCanonicalType
 // pins repositoryInfrastructureEntryFromContent's switch to the canonical

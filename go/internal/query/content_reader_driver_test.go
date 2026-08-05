@@ -20,6 +20,14 @@ type contentReaderQueryResult struct {
 	err                  error
 	queryContains        []string
 	queryContainsInOrder []string
+	// wantArgs, when non-nil, asserts the exact positional bind values
+	// QueryContext receives, in order, including type (e.g. int64 vs string
+	// after driver.DefaultParameterConverter runs). Catches an argument-order
+	// swap that leaves the query TEXT byte-identical -- queryContains and
+	// queryContainsInOrder only inspect the SQL string, so a swapped
+	// $1/$2/$3 binding is invisible to both (#5764 round-8 P2-2 review
+	// follow-up).
+	wantArgs []driver.Value
 }
 
 func openContentReaderTestDB(t *testing.T, results []contentReaderQueryResult) *sql.DB {
@@ -65,7 +73,7 @@ func (c *contentReaderConn) Begin() (driver.Tx, error) {
 	return nil, fmt.Errorf("Begin not implemented")
 }
 
-func (c *contentReaderConn) QueryContext(_ context.Context, query string, _ []driver.NamedValue) (driver.Rows, error) {
+func (c *contentReaderConn) QueryContext(_ context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	if strings.Contains(query, "SELECT EXISTS") &&
 		strings.Contains(query, "FROM content_file_references") &&
 		(len(c.results) == 0 || !contentReaderResultColumnsEqual(c.results[0], []string{"available"})) {
@@ -201,6 +209,9 @@ func (c *contentReaderConn) QueryContext(_ context.Context, query string, _ []dr
 	if err := contentReaderQueryContainsInOrder(query, result.queryContainsInOrder); err != nil {
 		return nil, err
 	}
+	if err := contentReaderCheckArgs(args, result.wantArgs); err != nil {
+		return nil, err
+	}
 	if result.err != nil {
 		return nil, result.err
 	}
@@ -217,6 +228,53 @@ func contentReaderQueryContainsInOrder(query string, fragments []string) error {
 		offset += index + len(fragment)
 	}
 	return nil
+}
+
+// contentReaderCheckArgs asserts args carries exactly the values in want, in
+// the same $1, $2, ... order. A nil want skips the check -- most fake-driver
+// tests only assert query text, and want stays nil for them. args is already
+// past driver.DefaultParameterConverter (a pq.Array argument arrives here as
+// the array's already-converted literal string, not the original slice), so
+// want must hold the converted form too.
+func contentReaderCheckArgs(args []driver.NamedValue, want []driver.Value) error {
+	if want == nil {
+		return nil
+	}
+	if len(args) != len(want) {
+		return fmt.Errorf("query got %d bind args, want %d: %#v", len(args), len(want), args)
+	}
+	for i, wantValue := range want {
+		if !contentReaderArgEqual(args[i].Value, wantValue) {
+			return fmt.Errorf("query bind arg $%d = %#v (%T), want %#v (%T)",
+				i+1, args[i].Value, args[i].Value, wantValue, wantValue)
+		}
+	}
+	return nil
+}
+
+// contentReaderArgEqual compares a driver-converted bind value against an
+// expected value, tolerating int vs int64 the same way
+// numericDriverValue (content_reader_cross_repo_test.go) does: a want value
+// written as a plain Go int still matches the int64
+// driver.DefaultParameterConverter actually produces.
+func contentReaderArgEqual(got, want driver.Value) bool {
+	if gotInt, ok := contentReaderAsInt64(got); ok {
+		if wantInt, ok := contentReaderAsInt64(want); ok {
+			return gotInt == wantInt
+		}
+	}
+	return got == want
+}
+
+func contentReaderAsInt64(v driver.Value) (int64, bool) {
+	switch typed := v.(type) {
+	case int64:
+		return typed, true
+	case int:
+		return int64(typed), true
+	default:
+		return 0, false
+	}
 }
 
 func contentReaderRelationshipReadModelColumns() []string {

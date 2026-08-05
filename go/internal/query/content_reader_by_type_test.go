@@ -7,6 +7,8 @@ import (
 	"context"
 	"database/sql/driver"
 	"testing"
+
+	"github.com/lib/pq"
 )
 
 // TestListRepoEntitiesByTypeOrdersByEntityIDTiebreaker proves the ORDER BY
@@ -36,6 +38,7 @@ func TestListRepoEntitiesByTypeOrdersByEntityIDTiebreaker(t *testing.T) {
 				"ORDER BY relative_path, start_line, entity_id",
 				"LIMIT $3",
 			},
+			wantArgs: []driver.Value{"repo-1", "K8sResource", int64(10)},
 		},
 	})
 
@@ -50,13 +53,32 @@ func TestListRepoEntitiesByTypeOrdersByEntityIDTiebreaker(t *testing.T) {
 // infrastructure tests that drive this method reach it through
 // fakePortContentStore (ports_test.go), which reimplements the type filter in
 // Go and therefore passes identically whether the query filters or not -- the
-// #5764 round-7 P1 finding. Inverting the predicate to
-// `entity_type <> ALL($2)` (every NON-infrastructure entity, the round-6 defect
-// in worse form), dropping the entity_id ORDER BY tiebreaker, or renaming the
-// table has to fail here, because the fake driver rejects a query that does not
-// carry these fragments in this order.
+// #5764 round-7 P1 finding.
+//
+// This test's queryContainsInOrder assertion is a SHAPE check on the SQL
+// string, not a full-text one, so it catches the mutations named below but
+// not every possible one: a change that keeps all four listed fragments while
+// altering the query's overall meaning (for example appending `OR true` to
+// the WHERE clause) still passes this assertion, because every fragment is
+// still present in order (round-8 P3-1 review follow-up narrows the earlier
+// "has to fail here" claim to name this limit). wantArgs below separately
+// covers the bind values reaching Postgres (round-8 P2-2 review follow-up),
+// so an argument-order swap fails even though it changes neither the query
+// string nor its fragments.
+//
+// Inverting the predicate to `entity_type <> ALL($2::text[])` (every
+// NON-infrastructure entity, the round-6 defect in worse form), dropping the
+// entity_id ORDER BY tiebreaker, or renaming the table each fails here,
+// because the fake driver rejects a query that does not carry these
+// fragments in this order.
 func TestListRepoEntitiesByTypesIssuesTypeFilteredQuery(t *testing.T) {
 	t.Parallel()
+
+	entityTypes := []string{"K8sResource", "TerraformResource"}
+	wantTypesArg, err := pq.Array(entityTypes).Value()
+	if err != nil {
+		t.Fatalf("pq.Array(entityTypes).Value() error = %v, want nil", err)
+	}
 
 	db := openContentReaderTestDB(t, []contentReaderQueryResult{
 		{
@@ -76,16 +98,17 @@ func TestListRepoEntitiesByTypesIssuesTypeFilteredQuery(t *testing.T) {
 			},
 			queryContainsInOrder: []string{
 				"FROM content_entities",
-				"WHERE repo_id = $1 AND entity_type = ANY($2)",
+				"WHERE repo_id = $1 AND entity_type = ANY($2::text[])",
 				"ORDER BY relative_path, start_line, entity_id",
 				"LIMIT $3",
 			},
+			wantArgs: []driver.Value{"repo-1", wantTypesArg, int64(10)},
 		},
 	})
 
 	reader := NewContentReader(db)
 	entities, err := reader.ListRepoEntitiesByTypes(
-		context.Background(), "repo-1", []string{"K8sResource", "TerraformResource"}, 10,
+		context.Background(), "repo-1", entityTypes, 10,
 	)
 	if err != nil {
 		t.Fatalf("ListRepoEntitiesByTypes() error = %v, want nil", err)

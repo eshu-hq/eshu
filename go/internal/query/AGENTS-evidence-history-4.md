@@ -5,7 +5,8 @@ Part 4 of 4 of the dated, per-issue evidence and rationale entries for
 written for the #5764 review follow-ups, and part 4 exists because
 [AGENTS-evidence-history-2.md](AGENTS-evidence-history-2.md) was already at 463
 lines when they were written, so appending them there would have carried it
-past the repository's 500-line cap. (An earlier version of this paragraph said
+past CLAUDE.md's 500-line-per-file convention (not a repo-enforced gate; no CI
+check counts Markdown lines). (An earlier version of this paragraph said
 these entries were split out of part 2. They were not -- part 2 grew by 17 net
 lines in the same commit that created this file. The claim is corrected here
 rather than left standing, the same class of false-provenance note round 4
@@ -230,3 +231,124 @@ attribute was added or changed. The `repo_infrastructure` stage log keeps the
 `infrastructureDegradeLogAttrs` (row_count, failure_class, truncated) triple
 from the original #5764 change; the empty-panel guard changes which value
 `truncated` carries on a drifted read, not the attribute set.
+
+### A fourth prose enumeration drifted, bind args were untested, and a label regex admitted whitespace (round-8 review follow-up to #5764)
+
+Four smaller findings from a fifth review pass on the same infrastructure
+panel.
+
+First, the OpenAPI `infrastructure` field description
+(`openapi_components_workload_session.go`) named seven families --
+Kubernetes, Terraform, ArgoCD, Helm, Kustomize, Crossplane, CloudFormation --
+missing Terragrunt, in the same commit where three other copies of this same
+prose (the doc comment above `repositoryInfrastructureEntityTypes` in
+`repository_infrastructure.go`, the HTTP API reference page, and the
+telemetry reference page) all correctly named eight families including
+Terragrunt. The round-7 entry above says the new tests pin "all three code
+enumerations" -- the Go type slice, the Cypher label disjunction, and the
+classification switch -- so this fourth, prose enumeration was left
+deliberately unpinned, and it drifted the first chance it had. Fixed by
+adding Terragrunt to the OpenAPI description.
+
+Whether to also add a mechanical cross-check for this one was considered and
+rejected. The three code enumerations round 7 pinned are extractable
+one-to-one: each names the same literal Go identifiers
+(`TerraformResource`, `ArgoCDApplication`, ...), so a regex or set-equality
+test compares them without adding new judgment. The OpenAPI description and
+the two docs pages instead use human-readable FAMILY names -- "Terraform"
+covers ten different Go types in the canonical list, "ArgoCD" covers two.
+Turning that into a testable assertion needs a hand-written
+family-to-type-prefix map, which would be a fifth hand-maintained enumeration
+of the same 20 types -- the exact pattern that has now drifted twice. Adding
+it would not close this risk, it would relocate it. The residual exposure:
+nothing mechanically stops a future addition to
+`repositoryInfrastructureEntityTypes` from landing without a matching update
+to these four prose copies (`openapi_components_workload_session.go`,
+`repository_infrastructure.go`'s doc comment,
+`docs/public/reference/http-api/repositories-ingesters-bundles.md`, and
+`docs/public/reference/telemetry/graph-read-safety.md`). This is a known,
+accepted gap, not a fixed one -- an agent or reviewer adding a type to that
+list should grep all four for the family-name prose by hand.
+
+Second, `ContentReader.ListRepoEntitiesByType` and `ListRepoEntitiesByTypes`
+(`content_reader_by_type.go`) had a test on their SQL TEXT but nothing on
+their bind ARGUMENTS: `contentReaderConn.QueryContext`
+(`content_reader_driver_test.go`) discarded `[]driver.NamedValue` entirely.
+Mutating `ListRepoEntitiesByTypes` to
+`cr.db.QueryContext(ctx, query, pq.Array(entityTypes), repoID, limit)` --
+same SQL string, arguments swapped -- left the whole `internal/query` package
+green. In production this sends the entity-type array literal to the
+`repo_id = $1` placeholder and the repo ID to `entity_type = ANY($2::text[])`,
+which Postgres rejects as invalid array input, and the caller,
+`queryRepoInfrastructureFromContent`, treats any error the same as "no
+infrastructure entities" (`if err != nil || len(entities) == 0 { return nil,
+false }`) -- the infrastructure panel would go empty with no failure
+disclosed, on every call, for as long as the swap shipped. Fixed by adding an
+opt-in `wantArgs []driver.Value` field to `contentReaderQueryResult` and a
+`contentReaderCheckArgs` assertion in `QueryContext`
+(`content_reader_driver_test.go`), tolerant of the `int`/`int64` conversion
+`driver.DefaultParameterConverter` performs (mirroring `numericDriverValue`
+in `content_reader_cross_repo_test.go`). `wantArgs` stays nil unless a test
+sets it, so the roughly 80 other test files sharing this fake driver are
+unaffected.  `TestListRepoEntitiesByTypeOrdersByEntityIDTiebreaker` and
+`TestListRepoEntitiesByTypesIssuesTypeFilteredQuery` now set it. Proven by
+the arg-swap mutation above: RED (`content_reader_by_type_test.go:114: ...
+query bind arg $1 = "{\"K8sResource\",\"TerraformResource\"}" (string), want
+"repo-1" (string)`, exit 1) before the fix reached this test, GREEN (exit 0)
+after reverting.
+
+Folded into the same fix (P3-6): `entity_type = ANY($2)` gained the
+`::text[]` cast every one of the other 14 `= ANY($N)` call sites in this
+package already carries. Postgres already infers `text[]` here from the
+UNKNOWN-typed `pq.Array` argument against a `text` column, so the missing
+cast was not a live defect -- just the one site out of step with the rest of
+the package, now consistent.
+
+Third, `TestListRepoEntitiesByTypesIssuesTypeFilteredQuery`'s doc comment
+claimed its named mutations "has to fail here" without qualifying what "here"
+covers. `queryContainsInOrder` is a SHAPE check on the SQL text (ordered
+substring presence), not a full-text or behavioral one: appending ` OR true`
+to the WHERE clause keeps all four listed fragments present in the same
+order, so the assertion still passes -- confirmed directly, exit 0 both
+before and after adding then removing the `OR true` mutation. The comment now
+names exactly the three mutations the assertion catches instead of implying
+exhaustive coverage, and points at the new `wantArgs` check as the separate,
+narrower net that catches an argument-order swap the SQL-text check cannot
+see. This is a known limitation of the fragment-based assertion, shared by
+every test in this package using the same `queryContainsInOrder` pattern, not
+a defect unique to this one test.
+
+Fourth, `repositoryInfrastructureCypherLabelPattern`
+(`repository_infrastructure_type_registry_test.go`) used
+`infra:([A-Za-z0-9_]+)` to extract the `infra:X` disjuncts from the
+production Cypher for the set-equality check against
+`repositoryInfrastructureEntityTypes`. Cypher accepts whitespace between a
+variable and its label colon, so a disjunct written `OR infra
+:AnsiblePlaybook` (space before the colon) evades the regex while still
+changing what the graph read matches: `cypherLabels` stays at 20 members, set
+equality holds, and the test passes while the Cypher now matches an extra
+label. Fixed by widening the pattern to `infra\s*:`. Proven directly: adding
+`OR infra :AnsiblePlaybook` to the disjunction with the fixed regex in place
+fails the test (`cypher labels [AnsiblePlaybook ArgoCDApplication ...] ...
+sets differ in size`, exit 1); removing it restores a pass (exit 0).
+
+No-Regression Evidence: `go test ./internal/query -run
+'TestListRepoEntitiesByType|TestRepositoryInfrastructure' -v -count=1` (26
+passed) as a baseline; the arg-swap, `OR true`, and space-before-colon
+mutations each re-run as RED/GREEN (or PASS/PASS for `OR true`) pairs via
+`rtk proxy go test ./internal/query -run '<test name>' -v -count=1`, exit
+codes captured directly per invocation, as detailed above; plus `go build
+./...`, `go test ./internal/query ./internal/queryplan ./internal/mcp
+-count=1`, `go test -race ./internal/query -count=1`, `golangci-lint run
+./...`, `go run ./cmd/capability-inventory -mode=verify`, `bash
+scripts/verify-route-coverage.sh`,
+`ESHU_PERFORMANCE_EVIDENCE_BASE=origin/main bash
+scripts/verify-performance-evidence.sh`, and the strict mkdocs build via
+`ESHU_DOCS_BUILD_BASE=origin/main bash
+scripts/verify-docs-build-changed.sh`.
+
+No-Observability-Change: no span, metric instrument, metric label, or
+stage-log attribute was added or changed. This round only touched an OpenAPI
+description string, test-only fake-driver plumbing, two doc comments, a test
+regex, and one query-text cast that Postgres already resolved the same way at
+runtime.

@@ -471,7 +471,8 @@
 ## Evidence and change history
 
 The dated, per-issue evidence log for this package is split across four files
-to keep every file under the repository's 500-line cap:
+to keep every file under CLAUDE.md's 500-line-per-file convention (not a
+repo-enforced gate):
 [AGENTS-evidence-history.md](AGENTS-evidence-history.md) (part 1, issues
 #2048 through #4794/#4733), [AGENTS-evidence-history-2.md](AGENTS-evidence-history-2.md)
 (part 2, issues #3492 through #5816, plus a P1 follow-up to #5764),
