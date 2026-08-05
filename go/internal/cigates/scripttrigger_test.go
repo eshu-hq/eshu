@@ -234,7 +234,7 @@ func TestDriftCheck_InlineToolchainCommandSkipped(t *testing.T) {
 // sourcedScripts only resolves a `source`/`.` line whose LITERAL TEXT
 // contains "scripts/" (#5762 round 10, P2-1). A line that sources a computed
 // path through a variable — the shape scripts/verify-maturity-drift-guard.sh
-// and four other real gate scripts use — is invisible to the walk, at any
+// and three other real gate scripts use — is invisible to the walk, at any
 // depth. This pins that boundary: scripts/lib/thing-variable-cases.sh is a
 // real, uncovered file the command reaches, but check 8 reports 0 errors
 // because it never resolves the variable to discover the file.
