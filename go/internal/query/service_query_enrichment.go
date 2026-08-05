@@ -119,9 +119,19 @@ func enrichServiceQueryContextWithOptions(
 		hostnames := serviceEvidenceHostnames(evidence)
 		traceLimit := boundedTraceEnrichmentLimit(opts.MaxDepth)
 		candidates := []provisioningRepositoryCandidate{}
+		// #5720 round-2 P1-1: queryProvisioningRepositoryCandidates is the
+		// sole production feeder for dependents, consumer_repositories, and
+		// provisioning_source_chains, so its truncated bool is the one
+		// disclosure signal all three fields need -- carried on
+		// workloadContext as *_truncated so buildServiceDownstreamConsumers
+		// and buildServiceResultLimitsWithContext (service_story_dossier.go)
+		// can report truncated: true even though every one of these lists
+		// stays well under serviceStoryItemLimit (50) on the default
+		// indirect-evidence search limit (25).
+		var candidatesTruncated bool
 		if !opts.DirectOnly || opts.IncludeRelatedModuleUsage {
 			timer = startServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "graph_provisioning_candidates")
-			candidates, err = queryProvisioningRepositoryCandidates(ctx, graph, repoID, traceLimit)
+			candidates, candidatesTruncated, err = queryProvisioningRepositoryCandidates(ctx, graph, repoID, traceLimit)
 			if err != nil {
 				timer.Done(ctx, slog.Int("row_count", len(candidates)))
 				return fmt.Errorf("load graph provisioning candidates: %w", err)
@@ -145,17 +155,23 @@ func enrichServiceQueryContextWithOptions(
 			timer = startServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "graph_dependents")
 			if dependents := buildGraphDependents(candidates); len(dependents) > 0 {
 				workloadContext["dependents"] = dependents
+				if candidatesTruncated {
+					workloadContext["dependents_truncated"] = true
+				}
 			}
 			timer.Done(ctx, slog.Int("row_count", len(candidates)))
 
 			timer = startServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "consumer_repository_enrichment")
-			consumers, err := loadConsumerRepositoryEnrichmentFromCandidates(ctx, graph, content, repoID, serviceName, hostnames, traceLimit, candidates)
+			consumers, consumersTruncated, err := loadConsumerRepositoryEnrichmentFromCandidates(ctx, graph, content, repoID, serviceName, hostnames, traceLimit, candidates, candidatesTruncated)
 			timer.Done(ctx, slog.Int("row_count", len(consumers)))
 			if err != nil {
 				return fmt.Errorf("load consumer repository enrichment: %w", err)
 			}
 			if len(consumers) > 0 {
 				workloadContext["consumer_repositories"] = consumers
+				if consumersTruncated {
+					workloadContext["consumer_repositories_truncated"] = true
+				}
 			}
 		}
 
@@ -168,6 +184,9 @@ func enrichServiceQueryContextWithOptions(
 			}
 			if len(provisioningChains) > 0 {
 				workloadContext["provisioning_source_chains"] = provisioningChains
+				if candidatesTruncated {
+					workloadContext["provisioning_source_chains_truncated"] = true
+				}
 			}
 		}
 		if len(mapSliceValue(workloadContext, "cloud_resources")) == 0 {

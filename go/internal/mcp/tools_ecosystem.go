@@ -33,7 +33,10 @@ func ecosystemTools() []ToolDefinition {
 					},
 					"max_depth": map[string]any{
 						"type":        "integer",
-						"description": "Maximum depth to traverse",
+						"description": "Maximum depth to traverse (clamped to 1000)",
+						"minimum":     0,
+						"maximum":     1000,
+						"default":     8,
 					},
 					"include_related_module_usage": map[string]any{
 						"type":        "boolean",

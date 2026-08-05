@@ -90,8 +90,16 @@ func buildGraphDependents(candidates []provisioningRepositoryCandidate) []map[st
 			"relationship_reasons": append([]string(nil), candidate.RelationshipReasons...),
 		})
 	}
+	// Two distinct repositories can share a display name (#5720, same class
+	// as #5644), so a comparator that leaves that tie unresolved lets
+	// repeated calls over unchanged data return those tied entries in a
+	// different relative order. repo_id is unique per candidate, so it is
+	// the final tiebreaker that makes this a total order.
 	sort.Slice(dependents, func(i, j int) bool {
-		return StringVal(dependents[i], "repository") < StringVal(dependents[j], "repository")
+		if left, right := StringVal(dependents[i], "repository"), StringVal(dependents[j], "repository"); left != right {
+			return left < right
+		}
+		return StringVal(dependents[i], "repo_id") < StringVal(dependents[j], "repo_id")
 	})
 	return dependents
 }

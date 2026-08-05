@@ -47,6 +47,34 @@ func TestEcosystemTraceDeploymentChainSchema(t *testing.T) {
 	}
 }
 
+// TestEcosystemTraceDeploymentChainMaxDepthSchemaIsBounded is the #5720
+// round-2 P2-2 fix: HTTP/OpenAPI now clamps max_depth to [0, 1000] (see
+// openapi_paths_impact.go and impact_trace_deployment.go), but this MCP
+// tool's schema advertised max_depth as a plain unbounded integer, and
+// TestEcosystemTraceDeploymentChainSchema above only asserted the field
+// exists, not its bound -- nothing caught the drift. Pins the schema to the
+// resolved HTTP bound so schema and handler stay in lockstep.
+func TestEcosystemTraceDeploymentChainMaxDepthSchemaIsBounded(t *testing.T) {
+	t.Parallel()
+
+	tool := requireToolDefinition(t, "trace_deployment_chain")
+	schema, _ := tool.InputSchema.(map[string]any)
+	properties, _ := schema["properties"].(map[string]any)
+	maxDepth, ok := properties["max_depth"].(map[string]any)
+	if !ok {
+		t.Fatalf("trace_deployment_chain schema max_depth missing or wrong type: %#v", properties["max_depth"])
+	}
+	if got, want := maxDepth["minimum"], 0; got != want {
+		t.Fatalf("trace_deployment_chain max_depth[minimum] = %#v, want %v", got, want)
+	}
+	if got, want := maxDepth["maximum"], 1000; got != want {
+		t.Fatalf("trace_deployment_chain max_depth[maximum] = %#v, want %v", got, want)
+	}
+	if got, want := maxDepth["default"], 8; got != want {
+		t.Fatalf("trace_deployment_chain max_depth[default] = %#v, want %v", got, want)
+	}
+}
+
 func TestEcosystemInvestigateDeploymentConfigSchema(t *testing.T) {
 	t.Parallel()
 

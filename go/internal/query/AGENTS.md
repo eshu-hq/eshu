@@ -345,6 +345,8 @@
   `TerraformStateOwnershipTransientFailure` -- Resolved, NoOwner, and
   AmbiguousOwner are all retract-eligible.
 
+- **Provisioning-candidate read gained a deterministic, structurally bounded LIMIT (#5720)** — see `evidence-5720-provisioning-candidate-bound.md`.
+
 ## Common changes and how to scope them
 
 - **Add a new HTTP handler** → create a handler struct with `Neo4j GraphQuery`

@@ -51,12 +51,30 @@ func loadProvisioningSourceChainsFromCandidates(
 		chains = append(chains, entry)
 	}
 
+	// Two distinct repositories can share a display name (#5720, same class
+	// as #5644), so a comparator that leaves that tie unresolved lets
+	// repeated calls over unchanged data return those tied entries in a
+	// different relative order. repo_id is unique per candidate, so it is
+	// the final tiebreaker that makes this a total order.
 	sort.Slice(chains, func(i, j int) bool {
-		return StringVal(chains[i], "repository") < StringVal(chains[j], "repository")
+		if left, right := StringVal(chains[i], "repository"), StringVal(chains[j], "repository"); left != right {
+			return left < right
+		}
+		return StringVal(chains[i], "repo_id") < StringVal(chains[j], "repo_id")
 	})
 	return chains, nil
 }
 
+// loadConsumerRepositoryEnrichmentFromCandidates merges graph-derived
+// provisioning candidates with content-evidence consumer matches into the
+// consumer_repositories field. #5720 round-2 P1-1: truncation can come from
+// either of two independent, unrelated sources, so both must be disclosed
+// through the single returned bool -- candidatesTruncated (the caller's
+// upstream queryProvisioningRepositoryCandidates read already dropped rows)
+// and this function's own final consumers[:limit] cap below, which can trim
+// the list even when candidatesTruncated is false: content-evidence search
+// can add consumer repositories the graph candidates never named, so the
+// merged set can exceed limit purely from that side.
 func loadConsumerRepositoryEnrichmentFromCandidates(
 	ctx context.Context,
 	graph GraphQuery,
@@ -66,7 +84,9 @@ func loadConsumerRepositoryEnrichmentFromCandidates(
 	hostnames []string,
 	limit int,
 	candidates []provisioningRepositoryCandidate,
-) ([]map[string]any, error) {
+	candidatesTruncated bool,
+) (consumers []map[string]any, truncated bool, err error) {
+	truncated = candidatesTruncated
 	trimmedHostnames := normalizedIndirectEvidenceHostnames(hostnames)
 	if limit > 0 {
 		trimmedHostnames = boundedIndirectEvidenceHostnamesForService(trimmedHostnames, serviceName)
@@ -90,9 +110,10 @@ func loadConsumerRepositoryEnrichmentFromCandidates(
 	}
 
 	if content != nil {
-		contentEvidence, err := searchConsumerEvidenceAnyRepo(ctx, content, serviceRepoID, serviceName, trimmedHostnames, limit)
+		var contentEvidence map[string]traceEvidenceAccumulator
+		contentEvidence, err = searchConsumerEvidenceAnyRepo(ctx, content, serviceRepoID, serviceName, trimmedHostnames, limit)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		for repoID, evidence := range contentEvidence {
 			entry, ok := consumersByRepo[repoID]
@@ -107,11 +128,11 @@ func loadConsumerRepositoryEnrichmentFromCandidates(
 			appendConsumerEvidence(entry, evidence)
 		}
 	}
-	if err := backfillConsumerRepositoryDisplayNames(ctx, graph, consumersByRepo); err != nil {
-		return nil, err
+	if err = backfillConsumerRepositoryDisplayNames(ctx, graph, consumersByRepo); err != nil {
+		return nil, false, err
 	}
 
-	consumers := make([]map[string]any, 0, len(consumersByRepo))
+	consumers = make([]map[string]any, 0, len(consumersByRepo))
 	for _, entry := range consumersByRepo {
 		consumers = append(consumers, entry)
 	}
@@ -137,6 +158,13 @@ func loadConsumerRepositoryEnrichmentFromCandidates(
 	})
 	if limit > 0 && len(consumers) > limit {
 		consumers = consumers[:limit]
+		// #5720 round-2 P1-1: this cap is a second, independent truncation
+		// source from candidatesTruncated above -- content-evidence search
+		// can add consumer repositories the graph candidates never named, so
+		// the merged set can exceed limit even when the graph read itself
+		// was not truncated. OR rather than overwrite so a candidatesTruncated
+		// signal already set to true is never lost.
+		truncated = true
 	}
-	return consumers, nil
+	return consumers, truncated, nil
 }

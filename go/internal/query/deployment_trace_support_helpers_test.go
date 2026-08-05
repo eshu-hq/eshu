@@ -295,7 +295,10 @@ func TestLoadConsumerRepositoryEnrichmentWithLimitCapsMergedConsumersByEvidenceS
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				switch {
 				case strings.Contains(cypher, "PROVISIONS_DEPENDENCY_FOR|DEPLOYS_FROM|USES_MODULE|DISCOVERS_CONFIG_IN"):
-					if got, want := params["limit"], 2; got != want {
+					// #5720 round-2 P1-1: queryProvisioningRepositoryCandidates
+					// now probes one row past the caller's limit (2) to detect
+					// truncation, so the literal bound sent to the backend is 3.
+					if got, want := params["limit"], 3; got != want {
 						t.Fatalf("params[limit] = %#v, want %#v", got, want)
 					}
 					return []map[string]any{
@@ -417,5 +420,24 @@ func TestBoundedTraceEnrichmentLimitUsesOperatorSafeDefault(t *testing.T) {
 	}
 	if got, want := boundedTraceEnrichmentLimit(25), 100; got != want {
 		t.Fatalf("boundedTraceEnrichmentLimit(25) = %d, want %d", got, want)
+	}
+}
+
+// TestMaxIndirectEvidenceSearchLimitMatchesManifestMaxResults pins
+// maxIndirectEvidenceSearchLimit at 100 because
+// go/internal/queryplan/testdata/query-source-coverage.yaml hand-declares
+// queryProvisioningRepositoryCandidates's keyed_support disposition as
+// max_results: 100. The queryplan source digest that manifest entry pins only
+// covers the function BODY (source[fn.Pos():fn.End()]); this const lives
+// package-level, outside that span, so bumping it alone leaves the digest
+// valid while the manifest's max_results silently stops matching runtime
+// behavior. This test is the only thing tying the two together -- if it
+// fails, update this const and the manifest's max_results entry in the same
+// change.
+func TestMaxIndirectEvidenceSearchLimitMatchesManifestMaxResults(t *testing.T) {
+	t.Parallel()
+
+	if got, want := maxIndirectEvidenceSearchLimit, 100; got != want {
+		t.Fatalf("maxIndirectEvidenceSearchLimit = %d, want %d (update go/internal/queryplan/testdata/query-source-coverage.yaml's max_results for queryProvisioningRepositoryCandidates in the same change)", got, want)
 	}
 }

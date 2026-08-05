@@ -246,12 +246,21 @@ func serviceUpstreamDependencyRows(workloadContext map[string]any) []map[string]
 func buildServiceDownstreamConsumers(workloadContext map[string]any) map[string]any {
 	dependents, graphTruncated := capMapRows(mapSliceValue(workloadContext, "dependents"), serviceStoryItemLimit)
 	consumers, contentTruncated := capMapRows(mapSliceValue(workloadContext, "consumer_repositories"), serviceStoryItemLimit)
+	// #5720 round-2 P1-1: graphTruncated/contentTruncated only fire once the
+	// row count exceeds serviceStoryItemLimit (50), but the underlying
+	// provisioning-candidate read is bounded well below that by default
+	// (defaultIndirectEvidenceSearchLimit, 25) -- so a genuinely truncated
+	// read could report truncated: false here every time. dependents_truncated
+	// and consumer_repositories_truncated (set in service_query_enrichment.go
+	// from queryProvisioningRepositoryCandidates's own truncated bool) close
+	// that gap.
+	upstreamTruncated := BoolVal(workloadContext, "dependents_truncated") || BoolVal(workloadContext, "consumer_repositories_truncated")
 	return map[string]any{
 		"graph_dependent_count":  len(mapSliceValue(workloadContext, "dependents")),
 		"content_consumer_count": len(mapSliceValue(workloadContext, "consumer_repositories")),
 		"graph_dependents":       dependents,
 		"content_consumers":      consumers,
-		"truncated":              graphTruncated || contentTruncated,
+		"truncated":              graphTruncated || contentTruncated || upstreamTruncated,
 	}
 }
 
@@ -281,13 +290,21 @@ func buildServiceResultLimitsWithContext(buildCtx serviceStoryBuildContext) map[
 	// both reported answer_metadata.truncated/answer_packet.truncated as
 	// false for a service whose infrastructure evidence was clipped.
 	infrastructureTruncated := containsString(StringSliceVal(workloadContext, "limitations"), infrastructureTruncatedReason)
+	// #5720 round-2 P1-1: same disclosure gap as buildServiceDownstreamConsumers
+	// above -- the count-vs-serviceStoryItemLimit comparisons below can never
+	// fire on the default (25-row) indirect-evidence search limit, so the
+	// upstream *_truncated signals from service_query_enrichment.go are
+	// required to make a genuinely truncated read observable here.
+	upstreamTruncated := BoolVal(workloadContext, "dependents_truncated") ||
+		BoolVal(workloadContext, "consumer_repositories_truncated") ||
+		BoolVal(workloadContext, "provisioning_source_chains_truncated")
 	return map[string]any{
 		"limit":                serviceStoryItemLimit,
 		"ordering":             "deterministic",
 		"endpoint_count":       endpointCount,
 		"upstream_count":       upstreamCount,
 		"downstream_count":     consumerCount,
-		"truncated":            endpointCount > serviceStoryItemLimit || upstreamCount > serviceStoryItemLimit || dependentCount > serviceStoryItemLimit || contentConsumerCount > serviceStoryItemLimit || infrastructureTruncated,
+		"truncated":            endpointCount > serviceStoryItemLimit || upstreamCount > serviceStoryItemLimit || dependentCount > serviceStoryItemLimit || contentConsumerCount > serviceStoryItemLimit || infrastructureTruncated || upstreamTruncated,
 		"drilldown_basis":      "resolved_id",
 		"relationship_tool":    "get_relationship_evidence",
 		"service_context_path": "/api/v0/services/" + safeStr(workloadContext, "name") + "/context",
