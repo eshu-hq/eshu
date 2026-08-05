@@ -1876,6 +1876,25 @@
             "unknown"
           ]
         }
+      },
+      {
+        "id": "rc-173",
+        "description": "Exact workflow-image-owned ContainerImage BUILT_FROM Repository assertion (issue #5830). GitHub Actions run 9100 declares ghcr.io/acme/container-ci-lineage:1.0.0 in workflow evidence, and the matching active container-image identity resolves that declared image to digest sha256:c10000000000000000000000000000000000000000000000000000000010c1c1. The ci_cd_run_correlation reducer writes a second assertion for the same image/repository pair under its dedicated workflow-image evidence source. Before #5827, endpoint-only identity made this unsafe because one writer overwrote the other; scope_id plus evidence_source identity now preserves both. The workflow-specific evidence token ensures rc-165's independent container_image_identity assertion cannot satisfy this check. Derived input-only, ambiguous, unresolved, artifact-only exact, and missing-endpoint decisions write zero rows.",
+        "relationship": "BUILT_FROM",
+        "from_label": "ContainerImage",
+        "to_label": "Repository",
+        "minimum_count": 1,
+        "evidence_kinds": [
+          "CI_CD_RUN_WORKFLOW_IMAGE_CORRELATION"
+        ],
+        "required_edge_properties": [
+          "source_tool"
+        ],
+        "allowed_edge_property_values": {
+          "source_tool": [
+            "github_actions"
+          ]
+        }
       }
     ],
     "required_nodes": [

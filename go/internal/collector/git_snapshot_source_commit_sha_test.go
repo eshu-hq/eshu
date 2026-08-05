@@ -155,6 +155,40 @@ func TestSnapshotFallsBackToGitCommitSHA(t *testing.T) {
 	}
 }
 
+func TestSnapshotFallsBackToFilesystemSourceGitTreeCommitSHA(t *testing.T) {
+	t.Parallel()
+
+	sourcePath := t.TempDir()
+	runGit(t, sourcePath, "init")
+	runGit(t, sourcePath, "config", "user.email", "test@example.com")
+	runGit(t, sourcePath, "config", "user.name", "Test")
+	writeFile(t, sourcePath, "main.py", "def hello():\n    pass\n")
+	runGit(t, sourcePath, "add", "main.py")
+	runGit(t, sourcePath, "commit", "-m", "initial commit")
+	wantCommit := runGit(t, sourcePath, "rev-parse", "HEAD")
+
+	managedPath := t.TempDir()
+	writeFile(t, managedPath, "main.py", "def hello():\n    pass\n")
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v", err)
+	}
+	snapshotter := NativeRepositorySnapshotter{Engine: engine}
+	snapshot, err := snapshotter.SnapshotRepository(
+		context.Background(),
+		SelectedRepository{
+			RepoPath:    managedPath,
+			GitTreePath: sourcePath,
+		},
+	)
+	if err != nil {
+		t.Fatalf("SnapshotRepository() error = %v", err)
+	}
+	if snapshot.HeadCommitSHA != wantCommit {
+		t.Fatalf("HeadCommitSHA = %q, want source GitTreePath HEAD %q", snapshot.HeadCommitSHA, wantCommit)
+	}
+}
+
 // TestSnapshotHeadCommitSubprocessCount is the measured before/after for #4880:
 // it counts git rev-parse HEAD subprocess invocations in the snapshot path via
 // the gitCommitSHAFn seam. When the sync-resolved SourceCommitSHA is carried,

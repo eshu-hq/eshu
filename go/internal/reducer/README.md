@@ -347,6 +347,15 @@ values each counter carries.
   `container_image_identity`; its durable completion event reopens only current
   `ci_cd_run_correlation` work, so Git-before-CI and CI-before-Git activation
   orders converge without serializing either collector.
+- **Exact workflow-image decisions own a separate graph assertion** — after
+  the durable CI/CD decision write, the handler retracts and reprojects
+  `ContainerImage-[:BUILT_FROM]->Repository` only for exact decisions whose
+  correlation kind is `workflow_image` and canonical target is
+  `container_image`. The evidence source is
+  `reducer/ci-cd-run-correlation/workflow-image`; artifact-only exact and every
+  non-exact outcome remain graph no-ops. The writer identity includes scope and
+  evidence source, so this assertion coexists with the independent
+  `container_image_identity` assertion for the same endpoints.
 - **`deployment_mapping` requires post-Phase-3 reopen** — any domain
   consuming `resolved_relationships` needs its own post-Phase-3 reopen
   mechanism (see `queue-and-runners.md`'s Facts-First Bootstrap Ordering).

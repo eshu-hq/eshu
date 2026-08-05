@@ -6,7 +6,10 @@
 
 # Drives every pipeline stage end to end.
 require "bootstrap stage" "eshu-bootstrap-index"
-require "filesystem-direct staged Git history" 'export ESHU_FILESYSTEM_DIRECT="true"'
+require "filesystem managed-copy mode" 'export ESHU_REPO_SOURCE_MODE="filesystem"'
+if rg -q '^[[:space:]]*export ESHU_FILESYSTEM_DIRECT=' "${script}"; then
+	fail "golden gate must not switch its full corpus to filesystem-direct mode"
+fi
 
 # Pin the extracted helper, exact test name, complete executable line, and its
 # failure branch. The JSON event cases below additionally prove that a zero-test

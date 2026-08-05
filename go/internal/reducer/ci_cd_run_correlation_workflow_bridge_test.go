@@ -75,7 +75,12 @@ func TestCICDRunCorrelationHandlerBridgesGitWorkflowImagesByRunRepository(t *tes
 		identityFact: containerImageIdentityFact("identity-api", "repository:api", imageRef, testCICDDigest),
 	}
 	writer := &recordingCICDRunCorrelationWriter{}
-	handler := CICDRunCorrelationHandler{FactLoader: loader, Writer: writer}
+	edgeWriter := &recordingContainerImageProvenanceEdgeWriter{}
+	handler := CICDRunCorrelationHandler{
+		FactLoader:           loader,
+		Writer:               writer,
+		ProvenanceEdgeWriter: edgeWriter,
+	}
 
 	result, err := handler.Handle(context.Background(), Intent{
 		IntentID:     "intent-workflow-bridge",
@@ -109,5 +114,11 @@ func TestCICDRunCorrelationHandlerBridgesGitWorkflowImagesByRunRepository(t *tes
 	}
 	if _, ok := result.SubDurations["workflow_image_bridge_load"]; !ok {
 		t.Fatalf("SubDurations = %#v, want workflow_image_bridge_load timing", result.SubDurations)
+	}
+	if len(edgeWriter.writeRows) != 1 || len(edgeWriter.writeRows[0]) != 1 {
+		t.Fatalf("workflow-image BUILT_FROM rows = %#v, want one exact produced-image assertion", edgeWriter.writeRows)
+	}
+	if got := edgeWriter.writeRows[0][0]; got["digest"] != testCICDDigest || got["repository_id"] != "repository:api" {
+		t.Fatalf("workflow-image BUILT_FROM row = %#v, want exact digest and run repository", got)
 	}
 }

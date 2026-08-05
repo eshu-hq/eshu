@@ -6,6 +6,17 @@ This branch implemented the PROJECT disposition
 isolation and still wrong to ship. This record explains why, so the decision is
 not silently re-litigated.
 
+## Status after #5827 and #5830
+
+The original withdrawal remains the correct decision for the endpoint-only
+relationship identity described below. #5827 changed canonical relationship
+identity to include `scope_id` and `evidence_source`, including the NornicDB
+compatibility fix that makes those relationship properties real MERGE keys.
+#5830 therefore restores only the exact workflow-image slice under
+`reducer/ci-cd-run-correlation/workflow-image`. It does not restore the broad
+writer: artifact-only exact matches and derived, ambiguous, unresolved, or
+rejected decisions still write no CI/CD-owned graph assertion.
+
 ## Why it was withdrawn
 
 The canonical provenance writer upserts with a bare
@@ -401,7 +412,9 @@ review workload.
   accepted by successful writer calls as `submitted`. A missing endpoint remains
   a submitted writer no-op, and a successful retry can count the same identity
   again, so the event counter is not a unique durable-edge gauge.
-- **#5822** — the golden corpus never reaches an `exact` ci_cd_run correlation,
-  so the exact path has no deterministic fixture.
-- **#5830** — the corpus contains no `ci.workflow_image_evidence` at all, so the
-  whole workflow-image classifier is invisible to the B-7 gate.
+- **#5822** — the golden corpus now reaches an `exact` ci_cd_run correlation;
+  the run-9100 query assertion pins the classifier result.
+- **#5830** — the corpus now contains exact, input-only, unresolved, and
+  ambiguous `ci.workflow_image_evidence`. rc-173 separately requires the exact
+  workflow-image-owned `BUILT_FROM` assertion, so the independent
+  container-image-identity edge cannot make this path false-green.

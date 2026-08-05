@@ -48,36 +48,31 @@ const (
 // relationship count to edges whose evidence_kinds list contains a given
 // token -- evaluated in Go, not Cypher, because a NornicDB WHERE clause over
 // an arbitrary relationship property does not filter (see that function's
-// comment). BUILT_FROM is single-owner today: only container_image_identity
-// writes it. A #5428 reducer/ci-cd-run-correlation writer was implemented and
-// then rescinded before shipping
-// (docs/internal/evidence/5428-built-from-projection-rescinded.md) because the
-// old endpoint-only MERGE identity collapsed a second domain's assertion onto
-// the first (#5827). The canonical MERGE identity now includes scope_id and
-// evidence_source, while evidence_kinds remains the query-time ownership
-// discriminator. PUBLISHES has no cross-domain sharing risk today, but the
-// token still distinguishes ownership-sourced from publication-sourced edges.
+// comment). BUILT_FROM has two independent owners: container_image_identity
+// and the exact workflow-image slice of ci_cd_run_correlation. The canonical
+// MERGE identity includes scope_id and evidence_source (#5827), while
+// evidence_kinds remains the query-time ownership discriminator. PUBLISHES
+// similarly distinguishes ownership-sourced from publication-sourced edges.
 var provenanceEdgeKindForSource = map[string]string{
-	"reducer/package-ownership":          "PACKAGE_OWNERSHIP_CORRELATION",
-	"reducer/package-publication":        "PACKAGE_PUBLICATION_CORRELATION",
-	"reducer/container-image-identity":   "CONTAINER_IMAGE_IDENTITY_EXACT_DIGEST",
-	"reducer/container-image-base-image": "CONTAINER_IMAGE_DERIVED_FROM",
+	"reducer/package-ownership":                    "PACKAGE_OWNERSHIP_CORRELATION",
+	"reducer/package-publication":                  "PACKAGE_PUBLICATION_CORRELATION",
+	"reducer/container-image-identity":             "CONTAINER_IMAGE_IDENTITY_EXACT_DIGEST",
+	"reducer/container-image-base-image":           "CONTAINER_IMAGE_DERIVED_FROM",
+	"reducer/ci-cd-run-correlation/workflow-image": "CI_CD_RUN_WORKFLOW_IMAGE_CORRELATION",
 }
 
 // provenanceEdgeSourceToolForSource maps a writer evidence_source to the
 // canonical source_tool token (docs/public/reference/edge-source-tool-provenance.md,
-// #3997/#3999). container-image-identity edges are OCI-registry-sourced, and
-// container_image_identity is BUILT_FROM's only writer today (#5428's
-// reducer/ci-cd-run-correlation writer was rescinded before shipping, see
-// docs/internal/evidence/5428-built-from-projection-rescinded.md), so no
-// second BUILT_FROM source_tool value exists to disambiguate yet. PUBLISHES
+// #3997/#3999). Container-image-identity edges are OCI-registry-sourced;
+// exact workflow-image correlations are GitHub Actions sourced. PUBLISHES
 // decisions carry no package ecosystem field, so they use the canonical
 // explicit unknown fallback rather than guessing a tool or hiding the gap.
 var provenanceEdgeSourceToolForSource = map[string]string{
-	"reducer/package-ownership":          "unknown",
-	"reducer/package-publication":        "unknown",
-	"reducer/container-image-identity":   "oci",
-	"reducer/container-image-base-image": "oci",
+	"reducer/package-ownership":                    "unknown",
+	"reducer/package-publication":                  "unknown",
+	"reducer/container-image-identity":             "oci",
+	"reducer/container-image-base-image":           "oci",
+	"reducer/ci-cd-run-correlation/workflow-image": "github_actions",
 }
 
 // provenanceEdgeSourceToolFor returns the canonical tool token for a writer.

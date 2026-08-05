@@ -48,9 +48,13 @@ The silent-omit surfaces identified in the terrain:
 
 The spine domains get a graph-projection policy in this order:
 
-1. **ci_cd_run_correlation → FEEDS (rescinded from PROJECT, PR #5824)**: this
-   domain does not write graph edges directly. Its build-provenance signal
-   reaches the graph through the container_image_identity lane:
+1. **ci_cd_run_correlation → PROJECT its exact workflow-image slice; FEED the
+   remaining build signal**: exact decisions whose correlation kind is
+   `workflow_image` project `BUILT_FROM` under the dedicated
+   `reducer/ci-cd-run-correlation/workflow-image` evidence source (#5830).
+   Artifact-only and non-exact decisions do not project. The broader
+   build-provenance signal still reaches the graph through the
+   container_image_identity lane:
    `addCICDArtifactImageReference` folds CI-run digest evidence into
    `BuildProvenanceRepositoryIDs`, and #5457's writer projects the resulting
    `BUILT_FROM` edge under `evidence_source=reducer/container-image-identity`.
@@ -84,7 +88,7 @@ The spine domains get a graph-projection policy in this order:
 
 | Domain | Decision | Evidence source | Edge type | Implementer |
 | --- | --- | --- | --- | --- |
-| ci_cd_run_correlation | FEEDS via container_image_identity; Postgres-only read-model (disclosed) | N/A (rescinded, PR #5824) | N/A | #5428 (rescinded), #5827 |
+| ci_cd_run_correlation workflow images | PROJECT (exact, canonical container image only); remaining read-model stays Postgres-only (disclosed) | `reducer/ci-cd-run-correlation/workflow-image` | `BUILT_FROM` | #5428 (initially rescinded), #5827, #5830 |
 | ci.job / ci.pipeline_definition / ci.warning | DISCLOSURE (registry comments) | N/A | N/A | #5428 |
 | container_image_identity | PROJECT (exact_digest, BuildProvenanceRepositoryIDs non-empty) | `reducer/container-image-identity` | `BUILT_FROM` | #5457, gate narrowed by #5796, identity isolated by #5827 |
 | container_image_identity base images | PROJECT (exact_digest on BOTH endpoints, single distinct base per repository) | `reducer/container-image-base-image` | `DERIVED_FROM` (ContainerImage → ContainerImage) | #5460 |

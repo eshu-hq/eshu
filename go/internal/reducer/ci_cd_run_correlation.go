@@ -93,6 +93,9 @@ type CICDRunCorrelationHandler struct {
 	FactLoader  FactLoader
 	Writer      CICDRunCorrelationWriter
 	Instruments *telemetry.Instruments
+	// ProvenanceEdgeWriter projects exact workflow-image correlations into
+	// independently owned BUILT_FROM graph assertions when configured.
+	ProvenanceEdgeWriter ContainerImageProvenanceEdgeWriter
 }
 
 // Handle executes one CI/CD run correlation reducer intent.
@@ -151,6 +154,9 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent Intent) (R
 	})
 	if err != nil {
 		return Result{}, fmt.Errorf("write ci/cd run correlations: %w", err)
+	}
+	if err := h.projectCICDWorkflowImageBuiltFromEdges(ctx, intent, decisions); err != nil {
+		return Result{}, err
 	}
 	h.emitCounters(ctx, counts)
 	h.emitDeploymentEventSkips(ctx, deploymentEventsSkipped)
