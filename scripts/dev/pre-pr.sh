@@ -32,6 +32,8 @@ set -uo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 go_dir="${repo_root}/go"
 precommit="${repo_root}/scripts/dev/precommit-go.sh"
+# shellcheck source=../lib/pre-pr-docs-fastpath.sh
+source "${repo_root}/scripts/lib/pre-pr-docs-fastpath.sh"
 
 base="origin/main"
 git -C "${repo_root}" fetch --no-tags origin main >/dev/null 2>&1 || true
@@ -372,12 +374,46 @@ step_live() {
 	return ${rc}
 }
 
-run_whole_module_gates_parallel
-run_step "go test (changed packages)" step_test
+# --- documentation-only fast-path classification -----------------------------
+# #5721: a docs/specs-only diff should never pay for the whole-module Go
+# build/lint/test/race lanes. pre_pr_classify_docs_fastpath (sourced above)
+# is a fail-closed ALLOWLIST classifier: it inspects every changed path (vs
+# the same origin/main base every other lane uses) and takes the FULL lane
+# unless every single path is a recognized documentation/specs pattern. Any
+# unrecognized path forces FULL, never FAST.
+pre_pr_changed_paths=()
+while IFS= read -r pre_pr_p; do
+	[[ -n "${pre_pr_p}" ]] && pre_pr_changed_paths+=("${pre_pr_p}")
+done < <(changed_all_files)
+pre_pr_classify_docs_fastpath "${pre_pr_changed_paths[@]}"
+
+if [[ "${PRE_PR_FASTPATH_LANE}" == "fast" ]]; then
+	printf '\n\033[1m==> pre-pr lane: FAST (documentation/specs-only)\033[0m\n'
+	printf 'no build-affecting path changed vs %s -- skipping go build/lint/test/race lanes.\n' "${base}"
+else
+	printf '\n\033[1m==> pre-pr lane: FULL\033[0m\n'
+	printf 'build-affecting path(s) changed vs %s -- running the full go build/lint/test/race lanes. Triggered by:\n' "${base}"
+	for pre_pr_t in "${PRE_PR_FASTPATH_TRIGGERS[@]}"; do
+		printf '  - %s\n' "${pre_pr_t}"
+	done
+fi
+
+if [[ "${PRE_PR_FASTPATH_LANE}" == "full" ]]; then
+	run_whole_module_gates_parallel
+	run_step "go test (changed packages)" step_test
+else
+	for pre_pr_skip_name in "gofumpt (whole module)" "golangci-lint (whole module)" "go build ./..." "go vet ./..." "go test (changed packages)"; do
+		results+=("SKIP  ${pre_pr_skip_name} (documentation-only fast path)")
+	done
+fi
 run_step "500-line file cap" step_filecap
 run_step "package docs" step_docs
 run_step "selected exactness + telemetry gates" step_exactness
-run_step "race lane (Go changes)" step_race
+if [[ "${PRE_PR_FASTPATH_LANE}" == "full" ]]; then
+	run_step "race lane (Go changes)" step_race
+else
+	results+=("SKIP  race lane (Go changes) (documentation-only fast path)")
+fi
 run_step "path-triggered live lane" step_live
 
 printf '\n\033[1m==== pre-pr summary ====\033[0m\n'
