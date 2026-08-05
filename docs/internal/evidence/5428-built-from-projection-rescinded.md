@@ -189,8 +189,9 @@ checked before it did, and both are recorded in
   pair, so #5827's collapse is not reachable from this change. The duplicate is
   now deduped away inside `containerImageBuiltFromRows`.
 
-#5827 remains open on its own merits; it was simply never a blocker for this
-particular widening. The B-12 snapshot's `list_supply_chain_impact_findings`
+#5827 has since resolved the general relationship-identity defect; it was never
+a blocker for this particular widening even before resolution. The B-12
+snapshot's `list_supply_chain_impact_findings`
 query-shape description still records the multi-row shape that motivated the
 concern — as of #5426 it reads "this digest carries 16 rows in the live corpus
 that disagree on `source_repository_ids`". It read 11 when this section was
