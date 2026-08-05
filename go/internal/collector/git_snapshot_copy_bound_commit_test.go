@@ -29,13 +29,19 @@ func TestFilesystemManagedCopyDoesNotCarryCommitIfSourceCleansAfterCopy(t *testi
 	runGit(t, sourcePath, "commit", "-m", "initial commit")
 
 	originalCopy := copyRepositoryTreeFn
-	copyRepositoryTreeFn = func(ctx context.Context, sourceRoot, targetRoot string) error {
+	copyRepositoryTreeFn = func(
+		ctx context.Context,
+		sourceRoot string,
+		targetRoot string,
+		expectation *managedCopyCommitExpectation,
+	) (bool, error) {
 		writeFile(t, sourceRoot, workflowPath, strings.ReplaceAll(workflowImageCommitFixture, ":prod", ":dirty"))
-		if err := originalCopy(ctx, sourceRoot, targetRoot); err != nil {
-			return err
+		matches, err := originalCopy(ctx, sourceRoot, targetRoot, expectation)
+		if err != nil {
+			return false, err
 		}
 		runGit(t, sourceRoot, "reset", "--hard", "HEAD")
-		return nil
+		return matches, nil
 	}
 	t.Cleanup(func() { copyRepositoryTreeFn = originalCopy })
 
@@ -85,6 +91,83 @@ func TestFilesystemManagedCopyDoesNotCarryCommitIfSourceCleansAfterCopy(t *testi
 	assertWorkflowImageFactCommitSHA(t, managedPath, snapshot, "")
 }
 
+func TestFilesystemManagedCopyDoesNotCarryCommitIfTrackedFileRestoredAfterCopy(t *testing.T) {
+	sourcePath := t.TempDir()
+	runGit(t, sourcePath, "init")
+	runGit(t, sourcePath, "config", "user.email", "test@example.com")
+	runGit(t, sourcePath, "config", "user.name", "Test")
+	if err := os.MkdirAll(filepath.Join(sourcePath, ".github", "workflows"), 0o750); err != nil {
+		t.Fatalf("create workflow directory: %v", err)
+	}
+	workflowPath := filepath.Join(".github", "workflows", "build.yml")
+	retainedWorkflowPath := filepath.Join(".github", "workflows", "retained.yml")
+	writeFile(t, sourcePath, workflowPath, workflowImageCommitFixture)
+	writeFile(t, sourcePath, retainedWorkflowPath, strings.ReplaceAll(workflowImageCommitFixture, ":prod", ":retained"))
+	writeFile(t, sourcePath, "main.py", "def main():\n    pass\n")
+	runGit(t, sourcePath, "add", ".")
+	runGit(t, sourcePath, "commit", "-m", "initial commit")
+
+	originalCopy := copyRepositoryTreeFn
+	copyRepositoryTreeFn = func(
+		ctx context.Context,
+		sourceRoot string,
+		targetRoot string,
+		expectation *managedCopyCommitExpectation,
+	) (bool, error) {
+		if err := os.Remove(filepath.Join(sourceRoot, workflowPath)); err != nil {
+			return false, err
+		}
+		matches, err := originalCopy(ctx, sourceRoot, targetRoot, expectation)
+		writeFile(t, sourceRoot, workflowPath, workflowImageCommitFixture)
+		return matches, err
+	}
+	t.Cleanup(func() { copyRepositoryTreeFn = originalCopy })
+
+	config := RepoSyncConfig{SourceMode: "filesystem", FilesystemRoot: sourcePath, ReposDir: t.TempDir()}
+	synced, err := syncFilesystemRepositories(context.Background(), config, []string{"."})
+	if err != nil {
+		t.Fatalf("syncFilesystemRepositories() error = %v", err)
+	}
+	managedPath := synced.SelectedRepoPaths[0]
+	if _, err := os.Stat(filepath.Join(managedPath, workflowPath)); !os.IsNotExist(err) {
+		t.Fatalf("managed workflow stat error = %v, want omitted file", err)
+	}
+	if got := synced.SourceCommitSHAByRepoPath[canonicalLocalPath(managedPath)]; got != "" {
+		t.Fatalf("copy-bound SourceCommitSHA = %q, want empty after tracked-file omission", got)
+	}
+	if got := gitCleanWorktreeCommitSHA(context.Background(), sourcePath); got == "" {
+		t.Fatal("source commit after copy is empty, want restored clean checkout")
+	}
+
+	repositories := buildSelectedRepositories(
+		config,
+		synced.SelectedRepoPaths,
+		nil,
+		nil,
+		synced.SourceCommitSHAByRepoPath,
+		nil,
+		nil,
+	)
+	attachFilesystemGitTreePaths(config, []string{"."}, repositories)
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v", err)
+	}
+	repository := repositories[0]
+	repository.Delta = true
+	repository.FileTargets = []string{filepath.Join(managedPath, "main.py")}
+	snapshot, err := (NativeRepositorySnapshotter{Engine: engine}).SnapshotRepository(
+		context.Background(), repository,
+	)
+	if err != nil {
+		t.Fatalf("SnapshotRepository() error = %v", err)
+	}
+	if snapshot.HeadCommitSHA != "" {
+		t.Fatalf("HeadCommitSHA = %q, want empty for omitted tracked workflow", snapshot.HeadCommitSHA)
+	}
+	assertWorkflowImageFactCommitSHA(t, managedPath, snapshot, "")
+}
+
 func TestFilesystemManagedCopyRejectsUntrackedFileCreatedDuringCopy(t *testing.T) {
 	sourcePath := t.TempDir()
 	runGit(t, sourcePath, "init")
@@ -97,15 +180,24 @@ func TestFilesystemManagedCopyRejectsUntrackedFileCreatedDuringCopy(t *testing.T
 	workflowPath := filepath.Join(".github", "workflows", "untracked.yml")
 
 	originalCopy := copyRepositoryTreeFn
-	copyRepositoryTreeFn = func(ctx context.Context, sourceRoot, targetRoot string) error {
+	copyRepositoryTreeFn = func(
+		ctx context.Context,
+		sourceRoot string,
+		targetRoot string,
+		expectation *managedCopyCommitExpectation,
+	) (bool, error) {
 		if err := os.MkdirAll(filepath.Join(sourceRoot, ".github", "workflows"), 0o750); err != nil {
-			return err
+			return false, err
 		}
 		writeFile(t, sourceRoot, workflowPath, workflowImageCommitFixture)
-		if err := originalCopy(ctx, sourceRoot, targetRoot); err != nil {
-			return err
+		matches, err := originalCopy(ctx, sourceRoot, targetRoot, expectation)
+		if err != nil {
+			return false, err
 		}
-		return os.Remove(filepath.Join(sourceRoot, workflowPath))
+		if err := os.Remove(filepath.Join(sourceRoot, workflowPath)); err != nil {
+			return false, err
+		}
+		return matches, nil
 	}
 	t.Cleanup(func() { copyRepositoryTreeFn = originalCopy })
 
@@ -124,6 +216,125 @@ func TestFilesystemManagedCopyRejectsUntrackedFileCreatedDuringCopy(t *testing.T
 	if got := synced.SourceCommitSHAByRepoPath[canonicalLocalPath(managedPath)]; got != "" {
 		t.Fatalf("copy-bound SourceCommitSHA = %q, want empty for extra copied path", got)
 	}
+}
+
+func TestFilesystemManagedCopyRejectsGitTextTransform(t *testing.T) {
+	sourcePath, workflowPath, wantCommit := prepareCRLFManagedCopyRepository(t)
+	config := RepoSyncConfig{SourceMode: "filesystem", FilesystemRoot: sourcePath, ReposDir: t.TempDir()}
+
+	synced, err := syncFilesystemRepositories(context.Background(), config, []string{"."})
+	if err != nil {
+		t.Fatalf("syncFilesystemRepositories() error = %v", err)
+	}
+	managedPath := synced.SelectedRepoPaths[0]
+	if got := synced.SourceCommitSHAByRepoPath[canonicalLocalPath(managedPath)]; got != "" {
+		t.Fatalf("copy-bound SourceCommitSHA = %q, want empty for transformed bytes", got)
+	}
+	managedWorkflow, err := os.ReadFile(filepath.Join(managedPath, workflowPath))
+	if err != nil {
+		t.Fatalf("read managed workflow: %v", err)
+	}
+	if !strings.Contains(string(managedWorkflow), "\r\n") {
+		t.Fatalf("managed workflow bytes = %q, want copied CRLF working-tree bytes", managedWorkflow)
+	}
+	if got := gitCleanWorktreeCommitSHA(context.Background(), sourcePath); got != wantCommit {
+		t.Fatalf("source commit after copy = %q, want clean transformed commit %q", got, wantCommit)
+	}
+}
+
+func TestFilesystemManagedCopyDoesNotExecuteGitCleanFilter(t *testing.T) {
+	sourcePath, _, wantCommit := prepareCRLFManagedCopyRepository(t)
+	sentinelPath := filepath.Join(t.TempDir(), "filter-ran")
+	runGit(t, sourcePath, "config", "filter.hostile.clean", "touch "+sentinelPath)
+	expectation := loadManagedCopyCommitExpectation(context.Background(), sourcePath, wantCommit)
+	if expectation == nil {
+		t.Fatal("loadManagedCopyCommitExpectation() = nil, want immutable commit expectation")
+	}
+	matches, err := copyRepositoryTreeWithExpectation(
+		context.Background(), sourcePath, t.TempDir(), expectation,
+	)
+	if err != nil {
+		t.Fatalf("copyRepositoryTreeWithExpectation() error = %v", err)
+	}
+	if matches {
+		t.Fatal("copyRepositoryTreeWithExpectation() matches = true, want transformed bytes to fail closed")
+	}
+	if _, err := os.Stat(sentinelPath); !os.IsNotExist(err) {
+		t.Fatalf("hostile clean filter sentinel stat error = %v, want filter command not executed", err)
+	}
+}
+
+func TestManagedCopyDistinguishesCommittedSymlinkFromRegularFile(t *testing.T) {
+	sourcePath := t.TempDir()
+	runGit(t, sourcePath, "init")
+	runGit(t, sourcePath, "config", "user.email", "test@example.com")
+	runGit(t, sourcePath, "config", "user.name", "Test")
+	writeFile(t, sourcePath, "main.py", "def main():\n    pass\n")
+	writeFile(t, sourcePath, "expected.py", "VALUE = 'committed'\n")
+	if err := os.Symlink("main.py", filepath.Join(sourcePath, "link.py")); err != nil {
+		t.Fatalf("create committed symlink: %v", err)
+	}
+	runGit(t, sourcePath, "add", ".")
+	runGit(t, sourcePath, "commit", "-m", "initial commit")
+	commitSHA := runGit(t, sourcePath, "rev-parse", "HEAD")
+
+	cleanExpectation := loadManagedCopyCommitExpectation(context.Background(), sourcePath, commitSHA)
+	cleanMatches, err := copyRepositoryTreeWithExpectation(
+		context.Background(), sourcePath, t.TempDir(), cleanExpectation,
+	)
+	if err != nil || !cleanMatches {
+		t.Fatalf("clean managed copy matches=%t error=%v, want committed symlink accepted", cleanMatches, err)
+	}
+
+	if err := os.Remove(filepath.Join(sourcePath, "expected.py")); err != nil {
+		t.Fatalf("remove committed regular file: %v", err)
+	}
+	if err := os.Symlink("main.py", filepath.Join(sourcePath, "expected.py")); err != nil {
+		t.Fatalf("replace regular file with symlink: %v", err)
+	}
+	mutatedExpectation := loadManagedCopyCommitExpectation(context.Background(), sourcePath, commitSHA)
+	mutatedMatches, err := copyRepositoryTreeWithExpectation(
+		context.Background(), sourcePath, t.TempDir(), mutatedExpectation,
+	)
+	if err != nil {
+		t.Fatalf("mutated copy error = %v", err)
+	}
+	if mutatedMatches {
+		t.Fatal("mutated managed copy matches = true, want regular-to-symlink replacement rejected")
+	}
+}
+
+func prepareCRLFManagedCopyRepository(t *testing.T) (string, string, string) {
+	t.Helper()
+	sourcePath := t.TempDir()
+	runGit(t, sourcePath, "init")
+	runGit(t, sourcePath, "config", "user.email", "test@example.com")
+	runGit(t, sourcePath, "config", "user.name", "Test")
+	workflowPath := filepath.Join(".github", "workflows", "build.yml")
+	if err := os.MkdirAll(filepath.Join(sourcePath, ".github", "workflows"), 0o750); err != nil {
+		t.Fatalf("create workflow directory: %v", err)
+	}
+	writeFile(t, sourcePath, ".gitattributes", "*.yml text eol=crlf filter=hostile\n")
+	writeFile(t, sourcePath, workflowPath, workflowImageCommitFixture)
+	writeFile(t, sourcePath, "main.py", "def main():\n    pass\n")
+	runGit(t, sourcePath, "add", ".")
+	runGit(t, sourcePath, "commit", "-m", "initial commit")
+	wantCommit := runGit(t, sourcePath, "rev-parse", "HEAD")
+	if err := os.Remove(filepath.Join(sourcePath, workflowPath)); err != nil {
+		t.Fatalf("remove workflow before checkout: %v", err)
+	}
+	runGit(t, sourcePath, "checkout", "--", workflowPath)
+	workflowBytes, err := os.ReadFile(filepath.Join(sourcePath, workflowPath))
+	if err != nil {
+		t.Fatalf("read transformed workflow: %v", err)
+	}
+	if !strings.Contains(string(workflowBytes), "\r\n") {
+		t.Fatalf("transformed workflow bytes = %q, want CRLF", workflowBytes)
+	}
+	if got := gitCleanWorktreeCommitSHA(context.Background(), sourcePath); got != wantCommit {
+		t.Fatalf("clean transformed source commit = %q, want %q", got, wantCommit)
+	}
+	return sourcePath, workflowPath, wantCommit
 }
 
 func BenchmarkFilesystemManagedCopyCommitAttribution(b *testing.B) {
@@ -157,26 +368,30 @@ func BenchmarkFilesystemManagedCopyCommitAttribution(b *testing.B) {
 	}
 	b.Logf("synthetic managed copy commit=%s files=%d bytes=%d", commitSHA, fileCount, byteCount)
 
-	b.Run("prior-rev-parse-head", func(b *testing.B) {
+	b.Run("prior-full-managed-copy", func(b *testing.B) {
+		fullTargetPath := filepath.Join(b.TempDir(), "managed")
 		for b.Loop() {
+			if err := copyRepositoryTree(context.Background(), sourcePath, fullTargetPath); err != nil {
+				b.Fatalf("copyRepositoryTree() error = %v", err)
+			}
 			if output := runGitBenchmark(b, sourcePath, "rev-parse", "HEAD"); strings.TrimSpace(output) != commitSHA {
 				b.Fatalf("rev-parse HEAD = %q, want %q", output, commitSHA)
 			}
 		}
 	})
-	b.Run("immutable-tree-validation", func(b *testing.B) {
-		for b.Loop() {
-			if !managedCopyMatchesCommit(context.Background(), sourcePath, targetPath, commitSHA) {
-				b.Fatal("managedCopyMatchesCommit() = false, want true")
-			}
-		}
-	})
-	b.Run("copy-bound-attribution", func(b *testing.B) {
+	b.Run("copy-bound-full-managed-copy", func(b *testing.B) {
+		fullTargetPath := filepath.Join(b.TempDir(), "managed")
 		for b.Loop() {
 			observedCommit := gitCleanWorktreeCommitSHA(context.Background(), sourcePath)
-			if observedCommit != commitSHA ||
-				!managedCopyMatchesCommit(context.Background(), sourcePath, targetPath, observedCommit) {
-				b.Fatalf("copy-bound attribution failed for commit %q", observedCommit)
+			if observedCommit != commitSHA {
+				b.Fatalf("clean source commit = %q, want %q", observedCommit, commitSHA)
+			}
+			expectation := loadManagedCopyCommitExpectation(context.Background(), sourcePath, observedCommit)
+			matches, err := copyRepositoryTreeFn(
+				context.Background(), sourcePath, fullTargetPath, expectation,
+			)
+			if err != nil || !matches {
+				b.Fatalf("copy-bound managed copy matches=%t error=%v", matches, err)
 			}
 		}
 	})
@@ -201,22 +416,6 @@ func BenchmarkFilesystemManagedCopyCommitAttributionLargeRepository(b *testing.B
 	}
 	b.Logf("representative managed copy commit=%s files=%d bytes=%d", commitSHA, fileCount, byteCount)
 
-	b.Run("prior-rev-parse-head", func(b *testing.B) {
-		for b.Loop() {
-			if output := runGitBenchmark(b, sourcePath, "rev-parse", "HEAD"); strings.TrimSpace(output) != commitSHA {
-				b.Fatalf("rev-parse HEAD = %q, want %q", output, commitSHA)
-			}
-		}
-	})
-	b.Run("copy-bound-attribution", func(b *testing.B) {
-		for b.Loop() {
-			observedCommit := gitCleanWorktreeCommitSHA(context.Background(), sourcePath)
-			if observedCommit != commitSHA ||
-				!managedCopyMatchesCommit(context.Background(), sourcePath, targetPath, observedCommit) {
-				b.Fatalf("copy-bound attribution failed for commit %q", observedCommit)
-			}
-		}
-	})
 	b.Run("prior-full-managed-copy", func(b *testing.B) {
 		fullTargetPath := filepath.Join(b.TempDir(), "managed")
 		for b.Loop() {
@@ -237,11 +436,12 @@ func BenchmarkFilesystemManagedCopyCommitAttributionLargeRepository(b *testing.B
 			if observedCommit != commitSHA {
 				b.Fatalf("clean source commit = %q, want %q", observedCommit, commitSHA)
 			}
-			if err := copyRepositoryTree(context.Background(), sourcePath, fullTargetPath); err != nil {
-				b.Fatalf("copyRepositoryTree() error = %v", err)
-			}
-			if !managedCopyMatchesCommit(context.Background(), sourcePath, fullTargetPath, observedCommit) {
-				b.Fatalf("copy-bound attribution failed for commit %q", observedCommit)
+			expectation := loadManagedCopyCommitExpectation(context.Background(), sourcePath, observedCommit)
+			matches, err := copyRepositoryTreeFn(
+				context.Background(), sourcePath, fullTargetPath, expectation,
+			)
+			if err != nil || !matches {
+				b.Fatalf("copy-bound managed copy matches=%t error=%v", matches, err)
 			}
 		}
 		b.ReportMetric(float64(fileCount), "files")

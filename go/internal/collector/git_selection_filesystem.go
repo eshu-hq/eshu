@@ -8,7 +8,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -93,10 +92,12 @@ func syncFilesystemRepositories(
 			return FilesystemSyncSelection{}, err
 		}
 		beforeCopyCommit := gitCleanWorktreeCommitSHAFn(ctx, sourcePath)
-		if err := copyRepositoryTreeFn(ctx, sourcePath, targetPath); err != nil {
+		expectation := loadManagedCopyCommitExpectation(ctx, sourcePath, beforeCopyCommit)
+		copyMatchesCommit, err := copyRepositoryTreeFn(ctx, sourcePath, targetPath, expectation)
+		if err != nil {
 			return FilesystemSyncSelection{}, fmt.Errorf("copy filesystem repository %q: %w", repoID, err)
 		}
-		if beforeCopyCommit != "" && managedCopyMatchesCommit(ctx, sourcePath, targetPath, beforeCopyCommit) {
+		if expectation != nil && copyMatchesCommit {
 			copyBoundCommits[canonicalLocalPath(targetPath)] = beforeCopyCommit
 		}
 		selectedPaths = append(selectedPaths, targetPath)
@@ -243,23 +244,33 @@ func cleanManagedWorkspace(reposDir string) error {
 // or no git checkout at all, so there is no single sourceRoot to resolve
 // ls-files against there.
 func copyRepositoryTree(ctx context.Context, sourceRoot string, targetRoot string) error {
+	_, err := copyRepositoryTreeFn(ctx, sourceRoot, targetRoot, nil)
+	return err
+}
+
+func copyRepositoryTreeWithExpectation(
+	ctx context.Context,
+	sourceRoot string,
+	targetRoot string,
+	expectation *managedCopyCommitExpectation,
+) (bool, error) {
 	sourceRoot, err := filepath.Abs(sourceRoot)
 	if err != nil {
-		return fmt.Errorf("resolve source repo %q: %w", sourceRoot, err)
+		return false, fmt.Errorf("resolve source repo %q: %w", sourceRoot, err)
 	}
 	info, err := os.Stat(sourceRoot)
 	if err != nil {
-		return fmt.Errorf("stat source repo %q: %w", sourceRoot, err)
+		return false, fmt.Errorf("stat source repo %q: %w", sourceRoot, err)
 	}
 	if !info.IsDir() {
-		return fmt.Errorf("source repo %q is not a directory", sourceRoot)
+		return false, fmt.Errorf("source repo %q is not a directory", sourceRoot)
 	}
 
 	if err := os.RemoveAll(targetRoot); err != nil {
-		return fmt.Errorf("reset target repo %q: %w", targetRoot, err)
+		return false, fmt.Errorf("reset target repo %q: %w", targetRoot, err)
 	}
 	if err := os.MkdirAll(targetRoot, 0o750); err != nil { // #nosec G301 -- internal managed workspace directory
-		return fmt.Errorf("create target repo %q: %w", targetRoot, err)
+		return false, fmt.Errorf("create target repo %q: %w", targetRoot, err)
 	}
 
 	ignoreCaches := newCollectorIgnoreCaches()
@@ -273,8 +284,18 @@ func copyRepositoryTree(ctx context.Context, sourceRoot string, targetRoot strin
 		setByRoot: make(map[string]map[string]struct{}),
 	}
 
-	return filepath.WalkDir(sourceRoot, func(current string, entry os.DirEntry, walkErr error) error {
+	copyMatchesCommit := expectation != nil
+	controlMatchesCommit, err := expectation.bindEshuignoreControl(
+		sourceRoot, sourceRoot, ignoreCaches.eshuignore,
+	)
+	if err != nil {
+		return false, err
+	}
+	copyMatchesCommit = copyMatchesCommit && controlMatchesCommit
+	walkErr := filepath.WalkDir(sourceRoot, func(current string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
+			copyMatchesCommit = false
+			expectation.invalidate()
 			// Skip entries we cannot read (permission denied, etc.)
 			if entry != nil && entry.IsDir() {
 				return filepath.SkipDir
@@ -310,6 +331,7 @@ func copyRepositoryTree(ctx context.Context, sourceRoot string, targetRoot strin
 		}
 
 		if shouldSkipFilesystemEntry(sourceRoot, current, rel, name, entry.IsDir(), ignoreCaches) {
+			expectation.dischargeSkippedPath(rel, entry.IsDir())
 			if entry.IsDir() {
 				return filepath.SkipDir
 			}
@@ -320,56 +342,41 @@ func copyRepositoryTree(ctx context.Context, sourceRoot string, targetRoot strin
 		// managed workspace (a symlink-to-directory looks like a file
 		// to WalkDir but cannot be read with io.Copy).
 		if entry.Type()&os.ModeSymlink != 0 {
+			if !expectation.dischargeSymlink(rel) {
+				copyMatchesCommit = false
+			}
 			return nil
 		}
 
 		targetPath := filepath.Join(targetRoot, filepath.FromSlash(rel))
 		if entry.IsDir() {
+			controlMatchesCommit, err := expectation.bindEshuignoreControl(
+				sourceRoot, current, ignoreCaches.eshuignore,
+			)
+			if err != nil {
+				return err
+			}
+			if !controlMatchesCommit {
+				copyMatchesCommit = false
+			}
 			return os.MkdirAll(targetPath, 0o750) // #nosec G301 -- internal managed workspace directory tree
 		}
-		if err := copyRepositoryFile(current, targetPath); err != nil {
+		fileMatchesCommit, err := copyRepositoryFile(current, targetPath, rel, expectation)
+		if err != nil {
+			copyMatchesCommit = false
+			expectation.invalidate()
 			// Skip files we cannot read (permission denied, etc.)
 			return nil
 		}
+		copyMatchesCommit = copyMatchesCommit && fileMatchesCommit
 		return nil
 	})
+	return copyMatchesCommit && expectation.complete(), walkErr
 }
 
 // copyRepositoryTreeFn is the managed-copy seam used by race regressions that
 // mutate the source at the precise copy boundary.
-var copyRepositoryTreeFn = copyRepositoryTree
-
-func copyRepositoryFile(sourcePath string, targetPath string) error {
-	sourceFile, err := os.Open(sourcePath) // #nosec G304 -- reads indexed repo file at an internally-constructed source path during filesystem copy, not user-supplied input
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = sourceFile.Close()
-	}()
-
-	info, err := sourceFile.Stat()
-	if err != nil {
-		return err
-	}
-	if info.Mode()&os.ModeSymlink != 0 {
-		return nil
-	}
-	if err := os.MkdirAll(filepath.Dir(targetPath), 0o750); err != nil { // #nosec G301 -- internal managed workspace directory
-		return err
-	}
-	targetFile, err := os.Create(targetPath) // #nosec G304 -- creates file at an internally-constructed target path during filesystem copy, not user-supplied input
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = targetFile.Close()
-	}()
-	if _, err := io.Copy(targetFile, sourceFile); err != nil {
-		return err
-	}
-	return targetFile.Chmod(0o644)
-}
+var copyRepositoryTreeFn = copyRepositoryTreeWithExpectation
 
 func shouldSkipFilesystemEntry(
 	repoRoot string,

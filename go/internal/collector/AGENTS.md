@@ -243,11 +243,12 @@ that already-known SHA. Measured before/after: `TestSnapshotHeadCommitSubprocess
 counts `git rev-parse HEAD` invocations in the snapshot path through the
 `gitCommitSHAFn` seam and asserts 0 invocations when `SourceCommitSHA` is carried
 (sync mode) versus exactly 1 on the empty fallback path — a reduction of one
-subprocess per sync-mode repository per collection cycle. The carried
-`SourceCommitSHA` on `SelectedRepository` is empty for non-sync selectors
-(filesystem, clone, reconcile, or any path that did not run
-`checkoutRemoteBranch`), which keep the `gitCommitSHA` shell-out fallback
-unchanged. The first-time clone path intentionally does not carry the SHA: a
+subprocess per sync-mode repository per collection cycle. Filesystem
+managed-copy mode also carries `SourceCommitSHA` when the source starts clean
+and every admitted regular-file byte matches its immutable Git blob; divergent
+or transformed bytes fail closed. Clone, reconcile, and other paths that did
+not prove a source commit keep the `gitCommitSHA` shell-out fallback unchanged.
+The first-time clone path intentionally does not carry the SHA: a
 fresh clone has no pre-resolved SHA to harvest (unlike sync's `remoteSHA`), so
 populating one would add an extra `git rev-parse HEAD` rather than remove one;
 that rare cold path keeps the fallback. Correctness proof:
