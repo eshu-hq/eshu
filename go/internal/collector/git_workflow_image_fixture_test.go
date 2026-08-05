@@ -102,7 +102,7 @@ func TestGitHubActionsFixtureEmitsInputOnlyWorkflowImageEvidence(t *testing.T) {
 	}
 	const (
 		workflowPath  = ".github/workflows/ci.yml"
-		fixtureCommit = "f05ee5fe06b37d7cc0cce8150b50b74fc8b0882d"
+		fixtureCommit = "882382ef307a373f12e666b4afee3fcd63aa5ee0"
 	)
 	collected := buildStreamingGeneration(
 		repoPath,
