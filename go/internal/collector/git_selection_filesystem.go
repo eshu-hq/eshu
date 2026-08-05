@@ -159,7 +159,6 @@ func fingerprintTree(root string) (string, error) {
 		}
 		rel = filepath.ToSlash(filepath.Clean(rel))
 		name := entry.Name()
-
 		// Ignore-control files affect the next collection shape and must
 		// participate in the manifest even though normal hidden files do not.
 		if isCollectorIgnoreControlFile(name) {
@@ -203,33 +202,6 @@ func fingerprintTree(root string) (string, error) {
 	return hex.EncodeToString(digest.Sum(nil)), nil
 }
 
-func cleanManagedWorkspace(reposDir string) error {
-	entries, err := os.ReadDir(reposDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return fmt.Errorf("read managed workspace %q: %w", reposDir, err)
-	}
-	for _, entry := range entries {
-		name := entry.Name()
-		if strings.HasPrefix(name, ".eshu-") || name == ".eshuignore" {
-			continue
-		}
-		target := filepath.Join(reposDir, name)
-		if entry.IsDir() {
-			if err := os.RemoveAll(target); err != nil {
-				return fmt.Errorf("remove managed directory %q: %w", target, err)
-			}
-			continue
-		}
-		if err := os.Remove(target); err != nil {
-			return fmt.Errorf("remove managed file %q: %w", target, err)
-		}
-	}
-	return nil
-}
-
 // copyRepositoryTree materializes one repository's tracked/discoverable files
 // into the managed workspace at targetRoot. sourceRoot IS the git checkout
 // (unlike targetRoot, which carries no .git of its own — issue #5649), so
@@ -265,6 +237,13 @@ func copyRepositoryTreeWithExpectation(
 	if !info.IsDir() {
 		return false, fmt.Errorf("source repo %q is not a directory", sourceRoot)
 	}
+	source, err := openManagedCopySourceRoot(sourceRoot)
+	if err != nil {
+		return false, err
+	}
+	defer func() {
+		_ = source.Close()
+	}()
 
 	if err := os.RemoveAll(targetRoot); err != nil {
 		return false, fmt.Errorf("reset target repo %q: %w", targetRoot, err)
@@ -286,7 +265,7 @@ func copyRepositoryTreeWithExpectation(
 
 	copyMatchesCommit := expectation != nil
 	controlMatchesCommit, err := expectation.bindEshuignoreControl(
-		sourceRoot, sourceRoot, ignoreCaches.eshuignore,
+		source, sourceRoot, sourceRoot, ignoreCaches.eshuignore,
 	)
 	if err != nil {
 		return false, err
@@ -311,6 +290,9 @@ func copyRepositoryTreeWithExpectation(
 		}
 		rel = filepath.ToSlash(filepath.Clean(rel))
 		name := entry.Name()
+		if err := source.TrimToParent(rel); err != nil {
+			return err
+		}
 
 		// .eshuignore remains a deliberate operator opt-out that can still
 		// skip a file git tracks (issue #5591 leaves this filter's semantics
@@ -350,8 +332,11 @@ func copyRepositoryTreeWithExpectation(
 
 		targetPath := filepath.Join(targetRoot, filepath.FromSlash(rel))
 		if entry.IsDir() {
+			if err := source.PinDirectory(rel); err != nil {
+				return err
+			}
 			controlMatchesCommit, err := expectation.bindEshuignoreControl(
-				sourceRoot, current, ignoreCaches.eshuignore,
+				source, sourceRoot, current, ignoreCaches.eshuignore,
 			)
 			if err != nil {
 				return err
@@ -361,7 +346,7 @@ func copyRepositoryTreeWithExpectation(
 			}
 			return os.MkdirAll(targetPath, 0o750) // #nosec G301 -- internal managed workspace directory tree
 		}
-		fileMatchesCommit, err := copyRepositoryFile(current, targetPath, rel, expectation)
+		fileMatchesCommit, err := copyRepositoryFile(source, sourceRoot, current, targetPath, rel, expectation)
 		if err != nil {
 			copyMatchesCommit = false
 			expectation.invalidate()

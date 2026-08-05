@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -28,6 +29,7 @@ type managedCopyBlobExpectation struct {
 type managedCopyCommitExpectation struct {
 	blobs     map[string]managedCopyBlobExpectation
 	remaining map[string]struct{}
+	paths     []string
 	newHash   func() hash.Hash
 	invalid   bool
 }
@@ -90,7 +92,14 @@ func loadManagedCopyCommitExpectation(
 		}
 		remaining[relativePath] = struct{}{}
 	}
-	return &managedCopyCommitExpectation{blobs: blobs, remaining: remaining, newHash: newHash}
+	paths := make([]string, 0, len(blobs))
+	for relativePath := range blobs {
+		paths = append(paths, relativePath)
+	}
+	sort.Strings(paths)
+	return &managedCopyCommitExpectation{
+		blobs: blobs, remaining: remaining, paths: paths, newHash: newHash,
+	}
 }
 
 // copyManagedRepositoryFile writes the live bytes once while hashing those
@@ -157,6 +166,7 @@ func hashManagedCopyGitBlob(
 // once. Commit-owned controls must match their immutable blob; ignored local
 // controls remain authoritative operator policy without entering the copy.
 func (e *managedCopyCommitExpectation) bindEshuignoreControl(
+	source *managedCopySourceRoot,
 	sourceRoot string,
 	directoryPath string,
 	cache map[string]*collectorGitignoreSpec,
@@ -172,7 +182,7 @@ func (e *managedCopyCommitExpectation) bindEshuignoreControl(
 	if e != nil {
 		expected, tracked = e.blobs[relativePath]
 	}
-	info, err := os.Lstat(fullPath)
+	controlFile, _, err := openUnchangedManagedCopyFile(source, sourceRoot, relativePath)
 	if err != nil {
 		cache[fullPath] = nil
 		if os.IsNotExist(err) {
@@ -183,13 +193,12 @@ func (e *managedCopyCommitExpectation) bindEshuignoreControl(
 			return true, nil
 		}
 		e.invalidate()
-		return false, fmt.Errorf("inspect .eshuignore control %q: %w", fullPath, err)
+		return false, fmt.Errorf("open stable .eshuignore control %q: %w", fullPath, err)
 	}
-	if !info.Mode().IsRegular() {
-		e.invalidate()
-		return false, fmt.Errorf(".eshuignore control %q must be a regular file", fullPath)
-	}
-	contents, err := os.ReadFile(fullPath) // #nosec G304 -- reads only the directory's operator-owned .eshuignore control
+	defer func() {
+		_ = controlFile.Close()
+	}()
+	contents, err := io.ReadAll(controlFile)
 	if err != nil {
 		cache[fullPath] = nil
 		e.invalidate()
@@ -223,11 +232,15 @@ func (e *managedCopyCommitExpectation) dischargeSkippedPath(
 		delete(e.remaining, relativePath)
 		return
 	}
+	delete(e.remaining, relativePath)
 	prefix := strings.TrimSuffix(filepath.ToSlash(relativePath), "/") + "/"
-	for expectedPath := range e.remaining {
-		if expectedPath == relativePath || (isDir && strings.HasPrefix(expectedPath, prefix)) {
-			delete(e.remaining, expectedPath)
+	start := sort.SearchStrings(e.paths, prefix)
+	for index := start; index < len(e.paths); index++ {
+		expectedPath := e.paths[index]
+		if !strings.HasPrefix(expectedPath, prefix) {
+			break
 		}
+		delete(e.remaining, expectedPath)
 	}
 }
 
@@ -251,13 +264,57 @@ func (e *managedCopyCommitExpectation) complete() bool {
 	return e != nil && !e.invalid && len(e.remaining) == 0
 }
 
+var openManagedCopySourceFileFn = func(
+	source *managedCopySourceRoot,
+	relativePath string,
+) (*os.File, error) {
+	return source.OpenFile(relativePath)
+}
+
+func openUnchangedManagedCopyFile(
+	source *managedCopySourceRoot,
+	sourceRoot string,
+	relativePath string,
+) (*os.File, os.FileInfo, error) {
+	path := filepath.Join(sourceRoot, filepath.FromSlash(relativePath))
+	beforeInfo, err := os.Lstat(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !beforeInfo.Mode().IsRegular() {
+		return nil, nil, fmt.Errorf("source path is not a regular file")
+	}
+	file, err := openManagedCopySourceFileFn(source, relativePath)
+	if err != nil {
+		return nil, nil, err
+	}
+	openedInfo, err := file.Stat()
+	if err != nil {
+		_ = file.Close()
+		return nil, nil, err
+	}
+	afterInfo, err := os.Lstat(path)
+	if err != nil {
+		_ = file.Close()
+		return nil, nil, err
+	}
+	if !openedInfo.Mode().IsRegular() || !afterInfo.Mode().IsRegular() ||
+		!os.SameFile(beforeInfo, openedInfo) || !os.SameFile(openedInfo, afterInfo) {
+		_ = file.Close()
+		return nil, nil, fmt.Errorf("source path changed or is not a regular file")
+	}
+	return file, openedInfo, nil
+}
+
 func copyRepositoryFile(
+	source *managedCopySourceRoot,
+	sourceRoot string,
 	sourcePath string,
 	targetPath string,
 	relativePath string,
 	expectation *managedCopyCommitExpectation,
 ) (bool, error) {
-	sourceFile, err := os.Open(sourcePath) // #nosec G304 -- reads indexed repo file at an internally-constructed source path during filesystem copy, not user-supplied input
+	sourceFile, info, err := openUnchangedManagedCopyFile(source, sourceRoot, relativePath)
 	if err != nil {
 		return false, err
 	}
@@ -265,13 +322,6 @@ func copyRepositoryFile(
 		_ = sourceFile.Close()
 	}()
 
-	info, err := sourceFile.Stat()
-	if err != nil {
-		return false, err
-	}
-	if info.Mode()&os.ModeSymlink != 0 {
-		return expectation == nil, nil
-	}
 	if err := os.MkdirAll(filepath.Dir(targetPath), 0o750); err != nil { // #nosec G301 -- internal managed workspace directory
 		return false, err
 	}
