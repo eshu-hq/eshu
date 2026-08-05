@@ -41,16 +41,28 @@ output or capture the query emitted by the production execution path, verify the
 fingerprints, and run the full anchor, traversal, ordering, schema, and plan
 validation against those production-owned bytes.
 
-The inventory still contains 81 pre-existing `non_hot_reason` entries, but they
-are immutable migration debt rather than an open classification path, and the
-count only ever falls as entries convert to the typed form. Their
-exact source digests are frozen to a named main baseline; new prose entries,
-source drift, or a different baseline fail validation and require a typed audit.
-Editing a grandfathered symbol is what forces that conversion: any source change
-breaks its frozen digest, and the fix is a typed `non_hot` audit plus removal
-from `grandfatheredNonHotSourceDigests`, never a re-frozen digest.
-`TestGrandfatheredNonHotRegistryExactlyMatchesLegacyManifest` keeps the manifest
-and that registry the same size, so converting one without the other fails.
+The inventory still contains 81 pre-existing `non_hot_reason` entries. They are
+immutable migration debt rather than an open classification path, and the count
+is meant to fall only as entries convert to the typed form. That direction is
+not machine-checked.
+`TestGrandfatheredNonHotRegistryExactlyMatchesLegacyManifest` only requires the
+manifest's prose entries and `grandfatheredNonHotSourceDigests` to hold the same
+set of symbols. Add a prose entry, or convert a typed entry back to prose, and
+pair it with a matching digest in that registry: the gate exits 0 and the count
+rises. A prose entry added without its registry digest is the case that fails.
+The one-way rule lives in this directory's `AGENTS.md`, as prose a reviewer has
+to apply.
+
+Each grandfathered entry's source digest is frozen to a named main baseline;
+source drift or a different baseline fails validation and requires a typed
+audit. Editing a grandfathered symbol is what forces that conversion. Note what
+the digest covers: `discoverFileQueryCallsites` hashes the symbol's signature
+and body, from the `func` keyword through the closing brace, so an edit to the
+doc comment above the symbol leaves the gate green. The conversion requirement
+does not rest on the digest tripping — `AGENTS.md` mandates it for any edit to a
+grandfathered symbol, doc comment included. When the digest does trip, the fix
+is a typed `non_hot` audit plus removal from `grandfatheredNonHotSourceDigests`,
+never a re-frozen digest.
 Source-digest revalidation also applies to entries using the typed `non_hot`
 form, including the bounded workload repository-name hydration helper.
 

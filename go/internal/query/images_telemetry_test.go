@@ -99,14 +99,15 @@ func imageDurationOutcomeCount(t *testing.T, rm metricdata.ResourceMetrics, want
 
 // TestImageHandlerNilBackendRecordsBackendUnavailableOutcome pins the
 // outcome="backend_unavailable" metric-label contract on the h.Neo4j == nil
-// guard branch (images.go:122-136), and — more importantly — proves the
-// lazily registered image-list instruments actually observe datapoints
-// against a meter provider installed by the test rather than a stale one
-// captured earlier in the process. initImageQueryInstruments (images_telemetry.go)
-// fetches its meter from the current global provider inside a sync.Once, so a
-// meter resolved before any provider is installed would bind permanently to
-// whichever provider first calls otel.SetMeterProvider in the process — see
-// that function's doc comment for the OTel global-proxy mechanics. Because
+// guard branch in listImages (images.go, the sole nil-backend check in the
+// file), and — more importantly — proves the lazily registered image-list
+// instruments actually observe datapoints against a meter provider installed
+// by the test rather than a stale one captured earlier in the process.
+// initImageQueryInstruments (images_telemetry.go) fetches its meter from the
+// current global provider inside a sync.Once, so a meter resolved before any
+// provider is installed would bind permanently to whichever provider first
+// calls otel.SetMeterProvider in the process — see that function's doc
+// comment for the OTel global-proxy mechanics. Because
 // withImageMetricReader (via the shared withPackageMetricReader in
 // metric_reader_test.go) always burns that delegate-once on a throwaway
 // provider before installing this test's own reader, a handler that wrongly

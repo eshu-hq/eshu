@@ -51,6 +51,15 @@ import (
 // need type resolution rather than a single-file AST walk. They are a
 // deliberate gap, not an oversight: the pre-fix shape c3ada216 removed, and
 // the one a future handler is most likely to copy, is the direct initializer.
+//
+// One shape that does keep the resolving call in the initializer is caught:
+// `var p = otel.GetMeterProvider()` followed by `var m = p.Meter("name")`,
+// which binds the same delegate at package-init time through an intermediate
+// provider var. packageLevelOtelMeterVarNames collects those provider vars
+// first and then treats `.Meter(...)` on them as a hit. The catch is
+// file-scoped, since the walk parses one file at a time with no type
+// information: a provider var declared in a different file of the same package
+// is still invisible to it.
 func TestNoPackageLevelMeterVarInitializersAcrossModule(t *testing.T) {
 	t.Parallel()
 
@@ -98,21 +107,24 @@ func TestNoPackageLevelMeterVarInitializersAcrossModule(t *testing.T) {
 
 // packageLevelOtelMeterVarNames returns the names of every package-level
 // (top-level, non-const) var in file whose own initializer expression
-// resolves an OTel meter directly — either `<otelPkg>.Meter(...)` or
-// `<otelPkg>.GetMeterProvider().Meter(...)`, the same delegate-once failure
-// mode under a different call shape (`otel.Meter` and
-// `otel.GetMeterProvider().Meter` both resolve through the process-global
-// delegating proxy, see isOtelMeterCall). It only inspects file-scope
-// declarations, so a local `meter := otel.Meter(...)` inside a function body
-// (the correct, in-once pattern every current handler in this module uses)
-// never matches. A var assigned in an `init()` body or from a helper function
-// that returns the meter is likewise not an initializer and is not reported;
-// see the gap note on TestNoPackageLevelMeterVarInitializersAcrossModule.
+// resolves an OTel meter directly — `<otelPkg>.Meter(...)`,
+// `<otelPkg>.GetMeterProvider().Meter(...)`, or `<providerVar>.Meter(...)`
+// where providerVar is one of the file's package-level provider vars found by
+// otelProviderVarNames. All three are the same delegate-once failure mode
+// under different call shapes (`otel.Meter` and `otel.GetMeterProvider()`
+// both resolve through the process-global delegating proxy, see
+// isOtelMeterCall). It only inspects file-scope declarations, so a local
+// `meter := otel.Meter(...)` inside a function body (the correct, in-once
+// pattern every current handler in this module uses) never matches. A var
+// assigned in an `init()` body or from a helper function that returns the
+// meter is likewise not an initializer and is not reported; see the gap note
+// on TestNoPackageLevelMeterVarInitializersAcrossModule.
 func packageLevelOtelMeterVarNames(file *ast.File) []string {
 	otelPkgs := otelImportNames(file)
 	if len(otelPkgs) == 0 {
 		return nil
 	}
+	providerVars := otelProviderVarNames(file, otelPkgs)
 	var names []string
 	for _, decl := range file.Decls {
 		gen, ok := decl.(*ast.GenDecl)
@@ -125,7 +137,7 @@ func packageLevelOtelMeterVarNames(file *ast.File) []string {
 				continue
 			}
 			for i, value := range valueSpec.Values {
-				if !isOtelMeterCall(value, otelPkgs) {
+				if !isOtelMeterCall(value, otelPkgs, providerVars) {
 					continue
 				}
 				name := "?"
@@ -137,6 +149,60 @@ func packageLevelOtelMeterVarNames(file *ast.File) []string {
 		}
 	}
 	return names
+}
+
+// otelProviderVarNames returns the names of every package-level var in file
+// whose initializer is a `<otelPkg>.GetMeterProvider()` call, or under a dot
+// import a bare `GetMeterProvider()`. Such a var holds the process-global
+// delegating provider, so calling .Meter(...) on it at package-init time binds
+// the delegate exactly as `otel.Meter(...)` does. The var itself is harmless
+// and is never reported — only a package-level meter var initialized from one
+// is. Collecting them in a separate pass means declaration order inside the
+// file does not matter.
+func otelProviderVarNames(file *ast.File, otelPkgs []string) []string {
+	var names []string
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.VAR {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			valueSpec, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+			for i, value := range valueSpec.Values {
+				if !isOtelGetMeterProviderCall(value, otelPkgs) || i >= len(valueSpec.Names) {
+					continue
+				}
+				names = append(names, valueSpec.Names[i].Name)
+			}
+		}
+	}
+	return names
+}
+
+// isOtelGetMeterProviderCall reports whether expr is a call to
+// GetMeterProvider on one of otelPkgs, qualified under a normal or aliased
+// import and bare under a dot import.
+func isOtelGetMeterProviderCall(expr ast.Expr, otelPkgs []string) bool {
+	call, ok := expr.(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+	switch fun := call.Fun.(type) {
+	case *ast.SelectorExpr:
+		if fun.Sel.Name != "GetMeterProvider" {
+			return false
+		}
+		ident, ok := fun.X.(*ast.Ident)
+		return ok && slices.Contains(otelPkgs, ident.Name)
+	case *ast.Ident:
+		return fun.Name == "GetMeterProvider" &&
+			slices.Contains(otelPkgs, otelDotImportQualifier)
+	default:
+		return false
+	}
 }
 
 // otelDotImportQualifier is the sentinel otelImportNames returns for a dot
@@ -177,14 +243,14 @@ func otelImportNames(file *ast.File) []string {
 
 // isOtelMeterCall reports whether expr resolves an OTel meter through one of
 // otelPkgs (the file's import names for "go.opentelemetry.io/otel", collected
-// by otelImportNames) in either of the two shapes that bind a meter's delegate
-// permanently via the OTel global proxy: `<otelPkg>.Meter(...)`, and
-// `<otelPkg>.GetMeterProvider().Meter(...)`. The latter is the same
-// delegate-once failure mode reached through GetMeterProvider() instead of the
-// Meter(...) shortcut, since both resolve through global.MeterProvider() under
-// the hood. Under a dot import both shapes lose their qualifier and appear as
-// bare `Meter(...)` and `GetMeterProvider().Meter(...)`.
-func isOtelMeterCall(expr ast.Expr, otelPkgs []string) bool {
+// by otelImportNames) in any of the three shapes that bind a meter's delegate
+// permanently via the OTel global proxy: `<otelPkg>.Meter(...)`,
+// `<otelPkg>.GetMeterProvider().Meter(...)`, and `<providerVar>.Meter(...)`
+// for a providerVar in providerVars. All three resolve through
+// global.MeterProvider() under the hood, so all three bind the delegate at
+// package-init time. Under a dot import the first two lose their qualifier and
+// appear as bare `Meter(...)` and `GetMeterProvider().Meter(...)`.
+func isOtelMeterCall(expr ast.Expr, otelPkgs, providerVars []string) bool {
 	call, ok := expr.(*ast.CallExpr)
 	if !ok {
 		return false
@@ -197,21 +263,23 @@ func isOtelMeterCall(expr ast.Expr, otelPkgs []string) bool {
 		// locally defined Meter.
 		return fun.Name == "Meter" && slices.Contains(otelPkgs, otelDotImportQualifier)
 	case *ast.SelectorExpr:
-		return fun.Sel.Name == "Meter" && isOtelMeterReceiver(fun.X, otelPkgs)
+		return fun.Sel.Name == "Meter" && isOtelMeterReceiver(fun.X, otelPkgs, providerVars)
 	default:
 		return false
 	}
 }
 
 // isOtelMeterReceiver reports whether receiver is the left half of an OTel
-// meter resolution: the otel package identifier itself, or a
-// GetMeterProvider() call on it — qualified under a normal or aliased import,
-// bare under a dot import.
-func isOtelMeterReceiver(receiver ast.Expr, otelPkgs []string) bool {
+// meter resolution: the otel package identifier itself, a GetMeterProvider()
+// call on it — qualified under a normal or aliased import, bare under a dot
+// import — or one of providerVars, the file's package-level vars already
+// holding the global provider.
+func isOtelMeterReceiver(receiver ast.Expr, otelPkgs, providerVars []string) bool {
 	switch value := receiver.(type) {
 	case *ast.Ident:
-		// <otelPkg>.Meter(...)
-		return slices.Contains(otelPkgs, value.Name)
+		// <otelPkg>.Meter(...) or <providerVar>.Meter(...)
+		return slices.Contains(otelPkgs, value.Name) ||
+			slices.Contains(providerVars, value.Name)
 	case *ast.CallExpr:
 		switch inner := value.Fun.(type) {
 		case *ast.SelectorExpr:
