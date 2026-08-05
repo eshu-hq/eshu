@@ -199,7 +199,7 @@ Still uncovered, stated plainly rather than implied closed:
   enriches with `MaxDepth` unset. A future route that both passes a non-zero
   `MaxDepth` and renders one of those blocks would have to thread its own
   bound through; nothing enforces that today.
-- `go/internal/query/AGENTS.md` (695 lines) and
+- `go/internal/query/AGENTS.md` (1312 lines) and
   `docs/public/reference/http-api/context-and-stories.md` (already over the
   limit before this branch) both exceed `CLAUDE.md`'s 500-line rule. Neither
   split belongs in this change. Raised with the owner rather than filed.
@@ -217,7 +217,7 @@ passed the entire suite. That one line discards the hostname cap, the
 `trimmedHostnames` cut, the per-search cap, and the final merge cap -- exactly
 the sources round 7 had just added. Nothing caught it because
 `deployment_trace_truncation_disclosure_test.go` asserts those sources only
-against the helper (13 direct calls, none through the enrichment or a handler),
+against the helper (seven call sites, none through the enrichment or a handler),
 and the wiring cases in `service_query_truncation_wiring_test.go` seeded a
 workload with no hostnames, so `consumersTruncated` and `candidatesTruncated`
 were equal in every scenario they exercised.

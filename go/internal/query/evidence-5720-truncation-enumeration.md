@@ -138,15 +138,25 @@ Four files sat within 15 lines of the 500-line rule `CLAUDE.md` says to split
 `openapi_paths_impact.go` 486, `tools_ecosystem.go` 485.
 
 A new production `.go` file would stale
-`docs/public/reference/code-coverage.md`, whose `included_files` count comes
-from the coverage profile and covers non-test files only (it already moved from
-4815 to 4816 on this branch for `deployment_trace_story_facts.go`). The split
-needs no new file. `service_evidence_types.go` (103 lines) is the natural home
-for the reader port and the plumbing that reads through it, so
-`serviceEvidenceReader`, `serviceEvidenceFileLimit`, `listServiceEvidenceFiles`,
-`specFileResolver`, `buildSpecFileResolver`, `openAPIRefFilePath` and the three
-loose-document value accessors moved there. The non-test file count is
-unchanged, so the coverage doc stays valid.
+`docs/public/reference/code-coverage.md`, whose `included_files` count is built
+from the coverage profile and covers non-test files only. The split needs no new
+file. `service_evidence_types.go` (103 lines) is the natural home for the reader
+port and the plumbing that reads through it, so `serviceEvidenceReader`,
+`serviceEvidenceFileLimit`, `listServiceEvidenceFiles`, `specFileResolver`,
+`buildSpecFileResolver`, `openAPIRefFilePath` and the three loose-document value
+accessors moved there.
+
+Adding no file did not keep the coverage doc valid, and an earlier revision of
+this paragraph claimed it did. A file reaches the coverage profile only once it
+holds executable statements, so a move that changes an existing file's function
+count moves the number as surely as adding a file does.
+`service_evidence_types.go` held type declarations and zero functions on `main`
+and was absent from the profile; the six functions moved into it put it in.
+Together with `deployment_trace_story_facts.go`, the one genuinely new non-test
+file, the count went from 4817 on `main` to 4819 -- two above, from one added
+file. The report was regenerated rather than derived (commit `7717cc2ba3`),
+because the coverage check reports "skipping" rather than failing and a stale
+count therefore merges silently.
 
 `service_evidence.go` is 443 lines after the move and after P2-2's additions;
 `service_evidence_types.go` is 211. `buildSpecFileResolver` also took its
