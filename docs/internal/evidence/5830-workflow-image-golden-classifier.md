@@ -53,22 +53,21 @@ behavior. Provider isolation adds one bounded string comparison per run during
 attachment and one per candidate graph row; it does not add a query, graph
 write, queue item, retry, or lock for accepted GitHub rows.
 
-The post-rebase representative large-repository rung used the clean parent
-checkout at `108e0f9326bcc95a29d1072c926bf18128c5ea41`: 17,892 admitted
-regular files and 117,411,148 copied bytes on the same Apple M5 Max. Five
+The final-parent representative large-repository rung used the clean parent
+checkout at `4f2a5f8b6d73bb23c52a7b34edd40e98e197602d`: 17,898 admitted
+regular files and 117,513,254 copied bytes on the same Apple M5 Max. Five
 adjacent pairs alternated the complete old copy-plus-`rev-parse` path with the
 integrated copy-bound path to prevent a changing host load from biasing one
-whole sample group. Old-path samples were 8.654, 9.308, 8.586, 14.432, and
-16.132 seconds (median 9.308 seconds). Copy-bound samples were 8.193, 11.961,
-8.310, 22.342, and 10.498 seconds (median 10.498 seconds). Independently
-sorting the noisy groups yields a +1.190-second (+12.78%) median difference;
-the adjacent-pair deltas were -0.461, +2.653, -0.275, +7.910, and -5.635
-seconds, whose median is -0.275 seconds (median pair percentage -3.21%). The
-ranges overlap, the pair distribution straddles zero, and three of five
-copy-bound pairs were faster, so the run establishes no consistent regression
-and makes no speedup claim. Exact invocation, run in `prior, copy-bound` order
-five times:
-`GOMAXPROCS=1 ESHU_BENCHMARK_REPOSITORY=<clean-parent-checkout> go test ./internal/collector -run '^$' -bench '^BenchmarkFilesystemManagedCopyCommitAttributionLargeRepository/<case>$' -benchtime=1x -count=1`.
+whole sample group. Old-path samples were 7.523, 6.614, 7.212, 8.204, and
+6.720 seconds (median 7.212 seconds). Copy-bound samples were 6.863, 7.222,
+7.593, 7.478, and 7.411 seconds (median 7.411 seconds). Independently sorting
+the groups yields a +0.200-second (+2.77%) median difference; the adjacent-pair
+deltas were -0.661, +0.607, +0.382, -0.726, and +0.691 seconds, whose median
+is +0.382 seconds (median pair percentage +5.29%). The ranges overlap and the
+pair distribution straddles zero, with two of five copy-bound pairs faster, so
+the run establishes no consistent regression and makes no speedup claim.
+Exact invocation, run in `prior, copy-bound` order five times:
+`GOMAXPROCS=1 ESHU_BENCHMARK_REPOSITORY=<clean-parent-checkout> go test ./internal/collector -run '^$' -bench '^BenchmarkFilesystemManagedCopyCommitAttributionLargeRepository$' -benchtime=1x -count=1`.
 
 The skip-heavy worst case used 1,000 sibling directories with 100 immutable
 paths each, all omitted by observed collector policy. The prior repeated map
