@@ -51,6 +51,24 @@ one bounded string comparison per run during attachment and one per candidate
 graph row; it does not add a query, graph write, queue item, retry, or lock for
 accepted GitHub rows.
 
+The representative large-repository rung used the clean Eshu checkout at
+`bf6e6b480119e1eacdbdfb3626167da1a02df459`: 17,886 admitted regular files and
+117,362,746 copied bytes on the same Apple M5 Max. Five one-iteration samples
+measured the complete old copy-plus-`rev-parse` path at 7.919, 7.984, 7.480,
+7.131, and 7.188 seconds (median 7.480 seconds). The complete copy-bound path
+measured 13.916, 19.806, 8.612, 8.679, and 18.637 seconds (median 13.916
+seconds). The median cost is 6.436 seconds, or 86.0%, for a changed clean
+managed-copy repository of this size. Exact command:
+`ESHU_BENCHMARK_REPOSITORY=<clean-eshu-checkout> go test ./internal/collector -run '^$' -bench 'BenchmarkFilesystemManagedCopyCommitAttributionLargeRepository/(prior-full-managed-copy|copy-bound-full-managed-copy)$' -benchtime=1x -count=5`.
+
+The scaling cost is accepted under the repository's accuracy-first contract:
+the old path could publish false commit provenance, while the new path verifies
+every admitted byte against the immutable tree. It is bounded to changed,
+clean filesystem managed-copy repositories; unchanged manifest polls perform
+neither the copy nor the verification, and other source modes are unaffected.
+The same-machine B-7 rung below kept collection at 15 seconds and total wall
+time within the required ceiling.
+
 No-Observability-Change: No metric instrument, attribute key, span, structured
 log field, status field, queue domain, worker, lease, batch size, or runtime
 knob changes. The selector work remains visible through the existing

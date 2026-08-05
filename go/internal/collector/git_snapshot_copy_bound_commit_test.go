@@ -151,6 +151,11 @@ func BenchmarkFilesystemManagedCopyCommitAttribution(b *testing.B) {
 	if err := copyRepositoryTree(context.Background(), sourcePath, targetPath); err != nil {
 		b.Fatalf("copyRepositoryTree() error = %v", err)
 	}
+	fileCount, byteCount, err := managedCopyBenchmarkTreeSize(targetPath)
+	if err != nil {
+		b.Fatalf("measure managed copy: %v", err)
+	}
+	b.Logf("synthetic managed copy commit=%s files=%d bytes=%d", commitSHA, fileCount, byteCount)
 
 	b.Run("prior-rev-parse-head", func(b *testing.B) {
 		for b.Loop() {
@@ -175,6 +180,94 @@ func BenchmarkFilesystemManagedCopyCommitAttribution(b *testing.B) {
 			}
 		}
 	})
+}
+
+func BenchmarkFilesystemManagedCopyCommitAttributionLargeRepository(b *testing.B) {
+	sourcePath := strings.TrimSpace(os.Getenv("ESHU_BENCHMARK_REPOSITORY"))
+	if sourcePath == "" {
+		b.Skip("set ESHU_BENCHMARK_REPOSITORY to a clean representative checkout")
+	}
+	commitSHA := gitCleanWorktreeCommitSHA(context.Background(), sourcePath)
+	if commitSHA == "" {
+		b.Fatal("ESHU_BENCHMARK_REPOSITORY must be a clean Git checkout")
+	}
+	targetPath := filepath.Join(b.TempDir(), "managed")
+	if err := copyRepositoryTree(context.Background(), sourcePath, targetPath); err != nil {
+		b.Fatalf("copyRepositoryTree() error = %v", err)
+	}
+	fileCount, byteCount, err := managedCopyBenchmarkTreeSize(targetPath)
+	if err != nil {
+		b.Fatalf("measure managed copy: %v", err)
+	}
+	b.Logf("representative managed copy commit=%s files=%d bytes=%d", commitSHA, fileCount, byteCount)
+
+	b.Run("prior-rev-parse-head", func(b *testing.B) {
+		for b.Loop() {
+			if output := runGitBenchmark(b, sourcePath, "rev-parse", "HEAD"); strings.TrimSpace(output) != commitSHA {
+				b.Fatalf("rev-parse HEAD = %q, want %q", output, commitSHA)
+			}
+		}
+	})
+	b.Run("copy-bound-attribution", func(b *testing.B) {
+		for b.Loop() {
+			observedCommit := gitCleanWorktreeCommitSHA(context.Background(), sourcePath)
+			if observedCommit != commitSHA ||
+				!managedCopyMatchesCommit(context.Background(), sourcePath, targetPath, observedCommit) {
+				b.Fatalf("copy-bound attribution failed for commit %q", observedCommit)
+			}
+		}
+	})
+	b.Run("prior-full-managed-copy", func(b *testing.B) {
+		fullTargetPath := filepath.Join(b.TempDir(), "managed")
+		for b.Loop() {
+			if err := copyRepositoryTree(context.Background(), sourcePath, fullTargetPath); err != nil {
+				b.Fatalf("copyRepositoryTree() error = %v", err)
+			}
+			if output := runGitBenchmark(b, sourcePath, "rev-parse", "HEAD"); strings.TrimSpace(output) != commitSHA {
+				b.Fatalf("rev-parse HEAD = %q, want %q", output, commitSHA)
+			}
+		}
+		b.ReportMetric(float64(fileCount), "files")
+		b.ReportMetric(float64(byteCount), "bytes")
+	})
+	b.Run("copy-bound-full-managed-copy", func(b *testing.B) {
+		fullTargetPath := filepath.Join(b.TempDir(), "managed")
+		for b.Loop() {
+			observedCommit := gitCleanWorktreeCommitSHA(context.Background(), sourcePath)
+			if observedCommit != commitSHA {
+				b.Fatalf("clean source commit = %q, want %q", observedCommit, commitSHA)
+			}
+			if err := copyRepositoryTree(context.Background(), sourcePath, fullTargetPath); err != nil {
+				b.Fatalf("copyRepositoryTree() error = %v", err)
+			}
+			if !managedCopyMatchesCommit(context.Background(), sourcePath, fullTargetPath, observedCommit) {
+				b.Fatalf("copy-bound attribution failed for commit %q", observedCommit)
+			}
+		}
+		b.ReportMetric(float64(fileCount), "files")
+		b.ReportMetric(float64(byteCount), "bytes")
+	})
+}
+
+func managedCopyBenchmarkTreeSize(root string) (int, int64, error) {
+	fileCount := 0
+	byteCount := int64(0)
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !entry.Type().IsRegular() {
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		fileCount++
+		byteCount += info.Size()
+		return nil
+	})
+	return fileCount, byteCount, err
 }
 
 func runGitBenchmark(b *testing.B, repoPath string, args ...string) string {
