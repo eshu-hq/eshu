@@ -59,12 +59,26 @@ var repositoryInfrastructureDescriptionPattern = regexp.MustCompile(
 // need a fifth hand-maintained family-to-type-prefix map -- it does not: the
 // family token is derived from the type name itself
 // (repositoryInfrastructureTypeFamily), with one documented alias
-// (K8s -> Kubernetes). The four prose copies this cannot reach --
+// (K8s -> Kubernetes). The three prose copies this cannot reach --
 // repository_infrastructure.go's doc comment,
 // docs/public/reference/http-api/repositories-ingesters-bundles.md, and
 // docs/public/reference/telemetry/graph-read-safety.md -- stay a known,
 // disclosed gap; grep them by hand when this list changes (#5764 round-9
 // P2-2 review follow-up).
+//
+// substring-match false-pass window (#5764 round-10 P3-1 review
+// follow-up): the check above proves a canonical type's family is present
+// in the description text, not that the description's own family word is
+// exactly that token -- a description reworded to a longer word sharing the
+// same prefix would still pass. Two canonical families are live instances:
+// "Argo" (from ArgoCDApplication) is a strict prefix of "ArgoCD", so a
+// future ArgoWorkflow type or a description that only ever said "Argo"
+// would pass without the "ArgoCD" text this list actually intends; "Cloud"
+// (from CloudFormationResource) is a strict prefix of "CloudFormation", so a
+// future CloudRunService type or a "CloudWatch"-only description passes the
+// same way. A wrong-family derivation or a genuinely missing alias still
+// fails loudly -- this window is narrower than that -- but it is real and
+// undetected by this test.
 func TestRepositoryInfrastructureOpenAPIDescriptionNamesEveryCanonicalFamily(t *testing.T) {
 	t.Parallel()
 

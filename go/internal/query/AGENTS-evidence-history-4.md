@@ -1,4 +1,4 @@
-# AGENTS.md evidence history, part 4 (issue #5764, round-6 and round-7 review follow-ups)
+# AGENTS.md evidence history, part 4 (issue #5764, rounds 6-9 review follow-ups)
 
 Part 4 of 4 of the dated, per-issue evidence and rationale entries for
 `go/internal/query`. Nothing was moved here: every entry below is new content
@@ -422,7 +422,7 @@ drift from what ships). Proven by reverting the description to the exact
 pre-round-8 text (missing Terragrunt): the test fails naming
 `TerragruntConfig` and `TerragruntDependency` (exit 1) -- the precise drift
 round-8 found and fixed. Restoring the current description passes (exit 0).
-The four prose copies this check cannot reach --
+The three prose copies this check cannot reach --
 `repository_infrastructure.go`'s doc comment,
 `docs/public/reference/http-api/repositories-ingesters-bundles.md`, and
 `docs/public/reference/telemetry/graph-read-safety.md` -- remain a disclosed,
