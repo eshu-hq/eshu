@@ -169,7 +169,13 @@ source_coverage:
           max_results: 201
   - file: images.go
     calls:
-      - {symbol: "(*ImageHandler).listImages", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - symbol: "(*ImageHandler).listImages"
+        count: 1
+        non_hot:
+          class: label_inventory
+          source_sha256: 9fc660f9781e465a29e7f6181520ee9d71bcc4b7225d535cfdc3b7d7c15fd229
+          label: ContainerImage
+          max_results: 201
   - file: tag_history.go
     calls:
       - symbol: "(*TagHistoryHandler).listTagHistory"

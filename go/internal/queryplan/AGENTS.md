@@ -26,6 +26,14 @@
   a typed `non_hot` class with a production source digest and applicable bounds.
   `non_hot_reason` remains source-digest-frozen legacy migration debt and must
   not be added or changed without converting the entry to the typed form.
+- Editing the production source of a symbol registered in
+  `grandfatheredNonHotSourceDigests` must convert that symbol's inventory entry
+  to the typed `non_hot` form in the same change. This covers a doc-comment-only
+  edit, which is deliberately stricter than the gate: the frozen digest starts at
+  the `func` keyword, so a doc comment change cannot trip it and no CI check
+  catches the omission. The doc comment above a grandfathered symbol is often
+  where its rationale lives, and rewriting that rationale while the gate stays
+  green is the case this rule exists to stop.
 - Keep production-builder binding and live `PROFILE` tests in `internal/query`,
   never in this package.
 

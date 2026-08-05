@@ -12,7 +12,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/searchbench"
 	"github.com/eshu-hq/eshu/go/internal/searchretrieval"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
@@ -60,21 +59,15 @@ func degradedCounterValue(t *testing.T, rm metricdata.ResourceMetrics, want map[
 	return total
 }
 
-// withDegradedCounterReader installs a process-global manual-reader meter provider
-// and resets the lazily registered counter so the test observes its own datapoints.
+// withDegradedCounterReader installs a process-global manual-reader meter
+// provider and resets the lazily registered counter so the test observes its
+// own datapoints. It is a thin wrapper around the shared
+// withPackageMetricReader (metric_reader_test.go); see that helper's doc
+// comment for why it also burns the OTel global delegate-once on a throwaway
+// provider before installing this test's own reader.
 func withDegradedCounterReader(t *testing.T) *sdkmetric.ManualReader {
 	t.Helper()
-	reader := sdkmetric.NewManualReader()
-	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
-	previous := otel.GetMeterProvider()
-	otel.SetMeterProvider(provider)
-	resetSemanticSearchInstrumentsForTest()
-	t.Cleanup(func() {
-		otel.SetMeterProvider(previous)
-		resetSemanticSearchInstrumentsForTest()
-		_ = provider.Shutdown(context.Background())
-	})
-	return reader
+	return withPackageMetricReader(t, resetSemanticSearchInstrumentsForTest)
 }
 
 func collectDegradedMetrics(t *testing.T, reader *sdkmetric.ManualReader) metricdata.ResourceMetrics {

@@ -46,7 +46,6 @@ var grandfatheredNonHotSourceDigests = map[string]string{
 	"entity.go:(*EntityHandler).getEntityContext":                                                         "c5e12ee00ff6abbea0a5de738666357e9d7cfb3ea3867564e5558b9c5735a4cd",
 	"entity_resolve_identity.go:hydrateResolvedEntityRepoIdentity":                                        "2206902b6a66fe8ae06861b53946f5af00e0cba135c238ad1cd86cf50aac0342",
 	"exposure_path.go:(*ImpactHandler).exposurePathCandidates":                                            "157383f76058132a7c74d0105bf806386cedd0a7eae975ddecd90f29ab28b243",
-	"images.go:(*ImageHandler).listImages":                                                                "3bb6308d9554b9a82952031469b4181bd905b1670a0a689fe46d1078ea7e77b8",
 	"impact.go:(*ImpactHandler).explainDependencyPath":                                                    "9e1c716c85201826375e56ed251ccd21ab4c787577cc2bf468727819f9e5aaaf",
 	"impact.go:(*ImpactHandler).traceResourceToCode":                                                      "a150facc957f33a712a2ebe6ad41e5eeb8c4736add3136777da3dbd8db0dacf0",
 	"impact_anchor_resolve.go:resolveImpactAnchorNode":                                                    "855e1f7f38dc0aa70ea08d4c84126d8e8c003f868f68ae6ab20621331b5c0bda",

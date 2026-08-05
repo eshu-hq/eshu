@@ -145,10 +145,29 @@ func (h *ImageHandler) listImages(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := h.Neo4j.Run(r.Context(), imageListCypher, params)
 	if err != nil {
-		// The graph-read-availability guard runs before the telemetry below:
 		// "query_error" would be the wrong outcome label for a bounded
-		// backend-unavailable/backend-timeout sentinel (see WriteGraphReadError).
+		// backend-unavailable/backend-timeout sentinel, so the guard runs
+		// before that telemetry. It still records under the existing
+		// "backend_unavailable" outcome the h.Neo4j == nil branch above uses,
+		// so a live graph outage or timeout keeps producing a handler-level
+		// datapoint instead of silently emitting none.
+		//
+		// WriteGraphReadError returns true for both ErrGraphUnavailable (503)
+		// and ErrGraphReadDeadline (504); this handler-level outcome label
+		// deliberately folds both into "backend_unavailable" rather than
+		// splitting out a "backend_timeout" outcome here, matching
+		// tag_history.go's identical WriteGraphReadError guard.
+		// eshu_dp_neo4j_query_duration_seconds{outcome="deadline"} vs.
+		// {outcome="unavailable"} (recordGraphReadTelemetry in
+		// neo4j_read_policy.go) records that same outage/deadline split on
+		// every bounded graph read, process-wide, but carries no route
+		// dimension, so it cannot attribute a given outage or deadline to
+		// this route. Per-request attribution for this route lives on the
+		// "neo4j.query" span's telemetry.SpanAttrGraphReadOutcome attribute
+		// instead.
 		if WriteGraphReadError(w, r, err, imageListCapability) {
+			recordImageListError(r.Context(), "backend_unavailable")
+			recordImageListDuration(r.Context(), start, "backend_unavailable")
 			return
 		}
 		recordImageListError(r.Context(), "query_error")
