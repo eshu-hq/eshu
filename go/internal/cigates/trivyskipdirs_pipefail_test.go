@@ -22,19 +22,39 @@ import "testing"
 // more untested guards round-8 review found: the '\n' stop in the negated
 // class, and the mandatory whitespace immediately before the '-'-prefixed
 // flag cluster. The four cases tagged "round-9 mutation kill" close it for
-// the remaining four: dropping '&' or '|' from the negated class each let an
+// four more: dropping '&' or '|' from the negated class each let an
 // `-o`-shaped cluster in an unrelated command sharing the same `set`-prefixed
 // line reach "pipefail" (fail-open, the same direction as the round-7/8
 // cases above); dropping the second `[a-zA-Z]*` or the whole negated-class
 // run each reject a legitimate invocation instead (fail-closed, the opposite
 // direction -- `set -oe pipefail` and `set -e -o pipefail` both genuinely set
-// pipefail). Every one of these thirteen cases is a regex mutant proven,
-// this session for the round-9 four and in the review round that added them
-// for the rest, to flip trivyPipefailRE's verdict on its own named input when
-// the named element is removed from trivyskipdirs.go's `trivyPipefailRE`;
-// each has a true sibling already in this matrix (named in its own comment,
-// or already present as its own row) proving the same mutation does not
-// touch the legitimate forms it must still accept.
+// pipefail). The one case tagged "round-10 mutation kill" closes the last
+// one an independent element-by-element sweep found: dropping the '(?m)'
+// flag makes production code fail closed on the real repo (proven directly
+// against trivyskipdirs_test.go/trivyskipdirs_ci_test.go/
+// trivyskipdirs_helper_test.go, which each read a real multi-line script or
+// workflow), but every OTHER case in this matrix is a single physical line,
+// so nothing in this matrix itself had noticed '(?m)' going missing until
+// this row. It is the matrix's only killer of '(?m)', but -- because
+// proving multi-line matching needs a genuine second-line invocation, and a
+// genuine invocation needs every other required element too -- it also
+// co-kills several mutations that already had a dedicated killer before this
+// row existed (the literal "set", the '-', the first `[a-zA-Z]*`, the
+// `[ \t]+` before "pipefail", and the indent/negated-class/first-`[a-zA-Z]*`
+// quantifier tightenings). That overlap is expected, not a defect: it never
+// gives an element ITS FIRST killer, only an additional one alongside a
+// pre-existing named row, the same shape round-7's '#' and ';&|' fixes
+// already have (each already reds both a matrix row and an end-to-end
+// fixture in trivyskipdirs_localscript_test.go). Every one of these eighteen
+// cases is a regex mutant proven,
+// this session for the round-9 and round-10 additions and in the review
+// round that added them for the rest, to flip trivyPipefailRE's verdict on
+// its own named input when the named element is removed from
+// trivyskipdirs.go's `trivyPipefailRE`; each has a true sibling already in
+// this matrix (named in its own comment, or already present as its own row)
+// proving the same mutation does not touch the legitimate forms it must
+// still accept. Every element of the regex now has a killing row in this
+// matrix.
 //
 // package cigates (not cigates_test) so this test can reference the
 // unexported trivyPipefailRE directly, the same internal-test-package
@@ -174,6 +194,17 @@ func TestTrivyPipefailRE_AcceptanceMatrix(t *testing.T) {
 		// `set -e -o pipefail` sets pipefail, and no true case above has two
 		// separate flag clusters.
 		{"two_flag_clusters", "set -e -o pipefail", true},
+
+		// round-10 mutation kill: dropping the '(?m)' flag makes '^' anchor
+		// only the start of the WHOLE input instead of the start of every
+		// line, so a real `set -euo pipefail` on any line after the first
+		// stops matching. Every other case in this matrix is a single
+		// physical line, so none of them notices '(?m)' going missing --
+		// this is the one case built to depend on matching past the first
+		// line. Must match -- a script's `set -euo pipefail` is ordinarily
+		// preceded by a shebang line, the same shape checkScriptInvokesHelper
+		// reads from a real file, not a bare one-line string.
+		{"pipefail_on_later_line", "#!/bin/bash\nset -euo pipefail", true},
 	}
 	for _, c := range cases {
 		c := c
