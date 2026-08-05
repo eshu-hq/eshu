@@ -59,9 +59,11 @@ run locally prints why and names the CI gate that remains authoritative.
 
 For a diff that is provably documentation/specs-only, `make pre-pr` skips the
 whole-module `go build`, `go vet`, `gofumpt`, `golangci-lint`, the
-changed-package `go test` lane, and the race lane (#5721). It classifies FULL
-whenever the changed-path list itself cannot be trusted — an unresolved
-`origin/main`, or any `git diff` that exited non-zero. See
+changed-package `go test` lane, and the race lane (#5721). The lane's own path
+list includes untracked files, so a forgotten `git add` on a new `.go` file
+forces FULL rather than riding a skipped build. It also classifies FULL when the
+list itself cannot be trusted — an unresolved `origin/main`, any `git` command
+that exited non-zero, or a run that could not have recorded such a failure. See
 [Pre-PR Documentation Fast Path](local-testing/pre-pr-docs-fastpath.md) for
 the classifier's exact allowlist, both fail-closed rules, what still runs on
 the fast path, and how it relates to CI's own docs-only skip definition.

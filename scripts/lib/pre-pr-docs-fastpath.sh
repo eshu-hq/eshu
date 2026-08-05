@@ -97,12 +97,17 @@ pre_pr_resolve_lane_base() {
 #     the embedded catalog/surface-inventory data capability-inventory
 #     verifies. Its CONTENT is go:embed'd as raw bytes and never parsed at
 #     compile time, so editing it cannot break `go build`. Deleting or
-#     renaming it can and does: the embed directives at
-#     go/internal/capabilitycatalog/load.go and surfaces_load.go name the file
-#     by pattern, and a missing file fails the build with "pattern ...: no
-#     matching files found". `git diff --name-only` prints a deleted path
-#     exactly like a modified one, so the existence check below is the only
-#     thing that tells them apart.
+#     renaming it can and does. Two directives embed two files by their
+#     literal names, with no wildcard in either:
+#     go/internal/capabilitycatalog/load.go embeds data/catalog.generated.json
+#     and surfaces_load.go embeds data/surface-inventory.generated.json.
+#     Removing either fails the build with "pattern ...: no matching files
+#     found" -- go:embed calls a literal name a pattern in its error text.
+#     `git diff --name-only` prints a deleted path exactly like a modified one,
+#     so the existence check below is the only thing that tells them apart. The
+#     allowlist is wider than the two embedded names on purpose: a third
+#     *.generated.json in that directory is data nobody embeds yet, and
+#     treating it the same way costs nothing.
 #
 # Everything else defaults to full, including every other specs/*.yaml (most
 # feed codegen or a fact-kind/contract build), every go/**/*.go file

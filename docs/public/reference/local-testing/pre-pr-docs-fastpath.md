@@ -8,11 +8,16 @@ lanes (#5721):
 - the changed-package `go test` lane
 - the race lane
 
-Those four are the long part of a `make pre-pr` run, and on a docs diff they
-have nothing to inspect. Skipping them also avoids the failure mode where they
-fail on unrelated packages hitting per-test timeouts under concurrent-worktree
-CPU load — a red gate with nothing to do with the diff, which had been forcing a
-manual override on otherwise-clean docs PRs.
+Those four are the long part of a `make pre-pr` run, and on a diff the
+classifier can prove is documentation-only they have nothing to inspect.
+Skipping them also avoids the failure mode where they fail on unrelated packages
+hitting per-test timeouts under concurrent-worktree CPU load — a red gate with
+nothing to do with the diff, which had been forcing a manual override on
+otherwise-clean docs PRs.
+
+"Nothing to inspect" is a claim about the whole working tree, not just the
+committed diff, which is why untracked files are collected too — see
+[Untracked files count](#untracked-files-count).
 
 Everything else in `make pre-pr` still runs. The fast path changes which lanes
 run, not whether the gate blocks.
@@ -23,7 +28,10 @@ The allowlist and the base resolver live in
 `scripts/lib/pre-pr-docs-fastpath.sh`, table-tested by
 `scripts/lib/test-pre-pr-docs-fastpath.sh`. The wiring between them and the gate
 — reading the changed paths, deciding whether that list can be believed,
-printing the banner — lives in `scripts/lib/pre-pr-lane.sh`.
+printing the banner — lives in `scripts/lib/pre-pr-lane.sh`, table-tested by
+`scripts/lib/test-pre-pr-lane.sh`. Both severe defects this fast path has had so
+far were in the wiring, not the allowlist, so the two suites are not
+interchangeable.
 
 The classifier fails closed twice over, because the allowlist and the input it is
 fed can each be wrong on their own.
@@ -54,17 +62,32 @@ Three rules narrow the allowlist further:
   keeps it that way without relying on nobody ever adding one.
 - **An allowlisted path that no longer exists takes the FULL lane.** `git diff
   --name-only` prints a deleted path exactly like a modified one. That matters
-  most for the generated catalog JSON: `go/internal/capabilitycatalog/load.go`
-  and `surfaces_load.go` `go:embed` it by pattern, so editing its content cannot
-  break `go build` but deleting or renaming it fails the build with
-  `pattern …: no matching files found`.
+  most for the generated catalog JSON. Two `go:embed` directives name two files
+  by their literal names, no wildcard in either —
+  `go/internal/capabilitycatalog/load.go` embeds `data/catalog.generated.json`
+  and `surfaces_load.go` embeds `data/surface-inventory.generated.json`. Editing
+  the content of either cannot break `go build`; removing one fails the build
+  with `pattern …: no matching files found`, because `go:embed` calls a literal
+  name a pattern in its error text. The allowlist is wider than those two names
+  on purpose: a third `*.generated.json` in that directory is data nothing
+  embeds yet.
 - **An empty path argument is treated as unsafe**, not skipped.
 
 ### The input has to be trustworthy first
 
 Every allowlist guarantee is conditional on `make pre-pr` handing over the real
-changed-path set. Two conditions are checked before the allowlist is consulted at
-all, and either one forces FULL:
+changed-path set. Three conditions are checked before the allowlist is consulted
+at all, and any one of them forces FULL:
+
+- **The run must be able to record a failure.** Each path collector runs inside
+  a command substitution, so it cannot set a variable the parent shell will see;
+  it writes a marker file in a per-run temp directory instead. `pre-pr.sh`
+  creates that directory, writes a probe file and reads it back before any
+  collector runs, and probes it again afterwards. If either probe fails the lane
+  is FULL, whatever the collectors reported. A full disk is the case this is
+  built for: it makes `git diff` fail *and* makes the record of that failure
+  unwritable, so the marker would read "no failures" for the same reason a clean
+  run does.
 
 - **The base must be a resolved `origin/main` that shares a merge base with
   HEAD.** When `origin/main` does not resolve, `pre-pr.sh` falls back to
@@ -83,14 +106,44 @@ all, and either one forces FULL:
 the changed paths that triggered it or the reason the path list could not be
 believed.
 
+### Untracked files count
+
+The list the lane decision reads is built from four commands: `git diff` against
+the base, against `HEAD`, and against the index, plus
+`git ls-files --others --exclude-standard`.
+
+The first three cover committed, unstaged-tracked, and staged paths. None of
+them sees a file that was never `git add`ed. That gap was harmless while
+`go build ./...` ran on every `make pre-pr`, because the build compiles an
+untracked `.go` file like any other — and it stopped being harmless the moment a
+lane could skip the build. Without the fourth command, someone who writes a new
+package, forgets `git add`, and has an otherwise docs-only diff gets a green
+FAST stamp on a tree that does not compile.
+
+So untracked paths join that list, and the allowlist judges them like any other
+path: an untracked `.go` file is not fast-path-safe, so it forces FULL.
+`--exclude-standard` honours `.gitignore`, so build caches and editor droppings
+stay out of it. Ignored files stay invisible — that is what ignoring them means.
+
+The fourth command feeds the lane decision **only**. Every other gate keeps
+reasoning about tracked content: the pre-pr stamp gates a push, an untracked
+file is not being pushed, and CI will never see it. The file cap, the
+package-docs gate, the focused `go test` selection, and the path-triggered live
+lane are unchanged.
+
 ### The classifier checks itself before it is trusted
 
-`make pre-pr` runs `scripts/lib/test-pre-pr-docs-fastpath.sh` on every run,
-before it classifies. Nothing downstream re-checks a FAST verdict — the per-SHA
-stamp is written and `scripts/dev/prepr-stamp-verify.sh` lets the push through —
-so the table suite is the only thing watching this decision. It is hermetic (no
-Go toolchain, no network) and takes about a second. A failing self-check fails
-the run and forces the FULL lane.
+`make pre-pr` runs both suites on every run, before it classifies:
+`scripts/lib/test-pre-pr-docs-fastpath.sh` for the allowlist and the base
+resolver, `scripts/lib/test-pre-pr-lane.sh` for the wiring — the state channel,
+the git wrappers, the status precedence, and the whole decision end to end.
+
+Nothing downstream re-checks a FAST verdict: the per-SHA stamp is written and
+`scripts/dev/prepr-stamp-verify.sh` lets the push through on it. Those two
+suites are the only thing watching this decision. Both are hermetic (no Go
+toolchain, no network); measured on a loaded 18-core dev box they cost about
+1.1 s and 2.3 s respectively. A failing self-check fails the run and forces the
+FULL lane.
 
 ## What still runs on the fast path
 
@@ -145,12 +198,14 @@ lane banner when any fast-path path is under `go/`.
 
 The two definitions **overlap; neither contains the other.** CI's docs-only PR
 skip, described under
-[CI workflow shape](../local-testing.md#ci-workflow-shape), covers `docs/**`, a
-root-level `*.md`, `mkdocs.yml`, and `.agents/**`. This local classifier:
+[CI workflow shape](../local-testing.md#ci-workflow-shape), is the `code` filter
+in `.github/workflows/test.yml`. It negates `docs/**`, a root-level `*.md`,
+`mkdocs.yml`, `.github/**/*.md`, and `.agents/**`. This local classifier:
 
 - **adds** `specs/capability-matrix.v1.yaml`, `specs/capability-matrix/**`, and
   `go/internal/capabilitycatalog/data/*.generated.json`
-- **omits** `.agents/**`, and a root-level `mkdocs.yml` — this repo keeps its
+- **omits** `.agents/**`, `.github/**/*.md` — anything under `.github/` takes
+  the FULL lane here — and a root-level `mkdocs.yml`, since this repo keeps its
   nav file at `docs/mkdocs.yml`, which `docs/**` already covers
 
 They serve different gates with different blast radii, so they are allowed to

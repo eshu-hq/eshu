@@ -46,18 +46,24 @@ pre_pr_resolve_lane_base "${repo_root}"
 base="${PRE_PR_FASTPATH_BASE}"
 
 # Cross-subshell state for this run; see pre_pr_git_state_init in
-# scripts/lib/pre-pr-lane.sh for why the diff-failure marker is a file.
+# scripts/lib/pre-pr-lane.sh for why the failure marker is a file and why the
+# directory is probed rather than assumed.
 pre_pr_git_state_init
-# shellcheck disable=SC2154  # pre_pr_state_dir is set by pre_pr_git_state_init.
-trap 'rm -rf "${pre_pr_state_dir}"' EXIT
+# shellcheck disable=SC2154  # pre_pr_state_dir is set by the sourced library.
+trap '[[ -n "${pre_pr_state_dir}" ]] && rm -rf "${pre_pr_state_dir}"' EXIT
 
-# changed_go_files: committed (vs base) + staged + unstaged Go files under go/.
+# collect_changed_paths: committed (vs base) + unstaged + staged paths. One
+# implementation, because the previous two copies of the same git plumbing meant
+# a fix to one silently left the other swallowing exit codes.
+collect_changed_paths() {
+	git_changed_names "${base}...HEAD"
+	git_changed_names HEAD
+	git_changed_names --cached
+}
+
+# changed_go_files: the Go files under go/ among those paths.
 changed_go_files() {
-	{
-		git_changed_names "${base}...HEAD"
-		git_changed_names HEAD
-		git_changed_names --cached
-	} | sort -u | rg '^go/.*\.go$' || true
+	collect_changed_paths | sort -u | rg '^go/.*\.go$' || true
 }
 
 # changed_go_dirs: ./-relative package dirs (under go/) for the changed files.
@@ -75,13 +81,22 @@ changed_go_dirs() {
 	done
 }
 
-# changed_all_files: every changed path (committed vs base + staged + unstaged),
-# not just Go files. Used to map non-Go fixtures to their consumer packages.
+# changed_all_files: every changed path, not just Go files. Used to map non-Go
+# fixtures to their consumer packages and to decide the lane.
 changed_all_files() {
+	collect_changed_paths | sort -u
+}
+
+# lane_input_paths: what the LANE decision looks at — everything above, plus
+# untracked-but-not-ignored files. Only the lane reads them; every other gate
+# mirrors what a push sends to CI, which an untracked file is not. The lane is
+# the exception because the FULL lane's `go build ./...` compiles untracked
+# files and the FAST lane skips that build. See the "Untracked files count"
+# section of docs/public/reference/local-testing/pre-pr-docs-fastpath.md.
+lane_input_paths() {
 	{
-		git_changed_names "${base}...HEAD"
-		git_changed_names HEAD
-		git_changed_names --cached
+		collect_changed_paths
+		git_untracked_names
 	} | sort -u
 }
 
@@ -390,37 +405,24 @@ step_live() {
 # rules and the failure classes they guard against are documented there and in
 # docs/public/reference/local-testing/pre-pr-docs-fastpath.md.
 #
+# The decision itself is pre_pr_decide_lane, in the lane library, so a test can
+# drive it: it runs the self-check, collects the paths, re-probes the state
+# channel, reads the failure marker, and classifies -- in that order, because
+# every other order can produce a FAST verdict on a run that failed to look.
+#
 # A failing self-check fails this run AND forces the FULL lane: a classifier
 # that cannot pass its own table has not earned the right to skip anything.
-pre_pr_selfcheck_ok=1
-if pre_pr_run_classifier_selfcheck "${repo_root}"; then
-	results+=("PASS  docs fast-path classifier self-check")
+pre_pr_decide_lane "${repo_root}" "${base}" "${PRE_PR_FASTPATH_BASE_STATUS}" lane_input_paths
+if [[ "${PRE_PR_LANE_SELFCHECK_OK}" == "1" ]]; then
+	results+=("PASS  docs fast-path classifier self-check (${PRE_PR_LANE_SELFCHECK_SECONDS}s)")
 else
-	results+=("FAIL  docs fast-path classifier self-check")
+	results+=("FAIL  docs fast-path classifier self-check (${PRE_PR_LANE_SELFCHECK_SECONDS}s)")
 	overall=1
-	pre_pr_selfcheck_ok=0
 fi
 
-pre_pr_changed_paths=()
-while IFS= read -r pre_pr_p; do
-	# Drop blank lines here so a trailing newline never becomes an array
-	# element. The classifier also rejects an empty path, but fail-closed
-	# (empty => FULL); filtering here keeps a normal run from taking the FULL
-	# lane over a blank line, and keeps the array count honest.
-	[[ -n "${pre_pr_p}" ]] && pre_pr_changed_paths+=("${pre_pr_p}")
-done < <(changed_all_files)
-
-pre_pr_diff_failed=0
-# shellcheck disable=SC2154  # set by pre_pr_git_state_init.
-[[ -e "${pre_pr_diff_fail_marker}" ]] && pre_pr_diff_failed=1
-pre_pr_paths_status="$(pre_pr_lane_paths_status \
-	"${PRE_PR_FASTPATH_BASE_STATUS}" "${base}" "${pre_pr_diff_failed}" "${pre_pr_selfcheck_ok}")"
-
-if [[ ${#pre_pr_changed_paths[@]} -gt 0 ]]; then
-	pre_pr_classify_docs_fastpath "${pre_pr_paths_status}" "${pre_pr_changed_paths[@]}"
-	pre_pr_print_lane_banner "${base}" "${pre_pr_changed_paths[@]}"
+if [[ ${#PRE_PR_LANE_CHANGED_PATHS[@]} -gt 0 ]]; then
+	pre_pr_print_lane_banner "${base}" "${PRE_PR_LANE_CHANGED_PATHS[@]}"
 else
-	pre_pr_classify_docs_fastpath "${pre_pr_paths_status}"
 	pre_pr_print_lane_banner "${base}"
 fi
 
