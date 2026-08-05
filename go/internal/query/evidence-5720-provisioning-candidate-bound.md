@@ -217,8 +217,17 @@ passed the entire suite. That one line discards the hostname cap, the
 `trimmedHostnames` cut, the per-search cap, and the final merge cap -- exactly
 the sources round 7 had just added. Nothing caught it because
 `deployment_trace_truncation_disclosure_test.go` asserts those sources only
-against the helper (seven call sites, none through the enrichment or a handler),
-and the wiring cases in `service_query_truncation_wiring_test.go` seeded a
+against the helper -- seven call sites, none through the enrichment or a
+handler: `rg -c ':= loadConsumerRepositoryEnrichmentFromCandidates\(' internal/query/deployment_trace_truncation_disclosure_test.go`
+(run from `go/`) returns 7. A bare `rg -c loadConsumerRepositoryEnrichmentFromCandidates`
+on the same file returns 15: the same 7 call sites, plus the 7
+`t.Fatalf("loadConsumerRepositoryEnrichmentFromCandidates() error = ...")`
+messages naming the function, plus the doc comment introducing it at line 175
+("proves loadConsumerRepositoryEnrichmentFromCandidates..."). A reader who
+greps bare and lands on 15 should reconcile against this paragraph, not
+recount by hand.
+
+The wiring cases in `service_query_truncation_wiring_test.go` seeded a
 workload with no hostnames, so `consumersTruncated` and `candidatesTruncated`
 were equal in every scenario they exercised.
 `TestTraceDeploymentChainDistinguishesConsumerTruncationFromCandidateTruncation`

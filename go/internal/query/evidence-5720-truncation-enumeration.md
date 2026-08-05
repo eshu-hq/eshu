@@ -148,13 +148,25 @@ accessors moved there.
 
 Adding no file did not keep the coverage doc valid, and an earlier revision of
 this paragraph claimed it did. A file reaches the coverage profile only once it
-holds executable statements, so a move that changes an existing file's function
-count moves the number as surely as adding a file does.
+holds executable statements, so a move that takes an existing file's function
+count from zero to non-zero moves `included_files` as surely as adding a file
+does. A move between two files that both already hold functions changes both
+files' statement counts but moves `included_files` by exactly zero, because
+`generate-code-coverage-report.sh`'s own selection rule keys each file into
+`included_files` on "at least one profile block with statements > 0," and
+neither file crosses that zero/non-zero boundary. Verified against the real
+generator on a synthetic before/after profile: two files with two functions
+each, one function moved from the first to the second, `included_files` reads
+2 in both the before and the after report.
 `service_evidence_types.go` held type declarations and zero functions on `main`
 and was absent from the profile; the six functions moved into it put it in.
 Together with `deployment_trace_story_facts.go`, the one genuinely new non-test
 file, the count went from 4817 on `main` to 4819 -- two above, from one added
-file. The report was regenerated rather than derived (commit `7717cc2ba3`),
+file. The report was regenerated rather than derived, via
+`scripts/generate-code-coverage-report.sh` (not a commit SHA -- eshu
+squash-merges per `docs/internal/agent-guide.md`, so a commit citation here
+would be orphaned from `main` the moment this lands, the same broken-reference
+class as `c5fb1de4e8` in `docs/internal/evidence/5299-service-story-identity.md`),
 because the coverage check reports "skipping" rather than failing and a stale
 count therefore merges silently.
 
