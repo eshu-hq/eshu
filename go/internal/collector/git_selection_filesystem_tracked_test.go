@@ -84,7 +84,7 @@ func TestNativeRepositorySelectorSelectRepositoriesFilesystemStillSkipsEshuIgnor
 	writeSelectionTestFile(t, filepath.Join(sourceRepo, "main.go"), "package main\n")
 	writeSelectionTestFile(t, filepath.Join(sourceRepo, ".eshuignore"), "*.tfstate\n")
 	writeSelectionTestFile(t, filepath.Join(sourceRepo, "terraform.tfstate"), "{}")
-	runGit(t, sourceRepo, "add", "main.go")
+	runGit(t, sourceRepo, "add", "main.go", ".eshuignore")
 	runGit(t, sourceRepo, "add", "-f", "terraform.tfstate")
 	runGit(t, sourceRepo, "commit", "-m", "initial")
 
@@ -100,8 +100,16 @@ func TestNativeRepositorySelectorSelectRepositoriesFilesystemStillSkipsEshuIgnor
 		},
 	}
 
-	if _, err := selector.SelectRepositories(context.Background()); err != nil {
+	selected, err := selector.SelectRepositories(context.Background())
+	if err != nil {
 		t.Fatalf("SelectRepositories() error = %v, want nil", err)
+	}
+	if len(selected.Repositories) != 1 {
+		t.Fatalf("len(Repositories) = %d, want 1", len(selected.Repositories))
+	}
+	wantCommit := runGit(t, sourceRepo, "rev-parse", "HEAD")
+	if got := selected.Repositories[0].SourceCommitSHA; got != wantCommit {
+		t.Fatalf("SourceCommitSHA = %q, want clean source commit %q", got, wantCommit)
 	}
 
 	copiedRoot := filepath.Join(reposDir, "eshu-hq", "service-b")
