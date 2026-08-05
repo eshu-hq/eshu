@@ -282,6 +282,11 @@ const openAPIPathsRepositories = `
                       "type": "object",
                       "description": "Per-source_tool outgoing relationship-edge counts for this repository. Omitted when no edges carry a source_tool property. Keys are canonical source_tool tokens (e.g. terraform, helm, ansible); values are integer edge counts.",
                       "additionalProperties": {"type": "integer"}
+                    },
+                    "partial_reasons": {
+                      "type": "array",
+                      "description": "Explicit reasons the response is partial, e.g. infrastructure_read_degraded when the auxiliary infrastructure graph read failed but the rest of the context still answers 200, or infrastructure_truncated when a healthy infrastructure read landed past its bound; always present so the envelope shape is stable.",
+                      "items": {"type": "string"}
                     }
                   }
                 }
@@ -324,7 +329,12 @@ const openAPIPathsRepositories = `
                     "documentation_overview": {"type": "object"},
                     "support_overview": {"type": "object"},
                     "coverage_summary": {"type": "object"},
-                    "limitations": {"type": "array", "items": {"type": "string"}},
+                    "limitations": {
+                      "type": "array",
+                      "description": "Explicit reasons the story is partial, e.g. infrastructure_read_degraded when the auxiliary infrastructure graph read failed, infrastructure_truncated when a healthy infrastructure read landed past its bound, or story_rows_truncated when the workload/platform/language narrative rows landed past their bound; always present so the envelope shape is stable.",
+                      "items": {"type": "string"}
+                    },
+                    "truncated": {"type": "boolean", "description": "True when the workload/platform/language narrative rows landed past repositoryStoryStringRowLimit and were capped; always present so the envelope shape is stable."},
                     "drilldowns": {"type": "object"},
                     "answer_metadata": {"type": "object", "description": "Normalized additive answer metadata with schema_version, evidence_handles, missing_evidence, limitations, truncated, coverage, partial_reasons, and recommended_next_calls."},
                     "evidence_boundaries": ` + openAPIEvidenceBoundariesSchema + `

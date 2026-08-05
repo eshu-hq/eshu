@@ -10,16 +10,25 @@ import (
 
 const repositoryInfrastructureEntityLimit = 5000
 
+// queryRepoInfrastructureRows prefers the content read model and falls back to
+// a graph read. A graph-read error is returned to the caller rather than
+// swallowed: infrastructure is a genuine auxiliary panel (#5764), so callers
+// keep answering 200 on this error, but they attribute the degradation
+// instead of silently returning an empty list indistinguishable from "no
+// infrastructure detected". The returned bool reports whether the GRAPH read
+// hit its LIMIT bound (P2-2 follow-up); the content path's own silent
+// truncation at the same constant is pre-existing, already-shipped behavior
+// and is not signaled here.
 func queryRepoInfrastructureRows(
 	ctx context.Context,
 	reader GraphQuery,
 	content ContentStore,
 	params map[string]any,
-) []map[string]any {
+) ([]map[string]any, bool, error) {
 	repoID := StringVal(params, "repo_id")
 	if content != nil && repoID != "" {
 		if rows := queryRepoInfrastructureFromContent(ctx, content, repoID); len(rows) > 0 {
-			return rows
+			return rows, false, nil
 		}
 	}
 
@@ -66,11 +75,37 @@ func queryRepoInfrastructureFromContent(ctx context.Context, content ContentStor
 	return result
 }
 
-func queryRepoInfrastructureFromGraph(ctx context.Context, reader GraphQuery, params map[string]any) []map[string]any {
+// queryRepoInfrastructureFromGraph returns an error rather than silently
+// returning an empty result when the graph read itself fails (#5764) -- the
+// prior `err != nil || len(rows) == 0` swallow made a deadlined/unavailable
+// read indistinguishable from a repository that genuinely has no
+// infrastructure. Callers attribute this error (limitations / stage-log
+// failure_class) and still answer 200, because infrastructure is a genuine
+// auxiliary panel and this OR-heavy label scan is the read most likely to hit
+// the graph-read deadline. The read is bounded at
+// repositoryInfrastructureEntityLimit (5000): the preferred content path in
+// this same file already truncates silently at this exact constant
+// (queryRepoInfrastructureFromContent's ListRepoEntities call above), so
+// capping the graph fallback here is parity with already-shipped behavior in
+// terms of the bound's existence -- but unlike that pre-existing content-path
+// truncation, a graph read that lands past the bound (more rows exist beyond
+// it) is disclosed. The
+// read requests repositoryInfrastructureEntityLimit+1 rows (P3 review
+// follow-up, matching repository_deployment_evidence.go's
+// queryRepoDeploymentEvidenceDirection idiom) so the returned bool reports
+// EXACT truncation (len(rows) > limit) instead of the ambiguous
+// len(rows) == limit check, which cannot distinguish "exactly limit entities
+// exist" from "more entities exist past the bound." Rows past the limit are
+// capped in Go before the response is built, so a caller can distinguish
+// "every infrastructure entity is present" from "there may be more past the
+// bound" instead of the two looking identical (P2-2 follow-up).
+func queryRepoInfrastructureFromGraph(ctx context.Context, reader GraphQuery, params map[string]any) ([]map[string]any, bool, error) {
 	// infra:K8sResource also covers Crossplane Claims: a Claim is edge-only
 	// (issue #5347) and stays a K8sResource node, so a separate
 	// infra:CrossplaneClaim predicate would always match zero rows and is
 	// intentionally absent (issue #5478).
+	queryParams := copyMap(params)
+	queryParams["limit"] = repositoryInfrastructureEntityLimit + 1
 	rows, err := reader.Run(ctx, `
 		MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(infra)
 		WHERE infra:K8sResource OR infra:TerraformResource OR infra:TerraformModule
@@ -94,9 +129,17 @@ func queryRepoInfrastructureFromGraph(ctx context.Context, reader GraphQuery, pa
 		       infra.resource_category AS resource_category,
 		       f.relative_path AS file_path
 		ORDER BY type, name
-	`, params)
-	if err != nil || len(rows) == 0 {
-		return make([]map[string]any, 0)
+		LIMIT $limit
+	`, queryParams)
+	if err != nil {
+		return nil, false, err
+	}
+	truncated := len(rows) > repositoryInfrastructureEntityLimit
+	if truncated {
+		rows = rows[:repositoryInfrastructureEntityLimit]
+	}
+	if len(rows) == 0 {
+		return make([]map[string]any, 0), truncated, nil
 	}
 
 	result := make([]map[string]any, 0, len(rows))
@@ -107,7 +150,7 @@ func queryRepoInfrastructureFromGraph(ctx context.Context, reader GraphQuery, pa
 		}
 		result = append(result, entry)
 	}
-	return result
+	return result, truncated, nil
 }
 
 func repositoryInfrastructureEntryFromRow(row map[string]any) map[string]any {

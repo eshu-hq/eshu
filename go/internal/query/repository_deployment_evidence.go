@@ -127,7 +127,7 @@ func queryRepoDeploymentEvidence(ctx context.Context, reader GraphQuery, content
 		return readModel, nil
 	}
 
-	outgoing, outgoingTruncated := queryRepoDeploymentEvidenceDirection(ctx, reader, params, `
+	outgoing, outgoingTruncated, err := queryRepoDeploymentEvidenceDirection(ctx, reader, params, `
 		MATCH (r:Repository {id: $repo_id})-[source_rel:HAS_DEPLOYMENT_EVIDENCE]->(artifact:EvidenceArtifact)-[:EVIDENCES_REPOSITORY_RELATIONSHIP]->(target:Repository)
 		RETURN 'outgoing' AS direction,
 		       artifact.id AS artifact_id,
@@ -161,7 +161,10 @@ func queryRepoDeploymentEvidence(ctx context.Context, reader GraphQuery, content
 		       target.scope_id AS target_repo_scope_id
 		ORDER BY path, artifact_id
 	`)
-	incoming, incomingTruncated := queryRepoDeploymentEvidenceDirection(ctx, reader, params, `
+	if err != nil {
+		return nil, err
+	}
+	incoming, incomingTruncated, err := queryRepoDeploymentEvidenceDirection(ctx, reader, params, `
 		MATCH (artifact:EvidenceArtifact)-[:EVIDENCES_REPOSITORY_RELATIONSHIP]->(r:Repository {id: $repo_id})
 		WITH artifact, r
 		MATCH (source:Repository)-[:HAS_DEPLOYMENT_EVIDENCE]->(artifact)
@@ -197,6 +200,9 @@ func queryRepoDeploymentEvidence(ctx context.Context, reader GraphQuery, content
 		       r.scope_id AS target_repo_scope_id
 		ORDER BY path, artifact_id
 	`)
+	if err != nil {
+		return nil, err
+	}
 	rows := append(outgoing, incoming...)
 	if len(rows) == 0 {
 		return nil, nil
@@ -214,17 +220,27 @@ func queryRepoDeploymentEvidence(ctx context.Context, reader GraphQuery, content
 	return result, nil
 }
 
-func queryRepoDeploymentEvidenceDirection(ctx context.Context, reader GraphQuery, params map[string]any, cypher string) ([]map[string]any, bool) {
+// queryRepoDeploymentEvidenceDirection returns the artifact rows for one
+// direction (outgoing/incoming) of the deployment-evidence read, along with
+// whether the limit truncated the result. A non-nil err from the read --
+// including the bounded ErrGraphReadDeadline / ErrGraphUnavailable sentinels
+// -- is returned to the caller rather than being folded into the "no rows"
+// path (#5764): before this fix a deadlined or unavailable graph read was
+// silently indistinguishable from "no deployment evidence exists".
+func queryRepoDeploymentEvidenceDirection(ctx context.Context, reader GraphQuery, params map[string]any, cypher string) ([]map[string]any, bool, error) {
 	queryParams := copyMap(params)
 	queryParams["limit"] = repositoryDeploymentEvidenceArtifactLimit + 1
 	rows, err := reader.Run(ctx, cypher+"\n\t\tLIMIT $limit", queryParams)
-	if err != nil || len(rows) == 0 {
-		return nil, false
+	if err != nil {
+		return nil, false, err
+	}
+	if len(rows) == 0 {
+		return nil, false, nil
 	}
 	if len(rows) > repositoryDeploymentEvidenceArtifactLimit {
-		return rows[:repositoryDeploymentEvidenceArtifactLimit], true
+		return rows[:repositoryDeploymentEvidenceArtifactLimit], true, nil
 	}
-	return rows, false
+	return rows, false, nil
 }
 
 // buildGraphDeploymentEvidence converts EvidenceArtifact graph rows into the

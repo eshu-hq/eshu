@@ -25,6 +25,8 @@ func TestAnswerMetadataAttachedToStoryAndInvestigationResponses(t *testing.T) {
 			"truncated": true,
 			"reason":    "semantic overview is still building",
 		},
+		nil,
+		false,
 	)
 	assertAnswerMetadata(t, "repository story", repositoryStory)
 

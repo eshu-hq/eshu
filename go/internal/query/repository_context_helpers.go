@@ -46,8 +46,24 @@ func isRepositoryEntryPointName(name string) bool {
 	}
 }
 
-func queryRepoInfrastructure(ctx context.Context, reader GraphQuery, content ContentStore, params map[string]any) []map[string]any {
-	return queryRepoInfrastructureRows(ctx, reader, content, params)
+// queryRepoInfrastructure returns the repository infrastructure rows,
+// whether the underlying read genuinely failed, and whether a healthy graph
+// read landed past its LIMIT bound -- more rows exist beyond it (P2-2
+// follow-up to #5764). It never
+// returns an error to its own callers: infrastructure is a genuine auxiliary
+// panel, so a graph-read failure degrades to an empty result rather than
+// failing the whole context/story response. Callers that want to surface the
+// degradation or the truncation do so via the returned bools (limitations /
+// partial_reasons / stage-log failure_class and truncated); callers that do
+// not care may discard them. degraded and truncated are never both true: a
+// failed read returns an empty result with truncated forced false, since
+// there is nothing to disclose a bound on.
+func queryRepoInfrastructure(ctx context.Context, reader GraphQuery, content ContentStore, params map[string]any) ([]map[string]any, bool, bool) {
+	rows, truncated, err := queryRepoInfrastructureRows(ctx, reader, content, params)
+	if err != nil {
+		return make([]map[string]any, 0), true, false
+	}
+	return rows, false, truncated
 }
 
 func queryRepoLanguageDistribution(ctx context.Context, reader GraphQuery, params map[string]any) []map[string]any {

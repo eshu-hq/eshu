@@ -34,13 +34,14 @@ The mounted Go runtime admin OpenAPI contract lives in
 | Deployment evidence, admission decisions, citations, documentation findings, packages, CI/CD, SBOM, vulnerability impact, codeowners ownership | [Evidence and supply-chain routes](http-api/evidence-and-supply-chain.md) |
 | Investigation evidence packets for supply-chain impact, deployable-unit truth, and runtime drift | [Investigation Evidence Packet Contract](investigation-evidence-packet.md#http-and-mcp-surfaces) |
 | Source repository to container image identity bridge | [Container image source bridge](http-api/container-image-source-bridge.md) |
-| Container image (OCI) list, and bounded per-tag digest mutation history (`GET /api/v0/images`, `GET /api/v0/images/tag-history`) | OpenAPI spec (`operationId: listContainerImages`, `listContainerImageTagHistory`); no narrative sub-page yet |
+| Container image (OCI) list, and bounded per-tag digest mutation history (`GET /api/v0/images`, `GET /api/v0/images/tag-history`) | [Container image, ingester, and bundle routes](http-api/images-ingesters-bundles.md) (`GET /api/v0/images`; `listContainerImageTagHistory` has no narrative sub-page yet) |
 | Secrets/IAM trust chains, posture evidence, access paths, gaps, and posture summary | [Secrets/IAM routes](http-api/secrets-iam.md) |
 | Entity resolution, incident context, catalog, repository/service/workload stories, investigations | [Context and story routes](http-api/context-and-stories.md) |
 | Code search, symbols, relationships, call chains, dead-code, complexity, quality, language queries | [Code routes](http-api/code.md) |
 | IaC cleanup, AWS drift, content reads/search, infra impact, environment comparison | [IaC, content, and infra routes](http-api/iac-content-infra.md) |
 | Multi-cloud canonical resource inventory (AWS/GCP/Azure, bounded, paginated) | [Cloud inventory readback](#cloud-inventory-readback) |
-| Repository catalog, repository context/stats/coverage, ingester status, bundle search | [Repository, ingester, and bundle routes](http-api/repositories-ingesters-bundles.md) |
+| Repository catalog, repository context/stats/coverage | [Repository routes](http-api/repositories-ingesters-bundles.md) |
+| Ingester status, bundle search | [Container image, ingester, and bundle routes](http-api/images-ingesters-bundles.md) |
 
 ## Shared Wire Contracts
 

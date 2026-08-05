@@ -106,7 +106,8 @@ nav:
         - Catalog And Workload Selection: reference/http-api/catalog-workload-selection.md
         - Code: reference/http-api/code.md
         - IaC, Content, And Infra: reference/http-api/iac-content-infra.md
-        - Repositories, Ingester, And Bundles: reference/http-api/repositories-ingesters-bundles.md
+        - Repositories: reference/http-api/repositories-ingesters-bundles.md
+        - Images, Ingester, And Bundles: reference/http-api/images-ingesters-bundles.md
       - MCP Reference: reference/mcp-reference.md
       - MCP Tool Contract Matrix: reference/mcp-tool-contract-matrix.md
       - MCP Prompt Surface Audit: reference/mcp-prompt-surface-audit.md

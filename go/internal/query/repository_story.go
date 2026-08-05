@@ -28,9 +28,24 @@ func buildRepositoryStoryResponse(
 		infrastructureOverview,
 		semanticOverview,
 		nil,
+		nil,
+		false,
 	)
 }
 
+// buildRepositoryStoryResponseWithCoverage builds the repository story
+// response. extraLimitations carries limitation reasons the caller already
+// discovered before this function runs (for example
+// infrastructureReadDegradedReason, #5764) -- they are merged into the
+// computed limitations slice before attachAnswerMetadata derives
+// answer_metadata.partial_reasons, so a degraded auxiliary read is visible in
+// both the top-level limitations field and the answer metadata. storyRowsTruncated
+// (P1 review follow-up to #5764) reports whether the workload_names/
+// platform_types/languages graph reads landed past
+// repositoryStoryStringRowLimit; it sets the response's top-level "truncated"
+// field so attachAnswerMetadata's BuildAnswerMetadata (which reads
+// data["truncated"] directly, not the limitations slice) stops answering
+// answer_metadata.truncated=false when rows were actually clipped.
 func buildRepositoryStoryResponseWithCoverage(
 	repo RepoRef,
 	fileCount int,
@@ -41,6 +56,8 @@ func buildRepositoryStoryResponseWithCoverage(
 	infrastructureOverview map[string]any,
 	semanticOverview map[string]any,
 	coverageSummary map[string]any,
+	extraLimitations []string,
+	storyRowsTruncated bool,
 ) map[string]any {
 	filteredLanguages := nonEmptyStrings(languages)
 	filteredPlatforms := nonEmptyStrings(platforms)
@@ -68,6 +85,7 @@ func buildRepositoryStoryResponseWithCoverage(
 	if len(filteredWorkloads) == 0 {
 		limitations = append(limitations, "workload_surface_unknown")
 	}
+	limitations = appendNonEmptyLimitations(limitations, extraLimitations)
 
 	response := map[string]any{
 		"repository": repo,
@@ -115,6 +133,7 @@ func buildRepositoryStoryResponseWithCoverage(
 		},
 		"coverage_summary": coverageSummary,
 		"limitations":      limitations,
+		"truncated":        storyRowsTruncated,
 		"drilldowns": map[string]any{
 			"context_path":  "/api/v0/repositories/" + repo.ID + "/context",
 			"stats_path":    "/api/v0/repositories/" + repo.ID + "/stats",
@@ -249,6 +268,19 @@ func focusedDeploymentStory(lines []string) []string {
 		focused = append(focused, trimmed)
 	}
 	return focused
+}
+
+// appendNonEmptyLimitations appends every non-empty reason from extra onto
+// limitations, preserving order. Extracted from
+// buildRepositoryStoryResponseWithCoverage to keep that function under the
+// repo's funlen budget.
+func appendNonEmptyLimitations(limitations []string, extra []string) []string {
+	for _, reason := range extra {
+		if reason != "" {
+			limitations = append(limitations, reason)
+		}
+	}
+	return limitations
 }
 
 func nonEmptyStrings(values []string) []string {
