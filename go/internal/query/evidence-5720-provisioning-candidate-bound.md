@@ -439,7 +439,8 @@ altered.
 
 Round 10 rewrote the membership rule this enumeration runs on, and the record
 for it lives in `evidence-5720-truncation-enumeration.md` rather than here --
-this file was 436 lines and `CLAUDE.md` says to split before 500, not at it.
+this file was already 436 lines when round 10 opened, and `CLAUDE.md` says to
+split before 500, not at it.
 Read that file for what makes a bound a member of the enumeration, why the
 hostname affinity narrowing lost its number, and why the row bound on
 `queryProvisioningRepositoryCandidates` can fire without dropping a repository.

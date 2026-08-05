@@ -149,7 +149,7 @@ loose-document value accessors moved there. The non-test file count is
 unchanged, so the coverage doc stays valid.
 
 `service_evidence.go` is 443 lines after the move and after P2-2's additions;
-`service_evidence_types.go` is 208. `buildSpecFileResolver` also took its
+`service_evidence_types.go` is 211. `buildSpecFileResolver` also took its
 `context.Context` back to the first parameter position on the way across.
 
 The other three files are recorded rather than split: the two OpenAPI/tool
@@ -162,9 +162,9 @@ Two files this round grew that were already past 500 before it, both previously
 raised with the owner rather than filed:
 `docs/public/reference/http-api/context-and-stories.md` (788 to 816 this round;
 732 at the branch point, for the P1-1 conditions) and this issue's own evidence
-record, which is why rounds 10
-and later live in this file instead of the round-1-to-9 one.
-`go/internal/query/AGENTS.md` (1312) gained one line of cross-reference.
+record, which is why rounds 10 and later live in this file instead of the
+round-1-to-9 one. `go/internal/query/AGENTS.md` stays at 1312: its existing
+#5720 line was rewritten to carry the cross-reference, not added to.
 
 ## Round 10 P3s
 
