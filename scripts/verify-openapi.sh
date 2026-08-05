@@ -118,10 +118,142 @@ sort -u -o "$handlefunc_route_file" "$handlefunc_route_file"
 # drift. One route per line, format "METHOD /path".
 
 known_drift_file="${repo_root}/.github/openapi-known-drift.txt"
+
+# ── Known-drift file self-validation ────────────────────────────────────────
+#
+# The known-drift file is a permanent-exclusion list, not a backlog (#5762).
+# A route belongs here only when the scanner genuinely cannot resolve its
+# METHOD/path, or when the route is not an API operation at all -- never
+# because the fragment is simply missing so far. That third, unstated
+# category is exactly what let POST /api/v0/code/visualize sit here under a
+# "TODO(#3781): add ... fragment" comment for years: a deferral marker or a
+# deferral phrase is self-refuting evidence that the entry is NOT a
+# permanent, intentional exclusion, it is a known-but-deferred gap wearing an
+# exclusion entry as camouflage. Three rules are enforced on every line
+# before the file is used to suppress anything:
+#
+#   1. No COMMENT line may contain a TODO/TO-DO/FIXME/XXX/HACK/TBD/WIP
+#      deferral marker (case-insensitive; matches the plural form too, e.g.
+#      "TODOs", and the hyphenated/underscored/spaced "TO-DO" spelling). Only
+#      comment lines are scanned, not route lines, so a route whose own path
+#      happens to contain one of these words (e.g. "/todo-board",
+#      "/cache/wipe") is never blocked by this rule -- it can still be
+#      excluded here with a real justification comment.
+#   2. No COMMENT line may contain a prose deferral phrase (case-insensitive)
+#      such as "not written", "written yet", "pending", "predates", "later",
+#      or "to be added/written" -- the same self-refuting signal spelled out
+#      in words instead of a marker. This is a best-effort check against a
+#      fixed phrase list, not a guarantee that every English deferral is
+#      caught: a deferral phrased in ordinary prose outside this list, or a
+#      false justification, will not be detected.
+#   3. Every route entry must be preceded by its own non-empty, substantive
+#      comment line: at least two whitespace-separated tokens, including one
+#      alphabetic word of 4+ characters, so decoration such as "####" or
+#      "# ---" cannot pass as a justification. Neither a bare route nor a
+#      bare "#" can be appended silently, and one justification cannot be
+#      shared across a group of routes.
+if [ -f "$known_drift_file" ]; then
+  # Anchored to "^[[:space:]]*#.*" so only comment lines are scanned -- a
+  # route path such as "/api/v0/todo-board" or "/api/v0/cache/wipe" must
+  # never trip these rules with no escape hatch (#5762 follow-up). The
+  # trailing "s?\b" lets the plural "TODOs" match while stopping "WIP" from
+  # matching inside an unrelated word like "wipes".
+  known_drift_marker_pattern='^[[:space:]]*#.*\b(TO[-_ ]?DO|FIXME|XXX|HACK|TBD|WIP)s?\b'
+  known_drift_prose_pattern='^[[:space:]]*#.*(not[[:space:]]+written|written[[:space:]]+yet|not[[:space:]]+yet[[:space:]]+written|\bpending\b|\bpredates\b|\blater\b|to be (added|written))'
+  known_drift_deferral_hits="$(rg -in "$known_drift_marker_pattern" "$known_drift_file" || true)"
+  known_drift_prose_hits="$(rg -in "$known_drift_prose_pattern" "$known_drift_file" || true)"
+  known_drift_unjustified=""
+  known_drift_justified=0
+  known_drift_lineno=0
+  while IFS= read -r known_drift_line || [ -n "$known_drift_line" ]; do
+    known_drift_lineno=$((known_drift_lineno + 1))
+    known_drift_trimmed="$(printf '%s' "$known_drift_line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    if [ -z "$known_drift_trimmed" ]; then
+      known_drift_justified=0
+      continue
+    fi
+    case "$known_drift_trimmed" in
+      '#'*)
+        # A justification needs real words: at least two whitespace-separated
+        # tokens, one of which is a 4+ letter alphabetic word. A raw
+        # character count let pure decoration ("####", "# ---", "# ...")
+        # pass as "substantive" (#5762 follow-up P2-1).
+        known_drift_comment_text="${known_drift_trimmed#\#}"
+        known_drift_comment_tokens="$(printf '%s' "$known_drift_comment_text" | wc -w | tr -d ' ')"
+        if [ "$known_drift_comment_tokens" -ge 2 ] \
+          && printf '%s' "$known_drift_comment_text" | rg -q '[[:alpha:]]{4,}'; then
+          known_drift_justified=1
+        else
+          known_drift_justified=0
+        fi
+        ;;
+      *)
+        if [ "$known_drift_justified" -ne 1 ]; then
+          known_drift_unjustified="${known_drift_unjustified}${known_drift_file}:${known_drift_lineno}: \"${known_drift_trimmed}\""$'\n'
+        fi
+        # A justification comment covers exactly the one route line that
+        # follows it -- reset so the next route needs its own comment
+        # (#5762 follow-up: a shared comment let a route ride in silently
+        # right after an already-justified one).
+        known_drift_justified=0
+        ;;
+    esac
+  done < "$known_drift_file"
+
+  if [ -n "$known_drift_deferral_hits" ] || [ -n "$known_drift_prose_hits" ] || [ -n "$known_drift_unjustified" ]; then
+    echo "KNOWN-DRIFT FILE INVALID: ${known_drift_file}"
+    echo ""
+    echo "This file is a permanent-exclusion list, not a backlog. An entry must"
+    echo "assert \"this route is not OpenAPI,\" never that the fragment is simply"
+    echo "missing so far."
+    echo ""
+    if [ -n "$known_drift_deferral_hits" ]; then
+      echo "DEFERRAL_MARKER: a TODO/FIXME/XXX/HACK/TBD/WIP marker means this is a"
+      echo "deferred gap, not a permanent exclusion -- give the route a real"
+      echo "openapi_paths_*.go entry (or a genuine permanent-exclusion"
+      echo "justification) instead:"
+      while IFS= read -r hit; do
+        echo "  ${known_drift_file}:${hit}"
+      done <<< "$known_drift_deferral_hits"
+      echo ""
+    fi
+    if [ -n "$known_drift_prose_hits" ]; then
+      echo "PROSE_DEFERRAL: a phrase like \"not written\", \"written yet\","
+      echo "\"pending\", \"predates\", \"later\", or \"to be added/written\" is the"
+      echo "same deferral claim spelled out in words -- give the route a real"
+      echo "openapi_paths_*.go entry (or a genuine permanent-exclusion"
+      echo "justification) instead:"
+      while IFS= read -r hit; do
+        echo "  ${known_drift_file}:${hit}"
+      done <<< "$known_drift_prose_hits"
+      echo ""
+    fi
+    if [ -n "$known_drift_unjustified" ]; then
+      echo "UNJUSTIFIED_ENTRY: every route entry needs its own preceding"
+      echo "substantive comment (at least two words, one of them 4+ letters)"
+      echo "explaining why it is excluded -- a bare \"#\" and a comment shared"
+      echo "with an earlier route both count as unjustified:"
+      while IFS= read -r entry; do
+        [ -n "$entry" ] && echo "  ${entry}"
+      done <<< "$known_drift_unjustified"
+    fi
+    exit 1
+  fi
+fi
+
 known_drift_tmp="${tmpdir}/known_drift.txt"
 : > "$known_drift_tmp"
 if [ -f "$known_drift_file" ]; then
-  grep -v '^#' "$known_drift_file" | grep -v '^$' | sort -u > "$known_drift_tmp" || true
+  # Trim each line the same way the self-validation loop above does, so an
+  # indented comment or an indented route is classified consistently by both
+  # passes instead of the validator trimming and this consumer not.
+  while IFS= read -r known_drift_consumer_line || [ -n "$known_drift_consumer_line" ]; do
+    known_drift_consumer_trimmed="$(printf '%s' "$known_drift_consumer_line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    case "$known_drift_consumer_trimmed" in
+      '' | '#'*) continue ;;
+      *) printf '%s\n' "$known_drift_consumer_trimmed" ;;
+    esac
+  done < "$known_drift_file" | sort -u > "$known_drift_tmp"
   # Filter known drift out of the handlefunc set so they are treated as
   # intentionally covered.
   if [ -s "$known_drift_tmp" ]; then

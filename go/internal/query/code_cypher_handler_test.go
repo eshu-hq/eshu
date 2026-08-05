@@ -355,3 +355,67 @@ func TestOpenAPICypherRouteDocumentsBoundedGraphReadFailures(t *testing.T) {
 		}
 	}
 }
+
+// TestOpenAPIVisualizeRouteDocumentsUnsupportedProfile and
+// TestOpenAPIVisualizeRouteDocumentsBoundedGraphReadFailures are the
+// visualize-route siblings of the two Cypher tests above (#5762). Until
+// #5762, POST /api/v0/code/visualize had no OpenAPI path entry at all -- see
+// .github/openapi-known-drift.txt history and
+// docs/public/reference/telemetry/graph-read-safety.md -- so neither
+// assertion had anywhere to read from.
+func TestOpenAPIVisualizeRouteDocumentsUnsupportedProfile(t *testing.T) {
+	t.Parallel()
+
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v", err)
+	}
+	paths := mustMapField(t, spec, "paths")
+	path := mustMapField(t, paths, "/api/v0/code/visualize")
+	post := mustMapField(t, path, "post")
+	responses := mustMapField(t, post, "responses")
+	if _, ok := responses["501"]; !ok {
+		t.Fatalf("Visualize OpenAPI responses missing 501 unsupported profile response")
+	}
+}
+
+func TestOpenAPIVisualizeRouteDocumentsBoundedGraphReadFailures(t *testing.T) {
+	t.Parallel()
+
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v", err)
+	}
+	paths := mustMapField(t, spec, "paths")
+	path := mustMapField(t, paths, "/api/v0/code/visualize")
+	post := mustMapField(t, path, "post")
+	responses := mustMapField(t, post, "responses")
+	for _, status := range []string{"503", "504"} {
+		if _, ok := responses[status]; !ok {
+			t.Errorf("Visualize OpenAPI responses missing %s bounded graph-read response", status)
+		}
+	}
+}
+
+// TestOpenAPIVisualizeRouteCarriesSharedKeyOnlyMarker locks the #5762 fix
+// against reverting to the pre-#5762 shape where the route was OpenAPI-
+// excluded via .github/openapi-known-drift.txt instead of carrying a real
+// path entry. The route executes caller-supplied Cypher with no selector to
+// intersect against a tenant grant (auth_scoped_routes_shared_key_only.go),
+// so its OpenAPI operation must advertise "x-shared-key-only": true, matching
+// its sibling POST /api/v0/code/cypher.
+func TestOpenAPIVisualizeRouteCarriesSharedKeyOnlyMarker(t *testing.T) {
+	t.Parallel()
+
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v", err)
+	}
+	paths := mustMapField(t, spec, "paths")
+	path := mustMapField(t, paths, "/api/v0/code/visualize")
+	post := mustMapField(t, path, "post")
+	marked, ok := post["x-shared-key-only"].(bool)
+	if !ok || !marked {
+		t.Fatalf(`Visualize OpenAPI operation missing "x-shared-key-only": true marker`)
+	}
+}

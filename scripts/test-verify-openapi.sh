@@ -85,6 +85,15 @@ write_openapi_path() {
   } > "${dir}/go/internal/query/${filename}"
 }
 
+# write_known_drift writes a synthetic .github/openapi-known-drift.txt (#5762
+# self-validation tests below need this; earlier tests never populate one).
+write_known_drift() {
+  local dir="$1"
+  shift
+  mkdir -p "${dir}/.github"
+  printf '%s\n' "$@" > "${dir}/.github/openapi-known-drift.txt"
+}
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Test 1 — green: empty repo (no routes, no openapi) exits 0
 test_empty_green() {
@@ -336,6 +345,14 @@ test_drift_removed_green() {
   run_verifier "$dir" "drift removed exits 0" "pass"
 }
 
+# Tests 11-18 (the known-drift self-validation regression suite, #5762) are
+# extracted to scripts/lib/test-verify-openapi-known-drift-cases.sh to keep
+# this file under the repo's 500-line cap. The sourced file defines
+# test_known_drift_* and reuses setup_repo(), write_handler(),
+# write_openapi_path(), write_known_drift(), and run_verifier() from above.
+# shellcheck source=scripts/lib/test-verify-openapi-known-drift-cases.sh
+. "${repo_root}/scripts/lib/test-verify-openapi-known-drift-cases.sh"
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Run all tests
 
@@ -349,6 +366,24 @@ test_string_concat_green
 test_health_in_openapi_green
 test_planted_drift_red
 test_drift_removed_green
+test_known_drift_deferral_marker_red
+test_known_drift_deferral_marker_hack_red
+test_known_drift_deferral_marker_tbd_red
+test_known_drift_deferral_marker_wip_red
+test_known_drift_deferral_marker_todo_dash_red
+test_known_drift_unjustified_entry_red
+test_known_drift_justified_green
+test_known_drift_deferral_marker_plural_red
+test_known_drift_prose_deferral_not_written_yet_red
+test_known_drift_prose_deferral_pending_red
+test_known_drift_route_after_justified_route_red
+test_known_drift_bare_hash_unjustified_red
+test_known_drift_route_path_contains_marker_word_green
+test_known_drift_justification_contains_wipes_green
+test_known_drift_decoration_only_hashes_red
+test_known_drift_decoration_only_dashes_red
+test_known_drift_indented_route_trimmed_green
+test_known_drift_unjustified_message_states_actual_rule_red
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 

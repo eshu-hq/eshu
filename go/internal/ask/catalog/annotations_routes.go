@@ -156,6 +156,7 @@ func askRouteAnnotations() map[string]Annotation {
 		"POST /api/v0/code/structure/inventory":              {Backend: BackendPostgres, Cost: CostLow},
 		"POST /api/v0/code/symbols/search":                   {Backend: BackendBoth, Cost: CostLow},
 		"POST /api/v0/code/topics/investigate":               {Backend: BackendPostgres, Cost: CostModerate},
+		"POST /api/v0/code/visualize":                        {Backend: BackendNornicDB, Cost: CostModerate},
 		"POST /api/v0/compare/environments":                  {Backend: BackendBoth, Cost: CostHigh},
 		"POST /api/v0/content/entities/read":                 {Backend: BackendPostgres, Cost: CostLow},
 		"POST /api/v0/content/entities/search":               {Backend: BackendPostgres, Cost: CostModerate},

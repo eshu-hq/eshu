@@ -43,11 +43,42 @@ rather than a generic transport failure:
 
 Responses do not expose Bolt addresses, Cypher text, or raw driver errors.
 
-One known gap, tracked separately:
+`POST /api/v0/code/visualize` was a known gap, tracked separately: it followed
+the contract at runtime but had no OpenAPI path entry at all — a gap that
+predated this contract, so it could not advertise `503`/`504` until that entry
+existed. #5762 gave it a complete `openapi_paths_code_graph.go` entry (request
+schema, response schema, and the `503`/`504` bounded-read responses) and
+removed it from `.github/openapi-known-drift.txt`; it now maps like every
+other guarded route and is proven by
+`TestOpenAPIDocumentsBoundedGraphReadFailuresOnEveryGuardedRoute`. The gap was
+not a scanner blind spot in `scripts/verify-openapi.sh` — the route's
+`mux.HandleFunc("POST /api/v0/code/visualize", ...)` registration (`code.go`)
+is a direct string literal, the same shape the verifier resolves for every
+other route — it was a stale, TODO-tagged entry in the known-drift suppression
+list that the verifier subtracts before comparing, present since #3781.
 
-- `POST /api/v0/code/visualize` does follow the contract at runtime, but has no
-  OpenAPI path entry at all — a gap that predates this contract — so it cannot
-  advertise `503`/`504` until that entry exists.
+That suppression list, `.github/openapi-known-drift.txt`, used to accept two
+different claims on equal footing: "this route is intentionally not part of
+the OpenAPI surface" (permanent) and "this route's fragment predates the
+verifier" (a deferred TODO wearing a permanent-exclusion entry). #5762 closed
+the marker-based shape of the second category and added a best-effort check
+against a fixed list of prose deferral phrases: `scripts/verify-openapi.sh`
+now fails before it evaluates any route drift if a known-drift comment line
+contains a TODO/TO-DO/FIXME/XXX/HACK/TBD/WIP-style deferral marker (including
+plural forms), one of a fixed set of prose deferral phrases such as
+"not written", "written yet", "pending", "predates", or "later", or if a route
+entry has no preceding, substantive justification comment of its own — see
+the "Known-drift exclusions" section of
+[3738-openapi-discipline](https://github.com/eshu-hq/eshu/blob/main/docs/internal/design/3738-openapi-discipline.md)
+for the exact rules. The marker check is a closed, conventional token set and
+is exhaustive for those tokens. The prose check is not exhaustive: it is a
+best-effort convenience kept against a fixed phrase list, never a guarantee
+that every English deferral is caught — successive reviews of this file kept
+finding more surviving prose shapes ("Deferred:", "Revisit once…", "Backlog
+item…", and others), and that pattern is expected to continue for any phrase
+not already on the list. Neither check, nor the justification-comment
+requirement, can catch a plausible-sounding but false justification someone
+writes instead.
 
 `POST /api/v0/code/language-query` was the other gap. It now maps like every
 other guarded route, reporting `symbol_graph.language_entities` — a
