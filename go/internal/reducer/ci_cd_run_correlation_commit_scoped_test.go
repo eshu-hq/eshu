@@ -71,6 +71,25 @@ func TestBuildCICDRunCorrelationDecisionsLabelsRepositoryWideFallbackDerived(t *
 	}
 }
 
+func TestBuildCICDRunCorrelationDecisionsDoesNotAttachGitHubWorkflowImagesToOtherProviders(t *testing.T) {
+	t.Parallel()
+
+	const image = "registry.example.com/team/api:prod"
+	decisions := BuildCICDRunCorrelationDecisions([]facts.Envelope{
+		ciRunFact("run-gitlab", "gitlab_ci", "repo-api", "commit-a"),
+		commitScopedWorkflowImageFact("wf-github", "repo-api", "commit-a", image),
+		containerImageIdentityFact("id", "repo-api", image, testCICDDigest),
+	})
+
+	got := cicdDecisionsByRun(decisions)["gitlab_ci:run-gitlab:1"]
+	if got.ImageRef != "" {
+		t.Fatalf("ImageRef = %q, want empty for non-GitHub run", got.ImageRef)
+	}
+	if got.CorrelationKind == "workflow_image" {
+		t.Fatalf("CorrelationKind = %q, want GitHub workflow evidence excluded", got.CorrelationKind)
+	}
+}
+
 func commitScopedWorkflowImageFact(factID, repositoryID, commitSHA, imageRef string) facts.Envelope {
 	return facts.Envelope{
 		FactID:           factID,

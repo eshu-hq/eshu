@@ -14,6 +14,7 @@ func TestCICDWorkflowImageBuiltFromRowsAdmitsExactProducedOnly(t *testing.T) {
 
 	decisions := []CICDRunCorrelationDecision{
 		{
+			Provider:        "github_actions",
 			RepositoryID:    "repository:producer",
 			ArtifactDigest:  "sha256:produced",
 			Outcome:         CICDRunCorrelationExact,
@@ -21,6 +22,15 @@ func TestCICDWorkflowImageBuiltFromRowsAdmitsExactProducedOnly(t *testing.T) {
 			CorrelationKind: "workflow_image",
 		},
 		{
+			Provider:        "gitlab_ci",
+			RepositoryID:    "repository:wrong-provider",
+			ArtifactDigest:  "sha256:wrong-provider",
+			Outcome:         CICDRunCorrelationExact,
+			CanonicalTarget: "container_image",
+			CorrelationKind: "workflow_image",
+		},
+		{
+			Provider:        "github_actions",
 			RepositoryID:    "repository:consumer",
 			ArtifactDigest:  "sha256:consumed",
 			Outcome:         CICDRunCorrelationDerived,
@@ -28,6 +38,7 @@ func TestCICDWorkflowImageBuiltFromRowsAdmitsExactProducedOnly(t *testing.T) {
 			CorrelationKind: "workflow_image",
 		},
 		{
+			Provider:        "github_actions",
 			RepositoryID:    "repository:artifact-only",
 			ArtifactDigest:  "sha256:artifact-only",
 			Outcome:         CICDRunCorrelationExact,
@@ -35,12 +46,14 @@ func TestCICDWorkflowImageBuiltFromRowsAdmitsExactProducedOnly(t *testing.T) {
 			CorrelationKind: "artifact_image",
 		},
 		{
+			Provider:        "github_actions",
 			RepositoryID:    "repository:no-target",
 			ArtifactDigest:  "sha256:no-target",
 			Outcome:         CICDRunCorrelationExact,
 			CorrelationKind: "workflow_image",
 		},
 		{
+			Provider:        "github_actions",
 			RepositoryID:    " ",
 			ArtifactDigest:  "sha256:no-repository",
 			Outcome:         CICDRunCorrelationExact,
@@ -48,6 +61,7 @@ func TestCICDWorkflowImageBuiltFromRowsAdmitsExactProducedOnly(t *testing.T) {
 			CorrelationKind: "workflow_image",
 		},
 		{
+			Provider:        "github_actions",
 			RepositoryID:    "repository:no-digest",
 			ArtifactDigest:  " ",
 			Outcome:         CICDRunCorrelationExact,
@@ -69,6 +83,7 @@ func TestCICDWorkflowImageBuiltFromRowsDeduplicatesSameAssertion(t *testing.T) {
 	t.Parallel()
 
 	decision := CICDRunCorrelationDecision{
+		Provider:        "github_actions",
 		RepositoryID:    "repository:producer",
 		ArtifactDigest:  "sha256:produced",
 		Outcome:         CICDRunCorrelationExact,
@@ -87,6 +102,7 @@ func TestProjectCICDWorkflowImageBuiltFromEdgesRetractsThenWrites(t *testing.T) 
 	writer := &recordingContainerImageProvenanceEdgeWriter{}
 	handler := CICDRunCorrelationHandler{ProvenanceEdgeWriter: writer}
 	decisions := []CICDRunCorrelationDecision{{
+		Provider:        "github_actions",
 		RepositoryID:    "repository:producer",
 		ArtifactDigest:  "sha256:produced",
 		Outcome:         CICDRunCorrelationExact,
@@ -136,6 +152,7 @@ func TestProjectCICDWorkflowImageBuiltFromEdgesRetractsEmptyAndPropagatesErrors(
 
 	writeWriter := &recordingContainerImageProvenanceEdgeWriter{writeErr: errors.New("write failed")}
 	decision := CICDRunCorrelationDecision{
+		Provider:        "github_actions",
 		RepositoryID:    "repository:producer",
 		ArtifactDigest:  "sha256:produced",
 		Outcome:         CICDRunCorrelationExact,

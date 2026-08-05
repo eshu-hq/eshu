@@ -144,10 +144,16 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	commitSHA := repository.SourceCommitSHA
 	if commitSHA == "" {
 		// In filesystem managed-copy mode repoPath intentionally has no .git;
-		// gitTreePath is the source checkout whose committed tree backs that
-		// copy. Reading HEAD there preserves commit-scoped facts without
-		// switching the whole collector to filesystem-direct semantics.
-		commitSHA = gitCommitSHAFn(ctx, gitTreePath)
+		// gitTreePath is the source checkout. The copy contains live working-tree
+		// bytes, so it may inherit that checkout's HEAD only while the source is
+		// clean. Otherwise commit-scoped facts fail closed instead of labeling
+		// dirty tracked or eligible untracked content as committed truth.
+		managedCopy := canonicalLocalPath(repoPath) != canonicalLocalPath(gitTreePath)
+		if managedCopy {
+			commitSHA = gitCleanWorktreeCommitSHAFn(ctx, gitTreePath)
+		} else {
+			commitSHA = gitCommitSHAFn(ctx, gitTreePath)
+		}
 	}
 	snapshot.HeadCommitSHA = commitSHA
 	for i := range workflowImageFileMetas {

@@ -28,7 +28,8 @@ func cicdWorkflowImageBuiltFromRows(decisions []CICDRunCorrelationDecision) []ma
 	rows := make([]map[string]any, 0, len(decisions))
 	seen := make(map[builtFromKey]struct{}, len(decisions))
 	for _, decision := range decisions {
-		if decision.Outcome != CICDRunCorrelationExact ||
+		if strings.TrimSpace(decision.Provider) != cicdWorkflowImageProvider ||
+			decision.Outcome != CICDRunCorrelationExact ||
 			decision.CorrelationKind != "workflow_image" ||
 			decision.CanonicalTarget != "container_image" {
 			continue
