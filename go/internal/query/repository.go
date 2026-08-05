@@ -271,13 +271,22 @@ func (h *RepositoryHandler) getRepositoryStory(w http.ResponseWriter, r *http.Re
 	timer.Done(r.Context(), repositoryStatsCoverageLogAttrs(coverageSummary, coverageErr)...)
 	readModelSummary := loadRepositoryReadModelSummary(r.Context(), h.Content, repoID)
 	timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "graph_summary")
-	storySummary := queryRepositoryStoryGraphSummary(r.Context(), h.Neo4j, map[string]any{"repo_id": repoID}, row, contentCoverage, readModelSummary)
+	storySummary, err := queryRepositoryStoryGraphSummary(r.Context(), h.Neo4j, map[string]any{"repo_id": repoID}, row, contentCoverage, readModelSummary)
+	if err != nil {
+		timer.Done(r.Context(), slog.Bool("error", true))
+		if WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
+			return
+		}
+		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
+		return
+	}
 	timer.Done(
 		r.Context(),
 		slog.Int("file_count", storySummary.fileCount),
 		slog.Int("workload_count", len(storySummary.workloadNames)),
 		slog.Int("platform_count", len(storySummary.platformTypes)),
 		slog.Int("dependency_count", storySummary.dependencyCount),
+		slog.Bool("truncated", storySummary.truncated),
 	)
 	fileCount := storySummary.fileCount
 	languages := storySummary.languages
@@ -293,6 +302,11 @@ func (h *RepositoryHandler) getRepositoryStory(w http.ResponseWriter, r *http.Re
 	}
 	var infrastructureOverview map[string]any
 	narrativeFiles := []FileContent(nil)
+	storyLimitations := []string{}
+	storyTruncated := storySummary.truncated
+	if storySummary.truncated {
+		storyLimitations = append(storyLimitations, storyRowsTruncatedReason)
+	}
 	if h.Content != nil {
 		timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "content_files")
 		files, err := h.Content.ListRepoFiles(r.Context(), repoID, repositorySemanticEntityLimit)
@@ -305,8 +319,22 @@ func (h *RepositoryHandler) getRepositoryStory(w http.ResponseWriter, r *http.Re
 			files = []FileContent{}
 		}
 		timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "infrastructure")
-		infrastructure := queryRepoInfrastructure(r.Context(), h.Neo4j, h.Content, map[string]any{"repo_id": repoID})
-		timer.Done(r.Context(), slog.Int("row_count", len(infrastructure)))
+		infrastructure, infrastructureDegraded, infrastructureTruncated := queryRepoInfrastructure(r.Context(), h.Neo4j, h.Content, map[string]any{"repo_id": repoID})
+		timer.Done(r.Context(), infrastructureDegradeLogAttrs(len(infrastructure), infrastructureDegraded, infrastructureTruncated)...)
+		if infrastructureDegraded {
+			storyLimitations = append(storyLimitations, infrastructureReadDegradedReason)
+		}
+		if infrastructureTruncated {
+			storyLimitations = append(storyLimitations, infrastructureTruncatedReason)
+			// P3 review follow-up to #5764: fold the infrastructure panel's own
+			// truncation into the top-level "truncated" field below, not only
+			// storyLimitations/answer_metadata.partial_reasons. Before this fix
+			// answer_metadata.truncated stayed false whenever only the
+			// infrastructure read (not the headline workload/platform/language
+			// rows) landed past its bound -- the same affirmative-false-claim
+			// shape #5764 exists to remove from the story rows themselves.
+			storyTruncated = true
+		}
 		infrastructureOverview = buildRepositoryInfrastructureOverview(infrastructure, files)
 		timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "deployment_artifacts")
 		deploymentOverview, _ := loadDeploymentArtifactOverview(
@@ -344,6 +372,9 @@ func (h *RepositoryHandler) getRepositoryStory(w http.ResponseWriter, r *http.Re
 	deploymentEvidence, err := loadRepositoryDeploymentEvidenceForOverview(r.Context(), h.Neo4j, h.Content, repoID)
 	timer.Done(r.Context(), slog.Bool("has_result", len(deploymentEvidence) > 0), slog.Bool("error", err != nil))
 	if err != nil {
+		if WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load deployment evidence: %v", err))
 		return
 	}
@@ -372,6 +403,8 @@ func (h *RepositoryHandler) getRepositoryStory(w http.ResponseWriter, r *http.Re
 		infrastructureOverview,
 		semanticOverview,
 		coverageSummary,
+		storyLimitations,
+		storyTruncated,
 	)
 	timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "target_documentation")
 	targetDocumentation, err := loadRepositoryStoryTargetDocumentation(r.Context(), h.Content, repoID)

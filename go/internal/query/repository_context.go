@@ -57,7 +57,15 @@ func (h *RepositoryHandler) getRepositoryContext(w http.ResponseWriter, r *http.
 	}
 
 	timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "summary_counts")
-	counts := queryRepositoryContextCounts(ctx, h.Neo4j, params, baseRow, contentCoverage, readModelSummary)
+	counts, err := queryRepositoryContextCounts(ctx, h.Neo4j, params, baseRow, contentCoverage, readModelSummary)
+	if err != nil {
+		timer.Done(ctx, slog.Bool("error", true))
+		if WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
+			return
+		}
+		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
+		return
+	}
 	timer.Done(
 		ctx,
 		slog.Int("file_count", counts.fileCount),
@@ -73,12 +81,23 @@ func (h *RepositoryHandler) getRepositoryContext(w http.ResponseWriter, r *http.
 		"dependency_count": counts.dependencyCount,
 	}
 
+	partialReasons := make([]string, 0)
+
 	timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "entry_points")
 	result["entry_points"] = queryRepoEntryPoints(ctx, h.Neo4j, h.Content, params)
 	timer.Done(ctx, slog.Int("row_count", len(result["entry_points"].([]map[string]any))))
+
 	timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "infrastructure")
-	result["infrastructure"] = queryRepoInfrastructure(ctx, h.Neo4j, h.Content, params)
-	timer.Done(ctx, slog.Int("row_count", len(result["infrastructure"].([]map[string]any))))
+	infrastructure, infrastructureDegraded, infrastructureTruncated := queryRepoInfrastructure(ctx, h.Neo4j, h.Content, params)
+	result["infrastructure"] = infrastructure
+	timer.Done(ctx, infrastructureDegradeLogAttrs(len(infrastructure), infrastructureDegraded, infrastructureTruncated)...)
+	if infrastructureDegraded {
+		partialReasons = append(partialReasons, infrastructureReadDegradedReason)
+	}
+	if infrastructureTruncated {
+		partialReasons = append(partialReasons, infrastructureTruncatedReason)
+	}
+
 	timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "relationships")
 	if dependencies := repositoryReadModelDependencies(relationshipReadModel); dependencies != nil {
 		result["relationships"] = dependencies
@@ -86,6 +105,7 @@ func (h *RepositoryHandler) getRepositoryContext(w http.ResponseWriter, r *http.
 		result["relationships"] = queryRepoDependencies(ctx, h.Neo4j, params)
 	}
 	timer.Done(ctx, slog.Int("row_count", len(result["relationships"].([]map[string]any))))
+
 	timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "relationship_overview")
 	var relationshipRows []map[string]any
 	if relationshipReadModel != nil {
@@ -100,6 +120,7 @@ func (h *RepositoryHandler) getRepositoryContext(w http.ResponseWriter, r *http.
 	if relationshipOverview := buildRepositoryRelationshipOverview(relationshipRows); relationshipOverview != nil {
 		result["relationship_overview"] = relationshipOverview
 	}
+
 	timer = startRepositoryQueryStage(ctx, h.Logger, "repository_context", repoID, "consumers")
 	if relationshipReadModel != nil {
 		result["consumers"] = relationshipReadModel.Consumers
@@ -118,6 +139,9 @@ func (h *RepositoryHandler) getRepositoryContext(w http.ResponseWriter, r *http.
 	deploymentEvidence, err := queryRepoDeploymentEvidence(ctx, h.Neo4j, h.Content, params)
 	if err != nil {
 		timer.Done(ctx, slog.Bool("error", true))
+		if WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("load deployment evidence: %v", err))
 		return
 	}
@@ -179,6 +203,8 @@ func (h *RepositoryHandler) getRepositoryContext(w http.ResponseWriter, r *http.
 		slog.Int("language_count", len(languageBreakdown)),
 		slog.Int("source_tool_count", len(sourceToolBreakdown)),
 	)
+
+	result["partial_reasons"] = partialReasons
 
 	WriteSuccess(w, r, http.StatusOK, result, BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisHybrid, "resolved from repository context and platform evidence"))
 }

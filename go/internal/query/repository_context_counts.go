@@ -14,6 +14,10 @@ type repositoryContextCounts struct {
 
 // queryRepositoryContextCounts uses scalar count queries to avoid relying on a
 // broad OPTIONAL MATCH aggregation for graph-backend-sensitive repo summaries.
+// A bounded graph-read error from any one count aborts the whole summary
+// instead of silently returning a fabricated count (#5764): these are
+// top-level scalars, and a wrong number is indistinguishable from a real one,
+// which is worse than the caller seeing a 503/504.
 func queryRepositoryContextCounts(
 	ctx context.Context,
 	reader GraphQuery,
@@ -21,13 +25,29 @@ func queryRepositoryContextCounts(
 	fallback map[string]any,
 	contentCoverage *RepositoryContentCoverage,
 	readModelSummary *repositoryReadModelSummary,
-) repositoryContextCounts {
-	return repositoryContextCounts{
-		fileCount:       queryRepositoryFileCount(ctx, reader, params, fallback, contentCoverage),
-		workloadCount:   queryRepositoryWorkloadCount(ctx, reader, params, fallback, readModelSummary),
-		platformCount:   queryRepositoryPlatformCount(ctx, reader, params, fallback, readModelSummary),
-		dependencyCount: queryRepositoryDependencyCount(ctx, reader, params, fallback, readModelSummary),
+) (repositoryContextCounts, error) {
+	fileCount, err := queryRepositoryFileCount(ctx, reader, params, fallback, contentCoverage)
+	if err != nil {
+		return repositoryContextCounts{}, err
 	}
+	workloadCount, err := queryRepositoryWorkloadCount(ctx, reader, params, fallback, readModelSummary)
+	if err != nil {
+		return repositoryContextCounts{}, err
+	}
+	platformCount, err := queryRepositoryPlatformCount(ctx, reader, params, fallback, readModelSummary)
+	if err != nil {
+		return repositoryContextCounts{}, err
+	}
+	dependencyCount, err := queryRepositoryDependencyCount(ctx, reader, params, fallback, readModelSummary)
+	if err != nil {
+		return repositoryContextCounts{}, err
+	}
+	return repositoryContextCounts{
+		fileCount:       fileCount,
+		workloadCount:   workloadCount,
+		platformCount:   platformCount,
+		dependencyCount: dependencyCount,
+	}, nil
 }
 
 func queryRepositoryWorkloadCount(
@@ -36,9 +56,9 @@ func queryRepositoryWorkloadCount(
 	params map[string]any,
 	fallback map[string]any,
 	readModelSummary *repositoryReadModelSummary,
-) int {
+) (int, error) {
 	if readModelSummary != nil && readModelSummary.Available {
-		return len(readModelSummary.WorkloadNames)
+		return len(readModelSummary.WorkloadNames), nil
 	}
 	return queryRepositoryContextCount(ctx, reader, params, "workload_count", `
 			MATCH (r:Repository {id: $repo_id})-[:DEFINES]->(w:Workload)
@@ -52,9 +72,9 @@ func queryRepositoryPlatformCount(
 	params map[string]any,
 	fallback map[string]any,
 	readModelSummary *repositoryReadModelSummary,
-) int {
+) (int, error) {
 	if readModelSummary != nil && readModelSummary.Available {
-		return readModelSummary.PlatformCount
+		return readModelSummary.PlatformCount, nil
 	}
 	return queryRepositoryContextCount(ctx, reader, params, "platform_count", `
 			MATCH (r:Repository {id: $repo_id})-[:DEFINES]->(w:Workload)
@@ -70,9 +90,9 @@ func queryRepositoryDependencyCount(
 	params map[string]any,
 	fallback map[string]any,
 	readModelSummary *repositoryReadModelSummary,
-) int {
+) (int, error) {
 	if readModelSummary != nil && readModelSummary.Available {
-		return readModelSummary.DependencyCount
+		return readModelSummary.DependencyCount, nil
 	}
 	return queryRepositoryContextCount(ctx, reader, params, "dependency_count", `
 			MATCH (r:Repository {id: $repo_id})-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON|CORRELATES_DEPLOYABLE_UNIT]->(dep:Repository)
@@ -86,9 +106,9 @@ func queryRepositoryFileCount(
 	params map[string]any,
 	fallback map[string]any,
 	contentCoverage *RepositoryContentCoverage,
-) int {
+) (int, error) {
 	if contentCoverage != nil && contentCoverage.Available {
-		return contentCoverage.FileCount
+		return contentCoverage.FileCount, nil
 	}
 	return queryRepositoryContextCount(ctx, reader, params, "file_count", `
 		MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)
@@ -96,14 +116,22 @@ func queryRepositoryFileCount(
 	`, fallback)
 }
 
-// queryRepositoryContextCount falls back to the legacy base row if a narrow
-// count query fails or returns no rows, preserving degraded read behavior.
-func queryRepositoryContextCount(ctx context.Context, reader GraphQuery, params map[string]any, fallbackKey string, cypher string, fallback map[string]any) int {
+// queryRepositoryContextCount falls back to the legacy base row only when the
+// narrow count query genuinely returns no rows (err == nil, len(rows) == 0).
+// A non-nil err from the read -- including the bounded ErrGraphReadDeadline /
+// ErrGraphUnavailable sentinels -- is returned to the caller instead of being
+// folded into the same fallback path (#5764): before this fix a deadlined or
+// unavailable graph read was indistinguishable from a genuine zero count, both
+// silently answering the base row's (missing) count key as 0 via IntVal.
+func queryRepositoryContextCount(ctx context.Context, reader GraphQuery, params map[string]any, fallbackKey string, cypher string, fallback map[string]any) (int, error) {
 	rows, err := reader.Run(ctx, cypher, params)
-	if err != nil || len(rows) == 0 {
-		return IntVal(fallback, fallbackKey)
+	if err != nil {
+		return 0, err
 	}
-	return IntVal(rows[0], "count")
+	if len(rows) == 0 {
+		return IntVal(fallback, fallbackKey), nil
+	}
+	return IntVal(rows[0], "count"), nil
 }
 
 func loadRepositoryContentCoverage(ctx context.Context, content ContentStore, repoID string) *RepositoryContentCoverage {

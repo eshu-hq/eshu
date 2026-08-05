@@ -267,13 +267,27 @@ func buildServiceResultLimitsWithContext(buildCtx serviceStoryBuildContext) map[
 	contentConsumerCount := len(mapSliceValue(workloadContext, "consumer_repositories"))
 	consumerCount := len(mapSliceValue(workloadContext, "dependents")) +
 		len(mapSliceValue(workloadContext, "consumer_repositories"))
+	// Fold the infrastructure panel's own truncation into this block's
+	// "truncated" field (round-11 review follow-up to #5764, PR #5936,
+	// mirroring the P3 fix already applied to getRepositoryStory in
+	// repository.go): fetchWorkloadContextForOperation
+	// (entity_workload_context.go) appends infrastructureTruncatedReason to
+	// workloadContext["limitations"] when the infrastructure read lands past
+	// repositoryInfrastructureEntityLimit, but that reason previously reached
+	// only answer_metadata.partial_reasons -- never this "truncated" field,
+	// so BuildAnswerMetadata (which falls back to result_limits.truncated
+	// when no top-level "truncated"/"coverage" key exists) and
+	// serviceStoryAnswerData (which reads result_limits.truncated directly)
+	// both reported answer_metadata.truncated/answer_packet.truncated as
+	// false for a service whose infrastructure evidence was clipped.
+	infrastructureTruncated := containsString(StringSliceVal(workloadContext, "limitations"), infrastructureTruncatedReason)
 	return map[string]any{
 		"limit":                serviceStoryItemLimit,
 		"ordering":             "deterministic",
 		"endpoint_count":       endpointCount,
 		"upstream_count":       upstreamCount,
 		"downstream_count":     consumerCount,
-		"truncated":            endpointCount > serviceStoryItemLimit || upstreamCount > serviceStoryItemLimit || dependentCount > serviceStoryItemLimit || contentConsumerCount > serviceStoryItemLimit,
+		"truncated":            endpointCount > serviceStoryItemLimit || upstreamCount > serviceStoryItemLimit || dependentCount > serviceStoryItemLimit || contentConsumerCount > serviceStoryItemLimit || infrastructureTruncated,
 		"drilldown_basis":      "resolved_id",
 		"relationship_tool":    "get_relationship_evidence",
 		"service_context_path": "/api/v0/services/" + safeStr(workloadContext, "name") + "/context",

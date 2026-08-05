@@ -3090,6 +3090,7 @@
           "infrastructure",
           "language_breakdown",
           "languages",
+          "partial_reasons",
           "platform_count",
           "relationship_overview",
           "relationships",
@@ -3224,7 +3225,8 @@
           "story",
           "story_sections",
           "subject",
-          "support_overview"
+          "support_overview",
+          "truncated"
         ],
         "minimum_results": 0,
         "required_absent_when_present": [

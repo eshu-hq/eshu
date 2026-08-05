@@ -211,8 +211,8 @@ entries:
     source:
       file: go/internal/query/entity_workload_context.go
       symbol: (*EntityHandler).fetchWorkloadContextForOperation
-      source_sha256: 153aaa6f5226ae4225d3124a7058b10f218ca501b9bc6756953b82309c0ab10c
-      line_hint: 46
+      source_sha256: 61ff7533fb9b451eeb660a5d51743094174a5c47350e1bd77b08641a3304d35c
+      line_hint: 66
     required_anchors:
       - label: Workload
         property: id
@@ -269,10 +269,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/entity_workload_context.go
+      file: go/internal/query/entity_workload_platform.go
       symbol: (*EntityHandler).fetchWorkloadPlatformResult
       source_sha256: 25b8c542d61b4a9eb5fe834d6e9aa409d5a81918bff392e25f675989205fba19
-      line_hint: 292
+      line_hint: 68
     required_anchors:
       - label: Repository
         property: id

@@ -140,8 +140,42 @@ func (h *EntityHandler) fetchWorkloadContextForOperation(ctx context.Context, wh
 		result["dependencies"] = queryRepoDependencies(ctx, h.Neo4j, repoParams)
 		timer.Done(ctx, slog.Int("row_count", len(mapSliceValue(result, "dependencies"))))
 		timer = startServiceQueryStage(ctx, h.Logger, operation, StringVal(row, "name"), repoID, "repo_infrastructure")
-		result["infrastructure"] = queryRepoInfrastructure(ctx, h.Neo4j, h.Content, repoParams)
-		timer.Done(ctx, slog.Int("row_count", len(mapSliceValue(result, "infrastructure"))))
+		infrastructure, infrastructureDegraded, infrastructureTruncated := queryRepoInfrastructure(ctx, h.Neo4j, h.Content, repoParams)
+		result["infrastructure"] = infrastructure
+		if infrastructureDegraded {
+			// Surface the degradation on the result map itself (#5764 follow-up):
+			// this map is returned verbatim as the /services/{name}/context and
+			// /workloads/{id}/context response body. /services/{name}/story
+			// surfaces this reason through TWO independent copies on the
+			// dossier response (P3 review follow-up, correcting the prior
+			// wrong description here): buildServiceIdentity
+			// (service_story_dossier.go:57-74) writes it into
+			// response["service_identity"]["limitations"], and the sibling
+			// whitelist loop (service_story_dossier.go:23-36) separately
+			// mirrors workloadContext["limitations"] onto the response's own
+			// top-level "limitations" key. Either copy alone is sufficient:
+			// answerMetadataLimitations (answer_metadata.go) reads both
+			// data["limitations"] and
+			// mapValue(data, "service_identity")["limitations"] before
+			// deduping by reason, and that dedup is how a single degrade
+			// reaches answer_metadata.partial_reasons exactly once.
+			// /workloads/{id}/story builds a fresh response with no
+			// "limitations" key at all (entity_workload_handlers.go's
+			// getWorkloadStory) -- there the reason reaches callers only through
+			// "partial_reasons" (contextPartialReasons reads this same
+			// "limitations" slice off ctx). Without appending here, a degraded
+			// read was distinguishable only via the stage log, so
+			// "infrastructure": [] looked identical to "no infrastructure" to
+			// every caller of this function.
+			result["limitations"] = append(StringSliceVal(result, "limitations"), infrastructureReadDegradedReason)
+		}
+		if infrastructureTruncated {
+			// Same visibility mechanism, for a healthy read that landed past
+			// its LIMIT bound -- more rows exist beyond it (P2-2 follow-up to
+			// #5764) -- instead of failing.
+			result["limitations"] = append(StringSliceVal(result, "limitations"), infrastructureTruncatedReason)
+		}
+		timer.Done(ctx, infrastructureDegradeLogAttrs(len(infrastructure), infrastructureDegraded, infrastructureTruncated)...)
 	}
 
 	return result, nil
@@ -175,9 +209,49 @@ func (h *EntityHandler) fetchServiceReadModelWorkloadContext(ctx context.Context
 	}
 
 	repoParams := map[string]any{"repo_id": repo.ID}
-	infrastructure := queryRepoInfrastructureFromContent(ctx, h.Content, repo.ID)
+	limitations := []string{"workload_identity_not_materialized"}
+	infrastructure, infrastructureTruncated := queryRepoInfrastructureFromContent(ctx, h.Content, repo.ID)
 	if len(infrastructure) == 0 && h.Neo4j != nil {
-		infrastructure = queryRepoInfrastructureFromGraph(ctx, h.Neo4j, repoParams)
+		// A graph-read failure here degrades to an empty infrastructure list
+		// rather than propagating: this is a read-model-only path serving
+		// repositories with no materialized graph, and propagating a
+		// 503/504 would fail a request Postgres can fully answer (#5764).
+		// The degradation still stays visible via the existing limitations
+		// slot rather than being silent.
+		graphInfrastructure, graphTruncated, err := queryRepoInfrastructureFromGraph(ctx, h.Neo4j, repoParams)
+		if err != nil {
+			limitations = append(limitations, infrastructureReadDegradedReason)
+		} else {
+			infrastructure = graphInfrastructure
+			infrastructureTruncated = graphTruncated
+		}
+	}
+	if len(infrastructure) == 0 {
+		// An empty panel never carries a truncation signal (#5764 P2 review
+		// follow-up, widened by the round-7 P3 finding). infrastructureTruncated
+		// describes rows that were clipped by a LIMIT bound, so it is
+		// meaningless about a panel with no rows in it, and pairing it with
+		// infrastructureReadDegradedReason would put two limitations that
+		// assert mutually exclusive facts about the same read
+		// (repository_infrastructure_degrade.go) on one response: "more rows
+		// may exist" attached to an EMPTY infrastructure panel.
+		//
+		// The guard sits AFTER the graph attempt, not inside its error branch,
+		// because a SUCCEEDING graph read reaches the same wrong state: it
+		// reports truncated on its raw row count, before
+		// isRepositoryInfrastructureType drops rows, so an over-returning
+		// backend can hand back a full limit+1 window that classifies to an
+		// empty panel. Both that case and the graph-error case need a read
+		// that bounded rows the classifier then discarded -- the type-list
+		// drift repositoryInfrastructureEntityTypes' own doc comment warns
+		// about, simulated on the content side by
+		// nonFilteringInfrastructureContentStore and on the graph side by the
+		// over-returning reader, both in
+		// service_read_model_workload_context_test.go.
+		infrastructureTruncated = false
+	}
+	if infrastructureTruncated {
+		limitations = append(limitations, infrastructureTruncatedReason)
 	}
 	dependencies := []map[string]any{}
 	if h.Neo4j != nil {
@@ -194,7 +268,7 @@ func (h *EntityHandler) fetchServiceReadModelWorkloadContext(ctx context.Context
 		"infrastructure":         infrastructure,
 		"materialization_status": "identity_only",
 		"query_basis":            "repository_read_model",
-		"limitations":            []string{"workload_identity_not_materialized"},
+		"limitations":            limitations,
 	}, nil
 }
 
@@ -301,167 +375,4 @@ func scopedWorkloadWhereClause(whereClause string, access repositoryAccessFilter
 					WHERE ` + access.graphCondition("scopeRepo") + `
 				}
 			)`
-}
-
-const workloadPlatformEdgeLimit = contextStoryItemLimit * contextStoryItemLimit
-
-type workloadPlatformResult struct {
-	rows   []map[string]any
-	limits map[string]any
-}
-
-// fetchWorkloadPlatformRows anchors platform lookup through the selected
-// repository and workload before batching exact instance ids.
-func (h *EntityHandler) fetchWorkloadPlatformRows(
-	ctx context.Context,
-	repoID string,
-	workloadID string,
-	instances []map[string]any,
-) ([]map[string]any, error) {
-	result, err := h.fetchWorkloadPlatformResult(ctx, repoID, workloadID, instances)
-	return result.rows, err
-}
-
-func (h *EntityHandler) fetchWorkloadPlatformResult(
-	ctx context.Context,
-	repoID string,
-	workloadID string,
-	instances []map[string]any,
-) (workloadPlatformResult, error) {
-	repoID = strings.TrimSpace(repoID)
-	workloadID = strings.TrimSpace(workloadID)
-	if h == nil || h.Neo4j == nil || repoID == "" || workloadID == "" || len(instances) == 0 {
-		return emptyWorkloadPlatformResult(), nil
-	}
-	access := repositoryAccessFilterFromContext(ctx)
-	// WorkloadInstance and RUNS_ON relationships are global today and do not
-	// carry repository ownership, so scoped callers cannot safely consume them.
-	if access.scoped() {
-		return emptyWorkloadPlatformResult(), nil
-	}
-	instanceIDs := make([]string, 0, len(instances))
-	for _, instance := range instances {
-		if instanceID := StringVal(instance, "instance_id"); instanceID != "" {
-			instanceIDs = append(instanceIDs, instanceID)
-		}
-	}
-	instanceIDs = sortedUniqueStrings(instanceIDs)
-	if len(instanceIDs) == 0 {
-		return emptyWorkloadPlatformResult(), nil
-	}
-	queryLimit := workloadPlatformEdgeLimit + 1
-	platformCypher := fmt.Sprintf(`
-		MATCH (repo:Repository)-[:DEFINES]->(w:Workload)<-[:INSTANCE_OF]-(i:WorkloadInstance)-[runsOn:RUNS_ON]->(p:Platform)
-		WHERE repo.id = $repo_id AND w.id = $workload_id AND i.id IN $instance_ids%s
-		RETURN i.id as instance_id, p.id as platform_id, p.name as platform_name, p.kind as platform_kind,
-		       collect(DISTINCT properties(runsOn)) as platform_edges
-		ORDER BY instance_id, platform_name, platform_id
-		LIMIT $platform_edge_limit
-	`, access.graphPredicate("repo"))
-	params := access.graphParams(map[string]any{
-		"instance_ids":        instanceIDs,
-		"platform_edge_limit": queryLimit,
-		"repo_id":             repoID,
-		"workload_id":         workloadID,
-	})
-	rows, err := h.Neo4j.Run(ctx, platformCypher, params)
-	if err != nil {
-		return workloadPlatformResult{}, err
-	}
-	sortWorkloadPlatformRows(rows)
-	returned, truncated := capMapRows(rows, workloadPlatformEdgeLimit)
-	for _, row := range returned {
-		if len(mapValue(row, "platform_edge")) == 0 {
-			properties, err := deterministicEvidenceProperties(row, "platform_edges")
-			if err != nil {
-				return workloadPlatformResult{}, fmt.Errorf("select RUNS_ON edge evidence: %w", err)
-			}
-			row["platform_edge"] = properties
-		}
-	}
-	return workloadPlatformResult{
-		rows: returned,
-		limits: boundedCollectionMetadata(
-			workloadPlatformEdgeLimit, queryLimit, len(returned), len(rows), truncated,
-			[]string{"instance_id", "platform_name", "platform_id"},
-		),
-	}, nil
-}
-
-// sortWorkloadPlatformRows orders direct-runtime platform rows by instance,
-// then by stable platform identity. The production query already declares
-// this order (ORDER BY instance_id, platform_name, platform_id), but that
-// ORDER BY is not guaranteed to replay identically across NornicDB
-// executions (see docs/internal/evidence/5272-service-story-runtime-topology.md
-// and issue #5644), so relying on the backend row order alone let repeated
-// service-story calls over unchanged retained data attach the same
-// instance's platforms in a different order. This Go-level sort makes
-// attachDirectPlatforms deterministic regardless of backend row order.
-//
-// The production Cypher aggregates by (instance_id, platform_id,
-// platform_name, platform_kind), so two rows can still tie on
-// (instance_id, platform_name, platform_id) when platform_id is empty but
-// platform_kind differs. platform_kind is the final tiebreaker so every
-// distinct aggregation key resolves to a unique, deterministic position.
-func sortWorkloadPlatformRows(rows []map[string]any) {
-	sort.Slice(rows, func(i, j int) bool {
-		left, right := rows[i], rows[j]
-		if leftInstance, rightInstance := StringVal(left, "instance_id"), StringVal(right, "instance_id"); leftInstance != rightInstance {
-			return leftInstance < rightInstance
-		}
-		if leftName, rightName := StringVal(left, "platform_name"), StringVal(right, "platform_name"); leftName != rightName {
-			return leftName < rightName
-		}
-		if leftID, rightID := StringVal(left, "platform_id"), StringVal(right, "platform_id"); leftID != rightID {
-			return leftID < rightID
-		}
-		return StringVal(left, "platform_kind") < StringVal(right, "platform_kind")
-	})
-}
-
-func attachDirectPlatforms(instances []map[string]any, platformRows []map[string]any) {
-	byID := make(map[string]map[string]any, len(instances))
-	for _, instance := range instances {
-		byID[StringVal(instance, "instance_id")] = instance
-	}
-	for _, row := range platformRows {
-		instance := byID[StringVal(row, "instance_id")]
-		if instance == nil {
-			continue
-		}
-		platform := map[string]any{
-			"platform_id":         StringVal(row, "platform_id"),
-			"platform_name":       StringVal(row, "platform_name"),
-			"platform_kind":       StringVal(row, "platform_kind"),
-			"platform_confidence": platformEdgeConfidence(row),
-			"platform_reason":     platformEdgeReason(row),
-			"topology_basis":      "direct_runtime",
-			"topology_edges":      []map[string]any{directPlatformTopologyEdge(row)},
-		}
-		instance["platforms"] = append(platformTargets(instance), platform)
-		if StringVal(instance, "platform_name") == "" {
-			instance["platform_name"] = platform["platform_name"]
-			instance["platform_kind"] = platform["platform_kind"]
-			instance["platform_confidence"] = platform["platform_confidence"]
-			instance["platform_reason"] = platform["platform_reason"]
-		}
-	}
-}
-
-// platformEdgeConfidence preserves edge confidence when a backend can return
-// relationship properties but not the scalar relationship-property projection.
-func platformEdgeConfidence(row map[string]any) float64 {
-	if confidence := floatVal(row, "platform_confidence"); confidence != 0 {
-		return confidence
-	}
-	return floatVal(mapValue(row, "platform_edge"), "confidence")
-}
-
-// platformEdgeReason preserves edge rationale through the same relationship
-// properties fallback used for confidence.
-func platformEdgeReason(row map[string]any) string {
-	if reason := StringVal(row, "platform_reason"); reason != "" {
-		return reason
-	}
-	return StringVal(mapValue(row, "platform_edge"), "reason")
 }

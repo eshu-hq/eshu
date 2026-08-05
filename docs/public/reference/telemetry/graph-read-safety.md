@@ -64,6 +64,68 @@ across two unrelated routes with different failure semantics would make an
 operator's capability-keyed triage ambiguous about which route actually
 failed.
 
+Repository context and story map these sentinels for their base repository
+lookup (`repositoryBaseCypher`, a `RunSingle`) and, as of #5764, for their
+primary scalar/narrative auxiliary reads too: the summary counts
+(`file_count`/`workload_count`/`platform_count`/`dependency_count`), the
+story's workload/platform/language narrative rows, and the deployment
+evidence pointers. Before #5764 those auxiliary reads silently folded a
+bounded graph-read error into the same "no rows" fallback path as a genuine
+empty result, so a deadlined or unavailable graph answered a fabricated zero
+count or empty narrative instead of `503`/`504` — indistinguishable from a
+real answer to the caller.
+
+The story's workload/platform/language narrative rows are also bounded (500
+rows, `repositoryStoryStringRowLimit`) so a single narrow read cannot run
+unbounded. A healthy read that lands past that bound is capped in Go rather
+than fabricating an exact-looking count: `workload_count` and `platform_count`
+are `len()` of these bounded lists, not separate `count()` queries, so a
+capped list silently presented as exact would be the same fabricated-value
+defect this issue exists to remove. The cap is disclosed with the
+`story_rows_truncated` reason in `limitations` /
+`answer_metadata.partial_reasons`, and `answer_metadata.truncated` reports
+`true` for that response.
+
+Not every auxiliary read on these two routes maps the sentinels, however:
+`infrastructure` is a genuine auxiliary panel layered on top of those headline
+facts. A graph-read failure there degrades to an empty result with the
+response still answering `200` rather than failing the whole context/story
+read; the degradation surfaces in `partial_reasons` (context) or `limitations`
+/ `answer_metadata.partial_reasons` (story) plus a `failure_class` on the
+`repository_query.stage_completed` / `service_query.stage_completed` log for
+the failing stage. That same infrastructure read is bounded too (5000
+infrastructure-typed entities, `repositoryInfrastructureEntityLimit` --
+Kubernetes, Terraform, Terragrunt, ArgoCD, Helm, Kustomize, Crossplane, and
+CloudFormation entity types; both the content-path and graph-path reads
+filter to that type set before applying the bound, so the count is never the
+repository's total entity count of any type): a HEALTHY read that lands
+past the bound is disclosed with the distinct `infrastructure_truncated`
+reason (never both reasons for the same read — a failed read has no rows to
+bound, and a bounded read did not fail), and the stage log carries an
+unconditional `truncated` boolean attribute alongside the conditional
+`failure_class` attribute. On the story route, `infrastructure_truncated`
+also sets the response's top-level `truncated` field (and therefore
+`answer_metadata.truncated`), OR'd together with the row-narrative bound
+above (P3 review follow-up to #5764): either bound landing past its limit is
+disclosed the same way. `entry_points`, `languages` (context only; the
+story's languages are part of the propagating narrative rows above),
+`relationships`/`dependencies`, `relationship_overview`,
+`source_tool_breakdown`, `consumers`, `api_surface` (`queryRepoAPISurface`),
+the deployable-unit relationship supplement
+(`queryRepoDeployableUnitRelationshipOverview`), and the deployment/
+infrastructure overview builder (`loadDeploymentArtifactOverview`, whose error
+both routes discard) are not yet bounded or disclosed the way `infrastructure`
+is above — including but not limited to this list, since neither route's full
+call graph has an exhaustive audit yet: a graph-read failure on any of those
+still silently folds into the same "no rows" (or discarded-error) path as a
+genuine empty result, with no `failure_class` signal. See
+`go/internal/query/AGENTS-evidence-history-3.md` (part 3, linked from
+`go/internal/query/AGENTS.md`) for the full per-site propagate/degrade
+rationale and the reasoning behind the narrower scope, and
+`go/internal/query/AGENTS-evidence-history-2.md` (part 2) for the P1 review
+follow-up that bounded and disclosed the story's workload/platform/language
+row reads.
+
 Every route in `boundedGraphReadRoutes` follows the table above and advertises
 both statuses in the OpenAPI spec. That list is the enforced set — read it as
 "these routes are proven to map", not as a proof that no other graph-backed

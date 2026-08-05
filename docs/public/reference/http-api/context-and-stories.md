@@ -57,6 +57,14 @@ responses use `materialization_status=identity_only`,
 `query_basis=repository_read_model`, an empty `instances` array, and a
 `limitations` entry of `workload_identity_not_materialized`.
 
+Workload and service context also carry `limitations` on the primary
+graph-materialized path, not only the read-model fallback above: once a
+repository is resolved, an auxiliary infrastructure read that fails degrades
+the response to a 200 with an empty `infrastructure` list and appends
+`infrastructure_read_degraded`, and a healthy infrastructure read that lands
+past its bound appends `infrastructure_truncated`. `partial_reasons` promotes
+these same reasons into its sorted, de-duplicated array.
+
 Entity context may include semantic narrative fields when normalized semantic
 metadata exists: `semantic_summary`, `semantic_profile`, and `story`.
 

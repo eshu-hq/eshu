@@ -442,5 +442,13 @@ func (h *EntityHandler) getServiceContext(w http.ResponseWriter, r *http.Request
 		}
 	}
 
+	// Promote "limitations" into the OpenAPI-promised "partial_reasons" field
+	// (round-11 review follow-up to #5764, PR #5936): the WorkloadContext
+	// schema this route shares with getWorkloadContext documents
+	// "partial_reasons" as always present, and getWorkloadContext already
+	// makes that true. Without this call an infrastructure-read degradation
+	// or truncation landed in "limitations" but never reached the stable
+	// partial-reason field the contract promises HTTP and MCP callers.
+	ctx["partial_reasons"] = contextPartialReasons(ctx)
 	WriteSuccess(w, r, http.StatusOK, ctx, BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisHybrid, "resolved from service context and platform evidence"))
 }

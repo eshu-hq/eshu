@@ -106,10 +106,10 @@ func TestGetRepositoryStoryOverridesBroadAggregationWithAnchoredReads(t *testing
 					{"language": "javascript", "file_count": int64(139)},
 					{"language": "yaml", "file_count": int64(49)},
 				},
-				"RETURN w.name AS workload_name": {
+				"RETURN DISTINCT w.name AS workload_name": {
 					{"workload_name": "catalog-api"},
 				},
-				"RETURN p.type AS platform_type": {},
+				"RETURN DISTINCT p.type AS platform_type": {},
 				"RETURN count(DISTINCT dep) AS count": {
 					{"count": int64(2)},
 				},
