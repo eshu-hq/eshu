@@ -308,6 +308,55 @@
               "sha256:c10000000000000000000000000000000000000000000000000000000010c1c1"
             ]
           }
+        },
+        {
+          "fact_kind": "ci.run",
+          "stable_fact_key": "ci_cd_run:github_actions:container-ci-lineage:run:9101",
+          "schema_version": "1.0.0",
+          "collector_kind": "ci_cd_run",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "cicd-collector-cilineage",
+            "provider": "github_actions",
+            "run_id": "9101",
+            "run_attempt": "1",
+            "run_number": "2",
+            "workflow_name": "release",
+            "event": "push",
+            "status": "completed",
+            "result": "success",
+            "branch": "main",
+            "commit_sha": "3b4c5d6e7f80912a3b4c5d6e7f80912a3b4c5d6e",
+            "repository_id": "repository:r_19519f37",
+            "provider_repository_id": "github.com/acme/container-ci-lineage",
+            "repository_url": "https://github.com/acme/container-ci-lineage",
+            "correlation_anchors": [
+              "github_actions::9101"
+            ]
+          }
+        },
+        {
+          "fact_kind": "ci.artifact",
+          "stable_fact_key": "ci_cd_run:github_actions:container-ci-lineage:run:9101:artifact:image",
+          "schema_version": "1.0.0",
+          "collector_kind": "ci_cd_run",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "cicd-collector-cilineage",
+            "provider": "github_actions",
+            "run_id": "9101",
+            "run_attempt": "1",
+            "artifact_id": "art-image-9101",
+            "artifact_name": "runtime-evidence-image",
+            "artifact_type": "container_image",
+            "artifact_digest": "sha256:0000000000000000000000000000000000000000000000000000000000aa",
+            "correlation_anchors": [
+              "github_actions::9101",
+              "sha256:0000000000000000000000000000000000000000000000000000000000aa"
+            ]
+          }
         }
       ]
     }

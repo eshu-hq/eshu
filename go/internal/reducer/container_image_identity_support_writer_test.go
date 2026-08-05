@@ -13,6 +13,7 @@ import (
 
 func BenchmarkBuildContainerImageIdentitySupportSet(b *testing.B) {
 	current := make([]ContainerImageIdentityDecision, 1000)
+	converged := make([]ContainerImageIdentityDecision, 0, 2000)
 	prior := make([]ContainerImageIdentityPriorSupport, 1000)
 	for index := range current {
 		digest := fmt.Sprintf("sha256:%064x", index)
@@ -33,26 +34,43 @@ func BenchmarkBuildContainerImageIdentitySupportSet(b *testing.B) {
 			IdentityStrength: "immutable_digest",
 			SourceLayers:     []string{"observed_resource", "source_declaration"},
 		}
-	}
-	write := ContainerImageIdentityWrite{
-		ScopeID:   "repository:performance",
-		Decisions: current,
+		runtime := current[index]
+		runtime.IdentityStrength = "explicit_digest"
+		runtime.EvidenceFactIDs = []string{
+			fmt.Sprintf("aws-image-reference:%d", index),
+			fmt.Sprintf("oci-manifest:%d", index),
+		}
+		artifact := runtime
+		artifact.IdentityStrength = "artifact_digest_with_registry_observation"
+		artifact.EvidenceFactIDs = []string{
+			fmt.Sprintf("ci-artifact:%d", index),
+			fmt.Sprintf("ci-run:%d", index),
+			fmt.Sprintf("oci-manifest:%d", index),
+		}
+		converged = append(converged, runtime, artifact)
 	}
 	for _, benchmark := range []struct {
-		name  string
-		prior []ContainerImageIdentityPriorSupport
+		name      string
+		decisions []ContainerImageIdentityDecision
+		prior     []ContainerImageIdentityPriorSupport
+		want      int
 	}{
-		{name: "current_1000"},
-		{name: "current_1000_held_1000", prior: prior},
+		{name: "current_1000", decisions: current, want: 1000},
+		{name: "converged_1000_2000", decisions: converged, want: 2000},
+		{name: "current_1000_held_1000", decisions: current, prior: prior, want: 2000},
 	} {
 		b.Run(benchmark.name, func(b *testing.B) {
 			b.ReportAllocs()
+			write := ContainerImageIdentityWrite{
+				ScopeID:   "repository:performance",
+				Decisions: benchmark.decisions,
+			}
 			for range b.N {
 				set, err := buildContainerImageIdentitySupportSet(write, benchmark.prior)
 				if err != nil {
 					b.Fatal(err)
 				}
-				if len(set.Supports) != 1000+len(benchmark.prior) {
+				if len(set.Supports) != benchmark.want {
 					b.Fatalf("supports = %d", len(set.Supports))
 				}
 			}

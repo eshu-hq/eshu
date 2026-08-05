@@ -68,13 +68,9 @@ func buildContainerImageIdentitySupportSet(
 	write ContainerImageIdentityWrite,
 	prior []ContainerImageIdentityPriorSupport,
 ) (containerImageIdentitySupportSet, error) {
-	publications := planContainerImageIdentityPublications(ContainerImageIdentityWrite{
-		ScopeID:      write.ScopeID,
-		GenerationID: write.GenerationID,
-		Decisions:    write.Decisions,
-	})
-	supports := make([]containerImageIdentitySupport, 0, len(publications)+len(prior))
-	seen := make(map[string]struct{}, len(publications)+len(prior))
+	decisions := containerImageIdentityCanonicalDecisions(write.Decisions)
+	supports := make([]containerImageIdentitySupport, 0, len(decisions)+len(prior))
+	seen := make(map[string]struct{}, len(decisions)+len(prior))
 	heldBaseRepositories := make(map[string][]string, len(write.HeldDecisions))
 	for _, held := range write.HeldDecisions {
 		imageRef := strings.TrimSpace(held.ImageRef)
@@ -87,20 +83,17 @@ func buildContainerImageIdentitySupportSet(
 		))
 	}
 	currentSupportCount := 0
-	for _, publication := range publications {
-		if publication.tombstone {
-			continue
-		}
-		row, err := containerImageIdentitySupportFromDecision(publication.decision)
+	for _, decision := range decisions {
+		row, err := containerImageIdentitySupportFromDecision(decision)
 		if err != nil {
 			return containerImageIdentitySupportSet{}, err
 		}
-		currentSupportCount++
 		if _, ok := seen[row.SupportID]; ok {
 			continue
 		}
 		seen[row.SupportID] = struct{}{}
 		supports = append(supports, row)
+		currentSupportCount++
 	}
 	for _, retained := range prior {
 		retained.BaseImageForRepositoryIDs = append(

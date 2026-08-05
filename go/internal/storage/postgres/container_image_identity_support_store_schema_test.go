@@ -109,6 +109,33 @@ func TestContainerImageIdentitySupportStoreSchemaContract(t *testing.T) {
 	}
 }
 
+func TestContainerImageIdentityCurrentFactsRanksIdentityStrength(t *testing.T) {
+	t.Parallel()
+
+	sql := MigrationSQL("container_image_identity_strength_precedence")
+	for _, want := range []string{
+		"identity_strengths AS MATERIALIZED",
+		"PARTITION BY support.digest",
+		"WHEN 'explicit_digest' THEN 50",
+		"WHEN 'oci_config_source_label_with_digest' THEN 40",
+		"WHEN 'artifact_digest_with_registry_observation' THEN 30",
+		"WHEN 'immutable_digest' THEN 20",
+		"WHEN 'tag_observation_with_digest' THEN 10",
+		"support.identity_strength ASC",
+		"support.support_id",
+		"identity_strength.value AS identity_strength",
+		"'evidence_fact_ids', to_jsonb(folded.evidence_fact_ids)",
+		"'identity_strength', folded.identity_strength",
+	} {
+		if !strings.Contains(sql, want) {
+			t.Errorf("identity-strength migration missing %q", want)
+		}
+	}
+	if strings.Contains(sql, "'identity_strength', winner.identity_strength") {
+		t.Fatal("identity-strength migration still publishes the incidental row winner")
+	}
+}
+
 func TestContainerImageIdentitySupportStoreCutoverDefinitionsStayAdjacent(t *testing.T) {
 	t.Parallel()
 

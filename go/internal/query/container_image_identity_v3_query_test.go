@@ -6,6 +6,8 @@ package query
 import (
 	"strings"
 	"testing"
+
+	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 func TestContainerImageIdentityListQueryFoldsAuthorizedCurrentSupports(t *testing.T) {
@@ -69,5 +71,48 @@ func TestContainerImageIdentityCanonicalWinnerBreaksCrossScopeTies(t *testing.T)
 		if !strings.Contains(query, "repository_id,\n                image_ref,\n                scope_id,\n                support_id") {
 			t.Fatalf("%s canonical ranking lacks a deterministic cross-scope tie-break:\n%s", name, query)
 		}
+	}
+}
+
+func TestContainerImageIdentityCanonicalStrengthIsFoldedIndependently(t *testing.T) {
+	t.Parallel()
+
+	for name, query := range map[string]string{
+		"list":      listContainerImageIdentitiesQuery,
+		"aggregate": containerImageIdentityAggregateGroupQueryTemplate,
+	} {
+		for _, want := range []string{
+			"identity_strengths AS MATERIALIZED",
+			"WHEN 'explicit_digest' THEN 50",
+			"WHEN 'oci_config_source_label_with_digest' THEN 40",
+			"WHEN 'artifact_digest_with_registry_observation' THEN 30",
+			"WHEN 'immutable_digest' THEN 20",
+			"WHEN 'tag_observation_with_digest' THEN 10",
+			"support.identity_strength ASC",
+			"support.support_id",
+		} {
+			if !strings.Contains(query, want) {
+				t.Errorf("%s query missing strength precedence %q:\n%s", name, want, query)
+			}
+		}
+	}
+	if !strings.Contains(listContainerImageIdentitiesQuery, "'identity_strength', grouped.identity_strength") {
+		t.Fatalf("list query does not expose folded identity strength:\n%s", listContainerImageIdentitiesQuery)
+	}
+	if !strings.Contains(containerImageIdentityAggregateGroupQueryTemplate, "canonical_identity_strength") {
+		t.Fatalf("aggregate query does not expose folded identity strength:\n%s", containerImageIdentityAggregateGroupQueryTemplate)
+	}
+}
+
+func TestContainerImageIdentityStrengthOrderMatchesDeployedFunction(t *testing.T) {
+	t.Parallel()
+
+	normalize := func(sql string) string {
+		return strings.Join(strings.Fields(sql), " ")
+	}
+	deployed := normalize(storagepostgres.MigrationSQL("container_image_identity_strength_precedence"))
+	strengthOrder := normalize(containerImageIdentityStrengthOrderSQL)
+	if got := strings.Count(deployed, strengthOrder); got != 1 {
+		t.Fatalf("deployed strength order occurrences = %d, want exactly 1 for %q", got, strengthOrder)
 	}
 }

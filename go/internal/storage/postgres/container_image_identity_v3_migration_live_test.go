@@ -87,6 +87,7 @@ func containerImageIdentityV3UpgradeDefinitions(t *testing.T) ([]Definition, []D
 		"container_image_identity_support_current_view":           {},
 		"container_image_identity_current_facts_function":         {},
 		"container_image_identity_current_support_facts_function": {},
+		"container_image_identity_strength_precedence":            {},
 	}
 	var preUpgrade, upgrade []Definition
 	for _, definition := range BootstrapDefinitions() {

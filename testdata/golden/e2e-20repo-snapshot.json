@@ -3958,7 +3958,7 @@
         "minimum_results": 0
       },
       "get_container_image_identity_inventory": {
-        "description": "MCP tool coverage shape for get_container_image_identity_inventory; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5451 non-vacuous assertion, scoped to the ECS running task's digest (sha256:...aa, previously buried in the ecs.task aws_resource containers[] attribute and invisible to the digest-keyed resolver, which reads only *_image_reference fact kinds): filtering by that digest and grouping by identity_strength returns >=1 identity_strength=explicit_digest bucket. explicit_digest is produced ONLY by the direct aws_image_reference/azure_image_reference/gcp_image_reference registry-digest-match path (classifyContainerImageRef's repositoryID!=\"\" branch); the ci.artifact bare-digest path produces artifact_digest_with_registry_observation instead, and no ci.artifact/ci.run fact exists for this digest in the corpus, so this assertion is load-bearing on the ECS scanner's new aws_image_reference emission specifically, not on the fixture set as a whole. It resolves against the ECR-hosted oci_registry.image_manifest fixture at the same digest (an OCI manifest alone creates no identity -- it only populates the registry index another evidence source matches against). The count is provably zero on main: neither the aws_image_reference fact nor the ECR oci_registry.image_manifest fixture exist there, so no decision carries this digest at all. The digest->repo/commit join for a resolved identity is proven separately, without this ci.artifact/aws_image_reference dedup collision, by the reducer-level TestBuildContainerImageIdentityDecisionsJoinsECSTaskImageReferenceToCICDRunCommit test and by #5423's own golden assertion above (which already proves the digest->repo/commit join mechanism for any resolved image_ref).",
+        "description": "MCP tool coverage shape for get_container_image_identity_inventory. #5451 makes the ECS task digest non-vacuous through an aws_image_reference matched to the ECR manifest. #5704 deliberately adds an independent ci.run/ci.artifact for that same digest: digest-v3 must preserve both supports, fold one public identity, and expose explicit_digest as the strongest visible marker instead of letting artifact order hide the runtime observation. The bounded HTTP identity query for this digest separately pins the exact unioned AWS, OCI, CI-run, and CI-artifact evidence plus the CI revision. Removing either evidence path or restoring last-writer-wins makes at least one of these two assertions fail.",
         "required_response_fields": [
           "buckets",
           "count",
@@ -5998,6 +5998,24 @@
         "results_field": "correlations",
         "result_item_required_fields": ["artifact_digest", "canonical_writes", "correlation_kind", "image_ref", "outcome", "provider", "repository_id", "run_id"],
         "required_json_object_matches": {"correlations[]": [{"artifact_digest": "sha256:c10000000000000000000000000000000000000000000000000000000010c1c1", "canonical_writes": 1, "correlation_kind": "workflow_image", "image_ref": "ghcr.io/acme/container-ci-lineage:1.0.0", "outcome": "derived", "provider": "github_actions", "repository_id": "repository:r_19519f37", "run_id": "9100"}]}
+      },
+      "GET /api/v0/supply-chain/container-images/identities?digest=sha256:0000000000000000000000000000000000000000000000000000000000aa&limit=10": {
+        "description": "#5704 end-to-end evidence merge proof. The ECS task emits an aws_image_reference for digest sha256:...00aa, the ECR cassette supplies its OCI manifest, and GitHub Actions run 9101 independently publishes a ci.artifact for the same digest from repository:r_19519f37. Digest-v3 must retain both supports but return exactly one canonical identity. The object match binds the explicit runtime-observed strength, CI revision, source repository, and the exact sorted union of AWS, OCI, CI-run, and CI-artifact fact IDs to that same identity. Dropping either support, selecting strength by incidental row order, or returning duplicate logical identities fails this shape.",
+        "required_response_fields": ["collector_readiness", "count", "identities", "limit", "truncated"],
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "identities",
+        "result_item_required_fields": ["digest", "evidence_fact_ids", "identity_strength", "source_repository_ids", "source_revision", "source_revision_provenance"],
+        "required_json_object_matches": {
+          "identities[]": [{
+            "digest": "sha256:0000000000000000000000000000000000000000000000000000000000aa",
+            "evidence_fact_ids": ["91516d563e2dd52dbcf527740c02b2130e61a6b4b77ad4be218417ac0057b51f", "952cba28492237a7263251dbd73f07c57bcfb929b3541a97f4b5eaf8335aaaf8", "b0803c884786f7b08f472376bb5a6139bfdb5770e398823ca47bb3e615cfc01b", "d15088277e773fa3cf958a16a7220845763a484b2646168881d06038afbb9774"],
+            "identity_strength": "explicit_digest",
+            "source_repository_ids": ["repository:r_19519f37"],
+            "source_revision": "3b4c5d6e7f80912a3b4c5d6e7f80912a3b4c5d6e",
+            "source_revision_provenance": "ci_run_commit"
+          }]
+        }
       },
       "GET /api/v0/semantic/code-hints?provider_profile_id=semantic-code-default&limit=25": {
         "description": "Semantic code hints; confirms optional semantic code-hint facts project to the mounted semantic evidence read surface.",

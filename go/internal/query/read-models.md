@@ -186,7 +186,10 @@ image reference, repository, or outcome anchor plus `limit`, and they keep
 inspect digest admission without turning weak or stale tag diagnostics into
 deployment truth. The read model is canonical by digest: current support sets
 from every active scope fold to one logical identity and a digest-derived stable
-cursor. Scoped-token grants filter supports before that fold, so the returned
+cursor. Evidence IDs and correlation arrays are sorted unions across those
+supports, while identity strength is selected independently so an explicit
+runtime digest observation remains visible when a CI artifact corroborates the
+same digest. Scoped-token grants filter supports before that fold, so the returned
 repository, workload, service, and evidence arrays contain only associations
 the caller is allowed to observe. Activation clears a scope's current support
 pointer before its reducer refresh completes; stale generations therefore stop
