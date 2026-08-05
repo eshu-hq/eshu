@@ -395,7 +395,7 @@ func TestLoadConsumerRepositoryEnrichmentWithoutTraceLimitUsesBoundedDefaultSear
 		{columns: []string{"repo_id", "relative_path", "commit_sha", "content", "content_hash", "line_count", "language", "artifact_type"}, rows: [][]driver.Value{}},
 	})
 
-	_, err := loadConsumerRepositoryEnrichment(
+	_, _, err := loadConsumerRepositoryEnrichment(
 		context.Background(),
 		fakeGraphReader{
 			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {

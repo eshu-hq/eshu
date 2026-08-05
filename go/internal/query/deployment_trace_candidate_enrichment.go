@@ -67,14 +67,35 @@ func loadProvisioningSourceChainsFromCandidates(
 
 // loadConsumerRepositoryEnrichmentFromCandidates merges graph-derived
 // provisioning candidates with content-evidence consumer matches into the
-// consumer_repositories field. #5720 round-2 P1-1: truncation can come from
-// either of two independent, unrelated sources, so both must be disclosed
-// through the single returned bool -- candidatesTruncated (the caller's
-// upstream queryProvisioningRepositoryCandidates read already dropped rows)
-// and this function's own final consumers[:limit] cap below, which can trim
-// the list even when candidatesTruncated is false: content-evidence search
-// can add consumer repositories the graph candidates never named, so the
-// merged set can exceed limit purely from that side.
+// consumer_repositories field.
+//
+// The single returned truncated bool is the OR of every bound that can drop a
+// consumer repository from the merged set. #5720 round-2 P1-1 disclosed the
+// first two; #5720 round-7 P1-3 found that the comment claiming those were
+// the only two was wrong, and that two of the missing ones sit UPSTREAM of
+// both -- a repository they drop never reaches the merged set, so neither the
+// final cap nor candidatesTruncated can observe it. The full enumeration:
+//
+//  1. candidatesTruncated -- the caller's upstream
+//     queryProvisioningRepositoryCandidates read already dropped rows at its
+//     own LIMIT.
+//  2. hostnamesTruncated -- indirectEvidenceHostnameLimit (4) dropped
+//     hostnames before any search ran, so consumers reachable only through a
+//     dropped hostname are never searched for. Upstream of 4 and 5.
+//  3. the trimmedHostnames[:limit] cut below, for the case where the surviving
+//     hostname set still exceeds the caller's limit. Upstream of 4 and 5.
+//  4. searchTruncated -- at least one per-search content read in
+//     searchConsumerEvidenceAnyRepo came back full at its own row cap.
+//  5. this function's own final consumers[:limit] cap, which can trim the
+//     merged list even when every source above is false: content-evidence
+//     search can add consumer repositories the graph candidates never named,
+//     so the merged set can exceed limit purely from that side.
+//
+// One bound is deliberately NOT folded in here: repositorySemanticEntityLimit
+// (5000) clips the per-chain nested entity evidence
+// loadProvisioningSourceChainsFromCandidates reads. It bounds the evidence
+// attached to a chain, not which repositories appear, so it cannot drop a
+// consumer from this set; it is pre-existing and remains undisclosed.
 func loadConsumerRepositoryEnrichmentFromCandidates(
 	ctx context.Context,
 	graph GraphQuery,
@@ -89,9 +110,14 @@ func loadConsumerRepositoryEnrichmentFromCandidates(
 	truncated = candidatesTruncated
 	trimmedHostnames := normalizedIndirectEvidenceHostnames(hostnames)
 	if limit > 0 {
-		trimmedHostnames = boundedIndirectEvidenceHostnamesForService(trimmedHostnames, serviceName)
+		var hostnamesTruncated bool
+		trimmedHostnames, hostnamesTruncated = boundedIndirectEvidenceHostnamesForService(trimmedHostnames, serviceName)
+		if hostnamesTruncated {
+			truncated = true
+		}
 		if len(trimmedHostnames) > limit {
 			trimmedHostnames = trimmedHostnames[:limit]
+			truncated = true
 		}
 	}
 
@@ -110,10 +136,16 @@ func loadConsumerRepositoryEnrichmentFromCandidates(
 	}
 
 	if content != nil {
-		var contentEvidence map[string]traceEvidenceAccumulator
-		contentEvidence, err = searchConsumerEvidenceAnyRepo(ctx, content, serviceRepoID, serviceName, trimmedHostnames, limit)
+		var (
+			contentEvidence map[string]traceEvidenceAccumulator
+			searchTruncated bool
+		)
+		contentEvidence, searchTruncated, err = searchConsumerEvidenceAnyRepo(ctx, content, serviceRepoID, serviceName, trimmedHostnames, limit)
 		if err != nil {
 			return nil, false, err
+		}
+		if searchTruncated {
+			truncated = true
 		}
 		for repoID, evidence := range contentEvidence {
 			entry, ok := consumersByRepo[repoID]
@@ -158,12 +190,11 @@ func loadConsumerRepositoryEnrichmentFromCandidates(
 	})
 	if limit > 0 && len(consumers) > limit {
 		consumers = consumers[:limit]
-		// #5720 round-2 P1-1: this cap is a second, independent truncation
-		// source from candidatesTruncated above -- content-evidence search
-		// can add consumer repositories the graph candidates never named, so
-		// the merged set can exceed limit even when the graph read itself
-		// was not truncated. OR rather than overwrite so a candidatesTruncated
-		// signal already set to true is never lost.
+		// Source 5 in the enumeration on this function's doc comment: this cap
+		// can trim the merged list even when every upstream source is false,
+		// because content-evidence search can add consumer repositories the
+		// graph candidates never named. Assigned true rather than overwritten
+		// with a fresh value so a signal already set above is never lost.
 		truncated = true
 	}
 	return consumers, truncated, nil

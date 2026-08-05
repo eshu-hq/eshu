@@ -155,9 +155,20 @@ func enrichServiceQueryContextWithOptions(
 			timer = startServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "graph_dependents")
 			if dependents := buildGraphDependents(candidates); len(dependents) > 0 {
 				workloadContext["dependents"] = dependents
-				if candidatesTruncated {
-					workloadContext["dependents_truncated"] = true
-				}
+			}
+			// #5720 round-7 P1-4: the disclosure is deliberately set outside
+			// the len(dependents) > 0 guard. The backend applies LIMIT before
+			// filterProvisioningRepositoryCandidatesForAccess runs above, so a
+			// scoped caller whose granted repositories all sort after the
+			// `ORDER BY repo.name, repo.id` cut has every returned row removed
+			// by the filter. Under a guarded flag that caller received neither
+			// dependents nor a truncation signal -- an empty answer that
+			// silently reads as complete while their own dependents sat past
+			// the cut. Disclosing an emptied-by-filter truncated read is the
+			// conservative direction: the dropped rows were never read, so
+			// they cannot be shown to fall outside the caller's grant.
+			if candidatesTruncated {
+				workloadContext["dependents_truncated"] = true
 			}
 			timer.Done(ctx, slog.Int("row_count", len(candidates)))
 
@@ -169,9 +180,14 @@ func enrichServiceQueryContextWithOptions(
 			}
 			if len(consumers) > 0 {
 				workloadContext["consumer_repositories"] = consumers
-				if consumersTruncated {
-					workloadContext["consumer_repositories_truncated"] = true
-				}
+			}
+			// #5720 round-7 P1-4: same emptied-by-filter reasoning as
+			// dependents_truncated above -- the access filter runs over the
+			// candidate slice this enrichment feeds in, so an entirely
+			// filtered-away consumer list must still disclose that the read
+			// underneath it hit its bound.
+			if consumersTruncated {
+				workloadContext["consumer_repositories_truncated"] = true
 			}
 		}
 
@@ -184,9 +200,11 @@ func enrichServiceQueryContextWithOptions(
 			}
 			if len(provisioningChains) > 0 {
 				workloadContext["provisioning_source_chains"] = provisioningChains
-				if candidatesTruncated {
-					workloadContext["provisioning_source_chains_truncated"] = true
-				}
+			}
+			// #5720 round-7 P1-4: same emptied-by-filter reasoning as
+			// dependents_truncated above.
+			if candidatesTruncated {
+				workloadContext["provisioning_source_chains_truncated"] = true
 			}
 		}
 		if len(mapSliceValue(workloadContext, "cloud_resources")) == 0 {

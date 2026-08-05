@@ -34,10 +34,19 @@ var genericServiceHostnameTokens = map[string]struct{}{
 // When no hostname matches a distinctive service token, it preserves the older
 // first-four fallback so services with vanity or opaque domains still get
 // bounded consumer evidence.
-func boundedIndirectEvidenceHostnamesForService(hostnames []string, serviceName string) []string {
+//
+// #5720 round-7 P1-3: the returned bool reports that hostnames were dropped by
+// indirectEvidenceHostnameLimit. This cap sits UPSTREAM of every consumer
+// search, so a consumer repository reachable only through a dropped hostname
+// never enters the merged consumer set at all -- neither the caller's own
+// final cap nor the provisioning-candidate read's truncated bool can see it,
+// and the answer would otherwise report a complete-looking
+// consumer_repository_count. Only a signal returned from here makes that
+// bound observable.
+func boundedIndirectEvidenceHostnamesForService(hostnames []string, serviceName string) ([]string, bool) {
 	unique := uniqueTrimmedHostnames(hostnames)
 	if len(unique) == 0 {
-		return nil
+		return nil, false
 	}
 
 	tokens := serviceHostnameAffinityTokens(serviceName)
@@ -100,11 +109,14 @@ func hostnameMatchesServiceToken(hostname string, tokens []string) bool {
 	return false
 }
 
-func capAndSortIndirectEvidenceHostnames(hostnames []string) []string {
-	if len(hostnames) > indirectEvidenceHostnameLimit {
+// capAndSortIndirectEvidenceHostnames returns the bounded, sorted hostname
+// list and whether indirectEvidenceHostnameLimit actually dropped entries.
+func capAndSortIndirectEvidenceHostnames(hostnames []string) ([]string, bool) {
+	truncated := len(hostnames) > indirectEvidenceHostnameLimit
+	if truncated {
 		hostnames = hostnames[:indirectEvidenceHostnameLimit]
 	}
 	result := append([]string(nil), hostnames...)
 	sort.Strings(result)
-	return result
+	return result, truncated
 }

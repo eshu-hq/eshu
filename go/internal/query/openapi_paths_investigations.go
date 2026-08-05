@@ -155,7 +155,7 @@ const openAPIPathsInvestigations = `
                     "repositories_considered": {"type": "array", "items": {"type": "object"}},
                     "repositories_with_evidence": {"type": "array", "items": {"type": "object"}},
                     "evidence_families_found": {"type": "array", "items": {"type": "string"}},
-                    "coverage_summary": {"type": "object"},
+                    "coverage_summary": {"type": "object", "description": "Coverage state and reason plus repository/evidence counts, result_limit (the 50-row repository rendering cap), downstream_read_limit (the tighter bound that actually fires on the cross-repository fan-out, 25 by default), and truncated. truncated is true when the repository list was capped OR when the bounded provisioning-candidate, hostname, or consumer-evidence reads behind dependents, consumer_repositories, and provisioning_source_chains hit their own bounds."},
                     "investigation_findings": {"type": "array", "items": {"type": "object"}},
                     "recommended_next_calls": {"type": "array", "items": {"type": "object"}},
                     "service_story_path": {"type": "string"},

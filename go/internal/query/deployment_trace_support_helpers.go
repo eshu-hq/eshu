@@ -30,34 +30,48 @@ type traceEvidenceAccumulator struct {
 	matchedValues map[string]struct{}
 }
 
+// loadProvisioningSourceChains loads the provisioning source chains for a
+// service repository, returning the chains and whether the read underneath
+// them hit its bound. #5720 round-7 P3-1: this wrapper and the two below used
+// to drop the truncated bool on the floor with a comment noting no production
+// caller existed yet -- exactly the discarded-flag pattern this issue exists
+// to remove, and one a future production caller would silently inherit.
+// loadProvisioningSourceChainsFromCandidates is 1:1 over the candidate slice
+// with no capping of its own, so the candidate read's bool is the whole
+// signal.
 func loadProvisioningSourceChains(
 	ctx context.Context,
 	graph GraphQuery,
 	content ContentStore,
 	serviceRepoID string,
-) ([]map[string]any, error) {
+) ([]map[string]any, bool, error) {
 	return loadProvisioningSourceChainsWithLimit(ctx, graph, content, serviceRepoID, 0)
 }
 
+// loadProvisioningSourceChainsWithLimit is loadProvisioningSourceChains with
+// an explicit candidate-read bound. It returns the same truncation signal.
 func loadProvisioningSourceChainsWithLimit(
 	ctx context.Context,
 	graph GraphQuery,
 	content ContentStore,
 	serviceRepoID string,
 	limit int,
-) ([]map[string]any, error) {
-	// This wrapper's own return shape carries no truncation signal today and
-	// has no production caller (only tests reach it directly); the truncated
-	// bool is discarded here rather than plumbed through, since
-	// loadProvisioningSourceChainsFromCandidates is 1:1 over the candidate
-	// slice with no further capping of its own.
-	candidates, _, err := queryProvisioningRepositoryCandidates(ctx, graph, serviceRepoID, limit)
+) ([]map[string]any, bool, error) {
+	candidates, truncated, err := queryProvisioningRepositoryCandidates(ctx, graph, serviceRepoID, limit)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return loadProvisioningSourceChainsFromCandidates(ctx, content, candidates)
+	chains, err := loadProvisioningSourceChainsFromCandidates(ctx, content, candidates)
+	if err != nil {
+		return nil, false, err
+	}
+	return chains, truncated, nil
 }
 
+// loadConsumerRepositoryEnrichment loads the consumer repositories for a
+// service at the default indirect-evidence search limit, returning the same
+// merged truncation signal loadConsumerRepositoryEnrichmentFromCandidates
+// documents (#5720 round-7 P3-1).
 func loadConsumerRepositoryEnrichment(
 	ctx context.Context,
 	graph GraphQuery,
@@ -65,7 +79,7 @@ func loadConsumerRepositoryEnrichment(
 	serviceRepoID string,
 	serviceName string,
 	hostnames []string,
-) ([]map[string]any, error) {
+) ([]map[string]any, bool, error) {
 	return loadConsumerRepositoryEnrichmentWithLimit(
 		ctx,
 		graph,
@@ -77,6 +91,9 @@ func loadConsumerRepositoryEnrichment(
 	)
 }
 
+// loadConsumerRepositoryEnrichmentWithLimit is loadConsumerRepositoryEnrichment
+// with an explicit bound. It returns the merged truncation signal from both
+// stages.
 func loadConsumerRepositoryEnrichmentWithLimit(
 	ctx context.Context,
 	graph GraphQuery,
@@ -85,17 +102,12 @@ func loadConsumerRepositoryEnrichmentWithLimit(
 	serviceName string,
 	hostnames []string,
 	limit int,
-) ([]map[string]any, error) {
-	// This wrapper's own return shape carries no truncation signal today and
-	// has no production caller (only tests reach it directly); the
-	// truncated bool from both stages is discarded here rather than
-	// plumbed through.
+) ([]map[string]any, bool, error) {
 	candidates, candidatesTruncated, err := queryProvisioningRepositoryCandidates(ctx, graph, serviceRepoID, limit)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	consumers, _, err := loadConsumerRepositoryEnrichmentFromCandidates(ctx, graph, content, serviceRepoID, serviceName, hostnames, limit, candidates, candidatesTruncated)
-	return consumers, err
+	return loadConsumerRepositoryEnrichmentFromCandidates(ctx, graph, content, serviceRepoID, serviceName, hostnames, limit, candidates, candidatesTruncated)
 }
 
 func backfillConsumerRepositoryDisplayNames(

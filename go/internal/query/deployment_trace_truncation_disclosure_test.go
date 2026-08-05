@@ -235,3 +235,205 @@ func TestLoadConsumerRepositoryEnrichmentFromCandidatesDisclosesTruncation(t *te
 		}
 	})
 }
+
+// TestServiceInvestigationCoverageDisclosesProvisioningReadTruncation is the
+// #5720 round-7 P1-1 regression.
+//
+// GET /investigations/services/{name} runs the same enrichment as every other
+// service surface, but its packet carried no result_limits and read none of
+// the three *_truncated keys. Its only truncation field was
+// coverage_summary.truncated, driven by the 50-row repository marker -- a
+// threshold the 25-row indirect-evidence read can never reach. A 40-dependent
+// service therefore reported "25 graph dependent(s), 12 content consumer
+// repo(s)" alongside coverage_summary.truncated: false, exactly the pre-fix
+// behavior the rest of #5720 removed everywhere else.
+func TestServiceInvestigationCoverageDisclosesProvisioningReadTruncation(t *testing.T) {
+	t.Parallel()
+
+	investigationContext := func(extra map[string]any) map[string]any {
+		workloadContext := map[string]any{
+			"name":      "orders-api",
+			"repo_id":   "repository:orders",
+			"repo_name": "orders-api",
+			"dependents": []map[string]any{
+				{"repo_id": "repository:dependent-1", "repository": "dependent-1"},
+			},
+			"consumer_repositories": []map[string]any{
+				{"repo_id": "repository:consumer-1", "repository": "consumer-1"},
+			},
+		}
+		for key, value := range extra {
+			workloadContext[key] = value
+		}
+		return workloadContext
+	}
+	coverageFor := func(t *testing.T, extra map[string]any) map[string]any {
+		t.Helper()
+		packet := buildServiceInvestigationPacket("orders-api", investigationContext(extra), serviceInvestigationOptions{})
+		return mapValue(packet, "coverage_summary")
+	}
+
+	t.Run("no truncation signal reports untruncated", func(t *testing.T) {
+		t.Parallel()
+		coverage := coverageFor(t, nil)
+		if BoolVal(coverage, "truncated") {
+			t.Fatalf("coverage_summary[truncated] = %#v, want false", coverage["truncated"])
+		}
+	})
+
+	// The packet must also name the bound that fires on the downstream lists.
+	// result_limit alone reports the 50-row repository cap, which is not the
+	// bound the truncated flag above reports on.
+	t.Run("names the downstream read bound", func(t *testing.T) {
+		t.Parallel()
+		coverage := coverageFor(t, nil)
+		if got, want := IntVal(coverage, "downstream_read_limit"), defaultIndirectEvidenceSearchLimit; got != want {
+			t.Fatalf("coverage_summary[downstream_read_limit] = %d, want %d", got, want)
+		}
+		if got, want := IntVal(coverage, "result_limit"), serviceStoryItemLimit; got != want {
+			t.Fatalf("coverage_summary[result_limit] = %d, want %d", got, want)
+		}
+	})
+
+	for _, key := range []string{
+		"dependents_truncated",
+		"consumer_repositories_truncated",
+		"provisioning_source_chains_truncated",
+	} {
+		t.Run(key+" propagates to coverage_summary", func(t *testing.T) {
+			t.Parallel()
+			coverage := coverageFor(t, map[string]any{key: true})
+			if !BoolVal(coverage, "truncated") {
+				t.Fatalf("coverage_summary[truncated] = %#v, want true (%s must propagate)", coverage["truncated"], key)
+			}
+		})
+	}
+}
+
+// TestBuildServiceResultLimitsReportsTheDownstreamReadBound is the #5720
+// round-7 P2-5 regression: result_limits reported {limit: 50,
+// downstream_count: 25, truncated: true}, which tells a caller more than 50
+// downstream rows existed. The truth is more than 25 -- the bound that fired
+// is the indirect-evidence search limit under the downstream lists, not the
+// 50-row rendering cap. downstream_read_limit names it.
+func TestBuildServiceResultLimitsReportsTheDownstreamReadBound(t *testing.T) {
+	t.Parallel()
+
+	limits := buildServiceResultLimitsWithContext(newServiceStoryBuildContext(map[string]any{"name": "orders-api"}))
+	if got, want := IntVal(limits, "downstream_read_limit"), defaultIndirectEvidenceSearchLimit; got != want {
+		t.Fatalf("result_limits[downstream_read_limit] = %d, want %d", got, want)
+	}
+	if got, want := IntVal(limits, "limit"), serviceStoryItemLimit; got != want {
+		t.Fatalf("result_limits[limit] = %d, want %d", got, want)
+	}
+	// The two must stay distinct: a caller that cannot tell them apart is back
+	// to reading the 50 as the bound that fired.
+	if IntVal(limits, "downstream_read_limit") >= IntVal(limits, "limit") {
+		t.Fatalf(
+			"result_limits downstream_read_limit = %d is not below limit = %d; the whole point of the field is that the downstream bound is the tighter one",
+			IntVal(limits, "downstream_read_limit"), IntVal(limits, "limit"),
+		)
+	}
+}
+
+// TestLoadConsumerRepositoryEnrichmentDisclosesUpstreamHostnameAndSearchBounds
+// is the #5720 round-7 P1-3 regression.
+//
+// Round 2 fixed two truncation sources and left a comment asserting there were
+// only two. Two more sit UPSTREAM of both, inside this same call:
+// indirectEvidenceHostnameLimit (a hard cap of 4) drops hostnames before any
+// consumer search runs, and each per-search content read has its own row cap.
+// A repository either bound drops never enters consumersByRepo at all, so the
+// merged set fits comfortably under limit, this function's own final cap never
+// fires, and candidatesTruncated stays false -- the answer reported a
+// complete-looking consumer_repository_count while consumers were missing.
+// Both subtests keep the merged set well under limit so nothing but the
+// upstream bound can be setting the flag.
+func TestLoadConsumerRepositoryEnrichmentDisclosesUpstreamHostnameAndSearchBounds(t *testing.T) {
+	t.Parallel()
+
+	oneCandidate := []provisioningRepositoryCandidate{
+		{RepoID: "repository:consumer-1", RepoName: "consumer-1", RelationshipTypes: []string{"USES_MODULE"}},
+	}
+
+	t.Run("hostname cap above indirectEvidenceHostnameLimit discloses", func(t *testing.T) {
+		t.Parallel()
+
+		// Nine hostnames, none carrying the service's own distinctive token,
+		// so the affinity filter falls through to the first-N fallback and
+		// indirectEvidenceHostnameLimit drops five of them.
+		hostnames := make([]string, 0, indirectEvidenceHostnameLimit*2+1)
+		for index := range indirectEvidenceHostnameLimit*2 + 1 {
+			hostnames = append(hostnames, fmt.Sprintf("vanity-%02d.example.test", index))
+		}
+		consumers, truncated, err := loadConsumerRepositoryEnrichmentFromCandidates(
+			context.Background(), nil, fakePortContentStore{}, "repository:orders", "orders-api",
+			hostnames, defaultIndirectEvidenceSearchLimit, oneCandidate, false,
+		)
+		if err != nil {
+			t.Fatalf("loadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
+		}
+		if got, want := len(consumers), defaultIndirectEvidenceSearchLimit; got >= want {
+			t.Fatalf("len(consumers) = %d, want well under the limit of %d so only the hostname bound can set the flag", got, want)
+		}
+		if !truncated {
+			t.Fatalf(
+				"truncated = false, want true (%d hostnames were bounded to indirectEvidenceHostnameLimit = %d, so consumers reachable only through the dropped ones were never searched for)",
+				len(hostnames), indirectEvidenceHostnameLimit,
+			)
+		}
+	})
+
+	t.Run("a per-search read that comes back full discloses", func(t *testing.T) {
+		t.Parallel()
+
+		const limit = 3
+		// Every matched row lands in one repository, so the merged consumer
+		// set is two entries -- far under limit -- and only the search's own
+		// row cap can be reporting truncation.
+		rows := make([]FileContent, 0, limit)
+		for index := range limit {
+			rows = append(rows, FileContent{
+				RepoID:       "repository:search-consumer",
+				RelativePath: fmt.Sprintf("deploy/values-%02d.yaml", index),
+			})
+		}
+		content := patternConsumerSearchContentStore{
+			exactRows: map[string][]FileContent{"orders-api": rows},
+		}
+		consumers, truncated, err := loadConsumerRepositoryEnrichmentFromCandidates(
+			context.Background(), nil, content, "repository:orders", "orders-api",
+			nil, limit, oneCandidate, false,
+		)
+		if err != nil {
+			t.Fatalf("loadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
+		}
+		if got, want := len(consumers), limit; got >= want {
+			t.Fatalf("len(consumers) = %d, want under the limit of %d so only the per-search cap can set the flag", got, want)
+		}
+		if !truncated {
+			t.Fatalf("truncated = false, want true (the service-name search returned %d rows at its own cap of %d)", len(rows), limit)
+		}
+	})
+
+	t.Run("a per-search read below its cap does not disclose", func(t *testing.T) {
+		t.Parallel()
+
+		const limit = 3
+		content := patternConsumerSearchContentStore{
+			exactRows: map[string][]FileContent{
+				"orders-api": {{RepoID: "repository:search-consumer", RelativePath: "deploy/values.yaml"}},
+			},
+		}
+		_, truncated, err := loadConsumerRepositoryEnrichmentFromCandidates(
+			context.Background(), nil, content, "repository:orders", "orders-api",
+			nil, limit, oneCandidate, false,
+		)
+		if err != nil {
+			t.Fatalf("loadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
+		}
+		if truncated {
+			t.Fatal("truncated = true, want false (one row against a cap of 3 dropped nothing)")
+		}
+	})
+}

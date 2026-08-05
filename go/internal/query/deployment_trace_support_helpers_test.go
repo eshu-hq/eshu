@@ -40,7 +40,7 @@ func TestLoadProvisioningSourceChainsBuildsCompactTerraformEvidence(t *testing.T
 		},
 	})
 
-	got, err := loadProvisioningSourceChains(
+	got, _, err := loadProvisioningSourceChains(
 		context.Background(),
 		fakeGraphReader{
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
@@ -128,7 +128,7 @@ func TestLoadConsumerRepositoryEnrichmentPreservesDualViews(t *testing.T) {
 		},
 	}
 
-	got, err := loadConsumerRepositoryEnrichment(
+	got, _, err := loadConsumerRepositoryEnrichment(
 		context.Background(),
 		fakeGraphReader{
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
@@ -223,7 +223,7 @@ func TestLoadConsumerRepositoryEnrichmentFindsCrossRepoConsumersOutsideGraphCand
 		},
 	}
 
-	got, err := loadConsumerRepositoryEnrichment(
+	got, _, err := loadConsumerRepositoryEnrichment(
 		context.Background(),
 		fakeGraphReader{
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
@@ -289,7 +289,7 @@ func TestLoadConsumerRepositoryEnrichmentWithLimitCapsMergedConsumersByEvidenceS
 		},
 	}
 
-	got, err := loadConsumerRepositoryEnrichmentWithLimit(
+	got, _, err := loadConsumerRepositoryEnrichmentWithLimit(
 		context.Background(),
 		fakeGraphReader{
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
@@ -365,7 +365,7 @@ func TestLoadConsumerRepositoryEnrichmentBackfillsRepositoryNamesForContentOnlyC
 		},
 	}
 
-	got, err := loadConsumerRepositoryEnrichment(
+	got, _, err := loadConsumerRepositoryEnrichment(
 		context.Background(),
 		fakeGraphReader{
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
@@ -427,17 +427,29 @@ func TestBoundedTraceEnrichmentLimitUsesOperatorSafeDefault(t *testing.T) {
 // maxIndirectEvidenceSearchLimit at 100 because
 // go/internal/queryplan/testdata/query-source-coverage.yaml hand-declares
 // queryProvisioningRepositoryCandidates's keyed_support disposition as
-// max_results: 100. The queryplan source digest that manifest entry pins only
-// covers the function BODY (source[fn.Pos():fn.End()]); this const lives
-// package-level, outside that span, so bumping it alone leaves the digest
-// valid while the manifest's max_results silently stops matching runtime
-// behavior. This test is the only thing tying the two together -- if it
-// fails, update this const and the manifest's max_results entry in the same
-// change.
+// max_results: 101.
+//
+// The 101 is not a typo and the +1 is the whole point of this test's
+// existence. In that manifest max_results means the requested backend row
+// bound, not the number of rows the function returns: the identical
+// over-fetch sibling loadUncorrelatedCloudResourceCandidatesBounded (limit
+// 50) declares max_results: 51 at the top of the same file.
+// queryProvisioningRepositoryCandidates issues LIMIT $limit with
+// fetchLimit = maxIndirectEvidenceSearchLimit + 1 = 101 to detect truncation
+// without a second count query, then trims to 100 before grouping. #5720
+// round-7 P2-1: the manifest said 100, and the queryplan validator only
+// checks max_results > 0 (source_coverage.go), so nothing caught it.
+//
+// The queryplan source digest that manifest entry pins only covers the
+// function BODY (source[fn.Pos():fn.End()]); this const lives package-level,
+// outside that span, so bumping it alone leaves the digest valid while the
+// manifest's max_results silently stops matching runtime behavior. This test
+// is the only thing tying the two together -- if it fails, update this const
+// and the manifest's max_results entry (const + 1) in the same change.
 func TestMaxIndirectEvidenceSearchLimitMatchesManifestMaxResults(t *testing.T) {
 	t.Parallel()
 
 	if got, want := maxIndirectEvidenceSearchLimit, 100; got != want {
-		t.Fatalf("maxIndirectEvidenceSearchLimit = %d, want %d (update go/internal/queryplan/testdata/query-source-coverage.yaml's max_results for queryProvisioningRepositoryCandidates in the same change)", got, want)
+		t.Fatalf("maxIndirectEvidenceSearchLimit = %d, want %d (update go/internal/queryplan/testdata/query-source-coverage.yaml's max_results for queryProvisioningRepositoryCandidates to %d in the same change)", got, want, got+1)
 	}
 }

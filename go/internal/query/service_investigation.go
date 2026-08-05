@@ -410,6 +410,19 @@ func serviceInvestigationCoverage(
 		state = "partial"
 		reason = "service materialization reports limitations"
 	}
+	// #5720 round-7 P1-1: serviceInvestigationRepositoriesTruncated only fires
+	// once the merged repository list exceeds serviceStoryItemLimit (50), but
+	// the reads that feed dependents, consumer_repositories, and
+	// provisioning_source_chains are bounded well below that by
+	// defaultIndirectEvidenceSearchLimit (25) -- so a 40-dependent service
+	// reported "25 graph dependent(s)" with truncated: false, identical to the
+	// pre-fix behavior. The three *_truncated signals
+	// service_query_enrichment.go sets from
+	// queryProvisioningRepositoryCandidates are the only thing that makes that
+	// bound observable on this route.
+	upstreamTruncated := BoolVal(workloadContext, "dependents_truncated") ||
+		BoolVal(workloadContext, "consumer_repositories_truncated") ||
+		BoolVal(workloadContext, "provisioning_source_chains_truncated")
 	return map[string]any{
 		"state":                            state,
 		"reason":                           reason,
@@ -417,7 +430,8 @@ func serviceInvestigationCoverage(
 		"repositories_with_evidence_count": len(withEvidence),
 		"evidence_family_count":            len(evidenceFamilies),
 		"result_limit":                     serviceStoryItemLimit,
-		"truncated":                        serviceInvestigationRepositoriesTruncated(repositories),
+		"downstream_read_limit":            boundedTraceEnrichmentLimit(0),
+		"truncated":                        serviceInvestigationRepositoriesTruncated(repositories) || upstreamTruncated,
 	}
 }
 

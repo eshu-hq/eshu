@@ -121,7 +121,7 @@ source_coverage:
       - {symbol: "(*DependenciesHandler).listDependencies", count: 1, source_sha256: 33e1e662b30f6fce9d4ed8f4bee0daa6ad24d7724fc7bb24f5fe8ef08be81df0, entry_ids: [QP-SC-DEPS]}
   - file: deployment_trace_support_helpers.go
     calls:
-      - {symbol: "queryProvisioningRepositoryCandidates", count: 1, non_hot: {class: keyed_support, source_sha256: 98c266f8741cdcd4674ba394f93bb713f7907ab005fbca7635d7600e72625273, key_bound: single_key, max_results: 100}}
+      - {symbol: "queryProvisioningRepositoryCandidates", count: 1, non_hot: {class: keyed_support, source_sha256: 98c266f8741cdcd4674ba394f93bb713f7907ab005fbca7635d7600e72625273, key_bound: single_key, max_results: 101}}
   - file: entity.go
     calls:
       - {symbol: "(*EntityHandler).getEntityContext", count: 1, non_hot_reason: "unlabeled entity-context lookup is inventoried but cannot be admitted until its production anchor is typed"}

@@ -72,7 +72,7 @@ func TestTraceEnrichmentOptionsHonorsRelatedModuleUsageFlag(t *testing.T) {
 func TestBoundedIndirectEvidenceHostnamesTrimsDeduplicatesAndCaps(t *testing.T) {
 	t.Parallel()
 
-	got := boundedIndirectEvidenceHostnamesForService([]string{
+	got, truncated := boundedIndirectEvidenceHostnamesForService([]string{
 		"",
 		"api.qa.example.test",
 		" api.qa.example.test ",
@@ -91,12 +91,19 @@ func TestBoundedIndirectEvidenceHostnamesTrimsDeduplicatesAndCaps(t *testing.T) 
 	if !slices.Equal(got, want) {
 		t.Fatalf("boundedIndirectEvidenceHostnamesForService() = %#v, want %#v", got, want)
 	}
+	// #5720 round-7 P1-3: five distinct hostnames went in and
+	// indirectEvidenceHostnameLimit kept four, so the dropped one has to be
+	// disclosed -- a consumer repository reachable only through it is never
+	// searched for.
+	if !truncated {
+		t.Fatal("truncated = false, want true (5 unique hostnames capped to indirectEvidenceHostnameLimit)")
+	}
 }
 
 func TestBoundedIndirectEvidenceHostnamesPrefersServiceOwnedHosts(t *testing.T) {
 	t.Parallel()
 
-	got := boundedIndirectEvidenceHostnamesForService([]string{
+	got, truncated := boundedIndirectEvidenceHostnamesForService([]string{
 		"api.vendor.example.test",
 		"docs.vendor.example.test",
 		"checkout.qa.example.test",
@@ -110,6 +117,12 @@ func TestBoundedIndirectEvidenceHostnamesPrefersServiceOwnedHosts(t *testing.T) 
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("boundedIndirectEvidenceHostnamesForService() = %#v, want %#v", got, want)
+	}
+	// The affinity filter dropped three vendor hosts, but it selected rather
+	// than capped: the two service-owned hosts both survive
+	// indirectEvidenceHostnameLimit, so nothing was lost to the bound.
+	if truncated {
+		t.Fatal("truncated = true, want false (the affinity-selected set fits under indirectEvidenceHostnameLimit)")
 	}
 }
 

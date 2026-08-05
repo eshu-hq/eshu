@@ -1,0 +1,308 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package query
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+)
+
+// provisioningCandidateCypherFragment identifies the one graph read whose
+// LIMIT feeds dependents, consumer_repositories, and
+// provisioning_source_chains (queryProvisioningRepositoryCandidates in
+// deployment_trace_support_helpers.go).
+const provisioningCandidateCypherFragment = "MATCH (target:Repository {id: $repo_id})<-[rel:PROVISIONS_DEPENDENCY_FOR"
+
+// provisioningCandidateRows builds `count` distinct candidate rows for the
+// seeded graph reader. Distinct repo ids mean one candidate per row, so the
+// row count and the candidate count line up.
+func provisioningCandidateRows(count int) []map[string]any {
+	rows := make([]map[string]any, 0, count)
+	for index := range count {
+		rows = append(rows, map[string]any{
+			"repo_id":             fmt.Sprintf("repository:consumer-%02d", index),
+			"repo_name":           fmt.Sprintf("consumer-%02d", index),
+			"relationship_type":   "USES_MODULE",
+			"relationship_reason": "terraform_module_source_path",
+		})
+	}
+	return rows
+}
+
+// provisioningCandidateGraphReader answers the provisioning-candidate read
+// with `rows` and every other read with nothing, so a test controls exactly
+// one bound.
+func provisioningCandidateGraphReader(workload map[string]any, rows []map[string]any) fakeWorkloadGraphReader {
+	return fakeWorkloadGraphReader{
+		runSingleByMatch: map[string]map[string]any{
+			"w.name = $service_name": workload,
+			"w.id = $workload_id":    workload,
+		},
+		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+			switch {
+			case strings.Contains(cypher, provisioningCandidateCypherFragment):
+				return rows, nil
+			case strings.Contains(cypher, "<-[:DEFINES]-(r:Repository)"):
+				// fetchWorkloadRepositoryForAccess resolves the owning
+				// repository through this read, and enrichment returns early
+				// when repo_id comes back empty -- without it the
+				// provisioning-candidate read never runs at all.
+				return []map[string]any{{
+					"repo_id":   StringVal(workload, "repo_id"),
+					"repo_name": StringVal(workload, "repo_name"),
+				}}, nil
+			default:
+				return nil, nil
+			}
+		},
+	}
+}
+
+func provisioningTruncationWorkload() map[string]any {
+	return map[string]any{
+		"id":        "workload:orders-api",
+		"instances": []any{},
+		"kind":      "service",
+		"name":      "orders-api",
+		"repo_id":   "repository:orders",
+		"repo_name": "orders-api",
+	}
+}
+
+// runProvisioningTruncationTrace drives the real POST
+// /api/v0/impact/trace-deployment-chain handler with a graph whose
+// provisioning-candidate read returns candidateRowCount rows, and returns the
+// decoded response body.
+func runProvisioningTruncationTrace(t *testing.T, candidateRowCount int) map[string]any {
+	t.Helper()
+
+	handler := &ImpactHandler{
+		Neo4j:   provisioningCandidateGraphReader(provisioningTruncationWorkload(), provisioningCandidateRows(candidateRowCount)),
+		Content: fakePortContentStore{},
+	}
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/impact/trace-deployment-chain",
+		strings.NewReader(`{"service_name":"orders-api","include_related_module_usage":true}`),
+	)
+	w := httptest.NewRecorder()
+
+	handler.traceDeploymentChain(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("traceDeploymentChain status = %d, body = %s", w.Code, w.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode trace response: %v", err)
+	}
+	return body
+}
+
+// provisioningTruncationResponseFields are the three disclosure fields the
+// #5720 fix declares on /impact/trace-deployment-chain in
+// openapi_paths_impact.go.
+var provisioningTruncationResponseFields = []string{
+	"dependents_truncated",
+	"consumer_repositories_truncated",
+	"provisioning_source_chains_truncated",
+}
+
+// TestTraceDeploymentChainDisclosesProvisioningReadTruncation is the #5720
+// round-7 P1-2 regression: the production wiring of the whole disclosure fix
+// had no test at all.
+//
+// Every step between the bounded graph read and the wire was individually
+// unproven end to end -- enrichServiceQueryContextWithOptions writing the
+// three *_truncated keys onto the workload context, buildDeploymentTraceFields
+// reading them back, and attachOptionalFields putting them on the response.
+// Deleting any one of those (or hardcoding all three reads to false) left the
+// full ./internal/query suite green, so the entire declared disclosure surface
+// of this route could be removed with CI passing. verify-openapi.sh checks
+// route parity only and cannot see response fields.
+//
+// This drives the real handler over a seeded graph and asserts the round trip
+// in both directions: present-and-true when the underlying read truncates,
+// and absent when it does not. It mirrors
+// impact_trace_deployment_config_bounds_test.go, which already does exactly
+// this for the sibling uncorrelated_cloud_resources_truncated field.
+func TestTraceDeploymentChainDisclosesProvisioningReadTruncation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("truncated read discloses all three fields", func(t *testing.T) {
+		t.Parallel()
+
+		// The route resolves max_depth 0 to defaultIndirectEvidenceSearchLimit,
+		// so one row past that bound is what the over-fetch probe detects.
+		body := runProvisioningTruncationTrace(t, defaultIndirectEvidenceSearchLimit+1)
+		for _, field := range provisioningTruncationResponseFields {
+			if !BoolVal(body, field) {
+				t.Fatalf(
+					"%s = %#v, want true (the provisioning-candidate read returned more than defaultIndirectEvidenceSearchLimit = %d rows)",
+					field, body[field], defaultIndirectEvidenceSearchLimit,
+				)
+			}
+		}
+		// The disclosed lists must still be bounded at the limit, so a caller
+		// cannot infer completeness from the count alone.
+		if got, want := len(mapSliceValue(body, "dependents")), defaultIndirectEvidenceSearchLimit; got != want {
+			t.Fatalf("len(dependents) = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("untruncated read omits all three fields", func(t *testing.T) {
+		t.Parallel()
+
+		body := runProvisioningTruncationTrace(t, defaultIndirectEvidenceSearchLimit)
+		for _, field := range provisioningTruncationResponseFields {
+			if value, present := body[field]; present {
+				t.Fatalf(
+					"%s = %#v, want the key absent (the read returned exactly defaultIndirectEvidenceSearchLimit = %d rows, nothing was dropped)",
+					field, value, defaultIndirectEvidenceSearchLimit,
+				)
+			}
+		}
+		// Guards the assertion above against passing for the wrong reason: the
+		// lists themselves must be populated, so an absent flag really means
+		// "nothing was dropped" rather than "the read produced nothing".
+		if got := len(mapSliceValue(body, "dependents")); got == 0 {
+			t.Fatal("len(dependents) = 0, want the untruncated read to still return rows")
+		}
+	})
+}
+
+// enrichWithProvisioningCandidateRows runs the real
+// enrichServiceQueryContextWithOptions over a graph seeded with
+// candidateRowCount provisioning-candidate rows and returns the mutated
+// workload context.
+func enrichWithProvisioningCandidateRows(
+	t *testing.T,
+	ctx context.Context,
+	candidateRowCount int,
+) map[string]any {
+	t.Helper()
+
+	workloadContext := provisioningTruncationWorkload()
+	graph := provisioningCandidateGraphReader(workloadContext, provisioningCandidateRows(candidateRowCount))
+	if err := enrichServiceQueryContextWithOptions(
+		ctx,
+		graph,
+		fakePortContentStore{},
+		workloadContext,
+		serviceQueryEnrichmentOptions{
+			IncludeRelatedModuleUsage: true,
+			Operation:                 "service_context",
+		},
+	); err != nil {
+		t.Fatalf("enrichServiceQueryContextWithOptions() error = %v, want nil", err)
+	}
+	return workloadContext
+}
+
+// TestEnrichServiceQueryContextSetsProvisioningTruncationKeys proves the
+// enrichment half of the #5720 round-7 P1-2 wiring directly: the three
+// *_truncated keys every downstream consumer reads (the trace response, the
+// story dossier's downstream_consumers and result_limits, and the service
+// investigation coverage summary) are actually written onto the workload
+// context by enrichServiceQueryContextWithOptions, and only when the read was
+// truncated.
+func TestEnrichServiceQueryContextSetsProvisioningTruncationKeys(t *testing.T) {
+	t.Parallel()
+
+	t.Run("truncated read sets all three keys", func(t *testing.T) {
+		t.Parallel()
+
+		workloadContext := enrichWithProvisioningCandidateRows(t, context.Background(), defaultIndirectEvidenceSearchLimit+1)
+		for _, key := range provisioningTruncationResponseFields {
+			if !BoolVal(workloadContext, key) {
+				t.Fatalf("workloadContext[%s] = %#v, want true", key, workloadContext[key])
+			}
+		}
+	})
+
+	t.Run("untruncated read sets none of them", func(t *testing.T) {
+		t.Parallel()
+
+		workloadContext := enrichWithProvisioningCandidateRows(t, context.Background(), defaultIndirectEvidenceSearchLimit)
+		for _, key := range provisioningTruncationResponseFields {
+			if value, present := workloadContext[key]; present {
+				t.Fatalf("workloadContext[%s] = %#v, want the key absent", key, value)
+			}
+		}
+		if got := len(mapSliceValue(workloadContext, "dependents")); got == 0 {
+			t.Fatal("len(dependents) = 0, want the untruncated read to still populate dependents")
+		}
+	})
+}
+
+// TestEnrichServiceQueryContextDisclosesTruncationToScopedCallers is the #5720
+// round-7 P1-4 regression.
+//
+// candidatesTruncated is computed from the raw graph read, which the backend
+// bounds with LIMIT BEFORE
+// filterProvisioningRepositoryCandidatesForAccess runs. A scoped caller whose
+// granted repositories all sort after the `ORDER BY repo.name, repo.id` cut
+// therefore receives rows that the filter removes entirely. While the three
+// disclosure writes sat inside `if len(...) > 0` guards, that caller got
+// neither dependents nor a truncation signal: an empty answer that reads as
+// complete, while their own dependents sat past the cut. The rows past the cut
+// were never read, so they cannot be shown to fall outside the grant --
+// disclosing the bound is the only honest option.
+func TestEnrichServiceQueryContextDisclosesTruncationToScopedCallers(t *testing.T) {
+	t.Parallel()
+
+	scopedContext := func(allowedRepoIDs ...string) context.Context {
+		return ContextWithAuthContext(context.Background(), AuthContext{
+			Mode:                 AuthModeScoped,
+			TenantID:             "tenant_a",
+			WorkspaceID:          "workspace_a",
+			AllowedRepositoryIDs: allowedRepoIDs,
+		})
+	}
+
+	t.Run("grant emptied by the access filter still discloses", func(t *testing.T) {
+		t.Parallel()
+
+		// The grant names a repository the truncated read never returned, so
+		// every admitted row is filtered away.
+		workloadContext := enrichWithProvisioningCandidateRows(
+			t,
+			scopedContext("repository:orders", "repository:granted-but-past-the-cut"),
+			defaultIndirectEvidenceSearchLimit+1,
+		)
+		if got := len(mapSliceValue(workloadContext, "dependents")); got != 0 {
+			t.Fatalf("len(dependents) = %d, want 0 (the access filter removes every candidate)", got)
+		}
+		for _, key := range provisioningTruncationResponseFields {
+			if !BoolVal(workloadContext, key) {
+				t.Fatalf(
+					"workloadContext[%s] = %#v, want true (an emptied-by-filter result over a truncated read must not read as complete)",
+					key, workloadContext[key],
+				)
+			}
+		}
+	})
+
+	t.Run("surviving grant still discloses", func(t *testing.T) {
+		t.Parallel()
+
+		workloadContext := enrichWithProvisioningCandidateRows(
+			t,
+			scopedContext("repository:orders", "repository:consumer-00"),
+			defaultIndirectEvidenceSearchLimit+1,
+		)
+		if got, want := len(mapSliceValue(workloadContext, "dependents")), 1; got != want {
+			t.Fatalf("len(dependents) = %d, want %d (only the granted candidate survives the filter)", got, want)
+		}
+		for _, key := range provisioningTruncationResponseFields {
+			if !BoolVal(workloadContext, key) {
+				t.Fatalf("workloadContext[%s] = %#v, want true", key, workloadContext[key])
+			}
+		}
+	})
+}

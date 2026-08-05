@@ -548,6 +548,34 @@ bound is applied; deployment-evidence artifact order does not decide which
 config-derived candidates survive that bound. Free-text candidate selection is
 a separate query path and does not use deployment-evidence artifact order.
 
+`dependents_truncated`, `consumer_repositories_truncated`, and
+`provisioning_source_chains_truncated` report the same class of incomplete
+discovery for the cross-repository fan-out. Each is present and true only when
+the read underneath the matching list hit a bound, and absent otherwise. They
+are required because the reads that feed those lists are bounded at 25 rows by
+default while the rendered lists are capped at 50, so a genuinely truncated
+read can never surface through a count-versus-limit comparison alone. The
+bounds folded into these flags are the provisioning-candidate graph read, the
+four-hostname cap applied before consumer evidence is searched for, each
+per-search content row cap, and the final merge cap over the combined set.
+`consumer_repositories_truncated` covers all of them.
+
+The same three signals drive `result_limits.truncated` on service story,
+service context, and workload context/story, and `coverage_summary.truncated`
+on `GET /api/v0/investigations/services/{service_name}`. Both blocks also
+report `downstream_read_limit`, the bound that actually fires on the
+downstream lists (25 by default). Read it rather than `result_limits.limit` or
+`coverage_summary.result_limit`, which report the 50-row rendering cap: when
+`truncated` is true the honest statement is "more than `downstream_read_limit`
+existed", not "more than the rendering cap existed".
+
+A scoped token receives these flags computed from the pre-authorization read.
+The backend applies its row bound before the caller's repository grant is
+applied, so rows past the bound were never read and cannot be shown to fall
+outside the grant. A scoped caller whose entire result is removed by the grant
+filter therefore still receives the truncation flags rather than an empty
+result that reads as complete.
+
 Repository story uses the same repository deployment-evidence read path as
 repository context and service story. When repository-scoped deployment evidence
 exists, repository story may populate deployment overview evidence counts,

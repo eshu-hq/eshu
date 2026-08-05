@@ -36,8 +36,8 @@ Bounding the read (above) fixed correctness but created a silent accuracy
 gap. Every downstream `*_count` field —
 `service_story_dossier.go`'s `graph_dependent_count`/`content_consumer_count`,
 `service_story_overview.go`'s `dependent_count`/`consumer_repository_count`/
-`provisioning_source_chain_count`, `service_investigation.go`'s
-`downstream_count` — and the "truncated" flags in
+`provisioning_source_chain_count`, `service_story_dossier.go`'s
+`result_limits.downstream_count` — and the "truncated" flags in
 `buildServiceDownstreamConsumers` and `buildServiceResultLimitsWithContext`
 compared row counts against `serviceStoryItemLimit` (50). But
 `queryProvisioningRepositoryCandidates`'s own bound on the default path is
@@ -79,14 +79,17 @@ as `dependents_truncated`, `consumer_repositories_truncated`, and
 `uncorrelated_cloud_resources_truncated` field. All three are documented in
 `openapi_paths_impact.go`.
 
-The 25-vs-50 mismatch that made this gap possible is a separate, narrower
-question from the disclosure fix itself: even with disclosure working, a
-default limit (25) below the display cap (50) means most default-path
-service stories will show fewer upstream/downstream rows than the display
-section could otherwise hold. That is a display-budget tuning question, not
-a correctness bug — the counts, caps, and truncation flags are internally
-consistent at every value of the default limit — so it is left as-is here
-rather than folded into this fix.
+The 25-vs-50 mismatch that made this gap possible also leaked into the
+disclosed numbers themselves. Round 7 P2-5 found `result_limits` reporting
+`{limit: 50, downstream_count: 25, truncated: true}`, which tells a caller
+more than 50 downstream rows existed when the truth is more than 25. Round 2's
+claim here that "the counts, caps, and truncation flags are internally
+consistent at every value of the default limit" was therefore wrong, and is
+withdrawn. `result_limits` and `coverage_summary` now both report
+`downstream_read_limit` — the bound that actually fires, derived from
+`boundedTraceEnrichmentLimit(0)` rather than a restated constant — alongside
+the 50-row rendering cap. Which of the two numbers a display section chooses
+to fill remains a display-budget question and is still left as-is.
 
 No-Regression Evidence: pure ordering/bounding/disclosure fix; the anchor,
 seed cardinality, and edge-type set are unchanged, and the returned candidate
@@ -96,24 +99,91 @@ past the disclosed limit (`limit+1`) to detect truncation without a second
 count query — a one-row difference on the same single-key anchor, not a
 shape change, so this trades a full before/after benchmark for the
 no-measurable-regression statement `cypher-query-rigor` permits for a pure
-correctness/disclosure fix. Proof: `go test ./internal/query -run
-'TestQueryProvisioningRepositoryCandidatesClampsLimitToPackageCap|TestQueryProvisioningRepositoryCandidatesSortIsStableAcrossMapIterationOrder|TestQueryProvisioningRepositoryCandidatesDisclosesTruncation|TestBuildGraphDependentsBreaksTiesByRepoID|TestLoadProvisioningSourceChainsFromCandidatesBreaksTiesByRepoID|TestLoadConsumerRepositoryEnrichmentFromCandidatesBreaksTiesByRepoID|TestLoadConsumerRepositoryEnrichmentFromCandidatesDisclosesTruncation|TestBuildServiceDownstreamConsumersDisclosesUpstreamTruncation|TestBuildServiceResultLimitsWithContextDisclosesUpstreamTruncation|TestMaxIndirectEvidenceSearchLimitMatchesManifestMaxResults|TestTraceDeploymentChainClampsAbsurdMaxDepthInsteadOfRejecting|TestNormalizeTraceDeploymentChainMaxDepth'
--count=1` and `go test ./internal/query ./internal/mcp ./internal/queryplan
--count=1`. The queryplan manifest's `source_sha256` for
+correctness/disclosure fix.
+
+Proof (round 7; earlier revisions of this entry quoted a `5524 passed` figure
+that no counting method reproduces — it is withdrawn, and this entry now
+quotes the suite result lines verbatim instead of a count):
+
+```
+ok  	github.com/eshu-hq/eshu/go/internal/query	5.134s
+ok  	github.com/eshu-hq/eshu/go/internal/mcp	4.527s
+ok  	github.com/eshu-hq/eshu/go/internal/queryplan	1.493s
+ok  	github.com/eshu-hq/eshu/go/internal/query	16.364s   (go test -race)
+```
+
+The queryplan manifest's `source_sha256` for
 `queryProvisioningRepositoryCandidates` was re-audited against the edited
-function body (typed audit, not a digest bump alone): `class: keyed_support`,
-`key_bound: single_key`, and `max_results: 100` are all still true of the new
-source — the seed is still the single `Repository.id = $repo_id` anchor, and
-`rows[:limit]` still runs before grouping, so the returned candidate slice is
-still bounded at 100 regardless of the one extra probed row.
+function body (typed audit, not a digest bump alone): `class: keyed_support`
+and `key_bound: single_key` are still true of the new source — the seed is
+still the single `Repository.id = $repo_id` anchor, and `rows[:limit]` still
+runs before grouping. `max_results` was corrected from 100 to 101 in round 7
+(P2-1): in that manifest `max_results` is the requested backend row bound, not
+the returned count — the identical over-fetch sibling
+`loadUncorrelatedCloudResourceCandidatesBounded` (limit 50) declares
+`max_results: 51` — and this read now issues `LIMIT
+maxIndirectEvidenceSearchLimit + 1`. The queryplan validator only checks
+`max_results > 0`, so nothing else would have caught it;
+`TestMaxIndirectEvidenceSearchLimitMatchesManifestMaxResults` remains the only
+binding between the const and the manifest.
 
 No-Observability-Change: the read adds no span, metric, label, or new log
 event; the existing `service_query.stage_started`/`service_query.stage_completed`
 timer events with `stage="graph_provisioning_candidates"`
 (`service_query_timing.go`) diagnose stage latency and the post-filter
-candidate count. Hitting the cap is no longer undisclosed: the
-`dependents_truncated` / `consumer_repositories_truncated` /
-`provisioning_source_chains_truncated` response fields (dossier, result
-limits, and `/impact/trace-deployment-chain`) now report it directly, so the
-"tracked elsewhere" deferral this evidence entry previously carried no
-longer applies — there is nothing left to defer.
+candidate count.
+
+## Round 7: what the disclosure now covers, and what it does not
+
+Round 2 shipped the disclosure and this entry then claimed "there is nothing
+left to defer." That was false, and the sentence is withdrawn. Three things
+were wrong:
+
+- The production wiring had no test. Every step between the bounded read and
+  the wire — enrichment writing the three keys, `buildDeploymentTraceFields`
+  reading them, `attachOptionalFields` emitting them — could be deleted with
+  the full `./internal/query` suite green (`verify-openapi.sh` checks route
+  parity, not response fields). `service_query_truncation_wiring_test.go` now
+  drives the real handler and the real enrichment over a seeded graph and
+  asserts both directions.
+- `GET /investigations/services/{service_name}` shipped clipped counts with no
+  disclosure at all: its only truncation field was the 50-row repository
+  marker, structurally unreachable from a 25-row read. `coverage_summary` now
+  ORs the three signals in.
+- The comment claiming truncation came from exactly two sources was wrong.
+  Three more existed, two of them UPSTREAM of both disclosed ones — the
+  four-hostname `indirectEvidenceHostnameLimit` cap, the `trimmedHostnames`
+  cut, and each per-search content row cap. A consumer reachable only through
+  a dropped hostname never entered the merged set, so neither disclosed source
+  could see it. All three now feed the same returned bool, and
+  `loadConsumerRepositoryEnrichmentFromCandidates` carries the full
+  enumeration.
+
+Scoped callers: `candidatesTruncated` is computed from the raw graph read,
+which the backend bounds with LIMIT before
+`filterProvisioningRepositoryCandidatesForAccess` runs. Round 7 P1-4 fixed the
+resulting false negative — a scoped caller whose grant was emptied by the
+filter previously received neither rows nor a truncation flag, an empty answer
+that read as complete. The disclosure writes now sit outside the
+`len(...) > 0` guards. The converse case (a scoped caller whose complete grant
+survives the filter still sees `truncated: true`) is retained deliberately:
+the rows past the LIMIT cut were never read, so they cannot be shown to fall
+outside the grant, and over-disclosing the bound is the only direction that
+cannot manufacture a false claim of completeness.
+
+Still uncovered, stated plainly rather than implied closed:
+
+- `repositorySemanticEntityLimit` (5000) clips the per-chain nested entity
+  evidence `loadProvisioningSourceChainsFromCandidates` reads. It bounds the
+  evidence attached to a chain rather than which repositories appear, so it
+  cannot drop a consumer from the set, and it is pre-existing. It is not
+  disclosed.
+- A per-search content read that returns exactly its row cap is reported as
+  truncated. That read carries no over-fetch probe, so "exactly limit" and
+  "limit plus more" are indistinguishable; the conservative direction is
+  chosen and the flag can therefore be true when nothing was actually dropped.
+- `downstream_read_limit` is derived from `boundedTraceEnrichmentLimit(0)`
+  because every route that renders `result_limits` or `coverage_summary`
+  enriches with `MaxDepth` unset. A future route that both passes a non-zero
+  `MaxDepth` and renders one of those blocks would have to thread its own
+  bound through; nothing enforces that today.
