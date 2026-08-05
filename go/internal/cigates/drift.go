@@ -70,9 +70,11 @@ var matrixVariableRE = regexp.MustCompile(`\$\{\{\s*matrix\.([A-Za-z0-9_]+)\s*\}
 //     and counting such a mention gives the script a phantom second owner that
 //     silently skips the gate. See checkVerifyScriptWorkflowMatch for why this
 //     is deliberately narrower than "the declared job runs the gate's local
-//     command": local and CI entrypoints legitimately differ, so the broad rule
-//     flags 16 gates of which 15 are correctly wired. A script no workflow runs,
-//     or several run, carries no correspondence signal and is skipped.
+//     command": local and CI entrypoints legitimately differ, and a one-time
+//     #5748 measurement of that broader (never-implemented) rule found it
+//     flagged a double digit number of gates, nearly all of them legitimately
+//     wired rather than broken. A script no workflow runs, or several run,
+//     carries no correspondence signal and is skipped.
 //
 //  7. Trivy skip-dirs wiring: scripts/lib/trivy-skip-dirs.sh (the single
 //     shared skip-dirs derivation), scripts/dev/trivy-fs-local.sh, and
