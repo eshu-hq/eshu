@@ -42,9 +42,9 @@ import (
 // state for whatever test runs next. This ordering does not avoid a
 // reader-less restored proxy -- the process-global default delegating proxy
 // burns its delegate-once on the throwaway's SetMeterProvider call, so the
-// proxy keeps delegating to the (shut-down) throwaway even after this
-// cleanup calls SetMeterProvider(previous) again -- it only avoids losing
-// track of what "previous" actually was.
+// proxy keeps delegating to the throwaway even after this cleanup calls
+// SetMeterProvider(previous) again -- it only avoids losing track of what
+// "previous" actually was.
 //
 // Callers must not call t.Parallel(): this installs a process-global OTel
 // meter provider and zeroes package-level sync.Once/instrument vars, so a
@@ -69,8 +69,17 @@ func withPackageMetricReader(t *testing.T, reset func()) *sdkmetric.ManualReader
 		otel.SetMeterProvider(previous)
 		reset()
 		_ = provider.Shutdown(context.Background())
-		// throwaway is never read by anything -- no meter, no reader, no
-		// datapoint ever touches it -- so it needs no shutdown call.
+		// throwaway deliberately gets no Shutdown call: sdkmetric
+		// .NewMeterProvider() with no WithReader option registers no reader,
+		// and only NewPeriodicReader starts a collection goroutine, so there
+		// is no goroutine, timer, or exporter connection to release.
+		//
+		// "No reader" is not "unused". throwaway owns the delegate burned
+		// above, so a handler that wrongly caches its meter in a package var
+		// binds to throwaway and records its datapoints there -- which is why
+		// they never reach this test's reader, and why the test fails. Leaving
+		// it un-shut-down keeps that binding honest rather than routing the
+		// bad handler's records through a provider that has been torn down.
 	})
 	return reader
 }

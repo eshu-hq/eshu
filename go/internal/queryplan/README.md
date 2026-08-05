@@ -41,10 +41,16 @@ output or capture the query emitted by the production execution path, verify the
 fingerprints, and run the full anchor, traversal, ordering, schema, and plan
 validation against those production-owned bytes.
 
-The inventory still contains 102 pre-existing `non_hot_reason` entries, but they
-are immutable migration debt rather than an open classification path. Their
+The inventory still contains 81 pre-existing `non_hot_reason` entries, but they
+are immutable migration debt rather than an open classification path, and the
+count only ever falls as entries convert to the typed form. Their
 exact source digests are frozen to a named main baseline; new prose entries,
 source drift, or a different baseline fail validation and require a typed audit.
+Editing a grandfathered symbol is what forces that conversion: any source change
+breaks its frozen digest, and the fix is a typed `non_hot` audit plus removal
+from `grandfatheredNonHotSourceDigests`, never a re-frozen digest.
+`TestGrandfatheredNonHotRegistryExactlyMatchesLegacyManifest` keeps the manifest
+and that registry the same size, so converting one without the other fails.
 Source-digest revalidation also applies to entries using the typed `non_hot`
 form, including the bounded workload repository-name hydration helper.
 

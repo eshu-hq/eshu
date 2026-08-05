@@ -85,9 +85,10 @@ branch, labeled `outcome="backend_unavailable"` /
 `reason="backend_unavailable"`. No new metric, label, attribute, span, or log
 key is added; this only closes a gap where a real graph outage or read
 deadline on `GET /api/v0/images` produced a correct `503`/`504` HTTP response
-but zero datapoints on either instrument, even though both are already
-documented in `docs/public/observability/telemetry-coverage.md`'s "Container
-images" row as covering this handler.
+but zero datapoints on either instrument. This PR also adds the
+"Container images (bounded list)" row for this handler to
+`docs/public/observability/telemetry-coverage.md`, which names both
+instruments; at `origin/main` that file has no row for `images.go` at all.
 
 `TestImageHandlerGraphReadErrorRecordsBackendUnavailableOutcome`
 (`images_telemetry_test.go`) pins this: it installs a `fakeImageGraphReader`

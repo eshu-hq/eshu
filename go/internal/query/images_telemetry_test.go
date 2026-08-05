@@ -139,13 +139,13 @@ func TestImageHandlerNilBackendRecordsBackendUnavailableOutcome(t *testing.T) {
 
 // TestImageHandlerGraphReadErrorRecordsBackendUnavailableOutcome pins the
 // outcome="backend_unavailable" metric-label contract on the
-// WriteGraphReadError guard branch (images.go:166-168), distinct from the
-// nil-backend branch above: this one actually invokes h.Neo4j.Run (a
-// configured reader) and only trips because that call returned
-// ErrGraphUnavailable. Before this test, that branch returned without
-// recording either instrument, so a real graph outage or read-deadline on
-// GET /api/v0/images produced a correct 503/504 response but zero
-// datapoints on eshu_dp_query_image_list_duration_seconds and
+// WriteGraphReadError guard branch in listImages (images.go, the sole call of
+// that helper in the file), distinct from the nil-backend branch above: this
+// one actually invokes h.Neo4j.Run (a configured reader) and only trips
+// because that call returned ErrGraphUnavailable. Before this test, that
+// branch returned without recording either instrument, so a real graph outage
+// or read-deadline on GET /api/v0/images produced a correct 503/504 response
+// but zero datapoints on eshu_dp_query_image_list_duration_seconds and
 // eshu_dp_query_image_list_errors_total. Asserting fakeReader.lastCypher is
 // non-empty proves the graph-read-error branch, not the nil-backend branch,
 // was exercised.
