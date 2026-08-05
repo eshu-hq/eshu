@@ -45,16 +45,18 @@ type ScopeActivitySnapshot struct {
 
 // QueueSnapshot captures aggregate queue pressure and progress signals.
 type QueueSnapshot struct {
-	Total                int
-	Outstanding          int
-	Pending              int
-	InFlight             int
-	Retrying             int
-	Succeeded            int
-	Failed               int
-	DeadLetter           int
-	OldestOutstandingAge time.Duration
-	OverdueClaims        int
+	Total                                 int
+	Outstanding                           int
+	Pending                               int
+	InFlight                              int
+	Retrying                              int
+	Succeeded                             int
+	Failed                                int
+	DeadLetter                            int
+	ProvenanceEdgeIdentityUpgradeApplied  bool
+	ProvenanceEdgeIdentityUpgradeRequired int
+	OldestOutstandingAge                  time.Duration
+	OverdueClaims                         int
 }
 
 // QueueFailureSnapshot captures the newest queued work failure metadata shown
@@ -191,6 +193,11 @@ func RenderText(report Report) string {
 			report.Queue.Failed,
 			report.Queue.OldestOutstandingAge,
 			report.Queue.OverdueClaims,
+		),
+		fmt.Sprintf(
+			"Provenance edge identity upgrade: applied=%t required=%d",
+			report.Queue.ProvenanceEdgeIdentityUpgradeApplied,
+			report.Queue.ProvenanceEdgeIdentityUpgradeRequired,
 		),
 		fmt.Sprintf("Retry policies: %s", retryPoliciesText(report.RetryPolicies)),
 		fmt.Sprintf(

@@ -40,6 +40,7 @@ WHEN (
     NEW.stage = 'reducer'
     AND NEW.domain IN ('package_source_correlation', 'container_image_identity')
     AND NEW.status IN ('pending', 'retrying', 'claimed', 'running')
+    AND NOT OLD.provenance_edge_identity_upgrade_required
 )
 EXECUTE FUNCTION require_provenance_edge_identity_upgrade();
 

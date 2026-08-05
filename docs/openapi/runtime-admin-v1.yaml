@@ -118,6 +118,7 @@ paths:
               example: |
                 Health: progressing
                 Queue: outstanding=2 in_flight=1 retrying=0 failed=0 oldest=45s overdue_claims=0
+                Provenance edge identity upgrade: applied=true required=2
                 Retry policies: projector max_attempts=3 retry_delay=30s; reducer max_attempts=3 retry_delay=30s
                 Scope activity: active=2 changed=1 unchanged=1
                 Scope statuses: active=2 pending=1
@@ -337,6 +338,8 @@ components:
         - retrying
         - succeeded
         - failed
+        - provenance_edge_identity_upgrade_applied
+        - provenance_edge_identity_upgrade_required
         - oldest_outstanding_age
         - oldest_outstanding_age_seconds
         - overdue_claims
@@ -354,6 +357,10 @@ components:
         succeeded:
           type: integer
         failed:
+          type: integer
+        provenance_edge_identity_upgrade_applied:
+          type: boolean
+        provenance_edge_identity_upgrade_required:
           type: integer
         oldest_outstanding_age:
           type: string

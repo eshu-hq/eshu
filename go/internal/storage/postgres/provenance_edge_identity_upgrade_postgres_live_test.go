@@ -30,6 +30,7 @@ func TestProvenanceEdgeIdentityUpgradeSeedsCurrentReplayOnceLive(t *testing.T) {
 		pendingID     = "reducer_5827_upgrade_pending"
 		retryingID    = "reducer_5827_upgrade_retrying"
 		futureID      = "reducer_5827_upgrade_future"
+		futureImageID = "reducer_5827_upgrade_future_image"
 		unrelatedID   = "reducer_5827_upgrade_unrelated"
 		staleID       = "reducer_5827_upgrade_stale"
 		runningID     = "reducer_5827_upgrade_package_running"
@@ -128,12 +129,28 @@ INSERT INTO fact_work_items (
 		t.Fatalf("insert post-migration provenance work: %v", err)
 	}
 	assertProvenanceIdentityUpgradeRequired(t, ctx, db, futureID, true)
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO fact_work_items (
+    work_item_id, scope_id, generation_id, stage, domain, status,
+    conflict_domain, conflict_key, payload, created_at, updated_at
+) VALUES ($1, $2, $3, 'reducer', 'container_image_identity', 'pending',
+          'intent', $1, '{}'::jsonb, $4, $4)
+`, futureImageID, scopeID, generation, now); err != nil {
+		t.Fatalf("insert post-migration container identity work: %v", err)
+	}
+	assertProvenanceIdentityUpgradeRequired(t, ctx, db, futureImageID, true)
+	assertProvenanceIdentityUpgradeStatus(t, ctx, db, now, true, 7)
 
 	for index, workItemID := range []string{pendingID, retryingID, futureID} {
 		proveProvenanceUpgradeOldAckFencedThenNewAckSucceeds(
-			t, ctx, db, workItemID, now.Add(time.Duration(index)*time.Minute),
+			t, ctx, db, workItemID, reducer.DomainPackageSourceCorrelation,
+			now.Add(time.Duration(index)*time.Minute),
 		)
 	}
+	proveProvenanceUpgradeOldAckFencedThenNewAckSucceeds(
+		t, ctx, db, futureImageID, reducer.DomainContainerImageIdentity,
+		now.Add(3*time.Minute),
+	)
 
 	// An old reducer can also exhaust its retries after the hook. Because its
 	// terminal failure preserves the capability flag, the trigger must retain
@@ -233,8 +250,32 @@ WHERE work_item_id = $1
 	assertCrossScopeConsumerState(t, ctx, db, pendingID, "succeeded", false)
 	assertCrossScopeConsumerState(t, ctx, db, retryingID, "succeeded", false)
 	assertCrossScopeConsumerState(t, ctx, db, futureID, "succeeded", false)
+	assertCrossScopeConsumerState(t, ctx, db, futureImageID, "succeeded", false)
 	assertCrossScopeConsumerState(t, ctx, db, unrelatedID, "succeeded", false)
 	assertCrossScopeConsumerState(t, ctx, db, staleID, "succeeded", false)
+	assertProvenanceIdentityUpgradeStatus(t, ctx, db, now, true, 1)
+}
+
+func assertProvenanceIdentityUpgradeStatus(
+	t *testing.T,
+	ctx context.Context,
+	db *sql.DB,
+	asOf time.Time,
+	wantApplied bool,
+	wantRequired int,
+) {
+	t.Helper()
+
+	snapshot, err := readQueueSnapshot(ctx, SQLDB{DB: db}, asOf)
+	if err != nil {
+		t.Fatalf("read provenance identity upgrade status: %v", err)
+	}
+	if got := snapshot.ProvenanceEdgeIdentityUpgradeApplied; got != wantApplied {
+		t.Fatalf("provenance identity upgrade applied = %t, want %t", got, wantApplied)
+	}
+	if got := snapshot.ProvenanceEdgeIdentityUpgradeRequired; got != wantRequired {
+		t.Fatalf("provenance identity upgrade required = %d, want %d", got, wantRequired)
+	}
 }
 
 func proveProvenanceUpgradeOldAckFencedThenNewAckSucceeds(
@@ -242,6 +283,7 @@ func proveProvenanceUpgradeOldAckFencedThenNewAckSucceeds(
 	ctx context.Context,
 	db *sql.DB,
 	workItemID string,
+	domain reducer.Domain,
 	now time.Time,
 ) {
 	t.Helper()
@@ -276,10 +318,10 @@ WHERE work_item_id = $1
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
 	}
-	if err := queue.Ack(ctx, reducer.Intent{
+	if err := queue.AckBatch(ctx, []reducer.Intent{{
 		IntentID: workItemID,
-		Domain:   reducer.DomainPackageSourceCorrelation,
-	}, reducer.Result{}); err != nil {
+		Domain:   domain,
+	}}, []reducer.Result{{}}); err != nil {
 		t.Fatalf("new reducer ACK for %s: %v", workItemID, err)
 	}
 	assertCrossScopeConsumerState(t, ctx, db, workItemID, "succeeded", false)

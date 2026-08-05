@@ -1,6 +1,9 @@
 {{- if and .Values.exposure.ingress.enabled .Values.exposure.gateway.enabled -}}
 {{- fail "exposure.ingress.enabled and exposure.gateway.enabled cannot both be true" -}}
 {{- end -}}
+{{- if and .Values.nornicdb.enabled (not .Values.nornicdb.capabilities.relationshipMergePropertyIdentity) -}}
+{{- fail "nornicdb.enabled=true requires an immutable backend image that preserves relationship MERGE identity properties; replace the bundled v1.1.11 image with orneryd/NornicDB#290 or a later verified build, then set nornicdb.capabilities.relationshipMergePropertyIdentity=true" -}}
+{{- end -}}
 {{- $generationRetentionDisabled := false -}}
 {{- $generationRetentionEnvMaps := list (default (dict) .Values.env) (default (dict) .Values.resolutionEngine.env) -}}
 {{- range $envMap := $generationRetentionEnvMaps -}}

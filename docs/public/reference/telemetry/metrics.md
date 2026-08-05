@@ -48,6 +48,8 @@ Queue gauges:
 - `eshu_runtime_queue_failed`
 - `eshu_runtime_queue_overdue_claims`
 - `eshu_runtime_queue_oldest_outstanding_age_seconds`
+- `eshu_runtime_provenance_edge_identity_upgrade_applied`
+- `eshu_runtime_provenance_edge_identity_upgrade_required`
 
 Stage, generation, and domain gauges:
 

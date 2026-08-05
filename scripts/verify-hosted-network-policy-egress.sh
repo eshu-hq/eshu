@@ -201,6 +201,8 @@ schemaBootstrap:
   useHelmHooks: false
 nornicdb:
   enabled: true
+  capabilities:
+    relationshipMergePropertyIdentity: true
 networkPolicy:
   egress:
     mode: restricted

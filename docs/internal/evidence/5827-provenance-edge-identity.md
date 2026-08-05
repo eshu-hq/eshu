@@ -72,10 +72,10 @@ both `scope_id` and `evidence_source` values.
 
 `TestProvenanceEdgeWriterLiveSamePairAssertionIsolation` repeats each shape five
 times, replays duplicates, runs eight concurrent writers, and retracts one
-assertion. It requires exactly two relationships before retract and exactly the
-other owner's relationship afterward. This proves idempotency, convergence,
-and retract isolation without reducing worker count or serializing the write
-path.
+assertion. It requires exactly three relationships before retract and exactly
+the other two owners' relationships afterward. This proves idempotency,
+convergence, and retract isolation without reducing worker count or serializing
+the write path.
 
 The live tests ran through Eshu's Bolt driver against an isolated fresh
 NornicDB container built from the exact revision above:
@@ -90,11 +90,21 @@ PASS
 ## Legacy-row repair
 
 Migration 096 records a one-time marker named
-`provenance_edge_identity_upgrade_096` and reopens current successful work for
-the affected `package_source_correlation` and `container_image_identity`
-domains. Claimed or running work is marked `cross_scope_replay_required` so the
-normal worker lifecycle replays it safely rather than racing an in-flight
-generation.
+`provenance_edge_identity_upgrade_096` and attaches a durable
+`provenance_edge_identity_upgrade_required` capability flag to current
+replayable work for the affected `package_source_correlation` and
+`container_image_identity` domains. It reopens current successful work, leaves
+pending/retrying work in place, and marks claimed/running work for replay. A
+domain-filtered insert trigger covers work created by an old pod after the
+pre-upgrade hook; an update trigger covers later operator reopens, but skips
+already-flagged claim/retry transitions.
+
+An old reducer cannot clear the capability flag. Its successful ACK or terminal
+failure is therefore bounced back to pending by a terminal-transition trigger.
+The new reducer clears the flag atomically on both single-item and batch ACKs,
+or on a genuine dead letter; retries retain it. This closes the post-hook
+old-worker race without reducing concurrency or relying on a one-time marker
+alone.
 
 The repair deliberately uses the existing retract-before-write path. It does
 not mutate graph rows in SQL, invent graph endpoints, or bypass reducer truth.
@@ -102,13 +112,34 @@ The replay removes each legacy owner-scoped row and rematerializes it with the
 new identity.
 
 The live Postgres proof applies the real migration to current succeeded,
-claimed, running, stale-generation, and unrelated-domain fixtures. It verifies
-that only current affected work is reopened or dirtied, then reapplies the
-migration and proves the marker makes it idempotent:
+pending, retrying, running, stale-generation, and unrelated-domain fixtures. It
+also inserts affected work after the hook. The proof drives old-binary ACK and
+dead-letter SQL, then the production new-binary `ReducerQueue.AckBatch` paths
+for both affected domains and `ReducerQueue.Fail`. It verifies old terminal
+transitions replay, new terminal transitions clear the capability flag,
+unrelated/stale work remains untouched, and reapplying the marker is
+idempotent. The batch regression was written red after the first full-corpus
+run exposed a missing flag clear: one affected item recycled once per second
+until the drain timed out. The same retained backlog drained after the batch
+ACK correction.
 
 ```text
 go test ./internal/storage/postgres \
   -run TestProvenanceEdgeIdentityUpgradeSeedsCurrentReplayOnceLive \
+  -count=1 -v
+PASS
+```
+
+The permanent trigger cost is measured on the same live Postgres schema with
+seven alternating before/after samples of the same 500-item affected-domain
+enqueue, claim, and ACK batch. Trigger-level `WHEN` predicates keep already
+flagged claim/retry transitions out of PL/pgSQL. The final median was 27.299 ms
+without the triggers and 29.051 ms with them: 1.753 ms per batch, or 3.505
+microseconds per item.
+
+```text
+go test ./internal/storage/postgres \
+  -run 'TestProvenanceEdgeIdentityUpgrade(SeedsCurrentReplayOnce|TriggerNoRegression)Live' \
   -count=1 -v
 PASS
 ```
@@ -133,8 +164,12 @@ fanout explosion.
 ```text
 scripts/verify-golden-corpus-gate.sh
 527 pass, 0 required-fail, 0 advisory-warn
-elapsed 129s; budget ceiling 1800s
+elapsed 118s; budget ceiling 1800s
 ```
+
+The measured phases were bootstrap 4 seconds, collect 16 seconds, first drain
+66 seconds, maintenance drains 18 seconds, and graph/query checks 3 seconds.
+Every graph, API, MCP, drain, timing, and wall-time assertion passed.
 
 ## Rollout and rollback
 
@@ -142,16 +177,35 @@ Roll out the exact NornicDB #290 source or a released successor containing the
 fix before deploying the Eshu writer and migration. The old backend would still
 collapse the new identity properties.
 
-Rollback must preserve that order in reverse: stop the Eshu reducer or return to
-the old writer before rolling the backend below the fixed revision. Migration
-096 is idempotent and leaves its marker in place; a forward deployment can
-explicitly replay affected current work again if graph data was restored from
-an older backup.
+The Helm chart fails closed when `nornicdb.enabled=true` unless the operator has
+replaced the bundled v1.1.11 image with an immutable verified build and set
+`nornicdb.capabilities.relationshipMergePropertyIdentity=true`. The capability
+flag is an explicit operator acknowledgement, not automatic version inference.
+
+Migration 096 is a forward-only compatibility fence. After it is applied, an
+old reducer cannot drain the affected domains, so returning only the writer or
+backend to an older build is not a valid rollback. Stop every affected reducer
+before changing either component. Prefer rolling forward with the fixed backend
+and writer. A full rollback requires restoring both Postgres and graph backups
+taken before migration 096, deploying the old Eshu and backend versions, and
+only then resuming reducers. Do not disable or drop the fence triggers against
+an upgraded graph: the durable marker prevents reseeding and would leave work
+created during the rollback interval without a trustworthy repair path.
 
 ## Observability impact
 
-No new metric is introduced in #5827. Existing provenance-edge counters still
-measure submitted materialization rows; issue #5828 separately corrects those
-counters to distinguish attempted from durably materialized outcomes. Migration
-state and replay-required markers remain visible through the existing reducer
-work/status surfaces.
+The queue snapshot now exposes the migration marker and current replay-required
+count as `provenance_edge_identity_upgrade_applied` and
+`provenance_edge_identity_upgrade_required` in `/admin/status` JSON. Text status
+renders the same values on a dedicated upgrade line. `/metrics` exports the
+bounded gauges `eshu_runtime_provenance_edge_identity_upgrade_applied` and
+`eshu_runtime_provenance_edge_identity_upgrade_required`, labeled only by
+service name. A nonzero required count after an old reducer reports successful
+ACKs attributes the drain loop to migration 096 rather than graph latency or
+ordinary retry pressure.
+
+Existing provenance-edge counters still measure submitted materialization
+rows; issue #5828 separately corrects those counters to distinguish attempted
+from durably materialized outcomes. The status query adds one aggregate filter
+over the already-scanned active queue snapshot and one indexed marker lookup;
+it adds no queue mutation, per-item labels, spans, or logs.

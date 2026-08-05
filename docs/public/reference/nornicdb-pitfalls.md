@@ -806,7 +806,7 @@ for the before/after and the isolated executor characterization.
 
 ### The boundary is wider than "function-call projection"
 
-Measured against the pinned build while proving issue #5694, with a committed
+Measured against the former PR #261 build while proving issue #5694, with a committed
 regression at `go/internal/replay/offlinetier/nornicdb_function_projection_live_test.go`:
 
 | Shape | Column read | Result |
@@ -924,7 +924,7 @@ would preserve the silent collapse.
 
 Endpoint modeling remains useful when the distinguishing value is a domain
 entity in its own right. It is no longer required as a backend workaround on
-the pinned build.
+the corrected PR #290 build.
 
 ### Historical impact on two shipped writers
 
@@ -933,7 +933,7 @@ the pinned build.
 (`PINS_SUBMODULE`, keyed on `path`) were both authored against the Cypher
 semantics, and each carries a doc comment asserting the property key is what
 keeps their edges parallel. On Neo4j it does. Running their EXACT shipped
-statements against the pinned build:
+statements against the former PR #261 build:
 
 | Writer | Rows written | Edges after | Surviving edge |
 | --- | --- | --- | --- |

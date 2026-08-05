@@ -45,17 +45,35 @@ API, MCP, ingester, and resolution-engine workloads.
 
 ## Rollback
 
+First determine whether the target revision predates Postgres migration 096
+(`provenance_edge_identity_upgrade_096`). Migration 096 is a forward-only
+compatibility fence: a pre-096 reducer can read the upgraded schema, but every
+terminal transition for affected provenance work is requeued because the old
+writer cannot clear the capability flag. Do not use a Helm-only rollback to a
+pre-096 reducer.
+
+If migration 096 is present, stop all reducer pods and prefer rolling forward
+with the compatible reducer and NornicDB build. A full rollback requires
+coordinated restoration of both Postgres and graph backups taken before
+migration 096. Deploy the pre-096 application and backend only after both
+stores are restored, then resume reducers. Do not disable or drop the migration
+triggers against upgraded state.
+
+For revisions that do not cross a forward-only migration boundary, use the
+normal Helm rollback flow:
+
 ```bash
 helm history eshu --namespace eshu
 helm rollback eshu <revision> --namespace eshu
 ```
 
-Rollback does not replace a database restore plan. If an upgrade changes durable
-Postgres state in a way that the older image cannot read, restore Postgres
-according to your platform backup runbook. If only the NornicDB graph volume is
-lost or unreadable, preserve it when forensic evidence matters, recreate the
-graph PVC, run schema bootstrap, and rebuild projection from facts or source
-systems.
+Rollback does not replace a database restore plan. Compatibility includes both
+schema readability and the older worker's ability to complete durable queue
+transitions. If an upgrade changes either contract, restore Postgres according
+to your platform backup runbook. If only the NornicDB graph volume is lost or
+unreadable and no coordinated restore is required, preserve it when forensic
+evidence matters, recreate the graph PVC, run schema bootstrap, and rebuild
+projection from facts or source systems.
 
 Before relying on a rollback plan, run the rollout proof in rollback mode with a
 declaration that separately names the Helm rollback command, Postgres restore

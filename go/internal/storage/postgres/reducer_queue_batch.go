@@ -223,6 +223,7 @@ func ackContainerImageIdentityReducerWorkBatchQuery(
 WITH acknowledged AS MATERIALIZED (
 UPDATE fact_work_items AS work
 SET status = 'succeeded',
+    provenance_edge_identity_upgrade_required = FALSE,
     cross_scope_completion_ack_epoch = cross_scope_completion_ack_epoch + 1,
     container_image_identity_v2_authorized_status = CASE
         WHEN container_image_identity_v2_required
@@ -339,6 +340,7 @@ func ackReducerWorkBatchQuery(itemCount int) string {
 	return fmt.Sprintf(`
 UPDATE fact_work_items
 SET status = 'succeeded',
+    provenance_edge_identity_upgrade_required = FALSE,
     lease_owner = NULL,
     claim_until = NULL,
     visible_at = NULL,

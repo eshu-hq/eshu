@@ -104,6 +104,7 @@ func TestBootstrapDefinitionsIncludeCrossScopeCompletionQueue(t *testing.T) {
 		"CREATE OR REPLACE FUNCTION require_provenance_edge_identity_upgrade()",
 		"BEFORE INSERT ON fact_work_items",
 		"BEFORE UPDATE OF status, domain, stage ON fact_work_items",
+		"AND NOT OLD.provenance_edge_identity_upgrade_required",
 		"CREATE OR REPLACE FUNCTION enforce_provenance_edge_identity_upgrade()",
 		"NEW.status IN ('succeeded', 'failed', 'dead_letter')",
 		"provenance_edge_identity_upgrade_required = TRUE",

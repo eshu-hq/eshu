@@ -51,6 +51,8 @@ schemaBootstrap:
   useHelmHooks: true
 nornicdb:
   enabled: true
+  capabilities:
+    relationshipMergePropertyIdentity: true
 ```
 
 Helm rejects that render because hooks run before the chart-managed NornicDB

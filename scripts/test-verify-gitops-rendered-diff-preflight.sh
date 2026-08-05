@@ -111,6 +111,8 @@ nornicdb_values="${tmp_root}/bad-nornicdb.yaml"
 cat >"${nornicdb_values}" <<'YAML'
 nornicdb:
   enabled: true
+  capabilities:
+    relationshipMergePropertyIdentity: true
 schemaBootstrap:
   useHelmHooks: true
 YAML

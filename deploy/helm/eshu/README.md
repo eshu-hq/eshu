@@ -37,6 +37,10 @@ guidance belong in the public Kubernetes docs.
 - Ingress and Gateway API exposure are mutually exclusive.
 - Helm-hook schema bootstrap cannot run against chart-managed NornicDB in the
   same install because hooks run before that backend exists.
+- Bundled NornicDB fails closed unless
+  `nornicdb.capabilities.relationshipMergePropertyIdentity=true`. The pinned
+  v1.1.11 default does not satisfy that capability; replace it with an immutable
+  verified image before enabling the bundled backend.
 - `workspace-setup` is a non-root init container. It must keep dropped
   capabilities, avoid ownership mutation, and rely on pod `fsGroup` handling for
   supported persistent volumes.

@@ -207,6 +207,9 @@ at `/metrics` exposes hand-rolled Prometheus-style gauges derived from the
 - `eshu_runtime_retry_policy_max_attempts`, `eshu_runtime_retry_policy_retry_delay_seconds`
 - `eshu_runtime_health_state` — labeled `state` (healthy/progressing/degraded/stalled)
 - `eshu_runtime_queue_total`, `eshu_runtime_queue_outstanding`, and queue depth gauges
+- `eshu_runtime_provenance_edge_identity_upgrade_applied` and
+  `eshu_runtime_provenance_edge_identity_upgrade_required` — migration 096
+  compatibility-fence state and active replay-required work
 - `eshu_runtime_stage_items` — labeled by `stage` and `status`
 - `eshu_runtime_domain_outstanding` and per-domain backlog gauges
 - `eshu_runtime_collector_generation_dead_letter`,
@@ -257,6 +260,10 @@ Prometheus output after the hand-rolled gauges at the same `/metrics` endpoint.
   latency before changing pool sizes.
 - `eshu_runtime_health_state{state="stalled"}` = 1 means the pipeline is not
   making progress; check structured logs and failure_class before restarting.
+- `eshu_runtime_provenance_edge_identity_upgrade_required` > 0 after an old
+  reducer reports successful ACKs means migration 096 is deliberately
+  requeuing incompatible terminal transitions. Roll the reducer forward; do
+  not disable the fence triggers.
 - `eshu_runtime_collector_generation_dead_letter` > 0 means a collector commit
   failed before normal projector work items existed. Fix the commit failure,
   then use `/admin/replay-collector-generations` with a collector kind and

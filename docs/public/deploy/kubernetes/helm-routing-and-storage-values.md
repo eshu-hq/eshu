@@ -24,10 +24,13 @@ auth fields even when the backend does not enforce auth.
 ## Bundled NornicDB
 
 `nornicdb.enabled=false` by default. When enabled, the chart renders one
-NornicDB Deployment, Service, and optional PVC.
+NornicDB Deployment, Service, and optional PVC. The render fails closed unless
+`nornicdb.capabilities.relationshipMergePropertyIdentity=true`; set that value
+only after replacing the default image with an immutable build that includes
+orneryd/NornicDB#290 or a later verified equivalent.
 
 Key defaults: image repository `timothyswt/nornicdb-cpu-bge`, image tag
-`v1.1.9@sha256:9a5126d306a48c01869809da47a869a4521b9328a7ab1c855327f5fd7541e4cd`,
+`v1.1.11@sha256:51b6174ae65e4ce54a158ac2f9eace7d36a1971545824d22add0fe06d94c1090`,
 persistence enabled with `500Gi`, no server auth, async writes off, Heimdall
 off, Qdrant gRPC off, embeddings off, BM25 and vector indexes disabled,
 BM25/vector warming set to `lazy`, search index persistence off, and
@@ -48,6 +51,12 @@ No-Observability-Change: the chart keeps the existing NornicDB HTTP health
 probes, named `http` and `bolt` container ports, and the existing Service
 targetPorts. Operators still diagnose this path through the same pod readiness,
 container logs, Service endpoints, and graph-backed Eshu readiness checks.
+
+The pinned v1.1.11 default remains visible for reproducibility but cannot be
+enabled with the current Eshu provenance writer: it collapses same-endpoint
+relationship assertions whose identities differ by properties. Publish or
+mirror a verified immutable backend image, override `nornicdb.image`, and only
+then acknowledge the capability flag.
 
 The bundled NornicDB deployment is the canonical graph lane. Search index
 persistence is off because BM25/vector indexing is disabled for the graph lane.

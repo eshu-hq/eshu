@@ -11,7 +11,12 @@ import (
 func TestHelmBundledNornicDBUsesGraphOnlySearchControls(t *testing.T) {
 	t.Parallel()
 
-	manifests := renderHelmChart(t, "--set", "nornicdb.enabled=true", "--set", "schemaBootstrap.useHelmHooks=false")
+	manifests := renderHelmChart(
+		t,
+		"--set", "nornicdb.enabled=true",
+		"--set", "nornicdb.capabilities.relationshipMergePropertyIdentity=true",
+		"--set", "schemaBootstrap.useHelmHooks=false",
+	)
 	deployment := requireHelmManifest(t, manifests, "Deployment", "eshu-nornicdb")
 	container := requireHelmContainer(t, deployment, "nornicdb")
 	env := helmEnvByName(container)
@@ -34,7 +39,12 @@ func TestHelmBundledNornicDBUsesGraphOnlySearchControls(t *testing.T) {
 func TestHelmBundledNornicDBBindsServiceReachableAddress(t *testing.T) {
 	t.Parallel()
 
-	manifests := renderHelmChart(t, "--set", "nornicdb.enabled=true", "--set", "schemaBootstrap.useHelmHooks=false")
+	manifests := renderHelmChart(
+		t,
+		"--set", "nornicdb.enabled=true",
+		"--set", "nornicdb.capabilities.relationshipMergePropertyIdentity=true",
+		"--set", "schemaBootstrap.useHelmHooks=false",
+	)
 	deployment := requireHelmManifest(t, manifests, "Deployment", "eshu-nornicdb")
 	container := requireHelmContainer(t, deployment, "nornicdb")
 
@@ -68,12 +78,29 @@ func TestHelmBundledNornicDBBindsServiceReachableAddress(t *testing.T) {
 	}
 }
 
+func TestHelmBundledNornicDBRequiresRelationshipMergePropertyIdentity(t *testing.T) {
+	t.Parallel()
+
+	output := renderHelmChartFailure(
+		t,
+		"--set", "nornicdb.enabled=true",
+		"--set", "schemaBootstrap.useHelmHooks=false",
+	)
+	if !strings.Contains(
+		output,
+		"nornicdb.capabilities.relationshipMergePropertyIdentity=true",
+	) {
+		t.Fatalf("helm compatibility error = %q, want relationship identity requirement", output)
+	}
+}
+
 func TestHelmBundledNornicDBRejectsInvalidBindAddressShape(t *testing.T) {
 	t.Parallel()
 
 	output := renderHelmChartFailure(
 		t,
 		"--set", "nornicdb.enabled=true",
+		"--set", "nornicdb.capabilities.relationshipMergePropertyIdentity=true",
 		"--set", "schemaBootstrap.useHelmHooks=false",
 		"--set", "nornicdb.bindAddress=123",
 	)

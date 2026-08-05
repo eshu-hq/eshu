@@ -53,6 +53,11 @@ single-cluster installs:
 ```yaml
 nornicdb:
   enabled: true
+  image:
+    repository: registry.example.com/platform/nornicdb
+    tag: "relationship-identity-verified@sha256:<immutable-digest>"
+  capabilities:
+    relationshipMergePropertyIdentity: true
   bindAddress: 0.0.0.0
 
 neo4j:
@@ -64,6 +69,12 @@ neo4j:
 schemaBootstrap:
   useHelmHooks: false
 ```
+
+The default bundled v1.1.11 image is intentionally rejected when enabled: it
+does not preserve relationship identity properties required by provenance
+writers. Replace the example repository, tag, and digest with an immutable
+build containing orneryd/NornicDB#290 (or a later verified equivalent) before
+setting the capability acknowledgement to `true`.
 
 Replace `password` with your own strong password (min 12 chars, mixed case +
 digit) or set `neo4j.auth.secretName` to an existing Kubernetes Secret instead;

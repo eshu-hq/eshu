@@ -17,6 +17,13 @@ Use these routes to answer three different questions:
 `/admin/status` includes bounded runtime status sections when those runtimes are
 mounted:
 
+- `queue.provenance_edge_identity_upgrade_applied` reports whether migration
+  096 installed its compatibility fence, and
+  `queue.provenance_edge_identity_upgrade_required` counts current affected
+  reducer work that still requires a compatible writer. The text response
+  renders the same values on a dedicated provenance-edge upgrade line. A
+  nonzero count after apparent ACK success identifies an incompatible old
+  reducer being requeued by the fence.
 - `registry_collectors` reports aggregate OCI and package-registry collector
   status without leaking registry hosts, repository paths, package names, tags,
   digests, account IDs, metadata URLs, or credentials.

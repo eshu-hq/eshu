@@ -439,6 +439,8 @@ func readQueueSnapshot(
 	var succeededCount int64
 	var deadLetterCount int64
 	var failedCount int64
+	var provenanceEdgeIdentityUpgradeApplied bool
+	var provenanceEdgeIdentityUpgradeRequired int64
 	var oldestOutstandingAgeSeconds float64
 	var overdueClaimCount int64
 	if scanErr := rows.Scan(
@@ -450,6 +452,8 @@ func readQueueSnapshot(
 		&succeededCount,
 		&deadLetterCount,
 		&failedCount,
+		&provenanceEdgeIdentityUpgradeApplied,
+		&provenanceEdgeIdentityUpgradeRequired,
 		&oldestOutstandingAgeSeconds,
 		&overdueClaimCount,
 	); scanErr != nil {
@@ -460,16 +464,18 @@ func readQueueSnapshot(
 	}
 
 	return statuspkg.QueueSnapshot{
-		Total:                int(totalCount),
-		Outstanding:          int(outstandingCount),
-		Pending:              int(pendingCount),
-		InFlight:             int(inFlightCount),
-		Retrying:             int(retryingCount),
-		Succeeded:            int(succeededCount),
-		DeadLetter:           int(deadLetterCount),
-		Failed:               int(failedCount),
-		OldestOutstandingAge: durationFromSeconds(oldestOutstandingAgeSeconds),
-		OverdueClaims:        int(overdueClaimCount),
+		Total:                                 int(totalCount),
+		Outstanding:                           int(outstandingCount),
+		Pending:                               int(pendingCount),
+		InFlight:                              int(inFlightCount),
+		Retrying:                              int(retryingCount),
+		Succeeded:                             int(succeededCount),
+		DeadLetter:                            int(deadLetterCount),
+		Failed:                                int(failedCount),
+		ProvenanceEdgeIdentityUpgradeApplied:  provenanceEdgeIdentityUpgradeApplied,
+		ProvenanceEdgeIdentityUpgradeRequired: int(provenanceEdgeIdentityUpgradeRequired),
+		OldestOutstandingAge:                  durationFromSeconds(oldestOutstandingAgeSeconds),
+		OverdueClaims:                         int(overdueClaimCount),
 	}, nil
 }
 

@@ -1092,6 +1092,11 @@ neo4j:
 
 nornicdb:
   enabled: false
+  # The bundled v1.1.11 default does not satisfy this capability. Keep false
+  # unless image.tag is replaced with an immutable build that preserves
+  # relationship MERGE identity properties (orneryd/NornicDB#290 or later).
+  capabilities:
+    relationshipMergePropertyIdentity: false
   image:
     repository: timothyswt/nornicdb-cpu-bge
     tag: "v1.1.11@sha256:51b6174ae65e4ce54a158ac2f9eace7d36a1971545824d22add0fe06d94c1090"
