@@ -177,13 +177,161 @@ Still uncovered, stated plainly rather than implied closed:
   evidence `loadProvisioningSourceChainsFromCandidates` reads. It bounds the
   evidence attached to a chain rather than which repositories appear, so it
   cannot drop a consumer from the set, and it is pre-existing. It is not
-  disclosed.
+  disclosed. Re-verified in round 8: that function appends `entry`
+  unconditionally, so the repository always appears and only its nested
+  evidence is clipped.
+- `serviceEvidenceFileLimit` is a generic shared upstream evidence bound rather
+  than a consumer-set bound. It is the natural edge of this enumeration and is
+  not disclosed.
 - A per-search content read that returns exactly its row cap is reported as
   truncated. That read carries no over-fetch probe, so "exactly limit" and
   "limit plus more" are indistinguishable; the conservative direction is
   chosen and the flag can therefore be true when nothing was actually dropped.
+- The hostname affinity narrowing (source 2b, added in round 8) sets the flag
+  whenever it discards any hostname, whether or not a consumer was reachable
+  only through one of the discarded ones. Same conservative direction, same
+  false-positive shape as the per-search cap above.
 - `downstream_read_limit` is derived from `boundedTraceEnrichmentLimit(0)`
   because every route that renders `result_limits` or `coverage_summary`
   enriches with `MaxDepth` unset. A future route that both passes a non-zero
   `MaxDepth` and renders one of those blocks would have to thread its own
   bound through; nothing enforces that today.
+- `go/internal/query/AGENTS.md` (695 lines) and
+  `docs/public/reference/http-api/context-and-stories.md` (already over the
+  limit before this branch) both exceed `CLAUDE.md`'s 500-line rule. Neither
+  split belongs in this change. Raised with the owner rather than filed.
+
+## Round 8: the enumeration was wrong a third time, and the wiring could be cut
+
+Two findings, one root defect at two altitudes: the disclosure signal could be
+discarded without any test noticing, and the enumeration it carries was still
+short by one source.
+
+**The production wiring could drop sources 2 through 5.** Replacing
+`consumers, consumersTruncated, err := loadConsumerRepositoryEnrichmentFromCandidates(...)`
+with `consumersTruncated := candidatesTruncated` in `service_query_enrichment.go`
+passed the entire suite. That one line discards the hostname cap, the
+`trimmedHostnames` cut, the per-search cap, and the final merge cap -- exactly
+the sources round 7 had just added. Nothing caught it because
+`deployment_trace_truncation_disclosure_test.go` asserts those sources only
+against the helper (13 direct calls, none through the enrichment or a handler),
+and the wiring cases in `service_query_truncation_wiring_test.go` seeded a
+workload with no hostnames, so `consumersTruncated` and `candidatesTruncated`
+were equal in every scenario they exercised.
+`TestTraceDeploymentChainDistinguishesConsumerTruncationFromCandidateTruncation`
+now drives the real handler with the two flags deliberately opposed: an
+untruncated candidate read alongside a full-page per-search content read, so
+`consumer_repositories_truncated` is true while `dependents_truncated` and
+`provisioning_source_chains_truncated` are absent.
+
+**A sixth source, in the same function as source 2.**
+`boundedIndirectEvidenceHostnamesForService` has two drop paths and returned one
+bool. The bool came only from the 4-cap; the affinity narrowing, which discards
+every hostname carrying no distinctive token from the service's own name,
+reported nothing. Measured on service `orders-api` with hostnames
+`orders.example.com`, `legacy-billing.acme.test`, `cart-gw.acme.test`: `in=3
+out=[orders.example.com] truncated=false` -- two of three dropped silently, well
+under the 4-cap. A service on a legacy or vanity domain therefore got a
+complete-looking `consumer_repository_count` with `truncated: false`, which is
+the same failure round 7 fixed for the cap.
+
+The affinity path was never tested in the direction where it fires. Round 7's
+own hostname-cap subtest states that it routes around it on purpose ("Nine
+hostnames, none carrying the service's own distinctive token, so the affinity
+filter falls through to the first-N fallback"). Isolating the cap that way is
+reasonable; declaring the enumeration complete without ever exercising the other
+branch is what let this survive three rounds. The returned bool now ORs
+`len(affine) < len(unique)`, the source is documented as 2b on the
+`loadConsumerRepositoryEnrichmentFromCandidates` enumeration, and the
+three-hostname case above is a regression subtest.
+
+**Scoped over-disclosure: right behavior, wrong reasoning.** Round 7 justified
+disclosing the flag to scoped callers with "the dropped rows were never read, so
+they cannot be shown to fall outside the grant." That reasons about what the
+server knows, not what the client can infer, and it is wrong.
+`candidatesTruncated` is computed from the raw pre-authorization read, so it
+fires on global cardinality regardless of grant. Combined with the documented
+`max_depth` x 10 scaling (capped at 100), a scoped caller can sweep `max_depth`
+over 1..10, read the flag at bounds 10, 20, ... 100, and recover the global
+provisioning-candidate row count to within 10 across [10,100] -- a coarse
+cardinality oracle over out-of-grant data, newly amplified by this branch's
+`downstream_read_limit`. The behavior is kept: suppressing the flag
+reintroduces round 7's false negative, and a silent false claim of completeness
+is worse than a bucketed count when no repository identity is exposed and the
+caller already holds the service. The code comment and the public doc now say
+the flag is a global signal rather than a grant-relative one, and name the
+sweep.
+
+The public reference also asserted each flag is present "only when" the matching
+read hit a bound "and absent otherwise", while this document's *Still uncovered*
+section listed two deliberate false-positive conditions. The internal note
+disclosed them and the public API reference denied them. Corrected to "when",
+with both conditions carried into the public doc.
+
+`findings[].summary` on `GET /investigations/services/{service_name}` was the
+other half of round 7's P1-1. The response object carried the signal; the
+human-readable string next to it still rendered a 40-dependent service as "25
+graph dependent(s), 0 content consumer repo(s)" with no marker. It now takes a
+`(bounded)` suffix, chosen per family (downstream families read
+`dependents_truncated`/`consumer_repositories_truncated`, upstream reads
+`provisioning_source_chains_truncated`) rather than from a single OR, so a list
+that was not bounded is not marked as if it were.
+
+`max_depth` declares `minimum`/`maximum` in `openapi_paths_impact.go` and
+declares neither on the MCP tool. The clamping rationale applies to both, so the
+split is now stated on the OpenAPI const: every sibling `max_depth` in that
+document declares both bounds, and MCP is the deliberate deviation because a
+validating MCP client turns an advertised bound into a client-side rejection of
+a value the handler would have clamped.
+
+Both round-8 fixes were proven by mutation, and both mutants were killed by
+assertions rather than compile errors:
+
+- Replacing the returned bool with `consumersTruncated := candidatesTruncated`
+  at `service_query_enrichment.go:176` reds exactly one test,
+  `TestTraceDeploymentChainDistinguishesConsumerTruncationFromCandidateTruncation`,
+  on `consumer_repositories_truncated = <nil>, want true`. Before this change
+  that mutant passed the whole package.
+- Dropping `|| len(affine) < len(unique)` from the affinity branch reds two
+  named cases:
+  `TestBoundedIndirectEvidenceHostnamesPrefersServiceOwnedHosts` and
+  `TestLoadConsumerRepositoryEnrichmentDisclosesUpstreamHostnameAndSearchBounds/hostname_affinity_narrowing_discloses`.
+- Making `serviceInvestigationBoundedSummary` return its input unchanged reds
+  four subtests of `TestServiceInvestigationFamilySummaryMarksBoundedReads`,
+  including `marker keeps the counts`, which pins the exact rendered string.
+
+The first of those two was asserting the defect. It read "the affinity filter
+dropped three vendor hosts, but it selected rather than capped ... nothing was
+lost to the bound", and its expectation was `truncated: false`. That assertion
+is inverted in this round, with the reasoning recorded next to it.
+
+Suite result lines quoted verbatim; no pass count is quoted, because `rtk`
+computes `N passed` over filtered, truncated output and reports different totals
+for the same tests depending on how many packages are in the run.
+
+```
+ok  	github.com/eshu-hq/eshu/go/internal/query	3.338s
+ok  	github.com/eshu-hq/eshu/go/internal/queryplan	1.594s
+ok  	github.com/eshu-hq/eshu/go/internal/mcp	3.262s
+ok  	github.com/eshu-hq/eshu/go/internal/query	14.741s   (go test -race)
+```
+
+These are warm-cache wall times from the final run of the round-8 branch state;
+they measure the suite, not the change, and are quoted only to identify the
+runs.
+
+`golangci-lint run ./...` reported `0 issues`. `scripts/verify-openapi.sh`
+reported `OpenAPI surface clean: 253 HandleFunc routes, 253 OpenAPI path
+entries`. `go run ./cmd/capability-inventory -mode=verify` reported `capability
+catalog and surface inventory verified`.
+`ESHU_PERFORMANCE_EVIDENCE_BASE=origin/main scripts/verify-performance-evidence.sh`
+reported `benchmark and observability markers found for hot-path changes`. The
+strict mkdocs build completed in 39.87 seconds.
+
+No-Regression Evidence: round 8 adds one boolean OR in
+`boundedIndirectEvidenceHostnamesForService` and one string suffix in a
+findings summary. No query shape, anchor, index, or row bound changed, so the
+no-measurable-regression statement above still holds unchanged.
+
+No-Observability-Change: no span, metric, label, or log event was added or
+altered.

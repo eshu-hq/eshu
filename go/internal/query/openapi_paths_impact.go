@@ -3,6 +3,20 @@
 
 package query
 
+// openAPIPathsImpact is the OpenAPI fragment for the /api/v0/impact routes.
+//
+// #5720 round-8 P3-4: trace-deployment-chain's max_depth declares "minimum": 0
+// and "maximum": 1000 here, while the same parameter on the sibling MCP tool
+// (go/internal/mcp/tools_ecosystem.go) deliberately declares neither. The
+// clamping rationale recorded there applies to JSON Schema in an OpenAPI
+// document just as literally, and both feed generated clients and validators,
+// so the split is deliberate rather than an oversight. What differs is what
+// each consumer does with the schema: an MCP client validates arguments before
+// the call and would turn a clamped value into a client-side rejection,
+// whereas OpenAPI consumers overwhelmingly read the document rather than
+// enforce it. Every other max_depth here declares both bounds, so OpenAPI
+// keeps the house convention and MCP is the deviation. Change either
+// declaration only alongside the other and this note.
 const openAPIPathsImpact = `
     "/api/v0/impact/trace-deployment-chain": {
       "post": {

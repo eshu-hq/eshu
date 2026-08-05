@@ -70,11 +70,14 @@ func loadProvisioningSourceChainsFromCandidates(
 // consumer_repositories field.
 //
 // The single returned truncated bool is the OR of every bound that can drop a
-// consumer repository from the merged set. #5720 round-2 P1-1 disclosed the
-// first two; #5720 round-7 P1-3 found that the comment claiming those were
-// the only two was wrong, and that two of the missing ones sit UPSTREAM of
-// both -- a repository they drop never reaches the merged set, so neither the
-// final cap nor candidatesTruncated can observe it. The full enumeration:
+// consumer repository from the merged set. Each round of review found the
+// preceding enumeration incomplete: round 2 disclosed two sources and asserted
+// there were only two, round 7 found three more (two of them UPSTREAM of both
+// disclosed ones -- a repository they drop never reaches the merged set, so
+// neither the final cap nor candidatesTruncated can observe it), and round 8
+// found 2b, a second drop path inside the same function as source 2. Treat this
+// list as the current state of an enumeration that has been wrong three times,
+// not as a closed one:
 //
 //  1. candidatesTruncated -- the caller's upstream
 //     queryProvisioningRepositoryCandidates read already dropped rows at its
@@ -82,6 +85,12 @@ func loadProvisioningSourceChainsFromCandidates(
 //  2. hostnamesTruncated -- indirectEvidenceHostnameLimit (4) dropped
 //     hostnames before any search ran, so consumers reachable only through a
 //     dropped hostname are never searched for. Upstream of 4 and 5.
+//     2b. the same bool also now covers the hostname affinity narrowing in
+//     boundedIndirectEvidenceHostnamesForService, which discards every hostname
+//     carrying no distinctive token from the service's own name. Same upstream
+//     position and same consequence as 2: a service answering on a legacy or
+//     vanity domain loses that domain, and every consumer reachable only
+//     through it. Undisclosed until #5720 round 8.
 //  3. the trimmedHostnames[:limit] cut below, for the case where the surviving
 //     hostname set still exceeds the caller's limit. Upstream of 4 and 5.
 //  4. searchTruncated -- at least one per-search content read in

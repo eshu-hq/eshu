@@ -328,14 +328,42 @@ func serviceInvestigationFamilySummaryWithContext(buildCtx serviceStoryBuildCont
 	case "documentation":
 		return "indexed documentation metadata is available for the service repository"
 	case "downstream_consumers":
-		return fmt.Sprintf("%d graph dependent(s), %d content consumer repo(s)", len(mapSliceValue(workloadContext, "dependents")), len(mapSliceValue(workloadContext, "consumer_repositories")))
+		return serviceInvestigationBoundedSummary(
+			fmt.Sprintf("%d graph dependent(s), %d content consumer repo(s)", len(mapSliceValue(workloadContext, "dependents")), len(mapSliceValue(workloadContext, "consumer_repositories"))),
+			BoolVal(workloadContext, "dependents_truncated") || BoolVal(workloadContext, "consumer_repositories_truncated"),
+		)
 	case "upstream_dependencies":
-		return fmt.Sprintf("%d dependency row(s), %d provisioning chain(s)", len(mapSliceValue(workloadContext, "dependencies")), len(mapSliceValue(workloadContext, "provisioning_source_chains")))
+		return serviceInvestigationBoundedSummary(
+			fmt.Sprintf("%d dependency row(s), %d provisioning chain(s)", len(mapSliceValue(workloadContext, "dependencies")), len(mapSliceValue(workloadContext, "provisioning_source_chains"))),
+			BoolVal(workloadContext, "provisioning_source_chains_truncated"),
+		)
 	case "support":
 		return "support metadata is available for the service"
 	default:
 		return "evidence family is present"
 	}
+}
+
+// serviceInvestigationBoundedSummary marks a family summary whose counts came
+// from a bounded read.
+//
+// #5720 round-8 P3-2: round 7 fixed only half of this. coverage_summary gained
+// a truncated flag, but the human-readable findings[].summary next to it still
+// rendered a 40-dependent service as "25 graph dependent(s), 0 content consumer
+// repo(s)" -- a bare number that reads as the whole population. An operator
+// scanning the findings list, which is the part written to be read rather than
+// parsed, had nothing telling them the number was a ceiling.
+//
+// The flag is chosen per family rather than OR-ing all three signals: the
+// downstream families and the upstream families are fed by different bounds,
+// and consumer_repositories_truncated can fire from sources that never touch
+// provisioning_source_chains. Marking a list that was not bounded would be its
+// own false claim.
+func serviceInvestigationBoundedSummary(summary string, truncated bool) string {
+	if !truncated {
+		return summary
+	}
+	return summary + " (bounded)"
 }
 
 func serviceInvestigationEvidencePath(family string) string {

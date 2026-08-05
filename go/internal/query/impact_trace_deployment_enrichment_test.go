@@ -118,11 +118,20 @@ func TestBoundedIndirectEvidenceHostnamesPrefersServiceOwnedHosts(t *testing.T) 
 	if !slices.Equal(got, want) {
 		t.Fatalf("boundedIndirectEvidenceHostnamesForService() = %#v, want %#v", got, want)
 	}
-	// The affinity filter dropped three vendor hosts, but it selected rather
-	// than capped: the two service-owned hosts both survive
-	// indirectEvidenceHostnameLimit, so nothing was lost to the bound.
-	if truncated {
-		t.Fatal("truncated = true, want false (the affinity-selected set fits under indirectEvidenceHostnameLimit)")
+	// #5720 round-8 P1-2: this assertion was inverted, and the reasoning behind
+	// it ("the affinity filter selected rather than capped, so nothing was
+	// lost") was the defect. The affinity filter is a drop path like any other.
+	// It discarded three hostnames here, and a consumer repository that
+	// references only api.vendor.example.test is never searched for and never
+	// reaches the merged consumer set -- indistinguishable, from the caller's
+	// side, from one dropped by indirectEvidenceHostnameLimit. The old
+	// expectation let a service on a legacy or vanity domain report a
+	// complete-looking consumer_repository_count with truncated: false.
+	if !truncated {
+		t.Fatalf(
+			"truncated = false, want true (the affinity filter dropped %d of 5 hostnames before any consumer search ran)",
+			5-len(got),
+		)
 	}
 }
 

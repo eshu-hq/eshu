@@ -64,6 +64,36 @@ func provisioningCandidateGraphReader(workload map[string]any, rows []map[string
 	}
 }
 
+// fullPageConsumerSearchContentStore answers the service-name consumer search
+// with exactly `limit` rows, all in one repository, so
+// searchConsumerEvidenceAnyRepo's `len(rows) >= limit` probe reports a
+// truncated per-search read (source 4 of the enumeration on
+// loadConsumerRepositoryEnrichmentFromCandidates) while the merged consumer
+// set grows by a single entry and stays far under the final cap.
+type fullPageConsumerSearchContentStore struct {
+	fakePortContentStore
+	pattern string
+	repoID  string
+}
+
+func (s fullPageConsumerSearchContentStore) SearchFileContentAnyRepoExactCase(
+	_ context.Context,
+	pattern string,
+	limit int,
+) ([]FileContent, error) {
+	if pattern != s.pattern || limit <= 0 {
+		return nil, nil
+	}
+	rows := make([]FileContent, 0, limit)
+	for index := range limit {
+		rows = append(rows, FileContent{
+			RepoID:       s.repoID,
+			RelativePath: fmt.Sprintf("deploy/values-%02d.yaml", index),
+		})
+	}
+	return rows, nil
+}
+
 func provisioningTruncationWorkload() map[string]any {
 	return map[string]any{
 		"id":        "workload:orders-api",
@@ -174,6 +204,83 @@ func TestTraceDeploymentChainDisclosesProvisioningReadTruncation(t *testing.T) {
 			t.Fatal("len(dependents) = 0, want the untruncated read to still return rows")
 		}
 	})
+}
+
+// TestTraceDeploymentChainDistinguishesConsumerTruncationFromCandidateTruncation
+// is the #5720 round-8 P1-1 regression.
+//
+// Round 7 wired consumer_repositories_truncated to the bool
+// loadConsumerRepositoryEnrichmentFromCandidates returns, which ORs five
+// sources. Nothing in the suite held that wiring in place. Replacing the
+// returned bool at the production call site with the upstream
+// candidatesTruncated -- one line, discarding sources 2, 2b, 3, 4 and 5, which
+// is exactly the set rounds 7 and 8 found missing -- left every test green:
+//
+//   - deployment_trace_truncation_disclosure_test.go asserts those sources only
+//     against the helper, and never calls the enrichment or the handler.
+//   - the sibling cases in this file seed a workload with no hostnames and a
+//     content store that matches nothing, so consumersTruncated and
+//     candidatesTruncated are equal in every scenario they exercise. They
+//     cannot tell the two flags apart.
+//
+// This case drives the real handler with the two flags deliberately opposed: an
+// untruncated provisioning-candidate read (so dependents_truncated and
+// provisioning_source_chains_truncated must be absent) alongside a per-search
+// content read that comes back full (so consumer_repositories_truncated must be
+// true). Substituting either flag for the other reds it.
+func TestTraceDeploymentChainDistinguishesConsumerTruncationFromCandidateTruncation(t *testing.T) {
+	t.Parallel()
+
+	const candidateRowCount = 2
+	workload := provisioningTruncationWorkload()
+	handler := &ImpactHandler{
+		Neo4j: provisioningCandidateGraphReader(workload, provisioningCandidateRows(candidateRowCount)),
+		Content: fullPageConsumerSearchContentStore{
+			pattern: "orders-api",
+			repoID:  "repository:content-consumer",
+		},
+	}
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/impact/trace-deployment-chain",
+		strings.NewReader(`{"service_name":"orders-api","include_related_module_usage":true}`),
+	)
+	w := httptest.NewRecorder()
+
+	handler.traceDeploymentChain(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("traceDeploymentChain status = %d, body = %s", w.Code, w.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode trace response: %v", err)
+	}
+
+	if !BoolVal(body, "consumer_repositories_truncated") {
+		t.Fatalf(
+			"consumer_repositories_truncated = %#v, want true (the service-name consumer search returned a full page of %d rows at its own cap)",
+			body["consumer_repositories_truncated"], defaultIndirectEvidenceSearchLimit,
+		)
+	}
+	for _, field := range []string{"dependents_truncated", "provisioning_source_chains_truncated"} {
+		if value, present := body[field]; present {
+			t.Fatalf(
+				"%s = %#v, want the key absent (the provisioning-candidate read returned %d rows, well under its bound of %d, so it dropped nothing)",
+				field, value, candidateRowCount, defaultIndirectEvidenceSearchLimit,
+			)
+		}
+	}
+	// Guards the assertions above against passing for the wrong reason. The
+	// consumer list must carry the graph candidates plus the one repository the
+	// content search named, so the flag really reports a bounded read rather
+	// than an empty one, and the merged set must stay under the final cap so
+	// source 5 is not what set it.
+	if got, want := len(mapSliceValue(body, "consumer_repositories")), candidateRowCount+1; got != want {
+		t.Fatalf("len(consumer_repositories) = %d, want %d", got, want)
+	}
+	if got, want := len(mapSliceValue(body, "dependents")), candidateRowCount; got != want {
+		t.Fatalf("len(dependents) = %d, want %d", got, want)
+	}
 }
 
 // enrichWithProvisioningCandidateRows runs the real

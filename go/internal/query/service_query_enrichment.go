@@ -164,9 +164,28 @@ func enrichServiceQueryContextWithOptions(
 			// by the filter. Under a guarded flag that caller received neither
 			// dependents nor a truncation signal -- an empty answer that
 			// silently reads as complete while their own dependents sat past
-			// the cut. Disclosing an emptied-by-filter truncated read is the
-			// conservative direction: the dropped rows were never read, so
-			// they cannot be shown to fall outside the caller's grant.
+			// the cut.
+			//
+			// #5720 round-8 P2-1: round 7 justified this as "the dropped rows
+			// were never read, so they cannot be shown to fall outside the
+			// grant." That reasoned about what the server knows, not what the
+			// client can infer, and it was wrong. candidatesTruncated is
+			// computed from the raw pre-authorization read, so it fires on
+			// GLOBAL row cardinality no matter how narrow the caller's grant
+			// is. Paired with the max_depth x 10 scaling (capped at 100), a
+			// scoped caller can sweep max_depth over 1..10 and read the flag at
+			// bounds 10, 20, ... 100, recovering the global
+			// provisioning-candidate row count to within 10 across [10,100].
+			// That is a coarse cardinality oracle over out-of-grant data.
+			//
+			// The behavior stays anyway. Suppressing the flag for scoped
+			// callers reintroduces round 7's false negative, and on an
+			// evidence-backed-truth product a silent false claim of
+			// completeness is the worse failure. No repository identity leaks
+			// -- only a bucketed count -- and the caller is already authorized
+			// for the service the count hangs off. The public docs say plainly
+			// that these flags are a global signal rather than a grant-relative
+			// one; see docs/public/reference/http-api/context-and-stories.md.
 			if candidatesTruncated {
 				workloadContext["dependents_truncated"] = true
 			}

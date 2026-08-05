@@ -550,15 +550,27 @@ a separate query path and does not use deployment-evidence artifact order.
 
 `dependents_truncated`, `consumer_repositories_truncated`, and
 `provisioning_source_chains_truncated` report the same class of incomplete
-discovery for the cross-repository fan-out. Each is present and true only when
-the read underneath the matching list hit a bound, and absent otherwise. They
-are required because the reads that feed those lists are bounded at 25 rows by
+discovery for the cross-repository fan-out. Each is present and true when the
+read underneath the matching list hit a bound, and absent otherwise. They are
+required because the reads that feed those lists are bounded at 25 rows by
 default while the rendered lists are capped at 50, so a genuinely truncated
 read can never surface through a count-versus-limit comparison alone. The
 bounds folded into these flags are the provisioning-candidate graph read, the
-four-hostname cap applied before consumer evidence is searched for, each
-per-search content row cap, and the final merge cap over the combined set.
-`consumer_repositories_truncated` covers all of them.
+hostname affinity filter that keeps only hostnames carrying a distinctive token
+from the service's own name, the four-hostname cap applied to whatever survives
+that filter, the cut that applies when the surviving hostname set still exceeds
+the caller's requested limit, each per-search content row cap, and the final
+merge cap over the combined set. `consumer_repositories_truncated` covers all
+six; the other two flags carry the provisioning-candidate graph read only.
+
+Treat these flags as "the read underneath was bounded", not as "rows were
+definitely dropped". Two conditions make them true when nothing was lost. A
+per-search content read that returns exactly its row cap is reported as
+truncated, because that read carries no over-fetch probe and cannot distinguish
+"exactly the cap" from "the cap plus more". And a scoped token receives flags
+computed from the pre-authorization read (see below), which can fire on rows the
+caller was never entitled to. Both err toward disclosure: a false claim of
+completeness is the worse failure for an evidence-backed answer.
 
 The same three signals drive `result_limits.truncated` on service story,
 service context, and workload context/story, and `coverage_summary.truncated`
@@ -571,10 +583,21 @@ existed", not "more than the rendering cap existed".
 
 A scoped token receives these flags computed from the pre-authorization read.
 The backend applies its row bound before the caller's repository grant is
-applied, so rows past the bound were never read and cannot be shown to fall
-outside the grant. A scoped caller whose entire result is removed by the grant
-filter therefore still receives the truncation flags rather than an empty
-result that reads as complete.
+applied, so the flag reflects global row cardinality and is not grant-relative:
+it can be true when every row the bound dropped lay outside the caller's grant.
+A scoped caller whose entire result is removed by the grant filter still
+receives the truncation flags rather than an empty result that reads as
+complete.
+
+That makes the flag a coarse cardinality signal over data the caller cannot
+read. Because `max_depth` scales the underlying bound (`max_depth` x 10, capped
+at 100), a scoped caller who sweeps `max_depth` over 1 through 10 and reads the
+flag at each step can place the global provisioning-candidate row count within
+about 10 across the range 10 to 100. No repository name or identifier is
+exposed, and the caller is already authorized for the service the count hangs
+off. The behavior is deliberate: suppressing the flag for scoped callers would
+return an empty or clipped answer that reads as complete, which is the worse
+failure for a product whose answers are meant to be evidence-backed.
 
 Repository story uses the same repository deployment-evidence read path as
 repository context and service story. When repository-scoped deployment evidence

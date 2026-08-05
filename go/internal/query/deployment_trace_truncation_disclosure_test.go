@@ -384,6 +384,55 @@ func TestLoadConsumerRepositoryEnrichmentDisclosesUpstreamHostnameAndSearchBound
 		}
 	})
 
+	t.Run("hostname affinity narrowing discloses", func(t *testing.T) {
+		t.Parallel()
+
+		// #5720 round-8 P1-2. boundedIndirectEvidenceHostnamesForService has
+		// two drop paths and returned one bool, which reported only the 4-cap.
+		// The subtest above routes AROUND the affinity filter on purpose (nine
+		// hostnames, none carrying the service's token, so it falls through to
+		// the first-N fallback), so the affinity path was never tested in the
+		// direction where it fires. Here it fires: orders-api keeps
+		// orders.example.com and silently discards two acme.test domains, well
+		// under the 4-cap, so nothing else in the function can set the flag.
+		// A service answering on a legacy or vanity domain loses every consumer
+		// reachable only through it, and reported a complete-looking
+		// consumer_repository_count with truncated: false.
+		hostnames := []string{
+			"orders.example.com",
+			"legacy-billing.acme.test",
+			"cart-gw.acme.test",
+		}
+		kept, hostnamesTruncated := boundedIndirectEvidenceHostnamesForService(hostnames, "orders-api")
+		if got, want := len(kept), 1; got != want {
+			t.Fatalf("len(kept hostnames) = %d, want %d (only orders.example.com carries the service token)", got, want)
+		}
+		if got := len(kept); got > indirectEvidenceHostnameLimit {
+			t.Fatalf("len(kept hostnames) = %d, want at most indirectEvidenceHostnameLimit = %d so the 4-cap cannot be the source", got, indirectEvidenceHostnameLimit)
+		}
+		if !hostnamesTruncated {
+			t.Fatalf(
+				"boundedIndirectEvidenceHostnamesForService(%d hostnames, %q) truncated = false, want true (%d were dropped by the affinity filter, not by indirectEvidenceHostnameLimit = %d)",
+				len(hostnames), "orders-api", len(hostnames)-len(kept), indirectEvidenceHostnameLimit,
+			)
+		}
+
+		// The signal has to survive the call that actually reaches the wire.
+		consumers, truncated, err := loadConsumerRepositoryEnrichmentFromCandidates(
+			context.Background(), nil, fakePortContentStore{}, "repository:orders", "orders-api",
+			hostnames, defaultIndirectEvidenceSearchLimit, oneCandidate, false,
+		)
+		if err != nil {
+			t.Fatalf("loadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
+		}
+		if got, want := len(consumers), defaultIndirectEvidenceSearchLimit; got >= want {
+			t.Fatalf("len(consumers) = %d, want well under the limit of %d so only the affinity drop can set the flag", got, want)
+		}
+		if !truncated {
+			t.Fatal("truncated = false, want true (the affinity filter dropped two of three hostnames before any consumer search ran)")
+		}
+	})
+
 	t.Run("a per-search read that comes back full discloses", func(t *testing.T) {
 		t.Parallel()
 

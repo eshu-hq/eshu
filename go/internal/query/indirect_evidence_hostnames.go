@@ -35,14 +35,23 @@ var genericServiceHostnameTokens = map[string]struct{}{
 // first-four fallback so services with vanity or opaque domains still get
 // bounded consumer evidence.
 //
-// #5720 round-7 P1-3: the returned bool reports that hostnames were dropped by
-// indirectEvidenceHostnameLimit. This cap sits UPSTREAM of every consumer
-// search, so a consumer repository reachable only through a dropped hostname
-// never enters the merged consumer set at all -- neither the caller's own
-// final cap nor the provisioning-candidate read's truncated bool can see it,
-// and the answer would otherwise report a complete-looking
-// consumer_repository_count. Only a signal returned from here makes that
-// bound observable.
+// #5720 round-7 P1-3: the returned bool reports that hostnames were dropped
+// here. Every drop in this function sits UPSTREAM of every consumer search, so
+// a consumer repository reachable only through a dropped hostname never enters
+// the merged consumer set at all -- neither the caller's own final cap nor the
+// provisioning-candidate read's truncated bool can see it, and the answer would
+// otherwise report a complete-looking consumer_repository_count. Only a signal
+// returned from here makes those bounds observable.
+//
+// #5720 round-8 P1-2: this function has TWO drop paths, and until round 8 the
+// returned bool covered only one of them. Both are folded in now:
+//
+//   - the affinity narrowing below, which discards every hostname that carries
+//     no distinctive token from the service's own name. A service reached
+//     through a legacy or vanity domain (orders-api answering on
+//     legacy-billing.acme.test) loses that domain here.
+//   - indirectEvidenceHostnameLimit (4), applied by
+//     capAndSortIndirectEvidenceHostnames on whichever list survives.
 func boundedIndirectEvidenceHostnamesForService(hostnames []string, serviceName string) ([]string, bool) {
 	unique := uniqueTrimmedHostnames(hostnames)
 	if len(unique) == 0 {
@@ -58,7 +67,8 @@ func boundedIndirectEvidenceHostnamesForService(hostnames []string, serviceName 
 			}
 		}
 		if len(affine) > 0 {
-			return capAndSortIndirectEvidenceHostnames(affine)
+			bounded, capped := capAndSortIndirectEvidenceHostnames(affine)
+			return bounded, capped || len(affine) < len(unique)
 		}
 	}
 
