@@ -434,3 +434,12 @@ bound changed, so the no-measurable-regression statement above holds unchanged.
 
 No-Observability-Change: no span, metric, label, or log event was added or
 altered.
+
+## Round 10 and later
+
+Round 10 rewrote the membership rule this enumeration runs on, and the record
+for it lives in `evidence-5720-truncation-enumeration.md` rather than here --
+this file was 436 lines and `CLAUDE.md` says to split before 500, not at it.
+Read that file for what makes a bound a member of the enumeration, why the
+hostname affinity narrowing lost its number, and why the row bound on
+`queryProvisioningRepositoryCandidates` can fire without dropping a repository.

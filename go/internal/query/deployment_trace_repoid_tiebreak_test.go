@@ -5,6 +5,7 @@ package query
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -139,6 +140,83 @@ func TestQueryProvisioningRepositoryCandidatesSortIsStableAcrossMapIterationOrde
 		if strings.Join(got, ",") != strings.Join(wantOrder, ",") {
 			t.Fatalf("candidate order on iteration %d = %v, want %v (map-iteration order leaked through an unresolved name tie)", i, got, wantOrder)
 		}
+	}
+}
+
+// TestQueryProvisioningRepositoryCandidatesTruncatesRowsNotRepositories is the
+// #5720 round-10 P1-1 regression for the false-positive path the public
+// reference denied until this round. The bound is a row bound: the read returns
+// one row per (repo_id, relationship_type, relationship_reason) tuple and
+// queryProvisioningRepositoryCandidates groups those rows by repo_id only after
+// trimming them, so `truncated` can be true while every repository the graph
+// held still appears in the returned slice. What the trim actually cost is one
+// entry's relationship metadata.
+//
+// The fixture is the case the reference now names: 26 rows across 3
+// repositories at the default 25-row bound. The two singleton repositories sort
+// first, so the trim falls entirely inside the third repository's 24 reasons and
+// drops exactly one of them.
+//
+// This matters because `dependents_truncated` and
+// `provisioning_source_chains_truncated` are 1:1 over this slice, and their
+// OpenAPI descriptions used to say only that the list "may not be exhaustive".
+// Here the list IS exhaustive and the flag is still true.
+func TestQueryProvisioningRepositoryCandidatesTruncatesRowsNotRepositories(t *testing.T) {
+	t.Parallel()
+
+	const (
+		limit          = defaultIndirectEvidenceSearchLimit
+		crowdedReasons = limit - 1
+	)
+
+	rows := []map[string]any{
+		{"repo_id": "repository:alpha", "repo_name": "alpha", "relationship_type": "USES_MODULE", "relationship_reason": "module_reference"},
+		{"repo_id": "repository:beta", "repo_name": "beta", "relationship_type": "USES_MODULE", "relationship_reason": "module_reference"},
+	}
+	for i := 0; i < crowdedReasons; i++ {
+		rows = append(rows, map[string]any{
+			"repo_id":             "repository:gamma",
+			"repo_name":           "gamma",
+			"relationship_type":   "DEPLOYS_FROM",
+			"relationship_reason": fmt.Sprintf("reason-%02d", i),
+		})
+	}
+	if len(rows) != limit+1 {
+		t.Fatalf("fixture built %d rows, want %d so the read comes back one row past the bound", len(rows), limit+1)
+	}
+
+	reader := fakeGraphReader{run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+		return rows, nil
+	}}
+
+	candidates, truncated, err := queryProvisioningRepositoryCandidates(context.Background(), reader, "repository:orders", limit)
+	if err != nil {
+		t.Fatalf("queryProvisioningRepositoryCandidates() error = %v, want nil", err)
+	}
+	if !truncated {
+		t.Fatal("truncated = false, want true (the backend returned limit+1 rows)")
+	}
+
+	gotRepos := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		gotRepos = append(gotRepos, candidate.RepoID)
+	}
+	wantRepos := []string{"repository:alpha", "repository:beta", "repository:gamma"}
+	if strings.Join(gotRepos, ",") != strings.Join(wantRepos, ",") {
+		t.Fatalf("repositories = %v, want %v -- the row trim must not drop a whole repository here", gotRepos, wantRepos)
+	}
+
+	var gamma provisioningRepositoryCandidate
+	for _, candidate := range candidates {
+		if candidate.RepoID == "repository:gamma" {
+			gamma = candidate
+		}
+	}
+	if got, want := len(gamma.RelationshipReasons), crowdedReasons-1; got != want {
+		t.Fatalf(
+			"gamma relationship_reasons = %d, want %d -- the trim is supposed to cost one reason inside a retained entry, which is what truncated: true reports here",
+			got, want,
+		)
 	}
 }
 

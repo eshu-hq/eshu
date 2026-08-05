@@ -214,8 +214,9 @@ func TestTraceDeploymentChainDisclosesProvisioningReadTruncation(t *testing.T) {
 // sources at the time (seven as of round 9). Nothing in the suite held that
 // wiring in place. Replacing the
 // returned bool at the production call site with the upstream
-// candidatesTruncated -- one line, discarding sources 2, 2b, 3, 4 and 5, which
-// is exactly the set rounds 7 and 8 found missing -- left every test green:
+// candidatesTruncated -- one line, discarding sources 2, 3, 4 and 5 plus the
+// hostname affinity narrowing, which is exactly the set rounds 7 and 8 found
+// missing -- left every test green:
 //
 //   - deployment_trace_truncation_disclosure_test.go asserts those sources only
 //     against the helper, and never calls the enrichment or the handler.

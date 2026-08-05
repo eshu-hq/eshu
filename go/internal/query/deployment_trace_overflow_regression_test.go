@@ -41,11 +41,11 @@ func (s *searchCallCountingContentStore) callCount() int {
 // (e.g. max_depth=922337203685477581) previously produced a negative limit
 // that reached loadConsumerRepositoryEnrichmentFromCandidates unclamped.
 // `if limit > 0` there gates two independent protections
-// (deployment_trace_candidate_enrichment.go): the hostname-affinity bounding
-// at :79-84, which is the only thing that narrows an arbitrarily large
-// hostname list down to boundedIndirectEvidenceHostnamesForService's fixed
+// (deployment_trace_candidate_enrichment.go): the
+// boundedIndirectEvidenceHostnamesForService call, which is the only thing that
+// narrows an arbitrarily large hostname list down to that function's fixed
 // indirectEvidenceHostnameLimit (4) before firing concurrent content
-// searches, and the final `consumers[:limit]` truncation at :146-148. A negative
+// searches, and the final `consumers[:limit]` truncation. A negative
 // limit silently skipped both, so a single overflowing max_depth could fan
 // out one content search per offered hostname and return an unbounded
 // consumer list.

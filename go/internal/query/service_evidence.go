@@ -14,34 +14,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type serviceEvidenceReader interface {
-	ListRepoFiles(ctx context.Context, repoID string, limit int) ([]FileContent, error)
-	GetFileContent(ctx context.Context, repoID, relativePath string) (*FileContent, error)
-}
-
-const serviceEvidenceFileLimit = 5000
-
-// listServiceEvidenceFiles reads the repository file list every service
-// evidence field is extracted from, probing one row past
-// serviceEvidenceFileLimit so a full page can be told apart from a repository
-// holding exactly that many indexed files. ListRepoFiles is a real SQL
-// `ORDER BY relative_path LIMIT $2` (ContentReader.ListRepoFiles), so a file
-// past the cut is never read, no hostname inside it is ever extracted, and a
-// consumer repository reachable only through that hostname never enters the
-// merged consumer set -- source 0 of the enumeration on
-// loadConsumerRepositoryEnrichmentFromCandidates. The +1 mirrors
-// repositoryTreeFileLimit+1 in repository_tree.go.
-func listServiceEvidenceFiles(ctx context.Context, reader serviceEvidenceReader, repoID string) ([]FileContent, bool, error) {
-	files, err := reader.ListRepoFiles(ctx, repoID, serviceEvidenceFileLimit+1)
-	if err != nil {
-		return nil, false, fmt.Errorf("list service evidence files: %w", err)
-	}
-	if len(files) > serviceEvidenceFileLimit {
-		return files[:serviceEvidenceFileLimit], true, nil
-	}
-	return files, false, nil
-}
-
 var openAPIMethodNames = map[string]struct{}{
 	"get": {}, "put": {}, "post": {}, "delete": {}, "patch": {}, "options": {}, "head": {}, "trace": {},
 }
@@ -146,7 +118,11 @@ func loadServiceQueryEvidence(
 			})
 		}
 
-		if spec, ok := extractAPISpecEvidence(hydrated, buildSpecFileResolver(reader, ctx, repoID)); ok {
+		spec, ok, err := extractAPISpecEvidence(hydrated, buildSpecFileResolver(ctx, reader, repoID))
+		if err != nil {
+			return ServiceQueryEvidence{}, fmt.Errorf("extract api spec evidence %q: %w", hydrated.RelativePath, err)
+		}
+		if ok {
 			key := spec.RelativePath
 			if _, ok := seenSpecs[key]; ok {
 				continue
@@ -216,22 +192,36 @@ func isServiceEvidenceCandidate(file FileContent, normalizedServiceName string) 
 	return false
 }
 
-// specFileResolver resolves a relative $ref path from a base spec file and
-// returns the raw content of the referenced file. Returns empty string when
-// the reference cannot be resolved.
-type specFileResolver func(baseRelativePath, ref string) string
-
-func extractAPISpecEvidence(file FileContent, resolver specFileResolver) (ServiceAPISpecEvidence, bool) {
+// extractAPISpecEvidence summarizes one candidate API spec file, resolving
+// external `$ref` path entries through resolver first.
+//
+// The returned error is a resolver read failure and nothing else. Until #5720
+// round 10 the resolver reported a read error and a genuinely absent file as
+// the same empty string, so a transient Postgres error resolving
+// `./paths/index.yaml` silently produced a spec with fewer `servers` entries,
+// fewer derived hostnames, fewer cross-repository consumer searches, and
+// `consumer_repositories_truncated` FALSE -- a complete-looking answer built
+// from a failure rather than a bound. loadServiceQueryEvidence already
+// propagates the identical error from the same reader method when it hydrates
+// a listing row; this call site now matches it.
+//
+// A referenced file that parses badly is still tolerated: malformed YAML in a
+// referenced spec is a property of the repository's own content, which every
+// other extractor in this file also reads on a best-effort basis, not a
+// failure of the read.
+func extractAPISpecEvidence(file FileContent, resolver specFileResolver) (ServiceAPISpecEvidence, bool, error) {
 	format := serviceEvidenceFormat(file.RelativePath)
 	if !isPotentialAPISpecPath(file.RelativePath) {
-		return ServiceAPISpecEvidence{}, false
+		return ServiceAPISpecEvidence{}, false, nil
 	}
 
 	doc, err := parseLooseYAMLDocument(file.Content)
 	if err == nil {
-		resolveOpenAPIPathRefs(doc, file.RelativePath, resolver)
+		if resolveErr := resolveOpenAPIPathRefs(doc, file.RelativePath, resolver); resolveErr != nil {
+			return ServiceAPISpecEvidence{}, false, resolveErr
+		}
 		if spec, ok := buildOpenAPISpecEvidence(file.RelativePath, format, doc); ok {
-			return spec, true
+			return spec, true, nil
 		}
 	}
 
@@ -239,42 +229,56 @@ func extractAPISpecEvidence(file FileContent, resolver specFileResolver) (Servic
 		RelativePath: file.RelativePath,
 		Format:       format,
 		Parsed:       false,
-	}, true
+	}, true, nil
+}
+
+// extractAPISpecEvidenceWithoutRefs is extractAPISpecEvidence for callers that
+// hold no reader and therefore pass no resolver. resolveOpenAPIPathRefs returns
+// nil on a nil resolver before it can read anything, so the dropped error is
+// structurally always nil rather than a swallowed failure.
+func extractAPISpecEvidenceWithoutRefs(file FileContent) (ServiceAPISpecEvidence, bool) {
+	spec, ok, _ := extractAPISpecEvidence(file, nil)
+	return spec, ok
 }
 
 // resolveOpenAPIPathRefs resolves $ref entries in the paths object of an
 // OpenAPI document. It handles two patterns:
 //  1. Whole-paths $ref: paths: { $ref: './paths/index.yaml' }
 //  2. Per-path-item $ref: paths: { /route: { $ref: './paths/route.yaml' } }
-func resolveOpenAPIPathRefs(doc map[string]any, baseRelativePath string, resolver specFileResolver) {
+//
+// A nil resolver means the caller holds no reader; it returns nil before any
+// read, which is what makes extractAPISpecEvidenceWithoutRefs error-free.
+func resolveOpenAPIPathRefs(doc map[string]any, baseRelativePath string, resolver specFileResolver) error {
 	if resolver == nil {
-		return
+		return nil
 	}
 	paths := serviceMapValue(doc["paths"])
 	if len(paths) == 0 {
-		return
+		return nil
 	}
 
 	// Case 1: whole-paths $ref — the paths map itself contains only a $ref key.
 	if ref, ok := paths["$ref"].(string); ok && len(paths) == 1 {
-		content := resolver(baseRelativePath, ref)
-		if content == "" {
-			return
-		}
-		resolved, err := parseLooseYAMLDocument(content)
+		content, err := resolver(baseRelativePath, ref)
 		if err != nil {
-			return
+			return err
+		}
+		if content == "" {
+			return nil
+		}
+		resolved, parseErr := parseLooseYAMLDocument(content)
+		if parseErr != nil {
+			return nil
 		}
 		doc["paths"] = resolved
-		resolveOpenAPIPathItemRefs(resolved, openAPIRefFilePath(baseRelativePath, ref), resolver)
-		return
+		return resolveOpenAPIPathItemRefs(resolved, openAPIRefFilePath(baseRelativePath, ref), resolver)
 	}
 
 	// Case 2: per-path-item $ref — individual path items reference external files.
-	resolveOpenAPIPathItemRefs(paths, baseRelativePath, resolver)
+	return resolveOpenAPIPathItemRefs(paths, baseRelativePath, resolver)
 }
 
-func resolveOpenAPIPathItemRefs(paths map[string]any, baseRelativePath string, resolver specFileResolver) {
+func resolveOpenAPIPathItemRefs(paths map[string]any, baseRelativePath string, resolver specFileResolver) error {
 	for route, rawPathItem := range paths {
 		pathItemMap := serviceMapValue(rawPathItem)
 		if pathItemMap == nil {
@@ -284,16 +288,20 @@ func resolveOpenAPIPathItemRefs(paths map[string]any, baseRelativePath string, r
 		if !ok || ref == "" {
 			continue
 		}
-		content := resolver(baseRelativePath, ref)
+		content, err := resolver(baseRelativePath, ref)
+		if err != nil {
+			return err
+		}
 		if content == "" {
 			continue
 		}
-		resolved, err := parseLooseYAMLDocument(content)
-		if err != nil {
+		resolved, parseErr := parseLooseYAMLDocument(content)
+		if parseErr != nil {
 			continue
 		}
 		paths[route] = resolved
 	}
+	return nil
 }
 
 func buildOpenAPISpecEvidence(relativePath string, format string, doc map[string]any) (ServiceAPISpecEvidence, bool) {
@@ -387,39 +395,6 @@ func parseLooseYAMLDocument(content string) (map[string]any, error) {
 	return document, nil
 }
 
-// buildSpecFileResolver creates a specFileResolver closure that reads
-// referenced files via the serviceEvidenceReader.
-func buildSpecFileResolver(reader serviceEvidenceReader, ctx context.Context, repoID string) specFileResolver {
-	return func(baseRelativePath, ref string) string {
-		if reader == nil || ref == "" {
-			return ""
-		}
-		// Resolve relative path against the base spec file's directory.
-		resolved := openAPIRefFilePath(baseRelativePath, ref)
-
-		fc, err := reader.GetFileContent(ctx, repoID, resolved)
-		if err != nil || fc == nil {
-			return ""
-		}
-		return fc.Content
-	}
-}
-
-func openAPIRefFilePath(baseRelativePath, ref string) string {
-	ref = strings.TrimSpace(ref)
-	if ref == "" {
-		return ""
-	}
-	if fragmentIndex := strings.Index(ref, "#"); fragmentIndex >= 0 {
-		ref = ref[:fragmentIndex]
-	}
-	if ref == "" {
-		return ""
-	}
-	baseDir := filepath.Dir(baseRelativePath)
-	return filepath.Clean(filepath.Join(baseDir, ref))
-}
-
 func serviceEvidenceFormat(relativePath string) string {
 	switch strings.ToLower(filepath.Ext(relativePath)) {
 	case ".yaml", ".yml":
@@ -465,23 +440,4 @@ func normalizeEvidenceToken(text string) string {
 		" ", "_",
 	)
 	return "_" + replacer.Replace(lower) + "_"
-}
-
-func serviceSliceValue(raw any) []any {
-	switch typed := raw.(type) {
-	case []any:
-		return typed
-	default:
-		return nil
-	}
-}
-
-func serviceMapValue(raw any) map[string]any {
-	typed, _ := raw.(map[string]any)
-	return typed
-}
-
-func serviceStringValue(raw any) string {
-	value, _ := raw.(string)
-	return value
 }

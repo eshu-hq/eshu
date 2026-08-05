@@ -345,7 +345,7 @@
   `TerraformStateOwnershipTransientFailure` -- Resolved, NoOwner, and
   AmbiguousOwner are all retract-eligible.
 
-- **Provisioning-candidate read gained a deterministic, structurally bounded LIMIT (#5720)** — see `evidence-5720-provisioning-candidate-bound.md`.
+- **Provisioning-candidate read gained a deterministic, structurally bounded LIMIT (#5720)** — see `evidence-5720-provisioning-candidate-bound.md`, continued in `evidence-5720-truncation-enumeration.md` for what belongs on the consumer-truncation enumeration and why.
 
 ## Common changes and how to scope them
 

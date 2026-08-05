@@ -79,7 +79,8 @@ func (r limitHonoringServiceEvidenceReader) GetFileContent(
 // the cut is therefore never extracted, never reaches
 // searchConsumerEvidenceAnyRepo, and a consumer repository reachable only
 // through it never enters the merged consumer set. That is the same criterion
-// rounds 7 and 8 used to justify disclosing sources 2 and 2b, but this read
+// rounds 7 and 8 used to justify disclosing source 2 and the hostname affinity
+// narrowing, but this read
 // could not reach any flag at all: no over-fetch probe, no length check, and no
 // truncated field on ServiceQueryEvidence.
 //
@@ -172,15 +173,16 @@ func TestLoadConsumerRepositoryEnrichmentDisclosesTheHostnameLimitCut(t *testing
 	t.Parallel()
 
 	// Two hostnames, both carrying the service's own token so the affinity
-	// filter keeps both, and both under the 4-cap: sources 2 and 2b are
-	// silent, and only the cut against a limit of 1 can set the flag.
+	// filter keeps both, and both under the 4-cap: source 2 and the affinity
+	// narrowing are silent, and only the cut against a limit of 1 can set the
+	// flag.
 	hostnames := []string{"orders-a.example.test", "orders-b.example.test"}
 	kept, hostnamesTruncated := boundedIndirectEvidenceHostnamesForService(hostnames, "orders-api")
 	if got, want := len(kept), len(hostnames); got != want {
 		t.Fatalf("len(kept hostnames) = %d, want %d (both carry the service token and sit under the 4-cap)", got, want)
 	}
 	if hostnamesTruncated {
-		t.Fatal("boundedIndirectEvidenceHostnamesForService() truncated = true, want false so sources 2 and 2b cannot be the ones reporting")
+		t.Fatal("boundedIndirectEvidenceHostnamesForService() truncated = true, want false so neither source 2 nor the affinity narrowing can be the one reporting")
 	}
 
 	oneCandidate := []provisioningRepositoryCandidate{
