@@ -8,12 +8,29 @@
 # walker does not follow symlinks, so a symlinked fixture collapses to a
 # single scope and breaks cross-repo edges) each entry of corpus_fixtures
 # (scripts/lib/golden-corpus-fixtures.sh) into corpus_dir, then gives
-# deployable-config a real git history so localGitRefs can discover tags for
-# the B-12 query_shape.http branches endpoint assertion and the
-# PINS_SUBMODULE (#5420 Phase 5) gitlink coverage.
+# selected fixtures real Git history. deployable-config needs it so localGitRefs
+# can discover tags for the B-12 query_shape.http branches endpoint assertion
+# and the PINS_SUBMODULE (#5420 Phase 5) gitlink coverage. container-ci-lineage
+# needs a deterministic HEAD so its static workflow-image facts can join the
+# matching CI run at the commit-scoped exact tier. github_actions_workflows uses
+# the same mechanism to pin the input-only derived classifier branch (#5830).
 #
 # Requires (set by the orchestrator before the call): repo_root, corpus_dir,
 # corpus_fixtures (array), and the die() function.
+
+stage_deterministic_git_fixture() {
+	local fixture_path="$1"
+	git -C "${fixture_path}" -c init.defaultBranch=main init >/dev/null 2>&1
+	git -C "${fixture_path}" config user.email "gate@eshu.local" >/dev/null 2>&1
+	git -C "${fixture_path}" config user.name "Golden Gate" >/dev/null 2>&1
+	git -C "${fixture_path}" config commit.gpgsign false >/dev/null 2>&1
+	git -C "${fixture_path}" config core.autocrlf false >/dev/null 2>&1
+	git -C "${fixture_path}" config core.excludesfile /dev/null >/dev/null 2>&1
+	git -C "${fixture_path}" add -A >/dev/null 2>&1
+	GIT_AUTHOR_DATE="2026-08-04T12:00:00Z" \
+		GIT_COMMITTER_DATE="2026-08-04T12:00:00Z" \
+		git -C "${fixture_path}" commit -m "initial" >/dev/null 2>&1
+}
 
 stage_minimal_corpus() {
 	local fixture src
@@ -51,6 +68,12 @@ stage_minimal_corpus() {
 			git -C "${corpus_dir}/${fixture}" tag -a v1.0.0-annotated -m "annotated tag" HEAD >/dev/null 2>&1
 			# Lightweight tag.
 			git -C "${corpus_dir}/${fixture}" tag lightweight HEAD >/dev/null 2>&1
+		fi
+		if [[ "${fixture}" = "container-ci-lineage" ]]; then
+			stage_deterministic_git_fixture "${corpus_dir}/${fixture}"
+		fi
+		if [[ "${fixture}" = "github_actions_workflows" ]]; then
+			stage_deterministic_git_fixture "${corpus_dir}/${fixture}"
 		fi
 	done
 	printf 'staged: %s\n' "${corpus_fixtures[*]}"

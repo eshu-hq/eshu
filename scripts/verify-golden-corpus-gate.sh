@@ -168,6 +168,7 @@ export ESHU_POSTGRES_DSN="postgresql://eshu:${ESHU_POSTGRES_PASSWORD}@localhost:
 export ESHU_CONTENT_STORE_DSN="${ESHU_POSTGRES_DSN}"
 export ESHU_HOME="${home_dir}"
 export ESHU_REPOS_DIR="${work_dir}/repos"
+export ESHU_FILESYSTEM_DIRECT="true"
 export ESHU_REPO_SOURCE_MODE="filesystem"
 export ESHU_FILESYSTEM_ROOT="${corpus_dir}"
 export ESHU_GIT_AUTH_METHOD="none"

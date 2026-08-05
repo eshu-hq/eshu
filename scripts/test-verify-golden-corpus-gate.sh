@@ -270,6 +270,10 @@ bash -n "${host_helpers_lib}" || fail "host helpers lib has a syntax error"
 stage_lib="${repo_root}/scripts/lib/golden-corpus-stage.sh"
 [[ -f "${stage_lib}" ]] || fail "missing corpus staging lib: ${stage_lib}"
 bash -n "${stage_lib}" || fail "corpus staging lib has a syntax error"
+# shellcheck source=scripts/lib/golden-corpus-stage-cases.sh
+. "${repo_root}/scripts/lib/golden-corpus-stage-cases.sh"
+[[ "${stage_cases_completed:-0}" -eq 1 ]] ||
+	fail "golden-corpus-stage-cases.sh did not run to completion (gutted, or returned early)"
 maintenance_lib="${repo_root}/scripts/lib/golden-corpus-maintenance-drains.sh"
 [[ -f "${maintenance_lib}" ]] || fail "missing maintenance drains lib: ${maintenance_lib}"
 bash -n "${maintenance_lib}" || fail "maintenance drains lib has a syntax error"
