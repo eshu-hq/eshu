@@ -68,7 +68,7 @@ var sourcedScriptRE = regexp.MustCompile(`(?m)^[ \t]*(?:\.|source)[ \t]+[^\n]*?(
 //     script reachable from a gate's own local.command/local.test_command (as
 //     this check itself does) and counting `source`/`.` lines with and
 //     without literal "scripts/" text in the target: 37 unresolved lines
-//     against 26 resolved, across 130 reachable scripts. (Not cited as a
+//     against 27 resolved, across 131 reachable scripts. (Not cited as a
 //     runnable command here — the throwaway test that produced it is not
 //     committed, and a reader running a `-run` filter that matches nothing
 //     gets a silently passing `ok`, which is the exact false-green shape
@@ -85,9 +85,16 @@ var sourcedScriptRE = regexp.MustCompile(`(?m)^[ \t]*(?:\.|source)[ \t]+[^\n]*?(
 //     why 11 distinct lines make 16 gate-line pairs. All 16 pairs resolve to
 //     a file that is independently an explicit trigger on that gate (verified
 //     against specs/ci-gates.v1.yaml), so no gate is false-green from this
-//     gap today. The rest of the 37 sit in transitively-sourced case libs and
-//     are mostly `. "$1"` dispatch, which names no fixed target to check. The
-//     gap is real, not hypothetical, and this delta does not close it:
+//     gap today. The other 26 of the 37 sit in transitively-sourced case
+//     libs and split two ways, neither of them a majority: 11 are `. "$1"`
+//     dispatch, which names no fixed target to check, and 15 name a lib
+//     through a variable (timing_lib eight times, collector_settle_lib six,
+//     demotion_lib once). 14 of those 15 inherit the variable from an
+//     ancestor file instead of assigning it locally, so resolving them needs
+//     cross-file dataflow, not just a wider regex. All three of those libs
+//     are themselves matched by the scripts/lib/golden-corpus-*.sh trigger on
+//     both gates that reach them, so the remainder is not false-green either.
+//     The gap is real, not hypothetical, and this delta does not close it:
 //     widening sourcedScriptRE to resolve computed paths is a separate
 //     change.
 //     TestDriftCheck_VariableSourcedFileNotResolved pins the boundary with an

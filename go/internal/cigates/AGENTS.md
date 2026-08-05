@@ -310,7 +310,10 @@ and `eshu-diagnostic-rigor`.
   specs/ci-gates.v1.yaml`); 52 of them are `scripts/` trigger paths check 8
   required on landing (#5762) — the other 2
   (`go/internal/serviceintelhttp/**`, `.github/openapi-known-drift.txt`)
-  predate check 8 by two commits and are unrelated. An implicit-derivation
+  were already on the branch before check 8 existed — they land in the
+  branch's first commit, `scripttrigger.go` in a later one — and are unrelated
+  to it. Stated as an ordering rather than a commit distance on purpose: a
+  rebase renumbers the distance but not the order. An implicit-derivation
   rule would have cut those 52 lines to zero, not the whole 54. Declaring
   keeps the registry the single readable answer to "what selects
   this gate": a reviewer reads `triggers:` and knows the whole selection
