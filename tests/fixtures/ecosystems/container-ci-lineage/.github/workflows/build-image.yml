@@ -1,0 +1,16 @@
+name: Build container image
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and publish the fixture image
+        run: docker buildx build --push --tag ghcr.io/acme/container-ci-lineage:1.0.0 .

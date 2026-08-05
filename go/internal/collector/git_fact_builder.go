@@ -293,6 +293,25 @@ func streamFacts(
 		}
 		snapshot.ContentFiles = nil
 	}
+	for i, meta := range snapshot.WorkflowImageFileMetas {
+		body, err := streamContentBodyReadFile(filepath.Join(repoPath, filepath.FromSlash(meta.RelativePath))) // #nosec G304 -- reads an admitted workflow path from repository discovery
+		if err != nil {
+			snapshot.WorkflowImageFileMetas[i] = ContentFileMeta{}
+			continue
+		}
+		emitWorkflowImageEvidenceFactsForContentFile(
+			w,
+			repo.ID,
+			scopeID,
+			generationID,
+			observedAt,
+			meta.RelativePath,
+			meta.CommitSHA,
+			string(body),
+		)
+		snapshot.WorkflowImageFileMetas[i] = ContentFileMeta{}
+	}
+	snapshot.WorkflowImageFileMetas = nil
 	gitTreePath := strings.TrimSpace(snapshot.GitTreePath)
 	if gitTreePath == "" {
 		gitTreePath = repoPath

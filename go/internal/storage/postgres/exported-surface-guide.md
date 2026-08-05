@@ -23,9 +23,16 @@ reducer/query adapter.
   `ListFactsByKind`, `ListFactsByKindAndPayloadValue`,
   `LoadActiveCodeCallSymbolDefinitionFacts`, `LoadIncidentRoutingRawEvidence`,
   `ListActiveRepositoryFacts`, `ListActivePackageOwnershipFacts`,
+  `ListActiveCICDWorkflowImageFacts`,
   `ListCICDRunFactsForRunKeys`, `ListCICDRunFactsForScopePatch`,
   `CountFacts`, `ListOSPackageAdvisoryTargets`, and
   `ListSBOMComponentAdvisoryTargets`
+- `ListActiveCICDWorkflowImageFacts` — owner-bounded active Git workflow-image
+  evidence for CI run correlation. It joins canonical repository IDs through
+  `ingestion_scopes.partition_key`, accepts active repository and
+  repository-ref scopes, excludes inactive generations and tombstones, orders
+  deterministically, and uses a cap-plus-sentinel read that fails closed above
+  12,000 facts.
 - `ServiceIncidentEvidenceLoader` / `NewServiceIncidentEvidenceLoader` —
   service-scoped incidents evidence loader for reducer service materialization;
   it resolves PagerDuty provider service ids to catalog service ids through

@@ -3,8 +3,9 @@
 # Unlike container-base-lineage (#5460, rc-167), this fixture's CHILD image
 # has NO Kubernetes manifest, NO content_entity reference, and NO OCI config
 # source label anywhere in this repository -- its ONLY build-provenance
-# evidence anywhere in the corpus is a ci.run/ci.artifact pair recorded by the
-# ci_cd_run collector in its OWN, separate CI-run scope
+# evidence that container_image_identity accepts for the child is a
+# ci.run/ci.artifact pair recorded by the ci_cd_run collector in its OWN,
+# separate CI-run scope
 # (testdata/cassettes/cicdrun/supply-chain-demo.json), naming this
 # repository's canonical id as the digest's builder. Before #5810, the
 # repository-scoped container_image_identity intent this Dockerfile's `file`
@@ -17,10 +18,13 @@
 # container-base-lineage: a builder stage's OS packages do not ship in the
 # final image and must not appear as runtime lineage.
 #
-# This fixture deliberately carries NO source files and NO Kubernetes
-# manifest, so the child digest's only path to a decision is the OCI registry
-# manifest (identity resolution) plus the cross-scope CI bridge (build
-# provenance) -- exactly the shape #5810 fixes.
+# This fixture deliberately carries no application source files or Kubernetes
+# manifest, so the child digest's only path to a container-image decision is
+# the OCI registry manifest (identity resolution) plus the cross-scope CI
+# bridge (build provenance) -- exactly the shape #5810 fixes. Its GitHub
+# Actions workflow supplies a separate static image-reference fact for the
+# #5703 CI/CD run-correlation proof; that fact does not replace the child
+# digest's ci.run/ci.artifact provenance.
 FROM golang:1.24 AS builder
 WORKDIR /src
 RUN go build -o /out/app ./...

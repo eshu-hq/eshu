@@ -5,6 +5,7 @@ package projector
 
 import (
 	"fmt"
+	"path"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -27,6 +28,7 @@ var containerImageIdentityCandidateFactKinds = []string{
 	facts.GCPImageReferenceFactKind,
 	facts.AWSRelationshipFactKind,
 	facts.CICDArtifactFactKind,
+	facts.CICDWorkflowImageEvidenceFactKind,
 	"content_entity",
 	FactKindFileObserved,
 	facts.AttestationSLSAProvenanceFactKind,
@@ -82,6 +84,13 @@ func containerImageIdentityTriggerFact(envelope facts.Envelope) bool {
 		// SBOM bundles) carry no image reference, so they must not trigger.
 		artifactType, _ := payloadString(envelope.Payload, "artifact_type")
 		return strings.TrimSpace(artifactType) == "container_image"
+	case facts.CICDWorkflowImageEvidenceFactKind:
+		// Static workflow evidence is emitted in the Git repository scope. It
+		// must trigger container_image_identity there so the existing durable
+		// identity-completion chain can reopen ci_cd_run_correlation after the
+		// workflow generation becomes active. Deletions arrive as the generic
+		// file tombstone handled below.
+		return true
 	case "content_entity":
 		return len(containerImageRefsFromEntityMetadata(envelope.Payload)) > 0
 	case FactKindFileObserved:
@@ -95,8 +104,9 @@ func containerImageIdentityTriggerFact(envelope facts.Envelope) bool {
 		// deleted base would leave the prior DERIVED_FROM edge stale.
 		//
 		// Narrow by design: every repository generation carries `file` facts, so
-		// only a Dockerfile may trigger, never an arbitrary source file.
-		return dockerfileIdentityTriggerFile(envelope)
+		// only a Dockerfile or a deleted direct GitHub Actions workflow may
+		// trigger, never an arbitrary source file.
+		return dockerfileIdentityTriggerFile(envelope) || deletedWorkflowImageTriggerFile(envelope)
 	case facts.AttestationSLSAProvenanceFactKind:
 		// A signed SLSA provenance predicate carries the digest-to-commit
 		// anchor the reducer's container_image_identity domain joins by
@@ -118,6 +128,21 @@ func containerImageIdentityTriggerFact(envelope facts.Envelope) bool {
 	default:
 		return false
 	}
+}
+
+// deletedWorkflowImageTriggerFile recognizes the generic `file` tombstone the
+// Git collector emits when a GitHub Actions workflow is deleted. No
+// ci.workflow_image_evidence tombstone exists on this path, so this trigger is
+// what schedules the identity refresh that retracts the workflow's old image
+// input. Live workflow files trigger through their dedicated evidence facts.
+func deletedWorkflowImageTriggerFile(envelope facts.Envelope) bool {
+	if !envelope.IsTombstone {
+		return false
+	}
+	relativePath, _ := payloadString(envelope.Payload, "relative_path")
+	normalized := strings.ToLower(strings.ReplaceAll(relativePath, "\\", "/"))
+	ext := path.Ext(normalized)
+	return path.Dir(normalized) == ".github/workflows" && (ext == ".yml" || ext == ".yaml")
 }
 
 // dockerfileIdentityTriggerFile reports whether a `file` fact is a Dockerfile

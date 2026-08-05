@@ -335,6 +335,17 @@ values each counter carries.
   facts. Each newer full CI/CD run window immediately rebases the patch
   baseline; after retention, an older retained-source link may no longer
   resolve.
+- **Git workflow evidence crosses scopes by repository owner** — a normal or
+  rebuilt CI run snapshot supplies the distinct typed `repository_id` values.
+  Before deriving image references, the handler asks the fact store for active
+  Git `ci.workflow_image_evidence` in the matching default and explicit-ref
+  scopes. The reducer decodes those rows again and rejects malformed payloads,
+  foreign owners, wrong fact kinds, and duplicate fact IDs. The storage read is
+  capped and fails closed rather than truncating evidence. Static workflow
+  generations and direct workflow-file deletions trigger
+  `container_image_identity`; its durable completion event reopens only current
+  `ci_cd_run_correlation` work, so Git-before-CI and CI-before-Git activation
+  orders converge without serializing either collector.
 - **`deployment_mapping` requires post-Phase-3 reopen** — any domain
   consuming `resolved_relationships` needs its own post-Phase-3 reopen
   mechanism (see `queue-and-runners.md`'s Facts-First Bootstrap Ordering).

@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel/metric"
 
@@ -86,10 +87,6 @@ type CICDRunCorrelationWriter interface {
 	WriteCICDRunCorrelations(context.Context, CICDRunCorrelationWrite) (CICDRunCorrelationWriteResult, error)
 }
 
-type activeCICDRunCorrelationFactLoader interface {
-	ListActiveCICDRunCorrelationFacts(ctx context.Context, digests []string, imageRefs []string) ([]facts.Envelope, error)
-}
-
 // CICDRunCorrelationHandler joins CI/CD run facts with reducer-owned artifact
 // identity evidence and publishes one durable decision per provider run.
 type CICDRunCorrelationHandler struct {
@@ -118,6 +115,13 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent Intent) (R
 	if err != nil {
 		return Result{}, err
 	}
+	workflowBridgeLoadStarted := time.Now()
+	workflowImages, err := h.loadActiveCICDWorkflowImageFacts(ctx, cicdRunRepositoryIDs(envelopes))
+	workflowBridgeLoadDuration := time.Since(workflowBridgeLoadStarted)
+	if err != nil {
+		return Result{}, fmt.Errorf("load active git workflow image facts: %w", err)
+	}
+	envelopes = append(envelopes, workflowImages...)
 	active, err := h.loadActiveCICDRunCorrelationFacts(ctx, ciArtifactDigests(envelopes), ciWorkflowImageRefs(envelopes))
 	if err != nil {
 		return Result{}, fmt.Errorf("load active ci/cd artifact identity facts: %w", err)
@@ -159,23 +163,10 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent Intent) (R
 		EvidenceSummary: cicdRunCorrelationSummary(evaluatedCount, preservedCount, counts, writeResult.CanonicalWrites),
 		CanonicalWrites: writeResult.CanonicalWrites,
 		SubSignals:      inputInvalidSubSignals(quarantinedCount),
+		SubDurations: map[string]float64{
+			"workflow_image_bridge_load": workflowBridgeLoadDuration.Seconds(),
+		},
 	}, nil
-}
-
-func (h CICDRunCorrelationHandler) loadActiveCICDRunCorrelationFacts(
-	ctx context.Context,
-	digests []string,
-	imageRefs []string,
-) ([]facts.Envelope, error) {
-	loader, ok := h.FactLoader.(activeCICDRunCorrelationFactLoader)
-	if !ok {
-		return nil, nil
-	}
-	envelopes, err := loader.ListActiveCICDRunCorrelationFacts(ctx, digests, imageRefs)
-	if err != nil {
-		return nil, classifyFactLoadError(err)
-	}
-	return envelopes, nil
 }
 
 func (h CICDRunCorrelationHandler) emitCounters(ctx context.Context, counts map[CICDRunCorrelationOutcome]int) {

@@ -36,6 +36,9 @@ func snapshotFreshnessHint(snapshot RepositorySnapshot) string {
 	for _, meta := range snapshot.DocumentationFileMetas {
 		writeFreshnessHashf(h, "doc:%s:%s\n", meta.RelativePath, meta.Digest)
 	}
+	for _, meta := range snapshot.WorkflowImageFileMetas {
+		writeFreshnessHashf(h, "workflow_image:%s:%s\n", meta.RelativePath, meta.Digest)
+	}
 
 	writeFreshnessHashf(h, "entities=%d\n", len(snapshot.ContentEntities))
 	for _, e := range snapshot.ContentEntities {

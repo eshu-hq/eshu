@@ -4,14 +4,62 @@
 package collector
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/discovery"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/workflowimage"
 )
+
+// currentWorkflowImageFileMetas returns body-free metadata for current workflow
+// files outside the ordinary delta targets. The full discovered set is already
+// path-sorted, so the returned metadata keeps deterministic order.
+func currentWorkflowImageFileMetas(
+	repoPath string,
+	narrowed []discovery.FileWithSize,
+	full []discovery.FileWithSize,
+) []ContentFileMeta {
+	narrowedPaths := make(map[string]struct{}, len(narrowed))
+	for _, file := range narrowed {
+		narrowedPaths[filepath.Clean(file.Path)] = struct{}{}
+	}
+	metas := make([]ContentFileMeta, 0)
+	for _, file := range full {
+		relativePath, err := filepath.Rel(repoPath, file.Path)
+		if err != nil || !isGitHubActionsWorkflowPath(relativePath) {
+			continue
+		}
+		if _, targeted := narrowedPaths[filepath.Clean(file.Path)]; targeted {
+			continue
+		}
+		digest, ok := workflowImageDigestForFile(file.Path)
+		if !ok {
+			continue
+		}
+		metas = append(metas, ContentFileMeta{
+			RelativePath: filepath.ToSlash(filepath.Clean(relativePath)),
+			Digest:       digest,
+			Language:     "yaml",
+			ArtifactType: "github_actions_workflow",
+		})
+	}
+	return metas
+}
+
+func workflowImageDigestForFile(filePath string) (string, bool) {
+	body, err := os.ReadFile(filePath) // #nosec G304 -- reads an admitted workflow path from repository discovery
+	if err != nil {
+		return "", false
+	}
+	digest := sha256.Sum256(body)
+	return "sha256:" + hex.EncodeToString(digest[:]), true
+}
 
 func emitWorkflowImageEvidenceFactsForContentFile(
 	w factStreamWriter,
