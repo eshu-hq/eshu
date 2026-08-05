@@ -59,11 +59,12 @@ run locally prints why and names the CI gate that remains authoritative.
 
 For a diff that is provably documentation/specs-only, `make pre-pr` skips the
 whole-module `go build`, `go vet`, `gofumpt`, `golangci-lint`, the
-changed-package `go test` lane, and the race lane entirely (#5721). See
+changed-package `go test` lane, and the race lane (#5721). It classifies FULL
+whenever the changed-path list itself cannot be trusted — an unresolved
+`origin/main`, or any `git diff` that exited non-zero. See
 [Pre-PR Documentation Fast Path](local-testing/pre-pr-docs-fastpath.md) for
-the classifier's exact allowlist, its fail-closed fallback rule, what still
-runs on the fast path, and how it relates to CI's own docs-only skip
-definition.
+the classifier's exact allowlist, both fail-closed rules, what still runs on
+the fast path, and how it relates to CI's own docs-only skip definition.
 
 Outside the documentation-only fast path above, it runs gofumpt and
 golangci-lint over the **whole** module (catching cross-package consequences
@@ -241,7 +242,7 @@ have to remember the matching verifier — the selector picks it.
 
 | You changed | `make pre-pr` additionally runs | Also run |
 | --- | --- | --- |
-| Docs only (fast-path-recognized paths — see above) | whole-module Go build/lint/test/race lanes SKIPPED entirely; only file cap, package docs, and selected exactness/telemetry/hygiene/docs gates run | docs build (pre-push) |
+| Docs only (fast-path-recognized paths — see above) | whole-module Go build/vet/fmt/lint, changed-package `go test`, and race lanes SKIPPED; the selected exactness/telemetry/hygiene/docs gates still run, as do file cap and package docs (both no-ops with no changed Go file) | docs build (pre-push) |
 | Frontend only (`src/**`, `apps/console/**`) | nothing backend | `make frontend-preflight` |
 | Parser (`go/internal/parser/**`) | parser relationship kit, accuracy golden gate, scoped race | — |
 | Reducer / storage (`go/internal/reducer/**`, `storage/**`) | query-plan regression, scale gates, **targeted graph-write race** | reducer-contention is CI-only (Postgres) |

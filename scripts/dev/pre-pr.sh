@@ -34,18 +34,30 @@ go_dir="${repo_root}/go"
 precommit="${repo_root}/scripts/dev/precommit-go.sh"
 # shellcheck source=../lib/pre-pr-docs-fastpath.sh
 source "${repo_root}/scripts/lib/pre-pr-docs-fastpath.sh"
+# shellcheck source=../lib/pre-pr-lane.sh
+source "${repo_root}/scripts/lib/pre-pr-lane.sh"
+# Root the classifier's path-existence check at the repo, so a deleted
+# allowlisted file is recognized as deleted rather than as merely changed.
+# shellcheck disable=SC2034  # read by the sourced classifier, not by this file.
+PRE_PR_FASTPATH_ROOT="${repo_root}"
 
-base="origin/main"
 git -C "${repo_root}" fetch --no-tags origin main >/dev/null 2>&1 || true
-git -C "${repo_root}" rev-parse --verify "${base}" >/dev/null 2>&1 || base="HEAD~1"
+pre_pr_resolve_lane_base "${repo_root}"
+base="${PRE_PR_FASTPATH_BASE}"
+
+# Cross-subshell state for this run; see pre_pr_git_state_init in
+# scripts/lib/pre-pr-lane.sh for why the diff-failure marker is a file.
+pre_pr_git_state_init
+# shellcheck disable=SC2154  # pre_pr_state_dir is set by pre_pr_git_state_init.
+trap 'rm -rf "${pre_pr_state_dir}"' EXIT
 
 # changed_go_files: committed (vs base) + staged + unstaged Go files under go/.
 changed_go_files() {
 	{
-		git -C "${repo_root}" diff --name-only "${base}...HEAD"
-		git -C "${repo_root}" diff --name-only HEAD
-		git -C "${repo_root}" diff --name-only --cached
-	} 2>/dev/null | sort -u | rg '^go/.*\.go$' || true
+		git_changed_names "${base}...HEAD"
+		git_changed_names HEAD
+		git_changed_names --cached
+	} | sort -u | rg '^go/.*\.go$' || true
 }
 
 # changed_go_dirs: ./-relative package dirs (under go/) for the changed files.
@@ -67,10 +79,10 @@ changed_go_dirs() {
 # not just Go files. Used to map non-Go fixtures to their consumer packages.
 changed_all_files() {
 	{
-		git -C "${repo_root}" diff --name-only "${base}...HEAD"
-		git -C "${repo_root}" diff --name-only HEAD
-		git -C "${repo_root}" diff --name-only --cached
-	} 2>/dev/null | sort -u
+		git_changed_names "${base}...HEAD"
+		git_changed_names HEAD
+		git_changed_names --cached
+	} | sort -u
 }
 
 # fixture_consumer_dirs: ./-relative Go package dirs whose tests load a non-Go
@@ -308,13 +320,10 @@ step_race() {
 # deferred gates only).
 live_deferred=()
 
-changed_paths() {
-	{
-		git -C "${repo_root}" diff --name-only "${base}...HEAD"
-		git -C "${repo_root}" diff --name-only HEAD
-		git -C "${repo_root}" diff --name-only --cached
-	} 2>/dev/null | sort -u
-}
+# changed_paths was a byte-identical second copy of changed_all_files. Two
+# copies of the same git plumbing meant a fix to one silently left the other
+# swallowing exit codes, so there is now one implementation.
+changed_paths() { changed_all_files; }
 
 # run_or_defer <gate-name> <trigger-ERE> <prereq-cmd> <run-cmd...>
 # Runs the gate when its paths changed and the prerequisite check passes; defers
@@ -376,26 +385,43 @@ step_live() {
 
 # --- documentation-only fast-path classification -----------------------------
 # #5721: a docs/specs-only diff should never pay for the whole-module Go
-# build/lint/test/race lanes. pre_pr_classify_docs_fastpath (sourced above)
-# is a fail-closed ALLOWLIST classifier: it inspects every changed path (vs
-# the same origin/main base every other lane uses) and takes the FULL lane
-# unless every single path is a recognized documentation/specs pattern. Any
-# unrecognized path forces FULL, never FAST.
+# build/lint/test/race lanes. The allowlist classifier and the lane wiring live
+# in scripts/lib/pre-pr-docs-fastpath.sh and scripts/lib/pre-pr-lane.sh; the
+# rules and the failure classes they guard against are documented there and in
+# docs/public/reference/local-testing/pre-pr-docs-fastpath.md.
+#
+# A failing self-check fails this run AND forces the FULL lane: a classifier
+# that cannot pass its own table has not earned the right to skip anything.
+pre_pr_selfcheck_ok=1
+if pre_pr_run_classifier_selfcheck "${repo_root}"; then
+	results+=("PASS  docs fast-path classifier self-check")
+else
+	results+=("FAIL  docs fast-path classifier self-check")
+	overall=1
+	pre_pr_selfcheck_ok=0
+fi
+
 pre_pr_changed_paths=()
 while IFS= read -r pre_pr_p; do
+	# Drop blank lines here so a trailing newline never becomes an array
+	# element. The classifier also rejects an empty path, but fail-closed
+	# (empty => FULL); filtering here keeps a normal run from taking the FULL
+	# lane over a blank line, and keeps the array count honest.
 	[[ -n "${pre_pr_p}" ]] && pre_pr_changed_paths+=("${pre_pr_p}")
 done < <(changed_all_files)
-pre_pr_classify_docs_fastpath "${pre_pr_changed_paths[@]}"
 
-if [[ "${PRE_PR_FASTPATH_LANE}" == "fast" ]]; then
-	printf '\n\033[1m==> pre-pr lane: FAST (documentation/specs-only)\033[0m\n'
-	printf 'no build-affecting path changed vs %s -- skipping go build/lint/test/race lanes.\n' "${base}"
+pre_pr_diff_failed=0
+# shellcheck disable=SC2154  # set by pre_pr_git_state_init.
+[[ -e "${pre_pr_diff_fail_marker}" ]] && pre_pr_diff_failed=1
+pre_pr_paths_status="$(pre_pr_lane_paths_status \
+	"${PRE_PR_FASTPATH_BASE_STATUS}" "${base}" "${pre_pr_diff_failed}" "${pre_pr_selfcheck_ok}")"
+
+if [[ ${#pre_pr_changed_paths[@]} -gt 0 ]]; then
+	pre_pr_classify_docs_fastpath "${pre_pr_paths_status}" "${pre_pr_changed_paths[@]}"
+	pre_pr_print_lane_banner "${base}" "${pre_pr_changed_paths[@]}"
 else
-	printf '\n\033[1m==> pre-pr lane: FULL\033[0m\n'
-	printf 'build-affecting path(s) changed vs %s -- running the full go build/lint/test/race lanes. Triggered by:\n' "${base}"
-	for pre_pr_t in "${PRE_PR_FASTPATH_TRIGGERS[@]}"; do
-		printf '  - %s\n' "${pre_pr_t}"
-	done
+	pre_pr_classify_docs_fastpath "${pre_pr_paths_status}"
+	pre_pr_print_lane_banner "${base}"
 fi
 
 if [[ "${PRE_PR_FASTPATH_LANE}" == "full" ]]; then
