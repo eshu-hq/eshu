@@ -8,16 +8,18 @@ per-issue entries here (or to a sibling part below), not in AGENTS.md; keep
 AGENTS.md itself the scoped-instructions surface (invariants, common changes,
 failure modes, anti-patterns).
 
-This is part 1 of 3, covering issues #2048 through #4794/#4733. Entries in
+This is part 1 of 4, covering issues #2048 through #4794/#4733. Entries in
 this part were originally authored directly in this file, preserved with
 headings demoted one level (`##` to `###`) from an earlier single-file
 AGENTS.md, or split out of AGENTS.md's "Invariants this package enforces"
 section (the normative rule sentence stays in AGENTS.md; the
 No-Regression/Observability evidence for it lives here). Continue in
 [AGENTS-evidence-history-2.md](AGENTS-evidence-history-2.md) (issues #3492
-through #5816) and
+through #5816),
 [AGENTS-evidence-history-3.md](AGENTS-evidence-history-3.md) (issues #5761
-and #5764).
+and #5764), and
+[AGENTS-evidence-history-4.md](AGENTS-evidence-history-4.md) (the #5764
+round-6 and round-7 review follow-ups).
 
 ## Evidence
 

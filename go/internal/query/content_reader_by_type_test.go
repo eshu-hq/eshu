@@ -44,3 +44,78 @@ func TestListRepoEntitiesByTypeOrdersByEntityIDTiebreaker(t *testing.T) {
 		t.Fatalf("ListRepoEntitiesByType() error = %v, want nil", err)
 	}
 }
+
+// TestListRepoEntitiesByTypesIssuesTypeFilteredQuery is the only test that
+// reads the SQL ListRepoEntitiesByTypes actually issues. The repository
+// infrastructure tests that drive this method reach it through
+// fakePortContentStore (ports_test.go), which reimplements the type filter in
+// Go and therefore passes identically whether the query filters or not -- the
+// #5764 round-7 P1 finding. Inverting the predicate to
+// `entity_type <> ALL($2)` (every NON-infrastructure entity, the round-6 defect
+// in worse form), dropping the entity_id ORDER BY tiebreaker, or renaming the
+// table has to fail here, because the fake driver rejects a query that does not
+// carry these fragments in this order.
+func TestListRepoEntitiesByTypesIssuesTypeFilteredQuery(t *testing.T) {
+	t.Parallel()
+
+	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+		{
+			columns: []string{
+				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
+				"start_line", "end_line", "language", "source_cache", "metadata",
+			},
+			rows: [][]driver.Value{
+				{
+					"deployment-1", "repo-1", "deploy/deployment.yaml", "K8sResource", "demo",
+					int64(1), int64(20), "yaml", "", []byte(`{}`),
+				},
+				{
+					"tf-1", "repo-1", "infra/main.tf", "TerraformResource", "bucket",
+					int64(3), int64(9), "hcl", "", []byte(`{}`),
+				},
+			},
+			queryContainsInOrder: []string{
+				"FROM content_entities",
+				"WHERE repo_id = $1 AND entity_type = ANY($2)",
+				"ORDER BY relative_path, start_line, entity_id",
+				"LIMIT $3",
+			},
+		},
+	})
+
+	reader := NewContentReader(db)
+	entities, err := reader.ListRepoEntitiesByTypes(
+		context.Background(), "repo-1", []string{"K8sResource", "TerraformResource"}, 10,
+	)
+	if err != nil {
+		t.Fatalf("ListRepoEntitiesByTypes() error = %v, want nil", err)
+	}
+	if len(entities) != 2 {
+		t.Fatalf("len(ListRepoEntitiesByTypes) = %d, want 2: %#v", len(entities), entities)
+	}
+	if got, want := entities[0].EntityType, "K8sResource"; got != want {
+		t.Fatalf("entities[0].EntityType = %q, want %q", got, want)
+	}
+	if got, want := entities[1].EntityType, "TerraformResource"; got != want {
+		t.Fatalf("entities[1].EntityType = %q, want %q", got, want)
+	}
+}
+
+// TestListRepoEntitiesByTypesEmptyTypeListIssuesNoQuery pins the empty-type-list
+// guard to "no query at all", not "a query that matches everything". The fake
+// driver is opened with no queued result, so any query reaching it fails with
+// "unexpected query" -- deleting `if len(entityTypes) == 0 { return nil, nil }`
+// sends `entity_type = ANY(ARRAY[]::text[])` to Postgres and fails this test
+// here (#5764 round-7 P1).
+func TestListRepoEntitiesByTypesEmptyTypeListIssuesNoQuery(t *testing.T) {
+	t.Parallel()
+
+	reader := NewContentReader(openContentReaderTestDB(t, nil))
+	entities, err := reader.ListRepoEntitiesByTypes(context.Background(), "repo-1", nil, 10)
+	if err != nil {
+		t.Fatalf("ListRepoEntitiesByTypes(nil types) error = %v, want nil", err)
+	}
+	if entities != nil {
+		t.Fatalf("ListRepoEntitiesByTypes(nil types) = %#v, want nil", entities)
+	}
+}

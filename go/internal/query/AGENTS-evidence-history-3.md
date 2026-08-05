@@ -1,18 +1,18 @@
 # internal/query evidence and change history (part 3)
 
-Part 3 of 3 of the dated, per-issue evidence and rationale entries for
-`go/internal/query`, split out of [AGENTS.md](AGENTS.md) to keep the
-read-first guidance under the repository's 500-line cap. Read the entry for a
-specific issue number before touching the routes, helpers, or call sites that
-issue names. Add new dated per-issue entries to whichever part is closest in
-issue number, not in AGENTS.md.
+Part 3 of 4 of the dated, per-issue evidence and rationale entries for
+`go/internal/query`, split out of [AGENTS.md](AGENTS.md) to keep the read-first
+guidance under the repository's 500-line cap. Read the entry for a specific
+issue number before touching the routes, helpers, or call sites that issue
+names. Add new dated per-issue entries to whichever part is closest in issue
+number, not in AGENTS.md.
 
 This part covers issues #5761 and #5764, preserved with headings demoted one
 level (`##` to `###`) from an earlier single-file AGENTS.md. See
 [AGENTS-evidence-history.md](AGENTS-evidence-history.md) (part 1, issues
-#2048-#4794/#4733) and
-[AGENTS-evidence-history-2.md](AGENTS-evidence-history-2.md) (part 2, issues
-#3492-#5816).
+#2048-#4794/#4733), [AGENTS-evidence-history-2.md](AGENTS-evidence-history-2.md)
+(part 2, issues #3492-#5816), and
+[AGENTS-evidence-history-4.md](AGENTS-evidence-history-4.md) (part 4, the #5764 round-6 and round-7 review follow-ups).
 
 ## Evidence
 

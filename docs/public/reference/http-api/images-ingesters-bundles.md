@@ -2,7 +2,7 @@
 
 Use these routes for the container image inventory, ingester status, and
 indexed bundle candidate search. Split out of
-[Repository, ingester, and bundle routes](repositories-ingesters-bundles.md)
+[Repository routes](repositories-ingesters-bundles.md)
 to keep each reference page under the repository's 500-line cap.
 
 ## Container Image Inventory Route

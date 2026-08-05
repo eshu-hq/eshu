@@ -477,23 +477,23 @@ to keep every file under the repository's 500-line cap:
 (part 2, issues #3492 through #5816, plus a P1 follow-up to #5764),
 [AGENTS-evidence-history-3.md](AGENTS-evidence-history-3.md) (part 3, issues
 #5761 and #5764), and [AGENTS-evidence-history-4.md](AGENTS-evidence-history-4.md)
-(part 4, a round-6 review follow-up to #5764). Entries are either preserved
-with headings demoted one level (`##` to `###`) from an earlier single-file
+(part 4, the #5764 round-6 and round-7 review follow-ups). Entries are either
+preserved with headings demoted one level (`##` to `###`) from a single-file
 AGENTS.md, or split out of this file's own "Invariants this package enforces"
 section above: the normative rule sentence for each of the following stays
 here, and its No-Regression/Observability evidence lives in the linked
 history part -- the scoped-token route family (#2048-#2110, #2225), registry
-bundle search scoping (#3493, #3506, #3520), incident-context typed decode
-and work-item evidence pagination (#4794/#4733), the
-`analyze_infra_relationships` / `what_deploys` scope-predicate arc (#3492,
-#3507, #3519, #5623 and its P0/P1 review follow-ups), package-registry
-correlation pagination and authz-gate invariants (#5461/#5816), the
-dependency-chains publisher-truncation signal (#5816), the language-query
-route-level capability and error mapping (#5761), the repository
-context/story auxiliary graph-read propagate-vs-attributed-degrade rationale
-(#5764), the P1 follow-up that re-fixed #5764's fabricated-value defect on
-the story's row bound, and the round-6 follow-up fixing the content-path
-bound's own inverted defect, a stale truncated bool on the read-model graph
-fallback, and an OpenAPI read-model guard gap. Read the relevant part before
-touching a route, helper, or call site one of those issue numbers names. Add
-new dated per-issue entries to whichever part is closest in issue number, not in AGENTS.md.
+bundle search scoping (#3493, #3506, #3520), incident-context typed decode and
+work-item evidence pagination (#4794/#4733), the `analyze_infra_relationships`
+/ `what_deploys` scope-predicate arc (#3492, #3507, #3519, #5623 and its P0/P1
+review follow-ups), package-registry correlation pagination and authz-gate
+invariants (#5461/#5816), the dependency-chains publisher-truncation signal
+(#5816), the language-query route-level capability and error mapping (#5761),
+the repository context/story auxiliary graph-read degrade rationale
+(#5764), the P1 follow-up that re-fixed #5764's fabricated-value defect on the
+story's row bound, and the round-6 and round-7 follow-ups covering the
+infrastructure panel's content-path bound, its truncation signal, its four
+hand-maintained type enumerations, and the WorkloadContext key guards. Read
+the relevant part before touching a route, helper, or call site one of those
+issue numbers names. Add new dated per-issue entries to whichever part is
+closest in issue number, not in AGENTS.md.

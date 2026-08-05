@@ -188,3 +188,75 @@ func TestGetServiceContextReadModelResetsTruncatedOnGraphFallbackError(t *testin
 			limitations, infrastructureTruncatedReason, infrastructureReadDegradedReason)
 	}
 }
+
+// TestGetServiceContextReadModelDropsTruncatedOnEmptyGraphFallbackPanel covers
+// the second path to the same wrong state, which the graph-error-branch reset
+// above could not reach (#5764 round-7 P3). Here the graph fallback SUCCEEDS:
+// it returns a full limit+1 window, so queryRepoInfrastructureFromGraph reports
+// truncated=true, but isRepositoryInfrastructureType drops every row and the
+// panel comes back empty. "infrastructure_truncated" then described a panel
+// with nothing in it to bound. The read did not fail, so the error branch
+// never runs -- only the post-attempt empty-panel guard catches this.
+func TestGetServiceContextReadModelDropsTruncatedOnEmptyGraphFallbackPanel(t *testing.T) {
+	t.Parallel()
+
+	graphRows := make([]map[string]any, repositoryInfrastructureEntityLimit+1)
+	for i := range graphRows {
+		graphRows[i] = map[string]any{
+			"type":      "Function",
+			"name":      fmt.Sprintf("fn-%d", i),
+			"file_path": fmt.Sprintf("src/fn-%d.go", i),
+		}
+	}
+
+	handler := &EntityHandler{
+		Neo4j: fakeWorkloadGraphReader{
+			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+				if strings.Contains(cypher, infrastructureGraphReadCypherFragment) {
+					return graphRows, nil
+				}
+				return nil, nil
+			},
+		},
+		Content: fakePortContentStore{
+			repositories: []RepositoryCatalogEntry{{
+				ID:   "repo-serverless-overreturn",
+				Name: "serverless-overreturn",
+				Path: "/repos/serverless-overreturn",
+			}},
+			summary: repositoryReadModelSummary{
+				Available:     true,
+				WorkloadNames: []string{"serverless-overreturn"},
+			},
+		},
+	}
+
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/services/serverless-overreturn/context", nil)
+	req.SetPathValue("service_name", "serverless-overreturn")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	infrastructure, ok := resp["infrastructure"].([]any)
+	if !ok || len(infrastructure) != 0 {
+		t.Fatalf("infrastructure = %#v, want empty list", resp["infrastructure"])
+	}
+
+	limitations, ok := resp["limitations"].([]any)
+	if !ok {
+		t.Fatalf("limitations missing or wrong type: %#v", resp["limitations"])
+	}
+	if jsonStringSliceContains(limitations, infrastructureTruncatedReason) {
+		t.Fatalf("limitations = %#v, want NOT to contain %q on an EMPTY infrastructure panel", limitations, infrastructureTruncatedReason)
+	}
+}

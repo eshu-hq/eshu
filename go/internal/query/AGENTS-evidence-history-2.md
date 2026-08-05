@@ -1,6 +1,6 @@
 # internal/query evidence and change history (part 2)
 
-Part 2 of 3 of the dated, per-issue evidence and rationale entries for
+Part 2 of 4 of the dated, per-issue evidence and rationale entries for
 `go/internal/query`, split out of [AGENTS.md](AGENTS.md) to keep the
 read-first guidance under the repository's 500-line cap. Read the entry for a
 specific issue number before touching the routes, helpers, or call sites that
@@ -19,9 +19,11 @@ here with the other "review follow-up" corrections rather than in part 3,
 where #5764's main entry lives, for line-budget reasons -- part 3's own
 pointer to it says so). See
 [AGENTS-evidence-history.md](AGENTS-evidence-history.md) (part 1, issues
-#2048-#4794/#4733) and
+#2048-#4794/#4733),
 [AGENTS-evidence-history-3.md](AGENTS-evidence-history-3.md) (part 3, issues
-#5761 and #5764).
+#5761 and #5764), and
+[AGENTS-evidence-history-4.md](AGENTS-evidence-history-4.md) (part 4, the
+#5764 round-6 and round-7 review follow-ups).
 
 ## Evidence
 

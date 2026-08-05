@@ -56,9 +56,24 @@ func queryRepoInfrastructureRows(
 ) ([]map[string]any, bool, error) {
 	repoID := StringVal(params, "repo_id")
 	if content != nil && repoID != "" {
-		if rows, truncated := queryRepoInfrastructureFromContent(ctx, content, repoID); len(rows) > 0 {
+		rows, truncated := queryRepoInfrastructureFromContent(ctx, content, repoID)
+		if len(rows) > 0 {
 			return rows, truncated, nil
 		}
+		// truncated deliberately does not survive this block (round-7 P3
+		// review finding, answered rather than changed). It describes the
+		// content read's own 5001-row window, and when that read produced no
+		// panel rows the rows this function goes on to return come from the
+		// graph fallback below instead. Carrying a content-side bound onto a
+		// graph-sourced panel would report "more rows exist past the bound"
+		// about a bound those rows were never subject to; the graph read
+		// reports its own. The only way to reach this line with truncated=true
+		// is a content read that filled its window with rows
+		// repositoryInfrastructureEntryFromContent then dropped -- the type-list
+		// drift the canonical-list doc comment above warns about, which
+		// TestRepositoryInfrastructureEntryFromContentClassifiesEveryCanonicalType
+		// now fails on directly instead of leaving it to surface as a
+		// misattributed truncation signal.
 	}
 
 	return queryRepoInfrastructureFromGraph(ctx, reader, params)
@@ -153,6 +168,29 @@ func queryRepoInfrastructureFromContent(ctx context.Context, content ContentStor
 // capped in Go before the response is built, so a caller can distinguish
 // "every infrastructure entity is present" from "there may be more past the
 // bound" instead of the two looking identical (P2-2 follow-up).
+//
+// Queryplan classification (round-7 P3 review finding, answered here because
+// query-source-coverage.yaml carries no free-text field and no comments): this
+// callsite is registered `non_hot: {class: keyed_support, key_bound:
+// single_key, max_results: 5001}`. That disposition asserts exactly two things
+// and no more -- the read is anchored on ONE caller-supplied key ($repo_id,
+// via the `MATCH (r:Repository {id: $repo_id})` anchor, so it can never fan
+// out across repositories) and it is capped at a declared row count. It
+// asserts NOTHING about the plan, operator count, or latency of the two-hop
+// REPO_CONTAINS -> CONTAINS expand or the 20-way OR label predicate applied
+// after it. No closed non-hot class carries a plan assertion, so picking a
+// different one would add no evidence, and none of the others fits anyway:
+// `label_inventory` wants a single anchoring label (this read is
+// repository-anchored, not a scan of one label), `delegated` wants another
+// registered entry to own the plan, `operator_query` is for admin surfaces,
+// and `backend_metadata` is for backend introspection. The one genuinely
+// stronger designation is promotion to a hot `entry_ids` queryplan entry with
+// plan assertions, which needs a measured plan on a real corpus -- evidence
+// this change does not have and therefore does not claim. Until it exists the
+// honest statement is the one this comment already makes on other grounds:
+// this is the read most likely to hit the graph-read deadline, which is
+// exactly why every caller degrades to an attributed 200 rather than depending
+// on it succeeding.
 func queryRepoInfrastructureFromGraph(ctx context.Context, reader GraphQuery, params map[string]any) ([]map[string]any, bool, error) {
 	// infra:K8sResource also covers Crossplane Claims: a Claim is edge-only
 	// (issue #5347) and stays a K8sResource node, so a separate

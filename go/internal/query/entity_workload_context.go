@@ -221,20 +221,34 @@ func (h *EntityHandler) fetchServiceReadModelWorkloadContext(ctx context.Context
 		graphInfrastructure, graphTruncated, err := queryRepoInfrastructureFromGraph(ctx, h.Neo4j, repoParams)
 		if err != nil {
 			limitations = append(limitations, infrastructureReadDegradedReason)
-			// Reset the stale content-read truncated bool (#5764 P2 review
-			// follow-up): a failed read has no rows to bound, so it must not
-			// carry forward a truncated=true left over from the content
-			// attempt above, mirroring queryRepoInfrastructure's own
-			// forced-false-on-error branch (repository_context_helpers.go).
-			// Without this reset, degraded and truncated -- asserted
-			// mutually exclusive per read everywhere else in this package --
-			// could both land in limitations for the SAME read: "more rows
-			// may exist" attached to an EMPTY infrastructure panel.
-			infrastructureTruncated = false
 		} else {
 			infrastructure = graphInfrastructure
 			infrastructureTruncated = graphTruncated
 		}
+	}
+	if len(infrastructure) == 0 {
+		// An empty panel never carries a truncation signal (#5764 P2 review
+		// follow-up, widened by the round-7 P3 finding). infrastructureTruncated
+		// describes rows that were clipped by a LIMIT bound, so it is
+		// meaningless about a panel with no rows in it, and pairing it with
+		// infrastructureReadDegradedReason would put two limitations that
+		// assert mutually exclusive facts about the same read
+		// (repository_infrastructure_degrade.go) on one response: "more rows
+		// may exist" attached to an EMPTY infrastructure panel.
+		//
+		// The guard sits AFTER the graph attempt, not inside its error branch,
+		// because a SUCCEEDING graph read reaches the same wrong state: it
+		// reports truncated on its raw row count, before
+		// isRepositoryInfrastructureType drops rows, so an over-returning
+		// backend can hand back a full limit+1 window that classifies to an
+		// empty panel. Both that case and the graph-error case need a read
+		// that bounded rows the classifier then discarded -- the type-list
+		// drift repositoryInfrastructureEntityTypes' own doc comment warns
+		// about, simulated on the content side by
+		// nonFilteringInfrastructureContentStore and on the graph side by the
+		// over-returning reader, both in
+		// service_read_model_workload_context_test.go.
+		infrastructureTruncated = false
 	}
 	if infrastructureTruncated {
 		limitations = append(limitations, infrastructureTruncatedReason)

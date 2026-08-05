@@ -6,6 +6,12 @@ routes moved to
 [Container image, ingester, and bundle routes](images-ingesters-bundles.md)
 to keep each reference page under the repository's 500-line cap.
 
+The `-ingesters-bundles` suffix in this page's filename is left over from
+before that split and is deliberately kept: the filename is the published URL
+slug, `docs/mkdocs.yml` configures no redirect plugin, and renaming it would
+break every external link to this page for a cosmetic gain. The nav entry and
+this page's title already read "Repositories".
+
 ## Repository Routes
 
 - `GET /api/v0/catalog`

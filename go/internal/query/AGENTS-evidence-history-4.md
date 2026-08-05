@@ -1,8 +1,20 @@
-# AGENTS.md evidence history, part 4 (issue #5764, round-6 review follow-up)
+# AGENTS.md evidence history, part 4 (issue #5764, round-6 and round-7 review follow-ups)
 
-Split out of [AGENTS-evidence-history-2.md](AGENTS-evidence-history-2.md) to
-keep that file under the repository's 500-line cap. Read
-[AGENTS.md](AGENTS.md) first for the invariants these entries evidence.
+Part 4 of 4 of the dated, per-issue evidence and rationale entries for
+`go/internal/query`. Nothing was moved here: every entry below is new content
+written for the #5764 review follow-ups, and part 4 exists because
+[AGENTS-evidence-history-2.md](AGENTS-evidence-history-2.md) was already at 463
+lines when they were written, so appending them there would have carried it
+past the repository's 500-line cap. (An earlier version of this paragraph said
+these entries were split out of part 2. They were not -- part 2 grew by 17 net
+lines in the same commit that created this file. The claim is corrected here
+rather than left standing, the same class of false-provenance note round 4
+found in part 3.) Read [AGENTS.md](AGENTS.md) first for the invariants these
+entries evidence, and see
+[AGENTS-evidence-history.md](AGENTS-evidence-history.md) (part 1),
+[AGENTS-evidence-history-2.md](AGENTS-evidence-history-2.md) (part 2), and
+[AGENTS-evidence-history-3.md](AGENTS-evidence-history-3.md) (part 3, where
+#5764's main entry lives).
 
 ### Infrastructure content-path bound inverted the defect it fixed (round-6 P1/P2/P3 review follow-up to #5764)
 
@@ -61,9 +73,11 @@ and `docs/public/reference/telemetry/graph-read-safety.md`. The
 `ListRepoEntitiesByTypes` fix above narrows how often this triggers but does
 not close it structurally (a type-filtered read can still return zero rows
 with `truncated=true` if a future type gets added to one list and not the
-other), so it is fixed independently: the graph-error branch now resets
+other), so it is fixed independently: the graph-error branch resets
 `infrastructureTruncated = false`, mirroring `queryRepoInfrastructure`'s own
-forced-false-on-error branch. Proven by
+forced-false-on-error branch. (The round-7 entry below widens that reset into a
+single post-attempt `len(infrastructure) == 0` guard, because a SUCCEEDING
+graph read reaches the same state.) Proven by
 `TestGetServiceContextReadModelResetsTruncatedOnGraphFallbackError`
 (`service_read_model_workload_context_test.go`), using a
 `nonFilteringInfrastructureContentStore` test double that returns raw
@@ -118,3 +132,101 @@ No-Observability-Change: no span, metric instrument, or metric label was
 added or changed; the `repo_infrastructure` stage log already carried
 `infrastructureDegradeLogAttrs` (row_count, failure_class, truncated) from
 the original #5764 change, unaffected by this fix.
+
+### The new type-filtered SQL had no test, and four type enumerations had no cross-check (round-7 P1/P2/P3 review follow-up to #5764)
+
+The round-6 fix above added `ContentReader.ListRepoEntitiesByTypes`
+(`content_reader_by_type.go`) and shipped it with no query test. Its three
+siblings all have one, and the round-6 test that drives the production Go
+function reaches it through `fakePortContentStore` (`ports_test.go`), which
+**reimplements the type filter in Go** -- so it passes identically whether or
+not the SQL filters at all. Three mutations to the shipped SQL passed the full
+`query + queryplan + mcp` suite: deleting the `len(entityTypes) == 0` guard,
+dropping the `entity_id` ORDER BY tiebreaker, and inverting
+`entity_type = ANY($2)` to `entity_type <> ALL($2)` -- the last of which returns
+every NON-infrastructure entity, the round-6 defect in worse form.
+`TestListRepoEntitiesByTypesIssuesTypeFilteredQuery` and
+`TestListRepoEntitiesByTypesEmptyTypeListIssuesNoQuery` now drive the real
+`*sql.DB` through `openContentReaderTestDB` and assert the query text via
+`queryContainsInOrder`, mirroring
+`TestListRepoEntitiesByTypeOrdersByEntityIDTiebreaker`. The empty-type-list case
+asserts **no query is issued at all**, not that an empty `ANY()` happens to
+match nothing: the fake driver is opened with no queued result, so any query
+reaching it fails.
+
+Rebuilding `isRepositoryInfrastructureType` from
+`repositoryInfrastructureEntityTypes` (round 6) removed the last independent
+enumeration that could catch asymmetric drift and replaced it with nothing.
+Four hand-maintained enumerations of the same 20 types remain: the Go slice,
+the Cypher `WHERE infra:... OR ...` disjunction, the
+`repositoryInfrastructureEntryFromContent` switch, and the OpenAPI/doc prose.
+Two more mutations passed the full suite: deleting `"TerraformLockProvider"`
+from the canonical list (which now silently narrows BOTH the SQL filter and the
+graph gate in one edit) and adding `"AnsiblePlaybook"` to the list without
+adding it to the switch. The second is the dangerous one -- unclassified types
+match the SQL predicate, get fetched, consume the 5001-row budget, then get
+dropped at `ok=false`, narrowing the panel with no truncation signal and able
+to push real infrastructure entities past `LIMIT`.
+`TestRepositoryInfrastructureEntryFromContentClassifiesEveryCanonicalType` (plus
+its non-member negative) and
+`TestRepositoryInfrastructureGraphCypherMatchesCanonicalTypes` (which extracts
+the `infra:` labels from the Cypher the production function actually issues and
+asserts set equality with the Go list) now pin all three code enumerations to
+each other.
+
+The OpenAPI key guards were one-directional and their comment claimed the
+opposite: they proved list ⊆ schema but never emitted ⊆ list, so adding
+`result["undeclared_new_key"]` to `fetchWorkloadContextForOperation` or
+`"readmodel_undeclared"` to `fetchServiceReadModelWorkloadContext` passed the
+whole suite -- the latter silently, since that function issues no direct graph
+`Run` and is not queryplan-digest-tracked.
+`TestFetchWorkloadContextEmitsOnlyDeclaredKeys` and
+`TestFetchServiceReadModelWorkloadContextEmitsOnlyDeclaredKeys` now drive both
+production functions and assert exact set equality with the reviewed lists; the
+first fixture is built to reach every conditional emit
+(`deployment_evidence` needs the workload row to carry one, `limitations` needs
+the infrastructure read to degrade), so equality is achievable rather than
+containment. Both list comments now state what they actually guarantee.
+
+Two smaller corrections in the same pass. The round-6 reset of
+`infrastructureTruncated` fired only inside the graph-read error branch, but a
+SUCCEEDING graph read reaches the same wrong state: it reports truncation on
+its raw row count, before `isRepositoryInfrastructureType` drops rows, so an
+over-returning backend can hand back a full `limit+1` window that classifies to
+an empty panel and still puts `infrastructure_truncated` in `limitations`. The
+reset moved to a single post-attempt `len(infrastructure) == 0` guard -- an
+empty panel never carries a truncation signal. And in
+`queryRepoInfrastructureRows`, the content read's `truncated` bool deliberately
+does not survive into the graph fallback: it describes the content read's own
+5001-row window, and the rows returned in that case come from the graph
+instead, which reports its own bound.
+
+Also in this pass: `query-source-coverage.yaml`'s `keyed_support / single_key /
+max_results 5001` disposition for `queryRepoInfrastructureFromGraph` is now
+justified in that function's doc comment (the YAML carries no free-text field
+and no comments), stating plainly that the class asserts a single-key anchor
+and a row cap and asserts nothing about the plan, that no closed non-hot class
+carries a plan assertion, and that the one stronger designation -- promotion to
+a hot `entry_ids` entry -- needs a measured plan this change does not have.
+`docs/public/reference/http-api/repositories-ingesters-bundles.md` keeps its
+stale `-ingesters-bundles` slug: the filename is the published URL, `mkdocs.yml`
+configures no redirect plugin, and the nav entry and page title already read
+"Repositories". The four history-part headers were corrected -- three still said
+"of 3", and part 4's header claimed content was split out of part 2 when part 2
+in fact grew by 17 net lines (446 to 463) in the same commit that created part 4
+with 120 entirely new lines.
+
+No-Regression Evidence: every mutation above re-run as a RED/GREEN pair against
+`go test ./internal/query ./internal/queryplan ./internal/mcp -count=1` (exit 1
+mutated, exit 0 reverted), each naming its killing test; plus
+`go test -race ./internal/query -count=1`, `golangci-lint run
+./internal/query/... ./internal/queryplan/...`, `go run
+./cmd/capability-inventory -mode=verify`, `bash scripts/verify-route-coverage.sh`,
+`ESHU_PERFORMANCE_EVIDENCE_BASE=origin/main bash
+scripts/verify-performance-evidence.sh`, and the strict mkdocs build.
+
+No-Observability-Change: no span, metric instrument, metric label, or stage-log
+attribute was added or changed. The `repo_infrastructure` stage log keeps the
+`infrastructureDegradeLogAttrs` (row_count, failure_class, truncated) triple
+from the original #5764 change; the empty-panel guard changes which value
+`truncated` carries on a drifted read, not the attribute set.
