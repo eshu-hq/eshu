@@ -23,6 +23,12 @@ require_precommit() {
 		fail "missing ${label}: ${needle}"
 }
 
+require_block() {
+	local label="$1" needle="$2"
+	rg --multiline --fixed-strings --quiet -- "${needle}" "${script}" || \
+		fail "missing ${label}: ${needle}"
+}
+
 reject() {
 	local label="$1" needle="$2"
 	if rg --fixed-strings --quiet -- "${needle}" "${script}"; then
@@ -169,4 +175,103 @@ awk '
 	}
 ' "${script}" || fail "fmt/lint are not serialized in the precommit lane"
 
-printf 'PASS: pre-pr scheduling and worktree cache isolation are race-safe\n'
+# ─── #5721 documentation fast-path wiring ────────────────────────────────────
+# The lane decision itself lives in scripts/lib/pre-pr-lane.sh and has its own
+# executable suites, which drive pre_pr_decide_lane directly. What those suites
+# cannot reach is the WIRING in this file: which function supplies the changed
+# paths, and which lane value gates the Go lanes. Each is a one-line edit, none
+# of them shows up in a green run, and together they decide whether a push was
+# verified at all. Pin them here, where the blocking ci-gate-registry gate --
+# which triggers on scripts/dev/pre-pr.sh -- already runs.
+
+# The lane decision is the ONLY consumer of untracked paths: the FULL lane's
+# `go build ./...` compiles a file nobody ran `git add` on, and the FAST lane
+# skips that build. Drop either collector and a forgotten `git add` takes a
+# green docs-only stamp on a tree that does not compile.
+# shellcheck disable=SC2016 # The needles must stay literal shell source.
+require_block "untracked paths in the lane input" 'lane_input_paths() {
+	{
+		collect_changed_paths
+		git_untracked_names
+	} | sort -u
+}'
+# shellcheck disable=SC2016
+require "lane decision delegated to the tested function" \
+	'pre_pr_decide_lane "${repo_root}" "${base}" "${PRE_PR_FASTPATH_BASE_STATUS}" lane_input_paths'
+# A literal verdict skips every gate on every run, forever, and no test of the
+# decision function can see it because the decision function is never called.
+reject "hardcoded lane verdict" 'PRE_PR_FASTPATH_LANE=fast'
+
+# A self-check that failed has to fail the RUN, not just print a FAIL line: the
+# run's exit status is what withholds the per-SHA stamp the push requires.
+# shellcheck disable=SC2016
+require_block "a red self-check fails the run" \
+	'	results+=("FAIL  docs fast-path classifier self-check (${PRE_PR_LANE_SELFCHECK_SECONDS}s)")
+	overall=1'
+
+# Both Go-lane gates ask whether the lane is NOT "fast". Asking whether it IS
+# "full" instead means any third value would skip the Go lanes while the banner
+# said FULL and the run still stamped the SHA. Inverting either one swaps the
+# lanes outright -- FULL skipping the gates, FAST running them.
+# shellcheck disable=SC2016
+require_block "module gates gated on a non-fast lane" \
+	'if [[ "${PRE_PR_FASTPATH_LANE}" != "fast" ]]; then
+	run_whole_module_gates_parallel
+else'
+# shellcheck disable=SC2016
+require_block "race lane gated on a non-fast lane" \
+	'if [[ "${PRE_PR_FASTPATH_LANE}" != "fast" ]]; then
+	run_step "race lane (Go changes)" step_race'
+# shellcheck disable=SC2016
+lane_gate_count="$(rg --fixed-strings -c -- 'if [[ "${PRE_PR_FASTPATH_LANE}" != "fast" ]]; then' "${script}")"
+[[ "${lane_gate_count}" == "2" ]] ||
+	fail "lane gate count = ${lane_gate_count}, want 2 (whole-module gates + race lane)"
+# shellcheck disable=SC2016
+reject "lane gate asking whether the lane IS fast" '"${PRE_PR_FASTPATH_LANE}" == "fast"'
+# shellcheck disable=SC2016
+reject "lane gate asking whether the lane IS full" '"${PRE_PR_FASTPATH_LANE}" == "full"'
+
+# eshu-hq/eshu#5935 review: `go test (changed packages)` must be reached on
+# BOTH lanes, unconditionally -- its own scope (changed-Go-package dirs plus
+# fixture_consumer_dirs) is what still runs TestRepositoryDocumentationStandards-
+# AreEnforced for a root AGENTS.md/CLAUDE.md-only diff. A future edit that
+# re-wraps the `run_step "go test (changed packages)" step_test` line back
+# inside the whole-module-gates if/fi block -- restoring the shape just above,
+# where it used to sit right after run_whole_module_gates_parallel -- would
+# silently reopen that bug: the classifier still says FAST, but step_test (and
+# the fixture_consumer_dirs mapping inside it) would only run on FULL again.
+# Neither scripts/lib/test-pre-pr-lane.sh nor scripts/lib/test-pre-pr-docs-
+# fastpath.sh can catch this: neither execs pre-pr.sh or step_test, both only
+# drive the classifier and pre_pr_decide_lane in isolation. This is a purely
+# static, line-position check -- it locates the first fast/full `if` (the
+# whole-module-gates one), its matching top-level `fi`, and the one `run_step
+# "go test (changed packages)" step_test` call, and asserts the call's line is
+# outside the `[if, fi]` span. It cannot see whether step_test is *reachable*
+# at runtime (that would need to execute pre-pr.sh, which this suite
+# deliberately does not do), only whether it is textually gated by this
+# specific if/fi -- which is exactly the shape the regression takes.
+awk '
+	/if \[\[ "\$\{PRE_PR_FASTPATH_LANE\}" != "fast" \]\]; then/ && !if_line { if_line = NR }
+	if_line && !fi_line && /^fi$/ { fi_line = NR }
+	/run_step "go test \(changed packages\)" step_test/ { test_count++; test_line = NR }
+	END {
+		if (!if_line) {
+			print "could not find the whole-module-gates fast/full if" > "/dev/stderr"
+			exit 1
+		}
+		if (!fi_line) {
+			print "could not find that if'"'"'s matching fi" > "/dev/stderr"
+			exit 1
+		}
+		if (test_count != 1) {
+			print "found " test_count " `go test (changed packages)` run_step call(s), want exactly 1" > "/dev/stderr"
+			exit 1
+		}
+		if (test_line > if_line && test_line < fi_line) {
+			print "go test (changed packages) is gated INSIDE the whole-module-gates if/fi (line " test_line ", block " if_line "-" fi_line "); it must run unconditionally on both lanes" > "/dev/stderr"
+			exit 1
+		}
+	}
+' "${script}" || fail "go test (changed packages) is not reached on both lanes"
+
+printf 'PASS: pre-pr scheduling, worktree cache isolation, and lane wiring are pinned\n'

@@ -55,11 +55,27 @@ network, or are slow); run `make frontend-preflight` / `make security-preflight`
 when you touch those surfaces. None of these silently skip: a gate that cannot
 run locally prints why and names the CI gate that remains authoritative.
 
-It runs gofumpt and golangci-lint over the **whole** module (catching
-cross-package consequences a changed-package run misses, such as code that
-becomes unused when a sibling package changes), `go build` and `go vet` over the
-whole module, `go test` on the packages changed versus `origin/main`, the
-500-line file cap and package-docs gates, and — driven by the gate registry
+### Documentation-only fast path
+
+For a diff that is provably documentation/specs-only, `make pre-pr` skips the
+whole-module `go build`, `go vet`, `gofumpt`, `golangci-lint`, and the race
+lane (#5721); the changed-package `go test` lane always runs and is narrowed,
+never skipped, to any fixture-consumer package the diff maps to (e.g. a root
+`AGENTS.md`/`CLAUDE.md` change selects `./internal/runtime`). The lane's own
+path list includes untracked files, so a forgotten `git add` on a new `.go`
+file forces FULL rather than riding a skipped build. It also classifies FULL
+when the list itself cannot be trusted — an unresolved `origin/main`, any
+`git` command that exited non-zero, or a run that could not have recorded such
+a failure. See [Pre-PR Documentation Fast Path](local-testing/pre-pr-docs-fastpath.md)
+for the classifier's exact allowlist, both fail-closed rules, what still runs
+on the fast path, and how it relates to CI's own docs-only skip definition.
+
+Outside the documentation-only fast path above, it runs gofumpt and
+golangci-lint over the **whole** module (catching cross-package consequences
+a changed-package run misses, such as code that becomes unused when a
+sibling package changes), `go build` and `go vet` over the whole module,
+`go test` on the packages changed versus `origin/main`, the 500-line file cap
+and package-docs gates, and — driven by the gate registry
 (#4214) — the **selected credential-free exactness and telemetry contract gates**
 for your changed paths (OpenAPI, route coverage, edge source-tool coverage,
 evidence continuity, fact-kind registry, contract source-of-truth, parser
@@ -222,14 +238,15 @@ consolidation changed where they run, not whether they block.
 
 ### What `make pre-pr` selects, by change type
 
-`make pre-pr` always runs the whole-module Go gates (gofumpt, golangci-lint,
-build, vet, file cap) plus the focused changed-package tests; the table is what
-the changed-path selector *adds* on top. You never have to remember the matching
-verifier — the selector picks it.
+`make pre-pr` runs the whole-module Go gates (gofumpt, golangci-lint, build,
+vet, file cap) plus the focused changed-package tests for any diff outside the
+[documentation-only fast path](local-testing/pre-pr-docs-fastpath.md) above;
+the table is what the changed-path selector *adds* on top of those. You never
+have to remember the matching verifier — the selector picks it.
 
 | You changed | `make pre-pr` additionally runs | Also run |
 | --- | --- | --- |
-| Docs only (`docs/**`, `*.md`) | nothing extra (no exactness/race selected) | docs build (pre-push) |
+| Docs only (fast-path-recognized paths — see above) | whole-module Go build/vet/fmt/lint and race lanes SKIPPED; changed-package `go test` still runs, narrowed to any fixture-consumer package (e.g. root `AGENTS.md`/`CLAUDE.md` maps to `./internal/runtime`) and a no-op otherwise; the selected exactness/telemetry/hygiene/docs gates still run, as do file cap and package docs (both no-ops with no changed Go file) | docs build (pre-push) |
 | Frontend only (`src/**`, `apps/console/**`) | nothing backend | `make frontend-preflight` |
 | Parser (`go/internal/parser/**`) | parser relationship kit, accuracy golden gate, scoped race | — |
 | Reducer / storage (`go/internal/reducer/**`, `storage/**`) | query-plan regression, scale gates, **targeted graph-write race** | reducer-contention is CI-only (Postgres) |

@@ -136,7 +136,13 @@ okta-saml-live-proof*.md
 
 # Per-worktree isolated Go build cache (golang-engineering skill: parallel
 # agents must not share the default ~/.cache/go-build across worktrees).
+# Suffixed variants (.gocache-lint/, .gocache-rev3/, .gocache-exec/, ...) are
+# the same pattern with a per-purpose or per-agent suffix appended -- without
+# this a stray `git add -A` inside one of them stages thousands of untracked
+# cache files (confirmed via `git check-ignore -v .gocache-exec`, which
+# reported no match before this entry existed).
 .gocache/
+.gocache-*/
 
 # Per-deployment override for the skillgen generator. The default
 # capability set is all-collectors-enabled; contributors can drop a
@@ -145,3 +151,4 @@ okta-saml-live-proof*.md
 skill-fragments/capabilities.local.yaml
 go/.gocache/
 go/.gocache2/
+go/.gocache-*/

@@ -32,18 +32,38 @@ set -uo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 go_dir="${repo_root}/go"
 precommit="${repo_root}/scripts/dev/precommit-go.sh"
+# shellcheck source=../lib/pre-pr-docs-fastpath.sh
+source "${repo_root}/scripts/lib/pre-pr-docs-fastpath.sh"
+# shellcheck source=../lib/pre-pr-lane.sh
+source "${repo_root}/scripts/lib/pre-pr-lane.sh"
+# Root the classifier's path-existence check at the repo, so a deleted
+# allowlisted file is recognized as deleted rather than as merely changed.
+# shellcheck disable=SC2034  # read by the sourced classifier, not by this file.
+PRE_PR_FASTPATH_ROOT="${repo_root}"
 
-base="origin/main"
 git -C "${repo_root}" fetch --no-tags origin main >/dev/null 2>&1 || true
-git -C "${repo_root}" rev-parse --verify "${base}" >/dev/null 2>&1 || base="HEAD~1"
+pre_pr_resolve_lane_base "${repo_root}"
+base="${PRE_PR_FASTPATH_BASE}"
 
-# changed_go_files: committed (vs base) + staged + unstaged Go files under go/.
+# Cross-subshell state for this run; see pre_pr_git_state_init in
+# scripts/lib/pre-pr-lane.sh for why the failure marker is a file and why the
+# directory is probed rather than assumed.
+pre_pr_git_state_init
+# shellcheck disable=SC2154  # pre_pr_state_dir is set by the sourced library.
+trap '[[ -n "${pre_pr_state_dir}" ]] && rm -rf "${pre_pr_state_dir}"' EXIT
+
+# collect_changed_paths: committed (vs base) + unstaged + staged paths. One
+# implementation, because the previous two copies of the same git plumbing meant
+# a fix to one silently left the other swallowing exit codes.
+collect_changed_paths() {
+	git_changed_names "${base}...HEAD"
+	git_changed_names HEAD
+	git_changed_names --cached
+}
+
+# changed_go_files: the Go files under go/ among those paths.
 changed_go_files() {
-	{
-		git -C "${repo_root}" diff --name-only "${base}...HEAD"
-		git -C "${repo_root}" diff --name-only HEAD
-		git -C "${repo_root}" diff --name-only --cached
-	} 2>/dev/null | sort -u | rg '^go/.*\.go$' || true
+	collect_changed_paths | sort -u | rg '^go/.*\.go$' || true
 }
 
 # changed_go_dirs: ./-relative package dirs (under go/) for the changed files.
@@ -61,14 +81,23 @@ changed_go_dirs() {
 	done
 }
 
-# changed_all_files: every changed path (committed vs base + staged + unstaged),
-# not just Go files. Used to map non-Go fixtures to their consumer packages.
+# changed_all_files: every changed path, not just Go files. Used to map non-Go
+# fixtures to their consumer packages and to decide the lane.
 changed_all_files() {
+	collect_changed_paths | sort -u
+}
+
+# lane_input_paths: what the LANE decision looks at — everything above, plus
+# untracked-but-not-ignored files. Only the lane reads them; every other gate
+# mirrors what a push sends to CI, which an untracked file is not. The lane is
+# the exception because the FULL lane's `go build ./...` compiles untracked
+# files and the FAST lane skips that build. See the "Untracked files count"
+# section of docs/public/reference/local-testing/pre-pr-docs-fastpath.md.
+lane_input_paths() {
 	{
-		git -C "${repo_root}" diff --name-only "${base}...HEAD"
-		git -C "${repo_root}" diff --name-only HEAD
-		git -C "${repo_root}" diff --name-only --cached
-	} 2>/dev/null | sort -u
+		collect_changed_paths
+		git_untracked_names
+	} | sort -u
 }
 
 # fixture_consumer_dirs: ./-relative Go package dirs whose tests load a non-Go
@@ -306,13 +335,10 @@ step_race() {
 # deferred gates only).
 live_deferred=()
 
-changed_paths() {
-	{
-		git -C "${repo_root}" diff --name-only "${base}...HEAD"
-		git -C "${repo_root}" diff --name-only HEAD
-		git -C "${repo_root}" diff --name-only --cached
-	} 2>/dev/null | sort -u
-}
+# changed_paths was a byte-identical second copy of changed_all_files. Two
+# copies of the same git plumbing meant a fix to one silently left the other
+# swallowing exit codes, so there is now one implementation.
+changed_paths() { changed_all_files; }
 
 # run_or_defer <gate-name> <trigger-ERE> <prereq-cmd> <run-cmd...>
 # Runs the gate when its paths changed and the prerequisite check passes; defers
@@ -372,12 +398,69 @@ step_live() {
 	return ${rc}
 }
 
-run_whole_module_gates_parallel
+# --- documentation-only fast-path classification -----------------------------
+# #5721: a docs/specs-only diff should never pay for the whole-module Go
+# build/lint/vet/race lanes. The changed-package go test lane (step_test below)
+# is never skipped wholesale -- it stays narrowly scoped to changed Go packages
+# plus fixture_consumer_dirs on every run, fast or full, which is what still
+# runs TestRepositoryDocumentationStandardsAreEnforced for a root
+# AGENTS.md/CLAUDE.md-only diff (eshu-hq/eshu#5935 review). The allowlist
+# classifier and the lane wiring live in scripts/lib/pre-pr-docs-fastpath.sh and
+# scripts/lib/pre-pr-lane.sh; the rules and the failure classes they guard
+# against are documented there and in
+# docs/public/reference/local-testing/pre-pr-docs-fastpath.md.
+#
+# The decision itself is pre_pr_decide_lane, in the lane library, so a test can
+# drive it: it runs the self-check, collects the paths, re-probes the state
+# channel, reads the failure marker, and classifies -- in that order, because
+# every other order can produce a FAST verdict on a run that failed to look.
+#
+# A failing self-check fails this run AND forces the FULL lane: a classifier
+# that cannot pass its own table has not earned the right to skip anything.
+pre_pr_decide_lane "${repo_root}" "${base}" "${PRE_PR_FASTPATH_BASE_STATUS}" lane_input_paths
+if [[ "${PRE_PR_LANE_SELFCHECK_OK}" == "1" ]]; then
+	results+=("PASS  docs fast-path classifier self-check (${PRE_PR_LANE_SELFCHECK_SECONDS}s)")
+else
+	results+=("FAIL  docs fast-path classifier self-check (${PRE_PR_LANE_SELFCHECK_SECONDS}s)")
+	overall=1
+fi
+
+if [[ ${#PRE_PR_LANE_CHANGED_PATHS[@]} -gt 0 ]]; then
+	pre_pr_print_lane_banner "${base}" "${PRE_PR_LANE_CHANGED_PATHS[@]}"
+else
+	pre_pr_print_lane_banner "${base}"
+fi
+
+# Both lane gates ask whether the lane is NOT "fast", never whether it is
+# "full", and pre_pr_print_lane_banner asks the same way. A third value cannot
+# be produced today, but if one ever were, `== "full"` here would skip the Go
+# lanes while the banner said FULL and the run still stamped the SHA -- the
+# invisible-failure shape this whole fast path exists to prevent.
+if [[ "${PRE_PR_FASTPATH_LANE}" != "fast" ]]; then
+	run_whole_module_gates_parallel
+else
+	while IFS= read -r pre_pr_skip_name; do
+		results+=("SKIP  ${pre_pr_skip_name} (documentation-only fast path)")
+	done < <(pre_pr_fast_lane_skip_steps)
+fi
+# go test runs on BOTH lanes, always. Its own scope (changed-Go-package dirs
+# plus fixture_consumer_dirs) already narrows to nothing on a genuinely
+# docs-only diff -- see the file-cap and package-docs steps below for the same
+# always-run-but-no-op pattern. Skipping this step wholesale on the FAST lane,
+# as pre-pr.sh used to do, made fixture_consumer_dirs's CLAUDE.md/AGENTS.md
+# mapping dead code for the one diff shape it exists to catch: a root-agent-
+# file-only change both qualifies for FAST and needs that guard to run
+# (eshu-hq/eshu#5935 review). See pre_pr_fast_lane_skip_steps in
+# scripts/lib/pre-pr-lane.sh for the regression guard.
 run_step "go test (changed packages)" step_test
 run_step "500-line file cap" step_filecap
 run_step "package docs" step_docs
 run_step "selected exactness + telemetry gates" step_exactness
-run_step "race lane (Go changes)" step_race
+if [[ "${PRE_PR_FASTPATH_LANE}" != "fast" ]]; then
+	run_step "race lane (Go changes)" step_race
+else
+	results+=("SKIP  race lane (Go changes) (documentation-only fast path)")
+fi
 run_step "path-triggered live lane" step_live
 
 printf '\n\033[1m==== pre-pr summary ====\033[0m\n'
