@@ -306,19 +306,23 @@ and `eshu-diagnostic-rigor`.
   to be declared, not derived.** An implicit rule — treating a gate's own
   `local` scripts, and whatever they source, as triggers automatically —
   would make this check's drift impossible by construction. This branch's
-  registry diff is 54 lines (`git diff --numstat origin/main HEAD --
-  specs/ci-gates.v1.yaml`); 52 of them are `scripts/` trigger paths check 8
+  registry diff is 56 lines (`git diff --numstat origin/main HEAD --
+  specs/ci-gates.v1.yaml`); 54 of them are `scripts/` trigger paths check 8
   required on landing (#5762) — the other 2
   (`go/internal/serviceintelhttp/**`, `.github/openapi-known-drift.txt`)
   were already on the branch before check 8 existed — they land in the
   branch's first commit, `scripttrigger.go` in a later one — and are unrelated
   to it. Stated as an ordering rather than a commit distance on purpose: a
   rebase renumbers the distance but not the order. An implicit-derivation
-  rule would have cut those 52 lines to zero, not the whole 54. Declaring
+  rule would have cut those 54 lines to zero, not the whole 56. Declaring
   keeps the registry the single readable answer to "what selects
   this gate": a reviewer reads `triggers:` and knows the whole selection
   surface without also reading the gate's local command and every script it
-  sources.
+  sources. (The two most recent additions, #5934 review: `perf-evidence` and
+  `nancy` each run a `scripts/dev/precommit-go.sh` subcommand that execs
+  another script directly rather than sourcing it, so neither was visible to
+  the sourcing walk below — see checkScriptTriggerCoverage's doc comment for
+  the audit that found them.)
 
   Sourcing is followed transitively: golden-corpus-lock-cases.sh is the real
   case, sourced directly by scripts/test-verify-golden-corpus-gate.sh and
