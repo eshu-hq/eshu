@@ -84,8 +84,12 @@ func gateWith(id, hookID, workflow string) cigates.Gate {
 		Tier:     cigates.TierPreCommit,
 		Blocking: true,
 		Triggers: []string{"go/**"},
+		// An inline toolchain command, so the shared fixture stays neutral for
+		// drift check 8 (a gate's own script must be matched by one of its own
+		// triggers) no matter how a caller rewrites Triggers.
+		// scripttrigger_test.go covers that check with its own fixtures.
 		Local: &cigates.Local{
-			Command: "bash scripts/check.sh",
+			Command: "cd go && go build ./...",
 		},
 		CI: cigates.CI{Workflow: workflow, Job: "job"},
 	}

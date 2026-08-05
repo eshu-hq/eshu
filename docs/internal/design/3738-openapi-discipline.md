@@ -124,15 +124,18 @@ below trips:
    "its own" comment (#5762 round 6, F14). Give each route its own wording,
    even when the underlying reason is the same for both.
    **This rule is also a best-effort convenience, not a closure guarantee,**
-   the same way rule 2 is. The comparison normalizes whitespace and the
+   the same way rule 2 is. The comparison normalizes ASCII whitespace and the
    leading `#` before comparing (so `#Foo` and `# Foo`, or a doubled internal
    space, both count as the same justification, closed in #5762 follow-up
-   P2-1), but it only ever compares a justification against the one
-   immediately before it. A route repeating a justification from two or more
-   entries earlier in the file (an A, B, A pattern) is not caught — that
-   gap is open by design, not by oversight, and closing it would mean
-   comparing every justification against every other one in the file, which
-   this line-by-line pass does not do.
+   P2-1). Four near-duplicate shapes still get through, each verified by
+   probing `scripts/verify-openapi.sh` directly (#5762 round 8): a case change,
+   a U+00A0 or U+200B in place of an ASCII space, `##Foo` against `#Foo`
+   (exactly one `#` is stripped), and a non-adjacent A, B, A repeat, since only
+   the immediately preceding justification is compared. Closing the A, B, A gap
+   would mean comparing every justification against every other one in the
+   file, which this line-by-line pass does not do; the other three are
+   character-class limits, not oversights, and the same "best-effort, not a
+   closure guarantee" caveat that governs rule 2 applies here.
 
 `scripts/lib/test-verify-openapi-known-drift-cases.sh` and
 `scripts/lib/test-verify-openapi-known-drift-hardening-cases.sh` (both
@@ -166,6 +169,19 @@ proving an unjustified decoration comment between two real justifications
 does not reset the duplicate-detection state, and a case proving a
 `*_test.go` file's `HandleFunc` registration is excluded from the scan.
 
+Round 8 (#5762 follow-up) adds, in
+`scripts/lib/test-verify-openapi-scan-scope-cases.sh` and the two known-drift
+case files: fixtures for the other two globs on the scan-dir `rg --files` line
+(a `HandleFunc` in an `openapi_*.go` file, and one in a subpackage of a scan
+dir — round 7 called both unfixturable on a premise that a one-command check
+disproves), the two halves of the seventh prose alternative
+(`to be added` / `to be written`, which nothing pinned), and a case asserting
+the `DUPLICATE_JUSTIFICATION` message describes the normalized comparison
+rather than byte identity. The two fail-closed rc shims were rewritten to
+count `rg` invocations instead of matching the regex source text of the
+pattern being scanned, so a semantics-preserving edit to either pattern no
+longer reds a case named after the rc check.
+
 **Dynamic-route escape hatch:** the verifier resolves route constants and string
 concatenation (patterns 1b/1c) via regex, not AST. A route whose METHOD or path
 is constructed at runtime (e.g. built from a non-const function return, or whose
@@ -190,9 +206,9 @@ for routes that are merely undocumented yet.
   must be listed in `.github/openapi-known-drift.txt`.
 - A known-drift entry may never carry a deferral marker, a prose deferral
   phrase, lack a preceding justification comment, or repeat the immediately
-  preceding justification byte-for-byte (#5762) — `scripts/verify-openapi.sh`
-  fails the whole gate on any of those four shapes before it evaluates route
-  drift.
+  preceding justification once ASCII whitespace and the leading `#` are
+  normalized away (#5762) — `scripts/verify-openapi.sh` fails the whole gate on
+  any of those four shapes before it evaluates route drift.
 
 ## Verification
 

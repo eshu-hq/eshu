@@ -45,20 +45,13 @@ for dir in "${scan_dirs[@]}"; do
   # has zero matching files -- under `set -e` that would abort the whole
   # script instead of just producing an empty file list for this dir.
   #
-  # "--max-depth 1" and "!openapi_*.go" are semantic constraints, not bugs
-  # fixed against an observed failure: neither $query_dir nor $si_dir has a
-  # subdirectory today, and no non-"openapi_paths_*.go" file starting with
-  # "openapi_" exists in either, so removing either flag changes nothing on
-  # this repo (verified this session: 254/254 routes match with both flags
-  # dropped, same as with them present) -- they are equivalent mutants on the
-  # current corpus, not gaps in test coverage. They stay because the
-  # constraint they express is real: a future subpackage under $query_dir
-  # would otherwise be scanned depth-first for routes it does not own, and a
-  # future "openapi_helpers.go" would otherwise be misread as a HandleFunc
-  # source file. Left undocumented by a synthetic fixture (#5762 follow-up
-  # P3-1) because a fixture that only reproduces this comment's own claim
-  # -- and passes before AND after the flag is removed -- asserts nothing a
-  # reviewer could not already read here.
+  # "--max-depth 1" keeps a subpackage of a scan dir from being searched for
+  # routes it does not own; "!openapi_*.go" keeps the OpenAPI component and
+  # schema files (11 of them under $query_dir today) from being read as
+  # HandleFunc sources; "!*_test.go" keeps a test helper's throwaway mux out.
+  # All three are pinned by fixtures in
+  # scripts/lib/test-verify-openapi-scan-scope-cases.sh and
+  # scripts/test-verify-openapi.sh.
   rg --files --max-depth 1 -g '*.go' -g '!*_test.go' -g '!openapi_*.go' \
     "$dir" 2>/dev/null \
   >> "$gofiles_tmp" || true
@@ -168,8 +161,9 @@ known_drift_file="${repo_root}/.github/openapi-known-drift.txt"
 #      "# ---" cannot pass as a justification. Neither a bare route nor a
 #      bare "#" can be appended silently, and one justification cannot be
 #      shared across a group of routes.
-#   4. A justification comment may not be byte-identical to the justification
-#      immediately before it. "Cannot be shared across a group of routes"
+#   4. A justification comment may not repeat the justification immediately
+#      before it, compared after collapsing runs of ASCII whitespace and
+#      stripping one leading "#". "Cannot be shared across a group of routes"
 #      (rule 3) was enforced only by position -- a copy-pasted duplicate
 #      still counts as each route having "its own" comment line, so it slid
 #      past rule 3 (#5762 round 6, F14). Give each route its own wording, even
@@ -229,16 +223,22 @@ if [ -f "$known_drift_file" ]; then
         if [ "$known_drift_comment_tokens" -ge 2 ] \
           && printf '%s' "$known_drift_comment_text" | rg -q '[[:alpha:]]{4,}'; then
           known_drift_justified=1
-          # Rule 4 compares MEANING, not bytes: collapse runs of whitespace to
-          # one space and trim the ends before comparing, so "#Foo" vs "# Foo"
-          # (the leading "#" is stripped above, leaving a leading-space
-          # difference) and a single doubled internal space both count as the
-          # same justification instead of dodging the check on formatting
-          # alone (#5762 follow-up P2-1). This still compares only against
-          # the immediately preceding justification -- a non-adjacent
-          # A,B,A repeat is not caught; that gap is documented, not silently
-          # assumed away, in docs/internal/design/3738-openapi-discipline.md
-          # rule 4.
+          # Rule 4 normalizes ASCII whitespace and the leading "#" before
+          # comparing -- `tr -s '[:space:]' ' '` collapses runs of spaces and
+          # tabs, and the ends are trimmed -- so "#Foo" vs "# Foo" (the single
+          # leading "#" is stripped above, leaving a leading-space difference)
+          # and a doubled internal space both count as the same justification
+          # (#5762 follow-up P2-1). It is not a semantic comparison, and four
+          # near-duplicate shapes still get through, each verified by probing
+          # this script directly (#5762 round 8, P3-2):
+          #   - a case change ("# Documentation UI" vs "# documentation ui")
+          #   - U+00A0 or U+200B in place of an ASCII space, which the C-locale
+          #     [:space:] class does not cover
+          #   - "##Foo" vs "#Foo", since exactly one "#" is stripped
+          #   - a non-adjacent A,B,A repeat, since only the immediately
+          #     preceding justification is compared
+          # The A,B,A gap is documented in
+          # docs/internal/design/3738-openapi-discipline.md rule 4.
           known_drift_comment_normalized="$(printf '%s' "$known_drift_comment_text" | tr -s '[:space:]' ' ' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
           # A copy-pasted justification still counts as "its own" comment
           # under rule 3's positional check, so a duplicate needs its own
@@ -308,9 +308,11 @@ if [ -f "$known_drift_file" ]; then
       echo ""
     fi
     if [ -n "$known_drift_duplicate_justifications" ]; then
-      echo "DUPLICATE_JUSTIFICATION: a justification comment byte-identical to"
-      echo "the one before it is a copy-paste, not its own reason -- give this"
-      echo "route its own wording, even if the underlying reason is the same:"
+      echo "DUPLICATE_JUSTIFICATION: a justification comment that matches the one"
+      echo "before it once whitespace and the leading \"#\" are normalized is a"
+      echo "copy-paste, not its own reason -- so re-spacing it is not the fix."
+      echo "Give this route its own wording, even if the underlying reason is"
+      echo "the same:"
       while IFS= read -r entry; do
         [ -n "$entry" ] && echo "  ${entry}"
       done <<< "$known_drift_duplicate_justifications"

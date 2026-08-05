@@ -12,6 +12,9 @@ import (
 func scriptGate(workflow, command string) cigates.Gate {
 	g := gateWith("no-ai-attribution", "my-gate", workflow)
 	g.Local = &cigates.Local{Command: command}
+	// Keep the gate's own script among its triggers so these cases exercise
+	// check 6 (verify-script → ci.workflow) alone and never trip check 8.
+	g.Triggers = append(g.Triggers, "scripts/*.sh")
 	return g
 }
 

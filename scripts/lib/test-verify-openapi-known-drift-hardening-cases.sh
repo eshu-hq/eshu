@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Round-6 hardening cases for the known-drift self-validation in
-# verify-openapi.sh (#5762 round 6, findings F2/F3/F4/F5/F7/F12/F14).
+# Hardening cases for the known-drift self-validation in verify-openapi.sh:
+# round 6 (findings F2/F3/F4/F5/F7/F12/F14), round 7 (the rule-4 normalization
+# and split rc cases), and round 8 (P2-1's message wording, P2-2's rewrite of
+# the two rc shims).
 #
 # Sourced, never executed: it runs in the caller's shell and reuses the
 # caller's setup_repo(), write_known_drift(), run_verifier(), $tmp_root, and
@@ -296,13 +298,52 @@ test_known_drift_duplicate_justification_hash_spacing_red() {
 # leaving the other to run against the real `rg`, so each can only be
 # rescued by the specific rc check it names.
 #
-# Sourced fixture uses a clean, well-justified known-drift entry (no marker
-# or prose deferral words), so the untouched scan legitimately returns rc=1
-# (no match) through the real `rg` -- the ONLY way either shim's gate failure
-# can fire is the targeted scan's simulated rc=2.
+# Each fixture uses a clean, well-justified known-drift entry (no marker or
+# prose deferral words), so the untouched scan legitimately returns rc=1 (no
+# match) through the real `rg` -- the ONLY way either shim's gate failure can
+# fire is the targeted scan's simulated rc=2.
+#
+# The shims discriminate the two scans by COUNTING invocations whose last
+# argument is the known-drift file, not by matching the regex source text of
+# the pattern being scanned. Round 7's shims matched the pattern text, which
+# coupled these two rc cases to the marker and prose patterns themselves: a
+# semantics-preserving rewrite of either pattern reddened a case named after
+# the fail-closed rc check, sending a reader to a subsystem nobody had touched
+# (#5762 round 8, P2-2). The remaining coupling is to the ORDER of the two
+# scans in verify-openapi.sh: invocation 1 is the marker scan, invocation 2 is
+# the prose scan. Swapping that order swaps which case pins which rc check.
+
+# write_known_drift_rg_shim writes an `rg` shim at $1 that exits 2 on the $2'th
+# invocation whose last argument is $3, and delegates every other invocation to
+# the real `rg`.
+write_known_drift_rg_shim() {
+  local shim_dir="$1" fail_nth="$2" target="$3"
+  local real_rg
+  real_rg="$(command -v rg)"
+  mkdir -p "$shim_dir"
+  # The single-quoted lines below are literal shell source being written to
+  # the shim file, not variables to expand in THIS script.
+  # shellcheck disable=SC2016
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'target=%q\n' "$target"
+    printf 'state=%q\n' "${shim_dir}/count"
+    printf 'fail_nth=%q\n' "$fail_nth"
+    printf 'last=""\n'
+    printf 'for a in "$@"; do last="$a"; done\n'
+    printf 'if [ "$last" = "$target" ]; then\n'
+    printf '  n=$(( $(cat "$state" 2>/dev/null || echo 0) + 1 ))\n'
+    printf '  printf %%s "$n" > "$state"\n'
+    printf '  if [ "$n" -eq "$fail_nth" ]; then exit 2; fi\n'
+    printf 'fi\n'
+    printf 'exec %q "$@"\n' "$real_rg"
+  } > "${shim_dir}/rg"
+  chmod +x "${shim_dir}/rg"
+}
+
 # shellcheck disable=SC2154 # tmp_root, verifier: defined by the sourcing script
 test_known_drift_rg_hard_error_marker_only_fails_closed_red() {
-  local dir shim_dir verifier_tmp code real_rg
+  local dir shim_dir verifier_tmp code
   dir="$(setup_repo "known-drift-rg-hard-error-marker-only")"
 
   write_known_drift "$dir" \
@@ -310,19 +351,7 @@ test_known_drift_rg_hard_error_marker_only_fails_closed_red() {
     'GET /api/v0/docs-ui'
 
   shim_dir="${tmp_root}/rg-shim-marker-only"
-  mkdir -p "$shim_dir"
-  real_rg="$(command -v rg)"
-  # shellcheck disable=SC2016
-  {
-    printf '#!/usr/bin/env bash\n'
-    printf 'for arg in "$@"; do\n'
-    printf '  case "$arg" in\n'
-    printf "    *'TO[-_ ]?DO'*) exit 2 ;;\n"
-    printf '  esac\n'
-    printf 'done\n'
-    printf 'exec %q "$@"\n' "$real_rg"
-  } > "${shim_dir}/rg"
-  chmod +x "${shim_dir}/rg"
+  write_known_drift_rg_shim "$shim_dir" 1 "${dir}/.github/openapi-known-drift.txt"
 
   verifier_tmp="${tmp_root}/verifier-tmp-rg-hard-error-marker-only"
   mkdir -p "$verifier_tmp"
@@ -345,7 +374,7 @@ test_known_drift_rg_hard_error_marker_only_fails_closed_red() {
 
 # shellcheck disable=SC2154 # tmp_root, verifier: defined by the sourcing script
 test_known_drift_rg_hard_error_prose_only_fails_closed_red() {
-  local dir shim_dir verifier_tmp code real_rg
+  local dir shim_dir verifier_tmp code
   dir="$(setup_repo "known-drift-rg-hard-error-prose-only")"
 
   write_known_drift "$dir" \
@@ -353,19 +382,7 @@ test_known_drift_rg_hard_error_prose_only_fails_closed_red() {
     'GET /api/v0/docs-ui'
 
   shim_dir="${tmp_root}/rg-shim-prose-only"
-  mkdir -p "$shim_dir"
-  real_rg="$(command -v rg)"
-  # shellcheck disable=SC2016
-  {
-    printf '#!/usr/bin/env bash\n'
-    printf 'for arg in "$@"; do\n'
-    printf '  case "$arg" in\n'
-    printf "    *'not[[:space:]]+written'*) exit 2 ;;\n"
-    printf '  esac\n'
-    printf 'done\n'
-    printf 'exec %q "$@"\n' "$real_rg"
-  } > "${shim_dir}/rg"
-  chmod +x "${shim_dir}/rg"
+  write_known_drift_rg_shim "$shim_dir" 2 "${dir}/.github/openapi-known-drift.txt"
 
   verifier_tmp="${tmp_root}/verifier-tmp-rg-hard-error-prose-only"
   mkdir -p "$verifier_tmp"
@@ -409,4 +426,46 @@ test_known_drift_duplicate_justification_across_unjustified_gap_red() {
     'GET /api/v0/docs-ui-b'
 
   run_verifier "$dir" "known-drift duplicate justification across an unjustified decoration comment exits non-zero" "fail"
+}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Test 48 — red: the DUPLICATE_JUSTIFICATION message must describe the rule
+# that is actually enforced. It said "byte-identical" from the day rule 4
+# landed, and stayed that way through the same commit that widened the rule to
+# a normalized comparison (#5762 round 8, P2-1) -- nothing pinned the wording,
+# so it drifted the moment the rule did. A contributor rejected for the
+# doubled-space variant below reads "byte-identical", sees their two lines
+# differ byte-for-byte, and re-spaces the comment instead of rewording it.
+# The fixture is normalization-only (the two justifications are not
+# byte-identical), so it fails for exactly the reason the message must
+# explain. Mirrors test 24's assertion on the UNJUSTIFIED_ENTRY wording.
+# shellcheck disable=SC2154 # tmp_root, verifier: defined by the sourcing script
+test_known_drift_duplicate_message_states_normalized_rule_red() {
+  local dir verifier_tmp code
+  dir="$(setup_repo "known-drift-duplicate-message-wording")"
+  verifier_tmp="${tmp_root}/verifier-tmp-duplicate-message-wording"
+  mkdir -p "$verifier_tmp"
+
+  write_known_drift "$dir" \
+    '# Documentation UI -- serves HTML, not an API surface, permanently excluded.' \
+    'GET /api/v0/docs-ui-one' \
+    '# Documentation UI --  serves HTML, not an API surface, permanently excluded.' \
+    'GET /api/v0/docs-ui-two'
+
+  set +e
+  ESHU_OPENAPI_VERIFY_REPO_ROOT="$dir" \
+    ESHU_OPENAPI_VERIFY_TMPDIR="$verifier_tmp" \
+    bash "$verifier" \
+    > "${tmp_root}/duplicate-message-stdout" 2> "${tmp_root}/duplicate-message-stderr"
+  code=$?
+  set -e
+
+  if [ "$code" -ne 0 ] \
+    && rg -q 'DUPLICATE_JUSTIFICATION' "${tmp_root}/duplicate-message-stdout" \
+    && rg -q 'whitespace and the leading' "${tmp_root}/duplicate-message-stdout" \
+    && ! rg -q 'byte-identical' "${tmp_root}/duplicate-message-stdout"; then
+    record_pass "DUPLICATE_JUSTIFICATION message states the normalized rule, not byte-identity"
+  else
+    record_fail "DUPLICATE_JUSTIFICATION message states the normalized rule, not byte-identity (code=$code)"
+  fi
 }

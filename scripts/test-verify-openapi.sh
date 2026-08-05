@@ -354,8 +354,10 @@ test_drift_removed_green() {
 # against the real repo this session: dropping the "!*_test.go" glob left
 # the real corpus at 257 routes vs 254 (3 spurious matches from test files),
 # so the glob is load-bearing; this fixture pins the same behavior on a
-# synthetic repo so a regression here fails fast, in a 39-test suite, instead
-# of only on the real 254-route corpus.
+# synthetic repo so a regression here fails on a two-file fixture instead of
+# only on the real 254-route corpus. Its two siblings for the other globs on
+# the same rg line live in
+# scripts/lib/test-verify-openapi-scan-scope-cases.sh.
 test_scan_excludes_test_go_files_green() {
   local dir
   dir="$(setup_repo "test-go-excluded")"
@@ -385,6 +387,12 @@ test_scan_excludes_test_go_files_green() {
 # shellcheck source=scripts/lib/test-verify-openapi-known-drift-hardening-cases.sh
 . "${repo_root}/scripts/lib/test-verify-openapi-known-drift-hardening-cases.sh"
 
+# The two remaining globs on the scan-dir `rg --files` line (--max-depth 1 and
+# !openapi_*.go) get their fixtures in a third file, alongside test 10b's
+# !*_test.go case above.
+# shellcheck source=scripts/lib/test-verify-openapi-scan-scope-cases.sh
+. "${repo_root}/scripts/lib/test-verify-openapi-scan-scope-cases.sh"
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Run all tests
 
@@ -399,6 +407,8 @@ test_health_in_openapi_green
 test_planted_drift_red
 test_drift_removed_green
 test_scan_excludes_test_go_files_green
+test_scan_excludes_openapi_prefixed_files_green
+test_scan_excludes_subdirectories_green
 test_known_drift_deferral_marker_red
 test_known_drift_deferral_marker_hack_red
 test_known_drift_deferral_marker_tbd_red
@@ -433,6 +443,9 @@ test_known_drift_duplicate_justification_hash_spacing_red
 test_known_drift_rg_hard_error_marker_only_fails_closed_red
 test_known_drift_rg_hard_error_prose_only_fails_closed_red
 test_known_drift_duplicate_justification_across_unjustified_gap_red
+test_known_drift_prose_deferral_to_be_added_red
+test_known_drift_prose_deferral_to_be_written_red
+test_known_drift_duplicate_message_states_normalized_rule_red
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 

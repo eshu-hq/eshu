@@ -340,3 +340,35 @@ test_known_drift_unjustified_message_states_actual_rule_red() {
     record_fail "UNJUSTIFIED_ENTRY message states the actual two-word/4-letter rule (code=$code)"
   fi
 }
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Test 46/47 — red: the seventh prose alternative, "to be added" / "to be
+# written", is named in the pattern, in the PROSE_DEFERRAL failure message,
+# and in docs/internal/design/3738-openapi-discipline.md, but nothing pinned
+# it: deleting `|to be (added|written)` from known_drift_prose_pattern left
+# the whole suite green (#5762 round 8, P1-1). Every other alternative got an
+# isolating fixture in round 6; this one was missed. Each fixture below
+# contains exactly one half of the alternation and trips no other alternative
+# ("added"/"written" here never form "not written" or "written yet"), so
+# dropping either half of `(added|written)` reds exactly one case.
+test_known_drift_prose_deferral_to_be_added_red() {
+  local dir
+  dir="$(setup_repo "known-drift-prose-to-be-added")"
+
+  write_known_drift "$dir" \
+    '# Fragment to be added for this operation.' \
+    'GET /api/v0/fake-prose-to-be-added-route'
+
+  run_verifier "$dir" "known-drift prose 'to be added' deferral exits non-zero" "fail"
+}
+
+test_known_drift_prose_deferral_to_be_written_red() {
+  local dir
+  dir="$(setup_repo "known-drift-prose-to-be-written")"
+
+  write_known_drift "$dir" \
+    '# Fragment to be written for this operation.' \
+    'GET /api/v0/fake-prose-to-be-written-route'
+
+  run_verifier "$dir" "known-drift prose 'to be written' deferral exits non-zero" "fail"
+}
