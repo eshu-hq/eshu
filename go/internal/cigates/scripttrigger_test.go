@@ -39,6 +39,22 @@ func scriptTriggerErrs(t *testing.T, root string, reg *cigates.Registry) []strin
 	return out
 }
 
+// hiddenCdScriptErrs runs DriftCheck and returns only the cd-prefixed
+// hidden-scripts-token findings (hiddenScriptsInCdPrefixedCommand in
+// scripttrigger.go), so a case asserts on its own rule rather than the
+// "no trigger of that gate matches it" class scriptTriggerErrs isolates.
+func hiddenCdScriptErrs(t *testing.T, root string, reg *cigates.Registry) []string {
+	t.Helper()
+	var out []string
+	for _, err := range cigates.DriftCheck(root, reg) {
+		msg := err.Error()
+		if strings.Contains(msg, "cd-prefixed and tokenizes to") {
+			out = append(out, msg)
+		}
+	}
+	return out
+}
+
 // A gate whose verifier is not covered by its own triggers is the shape that
 // let `make pre-pr` print "SKIPPED openapi-surface — no trigger matched changed
 // paths" for a PR that edited only scripts/verify-openapi.sh (#5762 round 8,
@@ -229,6 +245,9 @@ func TestDriftCheck_InlineToolchainCommandSkipped(t *testing.T) {
 	if errs := scriptTriggerErrs(t, root, minimalReg([]cigates.Gate{g}, nil, nil)); len(errs) != 0 {
 		t.Errorf("expected no script-trigger errors for an inline command, got %d: %v", len(errs), errs)
 	}
+	if errs := hiddenCdScriptErrs(t, root, minimalReg([]cigates.Gate{g}, nil, nil)); len(errs) != 0 {
+		t.Errorf("expected no hidden-cd-script errors for a cd-prefixed command with no scripts/ token, got %d: %v", len(errs), errs)
+	}
 }
 
 // sourcedScripts only resolves a `source`/`.` line whose LITERAL TEXT
@@ -267,12 +286,16 @@ func TestDriftCheck_VariableSourcedFileNotResolved(t *testing.T) {
 
 // extractScriptPaths returns nil for any command starting with "cd ", BEFORE
 // it tokenizes anything — so a cd-prefixed command that does carry a
-// scripts/ token later in the pipeline is exempted from check 8 exactly like
-// one that carries none (#5762 round 10, P2-2). This pins that exemption:
-// scripts/uncovered.sh is a real, uncovered file the command names, and check
-// 8 still reports 0 errors because the "cd " prefix skips it before the
-// scripts/ token is ever seen.
-func TestDriftCheck_CdPrefixedCommandWithScriptsTokenSkipped(t *testing.T) {
+// scripts/ token later in the pipeline used to be exempted from check 8
+// exactly like one that carries none (#5762 round 10, P2-2). #5934 review
+// flagged that silence as a trapdoor: nothing stopped a future
+// "cd apps/console && bash scripts/x.sh" from landing unnoticed just because
+// today's registry happens to have none. check 8 now reports that token as
+// its own loud finding via hiddenScriptsInCdPrefixedCommand instead of
+// silently reproducing extractScriptPaths' skip. This pins the new
+// reporting: scripts/uncovered.sh is a real, uncovered file the command
+// names, and check 8 now reports it by name.
+func TestDriftCheck_CdPrefixedCommandWithScriptsTokenReported(t *testing.T) {
 	t.Parallel()
 
 	root := buildDriftRepo(t, minimalPreCommit("my-gate"), []string{"verify.yml"})
@@ -282,7 +305,11 @@ func TestDriftCheck_CdPrefixedCommandWithScriptsTokenSkipped(t *testing.T) {
 	g.Triggers = []string{"go/**"} // scripts/uncovered.sh is deliberately absent
 	g.Local = &cigates.Local{Command: "cd apps/console && bash scripts/uncovered.sh"}
 
-	if errs := scriptTriggerErrs(t, root, minimalReg([]cigates.Gate{g}, nil, nil)); len(errs) != 0 {
-		t.Errorf("cd-prefixed command must be exempted regardless of its scripts/ tokens, got %d errors: %v", len(errs), errs)
+	errs := hiddenCdScriptErrs(t, root, minimalReg([]cigates.Gate{g}, nil, nil))
+	if len(errs) != 1 {
+		t.Fatalf("expected exactly 1 hidden cd-prefixed script-token error, got %d: %v", len(errs), errs)
+	}
+	if !strings.Contains(errs[0], "scripts/uncovered.sh") {
+		t.Errorf("error should name the hidden script, got: %s", errs[0])
 	}
 }

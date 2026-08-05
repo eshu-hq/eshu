@@ -40,16 +40,22 @@ var sourcedScriptRE = regexp.MustCompile(`(?m)^[ \t]*(?:\.|source)[ \t]+[^\n]*?(
 //     each command, once tokenized. A command with no such token (e.g. "cd go
 //     && go vet ./...") is skipped — there is no file whose edit could go
 //     unselected.
-//   - A command starting with "cd " is skipped BEFORE tokenizing runs at all,
-//     not because tokenizing found no scripts/ token — extractScriptPaths
-//     returns nil on that prefix unconditionally. Every cd-prefixed command
-//     in the registry today carries no bare "scripts/" token after the "cd"
-//     (verified: 0 of the registry's 20 cd-prefixed local.command /
-//     local.test_command entries), so this coincides with the token-based
-//     skip above in practice, but a future
-//     "cd apps/console && bash scripts/x.sh" would be exempted too, silently.
-//     TestDriftCheck_CdPrefixedCommandWithScriptsTokenSkipped pins today's
-//     exemption so a reader sees it demonstrated, not only asserted.
+//   - A command starting with "cd " is skipped by extractScriptPaths BEFORE
+//     tokenizing runs at all, not because tokenizing found no scripts/ token
+//     — extractScriptPaths returns nil on that prefix unconditionally. Every
+//     cd-prefixed command in the registry today carries no bare "scripts/"
+//     token after the "cd" (verified: 0 of the registry's 20 cd-prefixed
+//     local.command / local.test_command entries), so this coincides with
+//     the token-based skip above in practice. This check no longer lets that
+//     stay a SILENT trapdoor, though: hiddenScriptsInCdPrefixedCommand below
+//     re-tokenizes a cd-prefixed command WITHOUT the skip and reports any
+//     "scripts/" word it finds as its own drift error, so a future
+//     "cd apps/console && bash scripts/x.sh" is a loud, actionable finding
+//     instead of a silent exemption (#5934 review). TestDriftCheck_-
+//     CdPrefixedCommandWithScriptsTokenReported pins that reporting;
+//     extractScriptPaths itself is unchanged and still returns nil for the
+//     command, so anything actually relying on extractScriptPaths elsewhere
+//     is unaffected.
 //   - CI-only gates (Local == nil) are skipped: no local command means no
 //     script to derive.
 //   - heredoc-budget's local.command references a scripts/ file through a
@@ -103,6 +109,29 @@ var sourcedScriptRE = regexp.MustCompile(`(?m)^[ \t]*(?:\.|source)[ \t]+[^\n]*?(
 //   - It does NOT check the reverse direction. A trigger matching no file on
 //     disk is a separate concern, and a gate is free to declare triggers well
 //     beyond its own scripts.
+//   - The walk follows `source`/`.` edges only. When a gate's local.command is
+//     a wrapper (scripts/dev/precommit-go.sh) that EXECUTES another
+//     scripts/*.sh directly instead of sourcing it, that execution is
+//     invisible here — sourcedScriptRE never matches an execution line, only
+//     a `source`/`.` one (#5934 review, codex). This is real, not
+//     hypothetical: audited every scripts/dev/precommit-go.sh subcommand a
+//     gate's local.command invokes against the committed registry this
+//     session and found two instances where the wrapper directly execs a
+//     script neither its own triggers nor the sourcing walk could see —
+//     perf-evidence's "perf-evidence)" case execs
+//     scripts/verify-performance-evidence.sh, and nancy's "nancy)" case execs
+//     scripts/dev/nancy-local.sh. Both are now closed the same way this
+//     package always closes a check-8 finding: by adding the delegated script
+//     as an explicit trigger on its gate (specs/ci-gates.v1.yaml), not by
+//     teaching the walk to parse a wrapper's dispatch logic. A general
+//     "does this wrapper execute that script" parser has the same unsound
+//     shape the trivyskipdirs.go narrowings in this package's AGENTS.md spent
+//     three review rounds discovering wasn't worth it: a wrapper can dispatch
+//     through a case statement, a lookup table, or a computed path, and no
+//     regex distinguishes a real invocation from a mention in a comment or
+//     error string reliably. The check remains blind to a THIRD such instance
+//     until it is found the same way — by reading the wrapper, not by
+//     trusting this list is exhaustive.
 //
 // Within those narrowings, sourcing IS followed transitively, with a visited
 // set so a sourcing cycle cannot hang the walk — no script in this repo
@@ -126,6 +155,14 @@ func checkScriptTriggerCoverage(repoRoot string, reg *Registry) []error {
 		} {
 			if c.command == "" {
 				continue
+			}
+			for _, hidden := range hiddenScriptsInCdPrefixedCommand(c.command) {
+				errs = append(errs, fmt.Errorf(
+					"drift: gate %q %s (%q) is cd-prefixed and tokenizes to %q, a scripts/ path "+
+						"extractScriptPaths never inspects because of the cd-prefix skip; add %q as an "+
+						"explicit trigger of this gate (or widen extractScriptPaths) before relying on it",
+					g.ID, c.field, c.command, hidden, hidden,
+				))
 			}
 			for _, script := range extractScriptPaths(c.command) {
 				if !anyTriggerMatches(g.Triggers, script) {
@@ -213,6 +250,28 @@ func sourcedScripts(repoRoot, script string) []string {
 		out = append(out, p)
 	}
 	sort.Strings(out)
+	return out
+}
+
+// hiddenScriptsInCdPrefixedCommand returns every "scripts/"-prefixed word in
+// a "cd "-prefixed command, the exact set extractScriptPaths (validate.go)
+// unconditionally skips before it ever tokenizes such a command. That skip is
+// intentional there (a word after "cd" is not confidently repo-root-relative,
+// see extractScriptPaths' doc comment), but it must not also be silent here:
+// nothing in the registry has such a token today, so this reports zero errors
+// now, but the moment one is added it becomes a loud, actionable finding
+// instead of a trapdoor check 8 quietly reproduces (#5934 review).
+func hiddenScriptsInCdPrefixedCommand(command string) []string {
+	trimmed := strings.TrimSpace(command)
+	if !strings.HasPrefix(trimmed, "cd ") {
+		return nil
+	}
+	var out []string
+	for _, w := range strings.Fields(trimmed) {
+		if strings.HasPrefix(w, "scripts/") {
+			out = append(out, w)
+		}
+	}
 	return out
 }
 

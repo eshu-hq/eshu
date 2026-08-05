@@ -104,9 +104,14 @@ func checkScript(repoRoot, gateID, command string) error {
 // A command starting with "cd " is skipped BEFORE the word loop below runs at
 // all — not because that loop found no "scripts/" word. A "cd "-prefixed
 // command that does carry a later "scripts/" token (none do in the committed
-// registry today) is skipped just the same; see
-// checkScriptTriggerCoverage's doc comment for why that is a real, if
-// currently harmless, gap rather than a safe-by-construction one.
+// registry today) is skipped just the same. This function's own skip is
+// unchanged and stays silent, by design — extractScriptPaths only derives the
+// path Validate stat-checks for existence. checkScriptTriggerCoverage
+// (scripttrigger.go) is what must not stay silent about it, and no longer
+// does: hiddenScriptsInCdPrefixedCommand there re-tokenizes a cd-prefixed
+// command WITHOUT this skip and reports any "scripts/" word as its own check-8
+// drift finding (#5934 review), so a future cd-prefixed command with a real
+// scripts/ token is a loud finding instead of a trapdoor.
 func extractScriptPaths(command string) []string {
 	trimmed := strings.TrimSpace(command)
 

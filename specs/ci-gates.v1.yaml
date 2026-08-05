@@ -1539,6 +1539,7 @@ gates:
       - "go/go.mod"
       - "go/go.sum"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/dev/nancy-local.sh"
       - "scripts/test-nancy-local.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh nancy"
@@ -2252,6 +2253,7 @@ gates:
       - "go/internal/query/**"
       - "go/internal/runtime/**"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/verify-performance-evidence.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh perf-evidence"
       test_command: ""
