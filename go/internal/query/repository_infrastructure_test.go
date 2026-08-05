@@ -126,6 +126,56 @@ func TestQueryRepoInfrastructureUsesContentRowsBeforeGraph(t *testing.T) {
 	}
 }
 
+// limitCapturingContentStore records the exact limit argument
+// queryRepoInfrastructureFromContent passes to ListRepoEntitiesByTypes, so a
+// test can assert on the probe itself rather than only on its downstream
+// effect.
+type limitCapturingContentStore struct {
+	fakePortContentStore
+	capturedLimit int
+	entities      []EntityContent
+}
+
+func (s *limitCapturingContentStore) ListRepoEntitiesByTypes(_ context.Context, _ string, _ []string, limit int) ([]EntityContent, error) {
+	s.capturedLimit = limit
+	return s.entities, nil
+}
+
+// TestQueryRepoInfrastructureFromContentProbesOneRowPastTheLimit is a PR #5933
+// review follow-up (P1-1): the downstream infrastructureOverflowContentStore
+// double (context_story_limits_test.go) deliberately ignores the limit
+// argument ListRepoEntitiesByTypes receives, so the len(entities) >
+// repositoryInfrastructureEntityLimit comparison it exercises stays honest
+// about what the STORE returned. But that same design leaves the PROBE itself
+// -- the +1 that makes overflow detectable in the first place -- with no
+// coverage: reverting repositoryInfrastructureEntityLimit+1 back to
+// repositoryInfrastructureEntityLimit in repository_infrastructure.go
+// reintroduces the exact silent-cap bug this fix exists to close, and every
+// other test in this package still passes, because none of them observe the
+// requested limit, only the returned truncated bool. This test closes that
+// gap directly: it captures the limit argument production code sends and
+// pins it to repositoryInfrastructureEntityLimit+1.
+func TestQueryRepoInfrastructureFromContentProbesOneRowPastTheLimit(t *testing.T) {
+	t.Parallel()
+
+	spy := &limitCapturingContentStore{
+		entities: []EntityContent{
+			{EntityType: "K8sResource", EntityName: "api", RelativePath: "deploy/api.yaml"},
+		},
+	}
+
+	if _, truncated := queryRepoInfrastructureFromContent(t.Context(), spy, "repo-1"); truncated {
+		t.Fatalf("truncated = true, want false for a single content row well under repositoryInfrastructureEntityLimit")
+	}
+
+	if got, want := spy.capturedLimit, repositoryInfrastructureEntityLimit+1; got != want {
+		t.Fatalf(
+			"ListRepoEntitiesByTypes limit = %d, want %d (the +1 probe is what lets an exactly-at-bound repository be told apart from an overflowing one; a plain repositoryInfrastructureEntityLimit silently drops the overflow with no signal)",
+			got, want,
+		)
+	}
+}
+
 // TestQueryRepoInfrastructureFromContentSignalsTruncationAtLimit is the P2-3
 // follow-up to #5764: on a normally-wired deployment the content read model is
 // tried first (TestQueryRepoInfrastructureUsesContentRowsBeforeGraph above),
