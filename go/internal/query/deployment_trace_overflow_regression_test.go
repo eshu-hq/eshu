@@ -94,6 +94,7 @@ func TestBoundedTraceEnrichmentLimitClampsOverflowingMaxDepthEndToEnd(t *testing
 		limit,
 		candidates,
 		false,
+		false,
 	)
 	if err != nil {
 		t.Fatalf("loadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)

@@ -94,6 +94,13 @@ func loadConsumerRepositoryEnrichment(
 // loadConsumerRepositoryEnrichmentWithLimit is loadConsumerRepositoryEnrichment
 // with an explicit bound. It returns the merged truncation signal from both
 // stages.
+//
+// It passes false for source 0 (evidenceFilesTruncated) because it takes
+// `hostnames` from its caller and never reads the service repository's file
+// list itself, so it has nothing to report about that bound. A caller that
+// derives those hostnames from loadServiceQueryEvidence owns the signal and
+// must thread it in the way enrichServiceQueryContextWithOptions does; this
+// wrapper has no production callers today.
 func loadConsumerRepositoryEnrichmentWithLimit(
 	ctx context.Context,
 	graph GraphQuery,
@@ -107,7 +114,7 @@ func loadConsumerRepositoryEnrichmentWithLimit(
 	if err != nil {
 		return nil, false, err
 	}
-	return loadConsumerRepositoryEnrichmentFromCandidates(ctx, graph, content, serviceRepoID, serviceName, hostnames, limit, candidates, candidatesTruncated)
+	return loadConsumerRepositoryEnrichmentFromCandidates(ctx, graph, content, serviceRepoID, serviceName, hostnames, limit, candidates, candidatesTruncated, false)
 }
 
 func backfillConsumerRepositoryDisplayNames(

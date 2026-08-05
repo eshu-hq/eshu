@@ -192,7 +192,18 @@ func enrichServiceQueryContextWithOptions(
 			timer.Done(ctx, slog.Int("row_count", len(candidates)))
 
 			timer = startServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "consumer_repository_enrichment")
-			consumers, consumersTruncated, err := loadConsumerRepositoryEnrichmentFromCandidates(ctx, graph, content, repoID, serviceName, hostnames, traceLimit, candidates, candidatesTruncated)
+			// #5720 round-9 P1-1: evidence.filesTruncated is source 0 of the
+			// enumeration on loadConsumerRepositoryEnrichmentFromCandidates.
+			// `hostnames` above is derived from the file list
+			// loadServiceQueryEvidence read at serviceEvidenceFileLimit, so a
+			// full page there means a hostname past the cut was never
+			// extracted and never searched for. It is deliberately NOT ORed
+			// into dependents_truncated or
+			// provisioning_source_chains_truncated: both derive from the
+			// candidate slice, which this file read does not touch, so
+			// stamping them would report a bound that never applied to those
+			// lists.
+			consumers, consumersTruncated, err := loadConsumerRepositoryEnrichmentFromCandidates(ctx, graph, content, repoID, serviceName, hostnames, traceLimit, candidates, candidatesTruncated, evidence.filesTruncated)
 			timer.Done(ctx, slog.Int("row_count", len(consumers)))
 			if err != nil {
 				return fmt.Errorf("load consumer repository enrichment: %w", err)

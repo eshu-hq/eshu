@@ -235,7 +235,7 @@ const openAPIPathsImpact = `
                     "deployment_overview": {"type": "object"},
                     "gitops_overview": {"type": "object"},
                     "consumer_repositories": {"type": "array", "items": {"type": "object"}},
-                    "consumer_repositories_truncated": {"type": "boolean", "description": "Present and true when the consumer-repository read hit its bound (either the graph-derived candidate read or the content-evidence merge/cap step); the returned consumer_repositories list may not be exhaustive even though it is well under any displayed row limit."},
+                    "consumer_repositories_truncated": {"type": "boolean", "description": "Present and true when any read underneath the consumer-repository list hit its bound: the graph-derived candidate read, the service evidence file read the observed hostnames are extracted from, either hostname filter applied before the cross-repository searches, a per-search content row cap, or the final merge cap. The returned consumer_repositories list may not be exhaustive even though it is well under any displayed row limit. See the Context and stories HTTP API reference for the full enumeration and the conditions under which the flag is true although nothing was dropped."},
                     "provisioning_source_chains": {"type": "array", "items": {"type": "object"}},
                     "provisioning_source_chains_truncated": {"type": "boolean", "description": "Present and true when the provisioning-source-chain read hit its bound; the returned provisioning_source_chains list may not be exhaustive even though it is well under any displayed row limit."},
                     "deployment_evidence": {"type": "object"},

@@ -12,6 +12,18 @@ type ServiceQueryEvidence struct {
 	APISpecs             []ServiceAPISpecEvidence             `json:"api_specs,omitempty"`
 	FrameworkRoutes      []FrameworkRouteEvidence             `json:"framework_routes,omitempty"`
 	EntrypointCandidates []ServiceEntrypointCandidateEvidence `json:"entrypoint_candidates,omitempty"`
+
+	// filesTruncated reports that the repository file list this evidence was
+	// extracted from came back full at serviceEvidenceFileLimit, so every field
+	// above describes a bounded slice of the repository rather than all of it.
+	// Its consumer-facing consequence is source 0 of the enumeration on
+	// loadConsumerRepositoryEnrichmentFromCandidates: hostnames are derived
+	// from these files, and a hostname living only in a file past the cut is
+	// never searched for. Unexported on purpose: it is plumbing for the
+	// disclosure flags this package derives, and every field above carries a
+	// json tag, so an exported one would join the struct's serialized shape
+	// without any caller asking for it.
+	filesTruncated bool
 }
 
 // ServiceHostnameEvidence is exact hostname evidence that may become a public

@@ -70,15 +70,31 @@ func loadProvisioningSourceChainsFromCandidates(
 // consumer_repositories field.
 //
 // The single returned truncated bool is the OR of every bound that can drop a
-// consumer repository from the merged set. Each round of review found the
-// preceding enumeration incomplete: round 2 disclosed two sources and asserted
-// there were only two, round 7 found three more (two of them UPSTREAM of both
-// disclosed ones -- a repository they drop never reaches the merged set, so
-// neither the final cap nor candidatesTruncated can observe it), and round 8
-// found 2b, a second drop path inside the same function as source 2. Treat this
-// list as the current state of an enumeration that has been wrong three times,
-// not as a closed one:
+// consumer repository from the merged set. Every round of review so far has
+// found the preceding enumeration incomplete: round 2 disclosed two sources and
+// asserted there were only two, round 7 found three more (two of them UPSTREAM
+// of both disclosed ones -- a repository they drop never reaches the merged
+// set, so neither the final cap nor candidatesTruncated can observe it), round
+// 8 found 2b, a second drop path inside the same function as source 2, and
+// round 9 found source 0. Treat this list as the current state of an
+// enumeration that has been wrong four times, not as a closed one.
 //
+// Source 0 is the shape to look for when extending this: it bounds *files*, and
+// the hostnames are derived from the files, so reading only the calls that
+// return repositories misses it. Walk every read that feeds the three arrays,
+// including reads whose output is transformed on the way in.
+//
+//  0. evidenceFilesTruncated -- loadServiceQueryEvidence read the service
+//     repository's file list at serviceEvidenceFileLimit (5000, a real SQL
+//     LIMIT in ContentReader.ListRepoFiles) and the page came back full. Every
+//     hostname in `hostnames` is extracted from those files, so a hostname
+//     that lives only in a file past the cut is never searched for and a
+//     consumer repository reachable only through it never enters the merged
+//     set. The furthest upstream of the seven; numbered 0 rather than
+//     renumbering 1-5, which are referenced by number elsewhere in the
+//     package. Undisclosed until #5720 round 9, where it was carried as "a
+//     generic shared upstream evidence bound rather than a consumer-set
+//     bound" -- true of what it bounds, false of what it drops.
 //  1. candidatesTruncated -- the caller's upstream
 //     queryProvisioningRepositoryCandidates read already dropped rows at its
 //     own LIMIT.
@@ -93,6 +109,13 @@ func loadProvisioningSourceChainsFromCandidates(
 //     through it. Undisclosed until #5720 round 8.
 //  3. the trimmedHostnames[:limit] cut below, for the case where the surviving
 //     hostname set still exceeds the caller's limit. Upstream of 4 and 5.
+//     Unreachable from production as the code stands: source 2 has already
+//     capped the list at indirectEvidenceHostnameLimit (4), and every
+//     production limit comes from boundedTraceEnrichmentLimit, whose smallest
+//     result is 10. It fires only for limit in {1,2,3}, which today only the
+//     test-only loadConsumerRepositoryEnrichment* wrappers can pass. Kept and
+//     tested rather than deleted, because it is the bound that would start
+//     firing if either constant moved.
 //  4. searchTruncated -- at least one per-search content read in
 //     searchConsumerEvidenceAnyRepo came back full at its own row cap.
 //  5. this function's own final consumers[:limit] cap, which can trim the
@@ -100,11 +123,18 @@ func loadProvisioningSourceChainsFromCandidates(
 //     search can add consumer repositories the graph candidates never named,
 //     so the merged set can exceed limit purely from that side.
 //
-// One bound is deliberately NOT folded in here: repositorySemanticEntityLimit
-// (5000) clips the per-chain nested entity evidence
-// loadProvisioningSourceChainsFromCandidates reads. It bounds the evidence
-// attached to a chain, not which repositories appear, so it cannot drop a
-// consumer from this set; it is pre-existing and remains undisclosed.
+// Two narrowings are deliberately NOT folded in here:
+//
+//   - repositorySemanticEntityLimit (5000) clips the per-chain nested entity
+//     evidence loadProvisioningSourceChainsFromCandidates reads. It bounds the
+//     evidence attached to a chain, not which repositories appear, so it cannot
+//     drop a consumer from this set; it is pre-existing and remains undisclosed.
+//   - the repoID == "" || repoName == "" skip in
+//     queryProvisioningRepositoryCandidates, which drops only rows the graph
+//     returned without an identity. Naming it here so the next enumeration does
+//     not have to rediscover that it was considered: such a row carries nothing
+//     a caller could render or address, so dropping it loses no reachable
+//     consumer.
 func loadConsumerRepositoryEnrichmentFromCandidates(
 	ctx context.Context,
 	graph GraphQuery,
@@ -115,8 +145,9 @@ func loadConsumerRepositoryEnrichmentFromCandidates(
 	limit int,
 	candidates []provisioningRepositoryCandidate,
 	candidatesTruncated bool,
+	evidenceFilesTruncated bool,
 ) (consumers []map[string]any, truncated bool, err error) {
-	truncated = candidatesTruncated
+	truncated = candidatesTruncated || evidenceFilesTruncated
 	trimmedHostnames := normalizedIndirectEvidenceHostnames(hostnames)
 	if limit > 0 {
 		var hostnamesTruncated bool
@@ -124,6 +155,15 @@ func loadConsumerRepositoryEnrichmentFromCandidates(
 		if hostnamesTruncated {
 			truncated = true
 		}
+		// Source 3. boundedIndirectEvidenceHostnamesForService above has
+		// already capped trimmedHostnames at indirectEvidenceHostnameLimit (4)
+		// and boundedTraceEnrichmentLimit never returns below 10, so no
+		// production caller can reach this branch -- only limit in {1,2,3}
+		// does, which today means the test-only wrappers. The #5720 round-9
+		// P2-1 mutant that deleted this `truncated = true` survived the whole
+		// suite for exactly that reason; it is exercised now rather than
+		// removed, because it is what would fire first if either constant
+		// moved.
 		if len(trimmedHostnames) > limit {
 			trimmedHostnames = trimmedHostnames[:limit]
 			truncated = true

@@ -210,8 +210,9 @@ func TestTraceDeploymentChainDisclosesProvisioningReadTruncation(t *testing.T) {
 // is the #5720 round-8 P1-1 regression.
 //
 // Round 7 wired consumer_repositories_truncated to the bool
-// loadConsumerRepositoryEnrichmentFromCandidates returns, which ORs five
-// sources. Nothing in the suite held that wiring in place. Replacing the
+// loadConsumerRepositoryEnrichmentFromCandidates returns, which ORed five
+// sources at the time (seven as of round 9). Nothing in the suite held that
+// wiring in place. Replacing the
 // returned bool at the production call site with the upstream
 // candidatesTruncated -- one line, discarding sources 2, 2b, 3, 4 and 5, which
 // is exactly the set rounds 7 and 8 found missing -- left every test green:

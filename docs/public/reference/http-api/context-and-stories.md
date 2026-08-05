@@ -556,20 +556,25 @@ required because the reads that feed those lists are bounded at 25 rows by
 default while the rendered lists are capped at 50, so a genuinely truncated
 read can never surface through a count-versus-limit comparison alone. The
 bounds folded into these flags are the provisioning-candidate graph read, the
+service evidence file read that every observed hostname is extracted from, the
 hostname affinity filter that keeps only hostnames carrying a distinctive token
 from the service's own name, the four-hostname cap applied to whatever survives
 that filter, the cut that applies when the surviving hostname set still exceeds
 the caller's requested limit, each per-search content row cap, and the final
 merge cap over the combined set. `consumer_repositories_truncated` covers all
-six; the other two flags carry the provisioning-candidate graph read only.
+seven; the other two flags carry the provisioning-candidate graph read only,
+which is the only one of the seven that bounds the lists they describe.
 
 Treat these flags as "the read underneath was bounded", not as "rows were
-definitely dropped". Two conditions make them true when nothing was lost. A
+definitely dropped". Three conditions make them true when nothing was lost. A
 per-search content read that returns exactly its row cap is reported as
 truncated, because that read carries no over-fetch probe and cannot distinguish
-"exactly the cap" from "the cap plus more". And a scoped token receives flags
-computed from the pre-authorization read (see below), which can fire on rows the
-caller was never entitled to. Both err toward disclosure: a false claim of
+"exactly the cap" from "the cap plus more". A repository with more than 5,000
+indexed files reports `consumer_repositories_truncated` whether or not the files
+past that bound held any hostname at all, because the bound is on files and the
+hostnames are derived from them. And a scoped token receives flags computed from
+the pre-authorization read (see below), which can fire on rows the caller was
+never entitled to. All three err toward disclosure: a false claim of
 completeness is the worse failure for an evidence-backed answer.
 
 The same three signals drive `result_limits.truncated` on service story,

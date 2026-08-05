@@ -285,7 +285,7 @@ func TestLoadConsumerRepositoryEnrichmentFromCandidatesBreaksTiesByRepoID(t *tes
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			consumers, _, err := loadConsumerRepositoryEnrichmentFromCandidates(
-				t.Context(), nil, nil, "repository:orders", "orders-api", nil, 0, candidates, false,
+				t.Context(), nil, nil, "repository:orders", "orders-api", nil, 0, candidates, false, false,
 			)
 			if err != nil {
 				t.Fatalf("loadConsumerRepositoryEnrichmentFromCandidates() error = %v", err)
@@ -368,7 +368,7 @@ func buildDeterminismServiceStoryPayloadHash(t *testing.T, shuffle bool) string 
 	attachDirectPlatforms(topology.instances, platformResult.rows)
 
 	consumers, _, err := loadConsumerRepositoryEnrichmentFromCandidates(
-		t.Context(), nil, nil, repoID, "orders-api", nil, 0, candidates, false,
+		t.Context(), nil, nil, repoID, "orders-api", nil, 0, candidates, false, false,
 	)
 	if err != nil {
 		t.Fatalf("loadConsumerRepositoryEnrichmentFromCandidates() error = %v", err)

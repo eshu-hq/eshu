@@ -180,9 +180,12 @@ Still uncovered, stated plainly rather than implied closed:
   disclosed. Re-verified in round 8: that function appends `entry`
   unconditionally, so the repository always appears and only its nested
   evidence is clipped.
-- `serviceEvidenceFileLimit` is a generic shared upstream evidence bound rather
-  than a consumer-set bound. It is the natural edge of this enumeration and is
-  not disclosed.
+- ~~`serviceEvidenceFileLimit` is a generic shared upstream evidence bound
+  rather than a consumer-set bound. It is the natural edge of this enumeration
+  and is not disclosed.~~ **Wrong; corrected in round 9 below.** It is a
+  consumer-set bound. The sentence described what the limit counts (files) and
+  concluded from that what it drops (nothing reachable), which does not follow:
+  the hostnames are extracted from those files.
 - A per-search content read that returns exactly its row cap is reported as
   truncated. That read carries no over-fetch probe, so "exactly limit" and
   "limit plus more" are indistinguishable; the conservative direction is
@@ -332,6 +335,102 @@ No-Regression Evidence: round 8 adds one boolean OR in
 `boundedIndirectEvidenceHostnamesForService` and one string suffix in a
 findings summary. No query shape, anchor, index, or row bound changed, so the
 no-measurable-regression statement above still holds unchanged.
+
+No-Observability-Change: no span, metric, label, or log event was added or
+altered.
+
+## Round 9: a seventh source, and a bound that was structurally dead
+
+**Source 0 — the service evidence file read.** `loadServiceQueryEvidence`
+called `ListRepoFiles(ctx, repoID, serviceEvidenceFileLimit)` — 5000, a real
+SQL `LIMIT` with `ORDER BY relative_path` in `ContentReader.ListRepoFiles`.
+Every hostname the service surfaces is extracted from those files, and those
+hostnames are what `searchConsumerEvidenceAnyRepo` searches other repositories
+for. A hostname living only in a file past the cut is never extracted, so a
+consumer repository reachable only through it never enters the merged set.
+That is the criterion rounds 7 and 8 used to justify disclosing sources 2 and
+2b, applied one read further upstream.
+
+It was worse placed than the others: no over-fetch probe, no `len(files) >=
+limit` check, and `loadServiceQueryEvidence` returned
+`(ServiceQueryEvidence, error)` with no field a truncation signal could ride
+out on. It could not reach any flag even in principle. The *Still uncovered*
+entry above dismissed it as "a generic shared upstream evidence bound rather
+than a consumer-set bound" — reasoning from what the limit counts to what it
+drops, which is exactly the step that let it hide through four rounds.
+
+The fix follows the in-package `repositoryTreeFileLimit+1` precedent
+(`repository_tree.go`): `listServiceEvidenceFiles` probes
+`serviceEvidenceFileLimit+1`, trims back to the bound, and reports a bool that
+lands on a new unexported `ServiceQueryEvidence.filesTruncated`.
+`enrichServiceQueryContextWithOptions` threads it into
+`loadConsumerRepositoryEnrichmentFromCandidates` as a new
+`evidenceFilesTruncated` parameter, numbered source 0 because 1 through 5 are
+referenced by number elsewhere in the package.
+
+It is fed only to `consumer_repositories_truncated`. `dependents_truncated`
+and `provisioning_source_chains_truncated` both derive from the candidate
+slice, which this read does not touch, so ORing it into them would stamp a
+bound that never applied to those lists.
+
+**Source 3 was structurally dead in production.** The mutant deleting
+`truncated = true` from the `trimmedHostnames[:limit]` cut survived the full
+suite. `boundedIndirectEvidenceHostnamesForService` has already capped the list
+at `indirectEvidenceHostnameLimit` (4), and every production limit comes from
+`boundedTraceEnrichmentLimit`, whose smallest result is 10
+(`defaultIndirectEvidenceSearchLimit` = 25 when `MaxDepth` is unset, otherwise
+`MaxDepth` x 10 clamped to `maxIndirectEvidenceSearchLimit` = 100). The branch
+therefore needs a limit of 1, 2, or 3, which today only the test-only
+`loadConsumerRepositoryEnrichment` / `...WithLimit` wrappers can supply. The
+direction is safe — over-disclosure, never a false negative — but the code
+enumeration and the public reference both presented it as a live bound. It is
+now exercised by a regression rather than removed, because it is what would
+start firing first if either constant moved, and the unreachability is stated
+where the source is enumerated.
+
+**Also named, not folded in.** The `repoID == "" || repoName == ""` skip in
+`queryProvisioningRepositoryCandidates` drops only rows the graph returned
+without an identity. Such a row carries nothing a caller could render or
+address, so dropping it loses no reachable consumer. It was previously
+unnamed; it is named on the enumeration now so the next round does not have to
+rediscover that it was considered. `repositorySemanticEntityLimit` stays
+undisclosed on the reasoning already recorded above.
+
+Both round-9 fixes were proven by mutation. Every mutant was killed by an
+assertion, not a compile error:
+
+- `serviceEvidenceFileLimit+1` reverted to `serviceEvidenceFileLimit` in
+  `listServiceEvidenceFiles` reds
+  `TestLoadServiceQueryEvidenceDisclosesTheFileListBound/a_full_page_discloses,_and_the_overflow_hostname_is_gone`
+  and
+  `TestTraceDeploymentChainDisclosesTheServiceEvidenceFileBound/a_full_evidence_file_page_discloses_only_the_consumer_flag`.
+- Dropping `|| evidenceFilesTruncated` from
+  `loadConsumerRepositoryEnrichmentFromCandidates` reds
+  `TestLoadConsumerRepositoryEnrichmentDisclosesTheServiceEvidenceFileBound`
+  and the same trace subtest.
+- Passing a literal `false` instead of `evidence.filesTruncated` at the
+  production call site in `service_query_enrichment.go` reds only the trace
+  subtest — the wiring case is the only thing holding that line in place, the
+  same gap round 8 found for the per-search cap.
+- Deleting `truncated = true` from the source-3 cut reds
+  `TestLoadConsumerRepositoryEnrichmentDisclosesTheHostnameLimitCut` and
+  nothing else. Before this round it reds nothing at all.
+
+The file-bound regression seeds the same corpus one file apart, so the only
+variable is which side of the cut the single hostname-bearing file lands on.
+The shorter half asserts the hostname IS extracted, which is what stops the
+longer half from passing because the fixture never produced a hostname.
+
+Newly-disclosed false positive, carried into the public reference alongside the
+two round-8 ones: a repository with more than 5000 indexed files now reports
+`consumer_repositories_truncated` whether or not the files past the bound held
+any hostname. The bound is on files; the hostnames are derived from them, and
+the read cannot tell which of the two happened.
+
+No-Regression Evidence: round 9 adds one `+1` to an existing `LIMIT` argument,
+one boolean OR, and one parameter. The file read fetches at most one extra row
+and trims it before any loop; no query shape, anchor, index, or terminal row
+bound changed, so the no-measurable-regression statement above holds unchanged.
 
 No-Observability-Change: no span, metric, label, or log event was added or
 altered.

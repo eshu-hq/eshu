@@ -188,7 +188,7 @@ func TestLoadConsumerRepositoryEnrichmentFromCandidatesDisclosesTruncation(t *te
 			{RepoID: "repository:consumer-1", RepoName: "consumer-1", RelationshipTypes: []string{"USES_MODULE"}},
 		}
 		_, truncated, err := loadConsumerRepositoryEnrichmentFromCandidates(
-			context.Background(), nil, nil, "repository:orders", "orders-api", nil, 5, candidates, true,
+			context.Background(), nil, nil, "repository:orders", "orders-api", nil, 5, candidates, true, false,
 		)
 		if err != nil {
 			t.Fatalf("loadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
@@ -204,7 +204,7 @@ func TestLoadConsumerRepositoryEnrichmentFromCandidatesDisclosesTruncation(t *te
 			{RepoID: "repository:consumer-1", RepoName: "consumer-1", RelationshipTypes: []string{"USES_MODULE"}},
 		}
 		_, truncated, err := loadConsumerRepositoryEnrichmentFromCandidates(
-			context.Background(), nil, nil, "repository:orders", "orders-api", nil, 5, candidates, false,
+			context.Background(), nil, nil, "repository:orders", "orders-api", nil, 5, candidates, false, false,
 		)
 		if err != nil {
 			t.Fatalf("loadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
@@ -222,7 +222,7 @@ func TestLoadConsumerRepositoryEnrichmentFromCandidatesDisclosesTruncation(t *te
 			{RepoID: "repository:consumer-3", RepoName: "consumer-3", RelationshipTypes: []string{"USES_MODULE"}},
 		}
 		consumers, truncated, err := loadConsumerRepositoryEnrichmentFromCandidates(
-			context.Background(), nil, nil, "repository:orders", "orders-api", nil, 2, candidates, false,
+			context.Background(), nil, nil, "repository:orders", "orders-api", nil, 2, candidates, false, false,
 		)
 		if err != nil {
 			t.Fatalf("loadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
@@ -368,7 +368,7 @@ func TestLoadConsumerRepositoryEnrichmentDisclosesUpstreamHostnameAndSearchBound
 		}
 		consumers, truncated, err := loadConsumerRepositoryEnrichmentFromCandidates(
 			context.Background(), nil, fakePortContentStore{}, "repository:orders", "orders-api",
-			hostnames, defaultIndirectEvidenceSearchLimit, oneCandidate, false,
+			hostnames, defaultIndirectEvidenceSearchLimit, oneCandidate, false, false,
 		)
 		if err != nil {
 			t.Fatalf("loadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
@@ -420,7 +420,7 @@ func TestLoadConsumerRepositoryEnrichmentDisclosesUpstreamHostnameAndSearchBound
 		// The signal has to survive the call that actually reaches the wire.
 		consumers, truncated, err := loadConsumerRepositoryEnrichmentFromCandidates(
 			context.Background(), nil, fakePortContentStore{}, "repository:orders", "orders-api",
-			hostnames, defaultIndirectEvidenceSearchLimit, oneCandidate, false,
+			hostnames, defaultIndirectEvidenceSearchLimit, oneCandidate, false, false,
 		)
 		if err != nil {
 			t.Fatalf("loadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
@@ -452,7 +452,7 @@ func TestLoadConsumerRepositoryEnrichmentDisclosesUpstreamHostnameAndSearchBound
 		}
 		consumers, truncated, err := loadConsumerRepositoryEnrichmentFromCandidates(
 			context.Background(), nil, content, "repository:orders", "orders-api",
-			nil, limit, oneCandidate, false,
+			nil, limit, oneCandidate, false, false,
 		)
 		if err != nil {
 			t.Fatalf("loadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)
@@ -476,7 +476,7 @@ func TestLoadConsumerRepositoryEnrichmentDisclosesUpstreamHostnameAndSearchBound
 		}
 		_, truncated, err := loadConsumerRepositoryEnrichmentFromCandidates(
 			context.Background(), nil, content, "repository:orders", "orders-api",
-			nil, limit, oneCandidate, false,
+			nil, limit, oneCandidate, false, false,
 		)
 		if err != nil {
 			t.Fatalf("loadConsumerRepositoryEnrichmentFromCandidates() error = %v, want nil", err)

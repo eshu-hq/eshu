@@ -21,6 +21,27 @@ type serviceEvidenceReader interface {
 
 const serviceEvidenceFileLimit = 5000
 
+// listServiceEvidenceFiles reads the repository file list every service
+// evidence field is extracted from, probing one row past
+// serviceEvidenceFileLimit so a full page can be told apart from a repository
+// holding exactly that many indexed files. ListRepoFiles is a real SQL
+// `ORDER BY relative_path LIMIT $2` (ContentReader.ListRepoFiles), so a file
+// past the cut is never read, no hostname inside it is ever extracted, and a
+// consumer repository reachable only through that hostname never enters the
+// merged consumer set -- source 0 of the enumeration on
+// loadConsumerRepositoryEnrichmentFromCandidates. The +1 mirrors
+// repositoryTreeFileLimit+1 in repository_tree.go.
+func listServiceEvidenceFiles(ctx context.Context, reader serviceEvidenceReader, repoID string) ([]FileContent, bool, error) {
+	files, err := reader.ListRepoFiles(ctx, repoID, serviceEvidenceFileLimit+1)
+	if err != nil {
+		return nil, false, fmt.Errorf("list service evidence files: %w", err)
+	}
+	if len(files) > serviceEvidenceFileLimit {
+		return files[:serviceEvidenceFileLimit], true, nil
+	}
+	return files, false, nil
+}
+
 var openAPIMethodNames = map[string]struct{}{
 	"get": {}, "put": {}, "post": {}, "delete": {}, "patch": {}, "options": {}, "head": {}, "trace": {},
 }
@@ -35,12 +56,12 @@ func loadServiceQueryEvidence(
 		return ServiceQueryEvidence{}, nil
 	}
 
-	files, err := reader.ListRepoFiles(ctx, repoID, serviceEvidenceFileLimit)
+	files, filesTruncated, err := listServiceEvidenceFiles(ctx, reader, repoID)
 	if err != nil {
-		return ServiceQueryEvidence{}, fmt.Errorf("list service evidence files: %w", err)
+		return ServiceQueryEvidence{}, err
 	}
 
-	var evidence ServiceQueryEvidence
+	evidence := ServiceQueryEvidence{filesTruncated: filesTruncated}
 	seenHostnames := map[string]struct{}{}
 	seenEntrypointCandidates := map[string]struct{}{}
 	seenEnvironments := map[string]struct{}{}
