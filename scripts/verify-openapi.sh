@@ -41,10 +41,6 @@ scan_dirs=()
 gofiles_tmp="${tmpdir}/gofiles.txt"
 : > "$gofiles_tmp"
 for dir in "${scan_dirs[@]}"; do
-  # "|| true": unlike `find`, `rg --files` exits 1 (not 0) when a directory
-  # has zero matching files -- under `set -e` that would abort the whole
-  # script instead of just producing an empty file list for this dir.
-  #
   # "--max-depth 1" keeps a subpackage of a scan dir from being searched for
   # routes it does not own; "!openapi_*.go" keeps the OpenAPI component and
   # schema files (11 of them under $query_dir today) from being read as
@@ -52,9 +48,32 @@ for dir in "${scan_dirs[@]}"; do
   # All three are pinned by fixtures in
   # scripts/lib/test-verify-openapi-scan-scope-cases.sh and
   # scripts/test-verify-openapi.sh.
+  #
+  # rg --files exits 1 (not 0, unlike `find`) when a directory has zero
+  # matching files -- expected, and swallowed below -- and 2 for a hard error
+  # (an unreadable directory, a rejected flag). A blanket "|| true" used to
+  # swallow both alike, so a hard rg failure silently produced an empty Go
+  # file list and let the gate report "OpenAPI surface clean" instead of
+  # failing (#5934 review). Capture the exit code directly and treat anything
+  # above 1 as fatal -- the same fail-closed shape already used for the
+  # known-drift scan below.
+  set +e
   rg --files --max-depth 1 -g '*.go' -g '!*_test.go' -g '!openapi_*.go' \
-    "$dir" 2>/dev/null \
-  >> "$gofiles_tmp" || true
+    "$dir" 2>"${tmpdir}/scan_dir_err.txt" \
+  >> "$gofiles_tmp"
+  scan_dir_rc=$?
+  set -e
+  if [ "$scan_dir_rc" -gt 1 ]; then
+    echo "GO FILE SCAN FAILED: ${dir}"
+    echo ""
+    cat "${tmpdir}/scan_dir_err.txt" >&2
+    echo "rg exited ${scan_dir_rc} instead of 0 (files found) or 1 (no"
+    echo "matching files) while listing Go files under ${dir}. Treating this"
+    echo "as a gate failure instead of silently scanning zero files -- an"
+    echo "unreadable directory or a rejected pattern must not look the same"
+    echo "as \"this directory has no Go files.\""
+    exit 1
+  fi
 done
 
 # When no Go files exist, rg with empty args would search $PWD. Use /dev/null
@@ -174,6 +193,17 @@ if [ -f "$known_drift_file" ]; then
   # never trip these rules with no escape hatch (#5762 follow-up). The
   # trailing "s?\b" lets the plural "TODOs" match while stopping "WIP" from
   # matching inside an unrelated word like "wipes".
+  #
+  # The plain "\b" word-boundary escape below needs no minimum ripgrep/regex
+  # version (#5934 review raised this as a P2 -- an older rg on, e.g., Ubuntu
+  # 22.04 might exit 2 on it). That confuses "\b" with the NEWER "\<", "\>",
+  # "\b{start-half}", and "\b{end-half}" boundary forms the regex crate added
+  # in 1.10.0 (2023-10-09); 1.9.0 (2023-07-05) only fixed matching BUGS in the
+  # existing "\b"/"\B", it did not introduce them. Proven directly: both
+  # patterns on this and the next line, run against ripgrep 13.0.0 (Ubuntu
+  # 22.04's shipped version, via `apt-get install ripgrep` in an
+  # `ubuntu:22.04` container), exit 0 on a match and 1 on no match -- the same
+  # as on this repo's rg 15.2.0, never 2. No version guard is needed.
   known_drift_marker_pattern='^[[:space:]]*#.*\b(TO[-_ ]?DO|FIXME|XXX|HACK|TBD|WIP)s?\b'
   known_drift_prose_pattern='^[[:space:]]*#.*(not[[:space:]]+written|written[[:space:]]+yet|not[[:space:]]+yet[[:space:]]+written|\bpending\b|\bpredate[sd]?\b|\blater\b|to be (added|written))'
 

@@ -65,3 +65,69 @@ GOEOF
 
   run_verifier "$dir" "HandleFunc inside a scan-dir subpackage is excluded from the scan, exits 0" "pass"
 }
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Test 10e — red: an rg hard error (exit 2) while collecting Go files from a
+# scan dir must fail the gate closed, not silently scan zero files (#5934
+# review). The collection loop used to blanket "|| true" this rg call, which
+# swallows exit 1 (expected: "no matching files in this dir") and exit 2 (a
+# hard error: unreadable directory, a rejected flag) identically -- so a
+# corrupted or unreadable scan silently produced an empty Go file list, and
+# the gate reported "OpenAPI surface clean" even though the undocumented
+# route below sat right there, unscanned, because scanning it never actually
+# ran. Proven with a PATH-shimmed rg that exits 2 whenever invoked with
+# "--files" -- the collection step's own signature. Every other rg call in
+# this script uses "-o" extraction instead, so the shim never touches them
+# (confirmed: `rg -n -- '--files' scripts/verify-openapi.sh` matches exactly
+# the one line this test targets). Reaches directly into $tmp_root and
+# $verifier (defined by the sourcing script) the same way the known-drift
+# hard-error tests in the sibling cases file do, because this needs a shimmed
+# PATH that run_verifier() has no parameter for.
+# shellcheck disable=SC2154 # tmp_root, verifier: defined by the sourcing script
+test_scan_dir_rg_hard_error_fails_closed_red() {
+  local dir shim_dir verifier_tmp code real_rg
+
+  dir="$(setup_repo "scan-dir-rg-hard-error")"
+
+  write_handler "$dir" "h.go" \
+    'func (h *H) Mount(mux *http.ServeMux) {' \
+    '	mux.HandleFunc("POST /api/v0/items", h.createItem)' \
+    '}'
+  # Deliberately no openapi_paths_*.go file: with a working scan, the
+  # undocumented "POST /api/v0/items" route is exactly what MISSING_OPENAPI
+  # exists to catch. If the scan silently sees zero files instead, there is
+  # nothing left to cross-reference on either side and the gate goes green.
+
+  shim_dir="${tmp_root}/rg-shim-scan-dir-hard-error"
+  mkdir -p "$shim_dir"
+  real_rg="$(command -v rg)"
+  # The single-quoted lines below are literal shell source being written to
+  # the shim file, not variables to expand in THIS script.
+  # shellcheck disable=SC2016
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'for arg in "$@"; do\n'
+    printf '  [ "$arg" = "--files" ] && exit 2\n'
+    printf 'done\n'
+    printf 'exec %q "$@"\n' "$real_rg"
+  } > "${shim_dir}/rg"
+  chmod +x "${shim_dir}/rg"
+
+  verifier_tmp="${tmp_root}/verifier-tmp-scan-dir-hard-error"
+  mkdir -p "$verifier_tmp"
+
+  set +e
+  PATH="${shim_dir}:${PATH}" \
+    ESHU_OPENAPI_VERIFY_REPO_ROOT="$dir" \
+    ESHU_OPENAPI_VERIFY_TMPDIR="$verifier_tmp" \
+    bash "$verifier" \
+    > "${tmp_root}/scan-dir-hard-error-stdout" 2> "${tmp_root}/scan-dir-hard-error-stderr"
+  code=$?
+  set -e
+
+  if [ "$code" -ne 0 ] && ! rg -q 'OpenAPI surface clean' "${tmp_root}/scan-dir-hard-error-stdout"; then
+    record_pass "rg hard error (exit 2) collecting Go files makes the gate fail closed instead of reporting a clean surface"
+  else
+    record_fail "rg hard error (exit 2) collecting Go files makes the gate fail closed instead of reporting a clean surface (code=$code)"
+  fi
+}
