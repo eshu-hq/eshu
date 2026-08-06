@@ -27,9 +27,16 @@ env:
   ESHU_GRAPH_BACKEND: nornicdb
   DEFAULT_DATABASE: nornic
   NEO4J_DATABASE: nornic
+nornicdb:
+  capabilities:
+    relationshipMergePropertyIdentity: true
 neo4j:
   uri: bolt://nornicdb.platform.svc.cluster.local:7687
 ```
+
+The capability acknowledgement is required for external NornicDB endpoints as
+well as the bundled deployment. Set it only after verifying the immutable
+backend build preserves relationship MERGE identity properties.
 
 Neo4j is the explicit compatibility backend:
 

@@ -1,8 +1,21 @@
 {{- if and .Values.exposure.ingress.enabled .Values.exposure.gateway.enabled -}}
 {{- fail "exposure.ingress.enabled and exposure.gateway.enabled cannot both be true" -}}
 {{- end -}}
-{{- if and .Values.nornicdb.enabled (not .Values.nornicdb.capabilities.relationshipMergePropertyIdentity) -}}
-{{- fail "nornicdb.enabled=true requires an immutable backend image that preserves relationship MERGE identity properties; replace the bundled v1.1.11 image with orneryd/NornicDB#290 or a later verified build, then set nornicdb.capabilities.relationshipMergePropertyIdentity=true" -}}
+{{- $nornicdbBackendSelected := false -}}
+{{- $graphBackendEnvMaps := list (default (dict) .Values.env) (default (dict) .Values.api.env) (default (dict) .Values.mcpServer.env) (default (dict) .Values.ingester.env) (default (dict) .Values.resolutionEngine.env) (default (dict) .Values.workflowCoordinator.env) -}}
+{{- range $envMap := $graphBackendEnvMaps -}}
+{{- if and (hasKey $envMap "ESHU_GRAPH_BACKEND") (eq (lower (trim (toString (get $envMap "ESHU_GRAPH_BACKEND")))) "nornicdb") -}}
+{{- $nornicdbBackendSelected = true -}}
+{{- end -}}
+{{- end -}}
+{{- range $lane := default (list) .Values.resolutionEngine.lanes -}}
+{{- $laneEnv := default (dict) $lane.env -}}
+{{- if and (hasKey $laneEnv "ESHU_GRAPH_BACKEND") (eq (lower (trim (toString (get $laneEnv "ESHU_GRAPH_BACKEND")))) "nornicdb") -}}
+{{- $nornicdbBackendSelected = true -}}
+{{- end -}}
+{{- end -}}
+{{- if and $nornicdbBackendSelected (not .Values.nornicdb.capabilities.relationshipMergePropertyIdentity) -}}
+{{- fail "ESHU_GRAPH_BACKEND=nornicdb requires a backend that preserves relationship MERGE identity properties; verify the selected external or bundled endpoint uses orneryd/NornicDB#290 or a later compatible build, then set nornicdb.capabilities.relationshipMergePropertyIdentity=true" -}}
 {{- end -}}
 {{- $generationRetentionDisabled := false -}}
 {{- $generationRetentionEnvMaps := list (default (dict) .Values.env) (default (dict) .Values.resolutionEngine.env) -}}

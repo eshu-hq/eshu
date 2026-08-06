@@ -21,13 +21,20 @@ For bundled no-auth NornicDB, set `neo4j.auth.secretName=""`. Eshu still renders
 literal Bolt client credentials because the shared client config rejects empty
 auth fields even when the backend does not enforce auth.
 
+## NornicDB Compatibility Acknowledgement
+
+Whenever any rendered workload selects `ESHU_GRAPH_BACKEND=nornicdb`, the chart
+fails closed unless
+`nornicdb.capabilities.relationshipMergePropertyIdentity=true`. This applies to
+platform-owned external Bolt endpoints as well as the bundled Deployment. Set
+the acknowledgement only after verifying the selected immutable backend build
+includes orneryd/NornicDB#290 or a later compatible implementation.
+
 ## Bundled NornicDB
 
 `nornicdb.enabled=false` by default. When enabled, the chart renders one
-NornicDB Deployment, Service, and optional PVC. The render fails closed unless
-`nornicdb.capabilities.relationshipMergePropertyIdentity=true`; set that value
-only after replacing the default image with an immutable build that includes
-orneryd/NornicDB#290 or a later verified equivalent.
+NornicDB Deployment, Service, and optional PVC. Replace the default image with
+an immutable compatible build before enabling the capability acknowledgement.
 
 Key defaults: image repository `timothyswt/nornicdb-cpu-bge`, image tag
 `v1.1.11@sha256:51b6174ae65e4ce54a158ac2f9eace7d36a1971545824d22add0fe06d94c1090`,

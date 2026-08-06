@@ -1093,8 +1093,9 @@ neo4j:
 nornicdb:
   enabled: false
   # The bundled v1.1.11 default does not satisfy this capability. Keep false
-  # unless image.tag is replaced with an immutable build that preserves
-  # relationship MERGE identity properties (orneryd/NornicDB#290 or later).
+  # unless every selected external or bundled NornicDB endpoint uses an
+  # immutable build that preserves relationship MERGE identity properties
+  # (orneryd/NornicDB#290 or later).
   capabilities:
     relationshipMergePropertyIdentity: false
   image:

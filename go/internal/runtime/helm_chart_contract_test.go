@@ -25,10 +25,19 @@ type helmManifest map[string]any
 // empty-password failure path is asserted explicitly elsewhere.
 const defaultHelmNeo4jPassword = "Eshu-Helm-Test-1"
 
-// helmRenderArgs prepends the default compliant Neo4j password to caller args so
-// the shared render helpers never trip the chart's password gate by accident.
+// defaultHelmNornicDBRelationshipIdentity acknowledges the verified NornicDB
+// capability in ordinary contract renders. Tests for incompatible external and
+// bundled backends override it to false explicitly.
+const defaultHelmNornicDBRelationshipIdentity = "nornicdb.capabilities.relationshipMergePropertyIdentity=true"
+
+// helmRenderArgs prepends contract-safe password and NornicDB capability values
+// so shared render helpers do not trip unrelated fail-closed gates. Targeted
+// failure tests override either value explicitly.
 func helmRenderArgs(args ...string) []string {
-	prefixed := []string{"--set-string", "neo4j.auth.password=" + defaultHelmNeo4jPassword}
+	prefixed := []string{
+		"--set-string", "neo4j.auth.password=" + defaultHelmNeo4jPassword,
+		"--set", defaultHelmNornicDBRelationshipIdentity,
+	}
 	return append(prefixed, args...)
 }
 

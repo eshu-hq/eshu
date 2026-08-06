@@ -84,6 +84,7 @@ func TestHelmBundledNornicDBRequiresRelationshipMergePropertyIdentity(t *testing
 	output := renderHelmChartFailure(
 		t,
 		"--set", "nornicdb.enabled=true",
+		"--set", "nornicdb.capabilities.relationshipMergePropertyIdentity=false",
 		"--set", "schemaBootstrap.useHelmHooks=false",
 	)
 	if !strings.Contains(
@@ -92,6 +93,53 @@ func TestHelmBundledNornicDBRequiresRelationshipMergePropertyIdentity(t *testing
 	) {
 		t.Fatalf("helm compatibility error = %q, want relationship identity requirement", output)
 	}
+}
+
+func TestHelmExternalNornicDBRequiresRelationshipMergePropertyIdentity(t *testing.T) {
+	t.Parallel()
+
+	output := renderHelmChartFailure(
+		t,
+		"--set", "nornicdb.enabled=false",
+		"--set", "env.ESHU_GRAPH_BACKEND=nornicdb",
+		"--set", "nornicdb.capabilities.relationshipMergePropertyIdentity=false",
+		"--set", "schemaBootstrap.useHelmHooks=false",
+	)
+	if !strings.Contains(
+		output,
+		"nornicdb.capabilities.relationshipMergePropertyIdentity=true",
+	) {
+		t.Fatalf("helm compatibility error = %q, want external NornicDB relationship identity requirement", output)
+	}
+}
+
+func TestHelmResolutionEngineNornicDBOverrideRequiresRelationshipMergePropertyIdentity(t *testing.T) {
+	t.Parallel()
+
+	output := renderHelmChartFailure(
+		t,
+		"--set", "env.ESHU_GRAPH_BACKEND=neo4j",
+		"--set", "resolutionEngine.env.ESHU_GRAPH_BACKEND=nornicdb",
+		"--set", "nornicdb.capabilities.relationshipMergePropertyIdentity=false",
+		"--set", "schemaBootstrap.useHelmHooks=false",
+	)
+	if !strings.Contains(
+		output,
+		"nornicdb.capabilities.relationshipMergePropertyIdentity=true",
+	) {
+		t.Fatalf("helm compatibility error = %q, want workload NornicDB relationship identity requirement", output)
+	}
+}
+
+func TestHelmNeo4jBackendDoesNotRequireNornicDBRelationshipMergePropertyIdentity(t *testing.T) {
+	t.Parallel()
+
+	renderHelmChart(
+		t,
+		"--set", "env.ESHU_GRAPH_BACKEND=neo4j",
+		"--set", "nornicdb.capabilities.relationshipMergePropertyIdentity=false",
+		"--set", "schemaBootstrap.useHelmHooks=false",
+	)
 }
 
 func TestHelmBundledNornicDBRejectsInvalidBindAddressShape(t *testing.T) {
