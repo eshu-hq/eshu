@@ -35,6 +35,7 @@ absolute server paths are not portable client identifiers.
 | `POST /api/v0/code/quality/inspect` | Complexity, function length, argument count, or refactoring-candidate inspections. |
 | `POST /api/v0/code/language-query` | Language/entity-type queries that do not fit the focused routes above. |
 | `POST /api/v0/code/cypher` | Diagnostics-only bounded read-only Cypher. |
+| `POST /api/v0/code/visualize` | Diagnostics-only bounded read-only Cypher, projected into a renderable visualization packet instead of raw rows. |
 | `POST /api/v0/code/bundles` | Search the pre-indexed package registry catalog (package bundles) by name, namespace, or PURL. |
 
 ## Search And Discovery

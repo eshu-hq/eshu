@@ -1,17 +1,38 @@
-# Known OpenAPI drift — routes that are intentionally excluded from the
-# OpenAPI surface or that predate this verifier.
+# Known OpenAPI drift — routes that are intentionally, permanently NOT part of
+# the OpenAPI API surface: the scanner cannot resolve a runtime-computed
+# METHOD/path, or the route serves something other than an API operation (a
+# documentation UI, a non-API discovery document). This file is a permanent
+# exclusion list, not a backlog: an entry here asserts "this route is not
+# OpenAPI," never that its OpenAPI fragment simply does not exist in the
+# codebase (#5762 -- POST /api/v0/code/visualize sat here under that second,
+# false claim from #3781 until it got a real openapi_paths_code_graph.go
+# entry). Because of that history, scripts/verify-openapi.sh enforces rules
+# on this file: no comment line may contain one of a fixed set of deferral
+# markers (a closed, conventional token set) or one of a fixed, best-effort
+# list of prose deferral phrases -- neither list is exhaustive of every way a
+# deferral could be phrased in English, only of the shapes already seen (see
+# the script for the exact word lists -- inlining them here would make this
+# explanation trip its own check), and every route entry must be preceded by
+# its own non-empty, substantive comment justifying it; a justification
+# cannot be shared across a group of routes.
 #
-# Format: METHOD /path (one per line, comments start with #)
+# Format: METHOD /path (one per line, comments start with #). A route line
+# must contain nothing but "METHOD /path" -- no trailing inline "# ..."
+# comment. The comment-line rules above are anchored to a line that starts
+# with "#", so a trailing comment on a route line is never scanned by them;
+# put the justification on its own preceding line instead.
 #
-# Documentation UIs — these serve HTML documentation, not an API surface.
+# Documentation UI — serves the interactive Swagger/OpenAPI HTML page, not an
+# API surface.
 GET /api/v0/docs
+# Documentation UI — serves the ReDoc HTML viewer, not an API surface.
 GET /api/v0/redoc
-# TODO(#3781): add openapi_paths_code_visualize fragment for this route.
-POST /api/v0/code/visualize
 # RFC 9728 OAuth 2.0 Protected Resource Metadata (#5163, F-2). Served on the MCP
 # origin's unauthenticated well-known surface, not the /api/v0 API — it is a
 # discovery document (authorization_servers, resource) consumed by OAuth
 # clients, not an API operation, so it is intentionally excluded from the
 # OpenAPI paths.
 GET /.well-known/oauth-protected-resource
+# RFC 9728 OAuth 2.0 Protected Resource Metadata (#5163, F-2), templated form.
+# Same discovery-document rationale as the entry above.
 GET /.well-known/oauth-protected-resource/{rest...}

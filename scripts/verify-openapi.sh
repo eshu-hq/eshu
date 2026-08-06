@@ -41,11 +41,39 @@ scan_dirs=()
 gofiles_tmp="${tmpdir}/gofiles.txt"
 : > "$gofiles_tmp"
 for dir in "${scan_dirs[@]}"; do
-  find "$dir" -maxdepth 1 -name '*.go' \
-    ! -name '*_test.go' \
-    ! -name 'openapi_*.go' \
-    2>/dev/null \
+  # "--max-depth 1" keeps a subpackage of a scan dir from being searched for
+  # routes it does not own; "!openapi_*.go" keeps the OpenAPI component and
+  # schema files (11 of them under $query_dir today) from being read as
+  # HandleFunc sources; "!*_test.go" keeps a test helper's throwaway mux out.
+  # All three are pinned by fixtures in
+  # scripts/lib/test-verify-openapi-scan-scope-cases.sh and
+  # scripts/test-verify-openapi.sh.
+  #
+  # rg --files exits 1 (not 0, unlike `find`) when a directory has zero
+  # matching files -- expected, and swallowed below -- and 2 for a hard error
+  # (an unreadable directory, a rejected flag). A blanket "|| true" used to
+  # swallow both alike, so a hard rg failure silently produced an empty Go
+  # file list and let the gate report "OpenAPI surface clean" instead of
+  # failing (#5934 review). Capture the exit code directly and treat anything
+  # above 1 as fatal -- the same fail-closed shape already used for the
+  # known-drift scan below.
+  set +e
+  rg --files --max-depth 1 -g '*.go' -g '!*_test.go' -g '!openapi_*.go' \
+    "$dir" 2>"${tmpdir}/scan_dir_err.txt" \
   >> "$gofiles_tmp"
+  scan_dir_rc=$?
+  set -e
+  if [ "$scan_dir_rc" -gt 1 ]; then
+    echo "GO FILE SCAN FAILED: ${dir}"
+    echo ""
+    cat "${tmpdir}/scan_dir_err.txt" >&2
+    echo "rg exited ${scan_dir_rc} instead of 0 (files found) or 1 (no"
+    echo "matching files) while listing Go files under ${dir}. Treating this"
+    echo "as a gate failure instead of silently scanning zero files -- an"
+    echo "unreadable directory or a rejected pattern must not look the same"
+    echo "as \"this directory has no Go files.\""
+    exit 1
+  fi
 done
 
 # When no Go files exist, rg with empty args would search $PWD. Use /dev/null
@@ -118,10 +146,224 @@ sort -u -o "$handlefunc_route_file" "$handlefunc_route_file"
 # drift. One route per line, format "METHOD /path".
 
 known_drift_file="${repo_root}/.github/openapi-known-drift.txt"
+
+# ── Known-drift file self-validation ────────────────────────────────────────
+#
+# The known-drift file is a permanent-exclusion list, not a backlog (#5762).
+# A route belongs here only when the scanner genuinely cannot resolve its
+# METHOD/path, or when the route is not an API operation at all -- never
+# because the fragment is simply missing so far. That third, unstated
+# category is exactly what let POST /api/v0/code/visualize sit here under a
+# "TODO(#3781): add ... fragment" comment for the six weeks since #3781 was
+# filed: a deferral marker or a deferral phrase is self-refuting evidence
+# that the entry is NOT a permanent, intentional exclusion, it is a
+# known-but-deferred gap wearing an exclusion entry as camouflage. Four rules
+# are enforced on every line before the file is used to suppress anything:
+#
+#   1. No COMMENT line may contain a TODO/TO-DO/FIXME/XXX/HACK/TBD/WIP
+#      deferral marker (case-insensitive; matches the plural form too, e.g.
+#      "TODOs", and the hyphenated/underscored/spaced "TO-DO" spelling). Only
+#      comment lines are scanned, not route lines, so a route whose own path
+#      happens to contain one of these words (e.g. "/todo-board",
+#      "/cache/wipe") is never blocked by this rule -- it can still be
+#      excluded here with a real justification comment.
+#   2. No COMMENT line may contain a prose deferral phrase (case-insensitive)
+#      such as "not written", "written yet", "pending", "predates", "later",
+#      or "to be added/written" -- the same self-refuting signal spelled out
+#      in words instead of a marker. This is a best-effort check against a
+#      fixed phrase list, not a guarantee that every English deferral is
+#      caught: a deferral phrased in ordinary prose outside this list, or a
+#      false justification, will not be detected.
+#   3. Every route entry must be preceded by its own non-empty, substantive
+#      comment line: at least two whitespace-separated tokens, including one
+#      alphabetic word of 4+ characters, so decoration such as "####" or
+#      "# ---" cannot pass as a justification. Neither a bare route nor a
+#      bare "#" can be appended silently, and one justification cannot be
+#      shared across a group of routes.
+#   4. A justification comment may not repeat the justification immediately
+#      before it, compared after collapsing runs of ASCII whitespace and
+#      stripping one leading "#". "Cannot be shared across a group of routes"
+#      (rule 3) was enforced only by position -- a copy-pasted duplicate
+#      still counts as each route having "its own" comment line, so it slid
+#      past rule 3 (#5762 round 6, F14). Give each route its own wording, even
+#      when the underlying reason is the same for both.
+if [ -f "$known_drift_file" ]; then
+  # Anchored to "^[[:space:]]*#.*" so only comment lines are scanned -- a
+  # route path such as "/api/v0/todo-board" or "/api/v0/cache/wipe" must
+  # never trip these rules with no escape hatch (#5762 follow-up). The
+  # trailing "s?\b" lets the plural "TODOs" match while stopping "WIP" from
+  # matching inside an unrelated word like "wipes".
+  #
+  # The plain "\b" word-boundary escape below needs no minimum ripgrep/regex
+  # version (#5934 review raised this as a P2 -- an older rg on, e.g., Ubuntu
+  # 22.04 might exit 2 on it). That confuses "\b" with the NEWER "\<", "\>",
+  # "\b{start-half}", and "\b{end-half}" boundary forms the regex crate added
+  # in 1.10.0 (2023-10-09); 1.9.0 (2023-07-05) only fixed matching BUGS in the
+  # existing "\b"/"\B", it did not introduce them. Proven directly: both
+  # patterns on this and the next line, run against ripgrep 13.0.0 (Ubuntu
+  # 22.04's shipped version, via `apt-get install ripgrep` in an
+  # `ubuntu:22.04` container), exit 0 on a match and 1 on no match -- the same
+  # as on this repo's rg 15.2.0, never 2. No version guard is needed.
+  known_drift_marker_pattern='^[[:space:]]*#.*\b(TO[-_ ]?DO|FIXME|XXX|HACK|TBD|WIP)s?\b'
+  known_drift_prose_pattern='^[[:space:]]*#.*(not[[:space:]]+written|written[[:space:]]+yet|not[[:space:]]+yet[[:space:]]+written|\bpending\b|\bpredate[sd]?\b|\blater\b|to be (added|written))'
+
+  # rg exits 1 for "no match" (expected -- most known-drift files have none)
+  # and 2 for a hard error (unreadable file, a pattern the installed rg
+  # rejects). "|| true" used to swallow both alike, so a hard rg failure
+  # silently produced empty hits and let the gate print "OpenAPI surface
+  # clean" instead of failing (#5762 round 6, F7). Capture the exit code
+  # directly and treat anything above 1 as fatal.
+  set +e
+  known_drift_deferral_hits="$(rg -in "$known_drift_marker_pattern" "$known_drift_file")"
+  known_drift_marker_rc=$?
+  known_drift_prose_hits="$(rg -in "$known_drift_prose_pattern" "$known_drift_file")"
+  known_drift_prose_rc=$?
+  set -e
+  if [ "$known_drift_marker_rc" -gt 1 ] || [ "$known_drift_prose_rc" -gt 1 ]; then
+    echo "KNOWN-DRIFT SCAN FAILED: ${known_drift_file}"
+    echo ""
+    echo "rg exited with a hard error (marker scan rc=${known_drift_marker_rc},"
+    echo "prose scan rc=${known_drift_prose_rc}) instead of 0 (match) or 1 (no"
+    echo "match). Treating this as a gate failure instead of silently reporting"
+    echo "a clean surface -- an unreadable file or a pattern rg rejects must not"
+    echo "look the same as \"no known-drift entries defer themselves.\""
+    exit 1
+  fi
+
+  known_drift_unjustified=""
+  known_drift_duplicate_justifications=""
+  known_drift_prev_justification=""
+  known_drift_justified=0
+  known_drift_lineno=0
+  while IFS= read -r known_drift_line || [ -n "$known_drift_line" ]; do
+    known_drift_lineno=$((known_drift_lineno + 1))
+    known_drift_trimmed="$(printf '%s' "$known_drift_line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    if [ -z "$known_drift_trimmed" ]; then
+      known_drift_justified=0
+      continue
+    fi
+    case "$known_drift_trimmed" in
+      '#'*)
+        # A justification needs real words: at least two whitespace-separated
+        # tokens, one of which is a 4+ letter alphabetic word. A raw
+        # character count let pure decoration ("####", "# ---", "# ...")
+        # pass as "substantive" (#5762 follow-up P2-1).
+        known_drift_comment_text="${known_drift_trimmed#\#}"
+        known_drift_comment_tokens="$(printf '%s' "$known_drift_comment_text" | wc -w | tr -d ' ')"
+        if [ "$known_drift_comment_tokens" -ge 2 ] \
+          && printf '%s' "$known_drift_comment_text" | rg -q '[[:alpha:]]{4,}'; then
+          known_drift_justified=1
+          # Rule 4 normalizes ASCII whitespace and the leading "#" before
+          # comparing -- `tr -s '[:space:]' ' '` collapses runs of spaces and
+          # tabs, and the ends are trimmed -- so "#Foo" vs "# Foo" (the single
+          # leading "#" is stripped above, leaving a leading-space difference)
+          # and a doubled internal space both count as the same justification
+          # (#5762 follow-up P2-1). It is not a semantic comparison, and four
+          # near-duplicate shapes still get through, each verified by probing
+          # this script directly (#5762 round 8, P3-2):
+          #   - a case change ("# Documentation UI" vs "# documentation ui")
+          #   - U+00A0 or U+200B in place of an ASCII space, which the C-locale
+          #     [:space:] class does not cover
+          #   - "##Foo" vs "#Foo", since exactly one "#" is stripped
+          #   - a non-adjacent A,B,A repeat, since only the immediately
+          #     preceding justification is compared
+          # The A,B,A gap is documented in
+          # docs/internal/design/3738-openapi-discipline.md rule 4.
+          known_drift_comment_normalized="$(printf '%s' "$known_drift_comment_text" | tr -s '[:space:]' ' ' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+          # A copy-pasted justification still counts as "its own" comment
+          # under rule 3's positional check, so a duplicate needs its own
+          # rule (#5762 round 6, F14). Compare against the last comment that
+          # itself passed rule 3 -- an unjustified comment never updates
+          # $known_drift_prev_justification, so it cannot mask a real
+          # duplicate two entries later.
+          if [ -n "$known_drift_prev_justification" ] \
+            && [ "$known_drift_comment_normalized" = "$known_drift_prev_justification" ]; then
+            known_drift_duplicate_justifications="${known_drift_duplicate_justifications}${known_drift_file}:${known_drift_lineno}: \"${known_drift_trimmed}\""$'\n'
+          fi
+          known_drift_prev_justification="$known_drift_comment_normalized"
+        else
+          known_drift_justified=0
+        fi
+        ;;
+      *)
+        if [ "$known_drift_justified" -ne 1 ]; then
+          known_drift_unjustified="${known_drift_unjustified}${known_drift_file}:${known_drift_lineno}: \"${known_drift_trimmed}\""$'\n'
+        fi
+        # A justification comment covers exactly the one route line that
+        # follows it -- reset so the next route needs its own comment
+        # (#5762 follow-up: a shared comment let a route ride in silently
+        # right after an already-justified one).
+        known_drift_justified=0
+        ;;
+    esac
+  done < "$known_drift_file"
+
+  if [ -n "$known_drift_deferral_hits" ] || [ -n "$known_drift_prose_hits" ] \
+    || [ -n "$known_drift_unjustified" ] || [ -n "$known_drift_duplicate_justifications" ]; then
+    echo "KNOWN-DRIFT FILE INVALID: ${known_drift_file}"
+    echo ""
+    echo "This file is a permanent-exclusion list, not a backlog. An entry must"
+    echo "assert \"this route is not OpenAPI,\" never that the fragment is simply"
+    echo "missing so far."
+    echo ""
+    if [ -n "$known_drift_deferral_hits" ]; then
+      echo "DEFERRAL_MARKER: a TODO/FIXME/XXX/HACK/TBD/WIP marker means this is a"
+      echo "deferred gap, not a permanent exclusion -- give the route a real"
+      echo "openapi_paths_*.go entry (or a genuine permanent-exclusion"
+      echo "justification) instead:"
+      while IFS= read -r hit; do
+        echo "  ${known_drift_file}:${hit}"
+      done <<< "$known_drift_deferral_hits"
+      echo ""
+    fi
+    if [ -n "$known_drift_prose_hits" ]; then
+      echo "PROSE_DEFERRAL: a phrase like \"not written\", \"written yet\","
+      echo "\"pending\", \"predates\", \"later\", or \"to be added/written\" is the"
+      echo "same deferral claim spelled out in words -- give the route a real"
+      echo "openapi_paths_*.go entry (or a genuine permanent-exclusion"
+      echo "justification) instead:"
+      while IFS= read -r hit; do
+        echo "  ${known_drift_file}:${hit}"
+      done <<< "$known_drift_prose_hits"
+      echo ""
+    fi
+    if [ -n "$known_drift_unjustified" ]; then
+      echo "UNJUSTIFIED_ENTRY: every route entry needs its own preceding"
+      echo "substantive comment (at least two words, one of them 4+ letters)"
+      echo "explaining why it is excluded -- a bare \"#\" and a comment shared"
+      echo "with an earlier route both count as unjustified:"
+      while IFS= read -r entry; do
+        [ -n "$entry" ] && echo "  ${entry}"
+      done <<< "$known_drift_unjustified"
+      echo ""
+    fi
+    if [ -n "$known_drift_duplicate_justifications" ]; then
+      echo "DUPLICATE_JUSTIFICATION: a justification comment that matches the one"
+      echo "before it once whitespace and the leading \"#\" are normalized is a"
+      echo "copy-paste, not its own reason -- so re-spacing it is not the fix."
+      echo "Give this route its own wording, even if the underlying reason is"
+      echo "the same:"
+      while IFS= read -r entry; do
+        [ -n "$entry" ] && echo "  ${entry}"
+      done <<< "$known_drift_duplicate_justifications"
+    fi
+    exit 1
+  fi
+fi
+
 known_drift_tmp="${tmpdir}/known_drift.txt"
 : > "$known_drift_tmp"
 if [ -f "$known_drift_file" ]; then
-  grep -v '^#' "$known_drift_file" | grep -v '^$' | sort -u > "$known_drift_tmp" || true
+  # Trim each line the same way the self-validation loop above does, so an
+  # indented comment or an indented route is classified consistently by both
+  # passes instead of the validator trimming and this consumer not.
+  while IFS= read -r known_drift_consumer_line || [ -n "$known_drift_consumer_line" ]; do
+    known_drift_consumer_trimmed="$(printf '%s' "$known_drift_consumer_line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    case "$known_drift_consumer_trimmed" in
+      '' | '#'*) continue ;;
+      *) printf '%s\n' "$known_drift_consumer_trimmed" ;;
+    esac
+  done < "$known_drift_file" | sort -u > "$known_drift_tmp"
   # Filter known drift out of the handlefunc set so they are treated as
   # intentionally covered.
   if [ -s "$known_drift_tmp" ]; then

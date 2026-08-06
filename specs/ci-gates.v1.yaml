@@ -39,6 +39,7 @@ gates:
     blocking: true
     triggers:
       - "go/**"
+      - "scripts/dev/precommit-go.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh fmt-all"
       test_command: ""
@@ -57,6 +58,7 @@ gates:
     blocking: true
     triggers:
       - "go/**"
+      - "scripts/dev/precommit-go.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh lint-all"
       test_command: ""
@@ -109,6 +111,7 @@ gates:
     blocking: true
     triggers:
       - "go/**"
+      - "scripts/dev/precommit-go.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh filecap-all"
       test_command: ""
@@ -127,6 +130,8 @@ gates:
     blocking: true
     triggers:
       - "go/**"
+      - "scripts/test-verify-package-docs.sh"
+      - "scripts/verify-package-docs.sh"
     local:
       command: "bash scripts/verify-package-docs.sh"
       test_command: "bash scripts/test-verify-package-docs.sh"
@@ -203,6 +208,8 @@ gates:
       # it is added; this also stops a non-Go change under go/ (a README, a
       # fixture) from selecting a gate that would not inspect it.
       - "**/*.go"
+      - "scripts/test-verify-license-header.sh"
+      - "scripts/verify-license-header.sh"
     local:
       command: "bash scripts/verify-license-header.sh"
       test_command: "bash scripts/test-verify-license-header.sh"
@@ -223,9 +230,14 @@ gates:
     triggers:
       - "go/internal/query/**"
       - "go/internal/mcp/**"
+      - "go/internal/serviceintelhttp/**"
       - "specs/surface-inventory.v1.yaml"
       - "specs/capability-catalog.v1.yaml"
       - "specs/capability-matrix.v1.yaml"
+      - "scripts/lib/*verify-openapi*.sh"
+      - ".github/openapi-known-drift.txt"
+      - "scripts/test-verify-openapi.sh"
+      - "scripts/verify-openapi.sh"
     local:
       command: "bash scripts/verify-openapi.sh"
       test_command: "bash scripts/test-verify-openapi.sh"
@@ -244,6 +256,8 @@ gates:
     triggers:
       - "go/internal/query/**"
       - "go/cmd/api/**"
+      - "scripts/test-verify-route-coverage.sh"
+      - "scripts/verify-route-coverage.sh"
     local:
       command: "bash scripts/verify-route-coverage.sh"
       test_command: "bash scripts/test-verify-route-coverage.sh"
@@ -263,6 +277,8 @@ gates:
       - "go/internal/relationships/**"
       - "go/internal/collector/**"
       - "specs/surface-inventory.v1.yaml"
+      - "scripts/test-verify-edge-source-tool-coverage.sh"
+      - "scripts/verify-edge-source-tool-coverage.sh"
     local:
       command: "bash scripts/verify-edge-source-tool-coverage.sh"
       test_command: "bash scripts/test-verify-edge-source-tool-coverage.sh"
@@ -283,6 +299,8 @@ gates:
       - "go/internal/facts/**"
       - "go/internal/relationships/**"
       - "specs/evidence-continuity.v1.yaml"
+      - "scripts/test-verify-evidence-continuity.sh"
+      - "scripts/verify-evidence-continuity.sh"
     local:
       command: "bash scripts/verify-evidence-continuity.sh"
       test_command: "bash scripts/test-verify-evidence-continuity.sh"
@@ -302,6 +320,8 @@ gates:
       - "go/cmd/skillgen/**"
       - "go/internal/skillgen/**"
       - ".agents/skills/**"
+      - "scripts/test-verify-skill-roundtrip.sh"
+      - "scripts/verify-skill-roundtrip.sh"
     local:
       command: "bash scripts/verify-skill-roundtrip.sh"
       test_command: "bash scripts/test-verify-skill-roundtrip.sh"
@@ -340,6 +360,8 @@ gates:
     triggers:
       - "go/internal/facts/**"
       - "specs/fact-kind-registry.v1.yaml"
+      - "scripts/test-verify-fact-kind-registry.sh"
+      - "scripts/verify-fact-kind-registry.sh"
     local:
       command: "bash scripts/verify-fact-kind-registry.sh"
       test_command: "bash scripts/test-verify-fact-kind-registry.sh"
@@ -360,6 +382,8 @@ gates:
       - "go/internal/collector/contracttest/**"
       - "specs/fact-kind-registry.v1.yaml"
       - "specs/collector_fact_contract.v1.yaml"
+      - "scripts/test-verify-contracttest.sh"
+      - "scripts/verify-contracttest.sh"
     local:
       command: "bash scripts/verify-contracttest.sh"
       test_command: "bash scripts/test-verify-contracttest.sh"
@@ -522,6 +546,7 @@ gates:
       - "specs/capability-matrix.v1.yaml"
       - "specs/surface-inventory.v1.yaml"
       - "specs/product-claims.v1.yaml"
+      - "scripts/dev/precommit-go.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh surface"
       test_command: ""
@@ -591,6 +616,8 @@ gates:
       - "go/internal/relationships/**"
       - "specs/parser-backing-ledger.v1.yaml"
       - "scripts/lib/parser_relationship_language_ledger.sh"
+      - "scripts/test-verify-parser-relationship-kit.sh"
+      - "scripts/verify-parser-relationship-kit.sh"
     local:
       command: "bash scripts/verify-parser-relationship-kit.sh"
       test_command: "bash scripts/test-verify-parser-relationship-kit.sh"
@@ -611,6 +638,7 @@ gates:
       - "go/internal/parser/**"
       - "go/internal/relationships/**"
       - "testdata/golden/**"
+      - "scripts/verify_accuracy_golden_gate.sh"
     local:
       command: "bash scripts/verify_accuracy_golden_gate.sh"
       test_command: ""
@@ -648,6 +676,8 @@ gates:
     triggers:
       - "go/internal/query/**"
       - "go/internal/storage/cypher/**"
+      - "scripts/test-verify-query-plan-regression.sh"
+      - "scripts/verify-query-plan-regression.sh"
     local:
       command: "bash scripts/verify-query-plan-regression.sh"
       test_command: "bash scripts/test-verify-query-plan-regression.sh"
@@ -667,6 +697,8 @@ gates:
       - "go/internal/collector/**"
       - "go/internal/parser/**"
       - "specs/scale-lab-corpus.v1.yaml"
+      - "scripts/test-verify-scale-corpus-suite.sh"
+      - "scripts/verify-scale-corpus-suite.sh"
     local:
       command: "bash scripts/verify-scale-corpus-suite.sh"
       test_command: "bash scripts/test-verify-scale-corpus-suite.sh"
@@ -686,6 +718,8 @@ gates:
       - "go/internal/collector/**"
       - "go/internal/reducer/**"
       - "specs/scale-benchmark-artifact.v1.yaml"
+      - "scripts/test-verify-scale-benchmark-artifact.sh"
+      - "scripts/verify-scale-benchmark-artifact.sh"
     local:
       command: "bash scripts/verify-scale-benchmark-artifact.sh"
       test_command: "bash scripts/test-verify-scale-benchmark-artifact.sh"
@@ -705,6 +739,8 @@ gates:
       - "go/internal/mcp/**"
       - "specs/capability-catalog.v1.yaml"
       - "specs/capability-budget-proof.v1.yaml"
+      - "scripts/test-verify-capability-budget-proof.sh"
+      - "scripts/verify-capability-budget-proof.sh"
     local:
       command: "bash scripts/verify-capability-budget-proof.sh"
       test_command: "bash scripts/test-verify-capability-budget-proof.sh"
@@ -724,6 +760,8 @@ gates:
       - "go/internal/collector/**"
       - "go/cmd/ingester/**"
       - "specs/collector_fact_contract.v1.yaml"
+      - "scripts/test-verify-collector-entrypoints-generated.sh"
+      - "scripts/verify-collector-entrypoints-generated.sh"
     local:
       command: "bash scripts/verify-collector-entrypoints-generated.sh"
       test_command: "bash scripts/test-verify-collector-entrypoints-generated.sh"
@@ -743,6 +781,7 @@ gates:
       - "go/internal/mcp/**"
       - "specs/surface-inventory.v1.yaml"
       - "specs/capability-catalog.v1.yaml"
+      - "scripts/dev/precommit-go.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh surface"
       test_command: ""
@@ -796,6 +835,7 @@ gates:
       - "scripts/lib/operator-dashboard-metrics.sh"
       - ".github/workflows/static-contract-gates.yml"
       - "specs/ci-gates.v1.yaml"
+      - "scripts/test-generate-operator-dashboard.sh"
     local:
       command: "bash scripts/generate-operator-dashboard.sh"
       test_command: "bash scripts/test-generate-operator-dashboard.sh"
@@ -1190,6 +1230,8 @@ gates:
       - "CLAUDE.md"
       - "README.md"
       - "scripts/lib/test-verify-docs-build-changed-fake-uv.sh"
+      - "scripts/test-verify-docs-build-changed.sh"
+      - "scripts/verify-docs-build-changed.sh"
     local:
       command: "bash scripts/verify-docs-build-changed.sh"
       test_command: "bash scripts/test-verify-docs-build-changed.sh"
@@ -1253,6 +1295,8 @@ gates:
       - "eslint.config.js"
       - ".prettierrc.json"
       - ".prettierignore"
+      - "scripts/test-verify-frontend-format-changed.sh"
+      - "scripts/verify-frontend-format-changed.sh"
     local:
       command: "bash scripts/verify-frontend-format-changed.sh"
       test_command: "bash scripts/test-verify-frontend-format-changed.sh"
@@ -1272,6 +1316,8 @@ gates:
     triggers:
       - "apps/console/**"
       - "src/**"
+      - "scripts/dev/precommit-console.sh"
+      - "scripts/test-precommit-console.sh"
     local:
       command: "bash scripts/dev/precommit-console.sh e2e"
       test_command: "bash scripts/test-precommit-console.sh"
@@ -1439,6 +1485,7 @@ gates:
     blocking: true
     triggers:
       - "go/**"
+      - "scripts/dev/precommit-go.sh"
     # Whole-module gosec here so the ci-gates runner (which passes no file list)
     # runs a real scan rather than a no-op. #4217 narrows the local security lane
     # to changed packages for speed while keeping CI authoritative.
@@ -1462,6 +1509,7 @@ gates:
       - "go/go.mod"
       - "go/go.sum"
       - "go/**/*.go"
+      - "scripts/dev/precommit-go.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh govulncheck"
       test_command: ""
@@ -1490,6 +1538,9 @@ gates:
     triggers:
       - "go/go.mod"
       - "go/go.sum"
+      - "scripts/dev/precommit-go.sh"
+      - "scripts/dev/nancy-local.sh"
+      - "scripts/test-nancy-local.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh nancy"
       test_command: "bash scripts/test-nancy-local.sh"
@@ -1748,6 +1799,8 @@ gates:
       - "specs/surface-inventory.v1.yaml"
       - "testdata/golden/e2e-20repo-snapshot.json"
       - "testdata/cassettes/**"
+      - "scripts/test-verify-replay-coverage-gate.sh"
+      - "scripts/verify-replay-coverage-gate.sh"
     local:
       command: "bash scripts/verify-replay-coverage-gate.sh --blocking"
       test_command: "bash scripts/test-verify-replay-coverage-gate.sh"
@@ -2199,6 +2252,8 @@ gates:
       - "go/internal/collector/**"
       - "go/internal/query/**"
       - "go/internal/runtime/**"
+      - "scripts/dev/precommit-go.sh"
+      - "scripts/verify-performance-evidence.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh perf-evidence"
       test_command: ""
@@ -2314,6 +2369,7 @@ gates:
       - "scripts/test-generate-ci-gates-doc.sh"
       - "docs/public/reference/ci-gates.md"
       - ".github/workflows/**"
+      - "scripts/verify-ci-gates-registry.sh"
     local:
       command: "bash scripts/verify-ci-gates-registry.sh --drift"
       test_command: "bash scripts/test-verify-ci-gates-registry.sh && bash scripts/test-pre-pr-whole-module-gates.sh && bash scripts/test-generate-ci-gates-doc.sh && bash scripts/test-verify-live-required-status-checks.sh && (cd go && go test ./internal/cigates -count=1)"

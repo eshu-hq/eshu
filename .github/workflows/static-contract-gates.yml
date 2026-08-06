@@ -71,10 +71,13 @@ jobs:
               - 'specs/ci-gates.v1.yaml'
               - 'go/internal/query/**'
               - 'go/internal/mcp/**'
+              - 'go/internal/serviceintelhttp/**'
               - 'specs/surface-inventory.v1.yaml'
               - 'specs/capability-catalog.v1.yaml'
               - 'specs/capability-matrix.v1.yaml'
               - 'scripts/*verify-openapi*.sh'
+              - 'scripts/lib/*verify-openapi*.sh'
+              - '.github/openapi-known-drift.txt'
             route:
               - '.github/workflows/static-contract-gates.yml'
               - 'specs/ci-gates.v1.yaml'

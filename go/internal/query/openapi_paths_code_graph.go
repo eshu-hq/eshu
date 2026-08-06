@@ -49,6 +49,66 @@ const openAPIPathsCodeGraph = `
         }
       }
     },
+    "/api/v0/code/visualize": {
+      "post": {
+        "tags": ["code"], "summary": "Run bounded read-only Cypher and project a visualization packet",
+        "description": "Shares the read-only Cypher safety path of POST /api/v0/code/cypher: mutation keywords are rejected, the query is bounded with an injected terminal LIMIT, the read runs under a timeout against an AccessModeRead session, and the row window is capped. Instead of raw result rows, the response projects a bounded, renderable visualization packet (nodes and edges) from the graph entities the query returned. Shared-key/all-scope callers only: the query text is caller-supplied and unbounded, so there is no selector to intersect against a tenant grant. Scoped and browser-session tokens are rejected before the handler runs.",
+        "operationId": "runReadOnlyCypherVisualization",
+        "x-shared-key-only": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["cypher_query"],
+                "properties": {
+                  "cypher_query": {"type": "string"},
+                  "limit": {"type": "integer", "default": 100, "maximum": 1000}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bounded graph-query visualization packet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "visualization_packet": {
+                      "type": "object",
+                      "properties": {
+                        "view": {"type": "string"},
+                        "title": {"type": "string"},
+                        "supported": {"type": "boolean"},
+                        "nodes": {"type": "array", "items": {"type": "object"}},
+                        "edges": {"type": "array", "items": {"type": "object"}},
+                        "truth": {"type": "object"},
+                        "limits": {"type": "object"},
+                        "truncation": {"type": "object"},
+                        "limitations": {"type": "array", "items": {"type": "string"}},
+                        "recommended_next_calls": {"type": "array", "items": {"type": "object"}}
+                      },
+                      "required": ["view", "supported", "nodes", "edges", "limits", "truncation"]
+                    },
+                    "limit": {"type": "integer"},
+                    "truncated": {"type": "boolean"}
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
     "/api/v0/code/bundles": {
       "post": {
         "tags": ["code"],

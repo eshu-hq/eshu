@@ -29,11 +29,6 @@ type boundedGraphReadRoute struct {
 // inside handleRepoScopedOverrideStory, and GET /api/v0/services/{service_name}/story
 // inside BuildServiceStoryEnvelope, neither of which is the function registered
 // with the mux. An enclosing-function-only sweep misses exactly those cases.
-//
-// One known exclusion:
-//   - POST /api/v0/code/visualize IS guarded but has no OpenAPI path entry at
-//     all, predating this change; it cannot carry response codes until that
-//     entry exists.
 var boundedGraphReadRoutes = []boundedGraphReadRoute{
 	{method: "get", path: "/api/v0/catalog"},
 	{method: "get", path: "/api/v0/cloud/resources"},
@@ -107,6 +102,7 @@ var boundedGraphReadRoutes = []boundedGraphReadRoute{
 	{method: "post", path: "/api/v0/code/structure/inventory"},
 	{method: "post", path: "/api/v0/code/symbols/search"},
 	{method: "post", path: "/api/v0/code/topics/investigate"},
+	{method: "post", path: "/api/v0/code/visualize"},
 	{method: "post", path: "/api/v0/compare/environments"},
 	{method: "post", path: "/api/v0/ecosystem/graph-summary"},
 	{method: "post", path: "/api/v0/entities/resolve"},
