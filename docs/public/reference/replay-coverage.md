@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 429/432 surfaces satisfied (99.31%)** — mode: blocking.
+**Overall: 431/432 surfaces satisfied (99.77%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -18,10 +18,10 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Product claims | 11 | 11 | 100.00% | 0 | 0 |
 | Projections (cost/ordering) | 29 | 29 | 100.00% | 0 | 1 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
-| Retractable edge types (delta) | 61 | 64 | 95.31% | 3 | 1 |
+| Retractable edge types (delta) | 63 | 64 | 98.44% | 1 | 1 |
 | Retractable node types (delta) | 95 | 95 | 100.00% | 0 | 1 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **429** | **432** | **99.31%** | **3** | **12** |
+| **Total** | **431** | **432** | **99.77%** | **1** | **12** |
 
 ## Coverage by scenario type
 
@@ -30,7 +30,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | baseline | 222 | 222 | 100.00% | 0 | 5 |
 | cost | 28 | 28 | 100.00% | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
-| delta_tombstone | 157 | 160 | 98.13% | 3 | 2 |
+| delta_tombstone | 159 | 160 | 99.38% | 1 | 2 |
 | fault | 17 | 17 | 100.00% | 0 | 4 |
 | ordering | 3 | 3 | 100.00% | 0 | 0 |
 
@@ -44,15 +44,13 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 ## Gaps — surfaces still needing a replay scenario
 
-3 surface(s) uncovered or unresolved:
+1 surface(s) uncovered or unresolved:
 
-### Retractable edge types (delta) (3)
+### Retractable edge types (delta) (1)
 
-- `retractable_edge:BUILT_FROM` (delta_tombstone)
 - `retractable_edge:DERIVED_FROM` (delta_tombstone)
-- `retractable_edge:PUBLISHES` (delta_tombstone)
 
-## Covered surfaces (429)
+## Covered surfaces (431)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -300,6 +298,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 | `retractable_edge:ALLOWS_INGRESS` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_security_group_reachability_retract_live_test.go` |
 | `retractable_edge:ATLANTIS_DEPENDS_ON` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_canonical_governance_edge_retract_live_test.go` |
 | `retractable_edge:AWS_lambda_function_uses_image` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_cloud_image_edge_retract_live_test.go` |
+| `retractable_edge:BUILT_FROM` | delta_tombstone | go_test | replay-tier | `go/internal/reducer/provenance_replay_tombstone_live_test.go` |
 | `retractable_edge:CALLS` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_edge_retract_live_test.go` |
 | `retractable_edge:CAN_ASSUME` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_iam_edge_retract_live_test.go` |
 | `retractable_edge:CAN_ESCALATE_TO` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_iam_edge_retract_live_test.go` |
@@ -335,6 +334,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 | `retractable_edge:NEEDS` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_edge:OVERRIDES` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go` |
 | `retractable_edge:PROVISIONS_DEPENDENCY_FOR` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
+| `retractable_edge:PUBLISHES` | delta_tombstone | go_test | replay-tier | `go/internal/reducer/provenance_replay_tombstone_live_test.go` |
 | `retractable_edge:QUERIES_TABLE` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go` |
 | `retractable_edge:READS_CONFIG_FROM` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go` |
 | `retractable_edge:READS_FROM` | delta_tombstone | go_test | replay-tier | `go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go` |

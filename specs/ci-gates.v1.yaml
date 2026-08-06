@@ -2243,6 +2243,7 @@ gates:
       - "go/cmd/ingester/**"
       - "go/cmd/projector/**"
       - "go/internal/replay/**"
+      - "go/internal/reducer/**"
       - "go/internal/storage/cypher/**"
       - "go/internal/storage/nornicdb/**"
       - "go/internal/projector/**"
@@ -2251,10 +2252,13 @@ gates:
       - "testdata/cassettes/replayoffline/**"
       - "testdata/cassettes/replaydelta/**"
       - "scripts/verify-replay-tier.sh"
+      - "scripts/test-verify-replay-tier.sh"
+      - "scripts/dev/pre-pr.sh"
+      - "scripts/ci/install-apt-packages.sh"
       - ".github/workflows/verify-replay-tier.yml"
     local:
       command: "bash scripts/verify-replay-tier.sh"
-      test_command: ""
+      test_command: "bash scripts/test-verify-replay-tier.sh"
     ci:
       workflow: verify-replay-tier.yml
       job: "Offline replay tier vs real NornicDB"

@@ -26,7 +26,8 @@ require_precommit() {
 require_block() {
 	local label="$1" needle="$2"
 	rg --multiline --fixed-strings --quiet -- "${needle}" "${script}" || \
-		fail "missing ${label}: ${needle}"
+		fail "missing ${label}: ${needle}
+(this needle is matched whitespace-exact: a reformat -- tabs-to-spaces, a trailing-whitespace cleanup, CRLF line endings -- trips this the same as a real deletion. Before assuming the code is gone, diff ${script} for a reformat first.)"
 }
 
 reject() {
@@ -273,5 +274,50 @@ awk '
 		}
 	}
 ' "${script}" || fail "go test (changed packages) is not reached on both lanes"
+
+# ─── fixture_consumer_dirs branch coverage (#5721 follow-up, folds in #5939) ─
+# fixture_consumer_dirs maps three non-Go fixture changes to the Go package
+# whose tests actually load them: the B-12 golden snapshot to
+# ./cmd/golden-corpus-gate, a root CLAUDE.md/AGENTS.md edit to
+# ./internal/runtime (TestRepositoryDocumentationStandardsAreEnforced), and a
+# specs/ci-gates.v1.yaml or .github/workflows/*.yml edit to ./internal/cigates
+# (TestScriptWorkflowSoundSubsetCount among others -- #5939 review: without
+# this mapping those tests would first run in the unconditional
+# verify-ci-gate-registry.yml CI job instead of locally, since
+# ci-gate-registry's local.command never runs a gate's local.test_command).
+# This used to be two require_block text pins against pre-pr.sh here, plus a
+# third mechanism #5939 added directly in this file: an awk extraction of
+# fixture_consumer_dirs's source with a stubbed changed_all_files. Both were
+# replaced by the single behavioural suite below when fixture_consumer_dirs
+# moved into its own sourced file (eshu-hq/eshu#5938 review) -- a text match or
+# an awk-extracted stub can only prove the mapping's source is present, not
+# that it is reachable: an early `return` (or any wrapper) placed above the
+# branches left the old pins green while fixture_consumer_dirs emitted nothing
+# for every input, the same failure mode #5935 shipped to close, reopened one
+# call deeper. The awk-extraction mechanism has the same blind spot and an
+# extra footgun: it re-derives the function body from this file at test time,
+# so it silently stops testing anything the moment the function is defined
+# elsewhere (as it now is, in scripts/lib/pre-pr-fixture-consumers.sh).
+#
+# fixture_consumer_dirs now lives in its own sourced-only file,
+# scripts/lib/pre-pr-fixture-consumers.sh, so
+# scripts/lib/test-pre-pr-fixture-consumers.sh can call it directly against a
+# throwaway repository and assert what it actually emits for all three
+# mappings, including the #5939 registry/workflow cases and the $-anchor that
+# keeps a lookalike path (e.g. specs/ci-gates.v1.yaml.bak) from matching. That
+# behavioural check is strictly stronger than the text pins and the awk
+# extraction it replaces -- it fails on the exact early-return mutation that
+# left both green -- so keeping either alongside it would only be a second
+# thing to maintain for coverage the behavioural check already provides. The
+# one thing worth still pinning here is the WIRING: that pre-pr.sh actually
+# sources the file the behavioural check exercises, so a deleted `source` line
+# fails loudly here rather than only at the next real `make pre-pr` run.
+# shellcheck disable=SC2016 # The needle must stay literal shell source.
+require "fixture-consumer mapping sourced from its own file" \
+	'source "${repo_root}/scripts/lib/pre-pr-fixture-consumers.sh"'
+
+fixture_consumers_suite="${repo_root}/scripts/lib/test-pre-pr-fixture-consumers.sh"
+[[ -f "${fixture_consumers_suite}" ]] || fail "missing ${fixture_consumers_suite}"
+bash "${fixture_consumers_suite}" || fail "fixture_consumer_dirs behavioural suite failed -- see its output above"
 
 printf 'PASS: pre-pr scheduling, worktree cache isolation, and lane wiring are pinned\n'
