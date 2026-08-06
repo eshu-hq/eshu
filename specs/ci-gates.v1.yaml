@@ -2243,6 +2243,7 @@ gates:
       - "go/cmd/ingester/**"
       - "go/cmd/projector/**"
       - "go/internal/replay/**"
+      - "go/internal/reducer/**"
       - "go/internal/storage/cypher/**"
       - "go/internal/storage/nornicdb/**"
       - "go/internal/projector/**"

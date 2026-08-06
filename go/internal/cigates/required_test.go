@@ -4,6 +4,7 @@
 package cigates_test
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -32,6 +33,38 @@ func TestRequiredGates_SelectsPRAttributionGateForAnyChangedPath(t *testing.T) {
 		}
 	}
 	t.Fatal("PR-wide no-ai-attribution gate was not selected for an unrelated changed path")
+}
+
+func TestRequiredGates_SelectsReplayTierForReducerReplayProof(t *testing.T) {
+	t.Parallel()
+
+	registryPath := filepath.Join("..", "..", "..", "specs", "ci-gates.v1.yaml")
+	reg, err := cigates.Load(registryPath)
+	if err != nil {
+		t.Fatalf("Load(%q): %v", registryPath, err)
+	}
+	required, err := reg.RequiredGates([]string{
+		"go/internal/reducer/provenance_replay_tombstone_live_test.go",
+	})
+	if err != nil {
+		t.Fatalf("RequiredGates returned error: %v", err)
+	}
+	for _, gate := range required {
+		for _, id := range gate.GateIDs {
+			if id == "replay-tier" {
+				workflowPath := filepath.Join("..", "..", "..", ".github", "workflows", "verify-replay-tier.yml")
+				workflow, readErr := os.ReadFile(workflowPath)
+				if readErr != nil {
+					t.Fatalf("ReadFile(%q): %v", workflowPath, readErr)
+				}
+				if !strings.Contains(string(workflow), "      - 'go/internal/reducer/**'") {
+					t.Fatal("verify-replay-tier workflow does not watch go/internal/reducer/**")
+				}
+				return
+			}
+		}
+	}
+	t.Fatal("reducer replay proof did not select replay-tier")
 }
 
 func TestRequiredGates_SelectsEveryMatchingBlockingCIGate(t *testing.T) {

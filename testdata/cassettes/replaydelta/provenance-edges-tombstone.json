@@ -1,0 +1,141 @@
+{
+  "collector": "reducer_provenance_replay",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "replay-provenance:scope-in",
+      "source_system": "replay",
+      "scope_kind": "synthetic",
+      "collector_kind": "reducer_provenance_replay",
+      "partition_key": "replay-provenance:scope-in",
+      "metadata": {
+        "purpose": "Generation 1 admits package PUBLISHES and image BUILT_FROM provenance edges"
+      },
+      "generation_id": "replay-provenance-gen1",
+      "observed_at": "2026-08-06T12:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:replay-provenance-package-in",
+          "schema_version": "1.0.0",
+          "payload": {
+            "repo_id": "repository:replay-provenance-package-in",
+            "graph_id": "repository:replay-provenance-package-in",
+            "name": "replay-provenance-package-in",
+            "remote_url": "https://example.invalid/replay/provenance-package.git"
+          }
+        },
+        {
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:replay-provenance-build-in",
+          "schema_version": "1.0.0",
+          "payload": {
+            "repo_id": "repository:replay-provenance-build-in",
+            "graph_id": "repository:replay-provenance-build-in",
+            "name": "replay-provenance-build-in",
+            "remote_url": "https://example.invalid/replay/provenance-build.git"
+          }
+        },
+        {
+          "fact_kind": "package_registry.package_version",
+          "stable_fact_key": "package-version:replay-provenance-1.0.0",
+          "schema_version": "1.0.0",
+          "payload": {
+            "package_id": "pkg:npm/replay-provenance",
+            "version_id": "pkg:npm/replay-provenance@1.0.0",
+            "version": "1.0.0"
+          }
+        },
+        {
+          "fact_kind": "package_registry.source_hint",
+          "stable_fact_key": "package-source:replay-provenance-1.0.0",
+          "schema_version": "1.0.0",
+          "payload": {
+            "package_id": "pkg:npm/replay-provenance",
+            "version_id": "pkg:npm/replay-provenance@1.0.0",
+            "hint_kind": "repository",
+            "normalized_url": "https://example.invalid/replay/provenance-package",
+            "raw_url": "https://example.invalid/replay/provenance-package.git"
+          }
+        },
+        {
+          "fact_kind": "oci_registry.image_manifest",
+          "stable_fact_key": "oci-manifest:replay-provenance-in",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "payload": {
+            "registry": "registry.example.invalid",
+            "repository": "replay/provenance",
+            "repository_id": "oci-registry://registry.example.invalid/replay/provenance",
+            "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "media_type": "application/vnd.oci.image.manifest.v1+json",
+            "config_labels": {
+              "org.opencontainers.image.source": "https://example.invalid/replay/provenance-build"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scope_id": "replay-provenance:scope-in",
+      "source_system": "replay",
+      "scope_kind": "synthetic",
+      "collector_kind": "reducer_provenance_replay",
+      "partition_key": "replay-provenance:scope-in",
+      "metadata": {
+        "purpose": "Generation 2 retains endpoints but drops both producing evidence signals"
+      },
+      "generation_id": "replay-provenance-gen2",
+      "observed_at": "2026-08-06T12:05:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:replay-provenance-package-in",
+          "schema_version": "1.0.0",
+          "payload": {
+            "repo_id": "repository:replay-provenance-package-in",
+            "graph_id": "repository:replay-provenance-package-in",
+            "name": "replay-provenance-package-in",
+            "remote_url": "https://example.invalid/replay/provenance-package.git"
+          }
+        },
+        {
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:replay-provenance-build-in",
+          "schema_version": "1.0.0",
+          "payload": {
+            "repo_id": "repository:replay-provenance-build-in",
+            "graph_id": "repository:replay-provenance-build-in",
+            "name": "replay-provenance-build-in",
+            "remote_url": "https://example.invalid/replay/provenance-build.git"
+          }
+        },
+        {
+          "fact_kind": "package_registry.package_version",
+          "stable_fact_key": "package-version:replay-provenance-1.0.0",
+          "schema_version": "1.0.0",
+          "payload": {
+            "package_id": "pkg:npm/replay-provenance",
+            "version_id": "pkg:npm/replay-provenance@1.0.0",
+            "version": "1.0.0"
+          }
+        },
+        {
+          "fact_kind": "oci_registry.image_manifest",
+          "stable_fact_key": "oci-manifest:replay-provenance-in",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "payload": {
+            "registry": "registry.example.invalid",
+            "repository": "replay/provenance",
+            "repository_id": "oci-registry://registry.example.invalid/replay/provenance",
+            "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "media_type": "application/vnd.oci.image.manifest.v1+json"
+          }
+        }
+      ]
+    }
+  ]
+}
