@@ -112,18 +112,21 @@ increased by 4 seconds and the instrumented pipeline phases by 2 seconds
 speedup is claimed. Every required timing remained inside its gate ceiling;
 maintenance drains exceeded the advisory 19-second ceiling by 1 second.
 
-The rebased code head `36c3dbd3cf21d40e853338dbd9a44c9aabc0a6a0`
-completed B-7 in 139 seconds. Its phases summed to 121 seconds (bootstrap 4,
-collect 16, first drain 64, maintenance drains 35, graph/query 2). All required
-timings remained inside their gate ceilings; maintenance drains produced the
-single timing advisory. The repeated isolated final-parent benchmark above is
-the collector-path no-regression evidence; the variable maintenance phase is
-reported here without attributing it to the collector or claiming a speedup.
+The rebased source head `71d0e49811675ebbfa1e7ea9d329a84006f23e03`
+completed B-7 against merged NornicDB revision
+`3722b483c02c38a8e046d198f8768f200f31023c` in 134 seconds. Its phases
+summed to 105 seconds (bootstrap 4, collect 15, first drain 64, maintenance
+drains 20, graph/query 2). All required and advisory timings remained inside
+their gate ceilings. The repeated isolated final-parent benchmark above is the
+collector-path no-regression evidence; the full gate is reported without
+attributing host and backend startup variance to the collector or claiming a
+speedup.
 
-That exact run reported 529 passes, zero required failures, and one timing
-advisory. `fact_work_items`, required shared projection intents, and cross-scope
-completion events each had zero nonterminal rows; dead letters were zero.
-rc-165 retained 24 exact-digest OCI `BUILT_FROM` assertions. rc-173 retained
-exactly one `CI_CD_RUN_WORKFLOW_IMAGE_CORRELATION` assertion with
+That exact run reported 531 passes, zero required failures, and zero advisory
+warnings. `fact_work_items`, required shared projection intents, and
+cross-scope completion events each had zero nonterminal rows; dead letters
+were zero. rc-165 retained 26 exact-digest OCI `BUILT_FROM` assertions with no
+offending `source_tool` property. rc-173 retained exactly one
+`CI_CD_RUN_WORKFLOW_IMAGE_CORRELATION` assertion with
 `source_tool=github_actions`. The focused collector/reducer/query/Cypher/gate
-suite and the shell mirror also passed after the final source edit.
+suite also passed after the rebase.
