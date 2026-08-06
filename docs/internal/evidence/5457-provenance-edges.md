@@ -207,12 +207,54 @@ sibling pattern (`kubernetes_correlation_materialization` et al.) exists
 because those domains have a genuinely separate queued intent/readiness-gate
 lifecycle, which `PUBLISHES`/`BUILT_FROM` do not.
 
-## Remaining known gap (advisory only)
+## Replay/tombstone gap resolved (#5712)
 
-The replay-depth-requirements delta_tombstone scenario for `BUILT_FROM`/`PUBLISHES`
-is not backed by a dedicated scenario file (tracked as an advisory gap in the
-regenerated `docs/public/reference/replay-coverage.md`, and as a follow-up in
-[#5712](https://github.com/eshu-hq/eshu/issues/5712); confirmed non-blocking
-by `bash scripts/verify-replay-coverage-gate.sh`'s "PASS ... (advisory)" exit,
-and by `specs/replay-depth-requirements.v1.yaml`'s own header comment that
-depth requirements "never fail the blocking breadth gate").
+`testdata/cassettes/replaydelta/provenance-edges-tombstone.json` is a synthetic,
+two-generation packet loaded through `replay/cassette`. Generation 1 feeds the
+real `BuildPackageSourceCorrelationDecisions`,
+`BuildPackagePublicationDecisions`, and `BuildContainerImageIdentityDecisions`
+builders, then the package-private `projectPackageProvenanceEdges` and
+`projectContainerImageBuiltFromEdges` paths. The real
+`cypher.ProvenanceEdgeWriter` materializes one ownership-sourced
+`Repository-[:PUBLISHES]->Package`, one publication-sourced
+`Repository-[:PUBLISHES]->PackageVersion`, and one
+`ContainerImage-[:BUILT_FROM]->Repository` against NornicDB, including the
+expected scope, generation, evidence source, evidence kinds, and OCI source
+tool properties.
+
+Generation 2 retains both repositories, the package and package-version facts,
+and the OCI manifest digest, but removes the package source hint and OCI config
+source label. The same projectors therefore execute their real retract-first
+paths with zero admitted rows. The live test reads the graph back and proves
+all three edges are gone, all endpoints survive, a second generation-2 replay is
+idempotent, and out-of-scope controls survive. Those controls use completely
+different endpoint pairs: sharing either pair would be a false isolation test
+while #5827's canonical MERGE identity omits scope and evidence source.
+
+The packet has fixed O(1) client-side work per generation: package projection
+always issues two bounded auto-commit retract statements (ownership and
+publication), container-image projection issues one, and each admitted edge
+family contributes at most one batched upsert statement for this fixed
+fixture. Generation 2 and its idempotency replay issue the same three bounded
+retracts and no upserts; no graph-sized client loop is introduced.
+
+No-Observability-Change: this closes a test/evidence gap only. It adds no
+runtime path, metric, span, log, or status behavior; the existing
+`eshu_dp_provenance_edges_total` runtime instrumentation remains unchanged.
+The credential-free decision test runs in the default reducer suite. The
+backend graph-truth test is wired into `scripts/verify-replay-tier.sh` and is
+gated by `ESHU_REPLAY_TIER_LIVE`.
+
+Live proof on the pinned NornicDB v1.1.11 image:
+
+The gate runs the offline-tier and reducer package test binaries sequentially
+because both packages mutate the same live graph. Tests within each package
+retain their normal test-level concurrency.
+
+```text
+ESHU_REPLAY_TIER_HTTP_PORT=17474 ESHU_REPLAY_TIER_BOLT_PORT=17687 \
+  scripts/verify-replay-tier.sh
+TestReducerProvenanceReplayTombstoneGraphTruth: PASS
+replay tier wall-clock: 12s
+EXIT=0
+```
