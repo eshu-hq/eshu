@@ -10,10 +10,11 @@ import (
 )
 
 // attributesField is the struct field name the polymorphic Resource and
-// Relationship structs use for their untyped service/verb pass-through. A field
-// with this name and a map[string]any type collects every payload key that has
-// no other json-tagged field, preserving the JSON-native Go types the raw
-// map[string]any already carries.
+// Relationship structs use for their untyped service/verb pass-through. Only a
+// map[string]any field explicitly excluded from normal JSON encoding with
+// `json:"-"` is a remainder field. A normally tagged field such as
+// `json:"attributes,omitempty"` owns that one payload key like any other named
+// field.
 const attributesField = "Attributes"
 
 // decodeMapInto assigns the payload map's values onto the fields of the struct
@@ -32,9 +33,10 @@ const attributesField = "Attributes"
 // structs such as []BlockDevice) — which are small and rare, so the bounded
 // fallback keeps the hot identity path serialization-free.
 //
-// A field named Attributes with a map[string]any type receives every remaining
-// payload key, replacing the custom UnmarshalJSON the polymorphic structs used
-// for the pass-through. out must be a non-nil pointer to a struct.
+// A field named Attributes with a map[string]any type and an exact `json:"-"`
+// tag receives every remaining payload key, replacing the custom UnmarshalJSON
+// the polymorphic structs used for the pass-through. out must be a non-nil
+// pointer to a struct.
 //
 // decodeMapInto is the default entry point (full Attributes remainder), used by
 // decodeAndValidate for callers passing no option and by the nested-struct
@@ -98,8 +100,9 @@ type plannedField struct {
 // structPlan is the once-computed decode plan for a struct type: its
 // json-tagged fields, the set of payload keys they own (so the Attributes
 // pass-through captures only the remainder), and the index of the Attributes
-// map field (or -1). Caching it keeps decodeMapInto off the per-fact reflection
-// walk that dominated the hot-path allocations.
+// map field explicitly marked `json:"-"` (or -1). Caching it keeps
+// decodeMapInto off the per-fact reflection walk that dominated the hot-path
+// allocations.
 type structPlan struct {
 	fields          []plannedField
 	known           map[string]struct{}
@@ -121,12 +124,12 @@ func structPlanFor(t reflect.Type) *structPlan {
 	}
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
-		if field.Name == attributesField && field.Type.Kind() == reflect.Map {
-			plan.attributesIndex = i
-			continue
-		}
 		if field.PkgPath != "" {
 			continue // unexported field: never serialized
+		}
+		if isAttributesRemainderField(field) {
+			plan.attributesIndex = i
+			continue
 		}
 		jsonName, _, skip := parseJSONTag(field.Tag.Get("json"), field.Name)
 		if skip {
@@ -137,6 +140,16 @@ func structPlanFor(t reflect.Type) *structPlan {
 	}
 	actual, _ := structPlanCache.LoadOrStore(t, plan)
 	return actual.(*structPlan)
+}
+
+// isAttributesRemainderField reports whether field opts into the polymorphic
+// pass-through convention. The JSON exclusion is the distinguishing contract:
+// a field named Attributes with its own normal JSON tag is a fully typed named
+// field and must never capture unrelated payload keys.
+func isAttributesRemainderField(field reflect.StructField) bool {
+	return field.Name == attributesField &&
+		field.Type == reflect.TypeFor[map[string]any]() &&
+		field.Tag.Get("json") == "-"
 }
 
 // assignField coerces one JSONB-native value onto one struct field, mirroring
@@ -326,8 +339,9 @@ func assignField(field reflect.Value, raw any) error {
 		}
 
 	case reflect.Map:
-		// A map[string]any field (other than Attributes, handled by the caller)
-		// takes the value as-is when it is already the right map shape.
+		// A named map[string]any field takes the value as-is when it is already
+		// the right map shape. Polymorphic Attributes remainder fields are handled
+		// by the caller and never enter this branch.
 		if m, ok := raw.(map[string]any); ok && field.Type() == reflect.TypeOf(map[string]any{}) {
 			field.Set(reflect.ValueOf(m))
 			return nil
