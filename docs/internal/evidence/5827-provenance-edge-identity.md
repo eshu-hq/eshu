@@ -63,6 +63,35 @@ The corrected point lookup stays bounded as pair fanout grows. The compatibility
 scan is reserved for legacy or collision recovery and is bounded to the endpoint
 pair.
 
+### Exact Eshu query trace
+
+A review-only test at the pinned NornicDB revision read the four query constants
+directly from Eshu's Go source with `go/parser`, then executed those strings
+unchanged. The test created the production endpoint constraints first:
+`Repository.id`, `Package.uid`, `PackageVersion.uid`, and
+`ContainerImage.digest`. It used `-tags nolocalllm` because the query executor
+does not need the optional local-model archive.
+
+```text
+ESHU_ROOT=<eshu-worktree> go test -tags nolocalllm ./pkg/cypher \
+  -run '^TestEshuExactProvenanceQueriesUseIndexedMergeHotPath$' \
+  -count=1 -v
+PASS
+```
+
+Every exact query reported the same required trace:
+
+| Eshu query constant | UnwindMergeChainBatch | MergeSchemaLookupUsed | MergeScanFallbackUsed | OuterScanFallbackUsed |
+| --- | --- | --- | --- | --- |
+| `canonicalProvenancePublishesPackageCypher` | true | true | false | false |
+| `canonicalProvenancePublishesPackageVersionCypher` | true | true | false | false |
+| `canonicalProvenanceBuiltFromCypher` | true | true | false | false |
+| `canonicalProvenanceDerivedFromCypher` | true | true | false | false |
+
+This covers every endpoint-key alternative used by the writer. The full-corpus
+wall time therefore does not hide a generic node-scan fallback on these four
+write shapes.
+
 ## Eshu writer proof
 
 `TestProvenanceEdgeWriterLiveLegacyRowSetMigration` creates the exact legacy
@@ -147,7 +176,7 @@ microseconds per item.
 Performance Evidence: on live Postgres using migration 096 and the same
 500-item affected-domain enqueue, claim, and ACK input, the seven-sample median
 was 27.299 ms before and 29.051 ms after, a bounded 3.505 microseconds per item.
-The exact NornicDB #290 source build completed the 20-repository B-7 run in 118
+The exact NornicDB #290 source build completed the 30-repository B-7 run in 132
 seconds with zero residual queue items, required failures, or advisory warnings.
 The #5828 counter correction adds no graph query, loop, or batch allocation: the
 same single counter add moves from before each writer call to its successful
@@ -184,8 +213,8 @@ scripts/verify-golden-corpus-gate.sh
 elapsed 132s; budget ceiling 1800s
 ```
 
-The measured phases were bootstrap 4 seconds, collect 16 seconds, first drain
-66 seconds, maintenance drains 18 seconds, and graph/query checks 3 seconds.
+The measured phases were bootstrap 3 seconds, collect 16 seconds, first drain
+66 seconds, maintenance drains 21 seconds, and graph/query checks 2 seconds.
 Every graph, API, MCP, drain, timing, and wall-time assertion passed.
 
 ## Rollout and rollback

@@ -190,7 +190,7 @@
       "BUILT_FROM": {
         "min": 1,
         "max": 40,
-        "note": "ContainerImage\u2192Repository container-image-identity provenance edges (issues #5457 and #5827). The cicdrun supply-chain-demo cassette's ci.run artifact_digest exactly matches the ociregistry cassette's OciImageManifest digest, and the run carries repository_id repository:r_69256c06, so container_image_identity resolves an exact_digest decision with that resolved SourceRepositoryIDs entry. The #5827 identity preserves assertions from distinct scopes instead of collapsing them; the first exact-source full-corpus proof materialized 23, so the ceiling is widened to 40 for bounded fixture growth."
+        "note": "ContainerImage\u2192Repository container-image-identity provenance edges (issues #5457 and #5827). The cicdrun supply-chain-demo cassette's ci.run artifact_digest exactly matches the ociregistry cassette's OciImageManifest digest, and the run carries repository_id repository:r_69256c06, so container_image_identity resolves an exact_digest decision with that resolved SourceRepositoryIDs entry. The #5827 identity preserves assertions from distinct scopes instead of collapsing them; the first exact-source full-corpus proof materialized 25, so the ceiling is widened to 40 for bounded fixture growth."
       },
       "CORRELATES_DEPLOYABLE_UNIT": {
         "min": 1,
