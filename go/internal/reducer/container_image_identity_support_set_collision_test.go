@@ -24,6 +24,8 @@ func TestBuildContainerImageIdentitySupportSetPreservesConvergedEvidence(t *test
 		IdentityStrength:    "explicit_digest",
 	}
 	artifact := runtime
+	artifact.RepositoryID = "repository:ci"
+	artifact.SourceRepositoryIDs = []string{"repository:ci"}
 	artifact.EvidenceFactIDs = []string{"ci-artifact", "ci-run", "oci-manifest"}
 	artifact.IdentityStrength = "artifact_digest_with_registry_observation"
 
@@ -59,6 +61,8 @@ func TestBuildContainerImageIdentitySupportSetPreservesConvergedEvidence(t *test
 	assertContainerImageSupportEvidence(t, forward.Supports, "artifact_digest_with_registry_observation", []string{
 		"ci-artifact", "ci-run", "oci-manifest",
 	})
+	assertContainerImageSupportRepository(t, forward.Supports, "explicit_digest", "repository:runtime")
+	assertContainerImageSupportRepository(t, forward.Supports, "artifact_digest_with_registry_observation", "repository:ci")
 }
 
 func TestBuildContainerImageIdentitySupportSetDeduplicatesSemanticSupports(t *testing.T) {
@@ -156,6 +160,25 @@ func assertContainerImageSupportEvidence(
 		}
 		if !reflect.DeepEqual(support.EvidenceFactIDs, want) {
 			t.Fatalf("%s evidence = %v, want %v", strength, support.EvidenceFactIDs, want)
+		}
+		return
+	}
+	t.Fatalf("support strength %q not found in %#v", strength, supports)
+}
+
+func assertContainerImageSupportRepository(
+	t *testing.T,
+	supports []containerImageIdentitySupport,
+	strength string,
+	want string,
+) {
+	t.Helper()
+	for _, support := range supports {
+		if support.IdentityStrength != strength {
+			continue
+		}
+		if support.RepositoryID != want || !reflect.DeepEqual(support.SourceRepositoryIDs, []string{want}) {
+			t.Fatalf("%s repository attribution = %q %v, want %q", strength, support.RepositoryID, support.SourceRepositoryIDs, want)
 		}
 		return
 	}

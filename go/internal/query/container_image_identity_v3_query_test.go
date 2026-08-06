@@ -99,6 +99,9 @@ func TestContainerImageIdentityCanonicalStrengthIsFoldedIndependently(t *testing
 	if !strings.Contains(listContainerImageIdentitiesQuery, "'identity_strength', grouped.identity_strength") {
 		t.Fatalf("list query does not expose folded identity strength:\n%s", listContainerImageIdentitiesQuery)
 	}
+	if strings.Contains(listContainerImageIdentitiesQuery, "'identity_strength', winner.identity_strength") {
+		t.Fatalf("list query exposes metadata-winner strength instead of the independent fold:\n%s", listContainerImageIdentitiesQuery)
+	}
 	if !strings.Contains(containerImageIdentityAggregateGroupQueryTemplate, "canonical_identity_strength") {
 		t.Fatalf("aggregate query does not expose folded identity strength:\n%s", containerImageIdentityAggregateGroupQueryTemplate)
 	}
