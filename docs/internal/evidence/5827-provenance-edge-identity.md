@@ -173,15 +173,15 @@ endpoints. One surviving edge cannot satisfy both assertions.
 `source_tool=unknown` fallback because their decisions do not carry a truthful
 ecosystem token.
 
-The exact-source full-corpus gate materialized 23 `BUILT_FROM` assertions after
+The exact-source full-corpus gate materialized 25 `BUILT_FROM` assertions after
 scope identity stopped collapsing them. The snapshot ceiling is 40: bounded
 above the observed result for fixture growth while still catching an accidental
 fanout explosion.
 
 ```text
 scripts/verify-golden-corpus-gate.sh
-527 pass, 0 required-fail, 0 advisory-warn
-elapsed 118s; budget ceiling 1800s
+528 pass, 0 required-fail, 0 advisory-warn
+elapsed 132s; budget ceiling 1800s
 ```
 
 The measured phases were bootstrap 4 seconds, collect 16 seconds, first drain

@@ -240,9 +240,10 @@ family contributes at most one batched upsert statement for this fixed
 fixture. Generation 2 and its idempotency replay issue the same three bounded
 retracts and no upserts; no graph-sized client loop is introduced.
 
-No-Observability-Change: this closes a test/evidence gap only. It adds no
-runtime path, metric, span, log, or status behavior; the existing
-`eshu_dp_provenance_edges_total` runtime instrumentation remains unchanged.
+No-Observability-Change for the #5712 replay slice: it closes a test/evidence
+gap only and adds no runtime path, metric, span, log, or status behavior. The
+replay exercises the current `eshu_dp_provenance_edges_total{outcome=submitted}`
+instrumentation without changing it.
 The credential-free decision test runs in the default reducer suite. The
 backend graph-truth test is wired into `scripts/verify-replay-tier.sh` and is
 gated by `ESHU_REPLAY_TIER_LIVE`.
