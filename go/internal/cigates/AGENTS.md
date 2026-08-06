@@ -71,13 +71,22 @@ and `eshu-diagnostic-rigor`.
   workflow. Do not broaden it to "the declared job must run the gate's local
   command": a gate's local and CI entrypoints are legitimately different
   artifacts (CI runs golangci-lint where local runs `precommit-go.sh`, and
-  `generate-contracttest.sh` where local runs `verify-contracttest.sh`), so the
-  broad rule flags 16 gates of which 15 are correctly wired (#5748). A script no
-  workflow runs, or several run, carries no signal and is skipped. Match the
-  script with a boundary check, never `strings.Contains` — a workflow running
-  `myscripts/verify-X.sh` contains `scripts/verify-X.sh` as a substring, and
-  counting it as a second host makes the "exactly one workflow" precondition
-  fail, silently skipping the gate and turning a real mismatch into a pass.
+  `generate-contracttest.sh` where local runs `verify-contracttest.sh`). A
+  one-time #5748 measurement of that broader, never-implemented rule found it
+  flagged a double digit number of gates, nearly all of them legitimately
+  wired rather than broken; that rule was never shipped, so those exact counts
+  cannot be re-derived from code and are not restated here as a live figure —
+  only the qualitative reason (entrypoint divergence, not drift) still holds.
+  A script no workflow runs, or several run, carries no signal and is
+  skipped. Match the script with a boundary check, never `strings.Contains`
+  — a workflow running `myscripts/verify-X.sh` contains `scripts/verify-X.sh`
+  as a substring, and counting it as a second host makes the "exactly one
+  workflow" precondition fail, silently skipping the gate and turning a real
+  mismatch into a pass. The size of the checkable sound subset itself IS
+  live-verified: `scriptWorkflowSoundSubsetCount` in `scriptworkflow.go` is
+  guarded by `TestScriptWorkflowSoundSubsetCount` against the committed
+  registry, so it cannot go stale silently the way the doc comment's
+  hard-coded gate count once did.
 
 - **One authoritative list, one shared derivation, every side provably wired
   to it — not values compared.** `checkTrivySkipDirsParity` (`trivyskipdirs.go`)
@@ -301,6 +310,13 @@ and `eshu-diagnostic-rigor`.
   the tier-ordering tests in `select_test.go`.
 - Extending `Gate` with a new field: add to `gateFile`, map in `Load`, add a
   `TestLoad_Valid*` assertion.
+- Adding, removing, or rewiring a gate that changes which gates fall in the
+  verify-script sound subset (a gate's `scripts/verify-*.sh` invoked by
+  exactly one workflow): run
+  `go test ./internal/cigates -run TestScriptWorkflowSoundSubsetCount -v` and
+  update `scriptWorkflowSoundSubsetCount` in `scriptworkflow.go` (and its doc
+  comment) to match what the test reports. Do not hand-edit the constant
+  without re-running the test.
 - Adding a new dorny/paths-filter workflow: no code change is needed in
   `pathfilter.go` itself — `checkPathFilterCoverage` picks it up automatically
   once a gate's `ci.job` resolves to a filter key, either via `append_gate` or

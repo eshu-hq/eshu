@@ -274,4 +274,61 @@ awk '
 	}
 ' "${script}" || fail "go test (changed packages) is not reached on both lanes"
 
+# ─── #5939 review: fixture_consumer_dirs must select ./internal/cigates for a
+# registry- or workflow-only change ───────────────────────────────────────────
+# TestScriptWorkflowSoundSubsetCount (go/internal/cigates) re-derives its count
+# from specs/ci-gates.v1.yaml and .github/workflows/*.yml, neither a Go
+# package, so a registry- or workflow-only change previously selected nothing
+# in step_test. step_exactness's ci-gate-registry gate does not cover the gap:
+# executeGates (go/cmd/ci-gates/main.go) runs only a gate's local.command,
+# never local.test_command, which is the only place `go test ./internal/cigates`
+# was wired for that gate. Without the fixture_consumer_dirs mapping, that
+# guard -- and the rest of internal/cigates' real-registry tests -- would first
+# run in the unconditional verify-ci-gate-registry.yml CI job instead of
+# locally.
+#
+# This extracts the REAL fixture_consumer_dirs function body from the
+# committed script and calls it with a stubbed changed_all_files, rather than
+# reimplementing its logic, so a future edit that breaks the mapping (a typo
+# in the regex, a reverted line) fails here instead of only in a manual repro.
+fixture_consumer_fn="$(awk '
+	/^fixture_consumer_dirs\(\) \{$/ { printing = 1 }
+	printing { print }
+	printing && /^}$/ { exit }
+' "${script}")"
+[[ -n "${fixture_consumer_fn}" ]] || fail "could not extract fixture_consumer_dirs from ${script}"
+
+# run_fixture_consumer_dirs drives the extracted function against a synthetic
+# single-path changed set, with no git state involved: changed_all_files is
+# stubbed to echo SYNTHETIC_CHANGED_PATH instead of running collect_changed_paths.
+run_fixture_consumer_dirs() {
+	SYNTHETIC_CHANGED_PATH="$1" bash -c '
+		changed_all_files() { printf "%s\n" "${SYNTHETIC_CHANGED_PATH}"; }
+		'"${fixture_consumer_fn}"'
+		fixture_consumer_dirs
+	'
+}
+
+registry_only_dirs="$(run_fixture_consumer_dirs 'specs/ci-gates.v1.yaml')"
+printf '%s\n' "${registry_only_dirs}" | rg --fixed-strings --quiet -- './internal/cigates' ||
+	fail "a specs/ci-gates.v1.yaml-only change did not select ./internal/cigates (got: ${registry_only_dirs})"
+
+workflow_only_dirs="$(run_fixture_consumer_dirs '.github/workflows/verify-ci-gate-registry.yml')"
+printf '%s\n' "${workflow_only_dirs}" | rg --fixed-strings --quiet -- './internal/cigates' ||
+	fail "a .github/workflows/-only change did not select ./internal/cigates (got: ${workflow_only_dirs})"
+
+unrelated_dirs="$(run_fixture_consumer_dirs 'README.md')"
+if printf '%s\n' "${unrelated_dirs}" | rg --fixed-strings --quiet -- './internal/cigates'; then
+	fail "an unrelated change unexpectedly selected ./internal/cigates (got: ${unrelated_dirs})"
+fi
+
+# The specs/ branch must be exact-match ($-anchored), matching its
+# '^(CLAUDE|AGENTS)\.md$' sibling above -- an unanchored prefix would
+# over-trigger on e.g. a backup or generated sibling file that merely starts
+# with the registry's name.
+registry_lookalike_dirs="$(run_fixture_consumer_dirs 'specs/ci-gates.v1.yaml.bak')"
+if printf '%s\n' "${registry_lookalike_dirs}" | rg --fixed-strings --quiet -- './internal/cigates'; then
+	fail "an unanchored specs/ match selected ./internal/cigates for a lookalike path (got: ${registry_lookalike_dirs})"
+fi
+
 printf 'PASS: pre-pr scheduling, worktree cache isolation, and lane wiring are pinned\n'

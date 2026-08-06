@@ -20,6 +20,22 @@ import (
 // the self-test rather than the gate.
 var verifyScriptRE = regexp.MustCompile(`scripts/verify-[\w.-]+\.sh`)
 
+// scriptWorkflowSoundSubsetCount is the number of gates in the "sound
+// subset" checkVerifyScriptWorkflowMatch can validate: those whose
+// scripts/verify-*.sh is invoked by exactly one committed workflow file,
+// measured against specs/ci-gates.v1.yaml and .github/workflows/*.yml.
+//
+// TestScriptWorkflowSoundSubsetCount re-derives this count from the
+// committed registry and workflows on every test run and fails when it
+// disagrees with this constant. That is the guard this number lacked before:
+// a doc comment here once hard-coded a count of 29 gates, the registry grew
+// past that silently, and nothing caught the prose going stale. The current
+// count lives only in the constant below, not restated anywhere in prose, so
+// there is exactly one place it can go stale. Update this constant (and
+// re-run that test) whenever a registry or workflow change moves the count;
+// do not hand-edit it without doing so.
+const scriptWorkflowSoundSubsetCount = 34
+
 // runStep is the minimal shape needed to read a step's executable command.
 type runStep struct {
 	Run string `yaml:"run"`
@@ -116,21 +132,77 @@ func commandRunsScript(raw, script string) bool {
 // runs golangci-lint directly where the local gate runs precommit-go.sh; it
 // runs generate-contracttest.sh in a regenerate-and-diff shape where the local
 // gate runs verify-contracttest.sh; trivy-fs-local.sh is a local convenience
-// wrapper for an action-driven CI scan. Requiring the local script to appear in
-// the declared job flags 16 gates, and 15 of those are correct wiring.
+// wrapper for an action-driven CI scan. The broader rule -- requiring the
+// local script to appear in the declared job -- was considered and rejected
+// for this reason: a one-time #5748 measurement found it flagged a double
+// digit number of gates, nearly all of them legitimately wired rather than
+// broken. That broader rule was never implemented, so its counts cannot be
+// re-derived from shipped code; they are not repeated here as a live figure,
+// only as the qualitative reason -- entrypoint divergence, not drift -- this
+// narrower check exists instead.
 //
 // "Appears in exactly one workflow" is the sound subset: if a verify script is
 // invoked by precisely one workflow, that workflow is unambiguously where the
 // gate runs, and any other declaration is wrong. A script no workflow runs, or
 // one several run, carries no such signal and is skipped rather than guessed --
-// the same convention the rest of this package follows. Measured against the
-// committed registry this checks 29 gates and, before the accompanying fix,
-// flagged exactly one: the real defect.
+// the same convention the rest of this package follows.
+// scriptWorkflowSoundSubsetCount names the current size of that subset,
+// guarded by TestScriptWorkflowSoundSubsetCount against the committed
+// registry -- unlike a hard-coded figure in prose, which the registry can
+// silently outgrow. Before the accompanying #5748 fix, this check flagged
+// exactly one gate in that subset: the real defect.
 func checkVerifyScriptWorkflowMatch(repoRoot string, reg *Registry) []error {
+	subset, err := scriptWorkflowSoundSubset(repoRoot, reg)
+	if err != nil {
+		// An unreadable .github/workflows (missing, permission-denied, not a
+		// directory) means this check cannot determine the sound subset at
+		// all -- not that there is no drift. Silently returning nil here
+		// would read as a clean pass in exactly the situation where a hard
+		// failure is wanted (#5939 review).
+		return []error{fmt.Errorf("drift: reading workflow-script sound subset: %w", err)}
+	}
+
+	var errs []error
+	for _, g := range reg.Gates {
+		entry, ok := subset[g.ID]
+		if !ok {
+			// No workflow runs the script (CI uses a different entrypoint), or
+			// several do (no single owner). Neither carries a correspondence
+			// signal.
+			continue
+		}
+		if filepath.Base(g.CI.Workflow) != entry.host {
+			errs = append(errs, fmt.Errorf(
+				"drift: gate %q declares ci.workflow %q, but its verify script %s is invoked only by %q -- "+
+					"the declared workflow does not run this gate's check; point ci.workflow/ci.job at the workflow that does",
+				g.ID, g.CI.Workflow, entry.script, entry.host,
+			))
+		}
+	}
+	return errs
+}
+
+// scriptWorkflowSoundSubsetEntry names the single workflow file that hosts a
+// gate's verify script, and the script path itself for error messages.
+type scriptWorkflowSoundSubsetEntry struct {
+	host   string
+	script string
+}
+
+// scriptWorkflowSoundSubset returns, keyed by gate id, every gate in reg.Gates
+// whose scripts/verify-*.sh is invoked by exactly one committed workflow
+// file -- the "sound subset" checkVerifyScriptWorkflowMatch can validate. A
+// gate outside it (no host, or several) carries no correspondence signal and
+// is omitted rather than guessed.
+//
+// This is the single derivation both checkVerifyScriptWorkflowMatch and
+// TestScriptWorkflowSoundSubsetCount call, so the production check and its
+// anti-drift guard can never disagree about what "the sound subset" means.
+func scriptWorkflowSoundSubset(repoRoot string, reg *Registry) (map[string]scriptWorkflowSoundSubsetEntry, error) {
 	wfDir := filepath.Join(repoRoot, ".github", "workflows")
 	entries, err := os.ReadDir(wfDir)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("read workflow dir %s: %w", wfDir, err)
 	}
 
 	raws := make(map[string]string)
@@ -138,14 +210,24 @@ func checkVerifyScriptWorkflowMatch(repoRoot string, reg *Registry) []error {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".yml") {
 			continue
 		}
-		b, err := os.ReadFile(filepath.Join(wfDir, e.Name())) // #nosec G304 -- wfDir-confined listing
+		p := filepath.Join(wfDir, e.Name())
+		b, err := os.ReadFile(p) // #nosec G304 -- wfDir-confined listing
 		if err != nil {
-			continue
+			// Silently dropping one unreadable file from raws is wrong
+			// signal, not absent signal: if a script is genuinely hosted by
+			// this file and one other, the loop below now observes exactly
+			// one host and the gate enters the sound subset as unambiguous
+			// when it is not -- either a factually wrong drift error, or a
+			// real mismatch masked. That taints every gate's host count, not
+			// only ones this file would have hosted, so it fails the whole
+			// derivation the same way an unreadable directory does, rather
+			// than reporting only this one file (#5939 review).
+			return nil, fmt.Errorf("read workflow file %s: %w", p, err)
 		}
 		raws[e.Name()] = string(b)
 	}
 
-	var errs []error
+	subset := make(map[string]scriptWorkflowSoundSubsetEntry)
 	for _, g := range reg.Gates {
 		if g.CI.Workflow == "" || g.Local == nil || g.Local.Command == "" {
 			continue
@@ -162,17 +244,9 @@ func checkVerifyScriptWorkflowMatch(repoRoot string, reg *Registry) []error {
 			}
 		}
 		if len(hosts) != 1 {
-			// No workflow runs it (CI uses a different entrypoint), or several
-			// do (no single owner). Neither carries a correspondence signal.
 			continue
 		}
-		if filepath.Base(g.CI.Workflow) != hosts[0] {
-			errs = append(errs, fmt.Errorf(
-				"drift: gate %q declares ci.workflow %q, but its verify script %s is invoked only by %q -- "+
-					"the declared workflow does not run this gate's check; point ci.workflow/ci.job at the workflow that does",
-				g.ID, g.CI.Workflow, script, hosts[0],
-			))
-		}
+		subset[g.ID] = scriptWorkflowSoundSubsetEntry{host: hosts[0], script: script}
 	}
-	return errs
+	return subset, nil
 }
