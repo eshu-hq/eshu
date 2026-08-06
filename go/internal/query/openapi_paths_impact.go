@@ -3,6 +3,20 @@
 
 package query
 
+// openAPIPathsImpact is the OpenAPI fragment for the /api/v0/impact routes.
+//
+// #5720 round-8 P3-4: trace-deployment-chain's max_depth declares "minimum": 0
+// and "maximum": 1000 here, while the same parameter on the sibling MCP tool
+// (go/internal/mcp/tools_ecosystem.go) deliberately declares neither. The
+// clamping rationale recorded there applies to JSON Schema in an OpenAPI
+// document just as literally, and both feed generated clients and validators,
+// so the split is deliberate rather than an oversight. What differs is what
+// each consumer does with the schema: an MCP client validates arguments before
+// the call and would turn a clamped value into a client-side rejection,
+// whereas OpenAPI consumers overwhelmingly read the document rather than
+// enforce it. Every other max_depth here declares both bounds, so OpenAPI
+// keeps the house convention and MCP is the deviation. Change either
+// declaration only alongside the other and this note.
 const openAPIPathsImpact = `
     "/api/v0/impact/trace-deployment-chain": {
       "post": {
@@ -21,7 +35,7 @@ const openAPIPathsImpact = `
                 "properties": {
                   "service_name": {"type": "string", "description": "Service or workload name to trace"},
                   "direct_only": {"type": "boolean", "default": true},
-                  "max_depth": {"type": "integer", "default": 8, "minimum": 1},
+                  "max_depth": {"type": "integer", "minimum": 0, "maximum": 1000, "description": "Scales the indirect-evidence search limit (max_depth x 10, capped at 100); it is not a literal traversal-hop count, and every value at or above 10 resolves to the same capped limit. Accepted range 0-1000; out-of-range values are clamped rather than rejected. Omitting this field does not apply a default of 8 -- it resolves to the handler's own operator-safe default search limit of 25."},
                   "include_related_module_usage": {"type": "boolean", "default": false}
                 }
               }
@@ -156,6 +170,7 @@ const openAPIPathsImpact = `
                     "observed_config_environments": {"type": "array", "items": {"type": "string"}},
                     "api_surface": {"type": "object"},
                     "dependents": {"type": "array", "items": {"type": "object"}},
+                    "dependents_truncated": {"type": "boolean", "description": "Present and true when the graph-derived dependent-repository read hit its bound. That read bounds rows, and one repository can supply several rows, so this reports either that the dependents list is not exhaustive or that the relationship_types and relationship_reasons on a returned entry were clipped. See the Context and stories HTTP API reference for the conditions under which the flag is true although no repository was dropped."},
                     "deployment_sources": {
                       "type": "array",
                       "items": {
@@ -220,7 +235,9 @@ const openAPIPathsImpact = `
                     "deployment_overview": {"type": "object"},
                     "gitops_overview": {"type": "object"},
                     "consumer_repositories": {"type": "array", "items": {"type": "object"}},
+                    "consumer_repositories_truncated": {"type": "boolean", "description": "Present and true when any read underneath the consumer-repository list hit its bound: the graph-derived candidate read, the service evidence file read the observed hostnames are extracted from, any of the three narrowings applied to those hostnames before the cross-repository searches (the affinity filter, the four-hostname cap, and the cut against the caller's own limit), a per-search content row cap, or the final merge cap. The returned consumer_repositories list may not be exhaustive even though it is well under any displayed row limit. See the Context and stories HTTP API reference for the full enumeration and the conditions under which the flag is true although nothing was dropped."},
                     "provisioning_source_chains": {"type": "array", "items": {"type": "object"}},
+                    "provisioning_source_chains_truncated": {"type": "boolean", "description": "Present and true when the provisioning-source-chain read hit its bound. That read bounds rows, and one repository can supply several rows, so this reports either that the provisioning_source_chains list is not exhaustive or that the relationship_types and relationship_reasons on a returned entry were clipped. See the Context and stories HTTP API reference for the conditions under which the flag is true although no repository was dropped."},
                     "deployment_evidence": {"type": "object"},
                     "documentation_overview": {"type": "object"},
                     "support_overview": {"type": "object"},

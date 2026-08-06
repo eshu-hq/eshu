@@ -42,7 +42,6 @@ var grandfatheredNonHotSourceDigests = map[string]string{
 	"compare.go:(*CompareHandler).environmentSnapshot":                                                    "926c9b6c699c7f49712341e72420fbe1078cd5b5a6ff1ad60c6c7f3510c86913",
 	"compare.go:(*CompareHandler).fetchWorkload":                                                          "cb8c6cefd899b3c46a8778cc13fb218c18564157d1e40882819c3c4b9a6684a9",
 	"contract_impact.go:(*ImpactHandler).contractImpactResponse":                                          "562e0ec5870a6a049efe6cc2f2217951a0925d7118cf18d080f78a58b038cd53",
-	"deployment_trace_support_helpers.go:queryProvisioningRepositoryCandidates":                           "b18f8ac6ff855c1e7d06969b760c7642c0b39a4bd6a7152e87e87d7b37ff3b6d",
 	"entity.go:(*EntityHandler).getEntityContext":                                                         "c5e12ee00ff6abbea0a5de738666357e9d7cfb3ea3867564e5558b9c5735a4cd",
 	"entity_resolve_identity.go:hydrateResolvedEntityRepoIdentity":                                        "2206902b6a66fe8ae06861b53946f5af00e0cba135c238ad1cd86cf50aac0342",
 	"exposure_path.go:(*ImpactHandler).exposurePathCandidates":                                            "157383f76058132a7c74d0105bf806386cedd0a7eae975ddecd90f29ab28b243",

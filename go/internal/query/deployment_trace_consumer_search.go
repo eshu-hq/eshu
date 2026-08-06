@@ -11,6 +11,19 @@ import (
 	"sync"
 )
 
+// searchConsumerEvidenceAnyRepo fans out one bounded content search per
+// service name and hostname and merges the matched rows by repository.
+//
+// #5720 round-7 P1-3: the returned bool reports that at least one of those
+// per-search reads came back full, i.e. its own `limit` row cap is what ended
+// it. That cap is a third, upstream truncation source independent of the
+// provisioning-candidate read and of the caller's final merged-set cap: a
+// consumer repository whose only evidence row sits past a search's cap never
+// reaches the merged set, so the answer would otherwise report a
+// complete-looking consumer_repository_count. A search returning exactly
+// `limit` rows is reported as truncated -- the read carries no over-fetch
+// probe, so "exactly limit" and "limit plus more" are indistinguishable here,
+// and over-disclosing the bound is the conservative direction.
 func searchConsumerEvidenceAnyRepo(
 	ctx context.Context,
 	content ContentStore,
@@ -18,10 +31,10 @@ func searchConsumerEvidenceAnyRepo(
 	serviceName string,
 	hostnames []string,
 	limit int,
-) (map[string]traceEvidenceAccumulator, error) {
+) (map[string]traceEvidenceAccumulator, bool, error) {
 	evidenceByRepo := map[string]traceEvidenceAccumulator{}
 	if content == nil {
-		return evidenceByRepo, nil
+		return evidenceByRepo, false, nil
 	}
 	if limit <= 0 {
 		limit = defaultIndirectEvidenceSearchLimit
@@ -43,7 +56,7 @@ func searchConsumerEvidenceAnyRepo(
 		})
 	}
 	if len(searches) == 0 {
-		return evidenceByRepo, nil
+		return evidenceByRepo, false, nil
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -64,19 +77,23 @@ func searchConsumerEvidenceAnyRepo(
 			}
 			evidence := map[string]traceEvidenceAccumulator{}
 			collectSearchRowsByRepo(evidence, rows, serviceRepoID, search.evidenceKind, search.matchedValue)
-			results <- consumerEvidenceSearchResult{evidence: evidence}
+			results <- consumerEvidenceSearchResult{evidence: evidence, truncated: len(rows) >= limit}
 		}()
 	}
 	wg.Wait()
 	close(results)
 
+	truncated := false
 	for result := range results {
 		if result.err != nil {
-			return evidenceByRepo, result.err
+			return evidenceByRepo, false, result.err
+		}
+		if result.truncated {
+			truncated = true
 		}
 		mergeTraceEvidenceByRepo(evidenceByRepo, result.evidence)
 	}
-	return evidenceByRepo, nil
+	return evidenceByRepo, truncated, nil
 }
 
 func exactCaseServiceNameSearch(serviceName string) bool {
@@ -90,8 +107,9 @@ type consumerEvidenceSearch struct {
 }
 
 type consumerEvidenceSearchResult struct {
-	evidence map[string]traceEvidenceAccumulator
-	err      error
+	evidence  map[string]traceEvidenceAccumulator
+	truncated bool
+	err       error
 }
 
 type contentReferenceSearchStore interface {

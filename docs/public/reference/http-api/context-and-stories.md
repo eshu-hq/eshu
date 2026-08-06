@@ -548,6 +548,102 @@ bound is applied; deployment-evidence artifact order does not decide which
 config-derived candidates survive that bound. Free-text candidate selection is
 a separate query path and does not use deployment-evidence artifact order.
 
+`dependents_truncated`, `consumer_repositories_truncated`, and
+`provisioning_source_chains_truncated` report the same class of incomplete
+discovery for the cross-repository fan-out. Each is present and true when the
+read underneath the matching list hit a bound, and absent otherwise. They are
+required because the reads that feed those lists are bounded at 25 rows by
+default while the rendered lists are capped at 50, so a genuinely truncated
+read can never surface through a count-versus-limit comparison alone.
+
+Six cardinality bounds feed these flags — numeric caps on how many rows or
+items survive a step. They are the provisioning-candidate graph read, the
+service evidence file read that every observed hostname is extracted from, the
+four-hostname cap on the surviving hostname set, the cut that applies when that
+set still exceeds the caller's requested limit, each per-search content row cap,
+and the final merge cap over the combined set. One filter that is not a
+cardinality bound is disclosed alongside them: the hostname affinity filter,
+which keeps only hostnames carrying a distinctive token from the service's own
+name. It decides which hostnames are searched rather than how many survive, but
+it drops reachable consumer repositories exactly the way the four-hostname cap
+does, so it sets the flag too. `consumer_repositories_truncated` covers all
+seven; the other two flags carry the provisioning-candidate graph read only,
+which is the only one of the seven that bounds the lists they describe.
+
+Other filters narrow this evidence further upstream and are deliberately not
+disclosed, because they decide which content is considered rather than capping
+how much of it survives: the file-extension and path-keyword filter that decides
+which repository files are read for evidence at all, the classification filter
+that searches only unambiguous hostnames, and the hostname extractor's own
+false-positive tables. A hostname that appears only in `terraform/main.tf`,
+`Dockerfile`, `nginx/nginx.conf`, or `.env.production` is therefore never
+searched for, and these flags stay false.
+
+Treat these flags as "the read underneath was bounded", not as "rows were
+definitely dropped". Five conditions make them true when nothing was lost, and
+all five err toward disclosure: a false claim of completeness is the worse
+failure for an evidence-backed answer.
+
+- The provisioning-candidate graph read bounds **rows**, and one repository can
+  supply several rows, one per relationship type and reason. Those rows are
+  grouped by repository after the bound is applied, so a graph holding 26 rows
+  across 3 repositories at the default 25-row bound sets all three flags true
+  and still returns all 3 repositories. What was clipped there is the
+  `relationship_types` and `relationship_reasons` metadata inside an entry, not
+  the entry itself.
+- A per-search content read that returns exactly its row cap is reported as
+  truncated, because that read carries no over-fetch probe and cannot
+  distinguish "exactly the cap" from "the cap plus more".
+- A repository with more than 5,000 indexed files reports
+  `consumer_repositories_truncated` whether or not the files past that bound
+  held any hostname at all, because the bound is on files and the hostnames are
+  derived from them.
+- Every narrowing on the hostname set (that 5,000-file read, the four-hostname
+  cap, the surviving-set cut, and the affinity filter) sets
+  `consumer_repositories_truncated` when a **hostname** was dropped, whether or
+  not any consumer repository referenced that hostname.
+- A scoped token receives flags computed from the pre-authorization read (see
+  below), which can fire on rows the caller was never entitled to.
+
+The same three signals drive `result_limits.truncated` on service story,
+service context, and workload context/story, and `coverage_summary.truncated`
+on `GET /api/v0/investigations/services/{service_name}`. Both blocks also
+report `downstream_read_limit`, the bound that actually fires on the
+downstream lists (25 by default). Read it rather than `result_limits.limit` or
+`coverage_summary.result_limit`, which report the 50-row rendering cap.
+
+`downstream_read_limit` is not the only bound behind `truncated`, though.
+`dependents_truncated` and `provisioning_source_chains_truncated` reflect the
+provisioning-candidate graph read alone, so when either one drives
+`truncated` to true the honest statement is "more than `downstream_read_limit`
+existed". `consumer_repositories_truncated` can also fire from the other six
+sources in the enumeration above -- most notably the service repository's own
+5,000-file read, reported alongside as `evidence_file_read_limit`. When
+`truncated` is true only because of `consumer_repositories_truncated`, and the
+returned `dependents`/`consumer_repositories` counts sit under
+`downstream_read_limit`, the bound that fired is `evidence_file_read_limit` or
+one of its siblings, not `downstream_read_limit` -- "more than the rendering
+cap existed" is still wrong, but so is assuming `downstream_read_limit` itself
+was exceeded.
+
+A scoped token receives these flags computed from the pre-authorization read.
+The backend applies its row bound before the caller's repository grant is
+applied, so the flag reflects global row cardinality and is not grant-relative:
+it can be true when every row the bound dropped lay outside the caller's grant.
+A scoped caller whose entire result is removed by the grant filter still
+receives the truncation flags rather than an empty result that reads as
+complete.
+
+That makes the flag a coarse cardinality signal over data the caller cannot
+read. Because `max_depth` scales the underlying bound (`max_depth` x 10, capped
+at 100), a scoped caller who sweeps `max_depth` over 1 through 10 and reads the
+flag at each step can place the global provisioning-candidate row count within
+about 10 across the range 10 to 100. No repository name or identifier is
+exposed, and the caller is already authorized for the service the count hangs
+off. The behavior is deliberate: suppressing the flag for scoped callers would
+return an empty or clipped answer that reads as complete, which is the worse
+failure for a product whose answers are meant to be evidence-backed.
+
 Repository story uses the same repository deployment-evidence read path as
 repository context and service story. When repository-scoped deployment evidence
 exists, repository story may populate deployment overview evidence counts,

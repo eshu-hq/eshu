@@ -22,7 +22,7 @@ func TestSearchConsumerEvidenceAnyRepoStartsBoundedSearchesConcurrently(t *testi
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
-		_, err := searchConsumerEvidenceAnyRepo(
+		_, _, err := searchConsumerEvidenceAnyRepo(
 			ctx,
 			store,
 			"repo-sample-service-api",
@@ -64,7 +64,7 @@ func TestSearchConsumerEvidenceAnyRepoUsesIndexedServiceReferences(t *testing.T)
 			},
 		},
 	}
-	got, err := searchConsumerEvidenceAnyRepo(
+	got, _, err := searchConsumerEvidenceAnyRepo(
 		context.Background(),
 		store,
 		"repo-sample-service-api",
@@ -97,7 +97,7 @@ func TestSearchConsumerEvidenceAnyRepoDoesNotFallbackWhenIndexedServiceEmpty(t *
 			{RepoID: "repo-consumer", RelativePath: "deploy/values.yaml"},
 		},
 	}
-	got, err := searchConsumerEvidenceAnyRepo(
+	got, _, err := searchConsumerEvidenceAnyRepo(
 		context.Background(),
 		store,
 		"repo-sample-service-api",
@@ -127,7 +127,7 @@ func TestSearchConsumerEvidenceAnyRepoUsesIndexedHostnameReferences(t *testing.T
 			{RepoID: "repo-consumer", RelativePath: "deploy/values.yaml"},
 		},
 	}
-	got, err := searchConsumerEvidenceAnyRepo(
+	got, _, err := searchConsumerEvidenceAnyRepo(
 		context.Background(),
 		store,
 		"repo-sample-service-api",
@@ -157,7 +157,7 @@ func TestSearchConsumerEvidenceAnyRepoDoesNotFallbackWhenIndexedHostnameEmpty(t 
 			{RepoID: "repo-consumer", RelativePath: "deploy/values.yaml"},
 		},
 	}
-	got, err := searchConsumerEvidenceAnyRepo(
+	got, _, err := searchConsumerEvidenceAnyRepo(
 		context.Background(),
 		store,
 		"repo-sample-service-api",
@@ -183,7 +183,7 @@ func TestSearchConsumerEvidenceAnyRepoKeepsInsensitiveSearchForMixedCaseServiceT
 	t.Parallel()
 
 	store := &methodChoiceConsumerSearchContentStore{}
-	_, err := searchConsumerEvidenceAnyRepo(
+	_, _, err := searchConsumerEvidenceAnyRepo(
 		context.Background(),
 		store,
 		"repo-sample-service-api",

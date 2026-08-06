@@ -18,6 +18,54 @@ type traceDeploymentChainRequest struct {
 	IncludeRelatedModuleUsage bool   `json:"include_related_module_usage"`
 }
 
+// traceDeploymentChainMaxDepthLimit bounds traceDeploymentChainRequest.MaxDepth
+// at the HTTP boundary. #5720 P2-3: boundedTraceEnrichmentLimit (which derives
+// an indirect-evidence search limit from this field via maxDepth*10) now
+// clamps its own output, but an absurd input -- negative, or large enough to
+// read as abuse or a caller bug rather than an intentional depth -- is
+// normalized here rather than silently reinterpreted deeper in the call
+// chain. #5720 round-2 P1-2: the first draft of this boundary rejected
+// out-of-range values with 400, which broke every sibling max_depth-bearing
+// route's contract (impact_resource_investigation.go,
+// impact_change_surface_investigation.go, impact_change_surface_legacy.go,
+// and this route's own OpenAPI fragment all normalize rather than reject) and
+// changed observable behavior for existing callers: max_depth=5000 used to
+// 200 with output identical to max_depth=1000 (both saturate
+// boundedTraceEnrichmentLimit at 100), and max_depth=-1 used to 200 using the
+// default limit of 25. The MCP dispatch route (dispatch_impact.go) passes an
+// explicit max_depth straight through from `intOr`, so an out-of-range value
+// there would have 400'd a caller that previously got results, for no
+// additional safety -- boundedTraceEnrichmentLimit already maps every int
+// input, including MaxInt64/MinInt64 and both multiply-overflow wrap points,
+// into (0, maxIndirectEvidenceSearchLimit]. Clamping instead of rejecting
+// restores that contract while keeping the boundary: the limit stays
+// generous relative to boundedTraceEnrichmentLimit's own saturation point
+// (any max_depth above 10 already yields the same clamped limit), while
+// staying far below the point where maxDepth*10 would overflow int64.
+const traceDeploymentChainMaxDepthLimit = 1000
+
+// normalizeTraceDeploymentChainMaxDepth clamps a caller-supplied max_depth to
+// [0, traceDeploymentChainMaxDepthLimit]: negative values (including
+// math.MinInt) clamp to zero, values above the limit (including
+// math.MaxInt and overflow-scale inputs such as 922337203685477581) clamp
+// down to the limit, and in-range values pass through unchanged. Extracted
+// as a pure function, mirroring normalizeChangeSurfaceLegacyDepth
+// (impact_change_surface_legacy.go) and the MaxDepth clamp in
+// resourceInvestigationRequest.normalize (impact_resource_investigation.go),
+// so the boundary itself has direct unit coverage independent of
+// boundedTraceEnrichmentLimit's own saturation, which maps every int input
+// into (0, maxIndirectEvidenceSearchLimit] regardless of whether this clamp
+// ran. #5720 round-4 P2.
+func normalizeTraceDeploymentChainMaxDepth(maxDepth int) int {
+	if maxDepth < 0 {
+		return 0
+	}
+	if maxDepth > traceDeploymentChainMaxDepthLimit {
+		return traceDeploymentChainMaxDepthLimit
+	}
+	return maxDepth
+}
+
 type traceEnrichmentConfig struct {
 	includeConsumers          bool
 	includeProvisioningChains bool
@@ -59,6 +107,7 @@ func (h *ImpactHandler) traceDeploymentChain(w http.ResponseWriter, r *http.Requ
 		WriteError(w, http.StatusBadRequest, "service_name is required")
 		return
 	}
+	req.MaxDepth = normalizeTraceDeploymentChainMaxDepth(req.MaxDepth)
 
 	traceOptions := traceEnrichmentOptions(req)
 	ctx, err := fetchServiceTraceContext(r.Context(), h.Neo4j, h.Content, h.Logger, req.ServiceName, traceOptions)

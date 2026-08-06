@@ -31,9 +31,24 @@ func ecosystemTools() []ToolDefinition {
 						"description": "Whether to return only direct relationships",
 						"default":     true,
 					},
+					// #5720 round-7 P1-5/P2-4: this schema advertises no
+					// minimum, maximum, or default on purpose. The handler
+					// clamps rather than rejects (see
+					// normalizeTraceDeploymentChainMaxDepth in
+					// go/internal/query/impact_trace_deployment.go), and the
+					// route's OpenAPI fragment says so explicitly. A
+					// JSON-Schema minimum/maximum makes a validating MCP
+					// client reject exactly the out-of-range values the
+					// server happily clamps -- reintroducing the 400 that
+					// clamping was chosen to avoid. A "default": 8 was worse:
+					// a client applying advertised defaults would start
+					// sending max_depth: 8, resolving to a search limit of 80
+					// instead of the handler's own operator-safe 25, for a
+					// caller that changed nothing. The bounds live in the
+					// description, where they inform without gating.
 					"max_depth": map[string]any{
 						"type":        "integer",
-						"description": "Maximum depth to traverse",
+						"description": "Maximum depth to traverse. Scales the indirect-evidence search limit (max_depth x 10, capped at 100); it is not a literal traversal-hop count. Out-of-range values are clamped to 0-1000 rather than rejected. Omitting this field does not apply a default -- it resolves to the handler's own operator-safe default search limit of 25.",
 					},
 					"include_related_module_usage": map[string]any{
 						"type":        "boolean",

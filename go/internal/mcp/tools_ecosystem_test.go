@@ -3,7 +3,10 @@
 
 package mcp
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestEcosystemToolsAreRegistered(t *testing.T) {
 	t.Parallel()
@@ -43,6 +46,53 @@ func TestEcosystemTraceDeploymentChainSchema(t *testing.T) {
 	for _, field := range []string{"service_name", "direct_only", "max_depth", "include_related_module_usage"} {
 		if _, ok := properties[field]; !ok {
 			t.Fatalf("trace_deployment_chain schema missing %q", field)
+		}
+	}
+}
+
+// TestEcosystemTraceDeploymentChainMaxDepthSchemaDoesNotGateOnValuesTheHandlerClamps
+// is the #5720 round-7 P1-5/P2-4 fix, and reverses the round-2 assertion that
+// stood here.
+//
+// Round 2 pinned "minimum": 0, "maximum": 1000, and "default": 8 onto this
+// schema to keep it in lockstep with the HTTP bound. Both halves were wrong
+// for a clamping route. The default contradicted this route's own OpenAPI
+// fragment, which states in the same commit that omitting max_depth resolves
+// to the handler's default search limit of 25, not to 8: an MCP client
+// applying advertised defaults would send max_depth: 8, resolving to
+// boundedTraceEnrichmentLimit(8) = 80 -- a 3.2x wider read and a different
+// result set for a caller that changed nothing. The minimum/maximum
+// reintroduced the very rejection normalizeTraceDeploymentChainMaxDepth was
+// written to avoid: a validating MCP client would 400 a max_depth: 5000 or
+// max_depth: -1 that the server clamps and answers.
+//
+// So the schema must advertise none of the three, and the bounds must live in
+// the description instead. This test is what stops any of them coming back.
+func TestEcosystemTraceDeploymentChainMaxDepthSchemaDoesNotGateOnValuesTheHandlerClamps(t *testing.T) {
+	t.Parallel()
+
+	tool := requireToolDefinition(t, "trace_deployment_chain")
+	schema, _ := tool.InputSchema.(map[string]any)
+	properties, _ := schema["properties"].(map[string]any)
+	maxDepth, ok := properties["max_depth"].(map[string]any)
+	if !ok {
+		t.Fatalf("trace_deployment_chain schema max_depth missing or wrong type: %#v", properties["max_depth"])
+	}
+	for _, key := range []string{"minimum", "maximum", "default"} {
+		if value, present := maxDepth[key]; present {
+			t.Fatalf(
+				"trace_deployment_chain max_depth[%s] = %#v, want the key absent (the handler clamps out-of-range max_depth instead of rejecting it, and applies its own default search limit of 25; advertising %s makes a validating MCP client gate or rewrite a value the server answers)",
+				key, value, key,
+			)
+		}
+	}
+	description, _ := maxDepth["description"].(string)
+	for _, fragment := range []string{"clamped to 0-1000", "does not apply a default"} {
+		if !strings.Contains(description, fragment) {
+			t.Fatalf(
+				"trace_deployment_chain max_depth[description] = %q, want it to document %q (the bound has to be stated somewhere now that the schema does not gate on it)",
+				description, fragment,
+			)
 		}
 	}
 }

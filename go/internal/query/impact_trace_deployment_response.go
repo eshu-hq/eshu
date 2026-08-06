@@ -25,6 +25,8 @@ type deploymentTraceFields struct {
 	apiSurface                                         map[string]any
 	dependents, consumerRepositories                   []map[string]any
 	provisioningSourceChains                           []map[string]any
+	dependentsTruncated, consumerRepositoriesTruncated bool
+	provisioningSourceChainsTruncated                  bool
 	documentationOverview, supportOverview             map[string]any
 	deploymentEvidence                                 map[string]any
 	controllerLimits, runtimeTopologyLimits            map[string]any
@@ -63,6 +65,19 @@ func buildDeploymentTraceFields(serviceName string, workloadContext map[string]a
 	f.dependents = mapSliceValue(workloadContext, "dependents")
 	f.consumerRepositories = mapSliceValue(workloadContext, "consumer_repositories")
 	f.provisioningSourceChains = mapSliceValue(workloadContext, "provisioning_source_chains")
+	// #5720 round-2 P1-1: threads queryProvisioningRepositoryCandidates's
+	// truncated bool (set on workloadContext by service_query_enrichment.go)
+	// onto the trace-deployment-chain response, mirroring
+	// uncorrelatedCloudResourcesTruncated below. That is exact for
+	// dependentsTruncated and provisioningSourceChainsTruncated. PR #5933
+	// review fix (Copilot): consumerRepositoriesTruncated is not that same
+	// bool -- since round 9 it is the merged consumersTruncated signal
+	// loadConsumerRepositoryEnrichmentFromCandidates returns, which folds in
+	// the candidate bound plus the evidence-file, hostname, and
+	// content-search bounds underneath consumer_repositories.
+	f.dependentsTruncated = BoolVal(workloadContext, "dependents_truncated")
+	f.consumerRepositoriesTruncated = BoolVal(workloadContext, "consumer_repositories_truncated")
+	f.provisioningSourceChainsTruncated = BoolVal(workloadContext, "provisioning_source_chains_truncated")
 	f.documentationOverview = mapValue(workloadContext, "documentation_overview")
 	f.supportOverview = mapValue(workloadContext, "support_overview")
 	f.deploymentEvidence = mapValue(workloadContext, "deployment_evidence")
@@ -235,11 +250,20 @@ func (f *deploymentTraceFields) attachOptionalFields(response map[string]any) {
 	if len(f.dependents) > 0 {
 		response["dependents"] = f.dependents
 	}
+	if f.dependentsTruncated {
+		response["dependents_truncated"] = true
+	}
 	if len(f.consumerRepositories) > 0 {
 		response["consumer_repositories"] = f.consumerRepositories
 	}
+	if f.consumerRepositoriesTruncated {
+		response["consumer_repositories_truncated"] = true
+	}
 	if len(f.provisioningSourceChains) > 0 {
 		response["provisioning_source_chains"] = f.provisioningSourceChains
+	}
+	if f.provisioningSourceChainsTruncated {
+		response["provisioning_source_chains_truncated"] = true
 	}
 	if len(f.documentationOverview) > 0 {
 		response["documentation_overview"] = f.documentationOverview

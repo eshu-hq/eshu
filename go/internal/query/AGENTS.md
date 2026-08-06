@@ -345,6 +345,8 @@
   `TerraformStateOwnershipTransientFailure` -- Resolved, NoOwner, and
   AmbiguousOwner are all retract-eligible.
 
+- **Provisioning-candidate read gained a deterministic, structurally bounded LIMIT (#5720)** — see `evidence-5720-provisioning-candidate-bound.md`, continued in `evidence-5720-truncation-enumeration.md` for what belongs on the consumer-truncation enumeration and why.
+
 ## Common changes and how to scope them
 
 - **Add a new HTTP handler** → create a handler struct with `Neo4j GraphQuery`
@@ -483,16 +485,15 @@ and #5764), and [AGENTS-evidence-history-4.md](AGENTS-evidence-history-4.md)
 demoted one level (`##` to `###`) from a single-file AGENTS.md, or split out
 of this file's own "Invariants this package enforces" section above: the
 normative rule sentence for each of the following stays here, and its
-No-Regression/Observability evidence lives in the linked history part -- the
-scoped-token route family (#2048-#2110, #2225), registry bundle search
-scoping (#3493, #3506, #3520), incident-context typed decode and work-item
-evidence pagination (#4794/#4733), the `analyze_infra_relationships` /
-`what_deploys` scope-predicate arc (#3492, #3507, #3519, #5623 and its P0/P1
-follow-ups), package-registry correlation pagination and authz-gate
-invariants (#5461/#5816), the dependency-chains publisher-truncation signal
-(#5816), the language-query route-level capability and error mapping
-(#5761), and the repository context/story auxiliary graph-read degrade
-rationale for #5764, including its round-6 through round-9 review
-follow-ups. Read the relevant part before touching a route, helper, or call
-site one of those issue numbers names. Add new dated per-issue entries to
-whichever part is closest in issue number, not in AGENTS.md.
+No-Regression/Observability evidence lives in the linked history part --
+registry bundle search scoping (#3493, #3506, #3520), incident-context typed
+decode and work-item evidence pagination (#4794/#4733), package-registry
+correlation pagination and authz-gate invariants (#5461/#5816), the
+dependency-chains publisher-truncation signal (#5816), the language-query
+route-level capability and error mapping (#5761), and the repository
+context/story auxiliary graph-read degrade rationale for #5764, including
+its round-6 through round-9 review follow-ups. #2048-#2110/#2225 and
+#3492/#3507/#3519/#5623 split the same way but already have bullets above,
+so are omitted here. Read the relevant part before touching a route, helper,
+or call site one of those issue numbers names. Add new dated per-issue
+entries to whichever part is closest in issue number, not in AGENTS.md.

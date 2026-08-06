@@ -247,3 +247,36 @@ func TestResolveRouteMapsTraceDeploymentChain(t *testing.T) {
 		t.Fatalf("body[include_related_module_usage] = %#v, want %#v", got, want)
 	}
 }
+
+// TestResolveRouteMapsTraceDeploymentChainOmittedMaxDepthMatchesAdvertisedDefault
+// is a PR #5933 review fix (Codex, tools_ecosystem.go:51). The trace_deployment_chain
+// MCP schema description says an omitted max_depth "does not apply a default --
+// it resolves to the handler's own operator-safe default search limit of 25"
+// (boundedTraceEnrichmentLimit(0) in impact_trace_deployment.go). Before this
+// fix, impactRoute forwarded intOr(args, "max_depth", 8) for an omitted
+// argument, so the handler received max_depth=8 and resolved to
+// boundedTraceEnrichmentLimit(8) = 80 -- a 3.2x wider provisioning-candidate
+// read than the schema promised, changing both work done and truncation
+// flags for a caller that changed nothing. Forwarding 0 instead matches an
+// HTTP caller who omits max_depth from the JSON body entirely (the zero Go
+// value), which resolves to the same 25-row default.
+func TestResolveRouteMapsTraceDeploymentChainOmittedMaxDepthMatchesAdvertisedDefault(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("trace_deployment_chain", map[string]any{
+		"service_name": "payments-api",
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	body, ok := route.body.(map[string]any)
+	if !ok {
+		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+	}
+	if got, want := body["max_depth"], 0; got != want {
+		t.Fatalf(
+			"body[max_depth] = %#v, want %#v (an omitted max_depth must forward the handler's own no-value input, not a dispatch-invented default that changes the resolved search limit)",
+			got, want,
+		)
+	}
+}

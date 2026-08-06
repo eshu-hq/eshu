@@ -30,29 +30,48 @@ type traceEvidenceAccumulator struct {
 	matchedValues map[string]struct{}
 }
 
+// loadProvisioningSourceChains loads the provisioning source chains for a
+// service repository, returning the chains and whether the read underneath
+// them hit its bound. #5720 round-7 P3-1: this wrapper and the two below used
+// to drop the truncated bool on the floor with a comment noting no production
+// caller existed yet -- exactly the discarded-flag pattern this issue exists
+// to remove, and one a future production caller would silently inherit.
+// loadProvisioningSourceChainsFromCandidates is 1:1 over the candidate slice
+// with no capping of its own, so the candidate read's bool is the whole
+// signal.
 func loadProvisioningSourceChains(
 	ctx context.Context,
 	graph GraphQuery,
 	content ContentStore,
 	serviceRepoID string,
-) ([]map[string]any, error) {
+) ([]map[string]any, bool, error) {
 	return loadProvisioningSourceChainsWithLimit(ctx, graph, content, serviceRepoID, 0)
 }
 
+// loadProvisioningSourceChainsWithLimit is loadProvisioningSourceChains with
+// an explicit candidate-read bound. It returns the same truncation signal.
 func loadProvisioningSourceChainsWithLimit(
 	ctx context.Context,
 	graph GraphQuery,
 	content ContentStore,
 	serviceRepoID string,
 	limit int,
-) ([]map[string]any, error) {
-	candidates, err := queryProvisioningRepositoryCandidates(ctx, graph, serviceRepoID, limit)
+) ([]map[string]any, bool, error) {
+	candidates, truncated, err := queryProvisioningRepositoryCandidates(ctx, graph, serviceRepoID, limit)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return loadProvisioningSourceChainsFromCandidates(ctx, content, candidates)
+	chains, err := loadProvisioningSourceChainsFromCandidates(ctx, content, candidates)
+	if err != nil {
+		return nil, false, err
+	}
+	return chains, truncated, nil
 }
 
+// loadConsumerRepositoryEnrichment loads the consumer repositories for a
+// service at the default indirect-evidence search limit, returning the same
+// merged truncation signal loadConsumerRepositoryEnrichmentFromCandidates
+// documents (#5720 round-7 P3-1).
 func loadConsumerRepositoryEnrichment(
 	ctx context.Context,
 	graph GraphQuery,
@@ -60,7 +79,7 @@ func loadConsumerRepositoryEnrichment(
 	serviceRepoID string,
 	serviceName string,
 	hostnames []string,
-) ([]map[string]any, error) {
+) ([]map[string]any, bool, error) {
 	return loadConsumerRepositoryEnrichmentWithLimit(
 		ctx,
 		graph,
@@ -72,6 +91,16 @@ func loadConsumerRepositoryEnrichment(
 	)
 }
 
+// loadConsumerRepositoryEnrichmentWithLimit is loadConsumerRepositoryEnrichment
+// with an explicit bound. It returns the merged truncation signal from both
+// stages.
+//
+// It passes false for source 0 (evidenceFilesTruncated) because it takes
+// `hostnames` from its caller and never reads the service repository's file
+// list itself, so it has nothing to report about that bound. A caller that
+// derives those hostnames from loadServiceQueryEvidence owns the signal and
+// must thread it in the way enrichServiceQueryContextWithOptions does; this
+// wrapper has no production callers today.
 func loadConsumerRepositoryEnrichmentWithLimit(
 	ctx context.Context,
 	graph GraphQuery,
@@ -80,12 +109,12 @@ func loadConsumerRepositoryEnrichmentWithLimit(
 	serviceName string,
 	hostnames []string,
 	limit int,
-) ([]map[string]any, error) {
-	candidates, err := queryProvisioningRepositoryCandidates(ctx, graph, serviceRepoID, limit)
+) ([]map[string]any, bool, error) {
+	candidates, candidatesTruncated, err := queryProvisioningRepositoryCandidates(ctx, graph, serviceRepoID, limit)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return loadConsumerRepositoryEnrichmentFromCandidates(ctx, graph, content, serviceRepoID, serviceName, hostnames, limit, candidates)
+	return loadConsumerRepositoryEnrichmentFromCandidates(ctx, graph, content, serviceRepoID, serviceName, hostnames, limit, candidates, candidatesTruncated, false)
 }
 
 func backfillConsumerRepositoryDisplayNames(
@@ -126,32 +155,87 @@ func backfillConsumerRepositoryDisplayNames(
 	return nil
 }
 
+// queryProvisioningRepositoryCandidates is the sole production feeder for
+// the workload-context dependents, consumer_repositories, and
+// provisioning_source_chains fields (service_query_enrichment.go). #5720
+// round-2 P1-1: the returned truncated bool is required, not cosmetic --
+// every one of those three fields reports its length as a "dependent_count"
+// / "consumer_repository_count" / "provisioning_source_count" without ever
+// disclosing that the read hit its bound, because the default indirect-
+// evidence search limit (defaultIndirectEvidenceSearchLimit, 25) sits below
+// the disclosure threshold callers compare against
+// (serviceStoryItemLimit, 50) -- a row count of 25 never looks truncated by
+// that comparison alone, even when a service genuinely has 40+ dependent
+// repositories. Probing limit+1 rows and reporting whether the backend
+// actually returned more than limit makes truncation observable
+// independent of any downstream count-vs-limit comparison.
 func queryProvisioningRepositoryCandidates(
 	ctx context.Context,
 	graph GraphQuery,
 	serviceRepoID string,
 	limit int,
-) ([]provisioningRepositoryCandidate, error) {
+) ([]provisioningRepositoryCandidate, bool, error) {
 	if graph == nil || strings.TrimSpace(serviceRepoID) == "" {
-		return nil, nil
+		return nil, false, nil
 	}
+	// Self-clamp so the LIMIT clause below is always applied, mirroring the
+	// loadUncorrelatedCloudResourceCandidatesBounded precedent
+	// (cloud_resource_candidates.go): a caller-supplied limit of 0 or less
+	// (or above the package cap) no longer disables the bound. This makes
+	// the row count -- and therefore the deduplicated candidate count -- a
+	// real, structurally guaranteed maximum of maxIndirectEvidenceSearchLimit
+	// regardless of caller behavior, which the query-source-coverage
+	// keyed_support disposition below cites as max_results.
+	if limit <= 0 || limit > maxIndirectEvidenceSearchLimit {
+		limit = maxIndirectEvidenceSearchLimit
+	}
+	// #5720 round-2 P1-1: probe one row past the caller's limit, mirroring
+	// the loadUncorrelatedCloudResourceCandidatesBounded precedent
+	// (cloud_resource_candidates.go: "Over-fetch by one row to detect
+	// truncation without a second count query"). fetchLimit only changes
+	// how many rows the backend returns for this one read; the disclosed
+	// limit and the final candidate count are still bounded at `limit`.
+	fetchLimit := limit + 1
 
+	// #5720 round-2 P1-1: repo.id is absent from ORDER BY below, so two
+	// distinct repositories sharing both repo.name and type(rel) tie at the
+	// backend -- which rows survive LIMIT is then backend choice, not a
+	// function of the data. The Go sort.Slice below (repo.name then
+	// candidate.RepoID) makes the RETURNED slice a total order but cannot
+	// recover a candidate the backend already dropped at LIMIT. repo.id
+	// closes the repo-level tie (mirrors the loadUncorrelatedCloudResourceCandidatesBounded
+	// precedent this function's self-clamp above already cites:
+	// cloud_resource_candidates.go's `ORDER BY n.name, n.id`, and the
+	// package-wide convention in catalog.go, code_complexity_queries.go,
+	// code_quality.go, code_relationship_story_class.go, and
+	// code_relationship_story_graph.go). relationship_reason additionally
+	// closes the same-repo/same-type/different-reason row tie -- without it,
+	// which of two differently-reasoned rows for the same (repo, type) pair
+	// survives LIMIT is also backend choice, and the dropped row's reason is
+	// silently missing from RelationshipReasons.
 	query := `
 		MATCH (target:Repository {id: $repo_id})<-[rel:PROVISIONS_DEPENDENCY_FOR|DEPLOYS_FROM|USES_MODULE|DISCOVERS_CONFIG_IN|READS_CONFIG_FROM]-(repo:Repository)
 		RETURN repo.id AS repo_id,
 		       repo.name AS repo_name,
 		       type(rel) AS relationship_type,
 		       coalesce(rel.reason, rel.evidence_type, '') AS relationship_reason
-		ORDER BY repo.name, relationship_type
+		ORDER BY repo.name, repo.id, relationship_type, relationship_reason
+		LIMIT $limit
 	`
-	params := map[string]any{"repo_id": serviceRepoID}
-	if limit > 0 {
-		query += " LIMIT $limit"
-		params["limit"] = limit
-	}
+	params := map[string]any{"repo_id": serviceRepoID, "limit": fetchLimit}
 	rows, err := graph.Run(ctx, query, params)
 	if err != nil {
-		return nil, fmt.Errorf("query provisioning repository candidates: %w", err)
+		return nil, false, fmt.Errorf("query provisioning repository candidates: %w", err)
+	}
+	// #5720 round-2 P1-1: the backend returned more than `limit` rows, so
+	// trim back to the disclosed bound before grouping -- the returned
+	// candidate count must never exceed `limit`, matching every caller's
+	// existing behavior -- and report truncated so callers can distinguish
+	// "there were exactly limit rows" from "there were more and the rest
+	// were dropped."
+	truncated := len(rows) > limit
+	if truncated {
+		rows = rows[:limit]
 	}
 
 	grouped := make(map[string]*provisioningRepositoryCandidate, len(rows))
@@ -181,10 +265,20 @@ func queryProvisioningRepositoryCandidates(
 		sort.Strings(candidate.RelationshipReasons)
 		candidates = append(candidates, *candidate)
 	}
+	// candidates is built by ranging the grouped Go map above, so its
+	// pre-sort order is randomized per call. A comparator that leaves a
+	// display-name tie unresolved (two distinct repositories can share a
+	// RepoName) lets repeated calls over unchanged data return those tied
+	// entries in a different relative order (#5720, same class as #5644).
+	// RepoID is unique per map key, so adding it as the final tiebreaker
+	// makes this a total order regardless of map iteration order.
 	sort.Slice(candidates, func(i, j int) bool {
-		return candidates[i].RepoName < candidates[j].RepoName
+		if candidates[i].RepoName != candidates[j].RepoName {
+			return candidates[i].RepoName < candidates[j].RepoName
+		}
+		return candidates[i].RepoID < candidates[j].RepoID
 	})
-	return candidates, nil
+	return candidates, truncated, nil
 }
 
 func collectProvisioningChainEvidence(entities []EntityContent) traceEvidenceAccumulator {
@@ -224,12 +318,21 @@ func collectProvisioningChainEvidence(entities []EntityContent) traceEvidenceAcc
 	return evidence
 }
 
+// boundedTraceEnrichmentLimit converts a caller-supplied max_depth into a
+// bounded indirect-evidence search limit. #5720 P2-3: an unvalidated
+// max_depth large enough that maxDepth*10 overflows int64 (e.g.
+// 922337203685477581) used to return a negative value here, which every
+// downstream caller of the resulting limit treats identically to "no bound"
+// (limit > 0 gates). Clamping both directions here -- not only the
+// already-present upper clamp -- makes the return value a real, structurally
+// guaranteed member of (0, maxIndirectEvidenceSearchLimit] regardless of
+// caller input, so no downstream caller can observe an unbounded limit.
 func boundedTraceEnrichmentLimit(maxDepth int) int {
 	if maxDepth <= 0 {
 		return defaultIndirectEvidenceSearchLimit
 	}
 	limit := maxDepth * 10
-	if limit > maxIndirectEvidenceSearchLimit {
+	if limit <= 0 || limit > maxIndirectEvidenceSearchLimit {
 		return maxIndirectEvidenceSearchLimit
 	}
 	return limit
@@ -254,239 +357,4 @@ func normalizedIndirectEvidenceHostnames(hostnames []string) []string {
 	}
 	sort.Strings(normalized)
 	return normalized
-}
-
-func buildStorySections(platforms, platformKinds, environments []string) []map[string]any {
-	sections := []map[string]any{
-		{
-			"title":   "deployment",
-			"summary": fmt.Sprintf("%d platform target(s) across %d environment(s)", len(platforms), len(environments)),
-		},
-	}
-	if len(platformKinds) > 0 {
-		sections = append(sections, map[string]any{
-			"title":   "controllers",
-			"summary": fmt.Sprintf("Observed controller families: %s", joinOrNone(platformKinds)),
-		})
-	}
-	return sections
-}
-
-func buildGitOpsOverview(
-	platforms []string,
-	platformKinds []string,
-	deploymentSources []map[string]any,
-	deploymentEvidence map[string]any,
-	controllerEntities []map[string]any,
-) map[string]any {
-	toolFamilies := deploymentTraceGitOpsToolFamilies(platformKinds, deploymentSources, deploymentEvidence, controllerEntities)
-	enabled := len(toolFamilies) > 0
-	if len(toolFamilies) == 0 {
-		toolFamilies = platformKinds
-	}
-	return map[string]any{
-		"enabled":          enabled,
-		"tool_families":    toolFamilies,
-		"observed_targets": platforms,
-	}
-}
-
-func buildRuntimeOverview(environments []string) map[string]any {
-	return map[string]any{
-		"environment_count": len(environments),
-		"environments":      environments,
-	}
-}
-
-func buildDeploymentFacts(
-	instances []map[string]any,
-	topologyEdges []map[string]any,
-	provisionedPlatforms []map[string]any,
-	deploymentSources []map[string]any,
-) []map[string]any {
-	facts := make([]map[string]any, 0, len(instances)*2+len(topologyEdges)+len(provisionedPlatforms)*2+len(deploymentSources))
-	for _, topologyEdge := range topologyEdges {
-		if fact := deploymentTopologyFact(topologyEdge, nil); fact != nil {
-			facts = append(facts, fact)
-		}
-	}
-	for _, instance := range instances {
-		for _, platform := range platformTargets(instance) {
-			for _, topologyEdge := range mapSliceValue(platform, "topology_edges") {
-				fact := deploymentTopologyFact(topologyEdge, platform)
-				if fact != nil {
-					facts = append(facts, fact)
-				}
-			}
-		}
-	}
-	for _, platform := range provisionedPlatforms {
-		for _, topologyEdge := range mapSliceValue(platform, "topology_edges") {
-			if fact := deploymentTopologyFact(topologyEdge, platform); fact != nil {
-				facts = append(facts, fact)
-			}
-		}
-	}
-	for _, source := range deploymentSources {
-		fact := map[string]any{
-			"type":       firstNonEmptyString(safeStr(source, "relationship_type"), "DEPLOYS_FROM"),
-			"target":     safeStr(source, "repo_name"),
-			"target_id":  firstNonEmptyString(safeStr(source, "target_id"), safeStr(source, "repo_id")),
-			"confidence": floatVal(source, "confidence"),
-			"reason":     safeStr(source, "reason"),
-		}
-		if sourceID := safeStr(source, "source_id"); sourceID != "" {
-			fact["source_id"] = sourceID
-		}
-		facts = append(facts, fact)
-	}
-	return facts
-}
-
-func deploymentTopologyFact(topologyEdge, platform map[string]any) map[string]any {
-	relationshipType := StringVal(topologyEdge, "relationship_type")
-	sourceID := StringVal(topologyEdge, "source_id")
-	targetID := StringVal(topologyEdge, "target_id")
-	if relationshipType == "" || sourceID == "" || targetID == "" {
-		return nil
-	}
-	targetName := firstNonEmptyString(
-		StringVal(topologyEdge, "target_name"),
-		StringVal(platform, "platform_name"),
-		targetID,
-	)
-	fact := map[string]any{
-		"type":       relationshipType,
-		"source_id":  sourceID,
-		"target_id":  targetID,
-		"target":     targetName,
-		"confidence": floatVal(topologyEdge, "confidence"),
-		"reason":     StringVal(topologyEdge, "reason"),
-	}
-	for _, field := range []string{"source_name", "evidence_source", "source_tool"} {
-		if value := StringVal(topologyEdge, field); value != "" {
-			fact[field] = value
-		}
-	}
-	if targetID == StringVal(platform, "platform_id") {
-		if kind := StringVal(platform, "platform_kind"); kind != "" {
-			fact["kind"] = kind
-		}
-	}
-	return fact
-}
-
-func firstPositiveFloat(candidates ...float64) float64 {
-	for _, candidate := range candidates {
-		if candidate > 0 {
-			return candidate
-		}
-	}
-	return 0
-}
-
-func buildControllerDrivenPaths(instances []map[string]any) []map[string]any {
-	seen := make(map[string]struct{}, len(instances))
-	paths := make([]map[string]any, 0, len(instances))
-	for _, instance := range instances {
-		for _, platform := range platformTargets(instance) {
-			platformName := StringVal(platform, "platform_name")
-			platformKind := StringVal(platform, "platform_kind")
-			if platformName == "" && platformKind == "" {
-				continue
-			}
-			key := platformName + "|" + platformKind
-			if _, ok := seen[key]; ok {
-				continue
-			}
-			seen[key] = struct{}{}
-			path := map[string]any{}
-			if platformKind != "" {
-				path["controller_kind"] = platformKind
-			}
-			if platformName != "" {
-				path["observed_target"] = platformName
-			}
-			paths = append(paths, path)
-		}
-	}
-	sortDeploymentTraceMaps(paths)
-	return paths
-}
-
-// deploymentTraceGitOpsToolFamilies returns GitOps tool families backed by
-// controller entities, platform kinds, or relationship evidence.
-func deploymentTraceGitOpsToolFamilies(
-	platformKinds []string,
-	deploymentSources []map[string]any,
-	deploymentEvidence map[string]any,
-	controllerEntities []map[string]any,
-) []string {
-	families := deploymentTraceEvidenceControllerFamilies(deploymentSources, deploymentEvidence, controllerEntities)
-	// "flux", "flux_kustomization", "flux_helmrelease" are deliberately not
-	// matched below: no parser or collector emits those as a platform-kind
-	// value today, so that branch was dead (issue #5342). The Flux
-	// Kustomization parse path captures typed evidence only and is not
-	// wired to any platform-kind classification until Flux modeling lands a
-	// real emitter (#5360).
-	for _, kind := range platformKinds {
-		normalized := strings.TrimSpace(strings.ToLower(kind))
-		if normalized == "argocd" || normalized == "argocd_application" || normalized == "argocd_applicationset" {
-			families = append(families, "argocd")
-		}
-	}
-	return uniqueSortedStrings(families)
-}
-
-// deploymentTraceEvidenceControllerFamilies lifts controller families out of
-// provenance evidence so read surfaces do not lose GitOps truth when runtime
-// platform kinds are generic values like kubernetes or ecs.
-func deploymentTraceEvidenceControllerFamilies(
-	deploymentSources []map[string]any,
-	deploymentEvidence map[string]any,
-	controllerEntities []map[string]any,
-) []string {
-	families := make([]string, 0, len(controllerEntities)+len(deploymentSources))
-	for _, entity := range controllerEntities {
-		families = append(families, deploymentTraceControllerFamilyFromText(StringVal(entity, "controller_kind")))
-		families = append(families, deploymentTraceControllerFamilyFromText(StringVal(entity, "entity_type")))
-	}
-	for _, source := range deploymentSources {
-		families = append(families, deploymentTraceControllerFamilyFromText(StringVal(source, "reason")))
-		families = append(families, deploymentTraceControllerFamilyFromText(StringVal(source, "evidence_type")))
-		families = append(families, deploymentTraceControllerFamilyFromText(StringVal(source, "evidence_kind")))
-	}
-	for _, family := range stringSliceMapValue(deploymentEvidence, "tool_families") {
-		families = append(families, deploymentTraceControllerFamilyFromText(family))
-	}
-	for _, artifact := range mapSliceValue(deploymentEvidence, "artifacts") {
-		families = append(families, deploymentTraceControllerFamilyFromText(StringVal(artifact, "family")))
-		families = append(families, deploymentTraceControllerFamilyFromText(StringVal(artifact, "tool_family")))
-		families = append(families, deploymentTraceControllerFamilyFromText(StringVal(artifact, "evidence_type")))
-		families = append(families, deploymentTraceControllerFamilyFromText(StringVal(artifact, "evidence_kind")))
-		for _, kind := range StringSliceVal(artifact, "evidence_kinds") {
-			families = append(families, deploymentTraceControllerFamilyFromText(kind))
-		}
-	}
-	for _, path := range mapSliceValue(deploymentEvidence, "delivery_paths") {
-		families = append(families, deploymentTraceControllerFamilyFromText(StringVal(path, "family")))
-		families = append(families, deploymentTraceControllerFamilyFromText(StringVal(path, "tool_family")))
-		families = append(families, deploymentTraceControllerFamilyFromText(StringVal(path, "kind")))
-		families = append(families, deploymentTraceControllerFamilyFromText(StringVal(path, "evidence_type")))
-	}
-	return uniqueSortedStrings(families)
-}
-
-func deploymentTraceControllerFamilyFromText(value string) string {
-	normalized := strings.ToLower(strings.TrimSpace(value))
-	switch {
-	case normalized == "":
-		return ""
-	case strings.Contains(normalized, "argocd"):
-		return "argocd"
-	case strings.Contains(normalized, "flux"):
-		return "flux"
-	default:
-		return ""
-	}
 }

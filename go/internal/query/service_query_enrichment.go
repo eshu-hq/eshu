@@ -119,9 +119,19 @@ func enrichServiceQueryContextWithOptions(
 		hostnames := serviceEvidenceHostnames(evidence)
 		traceLimit := boundedTraceEnrichmentLimit(opts.MaxDepth)
 		candidates := []provisioningRepositoryCandidate{}
+		// #5720 round-2 P1-1: queryProvisioningRepositoryCandidates is the
+		// sole production feeder for dependents, consumer_repositories, and
+		// provisioning_source_chains, so its truncated bool is the one
+		// disclosure signal all three fields need -- carried on
+		// workloadContext as *_truncated so buildServiceDownstreamConsumers
+		// and buildServiceResultLimitsWithContext (service_story_dossier.go)
+		// can report truncated: true even though every one of these lists
+		// stays well under serviceStoryItemLimit (50) on the default
+		// indirect-evidence search limit (25).
+		var candidatesTruncated bool
 		if !opts.DirectOnly || opts.IncludeRelatedModuleUsage {
 			timer = startServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "graph_provisioning_candidates")
-			candidates, err = queryProvisioningRepositoryCandidates(ctx, graph, repoID, traceLimit)
+			candidates, candidatesTruncated, err = queryProvisioningRepositoryCandidates(ctx, graph, repoID, traceLimit)
 			if err != nil {
 				timer.Done(ctx, slog.Int("row_count", len(candidates)))
 				return fmt.Errorf("load graph provisioning candidates: %w", err)
@@ -146,16 +156,68 @@ func enrichServiceQueryContextWithOptions(
 			if dependents := buildGraphDependents(candidates); len(dependents) > 0 {
 				workloadContext["dependents"] = dependents
 			}
+			// #5720 round-7 P1-4: the disclosure is deliberately set outside
+			// the len(dependents) > 0 guard. The backend applies LIMIT before
+			// filterProvisioningRepositoryCandidatesForAccess runs above, so a
+			// scoped caller whose granted repositories all sort after the
+			// `ORDER BY repo.name, repo.id` cut has every returned row removed
+			// by the filter. Under a guarded flag that caller received neither
+			// dependents nor a truncation signal -- an empty answer that
+			// silently reads as complete while their own dependents sat past
+			// the cut.
+			//
+			// #5720 round-8 P2-1: round 7 justified this as "the dropped rows
+			// were never read, so they cannot be shown to fall outside the
+			// grant." That reasoned about what the server knows, not what the
+			// client can infer, and it was wrong. candidatesTruncated is
+			// computed from the raw pre-authorization read, so it fires on
+			// GLOBAL row cardinality no matter how narrow the caller's grant
+			// is. Paired with the max_depth x 10 scaling (capped at 100), a
+			// scoped caller can sweep max_depth over 1..10 and read the flag at
+			// bounds 10, 20, ... 100, recovering the global
+			// provisioning-candidate row count to within 10 across [10,100].
+			// That is a coarse cardinality oracle over out-of-grant data.
+			//
+			// The behavior stays anyway. Suppressing the flag for scoped
+			// callers reintroduces round 7's false negative, and on an
+			// evidence-backed-truth product a silent false claim of
+			// completeness is the worse failure. No repository identity leaks
+			// -- only a bucketed count -- and the caller is already authorized
+			// for the service the count hangs off. The public docs say plainly
+			// that these flags are a global signal rather than a grant-relative
+			// one; see docs/public/reference/http-api/context-and-stories.md.
+			if candidatesTruncated {
+				workloadContext["dependents_truncated"] = true
+			}
 			timer.Done(ctx, slog.Int("row_count", len(candidates)))
 
 			timer = startServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "consumer_repository_enrichment")
-			consumers, err := loadConsumerRepositoryEnrichmentFromCandidates(ctx, graph, content, repoID, serviceName, hostnames, traceLimit, candidates)
+			// #5720 round-9 P1-1: evidence.filesTruncated is source 0 of the
+			// enumeration on loadConsumerRepositoryEnrichmentFromCandidates.
+			// `hostnames` above is derived from the file list
+			// loadServiceQueryEvidence read at serviceEvidenceFileLimit, so a
+			// full page there means a hostname past the cut was never
+			// extracted and never searched for. It is deliberately NOT ORed
+			// into dependents_truncated or
+			// provisioning_source_chains_truncated: both derive from the
+			// candidate slice, which this file read does not touch, so
+			// stamping them would report a bound that never applied to those
+			// lists.
+			consumers, consumersTruncated, err := loadConsumerRepositoryEnrichmentFromCandidates(ctx, graph, content, repoID, serviceName, hostnames, traceLimit, candidates, candidatesTruncated, evidence.filesTruncated)
 			timer.Done(ctx, slog.Int("row_count", len(consumers)))
 			if err != nil {
 				return fmt.Errorf("load consumer repository enrichment: %w", err)
 			}
 			if len(consumers) > 0 {
 				workloadContext["consumer_repositories"] = consumers
+			}
+			// #5720 round-7 P1-4: same emptied-by-filter reasoning as
+			// dependents_truncated above -- the access filter runs over the
+			// candidate slice this enrichment feeds in, so an entirely
+			// filtered-away consumer list must still disclose that the read
+			// underneath it hit its bound.
+			if consumersTruncated {
+				workloadContext["consumer_repositories_truncated"] = true
 			}
 		}
 
@@ -168,6 +230,11 @@ func enrichServiceQueryContextWithOptions(
 			}
 			if len(provisioningChains) > 0 {
 				workloadContext["provisioning_source_chains"] = provisioningChains
+			}
+			// #5720 round-7 P1-4: same emptied-by-filter reasoning as
+			// dependents_truncated above.
+			if candidatesTruncated {
+				workloadContext["provisioning_source_chains_truncated"] = true
 			}
 		}
 		if len(mapSliceValue(workloadContext, "cloud_resources")) == 0 {

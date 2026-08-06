@@ -13,9 +13,17 @@ func impactRoute(toolName string, args map[string]any) (*route, bool, error) {
 	switch toolName {
 	case "trace_deployment_chain":
 		return &route{method: "POST", path: "/api/v0/impact/trace-deployment-chain", body: map[string]any{
-			"service_name":                 str(args, "service_name"),
-			"direct_only":                  boolOr(args, "direct_only", true),
-			"max_depth":                    intOr(args, "max_depth", 8),
+			"service_name": str(args, "service_name"),
+			"direct_only":  boolOr(args, "direct_only", true),
+			// PR #5933 review (Codex, tools_ecosystem.go:51): the schema
+			// documents that an omitted max_depth resolves to the handler's
+			// own operator-safe default (boundedTraceEnrichmentLimit(0) = 25),
+			// not to 8. Forwarding 0 for an omitted argument mirrors an HTTP
+			// caller who leaves max_depth out of the JSON body entirely (the
+			// Go zero value); forwarding 8 previously widened the resolved
+			// search limit to boundedTraceEnrichmentLimit(8) = 80 for a
+			// caller that changed nothing.
+			"max_depth":                    intOr(args, "max_depth", 0),
 			"include_related_module_usage": boolOr(args, "include_related_module_usage", false),
 		}}, true, nil
 	case "investigate_deployment_config":
