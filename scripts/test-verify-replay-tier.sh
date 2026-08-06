@@ -19,14 +19,21 @@ has_serialized_package_command() {
 }
 
 has_workflow_wiring() {
-	rg --quiet "^[[:space:]]*- 'scripts/test-verify-replay-tier\\.sh'$" "$1" &&
+	local install_line test_line
+	install_line="$(rg --line-number --no-heading \
+		'^[[:space:]]*run: scripts/ci/install-apt-packages\.sh ripgrep$' "$1" | cut -d: -f1)"
+	test_line="$(rg --line-number --no-heading \
+		'^[[:space:]]*run: bash scripts/test-verify-replay-tier\.sh$' "$1" | cut -d: -f1)"
+	[[ -n "${install_line}" && -n "${test_line}" && "${install_line}" -lt "${test_line}" ]] &&
+		rg --quiet "^[[:space:]]*- 'scripts/test-verify-replay-tier\\.sh'$" "$1" &&
 		rg --quiet "^[[:space:]]*- 'scripts/dev/pre-pr\\.sh'$" "$1" &&
-		rg --quiet '^[[:space:]]*run: bash scripts/test-verify-replay-tier\.sh$' "$1"
+		rg --quiet "^[[:space:]]*- 'scripts/ci/install-apt-packages\\.sh'$" "$1"
 }
 
 has_registry_wiring() {
 	rg --quiet '^[[:space:]]*- "scripts/test-verify-replay-tier\.sh"$' "$1" &&
 		rg --quiet '^[[:space:]]*- "scripts/dev/pre-pr\.sh"$' "$1" &&
+		rg --quiet '^[[:space:]]*- "scripts/ci/install-apt-packages\.sh"$' "$1" &&
 		rg --quiet '^[[:space:]]*test_command: "bash scripts/test-verify-replay-tier\.sh"$' "$1"
 }
 
@@ -44,6 +51,7 @@ has_prepr_selector_parity() {
 		'testdata/cassettes/(replayoffline|replaydelta)/' \
 		'scripts/(verify-replay-tier|test-verify-replay-tier)\.sh' \
 		'scripts/dev/pre-pr\.sh' \
+		'scripts/ci/install-apt-packages\.sh' \
 		'\.github/workflows/verify-replay-tier\.yml'; do
 		rg --fixed-strings --quiet "${required_path}" <<<"${trigger}" || return 1
 	done
@@ -52,6 +60,7 @@ has_prepr_selector_parity() {
 [[ -f "${script}" ]] || fail "missing ${script}"
 [[ -x "${script}" ]] || fail "verify-replay-tier.sh must be executable"
 bash -n "${script}" || fail "verify-replay-tier.sh has a syntax error"
+command -v rg >/dev/null 2>&1 || fail "missing required tool: rg"
 [[ "$(wc -l <"${script}" | tr -d '[:space:]')" -lt 500 ]] \
 	|| fail "verify-replay-tier.sh must stay under 500 lines"
 
@@ -81,11 +90,26 @@ sed -e "/^[[:space:]]*- 'scripts\\/test-verify-replay-tier\\.sh'$/s/^/# /" \
 if has_workflow_wiring "${tmp}/workflow"; then
 	fail "commented-out workflow wiring must not satisfy the guard"
 fi
+sed '/^[[:space:]]*run: scripts\/ci\/install-apt-packages\.sh ripgrep$/s/^/# /' \
+	"${workflow}" >"${tmp}/workflow-no-rg"
+if has_workflow_wiring "${tmp}/workflow-no-rg"; then
+	fail "workflow must install ripgrep before running the contract test"
+fi
+sed "/^[[:space:]]*- 'scripts\\/ci\\/install-apt-packages\\.sh'$/s/^/# /" \
+	"${workflow}" >"${tmp}/workflow-no-installer-trigger"
+if has_workflow_wiring "${tmp}/workflow-no-installer-trigger"; then
+	fail "workflow must trigger on its shared installer"
+fi
 sed -e '/^[[:space:]]*- "scripts\/test-verify-replay-tier\.sh"$/s/^/# /' \
 	-e '/^[[:space:]]*test_command: "bash scripts\/test-verify-replay-tier\.sh"$/s/^/# /' \
 	"${ci_gates}" >"${tmp}/ci-gates"
 if has_registry_wiring "${tmp}/ci-gates"; then
 	fail "commented-out registry wiring must not satisfy the guard"
+fi
+sed '/^[[:space:]]*- "scripts\/ci\/install-apt-packages\.sh"$/s/^/# /' \
+	"${ci_gates}" >"${tmp}/ci-gates-no-installer-trigger"
+if has_registry_wiring "${tmp}/ci-gates-no-installer-trigger"; then
+	fail "CI gate registry must trigger on the shared installer"
 fi
 sed '/^[[:space:]]*run_or_defer replay-tier \\$/s/^/# /' \
 	"${prepr}" >"${tmp}/pre-pr"

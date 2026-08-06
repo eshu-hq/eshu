@@ -2254,6 +2254,7 @@ gates:
       - "scripts/verify-replay-tier.sh"
       - "scripts/test-verify-replay-tier.sh"
       - "scripts/dev/pre-pr.sh"
+      - "scripts/ci/install-apt-packages.sh"
       - ".github/workflows/verify-replay-tier.yml"
     local:
       command: "bash scripts/verify-replay-tier.sh"

@@ -32,6 +32,7 @@ on:
       - 'scripts/verify-replay-tier.sh'
       - 'scripts/test-verify-replay-tier.sh'
       - 'scripts/dev/pre-pr.sh'
+      - 'scripts/ci/install-apt-packages.sh'
       - '.github/workflows/verify-replay-tier.yml'
 
 concurrency:
@@ -56,6 +57,9 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+
+      - name: Install contract dependencies
+        run: scripts/ci/install-apt-packages.sh ripgrep
 
       - name: Verify replay tier contract
         run: bash scripts/test-verify-replay-tier.sh
