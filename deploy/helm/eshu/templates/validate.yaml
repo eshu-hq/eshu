@@ -2,15 +2,36 @@
 {{- fail "exposure.ingress.enabled and exposure.gateway.enabled cannot both be true" -}}
 {{- end -}}
 {{- $nornicdbBackendSelected := false -}}
-{{- $graphBackendEnvMaps := list (default (dict) .Values.env) (default (dict) .Values.api.env) (default (dict) .Values.mcpServer.env) (default (dict) .Values.ingester.env) (default (dict) .Values.resolutionEngine.env) (default (dict) .Values.workflowCoordinator.env) -}}
-{{- range $envMap := $graphBackendEnvMaps -}}
-{{- if and (hasKey $envMap "ESHU_GRAPH_BACKEND") (eq (lower (trim (toString (get $envMap "ESHU_GRAPH_BACKEND")))) "nornicdb") -}}
+{{- $globalEnv := default (dict) .Values.env -}}
+{{- if eq (include "eshu.envMapsSelectNornicDB" (list $globalEnv (default (dict) .Values.api.env))) "true" -}}
+{{- $nornicdbBackendSelected = true -}}
+{{- end -}}
+{{- if and .Values.mcpServer.enabled (eq (include "eshu.envMapsSelectNornicDB" (list $globalEnv (default (dict) .Values.mcpServer.env))) "true") -}}
+{{- $nornicdbBackendSelected = true -}}
+{{- end -}}
+{{- if and .Values.repoSync.enabled (eq (include "eshu.envMapsSelectNornicDB" (list $globalEnv (default (dict) .Values.ingester.env))) "true") -}}
+{{- $nornicdbBackendSelected = true -}}
+{{- end -}}
+{{- if .Values.resolutionEngine.enabled -}}
+{{- $resolutionLanes := default (list) .Values.resolutionEngine.lanes -}}
+{{- if eq (len $resolutionLanes) 0 -}}
+{{- if eq (include "eshu.envMapsSelectNornicDB" (list $globalEnv (default (dict) .Values.resolutionEngine.env))) "true" -}}
+{{- $nornicdbBackendSelected = true -}}
+{{- end -}}
+{{- else -}}
+{{- range $lane := $resolutionLanes -}}
+{{- if eq (include "eshu.envMapsSelectNornicDB" (list $globalEnv (default (dict) $.Values.resolutionEngine.env) (default (dict) $lane.env))) "true" -}}
 {{- $nornicdbBackendSelected = true -}}
 {{- end -}}
 {{- end -}}
-{{- range $lane := default (list) .Values.resolutionEngine.lanes -}}
-{{- $laneEnv := default (dict) $lane.env -}}
-{{- if and (hasKey $laneEnv "ESHU_GRAPH_BACKEND") (eq (lower (trim (toString (get $laneEnv "ESHU_GRAPH_BACKEND")))) "nornicdb") -}}
+{{- end -}}
+{{- end -}}
+{{- if and .Values.workflowCoordinator.enabled (eq (include "eshu.envMapsSelectNornicDB" (list $globalEnv (default (dict) .Values.workflowCoordinator.env))) "true") -}}
+{{- $nornicdbBackendSelected = true -}}
+{{- end -}}
+{{- $globalOnlyWorkloads := list .Values.schemaBootstrap .Values.awsCloudCollector .Values.azureCloudCollector .Values.cicdRunCollector .Values.componentExtensionCollector .Values.confluenceCollector .Values.gcpCloudCollector .Values.grafanaCollector .Values.jiraCollector .Values.kubernetesLiveCollector .Values.lokiCollector .Values.ociRegistryCollector .Values.packageRegistryCollector .Values.pagerDutyCollector .Values.prometheusMimirCollector .Values.sbomAttestationCollector .Values.securityAlertCollector .Values.tempoCollector .Values.terraformStateCollector .Values.vaultLiveCollector .Values.vulnerabilityIntelligenceCollector .Values.scannerWorker -}}
+{{- range $workload := $globalOnlyWorkloads -}}
+{{- if and $workload.enabled (eq (include "eshu.envMapsSelectNornicDB" (list $globalEnv)) "true") -}}
 {{- $nornicdbBackendSelected = true -}}
 {{- end -}}
 {{- end -}}

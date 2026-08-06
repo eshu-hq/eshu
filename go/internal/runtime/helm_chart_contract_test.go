@@ -25,23 +25,27 @@ type helmManifest map[string]any
 // empty-password failure path is asserted explicitly elsewhere.
 const defaultHelmNeo4jPassword = "Eshu-Helm-Test-1"
 
-// defaultHelmNornicDBRelationshipIdentity acknowledges the verified NornicDB
-// capability in ordinary contract renders. Tests for incompatible external and
-// bundled backends override it to false explicitly.
-const defaultHelmNornicDBRelationshipIdentity = "nornicdb.capabilities.relationshipMergePropertyIdentity=true"
-
-// helmRenderArgs prepends contract-safe password and NornicDB capability values
-// so shared render helpers do not trip unrelated fail-closed gates. Targeted
-// failure tests override either value explicitly.
+// helmRenderArgs prepends a contract-safe password so shared render helpers do
+// not trip the unrelated literal-credential gate. Targeted failure tests may
+// still override it with a later --set.
 func helmRenderArgs(args ...string) []string {
 	prefixed := []string{
 		"--set-string", "neo4j.auth.password=" + defaultHelmNeo4jPassword,
-		"--set", defaultHelmNornicDBRelationshipIdentity,
 	}
 	return append(prefixed, args...)
 }
 
 func renderHelmChart(t *testing.T, args ...string) []helmManifest {
+	t.Helper()
+	return renderHelmChartArgs(t, helmRenderArgs(args...)...)
+}
+
+func renderDefaultHelmChart(t *testing.T) []helmManifest {
+	t.Helper()
+	return renderHelmChartArgs(t)
+}
+
+func renderHelmChartArgs(t *testing.T, args ...string) []helmManifest {
 	t.Helper()
 
 	chartPath := filepath.Join(repositoryRoot(t), "deploy", "helm", "eshu")
@@ -49,7 +53,7 @@ func renderHelmChart(t *testing.T, args ...string) []helmManifest {
 	if err != nil {
 		t.Skipf("helm binary not found in PATH; install Helm to run chart contract tests: %v", err)
 	}
-	cmdArgs := append([]string{"template", "eshu", chartPath}, helmRenderArgs(args...)...)
+	cmdArgs := append([]string{"template", "eshu", chartPath}, args...)
 	cmd := exec.Command(helmPath, cmdArgs...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {

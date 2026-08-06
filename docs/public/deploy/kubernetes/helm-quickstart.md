@@ -62,6 +62,10 @@ env:
   DEFAULT_DATABASE: nornic
   NEO4J_DATABASE: nornic
 
+nornicdb:
+  capabilities:
+    relationshipMergePropertyIdentity: true
+
 repoSync:
   source:
     mode: githubOrg
@@ -72,7 +76,8 @@ repoSync:
 ```
 
 For bundled NornicDB, read [Storage](storage.md) first. Helm-hook schema
-bootstrap cannot run before chart-managed NornicDB exists.
+bootstrap cannot run before chart-managed NornicDB exists. Set the capability
+acknowledgement only after verifying the endpoint's immutable backend build.
 
 For EKS-specific ingress, IRSA, and External Secrets guidance, use
 [Deploy to EKS](../eks/index.md).

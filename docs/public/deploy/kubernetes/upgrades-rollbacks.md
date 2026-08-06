@@ -10,9 +10,9 @@ schema, graph schema, and worker behavior move together.
 3. Review changes to workloads, environment variables, probes, security
    contexts, PVCs, and ServiceMonitors.
 4. Confirm Postgres backups are recent enough for the rollout risk. Graph
-   backups are useful for fast rollback, but the default NornicDB graph is
-   rebuildable projection state when Postgres facts and source systems remain
-   available.
+   backups are useful for fast rollback. When the rollout selects NornicDB, its
+   graph is rebuildable projection state while Postgres facts and source
+   systems remain available.
 5. Check current queue depth, queue age, dead-letter state, and indexing
    completeness.
 6. Write an upgrade-state declaration for durable Postgres state, queue state,

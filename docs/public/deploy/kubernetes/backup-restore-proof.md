@@ -12,7 +12,7 @@ Postgres facts, queues, status, content, and workflow rows -> schema bootstrap
 -> reducer projection replay -> graph/backend readback -> API and MCP proof
 ```
 
-With the default NornicDB backend, graph storage is rebuildable projection
+When a deployment selects NornicDB, graph storage is rebuildable projection
 state. A graph-only rebuild must preserve Postgres unless the operator is
 intentionally running a full source-system recollection in an isolated restore
 environment.

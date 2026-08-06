@@ -39,14 +39,16 @@ NornicDB deployment when `nornicdb.enabled=true`. Use that bundled NornicDB
 path only when your rollout ordering handles schema bootstrap correctly; Helm
 pre-install hooks run before normal chart resources exist.
 
-## Default backend
+## Graph backend selection
 
-NornicDB is the default graph backend. Neo4j is the explicit official
-alternative. The chart value names still use `neo4j.*` for the Bolt
-connection because both supported backends use the Neo4j driver shape.
+The chart's render-safe defaults select an external Neo4j endpoint. NornicDB is
+the canonical production graph lane after the operator selects it and
+acknowledges a verified immutable build. The chart value names still use
+`neo4j.*` for the Bolt connection because both supported backends use the
+Neo4j driver shape.
 
-Default backend selection is not the same as closing every promotion gate.
-NornicDB has latest-main full-corpus evidence, and
+Chart default selection is not the same as backend promotion. NornicDB has
+latest-main full-corpus evidence, and
 [Backend Conformance](../../reference/backend-conformance.md) records the
 schema-first proof path for the official alternative. The remaining promotional
 work is install-trust policy and broader host coverage.

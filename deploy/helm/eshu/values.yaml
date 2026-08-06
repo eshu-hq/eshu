@@ -1024,9 +1024,9 @@ ingester:
       memory: 32Gi
 
 env:
-  ESHU_GRAPH_BACKEND: nornicdb
-  DEFAULT_DATABASE: nornic
-  NEO4J_DATABASE: nornic
+  ESHU_GRAPH_BACKEND: neo4j
+  DEFAULT_DATABASE: neo4j
+  NEO4J_DATABASE: neo4j
   ESHU_ENABLE_PUBLIC_DOCS: "false"
   INDEX_VARIABLES: "false"
   ESHU_MAX_CALLS_PER_FILE: "50"

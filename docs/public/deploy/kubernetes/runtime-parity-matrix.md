@@ -30,7 +30,7 @@ workloads stop rendering, or enabled Helm collector families lose
 | Runtime | Local Compose | Remote E2E Compose | Helm | Static parity contract |
 | --- | --- | --- | --- | --- |
 | Postgres | `postgres` service | `postgres` service | platform-owned external dependency | Compose must render Postgres; Helm values must wire `contentStore.dsn` and Postgres env. |
-| NornicDB or graph backend | `nornicdb` service by default | `nornicdb` service by default | platform-owned external dependency unless bundled NornicDB is explicitly enabled | Compose and Helm must wire `ESHU_GRAPH_BACKEND`, `NEO4J_URI`, and graph database env together. |
+| NornicDB or graph backend | `nornicdb` service by default | `nornicdb` service by default | external Neo4j by default; external or bundled NornicDB when explicitly selected and acknowledged | Compose and Helm must wire `ESHU_GRAPH_BACKEND`, `NEO4J_URI`, and graph database env together. |
 | Schema bootstrap | `db-migrate` one-shot | `db-migrate` one-shot | `schema-bootstrap` Job, usually Helm hook | Bootstrap must run before long-lived API, MCP, ingester, reducer, and collectors. |
 | Bootstrap index | `bootstrap-index` one-shot | `bootstrap-index` one-shot | operator-run helper, not steady-state chart workload | Compose validates initial indexing before hosted collector proof; Helm promotion uses API/MCP and queue readback instead. |
 | API | `eshu` service | `eshu` service | `Deployment/eshu-api` | Must expose health, metrics, Postgres, graph, and bounded read-surface wiring. |

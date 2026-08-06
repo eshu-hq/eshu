@@ -11,8 +11,8 @@ Eshu needs Postgres plus a Bolt-compatible graph backend.
 | Value | Default | Owns |
 | --- | --- | --- |
 | `contentStore.dsn` | empty | Renders `ESHU_CONTENT_STORE_DSN` and `ESHU_POSTGRES_DSN`. |
-| `env.ESHU_GRAPH_BACKEND` | `nornicdb` | Runtime graph adapter. |
-| `env.DEFAULT_DATABASE`, `env.NEO4J_DATABASE` | `nornic` | Bolt database name. |
+| `env.ESHU_GRAPH_BACKEND` | `neo4j` | Runtime graph adapter. |
+| `env.DEFAULT_DATABASE`, `env.NEO4J_DATABASE` | `neo4j` | Bolt database name. |
 | `neo4j.uri` | `bolt://neo4j:7687` | Bolt endpoint for NornicDB or Neo4j. |
 | `neo4j.auth.secretName` | `eshu-neo4j` | Secret for Bolt username/password keys. |
 | `ingester.persistence.*` | enabled, `ReadWriteOnce`, `100Gi` | Repository workspace PVC. |
@@ -23,8 +23,8 @@ auth fields even when the backend does not enforce auth.
 
 ## NornicDB Compatibility Acknowledgement
 
-Whenever any rendered workload selects `ESHU_GRAPH_BACKEND=nornicdb`, the chart
-fails closed unless
+Whenever an enabled rendered workload's effective environment selects
+`ESHU_GRAPH_BACKEND=nornicdb`, the chart fails closed unless
 `nornicdb.capabilities.relationshipMergePropertyIdentity=true`. This applies to
 platform-owned external Bolt endpoints as well as the bundled Deployment. Set
 the acknowledgement only after verifying the selected immutable backend build
@@ -34,7 +34,8 @@ includes orneryd/NornicDB#290 or a later compatible implementation.
 
 `nornicdb.enabled=false` by default. When enabled, the chart renders one
 NornicDB Deployment, Service, and optional PVC. Replace the default image with
-an immutable compatible build before enabling the capability acknowledgement.
+an immutable compatible build, select `ESHU_GRAPH_BACKEND=nornicdb`, and enable
+the capability acknowledgement before routing workloads to it.
 
 Key defaults: image repository `timothyswt/nornicdb-cpu-bge`, image tag
 `v1.1.11@sha256:51b6174ae65e4ce54a158ac2f9eace7d36a1971545824d22add0fe06d94c1090`,

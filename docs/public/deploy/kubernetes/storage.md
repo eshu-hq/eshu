@@ -19,8 +19,9 @@ entity content search.
 
 ## Graph Backend
 
-NornicDB is the default graph backend. The normal production shape is an
-existing Bolt endpoint:
+The chart uses external Neo4j for its render-safe defaults. NornicDB remains the
+canonical production graph lane when an operator supplies a verified immutable
+build and existing Bolt endpoint:
 
 ```yaml
 env:

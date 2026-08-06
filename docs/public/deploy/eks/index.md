@@ -18,7 +18,7 @@ flowchart LR
   MCP --> PG
   Ingester["Ingester StatefulSet"] --> PG
   Reducer["Resolution Engine"] --> PG
-  Reducer --> Graph[("NornicDB default / Neo4j optional")]
+  Reducer --> Graph[("External Neo4j default / verified NornicDB selected")]
   Ingester --> PVC[("Workspace PVC")]
   ESO["External Secrets"] --> K8sSecrets["Kubernetes Secrets"]
   IRSA["IRSA roles"] --> Collectors["Optional AWS collectors"]
@@ -32,8 +32,9 @@ You need:
 - Helm 3.
 - an `eshu` namespace.
 - a Postgres database reachable from the cluster with `pg_trgm` enabled.
-- a Bolt-compatible graph endpoint: NornicDB by default, Neo4j only when
-  explicitly selected.
+- a Bolt-compatible graph endpoint. The chart's render-safe values select
+  external Neo4j; production NornicDB requires an explicitly selected and
+  verified immutable build.
 - an ingester workspace storage class and enough capacity for indexed repos.
 - an API bearer token stored as a Kubernetes Secret or ExternalSecret.
 - Git credentials for repository sync.
@@ -83,6 +84,10 @@ env:
   DEFAULT_DATABASE: nornic
   NEO4J_DATABASE: nornic
 
+nornicdb:
+  capabilities:
+    relationshipMergePropertyIdentity: true
+
 neo4j:
   uri: bolt://nornicdb.platform.svc.cluster.local:7687
   auth:
@@ -122,6 +127,9 @@ exposure:
           - path: /
             pathType: Prefix
 ```
+
+Set the NornicDB capability acknowledgement only after verifying that the
+immutable endpoint build preserves relationship MERGE identity properties.
 
 Replace placeholder values before rendering. Helm does not expand shell
 variables inside `values.eks.yaml` by itself.
