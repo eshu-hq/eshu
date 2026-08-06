@@ -156,6 +156,14 @@ _repo="$(changed_repo registry_lookalike specs/ci-gates.v1.yaml.bak)"
 _got="$(fixture_consumer_dirs_for "${_repo}")"
 assert_not_contains "registry_lookalike_is_not_the_exact_registry_file" "./internal/cigates" "${_got}"
 
+# Mirrors nested_claude_md_is_not_the_root_canon_file below: the golden branch
+# had no case pinning its leading `^`, so dropping it (making the pattern match
+# testdata/golden/ anywhere in the path, not just at the repo root) passed all
+# 9 cases -- see the commit that added this case for the mutation proof.
+_repo="$(changed_repo nested_golden_dir vendor/testdata/golden/x.json)"
+_got="$(fixture_consumer_dirs_for "${_repo}")"
+assert_empty "nested_golden_dir_is_not_the_root_testdata_golden" "${_got}"
+
 _repo="$(changed_repo both_fixtures CLAUDE.md testdata/golden/e2e-20repo-snapshot.json)"
 _got="$(fixture_consumer_dirs_for "${_repo}")"
 assert_contains "both_changed_selects_internal_runtime" "./internal/runtime" "${_got}"
@@ -169,9 +177,20 @@ _repo="$(changed_repo nested_claude_md nested/CLAUDE.md)"
 _got="$(fixture_consumer_dirs_for "${_repo}")"
 assert_empty "nested_claude_md_is_not_the_root_canon_file" "${_got}"
 
+# The trailing `$` and the escaped `\.` are the CLAUDE/AGENTS pattern's other
+# two boundaries. Checked the same way as the leading `^` above: each of these
+# two cases passed all 9 existing cases when its own boundary was loosened
+# (dropping `$`, or unescaping `.` to match any character) before this case
+# was added.
+_repo="$(changed_repo claude_md_suffix CLAUDE.md.bak)"
+_got="$(fixture_consumer_dirs_for "${_repo}")"
+assert_empty "claude_md_with_trailing_suffix_is_not_the_root_canon_file" "${_got}"
+
+_repo="$(changed_repo claude_md_wrong_separator CLAUDEXmd)"
+_got="$(fixture_consumer_dirs_for "${_repo}")"
+assert_empty "claude_md_requires_a_literal_dot_not_any_character" "${_got}"
+
 echo ""
-# shellcheck disable=SC2154  # cases_run/failures are maintained by the
-# assertions above.
 echo "test-pre-pr-fixture-consumers: ${cases_run} case(s) run, ${failures} failure(s)"
 if [[ "${failures}" -ne 0 ]]; then
 	exit 1
