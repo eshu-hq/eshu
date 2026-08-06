@@ -1,5 +1,5 @@
 NORNICDB_HEAD=5d2731ae1b3328708f74f12c21658786abac641a
-ESHU_QUERY_SOURCE_HEAD=ccc768f0b079b89d50970dd3b8ced37478a44f9f
+ESHU_QUERY_SOURCE_HEAD=a68b9e168e66589cbd76905dc3bbc74167663f26
 ESHU_PROVENANCE_QUERY_BLOB=e43415abb8f01ac7e319e4cd3748586918c88bd4
 ESHU_DERIVED_QUERY_BLOB=3a0bc093121ac393441fd69cffb37773f07e064b
 HARNESS=testdata/nornicdb/eshu_exact_provenance_trace_test.go
@@ -19,5 +19,5 @@ HARNESS_COPY_SHA256_MATCH=true
     --- PASS: TestEshuExactProvenanceQueriesUseIndexedMergeHotPath/built-from (0.00s)
     --- PASS: TestEshuExactProvenanceQueriesUseIndexedMergeHotPath/derived-from (0.00s)
 PASS
-ok  	github.com/orneryd/nornicdb/pkg/cypher	0.953s
+ok  	github.com/orneryd/nornicdb/pkg/cypher	5.013s
 EXIT=0
