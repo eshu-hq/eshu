@@ -65,19 +65,32 @@ pair.
 
 ### Exact Eshu query trace
 
-A review-only test at the pinned NornicDB revision read the four query constants
-directly from Eshu's Go source with `go/parser`, then executed those strings
-unchanged. The test created the production endpoint constraints first:
+The retained harness at
+`testdata/nornicdb/eshu_exact_provenance_trace_test.go` was placed in a clean,
+detached NornicDB worktree at the pinned revision. It reads the four query
+constants directly from Eshu's Go source with `go/parser`, then executes those
+strings unchanged. The test creates the production endpoint constraints first:
 `Repository.id`, `Package.uid`, `PackageVersion.uid`, and
 `ContainerImage.digest`. It used `-tags nolocalllm` because the query executor
 does not need the optional local-model archive.
 
 ```text
+test "$(git rev-parse HEAD)" = 5d2731ae1b3328708f74f12c21658786abac641a
+cp <eshu-worktree>/testdata/nornicdb/eshu_exact_provenance_trace_test.go \
+  pkg/cypher/eshu_exact_provenance_trace_test.go
+test "$(shasum -a 256 <eshu-worktree>/testdata/nornicdb/eshu_exact_provenance_trace_test.go | awk '{print $1}')" = \
+  "$(shasum -a 256 pkg/cypher/eshu_exact_provenance_trace_test.go | awk '{print $1}')"
 ESHU_ROOT=<eshu-worktree> go test -tags nolocalllm ./pkg/cypher \
   -run '^TestEshuExactProvenanceQueriesUseIndexedMergeHotPath$' \
   -count=1 -v
 PASS
 ```
+
+The retained output is
+`docs/internal/evidence/5827-provenance-edge-hotpath-trace.txt`. It records the
+pinned backend SHA, Eshu query-source commit and blob IDs, the harness digest
+match, the parent test, all four named subtests, and `EXIT=0`; a zero-test pass
+cannot satisfy that evidence.
 
 Every exact query reported the same required trace:
 
