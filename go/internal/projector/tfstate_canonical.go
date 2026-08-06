@@ -187,7 +187,7 @@ func terraformStateResourceRow(
 		CollectorKind:         envelope.CollectorKind,
 		CorrelationAnchors:    terraformStateCorrelationAnchors(resource.CorrelationAnchors),
 		TagKeyHashes:          tagHashesByResource[address],
-		Attributes:            terraformStateResourceAttributes(resource.Attributes),
+		Attributes:            resource.Attributes,
 		ObservedAt:            envelope.ObservedAt,
 		Provider:              providerBinding.Provider,
 		ProviderSourceAddress: providerBinding.ProviderSourceAddress,

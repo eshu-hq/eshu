@@ -141,6 +141,14 @@ rel, err := factschema.DecodeGCPCloudRelationship(env, factschema.WithoutAttribu
 A caller that reads `.Attributes` (for example the reducer's own decode site)
 MUST NOT pass this option; it stays on the default full-remainder decode.
 
+The remainder convention is explicit. Only a field named `Attributes` with the
+exact type `map[string]any` and tag `json:"-"` captures otherwise-unmodeled
+payload keys. A field with its own normal tag, including
+`json:"attributes,omitempty"`, is decoded as a named field and never suppressed
+by `WithoutAttributesRemainder()`. This keeps fully typed payloads such as
+Terraform-state resources and warning facts separate from the intentional
+open-object `Resource` and `Relationship` envelopes.
+
 ## Schema generation
 
 `internal/schemagen` reflects each fact kind's typed struct into a JSON
