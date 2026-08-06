@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -27,6 +28,12 @@ func TestContainerImageIdentityV3CanonicalReadPostgresLive(t *testing.T) {
 		t.Fatalf("open postgres: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
+	if _, err := db.ExecContext(
+		ctx,
+		storagepostgres.MigrationSQL("container_image_identity_strength_precedence"),
+	); err != nil {
+		t.Fatalf("apply identity-strength precedence migration: %v", err)
+	}
 
 	scopes := []string{"repository:v3-query-a", "repository:v3-query-b"}
 	cleanupContainerImageIdentityV3QueryScopes(t, ctx, db, scopes)
@@ -42,13 +49,15 @@ func TestContainerImageIdentityV3CanonicalReadPostgresLive(t *testing.T) {
 	if _, err := db.ExecContext(ctx, `
 INSERT INTO container_image_identity_supports (
     set_id, digest, support_id, image_ref, repository_id, outcome,
-    identity_strength, canonical_writes, source_repository_ids, source_layers
+    identity_strength, canonical_writes, source_repository_ids, source_layers,
+    evidence_fact_ids
 ) VALUES (
     decode(repeat('02', 32), 'hex'), $1, decode(repeat('03', 32), 'hex'),
     'registry.example.com/team/sidecar@' || $1::text,
-    'registry.example.com/team/sidecar', 'exact_digest', 'digest', 1,
+    'registry.example.com/team/sidecar', 'exact_digest', 'explicit_digest', 1,
     ARRAY['repository:example-b']::text[],
-    ARRAY['observed_resource', 'source_declaration']::text[]
+    ARRAY['observed_resource', 'source_declaration']::text[],
+    ARRAY['aws-image-reference', 'oci-manifest']::text[]
 )
 `, digest); err != nil {
 		t.Fatalf("seed second repository support: %v", err)
@@ -75,6 +84,12 @@ WHERE set_id = decode(repeat('02', 32), 'hex')
 	if got, want := strings.Join(rows[0].SourceRepositoryIDs, ","), "repository:example-a,repository:example-b"; got != want {
 		t.Fatalf("folded source repositories = %q, want %q", got, want)
 	}
+	if got, want := rows[0].IdentityStrength, "explicit_digest"; got != want {
+		t.Fatalf("folded identity strength = %q, want %q", got, want)
+	}
+	if got, want := strings.Join(rows[0].EvidenceFactIDs, ","), "aws-image-reference,ci-artifact,oci-manifest"; got != want {
+		t.Fatalf("folded evidence facts = %q, want %q", got, want)
+	}
 
 	var payloadBytes []byte
 	if err := db.QueryRowContext(
@@ -91,6 +106,38 @@ WHERE set_id = decode(repeat('02', 32), 'hex')
 	if got := StringVal(payload, "scope_id"); got != scopes[0] {
 		t.Fatalf("canonical winner scope = %q, want %q", got, scopes[0])
 	}
+	if got := StringVal(payload, "repository_id"); got != "registry.example.com/team/app" {
+		t.Fatalf("canonical winner repository = %q, want app metadata", got)
+	}
+	if got := StringVal(payload, "identity_strength"); got != "explicit_digest" {
+		t.Fatalf("canonical list identity strength = %q, want explicit_digest", got)
+	}
+
+	var functionPayloadBytes []byte
+	if err := db.QueryRowContext(ctx, `
+SELECT payload
+FROM container_image_identity_current_facts_for(
+    ARRAY[$1]::text[], '{}'::text[], '{}'::text[], '{}'::text[], '{}'::text[], '', 10
+)
+`, digest).Scan(&functionPayloadBytes); err != nil {
+		t.Fatalf("read deployed canonical identity: %v", err)
+	}
+	var functionPayload map[string]any
+	if err := json.Unmarshal(functionPayloadBytes, &functionPayload); err != nil {
+		t.Fatalf("decode deployed canonical identity: %v", err)
+	}
+	if got := StringVal(functionPayload, "identity_strength"); got != "explicit_digest" {
+		t.Fatalf("deployed identity strength = %q, want explicit_digest", got)
+	}
+	if got := StringVal(functionPayload, "scope_id"); got != scopes[0] {
+		t.Fatalf("deployed canonical winner scope = %q, want %q", got, scopes[0])
+	}
+	if got := StringVal(functionPayload, "repository_id"); got != "registry.example.com/team/app" {
+		t.Fatalf("deployed canonical winner repository = %q, want app metadata", got)
+	}
+	if got, want := strings.Join(StringSliceVal(functionPayload, "evidence_fact_ids"), ","), "aws-image-reference,ci-artifact,oci-manifest"; got != want {
+		t.Fatalf("deployed evidence facts = %q, want %q", got, want)
+	}
 
 	authorized, err := store.ListContainerImageIdentities(ctx, ContainerImageIdentityFilter{
 		Digest:                     digest,
@@ -103,6 +150,12 @@ WHERE set_id = decode(repeat('02', 32), 'hex')
 	if len(authorized) != 1 || strings.Join(authorized[0].SourceRepositoryIDs, ",") != "repository:example-a" {
 		t.Fatalf("authorized identity leaked another scope: %+v", authorized)
 	}
+	if got, want := authorized[0].IdentityStrength, "artifact_digest_with_registry_observation"; got != want {
+		t.Fatalf("authorized identity strength = %q, want %q without unauthorized runtime evidence", got, want)
+	}
+	if got, want := strings.Join(authorized[0].EvidenceFactIDs, ","), "ci-artifact,oci-manifest"; got != want {
+		t.Fatalf("authorized evidence facts = %q, want %q", got, want)
+	}
 
 	aggregates := NewPostgresContainerImageIdentityAggregateStore(db)
 	count, err := aggregates.CountContainerImageIdentities(ctx, ContainerImageIdentityAggregateFilter{Digest: digest})
@@ -111,6 +164,9 @@ WHERE set_id = decode(repeat('02', 32), 'hex')
 	}
 	if count.TotalIdentities != 1 {
 		t.Fatalf("canonical total = %d, want 1", count.TotalIdentities)
+	}
+	if got, want := count.ByIdentityStrength["explicit_digest"], 1; got != want {
+		t.Fatalf("canonical explicit-digest count = %d, want %d", got, want)
 	}
 	inventory, err := aggregates.ContainerImageIdentityInventory(
 		ctx,
@@ -170,12 +226,15 @@ VALUES (decode(repeat($2, 32), 'hex'), $1, decode(repeat($2, 32), 'hex'), 1)
 		{query: `
 INSERT INTO container_image_identity_supports (
     set_id, digest, support_id, image_ref, repository_id, outcome,
-    identity_strength, canonical_writes, source_repository_ids, source_layers
+    identity_strength, canonical_writes, source_repository_ids, source_layers,
+    evidence_fact_ids
 ) VALUES (
     decode(repeat($3, 32), 'hex'), $2, decode(repeat($3, 32), 'hex'),
     'registry.example.com/team/app@' || $2::text,
-    'registry.example.com/team/app', 'exact_digest', 'digest', 1,
-    ARRAY[$1]::text[], ARRAY['observed_resource', 'source_declaration']::text[]
+    'registry.example.com/team/app', 'exact_digest',
+    'artifact_digest_with_registry_observation', 1,
+    ARRAY[$1]::text[], ARRAY['observed_resource', 'source_declaration']::text[],
+    ARRAY['ci-artifact', 'oci-manifest']::text[]
 )
 `, args: []any{sourceRepositoryID, digest, setByte}},
 		{query: `

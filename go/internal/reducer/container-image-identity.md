@@ -100,7 +100,16 @@ in addition to proving retained-edge and rejected-publication behavior.
 
 Public query surfaces call `container_image_identity_current_facts_for` with at
 least one selector and a keyset cursor plus result limit. It selects digests,
-then folds their supports into one presentation row per digest.
+then folds their supports into one presentation row per digest. Evidence fact
+IDs and correlation arrays are sorted unions across the authorized current
+supports, so an independent runtime observation and CI artifact can corroborate
+the same identity without either support overwriting the other. Presentation
+strength is selected independently from the metadata winner with the stable
+order `explicit_digest`, `oci_config_source_label_with_digest`,
+`artifact_digest_with_registry_observation`, `immutable_digest`, then
+`tag_observation_with_digest`; unknown values use lexical value and support ID
+tie-breaks. The HTTP query and deployed compatibility function must keep that
+order in lockstep.
 
 Reducer consumers call
 `container_image_identity_current_support_facts_for` instead. It returns one
@@ -134,6 +143,8 @@ Promotion requires:
   held edges, and zero graph calls after rejected publication;
 - exact-claim rejection and activation-ABA rejection after prior support loads;
 - current-plus-retained semantic deduplication and replay idempotence;
+- independent same-digest support preservation, unioned public evidence, and
+  deterministic runtime-observed strength;
 - explicit empty-set publication and absence of v3 `fact_records` shadows;
 - bounded read plans on a production-shaped support set;
 - one-row and representative worst-case held-support loader plans;

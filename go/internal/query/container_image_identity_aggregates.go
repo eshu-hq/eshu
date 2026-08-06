@@ -134,7 +134,7 @@ func (s PostgresContainerImageIdentityAggregateStore) CountContainerImageIdentit
 	if err := s.fillBuckets(ctx, args, "COALESCE(NULLIF(canonical.outcome, ''), 'unknown')", out.ByOutcome); err != nil {
 		return ContainerImageIdentityAggregateCount{}, err
 	}
-	if err := s.fillBuckets(ctx, args, "COALESCE(NULLIF(canonical.identity_strength, ''), 'unknown')", out.ByIdentityStrength); err != nil {
+	if err := s.fillBuckets(ctx, args, "COALESCE(NULLIF(canonical.canonical_identity_strength, ''), 'unknown')", out.ByIdentityStrength); err != nil {
 		return ContainerImageIdentityAggregateCount{}, err
 	}
 	return out, nil
@@ -238,7 +238,7 @@ func containerImageIdentityInventoryGroupExpression(
 	case ContainerImageIdentityInventoryByOutcome:
 		return "COALESCE(NULLIF(canonical.outcome, ''), 'unknown')", nil
 	case ContainerImageIdentityInventoryByIdentityStrength:
-		return "COALESCE(NULLIF(canonical.identity_strength, ''), 'unknown')", nil
+		return "COALESCE(NULLIF(canonical.canonical_identity_strength, ''), 'unknown')", nil
 	case ContainerImageIdentityInventoryByRepository:
 		return "COALESCE(NULLIF(support.repository_id, ''), 'unknown')", nil
 	default:

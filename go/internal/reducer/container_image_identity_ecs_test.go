@@ -107,43 +107,11 @@ func TestBuildContainerImageIdentityDecisionsJoinsECSTaskImageReferenceToCICDRun
 	}
 }
 
-// TestPostgresContainerImageIdentityWriterDedupSurvivorForConvergedECSAndCICDArtifactDecisions
-// is the hostile-review P1 dedup-survivor verification for #5451. When BOTH
-// the ECS scanner's aws_image_reference AND a ci.artifact resolve the same
-// digest to the same final image_ref+outcome, they raise TWO raw
-// ContainerImageIdentityDecisions that converge on the same
-// containerImageIdentityStableFactKey/FactID (scope+generation+image_ref+
-// outcome — identity_strength is NOT part of that key). reducerBatchInsertFacts
-// -> dedupeReducerFactRowsByFactID then collapses them to ONE persisted row,
-// keeping the LAST occurrence by index (reducer_fact_batch_insert.go
-// last-write-wins).
-//
-// This test proves which decision survives is DETERMINISTIC, not order luck:
-// extractContainerImageRefsWithQuarantine's byRef map is keyed by two
-// LEXICOGRAPHICALLY DISTINCT strings before classification (the aws ref's
-// full "<registry>/<repo>@<digest>" vs the ci.artifact's bare "digest:<digest>"
-// key), so the first sort.SliceStable orders them by that distinct key
-// regardless of Go's randomized map iteration; the digest-prefixed bare-digest
-// ref always sorts after a registry-hostname ref that starts with a digit.
-// Both are then classified in that fixed order, the ci.artifact one gets its
-// ImageRef REWRITTEN to the same value as the aws one
-// (classifyContainerImageRef's single-registry-observation branch), and the
-// final stable sort (now comparing EQUAL keys) preserves that fixed relative
-// order. So the ci.artifact-derived decision (identity_strength =
-// "artifact_digest_with_registry_observation") is always LAST and always wins
-// the write-time dedup — the emitter's own "explicit_digest" decision is
-// silently dropped from the persisted fact, even though the emitter fact
-// itself was present and correctly classified upstream.
-//
-// This is why the golden-corpus assertion MUST NOT key on identity_strength
-// == explicit_digest while the ci.run/ci.artifact fixtures for this same
-// digest are present (see PR review, #5451 P1): that persisted value would
-// never be explicit_digest in the golden corpus fixture set, so the fix is to
-// drop the converging ci.artifact/ci.run fixtures for the ECS digest instead
-// (see the cassette/snapshot changes), leaving the emitter's
-// aws_image_reference + OCI registry observation as the ONLY evidence for that
-// digest so the persisted identity_strength is unambiguously explicit_digest.
-func TestPostgresContainerImageIdentityWriterDedupSurvivorForConvergedECSAndCICDArtifactDecisions(t *testing.T) {
+// TestPostgresContainerImageIdentityWriterKeepsLegacyPublicationWinner pins
+// the legacy fact writer's one-row compatibility behavior. Digest-v3 support
+// publication preserves the independent supports instead of changing this
+// historical planner contract.
+func TestPostgresContainerImageIdentityWriterKeepsLegacyPublicationWinner(t *testing.T) {
 	t.Parallel()
 
 	const synthethicRepositoryID = "repository:r_ecs_supply_chain_demo"
@@ -215,14 +183,8 @@ func TestPostgresContainerImageIdentityWriterDedupSurvivorForConvergedECSAndCICD
 	if err := json.Unmarshal(persisted[0].Payload, &payload); err != nil {
 		t.Fatalf("unmarshal persisted payload: %v", err)
 	}
-	// The critical, currently-true assertion: the SURVIVING persisted row
-	// carries the ci.artifact's identity_strength, not the emitter's. A golden
-	// assertion that expects "explicit_digest" here would fail even with the
-	// #5451 emitter present and working correctly, which is exactly the P1
-	// the hostile review caught.
 	if got, want := payload["identity_strength"], "artifact_digest_with_registry_observation"; got != want {
-		t.Fatalf("persisted identity_strength = %#v, want %q (the ci.artifact decision, not the emitter's explicit_digest, survives write-time dedup)",
-			got, want)
+		t.Fatalf("persisted legacy identity_strength = %#v, want compatibility winner %q", got, want)
 	}
 }
 
@@ -231,12 +193,10 @@ func TestPostgresContainerImageIdentityWriterDedupSurvivorForConvergedECSAndCICD
 // (taskDefinitionImageRelationships, RelationshipECSTaskDefinitionUsesImage):
 // target_type "container_image", target_resource_id the raw TAG-only image
 // string (never a digest), and no resolved_image_uri attribute (ECS does not
-// set that; only the Lambda scanner does). This is present in the real
-// golden-corpus cassette alongside the new #5451 aws_image_reference fact, so
-// the fixed golden-corpus fixture set (post-P1-fix, no ci.artifact/ci.run for
-// this digest) is proven here to still resolve to exactly one persisted
-// explicit_digest identity — this tag-based relationship ref does not collide
-// with or dilute the digest-based one.
+// set that; only the Lambda scanner does). This helper pins the legacy writer's
+// AWS/OCI compatibility case. The B-7 fixture now also carries CI evidence for
+// this digest; that merged-support contract is exercised by the digest-v3
+// support-set and golden-snapshot tests instead.
 func awsTaskDefinitionUsesImageRelationshipFact(factID, image string) facts.Envelope {
 	return facts.Envelope{
 		FactID:           factID,
@@ -254,20 +214,11 @@ func awsTaskDefinitionUsesImageRelationshipFact(factID, image string) facts.Enve
 	}
 }
 
-// TestPostgresContainerImageIdentityWriterPersistsExplicitDigestForFixedECSGoldenFixtureSet
-// is the #5451 P1-fix re-proof: this is the ACTUAL fixture combination the
-// corrected golden corpus now carries for the ECS digest (aws_image_reference
-// + the matching oci_registry.image_manifest + the pre-existing ECS
-// task-definition-to-image aws_relationship, but NO ci.artifact/ci.run for
-// this digest — that convergence was removed specifically because it caused
-// the ci.artifact decision to win write-time dedup, per
-// TestPostgresContainerImageIdentityWriterDedupSurvivorForConvergedECSAndCICDArtifactDecisions
-// above). With the ci.artifact collision removed, exactly one row persists for
-// the digest-based image_ref and it carries identity_strength=explicit_digest
-// — proving the corrected golden assertion (group_by=identity_strength,
-// digest filter, required explicit_digest bucket) will actually observe what
-// it claims to.
-func TestPostgresContainerImageIdentityWriterPersistsExplicitDigestForFixedECSGoldenFixtureSet(t *testing.T) {
+// TestPostgresContainerImageIdentityLegacyWriterPersistsExplicitDigestWithoutCICollision
+// keeps the legacy fact writer's AWS/OCI-only compatibility behavior explicit.
+// It deliberately omits CI evidence and therefore does not model the current
+// B-7 cassette; digest-v3 merged-support coverage owns that newer contract.
+func TestPostgresContainerImageIdentityLegacyWriterPersistsExplicitDigestWithoutCICollision(t *testing.T) {
 	t.Parallel()
 
 	imageRef := ecsImageRegistry + "/" + ecsImageRepositoryName + "@" + testContainerDigest

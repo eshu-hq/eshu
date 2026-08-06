@@ -3,6 +3,19 @@
 
 package query
 
+// containerImageIdentityStrengthOrderSQL must stay in lockstep with the
+// deployed container_image_identity_current_facts_for function.
+const containerImageIdentityStrengthOrderSQL = `CASE support.identity_strength
+                    WHEN 'explicit_digest' THEN 50
+                    WHEN 'oci_config_source_label_with_digest' THEN 40
+                    WHEN 'artifact_digest_with_registry_observation' THEN 30
+                    WHEN 'immutable_digest' THEN 20
+                    WHEN 'tag_observation_with_digest' THEN 10
+                    ELSE 0
+                END DESC,
+                support.identity_strength ASC,
+                support.support_id`
+
 var listContainerImageIdentitiesQuery = `
 WITH filtered_supports AS MATERIALIZED (
     SELECT support.*
@@ -45,9 +58,25 @@ ranked_supports AS MATERIALIZED (
     FROM filtered_supports AS support
     JOIN page_digests AS page USING (digest)
 ),
+identity_strengths AS MATERIALIZED (
+    SELECT support.digest, support.identity_strength AS value
+    FROM (
+        SELECT
+            support.digest,
+            support.identity_strength,
+            support.support_id,
+            row_number() OVER (
+                PARTITION BY support.digest
+                ORDER BY ` + containerImageIdentityStrengthOrderSQL + `
+            ) AS strength_rank
+        FROM ranked_supports AS support
+    ) AS support
+    WHERE support.strength_rank = 1
+),
 grouped_supports AS MATERIALIZED (
     SELECT
-        digest,
+        support.digest,
+        strength.value AS identity_strength,
         jsonb_agg(to_jsonb(source_repository_ids)) AS source_repository_sets,
         jsonb_agg(to_jsonb(build_provenance_repository_ids)) AS build_repository_sets,
         jsonb_agg(to_jsonb(workload_ids)) AS workload_sets,
@@ -56,8 +85,9 @@ grouped_supports AS MATERIALIZED (
         jsonb_agg(to_jsonb(evidence_fact_ids)) AS evidence_fact_sets,
         jsonb_agg(to_jsonb(missing_evidence)) AS missing_evidence_sets,
         max(canonical_writes) AS canonical_writes
-    FROM ranked_supports
-    GROUP BY digest
+    FROM ranked_supports AS support
+    JOIN identity_strengths AS strength USING (digest)
+    GROUP BY support.digest, strength.value
 )
 SELECT
     winner.identity_id,
@@ -84,7 +114,7 @@ SELECT
         'canonical_id', winner.canonical_id,
         'canonical_writes', GREATEST(grouped.canonical_writes, 1),
         'evidence_fact_ids', ` + containerImageIdentityJSONTextArrayUnion("grouped.evidence_fact_sets") + `,
-        'identity_strength', winner.identity_strength,
+        'identity_strength', grouped.identity_strength,
         'publication_kind', 'reducer_container_image_identity',
         'source_layers', ` + containerImageIdentityJSONTextArrayUnion("grouped.source_layer_sets") + `,
         'missing_evidence', ` + containerImageIdentityJSONTextArrayUnion("grouped.missing_evidence_sets") + `
@@ -142,10 +172,26 @@ ranked_supports AS MATERIALIZED (
         ) AS support_rank
     FROM filtered_supports AS support
 ),
+identity_strengths AS MATERIALIZED (
+    SELECT support.digest, support.identity_strength AS value
+    FROM (
+        SELECT
+            support.digest,
+            support.identity_strength,
+            support.support_id,
+            row_number() OVER (
+                PARTITION BY support.digest
+                ORDER BY ` + containerImageIdentityStrengthOrderSQL + `
+            ) AS strength_rank
+        FROM filtered_supports AS support
+    ) AS support
+    WHERE support.strength_rank = 1
+),
 canonical_supports AS MATERIALIZED (
-    SELECT *
-    FROM ranked_supports
-    WHERE support_rank = 1
+    SELECT support.*, strength.value AS canonical_identity_strength
+    FROM ranked_supports AS support
+    JOIN identity_strengths AS strength USING (digest)
+    WHERE support.support_rank = 1
 )
 `
 

@@ -185,4 +185,6 @@ var orderedBootstrapDefinitionNames = []string{
 	"fact_work_items_cross_scope_source_idx",
 	// migration 095 (#5740 quiet-upgrade producer replay seed).
 	"cross_scope_completion_upgrade_seed",
+	// migration 097 (#5704 deterministic digest-v3 identity-strength fold).
+	"container_image_identity_strength_precedence",
 }
