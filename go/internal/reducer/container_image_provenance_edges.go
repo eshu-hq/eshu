@@ -64,7 +64,8 @@ type ContainerImageProvenanceEdgeWriter interface {
 // resolve to one image, and since #5426 both carry the same build-provenance
 // repository -- which would otherwise UNWIND the identical (digest, repository)
 // pair once per decision. The graph outcome is unchanged either way because the
-// canonical writer MERGEs on (start, end, type), so this is a payload and
+// canonical writer MERGEs on (start, end, type, scope_id, evidence_source), so
+// this is a payload and
 // counter fix, not a correctness one: it keeps the write batch and the
 // submitted-row counter proportional to distinct (digest, repository) pairs.
 // A submitted row whose endpoint node is absent remains a writer no-op, so the
