@@ -26,7 +26,8 @@ require_precommit() {
 require_block() {
 	local label="$1" needle="$2"
 	rg --multiline --fixed-strings --quiet -- "${needle}" "${script}" || \
-		fail "missing ${label}: ${needle}"
+		fail "missing ${label}: ${needle}
+(this needle is matched whitespace-exact: a reformat -- tabs-to-spaces, a trailing-whitespace cleanup, CRLF line endings -- trips this the same as a real deletion. Before assuming the code is gone, diff ${script} for a reformat first.)"
 }
 
 reject() {
@@ -274,61 +275,49 @@ awk '
 	}
 ' "${script}" || fail "go test (changed packages) is not reached on both lanes"
 
-# ─── #5939 review: fixture_consumer_dirs must select ./internal/cigates for a
-# registry- or workflow-only change ───────────────────────────────────────────
-# TestScriptWorkflowSoundSubsetCount (go/internal/cigates) re-derives its count
-# from specs/ci-gates.v1.yaml and .github/workflows/*.yml, neither a Go
-# package, so a registry- or workflow-only change previously selected nothing
-# in step_test. step_exactness's ci-gate-registry gate does not cover the gap:
-# executeGates (go/cmd/ci-gates/main.go) runs only a gate's local.command,
-# never local.test_command, which is the only place `go test ./internal/cigates`
-# was wired for that gate. Without the fixture_consumer_dirs mapping, that
-# guard -- and the rest of internal/cigates' real-registry tests -- would first
-# run in the unconditional verify-ci-gate-registry.yml CI job instead of
-# locally.
+# ─── fixture_consumer_dirs branch coverage (#5721 follow-up, folds in #5939) ─
+# fixture_consumer_dirs maps three non-Go fixture changes to the Go package
+# whose tests actually load them: the B-12 golden snapshot to
+# ./cmd/golden-corpus-gate, a root CLAUDE.md/AGENTS.md edit to
+# ./internal/runtime (TestRepositoryDocumentationStandardsAreEnforced), and a
+# specs/ci-gates.v1.yaml or .github/workflows/*.yml edit to ./internal/cigates
+# (TestScriptWorkflowSoundSubsetCount among others -- #5939 review: without
+# this mapping those tests would first run in the unconditional
+# verify-ci-gate-registry.yml CI job instead of locally, since
+# ci-gate-registry's local.command never runs a gate's local.test_command).
+# This used to be two require_block text pins against pre-pr.sh here, plus a
+# third mechanism #5939 added directly in this file: an awk extraction of
+# fixture_consumer_dirs's source with a stubbed changed_all_files. Both were
+# replaced by the single behavioural suite below when fixture_consumer_dirs
+# moved into its own sourced file (eshu-hq/eshu#5938 review) -- a text match or
+# an awk-extracted stub can only prove the mapping's source is present, not
+# that it is reachable: an early `return` (or any wrapper) placed above the
+# branches left the old pins green while fixture_consumer_dirs emitted nothing
+# for every input, the same failure mode #5935 shipped to close, reopened one
+# call deeper. The awk-extraction mechanism has the same blind spot and an
+# extra footgun: it re-derives the function body from this file at test time,
+# so it silently stops testing anything the moment the function is defined
+# elsewhere (as it now is, in scripts/lib/pre-pr-fixture-consumers.sh).
 #
-# This extracts the REAL fixture_consumer_dirs function body from the
-# committed script and calls it with a stubbed changed_all_files, rather than
-# reimplementing its logic, so a future edit that breaks the mapping (a typo
-# in the regex, a reverted line) fails here instead of only in a manual repro.
-fixture_consumer_fn="$(awk '
-	/^fixture_consumer_dirs\(\) \{$/ { printing = 1 }
-	printing { print }
-	printing && /^}$/ { exit }
-' "${script}")"
-[[ -n "${fixture_consumer_fn}" ]] || fail "could not extract fixture_consumer_dirs from ${script}"
+# fixture_consumer_dirs now lives in its own sourced-only file,
+# scripts/lib/pre-pr-fixture-consumers.sh, so
+# scripts/lib/test-pre-pr-fixture-consumers.sh can call it directly against a
+# throwaway repository and assert what it actually emits for all three
+# mappings, including the #5939 registry/workflow cases and the $-anchor that
+# keeps a lookalike path (e.g. specs/ci-gates.v1.yaml.bak) from matching. That
+# behavioural check is strictly stronger than the text pins and the awk
+# extraction it replaces -- it fails on the exact early-return mutation that
+# left both green -- so keeping either alongside it would only be a second
+# thing to maintain for coverage the behavioural check already provides. The
+# one thing worth still pinning here is the WIRING: that pre-pr.sh actually
+# sources the file the behavioural check exercises, so a deleted `source` line
+# fails loudly here rather than only at the next real `make pre-pr` run.
+# shellcheck disable=SC2016 # The needle must stay literal shell source.
+require "fixture-consumer mapping sourced from its own file" \
+	'source "${repo_root}/scripts/lib/pre-pr-fixture-consumers.sh"'
 
-# run_fixture_consumer_dirs drives the extracted function against a synthetic
-# single-path changed set, with no git state involved: changed_all_files is
-# stubbed to echo SYNTHETIC_CHANGED_PATH instead of running collect_changed_paths.
-run_fixture_consumer_dirs() {
-	SYNTHETIC_CHANGED_PATH="$1" bash -c '
-		changed_all_files() { printf "%s\n" "${SYNTHETIC_CHANGED_PATH}"; }
-		'"${fixture_consumer_fn}"'
-		fixture_consumer_dirs
-	'
-}
-
-registry_only_dirs="$(run_fixture_consumer_dirs 'specs/ci-gates.v1.yaml')"
-printf '%s\n' "${registry_only_dirs}" | rg --fixed-strings --quiet -- './internal/cigates' ||
-	fail "a specs/ci-gates.v1.yaml-only change did not select ./internal/cigates (got: ${registry_only_dirs})"
-
-workflow_only_dirs="$(run_fixture_consumer_dirs '.github/workflows/verify-ci-gate-registry.yml')"
-printf '%s\n' "${workflow_only_dirs}" | rg --fixed-strings --quiet -- './internal/cigates' ||
-	fail "a .github/workflows/-only change did not select ./internal/cigates (got: ${workflow_only_dirs})"
-
-unrelated_dirs="$(run_fixture_consumer_dirs 'README.md')"
-if printf '%s\n' "${unrelated_dirs}" | rg --fixed-strings --quiet -- './internal/cigates'; then
-	fail "an unrelated change unexpectedly selected ./internal/cigates (got: ${unrelated_dirs})"
-fi
-
-# The specs/ branch must be exact-match ($-anchored), matching its
-# '^(CLAUDE|AGENTS)\.md$' sibling above -- an unanchored prefix would
-# over-trigger on e.g. a backup or generated sibling file that merely starts
-# with the registry's name.
-registry_lookalike_dirs="$(run_fixture_consumer_dirs 'specs/ci-gates.v1.yaml.bak')"
-if printf '%s\n' "${registry_lookalike_dirs}" | rg --fixed-strings --quiet -- './internal/cigates'; then
-	fail "an unanchored specs/ match selected ./internal/cigates for a lookalike path (got: ${registry_lookalike_dirs})"
-fi
+fixture_consumers_suite="${repo_root}/scripts/lib/test-pre-pr-fixture-consumers.sh"
+[[ -f "${fixture_consumers_suite}" ]] || fail "missing ${fixture_consumers_suite}"
+bash "${fixture_consumers_suite}" || fail "fixture_consumer_dirs behavioural suite failed -- see its output above"
 
 printf 'PASS: pre-pr scheduling, worktree cache isolation, and lane wiring are pinned\n'
