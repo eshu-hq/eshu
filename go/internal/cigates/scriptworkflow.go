@@ -154,7 +154,12 @@ func commandRunsScript(raw, script string) bool {
 func checkVerifyScriptWorkflowMatch(repoRoot string, reg *Registry) []error {
 	subset, err := scriptWorkflowSoundSubset(repoRoot, reg)
 	if err != nil {
-		return nil
+		// An unreadable .github/workflows (missing, permission-denied, not a
+		// directory) means this check cannot determine the sound subset at
+		// all -- not that there is no drift. Silently returning nil here
+		// would read as a clean pass in exactly the situation where a hard
+		// failure is wanted (#5939 review).
+		return []error{fmt.Errorf("drift: reading workflow-script sound subset: %w", err)}
 	}
 
 	var errs []error
