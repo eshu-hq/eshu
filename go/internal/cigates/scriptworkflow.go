@@ -210,9 +210,19 @@ func scriptWorkflowSoundSubset(repoRoot string, reg *Registry) (map[string]scrip
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".yml") {
 			continue
 		}
-		b, err := os.ReadFile(filepath.Join(wfDir, e.Name())) // #nosec G304 -- wfDir-confined listing
+		p := filepath.Join(wfDir, e.Name())
+		b, err := os.ReadFile(p) // #nosec G304 -- wfDir-confined listing
 		if err != nil {
-			continue
+			// Silently dropping one unreadable file from raws is wrong
+			// signal, not absent signal: if a script is genuinely hosted by
+			// this file and one other, the loop below now observes exactly
+			// one host and the gate enters the sound subset as unambiguous
+			// when it is not -- either a factually wrong drift error, or a
+			// real mismatch masked. That taints every gate's host count, not
+			// only ones this file would have hosted, so it fails the whole
+			// derivation the same way an unreadable directory does, rather
+			// than reporting only this one file (#5939 review).
+			return nil, fmt.Errorf("read workflow file %s: %w", p, err)
 		}
 		raws[e.Name()] = string(b)
 	}

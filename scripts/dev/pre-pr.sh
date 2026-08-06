@@ -128,7 +128,7 @@ fixture_consumer_dirs() {
 	# (verify-ci-gates-registry.sh) never runs them -- executeGates ignores
 	# local.test_command -- so without this mapping they'd first run in CI, not
 	# locally (#5939 review).
-	if printf '%s\n' "${all}" | rg -q '^(specs/ci-gates\.v1\.yaml|\.github/workflows/)'; then
+	if printf '%s\n' "${all}" | rg -q '^(specs/ci-gates\.v1\.yaml$|\.github/workflows/)'; then
 		printf './internal/cigates\n'
 	fi
 }

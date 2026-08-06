@@ -322,4 +322,13 @@ if printf '%s\n' "${unrelated_dirs}" | rg --fixed-strings --quiet -- './internal
 	fail "an unrelated change unexpectedly selected ./internal/cigates (got: ${unrelated_dirs})"
 fi
 
+# The specs/ branch must be exact-match ($-anchored), matching its
+# '^(CLAUDE|AGENTS)\.md$' sibling above -- an unanchored prefix would
+# over-trigger on e.g. a backup or generated sibling file that merely starts
+# with the registry's name.
+registry_lookalike_dirs="$(run_fixture_consumer_dirs 'specs/ci-gates.v1.yaml.bak')"
+if printf '%s\n' "${registry_lookalike_dirs}" | rg --fixed-strings --quiet -- './internal/cigates'; then
+	fail "an unanchored specs/ match selected ./internal/cigates for a lookalike path (got: ${registry_lookalike_dirs})"
+fi
+
 printf 'PASS: pre-pr scheduling, worktree cache isolation, and lane wiring are pinned\n'
