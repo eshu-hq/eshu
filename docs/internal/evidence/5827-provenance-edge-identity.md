@@ -32,12 +32,14 @@ cleared the flag.
 
 ## Backend prerequisite
 
-The correction is orneryd/NornicDB#290 at exact source revision
-`5d2731ae1b3328708f74f12c21658786abac641a`. Eshu's default Compose tag is
-`eshu-nornicdb-pr290:5d2731ae1b33`, built from that full revision and labeled
-with it. The Git build context uses the full 40-character commit fragment, so
-older and newer Docker builders resolve the same immutable source without the
-newer Git-context checksum query feature.
+The correction is merged orneryd/NornicDB#290 at exact squash revision
+`3722b483c02c38a8e046d198f8768f200f31023c`. Eshu's default Compose tag is
+`eshu-nornicdb-pr290:3722b483c02c`, built from that full revision and labeled
+with it. The final PR head added relationship-property identity to the remote
+storage adapter as well as the local query engine paths. The Git build context
+uses the full 40-character commit fragment, so older and newer Docker builders
+resolve the same immutable source without the newer Git-context checksum query
+feature.
 
 The backend change covers plain `MERGE`, generic and specialized `UNWIND`,
 explicit transactions, deterministic concurrent create, numeric-width
@@ -46,9 +48,11 @@ invalidation occurs only after a successful authoritative transaction write.
 
 ### Backend performance proof
 
-Same-host `GOMAXPROCS=1` benchmarks used the same source, corpus shape, storage
-state, `-benchtime=20x`, and `-count=3`. Values below are the median nanoseconds
-per operation.
+Same-host `GOMAXPROCS=1` benchmarks at pre-merge query-engine revision
+`5d2731ae1b3328708f74f12c21658786abac641a` used the same corpus shape, storage
+state, `-benchtime=20x`, and `-count=3`. The later final-PR commit changed only
+the remote storage adapter path. Values below are the median nanoseconds per
+operation.
 
 | Path and fanout | Previous main | Corrected revision |
 | --- | ---: | ---: |
@@ -75,7 +79,7 @@ strings unchanged. The test creates the production endpoint constraints first:
 does not need the optional local-model archive.
 
 ```text
-test "$(git rev-parse HEAD)" = 5d2731ae1b3328708f74f12c21658786abac641a
+test "$(git rev-parse HEAD)" = 3722b483c02c38a8e046d198f8768f200f31023c
 cp <eshu-worktree>/testdata/nornicdb/eshu_exact_provenance_trace_test.go \
   pkg/cypher/eshu_exact_provenance_trace_test.go
 test "$(shasum -a 256 <eshu-worktree>/testdata/nornicdb/eshu_exact_provenance_trace_test.go | awk '{print $1}')" = \
@@ -130,11 +134,19 @@ The live tests ran through Eshu's Bolt driver against an isolated fresh
 NornicDB container built from the exact revision above:
 
 ```text
+ESHU_CYPHER_BOLT_DSN=bolt://127.0.0.1:7687 \
+ESHU_CYPHER_BOLT_DATABASE=nornic \
 go test ./internal/storage/cypher \
   -run 'TestProvenanceEdgeWriterLive(LegacyRowSetMigration|SamePairAssertionIsolation)' \
   -count=1 -v
 PASS
 ```
+
+On the merged source pin, the eight legacy migration cases passed in 0.16
+seconds and the five-sample concurrency suite passed in 36.65 seconds. The
+concurrent deliveries exercised transient commit conflicts and converged
+through the production bounded retry path; no writer-count reduction or
+serialization was used.
 
 ## Legacy-row repair
 

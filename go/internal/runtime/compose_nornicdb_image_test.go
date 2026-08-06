@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestNornicDBComposeDefaultPinsPR290ExactSourceCommit(t *testing.T) {
+func TestNornicDBComposeDefaultPinsMergedPR290ExactSourceCommit(t *testing.T) {
 	t.Parallel()
 
 	content := readRepositoryFile(t, "../../..", "docker-compose.yaml")
@@ -18,14 +18,14 @@ func TestNornicDBComposeDefaultPinsPR290ExactSourceCommit(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		"image: ${NORNICDB_IMAGE:-eshu-nornicdb-pr290:5d2731ae1b33}",
+		"image: ${NORNICDB_IMAGE:-eshu-nornicdb-pr290:3722b483c02c}",
 		"pull_policy: ${NORNICDB_PULL_POLICY:-build}",
-		"context: https://github.com/orneryd/NornicDB.git#5d2731ae1b3328708f74f12c21658786abac641a",
+		"context: https://github.com/orneryd/NornicDB.git#3722b483c02c38a8e046d198f8768f200f31023c",
 		"dockerfile: docker/Dockerfile.cpu-bge",
-		"org.opencontainers.image.revision: 5d2731ae1b3328708f74f12c21658786abac641a",
+		"org.opencontainers.image.revision: 3722b483c02c38a8e046d198f8768f200f31023c",
 	} {
 		if !strings.Contains(content, want) {
-			t.Fatalf("docker-compose.yaml missing temporary exact NornicDB PR #290 pin %q", want)
+			t.Fatalf("docker-compose.yaml missing exact merged NornicDB PR #290 pin %q", want)
 		}
 	}
 

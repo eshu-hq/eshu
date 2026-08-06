@@ -908,8 +908,8 @@ it under-reports rather than empties.
 ### Fixed default and deployment order
 
 The default `docker-compose.yaml` source pin is now
-`eshu-nornicdb-pr290:5d2731ae1b33` at full revision
-`5d2731ae1b3328708f74f12c21658786abac641a`. The corrected backend includes
+`eshu-nornicdb-pr290:3722b483c02c` at merged full revision
+`3722b483c02c38a8e046d198f8768f200f31023c`. The corrected backend includes
 pattern properties in relationship `MERGE` identity for plain, batched, and
 explicit-transaction paths. The #5827 live proof starts with one legacy
 endpoint-only relationship and replays two same-pair assertions in both orders;

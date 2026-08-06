@@ -24,7 +24,7 @@ nornicdb:
   # source checksum before installing the chart. Never pull a same-named image.
   image:
     repository: eshu-nornicdb-pr290
-    tag: 5d2731ae1b33
+    tag: 3722b483c02c
     pullPolicy: Never
   resources:
     requests:

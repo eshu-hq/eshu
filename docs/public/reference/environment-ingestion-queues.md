@@ -199,7 +199,7 @@ For decision rules and evidence requirements, read [NornicDB Tuning](nornicdb-tu
 | --- | --- | --- | --- |
 | `NORNICDB_ENABLE_PPROF` | `false` | NornicDB process | Enables NornicDB profiling. |
 | `NORNICDB_ADDRESS`, `NORNICDB_BOLT_PORT`, `NORNICDB_HTTP_PORT`, `NORNICDB_DATA_DIR`, `NORNICDB_AUTH`, `NORNICDB_DEFAULT_DATABASE`, `NORNICDB_HEADLESS`, `NORNICDB_MCP_ENABLED` | local Eshu service sets these in process mode | NornicDB process | External NornicDB process configuration. |
-| `NORNICDB_IMAGE` | `eshu-nornicdb-pr290:5d2731ae1b33` in default Compose | Docker Compose | NornicDB image/tag override. Set with `NORNICDB_PULL_POLICY` for controlled comparisons. |
+| `NORNICDB_IMAGE` | `eshu-nornicdb-pr290:3722b483c02c` in default Compose | Docker Compose | NornicDB image/tag override. Set with `NORNICDB_PULL_POLICY` for controlled comparisons. |
 | `NORNICDB_PLATFORM` | unset | Docker Compose | Optional platform override; unset lets Docker choose host architecture. |
 | `NORNICDB_PULL_POLICY` | `build` in default Compose; `missing` in tier-2 v25 proof | Docker Compose | Builds the exact pinned source by default. Use `always` with an immutable published-image override or `never` with a prebuilt local tag. |
 | `NORNICDB_PERSIST_SEARCH_INDEXES` | `false` in Eshu Compose and Helm | NornicDB container | Keeps disabled BM25/vector search indexes from creating canonical graph restart artifacts. |
