@@ -30,6 +30,8 @@ on:
       - 'testdata/cassettes/replayoffline/**'
       - 'testdata/cassettes/replaydelta/**'
       - 'scripts/verify-replay-tier.sh'
+      - 'scripts/test-verify-replay-tier.sh'
+      - 'scripts/dev/pre-pr.sh'
       - '.github/workflows/verify-replay-tier.yml'
 
 concurrency:
@@ -54,6 +56,9 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+
+      - name: Verify replay tier contract
+        run: bash scripts/test-verify-replay-tier.sh
 
       - name: Run offline replay tier against real NornicDB
         run: bash scripts/verify-replay-tier.sh

@@ -13,6 +13,14 @@ func PackageOwnershipPublishesRowsForReplayTest(
 	return packageOwnershipPublishesRows(decisions)
 }
 
+// PackagePublicationPublishesRowsForReplayTest exposes the package-private row
+// mapper only to the external replay test compiled with this package's tests.
+func PackagePublicationPublishesRowsForReplayTest(
+	decisions []PackagePublicationDecision,
+) []map[string]any {
+	return packagePublicationPublishesRows(decisions)
+}
+
 // ContainerImageBuiltFromRowsForReplayTest exposes the package-private row
 // mapper only to the external replay test compiled with this package's tests.
 func ContainerImageBuiltFromRowsForReplayTest(
@@ -28,14 +36,15 @@ func ProjectPackageProvenanceEdgesForReplayTest(
 	writer PackageProvenanceEdgeWriter,
 	scopeID string,
 	generationID string,
-	decisions []PackageSourceCorrelationDecision,
+	ownershipDecisions []PackageSourceCorrelationDecision,
+	publicationDecisions []PackagePublicationDecision,
 ) error {
 	handler := PackageSourceCorrelationHandler{ProvenanceEdgeWriter: writer}
 	return handler.projectPackageProvenanceEdges(
 		ctx,
 		Intent{ScopeID: scopeID, GenerationID: generationID},
-		decisions,
-		nil,
+		ownershipDecisions,
+		publicationDecisions,
 	)
 }
 

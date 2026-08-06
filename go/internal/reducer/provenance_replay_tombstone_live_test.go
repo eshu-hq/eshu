@@ -23,6 +23,7 @@ const (
 	provenanceReplayScopeID         = "replay-provenance:scope-in"
 	provenanceReplayPackageRepoID   = "repository:replay-provenance-package-in"
 	provenanceReplayBuildRepoID     = "repository:replay-provenance-build-in"
+	provenanceReplayPackageID       = "pkg:npm/replay-provenance"
 	provenanceReplayVersionID       = "pkg:npm/replay-provenance@1.0.0"
 	provenanceReplayContainerDigest = "sha256:1111111111111111111111111111111111111111111111111111111111111111"
 	provenanceReplayOutScopeID      = "replay-provenance:scope-out"
@@ -59,8 +60,14 @@ func TestProvenanceReplayTombstoneCassetteDecisions(t *testing.T) {
 	}
 	if got := reducer.PackageOwnershipPublishesRowsForReplayTest(packageGen1); len(got) != 1 ||
 		got[0]["repository_id"] != provenanceReplayPackageRepoID ||
+		got[0]["package_id"] != provenanceReplayPackageID {
+		t.Fatalf("generation 1 ownership PUBLISHES rows = %#v, want one package row", got)
+	}
+	publicationGen1 := reducer.BuildPackagePublicationDecisions(gen1.facts)
+	if got := reducer.PackagePublicationPublishesRowsForReplayTest(publicationGen1); len(got) != 1 ||
+		got[0]["repository_id"] != provenanceReplayPackageRepoID ||
 		got[0]["version_id"] != provenanceReplayVersionID {
-		t.Fatalf("generation 1 PUBLISHES rows = %#v, want one package-version row", got)
+		t.Fatalf("generation 1 publication PUBLISHES rows = %#v, want one package-version row", got)
 	}
 	containerGen1 := reducer.BuildContainerImageIdentityDecisions(gen1.facts)
 	if got := reducer.ContainerImageBuiltFromRowsForReplayTest(containerGen1); len(got) != 1 ||
@@ -71,6 +78,9 @@ func TestProvenanceReplayTombstoneCassetteDecisions(t *testing.T) {
 
 	if got := reducer.BuildPackageSourceCorrelationDecisions(gen2.facts); len(got) != 0 {
 		t.Fatalf("generation 2 package decisions = %#v, want none", got)
+	}
+	if got := reducer.BuildPackagePublicationDecisions(gen2.facts); len(got) != 0 {
+		t.Fatalf("generation 2 publication decisions = %#v, want none", got)
 	}
 	if got := reducer.ContainerImageBuiltFromRowsForReplayTest(
 		reducer.BuildContainerImageIdentityDecisions(gen2.facts),
@@ -170,6 +180,7 @@ type provenanceReplayEndpoint struct {
 func provenanceReplayGraphEndpoints() []provenanceReplayEndpoint {
 	return []provenanceReplayEndpoint{
 		{label: "Repository", key: "id", value: provenanceReplayPackageRepoID},
+		{label: "Package", key: "uid", value: provenanceReplayPackageID},
 		{label: "PackageVersion", key: "uid", value: provenanceReplayVersionID},
 		{label: "Repository", key: "id", value: provenanceReplayBuildRepoID},
 		{label: "ContainerImage", key: "digest", value: provenanceReplayContainerDigest},
@@ -208,8 +219,9 @@ func projectProvenanceReplayGeneration(
 ) {
 	t.Helper()
 	packageDecisions := reducer.BuildPackageSourceCorrelationDecisions(generation.facts)
+	publicationDecisions := reducer.BuildPackagePublicationDecisions(generation.facts)
 	if err := reducer.ProjectPackageProvenanceEdgesForReplayTest(
-		ctx, writer, generation.scopeID, generation.generationID, packageDecisions,
+		ctx, writer, generation.scopeID, generation.generationID, packageDecisions, publicationDecisions,
 	); err != nil {
 		t.Fatalf("project %s package provenance: %v", generation.generationID, err)
 	}
@@ -228,10 +240,17 @@ func assertProvenanceReplayGenerationOne(
 ) {
 	t.Helper()
 	assertProvenanceReplayRelationship(t, readProvenanceReplayPublishes(
-		ctx, t, executor, provenanceReplayPackageRepoID, provenanceReplayVersionID,
+		ctx, t, executor, provenanceReplayPackageRepoID, "Package", "uid", provenanceReplayPackageID,
 	), map[string]any{
 		"scope_id": provenanceReplayScopeID, "generation_id": "replay-provenance-gen1",
 		"evidence_source": "reducer/package-ownership", "evidence_kinds": "PACKAGE_OWNERSHIP_CORRELATION",
+		"source_tool": nil,
+	})
+	assertProvenanceReplayRelationship(t, readProvenanceReplayPublishes(
+		ctx, t, executor, provenanceReplayPackageRepoID, "PackageVersion", "uid", provenanceReplayVersionID,
+	), map[string]any{
+		"scope_id": provenanceReplayScopeID, "generation_id": "replay-provenance-gen1",
+		"evidence_source": "reducer/package-publication", "evidence_kinds": "PACKAGE_PUBLICATION_CORRELATION",
 		"source_tool": nil,
 	})
 	assertProvenanceReplayRelationship(t, readProvenanceReplayBuiltFrom(
@@ -250,13 +269,17 @@ func assertProvenanceReplayGenerationTwo(
 	executor provenanceReplayExecutor,
 ) {
 	t.Helper()
-	if rows := readProvenanceReplayPublishes(ctx, t, executor, provenanceReplayPackageRepoID, provenanceReplayVersionID); len(rows) != 0 {
-		t.Fatalf("generation 2 retained in-scope PUBLISHES rows: %#v", rows)
+	if rows := readProvenanceReplayPublishes(ctx, t, executor, provenanceReplayPackageRepoID, "Package", "uid", provenanceReplayPackageID); len(rows) != 0 {
+		t.Fatalf("generation 2 retained in-scope ownership PUBLISHES rows: %#v", rows)
+	}
+	if rows := readProvenanceReplayPublishes(ctx, t, executor, provenanceReplayPackageRepoID, "PackageVersion", "uid", provenanceReplayVersionID); len(rows) != 0 {
+		t.Fatalf("generation 2 retained in-scope publication PUBLISHES rows: %#v", rows)
 	}
 	if rows := readProvenanceReplayBuiltFrom(ctx, t, executor, provenanceReplayContainerDigest, provenanceReplayBuildRepoID); len(rows) != 0 {
 		t.Fatalf("generation 2 retained in-scope BUILT_FROM rows: %#v", rows)
 	}
 	assertProvenanceReplayNode(ctx, t, executor, "Repository", "id", provenanceReplayPackageRepoID)
+	assertProvenanceReplayNode(ctx, t, executor, "Package", "uid", provenanceReplayPackageID)
 	assertProvenanceReplayNode(ctx, t, executor, "PackageVersion", "uid", provenanceReplayVersionID)
 	assertProvenanceReplayNode(ctx, t, executor, "Repository", "id", provenanceReplayBuildRepoID)
 	assertProvenanceReplayNode(ctx, t, executor, "ContainerImage", "digest", provenanceReplayContainerDigest)
@@ -269,96 +292,11 @@ func assertProvenanceReplaySurvivors(
 	executor provenanceReplayExecutor,
 ) {
 	t.Helper()
-	if rows := readProvenanceReplayPublishes(ctx, t, executor, provenanceReplayOutPackageRepo, provenanceReplayOutVersionID); len(rows) != 1 {
+	if rows := readProvenanceReplayPublishes(ctx, t, executor, provenanceReplayOutPackageRepo, "PackageVersion", "uid", provenanceReplayOutVersionID); len(rows) != 1 {
 		t.Fatalf("out-of-scope distinct-endpoint PUBLISHES survivor rows = %#v, want one", rows)
 	}
 	if rows := readProvenanceReplayBuiltFrom(ctx, t, executor, provenanceReplayOutDigest, provenanceReplayOutBuildRepo); len(rows) != 1 {
 		t.Fatalf("out-of-scope distinct-endpoint BUILT_FROM survivor rows = %#v, want one", rows)
-	}
-}
-
-func readProvenanceReplayPublishes(
-	ctx context.Context,
-	t *testing.T,
-	executor provenanceReplayExecutor,
-	repositoryID string,
-	versionID string,
-) []map[string]any {
-	t.Helper()
-	rows, err := executor.readRows(ctx, `MATCH (:Repository {id: $repository_id})-[rel:PUBLISHES]->(:PackageVersion {uid: $version_id})
-RETURN rel.scope_id AS scope_id, rel.generation_id AS generation_id,
-       rel.evidence_source AS evidence_source, rel.evidence_kinds AS evidence_kinds,
-       rel.source_tool AS source_tool`, map[string]any{"repository_id": repositoryID, "version_id": versionID})
-	if err != nil {
-		t.Fatalf("read PUBLISHES graph truth: %v", err)
-	}
-	return rows
-}
-
-func readProvenanceReplayBuiltFrom(
-	ctx context.Context,
-	t *testing.T,
-	executor provenanceReplayExecutor,
-	digest string,
-	repositoryID string,
-) []map[string]any {
-	t.Helper()
-	rows, err := executor.readRows(ctx, `MATCH (:ContainerImage {digest: $digest})-[rel:BUILT_FROM]->(:Repository {id: $repository_id})
-RETURN rel.scope_id AS scope_id, rel.generation_id AS generation_id,
-       rel.evidence_source AS evidence_source, rel.evidence_kinds AS evidence_kinds,
-       rel.source_tool AS source_tool`, map[string]any{"digest": digest, "repository_id": repositoryID})
-	if err != nil {
-		t.Fatalf("read BUILT_FROM graph truth: %v", err)
-	}
-	return rows
-}
-
-func assertProvenanceReplayRelationship(t *testing.T, rows []map[string]any, want map[string]any) {
-	t.Helper()
-	if len(rows) != 1 {
-		t.Fatalf("relationship rows = %#v, want exactly one", rows)
-	}
-	for key, expected := range want {
-		actual := rows[0][key]
-		if key == "evidence_kinds" {
-			if !provenanceReplayEvidenceContains(actual, expected.(string)) {
-				t.Errorf("%s = %#v, want single token %q", key, actual, expected)
-			}
-			continue
-		}
-		if actual != expected {
-			t.Errorf("%s = %#v, want %#v", key, actual, expected)
-		}
-	}
-}
-
-func provenanceReplayEvidenceContains(value any, want string) bool {
-	switch typed := value.(type) {
-	case []any:
-		return len(typed) == 1 && fmt.Sprint(typed[0]) == want
-	case []string:
-		return len(typed) == 1 && typed[0] == want
-	default:
-		return false
-	}
-}
-
-func assertProvenanceReplayNode(
-	ctx context.Context,
-	t *testing.T,
-	executor provenanceReplayExecutor,
-	label string,
-	key string,
-	value string,
-) {
-	t.Helper()
-	query := fmt.Sprintf("MATCH (node:%s {%s: $value}) RETURN count(node) AS count", label, key)
-	count, err := executor.count(ctx, query, map[string]any{"value": value})
-	if err != nil {
-		t.Fatalf("read retained %s endpoint: %v", label, err)
-	}
-	if count != 1 {
-		t.Fatalf("retained %s endpoint count = %d, want one", label, count)
 	}
 }
 
@@ -415,6 +353,7 @@ func assertProvenanceReplayEndpoints(t *testing.T, envelopes []facts.Envelope) {
 	want := map[string]bool{
 		"repository:" + provenanceReplayPackageRepoID: false,
 		"repository:" + provenanceReplayBuildRepoID:   false,
+		"package:" + provenanceReplayPackageID:        false,
 		"version:" + provenanceReplayVersionID:        false,
 		"digest:" + provenanceReplayContainerDigest:   false,
 	}
@@ -422,6 +361,8 @@ func assertProvenanceReplayEndpoints(t *testing.T, envelopes []facts.Envelope) {
 		switch envelope.FactKind {
 		case "repository":
 			want["repository:"+replayPayloadString(envelope.Payload, "repo_id")] = true
+		case facts.PackageRegistryPackageFactKind:
+			want["package:"+replayPayloadString(envelope.Payload, "package_id")] = true
 		case facts.PackageRegistryPackageVersionFactKind:
 			want["version:"+replayPayloadString(envelope.Payload, "version_id")] = true
 		case facts.OCIImageManifestFactKind:

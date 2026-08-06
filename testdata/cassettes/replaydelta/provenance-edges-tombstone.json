@@ -38,6 +38,16 @@
           }
         },
         {
+          "fact_kind": "package_registry.package",
+          "stable_fact_key": "package:replay-provenance",
+          "schema_version": "1.0.0",
+          "payload": {
+            "package_id": "pkg:npm/replay-provenance",
+            "ecosystem": "npm",
+            "normalized_name": "replay-provenance"
+          }
+        },
+        {
           "fact_kind": "package_registry.package_version",
           "stable_fact_key": "package-version:replay-provenance-1.0.0",
           "schema_version": "1.0.0",
@@ -53,7 +63,6 @@
           "schema_version": "1.0.0",
           "payload": {
             "package_id": "pkg:npm/replay-provenance",
-            "version_id": "pkg:npm/replay-provenance@1.0.0",
             "hint_kind": "repository",
             "normalized_url": "https://example.invalid/replay/provenance-package",
             "raw_url": "https://example.invalid/replay/provenance-package.git"
@@ -110,6 +119,16 @@
             "graph_id": "repository:replay-provenance-build-in",
             "name": "replay-provenance-build-in",
             "remote_url": "https://example.invalid/replay/provenance-build.git"
+          }
+        },
+        {
+          "fact_kind": "package_registry.package",
+          "stable_fact_key": "package:replay-provenance",
+          "schema_version": "1.0.0",
+          "payload": {
+            "package_id": "pkg:npm/replay-provenance",
+            "ecosystem": "npm",
+            "normalized_name": "replay-provenance"
           }
         },
         {

@@ -211,20 +211,22 @@ lifecycle, which `PUBLISHES`/`BUILT_FROM` do not.
 
 `testdata/cassettes/replaydelta/provenance-edges-tombstone.json` is a synthetic,
 two-generation packet loaded through `replay/cassette`. Generation 1 feeds the
-real `BuildPackageSourceCorrelationDecisions` and
-`BuildContainerImageIdentityDecisions` builders, then the package-private
-`projectPackageProvenanceEdges` and `projectContainerImageBuiltFromEdges`
-paths. The real `cypher.ProvenanceEdgeWriter` materializes exactly one
-`Repository-[:PUBLISHES]->PackageVersion` and one
+real `BuildPackageSourceCorrelationDecisions`,
+`BuildPackagePublicationDecisions`, and `BuildContainerImageIdentityDecisions`
+builders, then the package-private `projectPackageProvenanceEdges` and
+`projectContainerImageBuiltFromEdges` paths. The real
+`cypher.ProvenanceEdgeWriter` materializes one ownership-sourced
+`Repository-[:PUBLISHES]->Package`, one publication-sourced
+`Repository-[:PUBLISHES]->PackageVersion`, and one
 `ContainerImage-[:BUILT_FROM]->Repository` against NornicDB, including the
 expected scope, generation, evidence source, evidence kinds, and OCI source
 tool properties.
 
-Generation 2 retains both repositories, the package-version fact, and the OCI
-manifest digest, but removes the package source hint and OCI config source
-label. The same projectors therefore execute their real retract-first paths
-with zero admitted rows. The live test reads the graph back and proves both
-edges are gone, all endpoints survive, a second generation-2 replay is
+Generation 2 retains both repositories, the package and package-version facts,
+and the OCI manifest digest, but removes the package source hint and OCI config
+source label. The same projectors therefore execute their real retract-first
+paths with zero admitted rows. The live test reads the graph back and proves
+all three edges are gone, all endpoints survive, a second generation-2 replay is
 idempotent, and out-of-scope controls survive. Those controls use completely
 different endpoint pairs: sharing either pair would be a false isolation test
 while #5827's canonical MERGE identity omits scope and evidence source.
@@ -245,10 +247,14 @@ gated by `ESHU_REPLAY_TIER_LIVE`.
 
 Live proof on the pinned NornicDB v1.1.11 image:
 
+The gate runs the offline-tier and reducer package test binaries sequentially
+because both packages mutate the same live graph. Tests within each package
+retain their normal test-level concurrency.
+
 ```text
 ESHU_REPLAY_TIER_HTTP_PORT=17474 ESHU_REPLAY_TIER_BOLT_PORT=17687 \
   scripts/verify-replay-tier.sh
 TestReducerProvenanceReplayTombstoneGraphTruth: PASS
-replay tier wall-clock: 19s
+replay tier wall-clock: 12s
 EXIT=0
 ```
