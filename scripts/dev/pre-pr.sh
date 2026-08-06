@@ -36,6 +36,8 @@ precommit="${repo_root}/scripts/dev/precommit-go.sh"
 source "${repo_root}/scripts/lib/pre-pr-docs-fastpath.sh"
 # shellcheck source=../lib/pre-pr-lane.sh
 source "${repo_root}/scripts/lib/pre-pr-lane.sh"
+# shellcheck source=../lib/pre-pr-fixture-consumers.sh
+source "${repo_root}/scripts/lib/pre-pr-fixture-consumers.sh"
 # Root the classifier's path-existence check at the repo, so a deleted
 # allowlisted file is recognized as deleted rather than as merely changed.
 # shellcheck disable=SC2034  # read by the sourced classifier, not by this file.
@@ -51,15 +53,6 @@ base="${PRE_PR_FASTPATH_BASE}"
 pre_pr_git_state_init
 # shellcheck disable=SC2154  # pre_pr_state_dir is set by the sourced library.
 trap '[[ -n "${pre_pr_state_dir}" ]] && rm -rf "${pre_pr_state_dir}"' EXIT
-
-# collect_changed_paths: committed (vs base) + unstaged + staged paths. One
-# implementation, because the previous two copies of the same git plumbing meant
-# a fix to one silently left the other swallowing exit codes.
-collect_changed_paths() {
-	git_changed_names "${base}...HEAD"
-	git_changed_names HEAD
-	git_changed_names --cached
-}
 
 # changed_go_files: the Go files under go/ among those paths.
 changed_go_files() {
@@ -81,12 +74,6 @@ changed_go_dirs() {
 	done
 }
 
-# changed_all_files: every changed path, not just Go files. Used to map non-Go
-# fixtures to their consumer packages and to decide the lane.
-changed_all_files() {
-	collect_changed_paths | sort -u
-}
-
 # lane_input_paths: what the LANE decision looks at — everything above, plus
 # untracked-but-not-ignored files. Only the lane reads them; every other gate
 # mirrors what a push sends to CI, which an untracked file is not. The lane is
@@ -100,38 +87,13 @@ lane_input_paths() {
 	} | sort -u
 }
 
-# fixture_consumer_dirs: ./-relative Go package dirs whose tests load a non-Go
-# fixture that changed. pre-pr's focused `go test` is scoped to changed *Go*
-# packages, so a fixture-only edit (e.g. the B-12 golden snapshot, which is a
-# JSON file, not a Go package) would never run its consumer's tests locally — the
-# exact gap that let a golden-snapshot change break go/cmd/golden-corpus-gate on
-# CI only. Each entry maps a changed-path pattern to the package(s) that consume
-# it; extend this table when a new fixture-backed test is added.
-fixture_consumer_dirs() {
-	local all
-	all="$(changed_all_files)"
-	# The B-12 golden snapshot is loaded by the golden-corpus-gate unit tests.
-	if printf '%s\n' "${all}" | rg -q '^testdata/golden/'; then
-		printf './cmd/golden-corpus-gate\n'
-	fi
-	# CLAUDE.md and AGENTS.md are read by TestRepositoryDocumentationStandardsAreEnforced,
-	# which asserts both that they stay byte-identical and that specific rules are
-	# still present. A canon-only edit changes no Go package, so without this the
-	# focused test step selects nothing and the first failure is in CI -- which is
-	# how a reword of two rules reached CI red on #5903.
-	if printf '%s\n' "${all}" | rg -q '^(CLAUDE|AGENTS)\.md$'; then
-		printf './internal/runtime\n'
-	fi
-	# specs/ci-gates.v1.yaml and .github/workflows/*.yml are read by
-	# internal/cigates' real-registry tests (TestScriptWorkflowSoundSubsetCount
-	# among them), but neither is a Go package. ci-gate-registry's local.command
-	# (verify-ci-gates-registry.sh) never runs them -- executeGates ignores
-	# local.test_command -- so without this mapping they'd first run in CI, not
-	# locally (#5939 review).
-	if printf '%s\n' "${all}" | rg -q '^(specs/ci-gates\.v1\.yaml$|\.github/workflows/)'; then
-		printf './internal/cigates\n'
-	fi
-}
+# collect_changed_paths, changed_all_files, and fixture_consumer_dirs now live
+# in scripts/lib/pre-pr-fixture-consumers.sh (sourced above), so
+# scripts/lib/test-pre-pr-fixture-consumers.sh can call fixture_consumer_dirs
+# directly against a throwaway repository and assert what it actually emits,
+# rather than text-matching its source in this file. The mapping now covers
+# the B-12 golden snapshot, the root CLAUDE.md/AGENTS.md canon files, and
+# specs/ci-gates.v1.yaml / .github/workflows/*.yml (#5939 review).
 
 # results accumulates one "PASS|FAIL  <name> (<n>s)" line per step.
 results=()
