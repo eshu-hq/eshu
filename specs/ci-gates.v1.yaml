@@ -1271,10 +1271,11 @@ gates:
     # mutation-proven regression guards it added were only exercised when a
     # human ran the mirror by hand. Registering the gate here does two things
     # at once: it gives the verifier the same registry citizenship every other
-    # CI-wired script has, AND it gives its test_command a place to be picked
-    # up by the local gate selector — the actual CI wiring for the mirror is
-    # the docs-helm-hygiene step in test.yml running both scripts in sequence
-    # (the parser-relationship-kit pattern: test mirror, then the real check).
+    # CI-wired script has, AND it makes its test_command executable when the
+    # local gate selector chooses this gate. The actual CI wiring for the
+    # mirror is the docs-helm-hygiene step in test.yml running both scripts in
+    # sequence (the parser-relationship-kit pattern: test mirror, then the real
+    # check).
 
   # ─── FRONTEND ──────────────────────────────────────────────────────────────
 

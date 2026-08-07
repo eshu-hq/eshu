@@ -275,16 +275,14 @@ awk '
 	}
 ' "${script}" || fail "go test (changed packages) is not reached on both lanes"
 
-# ─── fixture_consumer_dirs branch coverage (#5721 follow-up, folds in #5939) ─
-# fixture_consumer_dirs maps three non-Go fixture changes to the Go package
+# ─── fixture_consumer_dirs branch coverage (#5721 follow-up) ────────────────
+# fixture_consumer_dirs maps two non-Go fixture changes to the Go package
 # whose tests actually load them: the B-12 golden snapshot to
-# ./cmd/golden-corpus-gate, a root CLAUDE.md/AGENTS.md edit to
-# ./internal/runtime (TestRepositoryDocumentationStandardsAreEnforced), and a
-# specs/ci-gates.v1.yaml or .github/workflows/*.yml edit to ./internal/cigates
-# (TestScriptWorkflowSoundSubsetCount among others -- #5939 review: without
-# this mapping those tests would first run in the unconditional
-# verify-ci-gate-registry.yml CI job instead of locally, since
-# ci-gate-registry's local.command never runs a gate's local.test_command).
+# ./cmd/golden-corpus-gate, and a root CLAUDE.md/AGENTS.md edit to
+# ./internal/runtime (TestRepositoryDocumentationStandardsAreEnforced).
+# Registry and workflow self-tests now run through ci-gate-registry's
+# local.test_command (#5944), so they deliberately have no duplicate focused
+# package mapping here.
 # This used to be two require_block text pins against pre-pr.sh here, plus a
 # third mechanism #5939 added directly in this file: an awk extraction of
 # fixture_consumer_dirs's source with a stubbed changed_all_files. Both were
@@ -302,9 +300,8 @@ awk '
 # fixture_consumer_dirs now lives in its own sourced-only file,
 # scripts/lib/pre-pr-fixture-consumers.sh, so
 # scripts/lib/test-pre-pr-fixture-consumers.sh can call it directly against a
-# throwaway repository and assert what it actually emits for all three
-# mappings, including the #5939 registry/workflow cases and the $-anchor that
-# keeps a lookalike path (e.g. specs/ci-gates.v1.yaml.bak) from matching. That
+# throwaway repository and assert what it actually emits for both mappings,
+# plus the absence of the retired #5939 registry/workflow workaround. That
 # behavioural check is strictly stronger than the text pins and the awk
 # extraction it replaces -- it fails on the exact early-return mutation that
 # left both green -- so keeping either alongside it would only be a second

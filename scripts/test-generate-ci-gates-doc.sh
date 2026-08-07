@@ -154,6 +154,33 @@ else
 	record_fail "non_gate_workflows reason leaked into the alias row (or a file entry was rendered): ${alias_row}"
 fi
 
+# Case 12: a gate with a distinct local.test_command must document both
+# executable commands in order. The public table is the debugging source for
+# local reproduction, so omitting the self-test would make the generated
+# contract disagree with ci-gates run.
+registry_row="$(rg '^\| `ci-gate-registry` \|' "${expected_path}")"
+if printf '%s' "${registry_row}" | rg -Fq '`bash scripts/verify-ci-gates-registry.sh --drift`' \
+	&& printf '%s' "${registry_row}" | rg -Fq 'then self-test: `bash scripts/test-verify-ci-gates-registry.sh' \
+	&& rg -q 'Local execution runs the primary' "${expected_path}" \
+	&& rg -q 'command first, then a distinct self-test' "${expected_path}"; then
+	record_pass "generated reference documents ordered local self-test execution"
+else
+	record_fail "ci-gate-registry row or preamble omits local.test_command execution"
+fi
+
+# Case 13: byte-identical command/test_command pairs execute once and must also
+# render once. A duplicated table entry would tell contributors to run a gate
+# twice even though the runner intentionally deduplicates it.
+dedupe_registry="${tmp_root}/dedupe-registry.yaml"
+printf 'version: v1\ngates:\n  - id: dedupe\n    name: Dedupe\n    category: hygiene\n    tier: pre-pr\n    blocking: true\n    local:\n      command: "echo once"\n      test_command: "echo once"\n' >"${dedupe_registry}"
+dedupe_row="$(awk -f "${parser}" "${dedupe_registry}")"
+dedupe_occurrences="$(printf '%s' "${dedupe_row}" | rg -o -F 'echo once' | wc -l | tr -d ' ')"
+if [[ "${dedupe_occurrences}" == "1" ]] && ! printf '%s' "${dedupe_row}" | rg -q 'then self-test:'; then
+	record_pass "generated reference deduplicates identical local command pairs"
+else
+	record_fail "identical command/test_command pair rendered more than once: ${dedupe_row}"
+fi
+
 if [[ "${FAIL}" -ne 0 ]]; then
 	printf 'test-generate-ci-gates-doc FAILED: %d/%d\n' "${FAIL}" "$((PASS + FAIL))" >&2
 	exit 1

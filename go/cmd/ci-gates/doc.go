@@ -46,11 +46,12 @@
 //
 // # run
 //
-// Runs each selected gate's local.command via /bin/sh -c, accumulates all
-// results, and exits non-zero if any blocking gate failed. Advisory failures
-// are printed but do not affect the exit code. --category applies the same
-// filter as select, so a caller such as `make pre-pr` can run only the
-// exactness/telemetry contract lane (#4214).
+// Runs each selected gate's local.command and non-empty local.test_command via
+// /bin/sh -c, deduplicates byte-identical pairs, accumulates all results, and
+// exits non-zero if any blocking gate failed. Advisory failures are printed
+// but do not affect the exit code. --category applies the same filter as
+// select; `make pre-pr` uses exactness, telemetry, hygiene, and docs for its
+// credential-free registry lane (#4214).
 //
 // When a gate command shells out to "bash scripts/verify-*.sh", run resolves
 // a bash >= 4.4 (checking PATH, then /opt/homebrew/bin/bash, then

@@ -91,9 +91,10 @@ lane_input_paths() {
 # in scripts/lib/pre-pr-fixture-consumers.sh (sourced above), so
 # scripts/lib/test-pre-pr-fixture-consumers.sh can call fixture_consumer_dirs
 # directly against a throwaway repository and assert what it actually emits,
-# rather than text-matching its source in this file. The mapping now covers
-# the B-12 golden snapshot, the root CLAUDE.md/AGENTS.md canon files, and
-# specs/ci-gates.v1.yaml / .github/workflows/*.yml (#5939 review).
+# rather than text-matching its source in this file. The mapping covers the
+# B-12 golden snapshot and the root CLAUDE.md/AGENTS.md canon files. Registry
+# and workflow self-tests now run through ci-gate-registry's test_command
+# instead of a duplicate package mapping (#5944).
 
 # results accumulates one "PASS|FAIL  <name> (<n>s)" line per step.
 results=()

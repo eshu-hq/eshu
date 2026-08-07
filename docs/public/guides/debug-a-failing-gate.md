@@ -1,6 +1,6 @@
 <!-- docs-catalog
 title: Debug A Failing Ifá Gate
-description: Per-gate triage for the six Ifá CI gates, with the exact local command to reproduce each one.
+description: Per-gate triage for the six Ifá CI gates, with the exact local execution needed to reproduce each one.
 type: how-to
 audience: practitioner
 entrypoint: true
@@ -9,9 +9,14 @@ landing: false
 
 # Debug a failing Ifá gate
 
-Each Ifá gate proves a different failure mode. Start with the exact local
-command from `specs/ci-gates.v1.yaml` — it is the same command CI runs, so a
-local red is the real red, not a CI-only artifact.
+Each Ifá gate proves a different failure mode. Start with the failing `RUN` or
+`TEST` command. Copy the matching unescaped `local.command` or
+`local.test_command` from the CI gate registry at `specs/ci-gates.v1.yaml`.
+Use the generated [CI gates reference](../reference/ci-gates.md) to confirm the
+primary-command and self-test order, not as a copy-and-paste source: Markdown
+table cells escape literal `|` characters used by some test-name regular
+expressions. This keeps a local red on the reported path rather than silently
+running a different or incomplete command.
 
 ## `ifa-contract-layer`
 
@@ -110,9 +115,12 @@ mirror expects.
 
 ## General triage order
 
-1. Reproduce with the exact `local.command` from
-   [CI gates reference](../reference/ci-gates.md) before touching anything —
-   confirm the failure is real, not a stale build artifact.
+1. Identify the failing `RUN` or `TEST` entry in the generated
+   [CI gates reference](../reference/ci-gates.md), then copy the corresponding
+   unescaped `local.command` or `local.test_command` from
+   `specs/ci-gates.v1.yaml` before touching anything. When the runner reported
+   `TEST`, run `local.test_command`; running only the primary command cannot
+   reproduce that failure.
 2. If it is a hermetic mirror, check whether the real Docker-backed gate
    still fails the same way. A mirror failure that the real gate does not
    reproduce is a mirror bug, not a platform bug.

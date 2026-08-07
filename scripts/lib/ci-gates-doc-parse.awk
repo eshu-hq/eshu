@@ -19,7 +19,8 @@
 # before this parser was written):
 #
 #   1. A full local+CI gate: id, name, category, tier, blocking, a
-#      local.command, a ci.workflow/ci.job pair, and a triggers list.
+#      local.command, an optional local.test_command, a ci.workflow/ci.job
+#      pair, and a triggers list.
 #   2. A CI-only gate (5 in the live registry: reducer-contention, e2e-tests,
 #      trivy-image, docker-publish, macos-build): no local: block at all —
 #      the command cell falls back to ci_only_reason (needs Postgres, Docker
@@ -41,7 +42,7 @@ BEGIN {
 
 function reset_record() {
 	id = ""; name = ""; category = ""; tier = ""; blocking = ""
-	command = ""; workflow = ""; job = ""; reason = ""; ci_only_reason = ""
+	command = ""; test_command = ""; workflow = ""; job = ""; reason = ""; ci_only_reason = ""
 	trigger_count = 0
 	delete triggers
 	section = ""
@@ -73,6 +74,9 @@ function render_row() {
 		blocking_cell = (blocking != "" ? blocking : "—")
 		if (command != "") {
 			command_cell = "`" escape_pipe(command) "`"
+			if (test_command != "" && test_command != command) {
+				command_cell = command_cell "<br>then self-test: `" escape_pipe(test_command) "`"
+			}
 		} else if (ci_only_reason != "") {
 			command_cell = "— (CI-only: " escape_pipe(ci_only_reason) ")"
 		} else {
@@ -182,6 +186,9 @@ section == "triggers" && /^      - "/ && have_record {
 }
 section == "local" && /^      command: / && have_record {
 	command = $0; sub(/^      command: /, "", command); gsub(/^"|"$/, "", command); next
+}
+section == "local" && /^      test_command: / && have_record {
+	test_command = $0; sub(/^      test_command: /, "", test_command); gsub(/^"|"$/, "", test_command); next
 }
 section == "ci" && /^      workflow: / && have_record {
 	workflow = $0; sub(/^      workflow: /, "", workflow); gsub(/^"|"$/, "", workflow); next
