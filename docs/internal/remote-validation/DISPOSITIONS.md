@@ -287,3 +287,24 @@ proved); for `trace_exposure_path` and `variable_lookup`, a deployed
 cloud-sink chain and durable semantic facts, respectively. No new tracking
 issue was opened for this follow-up; #5681 remains the reference until a
 maintainer opens one.
+
+### Gating overlay for the five secrets/IAM rows
+
+Downgrading the tier records that no deployed evidence exists. It does not record
+the separate, also-true fact that these reads are off by default: the reducer only
+registers the secrets/IAM graph projection domain when an operator sets
+`ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED`, so a stock deploy serves an
+empty page regardless of how much proof we later attach.
+
+Those are two different axes, and the matrix tier only carries the first. The
+repository already has a place for the second — the `maturity: gated` overlay in
+`specs/capability-catalog.v1.yaml`, used for the `ESHU_EMIT_DATAFLOW` reachability
+rows and the collector-gated supply-chain rows. All five secrets/IAM capabilities
+now carry that overlay, so the generated catalog reports `maturity: gated` with
+`derived_maturity: experimental` instead of leaving a consumer to infer
+reachability from prose alone.
+
+`supply_chain.impact_findings.list` shows the two axes are independent: it holds
+`status: supported` with a committed production artifact and `maturity: gated` at
+the same time. If deployed evidence for the secrets/IAM reads lands later, the
+tier can rise on its own merit while the gating overlay stays.
