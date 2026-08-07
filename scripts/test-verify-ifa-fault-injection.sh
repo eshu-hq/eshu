@@ -282,19 +282,42 @@ fi
 rm -f "${capture_file}"
 
 # ifa_fault_assert_sql_graph_write_fired (#5555) is a real functional check,
-# not just a string grep: prove it actually distinguishes a log containing
-# the injected fault's error text (scoped to sql_relationships) from one that
-# does not, with a budget of 1s so this runs fast.
+# not just a string grep: prove it correlates on a SINGLE structured log
+# record, with a budget of 1s so this runs fast. Field names match the real
+# reducer JSON logger (go/internal/telemetry/logging.go's unifiedReplaceAttr
+# renames MessageKey to "message"; log.Domain's own "domain" attr is
+# untouched).
 tmp_ok_log="$(mktemp)"
 tmp_bad_log="$(mktemp)"
-trap 'rm -f "${tmp_ok_log}" "${tmp_bad_log}"' EXIT
-printf '{"msg":"shared projection partition processing failed; retrying on next poll cycle","domain":"sql_relationships","error":"write edges: ifa fault: fail-graph-write-once-then-succeed (queue-retry) injected one failure for graph-write call #3"}\n' >"${tmp_ok_log}"
-printf 'nothing interesting here\n' >"${tmp_bad_log}"
+tmp_split_log="$(mktemp)"
+trap 'rm -f "${tmp_ok_log}" "${tmp_bad_log}" "${tmp_split_log}"' EXIT
+
+# Positive: one record carries all three facts together.
+printf '{"timestamp":"2026-08-07T00:00:00Z","severity_text":"ERROR","message":"shared projection partition processing failed; retrying on next poll cycle","domain":"sql_relationships","partition_id":3,"error":"write edges: ifa fault: fail-graph-write-once-then-succeed (queue-retry) injected one failure for graph-write call #3"}\n' >"${tmp_ok_log}"
 if ! ifa_fault_assert_sql_graph_write_fired "${tmp_ok_log}" 1; then
-	fail "SQL graph-write fired check did not detect a matching fault log line"
+	fail "SQL graph-write fired check did not detect a genuinely correlated fault log record"
 fi
+
+# Negative: no relevant content at all.
+printf 'nothing interesting here\n' >"${tmp_bad_log}"
 if ifa_fault_assert_sql_graph_write_fired "${tmp_bad_log}" 1; then
 	fail "SQL graph-write fired check incorrectly passed on a log with no fault line"
+fi
+
+# Negative (the exact vacuous-check regression this rewrite closed): the
+# fault text and the string "sql_relationships" both appear in the file, but
+# on DIFFERENT, unrelated records -- the fault actually fired against
+# gcp_resource_materialization (line 1), and sql_relationships merely shows
+# up in an unrelated routine log line for that domain (line 2, no error).
+# The OLD implementation (two independent whole-file `rg` checks) passed
+# this exact input live when the fault was anchored at CloudResource; the
+# fix must fail it.
+{
+	printf '{"timestamp":"2026-08-07T00:00:00Z","severity_text":"ERROR","message":"shared projection partition processing failed; retrying on next poll cycle","domain":"gcp_resource_materialization","partition_id":1,"error":"write edges: ifa fault: fail-graph-write-once-then-succeed (queue-retry) injected one failure for graph-write call #7"}\n'
+	printf '{"timestamp":"2026-08-07T00:00:01Z","severity_text":"INFO","message":"shared projection skipped intents until semantic readiness is committed","domain":"sql_relationships","partition_id":2,"blocked_count":1}\n'
+} >"${tmp_split_log}"
+if ifa_fault_assert_sql_graph_write_fired "${tmp_split_log}" 1; then
+	fail "SQL graph-write fired check passed on split evidence (fault on a different domain, sql_relationships only in an unrelated line) -- the exact vacuous-check regression #5555 exists to prevent"
 fi
 
 printf 'test-verify-ifa-fault-injection: pass\n'

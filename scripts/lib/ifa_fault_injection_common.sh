@@ -212,19 +212,49 @@ ifa_fault_assert_retried_above() {
 # the way the abandoned cell-4 log-grep ifa_fault_count_retried's doc comment
 # describes did.
 #
+# CORRELATION ON ONE LOG RECORD, NOT THE WHOLE FILE. An earlier version of
+# this function ran two INDEPENDENT `rg` checks against the whole file: one
+# for the injected-fault error text, one for the literal string
+# "sql_relationships". Both can be individually true from UNRELATED lines --
+# sql_relationships is one of the domains SharedProjectionRunner cycles every
+# poll (shared_projection_runner.go's sharedProjectionDomains), so its name
+# appears in routine logging regardless of which domain a fault actually hit.
+# That shape passed even when the fault was anchored at CloudResource
+# (confirmed live): a vacuous check, exactly the defect class #5555 exists to
+# kill. The reducer's logger is JSON (go/internal/telemetry/logging.go's
+# NewLoggerWithWriter, ReplaceAttr renames msg->message but leaves
+# log.Domain's own "domain" attr key alone), so this now requires ONE JSON
+# record to satisfy all three facts together: the exact partition-processing-
+# failed message
+# go/internal/reducer/shared_projection_runner.go's processPartitionWithTelemetry
+# logs, domain == "sql_relationships" (field-equality, not substring), and
+# the injected fault's error text as a substring of that SAME record's
+# "error" field. The `rg` pre-filter is a cheap narrowing pass only (every
+# JSON record with domain=sql_relationships necessarily contains the literal
+# substring "sql_relationships"); jq -e does the actual field-matched
+# correlation per candidate line, so a malformed/partial line (the reducer
+# still writing when this polls) just fails to parse and is skipped, not
+# treated as a match.
+#
 # Args: reducer_log_path [budget_seconds=10]
 ifa_fault_assert_sql_graph_write_fired() {
 	local reducer_log_path="$1" budget="${2:-10}"
-	local i
+	local i line
 	for i in $(seq 1 "${budget}"); do
-		if [[ -f "${reducer_log_path}" ]] \
-			&& rg --fixed-strings --quiet -- 'fail-graph-write-once-then-succeed (queue-retry) injected one failure for graph-write call' "${reducer_log_path}" \
-			&& rg --fixed-strings --quiet -- 'sql_relationships' "${reducer_log_path}"; then
-			return 0
+		if [[ -f "${reducer_log_path}" ]]; then
+			while IFS= read -r line; do
+				if jq -e '
+						(.domain == "sql_relationships")
+						and ((.message // "") == "shared projection partition processing failed; retrying on next poll cycle")
+						and ((.error // "") | contains("fail-graph-write-once-then-succeed (queue-retry) injected one failure for graph-write call"))
+					' >/dev/null 2>&1 <<<"${line}"; then
+					return 0
+				fi
+			done < <(rg --fixed-strings 'sql_relationships' "${reducer_log_path}" 2>/dev/null)
 		fi
 		sleep 1
 	done
-	echo "ifa_fault_assert_sql_graph_write_fired: no sql_relationships partition-processing error line ever appeared in ${reducer_log_path} within ${budget}s" >&2
+	echo "ifa_fault_assert_sql_graph_write_fired: no single sql_relationships partition-processing-failed log record carrying the injected fault text was found in ${reducer_log_path} within ${budget}s" >&2
 	return 1
 }
 
