@@ -131,3 +131,35 @@ test_scan_dir_rg_hard_error_fails_closed_red() {
     record_fail "rg hard error (exit 2) collecting Go files makes the gate fail closed instead of reporting a clean surface (code=$code)"
   fi
 }
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Test 10f — red: when neither owned route source directory exists, the
+# verifier must fail closed instead of declaring an empty OpenAPI surface clean.
+# An existing scan directory with no matching Go files remains a valid clean
+# input and is covered separately by test_empty_green.
+# shellcheck disable=SC2154 # tmp_root, verifier: defined by the sourcing script
+test_missing_scan_directories_fail_closed_red() {
+  local dir verifier_tmp code stdout_file stderr_file
+
+  dir="${tmp_root}/missing-scan-directories"
+  mkdir -p "$dir"
+  verifier_tmp="${tmp_root}/verifier-tmp-missing-scan-directories"
+  mkdir -p "$verifier_tmp"
+  stdout_file="${tmp_root}/missing-scan-directories-stdout"
+  stderr_file="${tmp_root}/missing-scan-directories-stderr"
+
+  set +e
+  ESHU_OPENAPI_VERIFY_REPO_ROOT="$dir" \
+    ESHU_OPENAPI_VERIFY_TMPDIR="$verifier_tmp" \
+    bash "$verifier" > "$stdout_file" 2> "$stderr_file"
+  code=$?
+  set -e
+
+  if [ "$code" -ne 0 ] \
+    && rg -Fqx 'OPENAPI SCAN FAILED: no owned route source directories found' "$stderr_file" \
+    && ! rg -q 'OpenAPI surface clean' "$stdout_file" "$stderr_file"; then
+    record_pass "missing owned route source directories fail closed with a stable diagnostic"
+  else
+    record_fail "missing owned route source directories fail closed with a stable diagnostic (code=$code)"
+  fi
+}

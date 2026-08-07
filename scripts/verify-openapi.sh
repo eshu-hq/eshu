@@ -36,6 +36,11 @@ handlefunc_route_file="${tmpdir}/handlefunc_routes.txt"
 scan_dirs=()
 [ -d "$query_dir" ] && scan_dirs+=("$query_dir")
 [ -d "$si_dir" ] && scan_dirs+=("$si_dir")
+if [ "${#scan_dirs[@]}" -eq 0 ]; then
+  printf '%s\n' 'OPENAPI SCAN FAILED: no owned route source directories found' >&2
+  printf 'Expected at least one of:\n  %s\n  %s\n' "$query_dir" "$si_dir" >&2
+  exit 1
+fi
 
 # Collect all non-test, non-openapi Go files from scan dirs into a file list.
 gofiles_tmp="${tmpdir}/gofiles.txt"

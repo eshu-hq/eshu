@@ -25,6 +25,11 @@ any drift. Wire the verifier into CI.
   `go/internal/serviceintelhttp/*.go` (excluding `*_test.go` and `openapi_*.go`)
 - OpenAPI path definitions in `go/internal/query/openapi_paths_*.go`
 
+At least one owned route source directory must exist before the verifier scans.
+If neither directory exists, the verifier has no evidence about the route
+surface and exits nonzero. An owned directory that exists but contains no
+matching Go files remains a valid empty input.
+
 **Three HandleFunc patterns are handled:**
 
 1. Direct string literal: `mux.HandleFunc("GET /path", ...)`
@@ -36,7 +41,8 @@ multiple HTTP methods (GET + POST on the same endpoint).
 
 **Exit codes:**
 - `0` — HandleFunc routes and OpenAPI entries are identical (clean)
-- `1` — drift detected (missing or orphan entries reported)
+- `1` — drift detected, or the verifier cannot inspect an owned route source
+  directory
 
 ### Regenerator (optional)
 
@@ -46,9 +52,10 @@ default build.
 
 ### CI gate
 
-The verifier runs on every PR and push to `main` via
-`.github/workflows/verify-openapi.yml`. A red gate blocks merge until the drift
-is resolved.
+The `openapi-surface` registry entry runs in
+`.github/workflows/static-contract-gates.yml`. Relevant PR paths select the
+`Verify OpenAPI gate` matrix entry, while pushes to `main` run the full matrix.
+A red selected gate blocks merge until the drift is resolved.
 
 ### Known-drift exclusions
 
