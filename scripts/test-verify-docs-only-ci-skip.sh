@@ -351,14 +351,18 @@ fi
 # `code: ['**']`. Deleting this line is how #5818's ~118 wasted runner-minutes
 # come back, so it must fail loudly and name the file. ---
 python3 - "${tmp}/.github/workflows/security-scan.yml" <<'PY'
+import re
 import sys
 path = sys.argv[1]
 with open(path) as f:
 	content = f.read()
-needle = "          predicate-quantifier: 'every'\n"
-assert content.count(needle) == 1, "expected exactly one predicate-quantifier line"
+# Locate the line by content, not by exact indentation or quoting style: the
+# verifier accepts every / 'every' / "every" at any indentation, so a test that
+# pinned one spelling would fail on a reindent the verifier is fine with.
+pattern = re.compile(r"^[ \t]*predicate-quantifier:.*\n", re.MULTILINE)
+assert len(pattern.findall(content)) == 1, "expected exactly one predicate-quantifier line"
 with open(path, "w") as f:
-	f.write(content.replace(needle, "", 1))
+	f.write(pattern.sub("", content, count=1))
 PY
 if out="$(run_scratch 2>&1)"; then
 	no "guard 3 should fail when a code: filter loses predicate-quantifier: 'every'"
@@ -382,14 +386,15 @@ fi
 # plausible-looking typo ('all', which is what the README's prose suggests) is
 # indistinguishable from deleting the line. The check must be literal. ---
 python3 - "${tmp}/.github/workflows/test.yml" <<'PY'
+import re
 import sys
 path = sys.argv[1]
 with open(path) as f:
 	content = f.read()
-needle = "          predicate-quantifier: 'every'\n"
-assert content.count(needle) == 1, "expected exactly one predicate-quantifier line"
+pattern = re.compile(r"^([ \t]*)predicate-quantifier:.*\n", re.MULTILINE)
+assert len(pattern.findall(content)) == 1, "expected exactly one predicate-quantifier line"
 with open(path, "w") as f:
-	f.write(content.replace(needle, "          predicate-quantifier: 'all'\n", 1))
+	f.write(pattern.sub(lambda m: m.group(1) + "predicate-quantifier: 'all'\n", content, count=1))
 PY
 if out="$(run_scratch 2>&1)"; then
 	no "guard 3 should fail for predicate-quantifier: 'all', which dorny treats as the default"
@@ -407,6 +412,29 @@ if run_scratch >/dev/null 2>&1; then
 else
 	no "guard 3 should pass again once the correct quantifier value is restored"
 fi
+
+# --- guard 3, quoting case (#5956 review): YAML reads every, 'every' and
+# "every" identically and dorny accepts all three, so the guard must too.
+# Demanding one style would fail a PR whose filter is in fact correct. ---
+for style in "every" '"every"'; do
+	python3 - "${tmp}/.github/workflows/test.yml" "${style}" <<'PYQ'
+import re
+import sys
+path, style = sys.argv[1], sys.argv[2]
+with open(path) as f:
+	content = f.read()
+pattern = re.compile(r"^([ \t]*)predicate-quantifier:.*\n", re.MULTILINE)
+assert len(pattern.findall(content)) == 1, "expected exactly one predicate-quantifier line"
+with open(path, "w") as f:
+	f.write(pattern.sub(lambda m: m.group(1) + "predicate-quantifier: " + style + "\n", content, count=1))
+PYQ
+	if run_scratch >/dev/null 2>&1; then
+		ok "guard 3 accepts predicate-quantifier: ${style}"
+	else
+		no "guard 3 must accept the valid quoting style ${style}"
+	fi
+	cp "${repo_root}/.github/workflows/test.yml" "${tmp}/.github/workflows/test.yml"
+done
 
 printf '\n%d passed, %d failed\n' "${pass}" "${fail}"
 [[ "${fail}" -eq 0 ]]

@@ -413,14 +413,14 @@ else
 	diff <(printf '%s\n' "${block_test}") <(printf '%s\n' "${block_mcp}") >&2 || true
 fi
 
-# --- #5896 regression guard: every copy must set predicate-quantifier:
+# --- #5896 regression guard: every copy must set predicate-quantifier to
 # 'every'. Without it dorny@v3 defaults to `some`, `**` matches first, and the
-# five `!` negations are dead text — invisible in review, since they still READ
-# as exclusions, and silently restoring #5818's ~118-runner-minute waste.
-# Checked literally: v3 accepts only {'every','some'}, typos become the default. ---
+# five `!` negations are dead text that still READ as exclusions, silently
+# restoring #5818's waste. VALUE is exact (v3 takes only {'every','some'}, so
+# the typo 'all' reads as deletion); QUOTING is not — every, 'every', "every". ---
 quantifier_missing=""
 for wf in "${t}" "${s}" "${m}"; do
-	rg -q "^[[:space:]]*predicate-quantifier:[[:space:]]*'every'[[:space:]]*$" "${wf}" \
+	rg -q "^[[:space:]]*predicate-quantifier:[[:space:]]*(every|'every'|\"every\")[[:space:]]*$" "${wf}" \
 		|| quantifier_missing="${quantifier_missing} $(basename "${wf}")"
 done
 if [[ -n "${quantifier_missing}" ]]; then
