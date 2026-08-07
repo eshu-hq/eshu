@@ -15,7 +15,7 @@ import { fmt, dash, truncatedNote } from "./adminFormat";
 import {
   loadRoleAssignments,
   grantRoleAssignment,
-  revokeRoleAssignment
+  revokeRoleAssignment,
 } from "../../api/adminConsole";
 import type { RoleAssignmentItem } from "../../api/adminConsole";
 import type { EshuApiClient } from "../../api/client";
@@ -28,7 +28,7 @@ function statusBadge(status: string | undefined): React.JSX.Element {
 }
 
 export function AdminAssignmentsPanel({
-  client
+  client,
 }: {
   readonly client?: EshuApiClient;
 }): React.JSX.Element {
@@ -71,7 +71,7 @@ export function AdminAssignmentsPanel({
     const ok = await grantRoleAssignment(client, {
       user_id: grantUser,
       role_id: grantRole,
-      workspace_id: grantWorkspace
+      workspace_id: grantWorkspace,
     });
     setBusy(false);
     if (ok) {
@@ -94,7 +94,7 @@ export function AdminAssignmentsPanel({
       const ok = await revokeRoleAssignment(client, {
         user_id: item.user_id,
         role_id: item.role_id,
-        workspace_id: item.workspace_id
+        workspace_id: item.workspace_id,
       });
       setBusy(false);
       if (ok) {
@@ -104,7 +104,7 @@ export function AdminAssignmentsPanel({
         setNotice(`Failed to revoke ${item.role_id} from ${item.user_id}.`);
       }
     },
-    [client]
+    [client],
   );
 
   const grantForm = (
@@ -163,7 +163,11 @@ export function AdminAssignmentsPanel({
   return (
     <Panel title="Role assignments">
       {grantForm}
-      {notice ? <p className="empty-note" role="status">{notice}</p> : null}
+      {notice ? (
+        <p className="empty-note" role="status">
+          {notice}
+        </p>
+      ) : null}
       {truncated ? <p className="empty-note">{truncatedNote(truncated, items.length)}</p> : null}
       {items.length === 0 ? (
         <p className="empty-note">No role assignments found.</p>

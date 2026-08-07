@@ -26,7 +26,7 @@ function statusBadge(status: string | undefined): React.JSX.Element {
 }
 
 export function AdminInvitationsPanel({
-  client
+  client,
 }: {
   readonly client?: EshuApiClient;
 }): React.JSX.Element {
@@ -73,7 +73,7 @@ export function AdminInvitationsPanel({
         setNotice(`Failed to revoke invitation ${inviteId}.`);
       }
     },
-    [client]
+    [client],
   );
 
   if (loading) {
@@ -93,7 +93,11 @@ export function AdminInvitationsPanel({
 
   return (
     <Panel title="Invitations">
-      {notice ? <p className="empty-note" role="status">{notice}</p> : null}
+      {notice ? (
+        <p className="empty-note" role="status">
+          {notice}
+        </p>
+      ) : null}
       {truncated ? <p className="empty-note">{truncatedNote(truncated, items.length)}</p> : null}
       {items.length === 0 ? (
         <p className="empty-note">No invitations found.</p>
@@ -112,9 +116,7 @@ export function AdminInvitationsPanel({
           <tbody>
             {items.map((inv) => {
               const terminal =
-                inv.status === "revoked" ||
-                inv.status === "accepted" ||
-                inv.status === "expired";
+                inv.status === "revoked" || inv.status === "accepted" || inv.status === "expired";
               return (
                 <tr key={inv.invite_id}>
                   <td>{inv.invite_id}</td>
