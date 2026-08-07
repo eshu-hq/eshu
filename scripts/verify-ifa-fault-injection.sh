@@ -3,27 +3,23 @@
 # docs/internal/design/4389-ifa-conformance-platform.md, Layer 4). Drives the
 # SAME demo-org GCP cassette (testdata/cassettes/gcpcloud/supply-chain-demo.json)
 # PLUS a generated synth-multiscope GCP cassette (`eshu-ifa synth-cassette`,
-# same non-inert rationale as scripts/verify-ifa-determinism.sh) through a
-# FRESH Postgres + NornicDB Compose stack per cell (`down -v` between every
-# cell, mirroring every sibling verify-ifa-*.sh script), then injects one
-# scripted fault per cell into the real eshu-reducer binary and asserts that,
-# after the fault and a full drain, the canonicalized graph
-# (`ifa graph-dump -digest`) is BYTE-IDENTICAL to the fault-free baseline and
-# fact_work_items carries ZERO durable dead_letter rows -- Layer 4's
-# unchanged acceptance clause: "still correct" is the same digest comparison
-# Layers 1-2 already define, applied along the failure axis instead of the
-# scheduling axis.
+# same non-inert rationale as scripts/verify-ifa-determinism.sh) PLUS the SQL
+# relationship family cassette through a FRESH Postgres + NornicDB Compose
+# stack per cell (`down -v` between every cell, mirroring every sibling
+# verify-ifa-*.sh script), then injects one scripted fault per cell into the
+# real eshu-reducer binary and asserts that, after the fault and a full
+# drain, the canonicalized graph (`ifa graph-dump -digest`) is
+# BYTE-IDENTICAL to the fault-free baseline and fact_work_items carries ZERO
+# durable dead_letter rows -- Layer 4's unchanged acceptance clause: "still
+# correct" is the same digest comparison Layers 1-2 already define, applied
+# along the failure axis instead of the scheduling axis.
 #
-# Five cells, each hitting a genuinely different recovery seam. Cell
-# functions live in scripts/lib/ifa_fault_injection_cells.sh, and shared
-# per-cell plumbing (fresh_stack, drive_all_cassettes, run_drain_gate, etc.)
-# lives in scripts/lib/ifa_fault_injection_driver.sh -- both extracted out of
-# this driver script to keep it under the repo's 500-line cap
-# (.agents/skills/generator-script-discipline). This extraction changes
-# nothing about cell behavior, only where the code lives.
+# Seven cells, each hitting a genuinely different recovery seam. Cell
+# functions live in scripts/lib/ifa_fault_injection_cells.sh (cells 1-5) and
+# scripts/lib/ifa_fault_injection_sql_cells.sh (cells 6-7, issue #5555):
 #
 #   1. baseline                              -- fault-free; establishes the
-#      digest cells 2-5 are compared against.
+#      digest cells 2-7 are compared against.
 #   2. kill-worker-after-claim                -- `kill -9` the live host
 #      eshu-reducer process after a row is genuinely claimed, then start a
 #      fresh reducer process and let the fixed 1-minute lease
@@ -42,33 +38,46 @@
 #      with a fault script that pauses after the first completed graph-write
 #      group; this gate restarts the nornicdb Compose service while the
 #      reducer is blocked on that pause, then releases it.
+#   6. kill-worker-after-claim-sql (#5555)     -- mirrors cell 2, but
+#      wait_for_claimed is scoped to domain=sql_relationship_materialization
+#      specifically, provably targeting SQL work instead of whichever domain
+#      the driven cassettes happen to schedule first (in practice GCP).
+#   7. fail-graph-write-once-then-succeed-sql (#5555) -- mirrors cell 4, but
+#      the fault is anchored to a SQL edge MERGE (QUERIES_TABLE) instead of
+#      CloudResource. Fired-fault proof is a shared-projection error log
+#      line, not fact_work_items attempt_count: sql_relationship_
+#      materialization's graph writes ride the async shared-projection
+#      intent path, which has no attempt_count column (see
+#      go/internal/reducer/shared_projection_runner.go's
+#      TestSharedProjectionRunnerLogsPartitionProcessingError).
 #
-# Cells 2 and 3 do NOT go through faultreplay's kill-worker-after-claim /
+# Cells 2, 3, and 6 do NOT go through faultreplay's kill-worker-after-claim /
 # expire-lease-mid-handler fault kinds: those two kinds only have a hermetic,
 # in-process WorkSource decorator (go/internal/replay/faultreplay's
 # FaultingWorkSource, consumed by faultreplay.RunFault) -- there is no
 # ifafaultinjection-tagged wiring of FaultingWorkSource into go/cmd/reducer
 # against real Postgres. Acting directly on the live process/row is this
-# gate's own mechanism for those two cells, matching the T2/T3 manual proofs
-# this gate automates (see issue #4580 history): kill -9 the host reducer mid-
+# gate's own mechanism for those cells, matching the T2/T3 manual proofs this
+# gate automates (see issue #4580 history): kill -9 the host reducer mid-
 # drain converges via the 1-minute lease reclaim in ~65s with zero dead
 # letters, and a forced lease expiry converges the same way from the
 # handler-side trigger.
 #
-# fail-terminal (a sixth possible cell) is deliberately NOT included: it has
-# no live seam either -- go/internal/storage/cypher/fault_executor.go's
+# fail-terminal (an eighth possible cell) is deliberately NOT included: it
+# has no live seam either -- go/internal/storage/cypher/fault_executor.go's
 # applyFault leaves it explicitly inert at the graph-executor seam ("a
 # different decorator owns them"), and that different decorator is the SAME
-# hermetic-only FaultingWorkSource cells 2/3 already can't use live. Building
-# a live fail-terminal seam is out of this slice's scope (S5: the gate script
-# only); this is reported as an explicit, honest gap, not silently dropped.
+# hermetic-only FaultingWorkSource cells 2/3/6 already can't use live.
+# Building a live fail-terminal seam is out of scope; this is reported as an
+# explicit, honest gap, not silently dropped.
 #
 # Flake policy: NO retry-to-green, ever. A digest mismatch or a non-zero
 # dead_letter count after a cell's drain is a real concurrency/recovery
 # defect -- root-cause it, never lower workers, retry, or otherwise normalize
 # it away (Serialization-Is-Not-A-Fix). A fault that never fires (checked
-# per-cell below: a claimed-row proof for cells 2/3, a reducer-log grep for
-# cell 4, a sentinel-fired proof for cell 5) is an inert script, not a pass.
+# per-cell: a claimed-row proof for cells 2/3/6, a reducer-log poll for
+# cells 4/7, a sentinel-fired proof for cell 5) is an inert script, not a
+# pass.
 #
 # Usage:
 #   scripts/verify-ifa-fault-injection.sh [--no-compose] [--keep]
@@ -106,6 +115,8 @@ source "${repo_root}/scripts/lib/ifa_fault_injection_common.sh"
 source "${repo_root}/scripts/lib/ifa_fault_injection_driver.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_cells.sh
 source "${repo_root}/scripts/lib/ifa_fault_injection_cells.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_sql_cells.sh
+source "${repo_root}/scripts/lib/ifa_fault_injection_sql_cells.sh"
 
 # ----------------------------------------------------------------------------
 # Configuration. One Compose project + one port triple reused across every
@@ -121,8 +132,8 @@ export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-7688}"
 : "${ESHU_POSTGRES_PASSWORD:=change-me}"
 : "${ESHU_NEO4J_PASSWORD:=change-me}"
 # Headroom over this gate's two slowest natural recovery mechanics: the fixed
-# 1-minute reducer lease (cell 2/3) and the default 30s (+jitter) reducer
-# retry delay (cell 4's queue-retry lane) -- see go/cmd/reducer/
+# 1-minute reducer lease (cell 2/3/6) and the default 30s (+jitter) reducer
+# retry delay (cell 4/7's queue-retry lane) -- see go/cmd/reducer/
 # main_helpers.go and go/internal/runtime/retry_policy.go.
 : "${GATE_DRAIN_TIMEOUT:=4m}"
 : "${CLAIMED_ROW_WAIT_TIMEOUT:=60}"
@@ -133,14 +144,15 @@ cassette="${repo_root}/testdata/cassettes/gcpcloud/supply-chain-demo.json"
 drive_workers=4
 
 # SQL relationship family cassette (#5351): driven into every cell alongside
-# the demo-org + synth-multiscope cassettes, so cells 2/3 (lease-expiry / kill-
-# worker) exercise the SQL relationship materialization handler's replay
-# through the REAL durable fault path, and the fault-free baseline's own graph
-# is asserted to carry exactly the nine expected SQL edges (the non-vacuity
-# check backing the materialized_edges:sql_relationships manifest row's
-# proof_gate: ifa-fault-injection claim). Every cell's post-recovery graph is
-# then compared byte-identical to that baseline, so a fault that silently
-# dropped a SQL edge on recovery diverges the digest and fails.
+# the demo-org + synth-multiscope cassettes, so cells 2/3/6 (lease-expiry /
+# kill-worker) exercise the SQL relationship materialization handler's
+# replay through the REAL durable fault path, and the fault-free baseline's
+# own graph is asserted to carry exactly the nine expected SQL edges (the
+# non-vacuity check backing the materialized_edges:sql_relationships
+# manifest row's proof_gate: ifa-fault-injection claim). Every cell's
+# post-recovery graph is then compared byte-identical to that baseline, so a
+# fault that silently dropped a SQL edge on recovery diverges the digest and
+# fails.
 sql_cassette="${repo_root}/testdata/cassettes/sqlrelationships/ifa-sql-family.json"
 sql_expected_edges="${repo_root}/go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-expected-edges.json"
 
@@ -154,6 +166,17 @@ sql_expected_edges="${repo_root}/go/internal/ifa/testdata/sqlrelationships/ifa-s
 # this run's own call interleaving, unlike a statement_ordinal.
 cloud_resource_operation_match="MERGE (r:CloudResource"
 
+# The SQL edge MERGE anchor cell_failgraphwrite_sql (cell 7, #5555) targets:
+# go/internal/storage/cypher/canonical.go's batchCanonicalSQLQueriesTableUpsertCypher
+# and edge_writer_sql.go's buildLabelScopedSQLRelationshipCypher both emit
+# this exact MERGE clause text for a QUERIES_TABLE edge regardless of which
+# source/target node labels the label-scoped writer path picks (only the
+# preceding MATCH clauses vary by label) -- a fixed, grep-stable substring,
+# same rationale as cloud_resource_operation_match above. QUERIES_TABLE is
+# one of the SQL family's nine materialized edge types and is present in the
+# committed sql_cassette, so this fault genuinely fires during that drive.
+sql_edge_operation_match="MERGE (source)-[rel:QUERIES_TABLE]->(target)"
+
 use_compose=1
 keep=0
 for arg in "$@"; do
@@ -161,7 +184,7 @@ for arg in "$@"; do
 	--no-compose) use_compose=0 ;;
 	--keep) keep=1 ;;
 	-h | --help)
-		sed -n '2,80p' "${BASH_SOURCE[0]}"
+		sed -n '2,91p' "${BASH_SOURCE[0]}"
 		exit 0
 		;;
 	*)
@@ -238,7 +261,7 @@ ifa_det_build_bin "${bin_dir}" ifa || die "build ifa failed"
 ifa_det_build_bin "${bin_dir}" projector || die "build projector failed"
 ifa_det_build_bin "${bin_dir}" reducer || die "build reducer failed"
 ifa_det_build_bin "${bin_dir}" golden-corpus-gate || die "build golden-corpus-gate failed"
-log "build tagged host reducer (-tags ifafaultinjection, cells 4-5 only)"
+log "build tagged host reducer (-tags ifafaultinjection, cells 4/5/7 only)"
 ifa_det_build_bin "${tagged_bin_dir}" reducer "ifafaultinjection" || die "build tagged reducer failed"
 
 log "generate synth-multiscope cassette (seed=${SYNTH_MULTISCOPE_SEED} projects=${SYNTH_MULTISCOPE_PROJECTS} resources=${SYNTH_MULTISCOPE_RESOURCES})"
@@ -259,6 +282,8 @@ cell_killworker
 cell_expirelease
 cell_failgraphwrite
 cell_restartbackend
+cell_killworker_sql
+cell_failgraphwrite_sql
 
 log "PASS: fault-injection matrix green (project ${FAULT_COMPOSE_PROJECT}, postgres:${ESHU_POSTGRES_PORT}, neo4j-bolt:${NEO4J_BOLT_PORT})"
 for cell in "${!digests[@]}"; do
