@@ -10,15 +10,28 @@ import (
 )
 
 // goPackageSubcommands are the `go` subcommands whose `./pkg` arguments name
-// code that the gate compiles and runs. `go list` is deliberately absent: it
-// reports on packages without building or running their tests, so a gate that
-// only lists a package is not made false-green by a change inside it.
+// code that the gate compiles, runs, or executes directives in. `go list` is
+// deliberately absent: it reports on packages without building or running them,
+// so a gate that only lists a package is not made false-green by a change
+// inside it. `generate` IS present — it executes the package's directives, so a
+// change there can change the gate's verdict. It adds nothing to today's
+// registry (sdk-go-factschema's `go generate ./...` runs in a directory its own
+// `go build ./...` already registers), which is the point: the class is closed
+// before a gate relies on it.
 var goPackageSubcommands = map[string]struct{}{
-	"build": {},
-	"run":   {},
-	"test":  {},
-	"vet":   {},
+	"build":    {},
+	"generate": {},
+	"run":      {},
+	"test":     {},
+	"vet":      {},
 }
+
+// argTrimCutset strips shell punctuation that can adhere to a token once a
+// command is split on whitespace: quotes, and the parentheses of a subshell.
+// A package argument that closes a subshell arrives as "./internal/x)", and
+// without the ")" the derived directory is "go/internal/x)" — a path no trigger
+// can match, so the gate is reported as uncovered when it is in fact fine.
+const argTrimCutset = `"'()`
 
 // shellSeparators end the argument run of a single command inside a compound
 // shell line, so a `./pkg` token after one of them does not belong to the
@@ -53,16 +66,32 @@ var shellSeparators = map[string]struct{}{
 //     same command, and the run ends at the next shell separator. A bare
 //     `./pkg` with no preceding go subcommand (none in the registry today) is
 //     ignored rather than guessed at.
-//   - `cd` is honoured wherever it appears, not only at the start, because
-//     ci-gate-registry reaches its own package through a mid-command subshell
-//     (`... && (cd go && go test ./internal/cigates -count=1)`). The directory
-//     is tracked forward through the whole command; shell scoping of a subshell
-//     `cd` is NOT modelled, which can only ever attribute a package to a deeper
-//     directory than the shell would use. That direction is safe: it demands a
-//     more specific trigger than strictly necessary, so it cannot manufacture a
-//     false green.
-//   - A package argument that resolves outside the repository is skipped, not
-//     reported. It names no in-repo file whose edit could go unselected.
+//   - `cd` and `go -C <dir>` are both honoured, wherever they appear rather
+//     than only at the start, because ci-gate-registry reaches its own package
+//     through a mid-command subshell (`... && (cd go && go test
+//     ./internal/cigates -count=1)`). The directory is tracked forward through
+//     the whole command; shell scoping of a subshell `cd` is NOT modelled,
+//     which can only ever attribute a package to a deeper directory than the
+//     shell would use. That direction is safe: it demands a more specific
+//     trigger than strictly necessary, so it cannot manufacture a false green.
+//   - A package argument that resolves outside the repository, or to the
+//     repository root itself, is skipped rather than reported. Neither names an
+//     in-repo file whose edit could go unselected.
+//
+// Two narrowings were found by probing this parser rather than reading it, and
+// both were silent rather than loud, which is the shape #5934 spent a round
+// removing from the scripts-side check:
+//
+//   - A `go` subcommand outside goPackageSubcommands yields nothing. That is
+//     correct for `go list` (see above) but was NOT correct for `go generate`,
+//     which executes the package; it is in the set now. Anything else new —
+//     `go tool`, say — is silently invisible until it is added, so add it when
+//     a gate starts using it rather than assuming this set is closed.
+//   - Shell punctuation adhering to a token (quotes, subshell parentheses) used
+//     to travel into the derived path, so a package argument closing a subshell
+//     produced the unmatchable directory "go/internal/x)". argTrimCutset strips
+//     it. This never reported a false GREEN — it reported a false finding — but
+//     it would have sent a reader hunting for a trigger that could not exist.
 //
 // Recursive package specs (`./...`, `./cmd/...`) require a trigger that matches
 // nested files too, since that is the file set the command actually compiles.
@@ -151,37 +180,65 @@ func triggerCoversPackage(triggers []string, pkg goPackageDir) bool {
 func extractGoPackageDirs(command string) []goPackageDir {
 	fields := strings.Fields(command)
 	cwd := ""
+	inGoCommand := false
 	inGoPackageArgs := false
 	seen := make(map[goPackageDir]struct{}, len(fields))
 	var out []goPackageDir
 
 	for i := 0; i < len(fields); i++ {
-		w := strings.TrimLeft(fields[i], "(")
+		w := strings.Trim(fields[i], argTrimCutset)
 
 		if _, isSep := shellSeparators[w]; isSep {
+			inGoCommand = false
 			inGoPackageArgs = false
 			continue
 		}
 
 		if w == "cd" && i+1 < len(fields) {
-			cwd = joinRepoRel(cwd, strings.Trim(fields[i+1], `"'`))
+			cwd = joinRepoRel(cwd, strings.Trim(fields[i+1], argTrimCutset))
 			i++
+			inGoCommand = false
 			inGoPackageArgs = false
 			continue
 		}
 
-		if w == "go" && i+1 < len(fields) {
-			_, ok := goPackageSubcommands[strings.TrimRight(fields[i+1], `"'`)]
-			inGoPackageArgs = ok
+		// `go -C <dir>` changes the directory package arguments resolve against
+		// exactly as `cd` does, and go accepts it either before or after the
+		// subcommand (verified against the pinned toolchain, go1.26.5: both
+		// `go -C go list ./internal/cigates` and `go list -C go
+		// ./internal/cigates` resolve the package). It is honoured only inside
+		// a `go` command so that an unrelated tool's `-C` — `make -C go ...` —
+		// cannot move the directory the shell never left.
+		if inGoCommand && w == "-C" && i+1 < len(fields) {
+			cwd = joinRepoRel(cwd, strings.Trim(fields[i+1], argTrimCutset))
 			i++
 			continue
+		}
+
+		if w == "go" {
+			inGoCommand = true
+			inGoPackageArgs = false
+			continue
+		}
+
+		// The subcommand is recognised wherever it lands in the go command
+		// rather than only immediately after the `go` word, since `-C <dir>`
+		// may precede it. Nothing is consumed speculatively: a bare directory
+		// argument spelled "go" used to swallow the package argument after it,
+		// which is a SILENT skip of the exact kind #5934 removed from the
+		// scripts-side check.
+		if inGoCommand && !inGoPackageArgs {
+			if _, ok := goPackageSubcommands[w]; ok {
+				inGoPackageArgs = true
+				continue
+			}
 		}
 
 		if !inGoPackageArgs || !strings.HasPrefix(w, "./") {
 			continue
 		}
 
-		pkg, ok := resolvePackageArg(cwd, strings.TrimRight(w, `"'`))
+		pkg, ok := resolvePackageArg(cwd, w)
 		if !ok {
 			continue
 		}
@@ -206,10 +263,12 @@ func resolvePackageArg(cwd, arg string) (goPackageDir, bool) {
 	}
 
 	dir := joinRepoRel(cwd, rel)
-	if dir == "" || dir == "." || strings.HasPrefix(dir, "..") {
-		// "" and "." are the repository root: every path is inside it, so the
-		// self-trigger property is vacuous and there is nothing to assert.
-		// A ".."-prefixed dir escaped the repo.
+	// "" and "." are the repository root: every path is inside it, so the
+	// self-trigger property is vacuous and there is nothing to assert. A dir of
+	// ".." or one under "../" escaped the repo. The escape test is written
+	// exactly, not as a ".." prefix, so a repo-root directory whose name merely
+	// begins with two dots is not mistaken for an escape.
+	if dir == "" || dir == "." || dir == ".." || strings.HasPrefix(dir, "../") || strings.HasPrefix(dir, "/") {
 		return goPackageDir{}, false
 	}
 	return goPackageDir{dir: dir, recursive: recursive}, true

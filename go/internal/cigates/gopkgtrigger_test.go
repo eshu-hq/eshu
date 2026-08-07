@@ -213,6 +213,87 @@ func TestDriftCheck_EscapingPackageArgSkipped(t *testing.T) {
 	}
 }
 
+// A package argument that closes a subshell arrives with the ")" attached. If
+// that punctuation reaches the derived path the directory becomes
+// "go/internal/thing)", which no trigger can match, and a correctly-configured
+// gate is reported as uncovered. Found by probing the parser, not by reading it.
+func TestDriftCheck_SubshellClosingParenNotPartOfPackagePath(t *testing.T) {
+	t.Parallel()
+
+	root := buildDriftRepo(t, minimalPreCommit("my-gate"), []string{"verify.yml"})
+	writeScript(t, root, "scripts/test-thing.sh", "#!/usr/bin/env bash\ntrue\n")
+	reg := goPkgGate(
+		[]string{"scripts/test-thing.sh", "go/internal/thing/**"},
+		"", "bash scripts/test-thing.sh && (cd go && go test ./internal/thing)")
+
+	if errs := goPkgTriggerErrs(t, root, reg); len(errs) != 0 {
+		t.Errorf("a package argument closing a subshell should resolve to go/internal/thing, got: %v", errs)
+	}
+}
+
+// `go -C <dir>` moves the directory exactly as `cd` does. Before it was
+// handled, the bare "<dir>" token was mistaken for the `go` command word and
+// swallowed the package argument after it, so the whole command yielded NOTHING
+// — a silent skip, the trapdoor shape #5934 removed from the scripts-side
+// check. Assert both halves: the package is seen, and it resolves under -C.
+func TestDriftCheck_GoDashCDirectoryIsResolved(t *testing.T) {
+	t.Parallel()
+
+	root := buildDriftRepo(t, minimalPreCommit("my-gate"), []string{"verify.yml"})
+
+	// go1.26.5 accepts -C on either side of the subcommand; both must resolve.
+	for _, cmd := range []string{
+		"go -C go test ./internal/thing -count=1",
+		"go test -C go ./internal/thing -count=1",
+	} {
+		covered := goPkgGate([]string{"go/internal/thing/**"}, cmd, "")
+		if errs := goPkgTriggerErrs(t, root, covered); len(errs) != 0 {
+			t.Errorf("-C should resolve the package under go/ for %q, got: %v", cmd, errs)
+		}
+
+		uncovered := goPkgGate([]string{"specs/thing.yaml"}, cmd, "")
+		errs := goPkgTriggerErrs(t, root, uncovered)
+		if len(errs) != 1 {
+			t.Fatalf("%q must not silently yield nothing; expected 1 error, got %d: %v", cmd, len(errs), errs)
+		}
+		if !strings.Contains(errs[0], "go/internal/thing") {
+			t.Errorf("error should name the -C-resolved package for %q, got: %s", cmd, errs[0])
+		}
+	}
+}
+
+// An unrelated tool's -C must not move the directory the shell never left.
+// Honouring `make -C go ...` would resolve the later `go test ./internal/thing`
+// against go/ twice over and demand a trigger the gate has no reason to carry.
+func TestDriftCheck_NonGoDashCDoesNotMoveTheDirectory(t *testing.T) {
+	t.Parallel()
+
+	root := buildDriftRepo(t, minimalPreCommit("my-gate"), []string{"verify.yml"})
+	reg := goPkgGate([]string{"internal/thing/**"}, "make -C go build && go test ./internal/thing", "")
+
+	if errs := goPkgTriggerErrs(t, root, reg); len(errs) != 0 {
+		t.Errorf("make -C must not change the package root; expected internal/thing, got: %v", errs)
+	}
+}
+
+// `go generate` executes the package's directives, so a change there can change
+// the gate's verdict and the package must trigger the gate. `go list` only
+// reports, and must not be demanded (asserted separately above).
+func TestDriftCheck_GoGeneratePackageIsDemanded(t *testing.T) {
+	t.Parallel()
+
+	root := buildDriftRepo(t, minimalPreCommit("my-gate"), []string{"verify.yml"})
+	reg := goPkgGate([]string{"specs/thing.yaml"}, "cd sdk/go/thing && go generate ./...", "")
+
+	errs := goPkgTriggerErrs(t, root, reg)
+	if len(errs) != 1 {
+		t.Fatalf("expected go generate to demand its package, got %d: %v", len(errs), errs)
+	}
+	if !strings.Contains(errs[0], "sdk/go/thing") {
+		t.Errorf("error should name the generated package, got: %s", errs[0])
+	}
+}
+
 // Every package in a multi-package command is checked, not just the first.
 // race-graph-writes names nine, and ifa-materialized-edge-coverage's second
 // package (./internal/reducer) was the one missing a trigger.
