@@ -63,6 +63,91 @@ require_regex_count() {
     || fail "expected ${expected} line(s) matching ${pattern}; found ${actual}"
 }
 
+escape_regex() {
+  printf '%s\n' "$1" | sed 's/[][\\.^$*+?(){}|]/\\&/g'
+}
+
+scan_visible_heading_regex() {
+  local pattern="$1"
+  local file="$2"
+  local mode="$3"
+  awk -v pattern="$pattern" -v mode="$mode" '
+    {
+      line = $0
+      if (in_fence) {
+        if ((fence == "backtick" && line ~ /^[[:space:]]*```/) ||
+            (fence == "tilde" && line ~ /^[[:space:]]*~~~/)) {
+          in_fence = 0
+        }
+        next
+      }
+      if (in_comment) {
+        if (index(line, "-->")) {
+          in_comment = 0
+        }
+        next
+      }
+      if (index(line, "<!--")) {
+        after_start = substr(line, index(line, "<!--") + 4)
+        if (!index(after_start, "-->")) {
+          in_comment = 1
+        }
+        next
+      }
+      if (line ~ /^[[:space:]]*```/) {
+        in_fence = 1
+        fence = "backtick"
+        next
+      }
+      if (line ~ /^[[:space:]]*~~~/) {
+        in_fence = 1
+        fence = "tilde"
+        next
+      }
+      if (line ~ pattern) {
+        if (mode == "line") {
+          print NR
+          found = 1
+          exit
+        }
+        count++
+      }
+    }
+    END {
+      if (mode == "line") {
+        if (!found) exit 1
+      } else {
+        print count + 0
+      }
+    }
+  ' "$file"
+}
+
+count_visible_heading_regex() {
+  local pattern="$1"
+  local file="$2"
+  local output code
+  set +e
+  output="$(scan_visible_heading_regex "$pattern" "$file" count)"
+  code=$?
+  set -e
+  if [ "$code" -ne 0 ]; then
+    fail "awk failed while matching visible heading: ${pattern}"
+    return 1
+  fi
+  printf '%s\n' "$output"
+}
+
+require_visible_heading_count() {
+  local expected="$1"
+  local pattern="$2"
+  local file="$3"
+  local actual
+  actual="$(count_visible_heading_regex "$pattern" "$file")" || return 1
+  [ "$actual" -eq "$expected" ] \
+    || fail "expected ${expected} visible heading(s) matching ${pattern}; found ${actual}"
+}
+
 count_visible_table_fixed() {
   local text="$1"
   shift
@@ -94,15 +179,14 @@ heading_line() {
   local file="$2"
   local output code
   set +e
-  output="$(rg -n --no-filename --regexp "$pattern" "$file" 2>/dev/null)"
+  output="$(scan_visible_heading_regex "$pattern" "$file" line)"
   code=$?
   set -e
-  if [ "$code" -gt 1 ]; then
-    fail "rg failed while locating heading: ${pattern}"
+  if [ "$code" -ne 0 ]; then
+    fail "missing visible heading: ${pattern}"
     return 1
   fi
-  [ "$code" -eq 0 ] || fail "missing heading: ${pattern}" || return 1
-  printf '%s\n' "$output" | awk -F: 'NR == 1 { print $1 }'
+  printf '%s\n' "$output"
 }
 
 verify_layout() {
@@ -113,7 +197,7 @@ verify_layout() {
   local deployment="${docs_dir}/deployment-trace-and-influence.md"
   local mkdocs="${root}/docs/mkdocs.yml"
   local route_table="${root}/docs/public/reference/http-api.md"
-  local file lines heading term route actual shared_line stories_line investigation_line
+  local file lines heading escaped_heading term route actual shared_line stories_line investigation_line
 
   for file in "$hub" "$stories" "$deployment" "$mkdocs" "$route_table"; do
     [ -f "$file" ] || fail "missing ${file#"${root}/"}" || return 1
@@ -140,15 +224,13 @@ verify_layout() {
     '## Documentation Generation Flow'
   )
   for heading in "${legacy_headings[@]}"; do
-    require_count 1 "$heading" "$hub" || return 1
+    escaped_heading="$(escape_regex "$heading")"
+    require_visible_heading_count 1 "^${escaped_heading}$" "$hub" || return 1
   done
 
-  require_count 1 '# HTTP Context And Story Routes' "$hub" || return 1
-  require_regex_count 1 '^# HTTP Context And Story Routes$' "$hub" || return 1
-  require_count 1 '# HTTP Story Routes' "$stories" || return 1
-  require_regex_count 1 '^# HTTP Story Routes$' "$stories" || return 1
-  require_count 1 '# HTTP Deployment Trace And Influence Routes' "$deployment" || return 1
-  require_regex_count 1 '^# HTTP Deployment Trace And Influence Routes$' "$deployment" || return 1
+  require_visible_heading_count 1 '^# HTTP Context And Story Routes$' "$hub" || return 1
+  require_visible_heading_count 1 '^# HTTP Story Routes$' "$stories" || return 1
+  require_visible_heading_count 1 '^# HTTP Deployment Trace And Influence Routes$' "$deployment" || return 1
 
   require_count 1 'Context And Stories: reference/http-api/context-and-stories.md' "$mkdocs" || return 1
   require_regex_count 1 '^        - Context And Stories: reference/http-api/context-and-stories\.md$' "$mkdocs" || return 1
@@ -307,6 +389,11 @@ mutation_root="$(seed_mutation_repo missing-anchor)"
 sed -i.bak '/^## Stories$/d' \
   "${mutation_root}/docs/public/reference/http-api/context-and-stories.md"
 expect_mutation_failure "missing legacy heading stub is rejected" "$mutation_root"
+
+mutation_root="$(seed_mutation_repo hidden-legacy-heading)"
+sed -i.bak 's/^## Incident Context$/<!-- ## Incident Context -->/' \
+  "${mutation_root}/docs/public/reference/http-api/context-and-stories.md"
+expect_mutation_failure "comment-hidden legacy heading is rejected" "$mutation_root"
 
 mutation_root="$(seed_mutation_repo duplicate-route)"
 printf '%s\n' 'POST /api/v0/impact/trace-deployment-chain' \
