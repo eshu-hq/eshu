@@ -72,7 +72,7 @@ by `resource_type` (unlike `cloudResourceNodeRow`'s deliberate
 `aws_ec2_instance` exclusion). The reducer join layer needed **zero code
 changes** — the entire fix is collector-side (the AMI fact was simply never
 emitted before). The true "issue is fixed, provably" regression is the
-golden-corpus layer: rc-171 below is provably 0 on unmodified `main` (no AMI
+golden-corpus layer: rc-174 below is provably 0 on unmodified `main` (no AMI
 `aws_resource` fact exists in the cassette before this change, so the join
 never resolves the real corpus's edge), and only passes once both the
 collector fact-emission fix AND the cassette update land together. The
@@ -148,11 +148,11 @@ collector, the reducer, and the SDK schema.
   - `node_counts.CloudResource`: floor 117->118, ceiling 123->124 (exactly
     one new node — the corpus is deterministic and this cassette carries
     exactly one instance and one distinct AMI id). Note updated to name the
-    new `ec2.ami` fixture and cross-reference rc-171/rn-ec2-ami-node.
+    new `ec2.ami` fixture and cross-reference rc-174/rn-ec2-ami-node.
   - `required_nodes`: added `rn-ec2-ami-node` (CloudResource,
     `resource_type=aws_ec2_ami`, min/max 1 — the exact ceiling catches a
     duplicate-row regression of the dedup contract, not just a floor miss).
-  - `required_correlations`: added `rc-171`
+  - `required_correlations`: added `rc-174`
     ((CloudResource)-[:AWS_ec2_instance_uses_ami]->(CloudResource),
     minimum_count 1) — **the non-vacuous proof the issue is fixed**. This
     assertion is provably 0 on unmodified `main` (no AMI `aws_resource` fact
