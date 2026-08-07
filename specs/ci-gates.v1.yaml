@@ -1251,11 +1251,12 @@ gates:
       - "CLAUDE.md"
       - "README.md"
       - "scripts/lib/test-verify-docs-build-changed-fake-uv.sh"
+      - "scripts/test-context-stories-doc-split.sh"
       - "scripts/test-verify-docs-build-changed.sh"
       - "scripts/verify-docs-build-changed.sh"
     local:
       command: "bash scripts/verify-docs-build-changed.sh"
-      test_command: "bash scripts/test-verify-docs-build-changed.sh"
+      test_command: "bash scripts/test-verify-docs-build-changed.sh && bash scripts/test-context-stories-doc-split.sh"
     ci:
       workflow: test.yml
       job: "docs-helm-hygiene"

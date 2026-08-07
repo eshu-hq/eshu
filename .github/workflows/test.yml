@@ -402,6 +402,9 @@ jobs:
           scripts/test-verify-docs-catalog.sh
           scripts/verify-docs-catalog.sh
 
+      - name: Verify context and story reference layout
+        run: scripts/test-context-stories-doc-split.sh
+
       - name: Set up Helm
         uses: azure/setup-helm@v5.0.0
         with:
