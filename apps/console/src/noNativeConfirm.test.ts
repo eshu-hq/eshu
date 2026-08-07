@@ -32,6 +32,12 @@ const NATIVE_CONFIRM = /\b(?:globalThis|window|self)\s*\??\s*\.\s*confirm\s*\??\
 const BARE_CONFIRM = /(?<![.\w])confirm\b\s*\(/;
 const IMPORTS_USE_CONFIRM = /\buseConfirm\b/;
 
+// Known blind spot, recorded so nobody mistakes this for complete coverage: a
+// file that legitimately uses useConfirm AND separately calls a native
+// confirm() reads as clean, because the bare-call check is satisfied by the
+// hook's presence anywhere in the file. Catching that needs real scope
+// analysis; the qualified-form check above still catches the common shape.
+
 // stripComments removes line and block comments so a prose mention of
 // window.confirm() (useConfirm.tsx's own doc header) is not a violation.
 function stripComments(source: string): string {
