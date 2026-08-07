@@ -12,8 +12,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
+
+const workflowImageCommitFixture = `name: Build image
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: docker build -t ghcr.io/acme/fixture:prod .
+`
 
 // TestCheckoutRemoteBranchEquivalence proves the theory that after
 // checkoutRemoteBranch runs (git checkout -B <branch> refs/remotes/origin/<branch>),
@@ -152,6 +162,207 @@ func TestSnapshotFallsBackToGitCommitSHA(t *testing.T) {
 
 	if snapshot.HeadCommitSHA != realHEAD {
 		t.Fatalf("HeadCommitSHA = %q, want %q (SourceCommitSHA empty, must fall back to gitCommitSHA)", snapshot.HeadCommitSHA, realHEAD)
+	}
+}
+
+func TestSnapshotUsesCopyBoundFilesystemSourceCommitSHA(t *testing.T) {
+	t.Parallel()
+
+	sourcePath := t.TempDir()
+	runGit(t, sourcePath, "init")
+	runGit(t, sourcePath, "config", "user.email", "test@example.com")
+	runGit(t, sourcePath, "config", "user.name", "Test")
+	if err := os.MkdirAll(filepath.Join(sourcePath, ".github", "workflows"), 0o750); err != nil {
+		t.Fatalf("create workflow directory: %v", err)
+	}
+	writeFile(t, sourcePath, filepath.Join(".github", "workflows", "build.yml"), workflowImageCommitFixture)
+	writeFile(t, sourcePath, "main.py", "def hello():\n    pass\n")
+	runGit(t, sourcePath, "add", ".")
+	runGit(t, sourcePath, "commit", "-m", "initial commit")
+	wantCommit := runGit(t, sourcePath, "rev-parse", "HEAD")
+	if got := gitCleanWorktreeCommitSHA(context.Background(), sourcePath); got != wantCommit {
+		t.Fatalf("gitCleanWorktreeCommitSHA() = %q, want clean HEAD %q", got, wantCommit)
+	}
+
+	config := RepoSyncConfig{SourceMode: "filesystem", FilesystemRoot: sourcePath, ReposDir: t.TempDir()}
+	synced, err := syncFilesystemRepositories(context.Background(), config, []string{"."})
+	if err != nil {
+		t.Fatalf("syncFilesystemRepositories() error = %v", err)
+	}
+	if len(synced.SelectedRepoPaths) != 1 {
+		t.Fatalf("SelectedRepoPaths = %#v, want one managed repository", synced.SelectedRepoPaths)
+	}
+	repositories := buildSelectedRepositories(
+		config,
+		synced.SelectedRepoPaths,
+		nil,
+		nil,
+		synced.SourceCommitSHAByRepoPath,
+		nil,
+		nil,
+	)
+	attachFilesystemGitTreePaths(config, []string{"."}, repositories)
+	if len(repositories) != 1 {
+		t.Fatalf("repositories = %#v, want one selected repository", repositories)
+	}
+	if got := repositories[0].SourceCommitSHA; got != wantCommit {
+		t.Fatalf("selected SourceCommitSHA = %q, want copy-bound %q", got, wantCommit)
+	}
+	managedPath := repositories[0].RepoPath
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v", err)
+	}
+	snapshotter := NativeRepositorySnapshotter{Engine: engine}
+	snapshot, err := snapshotter.SnapshotRepository(
+		context.Background(),
+		SelectedRepository{
+			RepoPath:        managedPath,
+			GitTreePath:     repositories[0].GitTreePath,
+			SourceCommitSHA: repositories[0].SourceCommitSHA,
+			Delta:           true,
+			FileTargets:     []string{filepath.Join(managedPath, "main.py")},
+		},
+	)
+	if err != nil {
+		t.Fatalf("SnapshotRepository() error = %v", err)
+	}
+	if snapshot.HeadCommitSHA != wantCommit {
+		t.Fatalf("HeadCommitSHA = %q, want source GitTreePath HEAD %q", snapshot.HeadCommitSHA, wantCommit)
+	}
+	if len(snapshot.WorkflowImageFileMetas) != 1 {
+		t.Fatalf("len(WorkflowImageFileMetas) = %d, want 1", len(snapshot.WorkflowImageFileMetas))
+	}
+	if got := snapshot.WorkflowImageFileMetas[0].CommitSHA; got != wantCommit {
+		t.Fatalf("workflow CommitSHA = %q, want %q", got, wantCommit)
+	}
+	assertWorkflowImageFactCommitSHA(t, managedPath, snapshot, wantCommit)
+}
+
+func TestSnapshotManagedCopyOmitsCommitSHAForDivergentSource(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		diverge func(*testing.T, string)
+	}{
+		{
+			name: "dirty tracked workflow",
+			diverge: func(t *testing.T, sourcePath string) {
+				t.Helper()
+				writeFile(t, sourcePath, filepath.Join(".github", "workflows", "build.yml"), strings.ReplaceAll(workflowImageCommitFixture, ":prod", ":dirty"))
+			},
+		},
+		{
+			name: "eligible untracked workflow",
+			diverge: func(t *testing.T, sourcePath string) {
+				t.Helper()
+				writeFile(t, sourcePath, filepath.Join(".github", "workflows", "untracked.yml"), strings.ReplaceAll(workflowImageCommitFixture, ":prod", ":untracked"))
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			sourcePath := t.TempDir()
+			runGit(t, sourcePath, "init")
+			runGit(t, sourcePath, "config", "user.email", "test@example.com")
+			runGit(t, sourcePath, "config", "user.name", "Test")
+			if err := os.MkdirAll(filepath.Join(sourcePath, ".github", "workflows"), 0o750); err != nil {
+				t.Fatalf("create workflow directory: %v", err)
+			}
+			writeFile(t, sourcePath, filepath.Join(".github", "workflows", "build.yml"), workflowImageCommitFixture)
+			writeFile(t, sourcePath, "main.py", "def main():\n    pass\n")
+			runGit(t, sourcePath, "add", ".")
+			runGit(t, sourcePath, "commit", "-m", "initial commit")
+			test.diverge(t, sourcePath)
+
+			config := RepoSyncConfig{SourceMode: "filesystem", FilesystemRoot: sourcePath, ReposDir: t.TempDir()}
+			synced, err := syncFilesystemRepositories(context.Background(), config, []string{"."})
+			if err != nil {
+				t.Fatalf("syncFilesystemRepositories() error = %v", err)
+			}
+			if len(synced.SelectedRepoPaths) != 1 {
+				t.Fatalf("SelectedRepoPaths = %#v, want one managed repository", synced.SelectedRepoPaths)
+			}
+			managedPath := synced.SelectedRepoPaths[0]
+			if got := synced.SourceCommitSHAByRepoPath[canonicalLocalPath(managedPath)]; got != "" {
+				t.Fatalf("copy-bound SourceCommitSHA = %q, want empty for divergent source", got)
+			}
+			repositories := buildSelectedRepositories(
+				config,
+				synced.SelectedRepoPaths,
+				nil,
+				nil,
+				synced.SourceCommitSHAByRepoPath,
+				nil,
+				nil,
+			)
+			attachFilesystemGitTreePaths(config, []string{"."}, repositories)
+			engine, err := parser.DefaultEngine()
+			if err != nil {
+				t.Fatalf("DefaultEngine() error = %v", err)
+			}
+			repository := repositories[0]
+			repository.Delta = true
+			repository.FileTargets = []string{filepath.Join(managedPath, "main.py")}
+			snapshot, err := (NativeRepositorySnapshotter{Engine: engine}).SnapshotRepository(
+				context.Background(),
+				repository,
+			)
+			if err != nil {
+				t.Fatalf("SnapshotRepository() error = %v", err)
+			}
+			if snapshot.HeadCommitSHA != "" {
+				t.Fatalf("HeadCommitSHA = %q, want empty for divergent managed copy", snapshot.HeadCommitSHA)
+			}
+			if len(snapshot.WorkflowImageFileMetas) == 0 {
+				t.Fatal("WorkflowImageFileMetas is empty, want divergent workflow to be discovered")
+			}
+			for _, meta := range snapshot.WorkflowImageFileMetas {
+				if meta.CommitSHA != "" {
+					t.Errorf("workflow meta %q CommitSHA = %q, want empty", meta.RelativePath, meta.CommitSHA)
+				}
+			}
+			assertWorkflowImageFactCommitSHA(t, managedPath, snapshot, "")
+		})
+	}
+}
+
+func assertWorkflowImageFactCommitSHA(
+	t *testing.T,
+	repoPath string,
+	snapshot RepositorySnapshot,
+	wantCommit string,
+) {
+	t.Helper()
+	collected := buildStreamingGeneration(
+		repoPath,
+		repositoryidentity.Metadata{ID: "repository:managed-copy", Name: "managed-copy"},
+		"managed-copy-source-run",
+		time.Date(2026, time.August, 5, 12, 0, 0, 0, time.UTC),
+		snapshot,
+		false,
+		"",
+	)
+	if gotCommit := collected.Generation.SourceCommitSHA; gotCommit != wantCommit {
+		t.Errorf("generation SourceCommitSHA = %q, want %q", gotCommit, wantCommit)
+	}
+	count := 0
+	for _, envelope := range drainCollectorFacts(t, collected) {
+		if envelope.FactKind != facts.CICDWorkflowImageEvidenceFactKind {
+			continue
+		}
+		count++
+		gotCommit, _ := envelope.Payload["commit_sha"].(string)
+		if gotCommit != wantCommit {
+			t.Errorf("workflow image fact %q commit_sha = %q, want %q", envelope.FactID, gotCommit, wantCommit)
+		}
+	}
+	if count == 0 {
+		t.Fatal("no ci.workflow_image_evidence fact emitted")
 	}
 }
 

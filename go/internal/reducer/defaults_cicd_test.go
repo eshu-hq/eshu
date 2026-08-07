@@ -24,9 +24,11 @@ func TestImplementedDefaultDomainDefinitionsIncludesCICDRunCorrelationWhenAdapte
 
 	loader := &stubFactLoader{}
 	writer := &recordingCICDRunCorrelationWriter{}
+	edgeWriter := &recordingContainerImageProvenanceEdgeWriter{}
 	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
-		FactLoader:               loader,
-		CICDRunCorrelationWriter: writer,
+		FactLoader:                         loader,
+		CICDRunCorrelationWriter:           writer,
+		ContainerImageProvenanceEdgeWriter: edgeWriter,
 	})
 	found := false
 	for _, def := range definitions {
@@ -41,6 +43,9 @@ func TestImplementedDefaultDomainDefinitionsIncludesCICDRunCorrelationWhenAdapte
 			}
 			if handler.Writer != writer {
 				t.Fatal("ci_cd_run_correlation handler Writer was not wired")
+			}
+			if handler.ProvenanceEdgeWriter != edgeWriter {
+				t.Fatal("ci_cd_run_correlation handler ProvenanceEdgeWriter was not wired")
 			}
 		}
 	}

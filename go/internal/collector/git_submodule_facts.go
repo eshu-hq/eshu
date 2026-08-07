@@ -101,18 +101,17 @@ func gitmodulesFileMetasForPaths(repoPath string, relativePaths []string, commit
 // (see noteSubmoduleCandidate) and sends one submodule.pin fact per declared
 // submodule entry. A no-op when candidates carries no ".gitmodules" body.
 //
-// Each entry's PinnedSHA (issue #5420 Phase 2b) is resolved against
-// repoPath's HEAD tree via gitSubmoduleGitlinkSHA, threaded through
-// FixtureContext.PinnedSHAResolver: reading a gitlink is a purely local
-// tree read (see gitSubmoduleGitlinkSHA's doc comment), so goCtx and
-// repoPath are the only git-side inputs this emit path needs — unlike the
-// sync package's gitRun helpers, no RepoSyncConfig/token threading is
-// required here.
+// Each entry's PinnedSHA (issue #5420 Phase 2b) is resolved against the
+// snapshot's selected commit via gitSubmoduleGitlinkSHA, threaded through
+// FixtureContext.PinnedSHAResolver. An empty commitSHA keeps the HEAD fallback
+// for direct and legacy snapshots. Reading a gitlink is a purely local tree
+// read, so no RepoSyncConfig or token threading is required here.
 func emitSubmoduleFactsForCandidates(
 	goCtx context.Context,
 	w factStreamWriter,
 	repoID string,
 	repoPath string,
+	commitSHA string,
 	scopeID string,
 	generationID string,
 	observedAt time.Time,
@@ -131,7 +130,7 @@ func emitSubmoduleFactsForCandidates(
 	instanceID := gitSubmoduleCollectorInstanceID
 	fixtureCtx.CollectorInstanceID = &instanceID
 	fixtureCtx.PinnedSHAResolver = func(submodulePath string) *string {
-		return gitSubmoduleGitlinkSHA(goCtx, repoPath, submodulePath)
+		return gitSubmoduleGitlinkSHA(goCtx, repoPath, commitSHA, submodulePath)
 	}
 	for _, envelope := range submodule.Emit(fixtureCtx, repoID, ".gitmodules", body) {
 		w.send(envelope)

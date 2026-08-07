@@ -1876,6 +1876,25 @@
             "unknown"
           ]
         }
+      },
+      {
+        "id": "rc-173",
+        "description": "Exact workflow-image-owned ContainerImage BUILT_FROM Repository assertion (issue #5830). GitHub Actions run 9100 declares ghcr.io/acme/container-ci-lineage:1.0.0 in workflow evidence, and the matching active container-image identity resolves that declared image to digest sha256:c10000000000000000000000000000000000000000000000000000000010c1c1. The ci_cd_run_correlation reducer writes a second assertion for the same image/repository pair under its dedicated workflow-image evidence source. Before #5827, endpoint-only identity made this unsafe because one writer overwrote the other; scope_id plus evidence_source identity now preserves both. The workflow-specific evidence token ensures rc-165's independent container_image_identity assertion cannot satisfy this check. Derived input-only, ambiguous, unresolved, artifact-only exact, and missing-endpoint decisions write zero rows.",
+        "relationship": "BUILT_FROM",
+        "from_label": "ContainerImage",
+        "to_label": "Repository",
+        "minimum_count": 1,
+        "evidence_kinds": [
+          "CI_CD_RUN_WORKFLOW_IMAGE_CORRELATION"
+        ],
+        "required_edge_properties": [
+          "source_tool"
+        ],
+        "allowed_edge_property_values": {
+          "source_tool": [
+            "github_actions"
+          ]
+        }
       }
     ],
     "required_nodes": [
@@ -4197,7 +4216,7 @@
         }
       },
       "get_entity_context": {
-        "description": "Canonical GitHub Actions workflow entity context proves one structured DEPENDS_ON edge and excludes the run-block octocat foil.",
+        "description": "Canonical GitHub Actions workflow entity context proves the structured action dependency and reusable-workflow deployment edge while excluding the run-block octocat foil.",
         "required_response_fields": [
           "relationships",
           "id",
@@ -4215,7 +4234,7 @@
         "required_json_values": {
           "id": "content-entity:e_1dc76e780ac6",
           "entity_id": "content-entity:e_1dc76e780ac6",
-          "result_limits.relationship_count": 1,
+          "result_limits.relationship_count": 2,
           "result_limits.truncated": false
         },
         "required_json_object_matches": {
@@ -4224,6 +4243,11 @@
               "type": "DEPENDS_ON",
               "target_name": "hashicorp/setup-terraform",
               "reason": "github_actions_action_repository"
+            },
+            {
+              "type": "DEPLOYS_FROM",
+              "target_name": "acme/platform",
+              "reason": "github_actions_reusable_workflow_ref"
             }
           ]
         },
@@ -5305,7 +5329,7 @@
     },
     "http": {
       "GET /api/v0/entities/content-entity:e_1dc76e780ac6/context": {
-        "description": "Canonical GitHub Actions workflow entity context proves one structured DEPENDS_ON edge and excludes the run-block octocat foil.",
+        "description": "Canonical GitHub Actions workflow entity context proves the structured action dependency and reusable-workflow deployment edge while excluding the run-block octocat foil.",
         "required_response_fields": [
           "relationships",
           "id",
@@ -5323,7 +5347,7 @@
         "required_json_values": {
           "id": "content-entity:e_1dc76e780ac6",
           "entity_id": "content-entity:e_1dc76e780ac6",
-          "result_limits.relationship_count": 1,
+          "result_limits.relationship_count": 2,
           "result_limits.truncated": false
         },
         "required_json_object_matches": {
@@ -5332,6 +5356,11 @@
               "type": "DEPENDS_ON",
               "target_name": "hashicorp/setup-terraform",
               "reason": "github_actions_action_repository"
+            },
+            {
+              "type": "DEPLOYS_FROM",
+              "target_name": "acme/platform",
+              "reason": "github_actions_reusable_workflow_ref"
             }
           ]
         }
@@ -6004,7 +6033,7 @@
         "minimum_results": 0
       },
       "GET /api/v0/ci-cd/run-correlations?environment=prod&limit=10&outcome=exact&provider=github_actions&repository_id=repository:r_69256c06&run_id=5150": {
-        "description": "Exact build-artifact and deploy-time environment truth for GitHub Actions run 5150 in the supply-chain-demo corpus (#5425, #5822, #5770). The cassette now places two ci.run facts plus run 5150's deployment events in generation 1 and only run 5150's ci.artifact in generation 2. The later artifact digest equals the OCI manifest digest, so this minimum_results:1 object match fails if the artifact-only intent, retained run/deployment lookup, source-snapshot rebuild, or active-generation publication regresses. The separate run-5151 assertion proves the same rebuild keeps the unaffected sibling visible even when generation 1 correlation work was superseded before publication. The cassette's independent same-generation GitLab container_image_identity row carries repository:r_69256c06 in build_provenance_repository_ids, so cicdImageMatchesForRepository narrows the shared digest set to one build-owned identity and classifyCICDRunEvidence must publish outcome=exact with canonical_writes=1. This was not deterministic under #5822's original unordered replay: the CI/CD consumer could finish derived before the cross-scope identity row became active. The durable producer-completion chain now commits an identity completion event atomically with its reducer ACK, reopens or dirties the current CI/CD consumer, and drains every completion event before query truth, so this exact row is the regression floor for that ordering contract. Provider and run filters isolate the authored run, and required_json_object_matches binds every expected value to that same returned object; independent path checks could otherwise pass from different rows while run 5150 remained derived. The row also carries two ci.deployment_event status transitions whose sha equals the run commit, resolving environment=prod with environment_evidence=deploy_event after the history read reloads them by commit. The cassette uses the provider token production and the reducer canonicalizes it to prod; pinning the canonical value prevents a raw-provider regression. #5428's second BUILT_FROM writer remains intentionally rescinded: container_image_identity is the sole graph writer, while this assertion proves the Postgres CI/CD outcome contract directly.",
+        "description": "Exact build-artifact and deploy-time environment truth for GitHub Actions run 5150 in the supply-chain-demo corpus (#5425, #5822, #5770). The cassette now places two ci.run facts plus run 5150's deployment events in generation 1 and only run 5150's ci.artifact in generation 2. The later artifact digest equals the OCI manifest digest, so this minimum_results:1 object match fails if the artifact-only intent, retained run/deployment lookup, source-snapshot rebuild, or active-generation publication regresses. The separate run-5151 assertion proves the same rebuild keeps the unaffected sibling visible even when generation 1 correlation work was superseded before publication. The cassette's independent same-generation GitLab container_image_identity row carries repository:r_69256c06 in build_provenance_repository_ids, so cicdImageMatchesForRepository narrows the shared digest set to one build-owned identity and classifyCICDRunEvidence must publish outcome=exact with canonical_writes=1. This was not deterministic under #5822's original unordered replay: the CI/CD consumer could finish derived before the cross-scope identity row became active. The durable producer-completion chain now commits an identity completion event atomically with its reducer ACK, reopens or dirties the current CI/CD consumer, and drains every completion event before query truth, so this exact row is the regression floor for that ordering contract. Provider and run filters isolate the authored run, and required_json_object_matches binds every expected value to that same returned object; independent path checks could otherwise pass from different rows while run 5150 remained derived. The row also carries two ci.deployment_event status transitions whose sha equals the run commit, resolving environment=prod with environment_evidence=deploy_event after the history read reloads them by commit. The cassette uses the provider token production and the reducer canonicalizes it to prod; pinning the canonical value prevents a raw-provider regression. Container_image_identity remains the digest-backed identity writer, while #5830 adds a distinct workflow-image-owned BUILT_FROM assertion under evidence_source=reducer/ci-cd-run-correlation/workflow-image; this assertion proves the Postgres CI/CD outcome contract directly.",
         "required_response_fields": ["correlations", "count", "limit", "truncated"],
         "minimum_results": 1,
         "results_field": "correlations",
@@ -6020,14 +6049,23 @@
         "result_item_required_fields": ["canonical_writes", "commit_sha", "outcome", "provider", "repository_id", "run_id"],
         "required_json_object_matches": {"correlations[]": [{"canonical_writes": 0, "commit_sha": "1a2b3c4d5e6f7081928374655647382910abcdef", "outcome": "derived", "provider": "github_actions", "repository_id": "repository:r_69256c06", "run_id": "5151"}]}
       },
-      "GET /api/v0/ci-cd/run-correlations?image_ref=ghcr.io/acme/container-ci-lineage:1.0.0&limit=10&outcome=derived&provider=github_actions&repository_id=repository:r_19519f37&run_id=9100": {
-        "description": "Cross-scope workflow-image proof for #5703. The Git collector reads tests/fixtures/ecosystems/container-ci-lineage/.github/workflows/build-image.yml and emits ci.workflow_image_evidence for ghcr.io/acme/container-ci-lineage:1.0.0 in the repository scope. GitHub Actions run 9100 lives in a separate ci_cd_run cassette scope, while the OCI registry cassette maps that tag to the run's artifact digest. The fixture is staged as a plain directory, not a Git checkout, so its workflow fact has no commit_sha and the reducer must classify the repository-wide fallback as derived. The object match pins correlation_kind=workflow_image, canonical_writes=1, the tag-form image_ref, and the resolved artifact digest on the same run 9100 row; neither the existing artifact alone nor an unresolved workflow reference can satisfy it. Removing the workflow file, hand-authoring no replacement fact, or dropping the cross-scope load leaves this bounded query empty. The exact one-row bound also catches duplicate current correlations.",
+      "GET /api/v0/ci-cd/run-correlations?image_ref=ghcr.io/acme/container-ci-lineage:1.0.0&limit=10&outcome=exact&provider=github_actions&repository_id=repository:r_19519f37&run_id=9100": {
+        "description": "Commit-scoped cross-scope workflow-image proof for #5703 and #5830. The Git collector reads tests/fixtures/ecosystems/container-ci-lineage/.github/workflows/build-image.yml and emits ci.workflow_image_evidence for ghcr.io/acme/container-ci-lineage:1.0.0 in the repository scope. The gate stages that fixture as a deterministic Git checkout whose HEAD equals GitHub Actions run 9100's commit_sha; the run lives in a separate ci_cd_run cassette scope, while the OCI registry cassette maps the tag to the run's artifact digest. The object match pins correlation_kind=workflow_image, outcome=exact, canonical_writes=1, the tag-form image_ref, and the resolved artifact digest on the same run 9100 row. Removing the workflow file, its Git revision, the matching identity, or the cross-scope load leaves this bounded query empty. Reverting to the repository-wide fallback changes the outcome to derived and also empties it. The exact one-row bound catches duplicate current correlations.",
         "required_response_fields": ["correlations", "count", "limit", "truncated"],
         "minimum_results": 1,
         "maximum_results": 1,
         "results_field": "correlations",
         "result_item_required_fields": ["artifact_digest", "canonical_writes", "correlation_kind", "image_ref", "outcome", "provider", "repository_id", "run_id"],
-        "required_json_object_matches": {"correlations[]": [{"artifact_digest": "sha256:c10000000000000000000000000000000000000000000000000000000010c1c1", "canonical_writes": 1, "correlation_kind": "workflow_image", "image_ref": "ghcr.io/acme/container-ci-lineage:1.0.0", "outcome": "derived", "provider": "github_actions", "repository_id": "repository:r_19519f37", "run_id": "9100"}]}
+        "required_json_object_matches": {"correlations[]": [{"artifact_digest": "sha256:c10000000000000000000000000000000000000000000000000000000010c1c1", "canonical_writes": 1, "correlation_kind": "workflow_image", "image_ref": "ghcr.io/acme/container-ci-lineage:1.0.0", "outcome": "exact", "provider": "github_actions", "repository_id": "repository:r_19519f37", "run_id": "9100"}]}
+      },
+      "GET /api/v0/ci-cd/run-correlations?image_ref=ghcr.io/acme/container-ci-lineage:1.0.0&limit=10&outcome=derived&provider=github_actions&repository_id=repository:r_f252e384&run_id=9200": {
+        "description": "Input-only workflow-image proof for #5830. The github_actions_workflows fixture passes ghcr.io/acme/container-ci-lineage:1.0.0 through jobs.scan.with.image to a reusable workflow. The gate stages this fixture at the same deterministic commit as GitHub Actions run 9200, and the existing OCI observation resolves the tag to exactly one container image identity. The correlation must remain derived because the calling workflow consumes the image rather than producing it. Pinning the input-only reason distinguishes this classifier branch from the repository-wide fallback, which is also derived but not commit-scoped. The one-row bound and same-object match fail if the fixture fact disappears, the commit join fails, the identity no longer resolves, or the reducer promotes consumed evidence to exact.",
+        "required_response_fields": ["correlations", "count", "limit", "truncated"],
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "correlations",
+        "result_item_required_fields": ["artifact_digest", "canonical_writes", "correlation_kind", "image_ref", "outcome", "provider", "reason", "repository_id", "run_id"],
+        "required_json_object_matches": {"correlations[]": [{"artifact_digest": "sha256:c10000000000000000000000000000000000000000000000000000000010c1c1", "canonical_writes": 1, "correlation_kind": "workflow_image", "image_ref": "ghcr.io/acme/container-ci-lineage:1.0.0", "outcome": "derived", "provider": "github_actions", "reason": "workflow image ref is a reusable-workflow input (consumed by, not produced by, this workflow); one container image identity row matched", "repository_id": "repository:r_f252e384", "run_id": "9200"}]}
       },
       "GET /api/v0/supply-chain/container-images/identities?digest=sha256:0000000000000000000000000000000000000000000000000000000000aa&limit=10": {
         "description": "#5704 end-to-end evidence merge proof. The ECS task emits an aws_image_reference for digest sha256:...00aa, the ECR cassette supplies its OCI manifest, and GitHub Actions run 9101 independently publishes a ci.artifact for the same digest from repository:r_19519f37. Digest-v3 must retain both supports but return exactly one canonical identity. The object match binds the explicit runtime-observed strength, CI revision, source repository, and the exact sorted union of AWS, OCI, CI-run, and CI-artifact fact IDs to that same identity. Dropping either support, selecting strength by incidental row order, or returning duplicate logical identities fails this shape.",

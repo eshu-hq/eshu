@@ -316,7 +316,7 @@ func streamFacts(
 	if gitTreePath == "" {
 		gitTreePath = repoPath
 	}
-	emitSubmoduleFactsForCandidates(ctx, w, repo.ID, gitTreePath, scopeID, generationID, observedAt, gitmodulesCandidates)
+	emitSubmoduleFactsForCandidates(ctx, w, repo.ID, gitTreePath, snapshot.HeadCommitSHA, scopeID, generationID, observedAt, gitmodulesCandidates)
 	emitCodeownersFactsForCandidates(w, repo.ID, scopeID, generationID, observedAt, codeownersCandidates)
 	for i, meta := range snapshot.DocumentationFileMetas {
 		body, ok := readDocumentationBody(repoPath, meta.RelativePath, nil)

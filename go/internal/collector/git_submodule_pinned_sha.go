@@ -16,11 +16,12 @@ import (
 const gitlinkTreeMode = "160000"
 
 // gitSubmoduleGitlinkSHA resolves the pinned commit SHA for the gitlink tree
-// entry at submodulePath in repoPath's HEAD commit (issue #5420 Phase 2b).
+// entry at submodulePath in repoPath's selected commit. An empty commitSHA
+// preserves the legacy HEAD fallback (issue #5420 Phase 2b).
 //
-// It reads `git ls-tree HEAD -- <submodulePath>` rather than `git rev-parse
-// HEAD:<submodulePath>` so the tree entry's mode can be checked: only a mode
-// 160000 (gitlinkTreeMode) entry is a pinned submodule commit. A regular
+// It reads `git ls-tree <commit> -- <submodulePath>` rather than `git rev-parse
+// <commit>:<submodulePath>` so the tree entry's mode can be checked: only a
+// mode 160000 (gitlinkTreeMode) entry is a pinned submodule commit. A regular
 // directory or file that happens to share the declared ".gitmodules" path
 // resolves to a different mode and must not be reported as a pin.
 //
@@ -31,8 +32,8 @@ const gitlinkTreeMode = "160000"
 // auth material into commands that talk to a remote (fetch/clone).
 //
 // It returns nil (never guesses) when:
-//   - the git invocation fails, including an unborn HEAD (a repository with
-//     no commits yet) or repoPath not being a git repository at all;
+//   - the git invocation fails, including an invalid selected commit, an
+//     unborn HEAD fallback, or repoPath not being a git repository at all;
 //   - ls-tree returns no entry for submodulePath — a ".gitmodules" entry
 //     declared but never `git submodule add`ed (or whose path no longer
 //     exists) has no gitlink to resolve; or
@@ -42,8 +43,12 @@ const gitlinkTreeMode = "160000"
 // an uninitialized submodule (an empty checkout, but the gitlink IS
 // committed) still resolves correctly — SnapshotRepository never needs the
 // submodule's working-tree contents for this fact.
-func gitSubmoduleGitlinkSHA(ctx context.Context, repoPath, submodulePath string) *string {
-	command := exec.CommandContext(ctx, "git", "-C", repoPath, "ls-tree", "HEAD", "--", submodulePath) // #nosec G204 -- runs git with fixed internally-constructed arguments over an already-resolved local repo path
+func gitSubmoduleGitlinkSHA(ctx context.Context, repoPath, commitSHA, submodulePath string) *string {
+	treeish := strings.TrimSpace(commitSHA)
+	if treeish == "" {
+		treeish = "HEAD"
+	}
+	command := exec.CommandContext(ctx, "git", "-C", repoPath, "ls-tree", treeish, "--", submodulePath) // #nosec G204 -- runs git with internally selected commit and resolved local repository path
 	output, err := command.Output()
 	if err != nil {
 		return nil

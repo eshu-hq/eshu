@@ -1,15 +1,20 @@
 # github_actions_workflows
 
 Golden-corpus fixture for the GitHub Actions workflow-relationship detector
-(#5337, #5378). `.github/workflows/ci.yml` carries both discriminating shapes in
-one file:
+(#5337, #5378). `.github/workflows/ci.yml` carries three discriminating shapes
+in one file:
 
 - a genuine step-level `uses: hashicorp/setup-terraform@v3` that MUST produce a
   `DEPENDS_ON` / `github_actions_action_repository` content relationship whose
   `target_name` is the action repository slug `hashicorp/setup-terraform`, and
 - a `run: |` block scalar whose heredoc text contains literal `uses:` lines
   (`octocat/example-action@v1`) that MUST NOT produce any relationship — the
-  structured-YAML decode treats the block as an opaque string.
+  structured-YAML decode treats the block as an opaque string, and
+- a reusable-workflow `with.image` input that emits input-only
+  `ci.workflow_image_evidence` for the #5830 correlation floor. A separate,
+  commit-matched CI run consumes the already observed container-ci-lineage
+  image; the reducer may resolve its identity but must cap the outcome at
+  `derived` because this workflow did not produce the image.
 
 `actions/checkout@v4` is present but is excluded from `DEPENDS_ON` action edges
 by design.
@@ -38,24 +43,25 @@ covered by the live golden gate:
   content-entity id derived from the fixture repository, workflow path, `File`
   label, `ci` name, and line 1; it still has no parser or graph counterpart.
   B-12 exercises that entity through both the HTTP entity-context route and the
-  MCP `get_entity_context` tool. Each live shape requires
-  `result_limits.relationship_count=1` and the exact `DEPENDS_ON`
-  `hashicorp/setup-terraform` relationship. The paired mutation proof rejects a
-  second `octocat/example-action` relationship, keeping the `run:`-block foil
-  excluded from both surfaces.
+  MCP `get_entity_context` tool. Each live shape requires exactly two
+  relationships: `DEPENDS_ON hashicorp/setup-terraform` and the legitimate
+  `DEPLOYS_FROM acme/platform` reusable-workflow edge added for the input-only
+  image fixture. The paired mutation proof adds a third
+  `octocat/example-action` relationship and must fail, keeping the `run:`-block
+  foil excluded from both surfaces.
 
 Ifá materialized-edge coverage is **N/A**: no reducer/graph edge is produced for
 this fixture's external action target, and the detector adds no
 `reducer.MaterializedEdgeFamilies()` domain.
 
-## Second, unrelated purpose: #5469 config_only version-resolution pin
+## Third, unrelated purpose: #5469 config_only version-resolution pin
 
 `package.json` and `package-lock.json` in this directory are NOT part of the
-GitHub Actions workflow-relationship fixture above. They give this repository
-a second, independent role: it is the corpus fixture with **no CI/CD run
-correlation and no cloud-runtime evidence at all**, which #5469's tiered
-version-resolution feature needs to prove its `config_only` floor tier against
-a genuinely non-vacuous finding.
+GitHub Actions workflow-relationship or workflow-image fixtures above. They
+give this repository a third, independent role: it has no cloud-runtime
+evidence and no production claim from its CI/CD correlation. The #5830 run is
+input-only and remains `derived`, so #5469's tiered version-resolution feature
+still proves its `config_only` floor against a genuinely non-vacuous finding.
 
 `package.json` declares an exact-pinned npm dependency on
 `supply-chain-demo-lib@1.2.2`, matching `CVE-2026-00000`'s `affected_versions`

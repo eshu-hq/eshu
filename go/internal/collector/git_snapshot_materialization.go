@@ -219,12 +219,63 @@ func gitCommitSHA(ctx context.Context, repoPath string) string {
 	return strings.TrimSpace(string(output))
 }
 
+func gitCleanWorktreeCommitSHA(ctx context.Context, repoPath string) string {
+	command := exec.CommandContext(
+		ctx,
+		"git",
+		"-C",
+		repoPath,
+		"status",
+		"--porcelain=v2",
+		"--branch",
+		"--untracked-files=all",
+		"--ignore-submodules=none",
+		"--",
+		".",
+	) // #nosec G204 -- runs git with fixed internally-constructed arguments over an already-resolved local repo path
+	output, err := command.Output()
+	if err != nil {
+		return ""
+	}
+	commitSHA := ""
+	for _, rawLine := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		line := strings.TrimSpace(rawLine)
+		if line == "" {
+			continue
+		}
+		if !strings.HasPrefix(line, "# ") {
+			return ""
+		}
+		const branchOIDPrefix = "# branch.oid "
+		if !strings.HasPrefix(line, branchOIDPrefix) {
+			continue
+		}
+		if commitSHA != "" {
+			return ""
+		}
+		candidate := strings.TrimSpace(strings.TrimPrefix(line, branchOIDPrefix))
+		if len(candidate) != 40 && len(candidate) != 64 {
+			return ""
+		}
+		if _, err := hex.DecodeString(candidate); err != nil {
+			return ""
+		}
+		commitSHA = candidate
+	}
+	return commitSHA
+}
+
 // gitCommitSHAFn is the seam the snapshot uses to resolve HEAD when a
 // repository carries no sync-resolved SourceCommitSHA. It exists so tests can
 // count how many `git rev-parse HEAD` subprocesses the snapshot path runs,
 // which is the measured before/after for the #4880 SourceCommitSHA carry
 // (1 invocation on the fallback path, 0 when the sync-resolved SHA is carried).
 var gitCommitSHAFn = gitCommitSHA
+
+// gitCleanWorktreeCommitSHAFn is the seam used before a managed filesystem
+// copy may inherit its source checkout's HEAD. One porcelain-v2 read returns
+// both the exact HEAD and dirtiness records, avoiding a status/rev-parse race.
+var gitCleanWorktreeCommitSHAFn = gitCleanWorktreeCommitSHA
 
 func digestForBody(body string) string {
 	sum := sha1.Sum([]byte(body)) // #nosec G401 -- non-cryptographic content-addressing digest for snapshot deduplication, not a security primitive

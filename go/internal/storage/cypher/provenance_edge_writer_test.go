@@ -83,10 +83,13 @@ func TestProvenanceEdgeWriterStampsEvidenceKindsPerEvidenceSource(t *testing.T) 
 	cases := []struct {
 		evidenceSource string
 		wantKind       string
+		wantSourceTool string
+		builtFrom      bool
 	}{
-		{"reducer/package-ownership", "PACKAGE_OWNERSHIP_CORRELATION"},
-		{"reducer/package-publication", "PACKAGE_PUBLICATION_CORRELATION"},
-		{"reducer/container-image-identity", "CONTAINER_IMAGE_IDENTITY_EXACT_DIGEST"},
+		{"reducer/package-ownership", "PACKAGE_OWNERSHIP_CORRELATION", "unknown", false},
+		{"reducer/package-publication", "PACKAGE_PUBLICATION_CORRELATION", "unknown", false},
+		{"reducer/container-image-identity", "CONTAINER_IMAGE_IDENTITY_EXACT_DIGEST", "oci", true},
+		{"reducer/ci-cd-run-correlation/workflow-image", "CI_CD_RUN_WORKFLOW_IMAGE_CORRELATION", "github_actions", true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.evidenceSource, func(t *testing.T) {
@@ -95,7 +98,7 @@ func TestProvenanceEdgeWriterStampsEvidenceKindsPerEvidenceSource(t *testing.T) 
 			executor := &recordingExecutor{}
 			writer := NewProvenanceEdgeWriter(executor, 0)
 			var err error
-			if tc.evidenceSource == "reducer/container-image-identity" {
+			if tc.builtFrom {
 				err = writer.WriteBuiltFromEdges(context.Background(), []map[string]any{
 					{"digest": "sha256:deadbeef", "repository_id": "repo-1"},
 				}, "scope-1", "gen-1", tc.evidenceSource)
@@ -117,6 +120,9 @@ func TestProvenanceEdgeWriterStampsEvidenceKindsPerEvidenceSource(t *testing.T) 
 			kinds, ok := rows[0]["evidence_kinds"].([]string)
 			if !ok || len(kinds) != 1 || kinds[0] != tc.wantKind {
 				t.Fatalf("evidence_kinds = %#v, want [%s]", rows[0]["evidence_kinds"], tc.wantKind)
+			}
+			if got := rows[0]["source_tool"]; got != tc.wantSourceTool {
+				t.Fatalf("source_tool = %#v, want %q", got, tc.wantSourceTool)
 			}
 		})
 	}

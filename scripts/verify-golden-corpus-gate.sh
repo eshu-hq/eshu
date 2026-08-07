@@ -169,6 +169,7 @@ export ESHU_CONTENT_STORE_DSN="${ESHU_POSTGRES_DSN}"
 export ESHU_HOME="${home_dir}"
 export ESHU_REPOS_DIR="${work_dir}/repos"
 export ESHU_REPO_SOURCE_MODE="filesystem"
+export ESHU_FILESYSTEM_DIRECT="false"
 export ESHU_FILESYSTEM_ROOT="${corpus_dir}"
 export ESHU_GIT_AUTH_METHOD="none"
 # Filesystem repos have no real git remote; the collector synthesizes one from the
@@ -400,7 +401,9 @@ log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
 # for the same package_registry source_hint: publication and ownership must
 # both survive. rc-165 uses matching cicdrun/ociregistry digests and pins
 # exact-digest OCI evidence; scope_id+evidence_source identity keeps it safe
-# for another BUILT_FROM writer or scope.
+# for another BUILT_FROM writer or scope. rc-173 proves that second writer:
+# run 9100's exact GitHub Actions workflow-image decision must independently
+# assert the same image/repository pair under workflow-specific evidence.
 # rc-167 (DERIVED_FROM) is issue #5460's base-image lineage projection. Unlike
 # rc-164/rc-165 it is driven by a STATIC-PARSE fixture rather than a cassette
 # join: the container-base-lineage fixture's Dockerfile pins its final stage to

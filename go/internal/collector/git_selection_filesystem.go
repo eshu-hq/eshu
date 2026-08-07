@@ -8,13 +8,20 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"io"
 	"os"
 	"path"
 	"path/filepath"
 	"sort"
 	"strings"
 )
+
+// FilesystemSyncSelection captures the managed paths and copy-bound commit
+// identities selected during one filesystem synchronization cycle.
+type FilesystemSyncSelection struct {
+	SelectedRepoPaths         []string
+	SourceCommitSHAByRepoPath map[string]string
+	CorpusChanged             bool
+}
 
 // syncFilesystemRepositories materializes the selected filesystem repositories
 // for one collector cycle and reports whether the on-disk corpus changed.
@@ -33,66 +40,77 @@ func syncFilesystemRepositories(
 	ctx context.Context,
 	config RepoSyncConfig,
 	repositoryIDs []string,
-) (selectedPaths []string, changed bool, err error) {
+) (FilesystemSyncSelection, error) {
 	if strings.TrimSpace(config.FilesystemRoot) == "" {
-		return nil, false, fmt.Errorf("filesystem source mode requires ESHU_FILESYSTEM_ROOT")
+		return FilesystemSyncSelection{}, fmt.Errorf("filesystem source mode requires ESHU_FILESYSTEM_ROOT")
 	}
 	currentManifest, err := fingerprintTree(config.FilesystemRoot)
 	if err != nil {
-		return nil, false, err
+		return FilesystemSyncSelection{}, err
 	}
 	manifestPath := filepath.Join(config.ReposDir, ".eshu-fixture-manifest")
 	previousManifest, err := os.ReadFile(manifestPath) // #nosec G304 -- reads internal fixture-manifest file at a path derived from config.ReposDir, not user-supplied input
 	if err == nil && strings.TrimSpace(string(previousManifest)) == currentManifest {
-		return nil, false, nil
+		return FilesystemSyncSelection{}, nil
 	}
 	if err != nil && !os.IsNotExist(err) {
-		return nil, false, fmt.Errorf("read filesystem manifest: %w", err)
+		return FilesystemSyncSelection{}, fmt.Errorf("read filesystem manifest: %w", err)
 	}
 
 	if err := os.MkdirAll(config.ReposDir, 0o750); err != nil { // #nosec G301 -- internal repos workspace directory
-		return nil, false, fmt.Errorf("create repos dir %q: %w", config.ReposDir, err)
+		return FilesystemSyncSelection{}, fmt.Errorf("create repos dir %q: %w", config.ReposDir, err)
 	}
 	if config.FilesystemDirect {
 		selectedPaths := make([]string, 0, len(repositoryIDs))
 		for _, repoID := range repositoryIDs {
 			if err := ctx.Err(); err != nil {
-				return nil, false, err
+				return FilesystemSyncSelection{}, err
 			}
 			sourcePath, _, err := filesystemRepoPaths(config, repoID)
 			if err != nil {
-				return nil, false, err
+				return FilesystemSyncSelection{}, err
 			}
 			selectedPaths = append(selectedPaths, sourcePath)
 		}
 		if err := os.WriteFile(manifestPath, []byte(currentManifest), 0o600); err != nil { // #nosec G306 -- internal manifest file, owner-only access is correct
-			return nil, false, fmt.Errorf("write filesystem manifest: %w", err)
+			return FilesystemSyncSelection{}, fmt.Errorf("write filesystem manifest: %w", err)
 		}
-		return selectedPaths, true, nil
+		return FilesystemSyncSelection{SelectedRepoPaths: selectedPaths, CorpusChanged: true}, nil
 	}
 	if err := cleanManagedWorkspace(config.ReposDir); err != nil {
-		return nil, false, err
+		return FilesystemSyncSelection{}, err
 	}
 
-	selectedPaths = make([]string, 0, len(repositoryIDs))
+	selectedPaths := make([]string, 0, len(repositoryIDs))
+	copyBoundCommits := make(map[string]string, len(repositoryIDs))
 	for _, repoID := range repositoryIDs {
 		if err := ctx.Err(); err != nil {
-			return nil, false, err
+			return FilesystemSyncSelection{}, err
 		}
 		sourcePath, targetPath, err := filesystemRepoPaths(config, repoID)
 		if err != nil {
-			return nil, false, err
+			return FilesystemSyncSelection{}, err
 		}
-		if err := copyRepositoryTree(ctx, sourcePath, targetPath); err != nil {
-			return nil, false, fmt.Errorf("copy filesystem repository %q: %w", repoID, err)
+		beforeCopyCommit := gitCleanWorktreeCommitSHAFn(ctx, sourcePath)
+		expectation := loadManagedCopyCommitExpectation(ctx, sourcePath, beforeCopyCommit)
+		copyMatchesCommit, err := copyRepositoryTreeFn(ctx, sourcePath, targetPath, expectation)
+		if err != nil {
+			return FilesystemSyncSelection{}, fmt.Errorf("copy filesystem repository %q: %w", repoID, err)
+		}
+		if expectation != nil && copyMatchesCommit {
+			copyBoundCommits[canonicalLocalPath(targetPath)] = beforeCopyCommit
 		}
 		selectedPaths = append(selectedPaths, targetPath)
 	}
 
 	if err := os.WriteFile(manifestPath, []byte(currentManifest), 0o600); err != nil { // #nosec G306 -- internal manifest file, owner-only access is correct
-		return nil, false, fmt.Errorf("write filesystem manifest: %w", err)
+		return FilesystemSyncSelection{}, fmt.Errorf("write filesystem manifest: %w", err)
 	}
-	return selectedPaths, true, nil
+	return FilesystemSyncSelection{
+		SelectedRepoPaths:         selectedPaths,
+		SourceCommitSHAByRepoPath: copyBoundCommits,
+		CorpusChanged:             true,
+	}, nil
 }
 
 func filesystemRepoPaths(
@@ -141,7 +159,6 @@ func fingerprintTree(root string) (string, error) {
 		}
 		rel = filepath.ToSlash(filepath.Clean(rel))
 		name := entry.Name()
-
 		// Ignore-control files affect the next collection shape and must
 		// participate in the manifest even though normal hidden files do not.
 		if isCollectorIgnoreControlFile(name) {
@@ -185,33 +202,6 @@ func fingerprintTree(root string) (string, error) {
 	return hex.EncodeToString(digest.Sum(nil)), nil
 }
 
-func cleanManagedWorkspace(reposDir string) error {
-	entries, err := os.ReadDir(reposDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return fmt.Errorf("read managed workspace %q: %w", reposDir, err)
-	}
-	for _, entry := range entries {
-		name := entry.Name()
-		if strings.HasPrefix(name, ".eshu-") || name == ".eshuignore" {
-			continue
-		}
-		target := filepath.Join(reposDir, name)
-		if entry.IsDir() {
-			if err := os.RemoveAll(target); err != nil {
-				return fmt.Errorf("remove managed directory %q: %w", target, err)
-			}
-			continue
-		}
-		if err := os.Remove(target); err != nil {
-			return fmt.Errorf("remove managed file %q: %w", target, err)
-		}
-	}
-	return nil
-}
-
 // copyRepositoryTree materializes one repository's tracked/discoverable files
 // into the managed workspace at targetRoot. sourceRoot IS the git checkout
 // (unlike targetRoot, which carries no .git of its own — issue #5649), so
@@ -226,23 +216,40 @@ func cleanManagedWorkspace(reposDir string) error {
 // or no git checkout at all, so there is no single sourceRoot to resolve
 // ls-files against there.
 func copyRepositoryTree(ctx context.Context, sourceRoot string, targetRoot string) error {
+	_, err := copyRepositoryTreeFn(ctx, sourceRoot, targetRoot, nil)
+	return err
+}
+
+func copyRepositoryTreeWithExpectation(
+	ctx context.Context,
+	sourceRoot string,
+	targetRoot string,
+	expectation *managedCopyCommitExpectation,
+) (bool, error) {
 	sourceRoot, err := filepath.Abs(sourceRoot)
 	if err != nil {
-		return fmt.Errorf("resolve source repo %q: %w", sourceRoot, err)
+		return false, fmt.Errorf("resolve source repo %q: %w", sourceRoot, err)
 	}
 	info, err := os.Stat(sourceRoot)
 	if err != nil {
-		return fmt.Errorf("stat source repo %q: %w", sourceRoot, err)
+		return false, fmt.Errorf("stat source repo %q: %w", sourceRoot, err)
 	}
 	if !info.IsDir() {
-		return fmt.Errorf("source repo %q is not a directory", sourceRoot)
+		return false, fmt.Errorf("source repo %q is not a directory", sourceRoot)
 	}
+	source, err := openManagedCopySourceRoot(sourceRoot)
+	if err != nil {
+		return false, err
+	}
+	defer func() {
+		_ = source.Close()
+	}()
 
 	if err := os.RemoveAll(targetRoot); err != nil {
-		return fmt.Errorf("reset target repo %q: %w", targetRoot, err)
+		return false, fmt.Errorf("reset target repo %q: %w", targetRoot, err)
 	}
 	if err := os.MkdirAll(targetRoot, 0o750); err != nil { // #nosec G301 -- internal managed workspace directory
-		return fmt.Errorf("create target repo %q: %w", targetRoot, err)
+		return false, fmt.Errorf("create target repo %q: %w", targetRoot, err)
 	}
 
 	ignoreCaches := newCollectorIgnoreCaches()
@@ -256,8 +263,18 @@ func copyRepositoryTree(ctx context.Context, sourceRoot string, targetRoot strin
 		setByRoot: make(map[string]map[string]struct{}),
 	}
 
-	return filepath.WalkDir(sourceRoot, func(current string, entry os.DirEntry, walkErr error) error {
+	copyMatchesCommit := expectation != nil
+	controlMatchesCommit, err := expectation.bindEshuignoreControl(
+		source, sourceRoot, sourceRoot, ignoreCaches.eshuignore,
+	)
+	if err != nil {
+		return false, err
+	}
+	copyMatchesCommit = copyMatchesCommit && controlMatchesCommit
+	walkErr := filepath.WalkDir(sourceRoot, func(current string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
+			copyMatchesCommit = false
+			expectation.invalidate()
 			// Skip entries we cannot read (permission denied, etc.)
 			if entry != nil && entry.IsDir() {
 				return filepath.SkipDir
@@ -273,6 +290,9 @@ func copyRepositoryTree(ctx context.Context, sourceRoot string, targetRoot strin
 		}
 		rel = filepath.ToSlash(filepath.Clean(rel))
 		name := entry.Name()
+		if err := source.TrimToParent(rel); err != nil {
+			return err
+		}
 
 		// .eshuignore remains a deliberate operator opt-out that can still
 		// skip a file git tracks (issue #5591 leaves this filter's semantics
@@ -293,6 +313,7 @@ func copyRepositoryTree(ctx context.Context, sourceRoot string, targetRoot strin
 		}
 
 		if shouldSkipFilesystemEntry(sourceRoot, current, rel, name, entry.IsDir(), ignoreCaches) {
+			expectation.dischargeSkippedPath(rel, entry.IsDir())
 			if entry.IsDir() {
 				return filepath.SkipDir
 			}
@@ -303,52 +324,44 @@ func copyRepositoryTree(ctx context.Context, sourceRoot string, targetRoot strin
 		// managed workspace (a symlink-to-directory looks like a file
 		// to WalkDir but cannot be read with io.Copy).
 		if entry.Type()&os.ModeSymlink != 0 {
+			if !expectation.dischargeSymlink(rel) {
+				copyMatchesCommit = false
+			}
 			return nil
 		}
 
 		targetPath := filepath.Join(targetRoot, filepath.FromSlash(rel))
 		if entry.IsDir() {
+			if err := source.PinDirectory(rel); err != nil {
+				return err
+			}
+			controlMatchesCommit, err := expectation.bindEshuignoreControl(
+				source, sourceRoot, current, ignoreCaches.eshuignore,
+			)
+			if err != nil {
+				return err
+			}
+			if !controlMatchesCommit {
+				copyMatchesCommit = false
+			}
 			return os.MkdirAll(targetPath, 0o750) // #nosec G301 -- internal managed workspace directory tree
 		}
-		if err := copyRepositoryFile(current, targetPath); err != nil {
+		fileMatchesCommit, err := copyRepositoryFile(source, sourceRoot, current, targetPath, rel, expectation)
+		if err != nil {
+			copyMatchesCommit = false
+			expectation.invalidate()
 			// Skip files we cannot read (permission denied, etc.)
 			return nil
 		}
+		copyMatchesCommit = copyMatchesCommit && fileMatchesCommit
 		return nil
 	})
+	return copyMatchesCommit && expectation.complete(), walkErr
 }
 
-func copyRepositoryFile(sourcePath string, targetPath string) error {
-	sourceFile, err := os.Open(sourcePath) // #nosec G304 -- reads indexed repo file at an internally-constructed source path during filesystem copy, not user-supplied input
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = sourceFile.Close()
-	}()
-
-	info, err := sourceFile.Stat()
-	if err != nil {
-		return err
-	}
-	if info.Mode()&os.ModeSymlink != 0 {
-		return nil
-	}
-	if err := os.MkdirAll(filepath.Dir(targetPath), 0o750); err != nil { // #nosec G301 -- internal managed workspace directory
-		return err
-	}
-	targetFile, err := os.Create(targetPath) // #nosec G304 -- creates file at an internally-constructed target path during filesystem copy, not user-supplied input
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = targetFile.Close()
-	}()
-	if _, err := io.Copy(targetFile, sourceFile); err != nil {
-		return err
-	}
-	return targetFile.Chmod(0o644)
-}
+// copyRepositoryTreeFn is the managed-copy seam used by race regressions that
+// mutate the source at the precise copy boundary.
+var copyRepositoryTreeFn = copyRepositoryTreeWithExpectation
 
 func shouldSkipFilesystemEntry(
 	repoRoot string,

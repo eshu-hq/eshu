@@ -48,6 +48,26 @@ func TestProvenanceEdgeCounterRecordsSubmittedRowsAfterSuccessfulWrites(t *testi
 		t.Fatalf("projectContainerImageBuiltFromRows() error = %v", err)
 	}
 
+	workflowWriter := &recordingContainerImageProvenanceEdgeWriter{}
+	workflowHandler := CICDRunCorrelationHandler{
+		ProvenanceEdgeWriter: workflowWriter,
+		Instruments:          instruments,
+	}
+	if err := workflowHandler.projectCICDWorkflowImageBuiltFromEdges(
+		context.Background(),
+		intent,
+		[]CICDRunCorrelationDecision{{
+			Provider:        "github_actions",
+			RepositoryID:    "repository-1",
+			ArtifactDigest:  "sha256:workflow-child",
+			Outcome:         CICDRunCorrelationExact,
+			CanonicalTarget: "container_image",
+			CorrelationKind: "workflow_image",
+		}},
+	); err != nil {
+		t.Fatalf("projectCICDWorkflowImageBuiltFromEdges() error = %v", err)
+	}
+
 	derivedFromWriter := &recordingContainerImageDerivedFromEdgeWriter{}
 	derivedFromHandler := ContainerImageIdentityHandler{
 		DerivedFromEdgeWriter: derivedFromWriter,
@@ -64,6 +84,7 @@ func TestProvenanceEdgeCounterRecordsSubmittedRowsAfterSuccessfulWrites(t *testi
 		packageOwnershipProvenanceEvidenceSource,
 		packagePublicationProvenanceEvidenceSource,
 		containerImageBuiltFromProvenanceEvidenceSource,
+		cicdWorkflowImageBuiltFromEvidenceSource,
 		containerImageDerivedFromProvenanceEvidenceSource,
 	} {
 		if got, ok := provenanceEdgeCounterValue(metrics, domain, "submitted"); !ok || got != 1 {
@@ -127,6 +148,26 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 			},
 		},
 		{
+			name:      "workflow image built from write error",
+			wantError: true,
+			run: func(instruments *telemetry.Instruments) error {
+				writer := &recordingContainerImageProvenanceEdgeWriter{writeErr: errors.New("write failed")}
+				return (CICDRunCorrelationHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
+					projectCICDWorkflowImageBuiltFromEdges(
+						context.Background(),
+						Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
+						[]CICDRunCorrelationDecision{{
+							Provider:        "github_actions",
+							RepositoryID:    "repository-1",
+							ArtifactDigest:  "sha256:child",
+							Outcome:         CICDRunCorrelationExact,
+							CanonicalTarget: "container_image",
+							CorrelationKind: "workflow_image",
+						}},
+					)
+			},
+		},
+		{
 			name:      "derived from write error",
 			wantError: true,
 			run: func(instruments *telemetry.Instruments) error {
@@ -153,11 +194,36 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 			},
 		},
 		{
+			name:      "workflow image retract error",
+			wantError: true,
+			run: func(instruments *telemetry.Instruments) error {
+				writer := &recordingContainerImageProvenanceEdgeWriter{retractErr: errors.New("retract failed")}
+				return (CICDRunCorrelationHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
+					projectCICDWorkflowImageBuiltFromEdges(
+						context.Background(),
+						Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
+						nil,
+					)
+			},
+		},
+		{
 			name: "empty projection",
 			run: func(instruments *telemetry.Instruments) error {
 				writer := &recordingContainerImageProvenanceEdgeWriter{}
 				return (ContainerImageIdentityHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
 					projectContainerImageBuiltFromRows(
+						context.Background(),
+						Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
+						nil,
+					)
+			},
+		},
+		{
+			name: "empty workflow image projection",
+			run: func(instruments *telemetry.Instruments) error {
+				writer := &recordingContainerImageProvenanceEdgeWriter{}
+				return (CICDRunCorrelationHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
+					projectCICDWorkflowImageBuiltFromEdges(
 						context.Background(),
 						Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
 						nil,
@@ -174,6 +240,23 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 						Digest:                       "sha256:child",
 						BuildProvenanceRepositoryIDs: []string{"repository-1"},
 						Outcome:                      ContainerImageIdentityExactDigest,
+					}},
+				)
+			},
+		},
+		{
+			name: "unwired workflow image projection",
+			run: func(instruments *telemetry.Instruments) error {
+				return (CICDRunCorrelationHandler{Instruments: instruments}).projectCICDWorkflowImageBuiltFromEdges(
+					context.Background(),
+					Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
+					[]CICDRunCorrelationDecision{{
+						Provider:        "github_actions",
+						RepositoryID:    "repository-1",
+						ArtifactDigest:  "sha256:child",
+						Outcome:         CICDRunCorrelationExact,
+						CanonicalTarget: "container_image",
+						CorrelationKind: "workflow_image",
 					}},
 				)
 			},

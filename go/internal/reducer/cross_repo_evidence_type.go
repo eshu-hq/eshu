@@ -119,8 +119,9 @@ var evidenceKindToSourceTool = map[relationships.EvidenceKind]string{
 // so their explicit source_tool contract is unknown rather than an inferred
 // gomod/npm/pip/maven/cargo token.
 var sourceToolExactFallback = map[string]string{
-	"PACKAGE_OWNERSHIP_CORRELATION":   sourceToolUnknown,
-	"PACKAGE_PUBLICATION_CORRELATION": sourceToolUnknown,
+	"PACKAGE_OWNERSHIP_CORRELATION":        sourceToolUnknown,
+	"PACKAGE_PUBLICATION_CORRELATION":      sourceToolUnknown,
+	"CI_CD_RUN_WORKFLOW_IMAGE_CORRELATION": "github_actions",
 }
 
 // sourceToolPrefixFallback classifies generated/runtime EvidenceKinds that are

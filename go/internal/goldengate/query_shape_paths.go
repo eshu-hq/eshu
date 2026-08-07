@@ -36,7 +36,12 @@ func evaluateJSONPathRequirements(shape QueryShape, body []byte) (bool, string) 
 			return false, fmt.Sprintf("required JSON value %q failed: %v", path, err)
 		}
 		if !hasMatchingJSONValue(values, expected) {
-			return false, fmt.Sprintf("required JSON value %q did not equal %v", path, expected)
+			return false, fmt.Sprintf(
+				"required JSON value %q did not equal %v; observed %v",
+				path,
+				expected,
+				values,
+			)
 		}
 	}
 	for _, path := range sortedJSONObjectMatchPaths(shape.RequiredJSONObjectMatches) {

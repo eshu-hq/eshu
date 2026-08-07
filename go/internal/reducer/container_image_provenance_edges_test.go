@@ -142,6 +142,7 @@ func TestContainerImageBuiltFromRowsRejectsBlankDigest(t *testing.T) {
 type recordingContainerImageProvenanceEdgeWriter struct {
 	retractCalls []string
 	writeRows    [][]map[string]any
+	writeSources []string
 	writeErr     error
 	retractErr   error
 }
@@ -150,7 +151,7 @@ func (w *recordingContainerImageProvenanceEdgeWriter) WriteBuiltFromEdges(
 	_ context.Context, rows []map[string]any, _ string, _ string, evidenceSource string,
 ) error {
 	w.writeRows = append(w.writeRows, rows)
-	_ = evidenceSource
+	w.writeSources = append(w.writeSources, evidenceSource)
 	return w.writeErr
 }
 

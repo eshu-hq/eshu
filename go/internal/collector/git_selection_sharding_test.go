@@ -126,9 +126,12 @@ func TestNativeRepositorySelectorAppliesRepositoryShardBeforeFilesystemSync(t *t
 		DiscoverSelection: func(context.Context, RepoSyncConfig, string) (RepositorySelection, error) {
 			return RepositorySelection{RepositoryIDs: append([]string(nil), allRepositories...)}, nil
 		},
-		SyncFilesystem: func(_ context.Context, _ RepoSyncConfig, repositoryIDs []string) ([]string, bool, error) {
+		SyncFilesystem: func(_ context.Context, _ RepoSyncConfig, repositoryIDs []string) (FilesystemSyncSelection, error) {
 			gotSynced = append([]string(nil), repositoryIDs...)
-			return append([]string(nil), repositoryIDs...), true, nil
+			return FilesystemSyncSelection{
+				SelectedRepoPaths: append([]string(nil), repositoryIDs...),
+				CorpusChanged:     true,
+			}, nil
 		},
 	}
 

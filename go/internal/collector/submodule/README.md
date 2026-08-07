@@ -16,7 +16,7 @@ This phase is deliberately narrow:
   accepts an optional `FixtureContext.PinnedSHAResolver` callback and fills
   `Pin.PinnedSHA` per entry when the caller sets one, but the resolver's
   actual git-tree read (`gitSubmoduleGitlinkSHA`, a local
-  `git ls-tree HEAD -- <path>` read) lives in the Git collector
+  `git ls-tree <snapshot-commit> -- <path>` read with a `HEAD` fallback) lives in the Git collector
   (`go/internal/collector/git_submodule_pinned_sha.go`, issue #5420 Phase 2b),
   not in this package. `Pin.PinnedSHA` stays `nil` when no resolver is set.
 - It does **not** resolve a *relative* submodule URL (`../sibling.git`,

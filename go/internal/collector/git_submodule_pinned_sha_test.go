@@ -44,7 +44,7 @@ func TestGitSubmoduleGitlinkSHAResolvesGitlinkEntry(t *testing.T) {
 		t.Fatalf("lib/foo must not exist on disk (uninitialized submodule); Stat err = %v", err)
 	}
 
-	got := gitSubmoduleGitlinkSHA(context.Background(), repoPath, "lib/foo")
+	got := gitSubmoduleGitlinkSHA(context.Background(), repoPath, "", "lib/foo")
 	if got == nil {
 		t.Fatal("gitSubmoduleGitlinkSHA() = nil, want the gitlink SHA")
 	}
@@ -68,7 +68,7 @@ func TestGitSubmoduleGitlinkSHANilForRegularDirectory(t *testing.T) {
 	runGit(t, repoPath, "add", "lib/foo/file.txt")
 	runGit(t, repoPath, "commit", "-m", "regular directory")
 
-	if got := gitSubmoduleGitlinkSHA(context.Background(), repoPath, "lib/foo"); got != nil {
+	if got := gitSubmoduleGitlinkSHA(context.Background(), repoPath, "", "lib/foo"); got != nil {
 		t.Fatalf("gitSubmoduleGitlinkSHA() = %q, want nil for a regular directory", *got)
 	}
 }
@@ -87,7 +87,7 @@ func TestGitSubmoduleGitlinkSHANilForMissingPath(t *testing.T) {
 	runGit(t, repoPath, "add", "README.md")
 	runGit(t, repoPath, "commit", "-m", "initial")
 
-	if got := gitSubmoduleGitlinkSHA(context.Background(), repoPath, "lib/never-added"); got != nil {
+	if got := gitSubmoduleGitlinkSHA(context.Background(), repoPath, "", "lib/never-added"); got != nil {
 		t.Fatalf("gitSubmoduleGitlinkSHA() = %q, want nil for a path with no tree entry", *got)
 	}
 }
@@ -102,7 +102,7 @@ func TestGitSubmoduleGitlinkSHANilForUnbornHEAD(t *testing.T) {
 	repoPath := t.TempDir()
 	runGit(t, repoPath, "init")
 
-	if got := gitSubmoduleGitlinkSHA(context.Background(), repoPath, "lib/foo"); got != nil {
+	if got := gitSubmoduleGitlinkSHA(context.Background(), repoPath, "", "lib/foo"); got != nil {
 		t.Fatalf("gitSubmoduleGitlinkSHA() = %q, want nil for an unborn HEAD", *got)
 	}
 }
@@ -117,7 +117,7 @@ func TestGitSubmoduleGitlinkSHANilForNonGitDirectory(t *testing.T) {
 
 	repoPath := t.TempDir()
 
-	if got := gitSubmoduleGitlinkSHA(context.Background(), repoPath, "lib/foo"); got != nil {
+	if got := gitSubmoduleGitlinkSHA(context.Background(), repoPath, "", "lib/foo"); got != nil {
 		t.Fatalf("gitSubmoduleGitlinkSHA() = %q, want nil for a non-git directory", *got)
 	}
 }

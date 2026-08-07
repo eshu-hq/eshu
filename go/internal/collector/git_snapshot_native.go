@@ -72,7 +72,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	// scanRoot itself in ordinary git-sync mode but the SOURCE checkout in
 	// filesystem managed-copy mode, where repoPath (the managed copy) has no
 	// .git of its own — see buildGitTrackedResolver's doc comment.
-	discoveryOpts.GitTrackedResolver = buildGitTrackedResolver(ctx, repoPath, gitTreePath, s.Logger)
+	discoveryOpts.GitTrackedResolver = buildGitTrackedResolver(ctx, repoPath, gitTreePath, repository.SourceCommitSHA, s.Logger)
 	fullFileSet, discoveryStats, err := resolveNativeSnapshotFileSet(repoPath, registry, discoveryOpts)
 	fileSet := fullFileSet
 	if len(repository.FileTargets) > 0 {
@@ -143,7 +143,14 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	}
 	commitSHA := repository.SourceCommitSHA
 	if commitSHA == "" {
-		commitSHA = gitCommitSHAFn(ctx, repoPath)
+		// Filesystem managed-copy mode may carry only the commit identity bound
+		// around copyRepositoryTree by syncFilesystemRepositories. Re-reading the
+		// source checkout here is racy: it may have changed after the managed bytes
+		// were copied. Ordinary direct/sync repositories keep the legacy fallback.
+		managedCopy := canonicalLocalPath(repoPath) != canonicalLocalPath(gitTreePath)
+		if !managedCopy {
+			commitSHA = gitCommitSHAFn(ctx, gitTreePath)
+		}
 	}
 	snapshot.HeadCommitSHA = commitSHA
 	for i := range workflowImageFileMetas {
