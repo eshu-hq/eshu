@@ -44,6 +44,7 @@ jobs:
       ifareplaydrive: ${{ steps.filter.outputs.ifareplaydrive }}
       heredoc: ${{ steps.filter.outputs.heredoc }}
       docsrefs: ${{ steps.filter.outputs.docsrefs }}
+      querydoccommitrefs: ${{ steps.filter.outputs.querydoccommitrefs }}
       doccitations: ${{ steps.filter.outputs.doccitations }}
       measurementcite: ${{ steps.filter.outputs.measurementcite }}
       remotevalidation: ${{ steps.filter.outputs.remotevalidation }}
@@ -203,6 +204,13 @@ jobs:
               - 'scripts/verify-docs-refs.sh'
               - 'scripts/test-verify-docs-refs.sh'
               - 'scripts/docs-refs-baseline.txt'
+            querydoccommitrefs:
+              - '.github/workflows/static-contract-gates.yml'
+              - 'specs/ci-gates.v1.yaml'
+              - 'go/internal/query/*.md'
+              - 'go/internal/queryplan/*.md'
+              - 'scripts/verify-query-doc-commit-refs.sh'
+              - 'scripts/test-verify-query-doc-commit-refs.sh'
             doccitations:
               - '.github/workflows/static-contract-gates.yml'
               - 'specs/ci-gates.v1.yaml'
@@ -289,6 +297,7 @@ jobs:
           append_gate "${{ steps.filter.outputs.ifareplaydrive }}" "ifareplaydrive" "Verify Ifa replay-drive mirror gate" "bash scripts/test-verify-ifa-replay-drive.sh" "bash scripts/test-verify-ifa-replay-drive.sh"
           append_gate "${{ steps.filter.outputs.heredoc }}" "heredoc" "Verify heredoc budget gate" "cd go && go test ./cmd/heredoc-budget -count=1" "cd go && go run ./cmd/heredoc-budget -baseline ../scripts/heredoc-budget-baseline.txt"
           append_gate "${{ steps.filter.outputs.docsrefs }}" "docsrefs" "Verify docs-refs gate" "bash scripts/test-verify-docs-refs.sh" "bash scripts/verify-docs-refs.sh"
+          append_gate "${{ steps.filter.outputs.querydoccommitrefs }}" "querydoccommitrefs" "Verify query-doc-commit-refs gate" "bash scripts/test-verify-query-doc-commit-refs.sh" "bash scripts/verify-query-doc-commit-refs.sh"
           append_gate "${{ steps.filter.outputs.doccitations }}" "doccitations" "Verify doc-citations gate" "bash scripts/test-verify-doc-citations.sh" "bash scripts/verify-doc-citations.sh"
           append_gate "${{ steps.filter.outputs.measurementcite }}" "measurementcite" "Verify measurement-citations gate" "bash scripts/test-verify-measurement-citations.sh" "bash scripts/verify-measurement-citations.sh"
           append_gate "${{ steps.filter.outputs.remotevalidation }}" "remotevalidation" "Verify remote-validation-artifacts gate" "bash scripts/test-verify-remote-validation-artifacts.sh" "bash scripts/verify-remote-validation-artifacts.sh"

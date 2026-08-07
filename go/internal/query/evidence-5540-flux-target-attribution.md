@@ -1,9 +1,14 @@
 # Issue 5540 Flux target-attribution evidence
 
-Theory baseline: commit `85e031612`. Measurements used isolated, empty
-containers sequentially on macOS 26.5.2, Docker 29.4.0, 12 logical CPUs and
-64 GiB host RAM. Containers had no explicit CPU or memory limits. Each case
-used 20 warmups and 250 measured iterations over the same seeded graph.
+The theory baseline was measured on a pre-squash branch revision during PR
+#5679. The durable landing points are `fetchFluxDeploymentSourceTargetBindings`
+in `impact_trace_deployment_flux_bindings.go` and
+`TestLiveFluxDeploymentSourceTargetBindings` in
+`impact_trace_deployment_flux_bindings_live_test.go`. These measurements were
+not rerun on PR #5679's squash commit. They used isolated, empty containers
+sequentially on macOS 26.5.2, Docker 29.4.0, 12 logical CPUs and 64 GiB host
+RAM. Containers had no explicit CPU or memory limits. Each case used 20
+warmups and 250 measured iterations over the same seeded graph.
 
 Backends:
 
@@ -89,13 +94,14 @@ cd go && ESHU_5540_FLUX_BINDINGS_LIVE=1 ESHU_5540_BACKEND=neo4j \
 docker stop eshu5540neo4j-pinned
 ```
 
-Both commands were executed on final implementation commit `54f952ee5` after
-the external preflight released the shared resource. NornicDB passed the live
-test in 0.09 seconds. Neo4j passed against the immutable digest above in 1.98
-seconds, with Go build temp and cache redirected to a data volume because the
-system volume had only 2.9 GiB free under concurrent builds. Each backend ran
-alone; its project/container resources were removed before the next backend
-started.
+Both commands were executed on the final pre-squash PR #5679 branch revision
+after the external preflight released the shared resource. NornicDB passed the
+landed `TestLiveFluxDeploymentSourceTargetBindings` test in 0.09 seconds.
+Neo4j passed against the immutable digest above in 1.98 seconds, with Go build
+temp and cache redirected to a data volume because the system volume had only
+2.9 GiB free under concurrent builds. These timings were not rerun on PR
+#5679's squash commit. Each backend ran alone; its project/container resources
+were removed before the next backend started.
 
 No-Regression Evidence: qualified namespace/name identity preserves distinct
 GitRepository resources in one file and target, exact matching rejects missing

@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 98 gates. Local execution runs the primary
+The registry currently defines 99 gates. Local execution runs the primary
 command first, then a distinct self-test when one is registered; byte-identical
 pairs run once. A row with no primary local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
@@ -68,6 +68,7 @@ Advisory rows remain visible but do not block merge.
 | `docs-prose-quality` | Docs prose quality advisory | docs | pre-pr | false | `bash scripts/verify-docs-prose-quality.sh`<br>then self-test: `bash scripts/test-verify-docs-prose-quality.sh` | — | 5 path(s): docs/public/**, docs/mkdocs.yml, scripts/verify-docs-prose-quality.sh, … |
 | `docs-contradiction` | Docs self-contradiction advisory | exactness | pre-pr | false | `bash scripts/verify-docs-contradiction.sh`<br>then self-test: `bash scripts/test-verify-docs-contradiction.sh` | — | 7 path(s): docs/public/**, docs/mkdocs.yml, scripts/verify-docs-contradiction.sh, … |
 | `docs-refs` | Docs script reference existence | exactness | pre-pr | true | `bash scripts/verify-docs-refs.sh`<br>then self-test: `bash scripts/test-verify-docs-refs.sh` | static-contract-gates.yml / Verify docs-refs gate | 6 path(s): docs/public/**, docs/mkdocs.yml, scripts/verify-docs-refs.sh, … |
+| `query-doc-commit-refs` | Query doc commit reference guard | exactness | pre-pr | true | `bash scripts/verify-query-doc-commit-refs.sh`<br>then self-test: `bash scripts/test-verify-query-doc-commit-refs.sh` | static-contract-gates.yml / Verify query-doc-commit-refs gate | 6 path(s): go/internal/query/*.md, go/internal/queryplan/*.md, scripts/verify-query-doc-commit-refs.sh, … |
 | `doc-citations` | Doc test/fixture citation existence | exactness | pre-pr | true | `bash scripts/verify-doc-citations.sh`<br>then self-test: `bash scripts/test-verify-doc-citations.sh` | static-contract-gates.yml / Verify doc-citations gate | 8 path(s): docs/public/languages/**, docs/public/reference/parity-closure-matrix.md, go/internal/**/*_test.go, … |
 | `measurement-citations` | Measurement ledger citation gate | exactness | pre-pr | true | `bash scripts/verify-measurement-citations.sh`<br>then self-test: `bash scripts/test-verify-measurement-citations.sh` | static-contract-gates.yml / Verify measurement-citations gate | 7 path(s): docs/internal/**, docs/public/**, go/**/evidence-*.md, … |
 | `remote-validation-artifacts` | Remote-validation artifact-existence gate | exactness | pre-pr | true | `bash scripts/verify-remote-validation-artifacts.sh`<br>then self-test: `bash scripts/test-verify-remote-validation-artifacts.sh` | static-contract-gates.yml / Verify remote-validation-artifacts gate | 10 path(s): specs/capability-matrix.v1.yaml, specs/capability-matrix/**, go/internal/capabilitycatalog/**, … |

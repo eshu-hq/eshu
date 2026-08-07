@@ -164,11 +164,13 @@ Together with `deployment_trace_story_facts.go`, the one genuinely new non-test
 file, the count went from 4817 on `main` to 4819 -- two above, from one added
 file. The report was regenerated rather than derived, via
 `scripts/generate-code-coverage-report.sh` (not a commit SHA -- eshu
-squash-merges per `docs/internal/agent-guide.md`, so a commit citation here
-would be orphaned from `main` the moment this lands, the same broken-reference
-class as `c5fb1de4e8` in `docs/internal/evidence/5299-service-story-identity.md`),
-because the coverage check reports "skipping" rather than failing and a stale
-count therefore merges silently.
+squash-merges per `docs/internal/agent-guide.md`, so a branch commit citation
+here would be orphaned from `main` the moment this lands). An earlier revision
+of this note incorrectly called `c5fb1de4e8` in
+`docs/internal/evidence/5299-service-story-identity.md` a broken reference; that
+document retains it as the named baseline for its measured base/candidate
+comparison. The coverage check reports "skipping" rather than failing, so a
+stale count can still merge silently.
 
 `service_evidence.go` is 443 lines after the move and after P2-2's additions;
 `service_evidence_types.go` is 211. `buildSpecFileResolver` also took its
