@@ -19,15 +19,29 @@
 # It also guards the #5818 regression class directly: test.yml, security-scan.yml,
 # and mcp-schema-drift.yml each carry their own copy of the same dorny/paths-filter
 # `code` block, and #5818 burned ~118 runner-minutes on a five-markdown-file PR
-# because `!*.md` is ROOT-ANCHORED (it never matched the nested
-# `.agents/skills/**/*.md` files that PR touched), so `code` evaluated true and
-# every heavy Go lane ran. Two checks below catch that class going forward:
+# because `code` evaluated true and every heavy Go lane ran.
+#
+# The cause recorded here at the time — that `!*.md` is ROOT-ANCHORED and so
+# never matched the nested `.agents/skills/**/*.md` files that PR touched — was
+# only half the story, and #5896 found the other half: dorny@v3 defaults to
+# `predicate-quantifier: some`, under which a file is included as soon as ONE
+# pattern matches. `**` always matches, so NO negation could subtract, however
+# it was anchored. The `!.agents/**` entry added as the #5818 fix was therefore
+# inert from the day it landed. Anchoring is still worth understanding (it
+# decides which markdown counts as code once the quantifier is right), but the
+# operative fix was `predicate-quantifier: 'every'`. Three checks below catch
+# the class going forward:
 #   1. the three copies of the `code` filter must stay byte-identical (a fix
 #      applied to only one copy is exactly how #5818-shaped drift starts);
 #   2. no registry gate whose CI job is one of these workflows' code-gated jobs
 #      may declare a trigger path that the filter's negations would swallow
 #      (the filter's negation style over-covers safely in the other direction,
-#      so this is a one-way superset check).
+#      so this is a one-way superset check). Note this check only started
+#      guarding anything real once the quantifier was fixed: while the
+#      negations were inert they could not swallow a trigger path either;
+#   3. every copy must set `predicate-quantifier: 'every'`, without which the
+#      negations go back to being decorative and check 2 goes back to being
+#      vacuous (#5896).
 set -uo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -402,6 +416,27 @@ else
 	bad "the code: filter has drifted between test.yml, security-scan.yml, and mcp-schema-drift.yml (#5818 regression class) — diff:"
 	diff <(printf '%s\n' "${block_test}") <(printf '%s\n' "${block_sec}") >&2 || true
 	diff <(printf '%s\n' "${block_test}") <(printf '%s\n' "${block_mcp}") >&2 || true
+fi
+
+# --- #5896 regression guard: every copy of the filter must set
+# predicate-quantifier: 'every'. dorny/paths-filter@v3 defaults to `some`,
+# which includes a file as soon as ONE pattern matches — and `**` always
+# matches, so under the default the five `!` negations above are dead text and
+# `code` is true for every PR. Deleting this one line is invisible in review
+# (the negations still READ as if they exclude docs) and silently restores the
+# ~118-runner-minute waste of #5818, so it is asserted rather than remembered.
+# The value is checked literally: v3 accepts exactly 'every' or 'some' and
+# treats anything else as the default, so a typo fails open. ---
+quantifier_missing=""
+for wf in "${t}" "${s}" "${m}"; do
+	if ! rg -q "^[[:space:]]*predicate-quantifier:[[:space:]]*'every'[[:space:]]*$" "${wf}"; then
+		quantifier_missing="${quantifier_missing} $(basename "${wf}")"
+	fi
+done
+if [[ -n "${quantifier_missing}" ]]; then
+	bad "missing \`predicate-quantifier: 'every'\` in:${quantifier_missing} — without it dorny defaults to \`some\`, \`**\` short-circuits, and every \`!\` negation in the code: filter is inert (#5896)"
+else
+	ok "all three code: filters set predicate-quantifier: 'every', so their negations actually exclude"
 fi
 
 # --- #5818 regression guard 2: no gate whose CI job is actually code-gated may

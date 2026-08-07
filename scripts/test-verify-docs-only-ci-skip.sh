@@ -344,5 +344,69 @@ else
 	no "merge_group case 4 should pass again once the outputs.code fallback is restored"
 fi
 
+# --- guard 3 (#5896), failing case: drop `predicate-quantifier: 'every'` from
+# one workflow. This is the regression that reads as harmless: the five `!`
+# negations below it still LOOK like they exclude docs, but dorny@v3 falls back
+# to `some`, `**` matches first and short-circuits, and the whole filter becomes
+# `code: ['**']`. Deleting this line is how #5818's ~118 wasted runner-minutes
+# come back, so it must fail loudly and name the file. ---
+python3 - "${tmp}/.github/workflows/security-scan.yml" <<'PY'
+import sys
+path = sys.argv[1]
+with open(path) as f:
+	content = f.read()
+needle = "          predicate-quantifier: 'every'\n"
+assert content.count(needle) == 1, "expected exactly one predicate-quantifier line"
+with open(path, "w") as f:
+	f.write(content.replace(needle, "", 1))
+PY
+if out="$(run_scratch 2>&1)"; then
+	no "guard 3 should fail when a code: filter loses predicate-quantifier: 'every'"
+else
+	if rg -qF 'predicate-quantifier' <<<"${out}" && rg -qF 'security-scan.yml' <<<"${out}"; then
+		ok "guard 3 fails and names the workflow that lost predicate-quantifier: 'every'"
+	else
+		no "guard 3 failed for the wrong reason; got:"
+		printf '%s\n' "${out}" >&2
+	fi
+fi
+cp "${repo_root}/.github/workflows/security-scan.yml" "${tmp}/.github/workflows/security-scan.yml"
+if run_scratch >/dev/null 2>&1; then
+	ok "guard 3 passes again after restoring predicate-quantifier: 'every'"
+else
+	no "guard 3 should pass again once predicate-quantifier: 'every' is restored"
+fi
+
+# --- guard 3, wrong-value case: dorny validates the input against exactly
+# {'every','some'} and silently falls back to `some` for anything else, so a
+# plausible-looking typo ('all', which is what the README's prose suggests) is
+# indistinguishable from deleting the line. The check must be literal. ---
+python3 - "${tmp}/.github/workflows/test.yml" <<'PY'
+import sys
+path = sys.argv[1]
+with open(path) as f:
+	content = f.read()
+needle = "          predicate-quantifier: 'every'\n"
+assert content.count(needle) == 1, "expected exactly one predicate-quantifier line"
+with open(path, "w") as f:
+	f.write(content.replace(needle, "          predicate-quantifier: 'all'\n", 1))
+PY
+if out="$(run_scratch 2>&1)"; then
+	no "guard 3 should fail for predicate-quantifier: 'all', which dorny treats as the default"
+else
+	if rg -qF 'predicate-quantifier' <<<"${out}" && rg -qF 'test.yml' <<<"${out}"; then
+		ok "guard 3 rejects a wrong quantifier value, not just a missing line"
+	else
+		no "guard 3 wrong-value case failed for the wrong reason; got:"
+		printf '%s\n' "${out}" >&2
+	fi
+fi
+cp "${repo_root}/.github/workflows/test.yml" "${tmp}/.github/workflows/test.yml"
+if run_scratch >/dev/null 2>&1; then
+	ok "guard 3 passes again after restoring the correct quantifier value"
+else
+	no "guard 3 should pass again once the correct quantifier value is restored"
+fi
+
 printf '\n%d passed, %d failed\n' "${pass}" "${fail}"
 [[ "${fail}" -eq 0 ]]
