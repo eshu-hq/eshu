@@ -11,8 +11,10 @@ the git collector's existing content stream (`streamFacts` in
    (`emitSubmoduleFactsForCandidates`), run once per repository generation,
    only when a ".gitmodules" file was actually present among the streamed
    content files.
-3. One `git ls-tree HEAD` subprocess (`gitSubmoduleGitlinkSHA`) per declared
-   submodule entry, run only when ".gitmodules" is present with entries,
+3. One `git ls-tree` subprocess against the selected snapshot commit, or
+   `HEAD` when no commit identity is available,
+   (`gitSubmoduleGitlinkSHA`) per declared submodule entry, run only when
+   ".gitmodules" is present with entries,
    called from inside `Emit` via `FixtureContext.PinnedSHAResolver` (issue
    #5420 Phase 2b).
 
@@ -77,11 +79,11 @@ orders of magnitude more expensive than CODEOWNERS' equivalent hook. This is
 a real, measurable cost and is reported here as such rather than rounded
 down to "negligible."
 
-The dominant cost is the `git ls-tree HEAD -- <path>` subprocess
+The dominant cost is the `git ls-tree <snapshot-commit-or-HEAD> -- <path>` subprocess
 `gitSubmoduleGitlinkSHA` shells out to resolve each submodule's pinned
 commit SHA (issue #5420 Phase 2b). `BenchmarkGitSubmoduleGitlinkSHA`
-isolates that single subprocess call at 15.50-20.96 ms/op, which accounts
-for essentially all of the "WithSubmodule" content-stream hook's added cost
+isolates that single subprocess call at 15.50-20.96 ms/op, which overlaps
+the "WithSubmodule" content-stream hook's added cost
 (13.48-24.02 ms/op); the two ranges overlap, consistent with the parse+emit
 pass itself contributing negligible incremental cost on top of the dominant
 subprocess spawn (the parser's own no-regression evidence in
@@ -123,10 +125,11 @@ This cost is:
 
 ## No-Observability-Change
 
-This is a benchmark-only addition. It adds no metric, span, log, worker,
-queue domain, or runtime knob; it exercises functions that already exist and
-are already covered by `internal/collector/submodule`'s own parser and
-emitter unit tests (`parser_test.go`, `emitter_test.go`),
+Binding the tree read to the selected snapshot commit adds no metric, span,
+log, worker, queue domain, or runtime knob, and preserves one subprocess per
+declared submodule. The path remains covered by
+`internal/collector/submodule`'s parser and emitter unit tests
+(`parser_test.go`, `emitter_test.go`),
 `git_submodule_facts_test.go`, `git_submodule_pinned_sha_test.go`
 (issue #5420 Phase 2b), and `internal/collector`'s existing content-stream
 integration tests.

@@ -23,7 +23,10 @@ On Unix, the copy pins the source root and current directory ancestry, opens
 directories and files relative to those descriptors without following
 symlinks, and compares pre-open, opened, and post-open file identity before
 reading bytes. The Windows path is root-confined and uses the same identity
-checks. The snapshot never re-reads the source checkout for a managed copy.
+checks. The snapshot never rereads mutable working-tree content for commit
+attribution. Submodule gitlink reads use the copy-bound source commit against
+the source Git object database; `HEAD` is only the fallback when the selector
+has no commit identity to carry.
 Dirty tracked content, admitted untracked content, conflicts, dirty
 submodules, an unborn branch, Git command errors, clean-to-dirty-to-clean
 changes during the copy, symlink swaps, and working-tree clean-filter,
@@ -82,8 +85,15 @@ verifies every admitted regular-file byte against the immutable tree during
 the required copy. It is bounded to changed, clean filesystem managed-copy
 repositories; unchanged manifest polls perform neither the copy nor the
 verification, and other source modes are unaffected. The rebased code-head B-7
-run below kept collection at 16 seconds and total wall time within the required
+run below kept collection at 17 seconds and total wall time within the required
 ceiling.
+
+The review correction binds later Git metadata reads to the same immutable
+commit as the managed copy. Submodule pins change only the treeish passed to
+the existing local `git ls-tree` subprocess, and the root tracked-file
+resolver replaces one `git ls-files` subprocess with one `git ls-tree`
+subprocess. The correction adds no filesystem walk, graph query, queue item,
+retry, lock, or write.
 
 No-Observability-Change: No metric instrument, attribute key, span, structured
 log field, status field, queue domain, worker, lease, batch size, or runtime
@@ -134,3 +144,18 @@ offending `source_tool` property. rc-173 retained exactly one
 `CI_CD_RUN_WORKFLOW_IMAGE_CORRELATION` assertion with
 `source_tool=github_actions`. The focused collector/reducer/query/Cypher/gate
 suite also passed after the rebase.
+
+After GitHub review, the managed-copy regression reproduced the source
+checkout advancing from commit A to commit B after copying: the old emitter
+published B's submodule pin while the generation remained bound to A. The
+corrected collector reads A explicitly, and the regression passes. The full
+collector package and package-documentation gates also pass. The golden-gate
+mirror passes when the caller exports `ESHU_FILESYSTEM_DIRECT=true`, proving
+the verifier overrides inherited direct mode, and its staged repositories
+still match the fixed cassette commits when Git's global default object format
+is SHA-256.
+
+The final post-review B-7 rerun completed in 130 seconds with phases bootstrap
+4, collect 18, first drain 66, maintenance drains 21, and graph/query 3 seconds.
+It again reported 531 passes, zero required failures, zero advisory warnings,
+zero nonterminal drain rows, and zero dead letters.

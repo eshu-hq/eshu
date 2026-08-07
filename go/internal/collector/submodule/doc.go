@@ -12,8 +12,8 @@
 // package does not itself resolve the pinned gitlink commit SHA: Emit
 // accepts an optional FixtureContext.PinnedSHAResolver callback and fills
 // Pin.PinnedSHA per entry when the caller sets one, leaving it nil
-// otherwise, but the resolver's git-tree read
-// (gitSubmoduleGitlinkSHA, a local "git ls-tree HEAD" read) lives in the Git
+// otherwise, but the resolver's git-tree read (gitSubmoduleGitlinkSHA, a local
+// "git ls-tree <snapshot-commit>" read with a HEAD fallback) lives in the Git
 // collector (go/internal/collector/git_submodule_pinned_sha.go, issue #5420
 // Phase 2b), not here. The reducer, projector, and read surface that
 // consume these facts are also out of scope (later phases of the same

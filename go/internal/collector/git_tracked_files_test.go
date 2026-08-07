@@ -90,7 +90,7 @@ func TestBuildGitTrackedResolverGitModeUsesRepoRootDirectly(t *testing.T) {
 	runGit(t, repoRoot, "add", "-f", "tracked.tfstate")
 	runGit(t, repoRoot, "commit", "-m", "initial")
 
-	resolver := buildGitTrackedResolver(context.Background(), repoRoot, repoRoot, nil)
+	resolver := buildGitTrackedResolver(context.Background(), repoRoot, repoRoot, "", nil)
 	tracked, ok := resolver(repoRoot)
 	if !ok {
 		t.Fatal("resolver() ok = false, want true")
@@ -112,10 +112,13 @@ func TestBuildGitTrackedResolverManagedCopyModeUsesGitTreePath(t *testing.T) {
 	writeFile(t, sourceRoot, "tracked.tfstate", "{}")
 	runGit(t, sourceRoot, "add", "-f", "tracked.tfstate")
 	runGit(t, sourceRoot, "commit", "-m", "initial")
+	copyBoundCommit := runGit(t, sourceRoot, "rev-parse", "HEAD")
 
 	managedCopyRoot := t.TempDir() // no .git here — mirrors a filesystem-mode managed copy
+	runGit(t, sourceRoot, "rm", "tracked.tfstate")
+	runGit(t, sourceRoot, "commit", "-m", "advance source")
 
-	resolver := buildGitTrackedResolver(context.Background(), managedCopyRoot, sourceRoot, nil)
+	resolver := buildGitTrackedResolver(context.Background(), managedCopyRoot, sourceRoot, copyBoundCommit, nil)
 	tracked, ok := resolver(managedCopyRoot)
 	if !ok {
 		t.Fatal("resolver() ok = false, want true (must defer to gitTreePath)")
@@ -149,7 +152,7 @@ func TestBuildGitTrackedResolverManagedCopyModeMirrorsNestedRepoRoot(t *testing.
 		t.Fatalf("mkdir nested copy repo: %v", err)
 	}
 
-	resolver := buildGitTrackedResolver(context.Background(), managedCopyRoot, sourceRoot, nil)
+	resolver := buildGitTrackedResolver(context.Background(), managedCopyRoot, sourceRoot, "", nil)
 	tracked, ok := resolver(nestedCopyRepo)
 	if !ok {
 		t.Fatal("resolver() ok = false, want true (must mirror rel path under gitTreePath)")
@@ -181,7 +184,7 @@ func TestBuildGitTrackedResolverInvokedPerNestedGitRepoRoot(t *testing.T) {
 	runGit(t, nestedRoot, "add", "-f", "nested.tfstate")
 	runGit(t, nestedRoot, "commit", "-m", "nested initial")
 
-	resolver := buildGitTrackedResolver(context.Background(), outerRoot, outerRoot, nil)
+	resolver := buildGitTrackedResolver(context.Background(), outerRoot, outerRoot, "", nil)
 
 	outerTracked, ok := resolver(outerRoot)
 	if !ok {
@@ -215,12 +218,12 @@ func TestBuildGitTrackedResolverReportsNotOKOutsideScanRootOrWithoutGitTreePath(
 	scanRoot := t.TempDir()
 	outsideRoot := t.TempDir()
 
-	resolver := buildGitTrackedResolver(context.Background(), scanRoot, "", nil)
+	resolver := buildGitTrackedResolver(context.Background(), scanRoot, "", "", nil)
 	if _, ok := resolver(scanRoot); ok {
 		t.Error("resolver(scanRoot) ok = true, want false when gitTreePath is empty and scanRoot has no .git")
 	}
 
-	resolverWithTreePath := buildGitTrackedResolver(context.Background(), scanRoot, scanRoot, nil)
+	resolverWithTreePath := buildGitTrackedResolver(context.Background(), scanRoot, scanRoot, "", nil)
 	if _, ok := resolverWithTreePath(outsideRoot); ok {
 		t.Error("resolver(outsideRoot) ok = true, want false for a repoRoot outside scanRoot")
 	}
@@ -248,7 +251,7 @@ func TestBuildGitTrackedResolverWarnsWhenGitMarkerPresentButLsFilesFails(t *test
 	var logBuf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
-	resolver := buildGitTrackedResolver(context.Background(), corruptRepo, corruptRepo, logger)
+	resolver := buildGitTrackedResolver(context.Background(), corruptRepo, corruptRepo, "", logger)
 	tracked, ok := resolver(corruptRepo)
 
 	// Behavior preserved: still falls back to pattern-only filtering.
@@ -283,7 +286,7 @@ func TestBuildGitTrackedResolverNoWarnForNonGitDirectory(t *testing.T) {
 	var logBuf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
-	resolver := buildGitTrackedResolver(context.Background(), plainDir, plainDir, logger)
+	resolver := buildGitTrackedResolver(context.Background(), plainDir, plainDir, "", logger)
 	if _, ok := resolver(plainDir); ok {
 		t.Fatal("resolver() ok = true, want false for a non-git directory")
 	}

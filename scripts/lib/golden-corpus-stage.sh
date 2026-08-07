@@ -20,7 +20,7 @@
 
 stage_deterministic_git_fixture() {
 	local fixture_path="$1"
-	git -C "${fixture_path}" -c init.defaultBranch=main init >/dev/null 2>&1
+	git -C "${fixture_path}" -c init.defaultBranch=main init --object-format=sha1 >/dev/null 2>&1
 	git -C "${fixture_path}" config user.email "gate@eshu.local" >/dev/null 2>&1
 	git -C "${fixture_path}" config user.name "Golden Gate" >/dev/null 2>&1
 	git -C "${fixture_path}" config commit.gpgsign false >/dev/null 2>&1
@@ -41,7 +41,7 @@ stage_minimal_corpus() {
 		# deployable-config needs a git repo so localGitRefs can discover tags
 		# for the B-12 query_shape.http branches endpoint assertion.
 		if [[ "${fixture}" = "deployable-config" ]]; then
-			git -C "${corpus_dir}/${fixture}" -c init.defaultBranch=main init >/dev/null 2>&1
+			git -C "${corpus_dir}/${fixture}" -c init.defaultBranch=main init --object-format=sha1 >/dev/null 2>&1
 			git -C "${corpus_dir}/${fixture}" config user.email "gate@eshu.local" >/dev/null 2>&1
 			git -C "${corpus_dir}/${fixture}" config user.name "Golden Gate" >/dev/null 2>&1
 			# submodule PINS_SUBMODULE non-vacuous coverage (issue #5420 Phase 5): a

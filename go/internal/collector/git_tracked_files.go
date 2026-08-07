@@ -45,7 +45,23 @@ func gitTrackedFiles(ctx context.Context, gitDir string) (map[string]struct{}, b
 	if err != nil {
 		return nil, false
 	}
+	return parseGitTrackedPaths(output), true
+}
 
+func gitTrackedFilesAtCommit(ctx context.Context, gitDir, commitSHA string) (map[string]struct{}, bool) {
+	commitSHA = strings.TrimSpace(commitSHA)
+	if commitSHA == "" {
+		return gitTrackedFiles(ctx, gitDir)
+	}
+	command := exec.CommandContext(ctx, "git", "-C", gitDir, "ls-tree", "-r", "-z", "--name-only", commitSHA) // #nosec G204 -- runs git with internally selected commit and resolved local repository path
+	output, err := command.Output()
+	if err != nil {
+		return nil, false
+	}
+	return parseGitTrackedPaths(output), true
+}
+
+func parseGitTrackedPaths(output []byte) map[string]struct{} {
 	tracked := make(map[string]struct{})
 	for _, rel := range strings.Split(string(output), "\x00") {
 		if rel == "" {
@@ -53,7 +69,7 @@ func gitTrackedFiles(ctx context.Context, gitDir string) (map[string]struct{}, b
 		}
 		tracked[filepath.ToSlash(rel)] = struct{}{}
 	}
-	return tracked, true
+	return tracked
 }
 
 // hasGitDirMarker reports whether dir has its own ".git" entry — a
@@ -91,7 +107,8 @@ func hasGitDirMarker(dir string) bool {
 //     mode (where gitTreePath == scanRoot, so this also covers the common
 //     case). Run ls-files there directly.
 //  2. repoRoot == scanRoot and gitTreePath is set: the managed-copy root
-//     itself has no .git — run ls-files at gitTreePath instead.
+//     itself has no .git — read the copy-bound commit tree at gitTreePath when
+//     sourceCommitSHA is available, otherwise preserve the ls-files fallback.
 //  3. repoRoot is a descendant of scanRoot and gitTreePath is set: mirror the
 //     same scanRoot-relative path under gitTreePath (copyRepositoryTree
 //     mirrors the source tree 1:1) and run ls-files there.
@@ -115,6 +132,7 @@ func buildGitTrackedResolver(
 	ctx context.Context,
 	scanRoot string,
 	gitTreePath string,
+	sourceCommitSHA string,
 	logger *slog.Logger,
 ) func(repoRoot string) (map[string]struct{}, bool) {
 	return func(repoRoot string) (map[string]struct{}, bool) {
@@ -130,7 +148,7 @@ func buildGitTrackedResolver(
 			return nil, false
 		}
 		if repoRoot == scanRoot {
-			return gitTrackedFiles(ctx, gitTreePath)
+			return gitTrackedFilesAtCommit(ctx, gitTreePath, sourceCommitSHA)
 		}
 
 		rel, err := filepath.Rel(scanRoot, repoRoot)
@@ -139,7 +157,7 @@ func buildGitTrackedResolver(
 		}
 		rel = filepath.ToSlash(filepath.Clean(rel))
 		if rel == "." {
-			return gitTrackedFiles(ctx, gitTreePath)
+			return gitTrackedFilesAtCommit(ctx, gitTreePath, sourceCommitSHA)
 		}
 		if rel == ".." || strings.HasPrefix(rel, "../") {
 			return nil, false

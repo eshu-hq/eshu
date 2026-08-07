@@ -7,9 +7,10 @@
 # Drives every pipeline stage end to end.
 require "bootstrap stage" "eshu-bootstrap-index"
 require "filesystem managed-copy mode" 'export ESHU_REPO_SOURCE_MODE="filesystem"'
-if rg -q '^[[:space:]]*export ESHU_FILESYSTEM_DIRECT=' "${script}"; then
-	fail "golden gate must not switch its full corpus to filesystem-direct mode"
-fi
+require "filesystem managed-copy direct-mode pin" 'export ESHU_FILESYSTEM_DIRECT="false"'
+filesystem_direct_exports="$(rg --count '^[[:space:]]*export ESHU_FILESYSTEM_DIRECT=' "${script}" || true)"
+[[ "${filesystem_direct_exports:-0}" -eq 1 ]] ||
+	fail "golden gate must set ESHU_FILESYSTEM_DIRECT exactly once"
 
 # Pin the extracted helper, exact test name, complete executable line, and its
 # failure branch. The JSON event cases below additionally prove that a zero-test

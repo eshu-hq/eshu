@@ -172,7 +172,7 @@ func BenchmarkSubmoduleContentStreamHook(b *testing.B) {
 					noteSubmoduleCandidate(candidates, p, body)
 				}
 				before := count.Load()
-				emitSubmoduleFactsForCandidates(goCtx, w, "repo-1", repoPath, "scope-1", "gen-1", time.Time{}, candidates)
+				emitSubmoduleFactsForCandidates(goCtx, w, "repo-1", repoPath, "", "scope-1", "gen-1", time.Time{}, candidates)
 				sent := int(count.Load() - before)
 				for j := 0; j < sent; j++ {
 					<-ch
@@ -196,6 +196,6 @@ func BenchmarkGitSubmoduleGitlinkSHA(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		gitSubmoduleGitlinkSHA(ctx, repoPath, submoduleBenchSubmodulePath)
+		gitSubmoduleGitlinkSHA(ctx, repoPath, "", submoduleBenchSubmodulePath)
 	}
 }

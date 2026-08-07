@@ -169,6 +169,7 @@ export ESHU_CONTENT_STORE_DSN="${ESHU_POSTGRES_DSN}"
 export ESHU_HOME="${home_dir}"
 export ESHU_REPOS_DIR="${work_dir}/repos"
 export ESHU_REPO_SOURCE_MODE="filesystem"
+export ESHU_FILESYSTEM_DIRECT="false"
 export ESHU_FILESYSTEM_ROOT="${corpus_dir}"
 export ESHU_GIT_AUTH_METHOD="none"
 # Filesystem repos have no real git remote; the collector synthesizes one from the

@@ -5,11 +5,14 @@
 
 stage_case_dir="$(mktemp -d -t golden-corpus-stage-case.XXXXXX)"
 stage_case_corpus="${stage_case_dir}/corpus"
+stage_case_git_config="${stage_case_dir}/gitconfig"
 mkdir -p "${stage_case_corpus}"
+git config --file "${stage_case_git_config}" init.defaultObjectFormat sha256
 
 (
+	export GIT_CONFIG_GLOBAL="${stage_case_git_config}"
 	corpus_dir="${stage_case_corpus}"
-	corpus_fixtures=(container-ci-lineage github_actions_workflows)
+	corpus_fixtures=(container-ci-lineage github_actions_workflows deployable-config deployable-source)
 	die() { printf 'golden-corpus-stage-case: %s\n' "$*" >&2; exit 1; }
 	# shellcheck source=scripts/lib/golden-corpus-stage.sh
 	. "${repo_root}/scripts/lib/golden-corpus-stage.sh"
@@ -23,6 +26,8 @@ stage_case_repo="${stage_case_corpus}/container-ci-lineage"
 	fail "container-ci-lineage staged Git history must include its complete working tree"
 
 stage_case_head="$(git -C "${stage_case_repo}" rev-parse HEAD)"
+[[ "${#stage_case_head}" -eq 40 ]] ||
+	fail "container-ci-lineage staged HEAD must use SHA-1, got ${#stage_case_head} characters"
 stage_case_run_commit="$({
 	jq -r '
     .scopes[]
@@ -42,6 +47,8 @@ stage_case_input_repo="${stage_case_corpus}/github_actions_workflows"
 	fail "github_actions_workflows staged Git history must include its complete working tree"
 
 stage_case_input_head="$(git -C "${stage_case_input_repo}" rev-parse HEAD)"
+[[ "${#stage_case_input_head}" -eq 40 ]] ||
+	fail "github_actions_workflows staged HEAD must use SHA-1, got ${#stage_case_input_head} characters"
 stage_case_input_run_commit="$({
 	jq -r '
     .scopes[]
@@ -53,6 +60,11 @@ stage_case_input_run_commit="$({
 })"
 [[ "${stage_case_input_head}" = "${stage_case_input_run_commit}" ]] ||
 	fail "github_actions_workflows staged HEAD ${stage_case_input_head} must match run 9200 commit ${stage_case_input_run_commit}"
+
+stage_case_deployable_repo="${stage_case_corpus}/deployable-config"
+stage_case_deployable_head="$(git -C "${stage_case_deployable_repo}" rev-parse HEAD)"
+[[ "${#stage_case_deployable_head}" -eq 40 ]] ||
+	fail "deployable-config staged HEAD must use SHA-1, got ${#stage_case_deployable_head} characters"
 
 rm -rf "${stage_case_dir}"
 stage_cases_completed=1
