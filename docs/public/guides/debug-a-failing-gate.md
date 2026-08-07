@@ -10,11 +10,13 @@ landing: false
 # Debug a failing Ifá gate
 
 Each Ifá gate proves a different failure mode. Start with the failing `RUN` or
-`TEST` command from the generated
-[CI gates reference](../reference/ci-gates.md). Its `Local execution` column
-lists the primary command followed by any distinct self-test in the same order
-as `ci-gates run`, so a local red exercises the reported path rather than a
-different or incomplete command.
+`TEST` command. Copy the matching unescaped `local.command` or
+`local.test_command` from the CI gate registry at `specs/ci-gates.v1.yaml`.
+Use the generated [CI gates reference](../reference/ci-gates.md) to confirm the
+primary-command and self-test order, not as a copy-and-paste source: Markdown
+table cells escape literal `|` characters used by some test-name regular
+expressions. This keeps a local red on the reported path rather than silently
+running a different or incomplete command.
 
 ## `ifa-contract-layer`
 
@@ -113,10 +115,11 @@ mirror expects.
 
 ## General triage order
 
-1. Reproduce the failing `RUN` or `TEST` entry from the generated
-   [CI gates reference](../reference/ci-gates.md) before touching anything.
-   When the runner reported `TEST`, use the self-test shown after the primary
-   command in `Local execution`; running only the primary command cannot
+1. Identify the failing `RUN` or `TEST` entry in the generated
+   [CI gates reference](../reference/ci-gates.md), then copy the corresponding
+   unescaped `local.command` or `local.test_command` from
+   `specs/ci-gates.v1.yaml` before touching anything. When the runner reported
+   `TEST`, run `local.test_command`; running only the primary command cannot
    reproduce that failure.
 2. If it is a hermetic mirror, check whether the real Docker-backed gate
    still fails the same way. A mirror failure that the real gate does not
