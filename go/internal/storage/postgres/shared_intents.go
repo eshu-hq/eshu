@@ -294,6 +294,9 @@ func (s *SharedIntentStore) ClaimPartitionLease(ctx context.Context, domain stri
 	defer func() { _ = rows.Close() }()
 
 	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return false, fmt.Errorf("claim partition lease: %w", err)
+		}
 		return false, nil
 	}
 

@@ -40,6 +40,14 @@ func (r *CodeCallProjectionRunner) startLeaseHeartbeat(
 		defer ticker.Stop()
 
 		var heartbeatErr error
+		recordFailure := func(err error) {
+			if heartbeatErr != nil {
+				return
+			}
+			heartbeatErr = err
+			r.logLeaseHeartbeatFailure(heartbeatCtx, heartbeatErr)
+			cancel()
+		}
 		for {
 			select {
 			case <-heartbeatCtx.Done():
@@ -55,15 +63,14 @@ func (r *CodeCallProjectionRunner) startLeaseHeartbeat(
 					r.Config.leaseTTL(),
 				)
 				if err != nil {
-					heartbeatErr = fmt.Errorf("heartbeat code call lease: %w", err)
-					r.logLeaseHeartbeatFailure(heartbeatCtx, heartbeatErr)
-					cancel()
+					if errors.Is(err, context.Canceled) {
+						continue
+					}
+					recordFailure(fmt.Errorf("heartbeat code call lease: %w", err))
 					continue
 				}
 				if !claimed {
-					heartbeatErr = errCodeCallLeaseHeartbeatRejected
-					r.logLeaseHeartbeatFailure(heartbeatCtx, heartbeatErr)
-					cancel()
+					recordFailure(errCodeCallLeaseHeartbeatRejected)
 				}
 			}
 		}

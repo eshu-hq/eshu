@@ -142,7 +142,7 @@ func TestRepoDependencyProjectionRunnerQuarantinesHeartbeatLossBeforeSuccess(t *
 	runner := validRepoDependencyQuarantineRunner(t)
 	leases := &recordingRepoDependencyLeaseManager{claimed: true, rejectHeartbeat: true}
 	runner.LeaseManager = leases
-	runner.EdgeWriter = delayedSuccessRepoDependencyWriter{delay: 15 * time.Millisecond}
+	runner.EdgeWriter = blockUntilContextDoneRepoDependencyWriter{}
 	runner.Config = RepoDependencyProjectionRunnerConfig{
 		LeaseTTL:              9 * time.Millisecond,
 		CycleTimeout:          100 * time.Millisecond,
@@ -322,6 +322,26 @@ func (w delayedSuccessRepoDependencyWriter) WriteEdges(
 	context.Context, string, []SharedProjectionIntentRow, string,
 ) error {
 	time.Sleep(w.delay)
+	return nil
+}
+
+// blockUntilContextDoneRepoDependencyWriter makes heartbeat loss, rather than
+// a wall-clock delay, release the graph-write path. The heartbeat records the
+// loss before canceling the work context, so the test has a deterministic
+// happens-before edge even under scheduler contention.
+type blockUntilContextDoneRepoDependencyWriter struct{}
+
+func (blockUntilContextDoneRepoDependencyWriter) RetractEdges(
+	ctx context.Context, _ string, _ []SharedProjectionIntentRow, _ string,
+) error {
+	<-ctx.Done()
+	return nil
+}
+
+func (blockUntilContextDoneRepoDependencyWriter) WriteEdges(
+	ctx context.Context, _ string, _ []SharedProjectionIntentRow, _ string,
+) error {
+	<-ctx.Done()
 	return nil
 }
 

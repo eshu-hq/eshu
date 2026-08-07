@@ -60,6 +60,14 @@ func startSharedProjectionLeaseHeartbeat(
 		defer ticker.Stop()
 
 		var heartbeatErr error
+		recordFailure := func(err error) {
+			if heartbeatErr != nil {
+				return
+			}
+			heartbeatErr = err
+			recordSharedProjectionLeaseHeartbeatMissed(heartbeatCtx, cfg, instruments, logger, heartbeatErr)
+			cancel()
+		}
 		for {
 			select {
 			case <-heartbeatCtx.Done():
@@ -71,15 +79,14 @@ func startSharedProjectionLeaseHeartbeat(
 					cfg.LeaseOwner, cfg.LeaseTTL,
 				)
 				if err != nil {
-					heartbeatErr = fmt.Errorf("heartbeat shared projection partition lease: %w", err)
-					recordSharedProjectionLeaseHeartbeatMissed(heartbeatCtx, cfg, instruments, logger, heartbeatErr)
-					cancel()
+					if errors.Is(err, context.Canceled) {
+						continue
+					}
+					recordFailure(fmt.Errorf("heartbeat shared projection partition lease: %w", err))
 					continue
 				}
 				if !claimed {
-					heartbeatErr = errSharedProjectionLeaseHeartbeatRejected
-					recordSharedProjectionLeaseHeartbeatMissed(heartbeatCtx, cfg, instruments, logger, heartbeatErr)
-					cancel()
+					recordFailure(errSharedProjectionLeaseHeartbeatRejected)
 				}
 			}
 		}
