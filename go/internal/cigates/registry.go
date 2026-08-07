@@ -96,7 +96,7 @@ const (
 type Local struct {
 	// Command is the shell command to run the gate locally.
 	Command string
-	// TestCommand is the optional self-test mirror command.
+	// TestCommand is the optional self-test mirror run after Command locally.
 	TestCommand string
 }
 

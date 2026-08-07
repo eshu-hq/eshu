@@ -42,19 +42,21 @@ ci-gates run \
   --tier pre-pr \
   [--base origin/main] \
   [--paths-from paths.txt] \
-  [--category exactness,telemetry] \
+  [--category exactness,telemetry,hygiene,docs] \
   [--repo-root /path/to/repo]
 ```
 
-`--category` filters the run to the listed categories — `make pre-pr` uses
-`--category exactness,telemetry` to run only the static contract lane (#4214),
-leaving the race lane to #4215 and the heavy pre-push gates (gosec, console
-e2e, frontend) out of pre-pr.
+`--category` filters the run to the listed categories. `make pre-pr` uses
+`--category exactness,telemetry,hygiene,docs` for credential-free contract,
+policy, and documentation gates (#4214), leaving the race lane to #4215 and
+the heavy pre-push gates (gosec, console e2e, frontend) out of this step.
 
-Runs each selected gate's `local.command` via `/bin/sh -c`, accumulates all
-results (does not stop at the first failure), and exits non-zero if any
-blocking gate failed. Advisory failures are printed but do not affect the exit
-code. CI-only gates are printed as `CI-ONLY` and never executed.
+Runs each selected gate's `local.command` and then its non-empty
+`local.test_command` via `/bin/sh -c`. Byte-identical command/test-command
+pairs run once. The runner accumulates all results (including running a test
+command after its gate command fails) and exits non-zero if any blocking gate
+failed. Advisory failures are printed but do not affect the exit code. CI-only
+gates are printed as `CI-ONLY` and never executed.
 
 For a `command` shape of `bash scripts/verify-*.sh`, the inner `bash` token
 resolves via PATH, and on macOS that finds the system `/bin/bash` (3.2.57)

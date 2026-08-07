@@ -134,27 +134,17 @@ _got="$(fixture_consumer_dirs_for "${_repo}")"
 assert_contains "golden_snapshot_selects_golden_corpus_gate" "./cmd/golden-corpus-gate" "${_got}"
 assert_not_contains "golden_snapshot_does_not_select_internal_runtime" "./internal/runtime" "${_got}"
 
-# #5939 review: specs/ci-gates.v1.yaml and .github/workflows/*.yml are read by
-# internal/cigates' real-registry tests (TestScriptWorkflowSoundSubsetCount
-# among them), but neither is a Go package -- folded in from the awk-based
-# text-extraction pin #5939 added directly to
-# scripts/test-pre-pr-whole-module-gates.sh, which this behavioural suite
-# replaces (eshu-hq/eshu#5938/#5939 rebase).
+# #5944 makes ci-gate-registry's local.test_command execute its self-tests for
+# registry and workflow changes. The focused Go-package fixture mapping must
+# not also select internal/cigates, or make pre-pr runs the same package suite
+# twice.
 _repo="$(changed_repo registry_only specs/ci-gates.v1.yaml)"
 _got="$(fixture_consumer_dirs_for "${_repo}")"
-assert_contains "registry_only_selects_internal_cigates" "./internal/cigates" "${_got}"
+assert_empty "registry_only_uses_ci_gate_test_command" "${_got}"
 
 _repo="$(changed_repo workflow_only .github/workflows/verify-ci-gate-registry.yml)"
 _got="$(fixture_consumer_dirs_for "${_repo}")"
-assert_contains "workflow_only_selects_internal_cigates" "./internal/cigates" "${_got}"
-
-# The specs/ branch is exact-match ($-anchored), matching the CLAUDE/AGENTS
-# pattern's own trailing-suffix case below -- an unanchored prefix would
-# over-trigger on e.g. a backup or generated sibling file that merely starts
-# with the registry's name.
-_repo="$(changed_repo registry_lookalike specs/ci-gates.v1.yaml.bak)"
-_got="$(fixture_consumer_dirs_for "${_repo}")"
-assert_not_contains "registry_lookalike_is_not_the_exact_registry_file" "./internal/cigates" "${_got}"
+assert_empty "workflow_only_uses_ci_gate_test_command" "${_got}"
 
 # Mirrors nested_claude_md_is_not_the_root_canon_file below: the golden branch
 # had no case pinning its leading `^`, so dropping it (making the pattern match

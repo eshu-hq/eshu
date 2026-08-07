@@ -13,7 +13,9 @@
 // required when local is absent). A local-only gate can carry local_only_reason
 // so callers that require proof orchestration can distinguish intentional local
 // proofs from stale CI metadata. The result is a *Registry whose Gates slice
-// preserves the YAML order for deterministic output.
+// preserves the YAML order for deterministic output. Local.TestCommand remains
+// declarative in this package; cmd/ci-gates executes a distinct, non-empty
+// self-test after the primary command.
 //
 // # Selection
 //

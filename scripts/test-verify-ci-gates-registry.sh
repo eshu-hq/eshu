@@ -51,9 +51,9 @@ require "id field present"  "  - id:"         "${registry}"
 require "triggers present"  "    triggers:"   "${registry}"
 require "ci_only_reason"    "ci_only_reason:" "${registry}"
 
-# The registry validator proves test_command scripts exist but does not execute
-# them. Keep the CI mirror explicit so the cache-isolation regression cannot be
-# present in metadata while absent from the workflow that claims to run it.
+# The local runner executes test_command, while the registry validator only
+# proves its scripts exist. Keep the CI mirror explicit so the cache-isolation
+# regression runs in both local promotion and the workflow that claims it.
 [[ -f "${registry_workflow}" ]] || fail "missing ${registry_workflow}"
 require "pre-pr cache-isolation CI mirror" \
 	"scripts/test-pre-pr-whole-module-gates.sh" \

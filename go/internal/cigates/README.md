@@ -27,7 +27,7 @@ It answers two related questions:
 
 ## Registry format
 
-The registry lives at `specs/ci-gates.v1.yaml`. Each gate entry has a stable kebab-case id, a tier, a set of path-glob triggers, an optional local command, and a CI workflow reference. Gates whose `local` field is absent are CI-only and always require a non-empty `ci_only_reason`. Gates with a local command but no CI workflow are local-only and must carry a non-empty `local_only_reason` when used as replay proof gates.
+The registry lives at `specs/ci-gates.v1.yaml`. Each gate entry has a stable kebab-case id, a tier, a set of path-glob triggers, an optional local command, an optional local self-test command, and a CI workflow reference. The CLI runs a selected gate's command followed by its distinct, non-empty self-test command; byte-identical pairs run once. Gates whose `local` field is absent are CI-only and always require a non-empty `ci_only_reason`. Gates with a local command but no CI workflow are local-only and must carry a non-empty `local_only_reason` when used as replay proof gates.
 
 The top-level `required_status_checks` manifest mirrors the contexts expected in
 the effective `main` ruleset. Exactly one entry sets

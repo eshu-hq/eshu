@@ -16,6 +16,9 @@ Scoped rules for editing the CI gate CLI. Load `golang-engineering`.
   and the `/bin/sh -c` dispatch in `executeGates`.
 - **Accumulate, never stop early.** `executeGates` must run all selected gates
   even when a blocking gate fails. The exit code is set at the end.
+- **Self-tests are executable policy.** A selected gate runs `local.command`
+  and then a distinct, non-empty `local.test_command`; byte-identical pairs run
+  once. A primary-command failure does not suppress the self-test.
 - **Advisory failures do not fail the exit code.** Only `Gate.Blocking==true`
   failures contribute to a non-zero exit.
 - **`--paths-from` enables hermetic tests.** Any test that needs deterministic

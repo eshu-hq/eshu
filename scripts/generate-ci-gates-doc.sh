@@ -42,7 +42,9 @@ gate_count="$(rg -c '^  - id: ' "${registry}")"
 	printf '[Run the proof suite](../guides/run-the-proof-suite.md) for how `make pre-pr`\n'
 	printf 'and `make prove` select from this table, and\n'
 	printf '[Local Testing](local-testing.md) for the full verification map.\n\n'
-	printf 'The registry currently defines %s gates. A row with no local command is\n' "${gate_count}"
+	printf 'The registry currently defines %s gates. Local execution runs the primary\n' "${gate_count}"
+	printf 'command first, then a distinct self-test when one is registered; byte-identical\n'
+	printf 'pairs run once. A row with no primary local command is\n'
 	printf 'CI-only (it needs a credential, a service container, or hosted infrastructure\n'
 	printf 'a laptop does not have); a row marked as an alias shares its check with the\n'
 	printf 'gate its reason names, under a different git hook stage.\n\n'
@@ -51,7 +53,7 @@ gate_count="$(rg -c '^  - id: ' "${registry}")"
 	printf 'blocking row, waits for its exact workflow/check identity on the pull request\n'
 	printf 'head, and fails closed on a failed, skipped, missing, or timed-out check.\n'
 	printf 'Advisory rows remain visible but do not block merge.\n\n'
-	printf '| Gate id | Name | Category | Tier | Blocking | Local command | CI workflow / job | Triggers |\n'
+	printf '| Gate id | Name | Category | Tier | Blocking | Local execution | CI workflow / job | Triggers |\n'
 	printf '| --- | --- | --- | --- | --- | --- | --- | --- |\n'
 
 	awk -f "${lib_dir}/ci-gates-doc-parse.awk" "${registry}"

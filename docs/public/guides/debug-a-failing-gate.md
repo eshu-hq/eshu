@@ -1,6 +1,6 @@
 <!-- docs-catalog
 title: Debug A Failing Ifá Gate
-description: Per-gate triage for the six Ifá CI gates, with the exact local command to reproduce each one.
+description: Per-gate triage for the six Ifá CI gates, with the exact local execution needed to reproduce each one.
 type: how-to
 audience: practitioner
 entrypoint: true
@@ -9,9 +9,12 @@ landing: false
 
 # Debug a failing Ifá gate
 
-Each Ifá gate proves a different failure mode. Start with the exact local
-command from `specs/ci-gates.v1.yaml` — it is the same command CI runs, so a
-local red is the real red, not a CI-only artifact.
+Each Ifá gate proves a different failure mode. Start with the failing `RUN` or
+`TEST` command from the generated
+[CI gates reference](../reference/ci-gates.md). Its `Local execution` column
+lists the primary command followed by any distinct self-test in the same order
+as `ci-gates run`, so a local red exercises the reported path rather than a
+different or incomplete command.
 
 ## `ifa-contract-layer`
 
@@ -110,9 +113,11 @@ mirror expects.
 
 ## General triage order
 
-1. Reproduce with the exact `local.command` from
-   [CI gates reference](../reference/ci-gates.md) before touching anything —
-   confirm the failure is real, not a stale build artifact.
+1. Reproduce the failing `RUN` or `TEST` entry from the generated
+   [CI gates reference](../reference/ci-gates.md) before touching anything.
+   When the runner reported `TEST`, use the self-test shown after the primary
+   command in `Local execution`; running only the primary command cannot
+   reproduce that failure.
 2. If it is a hermetic mirror, check whether the real Docker-backed gate
    still fails the same way. A mirror failure that the real gate does not
    reproduce is a mirror bug, not a platform bug.
