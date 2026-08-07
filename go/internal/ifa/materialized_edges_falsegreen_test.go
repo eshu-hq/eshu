@@ -17,9 +17,11 @@ import (
 // honest-green case FIRST (apirecording discipline, mirrored from
 // coverage_falsegreen_test.go): the real manifest's materialized_edges:
 // sql_relationships must resolve covered for the determinism (baseline) gate
-// before either deliberate break below is trusted to mean anything. Only the
-// baseline is a covered claim; SQL delta is checked separately below and the
-// fault gate is waived (#5555), not resolved.
+// before either deliberate break below is trusted to mean anything. SQL delta
+// is checked separately below; the fault gate (also resolved, via the same
+// resolver, bound to a separate manifest row -- #5555) has its own coverage
+// in materialized_edges_lockstep_test.go and
+// materialized_edges_waiver_granularity_test.go.
 func TestMaterializedEdgeFalseGreenBaselineSQLRelationshipsCovered(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)

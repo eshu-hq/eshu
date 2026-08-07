@@ -63,9 +63,8 @@ func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 		t.Fatal("materialized-edge coverage gate failed in blocking mode: every family must be either covered (both scenario types) or waived with a tracked issue")
 	}
 
-	// sql_relationships has genuinely-proven BASELINE and DELTA rows under the
-	// ifa-determinism matrix. The FAULT row is NOT covered — it is a
-	// confirmed-false fault (#5555) that is waived, not proven.
+	// sql_relationships has genuinely-proven BASELINE, DELTA, and (#5555)
+	// FAULT rows under the ifa-determinism / ifa-fault-injection matrices.
 	baseline := findMaterializedEdgeCoverage(t, cov, MaterializedEdgeSurfacePrefix+"sql_relationships", replaycoverage.ScenarioTypeBaseline)
 	if baseline.Status != replaycoverage.StatusCovered {
 		t.Errorf("materialized_edges:sql_relationships (baseline) status = %q, detail=%q, want covered", baseline.Status, baseline.Detail)
@@ -75,8 +74,8 @@ func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 		t.Errorf("materialized_edges:sql_relationships (delta_tombstone) status = %q, detail=%q, want covered", delta.Status, delta.Detail)
 	}
 	fault := findMaterializedEdgeCoverage(t, cov, MaterializedEdgeSurfacePrefix+"sql_relationships", replaycoverage.ScenarioTypeFault)
-	if fault.Status == replaycoverage.StatusCovered {
-		t.Errorf("materialized_edges:sql_relationships (fault) status = %q, want NOT covered (waived on #5555, not proven)", fault.Status)
+	if fault.Status != replaycoverage.StatusCovered {
+		t.Errorf("materialized_edges:sql_relationships (fault) status = %q, detail=%q, want covered (#5555 closed: cell_killworker_sql / cell_failgraphwrite_sql provably target the SQL work item and proved green live)", fault.Status, fault.Detail)
 	}
 
 	// Every OTHER allProjectionDomains family must be waived on BOTH gates, not
@@ -84,13 +83,13 @@ func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 	// neither coverage nor waivers is the exact drift this gate exists to catch —
 	// proven not to slip past by gate.Failed() above, but assert the waiver keys
 	// directly too so a future family added without either a coverage row or a
-	// waiver fails loudly here). sql_relationships is asserted separately: its
-	// baseline is covered (no waiver) and only its fault gate is waived.
+	// waiver fails loudly here). sql_relationships is asserted separately: both
+	// its baseline and fault gates are now covered, so it must carry NO waiver.
 	byKey := materializedEdgeWaiversByKey(waivers)
 	for _, f := range families {
 		if f == "sql_relationships" {
-			if _, ok := byKey[materializedEdgeWaiverKey{Surface: MaterializedEdgeSurfacePrefix + f, ProofGate: materializedEdgeProofGateFault}]; !ok {
-				t.Error("sql_relationships fault gate must carry a waiver (#5555)")
+			if _, ok := byKey[materializedEdgeWaiverKey{Surface: MaterializedEdgeSurfacePrefix + f, ProofGate: materializedEdgeProofGateFault}]; ok {
+				t.Error("sql_relationships fault is proven (#5555 closed); it must NOT carry a waiver")
 			}
 			if _, ok := byKey[materializedEdgeWaiverKey{Surface: MaterializedEdgeSurfacePrefix + f, ProofGate: materializedEdgeProofGateBaseline}]; ok {
 				t.Error("sql_relationships baseline is proven; it must NOT carry a waiver")

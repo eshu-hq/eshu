@@ -175,11 +175,14 @@ func TestMaterializedEdgeBaselineWaiverDoesNotGreenFault(t *testing.T) {
 	}
 }
 
-// TestMaterializedEdgeSQLFaultHonestlyWaived proves the #5351 honest landing
-// shape against the REAL committed manifest and waivers: the SQL baseline row
-// is genuinely covered (green), the SQL fault row is WAIVED (advisory, not
-// covered) and its finding prints the tracked defect issue #5555.
-func TestMaterializedEdgeSQLFaultHonestlyWaived(t *testing.T) {
+// TestMaterializedEdgeSQLFaultHonestlyProven proves the #5555 honest landing
+// shape against the REAL committed manifest and waivers: the SQL baseline AND
+// fault rows are BOTH genuinely covered (green), and sql_relationships
+// carries no waiver on either proof gate. Before #5555, this same shape
+// asserted the opposite -- the fault row was WAIVED, not covered, because the
+// fault was confirmed-false (anchored to a CloudResource MERGE, never
+// exercising the SQL work item). See git history for that prior shape.
+func TestMaterializedEdgeSQLFaultHonestlyProven(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
 	specsDir := filepath.Join(repoRoot, "specs")
@@ -211,19 +214,25 @@ func TestMaterializedEdgeSQLFaultHonestlyWaived(t *testing.T) {
 		t.Errorf("sql_relationships baseline status = %q, want covered", baseline.Status)
 	}
 
-	// Fault: NOT covered — it must be uncovered (no coverage row) and softened
-	// by the waiver, never a resolved "covered" claim.
+	// Fault: genuinely covered (#5555 closed) -- the fault-injection matrix's
+	// cell_killworker_sql / cell_failgraphwrite_sql cells provably target the
+	// SQL work item and proved green live.
 	fault := findMaterializedEdgeCoverage(t, cov, MaterializedEdgeSurfacePrefix+"sql_relationships", replaycoverage.ScenarioTypeFault)
-	if fault.Status == replaycoverage.StatusCovered {
-		t.Error("sql_relationships fault must NOT be covered; the confirmed-false fault (#5555) is waived, not proven")
+	if fault.Status != replaycoverage.StatusCovered {
+		t.Errorf("sql_relationships fault status = %q, want covered (#5555 closed)", fault.Status)
 	}
 
 	faultFinding := findFinding(t, gate, MaterializedEdgeSurfacePrefix+"sql_relationships|fault")
 	if !faultFinding.OK || faultFinding.Required {
-		t.Errorf("waived sql fault row must be advisory OK, got %+v", faultFinding)
+		t.Errorf("covered sql fault row must be OK and not required, got %+v", faultFinding)
 	}
-	if !strings.Contains(faultFinding.Detail, "#5555") {
-		t.Errorf("waived sql fault finding must print the tracked issue #5555, got detail %q", faultFinding.Detail)
+	if strings.Contains(faultFinding.Detail, "#5555") {
+		t.Errorf("a genuinely covered sql fault finding must not read like a waiver naming #5555, got detail %q", faultFinding.Detail)
+	}
+
+	byKey := materializedEdgeWaiversByKey(waivers)
+	if _, ok := byKey[materializedEdgeWaiverKey{Surface: MaterializedEdgeSurfacePrefix + "sql_relationships", ProofGate: materializedEdgeProofGateFault}]; ok {
+		t.Error("sql_relationships fault is proven (#5555 closed); it must carry no waiver")
 	}
 }
 
