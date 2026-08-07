@@ -71,15 +71,18 @@ datapoint with
 same outcome, attempts, and configured deadline. Slow, deadline, and
 unavailable reads emit one sanitized `query.graph_read.warning` event.
 
-## Prior source-commit runtime proof
+## Prior branch-revision runtime proof
 
-The source implementation at commit `3de4afa5c8` was exercised in an isolated
-branch-built API and MCP run using NornicDB v1.1.11 at digest
+During PR #5727, the source implementation was exercised from a pre-squash
+branch revision in an isolated API and MCP run using NornicDB v1.1.11 at digest
 `sha256:51b6174ae65e4ce54a158ac2f9eace7d36a1971545824d22add0fe06d94c1090`.
-Both services used that commit's production `Neo4jReader` wiring and canonical
-truth envelope. These timings are retained as source-commit evidence, not
-represented as a fresh live run of the current port. Timings include the HTTP
-transport boundary.
+The durable landing points are `Neo4jReader.Run` in `neo4j.go`,
+`Neo4jReader.runReadAttempts` in `neo4j_read_policy.go`, and the focused
+`TestNeo4jReaderPolicyDeadlineIsPublicGraphDeadline` regression in
+`neo4j_read_policy_test.go`. Both services used that production reader wiring
+and canonical truth envelope. These timings preserve the pre-squash branch run;
+they were not rerun on PR #5727's squash commit or against the current port.
+Timings include the HTTP transport boundary.
 
 | Case | API | MCP |
 | --- | --- | --- |

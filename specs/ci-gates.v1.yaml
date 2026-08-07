@@ -1042,6 +1042,27 @@ gates:
     requirements: []
     ci_only_reason: ""
 
+  - id: query-doc-commit-refs
+    name: Query doc commit reference guard
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/query/*.md"
+      - "go/internal/queryplan/*.md"
+      - "scripts/verify-query-doc-commit-refs.sh"
+      - "scripts/test-verify-query-doc-commit-refs.sh"
+      - "specs/ci-gates.v1.yaml"
+      - ".github/workflows/static-contract-gates.yml"
+    local:
+      command: "bash scripts/verify-query-doc-commit-refs.sh"
+      test_command: "bash scripts/test-verify-query-doc-commit-refs.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify query-doc-commit-refs gate"
+    requirements: []
+    ci_only_reason: ""
+
   - id: doc-citations
     name: Doc test/fixture citation existence
     category: exactness
