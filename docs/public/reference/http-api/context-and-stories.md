@@ -2,7 +2,6 @@
 
 Use this page for entity resolution, context reads, incident/work-item evidence,
 catalog navigation, and response rules shared by story and deployment routes.
-The route list remains verified against `go/internal/query`.
 
 ## Route Map
 
@@ -17,14 +16,6 @@ The route list remains verified against `go/internal/query`.
 | Deployment trace and configuration influence | [Deployment trace and influence](deployment-trace-and-influence.md) |
 
 OpenAPI remains canonical for full request and response schemas.
-
-## Shared Response Contract
-
-Programmatic clients that need route-to-route comparison should request the
-canonical envelope with `Accept: application/eshu.envelope+json`. Repository,
-entity, workload, and service context/story routes then return `data`, `truth`,
-and `error` at the top level. Plain HTTP clients that do not request the
-envelope keep the legacy route payload shape.
 
 ## Entity Resolution
 
@@ -275,6 +266,14 @@ See the [intelligence report contract](story-routes.md#intelligence-report).
 
 See [story response details](story-routes.md#story-response-details).
 
+## Shared Response Contract
+
+Programmatic clients that need route-to-route comparison should request the
+canonical envelope with `Accept: application/eshu.envelope+json`. Repository,
+entity, workload, and service context/story routes then return `data`, `truth`,
+and `error` at the top level. Plain HTTP clients that do not request the
+envelope keep the legacy route payload shape.
+
 ### Evidence boundaries
 
 Repository, workload, and service story responses and deployment trace may
@@ -426,10 +425,6 @@ exposed, and the caller is already authorized for the service the count hangs
 off. The behavior is deliberate: suppressing the flag for scoped callers would
 return an empty or clipped answer that reads as complete, which is the worse
 failure for a product whose answers are meant to be evidence-backed.
-
-Deployment configuration influence reports missing or inconsistent bound
-metadata in `limitations` and fails coverage closed. The route-specific inputs
-and outputs are documented on the deployment page.
 
 ## Service Investigation
 

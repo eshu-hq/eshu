@@ -164,8 +164,8 @@ The deployment configuration influence route accepts `service_name` or
 caller asks which repositories and files influence image tags, runtime
 settings, resource limits, values layers, or rendered Kubernetes resources.
 The response preserves `deployment_source_limits` and `k8s_resource_limits` and
-folds upstream truncation or lower-bound state into `coverage`. Missing or
-inconsistent bound metadata follows the shared response contract and fails
-coverage closed.
+folds upstream truncation or lower-bound state into `coverage`. Deployment
+configuration influence reports missing or inconsistent bound metadata in
+`limitations` and fails coverage closed.
 Ambiguous service or workload selectors return HTTP 409. Rendered targets and
 image sources are derived only from rows that survived the published bounds.
