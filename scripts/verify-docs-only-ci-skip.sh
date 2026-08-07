@@ -21,27 +21,22 @@
 # `code` block, and #5818 burned ~118 runner-minutes on a five-markdown-file PR
 # because `code` evaluated true and every heavy Go lane ran.
 #
-# The cause recorded here at the time — that `!*.md` is ROOT-ANCHORED and so
-# never matched the nested `.agents/skills/**/*.md` files that PR touched — was
-# only half the story, and #5896 found the other half: dorny@v3 defaults to
-# `predicate-quantifier: some`, under which a file is included as soon as ONE
-# pattern matches. `**` always matches, so NO negation could subtract, however
-# it was anchored. The `!.agents/**` entry added as the #5818 fix was therefore
-# inert from the day it landed. Anchoring is still worth understanding (it
-# decides which markdown counts as code once the quantifier is right), but the
-# operative fix was `predicate-quantifier: 'every'`. Three checks below catch
-# the class going forward:
+# The cause recorded here at the time — `!*.md` being ROOT-ANCHORED, so it never
+# matched that PR's nested `.agents/skills/**/*.md` — was not the operative one.
+# #5896 found it: dorny@v3 defaults to `predicate-quantifier: some`, under which
+# `**` matches first and NO negation subtracts, however it is anchored. The
+# `!.agents/**` added as the #5818 fix was inert from the day it landed.
+# Anchoring still decides which markdown counts as code, but only once
+# `predicate-quantifier: 'every'` is set. Three checks below catch the class:
 #   1. the three copies of the `code` filter must stay byte-identical (a fix
 #      applied to only one copy is exactly how #5818-shaped drift starts);
 #   2. no registry gate whose CI job is one of these workflows' code-gated jobs
 #      may declare a trigger path that the filter's negations would swallow
 #      (the filter's negation style over-covers safely in the other direction,
-#      so this is a one-way superset check). Note this check only started
-#      guarding anything real once the quantifier was fixed: while the
-#      negations were inert they could not swallow a trigger path either;
+#      so this is a one-way superset check, and it only guards anything real
+#      once check 3's quantifier is set — inert negations swallow nothing;
 #   3. every copy must set `predicate-quantifier: 'every'`, without which the
-#      negations go back to being decorative and check 2 goes back to being
-#      vacuous (#5896).
+#      negations are decorative again and check 2 goes vacuous (#5896).
 set -uo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -418,20 +413,15 @@ else
 	diff <(printf '%s\n' "${block_test}") <(printf '%s\n' "${block_mcp}") >&2 || true
 fi
 
-# --- #5896 regression guard: every copy of the filter must set
-# predicate-quantifier: 'every'. dorny/paths-filter@v3 defaults to `some`,
-# which includes a file as soon as ONE pattern matches — and `**` always
-# matches, so under the default the five `!` negations above are dead text and
-# `code` is true for every PR. Deleting this one line is invisible in review
-# (the negations still READ as if they exclude docs) and silently restores the
-# ~118-runner-minute waste of #5818, so it is asserted rather than remembered.
-# The value is checked literally: v3 accepts exactly 'every' or 'some' and
-# treats anything else as the default, so a typo fails open. ---
+# --- #5896 regression guard: every copy must set predicate-quantifier:
+# 'every'. Without it dorny@v3 defaults to `some`, `**` matches first, and the
+# five `!` negations are dead text — invisible in review, since they still READ
+# as exclusions, and silently restoring #5818's ~118-runner-minute waste.
+# Checked literally: v3 accepts only {'every','some'}, typos become the default. ---
 quantifier_missing=""
 for wf in "${t}" "${s}" "${m}"; do
-	if ! rg -q "^[[:space:]]*predicate-quantifier:[[:space:]]*'every'[[:space:]]*$" "${wf}"; then
-		quantifier_missing="${quantifier_missing} $(basename "${wf}")"
-	fi
+	rg -q "^[[:space:]]*predicate-quantifier:[[:space:]]*'every'[[:space:]]*$" "${wf}" \
+		|| quantifier_missing="${quantifier_missing} $(basename "${wf}")"
 done
 if [[ -n "${quantifier_missing}" ]]; then
 	bad "missing \`predicate-quantifier: 'every'\` in:${quantifier_missing} — without it dorny defaults to \`some\`, \`**\` short-circuits, and every \`!\` negation in the code: filter is inert (#5896)"
