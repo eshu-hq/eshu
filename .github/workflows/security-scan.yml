@@ -123,6 +123,11 @@ jobs:
           # under `some` no negation subtracts, however it is anchored, so the
           # root-anchoring of `!*.md` was never the operative cause of those
           # ~118 wasted runner-minutes.
+          #
+          # Scoped deliberately to the three filters that HAVE negations. Do not
+          # copy this line to static-contract-gates.yml: its filters are all
+          # positive patterns, and 'every' would require a file to match every
+          # one of them at once, selecting almost nothing.
           predicate-quantifier: 'every'
           # `code` is true when ANY changed file is outside the docs set. The
           # bare `*.md` negation is ROOT-ANCHORED (no `/` in the pattern), so it
