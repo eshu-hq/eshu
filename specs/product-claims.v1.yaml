@@ -94,13 +94,13 @@ claims:
     source:
       path: README.md
       line: 59
-      quote: "| Security and IAM posture | Surface hardcoded secrets, secret-access paths, and IAM trust and privilege chains with the evidence behind each finding. <!-- capability-state: id=security.hardcoded_secrets state=general_availability --> <!-- capability-state: id=secrets_iam.secret_access_paths.list state=experimental --> <!-- product-claim: id=readme.security-iam.evidence-backed-findings --> |"
+      quote: "| Security and IAM posture | Surface hardcoded secrets, secret-access paths, and IAM trust and privilege chains with the evidence behind each finding. <!-- capability-state: id=security.hardcoded_secrets state=general_availability --> <!-- capability-state: id=secrets_iam.secret_access_paths.list state=gated --> <!-- product-claim: id=readme.security-iam.evidence-backed-findings --> |"
     claim_text: "Security and IAM posture reads expose hardcoded secrets, secret-access paths, and IAM trust or privilege chains with backing evidence."
     capabilities:
       - id: security.hardcoded_secrets
         claimed_maturity: general_availability
       - id: secrets_iam.secret_access_paths.list
-        claimed_maturity: experimental
+        claimed_maturity: gated
     truth_level: derived
     owner_packages: [internal/query, internal/collector/vulnerabilityintelligence]
     implementation_paths: [go/internal/query, go/internal/collector/vulnerabilityintelligence]

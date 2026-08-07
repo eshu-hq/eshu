@@ -185,6 +185,31 @@ capabilities:
     maturity: gated
     maturity_reason: "CI/CD run correlations are populated by the ci_cd_run collector polling the provider run API (for example GitHub Actions), which is off in a default deploy (no compose service, Helm enabled: false). It is enabled only by supplying ESHU_COLLECTOR_INSTANCES_JSON with a ci_cd_run instance plus a provider token; a default git-only deploy returns an empty page."
     linked_issues: [3496, 3480]
+  - capability: secrets_iam.identity_trust_chains.list
+    owner_package: internal/query
+    maturity: gated
+    maturity_reason: "Reducer secrets/IAM read models are written only when the secrets/IAM graph projection domain is registered, which requires the operator to set ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED. That flag is off by default in the repository, chart, and operator defaults, so a stock deploy serves this surface as an empty page rather than a populated one. See docs/internal/design/1314-secrets-iam-graph-activation-record.md."
+    linked_issues: [5552, 5681]
+  - capability: secrets_iam.privilege_posture_observations.list
+    owner_package: internal/query
+    maturity: gated
+    maturity_reason: "Reducer secrets/IAM read models are written only when the secrets/IAM graph projection domain is registered, which requires the operator to set ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED. That flag is off by default in the repository, chart, and operator defaults, so a stock deploy serves this surface as an empty page rather than a populated one. See docs/internal/design/1314-secrets-iam-graph-activation-record.md."
+    linked_issues: [5552, 5681]
+  - capability: secrets_iam.secret_access_paths.list
+    owner_package: internal/query
+    maturity: gated
+    maturity_reason: "Reducer secrets/IAM read models are written only when the secrets/IAM graph projection domain is registered, which requires the operator to set ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED. That flag is off by default in the repository, chart, and operator defaults, so a stock deploy serves this surface as an empty page rather than a populated one. See docs/internal/design/1314-secrets-iam-graph-activation-record.md."
+    linked_issues: [5552, 5681]
+  - capability: secrets_iam.posture_gaps.list
+    owner_package: internal/query
+    maturity: gated
+    maturity_reason: "Reducer secrets/IAM read models are written only when the secrets/IAM graph projection domain is registered, which requires the operator to set ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED. That flag is off by default in the repository, chart, and operator defaults, so a stock deploy serves this surface as an empty page rather than a populated one. See docs/internal/design/1314-secrets-iam-graph-activation-record.md."
+    linked_issues: [5552, 5681]
+  - capability: secrets_iam.posture_summary.read
+    owner_package: internal/query
+    maturity: gated
+    maturity_reason: "Reducer secrets/IAM read models are written only when the secrets/IAM graph projection domain is registered, which requires the operator to set ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED. That flag is off by default in the repository, chart, and operator defaults, so a stock deploy serves this surface as an empty page rather than a populated one. See docs/internal/design/1314-secrets-iam-graph-activation-record.md."
+    linked_issues: [5552, 5681]
 
 # MCP tools that the matrix tools field does not reference. A capability maps
 # the tool to an existing entry as an alias surface; an empty capability marks a
