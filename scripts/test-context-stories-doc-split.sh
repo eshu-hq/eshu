@@ -347,6 +347,17 @@ hide_line_in_multiline_comment() {
   mv "$output" "$file"
 }
 
+hide_line_after_chained_comment() {
+  local target="$1"
+  local file="$2"
+  local output="${file}.chained-comment.tmp"
+  awk -v target="$target" '
+    $0 == target { print "<!-- closed --> <!--"; print; print "-->"; next }
+    { print }
+  ' "$file" >"$output"
+  mv "$output" "$file"
+}
+
 expect_mutation_failure() {
   local label="$1"
   local root="$2"
@@ -356,6 +367,22 @@ expect_mutation_failure() {
   fi
   printf 'ok - %s\n' "$label"
 }
+
+scanner_fixture="${tmp_root}/visible-scanner-transitions.md"
+printf '%s\n' \
+  'visible <!-- one -->prefix<!-- two --> suffix' \
+  '<!-- open' \
+  '-->close suffix' \
+  '~~~~' \
+  '<!-- unmatched opener inside fence' \
+  '~~~~' \
+  'visible after fence' >"$scanner_fixture"
+[ "$(scan_visible_markdown_regex '^visible.*prefix.* suffix$' "$scanner_fixture" count)" -eq 1 ] \
+  || fail 'visible scanner lost text around multiple closed comments'
+[ "$(scan_visible_markdown_regex '^.*close suffix$' "$scanner_fixture" count)" -eq 1 ] \
+  || fail 'visible scanner lost text after a multiline comment close'
+[ "$(scan_visible_markdown_regex '^visible after fence$' "$scanner_fixture" count)" -eq 1 ] \
+  || fail 'comment tokens inside a fence changed scanner state'
 
 verify_layout "$repo_root"
 printf 'ok - real three-page route and anchor contract\n'
@@ -431,6 +458,20 @@ mutation_root="$(seed_mutation_repo multiline-commented-route-row)"
 hide_line_in_multiline_comment "$owned_route_row" \
   "${mutation_root}/docs/public/reference/http-api/story-routes.md"
 expect_mutation_failure "route row hidden by a multiline comment is rejected" "$mutation_root"
+
+mutation_root="$(seed_mutation_repo chained-commented-route-row)"
+hide_line_after_chained_comment "$owned_route_row" \
+  "${mutation_root}/docs/public/reference/http-api/story-routes.md"
+expect_mutation_failure "route row hidden after chained comments is rejected" "$mutation_root"
+
+mutation_root="$(seed_mutation_repo comment-close-prefixed-route-row)"
+story_file="${mutation_root}/docs/public/reference/http-api/story-routes.md"
+awk -v target="$owned_route_row" '
+  $0 == target { print "<!--"; print "-->" $0; next }
+  { print }
+' "$story_file" >"${story_file}.tmp"
+mv "${story_file}.tmp" "$story_file"
+expect_mutation_failure "route row prefixed by a comment close is rejected" "$mutation_root"
 
 mutation_root="$(seed_mutation_repo fenced-backtick-route-row)"
 hide_line_in_long_fence '`' "$owned_route_row" \

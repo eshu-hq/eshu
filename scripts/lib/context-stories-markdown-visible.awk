@@ -1,6 +1,8 @@
 # Scan visible Markdown lines for a caller-supplied anchored regular expression.
-# The caller sets pattern and mode=count|line. HTML comments and fenced code do
-# not contribute matches; fence closing follows CommonMark character and length
+# The caller sets pattern and mode=count|line. HTML comments are replaced by
+# opaque boundaries: visible prefixes and suffixes survive, but a suffix cannot
+# be promoted into Markdown syntax at column zero. Fenced code does not
+# contribute matches. Fence closing follows CommonMark character and length
 # rules so a shorter or different marker cannot expose hidden content.
 
 BEGIN {
@@ -8,6 +10,7 @@ BEGIN {
 		print "context-stories-markdown-visible: invalid pattern or mode" > "/dev/stderr"
 		exit 2
 	}
+	comment_boundary = sprintf("%c", 28)
 }
 
 function is_fence_run(text, closing,    indent, trimmed, char, run, tail) {
@@ -28,21 +31,33 @@ function is_fence_run(text, closing,    indent, trimmed, char, run, tail) {
 	return 1
 }
 
+function visible_with_comment_boundaries(text,    visible, remaining, marker) {
+	visible = ""
+	remaining = text
+	while (remaining != "") {
+		if (in_comment) {
+			marker = index(remaining, "-->")
+			if (!marker) return visible comment_boundary
+			visible = visible comment_boundary
+			remaining = substr(remaining, marker + 3)
+			in_comment = 0
+		} else {
+			marker = index(remaining, "<!--")
+			if (!marker) return visible remaining
+			visible = visible substr(remaining, 1, marker - 1) comment_boundary
+			remaining = substr(remaining, marker + 4)
+			in_comment = 1
+		}
+	}
+	return visible
+}
+
 {
-	line = $0
 	if (in_fence) {
-		if (is_fence_run(line, 1)) in_fence = 0
+		if (is_fence_run($0, 1)) in_fence = 0
 		next
 	}
-	if (in_comment) {
-		if (index(line, "-->")) in_comment = 0
-		next
-	}
-	if (index(line, "<!--")) {
-		after_start = substr(line, index(line, "<!--") + 4)
-		if (!index(after_start, "-->")) in_comment = 1
-		next
-	}
+	line = visible_with_comment_boundaries($0)
 	if (is_fence_run(line, 0)) {
 		in_fence = 1
 		fence_char = detected_char
