@@ -289,9 +289,12 @@ intents before, 1 after) and
 Observability Evidence: `eshu_dp_provenance_edges_total` gains a new `domain`
 label value, `reducer/container-image-base-image`, alongside the existing
 `reducer/container-image-identity` and package domains. No new instrument is
-registered, so the telemetry contract, coverage doc, and operator dashboard are
-unchanged; the projection is visible through the same counter an operator
-already uses for provenance-edge volume, split by domain.
+registered. The bounded outcome and coverage contract now say
+`outcome=submitted`, recorded after each successful DERIVED_FROM writer call.
+Rows from a failed call emit no point; retract errors, empty projections, and
+unwired writers emit none. A missing endpoint remains a submitted writer no-op,
+and a successful retry can count the same identity again, so this is an event
+counter rather than a unique durable-edge gauge.
 
 ## B-12 golden-corpus proof (rc-167)
 

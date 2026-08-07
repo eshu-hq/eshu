@@ -25,14 +25,27 @@ type helmManifest map[string]any
 // empty-password failure path is asserted explicitly elsewhere.
 const defaultHelmNeo4jPassword = "Eshu-Helm-Test-1"
 
-// helmRenderArgs prepends the default compliant Neo4j password to caller args so
-// the shared render helpers never trip the chart's password gate by accident.
+// helmRenderArgs prepends a contract-safe password so shared render helpers do
+// not trip the unrelated literal-credential gate. Targeted failure tests may
+// still override it with a later --set.
 func helmRenderArgs(args ...string) []string {
-	prefixed := []string{"--set-string", "neo4j.auth.password=" + defaultHelmNeo4jPassword}
+	prefixed := []string{
+		"--set-string", "neo4j.auth.password=" + defaultHelmNeo4jPassword,
+	}
 	return append(prefixed, args...)
 }
 
 func renderHelmChart(t *testing.T, args ...string) []helmManifest {
+	t.Helper()
+	return renderHelmChartArgs(t, helmRenderArgs(args...)...)
+}
+
+func renderDefaultHelmChart(t *testing.T) []helmManifest {
+	t.Helper()
+	return renderHelmChartArgs(t)
+}
+
+func renderHelmChartArgs(t *testing.T, args ...string) []helmManifest {
 	t.Helper()
 
 	chartPath := filepath.Join(repositoryRoot(t), "deploy", "helm", "eshu")
@@ -40,7 +53,7 @@ func renderHelmChart(t *testing.T, args ...string) []helmManifest {
 	if err != nil {
 		t.Skipf("helm binary not found in PATH; install Helm to run chart contract tests: %v", err)
 	}
-	cmdArgs := append([]string{"template", "eshu", chartPath}, helmRenderArgs(args...)...)
+	cmdArgs := append([]string{"template", "eshu", chartPath}, args...)
 	cmd := exec.Command(helmPath, cmdArgs...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {

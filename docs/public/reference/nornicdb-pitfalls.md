@@ -262,9 +262,9 @@ recollection. Do not make Eshu silently delete graph data at startup.
 
 ### Observed shape
 
-On both pinned NornicDB backends (v1.1.11 and the PR261/compose-default
-image), every Cypher shape that asks "does this node have any relationship"
-without binding a concrete relationship variable is wrong:
+On both NornicDB backends used for the recorded proof (v1.1.11 and the former
+PR #261 Compose image), every Cypher shape that asks "does this node have any
+relationship" without binding a concrete relationship variable is wrong:
 
 - `NOT (n)--()` (intended: "n has no relationship") always evaluates false --
   it matches nothing, ever, even for a node with zero relationships.
@@ -317,10 +317,10 @@ live proof.
 
 While proving the anti-join replacement, reusing the `UNWIND` binding
 variable's name as the `RETURN ... AS` alias silently broke the query on both
-pinned backends:
+proof backends:
 
 ```cypher
--- BROKEN: returns zero rows on both pinned NornicDB backends, no error
+-- BROKEN: returns zero rows on both proof backends, no error
 UNWIND $keys AS key
 MATCH (n:Label {id: key})-[r]-(m)
 RETURN DISTINCT n.id AS key
@@ -346,15 +346,15 @@ matching rows" without checking for this shadowing shape first.
 -count=1` (the second env-gated on `ESHU_CYPHER_BOLT_DSN`) proves the
 concrete-relationship-variable form and the UNWIND/alias distinction hold, and
 that the anti-join correctly detects a true orphan that the old `NOT
-(n)--()` predicate silently ignored, on both the pinned v1.1.11 and the
-PR261/compose-default NornicDB images.
+(n)--()` predicate silently ignored, on the pinned v1.1.11 and former PR #261
+Compose images used for that proof.
 
 ## Pitfall: `OPTIONAL MATCH` + Aggregate Collapses Every Zero-Match Group Into One Row
 
 ### Observed shape
 
 Measured directly over the HTTP `tx/commit` endpoint and independently via
-`neo4j-go-driver/v5` (both paths reproduce it) against the canonical
+`neo4j-go-driver/v5` (both paths reproduce it) against the then-current
 `eshu-nornicdb-pr261:149245885258` pin:
 
 ```cypher
@@ -459,7 +459,7 @@ full before/after tables including the rejected candidates, the
 
 ### Observed shape
 
-On the pinned PR261/compose-default NornicDB image, combining an inline
+On the former PR #261 Compose image, combining an inline
 property pattern on a `MATCH` with a `WHERE` clause that filters a DIFFERENT
 property silently drops the inline pattern's filter -- the query falls back to
 an unfiltered label scan instead of erroring or returning an unfiltered-but-
@@ -516,7 +516,7 @@ combined-`WHERE` form and explicitly rejects the inline-pattern-plus-trailing-
 
 ### Observed shape
 
-On the pinned PR261/compose-default NornicDB image, `EXISTS { MATCH (pattern)
+On the former PR #261 Compose image, `EXISTS { MATCH (pattern)
 WHERE (filter on the far variable) }` evaluates correctly only for one specific
 shape. Measured against representative and worst-case fixture data (500-1000
 row fan-out) while redesigning the infra scoped-token authorization predicate
@@ -711,9 +711,10 @@ proof above when the pinned NornicDB version changes.
 
 ### Observed shape
 
-On both pinned NornicDB backends (v1.1.11 and the PR261/compose-default image)
-a read query whose primary `MATCH` binds a relationship pattern, followed by one
-or more trailing `OPTIONAL MATCH` clauses with no `WITH` in between, returns
+On both NornicDB backends used for the recorded proof (v1.1.11 and the former
+PR #261 Compose image), a read query whose primary `MATCH` binds a relationship
+pattern, followed by one or more trailing `OPTIONAL MATCH` clauses with no
+`WITH` in between, returns
 every function-call expression in the `RETURN` as its **literal source text**
 instead of the evaluated value. Reproduced identically via the HTTP
 `/db/nornic/tx/commit` endpoint and the real Bolt driver
@@ -806,7 +807,7 @@ for the before/after and the isolated executor characterization.
 
 ### The boundary is wider than "function-call projection"
 
-Measured against the pinned build while proving issue #5694, with a committed
+Measured against the former PR #261 build while proving issue #5694, with a committed
 regression at `go/internal/replay/offlinetier/nornicdb_function_projection_live_test.go`:
 
 | Shape | Column read | Result |
@@ -870,18 +871,18 @@ fail-loud patches more than once. When the fix is a Cypher executor bug:
 This is the standing contract; `.agents/skills/cypher-query-rigor` carries the
 same rule for query authoring.
 
-## Pitfall: A Relationship Property Map Is Not Part Of `MERGE` Identity
+## Pitfall: Older Builds Ignore Relationship Properties In `MERGE` Identity
 
 ### Observed shape
 
 Cypher says `MERGE (a)-[r:REL {k: 'one'}]->(b)` matches only a `REL`
-relationship whose `k` is `'one'`, and creates one otherwise. On the pinned
-NornicDB build the property map is ignored for matching: the second MERGE below
-binds the relationship the first one created, so one edge exists where the
-spec calls for two.
+relationship whose `k` is `'one'`, and creates one otherwise. NornicDB builds
+before orneryd/NornicDB#290 ignored that property map while matching: the second
+`MERGE` bound the relationship the first one created, so one edge existed where
+the specification calls for two.
 
-Measured against `eshu-nornicdb-pr261:149245885258` (the `docker-compose.yaml`
-default) while implementing issue #5691, through Eshu's own Bolt driver:
+This was measured against the former `eshu-nornicdb-pr261:149245885258`
+default while implementing issue #5691, through Eshu's own Bolt driver:
 
 | Statement shape | Rows written | Edges after | `r.k` |
 | --- | --- | --- | --- |
@@ -904,25 +905,36 @@ are whichever row the backend wrote last, with no error and no dead letter —
 the same silent-empty failure class as the other pitfalls on this page, except
 it under-reports rather than empties.
 
-### What to do
+### Fixed default and deployment order
 
-Model the edge so its identity lives in its ENDPOINTS. If a pair of nodes needs
-more than one relationship of a type, either:
+The default `docker-compose.yaml` source pin is now
+`eshu-nornicdb-pr290:3722b483c02c` at merged full revision
+`3722b483c02c38a8e046d198f8768f200f31023c`. The corrected backend includes
+pattern properties in relationship `MERGE` identity for plain, batched, and
+explicit-transaction paths. The #5827 live proof starts with one legacy
+endpoint-only relationship and replays two same-pair assertions in both orders;
+all four Eshu provenance shapes finish with exactly two relationships. Duplicate
+and eight-writer concurrent replays converge, and retracting one assertion
+leaves the other intact.
 
-- fold the rows into one edge and carry only the properties every folded row
-  agrees on — never an arbitrary winner (what `go/internal/projector/canonical_import_extract.go`
-  does for `File-[:IMPORTS]->Module`, so a two-symbol import reports no symbol
-  rather than a coin-flip symbol); or
-- give the distinguishing value its own node and hang the edges off that.
+Roll out the corrected NornicDB build before an Eshu build that makes a
+relationship property part of writer identity. Eshu migration 096 reopens the
+current affected reducer work so normal retract-before-write processing repairs
+legacy collapsed rows; deploying the writer first against an older backend
+would preserve the silent collapse.
 
-### Two shipped writers are affected
+Endpoint modeling remains useful when the distinguishing value is a domain
+entity in its own right. It is no longer required as a backend workaround on
+the corrected PR #290 build.
+
+### Historical impact on two shipped writers
 
 `batchCanonicalCodeownersOwnershipEdgeCypher` (`DECLARES_CODEOWNER`, keyed on
 `pattern`/`source_path`) and `batchCanonicalSubmodulePinEdgeCypher`
 (`PINS_SUBMODULE`, keyed on `path`) were both authored against the Cypher
 semantics, and each carries a doc comment asserting the property key is what
 keeps their edges parallel. On Neo4j it does. Running their EXACT shipped
-statements against the pinned build:
+statements against the former PR #261 build:
 
 | Writer | Rows written | Edges after | Surviving edge |
 | --- | --- | --- | --- |
@@ -937,8 +949,9 @@ backend-required test, so nothing catches it. A repository with two CODEOWNERS
 patterns owned by one team, or two submodules pointing at one target
 repository, is the ordinary case rather than a corner case.
 
-Both need the endpoint-identity treatment above. Until then, do not trust their
-edge counts or their per-edge properties on a NornicDB deployment.
+On the corrected pin these statements retain both relationships and their
+matching properties. Deployments still running an older NornicDB build must not
+trust those edge counts or per-edge properties.
 
 ### Reproducing
 
@@ -951,6 +964,6 @@ NEO4J_USERNAME=neo4j NEO4J_PASSWORD=change-me NEO4J_DATABASE=nornic \
 go test ./internal/replay/offlinetier -run TestCanonicalImportEdgesGraphTruth -count=1 -v
 ```
 
-Re-run it when the pinned NornicDB version changes: if a later build honors the
-property map, the fold stays correct (it is a narrowing, not a lie) but a
-per-symbol edge model becomes available again.
+Re-run it when the pinned NornicDB version changes. The IMPORTS fold remains a
+valid narrowing even though the backend now supports parallel property-keyed
+relationships.

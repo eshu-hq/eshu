@@ -4,7 +4,7 @@
   "description": "Golden graph and query truth snapshot for the B-7 end-to-end corpus gate. B-7 diffs a live run against this file. Update this file under review when intentional graph behaviour changes; never update silently. `corpus_id` is a stable identifier (its historical `-20repo` suffix is not a live count); `corpus_composition.git_repos` is the authoritative repository count.",
   "tolerance_policy": "count ranges are [min, max] inclusive; a live run outside the range fails B-7(b). required_correlations assertions must all pass; a missing edge fails B-7(b). query_shapes define required response fields; a missing field fails B-7(c).",
   "corpus_composition": {
-    "git_repos": 24,
+    "git_repos": 30,
     "credentialed_collectors": [
       "kubernetes_live",
       "aws_cloud",
@@ -23,7 +23,7 @@
       "Repository": {
         "min": 15,
         "max": 30,
-        "note": "24 corpus repos; may include additional discovered mirror stubs"
+        "note": "30 corpus repos; may include additional discovered mirror stubs"
       },
       "File": {
         "min": 40,
@@ -183,14 +183,14 @@
         "note": "PackageVersion\u2192RegistryEvent lifecycle-timeline edges from the package_registry canonical writer's deferred event edge phase (#5458 registry_event slice); the github.com/acme/lib-common@1.0.0 registry_event fact projects this edge to its RegistryEvent node"
       },
       "PUBLISHES": {
-        "min": 1,
+        "min": 2,
         "max": 20,
-        "note": "Repository\u2192Package|PackageVersion package-ownership/publication provenance edge (issue #5457). The package_registry supply-chain-demo cassette's single source_hint for github.com/acme/lib-common carries a canonical version_id (github.com/acme/lib-common@1.0.0), so both PackageSourceCorrelationHandler's ownership path and the publication join-by-version path admit the same exact/derived decision and converge onto ONE Repository(lib-common fixture repo)\u2192PackageVersion edge (MERGE identity ignores evidence_source, so the SAME edge just gets its properties overwritten by whichever call runs last -- publication, since projectPackageProvenanceEdges writes ownership rows then publication rows). Ceiling wide for future fixture package-hint growth; floor 1 catches a projection drop."
+        "note": "Repository\u2192Package|PackageVersion package-ownership/publication provenance edges (issues #5457 and #5827). The package_registry supply-chain-demo cassette's single source_hint for github.com/acme/lib-common carries a canonical version_id (github.com/acme/lib-common@1.0.0), so PackageSourceCorrelationHandler admits independent ownership and publication assertions for the same Repository\u2192PackageVersion pair. The relationship MERGE identity includes scope_id and evidence_source, so both assertions survive as distinct edges. Ceiling wide for future fixture package-hint growth; floor 2 catches either domain collapsing or disappearing."
       },
       "BUILT_FROM": {
         "min": 1,
-        "max": 10,
-        "note": "ContainerImage\u2192Repository container-image-identity provenance edge (issue #5457). The cicdrun supply-chain-demo cassette's ci.run artifact_digest exactly matches the ociregistry cassette's OciImageManifest digest, and the run carries repository_id repository:r_69256c06, so container_image_identity resolves an exact_digest decision with that resolved SourceRepositoryIDs entry, materializing exactly one edge. BUILT_FROM is single-owner today (container_image_identity only); a #5428 reducer/ci-cd-run-correlation writer that would have shared this edge type was implemented and then rescinded before shipping (docs/internal/evidence/5428-built-from-projection-rescinded.md) because the canonical MERGE identity omits evidence_source, so the evidence_kinds isolation rc-165 relies on is not actually provided across writers (#5827). Ceiling wide for future fixture growth; floor 1 catches a projection drop."
+        "max": 40,
+        "note": "ContainerImage\u2192Repository container-image-identity provenance edges (issues #5457 and #5827). The cicdrun supply-chain-demo cassette's ci.run artifact_digest exactly matches the ociregistry cassette's OciImageManifest digest, and the run carries repository_id repository:r_69256c06, so container_image_identity resolves an exact_digest decision with that resolved SourceRepositoryIDs entry. The #5827 identity preserves assertions from distinct scopes instead of collapsing them; the first exact-source full-corpus proof materialized 25, so the ceiling is widened to 40 for bounded fixture growth."
       },
       "CORRELATES_DEPLOYABLE_UNIT": {
         "min": 1,
@@ -1740,15 +1740,26 @@
       },
       {
         "id": "rc-164",
-        "description": "At least one Repository PUBLISHES a PackageVersion (issue #5457, docs/internal/design/5472-graph-projection-policy.md). The package_registry supply-chain-demo cassette's source_hint for github.com/acme/lib-common (hint_kind=repository, normalized_url=https://github.com/acme/lib-common) carries the canonical version_id github.com/acme/lib-common@1.0.0, matching the package_registry.package_version fact's own version_id (the PackageVersion node's uid) exactly. The hint's URL resolves (exact or derived, ESHU_GITHUB_ORG=acme synthesizes the lib-common fixture repo's remote to match) to the in-corpus lib-common fixture Repository, so PackageSourceCorrelationHandler admits BOTH an ownership decision (reducer/package-ownership) and, independently, a publication decision via the same hint's version-keyed join (reducer/package-publication) for the SAME (repository, PackageVersion) pair. Both decisions MERGE onto ONE PUBLISHES edge (Cypher MERGE identity is the pattern only; evidence_source/evidence_kinds are SET, not MERGE keys), so the edge's surviving evidence_kinds is whichever call ran last -- projectPackageProvenanceEdges always writes ownership rows before publication rows within one Handle() invocation, so publication deterministically wins. No other reducer domain writes PUBLISHES (unlike BUILT_FROM, rc-165), so this assertion does not need evidence_kinds narrowing to prove isolation -- it is Tier-1 self-labeling by edge type, the same class as rc-24 HAS_VERSION and rc-9 DEPENDS_ON_PACKAGE (docs/public/reference/edge-source-tool-provenance.md).",
+        "description": "Publication-owned Repository PUBLISHES PackageVersion assertion (issues #5457 and #5827, docs/internal/design/5472-graph-projection-policy.md). The package_registry supply-chain-demo cassette's source_hint for github.com/acme/lib-common carries version_id github.com/acme/lib-common@1.0.0, matching the PackageVersion uid. Its version-keyed publication decision resolves to the in-corpus lib-common Repository. PACKAGE_PUBLICATION_CORRELATION filters to publication-owned assertions after scope_id and evidence_source became relationship identity keys; source_tool is explicitly unknown because the decision carries no truthful ecosystem token.",
         "relationship": "PUBLISHES",
         "from_label": "Repository",
         "to_label": "PackageVersion",
-        "minimum_count": 1
+        "minimum_count": 1,
+        "evidence_kinds": [
+          "PACKAGE_PUBLICATION_CORRELATION"
+        ],
+        "required_edge_properties": [
+          "source_tool"
+        ],
+        "allowed_edge_property_values": {
+          "source_tool": [
+            "unknown"
+          ]
+        }
       },
       {
         "id": "rc-165",
-        "description": "At least one ContainerImage BUILT_FROM a Repository (issue #5457, docs/internal/design/5472-graph-projection-policy.md). The cicdrun supply-chain-demo cassette's ci.run carries artifact_digest sha256:abcdef... (matching the ociregistry cassette's OciImageManifest digest exactly) and repository_id repository:r_69256c06; container_image_identity resolves this as an exact_digest decision with that repository in SourceRepositoryIDs, and ContainerImageIdentityHandler projects it as a BUILT_FROM edge (reducer/container-image-identity), stamping the canonical source_tool token `oci` (docs/public/reference/edge-source-tool-provenance.md). container_image_identity is BUILT_FROM's sole writer today; a #5428 reducer/ci-cd-run-correlation writer that would have shared this edge type was implemented and then rescinded before shipping (docs/internal/evidence/5428-built-from-projection-rescinded.md), because the canonical MERGE identity matches on (start, end, type) only and ignores evidence_source, so a second writer would collapse onto this domain's edge instead of being isolated from it (#5827). This rc still isolates on evidence_kinds=[CONTAINER_IMAGE_IDENTITY_EXACT_DIGEST] -- the token unique to this domain -- but that isolation is a property of this domain's own tagging, not a guarantee that would survive a second BUILT_FROM writer landing before #5827 is fixed.",
+        "description": "At least one ContainerImage BUILT_FROM a Repository (issues #5457 and #5827, docs/internal/design/5472-graph-projection-policy.md). The cicdrun supply-chain-demo cassette's ci.run carries artifact_digest sha256:abcdef... (matching the ociregistry cassette's OciImageManifest digest exactly) and repository_id repository:r_69256c06; container_image_identity resolves this as an exact_digest decision with that repository in SourceRepositoryIDs, and ContainerImageIdentityHandler projects it as a BUILT_FROM edge under reducer/container-image-identity, stamping the canonical source_tool token `oci`. scope_id and evidence_source now participate in relationship MERGE identity, so a future second BUILT_FROM writer or a second scope can assert the same endpoints without collapsing this edge; evidence_kinds keeps the golden assertion bound to this domain.",
         "relationship": "BUILT_FROM",
         "from_label": "ContainerImage",
         "to_label": "Repository",
@@ -1844,6 +1855,25 @@
         "allowed_edge_property_values": {
           "evidence_source": [
             "projector/canonical"
+          ]
+        }
+      },
+      {
+        "id": "rc-172",
+        "description": "Ownership-owned Repository PUBLISHES PackageVersion assertion (issue #5827). The same github.com/acme/lib-common source_hint exercised by rc-164 also admits reducer/package-ownership for the identical Repository and PackageVersion endpoints. Before #5827, endpoint-only relationship identity collapsed ownership and publication into one edge and publication deterministically overwrote ownership. PACKAGE_OWNERSHIP_CORRELATION filters independently from rc-164's publication evidence; source_tool is explicitly unknown because the decision carries no truthful ecosystem token.",
+        "relationship": "PUBLISHES",
+        "from_label": "Repository",
+        "to_label": "PackageVersion",
+        "minimum_count": 1,
+        "evidence_kinds": [
+          "PACKAGE_OWNERSHIP_CORRELATION"
+        ],
+        "required_edge_properties": [
+          "source_tool"
+        ],
+        "allowed_edge_property_values": {
+          "source_tool": [
+            "unknown"
           ]
         }
       }

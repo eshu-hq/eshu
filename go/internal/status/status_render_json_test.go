@@ -100,6 +100,36 @@ func TestRenderJSONNormalizesCoordinatorSnapshot(t *testing.T) {
 	}
 }
 
+func TestRenderJSONIncludesProvenanceEdgeIdentityUpgradeState(t *testing.T) {
+	t.Parallel()
+
+	report := status.BuildReport(
+		status.RawSnapshot{
+			AsOf: time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC),
+			Queue: status.QueueSnapshot{
+				ProvenanceEdgeIdentityUpgradeApplied:  true,
+				ProvenanceEdgeIdentityUpgradeRequired: 2,
+			},
+		},
+		status.DefaultOptions(),
+	)
+
+	payload, err := status.RenderJSON(report)
+	if err != nil {
+		t.Fatalf("RenderJSON() error = %v, want nil", err)
+	}
+
+	body := string(payload)
+	for _, want := range []string{
+		`"provenance_edge_identity_upgrade_applied": true`,
+		`"provenance_edge_identity_upgrade_required": 2`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("RenderJSON() = %s, want %q", payload, want)
+		}
+	}
+}
+
 func TestRenderStatusIncludesRegistryCollectors(t *testing.T) {
 	t.Parallel()
 

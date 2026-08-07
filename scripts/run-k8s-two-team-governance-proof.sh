@@ -26,15 +26,19 @@ set -euo pipefail
 #       [--image-repo REPO] [--image-tag TAG] [--namespace NS] [--release NAME]
 #       [--no-build]
 #
-# Environment overrides mirror the flags (K8S_GOV_*). The chart image must
-# already exist on the cluster's Docker daemon (OrbStack shares the daemon);
-# without --no-build the driver builds eshu:local and a seed image from it.
+# Environment overrides mirror the flags (K8S_GOV_*). Without --no-build, the
+# driver builds the chart image and exact pinned NornicDB image, then builds the
+# seed image from the chart image. With --no-build, the chart and pinned
+# NornicDB images must already exist on the cluster's Docker daemon (OrbStack
+# shares the daemon); the driver still builds the seed image from the chart
+# image.
 
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "$0")/.." && pwd))"
 
 image_repo="${K8S_GOV_IMAGE_REPO:-eshu}"
 image_tag="${K8S_GOV_IMAGE_TAG:-local}"
 seed_image="${K8S_GOV_SEED_IMAGE:-eshu-gov-seed:local}"
+nornicdb_image="eshu-nornicdb-pr290:3722b483c02c"
 release="${K8S_GOV_RELEASE:-eshu}"
 ns_suffix="$(LC_ALL=C tr -dc 'a-z0-9' </dev/urandom 2>/dev/null | head -c 6 || echo "$$")"
 namespace="${K8S_GOV_NAMESPACE:-eshu-gov-proof-${ns_suffix}}"
@@ -127,6 +131,9 @@ kc() { kubectl -n "${namespace}" "$@"; }
 if [[ "${do_build}" == true ]]; then
 	printf '==> building chart image %s:%s\n' "${image_repo}" "${image_tag}"
 	docker build -t "${image_repo}:${image_tag}" -f "${repo_root}/Dockerfile" "${repo_root}" >/dev/null
+	printf '==> building exact relationship-identity backend %s\n' "${nornicdb_image}"
+	NORNICDB_IMAGE="${nornicdb_image}" NORNICDB_PULL_POLICY=build \
+		docker compose -f "${repo_root}/docker-compose.yaml" build nornicdb >/dev/null
 fi
 
 # Two generic fixture repositories (no tenant/provider/private data).

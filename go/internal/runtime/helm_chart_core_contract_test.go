@@ -13,7 +13,15 @@ import (
 func TestHelmNornicDBNoSecretPathKeepsBoltCredentials(t *testing.T) {
 	t.Parallel()
 
-	manifests := renderHelmChart(t, "--set-string", "neo4j.auth.secretName=")
+	manifests := renderHelmChart(
+		t,
+		"--set", "nornicdb.enabled=true",
+		"--set", "env.ESHU_GRAPH_BACKEND=nornicdb",
+		"--set", "nornicdb.capabilities.relationshipMergePropertyIdentity=true",
+		"--set", "schemaBootstrap.useHelmHooks=false",
+		"--set-string", "neo4j.auth.secretName=",
+	)
+	checked := 0
 	for _, manifest := range manifests {
 		kind, _ := manifest["kind"].(string)
 		if kind != "Deployment" && kind != "StatefulSet" {
@@ -27,10 +35,14 @@ func TestHelmNornicDBNoSecretPathKeepsBoltCredentials(t *testing.T) {
 				if _, ok := env["NEO4J_URI"]; !ok {
 					continue
 				}
+				checked++
 				assertHelmLiteralEnv(t, env, "NEO4J_USERNAME", "neo4j")
 				assertHelmLiteralEnv(t, env, "NEO4J_PASSWORD", defaultHelmNeo4jPassword)
 			}
 		}
+	}
+	if checked == 0 {
+		t.Fatal("bundled NornicDB render included no Bolt client containers")
 	}
 }
 

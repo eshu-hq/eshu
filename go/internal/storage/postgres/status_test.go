@@ -62,7 +62,7 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 			},
 			{
 				rows: [][]any{
-					{int64(9), int64(4), int64(1), int64(2), int64(1), int64(3), int64(1), int64(0), 90.0, int64(0)},
+					{int64(9), int64(4), int64(1), int64(2), int64(1), int64(3), int64(1), int64(0), true, int64(2), 90.0, int64(0)},
 				},
 			},
 			{
@@ -106,16 +106,18 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 	}
 
 	wantQueue := statuspkg.QueueSnapshot{
-		Total:                9,
-		Outstanding:          4,
-		Pending:              1,
-		InFlight:             2,
-		Retrying:             1,
-		Succeeded:            3,
-		Failed:               0,
-		DeadLetter:           1,
-		OldestOutstandingAge: 90 * time.Second,
-		OverdueClaims:        0,
+		Total:                                 9,
+		Outstanding:                           4,
+		Pending:                               1,
+		InFlight:                              2,
+		Retrying:                              1,
+		Succeeded:                             3,
+		Failed:                                0,
+		DeadLetter:                            1,
+		ProvenanceEdgeIdentityUpgradeApplied:  true,
+		ProvenanceEdgeIdentityUpgradeRequired: 2,
+		OldestOutstandingAge:                  90 * time.Second,
+		OverdueClaims:                         0,
 	}
 	if got.Queue != wantQueue {
 		t.Fatalf("ReadRawSnapshot().Queue = %#v, want %#v", got.Queue, wantQueue)

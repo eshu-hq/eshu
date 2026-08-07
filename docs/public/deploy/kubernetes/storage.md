@@ -19,17 +19,25 @@ entity content search.
 
 ## Graph Backend
 
-NornicDB is the default graph backend. The normal production shape is an
-existing Bolt endpoint:
+The chart uses external Neo4j for its render-safe defaults. NornicDB remains the
+canonical production graph lane when an operator supplies a verified immutable
+build and existing Bolt endpoint:
 
 ```yaml
 env:
   ESHU_GRAPH_BACKEND: nornicdb
   DEFAULT_DATABASE: nornic
   NEO4J_DATABASE: nornic
+nornicdb:
+  capabilities:
+    relationshipMergePropertyIdentity: true
 neo4j:
   uri: bolt://nornicdb.platform.svc.cluster.local:7687
 ```
+
+The capability acknowledgement is required for external NornicDB endpoints as
+well as the bundled deployment. Set it only after verifying the immutable
+backend build preserves relationship MERGE identity properties.
 
 Neo4j is the explicit compatibility backend:
 
@@ -53,6 +61,11 @@ single-cluster installs:
 ```yaml
 nornicdb:
   enabled: true
+  image:
+    repository: registry.example.com/platform/nornicdb
+    tag: "relationship-identity-verified@sha256:<immutable-digest>"
+  capabilities:
+    relationshipMergePropertyIdentity: true
   bindAddress: 0.0.0.0
 
 neo4j:
@@ -64,6 +77,12 @@ neo4j:
 schemaBootstrap:
   useHelmHooks: false
 ```
+
+The default bundled v1.1.11 image is intentionally rejected when enabled: it
+does not preserve relationship identity properties required by provenance
+writers. Replace the example repository, tag, and digest with an immutable
+build containing orneryd/NornicDB#290 (or a later verified equivalent) before
+setting the capability acknowledgement to `true`.
 
 Replace `password` with your own strong password (min 12 chars, mixed case +
 digit) or set `neo4j.auth.secretName` to an existing Kubernetes Secret instead;

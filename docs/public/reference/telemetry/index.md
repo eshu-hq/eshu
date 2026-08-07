@@ -60,6 +60,13 @@ Do not treat a green pod as proof that the graph is complete.
 Use `/admin/status` and queue metrics when the user-facing question is
 freshness, convergence, or "why is this repo still not reflected?"
 
+During the provenance-edge identity migration, pair
+`eshu_runtime_provenance_edge_identity_upgrade_applied` with
+`eshu_runtime_provenance_edge_identity_upgrade_required`. An applied value of
+`1` and a required count that remains above zero after apparent reducer ACKs
+means migration 096 is fencing an incompatible old reducer. Roll the reducer
+forward; do not disable the database triggers.
+
 ## Container Image Identity Retirement
 
 Use `eshu_dp_container_image_identity_retirements_total` when a replay changes

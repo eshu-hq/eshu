@@ -62,7 +62,8 @@ See `doc.go` for the godoc contract. Key types and functions:
 
 - `QueueSnapshot` — aggregate queue pressure: total, outstanding, pending,
   in-flight, retrying, succeeded, failed, dead-letter, oldest outstanding age,
-  overdue claims
+  overdue claims, plus the migration 096 applied state and current count of
+  provenance-edge work still requiring replay
 - `QueueFailureSnapshot` — latest failed work item context (stage, domain,
   failure class, message, details); rendered in status payloads, never in
   metric labels
@@ -260,7 +261,10 @@ states (in priority order):
   freshness backlog state, semantic extraction status with redacted provider
   profile rows, answer narration fallback status, and flow lanes
 - `RenderJSON(report)` — stable JSON payload for machine-readable consumption;
-  field names are part of the operator contract
+  field names are part of the operator contract. Queue JSON includes
+  `provenance_edge_identity_upgrade_applied` and
+  `provenance_edge_identity_upgrade_required`; text output renders the same
+  state on a dedicated line.
 - `NewHTTPHandler(reader, opts)` — returns an `http.Handler` that serves `GET`
   and `HEAD`; accepts `?format=text` or `?format=json`, defaults to text for
   plain requests and JSON when `Accept: application/json` is set

@@ -396,11 +396,11 @@ log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
 # fixtures. rc-11..rc-23 cover the already-materialized code, workload,
 # deployable, and evidence edge families. rc-9/rc-10 remain reserved until
 # their fixture/projection work is complete.
-# rc-164/rc-165 require #5457 PUBLISHES/BUILT_FROM provenance. rc-164 uses the
-# package_registry source_hint; rc-165 uses matching cicdrun/ociregistry
-# digests and pins exact-digest OCI evidence. container_image_identity remains
-# BUILT_FROM's sole writer after #5428 was rescinded; see #5827 and
-# docs/internal/evidence/5428-built-from-projection-rescinded.md.
+# rc-164/rc-172 require #5827's two independently-owned PUBLISHES assertions
+# for the same package_registry source_hint: publication and ownership must
+# both survive. rc-165 uses matching cicdrun/ociregistry digests and pins
+# exact-digest OCI evidence; scope_id+evidence_source identity keeps it safe
+# for another BUILT_FROM writer or scope.
 # rc-167 (DERIVED_FROM) is issue #5460's base-image lineage projection. Unlike
 # rc-164/rc-165 it is driven by a STATIC-PARSE fixture rather than a cassette
 # join: the container-base-lineage fixture's Dockerfile pins its final stage to

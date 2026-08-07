@@ -11,8 +11,8 @@ Eshu needs Postgres plus a Bolt-compatible graph backend.
 | Value | Default | Owns |
 | --- | --- | --- |
 | `contentStore.dsn` | empty | Renders `ESHU_CONTENT_STORE_DSN` and `ESHU_POSTGRES_DSN`. |
-| `env.ESHU_GRAPH_BACKEND` | `nornicdb` | Runtime graph adapter. |
-| `env.DEFAULT_DATABASE`, `env.NEO4J_DATABASE` | `nornic` | Bolt database name. |
+| `env.ESHU_GRAPH_BACKEND` | `neo4j` | Runtime graph adapter. |
+| `env.DEFAULT_DATABASE`, `env.NEO4J_DATABASE` | `neo4j` | Bolt database name. |
 | `neo4j.uri` | `bolt://neo4j:7687` | Bolt endpoint for NornicDB or Neo4j. |
 | `neo4j.auth.secretName` | `eshu-neo4j` | Secret for Bolt username/password keys. |
 | `ingester.persistence.*` | enabled, `ReadWriteOnce`, `100Gi` | Repository workspace PVC. |
@@ -21,13 +21,24 @@ For bundled no-auth NornicDB, set `neo4j.auth.secretName=""`. Eshu still renders
 literal Bolt client credentials because the shared client config rejects empty
 auth fields even when the backend does not enforce auth.
 
+## NornicDB Compatibility Acknowledgement
+
+Whenever an enabled rendered workload's effective environment selects
+`ESHU_GRAPH_BACKEND=nornicdb`, the chart fails closed unless
+`nornicdb.capabilities.relationshipMergePropertyIdentity=true`. This applies to
+platform-owned external Bolt endpoints as well as the bundled Deployment. Set
+the acknowledgement only after verifying the selected immutable backend build
+includes orneryd/NornicDB#290 or a later compatible implementation.
+
 ## Bundled NornicDB
 
 `nornicdb.enabled=false` by default. When enabled, the chart renders one
-NornicDB Deployment, Service, and optional PVC.
+NornicDB Deployment, Service, and optional PVC. Replace the default image with
+an immutable compatible build, select `ESHU_GRAPH_BACKEND=nornicdb`, and enable
+the capability acknowledgement before routing workloads to it.
 
 Key defaults: image repository `timothyswt/nornicdb-cpu-bge`, image tag
-`v1.1.9@sha256:9a5126d306a48c01869809da47a869a4521b9328a7ab1c855327f5fd7541e4cd`,
+`v1.1.11@sha256:51b6174ae65e4ce54a158ac2f9eace7d36a1971545824d22add0fe06d94c1090`,
 persistence enabled with `500Gi`, no server auth, async writes off, Heimdall
 off, Qdrant gRPC off, embeddings off, BM25 and vector indexes disabled,
 BM25/vector warming set to `lazy`, search index persistence off, and
@@ -48,6 +59,12 @@ No-Observability-Change: the chart keeps the existing NornicDB HTTP health
 probes, named `http` and `bolt` container ports, and the existing Service
 targetPorts. Operators still diagnose this path through the same pod readiness,
 container logs, Service endpoints, and graph-backed Eshu readiness checks.
+
+The pinned v1.1.11 default remains visible for reproducibility but cannot be
+enabled with the current Eshu provenance writer: it collapses same-endpoint
+relationship assertions whose identities differ by properties. Publish or
+mirror a verified immutable backend image, override `nornicdb.image`, and only
+then acknowledge the capability flag.
 
 The bundled NornicDB deployment is the canonical graph lane. Search index
 persistence is off because BM25/vector indexing is disabled for the graph lane.

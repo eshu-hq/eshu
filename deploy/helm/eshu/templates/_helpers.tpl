@@ -314,6 +314,18 @@ app.kubernetes.io/component: vault-live-collector
 {{- include "eshu.renderEnvMap" $merged }}
 {{- end -}}
 
+{{- define "eshu.envMapsSelectNornicDB" -}}
+{{- $merged := dict -}}
+{{- range $envMap := . -}}
+{{- if $envMap -}}
+{{- range $key, $value := $envMap -}}
+{{- $_ := set $merged $key $value -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if and (hasKey $merged "ESHU_GRAPH_BACKEND") (eq (lower (trim (toString (get $merged "ESHU_GRAPH_BACKEND")))) "nornicdb") -}}true{{- end -}}
+{{- end -}}
+
 {{- define "eshu.joinStringMap" -}}
 {{- $map := . -}}
 {{- $items := list -}}

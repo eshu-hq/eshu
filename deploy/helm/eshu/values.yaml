@@ -1024,9 +1024,9 @@ ingester:
       memory: 32Gi
 
 env:
-  ESHU_GRAPH_BACKEND: nornicdb
-  DEFAULT_DATABASE: nornic
-  NEO4J_DATABASE: nornic
+  ESHU_GRAPH_BACKEND: neo4j
+  DEFAULT_DATABASE: neo4j
+  NEO4J_DATABASE: neo4j
   ESHU_ENABLE_PUBLIC_DOCS: "false"
   INDEX_VARIABLES: "false"
   ESHU_MAX_CALLS_PER_FILE: "50"
@@ -1092,6 +1092,12 @@ neo4j:
 
 nornicdb:
   enabled: false
+  # The bundled v1.1.11 default does not satisfy this capability. Keep false
+  # unless every selected external or bundled NornicDB endpoint uses an
+  # immutable build that preserves relationship MERGE identity properties
+  # (orneryd/NornicDB#290 or later).
+  capabilities:
+    relationshipMergePropertyIdentity: false
   image:
     repository: timothyswt/nornicdb-cpu-bge
     tag: "v1.1.11@sha256:51b6174ae65e4ce54a158ac2f9eace7d36a1971545824d22add0fe06d94c1090"

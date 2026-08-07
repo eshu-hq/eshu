@@ -169,21 +169,25 @@ classes. Provider-backed profiles additionally report redacted provider profile
 status. Compose adds no raw prompt, credential, endpoint, provider body, path,
 or document id to logs or metric labels.
 
-### Temporary exact NornicDB #261 default
+### Exact merged NornicDB #290 default
 
-Until further notice, the default Compose NornicDB service builds orneryd/
-NornicDB#261 from full source commit
-`1492458852588c884c32f70d27ea2ee07086769c`. Compose tags the local image
-`eshu-nornicdb-pr261:149245885258`, records the full revision as an OCI image
+The default Compose NornicDB service builds merged orneryd/NornicDB#290 from
+full squash commit
+`3722b483c02c38a8e046d198f8768f200f31023c`. That commit includes the
+same-UID commit-lock fix from #261 and the relationship `MERGE` property-identity
+fix from #290. Compose tags the local image
+`eshu-nornicdb-pr290:3722b483c02c`, records the full revision as an OCI image
 label, and uses the default pull policy `build`. This makes a clean machine
-build the proven same-UID commit-lock fix instead of trying to pull the local
-tag from a registry.
+build the proven source instead of trying to pull the local tag from a registry.
+The Git context uses the full 40-character commit fragment, so both older and
+newer Docker builders resolve the same immutable backend source without relying
+on the newer Git-context checksum query feature.
 
 Controlled backend comparisons retain the existing override contract. Set
 `NORNICDB_IMAGE` and `NORNICDB_PULL_POLICY` together: use `always` for an
 immutable published image, `never` for a prebuilt local tag, or `build` to build
 the exact source below under a different local tag. Leaving both unset uses the
-exact PR #261 source pin. Published-image and prebuilt-local comparisons must
+exact PR #290 source pin. Published-image and prebuilt-local comparisons must
 run `docker compose up` without `--build`; `--build` deliberately rebuilds the
 exact source and would defeat the image override.
 
@@ -204,14 +208,14 @@ Confirm the cached image carries the expected source revision before treating
 the stack as evidence:
 
 ```bash
-docker image inspect eshu-nornicdb-pr261:149245885258 \
+docker image inspect eshu-nornicdb-pr290:3722b483c02c \
   --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}'
 ```
 
 The expected output is
-`1492458852588c884c32f70d27ea2ee07086769c`. Replace this temporary source pin
-only after a released NornicDB image containing #261 is pinned by digest and the
-bounded/full-corpus proof is repeated on that artifact.
+`3722b483c02c38a8e046d198f8768f200f31023c`. Replace this source pin
+only after a released NornicDB image containing #261 and #290 is pinned by
+digest and the bounded/full-corpus proof is repeated on that artifact.
 
 Eshu Compose sets these NornicDB graph-lane controls:
 

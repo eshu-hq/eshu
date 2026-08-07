@@ -373,16 +373,18 @@ payload reduction is not purely cosmetic. It is recorded here because a
 budgeted handler losing a third of its headroom should not be discovered by
 whoever flips that gate to enforcing.
 
-No-Observability-Change: no metrics, spans, or status fields are added, and no
-new failure path is introduced. One metric's counted unit does shift:
-`eshu_dp_provenance_edges_total{outcome="materialized"}` now samples distinct
-submitted rows rather than one row per (decision x build-provenance repository)
-pair. Same number in every case except the duplicate one the dedup exists to
-collapse. Deliberately not "edges": the counter is fed by `len(rows)` before the
-write, and a row whose endpoint node is absent is a writer no-op that still
-counts -- which is #5828, filed from this branch, so calling these edges would
-assert the thing that issue reports. The gate withholds a promotion
-rather than rejecting a deployment: the deployment still matches, so it keeps
+Observability Evidence: no metric name, span, or status field is added, and no
+new failure path is introduced. One metric's bounded outcome and counted unit
+do shift:
+`eshu_dp_provenance_edges_total{outcome="submitted"}` samples distinct rows
+accepted by the successful writer call rather than one row per (decision x
+build-provenance repository) pair. The value differs only for the duplicate
+case this deduplication collapses. Rows from a failed writer call emit no point;
+retract errors, empty projections, and unwired writers emit none. A missing
+endpoint remains a submitted writer no-op, and a successful retry can count the
+same identity again, so this event counter does not claim unique durable edges.
+The gate withholds a promotion rather than rejecting a deployment: the
+deployment still matches, so it keeps
 contributing its environment, evidence hop, and fact ID, and no rejection
 reason or dead-letter is involved. An operator reading a finding sees the
 environment present and labelled `declared` — which is a strictly clearer

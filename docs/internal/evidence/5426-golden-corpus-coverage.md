@@ -149,14 +149,16 @@ tier A never loses to tier B (#5813).
 #### Why #5829's stated blocker does not apply
 
 This fix is the change #5829 tracks, and #5829 is titled "blocked on #5827". Its
-body argues that widening `BuildProvenanceRepositoryIDs` "would make the graph
+body argued that widening `BuildProvenanceRepositoryIDs` "would make the graph
 worse in order to make a correlation sharper", because that field is the sole
 gate on two graph writers (`containerImageBuiltFromRows`,
-`containerImageDerivedFromRows`), and because #5827 is open: `MERGE` matches on
-`(start, end, type)` while `projectContainerImageBuiltFromEdges` retracts per
+`containerImageDerivedFromRows`), and because #5827 was open at the time:
+`MERGE` then matched on `(start, end, type)` while
+`projectContainerImageBuiltFromEdges` retracted per
 `(scope_id, generation_id, evidence_source)`, so two scopes emitting the same
-`(digest, repository)` pair means one scope's retract deletes an edge the other
-still supports.
+`(digest, repository)` pair meant one scope's retract could delete an edge the
+other still supported. #5827 later removed that general identity hazard; this
+section preserves why it was not a blocker even before that fix.
 
 That argument rests on the widening being cross-scope. It is not. Both halves
 were checked here rather than assumed:
@@ -225,7 +227,8 @@ All three pass at branch HEAD. The deploy-only and DERIVED_FROM assertions pass
 under the overlay too, and that is expected: they are invariants that hold in
 both states by construction — the guard, not the repro.
 
-#5827 stays open on its own merits. It is simply not a blocker for this change.
+#5827 was later resolved on its own merits. It was not a blocker for this
+change even while open.
 
 ### 2. The impact finding was never replayed after the correlation improved
 

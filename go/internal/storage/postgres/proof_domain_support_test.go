@@ -383,6 +383,8 @@ func proofQueueSnapshotRow(
 		succeededCount,
 		deadLetterCount,
 		failedCount,
+		false,
+		int64(0),
 		oldestOutstandingAgeSeconds,
 		overdueClaimCount,
 	}

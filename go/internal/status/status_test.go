@@ -176,11 +176,13 @@ func TestRenderTextIncludesOperatorSummary(t *testing.T) {
 				{Name: "superseded", Count: 1},
 			},
 			Queue: status.QueueSnapshot{
-				Outstanding:          3,
-				InFlight:             1,
-				Retrying:             1,
-				DeadLetter:           1,
-				OldestOutstandingAge: 90 * time.Second,
+				Outstanding:                           3,
+				InFlight:                              1,
+				Retrying:                              1,
+				DeadLetter:                            1,
+				ProvenanceEdgeIdentityUpgradeApplied:  true,
+				ProvenanceEdgeIdentityUpgradeRequired: 2,
+				OldestOutstandingAge:                  90 * time.Second,
 			},
 			LatestQueueFailure: &status.QueueFailureSnapshot{
 				Stage:          "reducer",
@@ -221,6 +223,7 @@ func TestRenderTextIncludesOperatorSummary(t *testing.T) {
 	for _, want := range []string{
 		"Health: degraded",
 		"Queue: outstanding=3 in_flight=1 retrying=1 dead_letter=1 failed=0 oldest=1m30s",
+		"Provenance edge identity upgrade: applied=true required=2",
 		"Scope activity: active=2 changed=1 unchanged=1",
 		"Scope statuses: active=3",
 		"Generation history: active=1 pending=0 completed=2 superseded=1 failed=0 other=0",

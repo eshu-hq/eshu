@@ -87,8 +87,6 @@ func TestIngestionStoreCommitClaimedScopeGenerationRollsBackOnFactStreamError(t 
 }
 
 func TestIngestionStoreUnchangedGenerationChecksFactStreamError(t *testing.T) {
-	t.Parallel()
-
 	telemetry.ResetSkippedRefreshCountForTesting()
 	t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
 

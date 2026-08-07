@@ -92,6 +92,31 @@ func TestBootstrapDefinitionsIncludeCrossScopeCompletionQueue(t *testing.T) {
 			t.Fatalf("quiet-upgrade seed missing %q:\n%s", want, seedSQL)
 		}
 	}
+
+	provenanceSeedSQL := MigrationSQL("provenance_edge_identity_upgrade_seed")
+	for _, want := range []string{
+		"provenance_edge_identity_upgrade_096",
+		"package_source_correlation",
+		"container_image_identity",
+		"cross_scope_completion_upgrade_markers",
+		"cross_scope_replay_required = source.status IN ('claimed', 'running')",
+		"ADD COLUMN IF NOT EXISTS provenance_edge_identity_upgrade_required",
+		"CREATE OR REPLACE FUNCTION require_provenance_edge_identity_upgrade()",
+		"BEFORE INSERT ON fact_work_items",
+		"BEFORE UPDATE OF status, domain, stage ON fact_work_items",
+		"AND NOT OLD.provenance_edge_identity_upgrade_required",
+		"CREATE OR REPLACE FUNCTION enforce_provenance_edge_identity_upgrade()",
+		"NEW.status IN ('succeeded', 'failed', 'dead_letter')",
+		"provenance_edge_identity_upgrade_required = TRUE",
+		"WHEN source.status = 'succeeded' THEN 'pending'",
+		"source.status IN ('pending', 'retrying', 'succeeded', 'claimed', 'running')",
+		"scope.active_generation_id = source.generation_id",
+		"generation.status = 'active'",
+	} {
+		if !strings.Contains(provenanceSeedSQL, want) {
+			t.Fatalf("provenance identity upgrade seed missing %q:\n%s", want, provenanceSeedSQL)
+		}
+	}
 }
 
 func TestCrossScopeCompletionSchemaCoversCatalogDomainsExactly(t *testing.T) {

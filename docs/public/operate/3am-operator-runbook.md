@@ -64,6 +64,11 @@ is not draining.
   `eshu_runtime_queue_in_flight` separates backlog from claimed work, and
   `eshu_dp_reducer_run_duration_seconds` shows slow handlers. Treat
   `eshu_dp_worker_pool_active` as in-flight worker intent, not process liveness.
+  During migration 096, a nonzero
+  `eshu_runtime_provenance_edge_identity_upgrade_required` with
+  `eshu_runtime_provenance_edge_identity_upgrade_applied=1` attributes
+  apparently successful work returning to pending to an incompatible old
+  reducer.
 - **Trace / log field:** the `reducer.run` span carries `domain`,
   `partition_key`, and `conflict_key`; a hot `conflict_key` with many
   `blocked_conflicts` points at conflict-domain contention rather than a crash.
@@ -74,6 +79,8 @@ is not draining.
   Do not require `eshu_dp_worker_pool_active > 0` during the wait; it can be `0`
   after the handler has exited. Do not lower worker counts to "unstick" a
   non-idempotent write; that hides the defect.
+  If the migration 096 gauges identify an old reducer, roll that reducer
+  forward. Do not disable the compatibility-fence triggers.
 
 ## Symptom: collector failure
 

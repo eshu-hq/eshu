@@ -285,6 +285,17 @@ SELECT (SELECT COUNT(*) FROM fact_work_items) AS total_count,
        COUNT(*) FILTER (WHERE status = 'succeeded') AS succeeded_count,
        COUNT(*) FILTER (WHERE status = 'dead_letter') AS dead_letter_count,
        COUNT(*) FILTER (WHERE status = 'failed') AS failed_count,
+	   EXISTS (
+	     SELECT 1
+	     FROM cross_scope_completion_upgrade_markers
+	     WHERE marker_name = 'provenance_edge_identity_upgrade_096'
+	   ) AS provenance_edge_identity_upgrade_applied,
+	   COUNT(*) FILTER (
+	     WHERE provenance_edge_identity_upgrade_required
+	       AND stage = 'reducer'
+	       AND domain IN ('package_source_correlation', 'container_image_identity')
+	       AND status IN ('pending', 'claimed', 'running', 'retrying')
+	   ) AS provenance_edge_identity_upgrade_required,
        GREATEST(
          COALESCE(
            EXTRACT(

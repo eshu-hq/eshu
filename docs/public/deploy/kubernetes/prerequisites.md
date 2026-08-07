@@ -22,8 +22,9 @@ You need:
 Eshu expects external storage:
 
 - Postgres for facts, queues, status, content, and recovery data
-- NornicDB by default for the canonical graph
-- Neo4j only when you set `env.ESHU_GRAPH_BACKEND=neo4j`
+- Neo4j for the chart's render-safe external graph default
+- NornicDB for the canonical production graph after you select
+  `env.ESHU_GRAPH_BACKEND=nornicdb` and acknowledge a verified immutable build
 
 The chart only creates the ingester workspace PVC by default. It can also
 create a single NornicDB Deployment and PVC when `nornicdb.enabled=true`, but

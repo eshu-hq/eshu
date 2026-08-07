@@ -62,6 +62,8 @@ Start with:
 - `eshu_runtime_health_state`
 - `eshu_runtime_queue_outstanding`
 - `eshu_runtime_queue_oldest_outstanding_age_seconds`
+- `eshu_runtime_provenance_edge_identity_upgrade_applied`
+- `eshu_runtime_provenance_edge_identity_upgrade_required`
 - `eshu_runtime_stage_items`
 - `eshu_runtime_domain_oldest_age_seconds`
 - `eshu_runtime_collector_generation_dead_letter`

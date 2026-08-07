@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestNornicDBComposeDefaultPinsPR261ExactSourceCommit(t *testing.T) {
+func TestNornicDBComposeDefaultPinsMergedPR290ExactSourceCommit(t *testing.T) {
 	t.Parallel()
 
 	content := readRepositoryFile(t, "../../..", "docker-compose.yaml")
@@ -18,15 +18,19 @@ func TestNornicDBComposeDefaultPinsPR261ExactSourceCommit(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		"image: ${NORNICDB_IMAGE:-eshu-nornicdb-pr261:149245885258}",
+		"image: ${NORNICDB_IMAGE:-eshu-nornicdb-pr290:3722b483c02c}",
 		"pull_policy: ${NORNICDB_PULL_POLICY:-build}",
-		"context: https://github.com/orneryd/NornicDB.git#1492458852588c884c32f70d27ea2ee07086769c",
+		"context: https://github.com/orneryd/NornicDB.git#3722b483c02c38a8e046d198f8768f200f31023c",
 		"dockerfile: docker/Dockerfile.cpu-bge",
-		"org.opencontainers.image.revision: 1492458852588c884c32f70d27ea2ee07086769c",
+		"org.opencontainers.image.revision: 3722b483c02c38a8e046d198f8768f200f31023c",
 	} {
 		if !strings.Contains(content, want) {
-			t.Fatalf("docker-compose.yaml missing temporary exact NornicDB PR #261 pin %q", want)
+			t.Fatalf("docker-compose.yaml missing exact merged NornicDB PR #290 pin %q", want)
 		}
+	}
+
+	if strings.Contains(content, "checksum=") {
+		t.Fatal("docker-compose.yaml must not require the BuildKit source.git.checksum query feature")
 	}
 }
 
@@ -42,6 +46,16 @@ func TestNornicDBComposeDocumentsImageAndPullPolicyOverrides(t *testing.T) {
 		if !strings.Contains(docs, want) {
 			t.Fatalf("docker compose docs missing exact-source override guidance %q", want)
 		}
+	}
+}
+
+func TestNornicDBRuntimeReadmeTracksPR290SourceBuildDefault(t *testing.T) {
+	t.Parallel()
+
+	docs := readRepositoryFile(t, "../../..", "go/internal/runtime/README.md")
+	want := "Compose builds the exact orneryd/NornicDB#290 source commit"
+	if !strings.Contains(strings.Join(strings.Fields(docs), " "), want) {
+		t.Fatalf("runtime README missing current NornicDB source-build contract %q", want)
 	}
 }
 
@@ -160,7 +174,7 @@ func TestNornicDBGraphSearchSplitDesignTracksImplementedStabilization(t *testing
 	normalizedDocs := strings.Join(strings.Fields(docs), " ")
 	for _, want := range []string{
 		"Phase-1 stabilization status:",
-		"Helm pins NornicDB `v1.1.11`; Compose temporarily pins the exact orneryd/NornicDB#261 source commit",
+		"Helm pins NornicDB `v1.1.11`; Compose temporarily pins the exact orneryd/NornicDB#290 source commit",
 		"Runtime contract tests enforce the graph-only NornicDB controls",
 	} {
 		if !strings.Contains(normalizedDocs, want) {

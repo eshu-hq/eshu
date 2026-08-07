@@ -81,17 +81,19 @@ func RenderJSON(report Report) ([]byte, error) {
 }
 
 type queueJSON struct {
-	Total                       int     `json:"total"`
-	Outstanding                 int     `json:"outstanding"`
-	Pending                     int     `json:"pending"`
-	InFlight                    int     `json:"in_flight"`
-	Retrying                    int     `json:"retrying"`
-	Succeeded                   int     `json:"succeeded"`
-	Failed                      int     `json:"failed"`
-	DeadLetter                  int     `json:"dead_letter"`
-	OverdueClaims               int     `json:"overdue_claims"`
-	OldestOutstandingAge        string  `json:"oldest_outstanding_age"`
-	OldestOutstandingAgeSeconds float64 `json:"oldest_outstanding_age_seconds"`
+	Total                                 int     `json:"total"`
+	Outstanding                           int     `json:"outstanding"`
+	Pending                               int     `json:"pending"`
+	InFlight                              int     `json:"in_flight"`
+	Retrying                              int     `json:"retrying"`
+	Succeeded                             int     `json:"succeeded"`
+	Failed                                int     `json:"failed"`
+	DeadLetter                            int     `json:"dead_letter"`
+	ProvenanceEdgeIdentityUpgradeApplied  bool    `json:"provenance_edge_identity_upgrade_applied"`
+	ProvenanceEdgeIdentityUpgradeRequired int     `json:"provenance_edge_identity_upgrade_required"`
+	OverdueClaims                         int     `json:"overdue_claims"`
+	OldestOutstandingAge                  string  `json:"oldest_outstanding_age"`
+	OldestOutstandingAgeSeconds           float64 `json:"oldest_outstanding_age_seconds"`
 }
 
 type queueFailureJSON struct {
@@ -256,17 +258,19 @@ type queueBlockageJSON struct {
 
 func queueJSONFromReport(queue QueueSnapshot) queueJSON {
 	return queueJSON{
-		Total:                       queue.Total,
-		Outstanding:                 queue.Outstanding,
-		Pending:                     queue.Pending,
-		InFlight:                    queue.InFlight,
-		Retrying:                    queue.Retrying,
-		Succeeded:                   queue.Succeeded,
-		Failed:                      queue.Failed,
-		DeadLetter:                  queue.DeadLetter,
-		OverdueClaims:               queue.OverdueClaims,
-		OldestOutstandingAge:        queue.OldestOutstandingAge.String(),
-		OldestOutstandingAgeSeconds: queue.OldestOutstandingAge.Seconds(),
+		Total:                                 queue.Total,
+		Outstanding:                           queue.Outstanding,
+		Pending:                               queue.Pending,
+		InFlight:                              queue.InFlight,
+		Retrying:                              queue.Retrying,
+		Succeeded:                             queue.Succeeded,
+		Failed:                                queue.Failed,
+		DeadLetter:                            queue.DeadLetter,
+		ProvenanceEdgeIdentityUpgradeApplied:  queue.ProvenanceEdgeIdentityUpgradeApplied,
+		ProvenanceEdgeIdentityUpgradeRequired: queue.ProvenanceEdgeIdentityUpgradeRequired,
+		OverdueClaims:                         queue.OverdueClaims,
+		OldestOutstandingAge:                  queue.OldestOutstandingAge.String(),
+		OldestOutstandingAgeSeconds:           queue.OldestOutstandingAge.Seconds(),
 	}
 }
 

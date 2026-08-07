@@ -189,8 +189,9 @@ checked before it did, and both are recorded in
   pair, so #5827's collapse is not reachable from this change. The duplicate is
   now deduped away inside `containerImageBuiltFromRows`.
 
-#5827 remains open on its own merits; it was simply never a blocker for this
-particular widening. The B-12 snapshot's `list_supply_chain_impact_findings`
+#5827 has since resolved the general relationship-identity defect; it was never
+a blocker for this particular widening even before resolution. The B-12
+snapshot's `list_supply_chain_impact_findings`
 query-shape description still records the multi-row shape that motivated the
 concern — as of #5426 it reads "this digest carries 16 rows in the live corpus
 that disagree on `source_repository_ids`". It read 11 when this section was
@@ -388,14 +389,18 @@ crashed, so this is host contention, not a pipeline defect.
 `phase_maintenance_drains` is 1s over its ceiling on a host also running the
 review workload.
 
-## Open issues this work produced
+## Follow-up issues and dispositions
 
-- **#5827** — the provenance writer's `MERGE` identity omits `evidence_source`
-  and `scope_id`, collapsing same-pair edges across domains and scopes. Live for
-  `PUBLISHES` on `main` today and recorded in the B-12 snapshot's rc-164.
-  `BUILT_FROM` stays single-owner until it lands.
-- **#5828** — `eshu_dp_provenance_edges_total` counts submitted rows as
-  `materialized`, including rows whose endpoint node was absent.
+- **#5827** — resolved: provenance relationship identity now includes
+  `scope_id` and `evidence_source` alongside the endpoint pair and edge type.
+  Same-pair assertions from independent scopes or evidence domains remain
+  isolated, and retract removes only the matching assertion. A future
+  `BUILT_FROM` producer may share the edge type when it supplies its own stable
+  evidence source and follows the same retract contract.
+- **#5828** — resolved: `eshu_dp_provenance_edges_total` now labels rows
+  accepted by successful writer calls as `submitted`. A missing endpoint remains
+  a submitted writer no-op, and a successful retry can count the same identity
+  again, so the event counter is not a unique durable-edge gauge.
 - **#5822** — the golden corpus never reaches an `exact` ci_cd_run correlation,
   so the exact path has no deterministic fixture.
 - **#5830** — the corpus contains no `ci.workflow_image_evidence` at all, so the

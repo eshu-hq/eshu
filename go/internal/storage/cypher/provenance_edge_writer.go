@@ -52,14 +52,11 @@ const (
 // writes it. A #5428 reducer/ci-cd-run-correlation writer was implemented and
 // then rescinded before shipping
 // (docs/internal/evidence/5428-built-from-projection-rescinded.md) because the
-// canonical MERGE identity below omits evidence_source and scope_id, so a
-// second domain writing the same (digest, repository) pair would collapse
-// onto the first domain's edge instead of isolating from it (#5827). The
-// evidence_kinds token is stamped regardless, so a future second writer has
-// this isolation available once #5827 lands, but it provides no isolation on
-// its own while the MERGE identity ignores it. PUBLISHES has no cross-domain
-// sharing risk today, but the token still distinguishes ownership-sourced
-// from publication-sourced edges for the same reason.
+// old endpoint-only MERGE identity collapsed a second domain's assertion onto
+// the first (#5827). The canonical MERGE identity now includes scope_id and
+// evidence_source, while evidence_kinds remains the query-time ownership
+// discriminator. PUBLISHES has no cross-domain sharing risk today, but the
+// token still distinguishes ownership-sourced from publication-sourced edges.
 var provenanceEdgeKindForSource = map[string]string{
 	"reducer/package-ownership":          "PACKAGE_OWNERSHIP_CORRELATION",
 	"reducer/package-publication":        "PACKAGE_PUBLICATION_CORRELATION",
@@ -69,24 +66,33 @@ var provenanceEdgeKindForSource = map[string]string{
 
 // provenanceEdgeSourceToolForSource maps a writer evidence_source to the
 // canonical source_tool token (docs/public/reference/edge-source-tool-provenance.md,
-// #3997/#3999), stamped only where a real ecosystem/tool classification
-// exists. container-image-identity edges are OCI-registry-sourced, and
+// #3997/#3999). container-image-identity edges are OCI-registry-sourced, and
 // container_image_identity is BUILT_FROM's only writer today (#5428's
 // reducer/ci-cd-run-correlation writer was rescinded before shipping, see
 // docs/internal/evidence/5428-built-from-projection-rescinded.md), so no
 // second BUILT_FROM source_tool value exists to disambiguate yet. PUBLISHES
-// has no ecosystem-detection wired yet (the decision
-// carries no package ecosystem field), so it is intentionally absent from
-// this map and its rows never get a source_tool stamp -- an absent value,
-// never a guess.
+// decisions carry no package ecosystem field, so they use the canonical
+// explicit unknown fallback rather than guessing a tool or hiding the gap.
 var provenanceEdgeSourceToolForSource = map[string]string{
+	"reducer/package-ownership":          "unknown",
+	"reducer/package-publication":        "unknown",
 	"reducer/container-image-identity":   "oci",
 	"reducer/container-image-base-image": "oci",
 }
 
+// provenanceEdgeSourceToolFor returns the canonical tool token for a writer.
+// Every provenance row carries evidence_kinds, so an unmapped writer must use
+// the explicit unknown token rather than appearing to have no evidence.
+func provenanceEdgeSourceToolFor(evidenceSource string) string {
+	if tool, ok := provenanceEdgeSourceToolForSource[evidenceSource]; ok {
+		return tool
+	}
+	return "unknown"
+}
+
 // provenanceEdgeKindsFor returns the single-element evidence_kinds list for
 // evidenceSource. An unmapped evidenceSource (a caller-supplied value outside
-// the three known writer domains) falls back to the raw evidenceSource string
+// the known writer domains) falls back to the raw evidenceSource string
 // itself, so evidence_kinds is never silently empty -- an empty list would
 // make a superset-containment isolation check vacuously fail closed rather
 // than isolate.
@@ -104,11 +110,13 @@ func provenanceEdgeKindsFor(evidenceSource string) []string {
 const canonicalProvenancePublishesPackageCypher = `UNWIND $rows AS row
 MATCH (repo:Repository {id: row.repository_id})
 MATCH (target:Package {uid: row.package_id})
-MERGE (repo)-[rel:PUBLISHES]->(target)
-SET rel.scope_id = row.scope_id,
-    rel.generation_id = row.generation_id,
-    rel.evidence_source = row.evidence_source,
-    rel.evidence_kinds = row.evidence_kinds`
+MERGE (repo)-[rel:PUBLISHES {
+  scope_id: row.scope_id,
+  evidence_source: row.evidence_source
+}]->(target)
+SET rel.generation_id = row.generation_id,
+    rel.evidence_kinds = row.evidence_kinds,
+    rel.source_tool = row.source_tool`
 
 // canonicalProvenancePublishesPackageVersionCypher upserts a PUBLISHES edge
 // from a Repository to a PackageVersion, for correlation decisions bound to a
@@ -116,11 +124,13 @@ SET rel.scope_id = row.scope_id,
 const canonicalProvenancePublishesPackageVersionCypher = `UNWIND $rows AS row
 MATCH (repo:Repository {id: row.repository_id})
 MATCH (target:PackageVersion {uid: row.version_id})
-MERGE (repo)-[rel:PUBLISHES]->(target)
-SET rel.scope_id = row.scope_id,
-    rel.generation_id = row.generation_id,
-    rel.evidence_source = row.evidence_source,
-    rel.evidence_kinds = row.evidence_kinds`
+MERGE (repo)-[rel:PUBLISHES {
+  scope_id: row.scope_id,
+  evidence_source: row.evidence_source
+}]->(target)
+SET rel.generation_id = row.generation_id,
+    rel.evidence_kinds = row.evidence_kinds,
+    rel.source_tool = row.source_tool`
 
 // canonicalProvenanceBuiltFromCypher upserts a BUILT_FROM edge from a
 // ContainerImage to the Repository its container_image_identity decision
@@ -132,10 +142,11 @@ SET rel.scope_id = row.scope_id,
 const canonicalProvenanceBuiltFromCypher = `UNWIND $rows AS row
 MATCH (img:ContainerImage {digest: row.digest})
 MATCH (repo:Repository {id: row.repository_id})
-MERGE (img)-[rel:BUILT_FROM]->(repo)
-SET rel.scope_id = row.scope_id,
-    rel.generation_id = row.generation_id,
-    rel.evidence_source = row.evidence_source,
+MERGE (img)-[rel:BUILT_FROM {
+  scope_id: row.scope_id,
+  evidence_source: row.evidence_source
+}]->(repo)
+SET rel.generation_id = row.generation_id,
     rel.evidence_kinds = row.evidence_kinds,
     rel.source_tool = row.source_tool`
 
@@ -148,22 +159,9 @@ DELETE rel`
 
 // retractProvenanceBuiltFromEdgesCypher removes this writer's BUILT_FROM
 // edges for one scope+evidence_source before a fresh generation reprojects
-// them. Only container_image_identity writes BUILT_FROM today, so this
-// retract has no other domain's edges to avoid. It still filters on
-// evidence_source rather than matching every BUILT_FROM edge, but that filter
-// is not a proven cross-domain isolation guarantee: the canonical MERGE above
-// matches on (start, end, type) alone and ignores evidence_source, so a
-// second writer sharing this edge type would collapse onto the same edge and
-// this retract could delete an assertion the other writer still supports
-// (#5827). A second BUILT_FROM writer MUST NOT land until #5827 is fixed.
-//
-// The same MERGE identity also drops scope_id, so this is not only a
-// future-second-writer hazard. containerImageBuiltFromRows takes no owning
-// scope -- unlike its DERIVED_FROM sibling, which returns nil outside the
-// declaring repository -- so it emits a row for every exact_digest decision's
-// every BuildProvenanceRepositoryID regardless of the projecting intent's scope.
-// container_image_identity runs in more than one scope, so two scopes
-// asserting the same (image, repository) pair share one edge today.
+// them. The canonical MERGE identity includes scope_id and evidence_source,
+// so this predicate retracts exactly one assertion without removing another
+// scope or evidence domain's support for the same image/repository pair.
 const retractProvenanceBuiltFromEdgesCypher = `MATCH (:ContainerImage)-[rel:BUILT_FROM]->(:Repository)
 WHERE rel.scope_id = $scope_id
   AND rel.evidence_source = $evidence_source
@@ -172,9 +170,11 @@ DELETE rel`
 // ProvenanceEdgeWriter persists and retracts the PUBLISHES and BUILT_FROM
 // graph provenance edges from Postgres reducer correlation decisions.
 // Implementations MUST be idempotent by (source id/uid, edge type, target
-// id/uid) so retries and re-projected generations converge on one edge, and
-// MUST NOT fabricate an endpoint node: a row whose source or target node is
-// absent is a no-op, counted skipped by the caller.
+// id/uid, scope_id, evidence_source) so retries and re-projected generations
+// converge on one assertion without collapsing assertions owned by another
+// scope or evidence domain. They MUST NOT fabricate an endpoint node: a row
+// whose source or target node is absent is a no-op, counted skipped by the
+// caller.
 type ProvenanceEdgeWriter struct {
 	executor  Executor
 	batchSize int
@@ -334,8 +334,8 @@ func (w *ProvenanceEdgeWriter) retract(
 // fields the resolution layer does not carry: scope_id (what the
 // prior-generation retract filters on), generation_id, evidence_source,
 // evidence_kinds (the golden-corpus gate's shared-verb isolation token,
-// derived from evidenceSource), and source_tool when evidenceSource maps to
-// one (absent otherwise -- never a guess).
+// derived from evidenceSource), and source_tool (including the explicit
+// unknown fallback when the evidence domain has no truthful classification).
 func cloneProvenanceRow(row map[string]any, scopeID, generationID, evidenceSource string) map[string]any {
 	cloned := make(map[string]any, len(row)+5)
 	for k, v := range row {
@@ -345,9 +345,7 @@ func cloneProvenanceRow(row map[string]any, scopeID, generationID, evidenceSourc
 	cloned["generation_id"] = generationID
 	cloned["evidence_source"] = evidenceSource
 	cloned["evidence_kinds"] = provenanceEdgeKindsFor(evidenceSource)
-	if tool, ok := provenanceEdgeSourceToolForSource[evidenceSource]; ok {
-		cloned["source_tool"] = tool
-	}
+	cloned["source_tool"] = provenanceEdgeSourceToolFor(evidenceSource)
 	return cloned
 }
 

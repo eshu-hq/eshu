@@ -17,6 +17,18 @@ import (
 
 const observedNornicDBRelationshipSnapshotConflict = "UNWIND MERGE chain relationship update failed: not found"
 
+func TestClassifyTransientNeo4jErrorPrioritizesNornicDBWriteConflict(t *testing.T) {
+	t.Parallel()
+
+	err := &neo4jdriver.Neo4jError{
+		Code: nornicDBTransactionOutdatedCode,
+		Msg:  "UNWIND MERGE chain relationship update failed: conflict: edge nornic:123 changed after transaction start",
+	}
+	if got := classifyTransientNeo4jError(err); got != graphWriteRetryReasonWriteConflict {
+		t.Fatalf("retry reason = %q, want %q", got, graphWriteRetryReasonWriteConflict)
+	}
+}
+
 type relationshipSnapshotConflictExecutor struct {
 	executeCalls    atomic.Int32
 	executeFailures int32

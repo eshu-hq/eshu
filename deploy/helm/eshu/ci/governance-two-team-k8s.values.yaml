@@ -18,6 +18,14 @@ image:
 # fails fast otherwise) and run as an ordinary post-install Job instead.
 nornicdb:
   enabled: true
+  capabilities:
+    relationshipMergePropertyIdentity: true
+  # The proof driver builds this tag from the exact docker-compose.yaml PR #290
+  # source checksum before installing the chart. Never pull a same-named image.
+  image:
+    repository: eshu-nornicdb-pr290
+    tag: 3722b483c02c
+    pullPolicy: Never
   resources:
     requests:
       cpu: 250m

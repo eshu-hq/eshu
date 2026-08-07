@@ -1,0 +1,23 @@
+NORNICDB_HEAD=3722b483c02c38a8e046d198f8768f200f31023c
+ESHU_QUERY_SOURCE_HEAD=62db74df0e7768f7a7ac364200639f8125413c04
+ESHU_PROVENANCE_QUERY_BLOB=e43415abb8f01ac7e319e4cd3748586918c88bd4
+ESHU_DERIVED_QUERY_BLOB=3a0bc093121ac393441fd69cffb37773f07e064b
+HARNESS=testdata/nornicdb/eshu_exact_provenance_trace_test.go
+HARNESS_COPY_SHA256_MATCH=true
+=== RUN   TestEshuExactProvenanceQueriesUseIndexedMergeHotPath
+=== RUN   TestEshuExactProvenanceQueriesUseIndexedMergeHotPath/publishes-package
+    eshu_exact_provenance_trace_test.go:109: canonicalProvenancePublishesPackageCypher trace: {OuterIndexTopK:false OuterScanFallbackUsed:false FabricBatchedApplyRows:false SimpleMatchLimitFastPath:false CosineVectorIndexFastPath:false CompoundQueryFastPath:false TraversalStartSeedTopK:false TraversalEndSeedTopK:false UnwindSimpleMergeBatch:false UnwindMergeChainBatch:true UnwindRelationshipMergeBatch:false UnwindFixedChainLinkBatch:false UnwindMultiMatchCreateBatch:false CallTailTraversalFastPath:false CallTailProjectionFastPath:false MergeSchemaLookupUsed:true MergeScanFallbackUsed:false}
+=== RUN   TestEshuExactProvenanceQueriesUseIndexedMergeHotPath/publishes-package-version
+    eshu_exact_provenance_trace_test.go:109: canonicalProvenancePublishesPackageVersionCypher trace: {OuterIndexTopK:false OuterScanFallbackUsed:false FabricBatchedApplyRows:false SimpleMatchLimitFastPath:false CosineVectorIndexFastPath:false CompoundQueryFastPath:false TraversalStartSeedTopK:false TraversalEndSeedTopK:false UnwindSimpleMergeBatch:false UnwindMergeChainBatch:true UnwindRelationshipMergeBatch:false UnwindFixedChainLinkBatch:false UnwindMultiMatchCreateBatch:false CallTailTraversalFastPath:false CallTailProjectionFastPath:false MergeSchemaLookupUsed:true MergeScanFallbackUsed:false}
+=== RUN   TestEshuExactProvenanceQueriesUseIndexedMergeHotPath/built-from
+    eshu_exact_provenance_trace_test.go:109: canonicalProvenanceBuiltFromCypher trace: {OuterIndexTopK:false OuterScanFallbackUsed:false FabricBatchedApplyRows:false SimpleMatchLimitFastPath:false CosineVectorIndexFastPath:false CompoundQueryFastPath:false TraversalStartSeedTopK:false TraversalEndSeedTopK:false UnwindSimpleMergeBatch:false UnwindMergeChainBatch:true UnwindRelationshipMergeBatch:false UnwindFixedChainLinkBatch:false UnwindMultiMatchCreateBatch:false CallTailTraversalFastPath:false CallTailProjectionFastPath:false MergeSchemaLookupUsed:true MergeScanFallbackUsed:false}
+=== RUN   TestEshuExactProvenanceQueriesUseIndexedMergeHotPath/derived-from
+    eshu_exact_provenance_trace_test.go:109: canonicalProvenanceDerivedFromCypher trace: {OuterIndexTopK:false OuterScanFallbackUsed:false FabricBatchedApplyRows:false SimpleMatchLimitFastPath:false CosineVectorIndexFastPath:false CompoundQueryFastPath:false TraversalStartSeedTopK:false TraversalEndSeedTopK:false UnwindSimpleMergeBatch:false UnwindMergeChainBatch:true UnwindRelationshipMergeBatch:false UnwindFixedChainLinkBatch:false UnwindMultiMatchCreateBatch:false CallTailTraversalFastPath:false CallTailProjectionFastPath:false MergeSchemaLookupUsed:true MergeScanFallbackUsed:false}
+--- PASS: TestEshuExactProvenanceQueriesUseIndexedMergeHotPath (0.01s)
+    --- PASS: TestEshuExactProvenanceQueriesUseIndexedMergeHotPath/publishes-package (0.00s)
+    --- PASS: TestEshuExactProvenanceQueriesUseIndexedMergeHotPath/publishes-package-version (0.00s)
+    --- PASS: TestEshuExactProvenanceQueriesUseIndexedMergeHotPath/built-from (0.00s)
+    --- PASS: TestEshuExactProvenanceQueriesUseIndexedMergeHotPath/derived-from (0.00s)
+PASS
+ok  	github.com/orneryd/nornicdb/pkg/cypher	0.541s
+EXIT=0

@@ -51,8 +51,13 @@ func TestProvenanceEdgeWriterWritePublishesPackageMatchMatchMerge(t *testing.T) 
 	if strings.Contains(cypher, "MERGE (repo:Repository") || strings.Contains(cypher, "MERGE (target:Package") {
 		t.Fatalf("cypher must not MERGE (fabricate) endpoint nodes:\n%s", cypher)
 	}
-	if !strings.Contains(cypher, "MERGE (repo)-[rel:PUBLISHES]->(target)") {
-		t.Fatalf("edge MERGE must use the static PUBLISHES relationship type:\n%s", cypher)
+	if !strings.Contains(cypher, "MERGE (repo)-[rel:PUBLISHES {") ||
+		!strings.Contains(cypher, "scope_id: row.scope_id") ||
+		!strings.Contains(cypher, "evidence_source: row.evidence_source") {
+		t.Fatalf("edge MERGE must identify PUBLISHES by scope_id+evidence_source:\n%s", cypher)
+	}
+	if strings.Contains(cypher, "rel.scope_id = row.scope_id") || strings.Contains(cypher, "rel.evidence_source = row.evidence_source") {
+		t.Fatalf("identity properties must not be mutable SET assignments:\n%s", cypher)
 	}
 
 	rowsParam, ok := executor.calls[0].Parameters["rows"].([]map[string]any)
@@ -117,6 +122,26 @@ func TestProvenanceEdgeWriterStampsEvidenceKindsPerEvidenceSource(t *testing.T) 
 	}
 }
 
+func TestProvenanceEdgeWriterUnknownEvidenceSourceStampsUnknownSourceTool(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewProvenanceEdgeWriter(executor, 0)
+	const evidenceSource = "reducer/future-provenance-writer"
+	if err := writer.WritePublishesEdges(context.Background(), []map[string]any{
+		{"repository_id": "repo-1", "package_id": "pkg-1"},
+	}, "scope-1", "gen-1", evidenceSource); err != nil {
+		t.Fatalf("WritePublishesEdges returned error: %v", err)
+	}
+	rows, ok := executor.calls[0].Parameters["rows"].([]map[string]any)
+	if !ok || len(rows) != 1 {
+		t.Fatalf("rows parameter = %#v, want one row", executor.calls[0].Parameters["rows"])
+	}
+	if got := rows[0]["source_tool"]; got != "unknown" {
+		t.Fatalf("future provenance source_tool = %v, want explicit unknown fallback", got)
+	}
+}
+
 func TestProvenanceEdgeWriterWritePublishesBucketsPackageVersionSeparately(t *testing.T) {
 	t.Parallel()
 
@@ -136,6 +161,11 @@ func TestProvenanceEdgeWriterWritePublishesBucketsPackageVersionSeparately(t *te
 
 	var sawPackage, sawVersion bool
 	for _, call := range executor.calls {
+		if !strings.Contains(call.Cypher, "MERGE (repo)-[rel:PUBLISHES {") ||
+			!strings.Contains(call.Cypher, "scope_id: row.scope_id") ||
+			!strings.Contains(call.Cypher, "evidence_source: row.evidence_source") {
+			t.Fatalf("PUBLISHES statement must identify the assertion by scope_id+evidence_source:\n%s", call.Cypher)
+		}
 		if strings.Contains(call.Cypher, "MATCH (target:Package {uid: row.package_id})") {
 			sawPackage = true
 		}
@@ -173,8 +203,13 @@ func TestProvenanceEdgeWriterWriteBuiltFromMatchesByDigest(t *testing.T) {
 	if !strings.Contains(cypher, "MATCH (repo:Repository {id: row.repository_id})") {
 		t.Fatalf("cypher must MATCH the repository by id:\n%s", cypher)
 	}
-	if !strings.Contains(cypher, "MERGE (img)-[rel:BUILT_FROM]->(repo)") {
-		t.Fatalf("edge MERGE must use the static BUILT_FROM relationship type:\n%s", cypher)
+	if !strings.Contains(cypher, "MERGE (img)-[rel:BUILT_FROM {") ||
+		!strings.Contains(cypher, "scope_id: row.scope_id") ||
+		!strings.Contains(cypher, "evidence_source: row.evidence_source") {
+		t.Fatalf("edge MERGE must identify BUILT_FROM by scope_id+evidence_source:\n%s", cypher)
+	}
+	if strings.Contains(cypher, "rel.scope_id = row.scope_id") || strings.Contains(cypher, "rel.evidence_source = row.evidence_source") {
+		t.Fatalf("identity properties must not be mutable SET assignments:\n%s", cypher)
 	}
 	if !strings.Contains(cypher, "rel.source_tool = row.source_tool") {
 		t.Fatalf("cypher must SET source_tool (#3997/#3999 provenance discipline, golden-corpus rc-165 requires it):\n%s", cypher)
@@ -189,7 +224,7 @@ func TestProvenanceEdgeWriterWriteBuiltFromMatchesByDigest(t *testing.T) {
 	}
 }
 
-func TestProvenanceEdgeWriterWritePublishesDoesNotStampSourceTool(t *testing.T) {
+func TestProvenanceEdgeWriterWritePublishesStampsUnknownSourceTool(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
@@ -205,8 +240,11 @@ func TestProvenanceEdgeWriterWritePublishesDoesNotStampSourceTool(t *testing.T) 
 	if !ok || len(rowsParam) != 1 {
 		t.Fatalf("rows parameter = %#v, want one row", executor.calls[0].Parameters["rows"])
 	}
-	if _, ok := rowsParam[0]["source_tool"]; ok {
-		t.Fatalf("PUBLISHES row must not carry source_tool (no ecosystem-detection wired): %#v", rowsParam[0])
+	if got := rowsParam[0]["source_tool"]; got != "unknown" {
+		t.Fatalf("PUBLISHES source_tool = %v, want explicit unknown fallback", got)
+	}
+	if cypher := executor.calls[0].Cypher; !strings.Contains(cypher, "rel.source_tool = row.source_tool") {
+		t.Fatalf("PUBLISHES Cypher must persist the explicit source_tool fallback:\n%s", cypher)
 	}
 }
 

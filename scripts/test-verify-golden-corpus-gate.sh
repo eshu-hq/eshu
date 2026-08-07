@@ -119,6 +119,20 @@ for sourced_case_lib in \
 	bash -n "${sourced_case_lib}" || fail "$(basename "${sourced_case_lib}") has a syntax error"
 done
 bash -n "${fixture_lib}" || fail "golden-corpus-fixtures.sh has a syntax error"
+# The fixture inventory is the source of truth for the corpus size. Keep the
+# snapshot's machine-readable count and its operator-facing Repository note in
+# lockstep so adding a fixture cannot leave stale proof metadata behind.
+# shellcheck source=scripts/lib/golden-corpus-fixtures.sh
+. "${fixture_lib}"
+fixture_count="${#corpus_fixtures[@]}"
+snapshot_fixture_count="$(jq -er '.corpus_composition.git_repos' "${snapshot}")" \
+	|| fail "B-12 corpus_composition.git_repos must be an integer"
+[[ "${snapshot_fixture_count}" -eq "${fixture_count}" ]] \
+	|| fail "B-12 declares ${snapshot_fixture_count} repos but the fixture inventory stages ${fixture_count}"
+repository_note="$(jq -er '.graph.node_counts.Repository.note' "${snapshot}")" \
+	|| fail "B-12 Repository note must be a string"
+rg --fixed-strings --quiet -- "${fixture_count} corpus repos" <<<"${repository_note}" \
+	|| fail "B-12 Repository note must name the ${fixture_count}-repo fixture inventory"
 
 suppression_lib="${repo_root}/scripts/lib/golden-corpus-vulnerability-suppression.sh"
 [[ -f "${suppression_lib}" ]] || fail "missing suppression proof lib: ${suppression_lib}"

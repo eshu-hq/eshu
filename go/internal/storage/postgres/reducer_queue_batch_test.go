@@ -47,6 +47,29 @@ func TestAckBatchEmptyIsNoop(t *testing.T) {
 	}
 }
 
+func TestAckBatchClearsProvenanceEdgeIdentityUpgradeFence(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 5, 10, 0, 0, 0, time.UTC)
+	containerQuery, _ := ackContainerImageIdentityReducerWorkBatchQuery(
+		now,
+		"upgrade-worker",
+		[]reducer.Intent{{
+			IntentID:   "container-upgrade",
+			Domain:     reducer.DomainContainerImageIdentity,
+			ClaimEpoch: 1,
+		}},
+	)
+	for name, query := range map[string]string{
+		"container image identity":   containerQuery,
+		"package source correlation": ackReducerWorkBatchQuery(1),
+	} {
+		if !strings.Contains(query, "provenance_edge_identity_upgrade_required = FALSE") {
+			t.Fatalf("%s batch ACK does not clear the upgrade fence:\n%s", name, query)
+		}
+	}
+}
+
 func TestClaimBatchReturnsEmptyFromEmptyDB(t *testing.T) {
 	t.Parallel()
 

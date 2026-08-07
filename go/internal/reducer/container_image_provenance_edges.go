@@ -14,23 +14,21 @@ import (
 )
 
 // containerImageBuiltFromProvenanceEvidenceSource tags BUILT_FROM edges
-// projected from container_image_identity decisions. container_image_identity
-// is the sole writer of BUILT_FROM today. A #5428 ci_cd_run_correlation writer
-// sharing this edge type was implemented and then rescinded before shipping
-// (docs/internal/evidence/5428-built-from-projection-rescinded.md): the
-// canonical MERGE identity matches on (start, end, type) only, ignoring
-// evidence_source, so a second writer on the same (digest, repository) pair
-// would collapse onto this domain's edge instead of being isolated from it
-// by evidence_source (#5827). A second BUILT_FROM writer MUST NOT land until
-// #5827 is fixed (docs/internal/design/5472-graph-projection-policy.md).
+// projected from container_image_identity decisions. The #5428
+// ci_cd_run_correlation writer was rescinded before shipping, but independent
+// domains can now safely assert the same endpoint pair because canonical
+// relationship identity includes scope_id and evidence_source (#5827). Each
+// domain must use its own stable evidence source and retract only that identity
+// (docs/internal/design/5472-graph-projection-policy.md).
 const containerImageBuiltFromProvenanceEvidenceSource = "reducer/container-image-identity"
 
 // ContainerImageProvenanceEdgeWriter persists and retracts canonical
 // BUILT_FROM edges between a ContainerImage and the Repository its identity
 // decision resolved as build source. Implementations MUST be idempotent by
-// (image digest, BUILT_FROM, repository id) so reducer retries and
-// re-projected generations converge on one edge, and MUST NOT fabricate an
-// endpoint node: a row whose image or repository node is absent is a no-op.
+// (image digest, BUILT_FROM, repository id, scope_id, evidence_source) so
+// reducer retries and re-projected generations converge on one assertion, and
+// MUST NOT fabricate an endpoint node: a row whose image or repository node is
+// absent is a no-op.
 type ContainerImageProvenanceEdgeWriter interface {
 	WriteBuiltFromEdges(ctx context.Context, rows []map[string]any, scopeID, generationID, evidenceSource string) error
 	RetractBuiltFromEdges(ctx context.Context, scopeID, generationID, evidenceSource string) error
@@ -66,12 +64,12 @@ type ContainerImageProvenanceEdgeWriter interface {
 // resolve to one image, and since #5426 both carry the same build-provenance
 // repository -- which would otherwise UNWIND the identical (digest, repository)
 // pair once per decision. The graph outcome is unchanged either way because the
-// canonical writer MERGEs on (start, end, type), so this is a payload and
-// counter fix, not a correctness one: it keeps the write batch proportional to
-// distinct (digest, repository) pairs and keeps the "materialized" ProvenanceEdges sample
-// counting those rather than one per (decision x build-provenance repository)
-// pair. Not "edges" -- the sample is len(rows) before the write, and a row whose
-// endpoint node is absent still counts (#5828).
+// canonical writer MERGEs on (start, end, type, scope_id, evidence_source), so
+// this is a payload and
+// counter fix, not a correctness one: it keeps the write batch and the
+// submitted-row counter proportional to distinct (digest, repository) pairs.
+// A submitted row whose endpoint node is absent remains a writer no-op, so the
+// counter does not claim that a durable edge exists (#5828).
 func containerImageBuiltFromRows(decisions []ContainerImageIdentityDecision) []map[string]any {
 	rows := make([]map[string]any, 0, len(decisions))
 	// A comparable two-string struct rather than a concatenated key. At 32 bytes
@@ -188,7 +186,6 @@ func (h ContainerImageIdentityHandler) projectContainerImageBuiltFromRows(
 		return fmt.Errorf("retract container image built_from provenance edges: %w", err)
 	}
 
-	h.emitProvenanceEdgeCounter(ctx, "materialized", len(rows))
 	if len(rows) == 0 {
 		return nil
 	}
@@ -197,13 +194,13 @@ func (h ContainerImageIdentityHandler) projectContainerImageBuiltFromRows(
 	); err != nil {
 		return fmt.Errorf("write container image built_from provenance edges: %w", err)
 	}
+	h.emitProvenanceEdgeCounter(ctx, "submitted", len(rows))
 	return nil
 }
 
-// emitProvenanceEdgeCounter records a ProvenanceEdges counter sample for the
-// container-image-identity BUILT_FROM projection, labeled by outcome (currently
-// always "materialized"; the outcome label is retained for a future skipped
-// series). It is a no-op when no Instruments are wired or the count is zero.
+// emitProvenanceEdgeCounter records BUILT_FROM rows submitted by a successful
+// writer call. It is a no-op when no Instruments are wired or the count is
+// zero.
 func (h ContainerImageIdentityHandler) emitProvenanceEdgeCounter(ctx context.Context, outcome string, count int) {
 	if h.Instruments == nil || h.Instruments.ProvenanceEdges == nil || count <= 0 {
 		return

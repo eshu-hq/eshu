@@ -134,6 +134,7 @@ func renderStatusMetrics(serviceName string, report statuspkg.Report) string {
 	writeGauge("eshu_runtime_queue_dead_letter", map[string]string{"service_name": serviceName}, strconv.Itoa(queue.DeadLetter))
 	writeGauge("eshu_runtime_queue_failed", map[string]string{"service_name": serviceName}, strconv.Itoa(queue.Failed))
 	writeGauge("eshu_runtime_queue_overdue_claims", map[string]string{"service_name": serviceName}, strconv.Itoa(queue.OverdueClaims))
+	writeProvenanceEdgeIdentityUpgradeMetrics(writeGauge, serviceName, queue)
 	writeGauge(
 		"eshu_runtime_queue_oldest_outstanding_age_seconds",
 		map[string]string{"service_name": serviceName},
@@ -204,6 +205,27 @@ func renderStatusMetrics(serviceName string, report statuspkg.Report) string {
 	writeCoordinatorMetrics(writeGauge, serviceName, report.Coordinator)
 
 	return builder.String()
+}
+
+func writeProvenanceEdgeIdentityUpgradeMetrics(
+	writeGauge func(name string, labels map[string]string, value string),
+	serviceName string,
+	queue statuspkg.QueueSnapshot,
+) {
+	upgradeApplied := "0"
+	if queue.ProvenanceEdgeIdentityUpgradeApplied {
+		upgradeApplied = "1"
+	}
+	writeGauge(
+		"eshu_runtime_provenance_edge_identity_upgrade_applied",
+		map[string]string{"service_name": serviceName},
+		upgradeApplied,
+	)
+	writeGauge(
+		"eshu_runtime_provenance_edge_identity_upgrade_required",
+		map[string]string{"service_name": serviceName},
+		strconv.Itoa(queue.ProvenanceEdgeIdentityUpgradeRequired),
+	)
 }
 
 func writeCoordinatorMetrics(

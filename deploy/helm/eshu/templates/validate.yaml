@@ -1,6 +1,43 @@
 {{- if and .Values.exposure.ingress.enabled .Values.exposure.gateway.enabled -}}
 {{- fail "exposure.ingress.enabled and exposure.gateway.enabled cannot both be true" -}}
 {{- end -}}
+{{- $nornicdbBackendSelected := false -}}
+{{- $globalEnv := default (dict) .Values.env -}}
+{{- if eq (include "eshu.envMapsSelectNornicDB" (list $globalEnv (default (dict) .Values.api.env))) "true" -}}
+{{- $nornicdbBackendSelected = true -}}
+{{- end -}}
+{{- if and .Values.mcpServer.enabled (eq (include "eshu.envMapsSelectNornicDB" (list $globalEnv (default (dict) .Values.mcpServer.env))) "true") -}}
+{{- $nornicdbBackendSelected = true -}}
+{{- end -}}
+{{- if and .Values.repoSync.enabled (eq (include "eshu.envMapsSelectNornicDB" (list $globalEnv (default (dict) .Values.ingester.env))) "true") -}}
+{{- $nornicdbBackendSelected = true -}}
+{{- end -}}
+{{- if .Values.resolutionEngine.enabled -}}
+{{- $resolutionLanes := default (list) .Values.resolutionEngine.lanes -}}
+{{- if eq (len $resolutionLanes) 0 -}}
+{{- if eq (include "eshu.envMapsSelectNornicDB" (list $globalEnv (default (dict) .Values.resolutionEngine.env))) "true" -}}
+{{- $nornicdbBackendSelected = true -}}
+{{- end -}}
+{{- else -}}
+{{- range $lane := $resolutionLanes -}}
+{{- if eq (include "eshu.envMapsSelectNornicDB" (list $globalEnv (default (dict) $.Values.resolutionEngine.env) (default (dict) $lane.env))) "true" -}}
+{{- $nornicdbBackendSelected = true -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if and .Values.workflowCoordinator.enabled (eq (include "eshu.envMapsSelectNornicDB" (list $globalEnv (default (dict) .Values.workflowCoordinator.env))) "true") -}}
+{{- $nornicdbBackendSelected = true -}}
+{{- end -}}
+{{- $globalOnlyWorkloads := list .Values.schemaBootstrap .Values.awsCloudCollector .Values.azureCloudCollector .Values.cicdRunCollector .Values.componentExtensionCollector .Values.confluenceCollector .Values.gcpCloudCollector .Values.grafanaCollector .Values.jiraCollector .Values.kubernetesLiveCollector .Values.lokiCollector .Values.ociRegistryCollector .Values.packageRegistryCollector .Values.pagerDutyCollector .Values.prometheusMimirCollector .Values.sbomAttestationCollector .Values.securityAlertCollector .Values.tempoCollector .Values.terraformStateCollector .Values.vaultLiveCollector .Values.vulnerabilityIntelligenceCollector .Values.scannerWorker -}}
+{{- range $workload := $globalOnlyWorkloads -}}
+{{- if and $workload.enabled (eq (include "eshu.envMapsSelectNornicDB" (list $globalEnv)) "true") -}}
+{{- $nornicdbBackendSelected = true -}}
+{{- end -}}
+{{- end -}}
+{{- if and $nornicdbBackendSelected (not .Values.nornicdb.capabilities.relationshipMergePropertyIdentity) -}}
+{{- fail "ESHU_GRAPH_BACKEND=nornicdb requires a backend that preserves relationship MERGE identity properties; verify the selected external or bundled endpoint uses orneryd/NornicDB#290 or a later compatible build, then set nornicdb.capabilities.relationshipMergePropertyIdentity=true" -}}
+{{- end -}}
 {{- $generationRetentionDisabled := false -}}
 {{- $generationRetentionEnvMaps := list (default (dict) .Values.env) (default (dict) .Values.resolutionEngine.env) -}}
 {{- range $envMap := $generationRetentionEnvMaps -}}

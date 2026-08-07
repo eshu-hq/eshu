@@ -37,6 +37,12 @@ guidance belong in the public Kubernetes docs.
 - Ingress and Gateway API exposure are mutually exclusive.
 - Helm-hook schema bootstrap cannot run against chart-managed NornicDB in the
   same install because hooks run before that backend exists.
+- The render-safe chart defaults select external Neo4j. Any enabled workload
+  whose effective environment selects `ESHU_GRAPH_BACKEND=nornicdb` fails closed unless
+  `nornicdb.capabilities.relationshipMergePropertyIdentity=true`, including
+  external platform-owned endpoints. The pinned v1.1.11 bundled default does
+  not satisfy that capability; use an immutable verified external or bundled
+  build before acknowledging it.
 - `workspace-setup` is a non-root init container. It must keep dropped
   capabilities, avoid ownership mutation, and rely on pod `fsGroup` handling for
   supported persistent volumes.

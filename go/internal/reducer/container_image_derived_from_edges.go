@@ -39,9 +39,10 @@ const containerImageDerivedFromBasisRepositorySingleBase = "repository_single_ba
 // ContainerImageDerivedFromEdgeWriter persists and retracts canonical
 // DERIVED_FROM edges between a built ContainerImage and the base ContainerImage
 // its repository's Dockerfile declared. Implementations MUST be idempotent by
-// (image digest, DERIVED_FROM, base digest) so reducer retries and re-projected
-// generations converge on one edge, and MUST NOT fabricate an endpoint node: a
-// row whose image or base node is absent is a no-op.
+// (image digest, DERIVED_FROM, base digest, scope_id, evidence_source) so
+// reducer retries and re-projected generations converge on one assertion, and
+// MUST NOT fabricate an endpoint node: a row whose image or base node is absent
+// is a no-op.
 type ContainerImageDerivedFromEdgeWriter interface {
 	WriteDerivedFromEdges(ctx context.Context, rows []map[string]any, scopeID, generationID, evidenceSource string) error
 	RetractDerivedFromEdges(ctx context.Context, scopeID, generationID, evidenceSource string) error
@@ -272,7 +273,6 @@ func (h ContainerImageIdentityHandler) projectContainerImageDerivedFromRows(
 		return fmt.Errorf("retract container image derived_from provenance edges: %w", err)
 	}
 
-	h.emitDerivedFromEdgeCounter(ctx, "materialized", len(rows))
 	if len(rows) == 0 {
 		return nil
 	}
@@ -281,12 +281,13 @@ func (h ContainerImageIdentityHandler) projectContainerImageDerivedFromRows(
 	); err != nil {
 		return fmt.Errorf("write container image derived_from provenance edges: %w", err)
 	}
+	h.emitDerivedFromEdgeCounter(ctx, "submitted", len(rows))
 	return nil
 }
 
-// emitDerivedFromEdgeCounter records a ProvenanceEdges counter sample for the
-// DERIVED_FROM projection, labeled by outcome. It is a no-op when no
-// Instruments are wired or the count is zero.
+// emitDerivedFromEdgeCounter records DERIVED_FROM rows submitted by a
+// successful writer call. It is a no-op when no Instruments are wired or the
+// count is zero.
 func (h ContainerImageIdentityHandler) emitDerivedFromEdgeCounter(ctx context.Context, outcome string, count int) {
 	if h.Instruments == nil || h.Instruments.ProvenanceEdges == nil || count <= 0 {
 		return

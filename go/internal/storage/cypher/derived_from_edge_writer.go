@@ -35,34 +35,22 @@ const provenanceDerivedFromEdgeLabel = "DERIVED_FROM"
 const canonicalProvenanceDerivedFromCypher = `UNWIND $rows AS row
 MATCH (img:ContainerImage {digest: row.digest})
 MATCH (base:ContainerImage {digest: row.base_digest})
-MERGE (img)-[rel:DERIVED_FROM]->(base)
-SET rel.scope_id = row.scope_id,
-    rel.generation_id = row.generation_id,
-    rel.evidence_source = row.evidence_source,
+MERGE (img)-[rel:DERIVED_FROM {
+  scope_id: row.scope_id,
+  evidence_source: row.evidence_source
+}]->(base)
+SET rel.generation_id = row.generation_id,
     rel.evidence_kinds = row.evidence_kinds,
     rel.attribution_basis = row.attribution_basis,
     rel.source_tool = row.source_tool`
 
 // retractProvenanceDerivedFromEdgesCypher removes this writer's DERIVED_FROM
 // edges for one scope+evidence_source before a fresh generation reprojects
-// them. Only container_image_identity writes DERIVED_FROM today, so this
-// retract has no other domain's edges to avoid. It still filters on
-// evidence_source rather than matching every DERIVED_FROM edge, but that
-// filter is not a proven cross-domain isolation guarantee: the canonical MERGE
-// above matches on (start, end, type) alone and ignores evidence_source, so a
-// second writer sharing this edge type would collapse onto the same edge and
-// this retract could delete an assertion the other writer still supports
-// (#5827, which names DERIVED_FROM explicitly). A second DERIVED_FROM writer
-// MUST NOT land until #5827 is fixed.
-//
-// The MERGE identity also drops scope_id, but unlike BUILT_FROM that does not
-// bite here today: containerImageDerivedFromRows takes an owning repository and
-// returns nil when it is empty, so a scope that merely observes both endpoints
-// (an OCI or cloud scope) projects nothing, and each edge has one deterministic
-// owning scope in the ordinary case. That restriction is the fix for exactly this failure mode and
-// is pinned by TestProjectContainerImageDerivedFromEdgesNonRepoScopeWritesNothing
-// -- do not loosen it. The residual case is narrower: two repository scopes both
-// credited with building the same digest, both resolving to the same base.
+// them. The canonical MERGE identity includes scope_id and evidence_source,
+// so this predicate retracts exactly one assertion without removing another
+// scope or evidence domain's support for the same image/base pair. Repository
+// ownership still gates projection and is pinned by
+// TestProjectContainerImageDerivedFromEdgesNonRepoScopeWritesNothing.
 const retractProvenanceDerivedFromEdgesCypher = `MATCH (:ContainerImage)-[rel:DERIVED_FROM]->(:ContainerImage)
 WHERE rel.scope_id = $scope_id
   AND rel.evidence_source = $evidence_source

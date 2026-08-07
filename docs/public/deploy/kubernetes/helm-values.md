@@ -19,7 +19,7 @@ Use this page to choose the right values page before editing
 | Area | Default |
 | --- | --- |
 | Image | `image.repository=ghcr.io/eshu-hq/eshu`, `image.tag=v0.0.2`, `image.pullPolicy=IfNotPresent`. |
-| Storage | `contentStore.dsn=""`, `contentStore.secretName=""`, `env.ESHU_GRAPH_BACKEND=nornicdb`, `neo4j.uri=bolt://neo4j:7687`. |
+| Storage | `contentStore.dsn=""`, `contentStore.secretName=""`, `env.ESHU_GRAPH_BACKEND=neo4j`, `neo4j.uri=bolt://neo4j:7687`. |
 | Schema bootstrap | `schemaBootstrap.enabled=true`, `schemaBootstrap.useHelmHooks=true`. |
 | Core runtimes | API, MCP, ingester, and resolution engine enabled; ingester PVC size `100Gi`. |
 | Optional runtimes | Workflow coordinator, webhook listener, and hosted collectors disabled. |
@@ -68,6 +68,10 @@ env:
   ESHU_GRAPH_BACKEND: nornicdb
   DEFAULT_DATABASE: nornic
   NEO4J_DATABASE: nornic
+
+nornicdb:
+  capabilities:
+    relationshipMergePropertyIdentity: true
 
 api:
   replicas: 2
