@@ -14,7 +14,13 @@
 # Layers 1-2 already define, applied along the failure axis instead of the
 # scheduling axis.
 #
-# Five cells, each hitting a genuinely different recovery seam:
+# Five cells, each hitting a genuinely different recovery seam. Cell
+# functions live in scripts/lib/ifa_fault_injection_cells.sh, and shared
+# per-cell plumbing (fresh_stack, drive_all_cassettes, run_drain_gate, etc.)
+# lives in scripts/lib/ifa_fault_injection_driver.sh -- both extracted out of
+# this driver script to keep it under the repo's 500-line cap
+# (.agents/skills/generator-script-discipline). This extraction changes
+# nothing about cell behavior, only where the code lives.
 #
 #   1. baseline                              -- fault-free; establishes the
 #      digest cells 2-5 are compared against.
@@ -96,6 +102,10 @@ cd "${repo_root}"
 source "${repo_root}/scripts/lib/ifa_determinism_common.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_common.sh
 source "${repo_root}/scripts/lib/ifa_fault_injection_common.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_driver.sh
+source "${repo_root}/scripts/lib/ifa_fault_injection_driver.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_cells.sh
+source "${repo_root}/scripts/lib/ifa_fault_injection_cells.sh"
 
 # ----------------------------------------------------------------------------
 # Configuration. One Compose project + one port triple reused across every
@@ -138,7 +148,7 @@ sql_expected_edges="${repo_root}/go/internal/ifa/testdata/sqlrelationships/ifa-s
 : "${SYNTH_MULTISCOPE_PROJECTS:=8}"
 : "${SYNTH_MULTISCOPE_RESOURCES:=64}"
 
-# The CloudResource MERGE anchor fail-graph-write-once-then-succeed targets
+# The CloudResource MERGE anchor cell_failgraphwrite (cell 4) targets
 # (go/internal/storage/cypher/cloud_resource_node_writer.go's
 # baseCloudResourceUpsertCypher): a fixed, grep-stable substring regardless of
 # this run's own call interleaving, unlike a statement_ordinal.
@@ -151,7 +161,7 @@ for arg in "$@"; do
 	--no-compose) use_compose=0 ;;
 	--keep) keep=1 ;;
 	-h | --help)
-		sed -n '2,72p' "${BASH_SOURCE[0]}"
+		sed -n '2,80p' "${BASH_SOURCE[0]}"
 		exit 0
 		;;
 	*)
@@ -244,248 +254,11 @@ synth_cassette="${work_dir}/synth-multiscope.json"
 declare -A digests
 declare -A wall_times
 
-# fresh_stack tears down any prior cell's stack and brings up a genuinely
-# fresh Postgres + NornicDB pair, then applies schema.
-fresh_stack() {
-	local cell="$1"
-	if [[ "${use_compose}" -eq 1 ]]; then
-		docker compose -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" down -v >/dev/null 2>&1 || true
-		docker compose -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" up -d nornicdb postgres
-		log "${cell}: wait for backends"
-		ifa_det_wait_for_backends "${FAULT_COMPOSE_PROJECT}" "${compose_file}" \
-			|| die "${cell}: Postgres + NornicDB did not become ready within budget"
-	fi
-	log "${cell}: apply Postgres + graph schema (eshu-bootstrap-data-plane)"
-	"${bin_dir}/eshu-bootstrap-data-plane" >"${log_dir}/bootstrap-data-plane-${cell}.log" 2>&1 \
-		|| { tail -40 "${log_dir}/bootstrap-data-plane-${cell}.log"; die "${cell}: bootstrap-data-plane failed"; }
-}
-
-# drive_all_cassettes drives the demo-org + synth-multiscope + SQL relationship
-# family cassettes into the fresh stack and asserts the drive actually enqueued
-# work (never a vacuous drain proof). The SQL family cassette (#5351) makes
-# cells 2/3 exercise the SQL relationship materialization handler's replay
-# through the real durable fault path, not only the GCP resource path.
-drive_all_cassettes() {
-	local cell="$1"
-	log "${cell}: drive demo-org cassette (-workers ${drive_workers})"
-	"${bin_dir}/eshu-ifa" drive -cassette "${cassette}" -workers "${drive_workers}" \
-		>"${log_dir}/ifa-drive-${cell}.log" 2>&1 \
-		|| { tail -40 "${log_dir}/ifa-drive-${cell}.log" >&2; die "${cell}: eshu-ifa drive (demo-org) failed"; }
-	log "${cell}: drive synth-multiscope cassette (-workers ${drive_workers})"
-	"${bin_dir}/eshu-ifa" drive -cassette "${synth_cassette}" -workers "${drive_workers}" \
-		>"${log_dir}/ifa-drive-synth-${cell}.log" 2>&1 \
-		|| { tail -40 "${log_dir}/ifa-drive-synth-${cell}.log" >&2; die "${cell}: eshu-ifa drive (synth-multiscope) failed"; }
-	log "${cell}: drive SQL relationship family cassette (-workers ${drive_workers})"
-	"${bin_dir}/eshu-ifa" drive -cassette "${sql_cassette}" -workers "${drive_workers}" \
-		>"${log_dir}/ifa-drive-sql-${cell}.log" 2>&1 \
-		|| { tail -40 "${log_dir}/ifa-drive-sql-${cell}.log" >&2; die "${cell}: eshu-ifa drive (SQL relationship family) failed"; }
-	local enqueued
-	enqueued="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
-		'SELECT count(*) FROM fact_work_items;' "${compose_file}" | tr -d '[:space:]')"
-	[[ -n "${enqueued}" && "${enqueued}" -gt 0 ]] \
-		|| die "${cell}: eshu-ifa drive committed but enqueued 0 fact_work_items rows (vacuous drain proof)"
-	printf '%s: fact_work_items enqueued: %s\n' "${cell}" "${enqueued}"
-}
-
-# run_drain_gate polls the gate binary to the B-12 residual bound (0), which
-# folds in this gate's own dead_letter=0 requirement: factWorkItemsResidualSQL
-# (go/cmd/golden-corpus-gate/drains.go) counts a dead_letter row AS residual,
-# so a PASS here already proves no durable dead letter survived.
-run_drain_gate() {
-	local cell="$1"
-	log "${cell}: drain projector + reducer (gate polls to the B-12 residual bound)"
-	if ! "${bin_dir}/eshu-golden-corpus-gate" \
-		-phase=drains \
-		-snapshot=testdata/golden/e2e-20repo-snapshot.json \
-		-drain-timeout="${GATE_DRAIN_TIMEOUT}"; then
-		tail -40 "${log_dir}"/reducer-*"${cell}"*.log 2>/dev/null || true
-		tail -40 "${log_dir}/projector-${cell}.log" 2>/dev/null || true
-		die "${cell}: drain did not reach the snapshot's residual bound within ${GATE_DRAIN_TIMEOUT}"
-	fi
-}
-
-# assert_no_dead_letters is a second, explicit dead_letter=0 check independent
-# of run_drain_gate's implicit one, so a failure here names the actual count
-# instead of only "the gate timed out".
-assert_no_dead_letters() {
-	local cell="$1"
-	local count
-	count="$(ifa_fault_dead_letter_count "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}")"
-	[[ "${count}" -eq 0 ]] || die "${cell}: expected 0 dead_letter rows after recovery, got ${count}"
-	printf '%s: dead_letter rows: 0 (recovery converged)\n' "${cell}"
-}
-
-# capture_digest canonicalizes the post-drain graph and stores it in digests[cell].
-capture_digest() {
-	local cell="$1"
-	log "${cell}: canonicalize graph (ifa graph-dump)"
-	"${bin_dir}/eshu-ifa" graph-dump -out "${work_dir}/graph-${cell}.dump" \
-		|| die "${cell}: ifa graph-dump (canonical bytes) failed"
-	local d
-	d="$("${bin_dir}/eshu-ifa" graph-dump -digest | tr -d '[:space:]')"
-	[[ -n "${d}" ]] || die "${cell}: ifa graph-dump -digest returned empty output"
-	digests[${cell}]="${d}"
-	printf '%s: digest: %s\n' "${cell}" "${d}"
-}
-
-# assert_matches_baseline compares digests[cell] to digests[baseline], printing
-# the full canonical-dump diff (never hiding it) on a mismatch.
-assert_matches_baseline() {
-	local cell="$1"
-	[[ "${digests[${cell}]}" == "${digests[baseline]}" ]] && return 0
-	printf 'MISMATCH: %s digest (%s) != baseline digest (%s)\n' \
-		"${cell}" "${digests[${cell}]}" "${digests[baseline]}" >&2
-	printf '\n=== full canonical graph diff: baseline vs %s (failure artifact) ===\n' "${cell}" >&2
-	diff -u "${work_dir}/graph-baseline.dump" "${work_dir}/graph-${cell}.dump" >&2 || true
-	die "${cell}: graph diverged from the fault-free baseline -- a real recovery/concurrency defect; do NOT retry, lower workers, or otherwise normalize this away"
-}
-
-teardown_cell() {
-	local cell="$1"
-	for pid in "${bg_pids[@]:-}"; do
-		[[ -n "${pid}" ]] && kill "${pid}" >/dev/null 2>&1 || true
-	done
-	wait 2>/dev/null || true
-	bg_pids=()
-	if [[ "${use_compose}" -eq 1 ]]; then
-		log "${cell}: tear down cell (fresh stack for the next cell)"
-		docker compose -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" down -v >/dev/null 2>&1 || true
-	fi
-}
-
-cell_start=$(date +%s)
-
-# --- Cell 1: baseline (fault-free) ------------------------------------------
-log "cell baseline: fresh stack"
-fresh_stack baseline
-drive_all_cassettes baseline
-ifa_det_start_bg "${log_dir}" "projector-baseline" projector_pid "${bin_dir}/eshu-projector"
-ifa_det_start_bg "${log_dir}" "reducer-baseline" reducer_pid "${bin_dir}/eshu-reducer"
-run_drain_gate baseline
-assert_no_dead_letters baseline
-capture_digest baseline
-# Non-vacuity assertion for the SQL relationship family (#5351): the fault-free
-# baseline graph must carry EXACTLY the nine expected SQL edges. This is what
-# gives the per-cell "identical to baseline" digest comparison teeth for this
-# family — if the SQL family materialized zero edges, the baseline digest and
-# every recovery-cell digest would still match (empty == empty) and pass
-# vacuously; asserting the absolute set here proves the baseline is non-empty,
-# so a fault that drops a SQL edge on recovery then diverges from a KNOWN-good
-# baseline. Backs the materialized_edges:sql_relationships manifest row's
-# proof_gate: ifa-fault-injection claim.
-log "baseline: assert SQL relationship family materialized edges (absolute set, non-vacuity)"
-"${bin_dir}/eshu-ifa" assert-edges \
-	-domain sql_relationships \
-	-expected "${sql_expected_edges}" \
-	|| die "baseline: SQL relationship family materialized edge set did not match the expected set (fault-free baseline must materialize all nine SQL edges before the recovery cells compare against it)"
-# Snapshot the fault-free retry count so cell 4 can prove the injected fault
-# ADDED a retry this identical drive did not produce on its own (guards the
-# non-vacuity check against a natural counting-class retry greening it while the
-# decorator sits inert). Captured before teardown while this cell's stack is up.
-baseline_retried="$(ifa_fault_count_retried "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}")"
-baseline_retried="${baseline_retried:-0}"
-printf 'baseline: fault-free gcp_resource_materialization retried rows (attempt_count>1): %s\n' "${baseline_retried}"
-teardown_cell baseline
-wall_times[baseline]=$(( $(date +%s) - cell_start ))
-printf 'baseline: cell wall time: %ss\n' "${wall_times[baseline]}"
-
-# --- Cell 2: kill-worker-after-claim -----------------------------------------
-cell_start=$(date +%s)
-log "cell kill-worker-after-claim: fresh stack"
-fresh_stack killworker
-drive_all_cassettes killworker
-ifa_det_start_bg "${log_dir}" "projector-killworker" projector_pid "${bin_dir}/eshu-projector"
-ifa_det_start_bg "${log_dir}" "reducer-killworker-before" reducer_pid_before "${bin_dir}/eshu-reducer"
-claimed_before="$(ifa_fault_wait_for_claimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${CLAIMED_ROW_WAIT_TIMEOUT}")" \
-	|| die "kill-worker-after-claim: no row was ever claimed before the kill -- non-vacuous precondition failed"
-printf 'kill-worker-after-claim: non-vacuous: %s claimed/running row(s) observed before kill\n' "${claimed_before}"
-log "kill-worker-after-claim: kill -9 the live reducer (pid ${reducer_pid_before})"
-kill -9 "${reducer_pid_before}" >/dev/null 2>&1 || true
-log "kill-worker-after-claim: start a fresh reducer process (1-minute lease expiry reclaim)"
-ifa_det_start_bg "${log_dir}" "reducer-killworker-after" reducer_pid_after "${bin_dir}/eshu-reducer"
-run_drain_gate killworker
-assert_no_dead_letters killworker
-capture_digest killworker
-assert_matches_baseline killworker
-teardown_cell killworker
-wall_times[killworker]=$(( $(date +%s) - cell_start ))
-printf 'kill-worker-after-claim: cell wall time: %ss\n' "${wall_times[killworker]}"
-
-# --- Cell 3: expire-lease-mid-handler -----------------------------------------
-cell_start=$(date +%s)
-log "cell expire-lease-mid-handler: fresh stack"
-fresh_stack expirelease
-drive_all_cassettes expirelease
-ifa_det_start_bg "${log_dir}" "projector-expirelease" projector_pid "${bin_dir}/eshu-projector"
-ifa_det_start_bg "${log_dir}" "reducer-expirelease" reducer_pid "${bin_dir}/eshu-reducer"
-claimed_before="$(ifa_fault_wait_for_claimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${CLAIMED_ROW_WAIT_TIMEOUT}")" \
-	|| die "expire-lease-mid-handler: no row was ever claimed before the forced expiry -- non-vacuous precondition failed"
-printf 'expire-lease-mid-handler: non-vacuous: %s claimed/running row(s) observed before forced expiry\n' "${claimed_before}"
-log "expire-lease-mid-handler: force claim_until = now() on every claimed/running reducer row (SQL, no kill)"
-ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
-	"UPDATE fact_work_items SET claim_until = now() WHERE stage = 'reducer' AND status IN ('claimed', 'running');" \
-	"${compose_file}" >/dev/null
-run_drain_gate expirelease
-assert_no_dead_letters expirelease
-capture_digest expirelease
-assert_matches_baseline expirelease
-teardown_cell expirelease
-wall_times[expirelease]=$(( $(date +%s) - cell_start ))
-printf 'expire-lease-mid-handler: cell wall time: %ss\n' "${wall_times[expirelease]}"
-
-# --- Cell 4: fail-graph-write-once-then-succeed (queue-retry lane) ----------
-cell_start=$(date +%s)
-log "cell fail-graph-write-once-then-succeed: fresh stack"
-fresh_stack failgraphwrite
-drive_all_cassettes failgraphwrite
-fault_once_script="${work_dir}/fault-once-then-succeed.json"
-ifa_fault_write_once_script "${fault_once_script}" "${cloud_resource_operation_match}" "queue-retry"
-ifa_det_start_bg "${log_dir}" "projector-failgraphwrite" projector_pid "${bin_dir}/eshu-projector"
-ifa_det_start_bg "${log_dir}" "reducer-failgraphwrite" reducer_pid \
-	env "ESHU_IFA_FAULT_SCRIPT=${fault_once_script}" "${tagged_bin_dir}/eshu-reducer"
-run_drain_gate failgraphwrite
-assert_no_dead_letters failgraphwrite
-capture_digest failgraphwrite
-assert_matches_baseline failgraphwrite
-ifa_fault_assert_retried_above "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${baseline_retried}" \
-	|| die "fail-graph-write-once-then-succeed: the scripted fault never fired -- the count of retried gcp_resource_materialization intents (succeeded, attempt_count > 1) did not exceed the fault-free baseline (${baseline_retried}). An inert script, not a pass. This is the live integration proof of the ifafaultinjection decorator; if the fault never fires, root-cause the wiring (ESHU_IFA_FAULT_SCRIPT read, NewFaultingExecutor construction, operation_match against the real CloudResource MERGE text) before treating this gate as usable."
-printf 'fail-graph-write-once-then-succeed: non-vacuous: retried gcp_resource_materialization intents exceed the fault-free baseline (%s)\n' "${baseline_retried}"
-teardown_cell failgraphwrite
-wall_times[failgraphwrite]=$(( $(date +%s) - cell_start ))
-printf 'fail-graph-write-once-then-succeed: cell wall time: %ss\n' "${wall_times[failgraphwrite]}"
-
-# --- Cell 5: restart-backend-between-phase-groups ---------------------------
-if [[ "${use_compose}" -eq 0 ]]; then
-	log "cell restart-backend-between-phase-groups: SKIPPED (--no-compose cannot restart a backend it does not own)"
-else
-	cell_start=$(date +%s)
-	log "cell restart-backend-between-phase-groups: fresh stack"
-	fresh_stack restartbackend
-	drive_all_cassettes restartbackend
-	fault_restart_script="${work_dir}/fault-restart-backend.json"
-	ifa_fault_write_restart_script "${fault_restart_script}" 1
-	restart_sentinel="${fault_restart_script}.restart-sentinel"
-	restart_result="${work_dir}/restart-watch-result"
-	ifa_det_start_bg "${log_dir}" "projector-restartbackend" projector_pid "${bin_dir}/eshu-projector"
-	ifa_det_start_bg "${log_dir}" "reducer-restartbackend" reducer_pid \
-		env "ESHU_IFA_FAULT_SCRIPT=${fault_restart_script}" "${tagged_bin_dir}/eshu-reducer"
-	ifa_fault_watch_restart_sentinel "${restart_sentinel}" "${FAULT_COMPOSE_PROJECT}" "${compose_file}" \
-		"${restart_result}" "${RESTART_SENTINEL_WAIT_TIMEOUT}" &
-	watcher_pid=$!
-	bg_pids+=("${watcher_pid}")
-	run_drain_gate restartbackend
-	wait "${watcher_pid}" 2>/dev/null || true
-	restart_fired="$(cat "${restart_result}" 2>/dev/null || echo missing)"
-	[[ "${restart_fired}" == "fired" ]] \
-		|| die "restart-backend-between-phase-groups: the scripted fault never fired (sentinel ${restart_sentinel} never appeared) -- inert script, not a pass. Root-cause the ifafaultinjection decorator's ExecuteGroup/ExecutePhaseGroup wiring before treating this gate as usable."
-	printf 'restart-backend-between-phase-groups: non-vacuous: sentinel fired, nornicdb restarted mid-drain\n'
-	assert_no_dead_letters restartbackend
-	capture_digest restartbackend
-	assert_matches_baseline restartbackend
-	teardown_cell restartbackend
-	wall_times[restartbackend]=$(( $(date +%s) - cell_start ))
-	printf 'restart-backend-between-phase-groups: cell wall time: %ss\n' "${wall_times[restartbackend]}"
-fi
+cell_baseline
+cell_killworker
+cell_expirelease
+cell_failgraphwrite
+cell_restartbackend
 
 log "PASS: fault-injection matrix green (project ${FAULT_COMPOSE_PROJECT}, postgres:${ESHU_POSTGRES_PORT}, neo4j-bolt:${NEO4J_BOLT_PORT})"
 for cell in "${!digests[@]}"; do
