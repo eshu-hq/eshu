@@ -1253,11 +1253,12 @@ gates:
       - "scripts/lib/context-stories-markdown-visible.awk"
       - "scripts/lib/test-verify-docs-build-changed-fake-uv.sh"
       - "scripts/test-context-stories-doc-split.sh"
+      - "scripts/test-context-stories-markdown-visible.sh"
       - "scripts/test-verify-docs-build-changed.sh"
       - "scripts/verify-docs-build-changed.sh"
     local:
       command: "bash scripts/verify-docs-build-changed.sh"
-      test_command: "bash scripts/test-verify-docs-build-changed.sh && bash scripts/test-context-stories-doc-split.sh"
+      test_command: "bash scripts/test-verify-docs-build-changed.sh && bash scripts/test-context-stories-doc-split.sh && bash scripts/test-context-stories-markdown-visible.sh"
     ci:
       workflow: test.yml
       job: "docs-helm-hygiene"

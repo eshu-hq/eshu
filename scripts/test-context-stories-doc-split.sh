@@ -320,44 +320,6 @@ seed_mutation_repo() {
   printf '%s\n' "$root"
 }
 
-hide_line_in_long_fence() {
-  local marker="$1"
-  local heading="$2"
-  local file="$3"
-  local output="${file}.nested-fence.tmp"
-  awk -v marker="$marker" -v heading="$heading" '
-    BEGIN { outer = marker marker marker marker; inner = marker marker marker }
-    $0 == heading {
-      print outer; print inner; print heading; print inner; print outer
-      next
-    }
-    { print }
-  ' "$file" >"$output"
-  mv "$output" "$file"
-}
-
-hide_line_in_multiline_comment() {
-  local target="$1"
-  local file="$2"
-  local output="${file}.multiline-comment.tmp"
-  awk -v target="$target" '
-    $0 == target { print "<!--"; print; print "-->"; next }
-    { print }
-  ' "$file" >"$output"
-  mv "$output" "$file"
-}
-
-hide_line_after_chained_comment() {
-  local target="$1"
-  local file="$2"
-  local output="${file}.chained-comment.tmp"
-  awk -v target="$target" '
-    $0 == target { print "<!-- closed --> <!--"; print; print "-->"; next }
-    { print }
-  ' "$file" >"$output"
-  mv "$output" "$file"
-}
-
 expect_mutation_failure() {
   local label="$1"
   local root="$2"
@@ -368,21 +330,11 @@ expect_mutation_failure() {
   printf 'ok - %s\n' "$label"
 }
 
-scanner_fixture="${tmp_root}/visible-scanner-transitions.md"
-printf '%s\n' \
-  'visible <!-- one -->prefix<!-- two --> suffix' \
-  '<!-- open' \
-  '-->close suffix' \
-  '~~~~' \
-  '<!-- unmatched opener inside fence' \
-  '~~~~' \
-  'visible after fence' >"$scanner_fixture"
-[ "$(scan_visible_markdown_regex '^visible.*prefix.* suffix$' "$scanner_fixture" count)" -eq 1 ] \
-  || fail 'visible scanner lost text around multiple closed comments'
-[ "$(scan_visible_markdown_regex '^.*close suffix$' "$scanner_fixture" count)" -eq 1 ] \
-  || fail 'visible scanner lost text after a multiline comment close'
-[ "$(scan_visible_markdown_regex '^visible after fence$' "$scanner_fixture" count)" -eq 1 ] \
-  || fail 'comment tokens inside a fence changed scanner state'
+if [ "${1:-}" = "--verify-root" ]; then
+  [ "$#" -eq 2 ] || fail 'usage: test-context-stories-doc-split.sh --verify-root <root>'
+  verify_layout "$2"
+  exit
+fi
 
 verify_layout "$repo_root"
 printf 'ok - real three-page route and anchor contract\n'
@@ -401,21 +353,6 @@ mutation_root="$(seed_mutation_repo missing-anchor)"
 sed -i.bak '/^## Stories$/d' \
   "${mutation_root}/docs/public/reference/http-api/context-and-stories.md"
 expect_mutation_failure "missing legacy heading stub is rejected" "$mutation_root"
-
-mutation_root="$(seed_mutation_repo hidden-legacy-heading)"
-sed -i.bak 's/^## Incident Context$/<!-- ## Incident Context -->/' \
-  "${mutation_root}/docs/public/reference/http-api/context-and-stories.md"
-expect_mutation_failure "comment-hidden legacy heading is rejected" "$mutation_root"
-
-mutation_root="$(seed_mutation_repo long-backtick-fence)"
-hide_line_in_long_fence '`' '## Incident Context' \
-  "${mutation_root}/docs/public/reference/http-api/context-and-stories.md"
-expect_mutation_failure "heading hidden by a four-backtick fence is rejected" "$mutation_root"
-
-mutation_root="$(seed_mutation_repo long-tilde-fence)"
-hide_line_in_long_fence '~' '## Incident Context' \
-  "${mutation_root}/docs/public/reference/http-api/context-and-stories.md"
-expect_mutation_failure "heading hidden by a four-tilde fence is rejected" "$mutation_root"
 
 mutation_root="$(seed_mutation_repo duplicate-route)"
 printf '%s\n' 'POST /api/v0/impact/trace-deployment-chain' \
@@ -446,41 +383,5 @@ mutation_root="$(seed_mutation_repo commented-nav)"
 sed -i.bak 's/^        - Story Routes:/        # - Story Routes:/' \
   "${mutation_root}/docs/mkdocs.yml"
 expect_mutation_failure "commented navigation entry is rejected" "$mutation_root"
-
-mutation_root="$(seed_mutation_repo commented-route-row)"
-sed -i.bak '/^| Repository story |/s/^/<!-- /; /^<!-- | Repository story |/s/$/ -->/' \
-  "${mutation_root}/docs/public/reference/http-api/story-routes.md"
-expect_mutation_failure "comment-hidden route row is rejected" "$mutation_root"
-
-owned_route_row="| Repository story | \`GET /api/v0/repositories/{repo_id}/story\` |"
-
-mutation_root="$(seed_mutation_repo multiline-commented-route-row)"
-hide_line_in_multiline_comment "$owned_route_row" \
-  "${mutation_root}/docs/public/reference/http-api/story-routes.md"
-expect_mutation_failure "route row hidden by a multiline comment is rejected" "$mutation_root"
-
-mutation_root="$(seed_mutation_repo chained-commented-route-row)"
-hide_line_after_chained_comment "$owned_route_row" \
-  "${mutation_root}/docs/public/reference/http-api/story-routes.md"
-expect_mutation_failure "route row hidden after chained comments is rejected" "$mutation_root"
-
-mutation_root="$(seed_mutation_repo comment-close-prefixed-route-row)"
-story_file="${mutation_root}/docs/public/reference/http-api/story-routes.md"
-awk -v target="$owned_route_row" '
-  $0 == target { print "<!--"; print "-->" $0; next }
-  { print }
-' "$story_file" >"${story_file}.tmp"
-mv "${story_file}.tmp" "$story_file"
-expect_mutation_failure "route row prefixed by a comment close is rejected" "$mutation_root"
-
-mutation_root="$(seed_mutation_repo fenced-backtick-route-row)"
-hide_line_in_long_fence '`' "$owned_route_row" \
-  "${mutation_root}/docs/public/reference/http-api/story-routes.md"
-expect_mutation_failure "route row hidden by a four-backtick fence is rejected" "$mutation_root"
-
-mutation_root="$(seed_mutation_repo fenced-tilde-route-row)"
-hide_line_in_long_fence '~' "$owned_route_row" \
-  "${mutation_root}/docs/public/reference/http-api/story-routes.md"
-expect_mutation_failure "route row hidden by a four-tilde fence is rejected" "$mutation_root"
 
 printf 'context-stories-doc-split: all checks passed\n'
