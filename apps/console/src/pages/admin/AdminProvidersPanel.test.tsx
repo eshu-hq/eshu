@@ -5,19 +5,14 @@
 // fabricated rows), Test/Disable row actions, env-managed gating, and that no
 // secret ever reaches the DOM.
 import { render, screen, waitFor, within, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 
 import { AdminProvidersPanel } from "./AdminProvidersPanel";
 import type { EshuApiClient } from "../../api/client";
 
-beforeEach(() => {
-  vi.stubGlobal(
-    "confirm",
-    vi.fn(() => true),
-  );
-});
+// No native confirm() stub: the panel gates Disable through the in-app
+// useConfirm dialog, which the test drives by role.
 afterEach(() => {
-  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
@@ -188,6 +183,9 @@ describe("AdminProvidersPanel", () => {
     render(<AdminProvidersPanel client={client} />);
     const btn = await screen.findByRole("button", { name: "Disable" });
     fireEvent.click(btn);
+    // The in-app confirmation dialog gates the mutation; accept it to proceed.
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm" }));
     await waitFor(() =>
       expect(postJson).toHaveBeenCalledWith("/api/v0/auth/admin/provider-configs/pc_1/disable", {}),
     );

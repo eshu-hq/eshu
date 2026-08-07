@@ -5,8 +5,8 @@
 //   - rotate requires confirmation, reveals the replacement token once
 //   - revoke requires confirmation and takes effect (refetch reflects it)
 //   - never renders token_hash / api_token outside the just-created reveal
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, waitFor, within, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
 
 import { TokensSection } from "./TokensSection";
 import type { EshuApiClient } from "../../api/client";
@@ -23,14 +23,9 @@ const oneToken: APITokenItem = {
   expires_at: undefined,
 };
 
-beforeEach(() => {
-  vi.stubGlobal(
-    "confirm",
-    vi.fn(() => true),
-  );
-});
+// No native confirm() stub: rotate/revoke gate on the in-app useConfirm
+// dialog, which these tests drive by role.
 afterEach(() => {
-  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
@@ -139,6 +134,9 @@ describe("TokensSection — rotate", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", { name: "Rotate" }));
+    // The in-app confirmation dialog gates the mutation; accept it to proceed.
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm" }));
     await waitFor(() =>
       expect(postJson).toHaveBeenCalledWith("/api/v0/auth/local/api-tokens/tok-001/rotate", {}),
     );
@@ -147,10 +145,6 @@ describe("TokensSection — rotate", () => {
   });
 
   it("does nothing when the confirmation is declined", async () => {
-    vi.stubGlobal(
-      "confirm",
-      vi.fn(() => false),
-    );
     const postJson = vi.fn();
     const client = { postJson } as unknown as EshuApiClient;
     render(
@@ -162,6 +156,10 @@ describe("TokensSection — rotate", () => {
       />,
     );
     fireEvent.click(await screen.findByRole("button", { name: "Rotate" }));
+    // Cancelling the in-app dialog must leave the token untouched.
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
     expect(postJson).not.toHaveBeenCalled();
   });
 });
@@ -181,6 +179,9 @@ describe("TokensSection — revoke", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", { name: "Revoke" }));
+    // The in-app confirmation dialog gates the mutation; accept it to proceed.
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm" }));
     await waitFor(() =>
       expect(postNoContent).toHaveBeenCalledWith(
         "/api/v0/auth/local/api-tokens/tok-001/revoke",

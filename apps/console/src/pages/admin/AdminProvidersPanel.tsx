@@ -43,6 +43,7 @@ import {
 import type { AdminProviderConfigItem } from "../../api/adminProviderConfig";
 import type { EshuApiClient } from "../../api/client";
 import { Panel, Badge } from "../../components/atoms";
+import { useConfirm } from "../../components/useConfirm";
 
 const ProviderConfigDrawer = lazy(() =>
   import("./ProviderConfigDrawer").then((m) => ({ default: m.ProviderConfigDrawer })),
@@ -94,6 +95,7 @@ export function AdminProvidersPanel({
     mode: "create" | "edit";
     item?: AdminProviderConfigItem;
   } | null>(null);
+  const { confirm, confirmDialog } = useConfirm();
 
   const previousClientRef = useRef(client);
   useEffect(() => {
@@ -155,7 +157,9 @@ export function AdminProvidersPanel({
   const onDisable = useCallback(
     async (item: AdminProviderConfigItem) => {
       if (!client) return;
-      if (!globalThis.confirm?.(`Disable provider ${item.provider_config_id}?`)) return;
+      if (!(await confirm(`Disable provider ${item.provider_config_id}?`, { danger: true }))) {
+        return;
+      }
       setBusyId(item.provider_config_id);
       setNotice(null);
       const outcome = await disableProviderConfig(client, item.provider_config_id);
@@ -167,7 +171,7 @@ export function AdminProvidersPanel({
         setNotice(outcome.errorMessage ?? `Failed to disable ${item.provider_config_id}.`);
       }
     },
-    [client],
+    [client, confirm],
   );
 
   // Only the INITIAL load (loaded still false) renders the loading-only
@@ -208,6 +212,7 @@ export function AdminProvidersPanel({
         ) : null
       }
     >
+      {confirmDialog}
       {notice ? (
         <p className="empty-note" role="status">
           {notice}

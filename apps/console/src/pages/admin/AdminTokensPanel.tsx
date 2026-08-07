@@ -20,6 +20,7 @@ import { loadApiTokens, revokeApiToken } from "../../api/adminConsole";
 import type { AdminAPITokenItem } from "../../api/adminConsole";
 import type { EshuApiClient } from "../../api/client";
 import { Panel, Badge } from "../../components/atoms";
+import { useConfirm } from "../../components/useConfirm";
 
 function statusBadge(status: string | undefined, revokedAt: string | undefined): React.JSX.Element {
   if (revokedAt || status === "revoked") return <Badge tone="crit">revoked</Badge>;
@@ -39,6 +40,7 @@ export function AdminTokensPanel({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const { confirm, confirmDialog } = useConfirm();
 
   useEffect(() => {
     let cancelled = false;
@@ -63,7 +65,7 @@ export function AdminTokensPanel({
   const onRevoke = useCallback(
     async (tokenId: string) => {
       if (!client) return;
-      if (!globalThis.confirm?.(`Revoke API token ${tokenId}?`)) return;
+      if (!(await confirm(`Revoke API token ${tokenId}?`, { danger: true }))) return;
       setBusyId(tokenId);
       setNotice(null);
       const ok = await revokeApiToken(client, tokenId);
@@ -75,7 +77,7 @@ export function AdminTokensPanel({
         setNotice(`Failed to revoke token ${tokenId}.`);
       }
     },
-    [client],
+    [client, confirm],
   );
 
   if (loading) {
@@ -95,6 +97,7 @@ export function AdminTokensPanel({
 
   return (
     <Panel title="API tokens">
+      {confirmDialog}
       {notice ? (
         <p className="empty-note" role="status">
           {notice}

@@ -20,6 +20,7 @@ import {
 import type { RoleAssignmentItem } from "../../api/adminConsole";
 import type { EshuApiClient } from "../../api/client";
 import { Panel, Badge } from "../../components/atoms";
+import { useConfirm } from "../../components/useConfirm";
 
 function statusBadge(status: string | undefined): React.JSX.Element {
   if (status === "revoked") return <Badge tone="crit">revoked</Badge>;
@@ -42,6 +43,7 @@ export function AdminAssignmentsPanel({
   const [grantRole, setGrantRole] = useState("");
   const [grantWorkspace, setGrantWorkspace] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+  const { confirm, confirmDialog } = useConfirm();
 
   useEffect(() => {
     let cancelled = false;
@@ -65,7 +67,7 @@ export function AdminAssignmentsPanel({
 
   const onGrant = useCallback(async () => {
     if (!client || grantUser.length === 0 || grantRole.length === 0) return;
-    if (!globalThis.confirm?.(`Grant role ${grantRole} to user ${grantUser}?`)) return;
+    if (!(await confirm(`Grant role ${grantRole} to user ${grantUser}?`))) return;
     setBusy(true);
     setNotice(null);
     const ok = await grantRoleAssignment(client, {
@@ -83,12 +85,16 @@ export function AdminAssignmentsPanel({
     } else {
       setNotice(`Failed to grant ${grantRole} to ${grantUser}.`);
     }
-  }, [client, grantUser, grantRole, grantWorkspace]);
+  }, [client, grantUser, grantRole, grantWorkspace, confirm]);
 
   const onRevoke = useCallback(
     async (item: RoleAssignmentItem) => {
       if (!client) return;
-      if (!globalThis.confirm?.(`Revoke role ${item.role_id} from user ${item.user_id}?`)) return;
+      if (
+        !(await confirm(`Revoke role ${item.role_id} from user ${item.user_id}?`, { danger: true }))
+      ) {
+        return;
+      }
       setBusy(true);
       setNotice(null);
       const ok = await revokeRoleAssignment(client, {
@@ -104,7 +110,7 @@ export function AdminAssignmentsPanel({
         setNotice(`Failed to revoke ${item.role_id} from ${item.user_id}.`);
       }
     },
-    [client],
+    [client, confirm],
   );
 
   const grantForm = (
@@ -155,6 +161,7 @@ export function AdminAssignmentsPanel({
     return (
       <Panel title="Role assignments">
         {grantForm}
+        {confirmDialog}
         <p className="unavailable-note">Role assignments unavailable from this source.</p>
       </Panel>
     );
@@ -163,6 +170,7 @@ export function AdminAssignmentsPanel({
   return (
     <Panel title="Role assignments">
       {grantForm}
+      {confirmDialog}
       {notice ? (
         <p className="empty-note" role="status">
           {notice}

@@ -17,6 +17,7 @@ import type { EshuApiClient } from "../../api/client";
 import { rotatePersonalApiToken, revokeApiToken } from "../../api/userProfile";
 import type { APITokenItem, CreatedAPIToken } from "../../api/userProfile";
 import { Panel, Badge } from "../../components/atoms";
+import { useConfirm } from "../../components/useConfirm";
 
 function statusBadge(revoked: boolean, expired: boolean): React.JSX.Element {
   if (revoked) return <Badge tone="crit">revoked</Badge>;
@@ -40,11 +41,14 @@ export function TokensSection({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [rotated, setRotated] = useState<CreatedAPIToken | null>(null);
+  const { confirm, confirmDialog } = useConfirm();
 
   async function handleRotate(tokenId: string): Promise<void> {
     if (!client) return;
     if (
-      !globalThis.confirm?.(`Rotate API token ${tokenId}? The old token stops working immediately.`)
+      !(await confirm(`Rotate API token ${tokenId}? The old token stops working immediately.`, {
+        danger: true,
+      }))
     ) {
       return;
     }
@@ -66,7 +70,7 @@ export function TokensSection({
 
   async function handleRevoke(tokenId: string): Promise<void> {
     if (!client) return;
-    if (!globalThis.confirm?.(`Revoke API token ${tokenId}?`)) return;
+    if (!(await confirm(`Revoke API token ${tokenId}?`, { danger: true }))) return;
     setBusyId(tokenId);
     setNotice(null);
     const ok = await revokeApiToken(client, tokenId);
@@ -98,6 +102,7 @@ export function TokensSection({
 
   return (
     <Panel title="API tokens">
+      {confirmDialog}
       {notice ? (
         <p className="empty-note" role="status">
           {notice}

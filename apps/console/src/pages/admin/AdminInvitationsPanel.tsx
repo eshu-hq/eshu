@@ -17,6 +17,7 @@ import { loadInvitations, revokeInvitation } from "../../api/adminConsole";
 import type { InvitationItem } from "../../api/adminConsole";
 import type { EshuApiClient } from "../../api/client";
 import { Panel, Badge } from "../../components/atoms";
+import { useConfirm } from "../../components/useConfirm";
 
 function statusBadge(status: string | undefined): React.JSX.Element {
   if (status === "revoked") return <Badge tone="crit">revoked</Badge>;
@@ -37,6 +38,7 @@ export function AdminInvitationsPanel({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const { confirm, confirmDialog } = useConfirm();
 
   useEffect(() => {
     let cancelled = false;
@@ -61,7 +63,7 @@ export function AdminInvitationsPanel({
   const onRevoke = useCallback(
     async (inviteId: string) => {
       if (!client) return;
-      if (!globalThis.confirm?.(`Revoke invitation ${inviteId}?`)) return;
+      if (!(await confirm(`Revoke invitation ${inviteId}?`, { danger: true }))) return;
       setBusyId(inviteId);
       setNotice(null);
       const ok = await revokeInvitation(client, inviteId);
@@ -73,7 +75,7 @@ export function AdminInvitationsPanel({
         setNotice(`Failed to revoke invitation ${inviteId}.`);
       }
     },
-    [client],
+    [client, confirm],
   );
 
   if (loading) {
@@ -93,6 +95,7 @@ export function AdminInvitationsPanel({
 
   return (
     <Panel title="Invitations">
+      {confirmDialog}
       {notice ? (
         <p className="empty-note" role="status">
           {notice}
