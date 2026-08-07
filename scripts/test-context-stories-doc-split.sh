@@ -72,36 +72,42 @@ scan_visible_heading_regex() {
   local file="$2"
   local mode="$3"
   awk -v pattern="$pattern" -v mode="$mode" '
+    function is_fence_run(text, closing,    indent, trimmed, char, run, tail) {
+      indent = 0
+      while (substr(text, indent + 1, 1) == " ") indent++
+      if (indent > 3 || substr(text, indent + 1, 1) == "\t") return 0
+      trimmed = substr(text, indent + 1)
+      char = substr(trimmed, 1, 1)
+      if (char != "`" && char != "~") return 0
+      run = 0
+      while (substr(trimmed, run + 1, 1) == char) run++
+      if (run < 3) return 0
+      tail = substr(trimmed, run + 1)
+      if (closing &&
+          (char != fence_char || run < fence_length || tail !~ /^[ \t]*$/)) return 0
+      detected_char = char
+      detected_length = run
+      return 1
+    }
     {
       line = $0
       if (in_fence) {
-        if ((fence == "backtick" && line ~ /^[[:space:]]*```/) ||
-            (fence == "tilde" && line ~ /^[[:space:]]*~~~/)) {
-          in_fence = 0
-        }
+        if (is_fence_run(line, 1)) in_fence = 0
         next
       }
       if (in_comment) {
-        if (index(line, "-->")) {
-          in_comment = 0
-        }
+        if (index(line, "-->")) in_comment = 0
         next
       }
       if (index(line, "<!--")) {
         after_start = substr(line, index(line, "<!--") + 4)
-        if (!index(after_start, "-->")) {
-          in_comment = 1
-        }
+        if (!index(after_start, "-->")) in_comment = 1
         next
       }
-      if (line ~ /^[[:space:]]*```/) {
+      if (is_fence_run(line, 0)) {
         in_fence = 1
-        fence = "backtick"
-        next
-      }
-      if (line ~ /^[[:space:]]*~~~/) {
-        in_fence = 1
-        fence = "tilde"
+        fence_char = detected_char
+        fence_length = detected_length
         next
       }
       if (line ~ pattern) {
@@ -362,6 +368,22 @@ seed_mutation_repo() {
   printf '%s\n' "$root"
 }
 
+hide_heading_in_long_fence() {
+  local marker="$1"
+  local heading="$2"
+  local file="$3"
+  local output="${file}.nested-fence.tmp"
+  awk -v marker="$marker" -v heading="$heading" '
+    BEGIN { outer = marker marker marker marker; inner = marker marker marker }
+    $0 == heading {
+      print outer; print inner; print heading; print inner; print outer
+      next
+    }
+    { print }
+  ' "$file" >"$output"
+  mv "$output" "$file"
+}
+
 expect_mutation_failure() {
   local label="$1"
   local root="$2"
@@ -394,6 +416,16 @@ mutation_root="$(seed_mutation_repo hidden-legacy-heading)"
 sed -i.bak 's/^## Incident Context$/<!-- ## Incident Context -->/' \
   "${mutation_root}/docs/public/reference/http-api/context-and-stories.md"
 expect_mutation_failure "comment-hidden legacy heading is rejected" "$mutation_root"
+
+mutation_root="$(seed_mutation_repo long-backtick-fence)"
+hide_heading_in_long_fence '`' '## Incident Context' \
+  "${mutation_root}/docs/public/reference/http-api/context-and-stories.md"
+expect_mutation_failure "heading hidden by a four-backtick fence is rejected" "$mutation_root"
+
+mutation_root="$(seed_mutation_repo long-tilde-fence)"
+hide_heading_in_long_fence '~' '## Incident Context' \
+  "${mutation_root}/docs/public/reference/http-api/context-and-stories.md"
+expect_mutation_failure "heading hidden by a four-tilde fence is rejected" "$mutation_root"
 
 mutation_root="$(seed_mutation_repo duplicate-route)"
 printf '%s\n' 'POST /api/v0/impact/trace-deployment-chain' \
