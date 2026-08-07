@@ -337,6 +337,33 @@ and `eshu-diagnostic-rigor`.
   narrowings this check has — it is not a fixed count, and a comment claiming
   one has already been wrong twice (#5762 rounds 9 and 10).
 
+- **checkGoPackageTriggerCoverage (`gopkgtrigger.go`, check 10) is check 8 for
+  gates written in Go, and keeps the same declared-not-derived rule.** Check 8
+  only derives `scripts/`-prefixed tokens, so it is blind to the 19 local gates
+  whose implementation is a Go package (`go run ./cmd/x`, `go test
+  ./internal/y`). Editing the program that IS such a gate did not select it,
+  which is the #5873 false green. Check 10 derives the REQUIREMENT from the
+  gate's own command and still demands the trigger be written in
+  `specs/ci-gates.v1.yaml`, so `triggers:` stays the single readable answer to
+  "what selects this gate".
+
+  Two rules are worth knowing before you edit a gate's command. A package-level
+  `go test ./internal/x` compiles every file in that package, so per-file
+  triggers do not satisfy it — `ifa-materialized-edge-coverage` kept its
+  per-file entries as the reader's map of what it guards and added
+  `go/internal/ifa/**` and `go/internal/reducer/**` alongside them. And a
+  recursive `./...` demands a trigger reaching nested files, because that is
+  what the command compiles; a `go/cmd/x/*.go` trigger does not cover
+  `go test ./cmd/x/...`.
+
+  Widening a trigger costs `make pre-pr` time, so measure it rather than
+  guessing. Landing #5873 changed exactly two selections, each by one gate: a
+  reducer-touching PR went 18 → 19 gates (+10.6s warm) and a
+  capability-inventory PR 17 → 18 (+2.9s warm). If a future widening costs
+  materially more than that, prefer narrowing the gate's COMMAND — a
+  `-run`-filtered package test still compiles the whole package, so the honest
+  fix is a smaller package, not a smaller trigger.
+
 ## Common changes
 
 - Adding a new category or requirement: add the constant, add to the validation

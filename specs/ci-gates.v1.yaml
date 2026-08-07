@@ -1867,6 +1867,13 @@ gates:
     tier: pre-pr
     blocking: true
     triggers:
+      # This gate runs two package-level `go test` commands, which compile every
+      # file in each package — so an edit to any sibling file can change the
+      # verdict and must select the gate (#5873). The per-file entries below are
+      # kept: they are the files the gate is actually about, and the doc renders
+      # them as the reader's map of what it guards.
+      - "go/internal/ifa/**"
+      - "go/internal/reducer/**"
       - "go/internal/ifa/materialized_edges*.go"
       - "go/internal/ifa/sql_relationship_odu*.go"
       - "go/internal/reducer/materialized_edge_families.go"
@@ -2299,6 +2306,11 @@ gates:
       - "specs/product-claims.v1.yaml"
       - "specs/capability-catalog.v1.yaml"
       - "specs/capability-matrix.v1.yaml"
+      # The gate IS this program: it runs `go run ./cmd/capability-inventory
+      # -mode product-claims`, so an edit there must select it (#5873). Its two
+      # sibling gates on the same binary, capability-inventory and
+      # capability-inventory-docs, already trigger on this path.
+      - "go/cmd/capability-inventory/**"
     # The deterministic product-claims-mode verify is credential-free. The live
     # issue-state variant (ESHU_VERIFY_PRODUCT_CLAIM_ISSUES_LIVE=1 + GITHUB_TOKEN)
     # stays CI-only. #4073: narrowed from -mode docs to -mode product-claims so

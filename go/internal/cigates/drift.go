@@ -110,6 +110,7 @@ func DriftCheck(repoRoot string, reg *Registry) []error {
 	errs = append(errs, checkTrivySkipDirsParity(repoRoot)...)
 	errs = append(errs, checkScriptTriggerCoverage(repoRoot, reg)...)
 	errs = append(errs, checkRequiredStatusWorkflows(repoRoot, reg)...)
+	errs = append(errs, checkGoPackageTriggerCoverage(reg)...)
 
 	return errs
 }
