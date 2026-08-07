@@ -5,12 +5,18 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+visible_scanner="${repo_root}/scripts/lib/context-stories-markdown-visible.awk"
 tmp_root="$(mktemp -d)"
 trap 'rm -rf "${tmp_root}"' EXIT
 
 fail() {
   printf 'context-stories-doc-split: %s\n' "$*" >&2
   return 1
+}
+
+[ -f "$visible_scanner" ] || {
+  fail "missing scripts/lib/context-stories-markdown-visible.awk"
+  exit 1
 }
 
 count_fixed() {
@@ -67,66 +73,11 @@ escape_regex() {
   printf '%s\n' "$1" | sed 's/[][\\.^$*+?(){}|]/\\&/g'
 }
 
-scan_visible_heading_regex() {
+scan_visible_markdown_regex() {
   local pattern="$1"
   local file="$2"
   local mode="$3"
-  awk -v pattern="$pattern" -v mode="$mode" '
-    function is_fence_run(text, closing,    indent, trimmed, char, run, tail) {
-      indent = 0
-      while (substr(text, indent + 1, 1) == " ") indent++
-      if (indent > 3 || substr(text, indent + 1, 1) == "\t") return 0
-      trimmed = substr(text, indent + 1)
-      char = substr(trimmed, 1, 1)
-      if (char != "`" && char != "~") return 0
-      run = 0
-      while (substr(trimmed, run + 1, 1) == char) run++
-      if (run < 3) return 0
-      tail = substr(trimmed, run + 1)
-      if (closing &&
-          (char != fence_char || run < fence_length || tail !~ /^[ \t]*$/)) return 0
-      detected_char = char
-      detected_length = run
-      return 1
-    }
-    {
-      line = $0
-      if (in_fence) {
-        if (is_fence_run(line, 1)) in_fence = 0
-        next
-      }
-      if (in_comment) {
-        if (index(line, "-->")) in_comment = 0
-        next
-      }
-      if (index(line, "<!--")) {
-        after_start = substr(line, index(line, "<!--") + 4)
-        if (!index(after_start, "-->")) in_comment = 1
-        next
-      }
-      if (is_fence_run(line, 0)) {
-        in_fence = 1
-        fence_char = detected_char
-        fence_length = detected_length
-        next
-      }
-      if (line ~ pattern) {
-        if (mode == "line") {
-          print NR
-          found = 1
-          exit
-        }
-        count++
-      }
-    }
-    END {
-      if (mode == "line") {
-        if (!found) exit 1
-      } else {
-        print count + 0
-      }
-    }
-  ' "$file"
+  awk -v pattern="$pattern" -v mode="$mode" -f "$visible_scanner" "$file"
 }
 
 count_visible_heading_regex() {
@@ -134,7 +85,7 @@ count_visible_heading_regex() {
   local file="$2"
   local output code
   set +e
-  output="$(scan_visible_heading_regex "$pattern" "$file" count)"
+  output="$(scan_visible_markdown_regex "$pattern" "$file" count)"
   code=$?
   set -e
   if [ "$code" -ne 0 ]; then
@@ -156,26 +107,27 @@ require_visible_heading_count() {
 
 count_visible_table_fixed() {
   local text="$1"
-  shift
-  local output code
+  local file="$2"
+  local escaped pattern output code
+  escaped="$(escape_regex "$text")"
+  pattern="^ {0,3}[|].*${escaped}.*[|][ \t]*$"
   set +e
-  output="$(rg --no-filename --fixed-strings "$text" "$@" 2>/dev/null)"
+  output="$(scan_visible_markdown_regex "$pattern" "$file" count)"
   code=$?
   set -e
-  if [ "$code" -gt 1 ]; then
-    fail "rg failed while matching visible table rows: ${text}"
+  if [ "$code" -ne 0 ]; then
+    fail "visible Markdown scan failed for table row: ${text}"
     return 1
   fi
-  printf '%s\n' "$output" \
-    | awk '/^[[:space:]]*\|.*\|[[:space:]]*$/ { count++ } END { print count + 0 }'
+  printf '%s\n' "$output"
 }
 
 require_visible_table_count() {
   local expected="$1"
   local text="$2"
-  shift 2
+  local file="$3"
   local actual
-  actual="$(count_visible_table_fixed "$text" "$@")" || return 1
+  actual="$(count_visible_table_fixed "$text" "$file")" || return 1
   [ "$actual" -eq "$expected" ] \
     || fail "expected ${expected} visible table row(s) containing ${text}; found ${actual}"
 }
@@ -185,7 +137,7 @@ heading_line() {
   local file="$2"
   local output code
   set +e
-  output="$(scan_visible_heading_regex "$pattern" "$file" line)"
+  output="$(scan_visible_markdown_regex "$pattern" "$file" line)"
   code=$?
   set -e
   if [ "$code" -ne 0 ]; then
@@ -368,7 +320,7 @@ seed_mutation_repo() {
   printf '%s\n' "$root"
 }
 
-hide_heading_in_long_fence() {
+hide_line_in_long_fence() {
   local marker="$1"
   local heading="$2"
   local file="$3"
@@ -379,6 +331,17 @@ hide_heading_in_long_fence() {
       print outer; print inner; print heading; print inner; print outer
       next
     }
+    { print }
+  ' "$file" >"$output"
+  mv "$output" "$file"
+}
+
+hide_line_in_multiline_comment() {
+  local target="$1"
+  local file="$2"
+  local output="${file}.multiline-comment.tmp"
+  awk -v target="$target" '
+    $0 == target { print "<!--"; print; print "-->"; next }
     { print }
   ' "$file" >"$output"
   mv "$output" "$file"
@@ -418,12 +381,12 @@ sed -i.bak 's/^## Incident Context$/<!-- ## Incident Context -->/' \
 expect_mutation_failure "comment-hidden legacy heading is rejected" "$mutation_root"
 
 mutation_root="$(seed_mutation_repo long-backtick-fence)"
-hide_heading_in_long_fence '`' '## Incident Context' \
+hide_line_in_long_fence '`' '## Incident Context' \
   "${mutation_root}/docs/public/reference/http-api/context-and-stories.md"
 expect_mutation_failure "heading hidden by a four-backtick fence is rejected" "$mutation_root"
 
 mutation_root="$(seed_mutation_repo long-tilde-fence)"
-hide_heading_in_long_fence '~' '## Incident Context' \
+hide_line_in_long_fence '~' '## Incident Context' \
   "${mutation_root}/docs/public/reference/http-api/context-and-stories.md"
 expect_mutation_failure "heading hidden by a four-tilde fence is rejected" "$mutation_root"
 
@@ -461,5 +424,22 @@ mutation_root="$(seed_mutation_repo commented-route-row)"
 sed -i.bak '/^| Repository story |/s/^/<!-- /; /^<!-- | Repository story |/s/$/ -->/' \
   "${mutation_root}/docs/public/reference/http-api/story-routes.md"
 expect_mutation_failure "comment-hidden route row is rejected" "$mutation_root"
+
+owned_route_row="| Repository story | \`GET /api/v0/repositories/{repo_id}/story\` |"
+
+mutation_root="$(seed_mutation_repo multiline-commented-route-row)"
+hide_line_in_multiline_comment "$owned_route_row" \
+  "${mutation_root}/docs/public/reference/http-api/story-routes.md"
+expect_mutation_failure "route row hidden by a multiline comment is rejected" "$mutation_root"
+
+mutation_root="$(seed_mutation_repo fenced-backtick-route-row)"
+hide_line_in_long_fence '`' "$owned_route_row" \
+  "${mutation_root}/docs/public/reference/http-api/story-routes.md"
+expect_mutation_failure "route row hidden by a four-backtick fence is rejected" "$mutation_root"
+
+mutation_root="$(seed_mutation_repo fenced-tilde-route-row)"
+hide_line_in_long_fence '~' "$owned_route_row" \
+  "${mutation_root}/docs/public/reference/http-api/story-routes.md"
+expect_mutation_failure "route row hidden by a four-tilde fence is rejected" "$mutation_root"
 
 printf 'context-stories-doc-split: all checks passed\n'

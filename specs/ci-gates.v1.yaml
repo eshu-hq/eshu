@@ -1250,6 +1250,7 @@ gates:
       - "AGENTS.md"
       - "CLAUDE.md"
       - "README.md"
+      - "scripts/lib/context-stories-markdown-visible.awk"
       - "scripts/lib/test-verify-docs-build-changed-fake-uv.sh"
       - "scripts/test-context-stories-doc-split.sh"
       - "scripts/test-verify-docs-build-changed.sh"
