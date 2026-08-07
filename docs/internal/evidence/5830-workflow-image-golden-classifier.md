@@ -70,11 +70,11 @@ Exact invocation, run in `prior, copy-bound` order five times:
 `GOMAXPROCS=1 ESHU_BENCHMARK_REPOSITORY=<clean-parent-checkout> go test ./internal/collector -run '^$' -bench '^BenchmarkFilesystemManagedCopyCommitAttributionLargeRepository$' -benchtime=1x -count=1`.
 
 The skip-heavy worst case used 1,000 sibling directories with 100 immutable
-paths each, all omitted by observed collector policy. The prior repeated map
-scan measured 474.130, 509.606, and 482.807 milliseconds (median 482.807
-milliseconds). Sorted-prefix discharge measured 19.048, 17.767, and 19.021
-milliseconds (median 19.021 milliseconds): 96.06% lower, or 25.38x faster.
-Exact command:
+paths each, all omitted by observed collector policy. The post-rebase rerun of
+the prior repeated map scan measured 440.549, 439.676, and 428.994 milliseconds
+(median 439.676 milliseconds). Sorted-prefix discharge measured 15.936,
+16.046, and 15.708 milliseconds (median 15.936 milliseconds): 96.38% lower,
+or 27.59x faster. Exact command:
 `GOMAXPROCS=1 go test ./internal/collector -run '^$' -bench '^BenchmarkManagedCopyDischargeSkippedDirectories$' -benchtime=1x -count=3`.
 
 The old path could publish false commit provenance, while the integrated path
@@ -112,12 +112,16 @@ increased by 4 seconds and the instrumented pipeline phases by 2 seconds
 speedup is claimed. Every required timing remained inside its gate ceiling;
 maintenance drains exceeded the advisory 19-second ceiling by 1 second.
 
-The rebased source head `71d0e49811675ebbfa1e7ea9d329a84006f23e03`
-completed B-7 against merged NornicDB revision
-`3722b483c02c38a8e046d198f8768f200f31023c` in 134 seconds. Its phases
-summed to 105 seconds (bootstrap 4, collect 15, first drain 64, maintenance
-drains 20, graph/query 2). All required and advisory timings remained inside
-their gate ceilings. The repeated isolated final-parent benchmark above is the
+After #5932 merged, `git range-diff` mapped all 13 child commits one-to-one and
+the stable patch ID remained `64657a0486e358f1441a801d1ebf6bec68ee3c84`.
+The post-rebase source head `bf9b08f339483ae8e2997a192f3e78e9cbf9f0b4`
+completed the golden-corpus gate (B-7), which indexes the 30-repository fixture
+and checks graph plus query truth, against merged NornicDB revision
+`3722b483c02c38a8e046d198f8768f200f31023c`. Its phases summed to 111 seconds
+(bootstrap 3, collect 17, first drain 66, maintenance drains 23, graph/query
+2), and the full run took 125 seconds. All required and
+advisory timings remained inside their gate ceilings. The repeated isolated
+final-parent benchmark and post-rebase skip-heavy benchmark above are the
 collector-path no-regression evidence; the full gate is reported without
 attributing host and backend startup variance to the collector or claiming a
 speedup.
