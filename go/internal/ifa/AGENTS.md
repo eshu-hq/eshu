@@ -95,12 +95,11 @@
   `(surface, proof_gate)` (each waiver row carries a `proof_gate:` — one of
   `ifa-determinism` / `ifa-fault-injection`), so a per-family waiver with no
   `proof_gate` is too coarse and fails to load. Waiving the `fault` gate does
-  NOT green the `baseline` row and vice versa — this is why `sql_relationships`
-  could keep a proven baseline while its confirmed-false fault (#5555) was
-  waived, before that fault was fixed and the waiver removed once the fault
-  row gained real coverage. A waiver on a `(surface, proof_gate)` that later
-  gains real coverage is flagged as stale — remove the `waivers:` row in the
-  same change that adds the coverage row.
+  NOT green the `baseline` row and vice versa — this is how `sql_relationships`
+  keeps a proven baseline while its confirmed-false fault (#5555) is waived. A
+  waiver on a `(surface, proof_gate)` that later gains real coverage is flagged
+  as stale — remove the `waivers:` row in the same change that adds the
+  coverage row.
 - The manifest is a CLAIMS LEDGER, not a roadmap: absence of a required
   `(surface × scenario_type)` row means NOT CLAIMED / not covered, never
   inferred covered. Do NOT add a permanently-waived row for a dimension you

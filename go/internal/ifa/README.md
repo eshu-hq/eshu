@@ -90,12 +90,9 @@ authoring; it does not build a second coverage framework.
   CLAIMS LEDGER, not a roadmap: each required `(surface × scenario_type)` row
   must name the proof gate that runs it. SQL relationships has proven baseline
   and `delta_tombstone` rows under `ifa-determinism`; the matrix drives gen 2
-  after gen 1 and checks the accumulated exact edge set. Its `fault` row is
-  also proven (#5555 closed): `scripts/lib/ifa_fault_injection_sql_cells.sh`'s
-  `cell_killworker_sql` and `cell_failgraphwrite_sql` provably target the
-  `sql_relationship_materialization` / `sql_relationships` work item (a
-  domain-scoped claimed-row precondition and a SQL edge MERGE anchor, not
-  `CloudResource`).
+  after gen 1 and checks the accumulated exact edge set. Its `fault` row remains
+  waived on #5555 because that fault is anchored to a `CloudResource` MERGE and
+  never exercises the SQL work item.
   `materialized_edges_sql.go`'s `resolveSQLRelationshipMaterializedEdges` is
   the first family vacuity guard (`sql_relationships`): it asserts the
   hand-derived expected-edge-set fixture covers every
