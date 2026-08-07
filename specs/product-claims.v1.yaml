@@ -39,11 +39,11 @@ claims:
     source:
       path: README.md
       line: 56
-      quote: "| Code-to-cloud tracing | Connect source repos, container images, Kubernetes workloads, Helm/Kustomize/ArgoCD config, Terraform resources, and cloud observations with evidence at each hop. <!-- capability-state: id=code_to_cloud.trace_exposure_path state=general_availability --> <!-- product-claim: id=readme.code-to-cloud.evidence-continuity --> |"
+      quote: "| Code-to-cloud tracing | Connect source repos, container images, Kubernetes workloads, Helm/Kustomize/ArgoCD config, Terraform resources, and cloud observations with evidence at each hop. <!-- capability-state: id=code_to_cloud.trace_exposure_path state=experimental --> <!-- product-claim: id=readme.code-to-cloud.evidence-continuity --> |"
     claim_text: "Code-to-cloud tracing connects source, image, workload, configuration, Terraform, and cloud observations with evidence at each hop."
     capabilities:
       - id: code_to_cloud.trace_exposure_path
-        claimed_maturity: general_availability
+        claimed_maturity: experimental
     truth_level: derived
     owner_packages: [internal/query]
     implementation_paths: [go/internal/query, go/internal/reducer, go/internal/relationships]
@@ -56,8 +56,11 @@ claims:
       command: "cd go && go test ./internal/query ./internal/reducer ./internal/relationships -count=1"
       signals:
         - capability: code_to_cloud.trace_exposure_path
-          kind: compose_e2e
-          ref: trace-exposure-path
+          kind: go_test
+          ref: ./internal/query
+    issues:
+      - number: 5681
+        state: open
 
   - id: readme.supply-chain.default-gated
     source:
@@ -91,13 +94,13 @@ claims:
     source:
       path: README.md
       line: 59
-      quote: "| Security and IAM posture | Surface hardcoded secrets, secret-access paths, and IAM trust and privilege chains with the evidence behind each finding. <!-- capability-state: id=security.hardcoded_secrets state=general_availability --> <!-- capability-state: id=secrets_iam.secret_access_paths.list state=general_availability --> <!-- product-claim: id=readme.security-iam.evidence-backed-findings --> |"
+      quote: "| Security and IAM posture | Surface hardcoded secrets, secret-access paths, and IAM trust and privilege chains with the evidence behind each finding. <!-- capability-state: id=security.hardcoded_secrets state=general_availability --> <!-- capability-state: id=secrets_iam.secret_access_paths.list state=experimental --> <!-- product-claim: id=readme.security-iam.evidence-backed-findings --> |"
     claim_text: "Security and IAM posture reads expose hardcoded secrets, secret-access paths, and IAM trust or privilege chains with backing evidence."
     capabilities:
       - id: security.hardcoded_secrets
         claimed_maturity: general_availability
       - id: secrets_iam.secret_access_paths.list
-        claimed_maturity: general_availability
+        claimed_maturity: experimental
     truth_level: derived
     owner_packages: [internal/query, internal/collector/vulnerabilityintelligence]
     implementation_paths: [go/internal/query, go/internal/collector/vulnerabilityintelligence]
@@ -113,6 +116,9 @@ claims:
         - capability: secrets_iam.secret_access_paths.list
           kind: go_test
           ref: ./internal/query
+    issues:
+      - number: 5681
+        state: open
 
   - id: readme.change-risk.blast-radius
     source:

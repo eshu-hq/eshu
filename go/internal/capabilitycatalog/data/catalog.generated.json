@@ -3147,8 +3147,8 @@
     {
       "capability": "code_search.variable_lookup",
       "display_name": "Code Search Variable Lookup",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "find_code",
@@ -3178,7 +3178,7 @@
           "max_scope_size": "active_repo"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1000,
@@ -3188,15 +3188,11 @@
       "proof_signals": [
         {
           "kind": "go_test",
+          "ref": "./internal/mcp"
+        },
+        {
+          "kind": "go_test",
           "ref": "./internal/query"
-        },
-        {
-          "kind": "integration_test",
-          "ref": "local-authoritative-variable-lookup"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-variable-lookup"
         }
       ],
       "console": false,
@@ -3222,8 +3218,8 @@
     {
       "capability": "code_to_cloud.trace_exposure_path",
       "display_name": "Code To Cloud Trace Exposure Path",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "trace_exposure_path",
@@ -3252,7 +3248,7 @@
           "max_scope_size": "active_repo"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "derived",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 6000,
@@ -3261,20 +3257,12 @@
       },
       "proof_signals": [
         {
-          "kind": "compose_e2e",
-          "ref": "trace-exposure-path"
-        },
-        {
-          "kind": "integration_test",
-          "ref": "local-authoritative-trace-exposure-path"
+          "kind": "go_test",
+          "ref": "./internal/query"
         },
         {
           "kind": "integration_test",
           "ref": "local-lightweight-unsupported-trace-exposure-path"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-trace-exposure-path"
         }
       ],
       "console": false,
@@ -8909,8 +8897,8 @@
     {
       "capability": "secrets_iam.identity_trust_chains.list",
       "display_name": "Secrets Iam Identity Trust Chains List",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "list_secrets_iam_identity_trust_chains",
@@ -8939,7 +8927,7 @@
           "max_scope_size": "active_monofolder"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1500,
@@ -8954,10 +8942,6 @@
         {
           "kind": "integration_test",
           "ref": "local-lightweight-unsupported-secrets-iam-identity-trust-chains"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-secrets-iam-identity-trust-chains"
         }
       ],
       "console": false,
@@ -8983,8 +8967,8 @@
     {
       "capability": "secrets_iam.posture_gaps.list",
       "display_name": "Secrets Iam Posture Gaps List",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "list_secrets_iam_posture_gaps",
@@ -9013,7 +8997,7 @@
           "max_scope_size": "active_monofolder"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1500,
@@ -9028,10 +9012,6 @@
         {
           "kind": "integration_test",
           "ref": "local-lightweight-unsupported-secrets-iam-posture-gaps"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-secrets-iam-posture-gaps"
         }
       ],
       "console": false,
@@ -9057,8 +9037,8 @@
     {
       "capability": "secrets_iam.posture_summary.read",
       "display_name": "Secrets Iam Posture Summary Read",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "count_secrets_iam_posture",
@@ -9087,7 +9067,7 @@
           "max_scope_size": "active_monofolder"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1500,
@@ -9102,10 +9082,6 @@
         {
           "kind": "integration_test",
           "ref": "local-lightweight-unsupported-secrets-iam-posture-summary"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-secrets-iam-posture-summary"
         }
       ],
       "console": false,
@@ -9131,8 +9107,8 @@
     {
       "capability": "secrets_iam.privilege_posture_observations.list",
       "display_name": "Secrets Iam Privilege Posture Observations List",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "list_secrets_iam_privilege_posture_observations",
@@ -9161,7 +9137,7 @@
           "max_scope_size": "active_monofolder"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1500,
@@ -9176,10 +9152,6 @@
         {
           "kind": "integration_test",
           "ref": "local-lightweight-unsupported-secrets-iam-privilege-posture-observations"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-secrets-iam-privilege-posture-observations"
         }
       ],
       "console": false,
@@ -9205,8 +9177,8 @@
     {
       "capability": "secrets_iam.secret_access_paths.list",
       "display_name": "Secrets Iam Secret Access Paths List",
-      "maturity": "general_availability",
-      "derived_maturity": "general_availability",
+      "maturity": "experimental",
+      "derived_maturity": "experimental",
       "surfaces": [
         {
           "tool": "list_secrets_iam_secret_access_paths",
@@ -9235,7 +9207,7 @@
           "max_scope_size": "active_monofolder"
         },
         "production": {
-          "status": "supported",
+          "status": "experimental",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1500,
@@ -9250,10 +9222,6 @@
         {
           "kind": "integration_test",
           "ref": "local-lightweight-unsupported-secrets-iam-secret-access-paths"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-secrets-iam-secret-access-paths"
         }
       ],
       "console": false,

@@ -141,3 +141,149 @@ Run from the worktree root unless noted:
 7. Run the full proof list (verify, docs, remote-validation-artifacts,
    maturity-drift-guard, focused Go tests, mkdocs strict build, `git diff
    --check`) before committing.
+
+## TRANCHE 2 — #5681 Cluster B, matrix-label mismatch (closes #5552 and #5681)
+
+**Capabilities:** `secrets_iam.identity_trust_chains.list`,
+`secrets_iam.posture_gaps.list`, `secrets_iam.posture_summary.read`,
+`secrets_iam.privilege_posture_observations.list`,
+`secrets_iam.secret_access_paths.list`, `code_to_cloud.trace_exposure_path`,
+`code_search.variable_lookup`
+**Slugs:** `prod-secrets-iam-identity-trust-chains`,
+`prod-secrets-iam-posture-gaps`, `prod-secrets-iam-posture-summary`,
+`prod-secrets-iam-privilege-posture-observations`,
+`prod-secrets-iam-secret-access-paths`, `prod-trace-exposure-path`,
+`prod-variable-lookup`
+**Disposition:** DOWNGRADED, all seven, `production` profile `supported` ->
+`experimental`
+**Tracking:** #5552 (systemic burn-down), #5681 (this cluster), #5407 (freeze
+that bounded the debt)
+
+These seven were the entire remaining baseline (`FROZEN_MAX` was 7 going in).
+Closing them empties the baseline, which closes #5407's burn-down tracking,
+#5552, and #5681.
+
+### Evidence found per row
+
+For every row, the production profile's sole prior evidence was a
+`remote_validation` ref resolving to no committed file. Real committed
+evidence for each capability was searched for before deciding a disposition
+(`rg` over `go/internal/query`, `go/internal/mcp`, `scripts/`,
+`docs/internal/evidence/`, and `docs/internal/design/`):
+
+- **`secrets_iam.*` (five capabilities):** `go_test ./internal/query` is real
+  and substantial. `go/internal/query/secrets_iam.go`,
+  `secrets_iam_posture_handlers.go`, `secrets_iam_summary.go`,
+  `secrets_iam_trust_chain.go`, `secrets_iam_grant_posture.go`, and their
+  matching `_test.go` files prove the bounded reducer read-model lookup
+  functionally, against fixture data. That is not a deployed read. The
+  reducer domain that populates these read models,
+  `DomainSecretsIAMGraphProjection`, is gated behind
+  `ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED` and stays off by default
+  in every deployment (`go/cmd/reducer/secrets_iam_graph_wiring.go`). The only
+  flag-on run on record is
+  `docs/internal/design/1314-secrets-iam-graph-activation-record.md` (#2430,
+  closed 2026-06-16): a transient proof-only enable on a single
+  remote-validation target
+  (`remote-amd64-validation/issue-2430-secrets-iam-proof`) that proved the
+  reducer's graph *write* path (live NornicDB writer conformance,
+  redaction-allowlist, scoped retract) and was torn down after capture. Its
+  own status line says "repository, chart, and operator defaults remain OFF."
+  No standing deployment serves these facts, and no run of any kind exercises
+  the *query/list* capability (`list_secrets_iam_identity_trust_chains` and
+  siblings) against a deployed API or MCP surface. The local-profile rows for
+  all five already correctly cite `go_test`; there was no local-profile
+  mislabel to fix here, only the production tier's dangling
+  `remote_validation` ref.
+- **`code_to_cloud.trace_exposure_path`:** `go_test ./internal/query` is real
+  and covers the handler directly:
+  `go/internal/query/exposure_path_handler_test.go`
+  (`TestTraceExposurePathRendersReachableSink`,
+  `TestTraceExposurePathRendersShellExecSink`,
+  `TestTraceExposurePathUnresolvedWhenNoSink`, and more) plus
+  `graph_read_error_impact_test.go`. The matrix's `local_authoritative` row
+  cited `integration_test: local-authoritative-trace-exposure-path` and
+  `local_full_stack` cited `compose_e2e: trace-exposure-path`. Neither ref
+  resolves to a committed script anywhere in `scripts/` or elsewhere in the
+  tree (`rg` for both ref strings outside the matrix file returns nothing).
+  Corrected both to `go_test: ./internal/query`, the evidence that is
+  actually committed. No deployed proof (a `scripts/run-remote-e2e-*` driver
+  or a live-backend `docs/internal/evidence/*.md` record) exists for the
+  production tier.
+- **`code_search.variable_lookup`:** `go_test ./internal/query` and
+  `./internal/mcp` are real. `go/internal/query/code_search_metadata_test.go`
+  (graph-backed search results), `code_search_authz_test.go`, and
+  `go/internal/mcp/dispatch_code_authz_test.go` /
+  `run_readonly_test.go` cover the `find_code` dispatch path. The matrix's
+  `local_authoritative` row cited
+  `integration_test: local-authoritative-variable-lookup`, which does not
+  resolve to any committed script. Corrected to `go_test: ./internal/query`.
+  No deployed proof exists for the production tier.
+
+### Why downgrade, not validate
+
+Validating (option a: run the real deployed proof, keep `supported`) was the
+first disposition considered for every row, matching how Cluster A closed two
+of its seven (`prod-transitive-callers` / `prod-transitive-callees`) by
+running the deployed-services stack and committing a readback artifact. That
+path was attempted here. The remote validation host named in this
+repository's `eshu-remote-validation` skill was unreachable this session:
+`ssh` to the configured target timed out with `Operation timed out` on port
+22. With no reachable deployed stack, and no existing committed deployed
+evidence found anywhere in the tree for these seven capabilities' *read*
+surfaces, option (a) was not available honestly. Writing a
+`docs/internal/remote-validation/<slug>.md` artifact without having actually
+run anything against a deployed stack is exactly the fabrication this epic
+exists to prevent.
+
+Option (b) as a pure relabel (keep `production: supported`, just cite
+`go_test` instead of `remote_validation`) was rejected for the same reason
+TRANCHE 1 rejected it. CLAUDE.md's "Claim Evidence Lives In Known Locations"
+guardrail is explicit that a `production`/deployed-tier `supported` claim
+needs deployed evidence, and that retaining a top-tier claim on a local-tier
+test is not licensed. `go_test ./internal/query` proves the query handler
+functionally; it does not prove the row's `required_runtime:
+deployed_services`, its p95 budget, or its `multi_repo_platform` /
+`deployed_services_component_registry`-class scope claim.
+
+Downgrade (option c) is therefore the only disposition that matches what is
+actually proven: `production: supported` -> `production: experimental`,
+citing the real `go_test` evidence in place of the dangling
+`remote_validation` ref. `p95_latency_ms`, `max_scope_size`, and
+`required_runtime` were kept on every row, not stripped — per the TRANCHE 1
+precedent, they are the target contract for a future deployed validation
+pass, not evidence of one already done.
+
+### Disposition options considered
+
+- **(A) Validate** — run the real deployed proof and commit
+  `docs/internal/remote-validation/<slug>.md` per row, keeping `supported`.
+  **Not taken.** No reachable deployed stack this session (remote host
+  connection timed out), and no existing committed deployed evidence for any
+  of the seven read surfaces.
+- **(B) Relabel only** — keep `status: supported`, replace the dangling
+  `remote_validation` ref with `go_test`. **REJECTED** for the production
+  tier per CLAUDE.md's evidence-tier guardrail: a local-tier test cannot
+  license a deployed-tier claim. **Taken** only for the three local-profile
+  rows (`variable_lookup` local_authoritative; `trace_exposure_path`
+  local_authoritative and local_full_stack) whose cited `integration_test` /
+  `compose_e2e` ref never resolved to a script — those rows' `status` was
+  already `supported` on real `go_test` evidence, so relabeling them to the
+  ref that actually backs them is an honest correction, not a claim change.
+- **(C) Downgrade** — lower `production` `status` to `experimental`, replace
+  the `remote_validation` ref with the real `go_test` evidence, keep the
+  declared production budget/runtime fields as unproven targets. **Taken**
+  for all seven production rows.
+
+### Follow-up
+
+Restoring `production: supported` for any of these seven requires a real
+deployed-services run: for the five `secrets_iam.*` rows, a target deployment
+with the graph-projection flag enabled plus seeded IAM/secrets fixtures,
+queried through the API/MCP list tools (not only the reducer write path
+`docs/internal/design/1314-secrets-iam-graph-activation-record.md` already
+proved); for `trace_exposure_path` and `variable_lookup`, a deployed
+`compose_e2e` or `run-remote-e2e-*` run against a corpus with a reachable
+cloud-sink chain and durable semantic facts, respectively. No new tracking
+issue was opened for this follow-up; #5681 remains the reference until a
+maintainer opens one.

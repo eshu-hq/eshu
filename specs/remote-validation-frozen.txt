@@ -122,11 +122,6 @@ prod-resource-to-code
 prod-route-to-caller
 prod-sbom-attestation-attachment-aggregate
 prod-sbom-attestation-attachments
-prod-secrets-iam-identity-trust-chains
-prod-secrets-iam-posture-gaps
-prod-secrets-iam-posture-summary
-prod-secrets-iam-privilege-posture-observations
-prod-secrets-iam-secret-access-paths
 prod-security-alert-reconciliation-aggregate
 prod-security-alert-reconciliations
 prod-semantic-code-hints
@@ -138,10 +133,8 @@ prod-supply-chain-impact-aggregate
 prod-supply-chain-impact-explain
 prod-symbol-lookup
 prod-topic-investigation
-prod-trace-exposure-path
 prod-transitive-callees
 prod-transitive-callers
-prod-variable-lookup
 prod-visualization-graph-query
 prod-visualization-packet
 prod-vulnerability-scanner-contract
