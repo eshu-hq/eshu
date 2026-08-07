@@ -11,7 +11,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -230,8 +229,26 @@ func (r *RepoDependencyProjectionRunner) startLeaseHeartbeat(ctx context.Context
 	stopped := make(chan struct{})
 	var failureMu sync.Mutex
 	var failure error
-	var stopping atomic.Bool
 	var once sync.Once
+	recordFailure := func(err error) {
+		failureMu.Lock()
+		if failure != nil {
+			failureMu.Unlock()
+			return
+		}
+		failure = fmt.Errorf("repo dependency lease heartbeat failed: %w", err)
+		failureMu.Unlock()
+		if r.Logger != nil {
+			r.Logger.WarnContext(
+				heartbeatCtx,
+				"repo dependency lease heartbeat failed",
+				log.Domain(DomainRepoDependency),
+				telemetry.PhaseAttr(telemetry.PhaseReduction),
+				log.Err(err),
+			)
+		}
+		cancel()
+	}
 	go func() {
 		defer close(stopped)
 		ticker := time.NewTicker(interval)
@@ -251,27 +268,15 @@ func (r *RepoDependencyProjectionRunner) startLeaseHeartbeat(ctx context.Context
 					r.Config.leaseOwner(),
 					r.Config.leaseTTL(),
 				)
-				if err != nil || !claimed {
-					if stopping.Load() {
+				if err != nil {
+					if errors.Is(err, context.Canceled) {
 						return
 					}
-					if err == nil {
-						err = errors.New("repo dependency lease heartbeat lost ownership")
-					}
-					failureMu.Lock()
-					failure = fmt.Errorf("repo dependency lease heartbeat failed: %w", err)
-					failureMu.Unlock()
-					if r.Logger != nil {
-						attrs := []any{
-							log.Domain(DomainRepoDependency),
-							telemetry.PhaseAttr(telemetry.PhaseReduction),
-						}
-						if err != nil {
-							attrs = append(attrs, log.Err(err))
-						}
-						r.Logger.WarnContext(heartbeatCtx, "repo dependency lease heartbeat failed", attrs...)
-					}
-					cancel()
+					recordFailure(err)
+					return
+				}
+				if !claimed {
+					recordFailure(errors.New("repo dependency lease heartbeat lost ownership"))
 					return
 				}
 			}
@@ -280,7 +285,6 @@ func (r *RepoDependencyProjectionRunner) startLeaseHeartbeat(ctx context.Context
 	var stopErr error
 	return heartbeatCtx, func() error {
 		once.Do(func() {
-			stopping.Store(true)
 			close(done)
 			cancel()
 			<-stopped
