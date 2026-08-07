@@ -32,15 +32,28 @@ trap 'if [ "$cleanup_tmp" -eq 1 ]; then rm -rf "$tmpdir"; fi' EXIT
 handlefunc_route_file="${tmpdir}/handlefunc_routes.txt"
 : > "$handlefunc_route_file"
 
-# Source directories to scan for HandleFunc registrations.
-scan_dirs=()
-[ -d "$query_dir" ] && scan_dirs+=("$query_dir")
-[ -d "$si_dir" ] && scan_dirs+=("$si_dir")
-if [ "${#scan_dirs[@]}" -eq 0 ]; then
-  printf '%s\n' 'OPENAPI SCAN FAILED: no owned route source directories found' >&2
-  printf 'Expected at least one of:\n  %s\n  %s\n' "$query_dir" "$si_dir" >&2
+# The query package is both a route source and the sole owner of the
+# openapi_paths_*.go contract fragments. Without it, the verifier has no
+# contract surface to compare and must fail closed even if another route
+# source directory exists.
+if [ ! -d "$query_dir" ]; then
+  printf '%s\n' 'OPENAPI SCAN FAILED: required OpenAPI contract source directory not found' >&2
+  printf 'Expected:\n  %s\n' "$query_dir" >&2
   exit 1
 fi
+
+# The service-intelligence package is the second declared route source. Its
+# absence can hide a route from the comparison just as a missing query package
+# can hide the contract surface.
+if [ ! -d "$si_dir" ]; then
+  printf '%s\n' 'OPENAPI SCAN FAILED: required OpenAPI route source directory not found' >&2
+  printf 'Expected:\n  %s\n' "$si_dir" >&2
+  exit 1
+fi
+
+# Both declared input surfaces are present. They may contain zero matching Go
+# files; an existing-but-empty synthetic repository is a valid empty surface.
+scan_dirs=("$query_dir" "$si_dir")
 
 # Collect all non-test, non-openapi Go files from scan dirs into a file list.
 gofiles_tmp="${tmpdir}/gofiles.txt"

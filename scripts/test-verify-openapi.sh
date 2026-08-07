@@ -60,6 +60,7 @@ setup_repo() {
   local name="$1"
   local dir="${tmp_root}/${name}"
   mkdir -p "${dir}/go/internal/query"
+  mkdir -p "${dir}/go/internal/serviceintelhttp"
   mkdir -p "${dir}/scripts"
   echo "$dir"
 }
@@ -411,6 +412,8 @@ test_scan_excludes_openapi_prefixed_files_green
 test_scan_excludes_subdirectories_green
 test_scan_dir_rg_hard_error_fails_closed_red
 test_missing_scan_directories_fail_closed_red
+test_missing_openapi_contract_directory_fails_closed_red
+test_missing_service_route_directory_fails_closed_red
 test_known_drift_deferral_marker_red
 test_known_drift_deferral_marker_hack_red
 test_known_drift_deferral_marker_tbd_red

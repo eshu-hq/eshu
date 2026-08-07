@@ -25,10 +25,12 @@ any drift. Wire the verifier into CI.
   `go/internal/serviceintelhttp/*.go` (excluding `*_test.go` and `openapi_*.go`)
 - OpenAPI path definitions in `go/internal/query/openapi_paths_*.go`
 
-At least one owned route source directory must exist before the verifier scans.
-If neither directory exists, the verifier has no evidence about the route
-surface and exits nonzero. An owned directory that exists but contains no
-matching Go files remains a valid empty input.
+Both declared source directories must exist before the verifier scans.
+`go/internal/query` owns routes and every `openapi_paths_*.go` contract
+fragment; `go/internal/serviceintelhttp` owns an additional registered route.
+Omitting either directory can hide part of the comparison, so either absence
+exits nonzero. Directories that exist but contain no matching Go files remain a
+valid empty synthetic input.
 
 **Three HandleFunc patterns are handled:**
 

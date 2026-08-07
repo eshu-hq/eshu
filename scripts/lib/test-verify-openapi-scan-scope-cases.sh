@@ -156,10 +156,73 @@ test_missing_scan_directories_fail_closed_red() {
   set -e
 
   if [ "$code" -ne 0 ] \
-    && rg -Fqx 'OPENAPI SCAN FAILED: no owned route source directories found' "$stderr_file" \
+    && rg -Fqx 'OPENAPI SCAN FAILED: required OpenAPI contract source directory not found' "$stderr_file" \
     && ! rg -q 'OpenAPI surface clean' "$stdout_file" "$stderr_file"; then
-    record_pass "missing owned route source directories fail closed with a stable diagnostic"
+    record_pass "missing required OpenAPI contract source directory fails closed with a stable diagnostic"
   else
-    record_fail "missing owned route source directories fail closed with a stable diagnostic (code=$code)"
+    record_fail "missing required OpenAPI contract source directory fails closed with a stable diagnostic (code=$code)"
+  fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test 10g — red: the service route package alone is not enough evidence for
+# a clean OpenAPI surface. The query package owns every openapi_paths_*.go
+# contract fragment, so its absence must fail closed even when another route
+# source directory exists.
+# shellcheck disable=SC2154 # tmp_root, verifier: defined by the sourcing script
+test_missing_openapi_contract_directory_fails_closed_red() {
+  local dir verifier_tmp code stdout_file stderr_file
+
+  dir="${tmp_root}/service-only-scan-directory"
+  mkdir -p "${dir}/go/internal/serviceintelhttp"
+  verifier_tmp="${tmp_root}/verifier-tmp-service-only-scan-directory"
+  mkdir -p "$verifier_tmp"
+  stdout_file="${tmp_root}/service-only-scan-directory-stdout"
+  stderr_file="${tmp_root}/service-only-scan-directory-stderr"
+
+  set +e
+  ESHU_OPENAPI_VERIFY_REPO_ROOT="$dir" \
+    ESHU_OPENAPI_VERIFY_TMPDIR="$verifier_tmp" \
+    bash "$verifier" > "$stdout_file" 2> "$stderr_file"
+  code=$?
+  set -e
+
+  if [ "$code" -ne 0 ] \
+    && rg -Fqx 'OPENAPI SCAN FAILED: required OpenAPI contract source directory not found' "$stderr_file" \
+    && ! rg -q 'OpenAPI surface clean' "$stdout_file" "$stderr_file"; then
+    record_pass "missing OpenAPI contract source directory fails closed even when the service route directory exists"
+  else
+    record_fail "missing OpenAPI contract source directory fails closed even when the service route directory exists (code=$code)"
+  fi
+}
+
+# ════════════════════════════════════════════════════════════════════════════════
+# Test 10h — red: the query/OpenAPI package alone is also incomplete. The
+# service-intelligence package owns a registered route, so omitting that source
+# directory can hide route drift from the comparison.
+# shellcheck disable=SC2154 # tmp_root, verifier: defined by the sourcing script
+test_missing_service_route_directory_fails_closed_red() {
+  local dir verifier_tmp code stdout_file stderr_file
+
+  dir="${tmp_root}/query-only-scan-directory"
+  mkdir -p "${dir}/go/internal/query"
+  verifier_tmp="${tmp_root}/verifier-tmp-query-only-scan-directory"
+  mkdir -p "$verifier_tmp"
+  stdout_file="${tmp_root}/query-only-scan-directory-stdout"
+  stderr_file="${tmp_root}/query-only-scan-directory-stderr"
+
+  set +e
+  ESHU_OPENAPI_VERIFY_REPO_ROOT="$dir" \
+    ESHU_OPENAPI_VERIFY_TMPDIR="$verifier_tmp" \
+    bash "$verifier" > "$stdout_file" 2> "$stderr_file"
+  code=$?
+  set -e
+
+  if [ "$code" -ne 0 ] \
+    && rg -Fqx 'OPENAPI SCAN FAILED: required OpenAPI route source directory not found' "$stderr_file" \
+    && ! rg -q 'OpenAPI surface clean' "$stdout_file" "$stderr_file"; then
+    record_pass "missing service route source directory fails closed even when the OpenAPI contract directory exists"
+  else
+    record_fail "missing service route source directory fails closed even when the OpenAPI contract directory exists (code=$code)"
   fi
 }
