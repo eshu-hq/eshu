@@ -253,9 +253,9 @@ waivers:
 # travel with the gate:
 #
 #   - sql_relationships DELTA-LIVE is proven by the delta_tombstone row above:
-#     the ifa-determinism matrix drives gen 1, asserts its exact seven-edge set,
+#     the ifa-determinism matrix drives gen 1, asserts its exact nine-edge set,
 #     drives gen 2 with the reused source_run_id, drains again, and asserts the
-#     accumulated exact seven-edge set with INDEXES retargeted to orders.
+#     accumulated exact nine-edge set with INDEXES retargeted to orders.
 #   - sql_relationships FAULT coverage is blocked on #5555 (waived above): the
 #     fault is anchored to a CloudResource MERGE and never exercises the SQL
 #     work item. A corrected fault that targets the sql_relationship_

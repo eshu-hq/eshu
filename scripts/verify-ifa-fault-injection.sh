@@ -126,7 +126,7 @@ drive_workers=4
 # the demo-org + synth-multiscope cassettes, so cells 2/3 (lease-expiry / kill-
 # worker) exercise the SQL relationship materialization handler's replay
 # through the REAL durable fault path, and the fault-free baseline's own graph
-# is asserted to carry exactly the seven expected SQL edges (the non-vacuity
+# is asserted to carry exactly the nine expected SQL edges (the non-vacuity
 # check backing the materialized_edges:sql_relationships manifest row's
 # proof_gate: ifa-fault-injection claim). Every cell's post-recovery graph is
 # then compared byte-identical to that baseline, so a fault that silently
@@ -365,7 +365,7 @@ run_drain_gate baseline
 assert_no_dead_letters baseline
 capture_digest baseline
 # Non-vacuity assertion for the SQL relationship family (#5351): the fault-free
-# baseline graph must carry EXACTLY the seven expected SQL edges. This is what
+# baseline graph must carry EXACTLY the nine expected SQL edges. This is what
 # gives the per-cell "identical to baseline" digest comparison teeth for this
 # family — if the SQL family materialized zero edges, the baseline digest and
 # every recovery-cell digest would still match (empty == empty) and pass
