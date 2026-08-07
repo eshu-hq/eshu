@@ -60,7 +60,7 @@ test_explicit_abbreviated_commit_citations_fail() {
     >"${root}/go/internal/queryplan/README.md"
 
   set +e
-  run_verifier "$root" "$stdout_file" "$stderr_file" bash
+  run_verifier "$root" "$stdout_file" "$stderr_file" "$BASH"
   code=$?
   set -e
 
@@ -79,6 +79,37 @@ test_explicit_abbreviated_commit_citations_fail() {
   fi
 }
 
+test_wrapped_abbreviated_commit_citations_fail() {
+  local root stdout_file stderr_file code
+  root="$(new_repo wrapped-citations)"
+  stdout_file="${tmp_root}/wrapped-citations.out"
+  stderr_file="${tmp_root}/wrapped-citations.err"
+  # shellcheck disable=SC2016 # Literal Markdown fixtures; backticks must not execute.
+  printf '%s\n' \
+    '# Wrapped evidence' \
+    'The source implementation commit' \
+    '`def01234567` was exercised live.' \
+    'The candidate commit SHA' \
+    '`ef012345678` was measured.' \
+    >"${root}/go/internal/query/evidence.md"
+  printf '%s\n' '# Query plan' 'PR #5679 is the stable landing reference.' \
+    >"${root}/go/internal/queryplan/README.md"
+
+  set +e
+  run_verifier "$root" "$stdout_file" "$stderr_file" "$BASH"
+  code=$?
+  set -e
+
+  if [ "$code" -ne 0 ] \
+    && rg -q 'def01234567' "$stderr_file" \
+    && rg -q 'ef012345678' "$stderr_file" \
+    && ! rg -q 'QUERY DOC COMMIT REFS OK' "$stdout_file" "$stderr_file"; then
+    record_pass "adjacent-line commit and commit SHA citations fail"
+  else
+    record_fail "adjacent-line commit and commit SHA citations fail (code=$code)"
+  fi
+}
+
 test_non_commit_hex_controls_pass() {
   local root stdout_file stderr_file
   root="$(new_repo non-commit-controls)"
@@ -94,11 +125,13 @@ test_non_commit_hex_controls_pass() {
     'The ancestry check was `git merge-base --is-ancestor 76931f4d89 HEAD`.' \
     'Source revision: `1492458852588c884c32f70d27ea2ee07086769c`.' \
     'The full commit `1492458852588c884c32f70d27ea2ee07086769c` is unambiguous.' \
+    'The final runtime implementation commit' \
+    '`1492458852588c884c32f70d27ea2ee07086769c` was measured.' \
     >"${root}/go/internal/query/evidence.md"
   printf '%s\n' '# Query plan' 'PR #5679 is the stable landing reference.' \
     >"${root}/go/internal/queryplan/README.md"
 
-  if run_verifier "$root" "$stdout_file" "$stderr_file" bash \
+  if run_verifier "$root" "$stdout_file" "$stderr_file" "$BASH" \
     && rg -q 'QUERY DOC COMMIT REFS OK' "$stdout_file"; then
     record_pass "raw hex, digest, external tag, Git command, and full revision controls pass"
   else
@@ -115,7 +148,7 @@ test_missing_scan_directories_fail_closed() {
   stderr_file="${tmp_root}/missing-query.err"
 
   set +e
-  run_verifier "$root" "$stdout_file" "$stderr_file" bash
+  run_verifier "$root" "$stdout_file" "$stderr_file" "$BASH"
   code=$?
   set -e
   if [ "$code" -ne 0 ] \
@@ -131,7 +164,7 @@ test_missing_scan_directories_fail_closed() {
   stdout_file="${tmp_root}/missing-queryplan.out"
   stderr_file="${tmp_root}/missing-queryplan.err"
   set +e
-  run_verifier "$root" "$stdout_file" "$stderr_file" bash
+  run_verifier "$root" "$stdout_file" "$stderr_file" "$BASH"
   code=$?
   set -e
   if [ "$code" -ne 0 ] \
@@ -148,7 +181,7 @@ test_zero_markdown_fails_closed() {
   stdout_file="${tmp_root}/zero-markdown.out"
   stderr_file="${tmp_root}/zero-markdown.err"
   set +e
-  run_verifier "$root" "$stdout_file" "$stderr_file" bash
+  run_verifier "$root" "$stdout_file" "$stderr_file" "$BASH"
   code=$?
   set -e
   if [ "$code" -ne 0 ] \
@@ -187,7 +220,7 @@ test_rg_hard_errors_fail_closed() {
   stdout_file="${tmp_root}/rg-files.out"
   stderr_file="${tmp_root}/rg-files.err"
   set +e
-  PATH="${shim_dir}:${PATH}" run_verifier "$root" "$stdout_file" "$stderr_file" bash
+  PATH="${shim_dir}:${PATH}" run_verifier "$root" "$stdout_file" "$stderr_file" "$BASH"
   code=$?
   set -e
   if [ "$code" -ne 0 ] \
@@ -204,7 +237,7 @@ test_rg_hard_errors_fail_closed() {
   stdout_file="${tmp_root}/rg-content.out"
   stderr_file="${tmp_root}/rg-content.err"
   set +e
-  PATH="${shim_dir}:${PATH}" run_verifier "$root" "$stdout_file" "$stderr_file" bash
+  PATH="${shim_dir}:${PATH}" run_verifier "$root" "$stdout_file" "$stderr_file" "$BASH"
   code=$?
   set -e
   if [ "$code" -ne 0 ] \
@@ -217,6 +250,7 @@ test_rg_hard_errors_fail_closed() {
 }
 
 test_explicit_abbreviated_commit_citations_fail
+test_wrapped_abbreviated_commit_citations_fail
 test_non_commit_hex_controls_pass
 test_missing_scan_directories_fail_closed
 test_zero_markdown_fails_closed

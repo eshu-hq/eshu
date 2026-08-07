@@ -51,14 +51,16 @@ while IFS= read -r file; do
 done <"$markdown_files"
 
 # A citation must explicitly say "commit" or "commit SHA" before a 7-39 digit
-# hexadecimal token. A colon may separate the label from the value. The word
-# boundary prevents a prefix match on a full source revision. Digests, external
-# tags, raw evidence tokens, and Git command arguments have no such citation
-# phrase and remain outside this gate.
+# hexadecimal token. A colon or exactly one Markdown line break may separate
+# the label from the value. The bounded line break catches ordinary prose
+# wrapping without joining unrelated paragraphs or normalizing whole files.
+# The word boundary prevents a prefix match on a full source revision. Digests,
+# external tags, raw evidence tokens, and Git command arguments have no such
+# citation phrase and remain outside this gate.
 # shellcheck disable=SC2016 # Literal PCRE; backslashes and backticks must not expand.
-commit_citation_pattern='(?i:\bcommit(?:[[:space:]]+SHA)?(?:[[:space:]]+|[[:space:]]*:[[:space:]]*)`?[0-9a-f]{7,39}`?\b)'
+commit_citation_pattern='(?i:\bcommit(?:[[:blank:]]+SHA)?(?:[[:blank:]]+|[[:blank:]]*:[[:blank:]]*|[[:blank:]]*:?[[:blank:]]*\r?\n[[:blank:]]*)`?[0-9a-f]{7,39}`?\b)'
 set +e
-rg -n --no-heading --pcre2 "$commit_citation_pattern" \
+rg -n -U --no-heading --pcre2 "$commit_citation_pattern" \
   "${markdown_args[@]}" >"$findings"
 scan_rc=$?
 set -e
