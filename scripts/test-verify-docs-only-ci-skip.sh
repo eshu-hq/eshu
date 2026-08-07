@@ -40,6 +40,7 @@ cp "${repo_root}/${script_rel}" "${tmp}/scripts/verify-docs-only-ci-skip.sh"
 # run_merge_group_checks" error the first time run_scratch is called, and
 # every case below fails "for the wrong reason" instead of testing anything.
 cp "${repo_root}/scripts/lib/ci-gate-merge-group-checks.sh" "${tmp}/scripts/lib/ci-gate-merge-group-checks.sh"
+cp "${repo_root}/scripts/lib/ci-gate-predicate-quantifier.sh" "${tmp}/scripts/lib/ci-gate-predicate-quantifier.sh"
 for wf in build.yml security-scan.yml mcp-schema-drift.yml test.yml; do
 	cp "${repo_root}/.github/workflows/${wf}" "${tmp}/.github/workflows/${wf}"
 done
@@ -435,6 +436,44 @@ PYQ
 	fi
 	cp "${repo_root}/.github/workflows/test.yml" "${tmp}/.github/workflows/test.yml"
 done
+
+# --- guard 3, relocation case (#5956 review, codex): a file-wide search would
+# still pass if the line were moved out of the paths-filter step, or if a second
+# dorny step carried it while the `code` filter reverted to the default. Move it
+# to a sibling step in the same job and the guard must still fail. ---
+python3 - "${tmp}/.github/workflows/test.yml" <<'PYS'
+import re
+import sys
+path = sys.argv[1]
+with open(path) as f:
+	content = f.read()
+pattern = re.compile(r"^[ \t]*predicate-quantifier:.*\n", re.MULTILINE)
+assert len(pattern.findall(content)) == 1, "expected exactly one predicate-quantifier line"
+content = pattern.sub("", content, count=1)
+# Re-add it inside the sibling merge_group_code step of the same job, where it
+# does nothing: that step is not the dorny filter.
+anchor = '        run: echo "code=true" >> "$GITHUB_OUTPUT"\n'
+assert content.count(anchor) == 1, "merge_group_code step anchor not found"
+content = content.replace(anchor, anchor + "        # predicate-quantifier: 'every'\n", 1)
+with open(path, "w") as f:
+	f.write(content)
+PYS
+if out="$(run_scratch 2>&1)"; then
+	no "guard 3 should fail when the quantifier is moved out of the paths-filter step"
+else
+	if rg -qF 'predicate-quantifier' <<<"${out}" && rg -qF 'test.yml' <<<"${out}"; then
+		ok "guard 3 is scoped to the filter step, not the file — a relocated line still fails"
+	else
+		no "guard 3 relocation case failed for the wrong reason; got:"
+		printf '%s\n' "${out}" >&2
+	fi
+fi
+cp "${repo_root}/.github/workflows/test.yml" "${tmp}/.github/workflows/test.yml"
+if run_scratch >/dev/null 2>&1; then
+	ok "guard 3 passes again after restoring the quantifier to the filter step"
+else
+	no "guard 3 should pass again once the quantifier is back in the filter step"
+fi
 
 printf '\n%d passed, %d failed\n' "${pass}" "${fail}"
 [[ "${fail}" -eq 0 ]]

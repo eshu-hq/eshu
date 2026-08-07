@@ -35,8 +35,10 @@
 #      (the filter's negation style over-covers safely in the other direction,
 #      so this is a one-way superset check, and it only guards anything real
 #      once check 3's quantifier is set — inert negations swallow nothing;
-#   3. every copy must set `predicate-quantifier: 'every'`, without which the
-#      negations are decorative again and check 2 goes vacuous (#5896).
+#   3. the changes/filter step of every copy must set predicate-quantifier to
+#      every — checked in that step, not file-wide, so a relocated line cannot
+#      satisfy it — without which the negations are decorative again and check 2
+#      goes vacuous (#5896).
 set -uo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -73,6 +75,13 @@ job_alwayson() { ! job_gated "$1" "$2"; }
 # loudly and immediately instead of letting that happen silently.
 declare -F run_merge_group_checks >/dev/null ||
 	{ printf 'verify-docs-only-ci-skip: ci-gate-merge-group-checks.sh did not define run_merge_group_checks (source missing or failed) — aborting\n' >&2; exit 1; }
+
+# shellcheck source=scripts/lib/ci-gate-predicate-quantifier.sh
+. "${repo_root}/scripts/lib/ci-gate-predicate-quantifier.sh"
+# Same fail-loudly rule as above, for the same reason: without `set -e` a
+# missing source would skip the #5896 guard and still exit 0.
+declare -F run_predicate_quantifier_check >/dev/null ||
+	{ printf 'verify-docs-only-ci-skip: ci-gate-predicate-quantifier.sh did not define run_predicate_quantifier_check (source missing or failed) — aborting\n' >&2; exit 1; }
 
 # code_filter_block <file> — the dorny/paths-filter `code:` key and its `- '...'`
 # negation list, verbatim (comments excluded), for byte-identity comparison
@@ -413,21 +422,10 @@ else
 	diff <(printf '%s\n' "${block_test}") <(printf '%s\n' "${block_mcp}") >&2 || true
 fi
 
-# --- #5896 regression guard: every copy must set predicate-quantifier to
-# 'every'. Without it dorny@v3 defaults to `some`, `**` matches first, and the
-# five `!` negations are dead text that still READ as exclusions, silently
-# restoring #5818's waste. VALUE is exact (v3 takes only {'every','some'}, so
-# the typo 'all' reads as deletion); QUOTING is not — every, 'every', "every". ---
-quantifier_missing=""
-for wf in "${t}" "${s}" "${m}"; do
-	rg -q "^[[:space:]]*predicate-quantifier:[[:space:]]*(every|'every'|\"every\")[[:space:]]*$" "${wf}" \
-		|| quantifier_missing="${quantifier_missing} $(basename "${wf}")"
-done
-if [[ -n "${quantifier_missing}" ]]; then
-	bad "missing \`predicate-quantifier: 'every'\` in:${quantifier_missing} — without it dorny defaults to \`some\`, \`**\` short-circuits, and every \`!\` negation in the code: filter is inert (#5896)"
-else
-	ok "all three code: filters set predicate-quantifier: 'every', so their negations actually exclude"
-fi
+# --- #5896 regression guard: without predicate-quantifier: 'every' the `!`
+# negations are dead text. Rules live with the check in
+# scripts/lib/ci-gate-predicate-quantifier.sh. ---
+run_predicate_quantifier_check "${t}" "${s}" "${m}"
 
 # --- #5818 regression guard 2: no gate whose CI job is actually code-gated may
 # rely on a trigger path the filter's negations would swallow. The filter
