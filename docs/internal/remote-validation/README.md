@@ -123,7 +123,28 @@ Burn-down progress:
   no extraction pipeline #5693; inheritance hits the NornicDB
   `type(rel)`/`coalesce`-after-`OPTIONAL MATCH` literal-text defect #5694; and
   argument_names drops declared parameters through projection). No slug was
-  bulk-downgraded: every one carries a per-row deployed determination. The
-  remaining 7 baseline slugs (secrets/IAM exposure-path and variable/trace
-  reads) need seeded IAM + exposure fixtures on a deployed stack, tracked in
-  #5552. The frozen set stays at 115 (immutable); only the baseline shrinks.
+  bulk-downgraded: every one carries a per-row deployed determination.
+- **`FROZEN_MAX` is now 0 — the baseline is empty.** The remaining 7
+  secrets/IAM and code-to-cloud/code-search slugs closed Cluster B of #5681:
+  `prod-secrets-iam-identity-trust-chains`, `-posture-gaps`,
+  `-posture-summary`, `-privilege-posture-observations`,
+  `-secret-access-paths`, `prod-trace-exposure-path`, and
+  `prod-variable-lookup`. Each was **downgraded**, `production: supported` ->
+  `experimental`, per row: no remote host was reachable this session to run
+  the deployed-services proof the rows claim, and the sole remaining committed
+  evidence for every one of the seven is `go_test ./internal/query`
+  (local-tier functional proof, not a deployed-scale read). For the five
+  `secrets_iam.*` rows the underlying reducer domain
+  (`ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED`) is off by default in
+  every real deployment — see
+  `docs/internal/design/1314-secrets-iam-graph-activation-record.md`, whose
+  only flag-on run was a transient proof-only remote target, not a standing
+  deployment — so no production instance actually serves these list reads
+  today. The same edit corrected three local-profile rows that cited a
+  nonexistent `integration_test`/`compose_e2e` script
+  (`code_search.variable_lookup` local_authoritative,
+  `code_to_cloud.trace_exposure_path` local_authoritative and
+  local_full_stack) to the `go_test` evidence that actually backs them. See
+  [DISPOSITIONS.md](DISPOSITIONS.md) TRANCHE 2 for the full per-row record.
+  Closing this baseline to empty resolves #5407's burn-down tracking and
+  closes #5552 and #5681.
