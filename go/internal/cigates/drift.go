@@ -91,6 +91,19 @@ var matrixVariableRE = regexp.MustCompile(`\$\{\{\s*matrix\.([A-Za-z0-9_]+)\s*\}
 //     triggers, so a PR editing only the verifier, a chained second script, or
 //     a case file sourced two levels deep still selects the gate locally
 //     instead of first failing in CI. See checkScriptTriggerCoverage.
+//
+//  9. Required-status manifest and aggregator contract: the manifest and its
+//     trusted aggregator workflow must satisfy the source, trigger,
+//     permission, checkout, secret, and publisher-command rules. See
+//     checkRequiredStatusWorkflows.
+//
+//  10. Gate Go package → own trigger coverage (#5873): check 8's rule for the
+//     gates implemented as a Go package rather than a scripts/ file. Every
+//     package a gate's local.command or local.test_command builds, runs,
+//     generates, or tests must be matched by one of that gate's own triggers,
+//     and by a single trigger that spans the whole package directory. Check 8
+//     is structurally blind to these — it only derives scripts/-prefixed
+//     tokens. See checkGoPackageTriggerCoverage.
 func DriftCheck(repoRoot string, reg *Registry) []error {
 	var errs []error
 

@@ -347,14 +347,27 @@ and `eshu-diagnostic-rigor`.
   `specs/ci-gates.v1.yaml`, so `triggers:` stays the single readable answer to
   "what selects this gate".
 
-  Two rules are worth knowing before you edit a gate's command. A package-level
-  `go test ./internal/x` compiles every file in that package, so per-file
-  triggers do not satisfy it — `ifa-materialized-edge-coverage` kept its
-  per-file entries as the reader's map of what it guards and added
-  `go/internal/ifa/**` and `go/internal/reducer/**` alongside them. And a
-  recursive `./...` demands a trigger reaching nested files, because that is
-  what the command compiles; a `go/cmd/x/*.go` trigger does not cover
-  `go test ./cmd/x/...`.
+  Three rules are worth knowing before you edit a gate's command. A
+  package-level `go test ./internal/x` compiles every file in that package, so
+  per-file triggers do not satisfy it — `ifa-materialized-edge-coverage` kept
+  its per-file entries as the reader's map of what it guards and added
+  `go/internal/ifa/**` and `go/internal/reducer/**` alongside them. A recursive
+  `./...` demands a trigger reaching nested files, because that is what the
+  command compiles. And a trigger must be directory-wide rather than narrowed
+  by extension: `go/internal/x/*.go` does not cover the package, because
+  `go/internal/capabilitycatalog` embeds `data/catalog.generated.json` and
+  editing an embedded asset changes the compiled package.
+
+  The parser models subshell scope, and that is load-bearing rather than
+  fussiness. An earlier version tracked one directory forward through the whole
+  command and argued a leaked `cd` was safe because it could only resolve
+  DEEPER than the shell would. That reasoning is wrong whenever a broader
+  ancestor trigger exists, and #5955's review produced the counterexample:
+  `(cd sdk/go/collector && go test ./...) && (cd sdk/go/factschema && go test
+  ./...)` put the second package under `sdk/go/collector/`, which
+  `sdk/go/collector/**` matches at any depth. If you touch this parser, the
+  question to ask about any narrowing is not "is it more specific" but "can a
+  broader trigger swallow it".
 
   Widening a trigger costs `make pre-pr` time, so measure it rather than
   guessing. Landing #5873 changed exactly two selections, each by one gate: a

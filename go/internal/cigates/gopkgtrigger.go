@@ -62,18 +62,27 @@ var shellSeparators = map[string]struct{}{
 //   - Only the four subcommands in goPackageSubcommands count. `go list -deps
 //     ./...` in the sdk gates reports on packages without running them, so a
 //     change inside a merely-listed package cannot alter the gate's verdict.
-//   - A `./pkg` token is attributed to the most recent `go <subcommand>` on the
+//   - A package token is attributed to the most recent `go <subcommand>` on the
 //     same command, and the run ends at the next shell separator. A bare
 //     `./pkg` with no preceding go subcommand (none in the registry today) is
-//     ignored rather than guessed at.
+//     ignored rather than guessed at. A subcommand that names NO package is not
+//     ignored: `go help packages` says an omitted import path means the package
+//     in the current directory, and `go help run` accepts a bare `.`, so both
+//     forms yield the working directory. Deriving nothing from them would make
+//     `cd go/internal/x && go test` a silently unchecked gate.
 //   - `cd` and `go -C <dir>` are both honoured, wherever they appear rather
 //     than only at the start, because ci-gate-registry reaches its own package
 //     through a mid-command subshell (`... && (cd go && go test
-//     ./internal/cigates -count=1)`). The directory is tracked forward through
-//     the whole command; shell scoping of a subshell `cd` is NOT modelled,
-//     which can only ever attribute a package to a deeper directory than the
-//     shell would use. That direction is safe: it demands a more specific
-//     trigger than strictly necessary, so it cannot manufacture a false green.
+//     ./internal/cigates -count=1)`). Subshell scope IS modelled: a `cd` inside
+//     `( )` is popped at the closing paren. An earlier version tracked one
+//     directory forward through the whole command and claimed that was safe
+//     because it could only attribute a package to a deeper directory than the
+//     shell would use. That claim was wrong (#5955 review, codex). Deeper is
+//     not safer when a broader ancestor trigger exists: in `(cd
+//     sdk/go/collector && go test ./...) && (cd sdk/go/factschema && go test
+//     ./...)` the second package resolved to
+//     sdk/go/collector/sdk/go/factschema, which `sdk/go/collector/**` matches
+//     at any depth — a false GREEN over the real sdk/go/factschema.
 //   - A package argument that resolves outside the repository, or to the
 //     repository root itself, is skipped rather than reported. Neither names an
 //     in-repo file whose edit could go unselected.
@@ -140,22 +149,37 @@ func (p goPackageDir) describe() string {
 }
 
 // probes returns the synthetic paths a trigger must match to cover the package.
-// A non-recursive package needs only a file sitting directly in the directory;
-// a recursive one also needs a file in a nested subdirectory, because that is
-// what `./...` compiles. The names are arbitrary — only the shape of the path
-// matters to MatchGlob — but they end in .go so a trigger legitimately narrowed
-// to Go sources (`go/internal/ifa/*.go`) still counts as covering.
+// They are chosen to demand DIRECTORY-WIDE coverage rather than to be matched
+// by some particular filename, which an earlier version got wrong: a single
+// invented name such as "zz_selftrigger_probe.go" let a narrow trigger like
+// `go/internal/x/zz*.go` read as covering the package while excluding every
+// ordinary source file in it (#5955 review, codex).
+//
+// Two shapes are required, and both matter:
+//
+//   - an ordinary Go source name, the common case;
+//   - a NON-Go file, because a package's compiled output depends on more than
+//     its .go files. `go/internal/capabilitycatalog/*.go` looks like package
+//     coverage but misses data/catalog.generated.json, which is embedded into
+//     the package — editing it changes what the gate tests while selecting
+//     nothing. Demanding this shape means a package trigger has to be
+//     directory-wide (`dir/**`), not extension-narrowed.
+//
+// A recursive spec adds a nested path, since that is what `./...` compiles.
 func (p goPackageDir) probes() []string {
-	direct := path.Join(p.dir, "zz_selftrigger_probe.go")
-	if !p.recursive {
-		return []string{direct}
+	probes := []string{
+		path.Join(p.dir, "a.go"),
+		path.Join(p.dir, "embedded_asset.json"),
 	}
-	return []string{direct, path.Join(p.dir, "zz_selftrigger_probe", "nested.go")}
+	if p.recursive {
+		probes = append(probes, path.Join(p.dir, "nested", "a.go"))
+	}
+	return probes
 }
 
 // triggerCoversPackage reports whether a single trigger matches every probe the
 // package needs. One trigger must cover them all: two triggers that each match a
-// different depth do not prove any single glob spans the package.
+// different probe do not prove any single glob spans the package.
 func triggerCoversPackage(triggers []string, pkg goPackageDir) bool {
 	probes := pkg.probes()
 	for _, t := range triggers {
@@ -180,25 +204,76 @@ func triggerCoversPackage(triggers []string, pkg goPackageDir) bool {
 func extractGoPackageDirs(command string) []goPackageDir {
 	fields := strings.Fields(command)
 	cwd := ""
+	// subshellCwd is the directory stack for "( ... )". A `cd` inside a subshell
+	// does not outlive it, and letting it leak is not the safe direction it
+	// looks like: in `(cd sdk/go/collector && go test ./...) && (cd
+	// sdk/go/factschema && go test ./...)` the second package would resolve to
+	// sdk/go/collector/sdk/go/factschema, which a `sdk/go/collector/**` trigger
+	// matches at any depth — so the check would pass while edits under the real
+	// sdk/go/factschema went unselected. That is a false GREEN, which is why
+	// scope is modelled rather than documented away (#5955 review, codex).
+	var subshellCwd []string
 	inGoCommand := false
 	inGoPackageArgs := false
+	sawPackageArg := false
 	seen := make(map[goPackageDir]struct{}, len(fields))
 	var out []goPackageDir
 
+	add := func(pkg goPackageDir) {
+		if _, dup := seen[pkg]; dup {
+			return
+		}
+		seen[pkg] = struct{}{}
+		out = append(out, pkg)
+	}
+
+	// endGoRun closes the current `go` invocation. A subcommand that named no
+	// package operates on the current directory (`go help packages`: an omitted
+	// import path means the package in the current directory), so the run still
+	// yields one — otherwise `cd go/internal/x && go test` derives nothing and
+	// the gate is silently unchecked (#5955 review, codex).
+	endGoRun := func() {
+		if inGoPackageArgs && !sawPackageArg {
+			if pkg, ok := resolvePackageArg(cwd, "."); ok {
+				add(pkg)
+			}
+		}
+		inGoCommand = false
+		inGoPackageArgs = false
+		sawPackageArg = false
+	}
+
 	for i := 0; i < len(fields); i++ {
-		w := strings.Trim(fields[i], argTrimCutset)
+		raw := fields[i]
+		opens := len(raw) - len(strings.TrimLeft(raw, "("))
+		closes := len(raw) - len(strings.TrimRight(raw, ")"))
+		for range opens {
+			subshellCwd = append(subshellCwd, cwd)
+		}
+
+		w := strings.Trim(raw, argTrimCutset)
+
+		popSubshells := func() {
+			for range closes {
+				if len(subshellCwd) == 0 {
+					continue
+				}
+				cwd = subshellCwd[len(subshellCwd)-1]
+				subshellCwd = subshellCwd[:len(subshellCwd)-1]
+				endGoRun()
+			}
+		}
 
 		if _, isSep := shellSeparators[w]; isSep {
-			inGoCommand = false
-			inGoPackageArgs = false
+			endGoRun()
+			popSubshells()
 			continue
 		}
 
 		if w == "cd" && i+1 < len(fields) {
 			cwd = joinRepoRel(cwd, strings.Trim(fields[i+1], argTrimCutset))
 			i++
-			inGoCommand = false
-			inGoPackageArgs = false
+			endGoRun()
 			continue
 		}
 
@@ -216,8 +291,9 @@ func extractGoPackageDirs(command string) []goPackageDir {
 		}
 
 		if w == "go" {
+			endGoRun()
 			inGoCommand = true
-			inGoPackageArgs = false
+			popSubshells()
 			continue
 		}
 
@@ -234,20 +310,21 @@ func extractGoPackageDirs(command string) []goPackageDir {
 			}
 		}
 
-		if !inGoPackageArgs || !strings.HasPrefix(w, "./") {
+		// "." and "./..." are as much a package argument as "./pkg" — `go help
+		// run` accepts a bare "." explicitly.
+		isPackageArg := strings.HasPrefix(w, "./") || w == "." || w == "..."
+		if !inGoPackageArgs || !isPackageArg {
+			popSubshells()
 			continue
 		}
 
-		pkg, ok := resolvePackageArg(cwd, w)
-		if !ok {
-			continue
+		sawPackageArg = true
+		if pkg, ok := resolvePackageArg(cwd, w); ok {
+			add(pkg)
 		}
-		if _, dup := seen[pkg]; dup {
-			continue
-		}
-		seen[pkg] = struct{}{}
-		out = append(out, pkg)
+		popSubshells()
 	}
+	endGoRun()
 	return out
 }
 

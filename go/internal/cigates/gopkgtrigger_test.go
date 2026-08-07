@@ -108,16 +108,96 @@ func TestDriftCheck_PerFileTriggersDoNotCoverPackageTest(t *testing.T) {
 	}
 }
 
-// A trigger narrowed to the package's Go sources still counts: every file the
-// command compiles matches it.
-func TestDriftCheck_GoSourceGlobCoversPackage(t *testing.T) {
+// A trigger narrowed to the package's Go SOURCES does not cover the package. A
+// package's compiled output depends on more than its .go files:
+// go/internal/capabilitycatalog embeds data/catalog.generated.json, so editing
+// that file changes what a package-level test does while a `*.go` trigger
+// selects nothing (#5955 review, codex). Coverage must be directory-wide.
+func TestDriftCheck_GoSourceGlobDoesNotCoverPackage(t *testing.T) {
 	t.Parallel()
 
 	root := buildDriftRepo(t, minimalPreCommit("my-gate"), []string{"verify.yml"})
-	reg := goPkgGate([]string{"go/internal/thing/*.go"}, "cd go && go test ./internal/thing -count=1", "")
 
-	if errs := goPkgTriggerErrs(t, root, reg); len(errs) != 0 {
-		t.Errorf("expected no go-package trigger errors, got %d: %v", len(errs), errs)
+	narrow := goPkgGate([]string{"go/internal/thing/*.go"}, "cd go && go test ./internal/thing -count=1", "")
+	if errs := goPkgTriggerErrs(t, root, narrow); len(errs) != 1 {
+		t.Fatalf("a *.go trigger must not count as package coverage; got %d errors: %v", len(errs), errs)
+	}
+
+	wide := goPkgGate([]string{"go/internal/thing/**"}, "cd go && go test ./internal/thing -count=1", "")
+	if errs := goPkgTriggerErrs(t, root, wide); len(errs) != 0 {
+		t.Errorf("a directory-wide trigger must cover the package; got %v", errs)
+	}
+}
+
+// The invented probe filename must not be what a trigger matches. A trigger
+// shaped to the probe's own name while excluding ordinary sources is the
+// clearest case: it would have passed when coverage was inferred from one fixed
+// name.
+func TestDriftCheck_ProbeNameShapedTriggerDoesNotCoverPackage(t *testing.T) {
+	t.Parallel()
+
+	root := buildDriftRepo(t, minimalPreCommit("my-gate"), []string{"verify.yml"})
+	reg := goPkgGate([]string{"go/internal/thing/zz*.go"}, "cd go && go test ./internal/thing -count=1", "")
+
+	if errs := goPkgTriggerErrs(t, root, reg); len(errs) != 1 {
+		t.Errorf("a probe-name-shaped trigger must not count as coverage; got %d: %v", len(errs), errs)
+	}
+}
+
+// A `cd` inside a subshell does not outlive it. Letting it leak is a false
+// GREEN, not the conservative direction it looks like: here the second package
+// would resolve under sdk/go/collector/, which the first trigger matches at any
+// depth, so edits under the real sdk/go/factworks/** would go unselected
+// (#5955 review, codex).
+func TestDriftCheck_SubshellCdDoesNotOutliveItsSubshell(t *testing.T) {
+	t.Parallel()
+
+	root := buildDriftRepo(t, minimalPreCommit("my-gate"), []string{"verify.yml"})
+	cmd := "(cd sdk/go/collector && go test ./...) && (cd sdk/go/factworks && go test ./...)"
+
+	leaky := goPkgGate([]string{"sdk/go/collector/**"}, cmd, "")
+	errs := goPkgTriggerErrs(t, root, leaky)
+	if len(errs) != 1 {
+		t.Fatalf("the second subshell's package must not resolve under the first's cd; got %d: %v", len(errs), errs)
+	}
+	if !strings.Contains(errs[0], "sdk/go/factworks") {
+		t.Errorf("the finding must name the real second package, got: %s", errs[0])
+	}
+
+	both := goPkgGate([]string{"sdk/go/collector/**", "sdk/go/factworks/**"}, cmd, "")
+	if errs := goPkgTriggerErrs(t, root, both); len(errs) != 0 {
+		t.Errorf("both subshell packages covered should be clean; got %v", errs)
+	}
+}
+
+// A `go` subcommand naming no package operates on the current directory (`go
+// help packages`), and `go run .` accepts a bare dot explicitly (`go help
+// run`). Deriving nothing from either is a SILENT skip — the gate looks
+// checked and is not (#5955 review, codex).
+func TestDriftCheck_ImplicitAndDotCurrentPackageAreDerived(t *testing.T) {
+	t.Parallel()
+
+	root := buildDriftRepo(t, minimalPreCommit("my-gate"), []string{"verify.yml"})
+
+	for _, cmd := range []string{
+		"cd go/internal/thing && go test -count=1",
+		"cd go/internal/thing && go test . -count=1",
+		"cd go/internal/thing && go build .",
+		"cd go/internal/thing && go run .",
+	} {
+		uncovered := goPkgGate([]string{"specs/thing.yaml"}, cmd, "")
+		errs := goPkgTriggerErrs(t, root, uncovered)
+		if len(errs) != 1 {
+			t.Fatalf("%q must derive the current directory; got %d errors: %v", cmd, len(errs), errs)
+		}
+		if !strings.Contains(errs[0], "go/internal/thing") {
+			t.Errorf("%q should name the current package, got: %s", cmd, errs[0])
+		}
+
+		covered := goPkgGate([]string{"go/internal/thing/**"}, cmd, "")
+		if errs := goPkgTriggerErrs(t, root, covered); len(errs) != 0 {
+			t.Errorf("%q with a directory-wide trigger should be clean; got %v", cmd, errs)
+		}
 	}
 }
 
