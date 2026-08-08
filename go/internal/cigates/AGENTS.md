@@ -337,6 +337,54 @@ and `eshu-diagnostic-rigor`.
   narrowings this check has — it is not a fixed count, and a comment claiming
   one has already been wrong twice (#5762 rounds 9 and 10).
 
+- **checkGoPackageTriggerCoverage (`gopkgtrigger.go`, check 10) is check 8 for
+  gates written in Go, and keeps the same declared-not-derived rule.** Check 8
+  only derives `scripts/`-prefixed tokens, so it is blind to the local gates
+  whose implementation is a Go package (`go run ./cmd/x`, `go test
+  ./internal/y`). Editing the program that IS such a gate did not select it,
+  which is the #5873 false green. Check 10 derives the REQUIREMENT from the
+  gate's own command and still demands the trigger be written in
+  `specs/ci-gates.v1.yaml`, so `triggers:` stays the single readable answer to
+  "what selects this gate".
+
+  Three rules are worth knowing before you edit a gate's command. A
+  package-level `go test ./internal/x` compiles every file in that package, so
+  per-file triggers do not satisfy it — `ifa-materialized-edge-coverage` kept
+  its per-file entries as the reader's map of what it guards and added
+  `go/internal/ifa/**` and `go/internal/reducer/**` alongside them. A recursive
+  `./...` demands a trigger reaching nested files, because that is what the
+  command compiles. And a trigger must be directory-wide rather than narrowed
+  by extension: `go/internal/x/*.go` does not cover the package, because
+  `go/internal/capabilitycatalog` embeds `data/catalog.generated.json` and
+  editing an embedded asset changes the compiled package.
+
+  The parser models subshell scope, and that is load-bearing rather than
+  fussiness. An earlier version tracked one directory forward through the whole
+  command and argued a leaked `cd` was safe because it could only resolve
+  DEEPER than the shell would. That reasoning is wrong whenever a broader
+  ancestor trigger exists, and #5955's review produced the counterexample:
+  `(cd sdk/go/collector && go test ./...) && (cd sdk/go/factschema && go test
+  ./...)` put the second package under `sdk/go/collector/`, which
+  `sdk/go/collector/**` matches at any depth. If you touch this parser, the
+  question to ask about any narrowing is not "is it more specific" but "can a
+  broader trigger swallow it".
+
+  Do not write the number of Go-package gates into prose. It belongs in
+  `goPackageGateCount`, which `TestGoPackageGateCount` derives from the
+  committed registry through the production extractor. This package has paid
+  for that twice: `checkVerifyScriptWorkflowMatch`'s doc comment hard-coded 29
+  gates and the registry silently grew past it, and this file's first version
+  said 19 by reusing a count of gates with no `scripts/` token — which includes
+  the npm gates. A reviewer caught the second one.
+
+  Widening a trigger costs `make pre-pr` time, so measure it rather than
+  guessing. Landing #5873 changed exactly two selections, each by one gate: a
+  reducer-touching PR went 18 → 19 gates (+10.6s warm) and a
+  capability-inventory PR 17 → 18 (+2.9s warm). If a future widening costs
+  materially more than that, prefer narrowing the gate's COMMAND — a
+  `-run`-filtered package test still compiles the whole package, so the honest
+  fix is a smaller package, not a smaller trigger.
+
 ## Common changes
 
 - Adding a new category or requirement: add the constant, add to the validation
