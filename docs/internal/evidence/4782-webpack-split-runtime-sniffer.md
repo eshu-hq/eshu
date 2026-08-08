@@ -66,25 +66,40 @@ A first attempt used 93,000 identical short lines and measured 11.7ms for
 and the nested single-line shape is what costs tree-sitter. The numbers above
 use the second shape.
 
-## Scope limit: full discovery only
+## Both sync paths, not just full discovery
 
-`filterGeneratedNativeSnapshotFiles` has exactly one caller,
+`filterGeneratedNativeSnapshotFiles` used to have exactly one caller,
 `git_snapshot_discovery.go:330`, on the full discovery path. The delta-sync
-resolver `resolveNativeSnapshotFileSetForTargets`, used with explicit
-`--file-targets`, never applies it, so a bundle arriving through a delta sync
-is not filtered at all — before or after this change.
+resolver `resolveNativeSnapshotFileSetForTargets` — the explicit
+`--file-targets` path — never applied it.
 
-That gap is pre-existing and not introduced here. It does mean the same file is
-treated differently depending on sync mode, which is worth closing; whether it
-rides along or goes separately needs an owner's call.
+So one webpack bundle was skipped when a full discovery found it and indexed
+when a delta sync touched it. The same file, two answers, decided by which sync
+mode happened to run. That gap predates this change; it is closed here.
+
+The delta path now applies the same filter and reports skips through the
+`DiscoveryStats` the caller already holds, so a delta-sync skip lands in the
+same `FilesSkippedByContent["generated-webpack"]` counter rather than going
+silent. Without the filter the regression test fails with:
+
+```
+a delta sync kept a generated webpack bundle; the full discovery path skips
+the same file, so the graph depends on which sync mode ran
+```
 
 ## No-Regression Evidence:
 
 The two required tokens are unchanged, so nothing that matched before stops
 matching. The webpack 4 (`installedModules`) and webpack 5 full-runtime
 fixtures, plus the Rollup, esbuild and Parcel sniffs, are pre-existing tests and
-all still pass: `go test ./internal/collector ./internal/collector/discovery`
-→ exit 0.
+all still pass:
+
+```
+go build ./...                                                       exit 0
+go test ./internal/collector ./internal/collector/discovery -count=1  ok
+```
+
+The build is included because the delta-path fix changes a shared signature.
 
 The widening direction is guarded by a negative fixture that puts `webpack`,
 `webpackBootstrap` and `__webpack_modules__` in comments in a hand-written file.
