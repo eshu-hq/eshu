@@ -96,12 +96,14 @@ Burn-down progress:
 - **#5666** downgraded the pair #5336 originally flagged —
   `prod-component-extension-inventory` / `prod-component-extension-diagnostics`
   (`component_extensions.inventory` / `.diagnostics`) — from `production:
-  supported` to `experimental`. Their committed deployed **read-surface**
-  evidence is still missing (the OCI e2e driver starts the collector but does
-  not exercise `list_component_extensions` / `get_component_extension_diagnostics`
-  through the API/MCP); wiring a deployed API/MCP run (then restoring
-  `supported`) is tracked in #5958.
-- **This directory now holds 101 committed production-validation artifacts** —
+  supported` to `experimental`, because no committed evidence exercised the
+  read surface through the API/MCP. **That gap has since been closed and both
+  rows are back at `production: supported`**: the two artifacts in this
+  directory record a live `GET /api/v0/component-extensions` readback against a
+  deployed component-extension Compose stack, returning `installed=true`,
+  `enabled=true`, and `trusted=true` for a real claimed component, with the
+  diagnostics route sharing that handler.
+- **This directory now holds 103 committed production-validation artifacts** —
   each capability whose committed evidence (the `go_test` suites its local
   profiles cite, `docs/internal/evidence/*.md` live-backend validations, and
   `scripts/run-remote-e2e-*` deployed drivers) substantiates its `production`
