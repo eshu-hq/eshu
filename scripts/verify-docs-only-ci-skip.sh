@@ -19,15 +19,26 @@
 # It also guards the #5818 regression class directly: test.yml, security-scan.yml,
 # and mcp-schema-drift.yml each carry their own copy of the same dorny/paths-filter
 # `code` block, and #5818 burned ~118 runner-minutes on a five-markdown-file PR
-# because `!*.md` is ROOT-ANCHORED (it never matched the nested
-# `.agents/skills/**/*.md` files that PR touched), so `code` evaluated true and
-# every heavy Go lane ran. Two checks below catch that class going forward:
+# because `code` evaluated true and every heavy Go lane ran.
+#
+# The cause recorded here at the time — `!*.md` being ROOT-ANCHORED, so it never
+# matched that PR's nested `.agents/skills/**/*.md` — was not the operative one.
+# #5896 found it: dorny@v3 defaults to `predicate-quantifier: some`, under which
+# `**` matches first and NO negation subtracts, however it is anchored. The
+# `!.agents/**` added as the #5818 fix was inert from the day it landed.
+# Anchoring still decides which markdown counts as code, but only once
+# `predicate-quantifier: 'every'` is set. Three checks below catch the class:
 #   1. the three copies of the `code` filter must stay byte-identical (a fix
 #      applied to only one copy is exactly how #5818-shaped drift starts);
 #   2. no registry gate whose CI job is one of these workflows' code-gated jobs
 #      may declare a trigger path that the filter's negations would swallow
 #      (the filter's negation style over-covers safely in the other direction,
-#      so this is a one-way superset check).
+#      so this is a one-way superset check, and it only guards anything real
+#      once check 3's quantifier is set — inert negations swallow nothing;
+#   3. the changes/filter step of every copy must set predicate-quantifier to
+#      every — checked in that step, not file-wide, so a relocated line cannot
+#      satisfy it — without which the negations are decorative again and check 2
+#      goes vacuous (#5896).
 set -uo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -64,6 +75,13 @@ job_alwayson() { ! job_gated "$1" "$2"; }
 # loudly and immediately instead of letting that happen silently.
 declare -F run_merge_group_checks >/dev/null ||
 	{ printf 'verify-docs-only-ci-skip: ci-gate-merge-group-checks.sh did not define run_merge_group_checks (source missing or failed) — aborting\n' >&2; exit 1; }
+
+# shellcheck source=scripts/lib/ci-gate-predicate-quantifier.sh
+. "${repo_root}/scripts/lib/ci-gate-predicate-quantifier.sh"
+# Same fail-loudly rule as above, for the same reason: without `set -e` a
+# missing source would skip the #5896 guard and still exit 0.
+declare -F run_predicate_quantifier_check >/dev/null ||
+	{ printf 'verify-docs-only-ci-skip: ci-gate-predicate-quantifier.sh did not define run_predicate_quantifier_check (source missing or failed) — aborting\n' >&2; exit 1; }
 
 # code_filter_block <file> — the dorny/paths-filter `code:` key and its `- '...'`
 # negation list, verbatim (comments excluded), for byte-identity comparison
@@ -403,6 +421,11 @@ else
 	diff <(printf '%s\n' "${block_test}") <(printf '%s\n' "${block_sec}") >&2 || true
 	diff <(printf '%s\n' "${block_test}") <(printf '%s\n' "${block_mcp}") >&2 || true
 fi
+
+# --- #5896 regression guard: without predicate-quantifier: 'every' the `!`
+# negations are dead text. Rules live with the check in
+# scripts/lib/ci-gate-predicate-quantifier.sh. ---
+run_predicate_quantifier_check "${t}" "${s}" "${m}"
 
 # --- #5818 regression guard 2: no gate whose CI job is actually code-gated may
 # rely on a trigger path the filter's negations would swallow. The filter
