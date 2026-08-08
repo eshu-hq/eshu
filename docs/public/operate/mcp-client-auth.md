@@ -162,7 +162,14 @@ covered by [MCP OAuth 2.1 Discovery](mcp-oauth-discovery.md):
   the first refresh; a probe during that window sees zero active issuers.
   Retry after the snapshot populates.
 - `ESHU_AUTH_RESOURCE_URI` is unset or fails the `https://` (or loopback
-  `http://`) validation the discovery handler requires.
+  `http://`) validation the discovery handler requires. A deployment served
+  over plain `http` on anything other than a loopback host never publishes the
+  document, so the probe `404`s permanently rather than intermittently, and the
+  `401` challenge drops its `resource_metadata` directive. See
+  [a non-loopback http deployment cannot serve discovery][no-loopback-http].
+  Put TLS in front of the server and use the `https` identifier.
+
+[no-loopback-http]: mcp-oauth-discovery.md#a-non-loopback-http-deployment-cannot-serve-discovery
 
 **The fallback output still works.** Token posture always authenticates —
 per-user tokens exist regardless of whether SSO is configured — so a
