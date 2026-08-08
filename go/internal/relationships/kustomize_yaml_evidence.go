@@ -42,8 +42,20 @@ func discoverKustomizeDocumentEvidence(
 	return evidence
 }
 
+// kustomizeResourceStrings gathers `bases` as well as `resources` and
+// `components`. The legacy `bases:` key was not walked at all, so a target
+// written there — remote or not — produced no evidence on this path, while the
+// same target under `resources:` did.
+//
+// This keeps the raw read and the structured read (discoverStructuredKustomizeEvidence,
+// which reads the parser's bases and resource_refs together) producing the same
+// set. They both run: the collector emits a content fact and a file fact for one
+// file, and only the file fact carries parsed_file_data, so the content fact
+// still takes this path. Two extractions of one file that disagree do not
+// conflict — they union, and the graph shows the wider answer with nothing
+// reporting why (#5609).
 func kustomizeResourceStrings(document map[string]any) []string {
-	return gatherStrings(document, "resources", "components")
+	return gatherStrings(document, "resources", "components", "bases")
 }
 
 func kustomizeHelmStrings(document map[string]any) []string {

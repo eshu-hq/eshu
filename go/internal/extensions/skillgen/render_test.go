@@ -63,21 +63,21 @@ func loadCanonicalCapabilities(t *testing.T) Capabilities {
 	return caps
 }
 
-func TestRenderAll_ProducesAllThreeHosts(t *testing.T) {
+func TestRenderAll_ProducesEveryRegisteredHost(t *testing.T) {
 	t.Parallel()
 	fragments := loadCanonicalFragments(t)
 	results, err := RenderAll(fragments, loadCanonicalCapabilities(t))
 	if err != nil {
 		t.Fatalf("RenderAll: %v", err)
 	}
-	if got, want := len(results), 3; got != want {
+	if got, want := len(results), len(AllHosts()); got != want {
 		t.Fatalf("results = %d, want %d", got, want)
 	}
 	gotHosts := make([]string, 0, len(results))
 	for _, r := range results {
 		gotHosts = append(gotHosts, string(r.Host))
 	}
-	wantHosts := []string{"claude-code", "codex", "cursor"}
+	wantHosts := []string{"aider", "claude-code", "codex", "copilot", "cursor", "gemini-cli"}
 	sort.Strings(gotHosts)
 	if !reflect.DeepEqual(gotHosts, wantHosts) {
 		t.Fatalf("hosts = %v, want %v", gotHosts, wantHosts)
@@ -109,12 +109,13 @@ func TestRenderAll_EmitsByteCitationBlockOnEveryHost(t *testing.T) {
 	}
 }
 
-// TestRenderAll_FrontmatterIsAtByte0 is the regression catch for the
-// Codex/Cursor loader-discovery contract. Both loaders read the leading
-// `---` block to discover skills/rules, so the YAML frontmatter MUST be
-// at byte 0 in every generated file; the byte-citation block follows
-// after the frontmatter.
-func TestRenderAll_FrontmatterIsAtByte0(t *testing.T) {
+// TestRenderAll_NothingPrecedesWhatTheLoaderNeeds is the regression catch for
+// loader discovery. For a host whose loader parses frontmatter, the `---`
+// block must sit at byte 0 or the file is not discovered at all. For a host
+// with no frontmatter schema, the same rule points the other way: a leading
+// `---` would be handed to the model as literal content, so those files must
+// open with the byte-citation comment instead.
+func TestRenderAll_NothingPrecedesWhatTheLoaderNeeds(t *testing.T) {
 	t.Parallel()
 	fragments := loadCanonicalFragments(t)
 	results, err := RenderAll(fragments, loadCanonicalCapabilities(t))
@@ -122,8 +123,17 @@ func TestRenderAll_FrontmatterIsAtByte0(t *testing.T) {
 		t.Fatalf("RenderAll: %v", err)
 	}
 	for _, r := range results {
-		if !bytes.HasPrefix(r.Bytes, []byte("---\n")) {
-			t.Errorf("host %s: output does not start with `---\\n` (frontmatter must be at byte 0 for Codex/Cursor loader discovery)\nfirst 200 bytes: %q", r.Host, truncate(string(r.Bytes), 200))
+		if r.Host.LoaderParsesFrontmatter() {
+			if !bytes.HasPrefix(r.Bytes, []byte("---\n")) {
+				t.Errorf("host %s: output does not start with `---\\n` (frontmatter must be at byte 0 for loader discovery)\nfirst 200 bytes: %q", r.Host, truncate(string(r.Bytes), 200))
+			}
+			continue
+		}
+		if bytes.HasPrefix(r.Bytes, []byte("---\n")) {
+			t.Errorf("host %s: output starts with `---\\n`, but this loader has no frontmatter schema and would surface the block as content\nfirst 200 bytes: %q", r.Host, truncate(string(r.Bytes), 200))
+		}
+		if !bytes.HasPrefix(r.Bytes, []byte("<!-- eshu:byte-citation ")) {
+			t.Errorf("host %s: output does not start with the byte-citation block\nfirst 200 bytes: %q", r.Host, truncate(string(r.Bytes), 200))
 		}
 	}
 }
@@ -166,6 +176,9 @@ func TestRenderAll_OutputPathsMatchTheHostMatrix(t *testing.T) {
 		HostClaudeCode: ".claude/skills/eshu/SKILL.md",
 		HostCursor:     ".cursor/rules/eshu.mdc",
 		HostCodex:      ".codex/skills/eshu/SKILL.md",
+		HostCopilot:    ".github/instructions/eshu.instructions.md",
+		HostAider:      ".aider/eshu-conventions.md",
+		HostGeminiCLI:  "GEMINI.md",
 	}
 	for _, r := range results {
 		if r.OutputPath != wantPaths[r.Host] {

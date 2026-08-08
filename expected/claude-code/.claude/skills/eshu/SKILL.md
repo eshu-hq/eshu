@@ -226,4 +226,3 @@ A high-authority capability that is unsupported in the active runtime
 profile MUST return `unsupported_capability` rather than emit a
 silently downgraded `fallback` result. Silent downgrade of a
 high-authority claim is a wire-contract bug.
-

@@ -9,7 +9,7 @@
    the seven canonical fragment fields.
 4. `go/internal/extensions/skillgen/byte_citation.go` — citation
    normalization and the stable comment block.
-5. `go/internal/extensions/skillgen/hosts.go` — the three-host registry and
+5. `go/internal/extensions/skillgen/hosts.go` — the host registry and
    the `HostAdapter` contract.
 6. `go/internal/extensions/skillgen/render.go` — `RenderAll`, `WriteExpected`,
    `CheckDrift`.
@@ -39,12 +39,14 @@
   block follows the frontmatter because the Codex and Cursor loaders
   discover skills/rules from the leading `---` block; emitting anything
   before the frontmatter would make the skill undiscoverable. The
-  Claude Code loader is permissive about position, but all three hosts
-  share the same shape for symmetry.
+  Claude Code loader is permissive about position. Aider and the Gemini
+  CLI parse no frontmatter at all, so their files open with the
+  byte-citation block instead; see `Host.LoaderParsesFrontmatter`.
 - **RenderAll is host-agnostic.** Per-host frontmatter fields, the
   always-on layer file, and any per-host formatting quirks live in the
-  owning adapter (`claude_code.go`, `cursor.go`, `codex.go`). Adding a
-  field to the shared frontmatter would couple the hosts and is wrong.
+  owning adapter (`claude_code.go`, `cursor.go`, `codex.go`,
+  `copilot.go`, `aider.go`, `gemini_cli.go`). Adding a field to the
+  shared frontmatter would couple the hosts and is wrong.
 - **Capabilities are optional and gitignored.** The
   `skill-fragments/capabilities.local.yaml` file is the per-deployment
   override. A missing file is the default (all collectors enabled); a
@@ -100,7 +102,7 @@
   tool; runtime side effects belong in the runtime packages.
 - **Hardcoding host names outside the registry.** The `Host` constants
   and `hostRegistry` are the only allowed source of truth for the
-  three v1 hosts.
+  supported hosts.
 - **Wrapping the per-host adapters in shared helpers.** The adapters
   are intentionally independent so a host-specific change is local to
   one file. If two adapters need the same helper, the helper belongs
@@ -113,7 +115,14 @@
 
 - The `byte_citation` comment block format — S3 verifies it.
 - The seven canonical fragment ids — they are the S1 contract.
-- The `Host` constants and the three-host limit — the S1 design caps
-  the matrix at three v1 hosts; adding a fourth is a v1-plus follow-up.
+- The `Host` constants — a new host needs its loader contract confirmed
+  against that vendor's own documentation first, recorded in the S1
+  design, and generated into `expected/` in the same change. The v1
+  three-host cap was lifted by #4059, which added Copilot, Aider, and
+  the Gemini CLI and recorded the evidence in [Amendment: six-host
+  matrix](../../../../docs/internal/skill-fragments-design.md#amendment-six-host-matrix-4059).
+  Adding a host without that evidence is the thing this rule blocks —
+  a guessed discovery path produces a file the loader silently never
+  reads, and no gate catches that.
 - The `expected/` directory layout — the roundtrip baseline is keyed
   by host id and the per-host output path.

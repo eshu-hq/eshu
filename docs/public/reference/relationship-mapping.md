@@ -305,6 +305,13 @@ Guardrails:
 - Dynamic imports, plugin loading, reflection, generated code, framework roots,
   and provider-specific conventions need exact fixtures before they can admit a
   relationship.
+- Keep document parsing separate from evidence emission. Turning a source
+  document into typed values and building an `EvidenceFact` from those values
+  are different jobs, and once a provider family grows they belong in different
+  files. Mixing them is how an extractor file ratchets past the 500-line cap a
+  few lines at a time: each addition is individually small, and nothing says
+  where the next function goes. A test that asserts no function on the parsing
+  side returns evidence keeps the seam after the split.
 - Do not collapse domain-specific relationships into `DEPENDS_ON` just because
   it is easier to materialize.
 - Do not use derived read-side summaries such as `story` or
