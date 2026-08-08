@@ -18,23 +18,6 @@ func init() {
 	rootCmd.AddCommand(newDemoCommand())
 }
 
-// demoFirstQuestion is the manifest's opening question
-// (specs/demo-first-answers.v1.yaml). The demo proves one correlated answer
-// before printing the guided path, so "the stack is up" is never mistaken for
-// "the demo works".
-const demoFirstQuestion = "Which deployed workloads run code from the checkout-service repository?"
-
-// demoGuidedQuestions is the scripted five-question path. The demo lands the
-// operator here rather than at a bare prompt: a running graph with no question
-// to ask is where first-run attention is lost.
-var demoGuidedQuestions = []string{
-	demoFirstQuestion,
-	"Which cloud resources does the checkout-service workload depend on?",
-	"Which services were affected by the most recent incident?",
-	"Which repositories depend on the shared payments library?",
-	"Where did the vulnerable dependency in checkout-service come from?",
-}
-
 // newDemoCommand builds the `eshu demo` tree. A constructor keeps flag state
 // per-invocation, matching first-run-benchmark.
 func newDemoCommand() *cobra.Command {
@@ -212,11 +195,37 @@ func printDemoSuccess(w io.Writer, res demoResult) {
 	if len(res.FirstAnswer.Truth) > 0 {
 		_, _ = fmt.Fprintf(w, "  Truth: %s\n", formatDemoTruth(res.FirstAnswer.Truth))
 	}
-	_, _ = fmt.Fprintf(w, "\nAsk these next:\n")
-	for i, q := range demoGuidedQuestions[1:] {
-		_, _ = fmt.Fprintf(w, "  %d. eshu query %q\n", i+2, q)
-	}
+	printDemoGuidedPath(w)
 	_, _ = fmt.Fprintf(w, "\nWhen you are done: eshu demo down --project %s\n", res.Project)
+}
+
+// printDemoGuidedPath prints the remaining manifest questions with the command
+// that actually answers each one.
+//
+// Generated from the manifest, never hand-written: the questions and their
+// callable surfaces are declared there, and a list maintained beside it drifts
+// into naming services the corpus does not contain.
+func printDemoGuidedPath(w io.Writer) {
+	m, err := loadDemoManifest(demoManifestPath)
+	if err != nil || len(m.Questions) < 2 {
+		return
+	}
+	_, _ = fmt.Fprintf(w, "\nAsk these next:\n")
+	n := 2
+	for _, q := range m.Questions[1:] {
+		runnable := q.RunnableForm()
+		if runnable == "" {
+			continue
+		}
+		_, _ = fmt.Fprintf(w, "  %d. %s\n     %s\n", n, collapseDemoWhitespace(q.Question), runnable)
+		n++
+	}
+}
+
+// collapseDemoWhitespace flattens a manifest question's folded YAML text onto
+// one line.
+func collapseDemoWhitespace(s string) string {
+	return strings.Join(strings.Fields(s), " ")
 }
 
 // formatDemoTruth renders truth labels deterministically so two runs of the

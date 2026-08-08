@@ -40,7 +40,13 @@ type demoQuestion struct {
 	ID       string `yaml:"id"`
 	Question string `yaml:"question"`
 	Surface  struct {
-		Execute demoExecute `yaml:"execute"`
+		// Some questions nest the callable under execute; others put it
+		// directly on surface. Both shapes appear in the committed manifest,
+		// so both are parsed rather than assuming one.
+		Kind      string         `yaml:"kind"`
+		Ref       string         `yaml:"ref"`
+		Arguments map[string]any `yaml:"arguments"`
+		Execute   demoExecute    `yaml:"execute"`
 	} `yaml:"surface"`
 	// Execute is resolved from Surface.Execute after load so callers do not
 	// have to know the manifest's nesting.
@@ -69,8 +75,12 @@ func loadDemoManifest(path string) (demoManifest, error) {
 		return demoManifest{}, fmt.Errorf("demo manifest %s declares no questions", path)
 	}
 	for i := range m.Questions {
-		m.Questions[i].Execute = m.Questions[i].Surface.Execute
-		m.Questions[i].Question = strings.TrimSpace(m.Questions[i].Question)
+		q := &m.Questions[i]
+		q.Execute = q.Surface.Execute
+		if q.Execute.Kind == "" && (q.Surface.Kind == demoExecuteMCP || q.Surface.Kind == demoExecuteHTTP) {
+			q.Execute = demoExecute{Kind: q.Surface.Kind, Ref: q.Surface.Ref, Arguments: q.Surface.Arguments}
+		}
+		q.Question = strings.TrimSpace(q.Question)
 	}
 	return m, nil
 }
@@ -258,4 +268,31 @@ func extractDemoTruth(payload map[string]any) map[string]any {
 		return truth
 	}
 	return map[string]any{"truth": "not reported by this surface"}
+}
+
+// RunnableForm renders the command an operator can actually run for this
+// question.
+//
+// The guided path is generated from this rather than hand-written beside the
+// manifest: an earlier draft listed services the demo corpus does not contain
+// and told the operator to pipe sentences into `eshu query`, which takes no
+// natural language. That printed confidently to someone in their first five
+// minutes and sent them nowhere, and nothing failed.
+func (q demoQuestion) RunnableForm() string {
+	switch q.Execute.Kind {
+	case demoExecuteMCP:
+		args, err := json.Marshal(q.Execute.Arguments)
+		if err != nil || len(q.Execute.Arguments) == 0 {
+			return fmt.Sprintf("eshu mcp call %s", q.Execute.Ref)
+		}
+		return fmt.Sprintf("eshu mcp call %s --arguments '%s'", q.Execute.Ref, string(args))
+	case demoExecuteHTTP:
+		method, path, found := strings.Cut(strings.TrimSpace(q.Execute.Ref), " ")
+		if !found {
+			return q.Execute.Ref
+		}
+		return fmt.Sprintf("curl -s -X %s \"$ESHU_API_BASE%s\"", method, path)
+	default:
+		return ""
+	}
 }
