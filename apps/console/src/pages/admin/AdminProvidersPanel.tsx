@@ -43,6 +43,7 @@ import {
 import type { AdminProviderConfigItem } from "../../api/adminProviderConfig";
 import type { EshuApiClient } from "../../api/client";
 import { Panel, Badge } from "../../components/atoms";
+import { useConfirm } from "../../components/useConfirm";
 
 const ProviderConfigDrawer = lazy(() =>
   import("./ProviderConfigDrawer").then((m) => ({ default: m.ProviderConfigDrawer })),
@@ -94,6 +95,15 @@ export function AdminProvidersPanel({
     mode: "create" | "edit";
     item?: AdminProviderConfigItem;
   } | null>(null);
+  const { confirm, confirmDialog, cancelConfirm } = useConfirm();
+
+  // A source change invalidates a confirmation opened against the previous
+  // client — see AdminTokensPanel for the full reasoning. This panel already
+  // resets rows and closes the drawer on a client change for the same reason
+  // (#5034); a pending confirmation is the same stale-source hazard.
+  useEffect(() => {
+    cancelConfirm();
+  }, [client, cancelConfirm]);
 
   const previousClientRef = useRef(client);
   useEffect(() => {
@@ -155,7 +165,9 @@ export function AdminProvidersPanel({
   const onDisable = useCallback(
     async (item: AdminProviderConfigItem) => {
       if (!client) return;
-      if (!globalThis.confirm?.(`Disable provider ${item.provider_config_id}?`)) return;
+      if (!(await confirm(`Disable provider ${item.provider_config_id}?`, { danger: true }))) {
+        return;
+      }
       setBusyId(item.provider_config_id);
       setNotice(null);
       const outcome = await disableProviderConfig(client, item.provider_config_id);
@@ -167,7 +179,7 @@ export function AdminProvidersPanel({
         setNotice(outcome.errorMessage ?? `Failed to disable ${item.provider_config_id}.`);
       }
     },
-    [client],
+    [client, confirm],
   );
 
   // Only the INITIAL load (loaded still false) renders the loading-only
@@ -208,6 +220,7 @@ export function AdminProvidersPanel({
         ) : null
       }
     >
+      {confirmDialog}
       {notice ? (
         <p className="empty-note" role="status">
           {notice}

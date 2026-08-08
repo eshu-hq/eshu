@@ -8,7 +8,7 @@
 // Stale-load guard: rotate/revoke are confirm-then-call, disable the acted-on
 // row while in flight, and call onChanged to make the parent refetch the
 // list — the same refreshKey pattern AdminTokensPanel.tsx uses.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { CreateApiTokenControl } from "./CreateApiTokenControl";
 import { fmt, isExpired } from "./tokenFormat";
@@ -17,6 +17,7 @@ import type { EshuApiClient } from "../../api/client";
 import { rotatePersonalApiToken, revokeApiToken } from "../../api/userProfile";
 import type { APITokenItem, CreatedAPIToken } from "../../api/userProfile";
 import { Panel, Badge } from "../../components/atoms";
+import { useConfirm } from "../../components/useConfirm";
 
 function statusBadge(revoked: boolean, expired: boolean): React.JSX.Element {
   if (revoked) return <Badge tone="crit">revoked</Badge>;
@@ -40,11 +41,20 @@ export function TokensSection({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [rotated, setRotated] = useState<CreatedAPIToken | null>(null);
+  const { confirm, confirmDialog, cancelConfirm } = useConfirm();
+
+  // A source change invalidates a confirmation opened against the previous
+  // client — see AdminTokensPanel for the full reasoning.
+  useEffect(() => {
+    cancelConfirm();
+  }, [client, cancelConfirm]);
 
   async function handleRotate(tokenId: string): Promise<void> {
     if (!client) return;
     if (
-      !globalThis.confirm?.(`Rotate API token ${tokenId}? The old token stops working immediately.`)
+      !(await confirm(`Rotate API token ${tokenId}? The old token stops working immediately.`, {
+        danger: true,
+      }))
     ) {
       return;
     }
@@ -66,7 +76,7 @@ export function TokensSection({
 
   async function handleRevoke(tokenId: string): Promise<void> {
     if (!client) return;
-    if (!globalThis.confirm?.(`Revoke API token ${tokenId}?`)) return;
+    if (!(await confirm(`Revoke API token ${tokenId}?`, { danger: true }))) return;
     setBusyId(tokenId);
     setNotice(null);
     const ok = await revokeApiToken(client, tokenId);
@@ -98,6 +108,7 @@ export function TokensSection({
 
   return (
     <Panel title="API tokens">
+      {confirmDialog}
       {notice ? (
         <p className="empty-note" role="status">
           {notice}
