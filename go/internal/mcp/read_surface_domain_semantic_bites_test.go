@@ -92,12 +92,13 @@ func TestReadSurfaceDomainSemanticGateBITES_RealRegistryFile(t *testing.T) {
 		if err != nil {
 			t.Fatalf("loadFactKindRegistryFull(%s): %v", realPath, err)
 		}
-		entry, ok := newRegistry[family]
-		if !ok {
+		if _, ok := newRegistry[family]; !ok {
 			t.Fatalf("real registry has no family %q", family)
 		}
-		if ok, reason := resolveRouteServesData(family, entry.ReducerDomain, entry.ReadSurface); !ok {
-			t.Fatalf("BASELINE BROKEN (NEW gate, real file): %s", reason)
+		// Same helper the D1 gate runs, so this cannot pass while the gate is
+		// bypassed.
+		if findings := routeServesDataFindings(newRegistry); len(findings) != 0 {
+			t.Fatalf("BASELINE BROKEN (NEW gate, real file): %v", findings)
 		}
 	})
 
@@ -133,10 +134,22 @@ func TestReadSurfaceDomainSemanticGateBITES_RealRegistryFile(t *testing.T) {
 		if entry.ReducerDomain != reducerDomain {
 			t.Fatalf("poisoned registry copy: family %q reducer_domain = %q, want %q (mutation touched more than the read_surface line)", family, entry.ReducerDomain, reducerDomain)
 		}
+		// The struct deserialized fully, not just the two fields under test --
+		// a partial unmarshal could otherwise fake a clean mutation.
+		if len(entry.Kinds) == 0 {
+			t.Fatalf("poisoned registry copy: family %q has no kinds; the registry did not deserialize fully", family)
+		}
 
-		gotOK, reason := resolveRouteServesData(family, entry.ReducerDomain, entry.ReadSurface)
-		if gotOK {
-			t.Fatalf("BITES FAILED: NEW gate resolved true for a route (%s) known to serve a different reducer_domain -- the domain-semantic check did not catch the #5480 misrouting", entry.ReadSurface)
+		// Run the D1 gate's own decision rather than calling
+		// resolveRouteServesData directly. If the gate ever stops asserting
+		// per family, this proof fails with it instead of staying green.
+		findings := routeServesDataFindings(newRegistry)
+		if len(findings) == 0 {
+			t.Fatalf("BITES FAILED: NEW gate reported no findings for a %s read_surface known to serve a different reducer_domain -- the domain-semantic check did not catch the #5480 misrouting", entry.ReadSurface)
+		}
+		reason := strings.Join(findings, "\n")
+		if !strings.Contains(reason, family) {
+			t.Errorf("RED message does not name the misrouted family %q -- got: %s", family, reason)
 		}
 		if !strings.Contains(reason, "read_surface") || !strings.Contains(reason, "backing map") {
 			t.Errorf("RED message does not name both fix paths -- got: %s", reason)
