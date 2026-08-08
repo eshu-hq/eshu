@@ -165,7 +165,20 @@ func discoverFromEnvelopeWithIndex(
 		evidence = append(evidence, discoverHelmEvidence(
 			sourceRepoID, filePath, content, commitSHA, matcher, seen,
 		)...)
+	// Kustomize reads the parser's kustomize_overlays bucket when the file was
+	// parsed, and only re-parses raw content when it was not. The two are not
+	// interchangeable — the raw read offers same-repo directory paths to the
+	// catalog matcher and the bucket does not (#5609, and the doc comment on
+	// discoverStructuredKustomizeEvidence) — so they must not both run. Running
+	// both would union to the raw result and the fix would be inert, because
+	// matchCatalog dedupes through `seen` rather than overriding.
 	case isKustomizeArtifact(filePath):
+		if len(parsedFileData) > 0 {
+			evidence = append(evidence, discoverStructuredKustomizeEvidence(
+				sourceRepoID, filePath, commitSHA, parsedFileData, matcher, seen,
+			)...)
+			break
+		}
 		evidence = append(evidence, discoverKustomizeEvidence(
 			sourceRepoID, filePath, content, commitSHA, matcher, seen,
 		)...)

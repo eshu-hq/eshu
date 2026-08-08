@@ -404,3 +404,59 @@ spec:
 		t.Fatalf("Details[flux_git_repository_namespace] = %#v, want %q", evidence[0].Details["flux_git_repository_namespace"], "flux-system")
 	}
 }
+
+// TestRealParserStructuredKustomizeEvidence proves discoverStructuredKustomizeEvidence
+// resolves a remote Kustomize base, a Helm chart reference, and an image
+// reference from a REAL-PARSER-emitted kustomize_overlays payload, and that the
+// same-repo base in the same document raises nothing.
+//
+// The last part is the behavior change (#5609). The raw-content path this
+// replaces offered every `resources` entry to the catalog matcher, local
+// directory paths included, so a repository whose name happened to match a
+// sibling directory picked up a DEPLOYS_FROM edge it never earned. Reading the
+// parser's already-classified resource_refs drops those; a same-repo path is
+// not a deployment source.
+func TestRealParserStructuredKustomizeEvidence(t *testing.T) {
+	t.Parallel()
+
+	payload := parseFixtureForTest(t, "kustomization.yaml", `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - github.com/acme/deployable-source//k8s?ref=v1.4.0
+  - ./base
+helmCharts:
+  - name: redis
+    repo: https://charts.example.test
+images:
+  - name: checkout-service
+    newTag: v1.0.0
+`)
+
+	envelopes := []facts.Envelope{{
+		ScopeID: "repo-overlay",
+		Payload: map[string]any{"relative_path": "kustomization.yaml", "parsed_file_data": payload},
+	}}
+	catalog := []CatalogEntry{
+		{RepoID: "repo-deployable-source", Aliases: []string{"github.com/acme/deployable-source"}},
+		{RepoID: "repo-redis-chart", Aliases: []string{"redis"}},
+		{RepoID: "repo-checkout-image", Aliases: []string{"checkout-service"}},
+		// The trap: a catalog repository whose alias is the same string as the
+		// document's local base. The raw path matched it; the typed path must not.
+		{RepoID: "repo-named-like-a-local-dir", Aliases: []string{"./base"}},
+	}
+
+	evidence := DiscoverEvidence(envelopes, catalog)
+
+	targets := map[string]bool{}
+	for _, item := range evidence {
+		targets[item.TargetRepoID] = true
+	}
+	for _, want := range []string{"repo-deployable-source", "repo-redis-chart", "repo-checkout-image"} {
+		if !targets[want] {
+			t.Errorf("no evidence resolved to %s; got %#v", want, targets)
+		}
+	}
+	if targets["repo-named-like-a-local-dir"] {
+		t.Error("a same-repo base path reached the catalog matcher; local paths are not deployment sources")
+	}
+}
