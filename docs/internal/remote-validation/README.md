@@ -107,7 +107,7 @@ Burn-down progress:
   `scripts/run-remote-e2e-*` deployed drivers) substantiates its `production`
   profile. Those rows keep `production: supported`; their refs now resolve, so
   `-update` removed them from the baseline.
-- **`FROZEN_MAX` is now 7.** The prior cluster of 7 code-intelligence slugs
+- **The cluster of 7 code-intelligence slugs before this one**
   (#5681) was resolved per-row against a real deployed-services stack: the two
   transitive-caller-graph reads (`prod-transitive-callers` /
   `prod-transitive-callees`) returned complete multi-hop
