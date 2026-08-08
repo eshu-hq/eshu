@@ -404,3 +404,78 @@ spec:
 		t.Fatalf("Details[flux_git_repository_namespace] = %#v, want %q", evidence[0].Details["flux_git_repository_namespace"], "flux-system")
 	}
 }
+
+// TestRealParserStructuredKustomizeEvidence proves discoverStructuredKustomizeEvidence
+// resolves a remote Kustomize base, a Helm chart reference, and an image
+// reference from a REAL-PARSER-emitted kustomize_overlays payload, and that a
+// same-repo base still reaches the catalog matcher.
+//
+// That last part reverses what an earlier version of this test asserted, and
+// the reversal is the point (#5609). Reading only the parser's resource_refs
+// would drop every same-repo path before the matcher saw it, on the reasoning
+// that a path inside this repository cannot be a deployment source. Eshu does
+// not model it that way: the confidence calibration corpus scores
+// `resources: [../payments-service/base]` as a positive at 0.90 -- a sibling
+// directory naming another repository's config -- and `./base` as a negative
+// at 0.792. Both are meant to reach the matcher, and the calibration layer is
+// what separates them. So the structured path reads Bases and ResourceRefs
+// together.
+func TestRealParserStructuredKustomizeEvidence(t *testing.T) {
+	t.Parallel()
+
+	const source = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - github.com/acme/deployable-source//k8s?ref=v1.4.0
+  - ./base
+helmCharts:
+  - name: redis
+    repo: https://charts.example.test
+images:
+  - name: checkout-service
+    newTag: v1.0.0
+`
+
+	payload := parseFixtureForTest(t, "kustomization.yaml", source)
+
+	// Both content AND parsed_file_data, which is what the ingestion pipeline
+	// actually emits. Setting only parsed_file_data (the convention the other
+	// tests in this file follow to isolate a structured extractor) would make
+	// the local-base assertion below vacuous: the raw path needs content to
+	// produce anything, so it would raise no false positive to suppress and
+	// the test would pass with the fix reverted.
+	envelopes := []facts.Envelope{{
+		ScopeID: "repo-overlay",
+		Payload: map[string]any{
+			"relative_path":    "kustomization.yaml",
+			"content":          source,
+			"parsed_file_data": payload,
+		},
+	}}
+	catalog := []CatalogEntry{
+		{RepoID: "repo-deployable-source", Aliases: []string{"github.com/acme/deployable-source"}},
+		{RepoID: "repo-redis-chart", Aliases: []string{"redis"}},
+		{RepoID: "repo-checkout-image", Aliases: []string{"checkout-service"}},
+		// A catalog repository aliased to the document's local base. Both the
+		// raw path and the typed path match it, which is what keeps the two
+		// paths in agreement -- discounting it is the calibration layer's job.
+		{RepoID: "repo-named-like-a-local-dir", Aliases: []string{"./base"}},
+	}
+
+	evidence := DiscoverEvidence(envelopes, catalog)
+
+	targets := map[string]bool{}
+	for _, item := range evidence {
+		targets[item.TargetRepoID] = true
+	}
+	for _, want := range []string{"repo-deployable-source", "repo-redis-chart", "repo-checkout-image"} {
+		if !targets[want] {
+			t.Errorf("no evidence resolved to %s; got %#v", want, targets)
+		}
+	}
+	if !targets["repo-named-like-a-local-dir"] {
+		t.Error("the same-repo base did not reach the catalog matcher; reading resource_refs " +
+			"alone drops the calibration corpus's 0.90 sibling-directory positive along with " +
+			"the negatives it was meant to exclude")
+	}
+}
