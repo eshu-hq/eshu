@@ -22,10 +22,24 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
+// resolveNativeSnapshotFileSetForTargets builds the file set for a delta sync,
+// which resolves explicit --file-targets instead of walking the tree.
+//
+// It applies the same generated-content filter the full discovery path applies,
+// and for the same reason. Without it one webpack bundle was skipped when a
+// full discovery found it and indexed when a delta sync touched it, so which
+// entities reached the graph depended on which sync mode happened to run
+// (#4782).
+//
+// stats receives the skip counts. Callers decide whether those counts are new
+// information: the production caller passes a throwaway value, because the full
+// discovery it runs first has already counted the same files. See the comment
+// at that call site.
 func resolveNativeSnapshotFileSetForTargets(
 	repoPath string,
 	fileTargets []string,
 	registry parser.Registry,
+	stats *discovery.DiscoveryStats,
 ) (discovery.RepoFileSet, error) {
 	files := make([]discovery.FileWithSize, 0, len(fileTargets))
 	for _, target := range fileTargets {
@@ -68,7 +82,7 @@ func resolveNativeSnapshotFileSetForTargets(
 	}
 	return discovery.RepoFileSet{
 		RepoRoot: repoPath,
-		Files:    files,
+		Files:    filterGeneratedNativeSnapshotFiles(files, stats),
 	}, nil
 }
 

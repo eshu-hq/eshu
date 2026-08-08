@@ -102,13 +102,35 @@ func largeJavaScriptBundlePrefix(path string) (string, bool) {
 	return string(buf[:n]), true
 }
 
+// isWebpackBootstrapPrefix reports whether a file's first bytes are a webpack
+// bundle header.
+//
+// Two tokens are required of every match: the `webpackBootstrap` label webpack
+// writes into its bootstrap IIFE, and the `/******/` banner it prefixes every
+// runtime line with. Neither is something a person types. On top of those, one
+// module-table token settles it — `installedModules` for webpack 4,
+// `__webpack_modules__` for webpack 5.
+//
+// The webpack 5 arm used to also demand `__webpack_module_cache__` and
+// `function __webpack_require__`. Webpack emits those only when the chunk needs
+// them (`if (useRequire || moduleCache)` and `if (useRequire)` in
+// JavascriptModulesPlugin), so a build that extracts its runtime into a
+// separate chunk produces neither in any other chunk. That is
+// `optimization.runtimeChunk`, an ordinary configuration, and requiring the two
+// sent every such bundle to a full tree-sitter parse (#4782).
+//
+// What that costs depends on size, and the interesting range is narrower than
+// it looks. Above 1 MiB #4766's jsParseByteCap already keeps the file away from
+// tree-sitter, so the seconds-scale figures quoted in #4782 are that fix's
+// evidence, not this one's. Between this sniffer's 256 KiB floor and that cap a
+// bundle is fully parsed: measured at 1.9s for a 0.58MB split-runtime chunk
+// (2.5s with dataflow) against 0.2ms to sniff it, and 17k phantom function and
+// call entities that no longer reach the graph.
 func isWebpackBootstrapPrefix(prefix string) bool {
 	return strings.Contains(prefix, "webpackBootstrap") &&
 		strings.Contains(prefix, "/******/") &&
 		(strings.Contains(prefix, "installedModules") ||
-			(strings.Contains(prefix, "__webpack_modules__") &&
-				strings.Contains(prefix, "__webpack_module_cache__") &&
-				strings.Contains(prefix, "function __webpack_require__")))
+			strings.Contains(prefix, "__webpack_modules__"))
 }
 
 func isRollupBootstrapPrefix(prefix string) bool {
