@@ -33,10 +33,19 @@ const demoReadyTimeout = 10 * time.Minute
 // demoReadyPollInterval is how often readiness is sampled while waiting.
 const demoReadyPollInterval = 2 * time.Second
 
-// demoMCPBase is where the demo overlay publishes the MCP server. The demo
-// owns its own Compose project, so these are the demo's ports, not the
-// operator's default stack.
-const demoMCPBase = "http://127.0.0.1:8081"
+// demoAPIBase and demoMCPBase are where the demo overlay publishes its
+// services. These MUST match the host ports in docker-compose.demo.runtime.yaml.
+//
+// They are deliberately not 8080/8081. The demo runs its own Compose project
+// precisely so it never touches the operator's default stack, and an earlier
+// draft hardcoded the default ports — which meant the demo's readiness probe
+// and first question read whatever was already listening on 8080, reporting
+// another stack's state as the demo's. A live run caught it: the demo sat at
+// "0 repositories" for ten minutes while a healthy stack ran beside it.
+const (
+	demoAPIBase = "http://127.0.0.1:18080"
+	demoMCPBase = "http://127.0.0.1:18091"
+)
 
 // demoIndexStatus is the subset of /api/v0/status/index the demo waits on.
 // Readiness is indexing completeness, never process health: a stack that is
@@ -121,7 +130,7 @@ func newDemoRuntime(project string) *demoRuntime {
 		ask:     askDemoQuestion,
 		now:     time.Now,
 		project: project,
-		apiBase: "http://127.0.0.1:8080",
+		apiBase: demoAPIBase,
 	}
 }
 
