@@ -33,5 +33,5 @@ and no telemetry contract entry to add.
 
 
 See `README.md` (the Internal flow section) for the three-list sync invariant
-itself, and `scripts/verify-entity-bucket-label-sync.sh` for the gate that
-enforces it.
+itself, and `go/internal/content/shape/bucket_sync_gate_test.go` (CI gate
+`content-entity-bucket-sync`) for the gate that enforces it.

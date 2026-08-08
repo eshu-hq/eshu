@@ -141,14 +141,10 @@ per repository:
    and Tempo observability parser buckets plus applied Argo CD/Kubernetes
    observability state buckets are emitted as versioned `observability.*`
    source facts during fact streaming, not as graph truth.
-   `entityBucketsFromParsed` (`git_snapshot_materialization.go`) walks ONLY
-   the buckets listed in `snapshotEntityBuckets` (`git_snapshot_entity_buckets.go`),
-   the collector-side twin of `content/shape`'s `contentEntityBuckets`. A
-   bucket registered upstream but missing from `snapshotEntityBuckets` is
-   silently dropped: no content entity, no fact, no graph node, no error
-   (issue #5483 C1, #5531). `bucket_sync_gate_test.go` in `content/shape` (CI
-   gate `content-entity-bucket-sync`) gates this and the matching projector
-   `entityTypeLabelMap` recognition; keep new buckets registered in all three.
+   `entityBucketsFromParsed` walks only `snapshotEntityBuckets`, the twin of
+   `content/shape`'s `contentEntityBuckets`; a bucket missing from it is dropped
+   with no fact, no node, and no error (#5483 C1, #5531). `content/shape`'s
+   `bucket_sync_gate_test.go` gates all three lists — register new buckets in each.
 5. **Materialize** — `shape.Materialize` turns parsed files into
    `ContentFileMeta` records and `ContentEntitySnapshot` rows. Body strings are
    released after materialization; `streamFacts` re-reads them from disk at emit
