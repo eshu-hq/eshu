@@ -77,8 +77,7 @@ signals are a permanent `404` on `/.well-known/oauth-protected-resource` and a
 single startup warning:
 
 ```text
-oauth discovery disabled: ESHU_AUTH_RESOURCE_URI is not a valid https (or
-loopback-http) URL without query/fragment; bearer aud validation still enforced
+oauth discovery disabled: ESHU_AUTH_RESOURCE_URI is not a valid https (or loopback-http) URL without query/fragment; bearer aud validation still enforced
 ```
 
 For any deployment that is not local, terminate TLS in front of the MCP server
