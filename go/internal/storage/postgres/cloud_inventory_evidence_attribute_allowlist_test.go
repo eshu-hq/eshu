@@ -66,7 +66,7 @@ func TestCloudInventoryRecordFromRowAWSECSTaskAllowlistFiltersRawKeys(t *testing
 			"started_at":"2026-01-01T00:00:00Z",
 			"network_interfaces":[{"network_interface_id":"eni-000000000000000aa","private_ipv4_address":"10.0.0.5"}],
 			"containers":[
-				{"image":"000000000000.dkr.ecr.us-east-1.amazonaws.com/demo:latest","image_digest":"sha256:00000000000000000000000000000000000000000000000000000000000000aa","name":"demo","runtime_id":"0000000000000000000000000000000000000000000000000000000000bb"}
+				{"image":"000000000000.dkr.ecr.us-east-1.amazonaws.com/demo:latest","image_digest":"sha256:00000000000000000000000000000000000000000000000000000000000000ff","name":"demo","runtime_id":"0000000000000000000000000000000000000000000000000000000000bb"}
 			]
 		}
 	}`)
@@ -94,7 +94,7 @@ func TestCloudInventoryRecordFromRowAWSECSTaskAllowlistFiltersRawKeys(t *testing
 	if got, want := container["image"], "000000000000.dkr.ecr.us-east-1.amazonaws.com/demo:latest"; got != want {
 		t.Fatalf("containers[0].image = %#v, want %q", got, want)
 	}
-	if got, want := container["image_digest"], "sha256:00000000000000000000000000000000000000000000000000000000000000aa"; got != want {
+	if got, want := container["image_digest"], "sha256:00000000000000000000000000000000000000000000000000000000000000ff"; got != want {
 		t.Fatalf("containers[0].image_digest = %#v, want %q", got, want)
 	}
 	for _, dropped := range []string{"name", "runtime_id"} {

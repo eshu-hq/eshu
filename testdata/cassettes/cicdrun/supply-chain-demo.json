@@ -351,10 +351,10 @@
             "artifact_id": "art-image-9101",
             "artifact_name": "runtime-evidence-image",
             "artifact_type": "container_image",
-            "artifact_digest": "sha256:00000000000000000000000000000000000000000000000000000000000000aa",
+            "artifact_digest": "sha256:00000000000000000000000000000000000000000000000000000000000000ff",
             "correlation_anchors": [
               "github_actions::9101",
-              "sha256:00000000000000000000000000000000000000000000000000000000000000aa"
+              "sha256:00000000000000000000000000000000000000000000000000000000000000ff"
             ]
           }
         }

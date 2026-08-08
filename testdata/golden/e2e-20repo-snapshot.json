@@ -4077,7 +4077,7 @@
           "buckets[].value": "explicit_digest"
         },
         "arguments": {
-          "digest": "sha256:00000000000000000000000000000000000000000000000000000000000000aa",
+          "digest": "sha256:00000000000000000000000000000000000000000000000000000000000000ff",
           "group_by": "identity_strength",
           "limit": 10
         }
@@ -6167,7 +6167,7 @@
         "result_item_required_fields": ["artifact_digest", "canonical_writes", "correlation_kind", "image_ref", "outcome", "provider", "reason", "repository_id", "run_id"],
         "required_json_object_matches": {"correlations[]": [{"artifact_digest": "sha256:c10000000000000000000000000000000000000000000000000000000010c1c1", "canonical_writes": 1, "correlation_kind": "workflow_image", "image_ref": "ghcr.io/acme/container-ci-lineage:1.0.0", "outcome": "derived", "provider": "github_actions", "reason": "workflow image ref is a reusable-workflow input (consumed by, not produced by, this workflow); one container image identity row matched", "repository_id": "repository:r_f252e384", "run_id": "9200"}]}
       },
-      "GET /api/v0/supply-chain/container-images/identities?digest=sha256:00000000000000000000000000000000000000000000000000000000000000aa&limit=10": {
+      "GET /api/v0/supply-chain/container-images/identities?digest=sha256:00000000000000000000000000000000000000000000000000000000000000ff&limit=10": {
         "description": "#5704 end-to-end evidence merge proof. The ECS task emits an aws_image_reference for digest sha256:...00aa, the ECR cassette supplies its OCI manifest, and GitHub Actions run 9101 independently publishes a ci.artifact for the same digest from repository:r_19519f37. Digest-v3 must retain both supports but return exactly one canonical identity. The object match binds the explicit runtime-observed strength, CI revision, source repository, and the exact sorted union of AWS, OCI, CI-run, and CI-artifact fact IDs to that same identity. Dropping either support, selecting strength by incidental row order, or returning duplicate logical identities fails this shape.",
         "required_response_fields": ["collector_readiness", "count", "identities", "limit", "truncated"],
         "minimum_results": 1,
@@ -6176,7 +6176,7 @@
         "result_item_required_fields": ["digest", "evidence_fact_ids", "identity_strength", "source_repository_ids", "source_revision", "source_revision_provenance"],
         "required_json_object_matches": {
           "identities[]": [{
-            "digest": "sha256:00000000000000000000000000000000000000000000000000000000000000aa",
+            "digest": "sha256:00000000000000000000000000000000000000000000000000000000000000ff",
             "evidence_fact_ids": ["91516d563e2dd52dbcf527740c02b2130e61a6b4b77ad4be218417ac0057b51f", "952cba28492237a7263251dbd73f07c57bcfb929b3541a97f4b5eaf8335aaaf8", "b0803c884786f7b08f472376bb5a6139bfdb5770e398823ca47bb3e615cfc01b", "d15088277e773fa3cf958a16a7220845763a484b2646168881d06038afbb9774"],
             "identity_strength": "explicit_digest",
             "source_repository_ids": ["repository:r_19519f37"],

@@ -11,7 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
-const testTaskDigest = "sha256:000000000000000000000000000000000000000000000000000000000000000000aa"
+const testTaskDigest = "sha256:000000000000000000000000000000000000000000000000000000000000000000ff"
 
 // TestScannerEmitsImageReferenceForRunningECRContainer proves the #5451
 // emitter: a RUNNING task container with a non-blank ImageDigest whose image

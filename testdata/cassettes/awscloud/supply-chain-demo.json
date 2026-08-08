@@ -234,7 +234,7 @@
         },
         {
           "fact_kind": "aws_image_reference",
-          "stable_fact_key": "aws:123456789012:us-east-1:ecs:image-reference:supply-chain-demo@sha256:00000000000000000000000000000000000000000000000000000000000000aa#latest",
+          "stable_fact_key": "aws:123456789012:us-east-1:ecs:image-reference:supply-chain-demo@sha256:00000000000000000000000000000000000000000000000000000000000000ff#latest",
           "schema_version": "1.0.0",
           "collector_kind": "aws",
           "fencing_token": 1,
@@ -245,12 +245,12 @@
             "service_kind": "ecs",
             "repository_name": "supply-chain-demo",
             "registry_id": "123456789012",
-            "image_digest": "sha256:00000000000000000000000000000000000000000000000000000000000000aa",
-            "manifest_digest": "sha256:00000000000000000000000000000000000000000000000000000000000000aa",
+            "image_digest": "sha256:00000000000000000000000000000000000000000000000000000000000000ff",
+            "manifest_digest": "sha256:00000000000000000000000000000000000000000000000000000000000000ff",
             "tag": "latest",
             "correlation_anchors": [
-              "sha256:00000000000000000000000000000000000000000000000000000000000000aa",
-              "supply-chain-demo@sha256:00000000000000000000000000000000000000000000000000000000000000aa",
+              "sha256:00000000000000000000000000000000000000000000000000000000000000ff",
+              "supply-chain-demo@sha256:00000000000000000000000000000000000000000000000000000000000000ff",
               "supply-chain-demo:latest"
             ]
           }
