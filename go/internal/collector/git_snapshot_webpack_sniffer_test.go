@@ -35,7 +35,8 @@ func largeWebpackSplitRuntimeFixture() string {
 		"/******/ \tvar __webpack_modules__ = ({\n" +
 		"/******/ \t\t\"./src/index.js\": ((module, exports, require) => { exports.x = 1; })\n" +
 		"/******/ \t});\n"
-	return header + strings.Repeat("var generatedBundleChunk = 1;\n", 12000)
+	const line = "var generatedBundleChunk = 1;\n"
+	return header + strings.Repeat(line, bundleFixtureRepeats(len(header), len(line)))
 }
 
 // The over-admission guard: a hand-written file may legitimately talk ABOUT
@@ -44,7 +45,8 @@ func largeHandWrittenWebpackMentionFixture() string {
 	header := "// Our build uses webpack. See webpack.config.js for the webpackBootstrap\n" +
 		"// runtime settings and how __webpack_modules__ is chunked.\n" +
 		"export function configureBuild() { return 'hand written'; }\n"
-	return header + strings.Repeat("export const helper = 1;\n", 12000)
+	const line = "export const helper = 1;\n"
+	return header + strings.Repeat(line, bundleFixtureRepeats(len(header), len(line)))
 }
 
 func TestResolveNativeSnapshotFileSetSkipsWebpackChunksWithASplitRuntime(t *testing.T) {
@@ -145,4 +147,19 @@ func TestResolveNativeSnapshotFileSetForTargetsSkipsGeneratedBundles(t *testing.
 			"must report the skip through the same counter an operator already watches",
 			stats.FilesSkippedByContent["generated-webpack"])
 	}
+}
+
+// bundleFixtureRepeats sizes a fixture just past the sniffer's byte floor,
+// derived from the constant rather than hardcoded.
+//
+// The sniffer reads only the first 8KiB to match a bundler prefix, but it never
+// looks at all unless the file is at least generatedJavaScriptBundleMinBytes —
+// so a fixture sized to the 8KiB read window would be skipped before the prefix
+// mattered, and the test would prove nothing. Deriving the count means raising
+// the floor cannot silently shrink these below it (#5968 review).
+//
+// The margin is two lines rather than one so integer division cannot land the
+// total exactly on the floor.
+func bundleFixtureRepeats(headerBytes, lineBytes int) int {
+	return (generatedJavaScriptBundleMinBytes-headerBytes)/lineBytes + 2
 }
