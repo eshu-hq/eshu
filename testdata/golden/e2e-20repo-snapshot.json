@@ -4602,15 +4602,42 @@
         }
       },
       "list_documentation_findings": {
-        "description": "MCP tool coverage shape for list_documentation_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "Positive deployed readback for the public-safe runtime-readiness documentation finding inserted after the required drains.",
         "required_response_fields": [
           "findings",
           "next_cursor"
         ],
-        "minimum_results": 0
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "findings",
+        "result_item_required_fields": [
+          "finding_id",
+          "finding_version",
+          "finding_type",
+          "status",
+          "truth_level",
+          "freshness_state",
+          "source_id",
+          "document_id",
+          "evidence_packet_id"
+        ],
+        "required_json_values": {
+          "findings[].finding_id": "documentation-finding:runtime-readiness",
+          "findings[].finding_type": "runtime_readiness",
+          "findings[].status": "active",
+          "findings[].truth_level": "derived",
+          "findings[].freshness_state": "fresh",
+          "findings[].evidence_packet_id": "documentation-packet:runtime-readiness"
+        },
+        "arguments": {
+          "finding_type": "runtime_readiness",
+          "source_id": "documentation-source:golden",
+          "status": "active",
+          "limit": 10
+        }
       },
       "list_documentation_facts": {
-        "description": "MCP tool coverage shape for list_documentation_facts; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "Positive deployed readback for the public-safe runtime-readiness documentation section inserted after the required drains.",
         "required_response_fields": [
           "count",
           "facts",
@@ -4619,28 +4646,84 @@
           "states",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "facts",
+        "result_item_required_fields": [
+          "fact_id",
+          "fact_kind",
+          "scope_id",
+          "generation_id",
+          "source_system",
+          "observed_at",
+          "payload"
+        ],
+        "required_json_values": {
+          "count": 1,
+          "missing_evidence": false,
+          "facts[].fact_id": "golden-documentation-section",
+          "facts[].fact_kind": "documentation_section",
+          "facts[].payload.document_id": "documentation-document:runtime-readiness",
+          "facts[].payload.section_id": "documentation-section:runtime-readiness",
+          "facts[].payload.heading_text": "Runtime readiness"
+        },
         "arguments": {
-          "repo": "orders-api",
+          "fact_kind": "documentation_section",
+          "document_id": "documentation-document:runtime-readiness",
+          "section_id": "documentation-section:runtime-readiness",
           "limit": 10
         }
       },
       "get_documentation_evidence_packet": {
-        "description": "MCP tool coverage shape for get_documentation_evidence_packet; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
-        "required_response_fields": [],
+        "description": "Positive deployed readback for the public-safe runtime-readiness evidence packet inserted after the required drains.",
+        "required_response_fields": [
+          "packet_id",
+          "packet_version",
+          "generated_at",
+          "finding_id",
+          "linked_entities",
+          "document",
+          "section",
+          "bounded_excerpt",
+          "current_truth"
+        ],
         "minimum_results": 0,
-        "expected_error_contains": "documentation evidence packet not found",
+        "required_json_paths": [
+          "linked_entities[]",
+          "bounded_excerpt.text"
+        ],
+        "required_json_values": {
+          "packet_id": "documentation-packet:runtime-readiness",
+          "packet_version": "golden-v1",
+          "finding_id": "documentation-finding:runtime-readiness",
+          "document.document_id": "documentation-document:runtime-readiness",
+          "section.section_id": "documentation-section:runtime-readiness",
+          "current_truth.claim_key": "runtime_readiness",
+          "current_truth.truth_level": "derived",
+          "current_truth.freshness_state": "fresh"
+        },
         "arguments": {
           "finding_id": "documentation-finding:runtime-readiness"
         }
       },
       "check_documentation_evidence_packet_freshness": {
-        "description": "MCP tool coverage shape for check_documentation_evidence_packet_freshness; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
-        "required_response_fields": [],
+        "description": "Positive deployed freshness readback for the public-safe runtime-readiness evidence packet inserted after the required drains.",
+        "required_response_fields": [
+          "packet_id",
+          "packet_version",
+          "freshness_state",
+          "latest_packet_version"
+        ],
         "minimum_results": 0,
-        "expected_error_contains": "documentation evidence packet not found",
+        "required_json_values": {
+          "packet_id": "documentation-packet:runtime-readiness",
+          "packet_version": "golden-v1",
+          "freshness_state": "fresh",
+          "latest_packet_version": "golden-v1"
+        },
         "arguments": {
-          "packet_id": "documentation-packet:runtime-readiness"
+          "packet_id": "documentation-packet:runtime-readiness",
+          "packet_version": "golden-v1"
         }
       },
       "list_query_playbooks": {
@@ -4840,7 +4923,7 @@
         }
       },
       "count_documentation_findings": {
-        "description": "MCP tool coverage shape for count_documentation_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "Positive deployed aggregate count for the public-safe runtime-readiness documentation finding inserted after the required drains.",
         "required_response_fields": [
           "by_freshness_state",
           "by_status",
@@ -4848,10 +4931,22 @@
           "scope",
           "total_findings"
         ],
-        "minimum_results": 0
+        "minimum_results": 0,
+        "required_json_values": {
+          "total_findings": 1,
+          "by_status.active": 1,
+          "by_truth_level.derived": 1,
+          "by_freshness_state.fresh": 1,
+          "scope.finding_type": "runtime_readiness",
+          "scope.source_id": "documentation-source:golden"
+        },
+        "arguments": {
+          "finding_type": "runtime_readiness",
+          "source_id": "documentation-source:golden"
+        }
       },
       "get_documentation_finding_inventory": {
-        "description": "MCP tool coverage shape for get_documentation_finding_inventory; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "Positive deployed status inventory for the public-safe runtime-readiness documentation finding inserted after the required drains.",
         "required_response_fields": [
           "buckets",
           "count",
@@ -4862,7 +4957,30 @@
           "scope",
           "truncated"
         ],
-        "minimum_results": 0
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "buckets",
+        "result_item_required_fields": [
+          "dimension",
+          "value",
+          "count"
+        ],
+        "required_json_values": {
+          "count": 1,
+          "group_by": "status",
+          "buckets[].dimension": "status",
+          "buckets[].value": "active",
+          "buckets[].count": 1,
+          "scope.finding_type": "runtime_readiness",
+          "scope.source_id": "documentation-source:golden"
+        },
+        "arguments": {
+          "group_by": "status",
+          "finding_type": "runtime_readiness",
+          "source_id": "documentation-source:golden",
+          "limit": 10,
+          "offset": 0
+        }
       },
       "list_component_extensions": {
         "description": "MCP tool coverage shape for list_component_extensions; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",

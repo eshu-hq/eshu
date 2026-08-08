@@ -27,6 +27,8 @@ cd "${repo_root}"
 . "${repo_root}/scripts/lib/golden-corpus-dead-code-fixtures.sh"
 # shellcheck source=scripts/lib/golden-corpus-dead-letter-fixture.sh
 . "${repo_root}/scripts/lib/golden-corpus-dead-letter-fixture.sh"
+# shellcheck source=scripts/lib/golden-corpus-documentation-fixture.sh
+. "${repo_root}/scripts/lib/golden-corpus-documentation-fixture.sh"
 # host_tcp_port_open: HOST-side TCP readiness probe (#5813) — see the lib's
 # header for why the "wait for backends" loop below needs this in addition
 # to the in-container pg_isready check.
@@ -382,6 +384,9 @@ phase_graph_query_excluded_ends+=("$(date +%s)")
 
 log "seed post-drain dead-letter query fixture"
 seed_golden_dead_letter_fixture
+
+log "seed post-drain documentation query fixture"
+seed_golden_documentation_fixture
 
 log "start eshu-mcp-server (http) for MCP query truth"
 ESHU_MCP_TRANSPORT=http ESHU_MCP_ADDR=":${GATE_MCP_PORT}" \
