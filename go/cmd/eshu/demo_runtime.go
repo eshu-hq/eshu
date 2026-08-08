@@ -51,10 +51,29 @@ const (
 // Readiness is indexing completeness, never process health: a stack that is
 // merely "up" answers the five demo questions wrongly or not at all.
 type demoIndexStatus struct {
-	// Complete reports whether indexing finished for every demo repository.
-	Complete bool `json:"complete"`
-	// Repositories is how many repositories are indexed so far, for progress.
-	Repositories int `json:"repositories"`
+	// Status is the service's own health verdict ("healthy" when settled).
+	Status string `json:"status"`
+	// RepositoryCount is how many repositories are indexed so far.
+	RepositoryCount int `json:"repository_count"`
+	// Queue carries the outstanding backlog. Readiness is "no work left",
+	// which is what distinguishes a settled stack from a merely running one.
+	Queue struct {
+		Outstanding int `json:"outstanding"`
+	} `json:"queue"`
+}
+
+// Complete reports whether the demo can answer correctly.
+//
+// These field names are read from the live response, not assumed: the route
+// returns status/repository_count/queue, and an earlier draft looked for
+// "complete" and "repositories", which do not exist. It therefore reported
+// zero repositories forever against a healthy stack.
+//
+// Ready means the service calls itself healthy, at least one repository is
+// indexed, and no queued work remains. Dropping the queue check would let the
+// demo ask its question mid-projection and get a thin answer.
+func (s demoIndexStatus) Complete() bool {
+	return s.Status == "healthy" && s.RepositoryCount > 0 && s.Queue.Outstanding == 0
 }
 
 // demoAnswer is the first correlated answer the demo proves, with the truth
@@ -256,7 +275,7 @@ func (r *demoRuntime) waitReady(ctx context.Context) error {
 		status, err := r.probe(ctx, r.apiBase, r.apiKey)
 		if err == nil {
 			last = status
-			if status.Complete {
+			if status.Complete() {
 				return nil
 			}
 		}
@@ -264,7 +283,7 @@ func (r *demoRuntime) waitReady(ctx context.Context) error {
 			return fmt.Errorf(
 				"demo stack did not finish indexing within %s (last seen: %d repositories, complete=%v)\n"+
 					"inspect it with `docker compose -p %s -f %s logs`",
-				demoReadyTimeout, last.Repositories, last.Complete, r.project, demoComposeFile)
+				demoReadyTimeout, last.RepositoryCount, last.Complete(), r.project, demoComposeFile)
 		}
 		select {
 		case <-ctx.Done():

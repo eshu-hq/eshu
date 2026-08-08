@@ -44,7 +44,7 @@ func (r *demoRuntime) status(ctx context.Context) (demoResult, error) {
 		// error: the operator asked whether it is ready, and it is not.
 		return res, nil
 	}
-	res.Ready = indexStatus.Complete
+	res.Ready = indexStatus.Complete()
 	return res, nil
 }
 

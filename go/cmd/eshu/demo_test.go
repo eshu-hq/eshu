@@ -67,7 +67,7 @@ func newTestDemoRuntime(exec *fakeDemoExec) *demoRuntime {
 		pollInterval: time.Millisecond,
 		// A ready index and a correct first answer unless a test overrides.
 		probe: func(context.Context, string, string) (demoIndexStatus, error) {
-			return demoIndexStatus{Complete: true, Repositories: 20}, nil
+			return demoIndexStatus{Status: "healthy", RepositoryCount: 20}, nil
 		},
 		ask: func(context.Context, string, string) (demoAnswer, error) {
 			return demoAnswer{Question: "q", Answer: "a", Truth: map[string]any{"backend": "nornicdb"}}, nil
@@ -155,9 +155,9 @@ func TestDemoUp_WaitsForIndexCompletenessNotProcessHealth(t *testing.T) {
 	rt.probe = func(context.Context, string, string) (demoIndexStatus, error) {
 		polls++
 		if polls < 3 {
-			return demoIndexStatus{Complete: false, Repositories: polls}, nil
+			return demoIndexStatus{Status: "degraded", RepositoryCount: polls}, nil
 		}
-		return demoIndexStatus{Complete: true, Repositories: 20}, nil
+		return demoIndexStatus{Status: "healthy", RepositoryCount: 20}, nil
 	}
 
 	res, err := rt.up(context.Background())
