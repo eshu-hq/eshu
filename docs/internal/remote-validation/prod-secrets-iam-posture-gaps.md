@@ -5,7 +5,7 @@ Validation-Tier: deployed_services
 Validation-Date: 2026-08-08
 Evidence-Kind: compose_e2e
 Evidence-Source: scripts/verify-golden-corpus-gate.sh
-Validation-Command: GATE_COMPOSE_PROJECT=eshu-5681-claim-honesty-20260808-5 ESHU_POSTGRES_PORT=31542 NEO4J_BOLT_PORT=31687 NEO4J_HTTP_PORT=31474 GATE_API_PORT=31080 GATE_MCP_PORT=31091 bash scripts/verify-golden-corpus-gate.sh >/tmp/eshu-5681-b7-final.log 2>&1; echo $?
+Validation-Command: GATE_COMPOSE_PROJECT=eshu-5681-claim-honesty-20260808-6 ESHU_POSTGRES_PORT=34542 NEO4J_BOLT_PORT=34687 NEO4J_HTTP_PORT=34474 GATE_API_PORT=34080 GATE_MCP_PORT=34091 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh >/tmp/eshu-5681-b7-postrebase.log 2>&1; echo $?
 Validation-Exit-Code: 0
 Capability-Assertion: secrets_iam.posture_gaps.list returned one deployed MCP posture gap and preserved its unsupported-policy-layer type and unsupported state.
 
