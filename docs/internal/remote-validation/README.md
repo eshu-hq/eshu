@@ -80,8 +80,9 @@ Validation-Exit-Code: 0
 Capability-Assertion: capability.id returns a non-empty exact result through the deployed API.
 ```
 
-`Evidence-Kind` is `compose_e2e` for a committed Compose or remote-e2e driver,
-or `live_backend` for a committed `docs/internal/evidence/*.md` live-backend
+`Evidence-Kind` is `compose_e2e` for a committed Compose driver,
+`deployed_e2e` for a committed Kubernetes, hosted, or remote-e2e driver, or
+`live_backend` for a committed `docs/internal/evidence/*.md` live-backend
 record. `Evidence-Source` must exist and match that kind. The command must end
 with direct `; echo $?` capture, and the captured exit must be `0`. Add one
 `Capability-Assertion` per capability when several production rows share a

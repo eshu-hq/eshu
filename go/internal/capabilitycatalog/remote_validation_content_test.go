@@ -155,3 +155,32 @@ Capability-Assertion: cap.example returns a non-empty deployed result.
 		t.Fatalf("findings = %+v, want command/source mismatch", findings)
 	}
 }
+
+func TestCheckRemoteValidationArtifactsAcceptsDeployedKubernetesDriver(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	source := filepath.Join(repoRoot, "scripts", "run-k8s-governance-proof.sh")
+	if err := os.MkdirAll(filepath.Dir(source), 0o755); err != nil {
+		t.Fatalf("mkdir source dir: %v", err)
+	}
+	if err := os.WriteFile(source, []byte("#!/usr/bin/env bash\n"), 0o755); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	writeRemoteValidationArtifactBody(t, repoRoot, "prod-governance", `# deployed validation
+
+Validation-Slug: prod-governance
+Validation-Tier: deployed_services
+Validation-Date: 2026-08-08
+Evidence-Kind: deployed_e2e
+Evidence-Source: scripts/run-k8s-governance-proof.sh
+Validation-Command: bash scripts/run-k8s-governance-proof.sh; echo $?
+Validation-Exit-Code: 0
+Capability-Assertion: governance.status returns isolated deployed results.
+`)
+	matrix := matrixWithRemoteValidationRefs(matrixRefSpec{capability: "governance.status", ref: "prod-governance"})
+
+	if findings := CheckRemoteValidationArtifacts(matrix, repoRoot, nil); len(findings) != 0 {
+		t.Fatalf("findings = %+v, want deployed Kubernetes evidence to pass", findings)
+	}
+}

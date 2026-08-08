@@ -75,7 +75,7 @@ func validateRemoteValidationArtifact(repoRoot, ref string, capabilities []strin
 	if err := validateRemoteValidationSource(repoRoot, artifact.kind, artifact.source); err != nil {
 		return err
 	}
-	if artifact.kind == "compose_e2e" && !strings.Contains(artifact.command, artifact.source) {
+	if (artifact.kind == "compose_e2e" || artifact.kind == "deployed_e2e") && !strings.Contains(artifact.command, artifact.source) {
 		return fmt.Errorf("Validation-Command does not run Evidence-Source %q", artifact.source)
 	}
 	if missing := missingCapabilityAssertions(capabilities, artifact.assertions); len(missing) > 0 {
@@ -168,10 +168,14 @@ func validateRemoteValidationSource(repoRoot, kind, source string) error {
 		allowed = strings.HasPrefix(source, "scripts/") && strings.HasSuffix(base, ".sh") &&
 			(strings.HasPrefix(base, "run-remote-e2e-") || strings.HasPrefix(base, "verify-remote-e2e-") ||
 				strings.Contains(base, "compose") || base == "verify-golden-corpus-gate.sh")
+	case "deployed_e2e":
+		base := filepath.Base(source)
+		allowed = strings.HasPrefix(source, "scripts/") && strings.HasSuffix(base, ".sh") &&
+			(strings.HasPrefix(base, "run-k8s-") || strings.HasPrefix(base, "verify-hosted-") || strings.Contains(base, "e2e"))
 	case "live_backend":
 		allowed = strings.HasPrefix(source, "docs/internal/evidence/") && strings.HasSuffix(source, ".md")
 	default:
-		return fmt.Errorf("Evidence-Kind is %q, want compose_e2e or live_backend", kind)
+		return fmt.Errorf("Evidence-Kind is %q, want compose_e2e, deployed_e2e, or live_backend", kind)
 	}
 	if !allowed {
 		return fmt.Errorf("Evidence-Source %q is not allowed for Evidence-Kind %q", source, kind)
