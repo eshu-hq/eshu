@@ -76,17 +76,41 @@ The new line answers the half that lives in Postgres, and the two answers point
 at different owners:
 
 ```
-rc-174/pipeline: every work item reached a terminal success, so the producers ran
-and the edge is still absent — look at the write path, not the queue
+rc-174/pipeline: no outstanding work anywhere — a stalled queue is not the
+explanation. This does NOT show this edge's producer ran: the read is the global
+residual, and a producer that never enqueued anything leaves the same empty
+result as one that finished
 ```
 
 versus
 
 ```
-rc-174/pipeline: 1 domain(s) never reached a terminal success --
-aws_relationship_materialization[retrying/nodes_not_ready=1]. The missing edge is
-downstream of this, so fix the outstanding work before suspecting the edge writer
+rc-174/pipeline: 1 domain(s) have outstanding work --
+aws_relationship_materialization[retrying/nodes_not_ready=1]. These may or may
+not include this edge's producer (the gate has no relationship-to-domain
+registry), so rule them out before suspecting the edge writer
 ```
+
+## What this deliberately does NOT claim
+
+The read is the **global** residual: every non-terminal `fact_work_items` row,
+unfiltered by relationship, producer domain, scope, or generation. Two things
+follow, and the first draft of this change got both wrong.
+
+An empty residual does **not** show the producer ran. A producer that never
+enqueued a single item leaves exactly the same empty result as one that finished
+cleanly. Reporting that as "the producers ran" converts a never-enqueued
+producer into a clean bill of health — the absence-as-success failure this
+diagnosis exists to attack.
+
+A non-empty residual does **not** show those domains are this edge's producer.
+There is no relationship-to-domain registry in the repo, and hand-maintaining
+one is the drift shape #5905 removed from three places. Asserting the link would
+send investigations to the wrong owner with false confidence.
+
+So the message reports what the query supports and names the gap. It rules one
+explanation in or out; it does not pretend to rule the other one in. Caught by
+codex on review of #5976.
 
 ## Why this exists
 

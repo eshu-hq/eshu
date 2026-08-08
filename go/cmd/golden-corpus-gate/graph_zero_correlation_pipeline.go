@@ -32,14 +32,22 @@ type pipelineStateQuerier interface {
 // assertions, the edge type was absent, the retry agreed — and none of that
 // says whether the domain that writes the edge ever got that far.
 //
-// That question lives in Postgres, and answering it splits the remaining space
-// cleanly:
+// That question lives in Postgres. What this can honestly answer is narrower
+// than the question, and the wording matters:
 //
-//   - work items outstanding: the missing edge is a CONSEQUENCE. Fix the queue,
-//     not the writer. The domains are named so the reader knows which.
-//   - everything succeeded: the producer ran and the edge is still absent, so
-//     the fault is in the write path — resolution, the join, or the query — and
-//     that is a different owner and a different fix.
+//   - work items outstanding: name the domains. The gate has NO
+//     relationship-to-domain registry, so it cannot say whether those domains
+//     are this edge's producer — only that they exist and should be ruled out.
+//   - nothing outstanding: a stalled queue is not the explanation. This is NOT
+//     evidence the producer ran. The read is the global residual, and a producer
+//     that never enqueued a single item leaves exactly the same empty result as
+//     one that finished cleanly.
+//
+// An earlier version of this claimed "the producers ran" on an empty residual
+// and "the missing edge is downstream of this" on a non-empty one. Both assert
+// a producer link the query cannot establish, and the first turns a
+// never-enqueued producer into a clean bill of health — the absence-as-success
+// failure this file was written to attack (codex review of #5976).
 //
 // Advisory and failure-path only, like its graph sibling: it runs after a
 // failure is already decided, and a read error degrades the message rather than
@@ -51,12 +59,12 @@ func diagnoseZeroCorrelationPipeline(ctx context.Context, q pipelineStateQuerier
 
 	rows, err := q.NonTerminalWorkItems(ctx)
 	if err != nil {
-		return fmt.Sprintf("pipeline state for %s: UNREADABLE (%v) — cannot say whether the producers finished", relationship, err)
+		return fmt.Sprintf("pipeline state near %s: UNREADABLE (%v) — cannot say whether any work is outstanding", relationship, err)
 	}
 
 	if len(rows) == 0 {
 		return fmt.Sprintf(
-			"pipeline state for %s: every work item reached a terminal success, so the producers ran and the edge is still absent — look at the write path (resolution, join, or edge writer), not the queue",
+			"pipeline state near %s: no outstanding work anywhere — a stalled queue is not the explanation. This does NOT show this edge's producer ran: the read is the global residual, and a producer that never enqueued anything leaves the same empty result as one that finished",
 			relationship,
 		)
 	}
@@ -88,7 +96,7 @@ func diagnoseZeroCorrelationPipeline(ctx context.Context, q pipelineStateQuerier
 	}
 
 	return fmt.Sprintf(
-		"pipeline state for %s: %d domain(s) never reached a terminal success — %s. The missing edge is downstream of this, so fix the outstanding work before suspecting the edge writer",
+		"pipeline state near %s: %d domain(s) have outstanding work — %s. These may or may not include this edge's producer (the gate has no relationship-to-domain registry), so rule them out before suspecting the edge writer",
 		relationship, len(domains), strings.Join(parts, " "),
 	)
 }
