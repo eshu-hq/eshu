@@ -1,0 +1,17 @@
+# Argo CD evidence for the same deployable-source workload in a second
+# canonical environment. The staging alias must materialize as stage; metadata
+# namespace argocd remains control-plane placement, not environment evidence.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: deployable-source-stage
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/acme/deployable-source
+    path: k8s
+    targetRevision: HEAD
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: staging

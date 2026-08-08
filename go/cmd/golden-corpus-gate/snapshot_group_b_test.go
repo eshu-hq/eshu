@@ -339,3 +339,42 @@ func TestGoldenSnapshotDocumentationFamilyIsNonVacuous(t *testing.T) {
 		})
 	}
 }
+
+func TestGoldenSnapshotEnvironmentCompareUsesTwoMaterializedEnvironments(t *testing.T) {
+	t.Parallel()
+
+	snapshot, err := LoadSnapshot(goldenSnapshotPath())
+	if err != nil {
+		t.Fatalf("LoadSnapshot() error = %v", err)
+	}
+	shape := snapshot.QueryShapes.MCP["compare_environments"]
+	for argument, want := range map[string]any{
+		"workload_id": "workload:deployable-source",
+		"left":        "stage",
+		"right":       "prod",
+	} {
+		if got := shape.Arguments[argument]; got != want {
+			t.Errorf("arguments[%q] = %#v, want %#v", argument, got, want)
+		}
+	}
+	for path, want := range map[string]any{
+		"workload.id":       "workload:deployable-source",
+		"left.status":       "present",
+		"left.environment":  "stage",
+		"left.instance.id":  "workload-instance:deployable-source:stage",
+		"right.status":      "present",
+		"right.environment": "prod",
+		"right.instance.id": "workload-instance:deployable-source:prod",
+		"confidence":        float64(1),
+		"reason":            "Environments are identical",
+	} {
+		if got := shape.RequiredJSONValues[path]; got != want {
+			t.Errorf("required_json_values[%q] = %#v, want %#v", path, got, want)
+		}
+	}
+	for _, path := range []string{"left.provenance[]", "right.provenance[]"} {
+		if !containsString(shape.RequiredJSONPaths, path) {
+			t.Errorf("required_json_paths missing %q", path)
+		}
+	}
+}

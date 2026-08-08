@@ -3453,7 +3453,7 @@
         }
       },
       "compare_environments": {
-        "description": "MCP tool coverage shape for compare_environments; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "Positive deployed comparison of the deployable-source workload across two materialized environments. The existing production Argo CD application and the public-safe staging application both pass through parser evidence, deployment-source admission, workload materialization, and canonical WorkloadInstance graph writes before this MCP assertion reads them.",
         "required_response_fields": [
           "answer_metadata",
           "changed",
@@ -3474,9 +3474,28 @@
           "workload"
         ],
         "minimum_results": 0,
+        "required_json_paths": [
+          "left.provenance[]",
+          "right.provenance[]"
+        ],
+        "required_json_values": {
+          "workload.id": "workload:deployable-source",
+          "left.status": "present",
+          "left.environment": "stage",
+          "left.instance.id": "workload-instance:deployable-source:stage",
+          "left.instance.workload_id": "workload:deployable-source",
+          "left.provenance[].kind": "materialized_workload_instance",
+          "right.status": "present",
+          "right.environment": "prod",
+          "right.instance.id": "workload-instance:deployable-source:prod",
+          "right.instance.workload_id": "workload:deployable-source",
+          "right.provenance[].kind": "materialized_workload_instance",
+          "confidence": 1,
+          "reason": "Environments are identical"
+        },
         "arguments": {
-          "workload_id": "workload:api-svc",
-          "left": "qa",
+          "workload_id": "workload:deployable-source",
+          "left": "stage",
           "right": "prod",
           "limit": 10
         }
