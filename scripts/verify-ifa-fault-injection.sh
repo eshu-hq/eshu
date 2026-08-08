@@ -51,7 +51,8 @@
 #      the driven cassettes happen to schedule first (in practice GCP).
 #   7. fail-graph-write-once-then-succeed-sql (#5555) -- mirrors cell 4, but
 #      the fault is anchored to a SQL edge MERGE (QUERIES_TABLE) instead of
-#      CloudResource. Fired-fault proof is a shared-projection error log
+#      CloudResource. Fired-fault proof is the once-fired marker the fault
+#      decorator writes at injection time, not a log
 #      line, not fact_work_items attempt_count: sql_relationship_
 #      materialization's graph writes ride the async shared-projection
 #      intent path, which has no attempt_count column (see
@@ -102,7 +103,7 @@
 # dead_letter count after a cell's drain is a real concurrency/recovery
 # defect -- root-cause it, never lower workers, retry, or otherwise normalize
 # it away (Serialization-Is-Not-A-Fix). A fault that never fires (checked
-# per-cell: a claimed-row proof for cells 2/3/6, a reducer-log poll for
+# per-cell: a claimed-row proof for cells 2/3/6, a once-fired marker for
 # cells 4/7, a sentinel-fired proof for cell 5) is an inert script, not a
 # pass.
 #

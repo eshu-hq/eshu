@@ -25,12 +25,13 @@
 #     ifa_fault_wait_for_claimed to domain=sql_relationship_materialization.
 #   - cell_failgraphwrite_sql anchors the graph-write fault to a SQL edge
 #     MERGE (QUERIES_TABLE) instead of CloudResource, and proves the fault
-#     fired via ifa_fault_assert_once_fault_marker -- the
-#     shared-projection error log go/internal/reducer/shared_projection_
-#     runner.go now emits, since sql_relationship_materialization's graph
-#     writes ride the async shared-projection intent path (no
-#     fact_work_items attempt_count signal exists for that path; see that
-#     function's doc comment).
+#     fired via ifa_fault_assert_once_fault_marker, reading the marker the
+#     fault decorator writes at injection time. It does not read a log:
+#     sql_relationship_materialization's graph writes ride the async
+#     shared-projection intent path, so no fact_work_items attempt_count
+#     signal exists for it, and the log route that filled that gap could not
+#     distinguish a fault that never fired from a log line that arrived late
+#     (#5974).
 #
 # This file is a plain function library, not a script (no `set -euo
 # pipefail`; see ifa_fault_injection_driver.sh's identical note). Every
@@ -88,10 +89,16 @@ cell_killworker_sql() {
 
 # cell_failgraphwrite_sql: the tagged (-tags ifafaultinjection) eshu-reducer
 # with ESHU_IFA_FAULT_SCRIPT pointed at a queue-retry fault script that fails
-# a SQL edge MERGE (QUERIES_TABLE) exactly once. Proves the fault fired via
-# the sql_relationships shared-projection error log line, checked only AFTER
-# run_drain_gate already returned success (so the check cannot race the live
-# event -- see ifa_fault_assert_once_fault_marker's doc comment).
+# a SQL edge MERGE (QUERIES_TABLE) exactly once. Proves the fault fired from
+# the once-fired marker FaultingExecutor writes at injection time, naming the
+# statement it actually hit -- NOT from the reducer's log. The log route was
+# retired in #5974: it could not tell "the fault never fired" apart from "the
+# log line arrived late", and it read the former as the latter for weeks.
+#
+# HELD OUT of the default cell list. With the marker in place CI answered the
+# question the log could not: no marker is written there at all, so the fault
+# genuinely does not fire in CI while firing locally in 9s. See the call site
+# in scripts/verify-ifa-fault-injection.sh and #5974.
 cell_failgraphwrite_sql() {
 	local cell_start
 	cell_start=$(date +%s)

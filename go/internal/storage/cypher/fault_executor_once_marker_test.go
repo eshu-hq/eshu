@@ -87,3 +87,47 @@ func TestFaultingExecutorOnceMarkerSkippedWithoutSentinelPath(t *testing.T) {
 		t.Errorf("onceFiredPath = %q, want empty when no sentinel path was given", fe.onceFiredPath)
 	}
 }
+
+// TestFaultingExecutorMarkerNamesTheMatchingStatementInAGroup is the regression
+// for the defect review caught: the marker used to record stmts[0], while
+// onceMatches scans the whole slice. ExecuteGroup passes several statements and
+// the targeted one is frequently not first, so the marker named a statement the
+// fault did not target.
+//
+// That is not cosmetic. The gate asserts on the recorded operation to tell
+// "the fault fired on the targeted write" apart from "it fired on some other
+// write", so a wrong name is a wrong verdict in either direction: a real hit
+// reported as the wrong target, or a wrong hit accepted as the right one.
+func TestFaultingExecutorMarkerNamesTheMatchingStatementInAGroup(t *testing.T) {
+	t.Parallel()
+
+	sentinel := filepath.Join(t.TempDir(), "script.json.restart-sentinel")
+	marker := sentinel + onceFiredMarkerSuffix
+
+	inner := &faultRecordingExecutor{}
+	match := "MERGE (source)-[rel:QUERIES_TABLE]->(target)"
+	script := onceThenSucceedScript(faultreplay.LaneQueueRetry, nil, &match)
+	fe := mustFaultingExecutor(t, inner, script, sentinel)
+
+	// The targeted statement is deliberately last, behind two decoys.
+	err := fe.ExecuteGroup(context.Background(), []Statement{
+		{Cypher: "MERGE (r:CloudResource {uid: row.uid}) RETURN r"},
+		{Cypher: "MERGE (a)-[:HAS_COLUMN]->(b) RETURN a"},
+		{Cypher: match + " SET rel.confidence = 0.95"},
+	})
+	if err == nil {
+		t.Fatal("expected the scripted fault to fire on the group containing the targeted statement")
+	}
+
+	raw, readErr := os.ReadFile(marker) // #nosec G304 -- test-local temp path
+	if readErr != nil {
+		t.Fatalf("marker missing after the fault fired: %v", readErr)
+	}
+	body := string(raw)
+	if !strings.Contains(body, "QUERIES_TABLE") {
+		t.Errorf("marker does not name the statement that matched; got %q", body)
+	}
+	if strings.Contains(body, "CloudResource") {
+		t.Errorf("marker named the first statement instead of the matching one; got %q", body)
+	}
+}

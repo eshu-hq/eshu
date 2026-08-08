@@ -25,10 +25,6 @@ import (
 // that wait is bounded by ctx, never open-ended (see maybeRestartAfterGroup).
 const ifaFaultSentinelPollInterval = 200 * time.Millisecond
 
-// onceFiredMarkerSuffix names the file the once-fault writes when it fires,
-// alongside the restart sentinel. See FaultingExecutor.onceFiredPath (#5974).
-const onceFiredMarkerSuffix = ".once-fired"
-
 var (
 	// errFaultingExecutorInnerNoGroup is returned by ExecuteGroup when the
 	// wrapped executor does not implement GroupExecutor. Fails closed rather
@@ -313,7 +309,11 @@ func (fe *FaultingExecutor) maybeFailOnce(
 	stmts []Statement,
 	allowArm bool,
 ) (context.Context, error) {
-	if fe.onceLane == "" || !fe.onceMatches(ordinal, stmts) {
+	if fe.onceLane == "" {
+		return ctx, nil
+	}
+	matched, ok := fe.onceMatchedStatement(ordinal, stmts)
+	if !ok {
 		return ctx, nil
 	}
 	if !fe.onceFired.CompareAndSwap(false, true) {
@@ -321,7 +321,7 @@ func (fe *FaultingExecutor) maybeFailOnce(
 	}
 	// Record the firing durably before returning the fault, so the gate's proof
 	// does not depend on the reducer's stderr reaching its captured file in time.
-	fe.writeOnceFiredMarker(ordinal, stmts)
+	fe.writeOnceFiredMarker(ordinal, matched)
 	switch fe.onceLane {
 	case faultreplay.LaneQueueRetry:
 		return ctx, &ifaFaultQueueRetryError{ordinal: ordinal}
@@ -335,44 +335,14 @@ func (fe *FaultingExecutor) maybeFailOnce(
 	}
 }
 
-// writeOnceFiredMarker records that the once-fault fired, naming the statement
-// it hit. It is best-effort by design: the fault itself is the point, and a
-// marker that cannot be written must not turn a genuinely-injected fault into a
-// different failure. The gate treats a missing marker as "never fired", so the
-// failure mode is a loud red rather than a silent pass.
-//
-// Written with os.WriteFile (create-truncate-write-close) from the injecting
-// goroutine before the fault is returned, so it is on disk by the time any
-// observer can see the fault's downstream effect.
-func (fe *FaultingExecutor) writeOnceFiredMarker(ordinal int, stmts []Statement) {
-	if fe.onceFiredPath == "" {
-		return
-	}
-	operation := ""
-	if len(stmts) > 0 {
-		operation = stmts[0].Cypher
-	}
-	record := fmt.Sprintf("lane=%s ordinal=%d\noperation=%s\n", fe.onceLane, ordinal, operation)
-	// #nosec G306 -- marker is a local/CI fault-injection coordination flag,
-	// same trust boundary as the restart sentinel written above.
-	_ = os.WriteFile(fe.onceFiredPath, []byte(record), 0o644)
-}
-
 // onceMatches reports whether the current call is the one
 // fail-graph-write-once-then-succeed targets: either the callOrdinal-th
 // graph-write call (Execute or ExecuteGroup, sharing one ordinal sequence),
 // or a call carrying at least one statement whose Cypher text contains the
 // scripted substring.
 func (fe *FaultingExecutor) onceMatches(ordinal int, stmts []Statement) bool {
-	if fe.onceMatch != "" {
-		for i := range stmts {
-			if strings.Contains(stmts[i].Cypher, fe.onceMatch) {
-				return true
-			}
-		}
-		return false
-	}
-	return ordinal == fe.onceOrdinal
+	_, ok := fe.onceMatchedStatement(ordinal, stmts)
+	return ok
 }
 
 // maybeRestartAfterGroup fires the scripted restart-backend-between-phase-
