@@ -2960,13 +2960,31 @@
         "minimum_results": 0
       },
       "get_graph_summary_packet": {
-        "description": "MCP tool coverage shape for get_graph_summary_packet; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "Positive repository-scoped graph summary for orders-api. The deployed assertion requires at least one ranked function plus its identity and degree fields, while retaining bounded relationship and ecosystem-map readback without the global needs-repo note.",
         "required_response_fields": [
           "ecosystem_map",
-          "note",
+          "hot_entities",
+          "key_relationships",
           "scope"
         ],
-        "minimum_results": 0
+        "minimum_results": 1,
+        "results_field": "hot_entities",
+        "required_json_paths": [
+          "hot_entities[].function_id",
+          "hot_entities[].function_name",
+          "hot_entities[].incoming_calls",
+          "hot_entities[].outgoing_calls",
+          "hot_entities[].total_degree",
+          "key_relationships.CALLS",
+          "ecosystem_map.file_count"
+        ],
+        "required_json_values": {
+          "scope": "repository"
+        },
+        "arguments": {
+          "repo_id": "orders-api",
+          "limit": 10
+        }
       },
       "investigate_contract_impact": {
         "description": "Positive deployed HTTP contract-registry read for the api-svc repository. The corpus projects EXPOSES_ENDPOINT from its static Flask/Kubernetes bridge; a silently-empty provider registry now fails.",
@@ -4152,7 +4170,7 @@
         "minimum_results": 0
       },
       "get_incident_context": {
-        "description": "MCP tool coverage shape for get_incident_context; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "Positive deployed PagerDuty incident readback for the public supply-chain-demo cassette. The incident and affected-service evidence slots must both remain exact.",
         "required_response_fields": [
           "ambiguous_evidence",
           "answer_metadata",
@@ -4165,7 +4183,27 @@
           "timeline",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 2,
+        "results_field": "evidence_path",
+        "required_json_values": {
+          "incident.provider": "pagerduty",
+          "incident.provider_incident_id": "PSCD1",
+          "incident.title": "Supply-chain-demo synthetic incident",
+          "incident.status": "resolved",
+          "incident.service.id": "SVCSCD1"
+        },
+        "required_json_object_matches": {
+          "evidence_path[]": [
+            {
+              "slot": "incident",
+              "truth_label": "exact"
+            },
+            {
+              "slot": "service",
+              "truth_label": "exact"
+            }
+          ]
+        },
         "arguments": {
           "provider_incident_id": "PSCD1",
           "limit": 10
@@ -4250,14 +4288,29 @@
         }
       },
       "get_generation_lifecycle": {
-        "description": "MCP tool coverage shape for get_generation_lifecycle; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "Positive deployed lifecycle readback for the committed Prometheus/Mimir cassette scope. The assertion pins its active generation and zero outstanding work after the required drains.",
         "required_response_fields": [
           "count",
           "generations",
           "limit",
           "truncated"
         ],
-        "minimum_results": 0
+        "minimum_results": 1,
+        "results_field": "generations",
+        "required_json_values": {
+          "count": 1,
+          "generations[].scope_id": "prometheus_mimir:supply-chain-demo-metrics:supply-chain-demo",
+          "generations[].generation_id": "cassette-prometheus-scd-gen1",
+          "generations[].source_system": "prometheus_mimir",
+          "generations[].collector_kind": "prometheus_mimir",
+          "generations[].is_active": true,
+          "generations[].status": "active",
+          "generations[].queue_status.outstanding": 0
+        },
+        "arguments": {
+          "scope_id": "prometheus_mimir:supply-chain-demo-metrics:supply-chain-demo",
+          "limit": 50
+        }
       },
       "get_changed_since": {
         "description": "MCP tool coverage shape for get_changed_since; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
@@ -4565,12 +4618,25 @@
         }
       },
       "build_evidence_citation_packet": {
-        "description": "MCP tool coverage shape for build_evidence_citation_packet; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "Positive deployed citation packet for the committed orders-api main.go fixture. The citation must resolve through the Postgres content store with a non-empty excerpt and complete one-of-one coverage.",
         "required_response_fields": [
           "citations",
           "coverage"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "results_field": "citations",
+        "required_json_paths": [
+          "citations[].excerpt"
+        ],
+        "required_json_values": {
+          "citations[].kind": "file",
+          "citations[].repo_id": "orders-api",
+          "citations[].relative_path": "main.go",
+          "coverage.input_handle_count": 1,
+          "coverage.resolved_count": 1,
+          "coverage.missing_count": 0,
+          "coverage.source_backend": "postgres_content_store"
+        },
         "arguments": {
           "question": "What evidence supports the runtime readiness?",
           "handles": [
@@ -5250,7 +5316,7 @@
         "minimum_results": 0
       },
       "get_hosted_governance_status": {
-        "description": "MCP tool coverage shape for get_hosted_governance_status; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "Deployed local-no-policy governance posture with the shared token configured. Identity readiness stays true while the response explicitly reports both the missing-policy and shared-token limitations.",
         "truth_class": "deterministic",
         "required_response_fields": [
           "aggregates",
@@ -5271,7 +5337,20 @@
           "supported_states",
           "tenancy"
         ],
-        "minimum_results": 0
+        "minimum_results": 0,
+        "required_json_values": {
+          "mode": "local_no_policy",
+          "state": "disabled",
+          "source_kind": "unknown",
+          "identity.auth_mode": "shared_token",
+          "identity.configured": true,
+          "identity.shared_token_limitation": true,
+          "readiness.identity": true,
+          "reasons": [
+            "policy_not_configured",
+            "shared_token_mode"
+          ]
+        }
       },
       "get_semantic_capability_status": {
         "description": "MCP tool coverage shape for get_semantic_capability_status; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
@@ -5597,6 +5676,30 @@
       }
     },
     "http": {
+      "GET /api/v0/status/operations": {
+        "description": "Exact deployed operations board after the required drains. The envelope pins healthy runtime state and an empty queue while retaining non-empty collector, stage, and domain status sections; live activity remains an explicitly present empty array.",
+        "envelope": true,
+        "required_response_fields": [
+          "data",
+          "truth",
+          "error"
+        ],
+        "minimum_results": 0,
+        "required_json_paths": [
+          "data.collectors[]",
+          "data.stage_summaries",
+          "data.domain_backlogs"
+        ],
+        "required_json_values": {
+          "data.scoped": false,
+          "data.limit": 50,
+          "data.health.state": "healthy",
+          "data.queue.outstanding": 0,
+          "data.live_activity": [],
+          "truth.capability": "operations.status",
+          "truth.basis": "runtime_state"
+        }
+      },
       "GET /api/v0/dependencies?direction=forward&package=github.com/acme/lib-common&ecosystem=gomod&limit=10": {
         "description": "Positive package-native dependency inventory from the package-registry cassette. lib-common@1.0.0 declares a direct gomod dependency on github.com/acme/synthetic-dep, so both the row and its target identity are pinned.",
         "required_response_fields": [
