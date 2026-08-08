@@ -59,7 +59,7 @@ claims:
           kind: go_test
           ref: ./internal/query
     issues:
-      - number: 5681
+      - number: 5958
         state: open
 
   - id: readme.supply-chain.default-gated
@@ -117,7 +117,7 @@ claims:
           kind: go_test
           ref: ./internal/query
     issues:
-      - number: 5681
+      - number: 5958
         state: open
 
   - id: readme.change-risk.blast-radius
