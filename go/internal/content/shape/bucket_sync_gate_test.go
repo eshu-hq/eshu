@@ -302,11 +302,23 @@ func parseStringMapValues(t *testing.T, path, name string) map[string]struct{} {
 	for _, elt := range varCompositeElements(t, path, name) {
 		kv, ok := elt.(*ast.KeyValueExpr)
 		if !ok {
-			continue
+			t.Fatalf("%s in %s has a non-key-value element (%T); this extractor only "+
+				"understands a map literal of string keys to string values, and "+
+				"silently skipping the element would shrink the label set", name, path, elt)
 		}
-		if value, ok := stringLit(kv.Value); ok {
-			out[value] = struct{}{}
+		value, ok := stringLit(kv.Value)
+		if !ok {
+			// Fail closed, matching parseBucketLabelSlice. Skipping a value the
+			// extractor cannot read shrinks the projector-label set, and a
+			// smaller set makes TestBucketSyncDriftLedgerIsHonest believe a
+			// label is still unnamed -- so a stale knownMissingProjectorLabels
+			// entry would survive undetected. Under-reporting here is a
+			// false GREEN, not a false red.
+			t.Fatalf("%s in %s maps %v to a non-string-literal value (%T); resolve the "+
+				"constant here or teach this extractor to follow it, but do not let "+
+				"the label go unseen", name, path, kv.Key, kv.Value)
 		}
+		out[value] = struct{}{}
 	}
 	return out
 }

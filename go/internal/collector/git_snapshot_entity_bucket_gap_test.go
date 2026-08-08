@@ -6,6 +6,7 @@ package collector
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/hcl"
@@ -60,7 +61,7 @@ func TestSnapshotEmitsTerraformBlockAndCloudFormationExtendedContentEntities(t *
 
 		snapshots := snapshotsFromParsedPayload(t, "main.tf", payload)
 		if !hasEntityType(snapshots, "TerraformBlock") {
-			t.Fatalf("no TerraformBlock content entity emitted from main.tf; the collector's snapshotEntityBuckets is missing the \"terraform_blocks\" parser bucket (entityBucketsFromParsed silently drops it, so no graph node ever materializes). Got snapshots: %+v", snapshots)
+			t.Fatalf("no TerraformBlock content entity emitted from main.tf; the collector's snapshotEntityBuckets is missing the \"terraform_blocks\" parser bucket (entityBucketsFromParsed silently drops it, so no graph node ever materializes). Got entity types: %v", entityTypesOf(snapshots))
 		}
 	})
 
@@ -101,7 +102,7 @@ func TestSnapshotEmitsTerraformBlockAndCloudFormationExtendedContentEntities(t *
 		snapshots := snapshotsFromParsedPayload(t, "stack.json", payload)
 		for _, wantLabel := range []string{"CloudFormationCondition", "CloudFormationImport", "CloudFormationExport"} {
 			if !hasEntityType(snapshots, wantLabel) {
-				t.Errorf("no %s content entity emitted from stack.json; the collector's snapshotEntityBuckets is missing the matching CloudFormation parser bucket (entityBucketsFromParsed silently drops it, so no graph node ever materializes). Got snapshots: %+v", wantLabel, snapshots)
+				t.Errorf("no %s content entity emitted from stack.json; the collector's snapshotEntityBuckets is missing the matching CloudFormation parser bucket (entityBucketsFromParsed silently drops it, so no graph node ever materializes). Got entity types: %v", wantLabel, entityTypesOf(snapshots))
 			}
 		}
 	})
@@ -115,4 +116,21 @@ func hasEntityType(snapshots []ContentEntitySnapshot, entityType string) bool {
 		}
 	}
 	return false
+}
+
+// entityTypesOf summarises a snapshot set as the sorted entity types it carries.
+// The failures below used to print the whole []ContentEntitySnapshot with %+v,
+// which buries the one fact a reader needs (which types are present) in fields
+// that are large and not stable across runs.
+func entityTypesOf(snapshots []ContentEntitySnapshot) []string {
+	seen := make(map[string]struct{}, len(snapshots))
+	for _, s := range snapshots {
+		seen[s.EntityType] = struct{}{}
+	}
+	out := make([]string, 0, len(seen))
+	for k := range seen {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }

@@ -35,3 +35,17 @@ and no telemetry contract entry to add.
 See `README.md` (the Internal flow section) for the three-list sync invariant
 itself, and `go/internal/content/shape/bucket_sync_gate_test.go` (CI gate
 `content-entity-bucket-sync`) for the gate that enforces it.
+
+## The invariant this guards
+
+`entityBucketsFromParsed` walks only `snapshotEntityBuckets`. A bucket that the
+parser fills and `content/shape`'s `contentEntityBuckets` declares, but which is
+missing from that list, is dropped here with no content entity, no fact, no
+graph node, and no error -- the silent-drop shape from #5483 C1 that only the
+live golden-corpus gate caught. `content/shape`'s `bucket_sync_gate_test.go`
+now gates all three lists against each other at unit speed (#5531).
+
+This lived in `README.md` for one review round. It moved here because that file
+is already over the 500-line cap it inherited (528 on main) and growing it
+further to hold a detail this document exists to carry was the wrong trade; the
+split itself is tracked in #5959.
