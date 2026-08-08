@@ -357,3 +357,72 @@ func TestDecodeParsedFileDataArgoCDApplications_MalformedElementSkipped(t *testi
 		t.Fatalf("applications = %#v, want one row for the well-formed element", applications)
 	}
 }
+
+// The parser writes the three ref lists as []string, and the tolerant decoder
+// reaches them through a JSON round trip, so this pins that []string survives
+// the trip rather than arriving as []any the caller then has to re-assert.
+func TestDecodeParsedFileDataKustomizeOverlays_TypedRows(t *testing.T) {
+	t.Parallel()
+
+	pfd := map[string]any{
+		"kustomize_overlays": []any{
+			map[string]any{
+				"name":          "kustomization",
+				"line_number":   float64(1),
+				"namespace":     "production",
+				"bases":         []any{"./base"},
+				"resource_refs": []any{"github.com/acme/deployable-source//k8s?ref=v1.4.0"},
+				"helm_refs":     []any{"redis", "https://charts.example.test"},
+				"image_refs":    []any{"checkout-service"},
+				"patch_targets": []any{"Deployment/checkout"},
+				"path":          "kustomization.yaml",
+				"lang":          "yaml",
+			},
+		},
+	}
+
+	overlays, err := DecodeParsedFileDataKustomizeOverlays(pfd)
+	if err != nil {
+		t.Fatalf("error = %v, want nil", err)
+	}
+	if len(overlays) != 1 {
+		t.Fatalf("overlays = %#v, want one row", overlays)
+	}
+	got := overlays[0]
+	if len(got.ResourceRefs) != 1 || got.ResourceRefs[0] != "github.com/acme/deployable-source//k8s?ref=v1.4.0" {
+		t.Errorf("ResourceRefs = %#v, want the remote base", got.ResourceRefs)
+	}
+	if len(got.HelmRefs) != 2 || len(got.ImageRefs) != 1 {
+		t.Errorf("HelmRefs = %#v, ImageRefs = %#v, want 2 and 1", got.HelmRefs, got.ImageRefs)
+	}
+	// bases is deliberately unnamed on the typed view: evidence discovery has
+	// no use for a same-repo path. It must still survive in Attributes rather
+	// than being dropped, so a future reader can find it.
+	if got.Attributes["bases"] == nil {
+		t.Errorf("Attributes = %#v, want the unnamed bases field preserved", got.Attributes)
+	}
+}
+
+// An absent key decodes to nil with no error, matching every sibling accessor.
+func TestDecodeParsedFileDataKustomizeOverlays_Absent(t *testing.T) {
+	t.Parallel()
+
+	overlays, err := DecodeParsedFileDataKustomizeOverlays(map[string]any{})
+	if err != nil {
+		t.Fatalf("error = %v, want nil", err)
+	}
+	if overlays != nil {
+		t.Errorf("overlays = %#v, want nil", overlays)
+	}
+}
+
+// A wrong-typed value is an error, not a silent empty decode.
+func TestDecodeParsedFileDataKustomizeOverlays_WrongType(t *testing.T) {
+	t.Parallel()
+
+	if _, err := DecodeParsedFileDataKustomizeOverlays(map[string]any{
+		"kustomize_overlays": "not-a-slice",
+	}); err == nil {
+		t.Error("error = nil, want a type error naming kustomize_overlays")
+	}
+}
