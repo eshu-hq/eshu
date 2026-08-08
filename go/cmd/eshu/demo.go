@@ -1,0 +1,258 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"strings"
+	"time"
+
+	"github.com/spf13/cobra"
+)
+
+func init() {
+	rootCmd.AddCommand(newDemoCommand())
+}
+
+// demoFirstQuestion is the manifest's opening question
+// (specs/demo-first-answers.v1.yaml). The demo proves one correlated answer
+// before printing the guided path, so "the stack is up" is never mistaken for
+// "the demo works".
+const demoFirstQuestion = "Which deployed workloads run code from the checkout-service repository?"
+
+// demoGuidedQuestions is the scripted five-question path. The demo lands the
+// operator here rather than at a bare prompt: a running graph with no question
+// to ask is where first-run attention is lost.
+var demoGuidedQuestions = []string{
+	demoFirstQuestion,
+	"Which cloud resources does the checkout-service workload depend on?",
+	"Which services were affected by the most recent incident?",
+	"Which repositories depend on the shared payments library?",
+	"Where did the vulnerable dependency in checkout-service come from?",
+}
+
+// newDemoCommand builds the `eshu demo` tree. A constructor keeps flag state
+// per-invocation, matching first-run-benchmark.
+func newDemoCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "demo",
+		Short: "Run a credential-free demo stack and reach a first correlated answer",
+		Long: `demo brings up a self-contained Eshu stack seeded with a synthetic
+organization, waits until it can actually answer, asks the first question from
+the demo manifest, and prints a guided five-question path.
+
+The corpus is the same one the golden-corpus gate proves, replayed as the acme
+org, so every demo answer is backed by a fixture CI already runs. No provider
+credentials are involved at any point.
+
+  eshu demo up            bring the stack up and reach a first answer
+  eshu demo status        report whether the demo stack is up and indexed
+  eshu demo down          remove the stack, its volumes, and its networks
+
+The stack runs under its own Compose project (default "` + defaultDemoProject + `"),
+so it never adopts or tears down a stack you started for real work.`,
+		Args:          cobra.NoArgs,
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE: func(c *cobra.Command, _ []string) error {
+			return c.Help()
+		},
+	}
+	cmd.AddCommand(newDemoUpCommand(), newDemoDownCommand(), newDemoStatusCommand())
+	return cmd
+}
+
+// demoProjectFlag registers the shared --project override.
+func demoProjectFlag(cmd *cobra.Command) {
+	cmd.Flags().String("project", defaultDemoProject,
+		"Compose project name for the demo stack (use a distinct name to run more than one)")
+	cmd.Flags().Bool("json", false, "Emit the {data, truth, error} envelope as JSON")
+}
+
+func newDemoUpCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:           "up",
+		Short:         "Bring up the demo stack and reach a first correlated answer",
+		Args:          cobra.NoArgs,
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE:          runDemoUp,
+	}
+	demoProjectFlag(cmd)
+	return cmd
+}
+
+func newDemoDownCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:           "down",
+		Short:         "Remove the demo stack, its volumes, and its networks",
+		Args:          cobra.NoArgs,
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE:          runDemoDown,
+	}
+	demoProjectFlag(cmd)
+	return cmd
+}
+
+func newDemoStatusCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:           "status",
+		Short:         "Report whether the demo stack is running and indexed",
+		Args:          cobra.NoArgs,
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE:          runDemoStatus,
+	}
+	demoProjectFlag(cmd)
+	return cmd
+}
+
+// demoEnvelope is the canonical `{data, truth, error}` envelope, matching the
+// first-run contract so the TTFA harness reads one shape across both commands.
+type demoEnvelope struct {
+	Data  demoResult             `json:"data"`
+	Truth map[string]any         `json:"truth"`
+	Error *firstRunEnvelopeError `json:"error"`
+}
+
+// demoEnvelopeFor renders a result (or a failure) into the shared envelope.
+// The answer's truth labels are lifted to the envelope's Truth field so a
+// consumer never has to reach into Data to judge provenance.
+func demoEnvelopeFor(res demoResult, err error) demoEnvelope {
+	env := demoEnvelope{Data: res, Truth: res.FirstAnswer.Truth}
+	if env.Truth == nil {
+		env.Truth = map[string]any{}
+	}
+	if err != nil {
+		env.Error = &firstRunEnvelopeError{Message: err.Error()}
+	}
+	return env
+}
+
+func runDemoUp(cmd *cobra.Command, _ []string) error {
+	project, _ := cmd.Flags().GetString("project")
+	jsonOut, _ := cmd.Flags().GetBool("json")
+	rt := newDemoRuntime(project)
+
+	res, err := rt.up(cmd.Context())
+	if jsonOut {
+		if encErr := writeDemoJSON(cmd.OutOrStdout(), demoEnvelopeFor(res, err)); encErr != nil {
+			return encErr
+		}
+		return err
+	}
+	if err != nil {
+		return err
+	}
+	printDemoSuccess(cmd.OutOrStdout(), res)
+	return nil
+}
+
+func runDemoDown(cmd *cobra.Command, _ []string) error {
+	project, _ := cmd.Flags().GetString("project")
+	jsonOut, _ := cmd.Flags().GetBool("json")
+	rt := newDemoRuntime(project)
+
+	err := rt.down(cmd.Context())
+	if jsonOut {
+		if encErr := writeDemoJSON(cmd.OutOrStdout(), demoEnvelopeFor(demoResult{Project: project}, err)); encErr != nil {
+			return encErr
+		}
+		return err
+	}
+	if err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Demo stack %q removed, including its volumes and networks.\n", project)
+	return nil
+}
+
+func runDemoStatus(cmd *cobra.Command, _ []string) error {
+	project, _ := cmd.Flags().GetString("project")
+	jsonOut, _ := cmd.Flags().GetBool("json")
+	rt := newDemoRuntime(project)
+
+	res, err := rt.status(cmd.Context())
+	if jsonOut {
+		if encErr := writeDemoJSON(cmd.OutOrStdout(), demoEnvelopeFor(res, err)); encErr != nil {
+			return encErr
+		}
+		return err
+	}
+	if err != nil {
+		return err
+	}
+	state := "not running"
+	if res.Ready {
+		state = "running and indexed"
+	}
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Demo stack %q: %s\n", project, state)
+	return nil
+}
+
+// writeDemoJSON emits the envelope with a trailing newline so shell pipelines
+// and `jq` behave.
+func writeDemoJSON(w io.Writer, env demoEnvelope) error {
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(env)
+}
+
+// printDemoSuccess renders the human path: what was proven, then what to ask
+// next. The guided questions are the point of the command.
+func printDemoSuccess(w io.Writer, res demoResult) {
+	_, _ = fmt.Fprintf(w, "Demo stack %q is up and indexed in %s.\n\n", res.Project,
+		(time.Duration(res.TotalMillis) * time.Millisecond).Round(time.Second))
+	_, _ = fmt.Fprintf(w, "First answer\n  Q: %s\n  A: %s\n", res.FirstAnswer.Question, res.FirstAnswer.Answer)
+	if len(res.FirstAnswer.Truth) > 0 {
+		_, _ = fmt.Fprintf(w, "  Truth: %s\n", formatDemoTruth(res.FirstAnswer.Truth))
+	}
+	_, _ = fmt.Fprintf(w, "\nAsk these next:\n")
+	for i, q := range demoGuidedQuestions[1:] {
+		_, _ = fmt.Fprintf(w, "  %d. eshu query %q\n", i+2, q)
+	}
+	_, _ = fmt.Fprintf(w, "\nWhen you are done: eshu demo down --project %s\n", res.Project)
+}
+
+// formatDemoTruth renders truth labels deterministically so two runs of the
+// same stack print the same line.
+func formatDemoTruth(truth map[string]any) string {
+	keys := make([]string, 0, len(truth))
+	for k := range truth {
+		keys = append(keys, k)
+	}
+	sortStrings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%s=%v", k, truth[k]))
+	}
+	return strings.Join(parts, " ")
+}
+
+// askDemoQuestion is the production seam for the first correlated answer.
+//
+// NOT IMPLEMENTED YET, and deliberately failing rather than guessing. There is
+// no general `/api/v0/query` route to ask a natural-language question against;
+// an earlier draft of this file invented one. The demo-first-answers manifest
+// (specs/demo-first-answers.v1.yaml) is the acceptance oracle precisely so the
+// demo does not invent query capability: every question declares its own
+// execute surface, and the first one resolves to the MCP tool
+// get_service_story with {workload_id: "workload:api-svc"} rather than to any
+// HTTP query endpoint.
+//
+// Wiring this correctly means reading the manifest, resolving the declared
+// surface (mcp or http per question), invoking it, and checking the answer
+// against that question's required_response_fields. The lifecycle around it —
+// preflight, refuse-to-clobber, up, completeness-not-health readiness,
+// teardown, envelope, per-phase timings — is implemented and unit-proven; this
+// seam is the remaining piece.
+func askDemoQuestion(_ context.Context, _, question string) (demoAnswer, error) {
+	return demoAnswer{}, fmt.Errorf(
+		"asking %q is not wired yet: the demo-first-answers manifest resolves it to an MCP surface, "+
+			"and eshu demo must execute the manifest's declared surface rather than an invented query route", question)
+}
