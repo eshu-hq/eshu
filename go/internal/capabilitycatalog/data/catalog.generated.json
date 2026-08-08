@@ -3187,12 +3187,12 @@
       },
       "proof_signals": [
         {
-          "kind": "go_test",
-          "ref": "./internal/query"
+          "kind": "compose_e2e",
+          "ref": "scripts/verify-golden-corpus-gate.sh"
         },
         {
-          "kind": "integration_test",
-          "ref": "local-authoritative-variable-lookup"
+          "kind": "go_test",
+          "ref": "./internal/query"
         },
         {
           "kind": "remote_validation",
@@ -3262,11 +3262,7 @@
       "proof_signals": [
         {
           "kind": "compose_e2e",
-          "ref": "trace-exposure-path"
-        },
-        {
-          "kind": "integration_test",
-          "ref": "local-authoritative-trace-exposure-path"
+          "ref": "scripts/verify-golden-corpus-gate.sh"
         },
         {
           "kind": "integration_test",

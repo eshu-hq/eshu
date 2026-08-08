@@ -40,11 +40,20 @@ func fakeSetJSONObjectMatches(root map[string]any, path string, matches []map[st
 			return
 		}
 		if arraySegment {
-			arr, _ := obj[segment].([]any)
-			if len(arr) == 0 {
-				arr = []any{map[string]any{}}
-				obj[segment] = arr
+			switch arr := obj[segment].(type) {
+			case []map[string]any:
+				if len(arr) > 0 {
+					current = arr[0]
+					continue
+				}
+			case []any:
+				if len(arr) > 0 {
+					current = arr[0]
+					continue
+				}
 			}
+			arr := []any{map[string]any{}}
+			obj[segment] = arr
 			current = arr[0]
 			continue
 		}

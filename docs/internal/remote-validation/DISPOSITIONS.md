@@ -1,11 +1,12 @@
 # Remote-validation disposition log
 
-Per-row disposition record for the #5552 burn-down of the frozen
-`remote_validation` baseline (#5407). Every row here documents how one
-baselined slug was closed: by committing a real evidence artifact
-(**validated**) or by an explicit, reviewed decision to lower the capability's
-claimed status (**downgraded**). See [README.md](README.md) for the mechanics
-of the baseline/frozen file pair and the `FROZEN_MAX` ratchet.
+Historical per-row disposition record for the frozen `remote_validation`
+pointer baseline (#5407). A file closing that existence baseline is not, by
+itself, proof that its production claim is substantiated. #5552 separately
+requalifies each artifact for a matching deployed tier, dated run, exact
+command, direct exit capture, and capability-specific observed result. Entries
+here record only the tranches that already received an explicit validate-or-
+downgrade disposition. See [README.md](README.md) for the baseline mechanics.
 
 Each entry records the disposition considered and rejected, not only the one
 taken, so a later reviewer can see the option space without re-deriving it.
@@ -17,6 +18,10 @@ taken, so a later reviewer can see the option space without re-deriving it.
 **Slugs:** `prod-component-extension-inventory`,
 `prod-component-extension-diagnostics`
 **Disposition:** DOWNGRADED, `production` profile `supported` -> `experimental`
+**Superseded:** both rows are back at `production: supported`. Later deployed
+API readback artifacts proved the inventory and diagnostics surfaces against a
+claimed component. The text below remains the historical decision record, not
+the current matrix state.
 **Tracking:** #5336 (original finding), #5552 (systemic burn-down), #5407
 (freeze that bounded the debt)
 
@@ -141,3 +146,60 @@ Run from the worktree root unless noted:
 7. Run the full proof list (verify, docs, remote-validation-artifacts,
    maturity-drift-guard, focused Go tests, mkdocs strict build, `git diff
    --check`) before committing.
+
+## TRANCHE 2 — #5681 Cluster B, validated on deployed services
+
+**Capabilities:** `secrets_iam.identity_trust_chains.list`,
+`secrets_iam.posture_gaps.list`, `secrets_iam.posture_summary.read`,
+`secrets_iam.privilege_posture_observations.list`,
+`secrets_iam.secret_access_paths.list`,
+`code_to_cloud.trace_exposure_path`, and `code_search.variable_lookup`
+
+**Disposition:** VALIDATED. All seven production rows retain or return to
+`supported`; no downgrade was requested or approved. A second fresh run under
+`ESHU_QUERY_PROFILE=local_authoritative` exercised variable lookup and trace
+exposure against the real graph stack, so their local_authoritative rows also
+retain `supported`. Their local_full_stack rows cite the same Compose driver.
+
+These were the final seven slugs in the remote-validation baseline. The earlier
+draft downgrade rested on an incomplete evidence search and a false assumption
+that the optional secrets/IAM graph-projection flag controlled the read models.
+It did not land. The read-model reducer is always registered; only graph
+projection is optional.
+
+The accepted proof uses public-safe synthetic Kubernetes, AWS, and Vault
+cassettes on a fresh, uniquely named Compose project. The golden-corpus driver
+rebuilt every host binary, replayed all credential-free collectors, drained the
+reducer and projector queues to terminal, and exercised the HTTP and MCP
+surfaces. The final run completed with 532 passes, zero required failures, zero
+advisory warnings, and exit code 0.
+
+### Per-row deployed result
+
+| Slug | Capability | Observed deployed result | Artifact |
+| --- | --- | --- | --- |
+| `prod-secrets-iam-identity-trust-chains` | `secrets_iam.identity_trust_chains.list` | MCP returned one exact chain with the expected workload identity and state. | `docs/internal/remote-validation/prod-secrets-iam-identity-trust-chains.md` |
+| `prod-secrets-iam-privilege-posture-observations` | `secrets_iam.privilege_posture_observations.list` | MCP returned one wildcard-trust observation with high severity and partial state. | `docs/internal/remote-validation/prod-secrets-iam-privilege-posture-observations.md` |
+| `prod-secrets-iam-secret-access-paths` | `secrets_iam.secret_access_paths.list` | MCP returned one exact, fingerprinted access path with the read capability and no secret value. | `docs/internal/remote-validation/prod-secrets-iam-secret-access-paths.md` |
+| `prod-secrets-iam-posture-gaps` | `secrets_iam.posture_gaps.list` | MCP preserved one unsupported-policy-layer gap and its unsupported state. | `docs/internal/remote-validation/prod-secrets-iam-posture-gaps.md` |
+| `prod-secrets-iam-posture-summary` | `secrets_iam.posture_summary.read` | MCP returned four non-zero buckets covering the chain, observation, access path, and gap. | `docs/internal/remote-validation/prod-secrets-iam-posture-summary.md` |
+| `prod-trace-exposure-path` | `code_to_cloud.trace_exposure_path` | MCP resolved the source as an HTTP handler and returned the documented bounded unresolved state without inventing a path. | `docs/internal/remote-validation/prod-trace-exposure-path.md` |
+| `prod-variable-lookup` | `code_search.variable_lookup` | MCP `find_code` and HTTP code search each returned four Variable-labeled matches. | `docs/internal/remote-validation/prod-variable-lookup.md` |
+
+### Exact validation command
+
+```bash
+GATE_COMPOSE_PROJECT=eshu-5681-claim-honesty-20260808-7 ESHU_POSTGRES_PORT=36542 NEO4J_BOLT_PORT=36687 NEO4J_HTTP_PORT=36474 GATE_API_PORT=36080 GATE_MCP_PORT=36091 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh >/tmp/eshu-5681-b7-postrebase2.log 2>&1; echo $?
+```
+
+Captured output: `0`. Validation date: 2026-08-08.
+
+The local-authoritative profile cross-check used a second fresh project:
+
+```bash
+ESHU_QUERY_PROFILE=local_authoritative GATE_COMPOSE_PROJECT=eshu-5681-local-authoritative-20260808-4 ESHU_POSTGRES_PORT=37542 NEO4J_BOLT_PORT=37687 NEO4J_HTTP_PORT=37474 GATE_API_PORT=37080 GATE_MCP_PORT=37091 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh >/tmp/eshu-5681-local-authoritative-postrebase2.log 2>&1; echo $?
+```
+
+Captured output: `0`. The log records `query profile: local_authoritative`
+before staging or build work. The run completed in 118 seconds with 532 passes,
+zero required failures, and zero advisory warnings.
