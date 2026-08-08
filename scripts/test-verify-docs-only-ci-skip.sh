@@ -40,6 +40,7 @@ cp "${repo_root}/${script_rel}" "${tmp}/scripts/verify-docs-only-ci-skip.sh"
 # run_merge_group_checks" error the first time run_scratch is called, and
 # every case below fails "for the wrong reason" instead of testing anything.
 cp "${repo_root}/scripts/lib/ci-gate-merge-group-checks.sh" "${tmp}/scripts/lib/ci-gate-merge-group-checks.sh"
+cp "${repo_root}/scripts/lib/ci-gate-predicate-quantifier.sh" "${tmp}/scripts/lib/ci-gate-predicate-quantifier.sh"
 for wf in build.yml security-scan.yml mcp-schema-drift.yml test.yml; do
 	cp "${repo_root}/.github/workflows/${wf}" "${tmp}/.github/workflows/${wf}"
 done
@@ -342,6 +343,123 @@ if run_scratch >/dev/null 2>&1; then
 	ok "merge_group case 4 passes again after restoring the outputs.code fallback"
 else
 	no "merge_group case 4 should pass again once the outputs.code fallback is restored"
+fi
+
+# --- guard 3 (#5896), failing case: drop `predicate-quantifier: 'every'` from
+# one workflow. This is the regression that reads as harmless: the five `!`
+# negations below it still LOOK like they exclude docs, but dorny@v3 falls back
+# to `some`, `**` matches first and short-circuits, and the whole filter becomes
+# `code: ['**']`. Deleting this line is how #5818's ~118 wasted runner-minutes
+# come back, so it must fail loudly and name the file. ---
+python3 - "${tmp}/.github/workflows/security-scan.yml" <<'PY'
+import re, sys
+path = sys.argv[1]
+content = open(path).read()
+pat = re.compile(r"^[ \t]*predicate-quantifier:.*\n", re.MULTILINE)
+assert len(pat.findall(content)) == 1, "one line expected"
+open(path, "w").write(pat.sub("", content, count=1))
+PY
+if out="$(run_scratch 2>&1)"; then
+	no "guard 3 should fail when a code: filter loses predicate-quantifier: 'every'"
+else
+	if rg -qF 'predicate-quantifier' <<<"${out}" && rg -qF 'security-scan.yml' <<<"${out}"; then
+		ok "guard 3 fails and names the workflow that lost predicate-quantifier: 'every'"
+	else
+		no "guard 3 failed for the wrong reason; got:"
+		printf '%s\n' "${out}" >&2
+	fi
+fi
+cp "${repo_root}/.github/workflows/security-scan.yml" "${tmp}/.github/workflows/security-scan.yml"
+if run_scratch >/dev/null 2>&1; then
+	ok "guard 3 passes again after restoring predicate-quantifier: 'every'"
+else
+	no "guard 3 should pass again once predicate-quantifier: 'every' is restored"
+fi
+
+# --- guard 3, wrong-value case: dorny validates the input against exactly
+# {'every','some'} and silently falls back to `some` for anything else, so a
+# plausible-looking typo ('all', which is what the README's prose suggests) is
+# indistinguishable from deleting the line. The check must be literal. ---
+python3 - "${tmp}/.github/workflows/test.yml" <<'PY'
+import re
+import sys
+path = sys.argv[1]
+with open(path) as f:
+	content = f.read()
+pattern = re.compile(r"^([ \t]*)predicate-quantifier:.*\n", re.MULTILINE)
+assert len(pattern.findall(content)) == 1, "one line expected"
+open(path, "w").write(pattern.sub(lambda m: m.group(1) + "predicate-quantifier: 'all'\n", content, count=1))
+PY
+if out="$(run_scratch 2>&1)"; then
+	no "guard 3 should fail for predicate-quantifier: 'all', which dorny treats as the default"
+else
+	if rg -qF 'predicate-quantifier' <<<"${out}" && rg -qF 'test.yml' <<<"${out}"; then
+		ok "guard 3 rejects a wrong quantifier value, not just a missing line"
+	else
+		no "guard 3 wrong-value case failed for the wrong reason; got:"
+		printf '%s\n' "${out}" >&2
+	fi
+fi
+cp "${repo_root}/.github/workflows/test.yml" "${tmp}/.github/workflows/test.yml"
+if run_scratch >/dev/null 2>&1; then
+	ok "guard 3 passes again after restoring the correct quantifier value"
+else
+	no "guard 3 should pass again once the correct quantifier value is restored"
+fi
+
+# --- guard 3, quoting case (#5956 review): YAML reads every, 'every' and
+# "every" identically and dorny accepts all three, so the guard must too.
+# Demanding one style would fail a PR whose filter is in fact correct. ---
+for style in "every" '"every"'; do
+	python3 - "${tmp}/.github/workflows/test.yml" "${style}" <<'PYQ'
+import re
+import sys
+path, style = sys.argv[1], sys.argv[2]
+with open(path) as f:
+	content = f.read()
+pattern = re.compile(r"^([ \t]*)predicate-quantifier:.*\n", re.MULTILINE)
+assert len(pattern.findall(content)) == 1, "expected exactly one predicate-quantifier line"
+with open(path, "w") as f:
+	f.write(pattern.sub(lambda m: m.group(1) + "predicate-quantifier: " + style + "\n", content, count=1))
+PYQ
+	if run_scratch >/dev/null 2>&1; then
+		ok "guard 3 accepts predicate-quantifier: ${style}"
+	else
+		no "guard 3 must accept the valid quoting style ${style}"
+	fi
+	cp "${repo_root}/.github/workflows/test.yml" "${tmp}/.github/workflows/test.yml"
+done
+
+# --- guard 3, relocation case (#5956 review, codex): a file-wide search would
+# still pass if the line were moved out of the paths-filter step, or if a second
+# dorny step carried it while the `code` filter reverted to the default. Move it
+# to a sibling step in the same job and the guard must still fail. ---
+python3 - "${tmp}/.github/workflows/test.yml" <<'PYS'
+import re, sys
+path = sys.argv[1]
+c = open(path).read()
+pat = re.compile(r"^[ \t]*predicate-quantifier:.*\n", re.MULTILINE)
+assert len(pat.findall(c)) == 1, "one line expected"
+c = pat.sub("", c, count=1)
+a = '        run: echo "code=true" >> "$GITHUB_OUTPUT"\n'
+assert c.count(a) == 1, "anchor missing"
+open(path, "w").write(c.replace(a, a + "        # predicate-quantifier: 'every'\n", 1))
+PYS
+if out="$(run_scratch 2>&1)"; then
+	no "guard 3 should fail when the quantifier is moved out of the paths-filter step"
+else
+	if rg -qF 'predicate-quantifier' <<<"${out}" && rg -qF 'test.yml' <<<"${out}"; then
+		ok "guard 3 is scoped to the filter step, not the file — a relocated line still fails"
+	else
+		no "guard 3 relocation case failed for the wrong reason; got:"
+		printf '%s\n' "${out}" >&2
+	fi
+fi
+cp "${repo_root}/.github/workflows/test.yml" "${tmp}/.github/workflows/test.yml"
+if run_scratch >/dev/null 2>&1; then
+	ok "guard 3 passes again after restoring the quantifier to the filter step"
+else
+	no "guard 3 should pass again once the quantifier is back in the filter step"
 fi
 
 printf '\n%d passed, %d failed\n' "${pass}" "${fail}"
