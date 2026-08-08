@@ -130,16 +130,49 @@ func TestContentEntityLabelsHaveProjectorLabels(t *testing.T) {
 	}
 
 	for _, bucket := range sortedKeysOf(canonical) {
-		label := canonical[bucket]
-		if _, ok := projector[label]; ok {
-			continue
+		for _, label := range materializedLabelsFor(canonical[bucket]) {
+			if _, ok := projector[label]; ok {
+				continue
+			}
+			if _, pinned := knownMissingProjectorLabels[label]; pinned {
+				continue
+			}
+			t.Errorf("bucket %q materializes label %q, which entityTypeLabelMap does not name; the projected "+
+				"node has no canonical label", bucket, label)
 		}
-		if _, pinned := knownMissingProjectorLabels[label]; pinned {
-			continue
-		}
-		t.Errorf("bucket %q materializes label %q, which entityTypeLabelMap does not name; the projected "+
-			"node has no canonical label", bucket, label)
 	}
+}
+
+// materializedLabelsFor returns every label materializeEntities can actually
+// write for a bucket whose table entry says tableLabel — the table value AND
+// anything entityLabelForBucket rewrites it into.
+//
+// Checking only the table value is not enough. Production already rewrites a
+// Module entity to ProtocolImplementation when its metadata says
+// module_kind=protocol_implementation (materialize_labels.go), and that label
+// reaches the projector without ever appearing in contentEntityBuckets. A
+// future rewrite to a label entityTypeLabelMap lacks would make
+// canonical_builder.go discard those entities silently, and a gate reading only
+// the table would stay green (#5963 review, codex).
+//
+// The probes below drive the rewrite through its real function rather than
+// restating its rules. That covers a rewrite keyed on the metadata these probes
+// set; one keyed on a DIFFERENT metadata key needs its own probe added here,
+// which is the residual this cannot close by construction.
+func materializedLabelsFor(tableLabel string) []string {
+	seen := map[string]struct{}{tableLabel: {}}
+	for _, probe := range []Entity{
+		{},
+		{Metadata: map[string]any{"module_kind": "protocol_implementation"}},
+	} {
+		seen[entityLabelForBucket(tableLabel, probe)] = struct{}{}
+	}
+	out := make([]string, 0, len(seen))
+	for label := range seen {
+		out = append(out, label)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // TestBucketSyncDriftLedgerIsHonest keeps the ledgers from outliving the drift
@@ -167,9 +200,26 @@ func TestBucketSyncDriftLedgerIsHonest(t *testing.T) {
 		}
 	}
 
+	// An exemption expires two ways, and checking only the first leaves a
+	// licence lying around: the projector may gain the label, OR the bucket
+	// that produced it may be deleted. Without the second check a
+	// TerraformBlock entry could outlive terraform_blocks, and silently cover a
+	// reintroduced bucket that still has no projector mapping (#5963 review,
+	// codex).
+	materialized := make(map[string]struct{})
+	for _, bucket := range sortedKeysOf(canonical) {
+		for _, label := range materializedLabelsFor(canonical[bucket]) {
+			materialized[label] = struct{}{}
+		}
+	}
 	for _, label := range sortedKeysOf(knownMissingProjectorLabels) {
 		if _, ok := projector[label]; ok {
 			t.Errorf("knownMissingProjectorLabels[%q] is stale: the projector names it now. Delete the entry.", label)
+		}
+		if _, ok := materialized[label]; !ok {
+			t.Errorf("knownMissingProjectorLabels[%q] is stale: no bucket in contentEntityBuckets "+
+				"materializes that label any more, so the entry covers nothing and would silently "+
+				"absorb the label's return. Delete the entry.", label)
 		}
 	}
 }
@@ -197,7 +247,14 @@ func parseBucketLabelSlice(t *testing.T, path, name string) map[string]string {
 	for _, elt := range varCompositeElements(t, path, name) {
 		lit, ok := elt.(*ast.CompositeLit)
 		if !ok {
-			continue
+			// A maintainer extracting an entry into a variable and putting the
+			// identifier here would otherwise be skipped silently: the
+			// production table still carries the bucket, but this gate would
+			// never see it, so an omission in the collector twin would pass
+			// (#5963 review, codex). Fail closed instead.
+			t.Fatalf("%s in %s has a non-literal element (%T); this extractor only understands "+
+				"composite literals, and skipping one would hide a bucket from every check here",
+				name, path, elt)
 		}
 		var bucket, label string
 		for _, field := range lit.Elts {
