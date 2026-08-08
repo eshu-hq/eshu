@@ -169,3 +169,48 @@ func TestAskDemoQuestion_UnknownExecuteKindFailsLoudly(t *testing.T) {
 		t.Fatal("error = nil; an unrecognized execute kind must fail rather than be skipped")
 	}
 }
+
+func TestDemoUp_MintsAnEphemeralKeyAndPassesItToCompose(t *testing.T) {
+	t.Parallel()
+	exec := &fakeDemoExec{}
+	rt := newTestDemoRuntime(exec)
+
+	if _, err := rt.up(context.Background()); err != nil {
+		t.Fatalf("up: %v", err)
+	}
+	// The demo runtime overlay refuses to start mcp-server with no resolvable
+	// credential source (#5168), so "zero credentials" has to mean the command
+	// mints one rather than that the stack runs without one.
+	if rt.apiKey == "" {
+		t.Fatal("no ephemeral demo key was minted; mcp-server will refuse to start")
+	}
+	if len(rt.apiKey) < 24 {
+		t.Errorf("ephemeral key is %d chars; too short to be a credential", len(rt.apiKey))
+	}
+	var sawKeyEnv bool
+	for _, e := range exec.envs {
+		for _, kv := range e {
+			if strings.HasPrefix(kv, "ESHU_DEMO_API_KEY=") && strings.TrimPrefix(kv, "ESHU_DEMO_API_KEY=") == rt.apiKey {
+				sawKeyEnv = true
+			}
+		}
+	}
+	if !sawKeyEnv {
+		t.Errorf("ESHU_DEMO_API_KEY was never passed to compose; envs=%v", exec.envs)
+	}
+}
+
+func TestDemoEphemeralKeys_AreNotReusedAcrossRuns(t *testing.T) {
+	t.Parallel()
+	a, err := newEphemeralDemoKey()
+	if err != nil {
+		t.Fatalf("newEphemeralDemoKey: %v", err)
+	}
+	b, err := newEphemeralDemoKey()
+	if err != nil {
+		t.Fatalf("newEphemeralDemoKey: %v", err)
+	}
+	if a == b {
+		t.Error("two demo runs minted the same key; it must be per-run, not a constant")
+	}
+}

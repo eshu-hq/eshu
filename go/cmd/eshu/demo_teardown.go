@@ -17,7 +17,7 @@ import (
 // scoped to the demo project, so a stack the demo did not create is out of
 // reach here by construction rather than by care.
 func (r *demoRuntime) down(ctx context.Context) error {
-	if _, err := r.exec(ctx, "docker", r.composeArgs("down", "-v", "--remove-orphans")...); err != nil {
+	if _, err := r.exec(ctx, nil, "docker", r.composeArgs("down", "-v", "--remove-orphans")...); err != nil {
 		return fmt.Errorf("remove demo stack (project %q): %w", r.project, err)
 	}
 	return nil

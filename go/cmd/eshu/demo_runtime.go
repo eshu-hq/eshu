@@ -5,9 +5,12 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -72,9 +75,10 @@ type demoResult struct {
 	TotalMillis int64 `json:"total_millis"`
 }
 
-// demoExecFunc shells out to a binary. Injected so tests drive the whole
-// lifecycle without Docker.
-type demoExecFunc func(ctx context.Context, name string, args ...string) ([]byte, error)
+// demoExecFunc shells out with an explicit extra environment. Compose needs
+// the ephemeral demo key in its env, so the seam carries it rather than the
+// command mutating the process environment.
+type demoExecFunc func(ctx context.Context, env []string, name string, args ...string) ([]byte, error)
 
 // demoProbeFunc reads indexing completeness from a running demo stack.
 type demoProbeFunc func(ctx context.Context, apiBase string) (demoIndexStatus, error)
@@ -96,6 +100,9 @@ type demoRuntime struct {
 	// Injected so unit tests exercise the multi-poll path without spending
 	// real seconds; zero means demoReadyPollInterval.
 	pollInterval time.Duration
+	// apiKey is the ephemeral per-run credential handed to the stack and
+	// reused as the bearer on this command's own MCP call.
+	apiKey string
 }
 
 // readyPollInterval returns the effective sleep between readiness samples.
@@ -119,8 +126,27 @@ func newDemoRuntime(project string) *demoRuntime {
 }
 
 // runDemoCommand is the production exec seam.
-func runDemoCommand(ctx context.Context, name string, args ...string) ([]byte, error) {
-	return exec.CommandContext(ctx, name, args...).CombinedOutput() // #nosec G204 -- args are program-constructed compose invocations, never user text
+func runDemoCommand(ctx context.Context, env []string, name string, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, name, args...) // #nosec G204 -- args are program-constructed compose invocations, never user text
+	if len(env) > 0 {
+		cmd.Env = append(os.Environ(), env...)
+	}
+	return cmd.CombinedOutput()
+}
+
+// newEphemeralDemoKey mints a per-run credential for the demo stack.
+//
+// The demo runtime overlay refuses to start mcp-server with no resolvable
+// credential source (#5168, deliberate). "Zero credentials" is a promise to the
+// operator, not to the stack, so the command mints one, uses it, and throws it
+// away with the stack rather than asking the operator for one or leaving the
+// MCP port open.
+func newEphemeralDemoKey() (string, error) {
+	buf := make([]byte, 24)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("mint ephemeral demo key: %w", err)
+	}
+	return "demo-" + hex.EncodeToString(buf), nil
 }
 
 // composeArgs builds the project-scoped compose argument prefix. Every compose
@@ -134,7 +160,7 @@ func (r *demoRuntime) composeArgs(rest ...string) []string {
 // daemon or binary is reported with what was probed and what to do, following
 // the first_run_diagnostics precedent, rather than surfacing a raw exec error.
 func (r *demoRuntime) preflight(ctx context.Context) error {
-	if _, err := r.exec(ctx, "docker", "version", "--format", "{{.Server.Version}}"); err != nil {
+	if _, err := r.exec(ctx, nil, "docker", "version", "--format", "{{.Server.Version}}"); err != nil {
 		return fmt.Errorf(
 			"docker is not available or its daemon is not running (probed: docker version): %w\n"+
 				"eshu demo needs a running Docker daemon. Start Docker Desktop (or dockerd) and retry", err)
@@ -146,7 +172,7 @@ func (r *demoRuntime) preflight(ctx context.Context) error {
 // is the guard behind the invariant that `eshu demo up` never adopts or
 // destroys a stack it did not start.
 func (r *demoRuntime) alreadyRunning(ctx context.Context) (bool, error) {
-	out, err := r.exec(ctx, "docker", r.composeArgs("ps", "--quiet")...)
+	out, err := r.exec(ctx, nil, "docker", r.composeArgs("ps", "--quiet")...)
 	if err != nil {
 		// A compose failure here is not proof of absence, so fail closed
 		// rather than assuming the project is free and clobbering it.
@@ -179,8 +205,16 @@ func (r *demoRuntime) up(ctx context.Context) (demoResult, error) {
 	}
 
 	phaseStart = r.now()
-	if _, err := r.exec(ctx, "docker", r.composeArgs("up", "-d", "--wait")...); err != nil {
-		return res, fmt.Errorf("bring up demo stack (project %q): %w", r.project, err)
+	key, err := newEphemeralDemoKey()
+	if err != nil {
+		return res, err
+	}
+	r.apiKey = key
+	if out, err := r.exec(ctx, []string{"ESHU_DEMO_API_KEY=" + key}, "docker", r.composeArgs("up", "-d", "--wait")...); err != nil {
+		// Carry the compose output. Reporting only "exit status 1" forces the
+		// operator to re-run compose by hand to find the cause, which is what
+		// happened the first time this ran against a real stack.
+		return res, fmt.Errorf("bring up demo stack (project %q): %w\n%s", r.project, err, strings.TrimSpace(string(out)))
 	}
 	res.PhaseMillis["up"] = r.sinceMillis(phaseStart)
 

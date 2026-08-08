@@ -15,6 +15,7 @@ import (
 // scripted reply, so the whole lifecycle is exercised without Docker.
 type fakeDemoExec struct {
 	calls    [][]string
+	envs     [][]string
 	replies  map[string]demoExecReply
 	fallback demoExecReply
 }
@@ -24,7 +25,8 @@ type demoExecReply struct {
 	err error
 }
 
-func (f *fakeDemoExec) run(_ context.Context, name string, args ...string) ([]byte, error) {
+func (f *fakeDemoExec) run(_ context.Context, env []string, name string, args ...string) ([]byte, error) {
+	f.envs = append(f.envs, env)
 	call := append([]string{name}, args...)
 	f.calls = append(f.calls, call)
 	joined := strings.Join(call, " ")
