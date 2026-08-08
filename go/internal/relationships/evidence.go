@@ -166,12 +166,19 @@ func discoverFromEnvelopeWithIndex(
 			sourceRepoID, filePath, content, commitSHA, matcher, seen,
 		)...)
 	// Kustomize reads the parser's kustomize_overlays bucket when the file was
-	// parsed, and only re-parses raw content when it was not. The two are not
-	// interchangeable — the raw read offers same-repo directory paths to the
-	// catalog matcher and the bucket does not (#5609, and the doc comment on
-	// discoverStructuredKustomizeEvidence) — so they must not both run. Running
-	// both would union to the raw result and the fix would be inert, because
-	// matchCatalog dedupes through `seen` rather than overriding.
+	// parsed, and re-parses raw content only when it was not.
+	//
+	// The two produce the same set — TestStructuredKustomizeCoversEveryRawValue
+	// asserts that in both directions — so this is about not doing the work
+	// twice for one fact, not about picking a winner. Preferring the bucket
+	// skips a redundant YAML parse of a file the parser already parsed.
+	//
+	// It does NOT remove the second parse overall. The collector emits a
+	// content fact and a file fact per file, and only the file fact carries
+	// parsed_file_data, so the content fact still arrives here and takes the
+	// raw branch. That is why the two paths have to agree rather than one
+	// suppressing the other: they both run, on different facts, and their
+	// evidence unions through `seen` (#5609).
 	case isKustomizeArtifact(filePath):
 		if len(parsedFileData) > 0 {
 			evidence = append(evidence, discoverStructuredKustomizeEvidence(
