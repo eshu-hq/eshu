@@ -57,6 +57,25 @@ func TestResolveNativeSnapshotFileSetSkipsWebpackChunksWithASplitRuntime(t *test
 	if err != nil {
 		resolvedRepoRoot = repoRoot
 	}
+	// Both fixtures must clear the size floor, or the sniffer never runs on
+	// them. The positive case would fail loudly if its fixture shrank, but the
+	// negative case would not: a file under the floor is kept no matter what
+	// the sniffer decides, so "hand-written file was kept" would pass while
+	// proving nothing about the over-admission guard.
+	for _, fixture := range []struct {
+		name string
+		body string
+	}{
+		{"webpack split-runtime chunk", largeWebpackSplitRuntimeFixture()},
+		{"hand-written webpack mention", largeHandWrittenWebpackMentionFixture()},
+	} {
+		if len(fixture.body) < generatedJavaScriptBundleMinBytes {
+			t.Fatalf("%s fixture is %d bytes, below the %d-byte floor; the sniffer is "+
+				"never consulted and the assertions below prove nothing",
+				fixture.name, len(fixture.body), generatedJavaScriptBundleMinBytes)
+		}
+	}
+
 	registry := parser.DefaultRegistry()
 	fileSet, _, err := resolveNativeSnapshotFileSet(resolvedRepoRoot, registry, NativeRepositorySnapshotter{}.discoveryOptions())
 	if err != nil {
