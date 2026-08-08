@@ -185,10 +185,16 @@ evidence for each capability was searched for before deciding a disposition
   `secrets_iam_trust_chain.go`, `secrets_iam_grant_posture.go`, and their
   matching `_test.go` files prove the bounded reducer read-model lookup
   functionally, against fixture data. That is not a deployed read. The
-  reducer domain that populates these read models,
-  `DomainSecretsIAMGraphProjection`, is gated behind
-  `ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED` and stays off by default
-  in every deployment (`go/cmd/reducer/secrets_iam_graph_wiring.go`). The only
+  reducer domain that populates these read models is
+  `DomainSecretsIAMTrustChain`, and it is always registered -- its evidence
+  loader and writer are wired unconditionally in `wiring_handlers.go`. The
+  separately-gated `DomainSecretsIAMGraphProjection`
+  (`ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED`, off by default) writes
+  the graph, not these read models, and the operator doc says so plainly:
+  "These read-model routes are always live ... do not depend on any graph
+  projection." A stock deploy does still serve these pages empty, but because
+  no default collector emits the underlying fact kinds -- not because of the
+  flag. The only
   flag-on run on record is
   `docs/internal/design/1314-secrets-iam-graph-activation-record.md` (#2430,
   closed 2026-06-16): a transient proof-only enable on a single
@@ -298,23 +304,26 @@ cloud-sink chain and durable semantic facts, respectively. That work is tracked
 in #5958. It needs its own issue because #5552 and #5681 both close when this
 lands, so neither can carry a pointer anyone will find afterward.
 
-### Gating overlay for the five secrets/IAM rows
+### The gating overlay, added and then withdrawn
 
-Downgrading the tier records that no deployed evidence exists. It does not record
-the separate, also-true fact that these reads are off by default: the reducer only
-registers the secrets/IAM graph projection domain when an operator sets
-`ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED`, so a stock deploy serves an
-empty page regardless of how much proof we later attach.
+An earlier round of this work gave the five secrets/IAM rows a `maturity: gated`
+overlay in `specs/capability-catalog.v1.yaml`, on the reasoning that the tier
+records "no deployed evidence" while the overlay records the separate fact that
+the reads are off by default.
 
-Those are two different axes, and the matrix tier only carries the first. The
-repository already has a place for the second — the `maturity: gated` overlay in
-`specs/capability-catalog.v1.yaml`, used for the `ESHU_EMIT_DATAFLOW` reachability
-rows and the collector-gated supply-chain rows. All five secrets/IAM capabilities
-now carry that overlay, so the generated catalog reports `maturity: gated` with
-`derived_maturity: experimental` instead of leaving a consumer to infer
-reachability from prose alone.
+The second half of that was wrong, and the overlay is gone. The reads are not
+flag-gated. `appendSecretsAndDriftAdditiveDomains` registers the read-model
+domain whenever its loader and writer are non-nil, and both are wired
+unconditionally; only the graph writer sits behind
+`ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED`. Claiming otherwise
+understates five capabilities on a mechanism that does not exist, which is the
+false-negative direction the evidence canon warns about.
 
-`supply_chain.impact_findings.list` shows the two axes are independent: it holds
-`status: supported` with a committed production artifact and `maturity: gated` at
-the same time. If deployed evidence for the secrets/IAM reads lands later, the
-tier can rise on its own merit while the gating overlay stays.
+A stock deploy does serve these routes empty, so the intuition behind the
+overlay was not baseless -- but the cause is that no default collector emits
+these fact kinds, which is a different statement about a different part of the
+pipeline. If that fact deserves machine-readable expression, it should say the
+true thing.
+
+The tier stays `experimental` on its own evidence: no deployed read-surface
+proof exists, flag or no flag.
