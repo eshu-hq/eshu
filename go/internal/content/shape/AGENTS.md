@@ -52,7 +52,16 @@
   of `contentEntityBuckets` in `materialize.go`. Add the label to
   `trailingNewlineLabels` and `sourceFieldContainsCode` if appropriate. Add a
   test case in `materialize_test.go`. Run
-  `go test ./internal/content/shape -count=1`.
+  `go test ./internal/content/shape -count=1`. **Also register the same
+  bucket in `go/internal/collector/git_snapshot_entity_buckets.go`'s
+  `snapshotEntityBuckets`** (the collector-side twin `entityBucketsFromParsed`
+  walks) **and the label in `go/internal/projector/canonical.go`'s
+  `entityTypeLabelMap`** if the bucket is meant to reach the graph. Missing
+  either one silently drops the entity with no error and no failing unit test
+  (issue #5483 C1). `bucket_sync_gate_test.go` in this package (CI gate
+  `content-entity-bucket-sync`) checks this mechanically; run
+  `go test ./internal/content/shape -run 'TestContentEntityBucketsMatchCollectorTwin|TestContentEntityLabelsHaveProjectorLabels|TestBucketSyncDriftLedgerIsHonest' -count=1`
+  locally after adding a bucket.
 
 - **Add a byte cap for a new label** → add an entry to
   `entitySourceCacheByteLimits` in `source_cache.go`. The cap applies to the
