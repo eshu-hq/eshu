@@ -30,6 +30,11 @@ const demoReadyTimeout = 10 * time.Minute
 // demoReadyPollInterval is how often readiness is sampled while waiting.
 const demoReadyPollInterval = 2 * time.Second
 
+// demoMCPBase is where the demo overlay publishes the MCP server. The demo
+// owns its own Compose project, so these are the demo's ports, not the
+// operator's default stack.
+const demoMCPBase = "http://127.0.0.1:8081"
+
 // demoIndexStatus is the subset of /api/v0/status/index the demo waits on.
 // Readiness is indexing completeness, never process health: a stack that is
 // merely "up" answers the five demo questions wrongly or not at all.

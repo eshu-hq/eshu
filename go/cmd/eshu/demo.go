@@ -234,25 +234,17 @@ func formatDemoTruth(truth map[string]any) string {
 	return strings.Join(parts, " ")
 }
 
-// askDemoQuestion is the production seam for the first correlated answer.
+// askDemoQuestion executes the manifest's first question against the running
+// demo stack.
 //
-// NOT IMPLEMENTED YET, and deliberately failing rather than guessing. There is
-// no general `/api/v0/query` route to ask a natural-language question against;
-// an earlier draft of this file invented one. The demo-first-answers manifest
-// (specs/demo-first-answers.v1.yaml) is the acceptance oracle precisely so the
-// demo does not invent query capability: every question declares its own
-// execute surface, and the first one resolves to the MCP tool
-// get_service_story with {workload_id: "workload:api-svc"} rather than to any
-// HTTP query endpoint.
-//
-// Wiring this correctly means reading the manifest, resolving the declared
-// surface (mcp or http per question), invoking it, and checking the answer
-// against that question's required_response_fields. The lifecycle around it —
-// preflight, refuse-to-clobber, up, completeness-not-health readiness,
-// teardown, envelope, per-phase timings — is implemented and unit-proven; this
-// seam is the remaining piece.
-func askDemoQuestion(_ context.Context, _, question string) (demoAnswer, error) {
-	return demoAnswer{}, fmt.Errorf(
-		"asking %q is not wired yet: the demo-first-answers manifest resolves it to an MCP surface, "+
-			"and eshu demo must execute the manifest's declared surface rather than an invented query route", question)
+// It resolves the surface the manifest declares rather than calling a general
+// query route, because no such route exists. An earlier draft invented
+// GET /api/v0/query; the manifest is the acceptance oracle precisely so
+// sibling issues do not do that.
+func askDemoQuestion(ctx context.Context, apiBase, _ string) (demoAnswer, error) {
+	m, err := loadDemoManifest(demoManifestPath)
+	if err != nil {
+		return demoAnswer{}, err
+	}
+	return executeDemoQuestion(ctx, apiBase, demoMCPBase, m.Questions[0])
 }
