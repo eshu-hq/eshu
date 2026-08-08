@@ -140,11 +140,9 @@ per repository:
    checks, and lockfile providers. Declared Grafana, Prometheus/Mimir, Loki,
    and Tempo observability parser buckets plus applied Argo CD/Kubernetes
    observability state buckets are emitted as versioned `observability.*`
-   source facts during fact streaming, not as graph truth.
-   `entityBucketsFromParsed` walks only `snapshotEntityBuckets`, the twin of
-   `content/shape`'s `contentEntityBuckets`; a bucket missing from it is dropped
-   with no fact, no node, and no error (#5483 C1, #5531). `content/shape`'s
-   `bucket_sync_gate_test.go` gates all three lists — register new buckets in each.
+   source facts during fact streaming, not as graph truth. A bucket missing from
+   `snapshotEntityBuckets` is dropped with no fact, node, or error; `content/shape`'s
+   `bucket_sync_gate_test.go` gates that (#5483 C1, #5531).
 5. **Materialize** — `shape.Materialize` turns parsed files into
    `ContentFileMeta` records and `ContentEntitySnapshot` rows. Body strings are
    released after materialization; `streamFacts` re-reads them from disk at emit

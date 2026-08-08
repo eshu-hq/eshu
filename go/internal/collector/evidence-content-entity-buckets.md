@@ -8,8 +8,8 @@ No-Regression Evidence: Restoring five bucket→label pairs to
 Cypher, no query, no goroutine, no lease or claim, no batching knob, and no I/O;
 the loop bound grows from 76 to 81 entries.
 
-Measured on the B-7 golden corpus (30 fixture repos, NornicDB + Postgres via
-`docs/public/run-locally/docker-compose.yaml`, driven by
+Measured on the B-7 golden corpus (30 fixture repos, NornicDB + Postgres via the repo-root
+`docker-compose.yaml`, driven by
 `scripts/verify-golden-corpus-gate.sh`) across two clean runs on this branch:
 `phase_collect` observed 17.0s against a 20.0s baseline and a 25.0s ceiling —
 at or below baseline, not above it. Terminal state was `531 pass,
