@@ -100,7 +100,7 @@ Burn-down progress:
   evidence is still missing (the OCI e2e driver starts the collector but does
   not exercise `list_component_extensions` / `get_component_extension_diagnostics`
   through the API/MCP); wiring a deployed API/MCP run (then restoring
-  `supported`) is tracked in #5681.
+  `supported`) is tracked in #5958.
 - **This directory now holds 101 committed production-validation artifacts** —
   each capability whose committed evidence (the `go_test` suites its local
   profiles cite, `docs/internal/evidence/*.md` live-backend validations, and

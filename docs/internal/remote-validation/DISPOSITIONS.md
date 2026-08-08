@@ -284,9 +284,9 @@ queried through the API/MCP list tools (not only the reducer write path
 `docs/internal/design/1314-secrets-iam-graph-activation-record.md` already
 proved); for `trace_exposure_path` and `variable_lookup`, a deployed
 `compose_e2e` or `run-remote-e2e-*` run against a corpus with a reachable
-cloud-sink chain and durable semantic facts, respectively. No new tracking
-issue was opened for this follow-up; #5681 remains the reference until a
-maintainer opens one.
+cloud-sink chain and durable semantic facts, respectively. That work is tracked
+in #5958. It needs its own issue because #5552 and #5681 both close when this
+lands, so neither can carry a pointer anyone will find afterward.
 
 ### Gating overlay for the five secrets/IAM rows
 
