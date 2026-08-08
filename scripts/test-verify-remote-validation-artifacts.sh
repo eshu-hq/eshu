@@ -307,7 +307,8 @@ else
 	fi
 fi
 
-# Case 11: source, generator, and CI path filters stay wired together.
+# Case 11: source, generator, and every allowed evidence-source family stay
+# wired to both the registry selector and the CI workflow path filter.
 if rg -q --fixed-strings 'scripts/generate-remote-validation-inventory.sh' "${repo_root}/specs/ci-gates.v1.yaml" &&
 	rg -q --fixed-strings "'scripts/generate-remote-validation-inventory.sh'" "${repo_root}/.github/workflows/static-contract-gates.yml" &&
 	rg -q --fixed-strings 'docs/internal/remote-validation/**' "${repo_root}/specs/ci-gates.v1.yaml" &&
@@ -316,6 +317,47 @@ if rg -q --fixed-strings 'scripts/generate-remote-validation-inventory.sh' "${re
 else
 	record_fail "generated inventory and source changes trigger the static contract gate"
 fi
+
+case11_registry="${repo_root}/specs/ci-gates.v1.yaml"
+case11_workflow="${repo_root}/.github/workflows/static-contract-gates.yml"
+case11_registry_gate="$(
+	sed -n '/^  - id: remote-validation-artifacts$/,/^  - id:/p' "${case11_registry}"
+)"
+case11_workflow_filter="$(
+	sed -n '/^[[:space:]]*remotevalidation:$/,/^[[:space:]]*claudrules:$/p' "${case11_workflow}"
+)"
+while IFS='|' read -r trigger representative; do
+	[[ -n "${trigger}" ]] || continue
+	if ! printf '%s\n' "${case11_registry_gate}" |
+		rg -q --fixed-strings "      - \"${trigger}\"" ||
+		! printf '%s\n' "${case11_workflow_filter}" |
+			rg -q --fixed-strings "              - '${trigger}'"; then
+		record_fail "allowed evidence source has CI path coverage (${trigger})"
+		continue
+	fi
+	selection="$(
+		printf '%s\n' "${representative}" |
+			(cd "${repo_root}/go" && go run ./cmd/ci-gates select \
+				--registry "${case11_registry}" --tier pre-pr --paths-from - --explain)
+	)"
+	if printf '%s\n' "${selection}" |
+		rg -q '^SELECTED[[:space:]]+remote-validation-artifacts[[:space:]]' &&
+		printf '%s\n' "${selection}" |
+			rg -q --fixed-strings "matched trigger \"${trigger}\" on path \"${representative}\""; then
+		record_pass "allowed evidence source has CI path coverage (${trigger})"
+	else
+		record_fail "allowed evidence source selects remote-validation-artifacts (${representative})"
+	fi
+done <<'EVIDENCE_SOURCE_TRIGGERS'
+docs/internal/evidence/**|docs/internal/evidence/example.md
+scripts/**/run-remote-e2e-*.sh|scripts/run-remote-e2e-example.sh
+scripts/**/verify-remote-e2e-*.sh|scripts/verify-remote-e2e-example.sh
+scripts/**/*compose*.sh|scripts/verify_example_compose.sh
+scripts/verify-golden-corpus-gate.sh|scripts/verify-golden-corpus-gate.sh
+scripts/**/run-k8s-*.sh|scripts/run-k8s-example.sh
+scripts/**/verify-hosted-*.sh|scripts/verify-hosted-example.sh
+scripts/**/*e2e*.sh|scripts/example-e2e-proof.sh
+EVIDENCE_SOURCE_TRIGGERS
 
 # Case 12 (BITES): seed one new production-supported row with no deployed
 # artifact and observe RED; revert the seed and observe GREEN again.

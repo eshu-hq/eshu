@@ -20,7 +20,10 @@ const (
 	remoteValidationExitSuccess  = 0
 )
 
-var directExitCapturePattern = regexp.MustCompile(`;\s*echo\s+\$\?\s*$`)
+var (
+	directExitCapturePattern     = regexp.MustCompile(`;\s*echo\s+\$\?\s*$`)
+	environmentAssignmentPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*=.*$`)
+)
 
 type remoteValidationArtifact struct {
 	slug       string
@@ -75,13 +78,107 @@ func validateRemoteValidationArtifact(repoRoot, ref string, capabilities []strin
 	if err := validateRemoteValidationSource(repoRoot, artifact.kind, artifact.source); err != nil {
 		return err
 	}
-	if (artifact.kind == "compose_e2e" || artifact.kind == "deployed_e2e") && !strings.Contains(artifact.command, artifact.source) {
-		return fmt.Errorf("Validation-Command does not run Evidence-Source %q", artifact.source)
+	if artifact.kind == "compose_e2e" || artifact.kind == "deployed_e2e" {
+		if err := validateRemoteValidationCommand(artifact.command, artifact.source); err != nil {
+			return err
+		}
 	}
 	if missing := missingCapabilityAssertions(capabilities, artifact.assertions); len(missing) > 0 {
 		return fmt.Errorf("missing Capability-Assertion for %s", strings.Join(missing, ", "))
 	}
 	return nil
+}
+
+// validateRemoteValidationCommand proves that the exit status captured by the
+// artifact belongs to one direct invocation of source. It deliberately accepts
+// only a simple command: optional environment assignments, optional bash, the
+// exact source path, arguments and redirections, then `; echo $?`.
+func validateRemoteValidationCommand(command, source string) error {
+	exitCapture := directExitCapturePattern.FindStringIndex(command)
+	if exitCapture == nil {
+		return fmt.Errorf("Validation-Command must end with direct '; echo $?' exit capture")
+	}
+	words, err := remoteValidationCommandWords(strings.TrimSpace(command[:exitCapture[0]]))
+	if err != nil {
+		return fmt.Errorf("Validation-Command must directly run Evidence-Source %q: %w", source, err)
+	}
+	commandIndex := 0
+	for commandIndex < len(words) && environmentAssignmentPattern.MatchString(words[commandIndex]) {
+		commandIndex++
+	}
+	if commandIndex < len(words) && words[commandIndex] == "bash" {
+		commandIndex++
+	}
+	if commandIndex >= len(words) || words[commandIndex] != source {
+		return fmt.Errorf("Validation-Command must directly run Evidence-Source %q before capturing its exit code", source)
+	}
+	return nil
+}
+
+// remoteValidationCommandWords tokenizes the narrow simple-command grammar
+// accepted for evidence capture. Shell control operators are rejected because
+// they can replace or mask the driver's exit status.
+func remoteValidationCommandWords(command string) ([]string, error) {
+	var words []string
+	var word strings.Builder
+	var quote byte
+	escaped := false
+	flush := func() {
+		if word.Len() == 0 {
+			return
+		}
+		words = append(words, word.String())
+		word.Reset()
+	}
+
+	for index := 0; index < len(command); index++ {
+		character := command[index]
+		if escaped {
+			word.WriteByte(character)
+			escaped = false
+			continue
+		}
+		if quote != 0 {
+			switch character {
+			case '\\':
+				if quote == '"' {
+					escaped = true
+					continue
+				}
+			case quote:
+				quote = 0
+				continue
+			}
+			word.WriteByte(character)
+			continue
+		}
+
+		switch character {
+		case '\\':
+			escaped = true
+		case '\'', '"':
+			quote = character
+		case ' ', '\t':
+			flush()
+		case '\n', '\r', ';', '|', '#':
+			return nil, fmt.Errorf("shell control operators are not allowed before exit capture")
+		case '&':
+			if index == 0 || command[index-1] != '>' || index+1 >= len(command) || command[index+1] < '0' || command[index+1] > '9' {
+				return nil, fmt.Errorf("shell control operators are not allowed before exit capture")
+			}
+			word.WriteByte(character)
+		default:
+			word.WriteByte(character)
+		}
+	}
+	if escaped || quote != 0 {
+		return nil, fmt.Errorf("unterminated shell escape or quote")
+	}
+	flush()
+	if len(words) == 0 {
+		return nil, fmt.Errorf("driver command is empty")
+	}
+	return words, nil
 }
 
 func parseRemoteValidationArtifact(body string) (remoteValidationArtifact, error) {

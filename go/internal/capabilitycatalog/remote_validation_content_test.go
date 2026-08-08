@@ -156,6 +156,110 @@ Capability-Assertion: cap.example returns a non-empty deployed result.
 	}
 }
 
+func TestCheckRemoteValidationArtifactsRejectsSpoofedOrMaskedDriverExit(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		command string
+	}{
+		{name: "echo only", command: "echo scripts/run-remote-e2e-example.sh; echo $?"},
+		{name: "semicolon masking", command: "bash scripts/run-remote-e2e-example.sh; true; echo $?"},
+		{name: "and masking", command: "bash scripts/run-remote-e2e-example.sh && true; echo $?"},
+		{name: "or masking", command: "bash scripts/run-remote-e2e-example.sh || true; echo $?"},
+		{name: "pipeline masking", command: "bash scripts/run-remote-e2e-example.sh | tee /tmp/proof.log; echo $?"},
+		{name: "comment masks capture", command: "bash scripts/run-remote-e2e-example.sh # proof; echo $?"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			repoRoot := t.TempDir()
+			source := filepath.Join(repoRoot, "scripts", "run-remote-e2e-example.sh")
+			if err := os.MkdirAll(filepath.Dir(source), 0o755); err != nil {
+				t.Fatalf("mkdir source dir: %v", err)
+			}
+			if err := os.WriteFile(source, []byte("#!/usr/bin/env bash\n"), 0o755); err != nil {
+				t.Fatalf("write source: %v", err)
+			}
+			writeRemoteValidationArtifactBody(t, repoRoot, "prod-example", `# production validation
+
+Validation-Slug: prod-example
+Validation-Tier: deployed_services
+Validation-Date: 2026-08-08
+Evidence-Kind: compose_e2e
+Evidence-Source: scripts/run-remote-e2e-example.sh
+Validation-Command: `+test.command+`
+Validation-Exit-Code: 0
+Capability-Assertion: cap.example returns a non-empty deployed result.
+`)
+			matrix := matrixWithRemoteValidationRefs(matrixRefSpec{capability: "cap.example", ref: "prod-example"})
+
+			if findings := CheckRemoteValidationArtifacts(matrix, repoRoot, nil); len(findings) != 1 {
+				t.Fatalf("findings = %+v, want spoofed or masked driver command rejected", findings)
+			}
+		})
+	}
+}
+
+func TestCheckRemoteValidationArtifactsAcceptsDirectDriverExitCapture(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	source := filepath.Join(repoRoot, "scripts", "verify-golden-corpus-gate.sh")
+	if err := os.MkdirAll(filepath.Dir(source), 0o755); err != nil {
+		t.Fatalf("mkdir source dir: %v", err)
+	}
+	if err := os.WriteFile(source, []byte("#!/usr/bin/env bash\n"), 0o755); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	writeRemoteValidationArtifactBody(t, repoRoot, "prod-example", `# production validation
+
+Validation-Slug: prod-example
+Validation-Tier: deployed_services
+Validation-Date: 2026-08-08
+Evidence-Kind: compose_e2e
+Evidence-Source: scripts/verify-golden-corpus-gate.sh
+Validation-Command: ESHU_QUERY_PROFILE=local_authoritative GATE_COMPOSE_PROJECT=proof bash scripts/verify-golden-corpus-gate.sh --verbose >/tmp/proof.log 2>&1; echo $?
+Validation-Exit-Code: 0
+Capability-Assertion: cap.example returns a non-empty deployed result.
+`)
+	matrix := matrixWithRemoteValidationRefs(matrixRefSpec{capability: "cap.example", ref: "prod-example"})
+
+	if findings := CheckRemoteValidationArtifacts(matrix, repoRoot, nil); len(findings) != 0 {
+		t.Fatalf("findings = %+v, want env-prefixed redirected driver command accepted", findings)
+	}
+}
+
+func TestCheckRemoteValidationArtifactsRequiresDirectExitCaptureForLiveEvidence(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	source := filepath.Join(repoRoot, "docs", "internal", "evidence", "live-proof.md")
+	if err := os.MkdirAll(filepath.Dir(source), 0o755); err != nil {
+		t.Fatalf("mkdir source dir: %v", err)
+	}
+	if err := os.WriteFile(source, []byte("# live proof\n"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	writeRemoteValidationArtifactBody(t, repoRoot, "prod-example", `# production validation
+
+Validation-Slug: prod-example
+Validation-Tier: deployed_services
+Validation-Date: 2026-08-08
+Evidence-Kind: live_backend
+Evidence-Source: docs/internal/evidence/live-proof.md
+Validation-Command: curl --fail http://127.0.0.1:8080/proof
+Validation-Exit-Code: 0
+Capability-Assertion: cap.example returns a non-empty deployed result.
+`)
+	matrix := matrixWithRemoteValidationRefs(matrixRefSpec{capability: "cap.example", ref: "prod-example"})
+
+	if findings := CheckRemoteValidationArtifacts(matrix, repoRoot, nil); len(findings) != 1 {
+		t.Fatalf("findings = %+v, want missing direct exit capture rejected", findings)
+	}
+}
+
 func TestCheckRemoteValidationArtifactsAcceptsDeployedKubernetesDriver(t *testing.T) {
 	t.Parallel()
 
