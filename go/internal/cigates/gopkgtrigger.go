@@ -26,6 +26,20 @@ var goPackageSubcommands = map[string]struct{}{
 	"vet":      {},
 }
 
+// goPackageGateCount is how many local gates in specs/ci-gates.v1.yaml run at
+// least one Go package from their own local.command or local.test_command —
+// the set this check covers and checkScriptTriggerCoverage structurally cannot
+// see.
+//
+// It lives in a constant guarded by TestGoPackageGateCount rather than in prose
+// because this package has already been burned twice by a hand-written count:
+// checkVerifyScriptWorkflowMatch's doc comment hard-coded 29 gates and the
+// registry grew past it silently, and the first version of THIS file's comment
+// said 19 by miscounting gates with no scripts/ token (which includes the npm
+// ones) as Go gates. A reviewer caught the second one. Keep the figure in
+// exactly one place that a test can check.
+const goPackageGateCount = 17
+
 // argTrimCutset strips shell punctuation that can adhere to a token once a
 // command is split on whitespace: quotes, and the parentheses of a subshell.
 // A package argument that closes a subshell arrives as "./internal/x)", and
@@ -47,19 +61,21 @@ var shellSeparators = map[string]struct{}{
 // checkScriptTriggerCoverage (scripttrigger.go) enforces for shell gates, and
 // it exists for the same reason: a gate that does not select on an edit to its
 // own implementation is false-green locally, and CI becomes the first place the
-// edit runs. 19 of the registry's local gates are implemented as a Go package
-// (`go run ./cmd/x`, `go test ./internal/y`) rather than a scripts/ file, and
-// checkScriptTriggerCoverage cannot see any of them — it only derives
-// "scripts/"-prefixed tokens. Editing the program that IS the gate went
-// unchecked for exactly the gates whose logic is hardest to review by eye
-// (#5873).
+// edit runs. A sizeable minority of the registry's local gates are implemented
+// as a Go package (`go run ./cmd/x`, `go test ./internal/y`) rather than a
+// scripts/ file, and checkScriptTriggerCoverage cannot see any of them — it
+// only derives "scripts/"-prefixed tokens. Editing the program that IS the gate
+// went unchecked for exactly the gates whose logic is hardest to review by eye
+// (#5873). The exact figure lives in goPackageGateCount below rather than in
+// this sentence, for the reason scriptworkflow.go's doc comment records: a
+// hard-coded count in prose here went stale silently once already.
 //
 // The package set is derived, not declared, so a gate added later inherits the
 // property instead of having to remember it.
 //
 // Narrowings, all deliberate:
 //
-//   - Only the four subcommands in goPackageSubcommands count. `go list -deps
+//   - Only the subcommands in goPackageSubcommands count. `go list -deps
 //     ./...` in the sdk gates reports on packages without running them, so a
 //     change inside a merely-listed package cannot alter the gate's verdict.
 //   - A package token is attributed to the most recent `go <subcommand>` on the

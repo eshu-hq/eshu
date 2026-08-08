@@ -339,7 +339,7 @@ and `eshu-diagnostic-rigor`.
 
 - **checkGoPackageTriggerCoverage (`gopkgtrigger.go`, check 10) is check 8 for
   gates written in Go, and keeps the same declared-not-derived rule.** Check 8
-  only derives `scripts/`-prefixed tokens, so it is blind to the 19 local gates
+  only derives `scripts/`-prefixed tokens, so it is blind to the local gates
   whose implementation is a Go package (`go run ./cmd/x`, `go test
   ./internal/y`). Editing the program that IS such a gate did not select it,
   which is the #5873 false green. Check 10 derives the REQUIREMENT from the
@@ -368,6 +368,14 @@ and `eshu-diagnostic-rigor`.
   `sdk/go/collector/**` matches at any depth. If you touch this parser, the
   question to ask about any narrowing is not "is it more specific" but "can a
   broader trigger swallow it".
+
+  Do not write the number of Go-package gates into prose. It belongs in
+  `goPackageGateCount`, which `TestGoPackageGateCount` derives from the
+  committed registry through the production extractor. This package has paid
+  for that twice: `checkVerifyScriptWorkflowMatch`'s doc comment hard-coded 29
+  gates and the registry silently grew past it, and this file's first version
+  said 19 by reusing a count of gates with no `scripts/` token — which includes
+  the npm gates. A reviewer caught the second one.
 
   Widening a trigger costs `make pre-pr` time, so measure it rather than
   guessing. Landing #5873 changed exactly two selections, each by one gate: a
