@@ -27,8 +27,9 @@ const (
 	// #5717 node-class target of the instance->AMI relationship the EC2
 	// scanner emits (RelationshipEC2InstanceUsesAMI): the AMI materializes as
 	// an ordinary CloudResource node under this resource_type, carrying only
-	// identity (account/region/resource_id) — no name, state, owner, or
-	// creation-date metadata, since that requires a DescribeImages call the
+	// identity (account/region/resource_id). Its `name` is the bare AMI id, not
+	// a human-readable name; there is no state, owner, or creation-date
+	// metadata, since that requires a DescribeImages call the
 	// EC2 scanner does not make (see awscloud.ResourceTypeEC2AMI doc).
 	ResourceTypeEC2AMI = "aws_ec2_ami"
 

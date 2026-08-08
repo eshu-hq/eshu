@@ -29,6 +29,10 @@ var nonCountingReducerRetryFailureClasses = []string{
 	reducer.KubernetesCorrelationNodesNotReadyFailureClass,
 	reducer.GCPRelationshipNodesNotReadyFailureClass,
 	reducer.EC2InstanceIdentityNodesNotReadyFailureClass,
+	// #5717: an ec2_instance_uses_ami edge deferred until the EC2 instance node
+	// phase commits. Waiting on an upstream phase, not failing on its own
+	// merits, so it must not erode the retry budget.
+	reducer.AWSRelationshipEC2InstanceNodesNotReadyFailureClass,
 	// #5709: a cross-scope consumer deferred until its declared producer scope
 	// activates. Enrolled here so a retrying row in this class keeps its
 	// attempt_count and is not dead-lettered while it waits. Inert until the

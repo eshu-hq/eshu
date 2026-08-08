@@ -43,7 +43,8 @@ func amiResourceEnvelopes(boundary awscloud.Boundary, instance Instance, seenAMI
 // for an AMI (resource_type=aws_ec2_ami), the node-class target the
 // instance->AMI relationship (RelationshipEC2InstanceUsesAMI) resolves
 // against. It carries ONLY the identity fields the existing DescribeInstances
-// pass already reports (account, region, and the AMI id itself) — no name,
+// pass already reports (account, region, and the AMI id itself). The `name`
+// field is set, but only to the bare AMI id — there is no human-readable name,
 // state, owner, or creation-date metadata. That AMI metadata lives on the
 // separate DescribeImages API, which this increment deliberately does not
 // call: the scope is "make the edge resolve" (#5717), not "enrich the AMI

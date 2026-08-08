@@ -159,6 +159,22 @@ func (h AWSRelationshipMaterializationHandler) Handle(
 
 	resourceEnvelopes, relationshipEnvelopes := splitAWSFactEnvelopes(envelopes)
 
+	// Second readiness gate, conditional on the batch. canonicalNodesReady above
+	// covers this domain's own acceptance unit, which materializes ordinary
+	// aws_resource nodes. The source endpoint of ec2_instance_uses_ami is not
+	// one of those: the EC2 instance is excluded from generic resource
+	// materialization (#5448) and committed by DomainEC2InstanceNodeMaterialization
+	// under a different acceptance unit. Without this, relationship work that
+	// wins the race writes a sourceless edge -- MATCH finds nothing, MERGE never
+	// runs, no error is raised, the work item succeeds, and the later
+	// instance-node commit does not reopen it (#5717).
+	if batchNeedsEC2InstanceNodes(relationshipEnvelopes) && !h.ec2InstanceNodesReady(intent) {
+		return Result{}, awsRelationshipEC2InstanceNodesNotReadyError{
+			scopeID:      intent.ScopeID,
+			generationID: intent.GenerationID,
+		}
+	}
+
 	extractStart := time.Now()
 	rows, tally, quarantined, err := ExtractAWSRelationshipEdgeRows(resourceEnvelopes, relationshipEnvelopes)
 	if err != nil {
