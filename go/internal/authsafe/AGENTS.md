@@ -13,9 +13,21 @@ Scoped rules for the shared sign-in request-value checks. Load
   `internal/query`, `internal/githublogin` and `internal/oidclogin`; giving it
   dependencies pulls them into all three.
 - **Never re-copy a check out of here.** The entire reason this package exists
-  is that `safeReturnPath` had three byte-identical copies and any tightening
-  needed three edits (#5388). If a caller needs a variant, add a parameter or a
-  second function here — do not fork it locally.
+  is that the return-path check had byte-identical copies spread across the
+  three packages above, so any tightening needed an edit in every one of them
+  (#5388). If a caller needs a variant, add a parameter or a second function
+  here — do not fork it locally.
+- **Do not write the copy count anywhere.** It has been wrong twice: the
+  extraction first found three copies, a review found a fourth
+  (`safeOIDCReturnPath`), and then this file still said three after the others
+  were corrected. The number is not the invariant; "this is the single copy"
+  is. If you need to check, sweep for the shape rather than the names:
+
+  ```
+  rg -n 'HasPrefix\(path, "//")' --glob '!*_test.go' go/
+  ```
+
+  That should return exactly one hit — `returnpath.go`.
 - **A rejection is the empty string, always.** Callers substitute their own
   configured default. Do not return a "safe" fallback path from here: this
   package does not know what a given flow's default landing page is, and
