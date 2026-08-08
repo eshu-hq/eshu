@@ -15,11 +15,12 @@ import { fmt, dash, truncatedNote } from "./adminFormat";
 import {
   loadRoleAssignments,
   grantRoleAssignment,
-  revokeRoleAssignment
+  revokeRoleAssignment,
 } from "../../api/adminConsole";
 import type { RoleAssignmentItem } from "../../api/adminConsole";
 import type { EshuApiClient } from "../../api/client";
 import { Panel, Badge } from "../../components/atoms";
+import { useConfirm } from "../../components/useConfirm";
 
 function statusBadge(status: string | undefined): React.JSX.Element {
   if (status === "revoked") return <Badge tone="crit">revoked</Badge>;
@@ -28,7 +29,7 @@ function statusBadge(status: string | undefined): React.JSX.Element {
 }
 
 export function AdminAssignmentsPanel({
-  client
+  client,
 }: {
   readonly client?: EshuApiClient;
 }): React.JSX.Element {
@@ -42,6 +43,13 @@ export function AdminAssignmentsPanel({
   const [grantRole, setGrantRole] = useState("");
   const [grantWorkspace, setGrantWorkspace] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+  const { confirm, confirmDialog, cancelConfirm } = useConfirm();
+
+  // A source change invalidates a confirmation opened against the previous
+  // client — see AdminTokensPanel for the full reasoning.
+  useEffect(() => {
+    cancelConfirm();
+  }, [client, cancelConfirm]);
 
   useEffect(() => {
     let cancelled = false;
@@ -65,13 +73,13 @@ export function AdminAssignmentsPanel({
 
   const onGrant = useCallback(async () => {
     if (!client || grantUser.length === 0 || grantRole.length === 0) return;
-    if (!globalThis.confirm?.(`Grant role ${grantRole} to user ${grantUser}?`)) return;
+    if (!(await confirm(`Grant role ${grantRole} to user ${grantUser}?`))) return;
     setBusy(true);
     setNotice(null);
     const ok = await grantRoleAssignment(client, {
       user_id: grantUser,
       role_id: grantRole,
-      workspace_id: grantWorkspace
+      workspace_id: grantWorkspace,
     });
     setBusy(false);
     if (ok) {
@@ -83,18 +91,22 @@ export function AdminAssignmentsPanel({
     } else {
       setNotice(`Failed to grant ${grantRole} to ${grantUser}.`);
     }
-  }, [client, grantUser, grantRole, grantWorkspace]);
+  }, [client, grantUser, grantRole, grantWorkspace, confirm]);
 
   const onRevoke = useCallback(
     async (item: RoleAssignmentItem) => {
       if (!client) return;
-      if (!globalThis.confirm?.(`Revoke role ${item.role_id} from user ${item.user_id}?`)) return;
+      if (
+        !(await confirm(`Revoke role ${item.role_id} from user ${item.user_id}?`, { danger: true }))
+      ) {
+        return;
+      }
       setBusy(true);
       setNotice(null);
       const ok = await revokeRoleAssignment(client, {
         user_id: item.user_id,
         role_id: item.role_id,
-        workspace_id: item.workspace_id
+        workspace_id: item.workspace_id,
       });
       setBusy(false);
       if (ok) {
@@ -104,7 +116,7 @@ export function AdminAssignmentsPanel({
         setNotice(`Failed to revoke ${item.role_id} from ${item.user_id}.`);
       }
     },
-    [client]
+    [client, confirm],
   );
 
   const grantForm = (
@@ -155,6 +167,7 @@ export function AdminAssignmentsPanel({
     return (
       <Panel title="Role assignments">
         {grantForm}
+        {confirmDialog}
         <p className="unavailable-note">Role assignments unavailable from this source.</p>
       </Panel>
     );
@@ -163,7 +176,12 @@ export function AdminAssignmentsPanel({
   return (
     <Panel title="Role assignments">
       {grantForm}
-      {notice ? <p className="empty-note" role="status">{notice}</p> : null}
+      {confirmDialog}
+      {notice ? (
+        <p className="empty-note" role="status">
+          {notice}
+        </p>
+      ) : null}
       {truncated ? <p className="empty-note">{truncatedNote(truncated, items.length)}</p> : null}
       {items.length === 0 ? (
         <p className="empty-note">No role assignments found.</p>

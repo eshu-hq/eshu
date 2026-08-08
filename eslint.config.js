@@ -108,6 +108,26 @@ export default tseslint.config(
       // surface belongs in a follow-up, not a first-pass gate.
       "no-console": ["error", { allow: ["warn", "error"] }],
 
+      // Issue #5187: the native modal dialogs block the renderer main thread,
+      // which freezes the tab under headless/CDP automation that does not
+      // auto-dismiss them, and none of them can be styled, focus-managed, or
+      // driven from a component test. Admin mutations use the in-app
+      // useConfirm() hook instead.
+      //
+      // This rule is scope-aware, which is the point: a component that
+      // destructures `confirm` from useConfirm() shadows the global, so the
+      // local binding is fine while a genuine reference to the global is an
+      // error — including in a second component in the same file that never
+      // took the hook. The source scan in apps/console/src/noNativeConfirm.test.ts
+      // covers what this cannot: the explicitly qualified globalThis.confirm
+      // and window.confirm member expressions.
+      "no-restricted-globals": [
+        "error",
+        { name: "confirm", message: "Use the in-app useConfirm() hook (#5187)." },
+        { name: "alert", message: "Use an in-app notice; alert() blocks the renderer." },
+        { name: "prompt", message: "Use an in-app form; prompt() blocks the renderer." },
+      ],
+
       // Issue #3763 acceptance: no-unused-vars.
       // Underscore-prefixed bindings are intentional placeholders (callback
       // args, throwaway destructures) and stay allowed.
