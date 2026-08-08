@@ -13,6 +13,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/samlauth"
+
+	"github.com/eshu-hq/eshu/go/internal/authsafe"
 )
 
 const (
@@ -48,7 +50,7 @@ type SAMLProviderConfig struct {
 
 // SAMLRequestCreateRecord is the hash-only AuthnRequest state stored for ACS.
 // ReturnToPath is the sanitized post-login redirect path (same-origin only,
-// already validated by safeOIDCReturnPath). Empty string means no redirect —
+// already validated by authsafe.ReturnPath). Empty string means no redirect —
 // the ACS handler falls back to a JSON session response.
 type SAMLRequestCreateRecord struct {
 	RequestIDHash  string
@@ -192,7 +194,7 @@ func (h *SAMLHandler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	record := SAMLRequestCreateRecord{
 		RequestIDHash:  requestIDHash,
 		RelayStateHash: BrowserSessionSecretHash(relayState),
-		ReturnToPath:   safeOIDCReturnPath(r.URL.Query().Get("return_to")),
+		ReturnToPath:   authsafe.ReturnPath(r.URL.Query().Get("return_to")),
 		IssuedAt:       now,
 		ExpiresAt:      now.Add(DefaultSAMLRequestTTL),
 	}
@@ -411,7 +413,7 @@ func (h *SAMLHandler) createSession(w http.ResponseWriter, r *http.Request, auth
 	// Mirror OIDC: redirect to returnToPath when a safe same-origin path was
 	// stored with the AuthnRequest. Fall back to JSON session response when no
 	// path was stored (API clients or direct ACS callers without a console).
-	safePath := safeOIDCReturnPath(returnToPath)
+	safePath := authsafe.ReturnPath(returnToPath)
 	if safePath != "" {
 		http.Redirect(w, r, safePath, http.StatusSeeOther)
 		return
