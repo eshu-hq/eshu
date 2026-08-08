@@ -97,4 +97,36 @@ var snapshotEntityBuckets = []struct {
 	{bucket: "flux_buckets", label: "FluxBucket"},
 	{bucket: "flux_helm_releases", label: "FluxHelmRelease"},
 	{bucket: "flux_helm_repositories", label: "FluxHelmRepository"},
+	// Issue #5531: these five buckets were registered in content/shape's
+	// contentEntityBuckets (and, for the CloudFormation three and
+	// TerraformBlock, are already exercised by content/shape's own
+	// materialize_test.go and by query/entity_content_iac_fallback_test.go's
+	// content-fallback path) but were missing from this twin, so the HCL and
+	// JSON parsers' real terraform_blocks/cloudformation_conditions/
+	// cloudformation_cross_stack_imports/cloudformation_cross_stack_exports
+	// output was silently dropped before a content_entity fact was ever built
+	// -- no fact, no content row, no error, no failing unit test, exactly the
+	// #5483 C1 defect class. protocol_implementations has no parser producing
+	// that bucket key today (ProtocolImplementation is reached instead via
+	// entityLabelForBucket's module_kind rewrite of the "modules" bucket); it
+	// is registered here only so this twin stays an exact mirror of
+	// content/shape's table, per the sync gate in
+	// go/internal/content/shape/bucket_sync_gate_test.go (CI gate
+	// content-entity-bucket-sync). Four of the five (terraform_blocks and the
+	// three CloudFormation extended labels) are not wired into the projector's
+	// graph-write path (entityTypeLabelMap in go/internal/projector/canonical.go);
+	// ProtocolImplementation IS already registered there
+	// ("protocol_implementation" -> "ProtocolImplementation") and
+	// EntityTypeLabel also recognizes the PascalCase value directly, so that
+	// entry is inert only because no parser produces the
+	// protocol_implementations bucket key today, not because the projector
+	// cannot name the label. See canonical.go's entityTypeLabelMap comment and
+	// the gate's knownMissingProjectorLabels ledger for the four labels still
+	// missing, and issue #5954 tracking full graph support (schema constraint,
+	// retract-label coverage, golden-corpus proof) for those.
+	{bucket: "terraform_blocks", label: "TerraformBlock"},
+	{bucket: "protocol_implementations", label: "ProtocolImplementation"},
+	{bucket: "cloudformation_conditions", label: "CloudFormationCondition"},
+	{bucket: "cloudformation_cross_stack_imports", label: "CloudFormationImport"},
+	{bucket: "cloudformation_cross_stack_exports", label: "CloudFormationExport"},
 }

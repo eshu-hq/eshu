@@ -1862,6 +1862,31 @@ gates:
       - go
     ci_only_reason: ""
 
+  - id: content-entity-bucket-sync
+    name: Content-entity bucket->label three-way sync (#5531)
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    # Triggers name all three source files the gate reads, not just the package
+    # it runs from. A bucket added to the collector's twin or a label added to
+    # the projector map must select this gate — those are exactly the edits it
+    # exists to catch, and triggering only on the shape package would leave the
+    # two most likely edits unguarded.
+    triggers:
+      - "go/internal/content/shape/**"
+      - "go/internal/collector/git_snapshot_entity_buckets.go"
+      - "go/internal/projector/canonical.go"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "cd go && go test ./internal/content/shape -run 'TestContentEntityBucketsMatchCollectorTwin|TestContentEntityLabelsHaveProjectorLabels|TestBucketSyncDriftLedgerIsHonest' -count=1"
+      test_command: "cd go && go test ./internal/content/shape -run 'TestContentEntityBucketsMatchCollectorTwin|TestContentEntityLabelsHaveProjectorLabels|TestBucketSyncDriftLedgerIsHonest' -count=1"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify content-entity bucket sync gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
   - id: ifa-materialized-edge-coverage
     name: Ifa materialized-edge exhaustiveness gate (#5351)
     category: exactness
