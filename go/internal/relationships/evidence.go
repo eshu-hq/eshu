@@ -168,10 +168,19 @@ func discoverFromEnvelopeWithIndex(
 	// Kustomize reads the parser's kustomize_overlays bucket when the file was
 	// parsed, and re-parses raw content only when it was not.
 	//
-	// The two produce the same set — TestStructuredKustomizeCoversEveryRawValue
-	// asserts that in both directions — so this is about not doing the work
-	// twice for one fact, not about picking a winner. Preferring the bucket
-	// skips a redundant YAML parse of a file the parser already parsed.
+	// The two do NOT produce the same set, and only one direction is safe to
+	// rely on: everything the structured read produces, the raw read also
+	// produces. TestStructuredKustomizeCoversEveryRawValue asserts that
+	// direction and deliberately does not assert the reverse.
+	//
+	// The reverse fails because the raw read ends with a regex over the whole
+	// file that hands every `key: value` scalar to the catalog matcher, tagged
+	// as a resource reference whatever key it came from. The typed read has no
+	// equivalent and should not — that catch-all is a property of reading raw
+	// text, not of reading the parser's lists.
+	//
+	// So preferring the bucket here is about not parsing one file twice for one
+	// fact, not about picking a winner.
 	//
 	// It does NOT remove the second parse overall. The collector emits a
 	// content fact and a file fact per file, and only the file fact carries
