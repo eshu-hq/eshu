@@ -294,3 +294,15 @@ func formatCompletionEventBreakdown(rows []completionEventRow) string {
 	}
 	return strings.Join(details, " ")
 }
+
+// NonTerminalWorkItems implements pipelineStateQuerier.
+//
+// Deliberately delegates to ResidualBreakdown rather than issuing its own
+// query. "Work items that never reached a terminal success" and "rows the
+// residual count counted" are the same set by definition, and two SQL
+// statements expressing one predicate is how they drift apart: a later change
+// to the residual predicate would silently stop matching what the
+// zero-correlation diagnosis reports.
+func (q *sqlDrainQuerier) NonTerminalWorkItems(ctx context.Context) ([]residualRow, error) {
+	return q.ResidualBreakdown(ctx)
+}

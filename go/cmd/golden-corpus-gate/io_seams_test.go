@@ -181,7 +181,7 @@ func TestCheckGraphRequiredOnlyPassesOnExistence(t *testing.T) {
 		selfLoop: dartSelfLoopFloor(),
 	}
 	var r Report
-	if err := checkGraph(context.Background(), c, snap, true, map[string]bool{"rc-1": true, "rc-3": true}, &r); err != nil {
+	if err := checkGraph(context.Background(), c, snap, true, map[string]bool{"rc-1": true, "rc-3": true}, nil, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
 	}
 	if r.Failed() {
@@ -206,7 +206,7 @@ func TestCheckGraphAdvisoryCorrelationDoesNotBlock(t *testing.T) {
 		selfLoop: dartSelfLoopFloor(),
 	}
 	var r Report
-	if err := checkGraph(context.Background(), c, snap, true, map[string]bool{"rc-1": true, "rc-3": true}, &r); err != nil {
+	if err := checkGraph(context.Background(), c, snap, true, map[string]bool{"rc-1": true, "rc-3": true}, nil, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
 	}
 	if r.Failed() {
@@ -220,7 +220,7 @@ func TestCheckGraphRequiredFailsWhenCorrelationMissing(t *testing.T) {
 		t.Fatal(err)
 	}
 	var r Report
-	if err := checkGraph(context.Background(), fakeCounter{}, snap, true, map[string]bool{"rc-1": true, "rc-3": true}, &r); err != nil {
+	if err := checkGraph(context.Background(), fakeCounter{}, snap, true, map[string]bool{"rc-1": true, "rc-3": true}, nil, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
 	}
 	if !r.Failed() {

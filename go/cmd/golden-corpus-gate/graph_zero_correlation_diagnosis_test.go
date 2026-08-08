@@ -63,7 +63,7 @@ func TestZeroCorrelationDiagnosisReportsAbsentRelationship(t *testing.T) {
 	}
 	r := &goldengate.Report{}
 	if err := checkGraph(context.Background(), c, zeroCorrelationSnapshot(), true,
-		map[string]bool{"rc-test": true}, r); err != nil {
+		map[string]bool{"rc-test": true}, nil, r); err != nil {
 		t.Fatalf("checkGraph() error = %v, want nil", err)
 	}
 
@@ -91,7 +91,7 @@ func TestZeroCorrelationDiagnosisReportsLabelMismatch(t *testing.T) {
 	}
 	r := &goldengate.Report{}
 	if err := checkGraph(context.Background(), c, zeroCorrelationSnapshot(), true,
-		map[string]bool{"rc-test": true}, r); err != nil {
+		map[string]bool{"rc-test": true}, nil, r); err != nil {
 		t.Fatalf("checkGraph() error = %v, want nil", err)
 	}
 
@@ -119,7 +119,7 @@ func TestZeroCorrelationDiagnosisReportsMissingEndpointNodes(t *testing.T) {
 	}
 	r := &goldengate.Report{}
 	if err := checkGraph(context.Background(), c, snap, true,
-		map[string]bool{"rc-test": true}, r); err != nil {
+		map[string]bool{"rc-test": true}, nil, r); err != nil {
 		t.Fatalf("checkGraph() error = %v, want nil", err)
 	}
 
@@ -141,7 +141,7 @@ func TestZeroCorrelationDiagnosisSkippedWhenCorrelationPasses(t *testing.T) {
 	}
 	r := &goldengate.Report{}
 	if err := checkGraph(context.Background(), c, zeroCorrelationSnapshot(), true,
-		map[string]bool{"rc-test": true}, r); err != nil {
+		map[string]bool{"rc-test": true}, nil, r); err != nil {
 		t.Fatalf("checkGraph() error = %v, want nil", err)
 	}
 
@@ -163,7 +163,7 @@ func TestZeroCorrelationDiagnosisStaysAdvisoryForNonBlocking(t *testing.T) {
 	}
 	r := &goldengate.Report{}
 	if err := checkGraph(context.Background(), c, zeroCorrelationSnapshot(), true,
-		map[string]bool{}, r); err != nil {
+		map[string]bool{}, nil, r); err != nil {
 		t.Fatalf("checkGraph() error = %v, want nil", err)
 	}
 
@@ -193,7 +193,7 @@ func TestZeroCorrelationDiagnosisRetriesWithTheEvidenceFilter(t *testing.T) {
 	}
 	r := &goldengate.Report{}
 	if err := checkGraph(context.Background(), c, snap, true,
-		map[string]bool{"rc-test": true}, r); err != nil {
+		map[string]bool{"rc-test": true}, nil, r); err != nil {
 		t.Fatalf("checkGraph() error = %v, want nil", err)
 	}
 
