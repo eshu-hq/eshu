@@ -113,7 +113,7 @@ same vocabulary used by incident context.
 | `rejected` | Evidence was intentionally dropped because it was invalid, unsafe, secret-bearing, or outside the configured scope. |
 | `exact` | Evidence resolves to one unambiguous incident-routing object or downstream incident-context path. |
 | `derived` | Evidence supports a likely path but depends on a weaker join, such as a tag, name fingerprint, or route summary. |
-| `ambiguous` | Evidence resolves to more than one candidate and cannot promote truth. |
+| `ambiguous` | Evidence resolves to more than one candidate and cannot promote truth. For the incident-context anchor read this counts only anchors that decode: a stored row Eshu cannot read is not a rival answer, so one readable incident beside one unreadable row returns the incident, and no readable row at all returns not-found rather than a candidate list the caller cannot act on (#4830). |
 | `missing` | A required evidence slot is absent. Missing Jira or Terraform evidence is valid for no-IaC PagerDuty incidents. |
 
 Reducers may expose both a source-class state and a resolution outcome. For
