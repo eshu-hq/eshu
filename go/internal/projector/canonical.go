@@ -157,6 +157,17 @@ type NestedFunctionRow struct {
 // entityTypeLabelMap maps content store entity_type strings to their canonical
 // Neo4j node labels. Every label listed here must have corresponding schema
 // support in graph/schema.go, either a constraint or an intentional index.
+//
+// A content-entity label with no entry here is silently skipped by
+// extractEntities (the fact is written, the graph node never appears; issue
+// #5531). When a bucket in content/shape's contentEntityBuckets is meant to
+// reach the graph, register its label here too;
+// go/internal/content/shape/bucket_sync_gate_test.go (CI gate
+// content-entity-bucket-sync) checks contentEntityBuckets and this map stay in
+// sync, except for a small, commented ledger (knownMissingProjectorLabels in
+// that test file) of labels that are deliberately content-store-only today
+// (TerraformBlock, the CloudFormation extended labels, and
+// PagerDutyDeclaration) — graph support for those is tracked by #5954.
 var entityTypeLabelMap = map[string]string{
 	// Code entities
 	"function":                "Function",

@@ -1281,6 +1281,7 @@ gates:
       - "scripts/verify-docs-only-ci-skip.sh"
       - "scripts/test-verify-docs-only-ci-skip.sh"
       - "scripts/lib/ci-gate-merge-group-checks.sh"
+      - "scripts/lib/ci-gate-predicate-quantifier.sh"
     local:
       command: "bash scripts/verify-docs-only-ci-skip.sh"
       test_command: "bash scripts/test-verify-docs-only-ci-skip.sh"
@@ -1861,12 +1862,44 @@ gates:
       - go
     ci_only_reason: ""
 
+  - id: content-entity-bucket-sync
+    name: Content-entity bucket->label three-way sync (#5531)
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    # Triggers name all three source files the gate reads, not just the package
+    # it runs from. A bucket added to the collector's twin or a label added to
+    # the projector map must select this gate — those are exactly the edits it
+    # exists to catch, and triggering only on the shape package would leave the
+    # two most likely edits unguarded.
+    triggers:
+      - "go/internal/content/shape/**"
+      - "go/internal/collector/git_snapshot_entity_buckets.go"
+      - "go/internal/projector/canonical.go"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "cd go && go test ./internal/content/shape -run 'TestContentEntityBucketsMatchCollectorTwin|TestContentEntityLabelsHaveProjectorLabels|TestBucketSyncDriftLedgerIsHonest' -count=1"
+      test_command: "cd go && go test ./internal/content/shape -run 'TestContentEntityBucketsMatchCollectorTwin|TestContentEntityLabelsHaveProjectorLabels|TestBucketSyncDriftLedgerIsHonest' -count=1"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify content-entity bucket sync gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+
   - id: ifa-materialized-edge-coverage
     name: Ifa materialized-edge exhaustiveness gate (#5351)
     category: exactness
     tier: pre-pr
     blocking: true
     triggers:
+      # This gate runs two package-level `go test` commands, which compile every
+      # file in each package — so an edit to any sibling file can change the
+      # verdict and must select the gate (#5873). The per-file entries below are
+      # kept: they are the files the gate is actually about, and the doc renders
+      # them as the reader's map of what it guards.
+      - "go/internal/ifa/**"
+      - "go/internal/reducer/**"
       - "go/internal/ifa/materialized_edges*.go"
       - "go/internal/ifa/sql_relationship_odu*.go"
       - "go/internal/reducer/materialized_edge_families.go"
@@ -1967,6 +2000,9 @@ gates:
       - "scripts/verify-ifa-fault-injection.sh"
       - "scripts/test-verify-ifa-fault-injection.sh"
       - "scripts/lib/ifa_fault_injection_common.sh"
+      - "scripts/lib/ifa_fault_injection_cells.sh"
+      - "scripts/lib/ifa_fault_injection_driver.sh"
+      - "scripts/lib/ifa_fault_injection_sql_cells.sh"
       - "scripts/lib/ifa_determinism_common.sh"
     local:
       command: "bash scripts/test-verify-ifa-fault-injection.sh"
@@ -2299,6 +2335,11 @@ gates:
       - "specs/product-claims.v1.yaml"
       - "specs/capability-catalog.v1.yaml"
       - "specs/capability-matrix.v1.yaml"
+      # The gate IS this program: it runs `go run ./cmd/capability-inventory
+      # -mode product-claims`, so an edit there must select it (#5873). Its two
+      # sibling gates on the same binary, capability-inventory and
+      # capability-inventory-docs, already trigger on this path.
+      - "go/cmd/capability-inventory/**"
     # The deterministic product-claims-mode verify is credential-free. The live
     # issue-state variant (ESHU_VERIFY_PRODUCT_CLAIM_ISSUES_LIVE=1 + GITHUB_TOKEN)
     # stays CI-only. #4073: narrowed from -mode docs to -mode product-claims so

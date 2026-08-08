@@ -413,6 +413,29 @@ func (r *SharedProjectionRunner) processPartitionWithTelemetry(
 		r.recordSharedProjectionCycle(ctx, domain, duration, result)
 	}
 
+	if err != nil && r.Logger != nil {
+		// Durable observability for a shared-projection partition failure
+		// (e.g. a graph-write MERGE error): the caller (runOneCycleSequential
+		// / runOneCycleConcurrent) drops this error with `continue` and
+		// retries the same (domain, partition) on the next poll cycle --
+		// shared_projection_intents rows carry no attempt_count column, so
+		// without this log line a failed-then-recovered write leaves zero
+		// durable trace anywhere (unlike a fact_work_items domain, where
+		// WorkSink.Fail durably increments attempt_count). This is the
+		// fired-fault, non-vacuity signal
+		// scripts/verify-ifa-fault-injection.sh's SQL-targeted
+		// fail-graph-write-once-then-succeed-sql cell polls for (issue #5555).
+		r.Logger.ErrorContext(
+			ctx,
+			"shared projection partition processing failed; retrying on next poll cycle",
+			log.Domain(domain),
+			slog.Int("partition_id", partitionID),
+			slog.Int("partition_count", partitionCount),
+			slog.String("error", err.Error()),
+			telemetry.PhaseAttr(telemetry.PhaseShared),
+		)
+	}
+
 	return result, err
 }
 

@@ -175,10 +175,17 @@ func TestMaterializedEdgeBaselineWaiverDoesNotGreenFault(t *testing.T) {
 	}
 }
 
-// TestMaterializedEdgeSQLFaultHonestlyWaived proves the #5351 honest landing
-// shape against the REAL committed manifest and waivers: the SQL baseline row
-// is genuinely covered (green), the SQL fault row is WAIVED (advisory, not
-// covered) and its finding prints the tracked defect issue #5555.
+// TestMaterializedEdgeSQLFaultHonestlyWaived pins the honest landing shape
+// against the REAL committed manifest and waivers: the SQL baseline row is
+// genuinely covered, and the fault row is still WAIVED.
+//
+// #5555 fixed a real defect -- the fired-fault assertion had been two
+// independent whole-file greps that both matched when the fault landed on
+// CloudResource -- and cell_killworker_sql is proven live in CI. But
+// cell_failgraphwrite_sql passes locally and does not fire in CI (#5974),
+// caught by its own non-vacuity check. So the fault dimension is not proven in
+// the environment that counts, and this test exists to stop the row going
+// green before it is.
 func TestMaterializedEdgeSQLFaultHonestlyWaived(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
@@ -211,19 +218,19 @@ func TestMaterializedEdgeSQLFaultHonestlyWaived(t *testing.T) {
 		t.Errorf("sql_relationships baseline status = %q, want covered", baseline.Status)
 	}
 
-	// Fault: NOT covered — it must be uncovered (no coverage row) and softened
-	// by the waiver, never a resolved "covered" claim.
-	fault := findMaterializedEdgeCoverage(t, cov, MaterializedEdgeSurfacePrefix+"sql_relationships", replaycoverage.ScenarioTypeFault)
-	if fault.Status == replaycoverage.StatusCovered {
-		t.Error("sql_relationships fault must NOT be covered; the confirmed-false fault (#5555) is waived, not proven")
+	// Fault: waived, not covered. cell_failgraphwrite_sql does not fire in CI
+	// (#5974), so the dimension is unproven where it matters.
+	faultFinding := findFinding(t, gate, MaterializedEdgeSurfacePrefix+"sql_relationships|fault")
+	if !faultFinding.OK {
+		t.Errorf("waived sql fault row must not fail the gate, got %+v", faultFinding)
+	}
+	if !strings.Contains(faultFinding.Detail, "#5974") {
+		t.Errorf("the sql fault waiver must name the issue that will retire it, got detail %q", faultFinding.Detail)
 	}
 
-	faultFinding := findFinding(t, gate, MaterializedEdgeSurfacePrefix+"sql_relationships|fault")
-	if !faultFinding.OK || faultFinding.Required {
-		t.Errorf("waived sql fault row must be advisory OK, got %+v", faultFinding)
-	}
-	if !strings.Contains(faultFinding.Detail, "#5555") {
-		t.Errorf("waived sql fault finding must print the tracked issue #5555, got detail %q", faultFinding.Detail)
+	byKey := materializedEdgeWaiversByKey(waivers)
+	if _, ok := byKey[materializedEdgeWaiverKey{Surface: MaterializedEdgeSurfacePrefix + "sql_relationships", ProofGate: materializedEdgeProofGateFault}]; !ok {
+		t.Error("sql_relationships fault is unproven in CI (#5974); it must carry a waiver rather than read as covered")
 	}
 }
 

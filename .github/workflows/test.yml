@@ -63,6 +63,30 @@ jobs:
         if: ${{ github.event_name != 'merge_group' }}
         uses: dorny/paths-filter@v3
         with:
+          # Without this line the whole filter below is decorative. dorny
+          # compiles each pattern separately and, by default
+          # (predicate-quantifier: some), includes a file the moment ONE pattern
+          # matches it. `**` matches everything, so it short-circuits first and
+          # the five `!` negations can never subtract: the filter is exactly
+          # equivalent to `code: ['**']`, and every job it gates runs on every
+          # PR including a docs-only one. Confirmed against
+          # dorny/paths-filter@v3's own src/filter.ts, which defines precisely
+          # PredicateQuantifier { EVERY = 'every', SOME = 'some' } and falls
+          # through to `patterns.some(...)`; v3 has no SOME_WITH_EXCLUDES case
+          # (that arrived later on master), so 'every' is the only value that
+          # makes a negation mean anything here. #5896.
+          #
+          # This is also what #5818 actually needed. That fix added the
+          # `!.agents/**` negation below and it has been inert ever since —
+          # under `some` no negation subtracts, however it is anchored, so the
+          # root-anchoring of `!*.md` was never the operative cause of those
+          # ~118 wasted runner-minutes.
+          #
+          # Scoped deliberately to the three filters that HAVE negations. Do not
+          # copy this line to static-contract-gates.yml: its filters are all
+          # positive patterns, and 'every' would require a file to match every
+          # one of them at once, selecting almost nothing.
+          predicate-quantifier: 'every'
           # `code` is true when ANY changed file is outside the docs set. The
           # bare `*.md` negation is ROOT-ANCHORED (no `/` in the pattern), so it
           # only strips root-level markdown (README.md, CLAUDE.md, AGENTS.md,
@@ -334,7 +358,20 @@ jobs:
           fi
           count="$(printf '%s\n' "${pkgs}" | wc -l | tr -d ' ')"
           echo "shard ${SHARD_INDEX}/${SHARD_TOTAL}: ${count} package(s)"
-          printf '%s\n' "${pkgs}" | xargs go test -count=1 -race -timeout 300s -p 2
+          # -timeout is PER TEST BINARY, so this budget has to cover the single
+          # slowest package in the shard, not the shard's total. internal/ifa
+          # measures 107s under -race on a dev laptop and blew the old 300s on
+          # a CI runner (run 31249051543, shard 2/4: "panic: test timed out
+          # after 5m0s ... FAIL github.com/eshu-hq/eshu/go/internal/ifa
+          # 300.894s") -- the suite completes, the budget was just sized with
+          # no headroom for a slower, loaded runner.
+          #
+          # 900s keeps ~3x margin over that observed CI cost while still
+          # failing a genuine hang in minutes. It is a sizing fix, not a mask:
+          # ~78% of internal/ifa's race time is one test
+          # (TestRepoDependencyBackfillProofOduCanonicalBytesAreDeterministic,
+          # 83.4s for two CanonicalizeOdu calls), tracked separately in #5975.
+          printf '%s\n' "${pkgs}" | xargs go test -count=1 -race -timeout 900s -p 2
 
   go-race-complete:
     # Umbrella gate: a single stable status name that is green only when EVERY

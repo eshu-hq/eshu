@@ -83,7 +83,7 @@ func (s PostgresIncidentContextStore) ReadIncidentContext(
 		filter.Provider,
 		filter.ProviderIncidentID,
 		filter.ScopeID,
-		2,
+		incidentContextAnchorProbeLimit,
 	)
 	if err != nil {
 		return IncidentContextSnapshot{}, fmt.Errorf("list incident context anchors: %w", err)
@@ -91,26 +91,31 @@ func (s PostgresIncidentContextStore) ReadIncidentContext(
 	if len(incidentRows) == 0 {
 		return IncidentContextSnapshot{}, ErrIncidentContextNotFound
 	}
-	if len(incidentRows) > 1 {
+
+	// Decode before counting. A row that fails typed decode carries no usable
+	// provider_incident_id or source_record_id identity, or an unsupported
+	// schema major; either way it is not a rival answer, and counting it as one
+	// turns "here is your incident" into a 409 whose candidate list the caller
+	// cannot act on (#4830).
+	selection := selectIncidentContextAnchor(incidentRows)
+	if selection.Ambiguous {
 		return IncidentContextSnapshot{}, IncidentContextAmbiguousError{
 			ProviderIncidentID: filter.ProviderIncidentID,
-			Candidates:         incidentContextCandidates(incidentRows),
+			Candidates:         incidentContextCandidates(selection.WellFormed),
 		}
 	}
-
-	incident, ok := decodeIncidentContextIncident(incidentRows[0])
-	if !ok {
-		// The sole anchor row matched the query but failed typed decode (no
-		// usable provider_incident_id or source_record_id identity, or an
-		// unsupported schema major): there is no well-formed incident to
-		// answer for, so this is indistinguishable from no match at all.
+	if len(selection.WellFormed) == 0 {
+		// Every matching row failed to decode, so there is no well-formed
+		// incident to answer for. That is indistinguishable from no match.
 		return IncidentContextSnapshot{}, ErrIncidentContextNotFound
 	}
-	timeline, timelineTruncated, err := s.readIncidentTimeline(ctx, filter, incidentRows[0])
+	anchorRow, incident := selection.Row, selection.Incident
+
+	timeline, timelineTruncated, err := s.readIncidentTimeline(ctx, filter, anchorRow)
 	if err != nil {
 		return IncidentContextSnapshot{}, err
 	}
-	changes, changesTruncated, err := s.readIncidentChangeCandidates(ctx, filter, incident, incidentRows[0])
+	changes, changesTruncated, err := s.readIncidentChangeCandidates(ctx, filter, incident, anchorRow)
 	if err != nil {
 		return IncidentContextSnapshot{}, err
 	}
@@ -358,4 +363,81 @@ func incidentChangeInWindow(
 		return false
 	}
 	return true
+}
+
+// incidentContextAnchorProbeLimit bounds how many matching anchor rows the
+// store pulls back before deciding between "one incident", "no incident", and
+// "ambiguous".
+//
+// It used to be 2, which is the smallest number that can tell one row from
+// many — correct only while every matched row was a valid answer. Now that the
+// anchor decode is typed and can fail, two rows are not enough: one malformed
+// row would exhaust the probe and hide the valid incident behind it.
+//
+// It is not unbounded either. A caller that hits the cap gets a fail-closed
+// ambiguous answer rather than a possibly-wrong single one, so the cost of the
+// bound is a 409 in a case that already means something is badly wrong with
+// stored anchors, not a wrong incident.
+const incidentContextAnchorProbeLimit = 8
+
+// incidentContextAnchorSelection is the outcome of choosing among the anchor
+// rows that matched a read.
+type incidentContextAnchorSelection struct {
+	// Row and Incident are the chosen anchor and its already-decoded incident;
+	// both are zero unless exactly one anchor was well-formed.
+	Row      incidentContextFactRow
+	Incident IncidentContextIncident
+	// WellFormed is every row that decoded, which is what an ambiguous error
+	// reports as candidates. A caller cannot disambiguate against a row it
+	// cannot read, so a row that failed decode never appears here.
+	WellFormed []incidentContextFactRow
+	Ambiguous  bool
+}
+
+// selectIncidentContextAnchor decides which matched anchor row answers the read.
+//
+// Ambiguity is a property of well-formed anchors. Two rows that both decode are
+// two rival incidents and the caller has to disambiguate with a scope_id. A row
+// that does not decode is not a rival, so it neither creates ambiguity nor hides
+// the incident behind it.
+//
+// The probe cap is the one place this cannot be certain. If the query returned
+// exactly incidentContextAnchorProbeLimit rows there may be more, so a single
+// surviving decode cannot be proven unique and the answer is ambiguous rather
+// than a coin flip.
+func selectIncidentContextAnchor(rows []incidentContextFactRow) incidentContextAnchorSelection {
+	selection := incidentContextAnchorSelection{
+		WellFormed: make([]incidentContextFactRow, 0, len(rows)),
+	}
+	var first IncidentContextIncident
+	for _, row := range rows {
+		incident, ok := decodeIncidentContextIncident(row)
+		if !ok {
+			continue
+		}
+		if len(selection.WellFormed) == 0 {
+			selection.Row, first = row, incident
+		}
+		selection.WellFormed = append(selection.WellFormed, row)
+	}
+
+	// The query carries a LIMIT of incidentContextAnchorProbeLimit, so a full
+	// result set means there may be more rows behind it.
+	probeFilled := len(rows) == incidentContextAnchorProbeLimit
+
+	// Exactly one survivor in a filled probe is the unprovable case: another
+	// well-formed anchor may sit past the limit, so the one in hand cannot be
+	// shown to be unique.
+	//
+	// ZERO survivors is NOT that case, however full the probe. Nothing readable
+	// matched, which is not-found — the answer the sole-row path has always
+	// given, and the one docs/public/reference/pagerduty-evidence.md states.
+	// Returning ambiguous there hands the caller a 409 saying the incident
+	// "matched multiple active provider scopes" with an empty candidate list and
+	// an instruction to retry with a scope_id it has no way to obtain.
+	if len(selection.WellFormed) > 1 || (probeFilled && len(selection.WellFormed) == 1) {
+		return incidentContextAnchorSelection{WellFormed: selection.WellFormed, Ambiguous: true}
+	}
+	selection.Incident = first
+	return selection
 }

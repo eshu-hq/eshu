@@ -50,6 +50,44 @@ func loadFactKindRegistryFull(path string) (map[string]factKindRegistryFullFamil
 	return out, nil
 }
 
+// routeServesDataFindings walks a loaded registry and returns one message per
+// family whose read_surface does not resolve to a route serving that family's
+// reducer_domain. Families with no read surface, or the explicit "none"
+// sentinel, are skipped.
+//
+// This is the D1 gate's whole decision, factored out so
+// TestFactKindRegistryReadSurfacesServeConsistentData and the poisoned-file
+// BITES proof in read_surface_domain_semantic_bites_test.go run the SAME code
+// (#5480). Before the split, the BITES test called resolveRouteServesData
+// directly: if this gate ever stopped asserting per family, that test stayed
+// green and its claim to prove the gate became false. Now gutting the check
+// here fails both.
+func routeServesDataFindings(registry map[string]factKindRegistryFullFamily) []string {
+	families := make([]string, 0, len(registry))
+	for name := range registry {
+		families = append(families, name)
+	}
+	sort.Strings(families)
+
+	findings := make([]string, 0, len(families))
+	for _, name := range families {
+		entry := registry[name]
+		rs := strings.TrimSpace(entry.ReadSurface)
+		rd := strings.TrimSpace(entry.ReducerDomain)
+		if rs == "" || rs == factKindReadSurfaceNone {
+			continue // no read surface to check
+		}
+		if rd == "" {
+			findings = append(findings, fmt.Sprintf("family %q has read_surface %q but no reducer_domain", name, rs))
+			continue
+		}
+		if ok, reason := resolveRouteServesData(name, rd, rs); !ok {
+			findings = append(findings, reason)
+		}
+	}
+	return findings
+}
+
 // TestFactKindRegistryReadSurfacesServeConsistentData is the #5474 D1
 // route-serves-data gate. It walks every family in
 // specs/fact-kind-registry.v1.yaml and asserts that the route named by
@@ -70,27 +108,8 @@ func TestFactKindRegistryReadSurfacesServeConsistentData(t *testing.T) {
 		t.Fatalf("loadFactKindRegistryFull: %v", err)
 	}
 
-	families := make([]string, 0, len(registry))
-	for name := range registry {
-		families = append(families, name)
-	}
-	sort.Strings(families)
-
-	for _, name := range families {
-		entry := registry[name]
-		rs := strings.TrimSpace(entry.ReadSurface)
-		rd := strings.TrimSpace(entry.ReducerDomain)
-		if rs == "" || rs == factKindReadSurfaceNone {
-			continue // no read surface to check
-		}
-		if rd == "" {
-			t.Errorf("family %q has read_surface %q but no reducer_domain", name, rs)
-			continue
-		}
-		ok, reason := resolveRouteServesData(name, rd, rs)
-		if !ok {
-			t.Errorf("%s", reason)
-		}
+	for _, finding := range routeServesDataFindings(registry) {
+		t.Errorf("%s", finding)
 	}
 }
 
