@@ -2806,12 +2806,17 @@
         ],
         "minimum_results": 1,
         "results_field": "results",
+        "required_json_paths": [
+          "results[].semantic_profile.decorators[]"
+        ],
         "required_json_values": {
-          "source_backend": "graph"
+          "source_backend": "graph",
+          "results[].name": "fetch_remote"
         },
         "arguments": {
-          "language": "go",
+          "language": "python",
           "entity_type": "Function",
+          "query": "fetch_remote",
           "limit": 10
         }
       },
@@ -2964,7 +2969,7 @@
         "minimum_results": 0
       },
       "investigate_contract_impact": {
-        "description": "MCP tool coverage shape for investigate_contract_impact; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "Positive deployed HTTP contract-registry read for the api-svc repository. The corpus projects EXPOSES_ENDPOINT from its static Flask/Kubernetes bridge; a silently-empty provider registry now fails.",
         "required_response_fields": [
           "consumers",
           "coverage",
@@ -2975,10 +2980,24 @@
           "scope",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "results_field": "providers",
+        "result_item_required_fields": [
+          "contract_key",
+          "provider_repo_id",
+          "provider_repo",
+          "route",
+          "http_method",
+          "endpoint_id",
+          "evidence_state"
+        ],
+        "required_json_values": {
+          "providers[].provider_repo_id": "repository:r_d5318f0f",
+          "providers[].provider_repo": "api-svc",
+          "providers[].evidence_state": "deterministic"
+        },
         "arguments": {
-          "provider_repo_id": "orders-api",
-          "consumer_repo_id": "lib-common",
+          "provider_repo_id": "repository:r_d5318f0f",
           "limit": 10
         }
       },
@@ -3215,7 +3234,7 @@
         }
       },
       "plan_developer_change": {
-        "description": "MCP tool coverage shape for plan_developer_change; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "Positive developer-change-plan proof over one explicit changed file. The response must contain at least one bounded read-only action and retain the plan schema and normalized file count.",
         "required_response_fields": [
           "actions",
           "affected_entities",
@@ -3238,7 +3257,14 @@
           "truncated",
           "workflow"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "results_field": "actions",
+        "required_json_values": {
+          "schema_version": "developer_change_plan.v1",
+          "workflow": "developer_change_plan",
+          "read_only": true,
+          "changed_file_count": 1
+        },
         "arguments": {
           "changed_files": [
             "go/internal/query/contract.go"
@@ -4768,7 +4794,7 @@
         }
       },
       "search_semantic_context": {
-        "description": "MCP tool coverage shape for search_semantic_context; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "Positive curated keyword retrieval over the orders-api active search-document scope. Keyword mode avoids external vector dependencies while still requiring a populated deployed search-document result.",
         "required_response_fields": [
           "anchor",
           "corpus_limit",
@@ -4786,11 +4812,29 @@
           "timeout_ms",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "results_field": "results",
+        "result_item_required_fields": [
+          "rank",
+          "score",
+          "search_method",
+          "document",
+          "graph_handles",
+          "truth_scope",
+          "freshness"
+        ],
+        "required_json_paths": [
+          "results[].document.id",
+          "results[].document.title",
+          "results[].document.context_text"
+        ],
+        "required_json_values": {
+          "retrieval_state": "keyword_only"
+        },
         "arguments": {
-          "repo_id": "orders-api",
-          "query": "runtime readiness",
-          "mode": "hybrid",
+          "repo_id": "repository:r_ea78e8bb",
+          "query": "main",
+          "mode": "keyword",
           "timeout_ms": 1000,
           "limit": 10
         }
@@ -4982,7 +5026,7 @@
         "minimum_results": 0
       },
       "list_dead_letter_work_items": {
-        "description": "MCP tool coverage shape for list_dead_letter_work_items; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage for the bounded operator dead-letter list. The harness inserts exactly one public-safe synthetic row after every required drain, so the query is non-vacuous without weakening residual_max=0 pipeline health.",
         "required_response_fields": [
           "count",
           "items",
@@ -4990,8 +5034,30 @@
           "schema_version",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "items",
+        "result_item_required_fields": [
+          "work_item_id",
+          "scope_id",
+          "generation_id",
+          "stage",
+          "domain",
+          "collector_kind",
+          "attempt_count",
+          "failure_class",
+          "created_at",
+          "updated_at",
+          "visible_at"
+        ],
+        "required_json_values": {
+          "count": 1,
+          "items[].work_item_id": "golden-dead-letter-fixture",
+          "items[].failure_class": "golden_fixture",
+          "items[].domain": "golden_fixture"
+        },
         "arguments": {
+          "failure_class": "golden_fixture",
           "limit": 10,
           "timeout_ms": 5000
         }
@@ -5394,6 +5460,37 @@
       }
     },
     "http": {
+      "GET /api/v0/dependencies?direction=forward&package=github.com/acme/lib-common&ecosystem=gomod&limit=10": {
+        "description": "Positive package-native dependency inventory from the package-registry cassette. lib-common@1.0.0 declares a direct gomod dependency on github.com/acme/synthetic-dep, so both the row and its target identity are pinned.",
+        "required_response_fields": [
+          "dependencies",
+          "direction",
+          "count",
+          "limit",
+          "truncated"
+        ],
+        "minimum_results": 1,
+        "results_field": "dependencies",
+        "result_item_required_fields": [
+          "direction",
+          "anchor_package_id",
+          "anchor_package",
+          "anchor_ecosystem",
+          "declaring_version",
+          "related_package_id",
+          "related_package",
+          "related_ecosystem",
+          "dependency_range",
+          "dependency_type",
+          "optional",
+          "edge_id"
+        ],
+        "required_json_values": {
+          "direction": "forward",
+          "dependencies[].anchor_package": "github.com/acme/lib-common",
+          "dependencies[].related_package": "github.com/acme/synthetic-dep"
+        }
+      },
       "GET /api/v0/entities/content-entity:e_1dc76e780ac6/context": {
         "description": "Canonical GitHub Actions workflow entity context proves the structured action dependency and reusable-workflow deployment edge while excluding the run-block octocat foil.",
         "required_response_fields": [
