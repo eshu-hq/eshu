@@ -11,7 +11,7 @@ Eshu has four finding models with no common shape:
 
 | Domain | Model | MCP tool |
 | --- | --- | --- |
-| Supply chain | `SupplyChainImpactFinding` (`go/internal/reducer/supply_chain_impact.go`) | `list_supply_chain_impact_findings` |
+| Supply chain | `SupplyChainImpactFinding` (`go/internal/reducer/supply_chain_impact_finding.go`) | `list_supply_chain_impact_findings` |
 | AWS runtime drift | `AWSCloudRuntimeDriftFindingWriter` (`go/internal/reducer/aws_cloud_runtime_drift.go`) | `list_aws_runtime_drift_findings` |
 | Multi-cloud drift | `MultiCloudRuntimeDriftFindingWriter` (`go/internal/reducer/multi_cloud_runtime_drift.go`) | `list_cloud_runtime_drift_findings` |
 | Documentation truth | `VerificationFinding` (`go/internal/doctruth/verifier.go`) | `list_documentation_findings` |
@@ -46,20 +46,30 @@ denominator and then having consumers trust the flattened value.
 | --- | --- | --- |
 | `finding_id` | string | Stable, domain-prefixed (`supply_chain:…`, `aws_drift:…`) so ids never collide and the domain is readable without a lookup |
 | `domain` | enum | The registration key |
-| `severity_normalized` | enum | `critical` / `high` / `medium` / `low` / `informational` |
-| `severity_native` | string | The domain's own value, verbatim |
+| `severity_normalized` | enum\|null | `critical` / `high` / `medium` / `low` / `informational`, or null |
+| `severity_native` | string\|null | The domain's own value, verbatim, or null |
 | `status_normalized` | enum | `open` / `resolved` / `suppressed` / `not_applicable` / `indeterminate` |
 | `status_native` | string | The domain's own value, verbatim |
 | `scope` | object | Repository / workload / cloud-resource refs as the domain provides |
 | `evidence_fact_ids` | []string | Handles, not payloads |
-| `truth` | object | Freshness, completeness, backend — the standard label |
+| `truth` | `TruthEnvelope` | The canonical wire type, not a bespoke shape |
 | `suppression` | object\|null | Presence and domain-owned reason; provenance stays domain-side |
 | `drilldown` | object | The domain tool and arguments that return full truth |
 
-**Both normalized and native are mandatory, always.** A consumer filtering on
-`severity_normalized` gets a cross-domain answer; a consumer that must not lose
-domain meaning reads `severity_native`. Dropping native would make the envelope
-lossy in exactly the way that erodes trust in it.
+**Where a domain has severity, both normalized and native are mandatory.** A
+consumer filtering on `severity_normalized` gets a cross-domain answer; one
+that must not lose domain meaning reads `severity_native`. Dropping native
+would make the envelope lossy in exactly the way that erodes trust in it.
+
+**Severity is nullable, because one domain genuinely has none.**
+`VerificationFinding` carries no severity field at all, so any mandatory
+severity would force the envelope to invent one for every documentation
+finding. An invented severity on a security-facing surface is worse than an
+absent one: a consumer sorting by severity would rank fabricated values against
+real ones. `null` means "this domain does not grade severity", which is
+different from `informational`, and a consumer filtering by severity must
+decide explicitly whether to include null rather than have that choice made for
+it silently.
 
 `indeterminate` exists so a domain is never forced to claim a finding is open
 or resolved when its own model says neither. It is the honest bucket, and its
@@ -91,11 +101,13 @@ second is absence of evidence. Collapsing them would let a consumer read
 | `valid` | `resolved` |
 | `contradicted` | `open` |
 | `missing_evidence` | `indeterminate` |
-| `unsupported_claim_type` | `not_applicable` |
+| `unsupported_claim_type` | `indeterminate` |
 
-`unsupported_claim_type` is `not_applicable` rather than `indeterminate`: the
-verifier is declining to judge, which is a different statement from judging and
-failing to conclude.
+`unsupported_claim_type` is `indeterminate`, not `not_applicable`. The
+verifier's own contract says the claim family is *not checked yet*, which is a
+statement about coverage, not about the claim. `not_applicable` would read as
+"this finding does not apply", quietly converting an unverified claim into a
+dismissed one — the reading most likely to hide a real gap.
 
 **AWS and multi-cloud drift: to be confirmed before implementation.** I did not
 find status/severity constants in those two files by direct read, so their
@@ -109,15 +121,27 @@ record.
 
 Per the API/MCP bounded-read rules, non-negotiable:
 
+- **A canonical input scope is required.** A `list_findings` call with no
+  selector would otherwise permit an all-repository, all-cloud scan, which the
+  MCP bounded-read contract forbids. The caller resolves a scope first
+  (repository, workload, or cloud account) and the tool rejects an unscoped
+  call rather than serving one. The `scope` field in the output describes what
+  a finding belongs to; it does not constrain what was read, and the two must
+  not be confused.
 - `limit` required, with a documented maximum; `truncated` always returned.
 - Deterministic ordering. Proposed: `severity_normalized` descending, then
   `domain`, then `finding_id`. All three are needed — severity alone ties
   heavily, and an unstable tail makes pagination silently lossy.
 - Cursor pagination over the composite ordering key, not offset. A union over
   several stores cannot offset correctly when one store changes underneath.
-- `truth` reports the **weakest** contributing domain, not an average. A union
-  is exactly as fresh as its stalest member, and reporting anything better
-  overstates it.
+- `truth` is the canonical `TruthEnvelope` from `go/internal/query/contract.go`
+  — `level`, `capability`, `profile`, `basis`, `backend`, `freshness`, `reason`
+  — not a bespoke freshness/completeness shape. An envelope that invents its
+  own truth fields would not match Eshu's wire contract, and an implementer
+  following this document would build a divergent one.
+- The union reports the **weakest** contributing domain, not an average: it is
+  exactly as fresh as its stalest member, and `reason` names which domain set
+  the level so the weakness is attributable rather than anonymous.
 - A domain that fails to answer is reported as a named partial, never silently
   dropped. Omission would read as "no findings there", which is the most
   dangerous wrong answer this surface can give.
