@@ -23,3 +23,17 @@ advisory warnings.
 This is the capability's documented honest negative state: it proves source
 resolution and bounded traversal without fabricating an exposure path when the
 required bridge evidence is absent.
+
+## Local-authoritative profile cross-check
+
+The same capability was rerun against a fresh real graph stack with the query
+profile set to `local_authoritative`:
+
+```bash
+ESHU_QUERY_PROFILE=local_authoritative GATE_COMPOSE_PROJECT=eshu-5681-local-authoritative-20260808-1 ESHU_POSTGRES_PORT=32542 NEO4J_BOLT_PORT=32687 NEO4J_HTTP_PORT=32474 GATE_API_PORT=32080 GATE_MCP_PORT=32091 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh >/tmp/eshu-5681-local-authoritative-final.log 2>&1; echo $?
+```
+
+Captured output: `0`. The real graph-backed route again resolved
+`list_orders`, enforced depth four, returned zero paths, and supplied the
+explicit unresolved reason. The full gate finished with 532 passes, zero
+required failures, and zero advisory warnings.

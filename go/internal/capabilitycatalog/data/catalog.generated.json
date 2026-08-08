@@ -3157,7 +3157,7 @@
       ],
       "profiles": {
         "local_authoritative": {
-          "status": "experimental",
+          "status": "supported",
           "max_truth_level": "exact",
           "required_runtime": "local_host_plus_graph",
           "p95_latency_ms": 700,
@@ -3232,7 +3232,7 @@
       ],
       "profiles": {
         "local_authoritative": {
-          "status": "experimental",
+          "status": "supported",
           "max_truth_level": "derived",
           "required_runtime": "local_host_plus_graph",
           "p95_latency_ms": 3000,
@@ -3263,10 +3263,6 @@
         {
           "kind": "compose_e2e",
           "ref": "scripts/verify-golden-corpus-gate.sh"
-        },
-        {
-          "kind": "go_test",
-          "ref": "./internal/query"
         },
         {
           "kind": "integration_test",

@@ -155,11 +155,10 @@ Run from the worktree root unless noted:
 `code_to_cloud.trace_exposure_path`, and `code_search.variable_lookup`
 
 **Disposition:** VALIDATED. All seven production rows retain or return to
-`supported`; no production downgrade was requested or approved. The associated
-variable-lookup and trace-exposure local_authoritative rows are separately
-`experimental` because only handler-test evidence exists for those
-`local_host_plus_graph` claims. Their local_full_stack rows cite the fresh
-Compose driver and remain `supported`.
+`supported`; no downgrade was requested or approved. A second fresh run under
+`ESHU_QUERY_PROFILE=local_authoritative` exercised variable lookup and trace
+exposure against the real graph stack, so their local_authoritative rows also
+retain `supported`. Their local_full_stack rows cite the same Compose driver.
 
 These were the final seven slugs in the remote-validation baseline. The earlier
 draft downgrade rested on an incomplete evidence search and a false assumption
@@ -193,3 +192,12 @@ GATE_COMPOSE_PROJECT=eshu-5681-claim-honesty-20260808-5 ESHU_POSTGRES_PORT=31542
 ```
 
 Captured output: `0`. Validation date: 2026-08-08.
+
+The local-authoritative profile cross-check used a second fresh project:
+
+```bash
+ESHU_QUERY_PROFILE=local_authoritative GATE_COMPOSE_PROJECT=eshu-5681-local-authoritative-20260808-1 ESHU_POSTGRES_PORT=32542 NEO4J_BOLT_PORT=32687 NEO4J_HTTP_PORT=32474 GATE_API_PORT=32080 GATE_MCP_PORT=32091 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh >/tmp/eshu-5681-local-authoritative-final.log 2>&1; echo $?
+```
+
+Captured output: `0`. The profile-specific run completed with 532 passes, zero
+required failures, and zero advisory warnings.

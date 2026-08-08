@@ -139,11 +139,12 @@ Burn-down progress:
   optional graph-projection flag. `trace_exposure_path` resolved the source and
   returned the promised bounded unresolved state rather than inventing a path.
   MCP `find_code` and HTTP code search both returned Variable-labeled matches.
-  The same edit corrected four local-profile evidence mismatches. The
-  `code_search.variable_lookup` and `code_to_cloud.trace_exposure_path`
-  local_authoritative rows now say `experimental`: their committed `go_test`
-  coverage does not prove a `local_host_plus_graph` run. Their local_full_stack
-  rows cite the fresh golden-corpus Compose driver and remain `supported`. See
+  The same edit corrected four local-profile evidence mismatches. A second
+  fresh golden-corpus run under `ESHU_QUERY_PROFILE=local_authoritative`
+  exercised `code_search.variable_lookup` and
+  `code_to_cloud.trace_exposure_path` against the real graph stack, so those
+  local_authoritative rows remain `supported`. Their local_full_stack rows cite
+  the same credential-free Compose driver and also remain `supported`. See
   TRANCHE 2 in [DISPOSITIONS.md](DISPOSITIONS.md) and the seven dated artifacts
   in this directory carry the exact command, direct exit capture, and per-row
   observed results.
