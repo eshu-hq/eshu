@@ -155,7 +155,11 @@ Run from the worktree root unless noted:
 `code_to_cloud.trace_exposure_path`, and `code_search.variable_lookup`
 
 **Disposition:** VALIDATED. All seven production rows retain or return to
-`supported`; no downgrade was requested or approved.
+`supported`; no production downgrade was requested or approved. The associated
+variable-lookup and trace-exposure local_authoritative rows are separately
+`experimental` because only handler-test evidence exists for those
+`local_host_plus_graph` claims. Their local_full_stack rows cite the fresh
+Compose driver and remain `supported`.
 
 These were the final seven slugs in the remote-validation baseline. The earlier
 draft downgrade rested on an incomplete evidence search and a false assumption
