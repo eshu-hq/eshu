@@ -179,6 +179,11 @@ var readinessDeferredFailureClasses = map[string]bool{
 	"gcp_relationship_nodes_not_ready":         true,
 	"ec2_instance_identity_nodes_not_ready":    true,
 	"cross_scope_producer_not_ready":           true,
+	// #5717: an ec2_instance_uses_ami edge waiting on the EC2 instance node
+	// phase. Without this entry the drain breakdown counts it as live work and
+	// reports "the pipeline just needed longer" for a queue that is actually
+	// blocked on a precondition.
+	"aws_relationship_ec2_instance_nodes_not_ready": true,
 }
 
 // formatResidualBreakdown renders the residual rows as one line for the drain
