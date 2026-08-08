@@ -31,13 +31,23 @@ import "strings"
 // inside this origin — the browser normalises it before the request, and the
 // server routes whatever results — so traversal is the router's concern rather
 // than the redirect's. #5388 raised blocking ".." as a possible future
-// tightening; if that lands, it lands here once instead of in three places.
+// tightening; if that lands, it lands here once instead of in four places.
 //
-// This is the single copy. It previously existed three times, byte-identical:
-// safeGitHubReturnPath in internal/query, and safeReturnPath in each of
-// internal/githublogin and internal/oidclogin. Three copies of an
-// open-redirect check is the shape where one gets tightened and the others do
-// not (#5388).
+// This is the single copy. It previously existed FOUR times, byte-identical:
+// safeGitHubReturnPath and safeOIDCReturnPath in internal/query, and
+// safeReturnPath in each of internal/githublogin and internal/oidclogin. Four
+// copies of an open-redirect check is the shape where one gets tightened and
+// the others do not (#5388).
+//
+// The fourth is worth naming rather than counting. safeOIDCReturnPath backed
+// the OIDC start/callback and SAML request/callback paths, and the first
+// version of this extraction missed it because I searched for the names the
+// issue mentioned. A name search cannot find a spelling you do not know about;
+// sweeping for the distinctive expression found it at once:
+//
+//	rg -n 'HasPrefix\(path, "//")' --glob '!*_test.go' go/
+//
+// That should return exactly one hit — this file.
 func ReturnPath(path string) string {
 	path = strings.TrimSpace(path)
 	if path == "" || !strings.HasPrefix(path, "/") || strings.HasPrefix(path, "//") {

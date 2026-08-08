@@ -5,7 +5,7 @@ package authsafe
 
 import "testing"
 
-// One suite for the check that used to live in three places. Each rejection
+// One suite for the check that used to live in four places. Each rejection
 // case names the escape it closes, so a future tightening can tell which cases
 // are load-bearing from which are incidental.
 func TestReturnPath(t *testing.T) {
