@@ -419,7 +419,7 @@ spec:
 func TestRealParserStructuredKustomizeEvidence(t *testing.T) {
 	t.Parallel()
 
-	payload := parseFixtureForTest(t, "kustomization.yaml", `apiVersion: kustomize.config.k8s.io/v1beta1
+	const source = `apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - github.com/acme/deployable-source//k8s?ref=v1.4.0
@@ -430,11 +430,23 @@ helmCharts:
 images:
   - name: checkout-service
     newTag: v1.0.0
-`)
+`
 
+	payload := parseFixtureForTest(t, "kustomization.yaml", source)
+
+	// Both content AND parsed_file_data, which is what the ingestion pipeline
+	// actually emits. Setting only parsed_file_data (the convention the other
+	// tests in this file follow to isolate a structured extractor) would make
+	// the local-base assertion below vacuous: the raw path needs content to
+	// produce anything, so it would raise no false positive to suppress and
+	// the test would pass with the fix reverted.
 	envelopes := []facts.Envelope{{
 		ScopeID: "repo-overlay",
-		Payload: map[string]any{"relative_path": "kustomization.yaml", "parsed_file_data": payload},
+		Payload: map[string]any{
+			"relative_path":    "kustomization.yaml",
+			"content":          source,
+			"parsed_file_data": payload,
+		},
 	}}
 	catalog := []CatalogEntry{
 		{RepoID: "repo-deployable-source", Aliases: []string{"github.com/acme/deployable-source"}},
