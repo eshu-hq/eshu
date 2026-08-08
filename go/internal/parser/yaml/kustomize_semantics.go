@@ -198,6 +198,41 @@ func collectKustomizeStringValues(value any) []string {
 	return refs
 }
 
+// isRemoteKustomizeRef reports whether a Kustomize `resources`/`bases` entry
+// resolves to a different repository rather than a path inside this one. It
+// decides which of the two lists an entry lands in: a remote entry belongs in
+// resource_refs, where the catalog matcher can raise a cross-repo DEPLOYS_FROM
+// edge, and a local one belongs in bases.
+//
+// A scheme is not the test. Kustomize's remote-target documentation lists
+// scheme-less forms as supported — "github.com/Liujingfang1/mysql",
+// "github.com/Liujingfang1/mysql?ref=test" — alongside the SSH shorthand
+// "git@github.com:owner/repo//someSubdir" and go-getter's "git::" forced
+// protocol. Testing only for "://" filed every one of those under bases, so the
+// graph claimed another repository was a directory in this one and the typed
+// DEPLOYS_FROM path never saw it (#5609).
+//
+// The general case is the last rule: a first path segment that looks like a
+// host — it carries a dot and something follows it. That is also where the
+// judgement call sits. A local directory named "v1.2/base" would be read as
+// remote. Erring that way is deliberate: a misread entry lands in resource_refs
+// and is offered to the catalog matcher, which is exactly where the raw-content
+// evidence path puts every resources entry today, so the wrong answer costs a
+// catalog lookup that finds nothing rather than a false claim in the graph.
 func isRemoteKustomizeRef(value string) bool {
-	return strings.Contains(value, "://")
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return false
+	}
+	if strings.Contains(trimmed, "://") || strings.HasPrefix(trimmed, "git::") ||
+		strings.HasPrefix(trimmed, "git@") {
+		return true
+	}
+	// An explicitly relative or absolute path is a path, whatever it contains.
+	if strings.HasPrefix(trimmed, "./") || strings.HasPrefix(trimmed, "../") ||
+		strings.HasPrefix(trimmed, "/") {
+		return false
+	}
+	head, rest, found := strings.Cut(trimmed, "/")
+	return found && rest != "" && strings.Contains(head, ".")
 }
