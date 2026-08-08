@@ -36,7 +36,7 @@ type fakePipelineQuerier struct {
 	calls int
 }
 
-func (f *fakePipelineQuerier) NonTerminalWorkItems(_ context.Context) ([]residualRow, error) {
+func (f *fakePipelineQuerier) ResidualWorkItems(_ context.Context) ([]residualRow, error) {
 	f.calls++
 	if f.err != nil {
 		return nil, f.err

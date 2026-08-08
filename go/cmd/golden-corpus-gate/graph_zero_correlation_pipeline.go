@@ -16,10 +16,12 @@ import (
 // graph look like"; this answers the one Postgres question that graph reads
 // cannot: did the work that writes this edge actually finish?
 type pipelineStateQuerier interface {
-	// NonTerminalWorkItems returns work items that have not reached a terminal
-	// success, grouped the same way the drain residual is grouped so the two
-	// messages read alike.
-	NonTerminalWorkItems(ctx context.Context) ([]residualRow, error)
+	// ResidualWorkItems returns the rows the drain counts as residual: status
+	// NOT IN ('succeeded','superseded'). Named for the predicate rather than for
+	// "non-terminal", because that set INCLUDES terminal failures (failed,
+	// dead_letter) -- they are terminal, just not successful. A reader scanning
+	// call sites should not have to open the godoc to learn that.
+	ResidualWorkItems(ctx context.Context) ([]residualRow, error)
 }
 
 // diagnoseZeroCorrelationPipeline reports whether the producers behind a
@@ -57,7 +59,7 @@ func diagnoseZeroCorrelationPipeline(ctx context.Context, q pipelineStateQuerier
 		return ""
 	}
 
-	rows, err := q.NonTerminalWorkItems(ctx)
+	rows, err := q.ResidualWorkItems(ctx)
 	if err != nil {
 		return fmt.Sprintf("pipeline state near %s: UNREADABLE (%v) — cannot say whether any work is outstanding", relationship, err)
 	}
@@ -72,14 +74,12 @@ func diagnoseZeroCorrelationPipeline(ctx context.Context, q pipelineStateQuerier
 	// Group by domain so one unfinished domain reads as one line regardless of
 	// how many statuses it is spread across.
 	byDomain := map[string][]string{}
-	totals := map[string]int64{}
 	for _, row := range rows {
 		detail := row.Status
 		if row.FailureClass != "" {
 			detail += "/" + row.FailureClass
 		}
 		byDomain[row.Domain] = append(byDomain[row.Domain], fmt.Sprintf("%s=%d", detail, row.Count))
-		totals[row.Domain] += row.Count
 	}
 
 	domains := make([]string, 0, len(byDomain))
