@@ -412,7 +412,9 @@ func checkRequiredSelfLoops(ctx context.Context, c graphCounter, selfLoops []Req
 // corpus-size-independent correlation/node assertions; when false (the full
 // 20-repo mode) it additionally asserts the snapshot node/edge count tolerances
 // as required (#3866 criterion 3).
-func checkGraph(ctx context.Context, c graphCounter, snap Snapshot, requiredOnly bool, blockingCorrelations map[string]bool, r *Report) error {
+// pipeline is optional: nil means no Postgres handle in this phase, and the
+// producer-state half of a zero-correlation diagnosis is simply omitted.
+func checkGraph(ctx context.Context, c graphCounter, snap Snapshot, requiredOnly bool, blockingCorrelations map[string]bool, pipeline pipelineStateQuerier, r *Report) error {
 	for _, rc := range snap.Graph.RequiredCorrelations {
 		var (
 			count int64
@@ -432,13 +434,7 @@ func checkGraph(ctx context.Context, c graphCounter, snap Snapshot, requiredOnly
 		// nonzero-but-short count already names its own shortfall; a zero does
 		// not, and the stack is gone by the time anyone reads the log.
 		if !finding.OK && count == 0 {
-			r.Add(Finding{
-				Phase:    "graph",
-				Check:    rc.ID + "/diagnosis",
-				OK:       true,
-				Required: false,
-				Detail:   diagnoseZeroCorrelation(ctx, c, rc),
-			})
+			emitZeroCorrelationDiagnostics(ctx, c, pipeline, rc, r)
 		}
 		for _, prop := range rc.RequiredEdgeProperties {
 			values, err := c.ListCorrelationEdgeProperty(ctx, rc.FromLabel, rc.Relationship, rc.ToLabel, rc.EvidenceKinds, prop)
