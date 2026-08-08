@@ -7,10 +7,19 @@ import (
 	"testing"
 )
 
-func TestAllHosts_ReturnsThreeCanonicalHosts(t *testing.T) {
+func TestAllHosts_ReturnsCanonicalHostsInRenderOrder(t *testing.T) {
 	t.Parallel()
 	hosts := AllHosts()
-	want := []Host{HostClaudeCode, HostCursor, HostCodex}
+	// The v1 three come first, in their original order, so an existing
+	// baseline diff stays readable when the matrix grows (#4059).
+	want := []Host{
+		HostClaudeCode,
+		HostCursor,
+		HostCodex,
+		HostCopilot,
+		HostAider,
+		HostGeminiCLI,
+	}
 	if len(hosts) != len(want) {
 		t.Fatalf("AllHosts() = %v, want %v", hosts, want)
 	}
@@ -18,6 +27,25 @@ func TestAllHosts_ReturnsThreeCanonicalHosts(t *testing.T) {
 		if h != want[i] {
 			t.Errorf("AllHosts()[%d] = %q, want %q", i, h, want[i])
 		}
+	}
+}
+
+func TestAllHosts_OutputPathsAreUniqueAndHostScoped(t *testing.T) {
+	t.Parallel()
+	// Two hosts sharing an output path would silently overwrite each other
+	// under expected/<host>/<path> only if the host id also collided, but a
+	// duplicate path still signals a copy-paste adapter.
+	seen := make(map[string]Host, len(AllHosts()))
+	for _, h := range AllHosts() {
+		a, err := AdapterFor(h)
+		if err != nil {
+			t.Fatalf("AdapterFor(%q) error = %v", h, err)
+		}
+		p := a.OutputPath()
+		if prev, dup := seen[p]; dup {
+			t.Errorf("hosts %q and %q both render to %q", prev, h, p)
+		}
+		seen[p] = h
 	}
 }
 
@@ -59,6 +87,11 @@ func TestHostFromString_AcceptsCanonicalAndAliases(t *testing.T) {
 		{in: "CURSOR", want: HostCursor},
 		{in: "codex", want: HostCodex},
 		{in: "  codex  ", want: HostCodex},
+		{in: "copilot", want: HostCopilot},
+		{in: "Copilot", want: HostCopilot},
+		{in: "aider", want: HostAider},
+		{in: "gemini-cli", want: HostGeminiCLI},
+		{in: "gemini_cli", want: HostGeminiCLI},
 	}
 	for _, tt := range tests {
 		t.Run(tt.in, func(t *testing.T) {

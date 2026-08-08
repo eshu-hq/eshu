@@ -5,10 +5,13 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/extensions/skillgen"
 )
 
 // skillgenFragmentsDir writes a minimal but valid skill-fragments/ tree to
@@ -117,7 +120,10 @@ func TestRun_GenWritesAllHostFiles(t *testing.T) {
 		t.Fatalf("run gen: %v\nstderr:\n%s", err, stderr.String())
 	}
 	// Every host must produce a file at <expected>/<host>/<output_path>.
-	for _, host := range []string{"claude-code", "cursor", "codex"} {
+	// Derived from the registry rather than listed here: a literal list
+	// silently stops covering a host the moment one is added.
+	for _, h := range skillgen.AllHosts() {
+		host := string(h)
 		hostDir := filepath.Join(expected, host)
 		entries, err := os.ReadDir(hostDir)
 		if err != nil {
@@ -128,8 +134,9 @@ func TestRun_GenWritesAllHostFiles(t *testing.T) {
 		}
 	}
 	// The summary line should report how many files were written.
-	if !strings.Contains(stdout.String(), "wrote 3 host files") {
-		t.Errorf("stdout missing summary line:\n%s", stdout.String())
+	wantSummary := fmt.Sprintf("wrote %d host files", len(skillgen.AllHosts()))
+	if !strings.Contains(stdout.String(), wantSummary) {
+		t.Errorf("stdout missing summary line %q:\n%s", wantSummary, stdout.String())
 	}
 }
 

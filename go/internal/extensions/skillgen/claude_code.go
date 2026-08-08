@@ -15,10 +15,10 @@ import (
 // comment so the loader reads the metadata first; each fragment body is
 // appended under a "## <title>" heading derived from the fragment id.
 //
-// All three host adapters share this emission order: frontmatter at
+// Every frontmatter-parsing adapter shares this emission order: frontmatter at
 // byte 0, citation block after. Claude Code's loader accepts the
 // citation block before the frontmatter, but emitting frontmatter at
-// byte 0 keeps the three hosts byte-comparable except for the
+// byte 0 keeps those hosts byte-comparable except for the
 // host-specific schema fields and the always-on layer file.
 //
 // The adapter is the only place that knows the Claude Code frontmatter

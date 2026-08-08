@@ -2,7 +2,7 @@
 
 `skillgen` is the Eshu skillgen CLI. It reads the `skill-fragments/`
 source of truth at the repo root, renders one skill file per host
-(Claude Code, Cursor, Codex), and either writes the result to
+(Claude Code, Cursor, Codex, GitHub Copilot, Aider, Gemini CLI), and either writes the result to
 `expected/` (`gen`) or byte-compares the result against the committed
 `expected/` baseline (`check`).
 

@@ -1,29 +1,5 @@
 ---
-description: |
-  A recipient can run eshu evidence bundle validate against a redacted
-  evidence_bundle.v1. The bundle is share-safe; reproduce handles point at
-  bounded CLI/API/MCP calls the recipient can run against their own
-  instance. Profiles are local_lightweight, local_authoritative,
-  local_full_stack, or production. A profile row marked unsupported MUST
-  return `unsupported_capability`. Truth ceilings live in
-  specs/capability-matrix.v1.yaml and go/internal/query/contract.go. Every
-  fragment's default rendering works in local_lightweight and
-  local_authoritative profiles without a configured LLM provider. LLM
-  augmentation is policy-gated. llm:no-provider is a first-class status,
-  not an error. Eshu's operating order is fixed: accuracy, then
-  performance, then concurrency. An agent MUST prove correctness before
-  proving speed. The active collector set is whatever is enabled in the
-  active runtime profile. Per-collector MCP tools are enumerated from the
-  live capability catalog, not from a static prose list. The fragment
-  renders differently per deployment. Intake never writes graph state. The
-  reducer is the only writer of canonical graph truth. MCP tool calls
-  route through dispatchTool into the shared HTTP query handlers. Queue
-  claims are leased, retryable, supersedable, and dead-letterable.
-  API/MCP/CLI responses carry a `truth` envelope with `exact`, `derived`,
-  or `fallback` levels. High-authority capabilities MUST return
-  `unsupported_capability` rather than silently downgrading.
-globs:
-alwaysApply: true
+applyTo: "**"
 ---
 
 <!-- eshu:byte-citation docs/internal/agent-guide.md#14-22 -->
@@ -34,9 +10,9 @@ alwaysApply: true
 <!-- eshu:byte-citation go/internal/capabilitycatalog/catalog.go#1-80 -->
 <!-- eshu:byte-citation go/internal/semanticqueue/README.md#10 -->
 
-# Eshu Agent Rule (eshu)
+# Eshu Operating Standard
 
-This rule is auto-generated from `skill-fragments/`. Do not edit it by hand; run `go run ./cmd/skillgen gen` to regenerate.
+These instructions are auto-generated from `skill-fragments/`. Do not edit them by hand; run `go run ./cmd/skillgen gen` to regenerate.
 
 ## Bundle Reproduction
 

@@ -37,7 +37,12 @@ func (a cursorAdapter) Render(in RenderInput) ([]byte, error) {
 		b.WriteString(line)
 		b.WriteString("\n")
 	}
-	b.WriteString("globs: \n")
+	// No trailing space after the key: `globs:` and `globs: ` are the same
+	// empty YAML value, but pre-commit's trailing-whitespace hook rewrites
+	// the second one the moment this baseline is staged, which puts the
+	// committed artifact one byte away from generator output and reds the
+	// roundtrip gate.
+	b.WriteString("globs:\n")
 	b.WriteString("alwaysApply: true\n")
 	b.WriteString("---\n\n")
 	if commentBlock != "" {
