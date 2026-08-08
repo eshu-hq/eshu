@@ -69,8 +69,33 @@ build-time drift is detected by the S3 CI gate, not by runtime telemetry.
   check this string, not the map contents.
 - `RenderAll` is host-agnostic. Host-specific file shape, frontmatter
   schema, and the always-on-layer file live in the per-host adapter
-  (claude_code.go, cursor.go, codex.go). Adding a new frontmatter field
-  is local to the owning adapter.
+  (claude_code.go, cursor.go, codex.go, copilot.go, aider.go,
+  gemini_cli.go). Adding a new frontmatter field is local to the owning
+  adapter.
+- Frontmatter is a property of the loader, not a house style.
+  `Host.LoaderParsesFrontmatter` is the single declaration of which way
+  a host goes, and the regression test asserts the rule that covers
+  both: nothing precedes whatever the loader needs to find the file.
+
+## Supported hosts
+
+| Host | Generated file | Always-on layer | Frontmatter |
+| --- | --- | --- | --- |
+| `claude-code` | `.claude/skills/eshu/SKILL.md` | `CLAUDE.md` | yes (`name`, `description`) |
+| `cursor` | `.cursor/rules/eshu.mdc` | itself | yes (`description`, `globs`, `alwaysApply`) |
+| `codex` | `.codex/skills/eshu/SKILL.md` | `AGENTS.md` | yes (`name`, `description`) |
+| `copilot` | `.github/instructions/eshu.instructions.md` | `.github/copilot-instructions.md` | yes (`applyTo`) |
+| `aider` | `.aider/eshu-conventions.md` | `.aider.conf.yml` `read:` | no |
+| `gemini-cli` | `GEMINI.md` | itself | no |
+
+Known unsupported fields, so nobody adds them expecting an effect:
+Copilot exposes no `name` or `description` for this file; Aider defines
+no frontmatter and discovers nothing on its own, so the operator must
+name the file in config; the Gemini CLI defines no frontmatter and has
+no per-file scoping equivalent to Copilot's `applyTo`. No host in the
+matrix defines a hook shape. The full amendment record, including the
+vendor documentation each row was checked against, is in
+[Amendment: six-host matrix](../../../../docs/internal/skill-fragments-design.md#amendment-six-host-matrix-4059).
 
 ## Related docs
 
@@ -84,7 +109,7 @@ build-time drift is detected by the S3 CI gate, not by runtime telemetry.
 No-Regression Evidence: `go test ./internal/extensions/skillgen/...
 ./cmd/skillgen/... -count=1 -race` covers fragment frontmatter parsing,
 byte-citation normalization and comment-block emission, the host
-registry, deterministic render across all three v1 hosts, the committed
+registry, deterministic render across every registered host, the committed
 `expected/` roundtrip baseline, drift detection (content mismatch and
 missing file), capability override loading (default, file override,
 malformed YAML, blank file), the AWS-disabled property test, and the

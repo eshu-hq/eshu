@@ -318,8 +318,15 @@ gates:
     blocking: true
     triggers:
       - "go/cmd/skillgen/**"
-      - "go/internal/skillgen/**"
+      # The package is under internal/extensions/; the previous
+      # internal/skillgen/** never matched a real path, so edits to the
+      # adapters did not select the gate that guards them (#4059).
+      - "go/internal/extensions/skillgen/**"
       - ".agents/skills/**"
+      # The gate compares fragments against the committed baseline, so a
+      # change to either input is exactly when it needs to run.
+      - "skill-fragments/**"
+      - "expected/**"
       - "scripts/test-verify-skill-roundtrip.sh"
       - "scripts/verify-skill-roundtrip.sh"
     local:
