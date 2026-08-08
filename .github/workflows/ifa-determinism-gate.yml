@@ -55,6 +55,8 @@ on:
       - 'scripts/lib/ifa_fault_injection_cells.sh'
       - 'scripts/lib/ifa_fault_injection_driver.sh'
       - 'scripts/lib/ifa_fault_injection_sql_cells.sh'
+      - 'scripts/lib/ifa_fault_injection_delivery_cells.sh'
+      - 'scripts/lib/ifa_sql_delta_live.sh'
       # #5351 materialized-edge exhaustiveness gate: the SQL relationship family
       # cassette is driven into every determinism cell (with a per-cell
       # `ifa assert-edges`) and every fault-injection cell (with a baseline
