@@ -33,7 +33,7 @@ func BenchmarkCloudInventoryRecordFromRowAWSAllowlist(b *testing.B) {
 			"started_at":"2026-01-01T00:00:00Z",
 			"network_interfaces":[{"network_interface_id":"eni-000000000000000aa","private_ipv4_address":"10.0.0.5","subnet_id":"subnet-000000000000000aa"}],
 			"containers":[
-				{"image":"000000000000.dkr.ecr.us-east-1.amazonaws.com/bench:latest","image_digest":"sha256:0000000000000000000000000000000000000000000000000000000000aa","name":"bench","runtime_id":"0000000000000000000000000000000000000000000000000000000000bb"}
+				{"image":"000000000000.dkr.ecr.us-east-1.amazonaws.com/bench:latest","image_digest":"sha256:00000000000000000000000000000000000000000000000000000000000000aa","name":"bench","runtime_id":"0000000000000000000000000000000000000000000000000000000000bb"}
 			]
 		}
 	}`)

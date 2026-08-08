@@ -220,7 +220,7 @@ func cicdContainerArtifactEnvelope(factID, scopeID, generationID string) facts.E
 			"run_id":          "42",
 			"run_attempt":     "1",
 			"artifact_type":   "container_image",
-			"artifact_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
+			"artifact_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
 		},
 	}
 }

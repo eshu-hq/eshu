@@ -244,7 +244,7 @@ func TestCloudInventoryResourceViewSurfacesContainersAttribute(t *testing.T) {
 				"containers": []any{
 					map[string]any{
 						"image":        "000000000000.dkr.ecr.us-east-1.amazonaws.com/demo:latest",
-						"image_digest": "sha256:0000000000000000000000000000000000000000000000000000000000aa",
+						"image_digest": "sha256:00000000000000000000000000000000000000000000000000000000000000aa",
 						// name is a raw provider field; it must not survive even if
 						// present here, proving the projector's own gate holds
 						// independent of the loader.
@@ -271,7 +271,7 @@ func TestCloudInventoryResourceViewSurfacesContainersAttribute(t *testing.T) {
 	if got, want := container["image"], "000000000000.dkr.ecr.us-east-1.amazonaws.com/demo:latest"; got != want {
 		t.Fatalf("containers[0].image = %#v, want %q", got, want)
 	}
-	if got, want := container["image_digest"], "sha256:0000000000000000000000000000000000000000000000000000000000aa"; got != want {
+	if got, want := container["image_digest"], "sha256:00000000000000000000000000000000000000000000000000000000000000aa"; got != want {
 		t.Fatalf("containers[0].image_digest = %#v, want %q", got, want)
 	}
 	if _, present := container["name"]; present {

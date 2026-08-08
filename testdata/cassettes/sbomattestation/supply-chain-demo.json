@@ -32,8 +32,8 @@
             "spec_version": "1.4",
             "serial_number": "urn:uuid:00000000-0000-4000-8000-00000000scd0",
             "document_name": "supply-chain-demo SBOM",
-            "subject_digest": "sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a",
-            "subject_digests": ["sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a"],
+            "subject_digest": "sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8090a",
+            "subject_digests": ["sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8090a"],
             "parse_status": "parsed",
             "verification_status": "unset",
             "verification_policy": "",
@@ -42,7 +42,7 @@
             "component_count": 1,
             "dependency_count": 0,
             "warning_count": 0,
-            "correlation_anchors": ["sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a"]
+            "correlation_anchors": ["sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8090a"]
           }
         },
         {
@@ -106,8 +106,8 @@
             "statement_id": "scd-attestation",
             "statement_digest": "sha256:9a8b7c6d5e4f30219e8d7c6b5a4938271605f4e3d2c1b0a9988776655443322a1",
             "payload_digest": "sha256:9a8b7c6d5e4f30219e8d7c6b5a4938271605f4e3d2c1b0a9988776655443322a1",
-            "subject_digest": "sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a",
-            "subject_digests": ["sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a"],
+            "subject_digest": "sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8090a",
+            "subject_digests": ["sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8090a"],
             "parse_status": "parsed",
             "verification_status": "",
             "verification_policy": "",

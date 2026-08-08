@@ -11,7 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 )
 
-const containerImageIdentityEvidenceMergeQuery = "GET /api/v0/supply-chain/container-images/identities?digest=sha256:0000000000000000000000000000000000000000000000000000000000aa&limit=10"
+const containerImageIdentityEvidenceMergeQuery = "GET /api/v0/supply-chain/container-images/identities?digest=sha256:00000000000000000000000000000000000000000000000000000000000000aa&limit=10"
 
 func TestGoldenSnapshotPinsContainerImageIdentityEvidenceMerge(t *testing.T) {
 	t.Parallel()
@@ -33,7 +33,7 @@ func TestGoldenSnapshotPinsContainerImageIdentityEvidenceMerge(t *testing.T) {
 
 	valid := []byte(`{
 		"identities":[{
-			"digest":"sha256:0000000000000000000000000000000000000000000000000000000000aa",
+			"digest":"sha256:00000000000000000000000000000000000000000000000000000000000000aa",
 			"evidence_fact_ids":[
 				"91516d563e2dd52dbcf527740c02b2130e61a6b4b77ad4be218417ac0057b51f",
 				"952cba28492237a7263251dbd73f07c57bcfb929b3541a97f4b5eaf8335aaaf8",
@@ -89,7 +89,7 @@ func TestGoldenCICDCassetteCollidesRuntimeAndArtifactEvidence(t *testing.T) {
 		scopeID      = "ci_cd_run:github_actions:acme:container-ci-lineage"
 		runKey       = "ci_cd_run:github_actions:container-ci-lineage:run:9101"
 		artifactKey  = runKey + ":artifact:image"
-		digest       = "sha256:0000000000000000000000000000000000000000000000000000000000aa"
+		digest       = "sha256:00000000000000000000000000000000000000000000000000000000000000aa"
 		repositoryID = "repository:r_19519f37"
 	)
 	foundRun := 0

@@ -93,7 +93,7 @@ func TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity(t *
 		"data.workload_id":                         "workload:deployable-config",
 		"data.instances[].instance_id":             "workload-instance:deployable-config:prod",
 		"data.instances[].platforms[].platform_id": "platform:kubernetes:none:prod:prod:none",
-		"data.image_refs[]":                        "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
+		"data.image_refs[]":                        "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
 	} {
 		if got := shape.RequiredJSONValues[path]; got != want {
 			t.Fatalf("trace_deployment_chain required_json_values[%q] = %#v, want %#v", path, got, want)
@@ -165,7 +165,7 @@ func TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity(t *
 				"source_root":     "k8s",
 				"controller_kind": "argocd_application",
 				"container_images": []any{
-					"ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
+					"ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
 				},
 			},
 		},
