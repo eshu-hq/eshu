@@ -14,7 +14,8 @@ Capability-Assertion: secrets_iam.privilege_posture_observations.list returned o
 The fresh Compose run rebuilt the binaries, replayed the credential-free
 cassettes, drained all work, and queried
 `list_secrets_iam_privilege_posture_observations` through MCP. The response
-contained one row and matched the pinned `wildcard_trust`, `high`, and `partial`
+contained one row and matched the pinned `wildcard_web_identity_subject`,
+`high`, and `partial`
 values in `testdata/golden/e2e-20repo-snapshot.json`. The complete gate finished
 with 532 passes, zero required failures, and zero advisory warnings.
 
