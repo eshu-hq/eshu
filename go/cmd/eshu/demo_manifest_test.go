@@ -214,3 +214,34 @@ func TestDemoEphemeralKeys_AreNotReusedAcrossRuns(t *testing.T) {
 		t.Error("two demo runs minted the same key; it must be per-run, not a constant")
 	}
 }
+
+func TestDemoStatus_RecoversTheKeyFromTheRunningStack(t *testing.T) {
+	t.Parallel()
+	exec := &fakeDemoExec{replies: map[string]demoExecReply{
+		// A running project, and the stack hands back its own key.
+		"ps --quiet":            {out: []byte("abc123\n")},
+		"printenv ESHU_API_KEY": {out: []byte("demo-recovered-key\n")},
+	}}
+	rt := newTestDemoRuntime(exec)
+	rt.apiKey = "" // status runs in a fresh process; up's ephemeral key is gone.
+
+	var probedWith string
+	rt.probe = func(_ context.Context, _, key string) (demoIndexStatus, error) {
+		probedWith = key
+		return demoIndexStatus{Status: "healthy", RepositoryCount: 6}, nil
+	}
+
+	res, err := rt.status(context.Background())
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	// Without recovery the probe goes out unauthenticated, gets 401, and a
+	// healthy stack is reported as not ready — indistinguishable from a real
+	// failure.
+	if probedWith != "demo-recovered-key" {
+		t.Errorf("probed with key %q, want the key recovered from the running stack", probedWith)
+	}
+	if !res.Ready {
+		t.Error("healthy stack with an empty queue reported as not ready")
+	}
+}
