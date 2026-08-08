@@ -358,9 +358,16 @@ func TestDecodeParsedFileDataArgoCDApplications_MalformedElementSkipped(t *testi
 	}
 }
 
-// The parser writes the three ref lists as []string, and the tolerant decoder
-// reaches them through a JSON round trip, so this pins that []string survives
-// the trip rather than arriving as []any the caller then has to re-assert.
+// The parser writes the ref lists as []string, and the tolerant decoder reaches
+// them by direct coercion, not a JSON round trip: decodeParsedFileDataTolerantSlice
+// calls decodeMapInto -> decodeMapIntoWith, which walks a cached struct plan by
+// reflection and converts []string and []any element-wise. There is no
+// json.Marshal or json.Unmarshal anywhere on this path.
+//
+// The distinction matters for whoever debugs a decode mismatch next: the rules
+// that govern it are the struct plan's coercion cases in decode_map.go, not
+// JSON tag handling. This pins that a []string arrives as []string rather than
+// as []any the caller has to re-assert.
 func TestDecodeParsedFileDataKustomizeOverlays_TypedRows(t *testing.T) {
 	t.Parallel()
 

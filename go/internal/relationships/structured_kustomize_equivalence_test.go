@@ -42,14 +42,23 @@ images:
 // change which strings reach the catalog matcher. This is the "config-vs-raw
 // discrepancy" #5609 asks to resolve, asserted rather than argued.
 //
-// The bar is equality, in both directions. Containment alone would let the two
-// paths drift apart as long as one stayed a superset, and the drift would be
-// invisible: both facts are processed and their evidence unions, so a
-// disagreement widens the graph rather than failing anything.
+// The bar is containment, and equality is NOT available — which is worth
+// stating plainly, because an earlier version of this test asserted equality
+// and got it by comparing against the wrong function.
 //
-// Equality is reachable because the raw gather now walks the legacy `bases:`
-// key too. Before that it saw only `resources` and `components`, so a target
-// written under `bases:` produced evidence on one path and not the other.
+// The production content-fact path is discoverKustomizeEvidence, and it does
+// two things: the per-document extraction the structured path mirrors, AND a
+// catch-all that runs a regex over the whole file and offers every `key: value`
+// scalar to the catalog matcher. The structured path has no equivalent, and
+// should not — the catch-all is a property of reading raw text, not of reading
+// the parser's typed lists. Comparing against discoverKustomizeDocumentEvidence
+// hid that entirely (#5609 review, codex).
+//
+// So what has to hold is: everything the structured read produces, the raw read
+// also produces. That keeps the file fact from contributing evidence the
+// content fact would not, which is the direction that could surprise someone —
+// the two facts' evidence unions, so the graph already carries the raw
+// superset.
 func TestStructuredKustomizeCoversEveryRawValue(t *testing.T) {
 	t.Parallel()
 
@@ -82,13 +91,10 @@ func TestStructuredKustomizeCoversEveryRawValue(t *testing.T) {
 	)
 
 	rawMatcher, rawSeen := matcherFor()
-	documents := parseYAMLDocuments(equivalenceKustomization)
-	if len(documents) != 1 {
-		t.Fatalf("parseYAMLDocuments returned %d documents, want 1", len(documents))
-	}
-	raw := discoverKustomizeDocumentEvidence(
-		"repo-infra", "overlays/kustomization.yaml", documents[0],
-		rawMatcher, rawSeen, "sha-1",
+	// The production function, not the per-document helper inside it.
+	raw := discoverKustomizeEvidence(
+		"repo-infra", "overlays/kustomization.yaml", equivalenceKustomization, "sha-1",
+		rawMatcher, rawSeen,
 	)
 
 	structuredKeys := evidenceTargetKinds(structured)
@@ -101,13 +107,13 @@ func TestStructuredKustomizeCoversEveryRawValue(t *testing.T) {
 			"catalog and the comparisons below would pass vacuously")
 	}
 
-	for key := range rawKeys {
-		if _, ok := structuredKeys[key]; !ok {
-			t.Errorf("the raw path produced %s but the structured path did not; "+
-				"reading the parser bucket must not drop evidence the re-parse found", key)
-		}
-	}
-
+	// Only structured-subset-of-raw is asserted. The reverse does not hold and
+	// must not be asserted: the catch-all emits values the structured read has
+	// no way to produce, and it tags them KUSTOMIZE_RESOURCE_REFERENCE whatever
+	// key they came from — `name: payments-service` under `images:` becomes a
+	// resource reference on the raw path and an image reference on the typed
+	// one. That is the raw path's regex being coarse, not the typed read
+	// dropping anything.
 	var extra []string
 	for key := range structuredKeys {
 		if _, ok := rawKeys[key]; !ok {
@@ -117,9 +123,9 @@ func TestStructuredKustomizeCoversEveryRawValue(t *testing.T) {
 	sort.Strings(extra)
 
 	if len(extra) != 0 {
-		t.Errorf("the structured path produced %#v and the raw path did not; the two "+
-			"reads of one file must agree, or the graph carries the union of both "+
-			"answers with nothing reporting the disagreement", extra)
+		t.Errorf("the structured path produced %#v and the raw path did not; the file "+
+			"fact must not contribute evidence the content fact would not, since the "+
+			"two union into one graph", extra)
 	}
 
 	// The fixture has to exercise the legacy bases: key, or equality holds for

@@ -135,3 +135,23 @@ func TestIsRemoteKustomizeRefKeepsVersionedLocalDirectoryLocal(t *testing.T) {
 		}
 	}
 }
+
+// A dotted first segment whose suffix is alphabetic still is not a host. A
+// directory named `config.prod` reads as host-shaped under a TLD-only test, but
+// a scheme-less kustomize remote always names a repository — host/org/repo — so
+// a two-segment path cannot be one (#5609 review, codex).
+func TestIsRemoteKustomizeRefKeepsDottedLocalDirectoriesLocal(t *testing.T) {
+	local := []string{"config.prod/base", "config.d/overlays", "my.app/base", "v1.2/base"}
+	for _, value := range local {
+		if isRemoteKustomizeRef(value) {
+			t.Errorf("isRemoteKustomizeRef(%q) = true, want false: a two-segment path is a "+
+				"directory, not host/org/repo", value)
+		}
+	}
+	remote := []string{"github.com/acme/repo", "config.prod/org/repo", "git.example.com/team/repo//base"}
+	for _, value := range remote {
+		if !isRemoteKustomizeRef(value) {
+			t.Errorf("isRemoteKustomizeRef(%q) = false, want true: host/org/repo is remote", value)
+		}
+	}
+}

@@ -244,7 +244,16 @@ func isRemoteKustomizeRef(value string) bool {
 		return false
 	}
 	head, rest, found := strings.Cut(trimmed, "/")
-	return found && rest != "" && looksLikeKustomizeHost(head)
+	if !found || rest == "" || !looksLikeKustomizeHost(head) {
+		return false
+	}
+	// A host-shaped first segment is not enough on its own. `config.prod/base`
+	// is an ordinary local directory whose name happens to end in letters after
+	// a dot, and treating it as remote loses its EXTENDS_BASE edge and offers
+	// the string to the fuzzy catalog matcher, where it can invent a
+	// DEPLOYS_FROM (#5609 review, codex). Kustomize's scheme-less remote form
+	// always names a repository — host/org/repo — so require the third segment.
+	return strings.Count(trimmed, "/") >= 2
 }
 
 // looksLikeKustomizeHost reports whether a first path segment is a hostname
