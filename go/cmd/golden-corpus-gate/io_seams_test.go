@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -352,11 +353,24 @@ func fakeQueryShapeResponse(shape QueryShape) map[string]any {
 	for _, path := range shape.RequiredJSONPaths {
 		fakeSetJSONPath(resp, path, "value")
 	}
+	objectMatchPaths := make([]string, 0, len(shape.RequiredJSONObjectMatches))
+	for path := range shape.RequiredJSONObjectMatches {
+		objectMatchPaths = append(objectMatchPaths, path)
+	}
+	sort.Slice(objectMatchPaths, func(i, j int) bool {
+		leftDepth := strings.Count(objectMatchPaths[i], ".")
+		rightDepth := strings.Count(objectMatchPaths[j], ".")
+		if leftDepth == rightDepth {
+			return objectMatchPaths[i] < objectMatchPaths[j]
+		}
+		return leftDepth < rightDepth
+	})
+	for _, path := range objectMatchPaths {
+		matches := shape.RequiredJSONObjectMatches[path]
+		fakeSetJSONObjectMatches(resp, path, matches)
+	}
 	for path, value := range shape.RequiredJSONValues {
 		fakeSetJSONPath(resp, path, value)
-	}
-	for path, matches := range shape.RequiredJSONObjectMatches {
-		fakeSetJSONObjectMatches(resp, path, matches)
 	}
 	return resp
 }
@@ -373,15 +387,28 @@ func fakeSetJSONPath(root map[string]any, path string, value any) {
 			return
 		}
 		if arraySegment {
-			arr, _ := obj[segment].([]any)
-			if len(arr) == 0 {
-				if last {
+			if last {
+				if arr, ok := obj[segment].([]any); ok {
+					obj[segment] = append(arr, value)
+				} else {
 					obj[segment] = []any{value}
-					return
 				}
-				arr = []any{map[string]any{}}
-				obj[segment] = arr
+				return
 			}
+			switch arr := obj[segment].(type) {
+			case []map[string]any:
+				if len(arr) > 0 {
+					current = arr[0]
+					continue
+				}
+			case []any:
+				if len(arr) > 0 {
+					current = arr[0]
+					continue
+				}
+			}
+			arr := []any{map[string]any{}}
+			obj[segment] = arr
 			current = arr[0]
 			continue
 		}

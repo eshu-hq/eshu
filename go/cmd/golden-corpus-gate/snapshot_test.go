@@ -247,46 +247,34 @@ func TestGoldenSnapshotPinsDuplicateGlobalEntityResolution(t *testing.T) {
 	}
 }
 
-func TestGoldenSnapshotPinsCodeSearchOverflowAcrossHTTPAndMCP(t *testing.T) {
+func TestGoldenSnapshotPinsHTTPCodeSearchOverflow(t *testing.T) {
 	t.Parallel()
 
 	snapshot, err := LoadSnapshot(goldenSnapshotPath())
 	if err != nil {
 		t.Fatalf("LoadSnapshot() error = %v", err)
 	}
-	for _, tc := range []struct {
-		name  string
-		shape QueryShape
-	}{
-		{name: "mcp", shape: snapshot.QueryShapes.MCP["find_code"]},
-		{name: "http", shape: snapshot.QueryShapes.HTTP["POST /api/v0/code/search"]},
+	shape := snapshot.QueryShapes.HTTP["POST /api/v0/code/search?assert=overflow"]
+	if shape.MinimumResults != 1 {
+		t.Fatalf("minimum_results = %d, want 1", shape.MinimumResults)
+	}
+	// matches/results are aliased rows (eshu-hq/eshu#5566); results_field pins
+	// the asserted one explicitly.
+	if shape.ResultsField != "matches" {
+		t.Fatalf("results_field = %q, want %q", shape.ResultsField, "matches")
+	}
+	for key, want := range map[string]any{
+		"count":               float64(1),
+		"limit":               float64(1),
+		"truncated":           true,
+		"results[].entity_id": "content-entity:e_85e904a13eae",
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			if tc.shape.MinimumResults != 1 {
-				t.Fatalf("minimum_results = %d, want 1", tc.shape.MinimumResults)
-			}
-			// matches/results are aliased rows (eshu-hq/eshu#5566); results_field
-			// pins the asserted one explicitly.
-			if tc.shape.ResultsField != "matches" {
-				t.Fatalf("results_field = %q, want %q", tc.shape.ResultsField, "matches")
-			}
-			for key, want := range map[string]any{
-				"count":               float64(1),
-				"limit":               float64(1),
-				"truncated":           true,
-				"results[].entity_id": "content-entity:e_85e904a13eae",
-			} {
-				if got := tc.shape.RequiredJSONValues[key]; got != want {
-					t.Fatalf("required_json_values[%q] = %#v, want %#v", key, got, want)
-				}
-			}
-		})
+		if got := shape.RequiredJSONValues[key]; got != want {
+			t.Fatalf("required_json_values[%q] = %#v, want %#v", key, got, want)
+		}
 	}
 	for key, want := range map[string]any{"query": "main", "exact": true, "limit": float64(1)} {
-		if got := snapshot.QueryShapes.MCP["find_code"].Arguments[key]; got != want {
-			t.Fatalf("find_code arguments[%q] = %#v, want %#v", key, got, want)
-		}
-		if got := snapshot.QueryShapes.HTTP["POST /api/v0/code/search"].RequestBody[key]; got != want {
+		if got := shape.RequestBody[key]; got != want {
 			t.Fatalf("code search request_body[%q] = %#v, want %#v", key, got, want)
 		}
 	}

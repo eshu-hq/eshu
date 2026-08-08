@@ -96,18 +96,20 @@ Burn-down progress:
 - **#5666** downgraded the pair #5336 originally flagged —
   `prod-component-extension-inventory` / `prod-component-extension-diagnostics`
   (`component_extensions.inventory` / `.diagnostics`) — from `production:
-  supported` to `experimental`. Their committed deployed **read-surface**
-  evidence is still missing (the OCI e2e driver starts the collector but does
-  not exercise `list_component_extensions` / `get_component_extension_diagnostics`
-  through the API/MCP); wiring a deployed API/MCP run (then restoring
-  `supported`) is tracked in #5681.
-- **This directory now holds 101 committed production-validation artifacts** —
-  each capability whose committed evidence (the `go_test` suites its local
-  profiles cite, `docs/internal/evidence/*.md` live-backend validations, and
-  `scripts/run-remote-e2e-*` deployed drivers) substantiates its `production`
-  profile. Those rows keep `production: supported`; their refs now resolve, so
-  `-update` removed them from the baseline.
-- **`FROZEN_MAX` is now 7.** The prior cluster of 7 code-intelligence slugs
+  supported` to `experimental`, because no committed evidence exercised the
+  read surface through the API/MCP. **That gap has since been closed and both
+  rows are back at `production: supported`**: the two artifacts in this
+  directory record a live `GET /api/v0/component-extensions` readback against a
+  deployed component-extension Compose stack, returning `installed=true`,
+  `enabled=true`, and `trusted=true` for a real claimed component, with the
+  diagnostics route sharing that handler.
+- **This directory now holds 110 committed artifact files.** That count closes
+  the old pointer-existence baseline; it does not certify the contents. The
+  seven Cluster B files added for #5681 carry fresh matching-tier evidence.
+  #5552 remains open while the 103 legacy files are requalified against the
+  stronger deployed-tier contract and either refreshed or explicitly
+  downgraded with owner approval.
+- **The cluster of 7 code-intelligence slugs before this one**
   (#5681) was resolved per-row against a real deployed-services stack: the two
   transitive-caller-graph reads (`prod-transitive-callers` /
   `prod-transitive-callees`) returned complete multi-hop
@@ -119,11 +121,34 @@ Burn-down progress:
   `symbol_graph.argument_names` — were **downgraded to `experimental`** because
   their declared deployed route returned empty or incomplete results, each
   citing the product defect that must land before the claim is restored
-  (imports has no producer #5691; reaching_def is unwired #5692; code_hints has
-  no extraction pipeline #5693; inheritance hits the NornicDB
+  (imports has no producer #5691; reaching_def's wiring landed under #5692 but
+  no deployed run has been captured with the gate on; code_hints has a producer
+  under #5693 that no runtime path calls yet; inheritance hits the NornicDB
   `type(rel)`/`coalesce`-after-`OPTIONAL MATCH` literal-text defect #5694; and
   argument_names drops declared parameters through projection). No slug was
-  bulk-downgraded: every one carries a per-row deployed determination. The
-  remaining 7 baseline slugs (secrets/IAM exposure-path and variable/trace
-  reads) need seeded IAM + exposure fixtures on a deployed stack, tracked in
-  #5552. The frozen set stays at 115 (immutable); only the baseline shrinks.
+  bulk-downgraded: every one carries a per-row deployed determination.
+- **`FROZEN_MAX` is now 0 — the baseline is empty.** The final 7
+  secrets/IAM and code-to-cloud/code-search slugs closed Cluster B of #5681:
+  `prod-secrets-iam-identity-trust-chains`, `-posture-gaps`,
+  `-posture-summary`, `-privilege-posture-observations`,
+  `-secret-access-paths`, `prod-trace-exposure-path`, and
+  `prod-variable-lookup`. Each was **validated** on a fresh, uniquely named
+  deployed-services Compose stack and keeps `production: supported`. The five
+  `secrets_iam.*` reads returned non-empty rows or non-zero summary buckets from
+  synthetic Kubernetes, AWS, and Vault evidence; they did not require the
+  optional graph-projection flag. `trace_exposure_path` resolved the source and
+  returned the promised bounded unresolved state rather than inventing a path.
+  MCP `find_code` and HTTP code search both returned Variable-labeled matches.
+  The same edit corrected four local-profile evidence mismatches. A second
+  fresh golden-corpus run under `ESHU_QUERY_PROFILE=local_authoritative`
+  exercised `code_search.variable_lookup` and
+  `code_to_cloud.trace_exposure_path` against the real graph stack, so those
+  local_authoritative rows remain `supported`. Their local_full_stack rows cite
+  the same credential-free Compose driver and also remain `supported`. See
+  TRANCHE 2 in [DISPOSITIONS.md](DISPOSITIONS.md) and the seven dated artifacts
+  in this directory carry the exact command, direct exit capture, and per-row
+  observed results.
+  Closing this pointer baseline to empty resolves Cluster B and allows #5681 to
+  close. It does **not** close #5552: that program stays open until all 103
+  legacy files pass matching-tier content validation and the recurrence gate
+  proves seeded unbacked claims red and the reverted matrix green.

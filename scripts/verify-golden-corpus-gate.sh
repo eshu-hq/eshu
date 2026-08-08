@@ -67,6 +67,8 @@ cd "${repo_root}"
 : "${GATE_API_PORT:=18080}"   # off the default 8080 so a sibling stack does not collide
 : "${GATE_MCP_PORT:=18091}"   # eshu-mcp-server http transport for B-7(c) MCP query truth
 : "${GATE_API_KEY:=golden-corpus-gate-local-key}"
+: "${GATE_COMPOSE_PROJECT:=eshu-golden-corpus-$$}"
+: "${ESHU_QUERY_PROFILE:=local_full_stack}"
 : "${GATE_DRAIN_TIMEOUT:=10m}"
 : "${GATE_BUDGET_SECONDS:=900}"   # baseline wall-time budget; ceiling is 2x.
 : "${GATE_BUDGET_MULTIPLIER:=2}"
@@ -91,6 +93,7 @@ if [[ "${ESHU_GRAPH_BACKEND}" == "neo4j" ]]; then
 	graph_service="neo4j"
 	database="neo4j"
 fi
+compose_args=(-p "${GATE_COMPOSE_PROJECT}" -f "${compose_file}")
 
 # shellcheck source=scripts/lib/golden-corpus-fixtures.sh
 source "${repo_root}/scripts/lib/golden-corpus-fixtures.sh"
@@ -179,7 +182,8 @@ export ESHU_GIT_AUTH_METHOD="none"
 # in-corpus owner repo, producing cross-repo DEPENDS_ON (rc-3).
 export ESHU_GITHUB_ORG="acme"
 export ESHU_REPOSITORY_RULES_JSON="[]"
-export ESHU_QUERY_PROFILE="local_full_stack"
+export ESHU_QUERY_PROFILE
+log "query profile: ${ESHU_QUERY_PROFILE}"
 export ESHU_API_KEY="${GATE_API_KEY}"
 export ESHU_API_ADDR=":${GATE_API_PORT}"
 # ESHU_AUTH_BOOTSTRAP_MODE defaults to "generated" (#4963), which requires a

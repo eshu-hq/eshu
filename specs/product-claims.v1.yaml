@@ -39,8 +39,8 @@ claims:
     source:
       path: README.md
       line: 56
-      quote: "| Code-to-cloud tracing | Connect source repos, container images, Kubernetes workloads, Helm/Kustomize/ArgoCD config, Terraform resources, and cloud observations with evidence at each hop. <!-- capability-state: id=code_to_cloud.trace_exposure_path state=general_availability --> <!-- product-claim: id=readme.code-to-cloud.evidence-continuity --> |"
-    claim_text: "Code-to-cloud tracing connects source, image, workload, configuration, Terraform, and cloud observations with evidence at each hop."
+      quote: "| Code-to-cloud tracing | Trace source code toward cloud infrastructure, attach evidence to each observed hop, and report an explicit unresolved gap when required bridge evidence is missing. <!-- capability-state: id=code_to_cloud.trace_exposure_path state=general_availability --> <!-- product-claim: id=readme.code-to-cloud.evidence-continuity --> |"
+    claim_text: "Code-to-cloud tracing follows source code toward cloud infrastructure, attaches evidence to observed hops, and reports explicit unresolved gaps when bridge evidence is missing."
     capabilities:
       - id: code_to_cloud.trace_exposure_path
         claimed_maturity: general_availability
@@ -50,14 +50,14 @@ claims:
     reducer_paths: [go/internal/reducer]
     collector_paths: [go/internal/collector]
     mcp_surfaces: [trace_exposure_path]
-    deterministic_evidence_source: "Reducer-owned relationship materialization and trace query tests provide deterministic source-to-cloud evidence; semantic summaries are not required."
+    deterministic_evidence_source: "The deployed golden-corpus run resolves an HTTP-handler source and preserves an explicit bounded unresolved gap when no materialized cloud-sink bridge exists; semantic summaries are not required."
     semantic_output: not_used
     proof:
-      command: "cd go && go test ./internal/query ./internal/reducer ./internal/relationships -count=1"
+      command: "GATE_COMPOSE_PROJECT=eshu-5681-claim-honesty-20260808-6 ESHU_POSTGRES_PORT=34542 NEO4J_BOLT_PORT=34687 NEO4J_HTTP_PORT=34474 GATE_API_PORT=34080 GATE_MCP_PORT=34091 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh >/tmp/eshu-5681-b7-postrebase.log 2>&1; echo $?"
       signals:
         - capability: code_to_cloud.trace_exposure_path
-          kind: compose_e2e
-          ref: trace-exposure-path
+          kind: remote_validation
+          ref: prod-trace-exposure-path
 
   - id: readme.supply-chain.default-gated
     source:

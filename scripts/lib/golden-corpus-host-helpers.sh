@@ -36,7 +36,7 @@ start_bg() {
 pg() {
 	local sql="$1"
 	if [[ "${use_compose}" -eq 1 ]]; then
-		docker compose -f "${compose_file}" exec -T postgres \
+		docker compose "${compose_args[@]}" exec -T postgres \
 			psql -v ON_ERROR_STOP=1 -U eshu -d eshu -tA -c "${sql}"
 	else
 		command -v psql >/dev/null 2>&1 || die "psql client required in --no-compose mode"

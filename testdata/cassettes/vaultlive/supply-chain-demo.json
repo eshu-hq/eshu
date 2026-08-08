@@ -48,6 +48,57 @@
             "description": "AppRole auth for CI/CD pipelines",
             "accessor": "auth_approle_synthetic_02"
           }
+        },
+        {
+          "fact_kind": "vault_auth_role",
+          "stable_fact_key": "claim-honesty:vault:auth-role",
+          "schema_version": "1.0.0",
+          "collector_kind": "vault_live",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "role_join_key": "sha256:claim-honesty-vault-role",
+            "mount_join_key": "sha256:claim-honesty-vault-auth-mount",
+            "bound_service_account_join_keys": [
+              "sha256:claim-honesty-service-account"
+            ],
+            "token_policy_join_keys": [
+              "sha256:claim-honesty-vault-policy"
+            ]
+          }
+        },
+        {
+          "fact_kind": "vault_acl_policy",
+          "stable_fact_key": "claim-honesty:vault:acl-policy",
+          "schema_version": "1.0.0",
+          "collector_kind": "vault_live",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "policy_join_key": "sha256:claim-honesty-vault-policy",
+            "rules": [
+              {
+                "path_fingerprint": "sha256:claim-honesty-kv-path",
+                "path_depth": 3,
+                "capabilities": [
+                  "read"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "fact_kind": "vault_kv_metadata",
+          "stable_fact_key": "claim-honesty:vault:kv-metadata",
+          "schema_version": "1.0.0",
+          "collector_kind": "vault_live",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "mount_join_key": "sha256:claim-honesty-vault-auth-mount",
+            "kv_path_fingerprint": "sha256:claim-honesty-kv-path",
+            "path_depth": 3
+          }
         }
       ]
     }
