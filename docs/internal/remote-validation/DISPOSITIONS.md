@@ -17,6 +17,14 @@ taken, so a later reviewer can see the option space without re-deriving it.
 **Slugs:** `prod-component-extension-inventory`,
 `prod-component-extension-diagnostics`
 **Disposition:** DOWNGRADED, `production` profile `supported` -> `experimental`
+**Superseded:** both rows are back at `production: supported`. The read-surface
+proof this tranche said was missing was captured afterwards -- the two artifacts
+in this directory record a live `GET /api/v0/component-extensions` (and its
+diagnostics route) readback against a deployed stack, returning
+`installed=true`, `enabled=true`, `trusted=true` for a real claimed component.
+The downgrade below is the record of a decision that has since been reversed on
+evidence, not the current state. Check
+`specs/capability-matrix/component-extensions.v1.yaml` before acting on it.
 **Tracking:** #5336 (original finding), #5552 (systemic burn-down), #5407
 (freeze that bounded the debt)
 
