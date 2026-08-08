@@ -237,17 +237,6 @@ type (
 // GrantResolver, not by re-contacting GitHub.
 const DefaultSessionRefreshWindow = query.DefaultGitHubSessionRefreshWindow
 
-func safeReturnPath(path string) string {
-	path = strings.TrimSpace(path)
-	if path == "" || !strings.HasPrefix(path, "/") || strings.HasPrefix(path, "//") {
-		return ""
-	}
-	if strings.ContainsAny(path, "\r\n\t") {
-		return ""
-	}
-	return path
-}
-
 func defaultString(value string, fallback string) string {
 	if strings.TrimSpace(value) == "" {
 		return fallback

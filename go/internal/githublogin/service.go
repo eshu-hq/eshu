@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/authsafe"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
@@ -92,7 +93,7 @@ func (s *Service) StartGitHubLogin(ctx context.Context, req StartRequest) (Start
 		TenantID:         tenantID,
 		WorkspaceID:      workspaceID,
 		RedirectURIHash:  SHA256Hash(provider.RedirectURL),
-		ReturnToPath:     safeReturnPath(req.ReturnToPath),
+		ReturnToPath:     authsafe.ReturnPath(req.ReturnToPath),
 		IssuedAt:         now,
 		ExpiresAt:        now.Add(s.stateTTL()),
 		UpdatedAt:        now,
@@ -208,7 +209,7 @@ func (s *Service) CompleteGitHubLogin(ctx context.Context, req CompleteRequest) 
 		ProviderSubjectID:   subjectIDHash,
 		ProviderGroupHashes: append([]string(nil), groupHashes...),
 		ProviderProofAt:     now,
-		ReturnToPath:        safeReturnPath(record.ReturnToPath),
+		ReturnToPath:        authsafe.ReturnPath(record.ReturnToPath),
 	}, nil
 }
 
