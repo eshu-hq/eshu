@@ -4,6 +4,7 @@
 package dataflowemit
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/cfg"
@@ -11,6 +12,27 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 	"github.com/eshu-hq/eshu/go/internal/parser/taint"
 )
+
+func TestDataflowFunctionRowCarriesControlDependencies(t *testing.T) {
+	t.Parallel()
+
+	want := []map[string]any{{
+		"guard_block":     0,
+		"guard_stmt":      2,
+		"guard_line":      14,
+		"guard":           "query != <literal>",
+		"dependent_block": 2,
+	}}
+	row := DataflowFunctionRow("go", "GoldenDataflowHandler", 12, "", cfg.Function{
+		ControlDependencies: []cfg.ControlDependence{{
+			GuardBlock: 0, GuardStmt: 2, GuardLine: 14,
+			Guard: "query != <literal>", DependentBlock: 2,
+		}},
+	})
+	if got, ok := row["control_dependencies"].([]map[string]any); !ok || !reflect.DeepEqual(got, want) {
+		t.Fatalf("control_dependencies = %#v (%T), want %#v", row["control_dependencies"], row["control_dependencies"], want)
+	}
+}
 
 // TestTaintFindingRowOmitsEmptyOptionalFields proves optional provenance fields
 // are absent when empty and present when set, and that the lang label is carried.
