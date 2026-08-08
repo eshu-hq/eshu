@@ -106,18 +106,25 @@ coverage:
     scenario_type: delta_tombstone
     ref: "odu:ifa-sql-family-delta"
     proof_gate: ifa-determinism
-  # #5555: the fault-injection matrix's cell_killworker_sql and
-  # cell_failgraphwrite_sql (scripts/lib/ifa_fault_injection_sql_cells.sh)
-  # provably target the sql_relationship_materialization / sql_relationships
-  # work item -- a domain-scoped wait_for_claimed precondition and a SQL edge
-  # (QUERIES_TABLE) MERGE anchor, not CloudResource -- and both proved green
-  # live, including a red/green differential proving each non-vacuity check
-  # actually bites (see the tracked evidence on that issue). Same Odù as the
-  # baseline row above: the resolver's vacuity guard is identical for
-  # baseline and fault (MaterializedEdgeOduResolver.Resolve), the fault
-  # dimension's ADDITIONAL claim is that a scripted worker-kill / lease-
-  # expiry / graph-write fault against this family's real durable handler
-  # replay still converges to that same exact edge set.
+  # #5555 rebuilt the SQL fault cells in
+  # scripts/lib/ifa_fault_injection_sql_cells.sh. Read the waiver below before
+  # this comment: only one of the two cells is proven.
+  #
+  # cell_killworker_sql is proven live in CI -- it waits on a domain-scoped
+  # sql_relationship_materialization row rather than any claimed row, and
+  # seeding a nonexistent domain makes it time out on that name instead of
+  # latching unrelated work.
+  #
+  # cell_failgraphwrite_sql is NOT proven. It anchors the fault to a SQL edge
+  # (QUERIES_TABLE) MERGE instead of CloudResource, and passes locally, but does
+  # not fire in CI (#5974) -- caught by its own non-vacuity check. That is why
+  # the fault dimension below is waived rather than covered.
+  #
+  # Same Odù as the baseline row above: the resolver's vacuity guard is
+  # identical for baseline and fault (MaterializedEdgeOduResolver.Resolve). The
+  # fault dimension's ADDITIONAL claim -- that a scripted kill / lease-expiry /
+  # graph-write fault still converges to the same exact edge set -- is what
+  # remains unproven for the graph-write half.
 
 waivers:
   # --- sql_relationships: fault only. Baseline is proven above. ---
