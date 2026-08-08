@@ -3643,70 +3643,102 @@
         }
       },
       "list_secrets_iam_identity_trust_chains": {
-        "description": "MCP tool coverage shape for list_secrets_iam_identity_trust_chains; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "Non-vacuous deployed MCP proof for the reducer-owned secrets/IAM identity trust-chain read model. Synthetic Kubernetes, AWS IAM, and Vault cassette facts join across active scopes into one exact chain while graph projection remains governance-gated off.",
         "required_response_fields": [
           "count",
           "identity_trust_chains",
           "limit",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "results_field": "identity_trust_chains",
+        "required_json_values": {
+          "identity_trust_chains[].state": "exact",
+          "identity_trust_chains[].workload_object_id": "workload:claim-honesty-demo"
+        },
         "arguments": {
-          "scope_id": "supply-chain-demo",
+          "scope_id": "aws:000000000000:us-east-1:iam",
           "limit": 10
         }
       },
       "list_secrets_iam_privilege_posture_observations": {
-        "description": "MCP tool coverage shape for list_secrets_iam_privilege_posture_observations; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "Non-vacuous deployed MCP proof for risky partial IAM posture. The synthetic AWS cassette includes a separate wildcard web-identity trust statement that must remain a high-severity partial observation and must never become an exact chain.",
         "required_response_fields": [
           "count",
           "limit",
           "privilege_posture_observations",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "results_field": "privilege_posture_observations",
+        "required_json_values": {
+          "privilege_posture_observations[].risk_type": "wildcard_web_identity_subject",
+          "privilege_posture_observations[].severity": "high",
+          "privilege_posture_observations[].state": "partial"
+        },
         "arguments": {
-          "scope_id": "supply-chain-demo",
+          "scope_id": "aws:000000000000:us-east-1:iam",
           "limit": 10
         }
       },
       "list_secrets_iam_secret_access_paths": {
-        "description": "MCP tool coverage shape for list_secrets_iam_secret_access_paths; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "Non-vacuous deployed MCP proof for an exact identity-to-Vault access path. The returned path must retain the synthetic KV fingerprint and read capability without exposing a raw secret path or value.",
         "required_response_fields": [
           "count",
           "limit",
           "secret_access_paths",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "results_field": "secret_access_paths",
+        "required_json_values": {
+          "secret_access_paths[].state": "exact",
+          "secret_access_paths[].kv_path_fingerprint": "sha256:claim-honesty-kv-path",
+          "secret_access_paths[].capabilities[]": "read"
+        },
         "arguments": {
-          "scope_id": "supply-chain-demo",
+          "scope_id": "aws:000000000000:us-east-1:iam",
           "limit": 10
         }
       },
       "list_secrets_iam_posture_gaps": {
-        "description": "MCP tool coverage shape for list_secrets_iam_posture_gaps; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "Non-vacuous deployed MCP proof that an explicit collector coverage warning remains visible as an unsupported posture gap instead of disappearing from the exact chain.",
         "required_response_fields": [
           "count",
           "limit",
           "posture_gaps",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "results_field": "posture_gaps",
+        "required_json_values": {
+          "posture_gaps[].gap_type": "unsupported_policy_layer",
+          "posture_gaps[].state": "unsupported"
+        },
         "arguments": {
-          "scope_id": "supply-chain-demo",
+          "scope_id": "aws:000000000000:us-east-1:iam",
           "limit": 10
         }
       },
       "count_secrets_iam_posture": {
-        "description": "MCP tool coverage shape for count_secrets_iam_posture; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "Non-vacuous deployed MCP rollup proof over all four reducer-owned secrets/IAM read models for the synthetic IAM scope.",
         "required_response_fields": [
           "scope_id",
           "summary"
         ],
         "minimum_results": 0,
+        "required_json_values": {
+          "summary.identity_trust_chains_by_state[].bucket": "exact",
+          "summary.identity_trust_chains_by_state[].count": 1,
+          "summary.privilege_observations_by_risk_type[].bucket": "wildcard_web_identity_subject",
+          "summary.privilege_observations_by_risk_type[].count": 1,
+          "summary.secret_access_paths_by_state[].bucket": "exact",
+          "summary.secret_access_paths_by_state[].count": 1,
+          "summary.posture_gaps_by_gap_type[].bucket": "unsupported_policy_layer",
+          "summary.posture_gaps_by_gap_type[].count": 1
+        },
         "arguments": {
-          "scope_id": "supply-chain-demo"
+          "scope_id": "aws:000000000000:us-east-1:iam"
         }
       },
       "list_observability_coverage_correlations": {
@@ -5083,7 +5115,7 @@
         "minimum_results": 0
       },
       "trace_exposure_path": {
-        "description": "MCP tool coverage shape for trace_exposure_path; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "Non-vacuous deployed MCP proof for the api-svc Flask list_orders handler. The source must resolve and classify as an HTTP handler; until a graph-backed cloud-sink bridge is reachable, the tool must return an explicit bounded unresolved result rather than inventing a path.",
         "required_response_fields": [
           "coverage",
           "exposure_rank",
@@ -5094,9 +5126,22 @@
           "truth_label"
         ],
         "minimum_results": 0,
+        "required_json_paths": [
+          "coverage.unresolved_reason"
+        ],
+        "required_json_values": {
+          "source.name": "list_orders",
+          "source_kind": "http_handler",
+          "exposure_rank": "network_reachable",
+          "truth_label": "derived",
+          "state": "unresolved",
+          "coverage.max_depth": 4,
+          "coverage.paths_found": 0,
+          "coverage.truncated": false
+        },
         "arguments": {
-          "source": "api-svc",
-          "repo_id": "orders-api",
+          "source": "list_orders",
+          "repo_id": "repository:r_d5318f0f",
           "max_depth": 4
         }
       },
@@ -5366,7 +5411,7 @@
         }
       },
       "POST /api/v0/code/search": {
-        "description": "Global exact code-name search overflow proof; limit=1 must return one deterministic row and report that the duplicate name has another result.",
+        "description": "Non-vacuous deployed variable lookup proof. Global exact search for the synthetic app binding must return at least one Variable entity and label the response with the variable-lookup capability contract.",
         "truth_class": "content_index",
         "required_response_fields": [
           "matches",
@@ -5389,15 +5434,14 @@
           "file_path"
         ],
         "required_json_values": {
-          "count": 1,
-          "limit": 1,
-          "truncated": true,
-          "results[].entity_id": "content-entity:e_85e904a13eae"
+          "query": "app",
+          "matches[].labels[]": "Variable"
         },
         "request_body": {
-          "query": "main",
+          "query": "app",
           "exact": true,
-          "limit": 1
+          "limit": 20,
+          "search_type": "variable"
         }
       },
       "POST /api/v0/impact/trace-deployment-chain": {

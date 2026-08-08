@@ -421,6 +421,43 @@
               "kubernetes_live:supply-chain-demo:core/v1/namespaces::default"
             ]
           }
+        },
+        {
+          "fact_kind": "k8s_service_account",
+          "stable_fact_key": "claim-honesty:k8s:service-account",
+          "schema_version": "1.0.0",
+          "collector_kind": "kubernetes_live",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "service_account_join_key": "sha256:claim-honesty-service-account"
+          }
+        },
+        {
+          "fact_kind": "k8s_workload_identity_use",
+          "stable_fact_key": "claim-honesty:k8s:workload-identity-use",
+          "schema_version": "1.0.0",
+          "collector_kind": "kubernetes_live",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "service_account_join_key": "sha256:claim-honesty-service-account",
+            "workload_object_id": "workload:claim-honesty-demo",
+            "workload_kind": "deployments"
+          }
+        },
+        {
+          "fact_kind": "eks_irsa_annotation",
+          "stable_fact_key": "claim-honesty:k8s:irsa-annotation",
+          "schema_version": "1.0.0",
+          "collector_kind": "kubernetes_live",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "service_account_join_key": "sha256:claim-honesty-service-account",
+            "role_arn": "arn:aws:iam::000000000000:role/claim-honesty-demo",
+            "web_identity_subject_fingerprint": "sha256:claim-honesty-web-identity"
+          }
         }
       ]
     }

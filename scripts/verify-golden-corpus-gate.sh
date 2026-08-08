@@ -67,6 +67,7 @@ cd "${repo_root}"
 : "${GATE_API_PORT:=18080}"   # off the default 8080 so a sibling stack does not collide
 : "${GATE_MCP_PORT:=18091}"   # eshu-mcp-server http transport for B-7(c) MCP query truth
 : "${GATE_API_KEY:=golden-corpus-gate-local-key}"
+: "${GATE_COMPOSE_PROJECT:=eshu-golden-corpus-$$}"
 : "${GATE_DRAIN_TIMEOUT:=10m}"
 : "${GATE_BUDGET_SECONDS:=900}"   # baseline wall-time budget; ceiling is 2x.
 : "${GATE_BUDGET_MULTIPLIER:=2}"
@@ -91,6 +92,7 @@ if [[ "${ESHU_GRAPH_BACKEND}" == "neo4j" ]]; then
 	graph_service="neo4j"
 	database="neo4j"
 fi
+compose_args=(-p "${GATE_COMPOSE_PROJECT}" -f "${compose_file}")
 
 # shellcheck source=scripts/lib/golden-corpus-fixtures.sh
 source "${repo_root}/scripts/lib/golden-corpus-fixtures.sh"

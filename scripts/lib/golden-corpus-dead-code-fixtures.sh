@@ -9,7 +9,7 @@
 golden_pg_exec() {
 	local sql="$1"
 	if [[ "${use_compose}" -eq 1 ]]; then
-		docker compose -f "${compose_file}" exec -T postgres \
+		docker compose "${compose_args[@]}" exec -T postgres \
 			psql -U eshu -d eshu -v ON_ERROR_STOP=1 -c "${sql}" >/dev/null
 	else
 		command -v psql >/dev/null 2>&1 || die "psql client required in --no-compose mode"
