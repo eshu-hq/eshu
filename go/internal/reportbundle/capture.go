@@ -104,7 +104,9 @@ func Capture(input CaptureInput) (Bundle, error) {
 		return Bundle{}, fmt.Errorf("digest redacted response data: %w", err)
 	}
 
-	rules := dedupeSorted(append(append([]string{}, paramRules...), dataRules...))
+	redactedError, errorRules := redactErrorEnvelope(input.Envelope.Error)
+
+	rules := dedupeSorted(append(append(append([]string{}, paramRules...), dataRules...), errorRules...))
 
 	factRefsState := "unavailable"
 	factRefsReason := input.FactRefsReason
@@ -148,7 +150,7 @@ func Capture(input CaptureInput) (Bundle, error) {
 		},
 		Response: CapturedResponse{
 			Truth:      input.Envelope.Truth,
-			Error:      input.Envelope.Error,
+			Error:      redactedError,
 			Truncated:  input.Truncated,
 			Data:       json.RawMessage(dataRaw),
 			DataDigest: digest,
@@ -250,4 +252,47 @@ func dedupeSorted(rules []string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// redactErrorEnvelope routes an error envelope's Details map through the same
+// per-value redactor Params and Data use, returning a copy so the caller's
+// envelope is never mutated.
+//
+// Before this, Response.Error was copied into the bundle verbatim. That was
+// safe but only in the all-or-nothing sense: a sensitive-shaped key inside
+// Details would fail the final Validate gate and Capture would refuse to emit
+// a bundle at all. Every other field redacts and continues, so a user whose
+// error happened to carry a "token" key got no bundle instead of a redacted
+// one, and nothing tested the difference (#5059).
+//
+// Only Details is redacted. Code, Message, Capability, CorrelationID and
+// Profiles are not key-value payload — they are fixed contract fields the
+// redactor has no key names to work with, and Validate still covers them.
+func redactErrorEnvelope(envelope *query.ErrorEnvelope) (*query.ErrorEnvelope, []string) {
+	if envelope == nil {
+		return nil, nil
+	}
+	redacted := *envelope
+	if len(envelope.Details) == 0 {
+		redacted.Details = envelope.Details
+		return &redacted, nil
+	}
+
+	value, rules := redactValue(copyParams(envelope.Details))
+	details, ok := value.(map[string]any)
+	if !ok {
+		// copyParams yields a map and redactValue's map branch returns one, so
+		// this cannot happen today. Drop the details rather than pass through
+		// an unredacted value if that ever stops being true: losing diagnostic
+		// context is recoverable, leaking is not.
+		return &query.ErrorEnvelope{
+			Code:          envelope.Code,
+			Message:       envelope.Message,
+			Capability:    envelope.Capability,
+			CorrelationID: envelope.CorrelationID,
+			Profiles:      envelope.Profiles,
+		}, rules
+	}
+	redacted.Details = details
+	return &redacted, rules
 }

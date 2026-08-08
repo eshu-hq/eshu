@@ -285,3 +285,99 @@ func TestCapture_NilResponseDataYieldsNullWithDigest(t *testing.T) {
 		t.Fatalf("Validate(nil-data bundle, RequirePublic) error = %v, want nil", err)
 	}
 }
+
+// A sensitive-shaped key inside an error envelope's Details must be REDACTED,
+// not merely rejected. Before #5059, Response.Error was copied verbatim and the
+// only thing standing between it and a shared bundle was the final Validate
+// gate — so a user whose error happened to carry an api_key got no bundle at
+// all, while every other field would have redacted and continued.
+func TestCapture_ErrorDetailsAreRedacted(t *testing.T) {
+	bundle, err := Capture(CaptureInput{
+		Surface: "api",
+		Target:  "/api/v0/services/checkout/story",
+		Envelope: query.ResponseEnvelope{
+			Data: map[string]any{"owner": "platform-team"},
+			Error: &query.ErrorEnvelope{
+				Code:    "internal",
+				Message: "upstream refused the call",
+				Details: map[string]any{
+					"api_key":  "sk-live-do-not-share",
+					"attempts": 3,
+					"nested":   map[string]any{"password": "hunter2", "host": "svc"},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Capture() error = %v; a sensitive key in Details must redact and continue, not refuse", err)
+	}
+
+	got := bundle.Response.Error
+	if got == nil {
+		t.Fatal("Capture() dropped the error envelope entirely; Code and Message are not sensitive")
+	}
+	if got.Code != "internal" || got.Message != "upstream refused the call" {
+		t.Errorf("non-payload error fields changed: code=%q message=%q", got.Code, got.Message)
+	}
+	if _, present := got.Details["api_key"]; present {
+		t.Errorf("api_key survived redaction in Details: %#v", got.Details)
+	}
+	if got.Details["attempts"] != 3 {
+		t.Errorf("benign Details key was dropped: %#v", got.Details)
+	}
+	nested, ok := got.Details["nested"].(map[string]any)
+	if !ok {
+		t.Fatalf("nested Details map missing or wrong type: %#v", got.Details)
+	}
+	if _, present := nested["password"]; present {
+		t.Errorf("nested password survived redaction: %#v", nested)
+	}
+	if nested["host"] != "svc" {
+		t.Errorf("benign nested key was dropped: %#v", nested)
+	}
+
+	var sawRule bool
+	for _, rule := range bundle.Redaction.Rules {
+		if rule != "" {
+			sawRule = true
+		}
+	}
+	if !sawRule {
+		t.Error("redacting Details recorded no rule; the bundle would claim nothing was removed")
+	}
+}
+
+// The caller's envelope must not be mutated by capture — a CLI that captures
+// and then prints the same envelope would otherwise show redacted output as if
+// that were the real error.
+func TestCapture_ErrorRedactionDoesNotMutateCallerEnvelope(t *testing.T) {
+	details := map[string]any{"api_key": "sk-live-do-not-share", "attempts": 1}
+	envelope := &query.ErrorEnvelope{Code: "internal", Message: "boom", Details: details}
+
+	if _, err := Capture(CaptureInput{
+		Surface:  "api",
+		Target:   "/api/v0/services/checkout/story",
+		Envelope: query.ResponseEnvelope{Data: map[string]any{"ok": true}, Error: envelope},
+	}); err != nil {
+		t.Fatalf("Capture() error = %v", err)
+	}
+
+	if _, present := details["api_key"]; !present {
+		t.Error("Capture mutated the caller's Details map; it must redact a copy")
+	}
+}
+
+// A nil error envelope stays nil rather than becoming an empty object.
+func TestCapture_NilErrorEnvelopeStaysNil(t *testing.T) {
+	bundle, err := Capture(CaptureInput{
+		Surface:  "api",
+		Target:   "/api/v0/services/checkout/story",
+		Envelope: query.ResponseEnvelope{Data: map[string]any{"ok": true}},
+	})
+	if err != nil {
+		t.Fatalf("Capture() error = %v", err)
+	}
+	if bundle.Response.Error != nil {
+		t.Errorf("nil error became %#v", bundle.Response.Error)
+	}
+}
