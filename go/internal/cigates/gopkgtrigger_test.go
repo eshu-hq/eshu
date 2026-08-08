@@ -35,7 +35,7 @@ func goPkgGate(triggers []string, cmd, testCmd string) *cigates.Registry {
 
 // THE TEETH. Every gate in the committed registry that compiles or runs a Go
 // package must be selected by an edit inside that package. This is the property
-// #5873 asked for and the one that decays silently: the 19 Go-implemented gates
+// #5873 asked for and the one that decays silently: the Go-implemented gates
 // are invisible to checkScriptTriggerCoverage, which only derives "scripts/"
 // tokens, so before this check two of them did not select on an edit to their
 // own implementation. Seed a defect by deleting a gate's own package trigger
@@ -390,5 +390,28 @@ func TestDriftCheck_EveryPackageInCompoundCommandChecked(t *testing.T) {
 	}
 	if !strings.Contains(errs[0], "go/internal/uncovered") {
 		t.Errorf("error should name the uncovered package, got: %s", errs[0])
+	}
+}
+
+// A BARE "..." is not a relative package reference. Go treats only paths
+// starting with ".", ".." or "/" as filesystem-relative, so "..." names a
+// standard import path — a package called "..." — and must not be read as "the
+// working directory, recursively". Treating it as one demanded a trigger that
+// nothing should have to carry: a loud finding rather than a silent skip, but
+// wrong either way (#5955 review). "./..." keeps working, via the "./" prefix.
+func TestDriftCheck_BareEllipsisIsNotACurrentDirectoryPackage(t *testing.T) {
+	t.Parallel()
+
+	root := buildDriftRepo(t, minimalPreCommit("my-gate"), []string{"verify.yml"})
+
+	bare := goPkgGate([]string{"specs/thing.yaml"}, "cd go/internal/thing && go test ... -count=1", "")
+	if errs := goPkgTriggerErrs(t, root, bare); len(errs) != 0 {
+		t.Errorf("a bare \"...\" must not be read as a relative package; got %v", errs)
+	}
+
+	// The dotted form is a real recursive spec and still demands coverage.
+	dotted := goPkgGate([]string{"specs/thing.yaml"}, "cd go/internal/thing && go test ./... -count=1", "")
+	if errs := goPkgTriggerErrs(t, root, dotted); len(errs) != 1 {
+		t.Fatalf("./... must still demand a trigger; got %d: %v", len(errs), errs)
 	}
 }

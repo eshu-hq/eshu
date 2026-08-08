@@ -327,8 +327,25 @@ func extractGoPackageDirs(command string) []goPackageDir {
 		}
 
 		// "." and "./..." are as much a package argument as "./pkg" — `go help
-		// run` accepts a bare "." explicitly.
-		isPackageArg := strings.HasPrefix(w, "./") || w == "." || w == "..."
+		// run` accepts a bare "." explicitly, and "./..." carries the "./"
+		// prefix already. A BARE "..." is not a relative reference: go treats
+		// only paths starting with ".", ".." or "/" as filesystem-relative, so
+		// "..." is a standard import path naming a package called "...".
+		// Accepting it resolved to the working directory and demanded a
+		// trigger for it — loud rather than silent, but wrong (#5955 review).
+		// An import-path pattern that is NOT filesystem-relative: a bare "..."
+		// or an absolute "/...". It names packages, so the command did not
+		// "omit its import path" and the current-directory inference in
+		// endGoRun must not fire — but it names them by import path rather
+		// than by directory, so there is no repo path to demand a trigger for
+		// either. Record that an argument was given and resolve nothing.
+		if inGoPackageArgs && (w == "..." || strings.HasPrefix(w, "/")) {
+			sawPackageArg = true
+			popSubshells()
+			continue
+		}
+
+		isPackageArg := strings.HasPrefix(w, "./") || w == "."
 		if !inGoPackageArgs || !isPackageArg {
 			popSubshells()
 			continue
