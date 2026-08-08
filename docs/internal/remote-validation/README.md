@@ -103,7 +103,7 @@ Burn-down progress:
   deployed component-extension Compose stack, returning `installed=true`,
   `enabled=true`, and `trusted=true` for a real claimed component, with the
   diagnostics route sharing that handler.
-- **This directory now holds 103 committed production-validation artifacts** —
+- **This directory now holds 110 committed production-validation artifacts** —
   each capability whose committed evidence (the `go_test` suites its local
   profiles cite, `docs/internal/evidence/*.md` live-backend validations, and
   `scripts/run-remote-e2e-*` deployed drivers) substantiates its `production`
@@ -127,27 +127,25 @@ Burn-down progress:
   `type(rel)`/`coalesce`-after-`OPTIONAL MATCH` literal-text defect #5694; and
   argument_names drops declared parameters through projection). No slug was
   bulk-downgraded: every one carries a per-row deployed determination.
-- **`FROZEN_MAX` is now 0 — the baseline is empty.** The remaining 7
+- **`FROZEN_MAX` is now 0 — the baseline is empty.** The final 7
   secrets/IAM and code-to-cloud/code-search slugs closed Cluster B of #5681:
   `prod-secrets-iam-identity-trust-chains`, `-posture-gaps`,
   `-posture-summary`, `-privilege-posture-observations`,
   `-secret-access-paths`, `prod-trace-exposure-path`, and
-  `prod-variable-lookup`. Each was **downgraded**, `production: supported` ->
-  `experimental`, per row: no remote host was reachable this session to run
-  the deployed-services proof the rows claim, and the sole remaining committed
-  evidence for every one of the seven is `go_test ./internal/query`
-  (local-tier functional proof, not a deployed-scale read). For the five
-  `secrets_iam.*` rows the underlying reducer domain
-  (`ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED`) is off by default in
-  every real deployment — see
-  `docs/internal/design/1314-secrets-iam-graph-activation-record.md`, whose
-  only flag-on run was a transient proof-only remote target, not a standing
-  deployment — so no production instance actually serves these list reads
-  today. The same edit corrected three local-profile rows that cited a
+  `prod-variable-lookup`. Each was **validated** on a fresh, uniquely named
+  deployed-services Compose stack and keeps `production: supported`. The five
+  `secrets_iam.*` reads returned non-empty rows or non-zero summary buckets from
+  synthetic Kubernetes, AWS, and Vault evidence; they did not require the
+  optional graph-projection flag. `trace_exposure_path` resolved the source and
+  returned the promised bounded unresolved state rather than inventing a path.
+  MCP `find_code` and HTTP code search both returned Variable-labeled matches.
+  The same edit corrected three local-profile rows that cited a
   nonexistent `integration_test`/`compose_e2e` script
   (`code_search.variable_lookup` local_authoritative,
   `code_to_cloud.trace_exposure_path` local_authoritative and
   local_full_stack) to the `go_test` evidence that actually backs them. See
-  [DISPOSITIONS.md](DISPOSITIONS.md) TRANCHE 2 for the full per-row record.
+  TRANCHE 2 in [DISPOSITIONS.md](DISPOSITIONS.md) and the seven dated artifacts
+  in this directory carry the exact command, direct exit capture, and per-row
+  observed results.
   Closing this baseline to empty resolves #5407's burn-down tracking and
   closes #5552 and #5681.

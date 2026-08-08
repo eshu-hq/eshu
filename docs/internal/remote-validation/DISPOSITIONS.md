@@ -17,14 +17,10 @@ taken, so a later reviewer can see the option space without re-deriving it.
 **Slugs:** `prod-component-extension-inventory`,
 `prod-component-extension-diagnostics`
 **Disposition:** DOWNGRADED, `production` profile `supported` -> `experimental`
-**Superseded:** both rows are back at `production: supported`. The read-surface
-proof this tranche said was missing was captured afterwards -- the two artifacts
-in this directory record a live `GET /api/v0/component-extensions` (and its
-diagnostics route) readback against a deployed stack, returning
-`installed=true`, `enabled=true`, `trusted=true` for a real claimed component.
-The downgrade below is the record of a decision that has since been reversed on
-evidence, not the current state. Check
-`specs/capability-matrix/component-extensions.v1.yaml` before acting on it.
+**Superseded:** both rows are back at `production: supported`. Later deployed
+API readback artifacts proved the inventory and diagnostics surfaces against a
+claimed component. The text below remains the historical decision record, not
+the current matrix state.
 **Tracking:** #5336 (original finding), #5552 (systemic burn-down), #5407
 (freeze that bounded the debt)
 
@@ -150,180 +146,46 @@ Run from the worktree root unless noted:
    maturity-drift-guard, focused Go tests, mkdocs strict build, `git diff
    --check`) before committing.
 
-## TRANCHE 2 — #5681 Cluster B, matrix-label mismatch (closes #5552 and #5681)
+## TRANCHE 2 — #5681 Cluster B, validated on deployed services
 
 **Capabilities:** `secrets_iam.identity_trust_chains.list`,
 `secrets_iam.posture_gaps.list`, `secrets_iam.posture_summary.read`,
 `secrets_iam.privilege_posture_observations.list`,
-`secrets_iam.secret_access_paths.list`, `code_to_cloud.trace_exposure_path`,
-`code_search.variable_lookup`
-**Slugs:** `prod-secrets-iam-identity-trust-chains`,
-`prod-secrets-iam-posture-gaps`, `prod-secrets-iam-posture-summary`,
-`prod-secrets-iam-privilege-posture-observations`,
-`prod-secrets-iam-secret-access-paths`, `prod-trace-exposure-path`,
-`prod-variable-lookup`
-**Disposition:** DOWNGRADED, all seven, `production` profile `supported` ->
-`experimental`
-**Tracking:** #5552 (systemic burn-down), #5681 (this cluster), #5407 (freeze
-that bounded the debt)
+`secrets_iam.secret_access_paths.list`,
+`code_to_cloud.trace_exposure_path`, and `code_search.variable_lookup`
 
-These seven were the entire remaining baseline (`FROZEN_MAX` was 7 going in).
-Closing them empties the baseline, which closes #5407's burn-down tracking,
-#5552, and #5681.
+**Disposition:** VALIDATED. All seven production rows retain or return to
+`supported`; no downgrade was requested or approved.
 
-### Evidence found per row
+These were the final seven slugs in the remote-validation baseline. The earlier
+draft downgrade rested on an incomplete evidence search and a false assumption
+that the optional secrets/IAM graph-projection flag controlled the read models.
+It did not land. The read-model reducer is always registered; only graph
+projection is optional.
 
-For every row, the production profile's sole prior evidence was a
-`remote_validation` ref resolving to no committed file. Real committed
-evidence for each capability was searched for before deciding a disposition
-(`rg` over `go/internal/query`, `go/internal/mcp`, `scripts/`,
-`docs/internal/evidence/`, and `docs/internal/design/`):
+The accepted proof uses public-safe synthetic Kubernetes, AWS, and Vault
+cassettes on a fresh, uniquely named Compose project. The golden-corpus driver
+rebuilt every host binary, replayed all credential-free collectors, drained the
+reducer and projector queues to terminal, and exercised the HTTP and MCP
+surfaces. The final run completed with 532 passes, zero required failures, zero
+advisory warnings, and exit code 0.
 
-- **`secrets_iam.*` (five capabilities):** `go_test ./internal/query` is real
-  and substantial. `go/internal/query/secrets_iam.go`,
-  `secrets_iam_posture_handlers.go`, `secrets_iam_summary.go`,
-  `secrets_iam_trust_chain.go`, `secrets_iam_grant_posture.go`, and their
-  matching `_test.go` files prove the bounded reducer read-model lookup
-  functionally, against fixture data. That is not a deployed read. The
-  reducer domain that populates these read models is
-  `DomainSecretsIAMTrustChain`, and it is always registered -- its evidence
-  loader and writer are wired unconditionally in `wiring_handlers.go`. The
-  separately-gated `DomainSecretsIAMGraphProjection`
-  (`ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED`, off by default) writes
-  the graph, not these read models, and the operator doc says so plainly:
-  "These read-model routes are always live ... do not depend on any graph
-  projection." A stock deploy does still serve these pages empty, but because
-  no default collector emits the underlying fact kinds -- not because of the
-  flag. The only
-  flag-on run on record is
-  `docs/internal/design/1314-secrets-iam-graph-activation-record.md` (#2430,
-  closed 2026-06-16): a transient proof-only enable on a single
-  remote-validation target
-  (`remote-amd64-validation/issue-2430-secrets-iam-proof`) that proved the
-  reducer's graph *write* path (live NornicDB writer conformance,
-  redaction-allowlist, scoped retract) and was torn down after capture. Its
-  own status line says "repository, chart, and operator defaults remain OFF."
-  No standing deployment serves these facts, and no run of any kind exercises
-  the *query/list* capability (`list_secrets_iam_identity_trust_chains` and
-  siblings) against a deployed API or MCP surface. The local-profile rows for
-  all five already correctly cite `go_test`; there was no local-profile
-  mislabel to fix here, only the production tier's dangling
-  `remote_validation` ref.
-- **`code_to_cloud.trace_exposure_path`:** `go_test ./internal/query` is real
-  and covers the handler directly:
-  `go/internal/query/exposure_path_handler_test.go`
-  (`TestTraceExposurePathRendersReachableSink`,
-  `TestTraceExposurePathRendersShellExecSink`,
-  `TestTraceExposurePathUnresolvedWhenNoSink`, and more) plus
-  `graph_read_error_impact_test.go`. The matrix's `local_authoritative` row
-  cited `integration_test: local-authoritative-trace-exposure-path` and
-  `local_full_stack` cited `compose_e2e: trace-exposure-path`. Neither ref
-  resolves to a committed script anywhere in `scripts/`: no file is named for
-  either ref and no script declares them. (Stated as what was searched rather
-  than as an `rg` result count -- this document now names both refs itself, so
-  a bare "returns nothing" claim would be false the moment it was written.)
-  Corrected both to `go_test: ./internal/query`, the evidence that is
-  actually committed. No deployed proof (a `scripts/run-remote-e2e-*` driver
-  or a live-backend `docs/internal/evidence/*.md` record) exists for the
-  production tier.
-- **`code_search.variable_lookup`:** `go_test ./internal/query` and
-  `./internal/mcp` are real. `go/internal/query/code_search_metadata_test.go`
-  (graph-backed search results), `code_search_authz_test.go`, and
-  `go/internal/mcp/dispatch_code_authz_test.go` /
-  `run_readonly_test.go` cover the `find_code` dispatch path. The matrix's
-  `local_authoritative` row cited
-  `integration_test: local-authoritative-variable-lookup`, which does not
-  resolve to any committed script. Corrected to `go_test: ./internal/query`.
-  No deployed proof exists for the production tier.
+### Per-row deployed result
 
-### Why downgrade, not validate
+| Slug | Capability | Observed deployed result | Artifact |
+| --- | --- | --- | --- |
+| `prod-secrets-iam-identity-trust-chains` | `secrets_iam.identity_trust_chains.list` | MCP returned one exact chain with the expected workload identity and state. | `docs/internal/remote-validation/prod-secrets-iam-identity-trust-chains.md` |
+| `prod-secrets-iam-privilege-posture-observations` | `secrets_iam.privilege_posture_observations.list` | MCP returned one wildcard-trust observation with high severity and partial state. | `docs/internal/remote-validation/prod-secrets-iam-privilege-posture-observations.md` |
+| `prod-secrets-iam-secret-access-paths` | `secrets_iam.secret_access_paths.list` | MCP returned one exact, fingerprinted access path with the read capability and no secret value. | `docs/internal/remote-validation/prod-secrets-iam-secret-access-paths.md` |
+| `prod-secrets-iam-posture-gaps` | `secrets_iam.posture_gaps.list` | MCP preserved one unsupported-policy-layer gap and its unsupported state. | `docs/internal/remote-validation/prod-secrets-iam-posture-gaps.md` |
+| `prod-secrets-iam-posture-summary` | `secrets_iam.posture_summary.read` | MCP returned four non-zero buckets covering the chain, observation, access path, and gap. | `docs/internal/remote-validation/prod-secrets-iam-posture-summary.md` |
+| `prod-trace-exposure-path` | `code_to_cloud.trace_exposure_path` | MCP resolved the source as an HTTP handler and returned the documented bounded unresolved state without inventing a path. | `docs/internal/remote-validation/prod-trace-exposure-path.md` |
+| `prod-variable-lookup` | `code_search.variable_lookup` | MCP `find_code` and HTTP code search each returned four Variable-labeled matches. | `docs/internal/remote-validation/prod-variable-lookup.md` |
 
-Validating (option a: run the real deployed proof, keep `supported`) was the
-first disposition considered for every row, matching how Cluster A closed two
-of its seven (`prod-transitive-callers` / `prod-transitive-callees`) by
-running the deployed-services stack and committing a readback artifact. That
-path was attempted here. The remote validation host named in this
-repository's `eshu-remote-validation` skill was unreachable this session:
-`ssh` to the configured target timed out with `Operation timed out` on port
-22. With no reachable deployed stack, and no existing committed deployed
-evidence found anywhere in the tree for these seven capabilities' *read*
-surfaces, option (a) was not available honestly. Writing a
-`docs/internal/remote-validation/<slug>.md` artifact without having actually
-run anything against a deployed stack is exactly the fabrication this epic
-exists to prevent.
+### Exact validation command
 
-Option (b) as a pure relabel (keep `production: supported`, just cite
-`go_test` instead of `remote_validation`) was rejected for the same reason
-TRANCHE 1 rejected it. CLAUDE.md's "Claim Evidence Lives In Known Locations"
-guardrail is explicit that a `production`/deployed-tier `supported` claim
-needs deployed evidence, and that retaining a top-tier claim on a local-tier
-test is not licensed. `go_test ./internal/query` proves the query handler
-functionally; it does not prove the row's `required_runtime:
-deployed_services`, its p95 budget, or its `multi_repo_platform` /
-`deployed_services_component_registry`-class scope claim.
+```bash
+GATE_COMPOSE_PROJECT=eshu-5681-claim-honesty-20260808-5 ESHU_POSTGRES_PORT=31542 NEO4J_BOLT_PORT=31687 NEO4J_HTTP_PORT=31474 GATE_API_PORT=31080 GATE_MCP_PORT=31091 bash scripts/verify-golden-corpus-gate.sh >/tmp/eshu-5681-b7-final.log 2>&1; echo $?
+```
 
-Downgrade (option c) is therefore the only disposition that matches what is
-actually proven: `production: supported` -> `production: experimental`,
-citing the real `go_test` evidence in place of the dangling
-`remote_validation` ref. `p95_latency_ms`, `max_scope_size`, and
-`required_runtime` were kept on every row, not stripped — per the TRANCHE 1
-precedent, they are the target contract for a future deployed validation
-pass, not evidence of one already done.
-
-### Disposition options considered
-
-- **(A) Validate** — run the real deployed proof and commit
-  `docs/internal/remote-validation/<slug>.md` per row, keeping `supported`.
-  **Not taken.** No reachable deployed stack this session (remote host
-  connection timed out), and no existing committed deployed evidence for any
-  of the seven read surfaces.
-- **(B) Relabel only** — keep `status: supported`, replace the dangling
-  `remote_validation` ref with `go_test`. **REJECTED** for the production
-  tier per CLAUDE.md's evidence-tier guardrail: a local-tier test cannot
-  license a deployed-tier claim. **Taken** only for the three local-profile
-  rows (`variable_lookup` local_authoritative; `trace_exposure_path`
-  local_authoritative and local_full_stack) whose cited `integration_test` /
-  `compose_e2e` ref never resolved to a script — those rows' `status` was
-  already `supported` on real `go_test` evidence, so relabeling them to the
-  ref that actually backs them is an honest correction, not a claim change.
-- **(C) Downgrade** — lower `production` `status` to `experimental`, replace
-  the `remote_validation` ref with the real `go_test` evidence, keep the
-  declared production budget/runtime fields as unproven targets. **Taken**
-  for all seven production rows.
-
-### Follow-up
-
-Restoring `production: supported` for any of these seven requires a real
-deployed-services run: for the five `secrets_iam.*` rows, a target deployment
-with the graph-projection flag enabled plus seeded IAM/secrets fixtures,
-queried through the API/MCP list tools (not only the reducer write path
-`docs/internal/design/1314-secrets-iam-graph-activation-record.md` already
-proved); for `trace_exposure_path` and `variable_lookup`, a deployed
-`compose_e2e` or `run-remote-e2e-*` run against a corpus with a reachable
-cloud-sink chain and durable semantic facts, respectively. That work is tracked
-in #5958. It needs its own issue because #5552 and #5681 both close when this
-lands, so neither can carry a pointer anyone will find afterward.
-
-### The gating overlay, added and then withdrawn
-
-An earlier round of this work gave the five secrets/IAM rows a `maturity: gated`
-overlay in `specs/capability-catalog.v1.yaml`, on the reasoning that the tier
-records "no deployed evidence" while the overlay records the separate fact that
-the reads are off by default.
-
-The second half of that was wrong, and the overlay is gone. The reads are not
-flag-gated. `appendSecretsAndDriftAdditiveDomains` registers the read-model
-domain whenever its loader and writer are non-nil, and both are wired
-unconditionally; only the graph writer sits behind
-`ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED`. Claiming otherwise
-understates five capabilities on a mechanism that does not exist, which is the
-false-negative direction the evidence canon warns about.
-
-A stock deploy does serve these routes empty, so the intuition behind the
-overlay was not baseless -- but the cause is that no default collector emits
-these fact kinds, which is a different statement about a different part of the
-pipeline. If that fact deserves machine-readable expression, it should say the
-true thing.
-
-The tier stays `experimental` on its own evidence: no deployed read-surface
-proof exists, flag or no flag.
+Captured output: `0`. Validation date: 2026-08-08.

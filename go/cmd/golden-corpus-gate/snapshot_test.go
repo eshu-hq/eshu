@@ -247,14 +247,14 @@ func TestGoldenSnapshotPinsDuplicateGlobalEntityResolution(t *testing.T) {
 	}
 }
 
-func TestGoldenSnapshotPinsMCPCodeSearchOverflow(t *testing.T) {
+func TestGoldenSnapshotPinsHTTPCodeSearchOverflow(t *testing.T) {
 	t.Parallel()
 
 	snapshot, err := LoadSnapshot(goldenSnapshotPath())
 	if err != nil {
 		t.Fatalf("LoadSnapshot() error = %v", err)
 	}
-	shape := snapshot.QueryShapes.MCP["find_code"]
+	shape := snapshot.QueryShapes.HTTP["POST /api/v0/code/search?assert=overflow"]
 	if shape.MinimumResults != 1 {
 		t.Fatalf("minimum_results = %d, want 1", shape.MinimumResults)
 	}
@@ -274,8 +274,8 @@ func TestGoldenSnapshotPinsMCPCodeSearchOverflow(t *testing.T) {
 		}
 	}
 	for key, want := range map[string]any{"query": "main", "exact": true, "limit": float64(1)} {
-		if got := snapshot.QueryShapes.MCP["find_code"].Arguments[key]; got != want {
-			t.Fatalf("find_code arguments[%q] = %#v, want %#v", key, got, want)
+		if got := shape.RequestBody[key]; got != want {
+			t.Fatalf("code search request_body[%q] = %#v, want %#v", key, got, want)
 		}
 	}
 }
