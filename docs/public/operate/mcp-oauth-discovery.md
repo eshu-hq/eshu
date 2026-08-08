@@ -72,9 +72,18 @@ unencrypted, non-local transport.
 
 The failure is quiet, which is what makes it worth naming. Bearer `aud`
 validation still works, tokens still authenticate, and credentialed routes
-still return `401` correctly, so the deployment looks healthy. The only two
-signals are a permanent `404` on `/.well-known/oauth-protected-resource` and a
-single startup warning:
+still return `401` correctly, so the deployment looks healthy. There are three
+signals, and the one a client meets first is the easiest to overlook:
+
+- **The `401` challenge loses its pointer.** Discovery and the challenge are
+  wired together, so disabling one disables the other: a protected route
+  answers with a bare `WWW-Authenticate: Bearer` and no `resource_metadata`
+  directive. An OAuth-capable client has nothing to follow and falls back to
+  token posture, which reads as "this deployment does not do SSO" rather than
+  as a misconfiguration.
+- **A permanent `404`** on `/.well-known/oauth-protected-resource`, which is
+  indistinguishable from a deployment that never enabled OAuth.
+- **One startup warning**, logged once and easily lost in a busy log:
 
 ```text
 oauth discovery disabled: ESHU_AUTH_RESOURCE_URI is not a valid https (or loopback-http) URL without query/fragment; bearer aud validation still enforced
