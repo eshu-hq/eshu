@@ -44,27 +44,33 @@ func (f *fakePipelineQuerier) NonTerminalWorkItems(_ context.Context) ([]residua
 	return f.rows, nil
 }
 
-// The case #5717 hit: every work item succeeded, so the producer DID run to
-// completion and the edge is still absent. That narrows the fault to the write
-// path itself, which is a different owner and a different fix than a stalled
-// queue. Saying so is the whole point.
-func TestPipelineDiagnosisReportsAllProducersCompleted(t *testing.T) {
+// An empty residual rules OUT a stalled queue. It does not rule IN that this
+// edge's producer ran: the read is the global residual, and a producer that
+// never enqueued anything leaves exactly the same empty result as one that ran
+// to completion. Claiming completion here would assert something the query
+// cannot see, which is the failure mode this whole file exists to attack
+// (codex review of #5976).
+func TestPipelineDiagnosisDoesNotClaimTheProducerRanFromAnEmptyResidual(t *testing.T) {
 	t.Parallel()
 
 	q := &fakePipelineQuerier{rows: nil}
 	got := diagnoseZeroCorrelationPipeline(context.Background(), q, "AWS_ec2_instance_uses_ami")
 
-	if !strings.Contains(got, "every work item reached a terminal success") {
-		t.Errorf("does not state that the producers completed: %s", got)
+	if strings.Contains(got, "the producers ran") {
+		t.Errorf("asserts the producer ran, which an empty global residual cannot show: %s", got)
 	}
-	if !strings.Contains(got, "write path") {
-		t.Errorf("does not point the reader at the write path: %s", got)
+	if !strings.Contains(got, "no outstanding work anywhere") {
+		t.Errorf("does not state the fact it can support: %s", got)
+	}
+	// It must say why the absence is not proof, or a reader takes it as proof.
+	if !strings.Contains(got, "never enqueued") {
+		t.Errorf("does not warn that a never-enqueued producer looks identical: %s", got)
 	}
 }
 
-// The opposite case: a producer never finished, so the missing edge is a
-// consequence rather than a defect in the writer. Naming the domain is what
-// makes it actionable.
+// Outstanding work is worth naming, but the gate has no relationship-to-domain
+// registry, so it cannot say whether the named domains are THIS edge's
+// producer. The message must name them without asserting the link.
 func TestPipelineDiagnosisNamesTheUnfinishedDomain(t *testing.T) {
 	t.Parallel()
 
@@ -78,8 +84,12 @@ func TestPipelineDiagnosisNamesTheUnfinishedDomain(t *testing.T) {
 			t.Errorf("breakdown missing %q: %s", want, got)
 		}
 	}
-	if strings.Contains(got, "every work item reached a terminal success") {
-		t.Errorf("claims completion while a domain is unfinished: %s", got)
+	// It must not assert that these domains are the producer for this edge.
+	if strings.Contains(got, "is downstream of this") {
+		t.Errorf("asserts a producer link the gate cannot establish: %s", got)
+	}
+	if !strings.Contains(got, "may or may not") {
+		t.Errorf("does not qualify the unproven link to this relationship: %s", got)
 	}
 }
 
@@ -113,8 +123,8 @@ func TestPipelineDiagnosisReportsItsOwnReadFailureInline(t *testing.T) {
 	if !strings.Contains(got, "connection refused") {
 		t.Errorf("swallows the read error instead of reporting it: %s", got)
 	}
-	if strings.Contains(got, "every work item reached a terminal success") {
-		t.Errorf("asserts completion it could not verify: %s", got)
+	if strings.Contains(got, "no outstanding work anywhere") {
+		t.Errorf("asserts a clean residual it could not read: %s", got)
 	}
 }
 
