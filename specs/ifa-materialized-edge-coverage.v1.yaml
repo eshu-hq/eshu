@@ -73,14 +73,14 @@
 # change (materialized_edges.go flags a stale waiver on a now-covered row as its
 # own finding).
 #
-# The sql_relationships BASELINE, DELTA, and FAULT rows are all genuinely
-# proven now: FAULT closed #5555 -- the fault-injection matrix's
-# cell_killworker_sql and cell_failgraphwrite_sql
-# (scripts/lib/ifa_fault_injection_sql_cells.sh) provably target the
+# The sql_relationships BASELINE and DELTA rows are proven. The FAULT row is
+# NOT -- it stays waived below. #5555 rebuilt both SQL cells in
+# scripts/lib/ifa_fault_injection_sql_cells.sh so they provably target the
 # sql_relationship_materialization / sql_relationships work item (a
 # domain-scoped claimed-row precondition and a SQL edge MERGE anchor, not
-# CloudResource) and proved green live, with a live red/green differential
-# proving each non-vacuity check actually bites. Every other
+# CloudResource), and cell_killworker_sql proves green live. But
+# cell_failgraphwrite_sql does not fire in CI (#5974) -- its own non-vacuity
+# check caught that -- so the fault dimension remains unproven. Every other
 # allProjectionDomains family is RED-BY-DEFAULT for BOTH gates and carries a
 # `waivers:` row per gate, pointing at the epic #5344 umbrella follow-up
 # #5543 pending per-domain child issues.
@@ -286,13 +286,13 @@ waivers:
 #     the ifa-determinism matrix drives gen 1, asserts its exact nine-edge set,
 #     drives gen 2 with the reused source_run_id, drains again, and asserts the
 #     accumulated exact nine-edge set with INDEXES retargeted to orders.
-#   - sql_relationships FAULT coverage closed #5555: the fault-injection
-#     matrix's cell_killworker_sql and cell_failgraphwrite_sql
-#     (scripts/lib/ifa_fault_injection_sql_cells.sh) target the
-#     sql_relationship_materialization / sql_relationships work item
-#     specifically (a domain-scoped claimed-row precondition and a SQL edge
-#     MERGE anchor, not CloudResource) and proved green live -- see the fault
-#     coverage row above.
+#   - sql_relationships FAULT is NOT covered -- see the waiver row below.
+#     #5555 rebuilt both cells (scripts/lib/ifa_fault_injection_sql_cells.sh)
+#     so they target the sql_relationship_materialization / sql_relationships
+#     work item specifically (a domain-scoped claimed-row precondition and a
+#     SQL edge MERGE anchor, not CloudResource). cell_killworker_sql proves
+#     green live; cell_failgraphwrite_sql does not fire in CI (#5974), caught
+#     by its own non-vacuity check, so the dimension stays waived.
 #   - The 13 other allProjectionDomains families are blocked on the epic #5344
 #     umbrella #5543 pending per-domain child issues (both gates each).
 # ---------------------------------------------------------------------------

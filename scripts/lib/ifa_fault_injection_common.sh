@@ -170,6 +170,12 @@ ifa_fault_wait_for_claimed() {
 ifa_fault_count_retried() {
 	local compose_project="$1" use_compose="$2" dsn="$3" compose_file="$4"
 	local domain="${5:-gcp_resource_materialization}"
+	# Same guard as ifa_fault_wait_for_claimed: domain is interpolated into a SQL
+	# literal below, so reject anything that could close the quote.
+	if [[ ! "${domain}" =~ ^[a-z0-9_]+$ ]]; then
+		echo "ifa_fault_count_retried: domain must match ^[a-z0-9_]+$, got ${domain}" >&2
+		return 1
+	fi
 	ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" \
 		"SELECT count(*) FROM fact_work_items WHERE stage = 'reducer' AND status = 'succeeded' AND attempt_count > 1 AND domain = '${domain}';" \
 		"${compose_file}" | tr -d '[:space:]'
