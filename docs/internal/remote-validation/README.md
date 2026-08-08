@@ -121,8 +121,9 @@ Burn-down progress:
   `symbol_graph.argument_names` — were **downgraded to `experimental`** because
   their declared deployed route returned empty or incomplete results, each
   citing the product defect that must land before the claim is restored
-  (imports has no producer #5691; reaching_def is unwired #5692; code_hints has
-  no extraction pipeline #5693; inheritance hits the NornicDB
+  (imports has no producer #5691; reaching_def's wiring landed under #5692 but
+  no deployed run has been captured with the gate on; code_hints has a producer
+  under #5693 that no runtime path calls yet; inheritance hits the NornicDB
   `type(rel)`/`coalesce`-after-`OPTIONAL MATCH` literal-text defect #5694; and
   argument_names drops declared parameters through projection). No slug was
   bulk-downgraded: every one carries a per-row deployed determination.
