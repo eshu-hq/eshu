@@ -443,3 +443,84 @@ func TestPostgresIncidentContextStoreIsAmbiguousWhenTheAnchorProbeFills(t *testi
 		t.Fatalf("candidate count = %d, want %d", got, want)
 	}
 }
+
+// A filled probe where NOTHING decodes is not-found, not ambiguous.
+//
+// The first version of this change collapsed the two: it asked whether fewer
+// than two rows decoded, which is true at zero as well as at one. A caller then
+// got 409 "matched multiple active provider scopes" with an empty candidate
+// list and no way to pick a scope_id — a message that is simply false, since
+// nothing readable matched. Three reviewers flagged it independently, and it
+// contradicted the contract this same change wrote into
+// docs/public/reference/pagerduty-evidence.md.
+//
+// One survivor in a filled probe stays ambiguous: that one IS unprovable,
+// because another well-formed anchor may sit past the limit.
+func TestPostgresIncidentContextStoreReportsNotFoundWhenAFullProbeDecodesNothing(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	if incidentContextAnchorProbeLimit != 8 {
+		t.Fatalf("probe limit = %d, but this fixture supplies 8 rows; keep them in step",
+			incidentContextAnchorProbeLimit)
+	}
+	db, _ := openIncidentContextStoreTestDB(t, []incidentContextStoreQueryResult{
+		{
+			match:   "fact.fact_kind = 'incident.record'",
+			columns: incidentContextFactColumns(),
+			rows: [][]driver.Value{
+				{
+					"incident-fact-0", "pagerduty:account:0", "generation-0", "reported",
+					"https://example.pagerduty.com/incidents/PABC123", "PABC123", observedAt,
+					"9.0.0", []byte(`{"provider":"pagerduty","status":"triggered"}`),
+				},
+				{
+					"incident-fact-1", "pagerduty:account:1", "generation-1", "reported",
+					"https://example.pagerduty.com/incidents/PABC123", "PABC123", observedAt,
+					"9.0.0", []byte(`{"provider":"pagerduty","status":"triggered"}`),
+				},
+				{
+					"incident-fact-2", "pagerduty:account:2", "generation-2", "reported",
+					"https://example.pagerduty.com/incidents/PABC123", "PABC123", observedAt,
+					"9.0.0", []byte(`{"provider":"pagerduty","status":"triggered"}`),
+				},
+				{
+					"incident-fact-3", "pagerduty:account:3", "generation-3", "reported",
+					"https://example.pagerduty.com/incidents/PABC123", "PABC123", observedAt,
+					"9.0.0", []byte(`{"provider":"pagerduty","status":"triggered"}`),
+				},
+				{
+					"incident-fact-4", "pagerduty:account:4", "generation-4", "reported",
+					"https://example.pagerduty.com/incidents/PABC123", "PABC123", observedAt,
+					"9.0.0", []byte(`{"provider":"pagerduty","status":"triggered"}`),
+				},
+				{
+					"incident-fact-5", "pagerduty:account:5", "generation-5", "reported",
+					"https://example.pagerduty.com/incidents/PABC123", "PABC123", observedAt,
+					"9.0.0", []byte(`{"provider":"pagerduty","status":"triggered"}`),
+				},
+				{
+					"incident-fact-6", "pagerduty:account:6", "generation-6", "reported",
+					"https://example.pagerduty.com/incidents/PABC123", "PABC123", observedAt,
+					"9.0.0", []byte(`{"provider":"pagerduty","status":"triggered"}`),
+				},
+				{
+					"incident-fact-7", "pagerduty:account:7", "generation-7", "reported",
+					"https://example.pagerduty.com/incidents/PABC123", "PABC123", observedAt,
+					"9.0.0", []byte(`{"provider":"pagerduty","status":"triggered"}`),
+				},
+			},
+			requireQueryContains: []string{"fact.source_record_id = $2"},
+		},
+	})
+
+	store := NewPostgresIncidentContextStore(db)
+	_, err := store.ReadIncidentContext(context.Background(), IncidentContextFilter{
+		Provider:           "pagerduty",
+		ProviderIncidentID: "PABC123",
+		Limit:              10,
+	})
+	if !errors.Is(err, ErrIncidentContextNotFound) {
+		t.Fatalf("ReadIncidentContext() error = %T %v, want ErrIncidentContextNotFound", err, err)
+	}
+}

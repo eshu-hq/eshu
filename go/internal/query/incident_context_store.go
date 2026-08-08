@@ -421,8 +421,21 @@ func selectIncidentContextAnchor(rows []incidentContextFactRow) incidentContextA
 		selection.WellFormed = append(selection.WellFormed, row)
 	}
 
-	capHit := len(rows) >= incidentContextAnchorProbeLimit
-	if len(selection.WellFormed) > 1 || (capHit && len(selection.WellFormed) < 2) {
+	// The query carries a LIMIT of incidentContextAnchorProbeLimit, so a full
+	// result set means there may be more rows behind it.
+	probeFilled := len(rows) == incidentContextAnchorProbeLimit
+
+	// Exactly one survivor in a filled probe is the unprovable case: another
+	// well-formed anchor may sit past the limit, so the one in hand cannot be
+	// shown to be unique.
+	//
+	// ZERO survivors is NOT that case, however full the probe. Nothing readable
+	// matched, which is not-found — the answer the sole-row path has always
+	// given, and the one docs/public/reference/pagerduty-evidence.md states.
+	// Returning ambiguous there hands the caller a 409 saying the incident
+	// "matched multiple active provider scopes" with an empty candidate list and
+	// an instruction to retry with a scope_id it has no way to obtain.
+	if len(selection.WellFormed) > 1 || (probeFilled && len(selection.WellFormed) == 1) {
 		return incidentContextAnchorSelection{WellFormed: selection.WellFormed, Ambiguous: true}
 	}
 	selection.Incident = first
