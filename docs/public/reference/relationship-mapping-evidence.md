@@ -84,7 +84,7 @@ Current extraction families:
 | Terraform | `app_repo`, `app_name`, GitHub repository fields, IAM/SSM permissions, config paths, module sources, provider-schema resource identity | `PROVISIONS_DEPENDENCY_FOR`, `READS_CONFIG_FROM`, `USES_MODULE`, `RUNS_ON` |
 | Terragrunt | dependency `config_path`, helper/local config asset paths, module sources | `DISCOVERS_CONFIG_IN`, `USES_MODULE`, `PROVISIONS_DEPENDENCY_FOR` |
 | Helm | chart metadata and values references | `DEPLOYS_FROM` |
-| Kustomize | resources, Helm chart refs, image refs | `DEPLOYS_FROM` |
+| Kustomize | cross-repo `resources`/`components` refs, Helm chart refs, image refs, read from the parser's `kustomize_overlays` bucket rather than a second parse of the file (#5609) | `DEPLOYS_FROM` |
 | Argo CD | Application sources, ApplicationSet discovery and deploy sources, destination platform hints | `DEPLOYS_FROM`, `DISCOVERS_CONFIG_IN`, `RUNS_ON` |
 | Flux (cross-repo) | a `FluxGitRepository`'s `spec.url`, resolved by STRICT `repositoryidentity.NormalizeRemoteURL` equality against the target repository's catalog `RemoteURL` -- never the fuzzy alias/token matcher (issue #5483 C2) | `DEPLOYS_FROM` |
 | GitHub Actions | reusable workflows, checkout repositories, repo-bearing workflow inputs, action repositories, local reusable workflows | `DEPLOYS_FROM`, `DEPENDS_ON` |
@@ -273,6 +273,19 @@ logic and reducer/query layers, not in one-off parser rules.
 
 ECS and EKS are current examples. Add new runtime families through the shared
 registry before adding provider-specific story text.
+
+### Kustomize resources that stay inside the repository
+
+A `resources` or `components` entry naming a path inside the same repository —
+`../base`, `overlays/prod` — is a base, not a deployment source, and is never
+offered to the repository catalog matcher. Only entries that resolve to another
+repository are, which includes every remote form kustomize accepts: a full URL,
+the `git@host:org/repo` shorthand, `git::`-prefixed targets, and the scheme-less
+`github.com/org/repo//path?ref=v1`.
+
+Evidence discovery reads the parser's already-classified `resource_refs`,
+`helm_refs`, and `image_refs` for this. It re-parses raw file content only when
+a fact carries no `parsed_file_data` at all.
 
 ## Mixed-Source Repositories
 
