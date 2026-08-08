@@ -42,12 +42,14 @@ images:
 // change which strings reach the catalog matcher. This is the "config-vs-raw
 // discrepancy" #5609 asks to resolve, asserted rather than argued.
 //
-// The bar is containment, not equality: every value the raw path produced must
-// still be produced. The structured path is allowed to find MORE, and it does —
-// the raw gather walks `resources` and `components` only, so it never saw the
-// legacy `bases:` key. Those extra values are asserted explicitly below so a
-// future change cannot quietly widen the set further without updating this
-// test.
+// The bar is equality, in both directions. Containment alone would let the two
+// paths drift apart as long as one stayed a superset, and the drift would be
+// invisible: both facts are processed and their evidence unions, so a
+// disagreement widens the graph rather than failing anything.
+//
+// Equality is reachable because the raw gather now walks the legacy `bases:`
+// key too. Before that it saw only `resources` and `components`, so a target
+// written under `bases:` produced evidence on one path and not the other.
 func TestStructuredKustomizeCoversEveryRawValue(t *testing.T) {
 	t.Parallel()
 
@@ -61,9 +63,10 @@ func TestStructuredKustomizeCoversEveryRawValue(t *testing.T) {
 		t.Fatalf("parse fixture: %v", err)
 	}
 
-	// The catalog has to know the repositories the legacy `bases:` entries
-	// name, or the structured path's extra values match nothing and the gain
-	// is invisible — the test would pass while proving less than it claims.
+	// The catalog has to know the repositories every entry names, including the
+	// ones under the legacy `bases:` key. A value that matches nothing produces
+	// no evidence on either path, so it would satisfy the equality check below
+	// without either path ever having looked at it.
 	matcherFor := func() (*catalogMatcher, map[evidenceKey]struct{}) {
 		return newCatalogMatcher([]CatalogEntry{
 			{RepoID: "repo-payments", Aliases: []string{"payments-service"}},
@@ -91,12 +94,11 @@ func TestStructuredKustomizeCoversEveryRawValue(t *testing.T) {
 	structuredKeys := evidenceTargetKinds(structured)
 	rawKeys := evidenceTargetKinds(raw)
 
-	// Containment is trivially true against an empty set, so a fixture that
-	// stopped matching the catalog would turn this into a test that proves
-	// nothing while staying green.
+	// Two empty sets are equal, so a fixture that stopped matching the catalog
+	// would turn this into a test that proves nothing while staying green.
 	if len(rawKeys) == 0 {
 		t.Fatal("the raw path produced no evidence; the fixture no longer matches the " +
-			"catalog and the containment check below would pass vacuously")
+			"catalog and the comparisons below would pass vacuously")
 	}
 
 	for key := range rawKeys {
@@ -114,15 +116,17 @@ func TestStructuredKustomizeCoversEveryRawValue(t *testing.T) {
 	}
 	sort.Strings(extra)
 
-	// Both come from the legacy `bases:` key, which the raw gather never walks.
-	want := []string{
-		"KUSTOMIZE_RESOURCE_REFERENCE|../common",
-		"KUSTOMIZE_RESOURCE_REFERENCE|github.com/acme/platform-base//k8s?ref=v2.0.0",
+	if len(extra) != 0 {
+		t.Errorf("the structured path produced %#v and the raw path did not; the two "+
+			"reads of one file must agree, or the graph carries the union of both "+
+			"answers with nothing reporting the disagreement", extra)
 	}
-	if !equalStringSlices(extra, want) {
-		t.Errorf("structured-only evidence = %#v, want %#v: the only values the "+
-			"structured path may add are the legacy bases: entries the raw gather "+
-			"cannot see", extra, want)
+
+	// The fixture has to exercise the legacy bases: key, or equality holds for
+	// the uninteresting reason that neither path ever sees one.
+	if _, ok := rawKeys["KUSTOMIZE_RESOURCE_REFERENCE|github.com/acme/platform-base//k8s?ref=v2.0.0"]; !ok {
+		t.Error("neither path produced evidence for the target under the legacy bases: key; " +
+			"the equality above then proves nothing about that key")
 	}
 }
 
@@ -139,16 +143,4 @@ func evidenceTargetKinds(facts []EvidenceFact) map[string]struct{} {
 		keys[string(fact.EvidenceKind)+"|"+value] = struct{}{}
 	}
 	return keys
-}
-
-func equalStringSlices(got, want []string) bool {
-	if len(got) != len(want) {
-		return false
-	}
-	for i := range got {
-		if got[i] != want[i] {
-			return false
-		}
-	}
-	return true
 }
