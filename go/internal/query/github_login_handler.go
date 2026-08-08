@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/authsafe"
 )
 
 // GitHub sign-in errors (issue #5166, F-5) let the connector map fail-closed
@@ -126,7 +128,7 @@ func (h *GitHubLoginHandler) handleStart(w http.ResponseWriter, r *http.Request)
 		ProviderConfigID: QueryParam(r, "provider_config_id"),
 		TenantID:         QueryParam(r, "tenant_id"),
 		WorkspaceID:      QueryParam(r, "workspace_id"),
-		ReturnToPath:     safeGitHubReturnPath(QueryParam(r, "return_to")),
+		ReturnToPath:     authsafe.ReturnPath(QueryParam(r, "return_to")),
 	}
 	start, err := h.Service.StartGitHubLogin(r.Context(), req)
 	if err != nil {
@@ -170,7 +172,7 @@ func (h *GitHubLoginHandler) handleCallback(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	returnTo := safeGitHubReturnPath(complete.ReturnToPath)
+	returnTo := authsafe.ReturnPath(complete.ReturnToPath)
 	if returnTo == "" {
 		WriteJSON(w, http.StatusCreated, response)
 		return
@@ -215,15 +217,4 @@ func writeGitHubLoginError(w http.ResponseWriter, err error) {
 	default:
 		WriteError(w, http.StatusInternalServerError, "github login failed")
 	}
-}
-
-func safeGitHubReturnPath(path string) string {
-	path = strings.TrimSpace(path)
-	if path == "" || !strings.HasPrefix(path, "/") || strings.HasPrefix(path, "//") {
-		return ""
-	}
-	if strings.ContainsAny(path, "\r\n\t") {
-		return ""
-	}
-	return path
 }

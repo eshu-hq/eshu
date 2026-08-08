@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/authsafe"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
@@ -105,7 +106,7 @@ func (s *Service) StartOIDCLogin(
 		TenantID:         tenantID,
 		WorkspaceID:      workspaceID,
 		RedirectURIHash:  SHA256Hash(provider.RedirectURL),
-		ReturnToPath:     safeReturnPath(req.ReturnToPath),
+		ReturnToPath:     authsafe.ReturnPath(req.ReturnToPath),
 		IssuedAt:         now,
 		ExpiresAt:        now.Add(s.stateTTL()),
 		UpdatedAt:        now,
@@ -204,7 +205,7 @@ func (s *Service) CompleteOIDCLogin(
 		ProviderSubjectID:   subjectIDHash,
 		ProviderGroupHashes: append([]string(nil), groupHashes...),
 		ProviderProofAt:     now,
-		ReturnToPath:        safeReturnPath(record.ReturnToPath),
+		ReturnToPath:        authsafe.ReturnPath(record.ReturnToPath),
 	}, nil
 }
 

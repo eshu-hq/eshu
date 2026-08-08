@@ -209,17 +209,6 @@ func WithSecretGenerator(newSecret func() (string, error)) Option {
 }
 
 // safeReturnPath rejects any path that is not a safe same-origin redirect.
-func safeReturnPath(path string) string {
-	path = strings.TrimSpace(path)
-	if path == "" || !strings.HasPrefix(path, "/") || strings.HasPrefix(path, "//") {
-		return ""
-	}
-	if strings.ContainsAny(path, "\r\n\t") {
-		return ""
-	}
-	return path
-}
-
 // resolveProviderContext validates the request's tenant/workspace against the
 // provider's own scope. tenantID is always required to match exactly
 // (defaulting to the provider's when the request omits it).
