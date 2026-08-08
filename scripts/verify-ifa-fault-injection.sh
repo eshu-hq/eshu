@@ -322,7 +322,9 @@ cell_restartbackend
 cell_killworker_sql
 cell_duplicatedelivery
 cell_deltaretract
-# cell_failgraphwrite_sql is defined but NOT run by default (#5974). It passes
+cell_failgraphwrite_sql
+# (#5974 fixed: now runs by default)
+# HISTORICAL: cell_failgraphwrite_sql was NOT run by default (#5974). It passes
 # locally and does not fire in CI: run 31245188403 shows zero injected-fault
 # hits and zero shared-projection partition failures, while the GCP cell in the
 # same run fired normally -- so the decorator works and only this injection

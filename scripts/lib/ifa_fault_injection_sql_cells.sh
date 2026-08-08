@@ -25,7 +25,7 @@
 #     ifa_fault_wait_for_claimed to domain=sql_relationship_materialization.
 #   - cell_failgraphwrite_sql anchors the graph-write fault to a SQL edge
 #     MERGE (QUERIES_TABLE) instead of CloudResource, and proves the fault
-#     fired via ifa_fault_assert_sql_graph_write_fired -- the
+#     fired via ifa_fault_assert_once_fault_marker -- the
 #     shared-projection error log go/internal/reducer/shared_projection_
 #     runner.go now emits, since sql_relationship_materialization's graph
 #     writes ride the async shared-projection intent path (no
@@ -91,14 +91,14 @@ cell_killworker_sql() {
 # a SQL edge MERGE (QUERIES_TABLE) exactly once. Proves the fault fired via
 # the sql_relationships shared-projection error log line, checked only AFTER
 # run_drain_gate already returned success (so the check cannot race the live
-# event -- see ifa_fault_assert_sql_graph_write_fired's doc comment).
+# event -- see ifa_fault_assert_once_fault_marker's doc comment).
 cell_failgraphwrite_sql() {
 	local cell_start
 	cell_start=$(date +%s)
 	log "cell fail-graph-write-once-then-succeed-sql: fresh stack"
 	fresh_stack failgraphwritesql
 	drive_all_cassettes failgraphwritesql
-	local fault_once_script_sql projector_pid reducer_pid reducer_log
+	local fault_once_script_sql projector_pid reducer_pid
 	fault_once_script_sql="${work_dir}/fault-once-then-succeed-sql.json"
 	ifa_fault_write_once_script "${fault_once_script_sql}" "${sql_edge_operation_match}" "queue-retry"
 	ifa_det_start_bg "${log_dir}" "projector-failgraphwritesql" projector_pid "${bin_dir}/eshu-projector"
@@ -108,10 +108,12 @@ cell_failgraphwrite_sql() {
 	assert_no_dead_letters failgraphwritesql
 	capture_digest failgraphwritesql
 	assert_matches_baseline failgraphwritesql
-	reducer_log="${log_dir}/reducer-failgraphwritesql.log"
-	ifa_fault_assert_sql_graph_write_fired "${reducer_log}" \
-		|| die "fail-graph-write-once-then-succeed-sql: the scripted fault never fired -- no sql_relationships shared-projection partition-processing error naming the injected fault text appeared in ${reducer_log} within budget. An inert script, not a pass. Root-cause the QUERIES_TABLE MERGE anchor (sql_edge_operation_match) against the real go/internal/storage/cypher/edge_writer_sql.go output, or the shared-projection error-log wiring (go/internal/reducer/shared_projection_runner.go), before treating this cell as usable."
-	printf 'fail-graph-write-once-then-succeed-sql: non-vacuous: sql_relationships partition-processing error logged for the injected fault (checked after drain, not a live race)\n'
+	# #5974: assert on the durable marker the fault decorator writes, not the
+	# reducer's captured stderr. The log route raced the flush and made this
+	# cell inert in CI while passing locally.
+	ifa_fault_assert_once_fault_marker "${fault_once_script_sql}" "${sql_edge_operation_match}" \
+		|| die "fail-graph-write-once-then-succeed-sql: the scripted fault never fired -- no once-fired marker naming ${sql_edge_operation_match} was written beside ${fault_once_script_sql}. An inert script, not a pass. The marker is written by FaultingExecutor at injection time (go/internal/storage/cypher/fault_executor.go), so its absence means the QUERIES_TABLE MERGE anchor never matched a real write: check sql_edge_operation_match against go/internal/storage/cypher/edge_writer_sql.go and canonical.go before treating this cell as usable."
+	printf 'fail-graph-write-once-then-succeed-sql: non-vacuous: once-fired marker names the targeted SQL edge MERGE (written by the fault decorator at injection time, not read from the reducer log)\n'
 	teardown_cell failgraphwritesql
 	wall_times[failgraphwritesql]=$(( $(date +%s) - cell_start ))
 	printf 'fail-graph-write-once-then-succeed-sql: cell wall time: %ss\n' "${wall_times[failgraphwritesql]}"

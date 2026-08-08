@@ -157,12 +157,12 @@ done
 # Anchored to the invocation line, not the bare name: the verifier's
 # source-helper comments mention cell_deltaretract, so a bare-name needle stays
 # green after the call is deleted. rg without --fixed-strings so ^...$ binds.
-for cell in cell_killworker_sql cell_duplicatedelivery cell_deltaretract; do
+# All four now run. cell_failgraphwrite_sql was held out while its fired-fault
+# proof read the reducer log and went inert in CI; #5974 replaced that with the
+# decorator-written marker, so it is invoked like the rest.
+for cell in cell_killworker_sql cell_duplicatedelivery cell_deltaretract cell_failgraphwrite_sql; do
 	rg --quiet -- "^${cell}\$" "${script}" || fail "verifier does not INVOKE ${cell} on its own line"
 done
-# cell_failgraphwrite_sql is defined but intentionally not invoked (#5974), so
-# it is asserted as commented-out rather than called.
-require "failgraphwrite_sql held out with rationale" "# cell_failgraphwrite_sql is defined but NOT run by default"
 # The library must DEFINE both cells. The needles below check implementation
 # details that could still match if the function wrapper were renamed away.
 require_delivery_cells "delivery lib defines cell_duplicatedelivery" "cell_duplicatedelivery() {"
@@ -246,11 +246,12 @@ require_lib "nornicdb restart command" "docker compose -p \"\${compose_project}\
 # Cell 6 (kill-worker-after-claim-sql, #5555): see the Cell 2 checks above --
 # require_sql_cells asserts the SQL-scoped variant exists distinctly.
 
-# Cell 7 (fail-graph-write-once-then-succeed-sql, #5555): SQL edge MERGE
-# anchor (not CloudResource), queue-retry lane, and the shared-projection
-# error-log fired-fault proof -- fact_work_items attempt_count does not exist
-# for this domain's async graph writes (see ifa_fault_assert_sql_graph_write_fired's
-# doc comment in the fault lib).
+# Cell 7 (fail-graph-write-once-then-succeed-sql, #5555/#5974): SQL edge MERGE
+# anchor (not CloudResource), queue-retry lane, and a fired-fault proof read
+# from the marker the fault decorator writes at injection time. It does NOT
+# read the reducer log: fact_work_items attempt_count does not exist for this
+# domain's async graph writes, and the log route raced the logger's flush,
+# which is what made this cell inert in CI while passing locally (#5974).
 require "SQL edge MERGE operation_match anchor" 'sql_edge_operation_match="MERGE (source)-[rel:QUERIES_TABLE]->(target)"'
 if rg --pcre2 --quiet -- 'sql_edge_operation_match="[^"]*CloudResource' "${script}"; then
 	fail "sql_edge_operation_match must not be anchored to CloudResource -- that is issue #5555's exact complaint"
@@ -258,12 +259,15 @@ fi
 require_sql_cells "SQL-targeted once-then-succeed script writer" "ifa_fault_write_once_script"
 require_sql_cells "SQL-targeted queue-retry lane selected" '"queue-retry"'
 require_sql_cells "SQL-targeted ESHU_IFA_FAULT_SCRIPT env wiring" "ESHU_IFA_FAULT_SCRIPT=\${fault_once_script_sql}"
-require_sql_cells "SQL graph-write fired check invoked after drain" "ifa_fault_assert_sql_graph_write_fired"
-require_sql_cells "SQL graph-write fired non-vacuity framing" "non-vacuity"
-require_lib "SQL graph-write fired function signature" 'ifa_fault_assert_sql_graph_write_fired() {'
-require_lib "SQL graph-write fired checks the injected fault text" 'fail-graph-write-once-then-succeed (queue-retry) injected one failure for graph-write call'
-require_lib "SQL graph-write fired checks the sql_relationships domain" "'sql_relationships'"
-require_lib "SQL graph-write fired documented as post-drain, not a live race" "MUST call this AFTER run_drain_gate"
+require_sql_cells "SQL fired-fault proof reads the durable marker" "ifa_fault_assert_once_fault_marker"
+require_sql_cells "SQL fired-fault proof non-vacuity framing" "non-vacuity"
+require_lib "once-fired marker function signature" 'ifa_fault_assert_once_fault_marker() {'
+require_lib "marker assertion names the retired log route and why" "races the logger's flush"
+# The log-poll helper is retired, not merely unused: leaving a mechanism that
+# is known to go inert in CI invites the next cell to reach for it.
+if rg --fixed-strings --quiet -- "ifa_fault_assert_sql_graph_write_fired" "${fault_lib}" "${sql_cells_lib}" "${script}"; then
+	fail "the retired log-poll fired-fault helper is still referenced; #5974 replaced it with ifa_fault_assert_once_fault_marker"
+fi
 require_lib "count_retried generalized with a domain arg" 'domain="${5:-gcp_resource_materialization}"'
 require_lib "assert_retried_above generalized with a domain arg" 'domain="${7:-gcp_resource_materialization}"'
 require_lib "wait_for_claimed generalized with a domain arg" 'domain="${6:-}"'
@@ -344,43 +348,34 @@ if rg --fixed-strings --quiet -- "AND domain =" "${capture_file}"; then
 fi
 rm -f "${capture_file}"
 
-# ifa_fault_assert_sql_graph_write_fired (#5555) is a real functional check,
-# not just a string grep: prove it correlates on a SINGLE structured log
-# record, with a budget of 1s so this runs fast. Field names match the real
-# reducer JSON logger (go/internal/telemetry/logging.go's unifiedReplaceAttr
-# renames MessageKey to "message"; log.Domain's own "domain" attr is
-# untouched).
-tmp_ok_log="$(mktemp)"
-tmp_bad_log="$(mktemp)"
-tmp_split_log="$(mktemp)"
-trap 'rm -f "${tmp_ok_log}" "${tmp_bad_log}" "${tmp_split_log}"' EXIT
+# ifa_fault_assert_once_fault_marker (#5974) is a real functional check, not a
+# string grep. It must tell three cases apart: the fault never fired, it fired
+# on the targeted write, and it fired on a DIFFERENT write. The third is the
+# one that matters -- a marker alone only proves some fault fired.
+marker_dir="$(mktemp -d)"
+trap 'rm -rf "${marker_dir}"' EXIT
+marker_script="${marker_dir}/fault.json"
+sql_anchor="MERGE (source)-[rel:QUERIES_TABLE]->(target)"
 
-# Positive: one record carries all three facts together.
-printf '{"timestamp":"2026-08-07T00:00:00Z","severity_text":"ERROR","message":"shared projection partition processing failed; retrying on next poll cycle","domain":"sql_relationships","partition_id":3,"error":"write edges: ifa fault: fail-graph-write-once-then-succeed (queue-retry) injected one failure for graph-write call #3"}\n' >"${tmp_ok_log}"
-if ! ifa_fault_assert_sql_graph_write_fired "${tmp_ok_log}" 1; then
-	fail "SQL graph-write fired check did not detect a genuinely correlated fault log record"
+# Negative: no marker at all -- the inert-script case this assertion exists for.
+if ifa_fault_assert_once_fault_marker "${marker_script}" "${sql_anchor}" 2>/dev/null; then
+	fail "once-fired marker check passed with no marker present -- an inert script would report as a pass"
 fi
 
-# Negative: no relevant content at all.
-printf 'nothing interesting here\n' >"${tmp_bad_log}"
-if ifa_fault_assert_sql_graph_write_fired "${tmp_bad_log}" 1; then
-	fail "SQL graph-write fired check incorrectly passed on a log with no fault line"
+# Positive: marker names the targeted operation.
+printf 'lane=queue-retry ordinal=3\noperation=%s SET rel.confidence = 0.95\n' "${sql_anchor}" \
+	>"${marker_script}.restart-sentinel.once-fired"
+if ! ifa_fault_assert_once_fault_marker "${marker_script}" "${sql_anchor}"; then
+	fail "once-fired marker check did not accept a marker naming the targeted SQL edge MERGE"
 fi
 
-# Negative (the exact vacuous-check regression this rewrite closed): the
-# fault text and the string "sql_relationships" both appear in the file, but
-# on DIFFERENT, unrelated records -- the fault actually fired against
-# gcp_resource_materialization (line 1), and sql_relationships merely shows
-# up in an unrelated routine log line for that domain (line 2, no error).
-# The OLD implementation (two independent whole-file `rg` checks) passed
-# this exact input live when the fault was anchored at CloudResource; the
-# fix must fail it.
-{
-	printf '{"timestamp":"2026-08-07T00:00:00Z","severity_text":"ERROR","message":"shared projection partition processing failed; retrying on next poll cycle","domain":"gcp_resource_materialization","partition_id":1,"error":"write edges: ifa fault: fail-graph-write-once-then-succeed (queue-retry) injected one failure for graph-write call #7"}\n'
-	printf '{"timestamp":"2026-08-07T00:00:01Z","severity_text":"INFO","message":"shared projection skipped intents until semantic readiness is committed","domain":"sql_relationships","partition_id":2,"blocked_count":1}\n'
-} >"${tmp_split_log}"
-if ifa_fault_assert_sql_graph_write_fired "${tmp_split_log}" 1; then
-	fail "SQL graph-write fired check passed on split evidence (fault on a different domain, sql_relationships only in an unrelated line) -- the exact vacuous-check regression #5555 exists to prevent"
+# Negative: the fault fired, but on a different write. This is the analogue of
+# the split-evidence regression #5555 closed -- "a fault fired" is not the same
+# claim as "the fault hit the SQL family".
+printf 'lane=queue-retry ordinal=7\noperation=MERGE (r:CloudResource {uid: row.uid})\n' \
+	>"${marker_script}.restart-sentinel.once-fired"
+if ifa_fault_assert_once_fault_marker "${marker_script}" "${sql_anchor}" 2>/dev/null; then
+	fail "once-fired marker check passed on a fault that fired against CloudResource -- exactly the wrong-target defect #5555 exists to prevent"
 fi
 
 printf 'test-verify-ifa-fault-injection: pass\n'
