@@ -113,8 +113,24 @@ same vocabulary used by incident context.
 | `rejected` | Evidence was intentionally dropped because it was invalid, unsafe, secret-bearing, or outside the configured scope. |
 | `exact` | Evidence resolves to one unambiguous incident-routing object or downstream incident-context path. |
 | `derived` | Evidence supports a likely path but depends on a weaker join, such as a tag, name fingerprint, or route summary. |
-| `ambiguous` | Evidence resolves to more than one candidate and cannot promote truth. |
+| `ambiguous` | Evidence resolves to more than one candidate and cannot promote truth. For the incident-context anchor read, see [Counting anchors](#counting-anchors) below. |
 | `missing` | A required evidence slot is absent. Missing Jira or Terraform evidence is valid for no-IaC PagerDuty incidents. |
+
+### Counting anchors
+
+The incident-context anchor read counts only anchors it can decode. A stored row
+the service cannot read is not a rival answer, so:
+
+- one readable incident beside one unreadable row returns **the incident**;
+- no readable row at all returns **not found**, not a candidate list the caller
+  cannot act on;
+- two or more readable anchors are **ambiguous**, and the caller disambiguates
+  with a `scope_id` drawn from the candidates.
+
+The read is a bounded probe. If it comes back full and exactly one anchor
+decodes, another readable anchor may sit past the limit, so that case is
+reported ambiguous rather than answered with an incident that cannot be shown to
+be the only one (#4830).
 
 Reducers may expose both a source-class state and a resolution outcome. For
 example, an applied Terraform resource can produce an `applied` source state
