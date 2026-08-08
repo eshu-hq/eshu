@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -246,5 +247,101 @@ func TestDemoStatus_RecoversTheKeyFromTheRunningStack(t *testing.T) {
 	}
 	if !res.Ready {
 		t.Error("healthy stack with an empty queue reported as not ready")
+	}
+}
+
+func TestDemoBases_FollowTheOverlayPortOverrides(t *testing.T) {
+	// The overlay binds ${ESHU_DEMO_API_PORT:-18080} and
+	// ${ESHU_DEMO_MCP_PORT:-18091}. A second demo that moves its ports to
+	// avoid the first one's must still be probed where it actually listens.
+	t.Setenv("ESHU_DEMO_API_PORT", "19080")
+	t.Setenv("ESHU_DEMO_MCP_PORT", "19091")
+	t.Setenv("ESHU_DEMO_BIND_ADDR", "127.0.0.1")
+	if got := demoAPIBase(); got != "http://127.0.0.1:19080" {
+		t.Errorf("demoAPIBase() = %q, want the overridden API port", got)
+	}
+	if got := demoMCPBase(); got != "http://127.0.0.1:19091" {
+		t.Errorf("demoMCPBase() = %q, want the overridden MCP port", got)
+	}
+}
+
+func TestDemoBases_DefaultToTheOverlayDefaults(t *testing.T) {
+	t.Parallel()
+	if got := demoAPIBase(); got != "http://127.0.0.1:18080" {
+		t.Errorf("demoAPIBase() = %q, want the overlay default", got)
+	}
+	if got := demoMCPBase(); got != "http://127.0.0.1:18091" {
+		t.Errorf("demoMCPBase() = %q, want the overlay default", got)
+	}
+}
+
+func TestResolveDemoComposeFile_FindsItFromASubdirectory(t *testing.T) {
+	t.Parallel()
+	// An installed binary is rarely invoked from the repo root, and a bare
+	// relative path makes Compose fail to find the overlay.
+	dir := t.TempDir()
+	nested := filepath.Join(dir, "a", "b")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(dir, demoComposeFileName)
+	if err := os.WriteFile(want, []byte("name: x\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := resolveDemoComposeFile(nested)
+	if err != nil {
+		t.Fatalf("resolveDemoComposeFile: %v", err)
+	}
+	if got != want {
+		t.Errorf("resolved %q, want %q", got, want)
+	}
+}
+
+func TestResolveDemoComposeFile_SaysWhatItLookedForWhenAbsent(t *testing.T) {
+	t.Parallel()
+	_, err := resolveDemoComposeFile(t.TempDir())
+	if err == nil {
+		t.Fatal("error = nil; a missing overlay must fail with guidance, not a bare compose error")
+	}
+	if !strings.Contains(err.Error(), demoComposeFileName) {
+		t.Errorf("error %q does not name the file it searched for", err)
+	}
+}
+
+func TestDemoDown_RefusesAProjectItDoesNotOwn(t *testing.T) {
+	t.Parallel()
+	// Compose labels each container with the config files that created it.
+	// A project built from someone else's compose file is not ours to remove.
+	exec := &fakeDemoExec{replies: map[string]demoExecReply{
+		"config_files": {out: []byte("/home/someone/their-stack/docker-compose.yaml\n")},
+	}}
+	rt := newTestDemoRuntime(exec)
+
+	err := rt.down(context.Background())
+	if err == nil {
+		t.Fatal("down() error = nil; it must refuse a project it did not create")
+	}
+	if !strings.Contains(err.Error(), "did not start") {
+		t.Errorf("error %q does not explain the refusal", err)
+	}
+	for _, c := range exec.calls {
+		if strings.Contains(strings.Join(c, " "), "down") {
+			t.Errorf("down ran against a project it does not own; calls=%v", exec.calls)
+		}
+	}
+}
+
+func TestDemoDown_ProceedsOnItsOwnProject(t *testing.T) {
+	t.Parallel()
+	exec := &fakeDemoExec{replies: map[string]demoExecReply{
+		"config_files": {out: []byte("/repo/" + demoComposeFileName + "\n")},
+	}}
+	rt := newTestDemoRuntime(exec)
+
+	if err := rt.down(context.Background()); err != nil {
+		t.Fatalf("down: %v", err)
+	}
+	if !exec.sawContaining("--remove-orphans") {
+		t.Errorf("down did not run; calls=%v", exec.calls)
 	}
 }

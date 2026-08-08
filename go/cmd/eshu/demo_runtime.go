@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -21,9 +22,9 @@ import (
 // adopt, restart, or tear down a stack the operator started for real work.
 const defaultDemoProject = "eshu-demo"
 
-// demoComposeFile is the credential-free overlay (#4742). It wraps the corpus
-// and runtime fragments so the demo entrypoint stays one file.
-const demoComposeFile = "docker-compose.demo.yaml"
+// demoComposeFileName is the credential-free overlay (#4742). It wraps the
+// corpus and runtime fragments so the demo entrypoint stays one file.
+const demoComposeFileName = "docker-compose.demo.yaml"
 
 // demoReadyTimeout bounds the wait for indexing completeness. The demo corpus
 // is the 20-repository golden-corpus replay, so a wait this long means
@@ -33,19 +34,62 @@ const demoReadyTimeout = 10 * time.Minute
 // demoReadyPollInterval is how often readiness is sampled while waiting.
 const demoReadyPollInterval = 2 * time.Second
 
-// demoAPIBase and demoMCPBase are where the demo overlay publishes its
-// services. These MUST match the host ports in docker-compose.demo.runtime.yaml.
+// The demo overlay binds ${ESHU_DEMO_BIND_ADDR:-127.0.0.1} with
+// ${ESHU_DEMO_API_PORT:-18080} and ${ESHU_DEMO_MCP_PORT:-18091}. These read
+// the same variables so a second demo that moves its ports to avoid the first
+// one's is still probed where it actually listens.
 //
-// They are deliberately not 8080/8081. The demo runs its own Compose project
-// precisely so it never touches the operator's default stack, and an earlier
-// draft hardcoded the default ports — which meant the demo's readiness probe
-// and first question read whatever was already listening on 8080, reporting
-// another stack's state as the demo's. A live run caught it: the demo sat at
-// "0 repositories" for ten minutes while a healthy stack ran beside it.
+// They are deliberately not 8080/8081: the demo runs its own Compose project
+// so it never touches the operator's default stack, and an earlier draft
+// hardcoded the default ports, which meant readiness read whatever was already
+// listening there.
 const (
-	demoAPIBase = "http://127.0.0.1:18080"
-	demoMCPBase = "http://127.0.0.1:18091"
+	demoDefaultAPIPort  = "18080"
+	demoDefaultMCPPort  = "18091"
+	demoDefaultBindAddr = "127.0.0.1"
 )
+
+// demoAPIBase is the demo stack's HTTP API base URL.
+func demoAPIBase() string { return demoBase(demoDefaultAPIPort, "ESHU_DEMO_API_PORT") }
+
+// demoMCPBase is the demo stack's MCP base URL.
+func demoMCPBase() string { return demoBase(demoDefaultMCPPort, "ESHU_DEMO_MCP_PORT") }
+
+func demoBase(defaultPort, portEnv string) string {
+	host := os.Getenv("ESHU_DEMO_BIND_ADDR")
+	if strings.TrimSpace(host) == "" {
+		host = demoDefaultBindAddr
+	}
+	port := os.Getenv(portEnv)
+	if strings.TrimSpace(port) == "" {
+		port = defaultPort
+	}
+	return "http://" + host + ":" + port
+}
+
+// resolveDemoComposeFile walks up from dir looking for the overlay, so an
+// installed binary invoked outside the repository root still finds it.
+// ESHU_DEMO_COMPOSE_FILE overrides the search entirely.
+func resolveDemoComposeFile(dir string) (string, error) {
+	if override := strings.TrimSpace(os.Getenv("ESHU_DEMO_COMPOSE_FILE")); override != "" {
+		return override, nil
+	}
+	current := dir
+	for {
+		candidate := filepath.Join(current, demoComposeFileName)
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate, nil
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return "", fmt.Errorf(
+				"could not find %s in %s or any parent directory\n"+
+					"run eshu demo from an Eshu checkout, or set ESHU_DEMO_COMPOSE_FILE to the overlay path",
+				demoComposeFileName, dir)
+		}
+		current = parent
+	}
+}
 
 // demoIndexStatus is the subset of /api/v0/status/index the demo waits on.
 // Readiness is indexing completeness, never process health: a stack that is
@@ -133,6 +177,8 @@ type demoRuntime struct {
 	// apiKey is the ephemeral per-run credential handed to the stack and
 	// reused as the bearer on this command's own MCP call.
 	apiKey string
+	// composeFile is the resolved overlay path.
+	composeFile string
 }
 
 // readyPollInterval returns the effective sleep between readiness samples.
@@ -151,8 +197,24 @@ func newDemoRuntime(project string) *demoRuntime {
 		ask:     askDemoQuestion,
 		now:     time.Now,
 		project: project,
-		apiBase: demoAPIBase,
+		apiBase: demoAPIBase(),
 	}
+}
+
+// newResolvedDemoRuntime builds a runtime with the overlay located relative to
+// the working directory, so an installed binary works outside the repo root.
+func newResolvedDemoRuntime(project string) (*demoRuntime, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	file, err := resolveDemoComposeFile(cwd)
+	if err != nil {
+		return nil, err
+	}
+	rt := newDemoRuntime(project)
+	rt.composeFile = file
+	return rt, nil
 }
 
 // runDemoCommand is the production exec seam.
@@ -183,7 +245,11 @@ func newEphemeralDemoKey() (string, error) {
 // call in this file goes through it so no code path can act on the operator's
 // default stack by omitting -p.
 func (r *demoRuntime) composeArgs(rest ...string) []string {
-	return append([]string{"compose", "-p", r.project, "-f", demoComposeFile}, rest...)
+	file := r.composeFile
+	if file == "" {
+		file = demoComposeFileName
+	}
+	return append([]string{"compose", "-p", r.project, "-f", file}, rest...)
 }
 
 // preflight proves Docker is usable before anything is started. A missing
@@ -283,7 +349,7 @@ func (r *demoRuntime) waitReady(ctx context.Context) error {
 			return fmt.Errorf(
 				"demo stack did not finish indexing within %s (last seen: %d repositories, complete=%v)\n"+
 					"inspect it with `docker compose -p %s -f %s logs`",
-				demoReadyTimeout, last.RepositoryCount, last.Complete(), r.project, demoComposeFile)
+				demoReadyTimeout, last.RepositoryCount, last.Complete(), r.project, demoComposeFileName)
 		}
 		select {
 		case <-ctx.Done():

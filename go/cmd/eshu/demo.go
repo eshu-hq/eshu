@@ -120,7 +120,10 @@ func demoEnvelopeFor(res demoResult, err error) demoEnvelope {
 func runDemoUp(cmd *cobra.Command, _ []string) error {
 	project, _ := cmd.Flags().GetString("project")
 	jsonOut, _ := cmd.Flags().GetBool("json")
-	rt := newDemoRuntime(project)
+	rt, err := newResolvedDemoRuntime(project)
+	if err != nil {
+		return err
+	}
 
 	res, err := rt.up(cmd.Context())
 	if jsonOut {
@@ -139,9 +142,12 @@ func runDemoUp(cmd *cobra.Command, _ []string) error {
 func runDemoDown(cmd *cobra.Command, _ []string) error {
 	project, _ := cmd.Flags().GetString("project")
 	jsonOut, _ := cmd.Flags().GetBool("json")
-	rt := newDemoRuntime(project)
+	rt, err := newResolvedDemoRuntime(project)
+	if err != nil {
+		return err
+	}
 
-	err := rt.down(cmd.Context())
+	err = rt.down(cmd.Context())
 	if jsonOut {
 		if encErr := writeDemoJSON(cmd.OutOrStdout(), demoEnvelopeFor(demoResult{Project: project}, err)); encErr != nil {
 			return encErr
@@ -158,7 +164,10 @@ func runDemoDown(cmd *cobra.Command, _ []string) error {
 func runDemoStatus(cmd *cobra.Command, _ []string) error {
 	project, _ := cmd.Flags().GetString("project")
 	jsonOut, _ := cmd.Flags().GetBool("json")
-	rt := newDemoRuntime(project)
+	rt, err := newResolvedDemoRuntime(project)
+	if err != nil {
+		return err
+	}
 
 	res, err := rt.status(cmd.Context())
 	if jsonOut {
@@ -255,5 +264,5 @@ func askDemoQuestion(ctx context.Context, apiBase, apiKey string) (demoAnswer, e
 	if err != nil {
 		return demoAnswer{}, err
 	}
-	return executeDemoQuestion(ctx, apiBase, demoMCPBase, apiKey, m.Questions[0])
+	return executeDemoQuestion(ctx, apiBase, demoMCPBase(), apiKey, m.Questions[0])
 }
