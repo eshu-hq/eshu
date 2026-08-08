@@ -2003,6 +2003,11 @@ gates:
       - "scripts/lib/ifa_fault_injection_cells.sh"
       - "scripts/lib/ifa_fault_injection_driver.sh"
       - "scripts/lib/ifa_fault_injection_sql_cells.sh"
+      - "scripts/lib/ifa_fault_injection_delivery_cells.sh"
+      # Shared with the ifa-determinism gate, which also lists it. The fault
+      # gate sources it for cell_deltaretract (#5544), so a change to the
+      # shared helper has to select BOTH gates, not just determinism.
+      - "scripts/lib/ifa_sql_delta_live.sh"
       - "scripts/lib/ifa_determinism_common.sh"
     local:
       command: "bash scripts/test-verify-ifa-fault-injection.sh"
