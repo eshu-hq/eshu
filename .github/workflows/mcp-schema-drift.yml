@@ -69,6 +69,30 @@ jobs:
         id: filter
         uses: dorny/paths-filter@v3
         with:
+          # Without this line the whole filter below is decorative. dorny
+          # compiles each pattern separately and, by default
+          # (predicate-quantifier: some), includes a file the moment ONE pattern
+          # matches it. `**` matches everything, so it short-circuits first and
+          # the five `!` negations can never subtract: the filter is exactly
+          # equivalent to `code: ['**']`, and every job it gates runs on every
+          # PR including a docs-only one. Confirmed against
+          # dorny/paths-filter@v3's own src/filter.ts, which defines precisely
+          # PredicateQuantifier { EVERY = 'every', SOME = 'some' } and falls
+          # through to `patterns.some(...)`; v3 has no SOME_WITH_EXCLUDES case
+          # (that arrived later on master), so 'every' is the only value that
+          # makes a negation mean anything here. #5896.
+          #
+          # This is also what #5818 actually needed. That fix added the
+          # `!.agents/**` negation below and it has been inert ever since —
+          # under `some` no negation subtracts, however it is anchored, so the
+          # root-anchoring of `!*.md` was never the operative cause of those
+          # ~118 wasted runner-minutes.
+          #
+          # Scoped deliberately to the three filters that HAVE negations. Do not
+          # copy this line to static-contract-gates.yml: its filters are all
+          # positive patterns, and 'every' would require a file to match every
+          # one of them at once, selecting almost nothing.
+          predicate-quantifier: 'every'
           # `code` is true when ANY changed file is outside the docs set. The
           # bare `*.md` negation is ROOT-ANCHORED (no `/` in the pattern), so it
           # only strips root-level markdown (README.md, CLAUDE.md, AGENTS.md,

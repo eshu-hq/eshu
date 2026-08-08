@@ -1281,6 +1281,7 @@ gates:
       - "scripts/verify-docs-only-ci-skip.sh"
       - "scripts/test-verify-docs-only-ci-skip.sh"
       - "scripts/lib/ci-gate-merge-group-checks.sh"
+      - "scripts/lib/ci-gate-predicate-quantifier.sh"
     local:
       command: "bash scripts/verify-docs-only-ci-skip.sh"
       test_command: "bash scripts/test-verify-docs-only-ci-skip.sh"
