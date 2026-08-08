@@ -187,7 +187,7 @@ if rg --fixed-strings --quiet -- "assert_matches_baseline deltaretract" "${deliv
 	fail "cell_deltaretract must NOT compare to the baseline digest: generation 2 intentionally changes the graph, so its proof is the expected-v2 edge set, not digest equality"
 fi
 
-require "fail-terminal explicitly excluded with rationale" "fail-terminal (an eighth possible cell) is deliberately NOT included"
+require "fail-terminal explicitly excluded with rationale" "fail-terminal (a tenth possible cell) is deliberately NOT included"
 
 # Cell 2 / cell 6 (kill-worker-after-claim[-sql]): real kill -9 + a fresh
 # process, not the hermetic-only faultreplay kind.

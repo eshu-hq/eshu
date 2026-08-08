@@ -74,15 +74,28 @@ bash scripts/test-verify-ifa-fault-injection.sh
 ```
 
 The hermetic mirror. The live gate
-(`bash scripts/verify-ifa-fault-injection.sh`) drives five cells — a
+(`bash scripts/verify-ifa-fault-injection.sh`) drives eight cells — a
 fault-free baseline, a killed worker, a forced lease expiry, one failed graph
-write, and a mid-drain backend restart — and asserts each recovers to the
-identical canonical graph with zero durable dead letters. Every cell also
-asserts the fault actually fired (a claimed-row wait, a retry-count check, or
-a restart sentinel), so a script that silently never triggers cannot report a
-false pass. If a cell's assertion names "the scripted fault never fired,"
-the bug is in the fault wiring, not in recovery itself — start there before
-suspecting the reducer.
+write, a mid-drain backend restart, a SQL-scoped killed worker, a duplicate
+delivery, and a generation-2 delta retract — with zero durable dead letters
+throughout.
+
+Seven of the eight assert recovery to the *identical* canonical graph as the
+baseline. The delta-retract cell is the exception and asserts something
+different on purpose: generation 2 changes the graph, so its proof is the
+exact expected edge set rather than digest equality. If you are tempted to
+"fix" that cell by comparing it to the baseline, read its comment first — the
+self-test rejects that edit.
+
+Every cell also asserts the fault actually fired (a claimed-row wait, a
+retry-count check, a restart sentinel, or a redelivered-row count), so a
+script that silently never triggers cannot report a false pass. If a cell's
+assertion names "the scripted fault never fired," the bug is in the fault
+wiring, not in recovery itself — start there before suspecting the reducer.
+
+A ninth cell, the SQL-anchored failed graph write, is defined but not run: it
+passes locally and does not fire in CI, which its own non-vacuity check
+caught. #5974 tracks it.
 
 ## `ifa-load-saturation`
 
