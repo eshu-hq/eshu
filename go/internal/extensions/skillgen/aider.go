@@ -21,8 +21,10 @@ import (
 // Aider reads the file as plain prose. It defines no frontmatter schema, so
 // this adapter emits none — a leading `---` block would be handed to the model
 // as literal content rather than parsed. The byte-citation block is therefore
-// the first thing in the file. It stays a Markdown comment, so it does not
-// reach the model as instruction text while remaining the anchor S3 verifies.
+// the first thing in the file. It stays an HTML comment: Aider forwards the
+// file as prose, so the comment is very likely part of what the model sees,
+// but comment syntax keeps it from reading as an instruction while remaining
+// the anchor S3 verifies.
 type aiderAdapter struct{}
 
 func (aiderAdapter) Host() Host { return HostAider }

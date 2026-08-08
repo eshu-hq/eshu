@@ -77,7 +77,11 @@ func RenderAll(fragments []Fragment, caps Capabilities) ([]RenderResult, error) 
 func normalizeTrailingNewline(b []byte) []byte {
 	trimmed := bytes.TrimRight(b, "\n")
 	if len(trimmed) == 0 {
-		return trimmed
+		// Input was empty or newlines only. Returning the empty slice keeps
+		// "exactly one trailing newline" true for real content while never
+		// inventing a byte for a file that has none, which is what a
+		// zero-fragment render would produce.
+		return []byte{}
 	}
 	return append(trimmed, '\n')
 }

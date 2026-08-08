@@ -10,7 +10,7 @@ at the repo root under `expected/`.
 The package reads `skill-fragments/*.md`, parses each fragment's YAML
 frontmatter, formats the `byte_citation` into a stable top-of-file comment
 block, and renders one skill file per registered host (Claude Code, Cursor,
-Codex). The `per-collector-matrix` fragment is the only fragment that
+Codex, GitHub Copilot, Aider, Gemini CLI). The `per-collector-matrix` fragment is the only fragment that
 consumes per-deployment capability overrides read from
 `skill-fragments/capabilities.local.yaml` (gitignored).
 
