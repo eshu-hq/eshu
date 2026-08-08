@@ -52,12 +52,14 @@ require_workflow_path "api query surface"              "go/cmd/api/**"
 # assertion here, either path silently falling out of the workflow (a typo, a
 # rename, a merge conflict) would pass this mirror with nothing to catch it.
 require_workflow_path "golden-corpus-gate command (#5538 gap)" "go/cmd/golden-corpus-gate/**"
+require_workflow_path "mock Prometheus range source" "go/cmd/mock-prometheus-mimir/**"
 require_workflow_path "demo-spec fixed corpus inputs (#5538 gap)" "go/internal/demospec/**"
 require_workflow_path "static ecosystem corpus inputs" "tests/fixtures/ecosystems/**"
 # The orchestrator sources these; an edit to the mutex or a fixture/timing lib
 # changes what the gate does, so each must trigger it. Without this the lock
 # itself was in no trigger list at all - its only test would never have run.
 require_workflow_path "golden-corpus libs"             "scripts/lib/golden-corpus-*.sh"
+require_workflow_path "golden-corpus lib tests"        "scripts/lib/test-golden-corpus-*.sh"
 require_workflow_path "live gate mutex"                "scripts/lib/live-gate-lock.sh"
 
 # --- #5538 wider audit -------------------------------------------------------

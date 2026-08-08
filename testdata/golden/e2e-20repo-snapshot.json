@@ -2338,7 +2338,7 @@
         }
       },
       "investigate_hardcoded_secrets": {
-        "description": "MCP tool coverage shape for investigate_hardcoded_secrets; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "The deployable-config runtime fixture contains one synthetic password literal. This shape proves the bounded content-index investigation finds that exact file while returning only its redacted form.",
         "required_response_fields": [
           "count",
           "coverage",
@@ -2351,7 +2351,28 @@
           "source_backend",
           "truncated"
         ],
-        "minimum_results": 0
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "findings",
+        "arguments": {
+          "repo_id": "repository:r_217415d9",
+          "finding_kinds": ["password_literal"],
+          "include_suppressed": false,
+          "limit": 10,
+          "offset": 0
+        },
+        "required_json_values": {
+          "count": 1,
+          "coverage.redaction": "secret_values_replaced_with_redacted_marker",
+          "coverage.suppressed_count": 0,
+          "findings[].repo_id": "repository:r_217415d9",
+          "findings[].relative_path": "config/runtime.cfg",
+          "findings[].finding_kind": "password_literal",
+          "findings[].confidence": "medium",
+          "findings[].severity": "high",
+          "findings[].redacted_excerpt": "password = \"[REDACTED]\"",
+          "findings[].suppressed": false
+        }
       },
       "get_code_relationship_story": {
         "description": "MCP tool coverage shape for get_code_relationship_story; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
@@ -2850,11 +2871,48 @@
           "paths",
           "query"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "paths",
+        "result_item_required_fields": [
+          "repo_id",
+          "relative_path",
+          "function_name",
+          "language",
+          "source_kind",
+          "sink_kind",
+          "source_line",
+          "sink_line",
+          "confidence",
+          "evidence_handle",
+          "fact_label",
+          "generation_id"
+        ],
         "arguments": {
-          "repo_id": "orders-api",
-          "source": "request",
-          "sink": "response"
+          "repo_id": "repository:r_8477a002",
+          "language": "go",
+          "symbol": "GoldenDataflowHandler",
+          "file_path": "dataflow_proof.go",
+          "limit": 1
+        },
+        "required_json_values": {
+          "query.kind": "taint_path",
+          "query.repo_id": "repository:r_8477a002",
+          "query.language": "go",
+          "query.symbol": "GoldenDataflowHandler",
+          "query.file_path": "dataflow_proof.go",
+          "bounds.count": 1,
+          "bounds.truncated": false,
+          "paths[].repo_id": "repository:r_8477a002",
+          "paths[].relative_path": "dataflow_proof.go",
+          "paths[].function_name": "GoldenDataflowHandler",
+          "paths[].language": "go",
+          "paths[].source_kind": "http_request",
+          "paths[].sink_kind": "sql",
+          "paths[].source_line": 13,
+          "paths[].sink_line": 15,
+          "paths[].confidence": 0.8,
+          "paths[].fact_label": "derived_reducer_evidence"
         }
       },
       "dispatch_reaching_def": {
@@ -2881,10 +2939,59 @@
           "functions",
           "query"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "functions",
+        "result_item_required_fields": [
+          "repo_id",
+          "relative_path",
+          "function_name",
+          "function_uid",
+          "language",
+          "line_number",
+          "evidence_handle",
+          "generation_id",
+          "fact_label",
+          "cfg",
+          "def_use_count",
+          "control_dependence_count",
+          "overflow"
+        ],
         "arguments": {
-          "repo_id": "orders-api",
-          "function_name": "main"
+          "repo_id": "repository:r_8477a002",
+          "language": "go",
+          "symbol": "GoldenDataflowHandler",
+          "file_path": "dataflow_proof.go",
+          "limit": 1
+        },
+        "required_json_values": {
+          "query.kind": "cfg_summary",
+          "query.repo_id": "repository:r_8477a002",
+          "query.language": "go",
+          "query.symbol": "GoldenDataflowHandler",
+          "query.file_path": "dataflow_proof.go",
+          "bounds.count": 1,
+          "bounds.truncated": false,
+          "functions[].repo_id": "repository:r_8477a002",
+          "functions[].relative_path": "dataflow_proof.go",
+          "functions[].function_name": "GoldenDataflowHandler",
+          "functions[].language": "go",
+          "functions[].fact_label": "exact_parser_fact",
+          "functions[].def_use_count": 4,
+          "functions[].control_dependence_count": 1,
+          "functions[].overflow": false
+        },
+        "required_json_object_matches": {
+          "functions[].cfg.blocks[]": [
+            {"id": 0},
+            {"id": 1},
+            {"id": 2}
+          ],
+          "functions[].cfg.edges[]": [
+            {"from": 0, "to": 1},
+            {"from": 0, "to": 2},
+            {"from": 2, "to": 1}
+          ]
         }
       },
       "dispatch_pdg_summary": {
@@ -2896,10 +3003,50 @@
           "query",
           "summaries"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "summaries",
+        "result_item_required_fields": [
+          "repo_id",
+          "relative_path",
+          "function_name",
+          "function_uid",
+          "language",
+          "line_number",
+          "evidence_handle",
+          "generation_id",
+          "fact_label",
+          "cfg_block_count",
+          "cfg_edge_count",
+          "def_use_count",
+          "control_dependence_count",
+          "coverage_state"
+        ],
         "arguments": {
-          "repo_id": "orders-api",
-          "function_name": "main"
+          "repo_id": "repository:r_8477a002",
+          "language": "go",
+          "symbol": "GoldenDataflowHandler",
+          "file_path": "dataflow_proof.go",
+          "limit": 1
+        },
+        "required_json_values": {
+          "query.kind": "pdg_summary",
+          "query.repo_id": "repository:r_8477a002",
+          "query.language": "go",
+          "query.symbol": "GoldenDataflowHandler",
+          "query.file_path": "dataflow_proof.go",
+          "bounds.count": 1,
+          "bounds.truncated": false,
+          "summaries[].repo_id": "repository:r_8477a002",
+          "summaries[].relative_path": "dataflow_proof.go",
+          "summaries[].function_name": "GoldenDataflowHandler",
+          "summaries[].language": "go",
+          "summaries[].fact_label": "partial_derived_summary",
+          "summaries[].cfg_block_count": 3,
+          "summaries[].cfg_edge_count": 3,
+          "summaries[].def_use_count": 4,
+          "summaries[].control_dependence_count": 1,
+          "summaries[].coverage_state": "derived"
         }
       },
       "count_repositories_by_language": {
@@ -3152,15 +3299,69 @@
           "scope",
           "source_backend",
           "source_handles",
+          "resource",
+          "story",
           "target_resolution",
           "truncated",
           "workload_count",
           "workloads"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "provisioning_paths",
+        "result_item_required_fields": [
+          "repo_id",
+          "repo_name",
+          "direction",
+          "depth",
+          "hops"
+        ],
         "arguments": {
-          "query": "bucket",
+          "resource_id": "content-entity:e_1130fc33095d",
+          "resource_type": "terraform_resource",
+          "max_depth": 4,
           "limit": 10
+        },
+        "required_json_values": {
+          "target_resolution.status": "resolved",
+          "resource.id": "content-entity:e_1130fc33095d",
+          "resource.name": "aws_s3_bucket.data",
+          "resource.repo_id": "repository:r_d963dd31",
+          "coverage.query_shape": "resolved_resource_investigation",
+          "coverage.path_count": 1,
+          "workload_count": 0,
+          "source_backend": "graph",
+          "truncated": false,
+          "missing_evidence[]": "resource_usage_relationship_missing"
+        },
+        "required_json_object_matches": {
+          "target_resolution.candidates[]": [
+            {
+              "id": "content-entity:e_1130fc33095d",
+              "name": "aws_s3_bucket.data",
+              "repo_id": "repository:r_d963dd31"
+            }
+          ],
+          "provisioning_paths[]": [
+            {
+              "repo_id": "repository:r_d963dd31",
+              "repo_name": "terraform_comprehensive",
+              "direction": "incoming",
+              "depth": 2
+            }
+          ],
+          "source_handles[]": [
+            {
+              "repo_id": "repository:r_d963dd31",
+              "reason": "repository_path"
+            }
+          ],
+          "recommended_next_calls[]": [
+            {
+              "tool": "trace_resource_to_code",
+              "arguments": {"start": "content-entity:e_1130fc33095d"}
+            }
+          ]
         }
       },
       "analyze_infra_relationships": {
@@ -3680,19 +3881,32 @@
         "minimum_results": 0
       },
       "list_service_catalog_correlations": {
-        "description": "MCP tool coverage shape for list_service_catalog_correlations; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "Exact repo-local Backstage component correlation after the service changed-since fixture advances its owner.",
         "required_response_fields": [
           "correlations",
           "count",
           "evidence_summary",
           "limit",
-          "missing_evidence",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "correlations",
         "arguments": {
-          "scope_id": "supply-chain-demo",
+          "repository_id": "repository:r_217415d9",
           "limit": 10
+        },
+        "required_json_values": {
+          "correlations[].provider": "backstage",
+          "correlations[].entity_ref": "component:default/deployable-config",
+          "correlations[].entity_type": "service",
+          "correlations[].repository_id": "repository:r_217415d9",
+          "correlations[].service_id": "component:default/deployable-config",
+          "correlations[].owner_ref": "group:default/runtime-platform",
+          "correlations[].lifecycle": "production",
+          "correlations[].outcome": "exact",
+          "correlations[].provenance_only": false,
+          "correlations[].drift_status": "matches"
         }
       },
       "list_codeowners_ownership": {
@@ -4314,13 +4528,44 @@
       },
       "get_changed_since": {
         "description": "MCP tool coverage shape for get_changed_since; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
-        "required_response_fields": [],
-        "minimum_results": 0,
-        "expected_error_contains": "scope_not_found",
+        "required_response_fields": [
+          "scope_id",
+          "scope_kind",
+          "since_generation_id",
+          "current_active_generation_id",
+          "sample_limit",
+          "categories",
+          "unavailable"
+        ],
+        "minimum_results": 3,
+        "maximum_results": 3,
+        "results_field": "categories",
+        "result_item_required_fields": [
+          "category",
+          "counts",
+          "unavailable"
+        ],
         "arguments": {
-          "repository": "golden-corpus-missing",
-          "since_generation_id": "golden-corpus-baseline-missing",
+          "scope_id": "git-repository-scope:repository:r_b11b6e25",
+          "since_generation_id": "__runtime_changed_since_prior_generation__",
           "sample_limit": 10
+        },
+        "required_json_values": {
+          "scope_id": "git-repository-scope:repository:r_b11b6e25",
+          "scope_kind": "repository",
+          "since_generation_id": "__runtime_changed_since_prior_generation__",
+          "current_active_generation_id": "__runtime_changed_since_current_generation__",
+          "sample_limit": 10,
+          "unavailable": false,
+          "categories[].counts.updated": 1
+        },
+        "required_json_object_matches": {
+          "categories[].samples.updated[]": [
+            {
+              "stable_fact_key": "content:repository:r_b11b6e25:config/freshness.cfg",
+              "fact_kind": "content"
+            }
+          ]
         }
       },
       "get_service_changed_since": {
@@ -4994,17 +5239,28 @@
         }
       },
       "list_semantic_documentation_observations": {
-        "description": "MCP tool coverage shape for list_semantic_documentation_observations; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "Credential-free semantic cassette replay returns the exact runtime-readiness observation through MCP.",
         "required_response_fields": [
           "count",
           "limit",
           "observations",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "observations",
         "arguments": {
-          "repo": "orders-api",
+          "provider_profile_id": "semantic-docs-default",
           "limit": 10
+        },
+        "required_json_values": {
+          "observations[].fact_kind": "semantic.documentation_observation",
+          "observations[].observation_id": "semantic-doc-obs:0f6b6e56538c417114a768b112ca500f1bc991c78d9a60a8e21a5e11744a0ceb",
+          "observations[].observation_type": "runtime_readiness_summary",
+          "observations[].provider_profile_id": "semantic-docs-default",
+          "observations[].freshness_state": "fresh",
+          "observations[].policy_state": "allowed",
+          "observations[].admission_state": "provenance_only"
         }
       },
       "list_semantic_code_hints": {
@@ -6594,23 +6850,69 @@
         "minimum_results": 0
       },
       "GET /api/v0/semantic/documentation-observations?provider_profile_id=semantic-docs-default&limit=25": {
-        "description": "Semantic documentation observations; confirms optional semantic documentation facts project to the mounted semantic evidence read surface.",
-        "truth_class": "optional_semantic",
+        "description": "Credential-free semantic cassette replay returns the exact runtime-readiness observation through HTTP.",
         "required_response_fields": [
           "observations",
           "count",
           "limit",
           "truncated"
         ],
-        "minimum_results": 0
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "observations",
+        "required_json_values": {
+          "observations[].fact_kind": "semantic.documentation_observation",
+          "observations[].observation_id": "semantic-doc-obs:0f6b6e56538c417114a768b112ca500f1bc991c78d9a60a8e21a5e11744a0ceb",
+          "observations[].observation_type": "runtime_readiness_summary",
+          "observations[].provider_profile_id": "semantic-docs-default",
+          "observations[].freshness_state": "fresh",
+          "observations[].policy_state": "allowed",
+          "observations[].admission_state": "provenance_only"
+        }
       },
-      "GET /api/v0/service-catalog/correlations?limit=50&scope_id=supply-chain-demo": {
-        "description": "Service-catalog correlations for a scope; confirms the service-catalog read surface is mounted and queryable.",
+      "GET /api/v0/service-catalog/correlations?limit=10&repository_id=repository:r_217415d9": {
+        "description": "Exact repo-local Backstage component correlation after the service changed-since fixture advances its owner.",
         "required_response_fields": [
           "correlations",
-          "count"
+          "count",
+          "evidence_summary",
+          "limit",
+          "truncated"
         ],
-        "minimum_results": 0
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "correlations",
+        "required_json_values": {
+          "correlations[].provider": "backstage",
+          "correlations[].entity_ref": "component:default/deployable-config",
+          "correlations[].entity_type": "service",
+          "correlations[].repository_id": "repository:r_217415d9",
+          "correlations[].service_id": "component:default/deployable-config",
+          "correlations[].owner_ref": "group:default/runtime-platform",
+          "correlations[].lifecycle": "production",
+          "correlations[].outcome": "exact",
+          "correlations[].provenance_only": false,
+          "correlations[].drift_status": "matches"
+        }
+      },
+      "GET /api/v0/metrics/timeseries?metric=queue_depth&window=1h&step=5m": {
+        "description": "Credential-free Prometheus-compatible range-source proof with a bounded queue-depth series.",
+        "envelope": true,
+        "required_response_fields": ["data", "truth", "error"],
+        "required_json_paths": ["data.points[].t", "data.points[].v"],
+        "required_json_values": {
+          "data.metric": "queue_depth",
+          "data.unit": "items",
+          "data.window": "1h",
+          "data.step": "5m",
+          "truth.capability": "platform_metrics.timeseries",
+          "truth.level": "derived",
+          "truth.basis": "semantic_facts",
+          "truth.freshness.state": "fresh"
+        },
+        "required_json_object_matches": {
+          "data.points[]": [{"v": 2}, {"v": 0}]
+        }
       },
       "POST /api/v0/code/dead-code": {
         "description": "Lower-level dead-code candidate scan; asserts the truth envelope, bounded scan metadata, and deterministic no-provider-key language maturity metadata.",

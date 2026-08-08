@@ -71,7 +71,7 @@ bash -n "${workflow_paths_lib}" || fail "golden-corpus-mirror-workflow-paths.sh 
 # is present in either gate, so deleting it from one silently un-selects that
 # gate and the local half of the gap reopens.
 for gate_id in golden-corpus-mirror golden-corpus-gate; do
-	for gate_path in 'scripts/lib/golden-corpus-*.sh' 'scripts/lib/live-gate-lock.sh' 'tests/fixtures/ecosystems/**'; do
+	for gate_path in 'scripts/lib/golden-corpus-*.sh' 'scripts/lib/test-golden-corpus-*.sh' 'scripts/lib/live-gate-lock.sh' 'tests/fixtures/ecosystems/**'; do
 		require_in_region "ci-gates gate ${gate_id} trigger ${gate_path}" "${ci_gates}" \
 			"/^  - id: ${gate_id}\$/,/^    local:/" "- \"${gate_path}\""
 	done
@@ -82,7 +82,7 @@ done
 # live one, and require_matches pins it to exactly one site.
 require_matches "the pre-pr golden-corpus selector must match the golden-corpus libs and the mutex" \
 	"${prepr}" \
-	"^(?!\s*#)[^\n]*run_or_defer golden-corpus \\\\\n[^\n]*scripts/lib/\(golden-corpus-\.\+\|live-gate-lock\)"
+	"^(?!\s*#)[^\n]*run_or_defer golden-corpus \\\\\n[^\n]*scripts/lib/\(golden-corpus-\.\+\|test-golden-corpus-\.\+\|live-gate-lock\)"
 require_matches "the pre-pr golden-corpus selector must match static ecosystem corpus inputs" \
 	"${prepr}" \
 	"^(?!\s*#)[^\n]*run_or_defer golden-corpus \\\\\n[^\n]*tests/fixtures/ecosystems/"
@@ -189,7 +189,9 @@ jq -n '{
 	scope: {cve_id: "CVE-2026-00010"}
 }' >"${golden_suppression_active_body}"
 runtime_snapshot_generation="suppression_runtime_test_generation"
-golden_suppression_prepare_runtime_snapshot "${runtime_snapshot_generation}"
+golden_suppression_prepare_runtime_snapshot \
+	"${repo_root}/testdata/golden/e2e-20repo-snapshot.json" \
+	"${runtime_snapshot_generation}"
 runtime_snapshot_body="$(
 	jq -c '.query_shapes.http["POST /api/v0/supply-chain/impact/suppressions"].request_body' \
 		"${golden_suppression_runtime_snapshot}"
@@ -432,9 +434,11 @@ fi
 for collector in \
 	collector-kubernetes-live collector-aws-cloud collector-azure-cloud \
 	collector-gcp-cloud collector-vault-live collector-oci-registry \
-	collector-package-registry collector-terraform-state collector-prometheus-mimir; do
+	collector-package-registry collector-terraform-state; do
 	require "collector ${collector}" "${collector}"
 done
+require "prometheus/mimir cassette collector" \
+	"collector-prometheus-mimir:prometheusmimir"
 
 # The B-13 (#3859) drain gate lives in the gate binary; the orchestrator must run
 # the drains phase against the snapshot whose shared_projection_intents bound is

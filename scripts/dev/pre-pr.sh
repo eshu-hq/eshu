@@ -345,7 +345,7 @@ step_live() {
 	# not just the internal/ packages. Includes the go/cmd entrypoints, demospec,
 	# the demo-first-answers spec, and the gate's own scripts/workflow.
 	run_or_defer golden-corpus \
-		'^(go/internal/(collector|parser|projector|reducer|query|relationships|storage|demospec)/|go/cmd/(bootstrap-index|ingester|projector|reducer|api|golden-corpus-gate)/|go/cmd/collector-|sdk/go/factschema/|testdata/(golden|cassettes)/|tests/fixtures/ecosystems/|specs/demo-first-answers\.v1\.yaml|scripts/(verify-golden-corpus-gate|test-verify-golden-corpus-gate)\.sh|scripts/lib/(golden-corpus-.+|live-gate-lock)\.sh|\.github/workflows/golden-corpus-gate\.yml)' \
+		'^(go/internal/(collector|parser|projector|reducer|query|relationships|storage|demospec)/|go/cmd/(bootstrap-index|ingester|projector|reducer|api|golden-corpus-gate|mock-prometheus-mimir)/|go/cmd/collector-|sdk/go/factschema/|testdata/(golden|cassettes)/|tests/fixtures/ecosystems/|specs/demo-first-answers\.v1\.yaml|scripts/(verify-golden-corpus-gate|test-verify-golden-corpus-gate)\.sh|scripts/lib/(golden-corpus-.+|test-golden-corpus-.+|live-gate-lock)\.sh|\.github/workflows/golden-corpus-gate\.yml)' \
 		'docker info' \
 		bash "${repo_root}/scripts/verify-golden-corpus-gate.sh" || rc=1
 	run_or_defer replay-tier \

@@ -112,7 +112,26 @@ require_matches "cloud image reopen ordering event-count validation" \
 unset cloud_reopen_block_pattern cloud_reopen_command_pattern cloud_reopen_event_count_pattern
 unset cloud_reopen_lib
 
-require "cassette replay" "-mode=cassette"
+replay_lib="${repo_root}/scripts/lib/golden-corpus-cassette-replay.sh"
+metrics_source_lib="${repo_root}/scripts/lib/golden-corpus-metrics-source.sh"
+service_changed_lib="${repo_root}/scripts/lib/golden-corpus-service-changed-since.sh"
+require "cassette replay helper source" "golden-corpus-cassette-replay.sh"
+require_in "cassette replay execution" "${replay_lib}" "-mode=cassette"
+require_in "semantic replay alias" "${script}" \
+	"semantic-extraction-cassette:collector-prometheus-mimir:semanticextraction"
+require_invocation "cassette replay invocation" "golden_corpus_start_cassette_replays"
+require "service changed-since helper source" "golden-corpus-service-changed-since.sh"
+require_invocation "service prior capture" "golden_service_changed_since_capture_prior"
+require_invocation "service staged mutation" "golden_service_changed_since_mutate_owner"
+require_invocation "service current validation" "golden_service_changed_since_validate_current"
+require_invocation "metrics source invocation" "golden_metrics_source_start"
+require "mock metrics binary build" "build_bin mock-prometheus-mimir"
+require_in "explicit metrics instance id" "${metrics_source_lib}" \
+	'ESHU_PROMETHEUS_MIMIR_COLLECTOR_INSTANCE_ID="golden-prometheus-range"'
+require_in "credential-free metrics tenant" "${metrics_source_lib}" 'tenant_id: "golden-corpus"'
+bash "${repo_root}/scripts/lib/test-golden-corpus-cassette-replay.sh" || fail "cassette replay helper tests failed"
+bash "${repo_root}/scripts/lib/test-golden-corpus-service-changed-since.sh" || fail "service changed-since helper tests failed"
+bash "${repo_root}/scripts/lib/test-golden-corpus-metrics-source.sh" || fail "metrics source helper tests failed"
 require "projector drain" "eshu-projector"
 require "reducer drain" "eshu-reducer"
 # `eshu-api` also names the /readyz failure message, and `eshu-golden-corpus-gate`
@@ -135,7 +154,7 @@ require "graph+query+timing phase" "-phase=graph,query,timing"
 require_region "snapshot contract (drains phase)" \
 	"/-phase=drains/,/-drain-timeout=/" "-snapshot=testdata/golden/e2e-20repo-snapshot.json"
 require_region "runtime snapshot contract (graph,query,timing phase)" \
-	"/-phase=graph,query,timing,demo-answers/,/-elapsed-seconds=/" '-snapshot="${golden_suppression_runtime_snapshot}"'
+	"/-phase=graph,query,timing,demo-answers/,/-elapsed-seconds=/" '-snapshot="${golden_query_runtime_snapshot}"'
 require "timing budget" "-budget-multiplier"
 # The blocking-correlation set is single-sourced from the snapshot's required
 # correlation IDs through the `all` sentinel (#4596).

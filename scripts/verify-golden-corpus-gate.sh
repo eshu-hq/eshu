@@ -43,6 +43,12 @@ cd "${repo_root}"
 . "${repo_root}/scripts/lib/golden-corpus-local-backend.sh"
 # shellcheck source=scripts/lib/golden-corpus-container-image-demotion.sh
 . "${repo_root}/scripts/lib/golden-corpus-container-image-demotion.sh"
+# shellcheck source=scripts/lib/golden-corpus-service-changed-since.sh
+. "${repo_root}/scripts/lib/golden-corpus-service-changed-since.sh"
+# shellcheck source=scripts/lib/golden-corpus-changed-since.sh
+. "${repo_root}/scripts/lib/golden-corpus-changed-since.sh"
+# shellcheck source=scripts/lib/golden-corpus-metrics-source.sh
+. "${repo_root}/scripts/lib/golden-corpus-metrics-source.sh"
 
 # ----------------------------------------------------------------------------
 # Configuration (override via environment).
@@ -70,6 +76,7 @@ cd "${repo_root}"
 : "${ESHU_POSTGRES_PASSWORD:=change-me}"
 : "${GATE_API_PORT:=18080}"   # off the default 8080 so a sibling stack does not collide
 : "${GATE_MCP_PORT:=18091}"   # eshu-mcp-server http transport for B-7(c) MCP query truth
+: "${GATE_PROMETHEUS_SOURCE_PORT:=19090}" # credential-free Prometheus-compatible range source
 : "${GATE_API_KEY:=golden-corpus-gate-local-key}"
 : "${GATE_COMPOSE_PROJECT:=eshu-golden-corpus-$$}"
 : "${ESHU_QUERY_PROFILE:=local_full_stack}"
@@ -123,6 +130,11 @@ collector_specs=(
 	"collector-pagerduty:pagerduty"
 	"collector-sbom-attestation:sbomattestation"
 	"collector-vulnerability-intelligence:vulnerabilityintelligence"
+)
+# name:command:cassette-directory aliases let a generic cassette-capable binary
+# replay a source that has no dedicated command without reusing its process log.
+cassette_replay_alias_specs=(
+	"semantic-extraction-cassette:collector-prometheus-mimir:semanticextraction"
 )
 cassette_recording="supply-chain-demo.json"
 
@@ -187,6 +199,7 @@ export ESHU_GIT_AUTH_METHOD="none"
 export ESHU_GITHUB_ORG="acme"
 export ESHU_REPOSITORY_RULES_JSON="[]"
 export ESHU_QUERY_PROFILE
+export ESHU_EMIT_DATAFLOW=true
 log "query profile: ${ESHU_QUERY_PROFILE}"
 export ESHU_API_KEY="${GATE_API_KEY}"
 export ESHU_API_ADDR=":${GATE_API_PORT}"
@@ -227,6 +240,7 @@ build_bin reducer
 build_bin api
 build_bin mcp-server
 build_bin golden-corpus-gate
+build_bin mock-prometheus-mimir
 for spec in "${collector_specs[@]}"; do build_bin "${spec%%:*}"; done
 
 start_golden_corpus_backends
@@ -252,37 +266,9 @@ log "resolve local-backend fixture scope_id (issue #5594)"
 stage_local_backend_cassette
 
 log "replay B-10 cassette collectors (credential-free)"
-collector_pids=()
-collector_names=()
-GATE_EXPECTED_TOTAL_SCOPES=0
-for spec in "${collector_specs[@]}"; do
-	cmd="${spec%%:*}"
-	dir="${spec##*:}"
-	cassette="${repo_root}/testdata/cassettes/${dir}/${cassette_recording}"
-	# terraformstate alone replays the sentinel-substituted runtime copy
-	# stage_local_backend_cassette wrote above; every other collector keeps
-	# its original, unmodified, committed cassette (issue #5594).
-	if [[ "${dir}" == "terraformstate" ]]; then
-		cassette="${local_backend_cassette_path}"
-	fi
-	[[ -f "${cassette}" ]] || die "cassette not found: ${cassette}"
-	# cassette.Source.Next (go/internal/replay/cassette/source.go) emits one
-	# scope per call, and collector.Service's Run loop commits every scope of a
-	# cassette back-to-back with no sleep between them (only the drained,
-	# empty-batch case waits for the poll interval). A cassette carries 1-6
-	# scopes; count them here so the settle wait below can require every scope
-	# to land, not just the first one per collector. A bare `cassette_scopes=$(jq
-	# ...)` assignment would abort the whole gate under set -e the instant jq
-	# failed (the same class of bug golden-corpus-local-backend.sh's header
-	# documents for its own jq call), so the fallback lives on the same line.
-	cassette_scopes="$(jq -r '.scopes | length' "${cassette}")" || die "failed to count scopes in cassette: ${cassette}"
-	[[ "${cassette_scopes}" =~ ^[0-9]+$ ]] || die "cassette scope count is not numeric: ${cassette} -> ${cassette_scopes}"
-	GATE_EXPECTED_TOTAL_SCOPES=$(( GATE_EXPECTED_TOTAL_SCOPES + cassette_scopes ))
-	start_bg "${cmd}" cpid "${bin_dir}/eshu-${cmd}" -mode=cassette -cassette-file="${cassette}"
-	collector_pids+=("${cpid}")
-	collector_names+=("${cmd}")
-done
-: "${GATE_MIN_COLLECTOR_SOURCES:=${#collector_specs[@]}}"
+# shellcheck source=scripts/lib/golden-corpus-cassette-replay.sh
+. "${repo_root}/scripts/lib/golden-corpus-cassette-replay.sh"
+golden_corpus_start_cassette_replays
 printf 'launched %d collectors; polling for full cassette replay (%d scope generations, interval %ss, deadline %ss)\n' \
 	"${#collector_pids[@]}" "${GATE_EXPECTED_TOTAL_SCOPES}" "${GATE_COLLECTOR_SETTLE_POLL_SECONDS}" "${GATE_COLLECTOR_SETTLE_SECONDS}"
 
@@ -331,6 +317,10 @@ kill "${projector_pid}" "${reducer_pid}" >/dev/null 2>&1 || true
 # during the maintenance loop below, but capturing this pass too costs
 # nothing and removes a "was it actually this early" question later).
 cat "${log_dir}/reducer.log" >"${log_dir}/reducer-config-state-drift-history.log" 2>/dev/null || true
+golden_service_changed_since_capture_prior
+golden_changed_since_capture_prior
+golden_service_changed_since_mutate_owner
+golden_changed_since_mutate_fixture
 phase_first_drain_end="$(date +%s)"
 phase_maintenance_start="${phase_first_drain_end}"
 
@@ -342,6 +332,8 @@ phase_maintenance_start="${phase_first_drain_end}"
 # shellcheck source=scripts/lib/golden-corpus-maintenance-drains.sh
 . "${repo_root}/scripts/lib/golden-corpus-maintenance-drains.sh"
 run_maintenance_drain_cycles
+golden_service_changed_since_validate_current
+golden_changed_since_validate_current
 
 log "local-backend drift diagnostics (issue #5594)"
 print_local_backend_drift_diagnostics
@@ -355,6 +347,7 @@ log "seed cross-repo dead-code query fixture"
 seed_cross_repo_dead_code_fixture
 
 log "start eshu-api for query truth"
+golden_metrics_source_start
 start_bg api api_pid "${bin_dir}/eshu-api"
 api_ready=false
 for _ in $(seq 1 30); do
@@ -381,6 +374,15 @@ log "B-7 suppression producer truth: active -> hidden -> expired"
 phase_graph_query_excluded_starts+=("$(date +%s)")
 golden_suppression_verify_producer_truth
 phase_graph_query_excluded_ends+=("$(date +%s)")
+
+golden_service_runtime_snapshot="${log_dir}/e2e-20repo-service-runtime-snapshot.json"
+golden_service_changed_since_compose_snapshot \
+	"${golden_suppression_runtime_snapshot}" \
+	"${golden_service_runtime_snapshot}"
+golden_query_runtime_snapshot="${log_dir}/e2e-20repo-query-runtime-snapshot.json"
+golden_changed_since_compose_snapshot \
+	"${golden_service_runtime_snapshot}" \
+	"${golden_query_runtime_snapshot}"
 
 log "seed post-drain dead-letter query fixture"
 seed_golden_dead_letter_fixture
@@ -447,7 +449,7 @@ gate_status=0
 # own pinned arguments so a demo answer cannot silently regress to empty.
 "${bin_dir}/eshu-golden-corpus-gate" \
 	-phase=graph,query,timing,demo-answers \
-	-snapshot="${golden_suppression_runtime_snapshot}" \
+	-snapshot="${golden_query_runtime_snapshot}" \
 	-demo-manifest=specs/demo-first-answers.v1.yaml \
 	-api-base-url="http://localhost:${GATE_API_PORT}" \
 	-mcp-base-url="http://localhost:${GATE_MCP_PORT}" \
@@ -461,6 +463,7 @@ gate_status=0
 	${phase_flags[@]+"${phase_flags[@]}"} || gate_status=$?
 kill "${api_pid}" >/dev/null 2>&1 || true
 kill "${mcp_pid}" >/dev/null 2>&1 || true
+kill "${metrics_source_pid}" >/dev/null 2>&1 || true
 
 if [[ "${gate_status}" -ne 0 ]]; then
 	die "graph/query/timing phase failed (elapsed ${elapsed}s)"
