@@ -2100,7 +2100,7 @@
   "query_shapes": {
     "mcp": {
       "find_code": {
-        "description": "MCP tool coverage shape for find_code; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "Non-vacuous deployed MCP variable lookup proof. Global exact search for the synthetic app binding must return at least one Variable entity through the declared find_code tool.",
         "required_response_fields": [
           "matches",
           "query",
@@ -2122,15 +2122,13 @@
           "file_path"
         ],
         "required_json_values": {
-          "count": 1,
-          "limit": 1,
-          "truncated": true,
-          "results[].entity_id": "content-entity:e_85e904a13eae"
+          "query": "app",
+          "matches[].labels[]": "Variable"
         },
         "arguments": {
-          "query": "main",
+          "query": "app",
           "exact": true,
-          "limit": 1
+          "limit": 20
         }
       },
       "find_symbol": {
@@ -5442,6 +5440,41 @@
           "exact": true,
           "limit": 20,
           "search_type": "variable"
+        }
+      },
+      "POST /api/v0/code/search?assert=overflow": {
+        "description": "Bounded exact-search overflow proof retained independently of the variable-specific MCP and HTTP assertions.",
+        "truth_class": "content_index",
+        "required_response_fields": [
+          "matches",
+          "query",
+          "repo_id",
+          "results",
+          "source",
+          "source_backend",
+          "count",
+          "limit",
+          "truncated"
+        ],
+        "minimum_results": 1,
+        "results_field": "matches",
+        "result_item_required_fields": [
+          "entity_id",
+          "name",
+          "labels",
+          "repo_id",
+          "file_path"
+        ],
+        "required_json_values": {
+          "count": 1,
+          "limit": 1,
+          "truncated": true,
+          "results[].entity_id": "content-entity:e_85e904a13eae"
+        },
+        "request_body": {
+          "query": "main",
+          "exact": true,
+          "limit": 1
         }
       },
       "POST /api/v0/impact/trace-deployment-chain": {

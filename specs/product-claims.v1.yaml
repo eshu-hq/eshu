@@ -39,28 +39,25 @@ claims:
     source:
       path: README.md
       line: 56
-      quote: "| Code-to-cloud tracing | Connect source repos, container images, Kubernetes workloads, Helm/Kustomize/ArgoCD config, Terraform resources, and cloud observations with evidence at each hop. <!-- capability-state: id=code_to_cloud.trace_exposure_path state=experimental --> <!-- product-claim: id=readme.code-to-cloud.evidence-continuity --> |"
+      quote: "| Code-to-cloud tracing | Connect source repos, container images, Kubernetes workloads, Helm/Kustomize/ArgoCD config, Terraform resources, and cloud observations with evidence at each hop. <!-- capability-state: id=code_to_cloud.trace_exposure_path state=general_availability --> <!-- product-claim: id=readme.code-to-cloud.evidence-continuity --> |"
     claim_text: "Code-to-cloud tracing connects source, image, workload, configuration, Terraform, and cloud observations with evidence at each hop."
     capabilities:
       - id: code_to_cloud.trace_exposure_path
-        claimed_maturity: experimental
+        claimed_maturity: general_availability
     truth_level: derived
     owner_packages: [internal/query]
     implementation_paths: [go/internal/query, go/internal/reducer, go/internal/relationships]
     reducer_paths: [go/internal/reducer]
     collector_paths: [go/internal/collector]
     mcp_surfaces: [trace_exposure_path]
-    deterministic_evidence_source: "Reducer-owned relationship materialization and trace query tests provide deterministic source-to-cloud evidence; semantic summaries are not required."
+    deterministic_evidence_source: "The deployed golden-corpus run resolves an HTTP-handler source and preserves the bounded unresolved state when no materialized cloud-sink bridge exists; semantic summaries are not required."
     semantic_output: not_used
     proof:
-      command: "cd go && go test ./internal/query ./internal/reducer ./internal/relationships -count=1"
+      command: "GATE_COMPOSE_PROJECT=eshu-5681-claim-honesty-20260808-5 ESHU_POSTGRES_PORT=31542 NEO4J_BOLT_PORT=31687 NEO4J_HTTP_PORT=31474 GATE_API_PORT=31080 GATE_MCP_PORT=31091 bash scripts/verify-golden-corpus-gate.sh >/tmp/eshu-5681-b7-final.log 2>&1; echo $?"
       signals:
         - capability: code_to_cloud.trace_exposure_path
-          kind: go_test
-          ref: ./internal/query
-    issues:
-      - number: 5958
-        state: open
+          kind: remote_validation
+          ref: prod-trace-exposure-path
 
   - id: readme.supply-chain.default-gated
     source:
@@ -94,13 +91,13 @@ claims:
     source:
       path: README.md
       line: 59
-      quote: "| Security and IAM posture | Surface hardcoded secrets, secret-access paths, and IAM trust and privilege chains with the evidence behind each finding. <!-- capability-state: id=security.hardcoded_secrets state=general_availability --> <!-- capability-state: id=secrets_iam.secret_access_paths.list state=experimental --> <!-- product-claim: id=readme.security-iam.evidence-backed-findings --> |"
+      quote: "| Security and IAM posture | Surface hardcoded secrets, secret-access paths, and IAM trust and privilege chains with the evidence behind each finding. <!-- capability-state: id=security.hardcoded_secrets state=general_availability --> <!-- capability-state: id=secrets_iam.secret_access_paths.list state=general_availability --> <!-- product-claim: id=readme.security-iam.evidence-backed-findings --> |"
     claim_text: "Security and IAM posture reads expose hardcoded secrets, secret-access paths, and IAM trust or privilege chains with backing evidence."
     capabilities:
       - id: security.hardcoded_secrets
         claimed_maturity: general_availability
       - id: secrets_iam.secret_access_paths.list
-        claimed_maturity: experimental
+        claimed_maturity: general_availability
     truth_level: derived
     owner_packages: [internal/query, internal/collector/vulnerabilityintelligence]
     implementation_paths: [go/internal/query, go/internal/collector/vulnerabilityintelligence]
@@ -116,9 +113,6 @@ claims:
         - capability: secrets_iam.secret_access_paths.list
           kind: go_test
           ref: ./internal/query
-    issues:
-      - number: 5958
-        state: open
 
   - id: readme.change-risk.blast-radius
     source:
