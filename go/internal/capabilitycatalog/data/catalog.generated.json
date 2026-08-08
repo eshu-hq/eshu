@@ -8897,10 +8897,8 @@
     {
       "capability": "secrets_iam.identity_trust_chains.list",
       "display_name": "Secrets Iam Identity Trust Chains List",
-      "owner_package": "internal/query",
-      "maturity": "gated",
+      "maturity": "experimental",
       "derived_maturity": "experimental",
-      "maturity_reason": "Reducer secrets/IAM read models are written only when the secrets/IAM graph projection domain is registered, which requires the operator to set ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED. That flag is off by default in the repository, chart, and operator defaults, so a stock deploy serves this surface as an empty page rather than a populated one. See docs/internal/design/1314-secrets-iam-graph-activation-record.md.",
       "surfaces": [
         {
           "tool": "list_secrets_iam_identity_trust_chains",
@@ -8946,10 +8944,6 @@
           "ref": "local-lightweight-unsupported-secrets-iam-identity-trust-chains"
         }
       ],
-      "linked_issues": [
-        5552,
-        5681
-      ],
       "console": false,
       "authorization": {
         "family": "secrets_iam",
@@ -8973,10 +8967,8 @@
     {
       "capability": "secrets_iam.posture_gaps.list",
       "display_name": "Secrets Iam Posture Gaps List",
-      "owner_package": "internal/query",
-      "maturity": "gated",
+      "maturity": "experimental",
       "derived_maturity": "experimental",
-      "maturity_reason": "Reducer secrets/IAM read models are written only when the secrets/IAM graph projection domain is registered, which requires the operator to set ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED. That flag is off by default in the repository, chart, and operator defaults, so a stock deploy serves this surface as an empty page rather than a populated one. See docs/internal/design/1314-secrets-iam-graph-activation-record.md.",
       "surfaces": [
         {
           "tool": "list_secrets_iam_posture_gaps",
@@ -9022,10 +9014,6 @@
           "ref": "local-lightweight-unsupported-secrets-iam-posture-gaps"
         }
       ],
-      "linked_issues": [
-        5552,
-        5681
-      ],
       "console": false,
       "authorization": {
         "family": "secrets_iam",
@@ -9049,10 +9037,8 @@
     {
       "capability": "secrets_iam.posture_summary.read",
       "display_name": "Secrets Iam Posture Summary Read",
-      "owner_package": "internal/query",
-      "maturity": "gated",
+      "maturity": "experimental",
       "derived_maturity": "experimental",
-      "maturity_reason": "Reducer secrets/IAM read models are written only when the secrets/IAM graph projection domain is registered, which requires the operator to set ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED. That flag is off by default in the repository, chart, and operator defaults, so a stock deploy serves this surface as an empty page rather than a populated one. See docs/internal/design/1314-secrets-iam-graph-activation-record.md.",
       "surfaces": [
         {
           "tool": "count_secrets_iam_posture",
@@ -9098,10 +9084,6 @@
           "ref": "local-lightweight-unsupported-secrets-iam-posture-summary"
         }
       ],
-      "linked_issues": [
-        5552,
-        5681
-      ],
       "console": false,
       "authorization": {
         "family": "secrets_iam",
@@ -9125,10 +9107,8 @@
     {
       "capability": "secrets_iam.privilege_posture_observations.list",
       "display_name": "Secrets Iam Privilege Posture Observations List",
-      "owner_package": "internal/query",
-      "maturity": "gated",
+      "maturity": "experimental",
       "derived_maturity": "experimental",
-      "maturity_reason": "Reducer secrets/IAM read models are written only when the secrets/IAM graph projection domain is registered, which requires the operator to set ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED. That flag is off by default in the repository, chart, and operator defaults, so a stock deploy serves this surface as an empty page rather than a populated one. See docs/internal/design/1314-secrets-iam-graph-activation-record.md.",
       "surfaces": [
         {
           "tool": "list_secrets_iam_privilege_posture_observations",
@@ -9174,10 +9154,6 @@
           "ref": "local-lightweight-unsupported-secrets-iam-privilege-posture-observations"
         }
       ],
-      "linked_issues": [
-        5552,
-        5681
-      ],
       "console": false,
       "authorization": {
         "family": "secrets_iam",
@@ -9201,10 +9177,8 @@
     {
       "capability": "secrets_iam.secret_access_paths.list",
       "display_name": "Secrets Iam Secret Access Paths List",
-      "owner_package": "internal/query",
-      "maturity": "gated",
+      "maturity": "experimental",
       "derived_maturity": "experimental",
-      "maturity_reason": "Reducer secrets/IAM read models are written only when the secrets/IAM graph projection domain is registered, which requires the operator to set ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED. That flag is off by default in the repository, chart, and operator defaults, so a stock deploy serves this surface as an empty page rather than a populated one. See docs/internal/design/1314-secrets-iam-graph-activation-record.md.",
       "surfaces": [
         {
           "tool": "list_secrets_iam_secret_access_paths",
@@ -9249,10 +9223,6 @@
           "kind": "integration_test",
           "ref": "local-lightweight-unsupported-secrets-iam-secret-access-paths"
         }
-      ],
-      "linked_issues": [
-        5552,
-        5681
       ],
       "console": false,
       "authorization": {

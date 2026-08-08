@@ -212,8 +212,10 @@ evidence for each capability was searched for before deciding a disposition
   `graph_read_error_impact_test.go`. The matrix's `local_authoritative` row
   cited `integration_test: local-authoritative-trace-exposure-path` and
   `local_full_stack` cited `compose_e2e: trace-exposure-path`. Neither ref
-  resolves to a committed script anywhere in `scripts/` or elsewhere in the
-  tree (`rg` for both ref strings outside the matrix file returns nothing).
+  resolves to a committed script anywhere in `scripts/`: no file is named for
+  either ref and no script declares them. (Stated as what was searched rather
+  than as an `rg` result count -- this document now names both refs itself, so
+  a bare "returns nothing" claim would be false the moment it was written.)
   Corrected both to `go_test: ./internal/query`, the evidence that is
   actually committed. No deployed proof (a `scripts/run-remote-e2e-*` driver
   or a live-backend `docs/internal/evidence/*.md` record) exists for the
