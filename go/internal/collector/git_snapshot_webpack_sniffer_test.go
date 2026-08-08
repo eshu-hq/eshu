@@ -23,10 +23,12 @@ import (
 // chunk. It is a first-class configuration, not an oddity.
 //
 // The sniffer required the cache AND the require function, so it classified
-// these as hand-written and sent them to a full tree-sitter parse. #4782 found
-// one real case (a ~2.7MB WordPress/Gutenberg bundle) parsing in ~15.9s, about
-// 224x a normal file, and the miss was identical across every Gutenberg build
-// sampled.
+// these as hand-written and sent them to a full tree-sitter parse.
+//
+// The fixture is sized deliberately. #4766's jsParseByteCap bounds any
+// JavaScript file over 1 MiB before tree-sitter sees it, so the case that still
+// costs anything is a bundle between this sniffer's 256 KiB floor and that cap
+// — measured at 1.9s to parse a 0.58MB one, against 0.2ms to sniff it.
 func largeWebpackSplitRuntimeFixture() string {
 	header := "/******/ (() => { // webpackBootstrap\n" +
 		"/******/ \tvar __webpack_modules__ = ({\n" +

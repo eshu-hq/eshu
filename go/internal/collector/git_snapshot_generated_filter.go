@@ -117,9 +117,15 @@ func largeJavaScriptBundlePrefix(path string) (string, bool) {
 // JavascriptModulesPlugin), so a build that extracts its runtime into a
 // separate chunk produces neither in any other chunk. That is
 // `optimization.runtimeChunk`, an ordinary configuration, and requiring the two
-// sent every such bundle to a full tree-sitter parse: a ~2.7MB
-// WordPress/Gutenberg bundle took ~15.9s, roughly 224x a normal file, and every
-// Gutenberg build sampled missed the same way (#4782).
+// sent every such bundle to a full tree-sitter parse (#4782).
+//
+// What that costs depends on size, and the interesting range is narrower than
+// it looks. Above 1 MiB #4766's jsParseByteCap already keeps the file away from
+// tree-sitter, so the seconds-scale figures quoted in #4782 are that fix's
+// evidence, not this one's. Between this sniffer's 256 KiB floor and that cap a
+// bundle is fully parsed: measured at 1.9s for a 0.58MB split-runtime chunk
+// (2.5s with dataflow) against 0.2ms to sniff it, and 17k phantom function and
+// call entities that no longer reach the graph.
 func isWebpackBootstrapPrefix(prefix string) bool {
 	return strings.Contains(prefix, "webpackBootstrap") &&
 		strings.Contains(prefix, "/******/") &&
