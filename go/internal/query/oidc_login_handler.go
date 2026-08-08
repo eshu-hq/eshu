@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/authsafe"
 )
 
 // OIDC login errors let provider implementations map fail-closed outcomes to
@@ -129,7 +131,7 @@ func (h *OIDCLoginHandler) handleStart(w http.ResponseWriter, r *http.Request) {
 		ProviderConfigID: QueryParam(r, "provider_config_id"),
 		TenantID:         QueryParam(r, "tenant_id"),
 		WorkspaceID:      QueryParam(r, "workspace_id"),
-		ReturnToPath:     safeOIDCReturnPath(QueryParam(r, "return_to")),
+		ReturnToPath:     authsafe.ReturnPath(QueryParam(r, "return_to")),
 	}
 	start, err := h.Service.StartOIDCLogin(r.Context(), req)
 	if err != nil {
@@ -173,7 +175,7 @@ func (h *OIDCLoginHandler) handleCallback(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	returnTo := safeOIDCReturnPath(complete.ReturnToPath)
+	returnTo := authsafe.ReturnPath(complete.ReturnToPath)
 	if returnTo == "" {
 		WriteJSON(w, http.StatusCreated, response)
 		return
@@ -218,15 +220,4 @@ func writeOIDCLoginError(w http.ResponseWriter, err error) {
 	default:
 		WriteError(w, http.StatusInternalServerError, "oidc login failed")
 	}
-}
-
-func safeOIDCReturnPath(path string) string {
-	path = strings.TrimSpace(path)
-	if path == "" || !strings.HasPrefix(path, "/") || strings.HasPrefix(path, "//") {
-		return ""
-	}
-	if strings.ContainsAny(path, "\r\n\t") {
-		return ""
-	}
-	return path
 }
