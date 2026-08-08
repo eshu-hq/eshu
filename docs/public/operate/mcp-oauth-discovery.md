@@ -61,6 +61,40 @@ The document answers `404` — indistinguishable from a token-only deployment �
 whenever `ESHU_AUTH_RESOURCE_URI` is unset or invalid, no provider is
 configured, or no bearer issuer is currently active.
 
+### A non-loopback http deployment cannot serve discovery
+
+`http` passes the resource-URI check only for a loopback host (`localhost`,
+`127.0.0.1`, `::1`). Any other plain-`http` resource identifier — the common
+case being a test rig reachable at `http://<external-ip>:<port>` — fails the
+check, so the server never publishes the metadata document at all. This is
+deliberate: Eshu will not advertise where to obtain a token over an
+unencrypted, non-local transport.
+
+The failure is quiet, which is what makes it worth naming. Bearer `aud`
+validation still works, tokens still authenticate, and credentialed routes
+still return `401` correctly, so the deployment looks healthy. There are three
+signals, and the one a client meets first is the easiest to overlook:
+
+- **The `401` challenge loses its pointer.** Discovery and the challenge are
+  wired together, so disabling one disables the other: a protected route
+  answers with a bare `WWW-Authenticate: Bearer` and no `resource_metadata`
+  directive. An OAuth-capable client has nothing to follow and falls back to
+  token posture, which reads as "this deployment does not do SSO" rather than
+  as a misconfiguration.
+- **A permanent `404`** on `/.well-known/oauth-protected-resource`, which is
+  indistinguishable from a deployment that never enabled OAuth.
+- **One startup warning**, logged once and easily lost in a busy log:
+
+```text
+oauth discovery disabled: ESHU_AUTH_RESOURCE_URI is not a valid https (or loopback-http) URL without query/fragment; bearer aud validation still enforced
+```
+
+For any deployment that is not local, terminate TLS in front of the MCP server
+and set `ESHU_AUTH_RESOURCE_URI` to the `https` identifier clients will use
+(for example `https://eshu.example.com/mcp`). Changing the scheme changes the
+canonical resource identifier, so the access token's `aud` claim and your
+authorization server's resource indicator must be updated to match.
+
 ## Pre-registering an OAuth client (Okta)
 
 An Okta custom authorization server offers no anonymous dynamic client
