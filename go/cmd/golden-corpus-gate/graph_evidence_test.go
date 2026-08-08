@@ -68,7 +68,7 @@ func TestCheckGraphEvidenceFilteredIsolatesVerb(t *testing.T) {
 	}
 	var r Report
 	if err := checkGraph(context.Background(), c, evidenceFilteredSnapshot(), true,
-		map[string]bool{"rc-test-kustomize": true}, &r); err != nil {
+		map[string]bool{"rc-test-kustomize": true}, nil, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
 	}
 	if !r.Failed() {
@@ -87,7 +87,7 @@ func TestCheckGraphEvidenceFilteredPassesWhenKindPresent(t *testing.T) {
 	}
 	var r Report
 	if err := checkGraph(context.Background(), c, evidenceFilteredSnapshot(), true,
-		map[string]bool{"rc-test-kustomize": true}, &r); err != nil {
+		map[string]bool{"rc-test-kustomize": true}, nil, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
 	}
 	if r.Failed() {
