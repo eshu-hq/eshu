@@ -141,8 +141,17 @@ func callDemoMCPTool(ctx context.Context, mcpBase, apiKey string, ex demoExecute
 		return nil, fmt.Errorf("MCP tools/call returned HTTP %d", resp.StatusCode)
 	}
 	var envelope struct {
-		Result map[string]any `json:"result"`
-		Error  *struct {
+		Result struct {
+			// StructuredContent is the typed tool payload. MCP wraps a tool
+			// result in content[] (human text) plus structuredContent (the
+			// data), so the manifest's required_response_fields live here --
+			// reading result directly finds only the wrapper.
+			StructuredContent map[string]any `json:"structuredContent"`
+			Content           []struct {
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"result"`
+		Error *struct {
 			Message string `json:"message"`
 		} `json:"error"`
 	}
@@ -152,7 +161,28 @@ func callDemoMCPTool(ctx context.Context, mcpBase, apiKey string, ex demoExecute
 	if envelope.Error != nil {
 		return nil, fmt.Errorf("MCP tool error: %s", envelope.Error.Message)
 	}
-	return envelope.Result, nil
+	if sc := envelope.Result.StructuredContent; len(sc) > 0 {
+		// structuredContent is Eshu's own {data, truth, error} envelope, so the
+		// manifest's required_response_fields live one level in, under data.
+		// Checking the envelope itself finds only data/truth/error and reports
+		// every required field missing.
+		if inner, ok := sc["data"].(map[string]any); ok && len(inner) > 0 {
+			if truth, ok := sc["truth"].(map[string]any); ok && len(truth) > 0 {
+				inner["__truth"] = truth
+			}
+			return inner, nil
+		}
+		return sc, nil
+	}
+	// Some tools return only text. Parse it when it is JSON rather than
+	// silently reporting an empty payload as a missing-field failure.
+	if len(envelope.Result.Content) > 0 {
+		var fromText map[string]any
+		if err := json.Unmarshal([]byte(envelope.Result.Content[0].Text), &fromText); err == nil {
+			return fromText, nil
+		}
+	}
+	return nil, fmt.Errorf("MCP tool %s returned no structured payload", ex.Ref)
 }
 
 // callDemoHTTPRoute issues the "<METHOD> <path>" the manifest declares.
@@ -187,6 +217,9 @@ func callDemoHTTPRoute(ctx context.Context, apiBase, apiKey string, ex demoExecu
 func missingDemoFields(payload map[string]any, required []string) []string {
 	var missing []string
 	for _, f := range required {
+		if f == "__truth" {
+			continue
+		}
 		if _, ok := payload[f]; !ok {
 			missing = append(missing, f)
 		}
@@ -213,6 +246,9 @@ func summarizeDemoPayload(payload map[string]any) string {
 // extractDemoTruth lifts the surface's truth labels. An answer with no truth
 // is reported as such rather than given a fabricated label.
 func extractDemoTruth(payload map[string]any) map[string]any {
+	if truth, ok := payload["__truth"].(map[string]any); ok && len(truth) > 0 {
+		return truth
+	}
 	if meta, ok := payload["answer_metadata"].(map[string]any); ok {
 		if truth, ok := meta["truth"].(map[string]any); ok && len(truth) > 0 {
 			return truth

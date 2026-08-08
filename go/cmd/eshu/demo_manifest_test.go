@@ -71,10 +71,13 @@ func TestAskDemoQuestion_MCPPostsToolsCallAndReturnsTheAnswer(t *testing.T) {
 		gotPath = r.URL.Path
 		_ = json.NewDecoder(r.Body).Decode(&gotBody)
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{
+		_, _ = w.Write([]byte( // The real MCP envelope: content[] is human text, structuredContent
+			// is the typed payload the manifest's required fields live in.
+			`{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"api-svc runs in workload:api-svc"}],
+			"structuredContent":{
 			"answer_metadata":{"truth":{"level":"exact"}},
 			"answer_packet":{"summary":"api-svc runs in workload:api-svc"},
-			"api_surface":{"routes":[]}}}`))
+			"api_surface":{"routes":[]}}}}`))
 	}))
 	defer srv.Close()
 
@@ -120,7 +123,7 @@ func TestAskDemoQuestion_MissingRequiredFieldIsAnError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		// answer_packet is absent: the tool replied, but not with the shape
 		// the manifest says this question's answer must have.
-		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{"answer_metadata":{},"api_surface":{}}}`))
+		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{"structuredContent":{"answer_metadata":{},"api_surface":{}}}}`))
 	}))
 	defer srv.Close()
 
