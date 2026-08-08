@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2034  # drive_workers and the *_operation_match
+# anchors are assigned here and read by the cell functions in
+# scripts/lib/ifa_fault_injection_*.sh, which shellcheck cannot see from
+# this file. The mirror of the SC2154 case the libraries disable.
 # Ifá P6 part 2 (#4580) deterministic fault-injection Docker gate (design doc
 # docs/internal/design/4389-ifa-conformance-platform.md, Layer 4). Drives the
 # SAME demo-org GCP cassette (testdata/cassettes/gcpcloud/supply-chain-demo.json)

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2034  # The reducer_/projector_pid locals are
+# filled indirectly by ifa_det_start_bg via printf -v, so shellcheck
+# sees the declaration but not the write.
 # shellcheck disable=SC2154  # This file is sourced by
 # scripts/verify-ifa-fault-injection.sh and reads globals it owns
 # (bin_dir, log_dir, work_dir, use_compose, compose_file, wall_times,
