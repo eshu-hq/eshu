@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/discovery"
 	"github.com/eshu-hq/eshu/go/internal/parser"
 )
 
@@ -94,5 +95,54 @@ func TestResolveNativeSnapshotFileSetSkipsWebpackChunksWithASplitRuntime(t *test
 	}
 	if !fileSetContainsSuffix(fileSet.Files, "src/app.js") {
 		t.Error("ordinary source was skipped")
+	}
+}
+
+// A delta sync resolves its file set from explicit --file-targets rather than
+// walking the tree, and that path never applied the generated-content filter.
+// So the same webpack bundle was skipped when a full discovery found it and
+// indexed when a delta sync touched it — one file, two answers, decided by
+// which sync mode happened to run.
+//
+// The filter belongs on both paths for the same reason it exists on either:
+// generated output is not source, and parsing it costs real time and mints
+// phantom functions and calls into the graph (#4782).
+func TestResolveNativeSnapshotFileSetForTargetsSkipsGeneratedBundles(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	writeCollectorTestFile(t, filepath.Join(repoRoot, ".git", "HEAD"), "ref: refs/heads/main\n")
+	bundlePath := filepath.Join(repoRoot, "public", "js", "split-runtime.js")
+	sourcePath := filepath.Join(repoRoot, "src", "app.js")
+	writeCollectorTestFile(t, bundlePath, largeWebpackSplitRuntimeFixture())
+	writeCollectorTestFile(t, sourcePath, "export function app() { return 'source'; }\n")
+
+	resolvedRepoRoot, err := filepath.EvalSymlinks(repoRoot)
+	if err != nil {
+		resolvedRepoRoot = repoRoot
+	}
+
+	var stats discovery.DiscoveryStats
+	fileSet, err := resolveNativeSnapshotFileSetForTargets(
+		resolvedRepoRoot,
+		[]string{bundlePath, sourcePath},
+		parser.DefaultRegistry(),
+		&stats,
+	)
+	if err != nil {
+		t.Fatalf("resolveNativeSnapshotFileSetForTargets() error = %v", err)
+	}
+
+	if fileSetContainsSuffix(fileSet.Files, "public/js/split-runtime.js") {
+		t.Error("a delta sync kept a generated webpack bundle; the full discovery path " +
+			"skips the same file, so the graph depends on which sync mode ran")
+	}
+	if !fileSetContainsSuffix(fileSet.Files, "src/app.js") {
+		t.Error("an explicitly targeted source file was dropped")
+	}
+	if stats.FilesSkippedByContent["generated-webpack"] != 1 {
+		t.Errorf("FilesSkippedByContent[generated-webpack] = %d, want 1; the delta path "+
+			"must report the skip through the same counter an operator already watches",
+			stats.FilesSkippedByContent["generated-webpack"])
 	}
 }

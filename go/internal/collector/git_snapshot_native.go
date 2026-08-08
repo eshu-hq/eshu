@@ -76,7 +76,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	fullFileSet, discoveryStats, err := resolveNativeSnapshotFileSet(repoPath, registry, discoveryOpts)
 	fileSet := fullFileSet
 	if len(repository.FileTargets) > 0 {
-		fileSet, err = resolveNativeSnapshotFileSetForTargets(repoPath, repository.FileTargets, registry)
+		fileSet, err = resolveNativeSnapshotFileSetForTargets(repoPath, repository.FileTargets, registry, &discoveryStats)
 	}
 	if err != nil {
 		return RepositorySnapshot{}, err
