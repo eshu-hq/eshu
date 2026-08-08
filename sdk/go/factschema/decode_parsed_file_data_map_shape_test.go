@@ -101,6 +101,37 @@ func TestDecodeParsedFileDataAccessors_AcceptNativeMapSliceShape(t *testing.T) {
 		}
 	})
 
+	// #5609 added the ninth accessor. The streaming shape matters more here
+	// than for its siblings: the ref lists inside the row are []string, not
+	// []any, so the row has to survive BOTH the outer []map[string]any and the
+	// inner typed slices.
+	t.Run("KustomizeOverlays", func(t *testing.T) {
+		t.Parallel()
+		overlays, err := DecodeParsedFileDataKustomizeOverlays(map[string]any{
+			"kustomize_overlays": []map[string]any{
+				{
+					"name":          "kustomization",
+					"bases":         []string{"./base"},
+					"resource_refs": []string{"github.com/acme/deployable-source//k8s?ref=v1.4.0"},
+					"image_refs":    []string{"checkout-service"},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("error = %v, want nil", err)
+		}
+		if len(overlays) != 1 {
+			t.Fatalf("overlays = %#v, want one row", overlays)
+		}
+		if len(overlays[0].ResourceRefs) != 1 ||
+			overlays[0].ResourceRefs[0] != "github.com/acme/deployable-source//k8s?ref=v1.4.0" {
+			t.Fatalf("ResourceRefs = %#v, want the remote base", overlays[0].ResourceRefs)
+		}
+		if len(overlays[0].ImageRefs) != 1 {
+			t.Fatalf("ImageRefs = %#v, want one row", overlays[0].ImageRefs)
+		}
+	})
+
 	t.Run("HelmValues", func(t *testing.T) {
 		t.Parallel()
 		values, err := DecodeParsedFileDataHelmValues(map[string]any{

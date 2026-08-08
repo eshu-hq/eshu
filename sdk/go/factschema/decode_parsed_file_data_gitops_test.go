@@ -357,3 +357,84 @@ func TestDecodeParsedFileDataArgoCDApplications_MalformedElementSkipped(t *testi
 		t.Fatalf("applications = %#v, want one row for the well-formed element", applications)
 	}
 }
+
+// The parser writes the ref lists as []string, and the tolerant decoder reaches
+// them by direct coercion, not a JSON round trip: decodeParsedFileDataTolerantSlice
+// calls decodeMapInto -> decodeMapIntoWith, which walks a cached struct plan by
+// reflection and converts []string and []any element-wise. There is no
+// json.Marshal or json.Unmarshal anywhere on this path.
+//
+// The distinction matters for whoever debugs a decode mismatch next: the rules
+// that govern it are the struct plan's coercion cases in decode_map.go, not
+// JSON tag handling. This pins that a []string arrives as []string rather than
+// as []any the caller has to re-assert.
+func TestDecodeParsedFileDataKustomizeOverlays_TypedRows(t *testing.T) {
+	t.Parallel()
+
+	pfd := map[string]any{
+		"kustomize_overlays": []any{
+			map[string]any{
+				"name":          "kustomization",
+				"line_number":   float64(1),
+				"namespace":     "production",
+				"bases":         []any{"./base"},
+				"resource_refs": []any{"github.com/acme/deployable-source//k8s?ref=v1.4.0"},
+				"helm_refs":     []any{"redis", "https://charts.example.test"},
+				"image_refs":    []any{"checkout-service"},
+				"patch_targets": []any{"Deployment/checkout"},
+				"path":          "kustomization.yaml",
+				"lang":          "yaml",
+			},
+		},
+	}
+
+	overlays, err := DecodeParsedFileDataKustomizeOverlays(pfd)
+	if err != nil {
+		t.Fatalf("error = %v, want nil", err)
+	}
+	if len(overlays) != 1 {
+		t.Fatalf("overlays = %#v, want one row", overlays)
+	}
+	got := overlays[0]
+	if len(got.ResourceRefs) != 1 || got.ResourceRefs[0] != "github.com/acme/deployable-source//k8s?ref=v1.4.0" {
+		t.Errorf("ResourceRefs = %#v, want the remote base", got.ResourceRefs)
+	}
+	if len(got.HelmRefs) != 2 || len(got.ImageRefs) != 1 {
+		t.Errorf("HelmRefs = %#v, ImageRefs = %#v, want 2 and 1", got.HelmRefs, got.ImageRefs)
+	}
+	// bases is a named field, not an Attributes pass-through. Evidence
+	// discovery reads it alongside ResourceRefs, because a same-repo path is
+	// still a catalog-matcher candidate -- the calibration corpus scores
+	// `../payments-service/base` as a 0.90 positive. Decoding it into the
+	// named field is what removes it from Attributes.
+	if len(got.Bases) != 1 || got.Bases[0] != "./base" {
+		t.Errorf("Bases = %#v, want the same-repo base decoded into the named field", got.Bases)
+	}
+	if _, present := got.Attributes["bases"]; present {
+		t.Errorf("Attributes = %#v, want bases absent now that it is a named field", got.Attributes)
+	}
+}
+
+// An absent key decodes to nil with no error, matching every sibling accessor.
+func TestDecodeParsedFileDataKustomizeOverlays_Absent(t *testing.T) {
+	t.Parallel()
+
+	overlays, err := DecodeParsedFileDataKustomizeOverlays(map[string]any{})
+	if err != nil {
+		t.Fatalf("error = %v, want nil", err)
+	}
+	if overlays != nil {
+		t.Errorf("overlays = %#v, want nil", overlays)
+	}
+}
+
+// A wrong-typed value is an error, not a silent empty decode.
+func TestDecodeParsedFileDataKustomizeOverlays_WrongType(t *testing.T) {
+	t.Parallel()
+
+	if _, err := DecodeParsedFileDataKustomizeOverlays(map[string]any{
+		"kustomize_overlays": "not-a-slice",
+	}); err == nil {
+		t.Error("error = nil, want a type error naming kustomize_overlays")
+	}
+}

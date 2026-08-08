@@ -84,7 +84,7 @@ Current extraction families:
 | Terraform | `app_repo`, `app_name`, GitHub repository fields, IAM/SSM permissions, config paths, module sources, provider-schema resource identity | `PROVISIONS_DEPENDENCY_FOR`, `READS_CONFIG_FROM`, `USES_MODULE`, `RUNS_ON` |
 | Terragrunt | dependency `config_path`, helper/local config asset paths, module sources | `DISCOVERS_CONFIG_IN`, `USES_MODULE`, `PROVISIONS_DEPENDENCY_FOR` |
 | Helm | chart metadata and values references | `DEPLOYS_FROM` |
-| Kustomize | resources, Helm chart refs, image refs | `DEPLOYS_FROM` |
+| Kustomize | `resources`, `components`, and `bases` references, Helm chart refs, image refs | `DEPLOYS_FROM` |
 | Argo CD | Application sources, ApplicationSet discovery and deploy sources, destination platform hints | `DEPLOYS_FROM`, `DISCOVERS_CONFIG_IN`, `RUNS_ON` |
 | Flux (cross-repo) | a `FluxGitRepository`'s `spec.url`, resolved by STRICT `repositoryidentity.NormalizeRemoteURL` equality against the target repository's catalog `RemoteURL` -- never the fuzzy alias/token matcher (issue #5483 C2) | `DEPLOYS_FROM` |
 | GitHub Actions | reusable workflows, checkout repositories, repo-bearing workflow inputs, action repositories, local reusable workflows | `DEPLOYS_FROM`, `DEPENDS_ON` |
@@ -273,6 +273,31 @@ logic and reducer/query layers, not in one-off parser rules.
 
 ECS and EKS are current examples. Add new runtime families through the shared
 registry before adding provider-specific story text.
+
+### Kustomize paths that stay inside the repository
+
+A `resources`, `components`, or `bases` entry naming a path inside the same
+repository is still offered to the repository catalog matcher. That is
+deliberate, and it is worth being explicit about because the opposite is a
+reasonable guess.
+
+Kustomize repositories are often laid out so a sibling directory IS another
+repository's config, checked out alongside. So `../payments-service/base` can
+genuinely name the `payments-service` repository, while `./base` names nothing
+outside this one. Both reach the matcher; what separates them is the confidence
+they earn. Eshu's calibration corpus scores the first as a strong reference and
+the second as a negative, and a short or generic path segment such as `../svc`
+is scored ambiguous — a degraded match needing corroboration.
+
+Filtering same-repo paths out before the matcher would remove the negatives and
+the strong references together, so the extractor does not try to.
+
+The local/remote split still matters for a different reason: it decides which
+entries can support an `EXTENDS_BASE` edge between overlays. A remote target in
+any form kustomize accepts is not a base — a full URL, the `git@host:org/repo`
+shorthand, a `git::`-prefixed target, and the scheme-less
+`github.com/org/repo//path?ref=v1` all name another repository. A directory
+named for a version, like `v1.2/base`, does not, despite the dot.
 
 ## Mixed-Source Repositories
 
