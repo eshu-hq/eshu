@@ -77,10 +77,15 @@ So one webpack bundle was skipped when a full discovery found it and indexed
 when a delta sync touched it. The same file, two answers, decided by which sync
 mode happened to run. That gap predates this change; it is closed here.
 
-The delta path now applies the same filter and reports skips through the
-`DiscoveryStats` the caller already holds, so a delta-sync skip lands in the
-same `FilesSkippedByContent["generated-webpack"]` counter rather than going
-silent. Without the filter the regression test fails with:
+The delta path now applies the same filter. It deliberately does NOT fold its
+skip counts into the caller's `DiscoveryStats`: the full discovery runs first on
+every sync and has already counted every generated file in the tree, and a delta
+target is a changed file in that same tree. Adding them again would report one
+bundle twice on a delta sync and inflate
+`FilesSkippedByContent["generated-webpack"]` for the operator reading it. The
+count stays correct at one per file per sync.
+
+Without the filter the regression test fails with:
 
 ```
 a delta sync kept a generated webpack bundle; the full discovery path skips

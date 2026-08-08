@@ -76,7 +76,15 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 	fullFileSet, discoveryStats, err := resolveNativeSnapshotFileSet(repoPath, registry, discoveryOpts)
 	fileSet := fullFileSet
 	if len(repository.FileTargets) > 0 {
-		fileSet, err = resolveNativeSnapshotFileSetForTargets(repoPath, repository.FileTargets, registry, &discoveryStats)
+		// Deliberately a throwaway stats value rather than &discoveryStats. The
+		// full discovery above already walked this tree and counted every
+		// generated file it skipped, and a delta target is a changed file in
+		// that same tree — so folding these skips in again would report one
+		// bundle twice on every delta sync, inflating the counter an operator
+		// reads. The filter still has to run here, because the delta file set
+		// is built from the targets rather than from fullFileSet.
+		var deltaFilterStats discovery.DiscoveryStats
+		fileSet, err = resolveNativeSnapshotFileSetForTargets(repoPath, repository.FileTargets, registry, &deltaFilterStats)
 	}
 	if err != nil {
 		return RepositorySnapshot{}, err

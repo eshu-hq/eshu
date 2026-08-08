@@ -29,8 +29,12 @@ import (
 // and for the same reason. Without it one webpack bundle was skipped when a
 // full discovery found it and indexed when a delta sync touched it, so which
 // entities reached the graph depended on which sync mode happened to run
-// (#4782). stats carries the skip counts back to the caller through the
-// counter operators already watch.
+// (#4782).
+//
+// stats receives the skip counts. Callers decide whether those counts are new
+// information: the production caller passes a throwaway value, because the full
+// discovery it runs first has already counted the same files. See the comment
+// at that call site.
 func resolveNativeSnapshotFileSetForTargets(
 	repoPath string,
 	fileTargets []string,
