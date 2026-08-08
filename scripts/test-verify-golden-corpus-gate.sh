@@ -297,6 +297,12 @@ require_in "failure log dump" "${cleanup_lib}" "host binary logs (failure)"
 # containers and volumes from colliding with another worktree's gate.
 require "unique Compose project default" 'GATE_COMPOSE_PROJECT:=eshu-golden-corpus-$$'
 require "shared Compose args" 'compose_args=(-p "${GATE_COMPOSE_PROJECT}" -f "${compose_file}")'
+require "overridable query profile default" 'ESHU_QUERY_PROFILE:=local_full_stack'
+require "query profile export" 'export ESHU_QUERY_PROFILE'
+require "query profile run log" 'log "query profile: ${ESHU_QUERY_PROFILE}"'
+if rg -q '^export ESHU_QUERY_PROFILE="local_full_stack"$' "${script}"; then
+	fail "query profile must honor an explicit caller override"
+fi
 for compose_case in \
 	"${repo_root}/scripts/lib/golden-corpus-readiness.sh:4" \
 	"${cleanup_lib}:1" "${host_helpers_lib}:1" \
