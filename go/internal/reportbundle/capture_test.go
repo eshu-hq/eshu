@@ -336,14 +336,25 @@ func TestCapture_ErrorDetailsAreRedacted(t *testing.T) {
 		t.Errorf("benign nested key was dropped: %#v", nested)
 	}
 
-	var sawRule bool
+	// Assert the exact key names, not just that SOME rule was recorded. The
+	// absence assertions above already prove the redaction happened; this is
+	// about the bundle's own self-description, where recording the wrong name
+	// (or none) is a metadata bug a "non-empty rule" check cannot see
+	// (#5964 review). redactValue records the bare key, so these are the names.
+	var sawAPIKey, sawPassword bool
 	for _, rule := range bundle.Redaction.Rules {
-		if rule != "" {
-			sawRule = true
+		switch rule {
+		case "api_key":
+			sawAPIKey = true
+		case "password":
+			sawPassword = true
 		}
 	}
-	if !sawRule {
-		t.Error("redacting Details recorded no rule; the bundle would claim nothing was removed")
+	if !sawAPIKey {
+		t.Errorf("api_key not recorded in redaction rules: %v", bundle.Redaction.Rules)
+	}
+	if !sawPassword {
+		t.Errorf("nested password not recorded in redaction rules: %v", bundle.Redaction.Rules)
 	}
 }
 
