@@ -322,9 +322,16 @@ cell_restartbackend
 cell_killworker_sql
 cell_duplicatedelivery
 cell_deltaretract
-cell_failgraphwrite_sql
-# (#5974 fixed: now runs by default)
-# HISTORICAL: cell_failgraphwrite_sql was NOT run by default (#5974). It passes
+# cell_failgraphwrite_sql stays held out. #5974's marker (below) replaced a log
+# poll that could not tell "the fault never fired" apart from "the log line
+# arrived late". With the ambiguity gone, CI answered plainly: the fault does
+# NOT fire there. Run 31281... on PR #5981 reached this cell with all eight
+# others green and reported no once-fired marker at all, while the same cell
+# fires locally in 9s. So the remaining question is why the QUERIES_TABLE MERGE
+# anchor matches a real write locally and not in CI -- tracked in #5974.
+# Enabling it here would leave CI red; the marker is what made the question
+# precise, not what answered it.
+# cell_failgraphwrite_sql is defined but NOT run by default (#5974). It passes
 # locally and does not fire in CI: run 31245188403 shows zero injected-fault
 # hits and zero shared-projection partition failures, while the GCP cell in the
 # same run fired normally -- so the decorator works and only this injection

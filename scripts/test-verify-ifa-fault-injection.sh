@@ -157,12 +157,13 @@ done
 # Anchored to the invocation line, not the bare name: the verifier's
 # source-helper comments mention cell_deltaretract, so a bare-name needle stays
 # green after the call is deleted. rg without --fixed-strings so ^...$ binds.
-# All four now run. cell_failgraphwrite_sql was held out while its fired-fault
-# proof read the reducer log and went inert in CI; #5974 replaced that with the
-# decorator-written marker, so it is invoked like the rest.
-for cell in cell_killworker_sql cell_duplicatedelivery cell_deltaretract cell_failgraphwrite_sql; do
+# cell_failgraphwrite_sql remains held out: the marker proved the fault does not
+# fire in CI at all, which the old log poll could not distinguish from a late
+# log line. The other three run.
+for cell in cell_killworker_sql cell_duplicatedelivery cell_deltaretract; do
 	rg --quiet -- "^${cell}\$" "${script}" || fail "verifier does not INVOKE ${cell} on its own line"
 done
+require "failgraphwrite_sql held out with CI evidence" "reported no once-fired marker at all"
 # The library must DEFINE both cells. The needles below check implementation
 # details that could still match if the function wrapper were renamed away.
 require_delivery_cells "delivery lib defines cell_duplicatedelivery" "cell_duplicatedelivery() {"
