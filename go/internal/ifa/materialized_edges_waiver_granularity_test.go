@@ -175,14 +175,18 @@ func TestMaterializedEdgeBaselineWaiverDoesNotGreenFault(t *testing.T) {
 	}
 }
 
-// TestMaterializedEdgeSQLFaultHonestlyProven proves the #5555 honest landing
-// shape against the REAL committed manifest and waivers: the SQL baseline AND
-// fault rows are BOTH genuinely covered (green), and sql_relationships
-// carries no waiver on either proof gate. Before #5555, this same shape
-// asserted the opposite -- the fault row was WAIVED, not covered, because the
-// fault was confirmed-false (anchored to a CloudResource MERGE, never
-// exercising the SQL work item). See git history for that prior shape.
-func TestMaterializedEdgeSQLFaultHonestlyProven(t *testing.T) {
+// TestMaterializedEdgeSQLFaultHonestlyWaived pins the honest landing shape
+// against the REAL committed manifest and waivers: the SQL baseline row is
+// genuinely covered, and the fault row is still WAIVED.
+//
+// #5555 fixed a real defect -- the fired-fault assertion had been two
+// independent whole-file greps that both matched when the fault landed on
+// CloudResource -- and cell_killworker_sql is proven live in CI. But
+// cell_failgraphwrite_sql passes locally and does not fire in CI (#5974),
+// caught by its own non-vacuity check. So the fault dimension is not proven in
+// the environment that counts, and this test exists to stop the row going
+// green before it is.
+func TestMaterializedEdgeSQLFaultHonestlyWaived(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
 	specsDir := filepath.Join(repoRoot, "specs")
@@ -214,25 +218,19 @@ func TestMaterializedEdgeSQLFaultHonestlyProven(t *testing.T) {
 		t.Errorf("sql_relationships baseline status = %q, want covered", baseline.Status)
 	}
 
-	// Fault: genuinely covered (#5555 closed) -- the fault-injection matrix's
-	// cell_killworker_sql / cell_failgraphwrite_sql cells provably target the
-	// SQL work item and proved green live.
-	fault := findMaterializedEdgeCoverage(t, cov, MaterializedEdgeSurfacePrefix+"sql_relationships", replaycoverage.ScenarioTypeFault)
-	if fault.Status != replaycoverage.StatusCovered {
-		t.Errorf("sql_relationships fault status = %q, want covered (#5555 closed)", fault.Status)
-	}
-
+	// Fault: waived, not covered. cell_failgraphwrite_sql does not fire in CI
+	// (#5974), so the dimension is unproven where it matters.
 	faultFinding := findFinding(t, gate, MaterializedEdgeSurfacePrefix+"sql_relationships|fault")
-	if !faultFinding.OK || faultFinding.Required {
-		t.Errorf("covered sql fault row must be OK and not required, got %+v", faultFinding)
+	if !faultFinding.OK {
+		t.Errorf("waived sql fault row must not fail the gate, got %+v", faultFinding)
 	}
-	if strings.Contains(faultFinding.Detail, "#5555") {
-		t.Errorf("a genuinely covered sql fault finding must not read like a waiver naming #5555, got detail %q", faultFinding.Detail)
+	if !strings.Contains(faultFinding.Detail, "#5974") {
+		t.Errorf("the sql fault waiver must name the issue that will retire it, got detail %q", faultFinding.Detail)
 	}
 
 	byKey := materializedEdgeWaiversByKey(waivers)
-	if _, ok := byKey[materializedEdgeWaiverKey{Surface: MaterializedEdgeSurfacePrefix + "sql_relationships", ProofGate: materializedEdgeProofGateFault}]; ok {
-		t.Error("sql_relationships fault is proven (#5555 closed); it must carry no waiver")
+	if _, ok := byKey[materializedEdgeWaiverKey{Surface: MaterializedEdgeSurfacePrefix + "sql_relationships", ProofGate: materializedEdgeProofGateFault}]; !ok {
+		t.Error("sql_relationships fault is unproven in CI (#5974); it must carry a waiver rather than read as covered")
 	}
 }
 

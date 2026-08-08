@@ -73,23 +73,23 @@ func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 	if delta.Status != replaycoverage.StatusCovered {
 		t.Errorf("materialized_edges:sql_relationships (delta_tombstone) status = %q, detail=%q, want covered", delta.Status, delta.Detail)
 	}
-	fault := findMaterializedEdgeCoverage(t, cov, MaterializedEdgeSurfacePrefix+"sql_relationships", replaycoverage.ScenarioTypeFault)
-	if fault.Status != replaycoverage.StatusCovered {
-		t.Errorf("materialized_edges:sql_relationships (fault) status = %q, detail=%q, want covered (#5555 closed: cell_killworker_sql / cell_failgraphwrite_sql provably target the SQL work item and proved green live)", fault.Status, fault.Detail)
-	}
+	// The fault dimension stays waived: cell_failgraphwrite_sql does not fire in
+	// CI (#5974), so it is unproven where it counts. Asserted via the waiver key
+	// below rather than a coverage status.
 
 	// Every OTHER allProjectionDomains family must be waived on BOTH gates, not
 	// silently dropped from the manifest (a (surface × proof_gate) row present in
 	// neither coverage nor waivers is the exact drift this gate exists to catch —
 	// proven not to slip past by gate.Failed() above, but assert the waiver keys
 	// directly too so a future family added without either a coverage row or a
-	// waiver fails loudly here). sql_relationships is asserted separately: both
-	// its baseline and fault gates are now covered, so it must carry NO waiver.
+	// waiver fails loudly here). sql_relationships is asserted separately: its
+	// baseline is covered so it carries no baseline waiver, while its fault gate
+	// is still waived pending #5974.
 	byKey := materializedEdgeWaiversByKey(waivers)
 	for _, f := range families {
 		if f == "sql_relationships" {
-			if _, ok := byKey[materializedEdgeWaiverKey{Surface: MaterializedEdgeSurfacePrefix + f, ProofGate: materializedEdgeProofGateFault}]; ok {
-				t.Error("sql_relationships fault is proven (#5555 closed); it must NOT carry a waiver")
+			if _, ok := byKey[materializedEdgeWaiverKey{Surface: MaterializedEdgeSurfacePrefix + f, ProofGate: materializedEdgeProofGateFault}]; !ok {
+				t.Error("sql_relationships fault is unproven in CI (#5974); it must carry a waiver rather than read as covered")
 			}
 			if _, ok := byKey[materializedEdgeWaiverKey{Surface: MaterializedEdgeSurfacePrefix + f, ProofGate: materializedEdgeProofGateBaseline}]; ok {
 				t.Error("sql_relationships baseline is proven; it must NOT carry a waiver")

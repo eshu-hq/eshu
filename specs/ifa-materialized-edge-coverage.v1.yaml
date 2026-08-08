@@ -118,13 +118,22 @@ coverage:
   # dimension's ADDITIONAL claim is that a scripted worker-kill / lease-
   # expiry / graph-write fault against this family's real durable handler
   # replay still converges to that same exact edge set.
-  - surface: "materialized_edges:sql_relationships"
-    scenario: odu
-    scenario_type: fault
-    ref: "odu:ifa-sql-family"
-    proof_gate: ifa-fault-injection
 
 waivers:
+  # --- sql_relationships: fault only. Baseline is proven above. ---
+  # #5555 built SQL-targeted cells and fixed the vacuous fired-fault assertion
+  # (it had been two independent whole-file greps that both matched when the
+  # fault landed on CloudResource). cell_killworker_sql is proven live in CI.
+  # cell_failgraphwrite_sql is not: it passes locally and does not fire in CI,
+  # caught by its own non-vacuity check. Flipping this row green on a cell that
+  # cannot fail would recreate the defect #5555 was filed for, so the waiver
+  # stays until #5974 proves the cell fires.
+  - surface: "materialized_edges:sql_relationships"
+    proof_gate: ifa-fault-injection
+    issue: "#5974"
+    waived: "2026-08-08"
+    reason: "cell_failgraphwrite_sql does not fire in CI (passes locally); killworker_sql is proven, graph-write is not"
+
   # --- The 11 other allProjectionDomains families: both gates unproven. ---
   # Each carries a baseline (ifa-determinism) AND a fault (ifa-fault-injection)
   # waiver because NEITHER dimension has an Odù + expected-edge-set fixture yet.
