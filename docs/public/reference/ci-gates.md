@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 99 gates. Local execution runs the primary
+The registry currently defines 100 gates. Local execution runs the primary
 command first, then a distinct self-test when one is registered; byte-identical
 pairs run once. A row with no primary local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
@@ -92,6 +92,7 @@ Advisory rows remain visible but do not block merge.
 | `golden-corpus-filter-exhaustive` | Golden corpus PR path filter exhaustiveness | hygiene | pre-pr | true | `bash scripts/verify-golden-corpus-filter-exhaustive.sh`<br>then self-test: `bash scripts/test-verify-golden-corpus-filter-exhaustive.sh` | test.yml / verify-contracts | 5 path(s): go/**, .github/workflows/golden-corpus-gate.yml, scripts/verify-golden-corpus-filter-exhaustive.sh, … |
 | `replay-coverage-gate` | C-1/C-8/C-9/C-10/C-13 Replay Coverage Gate | exactness | pre-pr | true | `bash scripts/verify-replay-coverage-gate.sh --blocking`<br>then self-test: `bash scripts/test-verify-replay-coverage-gate.sh` | replay-coverage-gate.yml / coverage-gate (blocking) | 34 path(s): go/cmd/replay-coverage-gate/**, go/cmd/eshu/**, go/internal/replaycoverage/**, … |
 | `ifa-contract-layer` | Ifa contract-layer Odù skeleton | exactness | pre-pr | true | `cd go && go test ./internal/ifa ./cmd/ifa -count=1` | static-contract-gates.yml / Verify Ifa contract-layer gate | 9 path(s): go/internal/ifa/**, go/cmd/ifa/**, go/internal/synth/gcp/**, … |
+| `content-entity-bucket-sync` | Content-entity bucket->label three-way sync (#5531) | exactness | pre-pr | true | `cd go && go test ./internal/content/shape -run 'TestContentEntityBucketsMatchCollectorTwin\|TestContentEntityLabelsHaveProjectorLabels\|TestBucketSyncDriftLedgerIsHonest' -count=1` | static-contract-gates.yml / Verify content-entity bucket sync gate | 4 path(s): go/internal/content/shape/**, go/internal/collector/git_snapshot_entity_buckets.go, go/internal/projector/canonical.go, … |
 | `ifa-materialized-edge-coverage` | Ifa materialized-edge exhaustiveness gate (#5351) | exactness | pre-pr | true | `cd go && go test ./internal/ifa -run 'TestMaterializedEdge\|TestSQLRelationship\|TestSQLFamily' -count=1 && go test ./internal/reducer -run TestMaterializedEdgeFamilies -count=1` | static-contract-gates.yml / Verify Ifa contract-layer gate | 14 path(s): go/internal/ifa/**, go/internal/reducer/**, go/internal/ifa/materialized_edges*.go, … |
 | `ifa-determinism` | Ifa P3 graph-determinism matrix (+ --teeth non-idempotent-write gate) | exactness | pre-pr | true | `bash scripts/test-verify-ifa-determinism.sh` | ifa-determinism-gate.yml / determinism-matrix | 18 path(s): go/internal/ifa/graphdump/**, go/internal/synth/gcp/**, go/cmd/ifa/**, … |
 | `ifa-dead-letter-matrix` | Ifa P3 failure-path (dead-letter set) determinism matrix | exactness | pre-pr | true | `bash scripts/test-verify-ifa-dead-letter-matrix.sh` | ifa-determinism-gate.yml / dead-letter-matrix | 7 path(s): go/internal/ifa/mutate.go, go/internal/ifa/dead_letters.go, go/cmd/ifa/mutate_cassette.go, … |

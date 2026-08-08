@@ -38,7 +38,7 @@ var goPackageSubcommands = map[string]struct{}{
 // said 19 by miscounting gates with no scripts/ token (which includes the npm
 // ones) as Go gates. A reviewer caught the second one. Keep the figure in
 // exactly one place that a test can check.
-const goPackageGateCount = 17
+const goPackageGateCount = 18
 
 // argTrimCutset strips shell punctuation that can adhere to a token once a
 // command is split on whitespace: quotes, and the parentheses of a subshell.

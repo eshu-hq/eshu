@@ -31,6 +31,7 @@ go/internal/answernarration	answer narration pipeline gated by the same ESHU_ASK
 # GATE_API_KEY / ESHU_API_KEY export). internal/query/auth.go's
 # resolver.ResolveScopedToken never matches that static shared secret, so the
 # scoped-token/OIDC/SAML/TOTP resolution code below this branch never runs.
+go/internal/authsafe			post-login return-path check shared by githublogin/oidclogin/query below; reached only from a sign-in redirect, and the gate never performs one
 go/internal/githublogin			GitHub OIDC login auth family; gate never exercises a login flow
 go/internal/oidcbearer				OIDC bearer token resolution; gate's static ESHU_API_KEY never resolves as a scoped/OIDC token
 go/internal/oidclogin				OIDC login auth family; same as githublogin
