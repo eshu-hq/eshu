@@ -81,14 +81,14 @@ func loadDemoManifest(path string) (demoManifest, error) {
 // The check is the point. A tool that answers with the wrong shape has not
 // answered: the demo's promise is a correlated answer, and accepting any 200
 // would let "the stack is up" pass as "the demo works".
-func executeDemoQuestion(ctx context.Context, apiBase, mcpBase string, q demoQuestion) (demoAnswer, error) {
+func executeDemoQuestion(ctx context.Context, apiBase, mcpBase, apiKey string, q demoQuestion) (demoAnswer, error) {
 	var payload map[string]any
 	var err error
 	switch q.Execute.Kind {
 	case demoExecuteMCP:
-		payload, err = callDemoMCPTool(ctx, mcpBase, q.Execute)
+		payload, err = callDemoMCPTool(ctx, mcpBase, apiKey, q.Execute)
 	case demoExecuteHTTP:
-		payload, err = callDemoHTTPRoute(ctx, apiBase, q.Execute)
+		payload, err = callDemoHTTPRoute(ctx, apiBase, apiKey, q.Execute)
 	default:
 		return demoAnswer{}, fmt.Errorf(
 			"question %s declares execute kind %q, which this command cannot call; the manifest supports %q and %q",
@@ -110,7 +110,7 @@ func executeDemoQuestion(ctx context.Context, apiBase, mcpBase string, q demoQue
 }
 
 // callDemoMCPTool issues the JSON-RPC tools/call the MCP server expects.
-func callDemoMCPTool(ctx context.Context, mcpBase string, ex demoExecute) (map[string]any, error) {
+func callDemoMCPTool(ctx context.Context, mcpBase, apiKey string, ex demoExecute) (map[string]any, error) {
 	args := ex.Arguments
 	if args == nil {
 		args = map[string]any{}
@@ -129,6 +129,9 @@ func callDemoMCPTool(ctx context.Context, mcpBase string, ex demoExecute) (map[s
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -153,7 +156,7 @@ func callDemoMCPTool(ctx context.Context, mcpBase string, ex demoExecute) (map[s
 }
 
 // callDemoHTTPRoute issues the "<METHOD> <path>" the manifest declares.
-func callDemoHTTPRoute(ctx context.Context, apiBase string, ex demoExecute) (map[string]any, error) {
+func callDemoHTTPRoute(ctx context.Context, apiBase, apiKey string, ex demoExecute) (map[string]any, error) {
 	method, path, found := strings.Cut(strings.TrimSpace(ex.Ref), " ")
 	if !found {
 		return nil, fmt.Errorf("http ref %q is not \"<METHOD> <path>\"", ex.Ref)
@@ -161,6 +164,9 @@ func callDemoHTTPRoute(ctx context.Context, apiBase string, ex demoExecute) (map
 	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(apiBase, "/")+path, nil)
 	if err != nil {
 		return nil, err
+	}
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

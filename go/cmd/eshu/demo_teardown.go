@@ -38,7 +38,7 @@ func (r *demoRuntime) status(ctx context.Context) (demoResult, error) {
 	if !running {
 		return res, nil
 	}
-	indexStatus, err := r.probe(ctx, r.apiBase)
+	indexStatus, err := r.probe(ctx, r.apiBase, r.apiKey)
 	if err != nil {
 		// Up but unreachable is a real state worth reporting rather than an
 		// error: the operator asked whether it is ready, and it is not.

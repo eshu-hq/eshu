@@ -89,7 +89,7 @@ func TestAskDemoQuestion_MCPPostsToolsCallAndReturnsTheAnswer(t *testing.T) {
 	}
 	q.ExpectedAnswer.RequiredResponseFields = []string{"answer_metadata", "answer_packet", "api_surface"}
 
-	ans, err := executeDemoQuestion(context.Background(), srv.URL, srv.URL, q)
+	ans, err := executeDemoQuestion(context.Background(), srv.URL, srv.URL, "k", q)
 	if err != nil {
 		t.Fatalf("executeDemoQuestion: %v", err)
 	}
@@ -127,7 +127,7 @@ func TestAskDemoQuestion_MissingRequiredFieldIsAnError(t *testing.T) {
 	q := demoQuestion{ID: "q1", Question: "q", Execute: demoExecute{Kind: demoExecuteMCP, Ref: "get_service_story"}}
 	q.ExpectedAnswer.RequiredResponseFields = []string{"answer_metadata", "answer_packet", "api_surface"}
 
-	_, err := executeDemoQuestion(context.Background(), srv.URL, srv.URL, q)
+	_, err := executeDemoQuestion(context.Background(), srv.URL, srv.URL, "k", q)
 	if err == nil {
 		t.Fatal("error = nil; a reply missing a required field must not pass as an answer")
 	}
@@ -150,7 +150,7 @@ func TestAskDemoQuestion_HTTPExecutesTheDeclaredRoute(t *testing.T) {
 	}}
 	q.ExpectedAnswer.RequiredResponseFields = []string{"incident", "services"}
 
-	if _, err := executeDemoQuestion(context.Background(), srv.URL, srv.URL, q); err != nil {
+	if _, err := executeDemoQuestion(context.Background(), srv.URL, srv.URL, "k", q); err != nil {
 		t.Fatalf("executeDemoQuestion: %v", err)
 	}
 	if gotMethod != http.MethodGet {
@@ -164,7 +164,7 @@ func TestAskDemoQuestion_HTTPExecutesTheDeclaredRoute(t *testing.T) {
 func TestAskDemoQuestion_UnknownExecuteKindFailsLoudly(t *testing.T) {
 	t.Parallel()
 	q := demoQuestion{ID: "qX", Execute: demoExecute{Kind: "carrier-pigeon", Ref: "x"}}
-	_, err := executeDemoQuestion(context.Background(), "http://127.0.0.1:1", "http://127.0.0.1:1", q)
+	_, err := executeDemoQuestion(context.Background(), "http://127.0.0.1:1", "http://127.0.0.1:1", "k", q)
 	if err == nil {
 		t.Fatal("error = nil; an unrecognized execute kind must fail rather than be skipped")
 	}

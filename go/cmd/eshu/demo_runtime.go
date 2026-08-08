@@ -89,11 +89,13 @@ type demoResult struct {
 // command mutating the process environment.
 type demoExecFunc func(ctx context.Context, env []string, name string, args ...string) ([]byte, error)
 
-// demoProbeFunc reads indexing completeness from a running demo stack.
-type demoProbeFunc func(ctx context.Context, apiBase string) (demoIndexStatus, error)
+// demoProbeFunc reads indexing completeness. It takes the bearer because the
+// status routes require authentication: an unauthenticated probe gets 401 and
+// can never report ready, however healthy the stack is.
+type demoProbeFunc func(ctx context.Context, apiBase, apiKey string) (demoIndexStatus, error)
 
 // demoAskFunc asks the manifest's first question against a running demo stack.
-type demoAskFunc func(ctx context.Context, apiBase, question string) (demoAnswer, error)
+type demoAskFunc func(ctx context.Context, apiBase, apiKey string) (demoAnswer, error)
 
 // demoRuntime owns the demo Compose lifecycle. Every side effect is behind an
 // injectable seam, matching the first_run runtime probe pattern, so the
@@ -235,7 +237,7 @@ func (r *demoRuntime) up(ctx context.Context) (demoResult, error) {
 	res.PhaseMillis["ready"] = r.sinceMillis(phaseStart)
 
 	phaseStart = r.now()
-	answer, err := r.ask(ctx, r.apiBase, demoFirstQuestion)
+	answer, err := r.ask(ctx, r.apiBase, r.apiKey)
 	if err != nil {
 		return res, fmt.Errorf("ask the first demo question: %w", err)
 	}
@@ -251,7 +253,7 @@ func (r *demoRuntime) waitReady(ctx context.Context) error {
 	deadline := r.now().Add(demoReadyTimeout)
 	var last demoIndexStatus
 	for {
-		status, err := r.probe(ctx, r.apiBase)
+		status, err := r.probe(ctx, r.apiBase, r.apiKey)
 		if err == nil {
 			last = status
 			if status.Complete {
@@ -284,10 +286,13 @@ func (r *demoRuntime) sinceMillis(t time.Time) int64 {
 }
 
 // probeDemoIndexStatus is the production readiness seam.
-func probeDemoIndexStatus(ctx context.Context, apiBase string) (demoIndexStatus, error) {
+func probeDemoIndexStatus(ctx context.Context, apiBase, apiKey string) (demoIndexStatus, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiBase+"/api/v0/status/index", nil)
 	if err != nil {
 		return demoIndexStatus{}, err
+	}
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

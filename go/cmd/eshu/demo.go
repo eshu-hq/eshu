@@ -241,10 +241,10 @@ func formatDemoTruth(truth map[string]any) string {
 // query route, because no such route exists. An earlier draft invented
 // GET /api/v0/query; the manifest is the acceptance oracle precisely so
 // sibling issues do not do that.
-func askDemoQuestion(ctx context.Context, apiBase, _ string) (demoAnswer, error) {
+func askDemoQuestion(ctx context.Context, apiBase, apiKey string) (demoAnswer, error) {
 	m, err := loadDemoManifest(demoManifestPath)
 	if err != nil {
 		return demoAnswer{}, err
 	}
-	return executeDemoQuestion(ctx, apiBase, demoMCPBase, m.Questions[0])
+	return executeDemoQuestion(ctx, apiBase, demoMCPBase, apiKey, m.Questions[0])
 }
