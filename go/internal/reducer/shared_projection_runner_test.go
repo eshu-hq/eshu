@@ -80,12 +80,20 @@ type fakeEdgeWriter struct {
 	writes    int
 	retracts  int
 	writeRows []SharedProjectionIntentRow
+	// writeErr, when non-nil, is returned by WriteEdges instead of a
+	// successful write -- used to simulate a graph-executor-seam failure
+	// (e.g. the ifafaultinjection fail-graph-write-once-then-succeed fault)
+	// for TestSharedProjectionRunnerLogsPartitionProcessingError.
+	writeErr error
 }
 
 func (f *fakeEdgeWriter) WriteEdges(_ context.Context, _ string, rows []SharedProjectionIntentRow, _ string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.writes++
+	if f.writeErr != nil {
+		return f.writeErr
+	}
 	f.writeRows = append(f.writeRows, rows...)
 	return nil
 }

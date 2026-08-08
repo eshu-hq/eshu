@@ -157,8 +157,9 @@ worker_counts=(1 2 4)
 
 # SQL relationship family cassette (#5351): a committed cassette (unlike the
 # generated synth cassette) that exercises the reducer's SQL relationship edge
-# materialization across all seven materialized edge types (QUERIES_TABLE,
-# READS_FROM, HAS_COLUMN, TRIGGERS, EXECUTES, INDEXES, MIGRATES). It is driven
+# materialization across all nine materialized edge types (QUERIES_TABLE,
+# READS_FROM, HAS_COLUMN, TRIGGERS, EXECUTES, INDEXES, MIGRATES,
+# REFERENCES_TABLE, WRITES_TO). It is driven
 # into every cell alongside the demo-org + synth-multiscope cassettes, and the
 # materialized_edges:sql_relationships manifest row's proof_gate: ifa-determinism
 # claim is backed by an ADDITIONAL per-cell absolute-set assertion (see the
@@ -371,7 +372,7 @@ for n in "${worker_counts[@]}"; do
 	fi
 	cat "${log_dir}/ifa-drive-synth-n${n}.log"
 
-	# Add the committed seven-edge SQL family to the same durable cell.
+	# Add the committed nine-edge SQL family to the same durable cell.
 	ifa_det_drive_sql_baseline "${n}" "${bin_dir}" "${sql_cassette}" "${log_dir}" \
 		|| die "N=${n}: SQL relationship baseline drive failed"
 
