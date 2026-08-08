@@ -38,7 +38,7 @@ cleanup() {
 		printf '\n[--keep] work dir retained: %s\n' "${work_dir}" >&2
 	else
 		if [[ "${use_compose}" -eq 1 ]]; then
-			docker compose -f "${compose_file}" down -v >/dev/null 2>&1 || true
+			docker compose "${compose_args[@]}" down -v >/dev/null 2>&1 || true
 		fi
 		rm -rf "${work_dir}"
 	fi

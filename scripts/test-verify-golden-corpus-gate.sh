@@ -292,6 +292,21 @@ require_in "parent-shell pid capture" "${host_helpers_lib}" "printf -v"
 # Failure must surface the host-binary logs before the work dir is removed. That
 # logic lives in the extracted cleanup lib chunk now, not the orchestrator body.
 require_in "failure log dump" "${cleanup_lib}" "host binary logs (failure)"
+# Every Compose operation must carry the same explicit, uniquely overridable
+# project name. Host binaries connect over private ports, while `-p` prevents
+# containers and volumes from colliding with another worktree's gate.
+require "unique Compose project default" 'GATE_COMPOSE_PROJECT:=eshu-golden-corpus-$$'
+require "shared Compose args" 'compose_args=(-p "${GATE_COMPOSE_PROJECT}" -f "${compose_file}")'
+for compose_case in \
+	"${repo_root}/scripts/lib/golden-corpus-readiness.sh:4" \
+	"${cleanup_lib}:1" "${host_helpers_lib}:1" \
+	"${repo_root}/scripts/lib/golden-corpus-dead-code-fixtures.sh:1"; do
+	compose_owner="${compose_case%:*}"
+	expected_count="${compose_case##*:}"
+	actual_count="$(rg --count --fixed-strings 'docker compose "${compose_args[@]}"' "${compose_owner}" || true)"
+	[[ "${actual_count:-0}" -eq "${expected_count}" ]] ||
+		fail "$(basename "${compose_owner}") must carry explicit Compose project on all ${expected_count} calls; found ${actual_count:-0}"
+done
 # A collector that no-ops must not let the gate pass: liveness + facts-landed
 # checks, the fixed-sleep regression guard, and a functional exercise of
 # wait_for_collector_settle against a mocked pg()/die() all live in the

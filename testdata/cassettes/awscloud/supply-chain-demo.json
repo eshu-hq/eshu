@@ -388,6 +388,103 @@
           }
         }
       ]
+    },
+    {
+      "scope_id": "aws:000000000000:us-east-1:iam",
+      "source_system": "aws",
+      "scope_kind": "region",
+      "collector_kind": "aws",
+      "partition_key": "aws:000000000000:us-east-1:iam",
+      "metadata": {
+        "account_id": "000000000000",
+        "region": "us-east-1",
+        "service_kind": "iam"
+      },
+      "generation_id": "cassette-aws-iam-claim-honesty-gen1",
+      "observed_at": "2026-08-08T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "aws_iam_principal",
+          "stable_fact_key": "claim-honesty:aws:iam-principal",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "000000000000",
+            "region": "us-east-1",
+            "principal_arn": "arn:aws:iam::000000000000:role/claim-honesty-demo",
+            "principal_type": "aws_iam_role",
+            "provider": "aws_iam",
+            "collector_instance_id": "claim-honesty-fixture",
+            "redaction_policy_version": "test-v1"
+          }
+        },
+        {
+          "fact_kind": "aws_iam_trust_policy",
+          "stable_fact_key": "claim-honesty:aws:exact-trust-policy",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "000000000000",
+            "region": "us-east-1",
+            "provider": "aws_iam",
+            "collector_instance_id": "claim-honesty-fixture",
+            "redaction_policy_version": "test-v1",
+            "role_arn": "arn:aws:iam::000000000000:role/claim-honesty-demo",
+            "policy_source": "assume_role_policy",
+            "effect": "Allow",
+            "actions": [
+              "sts:AssumeRoleWithWebIdentity"
+            ],
+            "web_identity_subject_fingerprints": [
+              "sha256:claim-honesty-web-identity"
+            ],
+            "web_identity_subject_wildcard": false
+          }
+        },
+        {
+          "fact_kind": "aws_iam_trust_policy",
+          "stable_fact_key": "claim-honesty:aws:wildcard-trust-policy",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "000000000000",
+            "region": "us-east-1",
+            "provider": "aws_iam",
+            "collector_instance_id": "claim-honesty-fixture",
+            "redaction_policy_version": "test-v1",
+            "role_arn": "arn:aws:iam::000000000000:role/claim-honesty-broad-demo",
+            "policy_source": "assume_role_policy",
+            "effect": "Allow",
+            "actions": [
+              "sts:AssumeRoleWithWebIdentity"
+            ],
+            "web_identity_subject_wildcard": true
+          }
+        },
+        {
+          "fact_kind": "secrets_iam_coverage_warning",
+          "stable_fact_key": "claim-honesty:aws:coverage-warning",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "provider": "aws_iam",
+            "collector_instance_id": "claim-honesty-fixture",
+            "redaction_policy_version": "test-v1",
+            "warning_kind": "organization_policy_uncollected",
+            "source_state": "unsupported",
+            "resource_scope": "synthetic-organization"
+          }
+        }
+      ]
     }
   ]
 }

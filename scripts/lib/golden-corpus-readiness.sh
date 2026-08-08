@@ -36,7 +36,7 @@ start_golden_corpus_backends() {
 
 	log "start Postgres + ${graph_service}"
 	ESHU_NEO4J_PASSWORD="${ESHU_NEO4J_PASSWORD}" ESHU_POSTGRES_PASSWORD="${ESHU_POSTGRES_PASSWORD}" \
-		docker compose -f "${compose_file}" up -d "${graph_service}" postgres
+		docker compose "${compose_args[@]}" up -d "${graph_service}" postgres
 
 	log "wait for backends"
 	backends_ready=false
@@ -45,14 +45,14 @@ start_golden_corpus_backends() {
 		# NornicDB is one process whose HTTP and Bolt listeners start together;
 		# this health request performs a real TCP and HTTP round trip.
 		if [[ "${graph_service}" == "nornicdb" ]]; then
-			docker compose -f "${compose_file}" exec -T nornicdb wget --spider -q http://localhost:7474/health >/dev/null 2>&1 && graph_ready=true
+			docker compose "${compose_args[@]}" exec -T nornicdb wget --spider -q http://localhost:7474/health >/dev/null 2>&1 && graph_ready=true
 		else
-			docker compose -f "${compose_file}" exec -T neo4j cypher-shell -u neo4j -p "${ESHU_NEO4J_PASSWORD}" "RETURN 1" >/dev/null 2>&1 && graph_ready=true
+			docker compose "${compose_args[@]}" exec -T neo4j cypher-shell -u neo4j -p "${ESHU_NEO4J_PASSWORD}" "RETURN 1" >/dev/null 2>&1 && graph_ready=true
 		fi
 		# Require both the container socket probe and the host TCP path used by
 		# every following consumer; either check alone can report too early.
 		if [[ "${graph_ready}" == "true" ]] && \
-			docker compose -f "${compose_file}" exec -T postgres pg_isready -U eshu -d eshu >/dev/null 2>&1 && \
+			docker compose "${compose_args[@]}" exec -T postgres pg_isready -U eshu -d eshu >/dev/null 2>&1 && \
 			host_tcp_port_open 127.0.0.1 "${ESHU_POSTGRES_PORT}"; then
 			backends_ready=true
 			break
