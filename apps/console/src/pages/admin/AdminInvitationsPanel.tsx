@@ -38,7 +38,13 @@ export function AdminInvitationsPanel({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const { confirm, confirmDialog } = useConfirm();
+  const { confirm, confirmDialog, cancelConfirm } = useConfirm();
+
+  // A source change invalidates a confirmation opened against the previous
+  // client — see AdminTokensPanel for the full reasoning.
+  useEffect(() => {
+    cancelConfirm();
+  }, [client, cancelConfirm]);
 
   useEffect(() => {
     let cancelled = false;

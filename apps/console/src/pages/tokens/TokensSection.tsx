@@ -8,7 +8,7 @@
 // Stale-load guard: rotate/revoke are confirm-then-call, disable the acted-on
 // row while in flight, and call onChanged to make the parent refetch the
 // list — the same refreshKey pattern AdminTokensPanel.tsx uses.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { CreateApiTokenControl } from "./CreateApiTokenControl";
 import { fmt, isExpired } from "./tokenFormat";
@@ -41,7 +41,13 @@ export function TokensSection({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [rotated, setRotated] = useState<CreatedAPIToken | null>(null);
-  const { confirm, confirmDialog } = useConfirm();
+  const { confirm, confirmDialog, cancelConfirm } = useConfirm();
+
+  // A source change invalidates a confirmation opened against the previous
+  // client — see AdminTokensPanel for the full reasoning.
+  useEffect(() => {
+    cancelConfirm();
+  }, [client, cancelConfirm]);
 
   async function handleRotate(tokenId: string): Promise<void> {
     if (!client) return;

@@ -32,11 +32,15 @@ const NATIVE_CONFIRM = /\b(?:globalThis|window|self)\s*\??\s*\.\s*confirm\s*\??\
 const BARE_CONFIRM = /(?<![.\w])confirm\b\s*\(/;
 const IMPORTS_USE_CONFIRM = /\buseConfirm\b/;
 
-// Known blind spot, recorded so nobody mistakes this for complete coverage: a
-// file that legitimately uses useConfirm AND separately calls a native
-// confirm() reads as clean, because the bare-call check is satisfied by the
-// hook's presence anywhere in the file. Catching that needs real scope
-// analysis; the qualified-form check above still catches the common shape.
+// This file-wide check cannot tell which binding a bare call resolves to: one
+// component can take the hook while a second in the same file calls the
+// global, and the presence test still reads clean. Real scope analysis covers
+// that case — the `no-restricted-globals` rule for `confirm` in
+// eslint.config.js resolves each reference against its own scope, so a
+// destructured `confirm` from useConfirm() passes while a genuine global
+// reference is an error. The two are complementary: ESLint sees bindings,
+// this scan sees the qualified globalThis/window member expressions ESLint's
+// global rule does not treat as global references.
 
 // stripComments removes line and block comments so a prose mention of
 // window.confirm() (useConfirm.tsx's own doc header) is not a violation.

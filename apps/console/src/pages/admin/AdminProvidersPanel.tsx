@@ -95,7 +95,15 @@ export function AdminProvidersPanel({
     mode: "create" | "edit";
     item?: AdminProviderConfigItem;
   } | null>(null);
-  const { confirm, confirmDialog } = useConfirm();
+  const { confirm, confirmDialog, cancelConfirm } = useConfirm();
+
+  // A source change invalidates a confirmation opened against the previous
+  // client — see AdminTokensPanel for the full reasoning. This panel already
+  // resets rows and closes the drawer on a client change for the same reason
+  // (#5034); a pending confirmation is the same stale-source hazard.
+  useEffect(() => {
+    cancelConfirm();
+  }, [client, cancelConfirm]);
 
   const previousClientRef = useRef(client);
   useEffect(() => {

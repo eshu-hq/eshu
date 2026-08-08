@@ -43,7 +43,13 @@ export function AdminAssignmentsPanel({
   const [grantRole, setGrantRole] = useState("");
   const [grantWorkspace, setGrantWorkspace] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
-  const { confirm, confirmDialog } = useConfirm();
+  const { confirm, confirmDialog, cancelConfirm } = useConfirm();
+
+  // A source change invalidates a confirmation opened against the previous
+  // client — see AdminTokensPanel for the full reasoning.
+  useEffect(() => {
+    cancelConfirm();
+  }, [client, cancelConfirm]);
 
   useEffect(() => {
     let cancelled = false;

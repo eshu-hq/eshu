@@ -33,6 +33,12 @@ interface PendingConfirm {
 export interface UseConfirm {
   readonly confirm: (message: string, options?: ConfirmOptions) => Promise<boolean>;
   readonly confirmDialog: React.JSX.Element | null;
+  // cancelConfirm settles any outstanding confirmation as declined. Callers use
+  // it when the thing being confirmed stops being the thing on screen — most
+  // often a data-source (client) swap, after which resuming the handler would
+  // send its mutation to the source the operator navigated away from. Stable
+  // across renders, so it is safe in an effect dependency list.
+  readonly cancelConfirm: () => void;
 }
 
 export function useConfirm(): UseConfirm {
@@ -147,5 +153,7 @@ export function useConfirm(): UseConfirm {
     </div>
   ) : null;
 
-  return { confirm, confirmDialog };
+  const cancelConfirm = useCallback(() => settle(false), [settle]);
+
+  return { confirm, confirmDialog, cancelConfirm };
 }
