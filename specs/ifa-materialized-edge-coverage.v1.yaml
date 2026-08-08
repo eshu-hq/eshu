@@ -73,12 +73,17 @@
 # change (materialized_edges.go flags a stale waiver on a now-covered row as its
 # own finding).
 #
-# The sql_relationships BASELINE and DELTA rows are genuinely proven by
-# ifa-determinism. Its FAULT row is waived on #5555 (the fault is anchored to a
-# CloudResource MERGE and never exercises the SQL work item — a confirmed-false
-# fault, not real coverage). Every other allProjectionDomains family is
-# RED-BY-DEFAULT for BOTH gates and carries a `waivers:` row per gate, pointing
-# at the epic #5344 umbrella follow-up #5543 pending per-domain child issues.
+# The sql_relationships BASELINE and DELTA rows are proven. The FAULT row is
+# NOT -- it stays waived below. #5555 rebuilt both SQL cells in
+# scripts/lib/ifa_fault_injection_sql_cells.sh so they provably target the
+# sql_relationship_materialization / sql_relationships work item (a
+# domain-scoped claimed-row precondition and a SQL edge MERGE anchor, not
+# CloudResource), and cell_killworker_sql proves green live. But
+# cell_failgraphwrite_sql does not fire in CI (#5974) -- its own non-vacuity
+# check caught that -- so the fault dimension remains unproven. Every other
+# allProjectionDomains family is RED-BY-DEFAULT for BOTH gates and carries a
+# `waivers:` row per gate, pointing at the epic #5344 umbrella follow-up
+# #5543 pending per-domain child issues.
 #
 # Only seed a coverage row here once the referenced Odù is genuinely green
 # under the resolution semantics above (the same seed-only-green-rows
@@ -88,8 +93,7 @@
 version: "1"
 
 coverage:
-  # SQL baseline proves all nine edge types. The fault row is NOT here — it is
-  # waived (see #5555 below).
+  # SQL baseline proves all nine edge types.
   - surface: "materialized_edges:sql_relationships"
     scenario: odu
     scenario_type: baseline
@@ -102,14 +106,40 @@ coverage:
     scenario_type: delta_tombstone
     ref: "odu:ifa-sql-family-delta"
     proof_gate: ifa-determinism
+  # #5555 rebuilt the SQL fault cells in
+  # scripts/lib/ifa_fault_injection_sql_cells.sh. Read the waiver below before
+  # this comment: only one of the two cells is proven.
+  #
+  # cell_killworker_sql is proven live in CI -- it waits on a domain-scoped
+  # sql_relationship_materialization row rather than any claimed row, and
+  # seeding a nonexistent domain makes it time out on that name instead of
+  # latching unrelated work.
+  #
+  # cell_failgraphwrite_sql is NOT proven. It anchors the fault to a SQL edge
+  # (QUERIES_TABLE) MERGE instead of CloudResource, and passes locally, but does
+  # not fire in CI (#5974) -- caught by its own non-vacuity check. That is why
+  # the fault dimension below is waived rather than covered.
+  #
+  # Same Odù as the baseline row above: the resolver's vacuity guard is
+  # identical for baseline and fault (MaterializedEdgeOduResolver.Resolve). The
+  # fault dimension's ADDITIONAL claim -- that a scripted kill / lease-expiry /
+  # graph-write fault still converges to the same exact edge set -- is what
+  # remains unproven for the graph-write half.
 
 waivers:
   # --- sql_relationships: fault only. Baseline is proven above. ---
+  # #5555 built SQL-targeted cells and fixed the vacuous fired-fault assertion
+  # (it had been two independent whole-file greps that both matched when the
+  # fault landed on CloudResource). cell_killworker_sql is proven live in CI.
+  # cell_failgraphwrite_sql is not: it passes locally and does not fire in CI,
+  # caught by its own non-vacuity check. Flipping this row green on a cell that
+  # cannot fail would recreate the defect #5555 was filed for, so the waiver
+  # stays until #5974 proves the cell fires.
   - surface: "materialized_edges:sql_relationships"
     proof_gate: ifa-fault-injection
-    issue: "#5555"
-    waived: "2026-07-21"
-    reason: "fault anchored to CloudResource MERGE; never exercises the sql_relationship_materialization work item"
+    issue: "#5974"
+    waived: "2026-08-08"
+    reason: "cell_failgraphwrite_sql does not fire in CI (passes locally); killworker_sql is proven, graph-write is not"
 
   # --- The 11 other allProjectionDomains families: both gates unproven. ---
   # Each carries a baseline (ifa-determinism) AND a fault (ifa-fault-injection)
@@ -253,13 +283,16 @@ waivers:
 # travel with the gate:
 #
 #   - sql_relationships DELTA-LIVE is proven by the delta_tombstone row above:
-#     the ifa-determinism matrix drives gen 1, asserts its exact seven-edge set,
+#     the ifa-determinism matrix drives gen 1, asserts its exact nine-edge set,
 #     drives gen 2 with the reused source_run_id, drains again, and asserts the
-#     accumulated exact seven-edge set with INDEXES retargeted to orders.
-#   - sql_relationships FAULT coverage is blocked on #5555 (waived above): the
-#     fault is anchored to a CloudResource MERGE and never exercises the SQL
-#     work item. A corrected fault that targets the sql_relationship_
-#     materialization work item replaces that waiver with a real coverage row.
+#     accumulated exact nine-edge set with INDEXES retargeted to orders.
+#   - sql_relationships FAULT is NOT covered -- see the waiver row below.
+#     #5555 rebuilt both cells (scripts/lib/ifa_fault_injection_sql_cells.sh)
+#     so they target the sql_relationship_materialization / sql_relationships
+#     work item specifically (a domain-scoped claimed-row precondition and a
+#     SQL edge MERGE anchor, not CloudResource). cell_killworker_sql proves
+#     green live; cell_failgraphwrite_sql does not fire in CI (#5974), caught
+#     by its own non-vacuity check, so the dimension stays waived.
 #   - The 13 other allProjectionDomains families are blocked on the epic #5344
 #     umbrella #5543 pending per-domain child issues (both gates each).
 # ---------------------------------------------------------------------------
