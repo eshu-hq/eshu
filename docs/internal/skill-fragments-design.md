@@ -193,6 +193,11 @@ v1 targets exactly three hosts. Each row shows what the host's loader
 expects, the always-on inclusion mechanism, the hook shape, and which
 fragment attributes survive the loader's filter.
 
+> **Amended by #4059.** Three more hosts joined this matrix after v1
+> shipped. The three rows below are unchanged and still accurate; the
+> additions are recorded in [Amendment: six-host matrix
+> (#4059)](#amendment-six-host-matrix-4059).
+
 | Host | Skill file path | Always-on layer | Hook shape | Surviving attributes |
 | --- | --- | --- | --- | --- |
 | Claude Code | `.claude/skills/<name>/SKILL.md` (symlinks to `.agents/skills/<name>/SKILL.md` in this repo, per [`.claude/skills/`](../../.claude/skills/)) | `CLAUDE.md` (per [Assistant Guidance](../public/reference/assistant-guidance.md) § Target Files) | none in v1 | `name`, `description`, full body, `byte_citation` block |
@@ -219,6 +224,49 @@ Notes on the matrix:
   and `description` to fit its rule schema; the byte-citation block
   is a comment and survives in all three because comments are not
   loader-filtered.
+
+## Amendment: six-host matrix (#4059)
+
+The v1 cap of three hosts was a scope boundary, not an architectural
+limit. `recommendations.md` P3-2 named GitHub Copilot, Aider, and the
+Gemini CLI as the next useful targets, and #4059 added them. The v1 rows
+are unchanged; the adapter layer absorbed the additions with no shared
+coupling, which is the property the layer existed to provide.
+
+Each row below was checked against the host's own documentation before
+an adapter was written, because the cost of guessing a discovery path is
+a file the loader never reads.
+
+| Host | Skill file path | Always-on layer | Loader parses frontmatter | Notes |
+| --- | --- | --- | --- | --- |
+| GitHub Copilot | `.github/instructions/eshu.instructions.md` | `.github/copilot-instructions.md` (hand-maintained) | yes — `applyTo` required | `applyTo: "**"` applies the file repository-wide. Copilot surfaces no `name` or `description` field, so fragment titles live in the body. |
+| Aider | `.aider/eshu-conventions.md` | `.aider.conf.yml` `read:` key (hand-maintained) | no | Aider auto-discovers nothing. The operator names the file or it is never loaded. |
+| Gemini CLI | `GEMINI.md` | itself | no | Loaded hierarchically and concatenated, so it is additive to a contributor's home-level `GEMINI.md`. `contextFileName` in `.gemini/settings.json` renames this file rather than disabling it. |
+
+### Frontmatter is a loader property, not a house style
+
+v1 could state "frontmatter at byte 0" as a flat invariant because all
+three loaders parsed frontmatter. That is no longer true, and stating it
+flatly would now produce broken files: Aider and the Gemini CLI define
+no frontmatter schema and hand the file to the model as prose, so a
+leading `---` block reaches the model as literal content.
+
+The underlying rule is the one that generalizes, and it is what the
+regression test asserts: **nothing precedes whatever the loader needs to
+find the file.** For a frontmatter-parsing host that means the `---`
+block sits at byte 0. For the other two it means the byte-citation
+comment leads instead. `Host.LoaderParsesFrontmatter` carries the
+distinction so it is declared once rather than inferred per adapter.
+
+### Known unsupported fields
+
+- **Copilot** has no `name`/`description` frontmatter. Only `applyTo`
+  and the optional `excludeAgent` are documented for this file.
+- **Aider** has no frontmatter and no auto-discovery. Wiring is manual.
+- **Gemini CLI** has no frontmatter and no per-file scoping equivalent
+  to Copilot's `applyTo` glob; context files apply by directory position.
+- None of the three define a hook shape, so hooks remain out of scope
+  for them exactly as they are for the v1 rows.
 
 ## What Is NOT a Fragment
 
@@ -324,8 +372,12 @@ Mirroring the issue body:
   closes.
 - Do not implement `tools/skillgen/`. That is S2.
 - Do not implement the CI gate. That is S3.
-- Do not target more than three hosts. The matrix is Claude Code,
-  Cursor, Codex only.
+- Do not target more than three hosts in v1. The v1 matrix is Claude Code,
+  Cursor, Codex only. **Amended by #4059** — see [Amendment: six-host
+  matrix (#4059)](#amendment-six-host-matrix-4059). The cap was a
+  scope boundary on v1, not a permanent architectural limit; the
+  adapter layer was built to absorb new hosts and the expansion added
+  no shared coupling.
 - Do not generate LLM-dependent skills. Every fragment's default
   rendering must work without an LLM provider key.
 - Do not add AI attribution.

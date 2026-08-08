@@ -22,7 +22,7 @@ import (
 // so the loader reads the metadata before any HTML comment is parsed.
 // This is the only host whose discovery contract requires frontmatter-at-
 // byte-0; the other two hosts accept the citation block above the
-// frontmatter but we keep all three hosts on the same shape for symmetry.
+// frontmatter but every frontmatter-parsing host keeps the same shape.
 type codexAdapter struct{}
 
 func (codexAdapter) Host() Host { return HostCodex }

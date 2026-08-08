@@ -108,6 +108,10 @@ jobs:
               - 'go/internal/extensions/skillgen/**'
               - '.agents/skills/**'
               - 'skill-fragments/**'
+              # The gate compares fragments against this baseline, so a PR that
+              # touches only expected/ must still create the named check; the
+              # registry selects it and the two must not disagree.
+              - 'expected/**'
               - 'scripts/*verify-skill-roundtrip*.sh'
             skillworkflowrefs:
               - '.github/workflows/static-contract-gates.yml'
