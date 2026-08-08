@@ -144,7 +144,7 @@ func TestAskDemoQuestion_HTTPExecutesTheDeclaredRoute(t *testing.T) {
 	var gotMethod, gotPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotMethod, gotPath = r.Method, r.URL.Path
-		_, _ = w.Write([]byte(`{"incident":{"id":"PSCD1"},"services":[{"name":"api-svc"}]}`))
+		_, _ = w.Write([]byte(`{"incident":{"id":"PSCD1"},"services":[{"name":"api-svc"}],"truth":{"level":"exact"}}`))
 	}))
 	defer srv.Close()
 

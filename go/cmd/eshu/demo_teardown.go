@@ -18,6 +18,16 @@ import (
 // scoped to the demo project, so a stack the demo did not create is out of
 // reach here by construction rather than by care.
 func (r *demoRuntime) down(ctx context.Context) error {
+	// KNOWN GAP (review finding on #5982, not yet closed): down does not
+	// verify it owns the project. up refuses to adopt a stack it did not
+	// start, and down should hold the same line, or --project pointed at an
+	// operator's stack removes it along with its volumes.
+	//
+	// A first attempt at the guard was inert -- it always returned owned --
+	// which is worse than none, so it was removed rather than shipped. A real
+	// check needs a marker written at up time (a label or a project file) and
+	// verified here; Compose project membership alone does not prove this
+	// command created it.
 	if _, err := r.exec(ctx, nil, "docker", r.composeArgs("down", "-v", "--remove-orphans")...); err != nil {
 		return fmt.Errorf("remove demo stack (project %q): %w", r.project, err)
 	}

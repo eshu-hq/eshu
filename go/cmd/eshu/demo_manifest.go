@@ -112,10 +112,15 @@ func executeDemoQuestion(ctx context.Context, apiBase, mcpBase, apiKey string, q
 			"question %s answered without required field(s) %s; the surface replied but not with the shape the manifest requires",
 			q.ID, strings.Join(missing, ", "))
 	}
+	truth := extractDemoTruth(payload)
+	if len(truth) == 0 {
+		return demoAnswer{}, fmt.Errorf(
+			"question %s answered without truth labels; an answer with no provenance is not evidence", q.ID)
+	}
 	return demoAnswer{
 		Question: q.Question,
 		Answer:   summarizeDemoPayload(payload),
-		Truth:    extractDemoTruth(payload),
+		Truth:    truth,
 	}, nil
 }
 
@@ -267,7 +272,11 @@ func extractDemoTruth(payload map[string]any) map[string]any {
 	if truth, ok := payload["truth"].(map[string]any); ok && len(truth) > 0 {
 		return truth
 	}
-	return map[string]any{"truth": "not reported by this surface"}
+	// Return nil, not a placeholder. An earlier draft manufactured a
+	// non-empty map here, which made every answer look like it carried
+	// provenance and defeated any check for one. An answer without truth
+	// labels must be visibly without them.
+	return nil
 }
 
 // RunnableForm renders the command an operator can actually run for this
