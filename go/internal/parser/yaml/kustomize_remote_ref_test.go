@@ -86,3 +86,52 @@ func TestParseKustomizationSplitsRemoteBaseFromLocalBase(t *testing.T) {
 			overlay["resource_refs"], wantRefs)
 	}
 }
+
+// A remote target written under the legacy `bases:` key used to fall out of
+// both lists. `bases` dropped it for being remote, and `resource_refs` only
+// walked `resources`/`components`, so nothing carried it: no EXTENDS_BASE edge
+// (correct, it is another repo) and no DEPLOYS_FROM either (wrong). The two
+// lists have to be computed from their own rule rather than as complements.
+func TestParseKustomizationRoutesRemoteLegacyBaseToResourceRefs(t *testing.T) {
+	document := map[string]any{
+		"apiVersion": "kustomize.config.k8s.io/v1beta1",
+		"kind":       "Kustomization",
+		"bases": []any{
+			"github.com/acme/platform-base//k8s?ref=v2.0.0",
+			"../common",
+		},
+	}
+
+	overlay := parseKustomization(document, "kustomization.yaml", 1)
+
+	wantBases := []string{"../common"}
+	if got, ok := overlay["bases"].([]string); !ok || !reflect.DeepEqual(got, wantBases) {
+		t.Errorf("bases = %#v, want %#v: only same-repo paths are bases", overlay["bases"], wantBases)
+	}
+	wantRefs := []string{"github.com/acme/platform-base//k8s?ref=v2.0.0"}
+	if got, ok := overlay["resource_refs"].([]string); !ok || !reflect.DeepEqual(got, wantRefs) {
+		t.Errorf("resource_refs = %#v, want %#v: a remote legacy base must still reach the catalog matcher",
+			overlay["resource_refs"], wantRefs)
+	}
+}
+
+// A dotted first segment alone is not enough to call an entry remote. A
+// directory laid out by version -- "v1.2/base" -- carries a dot and is an
+// ordinary same-repo path, and reading it as remote loses a real EXTENDS_BASE
+// edge and offers the string to the fuzzy catalog matcher, which can mint a
+// DEPLOYS_FROM to whatever repo happens to alias "base". A remote target needs
+// a host-like head AND at least three segments (host/org/repo).
+func TestIsRemoteKustomizeRefKeepsVersionedLocalDirectoryLocal(t *testing.T) {
+	local := []string{"v1.2/base", "v2.0/overlays/prod", "1.10/base"}
+	for _, value := range local {
+		if isRemoteKustomizeRef(value) {
+			t.Errorf("isRemoteKustomizeRef(%q) = true, want false: a versioned directory is a same-repo path", value)
+		}
+	}
+	remote := []string{"github.com/acme/repo", "github.com/acme/repo?ref=v1", "gitlab.com/org/sub/repo"}
+	for _, value := range remote {
+		if !isRemoteKustomizeRef(value) {
+			t.Errorf("isRemoteKustomizeRef(%q) = false, want true: host/org/repo is a remote target", value)
+		}
+	}
+}
