@@ -18,12 +18,15 @@
 # correct" is the same digest comparison Layers 1-2 already define, applied
 # along the failure axis instead of the scheduling axis.
 #
-# Seven cells, each hitting a genuinely different recovery seam. Cell
-# functions live in scripts/lib/ifa_fault_injection_cells.sh (cells 1-5) and
-# scripts/lib/ifa_fault_injection_sql_cells.sh (cells 6-7, issue #5555):
+# Nine cells, each hitting a genuinely different recovery or delivery seam.
+# Eight run by default; cell 7 is defined but held out (see its entry). Cell
+# functions live in scripts/lib/ifa_fault_injection_cells.sh (cells 1-5),
+# scripts/lib/ifa_fault_injection_sql_cells.sh (cells 6-7, issue #5555), and
+# scripts/lib/ifa_fault_injection_delivery_cells.sh (cells 8-9, issue #5544):
 #
 #   1. baseline                              -- fault-free; establishes the
-#      digest cells 2-7 are compared against.
+#      digest cells 2-8 are compared against. Cell 9 deliberately does not
+#      compare against it; see that entry.
 #   2. kill-worker-after-claim                -- `kill -9` the live host
 #      eshu-reducer process after a row is genuinely claimed, then start a
 #      fresh reducer process and let the fixed 1-minute lease
@@ -54,6 +57,26 @@
 #      intent path, which has no attempt_count column (see
 #      go/internal/reducer/shared_projection_runner.go's
 #      TestSharedProjectionRunnerLogsPartitionProcessingError).
+#      NOT run by default: it passes locally and does not fire in CI (#5974),
+#      caught by its own non-vacuity check. See the call site below.
+#   8. duplicate-delivery (#5544)             -- drain once cleanly, then force
+#      every succeeded reducer row back to a claimable pending state in SQL and
+#      drain again. Proves the write path is idempotent under at-least-once
+#      redelivery: the graph after the second drain must equal the fault-free
+#      baseline exactly. The redelivery count is asserted > 0, so an UPDATE
+#      that stops matching fails loudly instead of making the second drain a
+#      no-op that passes vacuously.
+#   9. delta-retract (#5544)                  -- drive the committed
+#      generation-2 SQL cassette through ifa_det_run_sql_delta_live, the same
+#      helper scripts/verify-ifa-determinism.sh calls, so the two gates cannot
+#      drift on what a correctly-landed delta means. Generation 1 is asserted
+#      to have materialized BEFORE generation 2 is driven, otherwise "the
+#      retract removed it" and "it never arrived" are indistinguishable.
+#      This is the ONE cell that does not compare to the baseline digest:
+#      generation 2 changes the graph on purpose (it retracts one INDEXES edge
+#      and adds another), so that comparison would fail correctly and invite
+#      the wrong fix. Its proof is the exact expected-v2 edge set, which is
+#      stronger than digest equality because it names the edges.
 #
 # Cells 2, 3, and 6 do NOT go through faultreplay's kill-worker-after-claim /
 # expire-lease-mid-handler fault kinds: those two kinds only have a hermetic,
@@ -67,7 +90,7 @@
 # letters, and a forced lease expiry converges the same way from the
 # handler-side trigger.
 #
-# fail-terminal (an eighth possible cell) is deliberately NOT included: it
+# fail-terminal (a tenth possible cell) is deliberately NOT included: it
 # has no live seam either -- go/internal/storage/cypher/fault_executor.go's
 # applyFault leaves it explicitly inert at the graph-executor seam ("a
 # different decorator owns them"), and that different decorator is the SAME
@@ -121,6 +144,12 @@ source "${repo_root}/scripts/lib/ifa_fault_injection_driver.sh"
 source "${repo_root}/scripts/lib/ifa_fault_injection_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_sql_cells.sh
 source "${repo_root}/scripts/lib/ifa_fault_injection_sql_cells.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_delivery_cells.sh
+source "${repo_root}/scripts/lib/ifa_fault_injection_delivery_cells.sh"
+# shellcheck source=scripts/lib/ifa_sql_delta_live.sh
+# Shared with scripts/verify-ifa-determinism.sh so both gates agree on what a
+# correctly-landed generation-2 delta looks like (#5544 cell_deltaretract).
+source "${repo_root}/scripts/lib/ifa_sql_delta_live.sh"
 
 # ----------------------------------------------------------------------------
 # Configuration. One Compose project + one port triple reused across every
@@ -159,6 +188,8 @@ drive_workers=4
 # fails.
 sql_cassette="${repo_root}/testdata/cassettes/sqlrelationships/ifa-sql-family.json"
 sql_expected_edges="${repo_root}/go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-expected-edges.json"
+sql_delta_cassette="${repo_root}/testdata/cassettes/sqlrelationships/ifa-sql-family-delta.json"
+sql_delta_expected_edges="${repo_root}/go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-delta-live-expected-edges.json"
 
 : "${SYNTH_MULTISCOPE_SEED:=4580}"
 : "${SYNTH_MULTISCOPE_PROJECTS:=8}"
@@ -201,6 +232,8 @@ done
 [[ -f "${cassette}" ]] || { echo "verify-ifa-fault-injection: cassette not found: ${cassette}" >&2; exit 1; }
 [[ -f "${sql_cassette}" ]] || { echo "verify-ifa-fault-injection: SQL cassette not found: ${sql_cassette}" >&2; exit 1; }
 [[ -f "${sql_expected_edges}" ]] || { echo "verify-ifa-fault-injection: SQL expected-edge set not found: ${sql_expected_edges}" >&2; exit 1; }
+[[ -f "${sql_delta_cassette}" ]] || { echo "verify-ifa-fault-injection: SQL delta cassette not found: ${sql_delta_cassette}" >&2; exit 1; }
+[[ -f "${sql_delta_expected_edges}" ]] || { echo "verify-ifa-fault-injection: SQL delta expected-edge set not found: ${sql_delta_expected_edges}" >&2; exit 1; }
 
 work_dir="$(mktemp -d -t ifa-fault-injection.XXXXXX)"
 bin_dir="${work_dir}/bin"
@@ -287,6 +320,8 @@ cell_expirelease
 cell_failgraphwrite
 cell_restartbackend
 cell_killworker_sql
+cell_duplicatedelivery
+cell_deltaretract
 # cell_failgraphwrite_sql is defined but NOT run by default (#5974). It passes
 # locally and does not fire in CI: run 31245188403 shows zero injected-fault
 # hits and zero shared-projection partition failures, while the GCP cell in the
