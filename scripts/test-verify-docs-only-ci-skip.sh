@@ -352,18 +352,12 @@ fi
 # `code: ['**']`. Deleting this line is how #5818's ~118 wasted runner-minutes
 # come back, so it must fail loudly and name the file. ---
 python3 - "${tmp}/.github/workflows/security-scan.yml" <<'PY'
-import re
-import sys
+import re, sys
 path = sys.argv[1]
-with open(path) as f:
-	content = f.read()
-# Locate the line by content, not by exact indentation or quoting style: the
-# verifier accepts every / 'every' / "every" at any indentation, so a test that
-# pinned one spelling would fail on a reindent the verifier is fine with.
-pattern = re.compile(r"^[ \t]*predicate-quantifier:.*\n", re.MULTILINE)
-assert len(pattern.findall(content)) == 1, "expected exactly one predicate-quantifier line"
-with open(path, "w") as f:
-	f.write(pattern.sub("", content, count=1))
+content = open(path).read()
+pat = re.compile(r"^[ \t]*predicate-quantifier:.*\n", re.MULTILINE)
+assert len(pat.findall(content)) == 1, "one line expected"
+open(path, "w").write(pat.sub("", content, count=1))
 PY
 if out="$(run_scratch 2>&1)"; then
 	no "guard 3 should fail when a code: filter loses predicate-quantifier: 'every'"
@@ -393,9 +387,8 @@ path = sys.argv[1]
 with open(path) as f:
 	content = f.read()
 pattern = re.compile(r"^([ \t]*)predicate-quantifier:.*\n", re.MULTILINE)
-assert len(pattern.findall(content)) == 1, "expected exactly one predicate-quantifier line"
-with open(path, "w") as f:
-	f.write(pattern.sub(lambda m: m.group(1) + "predicate-quantifier: 'all'\n", content, count=1))
+assert len(pattern.findall(content)) == 1, "one line expected"
+open(path, "w").write(pattern.sub(lambda m: m.group(1) + "predicate-quantifier: 'all'\n", content, count=1))
 PY
 if out="$(run_scratch 2>&1)"; then
 	no "guard 3 should fail for predicate-quantifier: 'all', which dorny treats as the default"
@@ -442,21 +435,15 @@ done
 # dorny step carried it while the `code` filter reverted to the default. Move it
 # to a sibling step in the same job and the guard must still fail. ---
 python3 - "${tmp}/.github/workflows/test.yml" <<'PYS'
-import re
-import sys
+import re, sys
 path = sys.argv[1]
-with open(path) as f:
-	content = f.read()
-pattern = re.compile(r"^[ \t]*predicate-quantifier:.*\n", re.MULTILINE)
-assert len(pattern.findall(content)) == 1, "expected exactly one predicate-quantifier line"
-content = pattern.sub("", content, count=1)
-# Re-add it inside the sibling merge_group_code step of the same job, where it
-# does nothing: that step is not the dorny filter.
-anchor = '        run: echo "code=true" >> "$GITHUB_OUTPUT"\n'
-assert content.count(anchor) == 1, "merge_group_code step anchor not found"
-content = content.replace(anchor, anchor + "        # predicate-quantifier: 'every'\n", 1)
-with open(path, "w") as f:
-	f.write(content)
+c = open(path).read()
+pat = re.compile(r"^[ \t]*predicate-quantifier:.*\n", re.MULTILINE)
+assert len(pat.findall(c)) == 1, "one line expected"
+c = pat.sub("", c, count=1)
+a = '        run: echo "code=true" >> "$GITHUB_OUTPUT"\n'
+assert c.count(a) == 1, "anchor missing"
+open(path, "w").write(c.replace(a, a + "        # predicate-quantifier: 'every'\n", 1))
 PYS
 if out="$(run_scratch 2>&1)"; then
 	no "guard 3 should fail when the quantifier is moved out of the paths-filter step"
