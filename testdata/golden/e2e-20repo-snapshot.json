@@ -4324,13 +4324,73 @@
         }
       },
       "get_service_changed_since": {
-        "description": "MCP tool coverage shape for get_service_changed_since; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
-        "required_response_fields": [],
-        "minimum_results": 0,
-        "expected_error_contains": "service_not_found",
+        "description": "A second committed version of the public deployable-config fixture changes only its Backstage owner after the first drain. Existing bootstrap and reducer maintenance then create a distinct active materialization generation through the normal evidence path. Runtime composition replaces the two generation sentinels with the captured superseded and active IDs. The exact ownership add/supersede pair proves a real changed category, while the empty deployment delta is the adjacent no-change control.",
+        "required_response_fields": [
+          "service_id",
+          "since_generation_id",
+          "current_active_generation_id",
+          "sample_limit",
+          "categories",
+          "unavailable"
+        ],
+        "minimum_results": 7,
+        "maximum_results": 7,
+        "results_field": "categories",
+        "result_item_required_fields": [
+          "category",
+          "counts",
+          "unavailable"
+        ],
+        "required_json_values": {
+          "service_id": "component:default/deployable-config",
+          "since_generation_id": "__runtime_service_changed_since_prior_generation__",
+          "current_active_generation_id": "__runtime_service_changed_since_current_generation__",
+          "sample_limit": 10,
+          "unavailable": false
+        },
+        "required_json_object_matches": {
+          "categories[]": [
+            {
+              "category": "ownership",
+              "counts": {
+                "added": 1,
+                "updated": 0,
+                "unchanged": 0,
+                "retired": 0,
+                "superseded": 1
+              },
+              "samples": {
+                "added": [
+                  {
+                    "stable_fact_key": "ownership:component:default/deployable-config:group:default/runtime-platform",
+                    "fact_kind": "ownership"
+                  }
+                ],
+                "superseded": [
+                  {
+                    "stable_fact_key": "ownership:component:default/deployable-config:group:default/platform",
+                    "fact_kind": "ownership"
+                  }
+                ]
+              },
+              "unavailable": false
+            },
+            {
+              "category": "deployment",
+              "counts": {
+                "added": 0,
+                "updated": 0,
+                "unchanged": 0,
+                "retired": 0,
+                "superseded": 0
+              },
+              "unavailable": false
+            }
+          ]
+        },
         "arguments": {
-          "service_id": "golden-corpus-missing",
-          "since_generation_id": "golden-corpus-baseline-missing",
+          "service_id": "component:default/deployable-config",
+          "since_generation_id": "__runtime_service_changed_since_prior_generation__",
           "sample_limit": 10
         }
       },
