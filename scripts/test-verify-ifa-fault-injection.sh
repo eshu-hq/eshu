@@ -28,6 +28,7 @@ fault_lib="${repo_root}/scripts/lib/ifa_fault_injection_common.sh"
 driver_lib="${repo_root}/scripts/lib/ifa_fault_injection_driver.sh"
 cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_cells.sh"
 sql_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_sql_cells.sh"
+delivery_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_delivery_cells.sh"
 
 fail() { printf 'test-verify-ifa-fault-injection: %s\n' "$*" >&2; exit 1; }
 
@@ -61,6 +62,18 @@ require_cells() {
 require_sql_cells() {
 	local label="$1" needle="$2"
 	rg --fixed-strings --quiet -- "${needle}" "${sql_cells_lib}" || fail "missing ${label} (sql cells lib): ${needle}"
+}
+require_delivery_cells() {
+	local label="$1" needle="$2"
+	rg --fixed-strings --quiet -- "${needle}" "${delivery_cells_lib}" || fail "missing ${label} (delivery cells lib): ${needle}"
+}
+# require_delivery_cells_multiline binds a needle that spans a line break.
+# Deleting just the function name from a continued call leaves its argument
+# lines behind, so an argument-only needle stays green -- proven by seeding
+# exactly that deletion. -U makes the match span the continuation.
+require_delivery_cells_multiline() {
+	local label="$1" needle="$2"
+	rg -U --fixed-strings --quiet -- "${needle}" "${delivery_cells_lib}" || fail "missing ${label} (delivery cells lib, multiline): ${needle}"
 }
 
 # Strict mode, self-cleanup, and the masking-safe bash>=4.4 guard.
@@ -133,14 +146,47 @@ if rg --quiet --pcre2 'sleep\s+\$\{?GATE_DRAIN' "${driver_lib}"; then
 	fail "drain must be polled by the gate, not slept"
 fi
 
-# The seven-cell shape: baseline plus the six cells with a live seam (five
-# original, two SQL-targeted).
+# The nine-cell shape: baseline plus eight cells with a live seam -- four
+# original recovery cells, two SQL-targeted (#5555), two delivery-shaped
+# (#5544). Eight of the nine run by default; cell_failgraphwrite_sql is
+# defined but held out until #5974 proves it fires in CI.
 for cell in baseline killworker expirelease failgraphwrite restartbackend; do
 	require "cell present: ${cell}" "cell_${cell}"
 done
-for cell in cell_killworker_sql cell_failgraphwrite_sql; do
+for cell in cell_killworker_sql cell_failgraphwrite_sql cell_duplicatedelivery cell_deltaretract; do
 	require "driver calls ${cell}" "${cell}"
 done
+# Cell 6 (duplicate-delivery, #5544): the redelivery must actually reset rows.
+# Without the >0 assertion the second drain is a no-op and every downstream
+# digest comparison passes vacuously -- the inert-gate defect #5974 records.
+require_delivery_cells "duplicate-delivery redelivers via the shared helper" "ifa_fault_redeliver_succeeded"
+require_delivery_cells "duplicate-delivery asserts the redelivery was non-vacuous" '[[ -n "${reset_count}" && "${reset_count}" -gt 0 ]]'
+require_delivery_cells "duplicate-delivery drains a second time after redelivery" "run_drain_gate duplicatedelivery"
+require_delivery_cells "duplicate-delivery proves idempotency against the baseline" "assert_matches_baseline duplicatedelivery"
+require_lib "redelivery clears the lease, not only the status" "lease_owner = NULL"
+require_lib "redelivery makes the row visible again" "visible_at = now()"
+require_lib "redelivery counts what it actually wrote (CTE, not a second SELECT)" "SELECT count(*) FROM redelivered;"
+
+# Cell 7 (delta-retract, #5544): shares the determinism gate's helper so the
+# two gates cannot drift on what a correctly-landed delta means, and asserts
+# generation 1 landed BEFORE driving generation 2 -- otherwise "the retract
+# removed it" and "it never arrived" look identical.
+# Match the CALL, not the bare helper name: this file's own comment names
+# ifa_det_run_sql_delta_live, so a bare-name needle stays green when the
+# invocation is deleted. Proven by seeding exactly that deletion -- the
+# bare-name form passed, this argument-shaped form fails.
+require_delivery_cells_multiline "delta-retract drives gen 2 through the shared helper" $'ifa_det_run_sql_delta_live \\\n\t\t1 "${bin_dir}" "${sql_delta_cassette}"'
+
+require_delivery_cells "delta-retract asserts generation 1 landed first" "generation-1 SQL edge set did not match before the delta was driven"
+require "gate sources the shared delta-live helper" "scripts/lib/ifa_sql_delta_live.sh"
+require "gate defines the delta expected-edge set" "sql_delta_expected_edges="
+# Cell 7 CHANGES the graph on purpose (gen 2 adds and retracts edges), so a
+# baseline-digest comparison would fail correctly and invite the wrong fix.
+# Its exactness assertion is the expected-v2 set, which names the edges.
+if rg --fixed-strings --quiet -- "assert_matches_baseline deltaretract" "${delivery_cells_lib}"; then
+	fail "cell_deltaretract must NOT compare to the baseline digest: generation 2 intentionally changes the graph, so its proof is the expected-v2 edge set, not digest equality"
+fi
+
 require "fail-terminal explicitly excluded with rationale" "fail-terminal (an eighth possible cell) is deliberately NOT included"
 
 # Cell 2 / cell 6 (kill-worker-after-claim[-sql]): real kill -9 + a fresh

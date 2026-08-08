@@ -330,3 +330,55 @@ ifa_fault_dead_letter_count() {
 		"SELECT count(*) FROM fact_work_items WHERE status = 'dead_letter';" \
 		"${compose_file}" | tr -d '[:space:]'
 }
+
+# ifa_fault_redeliver_succeeded forces every succeeded reducer work item back
+# to a claimable pending state and prints how many rows it reset. This is the
+# duplicate-delivery fault (#5544 cell 6): a queue redelivering an item whose
+# handler already committed, which is the ordinary at-least-once case rather
+# than an exotic one -- a lease that expired after the write landed but before
+# the ack did produces exactly this.
+#
+# Resetting status alone is not enough to make a row claimable again. The claim
+# path filters on visible_at and takes the lease through lease_owner/
+# claim_until (see 005_fact_work_items.sql and its status/visible_at index), so
+# a row left with a stale lease owner or a future visible_at would sit
+# untouched and the caller's "redelivered" count would be a lie about work that
+# never re-ran. All four are cleared together.
+#
+# The count comes back from the UPDATE itself via a CTE rather than a separate
+# SELECT, so it cannot drift from what was actually written by a concurrent
+# claim landing between the two statements.
+#
+# Callers MUST assert the printed count is > 0. A redelivery that matched no
+# rows makes the follow-up drain a no-op, and every downstream digest
+# comparison then passes vacuously.
+#
+# Args: compose_project use_compose dsn compose_file [domain=<all reducer domains>]
+ifa_fault_redeliver_succeeded() {
+	local compose_project="$1" use_compose="$2" dsn="$3" compose_file="$4"
+	local domain="${5:-}"
+	local domain_clause=""
+	if [[ -n "${domain}" ]]; then
+		# Same guard as ifa_fault_wait_for_claimed and ifa_fault_count_retried:
+		# domain is interpolated into a SQL literal below.
+		if [[ ! "${domain}" =~ ^[a-z0-9_]+$ ]]; then
+			echo "ifa_fault_redeliver_succeeded: domain must match ^[a-z0-9_]+$, got ${domain}" >&2
+			return 1
+		fi
+		domain_clause=" AND domain = '${domain}'"
+	fi
+	ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" \
+		"WITH redelivered AS (
+		   UPDATE fact_work_items
+		      SET status = 'pending',
+		          lease_owner = NULL,
+		          claim_until = NULL,
+		          visible_at = now(),
+		          updated_at = now()
+		    WHERE stage = 'reducer'
+		      AND status = 'succeeded'${domain_clause}
+		RETURNING 1
+		 )
+		 SELECT count(*) FROM redelivered;" \
+		"${compose_file}" | tr -d '[:space:]'
+}

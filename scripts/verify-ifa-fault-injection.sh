@@ -121,6 +121,12 @@ source "${repo_root}/scripts/lib/ifa_fault_injection_driver.sh"
 source "${repo_root}/scripts/lib/ifa_fault_injection_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_sql_cells.sh
 source "${repo_root}/scripts/lib/ifa_fault_injection_sql_cells.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_delivery_cells.sh
+source "${repo_root}/scripts/lib/ifa_fault_injection_delivery_cells.sh"
+# shellcheck source=scripts/lib/ifa_sql_delta_live.sh
+# Shared with scripts/verify-ifa-determinism.sh so both gates agree on what a
+# correctly-landed generation-2 delta looks like (#5544 cell_deltaretract).
+source "${repo_root}/scripts/lib/ifa_sql_delta_live.sh"
 
 # ----------------------------------------------------------------------------
 # Configuration. One Compose project + one port triple reused across every
@@ -159,6 +165,8 @@ drive_workers=4
 # fails.
 sql_cassette="${repo_root}/testdata/cassettes/sqlrelationships/ifa-sql-family.json"
 sql_expected_edges="${repo_root}/go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-expected-edges.json"
+sql_delta_cassette="${repo_root}/testdata/cassettes/sqlrelationships/ifa-sql-family-delta.json"
+sql_delta_expected_edges="${repo_root}/go/internal/ifa/testdata/sqlrelationships/ifa-sql-family-delta-live-expected-edges.json"
 
 : "${SYNTH_MULTISCOPE_SEED:=4580}"
 : "${SYNTH_MULTISCOPE_PROJECTS:=8}"
@@ -201,6 +209,8 @@ done
 [[ -f "${cassette}" ]] || { echo "verify-ifa-fault-injection: cassette not found: ${cassette}" >&2; exit 1; }
 [[ -f "${sql_cassette}" ]] || { echo "verify-ifa-fault-injection: SQL cassette not found: ${sql_cassette}" >&2; exit 1; }
 [[ -f "${sql_expected_edges}" ]] || { echo "verify-ifa-fault-injection: SQL expected-edge set not found: ${sql_expected_edges}" >&2; exit 1; }
+[[ -f "${sql_delta_cassette}" ]] || { echo "verify-ifa-fault-injection: SQL delta cassette not found: ${sql_delta_cassette}" >&2; exit 1; }
+[[ -f "${sql_delta_expected_edges}" ]] || { echo "verify-ifa-fault-injection: SQL delta expected-edge set not found: ${sql_delta_expected_edges}" >&2; exit 1; }
 
 work_dir="$(mktemp -d -t ifa-fault-injection.XXXXXX)"
 bin_dir="${work_dir}/bin"
@@ -287,6 +297,8 @@ cell_expirelease
 cell_failgraphwrite
 cell_restartbackend
 cell_killworker_sql
+cell_duplicatedelivery
+cell_deltaretract
 # cell_failgraphwrite_sql is defined but NOT run by default (#5974). It passes
 # locally and does not fire in CI: run 31245188403 shows zero injected-fault
 # hits and zero shared-projection partition failures, while the GCP cell in the
