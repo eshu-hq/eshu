@@ -395,11 +395,16 @@ func TestDecodeParsedFileDataKustomizeOverlays_TypedRows(t *testing.T) {
 	if len(got.HelmRefs) != 2 || len(got.ImageRefs) != 1 {
 		t.Errorf("HelmRefs = %#v, ImageRefs = %#v, want 2 and 1", got.HelmRefs, got.ImageRefs)
 	}
-	// bases is deliberately unnamed on the typed view: evidence discovery has
-	// no use for a same-repo path. It must still survive in Attributes rather
-	// than being dropped, so a future reader can find it.
-	if got.Attributes["bases"] == nil {
-		t.Errorf("Attributes = %#v, want the unnamed bases field preserved", got.Attributes)
+	// bases is a named field, not an Attributes pass-through. Evidence
+	// discovery reads it alongside ResourceRefs, because a same-repo path is
+	// still a catalog-matcher candidate -- the calibration corpus scores
+	// `../payments-service/base` as a 0.90 positive. Decoding it into the
+	// named field is what removes it from Attributes.
+	if len(got.Bases) != 1 || got.Bases[0] != "./base" {
+		t.Errorf("Bases = %#v, want the same-repo base decoded into the named field", got.Bases)
+	}
+	if _, present := got.Attributes["bases"]; present {
+		t.Errorf("Attributes = %#v, want bases absent now that it is a named field", got.Attributes)
 	}
 }
 

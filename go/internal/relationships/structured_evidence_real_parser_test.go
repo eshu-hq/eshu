@@ -407,15 +407,19 @@ spec:
 
 // TestRealParserStructuredKustomizeEvidence proves discoverStructuredKustomizeEvidence
 // resolves a remote Kustomize base, a Helm chart reference, and an image
-// reference from a REAL-PARSER-emitted kustomize_overlays payload, and that the
-// same-repo base in the same document raises nothing.
+// reference from a REAL-PARSER-emitted kustomize_overlays payload, and that a
+// same-repo base still reaches the catalog matcher.
 //
-// The last part is the behavior change (#5609). The raw-content path this
-// replaces offered every `resources` entry to the catalog matcher, local
-// directory paths included, so a repository whose name happened to match a
-// sibling directory picked up a DEPLOYS_FROM edge it never earned. Reading the
-// parser's already-classified resource_refs drops those; a same-repo path is
-// not a deployment source.
+// That last part reverses what an earlier version of this test asserted, and
+// the reversal is the point (#5609). Reading only the parser's resource_refs
+// would drop every same-repo path before the matcher saw it, on the reasoning
+// that a path inside this repository cannot be a deployment source. Eshu does
+// not model it that way: the confidence calibration corpus scores
+// `resources: [../payments-service/base]` as a positive at 0.90 -- a sibling
+// directory naming another repository's config -- and `./base` as a negative
+// at 0.792. Both are meant to reach the matcher, and the calibration layer is
+// what separates them. So the structured path reads Bases and ResourceRefs
+// together.
 func TestRealParserStructuredKustomizeEvidence(t *testing.T) {
 	t.Parallel()
 
@@ -452,8 +456,9 @@ images:
 		{RepoID: "repo-deployable-source", Aliases: []string{"github.com/acme/deployable-source"}},
 		{RepoID: "repo-redis-chart", Aliases: []string{"redis"}},
 		{RepoID: "repo-checkout-image", Aliases: []string{"checkout-service"}},
-		// The trap: a catalog repository whose alias is the same string as the
-		// document's local base. The raw path matched it; the typed path must not.
+		// A catalog repository aliased to the document's local base. Both the
+		// raw path and the typed path match it, which is what keeps the two
+		// paths in agreement -- discounting it is the calibration layer's job.
 		{RepoID: "repo-named-like-a-local-dir", Aliases: []string{"./base"}},
 	}
 
@@ -468,7 +473,9 @@ images:
 			t.Errorf("no evidence resolved to %s; got %#v", want, targets)
 		}
 	}
-	if targets["repo-named-like-a-local-dir"] {
-		t.Error("a same-repo base path reached the catalog matcher; local paths are not deployment sources")
+	if !targets["repo-named-like-a-local-dir"] {
+		t.Error("the same-repo base did not reach the catalog matcher; reading resource_refs " +
+			"alone drops the calibration corpus's 0.90 sibling-directory positive along with " +
+			"the negatives it was meant to exclude")
 	}
 }

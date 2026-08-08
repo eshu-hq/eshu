@@ -198,19 +198,27 @@ type FluxGitRepository struct {
 // discoverStructuredKustomizeEvidence
 // (go/internal/relationships/structured_kustomize_evidence.go) reads are named.
 //
-// The three ref lists are the parser's already-classified view of the
-// document. ResourceRefs in particular is `resources` plus `components` MINUS
-// the entries the parser classified as same-repo bases, which is the whole
-// point of reading them here rather than re-parsing the raw file: a path
-// inside this repository cannot be a cross-repo deployment source.
+// The ref lists are the parser's already-classified view of the document.
+// Evidence discovery reads Bases and ResourceRefs together: the split between
+// them is about which graph edge an entry can support, not about which entries
+// are worth looking at.
+//
+// A same-repo path is not evidence-free. Eshu's confidence calibration corpus
+// scores `resources: [../payments-service/base]` as a positive at 0.90 — a
+// sibling directory that names another repository's config — and `./base` as a
+// negative at 0.792. Both reach the catalog matcher; the calibration layer is
+// what separates them. Reading only ResourceRefs here would drop the positive
+// along with the negative.
 type KustomizeOverlay struct {
 	// ResourceRefs is the sorted, deduplicated set of `resources` and
 	// `components` entries that point OUTSIDE this repository — remote Git
-	// targets in any form kustomize accepts, and file references. Same-repo
-	// directory paths are excluded; they appear under the row's "bases"
-	// field, which this typed view leaves in Attributes because evidence
-	// discovery has no use for them.
+	// targets in any form kustomize accepts, and file references.
 	ResourceRefs []string `json:"resource_refs,omitempty"`
+	// Bases is the sorted, deduplicated set of entries the parser classified
+	// as same-repo directory paths, from both `resources` and the legacy
+	// `bases` key. These are what can support an EXTENDS_BASE edge, and they
+	// also reach the catalog matcher as weaker cross-repo candidates.
+	Bases []string `json:"bases,omitempty"`
 	// HelmRefs is the sorted, deduplicated set of `helmCharts[].name`,
 	// `.repo`, and `.releaseName` values.
 	HelmRefs []string `json:"helm_refs,omitempty"`
@@ -218,8 +226,7 @@ type KustomizeOverlay struct {
 	// `.newName` values.
 	ImageRefs []string `json:"image_refs,omitempty"`
 	// Attributes carries every producer field with no named struct field
-	// above (name, line_number, namespace, resources, bases, patches,
-	// patch_targets, path, lang), preserving each value's JSON-native Go
-	// type.
+	// above (name, line_number, namespace, resources, patches, patch_targets,
+	// path, lang), preserving each value's JSON-native Go type.
 	Attributes map[string]any `json:"-"`
 }

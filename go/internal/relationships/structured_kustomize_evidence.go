@@ -15,21 +15,21 @@ import (
 // the one source #5445 slice 1 could not type, because it had no
 // parsed_file_data read site to convert — evidence discovery re-parsed the raw
 // YAML and read `resources`, `helmCharts`, and `images` off the document, while
-// the parser separately produced a richer structured bucket. Two extractions of
-// one file can disagree, and they did (#5609).
+// the parser separately produced a richer structured bucket (#5609).
 //
-// The measured difference across every kustomization file in the repo was nine
-// values, and eight of them were same-repo directory paths (`../base` and kin)
-// that the raw path handed to the catalog matcher. Those cannot be a deployment
-// source: a path inside this repository is not another repository. They only
-// ever produced an edge by coincidence, when a repository's name matched a
-// sibling directory's.
+// It reads Bases and ResourceRefs TOGETHER, and the union is the whole point.
+// An earlier version of this function read only ResourceRefs, on the reasoning
+// that a same-repo path cannot be a deployment source. That reasoning is wrong
+// here, and Eshu's own confidence calibration corpus is where it shows:
+// `resources: [../payments-service/base]` is a golden positive at 0.90 — a
+// sibling directory naming another repository's config — while `./base` is a
+// golden negative at 0.792. Both are meant to reach the catalog matcher, and
+// the calibration layer is what tells them apart. Reading ResourceRefs alone
+// would have dropped the positive along with the negative.
 //
-// The ninth was the opposite problem and had to be fixed in the parser before
-// this read was safe: a scheme-less remote base
-// (github.com/acme/deployable-source//k8s?ref=v1.4.0) was classified as a local
-// base, so the bucket dropped a real cross-repo signal that the raw path caught.
-// See isRemoteKustomizeRef in go/internal/parser/yaml/kustomize_semantics.go.
+// Measured against the raw path it replaces, the union carries every value the
+// raw read produced plus the entries under the legacy `bases:` key, which
+// `gatherStrings(document, "resources", "components")` never walked at all.
 //
 // commitSHA is forwarded from the fact envelope's commit_sha payload field and
 // stored in Details so Canonical() can project a typed version pin. An empty
@@ -59,7 +59,10 @@ func discoverStructuredKustomizeEvidence(
 	}
 
 	for _, overlay := range overlays {
-		appendValues(overlay.ResourceRefs, EvidenceKindKustomizeResource,
+		resources := make([]string, 0, len(overlay.ResourceRefs)+len(overlay.Bases))
+		resources = append(resources, overlay.ResourceRefs...)
+		resources = append(resources, overlay.Bases...)
+		appendValues(resources, EvidenceKindKustomizeResource,
 			"Kustomize resources source deployment config from the target repository")
 		appendValues(overlay.HelmRefs, EvidenceKindKustomizeHelmChart,
 			"Kustomize Helm configuration deploys from the target repository")
