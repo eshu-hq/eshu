@@ -47,7 +47,7 @@ Observability Evidence: this adds one operator-facing signal:
 ```
 shared projection partition processing failed; retrying on next poll cycle
   domain=<projection domain> partition_id=<n> partition_count=<n>
-  error=<write error> phase=shared
+  error=<write error> pipeline_phase=shared
 ```
 
 At 3 AM this is the difference between "the drain is slow" and "partition 3 of

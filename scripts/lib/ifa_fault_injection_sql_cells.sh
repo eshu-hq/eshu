@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2154  # This file is sourced by
+# scripts/verify-ifa-fault-injection.sh and reads globals it owns
+# (bin_dir, log_dir, work_dir, use_compose, compose_file, wall_times,
+# baseline_retried, and the *_operation_match anchors). Without this,
+# linting the library standalone buries a genuinely new SC2154 in ~30
+# expected ones.
 # SQL-relationship-targeted fault cells (issue #5555). scripts/lib/
 # ifa_fault_injection_cells.sh's cell_killworker / cell_expirelease /
 # cell_failgraphwrite prove kill/lease/graph-write recovery, but their

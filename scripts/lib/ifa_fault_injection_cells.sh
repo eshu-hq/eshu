@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2154  # This file is sourced by
+# scripts/verify-ifa-fault-injection.sh and reads globals it owns
+# (bin_dir, log_dir, work_dir, use_compose, compose_file, wall_times,
+# baseline_retried, and the *_operation_match anchors). Without this,
+# linting the library standalone buries a genuinely new SC2154 in ~30
+# expected ones.
 # The five original scripts/verify-ifa-fault-injection.sh cells (issue #4580
 # P6 slice S5), each as a standalone function so the driver script can call
 # them in sequence and stay under the repo's 500-line cap
