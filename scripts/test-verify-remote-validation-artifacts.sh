@@ -15,6 +15,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 verifier="${repo_root}/scripts/verify-remote-validation-artifacts.sh"
+generator="${repo_root}/scripts/generate-remote-validation-inventory.sh"
 
 tmp_root="$(mktemp -d)"
 trap 'rm -rf "${tmp_root}" 2>/dev/null || true' EXIT
@@ -42,6 +43,26 @@ capabilities:
     profiles:
       production: {status: supported, max_truth_level: exact, verification: [{remote_validation: ${ref}}]}
 YAML
+	"${generator}" --specs "${specs_dir}" --root "$(dirname "${specs_dir}")" >/dev/null
+}
+
+write_valid_artifact() {
+	local case_root="$1" ref="$2" capability="$3"
+	local source="run-remote-e2e-${ref}.sh"
+	mkdir -p "${case_root}/scripts" "${case_root}/docs/internal/remote-validation"
+	printf '#!/usr/bin/env bash\n' >"${case_root}/scripts/${source}"
+	printf '%s\n' \
+		"# ${ref} production validation" \
+		'' \
+		"Validation-Slug: ${ref}" \
+		'Validation-Tier: deployed_services' \
+		'Validation-Date: 2025-01-01' \
+		'Evidence-Kind: compose_e2e' \
+		"Evidence-Source: scripts/${source}" \
+		"Validation-Command: bash scripts/${source}; echo \$?" \
+		'Validation-Exit-Code: 0' \
+		"Capability-Assertion: ${capability} returns a deployed result." \
+		>"${case_root}/docs/internal/remote-validation/${ref}.md"
 }
 
 # write_frozen writes the immutable frozen-set file beside the baseline. The
@@ -101,8 +122,7 @@ case3_root="${tmp_root}/case3"
 case3_specs="${case3_root}/specs"
 write_matrix "${case3_specs}" "prod-case3-has-artifact"
 write_frozen "${case3_specs}"
-mkdir -p "${case3_root}/docs/internal/remote-validation"
-printf '# evidence\n' >"${case3_root}/docs/internal/remote-validation/prod-case3-has-artifact.md"
+write_valid_artifact "${case3_root}" "prod-case3-has-artifact" "code_search.exact_symbol"
 if "${verifier}" --specs "${case3_specs}" --root "${case3_root}" \
 	--baseline "${case3_specs}/remote-validation-baseline.txt" \
 	>"${tmp_root}/case3.out" 2>&1; then
@@ -151,13 +171,25 @@ else
 	record_pass "malformed baseline line fails closed"
 fi
 
-# Case 6: the real repo tree passes against the committed baseline (the
-# actual gate this script protects in CI).
-if "${verifier}" >"${tmp_root}/case6.out" 2>&1; then
-	record_pass "real repo tree passes against the committed baseline"
-else
-	record_fail "real repo tree passes against the committed baseline"
+# Case 6: a placeholder file is not evidence.
+case6_root="${tmp_root}/case6"
+case6_specs="${case6_root}/specs"
+write_matrix "${case6_specs}" "prod-case6-placeholder"
+write_frozen "${case6_specs}"
+mkdir -p "${case6_root}/docs/internal/remote-validation"
+printf '# evidence\n' >"${case6_root}/docs/internal/remote-validation/prod-case6-placeholder.md"
+if "${verifier}" --specs "${case6_specs}" --root "${case6_root}" \
+	--baseline "${case6_specs}/remote-validation-baseline.txt" \
+	>"${tmp_root}/case6.out" 2>&1; then
+	record_fail "placeholder artifact fails the content gate"
 	cat "${tmp_root}/case6.out" >&2
+else
+	if rg -q --fixed-strings "missing Validation-Slug field" "${tmp_root}/case6.out"; then
+		record_pass "placeholder artifact fails the content gate"
+	else
+		record_fail "placeholder artifact failure explains the missing field"
+		cat "${tmp_root}/case6.out" >&2
+	fi
 fi
 
 # Case 7: baseline GROWTH past FROZEN_MAX fails closed. The cited ref is
@@ -209,8 +241,8 @@ capabilities:
     profiles:
       production: {status: supported, max_truth_level: exact, verification: [{remote_validation: c8-smug}]}
 YAML
-mkdir -p "${case8_root}/docs/internal/remote-validation"
-printf '# evidence\n' >"${case8_root}/docs/internal/remote-validation/c8-a.md"
+"${generator}" --specs "${case8_specs}" --root "${case8_root}" >/dev/null
+write_valid_artifact "${case8_root}" "c8-a" "cap.a"
 write_frozen "${case8_specs}" "c8-a" "c8-b"
 printf '# FROZEN_MAX: 2\nc8-b\nc8-smug\n' \
 	>"${case8_specs}/remote-validation-baseline.txt"
@@ -242,6 +274,89 @@ if "${verifier}" --specs "${case9_specs}" --root "${case9_root}" \
 	cat "${tmp_root}/case9.out" >&2
 else
 	record_pass "absent frozen file fails the gate closed"
+fi
+
+# Case 10: lower-tier go_test metadata cannot retain a production claim.
+case10_root="${tmp_root}/case10"
+case10_specs="${case10_root}/specs"
+write_matrix "${case10_specs}" "prod-case10-go-test"
+write_frozen "${case10_specs}"
+mkdir -p "${case10_root}/go/internal/query" "${case10_root}/docs/internal/remote-validation"
+printf 'package query\n' >"${case10_root}/go/internal/query/example_test.go"
+printf '%s\n' \
+	'# lower-tier evidence' \
+	'Validation-Slug: prod-case10-go-test' \
+	'Validation-Tier: local_test' \
+	'Validation-Date: 2025-01-01' \
+	'Evidence-Kind: go_test' \
+	'Evidence-Source: go/internal/query/example_test.go' \
+	'Validation-Command: cd go && go test ./internal/query; echo $?' \
+	'Validation-Exit-Code: 0' \
+	'Capability-Assertion: code_search.exact_symbol returns a local result.' \
+	>"${case10_root}/docs/internal/remote-validation/prod-case10-go-test.md"
+if "${verifier}" --specs "${case10_specs}" --root "${case10_root}" \
+	--baseline "${case10_specs}/remote-validation-baseline.txt" \
+	>"${tmp_root}/case10.out" 2>&1; then
+	record_fail "lower-tier go_test artifact fails the production gate"
+else
+	if rg -q --fixed-strings 'Validation-Tier is "local_test"' "${tmp_root}/case10.out"; then
+		record_pass "lower-tier go_test artifact fails the production gate"
+	else
+		record_fail "lower-tier failure explains the tier mismatch"
+		cat "${tmp_root}/case10.out" >&2
+	fi
+fi
+
+# Case 11: source, generator, and CI path filters stay wired together.
+if rg -q --fixed-strings 'scripts/generate-remote-validation-inventory.sh' "${repo_root}/specs/ci-gates.v1.yaml" &&
+	rg -q --fixed-strings "'scripts/generate-remote-validation-inventory.sh'" "${repo_root}/.github/workflows/static-contract-gates.yml" &&
+	rg -q --fixed-strings 'docs/internal/remote-validation/**' "${repo_root}/specs/ci-gates.v1.yaml" &&
+	rg -q --fixed-strings "'docs/internal/remote-validation/**'" "${repo_root}/.github/workflows/static-contract-gates.yml"; then
+	record_pass "generated inventory and source changes trigger the static contract gate"
+else
+	record_fail "generated inventory and source changes trigger the static contract gate"
+fi
+
+# Case 12 (BITES): seed one new production-supported row with no deployed
+# artifact and observe RED; revert the seed and observe GREEN again.
+case12_root="${tmp_root}/case12"
+case12_specs="${case12_root}/specs"
+write_matrix "${case12_specs}" "prod-case12-backed"
+write_frozen "${case12_specs}"
+write_valid_artifact "${case12_root}" "prod-case12-backed" "code_search.exact_symbol"
+if ! "${verifier}" --specs "${case12_specs}" --root "${case12_root}" \
+	--baseline "${case12_specs}/remote-validation-baseline.txt" \
+	>"${tmp_root}/case12-green-before.out" 2>&1; then
+	record_fail "BITES setup is GREEN before the seeded row"
+	cat "${tmp_root}/case12-green-before.out" >&2
+else
+	printf '%s\n' \
+		'capabilities:' \
+		'  - capability: code_search.exact_symbol' \
+		'    tools: [find_code]' \
+		'    profiles:' \
+		'      production: {status: supported, required_runtime: deployed_services, verification: [{remote_validation: prod-case12-backed}]}' \
+		'  - capability: cap.seeded' \
+		'    tools: [seeded]' \
+		'    profiles:' \
+		'      production: {status: supported, required_runtime: deployed_services, verification: [{remote_validation: prod-case12-seeded}]}' \
+		>"${case12_specs}/capability-matrix.v1.yaml"
+	"${generator}" --specs "${case12_specs}" --root "${case12_root}" >/dev/null
+	if "${verifier}" --specs "${case12_specs}" --root "${case12_root}" \
+		--baseline "${case12_specs}/remote-validation-baseline.txt" \
+		>"${tmp_root}/case12-red.out" 2>&1; then
+		record_fail "BITES seeded unbacked production row is RED"
+	else
+		write_matrix "${case12_specs}" "prod-case12-backed"
+		if "${verifier}" --specs "${case12_specs}" --root "${case12_root}" \
+			--baseline "${case12_specs}/remote-validation-baseline.txt" \
+			>"${tmp_root}/case12-green-after.out" 2>&1; then
+			record_pass "BITES seeded row RED and reverted matrix GREEN"
+		else
+			record_fail "BITES reverted matrix returns GREEN"
+			cat "${tmp_root}/case12-green-after.out" >&2
+		fi
+	fi
 fi
 
 printf '\n%d passed, %d failed\n' "${PASS}" "${FAIL}"
