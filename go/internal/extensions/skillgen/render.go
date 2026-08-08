@@ -55,10 +55,31 @@ func RenderAll(fragments []Fragment, caps Capabilities) ([]RenderResult, error) 
 		results = append(results, RenderResult{
 			Host:       h,
 			OutputPath: adapter.OutputPath(),
-			Bytes:      out,
+			Bytes:      normalizeTrailingNewline(out),
 		})
 	}
 	return results, nil
+}
+
+// normalizeTrailingNewline collapses the trailing blank line every adapter's
+// per-fragment loop leaves behind, so generated output ends with exactly one
+// newline.
+//
+// This is not cosmetic. The adapters emit "...bug.\n" plus a separating "\n"
+// after the final fragment, and pre-commit's end-of-file-fixer rewrites that
+// to a single newline the moment a baseline file is staged. The committed
+// artifact then differs from generator output by one byte and the roundtrip
+// gate goes red — the same perpetual doc-freshness drift #4558 hit. The v1
+// baselines carry the blank line today only because nobody has re-staged
+// them since the hook landed, so the trap was waiting for whoever regenerated
+// next. Emitting what a standard formatter would leave alone removes it for
+// every host rather than carving expected/ out of the hook.
+func normalizeTrailingNewline(b []byte) []byte {
+	trimmed := bytes.TrimRight(b, "\n")
+	if len(trimmed) == 0 {
+		return trimmed
+	}
+	return append(trimmed, '\n')
 }
 
 // WriteExpected writes a RenderResult set to disk under expectedRoot/<host>/<output_path>.
