@@ -46,6 +46,21 @@
 # start a fresh reducer process and let the fixed 1-minute lease expire and
 # get reclaimed. Mirrors cell_killworker; the only difference is the
 # domain-scoped wait_for_claimed precondition.
+#
+# What this proves, exactly: a SQL relationship row was claimed before the kill,
+# so the cell is aimed at SQL work rather than at whatever the demo cassette
+# happens to schedule first -- which is the #5555 defect. Proven by seeding the
+# domain argument to a name no domain uses: the cell then times out naming that
+# domain instead of latching an unrelated claimed row.
+#
+# What it does NOT prove: that the kill landed mid-handler. The SQL handler is
+# short, so it can acknowledge its row between the claimed-row read and the
+# kill, in which case the restart exercises an already-finished unit and the
+# digest match afterwards says nothing about SQL recovery specifically. Closing
+# that needs an assertion that the SQL row was actually reclaimed and re-executed
+# after the restart, which is tracked with the graph-write cell in #5974. Do not
+# read this cell as fault-recovery coverage for the SQL family until then -- the
+# manifest keeps that dimension waived for exactly this reason.
 cell_killworker_sql() {
 	local cell_start
 	cell_start=$(date +%s)

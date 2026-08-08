@@ -100,8 +100,16 @@ ifa_fault_wait_for_claimed() {
 		echo "ifa_fault_wait_for_claimed: budget must be a positive integer, got ${budget}" >&2
 		return 1
 	fi
+	# The domain lands inside a SQL string literal that is itself embedded in a
+	# CREATE OR REPLACE FUNCTION body, so a value carrying a quote would break out
+	# of two levels at once. Every caller passes a hardcoded constant today; this
+	# validates anyway, because the next caller may not.
 	local domain_clause=""
 	if [[ -n "${domain}" ]]; then
+		if [[ ! "${domain}" =~ ^[a-z0-9_]+$ ]]; then
+			echo "ifa_fault_wait_for_claimed: domain must match ^[a-z0-9_]+$, got ${domain}" >&2
+			return 1
+		fi
 		domain_clause=" AND domain = '${domain}'"
 	fi
 	local count
@@ -239,6 +247,12 @@ ifa_fault_assert_retried_above() {
 # Args: reducer_log_path [budget_seconds=10]
 ifa_fault_assert_sql_graph_write_fired() {
 	local reducer_log_path="$1" budget="${2:-10}"
+	if ! command -v jq >/dev/null 2>&1; then
+		echo "ifa_fault_assert_sql_graph_write_fired: jq is required to correlate the" \
+			"fault record on one log line; without it this check cannot run and must" \
+			"not silently pass" >&2
+		return 1
+	fi
 	local i line
 	for i in $(seq 1 "${budget}"); do
 		if [[ -f "${reducer_log_path}" ]]; then

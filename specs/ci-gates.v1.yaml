@@ -1975,6 +1975,9 @@ gates:
       - "scripts/verify-ifa-fault-injection.sh"
       - "scripts/test-verify-ifa-fault-injection.sh"
       - "scripts/lib/ifa_fault_injection_common.sh"
+      - "scripts/lib/ifa_fault_injection_cells.sh"
+      - "scripts/lib/ifa_fault_injection_driver.sh"
+      - "scripts/lib/ifa_fault_injection_sql_cells.sh"
       - "scripts/lib/ifa_determinism_common.sh"
     local:
       command: "bash scripts/test-verify-ifa-fault-injection.sh"
