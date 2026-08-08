@@ -268,13 +268,20 @@ func dedupeSorted(rules []string) []string {
 // Only Details is redacted. Code, Message, Capability, CorrelationID and
 // Profiles are not key-value payload — they are fixed contract fields the
 // redactor has no key names to work with, and Validate still covers them.
+//
+// Every non-nil Details map is copied, including an empty one. Skipping the
+// copy when there is nothing to redact looks free and is not: the bundle would
+// then hold the caller's own map, and error envelopes are commonly filled in
+// after construction. A key added later would land in a bundle that already
+// passed Validate. Nil stays nil so `details` keeps being omitted from the
+// serialized error.
 func redactErrorEnvelope(envelope *query.ErrorEnvelope) (*query.ErrorEnvelope, []string) {
 	if envelope == nil {
 		return nil, nil
 	}
 	redacted := *envelope
-	if len(envelope.Details) == 0 {
-		redacted.Details = envelope.Details
+	if envelope.Details == nil {
+		redacted.Details = nil
 		return &redacted, nil
 	}
 
