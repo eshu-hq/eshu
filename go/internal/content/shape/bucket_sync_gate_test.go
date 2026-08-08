@@ -29,8 +29,9 @@ import (
 // that list omits emits no fact, materializes no node, and fails nothing:
 // parser tests prove parse->bucket, projector tests prove fact->node, and
 // nothing in between exercises the collector's emission. #5483 C1 registered a
-// bucket in (1) and (2) but missed (3); only the live golden-corpus gate caught
-// it, which is a slow and expensive way to learn about a typo (#5531).
+// bucket in (1) and (3) and missed the collector twin (2); only the live
+// golden-corpus gate caught it, which is a slow and expensive way to learn
+// about a typo (#5531).
 //
 // These tests read the three declarations out of their real source with go/ast
 // rather than importing them — two are unexported in other packages, and
