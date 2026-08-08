@@ -103,12 +103,12 @@ Burn-down progress:
   deployed component-extension Compose stack, returning `installed=true`,
   `enabled=true`, and `trusted=true` for a real claimed component, with the
   diagnostics route sharing that handler.
-- **This directory now holds 110 committed production-validation artifacts** —
-  each capability whose committed evidence (the `go_test` suites its local
-  profiles cite, `docs/internal/evidence/*.md` live-backend validations, and
-  `scripts/run-remote-e2e-*` deployed drivers) substantiates its `production`
-  profile. Those rows keep `production: supported`; their refs now resolve, so
-  `-update` removed them from the baseline.
+- **This directory now holds 110 committed artifact files.** That count closes
+  the old pointer-existence baseline; it does not certify the contents. The
+  seven Cluster B files added for #5681 carry fresh matching-tier evidence.
+  #5552 remains open while the 103 legacy files are requalified against the
+  stronger deployed-tier contract and either refreshed or explicitly
+  downgraded with owner approval.
 - **The cluster of 7 code-intelligence slugs before this one**
   (#5681) was resolved per-row against a real deployed-services stack: the two
   transitive-caller-graph reads (`prod-transitive-callers` /
@@ -148,5 +148,7 @@ Burn-down progress:
   TRANCHE 2 in [DISPOSITIONS.md](DISPOSITIONS.md) and the seven dated artifacts
   in this directory carry the exact command, direct exit capture, and per-row
   observed results.
-  Closing this baseline to empty resolves #5407's burn-down tracking and
-  closes #5552 and #5681.
+  Closing this pointer baseline to empty resolves Cluster B and allows #5681 to
+  close. It does **not** close #5552: that program stays open until all 103
+  legacy files pass matching-tier content validation and the recurrence gate
+  proves seeded unbacked claims red and the reverted matrix green.

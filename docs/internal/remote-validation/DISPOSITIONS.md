@@ -1,11 +1,12 @@
 # Remote-validation disposition log
 
-Per-row disposition record for the #5552 burn-down of the frozen
-`remote_validation` baseline (#5407). Every row here documents how one
-baselined slug was closed: by committing a real evidence artifact
-(**validated**) or by an explicit, reviewed decision to lower the capability's
-claimed status (**downgraded**). See [README.md](README.md) for the mechanics
-of the baseline/frozen file pair and the `FROZEN_MAX` ratchet.
+Historical per-row disposition record for the frozen `remote_validation`
+pointer baseline (#5407). A file closing that existence baseline is not, by
+itself, proof that its production claim is substantiated. #5552 separately
+requalifies each artifact for a matching deployed tier, dated run, exact
+command, direct exit capture, and capability-specific observed result. Entries
+here record only the tranches that already received an explicit validate-or-
+downgrade disposition. See [README.md](README.md) for the baseline mechanics.
 
 Each entry records the disposition considered and rejected, not only the one
 taken, so a later reviewer can see the option space without re-deriving it.
