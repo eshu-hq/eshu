@@ -189,7 +189,7 @@ advisory warnings, and exit code 0.
 ### Exact validation command
 
 ```bash
-GATE_COMPOSE_PROJECT=eshu-5681-claim-honesty-20260808-5 ESHU_POSTGRES_PORT=31542 NEO4J_BOLT_PORT=31687 NEO4J_HTTP_PORT=31474 GATE_API_PORT=31080 GATE_MCP_PORT=31091 bash scripts/verify-golden-corpus-gate.sh >/tmp/eshu-5681-b7-final.log 2>&1; echo $?
+GATE_COMPOSE_PROJECT=eshu-5681-claim-honesty-20260808-6 ESHU_POSTGRES_PORT=34542 NEO4J_BOLT_PORT=34687 NEO4J_HTTP_PORT=34474 GATE_API_PORT=34080 GATE_MCP_PORT=34091 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh >/tmp/eshu-5681-b7-postrebase.log 2>&1; echo $?
 ```
 
 Captured output: `0`. Validation date: 2026-08-08.
@@ -197,9 +197,9 @@ Captured output: `0`. Validation date: 2026-08-08.
 The local-authoritative profile cross-check used a second fresh project:
 
 ```bash
-ESHU_QUERY_PROFILE=local_authoritative GATE_COMPOSE_PROJECT=eshu-5681-local-authoritative-20260808-2 ESHU_POSTGRES_PORT=33542 NEO4J_BOLT_PORT=33687 NEO4J_HTTP_PORT=33474 GATE_API_PORT=33080 GATE_MCP_PORT=33091 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh >/tmp/eshu-5681-local-authoritative-verified.log 2>&1; echo $?
+ESHU_QUERY_PROFILE=local_authoritative GATE_COMPOSE_PROJECT=eshu-5681-local-authoritative-20260808-3 ESHU_POSTGRES_PORT=35542 NEO4J_BOLT_PORT=35687 NEO4J_HTTP_PORT=35474 GATE_API_PORT=35080 GATE_MCP_PORT=35091 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh >/tmp/eshu-5681-local-authoritative-postrebase.log 2>&1; echo $?
 ```
 
 Captured output: `0`. The log records `query profile: local_authoritative`
-before staging or build work. The run completed in 136 seconds with 532 passes,
+before staging or build work. The run completed in 122 seconds with 532 passes,
 zero required failures, and zero advisory warnings.
