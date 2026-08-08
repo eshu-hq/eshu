@@ -358,7 +358,20 @@ jobs:
           fi
           count="$(printf '%s\n' "${pkgs}" | wc -l | tr -d ' ')"
           echo "shard ${SHARD_INDEX}/${SHARD_TOTAL}: ${count} package(s)"
-          printf '%s\n' "${pkgs}" | xargs go test -count=1 -race -timeout 300s -p 2
+          # -timeout is PER TEST BINARY, so this budget has to cover the single
+          # slowest package in the shard, not the shard's total. internal/ifa
+          # measures 107s under -race on a dev laptop and blew the old 300s on
+          # a CI runner (run 31249051543, shard 2/4: "panic: test timed out
+          # after 5m0s ... FAIL github.com/eshu-hq/eshu/go/internal/ifa
+          # 300.894s") -- the suite completes, the budget was just sized with
+          # no headroom for a slower, loaded runner.
+          #
+          # 900s keeps ~3x margin over that observed CI cost while still
+          # failing a genuine hang in minutes. It is a sizing fix, not a mask:
+          # ~78% of internal/ifa's race time is one test
+          # (TestRepoDependencyBackfillProofOduCanonicalBytesAreDeterministic,
+          # 83.4s for two CanonicalizeOdu calls), tracked separately in #5975.
+          printf '%s\n' "${pkgs}" | xargs go test -count=1 -race -timeout 900s -p 2
 
   go-race-complete:
     # Umbrella gate: a single stable status name that is green only when EVERY
