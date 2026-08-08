@@ -362,7 +362,7 @@ ifa_fault_redeliver_succeeded() {
 		# Same guard as ifa_fault_wait_for_claimed and ifa_fault_count_retried:
 		# domain is interpolated into a SQL literal below.
 		if [[ ! "${domain}" =~ ^[a-z0-9_]+$ ]]; then
-			echo "ifa_fault_redeliver_succeeded: domain must match ^[a-z0-9_]+$, got ${domain}" >&2
+			echo "ifa_fault_redeliver_succeeded: domain must match ^[a-z0-9_]+$, got '${domain}'" >&2
 			return 1
 		fi
 		domain_clause=" AND domain = '${domain}'"

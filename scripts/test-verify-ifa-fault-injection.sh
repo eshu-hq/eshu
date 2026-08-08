@@ -32,7 +32,7 @@ delivery_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_delivery_cells.
 
 fail() { printf 'test-verify-ifa-fault-injection: %s\n' "$*" >&2; exit 1; }
 
-for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}"; do
+for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}"; do
 	[[ -f "${f}" ]] || fail "missing ${f}"
 done
 [[ -x "${script}" ]] || fail "verify-ifa-fault-injection.sh must be executable"
@@ -42,6 +42,7 @@ bash -n "${fault_lib}" || fail "ifa_fault_injection_common.sh has a syntax error
 bash -n "${driver_lib}" || fail "ifa_fault_injection_driver.sh has a syntax error"
 bash -n "${cells_lib}" || fail "ifa_fault_injection_cells.sh has a syntax error"
 bash -n "${sql_cells_lib}" || fail "ifa_fault_injection_sql_cells.sh has a syntax error"
+bash -n "${delivery_cells_lib}" || fail "ifa_fault_injection_delivery_cells.sh has a syntax error"
 
 require() {
 	local label="$1" needle="$2"
@@ -153,10 +154,23 @@ fi
 for cell in baseline killworker expirelease failgraphwrite restartbackend; do
 	require "cell present: ${cell}" "cell_${cell}"
 done
-for cell in cell_killworker_sql cell_failgraphwrite_sql cell_duplicatedelivery cell_deltaretract; do
-	require "driver calls ${cell}" "${cell}"
+# Anchored to the invocation line, not the bare name: the verifier's
+# source-helper comments mention cell_deltaretract, so a bare-name needle stays
+# green after the call is deleted. rg without --fixed-strings so ^...$ binds.
+for cell in cell_killworker_sql cell_duplicatedelivery cell_deltaretract; do
+	rg --quiet -- "^${cell}\$" "${script}" || fail "verifier does not INVOKE ${cell} on its own line"
 done
-# Cell 6 (duplicate-delivery, #5544): the redelivery must actually reset rows.
+# cell_failgraphwrite_sql is defined but intentionally not invoked (#5974), so
+# it is asserted as commented-out rather than called.
+require "failgraphwrite_sql held out with rationale" "# cell_failgraphwrite_sql is defined but NOT run by default"
+# The library must DEFINE both cells. The needles below check implementation
+# details that could still match if the function wrapper were renamed away.
+require_delivery_cells "delivery lib defines cell_duplicatedelivery" "cell_duplicatedelivery() {"
+require_delivery_cells "delivery lib defines cell_deltaretract" "cell_deltaretract() {"
+
+# Cell 8 (duplicate-delivery, #5544) -- numbered as the gate header numbers
+# it, not by #5544's own 'cell 6' wording, which collides with #5555's cells.
+# The redelivery must actually reset rows.
 # Without the >0 assertion the second drain is a no-op and every downstream
 # digest comparison passes vacuously -- the inert-gate defect #5974 records.
 require_delivery_cells "duplicate-delivery redelivers via the shared helper" "ifa_fault_redeliver_succeeded"
@@ -167,7 +181,8 @@ require_lib "redelivery clears the lease, not only the status" "lease_owner = NU
 require_lib "redelivery makes the row visible again" "visible_at = now()"
 require_lib "redelivery counts what it actually wrote (CTE, not a second SELECT)" "SELECT count(*) FROM redelivered;"
 
-# Cell 7 (delta-retract, #5544): shares the determinism gate's helper so the
+# Cell 9 (delta-retract, #5544; #5544 calls it 'cell 7'): shares the
+# determinism gate's helper so the
 # two gates cannot drift on what a correctly-landed delta means, and asserts
 # generation 1 landed BEFORE driving generation 2 -- otherwise "the retract
 # removed it" and "it never arrived" look identical.
@@ -177,6 +192,8 @@ require_lib "redelivery counts what it actually wrote (CTE, not a second SELECT)
 # bare-name form passed, this argument-shaped form fails.
 require_delivery_cells_multiline "delta-retract drives gen 2 through the shared helper" $'ifa_det_run_sql_delta_live \\\n\t\t1 "${bin_dir}" "${sql_delta_cassette}"'
 
+require_delivery_cells "delta-retract proves it changed no non-SQL edges" "changed edges outside the nine SQL relationship types"
+require_delivery_cells "delta-retract compares structurally, not by line" "objects | select(has("
 require_delivery_cells "delta-retract asserts generation 1 landed first" "generation-1 SQL edge set did not match before the delta was driven"
 require "gate sources the shared delta-live helper" "scripts/lib/ifa_sql_delta_live.sh"
 require "gate defines the delta expected-edge set" "sql_delta_expected_edges="
@@ -294,7 +311,7 @@ rg --fixed-strings --quiet -- 'ESHU_IFA_FAULT_SCRIPT' "${reducer_wiring}" \
 
 # No private data: hostnames, IPs, cloud account IDs, keys, internal paths.
 private_pattern='ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|arn:aws:|(^|[^0-9])[0-9]{12}([^0-9]|$)|/Users/|/home/[a-z]'
-for f in "${script}" "${fault_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}"; do
+for f in "${script}" "${fault_lib}" "${driver_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}"; do
 	if rg --pcre2 --quiet -- "${private_pattern}" "${f}"; then
 		fail "$(basename "${f}") looks like it contains private data"
 	fi
