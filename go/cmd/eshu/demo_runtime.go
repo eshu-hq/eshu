@@ -71,12 +71,19 @@ func demoBase(defaultPort, portEnv string) string {
 // installed binary invoked outside the repository root still finds it.
 // ESHU_DEMO_COMPOSE_FILE overrides the search entirely.
 func resolveDemoComposeFile(dir string) (string, error) {
+	// ESHU_DEMO_COMPOSE_FILE is an operator-set override for where their own
+	// demo overlay lives, the same trust level as the working directory this
+	// function otherwise searches. The value is handed to docker compose -f,
+	// never opened or included by this process, and an operator who can set it
+	// can already run docker directly.
 	if override := strings.TrimSpace(os.Getenv("ESHU_DEMO_COMPOSE_FILE")); override != "" {
 		return override, nil
 	}
 	current := dir
 	for {
 		candidate := filepath.Join(current, demoComposeFileName)
+		// #nosec G703 -- candidate is the walked directory plus a constant
+		// filename; Stat only tests existence and the path is never opened here
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate, nil
 		}
