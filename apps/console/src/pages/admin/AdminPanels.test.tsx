@@ -5,7 +5,7 @@
 //   - drives mutations to the right endpoint and refetches the affected list
 //   - never renders a secret/hash/invite-code/external-group name
 import { render, screen, waitFor, within, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 
 import { AdminAssignmentsPanel } from "./AdminAssignmentsPanel";
 import { AdminAuditPanel } from "./AdminAuditPanel";
@@ -18,15 +18,9 @@ import { EshuApiHttpError } from "../../api/client";
 
 const NOW = "2026-06-24T10:00:00Z";
 
-beforeEach(() => {
-  // confirm-then-call: auto-confirm so mutation tests proceed.
-  vi.stubGlobal(
-    "confirm",
-    vi.fn(() => true),
-  );
-});
+// No native confirm() stub: every panel here gates mutations through the
+// in-app useConfirm dialog, which the tests drive by role.
 afterEach(() => {
-  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
@@ -155,6 +149,9 @@ describe("AdminInvitationsPanel", () => {
     render(<AdminInvitationsPanel client={client} />);
     const btn = await screen.findByRole("button", { name: "Revoke" });
     fireEvent.click(btn);
+    // The in-app confirmation dialog gates the mutation; accept it to proceed.
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm" }));
     await waitFor(() =>
       expect(postJson).toHaveBeenCalledWith("/api/v0/auth/local/invitations/inv-1/revoke", {}),
     );
@@ -181,6 +178,9 @@ describe("AdminAssignmentsPanel", () => {
     fireEvent.change(screen.getByLabelText("User ID"), { target: { value: "u-2" } });
     fireEvent.change(screen.getByLabelText("Role ID"), { target: { value: "admin" } });
     fireEvent.click(screen.getByRole("button", { name: "Grant" }));
+    // The in-app confirmation dialog gates the mutation; accept it to proceed.
+    const grantDialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(grantDialog).getByRole("button", { name: "Confirm" }));
     await waitFor(() =>
       expect(postJson).toHaveBeenCalledWith("/api/v0/auth/admin/role-assignments", {
         user_id: "u-2",
@@ -199,6 +199,9 @@ describe("AdminAssignmentsPanel", () => {
     render(<AdminAssignmentsPanel client={client} />);
     const btn = await screen.findByRole("button", { name: "Revoke" });
     fireEvent.click(btn);
+    // The in-app confirmation dialog gates the mutation; accept it to proceed.
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm" }));
     await waitFor(() =>
       expect(postJson).toHaveBeenCalledWith("/api/v0/auth/admin/role-assignments/revoke", {
         user_id: "u-1",
@@ -389,6 +392,9 @@ describe("AdminTokensPanel", () => {
     render(<AdminTokensPanel client={client} />);
     const btn = await screen.findByRole("button", { name: "Revoke" });
     fireEvent.click(btn);
+    // The in-app confirmation dialog gates the mutation; accept it to proceed.
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm" }));
     await waitFor(() =>
       expect(postNoContent).toHaveBeenCalledWith("/api/v0/auth/local/api-tokens/t-1/revoke", {}),
     );
