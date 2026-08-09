@@ -7,7 +7,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"io/fs"
+	"os"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -80,12 +80,32 @@ func readinessFailureClassesInReducer(t *testing.T) map[string]string {
 	}
 	reducerDir := filepath.Join(filepath.Dir(thisFile), "..", "..", "reducer")
 
-	fset := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fset, reducerDir, func(info fs.FileInfo) bool {
-		return !strings.HasSuffix(info.Name(), "_test.go")
-	}, 0)
+	entries, err := os.ReadDir(reducerDir)
 	if err != nil {
-		t.Fatalf("parse %s: %v", reducerDir, err)
+		t.Fatalf("read %s: %v", reducerDir, err)
+	}
+
+	// Walked explicitly rather than with parser.ParseDir, which is deprecated as
+	// of Go 1.25. Mode 0 (not SkipObjectResolution) is load-bearing: FailureClass
+	// returns a named constant, and returnedStringLiteral follows Ident.Obj to its
+	// declaration. Each constant is declared in the same file as its method, so
+	// per-file resolution is enough.
+	fset := token.NewFileSet()
+	parsedFiles := make(map[string]*ast.File, len(entries))
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		path := filepath.Join(reducerDir, name)
+		parsed, parseErr := parser.ParseFile(fset, path, nil, 0)
+		if parseErr != nil {
+			t.Fatalf("parse %s: %v", path, parseErr)
+		}
+		parsedFiles[path] = parsed
+	}
+	if len(parsedFiles) == 0 {
+		t.Fatalf("no non-test Go files parsed under %s; the guard would pass vacuously", reducerDir)
 	}
 
 	// receiver type name -> true when Retryable() returns true
@@ -93,26 +113,24 @@ func readinessFailureClassesInReducer(t *testing.T) map[string]string {
 	// receiver type name -> (class, file)
 	classes := map[string][2]string{}
 
-	for _, pkg := range pkgs {
-		for path, file := range pkg.Files {
-			for _, decl := range file.Decls {
-				fn, isFunc := decl.(*ast.FuncDecl)
-				if !isFunc || fn.Recv == nil || len(fn.Recv.List) == 0 {
-					continue
+	for path, file := range parsedFiles {
+		for _, decl := range file.Decls {
+			fn, isFunc := decl.(*ast.FuncDecl)
+			if !isFunc || fn.Recv == nil || len(fn.Recv.List) == 0 {
+				continue
+			}
+			recv := receiverTypeName(fn.Recv.List[0].Type)
+			if recv == "" {
+				continue
+			}
+			switch fn.Name.Name {
+			case "Retryable":
+				if returnsTrue(fn) {
+					retryable[recv] = true
 				}
-				recv := receiverTypeName(fn.Recv.List[0].Type)
-				if recv == "" {
-					continue
-				}
-				switch fn.Name.Name {
-				case "Retryable":
-					if returnsTrue(fn) {
-						retryable[recv] = true
-					}
-				case "FailureClass":
-					if class := returnedStringLiteral(fn); strings.HasSuffix(class, "_not_ready") {
-						classes[recv] = [2]string{class, filepath.Base(path)}
-					}
+			case "FailureClass":
+				if class := returnedStringLiteral(fn); strings.HasSuffix(class, "_not_ready") {
+					classes[recv] = [2]string{class, filepath.Base(path)}
 				}
 			}
 		}
