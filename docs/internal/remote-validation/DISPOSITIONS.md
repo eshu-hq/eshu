@@ -237,3 +237,10 @@ RED, then reverts the matrix and observes GREEN. CI path selection covers the
 matrix, artifact directory, generated inventory, allowed evidence sources, and
 the verifier implementation, so a new unbacked claim or a broken source cannot
 bypass the PR gate.
+
+### Runtime and operator evidence
+
+The tracked [#5552 runtime record](../evidence/5552-capability-matrix-claim-honesty.md)
+binds the performance baseline, deployed result, terminal queue counts, and
+existing operator signals to the hot paths changed during requalification. The
+per-slug artifacts remain the authority for capability-specific assertions.

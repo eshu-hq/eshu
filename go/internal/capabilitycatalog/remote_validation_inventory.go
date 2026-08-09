@@ -108,9 +108,12 @@ func WriteRemoteValidationInventory(matrix Matrix, path string) error {
 	if err != nil {
 		return err
 	}
+	// #nosec G301 -- this creates a public repository documentation directory,
+	// whose generated inventory must remain readable by every checkout user.
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("create remote-validation inventory directory: %w", err)
 	}
+	// #nosec G306 -- this writes a committed public JSON artifact, not a secret.
 	if err := os.WriteFile(path, raw, 0o644); err != nil {
 		return fmt.Errorf("write remote-validation inventory %s: %w", path, err)
 	}
