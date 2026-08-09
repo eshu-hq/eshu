@@ -4,6 +4,10 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -177,5 +181,48 @@ func TestEvaluateDemoBenchmark_ReportsColdAndWarmSeparately(t *testing.T) {
 	if got := evaluateDemoBenchmark(env, cold); got.Mode != demoModeCold || got.TargetMillis != cold.Target.Milliseconds() {
 		t.Errorf("cold verdict = mode %q target %d, want %q / %d",
 			got.Mode, got.TargetMillis, demoModeCold, cold.Target.Milliseconds())
+	}
+}
+
+// TestDemoBenchmarkCommand_ExitsNonZeroOnFailure proves the verdict reaches the
+// process boundary. A scorer that prints FAILED but exits 0 lets a measurement
+// script record a missed target as a pass, which is the failure mode the whole
+// lane exists to prevent.
+func TestDemoBenchmarkCommand_ExitsNonZeroOnFailure(t *testing.T) {
+	env := goodDemoEnvelope()
+	raw, err := json.Marshal(env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "demo.json")
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct {
+		name    string
+		args    []string
+		wantErr bool
+	}{
+		{"within target", []string{"--mode", "warm", "--images", "present", "--target", "10m"}, false},
+		{"over target", []string{"--mode", "warm", "--images", "present", "--target", "1s"}, true},
+		{"mislabelled cold", []string{"--mode", "cold", "--images", "present", "--target", "10m"}, true},
+		{"bad images value", []string{"--mode", "warm", "--images", "sometimes"}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd := newDemoBenchmarkCommand()
+			var out bytes.Buffer
+			cmd.SetOut(&out)
+			cmd.SetErr(&out)
+			cmd.SetArgs(append([]string{"--envelope", path}, tc.args...))
+
+			runErr := cmd.Execute()
+			if tc.wantErr && runErr == nil {
+				t.Fatalf("Execute() = nil, want an error; output:\n%s", out.String())
+			}
+			if !tc.wantErr && runErr != nil {
+				t.Fatalf("Execute() = %v, want nil; output:\n%s", runErr, out.String())
+			}
+		})
 	}
 }
