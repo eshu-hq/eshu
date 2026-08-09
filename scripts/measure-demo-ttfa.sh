@@ -28,6 +28,11 @@ COMPOSE_FILE="docker-compose.demo.yaml"
 OUT_DIR="${ESHU_DEMO_TTFA_OUT:-}"
 PRUNE_BUILD_CACHE=0
 
+# Defaults matching docs/public/reference/local-testing/demo-ttfa-benchmark.md.
+# Keep the two in lockstep; they are the regression detectors for this lane.
+DEFAULT_WARM_TARGET="${ESHU_DEMO_TTFA_WARM_TARGET:-5m}"
+DEFAULT_COLD_TARGET="${ESHU_DEMO_TTFA_COLD_TARGET:-10m}"
+
 usage() {
 	printf 'usage: %s --mode cold|warm [--runs N] [--target 6m] [--project NAME] [--prune-build-cache]\n' "$0" >&2
 	exit 2
@@ -49,6 +54,30 @@ case "$MODE" in
 cold | warm) ;;
 *) printf 'error: --mode must be cold or warm\n' >&2; usage ;;
 esac
+
+# P2-4: an empty experiment must not report success. With --runs 0 the loop
+# never executes, failures stays 0, and the script would print "all 0 runs
+# passed" and exit 0.
+case "$RUNS" in
+'' | *[!0-9]*) printf 'error: --runs must be a positive integer\n' >&2; usage ;;
+esac
+if [ "$RUNS" -lt 1 ]; then
+	printf 'error: --runs must be at least 1\n' >&2
+	usage
+fi
+
+# The checked-in targets are enforced by default, so the documented command is
+# the one that detects a regression. Omitting a target makes the timing
+# criterion non-required, which would let an arbitrarily slow run print
+# "all runs passed" -- the lane would exist and measure nothing.
+if [ -z "$TARGET" ]; then
+	if [ "$MODE" = "warm" ]; then
+		TARGET="$DEFAULT_WARM_TARGET"
+	else
+		TARGET="$DEFAULT_COLD_TARGET"
+	fi
+	printf 'using default %s target %s (override with --target)\n' "$MODE" "$TARGET"
+fi
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
@@ -106,6 +135,13 @@ drop_demo_images() {
 	done < <(demo_images)
 }
 
+# read_total_millis pulls ttfa_millis out of the scorer's own JSON verdict, so
+# the summary depends on the eshu binary this script already requires.
+read_total_millis() {
+	"$ESHU_BIN" demo-benchmark --envelope "$1" --mode "$MODE" --json 2>/dev/null |
+		tr ',' '\n' | sed -n 's/.*"ttfa_millis":[[:space:]]*\([0-9][0-9]*\).*/\1/p' | head -1
+}
+
 teardown() {
 	"$ESHU_BIN" demo down --project "$PROJECT" >/dev/null 2>&1 || true
 }
@@ -135,7 +171,17 @@ for run in $(seq 1 "$RUNS"); do
 	if [ "$MODE" = "cold" ]; then
 		drop_demo_images
 		if [ "$PRUNE_BUILD_CACHE" = "1" ]; then
-			docker builder prune -af >/dev/null 2>&1 || true
+			# Not `|| true`. Pruning is the only thing separating a first
+			# install from a cached rebuild, and the image tags are already
+			# gone, so the probe would still report "absent" and the scorer
+			# would accept a cached rebuild as a cold result.
+			if ! docker builder prune -af >"$OUT_DIR/prune-$run.log" 2>&1; then
+				printf 'run %s: build-cache prune FAILED; refusing to score a cached rebuild as a first install\n' \
+					"$run" >&2
+				printf '         see %s\n' "$OUT_DIR/prune-$run.log" >&2
+				failures=$((failures + 1))
+				continue
+			fi
 		else
 			printf 'WARNING: build cache kept; this measures a cached rebuild, not a first install.\n'
 			printf '         Pass --prune-build-cache for a true cold number.\n'
@@ -171,7 +217,10 @@ totals=()
 for run in $(seq 1 "$RUNS"); do
 	envelope="$OUT_DIR/demo-$MODE-$run.json"
 	[ -s "$envelope" ] || continue
-	ms="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["data"]["total_millis"])' "$envelope" 2>/dev/null || true)"
+	# Read the total back through eshu rather than python3. The summary used to
+	# shell out to python3 with stderr and the exit code discarded, so a missing
+	# interpreter dropped rows from the table with no clue why.
+	ms="$(read_total_millis "$envelope")"
 	[ -n "$ms" ] || continue
 	totals+=("$ms")
 	printf '  run %s: %s ms\n' "$run" "$ms"

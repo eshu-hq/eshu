@@ -26,7 +26,7 @@ func goodDemoEnvelope() demoEnvelope {
 				Truth:    map[string]any{"level": "derived", "basis": "hybrid", "freshness": "fresh"},
 			},
 			PhaseMillis: map[string]int64{
-				"preflight": 43, "up": 204846, "ready": 54617, "first_answer": 83,
+				"preflight": 43, "build": 1204, "up": 203642, "ready": 54617, "first_answer": 83,
 			},
 			TotalMillis: 259589,
 		},

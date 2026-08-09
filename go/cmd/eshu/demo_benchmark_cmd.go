@@ -28,8 +28,8 @@ func newDemoBenchmarkCommand() *cobra.Command {
 "eshu demo up --json" for time-to-first-answer (TTFA).
 
 TTFA is measured from command invocation to the first successful
-graph-authoritative answer. COLD (images had to be pulled) and WARM (images
-already present) are scored separately and never averaged: a blended number
+graph-authoritative answer. COLD (images missing, so built or pulled) and WARM
+(images already present) are scored separately and never averaged: a blended number
 understates what someone installing for the first time actually waits through.
 
 --images records what the harness observed about the image cache BEFORE the
@@ -47,7 +47,7 @@ Typical use:
 		RunE:          runDemoBenchmark,
 	}
 	cmd.Flags().String("envelope", "", "Path to an eshu demo --json envelope (default: read stdin)")
-	cmd.Flags().String("mode", demoModeWarm, "Run mode: cold (images pulled) or warm (images present)")
+	cmd.Flags().String("mode", demoModeWarm, "Run mode: cold (images built or pulled) or warm (images present)")
 	cmd.Flags().Duration("target", 0, "TTFA budget for this mode (0 = record the measurement without judging it)")
 	cmd.Flags().String("images", "", "Image cache observed BEFORE the run: present, absent, or empty for not probed")
 	cmd.Flags().Bool("json", false, "Emit the scorecard as JSON")

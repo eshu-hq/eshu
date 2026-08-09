@@ -342,6 +342,19 @@ func (r *demoRuntime) up(ctx context.Context) (demoResult, error) {
 		return res, err
 	}
 	r.apiKey = key
+	// Build separately from up. `docker compose up -d --wait` otherwise covers
+	// image build, container start, corpus bootstrap, and the reducer drain in
+	// one bucket, and a regression in any of them looks the same from outside.
+	buildCtx, cancelBuild := context.WithTimeout(ctx, r.composeUpTimeout())
+	buildOut, buildErr := r.exec(buildCtx, []string{"ESHU_DEMO_API_KEY=" + key}, "docker", r.composeArgs("build")...)
+	cancelBuild()
+	if buildErr != nil {
+		return res, fmt.Errorf("build demo images (project %q): %w\n%s",
+			r.project, buildErr, strings.TrimSpace(string(buildOut)))
+	}
+	res.PhaseMillis["build"] = r.sinceMillis(phaseStart)
+
+	phaseStart = r.now()
 	upCtx, cancelUp := context.WithTimeout(ctx, r.composeUpTimeout())
 	out, err := r.exec(upCtx, []string{"ESHU_DEMO_API_KEY=" + key}, "docker", r.composeArgs("up", "-d", "--wait")...)
 	cancelUp()

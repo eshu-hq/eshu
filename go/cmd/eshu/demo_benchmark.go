@@ -15,8 +15,9 @@ import (
 // exactly that interval and reports it as TotalMillis, so the scorer reads the
 // command's own measurement rather than timing it from outside and drifting.
 const (
-	// demoModeCold is a run that had to pull images. This is what a first-time
-	// installer experiences.
+	// demoModeCold is a run whose images were missing and had to be built or
+	// pulled. The demo builds most of its images, so this is usually build cost
+	// rather than download cost. This is what a first-time installer pays.
 	demoModeCold = "cold"
 	// demoModeWarm is a run with images already present.
 	demoModeWarm = "warm"
@@ -32,15 +33,19 @@ const (
 	demoImagesUnknown demoImageState = ""
 	// demoImagesPresent means the demo images were in the local cache.
 	demoImagesPresent demoImageState = "present"
-	// demoImagesAbsent means at least one demo image had to be pulled.
+	// demoImagesAbsent means at least one demo image was missing and had to be
+	// built or pulled.
 	demoImagesAbsent demoImageState = "absent"
 )
 
-// demoRequiredPhases are the phases `eshu demo up` must account for. A total
-// with an unexplained gap is not a measurement: without the breakdown there is
-// no way to tell a slow pull from a slow index, which is the entire reason the
-// per-phase numbers exist.
-var demoRequiredPhases = []string{"preflight", "up", "ready", "first_answer"}
+// demoRequiredPhases are the phases `eshu demo up` must account for.
+//
+// build is separate from up on purpose. A single bucket spanning
+// `docker compose up -d --wait` covers image build, container start, corpus
+// bootstrap, and the reducer drain all at once, so a regression in any of them
+// looks identical. That bucket cannot answer "what got slower", which is the
+// entire reason the per-phase numbers exist.
+var demoRequiredPhases = []string{"preflight", "build", "up", "ready", "first_answer"}
 
 // Criteria specific to the demo lane. The shared rows (first answer, truth
 // metadata, indexed) reuse the first-run benchmark's names so one scorecard
