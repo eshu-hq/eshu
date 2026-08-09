@@ -209,6 +209,32 @@ type demoRuntime struct {
 	composeFile string
 }
 
+// allImagesPresent reports whether every image the demo stack declares is
+// already local.
+//
+// The names come from `compose config --images` rather than a hardcoded list,
+// so a new service cannot fall outside the check, and one `docker image
+// inspect` covers them all: it exits non-zero when any argument is missing.
+func (r *demoRuntime) allImagesPresent(ctx context.Context) (bool, error) {
+	out, err := r.exec(ctx, nil, "docker", r.composeArgs("config", "--images")...)
+	if err != nil {
+		return false, fmt.Errorf("list demo images (project %q): %w", r.project, err)
+	}
+	var names []string
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if name := strings.TrimSpace(line); name != "" {
+			names = append(names, name)
+		}
+	}
+	if len(names) == 0 {
+		return false, nil
+	}
+	if _, err := r.exec(ctx, nil, "docker", append([]string{"image", "inspect"}, names...)...); err != nil {
+		return false, nil
+	}
+	return true, nil
+}
+
 // composeUpTimeout returns the effective bring-up budget.
 func (r *demoRuntime) composeUpTimeout() time.Duration {
 	if r.upTimeout > 0 {
@@ -342,17 +368,30 @@ func (r *demoRuntime) up(ctx context.Context) (demoResult, error) {
 		return res, err
 	}
 	r.apiKey = key
-	// Build separately from up. `docker compose up -d --wait` otherwise covers
-	// image build, container start, corpus bootstrap, and the reducer drain in
-	// one bucket, and a regression in any of them looks the same from outside.
-	buildCtx, cancelBuild := context.WithTimeout(ctx, r.composeUpTimeout())
-	buildOut, buildErr := r.exec(buildCtx, []string{"ESHU_DEMO_API_KEY=" + key}, "docker", r.composeArgs("build")...)
-	cancelBuild()
-	if buildErr != nil {
-		return res, fmt.Errorf("build demo images (project %q): %w\n%s",
-			r.project, buildErr, strings.TrimSpace(string(buildOut)))
+	// Build separately from up, but only when something actually needs
+	// building. `up -d --wait` otherwise covers image build, container start,
+	// corpus bootstrap, and the reducer drain in one bucket, and a regression
+	// in any of them looks the same from outside.
+	//
+	// The guard matters: an unconditional `docker compose build` revalidates
+	// every build context even when nothing changed, which measured 221,590 ms
+	// on an otherwise warm run. Instrumentation that slows the thing it
+	// measures is worse than the missing attribution it was added to fix.
+	res.PhaseMillis["build"] = 0
+	present, presentErr := r.allImagesPresent(ctx)
+	if presentErr != nil {
+		return res, presentErr
 	}
-	res.PhaseMillis["build"] = r.sinceMillis(phaseStart)
+	if !present {
+		buildCtx, cancelBuild := context.WithTimeout(ctx, r.composeUpTimeout())
+		buildOut, buildErr := r.exec(buildCtx, []string{"ESHU_DEMO_API_KEY=" + key}, "docker", r.composeArgs("build")...)
+		cancelBuild()
+		if buildErr != nil {
+			return res, fmt.Errorf("build demo images (project %q): %w\n%s",
+				r.project, buildErr, strings.TrimSpace(string(buildOut)))
+		}
+		res.PhaseMillis["build"] = r.sinceMillis(phaseStart)
+	}
 
 	phaseStart = r.now()
 	upCtx, cancelUp := context.WithTimeout(ctx, r.composeUpTimeout())
