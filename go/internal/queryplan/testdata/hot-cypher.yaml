@@ -67,8 +67,8 @@ entries:
     source:
       file: go/internal/query/package_registry_cypher.go
       symbol: packageRegistryDependenciesCypher
-      source_sha256: 4d26116484c45b52af46212e43880213c8c31862ae8eec48e996e06178df992c
-      line_hint: 54
+      source_sha256: c1d91b77769871a2651bbe201d1d581178111b9d8fac01c9fa7b43d073a921a8
+      line_hint: 163
     required_anchors:
       - label: PackageDependency
         property: version_id
@@ -78,9 +78,6 @@ entries:
     required_limits:
       - $limit
     requires_order: true
-    allow_unlabeled: true
-    caveats:
-      - The second MATCH continues from d after WITH d; the entry keeps unlabeled bound-variable reuse explicit instead of weakening the global scan rule.
     plan:
       operators:
         - NodeIndexSeek
@@ -88,7 +85,7 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-    cypher_sha256: "1667800168b7a369f0264fe155edfcb3f42480f0a335f309a6dfda307a11b8ac"
+    cypher_sha256: "761c76d82f125e97ac0def65d1e9b7ae23f71127b1029387d0f8df1003fdc2ed"
   - id: QP-DEPLOY-CATALOG-ENV
     domain: deployable
     backend: nornicdb
