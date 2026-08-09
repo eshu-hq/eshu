@@ -160,6 +160,65 @@ Capability-Assertion: cap.example returns a non-empty exact result.
 	}
 }
 
+func TestCheckRemoteValidationArtifactsRejectsRefusalOnlyB12Proof(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	writeRemoteValidationTestSource(t, repoRoot, "scripts/verify-golden-corpus-gate.sh")
+	writeRemoteValidationArtifactBody(t, repoRoot, "prod-example", `# production validation
+
+Validation-Slug: prod-example
+Validation-Tier: deployed_services
+Validation-Date: 2026-08-08
+Evidence-Kind: compose_e2e
+Evidence-Source: scripts/verify-golden-corpus-gate.sh
+Validation-Command: bash scripts/verify-golden-corpus-gate.sh; echo $?
+Validation-Exit-Code: 0
+Capability-Assertion: cap.example returns a non-empty deployed result.
+B12-Assertion: cap.example -> mcp:example_query
+`)
+	snapshotPath := filepath.Join(repoRoot, "testdata", "golden", "e2e-20repo-snapshot.json")
+	refusalOnly := `{"query_shapes":{"mcp":{"example_query":{"required_response_fields":[],"minimum_results":0,"expected_error_contains":"feature is not enabled"}},"http":{},"cli":{}}}`
+	if err := os.WriteFile(snapshotPath, []byte(refusalOnly), 0o644); err != nil {
+		t.Fatalf("write refusal-only snapshot: %v", err)
+	}
+	matrix := matrixWithRemoteValidationRefs(matrixRefSpec{capability: "cap.example", ref: "prod-example"})
+
+	findings := CheckRemoteValidationArtifacts(matrix, repoRoot, nil)
+	if len(findings) != 1 || !strings.Contains(findings[0].Reason, "refusal-only") {
+		t.Fatalf("findings = %+v, want refusal-only B-12 proof rejected", findings)
+	}
+}
+
+func TestCheckRemoteValidationArtifactsAllowsDedicatedDeployedProofWithDefaultStackRefusal(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	writeRemoteValidationTestSource(t, repoRoot, "scripts/run-remote-e2e-example.sh")
+	writeRemoteValidationArtifactBody(t, repoRoot, "prod-example", `# production validation
+
+Validation-Slug: prod-example
+Validation-Tier: deployed_services
+Validation-Date: 2026-08-08
+Evidence-Kind: compose_e2e
+Evidence-Source: scripts/run-remote-e2e-example.sh
+Validation-Command: bash scripts/run-remote-e2e-example.sh; echo $?
+Validation-Exit-Code: 0
+Capability-Assertion: cap.example returned a non-empty response from its dedicated deployed stack.
+B12-Assertion: cap.example -> mcp:example_query
+`)
+	snapshotPath := filepath.Join(repoRoot, "testdata", "golden", "e2e-20repo-snapshot.json")
+	defaultStackRefusal := `{"query_shapes":{"mcp":{"example_query":{"required_response_fields":[],"minimum_results":0,"expected_error_contains":"dedicated service is not configured"}},"http":{},"cli":{}}}`
+	if err := os.WriteFile(snapshotPath, []byte(defaultStackRefusal), 0o644); err != nil {
+		t.Fatalf("write default-stack snapshot: %v", err)
+	}
+	matrix := matrixWithRemoteValidationRefs(matrixRefSpec{capability: "cap.example", ref: "prod-example"})
+
+	if findings := CheckRemoteValidationArtifacts(matrix, repoRoot, nil); len(findings) != 0 {
+		t.Fatalf("findings = %+v, want dedicated deployed proof accepted", findings)
+	}
+}
+
 func TestCheckRemoteValidationArtifactsRequiresEverySharedCapabilityAssertion(t *testing.T) {
 	t.Parallel()
 

@@ -1710,6 +1710,7 @@ gates:
       - "go/cmd/api/**"
       - "go/cmd/golden-corpus-gate/**"
       - "go/cmd/mock-prometheus-mimir/**"
+      - "go/cmd/mock-openai-compatible/**"
       - "go/internal/demospec/**"
       - "go/cmd/mcp-server/**"
       - "go/internal/mcp/**"
@@ -1775,6 +1776,10 @@ gates:
       # required "terraform_state" field).
       - "go/internal/boundedset/**"
       - "go/internal/tfstatewarning/**"
+      - "go/internal/ask/**"
+      - "go/internal/askwiring/**"
+      - "go/internal/answerguardrail/**"
+      - "go/internal/answernarration/**"
       - "testdata/golden/**"
       - "testdata/cassettes/**"
       - "tests/fixtures/ecosystems/**"

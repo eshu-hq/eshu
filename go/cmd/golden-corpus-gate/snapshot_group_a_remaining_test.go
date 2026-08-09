@@ -59,7 +59,7 @@ func TestGoldenSnapshotGroupARemainingCapabilitiesAreNonVacuous(t *testing.T) {
 			required: []string{"state", "reason", "provider_configured", "provider_traffic_enabled", "policy_allowed", "budget_available", "publish_safety_enabled", "deterministic_fallback_available", "canonical_truth_affected", "retention_posture"},
 			values: map[string]any{
 				"state": "provider_unavailable", "reason": "provider_unavailable",
-				"provider_configured": false, "provider_traffic_enabled": false, "policy_allowed": false,
+				"provider_configured": true, "provider_traffic_enabled": false, "policy_allowed": false,
 				"budget_available": false, "publish_safety_enabled": false, "deterministic_fallback_available": true,
 				"canonical_truth_affected": false, "retention_posture": "metadata_only",
 			},

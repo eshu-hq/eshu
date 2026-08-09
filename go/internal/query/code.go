@@ -445,8 +445,8 @@ func (h *CodeHandler) lookupComplexityRow(ctx context.Context, entityID, functio
 	if err != nil {
 		return nil, err
 	}
-	if row == nil {
-		return h.lookupComplexityRowByName(ctx, entityID, repoID)
+	if row == nil && strings.TrimSpace(functionName) != "" {
+		return h.lookupComplexityRowByName(ctx, functionName, repoID)
 	}
 	return row, nil
 }

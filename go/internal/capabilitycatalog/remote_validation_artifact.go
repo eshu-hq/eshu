@@ -19,6 +19,7 @@ import (
 const (
 	remoteValidationTierDeployed = "deployed_services"
 	remoteValidationExitSuccess  = 0
+	goldenCorpusEvidenceSource   = "scripts/verify-golden-corpus-gate.sh"
 )
 
 var (
@@ -92,13 +93,23 @@ func validateRemoteValidationArtifact(repoRoot, ref string, capabilities []strin
 	if err != nil {
 		return err
 	}
-	if err := validateB12Assertions(capabilities, artifact.b12Assertions, shapeRefs); err != nil {
+	if err := validateB12Assertions(
+		capabilities,
+		artifact.b12Assertions,
+		shapeRefs,
+		artifact.source == goldenCorpusEvidenceSource,
+	); err != nil {
 		return err
 	}
 	return nil
 }
 
-func validateB12Assertions(capabilities, assertions []string, shapeRefs map[string]struct{}) error {
+func validateB12Assertions(
+	capabilities,
+	assertions []string,
+	shapeRefs map[string]b12QueryShapeProof,
+	requireSuccessfulResponse bool,
+) error {
 	expected := make(map[string]struct{}, len(capabilities))
 	for _, capability := range capabilities {
 		expected[capability] = struct{}{}
@@ -118,8 +129,17 @@ func validateB12Assertions(capabilities, assertions []string, shapeRefs map[stri
 			return fmt.Errorf("duplicate B12-Assertion for %s", capability)
 		}
 		seen[capability] = struct{}{}
-		if _, ok := shapeRefs[queryRef]; !ok {
+		shape, ok := shapeRefs[queryRef]
+		if !ok {
 			return fmt.Errorf("B12-Assertion query shape %q is not found in the committed B-12 snapshot", queryRef)
+		}
+		// A golden-corpus artifact cites this B-12 response as its deployed
+		// capability proof, so an expected refusal cannot substantiate the claim.
+		// A dedicated deployed driver may still map the generic stack's default
+		// unavailable posture here; its positive proof lives in that driver's
+		// separately captured response instead.
+		if requireSuccessfulResponse && strings.TrimSpace(shape.ExpectedErrorContains) != "" {
+			return fmt.Errorf("B12-Assertion query shape %q is refusal-only proof; a production-supported capability requires a successful deployed response", queryRef)
 		}
 	}
 	missing := make([]string, 0, len(expected)-len(seen))
@@ -135,7 +155,11 @@ func validateB12Assertions(capabilities, assertions []string, shapeRefs map[stri
 	return nil
 }
 
-func loadB12QueryShapeRefs(repoRoot string) (map[string]struct{}, error) {
+type b12QueryShapeProof struct {
+	ExpectedErrorContains string `json:"expected_error_contains"`
+}
+
+func loadB12QueryShapeRefs(repoRoot string) (map[string]b12QueryShapeProof, error) {
 	path := filepath.Join(repoRoot, "testdata", "golden", "e2e-20repo-snapshot.json")
 	raw, err := os.ReadFile(path) // #nosec G304 -- path is fixed beneath the validated repository root
 	if err != nil {
@@ -151,15 +175,27 @@ func loadB12QueryShapeRefs(repoRoot string) (map[string]struct{}, error) {
 	if err := json.Unmarshal(raw, &snapshot); err != nil {
 		return nil, fmt.Errorf("parse committed B-12 snapshot: %w", err)
 	}
-	refs := make(map[string]struct{}, len(snapshot.QueryShapes.MCP)+len(snapshot.QueryShapes.HTTP)+len(snapshot.QueryShapes.CLI))
-	for key := range snapshot.QueryShapes.MCP {
-		refs["mcp:"+key] = struct{}{}
+	refs := make(map[string]b12QueryShapeProof, len(snapshot.QueryShapes.MCP)+len(snapshot.QueryShapes.HTTP)+len(snapshot.QueryShapes.CLI))
+	for key, raw := range snapshot.QueryShapes.MCP {
+		var proof b12QueryShapeProof
+		if err := json.Unmarshal(raw, &proof); err != nil {
+			return nil, fmt.Errorf("parse committed B-12 MCP query shape %q: %w", key, err)
+		}
+		refs["mcp:"+key] = proof
 	}
-	for key := range snapshot.QueryShapes.HTTP {
-		refs["http:"+key] = struct{}{}
+	for key, raw := range snapshot.QueryShapes.HTTP {
+		var proof b12QueryShapeProof
+		if err := json.Unmarshal(raw, &proof); err != nil {
+			return nil, fmt.Errorf("parse committed B-12 HTTP query shape %q: %w", key, err)
+		}
+		refs["http:"+key] = proof
 	}
-	for key := range snapshot.QueryShapes.CLI {
-		refs["cli:"+key] = struct{}{}
+	for key, raw := range snapshot.QueryShapes.CLI {
+		var proof b12QueryShapeProof
+		if err := json.Unmarshal(raw, &proof); err != nil {
+			return nil, fmt.Errorf("parse committed B-12 CLI query shape %q: %w", key, err)
+		}
+		refs["cli:"+key] = proof
 	}
 	return refs, nil
 }

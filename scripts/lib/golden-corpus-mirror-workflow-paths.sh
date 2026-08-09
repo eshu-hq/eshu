@@ -53,6 +53,7 @@ require_workflow_path "api query surface"              "go/cmd/api/**"
 # rename, a merge conflict) would pass this mirror with nothing to catch it.
 require_workflow_path "golden-corpus-gate command (#5538 gap)" "go/cmd/golden-corpus-gate/**"
 require_workflow_path "mock Prometheus range source" "go/cmd/mock-prometheus-mimir/**"
+require_workflow_path "mock OpenAI-compatible Ask source" "go/cmd/mock-openai-compatible/**"
 require_workflow_path "demo-spec fixed corpus inputs (#5538 gap)" "go/internal/demospec/**"
 require_workflow_path "static ecosystem corpus inputs" "tests/fixtures/ecosystems/**"
 # The orchestrator sources these; an edit to the mutex or a fixture/timing lib
@@ -123,22 +124,24 @@ require_workflow_path "terraform schema data layer (#5538)"      "go/internal/te
 
 # Bounded reachability check (#5538 review): does any package feed a response
 # the B-12 snapshot's query_shapes actually asserts? Checked, not assumed —
-# these five back non-trivial, non-error asserted MCP shapes (real
+# these packages back non-trivial, non-error asserted MCP shapes (real
 # required_response_fields, not just an expected_error_contains guard):
 # environment backs compare_environments; exposure backs
 # trace_exposure_path/dispatch_taint_path/dispatch_reaching_def; doctruth
 # backs get_documentation_finding_inventory/list_documentation_findings/etc.;
-# serviceintel(+http) backs get_service_intelligence_report. (By contrast,
-# ask/askwiring/answerguardrail/answernarration were checked and excluded:
-# the only asserted "ask" shape pins expected_error_contains "ask is not
-# enabled" — that guard lives in the already-covered internal/query package,
-# ESHU_ASK_ENABLED is never set in this gate, so the real ask/answer-narration
-# pipeline never executes here.)
+# serviceintel(+http) backs get_service_intelligence_report. Ask is enabled
+# against a credential-free local provider and executes a real bounded tool
+# loop, so its engine, wiring, guardrail, and narration-posture packages must
+# trigger the same gate.
 require_workflow_path "environment alias normalization (#5538)"   "go/internal/environment/**"
 require_workflow_path "code-to-cloud exposure taint (#5538)"      "go/internal/exposure/**"
 require_workflow_path "documentation truth extraction (#5538)"    "go/internal/doctruth/**"
 require_workflow_path "service intelligence report (#5538)"       "go/internal/serviceintel/**"
 require_workflow_path "service intelligence HTTP adapter (#5538)" "go/internal/serviceintelhttp/**"
+require_workflow_path "Ask reasoning engine" "go/internal/ask/**"
+require_workflow_path "Ask runtime wiring" "go/internal/askwiring/**"
+require_workflow_path "Ask publish guardrails" "go/internal/answerguardrail/**"
+require_workflow_path "Ask narration posture" "go/internal/answernarration/**"
 
 # --- #5538 review follow-up: correcting two wrong exclusions ----------------
 # The prior widening round's commit message excluded "reducer correlation" as

@@ -53,6 +53,8 @@ cd "${repo_root}"
 . "${repo_root}/scripts/lib/golden-corpus-relationship-evidence.sh"
 # shellcheck source=scripts/lib/golden-corpus-aggregate-counts.sh
 . "${repo_root}/scripts/lib/golden-corpus-aggregate-counts.sh"
+# shellcheck source=scripts/lib/golden-corpus-ask-source.sh
+. "${repo_root}/scripts/lib/golden-corpus-ask-source.sh"
 
 # ----------------------------------------------------------------------------
 # Configuration (override via environment).
@@ -81,6 +83,7 @@ cd "${repo_root}"
 : "${GATE_API_PORT:=18080}"   # off the default 8080 so a sibling stack does not collide
 : "${GATE_MCP_PORT:=18091}"   # eshu-mcp-server http transport for B-7(c) MCP query truth
 : "${GATE_PROMETHEUS_SOURCE_PORT:=19090}" # credential-free Prometheus-compatible range source
+: "${GATE_ASK_PROVIDER_PORT:=19191}" # credential-free OpenAI-compatible Ask provider
 : "${GATE_API_KEY:=golden-corpus-gate-local-key}"
 : "${GATE_COMPOSE_PROJECT:=eshu-golden-corpus-$$}"
 : "${ESHU_QUERY_PROFILE:=local_full_stack}"
@@ -245,6 +248,7 @@ build_bin api
 build_bin mcp-server
 build_bin golden-corpus-gate
 build_bin mock-prometheus-mimir
+build_bin mock-openai-compatible
 for spec in "${collector_specs[@]}"; do build_bin "${spec%%:*}"; done
 
 start_golden_corpus_backends
@@ -351,8 +355,15 @@ phase_graph_query_start="${pipeline_end}"
 log "seed cross-repo dead-code query fixture"
 seed_cross_repo_dead_code_fixture
 
+log "capture independent persisted aggregate truth"
+golden_aggregate_counts_oracle="${log_dir}/persisted-aggregate-counts.json"
+"${bin_dir}/eshu-golden-corpus-gate" -print-persisted-aggregate-counts >"${golden_aggregate_counts_oracle}" ||
+	die "persisted aggregate-count oracle failed"
+golden_aggregate_counts_capture "${golden_aggregate_counts_oracle}"
+
 log "start eshu-api for query truth"
 golden_metrics_source_start
+golden_ask_source_start
 start_bg api api_pid "${bin_dir}/eshu-api"
 api_ready=false
 for _ in $(seq 1 30); do
@@ -363,7 +374,6 @@ for _ in $(seq 1 30); do
 	sleep 1
 done
 [[ "${api_ready}" == "true" ]] || { tail -30 "${log_dir}/api.log" >&2 || true; die "eshu-api /readyz never returned on port ${GATE_API_PORT}"; }
-golden_aggregate_counts_capture
 
 log "B-7 suppression producer truth: active -> hidden -> expired"
 # #5837: this proof runs inside the phase_graph_query window but is assertion
@@ -478,6 +488,7 @@ gate_status=0
 kill "${api_pid}" >/dev/null 2>&1 || true
 kill "${mcp_pid}" >/dev/null 2>&1 || true
 kill "${metrics_source_pid}" >/dev/null 2>&1 || true
+kill "${ask_provider_pid}" >/dev/null 2>&1 || true
 
 if [[ "${gate_status}" -ne 0 ]]; then
 	die "graph/query/timing phase failed (elapsed ${elapsed}s)"

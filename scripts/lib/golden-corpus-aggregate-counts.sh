@@ -3,8 +3,9 @@
 # Copyright (c) 2025-2026 eshu-hq
 #
 # Runtime aggregate-count capture and snapshot composition for the B-7 gate.
-# The caller invokes capture after API readiness and supplies die, log_dir,
-# GATE_API_PORT, and GATE_API_KEY. The helper never starts or drains services.
+# The caller supplies strict JSON printed by golden-corpus-gate's independent
+# persisted-graph oracle. API/MCP values are never used as their own expected
+# values, so a shared wrong positive cannot self-validate.
 # shellcheck disable=SC2154
 
 golden_aggregate_infra_aws_sentinel="__runtime_infra_aws_count__"
@@ -12,54 +13,33 @@ golden_aggregate_infra_gcp_sentinel="__runtime_infra_gcp_count__"
 golden_aggregate_ecosystem_repo_sentinel="__runtime_ecosystem_repo_count__"
 golden_aggregate_ecosystem_workload_sentinel="__runtime_ecosystem_workload_count__"
 
-golden_aggregate_counts_request() {
-	local route="$1" response_file="$2" status
-	status="$(
-		curl -sS \
-			--connect-timeout 5 \
-			--max-time 30 \
-			-o "${response_file}" \
-			-w '%{http_code}' \
-			-H "Authorization: Bearer ${GATE_API_KEY}" \
-			"http://localhost:${GATE_API_PORT}${route}"
-	)" || die "aggregate count request failed for ${route}"
-	[[ "${status}" == "200" ]] ||
-		die "aggregate count request returned HTTP ${status} for ${route}"
-}
-
 golden_aggregate_counts_read_positive_integer() {
-	local response_file="$1" expression="$2" label="$3" value
+	local oracle_file="$1" expression="$2" label="$3" value
 	value="$(
 		jq -er \
 			"${expression} | if type == \"number\" and . > 0 and . == floor then tostring else error(\"expected positive integer\") end" \
-			"${response_file}"
-	)" || die "aggregate count response has no positive integer ${label}"
+			"${oracle_file}"
+	)" || die "persisted aggregate oracle has no positive integer ${label}"
 	printf '%s\n' "${value}"
 }
 
 golden_aggregate_counts_capture() {
-	local infra_response ecosystem_response
+	local oracle_file="$1"
 	command -v jq >/dev/null 2>&1 || die "jq is required for aggregate count capture"
-	[[ -n "${GATE_API_PORT:-}" ]] || die "GATE_API_PORT is required for aggregate count capture"
-	[[ -n "${GATE_API_KEY:-}" ]] || die "GATE_API_KEY is required for aggregate count capture"
-	[[ -n "${log_dir:-}" && -d "${log_dir}" ]] || die "log_dir is required for aggregate count capture"
-
-	infra_response="${log_dir}/aggregate-counts-infra-response.json"
-	ecosystem_response="${log_dir}/aggregate-counts-ecosystem-response.json"
-	golden_aggregate_counts_request "/api/v0/infra/resources/count" "${infra_response}"
+	[[ -f "${oracle_file}" ]] || die "persisted aggregate oracle file is missing"
+	jq -es 'length == 1 and (.[0] | type == "object")' "${oracle_file}" >/dev/null 2>&1 ||
+		die "persisted aggregate oracle must contain exactly one JSON object"
 	golden_aggregate_infra_aws_count="$(
-		golden_aggregate_counts_read_positive_integer "${infra_response}" '.by_provider.aws' 'by_provider.aws'
+		golden_aggregate_counts_read_positive_integer "${oracle_file}" '.infra_aws_count' 'infra_aws_count'
 	)" || return $?
 	golden_aggregate_infra_gcp_count="$(
-		golden_aggregate_counts_read_positive_integer "${infra_response}" '.by_provider.gcp' 'by_provider.gcp'
+		golden_aggregate_counts_read_positive_integer "${oracle_file}" '.infra_gcp_count' 'infra_gcp_count'
 	)" || return $?
-
-	golden_aggregate_counts_request "/api/v0/ecosystem/overview" "${ecosystem_response}"
 	golden_aggregate_ecosystem_repo_count="$(
-		golden_aggregate_counts_read_positive_integer "${ecosystem_response}" '.repo_count' 'repo_count'
+		golden_aggregate_counts_read_positive_integer "${oracle_file}" '.ecosystem_repo_count' 'ecosystem_repo_count'
 	)" || return $?
 	golden_aggregate_ecosystem_workload_count="$(
-		golden_aggregate_counts_read_positive_integer "${ecosystem_response}" '.workload_count' 'workload_count'
+		golden_aggregate_counts_read_positive_integer "${oracle_file}" '.ecosystem_workload_count' 'ecosystem_workload_count'
 	)" || return $?
 }
 

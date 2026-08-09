@@ -37,7 +37,7 @@ import (
 //
 // Parameter order:
 //
-//	$1 candidate/evidence ref containment ('{"candidate_refs":[{"kind":"service","id":<service_id>}]}')
+//	$1 candidate ref containment ('{"candidate_refs":[{"kind":"service","id":<service_id>}]}')
 //	$2 evidence ref containment ('{"evidence_refs":[{"kind":"service","id":<service_id>}]}')
 //	$3 linked-entity containment ('{"linked_entities":[{"entity_type":"service","entity_id":<service_id>}]}')
 const serviceDocumentationEvidenceQuery = `

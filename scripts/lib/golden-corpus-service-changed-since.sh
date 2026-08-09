@@ -36,13 +36,17 @@ WHERE service_id = '${golden_service_changed_since_service_id}'
 golden_service_changed_since_mutate_owner() {
 	local fixture_repo="${corpus_dir}/deployable-config"
 	local catalog_path="${corpus_dir}/deployable-config/catalog-info.yaml"
-	local baseline_state catalog_change_count old_count new_count staged_state staged_without_catalog temporary
+	local baseline_state catalog_change_count old_count new_count staged_state staged_without_catalog status_line temporary
 	[[ -f "${catalog_path}" ]] || die "service changed-since catalog fixture is missing"
 	[[ -d "${fixture_repo}/.git" ]] || die "service changed-since fixture is not a staged Git repository"
 	baseline_state="$(git -C "${fixture_repo}" status --short --untracked-files=no)"
 
-	old_count="$(rg -Fxc "  owner: ${golden_service_changed_since_old_owner}" "${catalog_path}" || true)"
-	new_count="$(rg -Fxc "  owner: ${golden_service_changed_since_new_owner}" "${catalog_path}" || true)"
+	old_count=0
+	new_count=0
+	while IFS= read -r status_line; do
+		[[ "${status_line}" == "  owner: ${golden_service_changed_since_old_owner}" ]] && ((old_count += 1))
+		[[ "${status_line}" == "  owner: ${golden_service_changed_since_new_owner}" ]] && ((new_count += 1))
+	done <"${catalog_path}"
 	[[ "${old_count:-0}" == "1" && "${new_count:-0}" == "0" ]] ||
 		die "service changed-since owner precondition failed (old=${old_count:-0}, new=${new_count:-0})"
 
@@ -51,8 +55,15 @@ golden_service_changed_since_mutate_owner() {
 		"${catalog_path}" >"${temporary}" || die "failed to rewrite staged catalog owner"
 	mv "${temporary}" "${catalog_path}" || die "failed to install staged catalog owner"
 	staged_state="$(git -C "${fixture_repo}" status --short --untracked-files=no)"
-	catalog_change_count="$(printf '%s\n' "${staged_state}" | rg -c '^ M catalog-info\.yaml$' || true)"
-	staged_without_catalog="$(printf '%s\n' "${staged_state}" | rg -v '^ M catalog-info\.yaml$' || true)"
+	catalog_change_count=0
+	staged_without_catalog=""
+	while IFS= read -r status_line; do
+		if [[ "${status_line}" == " M catalog-info.yaml" ]]; then
+			((catalog_change_count += 1))
+		elif [[ -n "${status_line}" ]]; then
+			staged_without_catalog+="${staged_without_catalog:+$'\n'}${status_line}"
+		fi
+	done <<<"${staged_state}"
 	[[ "${catalog_change_count:-0}" == "1" && "${staged_without_catalog}" == "${baseline_state}" ]] ||
 		die "service changed-since mutation touched an unexpected path: ${staged_state:-<clean>}"
 	git -C "${fixture_repo}" diff --check -- catalog-info.yaml >/dev/null ||

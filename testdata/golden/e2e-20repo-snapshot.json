@@ -6356,7 +6356,7 @@
         "required_json_values": {
           "state": "provider_unavailable",
           "reason": "provider_unavailable",
-          "provider_configured": false,
+          "provider_configured": true,
           "provider_traffic_enabled": false,
           "policy_allowed": false,
           "budget_available": false,
@@ -6426,10 +6426,52 @@
         }
       },
       "ask": {
-        "description": "MCP tool coverage shape for ask; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
-        "required_response_fields": [],
-        "minimum_results": 0,
-        "expected_error_contains": "ask is not enabled"
+        "description": "Deployed enabled Ask proof through the credential-free OpenAI-compatible fixture. The real engine must execute one bounded code-topic tool call and return evidence-backed prose plus its trace.",
+        "required_response_fields": [
+          "answer_prose",
+          "evidence_handles",
+          "partial",
+          "query_trace",
+          "result_ref",
+          "truth_class"
+        ],
+        "minimum_results": 1,
+        "results_field": "evidence_handles",
+        "result_item_required_fields": [
+          "kind",
+          "repo_id",
+          "relative_path"
+        ],
+        "required_json_paths": [
+          "answer_prose",
+          "evidence_handles[]",
+          "query_trace[]"
+        ],
+        "required_json_values": {
+          "partial": false,
+          "result_ref": "eshu://api-result/code/topics/investigate",
+          "evidence_handles[].kind": "source",
+          "evidence_handles[].repo_id": "repository:r_ea78e8bb",
+          "evidence_handles[].relative_path": "main.go",
+          "query_trace[].tool": "investigate_code_topic",
+          "query_trace[].supported": true
+        },
+        "required_json_object_matches": {
+          "query_trace[]": [
+            {
+              "tool": "investigate_code_topic",
+              "supported": true,
+              "args": {
+                "limit": 10,
+                "repo_id": "orders-api",
+                "topic": "lib-common"
+              }
+            }
+          ]
+        },
+        "arguments": {
+          "question": "Explain lib-common usage."
+        }
       },
       "list_relationship_edges": {
         "description": "MCP tool coverage shape for list_relationship_edges; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",

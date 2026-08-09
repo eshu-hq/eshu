@@ -8,6 +8,19 @@
 require "bootstrap stage" "eshu-bootstrap-index"
 require "filesystem managed-copy mode" 'export ESHU_REPO_SOURCE_MODE="filesystem"'
 require "filesystem managed-copy direct-mode pin" 'export ESHU_FILESYSTEM_DIRECT="false"'
+for gate_path in \
+	'go/cmd/mock-openai-compatible/**' \
+	'go/internal/ask/**' \
+	'go/internal/askwiring/**' \
+	'go/internal/answerguardrail/**' \
+	'go/internal/answernarration/**'; do
+	require_in_region "ci-gates golden-corpus-gate trigger ${gate_path}" "${ci_gates}" \
+		'/^  - id: golden-corpus-gate$/,/^    local:/' "- \"${gate_path}\""
+done
+require_in_region "the pre-pr golden-corpus selector must match the Ask engine" "${prepr}" \
+	'/run_or_defer golden-corpus/,/run_or_defer replay-tier/' 'demospec|ask|askwiring|answerguardrail|answernarration'
+require_in_region "the pre-pr golden-corpus selector must match the Ask mock provider" "${prepr}" \
+	'/run_or_defer golden-corpus/,/run_or_defer replay-tier/' 'mock-openai-compatible'
 filesystem_direct_exports="$(rg --count '^[[:space:]]*export ESHU_FILESYSTEM_DIRECT=' "${script}" || true)"
 [[ "${filesystem_direct_exports:-0}" -eq 1 ]] ||
 	fail "golden gate must set ESHU_FILESYSTEM_DIRECT exactly once"
@@ -131,8 +144,12 @@ require "relationship evidence helper source" "golden-corpus-relationship-eviden
 require_invocation "relationship evidence runtime capture" "golden_relationship_evidence_capture_resolved_id"
 require "relationship evidence snapshot composition" "golden_relationship_evidence_compose_snapshot"
 require "aggregate counts helper source" "golden-corpus-aggregate-counts.sh"
-require_invocation "aggregate counts runtime capture" "golden_aggregate_counts_capture"
+require "aggregate counts runtime capture" 'golden_aggregate_counts_capture "${golden_aggregate_counts_oracle}"'
 require "aggregate counts snapshot composition" "golden_aggregate_counts_compose_snapshot"
+require "Ask source lib" "golden-corpus-ask-source.sh"
+require "mock Ask provider build" "build_bin mock-openai-compatible"
+require "persisted aggregate oracle" "-print-persisted-aggregate-counts"
+require_invocation "Ask provider startup" "golden_ask_source_start"
 require "mock metrics binary build" "build_bin mock-prometheus-mimir"
 require_in "explicit metrics instance id" "${metrics_source_lib}" \
 	'ESHU_PROMETHEUS_MIMIR_COLLECTOR_INSTANCE_ID="golden-prometheus-range"'

@@ -10,6 +10,7 @@ source "${repo_root}/scripts/lib/golden-corpus-service-changed-since.sh"
 
 fail() { printf 'test-golden-corpus-service-changed-since: %s\n' "$*" >&2; exit 1; }
 die() { fail "$@"; }
+rg() { fail "service changed-since helper must not require rg"; }
 
 case_dir="$(mktemp -d -t golden-service-changed-since.XXXXXX)"
 trap 'rm -rf "${case_dir}"' EXIT
@@ -49,7 +50,11 @@ pg() {
 golden_service_changed_since_capture_prior
 [[ "${golden_service_changed_since_prior_generation}" == "service-gen:prior" ]] || fail "prior generation was not captured"
 golden_service_changed_since_mutate_owner
-rg -q '^  owner: group:default/runtime-platform$' "${fixture_repo}/catalog-info.yaml" || fail "owner mutation missing"
+owner_mutation_present=false
+while IFS= read -r fixture_line; do
+	[[ "${fixture_line}" == "  owner: group:default/runtime-platform" ]] && owner_mutation_present=true
+done <"${fixture_repo}/catalog-info.yaml"
+[[ "${owner_mutation_present}" == "true" ]] || fail "owner mutation missing"
 [[ "$(git -C "${fixture_repo}" rev-list --count HEAD)" == "2" ]] || fail "owner mutation did not create exactly one new commit"
 [[ "$(git -C "${fixture_repo}" status --short --untracked-files=no)" == " D vendor/deployable-source" ]] ||
 	fail "owner mutation changed the pre-existing gitlink status"

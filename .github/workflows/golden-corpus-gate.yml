@@ -28,6 +28,7 @@ on:
       - 'go/cmd/api/**'
       - 'go/cmd/golden-corpus-gate/**'
       - 'go/cmd/mock-prometheus-mimir/**'
+      - 'go/cmd/mock-openai-compatible/**'
       - 'go/internal/demospec/**'
       # #5538 wider audit: every other package `go list -deps` confirms is
       # compiled into the six binaries this gate builds (bootstrap-index,
@@ -88,6 +89,10 @@ on:
       - 'go/internal/semanticpolicy/**'
       - 'go/internal/semanticguard/**'
       - 'go/internal/semanticprofile/**'
+      - 'go/internal/ask/**'
+      - 'go/internal/askwiring/**'
+      - 'go/internal/answerguardrail/**'
+      - 'go/internal/answernarration/**'
       - 'go/internal/iacreachability/**'
       - 'go/internal/rubycontroller/**'
       # #5538 second review round: capability/status/version surface backing

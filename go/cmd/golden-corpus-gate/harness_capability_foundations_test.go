@@ -35,7 +35,9 @@ func TestGoldenHarnessIntegratesCapabilityFoundationsInOrder(t *testing.T) {
 		"golden_aggregate_counts_compose_snapshot",
 		"export ESHU_EMIT_DATAFLOW=true",
 		"build_bin mock-prometheus-mimir",
+		"build_bin mock-openai-compatible",
 		"golden_metrics_source_start",
+		"golden_ask_source_start",
 		"GATE_PROMETHEUS_SOURCE_PORT",
 	} {
 		if !strings.Contains(script, want) {
@@ -52,10 +54,10 @@ func TestGoldenHarnessIntegratesCapabilityFoundationsInOrder(t *testing.T) {
 	relationshipCaptureAt := strings.Index(script, "\ngolden_relationship_evidence_capture_resolved_id\n")
 	metricsAt := strings.Index(script, "\ngolden_metrics_source_start\n")
 	apiAt := strings.Index(script, "\nstart_bg api api_pid")
-	aggregateCaptureAt := strings.Index(script, "\ngolden_aggregate_counts_capture\n")
+	aggregateCaptureAt := strings.Index(script, "\ngolden_aggregate_counts_capture ")
 	if priorAt < 0 || repositoryPriorAt <= priorAt || mutateAt <= repositoryPriorAt || repositoryMutateAt <= mutateAt ||
 		maintenanceAt <= repositoryMutateAt || validateAt <= maintenanceAt || repositoryValidateAt <= validateAt ||
-		relationshipCaptureAt <= repositoryValidateAt || metricsAt <= relationshipCaptureAt || apiAt <= metricsAt || aggregateCaptureAt <= apiAt {
+		relationshipCaptureAt <= repositoryValidateAt || aggregateCaptureAt <= relationshipCaptureAt || metricsAt <= aggregateCaptureAt || apiAt <= metricsAt {
 		t.Fatalf("integration order service-prior=%d repository-prior=%d service-mutate=%d repository-mutate=%d maintenance=%d service-validate=%d repository-validate=%d relationship=%d metrics=%d api=%d aggregate=%d", priorAt, repositoryPriorAt, mutateAt, repositoryMutateAt, maintenanceAt, validateAt, repositoryValidateAt, relationshipCaptureAt, metricsAt, apiAt, aggregateCaptureAt)
 	}
 }

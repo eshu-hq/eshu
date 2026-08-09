@@ -15,98 +15,29 @@ case_dir="$(mktemp -d -t golden-aggregate-counts.XXXXXX)"
 trap 'rm -rf "${case_dir}"' EXIT
 log_dir="${case_dir}/logs"
 mkdir -p "${log_dir}"
-GATE_API_PORT=39091
-GATE_API_KEY="golden-public-test-key"
-mock_mode="success"
 
-curl() {
-	local output_file="" header="" url=""
-	while (($# > 0)); do
-		case "$1" in
-			-o)
-				output_file="$2"
-				shift 2
-				;;
-			-H)
-				header="$2"
-				shift 2
-				;;
-			-w | --connect-timeout | --max-time)
-				shift 2
-				;;
-			-sS)
-				shift
-				;;
-			*)
-				url="$1"
-				shift
-				;;
-		esac
-	done
-	[[ "${header}" == "Authorization: Bearer ${GATE_API_KEY}" ]] || fail "gate auth header missing"
-	[[ -n "${output_file}" ]] || fail "curl output path missing"
-	case "${mock_mode}:${url}" in
-		success:*'/api/v0/infra/resources/count')
-			printf '%s\n' '{"total_resources":120,"by_provider":{"aws":8,"gcp":110}}' >"${output_file}"
-			printf '200'
-			;;
-		ecosystem-zero:*'/api/v0/infra/resources/count' | ecosystem-missing:*'/api/v0/infra/resources/count' | ecosystem-noninteger:*'/api/v0/infra/resources/count')
-			printf '%s\n' '{"total_resources":120,"by_provider":{"aws":8,"gcp":110}}' >"${output_file}"
-			printf '200'
-			;;
-		success:*'/api/v0/ecosystem/overview')
-			printf '%s\n' '{"repo_count":30,"workload_count":2,"platform_count":1,"instance_count":4}' >"${output_file}"
-			printf '200'
-			;;
-		ecosystem-zero:*'/api/v0/ecosystem/overview')
-			printf '%s\n' '{"repo_count":30,"workload_count":0}' >"${output_file}"
-			printf '200'
-			;;
-		ecosystem-missing:*'/api/v0/ecosystem/overview')
-			printf '%s\n' '{"workload_count":2}' >"${output_file}"
-			printf '200'
-			;;
-		ecosystem-noninteger:*'/api/v0/ecosystem/overview')
-			printf '%s\n' '{"repo_count":30,"workload_count":"2"}' >"${output_file}"
-			printf '200'
-			;;
-		zero:*'/api/v0/infra/resources/count')
-			printf '%s\n' '{"by_provider":{"aws":0,"gcp":110}}' >"${output_file}"
-			printf '200'
-			;;
-		missing:*'/api/v0/infra/resources/count')
-			printf '%s\n' '{"by_provider":{"aws":8}}' >"${output_file}"
-			printf '200'
-			;;
-		noninteger:*'/api/v0/infra/resources/count')
-			printf '%s\n' '{"by_provider":{"aws":8.5,"gcp":110}}' >"${output_file}"
-			printf '200'
-			;;
-		malformed:*'/api/v0/infra/resources/count')
-			printf '%s\n' '{not-json' >"${output_file}"
-			printf '200'
-			;;
-		auth:*'/api/v0/infra/resources/count')
-			printf '%s\n' '{"error":"Unauthorized"}' >"${output_file}"
-			printf '401'
-			;;
-		transport:*'/api/v0/infra/resources/count')
-			return 7
-			;;
-		*)
-			fail "unexpected mock request: ${mock_mode}:${url}"
-			;;
+write_oracle() {
+	local mode="$1" output="$2"
+	case "${mode}" in
+		success) printf '%s\n' '{"infra_aws_count":8,"infra_gcp_count":110,"ecosystem_repo_count":30,"ecosystem_workload_count":9}' >"${output}" ;;
+		zero) printf '%s\n' '{"infra_aws_count":0,"infra_gcp_count":110,"ecosystem_repo_count":30,"ecosystem_workload_count":9}' >"${output}" ;;
+		missing) printf '%s\n' '{"infra_aws_count":8,"ecosystem_repo_count":30,"ecosystem_workload_count":9}' >"${output}" ;;
+		noninteger) printf '%s\n' '{"infra_aws_count":8.5,"infra_gcp_count":110,"ecosystem_repo_count":30,"ecosystem_workload_count":9}' >"${output}" ;;
+		string) printf '%s\n' '{"infra_aws_count":8,"infra_gcp_count":110,"ecosystem_repo_count":"30","ecosystem_workload_count":9}' >"${output}" ;;
+		malformed) printf '%s\n' '{not-json' >"${output}" ;;
+		*) fail "unknown oracle mode ${mode}" ;;
 	esac
 }
 
 expect_capture_failure() {
 	local mode="$1"
+	local oracle="${case_dir}/${mode}-oracle.json"
+	write_oracle "${mode}" "${oracle}"
 	if (
 		die() { exit 91; }
-		mock_mode="${mode}"
-		golden_aggregate_counts_capture
+		golden_aggregate_counts_capture "${oracle}"
 	); then
-		fail "${mode} API response was accepted"
+		fail "${mode} persisted oracle was accepted"
 	fi
 }
 
@@ -120,11 +51,14 @@ expect_compose_failure() {
 	fi
 }
 
-golden_aggregate_counts_capture
+oracle_file="${case_dir}/persisted-oracle.json"
+write_oracle success "${oracle_file}"
+curl() { fail "aggregate capture must not call API/MCP curl"; }
+golden_aggregate_counts_capture "${oracle_file}"
 [[ "${golden_aggregate_infra_aws_count}" == "8" ]] || fail "AWS count was not captured"
 [[ "${golden_aggregate_infra_gcp_count}" == "110" ]] || fail "GCP count was not captured"
 [[ "${golden_aggregate_ecosystem_repo_count}" == "30" ]] || fail "repository count was not captured"
-[[ "${golden_aggregate_ecosystem_workload_count}" == "2" ]] || fail "workload count was not captured"
+[[ "${golden_aggregate_ecosystem_workload_count}" == "9" ]] || fail "workload count was not captured"
 
 input_snapshot="${case_dir}/input.json"
 output_snapshot="${case_dir}/output.json"
@@ -138,7 +72,7 @@ jq -n \
 golden_aggregate_counts_compose_snapshot "${input_snapshot}" "${output_snapshot}"
 jq -e '
 	.prior_transform == "preserved"
-	and .counts == {aws: 8, gcp: 110, repos: 30, workloads: 2}
+	and .counts == {aws: 8, gcp: 110, repos: 30, workloads: 9}
 	and ([.counts[] | type] | all(. == "number"))
 ' "${output_snapshot}" >/dev/null || fail "runtime counts were not composed as JSON integers"
 
@@ -160,7 +94,7 @@ malformed_snapshot="${case_dir}/malformed.json"
 printf '%s\n' '{not-json' >"${malformed_snapshot}"
 expect_compose_failure "${malformed_snapshot}" "malformed"
 
-for mode in zero missing noninteger ecosystem-zero ecosystem-missing ecosystem-noninteger malformed auth transport; do
+for mode in zero missing noninteger string malformed; do
 	expect_capture_failure "${mode}"
 done
 

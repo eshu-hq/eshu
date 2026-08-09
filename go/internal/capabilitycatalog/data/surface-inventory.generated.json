@@ -2421,6 +2421,11 @@
     },
     {
       "category": "command",
+      "name": "mock-openai-compatible",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "mock-prometheus-mimir",
       "readiness": "implemented"
     },

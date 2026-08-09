@@ -23,7 +23,8 @@
 //     counts are asserted as required against the snapshot tolerances in the full
 //     20-repo mode (-graph-required-only=false, #3866); the ranges are calibrated
 //     to the real deterministic corpus output, not aspirational values.
-//   - query: canonical HTTP responses carry their required shape.
+//   - query: canonical HTTP and MCP responses carry their required shape,
+//     including the enabled credential-free Ask provider/tool loop.
 //     CODEOWNERS HTTP and MCP assertions use the fixture's deterministic
 //     canonical Repository.id rather than its display name; SQL relationship
 //     assertions are backed by the explicitly staged sql_comprehensive fixture.
