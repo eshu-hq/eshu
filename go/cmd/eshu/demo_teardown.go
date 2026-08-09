@@ -53,18 +53,15 @@ func (r *demoRuntime) ownsProject(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("check ownership of project %q: %w", r.project, err)
 	}
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	sawAny := false
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
-		sawAny = true
 		if !strings.Contains(line, demoComposeFileName) {
 			return false, nil
 		}
 	}
-	_ = sawAny
 	return true, nil
 }
 

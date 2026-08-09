@@ -147,7 +147,7 @@ func callDemoMCPTool(ctx context.Context, mcpBase, apiKey string, ex demoExecute
 	if apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := demoHTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +213,7 @@ func callDemoHTTPRoute(ctx context.Context, apiBase, apiKey string, ex demoExecu
 	if apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := demoHTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

@@ -34,6 +34,17 @@ const demoReadyTimeout = 10 * time.Minute
 // demoReadyPollInterval is how often readiness is sampled while waiting.
 const demoReadyPollInterval = 2 * time.Second
 
+// demoHTTPTimeout bounds every request the demo makes to its own stack.
+//
+// http.DefaultClient has no timeout, so a stack that accepts the connection
+// and then stalls before sending headers would hang the readiness loop past
+// its own deadline -- the poll interval only spaces retries, it does not bound
+// a request already in flight.
+const demoHTTPTimeout = 30 * time.Second
+
+// demoHTTPClient is the bounded client for all demo reads.
+var demoHTTPClient = &http.Client{Timeout: demoHTTPTimeout}
+
 // The demo overlay binds ${ESHU_DEMO_BIND_ADDR:-127.0.0.1} with
 // ${ESHU_DEMO_API_PORT:-18080} and ${ESHU_DEMO_MCP_PORT:-18091}. These read
 // the same variables so a second demo that moves its ports to avoid the first
@@ -386,7 +397,7 @@ func probeDemoIndexStatus(ctx context.Context, apiBase, apiKey string) (demoInde
 	if apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := demoHTTPClient.Do(req)
 	if err != nil {
 		return demoIndexStatus{}, err
 	}
