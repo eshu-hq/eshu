@@ -192,6 +192,56 @@ func TestEdgeWriterWriteEdgesControlRowOnlyBatchStaysSuccessful(t *testing.T) {
 	}
 }
 
+// TestEdgeWriterWriteEdgesControlRowPlusUnroutableRowReportsBothCounts covers
+// the mixed shape that has neither a routable row nor a uniform batch: one
+// control row that carries no edge by design, and one row that should have
+// become an edge and could not be routed.
+//
+// It still fails the intent — nothing was written that should have been — but
+// the counts differ, and the message has to say so. Reporting the dropped count
+// as "all N row(s)" understates the batch and reads as though it held only the
+// rejected row. Found by Copilot in review on PR #6008; the case had no test.
+func TestEdgeWriterWriteEdgesControlRowPlusUnroutableRowReportsBothCounts(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{
+			IntentID:     "refresh",
+			RepositoryID: "repo-a",
+			Payload: map[string]any{
+				"repo_id":     "repo-a",
+				"intent_type": "repo_refresh",
+			},
+		},
+		unroutableRepoDependencyRow("i2"),
+	}
+
+	err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads")
+
+	var unroutable *UnroutableRowsError
+	if !errors.As(err, &unroutable) {
+		t.Fatalf("WriteEdges() error = %v (%T), want *UnroutableRowsError", err, err)
+	}
+	if got, want := unroutable.DroppedRows, 1; got != want {
+		t.Errorf("DroppedRows = %d, want %d (the control row is not a dropped edge)", got, want)
+	}
+	if got, want := unroutable.InputRows, 2; got != want {
+		t.Errorf("InputRows = %d, want %d", got, want)
+	}
+	if got := err.Error(); !strings.Contains(got, "1 of 2") {
+		t.Errorf("error = %q, want it to report both counts (%q)", got, "1 of 2")
+	}
+	if got := err.Error(); strings.Contains(got, "all 1") {
+		t.Errorf("error = %q, must not describe 1 dropped row as the whole batch", got)
+	}
+	if got := len(executor.calls); got != 0 {
+		t.Fatalf("executor calls = %d, want 0", got)
+	}
+}
+
 // assertAllRowsUnroutable is the shared assertion for a batch whose every row
 // is missing its required MATCH fields. It states the #5984 contract once:
 // nothing reaches the executor AND the caller is told, so the shared

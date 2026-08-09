@@ -36,10 +36,17 @@ type UnroutableRowsError struct {
 	DroppedRows    int
 }
 
+// Error reports both counts because they are not always equal: a batch can hold
+// control rows that carry no edge by design alongside rows that should have
+// become edges and could not be routed. Saying "all N were unroutable" with the
+// dropped count would understate the batch and read as though it held only the
+// rejected rows.
 func (e *UnroutableRowsError) Error() string {
 	return fmt.Sprintf(
-		"%s: all %d row(s) were unroutable (no write statement matched; evidence_source=%s); refusing to report success for edges that were never written",
-		e.Domain, e.DroppedRows, e.EvidenceSource,
+		"%s: no edge rows could be routed: %d of %d row(s) were unroutable "+
+			"(no write statement matched; evidence_source=%s); "+
+			"refusing to report success for edges that were never written",
+		e.Domain, e.DroppedRows, e.InputRows, e.EvidenceSource,
 	)
 }
 
