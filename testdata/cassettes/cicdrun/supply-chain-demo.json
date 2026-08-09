@@ -141,11 +141,49 @@
       "trigger_kind": "snapshot",
       "facts": [
         {
-          "fact_kind": "ci.run",
-          "stable_fact_key": "ci_cd_run:github_actions:supply-chain-demo:run:5152",
+          "fact_kind": "ci.artifact",
+          "stable_fact_key": "ci_cd_run:github_actions:supply-chain-demo:run:5150:artifact:image",
           "schema_version": "1.0.0",
           "collector_kind": "ci_cd_run",
           "fencing_token": 2,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "cicd-collector-scd",
+            "provider": "github_actions",
+            "run_id": "5150",
+            "run_attempt": "1",
+            "artifact_id": "art-image-5150",
+            "artifact_name": "supply-chain-demo-image",
+            "artifact_type": "container_image",
+            "artifact_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
+            "correlation_anchors": [
+              "github_actions::5150",
+              "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "scope_id": "ci_cd_run:github_actions:eshu-hq:supply-chain-resource-proof",
+      "source_system": "ci_cd_run",
+      "scope_kind": "ci_cd_run",
+      "collector_kind": "ci_cd_run",
+      "partition_key": "ci_cd_run:github_actions:eshu-hq:supply-chain-resource-proof",
+      "metadata": {
+        "provider": "github_actions",
+        "repository": "eshu-hq/supply-chain-demo"
+      },
+      "generation_id": "cassette-cicd-scd-resource-gen1",
+      "observed_at": "2026-06-25T00:12:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "ci.run",
+          "stable_fact_key": "ci_cd_run:github_actions:supply-chain-resource-proof:run:5152",
+          "schema_version": "1.0.0",
+          "collector_kind": "ci_cd_run",
+          "fencing_token": 1,
           "source_confidence": "reported",
           "payload": {
             "collector_instance_id": "cicd-collector-scd",
@@ -169,32 +207,10 @@
         },
         {
           "fact_kind": "ci.artifact",
-          "stable_fact_key": "ci_cd_run:github_actions:supply-chain-demo:run:5150:artifact:image",
+          "stable_fact_key": "ci_cd_run:github_actions:supply-chain-resource-proof:run:5152:artifact:image",
           "schema_version": "1.0.0",
           "collector_kind": "ci_cd_run",
-          "fencing_token": 2,
-          "source_confidence": "reported",
-          "payload": {
-            "collector_instance_id": "cicd-collector-scd",
-            "provider": "github_actions",
-            "run_id": "5150",
-            "run_attempt": "1",
-            "artifact_id": "art-image-5150",
-            "artifact_name": "supply-chain-demo-image",
-            "artifact_type": "container_image",
-            "artifact_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
-            "correlation_anchors": [
-              "github_actions::5150",
-              "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
-            ]
-          }
-        },
-        {
-          "fact_kind": "ci.artifact",
-          "stable_fact_key": "ci_cd_run:github_actions:supply-chain-demo:run:5152:artifact:image",
-          "schema_version": "1.0.0",
-          "collector_kind": "ci_cd_run",
-          "fencing_token": 2,
+          "fencing_token": 1,
           "source_confidence": "reported",
           "payload": {
             "collector_instance_id": "cicd-collector-scd",

@@ -19,13 +19,15 @@ const (
 	lambdaImageDigest     = "sha256:0000000000000000000000000000000000000000000000000000000000cc"
 	lambdaImageRunID      = "5152"
 	lambdaImageRepository = "repository:r_69256c06"
+	lambdaImageScope      = "ci_cd_run:github_actions:eshu-hq:supply-chain-resource-proof"
+	lambdaImageGeneration = "cassette-cicd-scd-resource-gen1"
 )
 
 func TestSupplyChainDemoCICDCassetteCarriesLambdaImageBuildEvidence(t *testing.T) {
 	t.Parallel()
 
 	envelopes := replaySupplyChainDemoCICDCassette(t)
-	var foundRunInActiveGeneration, foundArtifacts int
+	var foundRunInActiveGeneration, foundArtifacts, primaryPatchRuns int
 	for _, envelope := range envelopes {
 		schemaEnvelope := factschema.Envelope{
 			FactKind: envelope.FactKind, SchemaVersion: envelope.SchemaVersion,
@@ -40,10 +42,15 @@ func TestSupplyChainDemoCICDCassetteCarriesLambdaImageBuildEvidence(t *testing.T
 			if err != nil {
 				t.Fatalf("DecodeCICDRun(%q) error = %v", envelope.StableFactKey, err)
 			}
-			if run.RunID == lambdaImageRunID && envelope.GenerationID == "cassette-cicd-scd-gen2-artifact" {
+			if envelope.ScopeID == "ci_cd_run:github_actions:eshu-hq:supply-chain-demo" &&
+				envelope.GenerationID == "cassette-cicd-scd-gen2-artifact" {
+				primaryPatchRuns++
+			}
+			if run.RunID == lambdaImageRunID && envelope.ScopeID == lambdaImageScope &&
+				envelope.GenerationID == lambdaImageGeneration {
 				foundRunInActiveGeneration++
 				if run.RepositoryID == nil || *run.RepositoryID != lambdaImageRepository ||
-					envelope.FencingToken != 2 {
+					envelope.FencingToken != 1 {
 					t.Fatalf("Lambda image run identity/lifecycle = %#v, generation %q, fencing %d", run, envelope.GenerationID, envelope.FencingToken)
 				}
 			}
@@ -56,7 +63,8 @@ func TestSupplyChainDemoCICDCassetteCarriesLambdaImageBuildEvidence(t *testing.T
 				foundArtifacts++
 				if artifact.ArtifactType == nil || *artifact.ArtifactType != "container_image" ||
 					artifact.ArtifactDigest == nil || *artifact.ArtifactDigest != lambdaImageDigest ||
-					envelope.GenerationID != "cassette-cicd-scd-gen2-artifact" || envelope.FencingToken != 2 {
+					envelope.ScopeID != lambdaImageScope || envelope.GenerationID != lambdaImageGeneration ||
+					envelope.FencingToken != 1 {
 					t.Fatalf("Lambda image artifact identity/lifecycle = %#v, generation %q, fencing %d", artifact, envelope.GenerationID, envelope.FencingToken)
 				}
 			}
@@ -64,6 +72,9 @@ func TestSupplyChainDemoCICDCassetteCarriesLambdaImageBuildEvidence(t *testing.T
 	}
 	if foundRunInActiveGeneration != 1 || foundArtifacts != 1 {
 		t.Fatalf("active Lambda image build evidence counts = (runs %d, artifacts %d), want (1, 1)", foundRunInActiveGeneration, foundArtifacts)
+	}
+	if primaryPatchRuns != 0 {
+		t.Fatalf("primary artifact-patch generation ci.run facts = %d, want 0 so retained runs and deployment events are rebuilt", primaryPatchRuns)
 	}
 }
 
@@ -89,7 +100,7 @@ func TestSupplyChainDemoCICDCassetteProducesLambdaImageBuiltFromRow(t *testing.T
 func activeLambdaImageGeneration(envelopes []facts.Envelope) []facts.Envelope {
 	active := make([]facts.Envelope, 0, len(envelopes))
 	for _, envelope := range envelopes {
-		if envelope.GenerationID == "cassette-cicd-scd-gen2-artifact" {
+		if envelope.ScopeID == lambdaImageScope && envelope.GenerationID == lambdaImageGeneration {
 			active = append(active, envelope)
 		}
 	}
