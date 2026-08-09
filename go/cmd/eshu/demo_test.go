@@ -392,3 +392,54 @@ func TestPrintDemoGuidedPathSaysWhenItCannotLoad(t *testing.T) {
 		t.Errorf("output = %q, want it to name %q so the operator can act on it", got, demoManifestPath)
 	}
 }
+
+// TestDemoUp_BoundsTheComposePhase proves the up phase cannot hang forever.
+//
+// Observed on 2026-08-09 while measuring TTFA: `docker compose up -d --wait`
+// sat at 0% CPU for 16 minutes with no containers created and had to be killed
+// by hand. Only waitReady was bounded, so a wedged compose had no deadline at
+// all -- and a measurement lane cannot produce a number on top of a phase that
+// can run forever.
+func TestDemoUp_BoundsTheComposePhase(t *testing.T) {
+	t.Parallel()
+	blocked := make(chan struct{})
+	r := &demoRuntime{
+		exec: func(ctx context.Context, _ []string, _ string, args ...string) ([]byte, error) {
+			for _, a := range args {
+				if a == "up" {
+					close(blocked)
+					<-ctx.Done() // hang exactly like the wedged compose did
+					return nil, ctx.Err()
+				}
+			}
+			return []byte(""), nil
+		},
+		probe:        func(context.Context, string, string) (demoIndexStatus, error) { return demoIndexStatus{}, nil },
+		now:          time.Now,
+		project:      "eshu-demo-test",
+		composeFile:  "docker-compose.demo.yaml",
+		upTimeout:    75 * time.Millisecond,
+		pollInterval: time.Millisecond,
+	}
+
+	done := make(chan error, 1)
+	go func() { _, err := r.up(context.Background()); done <- err }()
+
+	select {
+	case <-blocked:
+	case <-time.After(5 * time.Second):
+		t.Fatal("exec was never called with up")
+	}
+
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("up() = nil, want a timeout error")
+		}
+		if !strings.Contains(err.Error(), "bring up demo stack") {
+			t.Errorf("err = %v, want it to name the up phase", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("up() never returned; the compose phase is still unbounded")
+	}
+}
