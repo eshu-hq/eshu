@@ -215,8 +215,8 @@ source_coverage:
           max_results: 1212
   - file: impact_change_surface_traversal.go
     calls:
-      - {symbol: "(*ImpactHandler).runChangeSurfaceOutgoing", count: 1, source_sha256: 2ee80e2aa50f26970eaf4b6733882b5bc29ca27e0bd012191096a0e0651130f2, entry_ids: [QP-IMPACT-CHANGE-SURFACE]}
-      - {symbol: "(*ImpactHandler).runChangeSurfaceRepositoryConsumers", count: 1, source_sha256: 0c9f01429b25bbd1cbccdce9ecb601fa9f79559b4872b7a84ace5e872913b985, entry_ids: [QP-IMPACT-CHANGE-SURFACE-CONSUMERS]}
+      - {symbol: "(*ImpactHandler).runChangeSurfaceOutgoing", count: 1, source_sha256: 50b86670b586ad34ee1017d35da837bf40cd8e87309f36c82d5ca72ce427e3ba, entry_ids: [QP-IMPACT-CHANGE-SURFACE, QP-IMPACT-CHANGE-SURFACE-SCOPED]}
+      - {symbol: "(*ImpactHandler).runChangeSurfaceRepositoryConsumers", count: 1, source_sha256: c455c470e7f7127bbe68dab7c56d8c0335ae8654ab9f362b57ab664a8150712d, entry_ids: [QP-IMPACT-CHANGE-SURFACE-CONSUMERS, QP-IMPACT-CHANGE-SURFACE-CONSUMERS-SCOPED]}
   - file: impact_resource_investigation_selector.go
     calls:
       - {symbol: "runResourceInvestigationSelectorFanout", count: 1, source_sha256: d9db84043aeb47b46543f15a2c74b0877c9ae55ba83bc1dd53b42258edb56e60, entry_ids: [QP-RESOURCE-INVESTIGATION-SELECTOR]}

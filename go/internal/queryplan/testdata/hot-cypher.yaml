@@ -17,7 +17,9 @@ required_ids:
   - QP-READINESS-HOSTED
   - QP-READINESS-SC-IMPACT
   - QP-IMPACT-CHANGE-SURFACE
+  - QP-IMPACT-CHANGE-SURFACE-SCOPED
   - QP-IMPACT-CHANGE-SURFACE-CONSUMERS
+  - QP-IMPACT-CHANGE-SURFACE-CONSUMERS-SCOPED
   - QP-IMPACT-FLUX-BINDINGS-FIRST-HOP
   - QP-IMPACT-FLUX-BINDINGS-TARGET-EXPANSION
   - QP-RELATIONSHIPS-CATALOG-COUNT
@@ -513,8 +515,8 @@ entries:
     source:
       file: go/internal/query/impact_change_surface_traversal.go
       symbol: (*ImpactHandler).runChangeSurfaceOutgoing
-      source_sha256: 2ee80e2aa50f26970eaf4b6733882b5bc29ca27e0bd012191096a0e0651130f2
-      line_hint: 67
+      source_sha256: 50b86670b586ad34ee1017d35da837bf40cd8e87309f36c82d5ca72ce427e3ba
+      line_hint: 93
     required_anchors:
       - label: Workload
         property: id
@@ -536,6 +538,36 @@ entries:
         - CartesianProduct
         - UnboundedExpand
     cypher_sha256: "5e78165ee7bbde33ec370dac7baced49f8a62b9b07ce6e6230685f523a4acea0"
+  - id: QP-IMPACT-CHANGE-SURFACE-SCOPED
+    domain: impact
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/impact_change_surface_traversal.go
+      symbol: (*ImpactHandler).runChangeSurfaceOutgoing
+      source_sha256: 50b86670b586ad34ee1017d35da837bf40cd8e87309f36c82d5ca72ce427e3ba
+      line_hint: 93
+    required_anchors:
+      - label: Workload
+        property: id
+    required_schema:
+      - workload_id
+      - nornicdb_workload_id_lookup
+    required_limits:
+      - $limit
+    requires_order: true
+    caveats:
+      - Scoped change-surface reads apply repository and scope grants before the global ORDER/LIMIT. The property-owned and Repository-owned branches use a CALL-subquery UNION because pinned NornicDB executes both subquery arms but silently ignores the second arm of a top-level UNION.
+    plan:
+      operators:
+        - NodeIndexSeek
+        - VarLengthExpand
+        - Sort
+      forbidden_operators:
+        - AllNodesScan
+        - CartesianProduct
+        - UnboundedExpand
+    cypher_sha256: "bec2c0827f2e94edfaa1f66f638ea1d2f70d3083e9d637bb6f96ce7ea6156687"
   - id: QP-IMPACT-CHANGE-SURFACE-CONSUMERS
     domain: impact
     backend: nornicdb
@@ -543,8 +575,8 @@ entries:
     source:
       file: go/internal/query/impact_change_surface_traversal.go
       symbol: (*ImpactHandler).runChangeSurfaceRepositoryConsumers
-      source_sha256: 0c9f01429b25bbd1cbccdce9ecb601fa9f79559b4872b7a84ace5e872913b985
-      line_hint: 89
+      source_sha256: c455c470e7f7127bbe68dab7c56d8c0335ae8654ab9f362b57ab664a8150712d
+      line_hint: 124
     required_anchors:
       - label: Repository
         property: id
@@ -555,7 +587,7 @@ entries:
       - "11"
     requires_order: true
     caveats:
-      - Repository dependency impact follows incoming DEPENDS_ON edges because the stored edge points from consumer to dependency. The traversal is a separate bounded single-clause read to avoid NornicDB's silent-empty multi-clause and UNION shapes; the handler merges the two eventually consistent read snapshots deterministically.
+      - Repository dependency impact follows incoming DEPENDS_ON edges because the stored edge points from consumer to dependency. The traversal is a separate bounded single-clause read to avoid NornicDB's silent-empty multi-clause and top-level UNION shapes; the handler merges the two eventually consistent read snapshots deterministically.
     plan:
       operators:
         - NodeIndexSeek
@@ -566,6 +598,36 @@ entries:
         - CartesianProduct
         - UnboundedExpand
     cypher_sha256: "e99de77e702476efce7933fdc1158b4e6ed787d2df060013c8ed91323c026708"
+  - id: QP-IMPACT-CHANGE-SURFACE-CONSUMERS-SCOPED
+    domain: impact
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/impact_change_surface_traversal.go
+      symbol: (*ImpactHandler).runChangeSurfaceRepositoryConsumers
+      source_sha256: c455c470e7f7127bbe68dab7c56d8c0335ae8654ab9f362b57ab664a8150712d
+      line_hint: 124
+    required_anchors:
+      - label: Repository
+        property: id
+    required_schema:
+      - repository_id
+      - nornicdb_repository_id_lookup
+    required_limits:
+      - "11"
+    requires_order: true
+    caveats:
+      - Scoped repository-consumer impact binds the impacted Repository id to the caller's repository and scope grants before ORDER/LIMIT, preventing denied consumers from starving authorized results or setting truncation metadata.
+    plan:
+      operators:
+        - NodeIndexSeek
+        - VarLengthExpand
+        - Sort
+      forbidden_operators:
+        - AllNodesScan
+        - CartesianProduct
+        - UnboundedExpand
+    cypher_sha256: "65d78abe8f017f7586889fcb4c1c7437e7339b982c0c4e0d8500360dba51eda9"
   - id: QP-IMPACT-FLUX-BINDINGS-FIRST-HOP
     domain: impact
     backend: nornicdb

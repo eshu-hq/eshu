@@ -92,18 +92,17 @@ func (h *ImpactHandler) changeSurfaceImpactRows(
 // impacted row projected by changeSurfaceInvestigateCypher/
 // changeSurfaceLegacyCypher. A Repository-labeled impacted node carries no
 // repo_id property of its own (its id IS the repository id), so the
-// Repository label is checked as a fallback before treating the row as
-// repo-less.
+// Repository label is checked first because a Repository's canonical grant key
+// is its id. This prevents a malformed Repository node carrying another
+// tenant's repo_id from being authorized by that colliding property. Other
+// supported impact labels bind through repo_id.
 func changeSurfaceImpactedRowRepoID(row map[string]any) string {
-	if repoID := StringVal(row, "repo_id"); repoID != "" {
-		return repoID
-	}
 	for _, label := range StringSliceVal(row, "labels") {
 		if label == "Repository" {
 			return StringVal(row, "id")
 		}
 	}
-	return ""
+	return StringVal(row, "repo_id")
 }
 
 // changeSurfaceTraversalStartPattern returns the label-anchored start node

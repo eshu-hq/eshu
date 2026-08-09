@@ -6,7 +6,9 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -55,11 +57,20 @@ func TestLiveChangeSurfaceImpactTraversal(t *testing.T) {
 		workloadID = "cs-live:workload"
 		crID       = "cs-live:cr"
 	)
+	proofIDs := []string{changedID, consumerID, workloadID, crID}
+	deniedWorkloadIDs := make([]string, 0, 11)
+	deniedConsumerIDs := make([]string, 0, 11)
+	for i := range 11 {
+		deniedWorkloadIDs = append(deniedWorkloadIDs, fmt.Sprintf("cs-live:denied-workload:%02d", i))
+		deniedConsumerIDs = append(deniedConsumerIDs, fmt.Sprintf("cs-live:denied-consumer:%02d", i))
+	}
+	proofIDs = append(proofIDs, deniedWorkloadIDs...)
+	proofIDs = append(proofIDs, deniedConsumerIDs...)
 	// Delete only the exact synthetic nodes by id (never a label-wide DETACH
 	// DELETE), so pointing ESHU_NEO4J_URI at a retained evidence graph cannot
 	// wipe production-shaped nodes. Same targeted cleanup runs on exit.
 	cleanup := func() {
-		for _, id := range []string{changedID, consumerID, workloadID, crID} {
+		for _, id := range proofIDs {
 			write(`MATCH (n {id:$id}) DETACH DELETE n`, map[string]any{"id": id})
 		}
 	}
@@ -71,7 +82,7 @@ func TestLiveChangeSurfaceImpactTraversal(t *testing.T) {
 	       CREATE (cr:CloudResource {id:$cr, name:'cr', environment:'prod', repo_id:$changed})
 	       CREATE (consumer)-[:DEPENDS_ON {confidence:0.9, reason:'consumer_dependency'}]->(changed)
 	       CREATE (changed)-[:DEFINES {confidence:0.95, reason:'defines_workload'}]->(workload)
-	       CREATE (workload)-[:CONTAINS {confidence:0.8, reason:'contains'}]->(cr)`,
+		CREATE (workload)-[:CONTAINS {confidence:0.8, reason:'contains'}]->(cr)`,
 		map[string]any{"changed": changedID, "consumer": consumerID, "workload": workloadID, "cr": crID})
 
 	dump := func(label string, rows []map[string]any) {
@@ -191,5 +202,95 @@ RETURN DISTINCT impacted.id as id, type(rel) as rel_type, rel.confidence as conf
 	}
 	if len(stagingLegacy) != 0 {
 		t.Errorf("legacy(env=staging) = %d rows, want 0", len(stagingLegacy))
+	}
+
+	for i := range 11 {
+		write(`MATCH (changed:Repository {id:$changed})
+		       CREATE (workload:Workload {id:$workload, name:$workload_name, environment:'prod', repo_id:$denied_repo})
+		       CREATE (consumer:Repository {id:$consumer, name:$consumer_name, environment:'prod'})
+		       CREATE (changed)-[:DEFINES {confidence:0.5, reason:'denied_workload'}]->(workload)
+		       CREATE (consumer)-[:DEPENDS_ON {confidence:0.5, reason:'denied_consumer'}]->(changed)`,
+			map[string]any{
+				"changed":       changedID,
+				"workload":      deniedWorkloadIDs[i],
+				"workload_name": fmt.Sprintf("a-denied-workload-%02d", i),
+				"consumer":      deniedConsumerIDs[i],
+				"consumer_name": fmt.Sprintf("a-denied-consumer-%02d", i),
+				"denied_repo":   "repository:denied",
+			})
+	}
+
+	// Scoped proof: eleven denied rows sort before every granted row in each
+	// traversal direction. Grant predicates must run before the per-branch
+	// LIMIT, otherwise the authorized consumer/workload rows are starved and
+	// denied cardinality incorrectly sets truncated=true.
+	scopedAuth := AuthContext{
+		Mode:                 AuthModeScoped,
+		AllowedRepositoryIDs: []string{consumerID},
+		AllowedScopeIDs:      []string{changedID},
+	}
+	scopedCtx := ContextWithAuthContext(ctx, scopedAuth)
+	scopedAccess := repositoryAccessFilterFromContext(scopedCtx)
+	scopedOutgoing, err := handler.runChangeSurfaceOutgoing(
+		scopedCtx,
+		"(start:Repository {id: $target_id})",
+		"",
+		4,
+		10,
+		map[string]any{"target_id": changedID},
+		scopedAccess,
+	)
+	if err != nil {
+		t.Fatalf("scoped outgoing diagnostic error = %v", err)
+	}
+	dump("SCOPED outgoing raw", scopedOutgoing)
+	scopedConsumers, err := handler.runChangeSurfaceRepositoryConsumers(
+		scopedCtx,
+		"",
+		4,
+		10,
+		map[string]any{"target_id": changedID},
+		scopedAccess,
+	)
+	if err != nil {
+		t.Fatalf("scoped consumers diagnostic error = %v", err)
+	}
+	dump("SCOPED consumers raw", scopedConsumers)
+	scopedInvestigate, scopedTruncated, err := handler.changeSurfaceImpactRows(
+		scopedCtx,
+		changeSurfaceInvestigationRequest{MaxDepth: 4, Limit: 10},
+		target,
+	)
+	if err != nil {
+		t.Fatalf("scoped investigate error = %v", err)
+	}
+	if scopedTruncated {
+		t.Fatal("scoped investigate truncated = true, want false")
+	}
+	if got, want := changeSurfaceTestIDs(scopedInvestigate), []string{consumerID, workloadID, crID}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("scoped investigate ids = %#v, want %#v", got, want)
+	}
+
+	scopedLegacy, scopedLegacyTruncated, err := handler.findChangeSurfaceImpactRows(
+		scopedCtx,
+		target,
+		"",
+		4,
+		10,
+		scopedAccess,
+	)
+	if err != nil {
+		t.Fatalf("scoped legacy error = %v", err)
+	}
+	if scopedLegacyTruncated {
+		t.Fatal("scoped legacy truncated = true, want false")
+	}
+	if len(scopedLegacy) == 0 {
+		t.Fatal("scoped legacy returned no granted provenance")
+	}
+	for _, row := range scopedLegacy {
+		if strings.HasPrefix(StringVal(row, "id"), "cs-live:denied-") {
+			t.Fatalf("scoped legacy leaked denied row: %#v", row)
+		}
 	}
 }

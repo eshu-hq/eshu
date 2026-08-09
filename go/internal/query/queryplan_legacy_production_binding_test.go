@@ -126,6 +126,20 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		_, err := handler.runChangeSurfaceOutgoing(
 			context.Background(), "(start:Workload {id: $target_id})", "",
 			changeSurfaceLegacyDefaultDepth, 10, map[string]any{"target_id": "workload:proof"},
+			repositoryAccessFilter{allScopes: true},
+		)
+		return err
+	})
+	scopedAccess := repositoryAccessFilter{
+		allowedRepositoryIDs: []string{"repository:proof"},
+		allowedScopeIDs:      []string{"scope:proof"},
+	}
+	changeSurfaceScoped := captureLegacyQueryplanCypher(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
+		handler := &ImpactHandler{Neo4j: graphQuery}
+		_, err := handler.runChangeSurfaceOutgoing(
+			context.Background(), "(start:Workload {id: $target_id})", "",
+			changeSurfaceLegacyDefaultDepth, 10, map[string]any{"target_id": "workload:proof"},
+			scopedAccess,
 		)
 		return err
 	})
@@ -134,6 +148,16 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		_, err := handler.runChangeSurfaceRepositoryConsumers(
 			context.Background(), "", changeSurfaceLegacyDefaultDepth, 10,
 			map[string]any{"target_id": "repository:proof"},
+			repositoryAccessFilter{allScopes: true},
+		)
+		return err
+	})
+	changeSurfaceConsumersScoped := captureLegacyQueryplanCypher(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
+		handler := &ImpactHandler{Neo4j: graphQuery}
+		_, err := handler.runChangeSurfaceRepositoryConsumers(
+			context.Background(), "", changeSurfaceLegacyDefaultDepth, 10,
+			map[string]any{"target_id": "repository:proof"},
+			scopedAccess,
 		)
 		return err
 	})
@@ -177,7 +201,9 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		"QP-CODE-IMPORT-CYCLES":                           fileImportCycleEdgeRowsCypher(importDependencyRequest{QueryType: "file_import_cycles", RepoID: "proof-repository", Limit: 10}),
 		"QP-READINESS-HOSTED":                             hostedRepositoryCount,
 		"QP-IMPACT-CHANGE-SURFACE":                        changeSurface,
+		"QP-IMPACT-CHANGE-SURFACE-SCOPED":                 changeSurfaceScoped,
 		"QP-IMPACT-CHANGE-SURFACE-CONSUMERS":              changeSurfaceConsumers,
+		"QP-IMPACT-CHANGE-SURFACE-CONSUMERS-SCOPED":       changeSurfaceConsumersScoped,
 		"QP-IMPACT-FLUX-BINDINGS-FIRST-HOP":               fluxBindingsGraph.cypher[0],
 		"QP-IMPACT-FLUX-BINDINGS-TARGET-EXPANSION":        fluxBindingsGraph.cypher[1],
 		"QP-RELATIONSHIPS-CATALOG-COUNT":                  relationshipCountCypher(relationshipVerbByName["CALLS"]),
