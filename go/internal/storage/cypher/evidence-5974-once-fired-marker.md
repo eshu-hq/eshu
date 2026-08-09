@@ -73,3 +73,85 @@ The unit test fails without the change: deleting the
 `TestFaultingExecutorWritesOnceFiredMarker` red at the marker read, and
 restoring it goes green. The live gate exercises the same path end to end with
 `cell_failgraphwrite_sql` enabled for the first time since it was held out.
+
+---
+
+# Follow-up: probes and a loud marker write (#5974)
+
+## What changed
+
+Three things, all in the fault-injection gate's own path:
+
+1. `writeOnceFiredMarker` reports a failed `os.WriteFile` on stderr instead of
+   discarding it (`_ =`).
+2. `fresh_stack` fails the run when `docker compose down -v` fails, instead of
+   `|| true` with both streams to `/dev/null`.
+3. `cell_failgraphwrite_sql` gained two probes: `shared_projection_intents` must
+   be empty before the drive, and after the drain the SQL edge set is asserted
+   and the cell's intent window is printed.
+
+## No-Regression
+
+No-Regression Evidence: none of this can execute in a released binary or on a
+serving path. The marker write lives behind `//go:build ifafaultinjection`;
+untagged builds compile `fault_executor_off.go` and released binaries are built
+untagged, so the code is absent rather than merely inactive. The two probes and
+the teardown check are lines in `scripts/lib/*.sh`, which only the gate runs.
+
+Within the tagged build the marker write is still bounded by the same
+`onceFired.CompareAndSwap` that makes the fault fire exactly once — at most one
+write per process — and the added `if err != nil` costs a comparison on a path
+that is already returning an injected error.
+
+Measured on the `ifa-fault-injection` matrix (Postgres 15642 + NornicDB 7801 via
+`docker-compose.yaml`), all nine cells green, exit 0. Digest
+`5bfd92cacbb6758b29d3073426ce69e69c6cdcc87535981d8550873be86acfdb` across every
+recovery cell, `deltaretract` differing as designed against its expected-v2 set,
+zero dead letters throughout. Per-cell wall time: baseline 20s, killworker 73s,
+expirelease 9s, failgraphwrite 68s, restartbackend 9s, killworkersql 70s,
+duplicatedelivery 12s, deltaretract 11s, failgraphwritesql 7s. The probes add
+one `COUNT(*)`, one `assert-edges` Bolt read, and one aggregate query to a
+single cell; the cell remains the fastest in the matrix.
+
+The teardown check adds one file write per cell (`compose-down-<cell>.log`) and
+turns a previously-ignored non-zero exit into a `die`. That is strictly more
+work only on the path that was silently broken before.
+
+## Observability
+
+Observability Evidence: this adds two operator-facing signals, both inside the
+gate rather than the product.
+
+```
+ifa fault: once-fired marker write failed: <err> (path=<marker>)
+fail-graph-write-once-then-succeed-sql: fresh-stack precondition: 0 shared_projection_intents
+  sql_relationships intent window: <total>|<pending>|<first_created>|<last_completed>
+```
+
+The first is the point: a failed marker write used to be byte-identical to "the
+fault never fired", so the gate reported one cause as fact when it had two. The
+cell's failure message now names this prefix and tells the reader to look for it
+before concluding anything.
+
+The intent window is what distinguishes the remaining hypotheses. Local
+baseline from the run above: `10|0|2026-08-09 00:26:33.045237+00|2026-08-09
+00:26:34.630915+00` — ten intents, none pending, created and completed inside
+the cell's own window. A CI run showing intents that predate the cell means the
+stack was not fresh; one matching this shape with no marker means the statement
+flowed and the fault did not intercept it.
+
+No product metric, span, or telemetry-contract entry is added, so
+`scripts/verify-telemetry-coverage.sh` reports no untracked stages.
+
+## Reproduce
+
+```
+bash scripts/verify-ifa-fault-injection.sh
+cd go && go test -tags ifafaultinjection ./internal/storage/cypher/ -count=1
+bash scripts/test-verify-ifa-fault-injection.sh
+```
+
+Each guard fails without its fix: restoring the swallowed `down -v` turns the
+mirror red on "the stack is NOT fresh", removing probe 1 turns it red on
+"survived fresh_stack", and restoring the single-cause die message turns it red
+on the assertion that a missing marker also means the marker write failed.
