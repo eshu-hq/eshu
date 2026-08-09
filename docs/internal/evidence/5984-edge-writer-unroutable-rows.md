@@ -28,8 +28,15 @@ error, it does not.
 | --- | --- | --- |
 | empty | `nil` | `nil` (unchanged) |
 | only control rows (a repo refresh, which carries no edge) | `nil` | `nil` (unchanged) |
-| some rows routed, some did not | `nil`, drop folded into an INFO line | `nil` + WARN + counter |
+| some rows routed, some did not | `nil`, drop folded into an INFO line | `nil` + WARN + counter (intent still completed — see below) |
 | non-empty, nothing routed | `nil` | `*UnroutableRowsError`, intent not completed |
+
+What the mixed case deliberately does NOT do: it still completes the intent,
+including for the rows that were dropped. Failing the whole partition to
+protect a subset would lose the edges that did route, which is the larger loss.
+The trade is stated rather than hidden — a partial drop is now visible in the
+counter and the WARN, and closing it properly needs per-row intent completion,
+which this change does not have.
 
 The control-row carve-out matters as much as the error. A code-call delta whose
 files were only deleted arrives as a single repo-refresh row whose job is the
@@ -88,6 +95,13 @@ the dropped-row count, labelled by projection `domain` and a bounded `reason`
 produced nothing). Registered in `go/internal/telemetry/instruments.go` and
 recorded in `docs/public/observability/telemetry-coverage.md` under
 "graph write (unroutable shared-edge rows)".
+
+The existing `shared edge write completed` INFO line now also carries
+`dropped_rows` next to `skipped_intents`. They are not the same number:
+`skipped_intents` counts every row that produced no write statement, control
+rows included, while `dropped_rows` counts only rows that were meant to become
+an edge. Reporting them together stops an operator from reading one as the
+other.
 
 Alongside it, a `WARN` structured log, `shared edge rows unroutable`, carrying
 `domain`, `evidence_source`, `input_rows`, `dropped_rows`, `reason`, and one

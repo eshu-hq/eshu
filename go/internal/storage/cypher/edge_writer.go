@@ -227,7 +227,7 @@ func (w *EdgeWriter) WriteEdges(
 				}
 				duration := time.Since(start).Seconds()
 				w.recordGroupedWrite(ctx, domain, duration, stmts[i:end])
-				w.logSharedEdgeWrite(domain, evidenceSource, "group", len(rows), writtenRows, len(routeOrder), bs, groupSize, duration, stmts[i:end])
+				w.logSharedEdgeWrite(domain, evidenceSource, "group", len(rows), writtenRows, droppedRows, len(routeOrder), bs, groupSize, duration, stmts[i:end])
 				if domain == reducer.DomainCodeCalls {
 					w.recordCodeCallBatch(ctx, duration)
 				}
@@ -240,7 +240,7 @@ func (w *EdgeWriter) WriteEdges(
 		}
 		duration := time.Since(start).Seconds()
 		w.recordGroupedWrite(ctx, domain, duration, stmts)
-		w.logSharedEdgeWrite(domain, evidenceSource, "group", len(rows), writtenRows, len(routeOrder), bs, 0, duration, stmts)
+		w.logSharedEdgeWrite(domain, evidenceSource, "group", len(rows), writtenRows, droppedRows, len(routeOrder), bs, 0, duration, stmts)
 		return nil
 	}
 
@@ -250,7 +250,7 @@ func (w *EdgeWriter) WriteEdges(
 			return WrapRetryableNeo4jError(err)
 		}
 		duration := time.Since(start).Seconds()
-		w.logSharedEdgeWrite(domain, evidenceSource, "single", len(rows), writtenRows, len(routeOrder), bs, 0, duration, []Statement{stmt})
+		w.logSharedEdgeWrite(domain, evidenceSource, "single", len(rows), writtenRows, droppedRows, len(routeOrder), bs, 0, duration, []Statement{stmt})
 		if domain == reducer.DomainCodeCalls {
 			w.recordCodeCallBatch(ctx, duration)
 		}
