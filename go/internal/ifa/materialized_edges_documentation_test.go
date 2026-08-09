@@ -13,9 +13,16 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
 )
 
-// TestDocumentationFamilyOduResolvesItsExpectedEdgeSet is the #5994 coverage
-// proof: the production extractor, run over the cataloged Odù, reproduces the
-// hand-derived edge set exactly.
+// TestDocumentationFamilyOduResolvesItsExpectedEdgeSet proves the EXTRACTOR:
+// ExtractDocumentationEdgeRowsWithQuarantine, run over the cataloged Odù,
+// reproduces the hand-derived edge set exactly.
+//
+// This is deliberately not called coverage. A coverage row in the manifest
+// names a proof GATE, and neither gate executes this family today --
+// verify-ifa-determinism.sh asserts expected edges for sql_relationships only,
+// and MaterializedEdgeDomainEdgeTypes rejects every other domain. Breaking the
+// live writer's Cypher would leave this test green, so the family stays waived
+// with what is and is not proven recorded on the waiver.
 func TestDocumentationFamilyOduResolvesItsExpectedEdgeSet(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
@@ -34,10 +41,11 @@ func TestDocumentationFamilyOduResolvesItsExpectedEdgeSet(t *testing.T) {
 	t.Logf("%s", detail)
 }
 
-// TestDocumentationFamilyResolvesThroughTheManifestResolver proves the family
-// is reachable the way the gate reaches it — through
-// MaterializedEdgeOduResolver, by surface name — not only by calling the guard
-// directly. A guard nothing dispatches to is not coverage.
+// TestDocumentationFamilyResolvesThroughTheManifestResolver proves the vacuity
+// guard is reachable by surface name through MaterializedEdgeOduResolver, not
+// only by calling it directly — a guard nothing dispatches to would be dead on
+// the day a coverage row is finally added. It does NOT assert that such a row
+// exists today; it does not.
 func TestDocumentationFamilyResolvesThroughTheManifestResolver(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
