@@ -8,6 +8,9 @@
 require "bootstrap stage" "eshu-bootstrap-index"
 require "filesystem managed-copy mode" 'export ESHU_REPO_SOURCE_MODE="filesystem"'
 require "filesystem managed-copy direct-mode pin" 'export ESHU_FILESYSTEM_DIRECT="false"'
+require_in_region "live corpus gate installs ripgrep before B-7" "${workflow}" \
+	'/^  corpus-gate:$/,/^      - name: Run B-7 golden corpus gate$/' \
+	'run: scripts/ci/install-apt-packages.sh ripgrep'
 for gate_path in \
 	'go/cmd/mock-openai-compatible/**' \
 	'go/internal/ask/**' \
