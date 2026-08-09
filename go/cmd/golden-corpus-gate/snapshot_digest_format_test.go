@@ -95,7 +95,7 @@ func TestSnapshotDigestsAreWellFormedSHA256(t *testing.T) {
 	// A snapshot that stopped carrying digests would satisfy the loop above
 	// without proving anything.
 	if checked == 0 {
-		t.Fatal("no sha256-prefixed values found in the snapshot; this check passed vacuously")
+t.Fatal("no digest values checked in the snapshot; this check passed vacuously")
 	}
 }
 
