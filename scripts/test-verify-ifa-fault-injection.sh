@@ -172,7 +172,8 @@ require_driver "fresh_stack captures teardown output instead of discarding it" '
 require_sql_cells "probe 1: fresh-stack intent precondition" "survived fresh_stack"
 require_sql_cells "probe 2: SQL edges asserted after the drain" "assert-edges is set-exact"
 require_sql_cells "probe 2: this cell's intent window is reported" "projection_domain = 'sql_relationships'"
-require_sql_cells "die message names the marker-write-failure alternative" "once-fired marker write failed"
+require_sql_cells "the write-failure branch uses the single-source prefix variable" "IFA_ONCE_MARKER_WRITE_FAILED_PREFIX"
+require_sql_cells "the two marker failure modes are told apart by exit code" 'marker_rc}" -eq 2'
 # The old message asserted a single cause. It must not come back.
 if rg --fixed-strings --quiet -- "the scripted fault never fired -- no once-fired marker" "${sql_cells_lib}"; then
 	fail "the SQL cell's die message asserts the fault never fired; a missing marker also means the marker write failed (#5974)"
