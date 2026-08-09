@@ -2123,7 +2123,7 @@
   "query_shapes": {
     "mcp": {
       "find_code": {
-        "description": "Non-vacuous deployed MCP variable lookup proof. Global exact search for the synthetic app binding must return at least one Variable entity through the declared find_code tool.",
+        "description": "Deployed fuzzy code search proof over the public Go dataflow fixture.",
         "required_response_fields": [
           "matches",
           "query",
@@ -2136,6 +2136,7 @@
           "truncated"
         ],
         "minimum_results": 1,
+        "maximum_results": 1,
         "results_field": "matches",
         "result_item_required_fields": [
           "entity_id",
@@ -2145,13 +2146,19 @@
           "file_path"
         ],
         "required_json_values": {
-          "query": "app",
-          "matches[].labels[]": "Variable"
+          "query": "GoldenDataflow",
+          "repo_id": "repository:r_8477a002",
+          "count": 1,
+          "limit": 1,
+          "matches[].name": "GoldenDataflowHandler",
+          "matches[].file_path": "dataflow_proof.go",
+          "matches[].labels[]": "Function"
         },
         "arguments": {
-          "query": "app",
-          "exact": true,
-          "limit": 20
+          "query": "GoldenDataflow",
+          "repo_id": "repository:r_8477a002",
+          "exact": false,
+          "limit": 1
         }
       },
       "find_symbol": {
@@ -2395,18 +2402,25 @@
         "description": "MCP tool coverage shape for analyze_code_relationships; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
         "required_response_fields": [
           "coverage",
-          "relationships",
+          "class_hierarchy",
           "scope",
           "source_backend",
           "summary",
           "target_resolution"
         ],
-        "minimum_results": 0,
         "arguments": {
-          "target": "main",
-          "query_type": "find_callees",
-          "repo_id": "orders-api",
+          "target": "Dog",
+          "query_type": "class_hierarchy",
+          "repo_id": "repository:r_94c29d01",
+          "max_depth": 4,
           "limit": 10
+        },
+        "required_json_values": {
+          "coverage.query_shape": "entity_anchor_class_hierarchy_story",
+          "target_resolution.status": "resolved",
+          "target_resolution.candidates[].name": "Dog",
+          "class_hierarchy.methods[].method_name": "fetch",
+          "class_hierarchy.parents[].target_name": "Animal"
         }
       },
       "find_dead_code": {
@@ -2722,7 +2736,19 @@
           "results",
           "truncated"
         ],
-        "minimum_results": 0
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "results",
+        "arguments": {
+          "function_name": "GoldenDataflowHandler",
+          "repo_id": "repository:r_8477a002"
+        },
+        "required_json_values": {
+          "repo_id": "repository:r_8477a002",
+          "results[].name": "GoldenDataflowHandler",
+          "results[].file_path": "dataflow_proof.go",
+          "results[].complexity": 2
+        }
       },
       "find_most_complex_functions": {
         "description": "MCP tool coverage shape for find_most_complex_functions; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
@@ -2751,7 +2777,26 @@
           "thresholds",
           "truncated"
         ],
-        "minimum_results": 0
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "results",
+        "arguments": {
+          "check": "complexity",
+          "repo_id": "repository:r_8477a002",
+          "language": "go",
+          "function_name": "GoldenDataflowHandler",
+          "min_complexity": 2,
+          "limit": 1,
+          "offset": 0
+        },
+        "required_json_values": {
+          "check": "complexity",
+          "repo_id": "repository:r_8477a002",
+          "language": "go",
+          "results[].name": "GoldenDataflowHandler",
+          "results[].file_path": "dataflow_proof.go",
+          "results[].complexity": 2
+        }
       },
       "execute_cypher_query": {
         "description": "MCP tool coverage shape for execute_cypher_query; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
@@ -2854,12 +2899,21 @@
           "start_entity_id",
           "start_repo_id"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "chains",
         "arguments": {
-          "start": "main",
-          "end": "main",
-          "repo_id": "orders-api",
+          "start": "recursionFib",
+          "end": "recursionFib",
+          "repo_id": "repository:r_ed3a9bab",
           "max_depth": 2
+        },
+        "required_json_values": {
+          "start": "recursionFib",
+          "end": "recursionFib",
+          "repo_id": "repository:r_ed3a9bab",
+          "cross_repo": false,
+          "chains[].chain[].name": "recursionFib"
         }
       },
       "dispatch_taint_path": {
@@ -3806,12 +3860,34 @@
           "recommended_next_calls",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "decisions",
         "arguments": {
-          "domain": "repository",
-          "scope_id": "supply-chain-demo",
-          "generation_id": "golden-corpus",
+          "domain": "ci_cd_run_correlation",
+          "scope_id": "ci_cd_run:github_actions:eshu-hq:supply-chain-demo",
+          "generation_id": "cassette-cicd-scd-gen2-artifact",
+          "anchor_kind": "repository",
+          "anchor_id": "repository:r_69256c06",
+          "include_evidence": false,
           "limit": 10
+        },
+        "required_json_values": {
+          "count": 1,
+          "limit": 10,
+          "truncated": false
+        },
+        "required_json_object_matches": {
+          "decisions[]": [
+            {
+              "domain": "ci_cd_run_correlation",
+              "scope_id": "ci_cd_run:github_actions:eshu-hq:supply-chain-demo",
+              "generation_id": "cassette-cicd-scd-gen2-artifact",
+              "anchor_kind": "repository",
+              "anchor_id": "repository:r_69256c06",
+              "state": "admitted"
+            }
+          ]
         }
       },
       "count_package_registry_packages": {
@@ -3864,7 +3940,22 @@
           "scope",
           "total_correlations"
         ],
-        "minimum_results": 0
+        "minimum_results": 0,
+        "arguments": {
+          "repository_id": "repository:r_69256c06",
+          "provider": "github_actions",
+          "run_id": "5151",
+          "outcome": "derived"
+        },
+        "required_json_values": {
+          "total_correlations": 1,
+          "by_outcome.derived": 1,
+          "by_provider.github_actions": 1,
+          "scope.repository_id": "repository:r_69256c06",
+          "scope.provider": "github_actions",
+          "scope.run_id": "5151",
+          "scope.outcome": "derived"
+        }
       },
       "get_ci_cd_run_correlation_inventory": {
         "description": "MCP tool coverage shape for get_ci_cd_run_correlation_inventory; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
@@ -4334,7 +4425,15 @@
           "scope",
           "total_identities"
         ],
-        "minimum_results": 0
+        "minimum_results": 0,
+        "arguments": {
+          "digest": "sha256:0000000000000000000000000000000000000000000000000000000000aa"
+        },
+        "required_json_values": {
+          "total_identities": 1,
+          "by_identity_strength.explicit_digest": 1,
+          "scope.digest": "sha256:0000000000000000000000000000000000000000000000000000000000aa"
+        }
       },
       "get_container_image_identity_inventory": {
         "description": "MCP tool coverage shape for get_container_image_identity_inventory. #5451 makes the ECS task digest non-vacuous through an aws_image_reference matched to the ECR manifest. #5704 deliberately adds an independent ci.run/ci.artifact for that same digest: digest-v3 must preserve both supports, fold one public identity, and expose explicit_digest as the strongest visible marker instead of letting artifact order hide the runtime observation. The bounded HTTP identity query for this digest separately pins the exact unioned AWS, OCI, CI-run, and CI-artifact evidence plus the CI revision. Removing either evidence path or restoring last-writer-wins makes at least one of these two assertions fail.",
@@ -4967,11 +5066,21 @@
           "source_backend",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "matches",
         "arguments": {
-          "query": "runtime",
-          "repo_id": "orders-api",
-          "limit": 10
+          "query": "GoldenDataflowHandler",
+          "repo_id": "repository:r_8477a002",
+          "limit": 1
+        },
+        "required_json_values": {
+          "count": 1,
+          "limit": 1,
+          "offset": 0,
+          "source_backend": "postgres_content_store",
+          "matches[].repo_id": "repository:r_8477a002",
+          "matches[].relative_path": "dataflow_proof.go"
         }
       },
       "search_entity_content": {
@@ -5703,7 +5812,14 @@
           "updated_at",
           "validator_reason_codes"
         ],
-        "minimum_results": 0
+        "minimum_results": 0,
+        "required_json_values": {
+          "state": "unavailable",
+          "reason": "disabled_by_default",
+          "deterministic_fallback_available": true,
+          "canonical_truth_affected": false,
+          "retention_posture": "metadata_only"
+        }
       },
       "get_capability_catalog": {
         "description": "MCP tool coverage shape for get_capability_catalog; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
@@ -6389,16 +6505,24 @@
         "description": "Bounded catalog response used by console service selection; protects the distinct workload truncation signal from response-shape drift.",
         "truth_class": "deterministic",
         "minimum_results": 1,
+        "maximum_results": 2000,
         "results_field": "repositories",
         "required_response_fields": [
           "repositories",
           "workloads",
           "services",
+          "counts",
           "count",
           "limit",
           "truncated",
           "workloads_truncated"
-        ]
+        ],
+        "required_json_values": {
+          "limit": 2000,
+          "repositories[].id": "repository:r_8477a002",
+          "workloads[].id": "workload:deployable-config",
+          "services[].id": "component:default/deployable-config"
+        }
       },
       "GET /api/v0/status/operator-control-plane": {
         "description": "Operator control plane status; confirms the status projection is operational",
@@ -6519,6 +6643,31 @@
           "attachments[].slsa_provenance_materials_truncated": false,
           "attachments[].slsa_provenance_config_source_uri": "git+https://github.com/eshu-hq/supply-chain-demo@refs/heads/main",
           "attachments[].slsa_provenance_config_source_entry_point": ".github/workflows/release.yml"
+        }
+      },
+      "GET /api/v0/supply-chain/advisories?limit=10&q=CVE-2026-00010": {
+        "description": "Deployed advisory catalog proof for one public synthetic Debian advisory.",
+        "truth_class": "deterministic",
+        "required_response_fields": [
+          "advisories",
+          "count",
+          "limit",
+          "scope",
+          "truncated"
+        ],
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "advisories",
+        "required_json_values": {
+          "count": 1,
+          "limit": 10,
+          "scope.q": "CVE-2026-00010",
+          "truncated": false,
+          "advisories[].advisory_key": "CVE-2026-00010",
+          "advisories[].canonical_id": "CVE-2026-00010",
+          "advisories[].cve_id": "CVE-2026-00010",
+          "advisories[].severity_label": "HIGH",
+          "advisories[].cvss_score": 7.5
         }
       },
       "GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000": {
