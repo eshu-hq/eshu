@@ -30,7 +30,23 @@
 fresh_stack() {
 	local cell="$1"
 	if [[ "${use_compose}" -eq 1 ]]; then
-		docker compose -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" down -v >/dev/null 2>&1 || true
+		# The teardown outcome is NOT discarded here. It used to be (`|| true`
+		# with both streams to /dev/null), which meant a failed `down -v` let the
+		# following `up -d` reattach the previous cell's volumes. Because
+		# shared-projection intent IDs are deterministic and completed rows are
+		# never reopened, a redelivered family then produces ZERO new graph
+		# writes -- yet every downstream assertion still passes on the edges that
+		# are already there. The cell reports green while proving nothing. That
+		# is the leading explanation for #5974.
+		#
+		# teardown_cell's own `down -v` (below) stays best-effort: it is cleanup
+		# after a finished cell, not the freshness guarantee. This one is the
+		# guarantee, so it fails loudly.
+		if ! docker compose -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" down -v \
+			>"${log_dir}/compose-down-${cell}.log" 2>&1; then
+			tail -20 "${log_dir}/compose-down-${cell}.log" >&2 || true
+			die "${cell}: docker compose down -v failed -- the stack is NOT fresh, and a stale stack makes this cell pass while proving nothing (see ${log_dir}/compose-down-${cell}.log)"
+		fi
 		docker compose -p "${FAULT_COMPOSE_PROJECT}" -f "${compose_file}" up -d nornicdb postgres
 		log "${cell}: wait for backends"
 		ifa_det_wait_for_backends "${FAULT_COMPOSE_PROJECT}" "${compose_file}" \

@@ -61,10 +61,17 @@ func (fe *FaultingExecutor) onceMatchedStatement(ordinal int, stmts []Statement)
 }
 
 // writeOnceFiredMarker records that the once-fault fired, naming the statement
-// it hit. It is best-effort by design: the fault itself is the point, and a
-// marker that cannot be written must not turn a genuinely-injected fault into a
-// different failure. The gate treats a missing marker as "never fired", so the
-// failure mode is a loud red rather than a silent pass.
+// it hit.
+//
+// It does NOT swallow the write error. An earlier version did, with a comment
+// claiming a missing marker meant "the fault never fired" -- which was exactly
+// wrong, and in the same way #5974's original defect was wrong. A silently
+// failed write is byte-identical to a fault that never fired, so swallowing the
+// error rebuilds the ambiguity this marker exists to remove, one level down.
+//
+// A failed write is reported on stderr with a distinctive prefix the gate names
+// in its own failure message, so "no marker" can be told apart from "marker
+// write failed" by looking at one line of reducer output instead of guessing.
 //
 // Written with os.WriteFile (create-truncate-write-close) from the injecting
 // goroutine before the fault is returned, so it is on disk by the time any
@@ -76,5 +83,13 @@ func (fe *FaultingExecutor) writeOnceFiredMarker(ordinal int, operation string) 
 	record := fmt.Sprintf("lane=%s ordinal=%d\noperation=%s\n", fe.onceLane, ordinal, operation)
 	// #nosec G306 -- marker is a local/CI fault-injection coordination flag,
 	// same trust boundary as the restart sentinel written above.
-	_ = os.WriteFile(fe.onceFiredPath, []byte(record), 0o644)
+	if err := os.WriteFile(fe.onceFiredPath, []byte(record), 0o644); err != nil {
+		fmt.Fprintf(os.Stderr, "%s: %v (path=%s)\n", OnceFiredMarkerWriteFailedPrefix, err, fe.onceFiredPath)
+	}
 }
+
+// OnceFiredMarkerWriteFailedPrefix is the stderr prefix writeOnceFiredMarker
+// emits when it cannot write the marker. The fault-injection gate names this
+// string in its "no marker found" failure so an operator is told to look for it
+// rather than concluding the fault never fired.
+const OnceFiredMarkerWriteFailedPrefix = "ifa fault: once-fired marker write failed"

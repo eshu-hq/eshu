@@ -104,6 +104,40 @@ cell_failgraphwrite_sql() {
 	cell_start=$(date +%s)
 	log "cell fail-graph-write-once-then-succeed-sql: fresh stack"
 	fresh_stack failgraphwritesql
+
+	# Probe 1 (#5974): a genuinely fresh stack has no shared-projection intents.
+	# Survivors mean this cell is replaying an earlier cell's completed work --
+	# intent IDs are deterministic and completed rows are never reopened, so the
+	# drive produces no new graph writes, nothing reaches the fault decorator,
+	# and every later assertion still passes on edges that are already there.
+	# Only meaningful when this script owns the stack. Under --no-compose
+	# fresh_stack deliberately skips teardown, so surviving intents are the
+	# operator's pre-existing state rather than a leak, and asserting zero would
+	# fail a legitimately-configured run.
+	if [[ "${use_compose}" -eq 1 ]]; then
+		local pre_intents pre_intents_rc
+		# Captured WITHOUT a pipe so a failed query is distinguishable from a
+		# count. Piping through tr collapses an error into an empty string, and
+		# an empty string is not "0" -- the cell would then die reporting a stale
+		# stack when Postgres was simply unreachable. Guessing a cause from an
+		# ambiguous signal is the exact defect this cell exists to remove.
+		set +e
+		pre_intents="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
+			'SELECT count(*) FROM shared_projection_intents;' "${compose_file}")"
+		pre_intents_rc=$?
+		set -e
+		[[ "${pre_intents_rc}" -eq 0 ]] \
+			|| die "fail-graph-write-once-then-succeed-sql: the fresh-stack precondition query FAILED (exit ${pre_intents_rc}); that says nothing about whether the stack is fresh -- fix the query or the backend before reading this cell's result (#5974)"
+		pre_intents="$(printf '%s' "${pre_intents}" | tr -d '[:space:]')"
+		[[ "${pre_intents}" =~ ^[0-9]+$ ]] \
+			|| die "fail-graph-write-once-then-succeed-sql: the fresh-stack precondition query returned non-numeric output; treat that as unknown, not as zero (#5974)"
+		[[ "${pre_intents}" == "0" ]] \
+			|| die "fail-graph-write-once-then-succeed-sql: ${pre_intents} shared_projection_intents row(s) survived fresh_stack -- the stack is not fresh, so this cell would replay completed work and prove nothing (#5974)"
+		printf 'fail-graph-write-once-then-succeed-sql: fresh-stack precondition: 0 shared_projection_intents\n'
+	else
+		printf 'fail-graph-write-once-then-succeed-sql: fresh-stack precondition SKIPPED (--no-compose owns the stack; surviving intents are not a leak)\n'
+	fi
+
 	drive_all_cassettes failgraphwritesql
 	local fault_once_script_sql projector_pid reducer_pid
 	fault_once_script_sql="${work_dir}/fault-once-then-succeed-sql.json"
@@ -113,13 +147,37 @@ cell_failgraphwrite_sql() {
 		env "ESHU_IFA_FAULT_SCRIPT=${fault_once_script_sql}" "${tagged_bin_dir}/eshu-reducer"
 	run_drain_gate failgraphwritesql
 	assert_no_dead_letters failgraphwritesql
+
+	# Probe 2 (#5974): separate "the SQL edge was never written in this cell"
+	# from "it was written here and the fault missed it". Without this, a missing
+	# marker has two explanations and the failure message has to guess between
+	# them -- which is how this issue stayed open on a wrong root cause.
+	log "fail-graph-write-once-then-succeed-sql: probe SQL edges and this cell's intent window"
+	"${bin_dir}/eshu-ifa" assert-edges \
+		-domain sql_relationships \
+		-expected "${sql_expected_edges}" \
+		|| die "fail-graph-write-once-then-succeed-sql: the SQL relationship edge set does not match the expected set after the drain. assert-edges is set-exact, so this covers a MISSING QUERIES_TABLE edge (the MERGE never ran here, and the fault had nothing to intercept) AND an extra, duplicated, or wrong-typed edge (a write ran and produced something else). Read the assert-edges diff above before deciding which -- they point at different code (#5974)."
+	ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
+		"SELECT count(*) AS total, count(*) FILTER (WHERE completed_at IS NULL) AS pending, min(created_at) AS first_created, max(completed_at) AS last_completed FROM shared_projection_intents WHERE projection_domain = 'sql_relationships';" \
+		"${compose_file}" | sed 's/^/  sql_relationships intent window: /'
 	capture_digest failgraphwritesql
 	assert_matches_baseline failgraphwritesql
 	# #5974: assert on the durable marker the fault decorator writes, not the
 	# reducer's captured stderr. The log route raced the flush and made this
 	# cell inert in CI while passing locally.
-	ifa_fault_assert_once_fault_marker "${fault_once_script_sql}" "${sql_edge_operation_match}" \
-		|| die "fail-graph-write-once-then-succeed-sql: the scripted fault never fired -- no once-fired marker naming ${sql_edge_operation_match} was written beside ${fault_once_script_sql}. An inert script, not a pass. The marker is written by FaultingExecutor at injection time (go/internal/storage/cypher/fault_executor.go), so its absence means the QUERIES_TABLE MERGE anchor never matched a real write: check sql_edge_operation_match against go/internal/storage/cypher/edge_writer_sql.go and canonical.go before treating this cell as usable."
+	# When the marker is missing, look for the write-failure line HERE rather than
+	# instructing the operator to. teardown only tails the reducer log, so the
+	# line can scroll out of reach before anyone reads it -- and a marker that
+	# failed to write is an instrument failure, not evidence about the fault.
+	if ! ifa_fault_assert_once_fault_marker "${fault_once_script_sql}" "${sql_edge_operation_match}"; then
+		if rg --fixed-strings --quiet -- "${IFA_ONCE_MARKER_WRITE_FAILED_PREFIX}" \
+			"${log_dir}/reducer-failgraphwritesql.log" 2>/dev/null; then
+			rg --fixed-strings -- "${IFA_ONCE_MARKER_WRITE_FAILED_PREFIX}" \
+				"${log_dir}/reducer-failgraphwritesql.log" >&2 || true
+			die "fail-graph-write-once-then-succeed-sql: the marker WRITE FAILED (line above). The fault may well have fired -- this is an instrument failure, not evidence about the fault (#5974)."
+		fi
+		die "fail-graph-write-once-then-succeed-sql: no once-fired marker naming ${sql_edge_operation_match} beside ${fault_once_script_sql}. The probes above already ruled out the cheap explanations, so with them green this means the statement flowed and the fault did not intercept it -- OR the marker write itself failed, which the reducer log reports with the prefix \"ifa fault: once-fired marker write failed\". That line was searched for above and not found. The marker is written by FaultingExecutor at injection time (go/internal/storage/cypher/fault_executor.go), so its absence means the QUERIES_TABLE MERGE anchor never matched a real write: check sql_edge_operation_match against go/internal/storage/cypher/edge_writer_sql.go and canonical.go before treating this cell as usable."
+	fi
 	printf 'fail-graph-write-once-then-succeed-sql: non-vacuous: once-fired marker names the targeted SQL edge MERGE (written by the fault decorator at injection time, not read from the reducer log)\n'
 	teardown_cell failgraphwritesql
 	wall_times[failgraphwritesql]=$(( $(date +%s) - cell_start ))
