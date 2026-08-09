@@ -146,6 +146,52 @@ func TestEdgeWriterWriteEdgesPartialDropWarnsWithDroppedCount(t *testing.T) {
 	}
 }
 
+// TestEdgeWriterWriteEdgesControlRowOnlyBatchStaysSuccessful is the guard that
+// keeps the #5984 accuracy check from becoming an availability bug.
+//
+// A repo refresh row exists to drive the repo-wide retract and carries no edge
+// of its own. A code-call delta that only deleted call sites is exactly this
+// batch. Treating it as an unroutable edge would refuse to complete the intent
+// on every poll and wedge the partition on work that was correct. Caught by
+// BenchmarkEdgeWriterCodeCallRetractAndWrite/delta_deleted_only_50_files_0_call_rows,
+// which drives this shape directly.
+func TestEdgeWriterWriteEdgesControlRowOnlyBatchStaysSuccessful(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	executor := &recordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+	writer.Logger = slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{
+			IntentID:     "refresh-delta",
+			RepositoryID: "repo-a",
+			Payload: map[string]any{
+				"repo_id":          "repo-a",
+				"delta_projection": true,
+				"delta_file_paths": []string{"a.go"},
+				"intent_type":      "repo_refresh",
+			},
+		},
+	}
+
+	if err := writer.WriteEdges(
+		context.Background(),
+		reducer.DomainCodeCalls,
+		rows,
+		"parser/code-calls",
+	); err != nil {
+		t.Fatalf("WriteEdges() error = %v, want nil for a control-row-only batch", err)
+	}
+	if got := len(executor.calls); got != 0 {
+		t.Fatalf("executor calls = %d, want 0", got)
+	}
+	if _, ok := findLogEntry(t, logs.Bytes(), "shared edge rows unroutable"); ok {
+		t.Fatalf("control row was reported as a dropped edge; logs:\n%s", logs.String())
+	}
+}
+
 // assertAllRowsUnroutable is the shared assertion for a batch whose every row
 // is missing its required MATCH fields. It states the #5984 contract once:
 // nothing reaches the executor AND the caller is told, so the shared

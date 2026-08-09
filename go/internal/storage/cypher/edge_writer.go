@@ -151,6 +151,12 @@ func (w *EdgeWriter) WriteEdges(
 	for _, row := range rows {
 		cypher, rowMap, ok := buildRowMap(domain, row, evidenceSource)
 		if !ok {
+			// A control row (a repo refresh whose job is the repo-wide retract)
+			// has no edge to write by design, so it is not a dropped edge. Only
+			// a row that was meant to become an edge counts here.
+			if reducer.CarriesNoEdge(row) {
+				continue
+			}
 			droppedRows++
 			if sampleDroppedIntentID == "" {
 				sampleDroppedIntentID = row.IntentID
@@ -179,6 +185,11 @@ func (w *EdgeWriter) WriteEdges(
 		w.reportUnroutableRows(ctx, domain, evidenceSource, len(rows), droppedRows, sampleDroppedIntentID, len(routedRows) == 0)
 	}
 	if len(routedRows) == 0 {
+		if droppedRows == 0 {
+			// Every row was a control row: this partition's write phase
+			// genuinely had nothing to write, and its retract already ran.
+			return nil
+		}
 		return &UnroutableRowsError{Domain: domain, EvidenceSource: evidenceSource, InputRows: len(rows), DroppedRows: droppedRows}
 	}
 	writtenRows := 0
