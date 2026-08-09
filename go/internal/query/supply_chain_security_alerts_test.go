@@ -383,6 +383,7 @@ func TestPostgresSecurityAlertReconciliationQueryShape(t *testing.T) {
 		"generation.status = 'active'",
 		"fact.fact_kind = $1",
 		"fact.is_tombstone = FALSE",
+		"COALESCE(cardinality($2::text[]), 0) = 0",
 		"fact.payload->>'repository_id' = ANY($2::text[])",
 		"fact.payload->>'provider_repository_id' = ANY($2::text[])",
 		"fact.payload->>'scope_id' = ANY($2::text[])",
@@ -390,6 +391,7 @@ func TestPostgresSecurityAlertReconciliationQueryShape(t *testing.T) {
 		"fact.payload->>'package_id' = $4",
 		"fact.payload->'cve_ids' ? $5",
 		"fact.payload->'ghsa_ids' ? $6",
+		"COALESCE(cardinality($11::text[]), 0) = 0",
 		"LIMIT $10",
 	} {
 		if !strings.Contains(listSecurityAlertReconciliationsQuery, want) {
