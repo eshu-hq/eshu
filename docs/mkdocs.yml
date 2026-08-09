@@ -34,6 +34,7 @@ nav:
     - Start Here: start-here.md
     - First Successful Run: getting-started/first-successful-run.md
     - Console First Five Minutes: getting-started/console-first-five-minutes.md
+    - Demo Mode: getting-started/demo-mode.md
     - Your First Five Questions: getting-started/first-five-questions.md
     - Choose Your Local Path: run-locally/index.md
     - Local Binaries: run-locally/local-binaries.md
