@@ -172,15 +172,16 @@ func TestFaultingExecutorRecordsObservedOperationsWhenTheFaultNeverFires(t *test
 	if err != nil {
 		t.Fatalf("no observed-operations record after an armed fault saw statements: %v", err)
 	}
-	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
-	if len(lines) != 2 {
-		t.Errorf("observed operations = %d line(s), want 2 distinct shapes; got %q", len(lines), string(raw))
+	if got := strings.Count(string(raw), "--- statement ---"); got != 2 {
+		t.Errorf("observed operations = %d statement(s), want 2 distinct shapes; got %q", got, string(raw))
 	}
 	if !strings.Contains(string(raw), "CloudResource") || !strings.Contains(string(raw), "HAS_COLUMN") {
 		t.Errorf("observed operations missing a shape that ran; got %q", string(raw))
 	}
-	// First lines only: the MERGE clause the anchor targets, not whole bodies.
-	if strings.Contains(string(raw), "SET r.x = 1") || strings.Contains(string(raw), "RETURN a") {
-		t.Errorf("observed operations recorded whole statement bodies; want first lines only; got %q", string(raw))
+	// FULL statements, not first lines. The anchor this record exists to be
+	// compared against sits on line 4 of the real SQL templates, so a first-line
+	// record discards precisely the line that matters (#5974).
+	if !strings.Contains(string(raw), "SET r.x = 1") || !strings.Contains(string(raw), "RETURN a") {
+		t.Errorf("observed operations kept only first lines; the anchor line would be discarded; got %q", string(raw))
 	}
 }
