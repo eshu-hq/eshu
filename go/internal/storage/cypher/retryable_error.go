@@ -11,6 +11,11 @@ import (
 
 const malformedNeo4jConnectivityErrorMessage = "neo4j connectivity error is missing its underlying cause"
 
+const (
+	nornicDBRestartTransactionStartCode = "Neo.ClientError.Transaction.TransactionStartFailed"
+	nornicDBRestartTransactionStartMsg  = "failed to write WAL tx begin: wal: closed"
+)
+
 var errMalformedNeo4jConnectivity = errors.New(malformedNeo4jConnectivityErrorMessage)
 
 // retryableNeo4jCodes lists Neo4j error codes that are safe to retry in
@@ -45,12 +50,12 @@ func (e *neo4jRetryableError) Retryable() bool { return true }
 // from a reducer readiness backlog that also persists as a retrying row.
 func (e *neo4jRetryableError) FailureClass() string { return GraphWriteTimeoutFailureClass }
 
-// WrapRetryableNeo4jError inspects err for known retryable Neo4j error codes
-// or driver-level retry exhaustion. If the error (or any wrapped error in the
-// chain) is a *neo4j.Neo4jError with a retryable code, or a
-// *neo4j.TransactionExecutionLimit (driver exhausted its internal retry
-// budget), the error is wrapped in a type implementing reducer.RetryableError.
-// Otherwise the original error is returned unchanged.
+// WrapRetryableNeo4jError inspects err for graph-write failures that are safe
+// to retry from the durable reducer queue. It wraps known retryable Neo4j error
+// codes, driver retry-budget exhaustion, connectivity failures, and the exact
+// NornicDB transaction-start failure emitted during backend restart. Malformed
+// connectivity errors remain terminal, and all other errors are returned
+// unchanged.
 func WrapRetryableNeo4jError(err error) error {
 	if err == nil {
 		return nil
@@ -69,6 +74,9 @@ func WrapRetryableNeo4jError(err error) error {
 	if errors.As(err, &connectivityErr) {
 		return &neo4jRetryableError{inner: err, code: "ConnectivityError"}
 	}
+	if isNornicDBRestartTransactionStartFailure(err) {
+		return &neo4jRetryableError{inner: err, code: nornicDBRestartTransactionStartCode}
+	}
 	var neo4jErr *neo4jdriver.Neo4jError
 	if !errors.As(err, &neo4jErr) {
 		return err
@@ -82,4 +90,16 @@ func WrapRetryableNeo4jError(err error) error {
 func isMalformedNeo4jConnectivityError(err error) bool {
 	var connectivityErr *neo4jdriver.ConnectivityError
 	return errors.As(err, &connectivityErr) && connectivityErr.Inner == nil
+}
+
+// isNornicDBRestartTransactionStartFailure recognizes the exact error emitted
+// when a backend restart closes the WAL before a new transaction can begin.
+// No transaction body has run, so both immediate and durable queue replay are
+// safe. Keep the message guard alongside the code because NornicDB currently
+// reports this backend-unavailable condition under a ClientError prefix.
+func isNornicDBRestartTransactionStartFailure(err error) bool {
+	var neo4jErr *neo4jdriver.Neo4jError
+	return errors.As(err, &neo4jErr) &&
+		neo4jErr.Code == nornicDBRestartTransactionStartCode &&
+		neo4jErr.Msg == nornicDBRestartTransactionStartMsg
 }
