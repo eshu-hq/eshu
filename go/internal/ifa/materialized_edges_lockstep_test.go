@@ -59,6 +59,34 @@ func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 	if len(dangling) != 0 {
 		t.Errorf("dangling waivers = %v, want zero (every waiver must name a real, currently-enumerated family)", dangling)
 	}
+	// Every (family, proof_gate) pair must be EITHER covered or waived, and never
+	// both. This is derived from the manifest rather than special-casing family
+	// names: #5543 proves families one at a time, so a rule written as
+	// "sql_relationships is covered, everything else is waived" needs editing on
+	// every single one of those PRs — and a rule you must edit to make a change
+	// pass is a rule that stops being read.
+	//
+	// The "never both" half is the stale-waiver rule: a waiver surviving next to
+	// real coverage keeps advertising a gap that is closed.
+	byKey := materializedEdgeWaiversByKey(waivers)
+	covered := map[materializedEdgeWaiverKey]struct{}{}
+	for _, sc := range manifest.Coverage {
+		covered[materializedEdgeWaiverKey{Surface: sc.Surface, ProofGate: sc.ProofGate}] = struct{}{}
+	}
+	for _, f := range families {
+		for _, gate := range []string{materializedEdgeProofGateBaseline, materializedEdgeProofGateFault} {
+			key := materializedEdgeWaiverKey{Surface: MaterializedEdgeSurfacePrefix + f, ProofGate: gate}
+			_, isCovered := covered[key]
+			_, isWaived := byKey[key]
+			switch {
+			case !isCovered && !isWaived:
+				t.Errorf("family %q gate %q has neither coverage nor a waiver", f, gate)
+			case isCovered && isWaived:
+				t.Errorf("family %q gate %q is both covered and waived; remove the waiver in the change that adds the coverage row", f, gate)
+			}
+		}
+	}
+
 	if gate.Failed() {
 		t.Fatal("materialized-edge coverage gate failed in blocking mode: every family must be either covered (both scenario types) or waived with a tracked issue")
 	}
@@ -79,33 +107,6 @@ func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 	fault := findMaterializedEdgeCoverage(t, cov, MaterializedEdgeSurfacePrefix+"sql_relationships", replaycoverage.ScenarioTypeFault)
 	if fault.Status != replaycoverage.StatusCovered {
 		t.Errorf("materialized_edges:sql_relationships (fault) status = %q, detail=%q, want covered", fault.Status, fault.Detail)
-	}
-
-	// Every OTHER allProjectionDomains family must be waived on BOTH gates, not
-	// silently dropped from the manifest (a (surface × proof_gate) row present in
-	// neither coverage nor waivers is the exact drift this gate exists to catch —
-	// proven not to slip past by gate.Failed() above, but assert the waiver keys
-	// directly too so a future family added without either a coverage row or a
-	// waiver fails loudly here). sql_relationships is asserted separately: both
-	// its baseline and its fault gate are covered, so it carries no waiver on
-	// either. A waiver reappearing here would mean a proven dimension was quietly
-	// downgraded.
-	byKey := materializedEdgeWaiversByKey(waivers)
-	for _, f := range families {
-		if f == "sql_relationships" {
-			if _, ok := byKey[materializedEdgeWaiverKey{Surface: MaterializedEdgeSurfacePrefix + f, ProofGate: materializedEdgeProofGateFault}]; ok {
-				t.Error("sql_relationships fault is proven live since #5974; it must NOT carry a waiver")
-			}
-			if _, ok := byKey[materializedEdgeWaiverKey{Surface: MaterializedEdgeSurfacePrefix + f, ProofGate: materializedEdgeProofGateBaseline}]; ok {
-				t.Error("sql_relationships baseline is proven; it must NOT carry a waiver")
-			}
-			continue
-		}
-		for _, gate := range []string{materializedEdgeProofGateBaseline, materializedEdgeProofGateFault} {
-			if _, ok := byKey[materializedEdgeWaiverKey{Surface: MaterializedEdgeSurfacePrefix + f, ProofGate: gate}]; !ok {
-				t.Errorf("family %q gate %q has neither coverage nor a waiver", f, gate)
-			}
-		}
 	}
 
 	// Assert both proof gates this manifest references are CI-blocking with a
