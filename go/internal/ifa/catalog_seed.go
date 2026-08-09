@@ -51,6 +51,7 @@ var catalogSeed = []CatalogOdu{
 	repoDependencyConcurrencyOdu(),
 	sqlFamilyOdu(),
 	documentationFamilyOdu(),
+	rationaleFamilyOdu(),
 	sqlFamilyDeltaOdu(),
 }
 
