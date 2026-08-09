@@ -310,3 +310,62 @@ func TestRecoverDemoKeyExecsTheNamedService(t *testing.T) {
 		t.Errorf("exec call = %q, want it to target service %q", joined, demoServiceName)
 	}
 }
+
+// TestOwnsProjectRejectsALookalikeConfigPath proves the ownership guard matches
+// whole path entries, not substrings.
+//
+// The label holds a comma-separated list of absolute paths, so a plain
+// Contains check treats any path that merely embeds the demo filename as
+// proof of ownership. That is the wrong direction for a guard whose entire job
+// is refusing to tear down a stack this command did not create.
+func TestOwnsProjectRejectsALookalikeConfigPath(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		label string
+		want  bool
+	}{
+		{"exact", "/repo/" + demoComposeFileName, true},
+		{"with fragments", "/repo/" + demoComposeFileName + ",/repo/docker-compose.demo.corpus.yaml", true},
+		{"lookalike suffix", "/repo/not-" + demoComposeFileName + ".bak", false},
+		{"lookalike prefix", "/repo/x-" + demoComposeFileName, false},
+		{"unrelated project", "/elsewhere/docker-compose.yaml", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			fake := &fakeDemoExec{fallback: demoExecReply{out: []byte(tc.label + "\n")}}
+			r := &demoRuntime{exec: fake.run, project: "eshu-demo", composeFile: demoComposeFileName}
+			got, err := r.ownsProject(context.Background())
+			if err != nil {
+				t.Fatalf("ownsProject: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("ownsProject() = %v for label %q, want %v", got, tc.label, tc.want)
+			}
+		})
+	}
+}
+
+// TestWaitReadyTimeoutNamesTheResolvedComposeFile keeps the diagnostic command
+// runnable when ESHU_DEMO_COMPOSE_FILE points somewhere else. An error that
+// tells an operator to inspect a file the run never used sends them to an
+// empty log at the exact moment they need the real one.
+func TestWaitReadyTimeoutNamesTheResolvedComposeFile(t *testing.T) {
+	t.Parallel()
+	const resolved = "/custom/path/my-demo-compose.yaml"
+	now := time.Now()
+	r := &demoRuntime{
+		probe:        func(context.Context, string, string) (demoIndexStatus, error) { return demoIndexStatus{}, nil },
+		now:          func() time.Time { now = now.Add(demoReadyTimeout); return now },
+		project:      "eshu-demo",
+		composeFile:  resolved,
+		pollInterval: time.Millisecond,
+	}
+	err := r.waitReady(context.Background())
+	if err == nil {
+		t.Fatal("waitReady() = nil, want a timeout error")
+	}
+	if !strings.Contains(err.Error(), resolved) {
+		t.Errorf("timeout error = %q, want it to name the resolved file %q", err, resolved)
+	}
+}

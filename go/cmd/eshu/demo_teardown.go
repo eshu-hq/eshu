@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -58,7 +59,7 @@ func (r *demoRuntime) ownsProject(ctx context.Context) (bool, error) {
 		if line == "" {
 			continue
 		}
-		if !strings.Contains(line, demoComposeFileName) {
+		if !configFilesNameTheDemoOverlay(line) {
 			return false, nil
 		}
 	}
@@ -97,6 +98,23 @@ func (r *demoRuntime) status(ctx context.Context) (demoResult, error) {
 	}
 	res.Ready = indexStatus.Complete()
 	return res, nil
+}
+
+// configFilesNameTheDemoOverlay reports whether a config_files label lists the
+// demo overlay as one of its entries.
+//
+// The label is a comma-separated list of absolute paths, so the comparison is
+// per-entry and on the basename. Substring matching over the whole line would
+// accept a path that merely embeds the name -- not-docker-compose.demo.yaml.bak
+// alongside it -- and this guard exists to refuse tearing down a stack the demo
+// did not create, so it has to err toward refusing.
+func configFilesNameTheDemoOverlay(label string) bool {
+	for _, entry := range strings.Split(label, ",") {
+		if filepath.Base(strings.TrimSpace(entry)) == demoComposeFileName {
+			return true
+		}
+	}
+	return false
 }
 
 // demoServiceName is the Compose service that carries the demo stack's own

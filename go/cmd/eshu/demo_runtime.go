@@ -367,7 +367,7 @@ func (r *demoRuntime) waitReady(ctx context.Context) error {
 			return fmt.Errorf(
 				"demo stack did not finish indexing within %s (last seen: %d repositories, complete=%v)\n"+
 					"inspect it with `docker compose -p %s -f %s logs`",
-				demoReadyTimeout, last.RepositoryCount, last.Complete(), r.project, demoComposeFileName)
+				demoReadyTimeout, last.RepositoryCount, last.Complete(), r.project, r.composeFile)
 		}
 		select {
 		case <-ctx.Done():
