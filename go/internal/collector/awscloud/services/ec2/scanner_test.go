@@ -188,8 +188,10 @@ func TestScannerEmitsInstancePostureAndIdentityFacts(t *testing.T) {
 	if counts[facts.EC2InstancePostureFactKind] != 1 {
 		t.Fatalf("ec2_instance_posture count = %d, want 1", counts[facts.EC2InstancePostureFactKind])
 	}
-	if counts[facts.AWSResourceFactKind] != 1 {
-		t.Fatalf("aws_resource count = %d, want 1 (#5448 identity fact)", counts[facts.AWSResourceFactKind])
+	// #5717: two aws_resource facts now — the instance identity fact AND the
+	// AMI node-class fact the instance->AMI relationship resolves against.
+	if counts[facts.AWSResourceFactKind] != 2 {
+		t.Fatalf("aws_resource count = %d, want 2 (#5448 identity fact + #5717 AMI resource fact)", counts[facts.AWSResourceFactKind])
 	}
 	if counts[facts.AWSRelationshipFactKind] != 1 {
 		t.Fatalf("aws_relationship count = %d, want 1 (#5448 instance->AMI relationship)", counts[facts.AWSRelationshipFactKind])
@@ -210,6 +212,22 @@ func TestScannerEmitsInstancePostureAndIdentityFacts(t *testing.T) {
 	}
 	if got := amiRelationship.Payload["target_type"]; got != awscloud.ResourceTypeEC2AMI {
 		t.Fatalf("ami relationship target_type = %#v, want %s", got, awscloud.ResourceTypeEC2AMI)
+	}
+
+	// #5717: the AMI resource fact this relationship's target join resolves
+	// against. It carries only identity — Name is the bare resource id, with no
+	// rich state/owner metadata, since
+	// this increment reads no DescribeImages data (see amiResourceObservation
+	// doc).
+	amiResource := assertResourceType(t, envelopes, awscloud.ResourceTypeEC2AMI)
+	if got := amiResource.Payload["resource_id"]; got != "ami-0000000000000000a" {
+		t.Fatalf("ami resource_id = %#v, want ami-0000000000000000a", got)
+	}
+	if got, _ := amiResource.Payload["account_id"].(string); got != "123456789012" {
+		t.Fatalf("ami resource account_id = %#v, want 123456789012", got)
+	}
+	if got, _ := amiResource.Payload["region"].(string); got != "us-east-1" {
+		t.Fatalf("ami resource region = %#v, want us-east-1", got)
 	}
 
 	posture := assertInstancePostureFact(t, envelopes)
@@ -256,6 +274,8 @@ func TestScannerEmitsIdentityWithoutAMIRelationshipWhenImageIDBlank(t *testing.T
 	}
 
 	counts := factKindCounts(envelopes)
+	// #5717: no ImageID means no AMI resource fact either — only the instance
+	// identity fact.
 	if counts[facts.AWSResourceFactKind] != 1 {
 		t.Fatalf("aws_resource count = %d, want 1", counts[facts.AWSResourceFactKind])
 	}
@@ -264,6 +284,7 @@ func TestScannerEmitsIdentityWithoutAMIRelationshipWhenImageIDBlank(t *testing.T
 	}
 	identity := assertResourceType(t, envelopes, awscloud.ResourceTypeEC2Instance)
 	assertAttribute(t, identity, "ami_id", "")
+	assertNoResourceType(t, envelopes, awscloud.ResourceTypeEC2AMI)
 }
 
 func assertInstancePostureFact(t *testing.T, envelopes []facts.Envelope) facts.Envelope {

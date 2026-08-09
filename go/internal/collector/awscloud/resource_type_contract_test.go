@@ -32,6 +32,7 @@ func TestAWSCloudResourceTypeConstantsMatchFactSchema(t *testing.T) {
 		"ec2_network_interface": {got: ResourceTypeEC2NetworkInterface, want: awsv1.ResourceTypeEC2NetworkInterface},
 		"ec2_volume":            {got: ResourceTypeEC2Volume, want: awsv1.ResourceTypeEC2Volume},
 		"ec2_instance":          {got: ResourceTypeEC2Instance, want: awsv1.ResourceTypeEC2Instance},
+		"ec2_ami":               {got: ResourceTypeEC2AMI, want: awsv1.ResourceTypeEC2AMI},
 	}
 	for name, tt := range tests {
 		name, tt := name, tt

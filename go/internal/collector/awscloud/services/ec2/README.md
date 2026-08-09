@@ -30,10 +30,22 @@ uses, but is projected by a SEPARATE, narrow reducer domain
 the disjoint `ami_id` property — it never creates the node or touches the
 posture domain's base identity/posture properties. See
 `go/internal/reducer/ec2_instance_identity_materialization.go` for the
-dual-writer safety argument. The instance->AMI relationship stays
-Postgres-only: no AMI/MachineImage graph node class exists yet (tracked
-follow-up: https://github.com/eshu-hq/eshu/issues/5717), so the generic AWS
-relationship edge projection's target join never resolves it.
+dual-writer safety argument.
+
+The scanner ALSO emits (#5717) one `aws_resource` fact for the AMI itself
+(`resource_type=aws_ec2_ami`, `resource_id`=the AMI id), deduplicated across
+every instance in the scan that shares the same AMI id — many instances
+commonly launch from one AMI, so this is emitted once per distinct AMI id per
+scan, not once per instance. This is what lets the instance->AMI relationship
+above finally resolve: the AMI materializes as an ordinary `CloudResource`
+node through the SAME generic AWS resource node materialization every other
+resource type uses (`go/internal/reducer/aws_resource_materialization.go`) —
+no new node label, no dedicated node/edge writer. The fact carries ONLY
+identity (account/region/resource_id, with Name set to the bare resource id
+like every other EC2 resource type); it never carries rich state, owner,
+or creation-date AMI metadata, because that requires a separate
+`DescribeImages` API call this scanner deliberately does not make (a distinct,
+separately costed enrichment follow-up, not a bug).
 
 For every EBS volume the scanner emits one metadata-only `aws_ec2_volume`
 resource fact from a single boundary-scoped `DescribeVolumes` pass. It records
@@ -65,6 +77,8 @@ flowchart LR
   D --> F["aws_relationship facts"]
   J --> F
   H --> K["aws_relationship: instance USES AMI #5448"]
+  H --> L["aws_resource: AMI identity #5717, deduped per scan"]
+  L --> K
   D --> G["aws_security_group_rule posture facts"]
   H --> I["ec2_instance_posture facts"]
 ```
@@ -73,8 +87,9 @@ flowchart LR
 
 See `doc.go` for the godoc contract.
 
-- `Scanner` - emits EC2 network topology, EBS volume, instance-posture, and
-  (#5448) instance-identity facts for one claimed AWS boundary.
+- `Scanner` - emits EC2 network topology, EBS volume, instance-posture,
+  (#5448) instance-identity, and (#5717) AMI-identity facts for one claimed
+  AWS boundary.
 - `Client` - scanner-owned read surface implemented by `awssdk.Client`.
 - `VPC`, `Subnet`, `SecurityGroup`, `SecurityGroupRule`, `NetworkInterface`,
   `Volume`, and `Instance` - scanner-owned EC2 records.
@@ -119,6 +134,15 @@ AWS API call counters, throttle counters, and pagination spans.
   `cloudResourceNodeRow` exclusion and
   `go/internal/storage/cypher/ec2_instance_identity_node_writer.go`'s
   disjointness proof before adding one.
+- The AMI (`aws_ec2_ami`) `aws_resource` fact (#5717) is INTENTIONALLY
+  identity-only, mirroring the instance fact's minimalism above: Name is the
+  bare resource id, and there is no rich
+  state, owner, or creation-date property. It exists solely so the
+  instance->AMI relationship's edge join resolves; enriching it with real AMI
+  metadata requires a `DescribeImages` call this package does not make and is
+  a separate, costed follow-up, not something to add inline here. It is also
+  DEDUPLICATED per scan by AMI id (`amiResourceEnvelopes`'s `seenAMIIDs` map
+  in `scanner.go`) — do not revert to emitting one AMI fact per instance.
 - The `ec2_instance_posture` fact carries user-data PRESENCE only. The user-data
   content (which can hold secrets), instance console output, environment
   variables, and any other instance payload are never read or persisted. The
@@ -252,6 +276,33 @@ but no relationship fact is fabricated). The identity fact is built from the
 same `DescribeInstances` entry the posture fact already reads (`instance.ImageID`,
 mapped in `awssdk/mapper.go`'s `mapInstance`), so it adds no AWS API call and
 no per-instance fan-out.
+
+No-Observability-Change: the scanner emits facts only; it adds no instrument,
+span, metric label, or `aws_scan_status` row. The existing `DescribeInstances`
+pagination span and API-call counter already cover the read.
+
+### AMI resource identity fact (#5717)
+
+No-Regression Evidence: `go test ./internal/collector/awscloud/services/ec2/... -count=1`
+covers `TestScannerEmitsInstancePostureAndIdentityFacts` (now also asserting a
+second `aws_resource` fact, `resource_type=aws_ec2_ami`, with matching
+`resource_id`/`account_id`/`region`),
+`TestScannerEmitsIdentityWithoutAMIRelationshipWhenImageIDBlank` (no AMI
+resource fact when the instance carries no AMI id), and
+`TestScannerDedupesAMIResourceFactAcrossSharedInstances` (two instances
+sharing one AMI id emit exactly one AMI `aws_resource` fact, not two, while
+still emitting their own instance-identity and relationship facts). At the
+reducer layer, `go test ./internal/reducer -run
+TestExtractAWSRelationshipEdgeRowsResolvesEC2InstanceUsesAMITarget -count=1`
+proves `ExtractAWSRelationshipEdgeRows` resolves the `ec2_instance_uses_ami`
+target by bare id once the AMI's `aws_resource` fact is present — the reducer
+join code itself needed NO changes, since `buildCloudResourceJoinIndex`
+already indexed every `aws_resource` fact generically regardless of
+`resource_type`; the fix is entirely the collector now emitting the
+previously-missing fact. The AMI fact is built from the same
+`DescribeInstances` entry the instance identity fact already reads
+(`instance.ImageID`), so it adds no AWS API call; the per-scan dedup adds one
+small map, not a fan-out.
 
 No-Observability-Change: the scanner emits facts only; it adds no instrument,
 span, metric label, or `aws_scan_status` row. The existing `DescribeInstances`

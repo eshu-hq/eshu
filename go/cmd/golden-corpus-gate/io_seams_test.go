@@ -76,7 +76,8 @@ func dartSelfLoopFloor() map[string]int64 {
 // source-ref, rn-flux-helm-repository-url,
 // rn-terraform-resource-attribute-promotion,
 // rn-terraform-state-provider-binding, rn-codeowner-team-ref,
-// rn-cloud-resource-running-image, rn-ec2-instance-identity-ami) so a
+// rn-cloud-resource-running-image, rn-ec2-instance-identity-ami,
+// rn-ec2-ami-node) so a
 // minimal-gate test can satisfy the snapshot's required nodes while focusing
 // on its own assertion. The two GCP posture-only entries pin identity via a
 // single CloudResource node carrying the matching resource_type value; the
@@ -93,8 +94,10 @@ func dartSelfLoopFloor() map[string]int64 {
 // CloudResource nodes carrying running_image_ref and running_image_digest (the
 // ECS running task's and Lambda function's deployed image evidence); and the
 // #5448 entry pins identity via a CloudResource node carrying ami_id (the EC2
-// instance identity materialization's disjoint augment property); see
-// testdata/golden/e2e-20repo-snapshot.json.
+// instance identity materialization's disjoint augment property); and the
+// #5717 entry pins identity via a CloudResource node carrying resource_type
+// aws_ec2_ami (the AMI node class that lets the #5448 relationship resolve);
+// see testdata/golden/e2e-20repo-snapshot.json.
 func fileLanguageFloor() (map[string]int64, map[string][]string) {
 	langs := make([]string, 10)
 	for i := range langs {
@@ -132,6 +135,11 @@ func fileLanguageFloor() (map[string]int64, map[string][]string) {
 		"CloudResource|resource_type": {
 			"dataplex.googleapis.com/EntryGroup",
 			"identitytoolkit.googleapis.com/Config",
+			// rn-ec2-ami-node (#5717): the AMI's own aws_resource identity fact
+			// materializes as an ordinary CloudResource node under this
+			// resource_type via the generic AWS resource node materialization
+			// path.
+			"aws_ec2_ami",
 		},
 		"CloudResource|ami_id":                         {"ami-000000000000000a"},
 		"FluxKustomization|source_ref_kind":            {"GitRepository"},

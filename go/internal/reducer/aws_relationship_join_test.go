@@ -262,6 +262,66 @@ func TestExtractAWSRelationshipEdgeRowsUnresolvedSourceStaysUnresolved(t *testin
 	}
 }
 
+// TestExtractAWSRelationshipEdgeRowsResolvesEC2InstanceUsesAMITarget is the
+// #5717 regression: before this fix, no aws_resource fact existed for an AMI
+// (resource_type aws_ec2_ami), so the ec2_instance_uses_ami relationship's
+// target NEVER resolved against the join index — it always fell through to
+// joinModeUnresolved and the edge was dropped (counted, never written; see
+// go/internal/collector/awscloud/services/ec2/identity.go and
+// go/internal/reducer/aws_relationship_join.go). This test seeds an AMI
+// aws_resource fact (the #5717 fix's node-class materialization input)
+// alongside the instance resource fact and proves the target now resolves by
+// bare id, matching the shape the EC2 collector actually emits (ARN-less AMI
+// identity, resource_id = the AMI id).
+func TestExtractAWSRelationshipEdgeRowsResolvesEC2InstanceUsesAMITarget(t *testing.T) {
+	t.Parallel()
+
+	source := resourceEnvelope("123456789012", "us-east-1", "aws_ec2_instance",
+		"i-1234567890abcdef0", "arn:aws:ec2:us-east-1:123456789012:instance/i-1234567890abcdef0")
+	// The AMI resource fact #5717 adds: no ARN, resource_id is the bare AMI id
+	// — the same shape amiResourceObservation emits.
+	target := resourceEnvelope("123456789012", "us-east-1", "aws_ec2_ami",
+		"ami-000000000000000a", "")
+
+	rel := awsRelationshipEnvelope(map[string]any{
+		"account_id":         "123456789012",
+		"region":             "us-east-1",
+		"relationship_type":  "ec2_instance_uses_ami",
+		"source_resource_id": "i-1234567890abcdef0",
+		"source_arn":         "arn:aws:ec2:us-east-1:123456789012:instance/i-1234567890abcdef0",
+		"target_resource_id": "ami-000000000000000a",
+		"target_type":        "aws_ec2_ami",
+	})
+
+	rows, tally, _, err := ExtractAWSRelationshipEdgeRows(
+		[]facts.Envelope{source, target},
+		[]facts.Envelope{rel},
+	)
+	if err != nil {
+		t.Fatalf("ExtractAWSRelationshipEdgeRows() error = %v, want nil", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("len(rows) = %d, want 1 (#5717: the AMI target must now resolve)", len(rows))
+	}
+	if rows[0]["resolution_mode"] != joinModeBareID {
+		t.Fatalf("resolution_mode = %v, want %s", rows[0]["resolution_mode"], joinModeBareID)
+	}
+	wantSource := cloudResourceUID("123456789012", "us-east-1", "aws_ec2_instance", "i-1234567890abcdef0")
+	wantTarget := cloudResourceUID("123456789012", "us-east-1", "aws_ec2_ami", "ami-000000000000000a")
+	if rows[0]["source_uid"] != wantSource {
+		t.Fatalf("source_uid = %v, want %v", rows[0]["source_uid"], wantSource)
+	}
+	if rows[0]["target_uid"] != wantTarget {
+		t.Fatalf("target_uid = %v, want %v", rows[0]["target_uid"], wantTarget)
+	}
+	if got := tally.resolved[joinModeBareID]; got != 1 {
+		t.Fatalf("tally.resolved[bare_id] = %d, want 1", got)
+	}
+	if len(tally.unresolved) != 0 {
+		t.Fatalf("unresolved tally = %v, want empty (#5717 regression: this used to always be unresolved)", tally.unresolved)
+	}
+}
+
 func TestExtractAWSRelationshipEdgeRowsDeduplicatesAndSortsDeterministically(t *testing.T) {
 	t.Parallel()
 
