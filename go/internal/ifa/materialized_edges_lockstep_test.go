@@ -18,7 +18,7 @@ import (
 // honest against reducer.MaterializedEdgeFamilies() and the real ci-gates
 // registry, in BLOCKING mode. It is the "pure go test" local command the
 // ifa-materialized-edge-coverage CI gate runs (specs/ci-gates.v1.yaml): every
-// one of the 12 allProjectionDomains families must be either genuinely
+// one of the 14 allProjectionDomains families must be either genuinely
 // covered (baseline and fault rows resolve) or carry a waiver naming a tracked
 // issue. SQL relationships additionally requires a live delta row.
 func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {

@@ -71,6 +71,13 @@ repos:
         files: '^((AGENTS|CLAUDE)\.md|\.agents/.*|\.claude/skills/.*|\.codex/skills/.*|\.opencode/agent/.*|scripts/verify-agent-canon\.sh|scripts/test-verify-agent-hygiene\.sh)$'
         pass_filenames: false
 
+      - id: no-diff-fragments
+        name: no diff fragments or conflict markers (staged content)
+        entry: scripts/verify-no-diff-fragments.sh --staged
+        language: script
+        always_run: true
+        pass_filenames: false
+
       - id: no-ai-attribution-content
         name: no AI attribution (staged content)
         entry: scripts/verify-no-ai-attribution.sh --staged

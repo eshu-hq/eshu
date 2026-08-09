@@ -169,6 +169,29 @@ gates:
     ci_only_reason: ""
     hook_id: agent-canon
 
+  - id: no-diff-fragments
+    name: No diff fragments or conflict markers in source
+    category: hygiene
+    tier: pre-commit
+    blocking: true
+    triggers:
+      # Tree mode scans every tracked file, so any non-empty PR must wait for
+      # it. The corruption this catches lands in a file the PR need not touch
+      # -- it is introduced at commit time on the author machine -- so a
+      # path-scoped trigger would miss exactly the case it exists for (#5612).
+      - "**"
+    local:
+      command: "bash scripts/verify-no-diff-fragments.sh"
+      test_command: "bash scripts/test-verify-no-diff-fragments.sh"
+    ci:
+      # Runs in verify-agent-hygiene.yml's gate job alongside agent-canon and
+      # the AI-attribution check; same workflow, same job, one more step.
+      workflow: verify-agent-hygiene.yml
+      job: "Agent hygiene gate"
+    requirements: []
+    ci_only_reason: ""
+    hook_id: no-diff-fragments
+
   - id: no-ai-attribution
     name: No AI attribution in commits/docs
     category: hygiene
