@@ -379,3 +379,40 @@ func TestRunnableFormSurvivesShellQuoting(t *testing.T) {
 		t.Errorf("shell parsed arguments as %q, want %q", out, want)
 	}
 }
+
+// TestLoadDemoManifest_ResolvesTheFlatSurfaceShape pins the fallback branch
+// that resolves a question declaring its callable directly on surface, rather
+// than nested under surface.execute.
+//
+// Both shapes are present in the committed manifest, and an earlier draft
+// resolved the flat one to zero values -- which does not fail loading, it just
+// leaves the question uncallable at the moment the demo tries to answer it.
+// The arguments assertion matters for the same reason: a call that reaches the
+// right tool with no arguments comes back with the wrong answer, not an error.
+func TestLoadDemoManifest_ResolvesTheFlatSurfaceShape(t *testing.T) {
+	t.Parallel()
+	m, err := loadDemoManifest(repoManifestPath(t))
+	if err != nil {
+		t.Fatalf("loadDemoManifest: %v", err)
+	}
+	var flat *demoQuestion
+	for i := range m.Questions {
+		if m.Questions[i].Surface.Execute.Kind == "" && m.Questions[i].Surface.Kind == demoExecuteMCP {
+			flat = &m.Questions[i]
+			break
+		}
+	}
+	if flat == nil {
+		t.Fatal("no flat-shape question in the manifest; this test no longer guards the fallback branch")
+	}
+	if flat.Execute.Kind != demoExecuteMCP {
+		t.Errorf("%s Execute.Kind = %q, want %q", flat.ID, flat.Execute.Kind, demoExecuteMCP)
+	}
+	if flat.Execute.Ref != flat.Surface.Ref || flat.Execute.Ref == "" {
+		t.Errorf("%s Execute.Ref = %q, want the surface ref %q", flat.ID, flat.Execute.Ref, flat.Surface.Ref)
+	}
+	if len(flat.Execute.Arguments) != len(flat.Surface.Arguments) {
+		t.Errorf("%s Execute.Arguments = %v, want the surface arguments %v",
+			flat.ID, flat.Execute.Arguments, flat.Surface.Arguments)
+	}
+}
