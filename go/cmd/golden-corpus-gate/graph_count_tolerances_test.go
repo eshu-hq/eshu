@@ -41,7 +41,7 @@ func TestCheckGraphCountTolerancesRequiredInFullMode(t *testing.T) {
 		edges: map[string]int64{"REPO_CONTAINS": 500},
 	}
 	var r Report
-	if err := checkGraph(context.Background(), c, countToleranceSnapshot(), false, nil, &r); err != nil {
+	if err := checkGraph(context.Background(), c, countToleranceSnapshot(), false, nil, nil, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
 	}
 	if r.Failed() {
@@ -68,7 +68,7 @@ func TestCheckGraphCountToleranceBelowFloorFailsInFullMode(t *testing.T) {
 		edges: map[string]int64{"REPO_CONTAINS": 500},
 	}
 	var r Report
-	if err := checkGraph(context.Background(), c, countToleranceSnapshot(), false, nil, &r); err != nil {
+	if err := checkGraph(context.Background(), c, countToleranceSnapshot(), false, nil, nil, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
 	}
 	if !r.Failed() {
@@ -87,7 +87,7 @@ func TestCheckGraphCountTolerancesSkippedInRequiredOnlyMode(t *testing.T) {
 		edges: map[string]int64{"REPO_CONTAINS": 500},
 	}
 	var r Report
-	if err := checkGraph(context.Background(), c, countToleranceSnapshot(), true, nil, &r); err != nil {
+	if err := checkGraph(context.Background(), c, countToleranceSnapshot(), true, nil, nil, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
 	}
 	if _, ok := countFinding(r, "node_count_Repository"); ok {

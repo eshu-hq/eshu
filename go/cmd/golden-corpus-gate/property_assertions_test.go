@@ -44,7 +44,7 @@ func TestCheckGraphEdgePropertyMissingFails(t *testing.T) {
 	}
 	var r Report
 	if err := checkGraph(context.Background(), c, edgePropertySnapshot(), true,
-		map[string]bool{"rc-test-sourcetool": true}, &r); err != nil {
+		map[string]bool{"rc-test-sourcetool": true}, nil, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
 	}
 	if !r.Failed() {
@@ -64,7 +64,7 @@ func TestCheckGraphEdgePropertyPresentPasses(t *testing.T) {
 	}
 	var r Report
 	if err := checkGraph(context.Background(), c, edgePropertySnapshot(), true,
-		map[string]bool{"rc-test-sourcetool": true}, &r); err != nil {
+		map[string]bool{"rc-test-sourcetool": true}, nil, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
 	}
 	if r.Failed() {
@@ -85,7 +85,7 @@ func TestCheckGraphEdgePropertyWrongValueFails(t *testing.T) {
 	}
 	var r Report
 	if err := checkGraph(context.Background(), c, edgePropertySnapshot(), true,
-		map[string]bool{"rc-test-sourcetool": true}, &r); err != nil {
+		map[string]bool{"rc-test-sourcetool": true}, nil, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
 	}
 	if !r.Failed() {
@@ -117,7 +117,7 @@ func TestCheckGraphNodePropertyFloorFails(t *testing.T) {
 		nodeProp: map[string][]string{"File|language": {"go", "", "", "", ""}},
 	}
 	var r Report
-	if err := checkGraph(context.Background(), c, nodePropertySnapshot(), true, nil, &r); err != nil {
+	if err := checkGraph(context.Background(), c, nodePropertySnapshot(), true, nil, nil, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
 	}
 	if !r.Failed() {
@@ -133,7 +133,7 @@ func TestCheckGraphNodePropertyFloorPasses(t *testing.T) {
 		nodeProp: map[string][]string{"File|language": {"go", "python", "", ""}},
 	}
 	var r Report
-	if err := checkGraph(context.Background(), c, nodePropertySnapshot(), true, nil, &r); err != nil {
+	if err := checkGraph(context.Background(), c, nodePropertySnapshot(), true, nil, nil, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
 	}
 	if r.Failed() {
@@ -148,7 +148,7 @@ func TestCheckGraphNodePresenceFailsWhenLabelEmpty(t *testing.T) {
 		RequiredNodes: []RequiredNode{{ID: "rn-platform", Label: "Platform", MinimumCount: 1}},
 	}}
 	var r Report
-	if err := checkGraph(context.Background(), fakeCounter{}, snap, true, nil, &r); err != nil {
+	if err := checkGraph(context.Background(), fakeCounter{}, snap, true, nil, nil, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
 	}
 	if !r.Failed() {
@@ -178,7 +178,7 @@ func selfLoopSnapshot() Snapshot {
 func TestCheckGraphSelfLoopExactCountPasses(t *testing.T) {
 	c := fakeCounter{selfLoop: map[string]int64{"Function|CALLS|language|dart": 2}}
 	var r Report
-	if err := checkGraph(context.Background(), c, selfLoopSnapshot(), true, nil, &r); err != nil {
+	if err := checkGraph(context.Background(), c, selfLoopSnapshot(), true, nil, nil, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
 	}
 	if r.Failed() {
@@ -194,7 +194,7 @@ func TestCheckGraphSelfLoopExactCountPasses(t *testing.T) {
 func TestCheckGraphSelfLoopRegressedInflationFails(t *testing.T) {
 	c := fakeCounter{selfLoop: map[string]int64{"Function|CALLS|language|dart": 11}}
 	var r Report
-	if err := checkGraph(context.Background(), c, selfLoopSnapshot(), true, nil, &r); err != nil {
+	if err := checkGraph(context.Background(), c, selfLoopSnapshot(), true, nil, nil, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
 	}
 	if !r.Failed() {
@@ -207,7 +207,7 @@ func TestCheckGraphSelfLoopRegressedInflationFails(t *testing.T) {
 func TestCheckGraphSelfLoopDroppedRecursionFails(t *testing.T) {
 	c := fakeCounter{selfLoop: map[string]int64{"Function|CALLS|language|dart": 0}}
 	var r Report
-	if err := checkGraph(context.Background(), c, selfLoopSnapshot(), true, nil, &r); err != nil {
+	if err := checkGraph(context.Background(), c, selfLoopSnapshot(), true, nil, nil, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
 	}
 	if !r.Failed() {
@@ -259,7 +259,7 @@ func TestCheckGraphPackageArtifactHashesCorrectValuePasses(t *testing.T) {
 		},
 	}
 	var r Report
-	if err := checkGraph(context.Background(), c, packageArtifactHashesSnapshot(), true, nil, &r); err != nil {
+	if err := checkGraph(context.Background(), c, packageArtifactHashesSnapshot(), true, nil, nil, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
 	}
 	if r.Failed() {
@@ -278,7 +278,7 @@ func TestCheckGraphPackageArtifactHashesMissingFails(t *testing.T) {
 		nodeProp: map[string][]string{"PackageArtifact|hashes": {""}},
 	}
 	var r Report
-	if err := checkGraph(context.Background(), c, packageArtifactHashesSnapshot(), true, nil, &r); err != nil {
+	if err := checkGraph(context.Background(), c, packageArtifactHashesSnapshot(), true, nil, nil, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
 	}
 	if !r.Failed() {
@@ -298,7 +298,7 @@ func TestCheckGraphPackageArtifactHashesWrongDigestFails(t *testing.T) {
 		},
 	}
 	var r Report
-	if err := checkGraph(context.Background(), c, packageArtifactHashesSnapshot(), true, nil, &r); err != nil {
+	if err := checkGraph(context.Background(), c, packageArtifactHashesSnapshot(), true, nil, nil, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
 	}
 	if !r.Failed() {
@@ -378,7 +378,7 @@ func TestCheckGraphRegistryEventFieldsCorrectValuePasses(t *testing.T) {
 		},
 	}
 	var r Report
-	if err := checkGraph(context.Background(), c, registryEventFieldsSnapshot(), true, nil, &r); err != nil {
+	if err := checkGraph(context.Background(), c, registryEventFieldsSnapshot(), true, nil, nil, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
 	}
 	if r.Failed() {
@@ -396,7 +396,7 @@ func TestCheckGraphRegistryEventFieldsMissingFails(t *testing.T) {
 		nodeProp: map[string][]string{"RegistryEvent|event_type": {""}},
 	}
 	var r Report
-	if err := checkGraph(context.Background(), c, registryEventFieldsSnapshot(), true, nil, &r); err != nil {
+	if err := checkGraph(context.Background(), c, registryEventFieldsSnapshot(), true, nil, nil, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
 	}
 	if !r.Failed() {
@@ -416,7 +416,7 @@ func TestCheckGraphRegistryEventFieldsWrongValueFails(t *testing.T) {
 		},
 	}
 	var r Report
-	if err := checkGraph(context.Background(), c, registryEventFieldsSnapshot(), true, nil, &r); err != nil {
+	if err := checkGraph(context.Background(), c, registryEventFieldsSnapshot(), true, nil, nil, &r); err != nil {
 		t.Fatalf("checkGraph err = %v", err)
 	}
 	if !r.Failed() {
