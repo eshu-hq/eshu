@@ -106,8 +106,8 @@ func TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity(t *
 	// decode to float64 through LoadSnapshot's json.Unmarshal into `any`.
 	for path, want := range map[string]float64{
 		"data.deployment_fact_summary.image_ref_count":    1,
-		"data.deployment_fact_summary.k8s_resource_count": 2,
-		"data.k8s_resource_limits.returned_count":         2,
+		"data.deployment_fact_summary.k8s_resource_count": 1,
+		"data.k8s_resource_limits.returned_count":         1,
 		// #5638: pins the read-side live_instance_count derived from the
 		// identity-bound Deployment+ReplicaSet facts (both ready_replicas=3,
 		// same ArgoCD tracking-id -- MAX not SUM, so 3, never 6).

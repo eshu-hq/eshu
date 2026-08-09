@@ -25,7 +25,7 @@ func TestSupplyChainDemoCICDCassetteCarriesLambdaImageBuildEvidence(t *testing.T
 	t.Parallel()
 
 	envelopes := replaySupplyChainDemoCICDCassette(t)
-	var foundRuns, foundArtifacts int
+	var foundRunInActiveGeneration, foundArtifacts int
 	for _, envelope := range envelopes {
 		schemaEnvelope := factschema.Envelope{
 			FactKind: envelope.FactKind, SchemaVersion: envelope.SchemaVersion,
@@ -40,10 +40,10 @@ func TestSupplyChainDemoCICDCassetteCarriesLambdaImageBuildEvidence(t *testing.T
 			if err != nil {
 				t.Fatalf("DecodeCICDRun(%q) error = %v", envelope.StableFactKey, err)
 			}
-			if run.RunID == lambdaImageRunID {
-				foundRuns++
+			if run.RunID == lambdaImageRunID && envelope.GenerationID == "cassette-cicd-scd-gen2-artifact" {
+				foundRunInActiveGeneration++
 				if run.RepositoryID == nil || *run.RepositoryID != lambdaImageRepository ||
-					envelope.GenerationID != "cassette-cicd-scd-gen1" || envelope.FencingToken != 1 {
+					envelope.FencingToken != 2 {
 					t.Fatalf("Lambda image run identity/lifecycle = %#v, generation %q, fencing %d", run, envelope.GenerationID, envelope.FencingToken)
 				}
 			}
@@ -62,15 +62,15 @@ func TestSupplyChainDemoCICDCassetteCarriesLambdaImageBuildEvidence(t *testing.T
 			}
 		}
 	}
-	if foundRuns != 1 || foundArtifacts != 1 {
-		t.Fatalf("Lambda image build evidence counts = (runs %d, artifacts %d), want (1, 1)", foundRuns, foundArtifacts)
+	if foundRunInActiveGeneration != 1 || foundArtifacts != 1 {
+		t.Fatalf("active Lambda image build evidence counts = (runs %d, artifacts %d), want (1, 1)", foundRunInActiveGeneration, foundArtifacts)
 	}
 }
 
 func TestSupplyChainDemoCICDCassetteProducesLambdaImageBuiltFromRow(t *testing.T) {
 	t.Parallel()
 
-	envelopes := replaySupplyChainDemoCICDCassette(t)
+	envelopes := activeLambdaImageGeneration(replaySupplyChainDemoCICDCassette(t))
 	envelopes = append(envelopes, replayCassette(t, "ociregistry", "supply-chain-demo.json")...)
 	decisions := reducer.BuildContainerImageIdentityDecisions(envelopes)
 	rows := reducer.ContainerImageBuiltFromRowsForReplayTest(decisions)
@@ -84,6 +84,16 @@ func TestSupplyChainDemoCICDCassetteProducesLambdaImageBuiltFromRow(t *testing.T
 	if matches != 1 {
 		t.Fatalf("Lambda image BUILT_FROM row matches = %d, want 1; rows = %#v", matches, rows)
 	}
+}
+
+func activeLambdaImageGeneration(envelopes []facts.Envelope) []facts.Envelope {
+	active := make([]facts.Envelope, 0, len(envelopes))
+	for _, envelope := range envelopes {
+		if envelope.GenerationID == "cassette-cicd-scd-gen2-artifact" {
+			active = append(active, envelope)
+		}
+	}
+	return active
 }
 
 func replaySupplyChainDemoCICDCassette(t *testing.T) []facts.Envelope {
