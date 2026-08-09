@@ -15,7 +15,8 @@ import (
 )
 
 // TestLiveChangeSurfaceImpactTraversal is the backend-required proof for the
-// #5287 change-surface fix. It seeds a small impact graph on a live NornicDB,
+// #5287 change-surface fix and the consumer-direction contract. It seeds a
+// small impact graph on a live NornicDB,
 // captures the OLD multi-clause shapes (which corrupt on the pinned build) for
 // evidence, and asserts that the shipped single-clause changeSurfaceImpactRows
 // (investigate) and findChangeSurfaceImpactRows (legacy) return the correct
@@ -49,26 +50,29 @@ func TestLiveChangeSurfaceImpactTraversal(t *testing.T) {
 	handler := &ImpactHandler{Neo4j: reader}
 
 	const (
-		startID = "cs-live:start"
-		r1ID    = "cs-live:r1"
-		crID    = "cs-live:cr"
+		changedID  = "cs-live:changed"
+		consumerID = "cs-live:consumer"
+		workloadID = "cs-live:workload"
+		crID       = "cs-live:cr"
 	)
 	// Delete only the exact synthetic nodes by id (never a label-wide DETACH
 	// DELETE), so pointing ESHU_NEO4J_URI at a retained evidence graph cannot
 	// wipe production-shaped nodes. Same targeted cleanup runs on exit.
 	cleanup := func() {
-		for _, id := range []string{startID, r1ID, crID} {
+		for _, id := range []string{changedID, consumerID, workloadID, crID} {
 			write(`MATCH (n {id:$id}) DETACH DELETE n`, map[string]any{"id": id})
 		}
 	}
 	cleanup()
 	defer cleanup()
-	write(`CREATE (s:Workload {id:$s, name:'start'})
-	       CREATE (r1:Repository {id:$r1, name:'r1', environment:'prod', repo_id:$r1})
-	       CREATE (cr:CloudResource {id:$cr, name:'cr', environment:'prod'})
-	       CREATE (s)-[:DEPENDS_ON {confidence:0.9, reason:'dep'}]->(r1)
-	       CREATE (r1)-[:CONTAINS {confidence:0.8, reason:'contains'}]->(cr)`,
-		map[string]any{"s": startID, "r1": r1ID, "cr": crID})
+	write(`CREATE (changed:Repository {id:$changed, name:'changed', environment:'prod'})
+	       CREATE (consumer:Repository {id:$consumer, name:'consumer', environment:'prod'})
+	       CREATE (workload:Workload {id:$workload, name:'workload', environment:'prod', repo_id:$changed})
+	       CREATE (cr:CloudResource {id:$cr, name:'cr', environment:'prod', repo_id:$changed})
+	       CREATE (consumer)-[:DEPENDS_ON {confidence:0.9, reason:'consumer_dependency'}]->(changed)
+	       CREATE (changed)-[:DEFINES {confidence:0.95, reason:'defines_workload'}]->(workload)
+	       CREATE (workload)-[:CONTAINS {confidence:0.8, reason:'contains'}]->(cr)`,
+		map[string]any{"changed": changedID, "consumer": consumerID, "workload": workloadID, "cr": crID})
 
 	dump := func(label string, rows []map[string]any) {
 		b, _ := json.MarshalIndent(rows, "", "  ")
@@ -77,24 +81,24 @@ func TestLiveChangeSurfaceImpactTraversal(t *testing.T) {
 	labelFilter := "['Repository', 'Workload', 'WorkloadInstance', 'CloudResource', 'TerraformModule', 'DataAsset']"
 
 	// OLD investigate shape: 2x MATCH + RETURN DISTINCT + length(path).
-	oldInvestigate, _ := reader.Run(ctx, `MATCH (start:Workload {id: $target_id})
+	oldInvestigate, _ := reader.Run(ctx, `MATCH (start:Repository {id: $target_id})
 MATCH path = (start)-[*1..4]->(impacted)
 WHERE impacted.id <> $target_id AND any(label IN labels(impacted) WHERE label IN `+labelFilter+`)
 RETURN DISTINCT impacted.id as id, length(path) as depth
-ORDER BY depth, impacted.id`, map[string]any{"target_id": startID})
+	ORDER BY depth, impacted.id`, map[string]any{"target_id": changedID})
 	dump("OLD investigate (2x MATCH + DISTINCT)", oldInvestigate)
 
 	// OLD legacy shape: OPTIONAL MATCH + UNWIND + WITH + RETURN DISTINCT.
-	oldLegacy, _ := reader.Run(ctx, `MATCH (start:Workload {id: $target_id})
+	oldLegacy, _ := reader.Run(ctx, `MATCH (start:Repository {id: $target_id})
 OPTIONAL MATCH path = (start)-[rels*1..4]->(impacted)
 WHERE impacted.id <> $target_id AND any(label IN labels(impacted) WHERE label IN `+labelFilter+`)
 UNWIND relationships(path) as rel
 WITH impacted, rel, length(path) as depth
 RETURN DISTINCT impacted.id as id, type(rel) as rel_type, rel.confidence as confidence, depth
-ORDER BY depth, impacted.id`, map[string]any{"target_id": startID})
+	ORDER BY depth, impacted.id`, map[string]any{"target_id": changedID})
 	dump("OLD legacy (OPTIONAL + UNWIND + WITH + DISTINCT)", oldLegacy)
 
-	target := changeSurfaceTargetCandidate{ID: startID, Name: "start", Labels: []string{"Workload"}}
+	target := changeSurfaceTargetCandidate{ID: changedID, Name: "changed", Labels: []string{"Repository"}}
 
 	// NEW investigate: distinct impacted nodes at their minimum depth.
 	investigate, _, err := handler.changeSurfaceImpactRows(ctx, changeSurfaceInvestigationRequest{MaxDepth: 4, Limit: 50}, target)
@@ -106,11 +110,14 @@ ORDER BY depth, impacted.id`, map[string]any{"target_id": startID})
 	for _, row := range investigate {
 		byID[StringVal(row, "id")] = row
 	}
-	if len(investigate) != 2 || byID[r1ID] == nil || byID[crID] == nil {
-		t.Fatalf("investigate impacted = %#v, want r1 (depth 1) and cr (depth 2)", investigate)
+	if len(investigate) != 3 || byID[consumerID] == nil || byID[workloadID] == nil || byID[crID] == nil {
+		t.Fatalf("investigate impacted = %#v, want consumer and workload (depth 1) plus cr (depth 2)", investigate)
 	}
-	if got := IntVal(byID[r1ID], "depth"); got != 1 {
-		t.Errorf("r1 depth = %d, want 1", got)
+	if got := IntVal(byID[consumerID], "depth"); got != 1 {
+		t.Errorf("consumer depth = %d, want 1", got)
+	}
+	if got := IntVal(byID[workloadID], "depth"); got != 1 {
+		t.Errorf("workload depth = %d, want 1", got)
 	}
 	if got := IntVal(byID[crID], "depth"); got != 2 {
 		t.Errorf("cr depth = %d, want 2", got)
@@ -122,16 +129,19 @@ ORDER BY depth, impacted.id`, map[string]any{"target_id": startID})
 		t.Fatalf("findChangeSurfaceImpactRows() error = %v", err)
 	}
 	dump("NEW findChangeSurfaceImpactRows (legacy)", legacy)
-	var r1Dep, crContains bool
+	var consumerDependency, workloadDefines, crContains bool
 	for _, row := range legacy {
-		if StringVal(row, "id") == r1ID && StringVal(row, "rel_type") == "DEPENDS_ON" {
-			r1Dep = true
+		if StringVal(row, "id") == consumerID && StringVal(row, "rel_type") == "DEPENDS_ON" {
+			consumerDependency = true
 			if got, ok := row["confidence"].(float64); !ok || got != 0.9 {
-				t.Errorf("r1 DEPENDS_ON confidence = %v, want 0.9", row["confidence"])
+				t.Errorf("consumer DEPENDS_ON confidence = %v, want 0.9", row["confidence"])
 			}
-			if got := StringVal(row, "reason"); got != "dep" {
-				t.Errorf("r1 DEPENDS_ON reason = %q, want dep", got)
+			if got := StringVal(row, "reason"); got != "consumer_dependency" {
+				t.Errorf("consumer DEPENDS_ON reason = %q, want consumer_dependency", got)
 			}
+		}
+		if StringVal(row, "id") == workloadID && StringVal(row, "rel_type") == "DEFINES" {
+			workloadDefines = true
 		}
 		if StringVal(row, "id") == crID && StringVal(row, "rel_type") == "CONTAINS" {
 			crContains = true
@@ -140,8 +150,11 @@ ORDER BY depth, impacted.id`, map[string]any{"target_id": startID})
 			}
 		}
 	}
-	if !r1Dep {
-		t.Errorf("legacy missing r1 DEPENDS_ON provenance (OLD shape returned all-null): %#v", legacy)
+	if !consumerDependency {
+		t.Errorf("legacy missing incoming consumer DEPENDS_ON provenance: %#v", legacy)
+	}
+	if !workloadDefines {
+		t.Errorf("legacy missing outgoing workload DEFINES provenance: %#v", legacy)
 	}
 	if !crContains {
 		t.Errorf("legacy missing cr CONTAINS provenance: %#v", legacy)
@@ -150,13 +163,13 @@ ORDER BY depth, impacted.id`, map[string]any{"target_id": startID})
 	// Environment-scoped read: the server-side environment predicate must filter
 	// live alongside the relationships(path) projection (the coalesce/OR form that
 	// dropped every row is avoided) and keep only prod/unset-environment impacted.
-	// r1 and cr are both environment=prod, so a staging scope returns nothing.
+	// Every impacted node is environment=prod, so a staging scope returns nothing.
 	prodInvestigate, _, err := handler.changeSurfaceImpactRows(ctx, changeSurfaceInvestigationRequest{MaxDepth: 4, Limit: 50, Environment: "prod"}, target)
 	if err != nil {
 		t.Fatalf("investigate(env=prod) error = %v", err)
 	}
-	if len(prodInvestigate) != 2 {
-		t.Errorf("investigate(env=prod) = %d rows, want 2 (r1, cr both prod)", len(prodInvestigate))
+	if len(prodInvestigate) != 3 {
+		t.Errorf("investigate(env=prod) = %d rows, want 3", len(prodInvestigate))
 	}
 	stagingInvestigate, _, err := handler.changeSurfaceImpactRows(ctx, changeSurfaceInvestigationRequest{MaxDepth: 4, Limit: 50, Environment: "staging"}, target)
 	if err != nil {

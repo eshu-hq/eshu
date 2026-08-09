@@ -17,6 +17,7 @@ required_ids:
   - QP-READINESS-HOSTED
   - QP-READINESS-SC-IMPACT
   - QP-IMPACT-CHANGE-SURFACE
+  - QP-IMPACT-CHANGE-SURFACE-CONSUMERS
   - QP-IMPACT-FLUX-BINDINGS-FIRST-HOP
   - QP-IMPACT-FLUX-BINDINGS-TARGET-EXPANSION
   - QP-RELATIONSHIPS-CATALOG-COUNT
@@ -510,10 +511,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/impact_change_surface_legacy.go
-      symbol: (*ImpactHandler).findChangeSurfaceImpactRows
-      source_sha256: c5f2f7defb9741fa0877b4d8238f228692e461cd75179a746c78fedd7128ccdc
-      line_hint: 107
+      file: go/internal/query/impact_change_surface_traversal.go
+      symbol: (*ImpactHandler).runChangeSurfaceOutgoing
+      source_sha256: 2ee80e2aa50f26970eaf4b6733882b5bc29ca27e0bd012191096a0e0651130f2
+      line_hint: 67
     required_anchors:
       - label: Workload
         property: id
@@ -535,6 +536,36 @@ entries:
         - CartesianProduct
         - UnboundedExpand
     cypher_sha256: "5e78165ee7bbde33ec370dac7baced49f8a62b9b07ce6e6230685f523a4acea0"
+  - id: QP-IMPACT-CHANGE-SURFACE-CONSUMERS
+    domain: impact
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/impact_change_surface_traversal.go
+      symbol: (*ImpactHandler).runChangeSurfaceRepositoryConsumers
+      source_sha256: 0c9f01429b25bbd1cbccdce9ecb601fa9f79559b4872b7a84ace5e872913b985
+      line_hint: 89
+    required_anchors:
+      - label: Repository
+        property: id
+    required_schema:
+      - repository_id
+      - nornicdb_repository_id_lookup
+    required_limits:
+      - "11"
+    requires_order: true
+    caveats:
+      - Repository dependency impact follows incoming DEPENDS_ON edges because the stored edge points from consumer to dependency. The traversal is a separate bounded single-clause read to avoid NornicDB's silent-empty multi-clause and UNION shapes; the handler merges the two eventually consistent read snapshots deterministically.
+    plan:
+      operators:
+        - NodeIndexSeek
+        - VarLengthExpand
+        - Sort
+      forbidden_operators:
+        - AllNodesScan
+        - CartesianProduct
+        - UnboundedExpand
+    cypher_sha256: "e99de77e702476efce7933fdc1158b4e6ed787d2df060013c8ed91323c026708"
   - id: QP-IMPACT-FLUX-BINDINGS-FIRST-HOP
     domain: impact
     backend: nornicdb

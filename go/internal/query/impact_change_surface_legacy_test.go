@@ -29,8 +29,8 @@ func TestChangeSurfaceTraversalQueriesAreNornicDBSafe(t *testing.T) {
 
 	envClause := changeSurfaceEnvironmentClause("prod")
 	queries := map[string]string{
-		"investigate":     fmt.Sprintf(changeSurfaceInvestigateCypher, "(start:Workload {id: $target_id})", 4, "", 50),
-		"investigate+env": fmt.Sprintf(changeSurfaceInvestigateCypher, "(start:Workload {id: $target_id})", 4, envClause, 50),
+		"investigate":     fmt.Sprintf(changeSurfaceInvestigateCypher, "(start:Workload {id: $target_id})", 4, ""),
+		"investigate+env": fmt.Sprintf(changeSurfaceInvestigateCypher, "(start:Workload {id: $target_id})", 4, envClause),
 		"legacy":          fmt.Sprintf(changeSurfaceLegacyCypher, "(start:Workload {id: $target_id})", 4, ""),
 		"legacy+env":      fmt.Sprintf(changeSurfaceLegacyCypher, "(start:Workload {id: $target_id})", 4, envClause),
 	}
@@ -48,6 +48,9 @@ func TestChangeSurfaceTraversalQueriesAreNornicDBSafe(t *testing.T) {
 	// per-edge unwind (never a rel-property comprehension).
 	if !strings.Contains(queries["legacy"], "relationships(path) as rels") {
 		t.Errorf("legacy read must project relationships(path) for the Go unwind: %s", queries["legacy"])
+	}
+	if !strings.Contains(queries["investigate"], "relationships(path) as rels") {
+		t.Errorf("investigate read must project relationships(path) for direction validation: %s", queries["investigate"])
 	}
 }
 
@@ -103,9 +106,9 @@ func TestFindChangeSurfaceImpactRowsDedupsConfidenceStably(t *testing.T) {
 			// (must stay distinct from the 0.0 edges).
 			return []map[string]any{
 				{"id": "repo:x", "name": "x", "labels": []any{"Repository"}, "depth": int64(1), "rels": []any{
-					map[string]any{"type": "DEPENDS_ON", "properties": map[string]any{"confidence": 0.0, "reason": "r"}},
-					map[string]any{"type": "DEPENDS_ON", "properties": map[string]any{"reason": "r"}},
-					map[string]any{"type": "DEPENDS_ON", "properties": map[string]any{"confidence": 0.0, "reason": "r"}},
+					map[string]any{"type": "DEFINES", "properties": map[string]any{"confidence": 0.0, "reason": "r"}},
+					map[string]any{"type": "DEFINES", "properties": map[string]any{"reason": "r"}},
+					map[string]any{"type": "DEFINES", "properties": map[string]any{"confidence": 0.0, "reason": "r"}},
 				}},
 			}, nil
 		},
@@ -201,7 +204,7 @@ func TestFindChangeSurfaceServiceKindAnchorsLabeledStartAndBoundsDepth(t *testin
 				traversalParams = params
 				return []map[string]any{
 					{"id": "repo:billing", "name": "billing", "labels": []any{"Repository"}, "environment": "prod", "depth": int64(1), "rels": []any{
-						map[string]any{"type": "DEPENDS_ON", "properties": map[string]any{"confidence": 0.9, "reason": "import"}},
+						map[string]any{"type": "DEFINES", "properties": map[string]any{"confidence": 0.9, "reason": "definition"}},
 					}},
 					{"id": "repo:ledger", "name": "ledger", "labels": []any{"Repository"}, "environment": "prod", "depth": int64(2), "rels": []any{
 						map[string]any{"type": "CALLS", "properties": map[string]any{"confidence": 0.8, "reason": "rpc"}},
@@ -255,7 +258,7 @@ func TestFindChangeSurfaceServiceKindAnchorsLabeledStartAndBoundsDepth(t *testin
 		t.Fatalf("impacted = %#v, want two rows", data["impacted"])
 	}
 	first, _ := impacted[0].(map[string]any)
-	if got, want := first["reason"], "import"; got != want {
+	if got, want := first["reason"], "definition"; got != want {
 		t.Fatalf("impacted[0].reason = %#v, want %#v (per-rel fields must be preserved)", got, want)
 	}
 	if _, ok := first["confidence"]; !ok {
@@ -327,7 +330,7 @@ func TestFindChangeSurfaceReportsTruncationWithOverfetch(t *testing.T) {
 				rows := make([]map[string]any, 0, 3)
 				for i := 0; i < 3; i++ {
 					rows = append(rows, map[string]any{"id": "repo:" + string(rune('a'+i)), "name": "r" + string(rune('a'+i)), "labels": []any{"Repository"}, "depth": int64(1), "rels": []any{
-						map[string]any{"type": "DEPENDS_ON", "properties": map[string]any{"confidence": 0.9, "reason": "import"}},
+						map[string]any{"type": "DEFINES", "properties": map[string]any{"confidence": 0.9, "reason": "definition"}},
 					}})
 				}
 				return rows, nil

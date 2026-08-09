@@ -27,22 +27,10 @@ func changeSurfaceNoTargetResolution(req changeSurfaceInvestigationRequest) map[
 	}
 }
 
-// changeSurfaceInvestigateCypher is the single-anchor-clause impact traversal
-// for the investigate endpoint. Verbs: %s = the label-anchored start node
-// pattern, %d = max traversal depth, %s = the optional environment predicate
-// (empty or an ` AND (…)` clause), %d = LIMIT (over-fetched by one). It folds
-// the start anchor into the path MATCH and groups distinct impacted nodes with
-// min(length(path)) in the same clause — the pinned NornicDB build corrupts the
-// old separate-MATCH + RETURN DISTINCT + length(path) shape (#5287). The
-// environment filter is applied server-side (before LIMIT) so an
-// environment-scoped read cannot under-report when the limit is reached.
-const changeSurfaceInvestigateCypher = `MATCH path = %s-[*1..%d]->(impacted)
-WHERE impacted.id <> $target_id
-  AND any(label IN labels(impacted) WHERE label IN ['Repository', 'Workload', 'WorkloadInstance', 'CloudResource', 'TerraformModule', 'DataAsset'])%s
-RETURN impacted.id as id, impacted.name as name, labels(impacted) as labels,
-       impacted.environment as environment, impacted.repo_id as repo_id, min(length(path)) as depth
-ORDER BY depth, name, id
-LIMIT %d`
+// changeSurfaceInvestigateCypher shares the NornicDB-safe, single-anchor-clause
+// outgoing traversal with the legacy endpoint. Both callers decode raw path
+// relationships in Go so dependency direction is validated consistently.
+const changeSurfaceInvestigateCypher = changeSurfaceLegacyCypher
 
 // changeSurfaceEnvironmentClause returns the NornicDB-safe server-side
 // environment predicate to append to a change-surface WHERE clause, or an empty
@@ -74,25 +62,12 @@ func (h *ImpactHandler) changeSurfaceImpactRows(
 	if access.empty() {
 		return nil, false, nil
 	}
-	startPattern, err := changeSurfaceTraversalStartPattern(target)
+	rows, rawTruncated, err := h.changeSurfaceTraversalRows(
+		ctx, target, req.Environment, req.MaxDepth, req.Limit, access,
+	)
 	if err != nil {
 		return nil, false, err
 	}
-	// Single anchoring clause: the pinned NornicDB build mis-executes a read that
-	// places a second MATCH (or RETURN DISTINCT / length(path)) between the anchor
-	// and the projection — the old two-MATCH shape returned zero rows (#5287,
-	// proven live). Fold the start anchor into the path pattern and group the
-	// distinct impacted nodes with min(length(path)) in the same clause.
-	cypher := fmt.Sprintf(changeSurfaceInvestigateCypher, startPattern, req.MaxDepth, changeSurfaceEnvironmentClause(req.Environment), req.Limit+1)
-	params := map[string]any{"target_id": target.ID}
-	if req.Environment != "" {
-		params["environment"] = req.Environment
-	}
-	rows, err := h.Neo4j.Run(ctx, cypher, params)
-	if err != nil {
-		return nil, false, fmt.Errorf("query change surface impact: %w", err)
-	}
-	rawTruncated := len(rows) > req.Limit
 	filtered := make([]map[string]any, 0, len(rows))
 	seen := map[string]struct{}{}
 	for _, row := range rows {
@@ -101,13 +76,6 @@ func (h *ImpactHandler) changeSurfaceImpactRows(
 			continue
 		}
 		if _, ok := seen[id]; ok {
-			continue
-		}
-		env := StringVal(row, "environment")
-		if req.Environment != "" && env != "" && env != req.Environment {
-			continue
-		}
-		if !impactRepoIDAllowed(changeSurfaceImpactedRowRepoID(row), access) {
 			continue
 		}
 		seen[id] = struct{}{}

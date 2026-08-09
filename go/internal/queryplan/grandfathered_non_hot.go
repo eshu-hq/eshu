@@ -49,7 +49,6 @@ var grandfatheredNonHotSourceDigests = map[string]string{
 	"impact.go:(*ImpactHandler).traceResourceToCode":                                                      "a150facc957f33a712a2ebe6ad41e5eeb8c4736add3136777da3dbd8db0dacf0",
 	"impact_anchor_resolve.go:resolveImpactAnchorNode":                                                    "855e1f7f38dc0aa70ea08d4c84126d8e8c003f868f68ae6ab20621331b5c0bda",
 	"impact_blast_radius.go:(*ImpactHandler).enrichBlastRadiusTiers":                                      "0eb5aa3d3662a167e6502b08a62755388e0a23fc7321463435d3168dadb14078",
-	"impact_change_surface_response.go:(*ImpactHandler).changeSurfaceImpactRows":                          "ea71a48f5567a2846e482c9d2cd0ca8137384d57fdd88d344d02e1142781103e",
 	"impact_trace_deployment_oci.go:fetchOCIImageTagRows":                                                 "52b40e161aeeed7985650e305c59c98b3ebdae543b55774d6d648acb3c52afad",
 	"impact_trace_deployment_oci.go:fetchOCIImagesByDigest":                                               "e42e34fbdc4a895e9980767c9b7958d50774a5fc6c95b84936a05067bd983619",
 	"impact_trace_deployment_oci.go:fetchOCIRepositoriesByUID":                                            "bc32bd369075d858c192d80976b728a6ea3079fb9d9b2c2ebec45d52558255f2",
