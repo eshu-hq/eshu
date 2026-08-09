@@ -46,7 +46,11 @@ esac
 # start: an "@@" mid-sentence in prose is not a hunk header, and a Go operator
 # line beginning with "<<" is not a conflict marker (a conflict marker is
 # exactly seven angle brackets followed by a space or end of line).
-pattern='^diff --git |^@@ -[0-9]+(,[0-9]+)? \+[0-9]+(,[0-9]+)? @@|^<<<<<<<( |$)|^>>>>>>>( |$)|^\|\|\|\|\|\|\|( |$)'
+# Conflict markers are SEVEN characters by default, but git's per-path
+# conflict-marker-size attribute widens them, and a real merge with
+# `*.go conflict-marker-size=10` emits ten (#6005 review, codex reproduced it).
+# Matching exactly seven let those through, so match seven-or-more.
+pattern='^diff --git |^@@ -[0-9]+(,[0-9]+)? \+[0-9]+(,[0-9]+)? @@|^<{7,}( |$)|^>{7,}( |$)|^\|{7,}( |$)'
 
 # Markdown legitimately shows diffs and conflict markers when documenting them,
 # and .diff/.patch files ARE diffs. Everything else is source. Expressed as git
@@ -75,11 +79,26 @@ if [ "$mode" = "staged" ]; then
   grep_args=(grep --cached -n -E "$pattern")
 fi
 
-matches=""
-if ! matches="$(git "${grep_args[@]}" -- . "${exclusions[@]}" 2>/dev/null)"; then
-  # git grep exits 1 when nothing matched, which is the clean case.
-  matches=""
-fi
+# git grep exits 0 with matches, 1 with none, and something else when it could
+# not do the search at all — a corrupt index, an unreadable object, an invalid
+# pathspec, or not being in a repository. Treating every non-zero status as
+# "clean" turned an operational failure into a silent pass, which disables the
+# corruption check exactly when something is already wrong (#6005 review).
+grep_stderr="$(mktemp)"
+trap 'rm -f "${grep_stderr}"' EXIT
+set +e
+matches="$(git "${grep_args[@]}" -- . "${exclusions[@]}" 2>"${grep_stderr}")"
+grep_status=$?
+set -e
+case "${grep_status}" in
+  0) ;;
+  1) matches="" ;;
+  *)
+    echo "verify-no-diff-fragments: git grep failed (exit ${grep_status}); the scan did not run" >&2
+    cat "${grep_stderr}" >&2
+    exit 2
+    ;;
+esac
 
 violations=0
 if [ -n "$matches" ]; then
