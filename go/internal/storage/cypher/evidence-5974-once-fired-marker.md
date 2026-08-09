@@ -155,3 +155,71 @@ Each guard fails without its fix: restoring the swallowed `down -v` turns the
 mirror red on "the stack is NOT fresh", removing probe 1 turns it red on
 "survived fresh_stack", and restoring the single-cause die message turns it red
 on the assertion that a missing marker also means the marker write failed.
+
+---
+
+# Follow-up: recording what actually ran (#5974)
+
+## What changed
+
+While a substring-matched once-fault is armed, `FaultingExecutor` appends each
+**distinct** statement shape it sees (first line only, deduped in memory) to a
+file beside the marker. When the marker is missing, the gate prints those next
+to the anchor.
+
+## Why
+
+"The fault never fired" is half an observation. The other half — what did run,
+so the anchor can be compared against it — was never recorded, and #5974 stalled
+precisely there: the QUERIES_TABLE MERGE demonstrably executed in CI, in a
+process whose decorator provably worked, and nothing captured the text it
+executed with. A red run now answers "here is what the anchor should have said".
+
+## No-Regression
+
+No-Regression Evidence: this cannot execute in a released binary. The file is
+behind `//go:build ifafaultinjection`; untagged builds compile
+`fault_executor_off.go`, and releases are built untagged, so the code is absent
+rather than inactive.
+
+Inside the tagged build the work is bounded by distinct statement shapes, not by
+call count: a drive issuing thousands of writes appends a handful of lines,
+because every repeat short-circuits on a map lookup under a mutex held only for
+that check. It is skipped entirely when the fault matches by ordinal rather than
+by substring, and when no marker path was supplied.
+
+Measured on the `ifa-fault-injection` matrix (Postgres 15642 + NornicDB 7801),
+all nine cells green, exit 0, digest
+`5bfd92cacbb6758b29d3073426ce69e69c6cdcc87535981d8550873be86acfdb` across the
+recovery cells with `deltaretract` differing as designed, zero dead letters. The
+targeted cell ran in 8s — unchanged from the 7s and 9s measured before this
+recorder existed, which is within the run-to-run spread of that cell.
+
+## Observability
+
+Observability Evidence: one gate-facing signal, printed only on the failure path:
+
+```
+=== statement shapes this cell actually executed (anchor: <anchor>) ===
+<distinct first lines>
+=== end observed statements ===
+```
+
+An empty record is reported differently on purpose — it means the executor saw
+no statements at all while armed, which points at wiring rather than at the
+anchor. Distinguishing those two is the whole point; conflating them is what
+#5974 did for weeks.
+
+No product metric, span, or telemetry-contract entry is added, so
+`scripts/verify-telemetry-coverage.sh` reports no untracked stages.
+
+## Reproduce
+
+```
+cd go && go test -tags ifafaultinjection ./internal/storage/cypher/ -run RecordsObservedOperations -count=1
+bash scripts/verify-ifa-fault-injection.sh
+```
+
+The test arms an anchor that matches nothing, asserts no marker is written, and
+asserts both distinct shapes are recorded while the repeated one is not.
+Disabling the recorder turns it red.

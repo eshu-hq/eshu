@@ -184,6 +184,8 @@ require_sql_cells "probe 1 distinguishes a failed query from a count" "precondit
 require_sql_cells "probe 1 rejects non-numeric output rather than reading it as zero" "treat that as unknown, not as zero"
 require_sql_cells "probe 1 skips when --no-compose owns the stack" "fresh-stack precondition SKIPPED"
 require_sql_cells "assert-edges failure names both directions" "AND an extra, duplicated, or wrong-typed edge"
+require_sql_cells "the gate shows what actually ran when the anchor matched nothing" "statement shapes this cell actually executed"
+require_sql_cells "an empty observed record points at wiring, not the anchor" "points at wiring rather than the anchor"
 require_sql_cells "the gate greps for the marker-write failure itself" "the marker WRITE FAILED (line above)"
 require_lib "marker-write prefix declared once in shell" 'IFA_ONCE_MARKER_WRITE_FAILED_PREFIX="ifa fault: once-fired marker write failed"'
 
@@ -198,7 +200,7 @@ shell_marker_prefix="$(rg --no-filename -o 'IFA_ONCE_MARKER_WRITE_FAILED_PREFIX=
 [[ "${go_marker_prefix}" == "${shell_marker_prefix}" ]] \
 	|| fail "marker-write prefix drift: Go has ${go_marker_prefix@Q}, shell has ${shell_marker_prefix@Q} -- the gate's grep would silently find nothing"
 
-require "failgraphwrite_sql held out with the probe experiment result" "the statement that writes SQL edges in CI"
+require "failgraphwrite_sql enabled for the anchor experiment" "runs for one more experiment, then goes back out"
 # The library must DEFINE both cells. The needles below check implementation
 # details that could still match if the function wrapper were renamed away.
 require_delivery_cells "delivery lib defines cell_duplicatedelivery" "cell_duplicatedelivery() {"

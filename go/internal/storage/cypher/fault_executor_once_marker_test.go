@@ -131,3 +131,56 @@ func TestFaultingExecutorMarkerNamesTheMatchingStatementInAGroup(t *testing.T) {
 		t.Errorf("marker named the first statement instead of the matching one; got %q", body)
 	}
 }
+
+// TestFaultingExecutorRecordsObservedOperationsWhenTheFaultNeverFires is the
+// #5974 diagnostic proof. "The fault never fired" is only half an observation;
+// without the other half — what actually ran — the anchor cannot be compared
+// against reality, which is precisely where that issue stalled.
+//
+// Here the armed anchor matches nothing, so no marker is written. The executor
+// must still record the statement shapes it saw, deduped, so the gate can show
+// them next to the anchor.
+func TestFaultingExecutorRecordsObservedOperationsWhenTheFaultNeverFires(t *testing.T) {
+	t.Parallel()
+
+	sentinel := filepath.Join(t.TempDir(), "script.json.restart-sentinel")
+	observed := sentinel + observedOpsSuffix
+	marker := sentinel + onceFiredMarkerSuffix
+
+	inner := &faultRecordingExecutor{}
+	// An anchor that never appears in any statement below.
+	match := "MERGE (source)-[rel:QUERIES_TABLE]->(target)"
+	script := onceThenSucceedScript(faultreplay.LaneQueueRetry, nil, &match)
+	fe := mustFaultingExecutor(t, inner, script, sentinel)
+
+	ctx := context.Background()
+	// Same shape twice, to prove dedup, plus a second distinct shape.
+	for range 2 {
+		if err := fe.Execute(ctx, Statement{Cypher: "MERGE (r:CloudResource {uid: row.uid})\nSET r.x = 1"}); err != nil {
+			t.Fatalf("unexpected fault: %v", err)
+		}
+	}
+	if err := fe.Execute(ctx, Statement{Cypher: "MERGE (a)-[:HAS_COLUMN]->(b)\nRETURN a"}); err != nil {
+		t.Fatalf("unexpected fault: %v", err)
+	}
+
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatal("a marker was written even though the anchor matched nothing")
+	}
+
+	raw, err := os.ReadFile(observed) // #nosec G304 -- test-local temp path
+	if err != nil {
+		t.Fatalf("no observed-operations record after an armed fault saw statements: %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	if len(lines) != 2 {
+		t.Errorf("observed operations = %d line(s), want 2 distinct shapes; got %q", len(lines), string(raw))
+	}
+	if !strings.Contains(string(raw), "CloudResource") || !strings.Contains(string(raw), "HAS_COLUMN") {
+		t.Errorf("observed operations missing a shape that ran; got %q", string(raw))
+	}
+	// First lines only: the MERGE clause the anchor targets, not whole bodies.
+	if strings.Contains(string(raw), "SET r.x = 1") || strings.Contains(string(raw), "RETURN a") {
+		t.Errorf("observed operations recorded whole statement bodies; want first lines only; got %q", string(raw))
+	}
+}

@@ -139,7 +139,7 @@ cell_failgraphwrite_sql() {
 	fi
 
 	drive_all_cassettes failgraphwritesql
-	local fault_once_script_sql projector_pid reducer_pid
+	local fault_once_script_sql projector_pid reducer_pid observed_ops
 	fault_once_script_sql="${work_dir}/fault-once-then-succeed-sql.json"
 	ifa_fault_write_once_script "${fault_once_script_sql}" "${sql_edge_operation_match}" "queue-retry"
 	ifa_det_start_bg "${log_dir}" "projector-failgraphwritesql" projector_pid "${bin_dir}/eshu-projector"
@@ -175,6 +175,20 @@ cell_failgraphwrite_sql() {
 			rg --fixed-strings -- "${IFA_ONCE_MARKER_WRITE_FAILED_PREFIX}" \
 				"${log_dir}/reducer-failgraphwritesql.log" >&2 || true
 			die "fail-graph-write-once-then-succeed-sql: the marker WRITE FAILED (line above). The fault may well have fired -- this is an instrument failure, not evidence about the fault (#5974)."
+		fi
+		# The marker is missing and the write did not fail, so the anchor did not
+		# match anything that ran. Show WHAT ran -- that is the half of the
+		# observation #5974 never had, and it turns "the anchor did not match"
+		# into "here is the text it should have matched".
+		observed_ops="${fault_once_script_sql}.restart-sentinel.observed-operations"
+		if [[ -s "${observed_ops}" ]]; then
+			printf '\n=== statement shapes this cell actually executed (anchor: %s) ===\n' \
+				"${sql_edge_operation_match}" >&2
+			sort -u "${observed_ops}" >&2
+			printf '=== end observed statements ===\n\n' >&2
+		else
+			printf 'fail-graph-write-once-then-succeed-sql: no observed-operations record at %s -- the executor saw no statements at all while armed, which points at wiring rather than the anchor\n' \
+				"${observed_ops}" >&2
 		fi
 		die "fail-graph-write-once-then-succeed-sql: no once-fired marker naming ${sql_edge_operation_match} beside ${fault_once_script_sql}. The probes above already ruled out the cheap explanations, so with them green this means the statement flowed and the fault did not intercept it -- OR the marker write itself failed, which the reducer log reports with the prefix \"ifa fault: once-fired marker write failed\". That line was searched for above and not found. The marker is written by FaultingExecutor at injection time (go/internal/storage/cypher/fault_executor.go), so its absence means the QUERIES_TABLE MERGE anchor never matched a real write: check sql_edge_operation_match against go/internal/storage/cypher/edge_writer_sql.go and canonical.go before treating this cell as usable."
 	fi

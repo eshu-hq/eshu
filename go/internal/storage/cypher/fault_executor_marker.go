@@ -93,3 +93,57 @@ func (fe *FaultingExecutor) writeOnceFiredMarker(ordinal int, operation string) 
 // string in its "no marker found" failure so an operator is told to look for it
 // rather than concluding the fault never fired.
 const OnceFiredMarkerWriteFailedPrefix = "ifa fault: once-fired marker write failed"
+
+// observedOpsSuffix names the file recording every distinct statement shape the
+// executor saw while a substring-matched once-fault was armed (#5974).
+const observedOpsSuffix = ".observed-operations"
+
+// recordObservedOperations appends each newly-seen statement's first line to
+// observedOpsPath.
+//
+// This exists because "the fault never fired" is only half an observation. The
+// other half — what actually ran, so the anchor can be compared against it —
+// was never recorded, and #5974 stalled on exactly that gap: the QUERIES_TABLE
+// MERGE demonstrably executed in CI, in a process whose decorator provably
+// worked, and nothing captured the text it executed with.
+//
+// Only the first line is kept. Statement bodies are long and parameterised; the
+// MERGE clause the anchor targets is what matters, and a whole-body dump would
+// bury it.
+//
+// Recording is bounded by distinct shapes rather than by call count, so a drive
+// issuing thousands of writes appends a handful of lines. It is skipped
+// entirely for ordinal-matched faults, which target a call rather than text.
+func (fe *FaultingExecutor) recordObservedOperations(stmts []Statement) {
+	if fe.observedOpsPath == "" || fe.onceMatch == "" {
+		return
+	}
+	fe.observedOpsMu.Lock()
+	defer fe.observedOpsMu.Unlock()
+	if fe.observedOps == nil {
+		fe.observedOps = make(map[string]struct{})
+	}
+	for i := range stmts {
+		first := stmts[i].Cypher
+		if idx := strings.IndexByte(first, '\n'); idx >= 0 {
+			first = first[:idx]
+		}
+		first = strings.TrimSpace(first)
+		if first == "" {
+			continue
+		}
+		if _, seen := fe.observedOps[first]; seen {
+			continue
+		}
+		fe.observedOps[first] = struct{}{}
+		// #nosec G304,G302 -- gate-local coordination file, same trust boundary
+		// as the marker and restart sentinel.
+		f, err := os.OpenFile(fe.observedOpsPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%s: %v (path=%s)\n", OnceFiredMarkerWriteFailedPrefix, err, fe.observedOpsPath)
+			return
+		}
+		fmt.Fprintf(f, "%s\n", first)
+		_ = f.Close()
+	}
+}

@@ -347,7 +347,20 @@ cell_deltaretract
 # That leaves one explanation: the statement that writes SQL edges in CI does
 # not contain the anchor text. Tracked in #5974; the cell stays out until the
 # emitted Cypher is captured and the anchor matches what actually runs.
-# cell_failgraphwrite_sql is defined but NOT run by default (#5974). It passes
+# cell_failgraphwrite_sql runs for one more experiment, then goes back out.
+#
+# The previous round proved the fault does not fire in CI and eliminated every
+# cheap explanation: the stack was fresh, the SQL edges were written by this
+# cell, no marker-write failure occurred, and the GCP cell fired in the same
+# run. What was never captured is the other half of the observation -- the
+# statement text the anchor was compared against.
+#
+# This run records it. On a missing marker the cell now prints every distinct
+# statement shape it executed, next to the anchor, which turns "the anchor did
+# not match" into "here is what it should have said". Expected red; the output
+# is the deliverable. The cell goes back to held-out once the anchor is fixed.
+cell_failgraphwrite_sql
+# HISTORICAL: cell_failgraphwrite_sql is defined but NOT run by default (#5974). It passes
 # locally and does not fire in CI: run 31245188403 shows zero injected-fault
 # hits and zero shared-projection partition failures, while the GCP cell in the
 # same run fired normally -- so the decorator works and only this injection
