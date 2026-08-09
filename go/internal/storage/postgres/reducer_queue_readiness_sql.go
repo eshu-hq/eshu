@@ -53,6 +53,37 @@ var nonCountingReducerRetryFailureClasses = []string{
 	// are the regression.
 	reducer.AWSCloudRuntimeDriftWriteSupersededFailureClass,
 	reducer.AWSCloudRuntimeDriftStatePendingFailureClass,
+	// #5046: every remaining in-handler readiness-gate miss in the reducer.
+	// The seventeen below all returned a Retryable() readiness error under a
+	// class nothing here recognised, so their misses counted toward maxAttempts
+	// exactly like an ordinary failure and could dead-letter a still-pending
+	// intent -- the same gap #5848 closed for two classes and #5717 for one.
+	//
+	// Enumerating them is not the durable fix; the list drifted precisely
+	// because nothing checked it, and the issue that prompted this named only
+	// three of the seventeen. TestEveryReadinessFailureClassIsEnrolled
+	// (reducer_queue_readiness_enrollment_test.go) parses internal/reducer with
+	// go/ast and fails when a Retryable() readiness class is not registered
+	// here, so the next one cannot be added silently. That guard found six of
+	// the seventeen on its first run, after a hand sweep had already missed
+	// them.
+	reducer.AWSCloudImageNodesNotReadyFailureClass,
+	reducer.AWSRelationshipNodesNotReadyFailureClass,
+	reducer.AzureRelationshipNodesNotReadyFailureClass,
+	reducer.IAMCanAssumeNodesNotReadyFailureClass,
+	reducer.IAMCanPerformNodesNotReadyFailureClass,
+	reducer.IAMEscalationNodesNotReadyFailureClass,
+	reducer.IAMInstanceProfileRoleNodesNotReadyFailureClass,
+	reducer.ObservabilityCoverageNodesNotReadyFailureClass,
+	reducer.RDSPostureNodesNotReadyFailureClass,
+	reducer.SecurityGroupReachabilityNodesNotReadyFailureClass,
+	reducer.WorkloadCloudRelationshipNodesNotReadyFailureClass,
+	reducer.EC2BlockDeviceKMSPostureNodesNotReadyFailureClass,
+	reducer.EC2InternetExposureNodesNotReadyFailureClass,
+	reducer.EC2UsesProfileNodesNotReadyFailureClass,
+	reducer.S3ExternalPrincipalGrantNodesNotReadyFailureClass,
+	reducer.S3InternetExposureNodesNotReadyFailureClass,
+	reducer.S3LogsToNodesNotReadyFailureClass,
 }
 
 // IsNonCountingReducerRetryFailureClass reports whether failureClass is exempt
