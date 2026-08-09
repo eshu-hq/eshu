@@ -31,7 +31,7 @@ func TestEdgeWriterWriteEdgesRunsInDispatch(t *testing.T) {
 		},
 	}
 
-	if err := writer.WriteEdges(context.Background(), reducer.DomainRunsIn, rows, "reducer/runs-in"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducer.DomainRunsIn, rows, "reducer/runs-in"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 	if got, want := len(executor.calls), 1; got != want {
@@ -86,8 +86,8 @@ func TestEdgeWriterWriteEdgesRunsInRowsMissingMatchFieldsFailTheIntent(t *testin
 		{IntentID: "i2", RepositoryID: "r1", Payload: map[string]any{"function_id": "f1", "repo_id": ""}},
 	}
 
-	err := writer.WriteEdges(context.Background(), reducer.DomainRunsIn, rows, "reducer/runs-in")
-	assertAllRowsUnroutable(t, err, len(executor.calls), reducer.DomainRunsIn, 2)
+	report, err := writer.WriteEdges(context.Background(), reducer.DomainRunsIn, rows, "reducer/runs-in")
+	assertAllRowsUnroutable(t, report, err, len(executor.calls), reducer.DomainRunsIn, 2)
 }
 
 func TestEdgeWriterRetractEdgesRunsInDispatch(t *testing.T) {

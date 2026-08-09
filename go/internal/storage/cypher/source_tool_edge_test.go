@@ -97,7 +97,7 @@ func TestEdgeWriterThreadsSourceToolIntoRows(t *testing.T) {
 		},
 	}
 
-	if err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "resolver/cross-repo"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "resolver/cross-repo"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 

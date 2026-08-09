@@ -61,7 +61,7 @@ func BenchmarkEdgeWriterCodeCallRetractAndWrite(b *testing.B) {
 				if err := writer.RetractEdges(ctx, reducer.DomainCodeCalls, scenario.rows, "parser/code-calls"); err != nil {
 					b.Fatalf("RetractEdges: %v", err)
 				}
-				if err := writer.WriteEdges(ctx, reducer.DomainCodeCalls, scenario.rows, "parser/code-calls"); err != nil {
+				if _, err := writer.WriteEdges(ctx, reducer.DomainCodeCalls, scenario.rows, "parser/code-calls"); err != nil {
 					b.Fatalf("WriteEdges: %v", err)
 				}
 			}

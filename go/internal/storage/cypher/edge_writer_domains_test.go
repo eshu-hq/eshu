@@ -45,7 +45,7 @@ func TestBatchedWriteEdgesUsesUNWINDCypher(t *testing.T) {
 			rows := []reducer.SharedProjectionIntentRow{
 				{IntentID: "i1", RepositoryID: "r1", Payload: tc.payload},
 			}
-			err := writer.WriteEdges(context.Background(), tc.domain, rows, "test")
+			_, err := writer.WriteEdges(context.Background(), tc.domain, rows, "test")
 			if err != nil {
 				t.Fatalf("WriteEdges(%s) error = %v", tc.domain, err)
 			}
@@ -75,7 +75,7 @@ func TestEdgeWriterWriteEdgesInheritanceDispatch(t *testing.T) {
 		},
 	}
 
-	err := writer.WriteEdges(context.Background(), reducer.DomainInheritanceEdges, rows, "reducer/inheritance")
+	_, err := writer.WriteEdges(context.Background(), reducer.DomainInheritanceEdges, rows, "reducer/inheritance")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
@@ -120,8 +120,8 @@ func TestEdgeWriterWriteEdgesInheritanceEmptyFieldsFailTheIntent(t *testing.T) {
 		{IntentID: "i2", RepositoryID: "r1", Payload: map[string]any{"child_entity_id": "c1", "parent_entity_id": ""}},
 	}
 
-	err := writer.WriteEdges(context.Background(), reducer.DomainInheritanceEdges, rows, "reducer/inheritance")
-	assertAllRowsUnroutable(t, err, len(executor.calls), reducer.DomainInheritanceEdges, 2)
+	report, err := writer.WriteEdges(context.Background(), reducer.DomainInheritanceEdges, rows, "reducer/inheritance")
+	assertAllRowsUnroutable(t, report, err, len(executor.calls), reducer.DomainInheritanceEdges, 2)
 }
 
 func TestEdgeWriterWriteEdgesSQLRelationshipDispatch(t *testing.T) {
@@ -145,7 +145,7 @@ func TestEdgeWriterWriteEdgesSQLRelationshipDispatch(t *testing.T) {
 		},
 	}
 
-	err := writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships")
+	_, err := writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
@@ -203,7 +203,7 @@ func TestEdgeWriterWriteEdgesSQLRelationshipFallsBackForRowsWithoutEntityTypes(t
 		},
 	}
 
-	if err := writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 	if got, want := len(executor.calls), 1; got != want {
@@ -247,7 +247,7 @@ func TestEdgeWriterWriteEdgesSQLRelationshipDispatchesRelationshipTypes(t *testi
 				},
 			}
 
-			if err := writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships"); err != nil {
+			if _, err := writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships"); err != nil {
 				t.Fatalf("WriteEdges() error = %v", err)
 			}
 			if got, want := len(executor.calls), 1; got != want {
@@ -274,8 +274,8 @@ func TestEdgeWriterWriteEdgesSQLRelationshipEmptyFieldsFailTheIntent(t *testing.
 		{IntentID: "i2", RepositoryID: "r1", Payload: map[string]any{"source_entity_id": "s1", "target_entity_id": ""}},
 	}
 
-	err := writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships")
-	assertAllRowsUnroutable(t, err, len(executor.calls), reducer.DomainSQLRelationships, 2)
+	report, err := writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships")
+	assertAllRowsUnroutable(t, report, err, len(executor.calls), reducer.DomainSQLRelationships, 2)
 }
 
 func TestEdgeWriterRetractEdgesInheritanceDispatch(t *testing.T) {
@@ -373,7 +373,7 @@ func TestBatchedWriteEdgesUsesUNWINDCypherIncludesNewDomains(t *testing.T) {
 			rows := []reducer.SharedProjectionIntentRow{
 				{IntentID: "i1", RepositoryID: "r1", Payload: tc.payload},
 			}
-			err := writer.WriteEdges(context.Background(), tc.domain, rows, "test")
+			_, err := writer.WriteEdges(context.Background(), tc.domain, rows, "test")
 			if err != nil {
 				t.Fatalf("WriteEdges(%s) error = %v", tc.domain, err)
 			}

@@ -92,7 +92,7 @@ func TestLiveRepoDependencyGroupedCommitResponseLossIsExactlyReplayable(t *testi
 		newReducerNeo4jExecutor(neo4jSessionRunner{Driver: proxyDriver}, nil),
 		0,
 	)
-	writeErr := proxiedWriter.WriteEdges(ctx, reducer.DomainRepoDependency, []reducer.SharedProjectionIntentRow{row}, evidenceSource)
+	_, writeErr := proxiedWriter.WriteEdges(ctx, reducer.DomainRepoDependency, []reducer.SharedProjectionIntentRow{row}, evidenceSource)
 	if writeErr == nil {
 		t.Fatal("grouped write error = nil after COMMIT SUCCESS was dropped")
 	}
@@ -106,7 +106,7 @@ func TestLiveRepoDependencyGroupedCommitResponseLossIsExactlyReplayable(t *testi
 		newReducerNeo4jExecutor(directRunner, nil),
 		0,
 	)
-	if err := directWriter.WriteEdges(ctx, reducer.DomainRepoDependency, []reducer.SharedProjectionIntentRow{row}, evidenceSource); err != nil {
+	if _, err := directWriter.WriteEdges(ctx, reducer.DomainRepoDependency, []reducer.SharedProjectionIntentRow{row}, evidenceSource); err != nil {
 		t.Fatalf("idempotent replay after ambiguous COMMIT: %v", err)
 	}
 	replayed := readRepoCommitLossEdge(t, ctx, directRunner, sourceID, targetID, evidenceSource, resolvedID)

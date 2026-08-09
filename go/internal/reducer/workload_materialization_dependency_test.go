@@ -41,13 +41,13 @@ func (r *recordingWorkloadDependencyEdgeWriter) WriteEdges(
 	domain string,
 	rows []SharedProjectionIntentRow,
 	evidenceSource string,
-) error {
+) (SharedProjectionWriteReport, error) {
 	r.writeCalls = append(r.writeCalls, sharedEdgeWriteCall{
 		domain:         domain,
 		evidenceSource: evidenceSource,
 		rows:           append([]SharedProjectionIntentRow(nil), rows...),
 	})
-	return nil
+	return SharedProjectionWriteReport{}, nil
 }
 
 func TestWorkloadMaterializationHandlerReconcilesWorkloadDependencies(t *testing.T) {

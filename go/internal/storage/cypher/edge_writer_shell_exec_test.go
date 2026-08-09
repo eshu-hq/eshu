@@ -37,7 +37,7 @@ func TestEdgeWriterWriteEdgesShellExec(t *testing.T) {
 		},
 	}
 
-	if err := writer.WriteEdges(context.Background(), reducer.DomainShellExec, rows, "reducer/shell-exec"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducer.DomainShellExec, rows, "reducer/shell-exec"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 	if got, want := len(executor.calls), 1; got != want {

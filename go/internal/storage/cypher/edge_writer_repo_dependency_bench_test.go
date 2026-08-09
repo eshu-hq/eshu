@@ -33,7 +33,7 @@ func BenchmarkEdgeWriterRepoDependencyWrite(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if err := writer.WriteEdges(ctx, reducer.DomainRepoDependency, rows, "resolver/cross-repo"); err != nil {
+		if _, err := writer.WriteEdges(ctx, reducer.DomainRepoDependency, rows, "resolver/cross-repo"); err != nil {
 			b.Fatalf("WriteEdges: %v", err)
 		}
 	}

@@ -84,7 +84,7 @@ func TestReducerMetaclassEdgeRetractGraphTruth(t *testing.T) {
 			"target_entity_id":  metaClsMetaOut,
 		}},
 	}
-	if err := writer.WriteEdges(ctx, reducer.DomainCodeCalls, writeRows, metaEdgeEvidenceSource); err != nil {
+	if _, err := writer.WriteEdges(ctx, reducer.DomainCodeCalls, writeRows, metaEdgeEvidenceSource); err != nil {
 		t.Fatalf("WriteEdges: %v", err)
 	}
 

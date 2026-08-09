@@ -67,7 +67,7 @@ func (w *inheritanceStateModelingEdgeWriter) WriteEdges(
 	_ string,
 	rows []SharedProjectionIntentRow,
 	_ string,
-) error {
+) (SharedProjectionWriteReport, error) {
 	for _, row := range rows {
 		repoID := sharedProjectionRowRepoID(row)
 		if repoID == "" {
@@ -80,7 +80,7 @@ func (w *inheritanceStateModelingEdgeWriter) WriteEdges(
 		}
 		edges[inheritanceTestEdgeKey(row.Payload)] = anyToString(row.Payload["child_path"])
 	}
-	return nil
+	return SharedProjectionWriteReport{}, nil
 }
 
 func (w *inheritanceStateModelingEdgeWriter) edgeKeys(repoID string) []string {
@@ -218,7 +218,7 @@ func inheritanceConvergenceFixture(repoID, repoPath string, delta bool, changedR
 // returns the seeded edge writer.
 func seedPriorInheritanceEdges(rows []map[string]any) *inheritanceStateModelingEdgeWriter {
 	edges := newInheritanceStateModelingEdgeWriter()
-	_ = edges.WriteEdges(context.Background(), DomainInheritanceEdges, inheritanceDirectWriteRows(rows), inheritanceEvidenceSource)
+	_, _ = edges.WriteEdges(context.Background(), DomainInheritanceEdges, inheritanceDirectWriteRows(rows), inheritanceEvidenceSource)
 	return edges
 }
 
@@ -262,7 +262,7 @@ func TestInheritancePartitionConvergesFullReprojection(t *testing.T) {
 	); err != nil {
 		t.Fatalf("direct retract: %v", err)
 	}
-	if err := direct.WriteEdges(
+	if _, err := direct.WriteEdges(
 		context.Background(), DomainInheritanceEdges,
 		inheritanceDirectWriteRows(rows), inheritanceEvidenceSource,
 	); err != nil {
@@ -312,7 +312,7 @@ func TestInheritancePartitionConvergesDelta(t *testing.T) {
 	); err != nil {
 		t.Fatalf("direct retract: %v", err)
 	}
-	if err := direct.WriteEdges(
+	if _, err := direct.WriteEdges(
 		context.Background(), DomainInheritanceEdges,
 		inheritanceDirectWriteRows(rows), inheritanceEvidenceSource,
 	); err != nil {
@@ -359,6 +359,7 @@ func drainInheritanceInto(
 			result, err := ProcessPartitionOnce(
 				context.Background(), now, inheritanceFenceConfig(p, partitionCount),
 				lease, store, edges, acceptedGen, nil, readiness, nil, nil, store, nil,
+				nil,
 			)
 			if err != nil {
 				t.Fatalf("pass %d partition %d: %v", pass, p, err)

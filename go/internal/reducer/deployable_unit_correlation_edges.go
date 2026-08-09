@@ -34,7 +34,14 @@ func (h DeployableUnitCorrelationHandler) materializeDeployableUnitEdges(
 	if len(writeRows) == 0 {
 		return 0, nil
 	}
-	if err := h.EdgeWriter.WriteEdges(ctx, DomainDeployableUnitEdges, writeRows, deployableUnitCorrelationEvidenceSource); err != nil {
+	// #5984: this handler has no unroutable-intent sink wired, so the write
+	// report is deliberately discarded here and the rejected rows remain
+	// visible only through the writer's WARN and
+	// eshu_dp_shared_edge_unroutable_rows_total counter. That is unchanged
+	// behaviour for this path, not a new loss -- but it IS a remaining gap,
+	// and the compile-forced report is what makes it visible instead of
+	// implicit. Wiring the sink here needs this handler's own proof.
+	if _, err := h.EdgeWriter.WriteEdges(ctx, DomainDeployableUnitEdges, writeRows, deployableUnitCorrelationEvidenceSource); err != nil {
 		return 0, fmt.Errorf("write deployable unit correlation edges: %w", err)
 	}
 	return len(writeRows), nil

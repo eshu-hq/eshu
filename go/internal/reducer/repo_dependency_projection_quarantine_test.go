@@ -320,9 +320,9 @@ func (w delayedSuccessRepoDependencyWriter) RetractEdges(
 
 func (w delayedSuccessRepoDependencyWriter) WriteEdges(
 	context.Context, string, []SharedProjectionIntentRow, string,
-) error {
+) (SharedProjectionWriteReport, error) {
 	time.Sleep(w.delay)
-	return nil
+	return SharedProjectionWriteReport{}, nil
 }
 
 // blockUntilContextDoneRepoDependencyWriter makes heartbeat loss, rather than
@@ -340,9 +340,9 @@ func (blockUntilContextDoneRepoDependencyWriter) RetractEdges(
 
 func (blockUntilContextDoneRepoDependencyWriter) WriteEdges(
 	ctx context.Context, _ string, _ []SharedProjectionIntentRow, _ string,
-) error {
+) (SharedProjectionWriteReport, error) {
 	<-ctx.Done()
-	return nil
+	return SharedProjectionWriteReport{}, nil
 }
 
 type blockingRepoDependencyIntentReader struct{}

@@ -189,9 +189,9 @@ func (w *repoDependencyLostResponseWriter) RetractEdges(ctx context.Context, dom
 	return w.inner.RetractEdges(ctx, domain, rows, evidenceSource)
 }
 
-func (w *repoDependencyLostResponseWriter) WriteEdges(ctx context.Context, domain string, rows []reducer.SharedProjectionIntentRow, evidenceSource string) error {
-	if err := w.inner.WriteEdges(ctx, domain, rows, evidenceSource); err != nil {
-		return err
+func (w *repoDependencyLostResponseWriter) WriteEdges(ctx context.Context, domain string, rows []reducer.SharedProjectionIntentRow, evidenceSource string) (reducer.SharedProjectionWriteReport, error) {
+	if _, err := w.inner.WriteEdges(ctx, domain, rows, evidenceSource); err != nil {
+		return reducer.SharedProjectionWriteReport{}, err
 	}
 	for _, row := range rows {
 		if row.AcceptanceUnitID != w.faultAcceptanceUnit {
@@ -203,10 +203,10 @@ func (w *repoDependencyLostResponseWriter) WriteEdges(ctx context.Context, domai
 			injected = true
 		})
 		if injected {
-			return errRepoDependencyGraphResponseLost
+			return reducer.SharedProjectionWriteReport{}, errRepoDependencyGraphResponseLost
 		}
 	}
-	return nil
+	return reducer.SharedProjectionWriteReport{}, nil
 }
 
 func (w *repoDependencyLostResponseWriter) failureCount() int {

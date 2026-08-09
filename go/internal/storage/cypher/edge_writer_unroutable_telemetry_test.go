@@ -40,7 +40,7 @@ func TestEdgeWriterUnroutableRowsCounterRecordsPartialBatch(t *testing.T) {
 		unroutableRepoDependencyRow("i2"),
 		unroutableRepoDependencyRow("i3"),
 	}
-	if err := writer.WriteEdges(
+	if _, err := writer.WriteEdges(
 		context.Background(),
 		reducer.DomainRepoDependency,
 		rows,
@@ -79,15 +79,19 @@ func TestEdgeWriterUnroutableRowsCounterRecordsWholeBatch(t *testing.T) {
 		unroutableRepoDependencyRow("i1"),
 		unroutableRepoDependencyRow("i2"),
 	}
-	// The whole-batch case reports an error by design; the counter must still
-	// have recorded before that return.
-	if err := writer.WriteEdges(
+	// The whole-batch case is not an error (the rows can never route, so there
+	// is nothing to retry); the counter and the report carry the loss.
+	report, err := writer.WriteEdges(
 		context.Background(),
 		reducer.DomainRepoDependency,
 		rows,
 		"finalization/workloads",
-	); err == nil {
-		t.Fatal("WriteEdges() error = nil, want the unroutable error")
+	)
+	if err != nil {
+		t.Fatalf("WriteEdges() error = %v, want nil", err)
+	}
+	if got, want := len(report.UnroutableRows), 2; got != want {
+		t.Fatalf("reported rows = %d, want %d", got, want)
 	}
 
 	var rm metricdata.ResourceMetrics
@@ -121,7 +125,7 @@ func TestEdgeWriterControlRowOnlyBatchRecordsNoUnroutableMetric(t *testing.T) {
 		RepositoryID: "repo-a",
 		Payload:      map[string]any{"repo_id": "repo-a", "intent_type": "repo_refresh"},
 	}}
-	if err := writer.WriteEdges(
+	if _, err := writer.WriteEdges(
 		context.Background(),
 		reducer.DomainCodeCalls,
 		rows,

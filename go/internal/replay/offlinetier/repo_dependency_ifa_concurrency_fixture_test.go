@@ -67,7 +67,7 @@ func (w *repoDependencyOverlapWriter) WriteEdges(
 	domain string,
 	rows []reducer.SharedProjectionIntentRow,
 	evidenceSource string,
-) error {
+) (reducer.SharedProjectionWriteReport, error) {
 	w.mu.Lock()
 	w.current++
 	if w.current > w.max {
@@ -84,11 +84,11 @@ func (w *repoDependencyOverlapWriter) WriteEdges(
 		defer timer.Stop()
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return reducer.SharedProjectionWriteReport{}, ctx.Err()
 		case <-timer.C:
 		}
 	}
-	return w.inner.WriteEdges(ctx, domain, rows, evidenceSource)
+	return reducer.SharedProjectionWriteReport{}, w.inner.WriteEdges(ctx, domain, rows, evidenceSource)
 }
 
 func (w *repoDependencyOverlapWriter) maxConcurrent() int {

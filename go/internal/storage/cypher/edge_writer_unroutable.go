@@ -5,10 +5,11 @@ package cypher
 
 import (
 	"context"
-	"fmt"
 
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -19,36 +20,6 @@ const (
 	unroutableReasonPartialBatch = "partial_batch"
 	unroutableReasonWholeBatch   = "whole_batch"
 )
-
-// UnroutableRowsError reports that every row in a non-empty shared-projection
-// batch failed to route to a write statement, so no edge was written.
-//
-// It exists so the caller can tell "this partition legitimately had nothing to
-// write" (an empty batch, which returns nil) from "every row was rejected"
-// (#5984). The shared projection worker completes the latest intent row only
-// when WriteEdges succeeds, and completed rows are never reopened by the
-// durable upsert — returning nil for a wholly-rejected batch therefore records
-// missing edges as done, permanently and without a signal.
-type UnroutableRowsError struct {
-	Domain         string
-	EvidenceSource string
-	InputRows      int
-	DroppedRows    int
-}
-
-// Error reports both counts because they are not always equal: a batch can hold
-// control rows that carry no edge by design alongside rows that should have
-// become edges and could not be routed. Saying "all N were unroutable" with the
-// dropped count would understate the batch and read as though it held only the
-// rejected rows.
-func (e *UnroutableRowsError) Error() string {
-	return fmt.Sprintf(
-		"%s: no edge rows could be routed: %d of %d row(s) were unroutable "+
-			"(no write statement matched; evidence_source=%s); "+
-			"refusing to report success for edges that were never written",
-		e.Domain, e.DroppedRows, e.InputRows, e.EvidenceSource,
-	)
-}
 
 // reportUnroutableRows emits the operator-facing signal for rows a shared-edge
 // write could not route: a WARN structured log naming the domain, the counts,
@@ -88,4 +59,36 @@ func (w *EdgeWriter) reportUnroutableRows(
 		"reason", reason,
 		"sample_intent_id", sampleIntentID,
 	)
+}
+
+// unroutableReasonForRow classifies WHY a row could not be routed, so an
+// operator can tell a genuine data loss from version skew.
+//
+// The distinction is not cosmetic. A row missing its MATCH identifiers can
+// never become an edge under any writer version, and the loss is real. A row
+// whose relationship type has no statement in THIS binary is well formed and
+// would route once the writer catches up — during a rolling upgrade a newer
+// producer emits types an older writer has never heard of. Recording both as
+// the same thing would either hide real losses in deploy noise or page someone
+// about a rollout that is working as intended.
+func unroutableReasonForRow(domain string, row reducer.SharedProjectionIntentRow) string {
+	if domain != reducer.DomainRepoDependency {
+		return reducer.UnroutableReasonMissingRequiredField
+	}
+	// repo_dependency is the only domain today whose rejection can mean "this
+	// writer has no statement for that type" rather than "the payload is
+	// incomplete": it looks the relationship type up in a table
+	// (batchCanonicalTypedRepoRelationshipUpsertCypher). Every other domain
+	// rejects only on empty required fields.
+	relationshipType := payloadString(row.Payload, "relationship_type")
+	if relationshipType == "" || relationshipType == string(edgetype.DependsOn) {
+		return reducer.UnroutableReasonMissingRequiredField
+	}
+	if payloadString(row.Payload, "repo_id") == "" || payloadString(row.Payload, "target_repo_id") == "" {
+		return reducer.UnroutableReasonMissingRequiredField
+	}
+	if _, ok := batchCanonicalTypedRepoRelationshipUpsertCypher(relationshipType); !ok {
+		return reducer.UnroutableReasonNoStatementForType
+	}
+	return reducer.UnroutableReasonMissingRequiredField
 }

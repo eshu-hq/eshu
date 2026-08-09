@@ -230,7 +230,7 @@ func TestEdgeWriterWriteEdgesSubmodulePinRoutesTemplate(t *testing.T) {
 		},
 	}
 
-	err := writer.WriteEdges(context.Background(), reducer.DomainSubmodulePinEdges, rows, "reducer/submodule")
+	_, err := writer.WriteEdges(context.Background(), reducer.DomainSubmodulePinEdges, rows, "reducer/submodule")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}

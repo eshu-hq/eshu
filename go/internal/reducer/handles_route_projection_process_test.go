@@ -45,6 +45,7 @@ func TestProcessPartitionOnceHandlesRouteDrainsAbsentEndpoint(t *testing.T) {
 		context.Background(), now, cfg, lease, reader, edges,
 		acceptedGenerationFixed("gen-1", true), nil,
 		readinessLookupFixed(true, true), nil, presence, nil, nil,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("ProcessPartitionOnce() error = %v", err)
@@ -130,6 +131,7 @@ func TestProcessPartitionOnceHandlesRouteAllTerminalRepoDrainsAndRetracts(t *tes
 		context.Background(), now, cfg, lease, reader, edges,
 		acceptedGenerationFixed("gen-1", true), nil,
 		readinessLookupFixed(true, true), nil, presence, nil, nil,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("ProcessPartitionOnce() error = %v", err)
@@ -193,7 +195,7 @@ func TestProcessPartitionOnceHandlesRouteNilPresenceProjectsAll(t *testing.T) {
 	result, err := ProcessPartitionOnce(
 		context.Background(), now, cfg, lease, reader, edges,
 		acceptedGenerationFixed("gen-1", true), nil,
-		readinessLookupFixed(true, true), nil, nil, nil, nil, // nil presence lookup
+		readinessLookupFixed(true, true), nil, nil, nil, nil, nil, // nil presence lookup
 	)
 	if err != nil {
 		t.Fatalf("ProcessPartitionOnce() error = %v", err)

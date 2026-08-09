@@ -24,9 +24,9 @@ func (f *failingWriteEdgeWriter) WriteEdges(
 	domain string,
 	rows []SharedProjectionIntentRow,
 	evidenceSource string,
-) error {
-	_ = f.stubEdgeWriter.WriteEdges(ctx, domain, rows, evidenceSource)
-	return f.err
+) (SharedProjectionWriteReport, error) {
+	_, _ = f.stubEdgeWriter.WriteEdges(ctx, domain, rows, evidenceSource)
+	return SharedProjectionWriteReport{}, f.err
 }
 
 // TestProcessPartitionOnceDoesNotCompleteIntentsWhenWriteEdgesFails is the
@@ -74,6 +74,7 @@ func TestProcessPartitionOnceDoesNotCompleteIntentsWhenWriteEdgesFails(t *testin
 		context.Background(), now, cfg, lease, reader, edges,
 		acceptedGenerationFixed("gen-1", true),
 		nil, nil, nil, nil, nil, nil,
+		nil,
 	)
 	if err == nil {
 		t.Fatal("ProcessPartitionOnce() error = nil, want the write failure to propagate")

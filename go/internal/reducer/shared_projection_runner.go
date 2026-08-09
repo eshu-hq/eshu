@@ -142,8 +142,17 @@ type SharedProjectionRunner struct {
 	// repo per domain. A nil lookup disables the skip, leaving the retract
 	// byte-identical to pre-#3624 behavior.
 	FirstProjectionLookup FirstProjectionLookup
-	Config                SharedProjectionRunnerConfig
-	Wait                  func(context.Context, time.Duration) error
+
+	// UnroutableWriter persists a durable row for every intent a canonical
+	// edge write could not route (#5984). Nil is accepted so existing callers
+	// and tests keep working, but a nil sink means a rejected row is visible
+	// only in the writer's WARN and counter -- deployments that care about
+	// edge-loss truth must wire it. The worker fails its cycle when this
+	// write fails, because the intent is completed immediately afterwards and
+	// the durable row is then the only record.
+	UnroutableWriter SharedProjectionUnroutableWriter
+	Config           SharedProjectionRunnerConfig
+	Wait             func(context.Context, time.Duration) error
 
 	// Telemetry fields (optional)
 	Tracer      trace.Tracer
@@ -351,6 +360,7 @@ func (r *SharedProjectionRunner) processPartitionWithTelemetry(
 		r.EndpointPresenceLookup,
 		r.RefreshFenceLookup,
 		r.FirstProjectionLookup,
+		r.UnroutableWriter,
 	)
 
 	duration := time.Since(start).Seconds()

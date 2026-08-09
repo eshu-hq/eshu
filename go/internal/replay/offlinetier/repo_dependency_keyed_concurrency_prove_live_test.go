@@ -193,7 +193,7 @@ func runRepoDependencySourceCycle(
 		if err := writer.RetractEdges(ctx, reducer.DomainRepoDependency, retractRows, repoDependencyConcurrencySource); err != nil {
 			return fmt.Errorf("replay %d retract: %w", replay, err)
 		}
-		if err := writer.WriteEdges(ctx, reducer.DomainRepoDependency, writes, repoDependencyConcurrencySource); err != nil {
+		if _, err := writer.WriteEdges(ctx, reducer.DomainRepoDependency, writes, repoDependencyConcurrencySource); err != nil {
 			return fmt.Errorf("replay %d write: %w", replay, err)
 		}
 	}
@@ -289,7 +289,7 @@ func seedRepoDependencyConcurrencyStaleEdges(
 			},
 		})
 	}
-	if err := cypher.NewEdgeWriter(exec, 0).WriteEdges(
+	if _, err := cypher.NewEdgeWriter(exec, 0).WriteEdges(
 		ctx,
 		reducer.DomainRepoDependency,
 		rows,

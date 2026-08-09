@@ -38,7 +38,7 @@ func TestEdgeWriterWriteEdgesDeployableUnitDispatch(t *testing.T) {
 		},
 	}
 
-	err := writer.WriteEdges(context.Background(), reducer.DomainDeployableUnitEdges, rows, "reducer/deployable-unit-correlation")
+	_, err := writer.WriteEdges(context.Background(), reducer.DomainDeployableUnitEdges, rows, "reducer/deployable-unit-correlation")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}

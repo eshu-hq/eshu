@@ -193,9 +193,9 @@ func (w *repoDependencyProcessDeathWriter) RetractEdges(
 
 func (w *repoDependencyProcessDeathWriter) WriteEdges(
 	ctx context.Context, domain string, rows []reducer.SharedProjectionIntentRow, evidenceSource string,
-) error {
-	if err := w.inner.WriteEdges(ctx, domain, rows, evidenceSource); err != nil {
-		return err
+) (reducer.SharedProjectionWriteReport, error) {
+	if _, err := w.inner.WriteEdges(ctx, domain, rows, evidenceSource); err != nil {
+		return reducer.SharedProjectionWriteReport{}, err
 	}
 	fmt.Println(repoDependencyProcessDeathSentinel)
 	_ = os.Stdout.Sync()
