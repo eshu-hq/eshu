@@ -163,7 +163,7 @@ ifa_fault_wait_for_claimed() {
 # directly inside Handle() (e.g. gcp_resource_materialization); it does NOT
 # apply to sql_relationship_materialization, whose graph writes ride the
 # async shared-projection intent path instead -- see
-# ifa_fault_assert_sql_graph_write_fired below for that domain's fired-fault
+# ifa_fault_assert_once_fault_marker below for that domain's fired-fault
 # signal.
 #
 # Args: compose_project use_compose dsn compose_file [domain=gcp_resource_materialization]
@@ -208,75 +208,39 @@ ifa_fault_assert_retried_above() {
 	return 1
 }
 
-# ifa_fault_assert_sql_graph_write_fired polls reducer_log_path (the tagged
-# reducer's captured log for the fail-graph-write-once-then-succeed-sql cell)
-# for the injected fault's error text landing in a SharedProjectionRunner
-# partition-processing error log line naming the sql_relationships domain --
-# the fired-fault, non-vacuity proof for a shared-projection graph-write
-# fault (issue #5555). Shared-projection domains have no fact_work_items-
-# style attempt_count column the way gcp_resource_materialization does
-# (ifa_fault_count_retried's mechanism does not apply here -- see
-# go/internal/reducer/shared_projection_runner.go's
-# TestSharedProjectionRunnerLogsPartitionProcessingError), so this checks the
-# durable log line that failure now emits instead of a Postgres row. Callers
-# MUST call this AFTER run_drain_gate has already returned success: draining
-# already requires every shared_projection_intents row (including the
-# retried one) to reach completed_at, so by the time this polls, the fault
-# fired and its retry already converged -- this does NOT race the live event
-# the way the abandoned cell-4 log-grep ifa_fault_count_retried's doc comment
-# describes did.
+# ifa_fault_assert_once_fault_marker proves the scripted once-fault fired by
+# reading the marker FaultingExecutor writes at the moment it injects the fault
+# (go/internal/storage/cypher/fault_executor.go, #5974), rather than polling the
+# reducer's captured stderr.
 #
-# CORRELATION ON ONE LOG RECORD, NOT THE WHOLE FILE. An earlier version of
-# this function ran two INDEPENDENT `rg` checks against the whole file: one
-# for the injected-fault error text, one for the literal string
-# "sql_relationships". Both can be individually true from UNRELATED lines --
-# sql_relationships is one of the domains SharedProjectionRunner cycles every
-# poll (shared_projection_runner.go's sharedProjectionDomains), so its name
-# appears in routine logging regardless of which domain a fault actually hit.
-# That shape passed even when the fault was anchored at CloudResource
-# (confirmed live): a vacuous check, exactly the defect class #5555 exists to
-# kill. The reducer's logger is JSON (go/internal/telemetry/logging.go's
-# NewLoggerWithWriter, ReplaceAttr renames msg->message but leaves
-# log.Domain's own "domain" attr key alone), so this now requires ONE JSON
-# record to satisfy all three facts together: the exact partition-processing-
-# failed message
-# go/internal/reducer/shared_projection_runner.go's processPartitionWithTelemetry
-# logs, domain == "sql_relationships" (field-equality, not substring), and
-# the injected fault's error text as a substring of that SAME record's
-# "error" field. The `rg` pre-filter is a cheap narrowing pass only (every
-# JSON record with domain=sql_relationships necessarily contains the literal
-# substring "sql_relationships"); jq -e does the actual field-matched
-# correlation per candidate line, so a malformed/partial line (the reducer
-# still writing when this polls) just fails to parse and is skipped, not
-# treated as a match.
+# Why not the log: the stderr route races the logger's flush. An earlier
+# log-grep assertion in this file was abandoned after the injected-failure line
+# reached the captured file a minute-plus after the event in CI -- see
+# ifa_fault_count_retried's comment above. cell_failgraphwrite_sql then reused
+# that technique and went inert in CI for the same reason. The marker is written
+# synchronously by the goroutine injecting the fault, before the failing write
+# returns, so it cannot arrive late relative to the fault's own effects.
 #
-# Args: reducer_log_path [budget_seconds=10]
-ifa_fault_assert_sql_graph_write_fired() {
-	local reducer_log_path="$1" budget="${2:-10}"
-	if ! command -v jq >/dev/null 2>&1; then
-		echo "ifa_fault_assert_sql_graph_write_fired: jq is required to correlate the" \
-			"fault record on one log line; without it this check cannot run and must" \
-			"not silently pass" >&2
+# A missing marker is a hard failure: it means the fault never fired, which is
+# exactly the inert-gate condition this assertion exists to catch.
+#
+# Args: fault_script_path expected_operation_substring
+ifa_fault_assert_once_fault_marker() {
+	local script_path="$1" expected="$2"
+	local marker="${script_path}.restart-sentinel.once-fired"
+	if [[ ! -f "${marker}" ]]; then
+		echo "ifa_fault_assert_once_fault_marker: no once-fired marker at ${marker} -- the scripted fault never fired. An inert script, not a pass." >&2
 		return 1
 	fi
-	local i line
-	for i in $(seq 1 "${budget}"); do
-		if [[ -f "${reducer_log_path}" ]]; then
-			while IFS= read -r line; do
-				if jq -e '
-						(.domain == "sql_relationships")
-						and ((.message // "") == "shared projection partition processing failed; retrying on next poll cycle")
-						and ((.error // "") | contains("fail-graph-write-once-then-succeed (queue-retry) injected one failure for graph-write call"))
-					' >/dev/null 2>&1 <<<"${line}"; then
-					return 0
-				fi
-			done < <(rg --fixed-strings 'sql_relationships' "${reducer_log_path}" 2>/dev/null)
-		fi
-		sleep 1
-	done
-	echo "ifa_fault_assert_sql_graph_write_fired: no single sql_relationships partition-processing-failed log record carrying the injected fault text was found in ${reducer_log_path} within ${budget}s" >&2
-	return 1
+	if ! rg --fixed-strings --quiet -- "${expected}" "${marker}"; then
+		echo "ifa_fault_assert_once_fault_marker: marker ${marker} exists but does not name the targeted operation ${expected}; the fault fired on a different write" >&2
+		echo "--- marker contents ---" >&2
+		cat "${marker}" >&2
+		return 1
+	fi
+	return 0
 }
+
 
 # ifa_fault_watch_restart_sentinel polls for sentinel_path's appearance (the
 # file go/internal/storage/cypher.FaultingExecutor.maybeRestartAfterGroup
