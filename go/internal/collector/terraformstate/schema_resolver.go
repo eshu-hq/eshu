@@ -71,9 +71,22 @@ func (r *packagedSchemaResolver) EntryCount() int {
 // statement, filter, lifecycle_rule, ...) under the same `attributes` key as
 // scalar attributes, so the trusted surface must include both names.
 //
-// Returns nil when neither source yields any parseable schema. Returning nil
-// is intentional: the parser treats a nil resolver as redact.SchemaUnknown
-// which fails closed under the configured RedactionRules.
+// Returns an error when neither source yields any parseable schema (#5870).
+// It used to return (nil, nil) there — success carrying a nil resolver — on the
+// reasoning that the parser treats a nil resolver as redact.SchemaUnknown and
+// so fails closed. Failing closed is right for a value and wrong for a join
+// key: schemaTrust answers SchemaUnknown for every pair against a nil resolver,
+// so "arn" was redacted along with everything else, and the resulting redaction
+// map rendered through fmt.Sprint into a non-empty garbage string that passed
+// the `arn == ""` guard and keyed stateByARN. Every cloud resource under that
+// bundle then reclassified as an orphaned_cloud_resource.
+//
+// Reaching the empty case means neither the operator's directory nor the
+// binary's own embedded bundle produced a single attribute — a broken build or
+// a broken deployment, not a degraded mode worth starting in. The caller
+// (cmd/collector-terraform-state/config.go) already wraps and returns this
+// error, so the collector now fails to start instead of silently degrading
+// every scalar of every resource.
 func LoadPackagedSchemaResolver(schemaDir string) (ProviderSchemaResolver, error) {
 	stateAttributes := make(map[string]map[string]struct{}, 1024)
 
@@ -99,8 +112,24 @@ func LoadPackagedSchemaResolver(schemaDir string) (ProviderSchemaResolver, error
 		}
 	}
 
+	return newPackagedSchemaResolver(stateAttributes, schemaDir)
+}
+
+// newPackagedSchemaResolver wraps a loaded attribute set, rejecting an empty
+// one. Split out from LoadPackagedSchemaResolver so the empty case is directly
+// testable: in a correctly built binary the embedded bundle always loads, so
+// the guard can otherwise only be exercised by breaking the build.
+func newPackagedSchemaResolver(
+	stateAttributes map[string]map[string]struct{},
+	schemaDir string,
+) (ProviderSchemaResolver, error) {
 	if len(stateAttributes) == 0 {
-		return nil, nil
+		return nil, fmt.Errorf(
+			"no Terraform provider schemas parsed from %q or from the embedded bundle: "+
+				"without them every state attribute classifies as schema-unknown and is "+
+				"redacted, including the arn used as the drift join key",
+			schemaDir,
+		)
 	}
 	return &packagedSchemaResolver{stateAttributes: stateAttributes}, nil
 }
