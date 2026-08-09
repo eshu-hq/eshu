@@ -223,8 +223,8 @@ the generated mapping in prose.
 
 | Slugs | Action | Fresh deployed proof | Result |
 | --- | --- | --- | --- |
-| 100 legacy slugs | Validate and retain `supported` | `scripts/verify-golden-corpus-gate.sh` on project `eshu-5552-claim-honesty-20260809-9` | 547 passed, 0 required failures, 0 advisory warnings; direct exit 0 |
-| `prod-component-extension-inventory`, `prod-component-extension-diagnostics` | Validate and retain `supported` | `scripts/run-remote-e2e-component-extension.sh` on project `eshu-5552-component-20260809-1` | Installed, enabled, trusted registry readback; completed workflow; non-empty fact families; authenticated inventory and diagnostics assertions; direct exit 0 |
+| 100 legacy slugs | Validate and retain `supported` | `scripts/verify-golden-corpus-gate.sh` on project `eshu5552-ask-aggregate-20260809c` | 550 passed, 0 required failures, 0 advisory warnings; independent persisted-graph aggregate oracle; direct exit 0 |
+| `prod-component-extension-inventory`, `prod-component-extension-diagnostics` | Validate and retain `supported` | `scripts/run-remote-e2e-component-extension.sh` on project `eshu-5552-component-20260809-3` from `bab7e38e6f` | Installed, enabled, trusted registry readback; completed workflow; non-empty fact families; positive authenticated HTTP and MCP inventory and diagnostics assertions; direct exit 0 |
 | `prod-dead-iac` | Validate and retain `supported` | `scripts/verify_dead_iac_compose.sh` on project `eshu-5552-dead-iac-20260809-5` | Ten materialized findings across five IaC families through API and MCP, with Postgres and NornicDB truth checks; direct exit 0 |
 
 ### Recurrence proof

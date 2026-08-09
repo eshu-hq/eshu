@@ -5,14 +5,14 @@ Validation-Tier: deployed_services
 Validation-Date: 2026-08-09
 Evidence-Kind: compose_e2e
 Evidence-Source: scripts/verify-golden-corpus-gate.sh
-Validation-Command: GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?
+Validation-Command: GATE_COMPOSE_PROJECT=eshu5552-ask-aggregate-20260809c ESHU_POSTGRES_PORT=25432 NORNICDB_BOLT_PORT=27687 NORNICDB_HTTP_PORT=27474 GATE_API_PORT=28080 GATE_MCP_PORT=28091 GATE_PROMETHEUS_SOURCE_PORT=29090 GATE_ASK_PROVIDER_PORT=29191 bash scripts/verify-golden-corpus-gate.sh > /tmp/eshu-5552-b7-ask-aggregate-20260809c.log 2>&1; echo $?
 Validation-Exit-Code: 0
 Capability-Assertion: platform_impact.catalog passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
 B12-Assertion: platform_impact.catalog -> mcp:get_ecosystem_overview
 
 ## Fresh deployed validation
 
-A fresh credential-free Compose run rebuilt every binary, replayed all 37 cassette scope generations, drained the projector and reducer to terminal state, and exercised the committed B-12 API/MCP assertion for this capability. The gate completed with 547 passes, zero required failures, and zero advisory warnings in 133 seconds.
+A fresh credential-free Compose run rebuilt every binary, replayed all 37 cassette scope generations, drained the projector and reducer to terminal state, and exercised the committed B-12 API/MCP assertion for this capability. Before API and MCP validation, the gate read the repository and workload totals directly from the persisted graph through its independent Bolt oracle and substituted those measured values into the runtime snapshot. The gate completed with 550 passes, zero required failures, and zero advisory warnings in 121 seconds.
 
 
 Capability: `platform_impact.catalog` (tools `get_ecosystem_overview`,

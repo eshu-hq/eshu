@@ -328,6 +328,27 @@ case11_registry_gate="$(
 case11_workflow_filter="$(
 	sed -n '/^[[:space:]]*remotevalidation:$/,/^[[:space:]]*claudrules:$/p' "${case11_workflow}"
 )"
+case11_workflow_gate="$(
+	rg --fixed-strings 'append_gate "${{ steps.filter.outputs.remotevalidation }}"' "${case11_workflow}"
+)"
+component_extension_self_test='bash scripts/test-verify-remote-e2e-component-extension.sh'
+component_extension_fixture_trigger='tests/fixtures/component_extension_proof/**'
+if printf '%s\n' "${case11_registry_gate}" |
+	rg -q --fixed-strings "${component_extension_self_test}" &&
+	printf '%s\n' "${case11_workflow_gate}" |
+		rg -q --fixed-strings "${component_extension_self_test}"; then
+	record_pass "component-extension hostile verifier runs locally and in CI"
+else
+	record_fail "component-extension hostile verifier runs locally and in CI"
+fi
+if printf '%s\n' "${case11_registry_gate}" |
+	rg -q --fixed-strings "      - \"${component_extension_fixture_trigger}\"" &&
+	printf '%s\n' "${case11_workflow_filter}" |
+		rg -q --fixed-strings "              - '${component_extension_fixture_trigger}'"; then
+	record_pass "component-extension proof fixtures trigger the static contract gate"
+else
+	record_fail "component-extension proof fixtures trigger the static contract gate"
+fi
 while IFS='|' read -r trigger representative; do
 	[[ -n "${trigger}" ]] || continue
 	if ! printf '%s\n' "${case11_registry_gate}" |
@@ -359,6 +380,7 @@ scripts/verify-golden-corpus-gate.sh|scripts/verify-golden-corpus-gate.sh
 scripts/**/run-k8s-*.sh|scripts/run-k8s-example.sh
 scripts/**/verify-hosted-*.sh|scripts/verify-hosted-example.sh
 scripts/**/*e2e*.sh|scripts/example-e2e-proof.sh
+tests/fixtures/component_extension_proof/**|tests/fixtures/component_extension_proof/good/api-inventory.json
 EVIDENCE_SOURCE_TRIGGERS
 
 # Case 12 (BITES): seed one new production-supported row with no deployed

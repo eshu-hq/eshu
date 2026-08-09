@@ -1188,12 +1188,14 @@ gates:
       - "specs/remote-validation-frozen.txt"
       - "scripts/verify-remote-validation-artifacts.sh"
       - "scripts/test-verify-remote-validation-artifacts.sh"
+      - "scripts/test-verify-remote-e2e-component-extension.sh"
       - "scripts/generate-remote-validation-inventory.sh"
       - "scripts/test-generate-remote-validation-inventory.sh"
+      - "tests/fixtures/component_extension_proof/**"
       - "specs/ci-gates.v1.yaml"
     local:
       command: "bash scripts/generate-remote-validation-inventory.sh && git diff --exit-code -- docs/internal/remote-validation/inventory.generated.json && bash scripts/verify-remote-validation-artifacts.sh"
-      test_command: "bash scripts/test-generate-remote-validation-inventory.sh && bash scripts/test-verify-remote-validation-artifacts.sh && bash scripts/test-verify-dead-iac-compose.sh"
+      test_command: "bash scripts/test-generate-remote-validation-inventory.sh && bash scripts/test-verify-remote-validation-artifacts.sh && bash scripts/test-verify-dead-iac-compose.sh && bash scripts/test-verify-remote-e2e-component-extension.sh"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify remote-validation-artifacts gate"

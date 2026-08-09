@@ -142,7 +142,8 @@ Burn-down progress:
 - **This directory now holds 110 committed, machine-valid deployed artifacts**
   covering all 115 currently supported production row-occurrences. Seven were
   validated for #5681. #5552 requalified the remaining 103 slugs: 100 through
-  a fresh 547-pass golden-corpus Compose run, two through the deployed
+  a fresh 550-pass golden-corpus Compose run with an independent persisted-graph
+  oracle for the two aggregate rows, two through the deployed
   component-extension driver, and one through the dedicated dead-IaC Compose
   driver. Every artifact records its matching deployed tier, run date, exact
   command with direct exit capture, evidence source, and one assertion per
