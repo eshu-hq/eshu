@@ -357,10 +357,14 @@ func (awsCloudImageNodesNotReadyError) Retryable() bool { return true }
 
 // AWSCloudImageNodesNotReadyFailureClass identifies an in-handler readiness-gate miss: the
 // AWS cloud-image node intent ran before its upstream cloud-resource
-// canonical-nodes-committed phase published for the same acceptance unit. The
-// durable claim gate (reducerClaimReadinessRequirementsSQL) normally prevents
-// that, so this fires only in the claim/handle race window where the handler's
-// own ReadinessLookup disagrees with the claim-time gate.
+// canonical-nodes-committed phase published for the same acceptance unit.
+//
+// Unlike every other readiness class, this one is NOT backed by a claim-time
+// row in reducerClaimReadinessRequirementsSQL. sourceNodesReady below is the
+// only defense, so the miss is the common path here rather than a narrow
+// claim/handle race -- the shape #5047 called "the wide-open case" when GCP
+// relationship materialization was in it.
+// TestReadinessDomainsWithoutAClaimGateAreTheKnownSet holds that gap.
 //
 // Enrolled in nonCountingReducerRetryFailureClasses (#5046) so the miss never
 // erodes the retry budget and dead-letters a still-pending intent that the
