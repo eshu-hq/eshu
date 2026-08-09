@@ -208,6 +208,14 @@ ifa_fault_assert_retried_above() {
 	return 1
 }
 
+# IFA_ONCE_MARKER_WRITE_FAILED_PREFIX must stay byte-identical to
+# OnceFiredMarkerWriteFailedPrefix in
+# go/internal/storage/cypher/fault_executor_marker.go. The gate greps the
+# reducer log for it, so drift makes the search silently find nothing --
+# indistinguishable from "the marker write never failed". The mirror asserts the
+# two match.
+IFA_ONCE_MARKER_WRITE_FAILED_PREFIX="ifa fault: once-fired marker write failed"
+
 # ifa_fault_assert_once_fault_marker proves the scripted once-fault fired by
 # reading the marker FaultingExecutor writes at the moment it injects the fault
 # (go/internal/storage/cypher/fault_executor.go, #5974), rather than polling the

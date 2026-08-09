@@ -170,13 +170,33 @@ done
 require_driver "fresh_stack fails loudly when teardown fails" "the stack is NOT fresh"
 require_driver "fresh_stack captures teardown output instead of discarding it" 'compose-down-${cell}.log'
 require_sql_cells "probe 1: fresh-stack intent precondition" "survived fresh_stack"
-require_sql_cells "probe 2: SQL edges asserted after the drain" "the QUERIES_TABLE MERGE never ran in this cell"
+require_sql_cells "probe 2: SQL edges asserted after the drain" "assert-edges is set-exact"
 require_sql_cells "probe 2: this cell's intent window is reported" "projection_domain = 'sql_relationships'"
 require_sql_cells "die message names the marker-write-failure alternative" "once-fired marker write failed"
 # The old message asserted a single cause. It must not come back.
 if rg --fixed-strings --quiet -- "the scripted fault never fired -- no once-fired marker" "${sql_cells_lib}"; then
 	fail "the SQL cell's die message asserts the fault never fired; a missing marker also means the marker write failed (#5974)"
 fi
+
+# Review round on the probes. Three of the five findings were the same defect
+# this cell exists to remove: a message or a check asserting more than it knows.
+require_sql_cells "probe 1 distinguishes a failed query from a count" "precondition query FAILED"
+require_sql_cells "probe 1 rejects non-numeric output rather than reading it as zero" "treat that as unknown, not as zero"
+require_sql_cells "probe 1 skips when --no-compose owns the stack" "fresh-stack precondition SKIPPED"
+require_sql_cells "assert-edges failure names both directions" "AND an extra, duplicated, or wrong-typed edge"
+require_sql_cells "the gate greps for the marker-write failure itself" "the marker WRITE FAILED (line above)"
+require_lib "marker-write prefix declared once in shell" 'IFA_ONCE_MARKER_WRITE_FAILED_PREFIX="ifa fault: once-fired marker write failed"'
+
+# The shell prefix and the Go constant are greped against each other, so drift
+# makes the search silently match nothing -- which reads exactly like "the
+# marker write never failed".
+go_marker_prefix="$(rg --no-filename -o 'OnceFiredMarkerWriteFailedPrefix = "([^"]+)"' -r '$1' \
+	"${repo_root}/go/internal/storage/cypher/fault_executor_marker.go" | head -1)"
+shell_marker_prefix="$(rg --no-filename -o 'IFA_ONCE_MARKER_WRITE_FAILED_PREFIX="([^"]+)"' -r '$1' \
+	"${fault_lib}" | head -1)"
+[[ -n "${go_marker_prefix}" ]] || fail "could not read OnceFiredMarkerWriteFailedPrefix from fault_executor_marker.go"
+[[ "${go_marker_prefix}" == "${shell_marker_prefix}" ]] \
+	|| fail "marker-write prefix drift: Go has ${go_marker_prefix@Q}, shell has ${shell_marker_prefix@Q} -- the gate's grep would silently find nothing"
 
 require "failgraphwrite_sql held out with the probe experiment result" "the statement that writes SQL edges in CI"
 # The library must DEFINE both cells. The needles below check implementation
