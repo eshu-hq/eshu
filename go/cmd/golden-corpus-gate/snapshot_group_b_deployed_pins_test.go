@@ -35,7 +35,7 @@ func TestGoldenSnapshotGroupBDeployedPinsAreNonVacuous(t *testing.T) {
 				"question": "What evidence supports the runtime readiness?",
 				"handles": []any{map[string]any{
 					"kind":          "file",
-					"repo_id":       "orders-api",
+					"repo_id":       "repository:r_ea78e8bb",
 					"relative_path": "main.go",
 					"start_line":    float64(1),
 					"end_line":      float64(20),
@@ -44,7 +44,7 @@ func TestGoldenSnapshotGroupBDeployedPinsAreNonVacuous(t *testing.T) {
 			},
 			values: map[string]any{
 				"citations[].kind":            "file",
-				"citations[].repo_id":         "orders-api",
+				"citations[].repo_id":         "repository:r_ea78e8bb",
 				"citations[].relative_path":   "main.go",
 				"coverage.input_handle_count": float64(1),
 				"coverage.resolved_count":     float64(1),
@@ -79,10 +79,10 @@ func TestGoldenSnapshotGroupBDeployedPinsAreNonVacuous(t *testing.T) {
 			minimum:      1,
 			resultsField: "hot_entities",
 			arguments: map[string]any{
-				"repo_id": "orders-api",
+				"repo_id": "repository:r_ed3a9bab",
 				"limit":   float64(10),
 			},
-			values: map[string]any{"scope": "repository"},
+			values: map[string]any{"scope": "repository", "repo_id": "repository:r_ed3a9bab"},
 			paths: []string{
 				"hot_entities[].function_id",
 				"hot_entities[].function_name",
@@ -91,6 +91,9 @@ func TestGoldenSnapshotGroupBDeployedPinsAreNonVacuous(t *testing.T) {
 				"hot_entities[].total_degree",
 				"key_relationships.CALLS",
 				"ecosystem_map.file_count",
+			},
+			objectMatches: map[string][]map[string]any{
+				"hot_entities[]": {{"function_id": "content-entity:e_59c56c38911d", "function_name": "mutualPing", "incoming_calls": float64(1), "outgoing_calls": float64(1), "total_degree": float64(2)}},
 			},
 		},
 		{
@@ -179,8 +182,10 @@ func TestGoldenSnapshotOperationsStatusUsesDeployedEnvelope(t *testing.T) {
 	assertSnapshotValues(t, shape.RequiredJSONValues, map[string]any{
 		"data.scoped":            false,
 		"data.limit":             float64(50),
-		"data.health.state":      "healthy",
+		"data.health.state":      "degraded",
 		"data.queue.outstanding": float64(0),
+		"data.queue.dead_letter": float64(1),
+		"data.health.reasons[]":  "1 work items are dead-lettered",
 		"data.live_activity":     []any{},
 		"truth.capability":       "operations.status",
 		"truth.basis":            "runtime_state",

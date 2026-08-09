@@ -107,8 +107,12 @@ jq -e '
        }
 ' "${output_snapshot}" >/dev/null || fail "runtime snapshot composition lost a prior transform or generation ID"
 
+missing_sentinels_snapshot="${case_dir}/missing-sentinels-input.json"
+jq '(.query_shapes.mcp.get_service_changed_since.required_json_object_matches["categories[]"][]
+     | select(.category == "deployment").counts.updated) = 0' \
+	"${repo_root}/testdata/golden/e2e-20repo-snapshot.json" >"${missing_sentinels_snapshot}"
 if (golden_service_changed_since_compose_snapshot \
-	"${repo_root}/testdata/golden/e2e-20repo-snapshot.json" \
+	"${missing_sentinels_snapshot}" \
 	"${case_dir}/missing-sentinels.json") >/dev/null 2>&1; then
 	fail "composition accepted a snapshot without deployment-count sentinels"
 fi

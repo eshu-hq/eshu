@@ -131,8 +131,9 @@ func TestGoldenSnapshotServiceChangedSinceIsNonVacuous(t *testing.T) {
 		{
 			"category": "deployment",
 			"counts": map[string]any{
-				"added": float64(0), "updated": float64(0), "unchanged": float64(0),
-				"retired": float64(0), "superseded": float64(0),
+				"added": goldenServiceChangedSinceAddedSentinel, "updated": goldenServiceChangedSinceUpdatedSentinel,
+				"unchanged": goldenServiceChangedSinceUnchangedSentinel, "retired": goldenServiceChangedSinceRetiredSentinel,
+				"superseded": goldenServiceChangedSinceSupersededSentinel,
 			},
 			"unavailable": false,
 		},

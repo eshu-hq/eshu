@@ -6,6 +6,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -240,7 +241,7 @@ func TestGoldenSnapshotGroupBUsesCapabilitySpecificPositiveShapes(t *testing.T) 
 		})
 	}
 
-	const dependencyKey = "GET /api/v0/dependencies?direction=forward&package=github.com/acme/lib-common&ecosystem=gomod&limit=10"
+	const dependencyKey = "GET /api/v0/dependencies?direction=forward&package=github.com/acme/lib-common&ecosystem=go&limit=10"
 	dependencies, ok := snapshot.QueryShapes.HTTP[dependencyKey]
 	if !ok {
 		t.Fatalf("query_shapes.http missing %s", dependencyKey)
@@ -255,6 +256,32 @@ func TestGoldenSnapshotGroupBUsesCapabilitySpecificPositiveShapes(t *testing.T) 
 	decorators := snapshot.QueryShapes.MCP["execute_language_query"]
 	if !containsString(decorators.RequiredJSONPaths, "results[].semantic_profile.decorators[]") {
 		t.Fatal("execute_language_query must require a non-empty decorator value")
+	}
+	if got := decorators.RequiredJSONValues["source_backend"]; got != "hybrid_graph_and_content" {
+		t.Fatalf("execute_language_query source_backend = %#v, want hybrid_graph_and_content", got)
+	}
+
+	developerPlan := snapshot.QueryShapes.MCP["plan_developer_change"]
+	wantDeveloperPlanArguments := map[string]any{
+		"repo_id":          "orders-api",
+		"changed_paths":    []any{"main.go"},
+		"developer_intent": "query envelope",
+		"limit":            float64(10),
+	}
+	if !reflect.DeepEqual(developerPlan.Arguments, wantDeveloperPlanArguments) {
+		t.Fatalf("plan_developer_change arguments = %#v, want %#v", developerPlan.Arguments, wantDeveloperPlanArguments)
+	}
+	assertSnapshotValues(t, developerPlan.RequiredJSONValues, map[string]any{
+		"changed_file_count": float64(1),
+		"change_set.repo_id": "orders-api",
+		"change_set.mode":    "file_list",
+		"schema_version":     "developer_change_plan.v1",
+		"workflow":           "developer_change_plan",
+		"read_only":          true,
+	})
+	wantChangedFile := []map[string]any{{"repo_id": "orders-api", "path": "main.go", "status": "modified"}}
+	if got := developerPlan.RequiredJSONObjectMatches["changed_files[]"]; !reflect.DeepEqual(got, wantChangedFile) {
+		t.Fatalf("plan_developer_change changed file match = %#v, want %#v", got, wantChangedFile)
 	}
 }
 

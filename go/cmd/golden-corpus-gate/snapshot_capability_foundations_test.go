@@ -194,7 +194,10 @@ func TestGoldenSnapshotDataflowPinsMeasuredFixtureTruth(t *testing.T) {
 			common := map[string]any{
 				"query.repo_id": "repository:r_8477a002", "query.language": "go",
 				"query.symbol": "GoldenDataflowHandler", "query.file_path": "dataflow_proof.go",
-				"bounds.count": float64(1), "bounds.truncated": false,
+				"bounds.count": float64(1), "bounds.truncated": test.name == "dispatch_taint_path",
+			}
+			if test.name == "dispatch_taint_path" {
+				common["bounds.limit"] = float64(1)
 			}
 			for path, value := range test.values {
 				common[path] = value

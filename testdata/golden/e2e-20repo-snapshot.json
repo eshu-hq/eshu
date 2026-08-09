@@ -2178,9 +2178,9 @@
         "required_json_object_matches": {
           "results[]": [
             {
-              "entity_id": "Function:orders-api:main",
+              "entity_id": "content-entity:e_85bff2c7884a",
               "name": "main",
-              "repo_id": "orders-api",
+              "repo_id": "repository:r_ea78e8bb",
               "relative_path": "main.go"
             }
           ]
@@ -2218,9 +2218,9 @@
         "required_json_object_matches": {
           "results[]": [
             {
-              "entity_id": "Function:orders-api:main",
+              "entity_id": "content-entity:e_85bff2c7884a",
               "name": "main",
-              "repo_id": "orders-api",
+              "repo_id": "repository:r_ea78e8bb",
               "relative_path": "main.go"
             }
           ]
@@ -2384,9 +2384,16 @@
         "results_field": "evidence_groups",
         "required_json_values": {
           "topic": "lib-common",
-          "evidence_groups[].repo_id": "orders-api",
-          "evidence_groups[].relative_path": "main.go",
-          "evidence_groups[].matched_terms[]": "lib-common"
+          "searched_terms": ["common", "lib"]
+        },
+        "required_json_object_matches": {
+          "evidence_groups[]": [
+            {
+              "repo_id": "orders-api",
+              "relative_path": "main.go",
+              "matched_terms": ["common", "lib"]
+            }
+          ]
         },
         "arguments": {
           "topic": "lib-common",
@@ -2445,20 +2452,21 @@
         "maximum_results": 1,
         "results_field": "relationships",
         "required_json_values": {
-          "target_resolution.entity_id": "orders-api:main.go",
+          "target_resolution.entity_id": "repository:r_ea78e8bb:main.go",
           "target_resolution.status": "resolved"
         },
         "required_json_object_matches": {
           "relationships[]": [
             {
               "type": "IMPORTS",
-              "source_id": "orders-api:main.go"
+              "source_id": "repository:r_ea78e8bb:main.go",
+              "source_name": "main.go",
+              "target_name": "github.com/acme/lib-common"
             }
           ]
         },
         "arguments": {
-          "entity_id": "orders-api:main.go",
-          "repo_id": "orders-api",
+          "entity_id": "repository:r_ea78e8bb:main.go",
           "relationship_type": "IMPORTS",
           "direction": "outgoing",
           "limit": 10
@@ -2477,14 +2485,15 @@
         "arguments": {
           "target": "Dog",
           "query_type": "class_hierarchy",
-          "repo_id": "repository:r_94c29d01",
+          "repo_id": "repository:r_b15bccd4",
           "max_depth": 4,
           "limit": 10
         },
         "required_json_values": {
           "coverage.query_shape": "entity_anchor_class_hierarchy_story",
           "target_resolution.status": "resolved",
-          "target_resolution.candidates[].name": "Dog",
+          "target_resolution.name": "Dog",
+          "target_resolution.repo_id": "repository:r_b15bccd4",
           "class_hierarchy.methods[].method_name": "fetch",
           "class_hierarchy.parents[].target_name": "Animal"
         }
@@ -2599,6 +2608,7 @@
         },
         "arguments": {
           "scope_id": "aws:123456789012:us-east-1:ec2",
+          "finding_kinds": ["image_version_drift"],
           "limit": 10
         }
       },
@@ -2627,7 +2637,8 @@
         },
         "arguments": {
           "scope_id": "aws:123456789012:us-east-1:ec2",
-          "resource_id": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a"
+          "resource_id": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a",
+          "finding_kinds": ["image_version_drift"]
         }
       },
       "explain_iac_management_status": {
@@ -2656,7 +2667,8 @@
         },
         "arguments": {
           "scope_id": "aws:123456789012:us-east-1:ec2",
-          "resource_id": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a"
+          "resource_id": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a",
+          "finding_kinds": ["image_version_drift"]
         }
       },
       "propose_terraform_import_plan": {
@@ -2693,6 +2705,7 @@
         "arguments": {
           "scope_id": "aws:123456789012:us-east-1:ec2",
           "resource_id": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a",
+          "finding_kinds": ["image_version_drift"],
           "limit": 10
         }
       },
@@ -2736,6 +2749,7 @@
           "scope_kind": "resource",
           "scope_id": "aws:123456789012:us-east-1:ec2",
           "arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a",
+          "finding_kinds": ["image_version_drift"],
           "limit": 10
         }
       },
@@ -2817,6 +2831,7 @@
         },
         "arguments": {
           "scope_id": "aws:123456789012:us-east-1:ec2",
+          "finding_kinds": ["image_version_drift"],
           "limit": 10
         }
       },
@@ -2853,30 +2868,37 @@
         },
         "arguments": {
           "scope_id": "aws:123456789012:us-east-1:ec2",
+          "finding_kinds": ["image_version_drift"],
           "limit": 10
         }
       },
       "calculate_cyclomatic_complexity": {
         "description": "MCP tool coverage shape for calculate_cyclomatic_complexity; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
         "required_response_fields": [
-          "limit",
+          "entity_id",
+          "name",
+          "labels",
+          "file_path",
           "repo_id",
-          "result_key",
-          "results",
-          "truncated"
+          "repo_name",
+          "language",
+          "start_line",
+          "end_line",
+          "complexity",
+          "outgoing_count",
+          "incoming_count",
+          "total_relationships"
         ],
-        "minimum_results": 1,
-        "maximum_results": 1,
-        "results_field": "results",
         "arguments": {
           "function_name": "GoldenDataflowHandler",
           "repo_id": "repository:r_8477a002"
         },
         "required_json_values": {
           "repo_id": "repository:r_8477a002",
-          "results[].name": "GoldenDataflowHandler",
-          "results[].file_path": "dataflow_proof.go",
-          "results[].complexity": 2
+          "name": "GoldenDataflowHandler",
+          "file_path": "dataflow_proof.go",
+          "language": "go",
+          "complexity": 2
         }
       },
       "find_most_complex_functions": {
@@ -3025,7 +3047,7 @@
         "minimum_results": 0
       },
       "execute_language_query": {
-        "description": "MCP tool coverage shape for execute_language_query; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5761 F5: source_backend is a required field (writeLanguageQueryResult has emitted it on every response since #5761) and minimum_results is non-vacuous, mirroring investigate_import_dependencies' #5691 fix above. The shape deliberately sends no repo_id: repo_id in the graph is an opaque generated id (repository:r_8477a002 in this corpus), not a human repo name, so filtering by a readable name matched zero rows and made minimum_results unsatisfiable -- the golden-corpus-gate run that caught this reported '\"results\" has 0 results, want >= 1'. Without the filter the corpus carries 44 language=go Function entities, so a silently-empty read now fails this gate. This shape does not pin truth.basis, and not because no other shape pins it -- 11 shapes here do. The constraint is that minimum_results (results_field: results) requires Envelope: false for top-level array counting, while pinning truth.basis via required_json_values requires Envelope: true; snapshot.go's contract makes the two mutually exclusive, so truth.basis stays unpinned on purpose. source_backend is pinned to \"graph\" via required_json_values, so a regression that mis-attributes a content-served row keeps this gate red rather than green. The literal was measured, not guessed: the gate was run with --keep and eshu-api started against the retained stack, and this exact request (language=go, entity_type=Function, limit=10) returned source_backend=graph with truth.basis=authoritative_graph and truth.level=exact -- content enrichment merges nothing for these rows, so the read is pure graph. The gate itself reports only pass/fail and never echoes response bodies, and a value mismatch prints the expected value rather than the observed one, so guessing a literal here would have been unfalsifiable from gate output alone.",
+        "description": "Positive Python language-query proof for the fetch_remote decorator fixture. The deployed response resolves the function through the graph and enriches its semantic profile from indexed content, so the source backend is pinned to hybrid_graph_and_content.",
         "required_response_fields": [
           "entity_type",
           "language",
@@ -3039,7 +3061,7 @@
           "results[].semantic_profile.decorators[]"
         ],
         "required_json_values": {
-          "source_backend": "graph",
+          "source_backend": "hybrid_graph_and_content",
           "results[].name": "fetch_remote"
         },
         "arguments": {
@@ -3119,7 +3141,8 @@
           "query.symbol": "GoldenDataflowHandler",
           "query.file_path": "dataflow_proof.go",
           "bounds.count": 1,
-          "bounds.truncated": false,
+          "bounds.limit": 1,
+          "bounds.truncated": true,
           "paths[].repo_id": "repository:r_8477a002",
           "paths[].relative_path": "dataflow_proof.go",
           "paths[].function_name": "GoldenDataflowHandler",
@@ -3328,7 +3351,7 @@
         }
       },
       "get_graph_summary_packet": {
-        "description": "Positive repository-scoped graph summary for orders-api. The deployed assertion requires at least one ranked function plus its identity and degree fields, while retaining bounded relationship and ecosystem-map readback without the global needs-repo note.",
+        "description": "Positive repository-scoped graph summary for the Dart mutual-call fixture. The deployed assertion requires the exact mutualPing identity and its one incoming plus one outgoing CALLS edge.",
         "required_response_fields": [
           "ecosystem_map",
           "hot_entities",
@@ -3347,10 +3370,22 @@
           "ecosystem_map.file_count"
         ],
         "required_json_values": {
-          "scope": "repository"
+          "scope": "repository",
+          "repo_id": "repository:r_ed3a9bab"
+        },
+        "required_json_object_matches": {
+          "hot_entities[]": [
+            {
+              "function_id": "content-entity:e_59c56c38911d",
+              "function_name": "mutualPing",
+              "incoming_calls": 1,
+              "outgoing_calls": 1,
+              "total_degree": 2
+            }
+          ]
         },
         "arguments": {
-          "repo_id": "orders-api",
+          "repo_id": "repository:r_ed3a9bab",
           "limit": 10
         }
       },
@@ -3720,21 +3755,26 @@
         "minimum_results": 1,
         "maximum_results": 10,
         "results_field": "direct_impact",
-        "required_json_paths": [
-          "direct_impact[].source_handle"
-        ],
         "required_json_values": {
           "workflow": "pre_change_impact",
           "changed_file_count": 1,
-          "changed_files[].repo_id": "orders-api",
-          "changed_files[].path": "main.go"
+          "changed_files[].repo_id": "repository:r_3eddcea1",
+          "changed_files[].path": "common.go"
+        },
+        "required_json_object_matches": {
+          "direct_impact[]": [
+            {
+              "id": "repository:r_ea78e8bb",
+              "name": "orders-api",
+              "depth": 1
+            }
+          ]
         },
         "arguments": {
-          "repo_id": "orders-api",
+          "repo_id": "repository:r_3eddcea1",
           "changed_paths": [
-            "main.go"
+            "common.go"
           ],
-          "topic": "lib-common",
           "limit": 10
         }
       },
@@ -3768,14 +3808,26 @@
           "schema_version": "developer_change_plan.v1",
           "workflow": "developer_change_plan",
           "read_only": true,
-          "changed_file_count": 1
+          "changed_file_count": 1,
+          "change_set.repo_id": "orders-api",
+          "change_set.mode": "file_list"
         },
         "arguments": {
-          "changed_files": [
-            "go/internal/query/contract.go"
+          "repo_id": "orders-api",
+          "changed_paths": [
+            "main.go"
           ],
-          "topic": "query envelope",
+          "developer_intent": "query envelope",
           "limit": 10
+        },
+        "required_json_object_matches": {
+          "changed_files[]": [
+            {
+              "repo_id": "orders-api",
+              "path": "main.go",
+              "status": "modified"
+            }
+          ]
         }
       },
       "list_package_registry_packages": {
@@ -3908,7 +3960,7 @@
         "maximum_results": 10,
         "results_field": "paths",
         "required_json_values": {
-          "start.id": "arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo",
+          "start.id": "dafbedae2b62cb12dc97060debce1884305fd8dfdfb80f1fc8d514b17fae144f",
           "paths[].repo_id": "repository:r_69256c06"
         },
         "required_json_object_matches": {
@@ -3922,7 +3974,7 @@
           ]
         },
         "arguments": {
-          "start": "arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo",
+          "start": "dafbedae2b62cb12dc97060debce1884305fd8dfdfb80f1fc8d514b17fae144f",
           "max_depth": 4,
           "limit": 10
         }
@@ -3967,18 +4019,21 @@
         "maximum_results": 10,
         "results_field": "impacted",
         "required_json_values": {
+          "target.id": "repository:r_3eddcea1",
           "target.name": "lib-common"
         },
         "required_json_object_matches": {
           "impacted[]": [
             {
+              "id": "repository:r_ea78e8bb",
               "name": "orders-api",
-              "rel_type": "DEPENDS_ON"
+              "rel_type": "DEPENDS_ON",
+              "depth": 1
             }
           ]
         },
         "arguments": {
-          "target": "lib-common",
+          "target": "repository:r_3eddcea1",
           "limit": 10
         }
       },
@@ -4003,20 +4058,21 @@
         "maximum_results": 10,
         "results_field": "direct_impact",
         "required_json_values": {
-          "scope.target": "lib-common",
+          "scope.target": "repository:r_3eddcea1",
           "scope.target_type": "repository",
           "target_resolution.status": "resolved"
         },
         "required_json_object_matches": {
           "direct_impact[]": [
             {
+              "id": "repository:r_ea78e8bb",
               "name": "orders-api",
               "depth": 1
             }
           ]
         },
         "arguments": {
-          "target": "lib-common",
+          "target": "repository:r_3eddcea1",
           "target_type": "repository",
           "limit": 10
         }
@@ -4197,30 +4253,25 @@
           "truncated"
         ],
         "minimum_results": 1,
-        "maximum_results": 1,
+        "maximum_results": 10,
         "results_field": "decisions",
         "arguments": {
-          "domain": "ci_cd_run_correlation",
-          "scope_id": "ci_cd_run:github_actions:eshu-hq:supply-chain-demo",
-          "generation_id": "cassette-cicd-scd-gen2-artifact",
-          "anchor_kind": "repository",
-          "anchor_id": "repository:r_69256c06",
+          "domain": "cloud_inventory_admission",
+          "scope_id": "aws:123456789012:us-east-1:ec2",
+          "generation_id": "cassette-aws-ec2-scd-gen1",
           "include_evidence": false,
           "limit": 10
         },
         "required_json_values": {
-          "count": 1,
           "limit": 10,
           "truncated": false
         },
         "required_json_object_matches": {
           "decisions[]": [
             {
-              "domain": "ci_cd_run_correlation",
-              "scope_id": "ci_cd_run:github_actions:eshu-hq:supply-chain-demo",
-              "generation_id": "cassette-cicd-scd-gen2-artifact",
-              "anchor_kind": "repository",
-              "anchor_id": "repository:r_69256c06",
+              "domain": "cloud_inventory_admission",
+              "scope_id": "aws:123456789012:us-east-1:ec2",
+              "generation_id": "cassette-aws-ec2-scd-gen1",
               "state": "admitted"
             }
           ]
@@ -4301,7 +4352,6 @@
         "arguments": {
           "repository_id": "repository:r_69256c06",
           "provider": "github_actions",
-          "run_id": "5151",
           "outcome": "derived"
         },
         "required_json_values": {
@@ -4310,7 +4360,6 @@
           "by_provider.github_actions": 1,
           "scope.repository_id": "repository:r_69256c06",
           "scope.provider": "github_actions",
-          "scope.run_id": "5151",
           "scope.outcome": "derived"
         }
       },
@@ -4682,8 +4731,8 @@
           "reconciliations[].provider_alert.ghsa_ids[]": "GHSA-scd0-0000-demo"
         },
         "arguments": {
-          "repository_id": "security_alert:supply-chain-demo:supply-chain-demo",
           "provider": "github_dependabot",
+          "ghsa_id": "GHSA-scd0-0000-demo",
           "limit": 10
         }
       },
@@ -4824,8 +4873,8 @@
         },
         "arguments": {
           "group_by": "provider",
-          "repository_id": "security_alert:supply-chain-demo:supply-chain-demo",
           "provider": "github_dependabot",
+          "ghsa_id": "GHSA-scd0-0000-demo",
           "limit": 10,
           "offset": 0
         }
@@ -5178,11 +5227,11 @@
             {
               "category": "deployment",
               "counts": {
-                "added": 0,
-                "updated": 0,
-                "unchanged": 0,
-                "retired": 0,
-                "superseded": 0
+                "added": "__runtime_service_changed_since_deployment_added_count__",
+                "updated": "__runtime_service_changed_since_deployment_updated_count__",
+                "unchanged": "__runtime_service_changed_since_deployment_unchanged_count__",
+                "retired": "__runtime_service_changed_since_deployment_retired_count__",
+                "superseded": "__runtime_service_changed_since_deployment_superseded_count__"
               },
               "unavailable": false
             }
@@ -5524,7 +5573,7 @@
         ],
         "required_json_values": {
           "citations[].kind": "file",
-          "citations[].repo_id": "orders-api",
+          "citations[].repo_id": "repository:r_ea78e8bb",
           "citations[].relative_path": "main.go",
           "coverage.input_handle_count": 1,
           "coverage.resolved_count": 1,
@@ -5536,7 +5585,7 @@
           "handles": [
             {
               "kind": "file",
-              "repo_id": "orders-api",
+              "repo_id": "repository:r_ea78e8bb",
               "relative_path": "main.go",
               "start_line": 1,
               "end_line": 20
@@ -6304,8 +6353,13 @@
         ],
         "minimum_results": 0,
         "required_json_values": {
-          "state": "unavailable",
-          "reason": "disabled_by_default",
+          "state": "provider_unavailable",
+          "reason": "provider_unavailable",
+          "provider_configured": false,
+          "provider_traffic_enabled": false,
+          "policy_allowed": false,
+          "budget_available": false,
+          "publish_safety_enabled": false,
           "deterministic_fallback_available": true,
           "canonical_truth_affected": false,
           "retention_posture": "metadata_only"
@@ -6699,8 +6753,8 @@
           ]
         }
       },
-      "POST /api/v0/relationships/edges?assert=depends-on": {
-        "description": "Positive deployed dependency edge readback from orders-api to lib-common.",
+      "POST /api/v0/relationships/edges?assert=deploys-from": {
+        "description": "Positive deployed-source edge readback from deployable-config to deployable-source.",
         "required_response_fields": [
           "verb",
           "edges",
@@ -6711,17 +6765,19 @@
         "maximum_results": 10,
         "results_field": "edges",
         "request_body": {
-          "verb": "DEPENDS_ON",
+          "verb": "DEPLOYS_FROM",
           "limit": 10
         },
         "required_json_values": {
-          "verb": "DEPENDS_ON"
+          "verb": "DEPLOYS_FROM"
         },
         "required_json_object_matches": {
           "edges[]": [
             {
-              "source_name": "orders-api",
-              "target_name": "lib-common"
+              "source_id": "repository:r_217415d9",
+              "source_name": "deployable-config",
+              "target_id": "repository:r_1f68383d",
+              "target_name": "deployable-source"
             }
           ]
         }
@@ -6841,7 +6897,7 @@
         }
       },
       "GET /api/v0/status/operations": {
-        "description": "Exact deployed operations board after the required drains. The envelope pins healthy runtime state and an empty queue while retaining non-empty collector, stage, and domain status sections; live activity remains an explicitly present empty array.",
+        "description": "Exact deployed operations board after the required drains and the intentional dead-letter query fixture. The envelope pins the truthful degraded reason, one dead-letter, zero outstanding work, and non-empty status sections.",
         "envelope": true,
         "required_response_fields": [
           "data",
@@ -6857,14 +6913,16 @@
         "required_json_values": {
           "data.scoped": false,
           "data.limit": 50,
-          "data.health.state": "healthy",
+          "data.health.state": "degraded",
           "data.queue.outstanding": 0,
+          "data.queue.dead_letter": 1,
+          "data.health.reasons[]": "1 work items are dead-lettered",
           "data.live_activity": [],
           "truth.capability": "operations.status",
           "truth.basis": "runtime_state"
         }
       },
-      "GET /api/v0/dependencies?direction=forward&package=github.com/acme/lib-common&ecosystem=gomod&limit=10": {
+      "GET /api/v0/dependencies?direction=forward&package=github.com/acme/lib-common&ecosystem=go&limit=10": {
         "description": "Positive package-native dependency inventory from the package-registry cassette. lib-common@1.0.0 declares a direct gomod dependency on github.com/acme/synthetic-dep, so both the row and its target identity are pinned.",
         "required_response_fields": [
           "dependencies",
@@ -7096,7 +7154,8 @@
           "data.instances[].platforms[].topology_edges[].relationship_type": "RUNS_ON",
           "data.deployment_fact_summary.deployment_truth_tier": "runtime_confirmed",
           "data.deployment_fact_summary.image_ref_count": 1,
-          "data.deployment_fact_summary.k8s_resource_count": 1,
+          "data.deployment_fact_summary.k8s_resource_count": 2,
+          "data.k8s_resource_limits.returned_count": 2,
           "data.deployment_fact_summary.live_instance_count": 3,
           "data.deployment_fact_summary.live_instance_count_truncated": false,
           "data.image_refs[]": "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
@@ -7292,7 +7351,7 @@
           "limit": 2000,
           "repositories[].id": "repository:r_8477a002",
           "workloads[].id": "workload:deployable-config",
-          "services[].id": "component:default/deployable-config"
+          "services[].id": "workload:deployable-config"
         }
       },
       "GET /api/v0/status/operator-control-plane": {

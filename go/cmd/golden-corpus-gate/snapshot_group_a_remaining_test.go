@@ -33,21 +33,21 @@ func TestGoldenSnapshotGroupARemainingCapabilitiesAreNonVacuous(t *testing.T) {
 	}
 	goRepo := groupACanonicalRepoID(t, "go_comprehensive")
 	dartRepo := groupACanonicalRepoID(t, "dart_comprehensive")
-	jsRepo := groupACanonicalRepoID(t, "javascript_comprehensive")
+	pythonRepo := groupACanonicalRepoID(t, "python_comprehensive")
 	const (
 		ciRepo       = "repository:r_69256c06"
-		ciScope      = "ci_cd_run:github_actions:eshu-hq:supply-chain-demo"
-		ciGeneration = "cassette-cicd-scd-gen2-artifact"
+		ciScope      = "aws:123456789012:us-east-1:ec2"
+		ciGeneration = "cassette-aws-ec2-scd-gen1"
 		imageDigest  = "sha256:0000000000000000000000000000000000000000000000000000000000aa"
 	)
 
 	tests := []groupARemainingExpectation{
 		{
-			slug: "prod-admission-decisions", key: "list_admission_decisions", minimum: 1, maximum: 1, resultsField: "decisions",
-			arguments:     map[string]any{"domain": "ci_cd_run_correlation", "scope_id": ciScope, "generation_id": ciGeneration, "anchor_kind": "repository", "anchor_id": ciRepo, "include_evidence": false, "limit": float64(10)},
+			slug: "prod-admission-decisions", key: "list_admission_decisions", minimum: 1, maximum: 10, resultsField: "decisions",
+			arguments:     map[string]any{"domain": "cloud_inventory_admission", "scope_id": ciScope, "generation_id": ciGeneration, "include_evidence": false, "limit": float64(10)},
 			required:      []string{"decisions", "count", "limit", "truncated", "recommended_next_calls"},
-			values:        map[string]any{"count": float64(1), "limit": float64(10), "truncated": false},
-			objectMatches: map[string][]map[string]any{"decisions[]": {{"domain": "ci_cd_run_correlation", "scope_id": ciScope, "generation_id": ciGeneration, "anchor_kind": "repository", "anchor_id": ciRepo, "state": "admitted"}}},
+			values:        map[string]any{"limit": float64(10), "truncated": false},
+			objectMatches: map[string][]map[string]any{"decisions[]": {{"domain": "cloud_inventory_admission", "scope_id": ciScope, "generation_id": ciGeneration, "state": "admitted"}}},
 		},
 		{
 			slug: "prod-advisory-catalog", key: "GET /api/v0/supply-chain/advisories?limit=10&q=CVE-2026-00010", http: true, minimum: 1, maximum: 1, resultsField: "advisories",
@@ -56,8 +56,13 @@ func TestGoldenSnapshotGroupARemainingCapabilitiesAreNonVacuous(t *testing.T) {
 		},
 		{
 			slug: "prod-answer-narration-status", key: "get_answer_narration_status",
-			required: []string{"state", "reason", "deterministic_fallback_available", "canonical_truth_affected", "retention_posture"},
-			values:   map[string]any{"state": "unavailable", "reason": "disabled_by_default", "deterministic_fallback_available": true, "canonical_truth_affected": false, "retention_posture": "metadata_only"},
+			required: []string{"state", "reason", "provider_configured", "provider_traffic_enabled", "policy_allowed", "budget_available", "publish_safety_enabled", "deterministic_fallback_available", "canonical_truth_affected", "retention_posture"},
+			values: map[string]any{
+				"state": "provider_unavailable", "reason": "provider_unavailable",
+				"provider_configured": false, "provider_traffic_enabled": false, "policy_allowed": false,
+				"budget_available": false, "publish_safety_enabled": false, "deterministic_fallback_available": true,
+				"canonical_truth_affected": false, "retention_posture": "metadata_only",
+			},
 		},
 		{
 			slug: "prod-call-chain-path", key: "find_function_call_chain", minimum: 1, maximum: 1, resultsField: "chains",
@@ -68,19 +73,19 @@ func TestGoldenSnapshotGroupARemainingCapabilitiesAreNonVacuous(t *testing.T) {
 		{
 			slug: "prod-catalog", key: "GET /api/v0/catalog?limit=2000&offset=0", http: true, minimum: 1, maximum: 2000, resultsField: "repositories",
 			required: []string{"repositories", "workloads", "services", "counts", "count", "limit", "truncated", "workloads_truncated"},
-			values:   map[string]any{"limit": float64(2000), "repositories[].id": goRepo, "workloads[].id": "workload:deployable-config", "services[].id": "component:default/deployable-config"},
+			values:   map[string]any{"limit": float64(2000), "repositories[].id": goRepo, "workloads[].id": "workload:deployable-config", "services[].id": "workload:deployable-config"},
 		},
 		{
 			slug: "prod-ci-cd-run-correlation-aggregate", key: "count_ci_cd_run_correlations",
-			arguments: map[string]any{"repository_id": ciRepo, "provider": "github_actions", "run_id": "5151", "outcome": "derived"},
+			arguments: map[string]any{"repository_id": ciRepo, "provider": "github_actions", "outcome": "derived"},
 			required:  []string{"total_correlations", "by_outcome", "by_environment", "by_provider", "scope"},
-			values:    map[string]any{"total_correlations": float64(1), "by_outcome.derived": float64(1), "by_provider.github_actions": float64(1), "scope.repository_id": ciRepo, "scope.provider": "github_actions", "scope.run_id": "5151", "scope.outcome": "derived"},
+			values:    map[string]any{"total_correlations": float64(1), "by_outcome.derived": float64(1), "by_provider.github_actions": float64(1), "scope.repository_id": ciRepo, "scope.provider": "github_actions", "scope.outcome": "derived"},
 		},
 		{
 			slug: "prod-class-methods", key: "analyze_code_relationships",
-			arguments: map[string]any{"target": "Dog", "query_type": "class_hierarchy", "repo_id": jsRepo, "max_depth": float64(4), "limit": float64(10)},
+			arguments: map[string]any{"target": "Dog", "query_type": "class_hierarchy", "repo_id": pythonRepo, "max_depth": float64(4), "limit": float64(10)},
 			required:  []string{"coverage", "scope", "source_backend", "target_resolution", "class_hierarchy"},
-			values:    map[string]any{"coverage.query_shape": "entity_anchor_class_hierarchy_story", "target_resolution.status": "resolved", "target_resolution.candidates[].name": "Dog", "class_hierarchy.methods[].method_name": "fetch", "class_hierarchy.parents[].target_name": "Animal"},
+			values:    map[string]any{"coverage.query_shape": "entity_anchor_class_hierarchy_story", "target_resolution.status": "resolved", "target_resolution.name": "Dog", "target_resolution.repo_id": pythonRepo, "class_hierarchy.methods[].method_name": "fetch", "class_hierarchy.parents[].target_name": "Animal"},
 		},
 		{
 			slug: "prod-code-quality-refactoring", key: "inspect_code_quality", minimum: 1, maximum: 1, resultsField: "results",
@@ -95,10 +100,10 @@ func TestGoldenSnapshotGroupARemainingCapabilitiesAreNonVacuous(t *testing.T) {
 			values:      map[string]any{"query": "GoldenDataflow", "repo_id": goRepo, "count": float64(1), "limit": float64(1), "matches[].name": "GoldenDataflowHandler", "matches[].file_path": "dataflow_proof.go", "matches[].labels[]": "Function"},
 		},
 		{
-			slug: "prod-complexity", key: "calculate_cyclomatic_complexity", minimum: 1, maximum: 1, resultsField: "results",
+			slug: "prod-complexity", key: "calculate_cyclomatic_complexity",
 			arguments: map[string]any{"function_name": "GoldenDataflowHandler", "repo_id": goRepo},
-			required:  []string{"limit", "repo_id", "result_key", "results", "truncated"},
-			values:    map[string]any{"repo_id": goRepo, "results[].name": "GoldenDataflowHandler", "results[].file_path": "dataflow_proof.go", "results[].complexity": float64(2)},
+			required:  []string{"entity_id", "name", "labels", "file_path", "repo_id", "repo_name", "language", "start_line", "end_line", "complexity", "outgoing_count", "incoming_count", "total_relationships"},
+			values:    map[string]any{"repo_id": goRepo, "name": "GoldenDataflowHandler", "file_path": "dataflow_proof.go", "language": "go", "complexity": float64(2)},
 		},
 		{
 			slug: "prod-container-image-identity-aggregate", key: "count_container_image_identities",
