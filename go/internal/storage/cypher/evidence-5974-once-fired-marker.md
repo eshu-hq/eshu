@@ -155,3 +155,80 @@ Each guard fails without its fix: restoring the swallowed `down -v` turns the
 mirror red on "the stack is NOT fresh", removing probe 1 turns it red on
 "survived fresh_stack", and restoring the single-cause die message turns it red
 on the assertion that a missing marker also means the marker write failed.
+
+---
+
+# Root cause: the assertion called a binary CI does not have (#5974)
+
+## What changed
+
+`ifa_fault_assert_once_fault_marker` in
+`scripts/lib/ifa_fault_injection_common.sh` matched the marker's contents with
+`rg`. ripgrep is not installed on the fault-injection runner, so the call exited
+"command not found". A non-zero status there meant "the marker does not name the
+operation", and the cell reported a fault that had fired perfectly as one that
+never fired. The match is now a bash substring test, which cannot go missing.
+
+The assertion also returns three distinct statuses instead of one, so the cell
+can say which thing happened: 0 the marker names the targeted write, 2 it exists
+but names a different write, 1 it is absent. Conflating 1 and 2 is what let a
+wrong-target firing read as no firing at all.
+
+## Why the earlier diagnoses were wrong
+
+Two published explanations — a stderr-flush race, then "the fault does not fire
+in CI" — were artifacts of this one missing binary. Both were retracted on the
+issue. The eliminations behind them still stand; only the conclusion they pointed
+at was wrong. A checker that cannot run must never be readable as a clean result,
+which is the defect this fix removes.
+
+A statement recorder was built along the way to answer "the fault never fired, so
+what did run?". It is not part of this change: once the missing binary explained
+everything, the recorder was answering a question that no longer existed, and its
+own comments argued for a byte-identity theory this finding disproves. It was
+removed before merge rather than shipped as a false explanation standing beside
+the true one.
+
+## No-Regression
+
+No-Regression Evidence: no production Go changed. `fault_executor.go`,
+`fault_executor_marker.go`, and `fault_executor_once_marker_test.go` are
+byte-identical to the merge base, so there is no compiled surface to regress in
+either build tag. The Go in this diff is two `internal/ifa` test files whose
+assertions were inverted to match the corrected truth, and the shell change
+replaces an external process call in a gate assertion with a bash substring
+test, which removes a fork per assertion rather than adding one.
+
+The last measured run of the targeted cell — 7s on the `ifa-fault-injection`
+matrix (Postgres 15642 + NornicDB 7801), zero dead letters, recovery cells
+holding digest
+`5bfd92cacbb6758b29d3073426ce69e69c6cdcc87535981d8550873be86acfdb` — was taken on
+the commit that still carried the recorder, so it is an upper bound on this
+revision rather than a measurement of it: the removal only takes work off the
+armed path. The number is stated that way deliberately instead of being carried
+forward as though it had been re-measured here.
+
+## Observability
+
+No-Observability-Change: no metric, span, or telemetry-contract entry is added or
+removed; `scripts/verify-telemetry-coverage.sh` reports no untracked stages. The
+gate's failure text changed only in what it claims, not in where it prints.
+
+## Reproduce
+
+```
+bash scripts/test-verify-ifa-fault-injection.sh
+bash scripts/verify-ifa-fault-injection.sh
+```
+
+The guard bites. Run `ifa_fault_assert_once_fault_marker` under
+`env PATH=/usr/bin:/bin`, which is the runner's condition in that `rg` is not on
+it: the shipped version returns 0 for a marker naming the targeted operation, 2
+for one naming a different write, and 1 for an absent marker, while restoring the
+`rg` match returns non-zero for all three — including the marker that is
+correct, which is the false negative that hid this for months.
+
+The mirror bites too: removing the bash-substring rule, reintroducing an
+`rg`-based match, or dropping `cell_failgraphwrite_sql` from the default matrix
+each turn `test-verify-ifa-fault-injection.sh` red with a message naming the
+rule, and restoring them returns it to green.

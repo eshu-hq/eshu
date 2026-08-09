@@ -238,13 +238,25 @@ ifa_fault_assert_once_fault_marker() {
 	local marker="${script_path}.restart-sentinel.once-fired"
 	if [[ ! -f "${marker}" ]]; then
 		echo "ifa_fault_assert_once_fault_marker: no once-fired marker at ${marker} -- the scripted fault never fired. An inert script, not a pass." >&2
-		return 1
+		return 1  # 1 = absent; 2 = present but wrong operation. Callers must not conflate them.
 	fi
-	if ! rg --fixed-strings --quiet -- "${expected}" "${marker}"; then
+	# Bash substring match, NOT an external tool. This used `rg`, which is not
+	# installed on the fault-injection CI runner: it exited "command not found",
+	# the non-zero status read as "the marker does not name the operation", and a
+	# fault that had fired perfectly was reported as never firing. That single
+	# missing binary is the whole of #5974 -- weeks of a working gate reported as
+	# broken, because a checker's absence is indistinguishable from a negative
+	# result when you only look at the exit code.
+	local contents
+	contents="$(cat "${marker}")" || {
+		echo "ifa_fault_assert_once_fault_marker: could not read ${marker}; treat this as unknown, not as a verdict about the fault" >&2
+		return 1
+	}
+	if [[ "${contents}" != *"${expected}"* ]]; then
 		echo "ifa_fault_assert_once_fault_marker: marker ${marker} exists but does not name the targeted operation ${expected}; the fault fired on a different write" >&2
 		echo "--- marker contents ---" >&2
-		cat "${marker}" >&2
-		return 1
+		printf '%s\n' "${contents}" >&2
+		return 2
 	fi
 	return 0
 }

@@ -172,7 +172,8 @@ require_driver "fresh_stack captures teardown output instead of discarding it" '
 require_sql_cells "probe 1: fresh-stack intent precondition" "survived fresh_stack"
 require_sql_cells "probe 2: SQL edges asserted after the drain" "assert-edges is set-exact"
 require_sql_cells "probe 2: this cell's intent window is reported" "projection_domain = 'sql_relationships'"
-require_sql_cells "die message names the marker-write-failure alternative" "once-fired marker write failed"
+require_sql_cells "the write-failure branch uses the single-source prefix variable" "IFA_ONCE_MARKER_WRITE_FAILED_PREFIX"
+require_sql_cells "the two marker failure modes are told apart by exit code" 'marker_rc}" -eq 2'
 # The old message asserted a single cause. It must not come back.
 if rg --fixed-strings --quiet -- "the scripted fault never fired -- no once-fired marker" "${sql_cells_lib}"; then
 	fail "the SQL cell's die message asserts the fault never fired; a missing marker also means the marker write failed (#5974)"
@@ -184,6 +185,18 @@ require_sql_cells "probe 1 distinguishes a failed query from a count" "precondit
 require_sql_cells "probe 1 rejects non-numeric output rather than reading it as zero" "treat that as unknown, not as zero"
 require_sql_cells "probe 1 skips when --no-compose owns the stack" "fresh-stack precondition SKIPPED"
 require_sql_cells "assert-edges failure names both directions" "AND an extra, duplicated, or wrong-typed edge"
+require_sql_cells "the failure lists the sentinel family on disk" "sentinel family on disk"
+require_sql_cells "a missing marker sends the reader to probe 2 rather than guessing" "Probe 2 above already proved"
+
+# The root cause of #5974, pinned so it cannot come back: the marker assertion
+# matched with `rg`, which the fault-injection runner does not have. The
+# "command not found" exit read as "the marker does not name the operation", so
+# a fault that fired correctly was reported as inert for weeks. A checker that
+# cannot run must never be readable as a negative result.
+require_lib "the marker assertion matches in bash, not via an external binary" "Bash substring match, NOT an external tool"
+if rg --fixed-strings --quiet -- 'rg --quiet' "${fault_lib}"; then
+	fail "the marker assertion shells out to rg again; it is absent on the fault-injection runner and its failure is indistinguishable from a negative match (#5974)"
+fi
 require_sql_cells "the gate greps for the marker-write failure itself" "the marker WRITE FAILED (line above)"
 require_lib "marker-write prefix declared once in shell" 'IFA_ONCE_MARKER_WRITE_FAILED_PREFIX="ifa fault: once-fired marker write failed"'
 
@@ -198,7 +211,12 @@ shell_marker_prefix="$(rg --no-filename -o 'IFA_ONCE_MARKER_WRITE_FAILED_PREFIX=
 [[ "${go_marker_prefix}" == "${shell_marker_prefix}" ]] \
 	|| fail "marker-write prefix drift: Go has ${go_marker_prefix@Q}, shell has ${shell_marker_prefix@Q} -- the gate's grep would silently find nothing"
 
-require "failgraphwrite_sql held out with the probe experiment result" "the statement that writes SQL edges in CI"
+# The SQL cell is a permanent matrix member, not a temporary experiment. Pin
+# both the invocation and the reason, so re-holding it out is a deliberate edit
+# to a stated rule rather than a quiet deletion on a red run (#5974).
+rg --quiet --line-regexp -- 'cell_failgraphwrite_sql' "${script}" \
+	|| fail "cell_failgraphwrite_sql is no longer invoked in the default matrix; it fires correctly and holding it out again needs a stated reason (#5974)"
+require "failgraphwrite_sql is documented as permanent, not an experiment" "permanent member of the matrix as of #5974"
 # The library must DEFINE both cells. The needles below check implementation
 # details that could still match if the function wrapper were renamed away.
 require_delivery_cells "delivery lib defines cell_duplicatedelivery" "cell_duplicatedelivery() {"

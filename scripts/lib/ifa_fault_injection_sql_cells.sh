@@ -95,10 +95,11 @@ cell_killworker_sql() {
 # retired in #5974: it could not tell "the fault never fired" apart from "the
 # log line arrived late", and it read the former as the latter for weeks.
 #
-# HELD OUT of the default cell list. With the marker in place CI answered the
-# question the log could not: no marker is written there at all, so the fault
-# genuinely does not fire in CI while firing locally in 9s. See the call site
-# in scripts/verify-ifa-fault-injection.sh and #5974.
+# In the default cell list since #5974. The marker looked absent in CI for
+# months, which read as "the fault does not fire there". It did fire, every
+# time; the assertion that read the marker called `rg`, which this runner does
+# not have, and its "command not found" was indistinguishable from a negative
+# match. See ifa_fault_injection_common.sh and #5974.
 cell_failgraphwrite_sql() {
 	local cell_start
 	cell_start=$(date +%s)
@@ -165,18 +166,32 @@ cell_failgraphwrite_sql() {
 	# #5974: assert on the durable marker the fault decorator writes, not the
 	# reducer's captured stderr. The log route raced the flush and made this
 	# cell inert in CI while passing locally.
-	# When the marker is missing, look for the write-failure line HERE rather than
-	# instructing the operator to. teardown only tails the reducer log, so the
-	# line can scroll out of reach before anyone reads it -- and a marker that
-	# failed to write is an instrument failure, not evidence about the fault.
-	if ! ifa_fault_assert_once_fault_marker "${fault_once_script_sql}" "${sql_edge_operation_match}"; then
-		if rg --fixed-strings --quiet -- "${IFA_ONCE_MARKER_WRITE_FAILED_PREFIX}" \
-			"${log_dir}/reducer-failgraphwritesql.log" 2>/dev/null; then
-			rg --fixed-strings -- "${IFA_ONCE_MARKER_WRITE_FAILED_PREFIX}" \
-				"${log_dir}/reducer-failgraphwritesql.log" >&2 || true
+	# Distinguish the assertion's two failure modes rather than reporting both as
+	# "no marker". 1 = the marker is absent (the fault never fired). 2 = it exists
+	# but names a different write. Conflating them is what made this cell report
+	# a working fault as inert for weeks (#5974).
+	local marker_rc=0
+	ifa_fault_assert_once_fault_marker "${fault_once_script_sql}" "${sql_edge_operation_match}" || marker_rc=$?
+	if [[ "${marker_rc}" -eq 2 ]]; then
+		die "fail-graph-write-once-then-succeed-sql: the fault FIRED but on a different write than ${sql_edge_operation_match} (marker contents above). The injection works; the anchor is pointed at the wrong statement (#5974)."
+	fi
+	if [[ "${marker_rc}" -ne 0 ]]; then
+		# No marker at all. Look for a write failure with a bash substring scan --
+		# NOT an external tool. The previous version used rg, which is absent on
+		# this CI runner, so its "command not found" exit read as "no failure
+		# found". A checker that cannot run must never look like a clean result.
+		local reducer_log_contents=""
+		if [[ -r "${log_dir}/reducer-failgraphwritesql.log" ]]; then
+			reducer_log_contents="$(cat "${log_dir}/reducer-failgraphwritesql.log" 2>/dev/null || true)"
+		fi
+		if [[ "${reducer_log_contents}" == *"${IFA_ONCE_MARKER_WRITE_FAILED_PREFIX}"* ]]; then
+			printf '%s\n' "${reducer_log_contents}" | sed -n "/${IFA_ONCE_MARKER_WRITE_FAILED_PREFIX}/p" >&2 || true
 			die "fail-graph-write-once-then-succeed-sql: the marker WRITE FAILED (line above). The fault may well have fired -- this is an instrument failure, not evidence about the fault (#5974)."
 		fi
-		die "fail-graph-write-once-then-succeed-sql: no once-fired marker naming ${sql_edge_operation_match} beside ${fault_once_script_sql}. The probes above already ruled out the cheap explanations, so with them green this means the statement flowed and the fault did not intercept it -- OR the marker write itself failed, which the reducer log reports with the prefix \"ifa fault: once-fired marker write failed\". That line was searched for above and not found. The marker is written by FaultingExecutor at injection time (go/internal/storage/cypher/fault_executor.go), so its absence means the QUERIES_TABLE MERGE anchor never matched a real write: check sql_edge_operation_match against go/internal/storage/cypher/edge_writer_sql.go and canonical.go before treating this cell as usable."
+		printf '\n=== sentinel family on disk (base: %s) ===\n' "${fault_once_script_sql}" >&2
+		ls -la "${fault_once_script_sql}"* 2>&1 | sed 's/^/  /' >&2 || true
+		printf '=== end sentinel family ===\n\n' >&2
+		die "fail-graph-write-once-then-succeed-sql: no once-fired marker beside ${fault_once_script_sql}, and no marker-write failure reported. Probe 2 above already proved whether the targeted SQL edge was written at all, so read that result with the listing to tell 'the MERGE never ran here' apart from 'it ran and the anchor missed it' (#5974)."
 	fi
 	printf 'fail-graph-write-once-then-succeed-sql: non-vacuous: once-fired marker names the targeted SQL edge MERGE (written by the fault decorator at injection time, not read from the reducer log)\n'
 	teardown_cell failgraphwritesql
