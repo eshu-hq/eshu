@@ -21,7 +21,11 @@ git -C "${fixture_repo}" -c init.defaultBranch=main init >/dev/null
 git -C "${fixture_repo}" config user.email "gate@eshu.local"
 git -C "${fixture_repo}" config user.name "Golden Gate"
 git -C "${fixture_repo}" add -- catalog-info.yaml
+git -C "${fixture_repo}" update-index --add --cacheinfo \
+	160000,5420542054205420542054205420542054205420,vendor/deployable-source
 git -C "${fixture_repo}" commit -m initial >/dev/null
+[[ "$(git -C "${fixture_repo}" status --short --untracked-files=no)" == " D vendor/deployable-source" ]] ||
+	fail "test fixture must mirror the intentionally unpopulated deployable-source gitlink"
 
 mock_active_generation="service-gen:prior"
 pg() {
@@ -42,6 +46,8 @@ golden_service_changed_since_capture_prior
 golden_service_changed_since_mutate_owner
 rg -q '^  owner: group:default/runtime-platform$' "${fixture_repo}/catalog-info.yaml" || fail "owner mutation missing"
 [[ "$(git -C "${fixture_repo}" rev-list --count HEAD)" == "2" ]] || fail "owner mutation did not create exactly one new commit"
+[[ "$(git -C "${fixture_repo}" status --short --untracked-files=no)" == " D vendor/deployable-source" ]] ||
+	fail "owner mutation changed the pre-existing gitlink status"
 
 mock_active_generation="service-gen:current"
 golden_service_changed_since_validate_current
