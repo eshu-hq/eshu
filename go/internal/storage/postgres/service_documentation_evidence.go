@@ -37,10 +37,9 @@ import (
 //
 // Parameter order:
 //
-//	$1 service_id (the service whose documentation evidence is loaded)
-//	$2 candidate/evidence ref containment ('{"candidate_refs":[{"kind":"service","id":<service_id>}]}')
-//	$3 evidence ref containment ('{"evidence_refs":[{"kind":"service","id":<service_id>}]}')
-//	$4 linked-entity containment ('{"linked_entities":[{"entity_type":"service","entity_id":<service_id>}]}')
+//	$1 candidate/evidence ref containment ('{"candidate_refs":[{"kind":"service","id":<service_id>}]}')
+//	$2 evidence ref containment ('{"evidence_refs":[{"kind":"service","id":<service_id>}]}')
+//	$3 linked-entity containment ('{"linked_entities":[{"entity_type":"service","entity_id":<service_id>}]}')
 const serviceDocumentationEvidenceQuery = `
 SELECT
     fact.source_system,
@@ -62,9 +61,9 @@ WHERE fact.fact_kind IN (
   AND fact.is_tombstone = FALSE
   AND generation.status = 'active'
   AND (
-        fact.payload @> $2::jsonb
+        fact.payload @> $1::jsonb
+        OR fact.payload @> $2::jsonb
         OR fact.payload @> $3::jsonb
-        OR fact.payload @> $4::jsonb
       )
 ORDER BY fact.source_system ASC, fact.source_record_id ASC, fact.fact_id ASC
 `
@@ -123,7 +122,6 @@ func (l ServiceDocumentationEvidenceLoader) loadForService(
 	rows, err := l.queryer.QueryContext(
 		ctx,
 		serviceDocumentationEvidenceQuery,
-		serviceID,
 		candidateRef,
 		evidenceRef,
 		linkedRef,
