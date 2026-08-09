@@ -22,21 +22,38 @@ error, it does not.
 
 ## What changed
 
-`WriteEdges` now separates three cases that all looked like success:
+`WriteEdges` returns a `SharedProjectionWriteReport` naming every row it could
+not route, and the reducer — which owns intent completion — persists those rows
+durably BEFORE completing, then completes as usual.
 
 | Batch | Before | After |
 | --- | --- | --- |
 | empty | `nil` | `nil` (unchanged) |
-| only control rows (a repo refresh, which carries no edge) | `nil` | `nil` (unchanged) |
-| some rows routed, some did not | `nil`, drop folded into an INFO line | `nil` + WARN + counter (intent still completed — see below) |
-| non-empty, nothing routed | `nil` | `*UnroutableRowsError`, intent not completed |
+| only control rows (a repo refresh carries no edge) | `nil` | `nil` (unchanged) |
+| some routed, some did not | `nil`, rows silently completed | rows reported, recorded durably, then completed |
+| non-empty, nothing routed | `nil`, rows silently completed | rows reported, recorded durably, then completed |
 
-What the mixed case deliberately does NOT do: it still completes the intent,
-including for the rows that were dropped. Failing the whole partition to
-protect a subset would lose the edges that did route, which is the larger loss.
-The trade is stated rather than hidden — a partial drop is now visible in the
-counter and the WARN, and closing it properly needs per-row intent completion,
-which this change does not have.
+### Why not simply fail the write
+
+The first cut of this change returned an error for the all-unroutable case, and
+review (codex, PR #6008) showed it could not converge. `buildRowMap` decides
+purely from the persisted payload, so a rejected row is rejected identically on
+every future attempt. This path has no attempt budget and no dead letter — the
+runner's own comment states that `shared_projection_intents` carries no
+`attempt_count` column. Returning a retryable error for a provably
+non-retryable condition stalls the partition forever on work that can never
+succeed, and skips that cycle's stale/superseded/terminal completions with it.
+
+The owner chose quarantine-and-complete. The work genuinely cannot be done, so
+completing is correct; what was missing was any record that it was not done.
+
+### The half the error would not have fixed
+
+A MIXED batch writes its routable rows, returns nil, and `ProcessPartitionOnce`
+appends **every** row in `completedLatestRows` to `processedIDs` — including the
+ones that produced no edge (`shared_projection_worker.go:415-420`). That loss
+exists on main and survived the first cut of this branch, which only covered the
+all-unroutable case. The report covers both shapes uniformly.
 
 The control-row carve-out matters as much as the error. A code-call delta whose
 files were only deleted arrives as a single repo-refresh row whose job is the
@@ -140,6 +157,44 @@ PR #6008.
 Gate: `scripts/verify-telemetry-coverage.sh` → exit 0,
 "docs/public/observability/telemetry-coverage.md and
 go/internal/telemetry/instruments.go agree, no new untracked stages".
+
+## What keeps quarantine from becoming a new silent loss
+
+A durable row nobody reads is a loss nobody notices, so the record alone is not
+the fix. Three things carry it:
+
+- `eshu_dp_shared_edge_unroutable_rows_total`, labelled by domain and a bounded
+  `partial_batch`/`whole_batch` reason.
+- A `shared edge rows unroutable` WARN with domain, evidence source, counts and
+  a sample intent id.
+- **A required hard-zero corpus-gate check**,
+  `drains.shared_projection_unroutable_quarantined`. This is the load-bearing
+  one: completing quarantined intents drains the nonterminal count, so without
+  it the gate would go GREEN on a corpus that lost edges. No snapshot knob — the
+  corpus is fixed input, so there is no legitimate count above zero.
+
+The check is evaluated after the drain and deliberately **not** added to
+`Drained()`. Quarantined rows are terminal and never decrease; in the poll
+predicate they would mean the drain never converges, and a crisp assertion
+failure would surface as a drain TIMEOUT instead — reading as "the pipeline
+needed longer" and hiding the finding.
+`TestDrainedIgnoresQuarantinedUnroutableIntents` pins that exclusion.
+
+## Why the reason is split
+
+`buildRowMap` returns `!ok` for two different things, and conflating them would
+mislead in opposite directions:
+
+- `missing_required_field` — required MATCH identifiers absent. No writer
+  version can route it; the loss is real.
+- `no_statement_for_type` — the row is well formed but this binary has no
+  statement for its relationship type. During a rolling upgrade a newer producer
+  emits types an older writer has not learned, and the same row routes fine once
+  the writer catches up.
+
+Recording both as the same thing would either bury real losses in deploy noise
+or page someone about a rollout working as intended. Raised by Fable in the
+design research as the sharpest failure mode of the quarantine approach.
 
 ## Already-dropped edges
 
