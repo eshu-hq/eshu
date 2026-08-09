@@ -169,7 +169,7 @@ func TestRationaleFamilyOduExercisesEveryExclusion(t *testing.T) {
 	t.Parallel()
 	odu := CatalogByName()[rationaleFamilyOduName]
 
-	var tombstones, wrongKind, missingRepo int
+	var tombstones, wrongKind, missingRepo, blankEntity int
 	var blankKind, blankText, duplicates int
 	seen := map[string]int{}
 
@@ -182,9 +182,13 @@ func TestRationaleFamilyOduExercisesEveryExclusion(t *testing.T) {
 			tombstones++
 			continue
 		}
-		entityID, _ := env.Payload["entity_id"].(string)
+		entityID := strings.TrimSpace(anyToStringValue(env.Payload["entity_id"]))
 		if _, ok := env.Payload["repo_id"].(string); !ok {
 			missingRepo++
+			continue
+		}
+		if entityID == "" {
+			blankEntity++
 			continue
 		}
 		comments, _ := env.Payload["rationale_comments"].([]map[string]any)
@@ -219,6 +223,7 @@ func TestRationaleFamilyOduExercisesEveryExclusion(t *testing.T) {
 		"tombstoned content entity": tombstones,
 		"non-content_entity kind":   wrongKind,
 		"missing repo_id":           missingRepo,
+		"blank entity_id":           blankEntity,
 		"blank comment kind":        blankKind,
 		"whitespace-only text":      blankText,
 		"duplicate comment":         duplicates,

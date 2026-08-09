@@ -92,10 +92,30 @@ func rationaleFamilyOdu() CatalogOdu {
 				GenerationID: rationaleFamilyGenerationID,
 				FactKind:     "content_entity",
 				Payload: map[string]any{
-					"entity_id": "func:orphan.NoRepo",
-					"path":      "services/orphan/no_repo.go",
+					"entity_id":     "func:orphan.NoRepo",
+					"relative_path": "services/orphan/no_repo.go",
 					"rationale_comments": []map[string]any{
 						{"kind": "why", "text": "This entity names no repository."},
+					},
+				},
+			},
+			// NOT AN EDGE: blank entity_id. entity_id is the edge's target and
+			// half the Rationale UID, so an edge without one has no target
+			// identity at all. Kept distinct from the missing-repo_id case
+			// because the extractor guards them in one condition
+			// (entityID == "" || repoID == ""): if that regressed to checking
+			// only the repository, an edge with an empty target would project
+			// and a fixture testing only the repo half would stay green.
+			{
+				ScopeID:      rationaleFamilyScopeID,
+				GenerationID: rationaleFamilyGenerationID,
+				FactKind:     "content_entity",
+				Payload: map[string]any{
+					"repo_id":       rationaleFamilyRepoID,
+					"entity_id":     "",
+					"relative_path": "services/orphan/no_entity.go",
+					"rationale_comments": []map[string]any{
+						{"kind": "why", "text": "This content entity names no target."},
 					},
 				},
 			},
@@ -119,29 +139,29 @@ func rationaleFamilyOdu() CatalogOdu {
 		Odu: odu,
 		Detail: "two content entities whose rationale comments derive exactly " +
 			"three EXPLAINS edges — including the same text under two kinds, and " +
-			"one set reached through the entity_metadata fallback — plus six " +
+			"one set reached through the entity_metadata fallback — plus seven " +
 			"inputs deriving none: a repeated comment, a blank kind, " +
-			"whitespace-only text, a tombstone, a missing repo_id, and a " +
-			"non-content_entity fact kind",
+			"whitespace-only text, a tombstone, a missing repo_id, a blank " +
+			"entity_id, and a non-content_entity fact kind",
 	}
 }
 
 // rationaleFamilyContentEntity builds a live content_entity envelope carrying
 // the given payload fields alongside this fixture's repo and entity identity.
-func rationaleFamilyContentEntity(entityID, path string, extra map[string]any) facts.Envelope {
-	return rationaleFamilyEnvelope(entityID, path, extra, false)
+func rationaleFamilyContentEntity(entityID, relativePath string, extra map[string]any) facts.Envelope {
+	return rationaleFamilyEnvelope(entityID, relativePath, extra, false)
 }
 
 // rationaleFamilyTombstone builds the tombstoned variant of the same shape.
-func rationaleFamilyTombstone(entityID, path string, extra map[string]any) facts.Envelope {
-	return rationaleFamilyEnvelope(entityID, path, extra, true)
+func rationaleFamilyTombstone(entityID, relativePath string, extra map[string]any) facts.Envelope {
+	return rationaleFamilyEnvelope(entityID, relativePath, extra, true)
 }
 
-func rationaleFamilyEnvelope(entityID, path string, extra map[string]any, tombstone bool) facts.Envelope {
+func rationaleFamilyEnvelope(entityID, relativePath string, extra map[string]any, tombstone bool) facts.Envelope {
 	payload := map[string]any{
-		"repo_id":   rationaleFamilyRepoID,
-		"entity_id": entityID,
-		"path":      path,
+		"repo_id":       rationaleFamilyRepoID,
+		"entity_id":     entityID,
+		"relative_path": relativePath,
 	}
 	for k, v := range extra {
 		payload[k] = v
