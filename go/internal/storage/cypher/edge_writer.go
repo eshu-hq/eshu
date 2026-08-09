@@ -105,19 +105,33 @@ func (w *EdgeWriter) groupBatchSizeForDomain(domain string) int {
 // UNWIND statements.
 //
 // A row whose required MATCH fields are empty cannot be routed to a statement.
-// Such a row is never written, and WriteEdges distinguishes the two cases that
-// used to look identical to the caller (#5984):
+// Such a row is never written, and every one of them is named in the returned
+// SharedProjectionWriteReport so the caller — which owns intent completion —
+// can persist a durable record BEFORE completing. Completed intent rows are
+// never reopened by the durable upsert, so a caller that completes without
+// that record loses the work silently and permanently, which was the #5984
+// defect.
 //
-//   - an empty batch is "nothing to do" and returns nil;
-//   - a non-empty batch where NOTHING routed is "nothing could be done" and
-//     returns an error, so the shared projection worker does not complete an
-//     intent for edges that were never written. Completed intent rows are never
-//     reopened by the durable upsert, so a nil there loses the work silently
-//     and permanently;
-//   - a mixed batch writes the routable rows (dropping them too would be the
-//     larger loss) and reports the dropped count through a WARN log and the
-//     SharedEdgeUnroutableRows counter, so a partial loss is visible instead of
-//     being folded into the success log.
+// The cases, and what separates them:
+//
+//   - an empty batch is "nothing to do": no rows, no report, nil error;
+//   - a batch of only control rows (a repo refresh drives the repo-wide
+//     retract and carries no edge of its own) is also "nothing to do" — those
+//     rows are NOT reported, because a row that was never meant to become an
+//     edge is not a lost edge;
+//   - a mixed batch writes its routable rows AND reports the rest. Dropping the
+//     routable ones too would be the larger loss, so the write succeeds and the
+//     rejected rows travel back in the report;
+//   - a batch where NOTHING routed reports every row and still returns a nil
+//     error. It is deliberately not a failure: buildRowMap decides from the
+//     persisted payload, so a rejected row is rejected identically on every
+//     future attempt, and this path has no attempt budget or dead letter.
+//     Failing here would stall the partition forever on work that can never
+//     succeed (PR #6008 review).
+//
+// Both reporting paths also emit the shared edge rows unroutable WARN and the
+// SharedEdgeUnroutableRows counter, so a loss is visible in telemetry without
+// waiting for anyone to query the durable table.
 //
 // When the executor implements GroupExecutor, all batches are dispatched in a
 // single atomic transaction.
