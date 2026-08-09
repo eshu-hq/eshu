@@ -181,7 +181,7 @@ func TestGoldenSnapshotOperationsStatusUsesDeployedEnvelope(t *testing.T) {
 	}
 	assertSnapshotValues(t, shape.RequiredJSONValues, map[string]any{
 		"data.scoped":            false,
-		"data.limit":             float64(50),
+		"data.limit":             float64(100),
 		"data.health.state":      "degraded",
 		"data.queue.outstanding": float64(0),
 		"data.queue.dead_letter": float64(1),

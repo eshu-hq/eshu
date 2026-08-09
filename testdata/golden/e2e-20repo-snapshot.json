@@ -2389,7 +2389,7 @@
         "required_json_object_matches": {
           "evidence_groups[]": [
             {
-              "repo_id": "orders-api",
+              "repo_id": "repository:r_ea78e8bb",
               "relative_path": "main.go",
               "matched_terms": ["common", "lib"]
             }
@@ -6912,7 +6912,7 @@
         ],
         "required_json_values": {
           "data.scoped": false,
-          "data.limit": 50,
+          "data.limit": 100,
           "data.health.state": "degraded",
           "data.queue.outstanding": 0,
           "data.queue.dead_letter": 1,
@@ -7099,7 +7099,7 @@
         }
       },
       "POST /api/v0/impact/trace-deployment-chain": {
-        "description": "Positive deployment-topology trace for the deployable-config runtime fixture; proves canonical instance, platform, and deployment-source endpoint identity against the live projected corpus.",
+        "description": "Positive deployment-topology trace for the deployable-source runtime fixture; proves canonical instance, platform, and deployment-source endpoint identity against the live projected corpus.",
         "envelope": true,
         "required_response_fields": [
           "data",
@@ -7108,7 +7108,7 @@
         ],
         "minimum_results": 0,
         "request_body": {
-          "service_name": "deployable-config",
+          "service_name": "deployable-source",
           "max_depth": 4
         },
         "required_json_paths": [
@@ -7147,9 +7147,9 @@
           "data.k8s_resource_limits.k8s_relationships_complete"
         ],
         "required_json_values": {
-          "data.repo_id": "repository:r_217415d9",
-          "data.workload_id": "workload:deployable-config",
-          "data.instances[].instance_id": "workload-instance:deployable-config:prod",
+          "data.repo_id": "repository:r_1f68383d",
+          "data.workload_id": "workload:deployable-source",
+          "data.instances[].instance_id": "workload-instance:deployable-source:prod",
           "data.instances[].platforms[].platform_id": "platform:kubernetes:none:prod:prod:none",
           "data.instances[].platforms[].topology_edges[].relationship_type": "RUNS_ON",
           "data.deployment_fact_summary.deployment_truth_tier": "runtime_confirmed",
@@ -7166,27 +7166,27 @@
           "data.instances[].platforms[].topology_edges[]": [
             {
               "relationship_type": "RUNS_ON",
-              "source_id": "workload-instance:deployable-config:prod",
+              "source_id": "workload-instance:deployable-source:prod",
               "target_id": "platform:kubernetes:none:prod:prod:none"
             }
           ],
           "data.topology_edges[]": [
             {
               "relationship_type": "DEFINES",
-              "source_id": "repository:r_217415d9",
-              "target_id": "workload:deployable-config"
+              "source_id": "repository:r_1f68383d",
+              "target_id": "workload:deployable-source"
             },
             {
               "relationship_type": "INSTANCE_OF",
-              "source_id": "workload-instance:deployable-config:prod",
-              "target_id": "workload:deployable-config"
+              "source_id": "workload-instance:deployable-source:prod",
+              "target_id": "workload:deployable-source"
             }
           ],
           "data.deployment_sources[]": [
             {
               "relationship_type": "DEPLOYMENT_SOURCE",
-              "source_id": "workload-instance:deployable-config:prod",
-              "target_id": "repository:r_1f68383d"
+              "source_id": "workload-instance:deployable-source:prod",
+              "target_id": "repository:r_217415d9"
             }
           ],
           "data.k8s_resources[]": [

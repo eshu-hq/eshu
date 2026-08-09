@@ -35,7 +35,7 @@ func TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity(t *
 	if !ok {
 		t.Fatal("query_shapes.http missing positive deployment topology trace")
 	}
-	if got, want := shape.RequestBody["service_name"], "deployable-config"; got != want {
+	if got, want := shape.RequestBody["service_name"], "deployable-source"; got != want {
 		t.Fatalf("HTTP trace service_name = %#v, want positive runtime fixture %q", got, want)
 	}
 	if !shape.Envelope {
@@ -89,9 +89,9 @@ func TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity(t *
 		t.Fatalf("MCP trace_deployment_chain deployment_truth_tier pin = %#v, want %#v", got, want)
 	}
 	for path, want := range map[string]any{
-		"data.repo_id":                             "repository:r_217415d9",
-		"data.workload_id":                         "workload:deployable-config",
-		"data.instances[].instance_id":             "workload-instance:deployable-config:prod",
+		"data.repo_id":                             "repository:r_1f68383d",
+		"data.workload_id":                         "workload:deployable-source",
+		"data.instances[].instance_id":             "workload-instance:deployable-source:prod",
 		"data.instances[].platforms[].platform_id": "platform:kubernetes:none:prod:prod:none",
 		"data.image_refs[]":                        "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
 	} {
@@ -132,27 +132,27 @@ func TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity(t *
 		"data.instances[].platforms[].topology_edges[]": {
 			{
 				"relationship_type": "RUNS_ON",
-				"source_id":         "workload-instance:deployable-config:prod",
+				"source_id":         "workload-instance:deployable-source:prod",
 				"target_id":         "platform:kubernetes:none:prod:prod:none",
 			},
 		},
 		"data.topology_edges[]": {
 			{
 				"relationship_type": "DEFINES",
-				"source_id":         "repository:r_217415d9",
-				"target_id":         "workload:deployable-config",
+				"source_id":         "repository:r_1f68383d",
+				"target_id":         "workload:deployable-source",
 			},
 			{
 				"relationship_type": "INSTANCE_OF",
-				"source_id":         "workload-instance:deployable-config:prod",
-				"target_id":         "workload:deployable-config",
+				"source_id":         "workload-instance:deployable-source:prod",
+				"target_id":         "workload:deployable-source",
 			},
 		},
 		"data.deployment_sources[]": {
 			{
 				"relationship_type": "DEPLOYMENT_SOURCE",
-				"source_id":         "workload-instance:deployable-config:prod",
-				"target_id":         "repository:r_1f68383d",
+				"source_id":         "workload-instance:deployable-source:prod",
+				"target_id":         "repository:r_217415d9",
 			},
 		},
 		"data.k8s_resources[]": {
