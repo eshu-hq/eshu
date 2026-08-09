@@ -13,6 +13,11 @@ golden_changed_since_scope_id="git-repository-scope:repository:r_b11b6e25"
 golden_changed_since_stable_fact_key="content:repository:r_b11b6e25:config/freshness.cfg"
 golden_changed_since_prior_sentinel="__runtime_changed_since_prior_generation__"
 golden_changed_since_current_sentinel="__runtime_changed_since_current_generation__"
+golden_changed_since_added_sentinel="__runtime_changed_since_facts_added_count__"
+golden_changed_since_updated_sentinel="__runtime_changed_since_facts_updated_count__"
+golden_changed_since_unchanged_sentinel="__runtime_changed_since_facts_unchanged_count__"
+golden_changed_since_retired_sentinel="__runtime_changed_since_facts_retired_count__"
+golden_changed_since_superseded_sentinel="__runtime_changed_since_facts_superseded_count__"
 golden_changed_since_old_marker='release_marker = "baseline"'
 golden_changed_since_new_marker='release_marker = "current"'
 
@@ -20,6 +25,11 @@ golden_changed_since_require_generation_id() {
 	local value="$1" context="$2"
 	[[ -n "${value}" && "${value}" != *$'\n'* && "${value}" =~ ^[a-zA-Z0-9:._/-]+$ ]] ||
 		die "${context} must be one public-safe generation ID, got: ${value:-<empty>}"
+}
+
+golden_changed_since_require_count() {
+	local value="$1" context="$2"
+	[[ "${value}" =~ ^[0-9]+$ ]] || die "${context} must be one non-negative integer, got: ${value:-<empty>}"
 }
 
 golden_changed_since_capture_prior() {
@@ -53,7 +63,8 @@ golden_changed_since_mutate_fixture() {
 }
 
 golden_changed_since_validate_current() {
-	local current state total active superseded prior_status target_updated unexpected_changed
+	local current state total active superseded prior_status target_updated
+	local facts_added facts_updated facts_unchanged facts_retired facts_superseded
 	[[ -n "${golden_changed_since_prior_generation:-}" ]] || die "prior repository generation was not captured"
 	current="$(pg "
 SELECT active_generation_id
@@ -119,15 +130,29 @@ SELECT
   (SELECT COUNT(*) FROM scope_generations WHERE scope_id = '${golden_changed_since_scope_id}' AND status = 'superseded') || '|' ||
   (SELECT status FROM scope_generations WHERE generation_id = '${golden_changed_since_prior_generation}') || '|' ||
   (SELECT COUNT(*) FROM classified WHERE category = 'facts' AND classification = 'updated' AND stable_fact_key = '${golden_changed_since_stable_fact_key}') || '|' ||
-  (SELECT COUNT(*) FROM classified WHERE classification <> 'unchanged' AND NOT (
-      category = 'facts' AND classification = 'updated' AND stable_fact_key = '${golden_changed_since_stable_fact_key}'
-  ));
+  (SELECT COUNT(*) FROM classified WHERE category = 'facts' AND classification = 'added') || '|' ||
+  (SELECT COUNT(*) FROM classified WHERE category = 'facts' AND classification = 'updated') || '|' ||
+  (SELECT COUNT(*) FROM classified WHERE category = 'facts' AND classification = 'unchanged') || '|' ||
+  (SELECT COUNT(*) FROM classified WHERE category = 'facts' AND classification = 'retired') || '|' ||
+  (SELECT COUNT(*) FROM classified WHERE category = 'facts' AND classification = 'superseded');
 ")" || die "failed to validate repository changed-since durable lineage"
-	IFS='|' read -r total active superseded prior_status target_updated unexpected_changed <<<"${state}"
-	[[ "${total}|${active}|${superseded}|${prior_status}|${target_updated}|${unexpected_changed}" == \
-		"2|1|1|superseded|1|0" ]] ||
+	IFS='|' read -r total active superseded prior_status target_updated \
+		facts_added facts_updated facts_unchanged facts_retired facts_superseded <<<"${state}"
+	[[ "${total}|${active}|${superseded}|${prior_status}|${target_updated}" == "2|1|1|superseded|1" ]] ||
 		die "repository changed-since durable lineage mismatch: ${state}"
+	golden_changed_since_require_count "${facts_added}" "repository facts added count"
+	golden_changed_since_require_count "${facts_updated}" "repository facts updated count"
+	golden_changed_since_require_count "${facts_unchanged}" "repository facts unchanged count"
+	golden_changed_since_require_count "${facts_retired}" "repository facts retired count"
+	golden_changed_since_require_count "${facts_superseded}" "repository facts superseded count"
+	((facts_updated > 0 && facts_updated <= 200)) ||
+		die "repository facts updated count must fit the bounded sample, got: ${facts_updated}"
 	golden_changed_since_current_generation="${current}"
+	golden_changed_since_facts_added_count="${facts_added}"
+	golden_changed_since_facts_updated_count="${facts_updated}"
+	golden_changed_since_facts_unchanged_count="${facts_unchanged}"
+	golden_changed_since_facts_retired_count="${facts_retired}"
+	golden_changed_since_facts_superseded_count="${facts_superseded}"
 }
 
 golden_changed_since_compose_snapshot() {
@@ -135,20 +160,43 @@ golden_changed_since_compose_snapshot() {
 	[[ -f "${input_snapshot}" ]] || die "repository changed-since input snapshot is missing"
 	golden_changed_since_require_generation_id "${golden_changed_since_prior_generation:-}" "prior repository generation"
 	golden_changed_since_require_generation_id "${golden_changed_since_current_generation:-}" "current repository generation"
+	golden_changed_since_require_count "${golden_changed_since_facts_added_count:-}" "repository facts added count"
+	golden_changed_since_require_count "${golden_changed_since_facts_updated_count:-}" "repository facts updated count"
+	golden_changed_since_require_count "${golden_changed_since_facts_unchanged_count:-}" "repository facts unchanged count"
+	golden_changed_since_require_count "${golden_changed_since_facts_retired_count:-}" "repository facts retired count"
+	golden_changed_since_require_count "${golden_changed_since_facts_superseded_count:-}" "repository facts superseded count"
 	jq -e \
 		--arg prior "${golden_changed_since_prior_sentinel}" \
 		--arg current "${golden_changed_since_current_sentinel}" \
+		--arg added "${golden_changed_since_added_sentinel}" \
+		--arg updated "${golden_changed_since_updated_sentinel}" \
+		--arg unchanged "${golden_changed_since_unchanged_sentinel}" \
+		--arg retired "${golden_changed_since_retired_sentinel}" \
+		--arg superseded "${golden_changed_since_superseded_sentinel}" \
 		'.query_shapes.mcp.get_changed_since.arguments.since_generation_id == $prior
 		 and .query_shapes.mcp.get_changed_since.required_json_values.since_generation_id == $prior
-		 and .query_shapes.mcp.get_changed_since.required_json_values.current_active_generation_id == $current' \
+		 and .query_shapes.mcp.get_changed_since.required_json_values.current_active_generation_id == $current
+		 and .query_shapes.mcp.get_changed_since.required_json_object_matches["categories[]"][0].counts == {
+		   added: $added, updated: $updated, unchanged: $unchanged,
+		   retired: $retired, superseded: $superseded
+		 }' \
 		"${input_snapshot}" >/dev/null || die "repository changed-since runtime sentinels are missing"
 	temporary="$(mktemp "${output_snapshot}.tmp.XXXXXX")" || die "failed to create runtime snapshot temporary file"
 	jq \
 		--arg prior "${golden_changed_since_prior_generation}" \
 		--arg current "${golden_changed_since_current_generation}" \
+		--argjson added "${golden_changed_since_facts_added_count}" \
+		--argjson updated "${golden_changed_since_facts_updated_count}" \
+		--argjson unchanged "${golden_changed_since_facts_unchanged_count}" \
+		--argjson retired "${golden_changed_since_facts_retired_count}" \
+		--argjson superseded "${golden_changed_since_facts_superseded_count}" \
 		'.query_shapes.mcp.get_changed_since.arguments.since_generation_id = $prior
 		 | .query_shapes.mcp.get_changed_since.required_json_values.since_generation_id = $prior
-		 | .query_shapes.mcp.get_changed_since.required_json_values.current_active_generation_id = $current' \
+		 | .query_shapes.mcp.get_changed_since.required_json_values.current_active_generation_id = $current
+		 | .query_shapes.mcp.get_changed_since.required_json_object_matches["categories[]"][0].counts = {
+		     added: $added, updated: $updated, unchanged: $unchanged,
+		     retired: $retired, superseded: $superseded
+		   }' \
 		"${input_snapshot}" >"${temporary}" || {
 		rm -f "${temporary}"
 		die "failed to compose repository changed-since runtime snapshot"

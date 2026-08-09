@@ -5092,18 +5092,29 @@
         "arguments": {
           "scope_id": "git-repository-scope:repository:r_b11b6e25",
           "since_generation_id": "__runtime_changed_since_prior_generation__",
-          "sample_limit": 10
+          "sample_limit": 200
         },
         "required_json_values": {
           "scope_id": "git-repository-scope:repository:r_b11b6e25",
           "scope_kind": "repository",
           "since_generation_id": "__runtime_changed_since_prior_generation__",
           "current_active_generation_id": "__runtime_changed_since_current_generation__",
-          "sample_limit": 10,
-          "unavailable": false,
-          "categories[].counts.updated": 1
+          "sample_limit": 200,
+          "unavailable": false
         },
         "required_json_object_matches": {
+          "categories[]": [
+            {
+              "category": "facts",
+              "counts": {
+                "added": "__runtime_changed_since_facts_added_count__",
+                "updated": "__runtime_changed_since_facts_updated_count__",
+                "unchanged": "__runtime_changed_since_facts_unchanged_count__",
+                "retired": "__runtime_changed_since_facts_retired_count__",
+                "superseded": "__runtime_changed_since_facts_superseded_count__"
+              }
+            }
+          ],
           "categories[].samples.updated[]": [
             {
               "stable_fact_key": "content:repository:r_b11b6e25:config/freshness.cfg",

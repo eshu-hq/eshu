@@ -26,7 +26,7 @@ pg() {
 	local sql="$1"
 	printf '%s\n-- statement boundary --\n' "${sql}" >>"${sql_log}"
 	if [[ "${sql}" == *"WITH prior_keys AS"* ]]; then
-		printf '2|1|1|superseded|1|0\n'
+		printf '2|1|1|superseded|1|0|13|4|0|0\n'
 		return
 	fi
 	if [[ "${sql}" == *"SELECT active_generation_id"* ]]; then
@@ -47,6 +47,11 @@ mock_active_generation="generation:current-2"
 golden_changed_since_validate_current
 [[ "${golden_changed_since_current_generation}" == "generation:current-2" ]] ||
 	fail "current generation was not captured"
+[[ "${golden_changed_since_facts_added_count:-}" == "0" ]] || fail "facts added count was not captured"
+[[ "${golden_changed_since_facts_updated_count:-}" == "13" ]] || fail "facts updated count was not captured"
+[[ "${golden_changed_since_facts_unchanged_count:-}" == "4" ]] || fail "facts unchanged count was not captured"
+[[ "${golden_changed_since_facts_retired_count:-}" == "0" ]] || fail "facts retired count was not captured"
+[[ "${golden_changed_since_facts_superseded_count:-}" == "0" ]] || fail "facts superseded count was not captured"
 
 input_snapshot="${case_dir}/prior transform.json"
 output_snapshot="${case_dir}/changed since.json"
@@ -62,6 +67,18 @@ jq '
       required_json_values: {
         since_generation_id: "__runtime_changed_since_prior_generation__",
         current_active_generation_id: "__runtime_changed_since_current_generation__"
+      },
+      required_json_object_matches: {
+        "categories[]": [{
+          category: "facts",
+          counts: {
+            added: "__runtime_changed_since_facts_added_count__",
+            updated: "__runtime_changed_since_facts_updated_count__",
+            unchanged: "__runtime_changed_since_facts_unchanged_count__",
+            retired: "__runtime_changed_since_facts_retired_count__",
+            superseded: "__runtime_changed_since_facts_superseded_count__"
+          }
+        }]
       }
     }
 ' "${repo_root}/testdata/golden/e2e-20repo-snapshot.json" >"${input_snapshot}"
@@ -73,6 +90,13 @@ jq -e '
   and .query_shapes.mcp.get_changed_since.arguments.since_generation_id == "generation:prior-1"
   and .query_shapes.mcp.get_changed_since.required_json_values.since_generation_id == "generation:prior-1"
   and .query_shapes.mcp.get_changed_since.required_json_values.current_active_generation_id == "generation:current-2"
+  and .query_shapes.mcp.get_changed_since.required_json_object_matches["categories[]"][0].counts == {
+    added: 0,
+    updated: 13,
+    unchanged: 4,
+    retired: 0,
+    superseded: 0
+  }
 ' "${output_snapshot}" >/dev/null || fail "runtime composition lost a prior transform or generation ID"
 
 if rg -ni '\b(insert|update|delete|merge|truncate|create|alter|drop)\b' "${sql_log}" >/dev/null; then
@@ -102,6 +126,30 @@ hostile_missing_sentinel() {
 	golden_changed_since_compose_snapshot "${missing_snapshot}" "${case_dir}/unused.json"
 }
 
+hostile_non_numeric_counts() {
+	golden_changed_since_prior_generation="generation:prior"
+	pg() {
+		if [[ "$1" == *"WITH prior_keys AS"* ]]; then
+			printf '2|1|1|superseded|1|0|not-a-count|4|0|0\n'
+		else
+			printf 'generation:current\n'
+		fi
+	}
+	golden_changed_since_validate_current
+}
+
+hostile_updated_sample_overflow() {
+	golden_changed_since_prior_generation="generation:prior"
+	pg() {
+		if [[ "$1" == *"WITH prior_keys AS"* ]]; then
+			printf '2|1|1|superseded|1|0|201|4|0|0\n'
+		else
+			printf 'generation:current\n'
+		fi
+	}
+	golden_changed_since_validate_current
+}
+
 assert_subprocess_fails() {
 	local name="$1" case_function="$2"
 	if ("${case_function}"); then
@@ -113,5 +161,7 @@ assert_subprocess_fails "multi-row prior" hostile_multi_row_prior
 assert_subprocess_fails "unsafe generation id" hostile_unsafe_generation_id
 assert_subprocess_fails "repeat mutation" hostile_repeat_mutation
 assert_subprocess_fails "missing sentinel" hostile_missing_sentinel
+assert_subprocess_fails "non-numeric facts count" hostile_non_numeric_counts
+assert_subprocess_fails "updated sample overflow" hostile_updated_sample_overflow
 
 printf 'PASS: golden repository changed-since leaf helper\n'

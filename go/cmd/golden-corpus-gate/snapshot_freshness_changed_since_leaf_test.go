@@ -17,6 +17,11 @@ const (
 	goldenChangedSinceStableFactKey   = "content:repository:r_b11b6e25:config/freshness.cfg"
 	goldenChangedSincePriorSentinel   = "__runtime_changed_since_prior_generation__"
 	goldenChangedSinceCurrentSentinel = "__runtime_changed_since_current_generation__"
+	goldenChangedSinceAddedSentinel   = "__runtime_changed_since_facts_added_count__"
+	goldenChangedSinceUpdatedSentinel = "__runtime_changed_since_facts_updated_count__"
+	goldenChangedSinceSameSentinel    = "__runtime_changed_since_facts_unchanged_count__"
+	goldenChangedSinceRetiredSentinel = "__runtime_changed_since_facts_retired_count__"
+	goldenChangedSinceGoneSentinel    = "__runtime_changed_since_facts_superseded_count__"
 )
 
 func TestGoldenChangedSinceLeafUsesPublicSourceAndReadOnlyLineage(t *testing.T) {
@@ -48,6 +53,11 @@ func TestGoldenChangedSinceLeafUsesPublicSourceAndReadOnlyLineage(t *testing.T) 
 		goldenChangedSinceStableFactKey,
 		goldenChangedSincePriorSentinel,
 		goldenChangedSinceCurrentSentinel,
+		goldenChangedSinceAddedSentinel,
+		goldenChangedSinceUpdatedSentinel,
+		goldenChangedSinceSameSentinel,
+		goldenChangedSinceRetiredSentinel,
+		goldenChangedSinceGoneSentinel,
 	} {
 		if !strings.Contains(helper, want) {
 			t.Errorf("repository changed-since helper missing %q", want)
@@ -86,7 +96,7 @@ func TestGoldenSnapshotChangedSincePinsRealUpdatedContent(t *testing.T) {
 	wantArguments := map[string]any{
 		"scope_id":            goldenChangedSinceScopeID,
 		"since_generation_id": goldenChangedSincePriorSentinel,
-		"sample_limit":        float64(10),
+		"sample_limit":        float64(200),
 	}
 	if !reflect.DeepEqual(shape.Arguments, wantArguments) {
 		t.Errorf("Arguments = %#v, want %#v", shape.Arguments, wantArguments)
@@ -104,9 +114,8 @@ func TestGoldenSnapshotChangedSincePinsRealUpdatedContent(t *testing.T) {
 		"scope_kind":                   "repository",
 		"since_generation_id":          goldenChangedSincePriorSentinel,
 		"current_active_generation_id": goldenChangedSinceCurrentSentinel,
-		"sample_limit":                 float64(10),
+		"sample_limit":                 float64(200),
 		"unavailable":                  false,
-		"categories[].counts.updated":  float64(1),
 	} {
 		if got := shape.RequiredJSONValues[path]; !reflect.DeepEqual(got, want) {
 			t.Errorf("RequiredJSONValues[%q] = %#v, want %#v", path, got, want)
@@ -119,6 +128,19 @@ func TestGoldenSnapshotChangedSincePinsRealUpdatedContent(t *testing.T) {
 	if got := shape.RequiredJSONObjectMatches["categories[].samples.updated[]"]; !reflect.DeepEqual(got, wantUpdated) {
 		t.Errorf("updated sample matches = %#v, want %#v", got, wantUpdated)
 	}
+	wantFacts := []map[string]any{{
+		"category": "facts",
+		"counts": map[string]any{
+			"added":      goldenChangedSinceAddedSentinel,
+			"updated":    goldenChangedSinceUpdatedSentinel,
+			"unchanged":  goldenChangedSinceSameSentinel,
+			"retired":    goldenChangedSinceRetiredSentinel,
+			"superseded": goldenChangedSinceGoneSentinel,
+		},
+	}}
+	if got := shape.RequiredJSONObjectMatches["categories[]"]; !reflect.DeepEqual(got, wantFacts) {
+		t.Errorf("facts category matches = %#v, want %#v", got, wantFacts)
+	}
 }
 
 func TestGoldenSnapshotChangedSinceBITES(t *testing.T) {
@@ -129,16 +151,31 @@ func TestGoldenSnapshotChangedSinceBITES(t *testing.T) {
 		t.Fatalf("LoadSnapshot() error = %v", err)
 	}
 	shape := snapshot.QueryShapes.MCP["get_changed_since"]
-	positive := []byte(`{"scope_id":"git-repository-scope:repository:r_b11b6e25","scope_kind":"repository","since_generation_id":"__runtime_changed_since_prior_generation__","current_active_generation_id":"__runtime_changed_since_current_generation__","sample_limit":10,"categories":[{"category":"files","counts":{"added":0,"updated":0,"unchanged":1,"retired":0,"superseded":0},"unavailable":false},{"category":"content_entities","counts":{"added":0,"updated":0,"unchanged":1,"retired":0,"superseded":0},"unavailable":false},{"category":"facts","counts":{"added":0,"updated":1,"unchanged":1,"retired":0,"superseded":0},"samples":{"updated":[{"stable_fact_key":"content:repository:r_b11b6e25:config/freshness.cfg","fact_kind":"content"}]},"unavailable":false}],"unavailable":false}`)
-	if finding := EvaluateQueryShape("changed-since-positive", shape, positive); !finding.OK {
+	runtimeShape := shape
+	runtimeShape.RequiredJSONObjectMatches = map[string][]map[string]any{
+		"categories[]": {{
+			"category": "facts",
+			"counts": map[string]any{
+				"added": float64(0), "updated": float64(13), "unchanged": float64(4),
+				"retired": float64(0), "superseded": float64(0),
+			},
+		}},
+		"categories[].samples.updated[]": shape.RequiredJSONObjectMatches["categories[].samples.updated[]"],
+	}
+	positive := []byte(`{"scope_id":"git-repository-scope:repository:r_b11b6e25","scope_kind":"repository","since_generation_id":"__runtime_changed_since_prior_generation__","current_active_generation_id":"__runtime_changed_since_current_generation__","sample_limit":200,"categories":[{"category":"files","counts":{"added":0,"updated":2,"unchanged":1,"retired":0,"superseded":0},"unavailable":false},{"category":"content_entities","counts":{"added":0,"updated":3,"unchanged":1,"retired":0,"superseded":0},"unavailable":false},{"category":"facts","counts":{"added":0,"updated":13,"unchanged":4,"retired":0,"superseded":0},"samples":{"updated":[{"stable_fact_key":"content:repository:r_b11b6e25:config/freshness.cfg","fact_kind":"content"}]},"unavailable":false}],"unavailable":false}`)
+	if finding := EvaluateQueryShape("changed-since-positive", runtimeShape, positive); !finding.OK {
 		t.Fatalf("positive changed-since response failed: %+v", finding)
 	}
-	empty := []byte(`{"scope_id":"git-repository-scope:repository:r_b11b6e25","scope_kind":"repository","since_generation_id":"__runtime_changed_since_prior_generation__","current_active_generation_id":"__runtime_changed_since_current_generation__","sample_limit":10,"categories":[],"unavailable":false}`)
-	if finding := EvaluateQueryShape("changed-since-empty", shape, empty); finding.OK {
+	empty := []byte(`{"scope_id":"git-repository-scope:repository:r_b11b6e25","scope_kind":"repository","since_generation_id":"__runtime_changed_since_prior_generation__","current_active_generation_id":"__runtime_changed_since_current_generation__","sample_limit":200,"categories":[],"unavailable":false}`)
+	if finding := EvaluateQueryShape("changed-since-empty", runtimeShape, empty); finding.OK {
 		t.Fatalf("empty changed-since response passed: %+v", finding)
 	}
 	wrongKey := []byte(strings.Replace(string(positive), goldenChangedSinceStableFactKey, "content:repository:r_b11b6e25:config/unrelated.cfg", 1))
-	if finding := EvaluateQueryShape("changed-since-wrong-key", shape, wrongKey); finding.OK {
+	if finding := EvaluateQueryShape("changed-since-wrong-key", runtimeShape, wrongKey); finding.OK {
 		t.Fatalf("unrelated updated fact passed: %+v", finding)
+	}
+	wrongCounts := []byte(strings.Replace(string(positive), `"updated":13`, `"updated":12`, 1))
+	if finding := EvaluateQueryShape("changed-since-wrong-counts", runtimeShape, wrongCounts); finding.OK {
+		t.Fatalf("wrong facts count bucket passed: %+v", finding)
 	}
 }
