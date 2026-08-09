@@ -52,13 +52,6 @@ func TestEvaluateRequiredCorrelation(t *testing.T) {
 // silently dropped (below the floor) and a re-introduced declaration-vs-
 // call-site self-loop bug (eshu-hq/eshu#5332) silently inflating the count
 // past the pinned ceiling, one spurious self-loop per declaration.
-
-// TestEvaluateRequiredSelfLoop is the keystone acceptance for eshu-hq/eshu#5349:
-// a self-loop bound must be a closed range, not a floor, so it catches BOTH
-// directions of regression on the same observed count — genuine recursion
-// silently dropped (below the floor) and a re-introduced declaration-vs-
-// call-site self-loop bug (eshu-hq/eshu#5332) silently inflating the count
-// past the pinned ceiling, one spurious self-loop per declaration.
 func TestEvaluateRequiredSelfLoop(t *testing.T) {
 	rsl := RequiredSelfLoop{
 		ID: "sl-dart-calls-recursion", Label: "Function", Relationship: "CALLS",
@@ -351,10 +344,3 @@ func contains(s, sub string) bool {
 	}
 	return false
 }
-
-// TestEvaluateDrainsFailsOnQuarantinedUnroutableIntents pins the assertion that
-// keeps the #5984 quarantine honest.
-//
-// Completing quarantined intents makes the nonterminal count drain, so without
-// this check the gate would go GREEN on a corpus that lost edges — trading a
-// silent loss in the pipeline for a silent loss in the gate.

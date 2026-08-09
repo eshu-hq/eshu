@@ -167,15 +167,6 @@ func TestEvaluateDrainsFailsOnQuarantinedUnroutableIntents(t *testing.T) {
 // the drain never converges, and a crisp assertion failure would surface as a
 // drain TIMEOUT instead — which reads as "the pipeline needed longer" and hides
 // the finding entirely.
-
-// TestDrainedIgnoresQuarantinedUnroutableIntents is the other half, and the
-// more subtle one.
-//
-// Quarantined rows are terminal: the intent that produced them was completed,
-// so the count never decreases. Including it in the poll predicate would mean
-// the drain never converges, and a crisp assertion failure would surface as a
-// drain TIMEOUT instead — which reads as "the pipeline needed longer" and hides
-// the finding entirely.
 func TestDrainedIgnoresQuarantinedUnroutableIntents(t *testing.T) {
 	t.Parallel()
 
