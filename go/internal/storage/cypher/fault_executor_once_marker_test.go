@@ -178,6 +178,16 @@ func TestFaultingExecutorRecordsObservedOperationsWhenTheFaultNeverFires(t *test
 	if !strings.Contains(string(raw), "CloudResource") || !strings.Contains(string(raw), "HAS_COLUMN") {
 		t.Errorf("observed operations missing a shape that ran; got %q", string(raw))
 	}
+	// Both sides of the comparison are recorded in %q so a whitespace-only
+	// difference between the anchor and the statement is visible. Without it,
+	// two strings that differ by a trailing newline print identically.
+	if !strings.Contains(string(raw), "--- armed anchor (%q) ---") {
+		t.Errorf("observed record does not print the armed anchor in %%q form; got %q", string(raw))
+	}
+	if !strings.Contains(string(raw), `"MERGE (source)-[rel:QUERIES_TABLE]->(target)"`) {
+		t.Errorf("armed anchor not recorded byte-exactly; got %q", string(raw))
+	}
+
 	// FULL statements, not first lines. The anchor this record exists to be
 	// compared against sits on line 4 of the real SQL templates, so a first-line
 	// record discards precisely the line that matters (#5974).

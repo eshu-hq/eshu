@@ -118,6 +118,29 @@ const observedOpsSuffix = ".observed-operations"
 // handful of templates. Matching itself has always used the whole statement
 // (strings.Contains over stmt.Cypher), so recording the whole statement is what
 // makes the record comparable to the thing being matched.
+// recordAnchorForComparison writes the armed anchor to the observed-operations
+// file in %q form, once, before any statement is recorded.
+//
+// CI has shown a statement containing the anchor reaching the matcher in an
+// armed executor without firing, which is a contradiction inside one function.
+// The cheapest explanation left is that the two strings are not byte-identical
+// -- a trailing newline or stray space in the script-written value renders
+// identically in every log while failing strings.Contains. %q is the only form
+// that shows that, so both sides of the comparison are now printed in it.
+func (fe *FaultingExecutor) recordAnchorForComparison() {
+	if fe.observedOpsPath == "" || fe.onceMatch == "" {
+		return
+	}
+	// #nosec G304,G302 -- gate-local coordination file.
+	f, err := os.OpenFile(fe.observedOpsPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s: %v (path=%s)\n", OnceFiredMarkerWriteFailedPrefix, err, fe.observedOpsPath)
+		return
+	}
+	fmt.Fprintf(f, "--- armed anchor (%%q) ---\n%q\n", fe.onceMatch)
+	_ = f.Close()
+}
+
 func (fe *FaultingExecutor) recordObservedOperations(stmts []Statement) {
 	if fe.observedOpsPath == "" || fe.onceMatch == "" {
 		return
@@ -126,6 +149,7 @@ func (fe *FaultingExecutor) recordObservedOperations(stmts []Statement) {
 	defer fe.observedOpsMu.Unlock()
 	if fe.observedOps == nil {
 		fe.observedOps = make(map[string]struct{})
+		fe.recordAnchorForComparison()
 	}
 	for i := range stmts {
 		full := strings.TrimSpace(stmts[i].Cypher)
@@ -143,7 +167,7 @@ func (fe *FaultingExecutor) recordObservedOperations(stmts []Statement) {
 			fmt.Fprintf(os.Stderr, "%s: %v (path=%s)\n", OnceFiredMarkerWriteFailedPrefix, err, fe.observedOpsPath)
 			return
 		}
-		fmt.Fprintf(f, "--- statement ---\n%s\n", full)
+		fmt.Fprintf(f, "--- statement ---\n%s\n--- same statement (%%q) ---\n%q\n", full, full)
 		_ = f.Close()
 	}
 }

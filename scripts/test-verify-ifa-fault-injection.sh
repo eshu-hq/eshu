@@ -185,6 +185,7 @@ require_sql_cells "probe 1 rejects non-numeric output rather than reading it as 
 require_sql_cells "probe 1 skips when --no-compose owns the stack" "fresh-stack precondition SKIPPED"
 require_sql_cells "assert-edges failure names both directions" "AND an extra, duplicated, or wrong-typed edge"
 require_sql_cells "the gate shows what actually ran when the anchor matched nothing" "statement shapes this cell actually executed"
+require_sql_cells "the dump is not sorted (sorting shreds multi-line statements)" "cat, NOT sort -u"
 require_sql_cells "an empty observed record points at wiring, not the anchor" "points at wiring rather than the anchor"
 require_sql_cells "the gate greps for the marker-write failure itself" "the marker WRITE FAILED (line above)"
 require_lib "marker-write prefix declared once in shell" 'IFA_ONCE_MARKER_WRITE_FAILED_PREFIX="ifa fault: once-fired marker write failed"'

@@ -184,7 +184,12 @@ cell_failgraphwrite_sql() {
 		if [[ -s "${observed_ops}" ]]; then
 			printf '\n=== statement shapes this cell actually executed (anchor: %s) ===\n' \
 				"${sql_edge_operation_match}" >&2
-			sort -u "${observed_ops}" >&2
+			# cat, NOT sort -u. The record holds multi-line statements; sorting
+			# sorts LINES and shreds them into alphabetised fragments, which is
+			# how the first run printed a wall of "r.field = row.field," with the
+			# MERGE lines scattered. Dedup already happened in Go, keyed on the
+			# full statement text.
+			cat "${observed_ops}" >&2
 			printf '=== end observed statements ===\n\n' >&2
 		else
 			printf 'fail-graph-write-once-then-succeed-sql: no observed-operations record at %s -- the executor saw no statements at all while armed, which points at wiring rather than the anchor\n' \
