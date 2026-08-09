@@ -5,7 +5,7 @@ Validation-Tier: deployed_services
 Validation-Date: 2026-08-09
 Evidence-Kind: compose_e2e
 Evidence-Source: scripts/run-remote-e2e-component-extension.sh
-Validation-Command: CE_PROOF_PROJECT=eshu-5552-component-20260809-2 bash scripts/run-remote-e2e-component-extension.sh --artifacts /tmp/eshu-5552-component-artifacts-20260809-2; echo $?
+Validation-Command: CE_PROOF_PROJECT=eshu-5552-component-20260809-3 bash scripts/run-remote-e2e-component-extension.sh --artifacts /tmp/eshu-5552-component-artifacts-20260809-3; echo $?
 Validation-Exit-Code: 0
 Capability-Assertion: component_extensions.inventory returned the installed, enabled, trusted Scorecard component from the deployed component registry.
 B12-Assertion: component_extensions.inventory -> mcp:list_component_extensions
@@ -13,7 +13,7 @@ B12-Assertion: component_extensions.inventory -> mcp:list_component_extensions
 ## Fresh deployed validation
 
 The uniquely named Compose stack used an image rebuilt from commit
-`c3beecab5b`. The capture-and-verify driver observed the Scorecard component as
+`bab7e38e6f`. The capture-and-verify driver observed the Scorecard component as
 installed, enabled, and trusted; its workflow item completed; its committed
 fact families were non-empty; and authenticated HTTP and MCP inventory calls
 returned one available component with the same identity and state.
@@ -117,7 +117,7 @@ Committed fact families (counts only): `dev.eshu.examples.scorecard.snapshot`
 manifest's `source_evidence_only:no_graph_truth` reducer contract (no graph
 nodes/edges asserted).
 
-Provenance recorded: `eshu_commit=c3beecab5b`, `component_digest`
+Provenance recorded: `eshu_commit=bab7e38e6f`, `component_digest`
 a well-formed `sha256:` value, `core_version=dev`, `backend=nornicdb`,
 `queue_terminal_state=completed`, `metrics_handle=:9464/metrics`. No host
 path, private-key marker, bearer token, or raw IP appeared in any artifact
@@ -133,9 +133,9 @@ Both returned the same live sanitized registry readback instead of the pre-fix
 `503`/tool error:
 
 ```bash
-CE_PROOF_PROJECT=eshu-5552-component-20260809-2 \
+CE_PROOF_PROJECT=eshu-5552-component-20260809-3 \
   bash scripts/run-remote-e2e-component-extension.sh \
-  --artifacts /tmp/eshu-5552-component-artifacts-20260809-2
+  --artifacts /tmp/eshu-5552-component-artifacts-20260809-3
 # component-extension proof artifacts verified (...)
 # exit 0
 ```
@@ -157,7 +157,7 @@ filesystem path; no host path, private key, bearer token, or raw IP appears):
       "manifest_digest": "sha256:85aedc15bdf428a664a78dea55b9dae11ccf59bb92cca590ebacec5aab379698",
       "verified": true,
       "trust_mode": "allowlist",
-      "installed_at": "2026-08-09T17:58:56.825997856Z",
+      "installed_at": "2026-08-09T18:26:34.327080858Z",
       "states": ["installed", "enabled", "claim_capable"],
       "activations": [
         {
@@ -165,7 +165,7 @@ filesystem path; no host path, private key, bearer token, or raw IP appears):
           "mode": "scheduled",
           "claims_enabled": true,
           "config_handle": "component-config:5bc505367c526ee8d5ba4da5ff59c0f0910569a6a60102bbe04a446418a2ba12",
-          "enabled_at": "2026-08-09T17:58:56.834062741Z"
+          "enabled_at": "2026-08-09T18:26:34.334141371Z"
         }
       ],
       "diagnostics": {"policy_configured": true, "policy_allowed": true, "policy_mode": "allowlist"},

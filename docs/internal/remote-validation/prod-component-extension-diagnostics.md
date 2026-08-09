@@ -5,7 +5,7 @@ Validation-Tier: deployed_services
 Validation-Date: 2026-08-09
 Evidence-Kind: compose_e2e
 Evidence-Source: scripts/run-remote-e2e-component-extension.sh
-Validation-Command: CE_PROOF_PROJECT=eshu-5552-component-20260809-2 bash scripts/run-remote-e2e-component-extension.sh --artifacts /tmp/eshu-5552-component-artifacts-20260809-2; echo $?
+Validation-Command: CE_PROOF_PROJECT=eshu-5552-component-20260809-3 bash scripts/run-remote-e2e-component-extension.sh --artifacts /tmp/eshu-5552-component-artifacts-20260809-3; echo $?
 Validation-Exit-Code: 0
 Capability-Assertion: component_extensions.diagnostics returned allowed policy and trust decisions plus claim-capable scheduler state from the deployed component registry.
 B12-Assertion: component_extensions.diagnostics -> mcp:get_component_extension_diagnostics
@@ -13,7 +13,7 @@ B12-Assertion: component_extensions.diagnostics -> mcp:get_component_extension_d
 ## Fresh deployed validation
 
 The uniquely named Compose stack used an image rebuilt from commit
-`c3beecab5b`. The capture-and-verify driver proved the shared registry was
+`bab7e38e6f`. The capture-and-verify driver proved the shared registry was
 installed, enabled, trusted, terminal-successful, and fact-producing. Its
 authenticated HTTP and MCP diagnostics calls both returned `available`, an
 `allowed` trust decision, an `allowed` policy gate, and a `claim_capable`
@@ -55,9 +55,9 @@ live HTTP/MCP captures below, run against the same reconciled stack.
 ## Live HTTP and MCP proof
 
 ```bash
-CE_PROOF_PROJECT=eshu-5552-component-20260809-2 \
+CE_PROOF_PROJECT=eshu-5552-component-20260809-3 \
   bash scripts/run-remote-e2e-component-extension.sh \
-  --artifacts /tmp/eshu-5552-component-artifacts-20260809-2
+  --artifacts /tmp/eshu-5552-component-artifacts-20260809-3
 # component-extension proof artifacts verified (...)
 # exit 0
 ```
@@ -83,7 +83,7 @@ opaque sha256 handle, never a filesystem path):
     "manifest_digest": "sha256:85aedc15bdf428a664a78dea55b9dae11ccf59bb92cca590ebacec5aab379698",
     "verified": true,
     "trust_mode": "allowlist",
-    "installed_at": "2026-08-09T17:58:56.825997856Z",
+    "installed_at": "2026-08-09T18:26:34.327080858Z",
     "states": ["installed", "enabled", "claim_capable"],
     "activations": [
       {
@@ -91,7 +91,7 @@ opaque sha256 handle, never a filesystem path):
         "mode": "scheduled",
         "claims_enabled": true,
         "config_handle": "component-config:5bc505367c526ee8d5ba4da5ff59c0f0910569a6a60102bbe04a446418a2ba12",
-        "enabled_at": "2026-08-09T17:58:56.834062741Z"
+        "enabled_at": "2026-08-09T18:26:34.334141371Z"
       }
     ],
     "diagnostics": {"policy_configured": true, "policy_allowed": true, "policy_mode": "allowlist"},
