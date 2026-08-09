@@ -178,7 +178,7 @@ if rg --fixed-strings --quiet -- "the scripted fault never fired -- no once-fire
 	fail "the SQL cell's die message asserts the fault never fired; a missing marker also means the marker write failed (#5974)"
 fi
 
-require "failgraphwrite_sql enabled for the #5974 probe experiment" "runs HERE ON PURPOSE, for one experiment"
+require "failgraphwrite_sql held out with the probe experiment result" "the statement that writes SQL edges in CI"
 # The library must DEFINE both cells. The needles below check implementation
 # details that could still match if the function wrapper were renamed away.
 require_delivery_cells "delivery lib defines cell_duplicatedelivery" "cell_duplicatedelivery() {"

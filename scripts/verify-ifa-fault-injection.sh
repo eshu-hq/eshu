@@ -332,17 +332,22 @@ cell_deltaretract
 # anchor matches a real write locally and not in CI -- tracked in #5974.
 # Enabling it here would leave CI red; the marker is what made the question
 # precise, not what answered it.
-# cell_failgraphwrite_sql runs HERE ON PURPOSE, for one experiment.
+# cell_failgraphwrite_sql: HELD OUT, and the experiment that justified enabling
+# it has now run. Its probes answered #5974 (job 93178779885):
 #
-# It is known to fail in CI (#5974). The three probes added with it -- a fresh
-# stack precondition, an edge-set assertion after the drain, and a loud marker
-# write -- exist to make that failure say WHICH cause, and they can only do that
-# if CI actually runs them. A held-out cell answers nothing.
+#   fresh-stack precondition: 0 shared_projection_intents
+#   ifa assert-edges: domain=sql_relationships expected=9 edges matched exactly
+#   sql_relationships intent window: 10|0|01:25:16.739007+00|01:25:18.360784+00
 #
-# If this run goes red, the probe output is the answer and this line goes back
-# to commented-out in the same PR. This PR is not merged while red.
-cell_failgraphwrite_sql
-# HISTORICAL: cell_failgraphwrite_sql is defined but NOT run by default (#5974). It passes
+# The stack was fresh, the SQL edges WERE written by this cell (intents created
+# and completed inside its own window), no marker-write failure was reported,
+# and the GCP cell fired normally in the same run -- so the tagged binary, the
+# decorator and the script plumbing all work in CI. Yet no marker.
+#
+# That leaves one explanation: the statement that writes SQL edges in CI does
+# not contain the anchor text. Tracked in #5974; the cell stays out until the
+# emitted Cypher is captured and the anchor matches what actually runs.
+# cell_failgraphwrite_sql is defined but NOT run by default (#5974). It passes
 # locally and does not fire in CI: run 31245188403 shows zero injected-fault
 # hits and zero shared-projection partition failures, while the GCP cell in the
 # same run fired normally -- so the decorator works and only this injection
