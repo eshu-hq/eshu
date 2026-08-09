@@ -95,10 +95,11 @@ cell_killworker_sql() {
 # retired in #5974: it could not tell "the fault never fired" apart from "the
 # log line arrived late", and it read the former as the latter for weeks.
 #
-# HELD OUT of the default cell list. With the marker in place CI answered the
-# question the log could not: no marker is written there at all, so the fault
-# genuinely does not fire in CI while firing locally in 9s. See the call site
-# in scripts/verify-ifa-fault-injection.sh and #5974.
+# In the default cell list since #5974. The marker looked absent in CI for
+# months, which read as "the fault does not fire there". It did fire, every
+# time; the assertion that read the marker called `rg`, which this runner does
+# not have, and its "command not found" was indistinguishable from a negative
+# match. See ifa_fault_injection_common.sh and #5974.
 cell_failgraphwrite_sql() {
 	local cell_start
 	cell_start=$(date +%s)
@@ -139,7 +140,7 @@ cell_failgraphwrite_sql() {
 	fi
 
 	drive_all_cassettes failgraphwritesql
-	local fault_once_script_sql projector_pid reducer_pid observed_ops
+	local fault_once_script_sql projector_pid reducer_pid
 	fault_once_script_sql="${work_dir}/fault-once-then-succeed-sql.json"
 	ifa_fault_write_once_script "${fault_once_script_sql}" "${sql_edge_operation_match}" "queue-retry"
 	ifa_det_start_bg "${log_dir}" "projector-failgraphwritesql" projector_pid "${bin_dir}/eshu-projector"
@@ -190,20 +191,7 @@ cell_failgraphwrite_sql() {
 		printf '\n=== sentinel family on disk (base: %s) ===\n' "${fault_once_script_sql}" >&2
 		ls -la "${fault_once_script_sql}"* 2>&1 | sed 's/^/  /' >&2 || true
 		printf '=== end sentinel family ===\n\n' >&2
-		observed_ops="${fault_once_script_sql}.restart-sentinel.observed-operations"
-		if [[ -s "${observed_ops}" ]]; then
-			printf '\n=== statement shapes this cell actually executed (anchor: %s) ===\n' \
-				"${sql_edge_operation_match}" >&2
-			# cat, NOT sort -u. The record holds multi-line statements; sorting
-			# sorts LINES and shreds them into alphabetised fragments. Dedup
-			# already happened in Go, keyed on the full statement text.
-			cat "${observed_ops}" >&2
-			printf '=== end observed statements ===\n\n' >&2
-		else
-			printf 'fail-graph-write-once-then-succeed-sql: no observed-operations record at %s -- the executor saw no statements at all while armed, which points at wiring rather than the anchor\n' \
-				"${observed_ops}" >&2
-		fi
-		die "fail-graph-write-once-then-succeed-sql: no once-fired marker beside ${fault_once_script_sql}, and no marker-write failure reported. The listing and observed statements above say which of those is true."
+		die "fail-graph-write-once-then-succeed-sql: no once-fired marker beside ${fault_once_script_sql}, and no marker-write failure reported. Probe 2 above already proved whether the targeted SQL edge was written at all, so read that result with the listing to tell 'the MERGE never ran here' apart from 'it ran and the anchor missed it' (#5974)."
 	fi
 	printf 'fail-graph-write-once-then-succeed-sql: non-vacuous: once-fired marker names the targeted SQL edge MERGE (written by the fault decorator at injection time, not read from the reducer log)\n'
 	teardown_cell failgraphwritesql

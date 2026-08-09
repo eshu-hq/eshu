@@ -58,8 +58,9 @@
 #      intent path, which has no attempt_count column (see
 #      go/internal/reducer/shared_projection_runner.go's
 #      TestSharedProjectionRunnerLogsPartitionProcessingError).
-#      NOT run by default: it passes locally and does not fire in CI (#5974),
-#      caught by its own non-vacuity check. See the call site below.
+#      Runs by default since #5974. It was held out for months on the belief
+#      that the fault did not fire in CI; it always did, and the assertion was
+#      calling a binary the runner lacks. See the call site below.
 #   8. duplicate-delivery (#5544)             -- drain once cleanly, then force
 #      every succeeded reducer row back to a claimable pending state in SQL and
 #      drain again. Proves the write path is idempotent under at-least-once
@@ -323,50 +324,25 @@ cell_restartbackend
 cell_killworker_sql
 cell_duplicatedelivery
 cell_deltaretract
-# cell_failgraphwrite_sql stays held out. #5974's marker (below) replaced a log
-# poll that could not tell "the fault never fired" apart from "the log line
-# arrived late". With the ambiguity gone, CI answered plainly: the fault does
-# NOT fire there. Run 31281... on PR #5981 reached this cell with all eight
-# others green and reported no once-fired marker at all, while the same cell
-# fires locally in 9s. So the remaining question is why the QUERIES_TABLE MERGE
-# anchor matches a real write locally and not in CI -- tracked in #5974.
-# Enabling it here would leave CI red; the marker is what made the question
-# precise, not what answered it.
-# cell_failgraphwrite_sql: HELD OUT, and the experiment that justified enabling
-# it has now run. Its probes answered #5974 (job 93178779885):
+# cell_failgraphwrite_sql is a permanent member of the matrix as of #5974.
 #
-#   fresh-stack precondition: 0 shared_projection_intents
-#   ifa assert-edges: domain=sql_relationships expected=9 edges matched exactly
-#   sql_relationships intent window: 10|0|01:25:16.739007+00|01:25:18.360784+00
+# It spent months held out under three successive diagnoses -- a stderr-flush
+# race, then "the fault does not fire in CI", then "the emitted Cypher does not
+# contain the anchor" -- and all three were wrong. When the marker was finally
+# read correctly it was present, naming the anchored statement: the injection
+# worked and the reading of it did not. What failed was the assertion:
+# it matched the marker with `rg`, which is not installed on this runner, so
+# "command not found" was read as "the marker does not name the operation".
+# The fix lives in ifa_fault_injection_common.sh.
 #
-# The stack was fresh, the SQL edges WERE written by this cell (intents created
-# and completed inside its own window), no marker-write failure was reported,
-# and the GCP cell fired normally in the same run -- so the tagged binary, the
-# decorator and the script plumbing all work in CI. Yet no marker.
+# The lesson outlives the cell: a checker that cannot run must never look like a
+# checker that ran and said no. The assertion now matches in bash and returns
+# three distinct verdicts -- 0 the targeted write, 2 a different write, 1 no
+# marker -- so no single exit code carries two meanings.
 #
-# That leaves one explanation: the statement that writes SQL edges in CI does
-# not contain the anchor text. Tracked in #5974; the cell stays out until the
-# emitted Cypher is captured and the anchor matches what actually runs.
-# cell_failgraphwrite_sql runs for one more experiment, then goes back out.
-#
-# The previous round proved the fault does not fire in CI and eliminated every
-# cheap explanation: the stack was fresh, the SQL edges were written by this
-# cell, no marker-write failure occurred, and the GCP cell fired in the same
-# run. What was never captured is the other half of the observation -- the
-# statement text the anchor was compared against.
-#
-# This run records it. On a missing marker the cell now prints every distinct
-# statement shape it executed, next to the anchor, which turns "the anchor did
-# not match" into "here is what it should have said". Expected red; the output
-# is the deliverable. The cell goes back to held-out once the anchor is fixed.
+# Do not hold this cell out again on a red run without first proving the
+# assertion itself can execute.
 cell_failgraphwrite_sql
-# HISTORICAL: cell_failgraphwrite_sql is defined but NOT run by default (#5974). It passes
-# locally and does not fire in CI: run 31245188403 shows zero injected-fault
-# hits and zero shared-projection partition failures, while the GCP cell in the
-# same run fired normally -- so the decorator works and only this injection
-# misses. Its own non-vacuity check caught that. Running it here would leave CI
-# red; widening the budget to hide it would ship exactly the inert-gate defect
-# #5555 exists to remove. Re-enable when #5974 proves it fires.
 
 log "PASS: fault-injection matrix green (project ${FAULT_COMPOSE_PROJECT}, postgres:${ESHU_POSTGRES_PORT}, neo4j-bolt:${NEO4J_BOLT_PORT})"
 for cell in "${!digests[@]}"; do

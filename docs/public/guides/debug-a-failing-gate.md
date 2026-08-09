@@ -74,14 +74,15 @@ bash scripts/test-verify-ifa-fault-injection.sh
 ```
 
 The hermetic mirror. The live gate
-(`bash scripts/verify-ifa-fault-injection.sh`) drives eight cells — a
-fault-free baseline, a killed worker, a forced lease expiry, one failed graph
-write, a mid-drain backend restart, a SQL-scoped killed worker, a duplicate
-delivery, and a generation-2 delta retract — with zero durable dead letters
-throughout.
+(`bash scripts/verify-ifa-fault-injection.sh`) drives nine cells — a fault-free
+baseline, a killed worker, a forced lease expiry, one failed graph write, a
+mid-drain backend restart, a SQL-scoped killed worker, a duplicate delivery, a
+generation-2 delta retract, and a SQL-anchored failed graph write — with zero
+durable dead letters throughout.
 
-Seven of the eight assert recovery to the *identical* canonical graph as the
-baseline. The delta-retract cell is the exception and asserts something
+The baseline cell establishes the canonical digest. Seven of the eight
+remaining cells assert recovery to that *identical* graph. The delta-retract
+cell is the exception and asserts something
 different on purpose: generation 2 changes the graph, so its proof is the
 exact expected edge set rather than digest equality. If you are tempted to
 "fix" that cell by comparing it to the baseline, read its comment first — the
@@ -93,9 +94,13 @@ script that silently never triggers cannot report a false pass. If a cell's
 assertion names "the scripted fault never fired," the bug is in the fault
 wiring, not in recovery itself — start there before suspecting the reducer.
 
-A ninth cell, the SQL-anchored failed graph write, is defined but not run: it
-passes locally and does not fire in CI, which its own non-vacuity check
-caught. #5974 tracks it.
+A ninth cell, the SQL-anchored failed graph write, runs alongside the rest. It
+was held out for months because its non-vacuity check reported that the fault
+never fired in CI. The fault did fire; the assertion that read the fired-fault
+marker matched with `rg`, which is not installed on the fault-injection runner,
+so "command not found" was indistinguishable from "the marker does not name
+this operation". If a fault cell ever reports an inert fault again, confirm the
+checker itself can run before believing the verdict (#5974).
 
 ## `ifa-load-saturation`
 

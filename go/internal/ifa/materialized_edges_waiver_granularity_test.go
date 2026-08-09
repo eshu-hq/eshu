@@ -175,18 +175,24 @@ func TestMaterializedEdgeBaselineWaiverDoesNotGreenFault(t *testing.T) {
 	}
 }
 
-// TestMaterializedEdgeSQLFaultHonestlyWaived pins the honest landing shape
-// against the REAL committed manifest and waivers: the SQL baseline row is
-// genuinely covered, and the fault row is still WAIVED.
+// TestMaterializedEdgeSQLFaultHonestlyCovered pins the honest landing shape
+// against the REAL committed manifest and waivers: the SQL baseline and fault
+// rows are both genuinely covered, and neither is standing on a waiver.
 //
 // #5555 fixed a real defect -- the fired-fault assertion had been two
 // independent whole-file greps that both matched when the fault landed on
-// CloudResource -- and cell_killworker_sql is proven live in CI. But
-// cell_failgraphwrite_sql passes locally and does not fire in CI (#5974),
-// caught by its own non-vacuity check. So the fault dimension is not proven in
-// the environment that counts, and this test exists to stop the row going
-// green before it is.
-func TestMaterializedEdgeSQLFaultHonestlyWaived(t *testing.T) {
+// CloudResource -- and cell_killworker_sql was proven live first.
+// cell_failgraphwrite_sql then spent months looking inert in CI, and the
+// dimension was waived on that reading. It was wrong: the fault fired, and the
+// assertion that read its marker called `rg`, which the fault-injection runner
+// does not have, so "command not found" was indistinguishable from a negative
+// match (#5974).
+//
+// The test now guards the opposite direction. Going green early was the old
+// risk; the new one is a proven dimension being quietly re-waived, so this
+// fails if a waiver reappears or if the coverage stops resolving through its
+// Odù.
+func TestMaterializedEdgeSQLFaultHonestlyCovered(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
 	specsDir := filepath.Join(repoRoot, "specs")
@@ -218,19 +224,29 @@ func TestMaterializedEdgeSQLFaultHonestlyWaived(t *testing.T) {
 		t.Errorf("sql_relationships baseline status = %q, want covered", baseline.Status)
 	}
 
-	// Fault: waived, not covered. cell_failgraphwrite_sql does not fire in CI
-	// (#5974), so the dimension is unproven where it matters.
+	// Fault: covered by real proof, not by a waiver. It was waived until #5974 on
+	// the belief that cell_failgraphwrite_sql did not fire in CI. It did fire;
+	// the assertion reading its marker shelled out to a binary the runner does
+	// not have, so a working fault read as an inert one.
+	fault := findMaterializedEdgeCoverage(t, cov, MaterializedEdgeSurfacePrefix+"sql_relationships", replaycoverage.ScenarioTypeFault)
+	if fault.Status != replaycoverage.StatusCovered {
+		t.Errorf("sql_relationships fault status = %q, detail=%q, want covered", fault.Status, fault.Detail)
+	}
+	// Covered must mean resolved-through-the-Odù, not merely present. A row that
+	// resolves to an empty or vacuous detail would satisfy the status check while
+	// proving nothing -- the exact false-green this file exists to catch.
+	if !strings.Contains(fault.Detail, "odu:ifa-sql-family") {
+		t.Errorf("sql fault coverage must resolve through its Odù, got detail %q", fault.Detail)
+	}
+
 	faultFinding := findFinding(t, gate, MaterializedEdgeSurfacePrefix+"sql_relationships|fault")
 	if !faultFinding.OK {
-		t.Errorf("waived sql fault row must not fail the gate, got %+v", faultFinding)
-	}
-	if !strings.Contains(faultFinding.Detail, "#5974") {
-		t.Errorf("the sql fault waiver must name the issue that will retire it, got detail %q", faultFinding.Detail)
+		t.Errorf("covered sql fault row must not fail the gate, got %+v", faultFinding)
 	}
 
 	byKey := materializedEdgeWaiversByKey(waivers)
-	if _, ok := byKey[materializedEdgeWaiverKey{Surface: MaterializedEdgeSurfacePrefix + "sql_relationships", ProofGate: materializedEdgeProofGateFault}]; !ok {
-		t.Error("sql_relationships fault is unproven in CI (#5974); it must carry a waiver rather than read as covered")
+	if _, ok := byKey[materializedEdgeWaiverKey{Surface: MaterializedEdgeSurfacePrefix + "sql_relationships", ProofGate: materializedEdgeProofGateFault}]; ok {
+		t.Error("sql_relationships fault is proven live since #5974; a waiver here would silently downgrade a proven dimension")
 	}
 }
 

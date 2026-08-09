@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -119,15 +118,6 @@ type FaultingExecutor struct {
 	// always see the marker too.
 	onceFiredPath string
 
-	// observedOpsPath, when non-empty, receives one line per DISTINCT statement
-	// shape this executor saw while a substring-matched once-fault was armed.
-	// It answers the question a missing marker cannot: the fault did not fire,
-	// so what DID run? #5974 spent weeks on that question because nothing
-	// recorded the statements the anchor was compared against.
-	observedOpsPath string
-	observedOpsMu   sync.Mutex
-	observedOps     map[string]struct{}
-
 	// restart-backend-between-phase-groups state.
 	restartAfterGroups int // 0 => no such fault scripted.
 	restartFired       atomic.Bool
@@ -211,7 +201,6 @@ func (fe *FaultingExecutor) applyFault(f faultreplay.FaultOp, sentinelPath strin
 		// path simply skips the marker.
 		if strings.TrimSpace(sentinelPath) != "" {
 			fe.onceFiredPath = sentinelPath + onceFiredMarkerSuffix
-			fe.observedOpsPath = sentinelPath + observedOpsSuffix
 		}
 		return nil
 	case faultreplay.KindRestartBackendBetweenPhaseGroups:
@@ -323,7 +312,6 @@ func (fe *FaultingExecutor) maybeFailOnce(
 	if fe.onceLane == "" {
 		return ctx, nil
 	}
-	fe.recordObservedOperations(stmts)
 	matched, ok := fe.onceMatchedStatement(ordinal, stmts)
 	if !ok {
 		return ctx, nil
