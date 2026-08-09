@@ -119,6 +119,15 @@ orchestration. It does not own service runtime internals:
     `replay`, `dead-letter`, `skip`, `backfill`, `replay-events`
   - `config`, `neo4j`, `analyze`, `ecosystem`, `workspace`,
     `local-host`
+  - `demo`: `up`, `status`, `down` (`demo.go`, `demo_runtime.go`,
+    `demo_teardown.go`, `demo_manifest.go`) — the credential-free demo
+    stack. Unlike the rest of this binary, `demo` owns a Compose
+    lifecycle: it starts a stack under its own project name, waits for
+    indexing completeness rather than container health, asks the first
+    question from `specs/demo-first-answers.v1.yaml`, and removes the
+    stack with its volumes and networks. It refuses to adopt or remove a
+    project it did not create, and mints an ephemeral credential per run
+    rather than requiring one.
 
 ## Configuration
 
