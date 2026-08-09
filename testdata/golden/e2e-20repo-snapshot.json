@@ -5174,7 +5174,7 @@
         }
       },
       "get_service_changed_since": {
-        "description": "A second committed version of the public deployable-config fixture changes only its Backstage owner after the first drain. Existing bootstrap and reducer maintenance then create a distinct active materialization generation through the normal evidence path. Runtime composition replaces the two generation sentinels with the captured superseded and active IDs. The exact ownership add/supersede pair proves a real changed category, while the empty deployment delta is the adjacent no-change control.",
+        "description": "A second committed version of the public deployable-config fixture changes only its Backstage owner after the first drain. Existing bootstrap and reducer maintenance then create a distinct active materialization generation through the normal evidence path. Runtime composition replaces the two generation sentinels with the captured superseded and active IDs. The exact ownership add/supersede pair proves a real changed category, while deployment counts are captured from the same durable generations so later-settling derived evidence remains truthful.",
         "required_response_fields": [
           "service_id",
           "since_generation_id",

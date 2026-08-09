@@ -36,16 +36,10 @@ pg() {
 		printf '%s\n' "${mock_deployment_counts}"
 		return
 	fi
-	if [[ "${sql}" == *"WITH adjacent_differences AS"* ]]; then
-		local predicate="evidence_family NOT IN ('ownership', 'deployment')"
-		local remaining="${sql}" predicate_count=0
-		while [[ "${remaining}" == *"${predicate}"* ]]; do
-			remaining="${remaining#*"${predicate}"}"
-			predicate_count=$((predicate_count + 1))
-		done
-		[[ "${predicate_count}" == "4" ]] ||
-			fail "durable lineage guard must leave deployment deltas to the dedicated classifier in all four branches"
-		printf '2|1|1|superseded|1|0|0|1|0\n'
+	if [[ "${sql}" == *"service_materialization_generations"* && "${sql}" == *"ownership:component:default/deployable-config"* ]]; then
+		[[ "${sql}" != *"adjacent_differences"* ]] ||
+			fail "durable lineage must not reject unrelated derived evidence that settles between generations"
+		printf '2|1|1|superseded|1|0|0|1\n'
 		return
 	fi
 	if [[ "${sql}" == *"SELECT generation_id"* && "${sql}" == *"status = 'active'"* ]]; then
