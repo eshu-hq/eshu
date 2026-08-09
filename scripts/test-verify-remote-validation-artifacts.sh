@@ -380,8 +380,22 @@ scripts/verify-golden-corpus-gate.sh|scripts/verify-golden-corpus-gate.sh
 scripts/**/run-k8s-*.sh|scripts/run-k8s-example.sh
 scripts/**/verify-hosted-*.sh|scripts/verify-hosted-example.sh
 scripts/**/*e2e*.sh|scripts/example-e2e-proof.sh
-tests/fixtures/component_extension_proof/**|tests/fixtures/component_extension_proof/good/api-inventory.json
 EVIDENCE_SOURCE_TRIGGERS
+
+component_extension_fixture='tests/fixtures/component_extension_proof/good/api-inventory.json'
+component_extension_selection="$(
+	printf '%s\n' "${component_extension_fixture}" |
+		(cd "${repo_root}/go" && go run ./cmd/ci-gates select \
+			--registry "${case11_registry}" --tier pre-pr --paths-from - --explain)
+)"
+if printf '%s\n' "${component_extension_selection}" |
+	rg -q '^SELECTED[[:space:]]+remote-validation-artifacts[[:space:]]' &&
+	printf '%s\n' "${component_extension_selection}" |
+		rg -q --fixed-strings "matched trigger \"${component_extension_fixture_trigger}\" on path \"${component_extension_fixture}\""; then
+	record_pass "component-extension proof fixture selects remote-validation-artifacts"
+else
+	record_fail "component-extension proof fixture selects remote-validation-artifacts"
+fi
 
 # Case 12 (BITES): seed one new production-supported row with no deployed
 # artifact and observe RED; revert the seed and observe GREEN again.
