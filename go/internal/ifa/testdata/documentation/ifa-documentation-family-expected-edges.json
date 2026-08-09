@@ -1,0 +1,16 @@
+{
+  "odu": "odu:ifa-documentation-family",
+  "note": "Hand-derived from ExtractDocumentationEdgeRowsWithQuarantine's decision surface, NOT captured from a run. section_uid is documentationSectionNodeUID(document_id, section_id) = \"docsection:\" + document_id + \"|\" + section_id. The fixture carries seven mentions; exactly these two produce edges. The other five each trip a distinct guard: duplicate section->target, non-exact resolution, two candidate refs, service target_kind, and a whitespace-only section_id.",
+  "edges": [
+    {
+      "section_uid": "docsection:doc-platform-guide|sec-overview",
+      "target_entity_id": "func:payments.Charge",
+      "target_kind": "function"
+    },
+    {
+      "section_uid": "docsection:doc-platform-guide|sec-overview",
+      "target_entity_id": "sqltable:public.payments",
+      "target_kind": "table"
+    }
+  ]
+}
