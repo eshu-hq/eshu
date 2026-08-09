@@ -80,9 +80,9 @@ missing environment. This mirrors a real deployment: the query services need
 the same component-home mount and trust policy as the coordinator/collector to
 serve accurate registry truth.
 
-**Doc-recipe gap found and worked around**: the published recipe in
+**Doc-recipe gap fixed in this change**: the published recipe in
 [Reference Scorecard Extension](../../public/extend/reference-scorecard-extension.md)
-passes only `--profile component-extension-collector` to `docker compose up`.
+previously passed only `--profile component-extension-collector` to `docker compose up`.
 `workflow-coordinator` carries its own `profiles: [workflow-coordinator]` tag
 in the base `docker-compose.yaml` and is not a dependency of any service in
 the `component-extension-collector` profile, so with only the documented flag
@@ -92,11 +92,8 @@ never starts. Passing `--profile workflow-coordinator` in addition to
 `--profile component-extension-collector` (as shown above) is required for
 the stack to actually produce a completed claim; without it,
 `workflow_work_items` stays empty and the verifier's workflow check fails
-closed with "no completed/succeeded component workflow item". This is a
-documentation/script defect worth a follow-up fix to
-`docs/public/extend/reference-scorecard-extension.md` and
-`docs/public/run-locally/docker-compose.component-extension.yaml`, tracked
-separately from this validation.
+closed with "no completed/succeeded component workflow item". Both public
+recipes now include the coordinator profile.
 
 ## Observed (redacted)
 
