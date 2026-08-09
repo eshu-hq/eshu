@@ -45,6 +45,9 @@ func TestRemoteValidationInventoryIsDeterministicAndProductionScoped(t *testing.
 		t.Fatal("inventory rendering is not byte-for-byte deterministic")
 	}
 	inventory := BuildRemoteValidationInventory(matrix)
+	if got, want := inventory.SchemaVersion, 2; got != want {
+		t.Fatalf("schema version = %d, want %d", got, want)
+	}
 	if len(inventory.Artifacts) != 1 {
 		t.Fatalf("artifacts = %+v, want only the production-supported slug", inventory.Artifacts)
 	}
@@ -53,6 +56,9 @@ func TestRemoteValidationInventoryIsDeterministicAndProductionScoped(t *testing.
 		if got := inventory.Artifacts[0].Subjects[i]; got != want {
 			t.Fatalf("subject[%d] = %q, want %q", i, got, want)
 		}
+	}
+	if got, want := inventory.Artifacts[0].AssertionCount, len(wantSubjects); got != want {
+		t.Fatalf("assertion_count = %d, want %d", got, want)
 	}
 }
 
@@ -78,12 +84,30 @@ func TestCheckRemoteValidationInventoryDetectsDrift(t *testing.T) {
 func TestRemoteValidationInventoryRealSpecsCount(t *testing.T) {
 	t.Parallel()
 
-	matrix, err := LoadMatrix(repoSpecsDir(t))
+	specsDir := repoSpecsDir(t)
+	matrix, err := LoadMatrix(specsDir)
 	if err != nil {
 		t.Fatalf("load real matrix: %v", err)
 	}
 	inventory := BuildRemoteValidationInventory(matrix)
 	if got, want := len(inventory.Artifacts), 110; got != want {
 		t.Fatalf("production-supported remote-validation slugs = %d, want %d", got, want)
+	}
+	repoRoot := filepath.Dir(specsDir)
+	for _, item := range inventory.Artifacts {
+		raw, err := os.ReadFile(filepath.Join(repoRoot, filepath.FromSlash(item.ArtifactPath)))
+		if err != nil {
+			t.Fatalf("read %s: %v", item.ArtifactPath, err)
+		}
+		artifact, err := parseRemoteValidationArtifact(string(raw))
+		if err != nil {
+			t.Fatalf("parse %s: %v", item.ArtifactPath, err)
+		}
+		if got := len(artifact.assertions); got != item.AssertionCount {
+			t.Errorf("%s Capability-Assertion count = %d, inventory assertion_count = %d", item.Slug, got, item.AssertionCount)
+		}
+		if got := len(artifact.b12Assertions); got != item.AssertionCount {
+			t.Errorf("%s B12-Assertion count = %d, inventory assertion_count = %d", item.Slug, got, item.AssertionCount)
+		}
 	}
 }

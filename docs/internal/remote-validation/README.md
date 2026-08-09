@@ -78,6 +78,7 @@ Evidence-Source: scripts/run-remote-e2e-example.sh
 Validation-Command: bash scripts/run-remote-e2e-example.sh; echo $?
 Validation-Exit-Code: 0
 Capability-Assertion: capability.id returns a non-empty exact result through the deployed API.
+B12-Assertion: capability.id -> mcp:list_capability_results
 ```
 
 `Evidence-Kind` is `compose_e2e` for a committed Compose driver,
@@ -86,8 +87,12 @@ Capability-Assertion: capability.id returns a non-empty exact result through the
 record. `Evidence-Source` must exist and match that kind. The command must end
 with direct `; echo $?` capture, and the captured exit must be `0`. Add one
 `Capability-Assertion` per capability when several production rows share a
-slug. A local `go_test` run is useful lower-tier evidence, but it cannot retain
-a `production: supported` claim.
+slug. Add a matching `B12-Assertion` for each capability, using the exact
+`<transport>:<query-shape-key>` from the committed B-12 snapshot. The verifier
+rejects missing or unknown B-12 pointers, so every production claim resolves to
+the concrete deployed assertion that exercised it. A local `go_test` run is
+useful lower-tier evidence, but it cannot retain a `production: supported`
+claim.
 
 Keep credentials, hostnames, account IDs, IPs, key paths, and local machine
 paths out of the artifact. Once the evidence is valid, remove the ref from
@@ -105,7 +110,9 @@ bash scripts/generate-remote-validation-inventory.sh
 ```
 
 The generator writes
-`docs/internal/remote-validation/inventory.generated.json`. It never writes a
+`docs/internal/remote-validation/inventory.generated.json`. Schema version 2
+includes `assertion_count` for each artifact; tests cross-check that count
+against both assertion fields in the artifact. The generator never writes a
 validation date, command result, or capability assertion.
 
 ## Current state

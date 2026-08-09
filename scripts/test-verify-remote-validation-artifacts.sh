@@ -49,8 +49,9 @@ YAML
 write_valid_artifact() {
 	local case_root="$1" ref="$2" capability="$3"
 	local source="run-remote-e2e-${ref}.sh"
-	mkdir -p "${case_root}/scripts" "${case_root}/docs/internal/remote-validation"
+	mkdir -p "${case_root}/scripts" "${case_root}/docs/internal/remote-validation" "${case_root}/testdata/golden"
 	printf '#!/usr/bin/env bash\n' >"${case_root}/scripts/${source}"
+	printf '%s\n' '{"query_shapes":{"mcp":{"example_query":{}},"http":{},"cli":{}}}' >"${case_root}/testdata/golden/e2e-20repo-snapshot.json"
 	printf '%s\n' \
 		"# ${ref} production validation" \
 		'' \
@@ -62,6 +63,7 @@ write_valid_artifact() {
 		"Validation-Command: bash scripts/${source}; echo \$?" \
 		'Validation-Exit-Code: 0' \
 		"Capability-Assertion: ${capability} returns a deployed result." \
+		"B12-Assertion: ${capability} -> mcp:example_query" \
 		>"${case_root}/docs/internal/remote-validation/${ref}.md"
 }
 

@@ -38,6 +38,7 @@ type matrixRefSpec struct {
 
 func writeRemoteValidationArtifact(t *testing.T, repoRoot, ref, capability string) {
 	t.Helper()
+	writeRemoteValidationTestSnapshot(t, repoRoot, "example_query")
 	sourceDir := filepath.Join(repoRoot, "scripts")
 	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
 		t.Fatalf("mkdir %s: %v", sourceDir, err)
@@ -61,7 +62,8 @@ Evidence-Source: scripts/%s
 Validation-Command: bash scripts/%s; echo $?
 Validation-Exit-Code: 0
 Capability-Assertion: %s returns a deployed result.
-`, ref, ref, sourceName, sourceName, capability)
+B12-Assertion: %s -> mcp:example_query
+`, ref, ref, sourceName, sourceName, capability, capability)
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}

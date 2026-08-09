@@ -26,9 +26,10 @@ type RemoteValidationInventory struct {
 // RemoteValidationInventoryArtifact binds one evidence slug to every
 // production capability/profile row that cites it.
 type RemoteValidationInventoryArtifact struct {
-	Slug         string   `json:"slug"`
-	ArtifactPath string   `json:"artifact_path"`
-	Subjects     []string `json:"subjects"`
+	Slug           string   `json:"slug"`
+	ArtifactPath   string   `json:"artifact_path"`
+	Subjects       []string `json:"subjects"`
+	AssertionCount int      `json:"assertion_count"`
 }
 
 // BuildRemoteValidationInventory derives the checked-in evidence inventory
@@ -57,12 +58,13 @@ func BuildRemoteValidationInventory(matrix Matrix) RemoteValidationInventory {
 	artifacts := make([]RemoteValidationInventoryArtifact, 0, len(refs))
 	for _, ref := range refs {
 		artifacts = append(artifacts, RemoteValidationInventoryArtifact{
-			Slug:         ref,
-			ArtifactPath: RemoteValidationArtifactDir + "/" + ref + ".md",
-			Subjects:     uniqueSortedStrings(subjectsByRef[ref]),
+			Slug:           ref,
+			ArtifactPath:   RemoteValidationArtifactDir + "/" + ref + ".md",
+			Subjects:       uniqueSortedStrings(subjectsByRef[ref]),
+			AssertionCount: len(uniqueSortedStrings(subjectsByRef[ref])),
 		})
 	}
-	return RemoteValidationInventory{SchemaVersion: 1, Artifacts: artifacts}
+	return RemoteValidationInventory{SchemaVersion: 2, Artifacts: artifacts}
 }
 
 // MarshalRemoteValidationInventory renders inventory as stable, indented JSON

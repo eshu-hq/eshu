@@ -8,6 +8,7 @@ Evidence-Source: scripts/run-remote-e2e-component-extension.sh
 Validation-Command: CE_PROOF_PROJECT=eshu-5552-component-20260809-1 bash scripts/run-remote-e2e-component-extension.sh --artifacts /tmp/eshu-5552-component-artifacts-20260809-1; echo $?
 Validation-Exit-Code: 0
 Capability-Assertion: component_extensions.diagnostics returned allowed policy and trust decisions plus claim-capable scheduler state from the deployed component registry.
+B12-Assertion: component_extensions.diagnostics -> mcp:get_component_extension_diagnostics
 
 ## Fresh deployed validation
 

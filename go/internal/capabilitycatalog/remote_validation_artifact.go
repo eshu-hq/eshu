@@ -5,6 +5,7 @@ package capabilitycatalog
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,14 +27,15 @@ var (
 )
 
 type remoteValidationArtifact struct {
-	slug       string
-	tier       string
-	date       string
-	kind       string
-	source     string
-	command    string
-	exitCode   string
-	assertions []string
+	slug          string
+	tier          string
+	date          string
+	kind          string
+	source        string
+	command       string
+	exitCode      string
+	assertions    []string
+	b12Assertions []string
 }
 
 // validateRemoteValidationArtifact checks that ref has current-format,
@@ -86,7 +88,80 @@ func validateRemoteValidationArtifact(repoRoot, ref string, capabilities []strin
 	if missing := missingCapabilityAssertions(capabilities, artifact.assertions); len(missing) > 0 {
 		return fmt.Errorf("missing Capability-Assertion for %s", strings.Join(missing, ", "))
 	}
+	shapeRefs, err := loadB12QueryShapeRefs(repoRoot)
+	if err != nil {
+		return err
+	}
+	if err := validateB12Assertions(capabilities, artifact.b12Assertions, shapeRefs); err != nil {
+		return err
+	}
 	return nil
+}
+
+func validateB12Assertions(capabilities, assertions []string, shapeRefs map[string]struct{}) error {
+	expected := make(map[string]struct{}, len(capabilities))
+	for _, capability := range capabilities {
+		expected[capability] = struct{}{}
+	}
+	seen := make(map[string]struct{}, len(assertions))
+	for _, assertion := range assertions {
+		capability, queryRef, ok := strings.Cut(assertion, " -> ")
+		capability = strings.TrimSpace(capability)
+		queryRef = strings.TrimSpace(queryRef)
+		if !ok || capability == "" || queryRef == "" {
+			return fmt.Errorf("B12-Assertion %q must use '<capability> -> <transport>:<query-shape-key>'", assertion)
+		}
+		if _, ok := expected[capability]; !ok {
+			return fmt.Errorf("B12-Assertion names unexpected capability %q", capability)
+		}
+		if _, ok := seen[capability]; ok {
+			return fmt.Errorf("duplicate B12-Assertion for %s", capability)
+		}
+		seen[capability] = struct{}{}
+		if _, ok := shapeRefs[queryRef]; !ok {
+			return fmt.Errorf("B12-Assertion query shape %q is not found in the committed B-12 snapshot", queryRef)
+		}
+	}
+	missing := make([]string, 0, len(expected)-len(seen))
+	for capability := range expected {
+		if _, ok := seen[capability]; !ok {
+			missing = append(missing, capability)
+		}
+	}
+	if len(missing) > 0 {
+		sort.Strings(missing)
+		return fmt.Errorf("missing B12-Assertion for %s", strings.Join(missing, ", "))
+	}
+	return nil
+}
+
+func loadB12QueryShapeRefs(repoRoot string) (map[string]struct{}, error) {
+	path := filepath.Join(repoRoot, "testdata", "golden", "e2e-20repo-snapshot.json")
+	raw, err := os.ReadFile(path) // #nosec G304 -- path is fixed beneath the validated repository root
+	if err != nil {
+		return nil, fmt.Errorf("read committed B-12 snapshot: %w", err)
+	}
+	var snapshot struct {
+		QueryShapes struct {
+			MCP  map[string]json.RawMessage `json:"mcp"`
+			HTTP map[string]json.RawMessage `json:"http"`
+			CLI  map[string]json.RawMessage `json:"cli"`
+		} `json:"query_shapes"`
+	}
+	if err := json.Unmarshal(raw, &snapshot); err != nil {
+		return nil, fmt.Errorf("parse committed B-12 snapshot: %w", err)
+	}
+	refs := make(map[string]struct{}, len(snapshot.QueryShapes.MCP)+len(snapshot.QueryShapes.HTTP)+len(snapshot.QueryShapes.CLI))
+	for key := range snapshot.QueryShapes.MCP {
+		refs["mcp:"+key] = struct{}{}
+	}
+	for key := range snapshot.QueryShapes.HTTP {
+		refs["http:"+key] = struct{}{}
+	}
+	for key := range snapshot.QueryShapes.CLI {
+		refs["cli:"+key] = struct{}{}
+	}
+	return refs, nil
 }
 
 // validateRemoteValidationCommand proves that the exit status captured by the
@@ -205,6 +280,14 @@ func parseRemoteValidationArtifact(body string) (remoteValidationArtifact, error
 				return remoteValidationArtifact{}, fmt.Errorf("Capability-Assertion must not be empty")
 			}
 			artifact.assertions = append(artifact.assertions, assertion)
+			continue
+		}
+		if strings.HasPrefix(line, "B12-Assertion:") {
+			assertion := cleanRemoteValidationField(strings.TrimPrefix(line, "B12-Assertion:"))
+			if assertion == "" {
+				return remoteValidationArtifact{}, fmt.Errorf("B12-Assertion must not be empty")
+			}
+			artifact.b12Assertions = append(artifact.b12Assertions, assertion)
 			continue
 		}
 		for _, field := range fields {

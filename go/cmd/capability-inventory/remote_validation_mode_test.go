@@ -66,6 +66,13 @@ func writeRemoteValidationInventoryForSpecs(t *testing.T, specsDir string) {
 
 func writeValidRemoteValidationArtifact(t *testing.T, repoRoot, ref, capability string) {
 	t.Helper()
+	snapshotPath := filepath.Join(repoRoot, "testdata", "golden", "e2e-20repo-snapshot.json")
+	if err := os.MkdirAll(filepath.Dir(snapshotPath), 0o755); err != nil {
+		t.Fatalf("mkdir snapshot dir: %v", err)
+	}
+	if err := os.WriteFile(snapshotPath, []byte(`{"query_shapes":{"mcp":{"example_query":{}},"http":{},"cli":{}}}`), 0o644); err != nil {
+		t.Fatalf("write snapshot: %v", err)
+	}
 	sourceDir := filepath.Join(repoRoot, "scripts")
 	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
 		t.Fatalf("mkdir source dir: %v", err)
@@ -88,7 +95,8 @@ Evidence-Source: scripts/%s
 Validation-Command: bash scripts/%s; echo $?
 Validation-Exit-Code: 0
 Capability-Assertion: %s returns a deployed result.
-`, ref, ref, source, source, capability)
+B12-Assertion: %s -> mcp:example_query
+`, ref, ref, source, source, capability, capability)
 	if err := os.WriteFile(filepath.Join(artifactDir, ref+".md"), []byte(body), 0o644); err != nil {
 		t.Fatalf("write artifact: %v", err)
 	}
