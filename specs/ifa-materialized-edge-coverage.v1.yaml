@@ -141,7 +141,7 @@ waivers:
   # Both SQL fault cells are green live, so the row above is real coverage and
   # this waiver is gone rather than merely re-dated.
 
-  # --- The 11 other allProjectionDomains families: both gates unproven. ---
+  # --- The 13 other allProjectionDomains families: both gates unproven. ---
   # Each carries a baseline (ifa-determinism) AND a fault (ifa-fault-injection)
   # waiver because NEITHER dimension has an Odù + expected-edge-set fixture yet.
   # All point at the epic #5344 umbrella #5543 pending per-domain child issues.
