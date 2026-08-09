@@ -141,7 +141,10 @@ func TestBatchedWriteEdgesSkipsEmptyRequiredFields(t *testing.T) {
 	}
 }
 
-func TestBatchedWriteEdgesAllRowsInvalidIsNoop(t *testing.T) {
+// TestBatchedWriteEdgesAllRowsInvalidFailsIntent used to assert this case was a
+// silent no-op. It is not: no edge is written, so reporting success completes
+// the intent for work that never happened (#5984).
+func TestBatchedWriteEdgesAllRowsInvalidFailsIntent(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
@@ -153,12 +156,7 @@ func TestBatchedWriteEdgesAllRowsInvalidIsNoop(t *testing.T) {
 	}
 
 	err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads")
-	if err != nil {
-		t.Fatalf("WriteEdges() error = %v", err)
-	}
-	if got := len(executor.calls); got != 0 {
-		t.Fatalf("executor calls = %d, want 0 (all rows filtered)", got)
-	}
+	assertAllRowsUnroutable(t, err, len(executor.calls), reducer.DomainRepoDependency, 2)
 }
 
 func TestEdgeWriterWriteEdgesCodeCallsChunkManagedGroups(t *testing.T) {

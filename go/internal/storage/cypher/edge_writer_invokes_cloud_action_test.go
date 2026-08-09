@@ -78,7 +78,7 @@ func TestEdgeWriterWriteEdgesInvokesCloudActionDispatch(t *testing.T) {
 	}
 }
 
-func TestEdgeWriterWriteEdgesInvokesCloudActionSkipsRowsMissingMatchFields(t *testing.T) {
+func TestEdgeWriterWriteEdgesInvokesCloudActionRowsMissingMatchFieldsFailTheIntent(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
@@ -90,12 +90,8 @@ func TestEdgeWriterWriteEdgesInvokesCloudActionSkipsRowsMissingMatchFields(t *te
 		{IntentID: "i3", RepositoryID: "r1", Payload: map[string]any{"function_id": "f1", "cloud_action": "s3:putobject", "action_id": ""}},
 	}
 
-	if err := writer.WriteEdges(context.Background(), reducer.DomainInvokesCloudAction, rows, "parser/aws-sdk-call"); err != nil {
-		t.Fatalf("WriteEdges() error = %v", err)
-	}
-	if got := len(executor.calls); got != 0 {
-		t.Fatalf("executor calls = %d, want 0 (all rows filtered)", got)
-	}
+	err := writer.WriteEdges(context.Background(), reducer.DomainInvokesCloudAction, rows, "parser/aws-sdk-call")
+	assertAllRowsUnroutable(t, err, len(executor.calls), reducer.DomainInvokesCloudAction, 3)
 }
 
 func TestEdgeWriterRetractEdgesInvokesCloudActionDispatch(t *testing.T) {

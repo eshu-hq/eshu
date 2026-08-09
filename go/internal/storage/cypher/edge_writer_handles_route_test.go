@@ -82,7 +82,7 @@ func TestEdgeWriterWriteEdgesHandlesRouteDispatch(t *testing.T) {
 	}
 }
 
-func TestEdgeWriterWriteEdgesHandlesRouteSkipsRowsMissingMatchFields(t *testing.T) {
+func TestEdgeWriterWriteEdgesHandlesRouteRowsMissingMatchFieldsFailTheIntent(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
@@ -94,12 +94,8 @@ func TestEdgeWriterWriteEdgesHandlesRouteSkipsRowsMissingMatchFields(t *testing.
 		{IntentID: "i3", RepositoryID: "r1", Payload: map[string]any{"function_entity_id": "f1", "repo_id": "r1", "path": ""}},
 	}
 
-	if err := writer.WriteEdges(context.Background(), reducer.DomainHandlesRoute, rows, "parser/framework-routes"); err != nil {
-		t.Fatalf("WriteEdges() error = %v", err)
-	}
-	if got := len(executor.calls); got != 0 {
-		t.Fatalf("executor calls = %d, want 0 (all rows filtered)", got)
-	}
+	err := writer.WriteEdges(context.Background(), reducer.DomainHandlesRoute, rows, "parser/framework-routes")
+	assertAllRowsUnroutable(t, err, len(executor.calls), reducer.DomainHandlesRoute, 3)
 }
 
 func TestEdgeWriterRetractEdgesHandlesRouteDispatch(t *testing.T) {

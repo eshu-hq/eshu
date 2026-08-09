@@ -102,8 +102,22 @@ func (w *EdgeWriter) groupBatchSizeForDomain(domain string) int {
 }
 
 // WriteEdges writes canonical domain edges for the given rows using batched
-// UNWIND statements. Rows with empty required MATCH fields are skipped to
-// avoid silent failures in the batch.
+// UNWIND statements.
+//
+// A row whose required MATCH fields are empty cannot be routed to a statement.
+// Such a row is never written, and WriteEdges distinguishes the two cases that
+// used to look identical to the caller (#5984):
+//
+//   - an empty batch is "nothing to do" and returns nil;
+//   - a non-empty batch where NOTHING routed is "nothing could be done" and
+//     returns an error, so the shared projection worker does not complete an
+//     intent for edges that were never written. Completed intent rows are never
+//     reopened by the durable upsert, so a nil there loses the work silently
+//     and permanently;
+//   - a mixed batch writes the routable rows (dropping them too would be the
+//     larger loss) and reports the dropped count through a WARN log and the
+//     SharedEdgeUnroutableRows counter, so a partial loss is visible instead of
+//     being folded into the success log.
 //
 // When the executor implements GroupExecutor, all batches are dispatched in a
 // single atomic transaction.
@@ -132,9 +146,15 @@ func (w *EdgeWriter) WriteEdges(
 	routeOrder := make([]string, 0, 2)
 	artifactRows := make(map[string][]map[string]any)
 	artifactRouteOrder := make([]string, 0, 2)
+	droppedRows := 0
+	sampleDroppedIntentID := ""
 	for _, row := range rows {
 		cypher, rowMap, ok := buildRowMap(domain, row, evidenceSource)
 		if !ok {
+			droppedRows++
+			if sampleDroppedIntentID == "" {
+				sampleDroppedIntentID = row.IntentID
+			}
 			continue
 		}
 		if _, seen := routedRows[cypher]; !seen {
@@ -155,8 +175,11 @@ func (w *EdgeWriter) WriteEdges(
 		}
 	}
 
+	if droppedRows > 0 {
+		w.reportUnroutableRows(ctx, domain, evidenceSource, len(rows), droppedRows, sampleDroppedIntentID, len(routedRows) == 0)
+	}
 	if len(routedRows) == 0 {
-		return nil
+		return &UnroutableRowsError{Domain: domain, EvidenceSource: evidenceSource, InputRows: len(rows), DroppedRows: droppedRows}
 	}
 	writtenRows := 0
 	for _, cypher := range routeOrder {

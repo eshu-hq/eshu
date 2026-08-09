@@ -1252,7 +1252,13 @@ type Instruments struct {
 	// omit an impossible shared-edge RUNS_ON retract. Labels are limited to the
 	// bounded projection domain and reason enums; evidence source and repository
 	// identity stay in the accompanying structured log.
-	SharedEdgeRunsOnRetractOmissions   metric.Int64Counter
+	SharedEdgeRunsOnRetractOmissions metric.Int64Counter
+	// SharedEdgeUnroutableRows counts shared-projection rows a canonical edge
+	// write could not route to a statement, so no edge was written for them
+	// (#5984). The reason label separates a partial batch loss from a batch
+	// that produced nothing at all; the evidence source and a sample intent id
+	// stay in the accompanying structured log.
+	SharedEdgeUnroutableRows           metric.Int64Counter
 	SharedEdgeWriteGroupDuration       metric.Float64Histogram
 	SharedEdgeWriteGroupStatementCount metric.Int64Histogram
 	CodeCallEdgeBatches                metric.Int64Counter
@@ -4169,6 +4175,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SharedEdgeRunsOnRetractOmissions counter: %w", err)
+	}
+
+	inst.SharedEdgeUnroutableRows, err = meter.Int64Counter(
+		"eshu_dp_shared_edge_unroutable_rows_total",
+		metric.WithDescription("Total shared-projection rows a canonical edge write could not route, by domain and bounded reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SharedEdgeUnroutableRows counter: %w", err)
 	}
 
 	sharedEdgeWriteGroupDurationBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}

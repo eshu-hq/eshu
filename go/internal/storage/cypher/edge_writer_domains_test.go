@@ -109,7 +109,7 @@ func TestEdgeWriterWriteEdgesInheritanceDispatch(t *testing.T) {
 	}
 }
 
-func TestEdgeWriterWriteEdgesInheritanceSkipsEmptyFields(t *testing.T) {
+func TestEdgeWriterWriteEdgesInheritanceEmptyFieldsFailTheIntent(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
@@ -121,12 +121,7 @@ func TestEdgeWriterWriteEdgesInheritanceSkipsEmptyFields(t *testing.T) {
 	}
 
 	err := writer.WriteEdges(context.Background(), reducer.DomainInheritanceEdges, rows, "reducer/inheritance")
-	if err != nil {
-		t.Fatalf("WriteEdges() error = %v", err)
-	}
-	if got := len(executor.calls); got != 0 {
-		t.Fatalf("executor calls = %d, want 0 (all rows filtered)", got)
-	}
+	assertAllRowsUnroutable(t, err, len(executor.calls), reducer.DomainInheritanceEdges, 2)
 }
 
 func TestEdgeWriterWriteEdgesSQLRelationshipDispatch(t *testing.T) {
@@ -268,7 +263,7 @@ func TestEdgeWriterWriteEdgesSQLRelationshipDispatchesRelationshipTypes(t *testi
 	}
 }
 
-func TestEdgeWriterWriteEdgesSQLRelationshipSkipsEmptyFields(t *testing.T) {
+func TestEdgeWriterWriteEdgesSQLRelationshipEmptyFieldsFailTheIntent(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
@@ -280,12 +275,7 @@ func TestEdgeWriterWriteEdgesSQLRelationshipSkipsEmptyFields(t *testing.T) {
 	}
 
 	err := writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships")
-	if err != nil {
-		t.Fatalf("WriteEdges() error = %v", err)
-	}
-	if got := len(executor.calls); got != 0 {
-		t.Fatalf("executor calls = %d, want 0 (all rows filtered)", got)
-	}
+	assertAllRowsUnroutable(t, err, len(executor.calls), reducer.DomainSQLRelationships, 2)
 }
 
 func TestEdgeWriterRetractEdgesInheritanceDispatch(t *testing.T) {
