@@ -61,6 +61,31 @@ class does not add its test. `TestReducerQueueFailDeadLettersAnUnenrolledClassPa
 is the negative control, so the table cannot pass by `Fail` deferring
 everything.
 
+## The one domain with only a single layer of defense
+
+Sixteen of the seventeen enrolled domains also have a claim-time row in
+`reducerClaimReadinessRequirementsSQL`, so an intent is not claimed until its
+upstream phase publishes and the in-handler miss only fires in the claim/handle
+race window. `aws_cloud_image_materialization` does not. Its handler's
+`sourceNodesReady` is the only defense — the shape #5047 called "the wide-open
+case" when GCP relationship materialization was in it.
+
+Enrollment still improves it: the miss now defers instead of dead-lettering.
+But it does not add the missing claim gate, and adding one changes claim-time
+behaviour for a domain, which needs its own claim-path proof rather than riding
+along on a failure-class enrollment.
+
+`TestReadinessDomainsWithoutAClaimGateAreTheKnownSet` records the gap as a
+one-entry allowlist and fails if a NEW readiness domain lands without a claim
+gate, so the single-layer set cannot grow quietly. It also fails if the listed
+domain later gains a gate, so the note cannot outlive the gap.
+
+That guard first reported `aws_relationship_ec2_instance_materialization` as
+ungated, which is not a domain at all — `aws_relationship_ec2_instance_nodes_not_ready`
+is a sub-readiness inside `aws_relationship_materialization`. The mapping is
+now validated against `reducer.ParseDomain` rather than derived from the class
+name, so the guard cannot invent a domain and then report it.
+
 ## No-Regression Evidence
 
 No-Regression Evidence: the widened set reaches SQL through
