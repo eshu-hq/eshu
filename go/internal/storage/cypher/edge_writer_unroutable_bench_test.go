@@ -72,9 +72,11 @@ func BenchmarkEdgeWriterUnroutableRowLoop(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				// The unroutable case returns an error by design; the loop cost
-				// is what is being measured, so the result is discarded rather
-				// than asserted here (the behaviour has its own tests).
+				// Only the loop cost is being measured, so the report and error
+				// are discarded here; the behaviour has its own tests. Note the
+				// unroutable case returns a REPORT and a nil error -- it is not
+				// a failure, because a payload-deterministic rejection can never
+				// be retried away.
 				_, _ = writer.WriteEdges(ctx, reducer.DomainRepoDependency, tc.rows, "finalization/workloads")
 			}
 			b.ReportMetric(float64(len(tc.rows)), "input_rows/op")

@@ -10,9 +10,16 @@ import (
 	"time"
 )
 
-// errWriteEdges is the failure a canonical edge writer reports when it could
-// not write the batch — for #5984, a batch whose every row was unroutable.
-var errWriteEdges = errors.New("all rows were unroutable")
+// errWriteEdges is a GENERIC canonical-edge-write failure — a backend error, a
+// timeout, a dropped connection.
+//
+// Deliberately not the #5984 unroutable case: that one does not error at all.
+// An unroutable row is rejected from its persisted payload, so no retry can
+// ever succeed, and the final design reports those rows through
+// SharedProjectionWriteReport and completes the intent rather than failing.
+// This test guards the neighbouring path — a write that failed for a reason
+// that COULD succeed on retry must not complete the intent.
+var errWriteEdges = errors.New("graph write failed")
 
 type failingWriteEdgeWriter struct {
 	stubEdgeWriter
@@ -29,14 +36,18 @@ func (f *failingWriteEdgeWriter) WriteEdges(
 	return SharedProjectionWriteReport{}, f.err
 }
 
-// TestProcessPartitionOnceDoesNotCompleteIntentsWhenWriteEdgesFails is the
-// other half of the #5984 contract. EdgeWriter.WriteEdges now reports an error
-// when a non-empty batch produced no write at all; this proves the worker acts
-// on that error rather than completing the intent anyway.
+// TestProcessPartitionOnceDoesNotCompleteIntentsWhenWriteEdgesFails proves the
+// worker acts on a write error rather than completing the intent anyway.
 //
 // It matters because completion is permanent: intent IDs are deterministic and
 // the durable upsert never reopens a completed row, so an intent completed
 // after a failed write records missing edges as done forever.
+//
+// The error here is a genuine, retryable write failure (see errWriteEdges) --
+// NOT the #5984 unroutable case, which reports its rows and completes. Both
+// behaviours have to hold at once: retryable failures must block completion,
+// and permanently-unroutable rows must not, or the partition stalls on work
+// that can never succeed.
 func TestProcessPartitionOnceDoesNotCompleteIntentsWhenWriteEdgesFails(t *testing.T) {
 	t.Parallel()
 
