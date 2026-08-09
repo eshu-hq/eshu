@@ -57,6 +57,19 @@ So the per-provider gap remains open after this change. It is named here rather
 than left implicit, and asked on the issue. The two options are not mutually
 exclusive; this one closes the deployment-wide case, and only that case.
 
+## What the guard does not catch
+
+It fires only when the attribute set is **entirely** empty. `parseSchemaInto`
+still swallows per-file failures, so a bundle where most files fail to parse and
+one succeeds produces a small non-empty map, passes this guard, and leaves every
+resource type it does not cover classifying as `SchemaUnknown` — the same
+redaction outcome as the nil case, just narrower.
+
+That is the per-provider gap named above wearing a different hat, and it has the
+same fix (option 2) rather than a second nil check. Saying so here because the
+guard reads like it closes the whole class and it does not: it closes the case
+where the collector has no usable schema at all.
+
 ## No-Regression Evidence
 
 No-Regression Evidence: the changed code runs once at collector startup, not on
