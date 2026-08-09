@@ -176,6 +176,17 @@ cell_failgraphwrite_sql() {
 				"${log_dir}/reducer-failgraphwritesql.log" >&2 || true
 			die "fail-graph-write-once-then-succeed-sql: the marker WRITE FAILED (line above). The fault may well have fired -- this is an instrument failure, not evidence about the fault (#5974)."
 		fi
+		# What is actually on disk. Static reasoning is exhausted: the anchor and
+		# the executed statement are byte-identical (#5974), the executor was
+		# armed, and the sibling observed-operations file resolved from the same
+		# base -- so "no marker" should be impossible. List the sentinel family
+		# and let the filesystem say which of these is true: nothing was written,
+		# something was written at an unexpected path, or a write started and did
+		# not finish.
+		printf '\n=== sentinel family on disk (base: %s) ===\n' "${fault_once_script_sql}" >&2
+		ls -la "${fault_once_script_sql}"* 2>&1 | sed 's/^/  /' >&2 || true
+		printf '=== end sentinel family ===\n\n' >&2
+
 		# The marker is missing and the write did not fail, so the anchor did not
 		# match anything that ran. Show WHAT ran -- that is the half of the
 		# observation #5974 never had, and it turns "the anchor did not match"
