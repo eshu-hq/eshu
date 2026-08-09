@@ -3,6 +3,8 @@
 
 package mcp
 
+const iacFindingKindsDescription = "Optional finding kinds. When omitted, defaults to actionable existence findings: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, and ambiguous_cloud_resource. Explicitly select image_version_drift or value_comparison_inconclusive to include managed value drift or degraded comparison evidence."
+
 func iacManagementStatusTool() ToolDefinition {
 	return ToolDefinition{
 		Name:        "get_iac_management_status",
@@ -78,7 +80,7 @@ func replatformingOwnershipSchema() map[string]any {
 			"finding_kinds": map[string]any{
 				"type":        "array",
 				"items":       map[string]any{"type": "string"},
-				"description": "Optional finding kinds: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, or ambiguous_cloud_resource",
+				"description": iacFindingKindsDescription,
 			},
 			"limit": map[string]any{
 				"type":        "integer",
@@ -113,7 +115,7 @@ func replatformingRollupsSchema() map[string]any {
 			"finding_kinds": map[string]any{
 				"type":        "array",
 				"items":       map[string]any{"type": "string"},
-				"description": "Optional finding kinds: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, or ambiguous_cloud_resource",
+				"description": iacFindingKindsDescription,
 			},
 			"limit": map[string]any{
 				"type":        "integer",
@@ -156,7 +158,7 @@ func iacManagementStatusSchema() map[string]any {
 			"finding_kinds": map[string]any{
 				"type":        "array",
 				"items":       map[string]any{"type": "string"},
-				"description": "Optional finding kinds: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, or ambiguous_cloud_resource",
+				"description": iacFindingKindsDescription,
 			},
 		},
 	}
@@ -189,7 +191,7 @@ func terraformImportPlanSchema() map[string]any {
 			"finding_kinds": map[string]any{
 				"type":        "array",
 				"items":       map[string]any{"type": "string"},
-				"description": "Optional finding kinds: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, or ambiguous_cloud_resource",
+				"description": iacFindingKindsDescription,
 			},
 			"limit": map[string]any{
 				"type":        "integer",
@@ -253,7 +255,7 @@ func composeReplatformingPlanSchema() map[string]any {
 			"finding_kinds": map[string]any{
 				"type":        "array",
 				"items":       map[string]any{"type": "string"},
-				"description": "Optional finding kinds: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, or ambiguous_cloud_resource",
+				"description": iacFindingKindsDescription,
 			},
 			"limit": map[string]any{
 				"type":        "integer",
