@@ -5,18 +5,18 @@ Validation-Tier: deployed_services
 Validation-Date: 2026-08-09
 Evidence-Kind: compose_e2e
 Evidence-Source: scripts/run-remote-e2e-component-extension.sh
-Validation-Command: CE_PROOF_PROJECT=eshu-5552-component-20260809-1 bash scripts/run-remote-e2e-component-extension.sh --artifacts /tmp/eshu-5552-component-artifacts-20260809-1; echo $?
+Validation-Command: CE_PROOF_PROJECT=eshu-5552-component-20260809-2 bash scripts/run-remote-e2e-component-extension.sh --artifacts /tmp/eshu-5552-component-artifacts-20260809-2; echo $?
 Validation-Exit-Code: 0
 Capability-Assertion: component_extensions.inventory returned the installed, enabled, trusted Scorecard component from the deployed component registry.
 B12-Assertion: component_extensions.inventory -> mcp:list_component_extensions
 
 ## Fresh deployed validation
 
-The uniquely named Compose stack used an image rebuilt from the reviewed
-commit. The capture-and-verify driver observed the Scorecard component as
-installed, enabled, and trusted; its workflow item completed; and its committed
-fact families were non-empty. A separate authenticated HTTP readback from the
-same stack returned one available component with the same identity and state.
+The uniquely named Compose stack used an image rebuilt from commit
+`c3beecab5b`. The capture-and-verify driver observed the Scorecard component as
+installed, enabled, and trusted; its workflow item completed; its committed
+fact families were non-empty; and authenticated HTTP and MCP inventory calls
+returned one available component with the same identity and state.
 
 Capability: `component_extensions.inventory` (tool `list_component_extensions`,
 route `GET /api/v0/component-extensions`).
@@ -51,15 +51,6 @@ docker compose -p ce-proof \
 scripts/run-remote-e2e-component-extension.sh \
   --artifacts <run-dir>   # capture + verify in one step
 scripts/verify-remote-e2e-component-extension.sh --artifacts <run-dir>
-
-# Live HTTP readback against the public eshu (API) service — see
-# "Live HTTP proof" below.
-token=$(docker exec <eshu-container> sh -c \
-  'grep "^ESHU_API_KEY=" /data/.eshu/.env | cut -d= -f2-')
-curl -s -H "Authorization: Bearer ${token}" \
-  "${ESHU_API_BASE_URL}/api/v0/component-extensions"
-curl -s -H "Authorization: Bearer ${token}" \
-  "${ESHU_API_BASE_URL}/api/v0/component-extensions/dev.eshu.examples.scorecard/diagnostics"
 
 docker compose -p ce-proof \
   -f docker-compose.yaml \
@@ -129,26 +120,27 @@ Committed fact families (counts only): `dev.eshu.examples.scorecard.snapshot`
 manifest's `source_evidence_only:no_graph_truth` reducer contract (no graph
 nodes/edges asserted).
 
-Provenance recorded: `eshu_commit` resolved (not `unknown`), `component_digest`
+Provenance recorded: `eshu_commit=c3beecab5b`, `component_digest`
 a well-formed `sha256:` value, `core_version=dev`, `backend=nornicdb`,
 `queue_terminal_state=completed`, `metrics_handle=:9464/metrics`. No host
 path, private-key marker, bearer token, or raw IP appeared in any artifact
 (the verifier's redaction canary passed).
 
-## Live HTTP proof — GET /api/v0/component-extensions
+## Live HTTP and MCP proof
 
-Against the same reconciled stack (compose fix above applied), a real
-`Authorization: Bearer <token>` request to the public `eshu` API service's
-mapped port returned `200` with the live sanitized registry readback — not
-the pre-fix `503`:
+Against the same reconciled stack, the driver made an authenticated request to
+`GET /api/v0/component-extensions?limit=100` inside the deployed API service
+and a JSON-RPC `tools/call` for `list_component_extensions` inside the deployed
+MCP service. It extracted and verified each Eshu truth envelope independently.
+Both returned the same live sanitized registry readback instead of the pre-fix
+`503`/tool error:
 
 ```bash
-token=$(docker exec <eshu-container> sh -c \
-  'grep "^ESHU_API_KEY=" /data/.eshu/.env | cut -d= -f2-')
-curl -s -o /dev/null -w '%{http_code}\n' \
-  -H "Authorization: Bearer ${token}" \
-  "${ESHU_API_BASE_URL}/api/v0/component-extensions"
-# 200
+CE_PROOF_PROJECT=eshu-5552-component-20260809-2 \
+  bash scripts/run-remote-e2e-component-extension.sh \
+  --artifacts /tmp/eshu-5552-component-artifacts-20260809-2
+# component-extension proof artifacts verified (...)
+# exit 0
 ```
 
 Response (redacted — `config_handle` is an opaque sha256 handle, never a
@@ -168,7 +160,7 @@ filesystem path; no host path, private key, bearer token, or raw IP appears):
       "manifest_digest": "sha256:85aedc15bdf428a664a78dea55b9dae11ccf59bb92cca590ebacec5aab379698",
       "verified": true,
       "trust_mode": "allowlist",
-      "installed_at": "2026-07-23T02:51:56.655606775Z",
+      "installed_at": "2026-08-09T17:58:56.825997856Z",
       "states": ["installed", "enabled", "claim_capable"],
       "activations": [
         {
@@ -176,7 +168,7 @@ filesystem path; no host path, private key, bearer token, or raw IP appears):
           "mode": "scheduled",
           "claims_enabled": true,
           "config_handle": "component-config:5bc505367c526ee8d5ba4da5ff59c0f0910569a6a60102bbe04a446418a2ba12",
-          "enabled_at": "2026-07-23T02:51:56.661950722Z"
+          "enabled_at": "2026-08-09T17:58:56.834062741Z"
         }
       ],
       "diagnostics": {"policy_configured": true, "policy_allowed": true, "policy_mode": "allowlist"},
@@ -202,13 +194,17 @@ filesystem path; no host path, private key, bearer token, or raw IP appears):
 }
 ```
 
-This is the actual `GET /api/v0/component-extensions` network request against
-a running, auth-gated query API service, over the `eshu` container's mapped
-host port — not the CLI's direct in-process registry call. `installed`,
-`enabled`, and `trusted` all resolve `true` from the live route
+These are actual deployed HTTP and MCP requests against running auth-gated
+services, not the CLI's direct in-process registry call. `installed`,
+`enabled`, and `trusted` all resolve `true` from both live surfaces
 (`states` includes `installed`/`enabled`/`claim_capable`,
 `verified: true`, `trust_decision.decision: "allowed"`), matching the CLI
 readback and the deployed-truth claim above.
+
+The general B-12 golden stack intentionally has no component registry and
+continues to prove the fail-closed `registry unavailable` posture. That refusal
+is not used as production capability evidence; this dedicated deployed driver
+and its positive HTTP/MCP captures are the matching-tier proof.
 `TestOpenAPISpecIncludesComponentExtensionRoutes` and the scoped-token route
 tests in `go/internal/query/component_extensions_test.go` cover the same
 wiring locally; this is the deployed-network confirmation of it.
@@ -228,9 +224,10 @@ cd go && go test ./internal/query -run ComponentExtensions -count=1
 ```
 
 **Deployed-stack claim/commit/readback proof** — this document, backed by
-`scripts/run-remote-e2e-component-extension.sh` (capture) and
-`scripts/verify-remote-e2e-component-extension.sh` (verify). Self-test the
-verifier without a stack:
+`scripts/run-remote-e2e-component-extension.sh` (CLI, HTTP, MCP, workflow,
+facts, and provenance capture) and
+`scripts/verify-remote-e2e-component-extension.sh` (fail-closed verification).
+Self-test the verifier without a stack:
 
 ```bash
 scripts/test-verify-remote-e2e-component-extension.sh

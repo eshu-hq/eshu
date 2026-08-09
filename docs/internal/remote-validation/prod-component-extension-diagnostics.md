@@ -5,17 +5,17 @@ Validation-Tier: deployed_services
 Validation-Date: 2026-08-09
 Evidence-Kind: compose_e2e
 Evidence-Source: scripts/run-remote-e2e-component-extension.sh
-Validation-Command: CE_PROOF_PROJECT=eshu-5552-component-20260809-1 bash scripts/run-remote-e2e-component-extension.sh --artifacts /tmp/eshu-5552-component-artifacts-20260809-1; echo $?
+Validation-Command: CE_PROOF_PROJECT=eshu-5552-component-20260809-2 bash scripts/run-remote-e2e-component-extension.sh --artifacts /tmp/eshu-5552-component-artifacts-20260809-2; echo $?
 Validation-Exit-Code: 0
 Capability-Assertion: component_extensions.diagnostics returned allowed policy and trust decisions plus claim-capable scheduler state from the deployed component registry.
 B12-Assertion: component_extensions.diagnostics -> mcp:get_component_extension_diagnostics
 
 ## Fresh deployed validation
 
-The uniquely named Compose stack used an image rebuilt from the reviewed
-commit. The capture-and-verify driver proved the shared registry was installed,
-enabled, trusted, terminal-successful, and fact-producing. A separate
-authenticated diagnostics read from that same stack returned `available`, an
+The uniquely named Compose stack used an image rebuilt from commit
+`c3beecab5b`. The capture-and-verify driver proved the shared registry was
+installed, enabled, trusted, terminal-successful, and fact-producing. Its
+authenticated HTTP and MCP diagnostics calls both returned `available`, an
 `allowed` trust decision, an `allowed` policy gate, and a `claim_capable`
 scheduler state for the Scorecard component.
 
@@ -50,18 +50,22 @@ reproduction steps
 --artifacts <run-dir>`), plus the same compose fix (`ESHU_COMPONENT_HOME` and
 matching trust-policy env now set on the `eshu` and `mcp-server` services in
 `docs/public/run-locally/docker-compose.component-extension.yaml`) and the
-live HTTP capture below, run against the same reconciled stack.
+live HTTP/MCP captures below, run against the same reconciled stack.
 
-## Live HTTP proof — GET /api/v0/component-extensions/{component_id}/diagnostics
+## Live HTTP and MCP proof
 
 ```bash
-token=$(docker exec <eshu-container> sh -c \
-  'grep "^ESHU_API_KEY=" /data/.eshu/.env | cut -d= -f2-')
-curl -s -o /dev/null -w '%{http_code}\n' \
-  -H "Authorization: Bearer ${token}" \
-  "${ESHU_API_BASE_URL}/api/v0/component-extensions/dev.eshu.examples.scorecard/diagnostics"
-# 200
+CE_PROOF_PROJECT=eshu-5552-component-20260809-2 \
+  bash scripts/run-remote-e2e-component-extension.sh \
+  --artifacts /tmp/eshu-5552-component-artifacts-20260809-2
+# component-extension proof artifacts verified (...)
+# exit 0
 ```
+
+The driver called both `GET
+/api/v0/component-extensions/dev.eshu.examples.scorecard/diagnostics` and the
+MCP tool `get_component_extension_diagnostics` with that exact component ID,
+then verified each Eshu truth envelope independently.
 
 Response (redacted — same sanitization as inventory; `config_handle` is an
 opaque sha256 handle, never a filesystem path):
@@ -79,7 +83,7 @@ opaque sha256 handle, never a filesystem path):
     "manifest_digest": "sha256:85aedc15bdf428a664a78dea55b9dae11ccf59bb92cca590ebacec5aab379698",
     "verified": true,
     "trust_mode": "allowlist",
-    "installed_at": "2026-07-23T02:51:56.655606775Z",
+    "installed_at": "2026-08-09T17:58:56.825997856Z",
     "states": ["installed", "enabled", "claim_capable"],
     "activations": [
       {
@@ -87,7 +91,7 @@ opaque sha256 handle, never a filesystem path):
         "mode": "scheduled",
         "claims_enabled": true,
         "config_handle": "component-config:5bc505367c526ee8d5ba4da5ff59c0f0910569a6a60102bbe04a446418a2ba12",
-        "enabled_at": "2026-07-23T02:51:56.661950722Z"
+        "enabled_at": "2026-08-09T17:58:56.834062741Z"
       }
     ],
     "diagnostics": {"policy_configured": true, "policy_allowed": true, "policy_mode": "allowlist"},
@@ -108,11 +112,11 @@ opaque sha256 handle, never a filesystem path):
 }
 ```
 
-This closes the previous coverage gap: the diagnostics-specific fields
-(`trust_decision`, `policy_gate`, `scheduler_state`,
-`read_model_availability`, `last_conformance_proof`) are now captured live
-from a real `GET .../diagnostics` network request against the deployed,
-auth-gated query API service — `trust_decision.decision: "allowed"`,
+This closes the previous coverage gap: both deployed surfaces captured the
+diagnostics-specific fields (`trust_decision`, `policy_gate`,
+`scheduler_state`, `read_model_availability`, `last_conformance_proof`) live
+from the real diagnostics route against the auth-gated query services —
+`trust_decision.decision: "allowed"`,
 `policy_gate.state: "allowed"`, and
 `read_model_availability.state: "unavailable"` (reason
 `missing_conformance_proof`, expected since the Scorecard reference component
@@ -121,6 +125,11 @@ inference from the shared-handler argument alone. The shared-handler argument
 (`readbackOrUnavailable` is one function, not two diverging code paths) still
 holds and is corroborated by this being the same route family, same auth
 middleware, and same sanitization as inventory.
+
+The general B-12 golden stack intentionally has no component registry and
+continues to prove the fail-closed `registry unavailable` posture. That refusal
+is not used as production capability evidence; this dedicated deployed driver
+and its positive HTTP/MCP captures are the matching-tier proof.
 
 ## Committed reproducible evidence
 
