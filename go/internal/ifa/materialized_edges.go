@@ -164,6 +164,8 @@ func (r MaterializedEdgeOduResolver) Resolve(entry replaycoverage.CoverageEntry)
 		return resolveSQLRelationshipMaterializedEdges(odu, sqlFamilyExpectedEdgesPath(r.RepoRoot))
 	case "documentation_edges":
 		return resolveDocumentationEdgeMaterializedEdges(odu, documentationFamilyExpectedEdgesPath(r.RepoRoot))
+	case "rationale_edges":
+		return resolveRationaleEdgeMaterializedEdges(odu, rationaleFamilyExpectedEdgesPath(r.RepoRoot))
 	default:
 		return false, fmt.Sprintf("no vacuity guard registered for materialized-edge family %q", family)
 	}

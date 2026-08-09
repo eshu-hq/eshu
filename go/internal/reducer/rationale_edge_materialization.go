@@ -134,7 +134,17 @@ func ExtractRationaleEdgeRows(envelopes []facts.Envelope) ([]string, []map[strin
 		// precedes. It is the durable anchor for the file-scoped partition key and
 		// the target.path delta retract (the EXPLAINS edge precedes this entity), so
 		// it rides every emitted edge row as provenance (#2869).
-		targetPath := semanticPayloadString(env.Payload, "path")
+		//
+		// Read "relative_path", which is the key contentEntityFactEnvelope actually
+		// emits (git_content_fact_envelopes.go), and which every sibling extractor
+		// reads -- semantic_entity_materialization, sql_relationship_embedded_query,
+		// and sql_relationship_materialization. This read was "path", a key no
+		// content-entity fact carries, so targetPath was empty for every rationale
+		// edge in production and the file-scoped anchor hashed into
+		// rationaleFilePartitionKey was blank. The bug survived because the only
+		// fixtures exercising it supplied "path" -- the key the extractor wanted
+		// rather than the one the collector sends (#5998).
+		targetPath := semanticPayloadString(env.Payload, "relative_path")
 		for _, comment := range rationalePayloadComments(env.Payload) {
 			kind := strings.TrimSpace(anyToString(comment["kind"]))
 			text := strings.TrimSpace(anyToString(comment["text"]))

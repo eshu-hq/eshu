@@ -243,16 +243,24 @@ waivers:
     issue: "#6002"
     waived: "2026-07-21"
     reason: "reducer.DomainSubmodulePinEdges (PINS_SUBMODULE edges, #5420); pending #6002 for an Odù + expected-edge-set fixture"
+  # rationale_edges: the EXTRACTOR is proven by odu:ifa-rationale-family (#5998)
+  # -- ExtractRationaleEdgeRows reproduces a hand-derived exact edge set, and
+  # mutating the tombstone guard, the blank kind/text guard, the dedup, or the
+  # comment kind in the node identity each turns it red. Both dimensions stay
+  # WAIVED anyway: a coverage row names a proof GATE, and neither gate executes
+  # this family. verify-ifa-determinism.sh asserts expected edges for
+  # sql_relationships only, and MaterializedEdgeDomainEdgeTypes rejects every
+  # other domain, so a row here would claim a gate proves something it never runs.
   - surface: "materialized_edges:rationale_edges"
     proof_gate: ifa-determinism
     issue: "#5998"
-    waived: "2026-07-20"
-    reason: "reducer.DomainRationaleEdges; pending #5998 for an Odù + expected-edge-set fixture"
+    waived: "2026-08-09"
+    reason: "reducer.DomainRationaleEdges extraction proven by odu:ifa-rationale-family; live determinism-gate execution pending a cassette + absolute EXPLAINS assertion"
   - surface: "materialized_edges:rationale_edges"
     proof_gate: ifa-fault-injection
     issue: "#5998"
-    waived: "2026-07-20"
-    reason: "reducer.DomainRationaleEdges; pending #5998 for an Odù + expected-edge-set fixture"
+    waived: "2026-08-09"
+    reason: "reducer.DomainRationaleEdges extraction proven by odu:ifa-rationale-family; fault dimension pending domain-scoped live cells"
   - surface: "materialized_edges:deployable_unit_edges"
     proof_gate: ifa-determinism
     issue: "#5993"

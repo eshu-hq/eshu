@@ -193,10 +193,10 @@ func TestRationaleHandlerSkipsWhenNoProjectionContext(t *testing.T) {
 			{
 				FactKind: factKindContentEntity,
 				Payload: map[string]any{
-					"repo_id":     "repo-1",
-					"entity_id":   "content-entity:func",
-					"entity_type": "Function",
-					"path":        "/repo/src/x.go",
+					"repo_id":       "repo-1",
+					"entity_id":     "content-entity:func",
+					"entity_type":   "Function",
+					"relative_path": "/repo/src/x.go",
 					"entity_metadata": map[string]any{
 						"rationale_comments": []any{
 							map[string]any{"kind": "WHY", "text": "memoize because recompute is expensive"},
@@ -255,10 +255,10 @@ func TestExtractRationaleEdgeRowsEmitsExplainsEdge(t *testing.T) {
 		{
 			FactKind: factKindContentEntity,
 			Payload: map[string]any{
-				"repo_id":     "repo-1",
-				"entity_id":   "content-entity:func",
-				"entity_type": "Function",
-				"path":        "/repo/src/func.go",
+				"repo_id":       "repo-1",
+				"entity_id":     "content-entity:func",
+				"entity_type":   "Function",
+				"relative_path": "/repo/src/func.go",
 				"entity_metadata": map[string]any{
 					"rationale_comments": []any{
 						map[string]any{"kind": "WHY", "text": "memoize because recompute is expensive"},
@@ -368,11 +368,11 @@ func rationaleDeltaEntityFacts() []facts.Envelope {
 			FactKind: factKindContentEntity,
 			ScopeID:  "scope-code",
 			Payload: map[string]any{
-				"repo_id":     "repo-123",
-				"entity_id":   "content-entity:handler",
-				"entity_type": "Function",
-				"entity_name": "Handle",
-				"path":        "/repo/src/handler.go",
+				"repo_id":       "repo-123",
+				"entity_id":     "content-entity:handler",
+				"entity_type":   "Function",
+				"entity_name":   "Handle",
+				"relative_path": "/repo/src/handler.go",
 				"entity_metadata": map[string]any{
 					"rationale_comments": []any{
 						map[string]any{"kind": "WHY", "text": "explain cached projector path"},
