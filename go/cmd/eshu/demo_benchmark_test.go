@@ -114,6 +114,11 @@ func TestEvaluateDemoBenchmark_RejectsAMislabelledMode(t *testing.T) {
 		{"cold declared, images absent", demoModeCold, demoImagesAbsent, true},
 		{"cold declared but images present", demoModeCold, demoImagesPresent, false},
 		{"warm declared but images absent", demoModeWarm, demoImagesAbsent, false},
+		// The not-probed fallback is the only evaluateDemoModeCriterion branch
+		// the four permutations above miss. It must pass without claiming a
+		// check happened, so it records not_measured and stops being required.
+		{"cache not probed, cold", demoModeCold, demoImagesUnknown, true},
+		{"cache not probed, warm", demoModeWarm, demoImagesUnknown, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -123,6 +128,20 @@ func TestEvaluateDemoBenchmark_RejectsAMislabelledMode(t *testing.T) {
 			if v.Pass != tc.wantPass {
 				t.Errorf("Pass = %v, want %v (%s)", v.Pass, tc.wantPass,
 					v.criterion(criterionDemoModeObserved).Detail)
+			}
+			c := v.criterion(criterionDemoModeObserved)
+			if tc.observed == demoImagesUnknown {
+				// Not probed must read as not-measured and drop its required
+				// flag, so the row never implies a check that did not run.
+				if c.Status != benchmarkCriterionNotMeasured || c.Required {
+					t.Errorf("unprobed cache scored %q required=%v, want not_measured and not required",
+						c.Status, c.Required)
+				}
+				if !strings.Contains(c.Detail, "not probed") {
+					t.Errorf("detail = %q, want it to say the cache was not probed", c.Detail)
+				}
+			} else if c.Status == benchmarkCriterionNotMeasured {
+				t.Errorf("probed cache scored not_measured; the cross-check was skipped")
 			}
 		})
 	}
