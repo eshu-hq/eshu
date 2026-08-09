@@ -390,7 +390,11 @@ func shouldSkipFilesystemEntry(
 	// check runs FIRST so trackedFile — which may spawn the nearest git
 	// root's `git ls-files` subprocess — is only ever called on a match
 	// (issue #5658 P1b).
-	if isCollectorGitignoredInRepo(repoRoot, fullPath, caches.gitignore) &&
+	// Scoped to the NEAREST enclosing git root rather than the walked root:
+	// an outer .gitignore does not reach inside a nested repository, which is
+	// what git does and what discovery already did (issue #5667).
+	ignoreRoot := caches.tracked.ignoreRootFor(fullPath, repoRoot)
+	if isCollectorGitignoredInRepo(ignoreRoot, fullPath, caches.gitignore) &&
 		!caches.tracked.trackedFile(fullPath) {
 		return true
 	}
@@ -406,7 +410,7 @@ func shouldSkipFilesystemEntry(
 		// repository's own tracked file, which trackedUnderDir resolves
 		// against that nested repo's own git root, not fullPath's outer
 		// repo (issue #5658 P1a).
-		if isCollectorGitignoredInRepo(repoRoot, probePath, caches.gitignore) &&
+		if isCollectorGitignoredInRepo(caches.tracked.ignoreRootFor(probePath, repoRoot), probePath, caches.gitignore) &&
 			!caches.tracked.trackedUnderDir(fullPath) {
 			return true
 		}
