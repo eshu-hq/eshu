@@ -830,11 +830,10 @@ labels to bound cardinality.
 
 Two things an operator needs to know before alerting on it:
 
-- **It counts attempts, not unique rows.** A `whole_batch` failure does not
-  complete its intent, so the same rows are re-selected and re-counted on the
-  next poll cycle. A persistent small set therefore climbs steadily. Alert on
-  `partial_batch` for genuine per-cycle loss, and read a rising `whole_batch`
-  count as one stuck partition rather than N new ones.
+- **Each rejected row is counted once.** The write reports what it could not
+  route, the reducer records those rows durably and then completes the intent,
+  so a batch is not re-selected and the count does not inflate on repeat
+  cycles. A rising count means new losses, not a stuck partition.
 - **A rejection is not always data loss.** A row missing its required MATCH
   identifiers can never become an edge. A row whose relationship type has no
   write statement in the running binary is well formed, and routes normally

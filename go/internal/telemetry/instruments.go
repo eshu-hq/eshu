@@ -1259,14 +1259,13 @@ type Instruments struct {
 	// that produced nothing at all; the evidence source and a sample intent id
 	// stay in the accompanying structured log.
 	//
-	// This counts ATTEMPTS, not unique rows. A whole_batch failure does not
-	// complete its intent, so the same rows are re-selected and re-counted on
-	// the next poll cycle. That makes a persistent small unroutable set climb
-	// steadily, which reads like a growing problem unless the accompanying
-	// WARN is read alongside it — the log carries domain, evidence_source and
-	// a sample intent id precisely so repeats can be correlated. Alert on the
-	// partial_batch reason for genuine per-cycle loss; treat a rising
-	// whole_batch count as one stuck partition, not N new ones.
+	// This counts each rejected row ONCE. The write reports the rows it could
+	// not route, the reducer records them durably and then completes the
+	// intent, so the batch is not re-selected and the count does not inflate
+	// on repeat cycles. An earlier revision of this change failed the intent
+	// instead, which did re-count every poll; that approach was replaced
+	// because a payload-deterministic rejection can never be retried away
+	// (#5984, PR #6008 review).
 	SharedEdgeUnroutableRows           metric.Int64Counter
 	SharedEdgeWriteGroupDuration       metric.Float64Histogram
 	SharedEdgeWriteGroupStatementCount metric.Int64Histogram

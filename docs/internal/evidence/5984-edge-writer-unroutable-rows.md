@@ -146,13 +146,12 @@ Alongside it, a `WARN` structured log, `shared edge rows unroutable`, carrying
 log, not in metric labels. Before this change an all-dropped batch produced no
 log line at all — the INFO success line was only reached when something wrote.
 
-The counter records ATTEMPTS, not unique rows: a `whole_batch` failure does not
-complete its intent, so the same rows are re-selected and re-counted next cycle.
-A persistent small unroutable set therefore climbs steadily and can read as a
-growing problem. The instrument's doc comment says so, and the guidance is to
-alert on `partial_batch` for genuine per-cycle loss and read a rising
-`whole_batch` as one stuck partition rather than N new ones. Raised in review on
-PR #6008.
+The counter records each rejected row once: the reducer records the rows
+durably and then completes the intent, so a batch is not re-selected and the
+count does not inflate on repeat cycles. That was NOT true of the earlier
+revision, which failed the intent and therefore re-counted every poll — the
+observation that surfaced it (raised in review on PR #6008) is one of the
+things that made the fail-the-intent approach untenable.
 
 Gate: `scripts/verify-telemetry-coverage.sh` → exit 0,
 "docs/public/observability/telemetry-coverage.md and
