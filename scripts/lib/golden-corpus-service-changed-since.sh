@@ -158,22 +158,22 @@ WITH adjacent_differences AS (
   (SELECT evidence_family, service_evidence_key, payload_hash, is_tombstone
    FROM service_evidence_snapshots
    WHERE generation_id = '${golden_service_changed_since_prior_generation}'
-     AND evidence_family <> 'ownership'
+     AND evidence_family NOT IN ('ownership', 'deployment')
    EXCEPT
    SELECT evidence_family, service_evidence_key, payload_hash, is_tombstone
    FROM service_evidence_snapshots
    WHERE generation_id = '${current}'
-     AND evidence_family <> 'ownership')
+     AND evidence_family NOT IN ('ownership', 'deployment'))
   UNION ALL
   (SELECT evidence_family, service_evidence_key, payload_hash, is_tombstone
    FROM service_evidence_snapshots
    WHERE generation_id = '${current}'
-     AND evidence_family <> 'ownership'
+     AND evidence_family NOT IN ('ownership', 'deployment')
    EXCEPT
    SELECT evidence_family, service_evidence_key, payload_hash, is_tombstone
    FROM service_evidence_snapshots
    WHERE generation_id = '${golden_service_changed_since_prior_generation}'
-     AND evidence_family <> 'ownership')
+     AND evidence_family NOT IN ('ownership', 'deployment'))
 )
 SELECT
   (SELECT COUNT(*) FROM service_materialization_generations WHERE service_id = '${golden_service_changed_since_service_id}') || '|' ||

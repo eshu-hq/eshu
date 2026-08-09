@@ -37,6 +37,14 @@ pg() {
 		return
 	fi
 	if [[ "${sql}" == *"WITH adjacent_differences AS"* ]]; then
+		local predicate="evidence_family NOT IN ('ownership', 'deployment')"
+		local remaining="${sql}" predicate_count=0
+		while [[ "${remaining}" == *"${predicate}"* ]]; do
+			remaining="${remaining#*"${predicate}"}"
+			predicate_count=$((predicate_count + 1))
+		done
+		[[ "${predicate_count}" == "4" ]] ||
+			fail "durable lineage guard must leave deployment deltas to the dedicated classifier in all four branches"
 		printf '2|1|1|superseded|1|0|0|1|0\n'
 		return
 	fi
