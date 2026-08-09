@@ -18,7 +18,12 @@ set -euo pipefail
 MODE=""
 RUNS=3
 TARGET=""
-PROJECT="${ESHU_DEMO_TTFA_PROJECT:-eshu-ttfa-$$}"
+# The project name is deliberately STABLE, not per-run unique: Compose derives
+# each built image name as <project>-<service>, so a fresh project name would
+# make every run a cold build and warm mode unmeasurable. Override it only to
+# run two measurements side by side, and expect the first run of a new project
+# to be a build.
+PROJECT="${ESHU_DEMO_TTFA_PROJECT:-eshu-ttfa}"
 COMPOSE_FILE="docker-compose.demo.yaml"
 OUT_DIR="${ESHU_DEMO_TTFA_OUT:-}"
 
@@ -99,6 +104,21 @@ trap teardown EXIT
 
 printf 'demo TTFA measurement: mode=%s runs=%s project=%s\n' "$MODE" "$RUNS" "$PROJECT"
 printf 'artifacts: %s\n\n' "$OUT_DIR"
+
+# Warm means "images already present". When they are not, one unmeasured
+# priming run builds them, so the measured runs are genuinely warm instead of
+# the first one silently paying build cost -- which the mode cross-check would
+# reject anyway, correctly but unhelpfully.
+if [ "$MODE" = "warm" ] && [ "$(observed_image_state)" = "absent" ]; then
+	printf 'warm mode: demo images absent, priming with one unmeasured run\n'
+	teardown
+	"$ESHU_BIN" demo up --project "$PROJECT" --json >"$OUT_DIR/prime.json" 2>"$OUT_DIR/prime.err" || {
+		printf 'priming run FAILED; see %s\n' "$OUT_DIR/prime.err" >&2
+		exit 1
+	}
+	teardown
+	printf 'priming complete\n\n'
+fi
 
 failures=0
 for run in $(seq 1 "$RUNS"); do
