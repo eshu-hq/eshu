@@ -31,6 +31,12 @@ const demoComposeFileName = "docker-compose.demo.yaml"
 // something is wrong rather than merely slow.
 const demoReadyTimeout = 10 * time.Minute
 
+// demoUpTimeout bounds `docker compose up -d --wait`. Compose can wedge with
+// no containers created and no progress -- observed at 0% CPU for 16 minutes
+// while measuring TTFA (#4744) -- and an unbounded phase turns that into a
+// hang with no diagnosis instead of a failure that names itself.
+const demoUpTimeout = 20 * time.Minute
+
 // demoReadyPollInterval is how often readiness is sampled while waiting.
 const demoReadyPollInterval = 2 * time.Second
 
@@ -188,6 +194,10 @@ type demoRuntime struct {
 	now     func() time.Time
 	project string
 	apiBase string
+	// upTimeout bounds the compose bring-up phase. Injected so tests exercise
+	// the wedged-compose path without waiting the real budget; zero means
+	// demoUpTimeout.
+	upTimeout time.Duration
 	// pollInterval is how long waitReady sleeps between readiness samples.
 	// Injected so unit tests exercise the multi-poll path without spending
 	// real seconds; zero means demoReadyPollInterval.
@@ -197,6 +207,40 @@ type demoRuntime struct {
 	apiKey string
 	// composeFile is the resolved overlay path.
 	composeFile string
+}
+
+// allImagesPresent reports whether every image the demo stack declares is
+// already local.
+//
+// The names come from `compose config --images` rather than a hardcoded list,
+// so a new service cannot fall outside the check, and one `docker image
+// inspect` covers them all: it exits non-zero when any argument is missing.
+func (r *demoRuntime) allImagesPresent(ctx context.Context) (bool, error) {
+	out, err := r.exec(ctx, nil, "docker", r.composeArgs("config", "--images")...)
+	if err != nil {
+		return false, fmt.Errorf("list demo images (project %q): %w", r.project, err)
+	}
+	var names []string
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if name := strings.TrimSpace(line); name != "" {
+			names = append(names, name)
+		}
+	}
+	if len(names) == 0 {
+		return false, nil
+	}
+	if _, err := r.exec(ctx, nil, "docker", append([]string{"image", "inspect"}, names...)...); err != nil {
+		return false, nil
+	}
+	return true, nil
+}
+
+// composeUpTimeout returns the effective bring-up budget.
+func (r *demoRuntime) composeUpTimeout() time.Duration {
+	if r.upTimeout > 0 {
+		return r.upTimeout
+	}
+	return demoUpTimeout
 }
 
 // readyPollInterval returns the effective sleep between readiness samples.
@@ -324,7 +368,36 @@ func (r *demoRuntime) up(ctx context.Context) (demoResult, error) {
 		return res, err
 	}
 	r.apiKey = key
-	if out, err := r.exec(ctx, []string{"ESHU_DEMO_API_KEY=" + key}, "docker", r.composeArgs("up", "-d", "--wait")...); err != nil {
+	// Build separately from up, but only when something actually needs
+	// building. `up -d --wait` otherwise covers image build, container start,
+	// corpus bootstrap, and the reducer drain in one bucket, and a regression
+	// in any of them looks the same from outside.
+	//
+	// The guard matters: an unconditional `docker compose build` revalidates
+	// every build context even when nothing changed, which measured 221,590 ms
+	// on an otherwise warm run. Instrumentation that slows the thing it
+	// measures is worse than the missing attribution it was added to fix.
+	res.PhaseMillis["build"] = 0
+	present, presentErr := r.allImagesPresent(ctx)
+	if presentErr != nil {
+		return res, presentErr
+	}
+	if !present {
+		buildCtx, cancelBuild := context.WithTimeout(ctx, r.composeUpTimeout())
+		buildOut, buildErr := r.exec(buildCtx, []string{"ESHU_DEMO_API_KEY=" + key}, "docker", r.composeArgs("build")...)
+		cancelBuild()
+		if buildErr != nil {
+			return res, fmt.Errorf("build demo images (project %q): %w\n%s",
+				r.project, buildErr, strings.TrimSpace(string(buildOut)))
+		}
+		res.PhaseMillis["build"] = r.sinceMillis(phaseStart)
+	}
+
+	phaseStart = r.now()
+	upCtx, cancelUp := context.WithTimeout(ctx, r.composeUpTimeout())
+	out, err := r.exec(upCtx, []string{"ESHU_DEMO_API_KEY=" + key}, "docker", r.composeArgs("up", "-d", "--wait")...)
+	cancelUp()
+	if err != nil {
 		// Carry the compose output. Reporting only "exit status 1" forces the
 		// operator to re-run compose by hand to find the cause, which is what
 		// happened the first time this ran against a real stack.
