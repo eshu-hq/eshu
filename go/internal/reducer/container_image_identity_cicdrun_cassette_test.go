@@ -18,8 +18,8 @@ import (
 const (
 	lambdaImageDigest     = "sha256:0000000000000000000000000000000000000000000000000000000000cc"
 	lambdaImageRunID      = "5152"
-	lambdaImageRepository = "repository:r_69256c06"
-	lambdaImageScope      = "ci_cd_run:github_actions:eshu-hq:supply-chain-resource-proof"
+	lambdaImageRepository = "repository:r_217415d9"
+	lambdaImageScope      = "ci_cd_run:github_actions:acme:deployable-config-resource-proof"
 	lambdaImageGeneration = "cassette-cicd-scd-resource-gen1"
 )
 
