@@ -132,10 +132,15 @@ loud that it measured a cached rebuild.
 Measured with `build` recorded separately from `up`, which is the only way to
 tell a slow image build from a slow bring-up:
 
-| Mode | build | up | total |
-| --- | --- | --- | --- |
-| warm | 0 ms (skipped) | 203,866 ms (99.8%) | 204,347 ms |
-| cold, first install | 252,818 ms (**55%**) | 207,182 ms (45%) | 460,319 ms |
+| Mode | build | up | total | Ledger |
+| --- | --- | --- | --- | --- |
+| warm | 0 ms (skipped) | 203,866 ms (99.8%) | 204,347 ms | `ledger:4744-demo-ttfa-warm-build`, `ledger:4744-demo-ttfa-warm-up`, `ledger:4744-demo-ttfa-warm-total` |
+| cold, first install | 252,818 ms (**54.9%**) | 207,273 ms (45.0%) | 460,319 ms | `ledger:4744-demo-ttfa-cold-build`, `ledger:4744-demo-ttfa-cold-up`, `ledger:4744-demo-ttfa-cold-total` |
+
+Every cell is the median of the same three runs, per phase rather than per run,
+so a fast phase in one trial cannot be paired with a slow one in another. The
+trials, command, host, and measured commit are in
+`docs/internal/measurements.jsonl` under the ids above.
 
 An earlier revision of this page concluded that neither image acquisition nor
 indexing was the cost. That was wrong, and it was wrong for a structural
