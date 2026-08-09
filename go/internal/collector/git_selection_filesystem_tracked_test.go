@@ -278,3 +278,52 @@ func TestNativeRepositorySelectorSelectRepositoriesFilesystemKeepsNestedUntracke
 		t.Errorf("managed copy kept outer.tfstate (stat err = %v, want IsNotExist)", err)
 	}
 }
+
+// TestFingerprintTreeScopesIgnoreToNestedRepo proves the fingerprint applies the
+// same nearest-root ignore scope the managed copy does (issue #5667 review).
+//
+// The two must agree or the copy goes stale. fingerprintTree decides whether
+// syncFilesystemRepositories bothers to recopy: if the fingerprint ignores a
+// file the copy keeps, then editing ONLY that file leaves the fingerprint
+// unchanged, sync returns early, and the managed copy and the emitted
+// generation both keep the old content indefinitely.
+//
+// Scoping only the copy — as the first version of this change did — is what
+// creates that disagreement. Before it, both paths excluded the file and stayed
+// consistent while being wrong together.
+func TestFingerprintTreeScopesIgnoreToNestedRepo(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	mustInitGitRepo(t, root)
+	writeSelectionTestFile(t, filepath.Join(root, ".gitignore"), "*.tfstate\n")
+	writeSelectionTestFile(t, filepath.Join(root, "main.go"), "package main\n")
+
+	nested := filepath.Join(root, "modules", "nested")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("mkdir nested: %v", err)
+	}
+	mustInitGitRepo(t, nested)
+	writeSelectionTestFile(t, filepath.Join(nested, ".gitignore"), "*.log\n")
+	nestedFile := filepath.Join(nested, "scratch.tfstate")
+	writeSelectionTestFile(t, nestedFile, "{}")
+
+	before, err := fingerprintTree(root)
+	if err != nil {
+		t.Fatalf("fingerprintTree() error = %v", err)
+	}
+
+	// Change ONLY the nested file the outer .gitignore matches.
+	writeSelectionTestFile(t, nestedFile, "{\"changed\":true}")
+
+	after, err := fingerprintTree(root)
+	if err != nil {
+		t.Fatalf("fingerprintTree() error = %v", err)
+	}
+
+	if before == after {
+		t.Error("fingerprint unchanged after editing a nested-repo file that only the " +
+			"outer .gitignore matches; the managed copy keeps that file, so sync would " +
+			"skip the recopy and leave the copy and emitted generation stale")
+	}
+}

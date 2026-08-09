@@ -142,6 +142,29 @@ func fingerprintTree(root string) (string, error) {
 
 	files := make([]string, 0)
 	ignoreCaches := newCollectorIgnoreCaches()
+	// A resolver that resolves nearest git roots but never asks which files git
+	// tracks. The fingerprint needs the same nearest-root ignore scope the
+	// managed copy uses (#5667) — otherwise the copy keeps a nested file the
+	// fingerprint ignores, editing only that file leaves the fingerprint
+	// unchanged, and syncFilesystemRepositories skips the recopy, leaving the
+	// copy and the emitted generation stale.
+	//
+	// It must NOT resolve tracked sets: fingerprintTree runs on every poll, and
+	// spawning `git ls-files` per nested root on a polling path is the cost this
+	// function has always avoided. resolve reports an empty set as RESOLVED
+	// rather than unavailable, which keeps the previous behaviour — a gitignore
+	// match skips, because nothing is tracked — while only the ROOT the match is
+	// evaluated against changes.
+	//
+	// Reporting it as unavailable instead would fire
+	// warnGitTrackedFilesUnavailable for every nested root on every poll, which
+	// is a false alarm: git is available, this path simply does not ask it.
+	ignoreCaches.tracked = &collectorTrackedResolver{
+		resolve:   func(string) (map[string]struct{}, bool) { return nil, true },
+		walkRoot:  root,
+		rootByDir: make(map[string]string),
+		setByRoot: make(map[string]map[string]struct{}),
+	}
 	if err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			// Skip entries we cannot read (permission denied, etc.)
