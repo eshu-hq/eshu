@@ -7,12 +7,12 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
 )
 
 // familyCountClaim matches the prose counts this repo writes about the
@@ -30,17 +30,30 @@ import (
 // and reports a correct sentence as wrong, which is how this gate first failed.
 var familyCountClaim = regexp.MustCompile(`(?:(other|not-yet-covered)\s+)?(\d+)\s+(?:(other|not-yet-covered)\s+)?allProjectionDomains`)
 
-// materializedEdgeCountClaimFiles are the files that state a family count in
-// prose. A file is listed here because it makes a claim a reader will believe,
-// not because it is Go or YAML.
+// materializedEdgeCountClaimFile is a file that states a family count in prose,
+// with the exact number of claims it is expected to make.
 //
-// Adding a family, or proving one, changes these numbers. Nothing in the build
-// forces the prose to follow, which is exactly how four of the five claims in
-// this list drifted at once.
-var materializedEdgeCountClaimFiles = []string{
-	filepath.Join("specs", MaterializedEdgeManifestFileName),
-	filepath.Join("go", "internal", "ifa", "materialized_edges_lockstep_test.go"),
-	filepath.Join("go", "internal", "reducer", "materialized_edge_families.go"),
+// Claims is pinned rather than checked as "at least one": two of these files
+// carry two claims each, so rephrasing one past the regex leaves the other
+// matching and the file still looks covered. The escaped claim then goes stale
+// unnoticed — the same false green this gate exists to prevent, one level down.
+//
+// Changing a count claim's wording is therefore a deliberate edit here, not a
+// silent drop.
+type materializedEdgeCountClaimFile struct {
+	Path   string
+	Claims int
+}
+
+// materializedEdgeCountClaimFiles lists the files whose prose a reader will
+// believe. A file is here because it makes a claim, not because it is Go or
+// YAML. Adding a family, or proving one, moves these numbers, and nothing in
+// the build forces the prose to follow — which is how four of the five claims
+// drifted at once.
+var materializedEdgeCountClaimFiles = []materializedEdgeCountClaimFile{
+	{filepath.Join("specs", MaterializedEdgeManifestFileName), 2},
+	{filepath.Join("go", "internal", "ifa", "materialized_edges_lockstep_test.go"), 1},
+	{filepath.Join("go", "internal", "reducer", "materialized_edge_families.go"), 2},
 }
 
 // TestMaterializedEdgeFamilyCountClaimsMatchTheCode is a #5543 anti-drift gate.
@@ -64,27 +77,46 @@ func TestMaterializedEdgeFamilyCountClaimsMatchTheCode(t *testing.T) {
 	families := reducer.MaterializedEdgeFamilies()
 	total := len(families)
 
-	manifest, err := replaycoverage.LoadManifest(filepath.Join(repoRoot, "specs", MaterializedEdgeManifestFileName))
+	// Count the families that still carry a waiver, rather than subtracting the
+	// families that have any coverage row.
+	//
+	// Coverage and waivers are both per (surface, proof_gate): a family can have
+	// a proven baseline while its fault dimension is still waived, and that
+	// partial state is not merely allowed, it is what incremental #5543 work
+	// looks like on the way through. Counting "has any coverage row" as done
+	// would drop such a family out of the waived total the moment its first
+	// dimension lands, so the gate would demand a prose number that is wrong —
+	// rejecting accurate prose during exactly the work it is meant to track.
+	//
+	// "Families with at least one remaining waiver" is what the sentences mean
+	// by "the N other allProjectionDomains families".
+	waivers, err := LoadMaterializedEdgeWaivers(filepath.Join(repoRoot, "specs", MaterializedEdgeManifestFileName))
 	if err != nil {
-		t.Fatalf("LoadManifest: %v", err)
+		t.Fatalf("LoadMaterializedEdgeWaivers: %v", err)
 	}
-	covered := map[string]struct{}{}
-	for _, sc := range manifest.Coverage {
-		name, ok := strings.CutPrefix(sc.Surface, MaterializedEdgeSurfacePrefix)
+	waivedFamilies := map[string]struct{}{}
+	for _, w := range waivers {
+		name, ok := strings.CutPrefix(w.Surface, MaterializedEdgeSurfacePrefix)
 		if !ok {
 			continue
 		}
-		covered[name] = struct{}{}
+		waivedFamilies[name] = struct{}{}
 	}
-	waived := total - len(covered)
+	waived := len(waivedFamilies)
 
-	if total == 0 || waived < 0 || waived > total {
-		t.Fatalf("derived counts are nonsense: total=%d covered=%d waived=%d", total, len(covered), waived)
+	if total == 0 || waived > total {
+		t.Fatalf("derived counts are nonsense: total=%d waived=%d", total, waived)
+	}
+	for name := range waivedFamilies {
+		if !slices.Contains(families, name) {
+			t.Errorf("waiver names %q, which is not an allProjectionDomains family; the ledger and reducer.MaterializedEdgeFamilies() disagree", name)
+		}
 	}
 
 	checked := 0
 	perFile := map[string]int{}
-	for _, rel := range materializedEdgeCountClaimFiles {
+	for _, cf := range materializedEdgeCountClaimFiles {
+		rel := cf.Path
 		path := filepath.Join(repoRoot, rel)
 		raw, err := os.ReadFile(path) // #nosec G304 -- repo-relative path from a fixed list.
 		if err != nil {
@@ -119,15 +151,15 @@ func TestMaterializedEdgeFamilyCountClaimsMatchTheCode(t *testing.T) {
 	// If a file legitimately stops making a count claim, drop it from
 	// materializedEdgeCountClaimFiles deliberately rather than letting it fall
 	// out by accident.
-	for _, rel := range materializedEdgeCountClaimFiles {
-		if perFile[rel] == 0 {
-			t.Errorf("%s makes no family-count claim matching %q; either its wording drifted past this gate or it should be removed from materializedEdgeCountClaimFiles on purpose",
-				rel, familyCountClaim.String())
+	for _, cf := range materializedEdgeCountClaimFiles {
+		if got := perFile[cf.Path]; got != cf.Claims {
+			t.Errorf("%s makes %d family-count claim(s) matching %q, want exactly %d; a claim was added or reworded past this gate, and a claim this gate cannot see is a claim that goes stale silently",
+				cf.Path, got, familyCountClaim.String(), cf.Claims)
 		}
 	}
 	if checked == 0 {
 		t.Fatalf("no family-count claims matched %q in %v; the wording changed and this gate went vacuous",
 			familyCountClaim.String(), materializedEdgeCountClaimFiles)
 	}
-	t.Logf("checked %d family-count claim(s): total=%d covered=%d waived=%d", checked, total, len(covered), waived)
+	t.Logf("checked %d family-count claim(s): total=%d waived=%d", checked, total, waived)
 }
