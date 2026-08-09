@@ -332,7 +332,17 @@ cell_deltaretract
 # anchor matches a real write locally and not in CI -- tracked in #5974.
 # Enabling it here would leave CI red; the marker is what made the question
 # precise, not what answered it.
-# cell_failgraphwrite_sql is defined but NOT run by default (#5974). It passes
+# cell_failgraphwrite_sql runs HERE ON PURPOSE, for one experiment.
+#
+# It is known to fail in CI (#5974). The three probes added with it -- a fresh
+# stack precondition, an edge-set assertion after the drain, and a loud marker
+# write -- exist to make that failure say WHICH cause, and they can only do that
+# if CI actually runs them. A held-out cell answers nothing.
+#
+# If this run goes red, the probe output is the answer and this line goes back
+# to commented-out in the same PR. This PR is not merged while red.
+cell_failgraphwrite_sql
+# HISTORICAL: cell_failgraphwrite_sql is defined but NOT run by default (#5974). It passes
 # locally and does not fire in CI: run 31245188403 shows zero injected-fault
 # hits and zero shared-projection partition failures, while the GCP cell in the
 # same run fired normally -- so the decorator works and only this injection

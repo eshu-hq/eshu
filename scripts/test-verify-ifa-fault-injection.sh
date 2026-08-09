@@ -163,7 +163,22 @@ done
 for cell in cell_killworker_sql cell_duplicatedelivery cell_deltaretract; do
 	rg --quiet -- "^${cell}\$" "${script}" || fail "verifier does not INVOKE ${cell} on its own line"
 done
-require "failgraphwrite_sql held out with CI evidence" "reported no once-fired marker at all"
+# #5974 probes. A missing marker had two explanations and the gate had to guess
+# between them, which is how this issue stayed open on a wrong root cause. These
+# three close the gap: the stack is provably fresh, the edge provably exists,
+# and a failed marker write is no longer silent.
+require_driver "fresh_stack fails loudly when teardown fails" "the stack is NOT fresh"
+require_driver "fresh_stack captures teardown output instead of discarding it" 'compose-down-${cell}.log'
+require_sql_cells "probe 1: fresh-stack intent precondition" "survived fresh_stack"
+require_sql_cells "probe 2: SQL edges asserted after the drain" "the QUERIES_TABLE MERGE never ran in this cell"
+require_sql_cells "probe 2: this cell's intent window is reported" "projection_domain = 'sql_relationships'"
+require_sql_cells "die message names the marker-write-failure alternative" "once-fired marker write failed"
+# The old message asserted a single cause. It must not come back.
+if rg --fixed-strings --quiet -- "the scripted fault never fired -- no once-fired marker" "${sql_cells_lib}"; then
+	fail "the SQL cell's die message asserts the fault never fired; a missing marker also means the marker write failed (#5974)"
+fi
+
+require "failgraphwrite_sql enabled for the #5974 probe experiment" "runs HERE ON PURPOSE, for one experiment"
 # The library must DEFINE both cells. The needles below check implementation
 # details that could still match if the function wrapper were renamed away.
 require_delivery_cells "delivery lib defines cell_duplicatedelivery" "cell_duplicatedelivery() {"
