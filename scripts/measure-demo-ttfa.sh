@@ -26,9 +26,10 @@ TARGET=""
 PROJECT="${ESHU_DEMO_TTFA_PROJECT:-eshu-ttfa}"
 COMPOSE_FILE="docker-compose.demo.yaml"
 OUT_DIR="${ESHU_DEMO_TTFA_OUT:-}"
+PRUNE_BUILD_CACHE=0
 
 usage() {
-	printf 'usage: %s --mode cold|warm [--runs N] [--target 6m] [--project NAME]\n' "$0" >&2
+	printf 'usage: %s --mode cold|warm [--runs N] [--target 6m] [--project NAME] [--prune-build-cache]\n' "$0" >&2
 	exit 2
 }
 
@@ -38,6 +39,7 @@ while [ $# -gt 0 ]; do
 	--runs) RUNS="${2:-}"; shift 2 ;;
 	--target) TARGET="${2:-}"; shift 2 ;;
 	--project) PROJECT="${2:-}"; shift 2 ;;
+	--prune-build-cache) PRUNE_BUILD_CACHE=1; shift ;;
 	-h | --help) usage ;;
 	*) printf 'unknown argument: %s\n' "$1" >&2; usage ;;
 	esac
@@ -87,8 +89,15 @@ observed_image_state() {
 	printf 'present\n'
 }
 
-# drop_demo_images removes the demo's images so the next run pays the real
-# first-install cost. Only images this stack declares are touched.
+# drop_demo_images removes the demo's image TAGS. On its own this is NOT a
+# first-install cold run: the demo builds most of its images, and BuildKit keeps
+# every layer, so the rebuild comes straight back out of cache. Measured on an
+# idle 16-core host, tag-only "cold" came in 2.3% above warm (208.9s vs 204.2s)
+# with 21.66GB of build cache still resident -- i.e. it measured almost nothing.
+#
+# --prune-build-cache drops that cache too, which is what a first install
+# actually pays. It is opt-in because the cache is shared with everything else
+# on the machine and reclaiming it is not this script's call to make silently.
 drop_demo_images() {
 	local img
 	while IFS= read -r img; do
@@ -125,6 +134,12 @@ for run in $(seq 1 "$RUNS"); do
 	teardown
 	if [ "$MODE" = "cold" ]; then
 		drop_demo_images
+		if [ "$PRUNE_BUILD_CACHE" = "1" ]; then
+			docker builder prune -af >/dev/null 2>&1 || true
+		else
+			printf 'WARNING: build cache kept; this measures a cached rebuild, not a first install.\n'
+			printf '         Pass --prune-build-cache for a true cold number.\n'
+		fi
 	fi
 
 	observed="$(observed_image_state)"
