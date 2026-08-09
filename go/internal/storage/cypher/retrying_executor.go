@@ -185,6 +185,9 @@ func classifyTransientNeo4jError(err error) string {
 		}
 		return ""
 	}
+	if isNornicDBRestartTransactionStartFailure(err) {
+		return graphWriteRetryReasonConnectivity
+	}
 	msg := err.Error()
 	// NornicDB reports relationship snapshot conflicts with a transient code.
 	// Classify the narrow conflict shape before the generic TransientError
