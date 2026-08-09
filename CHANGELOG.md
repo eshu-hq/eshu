@@ -27,7 +27,8 @@ recent shipped work grouped by feature area.
   `CloudResource` label through the SAME generic AWS resource node
   materialization every other resource type uses: no new node label, no
   dedicated node/edge writer, and no reducer join-code change was needed. The
-  fact carries only identity (account/region/resource_id) — no name, state,
+  fact carries only identity (account/region/resource_id, with Name set to the
+  bare resource id like every other EC2 resource type) — no rich state,
   owner, or creation-date metadata, since that requires a separate
   `DescribeImages` API call this increment deliberately does not make (a
   distinct, separately costed enrichment follow-up). `ResourceTypeEC2AMI` now

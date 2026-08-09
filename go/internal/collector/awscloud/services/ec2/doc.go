@@ -41,8 +41,9 @@
 // AMI materializes under the EXISTING CloudResource label through the SAME
 // generic AWS resource node materialization every other resource_type uses
 // (go/internal/reducer/aws_resource_materialization.go) — no dedicated
-// node/edge writer. It carries ONLY identity (account/region/resource_id),
-// never name/state/owner/creation-date metadata: that requires a
+// node/edge writer. It carries ONLY identity (account/region/resource_id, with
+// Name set to the bare resource id like every other EC2 resource type), never
+// rich state/owner/creation-date metadata: that requires a
 // DescribeImages call this scanner deliberately does not make (see
 // ami_identity.go).
 //

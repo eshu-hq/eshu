@@ -34,8 +34,8 @@ needed none of that — once the `aws_resource` fact for the AMI exists, the
 edge resolves through code that already runs today.
 
 **No `DescribeImages` call.** The AMI resource fact carries ONLY identity
-(account_id, region, resource_id=AMI id) — no name, state, owner, or
-creation-date. That AMI metadata lives on the separate `DescribeImages` API,
+(account_id, region, resource_id=AMI id, with Name set to the bare resource id
+like every other EC2 resource type) — no rich state, owner, or creation-date. That AMI metadata lives on the separate `DescribeImages` API,
 which this increment deliberately does not call: the issue's scope is "make
 the edge resolve," not "enrich the AMI node." Enrichment is a distinct,
 separately costed follow-up. This is a documented scope boundary, not an

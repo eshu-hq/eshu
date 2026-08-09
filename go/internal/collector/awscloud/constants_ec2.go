@@ -43,10 +43,10 @@ const (
 	// materialization and relationship-edge-join path every other resource
 	// type uses (go/internal/reducer/aws_resource_materialization.go,
 	// aws_relationship_join.go). It carries only identity: the EC2 scanner
-	// reads no DescribeImages data, so `name` carries the bare AMI id and no
-	// human-readable name, state, owner, or creation-date metadata is available
-	// this increment (a documented scope boundary, not
-	// a bug — enrichment via DescribeImages is a separate, costed change).
+	// reads no DescribeImages data, so the AMI carries only the bare
+	// resource-id-as-Name (the EC2-wide convention) with no rich state,
+	// owner, or creation-date metadata — a documented scope boundary, not
+	// a bug (enrichment via DescribeImages is a separate, costed change).
 	ResourceTypeEC2AMI = awsv1.ResourceTypeEC2AMI
 )
 

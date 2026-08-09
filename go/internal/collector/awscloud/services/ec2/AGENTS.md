@@ -36,8 +36,9 @@
   node/edge writer, no #5472 registration (retractable_edge_types,
   replay-depth spec, graph schema uid constraint) — the generic AWS resource
   materialization and relationship-edge join already handle it like any other
-  resource_type. The fact carries ONLY identity (account/region/resource_id);
-  do not add name/state/owner/creation-date AMI metadata here — that requires
+  resource_type. The fact carries ONLY identity (account/region/resource_id,
+  with Name set to the bare resource id like every other EC2 resource type);
+  do not add rich state/owner/creation-date AMI metadata here — that requires
   a `DescribeImages` call this scanner deliberately does not make (a separate,
   costed follow-up).
 - EBS volume facts come only from a boundary-scoped `DescribeVolumes` pass. Do

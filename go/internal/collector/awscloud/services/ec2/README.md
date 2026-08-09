@@ -41,7 +41,8 @@ above finally resolve: the AMI materializes as an ordinary `CloudResource`
 node through the SAME generic AWS resource node materialization every other
 resource type uses (`go/internal/reducer/aws_resource_materialization.go`) —
 no new node label, no dedicated node/edge writer. The fact carries ONLY
-identity (account/region/resource_id); it never carries name, state, owner,
+identity (account/region/resource_id, with Name set to the bare resource id
+like every other EC2 resource type); it never carries rich state, owner,
 or creation-date AMI metadata, because that requires a separate
 `DescribeImages` API call this scanner deliberately does not make (a distinct,
 separately costed enrichment follow-up, not a bug).
@@ -134,7 +135,8 @@ AWS API call counters, throttle counters, and pagination spans.
   `go/internal/storage/cypher/ec2_instance_identity_node_writer.go`'s
   disjointness proof before adding one.
 - The AMI (`aws_ec2_ami`) `aws_resource` fact (#5717) is INTENTIONALLY
-  identity-only, mirroring the instance fact's minimalism above: no name,
+  identity-only, mirroring the instance fact's minimalism above: Name is the
+  bare resource id, and there is no rich
   state, owner, or creation-date property. It exists solely so the
   instance->AMI relationship's edge join resolves; enriching it with real AMI
   metadata requires a `DescribeImages` call this package does not make and is

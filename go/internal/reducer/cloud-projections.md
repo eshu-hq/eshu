@@ -351,7 +351,8 @@ domain every other resource_type uses, so the generic
 `aws_relationship_materialization` domain's target join (`buildCloudResourceJoinIndex`
 in `aws_relationship_join.go`) resolves the `aws_ec2_ami` target by bare id
 like any other bare-id-keyed resource — no reducer code change was needed for
-the join itself. The AMI fact carries only identity (no name/state/owner/
+the join itself. The AMI fact carries only identity (Name is the bare resource
+id; no rich state/owner/
 creation-date): that AMI metadata requires a `DescribeImages` call the
 collector deliberately does not make, a separate, costed enrichment
 follow-up.

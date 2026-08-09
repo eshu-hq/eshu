@@ -215,7 +215,8 @@ func TestScannerEmitsInstancePostureAndIdentityFacts(t *testing.T) {
 	}
 
 	// #5717: the AMI resource fact this relationship's target join resolves
-	// against. It carries only identity — no name/state/owner metadata, since
+	// against. It carries only identity — Name is the bare resource id, with no
+	// rich state/owner metadata, since
 	// this increment reads no DescribeImages data (see amiResourceObservation
 	// doc).
 	amiResource := assertResourceType(t, envelopes, awscloud.ResourceTypeEC2AMI)
