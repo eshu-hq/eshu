@@ -51,7 +51,8 @@
 #      the driven cassettes happen to schedule first (in practice GCP).
 #   7. fail-graph-write-once-then-succeed-sql (#5555) -- mirrors cell 4, but
 #      the fault is anchored to a SQL edge MERGE (QUERIES_TABLE) instead of
-#      CloudResource. Fired-fault proof is a shared-projection error log
+#      CloudResource. Fired-fault proof is the once-fired marker the fault
+#      decorator writes at injection time, not a log
 #      line, not fact_work_items attempt_count: sql_relationship_
 #      materialization's graph writes ride the async shared-projection
 #      intent path, which has no attempt_count column (see
@@ -102,7 +103,7 @@
 # dead_letter count after a cell's drain is a real concurrency/recovery
 # defect -- root-cause it, never lower workers, retry, or otherwise normalize
 # it away (Serialization-Is-Not-A-Fix). A fault that never fires (checked
-# per-cell: a claimed-row proof for cells 2/3/6, a reducer-log poll for
+# per-cell: a claimed-row proof for cells 2/3/6, a once-fired marker for
 # cells 4/7, a sentinel-fired proof for cell 5) is an inert script, not a
 # pass.
 #
@@ -322,6 +323,15 @@ cell_restartbackend
 cell_killworker_sql
 cell_duplicatedelivery
 cell_deltaretract
+# cell_failgraphwrite_sql stays held out. #5974's marker (below) replaced a log
+# poll that could not tell "the fault never fired" apart from "the log line
+# arrived late". With the ambiguity gone, CI answered plainly: the fault does
+# NOT fire there. Run 31281... on PR #5981 reached this cell with all eight
+# others green and reported no once-fired marker at all, while the same cell
+# fires locally in 9s. So the remaining question is why the QUERIES_TABLE MERGE
+# anchor matches a real write locally and not in CI -- tracked in #5974.
+# Enabling it here would leave CI red; the marker is what made the question
+# precise, not what answered it.
 # cell_failgraphwrite_sql is defined but NOT run by default (#5974). It passes
 # locally and does not fire in CI: run 31245188403 shows zero injected-fault
 # hits and zero shared-projection partition failures, while the GCP cell in the

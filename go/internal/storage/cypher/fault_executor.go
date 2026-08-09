@@ -106,6 +106,17 @@ type FaultingExecutor struct {
 	onceMatch   string // "" => match by ordinal instead of substring.
 	onceLane    string // "" => no such fault scripted.
 	onceFired   atomic.Bool
+	// onceFiredPath, when non-empty, is a file this executor writes the moment
+	// the once-fault fires. It exists because a shell gate cannot call
+	// OnceThenSucceedFired across a process boundary and the fallback -- polling
+	// the reducer's captured stderr -- races the logger's flush. That race is
+	// documented in scripts/lib/ifa_fault_injection_common.sh, where an earlier
+	// log-grep assertion was abandoned after the injected-failure line reached
+	// the captured file a minute-plus after the event in CI (#5974). This marker
+	// is written synchronously by the goroutine that injects the fault, before
+	// the failing write returns, so a reader that sees the fault's effect can
+	// always see the marker too.
+	onceFiredPath string
 
 	// restart-backend-between-phase-groups state.
 	restartAfterGroups int // 0 => no such fault scripted.
@@ -183,6 +194,13 @@ func (fe *FaultingExecutor) applyFault(f faultreplay.FaultOp, sentinelPath strin
 			fe.onceMatch = *f.Trigger.OperationMatch
 		} else {
 			fe.onceOrdinal = *f.Trigger.StatementOrdinal
+		}
+		// Derived from the restart sentinel's path rather than taking a new
+		// constructor argument, so in-process tests that pass an empty path keep
+		// working: they assert through OnceThenSucceedFired instead, and an empty
+		// path simply skips the marker.
+		if strings.TrimSpace(sentinelPath) != "" {
+			fe.onceFiredPath = sentinelPath + onceFiredMarkerSuffix
 		}
 		return nil
 	case faultreplay.KindRestartBackendBetweenPhaseGroups:
@@ -291,12 +309,19 @@ func (fe *FaultingExecutor) maybeFailOnce(
 	stmts []Statement,
 	allowArm bool,
 ) (context.Context, error) {
-	if fe.onceLane == "" || !fe.onceMatches(ordinal, stmts) {
+	if fe.onceLane == "" {
+		return ctx, nil
+	}
+	matched, ok := fe.onceMatchedStatement(ordinal, stmts)
+	if !ok {
 		return ctx, nil
 	}
 	if !fe.onceFired.CompareAndSwap(false, true) {
 		return ctx, nil
 	}
+	// Record the firing durably before returning the fault, so the gate's proof
+	// does not depend on the reducer's stderr reaching its captured file in time.
+	fe.writeOnceFiredMarker(ordinal, matched)
 	switch fe.onceLane {
 	case faultreplay.LaneQueueRetry:
 		return ctx, &ifaFaultQueueRetryError{ordinal: ordinal}
@@ -316,15 +341,8 @@ func (fe *FaultingExecutor) maybeFailOnce(
 // or a call carrying at least one statement whose Cypher text contains the
 // scripted substring.
 func (fe *FaultingExecutor) onceMatches(ordinal int, stmts []Statement) bool {
-	if fe.onceMatch != "" {
-		for i := range stmts {
-			if strings.Contains(stmts[i].Cypher, fe.onceMatch) {
-				return true
-			}
-		}
-		return false
-	}
-	return ordinal == fe.onceOrdinal
+	_, ok := fe.onceMatchedStatement(ordinal, stmts)
+	return ok
 }
 
 // maybeRestartAfterGroup fires the scripted restart-backend-between-phase-
