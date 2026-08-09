@@ -29,6 +29,10 @@ func TestGoldenHarnessIntegratesCapabilityFoundationsInOrder(t *testing.T) {
 		"golden_changed_since_mutate_fixture",
 		"golden_changed_since_validate_current",
 		"golden_changed_since_compose_snapshot",
+		"golden_relationship_evidence_capture_resolved_id",
+		"golden_relationship_evidence_compose_snapshot",
+		"golden_aggregate_counts_capture",
+		"golden_aggregate_counts_compose_snapshot",
 		"export ESHU_EMIT_DATAFLOW=true",
 		"build_bin mock-prometheus-mimir",
 		"golden_metrics_source_start",
@@ -45,12 +49,14 @@ func TestGoldenHarnessIntegratesCapabilityFoundationsInOrder(t *testing.T) {
 	maintenanceAt := strings.Index(script, "\nrun_maintenance_drain_cycles\n")
 	validateAt := strings.Index(script, "\ngolden_service_changed_since_validate_current\n")
 	repositoryValidateAt := strings.Index(script, "\ngolden_changed_since_validate_current\n")
+	relationshipCaptureAt := strings.Index(script, "\ngolden_relationship_evidence_capture_resolved_id\n")
 	metricsAt := strings.Index(script, "\ngolden_metrics_source_start\n")
 	apiAt := strings.Index(script, "\nstart_bg api api_pid")
+	aggregateCaptureAt := strings.Index(script, "\ngolden_aggregate_counts_capture\n")
 	if priorAt < 0 || repositoryPriorAt <= priorAt || mutateAt <= repositoryPriorAt || repositoryMutateAt <= mutateAt ||
 		maintenanceAt <= repositoryMutateAt || validateAt <= maintenanceAt || repositoryValidateAt <= validateAt ||
-		metricsAt <= repositoryValidateAt || apiAt <= metricsAt {
-		t.Fatalf("integration order service-prior=%d repository-prior=%d service-mutate=%d repository-mutate=%d maintenance=%d service-validate=%d repository-validate=%d metrics=%d api=%d", priorAt, repositoryPriorAt, mutateAt, repositoryMutateAt, maintenanceAt, validateAt, repositoryValidateAt, metricsAt, apiAt)
+		relationshipCaptureAt <= repositoryValidateAt || metricsAt <= relationshipCaptureAt || apiAt <= metricsAt || aggregateCaptureAt <= apiAt {
+		t.Fatalf("integration order service-prior=%d repository-prior=%d service-mutate=%d repository-mutate=%d maintenance=%d service-validate=%d repository-validate=%d relationship=%d metrics=%d api=%d aggregate=%d", priorAt, repositoryPriorAt, mutateAt, repositoryMutateAt, maintenanceAt, validateAt, repositoryValidateAt, relationshipCaptureAt, metricsAt, apiAt, aggregateCaptureAt)
 	}
 }
 
@@ -94,5 +100,21 @@ func TestGoldenHarnessRuntimeSnapshotTransformsCompose(t *testing.T) {
 	}
 	if repositoryComposeAt < 0 || serviceSnapshotAt < 0 {
 		t.Fatal("repository changed-since transform must consume the service-composed snapshot")
+	}
+	relationshipComposeAt := strings.Index(script, "golden_relationship_evidence_compose_snapshot")
+	repositorySnapshotAt := -1
+	if relationshipComposeAt >= 0 {
+		repositorySnapshotAt = strings.Index(script[relationshipComposeAt:], "${golden_repository_runtime_snapshot}")
+	}
+	if relationshipComposeAt < 0 || repositorySnapshotAt < 0 {
+		t.Fatal("relationship-evidence transform must consume the repository-composed snapshot")
+	}
+	aggregateComposeAt := strings.Index(script, "golden_aggregate_counts_compose_snapshot")
+	relationshipSnapshotAt := -1
+	if aggregateComposeAt >= 0 {
+		relationshipSnapshotAt = strings.Index(script[aggregateComposeAt:], "${golden_relationship_runtime_snapshot}")
+	}
+	if aggregateComposeAt < 0 || relationshipSnapshotAt < 0 {
+		t.Fatal("aggregate-count transform must consume the relationship-composed snapshot")
 	}
 }

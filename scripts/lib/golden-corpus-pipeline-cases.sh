@@ -115,6 +115,8 @@ unset cloud_reopen_lib
 replay_lib="${repo_root}/scripts/lib/golden-corpus-cassette-replay.sh"
 metrics_source_lib="${repo_root}/scripts/lib/golden-corpus-metrics-source.sh"
 service_changed_lib="${repo_root}/scripts/lib/golden-corpus-service-changed-since.sh"
+relationship_evidence_lib="${repo_root}/scripts/lib/golden-corpus-relationship-evidence.sh"
+aggregate_counts_lib="${repo_root}/scripts/lib/golden-corpus-aggregate-counts.sh"
 require "cassette replay helper source" "golden-corpus-cassette-replay.sh"
 require_in "cassette replay execution" "${replay_lib}" "-mode=cassette"
 require_in "semantic replay alias" "${script}" \
@@ -125,6 +127,12 @@ require_invocation "service prior capture" "golden_service_changed_since_capture
 require_invocation "service staged mutation" "golden_service_changed_since_mutate_owner"
 require_invocation "service current validation" "golden_service_changed_since_validate_current"
 require_invocation "metrics source invocation" "golden_metrics_source_start"
+require "relationship evidence helper source" "golden-corpus-relationship-evidence.sh"
+require_invocation "relationship evidence runtime capture" "golden_relationship_evidence_capture_resolved_id"
+require "relationship evidence snapshot composition" "golden_relationship_evidence_compose_snapshot"
+require "aggregate counts helper source" "golden-corpus-aggregate-counts.sh"
+require_invocation "aggregate counts runtime capture" "golden_aggregate_counts_capture"
+require "aggregate counts snapshot composition" "golden_aggregate_counts_compose_snapshot"
 require "mock metrics binary build" "build_bin mock-prometheus-mimir"
 require_in "explicit metrics instance id" "${metrics_source_lib}" \
 	'ESHU_PROMETHEUS_MIMIR_COLLECTOR_INSTANCE_ID="golden-prometheus-range"'
@@ -132,6 +140,9 @@ require_in "credential-free metrics tenant" "${metrics_source_lib}" 'tenant_id: 
 bash "${repo_root}/scripts/lib/test-golden-corpus-cassette-replay.sh" || fail "cassette replay helper tests failed"
 bash "${repo_root}/scripts/lib/test-golden-corpus-service-changed-since.sh" || fail "service changed-since helper tests failed"
 bash "${repo_root}/scripts/lib/test-golden-corpus-metrics-source.sh" || fail "metrics source helper tests failed"
+bash "${repo_root}/scripts/lib/test-golden-corpus-relationship-evidence.sh" || fail "relationship evidence helper tests failed"
+bash "${repo_root}/scripts/lib/test-golden-corpus-aggregate-counts.sh" || fail "aggregate count helper tests failed"
+unset aggregate_counts_lib relationship_evidence_lib
 require "projector drain" "eshu-projector"
 require "reducer drain" "eshu-reducer"
 # `eshu-api` also names the /readyz failure message, and `eshu-golden-corpus-gate`

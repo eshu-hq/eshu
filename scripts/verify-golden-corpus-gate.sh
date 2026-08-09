@@ -49,6 +49,10 @@ cd "${repo_root}"
 . "${repo_root}/scripts/lib/golden-corpus-changed-since.sh"
 # shellcheck source=scripts/lib/golden-corpus-metrics-source.sh
 . "${repo_root}/scripts/lib/golden-corpus-metrics-source.sh"
+# shellcheck source=scripts/lib/golden-corpus-relationship-evidence.sh
+. "${repo_root}/scripts/lib/golden-corpus-relationship-evidence.sh"
+# shellcheck source=scripts/lib/golden-corpus-aggregate-counts.sh
+. "${repo_root}/scripts/lib/golden-corpus-aggregate-counts.sh"
 
 # ----------------------------------------------------------------------------
 # Configuration (override via environment).
@@ -334,6 +338,7 @@ phase_maintenance_start="${phase_first_drain_end}"
 run_maintenance_drain_cycles
 golden_service_changed_since_validate_current
 golden_changed_since_validate_current
+golden_relationship_evidence_capture_resolved_id
 
 log "local-backend drift diagnostics (issue #5594)"
 print_local_backend_drift_diagnostics
@@ -358,6 +363,7 @@ for _ in $(seq 1 30); do
 	sleep 1
 done
 [[ "${api_ready}" == "true" ]] || { tail -30 "${log_dir}/api.log" >&2 || true; die "eshu-api /readyz never returned on port ${GATE_API_PORT}"; }
+golden_aggregate_counts_capture
 
 log "B-7 suppression producer truth: active -> hidden -> expired"
 # #5837: this proof runs inside the phase_graph_query window but is assertion
@@ -379,9 +385,17 @@ golden_service_runtime_snapshot="${log_dir}/e2e-20repo-service-runtime-snapshot.
 golden_service_changed_since_compose_snapshot \
 	"${golden_suppression_runtime_snapshot}" \
 	"${golden_service_runtime_snapshot}"
-golden_query_runtime_snapshot="${log_dir}/e2e-20repo-query-runtime-snapshot.json"
+golden_repository_runtime_snapshot="${log_dir}/e2e-20repo-repository-runtime-snapshot.json"
 golden_changed_since_compose_snapshot \
 	"${golden_service_runtime_snapshot}" \
+	"${golden_repository_runtime_snapshot}"
+golden_relationship_runtime_snapshot="${log_dir}/e2e-20repo-relationship-runtime-snapshot.json"
+golden_relationship_evidence_compose_snapshot \
+	"${golden_repository_runtime_snapshot}" \
+	"${golden_relationship_runtime_snapshot}"
+golden_query_runtime_snapshot="${log_dir}/e2e-20repo-query-runtime-snapshot.json"
+golden_aggregate_counts_compose_snapshot \
+	"${golden_relationship_runtime_snapshot}" \
 	"${golden_query_runtime_snapshot}"
 
 log "seed post-drain dead-letter query fixture"

@@ -15,6 +15,7 @@ type groupARemainingExpectation struct {
 	key           string
 	http          bool
 	arguments     map[string]any
+	requestBody   map[string]any
 	minimum       int
 	maximum       int
 	resultsField  string
@@ -88,10 +89,10 @@ func TestGoldenSnapshotGroupARemainingCapabilitiesAreNonVacuous(t *testing.T) {
 			values:    map[string]any{"check": "complexity", "repo_id": goRepo, "language": "go", "results[].name": "GoldenDataflowHandler", "results[].file_path": "dataflow_proof.go", "results[].complexity": float64(2)},
 		},
 		{
-			slug: "prod-code-search-fuzzy", key: "find_code", minimum: 1, maximum: 1, resultsField: "matches",
-			arguments: map[string]any{"query": "GoldenDataflow", "repo_id": goRepo, "exact": false, "limit": float64(1)},
-			required:  []string{"matches", "query", "repo_id", "count", "limit", "truncated", "source_backend"},
-			values:    map[string]any{"query": "GoldenDataflow", "repo_id": goRepo, "count": float64(1), "limit": float64(1), "matches[].name": "GoldenDataflowHandler", "matches[].file_path": "dataflow_proof.go", "matches[].labels[]": "Function"},
+			slug: "prod-code-search-fuzzy", key: "POST /api/v0/code/search?proof=fuzzy", http: true, minimum: 1, maximum: 1, resultsField: "matches",
+			requestBody: map[string]any{"query": "GoldenDataflow", "repo_id": goRepo, "exact": false, "limit": float64(1)},
+			required:    []string{"matches", "query", "repo_id", "count", "limit", "truncated", "source_backend"},
+			values:      map[string]any{"query": "GoldenDataflow", "repo_id": goRepo, "count": float64(1), "limit": float64(1), "matches[].name": "GoldenDataflowHandler", "matches[].file_path": "dataflow_proof.go", "matches[].labels[]": "Function"},
 		},
 		{
 			slug: "prod-complexity", key: "calculate_cyclomatic_complexity", minimum: 1, maximum: 1, resultsField: "results",
@@ -121,6 +122,9 @@ func TestGoldenSnapshotGroupARemainingCapabilitiesAreNonVacuous(t *testing.T) {
 			}
 			if test.arguments != nil && !reflect.DeepEqual(shape.Arguments, test.arguments) {
 				t.Errorf("arguments = %#v, want %#v", shape.Arguments, test.arguments)
+			}
+			if test.requestBody != nil && !reflect.DeepEqual(shape.RequestBody, test.requestBody) {
+				t.Errorf("request body = %#v, want %#v", shape.RequestBody, test.requestBody)
 			}
 			if test.resultsField != "" && (shape.MinimumResults != test.minimum || shape.MaximumResults != test.maximum || shape.ResultsField != test.resultsField) {
 				t.Errorf("bounds/results = [%d,%d] %q, want [%d,%d] %q", shape.MinimumResults, shape.MaximumResults, shape.ResultsField, test.minimum, test.maximum, test.resultsField)

@@ -2123,7 +2123,7 @@
   "query_shapes": {
     "mcp": {
       "find_code": {
-        "description": "Deployed fuzzy code search proof over the public Go dataflow fixture.",
+        "description": "Non-vacuous deployed MCP variable lookup proof. Global exact search for the synthetic app binding must return at least one Variable entity through the declared find_code tool.",
         "required_response_fields": [
           "matches",
           "query",
@@ -2136,7 +2136,6 @@
           "truncated"
         ],
         "minimum_results": 1,
-        "maximum_results": 1,
         "results_field": "matches",
         "result_item_required_fields": [
           "entity_id",
@@ -2146,19 +2145,13 @@
           "file_path"
         ],
         "required_json_values": {
-          "query": "GoldenDataflow",
-          "repo_id": "repository:r_8477a002",
-          "count": 1,
-          "limit": 1,
-          "matches[].name": "GoldenDataflowHandler",
-          "matches[].file_path": "dataflow_proof.go",
-          "matches[].labels[]": "Function"
+          "query": "app",
+          "matches[].labels[]": "Variable"
         },
         "arguments": {
-          "query": "GoldenDataflow",
-          "repo_id": "repository:r_8477a002",
-          "exact": false,
-          "limit": 1
+          "query": "app",
+          "exact": true,
+          "limit": 20
         }
       },
       "find_symbol": {
@@ -2179,11 +2172,23 @@
           "symbol",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "results",
+        "required_json_object_matches": {
+          "results[]": [
+            {
+              "entity_id": "Function:orders-api:main",
+              "name": "main",
+              "repo_id": "orders-api",
+              "relative_path": "main.go"
+            }
+          ]
+        },
         "arguments": {
           "symbol": "main",
           "repo_id": "orders-api",
-          "limit": 10
+          "limit": 1
         }
       },
       "inspect_code_inventory": {
@@ -2207,10 +2212,25 @@
           "symbol",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "results",
+        "required_json_object_matches": {
+          "results[]": [
+            {
+              "entity_id": "Function:orders-api:main",
+              "name": "main",
+              "repo_id": "orders-api",
+              "relative_path": "main.go"
+            }
+          ]
+        },
         "arguments": {
           "repo_id": "orders-api",
-          "limit": 10
+          "inventory_kind": "entity",
+          "entity_kind": "Function",
+          "symbol": "main",
+          "limit": 1
         }
       },
       "investigate_import_dependencies": {
@@ -2268,9 +2288,31 @@
           "source_backend",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 2,
+        "maximum_results": 10,
+        "results_field": "functions",
+        "required_json_values": {
+          "metric_type": "recursive_functions",
+          "scope.repo_id": "repository:r_ed3a9bab",
+          "scope.language": "dart",
+          "source_backend": "graph"
+        },
+        "required_json_object_matches": {
+          "functions[]": [
+            {
+              "function_name": "recursionFib",
+              "recursion_kind": "self_call"
+            },
+            {
+              "function_name": "recursionFact",
+              "recursion_kind": "self_call"
+            }
+          ]
+        },
         "arguments": {
-          "repo_id": "orders-api",
+          "repo_id": "dart_comprehensive",
+          "language": "dart",
+          "metric_type": "recursive_functions",
           "limit": 10
         }
       },
@@ -2337,9 +2379,17 @@
           "topic",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 10,
+        "results_field": "evidence_groups",
+        "required_json_values": {
+          "topic": "lib-common",
+          "evidence_groups[].repo_id": "orders-api",
+          "evidence_groups[].relative_path": "main.go",
+          "evidence_groups[].matched_terms[]": "lib-common"
+        },
         "arguments": {
-          "topic": "runtime readiness",
+          "topic": "lib-common",
           "repo_id": "orders-api",
           "limit": 10
         }
@@ -2391,10 +2441,26 @@
           "summary",
           "target_resolution"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "relationships",
+        "required_json_values": {
+          "target_resolution.entity_id": "orders-api:main.go",
+          "target_resolution.status": "resolved"
+        },
+        "required_json_object_matches": {
+          "relationships[]": [
+            {
+              "type": "IMPORTS",
+              "source_id": "orders-api:main.go"
+            }
+          ]
+        },
         "arguments": {
-          "target": "main",
+          "entity_id": "orders-api:main.go",
           "repo_id": "orders-api",
+          "relationship_type": "IMPORTS",
+          "direction": "outgoing",
           "limit": 10
         }
       },
@@ -2523,9 +2589,16 @@
           "truncated",
           "truth_basis"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 10,
+        "results_field": "findings",
+        "required_json_values": {
+          "scope_id": "aws:123456789012:us-east-1:ec2",
+          "findings[].arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a",
+          "findings[].finding_kind": "image_version_drift"
+        },
         "arguments": {
-          "scope_id": "supply-chain-demo",
+          "scope_id": "aws:123456789012:us-east-1:ec2",
           "limit": 10
         }
       },
@@ -2545,10 +2618,16 @@
           "total_findings_count"
         ],
         "minimum_results": 0,
+        "required_json_values": {
+          "scope_id": "aws:123456789012:us-east-1:ec2",
+          "arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a",
+          "analysis_status": "active_management_finding",
+          "finding.arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a",
+          "finding.finding_kind": "image_version_drift"
+        },
         "arguments": {
-          "scope_id": "supply-chain-demo",
-          "resource_id": "aws:s3:us-east-1:123456789012:bucket/supply-chain-demo-artifacts",
-          "limit": 10
+          "scope_id": "aws:123456789012:us-east-1:ec2",
+          "resource_id": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a"
         }
       },
       "explain_iac_management_status": {
@@ -2566,10 +2645,18 @@
           "total_findings_count"
         ],
         "minimum_results": 0,
+        "required_json_paths": [
+          "evidence_groups[]"
+        ],
+        "required_json_values": {
+          "scope_id": "aws:123456789012:us-east-1:ec2",
+          "arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a",
+          "finding.arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a",
+          "finding.finding_kind": "image_version_drift"
+        },
         "arguments": {
-          "scope_id": "supply-chain-demo",
-          "resource_id": "aws:s3:us-east-1:123456789012:bucket/supply-chain-demo-artifacts",
-          "limit": 10
+          "scope_id": "aws:123456789012:us-east-1:ec2",
+          "resource_id": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a"
         }
       },
       "propose_terraform_import_plan": {
@@ -2595,9 +2682,17 @@
           "truncated",
           "truth_basis"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 10,
+        "results_field": "candidates",
+        "required_json_values": {
+          "scope_id": "aws:123456789012:us-east-1:ec2",
+          "arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a",
+          "candidates[].arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a"
+        },
         "arguments": {
-          "scope_id": "supply-chain-demo",
+          "scope_id": "aws:123456789012:us-east-1:ec2",
+          "resource_id": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a",
           "limit": 10
         }
       },
@@ -2628,10 +2723,19 @@
           "truth_basis",
           "wave_summaries"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 10,
+        "results_field": "blast_radius_summaries",
+        "required_json_values": {
+          "scope_id": "aws:123456789012:us-east-1:ec2",
+          "plan.scope.resource": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a",
+          "plan.items[].stable_id": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a",
+          "analysis_status": "replatforming_plan_composition"
+        },
         "arguments": {
-          "scope_kind": "account",
-          "scope_id": "supply-chain-demo",
+          "scope_kind": "resource",
+          "scope_id": "aws:123456789012:us-east-1:ec2",
+          "arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a",
           "limit": 10
         }
       },
@@ -2658,8 +2762,11 @@
           "truth_basis"
         ],
         "minimum_results": 1,
+        "maximum_results": 10,
         "results_field": "drift_findings",
         "required_json_values": {
+          "scope_id": "aws:123456789012:us-east-1:ec2",
+          "drift_findings[].arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a",
           "drift_findings[].finding_kind": "image_version_drift",
           "drift_findings[].drifted_attributes[].attribute": "ami",
           "drift_findings[].drifted_attributes[].declared_value": "ami-0123456789abcdef0",
@@ -2693,8 +2800,23 @@
           "truth_basis"
         ],
         "minimum_results": 0,
+        "required_json_paths": [
+          "dimensions.account[]"
+        ],
+        "required_json_values": {
+          "scope_id": "aws:123456789012:us-east-1:ec2",
+          "rollup_findings_count": 1,
+          "analysis_status": "replatforming_rollups"
+        },
+        "required_json_object_matches": {
+          "dimensions.account[]": [
+            {
+              "key": "123456789012"
+            }
+          ]
+        },
         "arguments": {
-          "scope_id": "supply-chain-demo",
+          "scope_id": "aws:123456789012:us-east-1:ec2",
           "limit": 10
         }
       },
@@ -2721,9 +2843,16 @@
           "truth_basis",
           "unattributed_count"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "ownership_packets",
+        "required_json_values": {
+          "scope_id": "aws:123456789012:us-east-1:ec2",
+          "ownership_packets[].stable_id": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a",
+          "ownership_packets[].finding_kind": "image_version_drift"
+        },
         "arguments": {
-          "scope_id": "supply-chain-demo",
+          "scope_id": "aws:123456789012:us-east-1:ec2",
           "limit": 10
         }
       },
@@ -2805,9 +2934,20 @@
           "results",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "results",
+        "required_json_object_matches": {
+          "results[]": [
+            {
+              "source_id": "repository:r_ea78e8bb",
+              "relationship": "DEPENDS_ON",
+              "target_id": "repository:r_3eddcea1"
+            }
+          ]
+        },
         "arguments": {
-          "cypher_query": "MATCH (n) RETURN n LIMIT 1",
+          "cypher_query": "MATCH (source:Repository {id: 'repository:r_ea78e8bb'})-[rel:DEPENDS_ON]->(target:Repository {id: 'repository:r_3eddcea1'}) RETURN source, rel, target, source.id AS source_id, type(rel) AS relationship, target.id AS target_id LIMIT 1",
           "limit": 1
         }
       },
@@ -2819,8 +2959,31 @@
           "visualization_packet"
         ],
         "minimum_results": 0,
+        "required_json_values": {
+          "visualization_packet.view": "graph_query",
+          "visualization_packet.supported": true,
+          "visualization_packet.limits.node_count": 2,
+          "visualization_packet.limits.edge_count": 1
+        },
+        "required_json_object_matches": {
+          "visualization_packet.nodes[]": [
+            {
+              "type": "Repository",
+              "label": "orders-api"
+            },
+            {
+              "type": "Repository",
+              "label": "lib-common"
+            }
+          ],
+          "visualization_packet.edges[]": [
+            {
+              "relationship": "DEPENDS_ON"
+            }
+          ]
+        },
         "arguments": {
-          "cypher_query": "MATCH (n) RETURN n LIMIT 1",
+          "cypher_query": "MATCH (source:Repository {id: 'repository:r_ea78e8bb'})-[rel:DEPENDS_ON]->(target:Repository {id: 'repository:r_3eddcea1'}) RETURN source, rel, target, source.id AS source_id, type(rel) AS relationship, target.id AS target_id LIMIT 1",
           "limit": 1
         }
       },
@@ -3158,7 +3321,11 @@
           "repo_count",
           "workload_count"
         ],
-        "minimum_results": 0
+        "minimum_results": 0,
+        "required_json_values": {
+          "repo_count": "__runtime_ecosystem_repo_count__",
+          "workload_count": "__runtime_ecosystem_workload_count__"
+        }
       },
       "get_graph_summary_packet": {
         "description": "Positive repository-scoped graph summary for orders-api. The deployed assertion requires at least one ranked function plus its identity and degree fields, while retaining bounded relationship and ecosystem-map readback without the global needs-repo note.",
@@ -3303,9 +3470,20 @@
           "values_layers",
           "workload_id"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 10,
+        "results_field": "rendered_targets",
+        "required_json_paths": [
+          "values_layers[]",
+          "rendered_targets[]"
+        ],
+        "required_json_values": {
+          "service_name": "deployable-config",
+          "workload_id": "workload:deployable-config",
+          "coverage.query_shape": "deployment_config_influence_story"
+        },
         "arguments": {
-          "service_name": "api-svc",
+          "service_name": "deployable-config",
           "limit": 10
         }
       },
@@ -3319,9 +3497,23 @@
           "target_type",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 10,
+        "results_field": "affected",
+        "required_json_values": {
+          "target": "lib-common",
+          "target_type": "repository"
+        },
+        "required_json_object_matches": {
+          "affected[]": [
+            {
+              "repo": "orders-api",
+              "hops": 1
+            }
+          ]
+        },
         "arguments": {
-          "target": "orders-api",
+          "target": "lib-common",
           "target_type": "repository",
           "limit": 10
         }
@@ -3438,6 +3630,12 @@
           "coverage"
         ],
         "minimum_results": 0,
+        "required_json_paths": [
+          "coverage"
+        ],
+        "required_json_values": {
+          "repository.name": "orders-api"
+        },
         "arguments": {
           "repo_name": "orders-api"
         }
@@ -3460,18 +3658,40 @@
           "source_tool_breakdown",
           "workload_count"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 50,
+        "results_field": "relationships",
+        "required_json_values": {
+          "repository.id": "repository:r_ea78e8bb",
+          "repository.name": "orders-api"
+        },
         "arguments": {
           "repo_id": "orders-api"
         }
       },
       "get_relationship_evidence": {
         "description": "MCP tool coverage shape for get_relationship_evidence; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
-        "required_response_fields": [],
-        "minimum_results": 0,
-        "expected_error_contains": "relationship evidence not found",
+        "required_response_fields": [
+          "resolved_id",
+          "relationship_type",
+          "source",
+          "target",
+          "evidence_preview"
+        ],
+        "minimum_results": 1,
+        "maximum_results": 10,
+        "results_field": "evidence_preview",
+        "required_json_paths": [
+          "evidence_preview[].kind"
+        ],
+        "required_json_values": {
+          "resolved_id": "__runtime_group_c_relationship_resolved_id__",
+          "relationship_type": "DEPLOYS_FROM",
+          "source.repo_id": "repository:r_217415d9",
+          "target.repo_id": "repository:r_1f68383d"
+        },
         "arguments": {
-          "resolved_id": "golden-corpus:relationship:missing"
+          "resolved_id": "__runtime_group_c_relationship_resolved_id__"
         }
       },
       "analyze_pre_change_impact": {
@@ -3497,12 +3717,24 @@
           "truncated",
           "workflow"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 10,
+        "results_field": "direct_impact",
+        "required_json_paths": [
+          "direct_impact[].source_handle"
+        ],
+        "required_json_values": {
+          "workflow": "pre_change_impact",
+          "changed_file_count": 1,
+          "changed_files[].repo_id": "orders-api",
+          "changed_files[].path": "main.go"
+        },
         "arguments": {
-          "changed_files": [
-            "go/internal/query/contract.go"
+          "repo_id": "orders-api",
+          "changed_paths": [
+            "main.go"
           ],
-          "topic": "query envelope",
+          "topic": "lib-common",
           "limit": 10
         }
       },
@@ -3597,7 +3829,13 @@
           "support_overview",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 50,
+        "results_field": "story_sections",
+        "required_json_values": {
+          "subject.id": "repository:r_ea78e8bb",
+          "subject.name": "orders-api"
+        },
         "required_absent_when_present": [
           {
             "description": "ci_cd_run_correlation must not be disclosed absent while a sibling ci_cd_evidence field serves it (#5472, #5581)",
@@ -3666,9 +3904,26 @@
           "start",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 10,
+        "results_field": "paths",
+        "required_json_values": {
+          "start.id": "arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo",
+          "paths[].repo_id": "repository:r_69256c06"
+        },
+        "required_json_object_matches": {
+          "paths[].hops[]": [
+            {
+              "type": "AWS_lambda_function_uses_image"
+            },
+            {
+              "type": "BUILT_FROM"
+            }
+          ]
+        },
         "arguments": {
-          "start": "aws:s3:us-east-1:123456789012:bucket/supply-chain-demo-artifacts",
+          "start": "arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo",
+          "max_depth": 4,
           "limit": 10
         }
       },
@@ -3680,10 +3935,23 @@
           "target"
         ],
         "minimum_results": 0,
+        "required_json_values": {
+          "source.name": "orders-api",
+          "target.name": "lib-common",
+          "path.depth": 1
+        },
+        "required_json_object_matches": {
+          "path.hops[]": [
+            {
+              "from_name": "orders-api",
+              "to_name": "lib-common",
+              "type": "DEPENDS_ON"
+            }
+          ]
+        },
         "arguments": {
           "source": "orders-api",
-          "target": "lib-common",
-          "limit": 10
+          "target": "lib-common"
         }
       },
       "find_change_surface": {
@@ -3695,9 +3963,22 @@
           "target",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 10,
+        "results_field": "impacted",
+        "required_json_values": {
+          "target.name": "lib-common"
+        },
+        "required_json_object_matches": {
+          "impacted[]": [
+            {
+              "name": "orders-api",
+              "rel_type": "DEPENDS_ON"
+            }
+          ]
+        },
         "arguments": {
-          "target": "orders-api",
+          "target": "lib-common",
           "limit": 10
         }
       },
@@ -3718,9 +3999,24 @@
           "transitive_impact",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 10,
+        "results_field": "direct_impact",
+        "required_json_values": {
+          "scope.target": "lib-common",
+          "scope.target_type": "repository",
+          "target_resolution.status": "resolved"
+        },
+        "required_json_object_matches": {
+          "direct_impact[]": [
+            {
+              "name": "orders-api",
+              "depth": 1
+            }
+          ]
+        },
         "arguments": {
-          "target": "orders-api",
+          "target": "lib-common",
           "target_type": "repository",
           "limit": 10
         }
@@ -3782,7 +4078,14 @@
           "scope",
           "total_resources"
         ],
-        "minimum_results": 0
+        "minimum_results": 0,
+        "required_json_paths": [
+          "total_resources"
+        ],
+        "required_json_values": {
+          "by_provider.aws": "__runtime_infra_aws_count__",
+          "by_provider.gcp": "__runtime_infra_gcp_count__"
+        }
       },
       "get_infra_resource_inventory": {
         "description": "MCP tool coverage shape for get_infra_resource_inventory; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
@@ -3796,7 +4099,29 @@
           "scope",
           "truncated"
         ],
-        "minimum_results": 0
+        "minimum_results": 2,
+        "maximum_results": 10,
+        "results_field": "buckets",
+        "required_json_values": {
+          "group_by": "provider"
+        },
+        "required_json_object_matches": {
+          "buckets[]": [
+            {
+              "dimension": "provider",
+              "value": "aws"
+            },
+            {
+              "dimension": "provider",
+              "value": "gcp"
+            }
+          ]
+        },
+        "arguments": {
+          "group_by": "provider",
+          "limit": 10,
+          "offset": 0
+        }
       },
       "list_cloud_resource_inventory": {
         "description": "Returns cloud resource inventory (AWS/Azure/GCP cassettes); confirms cloud facts were ingested and projected. Route now mounted on the MCP server (#4071); asserted live (#3866).",
@@ -3830,9 +4155,20 @@
           "limit",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "dependencies",
+        "required_json_object_matches": {
+          "dependencies[]": [
+            {
+              "source_package_id": "github.com/acme/lib-common",
+              "dependency_package_id": "github.com/acme/synthetic-dep",
+              "dependency_type": "direct"
+            }
+          ]
+        },
         "arguments": {
-          "package_id": "npm://registry.npmjs.org/supply-chain-demo-lib",
+          "package_id": "github.com/acme/lib-common",
           "limit": 10
         }
       },
@@ -3911,7 +4247,28 @@
           "scope",
           "truncated"
         ],
-        "minimum_results": 0
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "buckets",
+        "required_json_values": {
+          "group_by": "ecosystem",
+          "buckets[].dimension": "ecosystem",
+          "buckets[].value": "gomod"
+        },
+        "required_json_object_matches": {
+          "buckets[]": [
+            {
+              "dimension": "ecosystem",
+              "value": "gomod"
+            }
+          ]
+        },
+        "arguments": {
+          "group_by": "ecosystem",
+          "ecosystem": "gomod",
+          "limit": 10,
+          "offset": 0
+        }
       },
       "list_ci_cd_run_correlations": {
         "description": "MCP tool coverage shape for list_ci_cd_run_correlations, filtered to provider=gitlab_ci (issue #5427); asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5710 landed the production intent builder that makes this floor reachable at all: before it, list_ci_cd_run_correlations returned 0 for EVERY provider filter because no production code ever enqueued Domain=ci_cd_run_correlation. With #5710 live, the cicdrun supply-chain-demo cassette's second scope (ci_cd_run:gitlab_ci:eshu-hq:supply-chain-demo) carries a ci.run fact with provider=gitlab_ci and repository_id=repository:r_69256c06 (the same canonical id the github_actions scope's repository resolves to), so the reducer's ci_cd_run_correlation domain admits at least one run_evidence decision for this provider filter -- provably zero without the GitLab-provider cassette facts, proving the shared list_ci_cd_run_correlations surface actually serves gitlab_ci results rather than only advertising the provider in its schema (eshu-mcp-call-rigor: advertised is not the same as servable). No outcome is pinned, matching #5710's rationale (docs/internal/evidence/5710-cicd-run-correlation-keystone.md): this GitLab run carries no ci.artifact (out of the narrower GitLab v1 scope), so its decision has no digest to join against a container_image_identity row and always classifies as run_evidence-only (\"derived\") rather than exact/ambiguous -- a truthful floor asserts only minimum_results:1, not a specific outcome value.",
@@ -4138,7 +4495,20 @@
           "limit",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 10,
+        "results_field": "correlations",
+        "required_json_object_matches": {
+          "correlations[]": [
+            {
+              "provider": "tempo",
+              "coverage_signal": "trace_signal",
+              "observability_object_ref": "service-name-tagset",
+              "outcome": "exact",
+              "resource_class": "trace_signal"
+            }
+          ]
+        },
         "arguments": {
           "provider": "tempo",
           "limit": 10
@@ -4152,7 +4522,25 @@
           "routes",
           "schema_version"
         ],
-        "minimum_results": 0
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "routes",
+        "required_json_values": {
+          "schema_version": "eshu.vulnerability_scanner_read_contract.v1",
+          "remediation_packet.schema_version": "eshu.supply_chain_remediation_packet.v1"
+        },
+        "required_json_object_matches": {
+          "routes[]": [
+            {
+              "name": "impact_findings",
+              "path": "/api/v0/supply-chain/impact/findings",
+              "tool": "list_supply_chain_impact_findings"
+            }
+          ]
+        },
+        "arguments": {
+          "route": "impact_findings"
+        }
       },
       "list_container_image_identities": {
         "description": "MCP tool coverage shape for list_container_image_identities; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5423 non-vacuous assertion: filtering on the ci.run's source git repository (repository:r_69256c06, github.com/eshu-hq/supply-chain-demo -- matched against the row's source_repository_ids) returns exactly one identity. That identity is held by the cassette's GitLab same-generation run/artifact baseline; the GitHub Actions 5150 pair is deliberately split across generations for #5770, so it cannot also serve as the same-generation container-image baseline. The GitLab artifact triggers a CI-scope container_image_identity intent whose bare-digest ref (sha256:abcdef...ab) resolves against the unlabeled ociregistry manifest and carries the digest-matched run's source repository plus commit (source_revision_provenance=ci_run_commit). #5847/#5854/#5740 make the ceiling a regression guard on current logical uniqueness: the writer publishes one complete immutable digest-v3 support set per scope and atomically moves active_set_id after exact claim and activation-epoch checks. Reclassification selects a replacement set, and demotion selects an explicit empty set, so a superseded outcome cannot remain current. The authored cassette still exercises one publication; B-7 separately runs TestContainerImageIdentitySupportWriterRetiresPromotedDecisionOnDemotionLive against its initialized Postgres, publishing tag_resolved and then stale_tag for the same reference and requiring the current set to become explicitly empty. TestContainerImageIdentitySupportWriterLifecyclePostgresLive and TestContainerImageIdentityV3CanonicalReadPostgresLive retain the broader active-set lifecycle and current-readback coverage. The live golden gate must still return exactly one row here: zero proves the CI-to-registry correlation path went inert, while more than one proves logical uniqueness regressed.",
@@ -4286,9 +4674,16 @@
           "reconciliations",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "reconciliations",
+        "required_json_values": {
+          "reconciliations[].provider_alert.provider_alert_id": "github_dependabot:security_alert:supply-chain-demo:supply-chain-demo:42",
+          "reconciliations[].provider_alert.ghsa_ids[]": "GHSA-scd0-0000-demo"
+        },
         "arguments": {
-          "repository_id": "orders-api",
+          "repository_id": "security_alert:supply-chain-demo:supply-chain-demo",
+          "provider": "github_dependabot",
           "limit": 10
         }
       },
@@ -4415,7 +4810,25 @@
           "scope",
           "truncated"
         ],
-        "minimum_results": 0
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "buckets",
+        "required_json_object_matches": {
+          "buckets[]": [
+            {
+              "dimension": "provider",
+              "value": "github_dependabot",
+              "count": 1
+            }
+          ]
+        },
+        "arguments": {
+          "group_by": "provider",
+          "repository_id": "security_alert:supply-chain-demo:supply-chain-demo",
+          "provider": "github_dependabot",
+          "limit": 10,
+          "offset": 0
+        }
       },
       "count_container_image_identities": {
         "description": "MCP tool coverage shape for count_container_image_identities; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
@@ -4480,7 +4893,32 @@
           "scope",
           "truncated"
         ],
-        "minimum_results": 0
+        "minimum_results": 2,
+        "maximum_results": 2,
+        "results_field": "buckets",
+        "required_json_values": {
+          "group_by": "artifact_kind"
+        },
+        "required_json_object_matches": {
+          "buckets[]": [
+            {
+              "dimension": "artifact_kind",
+              "value": "attestation",
+              "count": 1
+            },
+            {
+              "dimension": "artifact_kind",
+              "value": "sbom",
+              "count": 1
+            }
+          ]
+        },
+        "arguments": {
+          "group_by": "artifact_kind",
+          "subject_digest": "sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a",
+          "limit": 10,
+          "offset": 0
+        }
       },
       "get_incident_context": {
         "description": "Positive deployed PagerDuty incident readback for the public supply-chain-demo cassette. The incident and affected-service evidence slots must both remain exact.",
@@ -4532,7 +4970,14 @@
           "states",
           "truncated"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "evidence",
+        "required_json_values": {
+          "evidence[].scope_id": "jira:supply-chain-demo:SCD",
+          "evidence[].work_item_key": "SCD-1",
+          "evidence[].provider_work_item_id": "10001"
+        },
         "arguments": {
           "scope_id": "jira:supply-chain-demo:SCD",
           "limit": 10
@@ -4832,7 +5277,13 @@
           "story_sections",
           "support_overview"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 50,
+        "results_field": "story_sections",
+        "required_json_values": {
+          "id": "workload:api-svc",
+          "name": "api-svc"
+        },
         "arguments": {
           "workload_id": "workload:api-svc"
         }
@@ -4849,6 +5300,8 @@
         ],
         "minimum_results": 0,
         "required_json_values": {
+          "workload_id": "workload:api-svc",
+          "name": "api-svc",
           "evidence_boundaries[].domain": "ci_cd_run_correlation"
         },
         "required_absent_when_present": [
@@ -4890,7 +5343,13 @@
           "story_sections",
           "support_overview"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 50,
+        "results_field": "story_sections",
+        "required_json_values": {
+          "id": "workload:api-svc",
+          "name": "api-svc"
+        },
         "arguments": {
           "workload_id": "workload:api-svc"
         }
@@ -4920,7 +5379,12 @@
           "support_overview",
           "upstream_dependencies"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 50,
+        "results_field": "story_sections",
+        "required_json_values": {
+          "service_identity.service_id": "workload:api-svc"
+        },
         "required_absent_when_present": [
           {
             "description": "ci_cd_run_correlation must not be disclosed absent while a sibling ci_cd_evidence field serves it (#5472, #5581)",
@@ -4953,7 +5417,16 @@
           "service_name",
           "service_story_path"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 50,
+        "results_field": "repositories_with_evidence",
+        "required_json_paths": [
+          "service_context_path",
+          "service_story_path"
+        ],
+        "required_json_values": {
+          "service_name": "api-svc"
+        },
         "arguments": {
           "service_name": "api-svc",
           "question": "runtime readiness"
@@ -4973,7 +5446,13 @@
           "truth",
           "truth_class"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "maximum_results": 50,
+        "results_field": "sections",
+        "required_json_values": {
+          "schema": "service_intelligence_report.v1",
+          "subject.service_id": "workload:api-svc"
+        },
         "arguments": {
           "workload_id": "workload:api-svc"
         }
@@ -6108,6 +6587,248 @@
       }
     },
     "http": {
+      "POST /api/v0/impact/entity-map": {
+        "description": "Positive repository-to-workload entity map for the deployable-config fixture through the deployed HTTP query surface.",
+        "required_response_fields": [
+          "status",
+          "scope",
+          "coverage",
+          "evidence"
+        ],
+        "minimum_results": 0,
+        "request_body": {
+          "from": "deployable-config",
+          "from_type": "repository",
+          "relationship": "DEFINES",
+          "depth": 1,
+          "limit": 10
+        },
+        "required_json_paths": [
+          "evidence.relationships[]"
+        ],
+        "required_json_values": {
+          "status": "mapped",
+          "scope.from_type": "repository",
+          "coverage.depth": 1
+        },
+        "required_json_object_matches": {
+          "evidence.relationships[]": [
+            {
+              "entity_id": "workload:deployable-config",
+              "relationship_type": "DEFINES",
+              "depth": 1
+            }
+          ]
+        }
+      },
+      "GET /api/v0/package-registry/versions?package_id=github.com/acme/lib-common&limit=50": {
+        "description": "Positive package-registry version readback for the public lib-common Go module fixture.",
+        "required_response_fields": [
+          "versions",
+          "count",
+          "limit",
+          "truncated"
+        ],
+        "minimum_results": 1,
+        "maximum_results": 50,
+        "results_field": "versions",
+        "required_json_values": {
+          "versions[].package_id": "github.com/acme/lib-common",
+          "versions[].version_id": "github.com/acme/lib-common@1.0.0",
+          "versions[].version": "1.0.0",
+          "versions[].purl": "pkg:golang/github.com/acme/lib-common@1.0.0",
+          "versions[].package_manager": "gomod"
+        }
+      },
+      "GET /api/v0/package-registry/dependency-chains?repository_id=orders-api&limit=10": {
+        "description": "Positive deployed consumer-to-package dependency chain for the public orders-api and lib-common fixtures.",
+        "required_response_fields": [
+          "chains",
+          "repository_id",
+          "count",
+          "limit",
+          "truncated",
+          "publishers_truncated"
+        ],
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "chains",
+        "required_json_values": {
+          "repository_id": "repository:r_ea78e8bb"
+        },
+        "required_json_object_matches": {
+          "chains[]": [
+            {
+              "consumer_repository_id": "repository:r_ea78e8bb",
+              "package_id": "github.com/acme/lib-common"
+            }
+          ]
+        }
+      },
+      "POST /api/v0/relationships/catalog": {
+        "description": "Positive deployed relationship catalog with code and dependency verbs from the golden graph.",
+        "required_response_fields": [
+          "verbs",
+          "verb_count",
+          "total_edges",
+          "layer_count"
+        ],
+        "minimum_results": 1,
+        "maximum_results": 50,
+        "results_field": "verbs",
+        "required_json_object_matches": {
+          "verbs[]": [
+            {
+              "verb": "CALLS",
+              "layer": "code"
+            },
+            {
+              "verb": "DEPENDS_ON"
+            }
+          ]
+        }
+      },
+      "POST /api/v0/relationships/edges?assert=depends-on": {
+        "description": "Positive deployed dependency edge readback from orders-api to lib-common.",
+        "required_response_fields": [
+          "verb",
+          "edges",
+          "truncated",
+          "limit"
+        ],
+        "minimum_results": 1,
+        "maximum_results": 10,
+        "results_field": "edges",
+        "request_body": {
+          "verb": "DEPENDS_ON",
+          "limit": 10
+        },
+        "required_json_values": {
+          "verb": "DEPENDS_ON"
+        },
+        "required_json_object_matches": {
+          "edges[]": [
+            {
+              "source_name": "orders-api",
+              "target_name": "lib-common"
+            }
+          ]
+        }
+      },
+      "POST /api/v0/code/relationships?assert=direct-callers": {
+        "description": "Positive direct incoming CALLS edge for the Dart mutual-recursion fixture.",
+        "required_response_fields": [
+          "name",
+          "repo_id",
+          "incoming"
+        ],
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "incoming",
+        "request_body": {
+          "name": "mutualPing",
+          "repo_id": "dart_comprehensive",
+          "direction": "incoming",
+          "relationship_type": "CALLS"
+        },
+        "required_json_values": {
+          "name": "mutualPing",
+          "repo_id": "repository:r_ed3a9bab"
+        },
+        "required_json_object_matches": {
+          "incoming[]": [
+            {
+              "source_name": "mutualPong",
+              "target_name": "mutualPing",
+              "type": "CALLS"
+            }
+          ]
+        }
+      },
+      "POST /api/v0/code/relationships?assert=direct-callees": {
+        "description": "Positive direct outgoing CALLS edge for the Dart mutual-recursion fixture.",
+        "required_response_fields": [
+          "name",
+          "repo_id",
+          "outgoing"
+        ],
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "outgoing",
+        "request_body": {
+          "name": "mutualPing",
+          "repo_id": "dart_comprehensive",
+          "direction": "outgoing",
+          "relationship_type": "CALLS"
+        },
+        "required_json_values": {
+          "name": "mutualPing",
+          "repo_id": "repository:r_ed3a9bab"
+        },
+        "required_json_object_matches": {
+          "outgoing[]": [
+            {
+              "source_name": "mutualPing",
+              "target_name": "mutualPong",
+              "type": "CALLS"
+            }
+          ]
+        }
+      },
+      "POST /api/v0/code/relationships?assert=transitive-callers": {
+        "description": "Positive bounded transitive incoming CALLS path for the Dart mutual-recursion fixture.",
+        "required_response_fields": [
+          "incoming"
+        ],
+        "minimum_results": 1,
+        "maximum_results": 4,
+        "results_field": "incoming",
+        "request_body": {
+          "name": "mutualPing",
+          "repo_id": "dart_comprehensive",
+          "direction": "incoming",
+          "relationship_type": "CALLS",
+          "transitive": true,
+          "max_depth": 4
+        },
+        "required_json_object_matches": {
+          "incoming[]": [
+            {
+              "source_name": "mutualPong",
+              "type": "CALLS",
+              "depth": 1,
+              "reason": "transitive_call_graph"
+            }
+          ]
+        }
+      },
+      "POST /api/v0/code/relationships?assert=transitive-callees": {
+        "description": "Positive bounded transitive outgoing CALLS path for the Dart mutual-recursion fixture.",
+        "required_response_fields": [
+          "outgoing"
+        ],
+        "minimum_results": 1,
+        "maximum_results": 4,
+        "results_field": "outgoing",
+        "request_body": {
+          "name": "mutualPing",
+          "repo_id": "dart_comprehensive",
+          "direction": "outgoing",
+          "relationship_type": "CALLS",
+          "transitive": true,
+          "max_depth": 4
+        },
+        "required_json_object_matches": {
+          "outgoing[]": [
+            {
+              "target_name": "mutualPong",
+              "type": "CALLS",
+              "depth": 1,
+              "reason": "transitive_call_graph"
+            }
+          ]
+        }
+      },
       "GET /api/v0/status/operations": {
         "description": "Exact deployed operations board after the required drains. The envelope pins healthy runtime state and an empty queue while retaining non-empty collector, stage, and domain status sections; live activity remains an explicitly present empty array.",
         "envelope": true,
@@ -6232,6 +6953,45 @@
           "exact": true,
           "limit": 20,
           "search_type": "variable"
+        }
+      },
+      "POST /api/v0/code/search?proof=fuzzy": {
+        "description": "Deployed fuzzy code search proof over the public Go dataflow fixture.",
+        "required_response_fields": [
+          "matches",
+          "query",
+          "repo_id",
+          "results",
+          "source",
+          "source_backend",
+          "count",
+          "limit",
+          "truncated"
+        ],
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "matches",
+        "result_item_required_fields": [
+          "entity_id",
+          "name",
+          "labels",
+          "repo_id",
+          "file_path"
+        ],
+        "required_json_values": {
+          "query": "GoldenDataflow",
+          "repo_id": "repository:r_8477a002",
+          "count": 1,
+          "limit": 1,
+          "matches[].name": "GoldenDataflowHandler",
+          "matches[].file_path": "dataflow_proof.go",
+          "matches[].labels[]": "Function"
+        },
+        "request_body": {
+          "query": "GoldenDataflow",
+          "repo_id": "repository:r_8477a002",
+          "exact": false,
+          "limit": 1
         }
       },
       "POST /api/v0/code/search?assert=overflow": {
@@ -6872,6 +7632,36 @@
         ],
         "minimum_results": 1,
         "results_field": "packages"
+      },
+      "GET /api/v0/replatforming/selectors?limit=10": {
+        "description": "Positive deployed AWS replatforming selector inventory for the public EC2 drift fixture.",
+        "required_response_fields": [
+          "scopes",
+          "count",
+          "limit",
+          "truncated",
+          "empty_scope_count",
+          "supported_scope_kinds",
+          "finding_kinds",
+          "page_sizes",
+          "readiness"
+        ],
+        "minimum_results": 1,
+        "maximum_results": 10,
+        "results_field": "scopes",
+        "required_json_values": {
+          "readiness.state": "ready"
+        },
+        "required_json_object_matches": {
+          "scopes[]": [
+            {
+              "scope_id": "aws:123456789012:us-east-1:ec2",
+              "account_id": "123456789012",
+              "region": "us-east-1",
+              "service": "ec2"
+            }
+          ]
+        }
       },
       "GET /api/v0/package-registry/correlations?package_id=github.com/acme/lib-common&limit=50": {
         "description": "Package registry correlations for the demo package; confirms reducer package correlations are queryable through the HTTP route.",
