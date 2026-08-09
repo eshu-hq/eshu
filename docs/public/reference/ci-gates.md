@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 100 gates. Local execution runs the primary
+The registry currently defines 101 gates. Local execution runs the primary
 command first, then a distinct self-test when one is registered; byte-identical
 pairs run once. A row with no primary local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
@@ -30,6 +30,7 @@ Advisory rows remain visible but do not block merge.
 | `go-file-cap` | Go 500-line file cap | hygiene | pre-commit | true | `bash scripts/dev/precommit-go.sh filecap-all` | test.yml / go-core | 2 path(s): go/**, scripts/dev/precommit-go.sh |
 | `package-docs` | Go package docs coverage | hygiene | pre-pr | true | `bash scripts/verify-package-docs.sh`<br>then self-test: `bash scripts/test-verify-package-docs.sh` | test.yml / verify-contracts | 3 path(s): go/**, scripts/test-verify-package-docs.sh, scripts/verify-package-docs.sh |
 | `agent-canon` | Agent canon check | hygiene | pre-pr | true | `bash scripts/verify-agent-canon.sh`<br>then self-test: `bash scripts/test-verify-agent-hygiene.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 9 path(s): go/**, .agents/**, .claude/skills/**, … |
+| `no-diff-fragments` | No diff fragments or conflict markers in source | hygiene | pre-commit | true | `bash scripts/verify-no-diff-fragments.sh`<br>then self-test: `bash scripts/test-verify-no-diff-fragments.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 1 path(s): ** |
 | `no-ai-attribution` | No AI attribution in commits/docs | hygiene | pre-commit | true | `bash scripts/verify-no-ai-attribution.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 1 path(s): ** |
 | `license-header` | Go license header verification | hygiene | pre-commit | true | `bash scripts/verify-license-header.sh`<br>then self-test: `bash scripts/test-verify-license-header.sh` | test.yml / verify-contracts | 3 path(s): **/*.go, scripts/test-verify-license-header.sh, scripts/verify-license-header.sh |
 | `openapi-surface` | Verify OpenAPI Surface | exactness | pre-pr | true | `bash scripts/verify-openapi.sh`<br>then self-test: `bash scripts/test-verify-openapi.sh` | static-contract-gates.yml / Verify OpenAPI gate | 10 path(s): go/internal/query/**, go/internal/mcp/**, go/internal/serviceintelhttp/**, … |
