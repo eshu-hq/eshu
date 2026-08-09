@@ -194,8 +194,11 @@ func TestRationaleFamilyOduExercisesEveryExclusion(t *testing.T) {
 			}
 		}
 		for _, c := range comments {
-			kind := strings.TrimSpace(c["kind"].(string))
-			text := strings.TrimSpace(c["text"].(string))
+			// anyToStringValue rather than a direct type assertion: a fixture
+			// edited with a missing key or a non-string value should fail this
+			// test as an assertion, not panic the package's whole test binary.
+			kind := strings.TrimSpace(anyToStringValue(c["kind"]))
+			text := strings.TrimSpace(anyToStringValue(c["text"]))
 			if kind == "" {
 				blankKind++
 				continue

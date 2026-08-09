@@ -31,7 +31,7 @@ func rationaleFamilyExpectedEdgesPath(repoRoot string) string {
 // rationaleExpectedEdge is one hand-derived expected EXPLAINS edge.
 //
 // RationaleUID carries the full projected node identity, excerpt hash included.
-// The hash is sha256(text) truncated toeight bytes, so the fixture's value is
+// The hash is sha256(text) truncated to eight bytes, so the fixture's value is
 // computed independently from the comment text rather than captured from a run:
 // if the shipped hashing changes, this fixture fails, which is the point. A
 // fixture recorded from output would instead follow the code wherever it went.
