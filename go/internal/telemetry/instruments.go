@@ -1258,6 +1258,15 @@ type Instruments struct {
 	// (#5984). The reason label separates a partial batch loss from a batch
 	// that produced nothing at all; the evidence source and a sample intent id
 	// stay in the accompanying structured log.
+	//
+	// This counts ATTEMPTS, not unique rows. A whole_batch failure does not
+	// complete its intent, so the same rows are re-selected and re-counted on
+	// the next poll cycle. That makes a persistent small unroutable set climb
+	// steadily, which reads like a growing problem unless the accompanying
+	// WARN is read alongside it — the log carries domain, evidence_source and
+	// a sample intent id precisely so repeats can be correlated. Alert on the
+	// partial_batch reason for genuine per-cycle loss; treat a rising
+	// whole_batch count as one stuck partition, not N new ones.
 	SharedEdgeUnroutableRows           metric.Int64Counter
 	SharedEdgeWriteGroupDuration       metric.Float64Histogram
 	SharedEdgeWriteGroupStatementCount metric.Int64Histogram

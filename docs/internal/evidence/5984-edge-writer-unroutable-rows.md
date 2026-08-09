@@ -83,6 +83,26 @@ cd go && go test ./internal/storage/cypher/ -run '^$' \
 benchstat before.txt after.txt
 ```
 
+### Targeted branch benchmark (review follow-up)
+
+The repo-scale benchmarks above cannot say anything about the added branch: in
+`EdgeWriterRepoDependencyWrite` every row routes, so `reducer.CarriesNoEdge` and
+the drop counters are never reached, and a regression in them would hide behind
+the Cypher-building cost of 5,000 routable rows. `BenchmarkEdgeWriterUnroutableRowLoop`
+isolates it, `-benchtime=200x -count=4 -cpu=1`:
+
+| Case | sec/op | B/op | allocs/op |
+| --- | --- | --- | --- |
+| `all_routable` (baseline path) | 2.57m | 3 761 161 | 40 052 |
+| `all_unroutable_edge_rows` | 0.19m | 48 | 1 |
+| `all_control_rows` | 0.32m | 80 001 | 5 000 |
+
+The two new branches are 8-13x CHEAPER per batch than the routable path, which
+is the expected shape: a row that does not route never reaches Cypher building
+or batching. `all_control_rows` costs about 64ns and one small allocation per
+row — the case a deleted-files-only code-call delta hits on every poll — which
+is negligible against the retract the same cycle performs.
+
 ## Observability Evidence
 
 Observability Evidence: a new `eshu_dp_shared_edge_unroutable_rows_total`
@@ -108,6 +128,14 @@ Alongside it, a `WARN` structured log, `shared edge rows unroutable`, carrying
 `sample_intent_id` an operator can look up. High-cardinality values stay in the
 log, not in metric labels. Before this change an all-dropped batch produced no
 log line at all — the INFO success line was only reached when something wrote.
+
+The counter records ATTEMPTS, not unique rows: a `whole_batch` failure does not
+complete its intent, so the same rows are re-selected and re-counted next cycle.
+A persistent small unroutable set therefore climbs steadily and can read as a
+growing problem. The instrument's doc comment says so, and the guidance is to
+alert on `partial_batch` for genuine per-cycle loss and read a rising
+`whole_batch` as one stuck partition rather than N new ones. Raised in review on
+PR #6008.
 
 Gate: `scripts/verify-telemetry-coverage.sh` → exit 0,
 "docs/public/observability/telemetry-coverage.md and
