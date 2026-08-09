@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -367,5 +368,27 @@ func TestWaitReadyTimeoutNamesTheResolvedComposeFile(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), resolved) {
 		t.Errorf("timeout error = %q, want it to name the resolved file %q", err, resolved)
+	}
+}
+
+// TestPrintDemoGuidedPathSaysWhenItCannotLoad proves the guided path reports
+// its own absence rather than printing nothing.
+//
+// A silent return here is indistinguishable from "there is nothing more to
+// ask", so the operator never learns the section was omitted. Naming the
+// manifest gives them the one fact they need to fix it.
+func TestPrintDemoGuidedPathSaysWhenItCannotLoad(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir) // no manifest at demoManifestPath under this root
+
+	var buf bytes.Buffer
+	printDemoGuidedPath(&buf)
+
+	got := buf.String()
+	if got == "" {
+		t.Fatal("printDemoGuidedPath() printed nothing; want an explicit note that the guided path is unavailable")
+	}
+	if !strings.Contains(got, demoManifestPath) {
+		t.Errorf("output = %q, want it to name %q so the operator can act on it", got, demoManifestPath)
 	}
 }

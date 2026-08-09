@@ -217,6 +217,10 @@ func printDemoSuccess(w io.Writer, res demoResult) {
 func printDemoGuidedPath(w io.Writer) {
 	m, err := loadDemoManifest(demoManifestPath)
 	if err != nil || len(m.Questions) < 2 {
+		// Saying nothing reads as "there is nothing more to ask", so the
+		// operator never learns the section was dropped. Name the manifest:
+		// it is the one fact that makes this actionable.
+		_, _ = fmt.Fprintf(w, "\nGuided questions unavailable: could not read %s\n", demoManifestPath)
 		return
 	}
 	_, _ = fmt.Fprintf(w, "\nAsk these next:\n")
