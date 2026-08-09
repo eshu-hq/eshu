@@ -191,3 +191,139 @@ func TestNativeRepositorySelectorSelectRepositoriesFilesystemCopiesNestedRepoTra
 		t.Fatalf("managed copy unexpectedly contains nested untracked scratch.tfstate (stat err = %v, want IsNotExist)", err)
 	}
 }
+
+// TestNativeRepositorySelectorSelectRepositoriesFilesystemKeepsNestedUntrackedFileOuterGitignoreMatches
+// proves the managed copy stops applying an outer .gitignore across a nested
+// repository boundary (issue #5667).
+//
+// Git never does this. A nested repository has its own ignore scope, so a rule
+// in the outer repo's .gitignore says nothing about a path inside the nested
+// one. Discovery already behaves that way — it groups by nearest repo root —
+// and the managed-copy path did not, so the same file was present or absent
+// depending on which path looked at it.
+//
+// The fixture separates the two scopes deliberately: the outer repo ignores
+// "*.tfstate", the nested repo ignores something else entirely, and the
+// untracked nested "scratch.tfstate" is matched ONLY by the outer rule. Before
+// the fix it was dropped from the copy; git, and discovery, both keep it.
+func TestNativeRepositorySelectorSelectRepositoriesFilesystemKeepsNestedUntrackedFileOuterGitignoreMatches(t *testing.T) {
+	t.Parallel()
+
+	filesystemRoot := t.TempDir()
+	reposDir := t.TempDir()
+	sourceRepo := filepath.Join(filesystemRoot, "eshu-hq", "service-scope")
+	if err := os.MkdirAll(sourceRepo, 0o755); err != nil {
+		t.Fatalf("mkdir source repo: %v", err)
+	}
+	mustInitGitRepo(t, sourceRepo)
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, "main.go"), "package main\n")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, ".gitignore"), "*.tfstate\n")
+	writeSelectionTestFile(t, filepath.Join(sourceRepo, "outer.tfstate"), "{}")
+	runGit(t, sourceRepo, "add", "main.go", ".gitignore")
+	runGit(t, sourceRepo, "commit", "-m", "outer initial")
+
+	nestedRepo := filepath.Join(sourceRepo, "modules", "nested")
+	if err := os.MkdirAll(nestedRepo, 0o755); err != nil {
+		t.Fatalf("mkdir nested repo: %v", err)
+	}
+	mustInitGitRepo(t, nestedRepo)
+	// The nested repo's own ignore scope says nothing about *.tfstate.
+	writeSelectionTestFile(t, filepath.Join(nestedRepo, ".gitignore"), "*.log\n")
+	writeSelectionTestFile(t, filepath.Join(nestedRepo, "nested.go"), "package nested\n")
+	writeSelectionTestFile(t, filepath.Join(nestedRepo, "scratch.tfstate"), "{}")
+	writeSelectionTestFile(t, filepath.Join(nestedRepo, "debug.log"), "noise")
+	runGit(t, nestedRepo, "add", ".gitignore", "nested.go")
+	runGit(t, nestedRepo, "commit", "-m", "nested initial")
+	// scratch.tfstate and debug.log are both intentionally untracked.
+
+	runGit(t, sourceRepo, "add", "modules/nested")
+	runGit(t, sourceRepo, "commit", "-m", "add nested gitlink")
+
+	selector := NativeRepositorySelector{
+		Config: RepoSyncConfig{
+			ReposDir:       reposDir,
+			SourceMode:     "filesystem",
+			FilesystemRoot: filesystemRoot,
+			Component:      "collector-git",
+			CloneDepth:     1,
+			RepoLimit:      4000,
+			GitAuthMethod:  "none",
+		},
+	}
+
+	batch, err := selector.SelectRepositories(context.Background())
+	if err != nil {
+		t.Fatalf("SelectRepositories() error = %v, want nil", err)
+	}
+	if got, want := len(batch.Repositories), 1; got != want {
+		t.Fatalf("len(Repositories) = %d, want %d", got, want)
+	}
+
+	copiedRoot := filepath.Join(reposDir, "eshu-hq", "service-scope")
+
+	// The whole point: only the OUTER repo ignores this, and it is in the
+	// nested repo, so the outer rule does not reach it.
+	if _, err := os.Stat(filepath.Join(copiedRoot, "modules", "nested", "scratch.tfstate")); err != nil {
+		t.Errorf("managed copy dropped nested scratch.tfstate: %v; the outer repo's "+
+			".gitignore must not match across a nested-repo boundary", err)
+	}
+	// The nested repo's OWN rule still applies, or the fix would have replaced
+	// one wrong scope with no scope at all.
+	if _, err := os.Stat(filepath.Join(copiedRoot, "modules", "nested", "debug.log")); !os.IsNotExist(err) {
+		t.Errorf("managed copy kept nested debug.log (stat err = %v, want IsNotExist); "+
+			"the nested repo's own .gitignore still governs its own files", err)
+	}
+	// And the outer repo's rule still applies to the outer repo's own files.
+	if _, err := os.Stat(filepath.Join(copiedRoot, "outer.tfstate")); !os.IsNotExist(err) {
+		t.Errorf("managed copy kept outer.tfstate (stat err = %v, want IsNotExist)", err)
+	}
+}
+
+// TestFingerprintTreeScopesIgnoreToNestedRepo proves the fingerprint applies the
+// same nearest-root ignore scope the managed copy does (issue #5667 review).
+//
+// The two must agree or the copy goes stale. fingerprintTree decides whether
+// syncFilesystemRepositories bothers to recopy: if the fingerprint ignores a
+// file the copy keeps, then editing ONLY that file leaves the fingerprint
+// unchanged, sync returns early, and the managed copy and the emitted
+// generation both keep the old content indefinitely.
+//
+// Scoping only the copy — as the first version of this change did — is what
+// creates that disagreement. Before it, both paths excluded the file and stayed
+// consistent while being wrong together.
+func TestFingerprintTreeScopesIgnoreToNestedRepo(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	mustInitGitRepo(t, root)
+	writeSelectionTestFile(t, filepath.Join(root, ".gitignore"), "*.tfstate\n")
+	writeSelectionTestFile(t, filepath.Join(root, "main.go"), "package main\n")
+
+	nested := filepath.Join(root, "modules", "nested")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("mkdir nested: %v", err)
+	}
+	mustInitGitRepo(t, nested)
+	writeSelectionTestFile(t, filepath.Join(nested, ".gitignore"), "*.log\n")
+	nestedFile := filepath.Join(nested, "scratch.tfstate")
+	writeSelectionTestFile(t, nestedFile, "{}")
+
+	before, err := fingerprintTree(root)
+	if err != nil {
+		t.Fatalf("fingerprintTree() error = %v", err)
+	}
+
+	// Change ONLY the nested file the outer .gitignore matches.
+	writeSelectionTestFile(t, nestedFile, "{\"changed\":true}")
+
+	after, err := fingerprintTree(root)
+	if err != nil {
+		t.Fatalf("fingerprintTree() error = %v", err)
+	}
+
+	if before == after {
+		t.Error("fingerprint unchanged after editing a nested-repo file that only the " +
+			"outer .gitignore matches; the managed copy keeps that file, so sync would " +
+			"skip the recopy and leave the copy and emitted generation stale")
+	}
+}
