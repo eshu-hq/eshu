@@ -82,6 +82,7 @@ func buildCanonicalMaterialization(
 	// (module_name, imported_module, param_name, etc.) and merges any
 	// additionally discovered modules into the set above.
 	extractRelationships(inputFacts, &mat)
+	appendEntityClassMembers(&mat)
 
 	// Extract File -> Module IMPORTS edges from the per-file "imports" bucket
 	// the language parsers write into parsed_file_data. This is the only
@@ -225,18 +226,20 @@ func extractEntities(envelopes []facts.Envelope, repoID, repoPath string) []Enti
 
 		fullPath := qualifyPath(repoPath, relativePath)
 		metadata := extractEntityMetadata(p)
+		cyclomaticComplexity, _ := payloadInt(metadata, "cyclomatic_complexity")
 
 		row := EntityRow{
-			EntityID:     entityID,
-			Label:        label,
-			EntityName:   entityName,
-			FilePath:     fullPath,
-			RelativePath: relativePath,
-			StartLine:    startLine,
-			EndLine:      endLine,
-			Language:     language,
-			RepoID:       entityRepoID,
-			Metadata:     metadata,
+			EntityID:             entityID,
+			Label:                label,
+			EntityName:           entityName,
+			FilePath:             fullPath,
+			RelativePath:         relativePath,
+			StartLine:            startLine,
+			EndLine:              endLine,
+			Language:             language,
+			RepoID:               entityRepoID,
+			CyclomaticComplexity: cyclomaticComplexity,
+			Metadata:             metadata,
 		}
 		dedupKey := canonicalEntityDedupKey(row)
 		if rowIndex, exists := seen[dedupKey]; exists {
