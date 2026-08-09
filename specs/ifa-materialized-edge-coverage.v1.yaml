@@ -84,7 +84,8 @@
 # is green live now that the assertion matches in bash. Every other
 # allProjectionDomains family is RED-BY-DEFAULT for BOTH gates and carries a
 # `waivers:` row per gate, pointing at the epic #5344 umbrella follow-up
-# #5543 pending per-domain child issues.
+# #5543, which is now decomposed into per-domain child issues #5991-#6003;
+# each waiver names the child that will retire it.
 #
 # Only seed a coverage row here once the referenced Odù is genuinely green
 # under the resolution semantics above (the same seed-only-green-rows
@@ -144,137 +145,139 @@ waivers:
   # --- The 13 other allProjectionDomains families: both gates unproven. ---
   # Each carries a baseline (ifa-determinism) AND a fault (ifa-fault-injection)
   # waiver because NEITHER dimension has an Odù + expected-edge-set fixture yet.
-  # All point at the epic #5344 umbrella #5543 pending per-domain child issues.
+  # Each names its own per-domain child issue (#5991-#6003) under the #5344
+  # epic umbrella #5543, not the umbrella itself: a waiver should name the issue
+  # whose closure retires it, and the umbrella retires none of them individually.
   - surface: "materialized_edges:repo_dependency"
     proof_gate: ifa-determinism
-    issue: "#5543"
+    issue: "#5999"
     waived: "2026-07-20"
-    reason: "reducer.DomainRepoDependency (Terraform/app_repo dependency edges); pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+    reason: "reducer.DomainRepoDependency (Terraform/app_repo dependency edges); pending #5999 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:repo_dependency"
     proof_gate: ifa-fault-injection
-    issue: "#5543"
+    issue: "#5999"
     waived: "2026-07-20"
-    reason: "reducer.DomainRepoDependency (Terraform/app_repo dependency edges); pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+    reason: "reducer.DomainRepoDependency (Terraform/app_repo dependency edges); pending #5999 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:workload_dependency"
     proof_gate: ifa-determinism
-    issue: "#5543"
+    issue: "#6003"
     waived: "2026-07-20"
-    reason: "reducer.DomainWorkloadDependency; pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+    reason: "reducer.DomainWorkloadDependency; pending #6003 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:workload_dependency"
     proof_gate: ifa-fault-injection
-    issue: "#5543"
+    issue: "#6003"
     waived: "2026-07-20"
-    reason: "reducer.DomainWorkloadDependency; pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+    reason: "reducer.DomainWorkloadDependency; pending #6003 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:code_calls"
     proof_gate: ifa-determinism
-    issue: "#5543"
+    issue: "#5991"
     waived: "2026-07-20"
-    reason: "reducer.DomainCodeCalls (CALLS edges); pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+    reason: "reducer.DomainCodeCalls (CALLS edges); pending #5991 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:code_calls"
     proof_gate: ifa-fault-injection
-    issue: "#5543"
+    issue: "#5991"
     waived: "2026-07-20"
-    reason: "reducer.DomainCodeCalls (CALLS edges); pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+    reason: "reducer.DomainCodeCalls (CALLS edges); pending #5991 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:shell_exec"
     proof_gate: ifa-determinism
-    issue: "#5543"
+    issue: "#6001"
     waived: "2026-07-20"
-    reason: "reducer.DomainShellExec; pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+    reason: "reducer.DomainShellExec; pending #6001 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:shell_exec"
     proof_gate: ifa-fault-injection
-    issue: "#5543"
+    issue: "#6001"
     waived: "2026-07-20"
-    reason: "reducer.DomainShellExec; pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+    reason: "reducer.DomainShellExec; pending #6001 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:inheritance_edges"
     proof_gate: ifa-determinism
-    issue: "#5543"
+    issue: "#5996"
     waived: "2026-07-20"
-    reason: "reducer.DomainInheritanceEdges; pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+    reason: "reducer.DomainInheritanceEdges; pending #5996 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:inheritance_edges"
     proof_gate: ifa-fault-injection
-    issue: "#5543"
+    issue: "#5996"
     waived: "2026-07-20"
-    reason: "reducer.DomainInheritanceEdges; pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+    reason: "reducer.DomainInheritanceEdges; pending #5996 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:documentation_edges"
     proof_gate: ifa-determinism
-    issue: "#5543"
+    issue: "#5994"
     waived: "2026-07-20"
-    reason: "reducer.DomainDocumentationEdges; pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+    reason: "reducer.DomainDocumentationEdges; pending #5994 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:documentation_edges"
     proof_gate: ifa-fault-injection
-    issue: "#5543"
+    issue: "#5994"
     waived: "2026-07-20"
-    reason: "reducer.DomainDocumentationEdges; pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+    reason: "reducer.DomainDocumentationEdges; pending #5994 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:codeowners_ownership_edges"
     proof_gate: ifa-determinism
-    issue: "#5543"
+    issue: "#5992"
     waived: "2026-07-21"
-    reason: "reducer.DomainCodeownersOwnershipEdges (DECLARES_CODEOWNER edges, #5419); pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+    reason: "reducer.DomainCodeownersOwnershipEdges (DECLARES_CODEOWNER edges, #5419); pending #5992 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:codeowners_ownership_edges"
     proof_gate: ifa-fault-injection
-    issue: "#5543"
+    issue: "#5992"
     waived: "2026-07-21"
-    reason: "reducer.DomainCodeownersOwnershipEdges (DECLARES_CODEOWNER edges, #5419); pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+    reason: "reducer.DomainCodeownersOwnershipEdges (DECLARES_CODEOWNER edges, #5419); pending #5992 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:submodule_pin_edges"
     proof_gate: ifa-determinism
-    issue: "#5543"
+    issue: "#6002"
     waived: "2026-07-21"
-    reason: "reducer.DomainSubmodulePinEdges (PINS_SUBMODULE edges, #5420); pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+    reason: "reducer.DomainSubmodulePinEdges (PINS_SUBMODULE edges, #5420); pending #6002 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:submodule_pin_edges"
     proof_gate: ifa-fault-injection
-    issue: "#5543"
+    issue: "#6002"
     waived: "2026-07-21"
-    reason: "reducer.DomainSubmodulePinEdges (PINS_SUBMODULE edges, #5420); pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+    reason: "reducer.DomainSubmodulePinEdges (PINS_SUBMODULE edges, #5420); pending #6002 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:rationale_edges"
     proof_gate: ifa-determinism
-    issue: "#5543"
+    issue: "#5998"
     waived: "2026-07-20"
-    reason: "reducer.DomainRationaleEdges; pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+    reason: "reducer.DomainRationaleEdges; pending #5998 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:rationale_edges"
     proof_gate: ifa-fault-injection
-    issue: "#5543"
+    issue: "#5998"
     waived: "2026-07-20"
-    reason: "reducer.DomainRationaleEdges; pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+    reason: "reducer.DomainRationaleEdges; pending #5998 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:deployable_unit_edges"
     proof_gate: ifa-determinism
-    issue: "#5543"
+    issue: "#5993"
     waived: "2026-07-20"
-    reason: "reducer.DomainDeployableUnitEdges; pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+    reason: "reducer.DomainDeployableUnitEdges; pending #5993 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:deployable_unit_edges"
     proof_gate: ifa-fault-injection
-    issue: "#5543"
+    issue: "#5993"
     waived: "2026-07-20"
-    reason: "reducer.DomainDeployableUnitEdges; pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+    reason: "reducer.DomainDeployableUnitEdges; pending #5993 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:handles_route"
     proof_gate: ifa-determinism
-    issue: "#5543"
+    issue: "#5995"
     waived: "2026-07-20"
-    reason: "reducer.DomainHandlesRoute (HANDLES_ROUTE edges, #2721); pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+    reason: "reducer.DomainHandlesRoute (HANDLES_ROUTE edges, #2721); pending #5995 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:handles_route"
     proof_gate: ifa-fault-injection
-    issue: "#5543"
+    issue: "#5995"
     waived: "2026-07-20"
-    reason: "reducer.DomainHandlesRoute (HANDLES_ROUTE edges, #2721); pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+    reason: "reducer.DomainHandlesRoute (HANDLES_ROUTE edges, #2721); pending #5995 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:runs_in"
     proof_gate: ifa-determinism
-    issue: "#5543"
+    issue: "#6000"
     waived: "2026-07-20"
-    reason: "reducer.DomainRunsIn (RUNS_IN edges, #2722); pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+    reason: "reducer.DomainRunsIn (RUNS_IN edges, #2722); pending #6000 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:runs_in"
     proof_gate: ifa-fault-injection
-    issue: "#5543"
+    issue: "#6000"
     waived: "2026-07-20"
-    reason: "reducer.DomainRunsIn (RUNS_IN edges, #2722); pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+    reason: "reducer.DomainRunsIn (RUNS_IN edges, #2722); pending #6000 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:invokes_cloud_action"
     proof_gate: ifa-determinism
-    issue: "#5543"
+    issue: "#5997"
     waived: "2026-07-20"
-    reason: "reducer.DomainInvokesCloudAction (INVOKES_CLOUD_ACTION edges, #2723); pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+    reason: "reducer.DomainInvokesCloudAction (INVOKES_CLOUD_ACTION edges, #2723); pending #5997 for an Odù + expected-edge-set fixture"
   - surface: "materialized_edges:invokes_cloud_action"
     proof_gate: ifa-fault-injection
-    issue: "#5543"
+    issue: "#5997"
     waived: "2026-07-20"
-    reason: "reducer.DomainInvokesCloudAction (INVOKES_CLOUD_ACTION edges, #2723); pending its own #5351 child issue for an Odù + expected-edge-set fixture"
+    reason: "reducer.DomainInvokesCloudAction (INVOKES_CLOUD_ACTION edges, #2723); pending #5997 for an Odù + expected-edge-set fixture"
 
 # ---------------------------------------------------------------------------
 # Roadmap / known gaps (discoverable from the gate itself, not only a PR body).
@@ -295,5 +298,6 @@ waivers:
 #     fixed the assertion that read its fired-fault marker, so the fault
 #     dimension is covered and the family carries no waiver.
 #   - The 13 other allProjectionDomains families are blocked on the epic #5344
-#     umbrella #5543 pending per-domain child issues (both gates each).
+#     umbrella #5543, decomposed into per-domain child issues #5991-#6003
+#     (both gates each).
 # ---------------------------------------------------------------------------
