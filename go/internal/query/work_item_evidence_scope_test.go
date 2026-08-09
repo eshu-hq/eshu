@@ -199,7 +199,7 @@ func TestWorkItemEvidenceSQLAppliesLinkedRepositoryGrantPredicate(t *testing.T) 
 	if !strings.Contains(listWorkItemEvidenceQuery, predicate) {
 		t.Fatalf("query missing linked_repository_id grant predicate %q:\n%s", predicate, listWorkItemEvidenceQuery)
 	}
-	if !strings.Contains(listWorkItemEvidenceQuery, "cardinality($9::text[]) = 0") {
+	if !strings.Contains(listWorkItemEvidenceQuery, "COALESCE(cardinality($9::text[]), 0) = 0") {
 		t.Fatalf("query missing empty-grant unscoped branch:\n%s", listWorkItemEvidenceQuery)
 	}
 	if strings.Index(listWorkItemEvidenceQuery, predicate) > strings.Index(listWorkItemEvidenceQuery, "ORDER BY") {
