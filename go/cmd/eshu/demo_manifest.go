@@ -279,6 +279,20 @@ func extractDemoTruth(payload map[string]any) map[string]any {
 	return nil
 }
 
+// shellSingleQuote wraps s so a POSIX shell parses it back as one argument.
+//
+// A single quote cannot appear inside single quotes, so each one is emitted as
+// the standard close-escape-reopen sequence:
+//
+//	'\''
+//
+// The demo manifest is committed and currently quote-free, but the printed line
+// is meant to be pasted, and a line the shell cannot even parse is a worse
+// first impression than no line at all.
+func shellSingleQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
 // RunnableForm renders the command an operator can actually run for this
 // question.
 //
@@ -294,7 +308,7 @@ func (q demoQuestion) RunnableForm() string {
 		if err != nil || len(q.Execute.Arguments) == 0 {
 			return fmt.Sprintf("eshu mcp call %s", q.Execute.Ref)
 		}
-		return fmt.Sprintf("eshu mcp call %s --arguments '%s'", q.Execute.Ref, string(args))
+		return fmt.Sprintf("eshu mcp call %s --arguments %s", q.Execute.Ref, shellSingleQuote(string(args)))
 	case demoExecuteHTTP:
 		method, path, found := strings.Cut(strings.TrimSpace(q.Execute.Ref), " ")
 		if !found {

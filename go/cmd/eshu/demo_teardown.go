@@ -99,13 +99,19 @@ func (r *demoRuntime) status(ctx context.Context) (demoResult, error) {
 	return res, nil
 }
 
+// demoServiceName is the Compose service that carries the demo stack's own
+// credential. It must match the service key in
+// docker-compose.demo.runtime.yaml, which docker-compose.demo.yaml includes;
+// TestDemoServiceNameMatchesComposeOverlay fails if the two drift apart.
+const demoServiceName = "eshu"
+
 // recoverDemoKey reads the API key back out of the running demo stack.
 //
 // The key belongs to the stack, not to the process that started it, so this
 // keeps one credential per stack instead of inventing a second one that the
 // services would reject.
 func (r *demoRuntime) recoverDemoKey(ctx context.Context) (string, error) {
-	out, err := r.exec(ctx, nil, "docker", r.composeArgs("exec", "-T", "eshu", "printenv", "ESHU_API_KEY")...)
+	out, err := r.exec(ctx, nil, "docker", r.composeArgs("exec", "-T", demoServiceName, "printenv", "ESHU_API_KEY")...)
 	if err != nil {
 		return "", fmt.Errorf("recover demo key from project %q: %w", r.project, err)
 	}

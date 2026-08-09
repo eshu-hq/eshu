@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -343,5 +344,38 @@ func TestDemoDown_ProceedsOnItsOwnProject(t *testing.T) {
 	}
 	if !exec.sawContaining("--remove-orphans") {
 		t.Errorf("down did not run; calls=%v", exec.calls)
+	}
+}
+
+// TestRunnableFormSurvivesShellQuoting runs the printed command through a real
+// shell and checks the arguments JSON comes back byte-identical.
+//
+// The assertion is deliberately not "the string contains an escape sequence":
+// a hand-written escaping check passes whenever the code and the test share the
+// same wrong idea of POSIX quoting. Handing the line to /bin/sh is the only
+// version that fails when the quoting is actually broken, which is what an
+// operator pasting the line would hit.
+func TestRunnableFormSurvivesShellQuoting(t *testing.T) {
+	args := map[string]any{"repository": "it's-a-repo", "note": `he said "hi"`}
+	q := demoQuestion{Execute: demoExecute{Kind: demoExecuteMCP, Ref: "get_context", Arguments: args}}
+
+	line := q.RunnableForm()
+	_, quoted, found := strings.Cut(line, "--arguments ")
+	if !found {
+		t.Fatalf("RunnableForm() = %q, want an --arguments segment", line)
+	}
+
+	// printf %s re-emits exactly what the shell parsed as the single argument.
+	out, err := exec.Command("/bin/sh", "-c", "printf %s "+quoted).CombinedOutput()
+	if err != nil {
+		t.Fatalf("shell rejected %s: %v (output %q)", quoted, err, out)
+	}
+
+	want, err := json.Marshal(args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(out) != string(want) {
+		t.Errorf("shell parsed arguments as %q, want %q", out, want)
 	}
 }

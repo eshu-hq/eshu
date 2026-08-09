@@ -6,6 +6,8 @@ package main
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -263,5 +265,48 @@ func TestDemoEnvelope_ShapeMatchesTheFirstRunContract(t *testing.T) {
 	failed := demoEnvelopeFor(demoResult{}, errors.New("compose up failed"))
 	if failed.Error == nil || failed.Error.Message == "" {
 		t.Fatal("failed envelope carries no error message")
+	}
+}
+
+// TestDemoServiceNameMatchesComposeOverlay ties the service name this command
+// execs into back to the fragment that defines it.
+//
+// Without this the coupling is invisible: renaming the service in the overlay
+// leaves recoverDemoKey shelling out to a service that no longer exists, the
+// key lookup fails, and `demo status` reports a perfectly healthy stack as
+// not-ready. Asserting the const alone would prove nothing, so this reads the
+// committed fragment and requires the name to appear as a service key.
+func TestDemoServiceNameMatchesComposeOverlay(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join("..", "..", "..", "docker-compose.demo.runtime.yaml")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	if !strings.Contains(string(raw), "\n  "+demoServiceName+":\n") {
+		t.Errorf("demoServiceName = %q, but %s declares no such service", demoServiceName, path)
+	}
+}
+
+// TestRecoverDemoKeyExecsTheNamedService proves the const is what actually
+// reaches docker, not a decoration sitting beside a second hardcoded literal.
+func TestRecoverDemoKeyExecsTheNamedService(t *testing.T) {
+	t.Parallel()
+	fake := &fakeDemoExec{fallback: demoExecReply{out: []byte("demo-abc123\n")}}
+	r := &demoRuntime{exec: fake.run, project: "eshu-demo", composeFile: "docker-compose.demo.yaml"}
+
+	key, err := r.recoverDemoKey(context.Background())
+	if err != nil {
+		t.Fatalf("recoverDemoKey: %v", err)
+	}
+	if key != "demo-abc123" {
+		t.Errorf("key = %q, want demo-abc123", key)
+	}
+	if len(fake.calls) != 1 {
+		t.Fatalf("calls = %d, want 1", len(fake.calls))
+	}
+	joined := strings.Join(fake.calls[0], " ")
+	if !strings.Contains(joined, "exec -T "+demoServiceName+" printenv ESHU_API_KEY") {
+		t.Errorf("exec call = %q, want it to target service %q", joined, demoServiceName)
 	}
 }
