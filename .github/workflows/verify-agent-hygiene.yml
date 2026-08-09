@@ -36,6 +36,9 @@ jobs:
       - name: Run test mirror
         run: scripts/test-verify-agent-hygiene.sh
 
+      - name: Run diff-fragment gate test mirror
+        run: scripts/test-verify-no-diff-fragments.sh
+
   verify:
     name: Agent hygiene gate
     timeout-minutes: 10
@@ -54,6 +57,9 @@ jobs:
 
       - name: Shared agent canon and harness discovery
         run: scripts/verify-agent-canon.sh
+
+      - name: No diff fragments or conflict markers
+        run: scripts/verify-no-diff-fragments.sh
 
       - name: No AI attribution
         shell: bash
