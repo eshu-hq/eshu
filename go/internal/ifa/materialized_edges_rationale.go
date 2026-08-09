@@ -179,7 +179,7 @@ func resolveRationaleEdgeMaterializedEdges(odu Odu, expectedEdgesPath string) (b
 	}
 
 	// Deliberately NOT reporting a count of "inputs that derived no edge".
-	// len(Facts)-len(rows) would be wrong here: three of this fixture's six
+	// len(Facts)-len(rows) would be wrong here: three of this fixture's seven
 	// negative cases are comments INSIDE a fact, not facts of their own, so that
 	// subtraction undercounts them and would state a number this function never
 	// computed. The negative cases are pinned by their own test instead.

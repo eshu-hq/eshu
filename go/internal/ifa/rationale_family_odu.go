@@ -24,7 +24,7 @@ const (
 )
 
 // rationaleFamilyOdu carries two content entities whose comments derive exactly
-// three EXPLAINS edges, plus six inputs that must derive none.
+// three EXPLAINS edges, plus seven inputs that must derive none.
 //
 // The negatives map one-to-one onto the extractor's early returns, so deleting
 // any single guard turns the exact-set assertion red rather than passing with a
@@ -33,6 +33,9 @@ const (
 //   - a non-content_entity fact kind      (only content entities carry comments)
 //   - a tombstoned content entity         (a retraction is not evidence)
 //   - a content entity with no repo_id    (an edge with no repo has no scope)
+//   - a content entity with a blank entity_id
+//     (the edge would have no target identity; guarded in the same condition
+//     as repo_id, so a regression to checking only the repo would project it)
 //   - a comment with a blank kind         (kind is half the node identity)
 //   - a comment whose text is whitespace  (trims to empty, so no excerpt)
 //   - a repeated (entity, kind, text)     (the seen[rationaleUID] dedup)

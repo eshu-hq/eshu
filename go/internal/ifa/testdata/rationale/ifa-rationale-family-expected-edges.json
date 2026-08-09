@@ -1,6 +1,6 @@
 {
   "odu": "odu:ifa-rationale-family",
-  "note": "Hand-derived from ExtractRationaleEdgeRows' decision surface, NOT captured from a run. rationale_uid is \"rationale:\" + entity_id + \":\" + kind + \":\" + excerpt_hash, where excerpt_hash is the first 8 bytes of sha256(text) in hex. The two payments.Charge edges share an excerpt hash on purpose: same comment text, two kinds, so the kind must be part of the node identity or they would collapse to one. The fixture's other six inputs derive no edge — a repeated comment, a blank kind, whitespace-only text, a tombstone, a missing repo_id, and a non-content_entity fact kind.",
+  "note": "Hand-derived from ExtractRationaleEdgeRows' decision surface, NOT captured from a run. rationale_uid is \"rationale:\" + entity_id + \":\" + kind + \":\" + excerpt_hash, where excerpt_hash is the first 8 bytes of sha256(text) in hex. The two payments.Charge edges share an excerpt hash on purpose: same comment text, two kinds, so the kind must be part of the node identity or they would collapse to one. The fixture's other seven inputs derive no edge — a repeated comment, a blank kind, whitespace-only text, a tombstone, a missing repo_id, a blank entity_id, and a non-content_entity fact kind.",
   "edges": [
     {
       "rationale_uid": "rationale:func:payments.Charge:why:665f8977884c3003",
