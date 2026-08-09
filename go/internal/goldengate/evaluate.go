@@ -40,6 +40,16 @@ type DrainCounts struct {
 	// persisted event is live work; completion deletes the row atomically with
 	// reopening its canonical consumers.
 	CrossScopeCompletionEventsNonterminal int64
+
+	// SharedIntentsUnroutableQuarantined is the number of durable rows recording
+	// a shared-projection intent no canonical edge write could route (#5984).
+	//
+	// These rows are TERMINAL: the intent that produced them was completed, so
+	// they never drain. That is precisely why this count must not appear in
+	// Drained below — putting a never-decreasing number in the poll predicate
+	// turns a crisp assertion failure into a drain timeout, which reads as "the
+	// pipeline needed longer" and hides the actual finding.
+	SharedIntentsUnroutableQuarantined int64
 	// RepoDependencyNonterminal is the repo_dependency-domain subset of
 	// SharedIntentsNonterminal. Per B-13 (#3859) it is the primary signal that
 	// the relationship-generation activation gate drained correctly; reported as
@@ -89,6 +99,18 @@ func EvaluateDrains(d DrainCounts, a DrainAssertions, expectedPopulatedDomains i
 		d.CrossScopeCompletionEventsNonterminal == 0, true,
 		fmt.Sprintf("nonterminal=%d (limit 0; pending,claimed,running,retrying)",
 			d.CrossScopeCompletionEventsNonterminal))
+
+	// Hard zero, no snapshot knob. An unroutable intent means a row the
+	// projector emitted could not become an edge, and the corpus is fixed
+	// input: there is no legitimate count above zero for it. This is the same
+	// principle as the dead-letter bound above -- a drained pipeline has no
+	// dead letters -- applied to the loss that quarantine makes survivable.
+	// Without it, completing quarantined intents would drain the nonterminal
+	// count and the gate would go GREEN on lost edges (#5984).
+	r.AddCheck("drains", "shared_projection_unroutable_quarantined",
+		d.SharedIntentsUnroutableQuarantined == 0, true,
+		fmt.Sprintf("quarantined=%d (limit 0; intents no canonical edge write could route)",
+			d.SharedIntentsUnroutableQuarantined))
 
 	// Advisory: nonterminal intents in quarantined domains (e.g. code_calls).
 	// Reported so a known-held domain stays visible without blocking the gate.

@@ -124,8 +124,12 @@ func TestGenerationRetentionStorePrunesEligibleGenerationBatch(t *testing.T) {
 	if got, want := result.RowsPruned["shared_projection_intents"], int64(2); got != want {
 		t.Fatalf("shared_projection_intents pruned = %d, want %d", got, want)
 	}
-	if len(db.execs) != 6 {
-		t.Fatalf("exec count = %d, want 6", len(db.execs))
+	// 7 since #5984 added the shared_projection_unroutable_intents reap. That
+	// table carries no foreign keys on purpose (an empty scope_id would make an
+	// FK reject the insert that records a loss), so it does not cascade and
+	// needs its own delete or the rows outlive their generation.
+	if len(db.execs) != 7 {
+		t.Fatalf("exec count = %d, want 7", len(db.execs))
 	}
 	if !strings.Contains(db.execs[0].query, "INSERT INTO generation_retention_events") {
 		t.Fatalf("first exec = %q, want retention event before deletion", db.execs[0].query)
@@ -248,8 +252,12 @@ func TestGenerationRetentionStoreRowLimitSkipDoesNotBlockLaterCandidate(t *testi
 	if got, want := result.RowsPruned["fact_records"], int64(2); got != want {
 		t.Fatalf("fact_records pruned = %d, want %d", got, want)
 	}
-	if len(db.execs) != 6 {
-		t.Fatalf("exec count = %d, want 6", len(db.execs))
+	// 7 since #5984 added the shared_projection_unroutable_intents reap. That
+	// table carries no foreign keys on purpose (an empty scope_id would make an
+	// FK reject the insert that records a loss), so it does not cascade and
+	// needs its own delete or the rows outlive their generation.
+	if len(db.execs) != 7 {
+		t.Fatalf("exec count = %d, want 7", len(db.execs))
 	}
 	deleteIDs, ok := db.execs[1].args[0].([]string)
 	if !ok {

@@ -466,3 +466,49 @@ func contains(s, sub string) bool {
 	}
 	return false
 }
+
+// TestEvaluateDrainsFailsOnQuarantinedUnroutableIntents pins the assertion that
+// keeps the #5984 quarantine honest.
+//
+// Completing quarantined intents makes the nonterminal count drain, so without
+// this check the gate would go GREEN on a corpus that lost edges — trading a
+// silent loss in the pipeline for a silent loss in the gate.
+func TestEvaluateDrainsFailsOnQuarantinedUnroutableIntents(t *testing.T) {
+	t.Parallel()
+
+	report := &Report{}
+	EvaluateDrains(DrainCounts{SharedIntentsUnroutableQuarantined: 1}, DrainAssertions{}, 0, report)
+
+	var found bool
+	for _, f := range report.Findings {
+		if f.Check == "shared_projection_unroutable_quarantined" {
+			found = true
+			if f.OK {
+				t.Error("check passed with a quarantined row; it must be a hard zero")
+			}
+			if !f.Required {
+				t.Error("check is advisory; a lost edge must block the gate")
+			}
+		}
+	}
+	if !found {
+		t.Fatal("no shared_projection_unroutable_quarantined check emitted")
+	}
+}
+
+// TestDrainedIgnoresQuarantinedUnroutableIntents is the other half, and the
+// more subtle one.
+//
+// Quarantined rows are terminal: the intent that produced them was completed,
+// so the count never decreases. Including it in the poll predicate would mean
+// the drain never converges, and a crisp assertion failure would surface as a
+// drain TIMEOUT instead — which reads as "the pipeline needed longer" and hides
+// the finding entirely.
+func TestDrainedIgnoresQuarantinedUnroutableIntents(t *testing.T) {
+	t.Parallel()
+
+	counts := DrainCounts{SharedIntentsUnroutableQuarantined: 5}
+	if !counts.Drained(DrainAssertions{}) {
+		t.Fatal("Drained() = false with only quarantined rows outstanding; the poll would never converge and the real finding would surface as a timeout")
+	}
+}

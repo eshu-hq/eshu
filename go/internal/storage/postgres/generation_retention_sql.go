@@ -233,6 +233,17 @@ DELETE FROM shared_projection_intents
 WHERE generation_id = ANY($1::text[])
 `
 
+// deleteSharedProjectionUnroutableIntentsForGenerationsQuery reaps the durable
+// unroutable-intent records alongside the intents they describe (#5984). The
+// table deliberately carries no foreign keys -- shared_projection_intents.scope_id
+// can be ” on legacy rows, so an FK would reject the insert exactly when a
+// malformed row is being recorded -- which means it does not cascade and needs
+// this explicit delete to avoid outliving its generation.
+const deleteSharedProjectionUnroutableIntentsForGenerationsQuery = `
+DELETE FROM shared_projection_unroutable_intents
+WHERE generation_id = ANY($1::text[])
+`
+
 const pruneContentFileReferencesForGenerationsQuery = `
 WITH candidate_files AS (
     SELECT DISTINCT

@@ -189,4 +189,6 @@ var orderedBootstrapDefinitionNames = []string{
 	"provenance_edge_identity_upgrade_seed",
 	// migration 097 (#5704 deterministic digest-v3 identity-strength fold).
 	"container_image_identity_strength_precedence",
+	// migration 098 (#5984 durable record of intents no edge write could route).
+	"shared_projection_unroutable_intents",
 }

@@ -398,10 +398,15 @@ func buildReducerService(
 			// whole-scope retract (a NornicDB full-store scan) is a guaranteed
 			// no-op and is skipped. Nil leaves the retract running, byte-identical.
 			FirstProjectionLookup: intentStore,
-			Config:                sharedCfg,
-			Tracer:                tracer,
-			Instruments:           instruments,
-			Logger:                logger,
+			// #5984: durable record of intents no edge write could route. The
+			// worker persists these BEFORE completing the intent, and fails the
+			// cycle if the write fails -- completion is permanent, so this row
+			// is the only lasting evidence that the intent produced no edge.
+			UnroutableWriter: postgres.NewSharedProjectionUnroutableIntentStore(database),
+			Config:           sharedCfg,
+			Tracer:           tracer,
+			Instruments:      instruments,
+			Logger:           logger,
 		},
 		SupplyChainImpactWinnersMaintainer: &reducer.SupplyChainImpactWinnersMaintainer{
 			Rebuilder:    postgres.NewSupplyChainImpactWinnersStore(database),
