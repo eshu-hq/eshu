@@ -68,8 +68,13 @@ scripts/measure-demo-ttfa.sh --mode warm --runs 3
 ```
 
 ```bash
-scripts/measure-demo-ttfa.sh --mode cold --runs 3
+scripts/measure-demo-ttfa.sh --mode cold --runs 3 --prune-build-cache
 ```
+
+`--prune-build-cache` is what makes a cold run a first install rather than a
+cached rebuild. It is opt-in because the build cache is shared with everything
+else on the machine, and reclaiming it is not a measurement script's call to
+make silently.
 
 Each mode is a separate invocation. The harness tears the stack down between
 runs, drops the demo's images first in `cold` mode, prints every run's total
@@ -85,20 +90,63 @@ To score an envelope you already captured:
 eshu demo-benchmark --envelope /tmp/demo.json --mode warm --images present
 ```
 
-## Targets
+## Measured Basis And Targets
 
-**No TTFA target is set yet.** With `--target` omitted the scorer records the
-measured value and explicitly does not judge it — that is how a first
-measurement run establishes a target rather than being failed by one that does
-not exist.
+All numbers below are medians of three runs, measured with
+`scripts/measure-demo-ttfa.sh` on one recorded basis. Per the evidence rules a
+number without its basis is not comparable to the next one and cannot support a
+regression claim.
 
-A target is set from at least three measured runs per mode on a recorded basis,
-never from an aspiration. Per the evidence rules, the basis must name the
-graph backend, hardware class, corpus, and commit; a number without that basis
-is not comparable to the next one and cannot support a regression claim.
+| Basis | Value |
+| --- | --- |
+| Graph backend | NornicDB (the demo default) |
+| Hardware class | x86_64, 16 vCPU, 123 GB RAM |
+| Docker | 29.3.1 |
+| Corpus | 20-repository golden-corpus replay, as the `acme` org |
+| Commit | `50b18bb68` |
+| Machine state | dedicated host, no other containers running |
+| Measured | 2026-08-09 |
+
+| Mode | Runs (ms) | Median | Target |
+| --- | --- | --- | --- |
+| warm | 204164 / 204093 / 204154 | **3m24.2s** | 5m00s |
+| cold, cached rebuild | 208916 / 208837 / 208628 | **3m28.8s** | — |
+| cold, first install | 462874 / 456790 / 459152 | **7m39.2s** | 10m00s |
+
+### Cold Has Two Shapes, And Only One Of Them Is A First Install
+
+The middle row is the trap. Dropping the demo's image *tags* looks like a cold
+run and is not one: the demo builds most of its images and BuildKit keeps every
+layer, so the rebuild comes back out of cache. That run landed **2.3% above
+warm** — a distinction that existed, passed its own checks, and discriminated
+nothing.
+
+Reclaiming the build cache as well (`--prune-build-cache`, 21.66 GB on the
+measured host) moved the same mode to **7m39.2s, 2.27x warm**. That is what
+someone installing for the first time actually waits through, and it is the
+number the cold target is set from. Without the flag the harness now says out
+loud that it measured a cached rebuild.
+
+### Where The Time Goes
+
+`up` is **99.9% of TTFA in every mode** — 462,554 ms of a 462,874 ms cold run,
+and the same share warm. Neither image acquisition nor indexing is the cost;
+bringing the stack to healthy is. Anything that moves TTFA has to move `up`.
+
+### How The Targets Were Chosen
+
+Both targets are regression detectors on the basis above, not aspirations. The
+measured spread within a mode is under 2% (71 ms across three warm runs), so the
+headroom — 47% warm, 31% cold — absorbs ordinary variance while still catching a
+1.5x regression. A target that can never fail is a decoration; one that trips on
+noise gets ignored.
+
+They are basis-specific. A laptop with other Compose stacks running measured
+**7m27s warm**, 2.2x the dedicated host, with no code change between the two —
+which is exactly why the basis table above is not optional.
 
 Once [#4589](https://github.com/eshu-hq/eshu/issues/4589) publishes the SLO
-page, the TTFA rows belong there, with this page keeping the method and the
+page, these rows belong there, with this page keeping the method and the
 scorecard semantics.
 
 ## Not A Blocking CI Lane
