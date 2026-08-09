@@ -147,7 +147,18 @@ func runGraph(ctx context.Context, o options, getenv func(string) string, snap S
 	if err := checkRequiredNodes(ctx, counter, splitCSV(o.requiredNodeLabels), r); err != nil {
 		return err
 	}
-	return checkGraph(ctx, counter, snap, o.graphRequiredOnly, resolveBlockingCorrelations(o.requiredCorrelations, snap.Graph.RequiredCorrelations), r)
+	// Optional producer-state handle for the zero-correlation diagnosis. A graph
+	// phase run without Postgres reachable still checks the graph exactly as
+	// before; it just omits the "did the producer finish?" half. Failing the
+	// graph phase because a DIAGNOSTIC could not connect would be the tail
+	// wagging the dog.
+	var pipeline pipelineStateQuerier
+	if pq, closePQ, err := openDrainQuerier(ctx, getenv, "", ""); err == nil {
+		defer closePQ()
+		pipeline = pq
+	}
+
+	return checkGraph(ctx, counter, snap, o.graphRequiredOnly, resolveBlockingCorrelations(o.requiredCorrelations, snap.Graph.RequiredCorrelations), pipeline, r)
 }
 
 // splitCSV splits a comma-separated flag into trimmed, non-empty values.

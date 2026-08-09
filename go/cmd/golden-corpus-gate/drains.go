@@ -299,3 +299,14 @@ func formatCompletionEventBreakdown(rows []completionEventRow) string {
 	}
 	return strings.Join(details, " ")
 }
+
+// ResidualWorkItems implements pipelineStateQuerier.
+//
+// Deliberately delegates to ResidualBreakdown rather than issuing its own
+// query. The two names describe one predicate, and two SQL
+// statements expressing one predicate is how they drift apart: a later change
+// to the residual predicate would silently stop matching what the
+// zero-correlation diagnosis reports.
+func (q *sqlDrainQuerier) ResidualWorkItems(ctx context.Context) ([]residualRow, error) {
+	return q.ResidualBreakdown(ctx)
+}
