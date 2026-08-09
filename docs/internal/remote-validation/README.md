@@ -132,14 +132,14 @@ Burn-down progress:
   deployed component-extension Compose stack, returning `installed=true`,
   `enabled=true`, and `trusted=true` for a real claimed component, with the
   diagnostics route sharing that handler.
-- **This directory now holds 110 committed artifact files.** That count closes
-  the old pointer-existence baseline; it does not certify the contents. The
-  seven Cluster B files added for #5681 carry fresh matching-tier evidence.
-  The stricter verifier reports each of the 103 invalid legacy files until a
-  fresh deployed run supplies every required field. File existence alone no
-  longer retains `production: supported`. #5552 remains open while those files
-  are requalified and either refreshed or explicitly downgraded with owner
-  approval.
+- **This directory now holds 110 committed, machine-valid deployed artifacts**
+  covering all 115 currently supported production row-occurrences. Seven were
+  validated for #5681. #5552 requalified the remaining 103 slugs: 100 through
+  a fresh 547-pass golden-corpus Compose run, two through the deployed
+  component-extension driver, and one through the dedicated dead-IaC Compose
+  driver. Every artifact records its matching deployed tier, run date, exact
+  command with direct exit capture, evidence source, and one assertion per
+  production capability. No row was downgraded in the #5552 tranche.
 - **The cluster of 7 code-intelligence slugs before this one**
   (#5681) was resolved per-row against a real deployed-services stack: the two
   transitive-caller-graph reads (`prod-transitive-callers` /
@@ -183,3 +183,9 @@ Burn-down progress:
   close. It does **not** close #5552: that program stays open until all 103
   legacy files pass matching-tier content validation and the recurrence gate
   proves seeded unbacked claims red and the reverted matrix green.
+
+The #5552 tranche now satisfies that remaining condition: the strict real-tree
+verifier accepts all 110 supported slugs, and its hermetic BITES test seeds an
+unbacked production row RED before reverting the matrix to GREEN. The generated
+per-row index is [inventory.generated.json](inventory.generated.json), and the
+human disposition record is [DISPOSITIONS.md](DISPOSITIONS.md).

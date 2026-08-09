@@ -1,5 +1,22 @@
 # prod-component-extension-inventory — production validation
 
+Validation-Slug: prod-component-extension-inventory
+Validation-Tier: deployed_services
+Validation-Date: 2026-08-09
+Evidence-Kind: compose_e2e
+Evidence-Source: scripts/run-remote-e2e-component-extension.sh
+Validation-Command: CE_PROOF_PROJECT=eshu-5552-component-20260809-1 bash scripts/run-remote-e2e-component-extension.sh --artifacts /tmp/eshu-5552-component-artifacts-20260809-1; echo $?
+Validation-Exit-Code: 0
+Capability-Assertion: component_extensions.inventory returned the installed, enabled, trusted Scorecard component from the deployed component registry.
+
+## Fresh deployed validation
+
+The uniquely named Compose stack used an image rebuilt from the reviewed
+commit. The capture-and-verify driver observed the Scorecard component as
+installed, enabled, and trusted; its workflow item completed; and its committed
+fact families were non-empty. A separate authenticated HTTP readback from the
+same stack returned one available component with the same identity and state.
+
 Capability: `component_extensions.inventory` (tool `list_component_extensions`,
 route `GET /api/v0/component-extensions`).
 Production profile: `required_runtime: deployed_services_component_registry`,
@@ -39,9 +56,9 @@ scripts/verify-remote-e2e-component-extension.sh --artifacts <run-dir>
 token=$(docker exec <eshu-container> sh -c \
   'grep "^ESHU_API_KEY=" /data/.eshu/.env | cut -d= -f2-')
 curl -s -H "Authorization: Bearer ${token}" \
-  http://127.0.0.1:8080/api/v0/component-extensions
+  "${ESHU_API_BASE_URL}/api/v0/component-extensions"
 curl -s -H "Authorization: Bearer ${token}" \
-  http://127.0.0.1:8080/api/v0/component-extensions/dev.eshu.examples.scorecard/diagnostics
+  "${ESHU_API_BASE_URL}/api/v0/component-extensions/dev.eshu.examples.scorecard/diagnostics"
 
 docker compose -p ce-proof \
   -f docker-compose.yaml \
@@ -125,11 +142,11 @@ mapped port returned `200` with the live sanitized registry readback — not
 the pre-fix `503`:
 
 ```bash
-token=$(docker exec ce2-eshu-1 sh -c \
+token=$(docker exec <eshu-container> sh -c \
   'grep "^ESHU_API_KEY=" /data/.eshu/.env | cut -d= -f2-')
 curl -s -o /dev/null -w '%{http_code}\n' \
   -H "Authorization: Bearer ${token}" \
-  http://127.0.0.1:8080/api/v0/component-extensions
+  "${ESHU_API_BASE_URL}/api/v0/component-extensions"
 # 200
 ```
 

@@ -203,3 +203,37 @@ ESHU_QUERY_PROFILE=local_authoritative GATE_COMPOSE_PROJECT=eshu-5681-local-auth
 Captured output: `0`. The log records `query profile: local_authoritative`
 before staging or build work. The run completed in 118 seconds with 532 passes,
 zero required failures, and zero advisory warnings.
+
+## TRANCHE 3 — #5552 legacy production requalification
+
+**Disposition:** VALIDATED. All 103 legacy slugs retain `production:
+supported`; no downgrade was proposed or approved. Together with the seven
+#5681 artifacts, the generated inventory now maps 110 supported slugs to 115
+production row-occurrences, each backed by a machine-valid deployed artifact.
+
+The canonical per-row table is
+[`inventory.generated.json`](inventory.generated.json). Every entry gives the
+slug, artifact path, and all `capability/production` subjects sharing that
+artifact. The artifact itself records the exact command, captured exit code,
+run date, matching tier, committed driver, and capability-specific assertion.
+This keeps the full 115-row disposition machine-checkable without duplicating
+the generated mapping in prose.
+
+### Validation families
+
+| Slugs | Action | Fresh deployed proof | Result |
+| --- | --- | --- | --- |
+| 100 legacy slugs | Validate and retain `supported` | `scripts/verify-golden-corpus-gate.sh` on project `eshu-5552-claim-honesty-20260809-9` | 547 passed, 0 required failures, 0 advisory warnings; direct exit 0 |
+| `prod-component-extension-inventory`, `prod-component-extension-diagnostics` | Validate and retain `supported` | `scripts/run-remote-e2e-component-extension.sh` on project `eshu-5552-component-20260809-1` | Installed, enabled, trusted registry readback; completed workflow; non-empty fact families; authenticated inventory and diagnostics assertions; direct exit 0 |
+| `prod-dead-iac` | Validate and retain `supported` | `scripts/verify_dead_iac_compose.sh` on project `eshu-5552-dead-iac-20260809-5` | Ten materialized findings across five IaC families through API and MCP, with Postgres and NornicDB truth checks; direct exit 0 |
+
+### Recurrence proof
+
+`scripts/verify-remote-validation-artifacts.sh` accepts the real tree with zero
+baseline entries and zero findings. Its hermetic mirror rejects placeholder,
+lower-tier, malformed, source-missing, and command-masked evidence. The BITES
+case adds a supported production row with no matching artifact and observes
+RED, then reverts the matrix and observes GREEN. CI path selection covers the
+matrix, artifact directory, generated inventory, allowed evidence sources, and
+the verifier implementation, so a new unbacked claim or a broken source cannot
+bypass the PR gate.

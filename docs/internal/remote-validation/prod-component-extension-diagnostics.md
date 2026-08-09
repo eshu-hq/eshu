@@ -1,5 +1,23 @@
 # prod-component-extension-diagnostics — production validation
 
+Validation-Slug: prod-component-extension-diagnostics
+Validation-Tier: deployed_services
+Validation-Date: 2026-08-09
+Evidence-Kind: compose_e2e
+Evidence-Source: scripts/run-remote-e2e-component-extension.sh
+Validation-Command: CE_PROOF_PROJECT=eshu-5552-component-20260809-1 bash scripts/run-remote-e2e-component-extension.sh --artifacts /tmp/eshu-5552-component-artifacts-20260809-1; echo $?
+Validation-Exit-Code: 0
+Capability-Assertion: component_extensions.diagnostics returned allowed policy and trust decisions plus claim-capable scheduler state from the deployed component registry.
+
+## Fresh deployed validation
+
+The uniquely named Compose stack used an image rebuilt from the reviewed
+commit. The capture-and-verify driver proved the shared registry was installed,
+enabled, trusted, terminal-successful, and fact-producing. A separate
+authenticated diagnostics read from that same stack returned `available`, an
+`allowed` trust decision, an `allowed` policy gate, and a `claim_capable`
+scheduler state for the Scorecard component.
+
 Capability: `component_extensions.diagnostics` (tool
 `get_component_extension_diagnostics`, route `GET
 /api/v0/component-extensions/{component_id}/diagnostics`).
@@ -36,11 +54,11 @@ live HTTP capture below, run against the same reconciled stack.
 ## Live HTTP proof — GET /api/v0/component-extensions/{component_id}/diagnostics
 
 ```bash
-token=$(docker exec ce2-eshu-1 sh -c \
+token=$(docker exec <eshu-container> sh -c \
   'grep "^ESHU_API_KEY=" /data/.eshu/.env | cut -d= -f2-')
 curl -s -o /dev/null -w '%{http_code}\n' \
   -H "Authorization: Bearer ${token}" \
-  http://127.0.0.1:8080/api/v0/component-extensions/dev.eshu.examples.scorecard/diagnostics
+  "${ESHU_API_BASE_URL}/api/v0/component-extensions/dev.eshu.examples.scorecard/diagnostics"
 # 200
 ```
 
