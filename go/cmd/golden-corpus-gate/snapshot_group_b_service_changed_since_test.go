@@ -12,10 +12,15 @@ import (
 )
 
 const (
-	goldenServiceChangedSincePriorSentinel   = "__runtime_service_changed_since_prior_generation__"
-	goldenServiceChangedSinceCurrentSentinel = "__runtime_service_changed_since_current_generation__"
-	goldenServiceChangedSinceOldOwnerKey     = "ownership:component:default/deployable-config:group:default/platform"
-	goldenServiceChangedSinceNewOwnerKey     = "ownership:component:default/deployable-config:group:default/runtime-platform"
+	goldenServiceChangedSincePriorSentinel      = "__runtime_service_changed_since_prior_generation__"
+	goldenServiceChangedSinceCurrentSentinel    = "__runtime_service_changed_since_current_generation__"
+	goldenServiceChangedSinceAddedSentinel      = "__runtime_service_changed_since_deployment_added_count__"
+	goldenServiceChangedSinceUpdatedSentinel    = "__runtime_service_changed_since_deployment_updated_count__"
+	goldenServiceChangedSinceUnchangedSentinel  = "__runtime_service_changed_since_deployment_unchanged_count__"
+	goldenServiceChangedSinceRetiredSentinel    = "__runtime_service_changed_since_deployment_retired_count__"
+	goldenServiceChangedSinceSupersededSentinel = "__runtime_service_changed_since_deployment_superseded_count__"
+	goldenServiceChangedSinceOldOwnerKey        = "ownership:component:default/deployable-config:group:default/platform"
+	goldenServiceChangedSinceNewOwnerKey        = "ownership:component:default/deployable-config:group:default/runtime-platform"
 )
 
 func TestGoldenServiceChangedSinceLeafUsesRealCorpusAndReadOnlyLineage(t *testing.T) {
@@ -32,6 +37,7 @@ func TestGoldenServiceChangedSinceLeafUsesRealCorpusAndReadOnlyLineage(t *testin
 		"golden_service_changed_since_capture_prior",
 		"golden_service_changed_since_mutate_owner",
 		"golden_service_changed_since_validate_current",
+		"golden_service_changed_since_capture_deployment_counts",
 		"golden_service_changed_since_compose_snapshot",
 		"${corpus_dir}/deployable-config/catalog-info.yaml",
 		"group:default/runtime-platform",
@@ -39,6 +45,16 @@ func TestGoldenServiceChangedSinceLeafUsesRealCorpusAndReadOnlyLineage(t *testin
 		"status = 'active'",
 		goldenServiceChangedSincePriorSentinel,
 		goldenServiceChangedSinceCurrentSentinel,
+		goldenServiceChangedSinceAddedSentinel,
+		goldenServiceChangedSinceUpdatedSentinel,
+		goldenServiceChangedSinceUnchangedSentinel,
+		goldenServiceChangedSinceRetiredSentinel,
+		goldenServiceChangedSinceSupersededSentinel,
+		"WITH prior_keys AS",
+		"current_active_keys AS",
+		"current_tombstones AS",
+		"prior.payload_hash IS DISTINCT FROM current.payload_hash",
+		"evidence_family = 'deployment'",
 	} {
 		if !strings.Contains(helper, want) {
 			t.Errorf("service changed-since leaf helper missing %q", want)

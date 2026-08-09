@@ -111,8 +111,10 @@ func TestGoldenDeployableFixtureMaterializesTwoCanonicalEnvironments(t *testing.
 	}
 
 	resolved := []relationships.ResolvedRelationship{{
-		SourceRepoID:     "repo-deployable-source",
-		TargetRepoID:     "repo-deployable-config",
+		// Production Argo Application evidence originates in the repository
+		// containing the Application and points at the deployed repository.
+		SourceRepoID:     "repo-deployable-config",
+		TargetRepoID:     "repo-deployable-source",
 		RelationshipType: relationships.RelDeploysFrom,
 		Confidence:       0.96,
 		Details: map[string]any{

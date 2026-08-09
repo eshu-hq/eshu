@@ -75,8 +75,8 @@ func TestDeployableUnitCorrelationHandleWritesAdmittedResolvedDeploymentEdge(t *
 		ResolvedLoader: &stubDeployableUnitResolvedLoader{
 			resolved: []relationships.ResolvedRelationship{
 				{
-					SourceRepoID:     "repo-edge-api",
-					TargetRepoID:     "repo-deployments",
+					SourceRepoID:     "repo-deployments",
+					TargetRepoID:     "repo-edge-api",
 					RelationshipType: relationships.RelDeploysFrom,
 					Confidence:       0.94,
 					Details: map[string]any{
