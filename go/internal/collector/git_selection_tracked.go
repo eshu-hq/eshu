@@ -95,6 +95,26 @@ func (r *collectorTrackedResolver) trackedUnderDir(dirPath string) bool {
 	return collectorTrackedPathsUnderDir(rel, r.trackedSetForRoot(root))
 }
 
+// ignoreRootFor returns the git root whose ignore rules govern fullPath: the
+// nearest enclosing repository, not the repository being walked.
+//
+// Git never applies an outer .gitignore across a repository boundary — a nested
+// repo or submodule has its own ignore scope — and discovery already behaves
+// that way because it groups by nearest repo root. The managed copy did not, so
+// an untracked file inside a nested repo that only the OUTER .gitignore matched
+// was dropped from the copy while discovery kept it: the same file present or
+// absent depending on which path looked at it (issue #5667).
+//
+// A nil receiver falls back to the walked root, which is the pre-#5667
+// behaviour and the only sound answer when no resolver exists to find a
+// nearer one.
+func (r *collectorTrackedResolver) ignoreRootFor(fullPath string, fallbackRoot string) string {
+	if r == nil {
+		return fallbackRoot
+	}
+	return r.nearestGitRoot(filepath.Dir(fullPath))
+}
+
 // nearestGitRoot walks upward from startDir (a directory) to r.walkRoot,
 // returning the first directory with its own ".git" marker (hasGitDirMarker
 // — already handles a directory, worktree/submodule gitlink file, or
