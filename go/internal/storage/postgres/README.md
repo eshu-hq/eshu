@@ -655,6 +655,24 @@ Primary groups:
   `Summary.ValueComparisonInconclusiveResources` (#5837). That is the signal
   an operator reads; a second loader-side detector of the same condition
   could only disagree with it.
+- Redaction is not the only way a comparable becomes unusable. A comparable can
+  also be ABSENT while the same payload asserts it should be there, and that
+  case needs its own rule because absence alone must NOT suppress: a
+  zip-packaged Lambda has no `image_uri` by design, so suppressing on absence
+  would report most functions in a corpus as inconclusive (#5861). For
+  `aws_lambda_function`, `lambdaComparableScalarAttrSet` /
+  `lambdaImagePackagedWithoutImageURI`
+  (`aws_cloud_runtime_drift_value_attributes.go`) key on `package_type`, which
+  both the AWS collector and Terraform state already carry: `Image` with no
+  `image_uri` is a side that did not carry the image, not a function without
+  one, and it suppresses the whole set exactly as a redaction marker does. The
+  rule runs on the observed AND the declared decoder, because the destructive
+  outcome does not care which side was unreadable — whichever one is missing,
+  `Compared` falls to 1 of 2, `Classify` returns `""`, and the
+  generation-authoritative retire deletes a still-true finding. `package_type`
+  is read as a completeness signal only and is deliberately absent from
+  `cloudruntime`'s `valueAttributeAllowlist`; adding it would turn an
+  out-of-band Image-to-Zip repackaging into a reported `image_version_drift`.
 
 No-Regression Evidence (#5859): the redaction check sits on the value-drift
 decode path, so it was measured rather than assumed.
@@ -732,6 +750,46 @@ emission time on `eshu_dp_tfstate_redactions_applied_total{reason}`.
   it. A container list beyond `cloudruntime.MaxContainerImagesPerResource`
   (8) is capped, not silently truncated: `containerImagesTruncatedWarning`
   appends `container_images_truncated` to the finding's `WarningFlags`.
+  For `aws_lambda_function` both decoders go through
+  `lambdaComparableScalarAttrSet` rather than `comparableScalarAttrSet`
+  directly, which adds the `package_type` completeness rule described above
+  (#5861) on top of the redaction rule.
+
+No-Regression Evidence (#5861): the `package_type` completeness rule sits on the
+same value-drift decode path, so it was measured rather than assumed.
+`BenchmarkLambdaDeclaredValueAttributes` (in
+`aws_cloud_runtime_drift_value_completeness_test.go`) runs the healthy
+production shape -- an image-packaged `aws_lambda_function` whose `image_uri`
+IS present, so the guard evaluates and falls through -- through
+`stateDeclaredValueAttributes`. The #5859 benchmark next to it runs an
+`aws_instance` payload, which never reaches this rule, so it would have
+reported "no change" about the wrong path. Baseline measured by reverting both
+call sites to `comparableScalarAttrSet(attributes, "image_uri", "version")`
+through `go test -overlay=` against a scratchpad copy, leaving the worktree
+untouched. `-benchtime=2s -count=5`, Go 1.26 on an Apple M1 Max:
+
+```text
+OLD             107.4  120.1  113.9  113.0  112.1 ns/op   336 B/op   2 allocs/op
+NEW             107.6  108.6  106.0  110.0  111.1 ns/op   336 B/op   2 allocs/op
+```
+
+Within noise of the baseline, and byte-for-byte identical allocation. Getting
+there required one ordering choice worth recording: testing `package_type`
+first measured 122-141 ns/op, about +17%, because the healthy path then read
+`image_uri` twice -- once in the guard and once in the set read that follows.
+The two conditions commute, so `lambdaImagePackagedWithoutImageURI` tests the
+`image_uri` blank first and returns after a single map read for every Lambda
+that carries one, which is every image-packaged function that was read
+successfully.
+
+No-Observability-Change (#5861): the rule adds no metric, span, or log. It
+routes an affected pair onto the EXISTING `value_comparison_inconclusive`
+finding kind, already counted on
+`Summary.ValueComparisonInconclusiveResources` and already carrying
+`comparable_attribute:<key>` in `missing_evidence` (#5837). An operator sees
+the same durable row and the same counter they read for the redaction case;
+what changes is that a pair which previously vanished now appears there.
+`scripts/verify-telemetry-coverage.sh` passes with no new stage.
 
 To add instrumentation to a store, wrap the `ExecQueryer` passed to its
 constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.

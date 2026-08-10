@@ -80,6 +80,36 @@ func TestClassifyLambdaImagePackagedWithoutObservedImageURIDoesNotConverge(t *te
 	}
 }
 
+// BenchmarkLambdaDeclaredValueAttributes measures the decode path the #5861
+// completeness rule actually sits on.
+//
+// The existing BenchmarkStateDeclaredValueAttributes (#5859) runs an
+// aws_instance payload, which never reaches lambdaComparableScalarAttrSet --
+// the switch dispatches aws_instance to comparableScalarAttr. Measuring it
+// would report "no change" truthfully but about the wrong path, so this
+// benchmark runs the healthy production Lambda shape (image-packaged, image_uri
+// present, so the guard evaluates and then falls through to the ordinary set
+// read) through stateDeclaredValueAttributes.
+//
+// Recorded so the No-Regression Evidence in
+// go/internal/storage/postgres/README.md names a measurement of the changed
+// path rather than an adjacent one.
+func BenchmarkLambdaDeclaredValueAttributes(b *testing.B) {
+	attributes := map[string]any{
+		"arn":          "arn:aws:lambda:us-east-1:123456789012:function:app",
+		"package_type": "Image",
+		"image_uri":    "123456789012.dkr.ecr.us-east-1.amazonaws.com/app:v2",
+		"version":      "7",
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		attrs, _, _, _ := stateDeclaredValueAttributes("aws_lambda_function", attributes)
+		if len(attrs) != 2 {
+			b.Fatalf("stateDeclaredValueAttributes() = %#v, want two comparable attributes", attrs)
+		}
+	}
+}
+
 // TestClassifyLambdaImageDeclaredWithoutDeclaredImageURIDoesNotConverge is the
 // mirror of the test above, on the declared side.
 //
