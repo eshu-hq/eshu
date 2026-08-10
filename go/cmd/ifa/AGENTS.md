@@ -94,9 +94,15 @@
 - `ifa assert-edges` is the non-vacuity check the P2 digest cannot make: it
   MUST fail on a family that materialized zero edges (an empty family passes a
   digest comparison vacuously). Its `edgeTypes` filter is registry-derived via
-  `ifa.MaterializedEdgeDomainEdgeTypes` (never hand-listed), and an edge with a
-  missing endpoint `uid` is a real defect (an unmaterialized endpoint node),
-  surfaced, never silently skipped — that exact silent no-op is what #5351's
+  `ifa.MaterializedEdgeDomainEdgeTypes` (never hand-listed). Endpoint identity is
+  the node's `uid` when it has one and its `id` otherwise — content entities are
+  uid-keyed, while `Repository`, `Workload`, `WorkloadInstance` and `Platform`
+  are MERGEd `{id: ...}` and carry no uid — and an edge whose endpoint has
+  NEITHER is a real defect (an unmaterialized endpoint node), surfaced, never
+  silently skipped. A family whose relationship types are shared with another
+  (DEPENDS_ON) also constrains endpoint labels via
+  `cypher.MaterializedEdgeEndpointLabels`; a family with no constraints is
+  matched by type alone, never by nothing — that exact silent no-op is what #5351's
   fixture work surfaced. Read-only, flags-before-backend like `graph-dump`; the
   set-comparison core (`assertMaterializedEdges`) takes a `graphdump.Reader` so
   it is hermetically testable against a fake with no Docker. A new family gains

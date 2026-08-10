@@ -1,0 +1,330 @@
+{
+  "collector": "git",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "scope-ifa-code-call-family",
+      "source_system": "git",
+      "scope_kind": "repo",
+      "collector_kind": "git",
+      "partition_key": "scope-ifa-code-call-family",
+      "metadata": {
+        "fixture": "ifa-code-call-family"
+      },
+      "generation_id": "gen-1",
+      "observed_at": "2026-08-09T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:repo-ifa-code-call-family",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-code-call-family",
+            "source_run_id": "run-ifa-code-call-family-1",
+            "local_path": "/repo"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-ifa-code-call-family:app/calls.py",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-code-call-family",
+            "relative_path": "app/calls.py",
+            "parsed_file_data": {
+              "path": "/repo/app/calls.py",
+              "functions": [
+                {
+                  "name": "ifaCcAlpha",
+                  "uid": "content-entity:e_4e5b59c348d9",
+                  "line_number": 1,
+                  "end_line": 10
+                },
+                {
+                  "name": "ifaCcBeta",
+                  "uid": "content-entity:e_2b7f36111994",
+                  "line_number": 12,
+                  "end_line": 14
+                }
+              ],
+              "classes": [
+                {
+                  "name": "IfaCcGamma",
+                  "uid": "content-entity:e_8193b04a84bf",
+                  "line_number": 16,
+                  "end_line": 17
+                },
+                {
+                  "name": "IfaCcDelta",
+                  "uid": "content-entity:e_807a1220c2fa",
+                  "line_number": 19,
+                  "end_line": 20
+                },
+                {
+                  "name": "IfaCcEpsilon",
+                  "uid": "content-entity:e_b2d33afd68dc",
+                  "line_number": 22,
+                  "end_line": 23,
+                  "metaclass": "IfaCcMeta"
+                },
+                {
+                  "name": "IfaCcMeta",
+                  "uid": "content-entity:e_48ef8138ee01",
+                  "line_number": 25,
+                  "end_line": 26
+                },
+                {
+                  "name": "IfaCcZeta",
+                  "uid": "content-entity:e_8df6b0ebdf64",
+                  "line_number": 28,
+                  "end_line": 29,
+                  "metaclass": "IfaCcUnknownMeta"
+                }
+              ],
+              "function_calls": [
+                {
+                  "name": "ifaCcBeta",
+                  "line_number": 3,
+                  "lang": "python"
+                },
+                {
+                  "name": "IfaCcGamma",
+                  "line_number": 4,
+                  "call_kind": "python.class_reference",
+                  "lang": "python"
+                },
+                {
+                  "name": "IfaCcDelta",
+                  "line_number": 5,
+                  "call_kind": "constructor_call",
+                  "lang": "python"
+                },
+                {
+                  "name": "ifaCcGhost",
+                  "line_number": 6,
+                  "lang": "python"
+                },
+                {
+                  "name": "ifaCcBeta",
+                  "line_number": 0,
+                  "lang": "python"
+                },
+                {
+                  "name": "ifaCcDup",
+                  "line_number": 7,
+                  "lang": "python"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-ifa-code-call-family:app/dup_one.py",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-code-call-family",
+            "relative_path": "app/dup_one.py",
+            "parsed_file_data": {
+              "path": "/repo/app/dup_one.py",
+              "functions": [
+                {
+                  "name": "ifaCcDup",
+                  "uid": "content-entity:e_730bb649336f",
+                  "line_number": 1,
+                  "end_line": 2
+                }
+              ]
+            }
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-ifa-code-call-family:app/dup_two.py",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-code-call-family",
+            "relative_path": "app/dup_two.py",
+            "parsed_file_data": {
+              "path": "/repo/app/dup_two.py",
+              "functions": [
+                {
+                  "name": "ifaCcDup",
+                  "uid": "content-entity:e_b1bd721e0dcd",
+                  "line_number": 1,
+                  "end_line": 2
+                }
+              ]
+            }
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:e_4e5b59c348d9",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-code-call-family",
+            "entity_id": "content-entity:e_4e5b59c348d9",
+            "entity_type": "Function",
+            "entity_name": "ifaCcAlpha",
+            "relative_path": "app/calls.py",
+            "start_line": 1,
+            "end_line": 10
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:e_2b7f36111994",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-code-call-family",
+            "entity_id": "content-entity:e_2b7f36111994",
+            "entity_type": "Function",
+            "entity_name": "ifaCcBeta",
+            "relative_path": "app/calls.py",
+            "start_line": 12,
+            "end_line": 14
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:e_8193b04a84bf",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-code-call-family",
+            "entity_id": "content-entity:e_8193b04a84bf",
+            "entity_type": "Class",
+            "entity_name": "IfaCcGamma",
+            "relative_path": "app/calls.py",
+            "start_line": 16,
+            "end_line": 17
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:e_807a1220c2fa",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-code-call-family",
+            "entity_id": "content-entity:e_807a1220c2fa",
+            "entity_type": "Class",
+            "entity_name": "IfaCcDelta",
+            "relative_path": "app/calls.py",
+            "start_line": 19,
+            "end_line": 20
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:e_b2d33afd68dc",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-code-call-family",
+            "entity_id": "content-entity:e_b2d33afd68dc",
+            "entity_type": "Class",
+            "entity_name": "IfaCcEpsilon",
+            "relative_path": "app/calls.py",
+            "start_line": 22,
+            "end_line": 23
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:e_48ef8138ee01",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-code-call-family",
+            "entity_id": "content-entity:e_48ef8138ee01",
+            "entity_type": "Class",
+            "entity_name": "IfaCcMeta",
+            "relative_path": "app/calls.py",
+            "start_line": 25,
+            "end_line": 26
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:e_8df6b0ebdf64",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-code-call-family",
+            "entity_id": "content-entity:e_8df6b0ebdf64",
+            "entity_type": "Class",
+            "entity_name": "IfaCcZeta",
+            "relative_path": "app/calls.py",
+            "start_line": 28,
+            "end_line": 29
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:e_730bb649336f",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-code-call-family",
+            "entity_id": "content-entity:e_730bb649336f",
+            "entity_type": "Function",
+            "entity_name": "ifaCcDup",
+            "relative_path": "app/dup_one.py",
+            "start_line": 1,
+            "end_line": 2
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:e_b1bd721e0dcd",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repo-ifa-code-call-family",
+            "entity_id": "content-entity:e_b1bd721e0dcd",
+            "entity_type": "Function",
+            "entity_name": "ifaCcDup",
+            "relative_path": "app/dup_two.py",
+            "start_line": 1,
+            "end_line": 2
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "stable_fact_key": "shared_followup:repo-ifa-code-call-family:code_call_materialization",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "reducer_domain": "code_call_materialization",
+            "entity_key": "repo:repo-ifa-code-call-family",
+            "reason": "repository snapshot emitted code-call materialization follow-up",
+            "repo_id": "repo-ifa-code-call-family"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -193,8 +193,12 @@ jobs:
               - 'go/internal/reducer/sql_relationship_embedded_query.go'
               - 'go/internal/reducer/sql_relationship_metadata.go'
               - 'go/internal/storage/cypher/edge_writer_sql.go'
+              - 'go/internal/storage/cypher/materialized_edge_*.go'
+              - 'go/internal/storage/cypher/canonical_code_call_edges.go'
+              - 'go/internal/storage/cypher/canonical_inheritance_edges.go'
               - 'specs/ifa-materialized-edge-coverage.v1.yaml'
               - 'testdata/cassettes/sqlrelationships/**'
+              - 'testdata/cassettes/codecalls/**'
             ifaload:
               - '.github/workflows/static-contract-gates.yml'
               - 'specs/ci-gates.v1.yaml'

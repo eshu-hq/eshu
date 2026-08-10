@@ -105,7 +105,7 @@ func TestRepoDependencyProjectionRunnerProcessOnceRejectsMissingAcceptanceUnitGa
 			"repo_id":           repoID,
 			"target_repo_id":    "repository:r_target",
 			"relationship_type": "DEPENDS_ON",
-			"evidence_source":   crossRepoEvidenceSource,
+			"evidence_source":   CrossRepoEvidenceSource,
 		},
 	)
 	reader := &fakeRepoDependencyIntentStore{
@@ -148,7 +148,7 @@ func TestRepoDependencyProjectionRunnerRejectsMismatchedSourceRepositoryIdentity
 			"repo_id":           repoA,
 			"target_repo_id":    "repository:r_target",
 			"relationship_type": "DEPENDS_ON",
-			"evidence_source":   crossRepoEvidenceSource,
+			"evidence_source":   CrossRepoEvidenceSource,
 		},
 	)
 
@@ -173,7 +173,7 @@ func TestRepoDependencyProjectionRunnerRejectsMismatchedSourceRepositoryIdentity
 			payload := map[string]any{
 				"target_repo_id":    "repository:r_target",
 				"relationship_type": "DEPENDS_ON",
-				"evidence_source":   crossRepoEvidenceSource,
+				"evidence_source":   CrossRepoEvidenceSource,
 			}
 			if tt.payloadRepoID != nil {
 				payload["repo_id"] = tt.payloadRepoID
@@ -229,7 +229,7 @@ func TestRepoDependencyProjectionRunnerLoadAllAcceptanceUnitIntentsRejectsOversi
 						"repo_id":           "repository:r_repo_a",
 						"target_repo_id":    "repository:r_target",
 						"relationship_type": "DEPENDS_ON",
-						"evidence_source":   crossRepoEvidenceSource,
+						"evidence_source":   CrossRepoEvidenceSource,
 					},
 				)
 			}
@@ -429,7 +429,7 @@ func TestRepoDependencyProjectionRunnerRunContinuesAfterCycleError(t *testing.T)
 					"repo_id":           repoID,
 					"target_repo_id":    "repository:r_target_1",
 					"relationship_type": "DEPENDS_ON",
-					"evidence_source":   crossRepoEvidenceSource,
+					"evidence_source":   CrossRepoEvidenceSource,
 				},
 			),
 		},
@@ -441,7 +441,7 @@ func TestRepoDependencyProjectionRunnerRunContinuesAfterCycleError(t *testing.T)
 						"repo_id":           repoID,
 						"target_repo_id":    "repository:r_target_1",
 						"relationship_type": "DEPENDS_ON",
-						"evidence_source":   crossRepoEvidenceSource,
+						"evidence_source":   CrossRepoEvidenceSource,
 					},
 				),
 			},
