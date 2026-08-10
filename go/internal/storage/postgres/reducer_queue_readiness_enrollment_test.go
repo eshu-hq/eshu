@@ -39,9 +39,23 @@ import (
 func TestEveryReadinessFailureClassIsEnrolled(t *testing.T) {
 	t.Parallel()
 
-	found := readinessFailureClassesInReducer(t)
+	found, unreadable := readinessFailureClassesInReducer(t)
 	if len(found) == 0 {
 		t.Fatal("parsed internal/reducer and found no readiness failure classes at all; the scan is broken, not the registry")
+	}
+
+	// A FailureClass() the scan could not read is NOT a pass. Object resolution
+	// is per-file, so a constant declared in a different file from its method
+	// resolves to nothing — and without this the class would simply vanish from
+	// `found` while the test stayed green on the other 25.
+	for _, ref := range unreadable {
+		t.Errorf(
+			"FailureClass() in %s returns %s, which this scan cannot resolve to a string. "+
+				"Object resolution is per-file, so the constant is probably declared in another "+
+				"file. Move it beside its method, or teach returnedStringLiteral to resolve it — "+
+				"leaving it unreadable would silently exempt the class from this guard.",
+			ref.file, ref.ident,
+		)
 	}
 
 	enrolled := make(map[string]bool, len(nonCountingReducerRetryFailureClasses))
@@ -68,10 +82,23 @@ func TestEveryReadinessFailureClassIsEnrolled(t *testing.T) {
 	}
 }
 
+// unreadableFailureClassRef is a FailureClass() the scan could not reduce to a
+// string: it returns a named constant whose declaration this pass never saw.
+type unreadableFailureClassRef struct {
+	ident string
+	file  string
+}
+
 // readinessFailureClassesInReducer returns every `*_not_ready` failure class
 // returned by a type in internal/reducer whose Retryable() reports true,
-// mapped to the file that declares it.
-func readinessFailureClassesInReducer(t *testing.T) map[string]string {
+// mapped to the file that declares it, plus every FailureClass() on such a type
+// that the scan could NOT read.
+//
+// The second return is what keeps the first honest. A class the scan cannot
+// read is indistinguishable from a class that does not exist, so without it a
+// constant declared away from its method would drop out of the results and the
+// guard would pass while silently exempting that class.
+func readinessFailureClassesInReducer(t *testing.T) (map[string]string, []unreadableFailureClassRef) {
 	t.Helper()
 
 	_, thisFile, _, ok := runtime.Caller(0)
@@ -112,6 +139,8 @@ func readinessFailureClassesInReducer(t *testing.T) map[string]string {
 	retryable := map[string]bool{}
 	// receiver type name -> (class, file)
 	classes := map[string][2]string{}
+	// receiver type name -> the identifier whose value could not be read
+	unreadable := map[string]unreadableFailureClassRef{}
 
 	for path, file := range parsedFiles {
 		for _, decl := range file.Decls {
@@ -129,8 +158,15 @@ func readinessFailureClassesInReducer(t *testing.T) map[string]string {
 					retryable[recv] = true
 				}
 			case "FailureClass":
-				if class := returnedStringLiteral(fn); strings.HasSuffix(class, "_not_ready") {
+				class, unresolvedIdent := returnedStringLiteral(fn)
+				switch {
+				case strings.HasSuffix(class, "_not_ready"):
 					classes[recv] = [2]string{class, filepath.Base(path)}
+				case unresolvedIdent != "":
+					unreadable[recv] = unreadableFailureClassRef{
+						ident: unresolvedIdent,
+						file:  filepath.Base(path),
+					}
 				}
 			}
 		}
@@ -142,7 +178,19 @@ func readinessFailureClassesInReducer(t *testing.T) map[string]string {
 			found[class[0]] = class[1]
 		}
 	}
-	return found
+
+	// Only unreadable classes on RETRYABLE types matter; a terminal error's
+	// class is not this guard's business.
+	var unreadableRefs []unreadableFailureClassRef
+	for recv, ref := range unreadable {
+		if retryable[recv] {
+			unreadableRefs = append(unreadableRefs, ref)
+		}
+	}
+	sort.Slice(unreadableRefs, func(i, j int) bool {
+		return unreadableRefs[i].ident < unreadableRefs[j].ident
+	})
+	return found, unreadableRefs
 }
 
 func receiverTypeName(expr ast.Expr) string {
@@ -170,44 +218,53 @@ func returnsTrue(fn *ast.FuncDecl) bool {
 
 // returnedStringLiteral resolves a FailureClass body of the form
 // `return "literal"` or `return SomeExportedConstant`, where the constant's own
-// declaration carries the literal. Anything else returns "" and is simply not
-// scanned — the guard reports what it can read rather than guessing.
-func returnedStringLiteral(fn *ast.FuncDecl) string {
+// declaration carries the literal.
+//
+// It returns (value, "") when it could read the class, and ("", identifier)
+// when the body returns a NAMED constant it could not reduce to a string —
+// object resolution is per-file, so a constant declared in another file lands
+// here. That second return exists so the caller can fail instead of treating an
+// unreadable class as an absent one; silently returning "" for both was the
+// hole (#6014 review).
+//
+// A body that returns neither a string literal nor a bare identifier yields
+// ("", "") and is simply not scanned.
+func returnedStringLiteral(fn *ast.FuncDecl) (string, string) {
 	if fn.Body == nil || len(fn.Body.List) != 1 {
-		return ""
+		return "", ""
 	}
 	ret, isReturn := fn.Body.List[0].(*ast.ReturnStmt)
 	if !isReturn || len(ret.Results) != 1 {
-		return ""
+		return "", ""
 	}
 	switch result := ret.Results[0].(type) {
 	case *ast.BasicLit:
 		if result.Kind != token.STRING {
-			return ""
+			return "", ""
 		}
 		value, err := strconv.Unquote(result.Value)
 		if err != nil {
-			return ""
+			return "", ""
 		}
-		return value
+		return value, ""
 	case *ast.Ident:
 		if result.Obj == nil {
-			return ""
+			return "", result.Name
 		}
 		spec, isSpec := result.Obj.Decl.(*ast.ValueSpec)
 		if !isSpec || len(spec.Values) != 1 {
-			return ""
+			return "", result.Name
 		}
 		lit, isLit := spec.Values[0].(*ast.BasicLit)
 		if !isLit || lit.Kind != token.STRING {
-			return ""
+			return "", result.Name
 		}
 		value, err := strconv.Unquote(lit.Value)
 		if err != nil {
-			return ""
+			return "", result.Name
 		}
-		return value
+		return value, ""
 	default:
-		return ""
+		return "", ""
 	}
 }
