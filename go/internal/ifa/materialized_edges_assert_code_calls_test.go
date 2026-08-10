@@ -93,6 +93,32 @@ func TestInheritanceEdgesDomainResolvesItsMaterializedEdgeTypes(t *testing.T) {
 	}
 }
 
+// TestEverySingleTypeFamilyResolvesThroughTheResolver proves the table is
+// reachable through the function the live gate actually calls.
+//
+// The registry living in the cypher package proves nothing on its own: the gate
+// reads MaterializedEdgeDomainEdgeTypes, so a table that exists but is not
+// consulted would leave every family still erroring while the cypher-side tests
+// stayed green — coverage that tests the wrong end of the seam.
+func TestEverySingleTypeFamilyResolvesThroughTheResolver(t *testing.T) {
+	t.Parallel()
+
+	families := cypher.SingleTypeMaterializedEdgeFamilyNames()
+	if len(families) == 0 {
+		t.Fatal("no single-type families registered; this test would pass vacuously")
+	}
+	for _, family := range families {
+		got, err := MaterializedEdgeDomainEdgeTypes(family)
+		if err != nil {
+			t.Errorf("family %q does not resolve through the resolver the live gate calls: %v", family, err)
+			continue
+		}
+		if len(got) == 0 {
+			t.Errorf("family %q resolved to an empty type set; the live gate would assert nothing and pass any graph", family)
+		}
+	}
+}
+
 // TestUnregisteredFamilyStillFailsClosed keeps the default arm honest.
 //
 // Registering families one at a time is only safe while an unregistered one
@@ -102,11 +128,16 @@ func TestInheritanceEdgesDomainResolvesItsMaterializedEdgeTypes(t *testing.T) {
 func TestUnregisteredFamilyStillFailsClosed(t *testing.T) {
 	t.Parallel()
 
-	got, err := MaterializedEdgeDomainEdgeTypes("shell_exec")
+	// repo_dependency is deliberately the example: it is the one #5543 family
+	// still unregistered, because its dispatch writes DEPENDS_ON, RUNS_ON, and a
+	// generic repo-relationship fallthrough reaped by three different retracts,
+	// and that ownership question is unresolved. Until it is settled the family
+	// must fail closed rather than resolve to a guessed set.
+	got, err := MaterializedEdgeDomainEdgeTypes("repo_dependency")
 	if err == nil {
-		t.Fatalf("MaterializedEdgeDomainEdgeTypes(%q) returned %v with no error; an unregistered family must fail closed, not assert an empty set", "shell_exec", keysOfSet(got))
+		t.Fatalf("MaterializedEdgeDomainEdgeTypes(%q) returned %v with no error; an unregistered family must fail closed, not assert an empty set", "repo_dependency", keysOfSet(got))
 	}
-	if !strings.Contains(err.Error(), "shell_exec") {
+	if !strings.Contains(err.Error(), "repo_dependency") {
 		t.Errorf("error %q does not name the unresolved family; the gate operator cannot tell which family is unregistered", err)
 	}
 }

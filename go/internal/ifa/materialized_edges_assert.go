@@ -89,6 +89,13 @@ func MaterializedEdgeDomainEdgeTypes(domain string) (map[string]struct{}, error)
 	case "inheritance_edges":
 		return edgeTypeSet(cypher.InheritanceMaterializedEdgeTypes()), nil
 	default:
-		return nil, fmt.Errorf("ifa: no materialized-edge family registered for domain %q (sql_relationships and code_calls have live assert-edges coverage; the remaining #5543 families are still waived)", domain)
+		// The single-relationship-type families resolve from the shared registry
+		// table. They are looked up rather than switched on so registering one is
+		// a data change on the writer side, while the multi-type families above
+		// keep explicit arms because their sets span several templates.
+		if reg, ok := cypher.SingleTypeMaterializedEdgeTypes(domain); ok {
+			return edgeTypeSet(reg), nil
+		}
+		return nil, fmt.Errorf("ifa: no materialized-edge family registered for domain %q; register its edge types beside its writer (multi-type) or in cypher.singleTypeMaterializedEdgeFamilies (single-type) before proving it on a live gate", domain)
 	}
 }
