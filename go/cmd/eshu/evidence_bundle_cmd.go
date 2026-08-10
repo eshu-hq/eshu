@@ -81,14 +81,17 @@ func runEvidenceBundleExport(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	if live {
-		scope := ""
+		// All three status routes a live bundle reads are stack-global:
+		// /status/index counts every repository, and the pipeline and collector
+		// routes carry no scope selector. Labelling that evidence with a
+		// narrower scope would attribute other repositories' counts and
+		// backlogs to the named one, so a custom --scope is refused rather
+		// than silently mislabelling the artifact.
 		if cmd.Flags().Changed("scope") {
-			scope, err = cmd.Flags().GetString("scope")
-			if err != nil {
-				return err
-			}
+			return fmt.Errorf("--scope cannot be combined with --live: the status routes a live bundle reads are stack-wide, so a repository-scoped label would misattribute other repositories' evidence")
 		}
-		return runEvidenceBundleExportLive(cmd, scope, outPath)
+		// Empty scope makes BuildLiveBundle use its stack-wide identity.
+		return runEvidenceBundleExportLive(cmd, "", outPath)
 	}
 
 	scope, err := cmd.Flags().GetString("scope")

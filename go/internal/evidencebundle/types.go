@@ -109,6 +109,8 @@ type PipelineGenerationHistorySnapshot struct {
 type PipelineStageSummarySnapshot struct {
 	Stage      string `json:"stage"`
 	Pending    int    `json:"pending"`
+	Claimed    int    `json:"claimed"`
+	Running    int    `json:"running"`
 	Retrying   int    `json:"retrying"`
 	Failed     int    `json:"failed"`
 	DeadLetter int    `json:"dead_letter"`

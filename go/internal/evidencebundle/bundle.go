@@ -20,11 +20,11 @@ const (
 )
 
 var (
-	privateEndpointPattern = regexp.MustCompile(`https?://[^/"\s]*(internal|localhost|127\.0\.0\.1|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)`)
+	privateEndpointPattern = regexp.MustCompile(`(?i)https?://[^/"\s]*(internal|localhost|127\.0\.0\.1|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)`)
 	// Go network errors report a bare "host:port" with no scheme, so the
 	// scheme-anchored pattern above misses them entirely. Requiring the port
 	// keeps this from firing on ordinary dotted text such as a version string.
-	privateHostPortPattern = regexp.MustCompile(`(^|[^0-9A-Za-z.:-])(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}|[A-Za-z0-9.-]*internal[A-Za-z0-9.-]*|\[(?i:::1|fc[0-9a-f]{2}:[0-9a-fA-F:]*|fd[0-9a-f]{2}:[0-9a-fA-F:]*|fe[89ab][0-9a-f]:[0-9a-fA-F:]*)\]):\d{2,5}`)
+	privateHostPortPattern = regexp.MustCompile(`(?i)(^|[^0-9A-Za-z.:-])(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}|[A-Za-z0-9.-]*internal[A-Za-z0-9.-]*|\[(?:::1|fc[0-9a-f]{2}:[0-9a-fA-F:]*|fd[0-9a-f]{2}:[0-9a-fA-F:]*|fe[89ab][0-9a-f]:[0-9a-fA-F:]*)\]):\d{2,5}`)
 	// Credential-bearing URL, by shape rather than by known value. The shared
 	// registry only matches its own synthetic canaries, so a real secret an
 	// operator's status text happens to carry passed straight through. Requires
@@ -36,7 +36,10 @@ var (
 	credentialURLPattern = regexp.MustCompile(`[a-zA-Z][a-zA-Z0-9+.-]*://[^/\s:@"?#]+:[^/\s@"?#]+@`)
 	credentialPattern    = regexp.MustCompile(`(?i)(authorization:\s*bearer|api[_-]?key|password|secret|\\?"?token\\?"?\s*[:=]|gh[pousr]_[A-Za-z0-9_]{8,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)`)
 	rawPromptPattern     = regexp.MustCompile(`(?i)(raw_prompt|provider_response|raw provider response|prompt transcript)`)
-	localPathPattern     = regexp.MustCompile(`(^|["\s])(/Users/|/home/|/workspace/|/workspaces/|/tmp/|/private/|/var/|/opt/|/srv/|/mnt/|/Volumes/|[A-Za-z]:\\)`)
+	// Filesystem roots, not "any absolute path": this bundle's own reproduce
+	// calls carry bare API routes such as "GET /api/v0/status/index", which a
+	// general absolute-path rule would reject as a local path.
+	localPathPattern = regexp.MustCompile(`(?i)(^|["\s])(/Users/|/home/|/root/|/etc/|/usr/|/workspace/|/workspaces/|/tmp/|/private/|/var/|/opt/|/srv/|/mnt/|/media/|/snap/|/data/|/Volumes/|/Library/|~/|[A-Za-z]:\\)`)
 )
 
 // BuildDemoBundle builds a deterministic share-safe fixture bundle.

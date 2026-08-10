@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/evidencebundle"
@@ -40,7 +41,7 @@ func TestEvidenceBundleExportLiveComposesBundleFromStatusEndpoints(t *testing.T)
 				"health": {"state": "degraded", "reasons": ["queue backlog"]},
 				"queue": {"pending": 4, "in_flight": 2, "retrying": 1, "succeeded": 10, "failed": 0, "dead_letter": 1},
 				"generation_history": {"active": 1, "pending": 0, "completed": 9, "failed": 0},
-				"stage_summaries": [{"stage": "parse", "pending": 2, "retrying": 0, "failed": 0, "dead_letter": 0}],
+				"stage_summaries": [{"stage": "parse", "pending": 2, "claimed": 6, "running": 3, "retrying": 0, "failed": 0, "dead_letter": 0}],
 				"domain_backlogs": [{"domain": "aws_relationship", "outstanding": 1, "retrying": 0, "failed": 0, "dead_letter": 1}],
 				"scope_activity": {"active": 5, "changed": 1, "unchanged": 4}
 			}`))
@@ -56,7 +57,7 @@ func TestEvidenceBundleExportLiveComposesBundleFromStatusEndpoints(t *testing.T)
 	cmd := newEvidenceBundleExportCommand()
 	cmd.SetOut(&bytes.Buffer{})
 	cmd.SetErr(&bytes.Buffer{})
-	cmd.SetArgs([]string{"--live", "--scope", "live:test", "--service-url", server.URL, "--out", outPath})
+	cmd.SetArgs([]string{"--live", "--service-url", server.URL, "--out", outPath})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("evidence bundle export --live error = %v", err)
@@ -87,8 +88,8 @@ func TestEvidenceBundleExportLiveComposesBundleFromStatusEndpoints(t *testing.T)
 	if err := evidencebundle.Validate(bundle); err != nil {
 		t.Fatalf("exported live bundle did not validate: %v\n%s", err, raw)
 	}
-	if bundle.Identity.ScopeID != "live:test" {
-		t.Fatalf("bundle.Identity.ScopeID = %q, want %q", bundle.Identity.ScopeID, "live:test")
+	if bundle.Identity.ScopeID != "live:local" {
+		t.Fatalf("bundle.Identity.ScopeID = %q, want the stack-wide default %q", bundle.Identity.ScopeID, "live:local")
 	}
 	state := bundle.Contents.PipelineState
 	if state == nil {
@@ -103,6 +104,14 @@ func TestEvidenceBundleExportLiveComposesBundleFromStatusEndpoints(t *testing.T)
 	}
 	if state.QueueBlockedCount != 5 {
 		t.Fatalf("QueueBlockedCount = %d, want 5 (3+2 gated rows summed across the two blockages)", state.QueueBlockedCount)
+	}
+	// The status route reports work that is claimed or running separately from
+	// what is pending; dropping either bucket makes a busy stage read as idle.
+	if len(state.StageSummaries) != 1 {
+		t.Fatalf("StageSummaries = %+v, want the one parse stage from the stub", state.StageSummaries)
+	}
+	if got := state.StageSummaries[0]; got.Pending != 2 || got.Claimed != 6 || got.Running != 3 {
+		t.Fatalf("parse stage = %+v, want pending=2 claimed=6 running=3 from the stub", got)
 	}
 	if len(state.DomainBacklogs) != 1 || state.DomainBacklogs[0].Domain != "aws_relationship" {
 		t.Fatalf("DomainBacklogs = %+v, want the aws_relationship backlog from the stub", state.DomainBacklogs)
@@ -148,5 +157,30 @@ func TestEvidenceBundleExportLiveFailsOnNon200StatusRoute(t *testing.T) {
 	err := cmd.Execute()
 	if err == nil {
 		t.Fatal("evidence bundle export --live error = nil, want failure for a non-200 status route")
+	}
+}
+
+// TestEvidenceBundleExportLiveRejectsRepositoryScope proves --scope is refused
+// with --live. The three status routes a live bundle reads are stack-wide, so
+// stamping a single repository's ID on them would attribute every other
+// repository's queue and collector state to that one repository.
+func TestEvidenceBundleExportLiveRejectsRepositoryScope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		t.Error("a rejected scoped live export must not reach the status routes")
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	cmd := newEvidenceBundleExportCommand()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"--live", "--scope", "repo:example", "--service-url", server.URL})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("evidence bundle export --live --scope error = nil, want a refusal")
+	}
+	if !strings.Contains(err.Error(), "--scope cannot be combined with --live") {
+		t.Fatalf("error = %v, want it to name the --scope/--live conflict", err)
 	}
 }

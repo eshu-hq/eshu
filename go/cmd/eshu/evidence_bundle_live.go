@@ -127,6 +127,8 @@ func liveEvidenceSnapshotFromStatus(
 		stages = append(stages, evidencebundle.LiveStageSummarySnapshot{
 			Stage:      stage.Stage,
 			Pending:    stage.Pending,
+			Claimed:    stage.Claimed,
+			Running:    stage.Running,
 			Retrying:   stage.Retrying,
 			Failed:     stage.Failed,
 			DeadLetter: stage.DeadLetter,

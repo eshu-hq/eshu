@@ -272,3 +272,56 @@ func TestValidateKeepsQueryParamNoiseUsable(t *testing.T) {
 		})
 	}
 }
+
+// TestValidateRejectsMixedCasePrivateHosts covers DNS being case-insensitive.
+// The host alternatives were case-sensitive, so LOCALHOST:5432 exported clean.
+func TestValidateRejectsMixedCasePrivateHosts(t *testing.T) {
+	for _, endpoint := range []string{
+		"LOCALHOST:5432", "LocalHost:5432", "DB.INTERNAL:5432", "Db.Internal:5432",
+	} {
+		t.Run(endpoint, func(t *testing.T) {
+			snapshot := realisticLiveSnapshot()
+			snapshot.HealthReasons = []string{"dial tcp " + endpoint + ": refused"}
+			bundle := BuildLiveBundle(snapshot, LiveBundleOptions{ScopeID: "live:x", CreatedAt: fixedLiveCreatedAt})
+			if err := Validate(bundle); err == nil {
+				t.Fatalf("Validate accepted mixed-case private endpoint %q", endpoint)
+			}
+		})
+	}
+}
+
+// TestValidateRejectsFilesystemRootsBeyondTheOriginalList covers roots the
+// original prefix list missed entirely.
+func TestValidateRejectsFilesystemRootsBeyondTheOriginalList(t *testing.T) {
+	for _, path := range []string{
+		"/root/.config/eshu/config", "/etc/eshu/config", "/usr/local/share/eshu/x", "/data/eshu/store",
+	} {
+		t.Run(path, func(t *testing.T) {
+			snapshot := realisticLiveSnapshot()
+			snapshot.HealthReasons = []string{"could not read " + path}
+			bundle := BuildLiveBundle(snapshot, LiveBundleOptions{ScopeID: "live:x", CreatedAt: fixedLiveCreatedAt})
+			if err := Validate(bundle); err == nil {
+				t.Fatalf("Validate accepted local path %q", path)
+			}
+		})
+	}
+}
+
+// TestValidateKeepsApiRouteTargetsUsable is the counterweight to the widened
+// path rule: the bundle's own reproduce calls carry bare API routes, so a
+// general "any absolute path" rule would reject every live bundle.
+func TestValidateKeepsApiRouteTargetsUsable(t *testing.T) {
+	bundle := BuildLiveBundle(realisticLiveSnapshot(), LiveBundleOptions{ScopeID: "live:x", CreatedAt: fixedLiveCreatedAt})
+	var sawRoute bool
+	for _, call := range bundle.Reproduce {
+		if call.Kind == "api" {
+			sawRoute = true
+		}
+	}
+	if !sawRoute {
+		t.Fatal("expected the live bundle to carry api reproduce routes")
+	}
+	if err := Validate(bundle); err != nil {
+		t.Fatalf("Validate rejected the bundle's own api reproduce routes: %v", err)
+	}
+}

@@ -8,7 +8,12 @@ import (
 	"time"
 )
 
-const liveProfile = "live_authoritative"
+// liveProfile is deliberately "unknown". Nothing in the three status routes
+// reports which runtime profile the target stack runs, so stamping
+// "live_authoritative" would assign authority the source may not have — a
+// lightweight local stack and production would look identical. The gap is
+// recorded in Missing rather than guessed.
+const liveProfile = "unknown"
 
 // LiveSnapshot is the caller-fetched status evidence used to compose a live
 // evidence bundle. This package never dials a status endpoint itself (see
@@ -67,6 +72,8 @@ type LiveGenerationHistorySnapshot struct {
 type LiveStageSummarySnapshot struct {
 	Stage      string
 	Pending    int
+	Claimed    int
+	Running    int
 	Retrying   int
 	Failed     int
 	DeadLetter int
@@ -173,7 +180,12 @@ func BuildLiveBundle(snapshot LiveSnapshot, opts LiveBundleOptions) Bundle {
 				Family: "freshness",
 				Reason: "status_routes_carry_no_indexed_at_or_generation_completed_at",
 			},
+			{
+				Family: "runtime_profile",
+				Reason: "status_routes_do_not_report_the_target_runtime_profile",
+			},
 		},
+
 		Reproduce: []ReproduceCall{
 			{Kind: "cli", Target: "eshu evidence bundle export --live"},
 			{Kind: "api", Target: "GET /api/v0/status/index"},
@@ -195,6 +207,17 @@ func BuildLiveBundle(snapshot LiveSnapshot, opts LiveBundleOptions) Bundle {
 			},
 		},
 	}
+	// A zero repository count cannot be distinguished from an unavailable one:
+	// the index handler initialises the count to zero and suppresses a failed
+	// graph query, returning 200 either way. Recording the gap keeps a
+	// lightweight or degraded stack from reading as a genuinely empty one.
+	if snapshot.RepositoryCount == 0 {
+		bundle.Missing = append(bundle.Missing, MissingEvidence{
+			Family: "repository_count",
+			Reason: "zero_is_ambiguous_between_empty_graph_and_unavailable_graph_count",
+		})
+	}
+
 	sortBundle(&bundle)
 	bundle.BundleID = bundleID(bundle)
 	return bundle

@@ -280,3 +280,44 @@ func TestBuildLiveBundleNeverClaimsFreshness(t *testing.T) {
 		})
 	}
 }
+
+// TestBuildLiveBundleNeverInventsRuntimeProfile guards the profile overclaim:
+// no status route reports the target's runtime profile, so stamping
+// "live_authoritative" gave a lightweight local stack production's authority.
+func TestBuildLiveBundleNeverInventsRuntimeProfile(t *testing.T) {
+	bundle := BuildLiveBundle(LiveSnapshot{RepositoryCount: 5}, LiveBundleOptions{ScopeID: "live:x", CreatedAt: fixedLiveCreatedAt})
+	if bundle.Identity.Profile == "live_authoritative" {
+		t.Fatal("bundle claims live_authoritative with no profile signal from the stack")
+	}
+	var recorded bool
+	for _, gap := range bundle.Missing {
+		if gap.Family == "runtime_profile" {
+			recorded = true
+		}
+	}
+	if !recorded {
+		t.Fatal("missing_evidence does not record the absent runtime-profile signal")
+	}
+}
+
+// TestBuildLiveBundleFlagsAmbiguousZeroRepositoryCount covers the index
+// handler initialising the count to zero and suppressing a failed graph query,
+// so a zero cannot be read as a genuinely empty graph.
+func TestBuildLiveBundleFlagsAmbiguousZeroRepositoryCount(t *testing.T) {
+	zero := BuildLiveBundle(LiveSnapshot{RepositoryCount: 0}, LiveBundleOptions{ScopeID: "live:x", CreatedAt: fixedLiveCreatedAt})
+	var flagged bool
+	for _, gap := range zero.Missing {
+		if gap.Family == "repository_count" {
+			flagged = true
+		}
+	}
+	if !flagged {
+		t.Fatal("a zero repository count was recorded without flagging its ambiguity")
+	}
+	nonzero := BuildLiveBundle(LiveSnapshot{RepositoryCount: 7}, LiveBundleOptions{ScopeID: "live:x", CreatedAt: fixedLiveCreatedAt})
+	for _, gap := range nonzero.Missing {
+		if gap.Family == "repository_count" {
+			t.Fatal("a nonzero repository count should not be flagged as ambiguous")
+		}
+	}
+}
