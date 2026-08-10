@@ -29,8 +29,11 @@ var (
 	// registry only matches its own synthetic canaries, so a real secret an
 	// operator's status text happens to carry passed straight through. Requires
 	// userinfo with a password before the host, so an ordinary URL — including
-	// one with a port such as https://host:443/x — does not match.
-	credentialURLPattern = regexp.MustCompile(`[a-zA-Z][a-zA-Z0-9+.-]*://[^/\s:@"]+:[^/\s@"]+@`)
+	// one with a port such as https://host:443/x — does not match. The user and
+	// password classes also exclude ? and #, which keeps a pathless URL whose
+	// query happens to contain a colon and an @ from being reported as a
+	// credential.
+	credentialURLPattern = regexp.MustCompile(`[a-zA-Z][a-zA-Z0-9+.-]*://[^/\s:@"?#]+:[^/\s@"?#]+@`)
 	credentialPattern    = regexp.MustCompile(`(?i)(authorization:\s*bearer|api[_-]?key|password|secret|\\?"?token\\?"?\s*[:=]|gh[pousr]_[A-Za-z0-9_]{8,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)`)
 	rawPromptPattern     = regexp.MustCompile(`(?i)(raw_prompt|provider_response|raw provider response|prompt transcript)`)
 	localPathPattern     = regexp.MustCompile(`(^|["\s])(/Users/|/home/|/workspace/|/workspaces/|/tmp/|/private/|/var/|/opt/|/srv/|/mnt/|/Volumes/|[A-Za-z]:\\)`)

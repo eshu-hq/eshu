@@ -247,3 +247,28 @@ func TestValidateRejectsPrivateIPv6Endpoints(t *testing.T) {
 		})
 	}
 }
+
+// TestValidateKeepsQueryParamNoiseUsable covers the false positive the
+// credential-URL pattern could produce on a pathless URL: the user class
+// excluded "/" but not "?" or "#", so a query string carrying a colon and an @
+// looked like userinfo and was reported as a credential.
+func TestValidateKeepsQueryParamNoiseUsable(t *testing.T) {
+	// These deliberately avoid the words "secret", "password", "token", and
+	// "api_key": the pre-existing credentialPattern matches those literals on
+	// their own, independent of URL shape, so including one would test that
+	// guard rather than this one.
+	for _, text := range []string{
+		"https://example.com?user=admin:value@handle",
+		"https://example.com?session=user:pass@domain",
+		"https://example.com#frag=a:b@c",
+	} {
+		t.Run(text, func(t *testing.T) {
+			snapshot := realisticLiveSnapshot()
+			snapshot.HealthReasons = []string{"upstream " + text + " returned 503"}
+			bundle := BuildLiveBundle(snapshot, LiveBundleOptions{ScopeID: "live:local", CreatedAt: fixedLiveCreatedAt})
+			if err := Validate(bundle); err != nil {
+				t.Fatalf("Validate rejected query/fragment noise as a credential: %v", err)
+			}
+		})
+	}
+}
