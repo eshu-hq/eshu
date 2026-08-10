@@ -65,7 +65,7 @@ no graph query.
 - **Terminal counts (B-7 live golden gate, synthetic corpus):**
   the current, authorized owner-ledger lookup resolves the finding's subject
   digest
-  `sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab`
+  `sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890`
   (CVE-2026-00010) to the one ECS task running it, and the finding classifies
   `runtime_confirmed`. Asserted non-vacuously (minimum_results>=1) by the
   `GET /api/v0/supply-chain/impact/findings?subject_digest=sha256:abcdef...ab&profile=comprehensive`

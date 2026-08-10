@@ -72,7 +72,7 @@ func TestCloudInventoryResourceViewOmitsCodeCorrelationGapForImageLambda(t *test
 			"attributes": map[string]any{
 				"package_type":       "Image",
 				"image_uri":          "123456789012.dkr.ecr.us-east-1.amazonaws.com/demo:latest",
-				"resolved_image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/demo@sha256:0000000000000000000000000000000000000000000000000000000000cc",
+				"resolved_image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/demo@sha256:0000000000000000000000000000000000000000000000000000000000aaaacc",
 				"code_sha256":        "0000000000000000000000000000000000000000000000000000000000cc",
 				"version":            "$LATEST",
 			},

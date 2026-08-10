@@ -15,7 +15,7 @@ import (
 // reference. Both evidence paths resolve to the same image reference, the same
 // exact_digest outcome, and therefore the same durable stable fact key.
 const (
-	ciDigestProvenanceDigest    = "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
+	ciDigestProvenanceDigest    = "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
 	ciDigestProvenanceBuildRepo = "repository:r_69256c06"
 	ciDigestProvenanceRunRepo   = "repository:r_217415d9"
 	ciDigestProvenanceRegistry  = "ghcr.io"

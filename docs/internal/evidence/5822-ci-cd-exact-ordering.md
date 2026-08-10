@@ -61,7 +61,7 @@ scope_id:          ci_cd_run:github_actions:eshu-hq:supply-chain-demo
 provider:          github_actions
 run_id:            5150
 repository_id:     repository:r_69256c06
-artifact_digest:   sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab
+artifact_digest:   sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890
 outcome:           exact
 canonical_writes:  1
 reason:            exact: one container image identity row matched the artifact digest

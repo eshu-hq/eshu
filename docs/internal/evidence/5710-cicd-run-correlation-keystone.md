@@ -42,7 +42,7 @@ theory-proof:
    fact_id  | reducer_ci_cd_run_correlation:9136bb3a...
    scope_id | ci_cd_run:github_actions:eshu-hq:supply-chain-demo
    outcome  | derived
-   digest   | sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab
+   digest   | sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890
    cw       | 0
    ```
    `cicdRunCorrelationDomainDefinition` writes a durable fact for **every**
@@ -51,7 +51,7 @@ theory-proof:
    from the correlation's first execution — no reopen dependency for that floor.
 
 2. **`exact` is not truthfully achievable for this shared digest.** The digest
-   `sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab`
+   `sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890`
    is deliberately shared by the `kuberneteslive`/`ociregistry`/`cicdrun`
    cassette trio for the RUNS_IMAGE=3 story, but it is *also* reused as a
    generic placeholder container-image digest by several unrelated fixtures.
@@ -60,7 +60,7 @@ theory-proof:
    SELECT scope_id, payload->>'repository_id' AS repository_id
    FROM fact_records
    WHERE fact_kind='reducer_container_image_identity'
-     AND payload->>'digest' = 'sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab';
+     AND payload->>'digest' = 'sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890';
    ```
    returned 12 rows: `aws:...:ecs`, `aws:...:lambda`,
    `ci_cd_run:github_actions:eshu-hq:supply-chain-demo`,
