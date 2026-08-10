@@ -49,8 +49,9 @@ the hazard CLAUDE.md's "Serialization Is Not A Fix" section names.
 
 ## Five registries, one label
 
-These five labels touch five separate lists. Four of the five packages I
-changed were green before the whole-module sweep caught the fifth:
+These five labels touch SIX separate registries. Four of the packages I
+changed were green before the whole-module sweep caught the fifth, and the
+live lane caught the sixth:
 
 1. `content/shape` `contentEntityBuckets` — already had them
 2. the collector twin `snapshotEntityBuckets` — already had them
@@ -58,6 +59,9 @@ changed were green before the whole-module sweep caught the fifth:
 4. `graph.uidConstraintLabels` — added here
 5. `specs/replay-depth-requirements.v1.yaml` — added here, caught only by
    `TestRetractableNodeTypesLockstep` in a different package
+6. the replay coverage manifest and its cassette binding — caught by
+   `TestEntityRetractManifestBinding`, which rejected a coverage row whose
+   cassette carried no `content_entity` fact for the type
 
 That lockstep is the mechanism enforcing "correctly retracted on delta
 re-sync": a label cannot become retractable without the replay gate also
@@ -65,9 +69,11 @@ demanding a delta scenario for it.
 
 ## No-Regression Evidence
 
-No-Regression Evidence: baseline = `origin/main` at `8a8330c68`'s parent,
-after = this branch, same machine, whole-module `go test` via
-`scripts/generate-code-coverage-report.sh` (exit 0, no failures).
+No-Regression Evidence: whole-module `go test` via
+`scripts/generate-code-coverage-report.sh` (exit 0, no failures) proves
+correctness, NOT cost — review correctly rejected it as performance evidence.
+The measured runtime cost is in "Measured: the five always-on retract
+statements" below.
 
 The honest shape of the cost, stated rather than waved away: this change **adds
 graph writes** for entity types that previously produced none. A repo
@@ -91,6 +97,38 @@ The B-7 golden-corpus live lane passed on this branch (509s), so the corpus's
 projected graph truth and drain assertions are unchanged by the registration —
 the 20-repo corpus does not carry these entity types, so the B-12 snapshot does
 not move.
+
+## Measured: the five always-on retract statements
+
+Review was right that the earlier no-regression claim was a test run, not a
+measurement. `buildEntityRetractStatements` issues one `DETACH DELETE` per
+registered label on every non-first-generation FULL-REFRESH projection,
+unconditionally — so these five cost something even for a repository that
+contains none of these entity types. That is the case measured here.
+
+Performance Evidence: NornicDB v1.2.1 (pinned `eshu-nornicdb-pr290:3722b483c02c`),
+single local container, Bolt driver, the exact
+`canonicalNodeRetractEntityTemplate` statement against an EMPTY label
+(`repo_id` matches nothing), 20 warm-up runs then n=200:
+
+| measure | value |
+| --- | --- |
+| per-statement `DETACH DELETE`, empty label | 265.9 µs |
+| added cost for the five new labels | **1.33 ms** per full-refresh projection |
+| retract phase, 95 labels (before) | 25.26 ms |
+| retract phase, 100 labels (after) | 26.59 ms (**+5.3%**) |
+
+So the cost is real, bounded, and paid once per full-refresh projection, not
+per row or per file. It does not touch the delta path
+(`buildDeltaEntityRetractStatements` is a different branch) and it is zero on
+first-generation projections, which return before the loop.
+
+**Limits of this measurement.** One local container, no concurrency, and the
+empty-label case only — deliberately, because that is the scenario the finding
+is about. It does not measure the cost when these labels actually carry nodes,
+which is work the projection would owe anyway once the entities materialize. It
+is a per-statement round-trip measurement, not an end-to-end projection
+baseline.
 
 ## Observability Evidence
 
