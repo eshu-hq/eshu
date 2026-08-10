@@ -33,12 +33,15 @@ func TestGoldenSnapshotIaCInventoryRequiresCurrentSummary(t *testing.T) {
 	// two resource blocks: aws_instance.local_backend_demo,
 	// aws_s3_bucket.local_backend_demo). Issue #5572 raises them again to
 	// 14/22/14 (terraform_comprehensive/terraform-aws-modules/vpc/aws/main.tf's
-	// one resource block, aws_security_group.vpc_endpoints) -- see
+	// one resource block, aws_security_group.vpc_endpoints). Issue #5954 raises
+	// summary.total only, 22 -> 23 (terraform_comprehensive/pagerduty.tf's
+	// module "orders_pagerduty_service" is a MODULE block, not a resource
+	// block, so count and summary.by_kind.resource hold at 14) -- see
 	// testdata/golden/e2e-20repo-snapshot.json's own required_json_values
-	// comment on this same query shape for the full derivation of both.
+	// comment on this same query shape for the full derivation of all three.
 	for path, want := range map[string]any{
 		"count":                    float64(14),
-		"summary.total":            float64(22),
+		"summary.total":            float64(23),
 		"summary.by_kind.resource": float64(14),
 	} {
 		if got := shape.RequiredJSONValues[path]; got != want {
