@@ -29,6 +29,41 @@ package cypher
 // The CALLS template is different: its coalesce(row.caller_entity_id,
 // row.source_entity_id) anchor is a function-expression variant no probe has
 // measured on v1.1.11, so it keeps its own #5116 write-side proof obligation.
+// codeCallMaterializedEdgeTypes is the single source of truth for the
+// relationship types the code-call domain's write path can materialize, mapping
+// each to the template that writes it. Membership here is what
+// ifa.MaterializedEdgeDomainEdgeTypes asserts for the code_calls family, so a
+// type reachable from selectCodeCallTemplate but absent here would be a live
+// edge the baseline gate silently ignores.
+//
+// All four are genuinely written, not aspirational: selectCodeCallTemplate in
+// edge_writer_code_call_labels.go dispatches to the metaclass, INSTANTIATES,
+// REFERENCES, and CALLS templates, and the default retract disjunction in
+// canonical_retract.go names the same four. Reading only the first MERGE in this
+// file yields CALLS alone and undercounts the family threefold —
+// TestCodeCallRegistryMatchesRetractDisjunction pins the two lists together.
+var codeCallMaterializedEdgeTypes = map[string]string{
+	"CALLS":          "parser-resolved call edge (batchCanonicalCodeCallUpsertCypher)",
+	"REFERENCES":     "non-call symbol reference (batchCanonicalCodeReferenceUpsertCypher)",
+	"USES_METACLASS": "Python metaclass relationship (batchCanonicalMetaclassUpsertCypher)",
+	"INSTANTIATES":   "constructor/instantiation edge (batchCanonicalInstantiatesUpsertCypher)",
+}
+
+// CodeCallMaterializedEdgeTypes returns the code-call domain's materialized
+// relationship types keyed by type, each mapped to a short reason describing the
+// template that writes it.
+//
+// It returns a copy so a caller cannot mutate the package's source of truth. The
+// Ifá live baseline gate reads this to scope `assert-edges -domain code_calls`
+// to the family's own edges, ignoring every unrelated type sharing the graph.
+func CodeCallMaterializedEdgeTypes() map[string]string {
+	out := make(map[string]string, len(codeCallMaterializedEdgeTypes))
+	for edgeType, reason := range codeCallMaterializedEdgeTypes {
+		out[edgeType] = reason
+	}
+	return out
+}
+
 const batchCanonicalCodeCallUpsertCypher = `UNWIND $rows AS row
 MATCH (source:Function|Class|File {uid: coalesce(row.caller_entity_id, row.source_entity_id)})
 MATCH (target:Function|Class|File {uid: coalesce(row.callee_entity_id, row.target_entity_id)})

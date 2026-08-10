@@ -72,7 +72,14 @@ func MaterializedEdgeDomainEdgeTypes(domain string) (map[string]struct{}, error)
 			out[edgeType] = struct{}{}
 		}
 		return out, nil
+	case "code_calls":
+		reg := cypher.CodeCallMaterializedEdgeTypes()
+		out := make(map[string]struct{}, len(reg))
+		for edgeType := range reg {
+			out[edgeType] = struct{}{}
+		}
+		return out, nil
 	default:
-		return nil, fmt.Errorf("ifa: no materialized-edge family registered for domain %q (only sql_relationships has live assert-edges coverage as of #5351)", domain)
+		return nil, fmt.Errorf("ifa: no materialized-edge family registered for domain %q (sql_relationships and code_calls have live assert-edges coverage; the remaining #5543 families are still waived)", domain)
 	}
 }
