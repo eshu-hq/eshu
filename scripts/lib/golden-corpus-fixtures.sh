@@ -8,6 +8,13 @@
 # cassette carries a source_hint mapping @acme/lib-common to
 # github.com/acme/lib-common, and ESHU_GITHUB_ORG=acme makes both fixtures'
 # synthesized remotes match that org.
+#
+# cloudformation_comprehensive (#5954) existed on disk for the YAML parser's
+# unit tests (go/internal/parser/engine_yaml_cloudformation_lines_test.go) but
+# was never staged here, so the live gate had zero real coverage for any
+# CloudFormation node label -- Resource, Parameter, Output, Condition, Import,
+# and Export alike. Staging it gives CloudFormationCondition/Import/Export
+# their first real end-to-end proof.
 
 corpus_fixtures=(
 	go_comprehensive
@@ -17,6 +24,7 @@ corpus_fixtures=(
 	terraform_comprehensive
 	terraform_local_backend_demo
 	terragrunt_comprehensive
+	cloudformation_comprehensive
 	kubernetes_comprehensive
 	helm_argocd_platform
 	lib-common

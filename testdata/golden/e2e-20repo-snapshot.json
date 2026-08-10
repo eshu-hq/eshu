@@ -4,7 +4,7 @@
   "description": "Golden graph and query truth snapshot for the B-7 end-to-end corpus gate. B-7 diffs a live run against this file. Update this file under review when intentional graph behaviour changes; never update silently. `corpus_id` is a stable identifier (its historical `-20repo` suffix is not a live count); `corpus_composition.git_repos` is the authoritative repository count.",
   "tolerance_policy": "count ranges are [min, max] inclusive; a live run outside the range fails B-7(b). required_correlations assertions must all pass; a missing edge fails B-7(b). query_shapes define required response fields; a missing field fails B-7(c).",
   "corpus_composition": {
-    "git_repos": 30,
+    "git_repos": 31,
     "credentialed_collectors": [
       "kubernetes_live",
       "aws_cloud",
@@ -22,8 +22,33 @@
     "node_counts": {
       "Repository": {
         "min": 15,
-        "max": 30,
-        "note": "30 corpus repos; may include additional discovered mirror stubs"
+        "max": 31,
+        "note": "31 corpus repos (#5954 staged cloudformation_comprehensive, previously an orphaned fixture used only by parser unit tests); may include additional discovered mirror stubs"
+      },
+      "TerraformBlock": {
+        "min": 5,
+        "max": 50,
+        "note": "#5954: top-level `terraform {}` config blocks (required_providers/backend selection), one per file across terraform_comprehensive (main.tf, network/main.tf, staging/main.tf, terraform-aws-modules/vpc/aws/main.tf) and terraform_local_backend_demo/main.tf. Observed 5 on a live golden-corpus-gate run against this exact scope; floor pinned to that deterministic count, ceiling wide for parser/fixture growth."
+      },
+      "CloudFormationCondition": {
+        "min": 2,
+        "max": 20,
+        "note": "#5954: CloudFormation `Conditions:` entries. Before this issue, cloudformation_comprehensive was never staged in the live gate (used only by go/internal/parser/engine_yaml_cloudformation_lines_test.go), so this label had zero real coverage. cloudformation_comprehensive/intrinsic-functions.yaml declares 2 (IsProduction, EnableMonitoring). Observed 2 on a live golden-corpus-gate run against this exact scope."
+      },
+      "CloudFormationImport": {
+        "min": 2,
+        "max": 20,
+        "note": "#5954: CloudFormation `Fn::ImportValue` usages (the `!ImportValue` short-form tag resolves to this key -- go/internal/parser/yaml/node_decode.go). Before this issue the corpus had zero Fn::ImportValue usage anywhere. cloudformation_comprehensive/lambda.yaml's LambdaFunction.VpcConfig now imports vpc.yaml's exported SecurityGroupId and PrivateSubnetId (2 imports). Observed 2 on a live golden-corpus-gate run against this exact scope."
+      },
+      "CloudFormationExport": {
+        "min": 3,
+        "max": 20,
+        "note": "#5954: CloudFormation Output `Export:` blocks. cloudformation_comprehensive/simple-stack.yaml already exported RoleArn (1); vpc.yaml now also exports SecurityGroupId and PrivateSubnetId (2 more) so lambda.yaml's Fn::ImportValue usage (CloudFormationImport, above) has a real cross-stack export to reference. Observed 3 on a live golden-corpus-gate run against this exact scope."
+      },
+      "PagerDutyDeclaration": {
+        "min": 1,
+        "max": 20,
+        "note": "#5954: on-call service declarations (go/internal/parser/hcl/pagerduty_declarations.go recognizes a `module` block whose source contains \"pagerduty-service\"). Before this issue the corpus had zero such blocks, so this label had no real fixture coverage. terraform_comprehensive/pagerduty.tf declares module \"orders_pagerduty_service\" (generic fixture name, no employer identifiers). Observed 1 on a live golden-corpus-gate run against this exact scope."
       },
       "File": {
         "min": 40,
@@ -7710,7 +7735,7 @@
         "minimum_results": 0
       },
       "GET /api/v0/iac/resources?limit=50&include_facets=true": {
-        "description": "Current active-generation IaC resource list and authoritative caller-visible summary from the terraform/IaC corpus. count/summary.by_kind.resource raised 11 -> 13 and summary.total raised 19 -> 21 by issue #5594's terraform_local_backend_demo fixture (tests/fixtures/ecosystems/terraform_local_backend_demo/main.tf), which declares two resource blocks (aws_instance.local_backend_demo, aws_s3_bucket.local_backend_demo) and zero module/data blocks: this endpoint's kind=resource default list and summary.by_kind.resource both scan the TerraformResource graph label sourced from fact_kind='content_entity' config-side parsing (go/internal/query/iac_resources.go's iacResourceRow doc comment) -- unrelated to config-vs-state drift ownership resolution -- so +2 resource-kind content entities land regardless of drift-resolution outcome; summary.total sums all three kind counts (go/internal/query/iac_inventory_postgres.go's Summary: `summary.Total += count` per kind dimension row), so it moves by the same +2 with module/data-source counts unchanged (19 - 11 = 8 held constant, 13 + 8 = 21). count/summary.by_kind.resource raised 13 -> 14 and summary.total raised 21 -> 22 by issue #5572's golden-corpus fixture (tests/fixtures/ecosystems/terraform_comprehensive/terraform-aws-modules/vpc/aws/main.tf), which declares exactly one resource block (aws_security_group.vpc_endpoints) and zero module/data blocks -- the pre-existing `module \"vpc\"` block in modules.tf is unchanged, only its previously-dead source path now has a real target directory, so the module/data-source counts (8, unchanged since #5594) hold and this is a pure +1 resource-kind content entity, same mechanism as #5594's fixture, confirmed by a live golden-corpus-gate run against this exact scope.",
+        "description": "Current active-generation IaC resource list and authoritative caller-visible summary from the terraform/IaC corpus. count/summary.by_kind.resource raised 11 -> 13 and summary.total raised 19 -> 21 by issue #5594's terraform_local_backend_demo fixture (tests/fixtures/ecosystems/terraform_local_backend_demo/main.tf), which declares two resource blocks (aws_instance.local_backend_demo, aws_s3_bucket.local_backend_demo) and zero module/data blocks: this endpoint's kind=resource default list and summary.by_kind.resource both scan the TerraformResource graph label sourced from fact_kind='content_entity' config-side parsing (go/internal/query/iac_resources.go's iacResourceRow doc comment) -- unrelated to config-vs-state drift ownership resolution -- so +2 resource-kind content entities land regardless of drift-resolution outcome; summary.total sums all three kind counts (go/internal/query/iac_inventory_postgres.go's Summary: `summary.Total += count` per kind dimension row), so it moves by the same +2 with module/data-source counts unchanged (19 - 11 = 8 held constant, 13 + 8 = 21). count/summary.by_kind.resource raised 13 -> 14 and summary.total raised 21 -> 22 by issue #5572's golden-corpus fixture (tests/fixtures/ecosystems/terraform_comprehensive/terraform-aws-modules/vpc/aws/main.tf), which declares exactly one resource block (aws_security_group.vpc_endpoints) and zero module/data blocks -- the pre-existing `module \"vpc\"` block in modules.tf is unchanged, only its previously-dead source path now has a real target directory, so the module/data-source counts (8, unchanged since #5594) hold and this is a pure +1 resource-kind content entity, same mechanism as #5594's fixture, confirmed by a live golden-corpus-gate run against this exact scope. summary.total raised 22 -> 23 by issue #5954's terraform_comprehensive/pagerduty.tf fixture (module \"orders_pagerduty_service\"), a MODULE block, not a resource block: it lands in summary.by_kind.module (not asserted here) and count/summary.by_kind.resource stay at 14, but summary.total sums across all three kind dimensions so it moves by the same +1 -- confirmed by a live golden-corpus-gate run against this exact scope (observed count=14, summary.total=23).",
         "required_response_fields": [
           "resources",
           "count",
@@ -7725,7 +7750,7 @@
         ],
         "required_json_values": {
           "count": 14,
-          "summary.total": 22,
+          "summary.total": 23,
           "summary.by_kind.resource": 14
         }
       },

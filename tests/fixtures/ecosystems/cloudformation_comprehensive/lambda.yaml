@@ -13,6 +13,18 @@ Resources:
           def handler(event, context):
               return {"statusCode": 200, "body": "OK"}
       Role: !GetAtt LambdaRole.Arn
+      # #5954: cross-stack import of vpc.yaml's exported SecurityGroupId
+      # (comprehensive-vpc-SecurityGroupId, see vpc.yaml Outputs.SecurityGroupId).
+      # Real CloudFormation imports reference the exporting stack's export
+      # name as a literal string, not a same-template Ref, so this does not
+      # depend on both templates being deployed as one stack -- it only
+      # needs a real Fn::ImportValue usage for CloudFormationImport
+      # projection coverage.
+      VpcConfig:
+        SecurityGroupIds:
+          - !ImportValue comprehensive-vpc-SecurityGroupId
+        SubnetIds:
+          - !ImportValue comprehensive-vpc-PrivateSubnetId
 
   LambdaRole:
     Type: AWS::IAM::Role

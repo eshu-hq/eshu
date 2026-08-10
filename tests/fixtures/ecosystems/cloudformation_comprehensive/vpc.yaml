@@ -48,3 +48,17 @@ Outputs:
     Value: !Ref PublicSubnet
   PrivateSubnetId:
     Value: !Ref PrivateSubnet
+  # #5954: exported so lambda.yaml's LambdaFunction can pull this security
+  # group into its VpcConfig via Fn::ImportValue (the short-form !ImportValue
+  # tag -- go/internal/parser/yaml/node_decode.go resolves it to the literal
+  # Fn::ImportValue key the cloudformation parser scans for). Before this,
+  # the corpus had zero Fn::ImportValue usage anywhere, so
+  # CloudFormationImport had no real fixture coverage at all.
+  SecurityGroupId:
+    Value: !Ref SecurityGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-SecurityGroupId"
+  PrivateSubnetIdExport:
+    Value: !Ref PrivateSubnet
+    Export:
+      Name: !Sub "${AWS::StackName}-PrivateSubnetId"
