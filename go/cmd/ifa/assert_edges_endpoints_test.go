@@ -130,7 +130,7 @@ func TestTypeOnlyFilteringWouldConflateTheSharedType(t *testing.T) {
 // "match everything of these types", not "match nothing".
 //
 // The nil-map path is what every unconstrained family uses, so if it filtered
-// everything out, eleven of the thirteen families would assert an empty
+// everything out, twelve of the fourteen families would assert an empty
 // population and pass any graph — a false green far worse than the collision the
 // constraints exist to fix.
 func TestUnconstrainedFamilyMatchesByTypeAlone(t *testing.T) {

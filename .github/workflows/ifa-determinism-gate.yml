@@ -70,6 +70,10 @@ on:
       - 'go/internal/storage/cypher/edge_writer_sql.go'
       - 'specs/ifa-materialized-edge-coverage.v1.yaml'
       - 'testdata/cassettes/sqlrelationships/**'
+      # codecalls (#5991) is pre-wired: no gate script drives this cassette yet
+      # and the family's waivers still stand. The trigger lands now so the day it
+      # IS driven, an edit to it cannot reach main without retriggering the live
+      # lanes. Over-triggering is safe; a missing trigger is the #5873 failure.
       - 'testdata/cassettes/codecalls/**'
       # The expected-edge-set assertion files `ifa assert-edges` compares the
       # live graph against live under this package-local testdata tree (NOT
@@ -77,6 +81,8 @@ on:
       # change to the expected set changes what the live lanes assert, so it
       # MUST retrigger them.
       - 'go/internal/ifa/testdata/sqlrelationships/**'
+      # Same pre-wiring caveat as the codecalls cassette above: the live lanes do
+      # not assert this expected set yet.
       - 'go/internal/ifa/testdata/codecalls/**'
       - 'go/internal/storage/cypher/materialized_edge_*.go'
       - 'go/internal/storage/cypher/canonical_code_call_edges.go'
