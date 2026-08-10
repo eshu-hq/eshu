@@ -38,8 +38,12 @@ var (
 	rawPromptPattern     = regexp.MustCompile(`(?i)(raw_prompt|provider_response|raw provider response|prompt transcript)`)
 	// Filesystem roots, not "any absolute path": this bundle's own reproduce
 	// calls carry bare API routes such as "GET /api/v0/status/index", which a
-	// general absolute-path rule would reject as a local path.
-	localPathPattern = regexp.MustCompile(`(?i)(^|["\s])(/Users/|/home/|/root/|/etc/|/usr/|/workspace/|/workspaces/|/tmp/|/private/|/var/|/opt/|/srv/|/mnt/|/media/|/snap/|/data/|/Volumes/|/Library/|~/|[A-Za-z]:\\)`)
+	// general absolute-path rule would reject as a local path. Selectivity comes
+	// from the root list, so the preceding character only has to rule out a root
+	// spelled mid-word ("example.com/usr/x"); anything else may precede it,
+	// because real diagnostics write "cwd:/Users/...", "config_path=/etc/...",
+	// and "file:///etc/...", none of which follow a quote or a space.
+	localPathPattern = regexp.MustCompile(`(?i)(^|[^A-Za-z0-9._~-])(/Users/|/home/|/root/|/etc/|/usr/|/workspace/|/workspaces/|/tmp/|/private/|/var/|/opt/|/srv/|/mnt/|/media/|/snap/|/data/|/Volumes/|/Library/|~/|[A-Za-z]:\\)`)
 )
 
 // BuildDemoBundle builds a deterministic share-safe fixture bundle.

@@ -325,3 +325,27 @@ func TestValidateKeepsApiRouteTargetsUsable(t *testing.T) {
 		t.Fatalf("Validate rejected the bundle's own api reproduce routes: %v", err)
 	}
 }
+
+// TestValidateRejectsLocalPathsAfterAnyDelimiter covers the delimiters real
+// diagnostics put in front of a path. The rule only accepted a quote or
+// whitespace, so a path exported clean the moment it followed "=", ":", "(" or
+// "[" -- which is how structured reasons and Go's own url/file errors read.
+func TestValidateRejectsLocalPathsAfterAnyDelimiter(t *testing.T) {
+	for _, reason := range []string{
+		"config_path=/etc/eshu/config",
+		"(/root/.config/eshu)",
+		"[/var/lib/eshu]",
+		"cwd:/Users/alice/repo",
+		"loading:/home/alice/repo",
+		"file:///etc/eshu/config",
+	} {
+		t.Run(reason, func(t *testing.T) {
+			snapshot := realisticLiveSnapshot()
+			snapshot.HealthReasons = []string{reason}
+			bundle := BuildLiveBundle(snapshot, LiveBundleOptions{ScopeID: "live:x", CreatedAt: fixedLiveCreatedAt})
+			if err := Validate(bundle); err == nil {
+				t.Fatalf("Validate accepted local path in %q", reason)
+			}
+		})
+	}
+}
