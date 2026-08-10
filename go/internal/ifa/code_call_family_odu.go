@@ -16,10 +16,14 @@ import (
 //
 // Unlike sqlFamilyOdu, which hand-builds its envelopes in Go while a separate
 // committed cassette drives the live gate, this family derives its Odù FROM the
-// committed cassette. The two artifacts then cannot drift: the offline vacuity
-// guard and the live `ifa drive` assert the same bytes. A hand-built twin is a
-// second source of truth that agrees on the day it is written and silently stops
+// committed cassette, so the two cannot drift. A hand-built twin is a second
+// source of truth that agrees on the day it is written and silently stops
 // agreeing the first time only one side is edited.
+//
+// Note what is NOT yet true: no gate script drives this cassette. Once it is
+// wired into scripts/verify-ifa-determinism.sh and the fault-injection gate, the
+// offline guard and the live drive will assert the same bytes. Until then this
+// proves the extractor only, and the family's waiver rows stand.
 const (
 	codeCallFamilyOduName      = "odu:ifa-code-call-family"
 	codeCallFamilyCassettePath = "testdata/cassettes/codecalls/ifa-code-call-family.json"
@@ -59,9 +63,10 @@ func codeCallFamilyExpectedEdgesPath(repoRoot string) string {
 // loadCodeCallFamilyOdu reads the committed cassette and projects it onto the
 // fact envelopes the reducer's extractor consumes.
 //
-// Unexported, mirroring sqlFamilyOdu: the live gate reaches a family through the
-// in-package catalog, never by importing its loader, so exporting this would
-// widen the package surface for no consumer.
+// Unexported because it has no consumer outside its own test. It does NOT mirror
+// sqlFamilyOdu in the load-bearing respect: that one is registered in
+// catalogSeed, and this one is registered nowhere yet, so nothing dispatches to
+// it. Wiring it into the catalog belongs with the live proof, not here.
 //
 // It fails closed on an empty scope or fact list: an Odù carrying no facts would
 // make every downstream assertion vacuous, which is the failure mode the whole

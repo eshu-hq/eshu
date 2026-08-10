@@ -110,8 +110,10 @@ authoring; it does not build a second coverage framework.
   committed `testdata/cassettes/codecalls/` cassette and projects it onto the
   fact envelopes the reducer's extractor consumes. The code_calls Odù is derived
   FROM the cassette rather than hand-built in Go the way `sqlFamilyOdu` is, so
-  the offline vacuity guard and the live `ifa drive` assert the same bytes
-  instead of two lists that agree until only one is edited. It proves the
+  the offline guard and the live `ifa drive` will assert the same bytes once the
+  cassette is wired into both gate scripts, instead of two lists that agree until
+  only one is edited. No gate drives it yet, so today it proves the extractor
+  only and the family stays waived. It proves the
   EXTRACTOR; the live edge write is a MATCH-MATCH-MERGE on endpoint identity, so
   a missing endpoint node is a silent no-op the offline guard cannot see and the
   family stays waived until the live assertion runs.

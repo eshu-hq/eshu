@@ -191,11 +191,15 @@ func TestAssertMaterializedEdgesExtraEdgeFails(t *testing.T) {
 	}
 }
 
-// TestAssertMaterializedEdgesMissingEndpointUIDFails proves an edge whose
-// endpoint node has no uid (an unmaterialized endpoint — the exact silent
-// no-op #5351's fixture work surfaced) is reported as an endpoint defect, not
-// silently skipped.
-func TestAssertMaterializedEdgesMissingEndpointUIDFails(t *testing.T) {
+// TestAssertMaterializedEdgesMissingEndpointIdentityFails proves an edge whose
+// endpoint node carries NEITHER uid nor id (an unmaterialized endpoint — the
+// exact silent no-op #5351's fixture work surfaced) is reported as an endpoint
+// defect, not silently skipped.
+//
+// "Neither", not "no uid": endpoint identity is uid-first with an id fallback,
+// because Repository, Workload, WorkloadInstance and Platform are id-keyed and
+// carry no uid at all. An endpoint with only an id is legitimate and resolves.
+func TestAssertMaterializedEdgesMissingEndpointIdentityFails(t *testing.T) {
 	t.Parallel()
 
 	expected := []ifa.ExpectedEdge{

@@ -101,8 +101,8 @@ session.
   materialized-edge exhaustiveness gate's LIVE, set-exact non-vacuity
   assertion. It opens the same read-only Bolt connection `ifa graph-dump` uses,
   reads every edge of the named materialized-edge family's registry types
-  (e.g. `-domain sql_relationships` → the seven types
-  the family's own writer registry accepts), and asserts the
+  (e.g. `-domain sql_relationships` → the nine types
+  `cypher.SQLRelationshipMaterializedEdgeTypes()` accepts), and asserts the
   family's materialized edges are EXACTLY the hand-derived expected set in
   `-expected` (same count, same `relationship_type`/source/target triples, where
   an endpoint's identity is its `uid` when present and its `id` otherwise —
