@@ -766,21 +766,48 @@ IS present, so the guard evaluates and falls through -- through
 reported "no change" about the wrong path. Baseline measured by reverting both
 call sites to `comparableScalarAttrSet(attributes, "image_uri", "version")`
 through `go test -overlay=` against a scratchpad copy, leaving the worktree
-untouched. `-benchtime=2s -count=5`, Go 1.26 on an Apple M1 Max:
+untouched. Go 1.26 on an Apple M5 Max.
+
+Method matters here, because a first attempt at this measurement got the SIGN
+wrong. Both arms are compiled once with `go test -c` and then sampled
+ALTERNATELY, one arm after the other, 12 pairs; the whole run is then repeated
+with the arm order reversed as a control. Measuring one arm in a block and then
+the other lets a drifting machine load land entirely on one side, which is how
+the first attempt concluded the guard made the path faster -- something a guard
+that only adds work cannot do.
 
 ```text
-OLD             107.4  120.1  113.9  113.0  112.1 ns/op   336 B/op   2 allocs/op
-NEW             107.6  108.6  106.0  110.0  111.1 ns/op   336 B/op   2 allocs/op
+run A (NEW sampled first)   min      p10      median
+  OLD                       113.9    116.1    135.9   ns/op
+  NEW                       122.1    124.4    139.7   ns/op
+  NEW vs OLD                +7.2%    +7.1%    +2.8%
+
+run B (OLD sampled first)   min      p10      median
+  OLD                       159.7    170.3    181.1   ns/op
+  NEW                       165.9    175.9    195.6   ns/op
+  NEW vs OLD                +3.9%    +3.3%    +8.0%
+
+both runs, 336 B/op, 2 allocs/op on every sample, both arms
 ```
 
-Within noise of the baseline, and byte-for-byte identical allocation. Getting
-there required one ordering choice worth recording: testing `package_type`
-first measured 122-141 ns/op, about +17%, because the healthy path then read
-`image_uri` twice -- once in the guard and once in the set read that follows.
-The two conditions commute, so `lambdaImagePackagedWithoutImageURI` tests the
-`image_uri` blank first and returns after a single map read for every Lambda
-that carries one, which is every image-packaged function that was read
-successfully.
+**The guard costs roughly 4-7%, about 5-8 ns on a ~115 ns call.** All six
+statistics across both orderings agree on the sign, which is the citable
+result. The absolute numbers are not: this host was running other work
+throughout, which is why run B sits well above run A on both arms. Allocation
+is byte-for-byte identical, so the cost is the extra map read and nothing else.
+
+That cost is worth it -- the alternative is a converged verdict that lets the
+retire delete a true finding -- but it is a cost, not a wash, and the
+neighbouring #5859 block records its own +2 ns/op the same way.
+
+One ordering choice is worth recording. Testing `package_type` first measured
+consistently slower again, and the reason is NOT that the healthy path reads
+`image_uri` twice: it reads it twice in both orderings, once in the guard and
+once in the set read that follows. What the shipped order avoids is one
+`package_type` map read plus its `TrimSpace` and `EqualFold`, on every Lambda
+that carries an `image_uri`. The two conditions commute -- verified by running
+both packages against a reordered overlay, which no test distinguishes -- so
+`lambdaImagePackagedWithoutImageURI` tests the `image_uri` blank first.
 
 No-Observability-Change (#5861): the rule adds no metric, span, or log. It
 routes an affected pair onto the EXISTING `value_comparison_inconclusive`
