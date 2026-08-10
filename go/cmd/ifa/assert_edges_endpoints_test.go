@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/ifa/graphdump"
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -230,5 +231,86 @@ func TestEndpointDefectNamesWhichSideIsUnidentified(t *testing.T) {
 				t.Errorf("error %q does not say %q; the operator is pointed at the wrong node", err, tc.wantPhrase)
 			}
 		})
+	}
+}
+
+// TestProvenancePartitionsRunsOnBetweenTwoLiveWriters is the guard for the
+// collision endpoint LABELS cannot resolve.
+//
+// RUNS_ON is written with the identical (WorkloadInstance)->(Platform) shape by
+// the cross-repo resolver (repo_dependency) and by workload materialization.
+// Type and labels are the same on both, so before provenance the family's exact
+// set counted the other writer's edge as a spurious extra on any graph where
+// workload materialization had run — which is every realistic graph.
+//
+// Both directions from the SAME graph: the resolver's edge must count, the
+// materializer's must be skipped, not reported as extra. Stripping the
+// evidence_source filter turns this red.
+func TestProvenancePartitionsRunsOnBetweenTwoLiveWriters(t *testing.T) {
+	t.Parallel()
+
+	runsOn := func(instance, platform, evidenceSource string) graphdump.Edge {
+		return graphdump.Edge{
+			Type:       "RUNS_ON",
+			FromLabels: []string{"WorkloadInstance"},
+			FromProps:  map[string]any{"id": instance},
+			ToLabels:   []string{"Platform"},
+			ToProps:    map[string]any{"id": platform},
+			Props:      map[string]any{"evidence_source": evidenceSource},
+		}
+	}
+	graph := fakeEdgeReader{edges: []graphdump.Edge{
+		runsOn("inst-resolver", "plat-a", reducer.CrossRepoEvidenceSource),
+		runsOn("inst-workload", "plat-b", reducer.EvidenceSourceWorkloads),
+	}}
+
+	types, err := ifa.MaterializedEdgeDomainEdgeTypes("repo_dependency")
+	if err != nil {
+		t.Fatalf("MaterializedEdgeDomainEdgeTypes(repo_dependency): %v", err)
+	}
+	endpoints, ok := cypher.MaterializedEdgeEndpointLabels("repo_dependency")
+	if !ok {
+		t.Fatal("repo_dependency carries no endpoint constraints")
+	}
+	if endpoints["RUNS_ON"].EvidenceSource == "" {
+		t.Fatal("RUNS_ON carries no evidence_source constraint; labels alone cannot partition it from workload materialization")
+	}
+
+	// Only the resolver's edge belongs to this family.
+	expected := []ifa.ExpectedEdge{
+		{RelationshipType: "RUNS_ON", SourceEntityID: "inst-resolver", TargetEntityID: "plat-a"},
+	}
+	if err := assertMaterializedEdges(context.Background(), graph, "repo_dependency", types, endpoints, expected); err != nil {
+		t.Errorf("repo_dependency assertion = %v, want nil; the workload-materialized RUNS_ON edge leaked into this family", err)
+	}
+
+	// And the materializer's edge must not be silently adoptable either: naming
+	// it in the expected set has to fail, or the filter would be matching on
+	// nothing rather than on provenance.
+	wrong := []ifa.ExpectedEdge{
+		{RelationshipType: "RUNS_ON", SourceEntityID: "inst-workload", TargetEntityID: "plat-b"},
+	}
+	if err := assertMaterializedEdges(context.Background(), graph, "repo_dependency", types, endpoints, wrong); err == nil {
+		t.Error("an expected set naming the workload-materialized edge passed; the family must not be able to claim another writer's RUNS_ON")
+	}
+}
+
+// TestEvidenceSourceConstraintTracksTheWriterConstant stops the partition drifting.
+//
+// The constraint references reducer.CrossRepoEvidenceSource rather than a copied
+// literal precisely so a change to what the writer stamps cannot leave the gate
+// asserting a stale value. This pins that wiring.
+func TestEvidenceSourceConstraintTracksTheWriterConstant(t *testing.T) {
+	t.Parallel()
+
+	endpoints, ok := cypher.MaterializedEdgeEndpointLabels("repo_dependency")
+	if !ok {
+		t.Fatal("repo_dependency carries no endpoint constraints")
+	}
+	if got := endpoints["RUNS_ON"].EvidenceSource; got != reducer.CrossRepoEvidenceSource {
+		t.Errorf("RUNS_ON evidence_source = %q, want the writer's own constant %q", got, reducer.CrossRepoEvidenceSource)
+	}
+	if reducer.CrossRepoEvidenceSource == reducer.EvidenceSourceWorkloads {
+		t.Fatal("the two writers stamp the same evidence_source; provenance can no longer partition RUNS_ON")
 	}
 }

@@ -163,6 +163,15 @@ func assertMaterializedEdges(
 			if !hasLabel(edge.FromLabels, endpoint.FromLabel) || !hasLabel(edge.ToLabels, endpoint.ToLabel) {
 				return nil
 			}
+			// Provenance, where the family declares it. Two live writers can emit
+			// the same type between the same labels (RUNS_ON), and only the
+			// evidence_source the writer stamped tells them apart — the same
+			// property the family's retract scopes on.
+			if endpoint.EvidenceSource != "" {
+				if got, _ := edge.Props["evidence_source"].(string); got != endpoint.EvidenceSource {
+					return nil
+				}
+			}
 		}
 		fromUID := endpointID(edge.FromProps)
 		toUID := endpointID(edge.ToProps)

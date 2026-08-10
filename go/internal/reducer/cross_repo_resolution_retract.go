@@ -60,7 +60,7 @@ func buildResolvedEdgeRetractionIntentRow(
 	payload := map[string]any{
 		"repo_id":         repoID,
 		"action":          "retract",
-		"evidence_source": crossRepoEvidenceSource,
+		"evidence_source": CrossRepoEvidenceSource,
 		"generation_id":   generationID,
 	}
 

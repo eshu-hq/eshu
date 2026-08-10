@@ -3,6 +3,8 @@
 
 package cypher
 
+import "github.com/eshu-hq/eshu/go/internal/reducer"
+
 // Endpoint-label constraints for materialized-edge families whose relationship
 // types are shared with another family (#5543).
 //
@@ -31,6 +33,21 @@ type MaterializedEdgeEndpoint struct {
 	FromLabel string
 	// ToLabel is the required target node label.
 	ToLabel string
+	// EvidenceSource, when non-empty, additionally requires the edge's own
+	// evidence_source property to equal it.
+	//
+	// Labels are not always enough. RUNS_ON is written with the identical
+	// (WorkloadInstance)->(Platform) shape by two live writers: the cross-repo
+	// resolver for repo_dependency, and workload materialization for its own
+	// domain. Nothing about the type or the endpoints separates them, so without
+	// provenance the family's exact set counts the other writer's edges as
+	// spurious extras on any graph where workload materialization has run.
+	//
+	// This asserts the boundary production already enforces:
+	// retractRepoRunsOnEdgesCypher deletes `WHERE rel.evidence_source =
+	// $evidence_source`, so the family owns the edges it stamped, not the whole
+	// RUNS_ON population. The gate now asserts what the retract reaps.
+	EvidenceSource string
 }
 
 // materializedEdgeEndpointsByFamily holds constraints only for the families that
@@ -49,7 +66,15 @@ var materializedEdgeEndpointsByFamily = map[string]map[string]MaterializedEdgeEn
 		"PROVISIONS_DEPENDENCY_FOR": {FromLabel: "Repository", ToLabel: "Repository"},
 		"USES_MODULE":               {FromLabel: "Repository", ToLabel: "Repository"},
 		"READS_CONFIG_FROM":         {FromLabel: "Repository", ToLabel: "Repository"},
-		"RUNS_ON":                   {FromLabel: "WorkloadInstance", ToLabel: "Platform"},
+		// Provenance-scoped: workload materialization writes this exact shape too
+		// (workload_materializer.go), stamped EvidenceSourceWorkloads. Referencing
+		// the writer's own constant rather than a copied literal means the
+		// assertion cannot drift from what the resolver actually stamps.
+		"RUNS_ON": {
+			FromLabel:      "WorkloadInstance",
+			ToLabel:        "Platform",
+			EvidenceSource: reducer.CrossRepoEvidenceSource,
+		},
 	},
 	"workload_dependency": {
 		"DEPENDS_ON": {FromLabel: "Workload", ToLabel: "Workload"},

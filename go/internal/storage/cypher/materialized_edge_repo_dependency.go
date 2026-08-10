@@ -24,6 +24,16 @@ import "strings"
 // edges that workload materialization writes. A missing RUNS_ON can therefore
 // root-cause in that other domain rather than this one.
 //
+// RUNS_ON HAS TWO LIVE WRITERS and the type alone does not identify this
+// family's edges. The cross-repo resolver reaches it through buildRowMap ->
+// batchCanonicalRunsOnUpsertCypher stamped reducer.CrossRepoEvidenceSource,
+// while workload materialization writes the identical shape
+// (workload_materializer.go) stamped reducer.EvidenceSourceWorkloads. Endpoint
+// labels are identical on both, so materialized_edge_endpoints.go partitions
+// them by evidence_source — the same property retractRepoRunsOnEdgesCypher
+// scopes its DELETE on. Do not treat membership here as "every RUNS_ON edge in
+// the graph": it is the subset this family stamped.
+//
 // Do not read retractRepoDependencyEdgesCypher as this family's retract. It
 // names DEPENDS_ON alone and looks authoritative, but its only user,
 // BuildRetractRepoDependencyEdges, has no production caller — it is dead. The

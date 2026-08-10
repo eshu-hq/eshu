@@ -34,7 +34,7 @@ func TestIfaRepoDependencyProofWorkersOverlapDistinctAcceptanceUnits(t *testing.
 				"repo_id":           repoID,
 				"target_repo_id":    "repository:r_shared_target",
 				"relationship_type": "DEPENDS_ON",
-				"evidence_source":   crossRepoEvidenceSource,
+				"evidence_source":   CrossRepoEvidenceSource,
 			},
 		))
 	}
@@ -95,7 +95,7 @@ func TestIfaRepoDependencyProofWorkersKeepWholeAcceptanceUnitTogether(t *testing
 				"repo_id":           repoID,
 				"target_repo_id":    fmt.Sprintf("repository:r_target_%d", i),
 				"relationship_type": "DEPENDS_ON",
-				"evidence_source":   crossRepoEvidenceSource,
+				"evidence_source":   CrossRepoEvidenceSource,
 			},
 		))
 	}

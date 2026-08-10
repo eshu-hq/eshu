@@ -307,7 +307,7 @@ func TestRepoDependencyRunnerDefersGraphWriteUntilGenerationActive(t *testing.T)
 			"repo_id":           repoID,
 			"target_repo_id":    "repository:r_target_1",
 			"relationship_type": "DEPENDS_ON",
-			"evidence_source":   crossRepoEvidenceSource,
+			"evidence_source":   CrossRepoEvidenceSource,
 		},
 	)
 	reader := &fakeRepoDependencyIntentStore{
