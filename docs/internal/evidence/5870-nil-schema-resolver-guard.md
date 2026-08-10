@@ -128,3 +128,20 @@ volume. The existing `eshu_dp_tfstate_redactions_applied_total` counter and the
 `SchemaResolverEntryCounter` startup log
 (`cmd/collector-terraform-state/service.go`) are unchanged and still report
 per-attribute redaction and loaded-schema coverage.
+
+## Acceptance criteria: what this PR meets, and what it does not
+
+Stated criterion by criterion so the merge does not imply the issue is fully
+satisfied (#6017 review).
+
+| # | Criterion | Status |
+| --- | --- | --- |
+| 1 | A nil resolver either cannot reach the parser, **or** cannot redact an identity anchor | **Met**, by the first disjunct. Option 1: the constructor errors, so a nil resolver never reaches the parser. |
+| 2 | The per-provider gap (resolver present, one provider missing) addressed or documented out of scope with the reason | **Documented out of scope.** A nil check cannot reach it: a bundle can load successfully and still lack one provider, whose attributes then come back `SchemaUnknown` per-attribute. Closing it needs the option-2 identity-anchor exemption, not a constructor guard. |
+| 3 | A test failing before the fix, asserting a declared ARN **survives** a `SchemaUnknown` classification | **NOT met.** This asserts option-2 behaviour — that an identity anchor is exempt from fail-closure. Nothing here exempts `arn`; it prevents the blanket-unknown *state* instead. The test added, `TestLoadPackagedSchemaResolverNeverReturnsANilResolverWithoutAnError`, fails before the fix but asserts the constructor contract, not anchor survival. |
+| 4 | The decision between the options stated explicitly, with its redaction-policy implication | **Met.** Option 1 only. Option 2 is a redaction-policy call — whether an identity anchor may ever be redacted, on a field that can legitimately carry account identifiers — and is left to the owner. Nothing here presumes an answer. |
+| 5 | The condition is observable | **Partially met.** "No usable schema bundle at all" is now maximally observable: the collector fails to start with an error naming the schema directory. What is still not distinguished is the per-provider case in row 2 — a bundle that loads but covers one provider thinly still redacts silently, and `eshu_dp_tfstate_redactions_applied_total{reason}` does not separate it. |
+
+Rows 3 and 5 close together with option 2, not separately. Both are the same
+missing thing: an identity-anchor exemption that survives `SchemaUnknown`
+regardless of why the schema is unknown.
