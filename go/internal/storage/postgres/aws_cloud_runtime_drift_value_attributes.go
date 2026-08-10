@@ -286,8 +286,10 @@ func lambdaComparableScalarAttrSet(attributes map[string]any) map[string]string 
 // cheaper on the healthy path: a Lambda that carries an image_uri -- every
 // image-packaged function that was read successfully -- returns after one map
 // read and one TrimSpace, without ever touching package_type. Ordering
-// package_type first cost about 17% on the decode path in the benchmark
-// recorded in this package's README, for no behavioral difference.
+// package_type first measured consistently slower, for no behavioral
+// difference. Direction only: the benchmark in this package's README
+// deliberately records no magnitude, because the host it ran on could not
+// support one.
 func lambdaImagePackagedWithoutImageURI(attributes map[string]any) bool {
 	if strings.TrimSpace(coerceJSONString(attributes["image_uri"])) != "" {
 		return false

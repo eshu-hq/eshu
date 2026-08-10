@@ -815,7 +815,24 @@ finding kind, already counted on
 `Summary.ValueComparisonInconclusiveResources` and already carrying
 `comparable_attribute:<key>` in `missing_evidence` (#5837). An operator sees
 the same durable row and the same counter they read for the redaction case;
-what changes is that a pair which previously vanished now appears there.
+what changes is which pairs land on it.
+
+Two shapes move, and the second is a finding-kind CONVERSION an operator will
+see, not just a rescue:
+
+- The converge case — the pair previously vanished (`Classify()` returned `""`
+  and the retire deleted) and now appears as a durable row. This is the rescue
+  the fix exists for.
+- **A real drift alongside the unobservable `image_uri`.** If `version` also
+  differs, the pair previously reported `image_version_drift`
+  (`Compared=1, Drifted=1`); it now reports `value_comparison_inconclusive`
+  (`Compared=0`). The drift is not lost — it is restated as uncertainty,
+  because the all-or-nothing rule #5859/#5904 established says a set with an
+  unusable member is not comparable. That is the same cost the redaction rule
+  already pays and is pinned by
+  `TestClassifyLambdaImagePackagedWithoutObservedImageURIStillInconclusiveWithVersionDrift`.
+  An operator watching `image_version_drift` counts on an affected Lambda will
+  see one move to the inconclusive counter.
 `scripts/verify-telemetry-coverage.sh` passes with no new stage.
 
 To add instrumentation to a store, wrap the `ExecQueryer` passed to its

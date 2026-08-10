@@ -110,6 +110,65 @@ func BenchmarkLambdaDeclaredValueAttributes(b *testing.B) {
 	}
 }
 
+// TestClassifyLambdaImagePackagedWithoutObservedImageURIStillInconclusiveWithVersionDrift
+// pins the half of this rule that is a finding-kind CONVERSION rather than a
+// rescue, and that the No-Observability-Change note in this package's README
+// discloses.
+//
+// The test above covers the converge case: the pair vanished, and now lands on
+// a durable row. This one covers the case where the pair did NOT vanish. When
+// `version` also differs, the pass previously reported a real
+// `image_version_drift` (Compared=1, Drifted=1). It now reports
+// `value_comparison_inconclusive` (Compared=0), because the all-or-nothing rule
+// #5859/#5904 established says a set with an unusable member is not comparable.
+//
+// The drift is restated as uncertainty rather than lost, and that is the same
+// cost the redaction rule already pays -- but an operator watching
+// image_version_drift counts will see one move, so it is pinned here rather
+// than left as an incidental consequence.
+func TestClassifyLambdaImagePackagedWithoutObservedImageURIStillInconclusiveWithVersionDrift(t *testing.T) {
+	t.Parallel()
+
+	cloudPayload := []byte(`{
+		"arn": "arn:aws:lambda:us-east-1:123456789012:function:app",
+		"resource_id": "arn:aws:lambda:us-east-1:123456789012:function:app",
+		"resource_type": "aws_lambda_function",
+		"attributes": {"package_type": "Image", "image_uri": "", "version": "7"}
+	}`)
+	cloud, ok := awsRuntimeResourceRowFromPayload("aws:123456789012:us-east-1:lambda", cloudPayload)
+	if !ok {
+		t.Fatal("awsRuntimeResourceRowFromPayload() ok = false, want true")
+	}
+
+	// version differs, so pre-fix this pair reported a genuine drift.
+	statePayload := []byte(`{
+		"address": "module.app.aws_lambda_function.app",
+		"type": "aws_lambda_function",
+		"attributes": {
+			"arn": "arn:aws:lambda:us-east-1:123456789012:function:app",
+			"package_type": "Image",
+			"image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/app:v2",
+			"version": "9"
+		}
+	}`)
+	state, ok, _ := awsRuntimeStateRowFromPayload("state_snapshot:s3:hash", "module.app.aws_lambda_function.app", statePayload)
+	if !ok {
+		t.Fatal("awsRuntimeStateRowFromPayload() ok = false, want true")
+	}
+	config := &cloudruntime.ResourceRow{Address: state.Address, ResourceType: state.ResourceType}
+
+	if got := cloudruntime.ClassifyValueComparison(cloud, state).Compared; got != 0 {
+		t.Fatalf("ClassifyValueComparison() Compared = %d, want 0: the unusable image_uri suppresses the whole set", got)
+	}
+	if kind := cloudruntime.Classify(cloud, state, config); kind != cloudruntime.FindingKindValueComparisonInconclusive {
+		t.Fatalf(
+			"Classify() = %q, want %q: a real version drift alongside an unobservable image_uri is restated as "+
+				"uncertainty, not reported as image_version_drift (#5861)",
+			kind, cloudruntime.FindingKindValueComparisonInconclusive,
+		)
+	}
+}
+
 // TestClassifyLambdaImageDeclaredWithoutDeclaredImageURIDoesNotConverge is the
 // mirror of the test above, on the declared side.
 //
