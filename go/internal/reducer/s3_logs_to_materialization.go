@@ -348,8 +348,22 @@ func (e s3LogsToNodesNotReadyError) Error() string {
 
 func (s3LogsToNodesNotReadyError) Retryable() bool { return true }
 
+// S3LogsToNodesNotReadyFailureClass identifies an in-handler readiness-gate miss: the
+// S3 logs-to edge intent ran before its upstream cloud-resource
+// canonical-nodes-committed phase published for the same acceptance unit. The
+// durable claim gate (reducerClaimReadinessRequirementsSQL) normally prevents
+// that, so this fires only in the claim/handle race window where the handler's
+// own ReadinessLookup disagrees with the claim-time gate.
+//
+// Enrolled in nonCountingReducerRetryFailureClasses (#5046) so the miss never
+// erodes the retry budget and dead-letters a still-pending intent that the
+// succeeded-only reopen path would never reopen. Declaring the constant is not
+// what enrolls it -- see that list's doc comment, and the go/ast completeness
+// test that now checks every readiness class is registered.
+const S3LogsToNodesNotReadyFailureClass = "s3_logs_to_nodes_not_ready"
+
 func (s3LogsToNodesNotReadyError) FailureClass() string {
-	return "s3_logs_to_nodes_not_ready"
+	return S3LogsToNodesNotReadyFailureClass
 }
 
 // s3LogsToMaterializationTiming groups stage durations and the edge tally so the

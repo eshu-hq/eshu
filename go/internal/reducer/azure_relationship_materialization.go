@@ -247,8 +247,22 @@ func (e azureRelationshipNodesNotReadyError) Error() string {
 
 func (azureRelationshipNodesNotReadyError) Retryable() bool { return true }
 
+// AzureRelationshipNodesNotReadyFailureClass identifies an in-handler readiness-gate miss: the
+// Azure relationship edge intent ran before its upstream cloud-resource
+// canonical-nodes-committed phase published for the same acceptance unit. The
+// durable claim gate (reducerClaimReadinessRequirementsSQL) normally prevents
+// that, so this fires only in the claim/handle race window where the handler's
+// own ReadinessLookup disagrees with the claim-time gate.
+//
+// Enrolled in nonCountingReducerRetryFailureClasses (#5046) so the miss never
+// erodes the retry budget and dead-letters a still-pending intent that the
+// succeeded-only reopen path would never reopen. Declaring the constant is not
+// what enrolls it -- see that list's doc comment, and the go/ast completeness
+// test that now checks every readiness class is registered.
+const AzureRelationshipNodesNotReadyFailureClass = "azure_relationship_nodes_not_ready"
+
 func (azureRelationshipNodesNotReadyError) FailureClass() string {
-	return "azure_relationship_nodes_not_ready"
+	return AzureRelationshipNodesNotReadyFailureClass
 }
 
 type azureRelationshipMaterializationTiming struct {
