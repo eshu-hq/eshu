@@ -53,11 +53,13 @@ visible through the child-span counts and request error telemetry.
 ## Performance Evidence:
 
 The committed integration harnesses bind the shipped Cypher, the concrete
-Postgres authorization store, and the real concurrent Neo4jReader. The tested
-code commit is `1568a2a7b56b9a224b80e61ba41144b1999ac196`; the harness rejects a
-production Cypher hash other than
+Postgres authorization store, and the real concurrent Neo4jReader. The harness
+first passed at commit `1568a2a7b56b9a224b80e61ba41144b1999ac196`; the
+measurements below come from a later rerun after the post-rebase review fixes,
+not from that initial sample. The harness rejects a production Cypher hash
+other than
 `1900bbe55bc2f6e63da43ec9f8a6c1ed67e416702ab718aebd4db6ea2c794fee`.
-It ran against NornicDB source revision
+The rerun used NornicDB source revision
 `3722b483c02c38a8e046d198f8768f200f31023c`, image ID
 `sha256:1afd1f92af1de69bfd336e6b1d4d9136019309c0640ace9b54e1cccba1e4d8d5`,
 and PostgreSQL 18.4.
@@ -68,7 +70,8 @@ fix moved the graph-availability check behind the empty-plan return so a page
 with no usable digest remains a no-op during a graph outage. That guard change
 does not alter the non-empty plan, Cypher, fanout, Postgres gate, or live
 harness. The live command below was rerun after the fix against these current
-object IDs:
+object IDs. The final rerun is bound by those blobs rather than a preexisting
+commit because this evidence record was committed only after the measurement:
 
 | File | Git blob |
 | --- | --- |
