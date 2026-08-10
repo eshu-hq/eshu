@@ -88,7 +88,10 @@ func (w *repoDependencyOverlapWriter) WriteEdges(
 		case <-timer.C:
 		}
 	}
-	return reducer.SharedProjectionWriteReport{}, w.inner.WriteEdges(ctx, domain, rows, evidenceSource)
+	// Carry the inner report rather than a zero value: dropping it here would
+	// hide unroutable rows from the worker, which then completes the intent
+	// with nothing recorded — the exact loss #5984 exists to close.
+	return w.inner.WriteEdges(ctx, domain, rows, evidenceSource)
 }
 
 func (w *repoDependencyOverlapWriter) maxConcurrent() int {

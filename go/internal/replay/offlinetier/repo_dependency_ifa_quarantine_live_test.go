@@ -190,7 +190,8 @@ func (w *repoDependencyLostResponseWriter) RetractEdges(ctx context.Context, dom
 }
 
 func (w *repoDependencyLostResponseWriter) WriteEdges(ctx context.Context, domain string, rows []reducer.SharedProjectionIntentRow, evidenceSource string) (reducer.SharedProjectionWriteReport, error) {
-	if _, err := w.inner.WriteEdges(ctx, domain, rows, evidenceSource); err != nil {
+	report, err := w.inner.WriteEdges(ctx, domain, rows, evidenceSource)
+	if err != nil {
 		return reducer.SharedProjectionWriteReport{}, err
 	}
 	for _, row := range rows {
@@ -206,7 +207,10 @@ func (w *repoDependencyLostResponseWriter) WriteEdges(ctx context.Context, domai
 			return reducer.SharedProjectionWriteReport{}, errRepoDependencyGraphResponseLost
 		}
 	}
-	return reducer.SharedProjectionWriteReport{}, nil
+	// Carry the inner report rather than a zero value: dropping it here would
+	// hide unroutable rows from the worker, which then completes the intent
+	// with nothing recorded — the exact loss #5984 exists to close.
+	return report, nil
 }
 
 func (w *repoDependencyLostResponseWriter) failureCount() int {

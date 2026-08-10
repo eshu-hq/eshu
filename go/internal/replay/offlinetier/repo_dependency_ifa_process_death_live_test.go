@@ -194,9 +194,14 @@ func (w *repoDependencyProcessDeathWriter) RetractEdges(
 func (w *repoDependencyProcessDeathWriter) WriteEdges(
 	ctx context.Context, domain string, rows []reducer.SharedProjectionIntentRow, evidenceSource string,
 ) (reducer.SharedProjectionWriteReport, error) {
-	if _, err := w.inner.WriteEdges(ctx, domain, rows, evidenceSource); err != nil {
-		return reducer.SharedProjectionWriteReport{}, err
+	report, err := w.inner.WriteEdges(ctx, domain, rows, evidenceSource)
+	if err != nil {
+		return report, err
 	}
+	// The success path deliberately never returns — this fixture simulates the
+	// process dying after the graph write commits. The report is still carried
+	// on the error path rather than zeroed, so this wrapper does not become the
+	// one place unroutable rows go missing if that ever changes.
 	fmt.Println(repoDependencyProcessDeathSentinel)
 	_ = os.Stdout.Sync()
 	select {}
