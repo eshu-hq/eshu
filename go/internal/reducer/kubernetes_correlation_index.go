@@ -4,6 +4,7 @@
 package reducer
 
 import (
+	"slices"
 	"sort"
 	"strings"
 
@@ -40,10 +41,38 @@ type kubernetesWorkload struct {
 	imageRefs []string
 	factID    string
 	// resolvedImageDigests maps a container's declared raw image reference to
-	// its CRI-resolved normalized digest (repo@sha256:<digest> form), populated
-	// from PodTemplateContainer.ResolvedImageDigest. Deployments/ReplicaSets
-	// (pod spec only) carry no resolved digests so this map is empty for them.
-	resolvedImageDigests map[string]string
+	// the CRI-resolved normalized digests (repo@sha256:<digest> form) reported
+	// for it, populated from PodTemplateContainer.ResolvedImageDigest.
+	// Deployments/ReplicaSets (pod spec only) carry no resolved digests so this
+	// map is empty for them.
+	resolvedImageDigests map[string]resolvedImageDigest
+}
+
+// resolvedImageDigest holds every distinct CRI-resolved digest reference
+// reported for one declared image reference. Exactly one candidate is the
+// ordinary case and carries a promotable runtime identity; more than one means
+// containers sharing that declared reference disagreed about what is running,
+// so no single identity can be promoted (#5517).
+type resolvedImageDigest struct {
+	// candidates is sorted and deduplicated so the resulting correlation
+	// decision is byte-stable across reducer runs regardless of container order.
+	candidates []string
+}
+
+// conflicting reports whether containers sharing one declared image reference
+// reported different CRI-resolved digests.
+func (r resolvedImageDigest) conflicting() bool {
+	return len(r.candidates) > 1
+}
+
+// promotable returns the single CRI-resolved digest reference when exactly one
+// was reported, and the empty string when there is none or the containers
+// disagreed.
+func (r resolvedImageDigest) promotable() string {
+	if len(r.candidates) == 1 {
+		return r.candidates[0]
+	}
+	return ""
 }
 
 // kubernetesIdentityEdge is one directed kubernetes_live.relationship pre-parsed
@@ -333,18 +362,21 @@ func kubernetesSourceTagKey(repositoryKey, tag string) string {
 }
 
 // resolvedImageDigestsFromTemplate extracts a map from a container's declared
-// raw image reference to its CRI-resolved normalized digest, populated from
-// PodTemplateContainer.ResolvedImageDigest. When two containers share a declared
-// ref with differing resolved digests, the first wins (the pod status reflects
-// the running state of all containers sharing that spec entry, and K8s does not
-// run the same container image at two different digests in a single pod; a
-// discrepancy would indicate a bug upstream and the first-win policy is safe
-// because exact is stronger than missing). Tracked follow-up #5517: classify
-// differing-digest duplicate refs as ambiguous rather than picking one. See
-// also go/internal/reducer/search-and-runtime-projections.md
+// raw image reference to the CRI-resolved normalized digests reported for it,
+// populated from PodTemplateContainer.ResolvedImageDigest.
+//
+// Kubernetes does not run the same container image at two different digests in
+// a single pod, so two containers sharing a declared reference with differing
+// resolved digests means the observation is internally inconsistent and the
+// running identity is not knowable from it. Every distinct digest is kept so
+// the classifier can record both candidates and decline to promote, rather than
+// asserting whichever container happened to be read first (#5517). See also
+// go/internal/reducer/search-and-runtime-projections.md
 // §CRI-resolved digest promotion.
-func resolvedImageDigestsFromTemplate(podTemplate kuberneteslivev1.PodTemplate) map[string]string {
-	var out map[string]string
+func resolvedImageDigestsFromTemplate(
+	podTemplate kuberneteslivev1.PodTemplate,
+) map[string]resolvedImageDigest {
+	var collected map[string][]string
 	for _, container := range podTemplate.Containers {
 		digest := derefString(container.ResolvedImageDigest)
 		if digest == "" {
@@ -354,12 +386,20 @@ func resolvedImageDigestsFromTemplate(podTemplate kuberneteslivev1.PodTemplate) 
 		if ref == "" {
 			continue
 		}
-		if out == nil {
-			out = make(map[string]string, len(podTemplate.Containers))
+		if collected == nil {
+			collected = make(map[string][]string, len(podTemplate.Containers))
 		}
-		if _, exists := out[ref]; !exists {
-			out[ref] = digest
+		if !slices.Contains(collected[ref], digest) {
+			collected[ref] = append(collected[ref], digest)
 		}
+	}
+	if collected == nil {
+		return nil
+	}
+	out := make(map[string]resolvedImageDigest, len(collected))
+	for ref, digests := range collected {
+		sort.Strings(digests)
+		out[ref] = resolvedImageDigest{candidates: digests}
 	}
 	return out
 }

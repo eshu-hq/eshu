@@ -45,9 +45,14 @@ PR2) and `DomainObservabilityCoverageMaterialization` (#391 PR3):
   byte-identical to today: tag-form refs fall through to `classifyImageByTag`
   which is always provenance-only `Derived` / `Ambiguous` / `Unresolved`.
   When two containers share a declared tag ref with differing resolved digests,
-  `resolvedImageDigestsFromTemplate` applies a first-wins policy — tracked
-  follow-up #5517 proposes classifying this as ambiguous rather than picking
-  one.
+  the observation is internally inconsistent — Kubernetes does not run one
+  declared reference at two digests in a single pod — so the running identity is
+  not knowable from it. `resolvedImageDigestsFromTemplate` keeps every distinct
+  digest and the outcome is `ambiguous` / `driftUnknown` / provenance-only, with
+  both digests recorded in `CandidateSourceDigests` and an explicit
+  `NonPromotion` (#5517). The earlier first-wins policy promoted whichever
+  container was read first to `exact`, which asserted a specific running image
+  that was wrong whenever the digests disagreed.
 - The write is idempotent on `(workload_uid, RUNS_IMAGE, source_uid)`; rows are
   deduplicated and sorted so retries and reprojections produce a byte-stable
   batch. The conflict key is per-edge, so no serialization workaround is
@@ -59,6 +64,24 @@ resolved 5,000 workloads → 5,000 edges in `8.89 ms/op` (`22.4 MB/op`,
 `135,221 allocs/op`) on darwin/arm64 (Apple M3 Pro): the pure classifier plus the
 O(M) digest→uid index build and O(1) per-edge source resolution, no per-edge
 graph round trip and no N+1.
+No-Regression Evidence (#5517 conflict detection): the classifier now keeps every
+distinct CRI-resolved digest per declared reference instead of the first, adding
+one slice-membership check per container and, only when a reference reported more
+than one digest, a sort of that reference's candidates (bounded by container
+count). Measured on darwin/arm64 (Apple M3 Pro, 12 logical CPUs) with
+`go test ./internal/reducer -run '^$' -bench
+'BenchmarkExtractKubernetesCorrelationEdgeRows' -benchmem -benchtime=100x
+-count=3`, base `c1245790b` vs this branch, same machine and same fixture:
+`12.95/13.02/12.99 ms/op` before and `13.11/13.06/13.03 ms/op` after, with an
+identical allocation profile (`210,223 allocs/op`, `28.5 MB/op` both). That is
+roughly +0.5% median against a run-to-run spread of about 0.6%, so the cost sits
+at the edge of this benchmark's noise rather than clearly above it. The fixture
+contains no conflicting pair, so this measures the ordinary agreeing path — the
+path every workload takes.
+No-Observability-Change: the conflict outcome reuses the existing correlation
+decision payload (`candidate_source_digests`, `non_promotion`, `drift_kind`)
+already published by `kubernetes_correlation_writer.go` and already read by
+`internal/query`; no new metric, span, or log is introduced.
 No-Regression Evidence: the edge write reuses the established UNWIND-batched
 MATCH-MATCH-MERGE shape; `BenchmarkKubernetesCorrelationEdgeWriter` (in
 `go/internal/storage/cypher`) shaped 5,000 edges at batch 500 in `1.14 ms/op`
