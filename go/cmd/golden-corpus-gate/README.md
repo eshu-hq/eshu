@@ -12,7 +12,7 @@ buckets.
 |--------|-----------|-------------------|-------------------|
 | drains | B-7(a)    | one atomic Postgres snapshot proves `fact_work_items` residual ≤ bound, `shared_projection_intents` nonterminal ≤ bound (B-13 / #3859 gate, incl. `repo_dependency` subset detail), and zero `cross_scope_completion_events` | — |
 | graph  | B-7(b)    | required correlations exist (rc-1 deployable-unit, rc-3 DEPENDS_ON, ...); required edge/node **properties** present (e.g. `source_tool` on Tier-2 edges, `language` on `File` nodes) | per-label node / per-relationship edge counts vs snapshot tolerances |
-| query  | B-7(c)    | each `query_shapes.http` response is 2xx and carries its required fields, minimum results, and declared deep JSON fields / values | — |
+| query  | B-7(c)    | each HTTP/MCP response carries its required fields, minimum results, and declared deep values; Ask executes a credential-free deployed provider/tool loop | — |
 | demo-answers | #4776 | each of the five `specs/demo-first-answers.v1.yaml` questions, executed live with its **specific** pinned arguments (a playbook via its `surface.execute` target), returns a populated answer (required fields present, `minimum_results` met) | — |
 | timing | B-7(d)    | total pipeline wall time ≤ `budget-multiplier` × baseline; with `-phase-timings-file` (B-11 / #3804) each **gated** phase ≤ baseline band/slack in `e2e-baseline.json` | per-phase findings are advisory under `-phase-regression-advisory` (shared CI) |
 
@@ -59,6 +59,13 @@ Environment variables match the services under test: `ESHU_POSTGRES_DSN`,
 Exit status is non-zero when any **required** finding fails. Advisory findings
 print as `WARN` and never fail the gate. An empty report (no phase ran) fails:
 a gate that asserted nothing proved nothing.
+
+The orchestrator also invokes `-print-persisted-aggregate-counts` after the
+graph drain. That compute-only mode reads repository, workload, and
+infrastructure-provider counts directly from persisted graph nodes and prints
+strict JSON. B-12 uses those independent values when checking API/MCP
+aggregates, so one shared handler defect cannot supply both observation and
+expectation.
 
 ## Property assertions (source-tool / language provenance)
 

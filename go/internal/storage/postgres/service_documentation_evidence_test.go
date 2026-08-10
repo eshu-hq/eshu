@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -81,6 +82,33 @@ func TestServiceDocumentationEvidenceLoaderScopesByServiceAndDurableIdentity(t *
 	}
 }
 
+func TestServiceDocumentationEvidenceLoaderBindsOnlyReferencedParameters(t *testing.T) {
+	t.Parallel()
+
+	queryer := &serviceDocumentationCapturingQueryer{}
+	loader := NewServiceDocumentationEvidenceLoader(queryer)
+	if _, err := loader.GetDocumentationEvidenceForServices(context.Background(), []string{"svc-a"}); err != nil {
+		t.Fatalf("GetDocumentationEvidenceForServices() error = %v, want nil", err)
+	}
+
+	wantArgs := []any{
+		documentationServiceRefContains("candidate_refs", "kind", "id", "svc-a"),
+		documentationServiceRefContains("evidence_refs", "kind", "id", "svc-a"),
+		documentationServiceRefContains("linked_entities", "entity_type", "entity_id", "svc-a"),
+	}
+	if !reflect.DeepEqual(queryer.args, wantArgs) {
+		t.Fatalf("query args = %#v, want only referenced containment args %#v", queryer.args, wantArgs)
+	}
+	if strings.Contains(queryer.query, "$4") {
+		t.Fatalf("query contains an unpaired fourth placeholder:\n%s", queryer.query)
+	}
+	for _, placeholder := range []string{"$1::jsonb", "$2::jsonb", "$3::jsonb"} {
+		if !strings.Contains(queryer.query, placeholder) {
+			t.Fatalf("query missing bound placeholder %q:\n%s", placeholder, queryer.query)
+		}
+	}
+}
+
 func TestServiceDocumentationEvidenceLoaderEmptyServicesIsNoOp(t *testing.T) {
 	t.Parallel()
 
@@ -99,3 +127,18 @@ func TestServiceDocumentationEvidenceLoaderEmptyServicesIsNoOp(t *testing.T) {
 }
 
 var _ reducer.ServiceScopedDocumentationEvidenceLoader = ServiceDocumentationEvidenceLoader{}
+
+type serviceDocumentationCapturingQueryer struct {
+	query string
+	args  []any
+}
+
+func (q *serviceDocumentationCapturingQueryer) QueryContext(
+	_ context.Context,
+	query string,
+	args ...any,
+) (Rows, error) {
+	q.query = query
+	q.args = append([]any(nil), args...)
+	return &fakeRows{}, nil
+}

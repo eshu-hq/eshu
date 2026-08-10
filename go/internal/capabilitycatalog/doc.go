@@ -45,11 +45,12 @@
 // LoadMatrix accepts only a closed set of verification kinds (go_test,
 // integration_test, compose_e2e, remote_validation); an unrecognized key is a
 // hard load error. CheckRemoteValidationArtifacts further requires every
-// remote_validation ref to resolve to a committed
-// docs/internal/remote-validation/<ref>.md artifact or appear in the
-// burn-down baseline (specs/remote-validation-baseline.txt), so a
-// production-supported claim can never rest solely on an unverifiable
-// remote-validation reference. LoadRemoteValidationBaseline also parses the
+// production-supported remote_validation ref to resolve to a current-format,
+// deployed-tier docs/internal/remote-validation/<ref>.md artifact or appear in
+// the burn-down baseline (specs/remote-validation-baseline.txt). The generated
+// inventory binds every slug to its production rows, while each evidence file
+// records the dated command, direct exit capture, committed deployed source,
+// and capability-specific assertions. LoadRemoteValidationBaseline also parses the
 // baseline's mandatory FROZEN_MAX ceiling, and
 // RemoteValidationBaselineCeilingExceeded reports growth past it: the frozen
 // debt set may shrink but never grow, so a new unverified production:supported

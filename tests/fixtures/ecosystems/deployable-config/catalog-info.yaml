@@ -1,0 +1,9 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: deployable-config
+  title: Deployable Config
+spec:
+  type: service
+  lifecycle: production
+  owner: group:default/platform

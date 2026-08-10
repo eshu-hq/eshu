@@ -2023,9 +2023,9 @@
       "scenario_type": "baseline",
       "status": "covered",
       "scenario": "api_mcp_golden",
-      "ref": "GET /api/v0/service-catalog/correlations?limit=50\u0026scope_id=supply-chain-demo",
+      "ref": "GET /api/v0/service-catalog/correlations?limit=10\u0026repository_id=repository:r_217415d9",
       "proof_gate": "golden-corpus-gate",
-      "detail": "snapshot HTTP query shape \"GET /api/v0/service-catalog/correlations?limit=50\u0026scope_id=supply-chain-demo\""
+      "detail": "snapshot HTTP query shape \"GET /api/v0/service-catalog/correlations?limit=10\u0026repository_id=repository:r_217415d9\""
     },
     {
       "registry": "fact_kind_registry",

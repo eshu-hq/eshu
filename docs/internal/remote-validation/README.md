@@ -20,11 +20,11 @@ docs/internal/remote-validation/prod-code-search-exact.md
 ```
 
 `go/internal/capabilitycatalog/remote_validation.go`
-(`CheckRemoteValidationArtifacts`) enforces this with `os.Stat`, run by
+(`CheckRemoteValidationArtifacts`) enforces this contract, run by
 `scripts/verify-remote-validation-artifacts.sh` (CI gate
-`remote-validation-artifacts` in `specs/ci-gates.v1.yaml`). A ref that
-resolves to no file here fails the gate unless it is listed in the burn-down
-baseline, `specs/remote-validation-baseline.txt`.
+`remote-validation-artifacts` in `specs/ci-gates.v1.yaml`). A ref with no valid
+deployed-tier evidence here fails unless it is listed in the burn-down baseline,
+`specs/remote-validation-baseline.txt`. A placeholder file does not clear debt.
 
 A ref is validated against the slug shape `^[a-z0-9]+(-[a-z0-9]+)*$` **before**
 it is ever joined into a path or probed with `os.Stat`, and the resolved path is
@@ -66,18 +66,54 @@ removed from **both** files in the same reviewed edit.
 
 ## Writing an artifact
 
-An evidence file should record what was actually run against a real
-deployed-services environment: the command or workflow, the environment
-(sanitized — no credentials, hostnames, or account IDs), the date, and the
-observed pass/fail outcome. It does not need to be a specific format; it
-needs to be enough for a reviewer to judge whether the claim it backs is
-real. Once the file exists, remove the ref from
+An evidence file records what actually ran against deployed services. It must
+include these machine-checked fields, each on one line:
+
+```text
+Validation-Slug: prod-example
+Validation-Tier: deployed_services
+Validation-Date: 2026-08-08
+Evidence-Kind: compose_e2e
+Evidence-Source: scripts/run-remote-e2e-example.sh
+Validation-Command: bash scripts/run-remote-e2e-example.sh; echo $?
+Validation-Exit-Code: 0
+Capability-Assertion: capability.id returns a non-empty exact result through the deployed API.
+B12-Assertion: capability.id -> mcp:list_capability_results
+```
+
+`Evidence-Kind` is `compose_e2e` for a committed Compose driver,
+`deployed_e2e` for a committed Kubernetes, hosted, or remote-e2e driver, or
+`live_backend` for a committed `docs/internal/evidence/*.md` live-backend
+record. `Evidence-Source` must exist and match that kind. The command must end
+with direct `; echo $?` capture, and the captured exit must be `0`. Add one
+`Capability-Assertion` per capability when several production rows share a
+slug. Add a matching `B12-Assertion` for each capability, using the exact
+`<transport>:<query-shape-key>` from the committed B-12 snapshot. The verifier
+rejects missing or unknown B-12 pointers, so every production claim resolves to
+the concrete deployed assertion that exercised it. A local `go_test` run is
+useful lower-tier evidence, but it cannot retain a `production: supported`
+claim.
+
+Keep credentials, hostnames, account IDs, IPs, key paths, and local machine
+paths out of the artifact. Once the evidence is valid, remove the ref from
 `specs/remote-validation-baseline.txt` (or run
 `bash scripts/verify-remote-validation-artifacts.sh -update`, which drops it
-automatically because `remoteValidationArtifactExists` now returns true and
-also ratchets `FROZEN_MAX` down to the new, smaller count). Removing the ref
+automatically and ratchets `FROZEN_MAX` down). Removing the ref
 from `specs/remote-validation-frozen.txt` as well is optional but keeps the two
 files aligned; `-update` does not touch the frozen file.
+
+The matrix is the source of truth for expected slugs and rows. Regenerate the
+compact checked-in index without touching evidence measurements:
+
+```bash
+bash scripts/generate-remote-validation-inventory.sh
+```
+
+The generator writes
+`docs/internal/remote-validation/inventory.generated.json`. Schema version 2
+includes `assertion_count` for each artifact; tests cross-check that count
+against both assertion fields in the artifact. The generator never writes a
+validation date, command result, or capability assertion.
 
 ## Current state
 
@@ -103,12 +139,15 @@ Burn-down progress:
   deployed component-extension Compose stack, returning `installed=true`,
   `enabled=true`, and `trusted=true` for a real claimed component, with the
   diagnostics route sharing that handler.
-- **This directory now holds 110 committed artifact files.** That count closes
-  the old pointer-existence baseline; it does not certify the contents. The
-  seven Cluster B files added for #5681 carry fresh matching-tier evidence.
-  #5552 remains open while the 103 legacy files are requalified against the
-  stronger deployed-tier contract and either refreshed or explicitly
-  downgraded with owner approval.
+- **This directory now holds 110 committed, machine-valid deployed artifacts**
+  covering all 115 currently supported production row-occurrences. Seven were
+  validated for #5681. #5552 requalified the remaining 103 slugs: 100 through
+  a fresh 550-pass golden-corpus Compose run with an independent persisted-graph
+  oracle for the two aggregate rows, two through the deployed
+  component-extension driver, and one through the dedicated dead-IaC Compose
+  driver. Every artifact records its matching deployed tier, run date, exact
+  command with direct exit capture, evidence source, and one assertion per
+  production capability. No row was downgraded in the #5552 tranche.
 - **The cluster of 7 code-intelligence slugs before this one**
   (#5681) was resolved per-row against a real deployed-services stack: the two
   transitive-caller-graph reads (`prod-transitive-callers` /
@@ -152,3 +191,9 @@ Burn-down progress:
   close. It does **not** close #5552: that program stays open until all 103
   legacy files pass matching-tier content validation and the recurrence gate
   proves seeded unbacked claims red and the reverted matrix green.
+
+The #5552 tranche now satisfies that remaining condition: the strict real-tree
+verifier accepts all 110 supported slugs, and its hermetic BITES test seeds an
+unbacked production row RED before reverting the matrix to GREEN. The generated
+per-row index is [inventory.generated.json](inventory.generated.json), and the
+human disposition record is [DISPOSITIONS.md](DISPOSITIONS.md).

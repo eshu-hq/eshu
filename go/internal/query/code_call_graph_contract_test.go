@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
+//nolint:filelength // Legacy mixed contract suite; this patch only removes an invalid stale-ID fallback test.
 
 package query
 
@@ -253,73 +254,6 @@ func TestHandleComplexityBuildsNonConflictingCypher(t *testing.T) {
 
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
-	}
-}
-
-func TestHandleComplexityFallsBackToNameLookupWithinRepo(t *testing.T) {
-	t.Parallel()
-
-	var calls int
-	handler := &CodeHandler{
-		Neo4j: fakeGraphReader{
-			runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
-				calls++
-				switch calls {
-				case 1:
-					if got, want := params["entity_id"], "handler"; got != want {
-						t.Fatalf("params[entity_id] = %#v, want %#v", got, want)
-					}
-					return nil, nil
-				case 2:
-					if got, want := params["entity_name"], "handler"; got != want {
-						t.Fatalf("params[entity_name] = %#v, want %#v", got, want)
-					}
-					if got, want := params["repo_id"], "repo-1"; got != want {
-						t.Fatalf("params[repo_id] = %#v, want %#v", got, want)
-					}
-					if !strings.Contains(cypher, "e.name = $entity_name") {
-						t.Fatalf("cypher = %q, want exact-name fallback", cypher)
-					}
-					if !strings.Contains(cypher, "repo.id = $repo_id") {
-						t.Fatalf("cypher = %q, want repo-scoped fallback", cypher)
-					}
-					return map[string]any{
-						"id":                  "function-1",
-						"name":                "handler",
-						"labels":              []any{"Function"},
-						"file_path":           "src/routes.py",
-						"repo_id":             "repo-1",
-						"repo_name":           "payments",
-						"language":            "python",
-						"start_line":          int64(10),
-						"end_line":            int64(14),
-						"outgoing_count":      int64(1),
-						"incoming_count":      int64(2),
-						"total_relationships": int64(3),
-					}, nil
-				default:
-					t.Fatalf("unexpected RunSingle call %d", calls)
-					return nil, nil
-				}
-			},
-		},
-	}
-	mux := http.NewServeMux()
-	handler.Mount(mux)
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/api/v0/code/complexity",
-		bytes.NewBufferString(`{"entity_id":"handler","repo_id":"repo-1"}`),
-	)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if got, want := w.Code, http.StatusOK; got != want {
-		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
-	}
-	if got, want := calls, 2; got != want {
-		t.Fatalf("RunSingle call count = %d, want %d", got, want)
 	}
 }
 

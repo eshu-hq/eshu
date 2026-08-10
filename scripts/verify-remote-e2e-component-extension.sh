@@ -11,7 +11,6 @@ set -euo pipefail
 # and self-testable; the live run (which produces those artifacts from a running
 # Compose stack) is the operator/CI gate.
 
-repo_root="$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "$0")/.." && pwd))"
 list_only=false
 artifacts_dir=""
 
@@ -26,7 +25,11 @@ usage() {
 		"Usage: $(basename "$0") --artifacts <dir> [--list]" \
 		'' \
 		'Verifies recorded Scorecard component-extension proof artifacts:' \
-		'  inventory.json        component-extensions API readback' \
+		'  inventory.json        component CLI registry readback' \
+		'  api-inventory.json    authenticated deployed HTTP inventory envelope' \
+		'  api-diagnostics.json  authenticated deployed HTTP diagnostics envelope' \
+		'  mcp-inventory.json    deployed MCP inventory tool envelope' \
+		'  mcp-diagnostics.json  deployed MCP diagnostics tool envelope' \
 		'  workflow-items.json   component workflow item terminal states' \
 		'  facts.json            committed dev.eshu.examples.scorecard.* fact counts' \
 		'  provenance.json       Eshu commit, digest, SDK/core versions, backend, telemetry' \
@@ -51,6 +54,7 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
+command -v jq >/dev/null 2>&1 || die "jq is required"
 command -v rg >/dev/null 2>&1 || die "rg is required"
 
 readonly component_id="dev.eshu.examples.scorecard"
@@ -80,11 +84,12 @@ print_checks() {
 	# byte.
 	printf '%s\n' \
 		'component-extension proof checks:' \
-		"  1. inventory: ${component_id} reads back installed=true, enabled=true, trusted=true" \
-		'  2. workflow: component workflow item terminal success; no retrying/failed/dead-letter' \
-		"  3. facts: at least one committed fact for ${fact_families[*]}" \
-		'  4. provenance: records eshu_commit, component_digest, core/sdk versions, backend, queue terminal state, telemetry handle' \
-		'  5. redaction canary: no host paths, private keys, bearer tokens, or raw IPs in artifacts'
+		"  1. CLI inventory: ${component_id} reads back installed=true, enabled=true, trusted=true" \
+		'  2. deployed API/MCP: inventory and diagnostics return the exact component with allowed, claim-capable state' \
+		'  3. workflow: component workflow item terminal success; no retrying/failed/dead-letter' \
+		"  4. facts: at least one committed fact for ${fact_families[*]}" \
+		'  5. provenance: records eshu_commit, component_digest, core/sdk versions, backend, queue terminal state, telemetry handle' \
+		'  6. redaction canary: no host paths, private keys, bearer tokens, or raw IPs in artifacts'
 }
 
 if [[ "${list_only}" == true ]]; then
@@ -96,10 +101,22 @@ fi
 [[ -d "${artifacts_dir}" ]] || die "artifacts directory not found: ${artifacts_dir}"
 
 inventory="${artifacts_dir}/inventory.json"
+api_inventory="${artifacts_dir}/api-inventory.json"
+api_diagnostics="${artifacts_dir}/api-diagnostics.json"
+mcp_inventory="${artifacts_dir}/mcp-inventory.json"
+mcp_diagnostics="${artifacts_dir}/mcp-diagnostics.json"
 workflow_items="${artifacts_dir}/workflow-items.json"
 facts="${artifacts_dir}/facts.json"
 provenance="${artifacts_dir}/provenance.json"
-for required in "${inventory}" "${workflow_items}" "${facts}" "${provenance}"; do
+for required in \
+	"${inventory}" \
+	"${api_inventory}" \
+	"${api_diagnostics}" \
+	"${mcp_inventory}" \
+	"${mcp_diagnostics}" \
+	"${workflow_items}" \
+	"${facts}" \
+	"${provenance}"; do
 	[[ -f "${required}" ]] || die "missing required artifact: ${required}"
 done
 
@@ -113,14 +130,58 @@ rg --quiet '"enabled"[[:space:]]*:[[:space:]]*true' "${inventory}" \
 rg --quiet '"trusted"[[:space:]]*:[[:space:]]*true' "${inventory}" \
 	|| die "inventory does not show trusted=true"
 
-# 2. Workflow: terminal success, no retry/failed/dead-letter.
+# 2. Deployed API and MCP readbacks must independently prove the inventory and
+#    diagnostics surfaces. The filters intentionally require the same exact
+#    component identity and capability-specific state on all four envelopes.
+verify_inventory_envelope() {
+	local artifact="$1"
+	local surface="$2"
+	jq -e --arg id "${component_id}" '
+		(.error == null) and
+		(.truth.capability == "component_extensions.inventory") and
+		(.data.status == "available") and
+		(.data.component_home_configured == true) and
+		(.data.count >= 1) and
+		(any(.data.components[]?;
+			(.id == $id) and
+			(.verified == true) and
+			(.trust_decision.decision == "allowed") and
+			(.policy_gate.state == "allowed") and
+			(.scheduler_state.state == "claim_capable") and
+			([.states[]?] | contains(["installed", "enabled", "claim_capable"]))))
+	' "${artifact}" >/dev/null || die "${surface} inventory response is not a positive exact component readback"
+}
+
+verify_diagnostics_envelope() {
+	local artifact="$1"
+	local surface="$2"
+	jq -e --arg id "${component_id}" '
+		(.error == null) and
+		(.truth.capability == "component_extensions.diagnostics") and
+		(.data.status == "available") and
+		(.data.component_home_configured == true) and
+		(.data.component.id == $id) and
+		(.data.component.verified == true) and
+		(.data.component.trust_decision.decision == "allowed") and
+		(.data.component.policy_gate.state == "allowed") and
+		(.data.component.scheduler_state.state == "claim_capable") and
+		([.data.component.states[]?] | contains(["installed", "enabled", "claim_capable"]))
+	' "${artifact}" >/dev/null || die "${surface} diagnostics response is not a positive exact component readback"
+}
+
+verify_inventory_envelope "${api_inventory}" "deployed HTTP"
+verify_diagnostics_envelope "${api_diagnostics}" "deployed HTTP"
+verify_inventory_envelope "${mcp_inventory}" "deployed MCP"
+verify_diagnostics_envelope "${mcp_diagnostics}" "deployed MCP"
+
+# 3. Workflow: terminal success, no retry/failed/dead-letter.
 rg --quiet '"state"[[:space:]]*:[[:space:]]*"(completed|succeeded)"' "${workflow_items}" \
 	|| die "no completed/succeeded component workflow item"
 if rg --quiet '"state"[[:space:]]*:[[:space:]]*"(retrying|failed|dead_letter|dead-letter)"' "${workflow_items}"; then
 	die "component workflow has retrying/failed/dead-letter items"
 fi
 
-# 3. Facts: at least one committed scorecard fact family with count > 0.
+# 4. Facts: at least one committed scorecard fact family with count > 0.
 fact_seen=false
 for family in "${fact_families[@]}"; do
 	if rg --quiet "\"${family}\"[[:space:]]*:[[:space:]]*[1-9][0-9]*" "${facts}"; then
@@ -129,7 +190,7 @@ for family in "${fact_families[@]}"; do
 done
 [[ "${fact_seen}" == true ]] || die "no committed dev.eshu.examples.scorecard.* facts"
 
-# 4. Provenance: every reproducibility/audit field must be present and non-empty
+# 5. Provenance: every reproducibility/audit field must be present and non-empty
 #    so the run records what built it and where it ran. Each field is matched as
 #    a non-empty, non-"unknown" string value.
 for field in eshu_commit component_digest core_version sdk_version backend queue_terminal_state metrics_handle; do
@@ -141,8 +202,16 @@ rg --quiet '"eshu_commit"[[:space:]]*:[[:space:]]*"unknown"' "${provenance}" \
 rg --quiet '"component_digest"[[:space:]]*:[[:space:]]*"sha256:[A-Fa-f0-9]{8,}"' "${provenance}" \
 	|| die "provenance component_digest is not a sha256 digest"
 
-# 5. Redaction canary across every artifact.
-for artifact in "${inventory}" "${workflow_items}" "${facts}" "${provenance}"; do
+# 6. Redaction canary across every artifact.
+for artifact in \
+	"${inventory}" \
+	"${api_inventory}" \
+	"${api_diagnostics}" \
+	"${mcp_inventory}" \
+	"${mcp_diagnostics}" \
+	"${workflow_items}" \
+	"${facts}" \
+	"${provenance}"; do
 	for pattern in "${forbidden_patterns[@]}"; do
 		if rg --quiet "${pattern}" "${artifact}"; then
 			die "forbidden material matched /${pattern}/ in $(basename "${artifact}")"

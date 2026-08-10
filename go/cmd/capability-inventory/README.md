@@ -46,9 +46,9 @@ go run ./cmd/capability-inventory -mode product-claims
 go run ./cmd/capability-inventory -mode budget-proof \
   -budget-artifact ../capability-budget-proof.json
 
-# Remote-validation artifact-existence gate: fail when a matrix
-# remote_validation ref has no committed docs/internal/remote-validation/<ref>.md
-# artifact and is not listed in specs/remote-validation-baseline.txt.
+# Remote-validation deployed-evidence gate: fail when a production-supported
+# ref lacks a current-format deployed artifact, when the generated slug-to-row
+# inventory drifts, or when neither is covered by the frozen burn-down baseline.
 go run ./cmd/capability-inventory -mode remote-validation
 
 # Regenerate the burn-down baseline from the current tree.
@@ -110,10 +110,11 @@ go run ./cmd/capability-inventory -mode graph-read-probe
   inventory; the same inputs always produce the same bytes, so a regenerated
   artifact only changes when the matrix, overlay, registry, or a live surface
   changed.
-- `remote-validation` mode (`remote_validation_mode.go`) is the artifact-
-  existence gate for `remote_validation` proof-IDs (#5407): it never builds
+- `remote-validation` mode (`remote_validation_mode.go`) is the deployed-
+  evidence gate for `remote_validation` proof-IDs (#5407): it never builds
   the full catalog, only `capabilitycatalog.LoadMatrix` plus
-  `CheckRemoteValidationArtifacts` and the baseline's ratcheting FROZEN_MAX
+  `CheckRemoteValidationArtifacts`, the generated slug-to-row inventory, and
+  the baseline's ratcheting FROZEN_MAX
   ceiling check (`RemoteValidationBaselineCeilingExceeded`), so it stays cheap
   enough to run on every matrix or baseline change. The ceiling fails the gate
   when the baseline entry count exceeds it, so the frozen debt set cannot grow.

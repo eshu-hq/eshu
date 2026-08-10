@@ -63,7 +63,7 @@ func (h DeployableUnitCorrelationHandler) Handle(
 
 	candidates, _ := ExtractWorkloadCandidates(envelopes)
 	if h.ResolvedLoader != nil {
-		resolved, err := loadResolvedRelationshipsForIntent(ctx, h.ResolvedLoader, intent)
+		resolved, err := loadWorkloadResolvedRelationships(ctx, h.ResolvedLoader, intent, candidates)
 		if err != nil {
 			return Result{}, fmt.Errorf("load resolved relationships for deployable unit correlation: %w", err)
 		}

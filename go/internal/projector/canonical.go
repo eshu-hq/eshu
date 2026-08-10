@@ -102,16 +102,17 @@ type FileRow struct {
 // EntityRow carries the canonical properties for a labeled entity node.
 // The Label field determines the Neo4j node label (Function, Class, etc.).
 type EntityRow struct {
-	EntityID     string
-	Label        string // Neo4j label: "Function", "Class", etc.
-	EntityName   string
-	FilePath     string
-	RelativePath string
-	StartLine    int
-	EndLine      int
-	Language     string
-	RepoID       string
-	Metadata     map[string]any
+	EntityID             string
+	Label                string // Neo4j label: "Function", "Class", etc.
+	EntityName           string
+	FilePath             string
+	RelativePath         string
+	StartLine            int
+	EndLine              int
+	Language             string
+	RepoID               string
+	CyclomaticComplexity int
+	Metadata             map[string]any
 }
 
 // ModuleRow carries the canonical properties for a Module node.

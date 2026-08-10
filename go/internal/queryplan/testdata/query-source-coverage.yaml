@@ -213,12 +213,10 @@ source_coverage:
           source_sha256: 6c11a10a13d084edbdbebef92d32a252203fca108300e249f33c3af524f4c618
           key_bound: single_key
           max_results: 1212
-  - file: impact_change_surface_legacy.go
+  - file: impact_change_surface_traversal.go
     calls:
-      - {symbol: "(*ImpactHandler).findChangeSurfaceImpactRows", count: 1, source_sha256: c5f2f7defb9741fa0877b4d8238f228692e461cd75179a746c78fedd7128ccdc, entry_ids: [QP-IMPACT-CHANGE-SURFACE]}
-  - file: impact_change_surface_response.go
-    calls:
-      - {symbol: "(*ImpactHandler).changeSurfaceImpactRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - {symbol: "(*ImpactHandler).runChangeSurfaceOutgoing", count: 1, source_sha256: 50b86670b586ad34ee1017d35da837bf40cd8e87309f36c82d5ca72ce427e3ba, entry_ids: [QP-IMPACT-CHANGE-SURFACE, QP-IMPACT-CHANGE-SURFACE-SCOPED]}
+      - {symbol: "(*ImpactHandler).runChangeSurfaceRepositoryConsumers", count: 1, source_sha256: c455c470e7f7127bbe68dab7c56d8c0335ae8654ab9f362b57ab664a8150712d, entry_ids: [QP-IMPACT-CHANGE-SURFACE-CONSUMERS, QP-IMPACT-CHANGE-SURFACE-CONSUMERS-SCOPED]}
   - file: impact_resource_investigation_selector.go
     calls:
       - {symbol: "runResourceInvestigationSelectorFanout", count: 1, source_sha256: d9db84043aeb47b46543f15a2c74b0877c9ae55ba83bc1dd53b42258edb56e60, entry_ids: [QP-RESOURCE-INVESTIGATION-SELECTOR]}

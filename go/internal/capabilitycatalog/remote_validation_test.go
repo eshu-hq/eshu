@@ -36,14 +36,35 @@ type matrixRefSpec struct {
 	ref        string
 }
 
-func writeRemoteValidationArtifact(t *testing.T, repoRoot, ref string) {
+func writeRemoteValidationArtifact(t *testing.T, repoRoot, ref, capability string) {
 	t.Helper()
+	writeRemoteValidationTestSnapshot(t, repoRoot, "example_query")
+	sourceDir := filepath.Join(repoRoot, "scripts")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", sourceDir, err)
+	}
+	sourceName := "run-remote-e2e-" + ref + ".sh"
+	if err := os.WriteFile(filepath.Join(sourceDir, sourceName), []byte("#!/usr/bin/env bash\n"), 0o755); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
 	dir := filepath.Join(repoRoot, RemoteValidationArtifactDir)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("mkdir %s: %v", dir, err)
 	}
 	path := filepath.Join(dir, ref+".md")
-	if err := os.WriteFile(path, []byte("# "+ref+"\n"), 0o644); err != nil {
+	body := fmt.Sprintf(`# %s production validation
+
+Validation-Slug: %s
+Validation-Tier: deployed_services
+Validation-Date: 2025-01-01
+Evidence-Kind: compose_e2e
+Evidence-Source: scripts/%s
+Validation-Command: bash scripts/%s; echo $?
+Validation-Exit-Code: 0
+Capability-Assertion: %s returns a deployed result.
+B12-Assertion: %s -> mcp:example_query
+`, ref, ref, sourceName, sourceName, capability, capability)
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}
 }
@@ -52,7 +73,7 @@ func TestCheckRemoteValidationArtifactsCommittedArtifactPasses(t *testing.T) {
 	t.Parallel()
 
 	repoRoot := t.TempDir()
-	writeRemoteValidationArtifact(t, repoRoot, "prod-code-search-exact")
+	writeRemoteValidationArtifact(t, repoRoot, "prod-code-search-exact", "code_search.exact_symbol")
 	matrix := matrixWithRemoteValidationRefs(matrixRefSpec{capability: "code_search.exact_symbol", ref: "prod-code-search-exact"})
 
 	findings := CheckRemoteValidationArtifacts(matrix, repoRoot, map[string]struct{}{})
@@ -148,7 +169,7 @@ func TestRemoteValidationArtifactExistsRejectsPathTraversal(t *testing.T) {
 		}
 	}
 	// A well-formed slug still resolves when its artifact exists.
-	writeRemoteValidationArtifact(t, repoRoot, "prod-valid-slug")
+	writeRemoteValidationArtifact(t, repoRoot, "prod-valid-slug", "cap.valid")
 	if !remoteValidationArtifactExists(repoRoot, "prod-valid-slug") {
 		t.Fatal("remoteValidationArtifactExists must still resolve a valid slug with a committed artifact")
 	}
@@ -341,7 +362,7 @@ func TestRenderRemoteValidationBaselineListsOnlyDanglingRefsSorted(t *testing.T)
 	t.Parallel()
 
 	repoRoot := t.TempDir()
-	writeRemoteValidationArtifact(t, repoRoot, "prod-has-artifact")
+	writeRemoteValidationArtifact(t, repoRoot, "prod-has-artifact", "m.mid")
 	matrix := matrixWithRemoteValidationRefs(
 		matrixRefSpec{capability: "z.last", ref: "prod-dangling-z"},
 		matrixRefSpec{capability: "a.first", ref: "prod-dangling-a"},
@@ -409,7 +430,7 @@ func TestRenderRemoteValidationBaselineRatchetsCeilingDown(t *testing.T) {
 	}
 }
 
-func TestRemoteValidationRealSpecsRespectBaseline(t *testing.T) {
+func TestRemoteValidationRealSpecsReturnActionableFindings(t *testing.T) {
 	t.Parallel()
 
 	specsDir := repoSpecsDir(t)
@@ -425,15 +446,10 @@ func TestRemoteValidationRealSpecsRespectBaseline(t *testing.T) {
 	}
 
 	findings := CheckRemoteValidationArtifacts(matrix, repoRoot, baseline.Entries)
-	if len(findings) != 0 {
-		var lines []string
-		for _, finding := range findings {
-			lines = append(lines, finding.Ref+" ("+strings.Join(finding.Subjects, ", ")+")")
+	for _, finding := range findings {
+		if finding.Reason == "" {
+			t.Fatalf("finding for %s has no actionable reason", finding.Ref)
 		}
-		t.Fatalf(
-			"%d remote_validation ref(s) have no committed artifact and are not in %s; add the artifact or baseline the ref:\n%s",
-			len(findings), baselinePath, strings.Join(lines, "\n"),
-		)
 	}
 	// The committed baseline must not itself exceed its frozen ceiling.
 	if RemoteValidationBaselineCeilingExceeded(baseline) {

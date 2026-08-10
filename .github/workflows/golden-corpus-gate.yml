@@ -27,6 +27,8 @@ on:
       - 'go/cmd/collector-**'
       - 'go/cmd/api/**'
       - 'go/cmd/golden-corpus-gate/**'
+      - 'go/cmd/mock-prometheus-mimir/**'
+      - 'go/cmd/mock-openai-compatible/**'
       - 'go/internal/demospec/**'
       # #5538 wider audit: every other package `go list -deps` confirms is
       # compiled into the six binaries this gate builds (bootstrap-index,
@@ -87,6 +89,10 @@ on:
       - 'go/internal/semanticpolicy/**'
       - 'go/internal/semanticguard/**'
       - 'go/internal/semanticprofile/**'
+      - 'go/internal/ask/**'
+      - 'go/internal/askwiring/**'
+      - 'go/internal/answerguardrail/**'
+      - 'go/internal/answernarration/**'
       - 'go/internal/iacreachability/**'
       - 'go/internal/rubycontroller/**'
       # #5538 second review round: capability/status/version surface backing
@@ -124,6 +130,7 @@ on:
       # The orchestrator sources these; an edit to one changes what the gate
       # does, so they must trigger it too (the live-gate mutex included).
       - 'scripts/lib/golden-corpus-*.sh'
+      - 'scripts/lib/test-golden-corpus-*.sh'
       - 'scripts/lib/live-gate-lock.sh'
       - 'scripts/ci/install-apt-packages.sh'
       - '.github/workflows/golden-corpus-gate.yml'
@@ -166,6 +173,9 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+
+      - name: Install ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
 
       - name: Run B-7 golden corpus gate
         env:

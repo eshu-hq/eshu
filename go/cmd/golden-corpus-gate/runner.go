@@ -32,6 +32,23 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 		_, _ = fmt.Fprintln(stdout, scopeID)
 		return nil
 	}
+	if o.printPersistedAggregates {
+		counter, closeFn, err := openGraphCounter(ctx, getenv)
+		if err != nil {
+			return fmt.Errorf("open graph for persisted aggregate oracle: %w", err)
+		}
+		defer closeFn()
+		counts, err := readPersistedAggregateCounts(ctx, counter)
+		if err != nil {
+			return err
+		}
+		raw, err := marshalPersistedAggregateCounts(counts)
+		if err != nil {
+			return err
+		}
+		_, err = stdout.Write(raw)
+		return err
+	}
 	snap, err := LoadSnapshot(o.snapshotPath)
 	if err != nil {
 		return err

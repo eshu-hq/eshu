@@ -319,6 +319,22 @@ surfaces:
       E2E stack (docker-compose.e2e.yaml). Deliberately excluded from the
       released production image; not a production command. Serves a single
       fixed synthetic identity with no real authentication.
+  - category: command
+    name: mock-openai-compatible
+    readiness: fixture_only
+    owner: cmd/mock-openai-compatible
+    notes: >-
+      Test-only deterministic OpenAI-compatible endpoint for the credential-free
+      golden-corpus Ask proof. Deliberately excluded from the released
+      production image; not a production command.
+  - category: command
+    name: mock-prometheus-mimir
+    readiness: fixture_only
+    owner: cmd/mock-prometheus-mimir
+    notes: >-
+      Test-only deterministic Prometheus-compatible range endpoint for the
+      credential-free golden-corpus metrics proof. Deliberately excluded from
+      the released production image; not a production command.
   - category: collector
     name: kubernetes_live
     readiness: foundation_only

@@ -74,8 +74,10 @@ isolated Docker Compose project names against `flutter/flutter` and
 through `/api/v0/code/dead-code`. That run left no committed, offline-reproducible
 artifact, so it never backed a grade on its own.
 
-Dart's Real-Repo Validation grade is `real-repo-validated` (#5399), earned by a
-committed, offline-reproducible dogfood artifact: `scripts/dogfood-dart.sh`
+Dart's Real-Repo Validation and End-to-End Indexing grades are `supported`.
+The live golden-corpus gate stages `dart_comprehensive` and attributes Dart
+relationship and query assertions in the B-12 snapshot. The separate #5399
+offline-reproducible dogfood artifact, `scripts/dogfood-dart.sh`,
 runs the standing `TestDogfoodDartRealRepoSnapshot` regression test
 (`go/internal/parser/dart/dogfood_real_repo_test.go`) against the committed
 app-shaped corpus at `tests/fixtures/dogfood/dart_real_repo` (a synthetic
@@ -83,11 +85,9 @@ app-shaped corpus at `tests/fixtures/dogfood/dart_real_repo` (a synthetic
 patterns in `flutter/flutter` and `dart-lang/http`, recorded as provenance
 metadata only and never fetched) and diffs the parser's bucket counts against
 the checked-in snapshot at
-`go/internal/parser/dart/testdata/dogfood_real_repo_snapshot.txt`. The script
-requires no network access or Docker. End-to-End Indexing stays
-`fixture-backed`: the corpus is not staged in `corpus_fixtures` in
-`scripts/verify-golden-corpus-gate.sh` and has no B-12 attribution, so it does
-not clear the `supported` bar (see
+`go/internal/parser/dart/testdata/dogfood_real_repo_snapshot.txt`. That script
+requires no network access or Docker and remains useful focused parser proof;
+the higher live grade comes from the deployed corpus run (see
 [Parser Support Matrix](support-maturity.md#grade-definitions)).
 
 ## Framework And Library Support

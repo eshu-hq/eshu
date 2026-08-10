@@ -247,6 +247,15 @@ Domain and intent helpers:
   alias-gated through `environment.IsKnownToken`/`environment.Canonical`
   (`internal/environment`) so an unrecognized namespace or filename suffix
   never invents an environment.
+- ArgoCD Application source evidence points from the control repository that
+  contains the Application to the deployed repository in `repoURL`.
+  Workload-instance materialization reverses that edge when selecting the
+  deployed repository, while ApplicationSet deploy-source evidence keeps its
+  existing reverse-normalized direction. The committed production/stage
+  fixture test proves both canonical environment instances and their
+  `INSTANCE_OF` and `DEPLOYMENT_SOURCE` graph writes. This direction correction
+  adds no query or loop, and existing workload materialization logs and stats
+  remain the operator-facing diagnostic surface.
 - `InferWorkloadKind`, `InferWorkloadClassification` — `projection.go:152, 169`.
 
 ## Dependencies

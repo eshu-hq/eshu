@@ -4,7 +4,7 @@ set -euo pipefail
 # Capture + verify driver for the Scorecard component-extension remote Compose
 # proof (#2126, #1923). It reads runtime truth from a running ce-proof stack
 # (see docs/public/run-locally/docker-compose.component-extension.yaml), shapes
-# it into the three normalized proof artifacts the verifier consumes, then runs
+# it into normalized proof artifacts the verifier consumes, then runs
 # scripts/verify-remote-e2e-component-extension.sh against them.
 #
 # The artifacts are normalized on purpose: only the fields the proof asserts are
@@ -19,6 +19,8 @@ set -euo pipefail
 #   CE_PROOF_PROJECT      docker compose project name        (default: ce-proof)
 #   CE_PROOF_COLLECTOR    collector container name           (default: ${project}-component-extension-collector-1)
 #   CE_PROOF_POSTGRES     postgres container name            (default: ${project}-postgres-1)
+#   CE_PROOF_API          API container name                 (default: ${project}-eshu-1)
+#   CE_PROOF_MCP          MCP container name                 (default: ${project}-mcp-server-1)
 #   CE_PROOF_COMPONENT_HOME  component home in the collector  (default: /data/.eshu/components)
 
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "$0")/.." && pwd))"
@@ -26,6 +28,8 @@ repo_root="$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "$0")/.
 project="${CE_PROOF_PROJECT:-ce-proof}"
 collector="${CE_PROOF_COLLECTOR:-${project}-component-extension-collector-1}"
 postgres="${CE_PROOF_POSTGRES:-${project}-postgres-1}"
+api="${CE_PROOF_API:-${project}-eshu-1}"
+mcp="${CE_PROOF_MCP:-${project}-mcp-server-1}"
 component_home="${CE_PROOF_COMPONENT_HOME:-/data/.eshu/components}"
 component_id="dev.eshu.examples.scorecard"
 artifacts_dir=""
@@ -44,6 +48,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 command -v docker >/dev/null 2>&1 || die "docker is required"
+command -v jq >/dev/null 2>&1 || die "jq is required"
 command -v rg >/dev/null 2>&1 || die "rg is required"
 
 if [[ -z "${artifacts_dir}" ]]; then
@@ -53,6 +58,60 @@ mkdir -p "${artifacts_dir}"
 
 docker inspect "${collector}" >/dev/null 2>&1 || die "collector container not found: ${collector}"
 docker inspect "${postgres}" >/dev/null 2>&1 || die "postgres container not found: ${postgres}"
+docker inspect "${api}" >/dev/null 2>&1 || die "api container not found: ${api}"
+docker inspect "${mcp}" >/dev/null 2>&1 || die "mcp container not found: ${mcp}"
+
+capture_component_http() {
+	local path="$1"
+	local output="$2"
+	docker exec --env CE_PROOF_PATH="${path}" "${api}" sh -c '
+		token=""
+		while IFS= read -r line; do
+			case "$line" in
+				ESHU_API_KEY=*) token="${line#ESHU_API_KEY=}" ;;
+			esac
+		done < /data/.eshu/.env
+		[ -n "$token" ] || exit 2
+		curl -fsS \
+			-H "Authorization: Bearer ${token}" \
+			-H "Accept: application/eshu.envelope+json" \
+			"http://localhost:8080${CE_PROOF_PATH}"
+	' >"${output}"
+}
+
+capture_component_mcp() {
+	local tool_name="$1"
+	local arguments_json="$2"
+	local output="$3"
+	local response
+	local payload
+	response="$(mktemp "${TMPDIR:-/tmp}/component-extension-mcp-response.XXXXXX")"
+	payload="$(jq -nc --arg name "${tool_name}" --argjson arguments "${arguments_json}" \
+		'{jsonrpc:"2.0", id:1, method:"tools/call", params:{name:$name, arguments:$arguments}}')"
+	docker exec --env CE_PROOF_PAYLOAD="${payload}" "${mcp}" sh -c '
+		token=""
+		while IFS= read -r line; do
+			case "$line" in
+				ESHU_API_KEY=*) token="${line#ESHU_API_KEY=}" ;;
+			esac
+		done < /data/.eshu/.env
+		[ -n "$token" ] || exit 2
+		curl -fsS -X POST \
+			-H "Authorization: Bearer ${token}" \
+			-H "Content-Type: application/json" \
+			--data "${CE_PROOF_PAYLOAD}" \
+			http://localhost:8080/mcp/message
+	' >"${response}"
+	jq -e '(.error == null) and ((.result.isError // false) | not)' "${response}" >/dev/null \
+		|| die "MCP tool failed: ${tool_name}"
+	jq -er '
+		first(.result.content[]?
+			| select(.type == "resource" and .resource.uri == "eshu://tool-result/envelope")
+			| .resource.text)
+		| fromjson
+	' "${response}" >"${output}" || die "MCP tool response missing Eshu envelope: ${tool_name}"
+	rm -f "${response}"
+}
 
 # 1. Inventory: trusted readback from the component CLI, normalized to the
 #    installed/enabled/trusted booleans the proof asserts. Trust flags mirror the
@@ -82,7 +141,25 @@ cat >"${artifacts_dir}/inventory.json" <<JSON
 }
 JSON
 
-# 2. Workflow items: terminal state per scorecard component work item. Postgres
+# 2. Deployed HTTP and MCP readbacks: exercise both public query surfaces
+#    against their auth-gated running services. These captures close the proof
+#    gap left by CLI-only registry inspection.
+capture_component_http \
+	"/api/v0/component-extensions?limit=100" \
+	"${artifacts_dir}/api-inventory.json"
+capture_component_http \
+	"/api/v0/component-extensions/${component_id}/diagnostics" \
+	"${artifacts_dir}/api-diagnostics.json"
+capture_component_mcp \
+	"list_component_extensions" \
+	'{"limit":100}' \
+	"${artifacts_dir}/mcp-inventory.json"
+capture_component_mcp \
+	"get_component_extension_diagnostics" \
+	"{\"component_id\":\"${component_id}\"}" \
+	"${artifacts_dir}/mcp-diagnostics.json"
+
+# 3. Workflow items: terminal state per scorecard component work item. Postgres
 #    'completed' maps to the proof's terminal-success state; any non-terminal or
 #    failed status is preserved verbatim so the verifier can fail closed.
 work_rows="$(docker exec "${postgres}" psql -U eshu -d eshu -tAF'|' -c \
@@ -98,7 +175,7 @@ work_rows="$(docker exec "${postgres}" psql -U eshu -d eshu -tAF'|' -c \
 	printf '\n  ]\n}\n'
 } >"${artifacts_dir}/workflow-items.json"
 
-# 3. Facts: committed dev.eshu.examples.scorecard.* family counts. Counts only,
+# 4. Facts: committed dev.eshu.examples.scorecard.* family counts. Counts only,
 #    never payloads, so no source material can leak into the proof surface.
 fact_rows="$(docker exec "${postgres}" psql -U eshu -d eshu -tAF'|' -c \
 	"SELECT fact_kind, count(*) FROM fact_records WHERE fact_kind LIKE '${component_id}.%' GROUP BY fact_kind ORDER BY fact_kind;")"
@@ -113,7 +190,7 @@ fact_rows="$(docker exec "${postgres}" psql -U eshu -d eshu -tAF'|' -c \
 	printf '\n}\n'
 } >"${artifacts_dir}/facts.json"
 
-# 4. Provenance: the immutable facts that make this run reproducible and
+# 5. Provenance: the immutable facts that make this run reproducible and
 #    auditable — Eshu commit, component digest, SDK/core versions, graph
 #    backend, queue terminal state, and the telemetry handle. Only low-cardinality
 #    identifiers, version strings, and port-only metric handles are recorded, so

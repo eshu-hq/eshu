@@ -269,7 +269,7 @@ func TestSecurityAlertReconciliationSQLAppliesScopedGrant(t *testing.T) {
 			name:       "list",
 			query:      listSecurityAlertReconciliationsQuery,
 			beforeText: "LIMIT $10",
-			predicate:  "cardinality($11::text[]) = 0",
+			predicate:  "COALESCE(cardinality($11::text[]), 0) = 0",
 		},
 		{
 			name:       "total",
