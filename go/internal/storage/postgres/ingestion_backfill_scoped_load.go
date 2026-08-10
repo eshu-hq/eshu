@@ -362,7 +362,7 @@ func (s IngestionStore) loadDeferredScopedFactsAcrossPartitions(
 			//
 			// The event is CAPPED and lossy -- one span per pass, no
 			// SpanLimits set, so the SDK's 128-event default evicts FIFO --
-			// which is why the log above is kept rather than replaced. See
+			// which is why the log below is kept rather than replaced. See
 			// the telemetry reference for the full note.
 			log.Printf(
 				"deferred_backfill_fact_load_task_completed task=%d query_tasks=%d scope_id=%q repo_terms=%d non_repo_terms=%d loaded_facts=%d duration_s=%.2f workers=%d",
