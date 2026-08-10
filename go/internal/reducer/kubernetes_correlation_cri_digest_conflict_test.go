@@ -106,6 +106,67 @@ func TestBuildKubernetesCorrelationDecisionsConflictingCRIDigestsAreAmbiguous(t 
 	}
 }
 
+// TestBuildKubernetesCorrelationDecisionsSameDigestDifferentRegistryStaysExact
+// proves that two containers resolving one declared reference to the SAME
+// content digest through different registry or mirror spellings still promote
+// to exact. A digest is content-addressable, so those are the same image;
+// treating the differing repository prefix as a conflict would suppress a
+// legitimate RUNS_IMAGE edge for every deployment that pulls through a mirror.
+func TestBuildKubernetesCorrelationDecisionsSameDigestDifferentRegistryStaysExact(t *testing.T) {
+	t.Parallel()
+
+	imageRef := testK8sRegistry + "/" + testK8sRepository + ":v1.2.3"
+	viaRegistry := testK8sRegistry + "/" + testK8sRepository + "@" + testK8sDigest
+	viaMirror := "mirror.example.net/" + testK8sRepository + "@" + testK8sDigest
+	decisions := BuildKubernetesCorrelationDecisions([]facts.Envelope{
+		podTemplateFactWithContainerDigests("pod-1", "checkout", "uid-1",
+			[][2]string{{imageRef, viaRegistry}, {imageRef, viaMirror}},
+			map[string]string{"app": "checkout"}),
+		k8sSourceManifestFact("oci-1", testK8sRegistry, testK8sRepository, testK8sDigest, false),
+	})
+
+	objectID := "k8s://" + testK8sCluster + "/apps/v1/deployments/" + testK8sNamespace + "/checkout"
+	decision := kubernetesCorrelationByImageRef(decisions)[objectID+"|"+imageRef+"|"]
+	assertKubernetesOutcome(t, decision, KubernetesCorrelationExact, driftInSync)
+	if decision.SourceDigest != testK8sDigest {
+		t.Fatalf("source_digest = %q, want %q", decision.SourceDigest, testK8sDigest)
+	}
+	if len(decision.CandidateSourceDigests) != 0 {
+		t.Fatalf("candidate_source_digests = %v, want none: one digest is not a conflict", decision.CandidateSourceDigests)
+	}
+}
+
+// TestBuildKubernetesCorrelationDecisionsThreeConflictingCRIDigestsAreAmbiguous
+// proves the conflict path holds past the two-digest case: the collect-time
+// dedup and the sort/compact that builds the candidate list must both survive
+// N > 2, since nothing bounds a pod to two containers.
+func TestBuildKubernetesCorrelationDecisionsThreeConflictingCRIDigestsAreAmbiguous(t *testing.T) {
+	t.Parallel()
+
+	imageRef := testK8sRegistry + "/" + testK8sRepository + ":v1.2.3"
+	prefix := testK8sRegistry + "/" + testK8sRepository + "@"
+	decisions := BuildKubernetesCorrelationDecisions([]facts.Envelope{
+		podTemplateFactWithContainerDigests("pod-1", "checkout", "uid-1",
+			[][2]string{
+				{imageRef, prefix + testK8sDigest},
+				{imageRef, prefix + testK8sDigest2},
+				{imageRef, prefix + testK8sDigest3},
+			},
+			map[string]string{"app": "checkout"}),
+		k8sSourceManifestFact("oci-1", testK8sRegistry, testK8sRepository, testK8sDigest, false),
+		k8sSourceManifestFact("oci-2", testK8sRegistry, testK8sRepository, testK8sDigest2, false),
+		k8sSourceManifestFact("oci-3", testK8sRegistry, testK8sRepository, testK8sDigest3, false),
+	})
+
+	objectID := "k8s://" + testK8sCluster + "/apps/v1/deployments/" + testK8sNamespace + "/checkout"
+	decision := kubernetesCorrelationByImageRef(decisions)[objectID+"|"+imageRef+"|"]
+	assertKubernetesOutcome(t, decision, KubernetesCorrelationAmbiguous, driftUnknown)
+	want := []string{testK8sDigest, testK8sDigest2, testK8sDigest3}
+	if !slices.Equal(decision.CandidateSourceDigests, want) {
+		t.Fatalf("candidate_source_digests = %v, want %v", decision.CandidateSourceDigests, want)
+	}
+}
+
 // TestBuildKubernetesCorrelationDecisionsAgreeingCRIDigestsStayExact proves the
 // conflict detection does not disturb the ordinary case: two containers sharing
 // one declared reference AND agreeing on the resolved digest still promote to

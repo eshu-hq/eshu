@@ -56,23 +56,19 @@ type kubernetesWorkload struct {
 type resolvedImageDigest struct {
 	// candidates is sorted and deduplicated so the resulting correlation
 	// decision is byte-stable across reducer runs regardless of container order.
+	// It holds digest REFERENCES, so one content digest can appear more than
+	// once here under different registry or mirror spellings.
 	candidates []string
+	// distinctDigests counts the distinct content digests among candidates. It
+	// is what decides a conflict: a digest is content-addressable, so the same
+	// digest reached through two registries is one image, not a disagreement.
+	distinctDigests int
 }
 
 // conflicting reports whether containers sharing one declared image reference
-// reported different CRI-resolved digests.
+// resolved it to more than one distinct content digest.
 func (r resolvedImageDigest) conflicting() bool {
-	return len(r.candidates) > 1
-}
-
-// promotable returns the single CRI-resolved digest reference when exactly one
-// was reported, and the empty string when there is none or the containers
-// disagreed.
-func (r resolvedImageDigest) promotable() string {
-	if len(r.candidates) == 1 {
-		return r.candidates[0]
-	}
-	return ""
+	return r.distinctDigests > 1
 }
 
 // kubernetesIdentityEdge is one directed kubernetes_live.relationship pre-parsed
@@ -365,10 +361,11 @@ func kubernetesSourceTagKey(repositoryKey, tag string) string {
 // raw image reference to the CRI-resolved normalized digests reported for it,
 // populated from PodTemplateContainer.ResolvedImageDigest.
 //
-// Kubernetes does not run the same container image at two different digests in
-// a single pod, so two containers sharing a declared reference with differing
-// resolved digests means the observation is internally inconsistent and the
-// running identity is not knowable from it. Every distinct digest is kept so
+// Two containers sharing a declared reference can legitimately resolve to
+// different digests — a mutable tag that moves between pulls is the ordinary
+// cause — so this is not treated as a malformed observation. What it does mean
+// is that the reference no longer names one running image, so no single runtime
+// identity can be promoted from it. Every distinct digest is kept so
 // the classifier can record both candidates and decline to promote, rather than
 // asserting whichever container happened to be read first (#5517). See also
 // go/internal/reducer/search-and-runtime-projections.md
@@ -399,7 +396,31 @@ func resolvedImageDigestsFromTemplate(
 	out := make(map[string]resolvedImageDigest, len(collected))
 	for ref, digests := range collected {
 		sort.Strings(digests)
-		out[ref] = resolvedImageDigest{candidates: digests}
+		out[ref] = resolvedImageDigest{
+			candidates:      digests,
+			distinctDigests: countDistinctDigestIdentities(digests),
+		}
 	}
 	return out
+}
+
+// countDistinctDigestIdentities counts the distinct content digests among
+// resolved digest references.
+//
+// A digest is content-addressable, so one declared reference resolving to the
+// same digest through two registry or mirror spellings is the same image, not a
+// conflict. Counting the raw repo@sha256 strings instead would call that a
+// conflict and suppress a legitimate exact RUNS_IMAGE edge for every deployment
+// pulled through a mirror. A reference that cannot be parsed counts under its
+// raw string, so unparseable input is never silently merged with anything else.
+func countDistinctDigestIdentities(refs []string) int {
+	seen := make(map[string]struct{}, len(refs))
+	for _, ref := range refs {
+		identity := ref
+		if parsed, ok := parseContainerImageRef(ref); ok && parsed.digest != "" {
+			identity = parsed.digest
+		}
+		seen[identity] = struct{}{}
+	}
+	return len(seen)
 }

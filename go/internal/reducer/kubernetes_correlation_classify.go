@@ -99,7 +99,7 @@ func classifyImageRef(
 		if resolved.conflicting() {
 			return classifyConflictingCRIDigests(base, resolved.candidates)
 		}
-		if digest := resolved.promotable(); digest != "" {
+		if digest := promotableCRIRef(resolved.candidates, index); digest != "" {
 			return classifyImageByCRIDigest(base, digest, index)
 		}
 	}
@@ -107,13 +107,41 @@ func classifyImageRef(
 	return classifyImageByTag(base, parsed, index)
 }
 
+// promotableCRIRef picks which resolved digest reference to classify by when
+// the containers agreed on the content digest.
+//
+// They can still disagree on the registry or mirror spelling, and the source
+// index is keyed by repository as well as digest, so one spelling may resolve
+// where another does not. Committing to the sorted-first spelling would just
+// move the old first-wins guess from the digest to the repository and report
+// unresolved for a workload whose image is in fact known. Each spelling is tried
+// in sorted order and the first that resolves wins; when none resolve, the
+// sorted-first is returned so the caller still reports the unresolved reason
+// deterministically.
+func promotableCRIRef(candidates []string, index kubernetesCorrelationIndex) string {
+	if len(candidates) == 0 {
+		return ""
+	}
+	for _, candidate := range candidates {
+		parsed, ok := parseContainerImageRef(candidate)
+		if !ok || parsed.digest == "" || parsed.repositoryKey == "" {
+			continue
+		}
+		if _, resolved := index.resolveDigest(parsed.repositoryKey, parsed.digest); resolved {
+			return candidate
+		}
+	}
+	return candidates[0]
+}
+
 // classifyConflictingCRIDigests classifies a declared image reference whose
-// containers reported different CRI-resolved digests. Kubernetes does not run
-// one declared reference at two digests in a single pod, so the disagreement
-// means the runtime identity cannot be read off this observation. Both
-// candidates are recorded and nothing is promoted: an operator triaging the
-// workload can see that a second digest existed, which a first-wins pick would
-// have hidden behind a confident exact claim.
+// containers reported different CRI-resolved digests. That can happen
+// legitimately — a mutable tag moving between pulls is the ordinary cause — so
+// the observation is not wrong; it simply no longer names one running image, and
+// no single runtime identity can be promoted from it. Every candidate is
+// recorded and nothing is promoted: an operator triaging the workload can see
+// that a second digest existed, which a first-wins pick would have hidden behind
+// a confident exact claim.
 func classifyConflictingCRIDigests(
 	base KubernetesCorrelationDecision,
 	candidates []string,

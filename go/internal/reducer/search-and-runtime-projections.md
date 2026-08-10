@@ -44,15 +44,18 @@ PR2) and `DomainObservabilityCoverageMaterialization` (#391 PR3):
   CRI-resolved digest (Deployments, ReplicaSets, pending pods), behavior stays
   byte-identical to today: tag-form refs fall through to `classifyImageByTag`
   which is always provenance-only `Derived` / `Ambiguous` / `Unresolved`.
-  When two containers share a declared tag ref with differing resolved digests,
-  the observation is internally inconsistent — Kubernetes does not run one
-  declared reference at two digests in a single pod — so the running identity is
-  not knowable from it. `resolvedImageDigestsFromTemplate` keeps every distinct
-  digest and the outcome is `ambiguous` / `driftUnknown` / provenance-only, with
-  both digests recorded in `CandidateSourceDigests` and an explicit
-  `NonPromotion` (#5517). The earlier first-wins policy promoted whichever
-  container was read first to `exact`, which asserted a specific running image
-  that was wrong whenever the digests disagreed.
+  Two containers sharing a declared tag ref can legitimately resolve to
+  different digests — a mutable tag that moves between pulls is the ordinary
+  cause. The observation is not malformed; the reference simply no longer names
+  one running image, so no single runtime identity can be promoted from it.
+  `resolvedImageDigestsFromTemplate` keeps every distinct digest and the outcome
+  is `ambiguous` / `driftUnknown` / provenance-only, with every candidate
+  recorded in `CandidateSourceDigests` and an explicit `NonPromotion` (#5517).
+  The earlier first-wins policy promoted whichever container was read first to
+  `exact`, which asserted a specific running image that was wrong whenever the
+  digests disagreed. Candidates are compared by content digest, not by the raw
+  `repo@sha256:` string, so one digest reached through two registry or mirror
+  spellings stays a single candidate and still promotes to `exact`.
 - The write is idempotent on `(workload_uid, RUNS_IMAGE, source_uid)`; rows are
   deduplicated and sorted so retries and reprojections produce a byte-stable
   batch. The conflict key is per-edge, so no serialization workaround is
