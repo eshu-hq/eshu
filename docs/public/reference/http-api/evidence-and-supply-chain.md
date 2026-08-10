@@ -1013,6 +1013,13 @@ a digest repeat the same deterministic prefix within their page-weighted quota. 
 all-scopes sentinel permits at most 400 graph candidates before the single
 authorization read.
 
+Within `runtime_context`, `environment_evidence` reports current corroboration
+for each accepted CI/CD environment mapping. Values use the same
+`deploy_event`/`declared` vocabulary as the reducer-baked top-level field:
+missing or unknown values normalize to `declared`, and `deploy_event` wins when
+multiple current facts name the same environment. Read-time resolution never
+copies this map into the finding's top-level fields.
+
 Ambiguous images, stale deployment evidence, missing workload links, or missing
 service/environment links stay in `missing_evidence[]`. Exact
 repository-scoped service-catalog correlation evidence remains attached to the
@@ -1021,8 +1028,9 @@ correlation lacks explicit `service_id` or `workload_id` anchors, the row
 reports `service/workload catalog anchor missing` instead of saying
 service-catalog correlation evidence is absent.
 
-`environment_evidence` (issue #5426) is an object keyed by each name in
-`environments[]`, valued `deploy_event` or `declared`: `deploy_event` means a
+The reducer-baked top-level `environment_evidence` (issue #5426) is an object
+keyed by each name in `environments[]`, valued `deploy_event` or `declared`:
+`deploy_event` means a
 `ci.deployment_event` observed at the deploying run's commit corroborated that
 environment; `declared` means only the CI-declared workflow job gate did, with
 no deployment-event corroboration. When two deployments report the same

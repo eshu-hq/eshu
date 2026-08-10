@@ -21,12 +21,15 @@ import (
 // knowledge" that self-heals on the next read — no readiness gate, no
 // re-enqueue, no fan-out.
 type SupplyChainRuntimeContext struct {
-	WorkloadIDs       []string
-	ServiceIDs        []string
-	DeploymentIDs     []string
-	Environments      []string
-	CatalogEntityRefs []string
-	CatalogOwnerRefs  []string
+	WorkloadIDs   []string
+	ServiceIDs    []string
+	DeploymentIDs []string
+	Environments  []string
+	// EnvironmentEvidence records the strongest corroboration state for each
+	// environment resolved from current accepted CI/CD correlation facts.
+	EnvironmentEvidence map[string]string
+	CatalogEntityRefs   []string
+	CatalogOwnerRefs    []string
 }
 
 // SupplyChainRuntimeContextResult is the response-side envelope attached to
@@ -39,13 +42,18 @@ type SupplyChainRuntimeContextResult struct {
 	// from the repository's active runtime facts at query time, not baked
 	// into the finding at reduce time. Empty lists are an honest "no runtime
 	// facts landed yet" (fresh ingest) that self-heals on the next read.
-	TruthBasis        string   `json:"truth_basis"`
-	WorkloadIDs       []string `json:"workload_ids,omitempty"`
-	ServiceIDs        []string `json:"service_ids,omitempty"`
-	DeploymentIDs     []string `json:"deployment_ids,omitempty"`
-	Environments      []string `json:"environments,omitempty"`
-	CatalogEntityRefs []string `json:"catalog_entity_refs,omitempty"`
-	CatalogOwnerRefs  []string `json:"catalog_owner_refs,omitempty"`
+	TruthBasis    string   `json:"truth_basis"`
+	WorkloadIDs   []string `json:"workload_ids,omitempty"`
+	ServiceIDs    []string `json:"service_ids,omitempty"`
+	DeploymentIDs []string `json:"deployment_ids,omitempty"`
+	Environments  []string `json:"environments,omitempty"`
+	// EnvironmentEvidence records the strongest corroboration state for each
+	// environment resolved from current accepted CI/CD correlation facts.
+	// Values use the existing deploy_event/declared vocabulary; deploy_event
+	// wins when multiple active facts name the same environment.
+	EnvironmentEvidence map[string]string `json:"environment_evidence,omitempty"`
+	CatalogEntityRefs   []string          `json:"catalog_entity_refs,omitempty"`
+	CatalogOwnerRefs    []string          `json:"catalog_owner_refs,omitempty"`
 }
 
 const supplyChainRuntimeContextTruthBasis = "read_time_resolved"
@@ -134,12 +142,17 @@ func (h *SupplyChainHandler) applySupplyChainRuntimeContext(
 			continue
 		}
 		resolved := byRepo[repositoryID]
+		environments := sortedUniqueNonEmptyStrings(resolved.Environments)
 		rows[i].RuntimeContext = &SupplyChainRuntimeContextResult{
-			TruthBasis:        supplyChainRuntimeContextTruthBasis,
-			WorkloadIDs:       sortedUniqueNonEmptyStrings(resolved.WorkloadIDs),
-			ServiceIDs:        sortedUniqueNonEmptyStrings(resolved.ServiceIDs),
-			DeploymentIDs:     sortedUniqueNonEmptyStrings(resolved.DeploymentIDs),
-			Environments:      sortedUniqueNonEmptyStrings(resolved.Environments),
+			TruthBasis:    supplyChainRuntimeContextTruthBasis,
+			WorkloadIDs:   sortedUniqueNonEmptyStrings(resolved.WorkloadIDs),
+			ServiceIDs:    sortedUniqueNonEmptyStrings(resolved.ServiceIDs),
+			DeploymentIDs: sortedUniqueNonEmptyStrings(resolved.DeploymentIDs),
+			Environments:  environments,
+			EnvironmentEvidence: cloneSupplyChainRuntimeEnvironmentEvidence(
+				resolved.EnvironmentEvidence,
+				environments,
+			),
 			CatalogEntityRefs: sortedUniqueNonEmptyStrings(resolved.CatalogEntityRefs),
 			CatalogOwnerRefs:  sortedUniqueNonEmptyStrings(resolved.CatalogOwnerRefs),
 		}

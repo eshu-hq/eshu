@@ -347,7 +347,28 @@ result therefore reports the current `runtime_context`,
 `deployment_truth_tier`, `version_resolution_tier`, and
 `version_resolution_corroboration` from the same enriched row. The transformed
 investigation packet omits those fields and skips reads that cannot affect its
-response. Version resolution selects the strongest eligible concrete claim in
+response. The runtime context also reports `environment_evidence` for each
+environment contributed by a current accepted `cicd_run_correlation` fact.
+Values reuse the `deploy_event`/`declared` producer vocabulary: missing or
+unknown values normalize to `declared`, and `deploy_event` wins when more than
+one current fact names the same environment. Read-time evidence never overwrites
+the finding's reducer-baked top-level environment fields.
+
+No-Regression Evidence: `BenchmarkFoldSupplyChainRuntimeContext200Repositories`
+folded the same 800 facts for 200 repositories before and after the response
+change. Across five normal-build samples, the baseline median was 124.547
+microseconds per fold (78.417-154.962 microseconds, 48,168-48,169 bytes and
+1,003 allocations); the environment-evidence fold median was 108.162
+microseconds (107.568-111.308 microseconds, 118,568 bytes and 1,403 allocations).
+The added maps cost 70,399-70,400 bytes and 400 allocations per 200-repository
+fold; wall time stayed below 0.2 milliseconds in every paired sample.
+
+No-Observability-Change: this response fold adds no store call, graph query,
+worker, queue, span, metric, or label. The existing supply-chain list and explain
+request spans, runtime-context result counts, error envelopes, and request
+duration/error metrics still diagnose the bounded read.
+
+Version resolution selects the strongest eligible concrete claim in
 deployment-truth
 order: runtime-observed evidence, CI-declared provenance, then config evidence.
 The unshipped declared-ref tier contributes no claim. A CI-declared digest that

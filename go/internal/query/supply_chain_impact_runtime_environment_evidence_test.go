@@ -1,0 +1,319 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package query
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"reflect"
+	"strconv"
+	"testing"
+)
+
+func TestAddSupplyChainRuntimeContextFactCICDEnvironmentEvidence(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		raw      any
+		expected string
+	}{
+		{name: "deployment event", raw: "deploy_event", expected: "deploy_event"},
+		{name: "trimmed deployment event", raw: "  deploy_event  ", expected: "deploy_event"},
+		{name: "declared", raw: "declared", expected: "declared"},
+		{name: "missing", raw: nil, expected: "declared"},
+		{name: "unknown", raw: "observed", expected: "declared"},
+		{name: "non-string", raw: 42, expected: "declared"},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			payload := map[string]any{
+				"repository_id": "repository:r_environment_evidence",
+				"environment":   "production",
+				"outcome":       "exact",
+			}
+			if tc.raw != nil {
+				payload["environment_evidence"] = tc.raw
+			}
+			out := map[string]SupplyChainRuntimeContext{}
+			addSupplyChainRuntimeContextFact(out, cicdRunCorrelationFactKind, "scope", payload)
+
+			got := out["repository:r_environment_evidence"].EnvironmentEvidence
+			if got["production"] != tc.expected {
+				t.Fatalf("environment evidence = %#v, want production=%q", got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestAddSupplyChainRuntimeContextFactCICDDeployEventWinsRegardlessOfInputOrder(t *testing.T) {
+	t.Parallel()
+
+	for _, order := range [][]string{
+		{"deploy_event", "declared"},
+		{"declared", "deploy_event"},
+	} {
+		out := map[string]SupplyChainRuntimeContext{}
+		for _, evidence := range order {
+			addSupplyChainRuntimeContextFact(out, cicdRunCorrelationFactKind, "scope", map[string]any{
+				"repository_id":        "repository:r_environment_evidence",
+				"environment":          "production",
+				"environment_evidence": evidence,
+				"outcome":              "exact",
+			})
+		}
+		got := out["repository:r_environment_evidence"].EnvironmentEvidence
+		if got["production"] != "deploy_event" {
+			t.Fatalf("order %v produced %#v, want production=deploy_event", order, got)
+		}
+	}
+}
+
+func TestAddSupplyChainRuntimeContextFactCICDRejectedEvidenceDoesNotFold(t *testing.T) {
+	t.Parallel()
+
+	for _, payload := range []map[string]any{
+		{
+			"repository_id":        "repository:r_rejected",
+			"environment":          "production",
+			"environment_evidence": "deploy_event",
+			"outcome":              "rejected",
+		},
+		{
+			"repository_id":        "repository:r_rejected",
+			"environment":          "production",
+			"environment_evidence": "deploy_event",
+			"outcome":              "exact",
+			"provenance_only":      true,
+		},
+	} {
+		out := map[string]SupplyChainRuntimeContext{}
+		addSupplyChainRuntimeContextFact(out, cicdRunCorrelationFactKind, "scope", payload)
+		if _, ok := out["repository:r_rejected"]; ok {
+			t.Fatalf("rejected payload folded into runtime context: %#v", payload)
+		}
+	}
+}
+
+func TestApplySupplyChainRuntimeContextCarriesEnvironmentEvidenceWithoutBackfill(t *testing.T) {
+	t.Parallel()
+
+	contextValue := SupplyChainRuntimeContext{
+		Environments:        []string{"production"},
+		EnvironmentEvidence: map[string]string{"production": "deploy_event"},
+	}
+	store := &runtimeContextFindingStore{byRepo: map[string]SupplyChainRuntimeContext{
+		"repository:r_217415d9": contextValue,
+	}}
+	handler := &SupplyChainHandler{ImpactFindings: store}
+	rows := []SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()}
+
+	if err := handler.applySupplyChainRuntimeContext(context.Background(), rows, repositoryAccessFilter{allScopes: true}); err != nil {
+		t.Fatalf("applySupplyChainRuntimeContext() error = %v, want nil", err)
+	}
+	got := rows[0].RuntimeContext.EnvironmentEvidence
+	if got["production"] != "deploy_event" {
+		t.Fatalf("runtime_context.environment_evidence = %#v, want production=deploy_event", got)
+	}
+	if rows[0].EnvironmentEvidence != nil {
+		t.Fatalf("baked EnvironmentEvidence = %#v, want untouched nil", rows[0].EnvironmentEvidence)
+	}
+	if len(rows[0].Environments) != 0 {
+		t.Fatalf("baked Environments = %#v, want untouched empty", rows[0].Environments)
+	}
+}
+
+func TestApplySupplyChainRuntimeContextOmitsEmptyEnvironmentEvidence(t *testing.T) {
+	t.Parallel()
+
+	store := &runtimeContextFindingStore{byRepo: map[string]SupplyChainRuntimeContext{
+		"repository:r_217415d9": {Environments: []string{"production"}},
+	}}
+	rows := []SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()}
+	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
+		context.Background(),
+		rows,
+		repositoryAccessFilter{allScopes: true},
+	); err != nil {
+		t.Fatalf("applySupplyChainRuntimeContext() error = %v, want nil", err)
+	}
+	encoded, err := json.Marshal(rows[0].RuntimeContext)
+	if err != nil {
+		t.Fatalf("json.Marshal(runtime context) error = %v", err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
+		t.Fatalf("json.Unmarshal(runtime context) error = %v", err)
+	}
+	if value, exists := decoded["environment_evidence"]; exists {
+		t.Fatalf("empty runtime context emitted environment_evidence=%#v", value)
+	}
+}
+
+func TestApplySupplyChainRuntimeContextDefensivelyCopiesEnvironmentEvidence(t *testing.T) {
+	t.Parallel()
+
+	sourceEvidence := map[string]string{"production": "deploy_event"}
+	store := &runtimeContextFindingStore{byRepo: map[string]SupplyChainRuntimeContext{
+		"repository:r_217415d9": {
+			Environments:        []string{"production"},
+			EnvironmentEvidence: sourceEvidence,
+		},
+	}}
+	rows := []SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()}
+	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
+		context.Background(),
+		rows,
+		repositoryAccessFilter{allScopes: true},
+	); err != nil {
+		t.Fatalf("applySupplyChainRuntimeContext() error = %v, want nil", err)
+	}
+
+	rows[0].RuntimeContext.EnvironmentEvidence["production"] = "declared"
+	if sourceEvidence["production"] != "deploy_event" {
+		t.Fatalf("response mutation changed source map to %#v", sourceEvidence)
+	}
+	sourceEvidence["staging"] = "deploy_event"
+	if _, exists := rows[0].RuntimeContext.EnvironmentEvidence["staging"]; exists {
+		t.Fatalf("source mutation changed response map to %#v", rows[0].RuntimeContext.EnvironmentEvidence)
+	}
+}
+
+func TestApplySupplyChainRuntimeContextOmitsOrphanEnvironmentEvidence(t *testing.T) {
+	t.Parallel()
+
+	store := &runtimeContextFindingStore{byRepo: map[string]SupplyChainRuntimeContext{
+		"repository:r_217415d9": {
+			Environments: []string{"production"},
+			EnvironmentEvidence: map[string]string{
+				"production": "deploy_event",
+				"staging":    "deploy_event",
+			},
+		},
+	}}
+	rows := []SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()}
+	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
+		context.Background(),
+		rows,
+		repositoryAccessFilter{allScopes: true},
+	); err != nil {
+		t.Fatalf("applySupplyChainRuntimeContext() error = %v, want nil", err)
+	}
+
+	got := rows[0].RuntimeContext.EnvironmentEvidence
+	if !reflect.DeepEqual(got, map[string]string{"production": "deploy_event"}) {
+		t.Fatalf("environment evidence = %#v, want only resolved production evidence", got)
+	}
+}
+
+func TestSupplyChainListAndExplainReportSameRuntimeEnvironmentEvidence(t *testing.T) {
+	t.Parallel()
+
+	const repositoryID = "repository:r_environment_evidence_parity"
+	finding := SupplyChainImpactFindingRow{
+		FindingID:    "finding-environment-evidence-parity",
+		CVEID:        "CVE-2026-5835",
+		PackageID:    "pkg:npm/example",
+		ImpactStatus: "affected_exact",
+		RepositoryID: repositoryID,
+	}
+	contextValue := SupplyChainRuntimeContext{
+		Environments:        []string{"production"},
+		EnvironmentEvidence: map[string]string{"production": "deploy_event"},
+	}
+	contextStore := &runtimeContextFindingStore{
+		rows:   []SupplyChainImpactFindingRow{finding},
+		byRepo: map[string]SupplyChainRuntimeContext{repositoryID: contextValue},
+	}
+	handler := &SupplyChainHandler{
+		ImpactFindings: contextStore,
+		ImpactExplanations: &recordingSupplyChainImpactExplanationStore{
+			row: SupplyChainImpactExplanationRow{Finding: finding},
+		},
+		Readiness: &recordingSupplyChainImpactReadinessStore{},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	list := httptest.NewRecorder()
+	mux.ServeHTTP(list, httptest.NewRequest(http.MethodGet, "/api/v0/supply-chain/impact/findings?cve_id=CVE-2026-5835&limit=10", nil))
+	if list.Code != http.StatusOK {
+		t.Fatalf("list status = %d, want %d; body = %s", list.Code, http.StatusOK, list.Body.String())
+	}
+	explain := httptest.NewRecorder()
+	mux.ServeHTTP(explain, httptest.NewRequest(http.MethodGet, "/api/v0/supply-chain/impact/explain?finding_id=finding-environment-evidence-parity", nil))
+	if explain.Code != http.StatusOK {
+		t.Fatalf("explain status = %d, want %d; body = %s", explain.Code, http.StatusOK, explain.Body.String())
+	}
+
+	listEvidence := nestedRuntimeEnvironmentEvidenceForTest(t, list.Body.Bytes(), "findings", "0", "runtime_context", "environment_evidence")
+	explainEvidence := nestedRuntimeEnvironmentEvidenceForTest(t, explain.Body.Bytes(), "finding", "runtime_context", "environment_evidence")
+	if !reflect.DeepEqual(listEvidence, explainEvidence) {
+		t.Fatalf("list environment evidence = %#v, explain = %#v", listEvidence, explainEvidence)
+	}
+	if listEvidence["production"] != "deploy_event" {
+		t.Fatalf("runtime environment evidence = %#v, want production=deploy_event", listEvidence)
+	}
+}
+
+func BenchmarkFoldSupplyChainRuntimeContext200Repositories(b *testing.B) {
+	const repositoryCount = 200
+	type fact struct {
+		kind    string
+		scopeID string
+		payload map[string]any
+	}
+	facts := make([]fact, 0, repositoryCount*4)
+	for i := 0; i < repositoryCount; i++ {
+		repositoryID := "repository:r_benchmark_" + strconv.Itoa(i)
+		facts = append(
+			facts,
+			fact{kind: workloadIdentityFactKindQuery, scopeID: repositoryID, payload: map[string]any{"workload_id": "workload:benchmark"}},
+			fact{kind: serviceCatalogCorrelationFactKind, scopeID: repositoryID, payload: map[string]any{"service_id": "service:benchmark", "outcome": "exact"}},
+			fact{kind: platformMaterializationFactKindQuery, scopeID: repositoryID, payload: map[string]any{"deployment_id": "deployment:benchmark"}},
+			fact{kind: cicdRunCorrelationFactKind, scopeID: repositoryID, payload: map[string]any{"environment": "production", "environment_evidence": "deploy_event", "outcome": "exact"}},
+		)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		out := make(map[string]SupplyChainRuntimeContext, repositoryCount)
+		for _, item := range facts {
+			addSupplyChainRuntimeContextFact(out, item.kind, item.scopeID, item.payload)
+		}
+		if len(out) != repositoryCount {
+			b.Fatalf("folded repositories = %d, want %d", len(out), repositoryCount)
+		}
+	}
+}
+
+func nestedRuntimeEnvironmentEvidenceForTest(t *testing.T, body []byte, path ...string) map[string]any {
+	t.Helper()
+	var value any
+	if err := json.Unmarshal(body, &value); err != nil {
+		t.Fatalf("json.Unmarshal(response) error = %v; body = %s", err, body)
+	}
+	for _, segment := range path {
+		switch current := value.(type) {
+		case map[string]any:
+			value = current[segment]
+		case []any:
+			if segment != "0" || len(current) == 0 {
+				t.Fatalf("path %v missing array entry %q in body %s", path, segment, body)
+			}
+			value = current[0]
+		default:
+			t.Fatalf("path %v stopped at %q (%T) in body %s", path, segment, value, body)
+		}
+	}
+	result, ok := value.(map[string]any)
+	if !ok {
+		t.Fatalf("path %v = %#v, want object", path, value)
+	}
+	return result
+}

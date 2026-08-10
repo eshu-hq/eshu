@@ -17,8 +17,10 @@ import (
 // (ci_cd_run_correlations.go, service_catalog_correlations.go); the other two
 // are defined here because no other query surface reads them yet.
 const (
-	workloadIdentityFactKindQuery        = "reducer_workload_identity"
-	platformMaterializationFactKindQuery = "reducer_platform_materialization"
+	workloadIdentityFactKindQuery                    = "reducer_workload_identity"
+	platformMaterializationFactKindQuery             = "reducer_platform_materialization"
+	supplyChainRuntimeEnvironmentEvidenceDeployEvent = "deploy_event"
+	supplyChainRuntimeEnvironmentEvidenceDeclared    = "declared"
 )
 
 // supplyChainImpactRuntimeContextFactKinds is the closed kind set the
@@ -235,9 +237,72 @@ func addSupplyChainRuntimeContextFactForRepository(
 		if environment := supplyChainRuntimeContextString(payload, "environment"); environment != "" {
 			ctx := out[repositoryID]
 			ctx.Environments = append(ctx.Environments, environment)
+			ctx.EnvironmentEvidence = recordSupplyChainRuntimeEnvironmentEvidence(
+				ctx.EnvironmentEvidence,
+				environment,
+				supplyChainRuntimeContextString(payload, "environment_evidence"),
+			)
 			out[repositoryID] = ctx
 		}
 	}
+}
+
+// recordSupplyChainRuntimeEnvironmentEvidence folds one accepted CI/CD
+// correlation's environment corroboration into read-time runtime context. It
+// mirrors the reducer's #5426 contract: only deploy_event proves deployment
+// event corroboration, every missing or unknown value is declared, and
+// deploy_event wins independent of fact iteration order.
+func recordSupplyChainRuntimeEnvironmentEvidence(
+	state map[string]string,
+	environment string,
+	raw string,
+) map[string]string {
+	environment = strings.TrimSpace(environment)
+	if environment == "" {
+		return state
+	}
+	if state == nil {
+		state = make(map[string]string)
+	}
+	if state[environment] == supplyChainRuntimeEnvironmentEvidenceDeployEvent {
+		return state
+	}
+	if strings.TrimSpace(raw) == supplyChainRuntimeEnvironmentEvidenceDeployEvent {
+		state[environment] = supplyChainRuntimeEnvironmentEvidenceDeployEvent
+		return state
+	}
+	state[environment] = supplyChainRuntimeEnvironmentEvidenceDeclared
+	return state
+}
+
+// cloneSupplyChainRuntimeEnvironmentEvidence returns a defensive, normalized
+// copy for the response boundary, limited to environments reported alongside
+// it.
+func cloneSupplyChainRuntimeEnvironmentEvidence(
+	source map[string]string,
+	environments []string,
+) map[string]string {
+	if len(source) == 0 || len(environments) == 0 {
+		return nil
+	}
+	allowed := make(map[string]struct{}, len(environments))
+	for _, environment := range environments {
+		environment = strings.TrimSpace(environment)
+		if environment != "" {
+			allowed[environment] = struct{}{}
+		}
+	}
+	cloned := make(map[string]string, len(source))
+	for environment, evidence := range source {
+		if _, ok := allowed[strings.TrimSpace(environment)]; !ok {
+			continue
+		}
+		cloned = recordSupplyChainRuntimeEnvironmentEvidence(cloned, environment, evidence)
+	}
+	if len(cloned) == 0 {
+		return nil
+	}
+	return cloned
 }
 
 // supplyChainRuntimeContextOutcomeAccepted mirrors the reducer's outcome gate

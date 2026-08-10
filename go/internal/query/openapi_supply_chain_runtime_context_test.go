@@ -5,6 +5,7 @@ package query
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -30,8 +31,14 @@ func TestOpenAPISpecDocumentsSupplyChainRuntimeContextRoutes(t *testing.T) {
 	items := mustMapField(t, findings, "items")
 	itemProperties := mustMapField(t, items, "properties")
 	runtimeContext := mustMapField(t, itemProperties, "runtime_context")
+	runtimeContextProperties := mustMapField(t, runtimeContext, "properties")
+	environmentEvidence := mustMapField(t, runtimeContextProperties, "environment_evidence")
+	additionalProperties := mustMapField(t, environmentEvidence, "additionalProperties")
+	if got, want := additionalProperties["enum"], []any{"deploy_event", "declared"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("runtime_context.environment_evidence enum = %#v, want %#v", got, want)
+	}
 
-	const wantDescription = "Read-time-resolved runtime context joined from the finding's repository_id at query time (#5746): the workloads, services, deployments, environments, and catalog refs that repository currently maps to. Populated when this finding shape is returned by the findings list or impact explain route; the transformed investigation-packet shape omits it. truth_basis is always read_time_resolved so callers can distinguish these IDs from baked workload_ids/service_ids/environments. The workload_id/service_id/environment filters resolve only the same current active repository mappings (#5747); stale baked values cannot satisfy them. An empty runtime_context is an honest 'no runtime facts landed yet' (fresh ingest) that self-heals on the next read; it is not an error and not 'never scanned'."
+	const wantDescription = "Read-time-resolved runtime context joined from the finding's repository_id at query time (#5746): the workloads, services, deployments, environments, per-environment corroboration, and catalog refs that repository currently maps to. Populated when this finding shape is returned by the findings list or impact explain route; the transformed investigation-packet shape omits it. truth_basis is always read_time_resolved so callers can distinguish these IDs from baked workload_ids/service_ids/environments. environment_evidence uses the existing deploy_event/declared vocabulary and never backfills the finding's baked top-level environment_evidence. The workload_id/service_id/environment filters resolve only the same current active repository mappings (#5747); stale baked values cannot satisfy them. An empty runtime_context is an honest 'no runtime facts landed yet' (fresh ingest) that self-heals on the next read; it is not an error and not 'never scanned'."
 	if got := runtimeContext["description"]; got != wantDescription {
 		t.Fatalf("runtime_context.description = %#v, want %#v", got, wantDescription)
 	}
