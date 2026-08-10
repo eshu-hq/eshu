@@ -93,12 +93,17 @@ a durable finding whose `management_status` is `unknown_management`, whose
 `comparable_attribute:<key>`, and whose recommended action is
 `expand_collector_coverage_or_permissions`.
 
-That path is reachable with nothing upstream asserting a failure. The
-terraform-state collector fail-closed-redacts scalar attributes when its
-provider-schema resolver is nil or a schema bundle fails to parse
-(`terraformstate/schema_resolver.go`; `LoadPackagedSchemaResolver` returns
-`nil, nil` and `parseSchemaInto` skips a corrupt bundle, and
-`cmd/collector-terraform-state/config.go` accepts a nil resolver as non-fatal).
+That path is reachable, though the widest route into it is now closed. The
+terraform-state collector fail-closed-redacts scalar attributes whenever
+`schemaTrust` answers `SchemaUnknown`. #6017 removed the worst case: an empty
+bundle no longer yields a nil resolver, because `LoadPackagedSchemaResolver`
+rejects an empty attribute set with an error and the collector fails to start
+rather than degrading every attribute of every resource
+(`terraformstate/schema_resolver.go`). What remains open is the PER-PROVIDER
+case — a resolver that loads but does not cover one provider still answers
+`SchemaUnknown` for that provider's attributes, and `parseSchemaInto` still
+skips a corrupt bundle — which is the half of #5870 that is still an open
+redaction-policy question.
 The condition is sticky per deployment, so a replay repeats the deletion rather
 than healing it. Reporting explicit uncertainty replaces the stale drift claim
 instead of destroying it, and the finding self-heals into `image_version_drift`

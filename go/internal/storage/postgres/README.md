@@ -790,11 +790,12 @@ run B (OLD sampled first)   min      p10      median
 both runs, 336 B/op, 2 allocs/op on every sample, both arms
 ```
 
-**The guard costs roughly 4-7%, about 5-8 ns on a ~115 ns call.** All six
-statistics across both orderings agree on the sign, which is the citable
-result. The absolute numbers are not: this host was running other work
-throughout, which is why run B sits well above run A on both arms. Allocation
-is byte-for-byte identical, so the cost is the extra map read and nothing else.
+**Direction is the citable result: the guard is slower on all six statistics
+across both orderings, by roughly 3-8%.** The absolute ns figures are not
+citable -- this host was running other work throughout, which is why run B sits
+well above run A on both arms, and why the six deltas spread as widely as they
+do. Allocation is byte-for-byte identical, so the cost is the extra map read
+and nothing else.
 
 That cost is worth it -- the alternative is a converged verdict that lets the
 retire delete a true finding -- but it is a cost, not a wash, and the
