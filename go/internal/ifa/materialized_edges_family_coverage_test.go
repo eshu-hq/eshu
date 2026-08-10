@@ -4,7 +4,9 @@
 package ifa
 
 import (
+	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
@@ -51,6 +53,56 @@ func TestEveryUmbrellaFamilyResolves(t *testing.T) {
 		}
 		if len(types) == 0 {
 			t.Errorf("family %q resolved to an empty type set; the live gate would assert nothing and pass any graph vacuously", family)
+		}
+	}
+}
+
+// TestEveryWaivedFamilyIsRegistered binds the manifest's waived families to the
+// code that must resolve them (#5543).
+//
+// The 26 waiver rows and the edge-type registries are maintained in different
+// places and neither knows about the other. A waived family that does not
+// resolve is one whose waiver can never be retired — `assert-edges` errors
+// before any Odù or expected-edge set gets a chance — and that is invisible
+// until someone spends a live-gate acquisition finding out.
+//
+// The roster is the bridge: every family carrying a waiver must appear in it,
+// so removing a family from the registry while its waiver still stands fails
+// here rather than at the gate.
+func TestEveryWaivedFamilyIsRegistered(t *testing.T) {
+	t.Parallel()
+
+	manifest := filepath.Join(repoRootDir(t), "specs", MaterializedEdgeManifestFileName)
+	waivers, err := LoadMaterializedEdgeWaivers(manifest)
+	if err != nil {
+		t.Fatalf("LoadMaterializedEdgeWaivers: %v", err)
+	}
+	if len(waivers) == 0 {
+		// The success state for #5543 is zero waivers. Log rather than fail, or
+		// this test would start failing exactly when the epic is finished.
+		t.Log("no waivers remain; every family carries real coverage")
+		return
+	}
+
+	roster := map[string]struct{}{}
+	for _, family := range materializedEdgeFamiliesUnderUmbrella {
+		roster[family] = struct{}{}
+	}
+
+	seen := map[string]struct{}{}
+	for _, waiver := range waivers {
+		family := strings.TrimPrefix(waiver.Surface, MaterializedEdgeSurfacePrefix)
+		if _, already := seen[family]; already {
+			continue
+		}
+		seen[family] = struct{}{}
+
+		if _, ok := roster[family]; !ok {
+			t.Errorf("family %q carries a waiver but is not on the umbrella roster; its waiver can never be retired by this work", family)
+			continue
+		}
+		if _, err := MaterializedEdgeDomainEdgeTypes(family); err != nil {
+			t.Errorf("waived family %q does not resolve: %v; the waiver cannot be retired because assert-edges errors before any fixture is consulted", family, err)
 		}
 	}
 }
