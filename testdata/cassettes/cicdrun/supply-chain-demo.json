@@ -220,10 +220,10 @@
             "artifact_id": "art-image-5152",
             "artifact_name": "supply-chain-demo-lambda-image",
             "artifact_type": "container_image",
-            "artifact_digest": "sha256:0000000000000000000000000000000000000000000000000000000000cc",
+            "artifact_digest": "sha256:0000000000000000000000000000000000000000000000000000000000aaaacc",
             "correlation_anchors": [
               "github_actions::5152",
-              "sha256:0000000000000000000000000000000000000000000000000000000000cc"
+              "sha256:0000000000000000000000000000000000000000000000000000000000aaaacc"
             ]
           }
         }

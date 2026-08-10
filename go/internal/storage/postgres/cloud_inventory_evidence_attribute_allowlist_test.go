@@ -120,7 +120,7 @@ func TestCloudInventoryRecordFromRowAWSLambdaAllowlistFiltersRawKeys(t *testing.
 		"region":"us-east-1",
 		"attributes":{
 			"image_uri":"000000000000.dkr.ecr.us-east-1.amazonaws.com/demo:latest",
-			"resolved_image_uri":"000000000000.dkr.ecr.us-east-1.amazonaws.com/demo@sha256:0000000000000000000000000000000000000000000000000000000000cc",
+			"resolved_image_uri":"000000000000.dkr.ecr.us-east-1.amazonaws.com/demo@sha256:0000000000000000000000000000000000000000000000000000000000aaaacc",
 			"code_sha256":"0000000000000000000000000000000000000000000000000000000000cc",
 			"version":"$LATEST",
 			"role_arn":"arn:aws:iam::000000000000:role/demo-lambda-role",
@@ -139,7 +139,7 @@ func TestCloudInventoryRecordFromRowAWSLambdaAllowlistFiltersRawKeys(t *testing.
 	}
 	wantScalars := map[string]string{
 		"image_uri":          "000000000000.dkr.ecr.us-east-1.amazonaws.com/demo:latest",
-		"resolved_image_uri": "000000000000.dkr.ecr.us-east-1.amazonaws.com/demo@sha256:0000000000000000000000000000000000000000000000000000000000cc",
+		"resolved_image_uri": "000000000000.dkr.ecr.us-east-1.amazonaws.com/demo@sha256:0000000000000000000000000000000000000000000000000000000000aaaacc",
 		"code_sha256":        "0000000000000000000000000000000000000000000000000000000000cc",
 		"version":            "$LATEST",
 	}

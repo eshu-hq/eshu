@@ -84,7 +84,7 @@ func groupCRemainingExpectations() []groupCRemainingExpectation {
 	const (
 		awsScope        = "aws:123456789012:us-east-1:ec2"
 		awsARN          = "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a"
-		digest          = "sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a"
+		digest          = "sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8090a"
 		pkgID           = "github.com/acme/lib-common"
 		ordersRepoID    = "repository:r_ea78e8bb"
 		libCommonRepoID = "repository:r_3eddcea1"

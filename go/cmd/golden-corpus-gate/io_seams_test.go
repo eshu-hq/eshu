@@ -166,7 +166,7 @@ func fileLanguageFloor() (map[string]int64, map[string][]string) {
 			// (...901a), so its supply_chain_impact finding classifies
 			// runtime_confirmed via the query-time CloudResource probe.
 			"sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-			"sha256:0000000000000000000000000000000000000000000000000000000000cc",
+			"sha256:0000000000000000000000000000000000000000000000000000000000aaaacc",
 		},
 	}
 	return nodes, nodeProp

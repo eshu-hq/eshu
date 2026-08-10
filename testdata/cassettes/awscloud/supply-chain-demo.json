@@ -353,7 +353,7 @@
             "attributes": {
               "package_type": "Image",
               "image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
-              "resolved_image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo@sha256:0000000000000000000000000000000000000000000000000000000000cc",
+              "resolved_image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo@sha256:0000000000000000000000000000000000000000000000000000000000aaaacc",
               "code_sha256": "0000000000000000000000000000000000000000000000000000000000cc",
               "version": "$LATEST",
               "role_arn": "arn:aws:iam::123456789012:role/supply-chain-demo-lambda-role"
@@ -377,7 +377,7 @@
             "target_type": "container_image",
             "attributes": {
               "package_type": "Image",
-              "resolved_image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo@sha256:0000000000000000000000000000000000000000000000000000000000cc"
+              "resolved_image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo@sha256:0000000000000000000000000000000000000000000000000000000000aaaacc"
             }
           }
         },

@@ -38,7 +38,7 @@ func TestGoldenSnapshotGroupARemainingCapabilitiesAreNonVacuous(t *testing.T) {
 		ciRepo       = "repository:r_69256c06"
 		ciScope      = "aws:123456789012:us-east-1:ec2"
 		ciGeneration = "cassette-aws-ec2-scd-gen1"
-		imageDigest  = "sha256:0000000000000000000000000000000000000000000000000000000000aa"
+		imageDigest  = "sha256:00000000000000000000000000000000000000000000000000000000000000ff"
 	)
 
 	tests := []groupARemainingExpectation{

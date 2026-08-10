@@ -166,7 +166,7 @@
             "artifact_type": "",
             "source_tag": "latest",
             "config": {
-              "digest": "sha256:0000000000000000000000000000000000000000000000000000000000cf",
+              "digest": "sha256:0000000000000000000000000000000000000000000000000000000000aaaacf",
               "media_type": "application/vnd.oci.image.config.v1+json",
               "size_bytes": 4096,
               "artifact_type": "",
@@ -175,7 +175,7 @@
             },
             "layers": [
               {
-                "digest": "sha256:0000000000000000000000000000000000000000000000000000000000d0",
+                "digest": "sha256:0000000000000000000000000000000000000000000000000000000000aaaad0",
                 "media_type": "application/vnd.oci.image.layer.v1.tar+gzip",
                 "size_bytes": 41943040,
                 "artifact_type": "",
@@ -192,7 +192,7 @@
         },
         {
           "fact_kind": "oci_registry.image_manifest",
-          "stable_fact_key": "oci_registry:123456789012.dkr.ecr.us-east-1.amazonaws.com:supply-chain-demo:sha256:0000000000000000000000000000000000000000000000000000000000cc",
+          "stable_fact_key": "oci_registry:123456789012.dkr.ecr.us-east-1.amazonaws.com:supply-chain-demo:sha256:0000000000000000000000000000000000000000000000000000000000aaaacc",
           "schema_version": "1.0.0",
           "collector_kind": "oci_registry",
           "fencing_token": 1,
@@ -203,8 +203,8 @@
             "registry": "123456789012.dkr.ecr.us-east-1.amazonaws.com",
             "repository": "supply-chain-demo",
             "repository_id": "oci-registry://123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo",
-            "descriptor_id": "oci-descriptor://123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo@sha256:0000000000000000000000000000000000000000000000000000000000cc",
-            "digest": "sha256:0000000000000000000000000000000000000000000000000000000000cc",
+            "descriptor_id": "oci-descriptor://123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo@sha256:0000000000000000000000000000000000000000000000000000000000aaaacc",
+            "digest": "sha256:0000000000000000000000000000000000000000000000000000000000aaaacc",
             "media_type": "application/vnd.oci.image.manifest.v1+json",
             "artifact_type": "",
             "source_tag": "latest",
@@ -229,7 +229,7 @@
             "size_bytes": 52432896,
             "correlation_anchors": [
               "oci-registry://123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo",
-              "sha256:0000000000000000000000000000000000000000000000000000000000cc"
+              "sha256:0000000000000000000000000000000000000000000000000000000000aaaacc"
             ]
           }
         },
@@ -247,13 +247,13 @@
             "repository": "supply-chain-demo",
             "repository_id": "oci-registry://123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo",
             "tag": "latest",
-            "resolved_digest": "sha256:0000000000000000000000000000000000000000000000000000000000cc",
+            "resolved_digest": "sha256:0000000000000000000000000000000000000000000000000000000000aaaacc",
             "media_type": "application/vnd.oci.image.manifest.v1+json",
             "mutated": false,
             "identity_strength": "weak_tag",
             "correlation_anchors": [
               "oci-registry://123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo",
-              "sha256:0000000000000000000000000000000000000000000000000000000000cc"
+              "sha256:0000000000000000000000000000000000000000000000000000000000aaaacc"
             ]
           }
         }

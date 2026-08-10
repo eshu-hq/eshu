@@ -20,7 +20,7 @@ func TestGoldenContainerImageIdentityProofUsesExactDigestFilter(t *testing.T) {
 		t.Fatal("query_shapes.mcp missing list_container_image_identities")
 	}
 	wantArguments := map[string]any{
-		"digest":               "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
+		"digest":               "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
 		"source_repository_id": "repository:r_69256c06",
 		"limit":                float64(10),
 	}
