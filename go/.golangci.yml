@@ -67,8 +67,68 @@ linters:
     #    cap fails on NEW long functions in every other file. ──
     - funlen
 
+    # ── depguard: the ownership table in docs/internal/agent-guide.md made
+    #    executable (issue #4399). Every rule below was measured against the
+    #    tree before it was written: each has ZERO violations today, so the
+    #    gate fails on NEW drift rather than on a backlog. A rule that would
+    #    have needed grandfathering is deliberately absent — see the
+    #    query -> storage/cypher note in settings.depguard. ──
+    - depguard
+
   # ── the custom 500-line file cap plugin ──
   settings:
+    depguard:
+      rules:
+        # Handlers depend on ports (GraphQuery, GraphWrite, ContentStore), not
+        # concrete backend drivers — agent-guide.md "Ownership Boundaries".
+        # Denies the REAL driver module, not just the reserved
+        # internal/storage/neo4j path (which currently holds no Go code, so
+        # denying it alone would be decorative). Six query files already own
+        # driver interaction and are listed as exceptions, so this is a ratchet:
+        # the driver stays where it is today and no NEW query file may reach for
+        # it. Test files are excluded because the live/differential suites drive
+        # a real Bolt session on purpose.
+        query-no-graph-driver:
+          files:
+            - "**/internal/query/**"
+            - "!**/internal/query/*_test.go"
+            - "!**/internal/query/neo4j.go"
+            - "!**/internal/query/neo4j_read_policy.go"
+            - "!**/internal/query/impact_change_surface_legacy.go"
+            - "!**/internal/query/visualization_packet_graph_query.go"
+            - "!**/internal/query/code_call_chain.go"
+            - "!**/internal/query/exposure_path_mapping.go"
+          deny:
+            - pkg: github.com/neo4j/neo4j-go-driver
+              desc: query owns handlers and read surfaces; reach the graph through a port or an existing driver-owning file, not a new direct driver import
+            - pkg: github.com/eshu-hq/eshu/go/internal/storage/neo4j
+              desc: query owns handlers and read surfaces; reach the graph through a port, not the Neo4j driver
+        # storage/cypher is deliberately NOT denied to query. One file,
+        # internal/query/edge_materialization_coverage.go, imports it to read
+        # shared edge-type CONSTANTS so materialized-edge coverage is derived
+        # from the registry instead of probed from the graph. That is a
+        # constants dependency, not a handler reaching for a driver; denying it
+        # would fail legitimate code and the rule would get disabled, not fixed.
+        relationships-no-storage:
+          files:
+            - "**/internal/relationships/**"
+          deny:
+            - pkg: github.com/eshu-hq/eshu/go/internal/storage
+              desc: relationships extracts evidence; persistence belongs to reducer and storage
+        parser-no-storage-or-query:
+          files:
+            - "**/internal/parser/**"
+          deny:
+            - pkg: github.com/eshu-hq/eshu/go/internal/storage
+              desc: parser owns registry, adapters and language behaviour; it must not persist
+            - pkg: github.com/eshu-hq/eshu/go/internal/query
+              desc: parser must not depend on read surfaces; that inverts parse -> facts -> reducer -> query
+        collector-no-query:
+          files:
+            - "**/internal/collector/**"
+          deny:
+            - pkg: github.com/eshu-hq/eshu/go/internal/query
+              desc: collector emits facts; depending on query would make collection read its own output
     funlen:
       lines: 150
       statements: -1
