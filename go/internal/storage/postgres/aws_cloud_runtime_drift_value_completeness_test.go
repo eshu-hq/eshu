@@ -80,6 +80,64 @@ func TestClassifyLambdaImagePackagedWithoutObservedImageURIDoesNotConverge(t *te
 	}
 }
 
+// TestClassifyLambdaImageDeclaredWithoutDeclaredImageURIDoesNotConverge is the
+// mirror of the test above, on the declared side.
+//
+// The suppression is applied to both decoders on purpose, because the
+// destructive outcome does not care which side was unreadable: whichever one is
+// missing, Compared falls to 1 of 2, Classify returns "" and the retire deletes
+// the finding. Terraform requires image_uri when package_type is Image, so a
+// state row asserting Image while carrying no image_uri is an incomplete read
+// of that state rather than a function without an image.
+//
+// The redaction rule cannot reach this shape: redact never DROPS a scalar, so a
+// redacted image_uri arrives as a marker and is already suppressed. Genuine
+// absence alongside a declared Image means the state itself is partial.
+func TestClassifyLambdaImageDeclaredWithoutDeclaredImageURIDoesNotConverge(t *testing.T) {
+	t.Parallel()
+
+	cloudPayload := []byte(`{
+		"arn": "arn:aws:lambda:us-east-1:123456789012:function:app",
+		"resource_id": "arn:aws:lambda:us-east-1:123456789012:function:app",
+		"resource_type": "aws_lambda_function",
+		"attributes": {
+			"package_type": "Image",
+			"image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/app:v1",
+			"version": "7"
+		}
+	}`)
+	cloud, ok := awsRuntimeResourceRowFromPayload("aws:123456789012:us-east-1:lambda", cloudPayload)
+	if !ok {
+		t.Fatal("awsRuntimeResourceRowFromPayload() ok = false, want true")
+	}
+
+	statePayload := []byte(`{
+		"address": "module.app.aws_lambda_function.app",
+		"type": "aws_lambda_function",
+		"attributes": {
+			"arn": "arn:aws:lambda:us-east-1:123456789012:function:app",
+			"package_type": "Image",
+			"version": "7"
+		}
+	}`)
+	state, ok, _ := awsRuntimeStateRowFromPayload("state_snapshot:s3:hash", "module.app.aws_lambda_function.app", statePayload)
+	if !ok {
+		t.Fatal("awsRuntimeStateRowFromPayload() ok = false, want true")
+	}
+	config := &cloudruntime.ResourceRow{Address: state.Address, ResourceType: state.ResourceType}
+
+	if got := cloudruntime.ClassifyValueComparison(cloud, state).Compared; got != 0 {
+		t.Fatalf(
+			"ClassifyValueComparison() Compared = %d, want 0: an Image-declared state row carrying no "+
+				"image_uri is a partial read of that state, and comparing version alone converges (#5861)",
+			got,
+		)
+	}
+	if kind := cloudruntime.Classify(cloud, state, config); kind != cloudruntime.FindingKindValueComparisonInconclusive {
+		t.Fatalf("Classify() = %q, want %q", kind, cloudruntime.FindingKindValueComparisonInconclusive)
+	}
+}
+
 // TestClassifyLambdaZipPackagedAbsentImageURIStillCompares is the #5861 noise
 // objection made executable, and it must pass both BEFORE and AFTER the fix.
 //

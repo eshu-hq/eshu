@@ -191,60 +191,6 @@ func comparableScalarAttr(attributes map[string]any, key string) string {
 // Only a REDACTED comparable suppresses the set. A genuinely absent one does
 // not, or every zip-packaged Lambda (no "image_uri" by design) would go
 // inconclusive -- the objection #5861 records against widening this further.
-// lambdaComparableScalarAttrSet reads aws_lambda_function's allowlisted
-// comparables, adding one completeness rule comparableScalarAttrSet's
-// redaction rule cannot express.
-//
-// comparableScalarAttrSet suppresses on a REDACTED comparable but deliberately
-// not on an ABSENT one, because a zip-packaged Lambda has no image_uri by
-// design and suppressing on absence would report every one of them as
-// value_comparison_inconclusive -- the noise objection #5861 records against
-// widening that rule.
-//
-// package_type separates the two cases without any new collector plumbing: it
-// is a real aws_lambda_function Terraform attribute AND the AWS collector
-// already emits it (go/internal/collector/awscloud/services/lambda/scanner.go),
-// so both decoders receive it. package_type == "Image" with no image_uri is
-// therefore not "this resource has no image", it is "this pass could not
-// observe the image" -- reachable when GetFunction returns a nil output and
-// the client falls back to the ListFunctions FunctionConfiguration, which
-// carries PackageType but no Code block.
-//
-// Left untreated that side yields Comparable=2, Compared=1, Drifted=0,
-// Inconclusive()=false, so Classify returns "" (convergence), BuildCandidates
-// drops the ARN, and the generation-authoritative retire deletes a still-true
-// finding -- the same destructive outcome #5904's redaction rule exists to
-// prevent, reached through absence instead. Suppressing the whole set drops
-// Compared to 0 and reports uncertainty on a durable row instead.
-//
-// package_type is read as a completeness SIGNAL only; it is not in
-// cloudruntime's valueAttributeAllowlist and no drift is reported on it.
-// Adding it there would turn an out-of-band Image-to-Zip repackaging into a
-// real image_version_drift and needs its own accuracy review.
-//
-// A package_type that is itself unreadable does not match "Image" and falls
-// through to the ordinary path, where a redacted image_uri is already caught
-// by the redaction rule.
-func lambdaComparableScalarAttrSet(attributes map[string]any) map[string]string {
-	if lambdaImagePackagedWithoutImageURI(attributes) {
-		return nil
-	}
-	return comparableScalarAttrSet(attributes, "image_uri", "version")
-}
-
-// lambdaImagePackagedWithoutImageURI reports whether attributes describe an
-// image-packaged Lambda whose image_uri this pass did not observe. Comparison
-// is case-insensitive because the value is a provider/API string ("Image" from
-// the AWS SDK, "Image" in Terraform state) rather than an identifier this repo
-// mints.
-func lambdaImagePackagedWithoutImageURI(attributes map[string]any) bool {
-	packageType := strings.TrimSpace(coerceJSONString(attributes["package_type"]))
-	if !strings.EqualFold(packageType, "Image") {
-		return false
-	}
-	return strings.TrimSpace(coerceJSONString(attributes["image_uri"])) == ""
-}
-
 func comparableScalarAttrSet(attributes map[string]any, keys ...string) map[string]string {
 	for _, key := range keys {
 		if redactedAnywhere(attributes[key]) {
@@ -261,6 +207,86 @@ func comparableScalarAttrSet(attributes map[string]any, keys ...string) map[stri
 		return nil
 	}
 	return out
+}
+
+// lambdaComparableScalarAttrSet reads aws_lambda_function's allowlisted
+// comparables, adding one completeness rule comparableScalarAttrSet's
+// redaction rule cannot express.
+//
+// comparableScalarAttrSet suppresses on a REDACTED comparable but deliberately
+// not on an ABSENT one, because a zip-packaged Lambda has no image_uri by
+// design and suppressing on absence would report every one of them as
+// value_comparison_inconclusive -- the noise objection #5861 records against
+// widening that rule.
+//
+// package_type separates the two cases without any new collector plumbing: it
+// is a real aws_lambda_function Terraform attribute AND the AWS collector
+// already emits it (go/internal/collector/awscloud/services/lambda/scanner.go),
+// so both decoders receive it. package_type == "Image" with no image_uri is
+// therefore not "this resource has no image" -- an image-packaged function has
+// one by definition -- it is "this side did not carry the image".
+//
+// This applies to BOTH decoders, deliberately, because the destructive outcome
+// does not care which side was unreadable: whichever one is missing, Compared
+// falls to 1 of 2, Classify returns "" and the retire deletes the finding.
+//
+//   - Observed side: Eshu's own defensive fallback in the AWS client
+//     (services/lambda/awssdk/client.go) substitutes the ListFunctions
+//     FunctionConfiguration when GetFunction returns a nil output, and that
+//     value carries PackageType but no Code block, so mapFunction yields
+//     PackageType "Image" with an empty ImageURI. This is a guarded branch
+//     rather than an observed production occurrence -- a successful SDK
+//     GetFunction does not return (nil, nil).
+//   - Declared side: Terraform requires image_uri when package_type is Image,
+//     so a state row asserting Image while carrying no image_uri is an
+//     incomplete read of that state, not a function without an image. The
+//     redaction rule cannot catch it, because redact never DROPS a scalar
+//     (redact/policy.go) -- a redacted image_uri arrives as a marker and is
+//     already suppressed, so genuine absence here means the state itself is
+//     partial.
+//
+// Left untreated that side yields Comparable=2, Compared=1, Drifted=0,
+// Inconclusive()=false, so Classify returns "" (convergence), BuildCandidates
+// drops the ARN, and the generation-authoritative retire deletes a still-true
+// finding -- the same destructive outcome #5904's redaction rule exists to
+// prevent, reached through absence instead. Suppressing the whole set drops
+// Compared to 0 and reports uncertainty on a durable row instead.
+//
+// package_type is read as a completeness SIGNAL only; it is not in
+// cloudruntime's valueAttributeAllowlist and no drift is reported on it.
+// Adding it there would turn an out-of-band Image-to-Zip repackaging into a
+// real image_version_drift and needs its own accuracy review.
+//
+// A package_type that is itself a redaction marker does not match "Image" and
+// falls through to the ordinary path. That is safe for the shape it actually
+// occurs in -- whole-attribute redaction under an unknown provider schema hits
+// every scalar, so image_uri is a marker too and the redaction rule suppresses
+// the set. It would NOT be safe for a redacted package_type alongside a
+// genuinely absent image_uri, which nothing here suppresses; that combination
+// has no known producer, and this note exists so a future change that creates
+// one does not inherit an unexamined assumption.
+func lambdaComparableScalarAttrSet(attributes map[string]any) map[string]string {
+	if lambdaImagePackagedWithoutImageURI(attributes) {
+		return nil
+	}
+	return comparableScalarAttrSet(attributes, "image_uri", "version")
+}
+
+// lambdaImagePackagedWithoutImageURI reports whether one side's attributes
+// claim an image-packaged Lambda while carrying no image_uri. It is written to
+// be side-agnostic: the caller applies it to the observed and the declared
+// decoder alike, and in both cases the claim and the missing value contradict
+// each other, which is the signal.
+//
+// Comparison is case-insensitive because the value is a provider/API string
+// ("Image" from the AWS SDK, "Image" in Terraform state) rather than an
+// identifier this repo mints.
+func lambdaImagePackagedWithoutImageURI(attributes map[string]any) bool {
+	packageType := strings.TrimSpace(coerceJSONString(attributes["package_type"]))
+	if !strings.EqualFold(packageType, "Image") {
+		return false
+	}
+	return strings.TrimSpace(coerceJSONString(attributes["image_uri"])) == ""
 }
 
 // redactedAnywhere reports whether value is itself a redaction marker map, or

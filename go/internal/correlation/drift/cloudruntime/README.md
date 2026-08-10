@@ -128,9 +128,18 @@ rather than by widening `Inconclusive()`:
   would put a finding on most functions in a corpus. `package_type`
   distinguishes the two: it is a real `aws_lambda_function` attribute that the
   AWS collector already emits, so `package_type == "Image"` with no `image_uri`
-  is a pass that could not observe the image, not a resource that has none.
-  That combination suppresses the set; zip-packaged functions are untouched by
+  is a side that did not carry the image, not a resource that has none. That
+  combination suppresses the set; zip-packaged functions are untouched by
   construction.
+
+  The rule applies to the observed AND the declared decoder, because the
+  destructive outcome does not care which side was unreadable — whichever one
+  is missing, `Compared` falls to 1 of 2 and the pass converges. On the
+  observed side the shape comes from the AWS client's defensive fallback to a
+  `ListFunctions` configuration, which carries `PackageType` but no `Code`
+  block. On the declared side, Terraform requires `image_uri` when
+  `package_type` is `Image`, so a state row asserting `Image` with none is an
+  incomplete read of that state.
 
 `package_type` is read as a completeness signal only. It is deliberately NOT in
 `valueAttributeAllowlist`: adding it would turn an out-of-band Image-to-Zip
