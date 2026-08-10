@@ -18,9 +18,9 @@ import (
 type ExpectedEdge struct {
 	// RelationshipType is the graph relationship type (e.g. "QUERIES_TABLE").
 	RelationshipType string
-	// SourceEntityID is the edge source node's canonical uid.
+	// SourceEntityID is the edge source node's canonical identity (its uid, or its id for id-keyed labels).
 	SourceEntityID string
-	// TargetEntityID is the edge target node's canonical uid.
+	// TargetEntityID is the edge target node's canonical identity (its uid, or its id for id-keyed labels).
 	TargetEntityID string
 }
 

@@ -106,7 +106,7 @@ authoring; it does not build a second coverage framework.
   routine-to-table `WRITES_TO`, in both its baseline and accumulated delta set.
   Because the expected type inventory is registry-derived, adding a tenth type
   without extending the Odù fails closed instead of preserving a stale count.
-- `LoadCodeCallFamilyOdu` (`code_call_family_odu.go`, #5991) - reads the
+- `loadCodeCallFamilyOdu` (`code_call_family_odu.go`, #5991, unexported) - reads the
   committed `testdata/cassettes/codecalls/` cassette and projects it onto the
   fact envelopes the reducer's extractor consumes. The code_calls Odù is derived
   FROM the cassette rather than hand-built in Go the way `sqlFamilyOdu` is, so

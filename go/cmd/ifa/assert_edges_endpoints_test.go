@@ -154,3 +154,40 @@ func TestUnconstrainedFamilyMatchesByTypeAlone(t *testing.T) {
 		t.Fatalf("unconstrained family assertion = %v, want nil; a nil constraint map must not filter the family's edges away", err)
 	}
 }
+
+// TestUidWinsWhenAnEndpointCarriesBoth pins the precedence the identity fallback
+// depends on.
+//
+// The fallback exists because Repository/Workload/WorkloadInstance/Platform are
+// id-keyed, but content-entity nodes carry BOTH: canonicalEntityProperties sets
+// props["id"] = entity.EntityID while the node is MERGEd on {uid: row.entity_id}.
+// Today those two strings are equal, so swapping the lookup order changes no
+// existing fixture and the whole suite stays green on a mutation that silently
+// reverses identity precedence. That latency is exactly what makes it survive
+// review, so this test gives the two properties DIFFERENT values and requires
+// uid to win.
+func TestUidWinsWhenAnEndpointCarriesBoth(t *testing.T) {
+	t.Parallel()
+
+	both := graphdump.Edge{
+		Type:       "RUNS_IN",
+		FromLabels: []string{"Function"},
+		FromProps:  map[string]any{"uid": "u-from", "id": "i-from"},
+		ToLabels:   []string{"Workload"},
+		ToProps:    map[string]any{"uid": "u-to", "id": "i-to"},
+	}
+	types, err := ifa.MaterializedEdgeDomainEdgeTypes("runs_in")
+	if err != nil {
+		t.Fatalf("MaterializedEdgeDomainEdgeTypes(runs_in): %v", err)
+	}
+
+	byUID := []ifa.ExpectedEdge{{RelationshipType: "RUNS_IN", SourceEntityID: "u-from", TargetEntityID: "u-to"}}
+	if err := assertMaterializedEdges(context.Background(), fakeEdgeReader{edges: []graphdump.Edge{both}}, "runs_in", types, nil, byUID); err != nil {
+		t.Errorf("expected set naming the uids = %v, want nil; uid must win when both properties are present", err)
+	}
+
+	byID := []ifa.ExpectedEdge{{RelationshipType: "RUNS_IN", SourceEntityID: "i-from", TargetEntityID: "i-to"}}
+	if err := assertMaterializedEdges(context.Background(), fakeEdgeReader{edges: []graphdump.Edge{both}}, "runs_in", types, nil, byID); err == nil {
+		t.Error("expected set naming the ids passed; id must NOT win over uid, or the fallback silently reverses identity for every content entity")
+	}
+}

@@ -56,13 +56,17 @@ func codeCallFamilyExpectedEdgesPath(repoRoot string) string {
 	return filepath.Join(repoRoot, codeCallExpectedEdgesPath)
 }
 
-// LoadCodeCallFamilyOdu reads the committed cassette and projects it onto the
+// loadCodeCallFamilyOdu reads the committed cassette and projects it onto the
 // fact envelopes the reducer's extractor consumes.
+//
+// Unexported, mirroring sqlFamilyOdu: the live gate reaches a family through the
+// in-package catalog, never by importing its loader, so exporting this would
+// widen the package surface for no consumer.
 //
 // It fails closed on an empty scope or fact list: an Odù carrying no facts would
 // make every downstream assertion vacuous, which is the failure mode the whole
 // #5543 exhaustiveness effort exists to remove.
-func LoadCodeCallFamilyOdu(cassettePath string) (Odu, error) {
+func loadCodeCallFamilyOdu(cassettePath string) (Odu, error) {
 	raw, err := os.ReadFile(cassettePath) // #nosec G304 -- checked-in repo fixture under testdata/, not external input
 	if err != nil {
 		return Odu{}, fmt.Errorf("ifa: read code-call cassette %s: %w", cassettePath, err)

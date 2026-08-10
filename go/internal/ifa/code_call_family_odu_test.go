@@ -53,9 +53,9 @@ func TestCodeCallFamilyCassetteDerivesTheExpectedEdgeSet(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
 
-	odu, err := LoadCodeCallFamilyOdu(codeCallFamilyCassetteFullPath(repoRoot))
+	odu, err := loadCodeCallFamilyOdu(codeCallFamilyCassetteFullPath(repoRoot))
 	if err != nil {
-		t.Fatalf("LoadCodeCallFamilyOdu: %v", err)
+		t.Fatalf("loadCodeCallFamilyOdu: %v", err)
 	}
 
 	raw, err := os.ReadFile(codeCallFamilyExpectedEdgesPath(repoRoot))

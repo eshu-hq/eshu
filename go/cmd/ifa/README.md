@@ -102,10 +102,14 @@ session.
   assertion. It opens the same read-only Bolt connection `ifa graph-dump` uses,
   reads every edge of the named materialized-edge family's registry types
   (e.g. `-domain sql_relationships` → the seven types
-  `cypher.SQLRelationshipMaterializedEdgeTypes()` accepts), and asserts the
+  the family's own writer registry accepts), and asserts the
   family's materialized edges are EXACTLY the hand-derived expected set in
-  `-expected` (same count, same `relationship_type`/source-uid/target-uid
-  triples). This is the assertion `ifa graph-dump -digest`'s determinism
+  `-expected` (same count, same `relationship_type`/source/target triples, where
+  an endpoint's identity is its `uid` when present and its `id` otherwise —
+  `Repository`, `Workload`, `WorkloadInstance` and `Platform` carry no uid).
+  Families sharing a relationship type with another family are additionally
+  scoped by endpoint label, so repo_dependency and workload_dependency do not
+  count each other's DEPENDS_ON edges. This is the assertion `ifa graph-dump -digest`'s determinism
   comparison cannot make: a family that materializes ZERO edges in ALL cells
   has an identical digest in every cell and passes the digest comparison
   vacuously; the absolute expected set catches that regression. Wired into both

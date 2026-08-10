@@ -108,14 +108,16 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 // duplicate that a plain set comparison, and the cross-worker digest, would
 // both miss.
 //
-// An edge's endpoint identity is its node's "uid" property — the canonical
-// graph node id the expected-edge-set fixture's source/target_entity_id names
-// (for a SQL entity the uid equals its content_entity id; for a
-// canonicalNamePathLineEntityLabels endpoint such as a Function it is the
-// derived hash the fixture precomputes — see internal/ifa's
-// sqlFamilyGetUserFunctionUID). An edge missing a uid on either endpoint is a
-// real defect (an unmaterialized endpoint node), so it is surfaced, never
-// silently skipped.
+// An edge's endpoint identity is its node's "uid" property when it has one, and
+// its "id" otherwise — the graph keys nodes both ways and the assertion has to
+// speak both. Content entities are uid-keyed (for a SQL entity the uid equals
+// its content_entity id; for a canonicalNamePathLineEntityLabels endpoint such
+// as a Function it is the derived hash the fixture precomputes — see
+// internal/ifa's sqlFamilyGetUserFunctionUID), while Repository, Workload,
+// WorkloadInstance and Platform are MERGEd `{id: ...}` and carry no uid at all.
+// uid is consulted first, so a node carrying both resolves by uid. An edge whose
+// endpoint has NEITHER is a real defect (an unmaterialized endpoint node), so it
+// is surfaced, never silently skipped.
 //
 // Endpoint scoping (#5543): a family whose relationship types are shared with
 // another family also constrains its edges' endpoint labels. DEPENDS_ON is

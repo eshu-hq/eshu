@@ -33,7 +33,7 @@ import "strings"
 // Deliberately excluded, both written under this domain:
 //
 //   - HAS_DEPLOYMENT_EVIDENCE and EVIDENCES_REPOSITORY_RELATIONSHIP. Their
-//     EvidenceArtifact endpoint uid embeds the generation id and ordinal, so it
+//     EvidenceArtifact endpoint id embeds the generation id and ordinal, so it
 //     changes on every reprojection and no exact hand-derived edge set can pin
 //     them. Covering them needs an id-normalized assertion, not this exact-set
 //     gate. Stated residual gap, not an oversight.
