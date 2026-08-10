@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
 // Validate verifies schema, bounds, redaction posture, and private-data canaries.
@@ -82,9 +84,18 @@ func validatePrivateCanaries(bundle Bundle) error {
 	if err != nil {
 		return fmt.Errorf("marshal bundle for validation: %w", err)
 	}
+	// The shared hosted-governance registry owns this repository's canonical
+	// sensitive-shape taxonomy. Check it first: the four package-local patterns
+	// below were written against endpoint/credential/prompt/path shapes and
+	// match none of the registry's canaries, so relying on them alone let a
+	// credential-bearing URL or a raw token through (#4045).
+	if err := redact.HostedGovernanceRegistry().
+		AssertNoForbiddenCanary(redact.SurfaceOnboardingArtifacts, raw); err != nil {
+		return fmt.Errorf("hosted-governance canary is not allowed in evidence bundle: %w", err)
+	}
 	text := string(raw)
 	switch {
-	case privateEndpointPattern.MatchString(text):
+	case privateEndpointPattern.MatchString(text), privateHostPortPattern.MatchString(text):
 		return fmt.Errorf("private endpoint is not allowed in evidence bundle")
 	case credentialPattern.MatchString(text):
 		return fmt.Errorf("credential canary is not allowed in evidence bundle")

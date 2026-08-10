@@ -169,3 +169,80 @@ func TestDemoBundleUnchangedByLiveAddition(t *testing.T) {
 		t.Fatalf("Contents.SemanticProviderState = %+v, want nil for demo bundle", bundle.Contents.SemanticProviderState)
 	}
 }
+
+// TestBuildLiveBundleSortsEveryNestedSlice feeds each new nested slice in
+// deliberately reversed order with more than one element, because the shipped
+// cases all used a single element and so could not have caught a wrong sort
+// key. bundle_id is a hash of the serialized bundle, so an unsorted slice
+// makes the same stack produce a different id on every export.
+func TestBuildLiveBundleSortsEveryNestedSlice(t *testing.T) {
+	snapshot := LiveSnapshot{
+		RepositoryCount: 3,
+		HealthState:     "degraded",
+		HealthReasons:   []string{"zeta reason", "alpha reason", "mid reason"},
+		StageSummaries: []LiveStageSummarySnapshot{
+			{Stage: "reduce"}, {Stage: "parse"}, {Stage: "discover"},
+		},
+		DomainBacklogs: []LiveDomainBacklogSnapshot{
+			{Domain: "workload_identity"}, {Domain: "aws_relationship"}, {Domain: "deployment_mapping"},
+		},
+		Collectors: []LiveCollectorSnapshot{
+			{CollectorKind: "git", StatusCategory: "ready", Health: "unhealthy"},
+			{CollectorKind: "git", StatusCategory: "ready", Health: "healthy"},
+			{CollectorKind: "aws", StatusCategory: "failed", Health: "unhealthy"},
+		},
+		SemanticExtraction: LiveSemanticExtractionSnapshot{
+			State:              "ready",
+			ProviderConfigured: true,
+			ProviderProfiles: []LiveSemanticProviderProfileSnapshot{
+				{ProfileID: "zeta", ProviderKind: "openai", State: "ready"},
+				{ProfileID: "alpha", ProviderKind: "anthropic", State: "ready"},
+			},
+		},
+	}
+	bundle := BuildLiveBundle(snapshot, LiveBundleOptions{ScopeID: "live:sort", CreatedAt: fixedLiveCreatedAt})
+	state := bundle.Contents.PipelineState
+	if state == nil {
+		t.Fatal("PipelineState is nil")
+	}
+
+	assertSorted := func(name string, got []string) {
+		t.Helper()
+		for i := 1; i < len(got); i++ {
+			if got[i-1] > got[i] {
+				t.Fatalf("%s not sorted: %v", name, got)
+			}
+		}
+	}
+
+	assertSorted("HealthReasons", state.HealthReasons)
+	stages := make([]string, 0, len(state.StageSummaries))
+	for _, row := range state.StageSummaries {
+		stages = append(stages, row.Stage)
+	}
+	assertSorted("StageSummaries", stages)
+	domains := make([]string, 0, len(state.DomainBacklogs))
+	for _, row := range state.DomainBacklogs {
+		domains = append(domains, row.Domain)
+	}
+	assertSorted("DomainBacklogs", domains)
+	collectors := make([]string, 0, len(state.Collectors))
+	for _, row := range state.Collectors {
+		collectors = append(collectors, row.CollectorKind+"/"+row.StatusCategory+"/"+row.Health)
+	}
+	assertSorted("Collectors", collectors)
+
+	profiles := make([]string, 0)
+	if provider := bundle.Contents.SemanticProviderState; provider != nil {
+		for _, row := range provider.ProviderProfiles {
+			profiles = append(profiles, row.ProfileID)
+		}
+	}
+	assertSorted("ProviderProfiles", profiles)
+
+	// Same input must hash identically on a rebuild.
+	again := BuildLiveBundle(snapshot, LiveBundleOptions{ScopeID: "live:sort", CreatedAt: fixedLiveCreatedAt})
+	if again.BundleID != bundle.BundleID {
+		t.Fatalf("bundle_id not stable across rebuilds: %q vs %q", bundle.BundleID, again.BundleID)
+	}
+}

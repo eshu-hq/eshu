@@ -21,6 +21,10 @@ const (
 
 var (
 	privateEndpointPattern = regexp.MustCompile(`https?://[^/"\s]*(internal|localhost|127\.0\.0\.1|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)`)
+	// Go network errors report a bare "host:port" with no scheme, so the
+	// scheme-anchored pattern above misses them entirely. Requiring the port
+	// keeps this from firing on ordinary dotted text such as a version string.
+	privateHostPortPattern = regexp.MustCompile(`(^|[^0-9A-Za-z.-])(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}|[A-Za-z0-9-]*internal[A-Za-z0-9.-]*):\d{2,5}`)
 	credentialPattern      = regexp.MustCompile(`(?i)(authorization:\s*bearer|api[_-]?key|password|secret|\\?"?token\\?"?\s*[:=]|gh[pousr]_[A-Za-z0-9_]{8,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)`)
 	rawPromptPattern       = regexp.MustCompile(`(?i)(raw_prompt|provider_response|raw provider response|prompt transcript)`)
 	localPathPattern       = regexp.MustCompile(`(^|["\s])(/Users/|/home/|/workspace/|/workspaces/|/tmp/|/private/|/var/|/opt/|/srv/|/mnt/|/Volumes/|[A-Za-z]:\\)`)
@@ -211,7 +215,13 @@ func sortPipelineState(state *PipelineStateSnapshot) {
 		if state.Collectors[i].CollectorKind != state.Collectors[j].CollectorKind {
 			return state.Collectors[i].CollectorKind < state.Collectors[j].CollectorKind
 		}
-		return state.Collectors[i].StatusCategory < state.Collectors[j].StatusCategory
+		if state.Collectors[i].StatusCategory != state.Collectors[j].StatusCategory {
+			return state.Collectors[i].StatusCategory < state.Collectors[j].StatusCategory
+		}
+		// sort.Slice is not stable, so every field needs to participate in the
+		// key or two rows differing only by Health could swap between runs and
+		// change bundle_id.
+		return state.Collectors[i].Health < state.Collectors[j].Health
 	})
 }
 
