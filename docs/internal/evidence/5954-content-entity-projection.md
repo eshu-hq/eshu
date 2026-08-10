@@ -177,8 +177,9 @@ these entity types proves nothing about whether they materialize. This staged
 disk only for a parser unit test) and added `terraform_comprehensive/pagerduty.tf`,
 moving the B-12 snapshot's node-count floors for all five labels off zero.
 
-Observed on a live `golden-corpus-gate` run against this branch (elapsed
-148s):
+Observed identically across three live `golden-corpus-gate` runs against this
+branch, taken at different points in the rebase history (elapsed 148s, 157s,
+and 193s):
 
 | label | count |
 | --- | --- |
@@ -189,19 +190,50 @@ Observed on a live `golden-corpus-gate` run against this branch (elapsed
 | `PagerDutyDeclaration` | 1 |
 | `Repository` | 31 |
 
-All six match the snapshot's pinned ranges/notes exactly, and the
-`GET /api/v0/iac/resources` query-shape assertion (`summary.total=23`) passed.
-Gate summary: 554 pass, 0 required-fail, 1 advisory-warn.
+All six matched the snapshot's pinned ranges/notes exactly in every run, and
+the `GET /api/v0/iac/resources` query-shape assertion (`summary.total=23`,
+`summary.by_kind.resource=14`, `count=14`) passed every time. 0 required-fail
+in all three. The three gate summary lines:
 
-**Advisory-warn disposition.** The one advisory warning was a
-`phase_graph_query` timing check. This run cannot separate that warning from
-host load on the machine it ran on — it is a single sample on a loaded host,
-not a quiet-host measurement, so it is not evidence of anything the diff did.
-The mechanism argument for why it is unlikely to be the diff: this change adds
-one 5-file repo and 13 projected nodes total, no snapshot query shape fans out
-over these labels, and the IaC inventory CTE is restricted to three Terraform
-entity types so it gains exactly one row from this change. That argument
-supports not attributing the warning to the diff; it does not prove host load
-caused it either, since no quiet-host rerun exists yet. A quiet-host rerun
-would be the second sample needed to say more than "not separable from host
-load on this run."
+| run | elapsed | summary |
+| --- | --- | --- |
+| 1 (`cdf3730a03`) | 148s | 554 pass, 0 required-fail, 1 advisory-warn |
+| 2 (`3b4f63a888`) | 157s | 555 pass, 0 required-fail, 0 advisory-warn |
+| 3 (`3b4f63a888`, rerun) | 193s | 552 pass, 0 required-fail, 3 advisory-warn |
+
+The asserted truth this branch changes — the six node counts and the IaC
+query shape — is stable across three different runs at three different points
+in the rebase history and under three different load conditions. That is a
+stronger claim than a single quiet run would have given: it is not evidence
+the diff got lucky once, it is evidence the diff's effect on graph and query
+truth does not move.
+
+**Advisory-warn disposition.** The only check that varied was
+`phase_graph_query`, an advisory timing check, never a required one:
+
+| run | observed | baseline | ceiling | result |
+| --- | --- | --- | --- | --- |
+| 1 | 10.0s | 3.0s | 8.0s | WARN (host load 17-18) |
+| 2 | 8.0s | 3.0s | 8.0s | PASS — landed exactly on the ceiling |
+| 3 | 13.0s | 3.0s | 8.0s | WARN — host load ~38 at the time, from a second live-gate run contending for the same lock this session |
+
+Run 3 also warned on `phase_collect` (32.0s vs a 25.0s ceiling) and
+`phase_maintenance_drains` (65.0s vs a 30.0s ceiling), neither of which
+warned in runs 1 or 2 — i.e. the timing degradation in run 3 was not confined
+to `phase_graph_query`, which argues for a host-wide effect over a
+diff-specific one.
+
+All three runs are elevated relative to the 3.0s baseline; none is a clean
+quiet-host measurement. This host carried between eight and twelve concurrent
+lanes plus other agents' preflights for the full session, with load ranging
+roughly 7 to 49, and a quiet window was not achievable in this session. The
+mechanism argument for why this is not attributed to the diff: this change
+adds one 5-file repo to a 31-repo corpus and 13 newly projected nodes total,
+no snapshot query shape fans out over these five labels, and the IaC
+inventory CTE is restricted to three Terraform entity types so it gains
+exactly one row from this change. That argument makes it implausible by
+mechanism that this diff moves a 3s phase to 8-13s. It does not prove what
+did — this is **implausible by mechanism, unresolved by measurement**, not
+contention confirmed. A WARN flipping to a PASS that lands precisely on the
+ceiling, or a PASS flipping back to a worse WARN two runs later, is not proof
+of anything about the diff either way.
