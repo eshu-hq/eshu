@@ -1908,7 +1908,7 @@
     "required_nodes": [
       {
         "id": "rn-package-artifact-hashes",
-        "description": "#5820 P2 review finding: rc-168 only asserted the PackageArtifact node and HAS_ARTIFACT edge exist, which a live projection that creates both but omits or miswrites `hashes` would still satisfy -- and this feature exists specifically to preserve per-artifact digests. This asserts the EXACT `hashes` VALUE, not just presence. The package_registry supply-chain-demo cassette's github.com/acme/lib-common@1.0.0 package_artifact fact carries hashes {sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b85, sha512: cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3}; packageRegistryHashPairs (go/internal/storage/cypher/package_registry_artifact_writer.go) flattens it into a sorted algorithm:digest string list on the graph node (Cypher properties cannot hold a nested map). `hashes` is a LIST-typed property: boltPropertyString/ListNodeProperty join a Bolt list property's elements with '|' (#5820 fix; without it this assertion would be unconditionally red on a live run regardless of writer correctness) so the joined value can be pinned exactly via allowed_node_property_values. A writer that omits hashes, drops a digest, or corrupts a digest fails this assertion even though rc-168's node/edge existence check would still pass.",
+        "description": "#5820 P2 review finding: rc-168 only asserted the PackageArtifact node and HAS_ARTIFACT edge exist, which a live projection that creates both but omits or miswrites `hashes` would still satisfy -- and this feature exists specifically to preserve per-artifact digests. This asserts the EXACT `hashes` VALUE, not just presence. The package_registry supply-chain-demo cassette's github.com/acme/lib-common@1.0.0 package_artifact fact carries hashes {sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855, sha512: cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e}; packageRegistryHashPairs (go/internal/storage/cypher/package_registry_artifact_writer.go) flattens it into a sorted algorithm:digest string list on the graph node (Cypher properties cannot hold a nested map). `hashes` is a LIST-typed property: boltPropertyString/ListNodeProperty join a Bolt list property's elements with '|' (#5820 fix; without it this assertion would be unconditionally red on a live run regardless of writer correctness) so the joined value can be pinned exactly via allowed_node_property_values. A writer that omits hashes, drops a digest, or corrupts a digest fails this assertion even though rc-168's node/edge existence check would still pass.",
         "label": "PackageArtifact",
         "minimum_count": 1,
         "required_node_properties": [
@@ -1916,7 +1916,7 @@
         ],
         "allowed_node_property_values": {
           "hashes": [
-            "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b85|sha512:cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3"
+            "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855|sha512:cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e"
           ]
         }
       },
