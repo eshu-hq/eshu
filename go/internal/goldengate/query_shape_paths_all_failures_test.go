@@ -59,6 +59,71 @@ func TestEvaluateQueryShapeReportsEveryFailingRequirement(t *testing.T) {
 	}
 }
 
+// TestEvaluateQueryShapeReportsFailuresFromEveryRequirementFamily closes the
+// coverage gap the test above leaves.
+//
+// That test only exercises RequiredJSONValues, but the early return was
+// replaced in all four families -- RequiredJSONPaths, RequiredJSONValues,
+// RequiredJSONObjectMatches and RequiredAbsentWhenPresent. Restoring an early
+// return in any of the other three would hide every later diagnostic again
+// while the suite stayed green, because the existing tests for those families
+// only assert the overall pass/fail verdict and never look at the detail.
+//
+// One shape fails all four at once, so a reinstated early return anywhere
+// truncates the detail and this test names the family that went missing.
+func TestEvaluateQueryShapeReportsFailuresFromEveryRequirementFamily(t *testing.T) {
+	t.Parallel()
+
+	shape := QueryShape{
+		RequiredResponseFields: []string{"data"},
+		RequiredJSONPaths:      []string{"data.absent_field"},
+		RequiredJSONValues: map[string]any{
+			"data.kind": "expected_kind",
+		},
+		RequiredJSONObjectMatches: map[string][]map[string]any{
+			"data.items[]": {{"name": "absent_item"}},
+		},
+		RequiredAbsentWhenPresent: []AbsentWhenPresent{
+			{
+				DomainPath:  "data.evidence_boundaries[].domain",
+				DomainValue: "ci_cd_run_correlation",
+				SiblingPath: "data.ci_cd_evidence",
+			},
+		},
+	}
+	// Fails every family at once: no absent_field, kind is wrong, no item
+	// named absent_item, and ci_cd_run_correlation is disclosed absent while
+	// the ci_cd_evidence sibling is served in the same response.
+	body := []byte(`{"data":{
+		"kind":"wrong_kind",
+		"items":[{"name":"present_item"}],
+		"ci_cd_evidence":{"state":"materialized"},
+		"evidence_boundaries":[{"domain":"ci_cd_run_correlation"}]
+	}}`)
+
+	finding := EvaluateQueryShape("every-family-fails", shape, body)
+	if finding.OK {
+		t.Fatal("EvaluateQueryShape() OK = true, want a failure: all four requirement families are unsatisfied")
+	}
+	for _, want := range []struct {
+		family   string
+		fragment string
+	}{
+		{family: "RequiredJSONPaths", fragment: "data.absent_field"},
+		{family: "RequiredJSONValues", fragment: "data.kind"},
+		{family: "RequiredJSONObjectMatches", fragment: "data.items[]"},
+		{family: "RequiredAbsentWhenPresent", fragment: "disclosure-vs-served contradiction"},
+	} {
+		if !strings.Contains(finding.Detail, want.fragment) {
+			t.Fatalf(
+				"detail = %q, want it to name the %s failure (fragment %q): an early return reinstated in that "+
+					"branch would truncate the detail and hide every family after it (#5876)",
+				finding.Detail, want.family, want.fragment,
+			)
+		}
+	}
+}
+
 // TestEvaluateQueryShapeSingleFailureDetailStaysReadable guards the other
 // direction: collecting every failure must not turn the common one-failure
 // case into a list with separator noise. A single failing requirement reads

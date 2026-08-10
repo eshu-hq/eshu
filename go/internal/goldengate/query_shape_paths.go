@@ -28,14 +28,23 @@ func evaluateJSONPathRequirements(shape QueryShape, body []byte) (bool, string) 
 		return false, "response is not valid JSON for path assertions: " + err.Error()
 	}
 	// Collect EVERY failing requirement rather than returning on the first.
-	// The requirement loops run in sorted path order, so returning early made
-	// the alphabetically-first failure the only one an operator ever saw --
-	// and in the AWS runtime-drift gate that was reliably the symptom
-	// (`drift_findings[].drifted_attributes[]` empty) rather than the cause
-	// (`drift_findings[].finding_kind` converged to the wrong kind), because
-	// `d` sorts before `f`. Issues #5831, #5837, and #5876 each chased the
-	// symptom. This reports all of them; it loosens nothing, since any single
-	// failure still fails the shape.
+	//
+	// Returning early made exactly one failure visible per shape, and which
+	// one was an accident of iteration order: RequiredJSONValues and
+	// RequiredJSONObjectMatches are maps iterated in sorted path order, while
+	// RequiredJSONPaths and RequiredAbsentWhenPresent are slices iterated in
+	// the order the snapshot declares them. Either way the first failure won
+	// and the rest were never evaluated.
+	//
+	// In the AWS runtime-drift gate that reliably surfaced the symptom rather
+	// than the cause: both failing assertions were RequiredJSONValues, so the
+	// sorted order applied and `drift_findings[].drifted_attributes[]` (empty,
+	// a derived field) beat `drift_findings[].finding_kind` (converged to the
+	// wrong kind, the actual defect) because `d` sorts before `f`. Issues
+	// #5831, #5837, and #5876 each chased the symptom.
+	//
+	// This reports all of them; it loosens nothing, since any single failure
+	// still fails the shape.
 	var failures []string
 	for _, path := range shape.RequiredJSONPaths {
 		values, err := resolveJSONPath(root, path)
