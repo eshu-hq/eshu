@@ -157,6 +157,9 @@ func TestAuthMiddlewareRejectsUnboundedBearerDenialReasonCode(t *testing.T) {
 
 	handler.ServeHTTP(rec, req)
 
+	if !resolver.called {
+		t.Fatal("resolver was never called: the middleware short-circuited before the bearer-resolution path")
+	}
 	if got, want := len(audit.events), 1; got != want {
 		t.Fatalf("len(audit.events) = %d, want %d", got, want)
 	}
@@ -183,6 +186,9 @@ func TestAuthMiddlewarePlainResolverErrorKeepsGenericReasonCode(t *testing.T) {
 
 	handler.ServeHTTP(rec, req)
 
+	if !resolver.called {
+		t.Fatal("resolver was never called: the middleware short-circuited before the bearer-resolution path")
+	}
 	if got, want := len(audit.events), 1; got != want {
 		t.Fatalf("len(audit.events) = %d, want %d", got, want)
 	}
