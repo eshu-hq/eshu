@@ -44,10 +44,10 @@ func TestGoldenSnapshotIaCInventoryRequiresCurrentSummary(t *testing.T) {
 	// module "orders_pagerduty_service" is a MODULE block, not a resource
 	// block, so count and summary.by_kind.resource hold at 14). PR #6037
 	// review round 3 (copilot) added summary.by_kind.module=7 and
-	// summary.by_kind.data-source=2: without these two, total=23/resource=14
-	// alone do not stop a future regression from silently shifting a count
-	// between module and data-source, since their sum (9) is unpinned by the
-	// other two assertions -- see
+	// summary.by_kind.data-source=2: total=23/resource=14 pin their sum at 9
+	// (23-14) but not the split between them, so without these two a future
+	// regression could shift a count from module to data-source and still
+	// pass -- see
 	// testdata/golden/e2e-20repo-snapshot.json's own required_json_values
 	// comment on this same query shape for the full derivation of all five.
 	for path, want := range map[string]any{
