@@ -11,6 +11,13 @@ import (
 	"strings"
 )
 
+// jsonRequirementFailureSeparator joins the individual requirement failures
+// evaluateJSONPathRequirements collects into one gate detail line. It is
+// deliberately not "; ", which already appears INSIDE a single value-mismatch
+// detail ("did not equal 1; observed [2]") and would make one failure
+// indistinguishable from two when the line is read or split.
+const jsonRequirementFailureSeparator = " | "
+
 func evaluateJSONPathRequirements(shape QueryShape, body []byte) (bool, string) {
 	if len(shape.RequiredJSONPaths) == 0 && len(shape.RequiredJSONValues) == 0 &&
 		len(shape.RequiredJSONObjectMatches) == 0 && len(shape.RequiredAbsentWhenPresent) == 0 {
@@ -20,45 +27,61 @@ func evaluateJSONPathRequirements(shape QueryShape, body []byte) (bool, string) 
 	if err := json.Unmarshal(body, &root); err != nil {
 		return false, "response is not valid JSON for path assertions: " + err.Error()
 	}
+	// Collect EVERY failing requirement rather than returning on the first.
+	// The requirement loops run in sorted path order, so returning early made
+	// the alphabetically-first failure the only one an operator ever saw --
+	// and in the AWS runtime-drift gate that was reliably the symptom
+	// (`drift_findings[].drifted_attributes[]` empty) rather than the cause
+	// (`drift_findings[].finding_kind` converged to the wrong kind), because
+	// `d` sorts before `f`. Issues #5831, #5837, and #5876 each chased the
+	// symptom. This reports all of them; it loosens nothing, since any single
+	// failure still fails the shape.
+	var failures []string
 	for _, path := range shape.RequiredJSONPaths {
 		values, err := resolveJSONPath(root, path)
 		if err != nil {
-			return false, fmt.Sprintf("required JSON path %q failed: %v", path, err)
+			failures = append(failures, fmt.Sprintf("required JSON path %q failed: %v", path, err))
+			continue
 		}
 		if !hasNonEmptyJSONValue(values) {
-			return false, fmt.Sprintf("required JSON path %q resolved no non-empty values", path)
+			failures = append(failures, fmt.Sprintf("required JSON path %q resolved no non-empty values", path))
 		}
 	}
 	for _, path := range sortedJSONValuePaths(shape.RequiredJSONValues) {
 		expected := shape.RequiredJSONValues[path]
 		values, err := resolveJSONPath(root, path)
 		if err != nil {
-			return false, fmt.Sprintf("required JSON value %q failed: %v", path, err)
+			failures = append(failures, fmt.Sprintf("required JSON value %q failed: %v", path, err))
+			continue
 		}
 		if !hasMatchingJSONValue(values, expected) {
-			return false, fmt.Sprintf(
+			failures = append(failures, fmt.Sprintf(
 				"required JSON value %q did not equal %v; observed %v",
 				path,
 				expected,
 				values,
-			)
+			))
 		}
 	}
 	for _, path := range sortedJSONObjectMatchPaths(shape.RequiredJSONObjectMatches) {
 		values, err := resolveJSONPath(root, path)
 		if err != nil {
-			return false, fmt.Sprintf("required JSON object match %q failed: %v", path, err)
+			failures = append(failures, fmt.Sprintf("required JSON object match %q failed: %v", path, err))
+			continue
 		}
 		for _, expected := range shape.RequiredJSONObjectMatches[path] {
 			if !hasMatchingJSONObject(values, expected) {
-				return false, fmt.Sprintf("required JSON object match %q did not contain %v", path, expected)
+				failures = append(failures, fmt.Sprintf("required JSON object match %q did not contain %v", path, expected))
 			}
 		}
 	}
 	for _, absent := range shape.RequiredAbsentWhenPresent {
 		if ok, detail := evaluateAbsentWhenPresent(root, absent); !ok {
-			return false, detail
+			failures = append(failures, detail)
 		}
+	}
+	if len(failures) > 0 {
+		return false, strings.Join(failures, jsonRequirementFailureSeparator)
 	}
 	return true, fmt.Sprintf(
 		"json paths %v, values %v, object matches %v, and mutual-exclusion checks %d present",
