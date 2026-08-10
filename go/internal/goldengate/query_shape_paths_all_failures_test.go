@@ -69,8 +69,13 @@ func TestEvaluateQueryShapeReportsEveryFailingRequirement(t *testing.T) {
 // while the suite stayed green, because the existing tests for those families
 // only assert the overall pass/fail verdict and never look at the detail.
 //
-// One shape fails all four at once, so a reinstated early return anywhere
-// truncates the detail and this test names the family that went missing.
+// One shape fails all four families at once, and covers BOTH failure branches
+// of the two families that have two (a path that cannot resolve versus one
+// that resolves to an empty value; an object-match path that cannot resolve
+// versus one that resolves but contains no match). That is six of the seven
+// append sites. The seventh -- the RequiredJSONValues resolve-error branch --
+// is covered by TestEvaluateQueryShapeReportsEveryFailingRequirement above,
+// so between the two tests every site dies when reverted to an early return.
 func TestEvaluateQueryShapeReportsFailuresFromEveryRequirementFamily(t *testing.T) {
 	t.Parallel()
 
@@ -86,8 +91,15 @@ func TestEvaluateQueryShapeReportsFailuresFromEveryRequirementFamily(t *testing.
 		RequiredJSONValues: map[string]any{
 			"data.kind": "expected_kind",
 		},
+		// Two entries here for the same reason RequiredJSONPaths has two:
+		// this family also has two failure branches. data.items[] resolves
+		// and contains no matching object; data.absent_items[] cannot
+		// resolve at all. Sorted order puts absent_items first, so an early
+		// return in the resolve-error branch truncates before items[] and
+		// this test dies.
 		RequiredJSONObjectMatches: map[string][]map[string]any{
-			"data.items[]": {{"name": "absent_item"}},
+			"data.items[]":        {{"name": "absent_item"}},
+			"data.absent_items[]": {{"name": "unreachable"}},
 		},
 		RequiredAbsentWhenPresent: []AbsentWhenPresent{
 			{
@@ -119,7 +131,8 @@ func TestEvaluateQueryShapeReportsFailuresFromEveryRequirementFamily(t *testing.
 		{family: "RequiredJSONPaths (resolve error)", fragment: "data.absent_field"},
 		{family: "RequiredJSONPaths (resolved but empty)", fragment: "data.blank_field"},
 		{family: "RequiredJSONValues", fragment: "data.kind"},
-		{family: "RequiredJSONObjectMatches", fragment: "data.items[]"},
+		{family: "RequiredJSONObjectMatches (resolve error)", fragment: "data.absent_items[]"},
+		{family: "RequiredJSONObjectMatches (no matching object)", fragment: "data.items[]"},
 		{family: "RequiredAbsentWhenPresent", fragment: "disclosure-vs-served contradiction"},
 	} {
 		if !strings.Contains(finding.Detail, want.fragment) {
