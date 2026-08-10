@@ -68,13 +68,18 @@ type Contents struct {
 // no status endpoint exposes (recorded instead as a "fact_counts"
 // MissingEvidence entry).
 type PipelineStateSnapshot struct {
-	RepositoryCount   int                                  `json:"repository_count"`
-	HealthState       string                               `json:"health_state"`
-	HealthReasons     []string                             `json:"health_reasons,omitempty"`
-	Queue             PipelineQueueSnapshot                `json:"queue"`
-	QueueBlockedCount int                                  `json:"queue_blocked_count,omitempty"`
-	ScopeActivity     PipelineScopeActivitySnapshot        `json:"scope_activity,omitempty"`
-	GenerationHistory PipelineGenerationHistorySnapshot    `json:"generation_history,omitempty"`
+	RepositoryCount int                   `json:"repository_count"`
+	HealthState     string                `json:"health_state"`
+	HealthReasons   []string              `json:"health_reasons,omitempty"`
+	Queue           PipelineQueueSnapshot `json:"queue"`
+	// No omitempty on the three below. encoding/json never treats a struct as
+	// empty, so it was a no-op on the two struct fields; and on the count a
+	// genuine zero ("nothing is blocked") must stay distinguishable from
+	// "not collected" in an artifact whose design principle is that gaps are
+	// explicit data.
+	QueueBlockedCount int                                  `json:"queue_blocked_count"`
+	ScopeActivity     PipelineScopeActivitySnapshot        `json:"scope_activity"`
+	GenerationHistory PipelineGenerationHistorySnapshot    `json:"generation_history"`
 	StageSummaries    []PipelineStageSummarySnapshot       `json:"stage_summaries,omitempty"`
 	DomainBacklogs    []PipelineDomainBacklogSnapshot      `json:"domain_backlogs,omitempty"`
 	Collectors        []PipelineCollectorReadinessSnapshot `json:"collectors,omitempty"`

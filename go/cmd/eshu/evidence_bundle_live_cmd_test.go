@@ -187,3 +187,24 @@ func TestEvidenceBundleExportLiveRejectsRepositoryScope(t *testing.T) {
 		t.Fatalf("error = %v, want it to name the --scope/--live conflict", err)
 	}
 }
+
+// TestEvidenceCommandTreeExposesTheAdvertisedLiveArgv walks the real command
+// tree from the same constructor main wires into rootCmd, so the argv the docs
+// and the bundle's own reproduce call advertise -- "eshu evidence bundle export
+// --live" -- is checked against the wiring rather than assumed. The sibling
+// tests drive the leaf command directly and would still pass if a parent were
+// renamed or the leaf never attached.
+func TestEvidenceCommandTreeExposesTheAdvertisedLiveArgv(t *testing.T) {
+	root := newEvidenceCommand()
+	leaf, _, err := root.Find([]string{"bundle", "export"})
+	if err != nil {
+		t.Fatalf("Find(bundle export) error = %v", err)
+	}
+	if leaf.Name() != "export" || leaf.Parent().Name() != "bundle" || leaf.Parent().Parent().Name() != "evidence" {
+		t.Fatalf("resolved %q under %q/%q, want export under bundle/evidence",
+			leaf.Name(), leaf.Parent().Name(), leaf.Parent().Parent().Name())
+	}
+	if leaf.Flags().Lookup("live") == nil {
+		t.Fatal("the advertised argv resolves to a command with no --live flag")
+	}
+}
