@@ -177,3 +177,73 @@ func TestValidateKeepsOrdinaryDottedTextUsable(t *testing.T) {
 		t.Fatalf("Validate rejected ordinary dotted text: %v", err)
 	}
 }
+
+// TestValidateRejectsRealCredentialBearingURLs covers what the registry canary
+// check cannot. AssertNoForbiddenCanary searches for the registry's exact
+// synthetic strings, so a real credential an operator's status text happens to
+// carry passes it untouched. These are non-canary values.
+func TestValidateRejectsRealCredentialBearingURLs(t *testing.T) {
+	for _, secret := range []string{
+		"https://alice:s3cr3t@example.com/x",
+		"http://svc-account:hunter2@registry.example.org/v2/",
+		"https://token:ghp_aaaaaaaaaaaaaaaaaaaa@github.example/repo.git",
+	} {
+		t.Run(secret, func(t *testing.T) {
+			snapshot := realisticLiveSnapshot()
+			// profile_id is operator-supplied free text that reaches the bundle.
+			snapshot.SemanticExtraction.ProviderProfiles = []LiveSemanticProviderProfileSnapshot{
+				{ProfileID: secret, ProviderKind: "openai", State: "ready"},
+			}
+			snapshot.SemanticExtraction.ProviderConfigured = true
+			bundle := BuildLiveBundle(snapshot, LiveBundleOptions{
+				ScopeID:   "live:local",
+				CreatedAt: fixedLiveCreatedAt,
+			})
+			if err := Validate(bundle); err == nil {
+				raw, _ := RenderJSON(bundle)
+				t.Fatalf("Validate accepted a bundle carrying credential URL %q\nbundle: %s", secret, raw)
+			}
+		})
+	}
+}
+
+// TestValidateKeepsCredentialFreeURLsUsable guards the check above from
+// rejecting an ordinary URL, which would make honest status text unexportable.
+func TestValidateKeepsCredentialFreeURLsUsable(t *testing.T) {
+	snapshot := realisticLiveSnapshot()
+	snapshot.HealthReasons = []string{
+		"see https://docs.example.com/runbook/queue-backlog for remediation",
+	}
+	bundle := BuildLiveBundle(snapshot, LiveBundleOptions{ScopeID: "live:local", CreatedAt: fixedLiveCreatedAt})
+	if err := Validate(bundle); err != nil {
+		t.Fatalf("Validate rejected a credential-free URL: %v", err)
+	}
+}
+
+// TestValidateAcceptsPublicIPv6Endpoints keeps the IPv6 branch consistent with
+// the IPv4 ones, which only reject loopback and private ranges. Treating every
+// bracketed IPv6 literal as private would reject a bundle whose status text
+// merely mentions a public resolver.
+func TestValidateAcceptsPublicIPv6Endpoints(t *testing.T) {
+	snapshot := realisticLiveSnapshot()
+	snapshot.HealthReasons = []string{"upstream resolver [2606:4700:4700::1111]:443 responded slowly"}
+	bundle := BuildLiveBundle(snapshot, LiveBundleOptions{ScopeID: "live:local", CreatedAt: fixedLiveCreatedAt})
+	if err := Validate(bundle); err != nil {
+		t.Fatalf("Validate rejected a public IPv6 endpoint: %v", err)
+	}
+}
+
+// TestValidateRejectsPrivateIPv6Endpoints covers the ranges that are private:
+// loopback, unique-local, and link-local.
+func TestValidateRejectsPrivateIPv6Endpoints(t *testing.T) {
+	for _, endpoint := range []string{"[::1]:5432", "[fd00::5]:5432", "[fe80::1]:7687"} {
+		t.Run(endpoint, func(t *testing.T) {
+			snapshot := realisticLiveSnapshot()
+			snapshot.HealthReasons = []string{"dial tcp " + endpoint + ": connection refused"}
+			bundle := BuildLiveBundle(snapshot, LiveBundleOptions{ScopeID: "live:local", CreatedAt: fixedLiveCreatedAt})
+			if err := Validate(bundle); err == nil {
+				t.Fatalf("Validate accepted private IPv6 endpoint %q", endpoint)
+			}
+		})
+	}
+}

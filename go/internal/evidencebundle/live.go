@@ -158,16 +158,22 @@ func BuildLiveBundle(snapshot LiveSnapshot, opts LiveBundleOptions) Bundle {
 		},
 		Contents: Contents{
 			OperatorState: []OperatorStateItem{
-				{Kind: "freshness", State: "fresh"},
+				{Kind: "freshness", State: "unknown", Reason: "no_freshness_signal_in_status_routes"},
 				{Kind: "readiness", State: liveReadinessState(snapshot.HealthState)},
 			},
 			PipelineState:         &pipelineState,
 			SemanticProviderState: &semanticState,
 		},
-		Missing: []MissingEvidence{{
-			Family: "fact_counts",
-			Reason: "fact_counts_not_exposed_by_status_api",
-		}},
+		Missing: []MissingEvidence{
+			{
+				Family: "fact_counts",
+				Reason: "fact_counts_not_exposed_by_status_api",
+			},
+			{
+				Family: "freshness",
+				Reason: "status_routes_carry_no_indexed_at_or_generation_completed_at",
+			},
+		},
 		Reproduce: []ReproduceCall{
 			{Kind: "cli", Target: "eshu evidence bundle export --live"},
 			{Kind: "api", Target: "GET /api/v0/status/index"},

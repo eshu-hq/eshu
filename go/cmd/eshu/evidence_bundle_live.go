@@ -31,10 +31,13 @@ type evidenceIndexStatus struct {
 	SemanticExtraction evidenceSemanticExtractionState `json:"semantic_extraction"`
 }
 
-// evidenceQueueBlockage decodes one queue_blockages entry; only the blocked
-// flag is needed to derive a count.
+// evidenceQueueBlockage decodes one queue_blockages entry. status.QueueBlockage
+// carries Blocked as an int count of gated rows, not a flag, so the API
+// serializes a number here (go/internal/query/status_mappers.go). Decoding it
+// as a bool aborted the export with a json error precisely when blockage
+// evidence existed.
 type evidenceQueueBlockage struct {
-	Blocked bool `json:"blocked"`
+	Blocked int `json:"blocked"`
 }
 
 // evidenceSemanticExtractionState decodes the semantic_extraction block
@@ -193,12 +196,16 @@ func liveEvidenceSnapshotFromStatus(
 	}
 }
 
+// countBlockedQueueEntries sums the gated-row counts across blockage entries.
+// Blocked is a row count rather than a flag, so summing reports how much work
+// is gated; counting entries would under-report a single heavily-gated domain
+// as 1.
 func countBlockedQueueEntries(blockages []evidenceQueueBlockage) int {
-	count := 0
+	total := 0
 	for _, blockage := range blockages {
-		if blockage.Blocked {
-			count++
+		if blockage.Blocked > 0 {
+			total += blockage.Blocked
 		}
 	}
-	return count
+	return total
 }

@@ -28,7 +28,7 @@ func TestEvidenceBundleExportLiveComposesBundleFromStatusEndpoints(t *testing.T)
 		case "/api/v0/status/index":
 			_, _ = w.Write([]byte(`{
 				"repository_count": 5,
-				"queue_blockages": [{"blocked": true}, {"blocked": false}],
+				"queue_blockages": [{"stage": "reduce", "domain": "aws_relationship", "conflict_domain": "aws", "conflict_key": "k1", "blocked": 3}, {"stage": "parse", "domain": "code", "conflict_domain": "code", "conflict_key": "k2", "blocked": 2}],
 				"semantic_extraction": {
 					"state": "unavailable",
 					"reason": "provider_not_configured",
@@ -101,8 +101,8 @@ func TestEvidenceBundleExportLiveComposesBundleFromStatusEndpoints(t *testing.T)
 	if state.Queue != wantQueue {
 		t.Fatalf("Queue = %+v, want %+v", state.Queue, wantQueue)
 	}
-	if state.QueueBlockedCount != 1 {
-		t.Fatalf("QueueBlockedCount = %d, want 1 (only one blocked=true blockage in the stub)", state.QueueBlockedCount)
+	if state.QueueBlockedCount != 5 {
+		t.Fatalf("QueueBlockedCount = %d, want 5 (3+2 gated rows summed across the two blockages)", state.QueueBlockedCount)
 	}
 	if len(state.DomainBacklogs) != 1 || state.DomainBacklogs[0].Domain != "aws_relationship" {
 		t.Fatalf("DomainBacklogs = %+v, want the aws_relationship backlog from the stub", state.DomainBacklogs)

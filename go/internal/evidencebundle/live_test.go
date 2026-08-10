@@ -246,3 +246,37 @@ func TestBuildLiveBundleSortsEveryNestedSlice(t *testing.T) {
 		t.Fatalf("bundle_id not stable across rebuilds: %q vs %q", bundle.BundleID, again.BundleID)
 	}
 }
+
+// TestBuildLiveBundleNeverClaimsFreshness guards against reporting an empty,
+// degraded, or stalled stack as current. The status routes carry no indexed-at
+// or generation-completed-at signal, so "fresh" was an assertion the data could
+// not support; support tooling reading it would have shown stale evidence as
+// up to date.
+func TestBuildLiveBundleNeverClaimsFreshness(t *testing.T) {
+	for name, snapshot := range map[string]LiveSnapshot{
+		"empty":    {},
+		"degraded": {RepositoryCount: 3, HealthState: "degraded"},
+		"ready":    {RepositoryCount: 9, HealthState: "ready"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			bundle := BuildLiveBundle(snapshot, LiveBundleOptions{ScopeID: "live:x", CreatedAt: fixedLiveCreatedAt})
+			for _, item := range bundle.Contents.OperatorState {
+				if item.Kind != "freshness" {
+					continue
+				}
+				if item.State == "fresh" {
+					t.Fatalf("freshness reported as %q with no freshness signal available", item.State)
+				}
+			}
+			var recorded bool
+			for _, gap := range bundle.Missing {
+				if gap.Family == "freshness" {
+					recorded = true
+				}
+			}
+			if !recorded {
+				t.Fatal("missing_evidence does not record the absent freshness signal")
+			}
+		})
+	}
+}

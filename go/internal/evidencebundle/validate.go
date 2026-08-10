@@ -97,6 +97,8 @@ func validatePrivateCanaries(bundle Bundle) error {
 	switch {
 	case privateEndpointPattern.MatchString(text), privateHostPortPattern.MatchString(text):
 		return fmt.Errorf("private endpoint is not allowed in evidence bundle")
+	case credentialURLPattern.MatchString(text):
+		return fmt.Errorf("credential-bearing URL is not allowed in evidence bundle")
 	case credentialPattern.MatchString(text):
 		return fmt.Errorf("credential canary is not allowed in evidence bundle")
 	case rawPromptPattern.MatchString(text):
