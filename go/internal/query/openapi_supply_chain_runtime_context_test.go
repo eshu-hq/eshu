@@ -89,6 +89,13 @@ func TestOpenAPISpecDistinguishesDigestBoundKubernetesRefsFromRuntimeContext(t *
 	if got, want := truncated["type"], "boolean"; got != want || truncated["nullable"] != true {
 		t.Fatalf("workload_refs_truncated schema = %#v, want nullable boolean", truncated)
 	}
+	corroboration := mustMapField(t, itemProperties, "version_resolution_corroboration")
+	corroborationItems := mustMapField(t, corroboration, "items")
+	corroborationProperties := mustMapField(t, corroborationItems, "properties")
+	evidenceKind := mustMapField(t, corroborationProperties, "evidence_kind")
+	if got := mustStringSliceField(t, evidenceKind, "enum"); containsOpenAPIEnumString(got, "kubernetes_runtime_probe") {
+		t.Fatalf("version-resolution corroboration evidence kinds = %#v, must omit winner-only kubernetes runtime source", got)
+	}
 
 	explainPath := mustMapField(t, paths, "/api/v0/supply-chain/impact/explain")
 	explainGet := mustMapField(t, explainPath, "get")

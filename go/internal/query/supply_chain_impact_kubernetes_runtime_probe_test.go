@@ -278,6 +278,24 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceRejectsMalformedAndDeduplicate
 	}
 }
 
+func TestApplySupplyChainKubernetesRuntimeEvidenceSkipsUnconfiguredGraphWithoutSubjectDigests(t *testing.T) {
+	t.Parallel()
+
+	inventory := &stubKubernetesWorkloadInventory{}
+	handler := &SupplyChainHandler{KubernetesWorkloadInventory: inventory}
+	rows := []SupplyChainImpactFindingRow{
+		{FindingID: "empty"},
+		{FindingID: "whitespace", SubjectDigest: "  \t"},
+	}
+
+	if err := handler.applySupplyChainKubernetesRuntimeEvidence(context.Background(), repositoryAccessFilter{allScopes: true}, rows); err != nil {
+		t.Fatalf("applySupplyChainKubernetesRuntimeEvidence() error = %v, want nil", err)
+	}
+	if len(inventory.candidates) != 0 {
+		t.Fatalf("inventory candidates = %v, want none", inventory.candidates)
+	}
+}
+
 func TestApplySupplyChainKubernetesRuntimeEvidenceRejectsStoreCrossFindingMismatch(t *testing.T) {
 	t.Parallel()
 

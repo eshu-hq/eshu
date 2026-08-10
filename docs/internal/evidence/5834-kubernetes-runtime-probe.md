@@ -63,12 +63,16 @@ It ran against NornicDB source revision
 and PostgreSQL 18.4.
 
 The #6011 base rebase changed the Kubernetes cassette and B-12 snapshot, not
-the measured query, Postgres gate, or live harness. Blob comparison between the
-tested commit and the rebased branch returned identical object IDs:
+the measured query, Postgres gate, or live harness. A later preliminary-review
+fix moved the graph-availability check behind the empty-plan return so a page
+with no usable digest remains a no-op during a graph outage. That guard change
+does not alter the non-empty plan, Cypher, fanout, Postgres gate, or live
+harness. The live command below was rerun after the fix against these current
+object IDs:
 
 | File | Git blob |
 | --- | --- |
-| `supply_chain_impact_kubernetes_runtime_probe.go` | `bce5ca484e284893b8fb3cc234fdf0d2a3e7d297` |
+| `supply_chain_impact_kubernetes_runtime_probe.go` | `ed3ccad27100ed1f17e8fe105158c68a5e1e4aca` |
 | `supply_chain_impact_kubernetes_runtime_probe_fair.go` | `fc548f44218bc4d3cd31bcb63638f6a05b021bc5` |
 | `kubernetes_runtime_workload_store.go` | `1c81d97983cf93a7810756af20973410a69e78d3` |
 | `supply_chain_impact_kubernetes_runtime_probe_performance_live_test.go` | `bca0979ee7bc38bf2e710eaf9fa3aa54ca49f87c` |
@@ -84,10 +88,10 @@ measured rounds on the same graph and Postgres state.
 
 | Request shape | Prior global limit p50 / p95 | Balanced p50 / p95 | Truth result |
 | --- | ---: | ---: | --- |
-| One request | 2.178 / 3.434 ms | 7.925 / 9.196 ms | prior: 200 refs from 1 digest; balanced: 200 refs from 200 digests |
-| Four concurrent requests | 4.709 / 12.659 ms | 30.207 / 40.158 ms | every measured request retained its lane's exact truth result |
+| One request | 2.801 / 4.169 ms | 9.700 / 15.484 ms | prior: 200 refs from 1 digest; balanced: 200 refs from 200 digests |
+| Four concurrent requests | 9.566 / 18.952 ms | 32.401 / 46.956 ms | every measured request retained its lane's exact truth result |
 
-The exact recorded run stayed below 41 ms at p95. An immediately preceding
+The exact current-tree run stayed below 47 ms at p95. An earlier
 same-shape run on the same host observed transient tails of 262.799 ms for one
 balanced request and 314.557 ms for four concurrent requests; those are still
 below the capability's 1,000 ms local-full-stack p95 budget, but they show why
@@ -95,8 +99,8 @@ the evidence does not claim a tighter SLO. The fixed driver pool and worker
 ceiling were both 32. The final run observed a maximum of 32 graph reads, 400
 all-scope candidates, 11,861 successful one-attempt Neo4jReader spans across
 the measurement set, and a successful request immediately after forced parent
-cancellation. The paired Postgres plans measured 1.464 ms for the scoped
-200-candidate shape and 3.388 ms for the all-scope 400-candidate shape,
+cancellation. The paired Postgres plans measured 2.048 ms for the scoped
+200-candidate shape and 4.753 ms for the all-scope 400-candidate shape,
 excluding planning time.
 
 The live test initially failed because a fixture created nodes, a relationship,

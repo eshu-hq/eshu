@@ -218,7 +218,7 @@ const openAPIPathsSupplyChainImpactFindings = `
                               "properties": {
                                 "tier": {"type": "string", "enum": ["runtime_confirmed", "provenance_ci_declared", "declared_ref", "config_only"]},
                                 "digest_or_version": {"type": "string", "description": "The digest or version this tier's own evidence asserts."},
-                                "evidence_kind": {"type": "string", "enum": ["cloud_runtime_probe", "kubernetes_runtime_probe", "cicd_run_correlation", "config_materialization"], "description": "The evidence source backing this tier's claim."},
+                                "evidence_kind": {"type": "string", "enum": ["cloud_runtime_probe", "cicd_run_correlation", "config_materialization"], "description": "The evidence source backing this tier's claim."},
                                 "agreement": {"type": "string", "enum": ["agrees", "disagrees", "not_comparable"], "description": "Whether digest_or_version textually equals version_resolution_tier's judged value. Only ever agrees/disagrees when this entry's identity axis (digest, image_ref, or version) matches the winner's axis -- a cross-axis pair, such as a config-materialized version compared against a digest-based winner, is always not_comparable, since a dpkg version string (for example) can never meaningfully equal a sha256 digest (review finding R6)."}
                               },
                               "required": ["tier", "agreement"]

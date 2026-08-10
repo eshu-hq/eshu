@@ -1063,11 +1063,13 @@ is a closed three-state vocabulary, not a boolean; review finding R6).
 wired yet.
 
 An exact `kubernetes_runtime_workload_refs` match also supplies the parent's
-`subject_digest` as the `runtime_confirmed` version claim, with
-`evidence_kind: kubernetes_runtime_probe`. When both cloud and Kubernetes
-runtime evidence confirm the same digest, the established
-`cloud_runtime_probe` evidence-kind value is retained deterministically; both
-runtime ref fields remain available on the finding.
+`subject_digest` as the `runtime_confirmed` version claim. The public response
+binds that source through the exact workload references and
+`kubernetes_runtime_probe` metadata; `version_resolution_corroboration[]`
+contains only non-winning tiers, so it does not repeat the winning Kubernetes
+source as an `evidence_kind`. When both cloud and Kubernetes runtime evidence
+confirm the same digest, both runtime ref fields remain available on the
+finding.
 
 Benchmark Evidence: `go test ./internal/query -run '^$' -bench
 '^BenchmarkBuildSupplyChainImpactFindingResult$' -benchtime=2s -count=5

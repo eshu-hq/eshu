@@ -107,9 +107,6 @@ func (h *SupplyChainHandler) applySupplyChainKubernetesRuntimeEvidence(
 	if h == nil || h.KubernetesWorkloadInventory == nil || len(rows) == 0 {
 		return nil
 	}
-	if !graphQueryConfigured(h.Neo4j) {
-		return ErrGraphUnavailable
-	}
 	digests := make([]string, 0, len(rows))
 	for _, row := range rows {
 		digests = append(digests, strings.TrimSpace(row.SubjectDigest))
@@ -118,6 +115,9 @@ func (h *SupplyChainHandler) applySupplyChainKubernetesRuntimeEvidence(
 	plans := planKubernetesRuntimeProbeQueries(digests, allScopes)
 	if len(plans) == 0 {
 		return nil
+	}
+	if !graphQueryConfigured(h.Neo4j) {
+		return ErrGraphUnavailable
 	}
 
 	ctx, span := queryHandlerTracer.Start(ctx, "supply_chain.kubernetes_runtime_probe")
