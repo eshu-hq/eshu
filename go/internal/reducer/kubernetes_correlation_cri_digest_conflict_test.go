@@ -99,6 +99,11 @@ func TestBuildKubernetesCorrelationDecisionsConflictingCRIDigestsAreAmbiguous(t 
 	if !slices.Equal(decision.CandidateSourceDigests, want) {
 		t.Fatalf("candidate_source_digests = %v, want %v", decision.CandidateSourceDigests, want)
 	}
+	// The inconsistent observation is the pod template itself, so an operator
+	// triaging the ambiguity has the fact to go read.
+	if !slices.Contains(decision.EvidenceFactIDs, "pod-1") {
+		t.Fatalf("evidence_fact_ids = %v, want it to cite the pod template fact", decision.EvidenceFactIDs)
+	}
 }
 
 // TestBuildKubernetesCorrelationDecisionsAgreeingCRIDigestsStayExact proves the
