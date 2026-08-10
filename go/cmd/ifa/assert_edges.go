@@ -108,7 +108,7 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 // duplicate that a plain set comparison, and the cross-worker digest, would
 // both miss.
 //
-// An edge's endpoint identity is its node's "uid" property when it has one, and
+// An edge's endpoint identity (endpointID) is its node's "uid" property when it has one, and
 // its "id" otherwise — the graph keys nodes both ways and the assertion has to
 // speak both. Content entities are uid-keyed (for a SQL entity the uid equals
 // its content_entity id; for a canonicalNamePathLineEntityLabels endpoint such
@@ -164,12 +164,22 @@ func assertMaterializedEdges(
 				return nil
 			}
 		}
-		fromUID := propUID(edge.FromProps)
-		toUID := propUID(edge.ToProps)
+		fromUID := endpointID(edge.FromProps)
+		toUID := endpointID(edge.ToProps)
 		if fromUID == "" || toUID == "" {
+			// Name WHICH side is unidentified. This branch fires when either
+			// endpoint lacks an identity, so a message asserting both are missing
+			// sends the reader looking at a node that is materialized correctly.
+			missing := "source and target"
+			switch {
+			case fromUID == "" && toUID != "":
+				missing = "source"
+			case toUID == "" && fromUID != "":
+				missing = "target"
+			}
 			endpointErrs = append(endpointErrs, fmt.Sprintf(
-				"%s edge whose endpoint carries neither uid nor id (from=%q to=%q) — an unmaterialized endpoint node",
-				edge.Type, fromUID, toUID,
+				"%s edge whose %s endpoint carries neither uid nor id (from=%q to=%q) — an unmaterialized endpoint node",
+				edge.Type, missing, fromUID, toUID,
 			))
 			return nil
 		}
@@ -239,9 +249,10 @@ func assertMaterializedEdges(
 	return fmt.Errorf("%s", b.String())
 }
 
-// propUID extracts a node's canonical "uid" property, returning "" when it is
-// absent or not a string.
-func propUID(props map[string]any) string {
+// endpointID extracts a node's canonical identity: its "uid" when present, and
+// its "id" otherwise. It returns "" when neither is present as a string, which
+// the caller reports as an unmaterialized endpoint.
+func endpointID(props map[string]any) string {
 	if props == nil {
 		return ""
 	}
@@ -263,6 +274,10 @@ func propUID(props map[string]any) string {
 }
 
 // hasLabel reports whether a graph endpoint carries the required node label.
+//
+// Endpoints carry a handful of labels in practice (1-3 in this graph), and this
+// runs once per edge per gate run, so the linear scan is deliberate — an index or
+// set conversion would cost more to build than it saves.
 //
 // Endpoints commonly carry several labels, so this is membership rather than
 // equality. An empty required label would match nothing and silently drop the

@@ -191,3 +191,44 @@ func TestUidWinsWhenAnEndpointCarriesBoth(t *testing.T) {
 		t.Error("expected set naming the ids passed; id must NOT win over uid, or the fallback silently reverses identity for every content entity")
 	}
 }
+
+// TestEndpointDefectNamesWhichSideIsUnidentified pins the diagnostic wording.
+//
+// The endpoint check fires when EITHER side lacks an identity, so a message
+// asserting both are missing sends an operator to inspect a node that is
+// materialized correctly. At 3 AM that misdirection costs more than the missing
+// edge does.
+func TestEndpointDefectNamesWhichSideIsUnidentified(t *testing.T) {
+	t.Parallel()
+
+	types, err := ifa.MaterializedEdgeDomainEdgeTypes("runs_in")
+	if err != nil {
+		t.Fatalf("MaterializedEdgeDomainEdgeTypes(runs_in): %v", err)
+	}
+	expected := []ifa.ExpectedEdge{{RelationshipType: "RUNS_IN", SourceEntityID: "fn-a", TargetEntityID: "wl-a"}}
+
+	for _, tc := range []struct {
+		name       string
+		from, to   map[string]any
+		wantPhrase string
+	}{
+		{"source only", map[string]any{}, map[string]any{"uid": "wl-a"}, "source endpoint"},
+		{"target only", map[string]any{"uid": "fn-a"}, map[string]any{}, "target endpoint"},
+		{"both", map[string]any{}, map[string]any{}, "source and target endpoint"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			graph := fakeEdgeReader{edges: []graphdump.Edge{{
+				Type: "RUNS_IN", FromLabels: []string{"Function"}, FromProps: tc.from,
+				ToLabels: []string{"Workload"}, ToProps: tc.to,
+			}}}
+			err := assertMaterializedEdges(context.Background(), graph, "runs_in", types, nil, expected)
+			if err == nil {
+				t.Fatal("an endpoint with no identity was accepted")
+			}
+			if !strings.Contains(err.Error(), tc.wantPhrase) {
+				t.Errorf("error %q does not say %q; the operator is pointed at the wrong node", err, tc.wantPhrase)
+			}
+		})
+	}
+}
