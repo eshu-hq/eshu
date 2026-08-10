@@ -41,7 +41,7 @@ var materializedEdgeFamiliesUnderUmbrella = []string{
 //
 // Until a family resolves here, `eshu-ifa assert-edges -domain <family>` exits
 // with an error and no Odù, guard, or expected-edge set can green it on
-// ifa-determinism. That is what blocked all twelve non-SQL families.
+// ifa-determinism. That is what blocked all thirteen non-SQL families.
 func TestEveryUmbrellaFamilyResolves(t *testing.T) {
 	t.Parallel()
 

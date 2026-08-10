@@ -1783,3 +1783,31 @@ statement summaries and operation metadata still flow through the unchanged
 - `docs/public/reference/backend-conformance.md`
 - `docs/public/reference/cypher-performance.md`
 - `go/internal/projector/README.md` — how `CanonicalNodeWriter` is wired
+
+## Materialized-edge family registries: performance and observability (#5543)
+
+No-Regression Evidence: no measurement was taken because no measurable path
+changed, and the reason is checkable rather than asserted. Baseline and after
+are the same code on every runtime path: `git diff 0384469e8c...HEAD --
+internal/storage/cypher/` touches no Cypher template text — every `MERGE`,
+`MATCH`, `UNWIND` and `DELETE` string in this package is byte-identical, and the
+only occurrences of those words in the diff are inside comments. What the change
+adds is four package-level `map[string]string` literals and their copy
+accessors. Their sole callers are `internal/ifa/materialized_edges_assert.go`
+and `cmd/ifa/assert_edges.go`; `rg` finds no consumer in the ingester, reducer,
+projector, API, or MCP binaries. `cmd/ifa` is the Ifá gate tool
+(`graph-dump`, `assert-edges`, `mutate-cassette`, `dead-letters`), so the one
+runtime that executes this code is a CI gate reading a graph dump, not a request
+or write path. Input shape, terminal queue depth, and row counts are therefore
+unchanged by construction: no fact is emitted, no work item enqueued, no edge
+written or retracted. Backend and version are untouched — no graph statement
+reaches NornicDB that did not before. The change is safe because a map lookup
+added to a gate tool's read path cannot alter what the writers produce; the
+guards in this package assert the registries against the production retract
+alternations precisely so the two can never diverge without a red test.
+
+No-Observability-Change: no span, metric, log, or status field is added,
+removed, or renamed. The registries carry no instrumentation and their callers
+emit none; `assert-edges` reports through its exit code and stderr exactly as
+before. An operator's dashboards and alerts see no new series and lose none, so
+there is nothing to add to the telemetry contract or the operator dashboard.
