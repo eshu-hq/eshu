@@ -166,12 +166,19 @@ var refDigestAllowedFields = map[string]bool{
 // refDigestAllowedFields may carry the documented "reference@digest" shape;
 // every other digest field must be a bare digestPattern match, whatever it
 // contains — including a value that merely looks like a reference@digest
-// pair.
+// pair. A hashes-map key (see hashesMapAlgorithm) whose TrimSpace-normalized
+// name is not one hashesMapDigestWidths recognizes is reported well-formed
+// here too: isHashesMapDigestField already keeps it out of isDigestField's
+// checked set for every production caller, so this branch is reached only by
+// a caller that bypasses that gate directly (as some tests do), and it must
+// give the same "skip, don't fail" answer rather than silently narrowing the
+// v1 payload contract a second way. See hashesMapDigestWidths for why an
+// unrecognized algorithm is skipped rather than rejected.
 func digestFieldValueIsWellFormed(location, value string) bool {
 	if algorithm, ok := hashesMapAlgorithm(location); ok {
-		pattern, supported := hashesMapDigestWidths[algorithm]
-		if !supported {
-			return false
+		pattern, recognized := hashesMapDigestWidths[algorithm]
+		if !recognized {
+			return true
 		}
 		return pattern.MatchString(value)
 	}
