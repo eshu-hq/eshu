@@ -441,27 +441,14 @@ func (h *CodeHandler) lookupComplexityRow(ctx context.Context, entityID, functio
 	if strings.TrimSpace(entityID) == "" {
 		return h.lookupComplexityRowByName(ctx, functionName, repoID)
 	}
-	row, err := h.runComplexityQuery(ctx, `
-		MATCH (e) WHERE e.id = $entity_id
-		OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(repo:Repository)
-		OPTIONAL MATCH (e)-[outgoingRel]->()
-		OPTIONAL MATCH ()-[incomingRel]->(e)
-		RETURN e.id as id, e.name as name, labels(e) as labels,
-		       f.relative_path as file_path,
-		       repo.id as repo_id, repo.name as repo_name,
-		       coalesce(e.language, f.language) as language,
-		       e.start_line as start_line,
-		       e.end_line as end_line,
-		       coalesce(e.cyclomatic_complexity, 0) as complexity,
-		       count(DISTINCT outgoingRel) as outgoing_count,
-		       count(DISTINCT incomingRel) as incoming_count,
-		       count(DISTINCT outgoingRel) + count(DISTINCT incomingRel) as total_relationships
-`+graphSemanticMetadataProjection()+`
-	`, map[string]any{"entity_id": entityID})
-	if row == nil {
-		return h.lookupComplexityRowByName(ctx, entityID, repoID)
+	row, err := h.lookupComplexityRowByID(ctx, entityID)
+	if err != nil {
+		return nil, err
 	}
-	return row, err
+	if row == nil && strings.TrimSpace(functionName) != "" {
+		return h.lookupComplexityRowByName(ctx, functionName, repoID)
+	}
+	return row, nil
 }
 
 func (h *CodeHandler) runComplexityQuery(ctx context.Context, cypher string, params map[string]any) (map[string]any, error) {

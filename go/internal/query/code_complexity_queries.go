@@ -7,29 +7,12 @@ import "context"
 
 func (h *CodeHandler) lookupComplexityRowByName(ctx context.Context, functionName, repoID string) (map[string]any, error) {
 	params := map[string]any{"entity_name": functionName, "limit": complexityNameCandidateLimit + 1}
-	cypher := `
-		MATCH (e)
-		OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(repo:Repository)
-		WHERE e.name = $entity_name
-	`
+	cypher := "\n\t\tMATCH (repo:Repository)-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e)\n\t\tWHERE e.name = $entity_name\n"
 	if repoID != "" {
-		cypher += " AND repo.id = $repo_id"
+		cypher = "\n\t\tMATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e)\n\t\tWHERE e.name = $entity_name AND repo.id = $repo_id\n"
 		params["repo_id"] = repoID
 	}
-	cypher += `
-		OPTIONAL MATCH (e)-[outgoingRel]->()
-		OPTIONAL MATCH ()-[incomingRel]->(e)
-		RETURN e.id as id, e.name as name, labels(e) as labels,
-		       f.relative_path as file_path,
-		       repo.id as repo_id, repo.name as repo_name,
-		       coalesce(e.language, f.language) as language,
-		       e.start_line as start_line,
-		       e.end_line as end_line,
-		       coalesce(e.cyclomatic_complexity, 0) as complexity,
-		       count(DISTINCT outgoingRel) as outgoing_count,
-		       count(DISTINCT incomingRel) as incoming_count,
-		       count(DISTINCT outgoingRel) + count(DISTINCT incomingRel) as total_relationships
-` + graphSemanticMetadataProjection() + `
+	cypher += complexityCandidateProjection() + `
 		ORDER BY file_path, start_line, id
 		LIMIT $limit
 	`
@@ -53,6 +36,32 @@ func (h *CodeHandler) lookupComplexityRowByName(ctx context.Context, functionNam
 		}
 	}
 	return rows[0], nil
+}
+
+func (h *CodeHandler) lookupComplexityRowByID(ctx context.Context, entityID string) (map[string]any, error) {
+	row, err := h.runComplexityQuery(ctx, `
+		MATCH (repo:Repository)-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e {id: $entity_id})
+`+complexityCandidateProjection()+`
+		LIMIT 1
+	`, map[string]any{"entity_id": entityID})
+	return row, err
+}
+
+func complexityCandidateProjection() string {
+	return `
+		OPTIONAL MATCH (e)-[outgoingRel]->()
+		OPTIONAL MATCH ()-[incomingRel]->(e)
+		RETURN e.id as id, e.name as name, labels(e) as labels,
+		       f.relative_path as file_path,
+		       repo.id as repo_id, repo.name as repo_name,
+		       coalesce(e.language, f.language) as language,
+		       e.start_line as start_line,
+		       e.end_line as end_line,
+		       coalesce(e.cyclomatic_complexity, 0) as complexity,
+		       count(DISTINCT outgoingRel) as outgoing_count,
+		       count(DISTINCT incomingRel) as incoming_count,
+		       count(DISTINCT outgoingRel) + count(DISTINCT incomingRel) as total_relationships,
+` + graphSemanticMetadataProjection()
 }
 
 func (h *CodeHandler) listMostComplexFunctions(ctx context.Context, repoID string, limit int) ([]map[string]any, int, bool, error) {

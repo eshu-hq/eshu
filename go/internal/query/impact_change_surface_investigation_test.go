@@ -98,9 +98,9 @@ func TestInvestigateChangeSurfaceUsesBoundedTraversal(t *testing.T) {
 			{"id": "workload:orders-api", "name": "orders-api", "labels": []any{"Workload"}, "repo_id": "repo-api"},
 		},
 		{
-			{"id": "repo-api", "name": "orders-api", "labels": []any{"Repository"}, "depth": int64(1), "rel_type": "DEPENDS_ON", "repo_id": "repo-api"},
-			{"id": "resource-db", "name": "orders-db", "labels": []any{"CloudResource"}, "depth": int64(1), "rel_type": "USES", "environment": "prod"},
-			{"id": "repo-web", "name": "orders-web", "labels": []any{"Repository"}, "depth": int64(2), "rel_type": "DEPENDS_ON", "repo_id": "repo-web"},
+			{"id": "repo-api", "name": "orders-api", "labels": []any{"Repository"}, "depth": int64(1), "repo_id": "repo-api", "rels": []any{map[string]any{"type": "DEFINES", "properties": map[string]any{}}}},
+			{"id": "resource-db", "name": "orders-db", "labels": []any{"CloudResource"}, "depth": int64(1), "environment": "prod", "rels": []any{map[string]any{"type": "USES", "properties": map[string]any{}}}},
+			{"id": "repo-web", "name": "orders-web", "labels": []any{"Repository"}, "depth": int64(2), "repo_id": "repo-web", "rels": []any{map[string]any{"type": "CALLS", "properties": map[string]any{}}}},
 		},
 	}}
 	handler := &ImpactHandler{Neo4j: graph, Profile: ProfileLocalAuthoritative}
@@ -126,13 +126,17 @@ func TestInvestigateChangeSurfaceUsesBoundedTraversal(t *testing.T) {
 	for _, want := range []string{
 		"(start:Workload {id: $target_id})",
 		"*1..3",
-		"LIMIT 3",
-		"min(length(path)) as depth",
+		"LIMIT $limit",
+		"length(path) as depth",
+		"relationships(path) as rels",
 		"ORDER BY depth, name, id",
 	} {
 		if !strings.Contains(traversalCypher, want) {
 			t.Fatalf("traversal cypher missing %q: %s", want, traversalCypher)
 		}
+	}
+	if got, want := graph.runCalls[1].params["limit"], 3; got != want {
+		t.Fatalf("traversal limit = %#v, want over-fetch limit %#v", got, want)
 	}
 
 	data := decodeChangeSurfaceData(t, w)

@@ -6,6 +6,8 @@ package query
 import (
 	"strings"
 	"testing"
+
+	"github.com/lib/pq"
 )
 
 func TestWorkItemEvidenceQueryUsesActiveFactReadModel(t *testing.T) {
@@ -27,7 +29,7 @@ func TestWorkItemEvidenceQueryUsesActiveFactReadModel(t *testing.T) {
 		"fact.payload->>'source_url_fingerprint' = $6",
 		"fact.observed_at >= $7",
 		"fact.fact_id > $8",
-		"cardinality($9::text[]) = 0",
+		"COALESCE(cardinality($9::text[]), 0) = 0",
 		"fact.payload->>'linked_repository_id' = ANY($9::text[])",
 		"ORDER BY fact.fact_id ASC",
 		"LIMIT $10",
@@ -50,5 +52,20 @@ func TestWorkItemEvidenceQueryAvoidsRawURLMatching(t *testing.T) {
 		if strings.Contains(listWorkItemEvidenceQuery, forbidden) {
 			t.Fatalf("listWorkItemEvidenceQuery contains forbidden predicate %q:\n%s", forbidden, listWorkItemEvidenceQuery)
 		}
+	}
+}
+
+func TestWorkItemEvidenceQueryTreatsNullGrantArrayAsUnscoped(t *testing.T) {
+	t.Parallel()
+
+	bound, err := pq.Array([]string(nil)).Value()
+	if err != nil {
+		t.Fatalf("nil grant array Value() error = %v", err)
+	}
+	if bound != nil {
+		t.Fatalf("nil grant array Value() = %#v, want SQL NULL", bound)
+	}
+	if !strings.Contains(listWorkItemEvidenceQuery, "COALESCE(cardinality($9::text[]), 0) = 0") {
+		t.Fatalf("query does not preserve shared/admin/local visibility for a NULL grant array:\n%s", listWorkItemEvidenceQuery)
 	}
 }

@@ -95,7 +95,13 @@ WHERE candidate.rn = 1
     OR coalesce(nullif(candidate.payload->>'source_line', ''), '0')::int = $6
     OR coalesce(nullif(candidate.payload->>'sink_line', ''), '0')::int = $6
   )
-ORDER BY candidate.observed_at ASC, candidate.fact_id ASC
+ORDER BY CASE candidate.fact_kind
+             WHEN 'code_taint_evidence' THEN 0
+             WHEN 'code_interproc_evidence' THEN 1
+             ELSE 2
+         END,
+         candidate.observed_at ASC,
+         candidate.fact_id ASC
 LIMIT $7
 `
 

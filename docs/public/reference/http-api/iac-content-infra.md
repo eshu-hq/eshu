@@ -168,11 +168,12 @@ returns `503`. The truth envelope uses capability
 
 ### Graph summary packet performance and observability
 
-No-Regression Evidence: the tool introduces no new Cypher shapes. It reuses only
-already-shipped, proven bounded shapes: its dedicated repo-anchored hub-function
-degree-centrality query, `graphSummaryHotEntitiesCypher`
-(`go/internal/query/infra_graph_summary_packet_cypher.go`), bounded with `LIMIT $limit`
-(default 10, max 100, probed at `limit+1` for the truncation flag); per-type
+No-Regression Evidence: the tool introduces no new Cypher shapes. Hot-entity
+ranking reuses the same repository-scoped CALLS edge pass as call-graph metrics,
+with a 50,000-edge ceiling and a fail-closed overflow sentinel. Eshu computes
+incoming, outgoing, and total degree from that exact edge set, sorts it
+deterministically, and then applies the requested result limit (default 10,
+max 100). The other reads remain the existing per-type
 relationship counts that are each a single bounded, repo-anchored
 `MATCH (repo:Repository {id:$repo_id})-[:REPO_CONTAINS]->(:File)-[:CONTAINS]->(src)-[r:TYPE]->() RETURN count(r)`
 (IMPORTS anchors at the File source side), one per fixed type
@@ -180,15 +181,15 @@ relationship counts that are each a single bounded, repo-anchored
 ecosystem counts from `getEcosystemOverview`; and the narrow repo-anchored
 structural counts from `repository_context_counts.go` /
 `repository_story_counts.go`. Every query is bounded by a label or repository-id
-anchor and the hot-entity list is `LIMIT`-bounded, so the worst-case result
-cardinality is `limit` hot-entity rows plus five integer relationship counts plus
-a small fixed ecosystem map. No live NornicDB/Neo4j benchmark was run because
-this environment has no graph backend; correctness rests on byte-for-byte reuse
-of the proven query shapes (the per-label/per-type single-count portability rule
-and the proven repo-anchored degree shape) and on the focused
-`go test ./internal/query` handler coverage that asserts bounded, deterministic,
-zeros-on-empty behavior and that no statement chains two types/labels. No graph
-schema or write path changed.
+anchor. The graph may return at most 50,001 edge rows for the overflow check;
+the response remains bounded to `limit` hot entities, five integer relationship
+counts, and a small fixed ecosystem map. A fresh isolated NornicDB check showed
+the former chained `OPTIONAL MATCH` aggregate returning correct identities with
+null degree counters, while the shared edge pass returned the two exact CALLS
+edges. Nine warm small-graph samples for the edge pass ranged from 1.2 to 2.2 ms;
+the broken aggregate ranged from 1.5 to 7.9 ms. Focused handler tests cover exact
+degree ranking, deterministic truncation, empty state, and fail-closed overflow.
+No graph schema or write path changed.
 
 Observability Evidence: the handler is wrapped in the new
 `query.graph_summary_packet` span (registered in

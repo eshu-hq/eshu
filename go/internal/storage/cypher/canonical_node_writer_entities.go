@@ -403,7 +403,6 @@ func canonicalEntityProperties(
 		"generation_id":   generationID,
 		"evidence_source": "projector/canonical",
 	}
-
 	row := map[string]any{
 		"entity_metadata": entity.Metadata,
 		"language":        entity.Language,
@@ -418,6 +417,9 @@ func canonicalEntityProperties(
 		for key, value := range metadata {
 			properties[key] = value
 		}
+	}
+	if entity.CyclomaticComplexity > 0 {
+		properties["cyclomatic_complexity"] = entity.CyclomaticComplexity
 	}
 
 	return properties

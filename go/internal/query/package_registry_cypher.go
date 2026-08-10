@@ -177,16 +177,14 @@ func packageRegistryDependenciesCypher(
 	var match string
 	switch {
 	case versionID != "":
-		match = `MATCH (d:PackageDependency)
+		match = `MATCH (d:PackageDependency)-[:DEPENDS_ON_PACKAGE]->(target:Package)
 WHERE d.version_id = $version_id`
 	default:
-		match = `MATCH (d:PackageDependency)
+		match = `MATCH (d:PackageDependency)-[:DEPENDS_ON_PACKAGE]->(target:Package)
 WHERE d.package_id = $package_id`
 	}
 	return match + `
-WITH d
-MATCH (d)-[:DEPENDS_ON_PACKAGE]->(target:Package)
-WHERE d.uid IS NOT NULL AND d.uid <> ''
+  AND d.uid IS NOT NULL AND d.uid <> ''
   AND d.package_id IS NOT NULL AND d.package_id <> ''
   AND d.version_id IS NOT NULL AND d.version_id <> ''
   AND target.uid IS NOT NULL AND target.uid <> ''

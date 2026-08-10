@@ -13,11 +13,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
 )
 
-// checkRemoteValidation runs the remote_validation artifact-existence gate
-// (#5407, PR 2 of #5336): every remote_validation proof-ID cited in the
-// capability matrix must resolve to a committed
+// checkRemoteValidation runs the remote_validation deployed-evidence gate
+// (#5407, #5552): every production-supported proof-ID must resolve to a valid
 // docs/internal/remote-validation/<ref>.md artifact or be listed in the
-// burn-down baseline at baselinePath. It enforces two independent growth
+// burn-down baseline at baselinePath. It also verifies the generated
+// slug-to-row inventory. The baseline enforces two independent growth
 // guards. First, the ratcheting FROZEN_MAX ceiling: a baseline whose entry
 // count exceeds the committed ceiling has GROWN and fails the gate. Second, and
 // crucially, the immutable frozen set beside the baseline
@@ -26,8 +26,8 @@ import (
 // atomic swap of burning down one baselined ref while adding another (which the
 // ceiling alone cannot catch) is rejected because the added ref is absent from
 // the frozen set. The frozen set loads fail-closed. With update=true it
-// regenerates the baseline from the current tree, ratcheting the ceiling down
-// to the new count without ever raising it; it never writes the frozen set.
+// regenerates the baseline and inventory from the current tree, ratcheting the
+// ceiling down without ever raising it; it never writes the frozen set.
 func checkRemoteValidation(stdout io.Writer, specsDir, repoRoot, baselinePath string, update bool) error {
 	matrix, err := capabilitycatalog.LoadMatrix(specsDir)
 	if err != nil {
@@ -44,7 +44,16 @@ func checkRemoteValidation(stdout io.Writer, specsDir, repoRoot, baselinePath st
 		if err := os.WriteFile(baselinePath, []byte(rendered), 0o600); err != nil {
 			return fmt.Errorf("write remote-validation baseline %s: %w", baselinePath, err)
 		}
-		_, err := fmt.Fprintf(stdout, "wrote %s\n", baselinePath)
+		inventoryPath := filepath.Join(repoRoot, capabilitycatalog.RemoteValidationArtifactDir, capabilitycatalog.RemoteValidationInventoryFileName)
+		if err := capabilitycatalog.WriteRemoteValidationInventory(matrix, inventoryPath); err != nil {
+			return err
+		}
+		_, err := fmt.Fprintf(stdout, "wrote %s and %s\n", baselinePath, inventoryPath)
+		return err
+	}
+
+	inventoryPath := filepath.Join(repoRoot, capabilitycatalog.RemoteValidationArtifactDir, capabilitycatalog.RemoteValidationInventoryFileName)
+	if err := capabilitycatalog.CheckRemoteValidationInventory(matrix, inventoryPath); err != nil {
 		return err
 	}
 
@@ -66,7 +75,7 @@ func checkRemoteValidation(stdout io.Writer, specsDir, repoRoot, baselinePath st
 	ceilingExceeded := capabilitycatalog.RemoteValidationBaselineCeilingExceeded(baseline)
 	notFrozen := capabilitycatalog.RemoteValidationBaselineNotFrozen(baseline, frozen)
 	if len(findings) == 0 && !ceilingExceeded && len(notFrozen) == 0 {
-		_, err := fmt.Fprintf(stdout, "remote_validation artifacts verified: %d/%d baseline entr(y/ies) at or under FROZEN_MAX, all in frozen set\n", len(baseline.Entries), baseline.Ceiling)
+		_, err := fmt.Fprintf(stdout, "remote_validation deployed evidence verified: %d/%d baseline entr(y/ies) at or under FROZEN_MAX, all in frozen set\n", len(baseline.Entries), baseline.Ceiling)
 		return err
 	}
 	if len(notFrozen) > 0 {
@@ -83,10 +92,10 @@ func checkRemoteValidation(stdout io.Writer, specsDir, repoRoot, baselinePath st
 			len(baseline.Entries), baseline.Ceiling, baselinePath)
 	}
 	if len(findings) > 0 {
-		_, _ = fmt.Fprintf(stdout, "%d dangling remote_validation ref(s) not in %s:\n", len(findings), baselinePath)
+		_, _ = fmt.Fprintf(stdout, "%d invalid remote_validation ref(s) not in %s:\n", len(findings), baselinePath)
 		for _, finding := range findings {
-			_, _ = fmt.Fprintf(stdout, "  %s (cited by %s)\n", finding.Ref, strings.Join(finding.Subjects, ", "))
+			_, _ = fmt.Fprintf(stdout, "  %s (cited by %s): %s\n", finding.Ref, strings.Join(finding.Subjects, ", "), finding.Reason)
 		}
 	}
-	return fmt.Errorf("remote_validation artifact-existence gate failed: %d dangling finding(s), ceiling_exceeded=%v, not_frozen=%d", len(findings), ceilingExceeded, len(notFrozen))
+	return fmt.Errorf("remote_validation evidence gate failed: %d finding(s), ceiling_exceeded=%v, not_frozen=%d", len(findings), ceilingExceeded, len(notFrozen))
 }

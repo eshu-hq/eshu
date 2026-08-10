@@ -46,8 +46,8 @@ func TestDeployableUnitCorrelationHandleSplitsMultipleDockerfilesConservatively(
 		ResolvedLoader: &stubDeployableUnitResolvedLoader{
 			resolved: []relationships.ResolvedRelationship{
 				{
-					SourceRepoID:     "repo-monolith",
-					TargetRepoID:     "repo-deployments",
+					SourceRepoID:     "repo-deployments",
+					TargetRepoID:     "repo-monolith",
 					RelationshipType: relationships.RelDeploysFrom,
 					Confidence:       0.94,
 					Details: map[string]any{

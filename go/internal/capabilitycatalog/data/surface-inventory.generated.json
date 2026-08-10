@@ -2421,6 +2421,20 @@
     },
     {
       "category": "command",
+      "name": "mock-openai-compatible",
+      "readiness": "fixture_only",
+      "owner": "cmd/mock-openai-compatible",
+      "notes": "Test-only deterministic OpenAI-compatible endpoint for the credential-free golden-corpus Ask proof. Deliberately excluded from the released production image; not a production command."
+    },
+    {
+      "category": "command",
+      "name": "mock-prometheus-mimir",
+      "readiness": "fixture_only",
+      "owner": "cmd/mock-prometheus-mimir",
+      "notes": "Test-only deterministic Prometheus-compatible range endpoint for the credential-free golden-corpus metrics proof. Deliberately excluded from the released production image; not a production command."
+    },
+    {
+      "category": "command",
       "name": "payload-usage-manifest",
       "readiness": "implemented"
     },

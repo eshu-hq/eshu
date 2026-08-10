@@ -15,16 +15,6 @@
 # gate projects or asserts, the same test scripts/lib/golden-corpus-mirror-
 # workflow-paths.sh applies to every INCLUDED package.
 
-# --- the "ask"/answer-narration pipeline ------------------------------------
-# Gated by ESHU_ASK_ENABLED, never set by verify-golden-corpus-gate.sh. The
-# only asserted "ask" MCP shape pins expected_error_contains "ask is not
-# enabled", produced entirely by the already-covered internal/query package
-# before any of these ever run.
-go/internal/ask				ask pipeline gated by ESHU_ASK_ENABLED, never set in this gate; only asserted shape is an already-covered query-package error string
-go/internal/askwiring			wiring for the ask pipeline above; never constructs a live handler when ESHU_ASK_ENABLED is unset
-go/internal/answerguardrail	guardrail policy consulted only by the ask/answer-narration pipeline above
-go/internal/answernarration	answer narration pipeline gated by the same ESHU_ASK_ENABLED flag
-
 # --- the auth family (scoped-token/OIDC/SAML/TOTP identity) ----------------
 # verify-golden-corpus-gate.sh authenticates every API/MCP call with a
 # static ESHU_API_KEY bearer token (see scripts/verify-golden-corpus-gate.sh's

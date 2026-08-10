@@ -33,6 +33,9 @@ func DataflowFunctionRow(lang, name string, line int, classContext string, fn cf
 		"blocks":      blockPayloads(fn.Blocks),
 		"def_uses":    defUsePayloads(fn.DefUses),
 	}
+	if len(fn.ControlDependencies) > 0 {
+		row["control_dependencies"] = controlDependencyPayloads(fn.ControlDependencies)
+	}
 	if classContext != "" {
 		row["class_context"] = classContext
 	}
@@ -231,6 +234,20 @@ func defUsePayloads(defUses []cfg.DefUse) []map[string]any {
 			"def_line": du.DefLine,
 			"use_stmt": du.UseStmt,
 			"use_line": du.UseLine,
+		})
+	}
+	return out
+}
+
+func controlDependencyPayloads(dependencies []cfg.ControlDependence) []map[string]any {
+	out := make([]map[string]any, 0, len(dependencies))
+	for _, dependency := range dependencies {
+		out = append(out, map[string]any{
+			"guard_block":     dependency.GuardBlock,
+			"guard_stmt":      dependency.GuardStmt,
+			"guard_line":      dependency.GuardLine,
+			"guard":           dependency.Guard,
+			"dependent_block": dependency.DependentBlock,
 		})
 	}
 	return out

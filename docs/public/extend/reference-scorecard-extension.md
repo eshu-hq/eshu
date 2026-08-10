@@ -76,7 +76,9 @@ docker build -t eshu:local -f Dockerfile .
 docker compose \
   -f docker-compose.yaml \
   -f docs/public/run-locally/docker-compose.component-extension.yaml \
-  --profile component-extension-collector up -d --build
+  --profile component-extension-collector \
+  --profile workflow-coordinator \
+  up -d --build
 
 # Capture runtime truth into normalized artifacts and verify them:
 scripts/run-remote-e2e-component-extension.sh --artifacts <run-dir>

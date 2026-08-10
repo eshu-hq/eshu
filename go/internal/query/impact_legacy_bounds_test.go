@@ -145,15 +145,15 @@ func TestFindChangeSurfaceUsesRequestedLimitAndReportsTruncation(t *testing.T) {
 				if !strings.Contains(cypher, "$environment") {
 					t.Fatalf("cypher = %q, want server-side environment predicate before LIMIT", cypher)
 				}
-				if got, want := params["limit"], 2; got != want {
-					t.Fatalf("params[limit] = %#v, want %#v", got, want)
-				}
 				if got, want := params["environment"], "prod"; got != want {
 					t.Fatalf("params[environment] = %#v, want %#v", got, want)
 				}
+				if got, want := params["limit"], 2; got != want {
+					t.Fatalf("params[limit] = %#v, want %#v", got, want)
+				}
 				return []map[string]any{
 					{"id": "service:a", "name": "a", "labels": []any{"Workload"}, "environment": "prod", "depth": int64(1), "rels": []any{
-						map[string]any{"type": "DEPENDS_ON", "properties": map[string]any{"confidence": 0.9, "reason": "import"}},
+						map[string]any{"type": "DEFINES", "properties": map[string]any{"confidence": 0.9, "reason": "definition"}},
 					}},
 					{"id": "service:b", "name": "b", "labels": []any{"Workload"}, "environment": "prod", "depth": int64(2), "rels": []any{
 						map[string]any{"type": "CALLS", "properties": map[string]any{"confidence": 0.8, "reason": "rpc"}},

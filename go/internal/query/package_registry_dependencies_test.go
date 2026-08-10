@@ -90,9 +90,8 @@ func TestPackageRegistryListDependenciesUsesPackageOrVersionAnchor(t *testing.T)
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 	for _, fragment := range []string{
-		"MATCH (d:PackageDependency)",
+		"MATCH (d:PackageDependency)-[:DEPENDS_ON_PACKAGE]->(target:Package)",
 		"WHERE d.package_id = $package_id",
-		"MATCH (d)-[:DEPENDS_ON_PACKAGE]->(target:Package)",
 		"d.uid IS NOT NULL",
 		"d.package_id IS NOT NULL",
 		"d.version_id IS NOT NULL",
@@ -147,6 +146,37 @@ func TestPackageRegistryListDependenciesUsesPackageOrVersionAnchor(t *testing.T)
 	}
 }
 
+// TestPackageRegistryDependenciesCypherIsNornicDBSafe guards the deployed
+// dependency read against NornicDB's documented multi-clause silent-empty
+// shape. The exact package predicate and the dependency edge must live in one
+// MATCH/WHERE clause; carrying d through WITH into a second MATCH returns no
+// rows on the pinned backend even when the edge exists.
+func TestPackageRegistryDependenciesCypherIsNornicDBSafe(t *testing.T) {
+	t.Parallel()
+
+	for _, anchor := range []struct {
+		name      string
+		packageID string
+		versionID string
+	}{
+		{name: "package", packageID: "github.com/acme/lib-common"},
+		{name: "version", versionID: "github.com/acme/lib-common@1.0.0"},
+	} {
+		anchor := anchor
+		t.Run(anchor.name, func(t *testing.T) {
+			t.Parallel()
+
+			cypher, _ := packageRegistryDependenciesCypher(anchor.packageID, anchor.versionID, "", "", 11)
+			if !strings.Contains(cypher, "MATCH (d:PackageDependency)-[:DEPENDS_ON_PACKAGE]->(target:Package)\nWHERE d.") {
+				t.Fatalf("dependency Cypher must anchor the node and edge in one MATCH/WHERE clause:\n%s", cypher)
+			}
+			if strings.Contains(cypher, "\nWITH d\n") || strings.Count(cypher, "MATCH ") != 1 {
+				t.Fatalf("dependency Cypher contains NornicDB-unsafe multi-clause read:\n%s", cypher)
+			}
+		})
+	}
+}
+
 func TestPackageRegistryListDependenciesReturnsEmptySparsePackageQuickly(t *testing.T) {
 	t.Parallel()
 
@@ -167,9 +197,8 @@ func TestPackageRegistryListDependenciesReturnsEmptySparsePackageQuickly(t *test
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 	for _, fragment := range []string{
-		"MATCH (d:PackageDependency)",
+		"MATCH (d:PackageDependency)-[:DEPENDS_ON_PACKAGE]->(target:Package)",
 		"WHERE d.package_id = $package_id",
-		"MATCH (d)-[:DEPENDS_ON_PACKAGE]->(target:Package)",
 		"ORDER BY d.version_id, d.uid",
 		"LIMIT $limit",
 	} {

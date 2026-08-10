@@ -36,10 +36,9 @@
 //	                   mcp-schema-drift.yml already runs on every PR via -mode docs, so
 //	                   the product-claim-ledger workflow does not repeat that docs-tree
 //	                   scan just to reach the ledger check it needs (#4073).
-//	remote-validation  fail when a matrix remote_validation ref has no committed
-//	                   docs/internal/remote-validation/<ref>.md artifact and is not
-//	                   listed in the burn-down baseline (#5407); with -update,
-//	                   regenerate the baseline from the current tree instead.
+//	remote-validation  fail when a production-supported remote_validation ref lacks
+//	                   current-format deployed evidence or the generated inventory
+//	                   drifts; with -update, regenerate the baseline and inventory.
 //
 // Flags:
 //

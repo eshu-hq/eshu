@@ -1,5 +1,28 @@
 # prod-aws-runtime-drift-read-model — production validation
 
+Validation-Slug: prod-aws-runtime-drift-read-model
+Validation-Tier: deployed_services
+Validation-Date: 2026-08-09
+Evidence-Kind: compose_e2e
+Evidence-Source: scripts/verify-golden-corpus-gate.sh
+Validation-Command: GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?
+Validation-Exit-Code: 0
+Capability-Assertion: aws_runtime_drift.findings.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+B12-Assertion: aws_runtime_drift.findings.list -> mcp:list_aws_runtime_drift_findings
+Capability-Assertion: iac_management.explain_status passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+B12-Assertion: iac_management.explain_status -> mcp:explain_iac_management_status
+Capability-Assertion: iac_management.find_unmanaged_resources passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+B12-Assertion: iac_management.find_unmanaged_resources -> mcp:find_unmanaged_resources
+Capability-Assertion: iac_management.get_status passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+B12-Assertion: iac_management.get_status -> mcp:get_iac_management_status
+Capability-Assertion: iac_management.propose_terraform_import_plan passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+B12-Assertion: iac_management.propose_terraform_import_plan -> mcp:propose_terraform_import_plan
+
+## Fresh deployed validation
+
+A fresh credential-free Compose run rebuilt every binary, replayed all 37 cassette scope generations, drained the projector and reducer to terminal state, and exercised the committed B-12 API/MCP assertion for this capability. The gate completed with 547 passes, zero required failures, and zero advisory warnings in 133 seconds.
+
+
 This proof-ID is cited by five production rows sharing the same reducer-owned AWS runtime drift
 read model:
 

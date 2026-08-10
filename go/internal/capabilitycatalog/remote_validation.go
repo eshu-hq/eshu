@@ -6,7 +6,6 @@ package capabilitycatalog
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -15,16 +14,16 @@ import (
 
 // RemoteValidationArtifactDir is the directory, relative to the repository
 // root, holding one committed evidence file per remote_validation proof-ID
-// cited in the capability matrix. A capability profile's remote_validation
-// verification ref resolves to
+// cited in the capability matrix. A production-supported profile's
+// remote_validation verification ref resolves to
 // "<repoRoot>/<RemoteValidationArtifactDir>/<ref>.md"; a ref with no file
-// there is unverifiable and must appear in the burn-down baseline or the gate
-// fails (#5407, PR 2 of #5336).
+// there must pass the deployed-evidence content contract or appear in the
+// burn-down baseline (#5407, #5552).
 const RemoteValidationArtifactDir = "docs/internal/remote-validation"
 
 // RemoteValidationBaselineFileName is the burn-down baseline file inside the
 // specs directory: one remote_validation ref slug per line, known-dangling
-// debt exempted from the artifact-existence gate.
+// debt exempted from the deployed-evidence gate.
 const RemoteValidationBaselineFileName = "remote-validation-baseline.txt"
 
 // RemoteValidationFrozenFileName is the immutable frozen-set file inside the
@@ -46,15 +45,14 @@ var remoteValidationRefPattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 // dynamic FROZEN_MAX directive line and the slug legend are appended after it.
 const remoteValidationBaselineHeaderProse = `# specs/remote-validation-baseline.txt
 #
-# FROZEN AUDITED DEBT — remote_validation artifact-existence gate
+# FROZEN AUDITED DEBT — remote_validation deployed-evidence gate
 # (#5407, PR 2 of #5336).
 #
 # Every slug below is a capability-matrix row whose production profile claims
 # {status: supported} and whose SOLE verification evidence is a
-# remote_validation ref that resolves to NO committed artifact. The evidence
-# directory docs/internal/remote-validation/ did not exist when this gate was
-# introduced, so each of these is a top-tier production-support claim resting
-# on zero committed proof.
+# remote_validation ref that has NO valid deployed-tier artifact. A placeholder
+# file or lower-tier go_test does not clear this debt: evidence needs the dated
+# deployed run, direct exit capture, committed source, and per-capability result.
 #
 # This file FREEZES that audited set so the debt cannot grow. It does NOT cure
 # the claims: a slug listed here is tracked, not verified.
@@ -126,22 +124,25 @@ func RemoteValidationBaselineCeilingExceeded(b RemoteValidationBaseline) bool {
 }
 
 // RemoteValidationFinding is one remote_validation proof-ID cited in the
-// matrix that has no committed artifact and no burn-down baseline entry.
+// matrix that has no valid artifact and no burn-down baseline entry.
 type RemoteValidationFinding struct {
 	// Ref is the dangling remote_validation proof-ID.
 	Ref string
 	// Subjects lists the sorted "<capability>/<profile>" rows citing Ref.
 	Subjects []string
+	// Reason explains why the artifact does not prove the cited claim.
+	Reason string
 }
 
-// CheckRemoteValidationArtifacts verifies every remote_validation ref cited in
-// matrix resolves to a committed artifact at
-// "<repoRoot>/docs/internal/remote-validation/<ref>.md", or is present in
-// baseline (known burn-down debt, see RemoteValidationBaselineFileName).
+// CheckRemoteValidationArtifacts verifies every production-supported
+// remote_validation ref cited in matrix resolves to current-format deployed
+// evidence at "<repoRoot>/docs/internal/remote-validation/<ref>.md", or is
+// present in baseline (known burn-down debt).
 // Findings are deduplicated by ref (a ref reused by multiple capability/
 // profile rows produces one finding) and sorted by ref.
 func CheckRemoteValidationArtifacts(matrix Matrix, repoRoot string, baseline map[string]struct{}) []RemoteValidationFinding {
 	subjectsByRef := map[string][]string{}
+	productionCapabilitiesByRef := map[string][]string{}
 	for _, capability := range matrix.Capabilities {
 		for profileID, profile := range capability.Profiles {
 			for _, verification := range profile.Verification {
@@ -150,20 +151,32 @@ func CheckRemoteValidationArtifacts(matrix Matrix, repoRoot string, baseline map
 				}
 				subject := capability.Capability + "/" + profileID
 				subjectsByRef[verification.Ref] = append(subjectsByRef[verification.Ref], subject)
+				if profileID == string(ProfileProduction) && effectiveStatus(profile) == "supported" {
+					productionCapabilitiesByRef[verification.Ref] = append(productionCapabilitiesByRef[verification.Ref], capability.Capability)
+				}
 			}
 		}
 	}
 
 	var findings []RemoteValidationFinding
 	for ref, subjects := range subjectsByRef {
+		reason := "invalid remote-validation slug"
 		// A ref that is not a valid slug is a hard finding: it can never be
 		// turned into a safe filesystem path, so it is neither artifact-backed
 		// nor eligible burn-down debt. Treating it as a finding (rather than
 		// skipping the os.Stat) blocks a path-traversal ref from resolving to
 		// an unrelated file and from being excused by a baseline entry.
 		if remoteValidationRefValid(ref) {
-			if remoteValidationArtifactExists(repoRoot, ref) {
+			productionCapabilities := uniqueSortedStrings(productionCapabilitiesByRef[ref])
+			if len(productionCapabilities) == 0 {
+				if remoteValidationArtifactExists(repoRoot, ref) {
+					continue
+				}
+				reason = "artifact is missing"
+			} else if err := validateRemoteValidationArtifact(repoRoot, ref, productionCapabilities); err == nil {
 				continue
+			} else {
+				reason = err.Error()
 			}
 			if _, baselined := baseline[ref]; baselined {
 				continue
@@ -171,10 +184,23 @@ func CheckRemoteValidationArtifacts(matrix Matrix, repoRoot string, baseline map
 		}
 		sorted := append([]string(nil), subjects...)
 		sort.Strings(sorted)
-		findings = append(findings, RemoteValidationFinding{Ref: ref, Subjects: sorted})
+		findings = append(findings, RemoteValidationFinding{Ref: ref, Subjects: sorted, Reason: reason})
 	}
 	sort.Slice(findings, func(i, j int) bool { return findings[i].Ref < findings[j].Ref })
 	return findings
+}
+
+func uniqueSortedStrings(values []string) []string {
+	set := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		set[value] = struct{}{}
+	}
+	out := make([]string, 0, len(set))
+	for value := range set {
+		out = append(out, value)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // remoteValidationRefValid reports whether ref matches the remote_validation
@@ -194,12 +220,8 @@ func remoteValidationRefValid(ref string) bool {
 // path is re-verified to stay under RemoteValidationArtifactDir after cleaning,
 // so even a future regex weakening cannot let os.Stat escape the directory.
 func remoteValidationArtifactExists(repoRoot, ref string) bool {
-	if !remoteValidationRefValid(ref) {
-		return false
-	}
-	dir := filepath.Clean(filepath.Join(repoRoot, RemoteValidationArtifactDir))
-	path := filepath.Clean(filepath.Join(dir, ref+".md"))
-	if path != dir && !strings.HasPrefix(path, dir+string(filepath.Separator)) {
+	path, ok := remoteValidationArtifactPath(repoRoot, ref)
+	if !ok {
 		return false
 	}
 	info, err := os.Stat(path) // #nosec G304 -- ref is slug-validated (remoteValidationRefValid) and the resolved path is confirmed under RemoteValidationArtifactDir before this stat, so it cannot escape the evidence directory
@@ -341,8 +363,8 @@ func ReadRemoteValidationCeiling(path string) (int, bool) {
 	return 0, false
 }
 
-// RenderRemoteValidationBaseline computes the current dangling remote_validation
-// refs (cited in matrix, no committed artifact under repoRoot) and renders them
+// RenderRemoteValidationBaseline computes the current invalid remote_validation
+// refs (production-supported in matrix, no valid artifact under repoRoot) and renders them
 // as a baseline file body, header and FROZEN_MAX directive included, sorted for
 // determinism.
 //
@@ -354,25 +376,17 @@ func ReadRemoteValidationCeiling(path string) (int, bool) {
 // until the offender commits an artifact or explicitly raises FROZEN_MAX.
 func RenderRemoteValidationBaseline(matrix Matrix, repoRoot string, priorCeiling int, priorFound bool) string {
 	dangling := map[string]struct{}{}
-	for _, capability := range matrix.Capabilities {
-		for _, profile := range capability.Profiles {
-			for _, verification := range profile.Verification {
-				if verification.Kind != "remote_validation" {
-					continue
-				}
-				// An invalid ref is never written into the baseline: it is not a
-				// legal slug, so it cannot be turned into a path (FIX 1, #5407)
-				// and could never load back through LoadRemoteValidationBaseline.
-				// It stays out of the burn-down set and surfaces as a hard
-				// finding in check mode instead.
-				if !remoteValidationRefValid(verification.Ref) {
-					continue
-				}
-				if remoteValidationArtifactExists(repoRoot, verification.Ref) {
-					continue
-				}
-				dangling[verification.Ref] = struct{}{}
-			}
+	for _, artifact := range BuildRemoteValidationInventory(matrix).Artifacts {
+		if !remoteValidationRefValid(artifact.Slug) {
+			continue
+		}
+		capabilities := make([]string, 0, len(artifact.Subjects))
+		for _, subject := range artifact.Subjects {
+			capability, _, _ := strings.Cut(subject, "/")
+			capabilities = append(capabilities, capability)
+		}
+		if err := validateRemoteValidationArtifact(repoRoot, artifact.Slug, capabilities); err != nil {
+			dangling[artifact.Slug] = struct{}{}
 		}
 	}
 	refs := make([]string, 0, len(dangling))

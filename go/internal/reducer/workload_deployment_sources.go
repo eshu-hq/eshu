@@ -39,9 +39,10 @@ func applyResolvedDeploymentSources(
 			provenance = "argocd_application_source"
 		}
 
-		// Direction depends on evidence kind:
-		// - ArgoCD: source=app, target=deploy_repo (app defines where it deploys from)
-		// - Kustomize/Helm: source=deploy_repo, target=app (deploy repo references app)
+		// Direction depends on evidence kind. ArgoCD Applications,
+		// Kustomize, and Helm originate in the deployment/control repo and
+		// point at the deployed app. ApplicationSet deploy-source evidence is
+		// normalized in the reverse direction when it is discovered.
 		appRepoID, deployRepoID := relationship.SourceRepoID, relationship.TargetRepoID
 		if isDeployRepoOriginatedEvidence(relationship.Details) {
 			appRepoID, deployRepoID = relationship.TargetRepoID, relationship.SourceRepoID
@@ -178,9 +179,10 @@ func hasDeploymentEvidence(details map[string]any) bool {
 	return false
 }
 
-// isDeployRepoOriginatedEvidence returns true when the evidence was discovered
-// inside the deployment repo (Kustomize/Helm), meaning the source is the deploy
-// repo and target is the app. ArgoCD evidence originates in the app repo.
+// isDeployRepoOriginatedEvidence reports whether a resolved edge starts at the
+// deployment or control repository and points at the deployed application.
+// ArgoCD Application, Kustomize, and Helm evidence use that direction.
+// ApplicationSet deploy-source evidence is normalized in the reverse direction.
 func isDeployRepoOriginatedEvidence(details map[string]any) bool {
 	rawKinds, ok := details["evidence_kinds"]
 	if !ok {
@@ -188,7 +190,8 @@ func isDeployRepoOriginatedEvidence(details map[string]any) bool {
 	}
 	for _, kind := range toStringSlice(rawKinds) {
 		switch relationships.EvidenceKind(kind) {
-		case relationships.EvidenceKindKustomizeResource,
+		case relationships.EvidenceKindArgoCDAppSource,
+			relationships.EvidenceKindKustomizeResource,
 			relationships.EvidenceKindHelmValues,
 			relationships.EvidenceKindHelmChart:
 			return true

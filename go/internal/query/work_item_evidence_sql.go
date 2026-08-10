@@ -5,12 +5,12 @@ package query
 
 // listWorkItemEvidenceQuery reads one bounded page of active work-item source
 // facts. The scoped-token grant set ($9) intersects each fact's durable
-// linked_repository_id before ORDER BY/LIMIT: an empty grant array (shared,
-// admin, or local callers) keeps the unscoped all-rows branch, while a non-empty
-// array bounds the page so a scoped caller observes only work items whose durable
-// repository link is granted. A fact with no linked_repository_id (every fact
-// kind except a canonicalized external_link) fails the ANY() match and stays
-// invisible to scoped tokens — fail-closed by construction, never an
+// linked_repository_id before ORDER BY/LIMIT: a NULL or empty grant array
+// (shared, admin, or local callers) keeps the unscoped all-rows branch, while a
+// non-empty array bounds the page so a scoped caller observes only work items
+// whose durable repository link is granted. A fact with no linked_repository_id
+// (every fact kind except a canonicalized external_link) fails the ANY() match
+// and stays invisible to scoped tokens — fail-closed by construction, never an
 // all-or-nothing provider-scope leak.
 const listWorkItemEvidenceQuery = `
 SELECT
@@ -40,7 +40,7 @@ WHERE fact.fact_kind = ANY($1::text[])
   AND ($7::timestamptz IS NULL OR fact.observed_at >= $7)
   AND ($8 = '' OR fact.fact_id > $8)
   AND (
-    cardinality($9::text[]) = 0
+    COALESCE(cardinality($9::text[]), 0) = 0
     OR fact.payload->>'linked_repository_id' = ANY($9::text[])
   )
 ORDER BY fact.fact_id ASC

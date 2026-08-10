@@ -35,6 +35,23 @@ func TestCodeFlowSQLReadsLatestFactPerStableKeyThroughActiveGeneration(t *testin
 	}
 }
 
+func TestCodeFlowSQLPrefersIntraproceduralTaintEvidence(t *testing.T) {
+	t.Parallel()
+
+	query := listActiveCodeFlowFactsSQL
+	priority := "WHEN 'code_taint_evidence' THEN 0"
+	interproc := "WHEN 'code_interproc_evidence' THEN 1"
+	observed := "candidate.observed_at ASC"
+	for _, fragment := range []string{priority, interproc, observed} {
+		if !strings.Contains(query, fragment) {
+			t.Fatalf("code-flow SQL missing deterministic taint precedence fragment %q", fragment)
+		}
+	}
+	if strings.Index(query, priority) > strings.Index(query, observed) || strings.Index(query, interproc) > strings.Index(query, observed) {
+		t.Fatal("code-flow SQL must rank exact intraprocedural taint evidence before time and fact-id tie-breakers")
+	}
+}
+
 // TestCodeFlowSQLKeepsLiteralKindConjunctForPartialIndex guards the #5280
 // fix: the read filters fact_kind by both the parameterized $1 subset AND a
 // literal `fact_kind IN (...)` conjunct. The literal is what lets PostgreSQL

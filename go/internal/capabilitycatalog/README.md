@@ -58,11 +58,18 @@ kinds; an unrecognized key is a hard `LoadMatrix` error, not a silently
 accepted proof signal (#5407, PR 2 of #5336).
 
 `CheckRemoteValidationArtifacts` (in `remote_validation.go`) closes the
-second half of that finding: every `remote_validation` ref cited in the
-matrix must resolve to a committed
-`docs/internal/remote-validation/<ref>.md` artifact, or be listed in the
-burn-down baseline at `specs/remote-validation-baseline.txt`. A dangling ref
-not in the baseline fails.
+second half of that finding: every production-supported `remote_validation`
+ref cited in the matrix must resolve to deployed-tier evidence at
+`docs/internal/remote-validation/<ref>.md`, or be listed in the burn-down
+baseline at `specs/remote-validation-baseline.txt`. The artifact records a run
+date, permitted committed source, exact command with direct exit capture,
+captured exit `0`, and a capability-specific assertion for every row sharing
+the slug. A placeholder or lower-tier `go_test` record fails.
+
+`BuildRemoteValidationInventory` derives the expected slug-to-row mapping from
+the matrix. `scripts/generate-remote-validation-inventory.sh` writes the
+deterministic `docs/internal/remote-validation/inventory.generated.json`; the
+check fails if it drifts. The generator never creates measurement data.
 
 The baseline is a frozen audited set, not a soft debt list, and carries a
 mandatory `# FROZEN_MAX: <N>` ceiling. `LoadRemoteValidationBaseline` parses

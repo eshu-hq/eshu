@@ -251,7 +251,7 @@ verify_graph() {
 	' "graph repository nodes did not include every dead-IaC fixture repository"
 
 	cypher="MATCH (r:Repository)-[rel]->(n) WHERE r.name IN [$repo_list] RETURN r.name AS source, type(rel) AS relationship_type, n.id AS target_id, n.name AS target_name ORDER BY source, relationship_type, target_name LIMIT 200"
-	payload="$(jq -cn --arg cypher "$cypher" '{cypher_query: $cypher}')"
+	payload="$(jq -cn --arg cypher "$cypher" --argjson limit 200 '{cypher_query: $cypher, limit: $limit}')"
 	api_post_json "/code/cypher" "$payload" "$GRAPH_RELATIONSHIPS_FILE"
 	eshu_assert_json_query "$GRAPH_RELATIONSHIPS_FILE" '
 		(.results // []) as $rows |

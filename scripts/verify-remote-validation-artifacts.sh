@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# verify-remote-validation-artifacts.sh - fail a remote_validation proof-ID
-# (specs/capability-matrix*.yaml) that resolves to no committed evidence
-# artifact and is not tracked in the burn-down baseline (#5407, PR 2 of
-# #5336). #5336 flagged component_extensions.{inventory,diagnostics} as
+# verify-remote-validation-artifacts.sh - fail a production-supported
+# remote_validation proof-ID that lacks valid deployed evidence and is not
+# tracked in the burn-down baseline (#5407, #5552).
+# #5336 flagged component_extensions.{inventory,diagnostics} as
 # claiming production:supported on an unverifiable remote_validation ref;
 # this gate generalizes that finding across the whole matrix instead of
 # fixing it in isolation.
@@ -15,10 +15,12 @@
 # remote-validation`, mirroring verify-capability-budget-proof.sh's shape.
 #
 # A remote_validation ref resolves against
-# docs/internal/remote-validation/<ref>.md. A ref with no file there passes
-# only if it is listed in specs/remote-validation-baseline.txt (known debt);
-# otherwise the gate fails. The baseline also carries a FROZEN_MAX ceiling: the
-# gate fails when the entry count EXCEEDS it, so the debt set cannot grow. Run
+# docs/internal/remote-validation/<ref>.md. Its content must record a deployed
+# source, run date, exact command with direct exit capture, exit 0, and one
+# assertion per production capability. Invalid evidence passes only if its ref
+# is listed in specs/remote-validation-baseline.txt. The baseline carries a
+# FROZEN_MAX ceiling: the gate fails when the entry count EXCEEDS it, so the
+# debt set cannot grow. Run
 # -update after committing a real evidence artifact (which shrinks the set and
 # ratchets FROZEN_MAX down); -update never raises the ceiling. Smuggling a new
 # unverified production:supported claim by appending its ref and regenerating
@@ -41,10 +43,9 @@ usage() {
 	cat >&2 <<'USAGE'
 Usage: scripts/verify-remote-validation-artifacts.sh [-update] [--specs DIR] [--root DIR] [--baseline PATH]
 
-Verifies every remote_validation proof-ID in the capability matrix resolves
-to a committed docs/internal/remote-validation/<ref>.md artifact or is listed
-in the burn-down baseline. With -update, regenerates the baseline from the
-current tree instead of checking it.
+Verifies every production-supported remote_validation proof-ID resolves to a
+current-format deployed artifact or is listed in the burn-down baseline. With
+-update, regenerates the baseline and slug-to-row inventory.
 USAGE
 }
 

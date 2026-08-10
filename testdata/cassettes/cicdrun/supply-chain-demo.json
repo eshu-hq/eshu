@@ -165,6 +165,71 @@
       ]
     },
     {
+      "scope_id": "ci_cd_run:github_actions:acme:deployable-config-resource-proof",
+      "source_system": "ci_cd_run",
+      "scope_kind": "ci_cd_run",
+      "collector_kind": "ci_cd_run",
+      "partition_key": "ci_cd_run:github_actions:acme:deployable-config-resource-proof",
+      "metadata": {
+        "provider": "github_actions",
+        "repository": "acme/deployable-config"
+      },
+      "generation_id": "cassette-cicd-scd-resource-gen1",
+      "observed_at": "2026-06-25T00:12:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "ci.run",
+          "stable_fact_key": "ci_cd_run:github_actions:deployable-config-resource-proof:run:5152",
+          "schema_version": "1.0.0",
+          "collector_kind": "ci_cd_run",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "cicd-collector-scd",
+            "provider": "github_actions",
+            "run_id": "5152",
+            "run_attempt": "1",
+            "run_number": "130",
+            "workflow_name": "lambda-image",
+            "event": "push",
+            "status": "completed",
+            "result": "success",
+            "branch": "main",
+            "commit_sha": "2b3c4d5e6f7081928374655647382910abcdef12",
+            "repository_id": "repository:r_217415d9",
+            "provider_repository_id": "github.com/acme/deployable-config",
+            "repository_url": "https://github.com/acme/deployable-config",
+            "correlation_anchors": [
+              "github_actions::5152"
+            ]
+          }
+        },
+        {
+          "fact_kind": "ci.artifact",
+          "stable_fact_key": "ci_cd_run:github_actions:deployable-config-resource-proof:run:5152:artifact:image",
+          "schema_version": "1.0.0",
+          "collector_kind": "ci_cd_run",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "cicd-collector-scd",
+            "provider": "github_actions",
+            "run_id": "5152",
+            "run_attempt": "1",
+            "artifact_id": "art-image-5152",
+            "artifact_name": "supply-chain-demo-lambda-image",
+            "artifact_type": "container_image",
+            "artifact_digest": "sha256:0000000000000000000000000000000000000000000000000000000000cc",
+            "correlation_anchors": [
+              "github_actions::5152",
+              "sha256:0000000000000000000000000000000000000000000000000000000000cc"
+            ]
+          }
+        }
+      ]
+    },
+    {
       "scope_id": "ci_cd_run:gitlab_ci:eshu-hq:supply-chain-demo",
       "source_system": "ci_cd_run",
       "scope_kind": "ci_cd_run",

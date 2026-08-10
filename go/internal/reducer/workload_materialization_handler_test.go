@@ -414,8 +414,8 @@ func TestWorkloadMaterializationHandlerSeedsRuntimeCandidateFromArgoDeploymentSo
 	relationshipLoader := &stubResolvedRelationshipLoader{
 		resolved: []relationships.ResolvedRelationship{
 			{
-				SourceRepoID:     "repo-edge-api",
-				TargetRepoID:     "repo-platform-deploy",
+				SourceRepoID:     "repo-platform-deploy",
+				TargetRepoID:     "repo-edge-api",
 				RelationshipType: relationships.RelDeploysFrom,
 				Confidence:       0.96,
 				Details: map[string]any{
