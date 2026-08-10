@@ -52,38 +52,77 @@ visible through the child-span counts and request error telemetry.
 
 ## Performance Evidence:
 
-The theory probe used the default Compose NornicDB source revision
+The committed integration harnesses bind the shipped Cypher, the concrete
+Postgres authorization store, and the real concurrent Neo4jReader. The tested
+code commit is `1568a2a7b56b9a224b80e61ba41144b1999ac196`; the harness rejects a
+production Cypher hash other than
+`1900bbe55bc2f6e63da43ec9f8a6c1ed67e416702ab718aebd4db6ea2c794fee`.
+It ran against NornicDB source revision
 `3722b483c02c38a8e046d198f8768f200f31023c`, image ID
 `sha256:1afd1f92af1de69bfd336e6b1d4d9136019309c0640ace9b54e1cccba1e4d8d5`,
-with embeddings, BM25, vector search, async writes, and Heimdall disabled. The
-same graph contained 200 digests, one workload per digest, and 1,000 workloads
-on the lexical first digest. Each row below used three warmups and 15 measured
-reads of the same input shape.
+and PostgreSQL 18.4.
 
-| Shape | Digests | Rows | Digests represented | p50 | p95 |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Prior global limit | 1 | 200 | 1 | 1.296 ms | 2.187 ms |
-| Balanced, concurrency 16 | 1 | 200 | 1 | 1.294 ms | 2.730 ms |
-| Prior global limit | 10 | 200 | 1 | 1.575 ms | 2.545 ms |
-| Balanced, concurrency 16 | 10 | 29 | 10 | 2.035 ms | 3.655 ms |
-| Prior global limit | 100 | 200 | 1 | 1.758 ms | 3.782 ms |
-| Balanced, concurrency 16 | 100 | 101 | 100 | 13.391 ms | 18.609 ms |
-| Prior global limit | 200 | 200 | 1 | 1.602 ms | 2.021 ms |
-| Balanced, concurrency 32 | 200 | 200 | 200 | 6.954 ms | 8.424 ms |
+The graph held 200 digests: 1,000 workloads for the lexical first digest and
+two for every other digest. Each latency row used three warmups and 15 measured
+requests. Concurrent measurements used four requests, two warmups, and eight
+measured rounds on the same graph and Postgres state.
 
-The 200-digest balanced p95 adds 6.403 ms while preserving evidence for every
-digest. A concurrency sweep measured 16 workers at 16.079 ms p95, 24 at
-9.332 ms, 32 at 8.424 ms, 48 at 36.045 ms, and 64 at 251.970 ms. The fixed
-ceiling is therefore 32; higher fanout saturates the backend or connection pool.
+| Request shape | Prior global limit p50 / p95 | Balanced p50 / p95 | Truth result |
+| --- | ---: | ---: | --- |
+| One request | 2.178 / 3.434 ms | 7.925 / 9.196 ms | prior: 200 refs from 1 digest; balanced: 200 refs from 200 digests |
+| Four concurrent requests | 4.709 / 12.659 ms | 30.207 / 40.158 ms | every measured request retained its lane's exact truth result |
 
-Public-safe disposable theory-harness command, captured exit code:
+The exact recorded run stayed below 41 ms at p95. An immediately preceding
+same-shape run on the same host observed transient tails of 262.799 ms for one
+balanced request and 314.557 ms for four concurrent requests; those are still
+below the capability's 1,000 ms local-full-stack p95 budget, but they show why
+the evidence does not claim a tighter SLO. The fixed driver pool and worker
+ceiling were both 32. The final run observed a maximum of 32 graph reads, 400
+all-scope candidates, 11,861 successful one-attempt Neo4jReader spans across
+the measurement set, and a successful request immediately after forced parent
+cancellation. The paired Postgres plans measured 1.464 ms for the scoped
+200-candidate shape and 3.388 ms for the all-scope 400-candidate shape,
+excluding planning time.
+
+The live test initially failed because a fixture created nodes, a relationship,
+and relationship properties in one NornicDB statement; the relationship existed
+but its properties were nil. The accepted fixture now uses the production
+writer's `MATCH`/`MATCH`/`MERGE`/`SET` shape and asserts the persisted source,
+mode, digest, scope, and generation before timing the read. This keeps a fixture
+quirk from becoming a false product failure.
+
+Public-safe disposable command shape, captured exit code:
 
 ```bash
-NORNICDB_IMAGE=eshu-nornicdb-pr290:3722b483c02c go run .
+graph_container="eshu-5834-nornic-proof"
+postgres_container="eshu-5834-postgres-proof"
+trap 'docker stop "$graph_container" "$postgres_container" >/dev/null 2>&1 || true' EXIT
+docker run -d --rm --name "$graph_container" \
+  -e NORNICDB_NO_AUTH=true -e NORNICDB_BOLT_PORT=7687 \
+  -p 127.0.0.1::7687 eshu-nornicdb-pr290:3722b483c02c
+docker run -d --rm --name "$postgres_container" \
+  -e POSTGRES_PASSWORD=eshu-proof -p 127.0.0.1::5432 postgres:18.4
+graph_port="$(docker port "$graph_container" 7687/tcp | awk -F: 'NR == 1 {print $NF}')"
+postgres_port="$(docker port "$postgres_container" 5432/tcp | awk -F: 'NR == 1 {print $NF}')"
+for attempt in {1..90}; do
+  if nc -z 127.0.0.1 "$graph_port" >/dev/null 2>&1 && \
+     docker exec "$postgres_container" pg_isready -U postgres -d postgres >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+cd go
+ESHU_KUBERNETES_RUNTIME_PROBE_PERFORMANCE_LIVE=1 \
+ESHU_NEO4J_URI="bolt://127.0.0.1:${graph_port}" \
+ESHU_KUBERNETES_RUNTIME_PROBE_POSTGRES_DSN="postgresql://postgres:eshu-proof@127.0.0.1:${postgres_port}/postgres?sslmode=disable" \
+ESHU_KUBERNETES_RUNTIME_PROBE_POSTGRES_DISPOSABLE=1 \
+go test -tags=integration ./internal/query \
+  -run '^(TestLiveKubernetesRuntimeProbePerformance|TestKubernetesRuntimeWorkloadGatePreserves(DigestFairness|SingleDigestSentinel)Live)$' \
+  -count=1 -v
 # exit 0
 ```
 
-Focused implementation proof commands record their exit codes directly:
+Focused implementation proof commands also capture their exit codes directly:
 
 ```bash
 cd go
