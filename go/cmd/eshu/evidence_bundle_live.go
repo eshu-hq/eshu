@@ -143,9 +143,11 @@ func liveEvidenceSnapshotFromStatus(
 			Domain:      domain.Domain,
 			Outstanding: domain.Outstanding,
 			InFlight:    domain.InFlight,
+			Blocked:     domain.Blocked,
 			Retrying:    domain.Retrying,
 			Failed:      domain.Failed,
 			DeadLetter:  domain.DeadLetter,
+			OldestAgeS:  domain.OldestAgeS,
 		})
 	}
 	liveCollectors := make([]evidencebundle.LiveCollectorSnapshot, 0, len(collectors.Collectors))

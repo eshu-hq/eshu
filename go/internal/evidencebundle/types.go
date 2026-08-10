@@ -135,9 +135,14 @@ type PipelineDomainBacklogSnapshot struct {
 	Domain      string `json:"domain"`
 	Outstanding int    `json:"outstanding"`
 	InFlight    int    `json:"in_flight"`
+	Blocked     int    `json:"blocked"`
 	Retrying    int    `json:"retrying"`
 	Failed      int    `json:"failed"`
 	DeadLetter  int    `json:"dead_letter"`
+	// OldestAgeS is the per-domain age the health reasons quote verbatim
+	// ("domain %s has %d outstanding items ... for %s"). Without it the bundle
+	// carries the narrative and nothing to reconcile it against.
+	OldestAgeS float64 `json:"oldest_age_seconds"`
 }
 
 // PipelineCollectorReadinessSnapshot records one collector's readiness

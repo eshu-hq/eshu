@@ -385,7 +385,8 @@ func TestBuildLiveBundleCarriesEveryProducerBucket(t *testing.T) {
 			Retrying: 4, Succeeded: 5, Failed: 6, DeadLetter: 7,
 		}},
 		DomainBacklogs: []LiveDomainBacklogSnapshot{{
-			Domain: "code", Outstanding: 1, InFlight: 2, Retrying: 3, Failed: 4, DeadLetter: 5,
+			Domain: "code", Outstanding: 1, InFlight: 2, Blocked: 6, Retrying: 3,
+			Failed: 4, DeadLetter: 5, OldestAgeS: 41.5,
 		}},
 		GenerationHistory: LiveGenerationHistorySnapshot{
 			Active: 1, Pending: 2, Completed: 3, Superseded: 4, Failed: 5, Other: 6,
@@ -404,7 +405,8 @@ func TestBuildLiveBundleCarriesEveryProducerBucket(t *testing.T) {
 		t.Errorf("StageSummaries = %+v, want %+v", state.StageSummaries, wantStage)
 	}
 	wantDomain := PipelineDomainBacklogSnapshot{
-		Domain: "code", Outstanding: 1, InFlight: 2, Retrying: 3, Failed: 4, DeadLetter: 5,
+		Domain: "code", Outstanding: 1, InFlight: 2, Blocked: 6, Retrying: 3,
+		Failed: 4, DeadLetter: 5, OldestAgeS: 41.5,
 	}
 	if len(state.DomainBacklogs) != 1 || state.DomainBacklogs[0] != wantDomain {
 		t.Errorf("DomainBacklogs = %+v, want %+v", state.DomainBacklogs, wantDomain)

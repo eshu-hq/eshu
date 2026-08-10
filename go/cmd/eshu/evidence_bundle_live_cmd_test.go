@@ -42,7 +42,7 @@ func TestEvidenceBundleExportLiveComposesBundleFromStatusEndpoints(t *testing.T)
 				"queue": {"total": 18, "outstanding": 7, "overdue_claims": 3, "oldest_outstanding_age": 12.5, "pending": 4, "in_flight": 2, "retrying": 1, "succeeded": 10, "failed": 0, "dead_letter": 1},
 				"generation_history": {"active": 1, "pending": 0, "completed": 9, "superseded": 5, "failed": 0, "other": 2},
 				"stage_summaries": [{"stage": "parse", "pending": 2, "claimed": 6, "running": 3, "retrying": 0, "succeeded": 11, "failed": 0, "dead_letter": 0}],
-				"domain_backlogs": [{"domain": "aws_relationship", "outstanding": 1, "in_flight": 4, "retrying": 0, "failed": 0, "dead_letter": 1}],
+				"domain_backlogs": [{"domain": "aws_relationship_materialization", "outstanding": 1, "in_flight": 4, "blocked": 9, "retrying": 0, "failed": 0, "dead_letter": 1, "oldest_age": 41.5}],
 				"scope_activity": {"active": 5, "changed": 1, "unchanged": 4}
 			}`))
 		case "/api/v0/status/collectors":
@@ -132,7 +132,8 @@ func TestEvidenceBundleExportLiveComposesBundleFromStatusEndpoints(t *testing.T)
 		t.Fatalf("GenerationHistory = %+v, want %+v from the stub", state.GenerationHistory, wantGeneration)
 	}
 	wantDomain := evidencebundle.PipelineDomainBacklogSnapshot{
-		Domain: "aws_relationship", Outstanding: 1, InFlight: 4, DeadLetter: 1,
+		Domain: "aws_relationship_materialization", Outstanding: 1, InFlight: 4,
+		Blocked: 9, DeadLetter: 1, OldestAgeS: 41.5,
 	}
 	if len(state.DomainBacklogs) != 1 || state.DomainBacklogs[0] != wantDomain {
 		t.Fatalf("DomainBacklogs = %+v, want %+v from the stub", state.DomainBacklogs, wantDomain)

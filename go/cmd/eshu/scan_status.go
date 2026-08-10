@@ -87,12 +87,14 @@ type scanStageSummary struct {
 }
 
 type scanDomainBacklog struct {
-	Domain      string `json:"domain,omitempty"`
-	Outstanding int    `json:"outstanding,omitempty"`
-	InFlight    int    `json:"in_flight,omitempty"`
-	Retrying    int    `json:"retrying,omitempty"`
-	Failed      int    `json:"failed,omitempty"`
-	DeadLetter  int    `json:"dead_letter,omitempty"`
+	Domain      string  `json:"domain,omitempty"`
+	Outstanding int     `json:"outstanding,omitempty"`
+	InFlight    int     `json:"in_flight,omitempty"`
+	Blocked     int     `json:"blocked,omitempty"`
+	Retrying    int     `json:"retrying,omitempty"`
+	Failed      int     `json:"failed,omitempty"`
+	DeadLetter  int     `json:"dead_letter,omitempty"`
+	OldestAgeS  float64 `json:"oldest_age,omitempty"`
 }
 
 type scanScopeActivity struct {

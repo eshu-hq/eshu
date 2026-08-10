@@ -44,10 +44,12 @@ var (
 	// to them, and the discriminator is the value, not the keyword.
 	//
 	// Matching the bare word rejected honest content: "secrets_iam_trust_chain"
-	// and "secrets_iam_graph_projection" are real materialization domains, and
-	// "appflow_connector_profile_uses_secret" and "aws_appsync_api_key" even end
-	// in the keyword -- so a health reason reading "<domain>: 5 blocked" looks
-	// exactly like an assignment unless the value is examined.
+	// and "secrets_iam_graph_projection" are real materialization domains and
+	// reach domain_backlogs. Other real identifiers end in the keyword --
+	// "appflow_connector_profile_uses_secret" is an AWS relationship type and
+	// "aws_appsync_api_key" a resource type, both of which can appear in free
+	// text -- so a reason reading "<identifier>: 5 blocked" looks exactly like
+	// an assignment unless the value is examined.
 	//
 	//   - As a JSON key ("password":, \"api_key\":) the keyword is quoted on
 	//     both sides, which a domain appearing as a JSON value never is. Any

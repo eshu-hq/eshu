@@ -33,7 +33,7 @@ func realisticLiveSnapshot() LiveSnapshot {
 			{Stage: "parse", Pending: 2, Retrying: 0, Failed: 0, DeadLetter: 0},
 		},
 		DomainBacklogs: []LiveDomainBacklogSnapshot{
-			{Domain: "aws_relationship", Outstanding: 1, Retrying: 0, Failed: 0, DeadLetter: 1},
+			{Domain: "aws_relationship_materialization", Outstanding: 1, Retrying: 0, Failed: 0, DeadLetter: 1},
 		},
 		Collectors: []LiveCollectorSnapshot{
 			{CollectorKind: "git", StatusCategory: "ready", Health: "healthy"},

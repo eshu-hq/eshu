@@ -92,9 +92,11 @@ type LiveDomainBacklogSnapshot struct {
 	Domain      string
 	Outstanding int
 	InFlight    int
+	Blocked     int
 	Retrying    int
 	Failed      int
 	DeadLetter  int
+	OldestAgeS  float64
 }
 
 // LiveCollectorSnapshot mirrors one collector entry from

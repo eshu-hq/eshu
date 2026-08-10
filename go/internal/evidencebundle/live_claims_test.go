@@ -20,11 +20,11 @@ import (
 // export a live bundle at all. A screen that rejects honest bundles fails the
 // feature just as badly as one that passes a leak.
 func TestValidateKeepsRealDomainNamesUsable(t *testing.T) {
+	// Only these two are reducer conflict domains, so only these two can reach
+	// domain_backlogs[].domain and stage_summaries[].stage.
 	for _, domain := range []string{
 		"secrets_iam_trust_chain",
 		"secrets_iam_graph_projection",
-		"appflow_connector_profile_uses_secret",
-		"aws_appsync_api_key",
 	} {
 		t.Run(domain, func(t *testing.T) {
 			snapshot := realisticLiveSnapshot()
@@ -150,6 +150,9 @@ func TestRedactionRulesNameScreensNotGuarantees(t *testing.T) {
 		"live": BuildLiveBundle(realisticLiveSnapshot(), LiveBundleOptions{ScopeID: "live:x", CreatedAt: fixedLiveCreatedAt}),
 	}
 	for name, bundle := range bundles {
+		if len(bundle.Redaction.Rules) == 0 {
+			t.Errorf("%s bundle advertises no redaction rules at all", name)
+		}
 		for _, rule := range bundle.Redaction.Rules {
 			// An allowlist, not a "no_" denylist: "guarantees_no_private_endpoints"
 			// would pass a prefix check while asserting exactly what a screen
@@ -160,5 +163,30 @@ func TestRedactionRulesNameScreensNotGuarantees(t *testing.T) {
 				t.Errorf("%s bundle advertises unrecognised rule %q; a rule must name a screen that runs, not an outcome", name, rule)
 			}
 		}
+	}
+}
+
+// TestValidateKeepsIdentifiersEndingInAKeywordUsable covers identifiers that
+// are not reducer domains but do end in a credential keyword and can appear in
+// free text: an AWS relationship type and an AWS resource type. They are the
+// reason the screen has to judge the assigned value rather than the keyword --
+// with the keyword last, "<identifier>: 5 blocked" is shaped exactly like an
+// assignment.
+func TestValidateKeepsIdentifiersEndingInAKeywordUsable(t *testing.T) {
+	for _, identifier := range []string{
+		"appflow_connector_profile_uses_secret",
+		"aws_appsync_api_key",
+	} {
+		t.Run(identifier, func(t *testing.T) {
+			snapshot := realisticLiveSnapshot()
+			snapshot.HealthReasons = []string{
+				identifier + ": 5 blocked",
+				"relationship " + identifier + " has 5 outstanding items",
+			}
+			bundle := BuildLiveBundle(snapshot, LiveBundleOptions{ScopeID: "live:x", CreatedAt: fixedLiveCreatedAt})
+			if err := Validate(bundle); err != nil {
+				t.Fatalf("Validate rejected the real identifier %q: %v", identifier, err)
+			}
+		})
 	}
 }
