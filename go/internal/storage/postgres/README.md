@@ -791,7 +791,7 @@ both runs, 336 B/op, 2 allocs/op on every sample, both arms
 ```
 
 **Direction is the citable result: the guard is slower on all six statistics
-across both orderings, by roughly 3-8%.** The absolute ns figures are not
+across both orderings, by 2.8-8.0%.** The absolute ns figures are not
 citable -- this host was running other work throughout, which is why run B sits
 well above run A on both arms, and why the six deltas spread as widely as they
 do. Allocation is byte-for-byte identical, so the cost is the extra map read

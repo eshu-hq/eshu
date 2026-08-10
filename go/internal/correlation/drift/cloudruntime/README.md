@@ -99,7 +99,9 @@ terraform-state collector fail-closed-redacts scalar attributes whenever
 bundle no longer yields a nil resolver, because `LoadPackagedSchemaResolver`
 rejects an empty attribute set with an error and the collector fails to start
 rather than degrading every attribute of every resource
-(`terraformstate/schema_resolver.go`). What remains open is the PER-PROVIDER
+(`terraformstate/schema_resolver.go` rejects the empty set;
+`cmd/collector-terraform-state/config.go` propagates that error out of
+startup). What remains open is the PER-PROVIDER
 case — a resolver that loads but does not cover one provider still answers
 `SchemaUnknown` for that provider's attributes, and `parseSchemaInto` still
 skips a corrupt bundle — which is the half of #5870 that is still an open
@@ -191,10 +193,12 @@ unreadable `version` alongside an `image_uri` that compares equal still gives
 `Comparable=2, Compared=1` and still converges, because no completeness signal
 exists for `version` the way `package_type` serves `image_uri`. That shape is
 less reachable -- both `GetFunction` and the `ListFunctions` fallback carry
-`Version` -- but it is not covered. Whether the collector should fail-closed-redact at all
-when its provider-schema resolver is nil -- and whether identity anchors
-such as `arn` should be exempt from that fail-closure -- is the upstream
-policy question, tracked on #5870.
+`Version` -- but it is not covered. Whether the collector should
+fail-closed-redact at all when `schemaTrust` answers `SchemaUnknown` for a
+provider its bundle does not cover -- and whether identity anchors such as
+`arn` should be exempt from that fail-closure -- is the upstream policy
+question, tracked on #5870. (The nil-resolver trigger this sentence used to
+name is gone; see the #6017 note above.)
 
 ### Lambda `version` accuracy note (gated on both sides present)
 
