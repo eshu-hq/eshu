@@ -10,7 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/metric"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
@@ -97,6 +100,15 @@ type graphNodeOwnerLocker interface {
 type LockOnlyGate struct {
 	db    postgres.Beginner
 	store graphNodeOwnerLocker
+
+	// Instruments records the #5101 lock-only observability signals
+	// (eshu_dp_lock_only_gate_locked_rows_total,
+	// eshu_dp_lock_only_gate_lock_wait_seconds), alongside the pre-existing
+	// "slow lock wait" structured log this field does not replace. Optional:
+	// nil skips both metrics and keeps the log-only signal, matching Gate's
+	// Instruments field convention (gated_writer.go). Set as a public field
+	// after NewLockOnlyGate, not a constructor parameter, for the same reason.
+	Instruments *telemetry.Instruments
 }
 
 // NewLockOnlyGate returns a LockOnlyGate backed by the same Postgres database
@@ -176,7 +188,9 @@ func (g *LockOnlyGate) writeChunk(
 	if err := g.store.LockUIDs(ctx, tx, uids); err != nil {
 		return fmt.Errorf("graphowner: lock uids for %s: %w", family, err)
 	}
-	if wait := time.Since(lockStart); wait >= lockOnlySlowWaitThreshold {
+	wait := time.Since(lockStart)
+	recordLockOnlyGateLockWait(ctx, g.Instruments, family, wait)
+	if wait >= lockOnlySlowWaitThreshold {
 		slog.InfoContext(
 			ctx, "graph node owner lock-only advisory locks acquired slowly",
 			slog.String("family", family),
@@ -195,7 +209,40 @@ func (g *LockOnlyGate) writeChunk(
 		return fmt.Errorf("graphowner: commit lock-only transaction for %s: %w", family, err)
 	}
 	committed = true
+	recordLockOnlyGateLockedRows(ctx, g.Instruments, family, len(chunk))
 	return nil
+}
+
+// recordLockOnlyGateLockWait records the #5101 lock-only lock-acquisition
+// wait duration (eshu_dp_lock_only_gate_lock_wait_seconds) for family. Unlike
+// the "slow lock wait" structured log (which only fires at or above
+// lockOnlySlowWaitThreshold), this records every successful lock acquisition,
+// giving an operator the full wait distribution rather than only the slow
+// tail. A nil instruments (a LockOnlyGate wired without telemetry) is a
+// silent no-op.
+func recordLockOnlyGateLockWait(ctx context.Context, instruments *telemetry.Instruments, family string, wait time.Duration) {
+	if instruments == nil || instruments.LockOnlyGateLockWaitDuration == nil {
+		return
+	}
+	instruments.LockOnlyGateLockWaitDuration.Record(ctx, wait.Seconds(), metric.WithAttributes(
+		telemetry.AttrOwnershipFamily(family),
+	))
+}
+
+// recordLockOnlyGateLockedRows increments the #5101 lock-only locked-rows
+// counter (eshu_dp_lock_only_gate_locked_rows_total) by rowCount for family —
+// the operator-facing volume signal for how much lock-only gating traffic a
+// posture/exposure writer is doing. Recorded only after the chunk's
+// transaction commits, so a rolled-back chunk (lock or underlying-write
+// failure) never counts rows it did not durably write. A nil instruments or a
+// zero rowCount is a silent no-op.
+func recordLockOnlyGateLockedRows(ctx context.Context, instruments *telemetry.Instruments, family string, rowCount int) {
+	if rowCount == 0 || instruments == nil || instruments.LockOnlyGateLockedRows == nil {
+		return
+	}
+	instruments.LockOnlyGateLockedRows.Add(ctx, int64(rowCount), metric.WithAttributes(
+		telemetry.AttrOwnershipFamily(family),
+	))
 }
 
 // rowUIDs extracts the "uid" string field from each row, preserving order and

@@ -148,3 +148,54 @@ this NornicDB version line. On a non-contended batch, `LockOnlyGate` is
 provably invisible (500/500 identical rows) at ~1.46x/6.5µs-per-row overhead
 (cheaper than `Gate`'s 2.28x/15µs-per-row, since there is no ledger upsert or
 winner read-back).
+
+### LockOnlyGate observability (#5101)
+
+Before #5101, `writeChunk`'s only operator signal was the structured `slog`
+"graph node owner lock-only advisory locks acquired slowly" log, emitted only
+when a chunk's lock wait reached `lockOnlySlowWaitThreshold` (100ms). Two
+`eshu_dp_*` metrics now cover the same seam, alongside that log (not
+replacing it), when `LockOnlyGate.Instruments` is wired (`cmd/reducer` wires
+it, mirroring `Gate.Instruments`):
+
+- `eshu_dp_lock_only_gate_locked_rows_total` — rows written per chunk under
+  the lock-only critical section, recorded only after the chunk's transaction
+  commits. The operator-facing volume signal LockOnlyGate had none of before.
+- `eshu_dp_lock_only_gate_lock_wait_seconds` — the advisory-lock acquisition
+  wait per chunk, recorded on every successful lock acquisition (not only the
+  slow-wait log's >=100ms tail), so an operator can see the full lock-wait
+  distribution trending, not just alert-threshold breaches.
+
+Both are labeled `family`, the same closed five-value writer-name enum
+`familyRDSPosture` / `familyEC2InternetExposure` / `familyEC2BlockDeviceKMS` /
+`familyS3InternetExposure` / `familyEC2InstanceIdentity` already use for the
+structured log and error context (`posture_locked_writers.go`) — no scope id,
+uid, or other high-cardinality value is a label. A nil `Instruments` (a
+`LockOnlyGate` wired without telemetry) is a silent no-op for both metrics,
+matching `Gate`'s pass-through convention.
+
+No-Regression Evidence: this change adds two metric-recording calls to
+`writeChunk`'s existing code path only — lock acquisition, the underlying
+graph write, the commit, and the advisory-lock keyspace `LockUIDs` acquires are
+byte-identical to pre-#5101. The `lockOnlySlowWaitThreshold` log gate is
+semantically unchanged rather than byte-identical: the `wait` value is hoisted
+out of the `if` scope so both the histogram and the log read the same
+measurement, and the threshold comparison itself is untouched.
+`go test ./internal/graphowner ./internal/telemetry -count=1` passes; the
+pre-existing `TestLockOnlyGateChunksAtLockChunkSize`,
+`TestLockOnlyGateUnderlyingErrorRollsBackAndPropagates`, and
+`TestLockOnlyGateLockErrorRollsBackAndSkipsWrite` are unmodified and still
+pass, proving chunk bound, rollback-on-failure, and lock-before-write ordering
+are unchanged. `go vet ./internal/graphowner ./internal/telemetry ./cmd/reducer`
+and `gofmt -l` are clean. Observability Evidence:
+`eshu_dp_lock_only_gate_locked_rows_total` (counter) and
+`eshu_dp_lock_only_gate_lock_wait_seconds` (histogram) are new, both labeled
+only by the closed `family` enum documented above; no scope id, uid, or other
+high-cardinality value was added to any label.
+`TestLockOnlyGateWriteChunkRecordsLockedRowsAndWaitMetrics` and
+`TestLockOnlyGateWriteChunkNilInstrumentsSkipsMetrics` in
+`go/internal/graphowner/lock_only_gate_metrics_test.go` prove both instruments
+register and record with the expected `family` attribute, and that a nil
+`Instruments` stays a silent no-op. `cmd/reducer/main.go` wires
+`lockGate.Instruments = instruments` alongside the pre-existing
+`ownerGate.Instruments = instruments`.

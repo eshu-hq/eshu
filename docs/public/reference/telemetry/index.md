@@ -316,6 +316,38 @@ metrics and live on the structured log instead. The operator dashboard's
 "Reducer input_invalid Facts (rate)" and "Projector input_invalid Facts (rate)"
 panels chart both.
 
+## Lock-only gate lock-wait signals (#5101)
+
+`graphowner.LockOnlyGate.writeChunk` (`go/internal/graphowner/lock_only_gate.go`)
+is the #5062 P1 critical section the RDS/EC2/S3 posture and internet-exposure
+property writers, and the EC2 instance identity writer, run their graph write
+inside: acquire the chunk's per-uid Postgres advisory locks (the SAME key the
+#5007 owner-ledger `Gate` uses), run the underlying graph write, commit.
+Before #5101 its only operator signal was the structured `slog` "graph node
+owner lock-only advisory locks acquired slowly" log, emitted only when a
+chunk's lock wait was at or above the 100ms `lockOnlySlowWaitThreshold`. Two
+metrics now cover the same seam, alongside that log (not replacing it):
+
+- `eshu_dp_lock_only_gate_locked_rows_total` — rows written per chunk under
+  the lock-only critical section, recorded only after the chunk's transaction
+  commits (a rolled-back chunk records nothing). The volume signal: how much
+  lock-only gating traffic each writer is doing.
+- `eshu_dp_lock_only_gate_lock_wait_seconds` — the advisory-lock acquisition
+  wait per chunk, recorded on every successful lock acquisition, not only the
+  slow-wait log's >=100ms tail. The distribution signal: whether lock-only
+  contention with a concurrent Gate-resolved base-property write on the same
+  uid is trending up, even before it crosses the log's alert threshold.
+
+Both share the label `family`, a closed enum of the five lock-only writer
+names: `rds_posture`, `ec2_internet_exposure`, `ec2_block_device_kms_posture`,
+`s3_internet_exposure`, `ec2_instance_identity`
+(`go/internal/graphowner/posture_locked_writers.go`).
+No scope id, uid, or other high-cardinality value
+is a label; those stay on the structured log and the returned error. A
+`LockOnlyGate` wired without `Instruments` (nil) skips both metrics silently
+and keeps the log-only signal, matching the sibling owner-ledger `Gate`'s
+`Instruments` field convention.
+
 ## Extraction-provenance drift gauges
 
 The reducer publishes two observable gauges that let an operator see how the

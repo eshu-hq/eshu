@@ -582,6 +582,25 @@ type Instruments struct {
 	// common, healthy case; a sustained non-zero rate is the 3 AM signal that
 	// two ingestion scopes are racing the same canonical node uid.
 	CrossScopeOwnershipContendedRows metric.Int64Counter
+	// LockOnlyGateLockedRows counts #5062/#5101 graphowner LockOnlyGate rows
+	// written under the per-uid advisory-lock critical section (RDS/EC2/S3
+	// posture and internet-exposure property writers, and the EC2 instance
+	// identity writer). Labels: family (rds_posture / ec2_internet_exposure /
+	// ec2_block_device_kms_posture / s3_internet_exposure /
+	// ec2_instance_identity). This is the operator-facing volume signal
+	// LockOnlyGate had no metric for before #5101 — how much lock-only gating
+	// traffic each posture/exposure writer is doing, alongside the pre-existing
+	// "slow lock wait" structured log.
+	LockOnlyGateLockedRows metric.Int64Counter
+	// LockOnlyGateLockWaitDuration records the #5062/#5101 graphowner
+	// LockOnlyGate advisory-lock acquisition wait, in seconds, for every chunk
+	// (not only the >=100ms outliers the "slow lock wait" structured log
+	// captures). Labels: family, the same closed enum as
+	// LockOnlyGateLockedRows. Gives an operator the full lock-wait
+	// distribution, not just the slow tail, to see whether lock-only
+	// contention with a concurrent Gate-resolved base-property write is
+	// trending up.
+	LockOnlyGateLockWaitDuration metric.Float64Histogram
 	// ReducerInputInvalidFacts counts reducer facts quarantined during typed
 	// payload decode because a required identity field was missing or null
 	// (issue #4568, input_invalid). Labels: domain (the reducer domain that
@@ -2927,6 +2946,25 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register CrossScopeOwnershipContendedRows counter: %w", err)
 	}
 
+	inst.LockOnlyGateLockedRows, err = meter.Int64Counter(
+		"eshu_dp_lock_only_gate_locked_rows_total",
+		metric.WithDescription("Total #5062/#5101 graphowner LockOnlyGate rows written under the per-uid advisory-lock critical section, by family"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register LockOnlyGateLockedRows counter: %w", err)
+	}
+
+	lockOnlyGateLockWaitBuckets := []float64{0, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 5, 10}
+	inst.LockOnlyGateLockWaitDuration, err = meter.Float64Histogram(
+		"eshu_dp_lock_only_gate_lock_wait_seconds",
+		metric.WithDescription("#5062/#5101 graphowner LockOnlyGate advisory-lock acquisition wait per chunk, by family"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(lockOnlyGateLockWaitBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register LockOnlyGateLockWaitDuration histogram: %w", err)
+	}
+
 	inst.ReducerInputInvalidFacts, err = meter.Int64Counter(
 		"eshu_dp_reducer_input_invalid_facts_total",
 		metric.WithDescription("Total reducer facts quarantined during typed payload decode for a missing required identity field (input_invalid), by domain and fact_kind"),
@@ -5167,9 +5205,12 @@ func AttrJoinMode(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionJoinMode, v)
 }
 
-// AttrOwnershipFamily returns a family attribute for the #5007 cross-scope
-// ownership contention counter (cloud_resource / ec2_instance /
-// kubernetes_workload).
+// AttrOwnershipFamily returns a family attribute shared by two graphowner
+// signal groups: the #5007 cross-scope ownership contention counter
+// (cloud_resource / ec2_instance / kubernetes_workload) and the #5101
+// lock-only gate locked-rows counter and lock-wait histogram (rds_posture /
+// ec2_internet_exposure / ec2_block_device_kms_posture / s3_internet_exposure
+// / ec2_instance_identity). See MetricDimensionOwnershipFamily.
 func AttrOwnershipFamily(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionOwnershipFamily, v)
 }
