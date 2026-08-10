@@ -19,7 +19,15 @@ import (
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
-const crossRepoEvidenceSource = "resolver/cross-repo"
+// CrossRepoEvidenceSource is the evidence_source the cross-repo resolver stamps
+// on every edge it writes, including the repo_dependency family's RUNS_ON edges.
+//
+// Exported because the Ifá assert gate partitions on it: workload materialization
+// writes the identical (WorkloadInstance)-[:RUNS_ON]->(Platform) shape stamped
+// EvidenceSourceWorkloads, so relationship type and endpoint labels cannot tell
+// the two families' edges apart. The gate reads this constant rather than a
+// copied literal so the assertion cannot drift from what the writer stamps.
+const CrossRepoEvidenceSource = "resolver/cross-repo"
 
 // EvidenceFactLoader loads persisted evidence facts for a generation.
 type EvidenceFactLoader interface {

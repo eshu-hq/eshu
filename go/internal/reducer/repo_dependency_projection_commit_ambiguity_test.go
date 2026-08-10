@@ -100,7 +100,7 @@ func repoDependencyAmbiguousCommitIntent(
 			"repo_id":           repoID,
 			"target_repo_id":    targetID,
 			"relationship_type": "DEPENDS_ON",
-			"evidence_source":   crossRepoEvidenceSource,
+			"evidence_source":   CrossRepoEvidenceSource,
 			"resolved_id":       "resolved-new",
 		},
 	)
