@@ -358,7 +358,8 @@ func (s IngestionStore) loadDeferredScopedFactsAcrossPartitions(
 			}
 			// partition_load_completed (#5096) promotes the #5094 log to the
 			// trace. It is capped and FIFO-evicted, so the log below stays the
-			// complete record -- see docs/public/reference/telemetry/index.md:979.
+			// complete record -- see the "capped and lossy" note in
+			// docs/public/reference/telemetry/index.md.
 			log.Printf(
 				"deferred_backfill_fact_load_task_completed task=%d query_tasks=%d scope_id=%q repo_terms=%d non_repo_terms=%d loaded_facts=%d duration_s=%.2f workers=%d",
 				index+1, len(tasks), task.partition.ScopeID, len(task.params.repoIDValues), len(task.params.nonRepoIDLike),
