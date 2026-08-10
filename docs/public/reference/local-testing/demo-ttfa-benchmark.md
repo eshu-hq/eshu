@@ -168,9 +168,10 @@ They are basis-specific. A laptop with other Compose stacks running measured
 **7m27s warm**, 2.2x the dedicated host, with no code change between the two —
 which is exactly why the basis table above is not optional.
 
-Once [#4589](https://github.com/eshu-hq/eshu/issues/4589) publishes the SLO
-page, these rows belong there, with this page keeping the method and the
-scorecard semantics.
+The [Performance SLO contract](../performance-slo-contract.md) indexes this
+benchmark among the budgets published on their own surfaces. The TTFA rows stay
+here rather than moving there: that page covers the scale-lab metrics in
+`specs/scale-lab-corpus.v1.yaml`, and time-to-first-answer is not one of them.
 
 ## Not A Blocking CI Lane
 
