@@ -133,3 +133,58 @@ comment states the trade ("a class missing from this list is reported as live
 work, which is a slightly less precise message and never a wrong verdict"), so
 its staleness costs a less precise failure message and never a wrong result —
 unlike the registry here, where staleness costs the work itself.
+
+## Claim-predicate cost under contention (#6014 review)
+
+The review asked for measurement rather than a structural argument: the
+attempt-count predicate grows from 8 to 25 string comparisons, and it is
+evaluated while the claim UPDATE holds row locks.
+
+**Where the predicate actually sits.** `reducerNonCountingFailureClassPredicateSQL`
+has exactly one caller, `reducerClaimAttemptCountCaseSQL`, which is used in
+exactly two places: the `SET attempt_count = ...` clause of the single-claim
+(`reducer_queue_claim_query.go:99`) and batch-claim
+(`reducer_queue_batch_query.go:272`) UPDATEs. This diff changes no `WHERE`, no
+`FOR UPDATE`, no `SKIP LOCKED`, no `ORDER BY`, and no `LIMIT`. Row selection,
+lock acquisition, and lease semantics are byte-identical; only the value
+assigned to rows already selected and already locked changes. The row count the
+predicate sees is therefore the claim limit, not the backlog depth.
+
+**Per-row cost.** Postgres 17, 1,000,000 rows, `EXPLAIN (ANALYZE, TIMING OFF)`,
+three runs each:
+
+| Predicate | Execution time |
+| --- | --- |
+| 8 chained ORs (before) | 21.650 / 20.431 / 20.457 ms |
+| 25 chained ORs (after) | 23.939 / 25.223 / 25.065 ms |
+| 25 via `= ANY(ARRAY[...])` | 19.309 / 19.548 / 19.329 ms |
+
+8 -> 25 costs about **4.6 ns per row** (+4.6 ms per million). At the
+single-claim `LIMIT 1` that is 4.6 ns added per claim.
+
+**Under contention.** 8 concurrent workers, 1500 claims each (12,000 total)
+against a 400,000-row all-`retrying` backlog, through
+`FOR UPDATE SKIP LOCKED` + UPDATE, table reset between runs:
+
+| Run | 8 classes | 25 classes |
+| --- | --- | --- |
+| 1 | 390 claims/s | 368 claims/s |
+| 2 | 389 claims/s | 403 claims/s |
+
+The two runs straddle zero (-5.6%, then +3.6%), so this does **not** demonstrate
+"no regression" — it shows the difference is smaller than run-to-run variance at
+this sample size. The per-row number above is the tighter bound, and it predicts
+exactly that: 4.6 ns against claims costing milliseconds.
+
+**Limits of this evidence.** A synthetic two-column table, not the full claim
+query with its readiness CTE, conflict-key anti-join, and semantic in-flight
+count; a container Postgres on a developer machine; two runs. It bounds the cost
+of the predicate change, which is what the finding is about. It is not a
+throughput baseline for the queue.
+
+**Left on the table.** `= ANY(ARRAY[...])` measured faster than even the
+pre-change 8-OR form, because Postgres compiles it to a ScalarArrayOpExpr rather
+than a 25-argument BoolExpr. Adopting it is a production claim-SQL rewrite that
+would break the ~8 tests asserting `alias.failure_class = '...'` one class at a
+time, and would need its own claim-path proof. Not folded into an enrollment
+change.
