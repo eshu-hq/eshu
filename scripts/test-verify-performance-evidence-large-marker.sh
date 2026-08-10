@@ -40,17 +40,23 @@ init_repo() {
   printf '%s\n' "${dir}"
 }
 
+# Logs live under tmp_root, not a predictable /tmp path: a fixed name can be
+# pre-created as a symlink by another process on a shared host, pointing these
+# redirections at anything the runner can write. The EXIT trap also cleans them
+# up, so a normal run leaves nothing behind.
 expect_pass() {
   local dir="$1"
   local label="$2"
+  local out="${tmp_root}/verifier.out"
+  local err="${tmp_root}/verifier.err"
   if ! ESHU_PERFORMANCE_EVIDENCE_REPO_ROOT="${dir}" \
     ESHU_PERFORMANCE_EVIDENCE_BASE=HEAD~1 \
-    "${verifier}" >/tmp/eshu-perf-large-marker.out 2>/tmp/eshu-perf-large-marker.err; then
+    "${verifier}" >"${out}" 2>"${err}"; then
     printf 'expected verifier to pass for %s in %s\n' "${label}" "${dir}" >&2
     printf -- '--- stdout ---\n' >&2
-    sed -n '1,40p' /tmp/eshu-perf-large-marker.out >&2
+    sed -n '1,40p' "${out}" >&2
     printf -- '--- stderr ---\n' >&2
-    sed -n '1,40p' /tmp/eshu-perf-large-marker.err >&2
+    sed -n '1,40p' "${err}" >&2
     exit 1
   fi
 }
