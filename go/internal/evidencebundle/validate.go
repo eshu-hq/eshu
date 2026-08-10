@@ -20,8 +20,11 @@ func Validate(bundle Bundle) error {
 	if strings.TrimSpace(bundle.Redaction.Profile) == "" {
 		return fmt.Errorf("redaction profile is required")
 	}
-	if len(bundle.Contents.AnswerPackets) == 0 && len(bundle.Contents.InvestigationPackets) == 0 {
-		return fmt.Errorf("bundle must include at least one answer or investigation packet")
+	if len(bundle.Contents.AnswerPackets) == 0 &&
+		len(bundle.Contents.InvestigationPackets) == 0 &&
+		bundle.Contents.PipelineState == nil &&
+		bundle.Contents.SemanticProviderState == nil {
+		return fmt.Errorf("bundle must include at least one answer packet, investigation packet, pipeline state, or semantic provider state")
 	}
 	if len(bundle.Reproduce) == 0 {
 		return fmt.Errorf("bundle must include reproduce calls")

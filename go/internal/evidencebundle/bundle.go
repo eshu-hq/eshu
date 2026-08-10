@@ -192,6 +192,36 @@ func sortBundle(bundle *Bundle) {
 	})
 	sort.Strings(bundle.Bounds.TruncatedLayers)
 	sort.Strings(bundle.Validation.Checks)
+	sortPipelineState(bundle.Contents.PipelineState)
+	sortSemanticProviderState(bundle.Contents.SemanticProviderState)
+}
+
+func sortPipelineState(state *PipelineStateSnapshot) {
+	if state == nil {
+		return
+	}
+	sort.Strings(state.HealthReasons)
+	sort.Slice(state.StageSummaries, func(i, j int) bool {
+		return state.StageSummaries[i].Stage < state.StageSummaries[j].Stage
+	})
+	sort.Slice(state.DomainBacklogs, func(i, j int) bool {
+		return state.DomainBacklogs[i].Domain < state.DomainBacklogs[j].Domain
+	})
+	sort.Slice(state.Collectors, func(i, j int) bool {
+		if state.Collectors[i].CollectorKind != state.Collectors[j].CollectorKind {
+			return state.Collectors[i].CollectorKind < state.Collectors[j].CollectorKind
+		}
+		return state.Collectors[i].StatusCategory < state.Collectors[j].StatusCategory
+	})
+}
+
+func sortSemanticProviderState(state *SemanticProviderStateSnapshot) {
+	if state == nil {
+		return
+	}
+	sort.Slice(state.ProviderProfiles, func(i, j int) bool {
+		return state.ProviderProfiles[i].ProfileID < state.ProviderProfiles[j].ProfileID
+	})
 }
 
 func sortPacketSummaries(packets []PacketSummary) {
