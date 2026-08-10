@@ -3,7 +3,10 @@
 
 package reducer
 
-import "sort"
+import (
+	"slices"
+	"sort"
+)
 
 // Drift kinds (issue #388). The drift_kind is a bounded, closed enum derived
 // deterministically from the correlation outcome. It is provenance-only and
@@ -92,11 +95,80 @@ func classifyImageRef(
 	// what is running; it promotes a tag-referenced deployment to exact when the
 	// source index matches, and classifies as unresolved when it does not —
 	// without falling through to the weaker tag classification.
-	if digest, hasCRI := workload.resolvedImageDigests[parsed.raw]; hasCRI && digest != "" {
-		return classifyImageByCRIDigest(base, digest, index)
+	if resolved, hasCRI := workload.resolvedImageDigests[parsed.raw]; hasCRI {
+		if resolved.conflicting() {
+			return classifyConflictingCRIDigests(base, resolved.candidates)
+		}
+		if digest := promotableCRIRef(resolved.candidates, index); digest != "" {
+			return classifyImageByCRIDigest(base, digest, index)
+		}
 	}
 
 	return classifyImageByTag(base, parsed, index)
+}
+
+// promotableCRIRef picks which resolved digest reference to classify by when
+// the containers agreed on the content digest.
+//
+// They can still disagree on the registry or mirror spelling, and the source
+// index is keyed by repository as well as digest, so one spelling may resolve
+// where another does not. Committing to the sorted-first spelling would just
+// move the old first-wins guess from the digest to the repository and report
+// unresolved for a workload whose image is in fact known. Each spelling is tried
+// in sorted order and the first that resolves wins; when none resolve, the
+// sorted-first is returned so the caller still reports the unresolved reason
+// deterministically.
+func promotableCRIRef(candidates []string, index kubernetesCorrelationIndex) string {
+	if len(candidates) == 0 {
+		return ""
+	}
+	for _, candidate := range candidates {
+		parsed, ok := parseContainerImageRef(candidate)
+		if !ok || parsed.digest == "" || parsed.repositoryKey == "" {
+			continue
+		}
+		if _, resolved := index.resolveDigest(parsed.repositoryKey, parsed.digest); resolved {
+			return candidate
+		}
+	}
+	return candidates[0]
+}
+
+// classifyConflictingCRIDigests classifies a declared image reference whose
+// containers reported different CRI-resolved digests. That can happen
+// legitimately — a mutable tag moving between pulls is the ordinary cause — so
+// the observation is not wrong; it simply no longer names one running image, and
+// no single runtime identity can be promoted from it. Every candidate is
+// recorded and nothing is promoted: an operator triaging the workload can see
+// that a second digest existed, which a first-wins pick would have hidden behind
+// a confident exact claim.
+func classifyConflictingCRIDigests(
+	base KubernetesCorrelationDecision,
+	candidates []string,
+) KubernetesCorrelationDecision {
+	base.Outcome = KubernetesCorrelationAmbiguous
+	base.DriftKind = driftUnknown
+	base.ProvenanceOnly = true
+	base.CandidateSourceDigests = criCandidateDigests(candidates)
+	base.NonPromotion = "containers sharing one declared image reference reported different CRI-resolved digests; not promoted to a single runtime identity"
+	base.Reason = "declared image reference resolved to multiple CRI digests"
+	return base
+}
+
+// criCandidateDigests reduces CRI-resolved digest references to their bare
+// digests, sorted and deduplicated. A reference that cannot be parsed is kept
+// verbatim so no candidate is silently dropped from the evidence.
+func criCandidateDigests(candidates []string) []string {
+	out := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		if parsed, ok := parseContainerImageRef(candidate); ok && parsed.digest != "" {
+			out = append(out, parsed.digest)
+			continue
+		}
+		out = append(out, candidate)
+	}
+	slices.Sort(out)
+	return slices.Compact(out)
 }
 
 // classifyImageByCRIDigest resolves a CRI-resolved digest (from pod status)
