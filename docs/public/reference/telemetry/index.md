@@ -926,6 +926,102 @@ counter at all — they are tag-only and stay Postgres-only per the #5472
 EXACT-ONLY graph-projection policy, counted under the completion log's
 `skipped_by_reason=tag_only_postgres_only_policy` instead.
 
+## Deferred backfill per-task fact-load telemetry (#5096)
+
+The deferred relationship backfill's per-scope fact-load fan-out
+(`loadDeferredScopedFactsAcrossPartitions`) splits each `(scope_id,
+generation_id)` partition into one or more bounded query tasks (a partition
+with a large repo-id catalog is chunked). Two metrics on the
+`relationship.backfill_deferred` span's worker goroutine expose one per-task
+data point:
+
+- `eshu_dp_deferred_backfill_partition_load_duration_seconds` — wall time of
+  one query task's fact load.
+- `eshu_dp_deferred_backfill_partition_load_fact_count` — facts that task
+  loaded.
+
+Both are Float64/Int64 histograms with **no attributes** — never a scope_id,
+repo_id, or any other raw catalog identifier — so their cardinality stays
+fixed regardless of catalog size. They are independent aggregate
+distributions: no key joins a point recorded in the duration histogram to the
+point recorded for the same task in the fact-count histogram, so the two
+cannot be read "together" to identify a task that was both slow and big. A
+long tail on the duration histogram says some task ran long; a long tail on
+the fact-count histogram says some task loaded a lot of facts; whether they
+are the same task requires the per-task
+`deferred_backfill_fact_load_task_completed` log (unbounded, see below) or
+the `partition_load_completed` span event (capped at 128 events per pass, see
+below).
+
+**A failed or cancelled task presents as high-duration/low-fact-count too.**
+Both histograms record before the error check, so a task whose query returns
+an error contributes its duration alongside a 0-fact point. When the first
+failure aborts the pass, the in-flight tasks it cancels do the same, which can
+leave up to `workers-1` zero-fact points in one pass. The
+`partition_load_failed` span event does NOT separate these from contention: it
+fires at most once per pass, and both histograms are unattributed, so no key
+joins an event to a data point. Before reading that bucket as contention,
+check whether the pass failed — the pass-level
+`deferred_backfill_fact_load_completed` log and the per-task
+`deferred_backfill_fact_load_task_completed` log tell you which tasks actually
+completed.
+
+For trace-level attribution of a specific slow task, the same worker
+goroutine adds a `partition_load_completed` event to the active
+`relationship.backfill_deferred` span (mirroring the existing
+`partition_load_failed` event on the error path) carrying `task`,
+`query_tasks`, `scope_id`, `repo_terms`, `non_repo_terms`, `loaded_facts`,
+`duration_s`, and `workers`. `scope_id` is a span-event attribute, not a
+metric label, so it never becomes a Prometheus-style cardinality dimension;
+it is safe here for the same reason `partition_load_failed`'s `scope_id`
+attribute already was.
+
+**The span event is capped and lossy — do not read it as a complete
+per-task record.** Every query task emits into the ONE
+`relationship.backfill_deferred` span opened per pass, and Eshu does not
+configure `SpanLimits`, so the OTEL SDK default of 128 events per span
+applies unless `OTEL_SPAN_EVENT_COUNT_LIMIT` overrides it. The SDK's event
+queue evicts FIFO, so a pass with more than 128 query tasks keeps only the last
+128 and drops the rest — and the validated corpus shape is 896 partitions, so a
+cold pass exceeds that bound several times over. (A steady-state pass can stay
+well under 128 tasks: the #3624 partition memo gate
+(`applyDeferredPartitionMemoGate`,
+`go/internal/storage/postgres/ingestion_backfill_scoped_load.go:248`) skips
+most partitions on later passes, so eviction is a cold-pass concern, not a
+guarantee on every pass.) The
+dropped events are the earliest to COMPLETE rather than the lowest task index,
+since workers finish out of order. The `partition_load_failed` event this
+mirrors is not affected because it fires at most once per pass.
+
+Use the span event to inspect a specific slow task on a small pass. For a
+complete per-task record on a large one, read the
+`deferred_backfill_fact_load_task_completed` log, which is emitted per task
+with the same fields and is not capped — one of the reasons that log is
+deliberately retained below. The two histograms are also complete: they
+record every task regardless of pass size.
+
+**Compatibility decision:** PR #5094 added the
+`deferred_backfill_fact_load_task_completed` per-task log and the pass-level
+`deferred_backfill_fact_load_completed` log as a bounded, log-only signal
+inside a performance fix. #5096 does **not** replace either log. Both stay as
+documented compatibility signals for operator grep/debugging — carrying the
+same fields as the new span event plus the pass-level aggregate the metrics
+above do not — while the histograms and the span event above are the
+first-class, alertable/dashboardable and trace-attributable surface for the
+same data. `TestLoadDeferredScopedFactsAcrossPartitionsLogsPerTaskCompletion`
+in `go/internal/storage/postgres` pins the per-task log line's continued
+presence so a future cleanup cannot delete it while every other gate stays
+green.
+
+Observability Evidence: both histograms register via the
+`telemetry.Instruments` contract and record once per query task in
+`loadDeferredScopedFactsAcrossPartitions`, verified by
+`TestLoadDeferredScopedFactsAcrossPartitionsRecordsPartitionLoadFactCountMetric`,
+`TestLoadDeferredScopedFactsAcrossPartitionsRecordsPartitionLoadCompletedEvent`,
+and `TestLoadDeferredScopedFactsAcrossPartitionsRecordsZeroFactCountOnFailure`
+(the last of the three pins that both histograms record before the error
+check) in `go/internal/storage/postgres`.
+
 ## Deferred backfill partition memo gate (#3624 Track 1)
 
 The corpus-wide deferred relationship pass now skips re-loading a partition whose

@@ -335,6 +335,7 @@ func (s IngestionStore) loadDeferredScopedFactsAcrossPartitions(
 			duration := time.Since(started)
 			if instruments != nil {
 				instruments.DeferredBackfillPartitionLoadDuration.Record(groupCtx, duration.Seconds())
+				instruments.DeferredBackfillPartitionLoadFactCount.Record(groupCtx, int64(len(envelopes)))
 			}
 			if err != nil {
 				mu.Lock()
@@ -355,11 +356,29 @@ func (s IngestionStore) loadDeferredScopedFactsAcrossPartitions(
 				mu.Unlock()
 				return
 			}
+			// partition_load_completed (#5096) promotes the #5094 log to the
+			// trace, on the same span as partition_load_failed; scope_id
+			// follows that precedent as a span attribute, never a label.
+			//
+			// The event is CAPPED and lossy -- one span per pass, no
+			// SpanLimits set, so the SDK's 128-event default evicts FIFO --
+			// which is why the log above is kept rather than replaced. See
+			// the telemetry reference for the full note.
 			log.Printf(
 				"deferred_backfill_fact_load_task_completed task=%d query_tasks=%d scope_id=%q repo_terms=%d non_repo_terms=%d loaded_facts=%d duration_s=%.2f workers=%d",
 				index+1, len(tasks), task.partition.ScopeID, len(task.params.repoIDValues), len(task.params.nonRepoIDLike),
 				len(envelopes), duration.Seconds(), workers,
 			)
+			span.AddEvent("partition_load_completed", trace.WithAttributes(
+				attribute.Int("task", index+1),
+				attribute.Int("query_tasks", len(tasks)),
+				attribute.String("scope_id", task.partition.ScopeID),
+				attribute.Int("repo_terms", len(task.params.repoIDValues)),
+				attribute.Int("non_repo_terms", len(task.params.nonRepoIDLike)),
+				attribute.Int("loaded_facts", len(envelopes)),
+				attribute.Float64("duration_s", duration.Seconds()),
+				attribute.Int("workers", workers),
+			))
 			perTask[index] = envelopes
 		}(i, task)
 	}

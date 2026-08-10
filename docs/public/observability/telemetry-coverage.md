@@ -307,7 +307,7 @@ queue-depth and claim-wait surfaces with the reducer.
 | ingestion commit shared-lock hold | go/internal/storage/postgres/ingestion_backfill_per_commit.go:118 | `eshu_dp_ingestion_shared_lock_hold_duration_seconds` | ingestion commit |
 | Flux cross-repo GitRepository url resolution | go/internal/storage/postgres/ingestion.go:282 | `eshu_dp_flux_cross_repo_url_resolution_total` | ingestion commit |
 | evidence discovery | go/internal/storage/postgres/ingestion.go:281 | `eshu_dp_evidence_facts_discovered_total` | ingestion commit |
-| deferred backfill partition fan-out | go/internal/storage/postgres/ingestion_backfill_scoped_load.go:178 | `eshu_dp_deferred_backfill_partitions_total`, `eshu_dp_deferred_backfill_partition_workers`, `eshu_dp_deferred_backfill_partition_load_duration_seconds` | projector backfill |
+| deferred backfill partition fan-out | go/internal/storage/postgres/ingestion_backfill_scoped_load.go:178 | `eshu_dp_deferred_backfill_partitions_total`, `eshu_dp_deferred_backfill_partition_workers`, `eshu_dp_deferred_backfill_partition_load_duration_seconds`, `eshu_dp_deferred_backfill_partition_load_fact_count` | projector backfill |
 | deferred backfill partition memo gate | go/internal/storage/postgres/ingestion_backfill_partition_memo_gate.go:178 | `eshu_dp_deferred_backfill_partitions_skipped_total`, `eshu_dp_deferred_backfill_partitions_loaded_total` | projector backfill |
 | deployment_mapping/code_import_repo_edge reopen partition memo gate | go/internal/storage/postgres/ingestion_reopen_partition_memo_gate.go:118 | `eshu_dp_reopen_skipped_by_partition_memo_total` | projector backfill |
 | Crossplane SATISFIED_BY intent trigger | go/internal/projector/crossplane_satisfied_by_materialization_intents.go | `No-Observability-Change: enqueues the reducer.DomainCrossplaneSatisfiedByMaterialization intent, covered by the standard projector run/canonical-write metrics above (eshu_dp_projector_run_duration_seconds, eshu_dp_canonical_writes_total) and the projection's own eshu_dp_crossplane_satisfied_by_edges_total once the reducer executes it; this file emits no metric of its own` | projector fact commit |
@@ -931,6 +931,7 @@ set, and every documented set has a matching variable in the code.
 | shutdown-duration-seconds | 0.5, 1, 2.5, 5, 10, 30, 60 |
 | relationship-breakdown-permit-wait-seconds | 0, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30 |
 | deferred-backfill-partition-workers-count | 1, 2, 4, 8, 16, 32 |
+| deferred-backfill-fact-count | 0, 10, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000 |
 | reducer-input-invalid-fact-write-batch-size | 0, 1, 2, 5, 10, 25, 50, 100, 250, 500 |
 | query-input-invalid-facts-duration-seconds | 0, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10 |
 | lock-only-gate-lock-wait-seconds | 0, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 5, 10 |
