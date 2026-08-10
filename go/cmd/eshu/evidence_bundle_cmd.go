@@ -102,6 +102,8 @@ func runEvidenceBundleExport(cmd *cobra.Command, _ []string) error {
 	if err := evidencebundle.Validate(bundle); err != nil {
 		return fmt.Errorf("validate generated evidence bundle: %w", err)
 	}
+	// Stamp only now that Validate actually returned nil.
+	bundle = evidencebundle.StampValidation(bundle)
 	raw, err := evidencebundle.RenderJSON(bundle)
 	if err != nil {
 		return err

@@ -4,6 +4,7 @@
 package evidencebundle
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/redact"
@@ -136,7 +137,12 @@ func TestValidateRejectsBareHostPortEndpoints(t *testing.T) {
 		"10.0.5.3:5432",
 		"192.168.1.9:8080",
 		"172.20.0.4:7687",
+		// Matched by two independent rules now: the "internal" substring AND the
+		// .cluster.local suffix. Before the suffix rule existed this row matched
+		// on the substring alone, so it read as coverage for cluster-local
+		// service names while an ordinary one exported clean.
 		"internal-llm.svc.cluster.local:8080",
+		"eshu-api.eshu.svc.cluster.local:8080",
 		// Dot-qualified "internal" hostnames. The first pattern anchored the
 		// left boundary so tightly that a preceding dot excluded the match, so
 		// the most common private-DNS shapes slipped through untested.
@@ -168,6 +174,12 @@ func TestValidateKeepsOrdinaryDottedTextUsable(t *testing.T) {
 	snapshot.HealthReasons = []string{
 		"backend nornicdb v1.1.11 reported 10.4 percent retry rate",
 		"stage parse pending 1024",
+		// The portless address rule fires without needing a port, so it has the
+		// widest chance of rejecting honest text. These are the real shapes
+		// status_health.go emits.
+		"reducer 1.10.0.2 build is current",
+		"domain aws_relationship has 12 outstanding items",
+		"workflow coordinator recent failed runs=2 in 5m0s (cumulative=3)",
 	}
 	bundle := BuildLiveBundle(snapshot, LiveBundleOptions{
 		ScopeID:   "live:local",
@@ -347,5 +359,50 @@ func TestValidateRejectsLocalPathsAfterAnyDelimiter(t *testing.T) {
 				t.Fatalf("Validate accepted local path in %q", reason)
 			}
 		})
+	}
+}
+
+// TestValidateRejectsClusterLocalAndPortlessPrivateAddresses covers the shapes
+// a live Kubernetes stack actually emits. The previous rules matched a
+// hostname only if it contained the literal "internal" and matched an IP only
+// when a port followed it, so the two most common real forms -- a service DNS
+// name and a collector reason naming a bare instance IP -- exported clean.
+func TestValidateRejectsClusterLocalAndPortlessPrivateAddresses(t *testing.T) {
+	for _, reason := range []string{
+		"eshu-api.eshu.svc.cluster.local:8080 refused the connection",
+		"nornicdb.eshu.svc.cluster.local:7687 refused the connection",
+		"dial eshu-api.eshu.svc.cluster.local failed",
+		"collector instance 10.0.5.3 is unreachable",
+		"collector instance 192.168.1.9 is unreachable",
+		"collector instance 172.20.0.4 is unreachable",
+		"metadata lookup via 169.254.169.254 failed",
+		"peer fd00::5 did not respond",
+	} {
+		t.Run(reason, func(t *testing.T) {
+			snapshot := realisticLiveSnapshot()
+			snapshot.HealthReasons = []string{reason}
+			bundle := BuildLiveBundle(snapshot, LiveBundleOptions{ScopeID: "live:x", CreatedAt: fixedLiveCreatedAt})
+			if err := Validate(bundle); err == nil {
+				t.Fatalf("Validate accepted private address in %q", reason)
+			}
+		})
+	}
+}
+
+// TestRedactionRulesNameScreensNotGuarantees pins the honesty fix. The rules
+// are advertised in every exported artifact, and screening by denylist cannot
+// support a categorical "no private endpoints" claim -- naming the screen is
+// what the code actually does.
+func TestRedactionRulesNameScreensNotGuarantees(t *testing.T) {
+	bundles := map[string]Bundle{
+		"demo": BuildDemoBundle(DemoBundleOptions{ScopeID: "repo:demo/service"}),
+		"live": BuildLiveBundle(realisticLiveSnapshot(), LiveBundleOptions{ScopeID: "live:x", CreatedAt: fixedLiveCreatedAt}),
+	}
+	for name, bundle := range bundles {
+		for _, rule := range bundle.Redaction.Rules {
+			if strings.HasPrefix(rule, "no_") {
+				t.Errorf("%s bundle advertises rule %q, which asserts an outcome the screen cannot guarantee", name, rule)
+			}
+		}
 	}
 }

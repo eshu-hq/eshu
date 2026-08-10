@@ -11,6 +11,27 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
+const (
+	// unvalidatedStatus is the validation status both builders emit. A bundle
+	// carries it until StampValidation records a real passing Validate run.
+	unvalidatedStatus = "unvalidated"
+	// validatedStatus marks a bundle whose embedded checks actually ran green.
+	validatedStatus = "passed"
+)
+
+// StampValidation records that Validate ran green on this bundle and returns
+// the stamped copy, with bundle_id recomputed over the new content.
+//
+// Export paths call it after a nil Validate. Keeping the stamp out of the
+// builders is the point: BuildDemoBundle and BuildLiveBundle are pure and run
+// no checks, so a bundle they returned pre-stamped would assert a validation
+// that never happened for every caller that skipped Validate.
+func StampValidation(bundle Bundle) Bundle {
+	bundle.Validation.Status = validatedStatus
+	bundle.BundleID = bundleID(bundle)
+	return bundle
+}
+
 // Validate verifies schema, bounds, redaction posture, and private-data canaries.
 func Validate(bundle Bundle) error {
 	if bundle.SchemaVersion != SchemaVersion {
@@ -95,7 +116,9 @@ func validatePrivateCanaries(bundle Bundle) error {
 	}
 	text := string(raw)
 	switch {
-	case privateEndpointPattern.MatchString(text), privateHostPortPattern.MatchString(text):
+	case privateEndpointPattern.MatchString(text),
+		privateHostPortPattern.MatchString(text),
+		privateAddressPattern.MatchString(text):
 		return fmt.Errorf("private endpoint is not allowed in evidence bundle")
 	case credentialURLPattern.MatchString(text):
 		return fmt.Errorf("credential-bearing URL is not allowed in evidence bundle")

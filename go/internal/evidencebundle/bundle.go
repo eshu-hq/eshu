@@ -20,11 +20,17 @@ const (
 )
 
 var (
-	privateEndpointPattern = regexp.MustCompile(`(?i)https?://[^/"\s]*(internal|localhost|127\.0\.0\.1|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)`)
+	privateEndpointPattern = regexp.MustCompile(`(?i)https?://[^/"\s]*(internal|localhost|127\.0\.0\.1|169\.254\.|\.cluster\.local|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)`)
 	// Go network errors report a bare "host:port" with no scheme, so the
 	// scheme-anchored pattern above misses them entirely. Requiring the port
 	// keeps this from firing on ordinary dotted text such as a version string.
-	privateHostPortPattern = regexp.MustCompile(`(?i)(^|[^0-9A-Za-z.:-])(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}|[A-Za-z0-9.-]*internal[A-Za-z0-9.-]*|\[(?:::1|fc[0-9a-f]{2}:[0-9a-fA-F:]*|fd[0-9a-f]{2}:[0-9a-fA-F:]*|fe[89ab][0-9a-f]:[0-9a-fA-F:]*)\]):\d{2,5}`)
+	privateHostPortPattern = regexp.MustCompile(`(?i)(^|[^0-9A-Za-z.:-])(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}|[A-Za-z0-9.-]*internal[A-Za-z0-9.-]*|[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.cluster\.local|\[(?:::1|fc[0-9a-f]{2}:[0-9a-fA-F:]*|fd[0-9a-f]{2}:[0-9a-fA-F:]*|fe[89ab][0-9a-f]:[0-9a-fA-F:]*)\]):\d{2,5}`)
+	// Addresses that locate a stack even without a port. The host:port rule
+	// above cannot cover these: a collector reason reads "instance 10.0.5.3 is
+	// unreachable" with no port at all, and a Kubernetes service name is a
+	// locating hostname in its own right. Kept separate so the port-bearing rule
+	// stays narrow enough not to fire on ordinary dotted text.
+	privateAddressPattern = regexp.MustCompile(`(?i)(^|[^0-9A-Za-z.:-])(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}|169\.254\.\d{1,3}\.\d{1,3}|f[cd][0-9a-f]{2}:[0-9a-f:]*[0-9a-f]|[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.cluster\.local)`)
 	// Credential-bearing URL, by shape rather than by known value. The shared
 	// registry only matches its own synthetic canaries, so a real secret an
 	// operator's status text happens to carry passed straight through. Requires
@@ -67,9 +73,9 @@ func BuildDemoBundle(opts DemoBundleOptions) Bundle {
 			Profile: "share_safe_v1",
 			Rules: []string{
 				"handles_only",
-				"no_private_endpoints",
-				"no_credentials",
-				"no_model_inputs_or_outputs",
+				"screened_private_endpoints",
+				"screened_credentials",
+				"screened_model_inputs_or_outputs",
 			},
 		},
 		Contents: Contents{
@@ -159,7 +165,10 @@ func BuildDemoBundle(opts DemoBundleOptions) Bundle {
 			MaxHandles:              200,
 		},
 		Validation: Validation{
-			Status: "passed",
+			// Built unvalidated on purpose: a builder that stamps "passed"
+			// certifies a check it never ran. StampValidation applies "passed"
+			// after Validate returns nil.
+			Status: unvalidatedStatus,
 			Checks: []string{
 				"schema",
 				"redaction",

@@ -48,7 +48,10 @@ func TestEvidenceBundleExportLiveComposesBundleFromStatusEndpoints(t *testing.T)
 		case "/api/v0/status/collectors":
 			_, _ = w.Write([]byte(`{"collectors": [{"collector_kind": "git", "status_category": "ready", "health": "healthy"}]}`))
 		default:
-			t.Fatalf("unexpected request path %s", r.URL.Path)
+			// t.Fatal* is illegal off the test goroutine: it calls
+			// runtime.Goexit and would hang or misreport this request.
+			t.Errorf("unexpected request path %s", r.URL.Path)
+			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}))
 	defer server.Close()

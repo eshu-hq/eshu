@@ -64,10 +64,12 @@ type scanQueue struct {
 }
 
 type scanGenerationHistory struct {
-	Active    int `json:"active,omitempty"`
-	Pending   int `json:"pending,omitempty"`
-	Completed int `json:"completed,omitempty"`
-	Failed    int `json:"failed,omitempty"`
+	Active     int `json:"active,omitempty"`
+	Pending    int `json:"pending,omitempty"`
+	Completed  int `json:"completed,omitempty"`
+	Superseded int `json:"superseded,omitempty"`
+	Failed     int `json:"failed,omitempty"`
+	Other      int `json:"other,omitempty"`
 }
 
 type scanStageSummary struct {
@@ -76,6 +78,7 @@ type scanStageSummary struct {
 	Claimed    int    `json:"claimed,omitempty"`
 	Running    int    `json:"running,omitempty"`
 	Retrying   int    `json:"retrying,omitempty"`
+	Succeeded  int    `json:"succeeded,omitempty"`
 	Failed     int    `json:"failed,omitempty"`
 	DeadLetter int    `json:"dead_letter,omitempty"`
 }
@@ -83,6 +86,7 @@ type scanStageSummary struct {
 type scanDomainBacklog struct {
 	Domain      string `json:"domain,omitempty"`
 	Outstanding int    `json:"outstanding,omitempty"`
+	InFlight    int    `json:"in_flight,omitempty"`
 	Retrying    int    `json:"retrying,omitempty"`
 	Failed      int    `json:"failed,omitempty"`
 	DeadLetter  int    `json:"dead_letter,omitempty"`

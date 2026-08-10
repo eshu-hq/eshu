@@ -69,16 +69,28 @@ The top-level artifact contains:
 ## Redaction
 
 Bundles carry handles and route/tool/command names, not raw private data.
-Validation rejects:
+Validation screens for, and rejects, these known shapes:
 
 - private endpoints;
 - credentials, tokens, passwords, and private-key material;
 - raw prompts, provider responses, or prompt transcripts;
-- local absolute paths, and bare `host:port` endpoints such as the ones Go
-  network errors report;
+- local absolute paths under a known filesystem root, and bare `host:port`
+  endpoints of the kind Go network errors report, including `.cluster.local`
+  service names and private or link-local addresses written without a port;
 - raw source blobs or private source excerpts;
 - every sensitive shape in the shared hosted-governance redaction registry,
   checked against the same canary set the rest of the platform uses.
+
+Screening is pattern-based, so it recognises known shapes rather than proving
+their absence. That is why `redaction.rules` names what was screened
+(`screened_private_endpoints`) instead of asserting an outcome
+(`no_private_endpoints`): treat a passing bundle as screened, not as certified,
+and review an artifact before sending it outside your organisation.
+
+`validation.status` is `unvalidated` as built and becomes `passed` only after
+validation actually runs green, which also changes `bundle_id`. A bundle whose
+body claims `passed` therefore had its checks run; it is not a self-assigned
+label.
 
 If a source cannot provide a share-safe value, the bundle should keep an explicit
 missing-evidence or redaction reason instead of deleting the row silently.

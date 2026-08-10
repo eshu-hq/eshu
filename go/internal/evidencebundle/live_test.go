@@ -151,22 +151,50 @@ func TestBuildLiveBundleRejectsPrivateData(t *testing.T) {
 	}
 }
 
-// TestDemoBundleUnchangedByLiveAddition pins BuildDemoBundle's bundle_id to
-// the value captured before the live-bundle addition. The new Contents
-// fields (PipelineState, SemanticProviderState) are pointers with
-// json:",omitempty" precisely so the demo bundle's serialized shape, and
-// therefore its content hash, never changes.
-func TestDemoBundleUnchangedByLiveAddition(t *testing.T) {
-	const wantBundleID = "evidence-bundle:a3d3ad013f9f4b7c09ef8b723e214536"
+// TestDemoBundlePinsBothIdentities pins the demo bundle's content hash in
+// both states it can be observed in: as built (validation "unvalidated") and
+// as exported (stamped "passed" after Validate returned nil).
+//
+// The pinned values moved once, deliberately, in the change that made the
+// stamps honest: the redaction rules were renamed from outcome claims
+// ("no_private_endpoints") to what is actually performed
+// ("screened_private_endpoints"), and the builder stopped certifying a
+// validation it never ran. Both are part of the hashed content. A future
+// change to either value is a wire-contract change and must be intentional.
+//
+// The demo bundle's Contents shape is still expected to be untouched by the
+// live-bundle addition: PipelineState and SemanticProviderState are pointers
+// with json:",omitempty" precisely so the demo path serializes neither.
+func TestDemoBundlePinsBothIdentities(t *testing.T) {
+	const (
+		wantBuiltID    = "evidence-bundle:a8d0f2cb4ae56a21df0ce56674940d66"
+		wantExportedID = "evidence-bundle:961121a5d9288b1b0d629571a8105f7a"
+	)
 	bundle := BuildDemoBundle(DemoBundleOptions{ScopeID: "repo:demo/service"})
-	if bundle.BundleID != wantBundleID {
-		t.Fatalf("BuildDemoBundle().BundleID = %q, want %q (live-bundle addition must not change demo bundle_id)", bundle.BundleID, wantBundleID)
+	if bundle.Validation.Status != "unvalidated" {
+		t.Errorf("as built, Validation.Status = %q, want %q -- the builder runs no checks", bundle.Validation.Status, "unvalidated")
+	}
+	if bundle.BundleID != wantBuiltID {
+		t.Errorf("BuildDemoBundle().BundleID = %q, want %q", bundle.BundleID, wantBuiltID)
+	}
+	if err := Validate(bundle); err != nil {
+		t.Fatalf("Validate(demo bundle) = %v, want nil", err)
+	}
+	stamped := StampValidation(bundle)
+	if stamped.Validation.Status != "passed" {
+		t.Errorf("after stamping, Validation.Status = %q, want %q", stamped.Validation.Status, "passed")
+	}
+	if stamped.BundleID != wantExportedID {
+		t.Errorf("StampValidation(demo).BundleID = %q, want %q", stamped.BundleID, wantExportedID)
+	}
+	if stamped.BundleID == bundle.BundleID {
+		t.Error("stamping did not change bundle_id; the hash does not cover validation status")
 	}
 	if bundle.Contents.PipelineState != nil {
-		t.Fatalf("Contents.PipelineState = %+v, want nil for demo bundle", bundle.Contents.PipelineState)
+		t.Errorf("Contents.PipelineState = %+v, want nil for demo bundle", bundle.Contents.PipelineState)
 	}
 	if bundle.Contents.SemanticProviderState != nil {
-		t.Fatalf("Contents.SemanticProviderState = %+v, want nil for demo bundle", bundle.Contents.SemanticProviderState)
+		t.Errorf("Contents.SemanticProviderState = %+v, want nil for demo bundle", bundle.Contents.SemanticProviderState)
 	}
 }
 
@@ -254,9 +282,11 @@ func TestBuildLiveBundleSortsEveryNestedSlice(t *testing.T) {
 // up to date.
 func TestBuildLiveBundleNeverClaimsFreshness(t *testing.T) {
 	for name, snapshot := range map[string]LiveSnapshot{
-		"empty":    {},
-		"degraded": {RepositoryCount: 3, HealthState: "degraded"},
-		"ready":    {RepositoryCount: 9, HealthState: "ready"},
+		"empty":       {},
+		"healthy":     {RepositoryCount: 9, HealthState: "healthy"},
+		"progressing": {RepositoryCount: 4, HealthState: "progressing"},
+		"degraded":    {RepositoryCount: 3, HealthState: "degraded"},
+		"stalled":     {RepositoryCount: 2, HealthState: "stalled"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			bundle := BuildLiveBundle(snapshot, LiveBundleOptions{ScopeID: "live:x", CreatedAt: fixedLiveCreatedAt})
@@ -264,8 +294,8 @@ func TestBuildLiveBundleNeverClaimsFreshness(t *testing.T) {
 				if item.Kind != "freshness" {
 					continue
 				}
-				if item.State == "fresh" {
-					t.Fatalf("freshness reported as %q with no freshness signal available", item.State)
+				if item.State != "unknown" {
+					t.Fatalf("freshness reported as %q, want %q -- no status route carries a freshness signal", item.State, "unknown")
 				}
 			}
 			var recorded bool
@@ -286,8 +316,8 @@ func TestBuildLiveBundleNeverClaimsFreshness(t *testing.T) {
 // "live_authoritative" gave a lightweight local stack production's authority.
 func TestBuildLiveBundleNeverInventsRuntimeProfile(t *testing.T) {
 	bundle := BuildLiveBundle(LiveSnapshot{RepositoryCount: 5}, LiveBundleOptions{ScopeID: "live:x", CreatedAt: fixedLiveCreatedAt})
-	if bundle.Identity.Profile == "live_authoritative" {
-		t.Fatal("bundle claims live_authoritative with no profile signal from the stack")
+	if bundle.Identity.Profile != "unknown" {
+		t.Fatalf("Identity.Profile = %q, want %q -- no status route reports the target's runtime profile", bundle.Identity.Profile, "unknown")
 	}
 	var recorded bool
 	for _, gap := range bundle.Missing {
@@ -319,5 +349,70 @@ func TestBuildLiveBundleFlagsAmbiguousZeroRepositoryCount(t *testing.T) {
 		if gap.Family == "repository_count" {
 			t.Fatal("a nonzero repository count should not be flagged as ambiguous")
 		}
+	}
+}
+
+// TestLiveReadinessStateCoversEveryProducerHealthState pins the mapping to the
+// four states go/internal/status actually emits. "progressing" is the normal
+// state while a stack is still indexing -- the most likely state during a
+// first-run support capture -- and folding it into the default bucket made it
+// indistinguishable from an unrecognised value.
+func TestLiveReadinessStateCoversEveryProducerHealthState(t *testing.T) {
+	want := map[string]string{
+		"healthy":     "ready",
+		"progressing": "indexing",
+		"degraded":    "ready_with_findings",
+		"stalled":     "blocked",
+		"":            "unknown",
+		"weather":     "unknown",
+	}
+	for state, expected := range want {
+		if got := liveReadinessState(state); got != expected {
+			t.Errorf("liveReadinessState(%q) = %q, want %q", state, got, expected)
+		}
+	}
+}
+
+// TestBuildLiveBundleCarriesEveryProducerBucket proves the bundle's counts
+// reconcile with the stack's own totals. Dropping a bucket is worse than
+// omitting the section: a support engineer summing the parts silently gets a
+// number smaller than the stack reported, with nothing saying why.
+func TestBuildLiveBundleCarriesEveryProducerBucket(t *testing.T) {
+	bundle := BuildLiveBundle(LiveSnapshot{
+		RepositoryCount: 3,
+		StageSummaries: []LiveStageSummarySnapshot{{
+			Stage: "parse", Pending: 1, Claimed: 2, Running: 3,
+			Retrying: 4, Succeeded: 5, Failed: 6, DeadLetter: 7,
+		}},
+		DomainBacklogs: []LiveDomainBacklogSnapshot{{
+			Domain: "code", Outstanding: 1, InFlight: 2, Retrying: 3, Failed: 4, DeadLetter: 5,
+		}},
+		GenerationHistory: LiveGenerationHistorySnapshot{
+			Active: 1, Pending: 2, Completed: 3, Superseded: 4, Failed: 5, Other: 6,
+		},
+	}, LiveBundleOptions{ScopeID: "live:x", CreatedAt: fixedLiveCreatedAt})
+
+	state := bundle.Contents.PipelineState
+	if state == nil {
+		t.Fatal("PipelineState = nil")
+	}
+	wantStage := PipelineStageSummarySnapshot{
+		Stage: "parse", Pending: 1, Claimed: 2, Running: 3,
+		Retrying: 4, Succeeded: 5, Failed: 6, DeadLetter: 7,
+	}
+	if len(state.StageSummaries) != 1 || state.StageSummaries[0] != wantStage {
+		t.Errorf("StageSummaries = %+v, want %+v", state.StageSummaries, wantStage)
+	}
+	wantDomain := PipelineDomainBacklogSnapshot{
+		Domain: "code", Outstanding: 1, InFlight: 2, Retrying: 3, Failed: 4, DeadLetter: 5,
+	}
+	if len(state.DomainBacklogs) != 1 || state.DomainBacklogs[0] != wantDomain {
+		t.Errorf("DomainBacklogs = %+v, want %+v", state.DomainBacklogs, wantDomain)
+	}
+	wantGen := PipelineGenerationHistorySnapshot{
+		Active: 1, Pending: 2, Completed: 3, Superseded: 4, Failed: 5, Other: 6,
+	}
+	if state.GenerationHistory != wantGen {
+		t.Errorf("GenerationHistory = %+v, want %+v", state.GenerationHistory, wantGen)
 	}
 }

@@ -61,10 +61,12 @@ type LiveScopeActivitySnapshot struct {
 // LiveGenerationHistorySnapshot mirrors generation_history from the pipeline
 // status endpoint.
 type LiveGenerationHistorySnapshot struct {
-	Active    int
-	Pending   int
-	Completed int
-	Failed    int
+	Active     int
+	Pending    int
+	Completed  int
+	Superseded int
+	Failed     int
+	Other      int
 }
 
 // LiveStageSummarySnapshot mirrors one stage_summaries entry from the
@@ -75,6 +77,7 @@ type LiveStageSummarySnapshot struct {
 	Claimed    int
 	Running    int
 	Retrying   int
+	Succeeded  int
 	Failed     int
 	DeadLetter int
 }
@@ -84,6 +87,7 @@ type LiveStageSummarySnapshot struct {
 type LiveDomainBacklogSnapshot struct {
 	Domain      string
 	Outstanding int
+	InFlight    int
 	Retrying    int
 	Failed      int
 	DeadLetter  int
@@ -158,9 +162,9 @@ func BuildLiveBundle(snapshot LiveSnapshot, opts LiveBundleOptions) Bundle {
 			Profile: "share_safe_v1",
 			Rules: []string{
 				"handles_only",
-				"no_private_endpoints",
-				"no_credentials",
-				"no_model_inputs_or_outputs",
+				"screened_private_endpoints",
+				"screened_credentials",
+				"screened_model_inputs_or_outputs",
 			},
 		},
 		Contents: Contents{
@@ -198,7 +202,10 @@ func BuildLiveBundle(snapshot LiveSnapshot, opts LiveBundleOptions) Bundle {
 			MaxHandles:              200,
 		},
 		Validation: Validation{
-			Status: "passed",
+			// Built unvalidated on purpose: a builder that stamps "passed"
+			// certifies a check it never ran. StampValidation applies "passed"
+			// after Validate returns nil.
+			Status: unvalidatedStatus,
 			Checks: []string{
 				"schema",
 				"redaction",
@@ -254,15 +261,10 @@ func buildPipelineStateSnapshot(snapshot LiveSnapshot) PipelineStateSnapshot {
 			Changed:   snapshot.ScopeActivity.Changed,
 			Unchanged: snapshot.ScopeActivity.Unchanged,
 		},
-		GenerationHistory: PipelineGenerationHistorySnapshot{
-			Active:    snapshot.GenerationHistory.Active,
-			Pending:   snapshot.GenerationHistory.Pending,
-			Completed: snapshot.GenerationHistory.Completed,
-			Failed:    snapshot.GenerationHistory.Failed,
-		},
-		StageSummaries: stages,
-		DomainBacklogs: domains,
-		Collectors:     collectors,
+		GenerationHistory: PipelineGenerationHistorySnapshot(snapshot.GenerationHistory),
+		StageSummaries:    stages,
+		DomainBacklogs:    domains,
+		Collectors:        collectors,
 	}
 }
 
@@ -285,6 +287,11 @@ func liveReadinessState(healthState string) string {
 		return "ready"
 	case "degraded":
 		return "ready_with_findings"
+	case "progressing":
+		// The normal state while a stack is still indexing. Folding it into the
+		// default bucket made a healthy first-run capture read as an
+		// unrecognised value.
+		return "indexing"
 	case "stalled":
 		return "blocked"
 	case "":

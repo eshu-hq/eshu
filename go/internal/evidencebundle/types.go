@@ -99,10 +99,12 @@ type PipelineScopeActivitySnapshot struct {
 
 // PipelineGenerationHistorySnapshot records generation lifecycle counts.
 type PipelineGenerationHistorySnapshot struct {
-	Active    int `json:"active"`
-	Pending   int `json:"pending"`
-	Completed int `json:"completed"`
-	Failed    int `json:"failed"`
+	Active     int `json:"active"`
+	Pending    int `json:"pending"`
+	Completed  int `json:"completed"`
+	Superseded int `json:"superseded"`
+	Failed     int `json:"failed"`
+	Other      int `json:"other"`
 }
 
 // PipelineStageSummarySnapshot records one reducer stage's backlog.
@@ -112,6 +114,7 @@ type PipelineStageSummarySnapshot struct {
 	Claimed    int    `json:"claimed"`
 	Running    int    `json:"running"`
 	Retrying   int    `json:"retrying"`
+	Succeeded  int    `json:"succeeded"`
 	Failed     int    `json:"failed"`
 	DeadLetter int    `json:"dead_letter"`
 }
@@ -120,6 +123,7 @@ type PipelineStageSummarySnapshot struct {
 type PipelineDomainBacklogSnapshot struct {
 	Domain      string `json:"domain"`
 	Outstanding int    `json:"outstanding"`
+	InFlight    int    `json:"in_flight"`
 	Retrying    int    `json:"retrying"`
 	Failed      int    `json:"failed"`
 	DeadLetter  int    `json:"dead_letter"`

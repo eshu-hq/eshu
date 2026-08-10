@@ -90,6 +90,8 @@ func runEvidenceBundleExportLive(cmd *cobra.Command, scope, outPath string) erro
 	if err := evidencebundle.Validate(bundle); err != nil {
 		return fmt.Errorf("validate live evidence bundle: %w", err)
 	}
+	// Stamp only now that Validate actually returned nil.
+	bundle = evidencebundle.StampValidation(bundle)
 	raw, err := evidencebundle.RenderJSON(bundle)
 	if err != nil {
 		return err
@@ -130,6 +132,7 @@ func liveEvidenceSnapshotFromStatus(
 			Claimed:    stage.Claimed,
 			Running:    stage.Running,
 			Retrying:   stage.Retrying,
+			Succeeded:  stage.Succeeded,
 			Failed:     stage.Failed,
 			DeadLetter: stage.DeadLetter,
 		})
@@ -139,6 +142,7 @@ func liveEvidenceSnapshotFromStatus(
 		domains = append(domains, evidencebundle.LiveDomainBacklogSnapshot{
 			Domain:      domain.Domain,
 			Outstanding: domain.Outstanding,
+			InFlight:    domain.InFlight,
 			Retrying:    domain.Retrying,
 			Failed:      domain.Failed,
 			DeadLetter:  domain.DeadLetter,
@@ -180,15 +184,10 @@ func liveEvidenceSnapshotFromStatus(
 			Changed:   pipeline.ScopeActivity.Changed,
 			Unchanged: pipeline.ScopeActivity.Unchanged,
 		},
-		GenerationHistory: evidencebundle.LiveGenerationHistorySnapshot{
-			Active:    pipeline.GenerationHistory.Active,
-			Pending:   pipeline.GenerationHistory.Pending,
-			Completed: pipeline.GenerationHistory.Completed,
-			Failed:    pipeline.GenerationHistory.Failed,
-		},
-		StageSummaries: stages,
-		DomainBacklogs: domains,
-		Collectors:     liveCollectors,
+		GenerationHistory: evidencebundle.LiveGenerationHistorySnapshot(pipeline.GenerationHistory),
+		StageSummaries:    stages,
+		DomainBacklogs:    domains,
+		Collectors:        liveCollectors,
 		SemanticExtraction: evidencebundle.LiveSemanticExtractionSnapshot{
 			State:              index.SemanticExtraction.State,
 			Reason:             index.SemanticExtraction.Reason,
