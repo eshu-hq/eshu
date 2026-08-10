@@ -1,2353 +1,2353 @@
 {
- "collector": "git",
- "schema_version": "1",
- "scopes": [
-  {
-   "scope_id": "git:repository:replay-delta-tombstone",
-   "source_system": "git",
-   "scope_kind": "repository",
-   "collector_kind": "git",
-   "partition_key": "git:repository:replay-delta-tombstone",
-   "metadata": {
-    "repo_name": "replay-delta-tombstone",
-    "purpose": "R-17 delta/multi-generation/tombstone correctness \u2014 generation 1 baseline"
-   },
-   "generation_id": "cassette-replay-delta-tombstone-gen1",
-   "observed_at": "2026-06-28T00:00:00Z",
-   "trigger_kind": "snapshot",
-   "facts": [
-    {
-     "fact_kind": "git.repository",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:repo",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "repo_id": "replay-delta-tombstone",
-      "name": "replay-delta-tombstone",
-      "path": "/repos/replay-delta-tombstone"
-     }
-    },
-    {
-     "fact_kind": "git.directory",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:dir:alpha",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "path": "/repos/replay-delta-tombstone/alpha",
-      "name": "alpha",
-      "parent_path": "/repos/replay-delta-tombstone",
-      "repo_id": "replay-delta-tombstone",
-      "depth": 0
-     }
-    },
-    {
-     "fact_kind": "git.directory",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:dir:beta",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "path": "/repos/replay-delta-tombstone/beta",
-      "name": "beta",
-      "parent_path": "/repos/replay-delta-tombstone",
-      "repo_id": "replay-delta-tombstone",
-      "depth": 0
-     }
-    },
-    {
-     "fact_kind": "git.directory",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:dir:gamma",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "path": "/repos/replay-delta-tombstone/gamma",
-      "name": "gamma",
-      "parent_path": "/repos/replay-delta-tombstone",
-      "repo_id": "replay-delta-tombstone",
-      "depth": 0
-     }
-    },
-    {
-     "fact_kind": "git.directory",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:dir:edge-parent-a",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "path": "/repos/replay-delta-tombstone/edge-parent-a",
-      "name": "edge-parent-a",
-      "parent_path": "/repos/replay-delta-tombstone",
-      "repo_id": "replay-delta-tombstone",
-      "depth": 0
-     }
-    },
-    {
-     "fact_kind": "git.directory",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:dir:edge-parent-b",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "path": "/repos/replay-delta-tombstone/edge-parent-b",
-      "name": "edge-parent-b",
-      "parent_path": "/repos/replay-delta-tombstone",
-      "repo_id": "replay-delta-tombstone",
-      "depth": 0
-     }
-    },
-    {
-     "fact_kind": "git.directory",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:dir:edge-child",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "path": "/repos/replay-delta-tombstone/edge-parent-a/edge-child",
-      "name": "edge-child",
-      "parent_path": "/repos/replay-delta-tombstone/edge-parent-a",
-      "repo_id": "replay-delta-tombstone",
-      "depth": 1
-     }
-    },
-    {
-     "fact_kind": "git.file",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:file:gitlab-ci",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "path": "/repos/replay-delta-tombstone/.gitlab-ci.yml",
-      "relative_path": ".gitlab-ci.yml",
-      "name": ".gitlab-ci.yml",
-      "language": "gitlab-ci",
-      "repo_id": "replay-delta-tombstone",
-      "dir_path": "/repos/replay-delta-tombstone"
-     }
-    },
-    {
-     "fact_kind": "git.file",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:file:gitlab-ci-a",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "path": "/repos/replay-delta-tombstone/.gitlab-ci-a.yml",
-      "relative_path": ".gitlab-ci-a.yml",
-      "name": ".gitlab-ci-a.yml",
-      "language": "gitlab-ci",
-      "repo_id": "replay-delta-tombstone",
-      "dir_path": "/repos/replay-delta-tombstone"
-     }
-    },
-    {
-     "fact_kind": "git.file",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:file:gitlab-ci-b",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "path": "/repos/replay-delta-tombstone/.gitlab-ci-b.yml",
-      "relative_path": ".gitlab-ci-b.yml",
-      "name": ".gitlab-ci-b.yml",
-      "language": "gitlab-ci",
-      "repo_id": "replay-delta-tombstone",
-      "dir_path": "/repos/replay-delta-tombstone"
-     }
-    },
-    {
-     "fact_kind": "git.gitlab_pipeline",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:pipeline",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "uid": "replay-delta-tombstone:gitlab:pipeline",
-      "name": ".gitlab-ci.yml",
-      "file_path": "/repos/replay-delta-tombstone/.gitlab-ci.yml",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone"
-     }
-    },
-    {
-     "fact_kind": "git.gitlab_job",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:job:build",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "uid": "replay-delta-tombstone:gitlab:job:build",
-      "name": "build",
-      "file_path": "/repos/replay-delta-tombstone/.gitlab-ci.yml",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone"
-     }
-    },
-    {
-     "fact_kind": "git.gitlab_job",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:job:test",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "uid": "replay-delta-tombstone:gitlab:job:test",
-      "name": "test",
-      "file_path": "/repos/replay-delta-tombstone/.gitlab-ci.yml",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "needs": "build"
-     }
-    },
-    {
-     "fact_kind": "git.gitlab_job",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:job:deploy",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "uid": "replay-delta-tombstone:gitlab:job:deploy",
-      "name": "deploy",
-      "file_path": "/repos/replay-delta-tombstone/.gitlab-ci.yml",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:analytics_model:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "analytics_model",
-      "entity_name": "retractProbe_analytics_model",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:analytics_model:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:annotation:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "annotation",
-      "entity_name": "retractProbe_annotation",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:annotation:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:argocd_application:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "argocd_application",
-      "entity_name": "retractProbe_argocd_application",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:argocd_application:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:argocd_application_set:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "argocd_application_set",
-      "entity_name": "retractProbe_argocd_application_set",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:argocd_application_set:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:atlantis_project:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "atlantis_project",
-      "entity_name": "retractProbe_atlantis_project",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:atlantis_project:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:atlantis_workflow:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "atlantis_workflow",
-      "entity_name": "retractProbe_atlantis_workflow",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:atlantis_workflow:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:class:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "class",
-      "entity_name": "retractProbe_class",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:class:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:cloudformation_output:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "cloudformation_output",
-      "entity_name": "retractProbe_cloudformation_output",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:cloudformation_output:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:cloudformation_parameter:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "cloudformation_parameter",
-      "entity_name": "retractProbe_cloudformation_parameter",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:cloudformation_parameter:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:cloudformation_resource:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "cloudformation_resource",
-      "entity_name": "retractProbe_cloudformation_resource",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:cloudformation_resource:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:component:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "component",
-      "entity_name": "retractProbe_component",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:component:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:container_image:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "container_image",
-      "entity_name": "retractProbe_container_image",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:container_image:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:container_image_descriptor:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "container_image_descriptor",
-      "entity_name": "retractProbe_container_image_descriptor",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:container_image_descriptor:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:container_image_index:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "container_image_index",
-      "entity_name": "retractProbe_container_image_index",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:container_image_index:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:container_image_tag_observation:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "container_image_tag_observation",
-      "entity_name": "retractProbe_container_image_tag_observation",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:container_image_tag_observation:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:crossplane_claim:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "crossplane_claim",
-      "entity_name": "retractProbe_crossplane_claim",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:crossplane_claim:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:crossplane_composition:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "crossplane_composition",
-      "entity_name": "retractProbe_crossplane_composition",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:crossplane_composition:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:crossplane_xrd:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "crossplane_xrd",
-      "entity_name": "retractProbe_crossplane_xrd",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:crossplane_xrd:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:dashboard_asset:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "dashboard_asset",
-      "entity_name": "retractProbe_dashboard_asset",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:dashboard_asset:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:data_asset:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "data_asset",
-      "entity_name": "retractProbe_data_asset",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:data_asset:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:data_column:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "data_column",
-      "entity_name": "retractProbe_data_column",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:data_column:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:data_contract:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "data_contract",
-      "entity_name": "retractProbe_data_contract",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:data_contract:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:data_owner:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "data_owner",
-      "entity_name": "retractProbe_data_owner",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:data_owner:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:data_quality_check:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "data_quality_check",
-      "entity_name": "retractProbe_data_quality_check",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:data_quality_check:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:enum:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "enum",
-      "entity_name": "retractProbe_enum",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:enum:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:function:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "function",
-      "entity_name": "retractProbe_function",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:function:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:helm_chart:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "helm_chart",
-      "entity_name": "retractProbe_helm_chart",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:helm_chart:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:helm_template_value_usage:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "helm_template_value_usage",
-      "entity_name": "retractProbe_helm_template_value_usage",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:helm_template_value_usage:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:helm_value_definition:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "helm_value_definition",
-      "entity_name": "retractProbe_helm_value_definition",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:helm_value_definition:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:helm_values:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "helm_values",
-      "entity_name": "retractProbe_helm_values",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:helm_values:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:impl_block:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "impl_block",
-      "entity_name": "retractProbe_impl_block",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:impl_block:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:interface:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "interface",
-      "entity_name": "retractProbe_interface",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:interface:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:kustomize_overlay:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "kustomize_overlay",
-      "entity_name": "retractProbe_kustomize_overlay",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:kustomize_overlay:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:macro:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "macro",
-      "entity_name": "retractProbe_macro",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:macro:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:oci_image_descriptor:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "oci_image_descriptor",
-      "entity_name": "retractProbe_oci_image_descriptor",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:oci_image_descriptor:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:oci_image_index:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "oci_image_index",
-      "entity_name": "retractProbe_oci_image_index",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:oci_image_index:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:oci_image_manifest:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "oci_image_manifest",
-      "entity_name": "retractProbe_oci_image_manifest",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:oci_image_manifest:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:oci_image_referrer:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "oci_image_referrer",
-      "entity_name": "retractProbe_oci_image_referrer",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:oci_image_referrer:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:oci_image_tag_observation:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "oci_image_tag_observation",
-      "entity_name": "retractProbe_oci_image_tag_observation",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:oci_image_tag_observation:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:oci_registry_repository:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "oci_registry_repository",
-      "entity_name": "retractProbe_oci_registry_repository",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:oci_registry_repository:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:package:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "package",
-      "entity_name": "retractProbe_package",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:package:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:package_dependency:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "package_dependency",
-      "entity_name": "retractProbe_package_dependency",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:package_dependency:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:package_registry_package:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "package_registry_package",
-      "entity_name": "retractProbe_package_registry_package",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:package_registry_package:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:package_registry_package_dependency:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "package_registry_package_dependency",
-      "entity_name": "retractProbe_package_registry_package_dependency",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:package_registry_package_dependency:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:package_registry_package_version:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "package_registry_package_version",
-      "entity_name": "retractProbe_package_registry_package_version",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:package_registry_package_version:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:package_version:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "package_version",
-      "entity_name": "retractProbe_package_version",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:package_version:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:property:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "property",
-      "entity_name": "retractProbe_property",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:property:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:protocol:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "protocol",
-      "entity_name": "retractProbe_protocol",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:protocol:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:protocol_implementation:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "protocol_implementation",
-      "entity_name": "retractProbe_protocol_implementation",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:protocol_implementation:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:query_execution:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "query_execution",
-      "entity_name": "retractProbe_query_execution",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:query_execution:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:record:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "record",
-      "entity_name": "retractProbe_record",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:record:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:shell_command:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "shell_command",
-      "entity_name": "retractProbe_shell_command",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:shell_command:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:sql_column:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "sql_column",
-      "entity_name": "retractProbe_sql_column",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:sql_column:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:sql_function:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "sql_function",
-      "entity_name": "retractProbe_sql_function",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:sql_function:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:sql_index:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "sql_index",
-      "entity_name": "retractProbe_sql_index",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:sql_index:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:sql_migration:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "sql_migration",
-      "entity_name": "retractProbe_sql_migration",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:sql_migration:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:sql_table:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "sql_table",
-      "entity_name": "retractProbe_sql_table",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:sql_table:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:sql_trigger:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "sql_trigger",
-      "entity_name": "retractProbe_sql_trigger",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:sql_trigger:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:sql_view:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "sql_view",
-      "entity_name": "retractProbe_sql_view",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:sql_view:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:struct:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "struct",
-      "entity_name": "retractProbe_struct",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:struct:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_backend:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "terraform_backend",
-      "entity_name": "retractProbe_terraform_backend",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:terraform_backend:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_check:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "terraform_check",
-      "entity_name": "retractProbe_terraform_check",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:terraform_check:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_datasource:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "terraform_datasource",
-      "entity_name": "retractProbe_terraform_datasource",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:terraform_datasource:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_import:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "terraform_import",
-      "entity_name": "retractProbe_terraform_import",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:terraform_import:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_local:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "terraform_local",
-      "entity_name": "retractProbe_terraform_local",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:terraform_local:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_lock:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "terraform_lock",
-      "entity_name": "retractProbe_terraform_lock",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:terraform_lock:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_module:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "terraform_module",
-      "entity_name": "retractProbe_terraform_module",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:terraform_module:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_moved:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "terraform_moved",
-      "entity_name": "retractProbe_terraform_moved",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:terraform_moved:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_output:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "terraform_output",
-      "entity_name": "retractProbe_terraform_output",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:terraform_output:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_provider:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "terraform_provider",
-      "entity_name": "retractProbe_terraform_provider",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:terraform_provider:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_removed:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "terraform_removed",
-      "entity_name": "retractProbe_terraform_removed",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:terraform_removed:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_resource:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "terraform_resource",
-      "entity_name": "retractProbe_terraform_resource",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:terraform_resource:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_variable:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "terraform_variable",
-      "entity_name": "retractProbe_terraform_variable",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:terraform_variable:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terragrunt_config:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "terragrunt_config",
-      "entity_name": "retractProbe_terragrunt_config",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:terragrunt_config:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terragrunt_dependency:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "terragrunt_dependency",
-      "entity_name": "retractProbe_terragrunt_dependency",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:terragrunt_dependency:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terragrunt_input:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "terragrunt_input",
-      "entity_name": "retractProbe_terragrunt_input",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:terragrunt_input:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terragrunt_local:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "terragrunt_local",
-      "entity_name": "retractProbe_terragrunt_local",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:terragrunt_local:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:trait:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "trait",
-      "entity_name": "retractProbe_trait",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:trait:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:type_alias:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "type_alias",
-      "entity_name": "retractProbe_type_alias",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:type_alias:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:type_annotation:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "type_annotation",
-      "entity_name": "retractProbe_type_annotation",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:type_annotation:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:typedef:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "typedef",
-      "entity_name": "retractProbe_typedef",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:typedef:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:union:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "union",
-      "entity_name": "retractProbe_union",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:union:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:k8s_resource:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "k8s_resource",
-      "entity_name": "retractProbe_k8s_resource",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "yaml",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:k8s_resource:probe"
-     }
-    },
-    {
-     "fact_kind": "git.gitlab_job",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:job:doomed",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "uid": "replay-delta-tombstone:gitlab:job:doomed",
-      "name": "doomed",
-      "file_path": "/repos/replay-delta-tombstone/.gitlab-ci.yml",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone"
-     }
-    },
-    {
-     "fact_kind": "git.gitlab_pipeline",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:pipeline:doomed",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "uid": "replay-delta-tombstone:gitlab:pipeline:doomed",
-      "name": "doomed-pipeline",
-      "file_path": "/repos/replay-delta-tombstone/.gitlab-ci.yml",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone"
-     }
-    },
-    {
-     "fact_kind": "git.gitlab_pipeline",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:pipeline:a",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "uid": "replay-delta-tombstone:gitlab:pipeline:a",
-      "name": ".gitlab-ci-a.yml",
-      "file_path": "/repos/replay-delta-tombstone/.gitlab-ci-a.yml",
-      "relative_path": ".gitlab-ci-a.yml",
-      "repo_id": "replay-delta-tombstone"
-     }
-    },
-    {
-     "fact_kind": "git.gitlab_pipeline",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:pipeline:b",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "uid": "replay-delta-tombstone:gitlab:pipeline:b",
-      "name": ".gitlab-ci-b.yml",
-      "file_path": "/repos/replay-delta-tombstone/.gitlab-ci-b.yml",
-      "relative_path": ".gitlab-ci-b.yml",
-      "repo_id": "replay-delta-tombstone"
-     }
-    },
-    {
-     "fact_kind": "git.gitlab_job",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:job:mover",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "uid": "replay-delta-tombstone:gitlab:job:mover",
-      "name": "mover",
-      "file_path": "/repos/replay-delta-tombstone/.gitlab-ci-a.yml",
-      "relative_path": ".gitlab-ci-a.yml",
-      "repo_id": "replay-delta-tombstone"
-     }
-    },
-    {
-     "fact_kind": "git.gitlab_job",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:job:stayer",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "uid": "replay-delta-tombstone:gitlab:job:stayer",
-      "name": "stayer",
-      "file_path": "/repos/replay-delta-tombstone/.gitlab-ci-a.yml",
-      "relative_path": ".gitlab-ci-a.yml",
-      "repo_id": "replay-delta-tombstone"
-     }
-    },
-    {
-     "fact_kind": "git.file",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:file:doomed",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "path": "/repos/replay-delta-tombstone/doomed.txt",
-      "relative_path": "doomed.txt",
-      "name": "doomed.txt",
-      "language": "text",
-      "repo_id": "replay-delta-tombstone",
-      "dir_path": "/repos/replay-delta-tombstone"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:flux_kustomization:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "flux_kustomization",
-      "entity_name": "retractProbe_flux_kustomization",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:flux_kustomization:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:flux_git_repository:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "flux_git_repository",
-      "entity_name": "retractProbe_flux_git_repository",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:flux_git_repository:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:flux_oci_repository:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "flux_oci_repository",
-      "entity_name": "retractProbe_flux_oci_repository",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:flux_oci_repository:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:flux_bucket:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "flux_bucket",
-      "entity_name": "retractProbe_flux_bucket",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:flux_bucket:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:flux_helm_release:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "flux_helm_release",
-      "entity_name": "retractProbe_flux_helm_release",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:flux_helm_release:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:flux_helm_repository:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "flux_helm_repository",
-      "entity_name": "retractProbe_flux_helm_repository",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:flux_helm_repository:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:cloudformation_condition:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "cloudformation_condition",
-      "entity_name": "retractProbe_cloudformation_condition",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:cloudformation_condition:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:cloudformation_export:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "cloudformation_export",
-      "entity_name": "retractProbe_cloudformation_export",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:cloudformation_export:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:cloudformation_import:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "cloudformation_import",
-      "entity_name": "retractProbe_cloudformation_import",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:cloudformation_import:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:pagerduty_declaration:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "pagerduty_declaration",
-      "entity_name": "retractProbe_pagerduty_declaration",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:pagerduty_declaration:probe"
-     }
-    },
-    {
-     "fact_kind": "content_entity",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_block:probe",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "entity_type": "terraform_block",
-      "entity_name": "retractProbe_terraform_block",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "language": "go",
-      "start_line": 1,
-      "end_line": 5,
-      "entity_id": "replay-delta-tombstone:terraform_block:probe"
-     }
+  "collector": "git",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "git:repository:replay-delta-tombstone",
+      "source_system": "git",
+      "scope_kind": "repository",
+      "collector_kind": "git",
+      "partition_key": "git:repository:replay-delta-tombstone",
+      "metadata": {
+        "repo_name": "replay-delta-tombstone",
+        "purpose": "R-17 delta/multi-generation/tombstone correctness — generation 1 baseline"
+      },
+      "generation_id": "cassette-replay-delta-tombstone-gen1",
+      "observed_at": "2026-06-28T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "git.repository",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:repo",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "replay-delta-tombstone",
+            "name": "replay-delta-tombstone",
+            "path": "/repos/replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:dir:alpha",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/alpha",
+            "name": "alpha",
+            "parent_path": "/repos/replay-delta-tombstone",
+            "repo_id": "replay-delta-tombstone",
+            "depth": 0
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:dir:beta",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/beta",
+            "name": "beta",
+            "parent_path": "/repos/replay-delta-tombstone",
+            "repo_id": "replay-delta-tombstone",
+            "depth": 0
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:dir:gamma",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/gamma",
+            "name": "gamma",
+            "parent_path": "/repos/replay-delta-tombstone",
+            "repo_id": "replay-delta-tombstone",
+            "depth": 0
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:dir:edge-parent-a",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/edge-parent-a",
+            "name": "edge-parent-a",
+            "parent_path": "/repos/replay-delta-tombstone",
+            "repo_id": "replay-delta-tombstone",
+            "depth": 0
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:dir:edge-parent-b",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/edge-parent-b",
+            "name": "edge-parent-b",
+            "parent_path": "/repos/replay-delta-tombstone",
+            "repo_id": "replay-delta-tombstone",
+            "depth": 0
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:dir:edge-child",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/edge-parent-a/edge-child",
+            "name": "edge-child",
+            "parent_path": "/repos/replay-delta-tombstone/edge-parent-a",
+            "repo_id": "replay-delta-tombstone",
+            "depth": 1
+          }
+        },
+        {
+          "fact_kind": "git.file",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:file:gitlab-ci",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/.gitlab-ci.yml",
+            "relative_path": ".gitlab-ci.yml",
+            "name": ".gitlab-ci.yml",
+            "language": "gitlab-ci",
+            "repo_id": "replay-delta-tombstone",
+            "dir_path": "/repos/replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.file",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:file:gitlab-ci-a",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/.gitlab-ci-a.yml",
+            "relative_path": ".gitlab-ci-a.yml",
+            "name": ".gitlab-ci-a.yml",
+            "language": "gitlab-ci",
+            "repo_id": "replay-delta-tombstone",
+            "dir_path": "/repos/replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.file",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:file:gitlab-ci-b",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/.gitlab-ci-b.yml",
+            "relative_path": ".gitlab-ci-b.yml",
+            "name": ".gitlab-ci-b.yml",
+            "language": "gitlab-ci",
+            "repo_id": "replay-delta-tombstone",
+            "dir_path": "/repos/replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.gitlab_pipeline",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:pipeline",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:pipeline",
+            "name": ".gitlab-ci.yml",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci.yml",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.gitlab_job",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:job:build",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:job:build",
+            "name": "build",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci.yml",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.gitlab_job",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:job:test",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:job:test",
+            "name": "test",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci.yml",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "needs": "build"
+          }
+        },
+        {
+          "fact_kind": "git.gitlab_job",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:job:deploy",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:job:deploy",
+            "name": "deploy",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci.yml",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:analytics_model:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "analytics_model",
+            "entity_name": "retractProbe_analytics_model",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:analytics_model:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:annotation:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "annotation",
+            "entity_name": "retractProbe_annotation",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:annotation:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:argocd_application:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "argocd_application",
+            "entity_name": "retractProbe_argocd_application",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:argocd_application:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:argocd_application_set:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "argocd_application_set",
+            "entity_name": "retractProbe_argocd_application_set",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:argocd_application_set:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:atlantis_project:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "atlantis_project",
+            "entity_name": "retractProbe_atlantis_project",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:atlantis_project:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:atlantis_workflow:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "atlantis_workflow",
+            "entity_name": "retractProbe_atlantis_workflow",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:atlantis_workflow:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:class:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "class",
+            "entity_name": "retractProbe_class",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:class:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:cloudformation_output:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "cloudformation_output",
+            "entity_name": "retractProbe_cloudformation_output",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:cloudformation_output:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:cloudformation_parameter:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "cloudformation_parameter",
+            "entity_name": "retractProbe_cloudformation_parameter",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:cloudformation_parameter:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:cloudformation_resource:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "cloudformation_resource",
+            "entity_name": "retractProbe_cloudformation_resource",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:cloudformation_resource:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:component:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "component",
+            "entity_name": "retractProbe_component",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:component:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:container_image:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "container_image",
+            "entity_name": "retractProbe_container_image",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:container_image:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:container_image_descriptor:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "container_image_descriptor",
+            "entity_name": "retractProbe_container_image_descriptor",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:container_image_descriptor:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:container_image_index:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "container_image_index",
+            "entity_name": "retractProbe_container_image_index",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:container_image_index:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:container_image_tag_observation:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "container_image_tag_observation",
+            "entity_name": "retractProbe_container_image_tag_observation",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:container_image_tag_observation:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:crossplane_claim:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "crossplane_claim",
+            "entity_name": "retractProbe_crossplane_claim",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:crossplane_claim:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:crossplane_composition:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "crossplane_composition",
+            "entity_name": "retractProbe_crossplane_composition",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:crossplane_composition:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:crossplane_xrd:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "crossplane_xrd",
+            "entity_name": "retractProbe_crossplane_xrd",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:crossplane_xrd:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:dashboard_asset:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "dashboard_asset",
+            "entity_name": "retractProbe_dashboard_asset",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:dashboard_asset:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:data_asset:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "data_asset",
+            "entity_name": "retractProbe_data_asset",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:data_asset:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:data_column:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "data_column",
+            "entity_name": "retractProbe_data_column",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:data_column:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:data_contract:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "data_contract",
+            "entity_name": "retractProbe_data_contract",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:data_contract:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:data_owner:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "data_owner",
+            "entity_name": "retractProbe_data_owner",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:data_owner:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:data_quality_check:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "data_quality_check",
+            "entity_name": "retractProbe_data_quality_check",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:data_quality_check:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:enum:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "enum",
+            "entity_name": "retractProbe_enum",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:enum:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:function:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "function",
+            "entity_name": "retractProbe_function",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:function:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:helm_chart:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "helm_chart",
+            "entity_name": "retractProbe_helm_chart",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:helm_chart:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:helm_template_value_usage:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "helm_template_value_usage",
+            "entity_name": "retractProbe_helm_template_value_usage",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:helm_template_value_usage:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:helm_value_definition:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "helm_value_definition",
+            "entity_name": "retractProbe_helm_value_definition",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:helm_value_definition:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:helm_values:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "helm_values",
+            "entity_name": "retractProbe_helm_values",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:helm_values:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:impl_block:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "impl_block",
+            "entity_name": "retractProbe_impl_block",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:impl_block:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:interface:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "interface",
+            "entity_name": "retractProbe_interface",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:interface:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:kustomize_overlay:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "kustomize_overlay",
+            "entity_name": "retractProbe_kustomize_overlay",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:kustomize_overlay:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:macro:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "macro",
+            "entity_name": "retractProbe_macro",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:macro:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:oci_image_descriptor:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "oci_image_descriptor",
+            "entity_name": "retractProbe_oci_image_descriptor",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:oci_image_descriptor:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:oci_image_index:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "oci_image_index",
+            "entity_name": "retractProbe_oci_image_index",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:oci_image_index:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:oci_image_manifest:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "oci_image_manifest",
+            "entity_name": "retractProbe_oci_image_manifest",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:oci_image_manifest:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:oci_image_referrer:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "oci_image_referrer",
+            "entity_name": "retractProbe_oci_image_referrer",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:oci_image_referrer:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:oci_image_tag_observation:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "oci_image_tag_observation",
+            "entity_name": "retractProbe_oci_image_tag_observation",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:oci_image_tag_observation:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:oci_registry_repository:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "oci_registry_repository",
+            "entity_name": "retractProbe_oci_registry_repository",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:oci_registry_repository:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:package:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "package",
+            "entity_name": "retractProbe_package",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:package:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:package_dependency:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "package_dependency",
+            "entity_name": "retractProbe_package_dependency",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:package_dependency:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:package_registry_package:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "package_registry_package",
+            "entity_name": "retractProbe_package_registry_package",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:package_registry_package:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:package_registry_package_dependency:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "package_registry_package_dependency",
+            "entity_name": "retractProbe_package_registry_package_dependency",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:package_registry_package_dependency:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:package_registry_package_version:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "package_registry_package_version",
+            "entity_name": "retractProbe_package_registry_package_version",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:package_registry_package_version:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:package_version:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "package_version",
+            "entity_name": "retractProbe_package_version",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:package_version:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:property:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "property",
+            "entity_name": "retractProbe_property",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:property:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:protocol:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "protocol",
+            "entity_name": "retractProbe_protocol",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:protocol:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:protocol_implementation:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "protocol_implementation",
+            "entity_name": "retractProbe_protocol_implementation",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:protocol_implementation:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:query_execution:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "query_execution",
+            "entity_name": "retractProbe_query_execution",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:query_execution:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:record:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "record",
+            "entity_name": "retractProbe_record",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:record:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:shell_command:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "shell_command",
+            "entity_name": "retractProbe_shell_command",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:shell_command:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:sql_column:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "sql_column",
+            "entity_name": "retractProbe_sql_column",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:sql_column:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:sql_function:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "sql_function",
+            "entity_name": "retractProbe_sql_function",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:sql_function:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:sql_index:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "sql_index",
+            "entity_name": "retractProbe_sql_index",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:sql_index:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:sql_migration:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "sql_migration",
+            "entity_name": "retractProbe_sql_migration",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:sql_migration:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:sql_table:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "sql_table",
+            "entity_name": "retractProbe_sql_table",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:sql_table:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:sql_trigger:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "sql_trigger",
+            "entity_name": "retractProbe_sql_trigger",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:sql_trigger:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:sql_view:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "sql_view",
+            "entity_name": "retractProbe_sql_view",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:sql_view:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:struct:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "struct",
+            "entity_name": "retractProbe_struct",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:struct:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_backend:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "terraform_backend",
+            "entity_name": "retractProbe_terraform_backend",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:terraform_backend:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_check:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "terraform_check",
+            "entity_name": "retractProbe_terraform_check",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:terraform_check:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_datasource:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "terraform_datasource",
+            "entity_name": "retractProbe_terraform_datasource",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:terraform_datasource:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_import:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "terraform_import",
+            "entity_name": "retractProbe_terraform_import",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:terraform_import:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_local:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "terraform_local",
+            "entity_name": "retractProbe_terraform_local",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:terraform_local:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_lock:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "terraform_lock",
+            "entity_name": "retractProbe_terraform_lock",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:terraform_lock:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_module:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "terraform_module",
+            "entity_name": "retractProbe_terraform_module",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:terraform_module:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_moved:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "terraform_moved",
+            "entity_name": "retractProbe_terraform_moved",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:terraform_moved:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_output:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "terraform_output",
+            "entity_name": "retractProbe_terraform_output",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:terraform_output:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_provider:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "terraform_provider",
+            "entity_name": "retractProbe_terraform_provider",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:terraform_provider:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_removed:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "terraform_removed",
+            "entity_name": "retractProbe_terraform_removed",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:terraform_removed:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_resource:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "terraform_resource",
+            "entity_name": "retractProbe_terraform_resource",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:terraform_resource:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_variable:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "terraform_variable",
+            "entity_name": "retractProbe_terraform_variable",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:terraform_variable:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terragrunt_config:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "terragrunt_config",
+            "entity_name": "retractProbe_terragrunt_config",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:terragrunt_config:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terragrunt_dependency:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "terragrunt_dependency",
+            "entity_name": "retractProbe_terragrunt_dependency",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:terragrunt_dependency:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terragrunt_input:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "terragrunt_input",
+            "entity_name": "retractProbe_terragrunt_input",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:terragrunt_input:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terragrunt_local:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "terragrunt_local",
+            "entity_name": "retractProbe_terragrunt_local",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:terragrunt_local:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:trait:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "trait",
+            "entity_name": "retractProbe_trait",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:trait:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:type_alias:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "type_alias",
+            "entity_name": "retractProbe_type_alias",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:type_alias:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:type_annotation:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "type_annotation",
+            "entity_name": "retractProbe_type_annotation",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:type_annotation:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:typedef:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "typedef",
+            "entity_name": "retractProbe_typedef",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:typedef:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:union:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "union",
+            "entity_name": "retractProbe_union",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:union:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:k8s_resource:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "k8s_resource",
+            "entity_name": "retractProbe_k8s_resource",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "yaml",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:k8s_resource:probe"
+          }
+        },
+        {
+          "fact_kind": "git.gitlab_job",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:job:doomed",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:job:doomed",
+            "name": "doomed",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci.yml",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.gitlab_pipeline",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:pipeline:doomed",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:pipeline:doomed",
+            "name": "doomed-pipeline",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci.yml",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.gitlab_pipeline",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:pipeline:a",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:pipeline:a",
+            "name": ".gitlab-ci-a.yml",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci-a.yml",
+            "relative_path": ".gitlab-ci-a.yml",
+            "repo_id": "replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.gitlab_pipeline",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:pipeline:b",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:pipeline:b",
+            "name": ".gitlab-ci-b.yml",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci-b.yml",
+            "relative_path": ".gitlab-ci-b.yml",
+            "repo_id": "replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.gitlab_job",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:job:mover",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:job:mover",
+            "name": "mover",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci-a.yml",
+            "relative_path": ".gitlab-ci-a.yml",
+            "repo_id": "replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.gitlab_job",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:job:stayer",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:job:stayer",
+            "name": "stayer",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci-a.yml",
+            "relative_path": ".gitlab-ci-a.yml",
+            "repo_id": "replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.file",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:file:doomed",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/doomed.txt",
+            "relative_path": "doomed.txt",
+            "name": "doomed.txt",
+            "language": "text",
+            "repo_id": "replay-delta-tombstone",
+            "dir_path": "/repos/replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:flux_kustomization:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "flux_kustomization",
+            "entity_name": "retractProbe_flux_kustomization",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:flux_kustomization:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:flux_git_repository:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "flux_git_repository",
+            "entity_name": "retractProbe_flux_git_repository",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:flux_git_repository:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:flux_oci_repository:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "flux_oci_repository",
+            "entity_name": "retractProbe_flux_oci_repository",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:flux_oci_repository:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:flux_bucket:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "flux_bucket",
+            "entity_name": "retractProbe_flux_bucket",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:flux_bucket:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:flux_helm_release:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "flux_helm_release",
+            "entity_name": "retractProbe_flux_helm_release",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:flux_helm_release:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:flux_helm_repository:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "flux_helm_repository",
+            "entity_name": "retractProbe_flux_helm_repository",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:flux_helm_repository:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:cloudformation_condition:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "cloudformation_condition",
+            "entity_name": "retractProbe_cloudformation_condition",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:cloudformation_condition:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:cloudformation_export:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "cloudformation_export",
+            "entity_name": "retractProbe_cloudformation_export",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:cloudformation_export:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:cloudformation_import:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "cloudformation_import",
+            "entity_name": "retractProbe_cloudformation_import",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:cloudformation_import:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:pagerduty_declaration:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "pagerduty_declaration",
+            "entity_name": "retractProbe_pagerduty_declaration",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:pagerduty_declaration:probe"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:entity:terraform_block:probe",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_type": "terraform_block",
+            "entity_name": "retractProbe_terraform_block",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "language": "go",
+            "start_line": 1,
+            "end_line": 5,
+            "entity_id": "replay-delta-tombstone:terraform_block:probe"
+          }
+        }
+      ]
+    },
+    {
+      "scope_id": "git:repository:replay-delta-tombstone",
+      "source_system": "git",
+      "scope_kind": "repository",
+      "collector_kind": "git",
+      "partition_key": "git:repository:replay-delta-tombstone",
+      "metadata": {
+        "repo_name": "replay-delta-tombstone",
+        "purpose": "R-17 delta/multi-generation/tombstone correctness — generation 2: adds delta, removes gamma (tombstone), moves edge-child to edge-parent-b, supersedes repo name"
+      },
+      "generation_id": "cassette-replay-delta-tombstone-gen2",
+      "observed_at": "2026-06-28T01:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "git.repository",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:repo",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 2,
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "replay-delta-tombstone",
+            "name": "replay-delta-tombstone-v2",
+            "path": "/repos/replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:dir:alpha",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 2,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/alpha",
+            "name": "alpha",
+            "parent_path": "/repos/replay-delta-tombstone",
+            "repo_id": "replay-delta-tombstone",
+            "depth": 0
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:dir:beta",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 2,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/beta",
+            "name": "beta",
+            "parent_path": "/repos/replay-delta-tombstone",
+            "repo_id": "replay-delta-tombstone",
+            "depth": 0
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:dir:gamma",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 2,
+          "source_confidence": "observed",
+          "is_tombstone": true,
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/gamma",
+            "name": "gamma",
+            "parent_path": "/repos/replay-delta-tombstone",
+            "repo_id": "replay-delta-tombstone",
+            "depth": 0
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:dir:edge-parent-a",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 2,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/edge-parent-a",
+            "name": "edge-parent-a",
+            "parent_path": "/repos/replay-delta-tombstone",
+            "repo_id": "replay-delta-tombstone",
+            "depth": 0
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:dir:edge-parent-b",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 2,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/edge-parent-b",
+            "name": "edge-parent-b",
+            "parent_path": "/repos/replay-delta-tombstone",
+            "repo_id": "replay-delta-tombstone",
+            "depth": 0
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:dir:edge-child",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 2,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/edge-parent-a/edge-child",
+            "name": "edge-child",
+            "parent_path": "/repos/replay-delta-tombstone/edge-parent-b",
+            "repo_id": "replay-delta-tombstone",
+            "depth": 1
+          }
+        },
+        {
+          "fact_kind": "git.directory",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:dir:delta",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 2,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/delta",
+            "name": "delta",
+            "parent_path": "/repos/replay-delta-tombstone",
+            "repo_id": "replay-delta-tombstone",
+            "depth": 0
+          }
+        },
+        {
+          "fact_kind": "git.file",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:file:gitlab-ci",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 2,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/.gitlab-ci.yml",
+            "relative_path": ".gitlab-ci.yml",
+            "name": ".gitlab-ci.yml",
+            "language": "gitlab-ci",
+            "repo_id": "replay-delta-tombstone",
+            "dir_path": "/repos/replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.file",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:file:gitlab-ci-a",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 2,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/.gitlab-ci-a.yml",
+            "relative_path": ".gitlab-ci-a.yml",
+            "name": ".gitlab-ci-a.yml",
+            "language": "gitlab-ci",
+            "repo_id": "replay-delta-tombstone",
+            "dir_path": "/repos/replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.file",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:file:gitlab-ci-b",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 2,
+          "source_confidence": "observed",
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/.gitlab-ci-b.yml",
+            "relative_path": ".gitlab-ci-b.yml",
+            "name": ".gitlab-ci-b.yml",
+            "language": "gitlab-ci",
+            "repo_id": "replay-delta-tombstone",
+            "dir_path": "/repos/replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.gitlab_pipeline",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:pipeline",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 2,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:pipeline",
+            "name": ".gitlab-ci.yml",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci.yml",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.gitlab_job",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:job:build",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 2,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:job:build",
+            "name": "build",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci.yml",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.gitlab_job",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:job:test",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 2,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:job:test",
+            "name": "test",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci.yml",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone",
+            "needs": "deploy"
+          }
+        },
+        {
+          "fact_kind": "git.gitlab_job",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:job:deploy",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 2,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:job:deploy",
+            "name": "deploy",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci.yml",
+            "relative_path": ".gitlab-ci.yml",
+            "repo_id": "replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.gitlab_pipeline",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:pipeline:a",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:pipeline:a",
+            "name": ".gitlab-ci-a.yml",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci-a.yml",
+            "relative_path": ".gitlab-ci-a.yml",
+            "repo_id": "replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.gitlab_pipeline",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:pipeline:b",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:pipeline:b",
+            "name": ".gitlab-ci-b.yml",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci-b.yml",
+            "relative_path": ".gitlab-ci-b.yml",
+            "repo_id": "replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.gitlab_job",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:job:mover",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:job:mover",
+            "name": "mover",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci-b.yml",
+            "relative_path": ".gitlab-ci-b.yml",
+            "repo_id": "replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.gitlab_job",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:job:stayer",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "uid": "replay-delta-tombstone:gitlab:job:stayer",
+            "name": "stayer",
+            "file_path": "/repos/replay-delta-tombstone/.gitlab-ci-a.yml",
+            "relative_path": ".gitlab-ci-a.yml",
+            "repo_id": "replay-delta-tombstone"
+          }
+        },
+        {
+          "fact_kind": "git.file",
+          "stable_fact_key": "git:repository:replay-delta-tombstone:file:doomed",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 2,
+          "source_confidence": "observed",
+          "is_tombstone": true,
+          "payload": {
+            "path": "/repos/replay-delta-tombstone/doomed.txt",
+            "relative_path": "doomed.txt",
+            "name": "doomed.txt",
+            "language": "text",
+            "repo_id": "replay-delta-tombstone",
+            "dir_path": "/repos/replay-delta-tombstone"
+          }
+        }
+      ]
     }
-   ]
-  },
-  {
-   "scope_id": "git:repository:replay-delta-tombstone",
-   "source_system": "git",
-   "scope_kind": "repository",
-   "collector_kind": "git",
-   "partition_key": "git:repository:replay-delta-tombstone",
-   "metadata": {
-    "repo_name": "replay-delta-tombstone",
-    "purpose": "R-17 delta/multi-generation/tombstone correctness \u2014 generation 2: adds delta, removes gamma (tombstone), moves edge-child to edge-parent-b, supersedes repo name"
-   },
-   "generation_id": "cassette-replay-delta-tombstone-gen2",
-   "observed_at": "2026-06-28T01:00:00Z",
-   "trigger_kind": "snapshot",
-   "facts": [
-    {
-     "fact_kind": "git.repository",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:repo",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 2,
-     "source_confidence": "observed",
-     "payload": {
-      "repo_id": "replay-delta-tombstone",
-      "name": "replay-delta-tombstone-v2",
-      "path": "/repos/replay-delta-tombstone"
-     }
-    },
-    {
-     "fact_kind": "git.directory",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:dir:alpha",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 2,
-     "source_confidence": "observed",
-     "payload": {
-      "path": "/repos/replay-delta-tombstone/alpha",
-      "name": "alpha",
-      "parent_path": "/repos/replay-delta-tombstone",
-      "repo_id": "replay-delta-tombstone",
-      "depth": 0
-     }
-    },
-    {
-     "fact_kind": "git.directory",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:dir:beta",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 2,
-     "source_confidence": "observed",
-     "payload": {
-      "path": "/repos/replay-delta-tombstone/beta",
-      "name": "beta",
-      "parent_path": "/repos/replay-delta-tombstone",
-      "repo_id": "replay-delta-tombstone",
-      "depth": 0
-     }
-    },
-    {
-     "fact_kind": "git.directory",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:dir:gamma",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 2,
-     "source_confidence": "observed",
-     "is_tombstone": true,
-     "payload": {
-      "path": "/repos/replay-delta-tombstone/gamma",
-      "name": "gamma",
-      "parent_path": "/repos/replay-delta-tombstone",
-      "repo_id": "replay-delta-tombstone",
-      "depth": 0
-     }
-    },
-    {
-     "fact_kind": "git.directory",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:dir:edge-parent-a",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 2,
-     "source_confidence": "observed",
-     "payload": {
-      "path": "/repos/replay-delta-tombstone/edge-parent-a",
-      "name": "edge-parent-a",
-      "parent_path": "/repos/replay-delta-tombstone",
-      "repo_id": "replay-delta-tombstone",
-      "depth": 0
-     }
-    },
-    {
-     "fact_kind": "git.directory",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:dir:edge-parent-b",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 2,
-     "source_confidence": "observed",
-     "payload": {
-      "path": "/repos/replay-delta-tombstone/edge-parent-b",
-      "name": "edge-parent-b",
-      "parent_path": "/repos/replay-delta-tombstone",
-      "repo_id": "replay-delta-tombstone",
-      "depth": 0
-     }
-    },
-    {
-     "fact_kind": "git.directory",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:dir:edge-child",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 2,
-     "source_confidence": "observed",
-     "payload": {
-      "path": "/repos/replay-delta-tombstone/edge-parent-a/edge-child",
-      "name": "edge-child",
-      "parent_path": "/repos/replay-delta-tombstone/edge-parent-b",
-      "repo_id": "replay-delta-tombstone",
-      "depth": 1
-     }
-    },
-    {
-     "fact_kind": "git.directory",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:dir:delta",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 2,
-     "source_confidence": "observed",
-     "payload": {
-      "path": "/repos/replay-delta-tombstone/delta",
-      "name": "delta",
-      "parent_path": "/repos/replay-delta-tombstone",
-      "repo_id": "replay-delta-tombstone",
-      "depth": 0
-     }
-    },
-    {
-     "fact_kind": "git.file",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:file:gitlab-ci",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 2,
-     "source_confidence": "observed",
-     "payload": {
-      "path": "/repos/replay-delta-tombstone/.gitlab-ci.yml",
-      "relative_path": ".gitlab-ci.yml",
-      "name": ".gitlab-ci.yml",
-      "language": "gitlab-ci",
-      "repo_id": "replay-delta-tombstone",
-      "dir_path": "/repos/replay-delta-tombstone"
-     }
-    },
-    {
-     "fact_kind": "git.file",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:file:gitlab-ci-a",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 2,
-     "source_confidence": "observed",
-     "payload": {
-      "path": "/repos/replay-delta-tombstone/.gitlab-ci-a.yml",
-      "relative_path": ".gitlab-ci-a.yml",
-      "name": ".gitlab-ci-a.yml",
-      "language": "gitlab-ci",
-      "repo_id": "replay-delta-tombstone",
-      "dir_path": "/repos/replay-delta-tombstone"
-     }
-    },
-    {
-     "fact_kind": "git.file",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:file:gitlab-ci-b",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 2,
-     "source_confidence": "observed",
-     "payload": {
-      "path": "/repos/replay-delta-tombstone/.gitlab-ci-b.yml",
-      "relative_path": ".gitlab-ci-b.yml",
-      "name": ".gitlab-ci-b.yml",
-      "language": "gitlab-ci",
-      "repo_id": "replay-delta-tombstone",
-      "dir_path": "/repos/replay-delta-tombstone"
-     }
-    },
-    {
-     "fact_kind": "git.gitlab_pipeline",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:pipeline",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 2,
-     "source_confidence": "observed",
-     "payload": {
-      "uid": "replay-delta-tombstone:gitlab:pipeline",
-      "name": ".gitlab-ci.yml",
-      "file_path": "/repos/replay-delta-tombstone/.gitlab-ci.yml",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone"
-     }
-    },
-    {
-     "fact_kind": "git.gitlab_job",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:job:build",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 2,
-     "source_confidence": "observed",
-     "payload": {
-      "uid": "replay-delta-tombstone:gitlab:job:build",
-      "name": "build",
-      "file_path": "/repos/replay-delta-tombstone/.gitlab-ci.yml",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone"
-     }
-    },
-    {
-     "fact_kind": "git.gitlab_job",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:job:test",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 2,
-     "source_confidence": "observed",
-     "payload": {
-      "uid": "replay-delta-tombstone:gitlab:job:test",
-      "name": "test",
-      "file_path": "/repos/replay-delta-tombstone/.gitlab-ci.yml",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone",
-      "needs": "deploy"
-     }
-    },
-    {
-     "fact_kind": "git.gitlab_job",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:job:deploy",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 2,
-     "source_confidence": "observed",
-     "payload": {
-      "uid": "replay-delta-tombstone:gitlab:job:deploy",
-      "name": "deploy",
-      "file_path": "/repos/replay-delta-tombstone/.gitlab-ci.yml",
-      "relative_path": ".gitlab-ci.yml",
-      "repo_id": "replay-delta-tombstone"
-     }
-    },
-    {
-     "fact_kind": "git.gitlab_pipeline",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:pipeline:a",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "uid": "replay-delta-tombstone:gitlab:pipeline:a",
-      "name": ".gitlab-ci-a.yml",
-      "file_path": "/repos/replay-delta-tombstone/.gitlab-ci-a.yml",
-      "relative_path": ".gitlab-ci-a.yml",
-      "repo_id": "replay-delta-tombstone"
-     }
-    },
-    {
-     "fact_kind": "git.gitlab_pipeline",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:pipeline:b",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "uid": "replay-delta-tombstone:gitlab:pipeline:b",
-      "name": ".gitlab-ci-b.yml",
-      "file_path": "/repos/replay-delta-tombstone/.gitlab-ci-b.yml",
-      "relative_path": ".gitlab-ci-b.yml",
-      "repo_id": "replay-delta-tombstone"
-     }
-    },
-    {
-     "fact_kind": "git.gitlab_job",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:job:mover",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "uid": "replay-delta-tombstone:gitlab:job:mover",
-      "name": "mover",
-      "file_path": "/repos/replay-delta-tombstone/.gitlab-ci-b.yml",
-      "relative_path": ".gitlab-ci-b.yml",
-      "repo_id": "replay-delta-tombstone"
-     }
-    },
-    {
-     "fact_kind": "git.gitlab_job",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:gitlab:job:stayer",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 1,
-     "source_confidence": "observed",
-     "payload": {
-      "uid": "replay-delta-tombstone:gitlab:job:stayer",
-      "name": "stayer",
-      "file_path": "/repos/replay-delta-tombstone/.gitlab-ci-a.yml",
-      "relative_path": ".gitlab-ci-a.yml",
-      "repo_id": "replay-delta-tombstone"
-     }
-    },
-    {
-     "fact_kind": "git.file",
-     "stable_fact_key": "git:repository:replay-delta-tombstone:file:doomed",
-     "schema_version": "1.0.0",
-     "collector_kind": "git",
-     "fencing_token": 2,
-     "source_confidence": "observed",
-     "is_tombstone": true,
-     "payload": {
-      "path": "/repos/replay-delta-tombstone/doomed.txt",
-      "relative_path": "doomed.txt",
-      "name": "doomed.txt",
-      "language": "text",
-      "repo_id": "replay-delta-tombstone",
-      "dir_path": "/repos/replay-delta-tombstone"
-     }
-    }
-   ]
-  }
- ]
+  ]
 }
