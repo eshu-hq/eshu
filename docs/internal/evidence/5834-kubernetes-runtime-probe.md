@@ -62,6 +62,21 @@ It ran against NornicDB source revision
 `sha256:1afd1f92af1de69bfd336e6b1d4d9136019309c0640ace9b54e1cccba1e4d8d5`,
 and PostgreSQL 18.4.
 
+The #6011 base rebase changed the Kubernetes cassette and B-12 snapshot, not
+the measured query, Postgres gate, or live harness. Blob comparison between the
+tested commit and the rebased branch returned identical object IDs:
+
+| File | Git blob |
+| --- | --- |
+| `supply_chain_impact_kubernetes_runtime_probe.go` | `bce5ca484e284893b8fb3cc234fdf0d2a3e7d297` |
+| `supply_chain_impact_kubernetes_runtime_probe_fair.go` | `fc548f44218bc4d3cd31bcb63638f6a05b021bc5` |
+| `kubernetes_runtime_workload_store.go` | `1c81d97983cf93a7810756af20973410a69e78d3` |
+| `supply_chain_impact_kubernetes_runtime_probe_performance_live_test.go` | `bca0979ee7bc38bf2e710eaf9fa3aa54ca49f87c` |
+| `kubernetes_runtime_workload_store_fairness_live_test.go` | `c741b71d2ef765057f054adf342cd0fb5dd995b7` |
+
+The post-rebase golden run below then exercised the new cassette digest through
+the shipped API and MCP handlers.
+
 The graph held 200 digests: 1,000 workloads for the lexical first digest and
 two for every other digest. Each latency row used three warmups and 15 measured
 requests. Concurrent measurements used four requests, two warmups, and eight
@@ -134,6 +149,62 @@ go test ./internal/query \
 go test -race ./internal/query \
   -run 'KubernetesRuntime|SameKubernetesRuntimeEvidence' -count=1
 # exit 0
+```
+
+## Golden-corpus response proof
+
+The golden-corpus gate (B-7) indexes the checked-in fixture repositories and
+checks graph, HTTP, and MCP answers against the saved B-12 snapshot. After
+#6011 updated the Kubernetes fixture to the full 64-hex digest, the snapshot
+pins one exact finding on both list surfaces and the singular explanation on
+both explain surfaces. Each response must carry these three current workloads:
+
+- `kubernetes_live:supply-chain-demo:/v1/pods:default:supply-chain-demo-pod`
+- `kubernetes_live:supply-chain-demo:apps/v1/deployments:default:supply-chain-demo`
+- `kubernetes_live:supply-chain-demo:apps/v1/replicasets:default:supply-chain-demo-7f8d9`
+
+The same assertions require `candidate_limit: 200`,
+`workload_refs_truncated: false`, and the existing `runtime_confirmed` value
+for both deployment truth and version resolution. The list shapes set both
+their minimum and maximum result count to one, so wildcard assertions cannot
+be satisfied by different findings. A hostile watcher empties the workload
+refs or removes the probe block and requires the evaluator to fail.
+
+The saved corpus has cloud runtime evidence for this digest too. Version
+resolution keeps `cloud_runtime_probe` as the winner when both sources match,
+and the public response does not serialize the winner's evidence-kind string.
+The corpus proof therefore binds the Kubernetes source through its exact refs
+and probe metadata, without adding a new wire field or tier label.
+
+```bash
+cd go
+go test ./internal/goldengate/... ./cmd/golden-corpus-gate/ -count=1
+# exit 0
+
+cd ..
+bash scripts/test-verify-golden-corpus-gate.sh
+# exit 0
+
+cd go
+go test ./internal/ifa/... ./cmd/ifa -count=1
+# exit 0
+
+cd ..
+bash scripts/test-verify-ifa-determinism.sh
+# exit 0
+bash scripts/test-verify-ifa-dead-letter-matrix.sh
+# exit 0
+
+cd go
+go run ./cmd/ifa coverage \
+  -specs-dir ../specs \
+  -snapshot ../testdata/golden/e2e-20repo-snapshot.json
+# exit 0: 24 pass, 0 required-fail, 173 advisory-warn
+
+cd ..
+bash scripts/verify-golden-corpus-gate.sh
+# exit 0: 548 pass, 0 required-fail, 3 advisory timing warnings;
+# pipeline elapsed 213s, required ceiling 1800s
 ```
 
 ## Observability Evidence:
