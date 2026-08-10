@@ -60,7 +60,7 @@ func buildResolvedEdgeIntentRow(
 
 	payload := map[string]any{
 		"repo_id":           r.SourceRepoID,
-		"evidence_source":   crossRepoEvidenceSource,
+		"evidence_source":   CrossRepoEvidenceSource,
 		"resolved_id":       relationships.ResolvedRelationshipID(generationID, r, ordinal),
 		"generation_id":     generationID,
 		"confidence":        r.Confidence,

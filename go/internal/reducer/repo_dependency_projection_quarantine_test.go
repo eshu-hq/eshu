@@ -250,7 +250,7 @@ func validRepoDependencyQuarantineRunner(t *testing.T) RepoDependencyProjectionR
 			"repo_id":           repoID,
 			"target_repo_id":    "repository:quarantine-target",
 			"relationship_type": "DEPENDS_ON",
-			"evidence_source":   crossRepoEvidenceSource,
+			"evidence_source":   CrossRepoEvidenceSource,
 		},
 	)
 	store := &fakeRepoDependencyIntentStore{

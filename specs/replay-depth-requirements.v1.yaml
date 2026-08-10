@@ -53,6 +53,7 @@ retractable_node_types:
   - ImplBlock
   - Interface
   - Macro
+  - PagerDutyDeclaration
   - Property
   - Protocol
   - ProtocolImplementation
@@ -99,6 +100,7 @@ retractable_node_types:
   - TerraformOutput
   - TerraformProvider
   - TerraformRemovedBlock
+  - TerraformBlock
   - TerraformResource
   - TerraformStateResource
   - TerraformVariable
@@ -107,6 +109,9 @@ retractable_node_types:
   - TerragruntInput
   - TerragruntLocal
   # cloudformation
+  - CloudFormationCondition
+  - CloudFormationExport
+  - CloudFormationImport
   - CloudFormationOutput
   - CloudFormationParameter
   - CloudFormationResource

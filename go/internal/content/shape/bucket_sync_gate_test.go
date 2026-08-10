@@ -63,13 +63,16 @@ var knownBucketSyncDrift = map[string]string{}
 
 // knownMissingProjectorLabels records labels this table declares that the
 // projector cannot name. Same rule: an entry is a defect, not a licence.
-var knownMissingProjectorLabels = map[string]string{
-	"CloudFormationCondition": "cloudformation_conditions reaches the collector (#5531) but entityTypeLabelMap in go/internal/projector/canonical.go has no entry for it, so the node has no canonical label; tracked by #5954",
-	"CloudFormationExport":    "cloudformation_cross_stack_exports reaches the collector (#5531) but entityTypeLabelMap has no entry for it, so the node has no canonical label; tracked by #5954",
-	"CloudFormationImport":    "cloudformation_cross_stack_imports reaches the collector (#5531) but entityTypeLabelMap has no entry for it, so the node has no canonical label; tracked by #5954",
-	"TerraformBlock":          "terraform_blocks reaches the collector (#5531) but entityTypeLabelMap has no entry for it, so the node has no canonical label; tracked by #5954",
-	"PagerDutyDeclaration":    "emitted as a content entity (the collector carries pagerduty_declarations) but entityTypeLabelMap has no entry for it, so the node cannot be canonically labelled; tracked by #5954",
-}
+// Empty since #5954: the five labels that lived here — CloudFormationCondition,
+// CloudFormationExport, CloudFormationImport, TerraformBlock and
+// PagerDutyDeclaration — are registered in entityTypeLabelMap and
+// uidConstraintLabels, so all three registries agree again and the sync gate
+// enforces full parity with no exemptions.
+//
+// Keep it that way if you can. An entry here is a bucket whose rows reach the
+// content store and have no graph node, and extractEntities drops them with no
+// error and no counter, so nothing outside this ledger records the loss.
+var knownMissingProjectorLabels = map[string]string{}
 
 // TestContentEntityBucketsMatchCollectorTwin is the gate: the canonical table
 // and the collector's twin must carry the same bucket->label pairs.

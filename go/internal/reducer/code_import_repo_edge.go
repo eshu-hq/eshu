@@ -15,7 +15,7 @@ import (
 // codeImportEvidenceSource labels repo-to-repo DEPENDS_ON edges derived from
 // per-file external import sources correlated to package-registry ownership. It
 // is deliberately distinct from packageConsumptionEvidenceSource
-// ("projection/package-consumption") and crossRepoEvidenceSource
+// ("projection/package-consumption") and CrossRepoEvidenceSource
 // ("resolver/cross-repo") so the code-import edges are independently retractable
 // and so query surfaces can attribute the edge to parser import provenance
 // (issue #3642).

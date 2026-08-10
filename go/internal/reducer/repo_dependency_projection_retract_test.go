@@ -25,7 +25,7 @@ func TestRepoDependencyProjectionRunnerProcessesRetractOnlyIntent(t *testing.T) 
 		map[string]any{
 			"repo_id":         repoID,
 			"action":          "retract",
-			"evidence_source": crossRepoEvidenceSource,
+			"evidence_source": CrossRepoEvidenceSource,
 			"generation_id":   "gen-removed-evidence",
 		},
 	)
@@ -59,7 +59,7 @@ func TestRepoDependencyProjectionRunnerProcessesRetractOnlyIntent(t *testing.T) 
 	if len(writer.retractCalls) != 1 {
 		t.Fatalf("retract calls = %d, want 1", len(writer.retractCalls))
 	}
-	if got, want := writer.retractCalls[0].evidenceSource, crossRepoEvidenceSource; got != want {
+	if got, want := writer.retractCalls[0].evidenceSource, CrossRepoEvidenceSource; got != want {
 		t.Fatalf("retract evidence source = %q, want %q", got, want)
 	}
 	if got, want := writer.retractCalls[0].rows[0].RepositoryID, repoID; got != want {
@@ -91,7 +91,7 @@ func TestRepoDependencyProjectionRunnerRetractsThenRewritesSurvivingEvidence(t *
 			"repo_id":           repoID,
 			"target_repo_id":    "repository:r_removed",
 			"relationship_type": "DEPLOYS_FROM",
-			"evidence_source":   crossRepoEvidenceSource,
+			"evidence_source":   CrossRepoEvidenceSource,
 		},
 	)
 	oldRemoved.CompletedAt = &oldCompletedAt
@@ -107,7 +107,7 @@ func TestRepoDependencyProjectionRunnerRetractsThenRewritesSurvivingEvidence(t *
 			"repo_id":           repoID,
 			"target_repo_id":    "repository:r_survivor",
 			"relationship_type": "DISCOVERS_CONFIG_IN",
-			"evidence_source":   crossRepoEvidenceSource,
+			"evidence_source":   CrossRepoEvidenceSource,
 		},
 	)
 	oldSurvivor.CompletedAt = &oldCompletedAt
@@ -123,7 +123,7 @@ func TestRepoDependencyProjectionRunnerRetractsThenRewritesSurvivingEvidence(t *
 			"repo_id":           repoID,
 			"target_repo_id":    "repository:r_survivor",
 			"relationship_type": "DISCOVERS_CONFIG_IN",
-			"evidence_source":   crossRepoEvidenceSource,
+			"evidence_source":   CrossRepoEvidenceSource,
 		},
 	)
 	reader := &fakeRepoDependencyIntentStore{
