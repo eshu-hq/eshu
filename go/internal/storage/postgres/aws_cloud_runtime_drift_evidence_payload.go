@@ -86,12 +86,20 @@ func awsRuntimeStateRowFromPayload(scopeID, address string, payload []byte) (row
 	}
 	address = strings.TrimSpace(address)
 	// "arn" is the join key, not a value, so a redacted one is rejected rather
-	// than carried. LoadPackagedSchemaResolver returns (nil, nil) when no
-	// provider-schema bundle parses, and schemaTrust answers SchemaUnknown for
-	// every attribute against a nil resolver, so the state parser fail-closed-
-	// redacts "arn" along with everything else. coerceJSONString renders that
-	// marker map through fmt.Sprint into a NON-EMPTY garbage string, which
-	// satisfies the emptiness guard below and then keys stateByARN.
+	// than carried.
+	//
+	// Until #5870, LoadPackagedSchemaResolver returned (nil, nil) when no
+	// provider-schema bundle parsed, and schemaTrust answers SchemaUnknown for
+	// every attribute against a nil resolver, so the state parser
+	// fail-closed-redacted "arn" along with everything else. That constructor
+	// now fails the collector's startup instead, so it is no longer a source of
+	// a nil resolver.
+	//
+	// This guard stays as defense in depth: SchemaUnknown is the answer for any
+	// pair a resolver does not carry, not only for a nil one, so a redacted
+	// "arn" remains reachable. coerceJSONString renders that marker map through
+	// fmt.Sprint into a NON-EMPTY garbage string, which satisfies the emptiness
+	// guard below and then keys stateByARN.
 	//
 	// Be precise about what this does and does not change. The correlation
 	// OUTCOME is the same either way: the caller iterates observed ARNs and

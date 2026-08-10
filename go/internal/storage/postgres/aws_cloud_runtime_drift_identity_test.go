@@ -18,12 +18,18 @@ import (
 // redaction problem, which is a different failure from the value half #5859
 // fixes.
 //
-// LoadPackagedSchemaResolver returns (nil, nil) when no provider-schema bundle
-// parses (schema_resolver.go:102-103) -- success carrying a nil resolver, not an
-// error -- and parseSchemaInto swallows per-file parse failures, so a corrupt or
-// empty bundle silently yields that nil. schemaTrust then answers SchemaUnknown
-// for EVERY (resourceType, attributeKey) pair with no exemption, so the
-// terraform-state parser fail-closed-redacts every scalar, "arn" included.
+// Until #5870, LoadPackagedSchemaResolver returned (nil, nil) when no
+// provider-schema bundle parsed -- success carrying a nil resolver, not an
+// error -- and parseSchemaInto swallows per-file parse failures, so a corrupt
+// or empty bundle silently yielded that nil. schemaTrust then answers
+// SchemaUnknown for EVERY (resourceType, attributeKey) pair with no exemption,
+// so the terraform-state parser fail-closed-redacts every scalar, "arn"
+// included.
+//
+// That constructor now returns an error instead, so the empty-bundle route to a
+// nil resolver is closed. This test still pins the behaviour, because
+// SchemaUnknown is the answer for any pair a resolver does not carry -- not
+// only for a nil resolver -- so a redacted "arn" stays reachable.
 //
 // "arn" is not a value, it is the join key. A redaction map rendered through
 // coerceJSONString's fmt.Sprint default is a non-empty garbage string, so it
