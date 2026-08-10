@@ -115,12 +115,19 @@ func TestRepoDependencyRegistryDerivesTheAlternationRatherThanRelistingIt(t *tes
 // TestRepoDependencyRegistryExcludesCrossDomainAndUnpinnableTypes documents the
 // deliberate exclusions as assertions rather than prose.
 //
-// TARGETS_ENVIRONMENT is written by kubernetes_namespace_node_writer.go too, so
-// claiming it would turn a k8s regression into a spurious failure here. The two
-// evidence-artifact edges have generation-embedded endpoint uids that no exact
-// hand-derived set can pin. Both are written under this domain, so a future
-// "just enumerate the write path" sweep would pull them back in — this test is
-// what makes that a failure instead of a silent change.
+// All three are excluded on ONE ground: their source is an EvidenceArtifact
+// MERGEd with a generation-embedded id, so the endpoint identity changes on
+// every reprojection and no exact hand-derived set can pin it.
+//
+// TARGETS_ENVIRONMENT is also written by kubernetes_namespace_node_writer.go,
+// but that is no longer why it is excluded: materialized_edge_endpoints.go can
+// now separate the two writers by endpoint label. Stating the real ground here
+// stops a maintainer lifting the exclusion on the strength of the endpoint table
+// and discovering the identity problem at the cost of a live-gate acquisition.
+//
+// All three are written under this domain, so a future "just enumerate the write
+// path" sweep would pull them back in — this test makes that a failure rather
+// than a silent change.
 func TestRepoDependencyRegistryExcludesCrossDomainAndUnpinnableTypes(t *testing.T) {
 	t.Parallel()
 

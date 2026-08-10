@@ -15,7 +15,25 @@ import (
 
 // labeledEdge builds a graph edge carrying endpoint labels, which sqlEdge omits
 // because the SQL family needs no endpoint scoping.
-func labeledEdge(edgeType, fromLabel, fromUID, toLabel, toUID string) graphdump.Edge {
+func labeledEdge(edgeType, fromLabel, fromID, toLabel, toID string) graphdump.Edge {
+	// PRODUCTION SHAPE, deliberately: Repository, Workload, WorkloadInstance and
+	// Platform are MERGEd `{id: ...}` and carry no uid at all
+	// (canonical_node_cypher.go:98, canonical.go:24/36/50). An earlier version of
+	// this helper put the value under "uid", which no writer emits for these
+	// labels — so the partition test passed against a graph shape production
+	// cannot produce, while the real live cell would have rejected every edge.
+	return graphdump.Edge{
+		Type:       edgeType,
+		FromLabels: []string{fromLabel},
+		FromProps:  map[string]any{"id": fromID},
+		ToLabels:   []string{toLabel},
+		ToProps:    map[string]any{"id": toID},
+	}
+}
+
+// uidEdge builds the other identity convention: content entities (Function,
+// Class, File) ARE uid-keyed, and both must resolve.
+func uidEdge(edgeType, fromLabel, fromUID, toLabel, toUID string) graphdump.Edge {
 	return graphdump.Edge{
 		Type:       edgeType,
 		FromLabels: []string{fromLabel},
@@ -119,7 +137,7 @@ func TestUnconstrainedFamilyMatchesByTypeAlone(t *testing.T) {
 	t.Parallel()
 
 	graph := fakeEdgeReader{edges: []graphdump.Edge{
-		labeledEdge("RUNS_IN", "Function", "fn-a", "Workload", "wl-a"),
+		uidEdge("RUNS_IN", "Function", "fn-a", "Workload", "wl-a"),
 	}}
 	types, err := ifa.MaterializedEdgeDomainEdgeTypes("runs_in")
 	if err != nil {

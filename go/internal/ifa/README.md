@@ -106,14 +106,29 @@ authoring; it does not build a second coverage framework.
   routine-to-table `WRITES_TO`, in both its baseline and accumulated delta set.
   Because the expected type inventory is registry-derived, adding a tenth type
   without extending the Odù fails closed instead of preserving a stale count.
+- `LoadCodeCallFamilyOdu` (`code_call_family_odu.go`, #5991) - reads the
+  committed `testdata/cassettes/codecalls/` cassette and projects it onto the
+  fact envelopes the reducer's extractor consumes. The code_calls Odù is derived
+  FROM the cassette rather than hand-built in Go the way `sqlFamilyOdu` is, so
+  the offline vacuity guard and the live `ifa drive` assert the same bytes
+  instead of two lists that agree until only one is edited. It proves the
+  EXTRACTOR; the live edge write is a MATCH-MATCH-MERGE on endpoint identity, so
+  a missing endpoint node is a silent no-op the offline guard cannot see and the
+  family stays waived until the live assertion runs.
 - `ExpectedEdge`, `LoadExpectedEdges`, `MaterializedEdgeDomainEdgeTypes`
   (`materialized_edges_assert.go`, #5351) - the exported surface `cmd/ifa`'s
   `assert-edges` verb uses for the LIVE, set-exact non-vacuity assertion: it
   loads the SAME hand-derived expected-edge-set fixture the pure vacuity guard
   consumes (so the live gate and the pure `go test` guard cannot drift on the
   format) and returns the family's registry edge types
-  (registry-derived from `cypher.SQLRelationshipMaterializedEdgeTypes()`) so a
-  live graph read knows which edges belong to the family. This is what backs
+  (registry-derived: each family's set comes from its own writer registry in
+  `internal/storage/cypher`, never hand-listed here) so a live graph read knows
+  which edges belong to the family. All fourteen umbrella families resolve as of
+  #5543 - the multi-type ones (`sql_relationships`, `code_calls`,
+  `inheritance_edges`, `repo_dependency`) through explicit arms, the rest from
+  cypher's shared single-type table. An unregistered family returns an error
+  rather than an empty set, so a caller fails closed instead of asserting
+  nothing. This is what backs
   the `materialized_edges:sql_relationships` manifest row's `proof_gate`
   claims from inside the `ifa-determinism` and `ifa-fault-injection` live
   gates — digest equality across worker counts cannot catch a family silently

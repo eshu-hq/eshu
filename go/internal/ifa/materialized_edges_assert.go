@@ -52,17 +52,6 @@ func LoadExpectedEdges(path string) ([]ExpectedEdge, error) {
 	return out, nil
 }
 
-// MaterializedEdgeDomainEdgeTypes returns the set of graph relationship types
-// the given materialized-edge family's writer registry accepts, so a live
-// `assert-edges` check knows which of a graph's edges belong to the family it
-// is asserting (and ignores every unrelated edge type — CONTAINS, DEPENDS_ON,
-// the GCP families, etc. — that shares the same graph). It is registry-derived
-// (#5330 pattern), never hand-listed: the sql_relationships set comes straight
-// from cypher.SQLRelationshipMaterializedEdgeTypes(), so an additional SQL edge type
-// added to that writer registry is asserted here without a second edit. An
-// unknown family returns nil so the caller can fail closed with a clear
-// message rather than silently asserting an empty type set (which would make
-// any graph vacuously pass).
 // edgeTypeSet projects a writer registry's type->reason map onto the set shape
 // the assert path compares against. Keeping the projection in one helper is what
 // lets a family's arm be a single line, so adding a family cannot accidentally
@@ -75,15 +64,29 @@ func edgeTypeSet(registry map[string]string) map[string]struct{} {
 	return out
 }
 
+// MaterializedEdgeDomainEdgeTypes returns the set of graph relationship types
+// the given materialized-edge family's writer registry accepts, so a live
+// `assert-edges` check knows which of a graph's edges belong to the family it
+// is asserting (and ignores every unrelated edge type — CONTAINS, the GCP
+// families, etc. — that shares the same graph).
+//
+// Every set is registry-derived (#5330 pattern), never hand-listed here, so an
+// edge type added to a writer registry is asserted without a second edit. The
+// multi-type families resolve through explicit arms because their sets span
+// several templates and files: sql_relationships, code_calls (CALLS,
+// REFERENCES, USES_METACLASS, INSTANTIATES), inheritance_edges (INHERITS,
+// OVERRIDES, ALIASES, IMPLEMENTS) and repo_dependency (six repo-to-repo types
+// plus RUNS_ON). The remaining families each materialize a single type and
+// resolve from cypher's shared table.
+//
+// An unknown family returns an error rather than an empty set, so the caller
+// fails closed: an empty type set would assert nothing and let any graph pass
+// vacuously, which is exactly the false green the #5543 waiver rows exist to
+// prevent.
 func MaterializedEdgeDomainEdgeTypes(domain string) (map[string]struct{}, error) {
 	switch domain {
 	case "sql_relationships":
-		reg := cypher.SQLRelationshipMaterializedEdgeTypes()
-		out := make(map[string]struct{}, len(reg))
-		for edgeType := range reg {
-			out[edgeType] = struct{}{}
-		}
-		return out, nil
+		return edgeTypeSet(cypher.SQLRelationshipMaterializedEdgeTypes()), nil
 	case "code_calls":
 		return edgeTypeSet(cypher.CodeCallMaterializedEdgeTypes()), nil
 	case "inheritance_edges":

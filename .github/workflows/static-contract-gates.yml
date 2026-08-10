@@ -195,6 +195,7 @@ jobs:
               - 'go/internal/storage/cypher/edge_writer_sql.go'
               - 'specs/ifa-materialized-edge-coverage.v1.yaml'
               - 'testdata/cassettes/sqlrelationships/**'
+              - 'testdata/cassettes/codecalls/**'
             ifaload:
               - '.github/workflows/static-contract-gates.yml'
               - 'specs/ci-gates.v1.yaml'

@@ -3,11 +3,7 @@
 
 package cypher
 
-import (
-	"strings"
-
-	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
-)
+import "github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 
 // CanonicalRepoRelationshipParams holds the parameters for a typed repository
 // relationship upsert.
@@ -337,48 +333,6 @@ const batchCanonicalRunsOnUpsertCypher = canonicalRunsOnUpsertCypher
 
 const repoDependencyRelationshipEdgeTypes = "DEPENDS_ON|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|" +
 	"PROVISIONS_DEPENDENCY_FOR|USES_MODULE|READS_CONFIG_FROM"
-
-// RepoDependencyMaterializedEdgeTypes returns the relationship types the
-// repo_dependency family materializes, keyed by type and mapped to a short
-// reason (#5999).
-//
-// Seven types. Six are SPLIT OUT OF repoDependencyRelationshipEdgeTypes rather
-// than re-listed, so the set cannot drift from the alternation the live retract
-// actually deletes. RUNS_ON is added explicitly because it is reaped by a
-// separate retract role (retractRepoRunsOnEdgesCypher) against a different
-// topology: the intent row is repo-scoped, but the edge itself is
-// (WorkloadInstance)-[:RUNS_ON]->(Platform), reached through DEFINES/INSTANCE_OF
-// edges that workload materialization writes. A missing RUNS_ON can therefore
-// root-cause in that other domain rather than this one.
-//
-// Do not read retractRepoDependencyEdgesCypher as this family's retract. It
-// names DEPENDS_ON alone and looks authoritative, but its only user,
-// BuildRetractRepoDependencyEdges, has no production caller — it is dead. The
-// live path is buildRepoDependencySplitRetractStatements, whose role 1 deletes
-// the six-type alternation above and whose role 2 deletes RUNS_ON.
-//
-// Deliberately excluded, both written under this domain:
-//
-//   - HAS_DEPLOYMENT_EVIDENCE and EVIDENCES_REPOSITORY_RELATIONSHIP. Their
-//     EvidenceArtifact endpoint uid embeds the generation id and ordinal, so it
-//     changes on every reprojection and no exact hand-derived edge set can pin
-//     them. Covering them needs an id-normalized assertion, not this exact-set
-//     gate. Stated residual gap, not an oversight.
-//   - TARGETS_ENVIRONMENT, which kubernetes_namespace_node_writer.go also writes
-//     from KubernetesNamespace nodes. This registry is a type set with no
-//     source-label scoping, so claiming it would make a k8s-namespace regression
-//     surface as a spurious repo_dependency failure.
-func RepoDependencyMaterializedEdgeTypes() map[string]string {
-	alternatives := strings.Split(repoDependencyRelationshipEdgeTypes, "|")
-	out := make(map[string]string, len(alternatives)+1)
-	for _, edgeType := range alternatives {
-		if edgeType = strings.TrimSpace(edgeType); edgeType != "" {
-			out[edgeType] = "repo-to-repo relationship (retractRepoRelationshipEdgesCypher role 1)"
-		}
-	}
-	out["RUNS_ON"] = "workload-instance-to-platform edge (batchCanonicalRunsOnUpsertCypher, retractRepoRunsOnEdgesCypher role 2)"
-	return out
-}
 
 const retractRepoRelationshipEdgesCypher = `UNWIND $repo_ids AS repo_id
 MATCH (source_repo:Repository {id: repo_id})

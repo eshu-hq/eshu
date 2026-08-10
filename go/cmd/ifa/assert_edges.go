@@ -166,7 +166,7 @@ func assertMaterializedEdges(
 		toUID := propUID(edge.ToProps)
 		if fromUID == "" || toUID == "" {
 			endpointErrs = append(endpointErrs, fmt.Sprintf(
-				"%s edge with missing endpoint uid (from=%q to=%q) — an unmaterialized endpoint node",
+				"%s edge whose endpoint carries neither uid nor id (from=%q to=%q) — an unmaterialized endpoint node",
 				edge.Type, fromUID, toUID,
 			))
 			return nil
@@ -243,8 +243,21 @@ func propUID(props map[string]any) string {
 	if props == nil {
 		return ""
 	}
-	uid, _ := props["uid"].(string)
-	return uid
+	if uid, ok := props["uid"].(string); ok && uid != "" {
+		return uid
+	}
+	// Fall back to "id": the graph keys node labels two different ways and the
+	// assert path has to speak both. Content entities (Function, Class, File,
+	// the SQL family's endpoints) are uid-keyed, but Repository, Workload,
+	// WorkloadInstance and Platform are MERGEd `{id: ...}` and carry no uid at
+	// all (canonical_node_cypher.go:98, canonical.go:24/36/50).
+	//
+	// Reading only "uid" made every repo_dependency and workload_dependency edge
+	// look like it had an unmaterialized endpoint, which is both wrong and a
+	// misleading diagnosis — the node exists, it is simply keyed by id. uid stays
+	// first so uid-bearing endpoints are unaffected.
+	id, _ := props["id"].(string)
+	return id
 }
 
 // hasLabel reports whether a graph endpoint carries the required node label.

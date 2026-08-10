@@ -722,6 +722,27 @@ repository ids, node ids, and statements stay out of metric labels.
 
 ## Exported surface
 
+**Materialized-edge family registries (#5543)**
+
+- `CodeCallMaterializedEdgeTypes` - the code_calls family's four types (CALLS,
+  REFERENCES, USES_METACLASS, INSTANTIATES), keyed by type
+- `InheritanceMaterializedEdgeTypes` - the inheritance_edges family's four
+  (INHERITS, OVERRIDES, ALIASES, IMPLEMENTS)
+- `RepoDependencyMaterializedEdgeTypes` - the repo_dependency family's seven:
+  the six repo-to-repo alternatives split out of the live retract's alternation,
+  plus RUNS_ON, which a separate retract role reaps
+- `SingleTypeMaterializedEdgeFamilyNames`, `SingleTypeMaterializedEdgeTypes` -
+  the ten families that materialize exactly one relationship type
+- `MaterializedEdgeEndpoint`, `MaterializedEdgeEndpointLabels` - per-edge-type
+  endpoint label constraints for families whose types are shared. DEPENDS_ON is
+  written Repository->Repository by repo_dependency and Workload->Workload by
+  workload_dependency, so type alone cannot partition them. A family with no
+  constraints is matched by type alone, never by nothing.
+
+All of these are read by `ifa.MaterializedEdgeDomainEdgeTypes` to scope the live
+`assert-edges` check, and each is pinned against what its production retract
+actually deletes.
+
 **Core types**
 
 - `Statement` — one executable Cypher statement: `Operation`, `Cypher`,
