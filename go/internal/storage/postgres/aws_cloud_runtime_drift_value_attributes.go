@@ -75,7 +75,7 @@ func cloudObservedValueAttributes(
 			return map[string]string{"ami": v}, nil, false, false
 		}
 	case cloudResourceTypeLambdaFunction, cloudResourceTypeLambdaFunctionProd:
-		if out := comparableScalarAttrSet(attributes, "image_uri", "version"); len(out) > 0 {
+		if out := lambdaComparableScalarAttrSet(attributes); len(out) > 0 {
 			return out, nil, false, false
 		}
 	case cloudResourceTypeECSTaskDefinition, cloudResourceTypeECSTaskDefinitionProd:
@@ -113,7 +113,7 @@ func stateDeclaredValueAttributes(
 			return map[string]string{"ami": v}, nil, false, false
 		}
 	case terraformResourceTypeAWSLambdaFunction:
-		if out := comparableScalarAttrSet(attributes, "image_uri", "version"); len(out) > 0 {
+		if out := lambdaComparableScalarAttrSet(attributes); len(out) > 0 {
 			return out, nil, false, false
 		}
 	case terraformResourceTypeAWSECSTaskDefinition:
@@ -191,6 +191,60 @@ func comparableScalarAttr(attributes map[string]any, key string) string {
 // Only a REDACTED comparable suppresses the set. A genuinely absent one does
 // not, or every zip-packaged Lambda (no "image_uri" by design) would go
 // inconclusive -- the objection #5861 records against widening this further.
+// lambdaComparableScalarAttrSet reads aws_lambda_function's allowlisted
+// comparables, adding one completeness rule comparableScalarAttrSet's
+// redaction rule cannot express.
+//
+// comparableScalarAttrSet suppresses on a REDACTED comparable but deliberately
+// not on an ABSENT one, because a zip-packaged Lambda has no image_uri by
+// design and suppressing on absence would report every one of them as
+// value_comparison_inconclusive -- the noise objection #5861 records against
+// widening that rule.
+//
+// package_type separates the two cases without any new collector plumbing: it
+// is a real aws_lambda_function Terraform attribute AND the AWS collector
+// already emits it (go/internal/collector/awscloud/services/lambda/scanner.go),
+// so both decoders receive it. package_type == "Image" with no image_uri is
+// therefore not "this resource has no image", it is "this pass could not
+// observe the image" -- reachable when GetFunction returns a nil output and
+// the client falls back to the ListFunctions FunctionConfiguration, which
+// carries PackageType but no Code block.
+//
+// Left untreated that side yields Comparable=2, Compared=1, Drifted=0,
+// Inconclusive()=false, so Classify returns "" (convergence), BuildCandidates
+// drops the ARN, and the generation-authoritative retire deletes a still-true
+// finding -- the same destructive outcome #5904's redaction rule exists to
+// prevent, reached through absence instead. Suppressing the whole set drops
+// Compared to 0 and reports uncertainty on a durable row instead.
+//
+// package_type is read as a completeness SIGNAL only; it is not in
+// cloudruntime's valueAttributeAllowlist and no drift is reported on it.
+// Adding it there would turn an out-of-band Image-to-Zip repackaging into a
+// real image_version_drift and needs its own accuracy review.
+//
+// A package_type that is itself unreadable does not match "Image" and falls
+// through to the ordinary path, where a redacted image_uri is already caught
+// by the redaction rule.
+func lambdaComparableScalarAttrSet(attributes map[string]any) map[string]string {
+	if lambdaImagePackagedWithoutImageURI(attributes) {
+		return nil
+	}
+	return comparableScalarAttrSet(attributes, "image_uri", "version")
+}
+
+// lambdaImagePackagedWithoutImageURI reports whether attributes describe an
+// image-packaged Lambda whose image_uri this pass did not observe. Comparison
+// is case-insensitive because the value is a provider/API string ("Image" from
+// the AWS SDK, "Image" in Terraform state) rather than an identifier this repo
+// mints.
+func lambdaImagePackagedWithoutImageURI(attributes map[string]any) bool {
+	packageType := strings.TrimSpace(coerceJSONString(attributes["package_type"]))
+	if !strings.EqualFold(packageType, "Image") {
+		return false
+	}
+	return strings.TrimSpace(coerceJSONString(attributes["image_uri"])) == ""
+}
+
 func comparableScalarAttrSet(attributes map[string]any, keys ...string) map[string]string {
 	for _, key := range keys {
 		if redactedAnywhere(attributes[key]) {
