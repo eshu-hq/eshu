@@ -20,7 +20,7 @@ import (
 // fixture bug originates, and until this test existed nothing guarded them
 // at all.
 //
-// Reuses walkJSONStrings, isDigestField, isVersionValue, digestPattern, and
+// Reuses walkJSONStrings, isDigestField, isVersionValue, and
 // digestFieldValueIsWellFormed from snapshot_digest_format_test.go verbatim
 // — the predicates are the contract, not something this test should
 // redefine.

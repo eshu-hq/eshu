@@ -111,20 +111,20 @@ func isHashesMapDigestField(location string) bool {
 // isDigestField never fired on them before this fix.
 //
 // TestLoadSnapshotPackageArtifactHashesEntryMatchesCassette
-// (property_assertions_package_artifact_hashes_test.go, added in da6f5cab7
-// itself) is a DIFFERENT, complementary mechanism, not a substitute for this
-// one: it derives its expected hashes value from the package_registry
-// cassette and compares that derivation against the committed snapshot pin,
-// so it catches the two copies drifting APART from each other. It is
-// structurally blind to a truncation present in BOTH copies -- which is
-// exactly the shape #6011 took, one hand-edit propagated through five
-// separate copies of the same value. That is not hypothetical for this
-// corpus: on origin/main, the packageregistry/supply-chain-demo.json
+// (property_assertions_package_artifact_hashes_test.go, whose cassette-derived
+// form this branch introduced) is a DIFFERENT, complementary mechanism, not a
+// substitute for this one: it derives its expected hashes value from the
+// package_registry cassette and compares that derivation against the
+// committed snapshot pin, so it catches the two copies drifting APART from
+// each other. It is structurally blind to a truncation present in BOTH
+// copies -- which is exactly the shape #6011 took, one hand-edit propagated
+// through five separate copies of the same value. That is not hypothetical
+// for this corpus: on origin/main, the packageregistry/supply-chain-demo.json
 // cassette's lib-common hashes carried a 63-hex sha256 and a 127-hex sha512,
 // the committed snapshot pin carried the identical truncation, and
 // TestLoadSnapshotPackageArtifactHashesEntryMatchesCassette passed anyway --
-// the cassette-derived value and the committed pin agreed with each other,
-// not with reality. This walker is the mechanism that actually catches that
+// the value it compared and the committed pin agreed with each other, not
+// with reality. This walker is the mechanism that actually catches that
 // corpus: it checks each hashes-map value's own shape, independent of what
 // the other copy says.
 func TestIsDigestFieldHandlesHashesMapShape(t *testing.T) {
