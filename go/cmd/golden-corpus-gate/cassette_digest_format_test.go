@@ -15,9 +15,10 @@ import (
 // digest, for the same reason TestSnapshotDigestsAreWellFormedSHA256 checks
 // the B-12 snapshot: nothing downstream re-validates the value, and the
 // snapshot's own digest values are copies of these. #6011 fixed 76 malformed
-// occurrences by walking the snapshot alone; the cassettes are where that
-// class of fixture bug originates, and until this test existed nothing
-// guarded them at all.
+// occurrences across 25 files (cassettes, snapshot, fixtures, evidence docs,
+// and query-string assertions); the cassettes are where that class of
+// fixture bug originates, and until this test existed nothing guarded them
+// at all.
 //
 // Reuses walkJSONStrings, isDigestField, isVersionValue, digestPattern, and
 // digestFieldValueIsWellFormed from snapshot_digest_format_test.go verbatim

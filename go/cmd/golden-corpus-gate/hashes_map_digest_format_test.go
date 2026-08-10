@@ -103,8 +103,8 @@ func isHashesMapDigestField(location string) bool {
 }
 
 // TestIsDigestFieldHandlesHashesMapShape is the P2-1 regression: the gate's
-// own motivating defect (#6011 — 76 truncated digests in the golden
-// snapshot) reintroduced against package_registry.package_artifact's
+// own motivating defect (#6011 — 76 malformed digests across 25 files)
+// reintroduced against package_registry.package_artifact's
 // hashes.sha256/hashes.sha512 shape must be CAUGHT, not silently skipped.
 // digestFieldSegment yields "sha256"/"sha512" for these locations — the
 // algorithm name, not a "digest"/"*_digest"/"digest_or_version" suffix — so
