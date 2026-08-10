@@ -142,6 +142,7 @@ func TestProcessPartitionOnceHeartbeatKeepsLeaseAliveAgainstPostgres(t *testing.
 		_, procErr := reducer.ProcessPartitionOnce(
 			ctx, time.Now().UTC(), cfg, store, reader, edges,
 			lookup, nil, nil, nil, nil, nil, nil,
+			nil,
 		)
 		processDone <- procErr
 	}()
@@ -250,6 +251,7 @@ func TestProcessPartitionOnceReleasesLeaseRowAfterNormalCycleAgainstPostgres(t *
 	if _, err := reducer.ProcessPartitionOnce(
 		ctx, time.Now().UTC(), cfg, store, reader, edges,
 		lookup, nil, nil, nil, nil, nil, nil,
+		nil,
 	); err != nil {
 		t.Fatalf("ProcessPartitionOnce() error = %v", err)
 	}
@@ -427,12 +429,12 @@ func (s *postgresProofSlowEdgeWriter) RetractEdges(context.Context, string, []re
 	return nil
 }
 
-func (s *postgresProofSlowEdgeWriter) WriteEdges(ctx context.Context, _ string, _ []reducer.SharedProjectionIntentRow, _ string) error {
+func (s *postgresProofSlowEdgeWriter) WriteEdges(ctx context.Context, _ string, _ []reducer.SharedProjectionIntentRow, _ string) (reducer.SharedProjectionWriteReport, error) {
 	select {
 	case <-s.writeBlock:
-		return nil
+		return reducer.SharedProjectionWriteReport{}, nil
 	case <-ctx.Done():
-		return ctx.Err()
+		return reducer.SharedProjectionWriteReport{}, ctx.Err()
 	}
 }
 

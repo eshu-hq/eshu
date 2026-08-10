@@ -110,7 +110,7 @@ func TestReducerInheritanceEdgeRetractGraphTruth(t *testing.T) {
 			"parent_entity_id": inhParentC, "parent_entity_type": "Class",
 		}},
 	}
-	if err := writer.WriteEdges(ctx, reducer.DomainInheritanceEdges, writeRows, inheritEdgeEvidenceSource); err != nil {
+	if _, err := writer.WriteEdges(ctx, reducer.DomainInheritanceEdges, writeRows, inheritEdgeEvidenceSource); err != nil {
 		t.Fatalf("WriteEdges: %v", err)
 	}
 

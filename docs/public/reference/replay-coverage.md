@@ -4,7 +4,7 @@
 
 Every surface Eshu claims to support should have a green, credential-free, Docker-free replay scenario. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 431/432 surfaces satisfied (99.77%)** — mode: blocking.
+**Overall: 436/437 surfaces satisfied (99.77%)** — mode: blocking.
 
 ## Coverage by axis
 
@@ -19,9 +19,9 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | Projections (cost/ordering) | 29 | 29 | 100.00% | 0 | 1 |
 | Reducer drain (crash) | 1 | 1 | 100.00% | 0 | 0 |
 | Retractable edge types (delta) | 63 | 64 | 98.44% | 1 | 1 |
-| Retractable node types (delta) | 95 | 95 | 100.00% | 0 | 1 |
+| Retractable node types (delta) | 100 | 100 | 100.00% | 0 | 1 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **431** | **432** | **99.77%** | **1** | **12** |
+| **Total** | **436** | **437** | **99.77%** | **1** | **12** |
 
 ## Coverage by scenario type
 
@@ -30,7 +30,7 @@ Every surface Eshu claims to support should have a green, credential-free, Docke
 | baseline | 222 | 222 | 100.00% | 0 | 5 |
 | cost | 28 | 28 | 100.00% | 0 | 1 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
-| delta_tombstone | 159 | 160 | 99.38% | 1 | 2 |
+| delta_tombstone | 164 | 165 | 99.39% | 1 | 2 |
 | fault | 17 | 17 | 100.00% | 0 | 4 |
 | ordering | 3 | 3 | 100.00% | 0 | 0 |
 
@@ -50,7 +50,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 - `retractable_edge:DERIVED_FROM` (delta_tombstone)
 
-## Covered surfaces (431)
+## Covered surfaces (436)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact |
 | --- | --- | --- | --- | --- |
@@ -239,7 +239,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 | `read_surface:GET /api/v0/secrets-iam/posture-summary` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/secrets-iam/posture-summary?scope_id=supply-chain-demo` |
 | `read_surface:GET /api/v0/semantic/code-hints` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/semantic/code-hints?provider_profile_id=semantic-code-default&limit=25` |
 | `read_surface:GET /api/v0/semantic/documentation-observations` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/semantic/documentation-observations?provider_profile_id=semantic-docs-default&limit=25` |
-| `read_surface:GET /api/v0/service-catalog/correlations` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/service-catalog/correlations?limit=50&scope_id=supply-chain-demo` |
+| `read_surface:GET /api/v0/service-catalog/correlations` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/service-catalog/correlations?limit=10&repository_id=repository:r_217415d9` |
 | `read_surface:GET /api/v0/supply-chain/impact/findings` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000` |
 | `read_surface:GET /api/v0/supply-chain/sbom-attestations/attachments` | baseline | api_mcp_golden | golden-corpus-gate | `GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&subject_digest=sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8090a` |
 | `read_surface:GET /api/v0/supply-chain/security-alerts/reconciliations` | baseline | exempt | — | — |
@@ -363,6 +363,9 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 | `retractable_node:AtlantisProject` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:AtlantisWorkflow` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:Class` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
+| `retractable_node:CloudFormationCondition` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
+| `retractable_node:CloudFormationExport` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
+| `retractable_node:CloudFormationImport` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:CloudFormationOutput` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:CloudFormationParameter` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:CloudFormationResource` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
@@ -413,6 +416,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 | `retractable_node:PackageRegistryPackageDependency` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:PackageRegistryPackageVersion` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:PackageVersion` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
+| `retractable_node:PagerDutyDeclaration` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:Property` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:Protocol` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:ProtocolImplementation` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
@@ -428,6 +432,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 | `retractable_node:SqlView` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:Struct` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:TerraformBackend` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
+| `retractable_node:TerraformBlock` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:TerraformCheck` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:TerraformDataSource` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |
 | `retractable_node:TerraformImport` | delta_tombstone | cassette | replay-tier | `testdata/cassettes/replaydelta/multi-generation-tombstone.json` |

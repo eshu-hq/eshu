@@ -123,10 +123,26 @@ conflict key or make the write idempotent.
 
 ## Known gaps (honest — these are where you propose new docs)
 
-1. **No published SLO / performance contract** — the scale-corpus spec defines
-   *which* metrics to measure (fact rows/sec, queue-claim p95, reducer drain,
-   graph-write p95, api/mcp p95) but not target thresholds. Treat "baseline or
-   known-normal timing" as the bar until an SLO doc lands.
+1. **No committed accepted scale-benchmark artifact** — the SLO contract is
+    published (`docs/public/reference/performance-slo-contract.md`), but six
+    metrics still have no committed baseline or budget to measure against,
+    because no accepted `scale-benchmark-artifact` run is committed. They do
+    not all carry the same kind of bar:
+
+    - fact rows/sec, queue-claim p95, and graph-write p95 are
+      baseline-relative at "within 10 percent" of an accepted same-shape
+      baseline, with no seconds clause.
+    - reducer drain is baseline-relative at "within 10 percent or 60 seconds,
+      whichever is larger", and the stricter projection-tail band governs it
+      in practice.
+    - memory high-water and correlation-fanout p95 are budget-relative
+      ("within profile budget", "within accepted fixture budget") and have no
+      percent-delta concept at all.
+
+    Absolute per-slot targets land when the #3171 harness produces and commits
+    an accepted artifact, for the nine metrics its contract covers.
+    Correlation fanout is not one of them and needs that contract extended
+    first.
 
 ## Operator-only
 

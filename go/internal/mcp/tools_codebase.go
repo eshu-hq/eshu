@@ -183,7 +183,7 @@ func codebaseTools() []ToolDefinition {
 		},
 		{
 			Name:        "find_unmanaged_resources",
-			Description: "Find AWS cloud resources whose active reducer drift facts show no Terraform config owner or only Terraform state ownership.",
+			Description: "Find AWS cloud resources from active reducer drift facts. The default page is limited to resources with no Terraform config owner or only Terraform state ownership; explicitly select image_version_drift or value_comparison_inconclusive to inspect managed value drift or degraded comparison evidence.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -202,7 +202,7 @@ func codebaseTools() []ToolDefinition {
 					"finding_kinds": map[string]any{
 						"type":        "array",
 						"items":       map[string]any{"type": "string"},
-						"description": "Optional finding kinds: orphaned_cloud_resource, unmanaged_cloud_resource, unknown_cloud_resource, or ambiguous_cloud_resource",
+						"description": iacFindingKindsDescription,
 					},
 					"limit": map[string]any{
 						"type":        "integer",

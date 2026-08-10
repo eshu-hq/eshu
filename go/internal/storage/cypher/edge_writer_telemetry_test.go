@@ -33,7 +33,7 @@ func TestEdgeWriterWriteEdgesLogsSharedWriteShape(t *testing.T) {
 		{IntentID: "i3", RepositoryID: "repo-a", Payload: map[string]any{"caller_entity_id": "entity:function:e", "callee_entity_id": "entity:function:f"}},
 	}
 
-	if err := writer.WriteEdges(context.Background(), reducer.DomainCodeCalls, rows, "parser/code-calls"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducer.DomainCodeCalls, rows, "parser/code-calls"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 
@@ -104,7 +104,7 @@ func TestEdgeWriterWriteEdgesLogsDerivedRowsSeparately(t *testing.T) {
 		},
 	}
 
-	if err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 
@@ -149,7 +149,7 @@ func TestEdgeWriterWriteEdgesLogsCodeCallRouteSummaries(t *testing.T) {
 		},
 	}
 
-	if err := writer.WriteEdges(context.Background(), reducer.DomainCodeCalls, rows, "parser/code-calls"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducer.DomainCodeCalls, rows, "parser/code-calls"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 
@@ -216,7 +216,7 @@ func TestEdgeWriterWriteEdgesCodeCallIsolationRecordsBatchTelemetry(t *testing.T
 		{IntentID: "i3", RepositoryID: "repo-a", Payload: map[string]any{"caller_entity_id": "entity:function:e", "callee_entity_id": "entity:function:f"}},
 	}
 
-	if err := writer.WriteEdges(context.Background(), reducer.DomainCodeCalls, rows, "parser/code-calls"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducer.DomainCodeCalls, rows, "parser/code-calls"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 
@@ -255,7 +255,7 @@ func TestEdgeWriterWriteEdgesNonCodeCallDoesNotRecordCodeCallBatchTelemetry(t *t
 		{IntentID: "i3", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a", "target_repo_id": "repo-d"}},
 	}
 
-	if err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 
@@ -289,7 +289,7 @@ func TestEdgeWriterWriteEdgesInheritanceRecordsSharedGroupTelemetry(t *testing.T
 		{IntentID: "i3", RepositoryID: "repo-a", Payload: map[string]any{"child_entity_id": "entity:class:e", "parent_entity_id": "entity:class:f", "repo_id": "repo-a", "relationship_type": "INHERITS"}},
 	}
 
-	if err := writer.WriteEdges(context.Background(), reducer.DomainInheritanceEdges, rows, "reducer/inheritance"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducer.DomainInheritanceEdges, rows, "reducer/inheritance"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 
@@ -324,7 +324,7 @@ func TestEdgeWriterWriteEdgesRepoDependencyRecordsSharedGroupTelemetry(t *testin
 		{IntentID: "i3", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a", "target_repo_id": "repo-d"}},
 	}
 
-	if err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 

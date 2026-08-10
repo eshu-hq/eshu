@@ -254,12 +254,12 @@ func (r *recordingCodeCallProjectionEdgeWriter) RetractEdges(_ context.Context, 
 	return nil
 }
 
-func (r *recordingCodeCallProjectionEdgeWriter) WriteEdges(_ context.Context, _ string, rows []SharedProjectionIntentRow, evidenceSource string) error {
+func (r *recordingCodeCallProjectionEdgeWriter) WriteEdges(_ context.Context, _ string, rows []SharedProjectionIntentRow, evidenceSource string) (SharedProjectionWriteReport, error) {
 	r.writeCalls = append(r.writeCalls, recordedProjectionCall{
 		rows:           append([]SharedProjectionIntentRow(nil), rows...),
 		evidenceSource: evidenceSource,
 	})
-	return nil
+	return SharedProjectionWriteReport{}, nil
 }
 
 type flakyCodeCallProjectionEdgeWriter struct {
@@ -277,10 +277,10 @@ func (r *flakyCodeCallProjectionEdgeWriter) RetractEdges(ctx context.Context, do
 	return r.recordingCodeCallProjectionEdgeWriter.RetractEdges(ctx, domain, rows, evidenceSource)
 }
 
-func (r *flakyCodeCallProjectionEdgeWriter) WriteEdges(ctx context.Context, domain string, rows []SharedProjectionIntentRow, evidenceSource string) error {
+func (r *flakyCodeCallProjectionEdgeWriter) WriteEdges(ctx context.Context, domain string, rows []SharedProjectionIntentRow, evidenceSource string) (SharedProjectionWriteReport, error) {
 	if r.writeFailures > 0 {
 		r.writeFailures--
-		return r.err
+		return SharedProjectionWriteReport{}, r.err
 	}
 	return r.recordingCodeCallProjectionEdgeWriter.WriteEdges(ctx, domain, rows, evidenceSource)
 }
@@ -290,11 +290,11 @@ type blockingCodeCallProjectionEdgeWriter struct {
 	release <-chan struct{}
 }
 
-func (r *blockingCodeCallProjectionEdgeWriter) WriteEdges(ctx context.Context, domain string, rows []SharedProjectionIntentRow, evidenceSource string) error {
+func (r *blockingCodeCallProjectionEdgeWriter) WriteEdges(ctx context.Context, domain string, rows []SharedProjectionIntentRow, evidenceSource string) (SharedProjectionWriteReport, error) {
 	select {
 	case <-r.release:
 	case <-ctx.Done():
-		return ctx.Err()
+		return SharedProjectionWriteReport{}, ctx.Err()
 	}
 	return r.recordingCodeCallProjectionEdgeWriter.WriteEdges(ctx, domain, rows, evidenceSource)
 }

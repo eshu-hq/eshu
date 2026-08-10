@@ -87,7 +87,7 @@ func (h DocumentationEdgeMaterializationHandler) Handle(ctx context.Context, int
 
 	writeRows := buildDocumentationIntentRows(rows, intent.ScopeID)
 	if len(writeRows) > 0 {
-		if err := h.EdgeWriter.WriteEdges(
+		if _, err := h.EdgeWriter.WriteEdges(
 			ctx,
 			DomainDocumentationEdges,
 			writeRows,

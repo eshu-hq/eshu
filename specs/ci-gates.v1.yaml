@@ -1166,7 +1166,7 @@ gates:
     # reviewer, which is the exact failure mode #5837 exposed.
 
   - id: remote-validation-artifacts
-    name: Remote-validation artifact-existence gate
+    name: Remote-validation deployed-evidence gate
     category: exactness
     tier: pre-pr
     blocking: true
@@ -1176,14 +1176,26 @@ gates:
       - "go/internal/capabilitycatalog/**"
       - "go/cmd/capability-inventory/**"
       - "docs/internal/remote-validation/**"
+      - "docs/internal/evidence/**"
+      - "scripts/**/run-remote-e2e-*.sh"
+      - "scripts/**/verify-remote-e2e-*.sh"
+      - "scripts/**/*compose*.sh"
+      - "scripts/verify-golden-corpus-gate.sh"
+      - "scripts/**/run-k8s-*.sh"
+      - "scripts/**/verify-hosted-*.sh"
+      - "scripts/**/*e2e*.sh"
       - "specs/remote-validation-baseline.txt"
       - "specs/remote-validation-frozen.txt"
       - "scripts/verify-remote-validation-artifacts.sh"
       - "scripts/test-verify-remote-validation-artifacts.sh"
+      - "scripts/test-verify-remote-e2e-component-extension.sh"
+      - "scripts/generate-remote-validation-inventory.sh"
+      - "scripts/test-generate-remote-validation-inventory.sh"
+      - "tests/fixtures/component_extension_proof/**"
       - "specs/ci-gates.v1.yaml"
     local:
-      command: "bash scripts/verify-remote-validation-artifacts.sh"
-      test_command: "bash scripts/test-verify-remote-validation-artifacts.sh"
+      command: "bash scripts/generate-remote-validation-inventory.sh && git diff --exit-code -- docs/internal/remote-validation/inventory.generated.json && bash scripts/verify-remote-validation-artifacts.sh"
+      test_command: "bash scripts/test-generate-remote-validation-inventory.sh && bash scripts/test-verify-remote-validation-artifacts.sh && bash scripts/test-verify-dead-iac-compose.sh && bash scripts/test-verify-remote-e2e-component-extension.sh"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify remote-validation-artifacts gate"
@@ -1202,11 +1214,12 @@ gates:
     # verification kind at load time (covered by the existing
     # go test ./internal/capabilitycatalog gate); this gate covers the
     # second half — CheckRemoteValidationArtifacts requires every
-    # remote_validation ref to resolve to
+    # remote_validation ref to resolve to a deployed-tier artifact at
     # docs/internal/remote-validation/<ref>.md or appear in the burn-down
-    # baseline at specs/remote-validation-baseline.txt (currently 115 known-
-    # debt slugs; shrink-only, regenerate with
-    # `bash scripts/verify-remote-validation-artifacts.sh -update`).
+    # baseline. The content check requires a dated command with direct exit
+    # capture, exit 0, a permitted committed deployed source, and an assertion
+    # for every production capability sharing the slug. The generated inventory
+    # binds the matrix rows to their artifact paths without generating run data.
 
   - id: maturity-drift-guard
     name: Support-maturity matrix live-gate drift guard
@@ -1661,6 +1674,7 @@ gates:
       - "scripts/verify-golden-corpus-gate.sh"
       - "scripts/test-verify-golden-corpus-gate.sh"
       - "scripts/lib/golden-corpus-*.sh"
+      - "scripts/lib/test-golden-corpus-*.sh"
       - "scripts/lib/live-gate-lock.sh"
       - "tests/fixtures/ecosystems/**"
     local:
@@ -1697,6 +1711,8 @@ gates:
       - "go/cmd/collector-**"
       - "go/cmd/api/**"
       - "go/cmd/golden-corpus-gate/**"
+      - "go/cmd/mock-prometheus-mimir/**"
+      - "go/cmd/mock-openai-compatible/**"
       - "go/internal/demospec/**"
       - "go/cmd/mcp-server/**"
       - "go/internal/mcp/**"
@@ -1762,6 +1778,10 @@ gates:
       # required "terraform_state" field).
       - "go/internal/boundedset/**"
       - "go/internal/tfstatewarning/**"
+      - "go/internal/ask/**"
+      - "go/internal/askwiring/**"
+      - "go/internal/answerguardrail/**"
+      - "go/internal/answernarration/**"
       - "testdata/golden/**"
       - "testdata/cassettes/**"
       - "tests/fixtures/ecosystems/**"
@@ -1771,6 +1791,7 @@ gates:
       - "scripts/verify-golden-corpus-gate.sh"
       - "scripts/test-verify-golden-corpus-gate.sh"
       - "scripts/lib/golden-corpus-*.sh"
+      - "scripts/lib/test-golden-corpus-*.sh"
       - "scripts/lib/live-gate-lock.sh"
       - "scripts/ci/install-apt-packages.sh"
       - ".github/workflows/golden-corpus-gate.yml"
@@ -1929,6 +1950,7 @@ gates:
       # kept: they are the files the gate is actually about, and the doc renders
       # them as the reader's map of what it guards.
       - "go/internal/ifa/**"
+      - "go/cmd/ifa/**"
       - "go/internal/reducer/**"
       - "go/internal/ifa/materialized_edges*.go"
       - "go/internal/ifa/sql_relationship_odu*.go"
@@ -1938,13 +1960,18 @@ gates:
       - "go/internal/reducer/sql_relationship_embedded_query.go"
       - "go/internal/reducer/sql_relationship_metadata.go"
       - "go/internal/storage/cypher/edge_writer_sql.go"
+      - "go/internal/storage/cypher/materialized_edge_*.go"
+      - "go/internal/storage/cypher/canonical_code_call_edges.go"
+      - "go/internal/storage/cypher/canonical_inheritance_edges.go"
       - "specs/ci-gates.v1.yaml"
       - "specs/ifa-materialized-edge-coverage.v1.yaml"
       - "testdata/cassettes/sqlrelationships/**"
+      - "testdata/cassettes/codecalls/**"
       - "go/internal/ifa/testdata/sqlrelationships/**"
+      - "go/internal/ifa/testdata/codecalls/**"
     local:
-      command: "cd go && go test ./internal/ifa -run 'TestMaterializedEdge|TestSQLRelationship|TestSQLFamily' -count=1 && go test ./internal/reducer -run TestMaterializedEdgeFamilies -count=1"
-      test_command: "cd go && go test ./internal/ifa -run 'TestMaterializedEdge|TestSQLRelationship|TestSQLFamily' -count=1 && go test ./internal/reducer -run TestMaterializedEdgeFamilies -count=1"
+      command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -run TestMaterializedEdgeFamilies -count=1"
+      test_command: "cd go && go test ./internal/ifa ./cmd/ifa -count=1 && go test ./internal/reducer -run TestMaterializedEdgeFamilies -count=1"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify Ifa contract-layer gate"
@@ -1970,8 +1997,13 @@ gates:
       - "go/internal/reducer/sql_relationship_materialization.go"
       - "go/internal/reducer/sql_relationship_embedded_query.go"
       - "go/internal/storage/cypher/edge_writer_sql.go"
+      - "go/internal/storage/cypher/materialized_edge_*.go"
+      - "go/internal/storage/cypher/canonical_code_call_edges.go"
+      - "go/internal/storage/cypher/canonical_inheritance_edges.go"
       - "testdata/cassettes/sqlrelationships/**"
+      - "testdata/cassettes/codecalls/**"
       - "go/internal/ifa/testdata/sqlrelationships/**"
+      - "go/internal/ifa/testdata/codecalls/**"
       - "scripts/verify-ifa-determinism.sh"
       - "scripts/test-verify-ifa-determinism.sh"
       - "scripts/lib/ifa_determinism_common.sh"
@@ -2025,8 +2057,13 @@ gates:
       - "go/internal/reducer/sql_relationship_materialization.go"
       - "go/internal/reducer/sql_relationship_embedded_query.go"
       - "go/internal/storage/cypher/edge_writer_sql.go"
+      - "go/internal/storage/cypher/materialized_edge_*.go"
+      - "go/internal/storage/cypher/canonical_code_call_edges.go"
+      - "go/internal/storage/cypher/canonical_inheritance_edges.go"
       - "testdata/cassettes/sqlrelationships/**"
+      - "testdata/cassettes/codecalls/**"
       - "go/internal/ifa/testdata/sqlrelationships/**"
+      - "go/internal/ifa/testdata/codecalls/**"
       - "scripts/verify-ifa-fault-injection.sh"
       - "scripts/test-verify-ifa-fault-injection.sh"
       - "scripts/lib/ifa_fault_injection_common.sh"

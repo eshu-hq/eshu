@@ -149,30 +149,9 @@ func (h *ImpactHandler) findChangeSurfaceImpactRows(
 	if access.empty() {
 		return nil, false, nil
 	}
-	startPattern, err := changeSurfaceTraversalStartPattern(target)
-	if err != nil {
-		return nil, false, err
-	}
-	// Single anchoring clause: the pinned NornicDB build mis-executes the old
-	// OPTIONAL MATCH + UNWIND relationships(path) + WITH + RETURN DISTINCT shape
-	// (it returned a single all-null row — #5287, proven live). Fold the start
-	// anchor into the path pattern, project the raw relationships(path) list, and
-	// unwind the per-edge provenance in Go. Two constraints from the pinned build:
-	// a `[rel IN relationships(path) | rel.confidence]` comprehension is NOT safe
-	// (it stringifies the edge map), and the old `$environment = '' OR
-	// coalesce(…, '') = ''` predicate silently drops every row when combined with
-	// the relationships(path) projection — so the environment filter uses the
-	// narrower NornicDB-safe form in changeSurfaceEnvironmentClause, applied
-	// server-side before LIMIT and re-checked in Go below.
-	cypher := fmt.Sprintf(changeSurfaceLegacyCypher, startPattern, depth, changeSurfaceEnvironmentClause(environment))
-	params := map[string]any{
-		"target_id": target.ID,
-		"limit":     limit + 1,
-	}
-	if environment != "" {
-		params["environment"] = environment
-	}
-	rows, err := h.Neo4j.Run(ctx, cypher, params)
+	rows, rawTruncated, err := h.changeSurfaceTraversalRows(
+		ctx, target, environment, depth, limit, access,
+	)
 	if err != nil {
 		return nil, false, err
 	}
@@ -184,12 +163,6 @@ func (h *ImpactHandler) findChangeSurfaceImpactRows(
 	seen := make(map[string]struct{}, len(rows))
 	for _, row := range rows {
 		env := StringVal(row, "environment")
-		if environment != "" && env != "" && env != environment {
-			continue
-		}
-		if !impactRepoIDAllowed(changeSurfaceImpactedRowRepoID(row), access) {
-			continue
-		}
 		base := map[string]any{"id": StringVal(row, "id"), "name": StringVal(row, "name"), "labels": StringSliceVal(row, "labels"), "depth": IntVal(row, "depth")}
 		if env != "" {
 			base["environment"] = env
@@ -225,7 +198,7 @@ func (h *ImpactHandler) findChangeSurfaceImpactRows(
 		}
 	}
 	entries, truncated := trimImpactRows(entries, limit)
-	return entries, truncated, nil
+	return entries, rawTruncated || truncated, nil
 }
 
 // changeSurfaceRelEdge is one relationship's provenance unwound from a graph

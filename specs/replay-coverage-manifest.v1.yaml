@@ -115,7 +115,7 @@ coverage:
   - {surface: "read_surface:GET /api/v0/ci-cd/run-correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/ci-cd/run-correlations?limit=50&scope_id=supply-chain-demo", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/semantic/code-hints", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/semantic/code-hints?provider_profile_id=semantic-code-default&limit=25", proof_gate: golden-corpus-gate}
   - {surface: "read_surface:GET /api/v0/semantic/documentation-observations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/semantic/documentation-observations?provider_profile_id=semantic-docs-default&limit=25", proof_gate: golden-corpus-gate}
-  - {surface: "read_surface:GET /api/v0/service-catalog/correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/service-catalog/correlations?limit=50&scope_id=supply-chain-demo", proof_gate: golden-corpus-gate}
+  - {surface: "read_surface:GET /api/v0/service-catalog/correlations", scenario: api_mcp_golden, scenario_type: baseline, ref: "GET /api/v0/service-catalog/correlations?limit=10&repository_id=repository:r_217415d9", proof_gate: golden-corpus-gate}
 
   # C-9 (#4188): CLI read surfaces. Each maps to a B-12 query_shapes.cli key;
   # the golden-corpus-gate asserts offline command/truth-class parity metadata,
@@ -451,6 +451,9 @@ coverage:
   - {surface: retractable_node:Class, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_node:CloudFormationOutput, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_node:CloudFormationParameter, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
+  - {surface: retractable_node:CloudFormationCondition, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
+  - {surface: retractable_node:CloudFormationExport, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
+  - {surface: retractable_node:CloudFormationImport, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_node:CloudFormationResource, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_node:Component, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_node:ContainerImage, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
@@ -521,6 +524,8 @@ coverage:
   - {surface: retractable_node:TerraformOutput, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_node:TerraformProvider, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_node:TerraformRemovedBlock, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
+  - {surface: retractable_node:PagerDutyDeclaration, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
+  - {surface: retractable_node:TerraformBlock, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_node:TerraformResource, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_node:TerraformVariable, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}
   - {surface: retractable_node:TerragruntConfig, scenario: cassette, scenario_type: delta_tombstone, ref: testdata/cassettes/replaydelta/multi-generation-tombstone.json, proof_gate: replay-tier}

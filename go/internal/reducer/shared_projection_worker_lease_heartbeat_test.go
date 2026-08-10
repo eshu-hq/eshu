@@ -78,7 +78,7 @@ func TestProcessPartitionOnceHeartbeatsLeaseDuringSlowWrite(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		_, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil)
+		_, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil, nil)
 		done <- err
 	}()
 
@@ -151,7 +151,7 @@ func TestProcessPartitionOnceReleasesLeaseWithLiveContext(t *testing.T) {
 		BatchLimit:     100,
 	}
 
-	if _, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil); err != nil {
+	if _, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("ProcessPartitionOnce() error = %v", err)
 	}
 
@@ -239,11 +239,11 @@ func (s *slowEdgeWriter) RetractEdges(_ context.Context, _ string, _ []SharedPro
 	return nil
 }
 
-func (s *slowEdgeWriter) WriteEdges(ctx context.Context, _ string, _ []SharedProjectionIntentRow, _ string) error {
+func (s *slowEdgeWriter) WriteEdges(ctx context.Context, _ string, _ []SharedProjectionIntentRow, _ string) (SharedProjectionWriteReport, error) {
 	select {
 	case <-s.writeBlock:
-		return nil
+		return SharedProjectionWriteReport{}, nil
 	case <-ctx.Done():
-		return ctx.Err()
+		return SharedProjectionWriteReport{}, ctx.Err()
 	}
 }

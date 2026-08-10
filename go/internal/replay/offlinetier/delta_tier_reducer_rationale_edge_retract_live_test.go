@@ -95,7 +95,7 @@ func TestReducerRationaleEdgeRetractGraphTruth(t *testing.T) {
 			"repo_id": ratRepoID, "comment_kind": "HACK", "excerpt_hash": "h-cls",
 		}},
 	}
-	if err := writer.WriteEdges(ctx, reducer.DomainRationaleEdges, writeRows, ratEvidenceSource); err != nil {
+	if _, err := writer.WriteEdges(ctx, reducer.DomainRationaleEdges, writeRows, ratEvidenceSource); err != nil {
 		t.Fatalf("WriteEdges: %v", err)
 	}
 

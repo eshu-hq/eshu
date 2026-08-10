@@ -102,16 +102,17 @@ type FileRow struct {
 // EntityRow carries the canonical properties for a labeled entity node.
 // The Label field determines the Neo4j node label (Function, Class, etc.).
 type EntityRow struct {
-	EntityID     string
-	Label        string // Neo4j label: "Function", "Class", etc.
-	EntityName   string
-	FilePath     string
-	RelativePath string
-	StartLine    int
-	EndLine      int
-	Language     string
-	RepoID       string
-	Metadata     map[string]any
+	EntityID             string
+	Label                string // Neo4j label: "Function", "Class", etc.
+	EntityName           string
+	FilePath             string
+	RelativePath         string
+	StartLine            int
+	EndLine              int
+	Language             string
+	RepoID               string
+	CyclomaticComplexity int
+	Metadata             map[string]any
 }
 
 // ModuleRow carries the canonical properties for a Module node.
@@ -165,9 +166,18 @@ type NestedFunctionRow struct {
 // go/internal/content/shape/bucket_sync_gate_test.go (CI gate
 // content-entity-bucket-sync) checks contentEntityBuckets and this map stay in
 // sync, except for a small, commented ledger (knownMissingProjectorLabels in
-// that test file) of labels that are deliberately content-store-only today
-// (TerraformBlock, the CloudFormation extended labels, and
-// PagerDutyDeclaration) — graph support for those is tracked by #5954.
+// that test file) of labels that are deliberately content-store-only.
+//
+// TerraformBlock, the CloudFormation extended labels, and PagerDutyDeclaration
+// were on that ledger and now reach the graph (#5954), so they are registered
+// below and removed from it.
+//
+// Register the entity_type key, not the bucket name. They diverge:
+// cloudformation_cross_stack_imports/exports are the BUCKETS, while the
+// entity_type the parser emits is cloudformation_import/export
+// (go/internal/query/entity_content_types.go is the authority). A key derived
+// from the bucket name compiles, passes the sync gate, and still drops every
+// row — the same silent-skip this issue exists to close.
 var entityTypeLabelMap = map[string]string{
 	// Code entities
 	"function":                "Function",
@@ -216,6 +226,7 @@ var entityTypeLabelMap = map[string]string{
 	"terraform_module":        "TerraformModule",
 	"terraform_variable":      "TerraformVariable",
 	"terraform_output":        "TerraformOutput",
+	"terraform_block":         "TerraformBlock",
 	"terraform_datasource":    "TerraformDataSource",
 	"terraform_provider":      "TerraformProvider",
 	"terraform_local":         "TerraformLocal",
@@ -242,6 +253,15 @@ var entityTypeLabelMap = map[string]string{
 	"cloudformation_resource":  "CloudFormationResource",
 	"cloudformation_parameter": "CloudFormationParameter",
 	"cloudformation_output":    "CloudFormationOutput",
+	// Extended CloudFormation entities (#5954). The entity_type drops the
+	// "cross_stack" the bucket names carry: the buckets are
+	// cloudformation_cross_stack_imports/exports, the entity types are these.
+	"cloudformation_condition": "CloudFormationCondition",
+	"cloudformation_import":    "CloudFormationImport",
+	"cloudformation_export":    "CloudFormationExport",
+
+	// Incident-declaration entities (#5954)
+	"pagerduty_declaration": "PagerDutyDeclaration",
 
 	// SQL entities
 	"sql_table":     "SqlTable",

@@ -134,7 +134,7 @@ func TestCostBudget_CodeownersOwnership(t *testing.T) {
 	budget := loadBudgetFrom(t, codeownersOwnershipBudgetRelPath)
 	writer, exec, reader := newInstrumentedCodeownersOwnershipEdgeWriter(t)
 
-	if err := writer.WriteEdges(
+	if _, err := writer.WriteEdges(
 		context.Background(),
 		reducer.DomainCodeownersOwnershipEdges,
 		codeownersOwnershipEdgeFixtureRows(),
@@ -207,7 +207,7 @@ func TestCostBudget_CodeownersOwnership_N1_ExceedsBudget(t *testing.T) {
 	writer, _, reader := newInstrumentedCodeownersOwnershipEdgeWriter(t)
 
 	for _, row := range rows {
-		if err := writer.WriteEdges(
+		if _, err := writer.WriteEdges(
 			context.Background(),
 			reducer.DomainCodeownersOwnershipEdges,
 			[]reducer.SharedProjectionIntentRow{row},

@@ -13,7 +13,7 @@ export interface ConsoleEnvironment {
 type PersistedEnvironment = Omit<ConsoleEnvironment, "apiKey">;
 
 export const consoleStorageKeys = {
-  environment: "eshu.console.environment"
+  environment: "eshu.console.environment",
 } as const;
 
 // Build-time key injection (e.g. local dev via VITE_ESHU_API_KEY) seeds the
@@ -23,11 +23,19 @@ export const consoleStorageKeys = {
 const rawApiKeyEnv: unknown = import.meta.env.VITE_ESHU_API_KEY;
 const defaultApiKey: string = typeof rawApiKeyEnv === "string" ? rawApiKeyEnv.trim() : "";
 
+// defaultApiBaseUrl is the base this build ships with, before any saved or
+// operator-entered value overrides it. It is the only base the build-time key
+// may be sent to: a saved apiBaseUrl can be set from the Data source popover
+// (bootFromKey persists the attempted base even when the attempt fails), so
+// the stored value is operator-influenced and cannot anchor a credential
+// trust decision.
+export const defaultApiBaseUrl = "/eshu-api/";
+
 const defaultEnvironment: ConsoleEnvironment = {
   apiKey: defaultApiKey,
-  apiBaseUrl: "/eshu-api/",
+  apiBaseUrl: defaultApiBaseUrl,
   mode: "private",
-  recentApiBaseUrls: []
+  recentApiBaseUrls: [],
 };
 
 export function loadConsoleEnvironment(): ConsoleEnvironment {
@@ -51,35 +59,28 @@ export function saveConsoleEnvironment(environment: ConsoleEnvironment): void {
   const persisted: PersistedEnvironment = {
     apiBaseUrl: normalized.apiBaseUrl,
     mode: normalized.mode,
-    recentApiBaseUrls: normalized.recentApiBaseUrls
+    recentApiBaseUrls: normalized.recentApiBaseUrls,
   };
-  window.localStorage.setItem(
-    consoleStorageKeys.environment,
-    JSON.stringify(persisted)
-  );
+  window.localStorage.setItem(consoleStorageKeys.environment, JSON.stringify(persisted));
 }
 
-function normalizeEnvironment(
-  environment: Partial<ConsoleEnvironment>
-): ConsoleEnvironment {
-  const apiBaseUrl = typeof environment.apiBaseUrl === "string"
-    ? environment.apiBaseUrl.trim()
-    : "";
-  const apiKey = typeof environment.apiKey === "string"
-    ? environment.apiKey.trim()
-    : "";
+function normalizeEnvironment(environment: Partial<ConsoleEnvironment>): ConsoleEnvironment {
+  const apiBaseUrl =
+    typeof environment.apiBaseUrl === "string" ? environment.apiBaseUrl.trim() : "";
+  const apiKey = typeof environment.apiKey === "string" ? environment.apiKey.trim() : "";
   const mode: ConsoleMode = environment.mode === "demo" ? "demo" : "private";
   const savedRecent = Array.isArray(environment.recentApiBaseUrls)
     ? environment.recentApiBaseUrls.filter(isNonEmptyString)
     : [];
-  const recentApiBaseUrls = [...new Set([apiBaseUrl, ...savedRecent].filter(isNonEmptyString))]
-    .slice(0, 5);
+  const recentApiBaseUrls = [
+    ...new Set([apiBaseUrl, ...savedRecent].filter(isNonEmptyString)),
+  ].slice(0, 5);
 
   return {
     apiKey,
     apiBaseUrl,
     mode,
-    recentApiBaseUrls
+    recentApiBaseUrls,
   };
 }
 

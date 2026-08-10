@@ -89,10 +89,10 @@ func TestGraphSummaryPacketRepoScopedShapeIsBoundedAndDeterministic(t *testing.T
 		},
 		multi: func(cypher string, _ map[string]any) ([]map[string]any, error) {
 			switch {
-			case strings.Contains(cypher, "total_degree"):
+			case strings.Contains(cypher, "[call:CALLS]"):
 				return []map[string]any{
-					{"function_id": "fn-a", "function_name": "Alpha", "file_path": "a.go", "incoming_calls": int64(10), "outgoing_calls": int64(5), "total_degree": int64(15)},
-					{"function_id": "fn-b", "function_name": "Beta", "file_path": "b.go", "incoming_calls": int64(4), "outgoing_calls": int64(4), "total_degree": int64(8)},
+					callGraphMetricEdgeRow("fn-a", "a.go", "go", "Alpha", 1, "fn-b", "b.go", "go", "Beta", 1),
+					callGraphMetricEdgeRow("fn-b", "b.go", "go", "Beta", 1, "fn-a", "a.go", "go", "Alpha", 1),
 				}, nil
 			case strings.Contains(cypher, "f.language"):
 				return []map[string]any{
@@ -136,8 +136,8 @@ func TestGraphSummaryPacketRepoScopedShapeIsBoundedAndDeterministic(t *testing.T
 		t.Fatalf("hot_entities len = %d, want 2", len(hot))
 	}
 	first := hot[0].(map[string]any)
-	if got := first["total_degree"]; got != float64(15) {
-		t.Fatalf("hot_entities[0].total_degree = %#v, want 15 (descending order)", got)
+	if got := first["total_degree"]; got != float64(2) {
+		t.Fatalf("hot_entities[0].total_degree = %#v, want 2", got)
 	}
 
 	rel, ok := data["key_relationships"].(map[string]any)
@@ -229,9 +229,9 @@ func TestGraphSummaryPacketRepoScopedInGrantReturnsRealRowData(t *testing.T) {
 			return map[string]any{"count": int64(0)}, nil
 		},
 		multi: func(cypher string, _ map[string]any) ([]map[string]any, error) {
-			if strings.Contains(cypher, "total_degree") {
+			if strings.Contains(cypher, "[call:CALLS]") {
 				return []map[string]any{
-					{"function_id": "fn-a", "function_name": "Alpha", "file_path": "a.go", "incoming_calls": int64(10), "outgoing_calls": int64(5), "total_degree": int64(15)},
+					callGraphMetricEdgeRow("fn-a", "a.go", "go", "Alpha", 1, "fn-a", "a.go", "go", "Alpha", 1),
 				}, nil
 			}
 			return nil, nil
@@ -361,19 +361,19 @@ func TestGraphSummaryPacketEmptyGraphReturnsZerosNotError(t *testing.T) {
 func TestGraphSummaryPacketHonorsLimitTruncation(t *testing.T) {
 	t.Parallel()
 
-	var seenLimit any
+	var seenEdgeScanLimit any
 	reader := &graphSummaryRecordingReader{
 		single: func(_ string, _ map[string]any) (map[string]any, error) {
 			return map[string]any{"count": int64(0)}, nil
 		},
 		multi: func(cypher string, params map[string]any) ([]map[string]any, error) {
-			if strings.Contains(cypher, "total_degree") {
-				seenLimit = params["limit"]
-				// Return limit+1 rows to force truncation at the requested limit of 2.
+			if strings.Contains(cypher, "[call:CALLS]") {
+				seenEdgeScanLimit = params["edge_scan_limit"]
+				// Three distinct functions force truncation at the requested limit of 2.
 				return []map[string]any{
-					{"function_id": "fn-1", "function_name": "One", "total_degree": int64(9)},
-					{"function_id": "fn-2", "function_name": "Two", "total_degree": int64(8)},
-					{"function_id": "fn-3", "function_name": "Three", "total_degree": int64(7)},
+					callGraphMetricEdgeRow("fn-1", "one.go", "go", "One", 1, "fn-2", "two.go", "go", "Two", 1),
+					callGraphMetricEdgeRow("fn-2", "two.go", "go", "Two", 1, "fn-3", "three.go", "go", "Three", 1),
+					callGraphMetricEdgeRow("fn-3", "three.go", "go", "Three", 1, "fn-1", "one.go", "go", "One", 1),
 				}, nil
 			}
 			return nil, nil
@@ -391,8 +391,8 @@ func TestGraphSummaryPacketHonorsLimitTruncation(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body=%s", got, want, w.Body.String())
 	}
-	if seenLimit != 3 {
-		t.Fatalf("hot-entity query limit param = %#v, want 3 (limit+1 for truncation probe)", seenLimit)
+	if seenEdgeScanLimit != callGraphMetricsEdgeScanLimit+1 {
+		t.Fatalf("hot-entity edge scan limit = %#v, want %d", seenEdgeScanLimit, callGraphMetricsEdgeScanLimit+1)
 	}
 	data := decodeGraphSummaryData(t, w.Body.Bytes())
 	hot := data["hot_entities"].([]any)

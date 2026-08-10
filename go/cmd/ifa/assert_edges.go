@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/ifa/graphdump"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 // assertEdgesOptions holds the parsed command-line inputs for one
@@ -81,7 +82,13 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 	}
 	defer closeFn()
 
-	if err := assertMaterializedEdges(ctx, reader, o.domain, edgeTypes, expected); err != nil {
+	// Absent constraints are the common case and mean "match by type alone".
+	// MaterializedEdgeEndpointLabels returns a nil map with ok=false there, and a
+	// nil map's lookups report not-constrained, so the filter is a no-op rather
+	// than a silent match-nothing.
+	endpoints, _ := cypher.MaterializedEdgeEndpointLabels(o.domain)
+
+	if err := assertMaterializedEdges(ctx, reader, o.domain, edgeTypes, endpoints, expected); err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintf(stdout, "ifa assert-edges: domain=%s expected=%d edges matched exactly\n", o.domain, len(expected))
@@ -101,19 +108,32 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 // duplicate that a plain set comparison, and the cross-worker digest, would
 // both miss.
 //
-// An edge's endpoint identity is its node's "uid" property — the canonical
-// graph node id the expected-edge-set fixture's source/target_entity_id names
-// (for a SQL entity the uid equals its content_entity id; for a
-// canonicalNamePathLineEntityLabels endpoint such as a Function it is the
-// derived hash the fixture precomputes — see internal/ifa's
-// sqlFamilyGetUserFunctionUID). An edge missing a uid on either endpoint is a
-// real defect (an unmaterialized endpoint node), so it is surfaced, never
-// silently skipped.
+// An edge's endpoint identity (endpointID) is its node's "uid" property when it has one, and
+// its "id" otherwise — the graph keys nodes both ways and the assertion has to
+// speak both. Content entities are uid-keyed (for a SQL entity the uid equals
+// its content_entity id; for a canonicalNamePathLineEntityLabels endpoint such
+// as a Function it is the derived hash the fixture precomputes — see
+// internal/ifa's sqlFamilyGetUserFunctionUID), while Repository, Workload,
+// WorkloadInstance and Platform are MERGEd `{id: ...}` and carry no uid at all.
+// uid is consulted first, so a node carrying both resolves by uid. An edge whose
+// endpoint has NEITHER is a real defect (an unmaterialized endpoint node), so it
+// is surfaced, never silently skipped.
+//
+// Endpoint scoping (#5543): a family whose relationship types are shared with
+// another family also constrains its edges' endpoint labels. DEPENDS_ON is
+// written Repository->Repository by repo_dependency and Workload->Workload by
+// workload_dependency, so a type-only filter makes each family count the
+// other's edges as spurious extras once both are proven in one live cell.
+//
+// Absent constraints mean "match every edge of this family's types", never
+// "match nothing" — the latter would assert an empty population and pass any
+// graph.
 func assertMaterializedEdges(
 	ctx context.Context,
 	reader graphdump.Reader,
 	domain string,
 	edgeTypes map[string]struct{},
+	endpoints map[string]cypher.MaterializedEdgeEndpoint,
 	expected []ifa.ExpectedEdge,
 ) error {
 	// expectedCounts tracks per-key multiplicity, not just presence: the
@@ -134,12 +154,41 @@ func assertMaterializedEdges(
 		if _, ok := edgeTypes[edge.Type]; !ok {
 			return nil
 		}
-		fromUID := propUID(edge.FromProps)
-		toUID := propUID(edge.ToProps)
+		// A constrained type must match its endpoint labels too. Only families
+		// with a proven type collision carry constraints, and the cypher-side
+		// guard requires them to be total over the family's registered types, so
+		// a constrained family can never have a type silently fall through here
+		// unmatched.
+		if endpoint, constrained := endpoints[edge.Type]; constrained {
+			if !hasLabel(edge.FromLabels, endpoint.FromLabel) || !hasLabel(edge.ToLabels, endpoint.ToLabel) {
+				return nil
+			}
+			// Provenance, where the family declares it. Two live writers can emit
+			// the same type between the same labels (RUNS_ON), and only the
+			// evidence_source the writer stamped tells them apart — the same
+			// property the family's retract scopes on.
+			if endpoint.EvidenceSource != "" {
+				if got, _ := edge.Props["evidence_source"].(string); got != endpoint.EvidenceSource {
+					return nil
+				}
+			}
+		}
+		fromUID := endpointID(edge.FromProps)
+		toUID := endpointID(edge.ToProps)
 		if fromUID == "" || toUID == "" {
+			// Name WHICH side is unidentified. This branch fires when either
+			// endpoint lacks an identity, so a message asserting both are missing
+			// sends the reader looking at a node that is materialized correctly.
+			missing := "source and target"
+			switch {
+			case fromUID == "" && toUID != "":
+				missing = "source"
+			case toUID == "" && fromUID != "":
+				missing = "target"
+			}
 			endpointErrs = append(endpointErrs, fmt.Sprintf(
-				"%s edge with missing endpoint uid (from=%q to=%q) — an unmaterialized endpoint node",
-				edge.Type, fromUID, toUID,
+				"%s edge whose %s endpoint carries neither uid nor id (from=%q to=%q) — an unmaterialized endpoint node",
+				edge.Type, missing, fromUID, toUID,
 			))
 			return nil
 		}
@@ -209,12 +258,49 @@ func assertMaterializedEdges(
 	return fmt.Errorf("%s", b.String())
 }
 
-// propUID extracts a node's canonical "uid" property, returning "" when it is
-// absent or not a string.
-func propUID(props map[string]any) string {
+// endpointID extracts a node's canonical identity: its "uid" when present, and
+// its "id" otherwise. It returns "" when neither is present as a string, which
+// the caller reports as an unmaterialized endpoint.
+func endpointID(props map[string]any) string {
 	if props == nil {
 		return ""
 	}
-	uid, _ := props["uid"].(string)
-	return uid
+	if uid, ok := props["uid"].(string); ok && uid != "" {
+		return uid
+	}
+	// Fall back to "id": the graph keys node labels two different ways and the
+	// assert path has to speak both. Content entities (Function, Class, File,
+	// the SQL family's endpoints) are uid-keyed, but Repository, Workload,
+	// WorkloadInstance and Platform are MERGEd `{id: ...}` and carry no uid at
+	// all (canonical_node_cypher.go:98, canonical.go:24/36/50).
+	//
+	// Reading only "uid" made every repo_dependency and workload_dependency edge
+	// look like it had an unmaterialized endpoint, which is both wrong and a
+	// misleading diagnosis — the node exists, it is simply keyed by id. uid stays
+	// first so uid-bearing endpoints are unaffected.
+	id, _ := props["id"].(string)
+	return id
+}
+
+// hasLabel reports whether a graph endpoint carries the required node label.
+//
+// Endpoints carry a handful of labels in practice (1-3 in this graph), and this
+// runs once per edge per gate run, so the linear scan is deliberate — an index or
+// set conversion would cost more to build than it saves.
+//
+// Endpoints commonly carry several labels, so this is membership rather than
+// equality. An empty required label would match nothing and silently drop the
+// edge type from the assertion; the cypher-side guard rejects blank labels so
+// that cannot reach here, and this returns false rather than true to keep the
+// failure loud if it ever does.
+func hasLabel(labels []string, required string) bool {
+	if required == "" {
+		return false
+	}
+	for _, label := range labels {
+		if label == required {
+			return true
+		}
+	}
+	return false
 }

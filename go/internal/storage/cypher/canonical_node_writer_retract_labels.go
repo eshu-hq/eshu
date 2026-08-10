@@ -39,13 +39,16 @@ var canonicalNodeRetractCodeEntityLabels = map[string]struct{}{
 }
 
 var canonicalNodeRetractInfraEntityLabels = map[string]struct{}{
-	"K8sResource":           {},
-	"ArgoCDApplication":     {},
-	"ArgoCDApplicationSet":  {},
-	"AtlantisProject":       {},
-	"AtlantisWorkflow":      {},
-	"GitlabPipeline":        {},
-	"GitlabJob":             {},
+	"K8sResource":          {},
+	"ArgoCDApplication":    {},
+	"ArgoCDApplicationSet": {},
+	"AtlantisProject":      {},
+	"AtlantisWorkflow":     {},
+	"GitlabPipeline":       {},
+	"GitlabJob":            {},
+	// Incident-declaration content entity (#5954); retracted with the other
+	// declared-infrastructure labels so a delta projection does not strand it.
+	"PagerDutyDeclaration":  {},
 	"CrossplaneXRD":         {},
 	"CrossplaneComposition": {},
 	// CrossplaneClaim is retained here solely to reap legacy nodes: no writer
@@ -76,6 +79,7 @@ var canonicalNodeRetractInfraEntityLabels = map[string]struct{}{
 
 var canonicalNodeRetractTerraformEntityLabels = map[string]struct{}{
 	"TerraformResource":     {},
+	"TerraformBlock":        {},
 	"TerraformModule":       {},
 	"TerraformVariable":     {},
 	"TerraformOutput":       {},
@@ -98,6 +102,14 @@ var canonicalNodeRetractCloudFormationEntityLabels = map[string]struct{}{
 	"CloudFormationResource":  {},
 	"CloudFormationParameter": {},
 	"CloudFormationOutput":    {},
+	// Extended CloudFormation labels (#5954). A label that materializes but is
+	// missing here is never retracted, so a delta or reconciliation projection
+	// leaves the previous generation's nodes behind and they accumulate as
+	// orphans -- the mirror of the silent-skip that kept them out of the graph
+	// in the first place.
+	"CloudFormationCondition": {},
+	"CloudFormationImport":    {},
+	"CloudFormationExport":    {},
 }
 
 var canonicalNodeRetractSQLEntityLabels = map[string]struct{}{

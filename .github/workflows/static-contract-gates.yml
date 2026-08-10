@@ -175,14 +175,30 @@ jobs:
               # exactly the silent-no-op class the gate exists for and the pure
               # seam cannot catch, so it MUST retrigger the Ifa contract-layer
               # gate (which runs the pure ifa-materialized-edge-coverage go test).
+              # The gate runs `go test ./internal/reducer -run
+              # TestMaterializedEdgeFamilies`, which COMPILES the whole package,
+              # so any sibling file can change its verdict. specs/ci-gates.v1.yaml
+              # was broadened to 'go/internal/reducer/**' for exactly that reason
+              # (#5873) but this filter was not, so the registry could select the
+              # gate as required while this workflow never scheduled it. The
+              # aggregator then waited out its 55m timeout on a MISSING job and
+              # failed required-gates-complete -- red that names no real defect
+              # and points at no file. Keep this glob and the registry trigger in
+              # lockstep; the per-file entries below stay as the reader's map of
+              # what the gate is actually about.
+              - 'go/internal/reducer/**'
               - 'go/internal/reducer/materialized_edge_families.go'
               - 'go/internal/reducer/shared_projection.go'
               - 'go/internal/reducer/sql_relationship_materialization.go'
               - 'go/internal/reducer/sql_relationship_embedded_query.go'
               - 'go/internal/reducer/sql_relationship_metadata.go'
               - 'go/internal/storage/cypher/edge_writer_sql.go'
+              - 'go/internal/storage/cypher/materialized_edge_*.go'
+              - 'go/internal/storage/cypher/canonical_code_call_edges.go'
+              - 'go/internal/storage/cypher/canonical_inheritance_edges.go'
               - 'specs/ifa-materialized-edge-coverage.v1.yaml'
               - 'testdata/cassettes/sqlrelationships/**'
+              - 'testdata/cassettes/codecalls/**'
             ifaload:
               - '.github/workflows/static-contract-gates.yml'
               - 'specs/ci-gates.v1.yaml'
@@ -248,10 +264,22 @@ jobs:
               - 'go/internal/capabilitycatalog/**'
               - 'go/cmd/capability-inventory/**'
               - 'docs/internal/remote-validation/**'
+              - 'docs/internal/evidence/**'
+              - 'scripts/**/run-remote-e2e-*.sh'
+              - 'scripts/**/verify-remote-e2e-*.sh'
+              - 'scripts/**/*compose*.sh'
+              - 'scripts/verify-golden-corpus-gate.sh'
+              - 'scripts/**/run-k8s-*.sh'
+              - 'scripts/**/verify-hosted-*.sh'
+              - 'scripts/**/*e2e*.sh'
               - 'specs/remote-validation-baseline.txt'
               - 'specs/remote-validation-frozen.txt'
               - 'scripts/verify-remote-validation-artifacts.sh'
               - 'scripts/test-verify-remote-validation-artifacts.sh'
+              - 'scripts/test-verify-remote-e2e-component-extension.sh'
+              - 'scripts/generate-remote-validation-inventory.sh'
+              - 'scripts/test-generate-remote-validation-inventory.sh'
+              - 'tests/fixtures/component_extension_proof/**'
             claudrules:
               - '.claude/rules/**'
               - 'scripts/dev/claude-rules-lint.sh'
@@ -312,7 +340,7 @@ jobs:
           append_gate "${{ steps.filter.outputs.querydoccommitrefs }}" "querydoccommitrefs" "Verify query-doc-commit-refs gate" "bash scripts/test-verify-query-doc-commit-refs.sh" "bash scripts/verify-query-doc-commit-refs.sh"
           append_gate "${{ steps.filter.outputs.doccitations }}" "doccitations" "Verify doc-citations gate" "bash scripts/test-verify-doc-citations.sh" "bash scripts/verify-doc-citations.sh"
           append_gate "${{ steps.filter.outputs.measurementcite }}" "measurementcite" "Verify measurement-citations gate" "bash scripts/test-verify-measurement-citations.sh" "bash scripts/verify-measurement-citations.sh"
-          append_gate "${{ steps.filter.outputs.remotevalidation }}" "remotevalidation" "Verify remote-validation-artifacts gate" "bash scripts/test-verify-remote-validation-artifacts.sh" "bash scripts/verify-remote-validation-artifacts.sh"
+          append_gate "${{ steps.filter.outputs.remotevalidation }}" "remotevalidation" "Verify remote-validation-artifacts gate" "bash scripts/test-generate-remote-validation-inventory.sh && bash scripts/test-verify-remote-validation-artifacts.sh && bash scripts/test-verify-dead-iac-compose.sh && bash scripts/test-verify-remote-e2e-component-extension.sh" "bash scripts/generate-remote-validation-inventory.sh && git diff --exit-code -- docs/internal/remote-validation/inventory.generated.json && bash scripts/verify-remote-validation-artifacts.sh"
           append_gate "${{ steps.filter.outputs.maturitydrift }}" "maturitydrift" "Verify maturity-drift-guard gate" "bash scripts/test-verify-maturity-drift-guard.sh" "bash scripts/verify-maturity-drift-guard.sh"
           append_gate "${{ steps.filter.outputs.claudrules }}" "claudrules" "Verify Claude path-scoped rules gate" "bash scripts/test-claude-rules-lint.sh" "bash scripts/dev/claude-rules-lint.sh"
 

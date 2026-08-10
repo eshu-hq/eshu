@@ -58,7 +58,7 @@ func TestCrossRepoResolutionEmitsRetractIntentWhenGenerationHasNoEvidence(t *tes
 	if got, want := stringValue(row.Payload["action"]), "retract"; got != want {
 		t.Fatalf("payload action = %q, want %q", got, want)
 	}
-	if got, want := stringValue(row.Payload["evidence_source"]), crossRepoEvidenceSource; got != want {
+	if got, want := stringValue(row.Payload["evidence_source"]), CrossRepoEvidenceSource; got != want {
 		t.Fatalf("payload evidence_source = %q, want %q", got, want)
 	}
 	if got := stringValue(row.Payload["target_repo_id"]); got != "" {

@@ -230,6 +230,7 @@ func TestProcessPartitionOnceRunsInDrainsAbsentWorkload(t *testing.T) {
 		context.Background(), now, cfg, lease, reader, edges,
 		acceptedGenerationFixed("gen-1", true), nil,
 		readinessLookupFixed(true, true), nil, presence, nil, nil,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("ProcessPartitionOnce() error = %v", err)

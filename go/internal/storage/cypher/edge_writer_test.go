@@ -35,7 +35,7 @@ func TestEdgeWriterWriteEdgesRepoDependencyDispatch(t *testing.T) {
 		},
 	}
 
-	err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads")
+	_, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
@@ -92,7 +92,7 @@ func TestEdgeWriterWriteEdgesWorkloadDependencyDispatch(t *testing.T) {
 		},
 	}
 
-	err := writer.WriteEdges(context.Background(), reducer.DomainWorkloadDependency, rows, "finalization/workloads")
+	_, err := writer.WriteEdges(context.Background(), reducer.DomainWorkloadDependency, rows, "finalization/workloads")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
@@ -126,7 +126,7 @@ func TestEdgeWriterWriteEdgesCodeCallDispatch(t *testing.T) {
 		},
 	}
 
-	err := writer.WriteEdges(context.Background(), reducer.DomainCodeCalls, rows, "parser/code-calls")
+	_, err := writer.WriteEdges(context.Background(), reducer.DomainCodeCalls, rows, "parser/code-calls")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
@@ -174,7 +174,7 @@ func TestEdgeWriterWriteEdgesGoTypeReferenceDispatch(t *testing.T) {
 		},
 	}
 
-	err := writer.WriteEdges(context.Background(), reducer.DomainCodeCalls, rows, "parser/code-calls")
+	_, err := writer.WriteEdges(context.Background(), reducer.DomainCodeCalls, rows, "parser/code-calls")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
@@ -213,7 +213,7 @@ func TestEdgeWriterWriteEdgesDirectCodeCallDispatch(t *testing.T) {
 		},
 	}
 
-	err := writer.WriteEdges(context.Background(), reducer.DomainCodeCalls, rows, "parser/code-calls")
+	_, err := writer.WriteEdges(context.Background(), reducer.DomainCodeCalls, rows, "parser/code-calls")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
@@ -247,7 +247,7 @@ func TestEdgeWriterWriteEdgesPythonMetaclassDispatch(t *testing.T) {
 		},
 	}
 
-	err := writer.WriteEdges(context.Background(), reducer.DomainCodeCalls, rows, "parser/python-metaclass")
+	_, err := writer.WriteEdges(context.Background(), reducer.DomainCodeCalls, rows, "parser/python-metaclass")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
@@ -283,7 +283,7 @@ func TestEdgeWriterWriteEdgesMultipleRowsBatched(t *testing.T) {
 		{IntentID: "i2", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a", "target_repo_id": "repo-c"}},
 	}
 
-	err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads")
+	_, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
@@ -305,7 +305,7 @@ func TestEdgeWriterWriteEdgesEmptyRowsIsNoop(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, nil, "finalization/workloads")
+	_, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, nil, "finalization/workloads")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
@@ -324,7 +324,7 @@ func TestEdgeWriterWriteEdgesUnknownDomainReturnsError(t *testing.T) {
 		{IntentID: "i1", Payload: map[string]any{}},
 	}
 
-	err := writer.WriteEdges(context.Background(), "unknown_domain", rows, "finalization/workloads")
+	_, err := writer.WriteEdges(context.Background(), "unknown_domain", rows, "finalization/workloads")
 	if err == nil {
 		t.Fatal("WriteEdges() error = nil, want non-nil")
 	}
@@ -343,7 +343,7 @@ func TestEdgeWriterWriteEdgesPropagatesExecutorError(t *testing.T) {
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a", "target_repo_id": "repo-b"}},
 	}
 
-	err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads")
+	_, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads")
 	if err == nil {
 		t.Fatal("WriteEdges() error = nil, want non-nil")
 	}

@@ -37,7 +37,7 @@ func (w *stateModelingEdgeWriter) RetractEdges(_ context.Context, _ string, rows
 	return nil
 }
 
-func (w *stateModelingEdgeWriter) WriteEdges(_ context.Context, _ string, rows []SharedProjectionIntentRow, _ string) error {
+func (w *stateModelingEdgeWriter) WriteEdges(_ context.Context, _ string, rows []SharedProjectionIntentRow, _ string) (SharedProjectionWriteReport, error) {
 	for _, row := range rows {
 		repoID := sharedProjectionRowRepoID(row)
 		if repoID == "" {
@@ -50,7 +50,7 @@ func (w *stateModelingEdgeWriter) WriteEdges(_ context.Context, _ string, rows [
 		}
 		edges[row.IntentID] = struct{}{}
 	}
-	return nil
+	return SharedProjectionWriteReport{}, nil
 }
 
 func (w *stateModelingEdgeWriter) edgeCount(repoID string) int {
@@ -249,6 +249,7 @@ func TestProcessPartitionOnceHandlesRouteFenceConverges(t *testing.T) {
 			result, err := ProcessPartitionOnce(
 				context.Background(), now, handlesRouteFenceConfig(p, partitionCount),
 				lease, store, edges, acceptedGen, nil, readiness, nil, nil, store, nil,
+				nil,
 			)
 			if err != nil {
 				t.Fatalf("pass %d partition %d: %v", pass, p, err)
@@ -297,6 +298,7 @@ func TestProcessPartitionOnceHandlesRouteFenceHoldsWritesBeforeRetract(t *testin
 		result, procErr := ProcessPartitionOnce(
 			context.Background(), now, handlesRouteFenceConfig(p, partitionCount),
 			lease, store, edges, acceptedGen, nil, readiness, nil, nil, store, nil,
+			nil,
 		)
 		if procErr != nil {
 			t.Fatalf("partition %d: %v", p, procErr)
@@ -361,7 +363,7 @@ func TestProcessPartitionOnceHandlesRouteNilFencePreservesLegacyBehavior(t *test
 	for p := 0; p < partitionCount; p++ {
 		if _, err := ProcessPartitionOnce(
 			context.Background(), now, handlesRouteFenceConfig(p, partitionCount),
-			lease, store, edges, acceptedGen, nil, readiness, nil, nil, nil, nil, // nil fence → legacy path
+			lease, store, edges, acceptedGen, nil, readiness, nil, nil, nil, nil, nil, // nil fence → legacy path
 		); err != nil {
 			t.Fatalf("partition %d: %v", p, err)
 		}
@@ -411,6 +413,7 @@ func TestProcessPartitionOnceHandlesRouteUnmarkedRowsDrainWhenFenceWired(t *test
 		result, err := ProcessPartitionOnce(
 			context.Background(), now, handlesRouteFenceConfig(p, partitionCount),
 			lease, store, edges, acceptedGen, nil, readiness, nil, nil, store, nil,
+			nil,
 		)
 		if err != nil {
 			t.Fatalf("partition %d: %v", p, err)

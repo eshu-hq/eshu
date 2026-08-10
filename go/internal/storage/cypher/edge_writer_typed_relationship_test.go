@@ -80,7 +80,7 @@ func TestEdgeWriterWriteEdgesTypedRepoRelationshipDispatch(t *testing.T) {
 		},
 	}
 
-	err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "resolver/cross-repo")
+	_, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "resolver/cross-repo")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
@@ -218,7 +218,7 @@ func TestEdgeWriterWriteEdgesMaterializesRepoEvidenceArtifacts(t *testing.T) {
 		},
 	}
 
-	err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "resolver/cross-repo")
+	_, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "resolver/cross-repo")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
@@ -299,7 +299,7 @@ func TestEdgeWriterWriteEdgesRunsOnDispatchUsesWorkloadInstanceShape(t *testing.
 		},
 	}
 
-	err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "resolver/cross-repo")
+	_, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "resolver/cross-repo")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}

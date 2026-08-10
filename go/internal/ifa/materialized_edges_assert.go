@@ -18,9 +18,9 @@ import (
 type ExpectedEdge struct {
 	// RelationshipType is the graph relationship type (e.g. "QUERIES_TABLE").
 	RelationshipType string
-	// SourceEntityID is the edge source node's canonical uid.
+	// SourceEntityID is the edge source node's canonical identity (its uid, or its id for id-keyed labels).
 	SourceEntityID string
-	// TargetEntityID is the edge target node's canonical uid.
+	// TargetEntityID is the edge target node's canonical identity (its uid, or its id for id-keyed labels).
 	TargetEntityID string
 }
 
@@ -52,27 +52,55 @@ func LoadExpectedEdges(path string) ([]ExpectedEdge, error) {
 	return out, nil
 }
 
+// edgeTypeSet projects a writer registry's type->reason map onto the set shape
+// the assert path compares against. Keeping the projection in one helper is what
+// lets a family's arm be a single line, so adding a family cannot accidentally
+// ship a subtly different (for example, reason-keyed) set.
+func edgeTypeSet(registry map[string]string) map[string]struct{} {
+	out := make(map[string]struct{}, len(registry))
+	for edgeType := range registry {
+		out[edgeType] = struct{}{}
+	}
+	return out
+}
+
 // MaterializedEdgeDomainEdgeTypes returns the set of graph relationship types
 // the given materialized-edge family's writer registry accepts, so a live
 // `assert-edges` check knows which of a graph's edges belong to the family it
-// is asserting (and ignores every unrelated edge type — CONTAINS, DEPENDS_ON,
-// the GCP families, etc. — that shares the same graph). It is registry-derived
-// (#5330 pattern), never hand-listed: the sql_relationships set comes straight
-// from cypher.SQLRelationshipMaterializedEdgeTypes(), so an additional SQL edge type
-// added to that writer registry is asserted here without a second edit. An
-// unknown family returns nil so the caller can fail closed with a clear
-// message rather than silently asserting an empty type set (which would make
-// any graph vacuously pass).
+// is asserting (and ignores every unrelated edge type — CONTAINS, the GCP
+// families, etc. — that shares the same graph).
+//
+// Every set is registry-derived (#5330 pattern), never hand-listed here, so an
+// edge type added to a writer registry is asserted without a second edit. The
+// multi-type families resolve through explicit arms because their sets span
+// several templates and files: sql_relationships, code_calls (CALLS,
+// REFERENCES, USES_METACLASS, INSTANTIATES), inheritance_edges (INHERITS,
+// OVERRIDES, ALIASES, IMPLEMENTS) and repo_dependency (six repo-to-repo types
+// plus RUNS_ON). The remaining families each materialize a single type and
+// resolve from cypher's shared table.
+//
+// An unknown family returns an error rather than an empty set, so the caller
+// fails closed: an empty type set would assert nothing and let any graph pass
+// vacuously, which is exactly the false green the #5543 waiver rows exist to
+// prevent.
 func MaterializedEdgeDomainEdgeTypes(domain string) (map[string]struct{}, error) {
 	switch domain {
 	case "sql_relationships":
-		reg := cypher.SQLRelationshipMaterializedEdgeTypes()
-		out := make(map[string]struct{}, len(reg))
-		for edgeType := range reg {
-			out[edgeType] = struct{}{}
-		}
-		return out, nil
+		return edgeTypeSet(cypher.SQLRelationshipMaterializedEdgeTypes()), nil
+	case "code_calls":
+		return edgeTypeSet(cypher.CodeCallMaterializedEdgeTypes()), nil
+	case "inheritance_edges":
+		return edgeTypeSet(cypher.InheritanceMaterializedEdgeTypes()), nil
+	case "repo_dependency":
+		return edgeTypeSet(cypher.RepoDependencyMaterializedEdgeTypes()), nil
 	default:
-		return nil, fmt.Errorf("ifa: no materialized-edge family registered for domain %q (only sql_relationships has live assert-edges coverage as of #5351)", domain)
+		// The single-relationship-type families resolve from the shared registry
+		// table. They are looked up rather than switched on so registering one is
+		// a data change on the writer side, while the multi-type families above
+		// keep explicit arms because their sets span several templates.
+		if reg, ok := cypher.SingleTypeMaterializedEdgeTypes(domain); ok {
+			return edgeTypeSet(reg), nil
+		}
+		return nil, fmt.Errorf("ifa: no materialized-edge family registered for domain %q; register its edge types beside its writer (multi-type) or in cypher.singleTypeMaterializedEdgeFamilies (single-type) before proving it on a live gate", domain)
 	}
 }

@@ -116,7 +116,7 @@ func TestReducerRepoDependencyEdgeRetractGraphTruth(t *testing.T) {
 			},
 		},
 	)
-	if err := writer.WriteEdges(ctx, reducer.DomainRepoDependency, writeRows, repoDepEvidence); err != nil {
+	if _, err := writer.WriteEdges(ctx, reducer.DomainRepoDependency, writeRows, repoDepEvidence); err != nil {
 		t.Fatalf("WriteEdges: %v", err)
 	}
 

@@ -39,10 +39,10 @@ func (r *recordingSubmodulePinEdgeWriter) WriteEdges(
 	domain string,
 	rows []SharedProjectionIntentRow,
 	_ string,
-) error {
+) (SharedProjectionWriteReport, error) {
 	r.writeDomain = domain
 	r.writeRows = append(r.writeRows, rows...)
-	return nil
+	return SharedProjectionWriteReport{}, nil
 }
 
 func submodulePinEnvelope(parentRepoID, submodulePath string, resolvedRepoID, pinnedSHA *string) facts.Envelope {

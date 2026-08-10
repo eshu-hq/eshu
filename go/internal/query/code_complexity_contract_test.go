@@ -156,3 +156,92 @@ func TestHandleComplexityRejectsAmbiguousFunctionNameInEnvelope(t *testing.T) {
 		t.Fatalf("first candidate handle = %#v, want %#v", got, want)
 	}
 }
+
+func TestHandleComplexityFallsBackToFunctionNameAfterStaleEntityID(t *testing.T) {
+	t.Parallel()
+
+	var idCalls, nameCalls int
+	handler := &CodeHandler{
+		Neo4j: fakeGraphReader{
+			runSingle: func(_ context.Context, _ string, params map[string]any) (map[string]any, error) {
+				idCalls++
+				if got, want := params["entity_id"], "function:stale"; got != want {
+					t.Fatalf("params[entity_id] = %#v, want %#v", got, want)
+				}
+				return nil, nil
+			},
+			run: func(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
+				nameCalls++
+				if got, want := params["entity_name"], "handler"; got != want {
+					t.Fatalf("params[entity_name] = %#v, want %#v", got, want)
+				}
+				if got, want := params["repo_id"], "repo-1"; got != want {
+					t.Fatalf("params[repo_id] = %#v, want %#v", got, want)
+				}
+				return []map[string]any{{
+					"id":        "function:handler",
+					"name":      "handler",
+					"labels":    []any{"Function"},
+					"repo_id":   "repo-1",
+					"repo_name": "payments",
+				}}, nil
+			},
+		},
+		Profile: ProfileLocalAuthoritative,
+	}
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/complexity",
+		bytes.NewBufferString(`{"entity_id":"function:stale","function_name":"handler","repo_id":"repo-1"}`),
+	)
+	rec := httptest.NewRecorder()
+
+	handler.handleComplexity(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
+	}
+	if got, want := idCalls, 1; got != want {
+		t.Fatalf("ID lookup calls = %d, want %d", got, want)
+	}
+	if got, want := nameCalls, 1; got != want {
+		t.Fatalf("name lookup calls = %d, want %d", got, want)
+	}
+}
+
+func TestHandleComplexityDoesNotTreatStaleEntityIDAsFunctionName(t *testing.T) {
+	t.Parallel()
+
+	var idCalls int
+	handler := &CodeHandler{
+		Neo4j: fakeGraphReader{
+			runSingle: func(_ context.Context, _ string, params map[string]any) (map[string]any, error) {
+				idCalls++
+				if got, want := params["entity_id"], "function:stale"; got != want {
+					t.Fatalf("params[entity_id] = %#v, want %#v", got, want)
+				}
+				return nil, nil
+			},
+			run: func(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
+				t.Fatalf("unexpected name lookup with params %#v", params)
+				return nil, nil
+			},
+		},
+		Profile: ProfileLocalAuthoritative,
+	}
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/complexity",
+		bytes.NewBufferString(`{"entity_id":"function:stale"}`),
+	)
+	rec := httptest.NewRecorder()
+
+	handler.handleComplexity(rec, req)
+
+	if got, want := rec.Code, http.StatusNotFound; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
+	}
+	if got, want := idCalls, 1; got != want {
+		t.Fatalf("ID lookup calls = %d, want %d", got, want)
+	}
+}

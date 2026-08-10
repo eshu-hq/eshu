@@ -24,7 +24,7 @@ func changeSurfaceRepositoryTargetGraph(t *testing.T) fakeGraphReaderWithSingle 
 			switch {
 			case strings.Contains(cypher, "MATCH (n:Repository {id: $target})"):
 				return []map[string]any{{"id": "repo-a", "name": "repo-a", "labels": []any{"Repository"}, "repo_id": "repo-a"}}, nil
-			case strings.Contains(cypher, "->(impacted)"):
+			case strings.Contains(cypher, "<-[:DEPENDS_ON"):
 				// The legacy findChangeSurfaceImpactRows path unwinds one output row
 				// per relationships(path) edge, so each impacted node needs at least
 				// one edge to surface in the response.

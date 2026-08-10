@@ -60,6 +60,7 @@ type options struct {
 	phaseRegressionAdvisory   bool
 	printLocalBackendRepoPath string
 	localBackendScopeID       string
+	printPersistedAggregates  bool
 }
 
 func parseFlags(args []string) (options, error) {
@@ -86,6 +87,7 @@ func parseFlags(args []string) (options, error) {
 	fs.BoolVar(&o.phaseRegressionAdvisory, "phase-regression-advisory", false, "downgrade per-phase regression findings to advisory (use on shared CI runners whose hardware variance exceeds the band; the committed baseline is captured on the controlled validation host)")
 	fs.StringVar(&o.printLocalBackendRepoPath, "print-local-backend-scope-id", "", "compute-and-print mode (issue #5594): given the terraform_local_backend_demo fixture repo's real, run-time git-checkout absolute path (the repository fact's local_path), print the state_snapshot:local:<hash> scope_id a bare backend \"local\" {} block at repo root would resolve to, then exit 0 without running any phase. A BackendLocal locator is an absolute path derived from that run-time checkout root, unlike every other backend kind, so the snapshot cannot pin it as a literal string; the orchestrator resolves it after bootstrap-index and feeds it back via -local-backend-scope-id.")
 	fs.StringVar(&o.localBackendScopeID, "local-backend-scope-id", "", "the real, run-time computed scope_id for the terraform_local_backend_demo fixture (from -print-local-backend-scope-id), substituted into the snapshot's $LOCAL_BACKEND_SCOPE_ID$ sentinel before the query phase runs. Empty (default) leaves the snapshot unchanged.")
+	fs.BoolVar(&o.printPersistedAggregates, "print-persisted-aggregate-counts", false, "read and print strict JSON aggregate counts directly from persisted graph nodes, then exit without calling API or MCP surfaces")
 	if err := fs.Parse(args); err != nil {
 		return options{}, err
 	}

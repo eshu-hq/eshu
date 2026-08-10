@@ -102,8 +102,36 @@ func (w *EdgeWriter) groupBatchSizeForDomain(domain string) int {
 }
 
 // WriteEdges writes canonical domain edges for the given rows using batched
-// UNWIND statements. Rows with empty required MATCH fields are skipped to
-// avoid silent failures in the batch.
+// UNWIND statements.
+//
+// A row whose required MATCH fields are empty cannot be routed to a statement.
+// Such a row is never written, and every one of them is named in the returned
+// SharedProjectionWriteReport so the caller — which owns intent completion —
+// can persist a durable record BEFORE completing. Completed intent rows are
+// never reopened by the durable upsert, so a caller that completes without
+// that record loses the work silently and permanently, which was the #5984
+// defect.
+//
+// The cases, and what separates them:
+//
+//   - an empty batch is "nothing to do": no rows, no report, nil error;
+//   - a batch of only control rows (a repo refresh drives the repo-wide
+//     retract and carries no edge of its own) is also "nothing to do" — those
+//     rows are NOT reported, because a row that was never meant to become an
+//     edge is not a lost edge;
+//   - a mixed batch writes its routable rows AND reports the rest. Dropping the
+//     routable ones too would be the larger loss, so the write succeeds and the
+//     rejected rows travel back in the report;
+//   - a batch where NOTHING routed reports every row and still returns a nil
+//     error. It is deliberately not a failure: buildRowMap decides from the
+//     persisted payload, so a rejected row is rejected identically on every
+//     future attempt, and this path has no attempt budget or dead letter.
+//     Failing here would stall the partition forever on work that can never
+//     succeed (PR #6008 review).
+//
+// Both reporting paths also emit the shared edge rows unroutable WARN and the
+// SharedEdgeUnroutableRows counter, so a loss is visible in telemetry without
+// waiting for anyone to query the durable table.
 //
 // When the executor implements GroupExecutor, all batches are dispatched in a
 // single atomic transaction.
@@ -112,19 +140,19 @@ func (w *EdgeWriter) WriteEdges(
 	domain string,
 	rows []reducer.SharedProjectionIntentRow,
 	evidenceSource string,
-) error {
+) (reducer.SharedProjectionWriteReport, error) {
 	if len(rows) == 0 {
-		return nil
+		return reducer.SharedProjectionWriteReport{}, nil
 	}
 	if w.executor == nil {
-		return fmt.Errorf("edge writer executor is required")
+		return reducer.SharedProjectionWriteReport{}, fmt.Errorf("edge writer executor is required")
 	}
 	if _, err := batchCypherForDomain(domain); err != nil {
-		return err
+		return reducer.SharedProjectionWriteReport{}, err
 	}
 	if domain == reducer.DomainRepoDependency {
 		if err := validateRepoDependencySourceRows(rows, evidenceSource); err != nil {
-			return err
+			return reducer.SharedProjectionWriteReport{}, err
 		}
 	}
 
@@ -132,9 +160,33 @@ func (w *EdgeWriter) WriteEdges(
 	routeOrder := make([]string, 0, 2)
 	artifactRows := make(map[string][]map[string]any)
 	artifactRouteOrder := make([]string, 0, 2)
+	droppedRows := 0
+	sampleDroppedIntentID := ""
+	var unroutable []reducer.SharedProjectionUnroutableRow
 	for _, row := range rows {
 		cypher, rowMap, ok := buildRowMap(domain, row, evidenceSource)
 		if !ok {
+			// A control row (a repo refresh whose job is the repo-wide retract)
+			// has no edge to write by design, so it is not a dropped edge. Only
+			// a row that was meant to become an edge counts here.
+			if reducer.CarriesNoEdge(row) {
+				continue
+			}
+			droppedRows++
+			if sampleDroppedIntentID == "" {
+				sampleDroppedIntentID = row.IntentID
+			}
+			unroutable = append(unroutable, reducer.SharedProjectionUnroutableRow{
+				IntentID:         row.IntentID,
+				ProjectionDomain: domain,
+				PartitionKey:     row.PartitionKey,
+				RepositoryID:     row.RepositoryID,
+				ScopeID:          row.ScopeID,
+				GenerationID:     row.GenerationID,
+				EvidenceSource:   evidenceSource,
+				Reason:           unroutableReasonForRow(domain, row),
+				DecidedAt:        time.Now().UTC(),
+			})
 			continue
 		}
 		if _, seen := routedRows[cypher]; !seen {
@@ -155,8 +207,19 @@ func (w *EdgeWriter) WriteEdges(
 		}
 	}
 
+	if droppedRows > 0 {
+		w.reportUnroutableRows(ctx, domain, evidenceSource, len(rows), droppedRows, sampleDroppedIntentID, len(routedRows) == 0)
+	}
+	report := reducer.SharedProjectionWriteReport{UnroutableRows: unroutable}
 	if len(routedRows) == 0 {
-		return nil
+		// Nothing routed. This is NOT an error: buildRowMap decides from the
+		// persisted payload, so a rejected row is rejected identically on
+		// every future attempt, and this path has no attempt budget or dead
+		// letter (shared_projection_intents carries no attempt_count). Failing
+		// here would stall the partition forever on work that can never
+		// succeed. The caller completes the intent and records the loss from
+		// the report instead (#5984, owner decision on PR #6008).
+		return report, nil
 	}
 	writtenRows := 0
 	for _, cypher := range routeOrder {
@@ -189,39 +252,39 @@ func (w *EdgeWriter) WriteEdges(
 				}
 				start := time.Now()
 				if err := ge.ExecuteGroup(ctx, stmts[i:end]); err != nil {
-					return WrapRetryableNeo4jError(err)
+					return report, WrapRetryableNeo4jError(err)
 				}
 				duration := time.Since(start).Seconds()
 				w.recordGroupedWrite(ctx, domain, duration, stmts[i:end])
-				w.logSharedEdgeWrite(domain, evidenceSource, "group", len(rows), writtenRows, len(routeOrder), bs, groupSize, duration, stmts[i:end])
+				w.logSharedEdgeWrite(domain, evidenceSource, "group", len(rows), writtenRows, droppedRows, len(routeOrder), bs, groupSize, duration, stmts[i:end])
 				if domain == reducer.DomainCodeCalls {
 					w.recordCodeCallBatch(ctx, duration)
 				}
 			}
-			return nil
+			return report, nil
 		}
 		start := time.Now()
 		if err := ge.ExecuteGroup(ctx, stmts); err != nil {
-			return WrapRetryableNeo4jError(err)
+			return report, WrapRetryableNeo4jError(err)
 		}
 		duration := time.Since(start).Seconds()
 		w.recordGroupedWrite(ctx, domain, duration, stmts)
-		w.logSharedEdgeWrite(domain, evidenceSource, "group", len(rows), writtenRows, len(routeOrder), bs, 0, duration, stmts)
-		return nil
+		w.logSharedEdgeWrite(domain, evidenceSource, "group", len(rows), writtenRows, droppedRows, len(routeOrder), bs, 0, duration, stmts)
+		return report, nil
 	}
 
 	for _, stmt := range stmts {
 		start := time.Now()
 		if err := w.executor.Execute(ctx, stmt); err != nil {
-			return WrapRetryableNeo4jError(err)
+			return report, WrapRetryableNeo4jError(err)
 		}
 		duration := time.Since(start).Seconds()
-		w.logSharedEdgeWrite(domain, evidenceSource, "single", len(rows), writtenRows, len(routeOrder), bs, 0, duration, []Statement{stmt})
+		w.logSharedEdgeWrite(domain, evidenceSource, "single", len(rows), writtenRows, droppedRows, len(routeOrder), bs, 0, duration, []Statement{stmt})
 		if domain == reducer.DomainCodeCalls {
 			w.recordCodeCallBatch(ctx, duration)
 		}
 	}
-	return nil
+	return report, nil
 }
 
 // batchCypherForDomain returns the batched UNWIND Cypher template for the
@@ -356,6 +419,11 @@ func buildRowMap(
 		copyRepoRelationshipMetadata(rowMap, row.Payload, row.GenerationID)
 		cypher, ok := batchCanonicalTypedRepoRelationshipUpsertCypher(relationshipType)
 		if !ok {
+			// The payload is well formed; THIS binary has no statement for the
+			// relationship type. During a rolling upgrade a newer producer can
+			// emit a type an older writer does not know, and the same row
+			// routes fine once the writer catches up -- so this is reported as
+			// version skew rather than as a lost edge (#5984).
 			return "", nil, false
 		}
 		return cypher, rowMap, true

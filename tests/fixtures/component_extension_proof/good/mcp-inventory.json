@@ -1,0 +1,23 @@
+{
+  "data": {
+    "schema_version": "eshu.component_extensions.v1",
+    "status": "available",
+    "component_home_configured": true,
+    "components": [
+      {
+        "id": "dev.eshu.examples.scorecard",
+        "verified": true,
+        "states": ["installed", "enabled", "claim_capable"],
+        "trust_decision": {"decision": "allowed"},
+        "policy_gate": {"state": "allowed"},
+        "scheduler_state": {"state": "claim_capable"}
+      }
+    ],
+    "count": 1,
+    "total_count": 1,
+    "limit": 100,
+    "truncated": false
+  },
+  "truth": {"capability": "component_extensions.inventory"},
+  "error": null
+}

@@ -12,7 +12,7 @@ import (
 
 // packageConsumptionEvidenceSource labels repo-to-repo DEPENDS_ON edges derived
 // from package consumption-to-owner correlation joins. It is deliberately
-// distinct from crossRepoEvidenceSource ("resolver/cross-repo") so the
+// distinct from CrossRepoEvidenceSource ("resolver/cross-repo") so the
 // package-consumption edges are independently retractable and so query surfaces
 // can attribute the edge to package-registry provenance (issue #3579).
 const packageConsumptionEvidenceSource = "projection/package-consumption"

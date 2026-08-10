@@ -173,7 +173,7 @@ func writeSQLRetractFixtures(ctx context.Context, t *testing.T, writer *cypher.E
 				"target_entity_id": fixture.targetUID, "target_entity_type": fixture.targetLabel,
 			},
 		}
-		if err := writer.WriteEdges(ctx, reducer.DomainSQLRelationships, []reducer.SharedProjectionIntentRow{row}, fixture.evidence); err != nil {
+		if _, err := writer.WriteEdges(ctx, reducer.DomainSQLRelationships, []reducer.SharedProjectionIntentRow{row}, fixture.evidence); err != nil {
 			t.Fatalf("write %s edge: %v", fixture.name, err)
 		}
 	}

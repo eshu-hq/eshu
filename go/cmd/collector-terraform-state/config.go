@@ -194,10 +194,22 @@ func loadRuntimeConfig(getenv func(string) string) (runtimeConfig, error) {
 
 // loadSchemaResolver builds the production ProviderSchemaResolver from the
 // packaged provider schemas. Operators may override the schema directory with
-// `ESHU_TERRAFORM_SCHEMA_DIR` (already honored by terraformschema). A nil
-// resolver is acceptable — the parser treats it as redact.SchemaUnknown — so
-// missing or empty schema directories are non-fatal and the collector keeps
-// the existing fail-closed behavior on attribute classification.
+// `ESHU_TERRAFORM_SCHEMA_DIR` (already honored by terraformschema).
+//
+// Two outcomes, and the distinction matters (#5870):
+//
+//   - The override directory is missing, empty, or unparseable, but the
+//     binary's own embedded bundle loads. That is the ordinary fallback: the
+//     resolver is built from the embedded schemas and the collector starts.
+//   - NEITHER source yields a single attribute. That is fatal. It used to
+//     return a nil resolver and start anyway, on the reasoning that the parser
+//     treats nil as redact.SchemaUnknown and so fails closed. Failing closed is
+//     right for a value and wrong for a join key: with every attribute unknown
+//     the parser also redacts "arn", and a redacted arn does not merely lose one
+//     attribute — the state row stops matching its cloud resource, so the whole
+//     deployment reclassifies as orphaned. LoadPackagedSchemaResolver now
+//     returns an error there and this function propagates it, so the collector
+//     fails to start rather than running with every scalar redacted.
 //
 // Wiring this resolver is the load-bearing fix that lets non-sensitive
 // Terraform-state attributes (e.g. aws_s3_bucket.acl,

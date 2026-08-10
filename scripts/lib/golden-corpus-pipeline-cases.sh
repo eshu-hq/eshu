@@ -8,6 +8,22 @@
 require "bootstrap stage" "eshu-bootstrap-index"
 require "filesystem managed-copy mode" 'export ESHU_REPO_SOURCE_MODE="filesystem"'
 require "filesystem managed-copy direct-mode pin" 'export ESHU_FILESYSTEM_DIRECT="false"'
+require_in_region "live corpus gate installs ripgrep before B-7" "${workflow}" \
+	'/^  corpus-gate:$/,/^      - name: Run B-7 golden corpus gate$/' \
+	'run: scripts/ci/install-apt-packages.sh ripgrep'
+for gate_path in \
+	'go/cmd/mock-openai-compatible/**' \
+	'go/internal/ask/**' \
+	'go/internal/askwiring/**' \
+	'go/internal/answerguardrail/**' \
+	'go/internal/answernarration/**'; do
+	require_in_region "ci-gates golden-corpus-gate trigger ${gate_path}" "${ci_gates}" \
+		'/^  - id: golden-corpus-gate$/,/^    local:/' "- \"${gate_path}\""
+done
+require_in_region "the pre-pr golden-corpus selector must match the Ask engine" "${prepr}" \
+	'/run_or_defer golden-corpus/,/run_or_defer replay-tier/' 'demospec|ask|askwiring|answerguardrail|answernarration'
+require_in_region "the pre-pr golden-corpus selector must match the Ask mock provider" "${prepr}" \
+	'/run_or_defer golden-corpus/,/run_or_defer replay-tier/' 'mock-openai-compatible'
 filesystem_direct_exports="$(rg --count '^[[:space:]]*export ESHU_FILESYSTEM_DIRECT=' "${script}" || true)"
 [[ "${filesystem_direct_exports:-0}" -eq 1 ]] ||
 	fail "golden gate must set ESHU_FILESYSTEM_DIRECT exactly once"
@@ -112,7 +128,41 @@ require_matches "cloud image reopen ordering event-count validation" \
 unset cloud_reopen_block_pattern cloud_reopen_command_pattern cloud_reopen_event_count_pattern
 unset cloud_reopen_lib
 
-require "cassette replay" "-mode=cassette"
+replay_lib="${repo_root}/scripts/lib/golden-corpus-cassette-replay.sh"
+metrics_source_lib="${repo_root}/scripts/lib/golden-corpus-metrics-source.sh"
+service_changed_lib="${repo_root}/scripts/lib/golden-corpus-service-changed-since.sh"
+relationship_evidence_lib="${repo_root}/scripts/lib/golden-corpus-relationship-evidence.sh"
+aggregate_counts_lib="${repo_root}/scripts/lib/golden-corpus-aggregate-counts.sh"
+require "cassette replay helper source" "golden-corpus-cassette-replay.sh"
+require_in "cassette replay execution" "${replay_lib}" "-mode=cassette"
+require_in "semantic replay alias" "${script}" \
+	"semantic-extraction-cassette:collector-prometheus-mimir:semanticextraction"
+require_invocation "cassette replay invocation" "golden_corpus_start_cassette_replays"
+require "service changed-since helper source" "golden-corpus-service-changed-since.sh"
+require_invocation "service prior capture" "golden_service_changed_since_capture_prior"
+require_invocation "service staged mutation" "golden_service_changed_since_mutate_owner"
+require_invocation "service current validation" "golden_service_changed_since_validate_current"
+require_invocation "metrics source invocation" "golden_metrics_source_start"
+require "relationship evidence helper source" "golden-corpus-relationship-evidence.sh"
+require_invocation "relationship evidence runtime capture" "golden_relationship_evidence_capture_resolved_id"
+require "relationship evidence snapshot composition" "golden_relationship_evidence_compose_snapshot"
+require "aggregate counts helper source" "golden-corpus-aggregate-counts.sh"
+require "aggregate counts runtime capture" 'golden_aggregate_counts_capture "${golden_aggregate_counts_oracle}"'
+require "aggregate counts snapshot composition" "golden_aggregate_counts_compose_snapshot"
+require "Ask source lib" "golden-corpus-ask-source.sh"
+require "mock Ask provider build" "build_bin mock-openai-compatible"
+require "persisted aggregate oracle" "-print-persisted-aggregate-counts"
+require_invocation "Ask provider startup" "golden_ask_source_start"
+require "mock metrics binary build" "build_bin mock-prometheus-mimir"
+require_in "explicit metrics instance id" "${metrics_source_lib}" \
+	'ESHU_PROMETHEUS_MIMIR_COLLECTOR_INSTANCE_ID="golden-prometheus-range"'
+require_in "credential-free metrics tenant" "${metrics_source_lib}" 'tenant_id: "golden-corpus"'
+bash "${repo_root}/scripts/lib/test-golden-corpus-cassette-replay.sh" || fail "cassette replay helper tests failed"
+bash "${repo_root}/scripts/lib/test-golden-corpus-service-changed-since.sh" || fail "service changed-since helper tests failed"
+bash "${repo_root}/scripts/lib/test-golden-corpus-metrics-source.sh" || fail "metrics source helper tests failed"
+bash "${repo_root}/scripts/lib/test-golden-corpus-relationship-evidence.sh" || fail "relationship evidence helper tests failed"
+bash "${repo_root}/scripts/lib/test-golden-corpus-aggregate-counts.sh" || fail "aggregate count helper tests failed"
+unset aggregate_counts_lib relationship_evidence_lib
 require "projector drain" "eshu-projector"
 require "reducer drain" "eshu-reducer"
 # `eshu-api` also names the /readyz failure message, and `eshu-golden-corpus-gate`
@@ -135,7 +185,7 @@ require "graph+query+timing phase" "-phase=graph,query,timing"
 require_region "snapshot contract (drains phase)" \
 	"/-phase=drains/,/-drain-timeout=/" "-snapshot=testdata/golden/e2e-20repo-snapshot.json"
 require_region "runtime snapshot contract (graph,query,timing phase)" \
-	"/-phase=graph,query,timing,demo-answers/,/-elapsed-seconds=/" '-snapshot="${golden_suppression_runtime_snapshot}"'
+	"/-phase=graph,query,timing,demo-answers/,/-elapsed-seconds=/" '-snapshot="${golden_query_runtime_snapshot}"'
 require "timing budget" "-budget-multiplier"
 # The blocking-correlation set is single-sourced from the snapshot's required
 # correlation IDs through the `all` sentinel (#4596).

@@ -24,7 +24,7 @@ func TestRepoDependencyProjectionRunnerProcessesSourceRepoOwnedAcceptance(t *tes
 					"repo_id":           repoID,
 					"target_repo_id":    "repository:r_old",
 					"relationship_type": "DEPENDS_ON",
-					"evidence_source":   crossRepoEvidenceSource,
+					"evidence_source":   CrossRepoEvidenceSource,
 				},
 			),
 			repoDependencyIntentRow(
@@ -33,7 +33,7 @@ func TestRepoDependencyProjectionRunnerProcessesSourceRepoOwnedAcceptance(t *tes
 					"repo_id":           repoID,
 					"target_repo_id":    "repository:r_target_1",
 					"relationship_type": "DEPENDS_ON",
-					"evidence_source":   crossRepoEvidenceSource,
+					"evidence_source":   CrossRepoEvidenceSource,
 				},
 			),
 			repoDependencyIntentRow(
@@ -42,7 +42,7 @@ func TestRepoDependencyProjectionRunnerProcessesSourceRepoOwnedAcceptance(t *tes
 					"repo_id":           repoID,
 					"target_repo_id":    "repository:r_target_2",
 					"relationship_type": "DEPLOYS_FROM",
-					"evidence_source":   crossRepoEvidenceSource,
+					"evidence_source":   CrossRepoEvidenceSource,
 				},
 			),
 			repoDependencyIntentRow(
@@ -51,7 +51,7 @@ func TestRepoDependencyProjectionRunnerProcessesSourceRepoOwnedAcceptance(t *tes
 					"repo_id":           "repository:r_repo_b",
 					"target_repo_id":    "repository:r_target_3",
 					"relationship_type": "DEPENDS_ON",
-					"evidence_source":   crossRepoEvidenceSource,
+					"evidence_source":   CrossRepoEvidenceSource,
 				},
 			),
 		},
@@ -63,7 +63,7 @@ func TestRepoDependencyProjectionRunnerProcessesSourceRepoOwnedAcceptance(t *tes
 						"repo_id":           repoID,
 						"target_repo_id":    "repository:r_old",
 						"relationship_type": "DEPENDS_ON",
-						"evidence_source":   crossRepoEvidenceSource,
+						"evidence_source":   CrossRepoEvidenceSource,
 					},
 				),
 				repoDependencyIntentRow(
@@ -72,7 +72,7 @@ func TestRepoDependencyProjectionRunnerProcessesSourceRepoOwnedAcceptance(t *tes
 						"repo_id":           repoID,
 						"target_repo_id":    "repository:r_target_1",
 						"relationship_type": "DEPENDS_ON",
-						"evidence_source":   crossRepoEvidenceSource,
+						"evidence_source":   CrossRepoEvidenceSource,
 					},
 				),
 				repoDependencyIntentRow(
@@ -81,7 +81,7 @@ func TestRepoDependencyProjectionRunnerProcessesSourceRepoOwnedAcceptance(t *tes
 						"repo_id":           repoID,
 						"target_repo_id":    "repository:r_target_2",
 						"relationship_type": "DEPLOYS_FROM",
-						"evidence_source":   crossRepoEvidenceSource,
+						"evidence_source":   CrossRepoEvidenceSource,
 					},
 				),
 			},
@@ -122,7 +122,7 @@ func TestRepoDependencyProjectionRunnerProcessesSourceRepoOwnedAcceptance(t *tes
 	if len(writer.retractCalls) != 1 {
 		t.Fatalf("len(retractCalls) = %d, want 1", len(writer.retractCalls))
 	}
-	if got, want := writer.retractCalls[0].evidenceSource, crossRepoEvidenceSource; got != want {
+	if got, want := writer.retractCalls[0].evidenceSource, CrossRepoEvidenceSource; got != want {
 		t.Fatalf("retract evidenceSource = %q, want %q", got, want)
 	}
 	if len(writer.retractCalls[0].rows) != 1 {
@@ -159,7 +159,7 @@ func TestRepoDependencyProjectionRunnerHeartbeatsLongGraphWrite(t *testing.T) {
 					"repo_id":           repoID,
 					"target_repo_id":    "repository:r_target",
 					"relationship_type": "DEPLOYS_FROM",
-					"evidence_source":   crossRepoEvidenceSource,
+					"evidence_source":   CrossRepoEvidenceSource,
 				},
 			),
 		},
@@ -171,7 +171,7 @@ func TestRepoDependencyProjectionRunnerHeartbeatsLongGraphWrite(t *testing.T) {
 						"repo_id":           repoID,
 						"target_repo_id":    "repository:r_target",
 						"relationship_type": "DEPLOYS_FROM",
-						"evidence_source":   crossRepoEvidenceSource,
+						"evidence_source":   CrossRepoEvidenceSource,
 					},
 				),
 			},
@@ -240,7 +240,7 @@ func TestRepoDependencyProjectionRunnerRetractsPerEvidenceSourceAndSkipsRetractR
 					"repo_id":           repoID,
 					"target_repo_id":    "repository:r_target_1",
 					"relationship_type": "DEPENDS_ON",
-					"evidence_source":   crossRepoEvidenceSource,
+					"evidence_source":   CrossRepoEvidenceSource,
 				},
 			),
 		},
@@ -252,7 +252,7 @@ func TestRepoDependencyProjectionRunnerRetractsPerEvidenceSourceAndSkipsRetractR
 						"repo_id":           repoID,
 						"target_repo_id":    "repository:r_target_1",
 						"relationship_type": "DEPENDS_ON",
-						"evidence_source":   crossRepoEvidenceSource,
+						"evidence_source":   CrossRepoEvidenceSource,
 					},
 				),
 				repoDependencyIntentRow(
@@ -297,7 +297,7 @@ func TestRepoDependencyProjectionRunnerRetractsPerEvidenceSourceAndSkipsRetractR
 	}
 	gotSources := []string{writer.retractCalls[0].evidenceSource, writer.retractCalls[1].evidenceSource}
 	sort.Strings(gotSources)
-	wantSources := []string{crossRepoEvidenceSource, defaultEvidenceSource}
+	wantSources := []string{CrossRepoEvidenceSource, defaultEvidenceSource}
 	sort.Strings(wantSources)
 	if got, want := gotSources, wantSources; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
 		t.Fatalf("retract sources = %v, want %v", gotSources, wantSources)
@@ -325,7 +325,7 @@ func TestRepoDependencyProjectionRunnerRehydratesCompletedContributorRows(t *tes
 			"repo_id":           repoID,
 			"target_repo_id":    "repository:r_target_old",
 			"relationship_type": "DEPENDS_ON",
-			"evidence_source":   crossRepoEvidenceSource,
+			"evidence_source":   CrossRepoEvidenceSource,
 		},
 	)
 	completedContributor.CompletedAt = &completedAt
@@ -338,7 +338,7 @@ func TestRepoDependencyProjectionRunnerRehydratesCompletedContributorRows(t *tes
 					"repo_id":           repoID,
 					"target_repo_id":    "repository:r_target_new",
 					"relationship_type": "DEPLOYS_FROM",
-					"evidence_source":   crossRepoEvidenceSource,
+					"evidence_source":   CrossRepoEvidenceSource,
 				},
 			),
 		},
@@ -351,7 +351,7 @@ func TestRepoDependencyProjectionRunnerRehydratesCompletedContributorRows(t *tes
 						"repo_id":           repoID,
 						"target_repo_id":    "repository:r_target_new",
 						"relationship_type": "DEPLOYS_FROM",
-						"evidence_source":   crossRepoEvidenceSource,
+						"evidence_source":   CrossRepoEvidenceSource,
 					},
 				),
 			},

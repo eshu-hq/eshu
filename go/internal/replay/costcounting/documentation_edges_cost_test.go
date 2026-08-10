@@ -127,7 +127,7 @@ func TestCostBudget_DocumentationMaterialization(t *testing.T) {
 	budget := loadBudgetFrom(t, documentationMaterializationBudgetRelPath)
 	writer, exec, reader := newInstrumentedDocumentationEdgeWriter(t)
 
-	if err := writer.WriteEdges(
+	if _, err := writer.WriteEdges(
 		context.Background(),
 		reducer.DomainDocumentationEdges,
 		documentationEdgeFixtureRows(),
@@ -200,7 +200,7 @@ func TestCostBudget_DocumentationMaterialization_N1_ExceedsBudget(t *testing.T) 
 	writer, _, reader := newInstrumentedDocumentationEdgeWriter(t)
 
 	for _, row := range rows {
-		if err := writer.WriteEdges(
+		if _, err := writer.WriteEdges(
 			context.Background(),
 			reducer.DomainDocumentationEdges,
 			[]reducer.SharedProjectionIntentRow{row},

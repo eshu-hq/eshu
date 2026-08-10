@@ -1,0 +1,74 @@
+{
+  "collector": "semantic_extraction",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "semantic-extraction:runtime-readiness",
+      "source_system": "semantic_extraction",
+      "scope_kind": "documentation_source",
+      "collector_kind": "semantic_extraction",
+      "partition_key": "semantic-extraction:runtime-readiness",
+      "metadata": {
+        "provider_profile_id": "semantic-docs-default"
+      },
+      "generation_id": "semantic-extraction-generation:runtime-readiness",
+      "observed_at": "2026-08-08T12:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "semantic.documentation_observation",
+          "stable_fact_key": "b4ca908c752dfac0dc3f58a06cf2c72cc306be2f56cba1001607a2f77d03976b",
+          "schema_version": "1.0.0",
+          "collector_kind": "semantic_extraction",
+          "fencing_token": 1,
+          "source_confidence": "derived",
+          "payload": {
+            "observation_id": "semantic-doc-obs:0f6b6e56538c417114a768b112ca500f1bc991c78d9a60a8e21a5e11744a0ceb",
+            "observation_type": "runtime_readiness_summary",
+            "observation_text": "Runtime readiness requires deployed validation evidence.",
+            "observation_hash": "sha256:2fe8c4d100c931a6729c30aef1d869ff0edf6dab5695a40481a3cebc8d989a10",
+            "source": {
+              "source_id": "semantic-doc-source:c133b4cb70970f15d6ef2526be8c66c7d6a4300e1ac037fe23c782ba1bed4ccc",
+              "source_class": "documentation",
+              "source_handle": "https://docs.example.invalid/runtime-readiness#summary",
+              "document_id": "documentation-document:runtime-readiness",
+              "external_anchor": "summary",
+              "section_id": "documentation-section:runtime-readiness"
+            },
+            "chunk": {
+              "chunk_id": "semantic-doc-chunk:ca9414a1897998ababfa59216987fb17e85353f3745c0d5154ba4960788288ae",
+              "chunk_hash": "sha256:4dc0b1c0290e09f963155932ea25afc8243f805a2f194c6d32846d6c5c7feffe",
+              "source_hash": "sha256:d52ad31d38be8eddd6cb6154c4e22bd2eeafa14e21d3d0cc87ebf3ba75c9433c",
+              "prompt_version": "semantic-docs.v1",
+              "redaction_version": "semantic-redaction.v1",
+              "extractor_version": "semantic-docs-mock-emitter.v1",
+              "extraction_mode": "assistant_mediated"
+            },
+            "provider": {
+              "provider_profile_id": "semantic-docs-default",
+              "provider_kind": "mock",
+              "model_id": "mock-semantic-docs-v1"
+            },
+            "confidence": "medium",
+            "confidence_rationale": "bounded fixture section states the evidence requirement",
+            "freshness_state": "fresh",
+            "policy_state": "allowed",
+            "redaction_state": "skipped_no_sensitive_content",
+            "admission_state": "provenance_only",
+            "evidence_refs": [
+              {
+                "kind": "documentation_section",
+                "id": "documentation-section:runtime-readiness",
+                "uri": "https://docs.example.invalid/runtime-readiness#summary",
+                "confidence": "observed"
+              }
+            ],
+            "observed_at": "2026-08-08T12:00:00Z"
+          },
+          "source_uri": "https://docs.example.invalid/runtime-readiness#summary",
+          "source_record_id": "documentation-section:runtime-readiness"
+        }
+      ]
+    }
+  ]
+}

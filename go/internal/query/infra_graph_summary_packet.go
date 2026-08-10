@@ -5,10 +5,14 @@ package query
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -18,6 +22,8 @@ const (
 	// counts are omitted from the ecosystem-wide packet.
 	graphSummaryNeedsRepoNote = "hot-entity ranking and key-relationship counts require a repo_id scope; only bounded ecosystem-wide label counts are returned without one"
 )
+
+var errGraphSummaryScopeTooBroad = errors.New("graph summary scope exceeds internal edge scan limit")
 
 type graphSummaryPacketRequest struct {
 	RepoID string `json:"repo_id"`
@@ -120,6 +126,10 @@ func (h *InfraHandler) getGraphSummaryPacket(w http.ResponseWriter, r *http.Requ
 
 	data, err := h.graphSummaryRepoPacket(r.Context(), req)
 	if err != nil {
+		if errors.Is(err, errGraphSummaryScopeTooBroad) {
+			WriteError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
 		if WriteGraphReadError(w, r, err, graphSummaryPacketCapability) {
 			return
 		}
@@ -186,17 +196,33 @@ func (h *InfraHandler) graphSummaryRepoPacket(ctx context.Context, req graphSumm
 	}, nil
 }
 
-// graphSummaryHotEntities runs the repo-anchored hub-function degree query and
-// returns at most limit rows. It probes limit+1 to set the truncation flag
-// deterministically without a second scan.
+// graphSummaryHotEntities ranks a bounded, repository-scoped CALLS edge pass in
+// Go. The shared edge shape avoids NornicDB's chained OPTIONAL MATCH aggregate
+// corruption while retaining exact incoming, outgoing, and total degree.
 func (h *InfraHandler) graphSummaryHotEntities(ctx context.Context, repoID string, limit int) ([]map[string]any, bool, error) {
-	rows, err := h.Neo4j.Run(ctx, graphSummaryHotEntitiesCypher, map[string]any{
-		"repo_id": repoID,
-		"limit":   limit + 1,
-	})
+	cypher, params := callGraphMetricsEdgesCypher(repoID)
+	edges, err := h.Neo4j.Run(ctx, cypher, params)
 	if err != nil {
 		return nil, false, err
 	}
+	span := trace.SpanFromContext(ctx)
+	overflow := len(edges) > callGraphMetricsEdgeScanLimit
+	span.SetAttributes(
+		attribute.Int("eshu.query.graph_summary.expanded_edge_count", len(edges)),
+		attribute.Int("eshu.query.graph_summary.edge_scan_limit", callGraphMetricsEdgeScanLimit),
+		attribute.Bool("eshu.query.graph_summary.scan_overflow", overflow),
+	)
+	if overflow {
+		return nil, false, fmt.Errorf(
+			"%w: reached the %d-edge sentinel; maximum exact scope is %d",
+			errGraphSummaryScopeTooBroad,
+			len(edges),
+			callGraphMetricsEdgeScanLimit,
+		)
+	}
+
+	req := callGraphMetricsRequest{RepoID: repoID, Limit: &limit}
+	rows := callGraphMetricsRows(req, edges)
 	truncated := len(rows) > limit
 	if truncated {
 		rows = rows[:limit]

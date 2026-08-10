@@ -46,7 +46,8 @@ SELECT
     (SELECT count(DISTINCT projection_domain) FROM shared_projection_intents
      WHERE projection_domain = ANY(string_to_array($2, ','))),
     (SELECT count(*) FROM cross_scope_completion_events
-     WHERE status IN ('pending', 'claimed', 'running', 'retrying'))`
+     WHERE status IN ('pending', 'claimed', 'running', 'retrying')),
+    (SELECT count(*) FROM shared_projection_unroutable_intents)`
 
 // drainQuerier reads the current queue residuals. Defined here where it is
 // consumed so tests can fake it without a database.
@@ -91,6 +92,7 @@ func (q *sqlDrainQuerier) Counts(ctx context.Context) (DrainCounts, error) {
 		&counts.RepoDependencyNonterminal,
 		&counts.PopulatedDomainsPresent,
 		&counts.CrossScopeCompletionEventsNonterminal,
+		&counts.SharedIntentsUnroutableQuarantined,
 	)
 	if err != nil {
 		return DrainCounts{}, fmt.Errorf("read atomic drain snapshot: %w", err)

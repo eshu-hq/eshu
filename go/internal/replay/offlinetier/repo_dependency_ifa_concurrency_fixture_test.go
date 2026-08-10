@@ -67,7 +67,7 @@ func (w *repoDependencyOverlapWriter) WriteEdges(
 	domain string,
 	rows []reducer.SharedProjectionIntentRow,
 	evidenceSource string,
-) error {
+) (reducer.SharedProjectionWriteReport, error) {
 	w.mu.Lock()
 	w.current++
 	if w.current > w.max {
@@ -84,10 +84,13 @@ func (w *repoDependencyOverlapWriter) WriteEdges(
 		defer timer.Stop()
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return reducer.SharedProjectionWriteReport{}, ctx.Err()
 		case <-timer.C:
 		}
 	}
+	// Carry the inner report rather than a zero value: dropping it here would
+	// hide unroutable rows from the worker, which then completes the intent
+	// with nothing recorded — the exact loss #5984 exists to close.
 	return w.inner.WriteEdges(ctx, domain, rows, evidenceSource)
 }
 

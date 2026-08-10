@@ -31,7 +31,7 @@ func TestEdgeWriterWriteEdgesRunsInDispatch(t *testing.T) {
 		},
 	}
 
-	if err := writer.WriteEdges(context.Background(), reducer.DomainRunsIn, rows, "reducer/runs-in"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducer.DomainRunsIn, rows, "reducer/runs-in"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 	if got, want := len(executor.calls), 1; got != want {
@@ -75,7 +75,7 @@ func TestEdgeWriterWriteEdgesRunsInDispatch(t *testing.T) {
 	}
 }
 
-func TestEdgeWriterWriteEdgesRunsInSkipsRowsMissingMatchFields(t *testing.T) {
+func TestEdgeWriterWriteEdgesRunsInRowsMissingMatchFieldsFailTheIntent(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
@@ -86,12 +86,8 @@ func TestEdgeWriterWriteEdgesRunsInSkipsRowsMissingMatchFields(t *testing.T) {
 		{IntentID: "i2", RepositoryID: "r1", Payload: map[string]any{"function_id": "f1", "repo_id": ""}},
 	}
 
-	if err := writer.WriteEdges(context.Background(), reducer.DomainRunsIn, rows, "reducer/runs-in"); err != nil {
-		t.Fatalf("WriteEdges() error = %v", err)
-	}
-	if got := len(executor.calls); got != 0 {
-		t.Fatalf("executor calls = %d, want 0 (all rows filtered)", got)
-	}
+	report, err := writer.WriteEdges(context.Background(), reducer.DomainRunsIn, rows, "reducer/runs-in")
+	assertAllRowsUnroutable(t, report, err, len(executor.calls), reducer.DomainRunsIn, 2)
 }
 
 func TestEdgeWriterRetractEdgesRunsInDispatch(t *testing.T) {

@@ -1,16 +1,34 @@
 # prod-ask-default-off — production validation
 
+Validation-Slug: prod-ask-default-off
+Validation-Tier: deployed_services
+Validation-Date: 2026-08-09
+Evidence-Kind: compose_e2e
+Evidence-Source: scripts/verify-golden-corpus-gate.sh
+Validation-Command: GATE_COMPOSE_PROJECT=eshu5552-ask-aggregate-20260809c ESHU_POSTGRES_PORT=25432 NORNICDB_BOLT_PORT=27687 NORNICDB_HTTP_PORT=27474 GATE_API_PORT=28080 GATE_MCP_PORT=28091 GATE_PROMETHEUS_SOURCE_PORT=29090 GATE_ASK_PROVIDER_PORT=29191 bash scripts/verify-golden-corpus-gate.sh > /tmp/eshu-5552-b7-ask-aggregate-20260809c.log 2>&1; echo $?
+Validation-Exit-Code: 0
+Capability-Assertion: ask.natural_language_answer returned non-empty answer prose and four evidence handles after the deployed engine completed one supported, bounded investigate_code_topic call.
+B12-Assertion: ask.natural_language_answer -> mcp:ask
+
+## Fresh deployed validation
+
+The fresh credential-free B-7 run completed with 550 passes, zero required
+failures, and zero warnings in 121 seconds. The positive `mcp:ask` assertion
+observed four source evidence handles, non-empty answer prose, and the exact
+supported `investigate_code_topic` trace bounded to `limit: 10`. The same run
+closed every required drain at zero residual and zero dead-letter work.
+
 Capability: `ask.natural_language_answer` (tool `ask`).
 Production profile: `required_runtime: deployed_services_plus_agent_reasoning_provider`,
 `max_scope_size: multi_repo_platform`, `p95_latency_ms: 15000`, `max_truth_level: derived`.
 
-## Claim validated
+## Claim under validation
 
-Ask is default-off: the MCP tool and HTTP route return `unavailable` unless
-`ESHU_ASK_ENABLED=true` and an `agent_reasoning` provider profile are configured. When enabled,
-the engine plans bounded Tier-1 retrieval and returns evidence-backed answer packets
-(`answer_prose`, `artifacts`, `truth_class`, `evidence_handles`, `query_trace`, `partial`,
-`limitations`) without exposing provider prompts, raw provider bodies, or credentials.
+Ask remains default-off as an operational posture. The supported production
+claim is distinct: when enabled with an `agent_reasoning` profile, the deployed
+engine must make the bounded `investigate_code_topic` call and publish a
+non-empty answer, evidence handles, and query trace. The positive B-12 shape now
+enforces that behavior.
 
 ## Committed reproducible evidence
 
@@ -27,7 +45,7 @@ cd go && go test ./cmd/mcp-server -run TestMCPServerAsk -count=1
 cd go && go test ./internal/query -run TestAskHandler_Disabled -count=1
 ```
 
-**Evidence-backed response shape when enabled** — `go/internal/query/ask_handler_test.go`:
+**Local response-contract coverage when enabled** — `go/internal/query/ask_handler_test.go`:
 `TestBuildAskResponse_TruthClassFromPrimary`, `TestBuildAskResponse_LeakSafety` (no raw
 provider prompt/response leakage), `TestBuildAskResponse_SuppressesUnsafeNarratedOutput`, and
 `go/internal/query/ask_response_test.go`: `TestAskHandler_SuccessResponseShape` and
@@ -53,7 +71,8 @@ cd go && go test ./internal/mcp -run TestAskToolIsRegistered -count=1
 
 ## Notes
 
-No private data: all cited tests use synthetic questions, fixture answer packets, and fake
-provider stubs; no real provider credentials or prompts are committed.
+No private data: the deployed fixture uses only the public golden corpus and a
+credential-free local OpenAI-compatible endpoint. No provider credential,
+private prompt, hostname, or machine-specific path is committed.
 
 Related: #5552 (burn-down).

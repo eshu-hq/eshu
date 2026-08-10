@@ -250,7 +250,7 @@ func validRepoDependencyQuarantineRunner(t *testing.T) RepoDependencyProjectionR
 			"repo_id":           repoID,
 			"target_repo_id":    "repository:quarantine-target",
 			"relationship_type": "DEPENDS_ON",
-			"evidence_source":   crossRepoEvidenceSource,
+			"evidence_source":   CrossRepoEvidenceSource,
 		},
 	)
 	store := &fakeRepoDependencyIntentStore{
@@ -320,9 +320,9 @@ func (w delayedSuccessRepoDependencyWriter) RetractEdges(
 
 func (w delayedSuccessRepoDependencyWriter) WriteEdges(
 	context.Context, string, []SharedProjectionIntentRow, string,
-) error {
+) (SharedProjectionWriteReport, error) {
 	time.Sleep(w.delay)
-	return nil
+	return SharedProjectionWriteReport{}, nil
 }
 
 // blockUntilContextDoneRepoDependencyWriter makes heartbeat loss, rather than
@@ -340,9 +340,9 @@ func (blockUntilContextDoneRepoDependencyWriter) RetractEdges(
 
 func (blockUntilContextDoneRepoDependencyWriter) WriteEdges(
 	ctx context.Context, _ string, _ []SharedProjectionIntentRow, _ string,
-) error {
+) (SharedProjectionWriteReport, error) {
 	<-ctx.Done()
-	return nil
+	return SharedProjectionWriteReport{}, nil
 }
 
 type blockingRepoDependencyIntentReader struct{}

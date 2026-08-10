@@ -327,7 +327,7 @@ func (h WorkloadMaterializationHandler) Handle(
 		}
 		if writeRows := BuildWorkloadDependencyIntentRowsFromEdges(dependencyRows); len(writeRows) > 0 {
 			writeStarted := time.Now()
-			if err := h.WorkloadDependencyEdgeWriter.WriteEdges(
+			if _, err := h.WorkloadDependencyEdgeWriter.WriteEdges(
 				ctx,
 				DomainWorkloadDependency,
 				writeRows,

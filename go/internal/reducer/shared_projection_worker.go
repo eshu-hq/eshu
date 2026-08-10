@@ -19,7 +19,10 @@ const maxSharedSelectionScanLimit = 10_000
 // shared projection domain.
 type SharedProjectionEdgeWriter interface {
 	RetractEdges(ctx context.Context, domain string, rows []SharedProjectionIntentRow, evidenceSource string) error
-	WriteEdges(ctx context.Context, domain string, rows []SharedProjectionIntentRow, evidenceSource string) error
+	// WriteEdges reports the rows it could not route alongside any error, so
+	// the caller that owns intent completion can record a loss the write
+	// itself cannot see the consequence of (#5984).
+	WriteEdges(ctx context.Context, domain string, rows []SharedProjectionIntentRow, evidenceSource string) (SharedProjectionWriteReport, error)
 }
 
 // PartitionLeaseManager manages partition leases for shared projection workers.
@@ -271,6 +274,7 @@ func ProcessPartitionOnce(
 	endpointPresence EndpointPresenceLookup,
 	refreshFence SharedProjectionRefreshFenceLookup,
 	firstProjection FirstProjectionLookup,
+	unroutableWriter SharedProjectionUnroutableWriter,
 ) (result PartitionProcessResult, retErr error) {
 	leaseStart := time.Now()
 	claimed, err := leaseManager.ClaimPartitionLease(
@@ -403,7 +407,8 @@ func ProcessPartitionOnce(
 
 	upsertRows := filterUpsertRows(writeRows)
 	writeStart := time.Now()
-	if err := edgeWriter.WriteEdges(ctx, cfg.Domain, upsertRows, evidenceSource); err != nil {
+	writeReport, err := edgeWriter.WriteEdges(ctx, cfg.Domain, upsertRows, evidenceSource)
+	if err != nil {
 		return PartitionProcessResult{
 			LeaseAcquired:             true,
 			LeaseClaimDurationSeconds: leaseDuration,
@@ -411,6 +416,23 @@ func ProcessPartitionOnce(
 		}, fmt.Errorf("write edges: %w", err)
 	}
 	writeDuration := time.Since(writeStart).Seconds()
+
+	// Persist the rows that produced no edge BEFORE completing anything. The
+	// order is the whole point: completion is permanent (the durable upsert
+	// never reopens a completed row), so after MarkIntentsCompleted nothing
+	// else records that these rows produced nothing. Failing the cycle here is
+	// safe -- the retract, the write and this upsert are all idempotent, so the
+	// batch simply re-runs -- and it is the only way to avoid reintroducing
+	// the silent loss in the persist-failure window (#5984).
+	if len(writeReport.UnroutableRows) > 0 && unroutableWriter != nil {
+		if err := unroutableWriter.WriteUnroutableIntents(ctx, writeReport.UnroutableRows); err != nil {
+			return PartitionProcessResult{
+				LeaseAcquired:             true,
+				LeaseClaimDurationSeconds: leaseDuration,
+				SelectionDurationSeconds:  selectionDuration,
+			}, fmt.Errorf("record unroutable intents: %w", err)
+		}
+	}
 
 	var processedIDs []string
 	processedIDs = append(processedIDs, batch.StaleIDs...)

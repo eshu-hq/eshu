@@ -100,7 +100,7 @@ func TestReducerCodeCallEdgeRetractGraphTruth(t *testing.T) {
 			"callee_entity_id": reFnOutB, "callee_entity_type": "Function",
 		}},
 	}
-	if err := writer.WriteEdges(ctx, reducer.DomainCodeCalls, writeRows, reducerEdgeEvidenceSource); err != nil {
+	if _, err := writer.WriteEdges(ctx, reducer.DomainCodeCalls, writeRows, reducerEdgeEvidenceSource); err != nil {
 		t.Fatalf("WriteEdges: %v", err)
 	}
 

@@ -287,6 +287,12 @@ func (h *ImpactHandler) preChangeImpactResponse(
 	req preChangeImpactRequest,
 ) (map[string]any, error) {
 	changeReq := preChangeAsChangeSurfaceRequest(req)
+	derivedRepositoryTarget := false
+	if changeReq.graphTarget() == "" && req.RepoID != "" && len(req.Changes) > 0 {
+		changeReq.Target = req.RepoID
+		changeReq.TargetType = "repository"
+		derivedRepositoryTarget = true
+	}
 	codeSurface, err := h.changeSurfaceCodeSurface(r.Context(), changeReq)
 	if err != nil {
 		return nil, preChangeCodeSurfaceError{err: err}
@@ -294,7 +300,7 @@ func (h *ImpactHandler) preChangeImpactResponse(
 
 	var selected *changeSurfaceTargetCandidate
 	resolution := changeSurfaceNoTargetResolution(changeReq)
-	if changeReq.graphTarget() != "" {
+	if changeReq.graphTarget() != "" && (!derivedRepositoryTarget || h.Neo4j != nil) {
 		selected, resolution, err = h.resolveChangeSurfaceTarget(r.Context(), changeReq)
 		if err != nil {
 			return nil, err

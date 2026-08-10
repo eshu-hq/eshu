@@ -40,10 +40,10 @@ func (r *recordingCodeownersOwnershipEdgeWriter) WriteEdges(
 	domain string,
 	rows []SharedProjectionIntentRow,
 	_ string,
-) error {
+) (SharedProjectionWriteReport, error) {
 	r.writeDomain = domain
 	r.writeRows = append(r.writeRows, rows...)
-	return nil
+	return SharedProjectionWriteReport{}, nil
 }
 
 func codeownersOwnershipEnvelope(repoID, sourcePath, pattern string, owners []string, orderIndex int) facts.Envelope {

@@ -199,6 +199,31 @@ func TestSurfaceInventoryDriftAgainstRealCode(t *testing.T) {
 	}
 }
 
+func TestGoldenCorpusMockCommandsRemainFixtureOnly(t *testing.T) {
+	t.Parallel()
+
+	inv, findings, err := buildSurfaceInventory(repoSpecsDir(t), repoRootDir(t))
+	if err != nil {
+		t.Fatalf("buildSurfaceInventory: %v", err)
+	}
+	if len(findings) != 0 {
+		t.Fatalf("surface findings present: %+v", findings)
+	}
+
+	for _, name := range []string{"mock-openai-compatible", "mock-prometheus-mimir"} {
+		var got capabilitycatalog.ReadinessLane
+		for _, surface := range inv.Surfaces {
+			if surface.Category == capabilitycatalog.SurfaceCommand && surface.Name == name {
+				got = surface.Readiness
+				break
+			}
+		}
+		if got != capabilitycatalog.ReadinessFixtureOnly {
+			t.Errorf("command %q readiness = %q, want %q", name, got, capabilitycatalog.ReadinessFixtureOnly)
+		}
+	}
+}
+
 func TestCollectorFactKindsCoversFactEmittingCollectors(t *testing.T) {
 	t.Parallel()
 

@@ -46,7 +46,7 @@ func TestEdgeWriterSQLRelationshipSequentialWritesBypassManagedTransactions(t *t
 		},
 	}}
 
-	if err := writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, rows, "test"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, rows, "test"); err != nil {
 		t.Fatalf("WriteEdges: %v", err)
 	}
 	if len(executor.groupCalls) != 0 {
@@ -78,7 +78,8 @@ func TestEdgeWriterSQLRelationshipSequentialWritesPreserveWorkerConcurrency(t *t
 					"relationship_type":  "WRITES_TO",
 				},
 			}
-			errs <- writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, []reducer.SharedProjectionIntentRow{row}, "test")
+			_, writeErr := writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, []reducer.SharedProjectionIntentRow{row}, "test")
+			errs <- writeErr
 		}(i)
 	}
 
@@ -118,7 +119,7 @@ func TestEdgeWriterSQLRelationshipDefaultUsesManagedTransactions(t *testing.T) {
 		},
 	}}
 
-	if err := writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, rows, "test"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, rows, "test"); err != nil {
 		t.Fatalf("WriteEdges: %v", err)
 	}
 	if len(executor.executeCalls) != 0 {

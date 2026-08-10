@@ -95,6 +95,7 @@ func TestProcessPartitionOnceOrderlyStopDoesNotMisreportInFlightRenewalCancellat
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("ProcessPartitionOnce() error = %v, want nil after orderly stop cancels an in-flight renewal", err)
@@ -181,11 +182,11 @@ func (w waitForLeaseRenewalWriter) WriteEdges(
 	_ string,
 	_ []SharedProjectionIntentRow,
 	_ string,
-) error {
+) (SharedProjectionWriteReport, error) {
 	select {
 	case <-w.renewalStarted:
-		return nil
+		return SharedProjectionWriteReport{}, nil
 	case <-ctx.Done():
-		return ctx.Err()
+		return SharedProjectionWriteReport{}, ctx.Err()
 	}
 }
