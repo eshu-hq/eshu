@@ -58,7 +58,8 @@ func TestCassetteDigestsAreWellFormedSHA256(t *testing.T) {
 				violations++
 				t.Errorf("%s: %s = %q is not a well-formed digest "+
 					"(want sha256: plus 64 lowercase hex, or sha512: plus 128, "+
-					"or reference@digest for a field in refDigestAllowedFields)", path, location, value)
+					"or reference@digest for a field in refDigestAllowedFields, "+
+					"or bare lowercase hex at the algorithm's width for a hashes-map key)", path, location, value)
 			}
 		})
 	}

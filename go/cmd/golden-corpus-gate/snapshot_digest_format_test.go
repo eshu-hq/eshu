@@ -90,7 +90,8 @@ func TestSnapshotDigestsAreWellFormedSHA256(t *testing.T) {
 			violations++
 			t.Errorf("%s = %q is not a well-formed digest "+
 				"(want sha256: plus 64 lowercase hex, or sha512: plus 128, "+
-				"or reference@digest for a field in refDigestAllowedFields)", location, value)
+				"or reference@digest for a field in refDigestAllowedFields, "+
+				"or bare lowercase hex at the algorithm's width for a hashes-map key)", location, value)
 		}
 	})
 	t.Logf("%d digest values checked, %d violations", checked, violations)
@@ -120,12 +121,22 @@ func digestFieldSegment(location string) string {
 // isDigestField reports whether a dotted JSON location names a digest field.
 // The trailing segment is what matters: "digest", "subject_digest",
 // "artifact_digest", and "digest_or_version" are digests; "hashes" and
-// "kv_path_fingerprint" are not.
+// "kv_path_fingerprint" are not -- but a key living directly under a "hashes"
+// object (e.g. "...payload.hashes.sha256") is, via isHashesMapDigestField.
 func isDigestField(location string) bool {
 	segment := digestFieldSegment(location)
-	return segment == "digest" || strings.HasSuffix(segment, "_digest") ||
-		segment == "digest_or_version"
+	if segment == "digest" || strings.HasSuffix(segment, "_digest") ||
+		segment == "digest_or_version" {
+		return true
+	}
+	return isHashesMapDigestField(location)
 }
+
+// hashesMapDigestWidths, hashesMapAlgorithm, isHashesMapDigestField, and the
+// tests that prove them live in hashes_map_digest_format_test.go. This file
+// was approaching the 500-line cap; the hashes-map carve-out is a
+// self-contained addition on top of the naming-convention check above and
+// splits out cleanly.
 
 // refDigestAllowedFields is the allowlist of digest field names whose
 // committed contract documents the "reference@digest" shape. Today that is
@@ -157,6 +168,13 @@ var refDigestAllowedFields = map[string]bool{
 // contains — including a value that merely looks like a reference@digest
 // pair.
 func digestFieldValueIsWellFormed(location, value string) bool {
+	if algorithm, ok := hashesMapAlgorithm(location); ok {
+		pattern, supported := hashesMapDigestWidths[algorithm]
+		if !supported {
+			return false
+		}
+		return pattern.MatchString(value)
+	}
 	if !refDigestAllowedFields[digestFieldSegment(location)] {
 		return digestPattern.MatchString(value)
 	}
@@ -182,9 +200,13 @@ func digestFieldValueIsWellFormed(location, value string) bool {
 // field name: a well-formed digest after the last "@" is accepted only for a
 // field in refDigestAllowedFields; every other field is held to a bare
 // digestPattern match even when the value merely looks like a
-// reference@digest pair. It also proves the carve-out is robust to malformed
-// shapes within the allowed field itself — uppercase hex, more than one "@",
-// and a trailing "@" with no digest all still fail.
+// reference@digest pair. It also proves the carve-out rejects malformed
+// shapes within the allowed field itself — uppercase hex and a trailing "@"
+// with no digest both still fail — and that more than one "@" is accepted BY
+// DESIGN, not a gap: the split is always on the LAST "@" (see the comment on
+// digestFieldValueIsWellFormed), so an earlier "@" becomes part of the opaque
+// reference portion rather than breaking the check, as long as the segment
+// after the final "@" is itself a well-formed digest.
 func TestDigestFieldValueIsWellFormedHandlesRefDigestShape(t *testing.T) {
 	t.Parallel()
 
@@ -304,6 +326,10 @@ func TestDigestFieldValueIsWellFormedHandlesRefDigestShape(t *testing.T) {
 		})
 	}
 }
+
+// TestIsDigestFieldHandlesHashesMapShape and
+// TestDigestFieldValueIsWellFormedHandlesHashesMapShape live in
+// hashes_map_digest_format_test.go, next to the predicates they prove.
 
 // walkJSONStrings visits every string in a decoded JSON document, passing a
 // dotted path so a failure names the field rather than just the value.

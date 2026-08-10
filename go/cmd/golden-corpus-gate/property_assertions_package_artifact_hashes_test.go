@@ -109,17 +109,45 @@ func TestCheckGraphPackageArtifactHashesWrongDigestFails(t *testing.T) {
 // pinned rn-package-artifact-hashes snapshot entry describes.
 const packageArtifactHashesCassetteStableKey = "package_registry:go:github.com/acme/lib-common:artifact:lib-common-1.0.0.tar.gz"
 
+// packageArtifactHashSegmentEscape mirrors packageRegistryEscapeHashSegment
+// (go/internal/storage/cypher/package_registry_artifact_writer.go)
+// byte-for-byte: it backslash-escapes every literal '\' and ':' in raw so the
+// segment can sit on either side of the ':' separator without being mistaken
+// for it. Duplicated rather than imported because packageRegistryEscapeHashSegment
+// is unexported; a segment containing neither character is returned
+// unchanged, matching the production function's fast path for the common
+// case of hex digests and conventional algorithm names.
+func packageArtifactHashSegmentEscape(raw string) string {
+	if !strings.ContainsAny(raw, `\:`) {
+		return raw
+	}
+	var b strings.Builder
+	b.Grow(len(raw) + 4)
+	for i := 0; i < len(raw); i++ {
+		if raw[i] == '\\' || raw[i] == ':' {
+			b.WriteByte('\\')
+		}
+		b.WriteByte(raw[i])
+	}
+	return b.String()
+}
+
 // packageArtifactHashesFromCassette derives the expected PackageArtifact
 // hashes property value straight off the recorded package_registry cassette,
 // joining its "hashes" map as sorted "algorithm:digest" pairs with "|" —
 // mirroring packageRegistryHashPairs
-// (go/internal/storage/cypher/package_registry_artifact_writer.go) and
-// boltPropertyString's list join (graph.go). Deriving it here instead of
-// hand-copying the joined string is the point: a hashes value edited in the
-// cassette without updating the pinned snapshot literal now fails this test
-// instead of both sides silently drifting in lockstep, which is exactly what
-// let the #6011 hand-edit slip through five separate copies of the same
-// value.
+// (go/internal/storage/cypher/package_registry_artifact_writer.go), including
+// its packageRegistryEscapeHashSegment escaping and strings.TrimSpace on the
+// digest, and boltPropertyString's list join (graph.go). Applying the same
+// escape/trim here (rather than a bare "algorithm:digest" join) matters for a
+// future digest value: without it, a digest containing ":" or surrounding
+// whitespace would derive a different string here than the writer actually
+// produces, false-RED-ing this test against a correct graph. Deriving it here
+// instead of hand-copying the joined string is the point: a hashes value
+// edited in the cassette without updating the pinned snapshot literal now
+// fails this test instead of both sides silently drifting in lockstep, which
+// is exactly what let the #6011 hand-edit slip through five separate copies
+// of the same value.
 func packageArtifactHashesFromCassette(t *testing.T) string {
 	t.Helper()
 
@@ -147,7 +175,8 @@ func packageArtifactHashesFromCassette(t *testing.T) string {
 					t.Fatalf("%s: hashes[%q] is %T, want string",
 						packageArtifactHashesCassetteStableKey, algorithm, digest)
 				}
-				pairs = append(pairs, algorithm+":"+digestStr)
+				pairs = append(pairs, packageArtifactHashSegmentEscape(algorithm)+":"+
+					packageArtifactHashSegmentEscape(strings.TrimSpace(digestStr)))
 			}
 			sort.Strings(pairs)
 			return strings.Join(pairs, "|")
