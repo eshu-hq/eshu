@@ -422,28 +422,6 @@ func splitSecurityGroupReachabilityEnvelopes(envelopes []facts.Envelope) (resour
 	return resources, rules
 }
 
-// securityGroupReachabilityNotReadyError marks a readiness-gate miss as retryable
-// so the durable queue re-runs the intent once the missing canonical nodes
-// commit, instead of failing terminally or writing edges against absent nodes.
-type securityGroupReachabilityNotReadyError struct {
-	scopeID      string
-	generationID string
-	keyspace     GraphProjectionKeyspace
-}
-
-func (e securityGroupReachabilityNotReadyError) Error() string {
-	return fmt.Sprintf(
-		"canonical nodes not committed on keyspace %s for scope %s generation %s",
-		e.keyspace, e.scopeID, e.generationID,
-	)
-}
-
-func (securityGroupReachabilityNotReadyError) Retryable() bool { return true }
-
-func (securityGroupReachabilityNotReadyError) FailureClass() string {
-	return "security_group_reachability_nodes_not_ready"
-}
-
 // securityGroupReachabilityTiming groups stage durations and the resolution tally
 // so the completion log identifies fact-load, extraction, retract, and graph-write
 // time, plus why rules lost edges.
