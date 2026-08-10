@@ -24,7 +24,13 @@ func TestGoldenSnapshotIaCInventoryRequiresCurrentSummary(t *testing.T) {
 	if shape.MinimumResults < 1 {
 		t.Fatalf("%s minimum_results = %d, want at least 1", key, shape.MinimumResults)
 	}
-	for _, path := range []string{"resources[].id", "summary.total", "summary.by_kind.resource"} {
+	for _, path := range []string{
+		"resources[].id",
+		"summary.total",
+		"summary.by_kind.resource",
+		"summary.by_kind.module",
+		"summary.by_kind.data-source",
+	} {
 		if !containsString(shape.RequiredJSONPaths, path) {
 			t.Fatalf("%s missing required JSON path %q", key, path)
 		}
@@ -36,13 +42,20 @@ func TestGoldenSnapshotIaCInventoryRequiresCurrentSummary(t *testing.T) {
 	// one resource block, aws_security_group.vpc_endpoints). Issue #5954 raises
 	// summary.total only, 22 -> 23 (terraform_comprehensive/pagerduty.tf's
 	// module "orders_pagerduty_service" is a MODULE block, not a resource
-	// block, so count and summary.by_kind.resource hold at 14) -- see
+	// block, so count and summary.by_kind.resource hold at 14). PR #6037
+	// review round 3 (copilot) added summary.by_kind.module=7 and
+	// summary.by_kind.data-source=2: without these two, total=23/resource=14
+	// alone do not stop a future regression from silently shifting a count
+	// between module and data-source, since their sum (9) is unpinned by the
+	// other two assertions -- see
 	// testdata/golden/e2e-20repo-snapshot.json's own required_json_values
-	// comment on this same query shape for the full derivation of all three.
+	// comment on this same query shape for the full derivation of all five.
 	for path, want := range map[string]any{
-		"count":                    float64(14),
-		"summary.total":            float64(23),
-		"summary.by_kind.resource": float64(14),
+		"count":                       float64(14),
+		"summary.total":               float64(23),
+		"summary.by_kind.resource":    float64(14),
+		"summary.by_kind.module":      float64(7),
+		"summary.by_kind.data-source": float64(2),
 	} {
 		if got := shape.RequiredJSONValues[path]; got != want {
 			t.Fatalf("%s required JSON value %q = %#v, want %#v", key, path, got, want)
