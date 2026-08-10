@@ -81,10 +81,26 @@ linters:
       rules:
         # Handlers depend on ports (GraphQuery, GraphWrite, ContentStore), not
         # concrete backend drivers — agent-guide.md "Ownership Boundaries".
+        # Denies the REAL driver module, not just the reserved
+        # internal/storage/neo4j path (which currently holds no Go code, so
+        # denying it alone would be decorative). Six query files already own
+        # driver interaction and are listed as exceptions, so this is a ratchet:
+        # the driver stays where it is today and no NEW query file may reach for
+        # it. Test files are excluded because the live/differential suites drive
+        # a real Bolt session on purpose.
         query-no-graph-driver:
           files:
             - "**/internal/query/**"
+            - "!**/internal/query/*_test.go"
+            - "!**/internal/query/neo4j.go"
+            - "!**/internal/query/neo4j_read_policy.go"
+            - "!**/internal/query/impact_change_surface_legacy.go"
+            - "!**/internal/query/visualization_packet_graph_query.go"
+            - "!**/internal/query/code_call_chain.go"
+            - "!**/internal/query/exposure_path_mapping.go"
           deny:
+            - pkg: github.com/neo4j/neo4j-go-driver
+              desc: query owns handlers and read surfaces; reach the graph through a port or an existing driver-owning file, not a new direct driver import
             - pkg: github.com/eshu-hq/eshu/go/internal/storage/neo4j
               desc: query owns handlers and read surfaces; reach the graph through a port, not the Neo4j driver
         # storage/cypher is deliberately NOT denied to query. One file,
