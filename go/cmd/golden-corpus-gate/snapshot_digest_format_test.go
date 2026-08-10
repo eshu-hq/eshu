@@ -62,7 +62,7 @@ func TestSnapshotDigestsAreWellFormedSHA256(t *testing.T) {
 		t.Fatalf("unmarshal %s: %v", path, err)
 	}
 
-	checked := 0
+	checked, violations := 0, 0
 	walkJSONStrings(document, "", func(location, value string) {
 		// Scoped to fields that ARE digests, by name. Two other snapshot values
 		// carry a "sha256:" prefix without being one, deliberately: a combined
@@ -86,11 +86,14 @@ func TestSnapshotDigestsAreWellFormedSHA256(t *testing.T) {
 			return
 		}
 		checked++
-		if !digestPattern.MatchString(value) {
+		if !digestFieldValueIsWellFormed(location, value) {
+			violations++
 			t.Errorf("%s = %q is not a well-formed digest "+
-				"(want sha256: plus 64 lowercase hex, or sha512: plus 128)", location, value)
+				"(want sha256: plus 64 lowercase hex, or sha512: plus 128, "+
+				"or reference@digest for a field in refDigestAllowedFields)", location, value)
 		}
 	})
+	t.Logf("%d digest values checked, %d violations", checked, violations)
 
 	// A snapshot that stopped carrying digests would satisfy the loop above
 	// without proving anything.
@@ -99,11 +102,10 @@ func TestSnapshotDigestsAreWellFormedSHA256(t *testing.T) {
 	}
 }
 
-// isDigestField reports whether a dotted JSON location names a digest field.
-// The trailing segment is what matters: "digest", "subject_digest",
-// "artifact_digest", and "digest_or_version" are digests; "hashes" and
-// "kv_path_fingerprint" are not.
-func isDigestField(location string) bool {
+// digestFieldSegment extracts the trailing JSON field-name segment from a
+// dotted walkJSONStrings location, stripping any trailing array index so
+// "foo.digest[3]" and "foo.digest" both resolve to "digest".
+func digestFieldSegment(location string) string {
 	segment := location
 	if index := strings.LastIndex(segment, "."); index >= 0 {
 		segment = segment[index+1:]
@@ -112,8 +114,195 @@ func isDigestField(location string) bool {
 	if index := strings.Index(segment, "["); index >= 0 {
 		segment = segment[:index]
 	}
+	return segment
+}
+
+// isDigestField reports whether a dotted JSON location names a digest field.
+// The trailing segment is what matters: "digest", "subject_digest",
+// "artifact_digest", and "digest_or_version" are digests; "hashes" and
+// "kv_path_fingerprint" are not.
+func isDigestField(location string) bool {
+	segment := digestFieldSegment(location)
 	return segment == "digest" || strings.HasSuffix(segment, "_digest") ||
 		segment == "digest_or_version"
+}
+
+// refDigestAllowedFields is the allowlist of digest field names whose
+// committed contract documents the "reference@digest" shape. Today that is
+// only kuberneteslive's resolved_image_digest, which is CRI-normalized into
+// the bare "repo@sha256:<digest>" form
+// (sdk/go/factschema/kuberneteslive/v1/pod_template.go,
+// go/internal/collector/kuberneteslive/envelope.go). Every other digest
+// field — ociregistry's digest/resolved_digest/subject_digest,
+// vulnerabilityintelligence's image_digest/cache_snapshot_digest,
+// sbomattestation's subject_digest, and so on — is a bare digest by
+// contract.
+//
+// Gating the carve-out on the field name, rather than on whether a value
+// happens to contain "@", matters: kuberneteslive resolved_image_digest and
+// vulnerabilityintelligence image_digest hold the same digest and are meant
+// to join on literal string equality. An unconditional carve-out let a
+// ref-qualified value slip into the bare-digest side of that join
+// undetected, and let a malformed digest ride into ANY digest field
+// disguised as the reference portion of a reference@digest pair.
+var refDigestAllowedFields = map[string]bool{
+	"resolved_image_digest": true,
+}
+
+// digestFieldValueIsWellFormed is the one definition of "well-formed digest
+// field value", shared by the snapshot and cassette walkers so there is
+// exactly one rule rather than two that can drift apart. A field in
+// refDigestAllowedFields may carry the documented "reference@digest" shape;
+// every other digest field must be a bare digestPattern match, whatever it
+// contains — including a value that merely looks like a reference@digest
+// pair.
+func digestFieldValueIsWellFormed(location, value string) bool {
+	if !refDigestAllowedFields[digestFieldSegment(location)] {
+		return digestPattern.MatchString(value)
+	}
+	// The split is on the LAST "@". The OCI distribution reference grammar
+	// permits exactly one "@" in a valid reference@digest value — a
+	// registry/repository path cannot itself contain one. Splitting on the
+	// last "@" is still the right choice: it stays correct for a value that
+	// violates that grammar (more than one "@"), since the digest CRI
+	// resolution appends is always the final segment.
+	index := strings.LastIndex(value, "@")
+	if index < 0 {
+		return digestPattern.MatchString(value)
+	}
+	reference, digest := value[:index], value[index+1:]
+	if reference == "" {
+		return false
+	}
+	return digestPattern.MatchString(digest)
+}
+
+// TestDigestFieldValueIsWellFormedHandlesRefDigestShape proves the
+// "reference@digest" carve-out is validated, not exempted, and gated on the
+// field name: a well-formed digest after the last "@" is accepted only for a
+// field in refDigestAllowedFields; every other field is held to a bare
+// digestPattern match even when the value merely looks like a
+// reference@digest pair. It also proves the carve-out is robust to malformed
+// shapes within the allowed field itself — uppercase hex, more than one "@",
+// and a trailing "@" with no digest all still fail.
+func TestDigestFieldValueIsWellFormedHandlesRefDigestShape(t *testing.T) {
+	t.Parallel()
+
+	const refDigestField = "resolved_image_digest"
+	const bareDigestField = "image_digest" // e.g. vulnerabilityintelligence's; not in refDigestAllowedFields
+
+	tests := []struct {
+		name     string
+		location string
+		value    string
+		want     bool
+	}{
+		{
+			name:     "bare digest, ref-digest field",
+			location: refDigestField,
+			value:    "sha256:" + strings.Repeat("a", 64),
+			want:     true,
+		},
+		{
+			name:     "reference@digest, well-formed",
+			location: refDigestField,
+			value:    "ghcr.io/eshu-hq/supply-chain-demo@sha256:" + strings.Repeat("a", 64),
+			want:     true,
+		},
+		{
+			name:     "sha512 reference@digest",
+			location: refDigestField,
+			value:    "ghcr.io/eshu-hq/supply-chain-demo@sha512:" + strings.Repeat("f", 128),
+			want:     true,
+		},
+		{
+			name:     "bare digest, too short",
+			location: refDigestField,
+			value:    "sha256:" + strings.Repeat("a", 63),
+			want:     false,
+		},
+		{
+			name:     "reference@digest, digest too short",
+			location: refDigestField,
+			value:    "ghcr.io/eshu-hq/supply-chain-demo@sha256:" + strings.Repeat("a", 63),
+			want:     false,
+		},
+		{
+			name:     "reference@digest, digest too long",
+			location: refDigestField,
+			value:    "ghcr.io/eshu-hq/supply-chain-demo@sha256:" + strings.Repeat("a", 65),
+			want:     false,
+		},
+		{
+			name:     "empty reference before @",
+			location: refDigestField,
+			value:    "@sha256:" + strings.Repeat("a", 64),
+			want:     false,
+		},
+		{
+			name:     "reference@non-digest",
+			location: refDigestField,
+			value:    "ghcr.io/eshu-hq/supply-chain-demo@not-a-digest",
+			want:     false,
+		},
+		{
+			name:     "reference@digest, uppercase hex",
+			location: refDigestField,
+			value:    "ghcr.io/eshu-hq/supply-chain-demo@sha256:" + strings.Repeat("A", 64),
+			want:     false,
+		},
+		{
+			name:     "reference@digest, more than one @",
+			location: refDigestField,
+			value:    "ghcr.io/eshu-hq/supply-chain-demo@2@sha256:" + strings.Repeat("a", 64),
+			want:     true,
+		},
+		{
+			name:     "reference@digest, trailing @ with empty digest",
+			location: refDigestField,
+			value:    "ghcr.io/eshu-hq/supply-chain-demo@",
+			want:     false,
+		},
+		{
+			// #6011-class smuggling: a too-short digest hiding as the
+			// reference, in front of a well-formed one. Accepted for the
+			// field whose contract documents reference@digest — the
+			// reference portion is opaque and unvalidated by design.
+			name:     "smuggled short digest as reference, ref-digest field",
+			location: refDigestField,
+			value:    "sha256:" + strings.Repeat("a", 63) + "@sha256:" + strings.Repeat("a", 64),
+			want:     true,
+		},
+		{
+			// The same value against a field NOT in refDigestAllowedFields
+			// must reject: before the field gate, "anything@sha256:<64hex>"
+			// passed as a well-formed digest in every digest field, letting
+			// a malformed digest ride in disguised as a reference.
+			name:     "smuggled short digest as reference, bare-digest field",
+			location: bareDigestField,
+			value:    "sha256:" + strings.Repeat("a", 63) + "@sha256:" + strings.Repeat("a", 64),
+			want:     false,
+		},
+		{
+			// The concrete #F1 failure: pasting the ref-qualified form of a
+			// digest into a bare-digest field (e.g. vulnerabilityintelligence
+			// image_digest, meant to join kuberneteslive resolved_image_digest
+			// by literal string equality) must be rejected, not silently
+			// accepted.
+			name:     "well-formed reference@digest rejected outside the allowlist",
+			location: bareDigestField,
+			value:    "ghcr.io/eshu-hq/supply-chain-demo@sha256:" + strings.Repeat("a", 64),
+			want:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := digestFieldValueIsWellFormed(tt.location, tt.value); got != tt.want {
+				t.Errorf("digestFieldValueIsWellFormed(%q, %q) = %v, want %v", tt.location, tt.value, got, tt.want)
+			}
+		})
+	}
 }
 
 // walkJSONStrings visits every string in a decoded JSON document, passing a
