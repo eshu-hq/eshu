@@ -31,9 +31,29 @@ type repositoryDependencyEdge struct {
 // repositoryDependencyClusterEdgeCypher returns the bounded Cypher that lists
 // the repository-to-repository DEPENDS_ON edges used to compute dependency
 // clusters. Both endpoints are anchored on the :Repository label and the
-// relationship type is the fixed DEPENDS_ON, so the planner seeds the scan from
-// the id-indexed Repository population rather than an all-node scan. The result
-// is bounded by repositoryDependencyClusterEdgeLimit.
+// relationship type is the fixed DEPENDS_ON. The result is bounded by
+// repositoryDependencyClusterEdgeLimit.
+//
+// Keep both endpoint labels. They are what makes this query cheap, and the
+// obvious "seed from the relationship-type index" rewrite to bound-but-
+// unlabeled endpoints is dramatically worse. Measured on pinned NornicDB
+// eshu-nornicdb-pr290 over 200,900 nodes / 900 :Repository / 0 DEPENDS_ON,
+// through the Bolt driver:
+//
+//	MATCH (s:Repository)-[:DEPENDS_ON]->(t:Repository) ... LIMIT 50000   5.79ms
+//	MATCH (s)-[:DEPENDS_ON]->(t)                       ... LIMIT 50000    571ms
+//
+// The labeled form is ~99x faster, and the queryplan validator's
+// unlabeledMatchPattern gate rejects the unlabeled one anyway. The
+// relationship-type-index win recorded in cypher-performance.md for bare
+// MATCH ()-[r:VERB]->() count(r) aggregates does not transfer to a shape that
+// binds and returns both endpoints.
+//
+// An earlier version of this comment credited the r.id uniqueness constraint
+// for seeding the scan. It does not: the query supplies no id value, and on a
+// fresh database with no repository_id constraint at all the same shape still
+// returns in 1.62ms over that corpus. The constraint is required for identity,
+// not for this query's plan.
 //
 // For a scoped caller the same tenant predicate that guards the repository list
 // is applied to BOTH the source and target repository, so a scoped caller can
