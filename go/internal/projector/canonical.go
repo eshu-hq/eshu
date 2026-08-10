@@ -222,21 +222,11 @@ var entityTypeLabelMap = map[string]string{
 	"helm_template_value_usage": "HelmTemplateValueUsage",
 
 	// Terraform entities
-	"terraform_resource": "TerraformResource",
-	"terraform_module":   "TerraformModule",
-	"terraform_variable": "TerraformVariable",
-	"terraform_output":   "TerraformOutput",
-	"terraform_block":    "TerraformBlock",
-
-	// CloudFormation extended entities (#5954). The entity_type drops the
-	// "cross_stack" the bucket names carry: the buckets are
-	// cloudformation_cross_stack_imports/exports, the entity types are these.
-	"cloudformation_condition": "CloudFormationCondition",
-	"cloudformation_import":    "CloudFormationImport",
-	"cloudformation_export":    "CloudFormationExport",
-
-	// Incident-declaration entities (#5954).
-	"pagerduty_declaration":   "PagerDutyDeclaration",
+	"terraform_resource":      "TerraformResource",
+	"terraform_module":        "TerraformModule",
+	"terraform_variable":      "TerraformVariable",
+	"terraform_output":        "TerraformOutput",
+	"terraform_block":         "TerraformBlock",
 	"terraform_datasource":    "TerraformDataSource",
 	"terraform_provider":      "TerraformProvider",
 	"terraform_local":         "TerraformLocal",
@@ -263,6 +253,15 @@ var entityTypeLabelMap = map[string]string{
 	"cloudformation_resource":  "CloudFormationResource",
 	"cloudformation_parameter": "CloudFormationParameter",
 	"cloudformation_output":    "CloudFormationOutput",
+	// Extended CloudFormation entities (#5954). The entity_type drops the
+	// "cross_stack" the bucket names carry: the buckets are
+	// cloudformation_cross_stack_imports/exports, the entity types are these.
+	"cloudformation_condition": "CloudFormationCondition",
+	"cloudformation_import":    "CloudFormationImport",
+	"cloudformation_export":    "CloudFormationExport",
+
+	// Incident-declaration entities (#5954)
+	"pagerduty_declaration": "PagerDutyDeclaration",
 
 	// SQL entities
 	"sql_table":     "SqlTable",
