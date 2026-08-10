@@ -33,10 +33,10 @@ package cypher
 // relationship types the code-call domain's write path can materialize, mapping
 // each to the template that writes it. Membership here is what
 // ifa.MaterializedEdgeDomainEdgeTypes asserts for the code_calls family, so a
-// type reachable from selectCodeCallTemplate but absent here would be a live
-// edge the baseline gate silently ignores.
+// type reachable from the write path but absent here would be a live edge the
+// baseline gate silently ignores.
 //
-// All four are genuinely written, not aspirational: selectCodeCallTemplate in
+// All four are genuinely written, not aspirational: buildCodeCallRowMap in
 // edge_writer_code_call_labels.go dispatches to the metaclass, INSTANTIATES,
 // REFERENCES, and CALLS templates, and the default retract disjunction in
 // canonical_retract.go names the same four. Reading only the first MERGE in this
