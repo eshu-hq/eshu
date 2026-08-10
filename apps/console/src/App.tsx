@@ -96,6 +96,17 @@ function AppShell(): React.JSX.Element {
     try {
       const result = await bootFromKey(base, key);
       if (result === null) {
+        // No browser session for this base. The Data source popover always
+        // reconnects without a credential (#3685 removed the key paste field),
+        // so a manual reconnect would otherwise be weaker than the saved
+        // environment boot below, which does fall back to the build-time dev
+        // seed. Retry once through the same fallback rather than stranding a
+        // configured local console in needs-connection until a full reload.
+        const seededKey = env.apiKey.trim();
+        if (key.trim().length === 0 && seededKey.length > 0) {
+          await connect(base, seededKey);
+          return;
+        }
         setClient(undefined);
         clearRepositoryCatalog();
         setSession(null);
