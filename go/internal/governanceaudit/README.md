@@ -48,6 +48,16 @@ metrics, spans, and structured logs.
   they cross a sensitive-data or export boundary.
 - Aggregation validates every event before counting it, so unsafe rows cannot
   become status readbacks.
+- `reason_code` is a bounded enum an operator filters and groups by, so the
+  emitting package owns its closed set rather than passing through whatever a
+  dependency reports. For bearer/token resolution denials that set is
+  `expired`, `wrong_audience`, `unknown_issuer`, `bad_signature`, `malformed`,
+  `no_grants`, and `jwks_fetch_failure`, enforced by
+  `auditableBearerDenialReasons` in `internal/query/auth_audit.go`; an outcome
+  outside it audits as `authentication_required`. Widening the set means adding
+  it there too, otherwise a new denial kind silently reports as the generic
+  reason. The distinctions matter operationally: a spike of `bad_signature` is
+  a different security signal from a spike of `expired`.
 
 ## Related docs
 
