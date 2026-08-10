@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/ifa/graphdump"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 // assertEdgesOptions holds the parsed command-line inputs for one
@@ -81,7 +82,13 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 	}
 	defer closeFn()
 
-	if err := assertMaterializedEdges(ctx, reader, o.domain, edgeTypes, expected); err != nil {
+	// Absent constraints are the common case and mean "match by type alone".
+	// MaterializedEdgeEndpointLabels returns a nil map with ok=false there, and a
+	// nil map's lookups report not-constrained, so the filter is a no-op rather
+	// than a silent match-nothing.
+	endpoints, _ := cypher.MaterializedEdgeEndpointLabels(o.domain)
+
+	if err := assertMaterializedEdges(ctx, reader, o.domain, edgeTypes, endpoints, expected); err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintf(stdout, "ifa assert-edges: domain=%s expected=%d edges matched exactly\n", o.domain, len(expected))
@@ -109,11 +116,22 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 // sqlFamilyGetUserFunctionUID). An edge missing a uid on either endpoint is a
 // real defect (an unmaterialized endpoint node), so it is surfaced, never
 // silently skipped.
+//
+// Endpoint scoping (#5543): a family whose relationship types are shared with
+// another family also constrains its edges' endpoint labels. DEPENDS_ON is
+// written Repository->Repository by repo_dependency and Workload->Workload by
+// workload_dependency, so a type-only filter makes each family count the
+// other's edges as spurious extras once both are proven in one live cell.
+//
+// Absent constraints mean "match every edge of this family's types", never
+// "match nothing" — the latter would assert an empty population and pass any
+// graph.
 func assertMaterializedEdges(
 	ctx context.Context,
 	reader graphdump.Reader,
 	domain string,
 	edgeTypes map[string]struct{},
+	endpoints map[string]cypher.MaterializedEdgeEndpoint,
 	expected []ifa.ExpectedEdge,
 ) error {
 	// expectedCounts tracks per-key multiplicity, not just presence: the
@@ -133,6 +151,16 @@ func assertMaterializedEdges(
 	err := reader.StreamEdges(ctx, func(edge graphdump.Edge) error {
 		if _, ok := edgeTypes[edge.Type]; !ok {
 			return nil
+		}
+		// A constrained type must match its endpoint labels too. Only families
+		// with a proven type collision carry constraints, and the cypher-side
+		// guard requires them to be total over the family's registered types, so
+		// a constrained family can never have a type silently fall through here
+		// unmatched.
+		if endpoint, constrained := endpoints[edge.Type]; constrained {
+			if !hasLabel(edge.FromLabels, endpoint.FromLabel) || !hasLabel(edge.ToLabels, endpoint.ToLabel) {
+				return nil
+			}
 		}
 		fromUID := propUID(edge.FromProps)
 		toUID := propUID(edge.ToProps)
@@ -217,4 +245,23 @@ func propUID(props map[string]any) string {
 	}
 	uid, _ := props["uid"].(string)
 	return uid
+}
+
+// hasLabel reports whether a graph endpoint carries the required node label.
+//
+// Endpoints commonly carry several labels, so this is membership rather than
+// equality. An empty required label would match nothing and silently drop the
+// edge type from the assertion; the cypher-side guard rejects blank labels so
+// that cannot reach here, and this returns false rather than true to keep the
+// failure loud if it ever does.
+func hasLabel(labels []string, required string) bool {
+	if required == "" {
+		return false
+	}
+	for _, label := range labels {
+		if label == required {
+			return true
+		}
+	}
+	return false
 }
