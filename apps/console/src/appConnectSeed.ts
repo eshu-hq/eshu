@@ -1,0 +1,37 @@
+// Seed-selection policy for the private-mode connect lifecycle.
+//
+// The Data source popover reconnects without a credential (#3685 removed the
+// key-paste field), so App.connect has to decide on its own whether the
+// build-time VITE_ESHU_API_KEY seed may stand in. That decision is security
+// relevant: bootFromKey sends the seed as a bearer token to whichever base it
+// is handed, so a seed must never follow an operator-typed origin.
+import type { ConsoleEnvironment } from "./config/environment";
+
+// sameApiBase compares two console API bases for seed-trust purposes. Bases are
+// compared after trimming surrounding whitespace and any trailing slashes, so
+// "/eshu-api" and "/eshu-api/" are the same deployment. Everything else,
+// including a differing scheme, host, or port, is a different origin.
+export function sameApiBase(left: string, right: string): boolean {
+  const normalize = (value: string): string => value.trim().replace(/\/+$/, "");
+  const normalizedLeft = normalize(left);
+  return normalizedLeft.length > 0 && normalizedLeft === normalize(right);
+}
+
+// seedRetryKey returns the configured build-time key when a credential-less
+// connect attempt against the console's own configured base found no browser
+// session, and an empty string in every other case.
+//
+// It deliberately refuses to return the seed for any base other than the
+// configured one. A user can type an arbitrary origin into the Data source
+// popover, and retrying that origin with the seed would hand the credential to
+// a server the operator never configured.
+export function seedRetryKey(
+  attempt: { readonly base: string; readonly key: string },
+  environment: Pick<ConsoleEnvironment, "apiBaseUrl" | "apiKey">,
+): string {
+  if (attempt.key.trim().length > 0) return "";
+  const seed = environment.apiKey.trim();
+  if (seed.length === 0) return "";
+  if (!sameApiBase(attempt.base, environment.apiBaseUrl)) return "";
+  return seed;
+}

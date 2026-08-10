@@ -14,7 +14,8 @@ import { EshuApiClient } from "./api/client";
 import type { BrowserSessionResponse } from "./api/client";
 import { createDemoApiClient, demoApiBaseUrl, demoRepositories } from "./api/demoClient";
 import type { RepoListItem } from "./api/repoCatalog";
-import { bootFromKey, bootFromSession } from "./appBoot";
+import { bootFromSession } from "./appBoot";
+import { createConnect } from "./appConnect";
 import { AppRoutes } from "./appRoutes";
 import { repositorySearchDestination } from "./appSearchRouting";
 import { buildAllowedNavSet } from "./auth/capabilityAccess";
@@ -90,57 +91,17 @@ function AppShell(): React.JSX.Element {
     setOpen(false);
   }
 
-  async function connect(base: string, key: string): Promise<void> {
-    setSource((s) => ({ ...s, base, key, mode: "private", status: "connecting", msg: "" }));
-    setModel(emptyConsoleModel("loading"));
-    try {
-      const result = await bootFromKey(base, key);
-      if (result === null) {
-        // No browser session for this base. The Data source popover always
-        // reconnects without a credential (#3685 removed the key paste field),
-        // so a manual reconnect would otherwise be weaker than the saved
-        // environment boot below, which does fall back to the build-time dev
-        // seed. Retry once through the same fallback rather than stranding a
-        // configured local console in needs-connection until a full reload.
-        const seededKey = env.apiKey.trim();
-        if (key.trim().length === 0 && seededKey.length > 0) {
-          await connect(base, seededKey);
-          return;
-        }
-        setClient(undefined);
-        clearRepositoryCatalog();
-        setSession(null);
-        setModel(emptyConsoleModel("unavailable"));
-        setSource({ base, key: "", mode: "private", status: "needs-connection", msg: "" });
-        setOpen(false);
-        return;
-      }
-      setClient(result.client);
-      setModel(result.model);
-      activateRepositoryCatalog(result.client, result.repositoryCatalog);
-      setSession(result.session);
-      setSource({
-        base,
-        key: result.session === null ? key : "",
-        mode: "private",
-        status: "connected",
-        msg: "",
-      });
-      setOpen(false);
-    } catch (e) {
-      setClient(undefined);
-      clearRepositoryCatalog();
-      setSession(null);
-      setModel(emptyConsoleModel("unavailable"));
-      setSource({
-        base,
-        key,
-        mode: "private",
-        status: "error",
-        msg: e instanceof Error ? e.message : unreachableMessage,
-      });
-    }
-  }
+  const connect = createConnect({
+    environment: env,
+    unreachableMessage,
+    setSource,
+    setModel,
+    setClient,
+    setSession,
+    setOpen,
+    clearRepositoryCatalog,
+    activateRepositoryCatalog,
+  });
 
   function handleLoginSuccess(resp: BrowserSessionResponse): void {
     setSession(resp);
