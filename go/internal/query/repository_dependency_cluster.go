@@ -36,16 +36,28 @@ type repositoryDependencyEdge struct {
 //
 // Keep both endpoint labels. They are what makes this query cheap, and the
 // obvious "seed from the relationship-type index" rewrite to bound-but-
-// unlabeled endpoints is dramatically worse. Measured on pinned NornicDB
-// eshu-nornicdb-pr290 over 200,900 nodes / 900 :Repository / 0 DEPENDS_ON,
-// through the Bolt driver:
+// unlabeled endpoints is far worse. Single observations, one run per shape, no
+// warmup or repetition, against an isolated NornicDB pinned at
+// eshu-nornicdb-pr290:3722b483c02c, seeded through the Bolt driver to 200,900
+// nodes / 900 :Repository / 0 DEPENDS_ON:
 //
 //	MATCH (s:Repository)-[:DEPENDS_ON]->(t:Repository) ... LIMIT 50000   5.79ms
 //	MATCH (s)-[:DEPENDS_ON]->(t)                       ... LIMIT 50000    571ms
 //
-// The labeled form is ~99x faster, and the queryplan validator's
-// unlabeledMatchPattern gate rejects the unlabeled one anyway. The
-// relationship-type-index win recorded in cypher-performance.md for bare
+// Treat those as two individual measurements showing an order-of-magnitude
+// gap, not as a calibrated ratio; a stable figure would need repetition and a
+// distribution. The direction is what matters here.
+//
+// The guard against someone removing these labels is the focused string tests
+// in repository_dependency_cluster_test.go (:151 and :176), which assert
+// "(s:Repository)-[:DEPENDS_ON]->(t:Repository)" verbatim. The queryplan
+// validator's unlabeledMatchPattern check does NOT gate this query:
+// validateCypherEntry runs only for registered manifest entries, and
+// loadRepositoryDependencyClusters is a non_hot_reason callsite in
+// queryplan/testdata/query-source-coverage.yaml. Update those tests, not the
+// validator, if this shape ever changes deliberately.
+//
+// The relationship-type-index win recorded in cypher-performance.md for bare
 // MATCH ()-[r:VERB]->() count(r) aggregates does not transfer to a shape that
 // binds and returns both endpoints.
 //
