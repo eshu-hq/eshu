@@ -13,46 +13,51 @@ a consumer intent can run before the producer's row is active, resolve nothing,
 and never run again. The result is a silent zero: the query returns no rows and
 nothing records that it was asked too early.
 
-## What actually exists today — verified, not assumed
+## What actually exists today — corrected after review
 
-The issue reads as though none of the contract exists. That is not the current
-state, and the difference changes what remains to build.
+My first draft claimed there was no producer-completion fanout and that the only
+runtime consumer of the contract was `DomainDefinition.Validate()`. **That was
+wrong**, and all three reviewers caught it independently (#6028 review).
+
+The error is worth naming because it is the same one twice over: I grepped the
+struct field `CrossScopeDependencies`, found only `Validate()`, and concluded
+absence. The fanout consumes `CrossScopeCompletionEdges()` — a different
+accessor over the *same* `crossScopeDependencyCatalog()`. I verified a name and
+concluded a fact.
 
 | Piece | State on `origin/main` | Evidence |
 | --- | --- | --- |
-| Contract on `DomainDefinition` | **Exists** — `CrossScopeDependencies []CrossScopeDependency` | `internal/reducer/registry.go` |
-| Catalog of consumer → producers | **Exists**, two consumers | `crossScopeDependencyCatalog()` in `internal/reducer/cross_scope_dependencies.go` |
-| Registered consumers | `ci_cd_run_correlation` → `container_image_identity`; `supply_chain_impact` → `container_image_identity`, `ci_cd_run_correlation` | `registry_additive_domains.go:184,259` |
-| Readiness-defer error type | **Exists** — `CrossScopeProducerNotReadyFailureClass`, `newCrossScopeProducerNotReadyError` | `internal/reducer/cross_scope_readiness.go` |
-| Readiness class enrolled non-counting | **Yes** | `reducer_queue_readiness_sql.go:41` |
-| Readiness-defer **invoked** by any handler | **NO — zero call sites** | `rg newCrossScopeProducerNotReadyError` outside its own definition and tests returns nothing |
-| Producer-completion fanout / re-enqueue | **NO — does not exist** | no fanout function; the only runtime consumer of `CrossScopeDependencies` is `DomainDefinition.Validate()` |
+| Contract on `DomainDefinition` | **Exists** | `go/internal/reducer/registry.go` |
+| Catalog of consumer → producers | **Exists** | `crossScopeDependencyCatalog()` |
+| Registered **consumers** | `ci_cd_run_correlation`, `supply_chain_impact` | `registry_additive_domains.go:184,259` |
+| Registered **producers** | `container_image_identity`, `ci_cd_run_correlation` | same catalog |
+| Activation-driven re-enqueue (design point 2) | **EXISTS and is wired in production** | `CrossScopeCompletionEdges()` derives edges from the catalog; reducer ACK inserts `cross_scope_completion_events` (`reducer_queue_batch.go:254`); `CrossScopeCompletionRunner` + `NewCrossScopeCompletionStore` are wired at `cmd/reducer/main.go:453`; the golden-corpus gate asserts the ledger drains |
+| Readiness-defer error type + class | **Exists**, enrolled non-counting | `cross_scope_readiness.go`, `reducer_queue_readiness_sql.go:41` |
+| Any handler that RETURNS the readiness error | **NONE** — zero call sites outside its own definition and tests | unchanged from the first draft; this one holds |
 
-So the declaration surface is built and validated at startup, and **nothing reads
-it to schedule anything**. Both enforcement points the issue proposes are absent.
+So **design point 2 is built**, not missing. The remaining gap is narrower and
+more specific than the issue or my first draft implied: only the readiness-defer
+correctness floor is absent, and it is absent everywhere — no handler returns
+the error for any domain.
 
-### A stale claim worth fixing regardless of which option is chosen
-
-`DomainDefinition.CrossScopeDependencies`' doc comment says:
-
-> The producer-completion fanout derives runtime scheduling edges from the same
-> catalog used to populate this declaration, so registered truth and convergence
-> behavior stay in lockstep.
-
-There is no producer-completion fanout. A reader adding a new consumer domain
-today would reasonably believe registering it buys re-triggering, and it buys
-nothing but a startup validation. This is the same class of defect the contract
-is meant to prevent — a declaration that looks load-bearing and is inert.
+A second correction from review: `container_image_identity` **is** in the
+catalog, as a *producer* for both registered consumers. It is not registered as
+a *consumer*, which is the thing #5699 needs. My first draft said "not in the
+catalog at all", which contradicted my own registered-consumers row.
 
 ## What this means for the migration order in the issue
 
 The issue proposes: readiness-defer first (as #5699's acceptance), then
 activation re-enqueue, then delete the maintenance-reopen entries.
 
-That order still holds, with one correction: step 1 is **not** partially done.
-The error type exists but is never returned, so the correctness floor is not in
-place for any domain, including `container_image_identity` — which is also not
-registered in the catalog at all.
+That order needs revising. Step 2 (activation re-enqueue) is **already
+delivered** by the completion fanout, so the migration is not "build both, then
+delete the band-aids" — it is "add the missing floor, then re-evaluate whether
+the band-aids still have a job".
+
+Step 1 is genuinely absent: the error type exists but is never returned, so the
+correctness floor is in place for no domain. `container_image_identity` is in
+the catalog as a producer but not as a consumer, which is what #5699 needs.
 
 ## The two enforcement points, and what each is worth alone
 
@@ -71,43 +76,50 @@ in-flight projector work, return the typed non-counting retry error.
 - Does **not** fix latency: the consumer re-runs on its retry cadence, not when
   the producer becomes ready.
 
-**2. Activation-driven re-enqueue (re-trigger).** Inside the producer's Ack
-transaction, insert NEW deterministic-ID pending consumer intents pinned to the
-consumer's CURRENT active generation, `ON CONFLICT DO NOTHING`.
+**2. Activation-driven re-enqueue (re-trigger) — ALREADY BUILT.** Reducer ACK
+inserts into `cross_scope_completion_events`, `CrossScopeCompletionStore.Fanout`
+derives the edges from `CrossScopeCompletionEdges()`, and
+`CrossScopeCompletionRunner` schedules the consumers. The golden-corpus gate
+asserts the ledger drains to zero.
 
-- Fixes latency, and is the only piece that removes the reopen band-aid.
-- Carries the real concurrency risk: it writes to the consumer's queue from
-  inside the producer's Ack transaction, so it must not extend that transaction's
-  lock envelope or introduce a lock-order inversion between producer Ack and
-  consumer claim. That needs a contention proof, not an argument.
-- "Pinned to the consumer's CURRENT active generation" is the load-bearing
-  detail and the fix for the band-aid's latent bug: `ReopenSucceededReducerWorkItems`
-  replays the SAME row under its ORIGINAL generation_id, so once the active
-  generation moves, replayed output lands in a non-active generation and every
+Since it exists, the question the issue raised about it is settled in code
+rather than open in design, and the remaining interest is confirmatory:
+
+- Whether the fanout writes pinned to the consumer's CURRENT active generation
+  rather than replaying a row under its original one. That distinction is what
+  makes it a real fix and not a re-run of `ReopenSucceededReducerWorkItems`'
+  latent bug, where replayed output lands in a non-active generation and every
   active-generation-joined query returns zero.
+- Whether its write sits inside the producer's ACK transaction, and if so
+  whether that lock envelope has a contention proof. This is the one piece I
+  would still want evidence for, because it is the concurrency-sensitive part
+  and it is already in production.
 
-They are independent. (1) alone makes the system correct-but-slow. (2) alone
-makes it fast-but-still-racy, because a consumer claimed before the producer Ack
-still resolves nothing with nothing to defer on. The floor should land first.
+They are independent, and the system is currently in the (2)-only state: the
+fanout re-triggers consumers on producer completion, but a consumer claimed
+*before* that completion still resolves nothing and has nothing to defer on, so
+it records an unresolved decision rather than waiting. That is precisely the
+"fast-but-still-racy" case. Adding the floor is what closes it.
 
 ## Decisions the owner needs to make
 
-1. **Does the readiness-defer ship without the fanout?** It is the smaller,
-   safer change and it removes the silent-zero today. It leaves the maintenance
-   reopen in place, so nothing gets deleted yet.
-2. **Is `container_image_identity` registered as a consumer?** It is the issue's
-   first named instance and #5699's acceptance, and it is absent from the
-   catalog. Registration is a prerequisite for either enforcement point covering
-   it.
-3. **Where does the re-enqueue write from?** Inside the producer's Ack
-   transaction (atomic, but widens that transaction) or from a separate
-   post-Ack step (narrower lock envelope, but no longer atomic with activation
-   and so needs its own convergence argument).
-4. **What replaces the reopen list, and when is it deleted?** The issue says
-   delete `container_image_identity`, `deployable_unit_correlation`, and
-   `kubernetes_correlation_materialization`. That deletion is only safe after
-   (2) covers each of them; deleting earlier trades a band-aid with a known bug
-   for no coverage at all.
+1. **Is the readiness floor still wanted, now that the fanout exists?** It is
+   the only missing piece. The fanout re-triggers a consumer *after* the
+   producer completes; the floor is what stops a consumer claimed *before* that
+   from recording an unresolved decision. Cheap, and independent of the fanout.
+2. **Is `container_image_identity` registered as a CONSUMER?** It is in the
+   catalog today as a *producer* only. Registering it as a consumer is what
+   #5699 needs, and is a prerequisite for either enforcement point covering it.
+3. **Does the existing fanout's ACK-transaction write have a contention proof?**
+   This is the question I would prioritise. The mechanism is already in
+   production, so if the write widens the producer ACK lock envelope, that risk
+   is live now rather than hypothetical.
+4. **Can the reopen entries be deleted already?** The issue treats deletion as
+   gated on building the fanout — but it is built. So the real question is
+   whether the fanout plus (if added) the floor covers
+   `container_image_identity`, `deployable_unit_correlation` and
+   `kubernetes_correlation_materialization`, and the answer differs per domain
+   because only two domains are registered consumers.
 
 ## What I did not do
 
