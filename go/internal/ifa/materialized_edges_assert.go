@@ -88,6 +88,8 @@ func MaterializedEdgeDomainEdgeTypes(domain string) (map[string]struct{}, error)
 		return edgeTypeSet(cypher.CodeCallMaterializedEdgeTypes()), nil
 	case "inheritance_edges":
 		return edgeTypeSet(cypher.InheritanceMaterializedEdgeTypes()), nil
+	case "repo_dependency":
+		return edgeTypeSet(cypher.RepoDependencyMaterializedEdgeTypes()), nil
 	default:
 		// The single-relationship-type families resolve from the shared registry
 		// table. They are looked up rather than switched on so registering one is

@@ -128,16 +128,16 @@ func TestEverySingleTypeFamilyResolvesThroughTheResolver(t *testing.T) {
 func TestUnregisteredFamilyStillFailsClosed(t *testing.T) {
 	t.Parallel()
 
-	// repo_dependency is deliberately the example: it is the one #5543 family
-	// still unregistered, because its dispatch writes DEPENDS_ON, RUNS_ON, and a
-	// generic repo-relationship fallthrough reaped by three different retracts,
-	// and that ownership question is unresolved. Until it is settled the family
-	// must fail closed rather than resolve to a guessed set.
-	got, err := MaterializedEdgeDomainEdgeTypes("repo_dependency")
+	// A deliberately fictional domain, not a real-but-uncovered family. Every
+	// #5543 family is registered now, so naming a real one would make this test
+	// silently stop testing fail-closed the moment that family landed — which is
+	// exactly what happened when it named shell_exec and then repo_dependency.
+	const unregistered = "not_a_materialized_edge_family"
+	got, err := MaterializedEdgeDomainEdgeTypes(unregistered)
 	if err == nil {
-		t.Fatalf("MaterializedEdgeDomainEdgeTypes(%q) returned %v with no error; an unregistered family must fail closed, not assert an empty set", "repo_dependency", keysOfSet(got))
+		t.Fatalf("MaterializedEdgeDomainEdgeTypes(%q) returned %v with no error; an unregistered family must fail closed, not assert an empty set", unregistered, keysOfSet(got))
 	}
-	if !strings.Contains(err.Error(), "repo_dependency") {
+	if !strings.Contains(err.Error(), unregistered) {
 		t.Errorf("error %q does not name the unresolved family; the gate operator cannot tell which family is unregistered", err)
 	}
 }
