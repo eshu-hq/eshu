@@ -157,3 +157,67 @@ func TestCodeCallFamilyCoversAllFourEdgeTypes(t *testing.T) {
 		t.Errorf("the expected-edge set exercises no %v edge; the family registers them, so the fixture proves exhaustiveness over less than the family owns", uncovered)
 	}
 }
+
+// TestCodeCallOduPreservesEnvelopeFields stops the loader being more permissive
+// than production.
+//
+// schema_version was originally dropped by this projection. An empty version
+// reads as "latest", so a cassette carrying an unsupported major would satisfy
+// this guard while live replay preserved the version and quarantined the fact —
+// the offline proof would certify input the live gate rejects, which is the one
+// failure this fixture exists to make impossible.
+func TestCodeCallOduPreservesEnvelopeFields(t *testing.T) {
+	t.Parallel()
+	repoRoot := repoRootDir(t)
+
+	odu, err := loadCodeCallFamilyOdu(codeCallFamilyCassetteFullPath(repoRoot))
+	if err != nil {
+		t.Fatalf("loadCodeCallFamilyOdu: %v", err)
+	}
+
+	// Read the cassette independently so the comparison is against the file,
+	// not against the loader's own view of it.
+	raw, err := os.ReadFile(codeCallFamilyCassetteFullPath(repoRoot))
+	if err != nil {
+		t.Fatalf("read cassette: %v", err)
+	}
+	var onDisk struct {
+		Scopes []struct {
+			Facts []struct {
+				FactKind      string `json:"fact_kind"`
+				SchemaVersion string `json:"schema_version"`
+				StableFactKey string `json:"stable_fact_key"`
+				CollectorKind string `json:"collector_kind"`
+			} `json:"facts"`
+		} `json:"scopes"`
+	}
+	if err := json.Unmarshal(raw, &onDisk); err != nil {
+		t.Fatalf("parse cassette: %v", err)
+	}
+	if len(onDisk.Scopes) != 1 || len(onDisk.Scopes[0].Facts) != len(odu.Facts) {
+		t.Fatalf("fact count mismatch: cassette has %d, Odù has %d", len(onDisk.Scopes[0].Facts), len(odu.Facts))
+	}
+
+	checked := 0
+	for i, want := range onDisk.Scopes[0].Facts {
+		got := odu.Facts[i]
+		if want.SchemaVersion == "" {
+			t.Fatalf("fact %d (%s) declares no schema_version; this guard would be vacuous", i, want.FactKind)
+		}
+		if got.SchemaVersion != want.SchemaVersion {
+			t.Errorf("fact %d (%s): schema_version %q dropped or altered (cassette says %q); an empty version reads as latest and hides an unsupported major",
+				i, want.FactKind, got.SchemaVersion, want.SchemaVersion)
+		}
+		if got.StableFactKey != want.StableFactKey {
+			t.Errorf("fact %d (%s): stable_fact_key %q != cassette %q", i, want.FactKind, got.StableFactKey, want.StableFactKey)
+		}
+		if got.CollectorKind != want.CollectorKind {
+			t.Errorf("fact %d (%s): collector_kind %q != cassette %q", i, want.FactKind, got.CollectorKind, want.CollectorKind)
+		}
+		checked++
+	}
+	if checked == 0 {
+		t.Fatal("no facts compared; this guard would pass vacuously")
+	}
+	t.Logf("verified envelope fields preserved across %d facts", checked)
+}
