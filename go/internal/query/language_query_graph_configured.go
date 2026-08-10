@@ -36,12 +36,6 @@ type graphConfiguredReader interface {
 // the interface is treated as configured whenever it is non-nil, preserving
 // existing test-fake behavior (#5761 F1).
 func languageQueryGraphConfigured(reader GraphQuery) bool {
-	return graphQueryConfigured(reader)
-}
-
-// graphQueryConfigured reports whether reader is both non-nil and backed by
-// a live driver or test session factory when it exposes that distinction.
-func graphQueryConfigured(reader GraphQuery) bool {
 	if reader == nil {
 		return false
 	}

@@ -112,7 +112,7 @@ func (h *SupplyChainHandler) applySupplyChainKubernetesRuntimeEvidence(
 	if len(plans) == 0 {
 		return nil
 	}
-	if !graphQueryConfigured(h.Neo4j) {
+	if !languageQueryGraphConfigured(h.Neo4j) {
 		return ErrGraphUnavailable
 	}
 
