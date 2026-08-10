@@ -118,15 +118,26 @@ func digestFieldSegment(location string) string {
 	return segment
 }
 
+// isDigestNamedSegment reports whether a trailing JSON field-name segment
+// (as digestFieldSegment or hashesMapAlgorithm yields it) follows the naming
+// convention that makes a field a digest on its own: "digest", a "_digest"
+// suffix, or "digest_or_version". It is shared by isDigestField and
+// digestFieldValueIsWellFormed so a segment that qualifies as a
+// naming-convention digest field is never also treated as a hashes-map
+// algorithm key -- see digestFieldValueIsWellFormed for why that precedence
+// matters.
+func isDigestNamedSegment(segment string) bool {
+	return segment == "digest" || strings.HasSuffix(segment, "_digest") ||
+		segment == "digest_or_version"
+}
+
 // isDigestField reports whether a dotted JSON location names a digest field.
 // The trailing segment is what matters: "digest", "subject_digest",
 // "artifact_digest", and "digest_or_version" are digests; "hashes" and
 // "kv_path_fingerprint" are not -- but a key living directly under a "hashes"
 // object (e.g. "...payload.hashes.sha256") is, via isHashesMapDigestField.
 func isDigestField(location string) bool {
-	segment := digestFieldSegment(location)
-	if segment == "digest" || strings.HasSuffix(segment, "_digest") ||
-		segment == "digest_or_version" {
+	if isDigestNamedSegment(digestFieldSegment(location)) {
 		return true
 	}
 	return isHashesMapDigestField(location)
@@ -174,8 +185,24 @@ var refDigestAllowedFields = map[string]bool{
 // give the same "skip, don't fail" answer rather than silently narrowing the
 // v1 payload contract a second way. See hashesMapDigestWidths for why an
 // unrecognized algorithm is skipped rather than rejected.
+//
+// The hashes-map branch is only taken when the algorithm segment is NOT
+// itself digest-named (isDigestNamedSegment). A location such as
+// "...payload.hashes.subject_digest" both names a hashes-map key
+// (hashesMapAlgorithm matches its "hashes" parent) and ends in "_digest", so
+// isDigestField counts it via the naming-convention rule regardless of the
+// hashes-map carve-out. Without this guard the hashes-map branch would run
+// first, find "subject_digest" absent from hashesMapDigestWidths, and report
+// it well-formed unconditionally -- counting the value toward the vacuity
+// guard while never validating it, the same counted-but-unchecked shape this
+// gate exists to close. Deferring to the naming-convention digestPattern
+// check instead means the value is actually validated.
+//
+// The hashes-map branch's parity with packageRegistryTrimmedStringMap's
+// normalization is KEY-only, not value -- see hashesMapDigestWidths for the
+// gap and why it is fail-closed rather than a correctness bug.
 func digestFieldValueIsWellFormed(location, value string) bool {
-	if algorithm, ok := hashesMapAlgorithm(location); ok {
+	if algorithm, ok := hashesMapAlgorithm(location); ok && !isDigestNamedSegment(algorithm) {
 		pattern, recognized := hashesMapDigestWidths[algorithm]
 		if !recognized {
 			return true

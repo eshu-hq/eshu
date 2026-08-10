@@ -34,6 +34,19 @@ import (
 // isDigestField, not routed into digestFieldValueIsWellFormed at all. The
 // accepted cost: a future hashes.sha1 (or any other algorithm outside this
 // map) with a malformed value is not validated by this gate.
+//
+// That parity with packageRegistryTrimmedStringMap is KEY-only, not value.
+// packageRegistryTrimmedStringMap strings.TrimSpace-normalizes both the key
+// and the VALUE before merging (package_registry_canonical.go); the widths
+// patterns above match a hashes-map value raw, with no equivalent trim. A
+// digest value padded with leading or trailing whitespace -- which the
+// projector would accept and store trimmed, and which
+// packageArtifactHashesFromCassette's strings.TrimSpace call
+// (property_assertions_package_artifact_hashes_test.go) already mirrors --
+// fails this gate's regex match. Fail-closed and harmless: it never lets a
+// malformed digest through, it can only reject a value the write path would
+// have accepted. But it is stricter than the path it guards on this one
+// axis, not an exact mirror of it.
 var hashesMapDigestWidths = map[string]*regexp.Regexp{
 	"sha256": regexp.MustCompile(`^[0-9a-f]{64}$`),
 	"sha512": regexp.MustCompile(`^[0-9a-f]{128}$`),
@@ -97,16 +110,23 @@ func isHashesMapDigestField(location string) bool {
 // algorithm name, not a "digest"/"*_digest"/"digest_or_version" suffix — so
 // isDigestField never fired on them before this fix.
 //
-// That is true of this walker predicate specifically, not of "the gate" as a
-// whole: TestLoadSnapshotPackageArtifactHashesEntryMatchesCassette
+// TestLoadSnapshotPackageArtifactHashesEntryMatchesCassette
 // (property_assertions_package_artifact_hashes_test.go, added in da6f5cab7
-// itself) derives the expected hashes value straight from the cassette and
-// already catches a truncation of the corpus's one existing hashes-map entry
-// through a different mechanism. Today's corpus has exactly one `hashes`
-// map, already pinned and cassette-derived by that test, so this walker fix
-// adds ZERO retroactive detection for it -- its value is forward-looking: a
-// NEW hashes-map fact added without its own snapshot pin is now caught by
-// this walker where it previously was not.
+// itself) is a DIFFERENT, complementary mechanism, not a substitute for this
+// one: it derives its expected hashes value from the package_registry
+// cassette and compares that derivation against the committed snapshot pin,
+// so it catches the two copies drifting APART from each other. It is
+// structurally blind to a truncation present in BOTH copies -- which is
+// exactly the shape #6011 took, one hand-edit propagated through five
+// separate copies of the same value. That is not hypothetical for this
+// corpus: on origin/main, the packageregistry/supply-chain-demo.json
+// cassette's lib-common hashes carried a 63-hex sha256 and a 127-hex sha512,
+// the committed snapshot pin carried the identical truncation, and
+// TestLoadSnapshotPackageArtifactHashesEntryMatchesCassette passed anyway --
+// the cassette-derived value and the committed pin agreed with each other,
+// not with reality. This walker is the mechanism that actually catches that
+// corpus: it checks each hashes-map value's own shape, independent of what
+// the other copy says.
 func TestIsDigestFieldHandlesHashesMapShape(t *testing.T) {
 	t.Parallel()
 
@@ -295,6 +315,28 @@ func TestDigestFieldValueIsWellFormedHandlesHashesMapShape(t *testing.T) {
 			name:     "uppercase algorithm name not case-folded and skipped regardless of value",
 			location: uppercaseField,
 			value:    strings.Repeat("A", 64),
+			want:     true,
+		},
+		{
+			// P3-1: a hashes-map key that is ALSO digest-named (ends in
+			// "_digest") must not take the hashes-map short-circuit.
+			// isDigestField counts it via the "_digest" suffix rule
+			// (snapshot_digest_format_test.go), so if this function took the
+			// hashes-map branch first it would find "subject_digest"
+			// unrecognized in hashesMapDigestWidths and report it
+			// well-formed unconditionally -- counted as checked, never
+			// actually validated. It must fall through to the ordinary
+			// digestPattern rule instead, so a malformed value here is
+			// caught.
+			name:     "digest-named key under hashes falls through to the ordinary digest rule and rejects a malformed value",
+			location: "scopes[1].facts[4].payload.hashes.subject_digest",
+			value:    "not-a-digest-at-all",
+			want:     false,
+		},
+		{
+			name:     "digest-named key under hashes falls through to the ordinary digest rule and accepts a well-formed one",
+			location: "scopes[1].facts[4].payload.hashes.subject_digest",
+			value:    "sha256:" + strings.Repeat("a", 64),
 			want:     true,
 		},
 	}
