@@ -42,8 +42,8 @@ const (
 	// (graphSchemaNeo4jPreRegistryEventFingerprint /
 	// graphSchemaNornicDBPreRegistryEventFingerprint, the #5458 PackageArtifact
 	// tip below) stays compatible.
-	graphSchemaNeo4jFingerprint    = "2deeea50c722b1ac6be0d86421a450102ff2b8f057142b37277620dd43642f40"
-	graphSchemaNornicDBFingerprint = "f22de603056a95f35a93db7ba8498949ad37670c44d2c3623daf3527b1ac27ae"
+	graphSchemaNeo4jFingerprint    = "8cb1b9c85e5e60690f69af2f35b227af357474845dcec947c8e53be66a1d2647"
+	graphSchemaNornicDBFingerprint = "d2f02330a087a4ece09cb9f81505909b1afbff48719e056c461ae776ceacd9bc"
 
 	// graphSchemaNeo4jPreRegistryEventFingerprint and its NornicDB peer are the
 	// schema fingerprints immediately before the #5458 RegistryEvent /
@@ -228,6 +228,27 @@ const (
 	graphSchemaNeo4jPreGitlabFingerprint    = "be5aa2ca69761b9db112d7a45487ef7095b3fd58038de17cb2b3047479b93c0e"
 	graphSchemaNornicDBPreGitlabFingerprint = "b9e6a46df32f87a20b85cc5e8864a5b70bf0aa478edb055d17fc35d50204c3ff"
 
+	// graphSchemaNeo4jPreContentEntityGraphFingerprint and its NornicDB peer are
+	// the fingerprints from before the #5954 bump, which adds uid uniqueness
+	// constraints for TerraformBlock, CloudFormationCondition,
+	// CloudFormationImport, CloudFormationExport and PagerDutyDeclaration so those
+	// content-entity labels get the same MERGE-by-uid index every sibling label
+	// has.
+	//
+	// Additive, and compatible in both directions during a rolling deploy: a
+	// writer on the predecessor schema creates none of these five node types (the
+	// projector did not recognise their entity types at all), so it cannot violate
+	// a constraint that only now exists, and a writer on the new schema adds
+	// constraints an older reader simply does not consult.
+	//
+	// Registered in uidConstraintLabels rather than as composite
+	// (name, path, line_number) entries in schemaConstraints: composite
+	// constraints pass through dialect.constraint(), which drops them for
+	// NornicDB. Both backend fingerprints moving here is the evidence the
+	// constraint actually lands on both.
+	graphSchemaNeo4jPreContentEntityGraphFingerprint    = "2deeea50c722b1ac6be0d86421a450102ff2b8f057142b37277620dd43642f40"
+	graphSchemaNornicDBPreContentEntityGraphFingerprint = "f22de603056a95f35a93db7ba8498949ad37670c44d2c3623daf3527b1ac27ae"
+
 	// graphSchemaNeo4jPreSqlMigrationFingerprint and its NornicDB peer are the
 	// schema fingerprints immediately before the SqlMigration bump (#5346: adds
 	// the SqlMigration uid uniqueness constraint so the new content-entity label
@@ -266,6 +287,7 @@ var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 			graphSchemaNeo4jPreFunctionRetractIndexesFingerprint,
 			graphSchemaNeo4jPreHelmTemplateValuesFingerprint,
 			graphSchemaNeo4jPreGitlabFingerprint,
+			graphSchemaNeo4jPreContentEntityGraphFingerprint,
 		},
 	},
 	SchemaBackendNornicDB: {
@@ -288,6 +310,7 @@ var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 			graphSchemaNornicDBPreFunctionRetractIndexesFingerprint,
 			graphSchemaNornicDBPreHelmTemplateValuesFingerprint,
 			graphSchemaNornicDBPreGitlabFingerprint,
+			graphSchemaNornicDBPreContentEntityGraphFingerprint,
 		},
 	},
 }
