@@ -40,13 +40,26 @@ var (
 	// query happens to contain a colon and an @ from being reported as a
 	// credential.
 	credentialURLPattern = regexp.MustCompile(`[a-zA-Z][a-zA-Z0-9+.-]*://[^/\s:@"?#]+:[^/\s@"?#]+@`)
-	// Credential keywords only count when something is being assigned to them.
+	// Credential keywords only count when something is actually being assigned
+	// to them, and the discriminator is the value, not the keyword.
+	//
 	// Matching the bare word rejected honest content: "secrets_iam_trust_chain"
-	// and "secrets_iam_graph_projection" are real materialization domains, so a
-	// stack with backlog in either could not export a live bundle at all. The
-	// optional quote and backslash before the separator cover the keyword
-	// appearing as a JSON key in the marshalled bundle.
-	credentialPattern = regexp.MustCompile(`(?i)(authorization:\s*bearer|\\?"?(api[_-]?key|password|passwd|secret|token)\\?"?\s*[:=]|gh[pousr]_[A-Za-z0-9_]{8,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)`)
+	// and "secrets_iam_graph_projection" are real materialization domains, and
+	// "appflow_connector_profile_uses_secret" and "aws_appsync_api_key" even end
+	// in the keyword -- so a health reason reading "<domain>: 5 blocked" looks
+	// exactly like an assignment unless the value is examined.
+	//
+	//   - As a JSON key ("password":, \"api_key\":) the keyword is quoted on
+	//     both sides, which a domain appearing as a JSON value never is. Any
+	//     value counts here, including a purely numeric one.
+	//   - Anywhere else, with or without a suffix (SECRET_KEY=, api_key_id=,
+	//     secret: ), the assigned value must contain something other than
+	//     digits. That is what separates a secret from a count.
+	//
+	// Known gap, accepted: a plain-text "password=123456" outside JSON is not
+	// matched. Screening is best-effort by design, and rejecting every real
+	// export from a secrets/IAM stack is the worse failure.
+	credentialPattern = regexp.MustCompile(`(?i)(authorization:\s*(bearer|basic)|\\?"(api[_-]?key|password|passwd|secret|token)\\?"\s*:|(api[_-]?key|password|passwd|secret|token)[a-z0-9_-]*\\?"?\s*[:=]\s*\\?"?[^\s",]*[A-Za-z/+_-]|gh[pousr]_[A-Za-z0-9_]{8,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)`)
 	rawPromptPattern  = regexp.MustCompile(`(?i)(raw_prompt|provider_response|raw provider response|prompt transcript)`)
 	// Filesystem roots, not "any absolute path": this bundle's own reproduce
 	// calls carry bare API routes such as "GET /api/v0/status/index", which a

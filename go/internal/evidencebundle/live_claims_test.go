@@ -34,6 +34,18 @@ func TestValidateKeepsRealDomainNamesUsable(t *testing.T) {
 			if err := Validate(bundle); err != nil {
 				t.Fatalf("Validate rejected the real domain name %q: %v", domain, err)
 			}
+			// The same name in the shape a health reason would print it. A
+			// keyword-plus-suffix followed by a separator is the credential
+			// shape, so a domain reported with a count must stay distinguishable
+			// from a secret being assigned a value.
+			counted := realisticLiveSnapshot()
+			counted.HealthReasons = []string{
+				domain + ": 5 blocked",
+				"domain " + domain + " has 5 outstanding items",
+			}
+			if err := Validate(BuildLiveBundle(counted, LiveBundleOptions{ScopeID: "live:x", CreatedAt: fixedLiveCreatedAt})); err != nil {
+				t.Fatalf("Validate rejected a health reason counting domain %q: %v", domain, err)
+			}
 		})
 	}
 }
@@ -48,6 +60,19 @@ func TestValidateStillRejectsAssignedCredentials(t *testing.T) {
 		`secret: swordfish`,
 		`api-key=abcdef`,
 		`Authorization: Bearer abcdef`,
+		`Authorization: Basic dXNlcjpwYXNz`,
+		// Suffixed keywords. Requiring the separator to follow the keyword
+		// immediately missed every one of these, and they are the shapes an
+		// environment dump or a config error actually carries.
+		`AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI`,
+		`SECRET_KEY=abc123`,
+		`DB_PASSWORD_ENC=zzz`,
+		`api_key_id=AKIAIOSFODNN7`,
+		`secret_key: swordfish`,
+		`access_token=ya29.abc`,
+		// A numeric value still counts in the JSON-key form, which a domain
+		// name appearing as a JSON value can never take.
+		`"password": 123456`,
 	} {
 		t.Run(reason, func(t *testing.T) {
 			snapshot := realisticLiveSnapshot()
