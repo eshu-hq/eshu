@@ -65,16 +65,13 @@ func Validate(bundle Bundle) error {
 	if err := validatePrivateCanaries(bundle); err != nil {
 		return err
 	}
-	// Last: bundle_id is a hash of the content, so an id that disagrees with the
-	// body means the body changed after it was computed -- including a "passed"
-	// validation status pasted onto a bundle that never passed. It runs after
-	// the redaction checks so an injected leak is reported as a leak rather than
-	// as a stale hash. It catches tampering-without-recompute and accidental
-	// corruption; it is not proof of provenance, since whoever edits the body
-	// can also recompute the hash.
-	if want := bundleID(bundle); bundle.BundleID != want {
-		return fmt.Errorf("bundle_id %q does not match the bundle content (recomputed %q)", bundle.BundleID, want)
-	}
+	// Deliberately NOT checked here: that bundle_id matches a rehash of the
+	// content. It reads like a cheap integrity check and is worse than nothing.
+	// The hash covers the current struct, so every bundle an older binary
+	// exported rehashes differently the moment a field is added within v1, and
+	// `eshu evidence bundle validate --from` would reject artifacts that were
+	// valid when they were written -- which is exactly the artifact's job.
+	// It would not buy provenance either: whoever edits a body can rehash it.
 	return nil
 }
 

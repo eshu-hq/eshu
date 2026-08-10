@@ -88,11 +88,14 @@ and review an artifact before sending it outside your organisation.
 
 `validation.status` is `unvalidated` as built, and the exporter sets `passed`
 only after validation actually runs green, recomputing `bundle_id` over the new
-content. Validation also rejects a bundle whose `bundle_id` disagrees with its
-body, which catches an artifact edited after export.
+content. `bundle_id` is a content hash for
+identifying and de-duplicating an artifact, not a seal: validation does not
+rehash the body to check it, because a bundle exported by an older version
+hashes differently once a field is added, and rejecting it would defeat the
+point of a portable artifact.
 
-That is a statement about the exporter, not a provenance guarantee to a reader:
-anyone who edits a bundle can recompute the hash. Re-run
+So `passed` in a body is a statement about the exporter that wrote it, not a
+guarantee to whoever reads it: anyone who edits a bundle can recompute the hash. Re-run
 `eshu evidence bundle validate --from <file>` on an artifact you received
 instead of trusting the `passed` its body carries.
 
