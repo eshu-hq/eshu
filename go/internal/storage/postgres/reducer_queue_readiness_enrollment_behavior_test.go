@@ -24,7 +24,7 @@ func (readinessMissError) Retryable() bool        { return true }
 func (e readinessMissError) FailureClass() string { return e.class }
 
 // TestReducerQueueFailDefersEveryEnrolledReadinessClassPastAttemptBudget is the
-// behavioural half of #5046: the go/ast guard proves each readiness class is
+// behavioral half of #5046: the go/ast guard proves each readiness class is
 // REGISTERED, this proves registration actually defers the row.
 //
 // It drives the real ReducerQueue.Fail path for every enrolled class with an
