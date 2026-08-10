@@ -129,9 +129,32 @@ loud that it measured a cached rebuild.
 
 ### Where The Time Goes
 
-`up` is **99.9% of TTFA in every mode** — 462,554 ms of a 462,874 ms cold run,
-and the same share warm. Neither image acquisition nor indexing is the cost;
-bringing the stack to healthy is. Anything that moves TTFA has to move `up`.
+Measured with `build` recorded separately from `up`, which is the only way to
+tell a slow image build from a slow bring-up:
+
+| Mode | build | up | total | Ledger |
+| --- | --- | --- | --- | --- |
+| warm | 0 ms (skipped) | 203,866 ms (99.8%) | 204,347 ms | `ledger:4744-demo-ttfa-warm-build`, `ledger:4744-demo-ttfa-warm-up`, `ledger:4744-demo-ttfa-warm-total` |
+| cold, first install | 252,818 ms (**54.9%**) | 207,273 ms (45.0%) | 460,319 ms | `ledger:4744-demo-ttfa-cold-build`, `ledger:4744-demo-ttfa-cold-up`, `ledger:4744-demo-ttfa-cold-total` |
+
+Every cell is the median of the same three runs, per phase rather than per run,
+so a fast phase in one trial cannot be paired with a slow one in another. The
+trials, command, host, and measured commit are in
+`docs/internal/measurements.jsonl` under the ids above.
+
+An earlier revision of this page concluded that neither image acquisition nor
+indexing was the cost. That was wrong, and it was wrong for a structural
+reason worth keeping: it was read off a single `up` bucket that spanned image
+build, container start, corpus bootstrap and the reducer drain at once. A
+bucket that cannot separate those cannot support a claim about which of them
+dominates.
+
+With the phases split, a first install is **majority image build**. Warm skips
+the build entirely — `up -d --wait` already builds whatever is missing, so the
+explicit build step runs only when an image is absent. That guard is load
+bearing: an unconditional `docker compose build` revalidates every build
+context and cost 221,590 ms on an otherwise warm run, which the 5m warm target
+caught.
 
 ### How The Targets Were Chosen
 
