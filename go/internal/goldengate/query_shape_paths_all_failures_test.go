@@ -76,7 +76,13 @@ func TestEvaluateQueryShapeReportsFailuresFromEveryRequirementFamily(t *testing.
 
 	shape := QueryShape{
 		RequiredResponseFields: []string{"data"},
-		RequiredJSONPaths:      []string{"data.absent_field"},
+		// Two entries, because RequiredJSONPaths has TWO failure branches and
+		// a mutation check showed one test input only reaches one of them:
+		// absent_field cannot resolve at all (the resolve-error branch), while
+		// blank_field resolves to an empty value (the no-non-empty-values
+		// branch). Guarding only one leaves the other free to reinstate an
+		// early return unnoticed.
+		RequiredJSONPaths: []string{"data.absent_field", "data.blank_field"},
 		RequiredJSONValues: map[string]any{
 			"data.kind": "expected_kind",
 		},
@@ -95,6 +101,7 @@ func TestEvaluateQueryShapeReportsFailuresFromEveryRequirementFamily(t *testing.
 	// named absent_item, and ci_cd_run_correlation is disclosed absent while
 	// the ci_cd_evidence sibling is served in the same response.
 	body := []byte(`{"data":{
+		"blank_field":"",
 		"kind":"wrong_kind",
 		"items":[{"name":"present_item"}],
 		"ci_cd_evidence":{"state":"materialized"},
@@ -109,7 +116,8 @@ func TestEvaluateQueryShapeReportsFailuresFromEveryRequirementFamily(t *testing.
 		family   string
 		fragment string
 	}{
-		{family: "RequiredJSONPaths", fragment: "data.absent_field"},
+		{family: "RequiredJSONPaths (resolve error)", fragment: "data.absent_field"},
+		{family: "RequiredJSONPaths (resolved but empty)", fragment: "data.blank_field"},
 		{family: "RequiredJSONValues", fragment: "data.kind"},
 		{family: "RequiredJSONObjectMatches", fragment: "data.items[]"},
 		{family: "RequiredAbsentWhenPresent", fragment: "disclosure-vs-served contradiction"},
