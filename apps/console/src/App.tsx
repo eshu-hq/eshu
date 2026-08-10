@@ -14,7 +14,9 @@ import { EshuApiClient } from "./api/client";
 import type { BrowserSessionResponse } from "./api/client";
 import { createDemoApiClient, demoApiBaseUrl, demoRepositories } from "./api/demoClient";
 import type { RepoListItem } from "./api/repoCatalog";
-import { bootFromKey, bootFromSession } from "./appBoot";
+import { bootFromSession } from "./appBoot";
+import { createConnect } from "./appConnect";
+import { seedRetryKey } from "./appConnectSeed";
 import { AppRoutes } from "./appRoutes";
 import { repositorySearchDestination } from "./appSearchRouting";
 import { buildAllowedNavSet } from "./auth/capabilityAccess";
@@ -90,46 +92,17 @@ function AppShell(): React.JSX.Element {
     setOpen(false);
   }
 
-  async function connect(base: string, key: string): Promise<void> {
-    setSource((s) => ({ ...s, base, key, mode: "private", status: "connecting", msg: "" }));
-    setModel(emptyConsoleModel("loading"));
-    try {
-      const result = await bootFromKey(base, key);
-      if (result === null) {
-        setClient(undefined);
-        clearRepositoryCatalog();
-        setSession(null);
-        setModel(emptyConsoleModel("unavailable"));
-        setSource({ base, key: "", mode: "private", status: "needs-connection", msg: "" });
-        setOpen(false);
-        return;
-      }
-      setClient(result.client);
-      setModel(result.model);
-      activateRepositoryCatalog(result.client, result.repositoryCatalog);
-      setSession(result.session);
-      setSource({
-        base,
-        key: result.session === null ? key : "",
-        mode: "private",
-        status: "connected",
-        msg: "",
-      });
-      setOpen(false);
-    } catch (e) {
-      setClient(undefined);
-      clearRepositoryCatalog();
-      setSession(null);
-      setModel(emptyConsoleModel("unavailable"));
-      setSource({
-        base,
-        key,
-        mode: "private",
-        status: "error",
-        msg: e instanceof Error ? e.message : unreachableMessage,
-      });
-    }
-  }
+  const connect = createConnect({
+    environment: env,
+    unreachableMessage,
+    setSource,
+    setModel,
+    setClient,
+    setSession,
+    setOpen,
+    clearRepositoryCatalog,
+    activateRepositoryCatalog,
+  });
 
   function handleLoginSuccess(resp: BrowserSessionResponse): void {
     setSession(resp);
@@ -209,6 +182,12 @@ function AppShell(): React.JSX.Element {
     if (hasSavedEnv && !bootedRef.current) {
       bootedRef.current = true;
       const base = env.apiBaseUrl;
+      // A build-time local shared key cannot always mint a tenant-bound browser
+      // session, so boot falls back to the bearer path. seedRetryKey gates that
+      // on the build-time base: a failed popover attempt persists whatever base
+      // it tried, so the saved base is operator-influenced and must not decide
+      // where the credential goes.
+      const bootSeed = seedRetryKey({ base, key: "" }, env);
       setSource((s) => ({ ...s, status: "connecting", msg: "" }));
       bootFromSession(base)
         .then((result) => {
@@ -218,17 +197,14 @@ function AppShell(): React.JSX.Element {
             activateRepositoryCatalog(result.client, result.repositoryCatalog);
             setSession(result.session);
             setSource({ base, key: "", mode: "private", status: "connected", msg: "" });
-          } else if (env.apiKey.trim().length > 0) {
-            // A build-time local shared key cannot always mint a tenant-bound
-            // browser session. Reuse the existing bootFromKey bearer fallback
-            // when no session cookie exists, including after a full reload.
-            void connect(base, env.apiKey);
+          } else if (bootSeed.length > 0) {
+            void connect(base, bootSeed);
           } else {
             setSource((s) => ({ ...s, status: "needs-connection", msg: "" }));
           }
         })
         .catch(() => {
-          void connect(base, env.apiKey || "");
+          void connect(base, bootSeed);
         });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
