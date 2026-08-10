@@ -135,4 +135,4 @@ func attestationSignatureVerificationEnvelope(factID, scopeID, generationID stri
 	}
 }
 
-const reducerTestSubjectDigest = "sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80901a"
+const reducerTestSubjectDigest = "sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8090a"

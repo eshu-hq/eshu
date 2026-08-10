@@ -9,8 +9,6 @@ import (
 	"time"
 )
 
-const maxContextBytes = 4096
-
 // SourceKind identifies the source lane that produced a search document.
 type SourceKind string
 
@@ -329,14 +327,6 @@ func entityTitle(entityType string, entityName string) string {
 	default:
 		return "Content entity"
 	}
-}
-
-func boundedContext(value string) string {
-	value = strings.TrimSpace(value)
-	if len(value) <= maxContextBytes {
-		return value
-	}
-	return value[:maxContextBytes]
 }
 
 func containsSensitiveContext(value string) bool {

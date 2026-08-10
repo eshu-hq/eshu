@@ -11,7 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 )
 
-const containerImageIdentityEvidenceMergeQuery = "GET /api/v0/supply-chain/container-images/identities?digest=sha256:0000000000000000000000000000000000000000000000000000000000aa&limit=10"
+const containerImageIdentityEvidenceMergeQuery = "GET /api/v0/supply-chain/container-images/identities?digest=sha256:00000000000000000000000000000000000000000000000000000000000000ff&limit=10"
 
 func TestGoldenSnapshotPinsContainerImageIdentityEvidenceMerge(t *testing.T) {
 	t.Parallel()
@@ -33,12 +33,12 @@ func TestGoldenSnapshotPinsContainerImageIdentityEvidenceMerge(t *testing.T) {
 
 	valid := []byte(`{
 		"identities":[{
-			"digest":"sha256:0000000000000000000000000000000000000000000000000000000000aa",
+			"digest":"sha256:00000000000000000000000000000000000000000000000000000000000000ff",
 			"evidence_fact_ids":[
+				"2b207a0d89b9f25f5a3cc056092b5b54b898446d84f8eab395a0ba31d7034e4b",
 				"91516d563e2dd52dbcf527740c02b2130e61a6b4b77ad4be218417ac0057b51f",
-				"952cba28492237a7263251dbd73f07c57bcfb929b3541a97f4b5eaf8335aaaf8",
 				"b0803c884786f7b08f472376bb5a6139bfdb5770e398823ca47bb3e615cfc01b",
-				"d15088277e773fa3cf958a16a7220845763a484b2646168881d06038afbb9774"
+				"d086f4dbe49ed067afe50377a6377043a0b6d4a3806d81f64d193855dd50503f"
 			],
 			"identity_strength":"explicit_digest",
 			"source_repository_ids":["repository:r_19519f37"],
@@ -57,7 +57,7 @@ func TestGoldenSnapshotPinsContainerImageIdentityEvidenceMerge(t *testing.T) {
 
 	missingRuntime := []byte(strings.Replace(
 		string(valid),
-		"d15088277e773fa3cf958a16a7220845763a484b2646168881d06038afbb9774",
+		"d086f4dbe49ed067afe50377a6377043a0b6d4a3806d81f64d193855dd50503f",
 		"runtime-evidence-dropped",
 		1,
 	))
@@ -89,7 +89,7 @@ func TestGoldenCICDCassetteCollidesRuntimeAndArtifactEvidence(t *testing.T) {
 		scopeID      = "ci_cd_run:github_actions:acme:container-ci-lineage"
 		runKey       = "ci_cd_run:github_actions:container-ci-lineage:run:9101"
 		artifactKey  = runKey + ":artifact:image"
-		digest       = "sha256:0000000000000000000000000000000000000000000000000000000000aa"
+		digest       = "sha256:00000000000000000000000000000000000000000000000000000000000000ff"
 		repositoryID = "repository:r_19519f37"
 	)
 	foundRun := 0

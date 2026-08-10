@@ -35,7 +35,7 @@ func TestInfraRelationshipsWhatRunsLambdaImageSurfacesOutgoingEdge(t *testing.T)
 		"direction":     "outgoing",
 		"type":          "AWS_lambda_function_uses_image",
 		"target_name":   "supply-chain-demo",
-		"target_id":     "oci-descriptor://123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo@sha256:0000000000000000000000000000000000000000000000000000000000cc",
+		"target_id":     "oci-descriptor://123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo@sha256:0000000000000000000000000000000000000000000000000000000000aaaacc",
 		"target_labels": []any{"ContainerImage"},
 	}
 
@@ -103,7 +103,7 @@ func TestInfraRelationshipsWhatRunsLambdaImageSurfacesIncomingEdge(t *testing.T)
 					incoming = []any{lambdaImageEdge}
 				}
 				return map[string]any{
-					"id":       "oci-descriptor://123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo@sha256:0000000000000000000000000000000000000000000000000000000000cc",
+					"id":       "oci-descriptor://123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo@sha256:0000000000000000000000000000000000000000000000000000000000aaaacc",
 					"name":     "supply-chain-demo",
 					"labels":   []any{"ContainerImage"},
 					"outgoing": []any{},
@@ -113,7 +113,7 @@ func TestInfraRelationshipsWhatRunsLambdaImageSurfacesIncomingEdge(t *testing.T)
 		},
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v0/infra/relationships", bytes.NewBufferString(`{"entity_id":"oci-descriptor://123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo@sha256:0000000000000000000000000000000000000000000000000000000000cc","relationship_type":"AWS_lambda_function_uses_image"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/infra/relationships", bytes.NewBufferString(`{"entity_id":"oci-descriptor://123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo@sha256:0000000000000000000000000000000000000000000000000000000000aaaacc","relationship_type":"AWS_lambda_function_uses_image"}`))
 	rec := httptest.NewRecorder()
 	handler.getRelationships(rec, req)
 

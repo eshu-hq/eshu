@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	lambdaImageDigest     = "sha256:0000000000000000000000000000000000000000000000000000000000cc"
+	lambdaImageDigest     = "sha256:0000000000000000000000000000000000000000000000000000000000aaaacc"
 	lambdaImageRunID      = "5152"
 	lambdaImageRepository = "repository:r_217415d9"
 	lambdaImageScope      = "ci_cd_run:github_actions:acme:deployable-config-resource-proof"

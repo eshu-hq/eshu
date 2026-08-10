@@ -83,7 +83,7 @@
             "result_count": 1,
             "fact_count": 3,
             "image_reference": "registry.example.com/demo/checkout-service:1.4.0",
-            "image_digest": "sha256:deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbe0",
+            "image_digest": "sha256:deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbae0",
             "evidence_source": "scanner_worker",
             "extraction_reason": "scheduled_scan",
             "distro": "alpine",

@@ -110,7 +110,7 @@
             "signal_kind": "tag_values",
             "tag_name": "service.name",
             "tag_value_count": 1,
-            "tag_value_hashes": ["sha256:5e0e9a1c2d3b4a5f6071829304a5b6c7d8e9f0a1b2c3d4e5f60718293a4b5c6d7"],
+            "tag_value_hashes": ["sha256:5e0e9a1c2d3b4a5f6071829304a5b6c7d8e9f0a1b2c3d4e5f60718293a4b5cd7"],
             "declared_match_state": "not_compared",
             "redaction_state": "applied"
           }
