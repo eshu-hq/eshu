@@ -201,6 +201,14 @@ in all three. The three gate summary lines:
 | 2 (`3b4f63a888`) | 157s | 555 pass, 0 required-fail, 0 advisory-warn |
 | 3 (`3b4f63a888`, rerun) | 193s | 552 pass, 0 required-fail, 3 advisory-warn |
 
+Runs 2 and 3 are the same code (`3b4f63a888`, this branch's HEAD after
+rebasing onto current `origin/main`). Run 1 is an earlier commit
+(`cdf3730a03`) at a pre-rebase HEAD, so it is not a clean single-code series
+with the other two — the counts and query shape agreeing across all three is
+still meaningful (the fixture and node-count logic did not change between
+`cdf3730a03` and `3b4f63a888`), but the timing numbers below span two
+different bases, not three samples of identical code.
+
 The asserted truth this branch changes — the six node counts and the IaC
 query shape — is stable across three different runs at three different points
 in the rebase history and under three different load conditions. That is a
@@ -213,27 +221,36 @@ truth does not move.
 
 | run | observed | baseline | ceiling | result |
 | --- | --- | --- | --- | --- |
-| 1 | 10.0s | 3.0s | 8.0s | WARN (host load 17-18) |
+| 1 | 10.0s | 3.0s | 8.0s | WARN (host load 17-18, observed directly from this run) |
 | 2 | 8.0s | 3.0s | 8.0s | PASS — landed exactly on the ceiling |
-| 3 | 13.0s | 3.0s | 8.0s | WARN — host load ~38 at the time, from a second live-gate run contending for the same lock this session |
+| 3 | 13.0s | 3.0s | 8.0s | WARN — host load ~38 at the time |
 
-Run 3 also warned on `phase_collect` (32.0s vs a 25.0s ceiling) and
-`phase_maintenance_drains` (65.0s vs a 30.0s ceiling), neither of which
-warned in runs 1 or 2 — i.e. the timing degradation in run 3 was not confined
-to `phase_graph_query`, which argues for a host-wide effect over a
-diff-specific one.
+Run 3's contention has a known cause, not an unexplained spike: a second
+live-gate run started on the same shared lock partway through, from a
+different worktree's `make pre-pr` preflight for issue #5996 that began after
+this run had already been told the lock was clear. That is why run 3 is the
+noisiest sample and why its degradation was not confined to
+`phase_graph_query` — it also warned on `phase_collect` (32.0s vs a 25.0s
+ceiling) and `phase_maintenance_drains` (65.0s vs a 30.0s ceiling), neither of
+which warned in runs 1 or 2. A host-wide effect from a second concurrent gate
+run explains a warn spreading across multiple unrelated phases in a way a
+diff-specific effect would not.
 
-All three runs are elevated relative to the 3.0s baseline; none is a clean
-quiet-host measurement. This host carried between eight and twelve concurrent
-lanes plus other agents' preflights for the full session, with load ranging
-roughly 7 to 49, and a quiet window was not achievable in this session. The
-mechanism argument for why this is not attributed to the diff: this change
-adds one 5-file repo to a 31-repo corpus and 13 newly projected nodes total,
-no snapshot query shape fans out over these five labels, and the IaC
-inventory CTE is restricted to three Terraform entity types so it gains
-exactly one row from this change. That argument makes it implausible by
-mechanism that this diff moves a 3s phase to 8-13s. It does not prove what
-did — this is **implausible by mechanism, unresolved by measurement**, not
+Run 3's own elevation has a confirmed external cause (the concurrent #5996
+preflight above). Runs 1 and 2 do not have an equally specific known cause,
+and neither is a clean quiet-host measurement either — both are still
+elevated relative to the 3.0s baseline (10.0s and 8.0s) despite no identified
+second gate run competing for the lock at the time. This host carried between
+eight and twelve concurrent lanes plus other agents' preflights for the full
+session, with load ranging roughly 7 to 49, and a quiet window was not
+achievable in this session, so "no identified second gate run" is not the
+same as "no contention" — something on the host was still busy. The mechanism
+argument for why none of this is attributed to the diff: this change adds one
+5-file repo to a 31-repo corpus and 13 newly projected nodes total, no
+snapshot query shape fans out over these five labels, and the IaC inventory
+CTE is restricted to three Terraform entity types so it gains exactly one row
+from this change. That argument makes it implausible by mechanism that this
+diff moves a 3s phase to 8-13s. It does not prove what did for runs 1 and 2 —
+that part is **implausible by mechanism, unresolved by measurement**, not
 contention confirmed. A WARN flipping to a PASS that lands precisely on the
-ceiling, or a PASS flipping back to a worse WARN two runs later, is not proof
-of anything about the diff either way.
+ceiling is not proof of anything about the diff either way.
