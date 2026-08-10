@@ -63,6 +63,18 @@ func LoadExpectedEdges(path string) ([]ExpectedEdge, error) {
 // unknown family returns nil so the caller can fail closed with a clear
 // message rather than silently asserting an empty type set (which would make
 // any graph vacuously pass).
+// edgeTypeSet projects a writer registry's type->reason map onto the set shape
+// the assert path compares against. Keeping the projection in one helper is what
+// lets a family's arm be a single line, so adding a family cannot accidentally
+// ship a subtly different (for example, reason-keyed) set.
+func edgeTypeSet(registry map[string]string) map[string]struct{} {
+	out := make(map[string]struct{}, len(registry))
+	for edgeType := range registry {
+		out[edgeType] = struct{}{}
+	}
+	return out
+}
+
 func MaterializedEdgeDomainEdgeTypes(domain string) (map[string]struct{}, error) {
 	switch domain {
 	case "sql_relationships":
@@ -73,12 +85,9 @@ func MaterializedEdgeDomainEdgeTypes(domain string) (map[string]struct{}, error)
 		}
 		return out, nil
 	case "code_calls":
-		reg := cypher.CodeCallMaterializedEdgeTypes()
-		out := make(map[string]struct{}, len(reg))
-		for edgeType := range reg {
-			out[edgeType] = struct{}{}
-		}
-		return out, nil
+		return edgeTypeSet(cypher.CodeCallMaterializedEdgeTypes()), nil
+	case "inheritance_edges":
+		return edgeTypeSet(cypher.InheritanceMaterializedEdgeTypes()), nil
 	default:
 		return nil, fmt.Errorf("ifa: no materialized-edge family registered for domain %q (sql_relationships and code_calls have live assert-edges coverage; the remaining #5543 families are still waived)", domain)
 	}

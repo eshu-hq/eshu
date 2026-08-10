@@ -70,6 +70,57 @@ func TestCodeCallsDomainEdgeTypesComeFromTheWriterRegistry(t *testing.T) {
 	}
 }
 
+// TestInheritanceEdgesDomainResolvesItsMaterializedEdgeTypes pins the second
+// family unblocked for live baseline proof (#5996).
+//
+// Four types again, and again a naive read scores it as one: only INHERITS is
+// written by the first template in canonical_inheritance_edges.go, with
+// OVERRIDES and ALIASES further down the same file and IMPLEMENTS in
+// canonical_implements_edges.go. Two families examined, two that a
+// first-template reading undercounts fourfold — which is why every remaining
+// #5543 family gets its set derived from the writer registry and pinned against
+// the retract, never eyeballed.
+func TestInheritanceEdgesDomainResolvesItsMaterializedEdgeTypes(t *testing.T) {
+	t.Parallel()
+
+	got, err := MaterializedEdgeDomainEdgeTypes("inheritance_edges")
+	if err != nil {
+		t.Fatalf("MaterializedEdgeDomainEdgeTypes(%q) errored: %v; the live baseline gate cannot assert a family it cannot resolve", "inheritance_edges", err)
+	}
+	want := []string{"ALIASES", "IMPLEMENTS", "INHERITS", "OVERRIDES"}
+	if diff := compareEdgeTypeSet(want, got); diff != "" {
+		t.Errorf("inheritance_edges edge types: %s", diff)
+	}
+}
+
+// TestUnregisteredFamilyStillFailsClosed keeps the default arm honest.
+//
+// Registering families one at a time is only safe while an unregistered one
+// still errors: if the default ever returned an empty set instead, every
+// not-yet-covered family would vacuously pass the live gate with zero edges
+// asserted — the exact false-green the waiver rows exist to prevent.
+func TestUnregisteredFamilyStillFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	got, err := MaterializedEdgeDomainEdgeTypes("shell_exec")
+	if err == nil {
+		t.Fatalf("MaterializedEdgeDomainEdgeTypes(%q) returned %v with no error; an unregistered family must fail closed, not assert an empty set", "shell_exec", keysOfSet(got))
+	}
+	if !strings.Contains(err.Error(), "shell_exec") {
+		t.Errorf("error %q does not name the unresolved family; the gate operator cannot tell which family is unregistered", err)
+	}
+}
+
+// keysOfSet renders a set as a slice so failures name the actual types.
+func keysOfSet(set map[string]struct{}) []string {
+	out := make([]string, 0, len(set))
+	for k := range set {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
 // compareEdgeTypeSet reports set differences in both directions, naming the
 // actual types so a failure is actionable without a debugger.
 func compareEdgeTypeSet(want []string, got map[string]struct{}) string {
