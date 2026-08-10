@@ -7483,6 +7483,9 @@
           "count"
         ],
         "results_field": "evidence",
+        "result_item_required_fields": [
+          "evidence_state"
+        ],
         "minimum_results": 1
       },
       "GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&subject_digest=sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8090a": {
