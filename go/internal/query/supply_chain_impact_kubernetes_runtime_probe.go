@@ -107,12 +107,8 @@ func (h *SupplyChainHandler) applySupplyChainKubernetesRuntimeEvidence(
 	if h == nil || h.KubernetesWorkloadInventory == nil || len(rows) == 0 {
 		return nil
 	}
-	digests := make([]string, 0, len(rows))
-	for _, row := range rows {
-		digests = append(digests, strings.TrimSpace(row.SubjectDigest))
-	}
 	allScopes := !access.scoped()
-	plans := planKubernetesRuntimeProbeQueries(digests, allScopes)
+	plans := planKubernetesRuntimeProbeQueriesForRows(rows, allScopes)
 	if len(plans) == 0 {
 		return nil
 	}
@@ -217,17 +213,23 @@ func (h *SupplyChainHandler) applySupplyChainKubernetesRuntimeEvidence(
 			confirmedDigests++
 		}
 	}
+	remainingOccurrences := make(map[string]int, len(plans))
+	for _, plan := range plans {
+		remainingOccurrences[plan.Digest] = plan.Occurrences
+	}
 	for i := range rows {
 		digest := strings.TrimSpace(rows[i].SubjectDigest)
 		metadata, planned := metadataByDigest[digest]
-		if !planned {
+		if !planned || remainingOccurrences[digest] <= 0 {
 			continue
 		}
+		remainingOccurrences[digest]--
 		rows[i].KubernetesRuntimeWorkloadRefs = append(
 			[]KubernetesRuntimeWorkloadRef(nil),
 			refsByDigest[digest]...,
 		)
-		rows[i].KubernetesRuntimeProbe = metadata
+		metadataCopy := *metadata
+		rows[i].KubernetesRuntimeProbe = &metadataCopy
 	}
 	span.SetAttributes(
 		attribute.Int("eshu.authorized_current_workload_count", workloadCount),

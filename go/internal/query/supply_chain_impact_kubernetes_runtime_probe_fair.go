@@ -6,6 +6,8 @@ package query
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 )
@@ -15,18 +17,20 @@ const (
 	supplyChainKubernetesRuntimeProbeMaxAllScopesCandidates = 400
 )
 
-// KubernetesRuntimeProbeMetadata describes the bounded digest-local candidate
-// budget. A nil WorkloadRefsTruncated means authorization prevents the caller
-// from learning whether hidden candidates exist.
+// KubernetesRuntimeProbeMetadata describes the bounded, page-weighted
+// digest-local candidate budget. A nil WorkloadRefsTruncated means
+// authorization prevents the caller from learning whether hidden candidates
+// exist.
 type KubernetesRuntimeProbeMetadata struct {
 	CandidateLimit        int   `json:"candidate_limit"`
 	WorkloadRefsTruncated *bool `json:"workload_refs_truncated"`
 }
 
 type kubernetesRuntimeProbePlan struct {
-	Digest     string
-	Quota      int
-	QueryLimit int
+	Digest      string
+	Occurrences int
+	Quota       int
+	QueryLimit  int
 }
 
 type kubernetesRuntimeProbeSlot struct {
@@ -47,22 +51,82 @@ func planKubernetesRuntimeProbeQueries(digests []string, allScopes bool) []kuber
 	if len(digests) > supplyChainCloudRuntimeProbeMaxDigests {
 		digests = digests[:supplyChainCloudRuntimeProbeMaxDigests]
 	}
-	if len(digests) == 0 {
+	occurrences := make(map[string]int, len(digests))
+	for _, digest := range digests {
+		occurrences[digest] = 1
+	}
+	return planKubernetesRuntimeProbeQueriesByOccurrence(occurrences, allScopes)
+}
+
+func planKubernetesRuntimeProbeQueriesForRows(rows []SupplyChainImpactFindingRow, allScopes bool) []kubernetesRuntimeProbePlan {
+	occurrences := make(map[string]int, min(len(rows), supplyChainKubernetesRuntimeProbeMaxResults))
+	plannedRows := 0
+	for _, row := range rows {
+		if plannedRows >= supplyChainKubernetesRuntimeProbeMaxResults {
+			break
+		}
+		digest := strings.TrimSpace(row.SubjectDigest)
+		if digest == "" {
+			continue
+		}
+		occurrences[digest]++
+		plannedRows++
+	}
+	return planKubernetesRuntimeProbeQueriesByOccurrence(occurrences, allScopes)
+}
+
+func planKubernetesRuntimeProbeQueriesByOccurrence(occurrences map[string]int, allScopes bool) []kubernetesRuntimeProbePlan {
+	digests := make([]string, 0, len(occurrences))
+	totalOccurrences := 0
+	for digest, count := range occurrences {
+		if digest = strings.TrimSpace(digest); digest == "" || count <= 0 {
+			continue
+		}
+		digests = append(digests, digest)
+		totalOccurrences += count
+	}
+	sort.Strings(digests)
+	if len(digests) > supplyChainCloudRuntimeProbeMaxDigests {
+		digests = digests[:supplyChainCloudRuntimeProbeMaxDigests]
+	}
+	if len(digests) == 0 || totalOccurrences == 0 {
 		return nil
 	}
-	baseQuota := supplyChainKubernetesRuntimeProbeMaxResults / len(digests)
-	remainder := supplyChainKubernetesRuntimeProbeMaxResults % len(digests)
+	quotas := make(map[string]int, len(digests))
+	usedSlots := 0
+	for _, digest := range digests {
+		quotas[digest] = 1
+		usedSlots += occurrences[digest]
+	}
+	remainingSlots := max(0, supplyChainKubernetesRuntimeProbeMaxResults-usedSlots)
+	for remainingSlots > 0 {
+		allocated := false
+		for _, digest := range digests {
+			cost := occurrences[digest]
+			if cost > remainingSlots {
+				continue
+			}
+			quotas[digest]++
+			remainingSlots -= cost
+			allocated = true
+		}
+		if !allocated {
+			break
+		}
+	}
 	plans := make([]kubernetesRuntimeProbePlan, len(digests))
 	for i, digest := range digests {
-		quota := baseQuota
-		if i < remainder {
-			quota++
-		}
+		quota := quotas[digest]
 		queryLimit := quota
 		if allScopes {
 			queryLimit++
 		}
-		plans[i] = kubernetesRuntimeProbePlan{Digest: digest, Quota: quota, QueryLimit: queryLimit}
+		plans[i] = kubernetesRuntimeProbePlan{
+			Digest:      digest,
+			Occurrences: occurrences[digest],
+			Quota:       quota,
+			QueryLimit:  queryLimit,
+		}
 	}
 	return plans
 }

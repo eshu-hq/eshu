@@ -6,11 +6,80 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query"
 )
+
+const repeatedDigestMCPTestDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+type repeatedDigestImpactStore struct{}
+
+func (repeatedDigestImpactStore) ListSupplyChainImpactFindings(
+	_ context.Context,
+	_ query.SupplyChainImpactFindingFilter,
+) ([]query.SupplyChainImpactFindingRow, error) {
+	rows := make([]query.SupplyChainImpactFindingRow, 50)
+	for i := range rows {
+		rows[i] = query.SupplyChainImpactFindingRow{
+			FindingID:     fmt.Sprintf("finding-%03d", i),
+			CVEID:         "CVE-2026-00010",
+			PackageID:     fmt.Sprintf("pkg:maven/example/component-%03d@1.0.0", i),
+			RepositoryID:  "repository:r_0123456789abcdef",
+			SubjectDigest: repeatedDigestMCPTestDigest,
+			ImpactStatus:  "affected_exact",
+		}
+	}
+	return rows, nil
+}
+
+type repeatedDigestRuntimeGraph struct{}
+
+func (repeatedDigestRuntimeGraph) Run(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
+	limit, _ := params["limit"].(int)
+	rows := make([]map[string]any, limit)
+	for i := range rows {
+		rows[i] = map[string]any{
+			"matched_digest":     repeatedDigestMCPTestDigest,
+			"workload_uid":       fmt.Sprintf("kubernetes_live:cluster-01:apps/v1/deployments:payments:workload-%03d", i),
+			"edge_scope_id":      "kubernetes_live:cluster-01",
+			"edge_generation_id": "generation-current",
+		}
+	}
+	return rows, nil
+}
+
+func (repeatedDigestRuntimeGraph) RunSingle(context.Context, string, map[string]any) (map[string]any, error) {
+	return nil, nil
+}
+
+type repeatedDigestRuntimeInventory struct{}
+
+func (repeatedDigestRuntimeInventory) CurrentAuthorizedKubernetesRuntimeWorkloads(
+	_ context.Context,
+	candidates []query.KubernetesRuntimeCandidate,
+	_ bool,
+	_ []string,
+	_ []string,
+) ([]query.KubernetesRuntimeWorkloadMatch, error) {
+	matches := make([]query.KubernetesRuntimeWorkloadMatch, len(candidates))
+	for i, candidate := range candidates {
+		matches[i] = query.KubernetesRuntimeWorkloadMatch{
+			Digest: candidate.Digest,
+			WorkloadRef: query.KubernetesRuntimeWorkloadRef{
+				UID:       candidate.WorkloadUID,
+				ClusterID: "cluster-01",
+				Namespace: "payments",
+				Name:      fmt.Sprintf("workload-%03d", i),
+			},
+		}
+	}
+	return matches, nil
+}
 
 func TestResolveRouteMapsSupplyChainImpactFindingsToBoundedQuery(t *testing.T) {
 	t.Parallel()
@@ -309,4 +378,78 @@ func TestDispatchToolSupplyChainImpactFindingsSurfacesIncompleteCoverageStates(t
 			}
 		})
 	}
+}
+
+func TestDispatchToolSupplyChainImpactRepeatedDigestPageStaysWithinBudget(t *testing.T) {
+	t.Parallel()
+
+	handler := &query.SupplyChainHandler{
+		ImpactFindings:              repeatedDigestImpactStore{},
+		Neo4j:                       repeatedDigestRuntimeGraph{},
+		KubernetesWorkloadInventory: repeatedDigestRuntimeInventory{},
+		Profile:                     query.ProfileProduction,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	result, err := dispatchTool(
+		context.Background(),
+		mux,
+		"list_supply_chain_impact_findings",
+		map[string]any{"cve_id": "CVE-2026-00010", "limit": float64(50)},
+		"",
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	if err != nil {
+		t.Fatalf("dispatchTool() error = %v, want nil", err)
+	}
+	if result == nil || result.IsError || result.Envelope == nil || result.Envelope.Error != nil {
+		t.Fatalf("max-cardinality repeated-digest page must remain a success, got %#v", result)
+	}
+	fixedSize := estimateResponseBytes(result)
+	if fixedSize > defaultToolResponseByteBudget {
+		t.Fatalf("MCP response bytes = %d, want <= %d", fixedSize, defaultToolResponseByteBudget)
+	}
+	data, ok := result.Envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("envelope data = %T, want object", result.Envelope.Data)
+	}
+	findings, ok := data["findings"].([]any)
+	if !ok || len(findings) != 50 {
+		t.Fatalf("findings = %#v, want 50 rows", data["findings"])
+	}
+	totalRefs := 0
+	for i, raw := range findings {
+		finding, ok := raw.(map[string]any)
+		if !ok {
+			t.Fatalf("finding %d = %T, want object", i, raw)
+		}
+		refs, ok := finding["kubernetes_runtime_workload_refs"].([]any)
+		if !ok || len(refs) == 0 {
+			t.Fatalf("finding %d refs = %#v, want non-empty bounded evidence", i, finding["kubernetes_runtime_workload_refs"])
+		}
+		totalRefs += len(refs)
+	}
+	if totalRefs > 200 {
+		t.Fatalf("serialized runtime refs = %d, want <= 200", totalRefs)
+	}
+	for i, raw := range findings {
+		finding := raw.(map[string]any)
+		refs := finding["kubernetes_runtime_workload_refs"].([]any)
+		legacyRefs := make([]any, 200)
+		for j := range legacyRefs {
+			legacyRefs[j] = refs[j%len(refs)]
+		}
+		finding["kubernetes_runtime_workload_refs"] = legacyRefs
+		findings[i] = finding
+	}
+	legacySize := estimateResponseBytes(result)
+	if legacySize <= defaultToolResponseByteBudget {
+		t.Fatalf("legacy repeated-ref response bytes = %d, want > %d to bind regression premise", legacySize, defaultToolResponseByteBudget)
+	}
+	t.Logf(
+		"50-finding repeated-digest MCP response bytes: legacy=%d page_bounded=%d budget=%d",
+		legacySize,
+		fixedSize,
+		defaultToolResponseByteBudget,
+	)
 }

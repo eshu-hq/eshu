@@ -2,11 +2,13 @@
 
 ## Contract
 
-Supply-chain finding list and explain reads collect at most 200 distinct,
-non-empty subject digests. Digests are sorted before work begins. For `D`
-digests, each receives `floor(200/D)` candidate slots and the lexical first
-`200 mod D` digests receive one additional slot. The quotas are deterministic,
-sum to 200, and are never zero.
+Supply-chain finding list and explain reads accept at most 200 finding rows.
+Every non-empty digest occurrence receives at least one of the 200 serialized
+workload-reference slots. Remaining slots are assigned deterministically across
+sorted digests; another slot for one digest costs one slot for each finding that
+shares it. The weighted total therefore never exceeds 200. One finding retains
+the full 200-reference quota, 50 findings sharing a digest receive four each,
+and a 200-finding page retains one exact ref per finding.
 
 Each digest is queried separately with the existing CALL-wrapped three-label
 `RUNS_IMAGE` statement. A fixed pool runs at most 32 graph reads concurrently;
@@ -18,8 +20,9 @@ makes one Postgres current-authorization call.
 Scoped callers query exactly the quota and always receive
 `workload_refs_truncated: null`. All-scopes callers query `quota + 1`, so raw
 graph work is at most 400 candidates. After authorization, each digest is
-trimmed to its quota and the probe retains at most 200 distinct digest-scoped
-workload references; findings that share a digest repeat the same bounded refs.
+trimmed to its quota and the probe attaches at most 200 digest-scoped workload
+references across the page; findings that share a digest repeat the same
+deterministic prefix inside that page-weighted quota.
 All-scopes truncation is `true` only when current authorized refs
 exceed the quota, `false` only when the raw graph read exhausted within the
 quota, and `null` otherwise.
@@ -50,18 +53,50 @@ Positive evidence remains bound to an exact graph candidate plus current owner
 and edge ledger rows; this multi-snapshot window is the remaining risk and is
 visible through the child-span counts and request error telemetry.
 
+## Response-budget regression proof
+
+PR review found that the former distinct-digest quota was multiplied when many
+findings shared one digest. The MCP tool defaults to 50 findings, so one digest
+with 200 authorized refs produced 10,000 serialized ref objects. The dispatcher
+counts both structured content and its escaped resource-text copy against the
+256 KiB response budget and correctly replaced that valid query with
+`mcp_response_over_budget`.
+
+The regression test mounts the production query handler behind MCP dispatch,
+returns 50 findings for one digest, and uses the concrete graph and inventory
+interfaces. It then measures the same resulting finding shape with the former
+200-ref repetition and with the page-weighted four-ref quota:
+
+| Same input shape | Serialized refs | Doubled MCP wire estimate | 256 KiB result |
+| --- | ---: | ---: | --- |
+| Former distinct-digest quota | 10,000 | 3,417,116 bytes | rejected |
+| Page-weighted quota | 200 | 143,916 bytes | accepted |
+
+The current-tree test passes with all 50 findings present and non-vacuous. A
+separate 200-finding query-layer test proves every row retains one exact ref,
+the total stays 200, the graph query uses quota plus one sentinel, and each
+row reports `candidate_limit: 1` with `workload_refs_truncated: true`.
+
+```bash
+cd go
+go test ./internal/query ./internal/mcp \
+  -run 'Test(ApplyKubernetesRuntimeEvidence(BoundsRepeatedDigestRefsAcrossPage|MaxPageRetainsOneRefPerFinding)|VulnerabilityScannerReadContractIdentifiesFilters|DispatchToolSupplyChainImpactRepeatedDigestPageStaysWithinBudget)$' \
+  -count=1 -v
+# exit 0
+```
+
 ## Performance Evidence:
 
 The committed integration harnesses bind the shipped Cypher, the concrete
 Postgres authorization store, and the real concurrent Neo4jReader. The harness
 first passed at commit `1568a2a7b56b9a224b80e61ba41144b1999ac196`; the
-measurements below come from a later rerun after the post-rebase review fixes,
+measurements below come from a later rerun after the post-PR review fixes,
 not from that initial sample. The harness rejects a production Cypher hash
 other than
 `1900bbe55bc2f6e63da43ec9f8a6c1ed67e416702ab718aebd4db6ea2c794fee`.
 The rerun used NornicDB source revision
 `3722b483c02c38a8e046d198f8768f200f31023c`, image ID
-`sha256:1afd1f92af1de69bfd336e6b1d4d9136019309c0640ace9b54e1cccba1e4d8d5`,
+`sha256:618df8e027f304cb604267d22645523052a97e1b73f1260f371174ccd522bda9`,
 and PostgreSQL 18.4.
 
 The #6011 base rebase changed the Kubernetes cassette and B-12 snapshot, not
@@ -75,8 +110,8 @@ commit because this evidence record was committed only after the measurement:
 
 | File | Git blob |
 | --- | --- |
-| `supply_chain_impact_kubernetes_runtime_probe.go` | `ed3ccad27100ed1f17e8fe105158c68a5e1e4aca` |
-| `supply_chain_impact_kubernetes_runtime_probe_fair.go` | `fc548f44218bc4d3cd31bcb63638f6a05b021bc5` |
+| `supply_chain_impact_kubernetes_runtime_probe.go` | `1f97261855e65bf07fdfa9bde87ed0b63b860982` |
+| `supply_chain_impact_kubernetes_runtime_probe_fair.go` | `a06dc84b95b124dd91645ef477a80d8e004b46fb` |
 | `kubernetes_runtime_workload_store.go` | `1c81d97983cf93a7810756af20973410a69e78d3` |
 | `supply_chain_impact_kubernetes_runtime_probe_performance_live_test.go` | `bca0979ee7bc38bf2e710eaf9fa3aa54ca49f87c` |
 | `kubernetes_runtime_workload_store_fairness_live_test.go` | `c741b71d2ef765057f054adf342cd0fb5dd995b7` |
@@ -91,10 +126,10 @@ measured rounds on the same graph and Postgres state.
 
 | Request shape | Prior global limit p50 / p95 | Balanced p50 / p95 | Truth result |
 | --- | ---: | ---: | --- |
-| One request | 2.801 / 4.169 ms | 9.700 / 15.484 ms | prior: 200 refs from 1 digest; balanced: 200 refs from 200 digests |
-| Four concurrent requests | 9.566 / 18.952 ms | 32.401 / 46.956 ms | every measured request retained its lane's exact truth result |
+| One request | 4.580 / 6.456 ms | 28.701 / 43.441 ms | prior: 200 refs from 1 digest; balanced: 200 refs from 200 digests |
+| Four concurrent requests | 20.861 / 55.942 ms | 119.640 / 329.799 ms | every measured request retained its lane's exact truth result |
 
-The exact current-tree run stayed below 47 ms at p95. An earlier
+The exact post-rebase current-tree run stayed below 330 ms at p95. An earlier
 same-shape run on the same host observed transient tails of 262.799 ms for one
 balanced request and 314.557 ms for four concurrent requests; those are still
 below the capability's 1,000 ms local-full-stack p95 budget, but they show why
@@ -102,8 +137,8 @@ the evidence does not claim a tighter SLO. The fixed driver pool and worker
 ceiling were both 32. The final run observed a maximum of 32 graph reads, 400
 all-scope candidates, 11,861 successful one-attempt Neo4jReader spans across
 the measurement set, and a successful request immediately after forced parent
-cancellation. The paired Postgres plans measured 2.048 ms for the scoped
-200-candidate shape and 4.753 ms for the all-scope 400-candidate shape,
+cancellation. The paired Postgres plans measured 2.116 ms for the scoped
+200-candidate shape and 4.389 ms for the all-scope 400-candidate shape,
 excluding planning time.
 
 The live test initially failed because a fixture created nodes, a relationship,
@@ -210,8 +245,8 @@ go run ./cmd/ifa coverage \
 
 cd ..
 bash scripts/verify-golden-corpus-gate.sh
-# exit 0: 548 pass, 0 required-fail, 3 advisory timing warnings;
-# pipeline elapsed 213s, required ceiling 1800s
+# exit 0: 547 pass, 0 required-fail, 4 advisory timing warnings;
+# pipeline elapsed 218s, required ceiling 1800s
 ```
 
 ## Observability Evidence:

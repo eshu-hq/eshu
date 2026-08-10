@@ -165,6 +165,90 @@ func TestApplyKubernetesRuntimeEvidenceHotDigestCannotStarveColdDigests(t *testi
 	}
 }
 
+func TestApplyKubernetesRuntimeEvidenceBoundsRepeatedDigestRefsAcrossPage(t *testing.T) {
+	t.Parallel()
+
+	const findingCount = 50
+	digest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	rows := make([]SupplyChainImpactFindingRow, findingCount)
+	for i := range rows {
+		rows[i] = SupplyChainImpactFindingRow{FindingID: fmt.Sprintf("finding-%02d", i), SubjectDigest: digest}
+	}
+	graphRows := make([]map[string]any, supplyChainKubernetesRuntimeProbeMaxResults+1)
+	matches := make([]KubernetesRuntimeWorkloadMatch, len(graphRows))
+	for i := range graphRows {
+		uid := fmt.Sprintf("workload-%03d", i)
+		graphRows[i] = kubernetesRuntimeGraphRow(digest, uid)
+		matches[i] = KubernetesRuntimeWorkloadMatch{Digest: digest, WorkloadRef: KubernetesRuntimeWorkloadRef{UID: uid}}
+	}
+	graph := &fairKubernetesRuntimeGraph{rows: map[string][]map[string]any{digest: graphRows}}
+	inventory := &stubKubernetesWorkloadInventory{rows: matches}
+	if err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(
+		context.Background(), repositoryAccessFilter{allScopes: true}, rows,
+	); err != nil {
+		t.Fatalf("apply error = %v", err)
+	}
+
+	totalRefs := 0
+	for i, row := range rows {
+		totalRefs += len(row.KubernetesRuntimeWorkloadRefs)
+		if len(row.KubernetesRuntimeWorkloadRefs) == 0 {
+			t.Fatalf("row %d has no runtime ref; every finding must retain non-vacuous evidence", i)
+		}
+		if row.KubernetesRuntimeProbe == nil || row.KubernetesRuntimeProbe.CandidateLimit != 4 {
+			t.Fatalf("row %d metadata = %#v, want repeated-digest candidate_limit=4", i, row.KubernetesRuntimeProbe)
+		}
+		if row.KubernetesRuntimeProbe.WorkloadRefsTruncated == nil || !*row.KubernetesRuntimeProbe.WorkloadRefsTruncated {
+			t.Fatalf("row %d metadata = %#v, want truncated=true", i, row.KubernetesRuntimeProbe)
+		}
+	}
+	if totalRefs > supplyChainKubernetesRuntimeProbeMaxResults {
+		t.Fatalf("serialized page refs = %d, want <= %d", totalRefs, supplyChainKubernetesRuntimeProbeMaxResults)
+	}
+	calls := graph.snapshotCalls()
+	if len(calls) != 1 || calls[0].Limit != 5 {
+		t.Fatalf("graph calls = %#v, want one quota+sentinel read with limit 5", calls)
+	}
+}
+
+func TestApplyKubernetesRuntimeEvidenceMaxPageRetainsOneRefPerFinding(t *testing.T) {
+	t.Parallel()
+
+	digest := "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	rows := make([]SupplyChainImpactFindingRow, supplyChainKubernetesRuntimeProbeMaxResults)
+	for i := range rows {
+		rows[i] = SupplyChainImpactFindingRow{FindingID: fmt.Sprintf("finding-%03d", i), SubjectDigest: digest}
+	}
+	graphRows := []map[string]any{
+		kubernetesRuntimeGraphRow(digest, "workload-000"),
+		kubernetesRuntimeGraphRow(digest, "workload-001"),
+	}
+	matches := []KubernetesRuntimeWorkloadMatch{
+		{Digest: digest, WorkloadRef: KubernetesRuntimeWorkloadRef{UID: "workload-000"}},
+		{Digest: digest, WorkloadRef: KubernetesRuntimeWorkloadRef{UID: "workload-001"}},
+	}
+	graph := &fairKubernetesRuntimeGraph{rows: map[string][]map[string]any{digest: graphRows}}
+	inventory := &stubKubernetesWorkloadInventory{rows: matches}
+	if err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(
+		context.Background(), repositoryAccessFilter{allScopes: true}, rows,
+	); err != nil {
+		t.Fatalf("apply error = %v", err)
+	}
+	for i, row := range rows {
+		if len(row.KubernetesRuntimeWorkloadRefs) != 1 {
+			t.Fatalf("row %d refs = %#v, want one exact runtime ref", i, row.KubernetesRuntimeWorkloadRefs)
+		}
+		if row.KubernetesRuntimeProbe == nil || row.KubernetesRuntimeProbe.CandidateLimit != 1 ||
+			row.KubernetesRuntimeProbe.WorkloadRefsTruncated == nil || !*row.KubernetesRuntimeProbe.WorkloadRefsTruncated {
+			t.Fatalf("row %d metadata = %#v, want candidate_limit=1 truncated=true", i, row.KubernetesRuntimeProbe)
+		}
+	}
+	calls := graph.snapshotCalls()
+	if len(calls) != 1 || calls[0].Limit != 2 {
+		t.Fatalf("graph calls = %#v, want one quota+sentinel read with limit 2", calls)
+	}
+}
+
 func TestApplyKubernetesRuntimeEvidenceScopedMetadataDoesNotDiscloseTruncation(t *testing.T) {
 	t.Parallel()
 

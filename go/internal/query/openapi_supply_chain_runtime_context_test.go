@@ -76,7 +76,7 @@ func TestOpenAPISpecDistinguishesDigestBoundKubernetesRefsFromRuntimeContext(t *
 	}
 	probe := mustMapField(t, itemProperties, "kubernetes_runtime_probe")
 	probeDescription, _ := probe["description"].(string)
-	for _, want := range []string{"per-digest", "scoped callers", "authorized current refs", "raw graph query"} {
+	for _, want := range []string{"per-digest", "serialized-page cap", "repeated findings", "scoped callers", "authorized current refs", "raw graph query"} {
 		if !strings.Contains(probeDescription, want) {
 			t.Fatalf("kubernetes runtime probe description missing %q: %q", want, probeDescription)
 		}

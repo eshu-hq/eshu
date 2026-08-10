@@ -967,20 +967,24 @@ can promote `deployment_truth_tier` to `runtime_confirmed`; the parent finding's
 each nested workload reference.
 
 Each probed finding also carries `kubernetes_runtime_probe`. Its
-`candidate_limit` is that digest's share of the fixed 200-reference response
-budget. Digests are sorted and split evenly, with the lexical first remainder
-receiving one extra slot, so a hot digest cannot consume every other finding's
-runtime evidence. The graph fanout runs at most 32 reads concurrently and makes
-one Postgres authorization call after every graph read succeeds.
+`candidate_limit` is that digest's per-finding share of the fixed 200-reference
+page budget. Every finding with a non-empty digest receives at least one slot.
+Remaining slots are assigned deterministically across sorted digests; adding
+one slot to a digest costs one slot for every matching finding because each row
+must remain self-contained. A one-finding page keeps the full 200-reference
+quota, while 50 findings sharing one digest receive four refs each. This bounds
+serialized duplication without dropping runtime truth from any finding. The
+graph fanout runs at most 32 reads concurrently and makes one Postgres
+authorization call after every graph read succeeds.
 
 `workload_refs_truncated` is deliberately nullable. Scoped callers always see
 `null`, so candidate volume outside their grants is not disclosed. An
 all-scopes caller sees `true` only when current authorized workload references
 exceed that digest's candidate limit, `false` only when the raw graph read
 exhausts within the limit, and `null` when the graph sentinel was reached but
-authorization did not prove an authorized overflow. The probe retains at most
-200 distinct digest-scoped workload refs before attaching them to matching
-findings; findings that share a digest repeat the same bounded refs. The
+authorization did not prove an authorized overflow. The probe attaches at most
+200 digest-scoped workload refs across the serialized page; findings that share
+a digest repeat the same deterministic prefix within their page-weighted quota. The
 all-scopes sentinel permits at most 400 graph candidates before the single
 authorization read.
 
@@ -1398,11 +1402,11 @@ execution telemetry, persisted reconciliation facts, `query.supply_chain_securit
 span, and Postgres query timing. It adds no route, queue, worker, graph write,
 metric instrument, metric label, or runtime knob.
 
-No-Regression Evidence: `go test ./internal/query ./internal/mcp -run 'Test(VulnerabilityScannerReadContract|SupplyChainImpactFindingsAcceptsScannerContractFilters|SupplyChainImpactFindingsRejectsUnsupportedScannerFiltersBeforeStore|SupplyChainImpactAggregatesAcceptScannerContractFilters|SupplyChainImpactInventoryCanGroupByEcosystem|ResolveRouteMapsVulnerabilityScannerContract|SupplyChainImpactMCPRouteForwardsScannerContractFilters|SupplyChainImpactAggregateMCPRoutesForwardScannerContractFilters)' -count=1` covers the scanner read contract, bounded unsupported-filter failures, shared API/MCP filter forwarding, provider-only separation, and deterministic aggregate/list read semantics without graph traversal.
+No-Regression Evidence: `go test ./internal/query ./internal/mcp -run 'Test(VulnerabilityScannerReadContract|SupplyChainImpactFindingsAcceptsScannerContractFilters|SupplyChainImpactFindingsRejectsUnsupportedScannerFiltersBeforeStore|SupplyChainImpactAggregatesAcceptScannerContractFilters|SupplyChainImpactInventoryCanGroupByEcosystem|ResolveRouteMapsVulnerabilityScannerContract|SupplyChainImpactMCPRouteForwardsScannerContractFilters|SupplyChainImpactAggregateMCPRoutesForwardScannerContractFilters|DispatchToolSupplyChainImpactRepeatedDigestPageStaysWithinBudget)' -count=1` covers the scanner read contract, bounded unsupported-filter failures, shared API/MCP filter forwarding, provider-only separation, the bounded Kubernetes graph dependency, and the repeated-digest MCP response budget.
 
 No-Observability-Change: the scanner contract route is static metadata and the
 new filters reuse the existing HTTP/MCP truth envelope, readiness envelope,
-limit/truncated fields, and bounded Postgres read-model errors; no reducer,
+limit/truncated fields, and bounded Postgres and graph read errors; no reducer,
 collector, worker, queue, graph write, metric, span, or log contract changes.
 
 ## SBOM And Attestation Attachments

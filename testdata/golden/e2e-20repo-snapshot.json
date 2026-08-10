@@ -4583,7 +4583,8 @@
             {
               "name": "impact_findings",
               "path": "/api/v0/supply-chain/impact/findings",
-              "tool": "list_supply_chain_impact_findings"
+              "tool": "list_supply_chain_impact_findings",
+              "timeout": "request context; bounded Postgres finding, cloud-runtime, runtime-context, readiness, and Kubernetes authorization reads; Kubernetes graph enrichment performs at most 200 exact-digest reads with at most 32 concurrent"
             }
           ]
         },
