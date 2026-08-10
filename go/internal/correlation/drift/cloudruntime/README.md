@@ -108,7 +108,7 @@ A resource type with no allowlist entry, and which is not the ECS task
 definition, is NOT covered and never becomes inconclusive: it has nothing to
 compare by design, so it still converges.
 
-### Unreadable versus absent, and how one-of-two is resolved (#5861)
+### Unreadable versus absent, and how one-of-two is resolved for `image_uri` (#5861)
 
 `value_comparison_inconclusive` fires only when NOT ONE comparison succeeded, so
 a covered two-attribute type is the hard case: if one comparable is unusable
@@ -116,7 +116,9 @@ while the other compares equal, the pass has one successful comparison, is
 therefore a verdict of "converged", and the retire deletes a drift that exists
 in reality.
 
-Two rules close that, both applied at the loader boundary
+Two rules close that **for `image_uri`** — not for the covered-attribute class,
+which still has an uncovered shape recorded at the end of this section — both
+applied at the loader boundary
 (`go/internal/storage/postgres/aws_cloud_runtime_drift_value_attributes.go`)
 rather than by widening `Inconclusive()`:
 
@@ -178,8 +180,13 @@ durable row -- rather than either the old false drift or a silent
 convergence the retire would read as permission to delete. Distinguishing
 "genuinely missing" from "redacted, so unknown" per attribute, rather than
 folding both into the same uncomparable bucket, is the residual #5861 tracks
-above; it needs collector-side completeness plumbing and is not something
-this fix resolves. Whether the collector should fail-closed-redact at all
+above. For `image_uri` that is now closed by the `package_type` completeness
+rule described there, and not by this fix. It is NOT closed as a class: an
+unreadable `version` alongside an `image_uri` that compares equal still gives
+`Comparable=2, Compared=1` and still converges, because no completeness signal
+exists for `version` the way `package_type` serves `image_uri`. That shape is
+less reachable -- both `GetFunction` and the `ListFunctions` fallback carry
+`Version` -- but it is not covered. Whether the collector should fail-closed-redact at all
 when its provider-schema resolver is nil -- and whether identity anchors
 such as `arn` should be exempt from that fail-closure -- is the upstream
 policy question, tracked on #5870.

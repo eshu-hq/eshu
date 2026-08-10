@@ -171,9 +171,20 @@ func TestClassifyECSContainerImageAmbiguityOutcomes(t *testing.T) {
 // That premise is dead: since #5904 a redacted comparable is suppressed at the
 // loader, so it can no longer reach this function, and since #5861 an
 // image-packaged Lambda whose image_uri was not observed is suppressed the same
-// way. What reaches here with one of two attributes present is genuine ABSENCE
-// -- a zip-packaged function, which has no image_uri by design and must keep
-// converging rather than land on a finding.
+// way.
+//
+// Two one-of-two shapes still reach here, and only one of them is benign:
+//
+//   - A zip-packaged function, which has no image_uri by design. Genuine
+//     absence; it must keep converging rather than land on a finding. That is
+//     the shape this test pins.
+//   - An unreadable `version` alongside an `image_uri` that compares equal.
+//     Still Comparable=2, Compared=1, still converges, and the retire still
+//     deletes. #5861 did NOT close this: `package_type` tells us whether an
+//     image_uri should exist, and no equivalent signal exists for `version`.
+//     Less reachable, because both GetFunction and the ListFunctions fallback
+//     carry Version -- but uncovered, and named here so it is not mistaken for
+//     solved.
 //
 // The rule that matters: this layer stays absence-blind on purpose. Unreadable
 // evidence is separated from absent evidence at the LOADER
