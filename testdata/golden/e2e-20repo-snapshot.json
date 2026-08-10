@@ -23,7 +23,7 @@
       "Repository": {
         "min": 15,
         "max": 31,
-        "note": "31 corpus repos (#5954 staged cloudformation_comprehensive, previously an orphaned fixture used only by parser unit tests); may include additional discovered mirror stubs"
+        "note": "31 corpus repos (#5954 staged cloudformation_comprehensive, previously an orphaned fixture used only by parser unit tests). The ceiling is exact and deliberate, not a placeholder: if a mirror stub is ever discovered, it MUST fail this ceiling and get reviewed under this file's own update-under-review policy, not be silently absorbed by a padded range."
       },
       "TerraformBlock": {
         "min": 5,
@@ -44,6 +44,21 @@
         "min": 3,
         "max": 20,
         "note": "#5954: CloudFormation Output `Export:` blocks. cloudformation_comprehensive/simple-stack.yaml already exported RoleArn (1); vpc.yaml now also exports SecurityGroupId and PrivateSubnetId (2 more) so lambda.yaml's Fn::ImportValue usage (CloudFormationImport, above) has a real cross-stack export to reference. Observed 3 on a live golden-corpus-gate run against this exact scope. RoleArn's own Export.Name uses `!Sub` rather than a literal string; go/internal/parser/cloudformation/parser_helpers.go's setOptionalString stamps that via fmt.Sprint on the raw decoded Fn::Sub map, so RoleArn's projected node name is the Go map debug string `map[Fn::Sub:${AWS::StackName}-RoleArn]`, not a real name. This is a pre-existing parser defect this issue did not introduce and does not fix; flagged here so a future setOptionalString fix that changes the name or drops this count is attributable rather than a mystery."
+      },
+      "CloudFormationResource": {
+        "min": 13,
+        "max": 40,
+        "note": "#5954 review round 2: CloudFormation `Resources:` entries -- one CloudFormationResource node per key, go/internal/parser/cloudformation/parser.go's appendResources. cloudformation_comprehensive was staged in this issue (see the Repository note above) but this label -- the busiest of the six CloudFormation labels -- had no count assertion at all, so a projection regression here would have stayed silently green. Per-file: vpc.yaml 4 (VPC, PublicSubnet, PrivateSubnet, SecurityGroup), lambda.yaml 4 (LambdaFunction, LambdaRole, ApiGateway, DataTable), simple-stack.yaml 2 (DataBucket, AppRole), intrinsic-functions.yaml 2 (Bucket, Alarm), stack.json 1 (WebServer) = 13. DERIVED by reading the fixture and the parser's one-node-per-Resources-key mapping, not observed on a live run; the next golden-corpus-gate preflight run is what confirms it."
+      },
+      "CloudFormationParameter": {
+        "min": 6,
+        "max": 20,
+        "note": "#5954 review round 2: CloudFormation `Parameters:` entries -- one CloudFormationParameter node per key, go/internal/parser/cloudformation/parser.go's Parse loop over document[\"Parameters\"]. Had no count assertion at all before this fix. Per-file: vpc.yaml 1 (VpcCidr), lambda.yaml 0, simple-stack.yaml 2 (Environment, BucketName), intrinsic-functions.yaml 2 (Environment, EnableAlarms), stack.json 1 (InstanceType) = 6. DERIVED by reading the fixture and the parser's one-node-per-Parameters-key mapping, not observed on a live run; the next golden-corpus-gate preflight run is what confirms it."
+      },
+      "CloudFormationOutput": {
+        "min": 12,
+        "max": 40,
+        "note": "#5954 review round 2: CloudFormation `Outputs:` entries -- one CloudFormationOutput node per key, go/internal/parser/cloudformation/parser_helpers.go's appendOutputs. An Output carrying an `Export:` block additionally produces a CloudFormationExport node (counted separately above), so an exported Output counts once here and once there, never zero here. Had no count assertion at all before this fix. Per-file: vpc.yaml 4 (VpcId, PublicSubnetId, PrivateSubnetId, SecurityGroupId), lambda.yaml 2 (LambdaArn, ApiUrl), simple-stack.yaml 2 (BucketArn, RoleArn), intrinsic-functions.yaml 3 (BucketName, AccountId, StackRegion), stack.json 1 (InstanceId) = 12. DERIVED by reading the fixture and the parser's one-node-per-Outputs-key mapping, not observed on a live run; the next golden-corpus-gate preflight run is what confirms it."
       },
       "PagerDutyDeclaration": {
         "min": 1,
