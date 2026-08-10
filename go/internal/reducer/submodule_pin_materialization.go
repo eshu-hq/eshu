@@ -89,7 +89,7 @@ func (h SubmodulePinEdgeMaterializationHandler) Handle(ctx context.Context, inte
 
 	writeRows := buildSubmodulePinIntentRows(rows)
 	if len(writeRows) > 0 {
-		if err := h.EdgeWriter.WriteEdges(
+		if _, err := h.EdgeWriter.WriteEdges(
 			ctx,
 			DomainSubmodulePinEdges,
 			writeRows,

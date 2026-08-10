@@ -175,6 +175,18 @@ jobs:
               # exactly the silent-no-op class the gate exists for and the pure
               # seam cannot catch, so it MUST retrigger the Ifa contract-layer
               # gate (which runs the pure ifa-materialized-edge-coverage go test).
+              # The gate runs `go test ./internal/reducer -run
+              # TestMaterializedEdgeFamilies`, which COMPILES the whole package,
+              # so any sibling file can change its verdict. specs/ci-gates.v1.yaml
+              # was broadened to 'go/internal/reducer/**' for exactly that reason
+              # (#5873) but this filter was not, so the registry could select the
+              # gate as required while this workflow never scheduled it. The
+              # aggregator then waited out its 55m timeout on a MISSING job and
+              # failed required-gates-complete -- red that names no real defect
+              # and points at no file. Keep this glob and the registry trigger in
+              # lockstep; the per-file entries below stay as the reader's map of
+              # what the gate is actually about.
+              - 'go/internal/reducer/**'
               - 'go/internal/reducer/materialized_edge_families.go'
               - 'go/internal/reducer/shared_projection.go'
               - 'go/internal/reducer/sql_relationship_materialization.go'

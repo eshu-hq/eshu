@@ -95,7 +95,7 @@ func TestCrossRepoResolutionDispatchesTypedRelationshipsIntoNeo4jWrites(t *testi
 	}
 
 	writer := NewEdgeWriter(executor, 0)
-	if err := writer.WriteEdges(
+	if _, err := writer.WriteEdges(
 		context.Background(),
 		reducer.DomainRepoDependency,
 		intents,

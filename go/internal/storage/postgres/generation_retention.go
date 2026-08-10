@@ -157,6 +157,11 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 	} else {
 		result.RowsPruned["shared_projection_intents"] = affected
 	}
+	if affected, err := execRowsAffected(ctx, tx, deleteSharedProjectionUnroutableIntentsForGenerationsQuery, generationIDs); err != nil {
+		return GenerationRetentionResult{}, fmt.Errorf("generation retention: delete shared projection unroutable intents: %w", err)
+	} else {
+		result.RowsPruned["shared_projection_unroutable_intents"] = affected
+	}
 	if affected, err := execRowsAffected(ctx, tx, pruneContentFileReferencesForGenerationsQuery, generationIDs); err != nil {
 		return GenerationRetentionResult{}, fmt.Errorf("generation retention: prune content references: %w", err)
 	} else {

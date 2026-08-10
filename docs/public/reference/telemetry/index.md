@@ -814,6 +814,33 @@ graph write, or queue behavior is introduced. Verified by
 `go test ./internal/reducer ./cmd/reducer ./internal/telemetry -count=1 -race`
 (2678 tests, all passing).
 
+## Unroutable Shared-Edge Rows
+
+`eshu_dp_shared_edge_unroutable_rows_total` counts shared-projection rows a
+canonical edge write could not route to a statement, so no edge was written for
+them. It has two bounded labels:
+
+- `domain` identifies the shared projection domain;
+- `reason` distinguishes `partial_batch` (some rows in the batch still wrote)
+  from `whole_batch` (the batch produced nothing).
+
+Read it alongside the `shared edge rows unroutable` WARN, which carries the
+evidence source and one sample intent id — deliberately kept out of the metric
+labels to bound cardinality.
+
+Two things an operator needs to know before alerting on it:
+
+- **Each rejected row is counted once.** The write reports what it could not
+  route, the reducer records those rows durably and then completes the intent,
+  so a batch is not re-selected and the count does not inflate on repeat
+  cycles. A rising count means new losses, not a stuck partition.
+- **A rejection is not always data loss.** A row missing its required MATCH
+  identifiers can never become an edge. A row whose relationship type has no
+  write statement in the running binary is well formed, and routes normally
+  once a rolling upgrade completes — the durable
+  `shared_projection_unroutable_intents` row carries the distinction in its
+  `reason` column.
+
 ## Repo-Dependency RUNS_ON Retract Omissions
 
 `eshu_dp_shared_edge_runs_on_retract_omissions_total` counts impossible

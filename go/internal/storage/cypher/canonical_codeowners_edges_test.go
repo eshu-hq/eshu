@@ -301,7 +301,7 @@ func TestEdgeWriterWriteEdgesCodeownersOwnershipRoutesTemplate(t *testing.T) {
 		},
 	}
 
-	err := writer.WriteEdges(context.Background(), reducer.DomainCodeownersOwnershipEdges, rows, "reducer/codeowners")
+	_, err := writer.WriteEdges(context.Background(), reducer.DomainCodeownersOwnershipEdges, rows, "reducer/codeowners")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}

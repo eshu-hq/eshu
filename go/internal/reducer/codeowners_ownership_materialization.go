@@ -83,7 +83,7 @@ func (h CodeownersOwnershipEdgeMaterializationHandler) Handle(ctx context.Contex
 
 	writeRows := buildCodeownersOwnershipIntentRows(rows)
 	if len(writeRows) > 0 {
-		if err := h.EdgeWriter.WriteEdges(
+		if _, err := h.EdgeWriter.WriteEdges(
 			ctx,
 			DomainCodeownersOwnershipEdges,
 			writeRows,

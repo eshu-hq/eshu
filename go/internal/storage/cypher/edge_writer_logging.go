@@ -17,6 +17,7 @@ func (w *EdgeWriter) logSharedEdgeWrite(
 	executionMode string,
 	inputRows int,
 	writtenRows int,
+	droppedRows int,
 	routeCount int,
 	batchSize int,
 	groupBatchSize int,
@@ -32,7 +33,13 @@ func (w *EdgeWriter) logSharedEdgeWrite(
 		"execution_mode", executionMode,
 		"input_intents", inputRows,
 		"accepted_intents", writtenRows,
+		// skipped_intents counts every row that produced no write statement,
+		// which includes control rows that carry no edge by design. It is
+		// therefore NOT the lost-edge count: dropped_rows below is, and the two
+		// differ by exactly the control rows in the batch. They are reported
+		// together so an operator reading one is not left to guess the other.
 		"skipped_intents", inputRows - writtenRows,
+		"dropped_rows", droppedRows,
 		"executed_rows", statementRowCount(stmts),
 		"route_count", routeCount,
 		"statement_count", len(stmts),

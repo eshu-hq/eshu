@@ -94,7 +94,7 @@ func TestReducerContentEdgeRetractGraphTruth(t *testing.T) {
 	writer.Reader = exec
 	write := func(domain, source string, rows []reducer.SharedProjectionIntentRow) {
 		t.Helper()
-		if err := writer.WriteEdges(ctx, domain, rows, source); err != nil {
+		if _, err := writer.WriteEdges(ctx, domain, rows, source); err != nil {
 			t.Fatalf("WriteEdges(%s): %v", domain, err)
 		}
 	}

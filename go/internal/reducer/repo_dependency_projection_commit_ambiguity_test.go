@@ -147,7 +147,7 @@ func (w *commitAmbiguityRepoDependencyWriter) RetractEdges(
 
 func (w *commitAmbiguityRepoDependencyWriter) WriteEdges(
 	_ context.Context, _ string, rows []SharedProjectionIntentRow, _ string,
-) error {
+) (SharedProjectionWriteReport, error) {
 	w.writeAttempts++
 	for _, row := range rows {
 		repoID := repoDependencyPayloadString(row, "repo_id")
@@ -157,9 +157,9 @@ func (w *commitAmbiguityRepoDependencyWriter) WriteEdges(
 		w.artifacts[repoID+"|"+resolvedID] = struct{}{}
 	}
 	if w.writeAttempts == 1 {
-		return &neo4jdriver.ConnectivityError{Inner: errors.New("Connection lost during commit: EOF")}
+		return SharedProjectionWriteReport{}, &neo4jdriver.ConnectivityError{Inner: errors.New("Connection lost during commit: EOF")}
 	}
-	return nil
+	return SharedProjectionWriteReport{}, nil
 }
 
 func (w *commitAmbiguityRepoDependencyWriter) assertExactState(

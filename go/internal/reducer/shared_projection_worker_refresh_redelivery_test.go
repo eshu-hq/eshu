@@ -232,6 +232,7 @@ func processSQLRefreshFencePartition(
 		nil,
 		store,
 		nil,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("ProcessPartitionOnce(partition=%d): %v", partitionID, err)
@@ -264,13 +265,13 @@ func (w *sqlRelationshipStateWriter) WriteEdges(
 	_ string,
 	rows []SharedProjectionIntentRow,
 	_ string,
-) error {
+) (SharedProjectionWriteReport, error) {
 	for _, row := range rows {
 		if relationshipType := payloadStr(row.Payload, "relationship_type"); relationshipType != "" {
 			w.edges[relationshipType] = struct{}{}
 		}
 	}
-	return nil
+	return SharedProjectionWriteReport{}, nil
 }
 
 func (w *sqlRelationshipStateWriter) relationshipTypes() []string {

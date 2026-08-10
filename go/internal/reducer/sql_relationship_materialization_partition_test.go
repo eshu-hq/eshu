@@ -67,7 +67,7 @@ func (w *sqlRelationshipStateModelingEdgeWriter) WriteEdges(
 	_ string,
 	rows []SharedProjectionIntentRow,
 	_ string,
-) error {
+) (SharedProjectionWriteReport, error) {
 	for _, row := range rows {
 		repoID := sharedProjectionRowRepoID(row)
 		if repoID == "" {
@@ -80,7 +80,7 @@ func (w *sqlRelationshipStateModelingEdgeWriter) WriteEdges(
 		}
 		edges[sqlRelationshipTestEdgeKey(row.Payload)] = anyToString(row.Payload["source_path"])
 	}
-	return nil
+	return SharedProjectionWriteReport{}, nil
 }
 
 func (w *sqlRelationshipStateModelingEdgeWriter) edgeKeys(repoID string) []string {
@@ -219,7 +219,7 @@ func sqlRelationshipConvergenceFixture(repoID, repoPath string, delta bool, chan
 // returns the seeded edge writer.
 func seedPriorSQLRelationshipEdges(rows []map[string]any) *sqlRelationshipStateModelingEdgeWriter {
 	edges := newSQLRelationshipStateModelingEdgeWriter()
-	_ = edges.WriteEdges(context.Background(), DomainSQLRelationships, sqlRelationshipDirectWriteRows(rows), sqlRelationshipEvidenceSource)
+	_, _ = edges.WriteEdges(context.Background(), DomainSQLRelationships, sqlRelationshipDirectWriteRows(rows), sqlRelationshipEvidenceSource)
 	return edges
 }
 
@@ -264,7 +264,7 @@ func TestSQLRelationshipPartitionConvergesFullReprojection(t *testing.T) {
 	); err != nil {
 		t.Fatalf("direct retract: %v", err)
 	}
-	if err := direct.WriteEdges(
+	if _, err := direct.WriteEdges(
 		context.Background(), DomainSQLRelationships,
 		sqlRelationshipDirectWriteRows(rows), sqlRelationshipEvidenceSource,
 	); err != nil {
@@ -322,7 +322,7 @@ func TestSQLRelationshipPartitionConvergesDelta(t *testing.T) {
 	); err != nil {
 		t.Fatalf("direct retract: %v", err)
 	}
-	if err := direct.WriteEdges(
+	if _, err := direct.WriteEdges(
 		context.Background(), DomainSQLRelationships,
 		sqlRelationshipDirectWriteRows(rows), sqlRelationshipEvidenceSource,
 	); err != nil {
@@ -369,6 +369,7 @@ func drainSQLRelationshipInto(
 			result, err := ProcessPartitionOnce(
 				context.Background(), now, sqlRelationshipFenceConfig(p, partitionCount),
 				lease, store, edges, acceptedGen, nil, readiness, nil, nil, store, nil,
+				nil,
 			)
 			if err != nil {
 				t.Fatalf("pass %d partition %d: %v", pass, p, err)

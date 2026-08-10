@@ -125,7 +125,7 @@ func TestProcessPartitionOnceFullCycle(t *testing.T) {
 		EvidenceSource: "finalization/workloads",
 	}
 
-	result, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil)
+	result, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("ProcessPartitionOnce error = %v", err)
 	}
@@ -207,6 +207,7 @@ func TestProcessPartitionOnceReportsReadinessBlockedWait(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("ProcessPartitionOnce() error = %v", err)
@@ -242,7 +243,7 @@ func TestProcessPartitionOnceLeaseNotAcquired(t *testing.T) {
 		LeaseTTL:       30 * time.Second,
 	}
 
-	result, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil)
+	result, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("ProcessPartitionOnce error = %v", err)
 	}
@@ -271,7 +272,7 @@ func TestProcessPartitionOnceEmptyBatch(t *testing.T) {
 		LeaseTTL:       30 * time.Second,
 	}
 
-	result, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil)
+	result, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
@@ -335,7 +336,7 @@ func TestProcessPartitionOnceFiltersDeleteAction(t *testing.T) {
 		EvidenceSource: "finalization/workloads",
 	}
 
-	result, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil)
+	result, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
@@ -389,7 +390,7 @@ func TestProcessPartitionOnceCodeCallsDomain(t *testing.T) {
 		EvidenceSource: "parser/code-calls",
 	}
 
-	result, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil)
+	result, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("ProcessPartitionOnce() error = %v", err)
 	}
@@ -456,9 +457,9 @@ func (s *stubEdgeWriter) RetractEdges(_ context.Context, _ string, rows []Shared
 	return nil
 }
 
-func (s *stubEdgeWriter) WriteEdges(_ context.Context, _ string, rows []SharedProjectionIntentRow, _ string) error {
+func (s *stubEdgeWriter) WriteEdges(_ context.Context, _ string, rows []SharedProjectionIntentRow, _ string) (SharedProjectionWriteReport, error) {
 	s.writeCalls = append(s.writeCalls, rows)
-	return nil
+	return SharedProjectionWriteReport{}, nil
 }
 
 func partitionKeyForTestPartition(t *testing.T, wantPartition, partitionCount int, prefix string) string {

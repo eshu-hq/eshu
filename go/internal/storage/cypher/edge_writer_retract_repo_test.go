@@ -254,7 +254,7 @@ func TestEdgeWriterWriteEdgesRejectsCodeImportRunsOn(t *testing.T) {
 		},
 	}}
 
-	err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "projection/code-imports")
+	_, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "projection/code-imports")
 	if err == nil {
 		t.Fatal("WriteEdges() error = nil, want source-capability violation")
 	}

@@ -78,7 +78,7 @@ func TestReducerRuntimeEdgeRetractGraphTruth(t *testing.T) {
 	writer := cypher.NewEdgeWriter(exec, 0)
 	inRows := func(domain string, rows []reducer.SharedProjectionIntentRow) {
 		t.Helper()
-		if err := writer.WriteEdges(ctx, domain, rows, rtSource); err != nil {
+		if _, err := writer.WriteEdges(ctx, domain, rows, rtSource); err != nil {
 			t.Fatalf("WriteEdges(%s): %v", domain, err)
 		}
 	}

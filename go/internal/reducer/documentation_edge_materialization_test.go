@@ -350,8 +350,8 @@ func (r *recordingDocumentationEdgeWriter) WriteEdges(
 	domain string,
 	rows []SharedProjectionIntentRow,
 	_ string,
-) error {
+) (SharedProjectionWriteReport, error) {
 	r.writeDomain = domain
 	r.writeRows = append(r.writeRows, rows...)
-	return nil
+	return SharedProjectionWriteReport{}, nil
 }

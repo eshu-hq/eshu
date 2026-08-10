@@ -252,7 +252,7 @@ func (w *overlapRecordingRepoDependencyWriter) RetractEdges(context.Context, str
 	return nil
 }
 
-func (w *overlapRecordingRepoDependencyWriter) WriteEdges(_ context.Context, _ string, rows []SharedProjectionIntentRow, _ string) error {
+func (w *overlapRecordingRepoDependencyWriter) WriteEdges(_ context.Context, _ string, rows []SharedProjectionIntentRow, _ string) (SharedProjectionWriteReport, error) {
 	w.mu.Lock()
 	w.current++
 	w.batches = append(w.batches, len(rows))
@@ -264,7 +264,7 @@ func (w *overlapRecordingRepoDependencyWriter) WriteEdges(_ context.Context, _ s
 	w.mu.Lock()
 	w.current--
 	w.mu.Unlock()
-	return nil
+	return SharedProjectionWriteReport{}, nil
 }
 
 func (w *overlapRecordingRepoDependencyWriter) maxConcurrent() int {

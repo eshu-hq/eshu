@@ -36,7 +36,7 @@ func TestEdgeWriterWriteEdgesSQLRelationshipIndexes(t *testing.T) {
 		},
 	}
 
-	if err := writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 	if got, want := len(executor.calls), 1; got != want {

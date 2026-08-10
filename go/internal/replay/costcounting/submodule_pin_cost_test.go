@@ -131,7 +131,7 @@ func TestCostBudget_SubmodulePin(t *testing.T) {
 	budget := loadBudgetFrom(t, submodulePinBudgetRelPath)
 	writer, exec, reader := newInstrumentedSubmodulePinEdgeWriter(t)
 
-	if err := writer.WriteEdges(
+	if _, err := writer.WriteEdges(
 		context.Background(),
 		reducer.DomainSubmodulePinEdges,
 		submodulePinEdgeFixtureRows(),
@@ -204,7 +204,7 @@ func TestCostBudget_SubmodulePin_N1_ExceedsBudget(t *testing.T) {
 	writer, _, reader := newInstrumentedSubmodulePinEdgeWriter(t)
 
 	for _, row := range rows {
-		if err := writer.WriteEdges(
+		if _, err := writer.WriteEdges(
 			context.Background(),
 			reducer.DomainSubmodulePinEdges,
 			[]reducer.SharedProjectionIntentRow{row},

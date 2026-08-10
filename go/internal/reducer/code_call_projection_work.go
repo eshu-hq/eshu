@@ -170,7 +170,14 @@ func (r *CodeCallProjectionRunner) writeActiveRows(ctx context.Context, rows []S
 		if len(group) == 0 {
 			continue
 		}
-		if err := r.EdgeWriter.WriteEdges(ctx, DomainCodeCalls, group, source); err != nil {
+		// #5984: this handler has no unroutable-intent sink wired, so the write
+		// report is deliberately discarded here and the rejected rows remain
+		// visible only through the writer's WARN and
+		// eshu_dp_shared_edge_unroutable_rows_total counter. That is unchanged
+		// behaviour for this path, not a new loss -- but it IS a remaining gap,
+		// and the compile-forced report is what makes it visible instead of
+		// implicit. Wiring the sink here needs this handler's own proof.
+		if _, err := r.EdgeWriter.WriteEdges(ctx, DomainCodeCalls, group, source); err != nil {
 			return 0, 0, fmt.Errorf("write code call edges for %s: %w", source, err)
 		}
 		writtenRows += len(group)
