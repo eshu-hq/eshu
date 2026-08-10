@@ -357,13 +357,8 @@ func (s IngestionStore) loadDeferredScopedFactsAcrossPartitions(
 				return
 			}
 			// partition_load_completed (#5096) promotes the #5094 log to the
-			// trace, on the same span as partition_load_failed; scope_id
-			// follows that precedent as a span attribute, never a label.
-			//
-			// The event is CAPPED and lossy -- one span per pass, no
-			// SpanLimits set, so the SDK's 128-event default evicts FIFO --
-			// which is why the log below is kept rather than replaced. See
-			// the telemetry reference for the full note.
+			// trace. It is capped and FIFO-evicted, so the log below stays the
+			// complete record -- see docs/public/reference/telemetry/index.md:979.
 			log.Printf(
 				"deferred_backfill_fact_load_task_completed task=%d query_tasks=%d scope_id=%q repo_terms=%d non_repo_terms=%d loaded_facts=%d duration_s=%.2f workers=%d",
 				index+1, len(tasks), task.partition.ScopeID, len(task.params.repoIDValues), len(task.params.nonRepoIDLike),
