@@ -34,7 +34,7 @@ const openAPIPathsSupplyChainImpactExplain = `
                     "outcome": {"type": "string", "enum": ["finding_explained", "no_finding", "ambiguous_scope"]},
                     "evidence_packet_handle": {"type": "string", "description": "Opaque stable handle for this bounded explanation packet. Finding packets use the returned finding id; no-finding scopes use a hashed normalized scope so private anchors are not exposed in the handle."},
                     "input": {"type": "object"},
-                    "finding": {"type": "object"},
+                    "finding": {"type": "object", "description": "The same finding shape returned by the list route, including exact digest-bound Kubernetes runtime refs and bounded probe metadata when the subject digest was probed.", "properties": {"kubernetes_runtime_workload_refs": {"type": "array", "items": {"type": "object", "properties": {"workload_uid": {"type": "string"}, "cluster_id": {"type": "string"}, "namespace": {"type": "string"}, "name": {"type": "string"}}, "required": ["workload_uid"]}}, "kubernetes_runtime_probe": {"type": "object", "properties": {"candidate_limit": {"type": "integer", "minimum": 1, "maximum": 200}, "workload_refs_truncated": {"type": "boolean", "nullable": true}}, "required": ["candidate_limit", "workload_refs_truncated"]}}, "additionalProperties": true},
                     "advisory": {
                       "type": "object",
                       "properties": {

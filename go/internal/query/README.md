@@ -333,6 +333,19 @@ probes. The retained 20,000-row live route proof returned the bounded 200
 resources at a 636.833 microsecond median across 15 runs. Exact commands and
 index build/write measurements live in
 [`docs/internal/evidence/5469-tiered-version-resolution.md`](../../../docs/internal/evidence/5469-tiered-version-resolution.md).
+The Kubernetes runtime probe partitions its 200 distinct digest-scoped
+reference budget evenly over at most 200 sorted digests and runs one
+single-digest graph read through a 32-worker pool. `GraphQuery.Run` is safe to
+invoke concurrently: Neo4jReader
+uses the concurrent-safe driver pool and opens a separate read session for each
+attempt; sessions are never shared. Every graph call must succeed before the
+handler makes one Postgres current-authorization read. Worker results occupy
+fixed digest-index slots and are flattened in digest order, so scheduling cannot
+change the response. All-scopes reads use one extra candidate per digest to
+classify truncation and remain bounded at 400 candidates; scoped reads stay at
+200 and never disclose truncation. The implementation, failure model, and
+pinned-backend latency evidence are recorded in
+[`docs/internal/evidence/5834-kubernetes-runtime-probe.md`](../../../docs/internal/evidence/5834-kubernetes-runtime-probe.md).
 The administrative `POST /api/v0/supply-chain/impact/suppressions` route is
 deliberately outside the scoped-token allowlist. It requires an all-scopes
 authenticated subject, derives source and author server-side, validates a

@@ -77,6 +77,12 @@ type SupplyChainImpactFindingResult struct {
 	// evidence that drives the runtime_confirmed deployment_truth_tier, distinct
 	// from the CI-declared deployment anchors (#5452).
 	CloudRuntimeResourceRefs []string `json:"cloud_runtime_resource_refs,omitempty"`
+	// KubernetesRuntimeWorkloadRefs carries exact digest-bound current workload
+	// evidence. It is not the repository-level runtime_context workload list.
+	KubernetesRuntimeWorkloadRefs []KubernetesRuntimeWorkloadRef `json:"kubernetes_runtime_workload_refs,omitempty"`
+	// KubernetesRuntimeProbe reports the per-digest candidate cap and bounded
+	// completeness state for the Kubernetes runtime graph probe.
+	KubernetesRuntimeProbe *KubernetesRuntimeProbeMetadata `json:"kubernetes_runtime_probe,omitempty"`
 	// RuntimeContext carries the read-time-resolved runtime context
 	// (workloads, services, deployments, environments, catalog refs) resolved
 	// from this finding's repository_id at query time (issue #5746). It is
@@ -172,8 +178,9 @@ func buildSupplyChainImpactFindingResult(row *SupplyChainImpactFindingRow) Suppl
 // The three deployment-evidence classes are now distinct (#5452):
 //
 //   - runtime_confirmed: a live cloud resource (running ECS task /
-//     image-package Lambda) actually runs the finding's subject digest —
-//     surfaced by the reducer as CloudRuntimeResourceRefs.
+//     image-package Lambda) or current authorized Kubernetes workload actually
+//     runs the finding's subject digest — surfaced at read time as
+//     CloudRuntimeResourceRefs or KubernetesRuntimeWorkloadRefs.
 //   - provenance_ci_declared: a cicd_run_correlation matched the finding (CI
 //     declared the deployment). The match may be on the finding's digest or
 //     image reference, or on repository plus environment plus an operational
@@ -184,7 +191,7 @@ func buildSupplyChainImpactFindingResult(row *SupplyChainImpactFindingRow) Suppl
 //   - config_only: only config-materialized deployment anchors or config
 //     environments exist, with no runtime or CI-declared evidence.
 func supplyChainDeploymentTruthTier(row *SupplyChainImpactFindingRow) truth.DeploymentTruthTier {
-	if len(row.CloudRuntimeResourceRefs) > 0 {
+	if len(row.CloudRuntimeResourceRefs) > 0 || len(row.KubernetesRuntimeWorkloadRefs) > 0 {
 		return truth.ClassifyDeploymentTruthTier(true, false, false, false)
 	}
 	if rowHasCIDeclaredDeploymentEvidence(row) {

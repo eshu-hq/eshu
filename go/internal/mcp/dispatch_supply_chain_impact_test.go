@@ -68,6 +68,10 @@ func TestDispatchToolSupplyChainImpactFindingsReturnsReadinessEnvelope(t *testin
 						"finding_id":       "finding-remediation",
 						"missing_evidence": []any{"service/workload catalog anchor missing"},
 						"evidence_path":    []any{"reducer_service_catalog_correlation"},
+						"kubernetes_runtime_probe": map[string]any{
+							"candidate_limit":         1,
+							"workload_refs_truncated": false,
+						},
 						"remediation": map[string]any{
 							"ecosystem":             "maven",
 							"current_version":       "3.9.8",
@@ -161,6 +165,13 @@ func TestDispatchToolSupplyChainImpactFindingsReturnsReadinessEnvelope(t *testin
 	evidencePath := finding["evidence_path"].([]any)
 	if got, want := evidencePath[0], "reducer_service_catalog_correlation"; got != want {
 		t.Fatalf("evidence_path[0] = %#v, want %#v", got, want)
+	}
+	probe := finding["kubernetes_runtime_probe"].(map[string]any)
+	if got, want := probe["candidate_limit"], float64(1); got != want {
+		t.Fatalf("kubernetes_runtime_probe.candidate_limit = %#v, want %#v", got, want)
+	}
+	if got, want := probe["workload_refs_truncated"], false; got != want {
+		t.Fatalf("kubernetes_runtime_probe.workload_refs_truncated = %#v, want %#v", got, want)
 	}
 	remediation := finding["remediation"].(map[string]any)
 	if got, want := remediation["match_reason"], "maven_range_match"; got != want {

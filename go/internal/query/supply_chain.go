@@ -52,6 +52,10 @@ type SupplyChainHandler struct {
 	// tier entirely (the probe is skipped) rather than surfacing unauthorized or
 	// stale evidence.
 	CloudResourceInventory CloudResourceCurrentInventoryFilter
+	// KubernetesWorkloadInventory gates exact digest-bound RUNS_IMAGE graph
+	// candidates through the independent current-owner and current-edge
+	// authorization contract before they can promote a finding.
+	KubernetesWorkloadInventory KubernetesWorkloadCurrentInventoryFilter
 	// CollectorReadiness answers the configured-collector probe for the gated
 	// SBOM/attestation and container-image list tools so an empty page reports
 	// not_configured when the feeding collector is disabled. It is optional: a
