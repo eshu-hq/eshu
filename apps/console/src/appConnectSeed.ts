@@ -5,7 +5,7 @@
 // build-time VITE_ESHU_API_KEY seed may stand in. That decision is security
 // relevant: bootFromKey sends the seed as a bearer token to whichever base it
 // is handed, so a seed must never follow an operator-typed origin.
-import type { ConsoleEnvironment } from "./config/environment";
+import { defaultApiBaseUrl, type ConsoleEnvironment } from "./config/environment";
 
 // sameApiBase compares two console API bases for seed-trust purposes. Bases are
 // compared after trimming surrounding whitespace and any trailing slashes, so
@@ -17,21 +17,22 @@ export function sameApiBase(left: string, right: string): boolean {
   return normalizedLeft.length > 0 && normalizedLeft === normalize(right);
 }
 
-// seedRetryKey returns the configured build-time key when a credential-less
-// connect attempt against the console's own configured base found no browser
-// session, and an empty string in every other case.
+// seedRetryKey returns the build-time key when a credential-less connect
+// attempt against this build's own base found no browser session, and an empty
+// string in every other case.
 //
-// It deliberately refuses to return the seed for any base other than the
-// configured one. A user can type an arbitrary origin into the Data source
-// popover, and retrying that origin with the seed would hand the credential to
-// a server the operator never configured.
+// The trust anchor is defaultApiBaseUrl, NOT environment.apiBaseUrl. The saved
+// base is operator-influenced: bootFromKey persists whatever base was
+// attempted even when the attempt fails, so typing a hostile origin into the
+// Data source popover leaves that origin saved. Anchoring on the saved value
+// would send the seed there on the next load, with no further user action.
 export function seedRetryKey(
   attempt: { readonly base: string; readonly key: string },
-  environment: Pick<ConsoleEnvironment, "apiBaseUrl" | "apiKey">,
+  environment: Pick<ConsoleEnvironment, "apiKey">,
 ): string {
   if (attempt.key.trim().length > 0) return "";
   const seed = environment.apiKey.trim();
   if (seed.length === 0) return "";
-  if (!sameApiBase(attempt.base, environment.apiBaseUrl)) return "";
+  if (!sameApiBase(attempt.base, defaultApiBaseUrl)) return "";
   return seed;
 }

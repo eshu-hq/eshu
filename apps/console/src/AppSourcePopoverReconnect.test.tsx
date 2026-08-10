@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
 import type { SourceState } from "./components/SourceControls";
+import type * as EnvironmentModule from "./config/environment";
 import { emptyConsoleModel } from "./console/liveModel";
 
 const configuredKey = "configured-shared-key";
@@ -21,15 +22,19 @@ vi.mock("./appRoutes", async () => {
     AppRoutes: ({ source }: { readonly source: SourceState }) => <AskPage source={source} />,
   };
 });
-vi.mock("./config/environment", () => ({
-  loadConsoleEnvironment: () => ({
-    apiKey: configuredKey,
-    apiBaseUrl: configuredBase,
-    mode: "private",
-    recentApiBaseUrls: [configuredBase],
-  }),
-  saveConsoleEnvironment: vi.fn(),
-}));
+vi.mock("./config/environment", async (importOriginal) => {
+  const actual = await importOriginal<typeof EnvironmentModule>();
+  return {
+    ...actual,
+    loadConsoleEnvironment: () => ({
+      apiKey: configuredKey,
+      apiBaseUrl: configuredBase,
+      mode: "private",
+      recentApiBaseUrls: [configuredBase],
+    }),
+    saveConsoleEnvironment: vi.fn(),
+  };
+});
 
 function bearerBootResult() {
   return {

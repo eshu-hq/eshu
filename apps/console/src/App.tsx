@@ -16,6 +16,7 @@ import { createDemoApiClient, demoApiBaseUrl, demoRepositories } from "./api/dem
 import type { RepoListItem } from "./api/repoCatalog";
 import { bootFromSession } from "./appBoot";
 import { createConnect } from "./appConnect";
+import { seedRetryKey } from "./appConnectSeed";
 import { AppRoutes } from "./appRoutes";
 import { repositorySearchDestination } from "./appSearchRouting";
 import { buildAllowedNavSet } from "./auth/capabilityAccess";
@@ -181,6 +182,12 @@ function AppShell(): React.JSX.Element {
     if (hasSavedEnv && !bootedRef.current) {
       bootedRef.current = true;
       const base = env.apiBaseUrl;
+      // A build-time local shared key cannot always mint a tenant-bound browser
+      // session, so boot falls back to the bearer path. seedRetryKey gates that
+      // on the build-time base: a failed popover attempt persists whatever base
+      // it tried, so the saved base is operator-influenced and must not decide
+      // where the credential goes.
+      const bootSeed = seedRetryKey({ base, key: "" }, env);
       setSource((s) => ({ ...s, status: "connecting", msg: "" }));
       bootFromSession(base)
         .then((result) => {
@@ -190,17 +197,14 @@ function AppShell(): React.JSX.Element {
             activateRepositoryCatalog(result.client, result.repositoryCatalog);
             setSession(result.session);
             setSource({ base, key: "", mode: "private", status: "connected", msg: "" });
-          } else if (env.apiKey.trim().length > 0) {
-            // A build-time local shared key cannot always mint a tenant-bound
-            // browser session. Reuse the existing bootFromKey bearer fallback
-            // when no session cookie exists, including after a full reload.
-            void connect(base, env.apiKey);
+          } else if (bootSeed.length > 0) {
+            void connect(base, bootSeed);
           } else {
             setSource((s) => ({ ...s, status: "needs-connection", msg: "" }));
           }
         })
         .catch(() => {
-          void connect(base, env.apiKey || "");
+          void connect(base, bootSeed);
         });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

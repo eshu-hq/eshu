@@ -23,9 +23,17 @@ export const consoleStorageKeys = {
 const rawApiKeyEnv: unknown = import.meta.env.VITE_ESHU_API_KEY;
 const defaultApiKey: string = typeof rawApiKeyEnv === "string" ? rawApiKeyEnv.trim() : "";
 
+// defaultApiBaseUrl is the base this build ships with, before any saved or
+// operator-entered value overrides it. It is the only base the build-time key
+// may be sent to: a saved apiBaseUrl can be set from the Data source popover
+// (bootFromKey persists the attempted base even when the attempt fails), so
+// the stored value is operator-influenced and cannot anchor a credential
+// trust decision.
+export const defaultApiBaseUrl = "/eshu-api/";
+
 const defaultEnvironment: ConsoleEnvironment = {
   apiKey: defaultApiKey,
-  apiBaseUrl: "/eshu-api/",
+  apiBaseUrl: defaultApiBaseUrl,
   mode: "private",
   recentApiBaseUrls: [],
 };

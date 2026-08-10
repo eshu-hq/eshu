@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
 import type { SourceState } from "./components/SourceControls";
+import type * as EnvironmentModule from "./config/environment";
 import { emptyConsoleModel } from "./console/liveModel";
 
 const bootMocks = vi.hoisted(() => ({
@@ -18,15 +19,19 @@ vi.mock("./appRoutes", async () => {
     AppRoutes: ({ source }: { readonly source: SourceState }) => <AskPage source={source} />,
   };
 });
-vi.mock("./config/environment", () => ({
-  loadConsoleEnvironment: () => ({
-    apiKey: "configured-shared-key",
-    apiBaseUrl: "/eshu-api/",
-    mode: "private",
-    recentApiBaseUrls: ["/eshu-api/"],
-  }),
-  saveConsoleEnvironment: vi.fn(),
-}));
+vi.mock("./config/environment", async (importOriginal) => {
+  const actual = await importOriginal<typeof EnvironmentModule>();
+  return {
+    ...actual,
+    loadConsoleEnvironment: () => ({
+      apiKey: "configured-shared-key",
+      apiBaseUrl: "/eshu-api/",
+      mode: "private",
+      recentApiBaseUrls: ["/eshu-api/"],
+    }),
+    saveConsoleEnvironment: vi.fn(),
+  };
+});
 
 function requestUrl(input: RequestInfo | URL): string {
   if (typeof input === "string") return input;
