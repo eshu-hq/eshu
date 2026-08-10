@@ -204,6 +204,12 @@ func liveEvidenceSnapshotFromStatus(
 }
 
 // countBlockedQueueEntries sums the gated-row counts across blockage entries.
+//
+// This is a different statistic from domain_backlogs[].blocked, which
+// /status/pipeline reports as the maximum among a single domain's blockage
+// rows (queueBlockageCountsByDomain). The two will not add up; neither is
+// wrong, and the bundle carries both because they answer different questions --
+// how much work is gated overall, and which domain is worst.
 // Blocked is a row count rather than a flag, so summing reports how much work
 // is gated; counting entries would under-report a single heavily-gated domain
 // as 1.

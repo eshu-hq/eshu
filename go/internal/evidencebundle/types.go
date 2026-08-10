@@ -135,10 +135,20 @@ type PipelineDomainBacklogSnapshot struct {
 	Domain      string `json:"domain"`
 	Outstanding int    `json:"outstanding"`
 	InFlight    int    `json:"in_flight"`
-	Blocked     int    `json:"blocked"`
-	Retrying    int    `json:"retrying"`
-	Failed      int    `json:"failed"`
-	DeadLetter  int    `json:"dead_letter"`
+	// Blocked is the largest gated-row count among this domain's blockage rows,
+	// which is what /status/pipeline reports per domain. It deliberately does
+	// NOT reconcile with pipeline_state.queue_blocked_count, a sum across every
+	// blockage row from /status/index -- a max and a sum over different row
+	// sets will not add up, and reading them as parts of one total is wrong.
+	Blocked    int `json:"blocked"`
+	Retrying   int `json:"retrying"`
+	Failed     int `json:"failed"`
+	DeadLetter int `json:"dead_letter"`
+	// Pending is not carried: it is outstanding - in_flight - retrying, and all
+	// three are here. Recompute it clamped at zero, as the API does; the three
+	// inputs are sampled together but can still show in_flight + retrying
+	// briefly exceeding outstanding.
+	//
 	// OldestAgeS is the per-domain age the health reasons quote verbatim
 	// ("domain %s has %d outstanding items ... for %s"). Without it the bundle
 	// carries the narrative and nothing to reconcile it against.
