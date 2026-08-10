@@ -223,11 +223,20 @@ const (
 	// found. It lets an operator answer "which join mode is losing edges, and is
 	// it because the target service was not scanned in this scope?" at 3 AM.
 	MetricDimensionJoinMode = "join_mode"
-	// MetricDimensionOwnershipFamily labels the #5007 cross-scope ownership
-	// contention counter (eshu_dp_cross_scope_ownership_contended_rows_total)
-	// with the closed enum of graphowner node-writer families: cloud_resource,
-	// ec2_instance, kubernetes_workload. It lets an operator answer "which node
-	// family is losing cross-scope contention, and how often?" at 3 AM.
+	// MetricDimensionOwnershipFamily labels graphowner's per-writer-family
+	// signals with a closed enum of writer names. Two independent closed sets
+	// share this key (the metricDimensionKeys registry dedupes on the wire
+	// label, matching MetricDimensionReason's documented sharing convention):
+	// the #5007 cross-scope ownership contention counter
+	// (eshu_dp_cross_scope_ownership_contended_rows_total) uses cloud_resource,
+	// ec2_instance, kubernetes_workload; the #5101 lock-only gate locked-rows
+	// counter and lock-wait histogram
+	// (eshu_dp_lock_only_gate_locked_rows_total,
+	// eshu_dp_lock_only_gate_lock_wait_seconds) use rds_posture,
+	// ec2_internet_exposure, ec2_block_device_kms_posture,
+	// s3_internet_exposure, ec2_instance_identity. It lets an operator answer
+	// "which node family is losing cross-scope contention, or generating
+	// lock-only gating volume/wait, and how often?" at 3 AM.
 	MetricDimensionOwnershipFamily = "family"
 	// MetricDimensionCoverageSignal labels the observability coverage correlation
 	// counter (eshu_dp_observability_coverage_correlations_total) with the closed

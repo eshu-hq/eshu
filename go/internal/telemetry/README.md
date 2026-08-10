@@ -223,6 +223,8 @@ when the reducer has a graph orphan observer.
 | `AWSRelationshipEdges` | `eshu_dp_aws_relationship_edges_total` |
 | `AWSCloudImageEdges` | `eshu_dp_aws_cloud_image_edges_total` (labels: `resolution_mode`; counts AWS `CloudResource`->`ContainerImage` edges materialized per generation, issue #5450) |
 | `CrossScopeOwnershipContendedRows` | `eshu_dp_cross_scope_ownership_contended_rows_total` |
+| `LockOnlyGateLockedRows` | `eshu_dp_lock_only_gate_locked_rows_total` (labels: `family`; #5101 graphowner LockOnlyGate rows written per chunk under the advisory-lock critical section) |
+| `LockOnlyGateLockWaitDuration` | `eshu_dp_lock_only_gate_lock_wait_seconds` (labels: `family`; #5101 full lock-wait distribution, not only the slow-wait log's >=100ms tail) |
 | `GCPRelationshipEdges` | `eshu_dp_gcp_relationship_edges_total` |
 | `GCPMaterializationFacts` | `eshu_dp_gcp_materialization_facts_total` |
 | `GCPMaterializationGraphWrites` | `eshu_dp_gcp_materialization_graph_writes_total` |
