@@ -340,8 +340,9 @@ metrics now cover the same seam, alongside that log (not replacing it):
 
 Both share the label `family`, a closed enum of the five lock-only writer
 names: `rds_posture`, `ec2_internet_exposure`, `ec2_block_device_kms_posture`,
-`s3_internet_exposure`, `ec2_instance_identity` (`go/internal/graphowner/
-posture_locked_writers.go`). No scope id, uid, or other high-cardinality value
+`s3_internet_exposure`, `ec2_instance_identity`
+(`go/internal/graphowner/posture_locked_writers.go`).
+No scope id, uid, or other high-cardinality value
 is a label; those stay on the structured log and the returned error. A
 `LockOnlyGate` wired without `Instruments` (nil) skips both metrics silently
 and keeps the log-only signal, matching the sibling owner-ledger `Gate`'s

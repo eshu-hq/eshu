@@ -176,8 +176,11 @@ matching `Gate`'s pass-through convention.
 
 No-Regression Evidence: this change adds two metric-recording calls to
 `writeChunk`'s existing code path only — lock acquisition, the underlying
-graph write, the commit, the `lockOnlySlowWaitThreshold` log gate, and the
-advisory-lock keyspace `LockUIDs` acquires are byte-identical to pre-#5101.
+graph write, the commit, and the advisory-lock keyspace `LockUIDs` acquires are
+byte-identical to pre-#5101. The `lockOnlySlowWaitThreshold` log gate is
+semantically unchanged rather than byte-identical: the `wait` value is hoisted
+out of the `if` scope so both the histogram and the log read the same
+measurement, and the threshold comparison itself is untouched.
 `go test ./internal/graphowner ./internal/telemetry -count=1` passes; the
 pre-existing `TestLockOnlyGateChunksAtLockChunkSize`,
 `TestLockOnlyGateUnderlyingErrorRollsBackAndPropagates`, and

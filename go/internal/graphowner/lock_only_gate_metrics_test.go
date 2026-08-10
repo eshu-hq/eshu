@@ -5,6 +5,7 @@ package graphowner
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -133,6 +134,67 @@ func TestLockOnlyGateWriteChunkRecordsLockedRowsAndWaitMetrics(t *testing.T) {
 	}
 	if gotCount != 1 {
 		t.Fatalf("eshu_dp_lock_only_gate_lock_wait_seconds count = %d, want 1 (one chunk, one lock acquisition)", gotCount)
+	}
+}
+
+// TestLockOnlyGateWriteChunkRolledBackChunkCountsNoRowsButRecordsWait pins the
+// PLACEMENT of the two recordings, which is the part of this change that four
+// separate documents assert and no test previously guarded.
+//
+// The rows counter sits after tx.Commit() succeeds, so a chunk that rolled back
+// contributes nothing — counting rows the gate did not durably write would make
+// the counter lie in exactly the situation an operator is investigating. The
+// wait histogram sits on the acquisition path instead, so a chunk that acquired
+// its lock and then failed downstream STILL contributes its wait sample; those
+// are the contended writes whose latency matters most, and recording after the
+// commit would silently drop them.
+//
+// Existence and labels were already pinned. This pins the ordering: hoisting
+// the counter above the write, or moving the histogram after the commit, both
+// left the whole package green before this test existed.
+func TestLockOnlyGateWriteChunkRolledBackChunkCountsNoRowsButRecordsWait(t *testing.T) {
+	t.Parallel()
+
+	instruments, reader := newTestInstrumentsPair(t)
+	beginner := &fakeChunkBeginner{}
+	gate := &LockOnlyGate{db: beginner, store: &fakeLockOnlyStore{}, Instruments: instruments}
+
+	wantErr := errors.New("graph write failed")
+	underlying := func(_ context.Context, _ []map[string]any, _, _, _ string) error {
+		return wantErr
+	}
+	w := NewRDSPostureLockedWriter(gate, underlying, nil)
+	err := w.WriteRDSPostureNodes(context.Background(), []map[string]any{{"uid": "a"}}, "scope-1", "gen-1", "reducer/rds-posture")
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("WriteRDSPostureNodes error = %v, want %v", err, wantErr)
+	}
+	if len(beginner.txs) != 1 || beginner.txs[0].committed || !beginner.txs[0].rolledBack {
+		t.Fatalf("tx state = %+v, want rolled back and NOT committed", beginner.txs)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	wantAttrs := map[string]string{"family": familyRDSPosture}
+
+	if got, ok := lockOnlyCounterValue(t, rm, "eshu_dp_lock_only_gate_locked_rows_total", wantAttrs); ok {
+		t.Fatalf(
+			"eshu_dp_lock_only_gate_locked_rows_total recorded %d for a rolled-back chunk, want no data point: "+
+				"the counter must sit after tx.Commit() so it never counts rows that were not durably written",
+			got,
+		)
+	}
+
+	gotCount, ok := lockOnlyHistogramCount(t, rm, "eshu_dp_lock_only_gate_lock_wait_seconds", wantAttrs)
+	if !ok {
+		t.Fatal(
+			"eshu_dp_lock_only_gate_lock_wait_seconds: no data point for a chunk that acquired its lock and then " +
+				"failed downstream -- the histogram must sit on the acquisition path, not after the commit",
+		)
+	}
+	if gotCount != 1 {
+		t.Fatalf("eshu_dp_lock_only_gate_lock_wait_seconds count = %d, want 1 (the lock was acquired once)", gotCount)
 	}
 }
 
