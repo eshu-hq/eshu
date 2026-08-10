@@ -41,6 +41,10 @@ func (e bearerDenialOutcomeError) DenialOutcome() string { return e.outcome }
 func TestAuthMiddlewareRecordsDistinctBearerDenialReasonCodes(t *testing.T) {
 	t.Parallel()
 
+	// Verdicts about the credential itself. Outcomes that mean a dependency
+	// could not answer are covered by
+	// TestAuthMiddlewareRecordsDependencyOutagesAsUnavailable instead, because
+	// they record DecisionUnavailable rather than DecisionDenied.
 	for _, outcome := range []string{
 		"expired",
 		"wrong_audience",
@@ -48,7 +52,6 @@ func TestAuthMiddlewareRecordsDistinctBearerDenialReasonCodes(t *testing.T) {
 		"bad_signature",
 		"malformed",
 		"no_grants",
-		"jwks_fetch_failure",
 	} {
 		t.Run(outcome, func(t *testing.T) {
 			t.Parallel()
@@ -79,6 +82,54 @@ func TestAuthMiddlewareRecordsDistinctBearerDenialReasonCodes(t *testing.T) {
 			}
 			if got, want := event.ReasonCode, outcome; got != want {
 				t.Fatalf("event.ReasonCode = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+// TestAuthMiddlewareRecordsDependencyOutagesAsUnavailable proves that an
+// outcome meaning "a dependency could not answer" records DecisionUnavailable
+// rather than DecisionDenied.
+//
+// Recording these as denials makes the audit trail lie during an incident: a
+// grant store or IdP key endpoint being down would appear as every
+// authenticating subject being refused on the merits, and `no_grants` in
+// particular asserts a subject has no entitlements. The interactive OIDC and
+// GitHub login paths already use DecisionUnavailable for the same conditions.
+func TestAuthMiddlewareRecordsDependencyOutagesAsUnavailable(t *testing.T) {
+	t.Parallel()
+
+	for _, outcome := range []string{"grant_resolution_unavailable", "jwks_fetch_failure"} {
+		t.Run(outcome, func(t *testing.T) {
+			t.Parallel()
+
+			audit := &fakeGovernanceAuditAppender{}
+			resolver := &fakeScopedTokenResolver{
+				err: bearerDenialOutcomeError{outcome: outcome},
+			}
+			handler := AuthMiddlewareWithScopedTokensGovernanceAuditAndEnforcement(
+				"", resolver, mockHandler(), audit, true,
+			)
+			req := httptest.NewRequest(http.MethodGet, "/api/v0/status/governance", nil)
+			req.Header.Set("Accept", EnvelopeMIMEType)
+			req.Header.Set("Authorization", "Bearer some-credential")
+			rec := httptest.NewRecorder()
+
+			handler.ServeHTTP(rec, req)
+
+			if got, want := len(audit.events), 1; got != want {
+				t.Fatalf("len(audit.events) = %d, want %d", got, want)
+			}
+			event := audit.events[0]
+			if got, want := event.Decision, governanceaudit.DecisionUnavailable; got != want {
+				t.Fatalf("event.Decision = %q, want %q", got, want)
+			}
+			if got, want := event.ReasonCode, outcome; got != want {
+				t.Fatalf("event.ReasonCode = %q, want %q", got, want)
+			}
+			// The caller still gets a 401; only the audit semantics differ.
+			if got, want := rec.Code, http.StatusUnauthorized; got != want {
+				t.Fatalf("status = %d, want %d", got, want)
 			}
 		})
 	}

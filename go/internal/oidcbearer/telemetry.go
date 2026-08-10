@@ -30,6 +30,12 @@ const (
 	outcomeMalformed        = "malformed"
 	outcomeJWKSFetchFailure = "jwks_fetch_failure"
 	outcomeNoGrants         = "no_grants"
+	// outcomeGrantResolutionUnavailable is a grant store that could not answer
+	// at all (an infrastructure error), as distinct from one that answered and
+	// reported no matching grants. Collapsing the two would make a grant-store
+	// outage read as every authenticating subject genuinely lacking
+	// entitlements, in this counter and in the governance audit trail.
+	outcomeGrantResolutionUnavailable = "grant_resolution_unavailable"
 )
 
 // resolveSpanName is the OTEL span name for one ResolveScopedToken call that

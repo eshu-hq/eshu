@@ -202,7 +202,9 @@ func (r *Resolver) ResolveScopedToken(ctx context.Context, credential string) (q
 	if err != nil {
 		r.logger0().Error("oidc bearer grant resolution failed; token denied",
 			"iss", iss, "provider_config_id", entry.provider.ProviderConfigID, "error", err)
-		return query.AuthContext{}, false, r.deny(ctx, iss, outcomeNoGrants, false)
+		// An unreachable grant store is an availability failure, not a statement
+		// that this subject has no entitlements (#5567).
+		return query.AuthContext{}, false, r.deny(ctx, iss, outcomeGrantResolutionUnavailable, false)
 	}
 	if !ok || len(grants.RoleIDs) == 0 {
 		return query.AuthContext{}, false, r.deny(ctx, iss, outcomeNoGrants, false)

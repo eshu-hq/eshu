@@ -52,12 +52,20 @@ metrics, spans, and structured logs.
   emitting package owns its closed set rather than passing through whatever a
   dependency reports. For bearer/token resolution denials that set is
   `expired`, `wrong_audience`, `unknown_issuer`, `bad_signature`, `malformed`,
-  `no_grants`, and `jwks_fetch_failure`, enforced by
-  `auditableBearerDenialReasons` in `internal/query/auth_audit.go`; an outcome
-  outside it audits as `authentication_required`. Widening the set means adding
-  it there too, otherwise a new denial kind silently reports as the generic
-  reason. The distinctions matter operationally: a spike of `bad_signature` is
-  a different security signal from a spike of `expired`.
+  `no_grants`, `jwks_fetch_failure`, and `grant_resolution_unavailable`,
+  enforced by `auditableBearerDenialReasons` in
+  `internal/query/auth_audit.go`; an outcome outside it audits as
+  `authentication_required`. Widening the set means adding it there too,
+  otherwise a new denial kind silently reports as the generic reason. The
+  distinctions matter operationally: a spike of `bad_signature` is a different
+  security signal from a spike of `expired`.
+- Not every failed authentication is a denial. `grant_resolution_unavailable`
+  and `jwks_fetch_failure` mean a dependency could not answer, so they record
+  `DecisionUnavailable`, matching the interactive OIDC and GitHub login paths.
+  Recording them as denials would make a grant-store or IdP outage read as every
+  authenticating subject being refused on the merits — and `no_grants` in
+  particular asserts a subject holds no entitlements, which is a false statement
+  about a person when the store was simply unreachable.
 
 ## Related docs
 
