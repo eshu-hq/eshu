@@ -94,6 +94,7 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 				graphSchemaNeo4jPreFunctionRetractIndexesFingerprint,
 				graphSchemaNeo4jPreHelmTemplateValuesFingerprint,
 				graphSchemaNeo4jPreGitlabFingerprint,
+				graphSchemaNeo4jPreContentEntityGraphFingerprint,
 			},
 		},
 		{
@@ -119,6 +120,7 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 				graphSchemaNornicDBPreFunctionRetractIndexesFingerprint,
 				graphSchemaNornicDBPreHelmTemplateValuesFingerprint,
 				graphSchemaNornicDBPreGitlabFingerprint,
+				graphSchemaNornicDBPreContentEntityGraphFingerprint,
 			},
 		},
 	}

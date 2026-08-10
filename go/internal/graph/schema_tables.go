@@ -136,6 +136,15 @@ var uidConstraintLabels = []string{
 	"CidrBlock",
 	"Class",
 	"CloudResource",
+	// CloudFormation extended entities (#5954). Registered here rather than as
+	// composite (name, path, line_number) constraints in schemaConstraints: the
+	// projector MERGEs these by uid, and schemaConstraints entries pass through
+	// dialect.constraint(), which drops composite constraints for NornicDB --
+	// the DEFAULT backend. A composite entry would leave these labels with no
+	// uniqueness constraint exactly where it matters most.
+	"CloudFormationCondition",
+	"CloudFormationExport",
+	"CloudFormationImport",
 	"CloudFormationOutput",
 	"CloudFormationParameter",
 	"CloudFormationResource",
@@ -184,6 +193,7 @@ var uidConstraintLabels = []string{
 	"KustomizeOverlay",
 	"Macro",
 	"Module",
+	"PagerDutyDeclaration",
 	"Package",
 	"PackageArtifact",
 	"PackageDependency",
@@ -242,6 +252,7 @@ var uidConstraintLabels = []string{
 	// line_number of 1, so uid — already a collision-resistant sha256 over
 	// kind/scope/lineage/address — is state resources' only meaningful
 	// identity key).
+	"TerraformBlock",
 	"TerraformStateResource",
 	"TerraformVariable",
 	"TerragruntConfig",
