@@ -178,7 +178,7 @@ disk only for a parser unit test) and added `terraform_comprehensive/pagerduty.t
 moving the B-12 snapshot's node-count floors for all five labels off zero.
 
 Observed identically across three live `golden-corpus-gate` runs against this
-branch, taken at different points in the rebase history (elapsed 148s, 157s,
+branch, across two code states in the rebase history (elapsed 148s, 157s,
 and 193s):
 
 | label | count |
@@ -201,8 +201,16 @@ in all three. The three gate summary lines:
 | 2 (`3b4f63a888`) | 157s | 555 pass, 0 required-fail, 0 advisory-warn |
 | 3 (`3b4f63a888`, rerun) | 193s | 552 pass, 0 required-fail, 3 advisory-warn |
 
-Runs 2 and 3 are the same code (`3b4f63a888`, this branch's HEAD after
-rebasing onto current `origin/main`). Run 1 is an earlier commit
+Run 2's full terminal output was captured at `scratchpad/b7-run.log` and run
+3's at `scratchpad/b7-run-2.log` (agent-session scratch paths, not files
+committed to this repo), so the elapsed times, pass lines, and per-phase
+timing figures cited in this section are independently reproducible from
+those logs, the same way the Verification section below cites commands
+rather than only numbers. Run 1 predates that session's log capture and has
+no saved terminal output.
+
+Runs 2 and 3 are the same code (`3b4f63a888`, the code state runs 2 and 3
+executed against). Run 1 is an earlier commit
 (`cdf3730a03`) at a pre-rebase HEAD, so it is not a clean single-code series
 with the other two — the counts and query shape agreeing across all three is
 still meaningful (the fixture and node-count logic did not change between
@@ -210,8 +218,8 @@ still meaningful (the fixture and node-count logic did not change between
 different bases, not three samples of identical code.
 
 The asserted truth this branch changes — the six node counts and the IaC
-query shape — is stable across three different runs at three different points
-in the rebase history and under three different load conditions. That is a
+query shape — is stable across three runs across two code states in the
+rebase history and under three different load conditions. That is a
 stronger claim than a single quiet run would have given: it is not evidence
 the diff got lucky once, it is evidence the diff's effect on graph and query
 truth does not move.
@@ -246,8 +254,10 @@ session, with load ranging roughly 7 to 49, and a quiet window was not
 achievable in this session, so "no identified second gate run" is not the
 same as "no contention" — something on the host was still busy. The mechanism
 argument for why none of this is attributed to the diff: this change adds one
-5-file repo to a 31-repo corpus and 13 newly projected nodes total, no
-snapshot query shape fans out over these five labels, and the IaC inventory
+5-file repo to a 31-repo corpus, 13 nodes across the five newly-asserted
+labels (~47 new nodes in total once the staged repo's CloudFormation content
+entities, File nodes, and Repository node are counted), no snapshot query
+shape fans out over these five labels, and the IaC inventory
 CTE is restricted to three Terraform entity types so it gains exactly one row
 from this change. That argument makes it implausible by mechanism that this
 diff moves a 3s phase to 8-13s. It does not prove what did for runs 1 and 2 —

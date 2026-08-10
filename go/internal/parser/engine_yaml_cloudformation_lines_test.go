@@ -70,7 +70,12 @@ func TestDefaultEngineParsePathYAMLCloudFormationVpcFixtureRealLines(t *testing.
 	assertCFNLines(t, cfnRow(t, got, "cloudformation_resources", "SecurityGroup"), 33, 42)
 	assertCFNLines(t, cfnRow(t, got, "cloudformation_outputs", "VpcId"), 45, 46)
 	assertCFNLines(t, cfnRow(t, got, "cloudformation_outputs", "PublicSubnetId"), 47, 48)
-	assertCFNLines(t, cfnRow(t, got, "cloudformation_outputs", "PrivateSubnetId"), 49, 50)
+	// #5954 added the PrivateSubnetId Export block (moving its own key from
+	// line 49 to 57) and a new SecurityGroupId export; both end_lines land on
+	// each output's deepest content line (the nested Export.Name), following
+	// the same YAML deepest-content-line convention as every other row above.
+	assertCFNLines(t, cfnRow(t, got, "cloudformation_outputs", "PrivateSubnetId"), 57, 60)
+	assertCFNLines(t, cfnRow(t, got, "cloudformation_outputs", "SecurityGroupId"), 68, 71)
 
 	// Every resource's line_number must be distinct: the pre-fix bug stamped
 	// the same document-root line (1) on all of them.
@@ -81,6 +86,61 @@ func TestDefaultEngineParsePathYAMLCloudFormationVpcFixtureRealLines(t *testing.
 			t.Fatalf("resource %q reused line_number %d already claimed by another resource", name, line)
 		}
 		seen[line] = true
+	}
+}
+
+// TestDefaultEngineParsePathYAMLCloudFormationLambdaFixtureImports proves
+// #5954's two `!ImportValue` usages in lambda.yaml (added so
+// CloudFormationImport had real corpus coverage, see vpc.yaml's exported
+// SecurityGroupId/PrivateSubnetId) are actually collected, since nothing
+// pinned this fixture's imports before. collectImports
+// (go/internal/parser/cloudformation/parser_helpers.go) has no per-entity
+// position tracking -- issue #5328/#5348's real-line fix covers
+// Resources/Outputs/Parameters, not Fn::ImportValue usages -- so every
+// import still inherits the document-root fallback line and carries no
+// end_line. This pins that known, current behavior rather than a real
+// per-entity line that does not exist yet.
+func TestDefaultEngineParsePathYAMLCloudFormationLambdaFixtureImports(t *testing.T) {
+	t.Parallel()
+
+	fixtureDir, err := filepath.Abs(filepath.Join("..", "..", "..", "tests", "fixtures", "ecosystems", "cloudformation_comprehensive"))
+	if err != nil {
+		t.Fatalf("filepath.Abs() error = %v, want nil", err)
+	}
+	filePath := filepath.Join(fixtureDir, "lambda.yaml")
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+	got, err := engine.ParsePath(fixtureDir, filePath, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath() error = %v, want nil", err)
+	}
+
+	imports, ok := got["cloudformation_cross_stack_imports"].([]map[string]any)
+	if !ok {
+		t.Fatalf("cloudformation_cross_stack_imports = %T, want []map[string]any", got["cloudformation_cross_stack_imports"])
+	}
+	if len(imports) != 2 {
+		t.Fatalf("cloudformation_cross_stack_imports = %#v, want 2 rows (SecurityGroupId, PrivateSubnetId imports)", imports)
+	}
+
+	names := map[string]bool{}
+	for _, imp := range imports {
+		name, _ := imp["name"].(string)
+		names[name] = true
+		if got, want := imp["line_number"], 1; got != want {
+			t.Fatalf("import %q line_number = %#v, want %d (document-root fallback -- imports have no real per-entity line yet)", name, got, want)
+		}
+		if _, hasEndLine := imp["end_line"]; hasEndLine {
+			t.Fatalf("import %q unexpectedly carries end_line %#v", name, imp["end_line"])
+		}
+	}
+	for _, want := range []string{"comprehensive-vpc-SecurityGroupId", "comprehensive-vpc-PrivateSubnetId"} {
+		if !names[want] {
+			t.Fatalf("cloudformation_cross_stack_imports missing name %q: %#v", want, imports)
+		}
 	}
 }
 

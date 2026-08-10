@@ -43,7 +43,7 @@
       "CloudFormationExport": {
         "min": 3,
         "max": 20,
-        "note": "#5954: CloudFormation Output `Export:` blocks. cloudformation_comprehensive/simple-stack.yaml already exported RoleArn (1); vpc.yaml now also exports SecurityGroupId and PrivateSubnetId (2 more) so lambda.yaml's Fn::ImportValue usage (CloudFormationImport, above) has a real cross-stack export to reference. Observed 3 on a live golden-corpus-gate run against this exact scope."
+        "note": "#5954: CloudFormation Output `Export:` blocks. cloudformation_comprehensive/simple-stack.yaml already exported RoleArn (1); vpc.yaml now also exports SecurityGroupId and PrivateSubnetId (2 more) so lambda.yaml's Fn::ImportValue usage (CloudFormationImport, above) has a real cross-stack export to reference. Observed 3 on a live golden-corpus-gate run against this exact scope. RoleArn's own Export.Name uses `!Sub` rather than a literal string; go/internal/parser/cloudformation/parser_helpers.go's setOptionalString stamps that via fmt.Sprint on the raw decoded Fn::Sub map, so RoleArn's projected node name is the Go map debug string `map[Fn::Sub:${AWS::StackName}-RoleArn]`, not a real name. This is a pre-existing parser defect this issue did not introduce and does not fix; flagged here so a future setOptionalString fix that changes the name or drops this count is attributable rather than a mystery."
       },
       "PagerDutyDeclaration": {
         "min": 1,
