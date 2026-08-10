@@ -87,12 +87,18 @@ type PipelineStateSnapshot struct {
 
 // PipelineQueueSnapshot records reducer/ingest queue depth by state.
 type PipelineQueueSnapshot struct {
-	Pending    int `json:"pending"`
-	InFlight   int `json:"in_flight"`
-	Retrying   int `json:"retrying"`
-	Succeeded  int `json:"succeeded"`
-	Failed     int `json:"failed"`
-	DeadLetter int `json:"dead_letter"`
+	Total       int `json:"total"`
+	Outstanding int `json:"outstanding"`
+	// OverdueClaims is the sole driver of a "stalled" health state, so a bundle
+	// reporting readiness "blocked" without it explains nothing.
+	OverdueClaims         int     `json:"overdue_claims"`
+	OldestOutstandingAgeS float64 `json:"oldest_outstanding_age_seconds"`
+	Pending               int     `json:"pending"`
+	InFlight              int     `json:"in_flight"`
+	Retrying              int     `json:"retrying"`
+	Succeeded             int     `json:"succeeded"`
+	Failed                int     `json:"failed"`
+	DeadLetter            int     `json:"dead_letter"`
 }
 
 // PipelineScopeActivitySnapshot records repo-scope activity counts.

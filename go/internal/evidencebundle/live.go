@@ -42,12 +42,16 @@ type LiveSnapshot struct {
 // LiveQueueSnapshot mirrors the reducer/ingest queue depth reported by
 // GET /api/v0/status/pipeline.
 type LiveQueueSnapshot struct {
-	Pending    int
-	InFlight   int
-	Retrying   int
-	Succeeded  int
-	Failed     int
-	DeadLetter int
+	Total                 int
+	Outstanding           int
+	OverdueClaims         int
+	OldestOutstandingAgeS float64
+	Pending               int
+	InFlight              int
+	Retrying              int
+	Succeeded             int
+	Failed                int
+	DeadLetter            int
 }
 
 // LiveScopeActivitySnapshot mirrors scope_activity from the pipeline status
@@ -244,17 +248,10 @@ func buildPipelineStateSnapshot(snapshot LiveSnapshot) PipelineStateSnapshot {
 		collectors = append(collectors, PipelineCollectorReadinessSnapshot(collector))
 	}
 	return PipelineStateSnapshot{
-		RepositoryCount: snapshot.RepositoryCount,
-		HealthState:     snapshot.HealthState,
-		HealthReasons:   append([]string(nil), snapshot.HealthReasons...),
-		Queue: PipelineQueueSnapshot{
-			Pending:    snapshot.Queue.Pending,
-			InFlight:   snapshot.Queue.InFlight,
-			Retrying:   snapshot.Queue.Retrying,
-			Succeeded:  snapshot.Queue.Succeeded,
-			Failed:     snapshot.Queue.Failed,
-			DeadLetter: snapshot.Queue.DeadLetter,
-		},
+		RepositoryCount:   snapshot.RepositoryCount,
+		HealthState:       snapshot.HealthState,
+		HealthReasons:     append([]string(nil), snapshot.HealthReasons...),
+		Queue:             PipelineQueueSnapshot(snapshot.Queue),
 		QueueBlockedCount: snapshot.QueueBlockedCount,
 		ScopeActivity: PipelineScopeActivitySnapshot{
 			Active:    snapshot.ScopeActivity.Active,

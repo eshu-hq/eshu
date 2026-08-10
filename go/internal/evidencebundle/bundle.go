@@ -40,8 +40,14 @@ var (
 	// query happens to contain a colon and an @ from being reported as a
 	// credential.
 	credentialURLPattern = regexp.MustCompile(`[a-zA-Z][a-zA-Z0-9+.-]*://[^/\s:@"?#]+:[^/\s@"?#]+@`)
-	credentialPattern    = regexp.MustCompile(`(?i)(authorization:\s*bearer|api[_-]?key|password|secret|\\?"?token\\?"?\s*[:=]|gh[pousr]_[A-Za-z0-9_]{8,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)`)
-	rawPromptPattern     = regexp.MustCompile(`(?i)(raw_prompt|provider_response|raw provider response|prompt transcript)`)
+	// Credential keywords only count when something is being assigned to them.
+	// Matching the bare word rejected honest content: "secrets_iam_trust_chain"
+	// and "secrets_iam_graph_projection" are real materialization domains, so a
+	// stack with backlog in either could not export a live bundle at all. The
+	// optional quote and backslash before the separator cover the keyword
+	// appearing as a JSON key in the marshalled bundle.
+	credentialPattern = regexp.MustCompile(`(?i)(authorization:\s*bearer|\\?"?(api[_-]?key|password|passwd|secret|token)\\?"?\s*[:=]|gh[pousr]_[A-Za-z0-9_]{8,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)`)
+	rawPromptPattern  = regexp.MustCompile(`(?i)(raw_prompt|provider_response|raw provider response|prompt transcript)`)
 	// Filesystem roots, not "any absolute path": this bundle's own reproduce
 	// calls carry bare API routes such as "GET /api/v0/status/index", which a
 	// general absolute-path rule would reject as a local path. Selectivity comes

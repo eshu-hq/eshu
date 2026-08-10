@@ -54,13 +54,16 @@ type scanHealth struct {
 }
 
 type scanQueue struct {
-	Outstanding int `json:"outstanding,omitempty"`
-	Pending     int `json:"pending,omitempty"`
-	InFlight    int `json:"in_flight,omitempty"`
-	Retrying    int `json:"retrying,omitempty"`
-	Succeeded   int `json:"succeeded,omitempty"`
-	Failed      int `json:"failed,omitempty"`
-	DeadLetter  int `json:"dead_letter,omitempty"`
+	Total                 int     `json:"total,omitempty"`
+	OverdueClaims         int     `json:"overdue_claims,omitempty"`
+	OldestOutstandingAgeS float64 `json:"oldest_outstanding_age,omitempty"`
+	Outstanding           int     `json:"outstanding,omitempty"`
+	Pending               int     `json:"pending,omitempty"`
+	InFlight              int     `json:"in_flight,omitempty"`
+	Retrying              int     `json:"retrying,omitempty"`
+	Succeeded             int     `json:"succeeded,omitempty"`
+	Failed                int     `json:"failed,omitempty"`
+	DeadLetter            int     `json:"dead_letter,omitempty"`
 }
 
 type scanGenerationHistory struct {

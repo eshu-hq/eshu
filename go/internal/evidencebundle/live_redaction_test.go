@@ -4,7 +4,6 @@
 package evidencebundle
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/redact"
@@ -400,9 +399,92 @@ func TestRedactionRulesNameScreensNotGuarantees(t *testing.T) {
 	}
 	for name, bundle := range bundles {
 		for _, rule := range bundle.Redaction.Rules {
-			if strings.HasPrefix(rule, "no_") {
-				t.Errorf("%s bundle advertises rule %q, which asserts an outcome the screen cannot guarantee", name, rule)
+			// An allowlist, not a "no_" denylist: "guarantees_no_private_endpoints"
+			// would pass a prefix check while asserting exactly what a screen
+			// cannot deliver.
+			switch rule {
+			case "handles_only", "screened_private_endpoints", "screened_credentials", "screened_model_inputs_or_outputs":
+			default:
+				t.Errorf("%s bundle advertises unrecognised rule %q; a rule must name a screen that runs, not an outcome", name, rule)
 			}
 		}
+	}
+}
+
+// TestValidateKeepsRealDomainNamesUsable is the false-positive guard for the
+// credential rule. It matched the bare word "secret", and
+// "secrets_iam_trust_chain" and "secrets_iam_graph_projection" are real
+// materialization domains -- so a stack with backlog in either one could not
+// export a live bundle at all. A screen that rejects honest bundles fails the
+// feature just as badly as one that passes a leak.
+func TestValidateKeepsRealDomainNamesUsable(t *testing.T) {
+	for _, domain := range []string{
+		"secrets_iam_trust_chain",
+		"secrets_iam_graph_projection",
+		"appflow_connector_profile_uses_secret",
+		"aws_appsync_api_key",
+	} {
+		t.Run(domain, func(t *testing.T) {
+			snapshot := realisticLiveSnapshot()
+			snapshot.DomainBacklogs = []LiveDomainBacklogSnapshot{{Domain: domain, Outstanding: 2}}
+			snapshot.StageSummaries = []LiveStageSummarySnapshot{{Stage: domain, Pending: 1}}
+			bundle := BuildLiveBundle(snapshot, LiveBundleOptions{ScopeID: "live:x", CreatedAt: fixedLiveCreatedAt})
+			if err := Validate(bundle); err != nil {
+				t.Fatalf("Validate rejected the real domain name %q: %v", domain, err)
+			}
+		})
+	}
+}
+
+// TestValidateStillRejectsAssignedCredentials is the counterweight: narrowing
+// the credential rule to an assignment shape must not stop it catching a value
+// actually being handed over.
+func TestValidateStillRejectsAssignedCredentials(t *testing.T) {
+	for _, reason := range []string{
+		`password=hunter2`,
+		`"api_key": "abcdef"`,
+		`secret: swordfish`,
+		`api-key=abcdef`,
+		`Authorization: Bearer abcdef`,
+	} {
+		t.Run(reason, func(t *testing.T) {
+			snapshot := realisticLiveSnapshot()
+			snapshot.HealthReasons = []string{reason}
+			bundle := BuildLiveBundle(snapshot, LiveBundleOptions{ScopeID: "live:x", CreatedAt: fixedLiveCreatedAt})
+			if err := Validate(bundle); err == nil {
+				t.Fatalf("Validate accepted an assigned credential in %q", reason)
+			}
+		})
+	}
+}
+
+// TestValidateRejectsContentThatDoesNotMatchItsBundleID covers a bundle whose
+// body was edited after it was built. bundle_id is a hash of the content, so a
+// bundle carrying an id that does not match what it now says has been altered
+// -- including a "passed" validation status pasted onto a body that never
+// passed. This detects tampering-without-recompute and accidental corruption;
+// it is not proof of provenance, since an editor can recompute the hash.
+func TestValidateRejectsContentThatDoesNotMatchItsBundleID(t *testing.T) {
+	bundle := BuildLiveBundle(realisticLiveSnapshot(), LiveBundleOptions{ScopeID: "live:x", CreatedAt: fixedLiveCreatedAt})
+	if err := Validate(bundle); err != nil {
+		t.Fatalf("Validate(unmodified) = %v, want nil", err)
+	}
+
+	forged := bundle
+	forged.Validation.Status = "passed"
+	if err := Validate(forged); err == nil {
+		t.Fatal("Validate accepted a body stamped passed without recomputing bundle_id")
+	}
+
+	edited := bundle
+	edited.Contents.PipelineState = nil
+	edited.Contents.SemanticProviderState = nil
+	if err := Validate(edited); err == nil {
+		t.Fatal("Validate accepted contents edited after the id was computed")
+	}
+
+	// The honest path still validates: stamping recomputes the id.
+	if err := Validate(StampValidation(bundle)); err != nil {
+		t.Fatalf("Validate(stamped) = %v, want nil", err)
 	}
 }

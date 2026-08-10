@@ -22,6 +22,10 @@ const (
 // StampValidation records that Validate ran green on this bundle and returns
 // the stamped copy, with bundle_id recomputed over the new content.
 //
+// It must be given a bundle as a builder returned it: the id is recomputed over
+// the current content, so stamping a hand-modified bundle yields an id that
+// RenderJSON's output will not reproduce.
+//
 // Export paths call it after a nil Validate. Keeping the stamp out of the
 // builders is the point: BuildDemoBundle and BuildLiveBundle are pure and run
 // no checks, so a bundle they returned pre-stamped would assert a validation
@@ -60,6 +64,16 @@ func Validate(bundle Bundle) error {
 	}
 	if err := validatePrivateCanaries(bundle); err != nil {
 		return err
+	}
+	// Last: bundle_id is a hash of the content, so an id that disagrees with the
+	// body means the body changed after it was computed -- including a "passed"
+	// validation status pasted onto a bundle that never passed. It runs after
+	// the redaction checks so an injected leak is reported as a leak rather than
+	// as a stale hash. It catches tampering-without-recompute and accidental
+	// corruption; it is not proof of provenance, since whoever edits the body
+	// can also recompute the hash.
+	if want := bundleID(bundle); bundle.BundleID != want {
+		return fmt.Errorf("bundle_id %q does not match the bundle content (recomputed %q)", bundle.BundleID, want)
 	}
 	return nil
 }

@@ -39,10 +39,10 @@ func TestEvidenceBundleExportLiveComposesBundleFromStatusEndpoints(t *testing.T)
 		case "/api/v0/status/pipeline":
 			_, _ = w.Write([]byte(`{
 				"health": {"state": "degraded", "reasons": ["queue backlog"]},
-				"queue": {"pending": 4, "in_flight": 2, "retrying": 1, "succeeded": 10, "failed": 0, "dead_letter": 1},
-				"generation_history": {"active": 1, "pending": 0, "completed": 9, "failed": 0},
-				"stage_summaries": [{"stage": "parse", "pending": 2, "claimed": 6, "running": 3, "retrying": 0, "failed": 0, "dead_letter": 0}],
-				"domain_backlogs": [{"domain": "aws_relationship", "outstanding": 1, "retrying": 0, "failed": 0, "dead_letter": 1}],
+				"queue": {"total": 18, "outstanding": 7, "overdue_claims": 3, "oldest_outstanding_age": 12.5, "pending": 4, "in_flight": 2, "retrying": 1, "succeeded": 10, "failed": 0, "dead_letter": 1},
+				"generation_history": {"active": 1, "pending": 0, "completed": 9, "superseded": 5, "failed": 0, "other": 2},
+				"stage_summaries": [{"stage": "parse", "pending": 2, "claimed": 6, "running": 3, "retrying": 0, "succeeded": 11, "failed": 0, "dead_letter": 0}],
+				"domain_backlogs": [{"domain": "aws_relationship", "outstanding": 1, "in_flight": 4, "retrying": 0, "failed": 0, "dead_letter": 1}],
 				"scope_activity": {"active": 5, "changed": 1, "unchanged": 4}
 			}`))
 		case "/api/v0/status/collectors":
@@ -101,7 +101,13 @@ func TestEvidenceBundleExportLiveComposesBundleFromStatusEndpoints(t *testing.T)
 	if state.RepositoryCount != 5 {
 		t.Fatalf("RepositoryCount = %d, want 5", state.RepositoryCount)
 	}
-	wantQueue := evidencebundle.PipelineQueueSnapshot{Pending: 4, InFlight: 2, Retrying: 1, Succeeded: 10, DeadLetter: 1}
+	// Every key the stub sends is asserted here. These assertions are what
+	// cover the json decode tags: the package-level bundle test populates
+	// LiveSnapshot directly and would stay green through a tag typo.
+	wantQueue := evidencebundle.PipelineQueueSnapshot{
+		Total: 18, Outstanding: 7, OverdueClaims: 3, OldestOutstandingAgeS: 12.5,
+		Pending: 4, InFlight: 2, Retrying: 1, Succeeded: 10, DeadLetter: 1,
+	}
 	if state.Queue != wantQueue {
 		t.Fatalf("Queue = %+v, want %+v", state.Queue, wantQueue)
 	}
@@ -113,11 +119,23 @@ func TestEvidenceBundleExportLiveComposesBundleFromStatusEndpoints(t *testing.T)
 	if len(state.StageSummaries) != 1 {
 		t.Fatalf("StageSummaries = %+v, want the one parse stage from the stub", state.StageSummaries)
 	}
-	if got := state.StageSummaries[0]; got.Pending != 2 || got.Claimed != 6 || got.Running != 3 {
-		t.Fatalf("parse stage = %+v, want pending=2 claimed=6 running=3 from the stub", got)
+	wantStage := evidencebundle.PipelineStageSummarySnapshot{
+		Stage: "parse", Pending: 2, Claimed: 6, Running: 3, Succeeded: 11,
 	}
-	if len(state.DomainBacklogs) != 1 || state.DomainBacklogs[0].Domain != "aws_relationship" {
-		t.Fatalf("DomainBacklogs = %+v, want the aws_relationship backlog from the stub", state.DomainBacklogs)
+	if got := state.StageSummaries[0]; got != wantStage {
+		t.Fatalf("parse stage = %+v, want %+v from the stub", got, wantStage)
+	}
+	wantGeneration := evidencebundle.PipelineGenerationHistorySnapshot{
+		Active: 1, Completed: 9, Superseded: 5, Other: 2,
+	}
+	if state.GenerationHistory != wantGeneration {
+		t.Fatalf("GenerationHistory = %+v, want %+v from the stub", state.GenerationHistory, wantGeneration)
+	}
+	wantDomain := evidencebundle.PipelineDomainBacklogSnapshot{
+		Domain: "aws_relationship", Outstanding: 1, InFlight: 4, DeadLetter: 1,
+	}
+	if len(state.DomainBacklogs) != 1 || state.DomainBacklogs[0] != wantDomain {
+		t.Fatalf("DomainBacklogs = %+v, want %+v from the stub", state.DomainBacklogs, wantDomain)
 	}
 	if len(state.Collectors) != 1 || state.Collectors[0].CollectorKind != "git" {
 		t.Fatalf("Collectors = %+v, want the git collector from the stub", state.Collectors)
