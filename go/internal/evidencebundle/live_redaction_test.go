@@ -108,25 +108,18 @@ func TestBuildLiveBundleNeverLeaksHostedGovernanceCanaries(t *testing.T) {
 					CreatedAt: fixedLiveCreatedAt,
 				})
 
-				// The contract is that a bundle carrying a sensitive value never
-				// reaches a caller: either Validate refuses it, or the value is
-				// gone from the rendered bytes. Anything else is a leak.
-				validateErr := Validate(bundle)
-				raw, renderErr := RenderJSON(bundle)
-				if renderErr != nil {
-					t.Fatalf("RenderJSON() error = %v", renderErr)
-				}
-				canaryErr := registry.AssertNoForbiddenCanary(redact.SurfaceOnboardingArtifacts, raw)
-
-				if validateErr == nil && canaryErr == nil {
-					t.Fatalf("injected %s canary %q via %s survived into the rendered bundle and Validate accepted it\nbundle: %s",
+				// Validate is the only guard that runs in production, so it is
+				// the only thing worth asserting. An earlier version of this
+				// test accepted "Validate refused it OR the registry noticed it
+				// in the rendered bytes". Nothing redacts before serialization,
+				// so the registry arm was always true and the whole condition
+				// could never fail — the test passed with the registry check
+				// stripped out of Validate entirely.
+				if err := Validate(bundle); err == nil {
+					raw, _ := RenderJSON(bundle)
+					t.Fatalf("Validate accepted a bundle carrying %s canary %q injected via %s\nbundle: %s",
 						canary.Class, canary.Raw, carrierName, raw)
 				}
-				// Record which mechanism caught it. If a case is ever caught by
-				// neither Validate nor the registry, the guard above fires; if
-				// it is caught only because the value never reached the output,
-				// this log makes that visible rather than silently comfortable.
-				t.Logf("caught by: validate=%v registry=%v", validateErr != nil, canaryErr != nil)
 			})
 		}
 	}
@@ -144,6 +137,14 @@ func TestValidateRejectsBareHostPortEndpoints(t *testing.T) {
 		"192.168.1.9:8080",
 		"172.20.0.4:7687",
 		"internal-llm.svc.cluster.local:8080",
+		// Dot-qualified "internal" hostnames. The first pattern anchored the
+		// left boundary so tightly that a preceding dot excluded the match, so
+		// the most common private-DNS shapes slipped through untested.
+		"db.internal:5432",
+		"ip-10-0-1-5.ec2.internal:5432",
+		"database.internal.example.com:5432",
+		// IPv6 loopback, which the IPv4-only alternatives never covered.
+		"[::1]:5432",
 	} {
 		t.Run(endpoint, func(t *testing.T) {
 			snapshot := realisticLiveSnapshot()

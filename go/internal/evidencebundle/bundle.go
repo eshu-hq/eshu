@@ -24,7 +24,7 @@ var (
 	// Go network errors report a bare "host:port" with no scheme, so the
 	// scheme-anchored pattern above misses them entirely. Requiring the port
 	// keeps this from firing on ordinary dotted text such as a version string.
-	privateHostPortPattern = regexp.MustCompile(`(^|[^0-9A-Za-z.-])(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}|[A-Za-z0-9-]*internal[A-Za-z0-9.-]*):\d{2,5}`)
+	privateHostPortPattern = regexp.MustCompile(`(^|[^0-9A-Za-z.:-])(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}|[A-Za-z0-9.-]*internal[A-Za-z0-9.-]*|\[[0-9a-fA-F:]+\]):\d{2,5}`)
 	credentialPattern      = regexp.MustCompile(`(?i)(authorization:\s*bearer|api[_-]?key|password|secret|\\?"?token\\?"?\s*[:=]|gh[pousr]_[A-Za-z0-9_]{8,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)`)
 	rawPromptPattern       = regexp.MustCompile(`(?i)(raw_prompt|provider_response|raw provider response|prompt transcript)`)
 	localPathPattern       = regexp.MustCompile(`(^|["\s])(/Users/|/home/|/workspace/|/workspaces/|/tmp/|/private/|/var/|/opt/|/srv/|/mnt/|/Volumes/|[A-Za-z]:\\)`)
