@@ -1,0 +1,31 @@
+{
+  "odu": "odu:ifa-code-call-family",
+  "note": "Every endpoint uid is content.CanonicalEntityID(repo_id, relative_path, entity_type, entity_name, start_line) (go/internal/content/writer.go:196) because Function and Class are canonicalNamePathLineEntityLabels (go/internal/projector/canonical_entity_identity.go:12): the projector IGNORES the incoming content_entity entity_id for these labels and derives the uid hash, so the cassette precomputes the same value in content_entity.entity_id AND parsed_file_data.functions/classes[].uid (the sqlFamilyGetUserFunctionUID precedent). The constructor_call site derives BOTH a CALLS row (appendCodeCallRow, relationship_type empty -> CALLS template) and an INSTANTIATES row (appendInstantiatesRow, callee type Class) -- asserting only INSTANTIATES undercounts the family.",
+  "edges": [
+    {
+      "relationship_type": "CALLS",
+      "source_entity_id": "content-entity:e_4e5b59c348d9",
+      "target_entity_id": "content-entity:e_2b7f36111994"
+    },
+    {
+      "relationship_type": "CALLS",
+      "source_entity_id": "content-entity:e_4e5b59c348d9",
+      "target_entity_id": "content-entity:e_807a1220c2fa"
+    },
+    {
+      "relationship_type": "INSTANTIATES",
+      "source_entity_id": "content-entity:e_4e5b59c348d9",
+      "target_entity_id": "content-entity:e_807a1220c2fa"
+    },
+    {
+      "relationship_type": "REFERENCES",
+      "source_entity_id": "content-entity:e_4e5b59c348d9",
+      "target_entity_id": "content-entity:e_8193b04a84bf"
+    },
+    {
+      "relationship_type": "USES_METACLASS",
+      "source_entity_id": "content-entity:e_b2d33afd68dc",
+      "target_entity_id": "content-entity:e_48ef8138ee01"
+    }
+  ]
+}
