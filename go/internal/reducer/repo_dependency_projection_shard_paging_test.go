@@ -134,7 +134,7 @@ func repoDependencyShardPagingRow(intentID, unitID string, createdAt time.Time) 
 			"repo_id":           unitID,
 			"target_repo_id":    "repository:shared-target",
 			"relationship_type": "DEPENDS_ON",
-			"evidence_source":   crossRepoEvidenceSource,
+			"evidence_source":   CrossRepoEvidenceSource,
 		},
 	)
 }

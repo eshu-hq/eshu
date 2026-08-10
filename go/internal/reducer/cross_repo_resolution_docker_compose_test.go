@@ -50,7 +50,7 @@ func TestCrossRepoResolutionPromotesDockerComposeEvidenceToCanonicalDeploysFrom(
 	if got, want := stringValue(row.Payload["target_repo_id"]), "repo-checkout"; got != want {
 		t.Fatalf("target_repo_id = %q, want %q", got, want)
 	}
-	if got, want := stringValue(row.Payload["evidence_source"]), crossRepoEvidenceSource; got != want {
+	if got, want := stringValue(row.Payload["evidence_source"]), CrossRepoEvidenceSource; got != want {
 		t.Fatalf("payload evidence_source = %q, want %q", got, want)
 	}
 }

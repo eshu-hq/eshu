@@ -17,8 +17,8 @@ still present in the spec, so this page cannot silently drift from the
 source of truth.
 
 This page documents the mechanism — which slot runs where, and how big the
-fan-out is. It does not publish target latency or throughput numbers; issue
-#4589 owns publishing those SLO targets.
+fan-out is. The targets themselves live in the
+[Performance SLO contract](performance-slo-contract.md).
 
 ## The five slots
 
