@@ -76,10 +76,16 @@ func (r *packagedSchemaResolver) EntryCount() int {
 // reasoning that the parser treats a nil resolver as redact.SchemaUnknown and
 // so fails closed. Failing closed is right for a value and wrong for a join
 // key: schemaTrust answers SchemaUnknown for every pair against a nil resolver,
-// so "arn" was redacted along with everything else, and the resulting redaction
-// map rendered through fmt.Sprint into a non-empty garbage string that passed
-// the `arn == ""` guard and keyed stateByARN. Every cloud resource under that
-// bundle then reclassified as an orphaned_cloud_resource.
+// so "arn" was redacted along with everything else.
+//
+// A redacted "arn" does not lose one attribute, it breaks the join. The drift
+// loader matches state rows to cloud resources with an inner join on
+// attributes->>'arn' against real AWS ARNs, and a redaction marker renders as
+// JSON text that matches nothing — so every state row under that bundle is
+// dropped at the database, each cloud resource finds no state to compare
+// against, and the whole deployment reclassifies as orphaned_cloud_resource.
+// Nothing downstream reports redaction as the cause, because the rows never
+// arrive; that is why this has to fail here rather than be caught later.
 //
 // Reaching the empty case means neither the operator's directory nor the
 // binary's own embedded bundle produced a single attribute — a broken build or

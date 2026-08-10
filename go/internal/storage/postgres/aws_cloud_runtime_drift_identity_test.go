@@ -27,19 +27,21 @@ import (
 // included.
 //
 // That constructor now returns an error instead, so the empty-bundle route to a
-// nil resolver is closed. This test still pins the behaviour, because
-// SchemaUnknown is the answer for any pair a resolver does not carry -- not
-// only for a nil resolver -- so a redacted "arn" stays reachable.
+// nil resolver is closed.
 //
-// "arn" is not a value, it is the join key. A redaction map rendered through
-// coerceJSONString's fmt.Sprint default is a non-empty garbage string, so it
-// passes the only guard here (`arn == ""`) and becomes the key into stateByARN.
-// It matches no AWS-observed ARN, so the declared row is unreachable and every
-// cloud resource under that broken bundle classifies orphaned_cloud_resource.
+// This test exercises the decode helper DIRECTLY, and that is the only way to
+// reach this branch (#6017 review). listActiveStateResourcesForAWSARNsQuery
+// inner-joins attributes->>'arn' against real AWS ARNs, so a state row whose
+// "arn" is a redaction marker is dropped at the database and never reaches the
+// decode. In production the redaction therefore shows up as the row simply
+// never loading -- the cloud resource finds no state and classifies
+// orphaned_cloud_resource, with nothing naming redaction as the cause.
 //
-// Rejecting the row does NOT change that outcome -- the caller iterates
-// observed ARNs, so a key nothing matches and a row never stored are
-// indistinguishable downstream. What it changes is visibility: only the
+// The check is kept for a future caller that loads state rows without
+// pre-filtering on a real ARN. Such a caller WOULD reach here, and rejecting
+// matters there because a redaction map rendered through coerceJSONString's
+// fmt.Sprint default is a non-empty string that passes the only guard
+// (`arn == ""`). What it buys is visibility: only the
 // rejection lets the caller name the cause as state_resource_arn_redacted
 // rather than as generic decode noise, which is the difference between an
 // operator landing on the provider-schema bundle and sifting malformed-payload

@@ -95,23 +95,32 @@ func awsRuntimeStateRowFromPayload(scopeID, address string, payload []byte) (row
 	// now fails the collector's startup instead, so it is no longer a source of
 	// a nil resolver.
 	//
-	// This guard stays as defense in depth: SchemaUnknown is the answer for any
-	// pair a resolver does not carry, not only for a nil one, so a redacted
-	// "arn" remains reachable. coerceJSONString renders that marker map through
-	// fmt.Sprint into a NON-EMPTY garbage string, which satisfies the emptiness
-	// guard below and then keys stateByARN.
+	// This guard is NOT reachable through the only production caller, and the
+	// earlier version of this comment was wrong to imply otherwise (#6017
+	// review).
 	//
-	// Be precise about what this does and does not change. The correlation
-	// OUTCOME is the same either way: the caller iterates observed ARNs and
-	// looks up stateByARN[arn], so a garbage key is simply never read, and the
-	// resource classifies orphaned_cloud_resource whether the row was stored
-	// under a key nothing matches or never stored at all. What rejecting buys
-	// is that the failure becomes VISIBLE -- the caller can tell a redacted
-	// join key apart from ordinary decode noise and log
-	// state_resource_arn_redacted, which points an operator at the schema
-	// bundle instead of at a generic malformed-payload warning. Whether the
-	// collector should fail-closed-redact an identity anchor at all is the
-	// upstream policy question, and stays open on #5870.
+	// listActiveStateResourcesForAWSARNsQuery inner-joins
+	// aws_arn.arn = fact.payload->'attributes'->>'arn' against ARNs already
+	// loaded from the AWS generation. A redaction marker renders as JSON text
+	// that cannot equal a real ARN, so a state row with a redacted "arn" is
+	// dropped by that join and never reaches this decode. It never becomes a
+	// stateByARN key, and state_resource_arn_redacted cannot fire from that
+	// path.
+	//
+	// So the production consequence of a redacted "arn" is quieter than a
+	// garbage key: the state row is simply never loaded, the AWS resource finds
+	// no state to compare against, and it classifies orphaned_cloud_resource
+	// with nothing anywhere naming redaction as the cause. That is precisely
+	// why #5870 fails the collector at startup instead — by the time a redacted
+	// join key reaches SQL there is no longer anywhere to catch it.
+	//
+	// The check is kept as defense in depth for a future caller that loads
+	// state rows WITHOUT pre-filtering on a real ARN; such a caller would reach
+	// this decode, and rejecting is right there because coerceJSONString renders
+	// the marker map through fmt.Sprint into a NON-EMPTY string that would
+	// satisfy the emptiness guard below. Whether the collector should
+	// fail-closed-redact an identity anchor at all is the upstream policy
+	// question, and stays open on #5870.
 	if redact.IsRedactedValue(decoded.Attributes["arn"]) {
 		return nil, false, stateResourceARNRedacted
 	}

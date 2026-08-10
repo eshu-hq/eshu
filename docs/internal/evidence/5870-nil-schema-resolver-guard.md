@@ -13,10 +13,26 @@ Root-Cause Evidence: `schemaTrust`
 a nil resolver, with no exemption, and under `SchemaUnknown` the redaction rules
 fail closed and the scalar becomes a redaction map. Failing closed is correct
 for a value and wrong for a join key: `arn` was redacted along with everything
-else, and `coerceJSONString`'s `fmt.Sprint` default rendered that marker map into
-a **non-empty** garbage string, which satisfied the only guard present
-(`arn == ""`) and became the key into `stateByARN`. Every cloud resource under
-that bundle then failed to join and reclassified as `orphaned_cloud_resource`.
+else.
+
+A redacted `arn` does not lose one attribute, it breaks the join.
+`listActiveStateResourcesForAWSARNsQuery` matches state rows to cloud resources
+with an **inner join** on `attributes->>'arn'` against ARNs already loaded from
+the AWS generation, and a redaction marker renders as JSON text that equals no
+real ARN. Every state row under that bundle is therefore dropped at the
+database: each cloud resource finds no state to compare against and
+reclassifies as `orphaned_cloud_resource`, with nothing downstream naming
+redaction as the cause, because the rows never arrive.
+
+**Correction (#6017 review).** An earlier draft of this note said the redacted
+`arn` rendered through `coerceJSONString` into a non-empty garbage string that
+passed the `arn == ""` guard and *became a key* in `stateByARN`. That path is
+not reachable in production — the inner join drops the row first, so
+`awsRuntimeStateRowFromPayload` never sees it and `state_resource_arn_redacted`
+cannot fire from the bounded loader. The orphan outcome is real; the mechanism
+is the join, not a garbage key. The distinction matters here because it removes
+the last downstream place the failure could have been noticed, which is the
+argument for failing at startup.
 
 The loop that populates the attribute set swallows per-file failures — `os.Open`
 errors `continue`, and `parseSchemaInto` returns nothing checkable — so a
