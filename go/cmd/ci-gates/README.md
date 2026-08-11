@@ -91,8 +91,9 @@ again before returning success. Pending reads back off from 30 seconds to five
 minutes. Per-head workflow concurrency keeps one aggregate running and retains
 only the latest pending run. The retained run starts after the active poller,
 posts pending before setup, and recomputes the current check set. This avoids a
-high steady-state API polling rate, but final status can lag a newly completed
-check by up to the five-minute polling interval.
+high steady-state API polling rate. The polling component can add up to five
+minutes before observing a newly completed check; Actions scheduling, runner
+allocation, and serialized pending-run startup can add further delay.
 
 ### contexts
 

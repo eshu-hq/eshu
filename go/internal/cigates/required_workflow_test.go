@@ -346,6 +346,67 @@ func TestCheckRequiredStatusWorkflows_RequiresPendingBeforeSetup(t *testing.T) {
 	}
 }
 
+func TestCheckRequiredStatusWorkflows_RequiresUnconditionalPendingStatus(t *testing.T) {
+	t.Parallel()
+
+	body := strings.Replace(
+		trustedRequiredWorkflow,
+		"      - name: Publish pending\n",
+		"      - name: Publish pending\n        if: ${{ false }}\n",
+		1,
+	)
+	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
+	if len(errs) == 0 {
+		t.Fatal("pending invalidation must execute unconditionally")
+	}
+	found := false
+	for _, err := range errs {
+		if strings.Contains(err.Error(), "pending") && strings.Contains(err.Error(), "unconditional") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected unconditional pending error, got: %v", errs)
+	}
+}
+
+func TestCheckRequiredStatusWorkflows_BindsEachStatusPublisherContext(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]string{
+		"pending publisher": strings.Replace(
+			trustedRequiredWorkflow,
+			"state=pending -f context=required-gates-complete",
+			"state=pending -f context=unrelated-context",
+			1,
+		),
+		"terminal publisher": strings.Replace(
+			trustedRequiredWorkflow,
+			"state=failure -f context=required-gates-complete",
+			"state=failure -f context=unrelated-context",
+			1,
+		),
+	}
+	for name, body := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
+			if len(errs) == 0 {
+				t.Fatal("each status publisher must target the required context")
+			}
+			found := false
+			for _, err := range errs {
+				if strings.Contains(err.Error(), "status") && strings.Contains(err.Error(), "required context") {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("expected required-context error, got: %v", errs)
+			}
+		})
+	}
+}
+
 func TestCheckRequiredStatusWorkflows_RequiresEveryBlockingWorkflowSource(t *testing.T) {
 	t.Parallel()
 

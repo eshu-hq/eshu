@@ -208,8 +208,8 @@ gates its changed paths select:
   recomputes. A manual cancellation after that first step leaves pending
   instead of inventing a failure. GitHub cannot execute repository code after
   cancellation before runner allocation, and commit statuses have no atomic
-  generation fence, so
-  this workflow does not claim protection across that operator/API boundary.
+  generation fence, so this workflow does not claim protection across that
+  operator/API boundary.
   This closes the gap where a blocking registry row could be visible locally
   yet absent from GitHub's two Go umbrellas.
 - **Trust boundary:** the aggregate policy, selector, and status publisher come

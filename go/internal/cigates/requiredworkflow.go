@@ -262,6 +262,18 @@ func validateTrustedAggregator(
 		if strings.Contains(step.Run, "/statuses/") && strings.Contains(step.Run, "state=pending") {
 			pendingIndex = index
 			pendingStepIndex = stepIndex
+			if strings.TrimSpace(step.If) != "" {
+				errs = append(errs, fmt.Errorf(
+					"required status context %q: pending status publisher must be unconditional",
+					check.Context,
+				))
+			}
+			if !strings.Contains(step.Run, "-f context="+check.Context) {
+				errs = append(errs, fmt.Errorf(
+					"required status context %q: pending status publisher must target the required context",
+					check.Context,
+				))
+			}
 			if !strings.Contains(step.Env["HEAD_SHA"], "workflow_run.head_sha") {
 				errs = append(errs, fmt.Errorf(
 					"required status context %q: pending status must target github.event.workflow_run.head_sha",
@@ -274,6 +286,12 @@ func validateTrustedAggregator(
 		}
 		if strings.Contains(step.Run, "/statuses/") && strings.Contains(step.Run, "state=failure") {
 			terminalIndex = index
+			if !strings.Contains(step.Run, "-f context="+check.Context) {
+				errs = append(errs, fmt.Errorf(
+					"required status context %q: terminal status publisher must target the required context",
+					check.Context,
+				))
+			}
 			condition := strings.TrimSpace(step.If)
 			hasExpressionDelimiters := strings.HasPrefix(condition, "${{") && strings.HasSuffix(condition, "}}")
 			if hasExpressionDelimiters {
