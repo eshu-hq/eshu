@@ -272,6 +272,9 @@ func RenderText(report Report) string {
 			)
 		}
 	}
+	if report.DomainBacklogsTruncated {
+		lines = append(lines, fmt.Sprintf("Domain backlogs truncated: limit=%d", report.DomainBacklogsLimit))
+	}
 
 	return strings.Join(lines, "\n")
 }
