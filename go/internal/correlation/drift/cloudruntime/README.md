@@ -91,7 +91,11 @@ comparisons, `Classify` returns `value_comparison_inconclusive` instead --
 a durable finding whose `management_status` is `unknown_management`, whose
 `missing_evidence` names each uncomparable attribute as
 `comparable_attribute:<key>`, and whose recommended action is
-`expand_collector_coverage_or_permissions`.
+`expand_collector_coverage_or_permissions`. It fires on one more shape too: a
+pass whose comparisons all AGREED while a covered comparable was unreadable
+(#5861, below). A comparison that ran and disagreed outranks both -- that is
+`image_version_drift`, which carries its `declared_`/`observed_` pair plus a
+`comparable_attribute:<key>` gap for anything it could not read.
 
 That path is reachable, though the widest route into it is now closed. The
 terraform-state collector fail-closed-redacts scalar attributes whenever

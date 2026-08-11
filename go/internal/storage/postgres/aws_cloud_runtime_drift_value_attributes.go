@@ -243,7 +243,8 @@ func comparableScalarAttr(attributes map[string]any, key string) (value string, 
 // the suppression is no longer needed to reach a safe verdict: the readable
 // comparison keeps its evidence, and the unreadable key independently stops the
 // pass from converging (#5861). Both halves are proven in
-// aws_cloud_runtime_drift_partial_comparability_test.go.
+// aws_cloud_runtime_drift_value_completeness_test.go, and end to end against
+// real rows in aws_cloud_runtime_drift_lambda_completeness_live_test.go.
 //
 // Only an unreadable comparable is reported degraded. A genuinely absent one is
 // not, or every zip-packaged Lambda (no "image_uri" by design) would go

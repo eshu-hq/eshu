@@ -146,21 +146,25 @@ func appendManagementEvidence(
 	}
 
 	// Row.MissingEvidence is loader-populated and describes EXISTENCE gaps (a
-	// whole layer absent). value_comparison_inconclusive is a VALUE gap: every
-	// layer is present and no attribute could be compared, so the names live in
-	// the comparison rather than on the row. Deriving them here is what makes
-	// the OpenAPI promise -- that this kind names the unreadable attributes in
+	// whole layer absent). A value gap is different: every layer is present and
+	// the shortfall is in the comparison, so the names live in the comparison
+	// rather than on the row. Deriving them here is what makes the OpenAPI
+	// promise -- that these kinds name the unreadable attributes in
 	// missing_evidence -- true on this route as well as the AWS one (#5837).
-	if kind == cloudruntime.FindingKindValueComparisonInconclusive {
-		for _, attr := range cloudruntime.ClassifyValueComparison(row.Cloud, row.State).Uncomparable {
-			evidence = append(evidence, atom(
-				candidateID+"/uncomparable/"+attr,
-				EvidenceTypeCoverageGap,
-				scope,
-				"missing_evidence",
-				"comparable_attribute:"+attr,
-			))
-		}
+	//
+	// Which kinds name which attributes is cloudruntime's rule, not a copy of
+	// it: an image_version_drift reached with one comparable unreadable names
+	// that comparable too (#5861), and a second switch here would let this
+	// route and the AWS one describe the same finding differently.
+	gapComparison := cloudruntime.ClassifyValueComparison(row.Cloud, row.State)
+	for _, attr := range cloudruntime.ValueComparisonGapAttributes(kind, gapComparison) {
+		evidence = append(evidence, atom(
+			candidateID+"/uncomparable/"+attr,
+			EvidenceTypeCoverageGap,
+			scope,
+			"missing_evidence",
+			"comparable_attribute:"+attr,
+		))
 	}
 
 	for _, warning := range sortedNonEmpty(row.WarningFlags) {

@@ -298,6 +298,11 @@ func appendValueDriftEvidence(
 //
 // It emits nothing for any other finding kind: an existence finding's missing
 // evidence is the missing LAYER, not a comparable attribute.
+//
+// The kind-to-attribute rule itself lives in ValueComparisonGapAttributes,
+// because the provider-neutral multicloud route builds its own candidates and
+// has to make the same promise. Two copies of the switch would let the AWS and
+// multi-cloud read models disagree about what a finding names.
 func appendValueComparisonGapEvidence(
 	evidence []model.EvidenceAtom,
 	candidateID string,
@@ -306,16 +311,7 @@ func appendValueComparisonGapEvidence(
 	state *ResourceRow,
 	fallbackScopeID string,
 ) []model.EvidenceAtom {
-	var gaps []string
-	switch kind {
-	case FindingKindValueComparisonInconclusive:
-		gaps = comparison.Uncomparable
-	case FindingKindImageVersionDrift:
-		gaps = comparison.Degraded
-	default:
-		return evidence
-	}
-	for _, attr := range gaps {
+	for _, attr := range ValueComparisonGapAttributes(kind, comparison) {
 		evidence = append(evidence, model.EvidenceAtom{
 			ID:           candidateID + "/uncomparable/" + attr,
 			SourceSystem: driftSourceSystem,
@@ -327,6 +323,37 @@ func appendValueComparisonGapEvidence(
 		})
 	}
 	return evidence
+}
+
+// ValueComparisonGapAttributes returns the comparable attributes a finding of
+// this kind must name in its missing_evidence, in allowlist order. It is the
+// single authority on that rule, shared by the AWS candidate builder and the
+// provider-neutral multicloud one so the two read models cannot promise
+// different things.
+//
+// The two kinds name different sets, and the difference is the point:
+//
+//   - value_comparison_inconclusive names EVERY uncompared comparable. The
+//     finding says only "I could not decide", so without the names an operator
+//     cannot tell an unreadable ECS container_definitions from a redacted
+//     aws_instance ami.
+//   - image_version_drift names only the UNREADABLE ones. It already carries a
+//     declared_/observed_ pair for what it proved; what it must add is that the
+//     pass was partial. Naming merely absent comparables here would put a
+//     coverage gap on every zip-packaged Lambda that drifts on version, sending
+//     operators after collector coverage that is working correctly (#5861).
+//
+// Returns nil for every other kind: an existence finding's missing evidence is
+// the missing LAYER, not a comparable attribute.
+func ValueComparisonGapAttributes(kind FindingKind, comparison ValueComparison) []string {
+	switch kind {
+	case FindingKindValueComparisonInconclusive:
+		return comparison.Uncomparable
+	case FindingKindImageVersionDrift:
+		return comparison.Degraded
+	default:
+		return nil
+	}
 }
 
 func appendRawTagEvidence(
