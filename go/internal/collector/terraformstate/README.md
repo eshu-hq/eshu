@@ -190,7 +190,8 @@ leaving this package is a redacted fact, warning, identity, or bounded summary.
   full object locators, or absolute local paths.
 - S3 write capability is rejected at source construction.
 - Redaction key material is mandatory before parsing.
-- Unknown provider-schema scalar attributes are redacted. Unknown composite
+- Unknown provider-schema scalar attributes are redacted, **except the three
+  identity join keys** — see the section below. Unknown composite
   attributes are dropped and observed via
   `eshu_dp_drift_schema_unknown_composite_total{reason="schema_unknown"}` so
   operators can detect provider-schema drift. The parser emits one
@@ -251,6 +252,78 @@ Terraform-state admin status section. It adds no worker, queue domain, graph
 write, metric name, metric label, runtime knob, or source-open path; operators
 diagnose the path through persisted `terraform_state_warning` facts, generation
 status, existing Postgres query spans, and `/admin/status` warning summary rows.
+
+## Identity Join Keys Under An Unknown Provider Schema (#5870)
+
+Three scalar attributes are exempt from `SchemaUnknown` fail-closure: **`arn`,
+`id`, and `self_link`**. Everything else still fails closed.
+
+### Why
+
+`schemaTrust` answers `SchemaUnknown` for every attribute of a resource type the
+loaded provider-schema bundle does not carry, and fail-closure turns each scalar
+into a redaction marker. That is right for a value. It is wrong for a key
+something downstream JOINS on:
+
+- `go/internal/storage/postgres/aws_cloud_runtime_drift_evidence_sql.go`
+  inner-joins state rows on `payload->'attributes'->>'arn'`.
+- `multi_cloud_runtime_drift_evidence_sql.go` derives `native_identity` as
+  `COALESCE(arn, id, self_link)`.
+
+A redaction marker is an OBJECT, and `->>` over an object returns non-null JSON
+text. So a redacted `arn` does not fall through to `id` — it wins the COALESCE
+with garbage, the equijoin misses, the state row is dropped at the database, and
+`cloudruntime.Classify` sees no state and reports `orphaned_cloud_resource`.
+Every resource of an uncovered provider is then reported as unmanaged when
+Terraform demonstrably manages it. That is a wrong answer, not a withheld value.
+
+#6017 closed the case where the bundle is entirely empty by failing the
+collector at startup. It cannot reach this one: the bundle LOADS and simply
+lacks one provider.
+
+### What it costs
+
+An ARN embeds the 12-digit AWS account id; a GCP `self_link` embeds the project
+id. Those can now appear raw from a provider the bundle cannot classify.
+
+On the ordinary `SchemaKnown` path these same three keys — and standalone
+`account_id` — are already preserved raw (`defaultRedactionSensitiveKeys` in
+`cmd/collector-terraform-state/config.go` lists only credential-shaped keys).
+The genuinely new exposure is a state-only deployment with no cloud collector,
+where nothing else would emit that ARN.
+
+The carve-out is by key NAME, not by content: a provider storing something
+sensitive under an attribute literally named `id` would emit it raw. That is why
+the set is a fixed three rather than a heuristic.
+
+### What still wins over it
+
+- **Operator-declared sensitive keys.** `redact.RuleSet.Classify` tests them
+  before schema trust, so naming `arn` in
+  `ESHU_TFSTATE_REDACTION_SENSITIVE_KEYS` still produces a marker.
+- **`isHardSensitiveStateAttribute`.** No hard-sensitive entry names one of the
+  three today; the check is defense in depth for one that later does.
+- **Composites.** Never exempt — `redact` cannot safely serialize a nested
+  structure under an unknown schema, and no join reads one.
+- **Correlation anchors.** `redactsAnchor` uses the BARE `schemaTrust`, so an
+  uncovered provider still publishes no hashed anchors. The join is rescued
+  through the attribute the loader actually reads, not by widening the anchor
+  contract.
+
+### The detector that keeps this honest
+
+The exemption removes the only symptom a stale bundle used to produce, so on its
+own it would make the gap invisible. The parser therefore emits one
+`provider_schema_not_covered` warning fact per uncovered resource type, with the
+provider name and an occurrence count, classified
+`severity=warning`/`actionability=provider_schema_support`.
+
+It fires on the resource TYPE being absent, never on a covered type missing one
+attribute — those need different operator actions (add the provider vs refresh
+the bundle), and reporting the second here would put a coverage warning on
+ordinary version skew. Detection needs the resolver's optional
+`SchemaResourceTypeReporter` capability; a resolver without it reports nothing
+rather than guessing.
 
 ## Applied PagerDuty Incident Routing
 
