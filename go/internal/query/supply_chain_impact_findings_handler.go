@@ -144,6 +144,16 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 		WriteError(w, http.StatusInternalServerError, "supply-chain impact runtime evidence probe failed")
 		return
 	}
+	// #5834: independently probe exact RUNS_IMAGE digest edges and gate each
+	// graph candidate through current, caller-authorized workload-owner and edge
+	// generations before allowing it to become live deployment evidence.
+	if err := h.applySupplyChainKubernetesRuntimeEvidence(r.Context(), access, rows); err != nil {
+		if WriteGraphReadError(w, r, err, supplyChainImpactFindingsCapability) {
+			return
+		}
+		WriteError(w, http.StatusInternalServerError, "supply-chain impact kubernetes runtime evidence probe failed")
+		return
+	}
 	// #5746: resolve each finding's runtime context (workloads, services,
 	// deployments, environments, catalog refs) from its repository_id at READ
 	// time and attach it as a labeled `runtime_context` block — never by

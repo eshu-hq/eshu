@@ -74,15 +74,21 @@ func supplyChainVersionResolutionClaim(
 ) (value string, evidenceKind string, axis supplyChainVersionResolutionAxis) {
 	switch tier {
 	case truth.TierRuntimeConfirmed:
-		// probeSupplyChainCloudRuntimeResources (supply_chain_impact_cloud_runtime_probe.go)
-		// only ever populates CloudRuntimeResourceRefs by matching a
-		// CloudResource's running_image_digest against row.SubjectDigest
-		// exactly, so the winning claim IS that digest by construction --
-		// there is no separate "runtime digest" field to read.
-		if len(row.CloudRuntimeResourceRefs) == 0 || row.SubjectDigest == "" {
+		// Both runtime probes only populate their refs after an exact digest
+		// match against row.SubjectDigest, so the winning claim is the parent
+		// digest by construction. Prefer the cloud evidence label when both
+		// independent sources are present to preserve the established wire
+		// value; otherwise identify the Kubernetes probe explicitly.
+		if row.SubjectDigest == "" {
 			return "", "", ""
 		}
-		return row.SubjectDigest, "cloud_runtime_probe", axisDigest
+		if len(row.CloudRuntimeResourceRefs) > 0 {
+			return row.SubjectDigest, "cloud_runtime_probe", axisDigest
+		}
+		if len(row.KubernetesRuntimeWorkloadRefs) > 0 {
+			return row.SubjectDigest, "kubernetes_runtime_probe", axisDigest
+		}
+		return "", "", ""
 
 	case truth.TierProvenanceCIDeclared:
 		// The claim exists iff the reducer baked a CI-declared artifact

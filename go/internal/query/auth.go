@@ -249,7 +249,7 @@ func authMiddlewareWithRoutePolicy(
 				// bare: that credential WAS understood, so pointing it at
 				// discovery is noise, and a bare 401 on an infra error is the
 				// fail-safe against anthropics/claude-code#59467.
-				recordReadAuthorizationDenied(r, audit)
+				recordBearerResolutionDenied(r, audit, err)
 				if errors.Is(err, ErrBearerCredentialUnrecognized) {
 					r = requestWithOAuthChallenge(r, oauthChallenge)
 				}

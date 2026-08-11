@@ -122,6 +122,13 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 		WriteError(w, http.StatusInternalServerError, "supply-chain impact runtime evidence probe failed")
 		return
 	}
+	if err := h.applySupplyChainKubernetesRuntimeEvidence(r.Context(), access, rows); err != nil {
+		if WriteGraphReadError(w, r, err, supplyChainImpactExplanationCapability) {
+			return
+		}
+		WriteError(w, http.StatusInternalServerError, "supply-chain impact kubernetes runtime evidence probe failed")
+		return
+	}
 	// Same shape, same root cause as the cloud-runtime probe above:
 	// buildSupplyChainImpactFindingResult's SupplyChainImpactFindingResult(row)
 	// conversion carries row.RuntimeContext straight through to the
