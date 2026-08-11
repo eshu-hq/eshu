@@ -260,7 +260,7 @@ source_coverage:
       - {symbol: "fetchWorkloadRuntimeTopology", count: 1, source_sha256: 16a33c336deef34fac701a57c39faba590bb373f68e3cc0e04c990e2fa4f479c, entry_ids: [QP-SVC-RUNTIME-TOPOLOGY]}
   - file: infra.go
     calls:
-      - {symbol: "(*InfraHandler).searchResources", count: 1, source_sha256: 71c32b93677d91056bd2353736a7e61332ef5794386e70071c181846ba229f2a, entry_ids: [QP-INFRA-RESOURCE-SEARCH]}
+      - {symbol: "(*InfraHandler).searchResources", count: 1, source_sha256: 9d5846727fdbe913c79aa18e100b4ab673bbade36ea91cb4c581f61875af419a, entry_ids: [QP-INFRA-RESOURCE-SEARCH]}
   - file: infra_argocd_search.go
     calls:
       - {symbol: "(*InfraHandler).searchArgoCDCategoryRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
