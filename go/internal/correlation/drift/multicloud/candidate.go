@@ -109,8 +109,15 @@ func buildOneCandidate(row Row, uid string, kind cloudruntime.FindingKind, scope
 	evidence = appendResourceEvidence(evidence, candidateID, "/state", row.State, EvidenceTypeStateResource, scope, preferAddress)
 	evidence = appendResourceEvidence(evidence, candidateID, "/config", row.Config, EvidenceTypeConfigResource, scope, preferAddress)
 	evidence = appendRawTagEvidence(evidence, candidateID, row.Cloud, scope)
-	evidence = appendManagementEvidence(evidence, candidateID, row, kind, scope)
-	evidence = appendValueDriftEvidence(evidence, candidateID, row.Cloud, row.State, scope)
+	// One comparison per candidate, shared by the drift atoms and the coverage-gap
+	// atoms, mirroring cloudruntime.buildOneCandidate. This route used to classify
+	// TWICE for a value-drift finding -- once inside ClassifyValueDrift and once
+	// for the gap atoms -- so threading it is cheaper than either the old shape or
+	// a kind guard, and it removes the possibility of the two atom families
+	// describing different comparisons (Copilot review, #5861).
+	comparison := cloudruntime.ClassifyValueComparison(row.Cloud, row.State)
+	evidence = appendManagementEvidence(evidence, candidateID, row, kind, comparison, scope)
+	evidence = appendValueDriftEvidence(evidence, candidateID, comparison, scope)
 
 	return model.Candidate{
 		ID:             candidateID,
@@ -127,6 +134,7 @@ func appendManagementEvidence(
 	candidateID string,
 	row Row,
 	kind cloudruntime.FindingKind,
+	comparison cloudruntime.ValueComparison,
 	scope string,
 ) []model.EvidenceAtom {
 	status := strings.TrimSpace(row.ManagementStatus)
@@ -156,8 +164,7 @@ func appendManagementEvidence(
 	// it: an image_version_drift reached with one comparable unreadable names
 	// that comparable too (#5861), and a second switch here would let this
 	// route and the AWS one describe the same finding differently.
-	gapComparison := cloudruntime.ClassifyValueComparison(row.Cloud, row.State)
-	for _, attr := range cloudruntime.ValueComparisonGapAttributes(kind, gapComparison) {
+	for _, attr := range cloudruntime.ValueComparisonGapAttributes(kind, comparison) {
 		evidence = append(evidence, atom(
 			candidateID+"/uncomparable/"+attr,
 			EvidenceTypeCoverageGap,
@@ -225,17 +232,17 @@ func appendResourceEvidence(
 
 // appendValueDriftEvidence mirrors cloudruntime's own appendValueDriftEvidence
 // (go/internal/correlation/drift/cloudruntime/candidate.go), reusing the SAME
-// cloudruntime.ClassifyValueDrift authority so the provider-neutral path can
+// cloudruntime.ValueComparison authority so the provider-neutral path can
 // never disagree with the AWS-specific path about which attributes drifted.
-// Safe to call for every finding kind: ClassifyValueDrift returns nil
-// whenever cloud or state is nil.
+// Safe to call for every finding kind: Drifted is empty whenever cloud or state
+// is nil.
 func appendValueDriftEvidence(
 	evidence []model.EvidenceAtom,
 	candidateID string,
-	cloud, state *cloudruntime.ResourceRow,
+	comparison cloudruntime.ValueComparison,
 	scope string,
 ) []model.EvidenceAtom {
-	for _, attr := range cloudruntime.ClassifyValueDrift(cloud, state) {
+	for _, attr := range comparison.Drifted {
 		evidence = append(
 			evidence,
 			atom(candidateID+"/declared/"+attr.Key, cloudruntime.EvidenceTypeDeclaredValue, scope, "declared_"+attr.Key, attr.Declared),
