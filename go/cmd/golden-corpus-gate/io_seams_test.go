@@ -124,8 +124,8 @@ func fileLanguageFloor() (map[string]int64, map[string][]string) {
 		// github.com/acme/lib-common@1.0.0 package_artifact fact hashes, "|"
 		// joined the way boltPropertyString joins a live Bolt list property.
 		"PackageArtifact|hashes": {
-			"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b85|" +
-				"sha512:cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3",
+			"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855|" +
+				"sha512:cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e",
 		},
 		// rn-registry-event-fields: mirrors the package_registry
 		// supply-chain-demo cassette's github.com/acme/lib-common@1.0.0
