@@ -90,6 +90,11 @@ start_id_for_pid() {
 	LC_ALL=C TZ=UTC ps -o lstart= -p "$1" 2>/dev/null | tr -cd '0-9' || true
 }
 
+# The --keep marker decision lives in its own chunk (see that file's header for
+# why the compose stack, not the holder pid, is the discriminator). Resolved
+# relative to THIS file so it is found however the caller was invoked.
+. "${BASH_SOURCE[0]%/*}/live-gate-keep-marker.sh"
+
 # `ln -s` is create-or-fail only when the name does not exist. If a DIRECTORY
 # sits at the lock path - e.g. left behind by an older mkdir-based lock - `ln`
 # links INTO it and reports success, so every caller would "acquire" and the
@@ -137,8 +142,10 @@ acquire_live_gate_lock() {
 	# start_id_for_pid); an empty fingerprint (this pid is somehow already gone
 	# by the time we read it back) degrades gracefully at the read side, not here.
 	local payload="$$:$(start_id_for_pid "$$"):$(pwd -P)"
-	if [[ -e "${candidate}.keep" ]]; then
+	local keep_why
+	if keep_why="$(keep_marker_blocks "${candidate}")"; then
 		die "a --keep run retained the compose stack on the fixed host ports.
+  ${keep_why}.
   Releasing the lock would hand those ports to this run, which would then tear
   that stack down on exit. Stop the retained stack, then remove:
     ${candidate}.keep
@@ -291,9 +298,11 @@ acquire_live_gate_lock() {
 				# stack after our pre-loop check, and its pid is dead by design. The
 				# marker is written BEFORE that holder exits, so at the instant the
 				# pid reads dead the marker is guaranteed to be on disk.
-				if [[ -e "${candidate}.keep" ]]; then
+				local keep_why_guard
+				if keep_why_guard="$(keep_marker_blocks "${candidate}")"; then
 					rm -f "${guard}"
 					die "a --keep run retained the compose stack on the fixed host ports.
+  ${keep_why_guard}.
   Reclaiming this lock would hand those ports to this run, which would then tear
   that stack down on exit. Stop the retained stack, then remove:
     ${candidate}.keep
@@ -403,7 +412,20 @@ acquire_live_gate_lock() {
 # explicitly, and the refusal message says exactly how.
 retain_live_gate_lock() {
 	[[ -n "${lock_path}" ]] || return 0
-	printf '%s\n' "$(pwd -P)" >"${lock_path}.keep" 2>/dev/null ||
+	# pid, start-id fingerprint, compose project, then the worktree - split on
+	# the first THREE colons, same rule as the lock payload (a path may contain
+	# a colon; a pid, a fingerprint and a compose project never do).
+	#
+	# The pid and fingerprint are NOT a liveness test for this marker (#5987):
+	# this function runs in the cleanup trap immediately before `exit`, so the
+	# recorded pid is dead within milliseconds in the normal --keep case.
+	# Reclaiming on a dead pid would therefore discard every legitimate marker
+	# at exactly the moment it starts mattering. They are recorded so a blocked
+	# run can NAME the owner instead of printing a bare path. What actually
+	# decides reclaimability is the compose project: the marker protects a
+	# running stack, so its validity is keyed on that stack still existing.
+	printf '%s:%s:%s:%s\n' "$$" "$(start_id_for_pid "$$")" \
+		"${GATE_COMPOSE_PROJECT:-}" "$(pwd -P)" >"${lock_path}.keep" 2>/dev/null ||
 		die "could not write the --keep marker at ${lock_path}.keep - the retained
   stack is NOT protected, and the next run will tear it down. Stop the stack now."
 	printf 'live-gate-lock: --keep retained the stack, so the lock is retained too.\n  Clear it with: rm -f %s %s\n' \

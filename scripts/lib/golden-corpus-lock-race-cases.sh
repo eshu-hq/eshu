@@ -272,6 +272,99 @@ rm -rf "${reval_home}"
 [[ "${reval_now}" == "${reval_live}" ]] \
 	|| fail "the aged-guard reap destroyed a guard a LIVE reclaimer republished during the liveness decision (guard became: ${reval_now})"
 
+# THE --keep MARKER'S OWN LIVENESS (#5987). The ordinary lock is reclaimed when
+# its recorded pid is gone; the `.keep` marker recorded only a worktree path, so
+# a marker whose session crashed, was killed, or exited without cleanup was
+# indistinguishable from one still holding a retained stack -- and the block is
+# unconditional, so it refused every other worktree forever. Observed: four
+# consecutive pre-pr runs from an unrelated worktree lost their live lane over
+# ~40 minutes with no safe way to tell the two cases apart.
+#
+# Behavioural on purpose, like every other case here: a text pin on the marker
+# format cannot see a marker that parses correctly and is still treated as an
+# unconditional block.
+keep_home="$(mktemp -d)"
+keep_lock="${keep_home}/eshu-live-gate.lock"
+keep_dead="$(bash -c 'echo $$')"
+ps -p "${keep_dead}" >/dev/null 2>&1 \
+	&& fail "need a genuinely dead pid for the --keep marker case"
+
+# The discriminator is the STACK, not the pid. retain_live_gate_lock runs in
+# the cleanup trap immediately before `exit`, so a healthy --keep holder's pid
+# is always dead; reclaiming on a dead pid would discard every legitimate
+# marker at the moment it starts mattering, hand the fixed ports to the next
+# run, and let its `docker compose down -v` destroy the retained stack.
+#
+# `docker` is stubbed on PATH so these cases assert the decision logic without
+# needing a real daemon, and stay hermetic in CI.
+mkdir -p "${keep_home}/empty-bin"
+keep_bin="${keep_home}/bin"
+mkdir -p "${keep_bin}"
+
+# Stack GONE (`ps -q` prints nothing) -> the marker is debris and must not block.
+printf '#!/usr/bin/env bash\nexit 0\n' >"${keep_bin}/docker"
+chmod +x "${keep_bin}/docker"
+printf '%s:%s:%s:%s\n' "${keep_dead}" "0" "eshu-gate-dead" "/dead-keep-worktree" >"${keep_lock}.keep"
+keep_dead_out="$(
+	PATH="${keep_bin}:${PATH}" ESHU_LIVE_GATE_LOCK_DIR="${keep_home}" bash -c '
+		set -uo pipefail
+		. "$1"
+		acquire_live_gate_lock >/dev/null && printf "KEEP_RECLAIMED\n"
+	' _ "${lock_lib}" 2>&1 || true
+)"
+rm -f "${keep_lock}"
+[[ "${keep_dead_out}" == *KEEP_RECLAIMED* ]] \
+	|| fail "a --keep marker whose compose stack is GONE blocked the run; it is debris and must be reclaimable (got: ${keep_dead_out})"
+[[ ! -e "${keep_lock}.keep" ]] \
+	|| fail "reclaiming a debris --keep marker left the marker on disk, so the next run blocks on it again"
+
+# Stack STILL UP (`ps -q` prints a container id) -> must keep blocking, even
+# though the recorded pid is long dead. This is the case that makes --keep
+# worth having.
+printf '#!/usr/bin/env bash\necho deadbeefcafe\n' >"${keep_bin}/docker"
+printf '%s:%s:%s:%s\n' "${keep_dead}" "0" "eshu-gate-live" "/live-keep-worktree" >"${keep_lock}.keep"
+keep_up_out="$(
+	PATH="${keep_bin}:${PATH}" ESHU_LIVE_GATE_LOCK_DIR="${keep_home}" bash -c '
+		set -uo pipefail
+		. "$1"
+		acquire_live_gate_lock >/dev/null && printf "KEEP_RECLAIMED\n"
+	' _ "${lock_lib}" 2>&1 || true
+)"
+rm -f "${keep_lock}" "${keep_lock}.keep"
+[[ "${keep_up_out}" != *KEEP_RECLAIMED* ]] \
+	|| fail "a --keep marker whose compose stack is STILL UP was reclaimed; the next run would tear that stack down on exit"
+[[ "${keep_up_out}" == *eshu-gate-live* ]] \
+	|| fail "the refusal did not name the retained compose project, so the operator still cannot tell which case they are in (got: ${keep_up_out})"
+
+# Cannot determine (docker missing) -> fail closed, and say so rather than
+# guessing. A wrong "debris" verdict destroys someone's stack; a wrong "blocked"
+# verdict costs a wait.
+printf '%s:%s:%s:%s\n' "${keep_dead}" "0" "eshu-gate-unknown" "/unknown-keep-worktree" >"${keep_lock}.keep"
+keep_nodocker_out="$(
+	PATH="${keep_home}/empty-bin" ESHU_LIVE_GATE_LOCK_DIR="${keep_home}" bash -c '
+		set -uo pipefail
+		. "$1"
+		acquire_live_gate_lock >/dev/null && printf "KEEP_RECLAIMED\n"
+	' _ "${lock_lib}" 2>&1 || true
+)"
+rm -f "${keep_lock}" "${keep_lock}.keep"
+[[ "${keep_nodocker_out}" != *KEEP_RECLAIMED* ]] \
+	|| fail "a --keep marker was reclaimed while docker was unavailable; the stack could not be checked, so this must fail closed"
+
+# A legacy path-only marker names no project, so its stack cannot be checked:
+# it must keep blocking rather than be reclaimed on a format it predates.
+printf '%s\n' "/legacy-keep-worktree" >"${keep_lock}.keep"
+keep_legacy_out="$(
+	PATH="${keep_bin}:${PATH}" ESHU_LIVE_GATE_LOCK_DIR="${keep_home}" bash -c '
+		set -uo pipefail
+		. "$1"
+		acquire_live_gate_lock >/dev/null && printf "KEEP_RECLAIMED\n"
+	' _ "${lock_lib}" 2>&1 || true
+)"
+rm -rf "${keep_home}"
+[[ "${keep_legacy_out}" != *KEEP_RECLAIMED* ]] \
+	|| fail "a legacy path-only --keep marker was reclaimed; that format records no compose project, so its stack cannot be confirmed down"
+
 drop_lock_home
 trap - EXIT
 

@@ -1676,6 +1676,7 @@ gates:
       - "scripts/lib/golden-corpus-*.sh"
       - "scripts/lib/test-golden-corpus-*.sh"
       - "scripts/lib/live-gate-lock.sh"
+      - "scripts/lib/live-gate-keep-marker.sh"
       - "tests/fixtures/ecosystems/**"
     local:
       command: "bash scripts/test-verify-golden-corpus-gate.sh"
@@ -1793,6 +1794,7 @@ gates:
       - "scripts/lib/golden-corpus-*.sh"
       - "scripts/lib/test-golden-corpus-*.sh"
       - "scripts/lib/live-gate-lock.sh"
+      - "scripts/lib/live-gate-keep-marker.sh"
       - "scripts/ci/install-apt-packages.sh"
       - ".github/workflows/golden-corpus-gate.yml"
     local:

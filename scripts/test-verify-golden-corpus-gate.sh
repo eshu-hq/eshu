@@ -71,7 +71,7 @@ bash -n "${workflow_paths_lib}" || fail "golden-corpus-mirror-workflow-paths.sh 
 # is present in either gate, so deleting it from one silently un-selects that
 # gate and the local half of the gap reopens.
 for gate_id in golden-corpus-mirror golden-corpus-gate; do
-	for gate_path in 'scripts/lib/golden-corpus-*.sh' 'scripts/lib/test-golden-corpus-*.sh' 'scripts/lib/live-gate-lock.sh' 'tests/fixtures/ecosystems/**'; do
+	for gate_path in 'scripts/lib/golden-corpus-*.sh' 'scripts/lib/test-golden-corpus-*.sh' 'scripts/lib/live-gate-lock.sh' 'scripts/lib/live-gate-keep-marker.sh' 'tests/fixtures/ecosystems/**'; do
 		require_in_region "ci-gates gate ${gate_id} trigger ${gate_path}" "${ci_gates}" \
 			"/^  - id: ${gate_id}\$/,/^    local:/" "- \"${gate_path}\""
 	done
@@ -471,6 +471,7 @@ private_pattern='ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-|arn:aws:|(?<![0-9
 # still need an explicit entry.
 for scanned in "${script}" \
 	"${repo_root}/scripts/lib/live-gate-lock.sh" \
+	"${repo_root}/scripts/lib/live-gate-keep-marker.sh" \
 	"${golden_corpus_libs[@]}"; do
 	if rg --pcre2 --quiet -- "${private_pattern}" "${scanned}"; then
 		fail "$(basename "${scanned}") looks like it contains private data"
