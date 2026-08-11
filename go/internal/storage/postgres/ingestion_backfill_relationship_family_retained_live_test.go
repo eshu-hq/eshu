@@ -138,8 +138,7 @@ WHERE scope_id = $1
 
 	predicate := strings.ReplaceAll(deferredRelationshipFamilyCandidatePredicateSQL, "fact.", "")
 	indexStarted := time.Now()
-	if _, err := db.ExecContext(
-		ctx,
+	if _, err := db.ExecContext(ctx,
 		"CREATE INDEX "+relationshipFamilyProofIndexName+
 			" ON fact_records (scope_id, generation_id, observed_at, fact_id) WHERE fact_kind IN ('content', 'file', 'gcp_cloud_relationship') AND "+predicate,
 	); err != nil {
@@ -150,8 +149,7 @@ WHERE scope_id = $1
 		t.Fatalf("analyze retained indexed temporary fact table: %v", err)
 	}
 	var persistence string
-	if err := db.QueryRowContext(
-		ctx,
+	if err := db.QueryRowContext(ctx,
 		"SELECT relpersistence::text FROM pg_class WHERE oid = 'fact_records'::regclass",
 	).Scan(&persistence); err != nil {
 		t.Fatalf("read retained proof relation persistence: %v", err)

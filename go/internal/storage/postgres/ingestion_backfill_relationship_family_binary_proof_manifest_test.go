@@ -141,8 +141,7 @@ FROM deferred_backfill_partition_memo`,
 	}
 
 	ids := relationshipFamilyBinaryProofSortedIDs(loadedIDs)
-	if _, err := db.ExecContext(
-		ctx,
+	if _, err := db.ExecContext(ctx,
 		`INSERT INTO `+relationshipFamilyExpectedLoadedFactIDsTable+` (fact_id) SELECT unnest($1::text[])`,
 		pq.Array(ids),
 	); err != nil {
@@ -245,8 +244,7 @@ SELECT scope_id, generation_id, catalog_fingerprint
 FROM deferred_backfill_partition_memo`, relationshipFamilyExpectedMemosTable))
 
 	var baselineNanoseconds int64
-	if err := db.QueryRowContext(
-		ctx,
+	if err := db.QueryRowContext(ctx,
 		`SELECT value_bigint FROM `+relationshipFamilyExpectedMetricsTable+` WHERE metric_name = $1`,
 		`baseline_elapsed_nanoseconds`,
 	).Scan(&baselineNanoseconds); err != nil {

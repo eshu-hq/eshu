@@ -150,8 +150,7 @@ INSERT INTO fact_work_items (
 			workItemID := fmt.Sprintf("latency-%05d", i)
 			conflictKey := fmt.Sprintf("latency-key-%05d", i)
 			updatedAt := now.Add(time.Duration(i) * time.Millisecond)
-			args = append(
-				args,
+			args = append(args,
 				workItemID, scopeID, "gen-fair", domain, reducerConflictDomainScope, conflictKey,
 				"aws", updatedAt,
 			)

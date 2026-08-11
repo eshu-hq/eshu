@@ -67,8 +67,7 @@ func TestReducerInputInvalidFactStoreLive(t *testing.T) {
 	generationID := "gen-" + suffix
 	now := time.Now().UTC()
 
-	if _, err := sqlDB.ExecContext(
-		ctx, `
+	if _, err := sqlDB.ExecContext(ctx, `
 		INSERT INTO ingestion_scopes
 		  (scope_id, scope_kind, source_system, source_key, collector_kind,
 		   partition_key, observed_at, ingested_at, status, active_generation_id, payload)
@@ -79,8 +78,7 @@ func TestReducerInputInvalidFactStoreLive(t *testing.T) {
 	); err != nil {
 		t.Fatalf("seed ingestion_scopes: %v", err)
 	}
-	if _, err := sqlDB.ExecContext(
-		ctx, `
+	if _, err := sqlDB.ExecContext(ctx, `
 		INSERT INTO scope_generations
 		  (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at)
 		VALUES ($1, $2, 'manual', $3, $3, 'active', $3)
@@ -109,8 +107,7 @@ func TestReducerInputInvalidFactStoreLive(t *testing.T) {
 	}
 
 	var count int
-	if err := sqlDB.QueryRowContext(
-		ctx,
+	if err := sqlDB.QueryRowContext(ctx,
 		`SELECT count(*) FROM reducer_input_invalid_facts WHERE scope_id = $1 AND generation_id = $2`,
 		scopeID, generationID,
 	).Scan(&count); err != nil {
@@ -130,8 +127,7 @@ func TestReducerInputInvalidFactStoreLive(t *testing.T) {
 	if err := store.WriteQuarantinedFacts(ctx, replay); err != nil {
 		t.Fatalf("WriteQuarantinedFacts() replay error = %v", err)
 	}
-	if err := sqlDB.QueryRowContext(
-		ctx,
+	if err := sqlDB.QueryRowContext(ctx,
 		`SELECT count(*) FROM reducer_input_invalid_facts WHERE scope_id = $1 AND generation_id = $2`,
 		scopeID, generationID,
 	).Scan(&count); err != nil {
@@ -157,8 +153,7 @@ func TestReducerInputInvalidFactStoreLive(t *testing.T) {
 	if err := store.WriteQuarantinedFacts(ctx, secondDomainRecords); err != nil {
 		t.Fatalf("WriteQuarantinedFacts() second-domain error = %v", err)
 	}
-	if err := sqlDB.QueryRowContext(
-		ctx,
+	if err := sqlDB.QueryRowContext(ctx,
 		`SELECT count(*) FROM reducer_input_invalid_facts WHERE scope_id = $1 AND generation_id = $2`,
 		scopeID, generationID,
 	).Scan(&count); err != nil {
@@ -168,8 +163,7 @@ func TestReducerInputInvalidFactStoreLive(t *testing.T) {
 		t.Fatalf("row count after second-domain quarantine of the same fact/field = %d, want 3 (2 original + 1 new per-domain row; domain must be part of the natural key)", count)
 	}
 	var domainsForFact int
-	if err := sqlDB.QueryRowContext(
-		ctx,
+	if err := sqlDB.QueryRowContext(ctx,
 		`SELECT count(DISTINCT domain) FROM reducer_input_invalid_facts WHERE scope_id = $1 AND generation_id = $2 AND fact_id = $3 AND missing_field = $4`,
 		scopeID, generationID, records[0].FactID, records[0].MissingField,
 	).Scan(&domainsForFact); err != nil {
@@ -184,8 +178,7 @@ func TestReducerInputInvalidFactStoreLive(t *testing.T) {
 	if err := store.WriteQuarantinedFacts(ctx, secondDomainRecords); err != nil {
 		t.Fatalf("WriteQuarantinedFacts() second-domain replay error = %v", err)
 	}
-	if err := sqlDB.QueryRowContext(
-		ctx,
+	if err := sqlDB.QueryRowContext(ctx,
 		`SELECT count(*) FROM reducer_input_invalid_facts WHERE scope_id = $1 AND generation_id = $2`,
 		scopeID, generationID,
 	).Scan(&count); err != nil {
@@ -200,8 +193,7 @@ func TestReducerInputInvalidFactStoreLive(t *testing.T) {
 	if _, err := sqlDB.ExecContext(ctx, `DELETE FROM scope_generations WHERE generation_id = $1`, generationID); err != nil {
 		t.Fatalf("delete scope_generations: %v", err)
 	}
-	if err := sqlDB.QueryRowContext(
-		ctx,
+	if err := sqlDB.QueryRowContext(ctx,
 		`SELECT count(*) FROM reducer_input_invalid_facts WHERE scope_id = $1 AND generation_id = $2`,
 		scopeID, generationID,
 	).Scan(&count); err != nil {

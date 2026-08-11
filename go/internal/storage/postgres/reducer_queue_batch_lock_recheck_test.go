@@ -101,8 +101,7 @@ func runLockRecheckCase(t *testing.T, ctx context.Context, db *sql.DB, table, lo
 	mustExec(t, ctx, db, fmt.Sprintf(
 		"INSERT INTO %s (work_item_id, stage, status, claim_until, visible_at) "+
 			"VALUES ('r1','reducer','pending',NULL,NULL) "+
-			"ON CONFLICT (work_item_id) DO UPDATE SET status='pending', claim_until=NULL, visible_at=NULL", table,
-	))
+			"ON CONFLICT (work_item_id) DO UPDATE SET status='pending', claim_until=NULL, visible_at=NULL", table))
 
 	holder, err := db.Conn(ctx)
 	if err != nil {
@@ -156,8 +155,7 @@ func runLockRecheckCase(t *testing.T, ctx context.Context, db *sql.DB, table, lo
 	// The concurrent worker claims r1 with a fresh future lease and commits,
 	// releasing its lock so the blocked locker proceeds into EvalPlanQual.
 	if _, err := holderTx.ExecContext(ctx, fmt.Sprintf(
-		"UPDATE %s SET status='claimed', claim_until=now() + interval '1 hour' WHERE work_item_id='r1'", table,
-	)); err != nil {
+		"UPDATE %s SET status='claimed', claim_until=now() + interval '1 hour' WHERE work_item_id='r1'", table)); err != nil {
 		t.Fatalf("concurrent claim: %v", err)
 	}
 	if err := holderTx.Commit(); err != nil {

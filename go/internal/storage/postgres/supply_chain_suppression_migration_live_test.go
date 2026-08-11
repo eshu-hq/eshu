@@ -200,8 +200,7 @@ INSERT INTO supply_chain_impact_canonical_winners (
    'finding:provider-valid', 'accepted_risk', now());`); err != nil {
 		t.Fatalf("seed pre-081 rows: %v", err)
 	}
-	if _, err := db.ExecContext(
-		ctx, `
+	if _, err := db.ExecContext(ctx, `
 INSERT INTO supply_chain_impact_canonical_winners (
   canonical_key, winner_fact_id, winner_scope_id, finding_id,
   suppression_state, materialized_at

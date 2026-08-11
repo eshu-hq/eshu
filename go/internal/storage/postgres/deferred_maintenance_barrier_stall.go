@@ -160,8 +160,7 @@ func (s IngestionStore) waitDeferredMaintenanceBarrierCompletion(
 					// WHICH two shards are silent without correlating logs
 					// across every process. missing_shard_indexes answers that
 					// directly from this one log line.
-					logArgs = append(
-						logArgs,
+					logArgs = append(logArgs,
 						"arrived_shards", len(arrivedIndexes),
 						"arrived_shard_indexes", arrivedIndexes,
 						"missing_shard_indexes", missingDeferredMaintenanceBarrierShardIndexes(config.ShardCount, arrivedIndexes),
