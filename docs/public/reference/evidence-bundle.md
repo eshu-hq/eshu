@@ -61,6 +61,26 @@ maintained readings. See
 for the route contract. The route is stack-wide like `--live`, so it accepts
 no scope selector and carries no scoped-token support.
 
+## Console
+
+Admin -> Evidence bundle calls the same `GET /api/v0/evidence/bundle` route,
+so the console renders the identical artifact the CLI's `--live` export
+produces. The panel shows repository count, health, queue state, semantic
+provider posture, and any `missing_evidence` rows, and offers the full
+artifact as a JSON download (`evidence-bundle.json`) an operator can attach to
+a support ticket.
+
+Because the route is stack-wide, it is rejected for a scoped-bearer token and
+for a browser session that is not this deployment's tenant-bound all-scopes
+owner session — in a hosted multi-tenant deployment that includes every
+browser session, even an admin one. When that happens the panel explains the
+rejection instead of showing a blank or generic error, and points to the CLI
+or a shared/admin token as the alternative path.
+
+The panel does not restate `redaction.rules` or `validation.status` as a
+safety guarantee — see [Redaction](#redaction) below for what those fields
+actually mean.
+
 ## Shape
 
 The top-level artifact contains:
