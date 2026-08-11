@@ -15,7 +15,7 @@ import (
 )
 
 // Every digest FIELD in every recorded cassette must hold a well-formed
-// digest, for the same reason TestSnapshotDigestsAreWellFormedSHA256 checks
+// digest, for the same reason TestSnapshotDigestsAreWellFormed checks
 // the B-12 snapshot: nothing downstream re-validates the value, and the
 // snapshot's own digest values are copies of these. #6011's own commit
 // message reports 76 malformed occurrences across 25 files at that point in
@@ -28,7 +28,7 @@ import (
 // digestFieldValueIsWellFormed from snapshot_digest_format_test.go verbatim
 // — the predicates are the contract, not something this test should
 // redefine.
-func TestCassetteDigestsAreWellFormedSHA256(t *testing.T) {
+func TestCassetteDigestsAreWellFormed(t *testing.T) {
 	t.Parallel()
 
 	paths, err := collectCassetteFiles("../../../testdata/cassettes")
@@ -88,7 +88,7 @@ func TestCassetteDigestsAreWellFormedSHA256(t *testing.T) {
 // depth-fixed "root/*/*.json" glob is complete right now -- but it silently
 // drops a cassette added at any other depth from the digest walk, with no
 // signal beyond "the checked count went down", which the checked==0 guard in
-// TestCassetteDigestsAreWellFormedSHA256 cannot see (some other cassette
+// TestCassetteDigestsAreWellFormed cannot see (some other cassette
 // keeps the count positive). Walking recursively makes the file discovery
 // itself depth-agnostic; TestCassetteDigestWalkCoversManifestFiles is the
 // permanent regression that a coverage regression -- a directory excluded
@@ -147,10 +147,50 @@ func manifestCassetteRefs(path string) ([]string, error) {
 	return refs, nil
 }
 
+// manifestRelativeCassettePath converts a path collectCassetteFiles walked
+// (called with the literal root "../../../testdata/cassettes") into the
+// repo-relative, slash-separated form the replay-coverage manifest's own
+// refs use. filepath.WalkDir returns OS-native separators -- backslashes on
+// Windows -- so the backslash-to-slash normalization runs BEFORE the
+// "../../../" prefix strip; stripping first would leave a "..\\..\\..\\"
+// prefix that never matches the literal slash prefix below, and every
+// walked path would silently fail to compare against the manifest.
+//
+// This uses an explicit strings.ReplaceAll rather than filepath.ToSlash:
+// ToSlash only swaps filepath.Separator, which IS "/" on macOS and Linux, so
+// it is a no-op for a backslash-separated string on the platforms this repo
+// actually develops and runs CI on (see TestCassetteWalkPathsAreSlashNormalized,
+// which proves this fix on this machine's GOOS and would falsely pass with
+// ToSlash regardless of whether the fix were present). An explicit replace
+// is correct everywhere: cassette and manifest paths never legitimately
+// contain a literal backslash. The walk root here is a literal string
+// constant rather than a value computed elsewhere, so a fixed prefix strip
+// is exact; see collectCassetteFiles's caller for that root.
+func manifestRelativeCassettePath(walked string) string {
+	return strings.TrimPrefix(strings.ReplaceAll(walked, `\`, "/"), "../../../")
+}
+
+// TestCassetteWalkPathsAreSlashNormalized pins manifestRelativeCassettePath
+// against a synthetic Windows-shaped path (backslash separators), so the
+// portability fix is proven on this machine's GOOS, not only in theory:
+// filepath.WalkDir would return "..\\..\\..\\testdata\\cassettes\\..." on
+// Windows, and the old strings.TrimPrefix(path, "../../../")-only comparison
+// never matched that shape, making TestCassetteDigestWalkCoversManifestFiles
+// falsely report every manifest-referenced cassette missing.
+func TestCassetteWalkPathsAreSlashNormalized(t *testing.T) {
+	t.Parallel()
+
+	const windowsShaped = `..\..\..\testdata\cassettes\ociregistry\supply-chain-demo.json`
+	const want = "testdata/cassettes/ociregistry/supply-chain-demo.json"
+	if got := manifestRelativeCassettePath(windowsShaped); got != want {
+		t.Errorf("manifestRelativeCassettePath(%q) = %q, want %q", windowsShaped, got, want)
+	}
+}
+
 // TestCassetteDigestWalkCoversManifestFiles is the P2-1 regression:
 // collectCassetteFiles must find every cassette file the replay-coverage
 // manifest commits to, at whatever depth it lives. checked==0 in
-// TestCassetteDigestsAreWellFormedSHA256 only proves the walk found SOME
+// TestCassetteDigestsAreWellFormed only proves the walk found SOME
 // cassette file, not that it found all of them -- a cassette silently
 // dropped from the walk (a depth change, a renamed directory, a root moved)
 // would still satisfy that guard as long as one other cassette remained
@@ -175,10 +215,7 @@ func TestCassetteDigestWalkCoversManifestFiles(t *testing.T) {
 	}
 	present := make(map[string]bool, len(walked))
 	for _, path := range walked {
-		// Walked paths carry the "../../../" prefix collectCassetteFiles was
-		// called with; strip it so they compare against the manifest's
-		// repo-relative refs.
-		present[strings.TrimPrefix(path, "../../../")] = true
+		present[manifestRelativeCassettePath(path)] = true
 	}
 
 	var missing []string
