@@ -40,6 +40,8 @@ func RenderJSON(report Report) ([]byte, error) {
 		Generations                    map[string]int                    `json:"generations"`
 		Stages                         []StageSummary                    `json:"stages"`
 		Domains                        []domainBacklogJSON               `json:"domains"`
+		DomainBacklogsTruncated        bool                              `json:"domain_backlogs_truncated,omitempty"`
+		DomainBacklogsLimit            int                               `json:"domain_backlogs_limit,omitempty"`
 		QueueBlockages                 []queueBlockageJSON               `json:"queue_blockages"`
 		TerraformState                 *terraformStateJSON               `json:"terraform_state,omitempty"`
 	}{
@@ -73,6 +75,8 @@ func RenderJSON(report Report) ([]byte, error) {
 		Generations:                    cloneCounts(report.GenerationTotals),
 		Stages:                         slices.Clone(report.StageSummaries),
 		Domains:                        domainBacklogsJSON(report.DomainBacklogs),
+		DomainBacklogsTruncated:        report.DomainBacklogsTruncated,
+		DomainBacklogsLimit:            domainBacklogsLimitJSON(report),
 		QueueBlockages:                 queueBlockagesJSON(report.QueueBlockages),
 		TerraformState:                 terraformStateReportJSON(report.TerraformState),
 	}
@@ -432,6 +436,13 @@ func awsCloudScanLimitJSON(report Report) int {
 		return 0
 	}
 	return report.AWSCloudScanLimit
+}
+
+func domainBacklogsLimitJSON(report Report) int {
+	if !report.DomainBacklogsTruncated {
+		return 0
+	}
+	return report.DomainBacklogsLimit
 }
 
 func nullableRFC3339String(value time.Time) *string {
