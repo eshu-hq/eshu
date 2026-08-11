@@ -125,7 +125,7 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 	}
 	stageSummaries := summarizeStages(raw.StageCounts)
 	queue := normalizeQueueSnapshot(raw.Queue)
-	domainBacklogs := topDomainBacklogs(normalizeDomainBacklogs(raw.DomainBacklogs), opts.DomainLimit)
+	domainBacklogs, domainBacklogsTruncated := topDomainBacklogs(normalizeDomainBacklogs(raw.DomainBacklogs), opts.DomainLimit)
 	producerActivity := normalizeProducerActivitySnapshot(raw.ProducerActivity)
 	coordinator := cloneCoordinatorSnapshot(raw.Coordinator)
 	flowSummaries := buildFlowSummaries(scopeTotals, generationTotals, stageSummaries, queue, domainBacklogs)
@@ -143,6 +143,8 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 		GenerationTotals:               generationTotals,
 		StageSummaries:                 stageSummaries,
 		DomainBacklogs:                 domainBacklogs,
+		DomainBacklogsTruncated:        domainBacklogsTruncated,
+		DomainBacklogsLimit:            opts.DomainLimit,
 		QueueBlockages:                 cloneQueueBlockages(raw.QueueBlockages),
 		LatestQueueFailure:             cloneQueueFailure(raw.LatestQueueFailure),
 		Coordinator:                    coordinator,
@@ -318,7 +320,12 @@ func summarizeStages(rows []StageStatusCount) []StageSummary {
 	return summaries
 }
 
-func topDomainBacklogs(rows []DomainBacklog, limit int) []DomainBacklog {
+// topDomainBacklogs returns the top limit domain backlogs by outstanding
+// work, and whether more non-empty domains existed than limit. Callers that
+// snapshot the result into a downstream artifact MUST propagate the
+// truncated bool rather than let a capped list read as complete (#4045
+// review).
+func topDomainBacklogs(rows []DomainBacklog, limit int) (result []DomainBacklog, truncated bool) {
 	filtered := make([]DomainBacklog, 0, len(rows))
 	for _, row := range rows {
 		if strings.TrimSpace(row.Domain) == "" {
@@ -336,10 +343,10 @@ func topDomainBacklogs(rows []DomainBacklog, limit int) []DomainBacklog {
 		return filtered[i].Domain < filtered[j].Domain
 	})
 	if len(filtered) > limit {
-		filtered = filtered[:limit]
+		return filtered[:limit], true
 	}
 
-	return filtered
+	return filtered, false
 }
 
 func toCountMap(rows []NamedCount) map[string]int {

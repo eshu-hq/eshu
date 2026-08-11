@@ -7474,6 +7474,32 @@
           "retry_policies"
         ]
       },
+      "GET /api/v0/evidence/bundle": {
+        "description": "Live evidence_bundle.v1 artifact (#4045); confirms the route composes and validates a share-safe bundle from the same status providers as GET /api/v0/status/index, GET /api/v0/status/pipeline, and GET /api/v0/status/collectors. Asserted values are the composer's own constants (schema_version, redaction profile, live identity profile, source repository) and StampValidation's post-Validate status, none of which vary with corpus content, so this shape holds regardless of the 20-repo corpus's specific counts.",
+        "required_response_fields": [
+          "schema_version",
+          "bundle_id",
+          "identity",
+          "source",
+          "redaction",
+          "contents",
+          "missing_evidence",
+          "reproduce",
+          "bounds",
+          "validation"
+        ],
+        "required_json_paths": [
+          "contents.pipeline_state",
+          "contents.semantic_provider_state"
+        ],
+        "required_json_values": {
+          "schema_version": "evidence_bundle.v1",
+          "identity.profile": "unknown",
+          "source.repository": "live:stack",
+          "redaction.profile": "share_safe_v1",
+          "validation.status": "passed"
+        }
+      },
       "GET /api/v0/cloud/inventory": {
         "description": "Cloud resource inventory readback, unfiltered (GCP-dominated first page under the default limit). required_json_values pins the custom IAM Role's stage attribute (#4401): the gcpcloud cassette's demoCustomRole gcp_cloud_resource fact carries attributes.stage=GA, which is not a Cypher graph-node property (the GCP CloudResource writer's SET clause is a fixed identity/provenance allowlist and never promotes payload.attributes onto the node) but IS surfaced here because cloudInventorySourceFactMappings marks GCPCloudResourceFactKind surfacesAttributes=true, and cloudInventoryResourceView/cloudInventoryAttributes project payload.attributes onto each response resource's attributes map as a raw passthrough. The AWS image/version allowlist (#5449) is asserted separately on the provider=aws entry below, which scopes the readback so every AWS resource falls within the default page (the unfiltered page is GCP-dominated, so a Lambda-only scalar like image_uri can sort past the default limit and would be a flaky assertion here).",
         "required_response_fields": [

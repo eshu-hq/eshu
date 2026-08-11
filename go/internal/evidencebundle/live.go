@@ -26,17 +26,23 @@ const liveProfile = "unknown"
 // Validate's private-data canaries as defense in depth, since status text can
 // echo operator-authored strings.
 type LiveSnapshot struct {
-	RepositoryCount    int
-	HealthState        string
-	HealthReasons      []string
-	Queue              LiveQueueSnapshot
-	QueueBlockedCount  int
-	ScopeActivity      LiveScopeActivitySnapshot
-	GenerationHistory  LiveGenerationHistorySnapshot
-	StageSummaries     []LiveStageSummarySnapshot
-	DomainBacklogs     []LiveDomainBacklogSnapshot
-	Collectors         []LiveCollectorSnapshot
-	SemanticExtraction LiveSemanticExtractionSnapshot
+	RepositoryCount   int
+	HealthState       string
+	HealthReasons     []string
+	Queue             LiveQueueSnapshot
+	QueueBlockedCount int
+	ScopeActivity     LiveScopeActivitySnapshot
+	GenerationHistory LiveGenerationHistorySnapshot
+	StageSummaries    []LiveStageSummarySnapshot
+	DomainBacklogs    []LiveDomainBacklogSnapshot
+	// DomainBacklogsTruncated mirrors status.Report.DomainBacklogsTruncated:
+	// true when the source stack had more non-empty materialization domains
+	// than DomainBacklogs enumerates, because the status layer already capped
+	// the list before this snapshot was built. BuildLiveBundle records this in
+	// Bounds so the artifact never presents a partial domain list as complete.
+	DomainBacklogsTruncated bool
+	Collectors              []LiveCollectorSnapshot
+	SemanticExtraction      LiveSemanticExtractionSnapshot
 }
 
 // LiveQueueSnapshot mirrors the reducer/ingest queue depth reported by
@@ -229,6 +235,13 @@ func BuildLiveBundle(snapshot LiveSnapshot, opts LiveBundleOptions) Bundle {
 			Family: "repository_count",
 			Reason: "zero_is_ambiguous_between_empty_graph_and_unavailable_graph_count",
 		})
+	}
+	// A capped domain backlog list must not read as a complete enumeration:
+	// status.Report already truncated it to DefaultOptions().DomainLimit
+	// before this snapshot was built (#4045 review).
+	if snapshot.DomainBacklogsTruncated {
+		bundle.Bounds.Truncated = true
+		bundle.Bounds.TruncatedLayers = append(bundle.Bounds.TruncatedLayers, "domain_backlogs")
 	}
 
 	sortBundle(&bundle)
