@@ -440,4 +440,11 @@ expect_fail "${last_line_repo}"
 # file to keep this one under the repo's 500-line file cap.
 "${repo_root}/scripts/test-verify-performance-evidence-ci-base.sh"
 
+# Regression: a marker that IS in the diff's added lines must be found even
+# when the evidence block is large and the marker is not on the last line. The
+# old `printf | rg -q` pipe lost rg's exit status to printf's SIGPIPE under
+# pipefail and reported the marker missing. Split into its own file to keep
+# this one under the repo's 500-line cap.
+"${repo_root}/scripts/test-verify-performance-evidence-large-marker.sh"
+
 printf 'verify-performance-evidence tests passed\n'

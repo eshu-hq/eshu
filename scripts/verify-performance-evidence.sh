@@ -356,14 +356,26 @@ if [ "${#evidence_files[@]}" -gt 0 ]; then
     # remains mandatory either way, so a bare mention of the phrase with no
     # colon at all -- "No-Regression Evidence (as discussed above) helps
     # operators..." -- still does not match (eshu-hq/eshu#5542 follow-up).
-    if printf '%s\n' "$evidence_added" \
-      | rg -q -e '(^|[[:space:]])(Performance Evidence|Benchmark Evidence|No-Regression Evidence)([[:space:]]*(\([^()]*\)|\[[^\[\]]*\]))?[[:space:]]*:'; then
+    # Match against a file, never a pipe. `printf ... | rg -q` is a race under
+    # `set -o pipefail`: rg exits the instant it matches, closing the read end
+    # while printf is still writing, so printf takes SIGPIPE (141). pipefail
+    # then reports 141 for the pipeline and discards rg's own 0, and the `if`
+    # reads a marker that IS present as missing -- failing the gate on a PR
+    # whose evidence is right there in the diff. Reproduced deterministically
+    # on bash 3.2.57, 5.2.21, and 5.3.15, so CI runners are affected too; it
+    # only shows when the marker is early and the block exceeds a pipe buffer,
+    # which is why the small-evidence cases never caught it. Do not reintroduce
+    # a pipe here, with or without -q; see
+    # scripts/test-verify-performance-evidence-large-marker.sh.
+    evidence_added_path="$(mktemp "${TMPDIR:-/tmp}/eshu-performance-evidence-added.XXXXXX")"
+    printf '%s\n' "$evidence_added" >"$evidence_added_path"
+    if rg -q -e '(^|[[:space:]])(Performance Evidence|Benchmark Evidence|No-Regression Evidence)([[:space:]]*(\([^()]*\)|\[[^\[\]]*\]))?[[:space:]]*:' "$evidence_added_path"; then
       has_performance_evidence=0
     fi
-    if printf '%s\n' "$evidence_added" \
-      | rg -q -e '(^|[[:space:]])(Observability Evidence|No-Observability-Change)([[:space:]]*(\([^()]*\)|\[[^\[\]]*\]))?[[:space:]]*:'; then
+    if rg -q -e '(^|[[:space:]])(Observability Evidence|No-Observability-Change)([[:space:]]*(\([^()]*\)|\[[^\[\]]*\]))?[[:space:]]*:' "$evidence_added_path"; then
       has_observability_evidence=0
     fi
+    rm -f "$evidence_added_path"
   done
 fi
 
