@@ -163,16 +163,33 @@ func TestClassifyECSContainerImageAmbiguityOutcomes(t *testing.T) {
 	}
 }
 
-// TestClassifyLambdaOneOfTwoComparisonsIsStillAVerdict pins the residual #5837
-// does NOT close, so it stays a known bounded gap rather than a surprise.
+// TestClassifyLambdaOneOfTwoComparisonsIsStillAVerdict pins this package's
+// deliberate position: one successful comparison out of two IS a verdict here,
+// and this layer never treats a missing attribute as uncertainty.
 //
-// aws_lambda_function is covered for two attributes. When image_uri is redacted
-// but version compares equal, ONE comparison succeeded, so the verdict is
-// convergence and an image_uri drift that exists in reality is still retired.
-// Closing it needs per-attribute completeness plumbing from the collector --
-// tracked as #5861 -- not a change here: making one uncomparable attribute out
-// of two inconclusive would put a finding on every Lambda whose image_uri is
-// legitimately absent (a zip-packaged function), which is most of them.
+// The comment this test used to carry described the declared side as REDACTED.
+// That premise is dead: since #5904 a redacted comparable is suppressed at the
+// loader, so it can no longer reach this function, and since #5861 an
+// image-packaged Lambda whose image_uri was not observed is suppressed the same
+// way.
+//
+// Two one-of-two shapes still reach here, and only one of them is benign:
+//
+//   - A zip-packaged function, which has no image_uri by design. Genuine
+//     absence; it must keep converging rather than land on a finding. That is
+//     the shape this test pins.
+//   - An unreadable `version` alongside an `image_uri` that compares equal.
+//     Still Comparable=2, Compared=1, still converges, and the retire still
+//     deletes. #5861 did NOT close this: `package_type` tells us whether an
+//     image_uri should exist, and no equivalent signal exists for `version`.
+//     Less reachable, because both GetFunction and the ListFunctions fallback
+//     carry Version -- but uncovered, and named here so it is not mistaken for
+//     solved.
+//
+// The rule that matters: this layer stays absence-blind on purpose. Unreadable
+// evidence is separated from absent evidence at the LOADER
+// (aws_cloud_runtime_drift_value_attributes.go), never by widening
+// Inconclusive() here, because Inconclusive() cannot tell the two apart.
 func TestClassifyLambdaOneOfTwoComparisonsIsStillAVerdict(t *testing.T) {
 	t.Parallel()
 
@@ -183,7 +200,8 @@ func TestClassifyLambdaOneOfTwoComparisonsIsStillAVerdict(t *testing.T) {
 		ResourceType: "lambda.function",
 		Attributes:   map[string]string{"image_uri": "acct.dkr.ecr.us-east-1.amazonaws.com/app:v2", "version": "7"},
 	}
-	// image_uri redacted on the declared side; version present and equal.
+	// image_uri genuinely absent on the declared side (a zip-packaged
+	// function); version present and equal.
 	state := &ResourceRow{
 		ARN:          arn,
 		ResourceType: "aws_lambda_function",
