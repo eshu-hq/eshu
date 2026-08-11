@@ -18,7 +18,7 @@ Use this page to choose the right values page before editing
 
 | Area | Default |
 | --- | --- |
-| Image | `image.repository=ghcr.io/eshu-hq/eshu`, `image.tag=v0.0.2`, `image.pullPolicy=IfNotPresent`. |
+| Image | `image.repository=ghcr.io/eshu-hq/eshu`, `image.tag=v0.0.3-pre-release-18`, `image.pullPolicy=IfNotPresent`. |
 | Storage | `contentStore.dsn=""`, `contentStore.secretName=""`, `env.ESHU_GRAPH_BACKEND=neo4j`, `neo4j.uri=bolt://neo4j:7687`. |
 | Schema bootstrap | `schemaBootstrap.enabled=true`, `schemaBootstrap.useHelmHooks=true`. |
 | Core runtimes | API, MCP, ingester, and resolution engine enabled; ingester PVC size `100Gi`. |
