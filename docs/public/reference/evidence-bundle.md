@@ -51,6 +51,16 @@ See [First Successful Run](../getting-started/first-successful-run.md#prove-the-
 for which fields to read after your first `eshu first-run` to confirm the
 stack actually indexed something.
 
+## HTTP API
+
+`GET /api/v0/evidence/bundle` composes the same live artifact `eshu evidence
+bundle export --live` produces, from the same status providers, so the console
+and the CLI generate the identical bundle rather than two independently
+maintained readings. See
+[Live Evidence Bundle](http-api/evidence-and-supply-chain.md#live-evidence-bundle)
+for the route contract. The route is stack-wide like `--live`, so it accepts
+no scope selector and carries no scoped-token support.
+
 ## Shape
 
 The top-level artifact contains:

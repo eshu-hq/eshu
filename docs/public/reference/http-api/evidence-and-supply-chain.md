@@ -109,6 +109,27 @@ is the same `confidence + byte-level citation + provenance` shape defined by the
 canonical `truth.Evidence` record, so relationship evidence, citation packets,
 and documentation evidence all describe proof the same way.
 
+## Live Evidence Bundle
+
+`GET /api/v0/evidence/bundle`
+
+Composes and returns a share-safe `evidence_bundle.v1` artifact (issue #4045)
+from the same status providers backing `GET /api/v0/status/index`, `GET
+/api/v0/status/pipeline`, and `GET /api/v0/status/collectors`, so the console
+and `eshu evidence bundle export --live` link to or generate the identical
+artifact from one running stack. The response validates against the same
+`evidencebundle.Validate` rules the CLI runs and always carries
+`validation.status: "passed"`.
+
+The bundle is stack-wide: none of the composed status data carries a
+repository or tenant selector, so a scope cannot be requested and the route
+carries no scoped-token support. Scoped-bearer and browser-session callers are
+rejected before the handler runs, the same posture as its two stack-wide
+source routes, `GET /api/v0/status/index` and `GET /api/v0/status/pipeline`.
+
+Returns `503` when the status reader is not configured, matching every other
+status-backed route in this package.
+
 ## Documentation Truth
 
 Documentation updater services should use these routes instead of reading graph
