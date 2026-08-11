@@ -7482,7 +7482,11 @@
           "evidence",
           "count"
         ],
-        "minimum_results": 0
+        "results_field": "evidence",
+        "result_item_required_fields": [
+          "evidence_state"
+        ],
+        "minimum_results": 1
       },
       "GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&subject_digest=sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8090a": {
         "description": "SBOM attestation attachments for the synthetic supply-chain-demo image digest. Scoped by subject_digest rather than document_id so the response includes both the scd-sbom document attachment and the scd-attestation statement attachment sharing that image digest. minimum_results and the nested required_json_paths/values pin the scd-sbom cassette's component, dependency, and external-reference evidence (#5412/#5370 codex finding) and the scd-attestation statement's joined attestation.slsa_provenance fact (#5371), including its materials/config_source fields (#5456): the top-level required_response_fields alone would stay green even if that nested evidence never reached this HTTP result, so this asserts the populated arrays plus their exact reducer-computed counts, flags, and SLSA fields. The component count and false truncation flag ensure the bounded component preview remains honest. required_json_values matches when ANY attachment in the response carries the expected value, so the two rows' distinct evidence (component/dependency/external-reference on the document row, SLSA provenance on the statement row) are each pinned independently. The scd-attestation subject_digest is synthetic and does not match any oci_registry.image_manifest digest in this corpus, so #5456's container_image_identity SLSA-provenance tier never activates for this demo fixture; that behavior is proven instead by the reducer's dedicated proof-matrix tests (go/internal/reducer/container_image_identity_slsa_test.go).",
