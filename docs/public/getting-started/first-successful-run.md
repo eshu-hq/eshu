@@ -351,10 +351,10 @@ Read these fields to answer "is this actually working":
 
 | Field | What it tells you |
 | --- | --- |
-| `contents.pipeline_state.repository_count` | How many repositories the stack has indexed. A count of `0` is recorded as a `repository_count` entry under `missing_evidence` instead of being reported outright, because the status route returns the same `0` for "genuinely empty" and "graph query failed." |
-| `contents.pipeline_state.health_state` and `.queue` | Overall health (`healthy`, `degraded`, `progressing`, or `stalled`) plus reducer/ingest queue depth — `outstanding`, `overdue_claims`, `dead_letter` — so a backed-up queue shows as a number, not a guess. |
+| `contents.pipeline_state.repository_count` | How many repositories the stack has indexed. A `0` still shows up here; it is not hidden. The status route returns the same `0` for "genuinely empty" and "graph query failed," so a matching `repository_count` entry is added to `missing_evidence` to flag the number as ambiguous rather than definitive. |
+| `contents.pipeline_state.health_state` and `contents.pipeline_state.queue` | Overall health (`healthy`, `degraded`, `progressing`, or `stalled`) plus reducer/ingest queue depth — `outstanding`, `overdue_claims`, `dead_letter` — so a backed-up queue shows as a number, not a guess. |
 | `contents.semantic_provider_state` | Whether a semantic/LLM provider is configured and its state. A stack with no provider configured reports that as a state (`unavailable`, reason `provider_not_configured`), not as a failure. |
-| `missing_evidence` | Named gaps the bundle cannot fill from the status routes it reads. Always includes `fact_counts` (no status endpoint exposes per-kind fact counts) and `freshness`; includes `repository_count` when that count came back `0`. |
+| `missing_evidence` | Named gaps the bundle cannot fill from the status routes it reads. Always includes `fact_counts` (no status endpoint exposes per-kind fact counts), `freshness`, and `runtime_profile`; adds `repository_count` when that count came back `0`. |
 
 Validate the bundle before trusting or sharing it:
 
