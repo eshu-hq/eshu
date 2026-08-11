@@ -734,10 +734,14 @@ Both run in CI as the `auth-mcp-e2e` job in `.github/workflows/frontend.yml`
 locally runnable with the single command above.
 
 > Denial-reason distinctness is asserted from the oidcbearer resolver's
-> structured-log `outcome` values and the RFC 9728 challenge shape, because
-> denial-side governance-audit reason codes do not yet exist. Adding a
-> first-class denial-reason to the governance-audit table is tracked in
-> [eshu-hq/eshu#5567](https://github.com/eshu-hq/eshu/issues/5567).
+> structured-log `outcome` values and the RFC 9728 challenge shape. Those
+> outcomes now also reach `governance_audit_events.reason_code`, so a denial can
+> be queried from the audit table rather than only scraped from logs:
+> `expired`, `wrong_audience`, `unknown_issuer`, `bad_signature`, `malformed`,
+> and `no_grants` record `decision=denied`, while `grant_resolution_unavailable`
+> and `jwks_fetch_failure` record `decision=unavailable` because a dependency
+> could not answer, which is not a verdict about the credential. An outcome
+> outside that set records `authentication_required`.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
