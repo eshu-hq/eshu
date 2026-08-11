@@ -93,6 +93,7 @@ func OpenAPISpec() string {
 			openAPIPathsImpactRest+
 			openAPIPathsExposure+
 			openAPIPathsEvidence+
+			openAPIPathsEvidenceBundle+
 			openAPIPathsDocumentationFindingAggregate+
 			openAPIPathsPackageRegistry+
 			openAPIPathsPackageRegistryAggregate+

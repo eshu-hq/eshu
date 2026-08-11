@@ -149,6 +149,8 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			Content:            contentReader,
 			AdmissionDecisions: query.NewPostgresAdmissionDecisionReadStore(pgstatus.SQLDB{DB: db}),
 			Profile:            queryProfile,
+			StatusReader:       statusReader,
+			Neo4j:              neo4jReader,
 		},
 		Documentation: &query.DocumentationHandler{
 			Content:    contentReader,

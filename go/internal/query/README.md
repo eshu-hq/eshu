@@ -204,6 +204,21 @@ evidence, permission hidden, unsupported, or unsafe; they do not promote a
 candidate to canonical graph truth unless the reducer's canonical write block
 shows an admitted write.
 
+Live evidence bundle reads (`GET /api/v0/evidence/bundle`, #4045) compose a
+share-safe `evidence_bundle.v1` artifact from the same status providers behind
+`GET /api/v0/status/index`, `GET /api/v0/status/pipeline`, and `GET
+/api/v0/status/collectors` (`evidence_bundle_live.go`), so `eshu evidence
+bundle export --live` and this route describe one running stack through the
+same `status.Report` and repository-count query. `EvidenceHandler` only maps
+that typed report into an `evidencebundle.LiveSnapshot`; it never re-derives
+`internal/evidencebundle`'s redaction or composition rules, calling
+`BuildLiveBundle -> Validate -> StampValidation` exactly as the CLI does. The
+bundle is stack-wide -- none of the composed data carries a repository or
+tenant selector -- so the route carries no `x-scoped-token-support` marker and
+is absent from `scopedHTTPRouteSupportsTenantFilter`, the same posture as its
+two stack-wide source routes; a scoped-token or browser-session caller is
+rejected by `AuthMiddleware` before the handler runs.
+
 No-Regression Evidence: focused relationship context, evidence drilldown, and
 OpenAPI tests cover both Postgres read-model and graph-backed rows:
 `go test ./internal/query -run 'RepositoryRelationship|RelationshipEvidence|ConfidenceBasis|OpenAPIRelationship|RelationshipStory.*Provenance' -count=1`.
