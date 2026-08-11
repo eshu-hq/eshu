@@ -4,15 +4,9 @@
 package postgres
 
 import (
-	"context"
-	"database/sql"
 	"fmt"
-	"os"
-	"sync"
 	"testing"
 	"time"
-
-	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 // TestEshuSearchVectorScopeStateCASContentionLive is the #5045 hardening proof
@@ -28,9 +22,14 @@ import (
 // about the mechanism, not a measurement of it. This test measures it.
 //
 // The contention shape: workersPerRound goroutines each call BeginBuilding and
-// then FinalizeReady against one identity, released together through a
-// sync.WaitGroup so their statements interleave in the server rather than
-// running back to back.
+// then FinalizeReady against one identity, released together (see
+// runReleasedTogether) so their statements interleave in the server rather
+// than running back to back.
+//
+// A companion test, TestEshuSearchVectorScopeStateCASContentionOverlapLive,
+// covers a different shape this test deliberately does not: a retried
+// BeginBuilding racing against an in-flight FinalizeReady from an earlier
+// build, rather than every begin completing before any finalize starts.
 //
 // What it asserts, and why each matters:
 //
@@ -55,37 +54,16 @@ import (
 // ESHU_SEARCH_VECTOR_SCOPE_STATE_CAS_CONTENTION_ROUNDS; the defaults are sized
 // to interleave reliably while staying quick.
 func TestEshuSearchVectorScopeStateCASContentionLive(t *testing.T) {
-	if os.Getenv("ESHU_SEARCH_VECTOR_SCOPE_STATE_CAS_CONTENTION_LIVE") != "1" {
-		t.Skip("set ESHU_SEARCH_VECTOR_SCOPE_STATE_CAS_CONTENTION_LIVE=1 and ESHU_POSTGRES_DSN to run")
-	}
-	dsn := os.Getenv("ESHU_POSTGRES_DSN")
-	if dsn == "" {
-		t.Skip("ESHU_POSTGRES_DSN not set")
-	}
-
 	workers := envInt(t, "ESHU_SEARCH_VECTOR_SCOPE_STATE_CAS_CONTENTION_WORKERS", 16)
 	rounds := envInt(t, "ESHU_SEARCH_VECTOR_SCOPE_STATE_CAS_CONTENTION_ROUNDS", 10)
 	if workers < 2 {
 		t.Fatalf("workers = %d, need at least 2 for a contention test", workers)
 	}
-
-	sqlDB, err := sql.Open("pgx", dsn)
-	if err != nil {
-		t.Fatalf("open db: %v", err)
+	if rounds < 1 {
+		t.Fatalf("rounds = %d, need at least 1 for a contention test", rounds)
 	}
-	defer func() { _ = sqlDB.Close() }()
-	// Every worker needs its own connection or the goroutines serialize in the
-	// pool and the race never actually happens in the server.
-	sqlDB.SetMaxOpenConns(workers + 4)
-	sqlDB.SetMaxIdleConns(workers + 4)
-	db := SQLDB{DB: sqlDB}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
-
-	if err := ApplyBootstrap(ctx, db); err != nil {
-		t.Fatalf("apply bootstrap schema: %v", err)
-	}
+	db, sqlDB, ctx := openEshuSearchVectorContentionLiveDB(t, workers+4)
 
 	prefix := fmt.Sprintf("5045-cas-%d", time.Now().UnixNano())
 	identity := EshuSearchVectorIdentity{
@@ -97,63 +75,16 @@ func TestEshuSearchVectorScopeStateCASContentionLive(t *testing.T) {
 	now := time.Now().UTC()
 
 	var seededScopeIDs []string
-	t.Cleanup(func() {
-		cleanCtx := context.Background()
-		for _, scopeID := range seededScopeIDs {
-			_, _ = sqlDB.ExecContext(cleanCtx, `DELETE FROM ingestion_scopes WHERE scope_id = $1`, scopeID)
-		}
-	})
+	registerEshuSearchVectorContentionCleanup(t, sqlDB, &seededScopeIDs)
 
 	store := NewEshuSearchVectorScopeStateStore(db)
 
+	const projectionRevision int64 = 1
+
 	for round := 0; round < rounds; round++ {
-		scopeID := fmt.Sprintf("%s:scope-%d", prefix, round)
-		genID := fmt.Sprintf("%s:gen-%d", prefix, round)
+		label := fmt.Sprintf("%s:round-%d", prefix, round)
+		scopeID, genID := seedEshuSearchVectorContentionFixture(t, ctx, sqlDB, label, projectionRevision, now)
 		seededScopeIDs = append(seededScopeIDs, scopeID)
-
-		if _, err := sqlDB.ExecContext(
-			ctx, `
-			INSERT INTO ingestion_scopes
-			  (scope_id, scope_kind, source_system, source_key, collector_kind,
-			   partition_key, observed_at, ingested_at, status, active_generation_id, payload)
-			VALUES ($1::text, 'repository', 'git', $1::text, 'git', $1::text, $2, $2, 'active', $3::text,
-			        jsonb_build_object('repo_id', $1::text))
-			ON CONFLICT (scope_id) DO NOTHING`,
-			scopeID, now, genID,
-		); err != nil {
-			t.Fatalf("round %d: insert ingestion_scope: %v", round, err)
-		}
-		if _, err := sqlDB.ExecContext(
-			ctx, `
-			INSERT INTO scope_generations
-			  (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at)
-			VALUES ($1, $2, 'manual', $3, $3, 'active', $3)
-			ON CONFLICT (generation_id) DO NOTHING`,
-			genID, scopeID, now,
-		); err != nil {
-			t.Fatalf("round %d: insert scope_generation: %v", round, err)
-		}
-
-		const projectionRevision int64 = 1
-
-		// BeginBuilding only issues a fence when the document projection for
-		// this (scope, generation) is already 'ready' at the same revision --
-		// it SELECTs that row as its insert source. Seed it directly so the
-		// test exercises the vector-state CAS rather than the projection
-		// pipeline.
-		if _, err := sqlDB.ExecContext(
-			ctx, `
-			INSERT INTO eshu_search_document_projection_state
-			  (scope_id, generation_id, projection_revision, build_fence, state, document_count, updated_at)
-			VALUES ($1, $2, $3, 1, 'ready', 1, $4)
-			ON CONFLICT (scope_id, generation_id) DO UPDATE SET
-			  projection_revision = EXCLUDED.projection_revision,
-			  state = 'ready',
-			  updated_at = EXCLUDED.updated_at`,
-			scopeID, genID, projectionRevision, now,
-		); err != nil {
-			t.Fatalf("round %d: seed projection state: %v", round, err)
-		}
 
 		type outcome struct {
 			fence int64
@@ -173,24 +104,16 @@ func TestEshuSearchVectorScopeStateCASContentionLive(t *testing.T) {
 		// finalizes would make the run nondeterministic and would test that
 		// guard rather than the CAS. Racing all the begins first, then all the
 		// finalizes, puts every builder in the contended state the CAS exists
-		// to arbitrate.
-		var beginRelease, beginDone sync.WaitGroup
-		beginRelease.Add(1)
-		for w := 0; w < workers; w++ {
-			beginDone.Add(1)
-			go func(idx int) {
-				defer beginDone.Done()
-				beginRelease.Wait()
-				fence, err := store.BeginBuilding(ctx, scopeID, genID, identity, projectionRevision)
-				if err != nil {
-					outcomes[idx] = outcome{err: fmt.Errorf("begin building: %w", err)}
-					return
-				}
-				outcomes[idx] = outcome{fence: fence}
-			}(w)
-		}
-		beginRelease.Done()
-		beginDone.Wait()
+		// to arbitrate. (The overlap between a begin and an in-flight finalize
+		// is exercised separately, deliberately, by the companion overlap test.)
+		runReleasedTogether(workers, func(idx int) {
+			fence, err := store.BeginBuilding(ctx, scopeID, genID, identity, projectionRevision)
+			if err != nil {
+				outcomes[idx].err = fmt.Errorf("begin building: %w", err)
+				return
+			}
+			outcomes[idx].fence = fence
+		})
 
 		for idx, o := range outcomes {
 			if o.err != nil {
@@ -198,23 +121,14 @@ func TestEshuSearchVectorScopeStateCASContentionLive(t *testing.T) {
 			}
 		}
 
-		var finalizeRelease, finalizeDone sync.WaitGroup
-		finalizeRelease.Add(1)
-		for w := 0; w < workers; w++ {
-			finalizeDone.Add(1)
-			go func(idx int) {
-				defer finalizeDone.Done()
-				finalizeRelease.Wait()
-				won, err := store.FinalizeReady(ctx, scopeID, genID, identity, projectionRevision, outcomes[idx].fence)
-				if err != nil {
-					outcomes[idx].err = fmt.Errorf("finalize ready: %w", err)
-					return
-				}
-				outcomes[idx].won = won
-			}(w)
-		}
-		finalizeRelease.Done()
-		finalizeDone.Wait()
+		runReleasedTogether(workers, func(idx int) {
+			won, err := store.FinalizeReady(ctx, scopeID, genID, identity, projectionRevision, outcomes[idx].fence)
+			if err != nil {
+				outcomes[idx].err = fmt.Errorf("finalize ready: %w", err)
+				return
+			}
+			outcomes[idx].won = won
+		})
 
 		winners := 0
 		winningFence := int64(-1)
