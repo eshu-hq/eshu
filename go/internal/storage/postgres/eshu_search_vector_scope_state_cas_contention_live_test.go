@@ -8,13 +8,27 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
+
+// casContentionCleanupDeletes lists the fixture tables this test seeds, in
+// child-to-parent order. Declared once rather than rebuilt per scope so the
+// deletion order lives in one place: relying on an FK cascade from
+// ingestion_scopes alone would silently leave rows wherever a cascade is not
+// declared.
+var casContentionCleanupDeletes = []struct {
+	table string
+	query string
+}{
+	{"eshu_search_vector_scope_state", `DELETE FROM eshu_search_vector_scope_state WHERE scope_id = $1`},
+	{"eshu_search_document_projection_state", `DELETE FROM eshu_search_document_projection_state WHERE scope_id = $1`},
+	{"scope_generations", `DELETE FROM scope_generations WHERE scope_id = $1`},
+	{"ingestion_scopes", `DELETE FROM ingestion_scopes WHERE scope_id = $1`},
+}
 
 // TestEshuSearchVectorScopeStateCASContentionLive is the #5045 hardening proof
 // for the versioned scope-state fence CAS #4233 introduced.
@@ -28,10 +42,26 @@ import (
 // is no EvalPlanQual recheck concern -- but "no recheck concern" is a claim
 // about the mechanism, not a measurement of it. This test measures it.
 //
-// The contention shape: workersPerRound goroutines each call BeginBuilding and
-// then FinalizeReady against one identity, released together through a
-// sync.WaitGroup so their statements interleave in the server rather than
-// running back to back.
+// Three phases, in increasing strength:
+//
+//  1. every worker races BeginBuilding for one identity
+//  2. every worker then races FinalizeReady with the fence it was handed
+//  3. one finalize is FORCED to block on a row lock while a newer fence
+//     commits, then wakes and must refuse to publish
+//
+// Phases 1 and 2 are separated by a barrier because BeginBuilding's ON CONFLICT
+// is filtered by (revision > existing) OR (revision = existing AND state <>
+// 'ready'): once any builder publishes ready at a revision, a later
+// BeginBuilding matches no row. That is correct supersession, but interleaving
+// begins with finalizes would exercise that guard nondeterministically instead
+// of the CAS.
+//
+// The cost of that barrier is that every loser is already stale when it
+// presents its token, so phase 3 exists to cover the ordering the barrier
+// removes. It uses an explicit lock rather than more concurrency: releasing
+// goroutines together only makes them runnable, and a legal schedule can still
+// run one worker's begin and finalize to completion before any other worker
+// reaches Postgres.
 //
 // What it asserts, and why each matters:
 //
@@ -48,6 +78,11 @@ import (
 //     winners alone cannot catch it.
 //   - The persisted row agrees with the winner. The in-process return value
 //     and the durable state must not disagree.
+//   - A finalize that WAKES from a row lock, after a newer fence committed
+//     while it was parked, refuses to publish. This is the EvalPlanQual
+//     recheck path the #4233 review reasoned about rather than exercised: the
+//     blocked UPDATE re-evaluates its predicate against the row as it exists
+//     after the other transaction commits.
 //
 // Gated on ESHU_SEARCH_VECTOR_SCOPE_STATE_LIVE, the same switch the other
 // scope-state live tests use (including #4233's sequential CAS test), so this
@@ -118,20 +153,20 @@ func TestEshuSearchVectorScopeStateCASContentionLive(t *testing.T) {
 	// database.
 	t.Cleanup(func() {
 		cleanCtx := context.Background()
+		// Best-effort across every scope, but a failure fails the test: a run
+		// that leaves rows behind and still reports green is the shared-database
+		// pollution this cleanup exists to prevent.
+		failed := false
 		for _, scopeID := range seededScopeIDs {
-			for _, stmt := range []struct {
-				table string
-				query string
-			}{
-				{"eshu_search_vector_scope_state", `DELETE FROM eshu_search_vector_scope_state WHERE scope_id = $1`},
-				{"eshu_search_document_projection_state", `DELETE FROM eshu_search_document_projection_state WHERE scope_id = $1`},
-				{"scope_generations", `DELETE FROM scope_generations WHERE scope_id = $1`},
-				{"ingestion_scopes", `DELETE FROM ingestion_scopes WHERE scope_id = $1`},
-			} {
+			for _, stmt := range casContentionCleanupDeletes {
 				if _, err := sqlDB.ExecContext(cleanCtx, stmt.query, scopeID); err != nil {
-					t.Logf("cleanup: delete from %s where scope_id=%s: %v", stmt.table, scopeID, err)
+					t.Errorf("cleanup: delete from %s where scope_id=%s: %v", stmt.table, scopeID, err)
+					failed = true
 				}
 			}
+		}
+		if failed {
+			t.Errorf("cleanup left seeded rows behind; the proof database now carries state from this run")
 		}
 	})
 
@@ -333,98 +368,14 @@ func TestEshuSearchVectorScopeStateCASContentionLive(t *testing.T) {
 
 		// Phase 3: begins and finalizes OVERLAPPING, at the next revision.
 		//
-		// The barriered phases above commit every fence bump before any finalize
-		// starts, so each loser is already stale by the time it presents its
-		// token. That proves the CAS rejects a stale token, but it never puts a
-		// finalize in flight WHILE a newer begin is updating the same row -- the
-		// other lock ordering. Here every worker runs begin-then-finalize with no
-		// barrier, so both orderings occur.
-		//
-		// Interleaving means a begin can legitimately find no row once someone
-		// publishes ready at this revision, so that specific error is expected
-		// and recorded rather than failed. Any other error still fails.
-		const overlapRevision = projectionRevision + 1
-		if _, err := sqlDB.ExecContext(
-			ctx, `
-			UPDATE eshu_search_document_projection_state
-			   SET projection_revision = $3, state = 'ready', updated_at = $4
-			 WHERE scope_id = $1 AND generation_id = $2`,
-			scopeID, genID, overlapRevision, now,
-		); err != nil {
-			t.Fatalf("round %d: bump projection revision for overlap phase: %v", round, err)
-		}
-
-		overlap := make([]outcome, workers)
-		runConcurrently(func(idx int) {
-			fence, err := store.BeginBuilding(ctx, scopeID, genID, identity, overlapRevision)
-			if err != nil {
-				if strings.Contains(err.Error(), "no row returned") {
-					overlap[idx].fence = -1
-					return
-				}
-				overlap[idx].err = fmt.Errorf("overlap begin building: %w", err)
-				return
-			}
-			overlap[idx].fence = fence
-			won, err := store.FinalizeReady(ctx, scopeID, genID, identity, overlapRevision, fence)
-			if err != nil {
-				overlap[idx].err = fmt.Errorf("overlap finalize ready: %w", err)
-				return
-			}
-			overlap[idx].won = won
+		assertBlockedFinalizeRefusesToPublish(t, ctx, sqlDB, store, casInterleaveCase{
+			round:    round,
+			scopeID:  scopeID,
+			genID:    genID,
+			identity: identity,
+			revision: projectionRevision + 1,
+			now:      now,
 		})
-
-		overlapWinners := 0
-		overlapWinningFence := int64(-1)
-		for idx, o := range overlap {
-			if o.err != nil {
-				t.Fatalf("round %d worker %d: %v", round, idx, o.err)
-			}
-			if o.won {
-				overlapWinners++
-				overlapWinningFence = o.fence
-			}
-		}
-		if overlapWinners != 1 {
-			t.Fatalf(
-				"round %d overlap phase: %d builders published ready, want exactly 1: "+
-					"with begins and finalizes interleaved, more than one winner means the fence "+
-					"predicate does not hold when a newer begin lands while a finalize is in flight",
-				round, overlapWinners,
-			)
-		}
-
-		var overlapPersistedFence int64
-		if err := sqlDB.QueryRowContext(
-			ctx, `
-			SELECT build_fence
-			  FROM eshu_search_vector_scope_state
-			 WHERE scope_id = $1 AND generation_id = $2
-			   AND provider_profile_id = $3 AND source_class = $4
-			   AND embedding_model_id = $5 AND vector_index_version = $6`,
-			scopeID, genID,
-			identity.ProviderProfileID, identity.SourceClass,
-			identity.EmbeddingModelID, identity.VectorIndexVersion,
-		).Scan(&overlapPersistedFence); err != nil {
-			t.Fatalf("round %d: read persisted scope state after overlap: %v", round, err)
-		}
-		if overlapPersistedFence != overlapWinningFence {
-			t.Fatalf(
-				"round %d overlap phase: persisted build_fence = %d, winner reported fence %d",
-				round, overlapPersistedFence, overlapWinningFence,
-			)
-		}
-		// No builder holding a fence above the winner's may have lost silently:
-		// that would mean a newer build was issued and then dropped.
-		for idx, o := range overlap {
-			if o.fence > overlapWinningFence && !o.won {
-				t.Fatalf(
-					"round %d overlap phase: worker %d held fence %d, higher than the winning fence %d, "+
-						"but did not publish: a newer build was superseded by an older one",
-					round, idx, o.fence, overlapWinningFence,
-				)
-			}
-		}
 	}
 
 	t.Logf(
