@@ -1929,9 +1929,7 @@
           "event_type"
         ],
         "allowed_node_property_values": {
-          "event_type": [
-            "yank"
-          ]
+          "event_type": ["yank"]
         }
       },
       {
@@ -1943,9 +1941,7 @@
           "provider"
         ],
         "allowed_node_property_values": {
-          "provider": [
-            "aws"
-          ]
+          "provider": ["aws"]
         }
       },
       {
@@ -2096,16 +2092,14 @@
           "ami_id"
         ],
         "allowed_node_property_values": {
-          "ami_id": [
-            "ami-000000000000000a"
-          ]
+          "ami_id": ["ami-000000000000000a"]
         }
       }
     ],
     "required_self_loops": [
       {
         "id": "sl-dart-calls-recursion",
-        "description": "Exactly 2 Function{language=dart} CALLS self-loop edges (caller==callee): recursionFib (arrow-form) and recursionFact (block-form) in tests/fixtures/ecosystems/dart_comprehensive/calls.dart. Dart's call extractor (go/internal/parser/dart/calls.go) was a raw byte-scanner that could not distinguish a declaration header from a call site, recording every function/method/constructor declaration in the corpus as a spurious self-loop CALLS edge (issue #5332). Dart was not staged in the golden corpus, so that corruption class shipped with no durable end-to-end gate (issue #5349). The bound is closed on BOTH sides, not a floor: below 2 means genuine recursion was dropped; above 2 means the #5332 declaration-vs-call-site bug regressed (every one of the fixture's other declarations \u2014 DeclarationOnlyWidget's 2 constructors + getter + setter + method, GeoPoint's named constructor, mutualPing/mutualPong, identityFn, LineBuffer.append \u2014 would each contribute a spurious self-loop). Mutual recursion (mutualPing<->mutualPong) and the named-constructor/generic-args/cascade call shapes in the same fixture are NOT self-loops (caller != callee) and so do not move this count; they instead flow through the existing generic rc-11 Function-CALLS-Function floor.",
+        "description": "Exactly 2 Function{language=dart} CALLS self-loop edges (caller==callee): recursionFib (arrow-form) and recursionFact (block-form) in tests/fixtures/ecosystems/dart_comprehensive/calls.dart. Dart's call extractor (go/internal/parser/dart/calls.go) was a raw byte-scanner that could not distinguish a declaration header from a call site, recording every function/method/constructor declaration in the corpus as a spurious self-loop CALLS edge (issue #5332). Dart was not staged in the golden corpus, so that corruption class shipped with no durable end-to-end gate (issue #5349). The bound is closed on BOTH sides, not a floor: below 2 means genuine recursion was dropped; above 2 means the #5332 declaration-vs-call-site bug regressed (every one of the fixture's other declarations — DeclarationOnlyWidget's 2 constructors + getter + setter + method, GeoPoint's named constructor, mutualPing/mutualPong, identityFn, LineBuffer.append — would each contribute a spurious self-loop). Mutual recursion (mutualPing<->mutualPong) and the named-constructor/generic-args/cascade call shapes in the same fixture are NOT self-loops (caller != callee) and so do not move this count; they instead flow through the existing generic rc-11 Function-CALLS-Function floor.",
         "label": "Function",
         "relationship": "CALLS",
         "node_property": "language",
@@ -2390,20 +2384,14 @@
         "results_field": "evidence_groups",
         "required_json_values": {
           "topic": "lib-common",
-          "searched_terms": [
-            "common",
-            "lib"
-          ]
+          "searched_terms": ["common", "lib"]
         },
         "required_json_object_matches": {
           "evidence_groups[]": [
             {
               "repo_id": "repository:r_ea78e8bb",
               "relative_path": "main.go",
-              "matched_terms": [
-                "common",
-                "lib"
-              ]
+              "matched_terms": ["common", "lib"]
             }
           ]
         },
@@ -2432,9 +2420,7 @@
         "results_field": "findings",
         "arguments": {
           "repo_id": "repository:r_217415d9",
-          "finding_kinds": [
-            "password_literal"
-          ],
+          "finding_kinds": ["password_literal"],
           "include_suppressed": false,
           "limit": 10,
           "offset": 0
@@ -2622,9 +2608,7 @@
         },
         "arguments": {
           "scope_id": "aws:123456789012:us-east-1:ec2",
-          "finding_kinds": [
-            "image_version_drift"
-          ],
+          "finding_kinds": ["image_version_drift"],
           "limit": 10
         }
       },
@@ -2654,9 +2638,7 @@
         "arguments": {
           "scope_id": "aws:123456789012:us-east-1:ec2",
           "resource_id": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a",
-          "finding_kinds": [
-            "image_version_drift"
-          ]
+          "finding_kinds": ["image_version_drift"]
         }
       },
       "explain_iac_management_status": {
@@ -2686,9 +2668,7 @@
         "arguments": {
           "scope_id": "aws:123456789012:us-east-1:ec2",
           "resource_id": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a",
-          "finding_kinds": [
-            "image_version_drift"
-          ]
+          "finding_kinds": ["image_version_drift"]
         }
       },
       "propose_terraform_import_plan": {
@@ -2725,9 +2705,7 @@
         "arguments": {
           "scope_id": "aws:123456789012:us-east-1:ec2",
           "resource_id": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a",
-          "finding_kinds": [
-            "image_version_drift"
-          ],
+          "finding_kinds": ["image_version_drift"],
           "limit": 10
         }
       },
@@ -2771,6 +2749,53 @@
           "scope_kind": "resource",
           "scope_id": "aws:123456789012:us-east-1:ec2",
           "arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-000000000000000a",
+          "finding_kinds": ["image_version_drift"],
+          "limit": 10
+        }
+      },
+      "list_aws_runtime_drift_findings?assert=partial_comparability_gap": {
+        "description": "#5861 partial-comparability proof, and the corpus's only assertion of a coverage gap on a finding that still reached a verdict. The Lambda supply-chain-demo-partial is covered for two comparables: the observed side claims package_type Image while carrying no image_uri (unreadable), and version differs (7 observed vs 9 declared). One comparison RAN and proved drift while the other could not be made, so the finding is image_version_drift AND carries missing_evidence comparable_attribute:image_uri. aws_instance cannot produce this shape at all -- it is covered for one value (ami), so it is either fully readable or fully uncomparable. Without this entry the #5861 behaviour is proven by unit tests only, and a regression in replay, payload writing, or readback of the gap would ship green. The ?assert= suffix gives this a distinct map key from the ec2-scoped sibling; mcpToolName strips it before the tool call.",
+        "required_response_fields": [
+          "account_id",
+          "analysis_status",
+          "arn",
+          "drift_findings",
+          "finding_kinds",
+          "findings_count",
+          "graph_projection_note",
+          "limit",
+          "limitations",
+          "next_offset",
+          "offset",
+          "outcome_groups",
+          "region",
+          "scope_id",
+          "story",
+          "total_findings_count",
+          "truncated",
+          "truth_basis"
+        ],
+        "minimum_results": 1,
+        "maximum_results": 10,
+        "results_field": "drift_findings",
+        "required_json_values": {
+          "scope_id": "aws:123456789012:us-east-1:lambda",
+          "drift_findings[].arn": "arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo-partial",
+          "drift_findings[].finding_kind": "image_version_drift"
+        },
+        "required_json_object_matches": {
+          "drift_findings[]": [
+            {
+              "arn": "arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo-partial",
+              "finding_kind": "image_version_drift",
+              "missing_evidence": [
+                "comparable_attribute:image_uri"
+              ]
+            }
+          ]
+        },
+        "arguments": {
+          "scope_id": "aws:123456789012:us-east-1:lambda",
           "finding_kinds": [
             "image_version_drift"
           ],
@@ -2855,9 +2880,7 @@
         },
         "arguments": {
           "scope_id": "aws:123456789012:us-east-1:ec2",
-          "finding_kinds": [
-            "image_version_drift"
-          ],
+          "finding_kinds": ["image_version_drift"],
           "limit": 10
         }
       },
@@ -2894,9 +2917,7 @@
         },
         "arguments": {
           "scope_id": "aws:123456789012:us-east-1:ec2",
-          "finding_kinds": [
-            "image_version_drift"
-          ],
+          "finding_kinds": ["image_version_drift"],
           "limit": 10
         }
       },
@@ -3251,29 +3272,14 @@
         },
         "required_json_object_matches": {
           "functions[].cfg.blocks[]": [
-            {
-              "id": 0
-            },
-            {
-              "id": 1
-            },
-            {
-              "id": 2
-            }
+            {"id": 0},
+            {"id": 1},
+            {"id": 2}
           ],
           "functions[].cfg.edges[]": [
-            {
-              "from": 0,
-              "to": 1
-            },
-            {
-              "from": 0,
-              "to": 2
-            },
-            {
-              "from": 2,
-              "to": 1
-            }
+            {"from": 0, "to": 1},
+            {"from": 0, "to": 2},
+            {"from": 2, "to": 1}
           ]
         }
       },
@@ -3466,7 +3472,7 @@
         }
       },
       "trace_deployment_chain": {
-        "description": "MCP tool coverage shape for trace_deployment_chain; asserted live through the MCP tool layer. Stays on the rich api-svc fixture for field coverage and pins the negative tier path: api-svc has no deployment evidence, so no deployment_truth_tier is emitted and overall_confidence_reason is no_deployment_evidence \u2014 the tier can never be bluffed absent evidence. The HTTP deployable-config shape is the non-vacuous runtime_confirmed proof (#5471).",
+        "description": "MCP tool coverage shape for trace_deployment_chain; asserted live through the MCP tool layer. Stays on the rich api-svc fixture for field coverage and pins the negative tier path: api-svc has no deployment evidence, so no deployment_truth_tier is emitted and overall_confidence_reason is no_deployment_evidence — the tier can never be bluffed absent evidence. The HTTP deployable-config shape is the non-vacuous runtime_confirmed proof (#5471).",
         "required_response_fields": [
           "api_surface",
           "cloud_resources",
@@ -3683,9 +3689,7 @@
           "recommended_next_calls[]": [
             {
               "tool": "trace_resource_to_code",
-              "arguments": {
-                "start": "content-entity:e_1130fc33095d"
-              }
+              "arguments": {"start": "content-entity:e_1130fc33095d"}
             }
           ]
         }
@@ -4752,7 +4756,7 @@
         }
       },
       "list_advisory_evidence": {
-        "description": "MCP tool coverage shape for list_advisory_evidence; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Order-0 backfill (#5462) queries CVE-2026-00010 \u2014 the NEW Debian OS-package advisory chain this PR adds to the vulnerability_intelligence cassette's debian-image scope. The tool filters by the cve_id argument, so minimum_results:1 proves that specific advisory reached the query surface: if the debian-image scope is dropped, rejected, or becomes inert, the filtered result falls to 0 and this gate goes red (codex #5697 P1), tying the cassette fixture, reducer projection, and query surface together. #5463 flips the list_supply_chain_impact_findings floor for this same CVE to minimum_results:1 with a pinned subject_digest, proving the scan-tier finding is now queryable via its digest anchor; repository binding of that finding is #5464.",
+        "description": "MCP tool coverage shape for list_advisory_evidence; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Order-0 backfill (#5462) queries CVE-2026-00010 — the NEW Debian OS-package advisory chain this PR adds to the vulnerability_intelligence cassette's debian-image scope. The tool filters by the cve_id argument, so minimum_results:1 proves that specific advisory reached the query surface: if the debian-image scope is dropped, rejected, or becomes inert, the filtered result falls to 0 and this gate goes red (codex #5697 P1), tying the cassette fixture, reducer projection, and query surface together. #5463 flips the list_supply_chain_impact_findings floor for this same CVE to minimum_results:1 with a pinned subject_digest, proving the scan-tier finding is now queryable via its digest anchor; repository binding of that finding is #5464.",
         "required_response_fields": [
           "advisories",
           "count",
@@ -6677,55 +6681,6 @@
           "scope_id": "state_snapshot:s3:299b28d40110e54bf81beb51e9459bdef688dbc58419782b29aa83a5930b48a7",
           "limit": 25
         }
-      },
-      "list_aws_runtime_drift_findings?assert=partial_comparability_gap": {
-        "description": "#5861 partial-comparability proof, and the only corpus entry that asserts a coverage gap on a finding that still reached a verdict. The Lambda supply-chain-demo-partial is covered for two comparables: the observed side claims package_type Image while carrying no image_uri (unreadable), and version differs (7 observed vs 9 declared). So one comparison RAN and proved drift while the other could not be made -- image_version_drift plus missing_evidence comparable_attribute:image_uri. aws_instance cannot produce this shape at all: it is covered for one value (ami), so it can only be fully readable or fully uncomparable. Without this entry the #5861 behaviour is proven by unit tests only, and a regression in replay, payload writing, or readback of the gap would ship green. The ?assert= suffix gives this a distinct key from the ec2-scoped sibling above; mcpToolName strips it before the tool call.",
-        "required_response_fields": [
-          "account_id",
-          "analysis_status",
-          "arn",
-          "drift_findings",
-          "finding_kinds",
-          "findings_count",
-          "graph_projection_note",
-          "limit",
-          "limitations",
-          "next_offset",
-          "offset",
-          "outcome_groups",
-          "region",
-          "scope_id",
-          "story",
-          "total_findings_count",
-          "truncated",
-          "truth_basis"
-        ],
-        "minimum_results": 1,
-        "maximum_results": 10,
-        "results_field": "drift_findings",
-        "required_json_values": {
-          "scope_id": "aws:123456789012:us-east-1:lambda",
-          "drift_findings[].arn": "arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo-partial",
-          "drift_findings[].finding_kind": "image_version_drift"
-        },
-        "required_json_object_matches": {
-          "drift_findings[]": [
-            {
-              "arn": "arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo-partial",
-              "finding_kind": "image_version_drift",
-              "missing_evidence": [
-                "comparable_attribute:image_uri"
-              ]
-            }
-          ]
-        },
-        "arguments": {
-          "scope_id": "aws:123456789012:us-east-1:lambda",
-          "finding_kinds": [
-            "image_version_drift"
-          ],
-          "limit": 10
-        }
       }
     },
     "cli": {
@@ -7978,8 +7933,39 @@
         ],
         "minimum_results": 0
       },
+      "POST /api/v0/aws/runtime-drift/findings?assert=partial_comparability_gap": {
+        "description": "#5861 partial-comparability proof, and the corpus's only assertion of a coverage gap on a finding that still reached a verdict. The Lambda supply-chain-demo-partial is covered for two comparables: the observed side claims package_type Image while carrying no image_uri (unreadable), and version differs (7 observed vs 9 declared). One comparison RAN and proved drift while the other could not be made, so the finding is image_version_drift AND carries missing_evidence comparable_attribute:image_uri. aws_instance cannot produce this shape at all -- it is covered for one value (ami), so it is either fully readable or fully uncomparable. Without this entry the #5861 behaviour is proven by unit tests only, and a regression in replay, payload writing, or readback of the gap would ship green. Reads the same reducer rows as the MCP sibling through the HTTP route, so a readback regression on either surface alone is caught.",
+        "truth_class": "derived",
+        "envelope": true,
+        "request_body": {
+          "scope_id": "aws:123456789012:us-east-1:lambda",
+          "account_id": "123456789012",
+          "region": "us-east-1",
+          "limit": 50
+        },
+        "required_response_fields": [
+          "data",
+          "truth",
+          "error"
+        ],
+        "required_json_paths": [
+          "data.drift_findings[]"
+        ],
+        "required_json_object_matches": {
+          "data.drift_findings[]": [
+            {
+              "arn": "arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo-partial",
+              "finding_kind": "image_version_drift",
+              "missing_evidence": [
+                "comparable_attribute:image_uri"
+              ]
+            }
+          ]
+        },
+        "minimum_results": 0
+      },
       "GET /api/v0/iac/resources?limit=50&include_facets=true": {
-        "description": "Current active-generation IaC resource list and authoritative caller-visible summary from the terraform/IaC corpus. count/summary.by_kind.resource raised 11 -> 13 and summary.total raised 19 -> 21 by issue #5594's terraform_local_backend_demo fixture (tests/fixtures/ecosystems/terraform_local_backend_demo/main.tf), which declares two resource blocks (aws_instance.local_backend_demo, aws_s3_bucket.local_backend_demo) and zero module/data blocks: this endpoint's kind=resource default list and summary.by_kind.resource both scan the TerraformResource graph label sourced from fact_kind='content_entity' config-side parsing (go/internal/query/iac_resources.go's iacResourceRow doc comment) -- unrelated to config-vs-state drift ownership resolution -- so +2 resource-kind content entities land regardless of drift-resolution outcome; summary.total sums all three kind counts (go/internal/query/iac_inventory_postgres.go's Summary: `summary.Total += count` per kind dimension row), so it moves by the same +2 with module/data-source counts unchanged (19 - 11 = 8 held constant, 13 + 8 = 21). count/summary.by_kind.resource raised 13 -> 14 and summary.total raised 21 -> 22 by issue #5572's golden-corpus fixture (tests/fixtures/ecosystems/terraform_comprehensive/terraform-aws-modules/vpc/aws/main.tf), which declares exactly one resource block (aws_security_group.vpc_endpoints) and zero module/data blocks -- the pre-existing `module \"vpc\"` block in modules.tf is unchanged, only its previously-dead source path now has a real target directory, so the module/data-source counts (8, unchanged since #5594) hold and this is a pure +1 resource-kind content entity, same mechanism as #5594's fixture, confirmed by a live golden-corpus-gate run against this exact scope. Counts moved 14->15 resources / 22->23 total with #5861's aws_lambda_function.supply-chain-demo-partial, the corpus's only partially comparable runtime-drift pair (tests/fixtures/ecosystems/terraform_comprehensive/lambda_partial.tf). It is a real declared resource, so it is counted here like any other.",
+        "description": "Current active-generation IaC resource list and authoritative caller-visible summary from the terraform/IaC corpus. count/summary.by_kind.resource raised 11 -> 13 and summary.total raised 19 -> 21 by issue #5594's terraform_local_backend_demo fixture (tests/fixtures/ecosystems/terraform_local_backend_demo/main.tf), which declares two resource blocks (aws_instance.local_backend_demo, aws_s3_bucket.local_backend_demo) and zero module/data blocks: this endpoint's kind=resource default list and summary.by_kind.resource both scan the TerraformResource graph label sourced from fact_kind='content_entity' config-side parsing (go/internal/query/iac_resources.go's iacResourceRow doc comment) -- unrelated to config-vs-state drift ownership resolution -- so +2 resource-kind content entities land regardless of drift-resolution outcome; summary.total sums all three kind counts (go/internal/query/iac_inventory_postgres.go's Summary: `summary.Total += count` per kind dimension row), so it moves by the same +2 with module/data-source counts unchanged (19 - 11 = 8 held constant, 13 + 8 = 21). count/summary.by_kind.resource raised 13 -> 14 and summary.total raised 21 -> 22 by issue #5572's golden-corpus fixture (tests/fixtures/ecosystems/terraform_comprehensive/terraform-aws-modules/vpc/aws/main.tf), which declares exactly one resource block (aws_security_group.vpc_endpoints) and zero module/data blocks -- the pre-existing `module \"vpc\"` block in modules.tf is unchanged, only its previously-dead source path now has a real target directory, so the module/data-source counts (8, unchanged since #5594) hold and this is a pure +1 resource-kind content entity, same mechanism as #5594's fixture, confirmed by a live golden-corpus-gate run against this exact scope. count/summary.by_kind.resource raised 14 -> 15 and summary.total raised 22 -> 23 by issue #5861's tests/fixtures/ecosystems/terraform_comprehensive/lambda_partial.tf, which declares exactly one resource block (aws_lambda_function.supply-chain-demo-partial) and zero module/data blocks -- the corpus's only partially comparable runtime-drift pair. Same +1 resource-kind content-entity mechanism as the two fixtures above; module/data-source counts hold at 8.",
         "required_response_fields": [
           "resources",
           "count",
@@ -8108,182 +8094,55 @@
       },
       "GET /api/v0/ci-cd/run-correlations?environment=prod&limit=10&outcome=exact&provider=github_actions&repository_id=repository:r_69256c06&run_id=5150": {
         "description": "Exact build-artifact and deploy-time environment truth for GitHub Actions run 5150 in the supply-chain-demo corpus (#5425, #5822, #5770). The cassette now places two ci.run facts plus run 5150's deployment events in generation 1 and only run 5150's ci.artifact in generation 2. The later artifact digest equals the OCI manifest digest, so this minimum_results:1 object match fails if the artifact-only intent, retained run/deployment lookup, source-snapshot rebuild, or active-generation publication regresses. The separate run-5151 assertion proves the same rebuild keeps the unaffected sibling visible even when generation 1 correlation work was superseded before publication. The cassette's independent same-generation GitLab container_image_identity row carries repository:r_69256c06 in build_provenance_repository_ids, so cicdImageMatchesForRepository narrows the shared digest set to one build-owned identity and classifyCICDRunEvidence must publish outcome=exact with canonical_writes=1. This was not deterministic under #5822's original unordered replay: the CI/CD consumer could finish derived before the cross-scope identity row became active. The durable producer-completion chain now commits an identity completion event atomically with its reducer ACK, reopens or dirties the current CI/CD consumer, and drains every completion event before query truth, so this exact row is the regression floor for that ordering contract. Provider and run filters isolate the authored run, and required_json_object_matches binds every expected value to that same returned object; independent path checks could otherwise pass from different rows while run 5150 remained derived. The row also carries two ci.deployment_event status transitions whose sha equals the run commit, resolving environment=prod with environment_evidence=deploy_event after the history read reloads them by commit. The cassette uses the provider token production and the reducer canonicalizes it to prod; pinning the canonical value prevents a raw-provider regression. Container_image_identity remains the digest-backed identity writer, while #5830 adds a distinct workflow-image-owned BUILT_FROM assertion under evidence_source=reducer/ci-cd-run-correlation/workflow-image; this assertion proves the Postgres CI/CD outcome contract directly.",
-        "required_response_fields": [
-          "correlations",
-          "count",
-          "limit",
-          "truncated"
-        ],
+        "required_response_fields": ["correlations", "count", "limit", "truncated"],
         "minimum_results": 1,
         "results_field": "correlations",
-        "result_item_required_fields": [
-          "artifact_digest",
-          "canonical_writes",
-          "environment",
-          "environment_evidence",
-          "outcome",
-          "provider",
-          "repository_id"
-        ],
-        "required_json_object_matches": {
-          "correlations[]": [
-            {
-              "artifact_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-              "canonical_writes": 1,
-              "environment": "prod",
-              "environment_evidence": "deploy_event",
-              "outcome": "exact",
-              "provider": "github_actions",
-              "repository_id": "repository:r_69256c06",
-              "run_id": "5150"
-            }
-          ]
-        }
+        "result_item_required_fields": ["artifact_digest", "canonical_writes", "environment", "environment_evidence", "outcome", "provider", "repository_id"],
+        "required_json_object_matches": {"correlations[]": [{"artifact_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890", "canonical_writes": 1, "environment": "prod", "environment_evidence": "deploy_event", "outcome": "exact", "provider": "github_actions", "repository_id": "repository:r_69256c06", "run_id": "5150"}]}
       },
       "GET /api/v0/ci-cd/run-correlations?limit=10&outcome=derived&provider=github_actions&repository_id=repository:r_69256c06&run_id=5151": {
         "description": "Unchanged GitHub Actions run 5151 remains visible in the active generation after generation 2 patches only sibling run 5150 (#5770). Generation 1 intentionally contains both runs, while generation 2 contains no 5151 fact and the replay queue may supersede generation 1 correlation work before it publishes a derived snapshot. This exact object match therefore fails if the artifact-only handler copies an absent predecessor result or rebuilds only the patched run. The run has no artifact or deployment evidence, so derived with zero canonical writes is the truthful expected outcome.",
-        "required_response_fields": [
-          "correlations",
-          "count",
-          "limit",
-          "truncated"
-        ],
+        "required_response_fields": ["correlations", "count", "limit", "truncated"],
         "minimum_results": 1,
         "maximum_results": 1,
         "results_field": "correlations",
-        "result_item_required_fields": [
-          "canonical_writes",
-          "commit_sha",
-          "outcome",
-          "provider",
-          "repository_id",
-          "run_id"
-        ],
-        "required_json_object_matches": {
-          "correlations[]": [
-            {
-              "canonical_writes": 0,
-              "commit_sha": "1a2b3c4d5e6f7081928374655647382910abcdef",
-              "outcome": "derived",
-              "provider": "github_actions",
-              "repository_id": "repository:r_69256c06",
-              "run_id": "5151"
-            }
-          ]
-        }
+        "result_item_required_fields": ["canonical_writes", "commit_sha", "outcome", "provider", "repository_id", "run_id"],
+        "required_json_object_matches": {"correlations[]": [{"canonical_writes": 0, "commit_sha": "1a2b3c4d5e6f7081928374655647382910abcdef", "outcome": "derived", "provider": "github_actions", "repository_id": "repository:r_69256c06", "run_id": "5151"}]}
       },
       "GET /api/v0/ci-cd/run-correlations?image_ref=ghcr.io/acme/container-ci-lineage:1.0.0&limit=10&outcome=exact&provider=github_actions&repository_id=repository:r_19519f37&run_id=9100": {
         "description": "Commit-scoped cross-scope workflow-image proof for #5703 and #5830. The Git collector reads tests/fixtures/ecosystems/container-ci-lineage/.github/workflows/build-image.yml and emits ci.workflow_image_evidence for ghcr.io/acme/container-ci-lineage:1.0.0 in the repository scope. The gate stages that fixture as a deterministic Git checkout whose HEAD equals GitHub Actions run 9100's commit_sha; the run lives in a separate ci_cd_run cassette scope, while the OCI registry cassette maps the tag to the run's artifact digest. The object match pins correlation_kind=workflow_image, outcome=exact, canonical_writes=1, the tag-form image_ref, and the resolved artifact digest on the same run 9100 row. Removing the workflow file, its Git revision, the matching identity, or the cross-scope load leaves this bounded query empty. Reverting to the repository-wide fallback changes the outcome to derived and also empties it. The exact one-row bound catches duplicate current correlations.",
-        "required_response_fields": [
-          "correlations",
-          "count",
-          "limit",
-          "truncated"
-        ],
+        "required_response_fields": ["correlations", "count", "limit", "truncated"],
         "minimum_results": 1,
         "maximum_results": 1,
         "results_field": "correlations",
-        "result_item_required_fields": [
-          "artifact_digest",
-          "canonical_writes",
-          "correlation_kind",
-          "image_ref",
-          "outcome",
-          "provider",
-          "repository_id",
-          "run_id"
-        ],
-        "required_json_object_matches": {
-          "correlations[]": [
-            {
-              "artifact_digest": "sha256:c10000000000000000000000000000000000000000000000000000000010c1c1",
-              "canonical_writes": 1,
-              "correlation_kind": "workflow_image",
-              "image_ref": "ghcr.io/acme/container-ci-lineage:1.0.0",
-              "outcome": "exact",
-              "provider": "github_actions",
-              "repository_id": "repository:r_19519f37",
-              "run_id": "9100"
-            }
-          ]
-        }
+        "result_item_required_fields": ["artifact_digest", "canonical_writes", "correlation_kind", "image_ref", "outcome", "provider", "repository_id", "run_id"],
+        "required_json_object_matches": {"correlations[]": [{"artifact_digest": "sha256:c10000000000000000000000000000000000000000000000000000000010c1c1", "canonical_writes": 1, "correlation_kind": "workflow_image", "image_ref": "ghcr.io/acme/container-ci-lineage:1.0.0", "outcome": "exact", "provider": "github_actions", "repository_id": "repository:r_19519f37", "run_id": "9100"}]}
       },
       "GET /api/v0/ci-cd/run-correlations?image_ref=ghcr.io/acme/container-ci-lineage:1.0.0&limit=10&outcome=derived&provider=github_actions&repository_id=repository:r_f252e384&run_id=9200": {
         "description": "Input-only workflow-image proof for #5830. The github_actions_workflows fixture passes ghcr.io/acme/container-ci-lineage:1.0.0 through jobs.scan.with.image to a reusable workflow. The gate stages this fixture at the same deterministic commit as GitHub Actions run 9200, and the existing OCI observation resolves the tag to exactly one container image identity. The correlation must remain derived because the calling workflow consumes the image rather than producing it. Pinning the input-only reason distinguishes this classifier branch from the repository-wide fallback, which is also derived but not commit-scoped. The one-row bound and same-object match fail if the fixture fact disappears, the commit join fails, the identity no longer resolves, or the reducer promotes consumed evidence to exact.",
-        "required_response_fields": [
-          "correlations",
-          "count",
-          "limit",
-          "truncated"
-        ],
+        "required_response_fields": ["correlations", "count", "limit", "truncated"],
         "minimum_results": 1,
         "maximum_results": 1,
         "results_field": "correlations",
-        "result_item_required_fields": [
-          "artifact_digest",
-          "canonical_writes",
-          "correlation_kind",
-          "image_ref",
-          "outcome",
-          "provider",
-          "reason",
-          "repository_id",
-          "run_id"
-        ],
-        "required_json_object_matches": {
-          "correlations[]": [
-            {
-              "artifact_digest": "sha256:c10000000000000000000000000000000000000000000000000000000010c1c1",
-              "canonical_writes": 1,
-              "correlation_kind": "workflow_image",
-              "image_ref": "ghcr.io/acme/container-ci-lineage:1.0.0",
-              "outcome": "derived",
-              "provider": "github_actions",
-              "reason": "workflow image ref is a reusable-workflow input (consumed by, not produced by, this workflow); one container image identity row matched",
-              "repository_id": "repository:r_f252e384",
-              "run_id": "9200"
-            }
-          ]
-        }
+        "result_item_required_fields": ["artifact_digest", "canonical_writes", "correlation_kind", "image_ref", "outcome", "provider", "reason", "repository_id", "run_id"],
+        "required_json_object_matches": {"correlations[]": [{"artifact_digest": "sha256:c10000000000000000000000000000000000000000000000000000000010c1c1", "canonical_writes": 1, "correlation_kind": "workflow_image", "image_ref": "ghcr.io/acme/container-ci-lineage:1.0.0", "outcome": "derived", "provider": "github_actions", "reason": "workflow image ref is a reusable-workflow input (consumed by, not produced by, this workflow); one container image identity row matched", "repository_id": "repository:r_f252e384", "run_id": "9200"}]}
       },
       "GET /api/v0/supply-chain/container-images/identities?digest=sha256:00000000000000000000000000000000000000000000000000000000000000ff&limit=10": {
         "description": "#5704 end-to-end evidence merge proof. The ECS task emits an aws_image_reference for digest sha256:...00aa, the ECR cassette supplies its OCI manifest, and GitHub Actions run 9101 independently publishes a ci.artifact for the same digest from repository:r_19519f37. Digest-v3 must retain both supports but return exactly one canonical identity. The object match binds the explicit runtime-observed strength, CI revision, source repository, and the exact sorted union of AWS, OCI, CI-run, and CI-artifact fact IDs to that same identity. Dropping either support, selecting strength by incidental row order, or returning duplicate logical identities fails this shape.",
-        "required_response_fields": [
-          "collector_readiness",
-          "count",
-          "identities",
-          "limit",
-          "truncated"
-        ],
+        "required_response_fields": ["collector_readiness", "count", "identities", "limit", "truncated"],
         "minimum_results": 1,
         "maximum_results": 1,
         "results_field": "identities",
-        "result_item_required_fields": [
-          "digest",
-          "evidence_fact_ids",
-          "identity_strength",
-          "source_repository_ids",
-          "source_revision",
-          "source_revision_provenance"
-        ],
+        "result_item_required_fields": ["digest", "evidence_fact_ids", "identity_strength", "source_repository_ids", "source_revision", "source_revision_provenance"],
         "required_json_object_matches": {
-          "identities[]": [
-            {
-              "digest": "sha256:00000000000000000000000000000000000000000000000000000000000000ff",
-              "evidence_fact_ids": [
-                "2b207a0d89b9f25f5a3cc056092b5b54b898446d84f8eab395a0ba31d7034e4b",
-                "91516d563e2dd52dbcf527740c02b2130e61a6b4b77ad4be218417ac0057b51f",
-                "b0803c884786f7b08f472376bb5a6139bfdb5770e398823ca47bb3e615cfc01b",
-                "d086f4dbe49ed067afe50377a6377043a0b6d4a3806d81f64d193855dd50503f"
-              ],
-              "identity_strength": "explicit_digest",
-              "source_repository_ids": [
-                "repository:r_19519f37"
-              ],
-              "source_revision": "3b4c5d6e7f80912a3b4c5d6e7f80912a3b4c5d6e",
-              "source_revision_provenance": "ci_run_commit"
-            }
-          ]
+          "identities[]": [{
+            "digest": "sha256:00000000000000000000000000000000000000000000000000000000000000ff",
+            "evidence_fact_ids": ["2b207a0d89b9f25f5a3cc056092b5b54b898446d84f8eab395a0ba31d7034e4b", "91516d563e2dd52dbcf527740c02b2130e61a6b4b77ad4be218417ac0057b51f", "b0803c884786f7b08f472376bb5a6139bfdb5770e398823ca47bb3e615cfc01b", "d086f4dbe49ed067afe50377a6377043a0b6d4a3806d81f64d193855dd50503f"],
+            "identity_strength": "explicit_digest",
+            "source_repository_ids": ["repository:r_19519f37"],
+            "source_revision": "3b4c5d6e7f80912a3b4c5d6e7f80912a3b4c5d6e",
+            "source_revision_provenance": "ci_run_commit"
+          }]
         }
       },
       "GET /api/v0/semantic/code-hints?provider_profile_id=semantic-code-default&limit=25": {
@@ -8346,15 +8205,8 @@
       "GET /api/v0/metrics/timeseries?metric=queue_depth&window=1h&step=5m": {
         "description": "Credential-free Prometheus-compatible range-source proof with a bounded queue-depth series.",
         "envelope": true,
-        "required_response_fields": [
-          "data",
-          "truth",
-          "error"
-        ],
-        "required_json_paths": [
-          "data.points[].t",
-          "data.points[].v"
-        ],
+        "required_response_fields": ["data", "truth", "error"],
+        "required_json_paths": ["data.points[].t", "data.points[].v"],
         "required_json_values": {
           "data.metric": "queue_depth",
           "data.unit": "items",
@@ -8366,14 +8218,7 @@
           "truth.freshness.state": "fresh"
         },
         "required_json_object_matches": {
-          "data.points[]": [
-            {
-              "v": 2
-            },
-            {
-              "v": 0
-            }
-          ]
+          "data.points[]": [{"v": 2}, {"v": 0}]
         }
       },
       "POST /api/v0/code/dead-code": {
@@ -8777,37 +8622,6 @@
             }
           ]
         }
-      },
-      "POST /api/v0/aws/runtime-drift/findings?assert=partial_comparability_gap": {
-        "description": "#5861 partial-comparability proof, and the only corpus entry that asserts a coverage gap on a finding that still reached a verdict. The Lambda supply-chain-demo-partial is covered for two comparables: the observed side claims package_type Image while carrying no image_uri (unreadable), and version differs (7 observed vs 9 declared). So one comparison RAN and proved drift while the other could not be made -- image_version_drift plus missing_evidence comparable_attribute:image_uri. aws_instance cannot produce this shape at all: it is covered for one value (ami), so it can only be fully readable or fully uncomparable. Without this entry the #5861 behaviour is proven by unit tests only, and a regression in replay, payload writing, or readback of the gap would ship green. Reads the same reducer rows as the MCP sibling through the HTTP route, so a readback regression on either surface alone is caught.",
-        "truth_class": "derived",
-        "envelope": true,
-        "request_body": {
-          "scope_id": "aws:123456789012:us-east-1:lambda",
-          "account_id": "123456789012",
-          "region": "us-east-1",
-          "limit": 50
-        },
-        "required_response_fields": [
-          "data",
-          "truth",
-          "error"
-        ],
-        "required_json_paths": [
-          "data.drift_findings[]"
-        ],
-        "required_json_object_matches": {
-          "data.drift_findings[]": [
-            {
-              "arn": "arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo-partial",
-              "finding_kind": "image_version_drift",
-              "missing_evidence": [
-                "comparable_attribute:image_uri"
-              ]
-            }
-          ]
-        },
-        "minimum_results": 0
       }
     }
   },
