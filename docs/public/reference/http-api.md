@@ -142,6 +142,31 @@ discover where to obtain an access token, and adds a
 or unrecognized-credential `401`. A valid credential is served with no
 challenge. See [MCP OAuth 2.1 Discovery](../operate/mcp-oauth-discovery.md).
 
+## Dashboard Browser Sessions
+
+Moved. See [Dashboard browser sessions](http-api/dashboard-sessions.md) for the
+Console browser flow, SAML SSO, CSRF rules, and the local identity routes.
+
+## Ask Eshu — POST /api/v0/ask
+
+Moved. See [Ask Eshu](http-api/ask.md) for the request and response contract,
+the SSE variant, and the agent loop budget.
+
+## Answer-narration status seam
+
+Moved. See
+[the answer-narration status seam](http-api/ask.md#answer-narration-status-seam--hot-path-evidence-issue-3263-follow-up).
+
+## Cloud Inventory Readback
+
+Moved. See
+[cloud inventory readback](http-api/cloud-inventory.md#cloud-inventory-readback).
+
+## Cloud Resource Graph Paging
+
+Moved. See
+[cloud resource graph paging](http-api/cloud-inventory.md#cloud-resource-graph-paging).
+
 ## Related References
 
 - [Truth Label Protocol](truth-label-protocol.md)
