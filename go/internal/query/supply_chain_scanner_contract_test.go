@@ -93,6 +93,16 @@ func TestVulnerabilityScannerReadContractIdentifiesFilters(t *testing.T) {
 	}
 
 	routes := scannerContractObjectListByName(t, data["routes"], "routes")
+	impactFindings := routes["impact_findings"]
+	if impactFindings == nil {
+		t.Fatalf("contract missing impact_findings route; routes = %#v", routes)
+	}
+	impactFindingsTimeout, _ := impactFindings["timeout"].(string)
+	for _, want := range []string{"Postgres", "Kubernetes graph"} {
+		if !strings.Contains(impactFindingsTimeout, want) {
+			t.Fatalf("impact_findings timeout = %q, want %q runtime dependency", impactFindingsTimeout, want)
+		}
+	}
 	impactExplain := routes["impact_explain"]
 	if impactExplain == nil {
 		t.Fatalf("contract missing impact_explain route; routes = %#v", routes)

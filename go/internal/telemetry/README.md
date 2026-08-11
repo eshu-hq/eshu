@@ -247,6 +247,7 @@ when the reducer has a graph orphan observer.
 | `WebhookRequests` | `eshu_dp_webhook_requests_total` |
 | `WebhookTriggerDecisions` | `eshu_dp_webhook_trigger_decisions_total` |
 | `WebhookStoreOperations` | `eshu_dp_webhook_store_operations_total` |
+| `QueryScopeGrantInlineCapped` | `eshu_dp_query_scope_grant_inline_capped_total` |
 
 `DriftUnresolvedModuleCalls` uses
 `MetricDimensionDriftUnresolvedModuleReason` with the bounded reasons

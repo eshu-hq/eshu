@@ -90,6 +90,37 @@ func TestQueryplanProfileParamsCoverServiceRuntimeTopology(t *testing.T) {
 	}
 }
 
+func TestQueryplanProfileParamsCoverKubernetesRuntimeProbe(t *testing.T) {
+	profileParams := queryplanProfileParams()
+	cypher := handlerQueryplanProductionCypher()["QP-SUPPLY-CHAIN-KUBERNETES-RUNTIME"]
+	wantParams := map[string]string{
+		"evidence_source": "string",
+		"limit":           "int",
+		"resolution_mode": "string",
+		"subject_digests": "[]string",
+	}
+	for _, match := range queryplanCypherParameterPattern.FindAllStringSubmatch(cypher, -1) {
+		if _, ok := wantParams[match[1]]; !ok {
+			t.Fatalf("Kubernetes runtime probe Cypher binds $%s without a profile parameter expectation", match[1])
+		}
+	}
+	for name, wantType := range wantParams {
+		value, ok := profileParams[name]
+		if !ok {
+			t.Fatalf("profile params missing %s", name)
+		}
+		if wantType == "int" {
+			if value, ok := value.(int); !ok || value < 1 {
+				t.Fatalf("profile %s = %#v, want positive int", name, value)
+			}
+			continue
+		}
+		if !queryplanProfileParamMatchesType(value, wantType) {
+			t.Fatalf("profile %s = %#v, want %s", name, value, wantType)
+		}
+	}
+}
+
 func queryplanProfileParamMatchesType(value any, wantType string) bool {
 	switch wantType {
 	case "string":
@@ -126,6 +157,7 @@ func queryplanProfileParams() map[string]any {
 		"ecosystem":              "proof-ecosystem",
 		"entity_id":              "proof-entity",
 		"environment":            "",
+		"evidence_source":        supplyChainKubernetesRuntimeEvidenceSource,
 		"from":                   "proof-repository",
 		"from_id":                "proof-repository",
 		"instance_limit":         contextStoryItemLimit + 1,
@@ -147,6 +179,7 @@ func queryplanProfileParams() map[string]any {
 		"resource_arn":           "arn:proof",
 		"resource_type":          "proof-type",
 		"resource_type_query":    "proof-type",
+		"resolution_mode":        supplyChainKubernetesRuntimeResolutionMode,
 		"selector":               "proof",
 		"semantic_filter":        "proof",
 		"service_id":             "proof-service",
@@ -157,6 +190,7 @@ func queryplanProfileParams() map[string]any {
 		"source_paths":           []string{"/proof/src/proof.py"},
 		"source_repo_ids":        []string{"proof-repository"},
 		"source_tool":            "proof-tool",
+		"subject_digests":        []string{"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
 		"target_file":            "src/target.py",
 		"target_id":              "proof-target",
 		"target_module":          "proof.target",

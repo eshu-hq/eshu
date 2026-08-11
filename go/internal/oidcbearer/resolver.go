@@ -202,7 +202,9 @@ func (r *Resolver) ResolveScopedToken(ctx context.Context, credential string) (q
 	if err != nil {
 		r.logger0().Error("oidc bearer grant resolution failed; token denied",
 			"iss", iss, "provider_config_id", entry.provider.ProviderConfigID, "error", err)
-		return query.AuthContext{}, false, r.deny(ctx, iss, outcomeNoGrants, false)
+		// An unreachable grant store is an availability failure, not a statement
+		// that this subject has no entitlements (#5567).
+		return query.AuthContext{}, false, r.deny(ctx, iss, outcomeGrantResolutionUnavailable, false)
 	}
 	if !ok || len(grants.RoleIDs) == 0 {
 		return query.AuthContext{}, false, r.deny(ctx, iss, outcomeNoGrants, false)
@@ -249,10 +251,38 @@ func (r *Resolver) deny(ctx context.Context, iss, outcome string, unrecognized b
 	r.cache.recordOutcome(ctx, outcome)
 	r.logger0().Warn("oidc bearer token denied", "iss", iss, "outcome", outcome)
 	if unrecognized {
-		return fmt.Errorf("oidcbearer: bearer token denied: %s: %w", outcome, query.ErrBearerCredentialUnrecognized)
+		return &denialError{outcome: outcome, wrapped: query.ErrBearerCredentialUnrecognized}
 	}
-	return fmt.Errorf("oidcbearer: bearer token denied: %s", outcome)
+	return &denialError{outcome: outcome}
 }
+
+// denialError is a bearer denial that carries the bounded outcome which caused
+// it, so the governance audit trail can record why a credential was rejected
+// (#5567) without parsing the message. The message and the
+// query.ErrBearerCredentialUnrecognized wrapping are unchanged from the
+// fmt.Errorf values this replaces, because the middleware's RFC 9728 discovery
+// decision reads that sentinel through errors.Is.
+type denialError struct {
+	outcome string
+	// wrapped is query.ErrBearerCredentialUnrecognized for a pre-match denial
+	// and nil for a post-match one.
+	wrapped error
+}
+
+func (e *denialError) Error() string {
+	if e.wrapped != nil {
+		return fmt.Sprintf("oidcbearer: bearer token denied: %s: %s", e.outcome, e.wrapped)
+	}
+	return fmt.Sprintf("oidcbearer: bearer token denied: %s", e.outcome)
+}
+
+// Unwrap exposes the unrecognized-credential sentinel to errors.Is.
+func (e *denialError) Unwrap() error { return e.wrapped }
+
+// DenialOutcome returns the bounded validation outcome behind this denial. It
+// satisfies the structural interface the query middleware asserts to fill the
+// governance-audit reason_code.
+func (e *denialError) DenialOutcome() string { return e.outcome }
 
 func (r *Resolver) logger0() *slog.Logger {
 	if r.logger != nil {

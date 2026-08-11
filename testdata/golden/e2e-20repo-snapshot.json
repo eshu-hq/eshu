@@ -4583,7 +4583,8 @@
             {
               "name": "impact_findings",
               "path": "/api/v0/supply-chain/impact/findings",
-              "tool": "list_supply_chain_impact_findings"
+              "tool": "list_supply_chain_impact_findings",
+              "timeout": "request context; bounded Postgres finding, cloud-runtime, runtime-context, readiness, and Kubernetes authorization reads; Kubernetes graph enrichment performs at most 200 exact-digest reads with at most 32 concurrent"
             }
           ]
         },
@@ -4649,10 +4650,14 @@
           "environment_evidence",
           "environments",
           "impact_status",
+          "kubernetes_runtime_probe",
+          "kubernetes_runtime_workload_refs",
           "repository_id",
           "runtime_context",
           "suppression",
-          "subject_digest"
+          "subject_digest",
+          "deployment_truth_tier",
+          "version_resolution_tier"
         ],
         "required_json_values": {
           "findings[].repository_id": "repository:r_217415d9",
@@ -4662,15 +4667,43 @@
           "findings[].subject_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
           "findings[].environments[]": "prod",
           "findings[].environment_evidence.prod": "deploy_event",
+          "findings[].kubernetes_runtime_probe.candidate_limit": 200,
+          "findings[].kubernetes_runtime_probe.workload_refs_truncated": false,
+          "findings[].deployment_truth_tier": "runtime_confirmed",
+          "findings[].version_resolution_tier": "runtime_confirmed",
           "findings[].suppression.suppression_id": "golden-CVE-2026-00010",
           "findings[].suppression.state": "expired"
         },
+        "required_json_object_matches": {
+          "findings[].kubernetes_runtime_workload_refs[]": [
+            {
+              "workload_uid": "kubernetes_live:supply-chain-demo:apps/v1/deployments:default:supply-chain-demo",
+              "cluster_id": "supply-chain-demo",
+              "namespace": "default",
+              "name": "supply-chain-demo"
+            },
+            {
+              "workload_uid": "kubernetes_live:supply-chain-demo:apps/v1/replicasets:default:supply-chain-demo-7f8d9",
+              "cluster_id": "supply-chain-demo",
+              "namespace": "default",
+              "name": "supply-chain-demo-7f8d9"
+            },
+            {
+              "workload_uid": "kubernetes_live:supply-chain-demo:/v1/pods:default:supply-chain-demo-pod",
+              "cluster_id": "supply-chain-demo",
+              "namespace": "default",
+              "name": "supply-chain-demo-pod"
+            }
+          ]
+        },
         "minimum_results": 1,
+        "maximum_results": 1,
         "results_field": "findings",
         "arguments": {
           "cve_id": "CVE-2026-00010",
           "limit": 10,
-          "profile": "comprehensive"
+          "profile": "comprehensive",
+          "subject_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
         }
       },
       "list_advisory_evidence": {
@@ -4690,7 +4723,7 @@
         }
       },
       "explain_supply_chain_impact": {
-        "description": "MCP tool coverage shape for explain_supply_chain_impact; #5747 scopes the OS-package finding by its current workload mapping rather than an empty baked workload_ids array.",
+        "description": "MCP tool coverage shape for explain_supply_chain_impact; #5747 scopes the OS-package finding by its current workload mapping rather than an empty baked workload_ids array. #5834 proves the same digest's three current, authorized Kubernetes RUNS_IMAGE refs survive the query-time graph and owner-ledger gates and promote the explanation to the existing runtime_confirmed tier.",
         "required_response_fields": [
           "advisory",
           "anchors",
@@ -4698,6 +4731,7 @@
           "evidence",
           "evidence_packet_handle",
           "freshness",
+          "finding",
           "input",
           "missing_evidence",
           "outcome",
@@ -4707,11 +4741,41 @@
         "minimum_results": 0,
         "required_json_values": {
           "input.workload_id": "workload:deployable-config",
-          "finding.repository_id": "repository:r_217415d9"
+          "finding.repository_id": "repository:r_217415d9",
+          "outcome": "finding_explained",
+          "input.subject_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+          "finding.subject_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+          "finding.kubernetes_runtime_probe.candidate_limit": 200,
+          "finding.kubernetes_runtime_probe.workload_refs_truncated": false,
+          "finding.deployment_truth_tier": "runtime_confirmed",
+          "finding.version_resolution_tier": "runtime_confirmed"
+        },
+        "required_json_object_matches": {
+          "finding.kubernetes_runtime_workload_refs[]": [
+            {
+              "workload_uid": "kubernetes_live:supply-chain-demo:apps/v1/deployments:default:supply-chain-demo",
+              "cluster_id": "supply-chain-demo",
+              "namespace": "default",
+              "name": "supply-chain-demo"
+            },
+            {
+              "workload_uid": "kubernetes_live:supply-chain-demo:apps/v1/replicasets:default:supply-chain-demo-7f8d9",
+              "cluster_id": "supply-chain-demo",
+              "namespace": "default",
+              "name": "supply-chain-demo-7f8d9"
+            },
+            {
+              "workload_uid": "kubernetes_live:supply-chain-demo:/v1/pods:default:supply-chain-demo-pod",
+              "cluster_id": "supply-chain-demo",
+              "namespace": "default",
+              "name": "supply-chain-demo-pod"
+            }
+          ]
         },
         "arguments": {
           "cve_id": "CVE-2026-00010",
           "package_id": "pkg:deb/debian/openssl",
+          "subject_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
           "workload_id": "workload:deployable-config"
         }
       },
@@ -7482,7 +7546,11 @@
           "evidence",
           "count"
         ],
-        "minimum_results": 0
+        "results_field": "evidence",
+        "result_item_required_fields": [
+          "evidence_state"
+        ],
+        "minimum_results": 1
       },
       "GET /api/v0/supply-chain/sbom-attestations/attachments?limit=50&subject_digest=sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8090a": {
         "description": "SBOM attestation attachments for the synthetic supply-chain-demo image digest. Scoped by subject_digest rather than document_id so the response includes both the scd-sbom document attachment and the scd-attestation statement attachment sharing that image digest. minimum_results and the nested required_json_paths/values pin the scd-sbom cassette's component, dependency, and external-reference evidence (#5412/#5370 codex finding) and the scd-attestation statement's joined attestation.slsa_provenance fact (#5371), including its materials/config_source fields (#5456): the top-level required_response_fields alone would stay green even if that nested evidence never reached this HTTP result, so this asserts the populated arrays plus their exact reducer-computed counts, flags, and SLSA fields. The component count and false truncation flag ensure the bounded component preview remains honest. required_json_values matches when ANY attachment in the response carries the expected value, so the two rows' distinct evidence (component/dependency/external-reference on the document row, SLSA provenance on the statement row) are each pinned independently. The scd-attestation subject_digest is synthetic and does not match any oci_registry.image_manifest digest in this corpus, so #5456's container_image_identity SLSA-provenance tier never activates for this demo fixture; that behavior is proven instead by the reducer's dedicated proof-matrix tests (go/internal/reducer/container_image_identity_slsa_test.go).",
@@ -7594,11 +7662,22 @@
           "findings",
           "count"
         ],
+        "result_item_required_fields": [
+          "deployment_truth_tier",
+          "kubernetes_runtime_probe",
+          "kubernetes_runtime_workload_refs",
+          "subject_digest",
+          "version_resolution_tier"
+        ],
         "minimum_results": 1,
+        "maximum_results": 1,
         "results_field": "findings",
         "required_json_values": {
           "findings[].deployment_truth_tier": "runtime_confirmed",
           "findings[].version_resolution_tier": "runtime_confirmed",
+          "findings[].subject_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+          "findings[].kubernetes_runtime_probe.candidate_limit": 200,
+          "findings[].kubernetes_runtime_probe.workload_refs_truncated": false,
           "findings[].cloud_runtime_resource_refs[]": "arn:aws:ecs:us-east-1:123456789012:task/supply-chain-demo/0000000000000000000000000000000a"
         },
         "required_json_object_matches": {
@@ -7614,6 +7693,76 @@
               "digest_or_version": "3.0.11-1~deb12u2",
               "evidence_kind": "config_materialization",
               "agreement": "not_comparable"
+            }
+          ],
+          "findings[].kubernetes_runtime_workload_refs[]": [
+            {
+              "workload_uid": "kubernetes_live:supply-chain-demo:apps/v1/deployments:default:supply-chain-demo",
+              "cluster_id": "supply-chain-demo",
+              "namespace": "default",
+              "name": "supply-chain-demo"
+            },
+            {
+              "workload_uid": "kubernetes_live:supply-chain-demo:apps/v1/replicasets:default:supply-chain-demo-7f8d9",
+              "cluster_id": "supply-chain-demo",
+              "namespace": "default",
+              "name": "supply-chain-demo-7f8d9"
+            },
+            {
+              "workload_uid": "kubernetes_live:supply-chain-demo:/v1/pods:default:supply-chain-demo-pod",
+              "cluster_id": "supply-chain-demo",
+              "namespace": "default",
+              "name": "supply-chain-demo-pod"
+            }
+          ]
+        }
+      },
+      "GET /api/v0/supply-chain/impact/explain?cve_id=CVE-2026-00010&subject_digest=sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890": {
+        "description": "#5834 non-vacuous HTTP explanation proof for the Kubernetes runtime probe. The exact vulnerable digest must resolve through RUNS_IMAGE, pass the current owner and edge authorization gates, and return all three workload refs with the existing runtime_confirmed tier vocabulary. Removing the runtime edge or either nested response block makes this shape fail.",
+        "truth_class": "deterministic",
+        "required_response_fields": [
+          "advisory",
+          "anchors",
+          "component",
+          "evidence",
+          "evidence_packet_handle",
+          "finding",
+          "freshness",
+          "input",
+          "missing_evidence",
+          "outcome",
+          "readiness",
+          "version"
+        ],
+        "minimum_results": 0,
+        "required_json_values": {
+          "outcome": "finding_explained",
+          "input.subject_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+          "finding.subject_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+          "finding.kubernetes_runtime_probe.candidate_limit": 200,
+          "finding.kubernetes_runtime_probe.workload_refs_truncated": false,
+          "finding.deployment_truth_tier": "runtime_confirmed",
+          "finding.version_resolution_tier": "runtime_confirmed"
+        },
+        "required_json_object_matches": {
+          "finding.kubernetes_runtime_workload_refs[]": [
+            {
+              "workload_uid": "kubernetes_live:supply-chain-demo:apps/v1/deployments:default:supply-chain-demo",
+              "cluster_id": "supply-chain-demo",
+              "namespace": "default",
+              "name": "supply-chain-demo"
+            },
+            {
+              "workload_uid": "kubernetes_live:supply-chain-demo:apps/v1/replicasets:default:supply-chain-demo-7f8d9",
+              "cluster_id": "supply-chain-demo",
+              "namespace": "default",
+              "name": "supply-chain-demo-7f8d9"
+            },
+            {
+              "workload_uid": "kubernetes_live:supply-chain-demo:/v1/pods:default:supply-chain-demo-pod",
+              "cluster_id": "supply-chain-demo",
+              "namespace": "default",
+              "name": "supply-chain-demo-pod"
             }
           ]
         }

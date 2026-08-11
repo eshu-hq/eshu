@@ -157,20 +157,46 @@ func bindScopeGrantInlineScalars(params map[string]any, scalars []string) {
 // binders derive an identical ordered slice from one source. Shared / admin /
 // local callers (unscoped) get an empty slice.
 //
-// Callers currently discard the returned capped bool (scalars, _ :=). This is
-// intentional and safe, not an oversight: capping only truncates the inline-map
-// (USES / DEFINES-collision) admission families, which is fail-closed — a
+// Callers discard the returned capped bool (scalars, _ :=). That is safe, not
+// an oversight: capping only truncates the inline-map (USES /
+// DEFINES-collision) admission families, which is fail-closed — a
 // >maxScopeGrantInlineTerms-grant token loses collision/USES admission for the
 // overflow (missing rows, never extra) while the direct-ownership and
-// DEPLOYMENT_SOURCE families still admit. Surfacing the cap as an operator
-// signal (log / metric) needs a logger threaded through these string-builder
-// call sites and a telemetry-coverage contract update, so it is tracked
-// separately in #5408 rather than wired here.
+// DEPLOYMENT_SOURCE families still admit.
+//
+// Operators learn about the cap through grantInlineCapExceeded, which handlers
+// consult once per read, rather than through this return value. See #5408 and
+// the comment on grantInlineCapExceeded for why the signal is not emitted from
+// here.
 func (f repositoryAccessFilter) scopeGrantInlineScalars() (scalars []string, capped bool) {
 	if !f.scoped() {
 		return nil, false
 	}
 	return scopeGrantInlineScalars(f.allowedRepositoryIDs, f.allowedScopeIDs)
+}
+
+// grantInlineCapExceeded reports whether this filter's grant set overflows
+// maxScopeGrantInlineTerms, so a handler can emit one operator signal per
+// degraded read (#5408).
+//
+// This exists instead of returning the cap out of the string-builder call
+// sites, for two reasons.
+//
+// The cap is a property of the TOKEN's grant set, not of any individual clause:
+// it depends only on the filter's id union, so asking the filter is asking the
+// thing that actually decides. And a single request calls
+// scopeGrantInlineScalars more than once — infraSearchScopeClause alone calls
+// it three times — so emitting per call site would record one degraded read as
+// three, and "how many reads lost USES admission" would no longer be
+// answerable from the metric.
+//
+// It shares scopeGrantInlineScalars' truncation rule by calling it rather than
+// recomputing the comparison, because a second copy of "len(union) >
+// maxScopeGrantInlineTerms" could drift from the builder and then report a
+// degradation that did not happen.
+func (f repositoryAccessFilter) grantInlineCapExceeded() bool {
+	_, capped := f.scopeGrantInlineScalars()
+	return capped
 }
 
 // infraResourceScopePredicate bounds a whole-graph infra node `alias` to the

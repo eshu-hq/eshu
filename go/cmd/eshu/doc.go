@@ -33,7 +33,8 @@
 // across API, MCP, CLI, and hosted surfaces; `evidence bundle export|validate`,
 // which writes and validates deterministic share-safe evidence_bundle.v1
 // snapshots across answer, packet, catalog, freshness, missing-evidence, and
-// reproduce handles; `competitive-parity validate`,
+// reproduce handles, and with --live composes that snapshot from a running
+// stack's read-only status routes; `competitive-parity validate`,
 // which checks shipped report, packet, and catalog surfaces against the #3265
 // peer-baseline gate; and `report`, which renders the offline operator digest
 // model and can write a shareable digest artifact),

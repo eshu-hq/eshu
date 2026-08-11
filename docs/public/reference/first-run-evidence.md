@@ -76,6 +76,13 @@ indexing truth.
 
 ## Related
 
+This report is a presentation layer over one `first-run` result, not a
+portable artifact. For a share-safe snapshot of the whole stack's state —
+repository count, queue health, semantic provider posture — export a
+[Portable Evidence Bundle](evidence-bundle.md) with `eshu evidence bundle
+export --live` instead.
+
 - [CLI Reference](cli-reference.md)
 - [Local Testing](local-testing.md)
 - [Operator Digest Contract](operator-digest.md)
+- [Portable Evidence Bundle](evidence-bundle.md)

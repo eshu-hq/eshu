@@ -640,11 +640,26 @@ fresh, uncontaminated container and found NOT to be production bugs (details in
 
 - A `WITH`-chained multi-clause File update (`UNWIND ... MATCH ... SET ... WITH
   ... MATCH ... MERGE`) appeared to drop its post-`WITH` edge MERGEs, but this
-  did not reproduce in any production dispatch mode on a fresh container. The
-  discrepancy was not root-caused; the most likely mechanism is stack
-  contamination (the original probe ran on the same instance as an earlier
-  abandoned `UNIQUE` constraint; see the constraint drop/recreate pitfall), but
-  that is unconfirmed — tracked as #5671. No fix ships and no rewrite is needed.
+  did not reproduce in any production dispatch mode. **Root-caused in #5671: the
+  variable is the transport, not the state of the stack.** Over the HTTP query
+  endpoint `POST /db/<db>/tx/commit` the second post-`WITH` `MERGE` is dropped
+  silently — `errors: []`, no edge — while the Bolt driver commits it, both
+  measured on the same running v1.1.11 container. Splitting the same work into
+  two single-`WITH` statements over that endpoint writes both edges, so the
+  chained second `WITH` is the trigger.
+
+  The earlier stack-contamination guess is **disproven**: the zero-edge result
+  reproduces deterministically on a container started fresh with nothing else
+  ever run on it. It was also a poor fit on symptoms — the constraint
+  drop/recreate pitfall above fails **loudly** with a false `UNIQUE` violation,
+  whereas this is a **silent** zero-row write.
+
+  Practical rule: do not write a live graph probe against the HTTP query
+  endpoint and read the result as production truth; it can manufacture a
+  write-loss no production path exhibits. Use the Bolt driver, as the repo's
+  live tests do. No fix ships and no rewrite is needed — production is Bolt.
+  Evidence:
+  `docs/internal/evidence/5652-followup-file-directory-edge-writeloss-investigation.md`.
 - `UNWIND`-batched `MATCH ... DELETE` (the retract/refresh edge-cleanup
   statements) no-ops only under the atomic `ExecuteGroup` managed-transaction
   path. Production routes these with `OperationCanonicalRetract` through

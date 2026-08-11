@@ -8,7 +8,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
 // TestSupplyChainListAndExplainReportSameDeploymentTruthForRuntimeConfirmedFinding
@@ -111,6 +114,142 @@ func TestSupplyChainListAndExplainReportSameDeploymentTruthForRuntimeConfirmedFi
 	}
 	if got, want := explainFinding.VersionResolutionCorroboration, listFinding.VersionResolutionCorroboration; !reflect.DeepEqual(got, want) {
 		t.Fatalf("explain version_resolution_corroboration = %#v, want %#v (same as list)", got, want)
+	}
+}
+
+func TestSupplyChainListAndExplainReportSameKubernetesRuntimeEvidence(t *testing.T) {
+	t.Parallel()
+
+	digest := "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+	graph := &stubKubernetesRuntimeGraph{rows: []map[string]any{{
+		"matched_digest": digest, "workload_uid": "kw-parity", "edge_scope_id": "edge-scope", "edge_generation_id": "edge-generation",
+	}}}
+	inventory := &stubKubernetesWorkloadInventory{rows: []KubernetesRuntimeWorkloadMatch{{
+		Digest: digest,
+		WorkloadRef: KubernetesRuntimeWorkloadRef{
+			UID: "kw-parity", ClusterID: "cluster-a", Namespace: "payments", Name: "api",
+		},
+	}}}
+	finding := SupplyChainImpactFindingRow{
+		FindingID: "finding-kubernetes-parity", CVEID: "CVE-2026-5834",
+		PackageID: "pkg:npm/example", ImpactStatus: "affected_exact", SubjectDigest: digest,
+	}
+	handler := &SupplyChainHandler{
+		ImpactFindings:              &recordingSupplyChainImpactFindingStore{rows: []SupplyChainImpactFindingRow{finding}},
+		ImpactExplanations:          &recordingSupplyChainImpactExplanationStore{row: SupplyChainImpactExplanationRow{Finding: finding}},
+		Readiness:                   &recordingSupplyChainImpactReadinessStore{},
+		Neo4j:                       graph,
+		KubernetesWorkloadInventory: inventory,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	listW := httptest.NewRecorder()
+	mux.ServeHTTP(listW, httptest.NewRequest(http.MethodGet, "/api/v0/supply-chain/impact/findings?cve_id=CVE-2026-5834&limit=10", nil))
+	if listW.Code != http.StatusOK {
+		t.Fatalf("list status = %d, want %d; body=%s", listW.Code, http.StatusOK, listW.Body.String())
+	}
+	var listResp struct {
+		Findings []SupplyChainImpactFindingResult `json:"findings"`
+	}
+	if err := json.Unmarshal(listW.Body.Bytes(), &listResp); err != nil || len(listResp.Findings) != 1 {
+		t.Fatalf("list response decode: err=%v findings=%#v", err, listResp.Findings)
+	}
+
+	explainW := httptest.NewRecorder()
+	mux.ServeHTTP(explainW, httptest.NewRequest(http.MethodGet, "/api/v0/supply-chain/impact/explain?finding_id=finding-kubernetes-parity", nil))
+	if explainW.Code != http.StatusOK {
+		t.Fatalf("explain status = %d, want %d; body=%s", explainW.Code, http.StatusOK, explainW.Body.String())
+	}
+	var explainResp SupplyChainImpactExplanationResult
+	if err := json.Unmarshal(explainW.Body.Bytes(), &explainResp); err != nil || explainResp.Finding == nil {
+		t.Fatalf("explain response decode: err=%v finding=%#v", err, explainResp.Finding)
+	}
+
+	listFinding := listResp.Findings[0]
+	explainFinding := *explainResp.Finding
+	if listFinding.DeploymentTruthTier != string(truth.TierRuntimeConfirmed) {
+		t.Fatalf("list deployment truth tier = %q, want %q", listFinding.DeploymentTruthTier, truth.TierRuntimeConfirmed)
+	}
+	if explainFinding.DeploymentTruthTier != listFinding.DeploymentTruthTier {
+		t.Fatalf("explain deployment truth tier = %q, want list tier %q", explainFinding.DeploymentTruthTier, listFinding.DeploymentTruthTier)
+	}
+	if !reflect.DeepEqual(explainFinding.KubernetesRuntimeWorkloadRefs, listFinding.KubernetesRuntimeWorkloadRefs) {
+		t.Fatalf("explain workload refs = %#v, want list refs %#v", explainFinding.KubernetesRuntimeWorkloadRefs, listFinding.KubernetesRuntimeWorkloadRefs)
+	}
+	if !reflect.DeepEqual(explainFinding.KubernetesRuntimeProbe, listFinding.KubernetesRuntimeProbe) {
+		t.Fatalf("explain probe metadata = %#v, want list metadata %#v", explainFinding.KubernetesRuntimeProbe, listFinding.KubernetesRuntimeProbe)
+	}
+	if got, _ := graph.snapshot(); got != 2 {
+		t.Fatalf("graph Run calls = %d, want one per route", got)
+	}
+}
+
+func TestSupplyChainListAndExplainMapKubernetesGraphUnavailable(t *testing.T) {
+	t.Parallel()
+
+	digest := "sha256:abababababababababababababababababababababababababababababababab"
+	finding := SupplyChainImpactFindingRow{
+		FindingID: "finding-kubernetes-error", CVEID: "CVE-2026-5835",
+		PackageID: "pkg:npm/example", ImpactStatus: "affected_exact", SubjectDigest: digest,
+	}
+	handler := &SupplyChainHandler{
+		ImpactFindings:              &recordingSupplyChainImpactFindingStore{rows: []SupplyChainImpactFindingRow{finding}},
+		ImpactExplanations:          &recordingSupplyChainImpactExplanationStore{row: SupplyChainImpactExplanationRow{Finding: finding}},
+		Readiness:                   &recordingSupplyChainImpactReadinessStore{},
+		Neo4j:                       &stubKubernetesRuntimeGraph{err: ErrGraphUnavailable},
+		KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	for _, target := range []string{
+		"/api/v0/supply-chain/impact/findings?cve_id=CVE-2026-5835&limit=10",
+		"/api/v0/supply-chain/impact/explain?finding_id=finding-kubernetes-error",
+	} {
+		response := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodGet, target, nil)
+		request.Header.Set("Accept", EnvelopeMIMEType)
+		mux.ServeHTTP(response, request)
+		if response.Code != http.StatusServiceUnavailable {
+			t.Fatalf("GET %s status = %d, want %d; body=%s", target, response.Code, http.StatusServiceUnavailable, response.Body.String())
+		}
+		if !strings.Contains(response.Body.String(), `"code":"`+string(ErrorCodeBackendUnavailable)+`"`) {
+			t.Fatalf("GET %s body=%s, want code %q", target, response.Body.String(), ErrorCodeBackendUnavailable)
+		}
+	}
+}
+
+func TestSupplyChainListAndExplainMapDriverlessKubernetesGraphUnavailable(t *testing.T) {
+	t.Parallel()
+
+	digest := "sha256:cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+	finding := SupplyChainImpactFindingRow{
+		FindingID: "finding-kubernetes-driverless", CVEID: "CVE-2026-5834",
+		PackageID: "pkg:npm/example", ImpactStatus: "affected_exact", SubjectDigest: digest,
+	}
+	handler := &SupplyChainHandler{
+		ImpactFindings:              &recordingSupplyChainImpactFindingStore{rows: []SupplyChainImpactFindingRow{finding}},
+		ImpactExplanations:          &recordingSupplyChainImpactExplanationStore{row: SupplyChainImpactExplanationRow{Finding: finding}},
+		Readiness:                   &recordingSupplyChainImpactReadinessStore{},
+		Neo4j:                       NewNeo4jReader(nil, "nornic"),
+		KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	for _, target := range []string{
+		"/api/v0/supply-chain/impact/findings?cve_id=CVE-2026-5834&limit=10",
+		"/api/v0/supply-chain/impact/explain?finding_id=finding-kubernetes-driverless",
+	} {
+		response := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodGet, target, nil)
+		request.Header.Set("Accept", EnvelopeMIMEType)
+		mux.ServeHTTP(response, request)
+		if response.Code != http.StatusServiceUnavailable {
+			t.Fatalf("GET %s status = %d, want %d; body=%s", target, response.Code, http.StatusServiceUnavailable, response.Body.String())
+		}
+		if !strings.Contains(response.Body.String(), `"code":"`+string(ErrorCodeBackendUnavailable)+`"`) {
+			t.Fatalf("GET %s body=%s, want code %q", target, response.Body.String(), ErrorCodeBackendUnavailable)
+		}
 	}
 }
 

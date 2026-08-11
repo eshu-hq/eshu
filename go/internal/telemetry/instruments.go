@@ -666,6 +666,21 @@ type Instruments struct {
 	// with reason k8s_resource_candidate_scan_truncated_at_5000 for the
 	// specific request that hit it.
 	QueryK8sSelectCandidateScanTruncated metric.Int64Counter
+	// QueryScopeGrantInlineCapped counts scoped-token infra reads whose grant
+	// set overflowed the SHAPE-A inline-map cap (maxScopeGrantInlineTerms,
+	// currently 128) so the USES and DEFINES-collision admission families were
+	// truncated (issue #5408). Counted once per read, not once per clause: one
+	// request builds that disjunction more than once, and per-clause counting
+	// would report a single degraded read as three.
+	//
+	// The degradation is fail-closed — the token loses collision/USES
+	// admission for the overflow, so rows go missing but never appear that
+	// should not, and direct-ownership and DEPLOYMENT_SOURCE admission still
+	// apply. A non-zero rate is the 3 AM signal that a token is granted more
+	// than 128 repositories and its infra reads are quietly incomplete; the
+	// fix is to widen the cap or move that caller to an all-scopes token, not
+	// to treat the missing rows as absence of infrastructure.
+	QueryScopeGrantInlineCapped metric.Int64Counter
 	// ProjectorInputInvalidFacts counts projector canonical-extractor facts
 	// quarantined during typed payload decode because a required identity field
 	// was missing or null (input_invalid). Labels: stage (the projector
@@ -3028,6 +3043,17 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register QueryInputInvalidFactsErrors counter: %w", err)
+	}
+
+	inst.QueryScopeGrantInlineCapped, err = meter.Int64Counter(
+		"eshu_dp_query_scope_grant_inline_capped_total",
+		metric.WithDescription(
+			"Total scoped-token infra reads whose grant set overflowed the SHAPE-A inline-map cap, "+
+				"truncating USES and DEFINES-collision admission (fail-closed: rows go missing, never extra); label reason carries the read surface",
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register QueryScopeGrantInlineCapped counter: %w", err)
 	}
 
 	inst.QueryK8sSelectCandidateScanTruncated, err = meter.Int64Counter(

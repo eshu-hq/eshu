@@ -157,12 +157,25 @@ The incident context read route uses `query.incident_context` with stable
 distinguished from generic service context or supply-chain reads.
 
 Supply-chain finding list and explain reads open
-`supply_chain.cloud_runtime_probe` when they resolve current runtime evidence.
+`supply_chain.cloud_runtime_probe` and
+`supply_chain.kubernetes_runtime_probe` when they resolve current runtime
+evidence.
 The child span records `eshu.subject_digest_count`,
 `eshu.authorized_current_resource_count`,
 `eshu.runtime_confirmed_digest_count`, and `eshu.runtime_resource_count`. The
 three result counts remain present at zero when the indexed owner-ledger read
 finds no authorized current resource.
+The Kubernetes child span records `eshu.subject_digest_count`,
+`eshu.kubernetes_runtime_query_count`,
+`eshu.kubernetes_runtime_concurrency_limit`,
+`eshu.kubernetes_runtime_max_concurrency`,
+`eshu.kubernetes_runtime_candidate_limit`, `eshu.graph_candidate_count`,
+`eshu.authorized_current_workload_count`,
+`eshu.runtime_confirmed_digest_count`, `eshu.runtime_workload_count`,
+`eshu.kubernetes_runtime_truncated_digest_count`, and
+`eshu.kubernetes_runtime_unknown_digest_count`. Planned query, concurrency,
+and candidate limits are set before graph fanout; result counts initialize to
+zero, so failed, empty, and permission-hidden probes remain distinguishable.
 
 Semantic evidence list routes use `query.semantic_evidence` with stable
 `http.route` and `eshu.capability` span attributes. The underlying Postgres read
