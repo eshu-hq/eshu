@@ -263,6 +263,11 @@
     },
     {
       "category": "api_route",
+      "name": "GET /api/v0/evidence/bundle",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "GET /api/v0/evidence/relationships/{resolved_id}",
       "readiness": "implemented"
     },

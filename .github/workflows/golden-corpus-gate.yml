@@ -121,6 +121,13 @@ on:
       # for the per-package import evidence.
       - 'go/internal/boundedset/**'
       - 'go/internal/tfstatewarning/**'
+      # #4045 review: GET /api/v0/evidence/bundle (go/internal/query/
+      # evidence_bundle_live.go, already covered above) composes its response
+      # from go/internal/evidencebundle, and the snapshot's
+      # "GET /api/v0/evidence/bundle" query shape now asserts that response.
+      # A change to the composer can alter what that shape checks, so it must
+      # trigger the gate too, replacing the prior exclusion-list entry.
+      - 'go/internal/evidencebundle/**'
       - 'testdata/golden/**'
       - 'testdata/cassettes/**'
       - 'tests/fixtures/ecosystems/**'

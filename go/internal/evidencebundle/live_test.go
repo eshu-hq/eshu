@@ -352,6 +352,37 @@ func TestBuildLiveBundleFlagsAmbiguousZeroRepositoryCount(t *testing.T) {
 	}
 }
 
+// TestBuildLiveBundleFlagsTruncatedDomainBacklogs proves a capped domain
+// backlog list is recorded in Bounds rather than presented as a complete
+// enumeration (#4045 review: status.Report caps DomainBacklogs at
+// DefaultOptions().DomainLimit, so a stack with more backlogged domains than
+// the cap must not read as if every domain were reported).
+func TestBuildLiveBundleFlagsTruncatedDomainBacklogs(t *testing.T) {
+	truncated := BuildLiveBundle(LiveSnapshot{DomainBacklogsTruncated: true}, LiveBundleOptions{ScopeID: "live:x", CreatedAt: fixedLiveCreatedAt})
+	if !truncated.Bounds.Truncated {
+		t.Fatal("Bounds.Truncated = false, want true when the snapshot reports a capped domain backlog list")
+	}
+	var flagged bool
+	for _, layer := range truncated.Bounds.TruncatedLayers {
+		if layer == "domain_backlogs" {
+			flagged = true
+		}
+	}
+	if !flagged {
+		t.Fatalf("Bounds.TruncatedLayers = %v, want it to include \"domain_backlogs\"", truncated.Bounds.TruncatedLayers)
+	}
+
+	complete := BuildLiveBundle(LiveSnapshot{DomainBacklogsTruncated: false}, LiveBundleOptions{ScopeID: "live:x", CreatedAt: fixedLiveCreatedAt})
+	if complete.Bounds.Truncated {
+		t.Fatal("Bounds.Truncated = true, want false when the snapshot's domain backlog list is complete")
+	}
+	for _, layer := range complete.Bounds.TruncatedLayers {
+		if layer == "domain_backlogs" {
+			t.Fatalf("Bounds.TruncatedLayers = %v, want no \"domain_backlogs\" entry for a complete list", complete.Bounds.TruncatedLayers)
+		}
+	}
+}
+
 // TestLiveReadinessStateCoversEveryProducerHealthState pins the mapping to the
 // four states go/internal/status actually emits. "progressing" is the normal
 // state while a stack is still indexing -- the most likely state during a
