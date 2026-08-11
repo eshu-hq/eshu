@@ -47,6 +47,10 @@ Per-kind fact counts are deliberately absent. No status endpoint exposes them,
 so the bundle records a `fact_counts` entry under `missing_evidence` instead of
 omitting the gap silently.
 
+See [First Successful Run](../getting-started/first-successful-run.md#prove-the-stack-is-working-with-an-evidence-bundle)
+for which fields to read after your first `eshu first-run` to confirm the
+stack actually indexed something.
+
 ## Shape
 
 The top-level artifact contains:
