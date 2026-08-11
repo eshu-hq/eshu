@@ -104,17 +104,25 @@ the measured query, Postgres gate, or live harness. A later preliminary-review
 fix moved the graph-availability check behind the empty-plan return so a page
 with no usable digest remains a no-op during a graph outage. That guard change
 does not alter the non-empty plan, Cypher, fanout, Postgres gate, or live
-harness. The live command below was rerun after the fix against these current
-object IDs. The final rerun is bound by those blobs rather than a preexisting
-commit because this evidence record was committed only after the measurement:
+harness. The live command below was rerun after the empty-plan fix against the
+measured object IDs in the table. A later parser-contract fix removed the
+duplicate `graphQueryConfigured` wrapper and changed the probe to call the
+existing `languageQueryGraphConfigured` helper directly. The object diff
+changes only that call in the probe; the helper diff moves the same nil,
+`GraphConfigured`, and test-fake branches into the existing helper. It does not
+change the Cypher, quotas, worker pool, Postgres gate, or live harness. Focused
+tests and the final preflight exercise the current helper path. The latency
+measurements are therefore bound to the measured blobs, while the current
+blobs bind the exact-head behavior and golden proof:
 
-| File | Git blob |
-| --- | --- |
-| `supply_chain_impact_kubernetes_runtime_probe.go` | `1f97261855e65bf07fdfa9bde87ed0b63b860982` |
-| `supply_chain_impact_kubernetes_runtime_probe_fair.go` | `a06dc84b95b124dd91645ef477a80d8e004b46fb` |
-| `kubernetes_runtime_workload_store.go` | `1c81d97983cf93a7810756af20973410a69e78d3` |
-| `supply_chain_impact_kubernetes_runtime_probe_performance_live_test.go` | `bca0979ee7bc38bf2e710eaf9fa3aa54ca49f87c` |
-| `kubernetes_runtime_workload_store_fairness_live_test.go` | `c741b71d2ef765057f054adf342cd0fb5dd995b7` |
+| File | Measured live-run blob | Current exact-head blob |
+| --- | --- | --- |
+| `supply_chain_impact_kubernetes_runtime_probe.go` | `1f97261855e65bf07fdfa9bde87ed0b63b860982` | `491d8fa1128ae8716e59d1d8b48f640fd7a61cc0` |
+| `language_query_graph_configured.go` | `7faf21983f244555f55b572ee959bd152cfb83f0` | `c2e7e68625a8f66655ebfdf4e2f91e1464219eb4` |
+| `supply_chain_impact_kubernetes_runtime_probe_fair.go` | `a06dc84b95b124dd91645ef477a80d8e004b46fb` | `a06dc84b95b124dd91645ef477a80d8e004b46fb` |
+| `kubernetes_runtime_workload_store.go` | `1c81d97983cf93a7810756af20973410a69e78d3` | `1c81d97983cf93a7810756af20973410a69e78d3` |
+| `supply_chain_impact_kubernetes_runtime_probe_performance_live_test.go` | `bca0979ee7bc38bf2e710eaf9fa3aa54ca49f87c` | `bca0979ee7bc38bf2e710eaf9fa3aa54ca49f87c` |
+| `kubernetes_runtime_workload_store_fairness_live_test.go` | `c741b71d2ef765057f054adf342cd0fb5dd995b7` | `c741b71d2ef765057f054adf342cd0fb5dd995b7` |
 
 The post-rebase golden run below then exercised the new cassette digest through
 the shipped API and MCP handlers.
@@ -129,7 +137,7 @@ measured rounds on the same graph and Postgres state.
 | One request | 4.580 / 6.456 ms | 28.701 / 43.441 ms | prior: 200 refs from 1 digest; balanced: 200 refs from 200 digests |
 | Four concurrent requests | 20.861 / 55.942 ms | 119.640 / 329.799 ms | every measured request retained its lane's exact truth result |
 
-The exact post-rebase current-tree run stayed below 330 ms at p95. An earlier
+The measured post-rebase run stayed below 330 ms at p95. An earlier
 same-shape run on the same host observed transient tails of 262.799 ms for one
 balanced request and 314.557 ms for four concurrent requests; those are still
 below the capability's 1,000 ms local-full-stack p95 budget, but they show why
