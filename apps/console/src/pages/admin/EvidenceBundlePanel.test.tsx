@@ -103,6 +103,48 @@ describe("EvidenceBundlePanel", () => {
     expect(await screen.findAllByText(/not reported/i)).not.toHaveLength(0);
   });
 
+  it("renders missing-evidence as 'not reported' (unknown), not 'no gaps', when the field is absent from the payload", async () => {
+    // missing_evidence is not in the route's required-fields list (#4045 P1
+    // review): a partial or version-skewed response can omit or null it. `?? []`
+    // would silently claim zero gaps were reported, which is a false positive
+    // for an operator deciding whether the bundle is complete.
+    const client = {
+      getJson: vi.fn(async () => {
+        const { missing_evidence: _drop, ...rest } = fixtureBundle();
+        return rest as unknown as EvidenceBundleWire;
+      }),
+    } as unknown as EshuApiClient;
+    render(<EvidenceBundlePanel client={client} />);
+
+    expect(await screen.findByText(/missing-evidence gaps not reported/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no missing-evidence gaps reported/i)).not.toBeInTheDocument();
+  });
+
+  it("renders the Queue row as 'not reported' instead of throwing when pipeline_state is present but queue is missing", async () => {
+    // A partial response can carry pipeline_state without its nested queue
+    // (#4045 P2 review). Dereferencing pipeline.queue.outstanding directly
+    // throws during render and collapses the whole Admin page.
+    const client = {
+      getJson: vi.fn(async () => {
+        const bundle = fixtureBundle();
+        const { queue: _drop, ...pipelineRest } = bundle.contents.pipeline_state!;
+        return {
+          ...bundle,
+          contents: {
+            ...bundle.contents,
+            pipeline_state:
+              pipelineRest as unknown as EvidenceBundleWire["contents"]["pipeline_state"],
+          },
+        };
+      }),
+    } as unknown as EshuApiClient;
+    render(<EvidenceBundlePanel client={client} />);
+
+    expect(await screen.findByText("healthy")).toBeInTheDocument();
+    const queueRow = screen.getByText("Queue").closest("dt")?.nextElementSibling;
+    expect(queueRow).toHaveTextContent(/not reported/i);
+  });
+
   it("never states the bundle is 'guaranteed' safe (redaction screens, it does not certify)", async () => {
     const client = { getJson: vi.fn(async () => fixtureBundle()) } as unknown as EshuApiClient;
     render(<EvidenceBundlePanel client={client} />);

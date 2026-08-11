@@ -30,7 +30,11 @@ import { useEffect, useState } from "react";
 
 import type { EshuApiClient } from "../../api/client";
 import { loadEvidenceBundle } from "../../api/evidenceBundle";
-import type { EvidenceBundleProvenance, EvidenceBundleWire } from "../../api/evidenceBundle";
+import type {
+  EvidenceBundleMissingEvidenceRow,
+  EvidenceBundleProvenance,
+  EvidenceBundleWire,
+} from "../../api/evidenceBundle";
 import { Badge, Panel } from "../../components/atoms";
 
 const FORBIDDEN_NOTE =
@@ -164,7 +168,7 @@ function BundleFacts({ bundle }: { readonly bundle: EvidenceBundleWire }): React
 
       <dt>Queue</dt>
       <dd>
-        {pipeline
+        {pipeline?.queue
           ? `${pipeline.queue.outstanding} outstanding · ${pipeline.queue.dead_letter} dead-lettered · ${pipeline.queue_blocked_count} blocked`
           : "not reported"}
       </dd>
@@ -193,12 +197,24 @@ function BundleFacts({ bundle }: { readonly bundle: EvidenceBundleWire }): React
   );
 }
 
+// MissingEvidenceTable distinguishes "the response reported zero gaps" from
+// "the response did not report gaps at all". `missing_evidence` is absent
+// from the route's OpenAPI required-fields list, so a partial or
+// version-skewed response can omit or null it; collapsing that unknown state
+// into `?? []` would render "no gaps" and hand an operator false confidence
+// in an incomplete artifact. Array.isArray narrows on the actual shape
+// received, not the declared (but unvalidated) wire type.
 function MissingEvidenceTable({
   bundle,
 }: {
   readonly bundle: EvidenceBundleWire;
 }): React.JSX.Element {
-  const rows = bundle.missing_evidence ?? [];
+  if (!Array.isArray(bundle.missing_evidence)) {
+    return <p className="empty-note">Missing-evidence gaps not reported.</p>;
+  }
+  // Array.isArray narrows to `any` per its signature, so retype to the
+  // declared element type before rendering (see api/cloudDrift.ts stringList).
+  const rows = bundle.missing_evidence as readonly EvidenceBundleMissingEvidenceRow[];
   if (rows.length === 0) {
     return <p className="empty-note">No missing-evidence gaps reported.</p>;
   }
