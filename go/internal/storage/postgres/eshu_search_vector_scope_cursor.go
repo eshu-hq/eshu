@@ -56,7 +56,8 @@ func (s EshuSearchVectorScopeStateStore) AdvanceDocumentCursor(
 	if documentID == "" {
 		return false, fmt.Errorf("advance eshu search vector document cursor requires document id")
 	}
-	result, err := s.db.ExecContext(ctx, advanceSearchVectorDocumentCursorSQL,
+	result, err := s.db.ExecContext(
+		ctx, advanceSearchVectorDocumentCursorSQL,
 		scopeID, generationID,
 		identity.ProviderProfileID, identity.SourceClass,
 		identity.EmbeddingModelID, identity.VectorIndexVersion,
@@ -79,7 +80,8 @@ func (s EshuSearchVectorScopeStateStore) ResetDocumentCursor(
 	if err := validateSearchVectorCursorMutation(s.db, scopeID, generationID); err != nil {
 		return false, err
 	}
-	result, err := s.db.ExecContext(ctx, resetSearchVectorDocumentCursorSQL,
+	result, err := s.db.ExecContext(
+		ctx, resetSearchVectorDocumentCursorSQL,
 		scopeID, generationID,
 		identity.ProviderProfileID, identity.SourceClass,
 		identity.EmbeddingModelID, identity.VectorIndexVersion,

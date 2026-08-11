@@ -34,18 +34,15 @@ func awsRuntimeResourceRowFromPayload(scopeID string, payload []byte) (*cloudrun
 		return nil, false
 	}
 	resourceType := strings.TrimSpace(decoded.ResourceType)
-	attributes, containerImages, truncated, degraded := cloudObservedValueAttributes(resourceType, decoded.Attributes)
-	return &cloudruntime.ResourceRow{
-		ARN:                      arn,
-		ResourceID:               strings.TrimSpace(decoded.ResourceID),
-		ResourceType:             resourceType,
-		ScopeID:                  strings.TrimSpace(scopeID),
-		Tags:                     coerceStringTags(decoded.Tags),
-		Attributes:               attributes,
-		ContainerImages:          containerImages,
-		ContainerImagesTruncated: truncated,
-		ContainerImagesDegraded:  degraded,
-	}, true
+	row := &cloudruntime.ResourceRow{
+		ARN:          arn,
+		ResourceID:   strings.TrimSpace(decoded.ResourceID),
+		ResourceType: resourceType,
+		ScopeID:      strings.TrimSpace(scopeID),
+		Tags:         coerceStringTags(decoded.Tags),
+	}
+	cloudObservedValueAttributes(resourceType, decoded.Attributes).applyTo(row)
+	return row, true
 }
 
 // Failure classes for a terraform_state_resource row awsRuntimeStateRowFromPayload
@@ -129,17 +126,14 @@ func awsRuntimeStateRowFromPayload(scopeID, address string, payload []byte) (row
 		return nil, false, stateResourceDecodeFailure
 	}
 	resourceType := strings.TrimSpace(decoded.Type)
-	attributes, containerImages, truncated, degraded := stateDeclaredValueAttributes(resourceType, decoded.Attributes)
-	return &cloudruntime.ResourceRow{
-		ARN:                      arn,
-		Address:                  address,
-		ResourceType:             resourceType,
-		ScopeID:                  strings.TrimSpace(scopeID),
-		Attributes:               attributes,
-		ContainerImages:          containerImages,
-		ContainerImagesTruncated: truncated,
-		ContainerImagesDegraded:  degraded,
-	}, true, ""
+	stateRow := &cloudruntime.ResourceRow{
+		ARN:          arn,
+		Address:      address,
+		ResourceType: resourceType,
+		ScopeID:      strings.TrimSpace(scopeID),
+	}
+	stateDeclaredValueAttributes(resourceType, decoded.Attributes).applyTo(stateRow)
+	return stateRow, true, ""
 }
 
 func coerceStringTags(tags map[string]any) map[string]string {

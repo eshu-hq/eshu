@@ -105,7 +105,8 @@ func seedContainerImageIdentityScopeGeneration(
 	t.Helper()
 
 	now := time.Now().UTC()
-	if _, err := db.ExecContext(ctx, `
+	if _, err := db.ExecContext(
+		ctx, `
 		INSERT INTO ingestion_scopes
 		  (scope_id, scope_kind, source_system, source_key, collector_kind,
 		   partition_key, observed_at, ingested_at, status, active_generation_id, payload)
@@ -115,7 +116,8 @@ func seedContainerImageIdentityScopeGeneration(
 	); err != nil {
 		t.Fatalf("seed ingestion_scopes %s: %v", scopeID, err)
 	}
-	if _, err := db.ExecContext(ctx, `
+	if _, err := db.ExecContext(
+		ctx, `
 		INSERT INTO scope_generations
 		  (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at)
 		VALUES ($1, $2, 'manual', $3, $3, 'active', $3)

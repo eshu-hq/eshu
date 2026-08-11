@@ -65,7 +65,8 @@ func containerImageIdentityStoredPayload(
 ) (sourceRevision string, provenance string, fencingToken int64) {
 	t.Helper()
 
-	if err := db.QueryRowContext(ctx,
+	if err := db.QueryRowContext(
+		ctx,
 		`SELECT COALESCE(payload->>'source_revision', ''),
 		        COALESCE(payload->>'source_revision_provenance', ''),
 		        fencing_token
@@ -276,7 +277,8 @@ func TestReducerFactBatchInsertStaysInertForUnfencedWritersLive(t *testing.T) {
 
 	var reason string
 	var token int64
-	if err := sqlDB.QueryRowContext(ctx,
+	if err := sqlDB.QueryRowContext(
+		ctx,
 		`SELECT COALESCE(payload->>'reason', ''), fencing_token FROM fact_records
 		 WHERE scope_id = $1 AND generation_id = $2`,
 		scopeID, generationID,

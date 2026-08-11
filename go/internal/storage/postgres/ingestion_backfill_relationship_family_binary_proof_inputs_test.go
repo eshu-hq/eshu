@@ -116,7 +116,8 @@ func writeRelationshipFamilyBinaryProofInputManifest(
 	sort.Strings(surfaces)
 	for _, surface := range surfaces {
 		snapshot := inputs[surface]
-		if _, err := db.ExecContext(ctx,
+		if _, err := db.ExecContext(
+			ctx,
 			`INSERT INTO `+relationshipFamilyExpectedInputsTable+`
              (surface, row_count, digest_sha256) VALUES ($1, $2, $3)`,
 			surface, snapshot.rows, snapshot.digest,
@@ -133,7 +134,8 @@ func assertRelationshipFamilyBinaryProofInputsMatch(
 	actual map[string]relationshipFamilyBinaryProofInputSnapshot,
 ) {
 	t.Helper()
-	rows, err := db.QueryContext(ctx,
+	rows, err := db.QueryContext(
+		ctx,
 		`SELECT surface, row_count, digest_sha256 FROM `+relationshipFamilyExpectedInputsTable,
 	)
 	if err != nil {

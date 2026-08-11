@@ -73,7 +73,8 @@ func TestContentWriterWorkflowRenameTombstonesOldPathAndKeepsFreshPath(t *testin
 		oldPath = ".github/workflows/old.yml"
 		newPath = ".github/workflows/new.yml"
 	)
-	materialization := mustMaterializeWorkflow(t, repoID,
+	materialization := mustMaterializeWorkflow(
+		t, repoID,
 		shape.File{Path: oldPath, Deleted: true},
 		shape.File{Path: newPath, Body: "name: new\n"},
 	)

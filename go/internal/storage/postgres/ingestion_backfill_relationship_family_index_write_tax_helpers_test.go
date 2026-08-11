@@ -139,7 +139,8 @@ func seedRelationshipFamilyWriteTaxCoordinates(t *testing.T, ctx context.Context
 func assertRelationshipFamilyWriteTaxPersistence(t *testing.T, ctx context.Context, db *sql.DB, wantIndex bool) {
 	t.Helper()
 	var tablePersistence string
-	if err := db.QueryRowContext(ctx,
+	if err := db.QueryRowContext(
+		ctx,
 		"SELECT relpersistence::text FROM pg_class WHERE oid = 'fact_records'::regclass",
 	).Scan(&tablePersistence); err != nil {
 		t.Fatalf("read fact_records persistence: %v", err)
@@ -148,7 +149,8 @@ func assertRelationshipFamilyWriteTaxPersistence(t *testing.T, ctx context.Conte
 		t.Fatalf("fact_records persistence = %q, want ordinary WAL-backed p", tablePersistence)
 	}
 	var indexCount int
-	if err := db.QueryRowContext(ctx,
+	if err := db.QueryRowContext(
+		ctx,
 		"SELECT count(*) FROM pg_class WHERE oid = to_regclass($1) AND relpersistence = 'p'",
 		relationshipFamilyProofIndexName,
 	).Scan(&indexCount); err != nil {

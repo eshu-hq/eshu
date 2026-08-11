@@ -370,23 +370,20 @@ func multiCloudObservedRowFromRow(
 	resourceType := strings.TrimSpace(coerceJSONString(decoded[multiCloudResourceTypeKey(factKind)]))
 	tags := coerceStringTags(multiCloudTagsFromPayload(decoded))
 	attributesPayload, _ := decoded["attributes"].(map[string]any)
-	attributes, containerImages, truncated, degraded := cloudObservedValueAttributes(resourceType, attributesPayload)
+	resource := &cloudruntime.ResourceRow{
+		ARN:          rawIdentity,
+		ResourceType: resourceType,
+		ScopeID:      strings.TrimSpace(scopeID),
+		Tags:         tags,
+	}
+	cloudObservedValueAttributes(resourceType, attributesPayload).applyTo(resource)
 
 	return multiCloudObservedRow{
 		uid:          resolution.CloudResourceUID,
 		provider:     provider,
 		rawIdentity:  rawIdentity,
 		resourceType: resourceType,
-		resource: &cloudruntime.ResourceRow{
-			ARN:                      rawIdentity,
-			ResourceType:             resourceType,
-			ScopeID:                  strings.TrimSpace(scopeID),
-			Tags:                     tags,
-			Attributes:               attributes,
-			ContainerImages:          containerImages,
-			ContainerImagesTruncated: truncated,
-			ContainerImagesDegraded:  degraded,
-		},
+		resource:     resource,
 	}, true
 }
 
@@ -439,16 +436,13 @@ func multiCloudStateRowFromPayload(scopeID, address string, payload []byte) (*cl
 		return nil, false
 	}
 	resourceType := strings.TrimSpace(decoded.Type)
-	attributes, containerImages, truncated, degraded := stateDeclaredValueAttributes(resourceType, decoded.Attributes)
-	return &cloudruntime.ResourceRow{
-		Address:                  address,
-		ResourceType:             resourceType,
-		ScopeID:                  strings.TrimSpace(scopeID),
-		Attributes:               attributes,
-		ContainerImages:          containerImages,
-		ContainerImagesTruncated: truncated,
-		ContainerImagesDegraded:  degraded,
-	}, true
+	row := &cloudruntime.ResourceRow{
+		Address:      address,
+		ResourceType: resourceType,
+		ScopeID:      strings.TrimSpace(scopeID),
+	}
+	stateDeclaredValueAttributes(resourceType, decoded.Attributes).applyTo(row)
+	return row, true
 }
 
 func (l PostgresMultiCloudRuntimeDriftEvidenceLoader) logSkippedRow(

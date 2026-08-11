@@ -349,7 +349,8 @@ func loadRelationshipFamilyBinaryProofEvidence(
 func relationshipFamilyBinaryProofReadinessCount(t *testing.T, ctx context.Context, db *sql.DB) int64 {
 	t.Helper()
 	var count int64
-	if err := db.QueryRowContext(ctx, `
+	if err := db.QueryRowContext(
+		ctx, `
 SELECT count(*)
 FROM graph_projection_phase_state
 WHERE keyspace = $1 AND phase = $2
@@ -367,7 +368,8 @@ func assertRelationshipFamilyBinaryProofIndex(t *testing.T, ctx context.Context,
 	var valid, ready bool
 	var size int64
 	var predicate string
-	if err := db.QueryRowContext(ctx,
+	if err := db.QueryRowContext(
+		ctx,
 		relationshipFamilyBinaryProofIndexStateQuery,
 		relationshipFamilyProofIndexName,
 	).Scan(&valid, &ready, &size, &predicate); err != nil {
@@ -427,7 +429,8 @@ func assertRelationshipFamilyBinaryProofOutputs(
 ) {
 	t.Helper()
 	var evidence, distinctEvidence int64
-	if err := db.QueryRowContext(ctx,
+	if err := db.QueryRowContext(
+		ctx,
 		"SELECT count(*), count(DISTINCT evidence_id) FROM relationship_evidence_facts",
 	).Scan(&evidence, &distinctEvidence); err != nil {
 		t.Fatalf("count persisted relationship evidence: %v", err)

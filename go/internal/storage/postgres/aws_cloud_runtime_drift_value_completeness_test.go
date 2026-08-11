@@ -4,6 +4,7 @@
 package postgres
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
@@ -34,6 +35,10 @@ import (
 // -> the generation-authoritative retire DELETES whatever finding it held.
 // Deleting a true drift on unreadable evidence is the exact failure #5904
 // exists to prevent, reached through absence instead of redaction.
+//
+// The rule now reports image_uri as DEGRADED rather than suppressing the whole
+// set (#5861), so the pair still declines to converge -- Inconclusive() is true
+// on the degradation -- while the readable version comparison survives.
 func TestClassifyLambdaImagePackagedWithoutObservedImageURIDoesNotConverge(t *testing.T) {
 	t.Parallel()
 
@@ -65,11 +70,14 @@ func TestClassifyLambdaImagePackagedWithoutObservedImageURIDoesNotConverge(t *te
 	config := &cloudruntime.ResourceRow{Address: state.Address, ResourceType: state.ResourceType}
 
 	comparison := cloudruntime.ClassifyValueComparison(cloud, state)
-	if comparison.Compared != 0 {
+	if comparison.Compared != 1 {
+		t.Fatalf("ClassifyValueComparison() Compared = %d, want 1: version was readable on both sides", comparison.Compared)
+	}
+	if !reflect.DeepEqual(comparison.Degraded, []string{"image_uri"}) {
 		t.Fatalf(
-			"ClassifyValueComparison() Compared = %d, want 0: a partial comparison (version equal, image_uri "+
-				"unobservable) is exactly what converges and lets the retire delete a true finding",
-			comparison.Compared,
+			"ClassifyValueComparison() Degraded = %#v, want [image_uri]: an unobservable image_uri alongside an "+
+				"equal version is exactly what converged and let the retire delete a true finding",
+			comparison.Degraded,
 		)
 	}
 	if kind := cloudruntime.Classify(cloud, state, config); kind != cloudruntime.FindingKindValueComparisonInconclusive {
@@ -103,30 +111,34 @@ func BenchmarkLambdaDeclaredValueAttributes(b *testing.B) {
 	}
 	b.ReportAllocs()
 	for b.Loop() {
-		attrs, _, _, _ := stateDeclaredValueAttributes("aws_lambda_function", attributes)
-		if len(attrs) != 2 {
-			b.Fatalf("stateDeclaredValueAttributes() = %#v, want two comparable attributes", attrs)
+		decode := stateDeclaredValueAttributes("aws_lambda_function", attributes)
+		if len(decode.Attributes) != 2 {
+			b.Fatalf("stateDeclaredValueAttributes() = %#v, want two comparable attributes", decode.Attributes)
 		}
 	}
 }
 
-// TestClassifyLambdaImagePackagedWithoutObservedImageURIStillInconclusiveWithVersionDrift
-// pins the half of this rule that is a finding-kind CONVERSION rather than a
-// rescue, and that the No-Observability-Change note in this package's README
-// discloses.
+// TestClassifyLambdaImagePackagedWithoutObservedImageURIReportsVersionDrift is
+// the accuracy half of #5861, and the one behavior in this file that CHANGED
+// rather than being re-proven on a new mechanism.
 //
-// The test above covers the converge case: the pair vanished, and now lands on
-// a durable row. This one covers the case where the pair did NOT vanish. When
-// `version` also differs, the pass previously reported a real
-// `image_version_drift` (Compared=1, Drifted=1). It now reports
-// `value_comparison_inconclusive` (Compared=0), because the all-or-nothing rule
-// #5859/#5904 established says a set with an unusable member is not comparable.
+// The test above covers the pair whose comparisons agree: it must not converge.
+// This one covers the pair that disagrees. `version` differs, so a comparison
+// ran and found real drift -- but under the all-or-nothing rule the unusable
+// image_uri suppressed the whole set first, so the pass reported
+// `value_comparison_inconclusive` and the proven drift never reached the
+// operator as drift.
 //
-// The drift is restated as uncertainty rather than lost, and that is the same
-// cost the redaction rule already pays -- but an operator watching
-// image_version_drift counts will see one move, so it is pinned here rather
-// than left as an incidental consequence.
-func TestClassifyLambdaImagePackagedWithoutObservedImageURIStillInconclusiveWithVersionDrift(t *testing.T) {
+// Before (#5904's rule):  Compared=0, Drifted=0 -> value_comparison_inconclusive
+// After  (#5861's rule):  Compared=1, Drifted=1 -> image_version_drift
+//   - a coverage-gap atom naming image_uri
+//
+// Both rules refuse to converge, so neither can delete a finding. The
+// difference is what the surviving row SAYS: uncertainty about everything,
+// versus a proven drift plus a named gap. An operator watching
+// image_version_drift counts will see one move back, which is why it is pinned
+// rather than left as an incidental consequence.
+func TestClassifyLambdaImagePackagedWithoutObservedImageURIReportsVersionDrift(t *testing.T) {
 	t.Parallel()
 
 	cloudPayload := []byte(`{
@@ -157,15 +169,42 @@ func TestClassifyLambdaImagePackagedWithoutObservedImageURIStillInconclusiveWith
 	}
 	config := &cloudruntime.ResourceRow{Address: state.Address, ResourceType: state.ResourceType}
 
-	if got := cloudruntime.ClassifyValueComparison(cloud, state).Compared; got != 0 {
-		t.Fatalf("ClassifyValueComparison() Compared = %d, want 0: the unusable image_uri suppresses the whole set", got)
+	comparison := cloudruntime.ClassifyValueComparison(cloud, state)
+	wantDrift := []cloudruntime.DriftedAttribute{{Key: "version", Declared: "9", Observed: "7"}}
+	if !reflect.DeepEqual(comparison.Drifted, wantDrift) {
+		t.Fatalf("ClassifyValueComparison() Drifted = %#v, want %#v", comparison.Drifted, wantDrift)
 	}
-	if kind := cloudruntime.Classify(cloud, state, config); kind != cloudruntime.FindingKindValueComparisonInconclusive {
+	if !reflect.DeepEqual(comparison.Degraded, []string{"image_uri"}) {
+		t.Fatalf("ClassifyValueComparison() Degraded = %#v, want [image_uri]", comparison.Degraded)
+	}
+	if kind := cloudruntime.Classify(cloud, state, config); kind != cloudruntime.FindingKindImageVersionDrift {
 		t.Fatalf(
-			"Classify() = %q, want %q: a real version drift alongside an unobservable image_uri is restated as "+
-				"uncertainty, not reported as image_version_drift (#5861)",
-			kind, cloudruntime.FindingKindValueComparisonInconclusive,
+			"Classify() = %q, want %q: a version drift proven by a comparison that RAN is not restated as "+
+				"uncertainty because a different attribute was unreadable (#5861)",
+			kind, cloudruntime.FindingKindImageVersionDrift,
 		)
+	}
+
+	// The verdict is real, but it was reached on partial evidence, and the
+	// finding has to say so or an operator cannot tell it apart from a pass
+	// that read everything.
+	candidates := cloudruntime.BuildCandidates([]cloudruntime.AddressedRow{{
+		ARN:    state.ARN,
+		Cloud:  cloud,
+		State:  state,
+		Config: config,
+	}}, "aws:123456789012:us-east-1:lambda")
+	if len(candidates) != 1 {
+		t.Fatalf("BuildCandidates() = %d candidates, want 1", len(candidates))
+	}
+	var gaps []string
+	for _, atom := range candidates[0].Evidence {
+		if atom.EvidenceType == cloudruntime.EvidenceTypeCoverageGap {
+			gaps = append(gaps, atom.Value)
+		}
+	}
+	if !reflect.DeepEqual(gaps, []string{"comparable_attribute:image_uri"}) {
+		t.Fatalf("coverage-gap atoms = %#v, want [comparable_attribute:image_uri]", gaps)
 	}
 }
 
@@ -215,11 +254,15 @@ func TestClassifyLambdaImageDeclaredWithoutDeclaredImageURIDoesNotConverge(t *te
 	}
 	config := &cloudruntime.ResourceRow{Address: state.Address, ResourceType: state.ResourceType}
 
-	if got := cloudruntime.ClassifyValueComparison(cloud, state).Compared; got != 0 {
+	comparison := cloudruntime.ClassifyValueComparison(cloud, state)
+	if comparison.Compared != 1 {
+		t.Fatalf("ClassifyValueComparison() Compared = %d, want 1: version was readable on both sides", comparison.Compared)
+	}
+	if !reflect.DeepEqual(comparison.Degraded, []string{"image_uri"}) {
 		t.Fatalf(
-			"ClassifyValueComparison() Compared = %d, want 0: an Image-declared state row carrying no "+
+			"ClassifyValueComparison() Degraded = %#v, want [image_uri]: an Image-declared state row carrying no "+
 				"image_uri is a partial read of that state, and comparing version alone converges (#5861)",
-			got,
+			comparison.Degraded,
 		)
 	}
 	if kind := cloudruntime.Classify(cloud, state, config); kind != cloudruntime.FindingKindValueComparisonInconclusive {

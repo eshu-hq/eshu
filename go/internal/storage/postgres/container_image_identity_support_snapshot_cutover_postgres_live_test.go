@@ -185,7 +185,8 @@ WHERE scope_id = $1 AND generation_id = $2
 `, scopeID, generationID); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx,
+	if _, err := tx.ExecContext(
+		ctx,
 		`UPDATE ingestion_scopes SET active_generation_id = $2 WHERE scope_id = $1`,
 		scopeID, generationID,
 	); err != nil {

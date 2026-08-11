@@ -158,7 +158,8 @@ VALUES ($1, $2, $3, 'repository', $1, 'git', $1, $4, $4, $5::jsonb)`,
 	// ArgoCD-bearing check must have excluded it), even though pass 1 committed
 	// its phase row.
 	var controlMemoCount int
-	if err := db.QueryRowContext(ctx,
+	if err := db.QueryRowContext(
+		ctx,
 		"SELECT count(*) FROM deferred_backfill_partition_memo WHERE scope_id = $1", "git:scope-control",
 	).Scan(&controlMemoCount); err != nil {
 		t.Fatalf("count control memo rows: %v", err)
