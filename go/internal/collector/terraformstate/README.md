@@ -310,6 +310,43 @@ the set is a fixed three rather than a heuristic.
   through the attribute the loader actually reads, not by widening the anchor
   contract.
 
+### Measured cost (#5870)
+
+Performance Evidence: the exemption and the detector both sit on the per-attribute
+parse path, so they were measured rather than argued. Both arms compiled once with
+`go test -c` and sampled ALTERNATELY — 8 pairs before-first, then 6 pairs with the
+order reversed as a control, because measuring one arm in a block lets drifting
+machine load land entirely on one side. `BenchmarkParseStream_LargeState/1000_instances`,
+Go 1.26 on an Apple M4 Pro, ns/op medians:
+
+```text
+                       before        after       delta
+before-first (8)     25,123,447   22,763,601    -9.4%
+after-first  (6)     25,194,546   22,890,243    -9.1%
+```
+
+**The change is faster, and the mechanism explains it rather than the other way
+round.** `redact.Scalar` computes an HMAC-SHA256 per redacted value
+(`go/internal/redact/redact.go:161`), so preserving `arn`, `id`, and `self_link`
+skips up to three HMACs per resource on the unknown-schema path. That dominates
+the work the exemption adds: one map lookup and one bounded slice scan per
+attribute, plus the detector's single type assertion and map read, none of which
+allocate.
+
+A same-direction result across both orderings is what makes this citable; the
+absolute figures are not, since the host was running other work throughout. The
+healthy `SchemaKnown` path is untouched — `classificationSchemaTrust` returns on
+its first branch when the resolver already answers known.
+
+Observability Evidence: the uncovered-provider detector emits a new
+`provider_schema_not_covered` terraform_state_warning fact per uncovered resource
+type, carrying `provider`, `resource_type`, and `occurrence_count`, classified
+`severity=warning` / `actionability=provider_schema_support` through
+`tfstatewarning.Classify`. It rides the existing warning path, so it is already
+counted by `eshu_dp_tfstate_warnings_emitted_total` and needs no new instrument.
+An operator whose bundle goes stale now has a named signal instead of a silent
+recovery; `scripts/verify-telemetry-coverage.sh` passes with no new stage.
+
 ### The detector that keeps this honest
 
 The exemption removes the only symptom a stale bundle used to produce, so on its
