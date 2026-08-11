@@ -131,8 +131,13 @@ func buildOneCandidate(row AddressedRow, arn string, kind FindingKind, scopeID s
 	evidence = appendResourceEvidence(evidence, candidateID, "/config", row.Config, EvidenceTypeConfigResource, scopeID)
 	evidence = appendRawTagEvidence(evidence, candidateID, row.Cloud, scopeID)
 	evidence = appendManagementEvidence(evidence, candidateID, row, kind, scopeID)
-	evidence = appendValueDriftEvidence(evidence, candidateID, row.Cloud, row.State, scopeID)
-	evidence = appendValueComparisonGapEvidence(evidence, candidateID, kind, row.Cloud, row.State, scopeID)
+	// One comparison feeds both value-evidence appenders. They previously
+	// classified independently, which was two runs of the same deterministic
+	// function per candidate and left open the possibility of the drift atoms
+	// and the coverage-gap atoms describing different comparisons.
+	comparison := ClassifyValueComparison(row.Cloud, row.State)
+	evidence = appendValueDriftEvidence(evidence, candidateID, comparison, row.Cloud, row.State, scopeID)
+	evidence = appendValueComparisonGapEvidence(evidence, candidateID, kind, comparison, row.State, scopeID)
 
 	return model.Candidate{
 		ID:             candidateID,
@@ -231,20 +236,21 @@ func appendResourceEvidence(
 }
 
 // appendValueDriftEvidence emits one declared_<attr>/observed_<attr>
-// evidence-atom pair per attribute ClassifyValueDrift found to differ
-// between cloud and state. It is the sole producer of value-drift evidence
-// atoms and calls the same ClassifyValueDrift Classify used to pick the
-// finding kind, so the emitted evidence can never disagree with the
-// candidate's own finding_kind atom. Safe to call for every finding kind:
-// ClassifyValueDrift returns nil whenever cloud or state is nil (orphaned
-// and unmanaged findings), so it never emits an atom for those cases.
+// evidence-atom pair per attribute the comparison found to differ between
+// cloud and state. It is the sole producer of value-drift evidence atoms and
+// reads the same ValueComparison Classify used to pick the finding kind, so
+// the emitted evidence can never disagree with the candidate's own
+// finding_kind atom. Safe to call for every finding kind: Drifted is empty
+// whenever cloud or state is nil (orphaned and unmanaged findings), so it
+// never emits an atom for those cases.
 func appendValueDriftEvidence(
 	evidence []model.EvidenceAtom,
 	candidateID string,
+	comparison ValueComparison,
 	cloud, state *ResourceRow,
 	fallbackScopeID string,
 ) []model.EvidenceAtom {
-	for _, attr := range ClassifyValueDrift(cloud, state) {
+	for _, attr := range comparison.Drifted {
 		evidence = append(
 			evidence,
 			model.EvidenceAtom{
@@ -281,20 +287,35 @@ func appendValueDriftEvidence(
 // new field. Values are prefixed to keep them distinguishable from the
 // existence-axis values (terraform_state_resource, terraform_config_resource).
 //
+// An image_version_drift finding names a NARROWER set: the comparables that
+// were UNREADABLE on this pass, not every one that went uncompared (#5861).
+// Such a finding now reaches a verdict on partial evidence -- one attribute
+// proved drift while another could not be read -- and an operator reading it
+// has to know the pass was partial to judge whether the drift is the whole
+// story. Merely absent comparables stay silent there: a zip-packaged Lambda has
+// no image_uri by design, so naming one on its version drift would send every
+// zip function's finding chasing collector coverage that is working correctly.
+//
 // It emits nothing for any other finding kind: an existence finding's missing
-// evidence is the missing LAYER, and an image_version_drift finding already
-// carries its declared_/observed_ pair for the attribute that did compare.
+// evidence is the missing LAYER, not a comparable attribute.
 func appendValueComparisonGapEvidence(
 	evidence []model.EvidenceAtom,
 	candidateID string,
 	kind FindingKind,
-	cloud, state *ResourceRow,
+	comparison ValueComparison,
+	state *ResourceRow,
 	fallbackScopeID string,
 ) []model.EvidenceAtom {
-	if kind != FindingKindValueComparisonInconclusive {
+	var gaps []string
+	switch kind {
+	case FindingKindValueComparisonInconclusive:
+		gaps = comparison.Uncomparable
+	case FindingKindImageVersionDrift:
+		gaps = comparison.Degraded
+	default:
 		return evidence
 	}
-	for _, attr := range ClassifyValueComparison(cloud, state).Uncomparable {
+	for _, attr := range gaps {
 		evidence = append(evidence, model.EvidenceAtom{
 			ID:           candidateID + "/uncomparable/" + attr,
 			SourceSystem: driftSourceSystem,
