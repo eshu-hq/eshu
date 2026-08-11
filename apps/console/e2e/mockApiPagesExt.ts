@@ -48,6 +48,52 @@ export async function handlePageRouteExt(
     return true;
   }
 
+  // ── Page-level: live evidence bundle (issue #4045, Admin > Evidence
+  // bundle panel). Not under /auth/admin/, so it needs its own handler — the
+  // block above would otherwise leave it to the mockApi.ts fallback, which
+  // returns `data: null` and trips unwrapEnvelope's "missing data or truth"
+  // error on every /admin page render.
+  if (method === "GET" && path === "/api/v0/evidence/bundle") {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(
+        envelope(
+          {
+            schema_version: "evidence_bundle.v1",
+            bundle_id: "sha256:e2e-mock",
+            identity: { scope_id: "stack", profile: "e2e", created_at: new Date().toISOString() },
+            redaction: { profile: "default", rules: ["screened_private_endpoints"] },
+            contents: {
+              pipeline_state: {
+                repository_count: 5,
+                health_state: "healthy",
+                queue: {
+                  total: 0,
+                  outstanding: 0,
+                  overdue_claims: 0,
+                  oldest_outstanding_age_seconds: 0,
+                  pending: 0,
+                  in_flight: 0,
+                  retrying: 0,
+                  succeeded: 0,
+                  failed: 0,
+                  dead_letter: 0,
+                },
+                queue_blocked_count: 0,
+              },
+              semantic_provider_state: { state: "unavailable", provider_configured: false },
+            },
+            missing_evidence: [],
+            validation: { status: "passed", checks: ["schema", "redaction"] },
+          },
+          "evidence.bundle",
+        ),
+      ),
+    });
+    return true;
+  }
+
   // ── Page-level: exposure path ──
   if (method === "POST" && path.includes("/impact/trace-exposure-path")) {
     await route.fulfill({

@@ -1,11 +1,12 @@
 // pages/AdminPage.tsx
 // Console admin UX (issue #3703, #3462 criterion #4): a capability-aware admin
 // surface covering invitations, role assignments, roles & grants, Identity &
-// Access (providers, group mappings, sign-in policy — #4967), API tokens, and
-// audit. Each concern is its own panel component (under
-// apps/console/src/pages/admin/) that loads its own data, renders metadata
-// only (no secrets/hashes/invite-codes/external-group names), and surfaces
-// "unavailable" on a load error rather than fabricated rows.
+// Access (providers, group mappings, sign-in policy — #4967), API tokens,
+// audit, and the live evidence bundle (issue #4045). Each concern is its own
+// panel component (under apps/console/src/pages/admin/) that loads its own
+// data, renders metadata only (no secrets/hashes/invite-codes/external-group
+// names), and surfaces "unavailable" on a load error rather than fabricated
+// rows.
 //
 // This page is UX only — the server enforces authorization on every request.
 // The /admin route is gated by AdminRouteGuard (auth/AdminRouteGuard.tsx);
@@ -29,6 +30,7 @@ import { AdminAuditPanel } from "./admin/AdminAuditPanel";
 import { AdminInvitationsPanel } from "./admin/AdminInvitationsPanel";
 import { AdminRolesPanel } from "./admin/AdminRolesPanel";
 import { AdminTokensPanel } from "./admin/AdminTokensPanel";
+import { EvidenceBundlePanel } from "./admin/EvidenceBundlePanel";
 import "./liveInventory.css";
 import "./adminPage.css";
 
@@ -76,6 +78,7 @@ export function AdminPage({
         ) : null}
         {visible.has("tokens") ? <AdminTokensPanel client={client} /> : null}
         {visible.has("audit") ? <AdminAuditPanel client={client} /> : null}
+        {visible.has("evidenceBundle") ? <EvidenceBundlePanel client={client} /> : null}
       </div>
     </section>
   );
