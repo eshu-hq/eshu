@@ -39,7 +39,7 @@ reuses coordinator reconcile metrics, workflow rows, claim status, and
 | --- | --- | --- | --- |
 | `ESHU_TFSTATE_REDACTION_KEY` | unset | collector-terraform-state | Deployment-scoped secret material for deterministic redaction markers. Required before parsing Terraform state. |
 | `ESHU_TFSTATE_REDACTION_RULESET_VERSION` | unset | collector-terraform-state | Non-empty version string for the redaction rule set. Blank values fail startup. |
-| `ESHU_TFSTATE_REDACTION_SENSITIVE_KEYS` | `password,secret,token,access_key,private_key,certificate,key_pair` | collector-terraform-state | Comma-separated leaf attribute keys treated as redacted secrets. |
+| `ESHU_TFSTATE_REDACTION_SENSITIVE_KEYS` | `password,secret,token,access_key,private_key,certificate,key_pair` | collector-terraform-state | Comma-separated leaf attribute keys treated as redacted secrets. Outranks the identity join-key exemption below, so naming `arn`, `id`, or `self_link` here redacts them even under an unknown provider schema. |
 | `ESHU_TFSTATE_COLLECTOR_INSTANCE_ID` | required when more than one enabled Terraform-state instance exists | collector-terraform-state | Selects the claim-capable `terraform_state` instance from `ESHU_COLLECTOR_INSTANCES_JSON`. |
 | `ESHU_TFSTATE_COLLECTOR_OWNER_ID` | host/process-derived | collector-terraform-state | Owner label written into workflow claim rows. |
 | `ESHU_TFSTATE_COLLECTOR_POLL_INTERVAL` | `1s` | collector-terraform-state | Delay between empty claim polls. |
@@ -48,6 +48,36 @@ reuses coordinator reconcile metrics, workflow rows, claim status, and
 | `ESHU_TFSTATE_COLLECTOR_HEARTBEAT` | workflow default | collector-terraform-state | Backward-compatible alias for `ESHU_TFSTATE_COLLECTOR_HEARTBEAT_INTERVAL`. |
 | `ESHU_TFSTATE_SOURCE_MAX_BYTES` | reader default | collector-terraform-state | Max bytes read from one local or S3 state source. |
 | `ESHU_TERRAFORM_SCHEMA_DIR` | packaged schema default | collector-terraform-state | Optional override for the Terraform provider-schema bundle directory. |
+
+### Identity join keys under an unknown provider schema
+
+When the loaded provider-schema bundle does not cover a resource type, every one
+of its scalar attributes classifies as schema-unknown and is normally replaced
+by a redaction marker. Three scalars are exempt: **`arn`, `id`, and
+`self_link`**.
+
+Those three are the keys Eshu's drift correlation JOINS on. A redaction marker
+is a JSON object, and Postgres `->>` over an object returns non-null text, so a
+redacted `arn` does not fall through to `id` — it wins the identity `COALESCE`
+with a value that matches nothing, the state row is dropped at the join, and
+every resource of that provider is reported as `orphaned_cloud_resource` even
+though Terraform manages it. Withholding the key produces a wrong answer rather
+than protecting a value.
+
+What this means for operators:
+
+- An ARN embeds the 12-digit AWS account id and a GCP `self_link` embeds the
+  project id, so those can appear raw for a provider the bundle cannot classify.
+  On the ordinary known-schema path these same keys, and standalone
+  `account_id`, are already preserved raw.
+- The exemption is by attribute NAME, not by content. Add any of the three to
+  `ESHU_TFSTATE_REDACTION_SENSITIVE_KEYS` to redact it anyway.
+- Everything else still fails closed: other scalars, all composites,
+  hard-sensitive attributes, and hashed correlation anchors.
+- The collector emits a `provider_schema_not_covered` warning fact per uncovered
+  resource type, naming the provider and an occurrence count, so a stale bundle
+  is visible rather than silently relying on the exemption. Point
+  `ESHU_TERRAFORM_SCHEMA_DIR` at a bundle covering that provider to clear it.
 
 ## AWS Cloud Collector
 
