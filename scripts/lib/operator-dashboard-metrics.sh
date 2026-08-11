@@ -49,6 +49,14 @@ PROJECTOR_INPUT_INVALID_FACTS='eshu_dp_projector_input_invalid_facts_total'
 EDGES_BY_SOURCE_TOOL='eshu_dp_edges_by_source_tool'
 FILES_BY_LANGUAGE='eshu_dp_files_by_language'
 
+# Lock-only gate (graphowner) contention, issue #5062 follow-up #5101. Volume
+# and lock-wait are a pair: rising rows on one family only matter next to a
+# rising wait, and a wait spike with no volume is a different problem. Before
+# these the only signal was a slow-wait log at a 100ms threshold, so every wait
+# under it was invisible.
+LOCK_ONLY_GATE_LOCKED_ROWS='eshu_dp_lock_only_gate_locked_rows_total'
+LOCK_ONLY_GATE_LOCK_WAIT='eshu_dp_lock_only_gate_lock_wait_seconds'
+
 # API surface.
 API_REQUEST_DURATION='eshu_dp_api_request_duration_seconds_bucket'
 API_REQUEST_ERRORS='eshu_dp_api_request_errors_total'
@@ -74,7 +82,8 @@ GENERATION_LIVENESS_RECOVERED GENERATION_LIVENESS_SUPERSEDED QUEUE_DEPTH \
 QUEUE_OLDEST_AGE WORKER_POOL_ACTIVE SHARED_ACCEPTANCE_ROWS GRAPH_ORPHAN_NODES \
 CROSS_REPO_FENCED FLUX_CROSS_REPO_URL_RESOLUTION REDUCER_INPUT_INVALID_FACTS \
 PROJECTOR_INPUT_INVALID_FACTS \
-EDGES_BY_SOURCE_TOOL FILES_BY_LANGUAGE API_REQUEST_DURATION \
+EDGES_BY_SOURCE_TOOL FILES_BY_LANGUAGE \
+ LOCK_ONLY_GATE_LOCKED_ROWS LOCK_ONLY_GATE_LOCK_WAIT API_REQUEST_DURATION \
 API_REQUEST_ERRORS COLLECTOR_RECONCILIATION_FULL \
 COLLECTOR_RECONCILIATION_DRIFT COLLECTOR_RECONCILIATION_CONVERGENCE \
 COLLECTOR_BACKPRESSURE COLLECTOR_RETRIES COLLECTOR_DEAD_LETTER"
