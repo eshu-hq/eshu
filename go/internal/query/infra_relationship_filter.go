@@ -77,6 +77,7 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 	span.SetAttributes(attribute.String("eshu.relationship_filter", infraRelationshipFilterLabel(relationshipTypes)))
 
 	access := repositoryAccessFilterFromContext(r.Context())
+	recordScopeGrantInlineCap(r.Context(), h.Instruments, access, "infra_relationships")
 	if access.empty() {
 		WriteError(w, http.StatusNotFound, "entity not found")
 		return

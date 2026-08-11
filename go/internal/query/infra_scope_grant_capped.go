@@ -28,14 +28,25 @@ import (
 // the caller, never user input, so the metric cannot be pushed into unbounded
 // label cardinality by a request.
 //
-// The log line carries the grant counts because the metric deliberately does
-// not: an operator seeing a non-zero rate needs to know WHICH token to fix, and
+// The metric's wire label key is "reason" (telemetry.AttrReason), carrying the
+// surface as its value — the same shape
+// eshu_dp_query_k8s_select_candidate_scan_truncated_total uses. An earlier
+// revision described the label as "surface" in the metric description and the
+// telemetry-coverage row while emitting "reason", so PromQL written against the
+// published contract ({surface="infra_search"}) matched no series. The docs now
+// say reason.
+//
+// The log carries the grant counts because the metric deliberately does not: an
+// operator seeing a non-zero rate needs to know WHICH token to fix, and
 // grant-set size is the first thing they will ask for. The counts are sizes,
-// not ids, so nothing about the grant contents leaks into logs.
+// not ids, so nothing about the grant contents leaks into logs. It logs through
+// the package-level slog, matching the rest of this package — an earlier
+// revision took a *slog.Logger and every production caller passed nil, which
+// made the warning unreachable and the documented detail a promise the code did
+// not keep.
 func recordScopeGrantInlineCap(
 	ctx context.Context,
 	instruments *telemetry.Instruments,
-	logger *slog.Logger,
 	filter repositoryAccessFilter,
 	surface string,
 ) {
@@ -43,16 +54,14 @@ func recordScopeGrantInlineCap(
 		return
 	}
 
-	if logger != nil {
-		logger.WarnContext(ctx, "scoped token grant set exceeded the inline-map cap; USES and DEFINES-collision admission truncated",
-			"surface", surface,
-			"granted_repositories", len(filter.allowedRepositoryIDs),
-			"granted_scopes", len(filter.allowedScopeIDs),
-			"inline_term_cap", maxScopeGrantInlineTerms,
-			"degradation", "fail_closed_missing_rows",
-			"issue", "#5408",
-		)
-	}
+	slog.WarnContext(ctx, "scoped token grant set exceeded the inline-map cap; USES and DEFINES-collision admission truncated",
+		"surface", surface,
+		"granted_repositories", len(filter.allowedRepositoryIDs),
+		"granted_scopes", len(filter.allowedScopeIDs),
+		"inline_term_cap", maxScopeGrantInlineTerms,
+		"degradation", "fail_closed_missing_rows",
+		"issue", "#5408",
+	)
 
 	if instruments != nil && instruments.QueryScopeGrantInlineCapped != nil {
 		instruments.QueryScopeGrantInlineCapped.Add(ctx, 1,

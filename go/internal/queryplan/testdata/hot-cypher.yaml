@@ -785,7 +785,7 @@ entries:
     source:
       file: go/internal/query/infra.go
       symbol: (*InfraHandler).searchResources
-      source_sha256: 9d5846727fdbe913c79aa18e100b4ab673bbade36ea91cb4c581f61875af419a
+      source_sha256: ebade10548ea5d8f11d2c84164cdd6fe75b3ec349ae7ad3b2e7863e6b3f1d9ad
       line_hint: 195
     required_limits:
       - $limit

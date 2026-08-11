@@ -3037,7 +3037,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		"eshu_dp_query_scope_grant_inline_capped_total",
 		metric.WithDescription(
 			"Total scoped-token infra reads whose grant set overflowed the SHAPE-A inline-map cap, "+
-				"truncating USES and DEFINES-collision admission (fail-closed: rows go missing, never extra), by surface",
+				"truncating USES and DEFINES-collision admission (fail-closed: rows go missing, never extra); label reason carries the read surface",
 		),
 	)
 	if err != nil {

@@ -73,10 +73,13 @@ func TestRecordScopeGrantInlineCapEmitsOncePerRead(t *testing.T) {
 				t.Fatalf("telemetry.NewInstruments() error = %v", err)
 			}
 
-			recordScopeGrantInlineCap(context.Background(), instruments, nil, tc.filter, "infra_search")
+			recordScopeGrantInlineCap(context.Background(), instruments, tc.filter, "infra_search")
 
 			if got := sumScopeGrantCapped(t, reader); got != tc.wantCount {
 				t.Fatalf("%s = %d, want %d", scopeGrantCappedMetric, got, tc.wantCount)
+			}
+			if tc.wantCount > 0 {
+				assertScopeGrantCappedLabel(t, reader, "infra_search")
 			}
 		})
 	}
@@ -94,9 +97,54 @@ func TestRecordScopeGrantInlineCapSurvivesNilDependencies(t *testing.T) {
 		over.allowedRepositoryIDs = append(over.allowedRepositoryIDs, fmt.Sprintf("repo-%d", i))
 	}
 
-	// Nil instruments, nil logger, and an empty surface must all be survivable.
-	recordScopeGrantInlineCap(context.Background(), nil, nil, over, "")
-	recordScopeGrantInlineCap(context.Background(), &telemetry.Instruments{}, nil, over, "infra_search")
+	// Nil instruments, an Instruments with no counter registered, and an empty
+	// surface must all be survivable.
+	recordScopeGrantInlineCap(context.Background(), nil, over, "")
+	recordScopeGrantInlineCap(context.Background(), &telemetry.Instruments{}, over, "infra_search")
+}
+
+// assertScopeGrantCappedLabel pins the wire label KEY and value, not just that
+// the counter moved.
+//
+// The first revision of this test summed data-point values and never inspected
+// attributes. That let a real contract bug through: the emitter used
+// telemetry.AttrReason, whose wire key is "reason", while the metric
+// description and the telemetry-coverage row both documented the label as
+// "surface". An operator's PromQL written against the published contract —
+// {surface="infra_search"} — would have matched no series, and the test stayed
+// green because it only ever asked "did the counter increment?".
+func assertScopeGrantCappedLabel(t *testing.T, reader *sdkmetric.ManualReader, wantSurface string) {
+	t.Helper()
+
+	var collected metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &collected); err != nil {
+		t.Fatalf("collect metrics: %v", err)
+	}
+	for _, scope := range collected.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			if m.Name != scopeGrantCappedMetric {
+				continue
+			}
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			if !ok {
+				t.Fatalf("%s data = %T, want metricdata.Sum[int64]", m.Name, m.Data)
+			}
+			for _, dp := range sum.DataPoints {
+				got, ok := dp.Attributes.Value(telemetry.MetricDimensionReason)
+				if !ok {
+					t.Fatalf(
+						"%s data point has no %q attribute; the documented label key and the emitted one have diverged",
+						scopeGrantCappedMetric, telemetry.MetricDimensionReason,
+					)
+				}
+				if got.AsString() != wantSurface {
+					t.Fatalf("%s %s = %q, want %q", scopeGrantCappedMetric, telemetry.MetricDimensionReason, got.AsString(), wantSurface)
+				}
+			}
+			return
+		}
+	}
+	t.Fatalf("%s not found in collected metrics", scopeGrantCappedMetric)
 }
 
 // sumScopeGrantCapped totals the capped counter across data points, so a test

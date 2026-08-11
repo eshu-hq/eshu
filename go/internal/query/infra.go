@@ -266,7 +266,7 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 	// Once per read, before any clause is built: infraSearchScopeClause alone
 	// rebuilds the SHAPE-A disjunction three times, so emitting from there
 	// would count one degraded read as three (#5408).
-	recordScopeGrantInlineCap(r.Context(), h.Instruments, nil, access, "infra_search")
+	recordScopeGrantInlineCap(r.Context(), h.Instruments, access, "infra_search")
 	if access.empty() {
 		h.writeEmptyInfraSearch(w, r, req.Limit)
 		return
