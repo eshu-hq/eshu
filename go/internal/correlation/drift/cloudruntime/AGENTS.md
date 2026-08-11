@@ -36,8 +36,10 @@
 - `ValueComparison.Inconclusive()` is the only condition permitted to produce
   that kind: the resource type IS covered (`Comparable` non-empty) and NOT ONE
   comparison ran (`Compared` empty). Widening it to "some comparison failed"
-  would put a finding on every zip-packaged Lambda; see the README's #5861
-  residual section.
+  would put a finding on every zip-packaged Lambda. When a comparable is
+  unusable rather than missing, suppress the whole scalar set at the LOADER
+  instead — see the README's unreadable-versus-absent section (#5859/#5904 for
+  redaction, #5861 for an unobservable `image_uri`).
 - `ContainerImageExtractionResult.Degraded` means the source carried a value
   that could not be read; absent evidence leaves it false. Do not collapse the
   two — the loaders raise `container_images_unreadable` off it.
