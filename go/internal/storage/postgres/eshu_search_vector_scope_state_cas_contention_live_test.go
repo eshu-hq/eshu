@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -48,15 +49,18 @@ import (
 //   - The persisted row agrees with the winner. The in-process return value
 //     and the durable state must not disagree.
 //
-// Set ESHU_SEARCH_VECTOR_SCOPE_STATE_CAS_CONTENTION_LIVE=1 and
-// ESHU_POSTGRES_DSN to run. Skipped otherwise so the credential-free CI lane
-// is unaffected. Override worker count with
+// Gated on ESHU_SEARCH_VECTOR_SCOPE_STATE_LIVE, the same switch the other
+// scope-state live tests use (including #4233's sequential CAS test), so this
+// contention proof runs wherever that family already runs rather than hiding
+// behind a variable of its own that nothing sets. ESHU_POSTGRES_DSN must also
+// be set; skipped otherwise so the credential-free CI lane is unaffected.
+// Override worker count with
 // ESHU_SEARCH_VECTOR_SCOPE_STATE_CAS_CONTENTION_WORKERS and round count with
 // ESHU_SEARCH_VECTOR_SCOPE_STATE_CAS_CONTENTION_ROUNDS; the defaults are sized
 // to interleave reliably while staying quick.
 func TestEshuSearchVectorScopeStateCASContentionLive(t *testing.T) {
-	if os.Getenv("ESHU_SEARCH_VECTOR_SCOPE_STATE_CAS_CONTENTION_LIVE") != "1" {
-		t.Skip("set ESHU_SEARCH_VECTOR_SCOPE_STATE_CAS_CONTENTION_LIVE=1 and ESHU_POSTGRES_DSN to run")
+	if os.Getenv("ESHU_SEARCH_VECTOR_SCOPE_STATE_LIVE") != "1" {
+		t.Skip("set ESHU_SEARCH_VECTOR_SCOPE_STATE_LIVE=1 and ESHU_POSTGRES_DSN to run")
 	}
 	dsn := os.Getenv("ESHU_POSTGRES_DSN")
 	if dsn == "" {
@@ -68,12 +72,23 @@ func TestEshuSearchVectorScopeStateCASContentionLive(t *testing.T) {
 	if workers < 2 {
 		t.Fatalf("workers = %d, need at least 2 for a contention test", workers)
 	}
+	// A zero or negative round count would run no production call at all and
+	// still report a pass, which is exactly the false green this proof exists
+	// to prevent.
+	if rounds < 1 {
+		t.Fatalf("rounds = %d, need at least 1 or the test proves nothing", rounds)
+	}
 
 	sqlDB, err := sql.Open("pgx", dsn)
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	defer func() { _ = sqlDB.Close() }()
+	// Registered before the fixture cleanup below so it runs AFTER it: t.Cleanup
+	// is LIFO, and it all runs after the test function's own defers. A deferred
+	// Close here would shut the pool before the cleanup queries ran, so they
+	// would fail against a closed database and silently leave every seeded row
+	// behind in a shared proof database.
+	t.Cleanup(func() { _ = sqlDB.Close() })
 	// Every worker needs its own connection or the goroutines serialize in the
 	// pool and the race never actually happens in the server.
 	sqlDB.SetMaxOpenConns(workers + 4)
@@ -97,10 +112,26 @@ func TestEshuSearchVectorScopeStateCASContentionLive(t *testing.T) {
 	now := time.Now().UTC()
 
 	var seededScopeIDs []string
+	// Delete child-to-parent and report failures. Relying on FK cascade from
+	// ingestion_scopes alone would leave rows behind wherever a cascade is not
+	// declared, and swallowing the error makes that invisible in a shared proof
+	// database.
 	t.Cleanup(func() {
 		cleanCtx := context.Background()
 		for _, scopeID := range seededScopeIDs {
-			_, _ = sqlDB.ExecContext(cleanCtx, `DELETE FROM ingestion_scopes WHERE scope_id = $1`, scopeID)
+			for _, stmt := range []struct {
+				table string
+				query string
+			}{
+				{"eshu_search_vector_scope_state", `DELETE FROM eshu_search_vector_scope_state WHERE scope_id = $1`},
+				{"eshu_search_document_projection_state", `DELETE FROM eshu_search_document_projection_state WHERE scope_id = $1`},
+				{"scope_generations", `DELETE FROM scope_generations WHERE scope_id = $1`},
+				{"ingestion_scopes", `DELETE FROM ingestion_scopes WHERE scope_id = $1`},
+			} {
+				if _, err := sqlDB.ExecContext(cleanCtx, stmt.query, scopeID); err != nil {
+					t.Logf("cleanup: delete from %s where scope_id=%s: %v", stmt.table, scopeID, err)
+				}
+			}
 		}
 	})
 
@@ -174,23 +205,42 @@ func TestEshuSearchVectorScopeStateCASContentionLive(t *testing.T) {
 		// guard rather than the CAS. Racing all the begins first, then all the
 		// finalizes, puts every builder in the contended state the CAS exists
 		// to arbitrate.
-		var beginRelease, beginDone sync.WaitGroup
-		beginRelease.Add(1)
-		for w := 0; w < workers; w++ {
-			beginDone.Add(1)
-			go func(idx int) {
-				defer beginDone.Done()
-				beginRelease.Wait()
-				fence, err := store.BeginBuilding(ctx, scopeID, genID, identity, projectionRevision)
-				if err != nil {
-					outcomes[idx] = outcome{err: fmt.Errorf("begin building: %w", err)}
-					return
-				}
-				outcomes[idx] = outcome{fence: fence}
-			}(w)
+		// A WaitGroup used as a release gate does not guarantee every goroutine
+		// is parked before the release: a worker that has not been scheduled yet
+		// reaches Wait() after Done() and simply runs late, thinning the very
+		// overlap this test needs. Park on a channel instead, and have the main
+		// goroutine wait until every worker has signalled it is at the line
+		// before closing it.
+		runConcurrently := func(fn func(idx int)) {
+			var atLine, done sync.WaitGroup
+			start := make(chan struct{})
+			atLine.Add(workers)
+			done.Add(workers)
+			for w := 0; w < workers; w++ {
+				go func(idx int) {
+					defer done.Done()
+					atLine.Done()
+					<-start
+					fn(idx)
+				}(w)
+			}
+			atLine.Wait()
+			close(start)
+			done.Wait()
 		}
-		beginRelease.Done()
-		beginDone.Wait()
+
+		runConcurrently(func(idx int) {
+			fence, err := store.BeginBuilding(ctx, scopeID, genID, identity, projectionRevision)
+			if err != nil {
+				// Set only the error field. Replacing the whole struct would
+				// zero a fence a later phase reads, turning a real error into a
+				// confusing fence assertion if this loop ever logs and continues
+				// instead of aborting.
+				outcomes[idx].err = fmt.Errorf("begin building: %w", err)
+				return
+			}
+			outcomes[idx].fence = fence
+		})
 
 		for idx, o := range outcomes {
 			if o.err != nil {
@@ -198,23 +248,14 @@ func TestEshuSearchVectorScopeStateCASContentionLive(t *testing.T) {
 			}
 		}
 
-		var finalizeRelease, finalizeDone sync.WaitGroup
-		finalizeRelease.Add(1)
-		for w := 0; w < workers; w++ {
-			finalizeDone.Add(1)
-			go func(idx int) {
-				defer finalizeDone.Done()
-				finalizeRelease.Wait()
-				won, err := store.FinalizeReady(ctx, scopeID, genID, identity, projectionRevision, outcomes[idx].fence)
-				if err != nil {
-					outcomes[idx].err = fmt.Errorf("finalize ready: %w", err)
-					return
-				}
-				outcomes[idx].won = won
-			}(w)
-		}
-		finalizeRelease.Done()
-		finalizeDone.Wait()
+		runConcurrently(func(idx int) {
+			won, err := store.FinalizeReady(ctx, scopeID, genID, identity, projectionRevision, outcomes[idx].fence)
+			if err != nil {
+				outcomes[idx].err = fmt.Errorf("finalize ready: %w", err)
+				return
+			}
+			outcomes[idx].won = won
+		})
 
 		winners := 0
 		winningFence := int64(-1)
@@ -289,7 +330,105 @@ func TestEshuSearchVectorScopeStateCASContentionLive(t *testing.T) {
 		if persistedState != "ready" {
 			t.Fatalf("round %d: persisted state = %q, want \"ready\"", round, persistedState)
 		}
+
+		// Phase 3: begins and finalizes OVERLAPPING, at the next revision.
+		//
+		// The barriered phases above commit every fence bump before any finalize
+		// starts, so each loser is already stale by the time it presents its
+		// token. That proves the CAS rejects a stale token, but it never puts a
+		// finalize in flight WHILE a newer begin is updating the same row -- the
+		// other lock ordering. Here every worker runs begin-then-finalize with no
+		// barrier, so both orderings occur.
+		//
+		// Interleaving means a begin can legitimately find no row once someone
+		// publishes ready at this revision, so that specific error is expected
+		// and recorded rather than failed. Any other error still fails.
+		const overlapRevision = projectionRevision + 1
+		if _, err := sqlDB.ExecContext(
+			ctx, `
+			UPDATE eshu_search_document_projection_state
+			   SET projection_revision = $3, state = 'ready', updated_at = $4
+			 WHERE scope_id = $1 AND generation_id = $2`,
+			scopeID, genID, overlapRevision, now,
+		); err != nil {
+			t.Fatalf("round %d: bump projection revision for overlap phase: %v", round, err)
+		}
+
+		overlap := make([]outcome, workers)
+		runConcurrently(func(idx int) {
+			fence, err := store.BeginBuilding(ctx, scopeID, genID, identity, overlapRevision)
+			if err != nil {
+				if strings.Contains(err.Error(), "no row returned") {
+					overlap[idx].fence = -1
+					return
+				}
+				overlap[idx].err = fmt.Errorf("overlap begin building: %w", err)
+				return
+			}
+			overlap[idx].fence = fence
+			won, err := store.FinalizeReady(ctx, scopeID, genID, identity, overlapRevision, fence)
+			if err != nil {
+				overlap[idx].err = fmt.Errorf("overlap finalize ready: %w", err)
+				return
+			}
+			overlap[idx].won = won
+		})
+
+		overlapWinners := 0
+		overlapWinningFence := int64(-1)
+		for idx, o := range overlap {
+			if o.err != nil {
+				t.Fatalf("round %d worker %d: %v", round, idx, o.err)
+			}
+			if o.won {
+				overlapWinners++
+				overlapWinningFence = o.fence
+			}
+		}
+		if overlapWinners != 1 {
+			t.Fatalf(
+				"round %d overlap phase: %d builders published ready, want exactly 1: "+
+					"with begins and finalizes interleaved, more than one winner means the fence "+
+					"predicate does not hold when a newer begin lands while a finalize is in flight",
+				round, overlapWinners,
+			)
+		}
+
+		var overlapPersistedFence int64
+		if err := sqlDB.QueryRowContext(
+			ctx, `
+			SELECT build_fence
+			  FROM eshu_search_vector_scope_state
+			 WHERE scope_id = $1 AND generation_id = $2
+			   AND provider_profile_id = $3 AND source_class = $4
+			   AND embedding_model_id = $5 AND vector_index_version = $6`,
+			scopeID, genID,
+			identity.ProviderProfileID, identity.SourceClass,
+			identity.EmbeddingModelID, identity.VectorIndexVersion,
+		).Scan(&overlapPersistedFence); err != nil {
+			t.Fatalf("round %d: read persisted scope state after overlap: %v", round, err)
+		}
+		if overlapPersistedFence != overlapWinningFence {
+			t.Fatalf(
+				"round %d overlap phase: persisted build_fence = %d, winner reported fence %d",
+				round, overlapPersistedFence, overlapWinningFence,
+			)
+		}
+		// No builder holding a fence above the winner's may have lost silently:
+		// that would mean a newer build was issued and then dropped.
+		for idx, o := range overlap {
+			if o.fence > overlapWinningFence && !o.won {
+				t.Fatalf(
+					"round %d overlap phase: worker %d held fence %d, higher than the winning fence %d, "+
+						"but did not publish: a newer build was superseded by an older one",
+					round, idx, o.fence, overlapWinningFence,
+				)
+			}
+		}
 	}
 
-	t.Logf("%d rounds x %d concurrent builders: exactly one ready publish per round, always the highest fence", rounds, workers)
+	t.Logf(
+		"%d rounds x %d concurrent builders, barriered and overlapping: exactly one ready publish per phase, always the highest fence",
+		rounds, workers,
+	)
 }
