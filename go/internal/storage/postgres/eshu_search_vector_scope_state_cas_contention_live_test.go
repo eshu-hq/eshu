@@ -15,6 +15,21 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
+// casContentionCleanupDeletes lists the fixture tables this test seeds, in
+// child-to-parent order. Declared once rather than rebuilt per scope so the
+// deletion order lives in one place: relying on an FK cascade from
+// ingestion_scopes alone would silently leave rows wherever a cascade is not
+// declared.
+var casContentionCleanupDeletes = []struct {
+	table string
+	query string
+}{
+	{"eshu_search_vector_scope_state", `DELETE FROM eshu_search_vector_scope_state WHERE scope_id = $1`},
+	{"eshu_search_document_projection_state", `DELETE FROM eshu_search_document_projection_state WHERE scope_id = $1`},
+	{"scope_generations", `DELETE FROM scope_generations WHERE scope_id = $1`},
+	{"ingestion_scopes", `DELETE FROM ingestion_scopes WHERE scope_id = $1`},
+}
+
 // TestEshuSearchVectorScopeStateCASContentionLive is the #5045 hardening proof
 // for the versioned scope-state fence CAS #4233 introduced.
 //
@@ -27,10 +42,26 @@ import (
 // is no EvalPlanQual recheck concern -- but "no recheck concern" is a claim
 // about the mechanism, not a measurement of it. This test measures it.
 //
-// The contention shape: workersPerRound goroutines each call BeginBuilding and
-// then FinalizeReady against one identity, released together through a
-// sync.WaitGroup so their statements interleave in the server rather than
-// running back to back.
+// Three phases, in increasing strength:
+//
+//  1. every worker races BeginBuilding for one identity
+//  2. every worker then races FinalizeReady with the fence it was handed
+//  3. one finalize is FORCED to block on a row lock while a newer fence
+//     commits, then wakes and must refuse to publish
+//
+// Phases 1 and 2 are separated by a barrier because BeginBuilding's ON CONFLICT
+// is filtered by (revision > existing) OR (revision = existing AND state <>
+// 'ready'): once any builder publishes ready at a revision, a later
+// BeginBuilding matches no row. That is correct supersession, but interleaving
+// begins with finalizes would exercise that guard nondeterministically instead
+// of the CAS.
+//
+// The cost of that barrier is that every loser is already stale when it
+// presents its token, so phase 3 exists to cover the ordering the barrier
+// removes. It uses an explicit lock rather than more concurrency: releasing
+// goroutines together only makes them runnable, and a legal schedule can still
+// run one worker's begin and finalize to completion before any other worker
+// reaches Postgres.
 //
 // What it asserts, and why each matters:
 //
@@ -47,16 +78,24 @@ import (
 //     winners alone cannot catch it.
 //   - The persisted row agrees with the winner. The in-process return value
 //     and the durable state must not disagree.
+//   - A finalize that WAKES from a row lock, after a newer fence committed
+//     while it was parked, refuses to publish. This is the EvalPlanQual
+//     recheck path the #4233 review reasoned about rather than exercised: the
+//     blocked UPDATE re-evaluates its predicate against the row as it exists
+//     after the other transaction commits.
 //
-// Set ESHU_SEARCH_VECTOR_SCOPE_STATE_CAS_CONTENTION_LIVE=1 and
-// ESHU_POSTGRES_DSN to run. Skipped otherwise so the credential-free CI lane
-// is unaffected. Override worker count with
+// Gated on ESHU_SEARCH_VECTOR_SCOPE_STATE_LIVE, the same switch the other
+// scope-state live tests use (including #4233's sequential CAS test), so this
+// contention proof runs wherever that family already runs rather than hiding
+// behind a variable of its own that nothing sets. ESHU_POSTGRES_DSN must also
+// be set; skipped otherwise so the credential-free CI lane is unaffected.
+// Override worker count with
 // ESHU_SEARCH_VECTOR_SCOPE_STATE_CAS_CONTENTION_WORKERS and round count with
 // ESHU_SEARCH_VECTOR_SCOPE_STATE_CAS_CONTENTION_ROUNDS; the defaults are sized
 // to interleave reliably while staying quick.
 func TestEshuSearchVectorScopeStateCASContentionLive(t *testing.T) {
-	if os.Getenv("ESHU_SEARCH_VECTOR_SCOPE_STATE_CAS_CONTENTION_LIVE") != "1" {
-		t.Skip("set ESHU_SEARCH_VECTOR_SCOPE_STATE_CAS_CONTENTION_LIVE=1 and ESHU_POSTGRES_DSN to run")
+	if os.Getenv("ESHU_SEARCH_VECTOR_SCOPE_STATE_LIVE") != "1" {
+		t.Skip("set ESHU_SEARCH_VECTOR_SCOPE_STATE_LIVE=1 and ESHU_POSTGRES_DSN to run")
 	}
 	dsn := os.Getenv("ESHU_POSTGRES_DSN")
 	if dsn == "" {
@@ -68,12 +107,23 @@ func TestEshuSearchVectorScopeStateCASContentionLive(t *testing.T) {
 	if workers < 2 {
 		t.Fatalf("workers = %d, need at least 2 for a contention test", workers)
 	}
+	// A zero or negative round count would run no production call at all and
+	// still report a pass, which is exactly the false green this proof exists
+	// to prevent.
+	if rounds < 1 {
+		t.Fatalf("rounds = %d, need at least 1 or the test proves nothing", rounds)
+	}
 
 	sqlDB, err := sql.Open("pgx", dsn)
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	defer func() { _ = sqlDB.Close() }()
+	// Registered before the fixture cleanup below so it runs AFTER it: t.Cleanup
+	// is LIFO, and it all runs after the test function's own defers. A deferred
+	// Close here would shut the pool before the cleanup queries ran, so they
+	// would fail against a closed database and silently leave every seeded row
+	// behind in a shared proof database.
+	t.Cleanup(func() { _ = sqlDB.Close() })
 	// Every worker needs its own connection or the goroutines serialize in the
 	// pool and the race never actually happens in the server.
 	sqlDB.SetMaxOpenConns(workers + 4)
@@ -97,10 +147,26 @@ func TestEshuSearchVectorScopeStateCASContentionLive(t *testing.T) {
 	now := time.Now().UTC()
 
 	var seededScopeIDs []string
+	// Delete child-to-parent and report failures. Relying on FK cascade from
+	// ingestion_scopes alone would leave rows behind wherever a cascade is not
+	// declared, and swallowing the error makes that invisible in a shared proof
+	// database.
 	t.Cleanup(func() {
 		cleanCtx := context.Background()
+		// Best-effort across every scope, but a failure fails the test: a run
+		// that leaves rows behind and still reports green is the shared-database
+		// pollution this cleanup exists to prevent.
+		failed := false
 		for _, scopeID := range seededScopeIDs {
-			_, _ = sqlDB.ExecContext(cleanCtx, `DELETE FROM ingestion_scopes WHERE scope_id = $1`, scopeID)
+			for _, stmt := range casContentionCleanupDeletes {
+				if _, err := sqlDB.ExecContext(cleanCtx, stmt.query, scopeID); err != nil {
+					t.Errorf("cleanup: delete from %s where scope_id=%s: %v", stmt.table, scopeID, err)
+					failed = true
+				}
+			}
+		}
+		if failed {
+			t.Errorf("cleanup left seeded rows behind; the proof database now carries state from this run")
 		}
 	})
 
@@ -174,23 +240,42 @@ func TestEshuSearchVectorScopeStateCASContentionLive(t *testing.T) {
 		// guard rather than the CAS. Racing all the begins first, then all the
 		// finalizes, puts every builder in the contended state the CAS exists
 		// to arbitrate.
-		var beginRelease, beginDone sync.WaitGroup
-		beginRelease.Add(1)
-		for w := 0; w < workers; w++ {
-			beginDone.Add(1)
-			go func(idx int) {
-				defer beginDone.Done()
-				beginRelease.Wait()
-				fence, err := store.BeginBuilding(ctx, scopeID, genID, identity, projectionRevision)
-				if err != nil {
-					outcomes[idx] = outcome{err: fmt.Errorf("begin building: %w", err)}
-					return
-				}
-				outcomes[idx] = outcome{fence: fence}
-			}(w)
+		// A WaitGroup used as a release gate does not guarantee every goroutine
+		// is parked before the release: a worker that has not been scheduled yet
+		// reaches Wait() after Done() and simply runs late, thinning the very
+		// overlap this test needs. Park on a channel instead, and have the main
+		// goroutine wait until every worker has signalled it is at the line
+		// before closing it.
+		runConcurrently := func(fn func(idx int)) {
+			var atLine, done sync.WaitGroup
+			start := make(chan struct{})
+			atLine.Add(workers)
+			done.Add(workers)
+			for w := 0; w < workers; w++ {
+				go func(idx int) {
+					defer done.Done()
+					atLine.Done()
+					<-start
+					fn(idx)
+				}(w)
+			}
+			atLine.Wait()
+			close(start)
+			done.Wait()
 		}
-		beginRelease.Done()
-		beginDone.Wait()
+
+		runConcurrently(func(idx int) {
+			fence, err := store.BeginBuilding(ctx, scopeID, genID, identity, projectionRevision)
+			if err != nil {
+				// Set only the error field. Replacing the whole struct would
+				// zero a fence a later phase reads, turning a real error into a
+				// confusing fence assertion if this loop ever logs and continues
+				// instead of aborting.
+				outcomes[idx].err = fmt.Errorf("begin building: %w", err)
+				return
+			}
+			outcomes[idx].fence = fence
+		})
 
 		for idx, o := range outcomes {
 			if o.err != nil {
@@ -198,23 +283,14 @@ func TestEshuSearchVectorScopeStateCASContentionLive(t *testing.T) {
 			}
 		}
 
-		var finalizeRelease, finalizeDone sync.WaitGroup
-		finalizeRelease.Add(1)
-		for w := 0; w < workers; w++ {
-			finalizeDone.Add(1)
-			go func(idx int) {
-				defer finalizeDone.Done()
-				finalizeRelease.Wait()
-				won, err := store.FinalizeReady(ctx, scopeID, genID, identity, projectionRevision, outcomes[idx].fence)
-				if err != nil {
-					outcomes[idx].err = fmt.Errorf("finalize ready: %w", err)
-					return
-				}
-				outcomes[idx].won = won
-			}(w)
-		}
-		finalizeRelease.Done()
-		finalizeDone.Wait()
+		runConcurrently(func(idx int) {
+			won, err := store.FinalizeReady(ctx, scopeID, genID, identity, projectionRevision, outcomes[idx].fence)
+			if err != nil {
+				outcomes[idx].err = fmt.Errorf("finalize ready: %w", err)
+				return
+			}
+			outcomes[idx].won = won
+		})
 
 		winners := 0
 		winningFence := int64(-1)
@@ -289,7 +365,21 @@ func TestEshuSearchVectorScopeStateCASContentionLive(t *testing.T) {
 		if persistedState != "ready" {
 			t.Fatalf("round %d: persisted state = %q, want \"ready\"", round, persistedState)
 		}
+
+		// Phase 3: begins and finalizes OVERLAPPING, at the next revision.
+		//
+		assertBlockedFinalizeRefusesToPublish(t, ctx, sqlDB, store, casInterleaveCase{
+			round:    round,
+			scopeID:  scopeID,
+			genID:    genID,
+			identity: identity,
+			revision: projectionRevision + 1,
+			now:      now,
+		})
 	}
 
-	t.Logf("%d rounds x %d concurrent builders: exactly one ready publish per round, always the highest fence", rounds, workers)
+	t.Logf(
+		"%d rounds x %d concurrent builders, barriered and overlapping: exactly one ready publish per phase, always the highest fence",
+		rounds, workers,
+	)
 }
