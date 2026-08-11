@@ -1,6 +1,6 @@
 image:
   repository: ghcr.io/eshu-hq/eshu
-  tag: "v0.0.2"
+  tag: "v0.0.3-pre-release-18"
   pullPolicy: IfNotPresent
 
 serviceAccount:
