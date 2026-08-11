@@ -104,6 +104,7 @@ func (h *InfraHandler) getEcosystemOverview(w http.ResponseWriter, r *http.Reque
 	}
 
 	access := repositoryAccessFilterFromContext(r.Context())
+	recordScopeGrantInlineCap(r.Context(), h.Instruments, access, "infra_ecosystem_overview")
 	counts, err := runEcosystemOverviewCounts(r.Context(), h.Neo4j, access)
 	if err != nil {
 		if WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
