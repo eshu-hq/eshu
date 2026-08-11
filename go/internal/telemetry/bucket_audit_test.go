@@ -17,10 +17,18 @@ type bucketAuditEntry struct {
 	Note       string
 }
 
-// bucketAuditTable enumerates every _seconds histogram registered in
-// instruments.go with its explicit bucket boundaries. Histograms that
-// use the default OTEL bucket set (no WithExplicitBucketBoundaries call)
-// are listed with nil buckets.
+// bucketAuditTable lists the histograms registered in instruments.go that
+// this audit has boundaries for — both the _seconds duration histograms and
+// the count/size histograms that carry no unit suffix. Histograms listed
+// here with nil Buckets use the default OTEL bucket set (no
+// WithExplicitBucketBoundaries call); auditEntry reports those as
+// "default", not "fails" — a listed histogram with no explicit boundaries
+// passes this audit today. The table was originally _seconds-only; #5096
+// added the count/size family after finding a new count histogram
+// registered with no explicit boundaries. This table is NOT auto-derived
+// from instruments.go and this test does not check that every registered
+// histogram has a row here, so a histogram can go unregistered-in-the-table
+// (or a row can go stale after a rename) without failing anything below.
 func bucketAuditTable() []bucketAuditEntry {
 	collectorBuckets := []float64{0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}
 	workflowClaimWaitBuckets := []float64{0, 0.1, 0.5, 1, 5, 10, 30, 60, 300, 900, 1800, 3600}
@@ -126,6 +134,21 @@ func bucketAuditTable() []bucketAuditEntry {
 		{MetricName: "eshu_dp_bootstrap_pipeline_phase_seconds", Buckets: []float64{1, 5, 15, 30, 60, 120, 300, 600, 1200, 1800, 3600}},
 		{MetricName: "eshu_dp_workflow_claim_run_duration_seconds", Buckets: []float64{0.1, 0.5, 1, 5, 15, 30, 60, 120, 300, 600, 1200, 1800}},
 		{MetricName: "eshu_dp_pipeline_overlap_seconds", Buckets: []float64{1, 5, 10, 30, 60, 120, 300, 600, 1800}},
+
+		// ---- count / size histograms (non-_seconds) ----
+		{MetricName: "eshu_dp_reducer_input_invalid_fact_write_batch_size", Buckets: []float64{0, 1, 2, 5, 10, 25, 50, 100, 250, 500}},
+		{MetricName: "eshu_dp_gcp_freshness_fanout_scope_count", Buckets: []float64{1, 2, 4, 8, 16, 32, 64}},
+		{MetricName: "eshu_dp_tfstate_snapshot_bytes", Buckets: []float64{1024, 10240, 102400, 1048576, 10485760, 52428800, 104857600}},
+		{MetricName: "eshu_dp_scanner_worker_target_count", Buckets: []float64{1, 10, 100, 1000, 10000, 100000}},
+		{MetricName: "eshu_dp_scanner_worker_result_count", Buckets: []float64{1, 10, 100, 1000, 10000, 100000}},
+		{MetricName: "eshu_dp_scanner_worker_memory_bytes", Buckets: []float64{1048576, 16777216, 67108864, 268435456, 1073741824, 2147483648, 4294967296, 8589934592, 17179869184}},
+		{MetricName: "eshu_dp_generation_retention_batch_size", Buckets: []float64{1, 2, 4, 8, 16, 32, 64, 100}},
+		{MetricName: "eshu_dp_generation_fact_count", Buckets: []float64{10, 50, 100, 500, 1000, 5000, 10000, 50000, 100000, 300000}},
+		{MetricName: "eshu_dp_reducer_batch_claim_size", Buckets: []float64{1, 4, 8, 16, 32, 64, 128}},
+		{MetricName: "eshu_dp_neo4j_batch_size", Buckets: []float64{1, 10, 50, 100, 250, 500, 1000}},
+		{MetricName: "eshu_dp_shared_edge_write_group_statement_count", Buckets: []float64{1, 2, 4, 8, 16, 32, 64, 128}},
+		{MetricName: "eshu_dp_deferred_backfill_partition_workers", Buckets: []float64{1, 2, 4, 8, 16, 32}},
+		{MetricName: "eshu_dp_deferred_backfill_partition_load_fact_count", Buckets: []float64{0, 10, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000}},
 	}
 }
 
@@ -140,9 +163,15 @@ type bucketVerdict struct {
 	Reason     string
 }
 
-// TestBucketAudit verifies every _seconds histogram bucket array meets
-// basic mathematical validity properties. This test is the Q-3 bucket
-// audit from Epic Q #3743.
+// TestBucketAudit math-validates the bucket boundaries listed in
+// bucketAuditTable (monotonicity, no negative/NaN/Inf values, no >100x gap).
+// This test is the Q-3 bucket audit from Epic Q #3743, extended by #5096 to
+// cover count/size histograms alongside the original _seconds set. It does
+// NOT detect a histogram registered in instruments.go with no row here, and
+// a listed histogram with Buckets: nil reports "default" rather than
+// failing — so this audit cannot catch the #5096 gap class (a new histogram
+// shipped with no explicit boundaries and no audit coverage) on its own; it
+// only re-validates boundaries once someone has already added the row.
 func TestBucketAudit(t *testing.T) {
 	table := bucketAuditTable()
 	var verdicts []bucketVerdict

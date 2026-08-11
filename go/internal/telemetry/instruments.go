@@ -1322,13 +1322,25 @@ type Instruments struct {
 	IngestionSharedLockHoldDuration metric.Float64Histogram
 
 	// Deferred bootstrap backfill and reopen metrics
-	DeferredBackfillDuration               metric.Float64Histogram
-	DeferredBackfillBatchDuration          metric.Float64Histogram
-	DeferredBackfillBatchesCompleted       metric.Int64Counter
-	DeferredBackfillEvidence               metric.Int64Counter
-	DeferredBackfillPartitions             metric.Int64Counter
-	DeferredBackfillPartitionWorkers       metric.Int64Histogram
-	DeferredBackfillPartitionLoadDuration  metric.Float64Histogram
+	DeferredBackfillDuration              metric.Float64Histogram
+	DeferredBackfillBatchDuration         metric.Float64Histogram
+	DeferredBackfillBatchesCompleted      metric.Int64Counter
+	DeferredBackfillEvidence              metric.Int64Counter
+	DeferredBackfillPartitions            metric.Int64Counter
+	DeferredBackfillPartitionWorkers      metric.Int64Histogram
+	DeferredBackfillPartitionLoadDuration metric.Float64Histogram
+	// DeferredBackfillPartitionLoadFactCount is the #5096 promotion of the
+	// deferred_backfill_fact_load_task_completed log's loaded_facts field to a
+	// first-class metric: it records the fact count one per-scope/per-chunk
+	// query task loaded, recorded alongside
+	// DeferredBackfillPartitionLoadDuration in the same worker goroutine and
+	// left unattributed for the same reason -- no scope_id or repo_id label,
+	// so the metric cardinality stays bounded regardless of catalog size. A
+	// long tail here isolates the task whose fact-load payload (not only its
+	// wall time) dominates the pass, complementing
+	// DeferredBackfillPartitionLoadDuration for the #5092 skewed-partition
+	// diagnosis.
+	DeferredBackfillPartitionLoadFactCount metric.Int64Histogram
 	DeploymentMappingReopened              metric.Int64Counter
 	CodeImportRepoEdgeReopened             metric.Int64Counter
 	CorrelationReopened                    metric.Int64Counter
@@ -4420,6 +4432,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register DeferredBackfillPartitionLoadDuration histogram: %w", err)
+	}
+
+	// The validated corpus averages ~231 facts/task, but the #5096 headline
+	// case is a single task loading 16,361 facts; size buckets to keep both
+	// resolvable instead of piling everything into the low buckets with a
+	// single +Inf overflow for anything large (the OTEL default boundaries
+	// top out at 10000).
+	deferredBackfillFactCountBuckets := []float64{0, 10, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000}
+	inst.DeferredBackfillPartitionLoadFactCount, err = meter.Int64Histogram(
+		"eshu_dp_deferred_backfill_partition_load_fact_count",
+		metric.WithDescription("Facts loaded by each per-scope (scope_id, generation_id) deferred fact-load query task. Unattributed like its duration sibling; a long tail isolates the task whose payload size, not only wall time, dominates the pass (issue #5096)."),
+		metric.WithUnit("{fact}"),
+		metric.WithExplicitBucketBoundaries(deferredBackfillFactCountBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register DeferredBackfillPartitionLoadFactCount histogram: %w", err)
 	}
 
 	inst.DeferredBackfillPartitionsSkipped, err = meter.Int64Counter(
