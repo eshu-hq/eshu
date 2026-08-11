@@ -2810,6 +2810,120 @@ repo-id chunks. Existing partition duration histograms continue to time each
 fact-load query task, and the existing Postgres query spans/metrics still show
 the underlying SQL latency and errors.
 
+### Deferred backfill per-task fact-load telemetry (#5096)
+
+PR #5094 added the `deferred_backfill_fact_load_task_completed` per-task log as
+a bounded key=value operator log inside the #5088 reference-key performance fix,
+adding no metric instrument, metric label, or span name so the perf fix did
+not also change the telemetry contract. #5096 closes that gap: it promotes
+the log's fields to a metric and a span event without touching the fact-load
+path's behavior or timing.
+
+`loadDeferredScopedFactsAcrossPartitions`'s per-task worker goroutine now
+records `eshu_dp_deferred_backfill_partition_load_fact_count` (an Int64
+histogram, sibling to the pre-existing
+`eshu_dp_deferred_backfill_partition_load_duration_seconds`) once per query
+task, and adds a `partition_load_completed` event to the active
+`relationship.backfill_deferred` span — mirroring the existing
+`partition_load_failed` event on the error path — carrying `task`,
+`query_tasks`, `scope_id`, `repo_terms`, `non_repo_terms`, `loaded_facts`,
+`duration_s`, and `workers`. Both the new histogram and the existing duration
+histogram stay unattributed (no scope_id/repo_id label), so their series
+cardinality is fixed regardless of catalog size; the span event's `scope_id`
+attribute follows the `partition_load_failed` precedent on the same span
+(a per-span-event attribute, never a metric label, so it is not a Prometheus
+cardinality dimension).
+
+Both pre-existing logs (`deferred_backfill_fact_load_task_completed` and the
+pass-level `deferred_backfill_fact_load_completed`) are kept, unchanged, as
+documented compatibility signals for operator grep/debugging — this is an
+explicit choice, not an oversight: replacing them would be a breaking change
+to any operator tooling already grepping them, and the histograms/span event
+above are additive, not a replacement.
+`TestLoadDeferredScopedFactsAcrossPartitionsLogsPerTaskCompletion` pins the
+per-task log line's continued presence so a future cleanup cannot silently
+drop it while the metric and span-event tests stay green.
+
+No-Regression Evidence: the two new calls sit in different places, and the
+difference matters.
+`instruments.DeferredBackfillPartitionLoadFactCount.Record` is immediately
+beside the pre-existing `DeferredBackfillPartitionLoadDuration.Record`, in the
+same `instruments != nil` block and before the error check, so it records for
+every task that ran the query — including a failed one, which contributes a
+0-fact data point alongside its duration. That matches the duration sibling's
+existing behavior rather than changing it, but an operator reading a
+high-duration/low-fact-count bucket as contention should know a failure
+presents the same way — and that the span event does NOT separate them.
+`partition_load_failed` fires at most once per pass, inside `if firstErr ==
+nil`: the first failure calls `cancel()`, and the in-flight tasks it aborts
+return `ctx.Canceled` after recording their duration and a 0-fact point, then
+find `firstErr` already set and emit nothing. A pass that dies several minutes
+in can therefore leave up to `workers-1` high-duration, zero-fact points with
+no event at all. Even the one event that does fire carries only `scope_id`,
+while both histograms are deliberately unattributed, so there is no key
+joining an event to a data point. Treat the event as a pass-level "something
+failed" signal, not a per-point discriminator; the per-task
+`deferred_backfill_fact_load_task_completed` log is what identifies which
+tasks completed.
+`span.AddEvent("partition_load_completed", …)` sits further down, on the
+success path only, immediately after the per-task `log.Printf`.
+Both run inside the same worker goroutine after the fact-load query already
+returned, read already-computed values (`len(envelopes)`, the already-measured
+`duration`, and the task's own params), and perform no I/O and no additional
+query.
+
+They are NOT lock-free. `AddEvent` takes the span's own mutex
+(`sdk@v1.44.0/trace/span.go`), so every worker serializes there once per task.
+
+That is one additional acquisition, not the first one. The success path already
+serialized per task on something heavier: the pre-existing per-task
+`log.Printf` immediately above (added by #5094) takes the standard library's
+process-global `log.std` output mutex and holds it across a stderr write, and
+the goroutine also does `<-sem` and `wg.Done()`. So the fan-out did not gain
+shared state here — it gained a cheaper acquisition alongside an existing one.
+A mutex-guarded slice append against a query that already ran for seconds, at a
+worker cap of 8, is negligible next to the log write it sits beside.
+
+The other new call is cheaper but not lock-free either. The bucket update is
+atomics plus a hot/cold swap
+(`sdk/metric@v1.44.0/internal/aggregate/histogram.go`) and the attribute-set
+lookup locks only on first touch
+(`sdk/metric@v1.44.0/internal/aggregate/atomic.go`) — but Eshu sets no exemplar
+filter, so the SDK default `TraceBasedFilter`
+(`sdk/metric@v1.44.0/config.go`) applies and, under a sampled span, each
+`Record` also offers an exemplar, taking a per-bucket mutex
+(`sdk/metric@v1.44.0/exemplar/storage.go`). Because the histogram is
+unattributed there is a single reservoir per reader, so tasks landing in the
+same bucket contend on the same mutex. All of these are memory-only; none
+holds a syscall, unlike the `log.Printf` beside them.
+
+Lock ordering is consistently `mu` then `span.mu`, never the reverse, and
+nothing takes `mu` under `span.mu`, so the addition cannot deadlock.
+
+The fact-load query, its self-exclusion SQL, the worker
+pool sizing, and the partition memo gate are byte-for-byte unchanged; only
+attribute recording was added. Proven by
+`TestLoadDeferredScopedFactsAcrossPartitionsRecordsPartitionLoadCompletedEvent`,
+`TestLoadDeferredScopedFactsAcrossPartitionsRecordsPartitionLoadFactCountMetric`,
+and `TestLoadDeferredScopedFactsAcrossPartitionsRecordsZeroFactCountOnFailure`
+(`ingestion_backfill_task_telemetry_test.go`) -- the third of these is the one
+that pins "both histograms record before the error check": it injects a query
+failure and asserts the fact-count histogram still gets a 0-fact data point --
+plus a manual mutation check: commenting out both new calls turns all three
+tests red (the third goes red too, since it depends on the metric-record call
+surviving on the failure path) while the pre-existing
+`TestBackfillDeferredSpanRecordsFanOutAttributes` and
+`TestBackfillDeferredSpanRecordsPartitionLoadFailure` stay green, and restoring
+the file is byte-identical by `shasum -a 256`.
+
+Observability Evidence: `eshu_dp_deferred_backfill_partition_load_fact_count`
+registers via the `telemetry.Instruments` contract
+(`internal/telemetry/instruments.go`) and is documented in the X1 coverage doc
+(`docs/public/observability/telemetry-coverage.md`, "deferred backfill
+partition fan-out" row) and the public telemetry reference
+(`docs/public/reference/telemetry/index.md`, "Deferred backfill per-task
+fact-load telemetry (#5096)").
+
 ### Deferred backfill default worker cap (#3624)
 
 The representative 896-repository #3710 full-corpus proof used 8 deferred
