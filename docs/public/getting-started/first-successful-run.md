@@ -329,6 +329,55 @@ See [First five minutes benchmark](../reference/local-testing/first-five-minutes
 
 ---
 
+## Prove the stack is working with an evidence bundle
+
+`eshu first-run --report` proves that one bounded query answered. To check the
+stack more broadly — how much it actually indexed, whether the queue is
+backed up, whether a semantic provider is configured — export a live evidence
+bundle and read specific fields from it:
+
+```bash
+eshu evidence bundle export --live --out evidence-bundle.json
+```
+
+`--live` composes the bundle from the running stack's status endpoints instead
+of from fixtures, so the numbers reflect what your stack actually indexed. It
+works against any of the three paths above; point it at the same endpoint your
+CLI is already using (`--service-url` and `--api-key` for the hosted path).
+Because the status endpoints it reads are stack-wide, `--live` cannot be
+combined with `--scope`.
+
+Read these fields to answer "is this actually working":
+
+| Field | What it tells you |
+| --- | --- |
+| `contents.pipeline_state.repository_count` | How many repositories the stack has indexed. A `0` still shows up here; it is not hidden. The status route returns the same `0` for "genuinely empty" and "graph query failed," so a matching `repository_count` entry is added to `missing_evidence` to flag the number as ambiguous rather than definitive. |
+| `contents.pipeline_state.health_state` and `contents.pipeline_state.queue` | Overall health (`healthy`, `degraded`, `progressing`, or `stalled`) plus reducer/ingest queue depth — `outstanding`, `overdue_claims`, `dead_letter` — so a backed-up queue shows as a number, not a guess. |
+| `contents.semantic_provider_state` | Whether a semantic/LLM provider is configured and its state. A stack with no provider configured reports that as a state (`unavailable`, reason `provider_not_configured`), not as a failure. |
+| `missing_evidence` | Named gaps the bundle cannot fill from the status routes it reads. Always includes `fact_counts` (no status endpoint exposes per-kind fact counts), `freshness`, and `runtime_profile`; adds `repository_count` when that count came back `0`. |
+
+Validate the bundle before trusting or sharing it:
+
+```bash
+eshu evidence bundle validate --from evidence-bundle.json
+```
+
+A few things this bundle does not claim. `redaction.rules` names what was
+*screened* (`screened_private_endpoints` and similar) — pattern matching that
+recognizes known shapes, not proof that no private data survived. Treat a
+passing bundle as screened, not certified, and review it yourself before
+sending it outside your organization. `validation.status` reads `passed` only
+because the exporter ran validation and got a clean result before writing the
+file; a bundle you *receive* could have been hand-edited afterward, since
+anyone holding the file can recompute `bundle_id` to match. Re-run
+`eshu evidence bundle validate --from <file>` yourself on any bundle someone
+else sends you rather than trusting the `passed` already in it.
+
+See [Portable Evidence Bundle](../reference/evidence-bundle.md) for the full
+field reference.
+
+---
+
 ## Ask a first assistant question
 
 Once a client is connected, start with a narrow prompt:
