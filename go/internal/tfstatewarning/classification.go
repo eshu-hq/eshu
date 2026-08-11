@@ -113,6 +113,18 @@ func Classify(warningKind string, reason string) (Classification, bool) {
 		case "unsupported_tag_map_shape":
 			return acceptedGuardrailClassification(), true
 		}
+	case "provider_schema_not_covered":
+		if reason == "provider_not_in_schema_bundle" {
+			// Same actionability as an unsupported composite: the fix is to add
+			// the provider's schema to the bundle. Not blocking, because the
+			// identity-join-key exemption (#5870) keeps the resource's drift
+			// truth correct meanwhile -- what is degraded is the rest of its
+			// attributes, not the join.
+			return Classification{
+				Severity:      SeverityWarning,
+				Actionability: ActionabilityProviderSchemaSupport,
+			}, true
+		}
 	case "tag_value_dropped":
 		if reason == "non_scalar_tag_value" {
 			return acceptedGuardrailClassification(), true

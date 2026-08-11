@@ -31,6 +31,14 @@ func newStubResolver(pairs ...[2]string) *stubProviderSchemaResolver {
 	return resolver
 }
 
+// HasResourceType makes the stub faithful to the production resolver's
+// SchemaResourceTypeReporter capability, so the uncovered-provider detector
+// (#5870) is exercised by tests rather than silently skipped.
+func (s *stubProviderSchemaResolver) HasResourceType(resourceType string) bool {
+	_, ok := s.known[resourceType]
+	return ok
+}
+
 func (s *stubProviderSchemaResolver) HasAttribute(resourceType string, attributeKey string) bool {
 	attrs, ok := s.known[resourceType]
 	if !ok {

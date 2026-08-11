@@ -33,6 +33,18 @@ type packagedSchemaResolver struct {
 // arguments are matched as-is; callers must pass the verbatim Terraform state
 // type (e.g. "aws_s3_bucket" or "aws_iam_policy_document") and key (e.g.
 // "acl", "statement", or "server_side_encryption_configuration").
+// HasResourceType reports whether the bundle carries any schema for
+// resourceType. It is the SchemaResourceTypeReporter half of the resolver, used
+// by the uncovered-provider detector to tell "this provider is missing" apart
+// from "this attribute is newer than the bundle" (#5870).
+func (r *packagedSchemaResolver) HasResourceType(resourceType string) bool {
+	if r == nil {
+		return false
+	}
+	_, ok := r.stateAttributes[strings.TrimSpace(resourceType)]
+	return ok
+}
+
 func (r *packagedSchemaResolver) HasAttribute(resourceType string, attributeKey string) bool {
 	if r == nil {
 		return false

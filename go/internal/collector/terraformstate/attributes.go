@@ -215,7 +215,11 @@ func (p *stateParser) classifyAttribute(attributes map[string]any, resourceType 
 	if attribute.Scalar {
 		kind = redact.FieldScalar
 	}
-	decision := p.options.RedactionRules.Classify(source, p.schemaTrust(resourceType, attribute.Key), kind)
+	decision := p.options.RedactionRules.Classify(
+		source,
+		p.classificationSchemaTrust(resourceType, attribute.Key, attribute.Scalar),
+		kind,
+	)
 	if attribute.Preclassified {
 		decision = attribute.PreclassifiedDecision
 	}
