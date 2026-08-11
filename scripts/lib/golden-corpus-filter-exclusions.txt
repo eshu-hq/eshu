@@ -41,6 +41,20 @@ go/internal/governanceauditasync	allowed-read audit sink wired only behind recor
 # ComponentExtensionWorkPlanner to plan work for either.
 go/internal/component	both asserted MCP shapes short-circuit on ComponentHome=="" before the real registry code runs; ESHU_COMPONENT_HOME is never set by this gate
 
+# --- internal/evidencebundle (#4045) ----------------------------------------
+# Pure evidence_bundle.v1 schema/builder/validator package: no store, graph,
+# or provider connection of its own (see its own AGENTS.md ownership
+# boundary). It became reachable from go/internal/query -- and therefore from
+# the api/mcp-server binaries -- only via GET /api/v0/evidence/bundle
+# (evidence_bundle_live.go), a brand-new route this same change adds. Neither
+# the gate's fixed cassette corpus nor testdata/golden/e2e-20repo-snapshot.json
+# calls or asserts that route, or the CLI `eshu evidence bundle export --live`
+# path that is this package's only other caller, so a change here cannot alter
+# any fact, graph write, or query/MCP response value the gate currently
+# checks. Re-confirm this reason (or promote to a workflow path entry) the
+# next time evidence_bundle.v1 output is added to the golden corpus.
+go/internal/evidencebundle	pure schema/builder/validator with no store/graph/provider access of its own; its only callers (GET /api/v0/evidence/bundle, CLI --live export) are outside the gate's fixed cassette corpus and B-12 snapshot
+
 # --- collector/source families outside the gate's fixed cassette corpus ----
 go/internal/redact			redaction layer for LIVE collector output; cassette replay bypasses live collection and its redaction path entirely (see eshu-golden-corpus-rigor)
 go/internal/vulnsource		vulnerability-source ingestion outside the gate's fixed cassette/fixture inputs

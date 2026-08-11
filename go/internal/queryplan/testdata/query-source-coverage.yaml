@@ -153,6 +153,15 @@ source_coverage:
   - file: entity_workload_platform.go
     calls:
       - {symbol: "(*EntityHandler).fetchWorkloadPlatformResult", count: 1, source_sha256: 25b8c542d61b4a9eb5fe834d6e9aa409d5a81918bff392e25f675989205fba19, entry_ids: [QP-SVC-RUNS-ON]}
+  - file: evidence_bundle_live.go
+    calls:
+      - symbol: "repositoryCountForEvidenceBundle"
+        count: 1
+        non_hot:
+          class: label_inventory
+          source_sha256: "72c69f58632aca2fe15f955cb1488cb608169255301392cf0477d6a00f358a0f"
+          label: Repository
+          max_results: 1
   - file: exposure_path.go
     calls:
       - {symbol: "(*ImpactHandler).exposurePathCandidates", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
