@@ -116,7 +116,7 @@ jobs:
             --timeout 55m
 
       - name: Publish terminal required status
-        if: ${{ always() }}
+        if: ${{ !cancelled() }}
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}

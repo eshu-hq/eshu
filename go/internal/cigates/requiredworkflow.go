@@ -309,9 +309,9 @@ func validateTrustedAggregator(
 		}
 		if strings.Contains(step.Run, "/statuses/") && strings.Contains(step.Run, "state=failure") {
 			terminalIndex = index
-			if !strings.Contains(step.If, "always()") {
+			if strings.TrimSpace(step.If) != "${{ !cancelled() }}" {
 				errs = append(errs, fmt.Errorf(
-					"required status context %q: terminal status publisher must use always()",
+					"required status context %q: terminal status publisher must use !cancelled() to run after failure without publishing on cancellation",
 					check.Context,
 				))
 			}
@@ -334,7 +334,7 @@ func validateTrustedAggregator(
 	}
 	if pendingIndex < 0 || awaitIndex < 0 || terminalIndex < 0 || pendingIndex >= awaitIndex || awaitIndex >= terminalIndex {
 		errs = append(errs, fmt.Errorf(
-			"required status context %q: publisher must post pending before await and an always-run terminal status afterward",
+			"required status context %q: publisher must post pending before await and a cancellation-safe terminal status afterward",
 			check.Context,
 		))
 	}

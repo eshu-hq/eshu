@@ -55,10 +55,11 @@ workflow/job mapping or shared rows disagree on concrete check names.
 
 The required-status workflow runs from default-branch code after its declared
 source workflow. It publishes a pending status on the exact pull-request head
-before resolving the PR, and an always-run terminal failure prevents setup or
-identity errors from leaving an old success in place. Success is published only
-after every selected check reports `pass`. Failed, skipped, neutral, missing,
-and timed-out checks fail closed. `DriftCheck` rejects an
+before resolving the PR. Its terminal publisher runs after success or genuine
+failure, but does not start when cancellation is already observed, so
+cancellation alone cannot be converted into a fabricated failure. Success is
+published only after every selected check reports `pass`. Failed, skipped,
+neutral, missing, and timed-out checks fail closed. `DriftCheck` rejects an
 aggregator that runs directly on pull-request code, lacks the declared source,
 uses repository secrets, checks out a non-default ref, or lacks its minimal
 read/status-write permissions.

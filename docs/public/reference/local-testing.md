@@ -201,8 +201,11 @@ gates its changed paths select:
   exact pull-request head. It maps changed paths to every registry row marked
   `blocking: true`, then waits for the exact workflow/check names declared by
   those rows. A selected failed, skipped, missing, or timed-out check makes the
-  aggregate fail. This closes the gap where a blocking registry row could be
-  visible locally yet absent from GitHub's two Go umbrellas.
+  aggregate fail. A superseded aggregate whose cancellation is observed before
+  the terminal step does not start terminal publication, so cancellation alone
+  is not converted into a fabricated gate failure. This closes the gap where a
+  blocking registry row could be visible locally yet absent from GitHub's two
+  Go umbrellas.
 - **Trust boundary:** the aggregate policy, selector, and status publisher come
   from the default branch and cannot be rewritten by the pull request they
   evaluate. The selected leaf checks remain ordinary pull-request CI: their

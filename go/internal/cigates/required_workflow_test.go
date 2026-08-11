@@ -32,7 +32,7 @@ jobs:
       - name: Await blockers
         run: go run ./cmd/ci-gates await
       - name: Publish terminal
-        if: ${{ always() }}
+        if: ${{ !cancelled() }}
         env:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: gh api -X POST repos/example/repo/statuses/${HEAD_SHA} -f state=failure -f context=required-gates-complete
@@ -150,22 +150,41 @@ func TestCheckRequiredStatusWorkflows_RejectsFilteredSourceWorkflow(t *testing.T
 	}
 }
 
-func TestCheckRequiredStatusWorkflows_RequiresAlwaysRunTerminalFailure(t *testing.T) {
+func TestCheckRequiredStatusWorkflows_RequiresTerminalFailureAfterSetupFailure(t *testing.T) {
 	t.Parallel()
 
-	body := strings.Replace(trustedRequiredWorkflow, `if: ${{ always() }}`, `if: ${{ success() }}`, 1)
+	body := strings.Replace(trustedRequiredWorkflow, `if: ${{ !cancelled() }}`, `if: ${{ success() }}`, 1)
 	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
 	if len(errs) == 0 {
 		t.Fatal("terminal failure publisher must run even when setup or aggregation fails")
 	}
 	found := false
 	for _, err := range errs {
-		if strings.Contains(err.Error(), "terminal status") && strings.Contains(err.Error(), "always") {
+		if strings.Contains(err.Error(), "terminal status") && strings.Contains(err.Error(), "cancel") {
 			found = true
 		}
 	}
 	if !found {
-		t.Fatalf("expected terminal always-run error, got: %v", errs)
+		t.Fatalf("expected terminal cancellation-safety error, got: %v", errs)
+	}
+}
+
+func TestCheckRequiredStatusWorkflows_RejectsTerminalPublisherOnCancellation(t *testing.T) {
+	t.Parallel()
+
+	body := strings.Replace(trustedRequiredWorkflow, `if: ${{ !cancelled() }}`, `if: ${{ always() }}`, 1)
+	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
+	if len(errs) == 0 {
+		t.Fatal("cancelled aggregate must not publish a terminal status")
+	}
+	found := false
+	for _, err := range errs {
+		if strings.Contains(err.Error(), "terminal status") && strings.Contains(err.Error(), "cancel") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected terminal cancellation-safety error, got: %v", errs)
 	}
 }
 
