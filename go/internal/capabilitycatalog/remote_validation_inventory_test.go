@@ -90,7 +90,10 @@ func TestRemoteValidationInventoryRealSpecsCount(t *testing.T) {
 		t.Fatalf("load real matrix: %v", err)
 	}
 	inventory := BuildRemoteValidationInventory(matrix)
-	if got, want := len(inventory.Artifacts), 110; got != want {
+	// 111 since #5970 restored symbol_graph.inheritance to production:
+	// supported with prod-symbol-graph-inheritance. The other four rows that
+	// issue re-ran stayed experimental, so they add no slug here.
+	if got, want := len(inventory.Artifacts), 111; got != want {
 		t.Fatalf("production-supported remote-validation slugs = %d, want %d", got, want)
 	}
 	repoRoot := filepath.Dir(specsDir)
