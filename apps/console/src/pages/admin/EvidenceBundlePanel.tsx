@@ -28,9 +28,9 @@
 // fields as plain facts and nothing more.
 import { useEffect, useState } from "react";
 
+import type { EshuApiClient } from "../../api/client";
 import { loadEvidenceBundle } from "../../api/evidenceBundle";
 import type { EvidenceBundleProvenance, EvidenceBundleWire } from "../../api/evidenceBundle";
-import type { EshuApiClient } from "../../api/client";
 import { Badge, Panel } from "../../components/atoms";
 
 const FORBIDDEN_NOTE =

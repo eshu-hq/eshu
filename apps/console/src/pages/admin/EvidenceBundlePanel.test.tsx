@@ -5,9 +5,9 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 import { EvidenceBundlePanel } from "./EvidenceBundlePanel";
-import type { EvidenceBundleWire } from "../../api/evidenceBundle";
 import { EshuApiHttpError } from "../../api/client";
 import type { EshuApiClient } from "../../api/client";
+import type { EvidenceBundleWire } from "../../api/evidenceBundle";
 
 function fixtureBundle(overrides: Partial<EvidenceBundleWire> = {}): EvidenceBundleWire {
   return {
@@ -150,7 +150,11 @@ describe("EvidenceBundlePanel", () => {
       expect(createObjectURL).toHaveBeenCalledTimes(1);
       expect(blobCalls).toHaveLength(1);
       expect(blobCalls[0].options?.type).toBe("application/json");
-      expect(JSON.parse(String(blobCalls[0].parts[0]))).toEqual(bundle);
+      // The panel writes one JSON string part; narrow it rather than relying on
+      // default stringification, which would silently pass for an object part.
+      const [part] = blobCalls[0].parts;
+      expect(typeof part).toBe("string");
+      expect(JSON.parse(part as string)).toEqual(bundle);
     });
 
     it("does not render a download control when the bundle is forbidden or unavailable", async () => {
