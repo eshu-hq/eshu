@@ -258,3 +258,89 @@ production dispatch mode in a second independent investigation, and (b) the
 dispatch that production's `PhaseGroupExecutor` never applies to
 `OperationCanonicalRetract` statements, a routing now covered by
 `TestPhaseGroupExecutorRetractPhaseNeverUsesExecuteGroup`.
+
+## #5671 root cause: the transport, not stack contamination
+
+The residual question this note left open — why the first #5652 probe saw zero
+File edges while the re-verification saw them — is now answered. It is not
+contamination. The two investigations used **different transports against the
+same statement shape**, and the HTTP query endpoint drops a write the Bolt
+driver commits.
+
+### The measurement
+
+Isolated container, pinned `eshu-nornicdb-pr290:3722b483c02c`, started fresh
+for this experiment and torn down after. Database `nornic`. Schema bootstrapped
+with the uid-style unique constraints, then one `Repository`, one `Directory`,
+and one `File` seeded. Nothing else ever ran on the instance.
+
+The statement under test is the structural shape of
+`canonicalNodeFileUpdateExistingCypher` — a `MATCH`/`SET`, then a `WITH`, an
+edge `MERGE`, a second `WITH`, and a second edge `MERGE`.
+
+Over the HTTP endpoint `POST /db/nornic/tx/commit`, edges deleted between
+trials:
+
+| trial | REPO_CONTAINS | CONTAINS |
+| ---: | ---: | ---: |
+| 1 | 1 | **0** |
+| 2 | 1 | **0** |
+| 3 | 1 | **0** |
+
+`errors: []` every time. The second post-`WITH` `MERGE` is dropped silently.
+
+Splitting the same work into two single-`WITH` statements over the same
+endpoint, same instance, edges deleted between trials:
+
+| trial | REPO_CONTAINS | CONTAINS |
+| ---: | ---: | ---: |
+| 1 | 1 | 1 |
+| 2 | 1 | 1 |
+| 3 | 1 | 1 |
+
+So the variable is the **chained second `WITH`**, not the statement's content,
+and not the state of the instance.
+
+Then the production path, Bolt driver, same running container:
+
+```
+ESHU_REPLAY_TIER_LIVE=1 ESHU_GRAPH_BACKEND=nornicdb \
+ESHU_NEO4J_URI=bolt://127.0.0.1:17690 ESHU_NEO4J_DATABASE=nornic \
+go test ./internal/replay/offlinetier -run TestFileUpdateExistingEdgesGraphTruth -count=1
+```
+
+```
+gen1 baseline: REPO_CONTAINS edge count for ".../dir-a/existing.go" = 1 (want 1)
+gen1 baseline: directory CONTAINS edge count for ".../dir-a/existing.go" = 1 (want 1)
+ok  github.com/eshu-hq/eshu/go/internal/replay/offlinetier  1.300s
+```
+
+Both edges present. Same container, same shape, minutes apart.
+
+### What this settles
+
+- **Contamination is ruled out.** The zero-edge result reproduced
+  deterministically on an instance that had never held a dropped constraint or
+  any other experiment. There was nothing to contaminate.
+- **The production conclusion stands and is now explained.** Bolt commits both
+  edges; the committed regression test proves it against the pinned image.
+- **The first probe was not wrong about what it saw.** It saw a real dropped
+  write — over a transport production does not use.
+
+### What to do with it
+
+Do not write live graph probes against `POST /db/<db>/tx/commit` and treat the
+result as production truth. This endpoint can silently drop a post-`WITH`
+`MERGE` and still return `errors: []`, which manufactures a phantom write-loss
+that no production path exhibits. Use the Bolt driver — the repo's existing
+live tests already do.
+
+The `nornicdb-pitfalls.md` bullet attributing this to the constraint
+drop/recreate pitfall should be corrected: that pitfall's documented signature
+is a **loud** false `UNIQUE` violation on commit, whereas this is a **silent**
+zero-row write. Different symptoms, different mechanism.
+
+Scope note: this measures the HTTP endpoint's behaviour on the pinned image. It
+does not characterise every HTTP-endpoint statement shape, and it is not an
+upstream bug report — reproducing it for upstream would want a minimal case
+without Eshu's schema in the picture.
