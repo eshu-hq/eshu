@@ -155,17 +155,44 @@ verify_layout() {
   local deployment="${docs_dir}/deployment-trace-and-influence.md"
   local mkdocs="${root}/docs/mkdocs.yml"
   local route_table="${root}/docs/public/reference/http-api.md"
+  local sessions="${docs_dir}/dashboard-sessions.md"
+  local ask="${docs_dir}/ask.md"
+  local cloud="${docs_dir}/cloud-inventory.md"
   local file lines heading escaped_heading term route actual shared_line stories_line investigation_line
 
-  for file in "$hub" "$stories" "$deployment" "$mkdocs" "$route_table"; do
+  for file in "$hub" "$stories" "$deployment" "$sessions" "$ask" "$cloud" "$mkdocs" "$route_table"; do
     [ -f "$file" ] || fail "missing ${file#"${root}/"}" || return 1
   done
 
-  for file in "$hub" "$stories" "$deployment"; do
+  for file in "$hub" "$stories" "$deployment" "$sessions" "$ask" "$cloud" "$route_table"; do
     lines="$(wc -l <"$file" | tr -d ' ')"
     [ "$lines" -le 450 ] \
       || fail "${file#"${root}/"} has ${lines} lines; limit is 450" || return 1
   done
+
+  # #5953: the http-api.md hub stays a route map. Each section it used to carry
+  # inline lives on exactly one child page, reachable from the Route Families
+  # table and the mkdocs nav.
+  require_visible_heading_count 1 '^# Dashboard Browser Sessions$' "$sessions" || return 1
+  require_visible_heading_count 1 '^# Ask Eshu' "$ask" || return 1
+  require_visible_heading_count 1 '^# Cloud Inventory And Resource Paging$' "$cloud" || return 1
+
+  # The moved headings must not linger in the hub as well as the child page.
+  require_visible_heading_count 0 '^## Dashboard Browser Sessions$' "$route_table" || return 1
+  require_visible_heading_count 0 '^## Ask Eshu' "$route_table" || return 1
+  require_visible_heading_count 0 '^## Cloud Inventory Readback$' "$route_table" || return 1
+  require_visible_heading_count 0 '^## Cloud Resource Graph Paging$' "$route_table" || return 1
+
+  require_count 1 'Dashboard Browser Sessions: reference/http-api/dashboard-sessions.md' "$mkdocs" || return 1
+  require_regex_count 1 '^        - Dashboard Browser Sessions: reference/http-api/dashboard-sessions\.md$' "$mkdocs" || return 1
+  require_count 1 'Ask Eshu: reference/http-api/ask.md' "$mkdocs" || return 1
+  require_regex_count 1 '^        - Ask Eshu: reference/http-api/ask\.md$' "$mkdocs" || return 1
+  require_count 1 'Cloud Inventory And Resource Paging: reference/http-api/cloud-inventory.md' "$mkdocs" || return 1
+  require_regex_count 1 '^        - Cloud Inventory And Resource Paging: reference/http-api/cloud-inventory\.md$' "$mkdocs" || return 1
+
+  require_visible_table_count 1 '(http-api/dashboard-sessions.md)' "$route_table" || return 1
+  require_visible_table_count 1 '(http-api/ask.md)' "$route_table" || return 1
+  require_visible_table_count 1 '(http-api/cloud-inventory.md)' "$route_table" || return 1
 
   legacy_headings=(
     '## Route Map'
@@ -315,6 +342,12 @@ seed_mutation_repo() {
     "${root}/docs/public/reference/http-api/"
   cp "${repo_root}/docs/public/reference/http-api/deployment-trace-and-influence.md" \
     "${root}/docs/public/reference/http-api/"
+  cp "${repo_root}/docs/public/reference/http-api/dashboard-sessions.md" \
+    "${root}/docs/public/reference/http-api/"
+  cp "${repo_root}/docs/public/reference/http-api/ask.md" \
+    "${root}/docs/public/reference/http-api/"
+  cp "${repo_root}/docs/public/reference/http-api/cloud-inventory.md" \
+    "${root}/docs/public/reference/http-api/"
   cp "${repo_root}/docs/public/reference/http-api.md" "${root}/docs/public/reference/"
   cp "${repo_root}/docs/mkdocs.yml" "${root}/docs/"
   printf '%s\n' "$root"
@@ -368,6 +401,21 @@ mutation_root="$(seed_mutation_repo missing-shared-link)"
 sed -i.bak 's/(context-and-stories.md#shared-response-contract)/(context-and-stories.md)/' \
   "${mutation_root}/docs/public/reference/http-api/story-routes.md"
 expect_mutation_failure "child missing the canonical shared-contract link is rejected" "$mutation_root"
+
+mutation_root="$(seed_mutation_repo oversize-hub)"
+awk 'BEGIN { for (i = 1; i <= 451; i++) print "extra line" }' \
+  >>"${mutation_root}/docs/public/reference/http-api.md"
+expect_mutation_failure "oversized http-api.md hub is rejected" "$mutation_root"
+
+mutation_root="$(seed_mutation_repo hub-section-regrown)"
+printf '%s\n' '## Cloud Inventory Readback' \
+  >>"${mutation_root}/docs/public/reference/http-api.md"
+expect_mutation_failure "section moved back into the hub is rejected" "$mutation_root"
+
+mutation_root="$(seed_mutation_repo missing-ask-nav)"
+sed -i.bak '/Ask Eshu: reference\/http-api\/ask.md/d' \
+  "${mutation_root}/docs/mkdocs.yml"
+expect_mutation_failure "missing Ask Eshu navigation entry is rejected" "$mutation_root"
 
 mutation_root="$(seed_mutation_repo changed-title)"
 sed -i.bak 's/^# HTTP Story Routes$/# HTTP Story Route Reference/' \

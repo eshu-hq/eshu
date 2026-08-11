@@ -3,6 +3,12 @@
 Use this page for entity resolution, context reads, incident/work-item evidence,
 catalog navigation, and response rules shared by story and deployment routes.
 
+The route list here is maintained by hand against the handlers in
+`go/internal/query`. No gate enforces doc-to-handler parity:
+`scripts/verify-route-coverage.sh` checks that a newly registered route has
+handler test coverage, not that this page lists it. When this page and
+`GET /api/v0/openapi.json` disagree, the spec wins.
+
 ## Route Map
 
 | Area | Routes or reference |
@@ -388,8 +394,8 @@ failure for an evidence-backed answer.
   below), which can fire on rows the caller was never entitled to.
 
 The same three signals drive `result_limits.truncated` on service story,
-service context, and workload context/story, plus service investigation
-coverage. Both blocks also
+service context, and workload context/story, and `coverage_summary.truncated`
+on the service investigation route. Both blocks also
 report `downstream_read_limit`, the bound that actually fires on the
 downstream lists (25 by default). Read it rather than `result_limits.limit` or
 `coverage_summary.result_limit`, which report the 50-row rendering cap.

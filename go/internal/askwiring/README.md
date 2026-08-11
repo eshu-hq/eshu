@@ -26,7 +26,7 @@ default-off semantics and engine lifecycle are implemented once.
 `ESHU_ASK_MAX_TOOL_CALLS_PER_TURN` (default 4, ceiling 16) let operators widen
 the loop budget for weaker providers without removing the hard safety cap. The
 resolved budget is logged at startup (`ask: engine budget resolved`). See
-[HTTP API Reference](../../../docs/public/reference/http-api.md#agent-loop-budget-tunable)
+[Ask Eshu](../../../docs/public/reference/http-api/ask.md#agent-loop-budget-tunable)
 for the full contract.
 
 ## Default-off contract
