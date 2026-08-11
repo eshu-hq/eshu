@@ -148,6 +148,13 @@ type SupplyChainImpactFindingRow struct {
 	// same field position as SupplyChainImpactFindingResult so the
 	// SupplyChainImpactFindingResult(row) conversion stays valid.
 	CloudRuntimeResourceRefs []string
+	// KubernetesRuntimeWorkloadRefs names current, authorized workloads observed
+	// running this finding's exact subject digest. It is query-time evidence and
+	// is intentionally distinct from repository-level RuntimeContext.WorkloadIDs.
+	KubernetesRuntimeWorkloadRefs []KubernetesRuntimeWorkloadRef
+	// KubernetesRuntimeProbe reports the digest-local candidate budget and only
+	// discloses truncation when the all-scopes authorization contract permits it.
+	KubernetesRuntimeProbe *KubernetesRuntimeProbeMetadata
 	// RuntimeContext carries the read-time-resolved runtime context
 	// (workloads, services, deployments, environments, catalog refs) resolved
 	// from this finding's repository_id at query time (issue #5746). Like

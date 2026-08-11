@@ -51,6 +51,22 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 		wantCorroboration []SupplyChainVersionResolutionCorroboration
 	}{
 		{
+			name: "kubernetes runtime confirms the parent finding digest",
+			row: SupplyChainImpactFindingRow{
+				SubjectDigest: digest,
+				KubernetesRuntimeWorkloadRefs: []KubernetesRuntimeWorkloadRef{{
+					UID: "workload-1", ClusterID: "cluster-a", Namespace: "payments", Name: "api",
+				}},
+			},
+			wantTier: truth.TierRuntimeConfirmed,
+			wantCorroboration: []SupplyChainVersionResolutionCorroboration{{
+				Tier:            string(truth.TierConfigOnly),
+				DigestOrVersion: digest,
+				EvidenceKind:    "config_materialization",
+				Agreement:       supplyChainVersionResolutionAgrees,
+			}},
+		},
+		{
 			name: "runtime confirms the same digest a strong-branch CI match baked, both corroborate and agree",
 			row: SupplyChainImpactFindingRow{
 				SubjectDigest:            digest,

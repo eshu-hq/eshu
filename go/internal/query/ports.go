@@ -9,6 +9,9 @@ import (
 )
 
 // GraphQuery is the read-only graph traversal surface used by query handlers.
+// Implementations must permit concurrent Run calls. Neo4jReader satisfies that
+// contract with the driver's concurrent-safe connection pool and opens a
+// separate read session for every attempt; callers must never share a session.
 type GraphQuery interface {
 	Run(context.Context, string, map[string]any) ([]map[string]any, error)
 	RunSingle(context.Context, string, map[string]any) (map[string]any, error)
