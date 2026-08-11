@@ -66,6 +66,8 @@ func statusReportToMapWithAWS(
 		"generation_totals":                 r.GenerationTotals,
 		"stage_summaries":                   stageSummariesToSlice(r.StageSummaries),
 		"domain_backlogs":                   domainBacklogsToSlice(r.DomainBacklogs, r.QueueBlockages),
+		"domain_backlogs_truncated":         r.DomainBacklogsTruncated,
+		"domain_backlogs_limit":             domainBacklogsLimitForAPI(r),
 		"queue_blockages":                   queueBlockagesToSlice(r.QueueBlockages),
 		"aws_materialization":               awsMaterializationStatusToMap(awsDomains, awsBlockages),
 		"semantic_extraction":               semanticExtractionStatusToMap(r.SemanticExtraction),
@@ -170,6 +172,17 @@ func domainBacklogsToSlice(domains []status.DomainBacklog, blockages []status.Qu
 		result = append(result, domainBacklogToMap(d, domainBacklogBuckets(d, blockedByDomain[d.Domain])))
 	}
 	return result
+}
+
+// domainBacklogsLimitForAPI zeroes the reported cap unless BuildReport
+// actually truncated the domain list, mirroring status.RenderJSON's
+// domainBacklogsLimitJSON so a client cannot read an untruncated response as
+// capped at whatever DomainLimit happened to be configured.
+func domainBacklogsLimitForAPI(r status.Report) int {
+	if !r.DomainBacklogsTruncated {
+		return 0
+	}
+	return r.DomainBacklogsLimit
 }
 
 func queueBlockagesToSlice(blockages []status.QueueBlockage) []map[string]any {

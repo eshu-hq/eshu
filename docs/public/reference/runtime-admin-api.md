@@ -148,6 +148,8 @@ The JSON report is rendered by `go/internal/status.RenderJSON` and may include:
 - `generations`
 - `stages`
 - `domains`
+- `domain_backlogs_truncated`
+- `domain_backlogs_limit`
 - `queue_blockages`
 - `collector_generation_dead_letters`
 - `terraform_state`
