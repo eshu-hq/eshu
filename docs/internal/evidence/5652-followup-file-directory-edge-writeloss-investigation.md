@@ -258,3 +258,124 @@ production dispatch mode in a second independent investigation, and (b) the
 dispatch that production's `PhaseGroupExecutor` never applies to
 `OperationCanonicalRetract` statements, a routing now covered by
 `TestPhaseGroupExecutorRetractPhaseNeverUsesExecuteGroup`.
+
+## #5671 root cause: the transport, not stack contamination
+
+The residual question this note left open — why the first #5652 probe saw zero
+File edges while the re-verification saw them — is now answered. It is not
+contamination. The two investigations used **different transports against the
+same statement shape**, and the HTTP query endpoint drops a write the Bolt
+driver commits.
+
+### Backend version
+
+Measured on **NornicDB v1.1.11**
+(`timothyswt/nornicdb-cpu-bge@sha256:51b6174ae65e4ce54a158ac2f9eace7d36a1971545824d22add0fe06d94c1090`),
+the exact pinned digest both sides of the original discrepancy ran on, and
+confirmed in-band:
+
+```
+CALL dbms.components() YIELD versions RETURN versions   ->  ["1.1.11"]
+```
+
+An earlier draft of this section measured only the current
+`eshu-nornicdb-pr290:3722b483c02c` (v1.2.1). That was a real gap — a transport
+difference on a later backend does not establish what happened on v1.1.11 — and
+it was caught in review of #6047. The result reproduces identically on both
+versions, so the behavior is not version-specific, but v1.1.11 is what the
+diagnosis rests on.
+
+### The measurement
+
+Isolated container per version, started fresh for this experiment, nothing else
+ever run on it, torn down after. Database `nornic`, schema bootstrapped with the
+uid-style unique constraints, then one `Repository`, one `Directory`, and one
+`File` seeded.
+
+The statement under test is the structural shape of
+`canonicalNodeFileUpdateExistingCypher` — a `MATCH`/`SET`, a `WITH`, an edge
+`MERGE`, a second `WITH`, and a second edge `MERGE`.
+
+Over the HTTP endpoint `POST /db/nornic/tx/commit`, v1.1.11, edges deleted
+between trials:
+
+| trial | REPO_CONTAINS | CONTAINS |
+| ---: | ---: | ---: |
+| 1 | 1 | **0** |
+| 2 | 1 | **0** |
+| 3 | 1 | **0** |
+
+`errors: []` every time. The second post-`WITH` `MERGE` is dropped silently.
+The same three trials on v1.2.1 give the same result.
+
+Splitting the same work into two single-`WITH` statements, same endpoint, same
+instance:
+
+| trial | REPO_CONTAINS | CONTAINS |
+| ---: | ---: | ---: |
+| 1 | 1 | 1 |
+| 2 | 1 | 1 |
+| 3 | 1 | 1 |
+
+So the variable is the **chained second `WITH`**, not the statement's content
+and not the state of the instance.
+
+### The Bolt comparison, same v1.1.11 container
+
+```bash
+cd go
+ESHU_REPLAY_TIER_LIVE=1 ESHU_GRAPH_BACKEND=nornicdb \
+ESHU_NEO4J_URI=bolt://127.0.0.1:17691 \
+ESHU_NEO4J_USERNAME=neo4j ESHU_NEO4J_PASSWORD=password \
+ESHU_NEO4J_DATABASE=nornic \
+go test ./internal/replay/offlinetier \
+  -run TestFileUpdateExistingEdgesGraphTruth -count=1 -v
+```
+
+`-v` is required for the `t.Logf` lines below, and the `ESHU_NEO4J_*` variables
+are required or `OpenNeo4jDriver` fails in a clean shell.
+
+The lines that matter are the **gen2 update-existing** ones — gen1 is the
+baseline insert, not the statement under investigation:
+
+```
+gen2 update-existing: REPO_CONTAINS edge count for ".../dir-a/existing.go" = 1 (want 1)
+gen2 update-existing: directory CONTAINS edge count for ".../dir-a/existing.go" = 1 (want 1)
+gen2 existing file:   REPO_CONTAINS = 1 (want 1)
+gen2 existing file:   directory CONTAINS = 1 (want 1)
+gen2 brand-new file:  REPO_CONTAINS = 1 (want 1)
+gen2 brand-new file:  directory CONTAINS = 1 (want 1)
+--- PASS: TestFileUpdateExistingEdgesGraphTruth_ExistingFile (0.37s)
+--- PASS: TestFileUpdateExistingEdgesGraphTruth_BrandNewFile (0.35s)
+ok  github.com/eshu-hq/eshu/go/internal/replay/offlinetier  1.275s
+```
+
+Both edges present, on the same running container that drops one over HTTP.
+
+### What this settles
+
+- **Contamination is ruled out.** The zero-edge result reproduces
+  deterministically on an instance that had never held a dropped constraint or
+  any other experiment. There was nothing to contaminate.
+- **The production conclusion stands and is now explained.** Bolt commits both
+  edges on the pinned v1.1.11, proven by the committed regression test.
+- **The first probe was not wrong about what it saw.** It saw a real dropped
+  write — over a transport production does not use.
+
+### What to do with it
+
+Do not write live graph probes against `POST /db/<db>/tx/commit` and treat the
+result as production truth. This endpoint can silently drop a post-`WITH`
+`MERGE` and still return `errors: []`, which manufactures a phantom write-loss
+that no production path exhibits. Use the Bolt driver — the repo's existing
+live tests already do.
+
+The symptom mismatch that should have made the contamination hypothesis suspect
+earlier: the constraint drop/recreate pitfall's documented signature is a
+**loud** false `UNIQUE` violation on commit, whereas this is a **silent**
+zero-row write. Different symptoms, different mechanism.
+
+Scope note: this measures the HTTP endpoint's behavior on v1.1.11 and v1.2.1
+for this statement shape. It does not characterize every HTTP-endpoint shape,
+and it is not an upstream bug report — reproducing it for upstream would want a
+minimal case without Eshu's schema in the picture.
