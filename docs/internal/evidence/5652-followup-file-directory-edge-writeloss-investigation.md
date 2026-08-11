@@ -376,6 +376,6 @@ earlier: the constraint drop/recreate pitfall's documented signature is a
 zero-row write. Different symptoms, different mechanism.
 
 Scope note: this measures the HTTP endpoint's behavior on v1.1.11 and v1.2.1
-for this statement shape. It does not characterise every HTTP-endpoint shape,
+for this statement shape. It does not characterize every HTTP-endpoint shape,
 and it is not an upstream bug report — reproducing it for upstream would want a
 minimal case without Eshu's schema in the picture.
