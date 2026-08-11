@@ -122,7 +122,12 @@ func packageArtifactHashSegmentEscape(raw string) string {
 		return raw
 	}
 	var b strings.Builder
-	b.Grow(len(raw) + 4)
+	// The worst case is every byte needing an escape, doubling the output --
+	// len(raw)+4 undersizes that case and forces strings.Builder to
+	// reallocate mid-write (measured: 2 mallocs instead of 1 for a
+	// fully-escaped input via testing.AllocsPerRun, see
+	// TestPackageArtifactHashSegmentEscapeAllocatesOnce).
+	b.Grow(2 * len(raw))
 	for i := 0; i < len(raw); i++ {
 		if raw[i] == '\\' || raw[i] == ':' {
 			b.WriteByte('\\')
@@ -130,6 +135,22 @@ func packageArtifactHashSegmentEscape(raw string) string {
 		b.WriteByte(raw[i])
 	}
 	return b.String()
+}
+
+// TestPackageArtifactHashSegmentEscapeAllocatesOnce pins the Grow sizing
+// fix: a worst-case input where every byte needs escaping must allocate
+// exactly once (the Grow(2*len(raw)) pre-allocation), not twice (an
+// undersized Grow followed by strings.Builder's own reallocation).
+func TestPackageArtifactHashSegmentEscapeAllocatesOnce(t *testing.T) {
+	// Not t.Parallel(): testing.AllocsPerRun panics if called from a
+	// parallel subtest.
+	worstCase := strings.Repeat(":", 64)
+	allocs := testing.AllocsPerRun(100, func() {
+		_ = packageArtifactHashSegmentEscape(worstCase)
+	})
+	if allocs > 1 {
+		t.Errorf("packageArtifactHashSegmentEscape(%d-byte fully-escaped input) allocated %v times, want at most 1 (Grow is undersized)", len(worstCase), allocs)
+	}
 }
 
 // packageArtifactHashesFromCassette derives the expected PackageArtifact
