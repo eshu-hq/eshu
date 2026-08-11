@@ -788,6 +788,16 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DomainBacklog"
+        domain_backlogs_truncated:
+          type: boolean
+          description: >
+            True when `domains` was capped at the configured row limit. Absent
+            (false) when the full domain backlog list fit within the cap.
+        domain_backlogs_limit:
+          type: integer
+          description: >
+            The row cap applied to `domains` when domain_backlogs_truncated is
+            true. Zero, and typically absent, when the list was not truncated.
         queue_blockages:
           type: array
           items:
