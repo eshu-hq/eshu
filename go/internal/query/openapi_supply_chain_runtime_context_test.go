@@ -50,6 +50,21 @@ func TestOpenAPISpecDocumentsSupplyChainRuntimeContextRoutes(t *testing.T) {
 	if got := runtimeContext["description"]; got != wantDescription {
 		t.Fatalf("runtime_context.description = %#v, want %#v", got, wantDescription)
 	}
+
+	explainPath := mustMapField(t, paths, "/api/v0/supply-chain/impact/explain")
+	explainGet := mustMapField(t, explainPath, "get")
+	explainResponses := mustMapField(t, explainGet, "responses")
+	explainOK := mustMapField(t, explainResponses, "200")
+	explainContent := mustMapField(t, explainOK, "content")
+	explainJSON := mustMapField(t, explainContent, "application/json")
+	explainSchema := mustMapField(t, explainJSON, "schema")
+	explainProperties := mustMapField(t, explainSchema, "properties")
+	explainFinding := mustMapField(t, explainProperties, "finding")
+	explainFindingProperties := mustMapField(t, explainFinding, "properties")
+	explainRuntimeContext := mustMapField(t, explainFindingProperties, "runtime_context")
+	if !reflect.DeepEqual(explainRuntimeContext, runtimeContext) {
+		t.Fatalf("explain runtime_context = %#v, want list runtime_context %#v", explainRuntimeContext, runtimeContext)
+	}
 }
 
 func TestOpenAPISpecDistinguishesDigestBoundKubernetesRefsFromRuntimeContext(t *testing.T) {
