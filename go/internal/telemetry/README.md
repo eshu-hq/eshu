@@ -325,6 +325,8 @@ module prefixes across generations.
 | `LargeRepoSemaphoreWait` | `eshu_dp_large_repo_semaphore_wait_seconds` | 0–300 s |
 | `DeferredBackfillDuration` | `eshu_dp_deferred_backfill_duration_seconds` | 0.1–300 s |
 | `DeferredBackfillBatchDuration` | `eshu_dp_deferred_backfill_batch_duration_seconds` | 0.1–300 s |
+| `DeferredBackfillPartitionLoadDuration` | `eshu_dp_deferred_backfill_partition_load_duration_seconds` | 0.1–300 s |
+| `DeferredBackfillPartitionLoadFactCount` | `eshu_dp_deferred_backfill_partition_load_fact_count` (Int64) | 0–100000 facts; no labels |
 | `IaCReachabilityMaterializationDuration` | `eshu_dp_iac_reachability_materialization_duration_seconds` | 0.1–300 s |
 | `CrossRepoResolutionDuration` | `eshu_dp_cross_repo_resolution_duration_seconds` | 0.01–30 s |
 | `PipelineOverlapDuration` | `eshu_dp_pipeline_overlap_seconds` | 1–1800 s |
