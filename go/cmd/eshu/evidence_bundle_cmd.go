@@ -53,6 +53,8 @@ func newEvidenceBundleExportCommand() *cobra.Command {
 	}
 	cmd.Flags().String("scope", "repo:demo/service", "Share-safe scope handle for the bundle")
 	cmd.Flags().String("out", "", "Path to write the bundle JSON; stdout when omitted")
+	cmd.Flags().Bool("live", false, "Compose the bundle from the running stack's status endpoints instead of the fixture demo bundle")
+	addRemoteFlags(cmd)
 	return cmd
 }
 
@@ -70,11 +72,29 @@ func newEvidenceBundleValidateCommand() *cobra.Command {
 }
 
 func runEvidenceBundleExport(cmd *cobra.Command, _ []string) error {
-	scope, err := cmd.Flags().GetString("scope")
+	outPath, err := cmd.Flags().GetString("out")
 	if err != nil {
 		return err
 	}
-	outPath, err := cmd.Flags().GetString("out")
+	live, err := cmd.Flags().GetBool("live")
+	if err != nil {
+		return err
+	}
+	if live {
+		// All three status routes a live bundle reads are stack-global:
+		// /status/index counts every repository, and the pipeline and collector
+		// routes carry no scope selector. Labelling that evidence with a
+		// narrower scope would attribute other repositories' counts and
+		// backlogs to the named one, so a custom --scope is refused rather
+		// than silently mislabelling the artifact.
+		if cmd.Flags().Changed("scope") {
+			return fmt.Errorf("--scope cannot be combined with --live: the status routes a live bundle reads are stack-wide, so a repository-scoped label would misattribute other repositories' evidence")
+		}
+		// Empty scope makes BuildLiveBundle use its stack-wide identity.
+		return runEvidenceBundleExportLive(cmd, "", outPath)
+	}
+
+	scope, err := cmd.Flags().GetString("scope")
 	if err != nil {
 		return err
 	}
@@ -82,10 +102,19 @@ func runEvidenceBundleExport(cmd *cobra.Command, _ []string) error {
 	if err := evidencebundle.Validate(bundle); err != nil {
 		return fmt.Errorf("validate generated evidence bundle: %w", err)
 	}
+	// Stamp only now that Validate actually returned nil.
+	bundle = evidencebundle.StampValidation(bundle)
 	raw, err := evidencebundle.RenderJSON(bundle)
 	if err != nil {
 		return err
 	}
+	return writeEvidenceBundleOutput(cmd, raw, outPath)
+}
+
+// writeEvidenceBundleOutput writes rendered bundle JSON to outPath when set,
+// otherwise to the command's stdout. Shared by the demo and --live export
+// paths.
+func writeEvidenceBundleOutput(cmd *cobra.Command, raw []byte, outPath string) error {
 	if strings.TrimSpace(outPath) != "" {
 		if err := os.WriteFile(outPath, raw, 0o600); err != nil {
 			return fmt.Errorf("write evidence bundle: %w", err)

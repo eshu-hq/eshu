@@ -46,6 +46,142 @@ type Contents struct {
 	CapabilityCatalog    CatalogSnapshot     `json:"capability_catalog"`
 	SurfaceInventory     CatalogSnapshot     `json:"surface_inventory"`
 	OperatorState        []OperatorStateItem `json:"operator_state"`
+	// PipelineState carries deterministic queue, generation, and domain
+	// backlog truth composed by BuildLiveBundle from the running stack's
+	// status endpoints (#4045). It is a pointer with json:",omitempty" so a
+	// demo bundle built by BuildDemoBundle never renders this field and its
+	// bundle_id stays unchanged.
+	PipelineState *PipelineStateSnapshot `json:"pipeline_state,omitempty"`
+	// SemanticProviderState carries semantic-extraction/LLM-provider status,
+	// kept as a separate field from PipelineState so operator-facing tooling
+	// never conflates deterministic pipeline truth with provider posture
+	// (issue #4045 requirement). Pointer with json:",omitempty" for the same
+	// demo-bundle-stability reason as PipelineState.
+	SemanticProviderState *SemanticProviderStateSnapshot `json:"semantic_provider_state,omitempty"`
+}
+
+// PipelineStateSnapshot is the live bundle's deterministic pipeline-truth
+// section: repository count, queue depth, generation history, stage and
+// domain backlogs, and collector readiness, as observed from a running
+// stack's status endpoints. It deliberately excludes semantic/provider
+// status (see SemanticProviderStateSnapshot) and per-kind fact counts, which
+// no status endpoint exposes (recorded instead as a "fact_counts"
+// MissingEvidence entry).
+type PipelineStateSnapshot struct {
+	RepositoryCount int                   `json:"repository_count"`
+	HealthState     string                `json:"health_state"`
+	HealthReasons   []string              `json:"health_reasons,omitempty"`
+	Queue           PipelineQueueSnapshot `json:"queue"`
+	// No omitempty on the three below. encoding/json never treats a struct as
+	// empty, so it was a no-op on the two struct fields; and on the count a
+	// genuine zero ("nothing is blocked") must stay distinguishable from
+	// "not collected" in an artifact whose design principle is that gaps are
+	// explicit data.
+	QueueBlockedCount int                                  `json:"queue_blocked_count"`
+	ScopeActivity     PipelineScopeActivitySnapshot        `json:"scope_activity"`
+	GenerationHistory PipelineGenerationHistorySnapshot    `json:"generation_history"`
+	StageSummaries    []PipelineStageSummarySnapshot       `json:"stage_summaries,omitempty"`
+	DomainBacklogs    []PipelineDomainBacklogSnapshot      `json:"domain_backlogs,omitempty"`
+	Collectors        []PipelineCollectorReadinessSnapshot `json:"collectors,omitempty"`
+}
+
+// PipelineQueueSnapshot records reducer/ingest queue depth by state.
+type PipelineQueueSnapshot struct {
+	Total       int `json:"total"`
+	Outstanding int `json:"outstanding"`
+	// OverdueClaims is the sole driver of a "stalled" health state, so a bundle
+	// reporting readiness "blocked" without it explains nothing.
+	OverdueClaims         int     `json:"overdue_claims"`
+	OldestOutstandingAgeS float64 `json:"oldest_outstanding_age_seconds"`
+	Pending               int     `json:"pending"`
+	InFlight              int     `json:"in_flight"`
+	Retrying              int     `json:"retrying"`
+	Succeeded             int     `json:"succeeded"`
+	Failed                int     `json:"failed"`
+	DeadLetter            int     `json:"dead_letter"`
+}
+
+// PipelineScopeActivitySnapshot records repo-scope activity counts.
+type PipelineScopeActivitySnapshot struct {
+	Active    int `json:"active"`
+	Changed   int `json:"changed"`
+	Unchanged int `json:"unchanged"`
+}
+
+// PipelineGenerationHistorySnapshot records generation lifecycle counts.
+type PipelineGenerationHistorySnapshot struct {
+	Active     int `json:"active"`
+	Pending    int `json:"pending"`
+	Completed  int `json:"completed"`
+	Superseded int `json:"superseded"`
+	Failed     int `json:"failed"`
+	Other      int `json:"other"`
+}
+
+// PipelineStageSummarySnapshot records one reducer stage's backlog.
+type PipelineStageSummarySnapshot struct {
+	Stage      string `json:"stage"`
+	Pending    int    `json:"pending"`
+	Claimed    int    `json:"claimed"`
+	Running    int    `json:"running"`
+	Retrying   int    `json:"retrying"`
+	Succeeded  int    `json:"succeeded"`
+	Failed     int    `json:"failed"`
+	DeadLetter int    `json:"dead_letter"`
+}
+
+// PipelineDomainBacklogSnapshot records one materialization domain's backlog.
+type PipelineDomainBacklogSnapshot struct {
+	Domain      string `json:"domain"`
+	Outstanding int    `json:"outstanding"`
+	InFlight    int    `json:"in_flight"`
+	// Blocked is the largest gated-row count among this domain's blockage rows,
+	// which is what /status/pipeline reports per domain. It deliberately does
+	// NOT reconcile with pipeline_state.queue_blocked_count, a sum across every
+	// blockage row from /status/index -- a max and a sum over different row
+	// sets will not add up, and reading them as parts of one total is wrong.
+	Blocked    int `json:"blocked"`
+	Retrying   int `json:"retrying"`
+	Failed     int `json:"failed"`
+	DeadLetter int `json:"dead_letter"`
+	// Pending is not carried: it is outstanding - in_flight - retrying, and all
+	// three are here. Recompute it clamped at zero, as the API does; the three
+	// inputs are sampled together but can still show in_flight + retrying
+	// briefly exceeding outstanding.
+	//
+	// OldestAgeS is the per-domain age the health reasons quote verbatim
+	// ("domain %s has %d outstanding items ... for %s"). Without it the bundle
+	// carries the narrative and nothing to reconcile it against.
+	OldestAgeS float64 `json:"oldest_age_seconds"`
+}
+
+// PipelineCollectorReadinessSnapshot records one collector's readiness
+// classification without embedding any host, instance address, or endpoint.
+type PipelineCollectorReadinessSnapshot struct {
+	CollectorKind  string `json:"collector_kind"`
+	StatusCategory string `json:"status_category"`
+	Health         string `json:"health"`
+}
+
+// SemanticProviderStateSnapshot is the live bundle's semantic-extraction and
+// LLM-provider posture section, kept separate from PipelineState (see
+// Contents.SemanticProviderState doc). "unavailable" with reason
+// "provider_not_configured" is the no-provider-configured state, distinct
+// from a configured-but-unhealthy provider.
+type SemanticProviderStateSnapshot struct {
+	State              string                            `json:"state"`
+	Reason             string                            `json:"reason,omitempty"`
+	ProviderConfigured bool                              `json:"provider_configured"`
+	ProviderProfiles   []SemanticProviderProfileSnapshot `json:"provider_profiles,omitempty"`
+}
+
+// SemanticProviderProfileSnapshot records one configured provider profile's
+// state without embedding credentials or endpoint locators.
+type SemanticProviderProfileSnapshot struct {
+	ProfileID    string `json:"profile_id"`
+	ProviderKind string `json:"provider_kind"`
+	State        string `json:"state"`
+	Reason       string `json:"reason,omitempty"`
 }
 
 // PacketSummary is a bounded, redacted packet identity and handle summary.
