@@ -38,6 +38,10 @@ mounted:
   counts. When the result reaches the configured row cap, the response sets
   `aws_cloud_scans_truncated` and reports `aws_cloud_scan_limit`. Raw resource
   IDs, ARNs, event IDs, and raw payloads stay out of the admin contract.
+- `domains` reports the per-domain queue backlog. When the list is capped at
+  the configured row limit, the response sets `domain_backlogs_truncated` and
+  reports `domain_backlogs_limit`, the same truncation pattern as
+  `aws_cloud_scans_truncated`/`aws_cloud_scan_limit`.
 - `aws_freshness` reports AWS Config/EventBridge freshness backlog using
   aggregate status counts, `oldest_queued_age`, and
   `oldest_queued_age_seconds`.

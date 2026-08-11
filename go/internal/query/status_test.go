@@ -55,3 +55,50 @@ func TestStatusReportToMapIncludesCollectorGenerationDeadLetters(t *testing.T) {
 		t.Fatalf("oldest_dead_letter_age_ms = %#v, want %#v", got, want)
 	}
 }
+
+// TestStatusReportToMapIncludesDomainBacklogTruncation proves the
+// /api/v0/status/pipeline map carries the same truncation metadata as
+// RenderText/RenderJSON (#4045 review: statusReportToMapWithRaw has its own
+// serializer, and BuildReport recording DomainBacklogsTruncated does not by
+// itself reach a caller reading /api/v0/status/pipeline instead of
+// /admin/status).
+func TestStatusReportToMapIncludesDomainBacklogTruncation(t *testing.T) {
+	t.Parallel()
+
+	report := status.Report{
+		AsOf:                    time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC),
+		Health:                  status.HealthSummary{State: "healthy"},
+		DomainBacklogsTruncated: true,
+		DomainBacklogsLimit:     5,
+	}
+
+	payload := statusReportToMap(report)
+	if got, want := payload["domain_backlogs_truncated"], true; got != want {
+		t.Fatalf("domain_backlogs_truncated = %#v, want %#v", got, want)
+	}
+	if got, want := payload["domain_backlogs_limit"], 5; got != want {
+		t.Fatalf("domain_backlogs_limit = %#v, want %#v", got, want)
+	}
+}
+
+// TestStatusReportToMapZeroesDomainBacklogLimitWhenNotTruncated is the
+// negative control: a caller must not read an untruncated response as capped
+// at whatever DomainLimit happened to be configured.
+func TestStatusReportToMapZeroesDomainBacklogLimitWhenNotTruncated(t *testing.T) {
+	t.Parallel()
+
+	report := status.Report{
+		AsOf:                    time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC),
+		Health:                  status.HealthSummary{State: "healthy"},
+		DomainBacklogsTruncated: false,
+		DomainBacklogsLimit:     5,
+	}
+
+	payload := statusReportToMap(report)
+	if got, want := payload["domain_backlogs_truncated"], false; got != want {
+		t.Fatalf("domain_backlogs_truncated = %#v, want %#v", got, want)
+	}
+	if got, want := payload["domain_backlogs_limit"], 0; got != want {
+		t.Fatalf("domain_backlogs_limit = %#v, want %#v (guarded to zero when not truncated)", got, want)
+	}
+}
