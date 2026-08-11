@@ -2338,8 +2338,8 @@
     {
       "capability": "code_flow.reaching_def",
       "display_name": "Code Flow Reaching Def",
-      "maturity": "experimental",
-      "derived_maturity": "experimental",
+      "maturity": "general_availability",
+      "derived_maturity": "general_availability",
       "surfaces": [
         {
           "tool": "POST /api/v0/code/flow/reaching-def",
@@ -2372,7 +2372,7 @@
           "max_scope_size": "none"
         },
         "production": {
-          "status": "experimental",
+          "status": "supported",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1500,
@@ -2387,6 +2387,10 @@
         {
           "kind": "go_test",
           "ref": "./internal/query"
+        },
+        {
+          "kind": "remote_validation",
+          "ref": "prod-code-flow-reaching-def"
         }
       ],
       "console": false,
@@ -10992,8 +10996,8 @@
     {
       "capability": "symbol_graph.imports",
       "display_name": "Symbol Graph Imports",
-      "maturity": "experimental",
-      "derived_maturity": "experimental",
+      "maturity": "general_availability",
+      "derived_maturity": "general_availability",
       "surfaces": [
         {
           "tool": "execute_language_query",
@@ -11023,7 +11027,7 @@
           "max_scope_size": "active_repo"
         },
         "production": {
-          "status": "experimental",
+          "status": "supported",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1200,
@@ -11038,6 +11042,10 @@
         {
           "kind": "integration_test",
           "ref": "local-authoritative-imports"
+        },
+        {
+          "kind": "remote_validation",
+          "ref": "prod-symbol-graph-imports"
         }
       ],
       "console": false,
@@ -11063,8 +11071,8 @@
     {
       "capability": "symbol_graph.inheritance",
       "display_name": "Symbol Graph Inheritance",
-      "maturity": "experimental",
-      "derived_maturity": "experimental",
+      "maturity": "general_availability",
+      "derived_maturity": "general_availability",
       "surfaces": [
         {
           "tool": "analyze_code_relationships",
@@ -11098,7 +11106,7 @@
           "max_scope_size": "active_repo"
         },
         "production": {
-          "status": "experimental",
+          "status": "supported",
           "max_truth_level": "exact",
           "required_runtime": "deployed_services",
           "p95_latency_ms": 1500,
@@ -11113,6 +11121,10 @@
         {
           "kind": "integration_test",
           "ref": "local-authoritative-inheritance"
+        },
+        {
+          "kind": "remote_validation",
+          "ref": "prod-symbol-graph-inheritance"
         }
       ],
       "console": false,
