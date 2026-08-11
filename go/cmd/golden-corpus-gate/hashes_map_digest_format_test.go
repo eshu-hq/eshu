@@ -12,8 +12,11 @@ import (
 // hashesMapDigestWidths is the set of hash algorithms this gate validates by
 // exact hex width when they appear as a key under a "hashes" object
 // (package_registry.package_artifact's hashes.sha256/hashes.sha512 shape,
-// sdk/go/factschema/decode_packageregistry.go). Unlike every digest field
-// isDigestField's naming convention already covers, a hashes-map entry
+// sdk/go/factschema/decode_packageregistry.go) OR under a "digest"-named
+// object (the in-toto/SLSA DigestSet shape, "digest": {"sha256": "..."},
+// carried by sbomattestation.attestation_slsa_provenance's
+// materials[].digest and config_source.digest). Unlike every digest field
+// isDigestField's naming convention already covers, an entry in either shape
 // carries NO algorithm prefix -- the JSON key already names the algorithm --
 // so the value is a bare lowercase-hex digest at that algorithm's exact
 // width, not a "sha256:"/"sha512:"-prefixed digestPattern match.
@@ -58,16 +61,18 @@ var hashesMapDigestWidths = map[string]*regexp.Regexp{
 // it into the canonical Hashes map (no case-folding: "SHA256" stays distinct
 // from "sha256" on both sides, since the projector does not fold either) --
 // and whether that location is a key living directly under a "hashes"
-// object. The check requires the trailing path component to be a plain
-// dotted object key ("tail" containing no "["): a "hashes" object's own value
-// being read as a joined list ("...hashes[0]", the B-12 snapshot's
+// object OR under a digest-named object (isDigestNamedSegment: "digest" or
+// a "_digest"-suffixed segment), the in-toto/SLSA DigestSet shape. The check
+// requires the trailing path component to be a plain dotted object key
+// ("tail" containing no "["): a "hashes" object's own value being read as a
+// joined list ("...hashes[0]", the B-12 snapshot's
 // allowed_node_property_values pin) is reached via an array index appended to
 // "hashes" itself, not a distinct key nested one level under it, and must
 // keep being excluded here so that joined "alg:digest|alg:digest" pin keeps
 // being skipped by isDigestField.
 //
-// ok reports only whether location names a hashes-map key at all -- not
-// whether algorithm is one this gate recognizes. Call
+// ok reports only whether location names a hashes-map or DigestSet key at
+// all -- not whether algorithm is one this gate recognizes. Call
 // isHashesMapDigestField to ask whether the entry is actually checked.
 func hashesMapAlgorithm(location string) (algorithm string, ok bool) {
 	index := strings.LastIndex(location, ".")
@@ -78,21 +83,22 @@ func hashesMapAlgorithm(location string) (algorithm string, ok bool) {
 	if strings.Contains(tail, "[") {
 		return "", false
 	}
-	if digestFieldSegment(location[:index]) != "hashes" {
+	parent := digestFieldSegment(location[:index])
+	if parent != "hashes" && !isDigestNamedSegment(parent) {
 		return "", false
 	}
 	return strings.TrimSpace(tail), true
 }
 
-// isHashesMapDigestField reports whether location names a hashes-map entry
-// this gate validates: a key living directly under a "hashes" object (see
-// hashesMapAlgorithm) whose normalized name is one hashesMapDigestWidths
-// knows the exact digest width for. A hashes-map key that normalizes to
-// anything else -- a colon-bearing algorithm name the v1 contract explicitly
-// permits, "sha1", "SHA256", or any other string -- is not treated as a
-// digest field at all here, so isDigestField skips it instead of failing it.
-// See hashesMapDigestWidths for why skipping, not failing, is the correct
-// behavior for this gate.
+// isHashesMapDigestField reports whether location names a hashes-map or
+// DigestSet entry this gate validates: a key living directly under a
+// "hashes" object or a digest-named object (see hashesMapAlgorithm) whose
+// normalized name is one hashesMapDigestWidths knows the exact digest width
+// for. A key that normalizes to anything else -- a colon-bearing algorithm
+// name the v1 contract explicitly permits, "sha1", "SHA256", or any other
+// string -- is not treated as a digest field at all here, so isDigestField
+// skips it instead of failing it. See hashesMapDigestWidths for why
+// skipping, not failing, is the correct behavior for this gate.
 func isHashesMapDigestField(location string) bool {
 	algorithm, ok := hashesMapAlgorithm(location)
 	if !ok {
@@ -193,6 +199,29 @@ func TestIsDigestFieldHandlesHashesMapShape(t *testing.T) {
 			want:     false,
 		},
 		{
+			// P1-1: the in-toto/SLSA DigestSet shape
+			// ("digest": {"sha256": "..."}) has a "digest"-named parent, not
+			// "hashes" -- it must route the same way a hashes-map key does, or
+			// it escapes validation entirely. This is the exact shape
+			// sbomattestation/supply-chain-demo.json's materials[0].digest and
+			// config_source.digest carry.
+			name:     "DigestSet entry under a digest-named parent is checked",
+			location: "scopes[1].facts[4].payload.materials[0].digest.sha256",
+			want:     true,
+		},
+		{
+			// Same DigestSet shape, unsupported algorithm -- skipped for the
+			// same reason a "hashes.sha1" key is skipped, not failed.
+			name:     "DigestSet entry with an unrecognized algorithm skipped, not failed",
+			location: "scopes[1].facts[4].payload.materials[0].digest.sha1",
+			want:     false,
+		},
+		{
+			name:     "DigestSet entry under config_source.digest is checked",
+			location: "scopes[1].facts[4].payload.config_source.digest.sha256",
+			want:     true,
+		},
+		{
 			// The projector's TrimSpace-only normalization never case-folds,
 			// so "SHA256" stays a distinct, unrecognized key rather than
 			// merging with "sha256" -- and this gate must agree, or it would
@@ -279,6 +308,32 @@ func TestDigestFieldValueIsWellFormedHandlesHashesMapShape(t *testing.T) {
 			// under an unrecognized algorithm is not validated here.
 			name:     "unrecognized algorithm skipped (well-formed vacuously), not rejected",
 			location: unsupportedField,
+			value:    "not-even-hex-shaped-garbage",
+			want:     true,
+		},
+		{
+			// P1-1: the DigestSet shape under a "digest"-named parent (not
+			// "hashes") must be validated at the sha256 width -- sourced from
+			// sbomattestation/supply-chain-demo.json's config_source.digest.
+			name:     "well-formed sha256 DigestSet entry under a digest-named parent",
+			location: "scopes[1].facts[4].payload.config_source.digest.sha256",
+			value:    strings.Repeat("a", 64),
+			want:     true,
+		},
+		{
+			// The #6011-class truncation, replayed against the DigestSet shape
+			// that escaped validation entirely before this fix.
+			name:     "truncated sha256 DigestSet entry under a digest-named parent, 63 hex",
+			location: "scopes[1].facts[4].payload.config_source.digest.sha256",
+			value:    strings.Repeat("a", 63),
+			want:     false,
+		},
+		{
+			// hashesMapDigestWidths does not list "sha1" -- skipped
+			// (well-formed vacuously), not rejected, matching the "hashes"
+			// parent behavior above.
+			name:     "unrecognized algorithm skipped under a digest-named parent",
+			location: "scopes[1].facts[4].payload.materials[0].digest.sha1",
 			value:    "not-even-hex-shaped-garbage",
 			want:     true,
 		},
