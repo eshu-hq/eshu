@@ -45,7 +45,7 @@ progress. The loop is fence-aware on commit and routes commit failures to a
 bounded dead-letter replay path.
 
 The full workflow narrative — drain-hook semantics including the
-never-committed empty-batch escape, fence/claim behaviour, dead-letter replay,
+never-committed empty-batch escape, fence/claim behavior, dead-letter replay,
 and the generation bookkeeping each run depends on — lives in `LIFECYCLE.md`.
 
 ## Exported surface
