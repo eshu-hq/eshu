@@ -363,18 +363,18 @@ Performance Evidence: `BenchmarkFoldSupplyChainRuntimeContext200Repositories`
 folded the same 800 facts for 200 repositories before and after the response
 change. Across five normal-build samples on the same machine and input shape,
 the `origin/main` median was 69.716 microseconds per fold
-(68.920-71.099 microseconds, 48,168 bytes and 1,003 allocations); the branch
-median was 87.199 microseconds (84.923-88.556 microseconds, 118,568 bytes and
-1,403 allocations). The normalized map costs 17.483 microseconds, 70,400 bytes,
-and 400 allocations per 200-repository fold; total fold time remains below
-0.1 milliseconds. The exact production SQL was also measured on PostgreSQL
-18.4 with 100,000 active rows for one hot digest, 199 cold candidate rows, and
-900,000 unrelated rows. The original flattenable join performed roughly 200
-million candidate comparisons, spilled its sort, and took 66,458.413
+(68.920-71.099 microseconds, 48,168 bytes and 1,003 allocations); the final
+branch median was 83.665 microseconds (83.418-84.877 microseconds, 118,568
+bytes and 1,403 allocations). The normalized map costs 13.949 microseconds,
+70,400 bytes, and 400 allocations per 200-repository fold; total fold time
+remains below 0.1 milliseconds. The exact production SQL was also measured on
+PostgreSQL 18.4 with 100,000 active rows for one hot digest, 199 cold candidate
+rows, and 900,000 unrelated rows. The original flattenable join performed
+roughly 200 million candidate comparisons, spilled its sort, and took 66,458.413
 milliseconds. The candidate-driven LATERAL aggregate used the existing
-artifact-digest partial index once per candidate and took 169.360 milliseconds
+artifact-digest partial index once per candidate and took 128.029 milliseconds
 under `EXPLAIN (ANALYZE, BUFFERS)`; the production store call returned all 200
-confirmations in 69.917 milliseconds.
+confirmations in 68.545 milliseconds.
 
 Observability Evidence: `environment_evidence_probe` exposes each finding's
 allocated candidate count and whether its visible candidate names were

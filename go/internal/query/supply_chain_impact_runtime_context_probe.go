@@ -197,7 +197,10 @@ func (h *SupplyChainHandler) applySupplyChainRuntimeContext(
 			continue
 		}
 		resolved := byRepo[repositoryID]
-		digestEvidence := byDigest[strings.TrimSpace(rows[i].SubjectDigest)]
+		digestEvidence := supplyChainRuntimeEnvironmentEvidenceForPlan(
+			environmentPlans[i],
+			byDigest,
+		)
 		environments := sortedUniqueNonEmptyStrings(append(
 			append([]string(nil), resolved.Environments...),
 			mapStringKeys(digestEvidence)...,
@@ -219,6 +222,23 @@ func (h *SupplyChainHandler) applySupplyChainRuntimeContext(
 		}
 	}
 	return nil
+}
+
+func supplyChainRuntimeEnvironmentEvidenceForPlan(
+	plan supplyChainRuntimeEnvironmentPlan,
+	byDigest map[string]map[string]string,
+) map[string]string {
+	var out map[string]string
+	for _, candidate := range plan.candidates {
+		digest := strings.TrimSpace(candidate.SubjectDigest)
+		environment := strings.TrimSpace(candidate.Environment)
+		evidence, ok := byDigest[digest][environment]
+		if !ok {
+			continue
+		}
+		out = recordSupplyChainRuntimeEnvironmentEvidence(out, environment, evidence)
+	}
+	return out
 }
 
 func planSupplyChainRuntimeEnvironmentCandidates(

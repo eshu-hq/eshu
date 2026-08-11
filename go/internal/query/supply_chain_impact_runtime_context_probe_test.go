@@ -6,6 +6,7 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -182,6 +183,106 @@ func TestApplySupplyChainRuntimeContextResolvesWorkloadsServicesEnvironments(t *
 	// must leave the reducer-owned payload untouched.
 	if len(rows[0].WorkloadIDs) != 0 {
 		t.Errorf("baked WorkloadIDs = %v, want untouched empty (no backfill)", rows[0].WorkloadIDs)
+	}
+}
+
+func TestApplySupplyChainRuntimeContextKeepsRepeatedDigestEvidenceWithinRowPlan(t *testing.T) {
+	t.Parallel()
+
+	first := osPackageFindingRowForRuntimeContext()
+	first.RepositoryID = "repository:r_first"
+	first.Environments = []string{"production"}
+	second := first
+	second.FindingID = "finding-os-2"
+	second.RepositoryID = "repository:r_second"
+	second.Environments = []string{"staging"}
+	store := &runtimeContextFindingStore{
+		byRepo: map[string]SupplyChainRuntimeContext{
+			first.RepositoryID:  {},
+			second.RepositoryID: {},
+		},
+		byDigest: map[string]map[string]string{
+			first.SubjectDigest: {
+				"production": supplyChainRuntimeEnvironmentEvidenceDeployEvent,
+				"staging":    supplyChainRuntimeEnvironmentEvidenceDeclared,
+			},
+		},
+	}
+	rows := []SupplyChainImpactFindingRow{first, second}
+	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
+		context.Background(),
+		rows,
+		repositoryAccessFilter{allScopes: true},
+	); err != nil {
+		t.Fatalf("applySupplyChainRuntimeContext() error = %v, want nil", err)
+	}
+
+	for index, want := range []struct {
+		environment string
+		evidence    string
+	}{
+		{environment: "production", evidence: supplyChainRuntimeEnvironmentEvidenceDeployEvent},
+		{environment: "staging", evidence: supplyChainRuntimeEnvironmentEvidenceDeclared},
+	} {
+		contextValue := rows[index].RuntimeContext
+		if contextValue == nil {
+			t.Fatalf("row %d runtime context = nil", index)
+		}
+		if len(contextValue.Environments) != 1 || contextValue.Environments[0] != want.environment {
+			t.Fatalf("row %d environments = %#v, want [%s]", index, contextValue.Environments, want.environment)
+		}
+		if len(contextValue.EnvironmentEvidence) != 1 || contextValue.EnvironmentEvidence[want.environment] != want.evidence {
+			t.Fatalf("row %d evidence = %#v, want %s=%s", index, contextValue.EnvironmentEvidence, want.environment, want.evidence)
+		}
+	}
+}
+
+func TestApplySupplyChainRuntimeContextCapsRepeatedDigestPageEvidenceAtCandidateBudget(t *testing.T) {
+	t.Parallel()
+
+	const rowCount = supplyChainImpactFindingMaxLimit
+	const repositoryID = "repository:r_repeated_digest_budget"
+	rows := make([]SupplyChainImpactFindingRow, rowCount)
+	confirmed := make(map[string]string, rowCount)
+	for index := range rows {
+		environment := fmt.Sprintf("environment-%03d", index)
+		rows[index] = osPackageFindingRowForRuntimeContext()
+		rows[index].FindingID = fmt.Sprintf("finding-os-%03d", index)
+		rows[index].RepositoryID = repositoryID
+		rows[index].Environments = []string{environment}
+		confirmed[environment] = supplyChainRuntimeEnvironmentEvidenceDeployEvent
+	}
+	store := &runtimeContextFindingStore{
+		byRepo: map[string]SupplyChainRuntimeContext{repositoryID: {}},
+		byDigest: map[string]map[string]string{
+			rows[0].SubjectDigest: confirmed,
+		},
+	}
+	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
+		context.Background(),
+		rows,
+		repositoryAccessFilter{allScopes: true},
+	); err != nil {
+		t.Fatalf("applySupplyChainRuntimeContext() error = %v, want nil", err)
+	}
+
+	totalEvidence := 0
+	for index, row := range rows {
+		wantEnvironment := fmt.Sprintf("environment-%03d", index)
+		if row.RuntimeContext == nil {
+			t.Fatalf("row %d runtime context = nil", index)
+		}
+		if got := row.RuntimeContext.EnvironmentEvidence; len(got) != 1 || got[wantEnvironment] != supplyChainRuntimeEnvironmentEvidenceDeployEvent {
+			t.Fatalf("row %d evidence = %#v, want only %s=deploy_event", index, got, wantEnvironment)
+		}
+		probe := row.RuntimeContext.EnvironmentEvidenceProbe
+		if probe == nil || probe.CandidateLimit != 1 || probe.CandidatesTruncated {
+			t.Fatalf("row %d probe = %#v, want limit=1 truncated=false", index, probe)
+		}
+		totalEvidence += len(row.RuntimeContext.EnvironmentEvidence)
+	}
+	if totalEvidence > maxSupplyChainRuntimeEnvironmentCandidates {
+		t.Fatalf("serialized exact-digest evidence entries = %d, want <= %d", totalEvidence, maxSupplyChainRuntimeEnvironmentCandidates)
 	}
 }
 

@@ -67,6 +67,110 @@ func TestRuntimeEnvironmentEvidenceHotDigestUsesArtifactIndexLive(t *testing.T) 
 	t.Logf("RUNTIME_ENVIRONMENT_EVIDENCE candidates=%d hot_rows=100000 total_rows=1000199 elapsed=%s", len(candidates), elapsed)
 }
 
+// TestRuntimeEnvironmentEvidenceCurrentAuthorizedTruthMatrixLive proves the
+// production store admits only current, authorized, accepted facts before it
+// folds deploy_event over declared.
+func TestRuntimeEnvironmentEvidenceCurrentAuthorizedTruthMatrixLive(t *testing.T) {
+	ctx, db := postgresproof.OpenDisposableDatabase(
+		t,
+		os.Getenv("ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DSN"),
+		os.Getenv("ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DISPOSABLE"),
+		5*time.Minute,
+	)
+	if err := storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: db}); err != nil {
+		t.Fatalf("apply production Postgres schema: %v", err)
+	}
+	seedRuntimeEnvironmentEvidenceTruthMatrix(t, ctx, db)
+
+	digests := map[string]string{
+		"scope-authorized": fmt.Sprintf("sha256:%064x", 1001),
+		"repo-authorized":  fmt.Sprintf("sha256:%064x", 1002),
+		"denied":           fmt.Sprintf("sha256:%064x", 1003),
+		"stale":            fmt.Sprintf("sha256:%064x", 1004),
+		"tombstone":        fmt.Sprintf("sha256:%064x", 1005),
+		"rejected":         fmt.Sprintf("sha256:%064x", 1006),
+		"provenance":       fmt.Sprintf("sha256:%064x", 1007),
+	}
+	candidates := make([]SupplyChainRuntimeEnvironmentCandidate, 0, len(digests))
+	for _, name := range []string{"scope-authorized", "repo-authorized", "denied", "stale", "tombstone", "rejected", "provenance"} {
+		candidates = append(candidates, SupplyChainRuntimeEnvironmentCandidate{
+			SubjectDigest: digests[name],
+			Environment:   "prod",
+		})
+	}
+	got, err := (PostgresSupplyChainImpactFindingStore{DB: db}).
+		ListSupplyChainImpactRuntimeEnvironmentEvidence(
+			ctx,
+			candidates,
+			[]string{"repository:r_allowed"},
+			[]string{"scope:allowed"},
+		)
+	if err != nil {
+		t.Fatalf("ListSupplyChainImpactRuntimeEnvironmentEvidence(): %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("confirmed digest count = %d, want 2; got %#v", len(got), got)
+	}
+	if evidence := got[digests["scope-authorized"]]["prod"]; evidence != supplyChainRuntimeEnvironmentEvidenceDeployEvent {
+		t.Fatalf("scope-authorized evidence = %q, want deploy_event", evidence)
+	}
+	if evidence := got[digests["repo-authorized"]]["prod"]; evidence != supplyChainRuntimeEnvironmentEvidenceDeclared {
+		t.Fatalf("repo-authorized evidence = %q, want declared", evidence)
+	}
+	for _, name := range []string{"denied", "stale", "tombstone", "rejected", "provenance"} {
+		if _, exists := got[digests[name]]; exists {
+			t.Fatalf("%s digest unexpectedly confirmed: %#v", name, got[digests[name]])
+		}
+	}
+}
+
+func seedRuntimeEnvironmentEvidenceTruthMatrix(t *testing.T, ctx context.Context, db *sql.DB) {
+	t.Helper()
+	for _, statement := range []string{
+		`INSERT INTO ingestion_scopes (
+  scope_id, scope_kind, source_system, source_key, collector_kind,
+  partition_key, observed_at, ingested_at, status, active_generation_id
+) VALUES
+  ('scope:allowed', 'repository', 'proof', 'allowed', 'proof', 'allowed', clock_timestamp(), clock_timestamp(), 'active', 'generation:allowed'),
+  ('scope:repo', 'repository', 'proof', 'repo', 'proof', 'repo', clock_timestamp(), clock_timestamp(), 'active', 'generation:repo'),
+  ('scope:denied', 'repository', 'proof', 'denied', 'proof', 'denied', clock_timestamp(), clock_timestamp(), 'active', 'generation:denied'),
+  ('scope:stale', 'repository', 'proof', 'stale', 'proof', 'stale', clock_timestamp(), clock_timestamp(), 'active', 'generation:stale-current')`,
+		`INSERT INTO scope_generations (
+  generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at
+) VALUES
+  ('generation:allowed', 'scope:allowed', 'proof', clock_timestamp(), clock_timestamp(), 'active', clock_timestamp()),
+  ('generation:repo', 'scope:repo', 'proof', clock_timestamp(), clock_timestamp(), 'active', clock_timestamp()),
+  ('generation:denied', 'scope:denied', 'proof', clock_timestamp(), clock_timestamp(), 'active', clock_timestamp()),
+  ('generation:stale-old', 'scope:stale', 'proof', clock_timestamp(), clock_timestamp(), 'superseded', NULL),
+  ('generation:stale-current', 'scope:stale', 'proof', clock_timestamp(), clock_timestamp(), 'active', clock_timestamp())`,
+		`INSERT INTO fact_records (
+  fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+  collector_kind, source_system, source_fact_key, observed_at, ingested_at,
+  is_tombstone, payload
+) VALUES
+  ('truth:scope-declared', 'scope:allowed', 'generation:allowed', 'reducer_ci_cd_run_correlation', 'truth:scope-declared', 'proof', 'proof', 'truth:scope-declared', clock_timestamp(), clock_timestamp(), FALSE,
+   jsonb_build_object('repository_id', 'repository:r_denied', 'artifact_digest', 'sha256:' || lpad(to_hex(1001), 64, '0'), 'environment', 'prod', 'environment_evidence', 'declared', 'outcome', 'exact')),
+  ('truth:scope-deploy', 'scope:allowed', 'generation:allowed', 'reducer_ci_cd_run_correlation', 'truth:scope-deploy', 'proof', 'proof', 'truth:scope-deploy', clock_timestamp(), clock_timestamp(), FALSE,
+   jsonb_build_object('repository_id', 'repository:r_denied', 'artifact_digest', 'sha256:' || lpad(to_hex(1001), 64, '0'), 'environment', 'prod', 'environment_evidence', 'deploy_event', 'outcome', 'derived')),
+  ('truth:repo', 'scope:repo', 'generation:repo', 'reducer_ci_cd_run_correlation', 'truth:repo', 'proof', 'proof', 'truth:repo', clock_timestamp(), clock_timestamp(), FALSE,
+   jsonb_build_object('repository_id', 'repository:r_allowed', 'artifact_digest', 'sha256:' || lpad(to_hex(1002), 64, '0'), 'environment', 'prod', 'environment_evidence', 'declared', 'outcome', 'exact')),
+  ('truth:denied', 'scope:denied', 'generation:denied', 'reducer_ci_cd_run_correlation', 'truth:denied', 'proof', 'proof', 'truth:denied', clock_timestamp(), clock_timestamp(), FALSE,
+   jsonb_build_object('repository_id', 'repository:r_denied', 'artifact_digest', 'sha256:' || lpad(to_hex(1003), 64, '0'), 'environment', 'prod', 'environment_evidence', 'deploy_event', 'outcome', 'exact')),
+  ('truth:stale', 'scope:stale', 'generation:stale-old', 'reducer_ci_cd_run_correlation', 'truth:stale', 'proof', 'proof', 'truth:stale', clock_timestamp(), clock_timestamp(), FALSE,
+   jsonb_build_object('repository_id', 'repository:r_allowed', 'artifact_digest', 'sha256:' || lpad(to_hex(1004), 64, '0'), 'environment', 'prod', 'environment_evidence', 'deploy_event', 'outcome', 'exact')),
+  ('truth:tombstone', 'scope:allowed', 'generation:allowed', 'reducer_ci_cd_run_correlation', 'truth:tombstone', 'proof', 'proof', 'truth:tombstone', clock_timestamp(), clock_timestamp(), TRUE,
+   jsonb_build_object('repository_id', 'repository:r_allowed', 'artifact_digest', 'sha256:' || lpad(to_hex(1005), 64, '0'), 'environment', 'prod', 'environment_evidence', 'deploy_event', 'outcome', 'exact')),
+  ('truth:rejected', 'scope:allowed', 'generation:allowed', 'reducer_ci_cd_run_correlation', 'truth:rejected', 'proof', 'proof', 'truth:rejected', clock_timestamp(), clock_timestamp(), FALSE,
+   jsonb_build_object('repository_id', 'repository:r_allowed', 'artifact_digest', 'sha256:' || lpad(to_hex(1006), 64, '0'), 'environment', 'prod', 'environment_evidence', 'deploy_event', 'outcome', 'rejected')),
+  ('truth:provenance', 'scope:allowed', 'generation:allowed', 'reducer_ci_cd_run_correlation', 'truth:provenance', 'proof', 'proof', 'truth:provenance', clock_timestamp(), clock_timestamp(), FALSE,
+   jsonb_build_object('repository_id', 'repository:r_allowed', 'artifact_digest', 'sha256:' || lpad(to_hex(1007), 64, '0'), 'environment', 'prod', 'environment_evidence', 'deploy_event', 'outcome', 'exact', 'provenance_only', true))`,
+	} {
+		if _, err := db.ExecContext(ctx, statement); err != nil {
+			t.Fatalf("seed runtime environment truth matrix: %v", err)
+		}
+	}
+}
+
 func seedRuntimeEnvironmentEvidenceHotDigest(t *testing.T, ctx context.Context, db *sql.DB) {
 	t.Helper()
 	for _, statement := range []string{
