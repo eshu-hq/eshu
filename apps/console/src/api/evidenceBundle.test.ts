@@ -9,10 +9,10 @@
 //     with bundle: null — never a fabricated bundle
 import { describe, it, expect, vi } from "vitest";
 
-import { loadEvidenceBundle } from "./evidenceBundle";
-import type { EvidenceBundleWire } from "./evidenceBundle";
 import { EshuApiHttpError } from "./client";
 import type { EshuApiClient } from "./client";
+import { loadEvidenceBundle } from "./evidenceBundle";
+import type { EvidenceBundleWire } from "./evidenceBundle";
 
 function fixtureBundle(): EvidenceBundleWire {
   return {
