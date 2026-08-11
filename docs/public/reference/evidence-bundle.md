@@ -23,13 +23,33 @@ Validate a bundle before sharing:
 eshu evidence bundle validate --from evidence-bundle.json
 ```
 
-The first implementation is offline and provider-free. It exercises the stable
-bundle schema and validation canaries with deterministic fixture contents for:
+The default export is offline and provider-free. It exercises the stable bundle
+schema and validation canaries with deterministic fixture contents for:
 
 - an Ask Eshu answer packet summary;
 - a pre-change impact answer packet summary;
 - a supply-chain investigation packet summary;
 - capability catalog and surface inventory snapshots.
+
+Export what your own stack actually indexed:
+
+```bash
+eshu evidence bundle export --live --out evidence-bundle.json
+```
+
+`--live` composes the same schema from the running stack's status endpoints
+rather than from fixtures, so the bundle reports real repository counts, queue
+and generation state, stage and domain backlogs, collector readiness, and
+semantic-provider posture. It needs no LLM or provider credential; a stack with
+no provider configured reports that as a state rather than failing.
+
+Per-kind fact counts are deliberately absent. No status endpoint exposes them,
+so the bundle records a `fact_counts` entry under `missing_evidence` instead of
+omitting the gap silently.
+
+See [First Successful Run](../getting-started/first-successful-run.md#prove-the-stack-is-working-with-an-evidence-bundle)
+for which fields to read after your first `eshu first-run` to confirm the
+stack actually indexed something.
 
 ## Shape
 
@@ -43,6 +63,8 @@ The top-level artifact contains:
 | `source` | Redacted repository/deployment handles. |
 | `redaction` | Share-safe profile and applied rules. |
 | `contents` | Answer packets, investigation packets, catalog snapshots, and operator state. |
+| `contents.pipeline_state` | Live mode only. Repository count, health, queue and generation state, stage and domain backlogs, and collector readiness. |
+| `contents.semantic_provider_state` | Live mode only. Semantic-extraction and provider posture, kept separate from `pipeline_state` so deterministic truth is never presented as provider status. |
 | `missing_evidence` | Explicit gaps that prevent overconfident interpretation. |
 | `reproduce` | Bounded CLI, API, and MCP calls that can regenerate evidence when the source system is available. |
 | `bounds` | Caps and truncation state for bundled layers. |
@@ -51,13 +73,35 @@ The top-level artifact contains:
 ## Redaction
 
 Bundles carry handles and route/tool/command names, not raw private data.
-Validation rejects:
+Validation screens for, and rejects, these known shapes:
 
 - private endpoints;
 - credentials, tokens, passwords, and private-key material;
 - raw prompts, provider responses, or prompt transcripts;
-- local absolute paths;
-- raw source blobs or private source excerpts.
+- local absolute paths under a known filesystem root, and bare `host:port`
+  endpoints of the kind Go network errors report, including `.cluster.local`
+  service names and private or link-local addresses written without a port;
+- every sensitive shape in the shared hosted-governance redaction registry,
+  checked against the same canary set the rest of the platform uses.
+
+Screening is pattern-based, so it recognises known shapes rather than proving
+their absence. That is why `redaction.rules` names what was screened
+(`screened_private_endpoints`) instead of asserting an outcome
+(`no_private_endpoints`): treat a passing bundle as screened, not as certified,
+and review an artifact before sending it outside your organisation.
+
+`validation.status` is `unvalidated` as built, and the exporter sets `passed`
+only after validation actually runs green, recomputing `bundle_id` over the new
+content. `bundle_id` is a content hash for
+identifying and de-duplicating an artifact, not a seal: validation does not
+rehash the body to check it, because a bundle exported by an older version
+hashes differently once a field is added, and rejecting it would defeat the
+point of a portable artifact.
+
+So `passed` in a body is a statement about the exporter that wrote it, not a
+guarantee to whoever reads it: anyone who edits a bundle can recompute the hash. Re-run
+`eshu evidence bundle validate --from <file>` on an artifact you received
+instead of trusting the `passed` its body carries.
 
 If a source cannot provide a share-safe value, the bundle should keep an explicit
 missing-evidence or redaction reason instead of deleting the row silently.

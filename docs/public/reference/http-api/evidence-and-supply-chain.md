@@ -946,6 +946,48 @@ caller's repository or ingestion-scope grant before they can affect filter
 membership or appear in `runtime_context`. The filters do not infer aliases
 from repository, tag, workload, service, or environment names.
 
+When a current Kubernetes workload is observed running the finding's exact
+`subject_digest`, list and explain may also return
+`kubernetes_runtime_workload_refs[]`. Each entry contains `workload_uid` and,
+when present on the authorized owner winner, `cluster_id`, `namespace`, and
+`name`. The read accepts a candidate only when both the workload owner winner
+and the `RUNS_IMAGE` edge scope/generation are independently current and inside
+the caller's grants. Those two provenance sources do not have to be the same
+scope: canonical workload ownership and correlation-edge ownership are separate
+truth seams. Owner denial, a tombstoned or superseded owner fact, or a stale or
+unauthorized edge omits the workload entirely. Display fields are hydrated only
+from the authorized winning owner row.
+
+These exact digest-bound references are not the same as
+`runtime_context.workload_ids`. The latter are repository-level current runtime
+context and do not assert that any listed workload runs this finding's digest.
+`kubernetes_runtime_workload_refs` is query-time live deployment evidence that
+can promote `deployment_truth_tier` to `runtime_confirmed`; the parent finding's
+`subject_digest` is the binding identity and is therefore not repeated inside
+each nested workload reference.
+
+Each probed finding also carries `kubernetes_runtime_probe`. Its
+`candidate_limit` is that digest's per-finding share of the fixed 200-reference
+page budget. Every finding with a non-empty digest receives at least one slot.
+Remaining slots are assigned deterministically across sorted digests; adding
+one slot to a digest costs one slot for every matching finding because each row
+must remain self-contained. A one-finding page keeps the full 200-reference
+quota, while 50 findings sharing one digest receive four refs each. This bounds
+serialized duplication without dropping runtime truth from any finding. The
+graph fanout runs at most 32 reads concurrently and makes one Postgres
+authorization call after every graph read succeeds.
+
+`workload_refs_truncated` is deliberately nullable. Scoped callers always see
+`null`, so candidate volume outside their grants is not disclosed. An
+all-scopes caller sees `true` only when current authorized workload references
+exceed that digest's candidate limit, `false` only when the raw graph read
+exhausts within the limit, and `null` when the graph sentinel was reached but
+authorization did not prove an authorized overflow. The probe attaches at most
+200 digest-scoped workload refs across the serialized page; findings that share
+a digest repeat the same deterministic prefix within their page-weighted quota. The
+all-scopes sentinel permits at most 400 graph candidates before the single
+authorization read.
+
 Ambiguous images, stale deployment evidence, missing workload links, or missing
 service/environment links stay in `missing_evidence[]`. Exact
 repository-scoped service-catalog correlation evidence remains attached to the
@@ -1024,6 +1066,15 @@ is a closed three-state vocabulary, not a boolean; review finding R6).
 `declared_ref` never appears in either field: #5393 has no evidence producer
 wired yet.
 
+An exact `kubernetes_runtime_workload_refs` match also supplies the parent's
+`subject_digest` as the `runtime_confirmed` version claim. The public response
+binds that source through the exact workload references and
+`kubernetes_runtime_probe` metadata; `version_resolution_corroboration[]`
+contains only non-winning tiers, so it does not repeat the winning Kubernetes
+source as an `evidence_kind`. When both cloud and Kubernetes runtime evidence
+confirm the same digest, both runtime ref fields remain available on the
+finding.
+
 Benchmark Evidence: `go test ./internal/query -run '^$' -bench
 '^BenchmarkBuildSupplyChainImpactFindingResult$' -benchtime=2s -count=5
 -benchmem` on go1.26.5 darwin/arm64 (Apple M5 Max), five runs each. The exact
@@ -1058,13 +1109,17 @@ returned exactly the 200-resource cap. Full commands and lifecycle proof are in
 
 Observability: `version_resolution_tier`/`version_resolution_corroboration`
 are produced by `supplyChainVersionResolution` from the enriched finding row.
-The bounded owner-ledger lookup reuses the existing
-`supply_chain.cloud_runtime_probe` child span and records subject-digest,
-authorized-current-resource, runtime-confirmed-digest, and runtime-resource
-counts. The three result counts are present with zero values when the indexed
-read finds no authorized current resource, so an empty result is distinguishable
-from missing instrumentation. No new metric, log line, queue, worker, graph
-write, or runtime deployment knob is introduced.
+The bounded cloud owner-ledger lookup uses the
+`supply_chain.cloud_runtime_probe` child span. The Kubernetes graph and
+owner-ledger path uses `supply_chain.kubernetes_runtime_probe`; it records
+the subject-digest count, planned digest-query count, configured and observed
+graph concurrency, planned candidate limit, actual graph-candidate count,
+authorized-current-workload count, runtime-confirmed-digest count,
+runtime-workload count, and the counts of truncated and unknown digests.
+Planned bounds are recorded before fanout so a failed graph read still reports
+the attempted work; result counts initialize to zero. Empty or rejected
+evidence is therefore distinguishable from missing instrumentation. Neither
+probe adds a queue, graph write, or runtime deployment knob.
 
 Withholding the promotion also changes the derived `reachability` block. That
 object is computed from `runtime_reachability`, and `deployed_image` maps onto
@@ -1347,11 +1402,11 @@ execution telemetry, persisted reconciliation facts, `query.supply_chain_securit
 span, and Postgres query timing. It adds no route, queue, worker, graph write,
 metric instrument, metric label, or runtime knob.
 
-No-Regression Evidence: `go test ./internal/query ./internal/mcp -run 'Test(VulnerabilityScannerReadContract|SupplyChainImpactFindingsAcceptsScannerContractFilters|SupplyChainImpactFindingsRejectsUnsupportedScannerFiltersBeforeStore|SupplyChainImpactAggregatesAcceptScannerContractFilters|SupplyChainImpactInventoryCanGroupByEcosystem|ResolveRouteMapsVulnerabilityScannerContract|SupplyChainImpactMCPRouteForwardsScannerContractFilters|SupplyChainImpactAggregateMCPRoutesForwardScannerContractFilters)' -count=1` covers the scanner read contract, bounded unsupported-filter failures, shared API/MCP filter forwarding, provider-only separation, and deterministic aggregate/list read semantics without graph traversal.
+No-Regression Evidence: `go test ./internal/query ./internal/mcp -run 'Test(VulnerabilityScannerReadContract|SupplyChainImpactFindingsAcceptsScannerContractFilters|SupplyChainImpactFindingsRejectsUnsupportedScannerFiltersBeforeStore|SupplyChainImpactAggregatesAcceptScannerContractFilters|SupplyChainImpactInventoryCanGroupByEcosystem|ResolveRouteMapsVulnerabilityScannerContract|SupplyChainImpactMCPRouteForwardsScannerContractFilters|SupplyChainImpactAggregateMCPRoutesForwardScannerContractFilters|DispatchToolSupplyChainImpactRepeatedDigestPageStaysWithinBudget)' -count=1` covers the scanner read contract, bounded unsupported-filter failures, shared API/MCP filter forwarding, provider-only separation, the bounded Kubernetes graph dependency, and the repeated-digest MCP response budget.
 
 No-Observability-Change: the scanner contract route is static metadata and the
 new filters reuse the existing HTTP/MCP truth envelope, readiness envelope,
-limit/truncated fields, and bounded Postgres read-model errors; no reducer,
+limit/truncated fields, and bounded Postgres and graph read errors; no reducer,
 collector, worker, queue, graph write, metric, span, or log contract changes.
 
 ## SBOM And Attestation Attachments

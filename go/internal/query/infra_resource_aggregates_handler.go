@@ -57,6 +57,7 @@ func (h *InfraHandler) countInfraResources(w http.ResponseWriter, r *http.Reques
 	}
 
 	access := repositoryAccessFilterFromContext(r.Context())
+	recordScopeGrantInlineCap(r.Context(), h.Instruments, access, "infra_resource_count")
 	if access.empty() {
 		h.writeEmptyInfraResourceCount(w, r)
 		return
@@ -141,6 +142,7 @@ func (h *InfraHandler) infraResourceInventory(w http.ResponseWriter, r *http.Req
 		return
 	}
 	access := repositoryAccessFilterFromContext(r.Context())
+	recordScopeGrantInlineCap(r.Context(), h.Instruments, access, "infra_resource_inventory")
 	if access.empty() {
 		h.writeEmptyInfraResourceInventory(w, r, dimension, limit, offset)
 		return

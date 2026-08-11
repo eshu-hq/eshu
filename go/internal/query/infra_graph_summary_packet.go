@@ -98,6 +98,7 @@ func (h *InfraHandler) getGraphSummaryPacket(w http.ResponseWriter, r *http.Requ
 	}
 
 	access := repositoryAccessFilterFromContext(r.Context())
+	recordScopeGrantInlineCap(r.Context(), h.Instruments, access, "infra_graph_summary_packet")
 
 	if req.repoID() == "" {
 		data, err := h.graphSummaryEcosystemPacket(r.Context(), access)
