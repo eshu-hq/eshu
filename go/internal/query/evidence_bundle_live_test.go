@@ -199,6 +199,56 @@ func TestEvidenceHandlerLiveBundleFailedGraphReadReportsZeroRepositoryCount(t *t
 	}
 }
 
+// TestEvidenceHandlerLiveBundleFlagsTruncatedDomainBacklogs proves the route
+// tells the caller when status.Report capped DomainBacklogs (#4045 review):
+// composing more non-empty domains than status.DefaultOptions().DomainLimit
+// must not silently drop rows -- the bundle's Bounds must say so.
+func TestEvidenceHandlerLiveBundleFlagsTruncatedDomainBacklogs(t *testing.T) {
+	t.Parallel()
+
+	snapshot := evidenceBundleFixtureSnapshot()
+	snapshot.DomainBacklogs = nil
+	for i := 0; i < 7; i++ {
+		snapshot.DomainBacklogs = append(snapshot.DomainBacklogs, statuspkg.DomainBacklog{
+			Domain:      string(rune('a' + i)),
+			Outstanding: 7 - i,
+		})
+	}
+	handler := &EvidenceHandler{
+		StatusReader: fakeStatusReader{snapshot: snapshot},
+		Neo4j:        evidenceBundleFixtureGraph{count: 5},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/evidence/bundle", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+	var bundle evidencebundle.Bundle
+	if err := json.Unmarshal(rec.Body.Bytes(), &bundle); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v; body = %s", err, rec.Body.String())
+	}
+	if len(bundle.Contents.PipelineState.DomainBacklogs) != 5 {
+		t.Fatalf("DomainBacklogs = %+v, want 5 rows (status.DefaultOptions().DomainLimit cap)", bundle.Contents.PipelineState.DomainBacklogs)
+	}
+	if !bundle.Bounds.Truncated {
+		t.Fatal("Bounds.Truncated = false, want true: 7 domains exceed the 5-row cap")
+	}
+	var flagged bool
+	for _, layer := range bundle.Bounds.TruncatedLayers {
+		if layer == "domain_backlogs" {
+			flagged = true
+		}
+	}
+	if !flagged {
+		t.Fatalf("Bounds.TruncatedLayers = %v, want it to include \"domain_backlogs\"", bundle.Bounds.TruncatedLayers)
+	}
+}
+
 // TestAuthMiddlewareWithScopedTokensRejectsEvidenceBundleRoute proves the
 // tenant-scoping decision for GET /api/v0/evidence/bundle against the REAL
 // handler path -- the real EvidenceHandler mounted on a real mux, wrapped by

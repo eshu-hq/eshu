@@ -30,11 +30,19 @@ import (
 // scopedHTTPRouteSupportsTenantFilter (auth_scoped_routes.go) and carries no
 // "x-scoped-token-support" OpenAPI marker, the same posture already held by
 // its two stack-wide source routes, GET /api/v0/status/index and GET
-// /api/v0/status/pipeline (openapi_paths_status.go). AuthMiddleware rejects a
-// scoped-token or browser-session caller before this handler ever runs; only
-// the shared-token, local, or admin-authenticated caller reaches it -- the
-// same callers who could already read the three source status routes
-// directly and derive this bundle by hand.
+// /api/v0/status/pipeline (openapi_paths_status.go). AuthMiddleware always
+// rejects a scoped-bearer-token caller before this handler runs. A
+// browser-session caller's admission is policy-dependent, not a flat reject:
+// browserSessionRouteAllowed (auth_browser_session_route_policy.go) admits a
+// tenant-bound all-scopes browser session -- the normal single-tenant/local
+// owner console session -- whenever BrowserSessionRoutePolicy
+// .AllowTenantBoundAllScopes is set, which cmd/api's browserSessionRoutePolicy
+// does for the default, "local_no_policy", and "hosted_single_tenant"
+// governance modes (browser_sessions.go). Only an unrecognized or
+// hosted-multi-tenant governance mode, or a restricted-scope browser session,
+// gets rejected. Either way, the caller who reaches this handler could
+// already read the three source status routes directly and derive this
+// bundle by hand.
 func (h *EvidenceHandler) getLiveEvidenceBundle(w http.ResponseWriter, r *http.Request) {
 	if h.StatusReader == nil {
 		WriteError(w, http.StatusServiceUnavailable, "status reader not configured")
@@ -91,7 +99,12 @@ func repositoryCountForEvidenceBundle(r *http.Request, neo4j GraphQuery) int {
 // (aws_materialization_status.go) for per-domain blockage, and
 // status.CollectorRuntimeStatuses (the same call listCollectors makes) for
 // collector readiness, so this mapping never re-derives status truth the
-// existing status routes already compute.
+// existing status routes already compute. It also carries
+// report.DomainBacklogsTruncated through unchanged: status.BuildReport is the
+// single place that caps DomainBacklogs (topDomainBacklogs, status.go), so
+// this mapping only forwards the flag, and BuildLiveBundle is the single
+// place that turns it into Bounds.Truncated (#4045 review: a capped domain
+// list must not read as a complete one).
 func liveEvidenceSnapshotFromReport(report status.Report, repoCount int) evidencebundle.LiveSnapshot {
 	blockedByDomain := queueBlockageCountsByDomain(report.QueueBlockages)
 	domains := make([]evidencebundle.LiveDomainBacklogSnapshot, 0, len(report.DomainBacklogs))
@@ -165,10 +178,11 @@ func liveEvidenceSnapshotFromReport(report status.Report, repoCount int) evidenc
 			Changed:   report.ScopeActivity.Changed,
 			Unchanged: report.ScopeActivity.Unchanged,
 		},
-		GenerationHistory: evidencebundle.LiveGenerationHistorySnapshot(report.GenerationHistory),
-		StageSummaries:    stages,
-		DomainBacklogs:    domains,
-		Collectors:        collectors,
+		GenerationHistory:       evidencebundle.LiveGenerationHistorySnapshot(report.GenerationHistory),
+		StageSummaries:          stages,
+		DomainBacklogs:          domains,
+		DomainBacklogsTruncated: report.DomainBacklogsTruncated,
+		Collectors:              collectors,
 		SemanticExtraction: evidencebundle.LiveSemanticExtractionSnapshot{
 			State:              report.SemanticExtraction.State,
 			Reason:             report.SemanticExtraction.Reason,
