@@ -1014,11 +1014,26 @@ all-scopes sentinel permits at most 400 graph candidates before the single
 authorization read.
 
 Within `runtime_context`, `environment_evidence` reports current corroboration
-for each accepted CI/CD environment mapping. Values use the same
-`deploy_event`/`declared` vocabulary as the reducer-baked top-level field:
-missing or unknown values normalize to `declared`, and `deploy_event` wins when
-multiple current facts name the same environment. Read-time resolution never
-copies this map into the finding's top-level fields.
+for accepted CI/CD environment mappings. Repository-resolved environments come
+from current repository mappings. The response may also confirm an
+already-visible finding environment when a current, authorized correlation
+matches both that environment and the finding's exact `subject_digest`. That
+strong digest branch deliberately crosses builder/deployer repository seams,
+as the reducer does; it is artifact deployment context, not repository
+ownership. The baked environment name is only a candidate selector. Its baked
+evidence value is never copied.
+
+Values use the same `deploy_event`/`declared` vocabulary as the reducer-baked
+top-level field: missing or unknown current values normalize to `declared`, and
+`deploy_event` wins when multiple current facts match the same candidate.
+`environment_evidence_probe.candidate_limit` records how many visible
+environment candidates this finding received from the fixed 200-candidate page
+budget. Allocation is deterministic and round-robin, so every eligible finding
+gets at least one slot. `candidates_truncated` is true only when that finding's
+visible candidate names exceeded its quota; it discloses nothing about hidden
+facts. This probe confirms existing candidate names and does not discover a new
+environment absent from the finding. Read-time resolution never writes results
+back into the finding's baked top-level fields.
 
 Ambiguous images, stale deployment evidence, missing workload links, or missing
 service/environment links stay in `missing_evidence[]`. Exact

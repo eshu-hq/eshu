@@ -19,10 +19,27 @@ import (
 type runtimeContextFindingStore struct {
 	rows            []SupplyChainImpactFindingRow
 	byRepo          map[string]SupplyChainRuntimeContext
+	byDigest        map[string]map[string]string
 	called          []string
+	envCandidates   []SupplyChainRuntimeEnvironmentCandidate
 	allowedRepoIDs  []string
 	allowedScopeIDs []string
 	err             error
+}
+
+func (f *runtimeContextFindingStore) ListSupplyChainImpactRuntimeEnvironmentEvidence(
+	_ context.Context,
+	candidates []SupplyChainRuntimeEnvironmentCandidate,
+	allowedRepositoryIDs []string,
+	allowedScopeIDs []string,
+) (map[string]map[string]string, error) {
+	f.envCandidates = append([]SupplyChainRuntimeEnvironmentCandidate(nil), candidates...)
+	f.allowedRepoIDs = append([]string(nil), allowedRepositoryIDs...)
+	f.allowedScopeIDs = append([]string(nil), allowedScopeIDs...)
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.byDigest, nil
 }
 
 func (f *runtimeContextFindingStore) ListSupplyChainImpactFindings(

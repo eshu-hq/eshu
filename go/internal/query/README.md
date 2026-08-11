@@ -348,25 +348,40 @@ result therefore reports the current `runtime_context`,
 `version_resolution_corroboration` from the same enriched row. The transformed
 investigation packet omits those fields and skips reads that cannot affect its
 response. The runtime context also reports `environment_evidence` for each
-environment contributed by a current accepted `cicd_run_correlation` fact.
-Values reuse the `deploy_event`/`declared` producer vocabulary: missing or
-unknown values normalize to `declared`, and `deploy_event` wins when more than
-one current fact names the same environment. Read-time evidence never overwrites
-the finding's reducer-baked top-level environment fields.
+environment contributed by a current accepted repository correlation. A second
+set-based read can confirm an already-visible finding environment against a
+current, authorized correlation for the finding's exact subject digest. This
+mirrors the reducer's strong digest branch across builder/deployer repository
+seams; it is artifact deployment context, not repository ownership. The baked
+name is only a selector and its baked evidence value is never copied. Values
+reuse the `deploy_event`/`declared` producer vocabulary: missing or unknown
+current values normalize to `declared`, and `deploy_event` wins when more than
+one current fact names the same environment. Read-time evidence never
+overwrites the finding's reducer-baked top-level environment fields.
 
-No-Regression Evidence: `BenchmarkFoldSupplyChainRuntimeContext200Repositories`
+Performance Evidence: `BenchmarkFoldSupplyChainRuntimeContext200Repositories`
 folded the same 800 facts for 200 repositories before and after the response
-change. Across five normal-build samples, the baseline median was 124.547
-microseconds per fold (78.417-154.962 microseconds, 48,168-48,169 bytes and
-1,003 allocations); the environment-evidence fold median was 108.162
-microseconds (107.568-111.308 microseconds, 118,568 bytes and 1,403 allocations).
-The added maps cost 70,399-70,400 bytes and 400 allocations per 200-repository
-fold; wall time stayed below 0.2 milliseconds in every paired sample.
+change. Across five normal-build samples on the same machine and input shape,
+the `origin/main` median was 69.716 microseconds per fold
+(68.920-71.099 microseconds, 48,168 bytes and 1,003 allocations); the branch
+median was 87.199 microseconds (84.923-88.556 microseconds, 118,568 bytes and
+1,403 allocations). The normalized map costs 17.483 microseconds, 70,400 bytes,
+and 400 allocations per 200-repository fold; total fold time remains below
+0.1 milliseconds. The exact production SQL was also measured on PostgreSQL
+18.4 with 100,000 active rows for one hot digest, 199 cold candidate rows, and
+900,000 unrelated rows. The original flattenable join performed roughly 200
+million candidate comparisons, spilled its sort, and took 66,458.413
+milliseconds. The candidate-driven LATERAL aggregate used the existing
+artifact-digest partial index once per candidate and took 169.360 milliseconds
+under `EXPLAIN (ANALYZE, BUFFERS)`; the production store call returned all 200
+confirmations in 69.917 milliseconds.
 
-No-Observability-Change: this response fold adds no store call, graph query,
-worker, queue, span, metric, or label. The existing supply-chain list and explain
-request spans, runtime-context result counts, error envelopes, and request
-duration/error metrics still diagnose the bounded read.
+Observability Evidence: `environment_evidence_probe` exposes each finding's
+allocated candidate count and whether its visible candidate names were
+truncated. The existing supply-chain list and explain request spans,
+runtime-context result counts, error envelopes, and request duration/error
+metrics diagnose the set-based read without adding a new high-cardinality
+label.
 
 Version resolution selects the strongest eligible concrete claim in
 deployment-truth

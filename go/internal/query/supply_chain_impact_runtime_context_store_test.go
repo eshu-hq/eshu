@@ -5,6 +5,7 @@ package query
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -431,5 +432,54 @@ func TestListSupplyChainImpactRuntimeContextNilDBFailsLoud(t *testing.T) {
 	}
 	if got := err.Error(); got != "supply chain impact runtime context database is required" {
 		t.Errorf("error = %q, want %q", got, "supply chain impact runtime context database is required")
+	}
+}
+
+func TestRuntimeEnvironmentEvidenceQueryUsesCurrentAuthorizedExactPairs(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"candidate_pairs AS MATERIALIZED",
+		"UNNEST($1::text[], $2::text[])",
+		"CROSS JOIN LATERAL",
+		"fact.payload->>'artifact_digest' = candidate.digest",
+		"fact.is_tombstone = FALSE",
+		"scope.active_generation_id = fact.generation_id",
+		"generation.status = 'active'",
+		"runtime_repository.repository_id = ANY($3::text[])",
+		"fact.scope_id = ANY($4::text[])",
+		"BOOL_OR",
+		"HAVING COUNT(*) > 0",
+		"ORDER BY candidate.digest, candidate.environment",
+	} {
+		if !strings.Contains(selectSupplyChainImpactRuntimeEnvironmentEvidenceQuery, want) {
+			t.Errorf("runtime environment evidence query missing %q", want)
+		}
+	}
+	for _, forbidden := range []string{"payload->>'environment_evidence' = candidate", "SELECT *"} {
+		if strings.Contains(selectSupplyChainImpactRuntimeEnvironmentEvidenceQuery, forbidden) {
+			t.Errorf("runtime environment evidence query contains forbidden %q", forbidden)
+		}
+	}
+}
+
+func TestListSupplyChainImpactRuntimeEnvironmentEvidenceFailsLoud(t *testing.T) {
+	t.Parallel()
+
+	store := PostgresSupplyChainImpactFindingStore{}
+	_, err := store.ListSupplyChainImpactRuntimeEnvironmentEvidence(
+		context.Background(),
+		[]SupplyChainRuntimeEnvironmentCandidate{{SubjectDigest: "sha256:subject", Environment: "prod"}},
+		nil,
+		nil,
+	)
+	if err == nil || err.Error() != "supply chain runtime environment evidence database is required" {
+		t.Fatalf("nil-DB error = %v, want fail-loud database error", err)
+	}
+
+	tooMany := make([]SupplyChainRuntimeEnvironmentCandidate, maxSupplyChainRuntimeEnvironmentCandidates+1)
+	_, err = store.ListSupplyChainImpactRuntimeEnvironmentEvidence(context.Background(), tooMany, nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "exceed limit 200") {
+		t.Fatalf("oversized candidate error = %v, want limit error", err)
 	}
 }

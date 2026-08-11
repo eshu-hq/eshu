@@ -128,7 +128,7 @@ func TestApplySupplyChainRuntimeContextCarriesEnvironmentEvidenceWithoutBackfill
 	}
 }
 
-func TestApplySupplyChainRuntimeContextOmitsEmptyEnvironmentEvidence(t *testing.T) {
+func TestApplySupplyChainRuntimeContextDefaultsResolvedEnvironmentEvidenceToDeclared(t *testing.T) {
 	t.Parallel()
 
 	store := &runtimeContextFindingStore{byRepo: map[string]SupplyChainRuntimeContext{
@@ -142,16 +142,82 @@ func TestApplySupplyChainRuntimeContextOmitsEmptyEnvironmentEvidence(t *testing.
 	); err != nil {
 		t.Fatalf("applySupplyChainRuntimeContext() error = %v, want nil", err)
 	}
-	encoded, err := json.Marshal(rows[0].RuntimeContext)
-	if err != nil {
-		t.Fatalf("json.Marshal(runtime context) error = %v", err)
+	if got := rows[0].RuntimeContext.EnvironmentEvidence["production"]; got != "declared" {
+		t.Fatalf("runtime environment evidence = %q, want declared", got)
 	}
-	var decoded map[string]any
-	if err := json.Unmarshal(encoded, &decoded); err != nil {
-		t.Fatalf("json.Unmarshal(runtime context) error = %v", err)
+}
+
+func TestApplySupplyChainRuntimeContextCarriesCurrentDigestBoundEnvironmentEvidence(t *testing.T) {
+	t.Parallel()
+
+	row := osPackageFindingRowForRuntimeContext()
+	store := &runtimeContextFindingStore{
+		byRepo: map[string]SupplyChainRuntimeContext{},
+		byDigest: map[string]map[string]string{
+			row.SubjectDigest: {"production": "deploy_event"},
+		},
 	}
-	if value, exists := decoded["environment_evidence"]; exists {
-		t.Fatalf("empty runtime context emitted environment_evidence=%#v", value)
+	rows := []SupplyChainImpactFindingRow{row}
+	rows[0].Environments = []string{"production"}
+
+	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
+		context.Background(),
+		rows,
+		repositoryAccessFilter{allScopes: true},
+	); err != nil {
+		t.Fatalf("applySupplyChainRuntimeContext() error = %v, want nil", err)
+	}
+	if got := rows[0].RuntimeContext.EnvironmentEvidence["production"]; got != "deploy_event" {
+		t.Fatalf("runtime environment evidence = %q, want current digest-bound deploy_event", got)
+	}
+	if got := rows[0].RuntimeContext.EnvironmentEvidenceProbe; got == nil || got.CandidateLimit != 1 || got.CandidatesTruncated {
+		t.Fatalf("environment evidence probe = %#v, want limit=1 truncated=false", got)
+	}
+}
+
+func TestPlanSupplyChainRuntimeEnvironmentCandidatesSharesPageBudgetFairly(t *testing.T) {
+	t.Parallel()
+
+	rows := make([]SupplyChainImpactFindingRow, supplyChainImpactFindingMaxLimit)
+	for i := range rows {
+		rows[i] = SupplyChainImpactFindingRow{
+			FindingID:     "finding-" + strconv.Itoa(i),
+			SubjectDigest: "sha256:" + strconv.Itoa(i),
+			Environments:  []string{"staging", "production", "production"},
+		}
+	}
+	candidates, plans := planSupplyChainRuntimeEnvironmentCandidates(rows, nil)
+	if got, want := len(candidates), supplyChainImpactFindingMaxLimit; got != want {
+		t.Fatalf("SQL candidates = %d, want %d", got, want)
+	}
+	for rowIndex, plan := range plans {
+		if got := len(plan.candidates); got != 1 {
+			t.Fatalf("row %d candidates = %d, want 1", rowIndex, got)
+		}
+		if plan.metadata == nil || plan.metadata.CandidateLimit != 1 || !plan.metadata.CandidatesTruncated {
+			t.Fatalf("row %d metadata = %#v, want limit=1 truncated=true", rowIndex, plan.metadata)
+		}
+		if got := plan.candidates[0].Environment; got != "production" {
+			t.Fatalf("row %d first sorted environment = %q, want production", rowIndex, got)
+		}
+	}
+}
+
+func TestPlanSupplyChainRuntimeEnvironmentCandidatesDeduplicatesSQLPairs(t *testing.T) {
+	t.Parallel()
+
+	rows := []SupplyChainImpactFindingRow{
+		{SubjectDigest: "sha256:shared", Environments: []string{"production"}},
+		{SubjectDigest: "sha256:shared", Environments: []string{"production"}},
+	}
+	candidates, plans := planSupplyChainRuntimeEnvironmentCandidates(rows, nil)
+	if got := len(candidates); got != 1 {
+		t.Fatalf("SQL candidates = %d, want one deduplicated pair", got)
+	}
+	for rowIndex, plan := range plans {
+		if plan.metadata == nil || plan.metadata.CandidateLimit != 1 || plan.metadata.CandidatesTruncated {
+			t.Fatalf("row %d metadata = %#v, want limit=1 truncated=false", rowIndex, plan.metadata)
+		}
 	}
 }
 

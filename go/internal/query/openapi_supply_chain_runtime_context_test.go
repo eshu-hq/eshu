@@ -37,8 +37,16 @@ func TestOpenAPISpecDocumentsSupplyChainRuntimeContextRoutes(t *testing.T) {
 	if got, want := additionalProperties["enum"], []any{"deploy_event", "declared"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("runtime_context.environment_evidence enum = %#v, want %#v", got, want)
 	}
+	probe := mustMapField(t, runtimeContextProperties, "environment_evidence_probe")
+	probeProperties := mustMapField(t, probe, "properties")
+	if got := mustMapField(t, probeProperties, "candidate_limit")["maximum"]; got != float64(200) {
+		t.Fatalf("environment_evidence_probe.candidate_limit maximum = %#v, want 200", got)
+	}
+	if got := mustMapField(t, probeProperties, "candidates_truncated")["type"]; got != "boolean" {
+		t.Fatalf("environment_evidence_probe.candidates_truncated type = %#v, want boolean", got)
+	}
 
-	const wantDescription = "Read-time-resolved runtime context joined from the finding's repository_id at query time (#5746): the workloads, services, deployments, environments, per-environment corroboration, and catalog refs that repository currently maps to. Populated when this finding shape is returned by the findings list or impact explain route; the transformed investigation-packet shape omits it. truth_basis is always read_time_resolved so callers can distinguish these IDs from baked workload_ids/service_ids/environments. environment_evidence uses the existing deploy_event/declared vocabulary and never backfills the finding's baked top-level environment_evidence. The workload_id/service_id/environment filters resolve only the same current active repository mappings (#5747); stale baked values cannot satisfy them. An empty runtime_context is an honest 'no runtime facts landed yet' (fresh ingest) that self-heals on the next read; it is not an error and not 'never scanned'."
+	const wantDescription = "Read-time-resolved runtime context (#5746). Workloads, services, deployments, and catalog refs are current repository mappings. Environment corroboration additionally confirms already-visible finding environment names against current accepted correlations for the finding's exact subject digest, mirroring the reducer's strong digest match across builder/deployer repository seams; it is artifact deployment context, not repository ownership. Populated on findings list and impact explain responses; the transformed investigation packet omits it. truth_basis is always read_time_resolved. The workload_id/service_id/environment filters use current active repository mappings (#5747); stale baked values cannot satisfy them."
 	if got := runtimeContext["description"]; got != wantDescription {
 		t.Fatalf("runtime_context.description = %#v, want %#v", got, wantDescription)
 	}

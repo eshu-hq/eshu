@@ -276,28 +276,33 @@ func recordSupplyChainRuntimeEnvironmentEvidence(
 }
 
 // cloneSupplyChainRuntimeEnvironmentEvidence returns a defensive, normalized
-// copy for the response boundary, limited to environments reported alongside
-// it.
+// response map for the resolved environments. Every resolved environment gets
+// the closed-vocabulary declared baseline; any current repository correlation
+// or exact-digest current deployment confirmation can strengthen it to
+// deploy_event.
 func cloneSupplyChainRuntimeEnvironmentEvidence(
-	source map[string]string,
 	environments []string,
+	sources ...map[string]string,
 ) map[string]string {
-	if len(source) == 0 || len(environments) == 0 {
+	if len(environments) == 0 {
 		return nil
 	}
 	allowed := make(map[string]struct{}, len(environments))
+	cloned := make(map[string]string, len(environments))
 	for _, environment := range environments {
 		environment = strings.TrimSpace(environment)
 		if environment != "" {
 			allowed[environment] = struct{}{}
+			cloned = recordSupplyChainRuntimeEnvironmentEvidence(cloned, environment, "")
 		}
 	}
-	cloned := make(map[string]string, len(source))
-	for environment, evidence := range source {
-		if _, ok := allowed[strings.TrimSpace(environment)]; !ok {
-			continue
+	for _, source := range sources {
+		for environment, evidence := range source {
+			if _, ok := allowed[strings.TrimSpace(environment)]; !ok {
+				continue
+			}
+			cloned = recordSupplyChainRuntimeEnvironmentEvidence(cloned, environment, evidence)
 		}
-		cloned = recordSupplyChainRuntimeEnvironmentEvidence(cloned, environment, evidence)
 	}
 	if len(cloned) == 0 {
 		return nil
