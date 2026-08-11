@@ -88,8 +88,11 @@ until they pass. Failed, skipped, neutral, missing, and timed-out selected
 checks fail closed. Renames select against both the old and new path, so moving
 a file out of a gated tree cannot bypass its verifier. It verifies the head
 again before returning success. Pending reads back off from 30 seconds to five
-minutes; relevant workflow start/completion events wake a fresh aggregate, so
-reruns invalidate old success without a high steady-state API polling rate.
+minutes. Per-head workflow concurrency keeps one aggregate running and retains
+only the latest pending run. The retained run starts after the active poller,
+posts pending before setup, and recomputes the current check set. This avoids a
+high steady-state API polling rate, but final status can lag a newly completed
+check by up to the five-minute polling interval.
 
 ### contexts
 

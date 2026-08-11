@@ -36,8 +36,10 @@ on:
     - cron: "17 */6 * * *"
 
 concurrency:
+  # Keep the active status writer alive. GitHub retains only the latest pending
+  # run in this per-head group, so terminal writes stay serialized.
   group: required-gates-${{ github.event.workflow_run.head_sha || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'workflow_run' }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -54,17 +56,6 @@ jobs:
       pull-requests: read
       statuses: write
     steps:
-      - name: Check out trusted default-branch policy
-        uses: actions/checkout@v5
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: go/go.mod
-          cache-dependency-path: go/go.sum
-
       - name: Publish pending required status
         id: pending
         env:
@@ -77,6 +68,17 @@ jobs:
             -f context=required-gates-complete \
             -f description='Waiting for path-selected blocking gates' \
             -f target_url="${TARGET_URL}"
+
+      - name: Check out trusted default-branch policy
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
 
       - name: Resolve pull request identity
         id: pr

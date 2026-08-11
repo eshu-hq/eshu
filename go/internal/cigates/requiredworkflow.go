@@ -27,6 +27,7 @@ type requiredWorkflowJob struct {
 }
 
 type requiredWorkflowFile struct {
+	Concurrency requiredWorkflowConcurrency    `yaml:"concurrency"`
 	Permissions map[string]string              `yaml:"permissions"`
 	Jobs        map[string]requiredWorkflowJob `yaml:"jobs"`
 }
@@ -60,7 +61,7 @@ func checkRequiredStatusWorkflows(repoRoot string, reg *Registry) []error {
 		if !check.AggregatesBlockingGates {
 			continue
 		}
-		errs = append(errs, validateTrustedAggregator(check, raw, workflow.Permissions, job)...)
+		errs = append(errs, validateTrustedAggregator(check, raw, workflow.Concurrency, workflow.Permissions, job)...)
 		errs = append(errs, validateSourceWorkflow(repoRoot, check)...)
 		errs = append(errs, validateBlockingWorkflowSources(repoRoot, check, raw, reg)...)
 	}
@@ -213,51 +214,13 @@ func requireUnfilteredPullRequest(raw []byte) error {
 func validateTrustedAggregator(
 	check RequiredStatusCheck,
 	raw []byte,
+	concurrency requiredWorkflowConcurrency,
 	workflowPermissions map[string]string,
 	job requiredWorkflowJob,
 ) []error {
 	var errs []error
-	triggers, err := workflowTriggerKeys(raw)
-	if err != nil {
-		return []error{fmt.Errorf("required status context %q: parse workflow triggers: %w", check.Context, err)}
-	}
-	if _, ok := triggers["workflow_run"]; !ok {
-		errs = append(errs, fmt.Errorf("required status context %q: trusted publisher must trigger on workflow_run", check.Context))
-	}
-	sources, sourceErr := workflowRunSources(raw)
-	if sourceErr != nil {
-		errs = append(errs, fmt.Errorf("required status context %q: parse workflow_run sources: %w", check.Context, sourceErr))
-	} else if !slicesContain(sources, check.SourceWorkflow) {
-		errs = append(errs, fmt.Errorf(
-			"required status context %q: workflow_run sources %q do not include declared source workflow %q",
-			check.Context,
-			sources,
-			check.SourceWorkflow,
-		))
-	}
-	types, typesErr := workflowRunList(raw, "types")
-	if typesErr != nil {
-		errs = append(errs, fmt.Errorf("required status context %q: parse workflow_run activity types: %w", check.Context, typesErr))
-	} else {
-		for _, requiredType := range []string{"in_progress", "completed"} {
-			if !slicesContain(types, requiredType) {
-				errs = append(errs, fmt.Errorf(
-					"required status context %q: workflow_run activity types must include %q",
-					check.Context,
-					requiredType,
-				))
-			}
-		}
-	}
-	for _, forbidden := range []string{"pull_request", "pull_request_target"} {
-		if _, ok := triggers[forbidden]; ok {
-			errs = append(errs, fmt.Errorf(
-				"required status context %q: trusted publisher must not execute from untrusted %s workflow code",
-				check.Context,
-				forbidden,
-			))
-		}
-	}
+	errs = append(errs, validateTrustedWorkflowTriggers(check, raw)...)
+	errs = append(errs, validateTrustedWorkflowConcurrency(check, concurrency)...)
 
 	permissions := workflowPermissions
 	if len(job.Permissions) > 0 {
@@ -283,9 +246,10 @@ func validateTrustedAggregator(
 
 	var commands strings.Builder
 	pendingIndex := -1
+	pendingStepIndex := -1
 	awaitIndex := -1
 	terminalIndex := -1
-	for _, step := range job.Steps {
+	for stepIndex, step := range job.Steps {
 		index := commands.Len()
 		commands.WriteString(step.Run)
 		commands.WriteByte('\n')
@@ -297,6 +261,7 @@ func validateTrustedAggregator(
 		}
 		if strings.Contains(step.Run, "/statuses/") && strings.Contains(step.Run, "state=pending") {
 			pendingIndex = index
+			pendingStepIndex = stepIndex
 			if !strings.Contains(step.Env["HEAD_SHA"], "workflow_run.head_sha") {
 				errs = append(errs, fmt.Errorf(
 					"required status context %q: pending status must target github.event.workflow_run.head_sha",
@@ -336,6 +301,12 @@ func validateTrustedAggregator(
 				))
 			}
 		}
+	}
+	if pendingStepIndex != 0 {
+		errs = append(errs, fmt.Errorf(
+			"required status context %q: pending invalidation must be the publisher job's first step",
+			check.Context,
+		))
 	}
 	if pendingIndex < 0 || awaitIndex < 0 || terminalIndex < 0 || pendingIndex >= awaitIndex || awaitIndex >= terminalIndex {
 		errs = append(errs, fmt.Errorf(
