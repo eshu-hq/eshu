@@ -49,13 +49,16 @@ negative module). Both run in the `auth-mcp-e2e` CI job
   identity tokens and OIDC bearers both resolve to `AuthModeScoped` with an
   empty grant — so the AllScopes reader is shape B's surviving SSO-admin cookie
   session.
-- **Denial distinctness comes from resolver logs + challenge shape.** Denial-side
-  `governance_audit_events` reason codes do not exist yet, so the matrix asserts
-  the oidcbearer resolver's structured-log `outcome` (`unknown_issuer` /
+- **Denial distinctness comes from resolver logs + challenge shape.** The matrix
+  asserts the oidcbearer resolver's structured-log `outcome` (`unknown_issuer` /
   `wrong_audience` / `malformed`) and the RFC 9728 challenge shape (pre-match →
-  `resource_metadata`, post-match → bare `Bearer`). A first-class denial-reason
-  in the audit table is tracked at
-  [eshu-hq/eshu#5567](https://github.com/eshu-hq/eshu/issues/5567). The
+  `resource_metadata`, post-match → bare `Bearer`). Those outcomes now also land
+  in `governance_audit_events.reason_code`, so the same distinctions are
+  queryable from the audit table; credential verdicts record `decision=denied`,
+  while `grant_resolution_unavailable` and `jwks_fetch_failure` record
+  `decision=unavailable`. The matrix still asserts logs and challenge shape
+  because those are what this browser-driven e2e can observe without querying
+  Postgres. The
   revoked-token matrix row is intentionally omitted (it is the identity-token
   resolver's path, not oidcbearer, and is owner-self-scoped — only the
   post-`require_sso`-flip-dead wizard session could revoke it).
