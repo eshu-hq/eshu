@@ -92,6 +92,16 @@ const NAV_ROUTE_TO_FAMILY: ReadonlyMap<string, string> = new Map([
 // sensitive data classes). AdminPage.tsx and the /admin route guard both
 // derive from this single map so "which panels render" and "is /admin
 // reachable at all" can never drift apart.
+//
+// evidenceBundle (issue #4045) reuses the audit_export family: this map is
+// UX-only nav gating and GET /api/v0/evidence/bundle is not itself governed
+// by the permission catalog (it is a stack-wide route rejected purely by auth
+// mode — see EvidenceBundlePanel.tsx). audit_export is the closest existing
+// concept — an operator-support export capability — so a role that already
+// exports audit data also sees the evidence-bundle export entry point,
+// without inventing a family the server does not recognize. The panel itself
+// still renders its own "forbidden" note when the live auth-mode check denies
+// this session, independent of this client-side grouping.
 export const ADMIN_PANEL_FAMILY = {
   invitations: "identity_admin",
   assignments: "roles_grants",
@@ -99,6 +109,7 @@ export const ADMIN_PANEL_FAMILY = {
   identityAccess: "identity_admin",
   tokens: "tokens",
   audit: "audit_export",
+  evidenceBundle: "audit_export",
 } as const;
 
 export type AdminPanelKey = keyof typeof ADMIN_PANEL_FAMILY;
