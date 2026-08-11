@@ -49,7 +49,7 @@ func isVersionValue(location, value string) bool {
 //
 // This asserts the shape rather than pinning specific values, so it keeps
 // holding as fixtures are added.
-func TestSnapshotDigestsAreWellFormedSHA256(t *testing.T) {
+func TestSnapshotDigestsAreWellFormed(t *testing.T) {
 	t.Parallel()
 
 	const path = "../../../testdata/golden/e2e-20repo-snapshot.json"
@@ -121,14 +121,60 @@ func digestFieldSegment(location string) string {
 // isDigestNamedSegment reports whether a trailing JSON field-name segment
 // (as digestFieldSegment or hashesMapAlgorithm yields it) follows the naming
 // convention that makes a field a digest on its own: "digest", a "_digest"
-// suffix, or "digest_or_version". It is shared by isDigestField and
-// digestFieldValueIsWellFormed so a segment that qualifies as a
-// naming-convention digest field is never also treated as a hashes-map
-// algorithm key -- see digestFieldValueIsWellFormed for why that precedence
-// matters.
+// or "_digests" suffix, or "digest_or_version". The plural suffix covers
+// sbomattestation's subject_digests array
+// (testdata/cassettes/sbomattestation/supply-chain-demo.json); without it,
+// digestFieldSegment reduces "...subject_digests[0]" to "subject_digests",
+// which does not end in "_digest" (singular), so isDigestField never counted
+// or checked those values at all. Bare "digests" is deliberately still not
+// matched -- the convention is a suffix on a named field, or the exact word
+// "digest". It is shared by isDigestField and digestFieldValueIsWellFormed
+// so a segment that qualifies as a naming-convention digest field is never
+// also treated as a hashes-map algorithm key -- see
+// digestFieldValueIsWellFormed for why that precedence matters.
 func isDigestNamedSegment(segment string) bool {
 	return segment == "digest" || strings.HasSuffix(segment, "_digest") ||
-		segment == "digest_or_version"
+		strings.HasSuffix(segment, "_digests") || segment == "digest_or_version"
+}
+
+// TestIsDigestNamedSegmentCoversPluralDigestFields pins the plural "_digests"
+// suffix (sbomattestation's subject_digests array) as a recognized digest
+// field name, and pins that bare "digests" with no qualifying prefix is
+// still excluded -- the convention is a suffix on a named field, not the
+// bare word.
+func TestIsDigestNamedSegmentCoversPluralDigestFields(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		segment string
+		want    bool
+	}{
+		{segment: "digest", want: true},
+		{segment: "subject_digest", want: true},
+		{segment: "subject_digests", want: true},
+		{segment: "digest_or_version", want: true},
+		{segment: "digests", want: false},
+		{segment: "hashes", want: false},
+	}
+	for _, tt := range tests {
+		if got := isDigestNamedSegment(tt.segment); got != tt.want {
+			t.Errorf("isDigestNamedSegment(%q) = %v, want %v", tt.segment, got, tt.want)
+		}
+	}
+}
+
+// TestIsDigestFieldCoversPluralArrayLocations proves the plural fix reaches
+// isDigestField end to end for the real sbomattestation shape: an array
+// index location such as "...materials[0].subject_digests[0]" must be
+// recognized as a digest field, matching the real cassette locations
+// walkJSONStrings produces for testdata/cassettes/sbomattestation.
+func TestIsDigestFieldCoversPluralArrayLocations(t *testing.T) {
+	t.Parallel()
+
+	const location = "payload.attestation.subject_digests[0]"
+	if !isDigestField(location) {
+		t.Errorf("isDigestField(%q) = false, want true", location)
+	}
 }
 
 // isDigestField reports whether a dotted JSON location names a digest field.
@@ -212,17 +258,18 @@ func digestFieldValueIsWellFormed(location, value string) bool {
 	if !refDigestAllowedFields[digestFieldSegment(location)] {
 		return digestPattern.MatchString(value)
 	}
-	// The split is on the LAST "@". The OCI distribution reference grammar
-	// permits exactly one "@" in a valid reference@digest value — a
-	// registry/repository path cannot itself contain one. Splitting on the
-	// last "@" is still the right choice: it stays correct for a value that
-	// violates that grammar (more than one "@"), since the digest CRI
-	// resolution appends is always the final segment.
-	index := strings.LastIndex(value, "@")
-	if index < 0 {
+	// The split is on the FIRST "@", mirroring the production normalizer
+	// this field's value comes from: NormalizeCRIImageID
+	// (go/internal/collector/kuberneteslive/envelope.go) uses
+	// strings.Cut(trimmed, "@") and requires the remainder to start with
+	// "sha256:". A value with more than one "@" therefore leaves a
+	// non-digest remainder in production and is rejected there. Splitting
+	// on the LAST "@" instead would accept a value production can never
+	// emit and no literal digest join can use.
+	reference, digest, ok := strings.Cut(value, "@")
+	if !ok {
 		return digestPattern.MatchString(value)
 	}
-	reference, digest := value[:index], value[index+1:]
 	if reference == "" {
 		return false
 	}
@@ -231,16 +278,15 @@ func digestFieldValueIsWellFormed(location, value string) bool {
 
 // TestDigestFieldValueIsWellFormedHandlesRefDigestShape proves the
 // "reference@digest" carve-out is validated, not exempted, and gated on the
-// field name: a well-formed digest after the last "@" is accepted only for a
-// field in refDigestAllowedFields; every other field is held to a bare
+// field name: a well-formed digest after the first "@" is accepted only for
+// a field in refDigestAllowedFields; every other field is held to a bare
 // digestPattern match even when the value merely looks like a
 // reference@digest pair. It also proves the carve-out rejects malformed
-// shapes within the allowed field itself — uppercase hex and a trailing "@"
-// with no digest both still fail — and that more than one "@" is accepted BY
-// DESIGN, not a gap: the split is always on the LAST "@" (see the comment on
-// digestFieldValueIsWellFormed), so an earlier "@" becomes part of the opaque
-// reference portion rather than breaking the check, as long as the segment
-// after the final "@" is itself a well-formed digest.
+// shapes within the allowed field itself — uppercase hex, a trailing "@"
+// with no digest, and more than one "@" all still fail, matching
+// NormalizeCRIImageID (go/internal/collector/kuberneteslive/envelope.go),
+// which splits on the FIRST "@" and requires the remainder to start with
+// "sha256:".
 func TestDigestFieldValueIsWellFormedHandlesRefDigestShape(t *testing.T) {
 	t.Parallel()
 
@@ -308,10 +354,16 @@ func TestDigestFieldValueIsWellFormedHandlesRefDigestShape(t *testing.T) {
 			want:     false,
 		},
 		{
+			// go/internal/collector/kuberneteslive/envelope.go's
+			// NormalizeCRIImageID splits on the FIRST "@" via strings.Cut and
+			// requires the remainder to start with "sha256:". A second "@"
+			// leaves "2@sha256:..." as the remainder, which does not, so
+			// production rejects this value. The gate must reject it too, or
+			// it admits a fixture value production can never emit.
 			name:     "reference@digest, more than one @",
 			location: refDigestField,
 			value:    "ghcr.io/eshu-hq/supply-chain-demo@2@sha256:" + strings.Repeat("a", 64),
-			want:     true,
+			want:     false,
 		},
 		{
 			name:     "reference@digest, trailing @ with empty digest",
