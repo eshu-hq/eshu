@@ -14,9 +14,9 @@ import (
 // surviving half of #5861.
 //
 // #5904 closed the REDACTED trigger: a redaction marker on any allowlisted
-// comparable suppresses the whole scalar set, so the pair reports
+// comparable is reported unreadable, so the pair reports
 // value_comparison_inconclusive instead of converging. It deliberately did not
-// suppress on a genuinely ABSENT comparable, because every zip-packaged Lambda
+// fire on a genuinely ABSENT comparable, because every zip-packaged Lambda
 // lacks image_uri by design and would otherwise go inconclusive -- the
 // objection #5861 itself records.
 //

@@ -328,11 +328,11 @@ func TestClassifyLambdaPartialRedactionDoesNotConverge(t *testing.T) {
 }
 
 // TestClassifyLambdaUnredactedPartialEvidenceStillCompares is the
-// false-positive guard for the all-or-nothing rule above: image_uri is
+// false-positive guard for the degradation rule above: image_uri is
 // legitimately absent on every zip-packaged Lambda, and that must stay a
 // verdict rather than becoming inconclusive on most functions in a corpus
-// (the #5861 objection). Only a REDACTED comparable suppresses the set; a
-// genuinely missing one does not.
+// (the #5861 objection). Only an UNREADABLE comparable is reported degraded; a
+// genuinely missing one is not.
 func TestClassifyLambdaUnredactedPartialEvidenceStillCompares(t *testing.T) {
 	t.Parallel()
 
