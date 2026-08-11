@@ -858,26 +858,32 @@ line the issue records.
 No-Regression Evidence (#5861): the change is on the reducer's per-ARN hot path,
 so it was measured, not assumed. `go test ./internal/correlation/drift/cloudruntime
 -run XXX -bench Benchmark -benchtime 3s -count=6`, Go 1.26 on an Apple M4 Pro,
-before (`311bdc563`) and after, medians of six samples:
+medians of six samples. The AFTER arm was sampled twice, on two different
+machine loads, and both are shown -- reporting only the first would have made a
+noise band look like a small win:
 
 ```text
-                                    before      after      delta
-BenchmarkClassifyExistenceOnly      0.2529      0.2503     -1.0%   ns/op
-BenchmarkClassifyWithValueDrift     37.34       36.67      -1.8%   ns/op
+                                    before      after#1    after#2
+BenchmarkClassifyExistenceOnly      0.2529      0.2503     0.2532   ns/op
+BenchmarkClassifyWithValueDrift     37.34       36.67      37.64    ns/op
 BenchmarkBuildCandidatesWithValueDrift
-                                   805.0       738.5      -8.3%   ns/op
+                                   805.0       738.5      749.2    ns/op
 
 allocations identical on every arm: 0/0, 48 B/1 alloc, 2962 B/19 allocs
 ```
 
-`Classify` is a wash within noise -- the added work is one linear scan of a
-`DegradedAttributes` slice that is nil on every healthy resource, so it returns
-on the length check. `BuildCandidates` is faster because the change removed a
-redundant classification: `appendValueDriftEvidence` and
-`appendValueComparisonGapEvidence` used to call `ClassifyValueComparison`
-independently, and `buildOneCandidate` now computes it once and passes it to
-both. That also removes the possibility of the drift atoms and the coverage-gap
-atoms describing different comparisons.
+**The citable results are: the two `Classify` benchmarks are unchanged, and
+`BuildCandidates` is 7-8% faster.** `Classify` straddles zero between the two
+samplings (-1.8% and +0.8% on the value-drift arm), which is what "no
+regression" looks like rather than a win -- the added work is one linear scan of
+a `DegradedAttributes` slice that is nil on every healthy resource, so it
+returns on the length check. `BuildCandidates` moves in the same direction by a
+similar margin in both (-8.3% and -6.9%), well outside that band, and there is a
+mechanism for it: the change removed a redundant classification.
+`appendValueDriftEvidence` and `appendValueComparisonGapEvidence` used to call
+`ClassifyValueComparison` independently, and `buildOneCandidate` now computes it
+once and passes it to both. That also removes the possibility of the drift atoms
+and the coverage-gap atoms describing different comparisons.
 
 No-Observability-Change (#5861): no metric, span, or log is added. The affected
 pairs move between the EXISTING `image_version_drift` and
