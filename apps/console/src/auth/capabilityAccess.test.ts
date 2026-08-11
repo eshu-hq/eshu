@@ -209,6 +209,7 @@ describe("visibleAdminPanels (#4969)", () => {
     expect(visible.has("identityAccess")).toBe(true);
     expect(visible.has("tokens")).toBe(true);
     expect(visible.has("audit")).toBe(true);
+    expect(visible.has("evidenceBundle")).toBe(true);
   });
 
   it("shows every panel when the catalog is not enforced (legacy fail-open)", () => {
@@ -217,7 +218,7 @@ describe("visibleAdminPanels (#4969)", () => {
       permission_catalog_enforced: false,
       allowed_permission_features: [],
     });
-    expect(visibleAdminPanels(auth).size).toBe(6);
+    expect(visibleAdminPanels(auth).size).toBe(7);
   });
 
   it("shows only the tokens panel for a `tokens`-only grant", () => {
@@ -230,14 +231,14 @@ describe("visibleAdminPanels (#4969)", () => {
     expect([...visible]).toEqual(["tokens"]);
   });
 
-  it("shows only the audit panel for an `audit_export`-only grant", () => {
+  it("shows the audit and evidence bundle panels for an `audit_export`-only grant", () => {
     const auth = makeAuth({
       all_scopes: false,
       permission_catalog_enforced: true,
       allowed_permission_features: ["audit_export"],
     });
     const visible = visibleAdminPanels(auth);
-    expect([...visible]).toEqual(["audit"]);
+    expect([...visible]).toEqual(["audit", "evidenceBundle"]);
   });
 
   it("shows assignments and roles (not invitations/identityAccess) for a `roles_grants`-only grant", () => {
