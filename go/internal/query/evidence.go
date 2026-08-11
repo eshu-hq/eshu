@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -19,6 +20,14 @@ type EvidenceHandler struct {
 	Content            ContentStore
 	AdmissionDecisions AdmissionDecisionReadStore
 	Profile            QueryProfile
+	// StatusReader and Neo4j back GET /api/v0/evidence/bundle (#4045): the
+	// live evidence-bundle composer reads the same status snapshot and
+	// repository count StatusHandler's getPipelineStatus, getIndexStatus, and
+	// listCollectors already read (see evidence_bundle_live.go). A nil
+	// StatusReader is treated as "not configured" (503), matching every other
+	// status-backed route in this package.
+	StatusReader status.Reader
+	Neo4j        GraphQuery
 }
 
 type relationshipEvidenceReadModel struct {
@@ -34,6 +43,7 @@ type relationshipEvidenceReadModelStore interface {
 func (h *EvidenceHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/evidence/relationships/{resolved_id}", h.getRelationshipEvidence)
 	mux.HandleFunc("GET /api/v0/evidence/admission-decisions", h.listAdmissionDecisions)
+	mux.HandleFunc("GET /api/v0/evidence/bundle", h.getLiveEvidenceBundle)
 	mux.HandleFunc("GET /api/v0/investigations/deployable-unit/packet", h.getDeployableUnitPacket)
 	mux.HandleFunc("POST /api/v0/evidence/citations", h.buildEvidenceCitations)
 }

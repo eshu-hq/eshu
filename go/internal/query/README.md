@@ -204,6 +204,42 @@ evidence, permission hidden, unsupported, or unsafe; they do not promote a
 candidate to canonical graph truth unless the reducer's canonical write block
 shows an admitted write.
 
+Live evidence bundle reads (`GET /api/v0/evidence/bundle`, #4045) compose a
+share-safe `evidence_bundle.v1` artifact from the same status providers behind
+`GET /api/v0/status/index`, `GET /api/v0/status/pipeline`, and `GET
+/api/v0/status/collectors` (`evidence_bundle_live.go`), so `eshu evidence
+bundle export --live` and this route describe one running stack through the
+same `status.Report` and repository-count query. `EvidenceHandler` only maps
+that typed report into an `evidencebundle.LiveSnapshot`; it never re-derives
+`internal/evidencebundle`'s redaction or composition rules, calling
+`BuildLiveBundle -> Validate -> StampValidation` exactly as the CLI does. The
+bundle is stack-wide -- none of the composed data carries a repository or
+tenant selector -- so the route carries no `x-scoped-token-support` marker and
+is absent from `scopedHTTPRouteSupportsTenantFilter`, the same posture as its
+two stack-wide source routes; a scoped-bearer-token caller is always rejected
+by `AuthMiddleware` before the handler runs. A browser-session caller's
+admission is policy-dependent, not a flat reject: `browserSessionRouteAllowed`
+admits a tenant-bound all-scopes session -- the normal single-tenant/local
+owner console session -- whenever `BrowserSessionRoutePolicy
+.AllowTenantBoundAllScopes` is set, which `cmd/api`'s
+`browserSessionRoutePolicy` does for the default, `local_no_policy`, and
+`hosted_single_tenant` governance modes; only a hosted-multi-tenant or
+unrecognized mode, or a restricted-scope session, is rejected.
+
+Performance Evidence: the route adds no new query shape -- it composes three
+existing bounded, single-row-or-small-fixed-cardinality reads
+`repositoryCountForEvidenceBundle` and `liveEvidenceSnapshotFromReport` already
+reuse from `getIndexStatus`/`getPipelineStatus`/`listCollectors` (one graph
+count, one Postgres status snapshot, one in-process schema/redaction pass) into
+one HTTP round trip, measured at a median 1.6-1.8 ms above the
+`GET /api/v0/status/index` baseline and materially cheaper than the sum of the
+three source routes it replaces. No-Observability-Change: it emits no new
+span, metric, log line, or runtime knob, reusing the same instrumented
+`statusReader` and `neo4jReader` dependencies the three source routes already
+read through. Full measurements, backend/corpus details, and the raw-sample
+ledger references are recorded in
+[`docs/internal/evidence/4045-evidence-bundle-api-performance.md`](../../../docs/internal/evidence/4045-evidence-bundle-api-performance.md).
+
 No-Regression Evidence: focused relationship context, evidence drilldown, and
 OpenAPI tests cover both Postgres read-model and graph-backed rows:
 `go test ./internal/query -run 'RepositoryRelationship|RelationshipEvidence|ConfidenceBasis|OpenAPIRelationship|RelationshipStory.*Provenance' -count=1`.
