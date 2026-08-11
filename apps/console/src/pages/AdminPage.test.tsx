@@ -35,6 +35,7 @@ describe("AdminPage", () => {
     expect(screen.getByRole("tab", { name: "Sign-in policy" })).toBeInTheDocument();
     expect(screen.getByText("API tokens")).toBeInTheDocument();
     expect(screen.getByText("Audit")).toBeInTheDocument();
+    expect(screen.getByText("Evidence bundle")).toBeInTheDocument();
   });
 
   it("degrades every list panel to 'unavailable' when loaders fail (no fabrication)", async () => {
@@ -69,6 +70,7 @@ describe("AdminPage", () => {
     expect(screen.queryByText("Roles & grants")).not.toBeInTheDocument();
     expect(screen.queryByText("Identity & Access")).not.toBeInTheDocument();
     expect(screen.queryByText("Audit")).not.toBeInTheDocument();
+    expect(screen.queryByText("Evidence bundle")).not.toBeInTheDocument();
   });
 
   it("renders every panel for a full admin session (all_scopes)", async () => {
@@ -82,6 +84,7 @@ describe("AdminPage", () => {
     expect(await screen.findByText("Identity & Access")).toBeInTheDocument();
     expect(screen.getByText("API tokens")).toBeInTheDocument();
     expect(screen.getByText("Audit")).toBeInTheDocument();
+    expect(screen.getByText("Evidence bundle")).toBeInTheDocument();
   });
 
   it("renders no panels when the catalog is enforced and no admin family is granted", () => {
@@ -92,5 +95,6 @@ describe("AdminPage", () => {
     expect(screen.queryByText("Invitations")).not.toBeInTheDocument();
     expect(screen.queryByText("API tokens")).not.toBeInTheDocument();
     expect(screen.queryByText("Audit")).not.toBeInTheDocument();
+    expect(screen.queryByText("Evidence bundle")).not.toBeInTheDocument();
   });
 });
