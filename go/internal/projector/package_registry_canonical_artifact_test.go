@@ -59,7 +59,7 @@ func TestBuildCanonicalMaterializationExtractsPackageRegistryArtifacts(t *testin
 	if got, want := artifact.Hashes["sha256"], "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"; got != want {
 		t.Fatalf("artifact Hashes[sha256] = %q, want %q", got, want)
 	}
-	if got, want := artifact.Hashes["sha512"], "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3"; got != want {
+	if got, want := artifact.Hashes["sha512"], "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e"; got != want {
 		t.Fatalf("artifact Hashes[sha512] = %q, want %q", got, want)
 	}
 }
@@ -232,7 +232,7 @@ func packageRegistryArtifactFact() facts.Envelope {
 			"size_bytes":            int64(4096),
 			"hashes": map[string]any{
 				"sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-				"sha512": "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3",
+				"sha512": "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e",
 			},
 			"correlation_anchors": []any{
 				packageRegistryPackageID(),

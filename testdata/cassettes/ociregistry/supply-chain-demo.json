@@ -55,7 +55,7 @@
             "artifact_type": "",
             "source_tag": "1.0.0",
             "config": {
-              "digest": "sha256:config1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
+              "digest": "sha256:c0000000000000000000000000000000000000000000000000000000000000cf",
               "media_type": "application/vnd.oci.image.config.v1+json",
               "size_bytes": 4096,
               "artifact_type": "",
@@ -64,7 +64,7 @@
             },
             "layers": [
               {
-                "digest": "sha256:layer001234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
+                "digest": "sha256:1a000000000000000000000000000000000000000000000000000000000000e0",
                 "media_type": "application/vnd.oci.image.layer.v1.tar+gzip",
                 "size_bytes": 78170112,
                 "artifact_type": "",
@@ -72,7 +72,7 @@
                 "platform": null
               },
               {
-                "digest": "sha256:layer011234567890abcdef1234567890abcdef1234567890abcdef1234567890ab",
+                "digest": "sha256:1a000000000000000000000000000000000000000000000000000000000000e1",
                 "media_type": "application/vnd.oci.image.layer.v1.tar+gzip",
                 "size_bytes": 78170112,
                 "artifact_type": "",
@@ -209,7 +209,7 @@
             "artifact_type": "",
             "source_tag": "latest",
             "config": {
-              "digest": "sha256:config0000000000000000000000000000000000000000000000000000dd",
+              "digest": "sha256:c0000000000000000000000000000000000000000000000000000000000000dd",
               "media_type": "application/vnd.oci.image.config.v1+json",
               "size_bytes": 4096,
               "artifact_type": "",
@@ -218,7 +218,7 @@
             },
             "layers": [
               {
-                "digest": "sha256:layer000000000000000000000000000000000000000000000000000000ee",
+                "digest": "sha256:1a000000000000000000000000000000000000000000000000000000000000ee",
                 "media_type": "application/vnd.oci.image.layer.v1.tar+gzip",
                 "size_bytes": 52428800,
                 "artifact_type": "",
