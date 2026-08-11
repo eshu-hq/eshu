@@ -244,4 +244,46 @@
         "overrides": []
       },
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
+    },
+    {
+      "id": 27,
+      "type": "timeseries",
+      "title": "Lock-Only Gate Rows (per family)",
+      "description": "Issue #5101: how much lock-only gating traffic each posture/exposure writer is doing. Read this beside the lock-wait panel — rising volume on one family only matters next to a rising wait, and volume alone is not a contention signal.",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 79},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum by (family) (rate(${LOCK_ONLY_GATE_LOCKED_ROWS}[5m]))",
+          "legendFormat": "{{family}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "rowsps", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10}},
+        "overrides": []
+      },
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
+    },
+    {
+      "id": 28,
+      "type": "timeseries",
+      "title": "Lock-Only Gate Lock Wait p95 (per family)",
+      "description": "Issue #5101: advisory-lock acquisition wait on the lock-only path. The pre-#5101 signal was a slow-wait log at a 100ms threshold, so every wait under it was invisible and a slow creep toward that threshold could not be seen coming.",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 79},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "histogram_quantile(0.95, sum by (family, le) (rate(${LOCK_ONLY_GATE_LOCK_WAIT}_bucket[5m])))",
+          "legendFormat": "{{family}} p95",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "s", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10}},
+        "overrides": []
+      },
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
     }
