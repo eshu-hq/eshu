@@ -13,7 +13,7 @@ const openAPIPathsEvidenceBundle = `
       "get": {
         "tags": ["evidence"],
         "summary": "Get live evidence bundle",
-        "description": "Composes and returns a share-safe evidence_bundle.v1 artifact from the same status providers backing GET /api/v0/status/index, GET /api/v0/status/pipeline, and GET /api/v0/status/collectors, so the console and 'eshu evidence bundle export --live' can link to or generate the identical artifact (#4045). The bundle is stack-wide: none of the composed status data carries a repository or tenant selector, so this route carries no scoped-token support and is rejected for scoped-bearer and browser-session callers before the handler runs, the same posture as its two stack-wide source routes.",
+        "description": "Composes and returns a share-safe evidence_bundle.v1 artifact from the same status providers backing GET /api/v0/status/index, GET /api/v0/status/pipeline, and GET /api/v0/status/collectors, so the console and 'eshu evidence bundle export --live' can link to or generate the identical artifact (#4045). The bundle is stack-wide: none of the composed status data carries a repository or tenant selector, so this route carries no scoped-token support and always rejects a scoped-bearer-token caller, the same posture as its two stack-wide source routes. A browser-session caller's admission is policy-dependent: a tenant-bound all-scopes session (the normal single-tenant/local owner console session) is admitted in the default, local, and hosted-single-tenant governance modes, and rejected only in a hosted-multi-tenant or unrecognized mode, or for a restricted-scope session.",
         "operationId": "getLiveEvidenceBundle",
         "responses": {
           "200": {

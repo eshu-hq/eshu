@@ -123,9 +123,13 @@ artifact from one running stack. The response validates against the same
 
 The bundle is stack-wide: none of the composed status data carries a
 repository or tenant selector, so a scope cannot be requested and the route
-carries no scoped-token support. Scoped-bearer and browser-session callers are
-rejected before the handler runs, the same posture as its two stack-wide
-source routes, `GET /api/v0/status/index` and `GET /api/v0/status/pipeline`.
+carries no scoped-token support, the same posture as its two stack-wide
+source routes, `GET /api/v0/status/index` and `GET /api/v0/status/pipeline`. A
+scoped-bearer-token caller is always rejected before the handler runs. A
+browser-session caller's admission is policy-dependent: an owner/admin
+console session bound to one tenant and workspace is admitted in the default,
+local, and hosted-single-tenant governance modes, and rejected only in a
+hosted-multi-tenant or unrecognized mode, or for a restricted-scope session.
 
 Returns `503` when the status reader is not configured, matching every other
 status-backed route in this package.
