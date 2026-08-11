@@ -152,7 +152,7 @@ Console browser flow, SAML SSO, CSRF rules, and the local identity routes.
 Moved. See [Ask Eshu](http-api/ask.md) for the request and response contract,
 the SSE variant, and the agent loop budget.
 
-## Answer-narration status seam
+## Answer-narration status seam — hot-path evidence (issue #3263 follow-up)
 
 Moved. See
 [the answer-narration status seam](http-api/ask.md#answer-narration-status-seam--hot-path-evidence-issue-3263-follow-up).

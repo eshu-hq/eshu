@@ -183,10 +183,14 @@ verify_layout() {
   # top of the page instead of the contract they asked for. Each stub must
   # carry a link to the page that now owns the content, otherwise it is a dead
   # end rather than a redirect.
+  # Each stub heading must reproduce the pre-split heading TEXT exactly, because
+  # the heading text is what generates the published fragment slug. Shortening
+  # a stub heading keeps the section visible but still breaks the old URL, so
+  # these are matched anchored end-to-end rather than by prefix.
   hub_stubs=(
     '## Dashboard Browser Sessions|http-api/dashboard-sessions.md'
-    '## Ask Eshu|http-api/ask.md'
-    '## Answer-narration status seam|http-api/ask.md'
+    '## Ask Eshu — POST /api/v0/ask|http-api/ask.md'
+    '## Answer-narration status seam — hot-path evidence|http-api/ask.md'
     '## Cloud Inventory Readback|http-api/cloud-inventory.md'
     '## Cloud Resource Graph Paging|http-api/cloud-inventory.md'
   )
