@@ -655,6 +655,24 @@ Primary groups:
   `Summary.ValueComparisonInconclusiveResources` (#5837). That is the signal
   an operator reads; a second loader-side detector of the same condition
   could only disagree with it.
+- Redaction is not the only way a comparable becomes unusable. A comparable can
+  also be ABSENT while the same payload asserts it should be there, and that
+  case needs its own rule because absence alone must NOT suppress: a
+  zip-packaged Lambda has no `image_uri` by design, so suppressing on absence
+  would report most functions in a corpus as inconclusive (#5861). For
+  `aws_lambda_function`, `lambdaComparableScalarAttrSet` /
+  `lambdaImagePackagedWithoutImageURI`
+  (`aws_cloud_runtime_drift_value_attributes.go`) key on `package_type`, which
+  both the AWS collector and Terraform state already carry: `Image` with no
+  `image_uri` is a side that did not carry the image, not a function without
+  one, and it suppresses the whole set exactly as a redaction marker does. The
+  rule runs on the observed AND the declared decoder, because the destructive
+  outcome does not care which side was unreadable — whichever one is missing,
+  `Compared` falls to 1 of 2, `Classify` returns `""`, and the
+  generation-authoritative retire deletes a still-true finding. `package_type`
+  is read as a completeness signal only and is deliberately absent from
+  `cloudruntime`'s `valueAttributeAllowlist`; adding it would turn an
+  out-of-band Image-to-Zip repackaging into a reported `image_version_drift`.
 
 No-Regression Evidence (#5859): the redaction check sits on the value-drift
 decode path, so it was measured rather than assumed.
@@ -732,6 +750,91 @@ emission time on `eshu_dp_tfstate_redactions_applied_total{reason}`.
   it. A container list beyond `cloudruntime.MaxContainerImagesPerResource`
   (8) is capped, not silently truncated: `containerImagesTruncatedWarning`
   appends `container_images_truncated` to the finding's `WarningFlags`.
+  For `aws_lambda_function` both decoders go through
+  `lambdaComparableScalarAttrSet` rather than `comparableScalarAttrSet`
+  directly, which adds the `package_type` completeness rule described above
+  (#5861) on top of the redaction rule.
+
+No-Regression Evidence (#5861): the `package_type` completeness rule sits on the
+same value-drift decode path, so it was measured rather than assumed.
+`BenchmarkLambdaDeclaredValueAttributes` (in
+`aws_cloud_runtime_drift_value_completeness_test.go`) runs the healthy
+production shape -- an image-packaged `aws_lambda_function` whose `image_uri`
+IS present, so the guard evaluates and falls through -- through
+`stateDeclaredValueAttributes`. The #5859 benchmark next to it runs an
+`aws_instance` payload, which never reaches this rule, so it would have
+reported "no change" about the wrong path. Baseline measured by reverting both
+call sites to `comparableScalarAttrSet(attributes, "image_uri", "version")`
+through `go test -overlay=` against a scratchpad copy, leaving the worktree
+untouched. Go 1.26 on an Apple M5 Max.
+
+Method matters here, because a first attempt at this measurement got the SIGN
+wrong. Both arms are compiled once with `go test -c` and then sampled
+ALTERNATELY, one arm after the other, 12 pairs; the whole run is then repeated
+with the arm order reversed as a control. Measuring one arm in a block and then
+the other lets a drifting machine load land entirely on one side, which is how
+the first attempt concluded the guard made the path faster -- something a guard
+that only adds work cannot do.
+
+```text
+run A (NEW sampled first)   min      p10      median
+  OLD                       113.9    116.1    135.9   ns/op
+  NEW                       122.1    124.4    139.7   ns/op
+  NEW vs OLD                +7.2%    +7.1%    +2.8%
+
+run B (OLD sampled first)   min      p10      median
+  OLD                       159.7    170.3    181.1   ns/op
+  NEW                       165.9    175.9    195.6   ns/op
+  NEW vs OLD                +3.9%    +3.3%    +8.0%
+
+both runs, 336 B/op, 2 allocs/op on every sample, both arms
+```
+
+**Direction is the citable result: the guard is slower on all six statistics
+across both orderings, by 2.8-8.0%.** The absolute ns figures are not
+citable -- this host was running other work throughout, which is why run B sits
+well above run A on both arms, and why the six deltas spread as widely as they
+do. Allocation is byte-for-byte identical, so the cost is the extra map read
+and nothing else.
+
+That cost is worth it -- the alternative is a converged verdict that lets the
+retire delete a true finding -- but it is a cost, not a wash, and the
+neighbouring #5859 block records its own +2 ns/op the same way.
+
+One ordering choice is worth recording. Testing `package_type` first measured
+consistently slower again, and the reason is NOT that the healthy path reads
+`image_uri` twice: it reads it twice in both orderings, once in the guard and
+once in the set read that follows. What the shipped order avoids is one
+`package_type` map read plus its `TrimSpace` and `EqualFold`, on every Lambda
+that carries an `image_uri`. The two conditions commute -- verified by running
+both packages against a reordered overlay, which no test distinguishes -- so
+`lambdaImagePackagedWithoutImageURI` tests the `image_uri` blank first.
+
+No-Observability-Change (#5861): the rule adds no metric, span, or log. It
+routes an affected pair onto the EXISTING `value_comparison_inconclusive`
+finding kind, already counted on
+`Summary.ValueComparisonInconclusiveResources` and already carrying
+`comparable_attribute:<key>` in `missing_evidence` (#5837). An operator sees
+the same durable row and the same counter they read for the redaction case;
+what changes is which pairs land on it.
+
+Two shapes move, and the second is a finding-kind CONVERSION an operator will
+see, not just a rescue:
+
+- The converge case — the pair previously vanished (`Classify()` returned `""`
+  and the retire deleted) and now appears as a durable row. This is the rescue
+  the fix exists for.
+- **A real drift alongside the unobservable `image_uri`.** If `version` also
+  differs, the pair previously reported `image_version_drift`
+  (`Compared=1, Drifted=1`); it now reports `value_comparison_inconclusive`
+  (`Compared=0`). The drift is not lost — it is restated as uncertainty,
+  because the all-or-nothing rule #5859/#5904 established says a set with an
+  unusable member is not comparable. That is the same cost the redaction rule
+  already pays and is pinned by
+  `TestClassifyLambdaImagePackagedWithoutObservedImageURIStillInconclusiveWithVersionDrift`.
+  An operator watching `image_version_drift` counts on an affected Lambda will
+  see one move to the inconclusive counter.
+`scripts/verify-telemetry-coverage.sh` passes with no new stage.
 
 To add instrumentation to a store, wrap the `ExecQueryer` passed to its
 constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.

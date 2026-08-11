@@ -93,12 +93,19 @@ a durable finding whose `management_status` is `unknown_management`, whose
 `comparable_attribute:<key>`, and whose recommended action is
 `expand_collector_coverage_or_permissions`.
 
-That path is reachable with nothing upstream asserting a failure. The
-terraform-state collector fail-closed-redacts scalar attributes when its
-provider-schema resolver is nil or a schema bundle fails to parse
-(`terraformstate/schema_resolver.go`; `LoadPackagedSchemaResolver` returns
-`nil, nil` and `parseSchemaInto` skips a corrupt bundle, and
-`cmd/collector-terraform-state/config.go` accepts a nil resolver as non-fatal).
+That path is reachable, though the widest route into it is now closed. The
+terraform-state collector fail-closed-redacts scalar attributes whenever
+`schemaTrust` answers `SchemaUnknown`. #6017 removed the worst case: an empty
+bundle no longer yields a nil resolver, because `LoadPackagedSchemaResolver`
+rejects an empty attribute set with an error and the collector fails to start
+rather than degrading every attribute of every resource
+(`terraformstate/schema_resolver.go` rejects the empty set;
+`cmd/collector-terraform-state/config.go` propagates that error out of
+startup). What remains open is the PER-PROVIDER
+case — a resolver that loads but does not cover one provider still answers
+`SchemaUnknown` for that provider's attributes, and `parseSchemaInto` still
+skips a corrupt bundle — which is the half of #5870 that is still an open
+redaction-policy question.
 The condition is sticky per deployment, so a replay repeats the deletion rather
 than healing it. Reporting explicit uncertainty replaces the stale drift claim
 instead of destroying it, and the finding self-heals into `image_version_drift`
@@ -108,24 +115,49 @@ A resource type with no allowlist entry, and which is not the ECS task
 definition, is NOT covered and never becomes inconclusive: it has nothing to
 compare by design, so it still converges.
 
-### The value-completeness residual this does NOT close (#5861)
+### Unreadable versus absent, and how one-of-two is resolved for `image_uri` (#5861)
 
-`value_comparison_inconclusive` fires only when NOT ONE comparison succeeded.
-`aws_lambda_function` is covered for two attributes, so a pass where `image_uri`
-is redacted while `version` compares equal has one successful comparison, is
-therefore a verdict, and an `image_uri` drift that exists in reality is still
-retired. Making one-of-two inconclusive is not the fix: `image_uri` is
-legitimately absent for every zip-packaged Lambda, so that would put a finding
-on most functions in a corpus.
+`value_comparison_inconclusive` fires only when NOT ONE comparison succeeded, so
+a covered two-attribute type is the hard case: if one comparable is unusable
+while the other compares equal, the pass has one successful comparison, is
+therefore a verdict of "converged", and the retire deletes a drift that exists
+in reality.
 
-Closing it needs per-attribute completeness plumbing from the collector -- a
-declared-side signal saying "this attribute was redacted" as opposed to "this
-attribute is not set". The durable, fenced `aws_scan_status` table
-(`go/internal/storage/postgres/aws_scan_status.go`) is half of it and currently
-has no reader anywhere; per-attribute redaction flags on
-`terraform_state_resource` would be the other half. Tracked as #5861;
-`TestClassifyLambdaOneOfTwoComparisonsIsStillAVerdict` pins the residual so it
-stays a known gap rather than a surprise.
+Two rules close that **for `image_uri`** — not for the covered-attribute class,
+which still has an uncovered shape recorded at the end of this section — both
+applied at the loader boundary
+(`go/internal/storage/postgres/aws_cloud_runtime_drift_value_attributes.go`)
+rather than by widening `Inconclusive()`:
+
+- **Redacted (#5859/#5904).** A redaction marker on ANY allowlisted comparable
+  suppresses that resource type's WHOLE scalar set, so `Compared` drops to 0
+  and the pair reports uncertainty on a durable row.
+- **Unobservable (#5861).** Absence alone must NOT suppress — `image_uri` is
+  legitimately absent for every zip-packaged Lambda, and suppressing on absence
+  would put a finding on most functions in a corpus. `package_type`
+  distinguishes the two: it is a real `aws_lambda_function` attribute that the
+  AWS collector already emits, so `package_type == "Image"` with no `image_uri`
+  is a side that did not carry the image, not a resource that has none. That
+  combination suppresses the set; zip-packaged functions are untouched by
+  construction.
+
+  The rule applies to the observed AND the declared decoder, because the
+  destructive outcome does not care which side was unreadable — whichever one
+  is missing, `Compared` falls to 1 of 2 and the pass converges. On the
+  observed side the shape comes from the AWS client's defensive fallback to a
+  `ListFunctions` configuration, which carries `PackageType` but no `Code`
+  block. On the declared side, Terraform requires `image_uri` when
+  `package_type` is `Image`, so a state row asserting `Image` with none is an
+  incomplete read of that state.
+
+`package_type` is read as a completeness signal only. It is deliberately NOT in
+`valueAttributeAllowlist`: adding it would turn an out-of-band Image-to-Zip
+repackaging into a real `image_version_drift` and needs its own accuracy review.
+
+The per-attribute completeness plumbing an earlier draft of this section called
+for — a declared-side "this attribute was redacted" flag on
+`terraform_state_resource` — turned out not to be needed for the one attribute
+in question, because `package_type` already reaches both decoders.
 
 ### A redacted attribute is "no signal", not a comparable value (#5859)
 
@@ -155,11 +187,18 @@ durable row -- rather than either the old false drift or a silent
 convergence the retire would read as permission to delete. Distinguishing
 "genuinely missing" from "redacted, so unknown" per attribute, rather than
 folding both into the same uncomparable bucket, is the residual #5861 tracks
-above; it needs collector-side completeness plumbing and is not something
-this fix resolves. Whether the collector should fail-closed-redact at all
-when its provider-schema resolver is nil -- and whether identity anchors
-such as `arn` should be exempt from that fail-closure -- is the upstream
-policy question, tracked on #5870.
+above. For `image_uri` that is now closed by the `package_type` completeness
+rule described there, and not by this fix. It is NOT closed as a class: an
+unreadable `version` alongside an `image_uri` that compares equal still gives
+`Comparable=2, Compared=1` and still converges, because no completeness signal
+exists for `version` the way `package_type` serves `image_uri`. That shape is
+less reachable -- both `GetFunction` and the `ListFunctions` fallback carry
+`Version` -- but it is not covered. Whether the collector should
+fail-closed-redact at all when `schemaTrust` answers `SchemaUnknown` for a
+provider its bundle does not cover -- and whether identity anchors such as
+`arn` should be exempt from that fail-closure -- is the upstream policy
+question, tracked on #5870. (The nil-resolver trigger this sentence used to
+name is gone; see the #6017 note above.)
 
 ### Lambda `version` accuracy note (gated on both sides present)
 

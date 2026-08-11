@@ -75,7 +75,7 @@ func cloudObservedValueAttributes(
 			return map[string]string{"ami": v}, nil, false, false
 		}
 	case cloudResourceTypeLambdaFunction, cloudResourceTypeLambdaFunctionProd:
-		if out := comparableScalarAttrSet(attributes, "image_uri", "version"); len(out) > 0 {
+		if out := lambdaComparableScalarAttrSet(attributes); len(out) > 0 {
 			return out, nil, false, false
 		}
 	case cloudResourceTypeECSTaskDefinition, cloudResourceTypeECSTaskDefinitionProd:
@@ -113,7 +113,7 @@ func stateDeclaredValueAttributes(
 			return map[string]string{"ami": v}, nil, false, false
 		}
 	case terraformResourceTypeAWSLambdaFunction:
-		if out := comparableScalarAttrSet(attributes, "image_uri", "version"); len(out) > 0 {
+		if out := lambdaComparableScalarAttrSet(attributes); len(out) > 0 {
 			return out, nil, false, false
 		}
 	case terraformResourceTypeAWSECSTaskDefinition:
@@ -207,6 +207,93 @@ func comparableScalarAttrSet(attributes map[string]any, keys ...string) map[stri
 		return nil
 	}
 	return out
+}
+
+// lambdaComparableScalarAttrSet reads aws_lambda_function's allowlisted
+// comparables, adding one completeness rule comparableScalarAttrSet's
+// redaction rule cannot express.
+//
+// comparableScalarAttrSet suppresses on a REDACTED comparable but deliberately
+// not on an ABSENT one, because a zip-packaged Lambda has no image_uri by
+// design and suppressing on absence would report every one of them as
+// value_comparison_inconclusive -- the noise objection #5861 records against
+// widening that rule.
+//
+// package_type separates the two cases without any new collector plumbing: it
+// is a real aws_lambda_function Terraform attribute AND the AWS collector
+// already emits it (go/internal/collector/awscloud/services/lambda/scanner.go),
+// so both decoders receive it. package_type == "Image" with no image_uri is
+// therefore not "this resource has no image" -- an image-packaged function has
+// one by definition -- it is "this side did not carry the image".
+//
+// This applies to BOTH decoders, deliberately, because the destructive outcome
+// does not care which side was unreadable: whichever one is missing, Compared
+// falls to 1 of 2, Classify returns "" and the retire deletes the finding.
+//
+//   - Observed side: Eshu's own defensive fallback in the AWS client
+//     (services/lambda/awssdk/client.go) substitutes the ListFunctions
+//     FunctionConfiguration when GetFunction returns a nil output, and that
+//     value carries PackageType but no Code block, so mapFunction yields
+//     PackageType "Image" with an empty ImageURI. This is a guarded branch
+//     rather than an observed production occurrence -- a successful SDK
+//     GetFunction does not return (nil, nil).
+//   - Declared side: Terraform requires image_uri when package_type is Image,
+//     so a state row asserting Image while carrying no image_uri is an
+//     incomplete read of that state, not a function without an image. The
+//     redaction rule cannot catch it, because redact never DROPS a scalar
+//     (redact/policy.go) -- a redacted image_uri arrives as a marker and is
+//     already suppressed, so genuine absence here means the state itself is
+//     partial.
+//
+// Left untreated that side yields Comparable=2, Compared=1, Drifted=0,
+// Inconclusive()=false, so Classify returns "" (convergence), BuildCandidates
+// drops the ARN, and the generation-authoritative retire deletes a still-true
+// finding -- the same destructive outcome #5904's redaction rule exists to
+// prevent, reached through absence instead. Suppressing the whole set drops
+// Compared to 0 and reports uncertainty on a durable row instead.
+//
+// package_type is read as a completeness SIGNAL only; it is not in
+// cloudruntime's valueAttributeAllowlist and no drift is reported on it.
+// Adding it there would turn an out-of-band Image-to-Zip repackaging into a
+// real image_version_drift and needs its own accuracy review.
+//
+// A package_type that is itself a redaction marker does not match "Image" and
+// falls through to the ordinary path. That is safe for the shape it actually
+// occurs in -- whole-attribute redaction under an unknown provider schema hits
+// every scalar, so image_uri is a marker too and the redaction rule suppresses
+// the set. It would NOT be safe for a redacted package_type alongside a
+// genuinely absent image_uri, which nothing here suppresses; that combination
+// has no known producer, and this note exists so a future change that creates
+// one does not inherit an unexamined assumption.
+func lambdaComparableScalarAttrSet(attributes map[string]any) map[string]string {
+	if lambdaImagePackagedWithoutImageURI(attributes) {
+		return nil
+	}
+	return comparableScalarAttrSet(attributes, "image_uri", "version")
+}
+
+// lambdaImagePackagedWithoutImageURI reports whether one side's attributes
+// claim an image-packaged Lambda while carrying no image_uri. It is written to
+// be side-agnostic: the caller applies it to the observed and the declared
+// decoder alike, and in both cases the claim and the missing value contradict
+// each other, which is the signal.
+//
+// Comparison is case-insensitive because the value is a provider/API string
+// ("Image" from the AWS SDK, "Image" in Terraform state) rather than an
+// identifier this repo mints.
+// The image_uri test comes first even though package_type is the
+// discriminating signal, because the two conditions commute and this order is
+// cheaper on the healthy path: a Lambda that carries an image_uri -- every
+// image-packaged function that was read successfully -- returns after one map
+// read and one TrimSpace, without ever touching package_type. Ordering
+// package_type first measured consistently slower, for no behavioral
+// difference. Direction only: this package's README records no magnitude FOR
+// THAT ORDERING COMPARISON, because the host it ran on could not support one.
+func lambdaImagePackagedWithoutImageURI(attributes map[string]any) bool {
+	if strings.TrimSpace(coerceJSONString(attributes["image_uri"])) != "" {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(coerceJSONString(attributes["package_type"])), "Image")
 }
 
 // redactedAnywhere reports whether value is itself a redaction marker map, or
