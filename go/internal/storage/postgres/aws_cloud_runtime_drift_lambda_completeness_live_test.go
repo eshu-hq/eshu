@@ -244,3 +244,56 @@ func TestAWSCloudRuntimeDriftLambdaCompletenessReplacesRatherThanDeletesLive(t *
 		)
 	}
 }
+
+// TestAWSCloudRuntimeDriftLambdaPartialComparabilityKeepsDriftLive is the
+// accuracy half of #5861 against real rows.
+//
+// The test above proves the unreadable comparable cannot DELETE a finding. This
+// one proves it does not DOWNGRADE one either. The observed image_uri is
+// unobservable and `version` genuinely differs, so one comparison ran and found
+// real drift. Under the all-or-nothing rule the unusable image_uri suppressed
+// the readable comparison with it, so the durable row said
+// value_comparison_inconclusive -- an operator querying image_version_drift saw
+// nothing, on an ARN that was demonstrably drifted.
+//
+// Asserted here rather than only at the decoder because the finding KIND is what
+// the versioned upsert keys the row on: a unit test proving Classify returns
+// image_version_drift says nothing about which row survives the retire.
+func TestAWSCloudRuntimeDriftLambdaPartialComparabilityKeepsDriftLive(t *testing.T) {
+	sqlDB, ctx := awsCloudRuntimeDriftAdmissionLiveDB(t)
+
+	suffix := fmt.Sprintf("5861-partial-%d", time.Now().UnixNano())
+	scopeID := "scope-" + suffix
+	generationID := "gen-" + suffix
+	arn := "arn:aws:lambda:us-east-1:123456789012:function:app-" + suffix
+
+	seededAt := time.Now().UTC()
+	seedAWSCloudRuntimeDriftScope(t, ctx, sqlDB, scopeID, "aws", generationID, seededAt)
+	seedAWSCloudRuntimeDriftGeneration(t, ctx, sqlDB, generationID, scopeID, "active", seededAt)
+
+	declaredImageURI := "123456789012.dkr.ecr.us-east-1.amazonaws.com/app:v2"
+
+	writes := awsDriftRunLambdaCompletenessPass(
+		t, ctx, sqlDB, scopeID, generationID, arn,
+		awsDriftLambdaCompletenessRow(
+			t, arn, scopeID,
+			// Observed: image_uri unobservable, version 7.
+			awsDriftLambdaCloudPayload(arn, "", "7"),
+			// Declared: version 9 -- a real, provable drift.
+			awsDriftLambdaStatePayload(arn, declaredImageURI, "9"),
+		),
+		time.Now().UTC(), 100,
+	)
+	if writes != 1 {
+		t.Fatalf("canonical writes = %d, want 1", writes)
+	}
+
+	got := countAWSCloudRuntimeDriftFindingRows(t, ctx, sqlDB, scopeID, generationID)
+	if len(got) != 1 || got[0] != string(cloudruntime.FindingKindImageVersionDrift) {
+		t.Fatalf(
+			"durable finding kinds = %v, want [%s]: a drift proven by a comparison that RAN must not be restated "+
+				"as uncertainty because a different attribute was unreadable",
+			got, cloudruntime.FindingKindImageVersionDrift,
+		)
+	}
+}
