@@ -85,7 +85,13 @@ func TestDispatchToolSupplyChainImpactExplainReturnsEnvelope(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"data": map[string]any{
 				"outcome": "finding_explained",
-				"finding": map[string]any{"finding_id": "finding-1", "impact_status": "affected_exact"},
+				"finding": map[string]any{
+					"finding_id": "finding-1", "impact_status": "affected_exact",
+					"kubernetes_runtime_probe": map[string]any{
+						"candidate_limit":         1,
+						"workload_refs_truncated": nil,
+					},
+				},
 				"advisory": map[string]any{
 					"cve_id":           "CVE-2026-0001",
 					"vulnerable_range": "<2.0.0",
@@ -134,6 +140,14 @@ func TestDispatchToolSupplyChainImpactExplainReturnsEnvelope(t *testing.T) {
 	}
 	if got, want := data["outcome"], "finding_explained"; got != want {
 		t.Fatalf("outcome = %#v, want %#v", got, want)
+	}
+	finding := data["finding"].(map[string]any)
+	probe := finding["kubernetes_runtime_probe"].(map[string]any)
+	if got, want := probe["candidate_limit"], float64(1); got != want {
+		t.Fatalf("kubernetes_runtime_probe.candidate_limit = %#v, want %#v", got, want)
+	}
+	if got := probe["workload_refs_truncated"]; got != nil {
+		t.Fatalf("kubernetes_runtime_probe.workload_refs_truncated = %#v, want null", got)
 	}
 }
 
