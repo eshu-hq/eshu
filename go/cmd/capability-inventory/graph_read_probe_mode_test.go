@@ -125,7 +125,7 @@ func TestGraphReadProbeRegistryCoversCurrentDirectSurfaces(t *testing.T) {
 	if err != nil {
 		t.Fatalf("currentAPIAndMCPSurfaces() error = %v", err)
 	}
-	if got, want := len(targets), 418; got != want {
+	if got, want := len(targets), 419; got != want {
 		t.Fatalf("current target count = %d, want checked-in current manifest count %d", got, want)
 	}
 }
@@ -135,7 +135,7 @@ func TestCurrentProbeRegistryClassifiesEverySurfaceWithoutGenericUnsupported(t *
 	if err != nil {
 		t.Fatalf("buildCurrentProbeRegistry() error = %v", err)
 	}
-	if got, want := len(registry), 418; got != want {
+	if got, want := len(registry), 419; got != want {
 		t.Fatalf("registry count = %d, want %d", got, want)
 	}
 	seen := map[string]struct{}{}
@@ -352,7 +352,7 @@ func TestCurrentProbeRegistryResolvesEveryExecutableFixture(t *testing.T) {
 			t.Errorf("resolveProbeSelectors(%s) error = %v", probe.identity, err)
 		}
 	}
-	if got, want := classified, 418; got != want {
+	if got, want := classified, 419; got != want {
 		t.Fatalf("classified registry entries = %d, want %d", got, want)
 	}
 }

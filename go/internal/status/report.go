@@ -134,6 +134,16 @@ type Report struct {
 	CollectorFactEvidence          []CollectorFactEvidence
 	AWSCloudScansTruncated         bool
 	AWSCloudScanLimit              int
+	// DomainBacklogsTruncated reports that more non-empty materialization
+	// domains existed than DomainBacklogsLimit, so DomainBacklogs holds only
+	// the top DomainBacklogsLimit rows by outstanding work (topDomainBacklogs,
+	// status.go). Consumers that snapshot DomainBacklogs into a portable
+	// artifact -- such as the live evidence bundle route (#4045) -- MUST
+	// surface this flag rather than let a capped list read as complete.
+	DomainBacklogsTruncated bool
+	// DomainBacklogsLimit is the opts.DomainLimit cap actually applied when
+	// DomainBacklogsTruncated is true.
+	DomainBacklogsLimit int
 	// TerraformState carries the operator-facing tfstate admin status section
 	// derived from RawSnapshot.TerraformStateLastSerials and
 	// RawSnapshot.TerraformStateRecentWarnings. Empty when the reader did not
