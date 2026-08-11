@@ -78,6 +78,16 @@ func TestCheckRequiredStatusWorkflows_TrustedPublisherPasses(t *testing.T) {
 	}
 }
 
+func TestCheckRequiredStatusWorkflows_AcceptsEquivalentCancellationSpacing(t *testing.T) {
+	t.Parallel()
+
+	body := strings.Replace(trustedRequiredWorkflow, `${{ !cancelled() }}`, `${{!cancelled()}}`, 1)
+	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
+	if len(errs) != 0 {
+		t.Fatalf("equivalent cancellation-safe condition returned errors: %v", errs)
+	}
+}
+
 func TestCheckRequiredStatusWorkflows_RejectsPullRequestTarget(t *testing.T) {
 	t.Parallel()
 

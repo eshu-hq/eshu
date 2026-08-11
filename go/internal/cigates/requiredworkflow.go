@@ -309,7 +309,12 @@ func validateTrustedAggregator(
 		}
 		if strings.Contains(step.Run, "/statuses/") && strings.Contains(step.Run, "state=failure") {
 			terminalIndex = index
-			if strings.TrimSpace(step.If) != "${{ !cancelled() }}" {
+			condition := strings.TrimSpace(step.If)
+			hasExpressionDelimiters := strings.HasPrefix(condition, "${{") && strings.HasSuffix(condition, "}}")
+			if hasExpressionDelimiters {
+				condition = strings.TrimSpace(condition[3 : len(condition)-2])
+			}
+			if !hasExpressionDelimiters || condition != "!cancelled()" {
 				errs = append(errs, fmt.Errorf(
 					"required status context %q: terminal status publisher must use !cancelled() to run after failure without publishing on cancellation",
 					check.Context,
