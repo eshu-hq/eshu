@@ -98,6 +98,15 @@ func TestStructuralEdgePhaseBoundsTransactionSize(t *testing.T) {
 	if len(recorder.statementsPerCall) == 0 {
 		t.Fatal("no ExecuteGroup calls recorded")
 	}
+
+	// The budget must subdivide the grouped path, not push statements onto the
+	// singleton Execute path. Without this assertion a regression that ran every
+	// statement as its own Execute call would still satisfy the bounds below,
+	// because one ExecuteGroup call is enough to populate the recorder.
+	if recorder.singleStatements != 0 {
+		t.Errorf("%d statements ran through Execute, want all through ExecuteGroup",
+			recorder.singleStatements)
+	}
 	for i, got := range recorder.statementsPerCall {
 		if got > DefaultStructuralEdgePhaseStatements {
 			t.Errorf("transaction %d carried %d statements, want <= %d",
