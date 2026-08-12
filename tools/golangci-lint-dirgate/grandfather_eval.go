@@ -104,9 +104,9 @@ func evaluateDirectory(key, dir string, grandfather map[string]grandfatherEntry)
 		// a reviewed pin bump, which shows up as a one-line TSV diff a reviewer
 		// can see and argue with.
 		if grandfathered {
-			out = append(out, finding{File: rep, Message: capMessage(key, count, capNote)})
+			out = append(out, finding{File: rep, Message: capMessage(key, count, capNote, true)})
 		} else if _, justified := nolintJustification(filepath.Join(dir, rep), gateName); !justified {
-			out = append(out, finding{File: rep, Message: capMessage(key, count, capNote)})
+			out = append(out, finding{File: rep, Message: capMessage(key, count, capNote, false)})
 		}
 	}
 
@@ -189,10 +189,28 @@ func evaluateCapViolation(key string, count int, digest string, entry grandfathe
 	}
 }
 
-func capMessage(dirKey string, count int, note string) string {
+// capMessage builds the over-cap finding text. grandfathered selects the
+// remediation, and the two are not interchangeable: evaluateDirectory refuses
+// the //nolint escape for a grandfathered directory, so offering it there would
+// send an author to add a marker the gate then ignores. The bash mirror in
+// scripts/lib/dirgate-core.sh already distinguishes the two; this kept the
+// non-grandfathered wording for both, which is the silent Go/bash divergence
+// the mirror exists to prevent (#6054 review finding).
+// grandfatherLedger is the pinned-directory ledger a grandfathered directory
+// must be re-pinned in. Named in the finding text so an author reading a CI
+// annotation knows the one file to edit.
+const grandfatherLedger = "scripts/lib/dirgate-grandfather.tsv"
+
+func capMessage(dirKey string, count int, note string, grandfathered bool) string {
 	msg := fmt.Sprintf("package directory %s has %d non-test .go files, exceeding the %d-file cap", dirKey, count, maxDirFiles)
 	if note != "" {
 		msg += " (" + note + ")"
+	}
+	if grandfathered {
+		msg += fmt.Sprintf(
+			"; this directory is grandfathered, so //nolint:%s will NOT suppress it -- split it into a subpackage, or bump its row in %s in a reviewed commit",
+			gateName, grandfatherLedger)
+		return msg
 	}
 	msg += fmt.Sprintf(
 		"; split it into a subpackage, or add //nolint:%s // <reason> to this file's package line",

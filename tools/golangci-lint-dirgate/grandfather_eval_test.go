@@ -449,3 +449,37 @@ func TestEvaluateDirectoryGrandfatheredCapNolintIsRefused(t *testing.T) {
 		t.Fatal("findings = none; a justified cap nolint must NOT suppress a grandfathered directory, or one marker silently un-gates the whole directory forever")
 	}
 }
+
+// TestCapMessageGrandfatheredDoesNotOfferNolint pins the remediation text to
+// what evaluateDirectory will actually honor. A grandfathered directory's
+// //nolint escape is refused there, so offering it in the finding sends the
+// author to add a marker the gate ignores -- and the bash mirror in
+// scripts/lib/dirgate-core.sh already words these two cases differently, so
+// getting it wrong here is a silent Go/bash divergence, the exact failure the
+// mirror exists to prevent.
+func TestCapMessageGrandfatheredDoesNotOfferNolint(t *testing.T) {
+	t.Parallel()
+
+	grandfathered := capMessage("internal/query", maxDirFiles+840, "", true)
+	if strings.Contains(grandfathered, "// <reason>") {
+		t.Fatalf("grandfathered cap message offers the //nolint escape the gate refuses: %q", grandfathered)
+	}
+	for _, want := range []string{
+		"grandfathered", "will NOT suppress it", grandfatherLedger, "reviewed commit",
+	} {
+		if !strings.Contains(grandfathered, want) {
+			t.Fatalf("grandfathered cap message %q missing %q", grandfathered, want)
+		}
+	}
+
+	// The ungrandfathered case keeps the escape, which is honored there.
+	plain := capMessage("internal/newpkg", maxDirFiles+1, "", false)
+	for _, want := range []string{"split it into a subpackage", "//nolint:" + gateName, "// <reason>"} {
+		if !strings.Contains(plain, want) {
+			t.Fatalf("ungrandfathered cap message %q missing %q", plain, want)
+		}
+	}
+	if strings.Contains(plain, "will NOT suppress") {
+		t.Fatalf("ungrandfathered cap message wrongly claims the escape is refused: %q", plain)
+	}
+}

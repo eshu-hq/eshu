@@ -252,6 +252,18 @@ jobs:
         if: ${{ !cancelled() }}
         run: bash scripts/test-verify-dirgate.sh && bash scripts/test-generate-dirgate-grandfather-go.sh
 
+      # The plugin's own unit tests. "Lint Go" runs the plugin against the real
+      # tree, but that tree is green, so none of the negative-case logic ever
+      # fires there -- a plugin-only regression in the naming word-boundary
+      # rule, nolint parsing, or swap/shrink detection would merge green, and
+      # the bash mirror's separate tests cannot catch a Go-side bug. This
+      # module is outside go/, so `go test ./...` in go/ does not reach it
+      # (#6054 review finding).
+      - name: Test dirgate plugin
+        if: ${{ !cancelled() }}
+        working-directory: tools/golangci-lint-dirgate
+        run: go test ./... -count=1
+
       - name: Verify dirgate (bash mirror)
         if: ${{ !cancelled() }}
         run: bash scripts/verify-dirgate.sh --all
