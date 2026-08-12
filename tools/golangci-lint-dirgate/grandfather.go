@@ -31,10 +31,10 @@ var grandfatheredDirectories = map[string]grandfatherEntry{
 	"internal/parser/golang":      {FileCount: 42, Digest: "a27d65bfc9ffe3085e35e66aab932d0c361bea10ac34e407dd3300205379e039"},
 	"internal/parser/javascript":  {FileCount: 48, Digest: "b6aaa1628818f74382a4b7eee937f476f991d613f624a325b930fd89aa7e437c"},
 	"internal/projector":          {FileCount: 92, Digest: "d0f445bc21bde031a7495fccc0d67128197c2031af59f3dfbf4d8390ba7fb899"},
-	"internal/query":              {FileCount: 879, Digest: "03ca374e94dfc7eb1d26c596e91828c9224d2d0e04e55237758e8853d9e435de"},
-	"internal/reducer":            {FileCount: 536, Digest: "09b9e11ced05881e21e3bdd403d77cfbbc3f0da40e0feda78df07e51326d1b8c"},
+	"internal/query":              {FileCount: 880, Digest: "8e8eb91ec8083961274f103d5ab6fef0229bb162d58b7bd117a4caedc1dc9758"},
+	"internal/reducer":            {FileCount: 538, Digest: "4a34d92814a214a660858a0df77abc8f441a9f1eb5b8061e445afc7d11b18166"},
 	"internal/status":             {FileCount: 45, Digest: "c7dfe62bb4c04da7f242ba8d2a8fb744865937c103df10c5374f05df25ce9261"},
 	"internal/storage/cypher":     {FileCount: 131, Digest: "eb310aa90dadf1c8bba189a65bd0c9f529c9c40a59e098789465e073f1996de7"},
-	"internal/storage/postgres":   {FileCount: 371, Digest: "7fb16bb635fbe41d62b477406a15612067b01d13329b63d2c17f14ec9b76abe9"},
+	"internal/storage/postgres":   {FileCount: 372, Digest: "813c9bf8a06608058485c87e4f80b720de917ce01ca0a087358f8d9de5b3f883"},
 	"internal/telemetry":          {FileCount: 42, Digest: "b33686b92bd3c69804d61fc7ee9bc9e8ccd5a111b3b96cd74a9ea7b8d71313c9"},
 }
