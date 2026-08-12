@@ -109,6 +109,12 @@ print_failure() {
   failures=$((failures + 1))
 }
 
+# Both branches below exclude testdata/. The git-diff branch is the one CI
+# actually takes, so an exclusion applied only to the fallback would leave the
+# real path unguarded while a fallback-driven test still passed (#6055 review
+# finding). git diff has always listed nested paths, so a non-test .go fixture
+# under testdata/ would be scanned as a route and reported UNCOVERED — loud
+# rather than false-green, but wrong either way.
 get_changed_files() {
   if [ -n "$base" ] && git -C "$repo_root" rev-parse --verify "$base" >/dev/null 2>&1; then
     (git -C "$repo_root" diff --name-only --diff-filter=AM -z "$base" HEAD -- \
@@ -117,7 +123,7 @@ get_changed_files() {
        "$query_dir" "$api_dir" 2>/dev/null
      git -C "$repo_root" diff --name-only --diff-filter=AM -z --cached -- \
        "$query_dir" "$api_dir" 2>/dev/null) \
-    | tr '\0' '\n' | sort -u | grep -v '_test\.go$' | grep '\.go$' | \
+    | tr '\0' '\n' | sort -u | grep -v '_test\.go$' | grep -v '/testdata/' | grep '\.go$' | \
     while IFS= read -r f; do [ -n "$f" ] && echo "${repo_root}/${f}"; done
   else
     # Recursive (not -maxdepth 1, #6055): a handler that moved into a

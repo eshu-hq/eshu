@@ -314,6 +314,41 @@ GO
 # A NESTED package's test is a different Go package and cannot exercise this
 # handler, so it must not satisfy coverage. Scoping to handler_dir was not
 # enough while the search stayed recursive beneath it (#6055 review finding).
+# The GIT-DIFF branch, which is the path CI actually takes. Every other testdata
+# case here runs through the no-base-ref fallback, so an exclusion applied only
+# there would pass these tests while leaving CI unguarded (#6055 review finding).
+# Seeds a committed baseline, then adds a non-test .go fixture under testdata/ as
+# a working-tree change so git diff lists it.
+test_green_testdata_fixture_ignored_on_the_git_diff_branch() {
+  local dir
+  dir="$(setup_repo "green-testdata-gitdiff")"
+  mkdir -p "${dir}/go/internal/query/e/testdata"
+
+  cat > "${dir}/go/internal/query/e/testdata/fixture_handler.go" << 'GO'
+package testdata
+
+import "net/http"
+
+type FixtureHandler struct{}
+
+func (h *FixtureHandler) Mount(mux *http.ServeMux) {
+  mux.HandleFunc("GET /api/v0/fixtures/{fixture_id}/probe", h.getProbe)
+}
+
+func (h *FixtureHandler) getProbe(w http.ResponseWriter, r *http.Request) {}
+GO
+
+  # Force the git-diff branch by giving it a real base ref to diff against.
+  export ESHU_ROUTE_COVERAGE_REPO_ROOT="$dir"
+  export ESHU_ROUTE_COVERAGE_BASE="HEAD"
+  if "${dir}/scripts/verify-route-coverage.sh" >/tmp/eshu-route-coverage.out 2>/tmp/eshu-route-coverage.err; then
+    record_pass "green: a testdata fixture is ignored on the git-diff branch CI uses"
+  else
+    record_fail "green: testdata fixture scanned as a route on the git-diff branch ($(cat /tmp/eshu-route-coverage.out))"
+  fi
+  unset ESHU_ROUTE_COVERAGE_BASE
+}
+
 test_red_nested_package_test_does_not_cover_a_real_handler() {
   local dir
   dir="$(setup_repo "red-nested-package")"
@@ -456,6 +491,7 @@ test_green_moved_handler_with_test_in_same_subdirectory
 test_red_untested_handler_falsely_covered_by_sibling_package_test
 test_red_testdata_fixture_test_does_not_cover_a_real_handler
 test_red_nested_package_test_does_not_cover_a_real_handler
+test_green_testdata_fixture_ignored_on_the_git_diff_branch
 test_green_testdata_non_test_handler_is_not_treated_as_a_route
 test_red_missing_query_dir_fails_loudly
 
