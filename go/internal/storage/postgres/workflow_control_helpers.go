@@ -16,15 +16,22 @@ import (
 
 const enqueueWorkflowWorkItemValueFormat = "($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, NULLIF($%d, ''), $%d, $%d, NULLIF($%d, ''), $%d, NULLIF($%d, ''), NULLIF($%d, '')::timestamptz, NULLIF($%d, '')::timestamptz, NULLIF($%d, '')::timestamptz, NULLIF($%d, '')::timestamptz, NULLIF($%d, ''), NULLIF($%d, ''), $%d, $%d)"
 
-func (s *WorkflowControlStore) enqueueWorkItemBatch(ctx context.Context, items []workflow.WorkItem) error {
+func (s *WorkflowControlStore) enqueueWorkItemBatch(ctx context.Context, items []workflow.WorkItem) (int64, error) {
 	return s.enqueueWorkItemBatchWithExecutor(ctx, s.db, items)
 }
 
+// enqueueWorkItemBatchWithExecutor inserts one batch and reports how many rows
+// the database actually accepted. The INSERT ends in ON CONFLICT DO NOTHING and
+// workflow_work_items carries partial unique indexes (the terraform_state
+// candidate index, for one), so the accepted count can be lower than len(items).
+// Callers that report an enqueued count to an operator MUST use this number
+// rather than len(items): a dropped row that still counts as enqueued shows up
+// as work an operator can see in the logs but not in the queue (#4586).
 func (s *WorkflowControlStore) enqueueWorkItemBatchWithExecutor(
 	ctx context.Context,
 	executor Executor,
 	items []workflow.WorkItem,
-) error {
+) (int64, error) {
 	args := make([]any, 0, len(items)*workflowColumnsPerWorkItem)
 	var values strings.Builder
 
@@ -74,10 +81,18 @@ func (s *WorkflowControlStore) enqueueWorkItemBatchWithExecutor(
 	}
 
 	query := enqueueWorkflowWorkItemsPrefix + values.String() + enqueueWorkflowWorkItemsSuffix
-	if _, err := executor.ExecContext(ctx, query, args...); err != nil {
-		return fmt.Errorf("enqueue workflow work item batch (%d items): %w", len(items), err)
+	result, err := executor.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, fmt.Errorf("enqueue workflow work item batch (%d items): %w", len(items), err)
 	}
-	return nil
+	if result == nil {
+		return 0, fmt.Errorf("enqueue workflow work item batch (%d items): missing result", len(items))
+	}
+	inserted, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("enqueue workflow work item batch (%d items): read rows affected: %w", len(items), err)
+	}
+	return inserted, nil
 }
 
 func (s *WorkflowControlStore) execClaimMutation(

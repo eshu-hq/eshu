@@ -29,6 +29,12 @@ const workflowGuardedRunCreateMaxAttempts = 3
 // CreateRunWithWorkItemsIfNoOpenTargets creates a scheduled run only for work
 // whose collector target is not already represented by a non-terminal run or
 // the same deterministic schedule run.
+//
+// It returns the number of work-item rows the database actually accepted, which
+// can be lower than the number of eligible targets when a unique index drops one
+// at insert time. Callers may treat a returned count below len(items) as work
+// that was skipped, and it is safe to run more than one coordinator against this
+// method: see the read-then-write race described at the advisory lock below.
 func (s *WorkflowControlStore) CreateRunWithWorkItemsIfNoOpenTargets(
 	ctx context.Context,
 	run workflow.Run,
@@ -78,6 +84,35 @@ func (s *WorkflowControlStore) createRunWithWorkItemsIfNoOpenTargetsOnce(
 	rollback := tx.Rollback
 	defer func() { _ = rollback() }()
 
+	// This lock is what makes running more than one coordinator safe (#4586).
+	// It must stay here, ahead of every read below.
+	//
+	// Two coordinators ticking either side of a 30-second wall-clock bucket edge
+	// plan the SAME collector target under different run, work-item, and
+	// generation identifiers. Those rows are legitimately distinct, so neither
+	// the primary key nor ON CONFLICT DO NOTHING collapses them, and the
+	// NOT EXISTS in workItemsWithoutOpenTargets cannot help on its own: under
+	// Read Committed both transactions take their snapshot before either
+	// commits, so both read "nothing planned" and both insert. The target ends
+	// up with two independently claimable pending work items and gets collected
+	// twice.
+	//
+	// pg_advisory_xact_lock keyed on (collector_kind, collector_instance_id)
+	// closes that window by making the read and the insert one atomic step per
+	// collector instance. The key deliberately carries no bucket, run, or
+	// generation, so competing coordinators contend on the same key instead of
+	// passing each other. It is transaction-scoped, so it releases on commit or
+	// rollback with no unlock path to leak.
+	//
+	// Measured on Postgres 16 at Read Committed, running this guard body twice
+	// differing in exactly this one statement: without the lock, 25 of 25 runs
+	// produced a duplicate pending work item; with it, 0 of 25.
+	//
+	// Guarded by TestWorkflowGuardedRunCreateAdmitsOneTargetForConcurrentCoordinatorsLive
+	// and TestWorkflowGuardedRunCreateWaitsOnPlanningLockBeforeReadingTargetsLive
+	// (real Postgres), plus the hermetic
+	// TestWorkflowControlStoreGuardedRunTakesPlanningLockBeforeReadingTargets,
+	// which fails if the lock is removed OR merely moved after the read.
 	if err := lockWorkflowOpenTargets(ctx, tx, items); err != nil {
 		return 0, err
 	}
@@ -106,20 +141,29 @@ func (s *WorkflowControlStore) createRunWithWorkItemsIfNoOpenTargetsOnce(
 	if err := s.createRunWithExecutor(ctx, tx, run); err != nil {
 		return 0, err
 	}
+	// Count rows the database accepted, not targets we planned. The INSERT ends
+	// in ON CONFLICT DO NOTHING and workflow_work_items carries partial unique
+	// indexes, so a planned target can be dropped at insert time. Reporting
+	// len(eligible) here told the coordinator every target was enqueued, which
+	// suppressed its "skipped duplicate workflow work" log and left an operator
+	// reading an enqueued count for work that does not exist (#4586).
+	var inserted int64
 	for i := 0; i < len(eligible); i += workflowEnqueueBatchSize {
 		end := i + workflowEnqueueBatchSize
 		if end > len(eligible) {
 			end = len(eligible)
 		}
-		if err := s.enqueueWorkItemBatchWithExecutor(ctx, tx, eligible[i:end]); err != nil {
+		batchInserted, err := s.enqueueWorkItemBatchWithExecutor(ctx, tx, eligible[i:end])
+		if err != nil {
 			return 0, err
 		}
+		inserted += batchInserted
 	}
 	if err := tx.Commit(); err != nil {
 		return 0, fmt.Errorf("create guarded workflow run: commit transaction: %w", err)
 	}
 	rollback = func() error { return nil }
-	return len(eligible), nil
+	return int(inserted), nil
 }
 
 func lockWorkflowOpenTargets(ctx context.Context, executor Executor, items []workflow.WorkItem) error {

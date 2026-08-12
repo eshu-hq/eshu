@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 	"testing"
 	"time"
@@ -313,6 +314,14 @@ func TestWorkflowControlStoreGuardedRunComputesEligibleTargetsInOneQuery(t *test
 			queryResponses: []queueFakeRows{
 				{rows: [][]any{{false}}},
 				{rows: [][]any{{0}, {1}}},
+			},
+			// Exec order: planning lock, run insert, work-item batch insert.
+			// The batch accepts both rows, so the guard reports 2 (#4586: the
+			// count is rows the database accepted, not targets planned).
+			execResults: []sql.Result{
+				fakeResult{},
+				fakeResult{},
+				fakeResultWithRowsAffected{rowsAffected: 2},
 			},
 		},
 	}
