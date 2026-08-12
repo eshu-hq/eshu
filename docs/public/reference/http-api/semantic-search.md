@@ -10,7 +10,7 @@ Required request fields:
 
 | Field | Meaning |
 | --- | --- |
-| `repo_id` | Canonical repository id that bounds the searchable corpus. The server resolves it to the repository's active ingestion scope. An ingestion scope id (`git-repository-scope:<repo_id>`) is also accepted; the server resolves it back to the canonical repository id, and the response echoes that canonical id in `repo_id` and `anchor.id` because it is the identity retrieval was actually bounded by. |
+| `repo_id` | Canonical repository id that bounds the searchable corpus. The server resolves it to the repository's active ingestion scope. An ingestion scope id is also accepted — see [Addressing a repository by its scope id](#addressing-a-repository-by-its-scope-id). |
 | `query` | Search text. |
 | `mode` | `keyword`, `semantic`, or `hybrid`. |
 | `limit` | Explicit top-K result limit, max 100. |
@@ -26,6 +26,22 @@ Optional request fields:
 | `source_kinds` | Optional filter over `code_entity`, `repository_file`, `runtime_summary`, and `semantic_context`. |
 | `languages` | Optional filter over language values (e.g. `go`, `python`, `typescript`). Documents are included only when their `Labels` array contains `language:<lang>` for one of the requested values. An empty array means no language filter. Any non-empty token is accepted; an unmatched language returns an empty result set rather than an error. The index is the source of truth for which language values exist. |
 | `rerank` | Opt into graph-neighborhood reranking over the in-scope results. Off by default. |
+
+### Addressing a repository by its scope id
+
+`repo_id` takes either form. The canonical repository id is the usual one. An
+ingestion scope id (`git-repository-scope:<repo_id>`) also works, and the server
+resolves it back to the canonical repository id before reading the index.
+
+The response reports the resolved canonical id in `repo_id`. That is the
+identity retrieval was bounded by, which is not always the id you sent.
+
+`anchor.id` carries the canonical repository id only when the repository is the
+selected anchor. The server picks the smallest scope the request supplies, in
+this order: `service_id`, then `workload_id`, then `repo_id`, then
+`environment`. So a request that also sends `service_id` or `workload_id` gets
+that service or workload id back in `anchor.id`. `repo_id` reports the canonical
+repository either way.
 
 The route reads the active generation from the persisted curated search index.
 The reducer maintains that index when it writes search documents, so request
