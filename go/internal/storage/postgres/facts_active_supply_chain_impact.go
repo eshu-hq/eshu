@@ -70,7 +70,7 @@ WHERE fact.fact_kind IN (
   -- was read and its payload detoasted once per ungated identity predicate
   -- below -- roughly thirteen full detoasts per file fact -- to produce no
   -- match. That is the ~116s active-evidence load the issue reports; a
-  -- 448k-file-row proof measured 57.2s before this gate and 0.36s after.
+  -- 448k-file-row proof measured 42.951s before this gate and 0.052s after.
   --
   -- Exactness: with $10 empty a 'file' row cannot satisfy ANY branch of the
   -- disjunction. The suppression-scope branches and the repository branch
