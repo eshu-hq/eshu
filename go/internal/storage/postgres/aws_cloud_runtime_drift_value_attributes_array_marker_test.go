@@ -33,9 +33,12 @@ func TestComparableScalarAttrTreatsArrayWrappedRedactionMarkerAsAbsent(t *testin
 		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
 	}
 
-	got := comparableScalarAttr(attributes, "ami")
+	got, degraded := comparableScalarAttr(attributes, "ami")
 	if got != "" {
 		t.Fatalf("comparableScalarAttr() = %q, want \"\" for an array-wrapped redaction marker", got)
+	}
+	if !degraded {
+		t.Fatal("comparableScalarAttr() degraded = false; an array-wrapped marker is unreadable evidence, not absent evidence")
 	}
 }
 
@@ -49,8 +52,11 @@ func TestComparableScalarAttrPreservesGenuineArrayValue(t *testing.T) {
 	t.Parallel()
 
 	attributes := map[string]any{"ami": []any{"ami-000000000000000a"}}
-	got := comparableScalarAttr(attributes, "ami")
+	got, degraded := comparableScalarAttr(attributes, "ami")
 	want := "[ami-000000000000000a]"
+	if degraded {
+		t.Fatal("comparableScalarAttr() degraded = true; a genuine array value was read successfully")
+	}
 	if got != want {
 		t.Fatalf("comparableScalarAttr() = %q, want %q (non-redacted array must pass through unmodified)", got, want)
 	}

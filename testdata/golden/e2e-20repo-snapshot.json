@@ -2753,6 +2753,55 @@
           "limit": 10
         }
       },
+      "list_aws_runtime_drift_findings?assert=partial_comparability_gap": {
+        "description": "#5861 partial-comparability proof, and the corpus's only assertion of a coverage gap on a finding that still reached a verdict. The Lambda supply-chain-demo-partial is covered for two comparables: the observed side claims package_type Image while carrying no image_uri (unreadable), and version differs (7 observed vs 9 declared). One comparison RAN and proved drift while the other could not be made, so the finding is image_version_drift AND carries missing_evidence comparable_attribute:image_uri. aws_instance cannot produce this shape at all -- it is covered for one value (ami), so it is either fully readable or fully uncomparable. Without this entry the #5861 behaviour is proven by unit tests only, and a regression in replay, payload writing, or readback of the gap would ship green. The ?assert= suffix gives this a distinct map key from the ec2-scoped sibling; mcpToolName strips it before the tool call.",
+        "required_response_fields": [
+          "account_id",
+          "analysis_status",
+          "arn",
+          "drift_findings",
+          "finding_kinds",
+          "findings_count",
+          "graph_projection_note",
+          "limit",
+          "limitations",
+          "next_offset",
+          "offset",
+          "outcome_groups",
+          "region",
+          "scope_id",
+          "story",
+          "total_findings_count",
+          "truncated",
+          "truth_basis"
+        ],
+        "minimum_results": 1,
+        "maximum_results": 10,
+        "results_field": "drift_findings",
+        "required_json_values": {
+          "scope_id": "aws:123456789012:us-east-1:lambda",
+          "drift_findings[].arn": "arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo-partial",
+          "drift_findings[].finding_kind": "image_version_drift"
+        },
+        "required_json_object_matches": {
+          "drift_findings[]": [
+            {
+              "arn": "arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo-partial",
+              "finding_kind": "image_version_drift",
+              "missing_evidence": [
+                "comparable_attribute:image_uri"
+              ]
+            }
+          ]
+        },
+        "arguments": {
+          "scope_id": "aws:123456789012:us-east-1:lambda",
+          "finding_kinds": [
+            "image_version_drift"
+          ],
+          "limit": 10
+        }
+      },
       "list_aws_runtime_drift_findings": {
         "description": "MCP tool coverage shape for list_aws_runtime_drift_findings; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #5453 non-vacuous assertion: scope_id is aws:123456789012:us-east-1:ec2 -- the AWS EC2 collector scope reducer_aws_cloud_runtime_drift_finding rows for this instance actually write under (this route reads the SAME fact kind list_cloud_runtime_drift_findings's sibling assertion above documents; IaCManagementStore.ListUnmanagedCloudResources is a second read-projection over reducer_aws_cloud_runtime_drift_finding, not a separate reducer domain). See that sibling entry for the fixture-surgery detail (ARN re-key plus the terraform_comprehensive config-owner resolution) proving image_version_drift materializes for this ARN. minimum_results is 1 -- proven by a live golden-corpus-gate run, not shape-only.",
         "required_response_fields": [
@@ -7884,8 +7933,39 @@
         ],
         "minimum_results": 0
       },
+      "POST /api/v0/aws/runtime-drift/findings?assert=partial_comparability_gap": {
+        "description": "#5861 partial-comparability proof, and the corpus's only assertion of a coverage gap on a finding that still reached a verdict. The Lambda supply-chain-demo-partial is covered for two comparables: the observed side claims package_type Image while carrying no image_uri (unreadable), and version differs (7 observed vs 9 declared). One comparison RAN and proved drift while the other could not be made, so the finding is image_version_drift AND carries missing_evidence comparable_attribute:image_uri. aws_instance cannot produce this shape at all -- it is covered for one value (ami), so it is either fully readable or fully uncomparable. Without this entry the #5861 behaviour is proven by unit tests only, and a regression in replay, payload writing, or readback of the gap would ship green. Reads the same reducer rows as the MCP sibling through the HTTP route, so a readback regression on either surface alone is caught.",
+        "truth_class": "derived",
+        "envelope": true,
+        "request_body": {
+          "scope_id": "aws:123456789012:us-east-1:lambda",
+          "account_id": "123456789012",
+          "region": "us-east-1",
+          "limit": 50
+        },
+        "required_response_fields": [
+          "data",
+          "truth",
+          "error"
+        ],
+        "required_json_paths": [
+          "data.drift_findings[]"
+        ],
+        "required_json_object_matches": {
+          "data.drift_findings[]": [
+            {
+              "arn": "arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo-partial",
+              "finding_kind": "image_version_drift",
+              "missing_evidence": [
+                "comparable_attribute:image_uri"
+              ]
+            }
+          ]
+        },
+        "minimum_results": 0
+      },
       "GET /api/v0/iac/resources?limit=50&include_facets=true": {
-        "description": "Current active-generation IaC resource list and authoritative caller-visible summary from the terraform/IaC corpus. count/summary.by_kind.resource raised 11 -> 13 and summary.total raised 19 -> 21 by issue #5594's terraform_local_backend_demo fixture (tests/fixtures/ecosystems/terraform_local_backend_demo/main.tf), which declares two resource blocks (aws_instance.local_backend_demo, aws_s3_bucket.local_backend_demo) and zero module/data blocks: this endpoint's kind=resource default list and summary.by_kind.resource both scan the TerraformResource graph label sourced from fact_kind='content_entity' config-side parsing (go/internal/query/iac_resources.go's iacResourceRow doc comment) -- unrelated to config-vs-state drift ownership resolution -- so +2 resource-kind content entities land regardless of drift-resolution outcome; summary.total sums all three kind counts (go/internal/query/iac_inventory_postgres.go's Summary: `summary.Total += count` per kind dimension row), so it moves by the same +2 with module/data-source counts unchanged (19 - 11 = 8 held constant, 13 + 8 = 21). count/summary.by_kind.resource raised 13 -> 14 and summary.total raised 21 -> 22 by issue #5572's golden-corpus fixture (tests/fixtures/ecosystems/terraform_comprehensive/terraform-aws-modules/vpc/aws/main.tf), which declares exactly one resource block (aws_security_group.vpc_endpoints) and zero module/data blocks -- the pre-existing `module \"vpc\"` block in modules.tf is unchanged, only its previously-dead source path now has a real target directory, so the module/data-source counts (8, unchanged since #5594) hold and this is a pure +1 resource-kind content entity, same mechanism as #5594's fixture, confirmed by a live golden-corpus-gate run against this exact scope.",
+        "description": "Current active-generation IaC resource list and authoritative caller-visible summary from the terraform/IaC corpus. count/summary.by_kind.resource raised 11 -> 13 and summary.total raised 19 -> 21 by issue #5594's terraform_local_backend_demo fixture (tests/fixtures/ecosystems/terraform_local_backend_demo/main.tf), which declares two resource blocks (aws_instance.local_backend_demo, aws_s3_bucket.local_backend_demo) and zero module/data blocks: this endpoint's kind=resource default list and summary.by_kind.resource both scan the TerraformResource graph label sourced from fact_kind='content_entity' config-side parsing (go/internal/query/iac_resources.go's iacResourceRow doc comment) -- unrelated to config-vs-state drift ownership resolution -- so +2 resource-kind content entities land regardless of drift-resolution outcome; summary.total sums all three kind counts (go/internal/query/iac_inventory_postgres.go's Summary: `summary.Total += count` per kind dimension row), so it moves by the same +2 with module/data-source counts unchanged (19 - 11 = 8 held constant, 13 + 8 = 21). count/summary.by_kind.resource raised 13 -> 14 and summary.total raised 21 -> 22 by issue #5572's golden-corpus fixture (tests/fixtures/ecosystems/terraform_comprehensive/terraform-aws-modules/vpc/aws/main.tf), which declares exactly one resource block (aws_security_group.vpc_endpoints) and zero module/data blocks -- the pre-existing `module \"vpc\"` block in modules.tf is unchanged, only its previously-dead source path now has a real target directory, so the module/data-source counts (8, unchanged since #5594) hold and this is a pure +1 resource-kind content entity, same mechanism as #5594's fixture, confirmed by a live golden-corpus-gate run against this exact scope. count/summary.by_kind.resource raised 14 -> 15 and summary.total raised 22 -> 23 by issue #5861's tests/fixtures/ecosystems/terraform_comprehensive/lambda_partial.tf, which declares exactly one resource block (aws_lambda_function.supply-chain-demo-partial) and zero module/data blocks -- the corpus's only partially comparable runtime-drift pair. Same +1 resource-kind content-entity mechanism as the two fixtures above; module/data-source counts hold at 8.",
         "required_response_fields": [
           "resources",
           "count",
@@ -7899,9 +7979,9 @@
           "summary.by_kind.resource"
         ],
         "required_json_values": {
-          "count": 14,
-          "summary.total": 22,
-          "summary.by_kind.resource": 14
+          "count": 15,
+          "summary.total": 23,
+          "summary.by_kind.resource": 15
         }
       },
       "GET /api/v0/documentation/facts?fact_kind=source": {

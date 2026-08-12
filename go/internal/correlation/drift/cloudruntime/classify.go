@@ -29,9 +29,19 @@ const (
 	FindingKindImageVersionDrift FindingKind = "image_version_drift"
 	// FindingKindValueComparisonInconclusive means cloud, state, and config all
 	// agree the resource is Terraform-managed and the resource type IS covered
-	// by value drift, but NOT ONE comparable value could actually be compared:
+	// by value drift, but this pass cannot speak for the covered values.
+	//
+	// Two shapes reach it. Either NOT ONE comparable value could be compared --
 	// every allowlisted attribute was missing on at least one side, or the ECS
-	// container images were unreadable or absent on a side (#5837).
+	// container images were unreadable or absent on a side (#5837) -- or some
+	// comparisons ran and agreed while at least one covered comparable was
+	// UNREADABLE on this pass (#5861). Agreement among the readable attributes
+	// is not agreement about the unread one, so the pass reports uncertainty
+	// instead of retiring a finding that attribute may hold.
+	//
+	// A comparison that ran and DISAGREED outranks both: that is
+	// image_version_drift, on the evidence of the attribute that compared,
+	// however many others were unreadable.
 	//
 	// It fires only for a gap that can CHANGE between passes. A permanently
 	// unpairable shape -- an ECS task definition whose observed image set has
@@ -104,6 +114,38 @@ type ResourceRow struct {
 	// containers" from "the evidence exists and we could not use it" (#5837).
 	// See container_image_extract.go.
 	ContainerImagesDegraded bool
+	// DegradedAttributes names the allowlisted scalar keys this side could not
+	// READ on this pass -- redacted, or asserted-but-missing -- as opposed to
+	// keys the resource genuinely does not have. It is the scalar generalization
+	// of ContainerImagesDegraded, and it exists because Attributes cannot carry
+	// the distinction: a degraded key and an absent key are both simply not in
+	// the map, and only the first must stop this pass from converging (#5861).
+	//
+	// A degraded key MUST NOT also appear in Attributes; the decoders drop the
+	// unreadable value rather than coercing it, so a redaction marker can never
+	// be compared as if it were declared data (#5859).
+	//
+	// Keys outside ValueAttributeAllowlistFor(state.ResourceType) are ignored:
+	// naming a key this resource type is not covered for cannot manufacture
+	// coverage, so a decoder bug degrades into silence rather than into a
+	// finding on every resource.
+	DegradedAttributes []string
+}
+
+// degraded reports whether this side named key as unreadable on this pass.
+// Linear over a list bounded by the allowlist (two keys today), which is
+// cheaper than a map for that size and keeps ResourceRow a plain value the
+// decoders can build without allocating a set.
+func (r *ResourceRow) degraded(key string) bool {
+	if r == nil {
+		return false
+	}
+	for _, attr := range r.DegradedAttributes {
+		if attr == key {
+			return true
+		}
+	}
+	return false
 }
 
 // DriftedAttribute is one declared/observed value pair ClassifyValueDrift
@@ -152,6 +194,15 @@ const ecsTaskDefinitionResourceType = "aws_ecs_task_definition"
 // at all therefore does NOT converge -- it returns
 // FindingKindValueComparisonInconclusive, so a degraded ARN keeps a durable row
 // and the retire supersedes rather than destroys (#5837).
+//
+// The same holds for a PARTIALLY comparable pair, and the order of the two
+// checks below is what makes that truthful rather than merely safe (#5861). A
+// comparison that actually ran and disagreed is proof, so drift is reported
+// first and is never downgraded to uncertainty because some OTHER attribute was
+// unreadable. Only when every comparison that ran agreed does an unreadable
+// comparable decide the outcome, and then it declines convergence: agreement
+// among the attributes this pass could read says nothing about the one it
+// could not.
 func Classify(cloud, state, config *ResourceRow) FindingKind {
 	if cloud == nil {
 		return ""
@@ -201,14 +252,36 @@ type ValueComparison struct {
 	// side was missing, blank, or ambiguous, in allowlist order. Its length is
 	// always Comparable minus Compared.
 	Uncomparable []string
+	// Degraded names the subset of Uncomparable that a side reported as
+	// unreadable rather than absent, in allowlist order (#5861). It is a key
+	// list rather than a count for the same reason Uncomparable is: the
+	// candidate builder names these attributes in the finding's evidence, and
+	// it only ever allocates on the degraded path, which produces a finding
+	// anyway.
+	Degraded []string
 }
 
-// Inconclusive reports whether value drift covers this resource type but not a
-// single comparison could be made. It is the condition that must never be
-// mistaken for convergence: silence here would drop the ARN from the candidate
-// set and let the retire delete a still-true finding (#5837).
+// Inconclusive reports whether this pass is unable to speak for the comparable
+// values it covers. It is the condition that must never be mistaken for
+// convergence: silence here would drop the ARN from the candidate set and let
+// the generation-authoritative retire delete a still-true finding (#5837).
+//
+// Two distinct shapes qualify, and both are transient rather than properties of
+// the resource:
+//
+//   - Compared == 0: not one covered comparison could run, so there is no
+//     evidence of any kind to reason from.
+//   - len(Degraded) > 0: some comparisons ran, but at least one covered
+//     comparable was UNREADABLE on this pass. The comparisons that did run are
+//     still proof -- Classify reports their drift ahead of this -- but they
+//     cannot license retiring a finding the unread attribute may hold (#5861).
+//
+// Absence deliberately does not qualify. A zip-packaged Lambda has no image_uri
+// by design, so a pass that compares only `version` there has seen everything
+// the resource has; treating that as uncertainty would put a finding on every
+// zip function in a corpus, which is the noise objection #5861 records.
 func (c ValueComparison) Inconclusive() bool {
-	return c.Comparable > 0 && c.Compared == 0
+	return c.Comparable > 0 && (c.Compared == 0 || len(c.Degraded) > 0)
 }
 
 // ClassifyValueComparison is the sole authority on which comparable values were
@@ -233,6 +306,12 @@ func ClassifyValueComparison(cloud, state *ResourceRow) ValueComparison {
 		stateValue, stateHas := attrValue(state, attr)
 		if !cloudHas || !stateHas {
 			out.Uncomparable = append(out.Uncomparable, attr)
+			// Named once even when BOTH sides failed to read it: Degraded
+			// answers "which comparables is this pass blind to", not "how many
+			// read failures occurred".
+			if cloud.degraded(attr) || state.degraded(attr) {
+				out.Degraded = append(out.Degraded, attr)
+			}
 			continue
 		}
 		out.Compared++
@@ -262,6 +341,14 @@ func ClassifyValueComparison(cloud, state *ResourceRow) ValueComparison {
 			// verdict that pass wrote.
 			out.Comparable++
 			out.Uncomparable = append(out.Uncomparable, containerImageAttributeKey)
+			// Unreadable is narrower than uncomparable here too. It changes no
+			// verdict today, because the ECS type has no scalar comparable to
+			// pair this with and Compared is already 0 -- but it keeps the two
+			// degradation signals on one rule, so adding an ECS scalar to the
+			// allowlist later cannot silently reintroduce the #5861 shape.
+			if cloud.ContainerImagesDegraded || state.ContainerImagesDegraded {
+				out.Degraded = append(out.Degraded, containerImageAttributeKey)
+			}
 		default:
 			// Both sides carry images and the only obstacle is that more than
 			// one observed image cannot be paired against the declared set.

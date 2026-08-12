@@ -31,15 +31,18 @@ func TestGoldenSnapshotIaCInventoryRequiresCurrentSummary(t *testing.T) {
 	}
 	// Issue #5594 raised these to 13/21/13 (terraform_local_backend_demo's
 	// two resource blocks: aws_instance.local_backend_demo,
-	// aws_s3_bucket.local_backend_demo). Issue #5572 raises them again to
+	// aws_s3_bucket.local_backend_demo). Issue #5572 raised them again to
 	// 14/22/14 (terraform_comprehensive/terraform-aws-modules/vpc/aws/main.tf's
-	// one resource block, aws_security_group.vpc_endpoints) -- see
+	// one resource block, aws_security_group.vpc_endpoints). Issue #5861 raises
+	// them to 15/23/15 (terraform_comprehensive/lambda_partial.tf's one resource
+	// block, aws_lambda_function.supply-chain-demo-partial -- the corpus's only
+	// partially comparable runtime-drift pair) -- see
 	// testdata/golden/e2e-20repo-snapshot.json's own required_json_values
-	// comment on this same query shape for the full derivation of both.
+	// comment on this same query shape for the full derivation of all three.
 	for path, want := range map[string]any{
-		"count":                    float64(14),
-		"summary.total":            float64(22),
-		"summary.by_kind.resource": float64(14),
+		"count":                    float64(15),
+		"summary.total":            float64(23),
+		"summary.by_kind.resource": float64(15),
 	} {
 		if got := shape.RequiredJSONValues[path]; got != want {
 			t.Fatalf("%s required JSON value %q = %#v, want %#v", key, path, got, want)

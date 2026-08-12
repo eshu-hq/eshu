@@ -159,6 +159,22 @@ func firstText(entries []mcpContentEntry) string {
 	return ""
 }
 
+// mcpToolName returns the tool to invoke for one snapshot MCP shape key.
+//
+// The key is normally the tool name verbatim. A trailing "?assert=<slug>" makes
+// a SECOND shape for the same tool addressable, which the map otherwise cannot
+// hold -- one tool, one key. The HTTP shapes have used exactly this convention
+// since #5759 (see "POST /api/v0/cloud/runtime-drift/findings?assert=provider_aws_aggregation");
+// this brings MCP in line so a tool that must be asserted against two different
+// scopes does not have to pick one.
+//
+// The suffix never reaches the MCP server. Report keys keep the full key, so
+// two shapes for one tool stay distinguishable in the gate output.
+func mcpToolName(key string) string {
+	name, _, _ := strings.Cut(key, "?")
+	return name
+}
+
 // checkMCPQuery asserts every MCP query shape in the snapshot by invoking the tool
 // live and validating the returned payload against the shape. Each is a required
 // B-7(c) finding (Check "mcp:<tool>"), mirroring checkQuery for the HTTP shapes.
@@ -171,7 +187,7 @@ func checkMCPQuery(ctx context.Context, c *mcpClient, snap Snapshot, r *Report) 
 
 	for _, key := range keys {
 		shape := snap.QueryShapes.MCP[key]
-		body, err := c.callTool(ctx, key, shape.Arguments, shape.Envelope)
+		body, err := c.callTool(ctx, mcpToolName(key), shape.Arguments, shape.Envelope)
 		if err != nil {
 			if shape.ExpectedErrorContains != "" && strings.Contains(err.Error(), shape.ExpectedErrorContains) {
 				r.AddCheck("query", "mcp:"+key, true, true,
