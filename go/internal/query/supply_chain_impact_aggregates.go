@@ -124,20 +124,19 @@ func NewPostgresSupplyChainImpactAggregateStore(
 	return PostgresSupplyChainImpactAggregateStore{DB: db}
 }
 
-// CountSupplyChainImpactFindings returns the cheap-summary totals envelope
-// for the scoped supply-chain impact slice.
-func (s PostgresSupplyChainImpactAggregateStore) CountSupplyChainImpactFindings(
-	ctx context.Context,
+// supplyChainImpactAggregateArgs binds $1..$20 of the shared aggregate
+// canonical-facts CTE, which every aggregate query is built on: the totals
+// count, the priority and severity bucket counts, and the inventory query.
+// The inventory query appends its own $21 limit and $22 offset after these.
+//
+// This is the only place the aggregate argument order is written down. Tests
+// and plan probes MUST call it rather than re-listing the arguments; see
+// supplyChainImpactFindingListArgs for why a hand-copied list is unsafe.
+func supplyChainImpactAggregateArgs(
 	filter SupplyChainImpactAggregateFilter,
-) (SupplyChainImpactAggregateCount, error) {
-	if s.DB == nil {
-		return SupplyChainImpactAggregateCount{}, fmt.Errorf("supply chain impact aggregate database is required")
-	}
-
-	readAt := supplyChainImpactSuppressionReadAt(s.Now)
-	row := s.DB.QueryRowContext(
-		ctx,
-		supplyChainImpactAggregateCountQuery,
+	readAt time.Time,
+) []any {
+	return []any{
 		filter.CVEID,
 		filter.PackageID,
 		filter.RepositoryID,
@@ -158,6 +157,24 @@ func (s PostgresSupplyChainImpactAggregateStore) CountSupplyChainImpactFindings(
 		pq.Array(filter.AllowedRepositoryIDs),
 		pq.Array(filter.AllowedScopeIDs),
 		readAt,
+	}
+}
+
+// CountSupplyChainImpactFindings returns the cheap-summary totals envelope
+// for the scoped supply-chain impact slice.
+func (s PostgresSupplyChainImpactAggregateStore) CountSupplyChainImpactFindings(
+	ctx context.Context,
+	filter SupplyChainImpactAggregateFilter,
+) (SupplyChainImpactAggregateCount, error) {
+	if s.DB == nil {
+		return SupplyChainImpactAggregateCount{}, fmt.Errorf("supply chain impact aggregate database is required")
+	}
+
+	readAt := supplyChainImpactSuppressionReadAt(s.Now)
+	row := s.DB.QueryRowContext(
+		ctx,
+		supplyChainImpactAggregateCountQuery,
+		supplyChainImpactAggregateArgs(filter, readAt)...,
 	)
 	var total, affected, affectedExact, affectedDerived, possiblyAffected, notAffected sql.NullInt64
 	if err := row.Scan(&total, &affected, &affectedExact, &affectedDerived, &possiblyAffected, &notAffected); err != nil {
@@ -193,26 +210,7 @@ func (s PostgresSupplyChainImpactAggregateStore) fillPriorityBuckets(
 	rows, err := s.DB.QueryContext(
 		ctx,
 		supplyChainImpactAggregatePriorityCountQuery,
-		filter.CVEID,
-		filter.PackageID,
-		filter.RepositoryID,
-		filter.SubjectDigest,
-		filter.ImpactStatus,
-		filter.AdvisoryID,
-		filter.Ecosystem,
-		filter.ServiceID,
-		filter.WorkloadID,
-		filter.Environment,
-		filter.Severity,
-		filter.DetectionProfile,
-		filter.PriorityBucket,
-		filter.MinPriorityScore,
-		filter.SuppressionState,
-		filter.IncludeSuppressed,
-		filter.ImageRef,
-		pq.Array(filter.AllowedRepositoryIDs),
-		pq.Array(filter.AllowedScopeIDs),
-		readAt,
+		supplyChainImpactAggregateArgs(filter, readAt)...,
 	)
 	if err != nil {
 		return fmt.Errorf("count supply chain impact priority buckets: %w", err)
@@ -238,26 +236,7 @@ func (s PostgresSupplyChainImpactAggregateStore) fillSeverityBuckets(
 	rows, err := s.DB.QueryContext(
 		ctx,
 		supplyChainImpactAggregateSeverityCountQuery,
-		filter.CVEID,
-		filter.PackageID,
-		filter.RepositoryID,
-		filter.SubjectDigest,
-		filter.ImpactStatus,
-		filter.AdvisoryID,
-		filter.Ecosystem,
-		filter.ServiceID,
-		filter.WorkloadID,
-		filter.Environment,
-		filter.Severity,
-		filter.DetectionProfile,
-		filter.PriorityBucket,
-		filter.MinPriorityScore,
-		filter.SuppressionState,
-		filter.IncludeSuppressed,
-		filter.ImageRef,
-		pq.Array(filter.AllowedRepositoryIDs),
-		pq.Array(filter.AllowedScopeIDs),
-		readAt,
+		supplyChainImpactAggregateArgs(filter, readAt)...,
 	)
 	if err != nil {
 		return fmt.Errorf("count supply chain impact severity buckets: %w", err)
@@ -305,28 +284,7 @@ func (s PostgresSupplyChainImpactAggregateStore) SupplyChainImpactInventory(
 	rows, err := s.DB.QueryContext(
 		ctx,
 		q,
-		filter.CVEID,
-		filter.PackageID,
-		filter.RepositoryID,
-		filter.SubjectDigest,
-		filter.ImpactStatus,
-		filter.AdvisoryID,
-		filter.Ecosystem,
-		filter.ServiceID,
-		filter.WorkloadID,
-		filter.Environment,
-		filter.Severity,
-		filter.DetectionProfile,
-		filter.PriorityBucket,
-		filter.MinPriorityScore,
-		filter.SuppressionState,
-		filter.IncludeSuppressed,
-		filter.ImageRef,
-		pq.Array(filter.AllowedRepositoryIDs),
-		pq.Array(filter.AllowedScopeIDs),
-		readAt,
-		limit,
-		offset,
+		supplyChainImpactInventoryArgs(filter, readAt, limit, offset)...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("inventory supply chain impact findings: %w", err)
@@ -349,6 +307,20 @@ func (s PostgresSupplyChainImpactAggregateStore) SupplyChainImpactInventory(
 		return nil, fmt.Errorf("iterate supply chain impact inventory rows: %w", err)
 	}
 	return out, nil
+}
+
+// supplyChainImpactInventoryArgs binds $1..$22 of the inventory query: the
+// shared aggregate arguments, then the page limit and offset. The limit and
+// offset sit AFTER the read-at clock, so appending them to a short aggregate
+// list would push them onto $20/$21 and bind an integer to a timestamptz
+// placeholder. Callers get the whole list from here instead.
+func supplyChainImpactInventoryArgs(
+	filter SupplyChainImpactAggregateFilter,
+	readAt time.Time,
+	limit int,
+	offset int,
+) []any {
+	return append(supplyChainImpactAggregateArgs(filter, readAt), limit, offset)
 }
 
 // supplyChainImpactInventoryQuery inserts one expression selected by the

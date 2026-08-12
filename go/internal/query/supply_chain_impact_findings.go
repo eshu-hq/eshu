@@ -314,6 +314,48 @@ func supplyChainImpactSuppressionReadAt(now func() time.Time) time.Time {
 	return now().UTC()
 }
 
+// supplyChainImpactFindingListArgs binds every placeholder in
+// listSupplyChainImpactFindingsQuery and its winners-backed twin, in $1..$24
+// order. Both queries share one parameter layout, so one builder serves both.
+//
+// This is the only place the list argument order is written down. Tests and
+// plan probes MUST call it rather than re-listing the arguments: a hand-copied
+// list silently drifts when a placeholder is added, and the resulting mismatch
+// either fails the statement outright or shifts every later value onto the
+// wrong predicate. TestSupplyChainImpactQueryPlaceholdersMatchBoundArguments
+// pins len(args) to the highest placeholder without needing a database.
+func supplyChainImpactFindingListArgs(
+	filter SupplyChainImpactFindingFilter,
+	readAt time.Time,
+) []any {
+	return []any{
+		supplyChainImpactFindingFactKind,
+		filter.CVEID,
+		filter.PackageID,
+		filter.RepositoryID,
+		filter.SubjectDigest,
+		filter.ImpactStatus,
+		filter.AdvisoryID,
+		filter.Ecosystem,
+		filter.ServiceID,
+		filter.WorkloadID,
+		filter.Environment,
+		filter.Severity,
+		filter.DetectionProfile,
+		filter.PriorityBucket,
+		filter.MinPriorityScore,
+		filter.ImageRef,
+		filter.AfterFindingID,
+		normalizeSupplyChainImpactSort(filter.Sort),
+		filter.Limit,
+		filter.SuppressionState,
+		filter.IncludeSuppressed,
+		pq.Array(filter.AllowedRepositoryIDs),
+		pq.Array(filter.AllowedScopeIDs),
+		readAt,
+	}
+}
+
 // selectSupplyChainImpactWinnersWatermarkQuery reads the maintainer watermark
 // from the singleton supply_chain_impact_winners_materialization row. The
 // watermark is upserted by the same atomic resweep that reconciles the winners
@@ -399,30 +441,7 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactFindings(
 	rows, err := s.DB.QueryContext(
 		ctx,
 		query,
-		supplyChainImpactFindingFactKind,
-		filter.CVEID,
-		filter.PackageID,
-		filter.RepositoryID,
-		filter.SubjectDigest,
-		filter.ImpactStatus,
-		filter.AdvisoryID,
-		filter.Ecosystem,
-		filter.ServiceID,
-		filter.WorkloadID,
-		filter.Environment,
-		filter.Severity,
-		filter.DetectionProfile,
-		filter.PriorityBucket,
-		filter.MinPriorityScore,
-		filter.ImageRef,
-		filter.AfterFindingID,
-		normalizeSupplyChainImpactSort(filter.Sort),
-		filter.Limit,
-		filter.SuppressionState,
-		filter.IncludeSuppressed,
-		pq.Array(filter.AllowedRepositoryIDs),
-		pq.Array(filter.AllowedScopeIDs),
-		supplyChainImpactSuppressionReadAt(s.Now),
+		supplyChainImpactFindingListArgs(filter, supplyChainImpactSuppressionReadAt(s.Now))...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list supply chain impact findings: %w", err)

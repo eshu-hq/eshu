@@ -90,6 +90,23 @@ var selectSupplyChainImpactRuntimeContextQuery = fmt.Sprintf(
 	),
 )
 
+// supplyChainImpactRuntimeContextArgs binds $1..$4 of
+// selectSupplyChainImpactRuntimeContextQuery. Tests and plan probes MUST call
+// it rather than re-listing the arguments; see supplyChainImpactFindingListArgs
+// for why a hand-copied list is unsafe.
+func supplyChainImpactRuntimeContextArgs(
+	repositoryIDs []string,
+	allowedRepositoryIDs []string,
+	allowedScopeIDs []string,
+) []any {
+	return []any{
+		pq.Array(supplyChainImpactRuntimeContextFactKinds),
+		pq.Array(repositoryIDs),
+		pq.Array(allowedRepositoryIDs),
+		pq.Array(allowedScopeIDs),
+	}
+}
+
 // ListSupplyChainImpactRuntimeContext resolves the CURRENT runtime context
 // (workloads, services, deployments, environments, catalog refs) for each
 // candidate repository id from active workload_identity,
@@ -123,10 +140,7 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactRuntimeConte
 	rows, err := s.DB.QueryContext(
 		ctx,
 		selectSupplyChainImpactRuntimeContextQuery,
-		pq.Array(supplyChainImpactRuntimeContextFactKinds),
-		pq.Array(repositoryIDs),
-		pq.Array(allowedRepositoryIDs),
-		pq.Array(allowedScopeIDs),
+		supplyChainImpactRuntimeContextArgs(repositoryIDs, allowedRepositoryIDs, allowedScopeIDs)...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list supply chain impact runtime context: %w", err)

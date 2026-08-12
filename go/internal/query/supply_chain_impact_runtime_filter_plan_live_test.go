@@ -11,8 +11,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/lib/pq"
 )
 
 const runtimeFilterHighCardinalityEnvironment = "shared-production-5747"
@@ -131,10 +129,7 @@ FROM generate_series(1, 100000) AS sample`,
 		tx,
 		"runtime_context_200_candidates",
 		selectSupplyChainImpactRuntimeContextQuery,
-		pq.Array(supplyChainImpactRuntimeContextFactKinds),
-		pq.Array(contextCandidates),
-		pq.Array(contextCandidates),
-		pq.Array([]string{}),
+		supplyChainImpactRuntimeContextArgs(contextCandidates, contextCandidates, []string{})...,
 	)
 
 	baseFilter := SupplyChainImpactFindingFilter{
@@ -245,7 +240,7 @@ FROM generate_series(1, 100000) AS sample`,
 			tx,
 			tc.name,
 			tc.query,
-			supplyChainRuntimeFilterListArgs(tc.filter)...,
+			supplyChainImpactFindingListArgs(tc.filter, supplyChainRuntimeFilterPlanReadAt())...,
 		)
 		for _, wantIndex := range tc.wantIndexes {
 			if !strings.Contains(plan, wantIndex) {
@@ -277,7 +272,7 @@ FROM generate_series(1, 100000) AS sample`,
 		tx,
 		"aggregate_combined",
 		supplyChainImpactAggregateCountQuery,
-		supplyChainRuntimeFilterAggregateArgs(combinedAggregate)...,
+		supplyChainImpactAggregateArgs(combinedAggregate, supplyChainRuntimeFilterPlanReadAt())...,
 	)
 	for _, wantIndex := range []string{
 		"fact_records_workload_identity_workload_idx",
@@ -309,7 +304,7 @@ FROM generate_series(1, 100000) AS sample`,
 		tx,
 		"aggregate_environment_high_cardinality",
 		supplyChainImpactAggregateCountQuery,
-		supplyChainRuntimeFilterAggregateArgs(highCardinalityAggregate)...,
+		supplyChainImpactAggregateArgs(highCardinalityAggregate, supplyChainRuntimeFilterPlanReadAt())...,
 	)
 	if !strings.Contains(
 		highCardinalityAggregatePlan,
@@ -324,8 +319,9 @@ FROM generate_series(1, 100000) AS sample`,
 		100000,
 	)
 
-	highCardinalityInventoryArgs := append(
-		supplyChainRuntimeFilterAggregateArgs(highCardinalityAggregate),
+	highCardinalityInventoryArgs := supplyChainImpactInventoryArgs(
+		highCardinalityAggregate,
+		supplyChainRuntimeFilterPlanReadAt(),
 		10,
 		0,
 	)
@@ -334,7 +330,9 @@ FROM generate_series(1, 100000) AS sample`,
 		ctx,
 		tx,
 		"inventory_environment_high_cardinality",
-		supplyChainImpactInventoryQuery("COALESCE(fact.payload->>'impact_status', 'unknown')"),
+		supplyChainImpactInventoryQuery(
+			mustSupplyChainImpactInventoryGroupExpression(t, SupplyChainImpactInventoryByImpactStatus),
+		),
 		highCardinalityInventoryArgs...,
 	)
 	if !strings.Contains(
@@ -357,7 +355,7 @@ FROM generate_series(1, 100000) AS sample`,
 		tx,
 		"aggregate_no_runtime_filter",
 		supplyChainImpactAggregateCountQuery,
-		supplyChainRuntimeFilterAggregateArgs(SupplyChainImpactAggregateFilter{})...,
+		supplyChainImpactAggregateArgs(SupplyChainImpactAggregateFilter{}, supplyChainRuntimeFilterPlanReadAt())...,
 	)
 	for _, unexpectedIndex := range []string{
 		"fact_records_workload_identity_workload_idx",
@@ -376,13 +374,16 @@ FROM generate_series(1, 100000) AS sample`,
 		tx,
 		"explain_workload_service",
 		explainSupplyChainImpactFindingQuery,
-		supplyChainRuntimeFilterExplainArgs(SupplyChainImpactExplanationFilter{
-			CVEID:                runtimeFilterLiveCVE,
-			PackageID:            runtimeFilterLivePackage,
-			WorkloadID:           "workload:5747:scalar",
-			ServiceID:            "service:5747:allowed",
-			AllowedRepositoryIDs: []string{runtimeFilterLiveRepository},
-		})...,
+		supplyChainImpactExplanationQueryArgs(
+			SupplyChainImpactExplanationFilter{
+				CVEID:                runtimeFilterLiveCVE,
+				PackageID:            runtimeFilterLivePackage,
+				WorkloadID:           "workload:5747:scalar",
+				ServiceID:            "service:5747:allowed",
+				AllowedRepositoryIDs: []string{runtimeFilterLiveRepository},
+			},
+			supplyChainRuntimeFilterPlanReadAt,
+		)...,
 	)
 	for _, wantIndex := range []string{
 		"fact_records_workload_identity_workload_idx",
@@ -406,71 +407,25 @@ func withSupplyChainRuntimeFilterDimensions(
 	return filter
 }
 
-func supplyChainRuntimeFilterListArgs(filter SupplyChainImpactFindingFilter) []any {
-	return []any{
-		supplyChainImpactFindingFactKind,
-		filter.CVEID,
-		filter.PackageID,
-		filter.RepositoryID,
-		filter.SubjectDigest,
-		filter.ImpactStatus,
-		filter.AdvisoryID,
-		filter.Ecosystem,
-		filter.ServiceID,
-		filter.WorkloadID,
-		filter.Environment,
-		filter.Severity,
-		filter.DetectionProfile,
-		filter.PriorityBucket,
-		filter.MinPriorityScore,
-		filter.ImageRef,
-		filter.AfterFindingID,
-		normalizeSupplyChainImpactSort(filter.Sort),
-		filter.Limit,
-		filter.SuppressionState,
-		filter.IncludeSuppressed,
-		pq.Array(filter.AllowedRepositoryIDs),
-		pq.Array(filter.AllowedScopeIDs),
-	}
+// supplyChainRuntimeFilterPlanReadAt is the fixed suppression-expiry clock the
+// plan proof binds. Any constant works — the plan shape does not depend on the
+// value — but pinning it keeps EXPLAIN output comparable across runs.
+func supplyChainRuntimeFilterPlanReadAt() time.Time {
+	return time.Date(2026, time.August, 12, 0, 0, 0, 0, time.UTC)
 }
 
-func supplyChainRuntimeFilterAggregateArgs(filter SupplyChainImpactAggregateFilter) []any {
-	return []any{
-		filter.CVEID,
-		filter.PackageID,
-		filter.RepositoryID,
-		filter.SubjectDigest,
-		filter.ImpactStatus,
-		filter.AdvisoryID,
-		filter.Ecosystem,
-		filter.ServiceID,
-		filter.WorkloadID,
-		filter.Environment,
-		filter.Severity,
-		filter.DetectionProfile,
-		filter.PriorityBucket,
-		filter.MinPriorityScore,
-		filter.SuppressionState,
-		filter.IncludeSuppressed,
-		filter.ImageRef,
-		pq.Array(filter.AllowedRepositoryIDs),
-		pq.Array(filter.AllowedScopeIDs),
+// mustSupplyChainImpactInventoryGroupExpression returns the same grouping SQL
+// the inventory store substitutes. The plan proof used to spell the expression
+// out by hand and referenced fact.payload, a column the canonical_facts CTE
+// does not project, so the probe measured a statement the store never issues.
+func mustSupplyChainImpactInventoryGroupExpression(
+	t *testing.T,
+	dimension SupplyChainImpactInventoryDimension,
+) string {
+	t.Helper()
+	expr, err := supplyChainImpactInventoryGroupExpression(dimension)
+	if err != nil {
+		t.Fatalf("inventory group expression for %q: %v", dimension, err)
 	}
-}
-
-func supplyChainRuntimeFilterExplainArgs(filter SupplyChainImpactExplanationFilter) []any {
-	return []any{
-		supplyChainImpactFindingFactKind,
-		filter.FindingID,
-		filter.AdvisoryID,
-		filter.CVEID,
-		filter.PackageID,
-		filter.RepositoryID,
-		filter.SubjectDigest,
-		filter.WorkloadID,
-		filter.ServiceID,
-		filter.ImageRef,
-		pq.Array(filter.AllowedRepositoryIDs),
-		pq.Array(filter.AllowedScopeIDs),
-	}
+	return expr
 }
