@@ -4,6 +4,8 @@
 package payloadusage
 
 import (
+	"os"
+	"path/filepath"
 	"sort"
 	"testing"
 )
@@ -229,5 +231,35 @@ func helper(resource Resource) {
 	}
 	if len(usage["decodeAWSResource"]) != 0 {
 		t.Fatalf("usage = %+v, want none: the helper's parameter type \"Resource\" is unqualified, not \"awsv1.Resource\"", usage["decodeAWSResource"])
+	}
+}
+
+// TestScanDecodeUsageFindsUsageInSubdirectory is the restructure guard: a
+// handler that moves into a subpackage must stay visible to the manifest gate.
+// parseReducerDir originally read only the top level (os.ReadDir) on the stated
+// assumption that "go/internal/reducer is flat, no subpackages" -- an assumption
+// that is already false (reducer has dsl/, tfstate/ and tags/) and that a
+// restructure makes false everywhere. A decode site the scan cannot see is a
+// silent under-report, not an error: the gate stays green while covering less.
+func TestScanDecodeUsageFindsUsageInSubdirectory(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "containerimage")
+	if err := os.MkdirAll(sub, 0o750); err != nil {
+		t.Fatalf("mkdir subpackage: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(sub, "extract_rows.go"), []byte(fixtureHandlerFile), 0o600); err != nil {
+		t.Fatalf("write fixture in subpackage: %v", err)
+	}
+
+	seams := []DecodeSeam{{FuncName: "decodeAWSResource", FactKindConst: "FactKindAWSResource", StructPackage: "awsv1", StructName: "Resource"}}
+	usage, err := ScanDecodeUsage(dir, seams)
+	if err != nil {
+		t.Fatalf("ScanDecodeUsage() error = %v", err)
+	}
+
+	if len(usage["decodeAWSResource"]) == 0 {
+		t.Fatalf("no usage recorded for a decode site one directory down; the scan is not recursive, so a family that moves into a subpackage drops out of the manifest silently. got %+v", usage)
 	}
 }

@@ -46,6 +46,9 @@ done
 command -v bash >/dev/null 2>&1 || die "bash is required"
 command -v rg >/dev/null 2>&1 || die "rg is required"
 
+# shellcheck source=scripts/lib/go-test-run-guard.sh
+. "${repo_root}/scripts/lib/go-test-run-guard.sh"
+
 scoped_negative_read_pattern='Test(ResolveEntityScopedSelectorDeniesOutOfScopeCanonicalID|CodeSearchScopedSelectorDeniesOutOfScopeCanonicalID)'
 
 print_step() {
@@ -58,7 +61,7 @@ if [[ "${list_only}" == "true" ]]; then
 	print_step "local hosted governance proof, API/MCP parity prerequisites, and denied/out-of-scope read posture" \
 		"scripts/test-verify-hosted-governance-proof.sh && scripts/verify-hosted-governance-proof.sh"
 	print_step "scoped negative-read canaries" \
-		"go test ./internal/query -run '${scoped_negative_read_pattern}' -count=1"
+		"go_test_run_guard 2 '${scoped_negative_read_pattern}' -- ./internal/query -count=1"
 	print_step "remote Compose render shape" \
 		"scripts/test-remote-e2e-hosted-compose-render.sh"
 	print_step "two-team scoped cross-scope denial proof verifier self-test" \
@@ -89,7 +92,7 @@ run_step "local hosted governance proof execution" \
 (
 	cd "${repo_root}/go"
 	run_step "scoped negative-read canaries" \
-		go test ./internal/query -run "${scoped_negative_read_pattern}" -count=1
+		go_test_run_guard 2 "${scoped_negative_read_pattern}" -- ./internal/query -count=1
 )
 run_step "remote Compose render shape" \
 	bash "${repo_root}/scripts/test-remote-e2e-hosted-compose-render.sh"

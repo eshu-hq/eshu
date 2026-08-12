@@ -309,11 +309,18 @@ func deriveValue(key string, seed any) string {
 func sortArray(arr []any, field string) {
 	keys := make([]string, len(arr))
 	tiebreak := make([]string, len(arr))
+	tiebreakReady := make([]bool, len(arr))
 	for i, elem := range arr {
 		keys[i] = elementField(elem, field)
-		if b, err := marshalIndent(elem, defaultIndent); err == nil {
-			tiebreak[i] = string(b)
+	}
+	tiebreakFor := func(i int) string {
+		if !tiebreakReady[i] {
+			if b, err := marshalIndent(arr[i], defaultIndent); err == nil {
+				tiebreak[i] = string(b)
+			}
+			tiebreakReady[i] = true
 		}
+		return tiebreak[i]
 	}
 	idx := make([]int, len(arr))
 	for i := range idx {
@@ -324,7 +331,7 @@ func sortArray(arr []any, field string) {
 		if keys[ia] != keys[ib] {
 			return keys[ia] < keys[ib]
 		}
-		return tiebreak[ia] < tiebreak[ib]
+		return tiebreakFor(ia) < tiebreakFor(ib)
 	})
 	sorted := make([]any, len(arr))
 	for i, j := range idx {

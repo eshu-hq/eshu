@@ -44,11 +44,17 @@ esac
 # here rather than producing a wrong coverage report.
 (cd go && go test ./internal/replaycoverage/ ./cmd/replay-coverage-gate/ -count=1)
 
+# shellcheck source=scripts/lib/go-test-run-guard.sh
+. "${repo_root}/scripts/lib/go-test-run-guard.sh"
+
 # Proof for C-10 authorization-catalog scoped-token entries. The coverage gate
 # resolves authz_scoped_route entries against specs/authorization-replay-coverage
 # while this focused query test proves in-grant and out-of-grant scoped behavior,
-# including the broadened-scope regression.
-(cd go && go test ./internal/query -run 'Test(AuthorizationReplayCoverageContract|SecretsIAMPostureSummaryScopedGrant|AuthMiddlewareWithScopedTokensAllowsSecretsIAMRoutes)' -count=1)
+# including the broadened-scope regression. go_test_run_guard (#6055) asserts
+# the pattern still matches all 6 named tests before running them, so a
+# rename or a move that drops the match count to zero fails loudly instead of
+# the bare `go test -run` exiting 0 on nothing.
+(cd go && go_test_run_guard 6 'Test(AuthorizationReplayCoverageContract|SecretsIAMPostureSummaryScopedGrant|AuthMiddlewareWithScopedTokensAllowsSecretsIAMRoutes)' -- ./internal/query -count=1)
 
 # The committed C-7 dashboard (docs-discoverable %-covered + gap list). The unit
 # proof above runs TestCommittedDashboardIsCurrent, so a stale dashboard fails

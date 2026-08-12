@@ -42,6 +42,7 @@ func (r *Registry) Validate(repoRoot string) []error {
 				errs = append(errs, fmt.Errorf("gate %q: workflow file %q not found", g.ID, wfPath))
 			}
 		}
+		errs = append(errs, checkTriggerPathsExist(repoRoot, g)...)
 	}
 	for _, check := range r.RequiredStatusChecks {
 		if check.Workflow == "" {
@@ -53,6 +54,38 @@ func (r *Registry) Validate(repoRoot string) []error {
 				"required status context %q: workflow file %q not found",
 				check.Context,
 				wfPath,
+			))
+		}
+	}
+	return errs
+}
+
+// checkTriggerPathsExist validates that every LITERAL (non-glob, see
+// isLiteralTrigger in pathfilter.go) registry trigger of gate g resolves to
+// a real file or directory at repoRoot (#6055). A trigger activates the gate
+// when the named path changes; a trigger whose target was deleted, renamed,
+// or moved outside a tracked restructure leaves the gate silently unable to
+// ever select on that surface again, with no signal anywhere that it went
+// stale. This is the existence-side counterpart to checkPathFilterCoverage:
+// that check requires a CI workflow with a resolvable dorny/paths-filter
+// mapping and only fires for gates wired that way, while this one runs for
+// every gate regardless of CI wiring — it needs nothing but the trigger
+// string and a stat call, so it belongs in the base (always-on) Validate
+// pass rather than behind the --drift flag.
+//
+// Glob triggers (containing "*") are skipped: a glob can legitimately match
+// zero files today and still be a valid future-proofing trigger.
+func checkTriggerPathsExist(repoRoot string, g Gate) []error {
+	var errs []error
+	for _, trigger := range g.Triggers {
+		if !isLiteralTrigger(trigger) {
+			continue
+		}
+		full := filepath.Join(repoRoot, filepath.FromSlash(trigger))
+		if _, err := os.Stat(full); os.IsNotExist(err) {
+			errs = append(errs, fmt.Errorf(
+				"gate %q: trigger %q names %q, which does not exist — a stale trigger silently stops selecting this gate instead of failing loud",
+				g.ID, trigger, full,
 			))
 		}
 	}

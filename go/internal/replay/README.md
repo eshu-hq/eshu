@@ -33,15 +33,16 @@ Given a JSON document and a `CanonicalOptions`, `Canonicalize`:
    `generation_id` is derived as `canonical-generation-<hash(scope_id)>`: stable
    across re-records (the seed is the stable `scope_id`, not the run-specific
    value) yet unique per scope. Configurable via `CanonicalOptions.DerivedKeys`.
-3. **Stably orders recorded arrays.** `scopes` by `scope_id`, `facts` by
+4. **Stably orders recorded arrays.** `scopes` by `scope_id`, `facts` by
    `stable_fact_key`, with the element's canonical bytes as a total-order
-   tiebreaker. Configurable via `CanonicalOptions.SortArrays`.
-4. **Redacts configured secret keys** wherever they appear in the tree (matching
+   tiebreaker when primary keys collide. Unique primary keys do not need that
+   extra encoding pass. Configurable via `CanonicalOptions.SortArrays`.
+5. **Redacts configured secret keys** wherever they appear in the tree (matching
    is by key name at any depth, so a secret cannot leak by being nested
    differently than expected). Configure with `WithRedactedKeys`.
-5. **Preserves numeric fidelity.** Decoding uses `json.Number`, so integer and
+6. **Preserves numeric fidelity.** Decoding uses `json.Number`, so integer and
    fractional literals are never rewritten through a `float64` round-trip.
-6. **Is idempotent.** `Canonicalize(Canonicalize(x)) == Canonicalize(x)`.
+7. **Is idempotent.** `Canonicalize(Canonicalize(x)) == Canonicalize(x)`.
 
 The core is **flavor-agnostic**: every option is keyed by JSON object key name, so
 `replay` never imports a flavor. `DefaultCanonicalOptions` encodes the
@@ -74,3 +75,17 @@ over a decoded JSON tree. Verified by `go test ./internal/replay/... -count=1`.
 The re-home of `collector/cassette` → `replay/cassette` is import-path-only: the
 package name, types, and behavior are unchanged, proven by the unmodified
 `cassette` test suite passing at the new path.
+
+Performance Evidence: the retained 61,007-fact Ifá benchmark performs two
+canonicalizations in 2.402 seconds normally and 24.543 seconds under `-race`,
+down from 6.499 and 76.626 seconds on the same input
+(`ledger:5975-two-call-normal-base`, `ledger:5975-two-call-normal-candidate`,
+`ledger:5975-two-call-race-base`, `ledger:5975-two-call-race-candidate`).
+Canonical output remains byte-identical. See
+[`docs/internal/evidence/5975-canonicalize-odu-performance.md`](../../../docs/internal/evidence/5975-canonicalize-odu-performance.md).
+
+No-Observability-Change: the sorter is a synchronous in-memory helper beneath
+fixture recorders, API/MCP replay, input tapes, graph dumps, synthetic data, and
+Ifá conformance tests. It performs no I/O and adds no runtime stage or telemetry
+contract. The shared replay tests, determinism checks, and benchmarks are its
+diagnostic surface.

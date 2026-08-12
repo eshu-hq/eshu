@@ -8,6 +8,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -17,23 +18,33 @@ import (
 // FieldUsage records that one reducer source file reads a named field off a
 // value returned by a decode<Kind> call.
 type FieldUsage struct {
-	// File is the reducer file's base name, e.g. "aws_resource_materialization.go".
+	// File is the source file's path relative to the scanned root, e.g.
+	// "aws_resource_materialization.go" at the top level or
+	// "containerimage/identity.go" once a family moves into a subpackage.
+	// Relative rather than a bare base name so two files with the same name
+	// in different subpackages stay distinguishable.
 	File string
 	// GoFieldName is the struct field's Go identifier, e.g. "ResourceType".
 	GoFieldName string
 }
 
-// parsedGoFile pairs a parsed reducer source file with its base name, so
-// later passes can attribute a finding back to the file it came from without
-// re-deriving the name from *ast.File (which does not carry it).
+// parsedGoFile pairs a parsed reducer source file with its path relative to
+// the scanned root, so later passes can attribute a finding back to the file it
+// came from without re-deriving the name from *ast.File (which does not carry
+// it).
 type parsedGoFile struct {
 	name string
 	file *ast.File
 }
 
-// ScanDecodeUsage AST-walks every non-test *.go file directly under
-// reducerDir (go/internal/reducer is flat, no subpackages) and returns, for
-// each decode function name in seams, the set of FieldUsage entries found.
+// ScanDecodeUsage AST-walks every non-test *.go file under reducerDir at any
+// depth and returns, for each decode function name in seams, the set of
+// FieldUsage entries found. The walk is recursive on purpose: an earlier
+// version read only the top level on the assumption that go/internal/reducer
+// is flat, which is already false (dsl/, tfstate/ and tags/ live under it) and
+// which the package restructure (#6053) makes false everywhere. A decode site
+// the scan cannot reach is a silent under-report -- the manifest gate stays
+// green while covering less -- not an error anyone would notice.
 //
 // A field read is attributed to a seam's decode function in two ways:
 //
@@ -127,29 +138,56 @@ func ScanDecodeUsage(reducerDir string, seams []DecodeSeam) (map[string][]FieldU
 	return usage, nil
 }
 
-// parseReducerDir parses every non-test *.go file directly under dir and
-// returns them paired with their base names.
+// parseReducerDir parses every non-test *.go file under dir at any depth and
+// returns them paired with their path relative to dir. The name is relative
+// rather than a bare base name so two files with the same name in different
+// subpackages stay distinguishable in the usage output.
 func parseReducerDir(dir string) ([]parsedGoFile, error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
+	if _, err := os.Stat(dir); err != nil {
 		return nil, fmt.Errorf("payloadusage: read reducer dir %s: %w", dir, err)
 	}
 
 	fset := token.NewFileSet()
 	var parsed []parsedGoFile
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
+	// parseFailure carries this package's own error out of the walk so the
+	// caller sees it verbatim instead of nested inside a walk wrapper.
+	var parseFailure error
+	walkErr := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
-		path := filepath.Join(dir, name)
-		// #nosec G304 -- path is built from a fixed reducer dir plus a *.go
-		// entry name from os.ReadDir of that same dir; not untrusted input.
+		if entry.IsDir() {
+			// testdata holds deliberately broken fixtures that must never be
+			// parsed as production source, matching the exclusion every other
+			// gate in this repo applies.
+			if entry.Name() == "testdata" && path != dir {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			return nil
+		}
+		// #nosec G304 -- path comes from WalkDir over a fixed reducer dir, not
+		// from untrusted input.
 		file, parseErr := parser.ParseFile(fset, path, nil, 0)
 		if parseErr != nil {
-			return nil, fmt.Errorf("payloadusage: parse %s: %w", path, parseErr)
+			parseFailure = fmt.Errorf("payloadusage: parse %s: %w", path, parseErr)
+			return filepath.SkipAll
 		}
-		parsed = append(parsed, parsedGoFile{name: name, file: file})
+		rel, relErr := filepath.Rel(dir, path)
+		if relErr != nil {
+			rel = name
+		}
+		parsed = append(parsed, parsedGoFile{name: rel, file: file})
+		return nil
+	})
+	if parseFailure != nil {
+		return nil, parseFailure
+	}
+	if walkErr != nil {
+		return nil, fmt.Errorf("payloadusage: walk reducer dir %s: %w", dir, walkErr)
 	}
 	return parsed, nil
 }

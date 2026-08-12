@@ -31,11 +31,15 @@ record_fail() {
   fi
 }
 
-# setup_repo creates a minimal git repo with a testable query package.
+# setup_repo creates a minimal git repo with a testable query package. Both
+# query_dir and api_dir must exist (#6055's existence guard requires it, the
+# same as the real repository), even for a fixture that puts no handler
+# under go/cmd/api.
 setup_repo() {
   local name="$1"
   local dir="${tmp_root}/${name}"
   mkdir -p "${dir}/go/internal/query"
+  mkdir -p "${dir}/go/cmd/api"
   mkdir -p "${dir}/scripts"
 
   # Copy verifier to the test repo
@@ -184,10 +188,110 @@ GO
   fi
 }
 
+# Test 5 — red: an untested handler that has MOVED into a subdirectory of
+# query_dir must still be caught. #6055: verify-route-coverage.sh's
+# no-base-ref fallback scan used `find -maxdepth 1`, which never looks below
+# query_dir/api_dir themselves; a handler relocated one directory level down
+# (the exact shape a restructure produces) silently dropped out of route
+# coverage checking — "0 routes checked, 0 uncovered", exit 0, on a route
+# that in fact has no test. This is the fixture every test above already
+# exercises through the SAME no-base-ref fallback path (none of these
+# fixture repos are git repos, so ESHU_ROUTE_COVERAGE_BASE always resolves
+# to the "checking all routes" branch); this case only adds the subdirectory
+# placement.
+test_red_moved_handler_in_subdirectory_without_test() {
+  local dir
+  dir="$(setup_repo "red-moved-handler")"
+  mkdir -p "${dir}/go/internal/query/subpkg"
+
+  cat > "${dir}/go/internal/query/subpkg/moved_handler.go" << 'GO'
+package subpkg
+
+import "net/http"
+
+type MovedHandler struct{}
+
+func (h *MovedHandler) Mount(mux *http.ServeMux) {
+  mux.HandleFunc("GET /api/v0/moved/thing", h.getMovedThing)
+}
+
+func (h *MovedHandler) getMovedThing(w http.ResponseWriter, r *http.Request) {}
+GO
+
+  export ESHU_ROUTE_COVERAGE_REPO_ROOT="$dir"
+  if "${dir}/scripts/verify-route-coverage.sh" >/tmp/eshu-route-coverage.out 2>/tmp/eshu-route-coverage.err; then
+    record_fail "red: moved handler without test should fail but passed (would be a silent gate false-green after a move)"
+  else
+    record_pass "red: moved handler without test fails correctly (route coverage scan is recursive)"
+  fi
+}
+
+# Test 6 — green (revert of test 5): the SAME moved handler, now with its
+# test moved alongside it into the same subdirectory, must pass — proving
+# the coverage lookup (not just file discovery) is also recursive, so a
+# real, co-located test is not reported as missing.
+test_green_moved_handler_with_test_in_same_subdirectory() {
+  local dir
+  dir="$(setup_repo "green-moved-handler")"
+  mkdir -p "${dir}/go/internal/query/subpkg"
+
+  cat > "${dir}/go/internal/query/subpkg/moved_handler.go" << 'GO'
+package subpkg
+
+import "net/http"
+
+type MovedHandler struct{}
+
+func (h *MovedHandler) Mount(mux *http.ServeMux) {
+  mux.HandleFunc("GET /api/v0/moved/thing", h.getMovedThing)
+}
+
+func (h *MovedHandler) getMovedThing(w http.ResponseWriter, r *http.Request) {}
+GO
+
+  cat > "${dir}/go/internal/query/subpkg/moved_handler_test.go" << 'GO'
+package subpkg
+
+import "testing"
+
+func TestGetMovedThingReturnsData(t *testing.T) {}
+GO
+
+  export ESHU_ROUTE_COVERAGE_REPO_ROOT="$dir"
+  if "${dir}/scripts/verify-route-coverage.sh" >/tmp/eshu-route-coverage.out 2>/tmp/eshu-route-coverage.err; then
+    record_pass "green: moved handler with a co-located moved test passes (revert of test 5)"
+  else
+    record_fail "green: moved handler with a co-located moved test should pass but failed"
+  fi
+}
+
+# Test 7 — a query_dir that no longer exists at all (the whole surface moved
+# or was renamed) must fail loudly rather than silently report "0 routes
+# checked, 0 uncovered".
+test_red_missing_query_dir_fails_loudly() {
+  local dir
+  dir="$(setup_repo "red-missing-query-dir")"
+  rm -rf "${dir}/go/internal/query"
+
+  export ESHU_ROUTE_COVERAGE_REPO_ROOT="$dir"
+  if "${dir}/scripts/verify-route-coverage.sh" >/tmp/eshu-route-coverage.out 2>/tmp/eshu-route-coverage.err; then
+    record_fail "red: missing query_dir should fail loudly but passed silently"
+  else
+    if rg --fixed-strings --quiet "does not exist" /tmp/eshu-route-coverage.err; then
+      record_pass "red: missing query_dir fails loudly naming the missing directory"
+    else
+      record_fail "red: missing query_dir failed, but not with the expected 'does not exist' diagnostic"
+    fi
+  fi
+}
+
 test_green_handler_with_test
 test_red_handler_without_test
 test_green_handler_with_concatenated_name_test
 test_red_short_method_only_has_unrelated_sibling_test
+test_red_moved_handler_in_subdirectory_without_test
+test_green_moved_handler_with_test_in_same_subdirectory
+test_red_missing_query_dir_fails_loudly
 
 printf '\n%d/%d tests passed\n' "$PASS" "$TOTAL"
 

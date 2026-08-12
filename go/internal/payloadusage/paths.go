@@ -26,10 +26,14 @@ type Paths struct {
 	// reads. Families split their decode wrappers into per-family files
 	// (factschema_decode.go, factschema_decode_incident.go, ...) as the
 	// 500-line cap forces a split, so the seam source is a GLOB, not a single
-	// file. When empty, ResolvePaths fills it from DecodeFile (if set) or from
-	// filepath.Glob(ReducerDir/"factschema_decode*.go"). A gate that read only
-	// the single factschema_decode.go would silently miss a family whose
-	// wrappers live in a split file — the exact false-green this glob closes.
+	// file. When empty, resolveDecodeFiles (called from Load) fills it from
+	// DecodeFile (if set) or by walking ReducerDir at any depth for every
+	// factschema_decode*.go file (globFilesRecursive in load.go). A gate that
+	// read only the single top-level factschema_decode.go would silently
+	// miss a family whose wrappers live in a split file — the false-green
+	// this walk closes; walking recursively (not filepath.Glob's
+	// single-directory match, #6055) additionally covers a split file that
+	// has moved into a subdirectory.
 	DecodeFiles []string
 	// SchemaDir is sdk/go/factschema/schema, the checked-in JSON Schemas
 	// LoadDeclaredFieldsFromSchemas reads.

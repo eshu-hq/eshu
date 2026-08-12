@@ -708,6 +708,7 @@ gates:
       - "go/internal/storage/cypher/**"
       - "scripts/test-verify-query-plan-regression.sh"
       - "scripts/verify-query-plan-regression.sh"
+      - "scripts/lib/go-test-run-guard.sh"
     local:
       command: "bash scripts/verify-query-plan-regression.sh"
       test_command: "bash scripts/test-verify-query-plan-regression.sh"
@@ -1878,6 +1879,7 @@ gates:
       - "testdata/cassettes/**"
       - "scripts/test-verify-replay-coverage-gate.sh"
       - "scripts/verify-replay-coverage-gate.sh"
+      - "scripts/lib/go-test-run-guard.sh"
     local:
       command: "bash scripts/verify-replay-coverage-gate.sh --blocking"
       test_command: "bash scripts/test-verify-replay-coverage-gate.sh"
@@ -2162,8 +2164,20 @@ gates:
       - "go/internal/scopedtoken/**"
       - "specs/authorization-catalog.v1.yaml"
       - "specs/authorization-replay-coverage.v1.yaml"
+      - "scripts/go-test-run-guard.sh"
+      - "scripts/lib/go-test-run-guard.sh"
     local:
-      command: "cd go && go test ./internal/query -run 'Test(AuthorizationReplayCoverageContract|SecretsIAMPostureSummaryScopedGrant|AuthMiddlewareWithScopedTokensAllowsSecretsIAMRoutes)' -count=1"
+      # go_test_run_guard (#6055) asserts the pattern still matches all 6
+      # named tests via `go test -list` before running them, so a rename or
+      # move that drops the match count to zero fails loudly instead of the
+      # bare `go test -run` exiting 0 on nothing. The command stays
+      # "cd go && ..."-prefixed (a relative ../scripts/ call rather than a
+      # bare scripts/ one) so it keeps the same registry shape
+      # heredoc-budget's local.command already uses for a script it invokes
+      # from inside go/ — the two new triggers above are added explicitly
+      # even though this shape is exempt from checkScriptTriggerCoverage's
+      # automatic derivation, matching that same precedent.
+      command: "cd go && ../scripts/go-test-run-guard.sh 6 'Test(AuthorizationReplayCoverageContract|SecretsIAMPostureSummaryScopedGrant|AuthMiddlewareWithScopedTokensAllowsSecretsIAMRoutes)' -- ./internal/query -count=1"
       test_command: ""
     ci:
       workflow: replay-coverage-gate.yml
