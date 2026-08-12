@@ -82,14 +82,22 @@ func checkTriggerPathsExist(repoRoot string, g Gate) []error {
 			continue
 		}
 		full := filepath.Join(repoRoot, filepath.FromSlash(trigger))
-		// filepath.Join cleans the result, so a trigger carrying ".." can
-		// resolve OUTSIDE repoRoot -- Join("/repo", "../etc/passwd") is
-		// "/etc/passwd". Stat-ing that would let a malformed trigger "exist"
+		// path/filepath.Join concatenates every non-empty element with a
+		// separator and then Cleans the result. Two consequences, and reviewers
+		// have twice guessed the second one backwards, so both are spelled out:
+		//
+		//	Join("/repo", "../etc/passwd") == "/etc/passwd"    // Clean resolves ".." -- ESCAPES
+		//	Join("/repo", "/etc/passwd")   == "/repo/etc/passwd" // absolute is NOT a reset -- stays inside
+		//
+		// Discarding everything before a later absolute element is Python's
+		// os.path.join and Node's path.join, not Go's -- an easy cross-language
+		// mix-up. So only the traversal case can leave repoRoot; an absolute
+		// trigger just fails the existence check like any other bad path.
+		//
+		// Stat-ing an escaped path would let a malformed trigger "exist"
 		// against an unrelated host file and pass the very staleness check this
-		// function adds. (Join does NOT drop repoRoot for an absolute trigger:
-		// Join("/repo", "/etc/passwd") is "/repo/etc/passwd", so only the
-		// traversal case can escape.) Treat an escaping trigger as a failure of
-		// its own, naming it, rather than silently stat-ing outside the tree.
+		// function adds. Treat an escaping trigger as a failure of its own,
+		// naming it, rather than silently stat-ing outside the tree.
 		if !isWithinRoot(repoRoot, full) {
 			errs = append(errs, fmt.Errorf(
 				"gate %q: trigger %q resolves to %q, outside the repository root %q — a trigger must name a path inside the repo",
