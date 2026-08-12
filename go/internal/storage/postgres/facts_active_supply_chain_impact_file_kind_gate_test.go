@@ -262,8 +262,17 @@ func TestListActiveSupplyChainImpactFactsGatesFileKindOnFileRepositoryIDs(t *tes
 	if disjunctionAt < 0 {
 		t.Fatal("query no longer contains the package_id identity predicate")
 	}
+	// The gate has to sit ahead of the disjunction as a sibling conjunct of it,
+	// never as one more branch inside it -- an OR'd `fact_kind <> 'file'` would
+	// admit every row of every other kind unconditionally and change what the
+	// query returns. Text order is what makes that structurally checkable here;
+	// it is not what makes the gate cheap. Postgres orders quals within a filter
+	// by its own cost estimate, and the evidence that it puts this cheap
+	// non-TOAST comparison first is the measured buffer drop (28,252,679 ->
+	// 14,737 in docs/internal/evidence/5237-supply-chain-impact-file-fact-scan.md),
+	// not this assertion.
 	if gateAt > disjunctionAt {
-		t.Errorf("file-kind gate must precede the identity disjunction so a file row short-circuits before any JSONB extraction (gate at %d, disjunction at %d)", gateAt, disjunctionAt)
+		t.Errorf("file-kind gate must precede the identity disjunction as a conjunct of it, not a branch within it (gate at %d, disjunction at %d)", gateAt, disjunctionAt)
 	}
 
 	// The gate must bind the SAME placeholder the file branch filters on, or
