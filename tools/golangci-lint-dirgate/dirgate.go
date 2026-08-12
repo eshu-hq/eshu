@@ -125,7 +125,7 @@ func anyPos(byBase map[string]token.Pos) token.Pos {
 // trees (mirroring the filelength plugin's skip()), plus hidden
 // directories (.git and similar tooling state).
 func skipDir(dir string) bool {
-	for _, seg := range strings.Split(filepath.ToSlash(dir), "/") {
+	for seg := range strings.SplitSeq(filepath.ToSlash(dir), "/") {
 		switch seg {
 		case "vendor", "testdata", "generated":
 			return true

@@ -38,7 +38,7 @@ func nolintJustification(path, gate string) (justification string, ok bool) {
 	if err != nil {
 		return "", false
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }() // read-only fd; a close failure here has nothing left to report to
 
 	marker := "//nolint:" + gate
 	scanner := bufio.NewScanner(f)
