@@ -27,19 +27,81 @@ import (
 // silent wrong answer).
 const supplyChainCloudRuntimeProbeMaxDigests = 200
 
-// supplyChainCloudRuntimeProbeMaxResults bounds the total owner-ledger rows the
-// probe considers, so a single vulnerable image running on an
-// unusually large fleet can never trigger unbounded freshness or authorization
-// work. The query orders by (running_image_digest, arn, uid), materializes this
-// candidate limit, and only then applies freshness and caller grants, so the set is
-// DETERMINISTIC and reproducible run-to-run — a security evidence field must not
-// vary. The remaining bound is honest: when one findings page collectively
-// matches more than this many (digest, resource) candidates, authorized rows
-// after the cap are not considered, so those findings keep their CI-declared or
-// config tier instead of runtime_confirmed. That is a deterministic, bounded,
-// scale-gated limitation; a per-digest bound that prevents one hot digest from
-// starving other findings' runtime evidence is tracked in #5789.
+// supplyChainCloudRuntimeProbeMaxResults is the owner-ledger row budget for one
+// findings page. It is no longer the bound the query applies:
+// supplyChainCloudRuntimeProbePerDigestLimit divides this budget across the
+// digests on the page, floored at
+// supplyChainCloudRuntimeProbePerDigestMinResults, and the query applies that
+// per-digest number inside a CROSS JOIN LATERAL -- one bounded, ordered index
+// scan per digest (#5789).
+//
+// Freshness and caller authorization run inside that lateral BEFORE its LIMIT,
+// so the bound counts ELIGIBLE rows rather than candidates. The ordering was
+// measured, and reversing it returns wrong answers: on a corpus where only the
+// last 50 of 50,000 rows were authorized for the caller, bounding candidates
+// first and filtering after took 0.449 ms and returned nothing, reporting a
+// genuinely running vulnerable image as not running. Eligibility inside the
+// bound took 93 ms and returned the 50 rows
+// (docs/internal/evidence/5789-per-digest-bound.md).
+//
+// Work stays bounded at len(digests) x the per-digest limit, at most 2000 rows,
+// and the ordered scan keeps that row set reproducible run to run: a security
+// evidence field must not vary. A page can still lose breadth -- a digest
+// running on more resources than its share reports only the first slice of
+// them. It no longer loses the promotion itself, because runtime_confirmed
+// needs one current, authorized resource and every requested digest now gets
+// its own share.
 const supplyChainCloudRuntimeProbeMaxResults = 200
+
+// supplyChainCloudRuntimeProbePerDigestMinResults is the floor under the
+// owner-ledger rows considered FOR EACH subject digest. The per-digest bound
+// replaces the total-row cap above as the query's actual bound (#5789); this
+// constant is the smallest that bound may shrink to, however crowded the page.
+//
+// A total cap does not share. Measured on a skewed corpus -- one digest running
+// on 30,000 resources, twenty others on 100 each -- the 200-row global cap
+// returned rows for exactly ONE digest and zero for the other twenty, because
+// the ordered scan spent the whole budget before reaching them. Those twenty
+// findings silently kept their CI-declared tier: not a truncated answer, a
+// missing one, and invisible because a finding with no runtime evidence looks
+// identical to a finding whose image runs nowhere.
+//
+// Ten per digest keeps the promotion decision intact -- runtime_confirmed needs
+// only that at least one current, authorized resource runs the digest, so a
+// bounded sample answers it -- while total work stays bounded and deterministic
+// at len(digests) x this value, itself capped by
+// supplyChainCloudRuntimeProbeMaxDigests.
+const supplyChainCloudRuntimeProbePerDigestMinResults = 10
+
+// supplyChainCloudRuntimeProbePerDigestLimit returns the per-digest bound for a
+// page of digestCount digests: the total budget shared evenly, with a floor.
+//
+// A flat per-digest number would have fixed starvation while quietly narrowing
+// the single-digest case -- one digest used to yield up to
+// supplyChainCloudRuntimeProbeMaxResults resource refs as evidence, and a flat
+// 10 would have cut that to 10 for every caller, a user-visible reduction this
+// issue never asked for.
+//
+// Sharing the existing total budget keeps both properties:
+//
+//   - 1 digest   -> 200 per digest: identical to the previous behaviour.
+//   - 21 digests -> 10 (the floor): every finding gets evidence.
+//   - 200 digests -> 10 (the floor): worst case 200 x 10 = 2000 rows.
+//
+// The floor is what actually fixes #5789: an even share alone would give a
+// 200-digest page one row each, and a page's digest count must not decide
+// whether a finding gets any runtime evidence at all. The worst case grows from
+// 200 rows to 2000, bounded and stated rather than incidental (Copilot review).
+func supplyChainCloudRuntimeProbePerDigestLimit(digestCount int) int {
+	if digestCount <= 0 {
+		return supplyChainCloudRuntimeProbePerDigestMinResults
+	}
+	share := supplyChainCloudRuntimeProbeMaxResults / digestCount
+	if share < supplyChainCloudRuntimeProbePerDigestMinResults {
+		return supplyChainCloudRuntimeProbePerDigestMinResults
+	}
+	return share
+}
 
 // probeSupplyChainCloudRuntimeResources maps each given finding subject digest
 // to observed CloudResource owner-ledger rows whose running_image_digest equals

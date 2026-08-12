@@ -1143,17 +1143,23 @@ which did not perform the required runtime-evidence resolution on the base,
 performs the corrected read in 0.434 ms. The transformed investigation packet
 omits these enrichment fields and improved from 0.051 ms to 0.020 ms by
 skipping their reads.
-The production read materializes the deterministic first 200
-`(digest, ARN, uid)` candidates before freshness and authorization checks,
-preserving the previous global evidence cap while bounding hot-digest work. A
-100,000-row denied-first proof reduced authorization probes from 100,000 to 200
-and execution from 145.785 ms to 0.512 ms. The strict partial index excludes
-blank and whitespace-only anchors; on a mostly-empty 200,000-row ledger it was
-about 80 percent smaller and improved identical 20,000-row insert/update tests
-without changing table contents. The retained real-handler integration test
-completed 15 hot-digest list requests at a 636.833 microsecond median and
-returned exactly the 200-resource cap. Full commands and lifecycle proof are in
-`docs/internal/evidence/5469-tiered-version-resolution.md`.
+The production read bounds rows per requested digest. A `CROSS JOIN LATERAL`
+gives every digest its own bounded, ordered `(digest, ARN, uid)` index scan,
+capped at the 200-row page budget divided across the digests on the page with a
+floor of 10, and freshness and authorization run inside that scan ahead of its
+limit, so the bound counts eligible rows. On a skewed corpus — one digest on
+30,000 resources, twenty others on 100 each — the earlier single global limit
+returned rows for 1 of 21 digests in 0.142 ms, while the per-digest form returns
+rows for 21 of 21 in 0.286 ms. An earlier 100,000-row denied-first proof reduced
+authorization probes from 100,000 to 200 and execution from 145.785 ms to
+0.512 ms. The strict partial index excludes blank and whitespace-only anchors;
+on a mostly-empty 200,000-row ledger it was about 80 percent smaller and
+improved identical 20,000-row insert/update tests without changing table
+contents. The retained real-handler integration test completed 15 hot-digest
+list requests at a 636.833 microsecond median and returned the full 200-resource
+budget its single-digest page is entitled to. Full commands and lifecycle proof
+are in `docs/internal/evidence/5469-tiered-version-resolution.md` and
+`docs/internal/evidence/5789-per-digest-bound.md`.
 
 Observability: `version_resolution_tier`/`version_resolution_corroboration`
 are produced by `supplyChainVersionResolution` from the enriched finding row.

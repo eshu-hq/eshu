@@ -390,20 +390,30 @@ The unshipped declared-ref tier contributes no claim. A CI-declared digest that
 contradicts the finding's subject digest remains corroboration and cannot win.
 Same-axis claims are labeled `agrees` or `disagrees`; digest, image-reference,
 and package-version claims on different axes are `not_comparable`.
-The cloud-runtime owner-ledger read materializes the deterministic first 200
-`(digest, ARN, uid)` candidates before active-generation and caller-grant
-checks. This preserves the former graph route's global evidence cap and bounds
-authorization work for hot or mostly denied digests. Authorized rows after the
-cap intentionally remain under-enriched rather than widening the request;
-#5789 tracks fair per-digest allocation. The matching migration 086 partial
-index excludes blank and whitespace-only digest or ARN values, so empty cloud
-inventory rows do not amplify storage or writes.
-Performance Evidence: on 100,000 same-digest rows with only candidate 201
-authorized, the prior late-limit form took 145.785 ms and 100,000
-authorization probes; the materialized form took 0.512 ms and exactly 200
-probes. The retained 20,000-row live route proof returned the bounded 200
-resources at a 636.833 microsecond median across 15 runs. Exact commands and
-index build/write measurements live in
+The cloud-runtime owner-ledger read bounds rows per requested digest. A
+`CROSS JOIN LATERAL` driven by the distinct digest set gives every digest its
+own bounded, ordered `(digest, ARN, uid)` index scan, capped at the 200-row page
+budget divided across the digests on the page with a floor of 10
+(`supplyChainCloudRuntimeProbePerDigestLimit`). Active-generation and
+caller-grant checks run inside that lateral, before its limit, so the bound
+counts eligible rows: a digest whose first rows are stale or outside the
+caller's grants still yields the later row that is neither. A digest running on
+more resources than its share reports only the first slice of them, but no
+digest is left with no runtime evidence at all (#5789). The matching migration
+086 partial index excludes blank and whitespace-only digest or ARN values, so
+empty cloud inventory rows do not amplify storage or writes.
+Performance Evidence: on a skewed corpus — one digest on 30,000 resources,
+twenty others on 100 each, 21 digests requested — the earlier single global
+`LIMIT 200` took 0.142 ms and returned rows for 1 of 21 digests, while the
+per-digest lateral takes 0.286 ms and returns rows for 21 of 21. Running
+eligibility before the bound costs at most one full index-range scan of a single
+digest: 93.193 ms on 50,000 rows where only the last 50 are authorized, inside
+the 2-second `cloudResourceListInteractiveSLO`. The 20,000-row live route proof
+still returns the bounded 200 resources for a single-digest page, at a 636.833
+microsecond median across 15 runs. Exact commands and index build/write
+measurements live in
+[`docs/internal/evidence/5789-per-digest-bound.md`](../../../docs/internal/evidence/5789-per-digest-bound.md)
+and
 [`docs/internal/evidence/5469-tiered-version-resolution.md`](../../../docs/internal/evidence/5469-tiered-version-resolution.md).
 The Kubernetes runtime probe partitions its 200 serialized-reference slots
 over at most 200 finding rows. Every non-empty digest occurrence receives at

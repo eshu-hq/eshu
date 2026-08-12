@@ -5,6 +5,15 @@ a finding whose subject digest is running on a live cloud resource classifies as
 `deployment_truth_tier=runtime_confirmed` and names the resource
 (`cloud_runtime_resource_refs`), distinct from CI-declared correlation.
 
+> **Partly superseded by #5789.** The single global `LIMIT 200` described below
+> is no longer what the query applies. That budget is now divided across the
+> digests on the page and enforced per digest inside a `CROSS JOIN LATERAL`,
+> with freshness and authorization checked before the limit rather than after.
+> Everything else here — the query-time siting, the owner-ledger read model, the
+> one-query-per-page shape, the disproven graph index — still holds, and the
+> measurements stand as recorded for the shape #5452 shipped. See
+> [`5789-per-digest-bound.md`](5789-per-digest-bound.md).
+
 ## Change shape
 
 The runtime evidence is sourced at **query time**, not in the reducer: cloud
@@ -42,8 +51,9 @@ no graph query.
   deduplicated and capped at `supplyChainCloudRuntimeProbeMaxDigests = 200`.
   This preserves the former route's deterministic global cap and bounds both
   candidate and authorization work. Authorized rows after that cap remain
-  under-enriched rather than widening the hot path; per-digest fairness is
-  tracked in #5789.
+  under-enriched rather than widening the hot path. That global cap starved
+  every digest but the first on a skewed page, which #5789 replaced with a
+  per-digest bound.
 - **Backend/version:** PostgreSQL 18.4 for the recorded plan, index, and live
   store/handler measurements.
 - **Why safe:** migration 086 adds a strict partial expression index whose

@@ -202,8 +202,16 @@ ANALYZE fact_records;
 	if elapsed > cloudResourceListInteractiveSLO {
 		t.Fatalf("scoped hot runtime-digest duration = %s, want <= %s", elapsed, cloudResourceListInteractiveSLO)
 	}
-	want := make([]CloudResourceRuntimeDigestMatch, 0, 75)
-	for value := 1; value <= supplyChainCloudRuntimeProbeMaxResults; value += 2 {
+	// The bound counts ELIGIBLE rows since #5789, not candidates. It used to
+	// take the first 200 rows and then filter, so a scoped caller kept only the
+	// ~75 survivors -- and a caller whose grants sorted late kept none at all,
+	// which is the wrong answer the per-digest work exists to remove. The scoped
+	// caller now receives a full budget of rows it can actually see.
+	//
+	// Single digest, so the shared budget gives this page the whole
+	// supplyChainCloudRuntimeProbeMaxResults, exactly as before.
+	want := make([]CloudResourceRuntimeDigestMatch, 0, supplyChainCloudRuntimeProbeMaxResults)
+	for value := 1; len(want) < supplyChainCloudRuntimeProbeMaxResults; value += 2 {
 		if value >= 101 && value <= 150 {
 			continue
 		}
@@ -214,9 +222,10 @@ ANALYZE fact_records;
 		})
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("scoped hot runtime-digest rows = %#v, want first-200 bounded rows %#v", got, want)
+		t.Fatalf("scoped hot runtime-digest rows = %#v, want %d eligible bounded rows %#v",
+			got, supplyChainCloudRuntimeProbeMaxResults, want)
 	}
-	t.Logf("20,000-row hot runtime-digest duration = %s; candidates=200 authorized-current=%d", elapsed, len(got))
+	t.Logf("20,000-row hot runtime-digest duration = %s; eligible-bounded=%d", elapsed, len(got))
 }
 
 func cloudResourceListLiveDigest(value int) string {
