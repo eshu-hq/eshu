@@ -1,0 +1,49 @@
+# Digest-pinned grandfather ledger for the directory-size and naming gate
+# (issue #6054), mirroring the go/internal/mcp/read_surface_grandfather.go
+# and go/internal/queryplan/grandfathered_non_hot.go mechanism: a closed
+# list of the directories that were already over the 40-non-test-.go-file
+# cap when the gate landed, so the gate lands green on today's tree and new
+# sprawl fails immediately.
+#
+# This file is the single source of truth. tools/golangci-lint-dirgate/grandfather.go
+# is GENERATED from it by scripts/generate-dirgate-grandfather-go.sh (see that
+# script and scripts/test-generate-dirgate-grandfather-go.sh); scripts/lib/dirgate.sh
+# reads this file directly. Regenerate the .go file after editing this TSV.
+#
+# Columns (tab-separated): dir<TAB>file_count<TAB>digest
+#   dir        - package directory path relative to the go/ module root.
+#   file_count - the exact count of qualifying (non-test, non-generated,
+#                non-vendor, non-testdata) .go files in `dir` at the commit
+#                this row was pinned. A directory PASSES at this count or
+#                below (files may be removed freely); it FAILS the moment
+#                its live count exceeds file_count (a new file was added).
+#   digest     - sha256 hex of the sorted qualifying basenames in `dir`,
+#                newline-joined with a trailing newline, at the same commit.
+#                Used only when the live count still EQUALS file_count: it
+#                catches a same-count file swap (one file removed, a
+#                different one added) that pure counting would miss.
+#
+# The list only shrinks. Removing a row (once its directory's real,
+# unpinned count is <= 40 and every qualifying file has moved) is the
+# expected way to retire an entry -- never bump file_count upward by hand.
+# `scripts/dev/precommit-go.sh dirgate-digest <dir>` prints the count and
+# digest for a directory so you can update or drop a row honestly.
+#
+# Seeded at #6054 landing from the pre-existing tree (see #6053).
+cmd/eshu	121	4232e52ac27f72243760110cc7cfc2e5caa320ac8180020e50bd318308762fdc
+internal/collector	111	aa91a713d77db808654cec9c92705997921abb22b80435e157280e4c4a7c7d63
+internal/collector/awscloud	154	5f0ea4b0c73faae13cc03f3c05609b6a7b6befd92941cfa599b08ff5c2fae641
+internal/collector/gcpcloud	96	0cb76eb63cd133ea5dc15c2556fb64b08db61757f23372af1c0e170845858af3
+internal/coordinator	66	dc6dce18121aced9bd33abae446b846d3bf2d242a184685c30ac57417f1d7f9b
+internal/facts	45	4622f2b6b606a2878aa88dfa1b5e5916edad5ef536989b4136774e25c1367c4e
+internal/mcp	130	67990bbaa6c665cc65ad29c4df8cff861a4a39ce749334e6c1156a419d0933d8
+internal/parser	47	dc6d2390c51ca20550859d3f746a14ec3899765ea31c9a8707532c6e709d2a09
+internal/parser/golang	42	a27d65bfc9ffe3085e35e66aab932d0c361bea10ac34e407dd3300205379e039
+internal/parser/javascript	48	b6aaa1628818f74382a4b7eee937f476f991d613f624a325b930fd89aa7e437c
+internal/projector	92	d0f445bc21bde031a7495fccc0d67128197c2031af59f3dfbf4d8390ba7fb899
+internal/query	879	03ca374e94dfc7eb1d26c596e91828c9224d2d0e04e55237758e8853d9e435de
+internal/reducer	536	09b9e11ced05881e21e3bdd403d77cfbbc3f0da40e0feda78df07e51326d1b8c
+internal/status	45	c7dfe62bb4c04da7f242ba8d2a8fb744865937c103df10c5374f05df25ce9261
+internal/storage/cypher	131	eb310aa90dadf1c8bba189a65bd0c9f529c9c40a59e098789465e073f1996de7
+internal/storage/postgres	371	7fb16bb635fbe41d62b477406a15612067b01d13329b63d2c17f14ec9b76abe9
+internal/telemetry	42	b33686b92bd3c69804d61fc7ee9bc9e8ccd5a111b3b96cd74a9ea7b8d71313c9

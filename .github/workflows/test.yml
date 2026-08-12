@@ -229,6 +229,11 @@ jobs:
         working-directory: tools/golangci-lint-filelength
         run: make build
 
+      - name: Build golangci-lint dirgate plugin
+        if: ${{ !cancelled() }}
+        working-directory: tools/golangci-lint-dirgate
+        run: make build
+
       - name: Lint Go
         if: ${{ !cancelled() }}
         working-directory: go

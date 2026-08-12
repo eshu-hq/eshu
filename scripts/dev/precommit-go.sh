@@ -4,7 +4,7 @@
 # capability surface-inventory drift) so they are caught at commit time instead
 # of on GitHub.
 #
-# Usage: scripts/dev/precommit-go.sh <fmt|lint|lint-all|fmt-all|filecap|filecap-all|gosec|gosec-all|govulncheck|nancy|surface|cache-paths> [files...]
+# Usage: scripts/dev/precommit-go.sh <fmt|lint|lint-all|fmt-all|filecap|filecap-all|dirgate|dirgate-all|dirgate-digest|gosec|gosec-all|govulncheck|nancy|surface|cache-paths> [files...]
 #   lint-all / fmt-all run over the whole module (./...); the pre-pr gate
 #   (scripts/dev/pre-pr.sh) uses them to mirror CI before the first push.
 #
@@ -175,6 +175,30 @@ case "${cmd}" in
 		done
 		exit "${status}"
 		;;
+	dirgate)
+		# Directory-size and naming gate (issue #6054), changed-files variant:
+		# maps the staged files to their containing go/ package directories and
+		# evaluates each (scripts/lib/dirgate-core.sh mirrors
+		# tools/golangci-lint-dirgate exactly). No-op if nothing under go/
+		# staged.
+		bash "${repo_root}/scripts/verify-dirgate.sh" --files "$@"
+		exit "$?"
+		;;
+	dirgate-all)
+		# Whole-tree directory-size and naming gate. This no-arg variant is
+		# what the ci-gates runner invokes (see specs/ci-gates.v1.yaml
+		# go-dir-gate).
+		bash "${repo_root}/scripts/verify-dirgate.sh" --all
+		exit "$?"
+		;;
+	dirgate-digest)
+		# Human-facing helper for authoring/updating a
+		# scripts/lib/dirgate-grandfather.tsv row: prints the live count and
+		# digest for a go/-relative directory, e.g.
+		# `precommit-go.sh dirgate-digest internal/query`.
+		bash "${repo_root}/scripts/verify-dirgate.sh" --digest "${1:-}"
+		exit "$?"
+		;;
 	gosec)
 		collect_dirs "$@"
 		[[ ${#dirs[@]} -gt 0 ]] || exit 0
@@ -321,6 +345,6 @@ case "${cmd}" in
 		bash "${repo_root}/scripts/dev/nancy-local.sh" "${go_dir}" "${worktree_cache_dir}" "${bin}"
 		;;
 	*)
-		die "unknown subcommand '${cmd}' (want fmt|lint|lint-all|fmt-all|filecap|filecap-all|gosec|gosec-all|govulncheck|nancy|surface|perf-evidence|telemetry|measurement-citations|cache-paths)"
+		die "unknown subcommand '${cmd}' (want fmt|lint|lint-all|fmt-all|filecap|filecap-all|dirgate|dirgate-all|dirgate-digest|gosec|gosec-all|govulncheck|nancy|surface|perf-evidence|telemetry|measurement-citations|cache-paths)"
 		;;
 esac

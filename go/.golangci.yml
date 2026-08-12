@@ -53,6 +53,12 @@ linters:
     # ── the custom 500-line file cap (Go plugin, see settings.custom) ──
     - filelength
 
+    # ── the custom directory-size and naming gate (Go plugin, see
+    #    settings.custom). Issue #6054 / epic #6053: caps a package
+    #    directory at 40 non-test .go files and flags a file whose name
+    #    belongs in a sibling subpackage instead. ──
+    - dirgate
+
     # ── funlen: function-length cap complementing the 500-line file cap.
     #    Hard-fails any function whose body exceeds 150 lines (issue #3789).
     #    Comments and blank lines are ignored so a long doc comment does not
@@ -140,6 +146,11 @@ linters:
         path: ../tools/golangci-lint-filelength/filelength.so
         description: "Eshu 500-line file cap (AGENTS.md / CLAUDE.md)"
         original-url: github.com/eshu-hq/eshu/tools/golangci-lint-filelength
+      dirgate:
+        type: goplugin
+        path: ../tools/golangci-lint-dirgate/dirgate.so
+        description: "Eshu directory-size and naming gate (#6054)"
+        original-url: github.com/eshu-hq/eshu/tools/golangci-lint-dirgate
 
     # ── per-linter settings ──
     gocritic:

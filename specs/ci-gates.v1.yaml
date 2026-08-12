@@ -123,6 +123,32 @@ gates:
     ci_only_reason: ""
     hook_id: go-file-cap
 
+  - id: go-dir-gate
+    name: Go directory-size and naming gate
+    category: hygiene
+    tier: pre-commit
+    blocking: true
+    triggers:
+      - "go/**"
+      - "scripts/dev/precommit-go.sh"
+      - "scripts/verify-dirgate.sh"
+      - "scripts/lib/dirgate-core.sh"
+      - "scripts/lib/dirgate-grandfather.tsv"
+      - "scripts/test-verify-dirgate.sh"
+      - "scripts/generate-dirgate-grandfather-go.sh"
+      - "scripts/test-generate-dirgate-grandfather-go.sh"
+      - "tools/golangci-lint-dirgate/**"
+    local:
+      command: "bash scripts/dev/precommit-go.sh dirgate-all"
+      test_command: "bash scripts/test-verify-dirgate.sh && bash scripts/test-generate-dirgate-grandfather-go.sh"
+    ci:
+      workflow: test.yml
+      job: "go-core"
+    requirements:
+      - go
+    ci_only_reason: ""
+    hook_id: go-dir-gate
+
   - id: package-docs
     name: Go package docs coverage
     category: hygiene
