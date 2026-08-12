@@ -92,12 +92,31 @@ type parsedGoFile struct {
 // *reads* off the decoded value, so the gate can flag a field a handler reads
 // that the declared schema does not cover — Contract System v1 §6 enforcement
 // gate 2's reverse-break check.
+//
+// PACKAGE ISOLATION: the recursive walk can pull files from more than one Go
+// package into parsedFiles (root reducerDir plus any subpackage). Wrapper
+// structs (case 3 above) are derived separately per package directory
+// (scanPackageGroup/groupByPackageDir), because Go permits two distinct
+// packages to declare a type with the identical name, and folding every
+// parsed file into one shared, unqualified-type-name-keyed map let one
+// package's wrapper silently overwrite another's. A decode function's bare
+// name, by contrast, is legitimately meant to be recognized across packages
+// (a subpackage handler calling the one canonical seam declared at the
+// root is exactly the case recursion exists to support) — so decodeFuncs
+// itself stays a single global set, but effectiveDecodeFuncs additionally
+// drops a name, per package, when that package ALSO locally declares its own
+// validly decode-shaped function of the same name returning a DIFFERENT
+// struct: a coincidental, unrelated same-named function must not satisfy the
+// real seam's binding for that package's own call sites (review finding on
+// #6080).
 func ScanDecodeUsage(reducerDir string, seams []DecodeSeam) (map[string][]FieldUsage, error) {
 	decodeFuncs := make(map[string]struct{}, len(seams))
 	structToFunc := make(map[string]string, len(seams)) // qualified struct -> decode func name
+	funcToStruct := make(map[string]string, len(seams)) // decode func name -> qualified struct
 	for _, s := range seams {
 		decodeFuncs[s.FuncName] = struct{}{}
 		structToFunc[s.QualifiedStruct()] = s.FuncName
+		funcToStruct[s.FuncName] = s.QualifiedStruct()
 	}
 
 	parsedFiles, err := parseReducerDir(reducerDir)
@@ -105,25 +124,9 @@ func ScanDecodeUsage(reducerDir string, seams []DecodeSeam) (map[string][]FieldU
 		return nil, err
 	}
 
-	// Wrapper structs (a local struct with a field typed as a seam struct) are
-	// derived once for the whole directory, since a type declared in one file
-	// is used across the package's handler files.
-	wrappers := wrapperSeamFields(parsedFiles, structToFunc)
-
 	usage := map[string][]FieldUsage{}
-	for _, pf := range parsedFiles {
-		for _, decl := range pf.file.Decls {
-			fn, ok := decl.(*ast.FuncDecl)
-			if !ok || fn.Body == nil {
-				continue
-			}
-			boundTo := boundIdentifiers(fn, decodeFuncs, structToFunc)
-			wrapperBound := wrapperBoundIdentifiers(fn, wrappers)
-			if len(boundTo) == 0 && len(wrapperBound) == 0 {
-				continue
-			}
-			recordFieldReads(fn.Body, pf.name, boundTo, wrapperBound, wrappers, usage)
-		}
+	for _, group := range groupByPackageDir(parsedFiles) {
+		scanPackageGroup(group, decodeFuncs, structToFunc, funcToStruct, usage)
 	}
 
 	for funcName := range usage {
@@ -136,6 +139,105 @@ func ScanDecodeUsage(reducerDir string, seams []DecodeSeam) (map[string][]FieldU
 		})
 	}
 	return usage, nil
+}
+
+// groupByPackageDir partitions parsedFiles by the directory portion of each
+// file's path relative to the scanned root — the standard Go convention of
+// one package per directory. Grouping this way (rather than by the file's
+// declared `package` clause, which a malformed or deliberately-mismatched
+// fixture could spoof) gives scanPackageGroup an isolation boundary that
+// matches the boundary the Go compiler itself enforces: two files under the
+// same directory are always the same package, and two files under different
+// directories are never accidentally folded together. Group keys are sorted
+// for deterministic iteration; the final usage map is sorted again in
+// ScanDecodeUsage regardless, so this only makes intermediate processing
+// order reproducible for debugging, not a correctness requirement.
+func groupByPackageDir(parsedFiles []parsedGoFile) [][]parsedGoFile {
+	byDir := map[string][]parsedGoFile{}
+	for _, pf := range parsedFiles {
+		dir := filepath.Dir(pf.name)
+		byDir[dir] = append(byDir[dir], pf)
+	}
+	dirs := make([]string, 0, len(byDir))
+	for dir := range byDir {
+		dirs = append(dirs, dir)
+	}
+	sort.Strings(dirs)
+	groups := make([][]parsedGoFile, 0, len(dirs))
+	for _, dir := range dirs {
+		groups = append(groups, byDir[dir])
+	}
+	return groups
+}
+
+// scanPackageGroup runs the wrapper-derivation and field-read passes against
+// one package's files only, appending any findings into usage. Confining both
+// passes to a single package group is what prevents a same-named wrapper
+// struct or decode-shaped function in one package from clobbering or
+// satisfying another package's entry (see ScanDecodeUsage's PACKAGE ISOLATION
+// doc).
+func scanPackageGroup(files []parsedGoFile, decodeFuncs map[string]struct{}, structToFunc, funcToStruct map[string]string, usage map[string][]FieldUsage) {
+	localDecodeFuncs := effectiveDecodeFuncs(files, decodeFuncs, funcToStruct)
+	wrappers := wrapperSeamFields(files, structToFunc)
+
+	for _, pf := range files {
+		for _, decl := range pf.file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Body == nil {
+				continue
+			}
+			boundTo := boundIdentifiers(fn, localDecodeFuncs, structToFunc)
+			wrapperBound := wrapperBoundIdentifiers(fn, wrappers)
+			if len(boundTo) == 0 && len(wrapperBound) == 0 {
+				continue
+			}
+			recordFieldReads(fn.Body, pf.name, boundTo, wrapperBound, wrappers, usage)
+		}
+	}
+}
+
+// effectiveDecodeFuncs returns the subset of decodeFuncs safe to bind within
+// one package group: a name is dropped when the group ITSELF locally declares
+// a same-named function that also has a valid decode-seam shape (a single
+// facts.Envelope-shaped parameter and a (<pkg>.<Struct>, error) result, the
+// same shape decodeFuncReturnType recognizes for ParseDecodeSeams) but
+// returns a DIFFERENT qualified struct than the real seam. Go permits two
+// distinct packages to declare a function with the identical name and a
+// genuinely different, also-valid decode-shaped signature; without this
+// check, that package's own unrelated decode-shaped function would satisfy
+// the real seam's binding and misattribute its field reads.
+//
+// A local declaration that does not parse as a valid decode-seam shape at all
+// (an unqualified return type, the wrong parameter count, and so on) is NOT
+// treated as a conflict: it is not a "valid" same-named decode helper, and
+// excluding it would also break the ordinary cross-package call-site pattern
+// the recursive walk exists to support — a handler in one package legitimately
+// calling the canonical seam declared in another.
+func effectiveDecodeFuncs(files []parsedGoFile, decodeFuncs map[string]struct{}, funcToStruct map[string]string) map[string]struct{} {
+	effective := make(map[string]struct{}, len(decodeFuncs))
+	for name := range decodeFuncs {
+		effective[name] = struct{}{}
+	}
+	for _, pf := range files {
+		for _, decl := range pf.file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Recv != nil {
+				continue
+			}
+			wantStruct, isSeamName := funcToStruct[fn.Name.Name]
+			if !isSeamName {
+				continue
+			}
+			gotPkg, gotName, ok := decodeFuncReturnType(fn)
+			if !ok {
+				continue
+			}
+			if gotPkg+"."+gotName != wantStruct {
+				delete(effective, fn.Name.Name)
+			}
+		}
+	}
+	return effective
 }
 
 // parseReducerDir parses every non-test *.go file under dir at any depth and
