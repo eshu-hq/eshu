@@ -160,3 +160,33 @@ that script's `stripped_config`, for the same cross-machine toolchain
 reason); local enforcement instead runs through the `dirgate` /
 `dirgate-all` bash subcommands, which mirror `evaluateDirectory`'s rules
 directly rather than depending on a matched Go toolchain.
+
+## The cap escape hatch does not apply to grandfathered directories
+
+`//nolint:dirgate // <reason>` on a directory's representative file suppresses
+the **cap for that whole directory**, not for one file. On a directory with a
+row in `scripts/lib/dirgate-grandfather.tsv` that would be a hole rather than an
+exemption: one marker on `internal/query/doc.go` un-gates 880 files, silently
+and for good.
+
+So both implementations refuse it there. `grandfather_eval.go` reports the cap
+finding regardless of any marker when the directory has a ledger row, and
+`scripts/lib/dirgate-core.sh` mirrors that, with a message naming the real exit.
+Tests pin the behaviour on both sides
+(`TestEvaluateDirectoryGrandfatheredCapNolintIsRefused`, and
+`test_grandfathered_cap_nolint_is_refused` in `scripts/test-verify-dirgate.sh`).
+
+A grandfathered directory over its pin has two exits:
+
+- **Split it into a subpackage.** The right answer, and the one the epic is
+  built around. Note it does not compile yet for `query`, `reducer`, `projector`
+  or `mcp` — the acyclic-boundary prerequisite in
+  `docs/internal/design/package-restructure.md` has to land first.
+- **Bump its row, in a reviewed commit.** Legitimate only to absorb growth that
+  reached main before the gate could enforce there. Never to absorb a file the
+  same change is adding. The rules are written at the top of the ledger.
+
+The naming rule has no such carve-out: it is pinned per file in
+`dirgate-naming-exempt.tsv`, and a `//nolint:dirgate` on a specific file
+suppresses only that file, which is a proportionate exemption rather than a
+directory-wide one.

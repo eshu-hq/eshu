@@ -267,7 +267,21 @@ dirgate_evaluate_dir() {
 	if (( cap_violates == 1 )); then
 		local rep
 		rep="$(dirgate_representative_file "${files[@]:-}")"
-		if ! dirgate_nolint_justified "${dir}/${rep}" "${DIRGATE_NAME}"; then
+		# Mirrors evaluateCapViolation's caller in grandfather_eval.go: a cap
+		# nolint sits on the directory's representative file and suppresses the
+		# cap for EVERY file in that directory, indefinitely. One marker on
+		# internal/query's doc.go would un-gate 880 files for good, and "split it
+		# into a subpackage" does not compile for query, reducer, projector or
+		# mcp until the acyclic boundary lands. A grandfathered directory's only
+		# exit is a reviewed pin bump in dirgate-grandfather.tsv, which a
+		# reviewer can see as a one-line diff.
+		if [[ -n "${pinned_count}" ]]; then
+			local msg="package directory ${dirkey} has ${count} non-test .go files, exceeding the ${DIRGATE_MAX_FILES}-file cap"
+			[[ -n "${cap_note}" ]] && msg="${msg} (${cap_note})"
+			msg="${msg}; this directory is grandfathered, so //nolint:${DIRGATE_NAME} will NOT suppress it -- split it into a subpackage, or bump its row in scripts/lib/dirgate-grandfather.tsv in a reviewed commit"
+			printf '%s\n' "${msg}" >&2
+			exit_status=1
+		elif ! dirgate_nolint_justified "${dir}/${rep}" "${DIRGATE_NAME}"; then
 			local msg="package directory ${dirkey} has ${count} non-test .go files, exceeding the ${DIRGATE_MAX_FILES}-file cap"
 			[[ -n "${cap_note}" ]] && msg="${msg} (${cap_note})"
 			msg="${msg}; split it into a subpackage, or add //nolint:${DIRGATE_NAME} // <reason> to ${dirkey}/${rep}'s package line"

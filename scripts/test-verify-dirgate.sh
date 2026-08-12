@@ -215,6 +215,39 @@ test_moving_the_file_turns_naming_green() {
 # (d) Grandfathered directory is GREEN at its pinned count; adding one file
 #     goes RED.
 # ---------------------------------------------------------------------------
+# A cap nolint sits on the directory's representative file and would suppress the
+# cap for the whole directory forever. On a grandfathered directory that is the
+# hollow-out path: one marker on internal/query's doc.go un-gates 880 files, and
+# "split it into a subpackage" does not compile for query/reducer/projector/mcp
+# until the acyclic boundary lands. So the hatch must be refused there.
+test_grandfathered_cap_nolint_is_refused() {
+	local repo tsv digest
+	repo="$(new_scratch_repo)"
+	write_numbered_files "${repo}/go/internal/legacy" 45
+	local -a bases=()
+	local p
+	for p in "${repo}"/go/internal/legacy/*.go; do
+		bases+=("$(basename "${p}")")
+	done
+	digest="$(dirgate_digest "${bases[@]:-}")"
+
+	tsv="${repo}/grandfather.tsv"
+	printf '# scratch\ninternal/legacy\t45\t%s\n' "${digest}" > "${tsv}"
+	DIRGATE_GRANDFATHER_TSV_OVERRIDE="${tsv}"
+
+	# Grow past the pin, then try to buy it off with a fully justified marker on
+	# the representative file -- the exact move that would work on a
+	# non-grandfathered directory.
+	write_numbered_files "${repo}/go/internal/legacy" 46
+	local rep="${repo}/go/internal/legacy/file0000.go"
+	printf 'package legacy //nolint:dirgate // 46 files, splitting is blocked on the acyclic boundary\n' > "${rep}"
+
+	run_dirgate "${repo}" --files go/internal/legacy/file0045.go
+	assert_exit "${DIRGATE_EXIT}" 1 "a justified cap //nolint:dirgate does NOT suppress a grandfathered directory"
+	assert_contains "${DIRGATE_OUT}" "will NOT suppress it" "refusal explains that nolint is not an exit here"
+	assert_contains "${DIRGATE_OUT}" "dirgate-grandfather.tsv" "refusal names the reviewed pin bump as the exit"
+}
+
 test_grandfathered_directory() {
 	local repo tsv digest
 	repo="$(new_scratch_repo)"
@@ -403,6 +436,7 @@ main() {
 	test_splitting_turns_cap_green
 	test_moving_the_file_turns_naming_green
 	test_grandfathered_directory
+	test_grandfathered_cap_nolint_is_refused
 	test_naming_exempt_new_violation_below_pinned_count_is_red
 	test_naming_exempt_pinned_file_stays_green
 	test_naming_exempt_stale_row_hard_fails

@@ -371,3 +371,36 @@ func TestEvaluateDirectoryMissingDirReturnsError(t *testing.T) {
 		t.Fatal("evaluateDirectory on a missing directory returned nil error")
 	}
 }
+
+// TestEvaluateDirectoryGrandfatheredCapNolintIsRefused pins the rule that a cap
+// nolint cannot buy off a grandfathered directory. The marker goes on the
+// directory's representative file and would suppress the cap for every file in
+// it, indefinitely — one marker on internal/query's doc.go un-gates 880 files.
+// The "split it into a subpackage" alternative does not compile for query,
+// reducer, projector or mcp until the acyclic boundary lands, so refusing the
+// hatch here leaves the reviewed pin bump as the only exit, and a pin bump is a
+// one-line ledger diff a reviewer can see.
+func TestEvaluateDirectoryGrandfatheredCapNolintIsRefused(t *testing.T) {
+	dir := t.TempDir()
+	files := numberedFiles(maxDirFiles + 6)
+	writeGoFiles(t, dir, files...)
+	// Pin BELOW the live count, so the directory is over its pin.
+	gf := map[string]grandfatherEntry{
+		"test/pinned": {FileCount: maxDirFiles + 5, Digest: "stale-digest"},
+	}
+	// A fully justified marker on the representative file — the move that works
+	// on a directory with no ledger row.
+	rep := representativeFile(files)
+	marker := "package fixture //nolint:dirgate // splitting is blocked on the acyclic boundary\n"
+	if err := os.WriteFile(filepath.Join(dir, rep), []byte(marker), 0o600); err != nil {
+		t.Fatalf("write nolint marker on %s: %v", rep, err)
+	}
+
+	got, err := evaluateDirectory("test/pinned", dir, gf)
+	if err != nil {
+		t.Fatalf("evaluateDirectory: %v", err)
+	}
+	if len(got) == 0 {
+		t.Fatal("findings = none; a justified cap nolint must NOT suppress a grandfathered directory, or one marker silently un-gates the whole directory forever")
+	}
+}

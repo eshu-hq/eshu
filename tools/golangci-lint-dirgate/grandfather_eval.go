@@ -93,7 +93,19 @@ func evaluateDirectory(key, dir string, grandfather map[string]grandfatherEntry)
 
 	if capViolates {
 		rep := representativeFile(files)
-		if _, justified := nolintJustification(filepath.Join(dir, rep), gateName); !justified {
+		// A cap nolint goes on the directory's representative file and would
+		// suppress the cap for EVERY file in that directory, indefinitely. On a
+		// grandfathered directory that is catastrophic: one marker on
+		// internal/query's doc.go un-gates 880 files for good, and the "split it
+		// into a subpackage" exit does not even compile for query, reducer,
+		// projector or mcp until the acyclic boundary lands (see the Part 3
+		// prerequisite in docs/internal/design/package-restructure.md). So the
+		// escape hatch is refused here: a grandfathered directory's only exit is
+		// a reviewed pin bump, which shows up as a one-line TSV diff a reviewer
+		// can see and argue with.
+		if grandfathered {
+			out = append(out, finding{File: rep, Message: capMessage(key, count, capNote)})
+		} else if _, justified := nolintJustification(filepath.Join(dir, rep), gateName); !justified {
 			out = append(out, finding{File: rep, Message: capMessage(key, count, capNote)})
 		}
 	}
