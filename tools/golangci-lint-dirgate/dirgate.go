@@ -81,11 +81,29 @@ func run(pass *analysis.Pass) (any, error) {
 	for _, f := range findings {
 		pos, ok := byBase[f.File]
 		if !ok {
-			// The finding names a file golangci-lint did not load as part
-			// of this package pass (can happen for build-tag-excluded
-			// files during a directory listing); report it against any
-			// loaded file instead of dropping it silently.
-			pos = anyPos(byBase)
+			// Report ONLY against the file the finding actually names.
+			//
+			// go/analysis runs this once per go/packages variant of a
+			// directory -- the production package, the internal test
+			// variant, and the external _test package -- and all three
+			// share the same real dir, so evaluateDirectory returns the
+			// same findings each time while byBase holds only that
+			// variant's files. Reporting against an arbitrary loaded file
+			// when the named one is absent produced both triplicate
+			// findings and, observed in CI on this branch, the message
+			// "discovery_advisory.go should move into the sibling
+			// subpackage" attributed to emit_bench_cases_test.go. For a
+			// gate whose message tells you which file to move, naming the
+			// wrong file is worse than staying quiet in the variant that
+			// cannot see it: the variant that owns the file still reports
+			// it, so the finding is not lost.
+			//
+			// A file no variant loads (build-tag-excluded, say) is not
+			// reported by the plugin at all. That is acceptable because
+			// scripts/lib/dirgate-core.sh is the authoritative
+			// implementation and reads the directory directly; it runs in
+			// CI and in the pre-commit and pre-pr lanes.
+			continue
 		}
 		pass.Report(analysis.Diagnostic{Pos: pos, Message: f.Message})
 	}
@@ -111,13 +129,6 @@ func packageFilePositions(pass *analysis.Pass) (dir string, byBase map[string]to
 		byBase[filepath.Base(p.Filename)] = f.Pos()
 	}
 	return dir, byBase
-}
-
-func anyPos(byBase map[string]token.Pos) token.Pos {
-	for _, p := range byBase {
-		return p
-	}
-	return token.NoPos
 }
 
 // skipDir reports whether dir (or an ancestor path segment) is a tree the
