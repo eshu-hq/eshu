@@ -30,7 +30,7 @@ const openAPIPathsAdmin = `
       "post": {
         "tags": ["admin"],
         "summary": "Recover wedged generations",
-        "description": "Operator escape hatch for generations that wedge active without advancing past canonical-nodes-committed, and the disaster-recovery entry point for rebuilding the graph from preserved Postgres facts. Durably re-enqueues projector work through the same Go work queue refinalize uses (re-driving reduce -> readiness -> projection over existing facts, no re-clone) and records the action in the admin_replay_requests ledger. Send either scope_ids or all_scopes, never both. all_scopes re-enqueues every active scope holding an active generation, which is what a graph rebuild after a Postgres restore needs. Requires an explicit reason and idempotency_key and an admin (all-scopes) token. Duplicate delivery of the same idempotency_key returns the prior outcome (duplicate=true) instead of re-enqueuing; a key reused across the two modes conflicts.",
+        "description": "Operator escape hatch for generations that wedge active without advancing past canonical-nodes-committed, and the disaster-recovery entry point for rebuilding the graph from preserved Postgres facts. Durably re-enqueues projector work through the same Go work queue refinalize uses (re-driving reduce -> readiness -> projection over existing facts, no re-clone) and records the action in the admin_replay_requests ledger. Send either scope_ids or all_scopes, never both. all_scopes re-enqueues every active scope holding an active generation, which is what a graph rebuild after a Postgres restore needs. Requires an explicit reason and idempotency_key and an admin (all-scopes) token. Duplicate delivery of the same idempotency_key returns the prior outcome (duplicate=true) instead of re-enqueuing; a key reused across the two modes conflicts. In the same transaction it clears the dedup state for exactly those generations - succeeded reducer work items, completed shared projection intents, and graph projection phase rows - because all three outlive a graph wipe and would otherwise tell the pipeline the work is already done, leaving the rebuild stuck at source-local structure.",
         "requestBody": {
           "required": true,
           "content": {
@@ -49,7 +49,7 @@ const openAPIPathsAdmin = `
           }
         },
         "responses": {
-          "200": {"description": "Recovery request results (duplicate=true when an idempotent prior outcome is returned)"},
+          "200": {"description": "Recovery request results (duplicate=true when an idempotent prior outcome is returned). Alongside status, enqueued, and scope_ids, reports the dedup state cleared so the re-projection rebuilds the whole graph rather than only its source-local layer: reducer_work_deleted, shared_intents_reopened, and readiness_phases_cleared. After a graph wipe all three should be non-zero."},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"description": "Recovery requires an admin (all-scopes) token"},
           "409": {"description": "Idempotency key already in progress or reused with different scope_ids"},

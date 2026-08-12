@@ -195,23 +195,96 @@ The mapping to the missing structure is one-to-one:
 Every missing family belongs to a domain that did not re-run. No missing family
 belongs to a domain that did.
 
-## What this does not establish
+## The fix: reset the dedup state a rebuild has to get past
 
-The diagnosis stops at "these domains were not re-enqueued". It does not say why
-five domains are re-enqueued by a re-projection and twelve are not. The two
-candidate mechanisms — the projector's post-commit fan-out covering only some
-domains, versus a dedup that treats an existing `succeeded` row as work already
-done — were not separated here, and separating them is the first step of a fix.
+Three pieces of Postgres state outlive a graph wipe, and each one tells the
+pipeline the work is already done.
 
-Nor does this establish that re-enqueueing the other twelve would be safe or
-cheap. Forcing every materializer to re-run for every scope on every refinalize
-changes both the cost and the concurrency profile of a routine recovery
-operation, not only a disaster one. That trade needs an owner and its own
-measurement before anyone writes code.
+1. **Succeeded reducer work items.** Re-projection re-derives the intents, but
+   `ON CONFLICT (work_item_id) DO NOTHING` drops each one against its succeeded
+   row.
+2. **Shared projection intents with `completed_at` set.** The partition workers
+   drain only `completed_at IS NULL`, and the upsert's `COALESCE` never reopens
+   a completed row.
+3. **Graph projection phase rows.** They assert canonical nodes are committed.
+   After a wipe that is false, and the edge Cypher is `MATCH`-only, so work
+   admitted on that stale answer matches nothing, writes nothing, and still acks
+   `succeeded`.
 
-The comparison is count equivalence per label and per relationship type, not the
-canonical byte-identity #4594 asks for. It catches a family that disappeared. It
-would not catch a property whose value changed while cardinality held.
+Both dedup guards are left byte-identical — `git diff origin/main` shows no
+change to `reducer_queue.go` or `shared_intents_upsert.go`. They are correct for
+ordinary operation, where every shard drain, reopen, and retry depends on
+completed work staying completed. The reset instead lives in
+`RecoveryStore.RefinalizeScopeProjections`, scoped to the generations that
+refinalize is rebuilding, in the same transaction as the projector re-enqueue.
+All four statements render one shared affected-generation subquery, so they
+cannot disagree about which scopes are in scope.
+
+The reducer rows are **deleted**, not reset to `pending`. Two reasons. A pending
+row is claimable immediately, before the projector re-run that owns its inputs
+has committed anything, so a handler could write into a wiped graph and ack
+succeeded — the same silent incompleteness the change exists to fix. And a blind
+status rewrite fails outright:
+
+```text
+ERROR:  new row for relation "fact_work_items" violates check constraint
+        "fact_work_items_container_image_identity_v2_status_check"
+```
+
+That constraint ties `status` to `container_image_identity_v2_authorized_status`,
+a coupled column family a status-only reset does not carry. Deleting restores
+first-ingest causality: the work exists again only once its producer has run.
+
+The delete is scoped to `succeeded`. Claimed and running rows hold live leases a
+rebuild must not yank; `dead_letter` and `failed` rows belong to the replay
+endpoint and contributed nothing to the pre-wipe graph.
+
+### The premise this rests on, checked
+
+Deleting is only safe if re-projection re-derives the complete reducer catalog.
+If any domain's intents came from somewhere else, deleting would lose it with
+nothing to re-insert — strictly worse than the bug. Measured directly: delete
+every succeeded reducer row for the active generations, refinalize, drain, and
+compare the catalog per domain. All seventeen domains came back, sixteen at
+exactly their prior row count. Only `eshu_search_document` differed (133 → 66),
+and it accumulates per run rather than converging on a fixed count; it owns no
+graph nodes or edges in the missing set.
+
+## What the fix restores
+
+| Metric | Pre-wipe | Before the fix | After the fix |
+| --- | ---: | ---: | ---: |
+| Nodes | 2,504 | 2,431 | 2,499 |
+| Relationships | 3,289 | 2,905 | 3,263 |
+| `CALLS` | 116 | 0 | 115 |
+| `INHERITS` | 36 | 0 | 36 |
+| `REFERENCES` | 33 | 0 | 33 |
+| `CONTAINS` | 2,368 | 2,288 | 2,368 |
+
+The missing set drops from 73 nodes and 384 relationships to 5 and 26.
+
+## Cost
+
+Clearing the dedup state takes a rebuild from re-driving a few hundred rows to
+re-driving the whole catalog.
+
+| Measure | Before the fix | After the fix |
+| --- | ---: | ---: |
+| `graph_rebuild_seconds` | 15 s | 25 s |
+| Reducer rows re-driven | 335 (new rows only) | 1,034 (deleted and re-derived) |
+| Shared intents re-drained | 0 | 586 |
+| Readiness phase rows cleared | 0 | 609 |
+| Load average at completion | 2.41 | 5.19 |
+
+Read that as indicative, not controlled. The two runs sat at different machine
+loads (2.41 against 5.19 on 12 CPUs), so some of the 10-second difference is the
+machine rather than the change. The direction is not in doubt — roughly three
+times the reducer work and 586 shared intents that previously did nothing — but
+anyone quoting a precise multiplier from these two numbers is over-reading them.
+
+The cost lands only on refinalize. Ordinary indexing, shard drains, reopens, and
+retries are untouched, which is the whole reason the reset is scoped to the
+recovery path instead of the guards.
 
 ## Reproducing
 
