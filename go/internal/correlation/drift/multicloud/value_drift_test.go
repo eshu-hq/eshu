@@ -68,3 +68,55 @@ func TestBuildCandidatesSurfacesAWSValueDriftThroughMultiCloudPath(t *testing.T)
 		t.Fatalf("candidate evidence missing %q", cloudruntime.EvidenceTypeObservedValue)
 	}
 }
+
+// TestBuildCandidatesNamesDegradedAttributeOnDriftThroughMultiCloudPath is the
+// route-parity guard for #5861.
+//
+// Both candidate builders promise the same thing to the read model: a finding
+// names the comparables it could not read. The AWS route and this one build
+// their evidence independently, so the rule lives in
+// cloudruntime.ValueComparisonGapAttributes and both call it. A second copy of
+// the kind switch here is exactly how the two routes would start describing the
+// same finding differently -- silently, since each route's own tests would stay
+// green.
+func TestBuildCandidatesNamesDegradedAttributeOnDriftThroughMultiCloudPath(t *testing.T) {
+	t.Parallel()
+
+	arn := "arn:aws:lambda:us-east-1:123456789012:function:app"
+	rows := []Row{{
+		Provider:    cloudinventory.ProviderAWS,
+		RawIdentity: arn,
+		ScopeID:     "aws:123456789012:us-east-1:lambda",
+		Cloud: &cloudruntime.ResourceRow{
+			ARN:          arn,
+			ResourceType: "lambda.function",
+			Attributes:   map[string]string{"image_uri": "acct.dkr.ecr.us-east-1.amazonaws.com/app:v2", "version": "7"},
+		},
+		State: &cloudruntime.ResourceRow{
+			ARN:                arn,
+			ResourceType:       "aws_lambda_function",
+			Address:            "module.app.aws_lambda_function.app",
+			Attributes:         map[string]string{"version": "9"},
+			DegradedAttributes: []string{"image_uri"},
+		},
+		Config: &cloudruntime.ResourceRow{ARN: arn, ResourceType: "aws_lambda_function"},
+	}}
+
+	candidates := BuildCandidates(rows, "multi")
+	if len(candidates) != 1 {
+		t.Fatalf("BuildCandidates() = %d candidates, want 1", len(candidates))
+	}
+	if got := FindingKindFromCandidate(candidates[0]); got != string(cloudruntime.FindingKindImageVersionDrift) {
+		t.Fatalf("finding kind = %q, want %q", got, cloudruntime.FindingKindImageVersionDrift)
+	}
+
+	var gaps []string
+	for _, atom := range candidates[0].Evidence {
+		if atom.EvidenceType == cloudruntime.EvidenceTypeCoverageGap {
+			gaps = append(gaps, atom.Value)
+		}
+	}
+	if len(gaps) != 1 || gaps[0] != "comparable_attribute:image_uri" {
+		t.Fatalf("coverage-gap atoms = %#v, want [comparable_attribute:image_uri]", gaps)
+	}
+}

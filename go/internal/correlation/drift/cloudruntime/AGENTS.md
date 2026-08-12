@@ -35,11 +35,13 @@
   early-return to `Classify`, decide which of the two it is.
 - `ValueComparison.Inconclusive()` is the only condition permitted to produce
   that kind: the resource type IS covered (`Comparable` non-empty) and NOT ONE
-  comparison ran (`Compared` empty). Widening it to "some comparison failed"
-  would put a finding on every zip-packaged Lambda. When a comparable is
-  unusable rather than missing, suppress the whole scalar set at the LOADER
-  instead — see the README's unreadable-versus-absent section (#5859/#5904 for
-  redaction, #5861 for an unobservable `image_uri`).
+  comparison ran (`Compared` empty) OR a covered comparable was UNREADABLE
+  (`Degraded` non-empty). Never widen it to "some comparison failed": absence
+  is not degradation, and that widening would put a finding on every
+  zip-packaged Lambda. The readable-versus-unreadable call is the LOADER's —
+  this package only consumes `ResourceRow.DegradedAttributes` — see the
+  README's unreadable-versus-absent section (#5859/#5904 for redaction, #5861
+  for an unobservable `image_uri` and the per-attribute rule).
 - `ContainerImageExtractionResult.Degraded` means the source carried a value
   that could not be read; absent evidence leaves it false. Do not collapse the
   two — the loaders raise `container_images_unreadable` off it.
@@ -92,3 +94,7 @@
 - The existence-findings-before-value-drift precedence in `Classify`.
 - The convergence-versus-inconclusive split, which the retire's correctness
   depends on (#5837).
+- `ValueComparisonGapAttributes` — the kind-to-attribute rule for
+  `missing_evidence`. The multicloud candidate builder calls it too; a second
+  copy of that switch lets the two routes describe the same finding
+  differently (#5861).

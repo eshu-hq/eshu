@@ -387,7 +387,9 @@ func TestGoldenSnapshotCoversEveryMCPTool(t *testing.T) {
 		}
 	}
 	for name := range snap.QueryShapes.MCP {
-		if !mcpToolExists(name) {
+		// A key may carry a "?assert=<slug>" suffix so one tool can be asserted
+		// against two scopes; the tool that must exist is the part before it.
+		if !mcpToolExists(mcpToolName(name)) {
 			t.Errorf("query_shapes.mcp has stale tool %s", name)
 		}
 	}

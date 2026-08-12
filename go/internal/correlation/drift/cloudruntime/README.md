@@ -91,7 +91,11 @@ comparisons, `Classify` returns `value_comparison_inconclusive` instead --
 a durable finding whose `management_status` is `unknown_management`, whose
 `missing_evidence` names each uncomparable attribute as
 `comparable_attribute:<key>`, and whose recommended action is
-`expand_collector_coverage_or_permissions`.
+`expand_collector_coverage_or_permissions`. It fires on one more shape too: a
+pass whose comparisons all AGREED while a covered comparable was unreadable
+(#5861, below). A comparison that ran and disagreed outranks both -- that is
+`image_version_drift`, which carries its `declared_`/`observed_` pair plus a
+`comparable_attribute:<key>` gap for anything it could not read.
 
 That path is reachable, though the widest route into it is now closed. The
 terraform-state collector fail-closed-redacts scalar attributes whenever
@@ -115,36 +119,53 @@ A resource type with no allowlist entry, and which is not the ECS task
 definition, is NOT covered and never becomes inconclusive: it has nothing to
 compare by design, so it still converges.
 
-### Unreadable versus absent, and how one-of-two is resolved for `image_uri` (#5861)
+### Unreadable versus absent, and the partially comparable pair (#5861)
 
-`value_comparison_inconclusive` fires only when NOT ONE comparison succeeded, so
-a covered two-attribute type is the hard case: if one comparable is unusable
-while the other compares equal, the pass has one successful comparison, is
-therefore a verdict of "converged", and the retire deletes a drift that exists
-in reality.
+A covered two-attribute type is the hard case. If one comparable is unusable
+while the other compares equal, the pass has one successful comparison — which,
+read naively, is a verdict of "converged", and the retire then deletes a drift
+that exists in reality.
 
-Two rules close that **for `image_uri`** — not for the covered-attribute class,
-which still has an uncovered shape recorded at the end of this section — both
-applied at the loader boundary
-(`go/internal/storage/postgres/aws_cloud_runtime_drift_value_attributes.go`)
-rather than by widening `Inconclusive()`:
+Two things have to be true at once for that pair, and they pull in opposite
+directions. The pass must not converge, or a real finding is destroyed. And the
+comparison that DID run must keep its verdict, or a real drift is restated as
+uncertainty and an operator querying `image_version_drift` sees nothing on a
+demonstrably drifted resource.
 
-- **Redacted (#5859/#5904).** A redaction marker on ANY allowlisted comparable
-  suppresses that resource type's WHOLE scalar set, so `Compared` drops to 0
-  and the pair reports uncertainty on a durable row.
-- **Unobservable (#5861).** Absence alone must NOT suppress — `image_uri` is
-  legitimately absent for every zip-packaged Lambda, and suppressing on absence
+Both are satisfied by making the distinction per attribute rather than per set:
+
+1. **The loader decides readable versus unreadable**, at
+   `go/internal/storage/postgres/aws_cloud_runtime_drift_value_attributes.go`,
+   because only it can see the encodings — a `redact.Value` marker, or the
+   `package_type` completeness contradiction below. An unreadable key is left
+   out of `ResourceRow.Attributes` and named in `ResourceRow.DegradedAttributes`.
+2. **`ClassifyValueComparison` counts them separately.** `Uncomparable` holds
+   every key that went uncompared; `Degraded` holds the subset a side reported
+   as unreadable. Absence lands in the first only.
+3. **`Inconclusive()` keys on degradation, and drift outranks it.**
+   `Compared == 0 || len(Degraded) > 0` declines convergence, so the retire can
+   never delete on a partial pass — but `Classify` checks `Drifted` first, so a
+   comparison that ran and disagreed is still reported as the drift it is, with
+   its `declared_`/`observed_` evidence, plus a coverage-gap atom naming the
+   attribute that could not be read.
+
+The two unreadable signals the loader recognizes:
+
+- **Redacted (#5859/#5904).** A redaction marker on an allowlisted comparable.
+  The value never reaches `Attributes` as a string: `coerceJSONString` has no
+  redaction concept and would render the marker map into a garbage string that
+  compares unequal to everything.
+- **Unobservable (#5861).** Absence alone must NOT count — `image_uri` is
+  legitimately absent for every zip-packaged Lambda, and degrading on absence
   would put a finding on most functions in a corpus. `package_type`
   distinguishes the two: it is a real `aws_lambda_function` attribute that the
   AWS collector already emits, so `package_type == "Image"` with no `image_uri`
-  is a side that did not carry the image, not a resource that has none. That
-  combination suppresses the set; zip-packaged functions are untouched by
-  construction.
+  is a side that did not carry the image, not a resource that has none.
+  Zip-packaged functions are untouched by construction.
 
   The rule applies to the observed AND the declared decoder, because the
-  destructive outcome does not care which side was unreadable — whichever one
-  is missing, `Compared` falls to 1 of 2 and the pass converges. On the
-  observed side the shape comes from the AWS client's defensive fallback to a
+  destructive outcome does not care which side was unreadable. On the observed
+  side the shape comes from the AWS client's defensive fallback to a
   `ListFunctions` configuration, which carries `PackageType` but no `Code`
   block. On the declared side, Terraform requires `image_uri` when
   `package_type` is `Image`, so a state row asserting `Image` with none is an
@@ -154,10 +175,21 @@ rather than by widening `Inconclusive()`:
 `valueAttributeAllowlist`: adding it would turn an out-of-band Image-to-Zip
 repackaging into a real `image_version_drift` and needs its own accuracy review.
 
-The per-attribute completeness plumbing an earlier draft of this section called
-for — a declared-side "this attribute was redacted" flag on
-`terraform_state_resource` — turned out not to be needed for the one attribute
-in question, because `package_type` already reaches both decoders.
+`ContainerImagesDegraded` feeds the same `Degraded` signal. It changes no ECS
+verdict today — that type has no scalar comparable to pair the container-image
+comparison with, so an unreadable `container_definitions` already leaves
+`Compared == 0` — but keeping both degradation signals on one rule means adding
+an ECS scalar to the allowlist later cannot silently reintroduce this shape.
+
+**What this does NOT close.** An `absent` comparable that should have been
+present, where no completeness signal exists to say so. Concretely: an absent
+`version` alongside an `image_uri` that compares equal still gives
+`Comparable=2, Compared=1, Degraded=0` and still converges. `package_type` tells
+us whether an `image_uri` should exist; nothing in either payload says the same
+about `version`. Both sources do carry it in practice — `GetFunction` and the
+`ListFunctions` fallback both return `Version`, and Terraform writes it as a
+computed attribute — so the shape is narrow, but "usually present" is not a
+signal a decoder can act on.
 
 ### A redacted attribute is "no signal", not a comparable value (#5859)
 
@@ -170,30 +202,27 @@ loaders (`cloudObservedValueAttributes`/`stateDeclaredValueAttributes` in
 `go/internal/storage/postgres/aws_cloud_runtime_drift_value_attributes.go`)
 recognize that shape via `redact.IsRedactedValue` and omit the key from
 `ResourceRow.Attributes` entirely, before `ClassifyValueDrift` ever runs --
-so this package stays ignorant of the marker encoding and a redacted scalar
-falls into the same "missing on this side" bucket as a genuinely absent
-attribute. Before this, a redacted attribute survived the decode as a
+so this package stays ignorant of the marker encoding. It is not silently
+dropped, though: the key is named in `ResourceRow.DegradedAttributes`, which is
+what separates it from a genuinely absent attribute (#5861, above).
+Before this, a redacted attribute survived the decode as a
 non-empty garbage string (the marker map rendered through `fmt.Sprint`),
 which compared unequal to a real value on the other side and produced a
 false `image_version_drift` whose "declared" or "observed" evidence was an
 internal collector encoding, not real Terraform or AWS data.
 
 This is the input half of the #5837 outcome above, and the two compose: the
-loader turns the marker into an absent attribute, and
-`ClassifyValueComparison` then counts that key as `Uncomparable` rather than
-compared. For `aws_instance`, whose sole allowlisted attribute is `ami`, the
-result is `Comparable=1, Compared=0` -- `value_comparison_inconclusive`, a
-durable row -- rather than either the old false drift or a silent
-convergence the retire would read as permission to delete. Distinguishing
-"genuinely missing" from "redacted, so unknown" per attribute, rather than
-folding both into the same uncomparable bucket, is the residual #5861 tracks
-above. For `image_uri` that is now closed by the `package_type` completeness
-rule described there, and not by this fix. It is NOT closed as a class: an
-unreadable `version` alongside an `image_uri` that compares equal still gives
-`Comparable=2, Compared=1` and still converges, because no completeness signal
-exists for `version` the way `package_type` serves `image_uri`. That shape is
-less reachable -- both `GetFunction` and the `ListFunctions` fallback carry
-`Version` -- but it is not covered. Whether the collector should
+loader turns the marker into an unreadable attribute, and
+`ClassifyValueComparison` then counts that key as `Uncomparable` AND `Degraded`
+rather than compared. For `aws_instance`, whose sole allowlisted attribute is
+`ami`, the result is `Comparable=1, Compared=0` --
+`value_comparison_inconclusive`, a durable row -- rather than either the old
+false drift or a silent convergence the retire would read as permission to
+delete. Distinguishing "genuinely missing" from "unreadable, so unknown" per
+attribute, rather than folding both into the same uncomparable bucket, is what
+#5861 added; the remaining uncovered shape (an absent comparable that should
+have been present, with no signal saying so) is recorded above.
+Whether the collector should
 fail-closed-redact at all when `schemaTrust` answers `SchemaUnknown` for a
 provider its bundle does not cover -- and whether identity anchors such as
 `arn` should be exempt from that fail-closure -- is the upstream policy

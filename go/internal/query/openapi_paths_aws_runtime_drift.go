@@ -92,7 +92,7 @@ const openAPIPathsAWSRuntimeDrift = `
                           "evidence": {"type": "array", "items": {"type": "object"}},
                           "drifted_attributes": {
                             "type": "array",
-                            "description": "Bounded declared/observed value pairs for an image_version_drift finding (ami, image_uri, version, or the ECS container image comparison). Empty for every other kind, including value_comparison_inconclusive, which reports that no comparison could be made at all and names the unreadable attributes in missing_evidence instead.",
+                            "description": "Bounded declared/observed value pairs for an image_version_drift finding (ami, image_uri, version, or the ECS container image comparison), one pair per comparison that ran and disagreed. Empty for every other kind, including value_comparison_inconclusive, which reports that this pass cannot speak for the covered values -- either no comparison could be made at all, or the ones that ran agreed while another covered comparable was unreadable. Both kinds name any comparable they could not READ in missing_evidence as comparable_attribute:<key>, so an image_version_drift carrying one is a verdict reached on partial evidence.",
                             "items": {
                               "type": "object",
                               "properties": {

@@ -119,6 +119,33 @@
         },
         {
           "fact_kind": "terraform_state_resource",
+          "stable_fact_key": "terraform_state_resource:resource:aws_lambda_function.supply-chain-demo-partial",
+          "schema_version": "1.0.0",
+          "collector_kind": "terraform_state",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "address": "aws_lambda_function.supply-chain-demo-partial",
+            "mode": "managed",
+            "type": "aws_lambda_function",
+            "name": "supply-chain-demo-partial",
+            "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",
+            "correlation_anchors": [
+              {
+                "anchor_kind": "arn",
+                "value_hash": "anchor-hash-lambda-partial"
+              }
+            ],
+            "attributes": {
+              "arn": "arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo-partial",
+              "package_type": "Image",
+              "image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:v9",
+              "version": "9"
+            }
+          }
+        },
+        {
+          "fact_kind": "terraform_state_resource",
           "stable_fact_key": "terraform_state_resource:resource:module.vpc.aws_security_group.vpc_endpoints",
           "schema_version": "1.0.0",
           "collector_kind": "terraform_state",

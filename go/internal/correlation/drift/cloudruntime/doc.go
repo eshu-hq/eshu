@@ -17,11 +17,12 @@
 // resource and the Terraform-declared state.
 //
 // A fourth case sits between drift and convergence: a resource type value
-// drift covers, for which not one comparable value could be compared, because
-// a side was redacted or unobserved. (A shape value drift can never pair --
-// an ECS task definition with more than one observed image -- is NOT this: it
-// reads the same on every pass, so it is uncovered rather than degraded.) That
-// is
+// drift covers, for which this pass cannot speak: either not one comparable
+// value could be compared, or the comparisons that ran agreed while another
+// covered comparable was unreadable (#5861). (A shape value drift can never
+// pair -- an ECS task definition with more than one observed image -- is NOT
+// this: it reads the same on every pass, so it is uncovered rather than
+// degraded.) That is
 // value_comparison_inconclusive (#5837), not silence. Silence means
 // convergence to the caller, which drops the ARN from the candidate set and
 // lets the reducer's generation-authoritative retire DELETE a still-true drift
