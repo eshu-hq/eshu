@@ -125,12 +125,19 @@ func (h *AdminHandler) recoverGenerations(w http.ResponseWriter, r *http.Request
 	}
 
 	h.recordRecoveryAction(r.Context(), governanceaudit.DecisionAllowed, "recover_generations_accepted", auth, correlationID)
+	// The three reset counts are the operator's evidence that this rebuild will
+	// restore the whole graph rather than only its source-local layer. Without
+	// them, a rebuild that re-queues every scope and still comes back short looks
+	// identical to one that worked, until someone counts the edges.
 	WriteJSON(w, http.StatusOK, map[string]any{
-		"status":          "recovered",
-		"enqueued":        result.Enqueued,
-		"scope_ids":       result.ScopeIDs,
-		"idempotency_key": req.IdempotencyKey,
-		"duplicate":       false,
+		"status":                   "recovered",
+		"enqueued":                 result.Enqueued,
+		"scope_ids":                result.ScopeIDs,
+		"reducer_work_deleted":     result.ReducerWorkDeleted,
+		"shared_intents_reopened":  result.SharedIntentsReopened,
+		"readiness_phases_cleared": result.ReadinessPhasesCleared,
+		"idempotency_key":          req.IdempotencyKey,
+		"duplicate":                false,
 	})
 }
 

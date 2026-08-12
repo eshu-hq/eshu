@@ -215,9 +215,36 @@ func (f RefinalizeFilter) Validate() error {
 }
 
 // RefinalizeResult captures the outcome of a refinalize operation.
+//
+// Enqueued and ScopeIDs describe the projector work a refinalize queued. The
+// three reset counters describe the downstream dedup state it cleared so that
+// projector work actually rebuilds the whole graph rather than only the
+// source-local part of it. They are reported because "the rebuild ran and the
+// graph is still short" is otherwise invisible: an operator watching a recovery
+// needs to see that the reducer catalog and the shared-projection backlog were
+// re-opened, not just that scopes were re-queued.
 type RefinalizeResult struct {
 	Enqueued int
 	ScopeIDs []string
+
+	// ReducerWorkDeleted counts succeeded reducer work items removed so the
+	// re-projection re-derives them. Re-projection re-emits every reducer intent,
+	// but an identical work_item_id collides with the succeeded row and is
+	// dropped by ON CONFLICT DO NOTHING, so without this the reducer domains
+	// never re-run and the structure they own never comes back.
+	ReducerWorkDeleted int
+
+	// SharedIntentsReopened counts shared projection intents whose completed_at
+	// was cleared. The partition workers only drain completed_at IS NULL, and the
+	// upsert deliberately never reopens a completed row, so a rebuild has to
+	// clear it here or the shared edge families stay missing.
+	SharedIntentsReopened int
+
+	// ReadinessPhasesCleared counts graph projection phase rows removed. Those
+	// rows live in Postgres and survive a graph wipe, so after a wipe they assert
+	// that canonical nodes are committed for a graph that is now empty. Clearing
+	// them re-arms the readiness gates to first-ingest behavior.
+	ReadinessPhasesCleared int
 }
 
 // CollectorGenerationReplayFilter constrains collector generation commit

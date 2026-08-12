@@ -407,9 +407,11 @@ func TestRecoveryStoreCountDeadLetterBacklogPropagatesQueryError(t *testing.T) {
 func TestRecoveryStoreRefinalizeScopeProjections(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{
-			{rows: [][]any{{"scope-1"}, {"scope-2"}}},
+	db := &fakeBeginnerExecQueryer{
+		fakeExecQueryer: fakeExecQueryer{
+			queryResponses: []queueFakeRows{
+				{rows: [][]any{{"scope-1"}, {"scope-2"}}},
+			},
 		},
 	}
 
@@ -442,9 +444,11 @@ func TestRecoveryStoreRefinalizeScopeProjections(t *testing.T) {
 func TestRecoveryStoreRefinalizeScopeProjectionsPropagatesQueryError(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{
-			{err: errors.New("connection refused")},
+	db := &fakeBeginnerExecQueryer{
+		fakeExecQueryer: fakeExecQueryer{
+			queryResponses: []queueFakeRows{
+				{err: errors.New("connection refused")},
+			},
 		},
 	}
 
@@ -456,8 +460,17 @@ func TestRecoveryStoreRefinalizeScopeProjectionsPropagatesQueryError(t *testing.
 	if err == nil {
 		t.Fatal("RefinalizeScopeProjections() error = nil, want non-nil")
 	}
-	if !strings.Contains(err.Error(), "refinalize scope projections") {
-		t.Fatalf("error = %q, want 'refinalize scope projections' context", err.Error())
+	// Name the driver error, not just the wrapper. "refinalize scope projections"
+	// also prefixes the missing-Begin error, so asserting only the prefix would
+	// pass on a store that never reached the query at all.
+	if !strings.Contains(err.Error(), "connection refused") {
+		t.Fatalf("error = %q, want the underlying query error", err.Error())
+	}
+	if !db.rolledBack {
+		t.Fatal("a failed refinalize left its transaction open; the re-enqueue and the rebuild reset must roll back together")
+	}
+	if db.committed {
+		t.Fatal("a failed refinalize committed its transaction")
 	}
 }
 

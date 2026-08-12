@@ -380,21 +380,31 @@ func (s RecoveryStore) ReplayCollectorGenerations(
 // Both variants keep the active_generation_id and status guards, so an
 // all-scopes rebuild still skips retired and generation-less scopes rather than
 // re-projecting rows the pipeline has already retired.
+// The scope predicate comes from refinalizeScopePredicate, the same helper the
+// rebuild reset statements use, so the projector re-enqueue and the reset can
+// never select different generations. The insert's leading $1 is the timestamp,
+// which is why its predicate starts at $2.
 func buildRefinalizeScopeProjectionsQuery(
 	filter recovery.RefinalizeFilter,
 	now time.Time,
 ) (string, []any) {
-	if filter.AllScopes {
-		return fmt.Sprintf(refinalizeScopeProjectionsTemplate, ""), []any{now.UTC()}
-	}
-
-	return fmt.Sprintf(refinalizeScopeProjectionsTemplate, "AND scope.scope_id = ANY($2)"),
-		[]any{now.UTC(), filter.ScopeIDs}
+	predicate, predicateArgs := refinalizeScopePredicate(filter, 2)
+	return fmt.Sprintf(refinalizeScopeProjectionsTemplate, predicate),
+		append([]any{now.UTC()}, predicateArgs...)
 }
 
 // RefinalizeScopeProjections re-enqueues projector work by inserting new pending
 // work items for active scope generations: for the given scope IDs, or for every
 // active scope when the filter sets AllScopes.
+//
+// It also clears the downstream dedup state that would otherwise stop the
+// re-projection at source-local structure -- succeeded reducer work, completed
+// shared projection intents, and readiness phase rows that outlived a graph wipe.
+// See recovery_refinalize_rebuild_reset.go for why each one blocks a rebuild.
+//
+// All four statements run in one transaction so a refinalize cannot leave the
+// queue re-enqueued while its downstream state still says the work is done; that
+// half-applied state is invisible until the graph comes back short.
 func (s RecoveryStore) RefinalizeScopeProjections(
 	ctx context.Context,
 	filter recovery.RefinalizeFilter,
@@ -403,12 +413,61 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 	if s.db == nil {
 		return recovery.RefinalizeResult{}, fmt.Errorf("recovery store database is required")
 	}
+	beginner, ok := s.db.(Beginner)
+	if !ok {
+		return recovery.RefinalizeResult{}, fmt.Errorf("refinalize scope projections: database must support Begin")
+	}
 
+	tx, err := beginner.Begin(ctx)
+	if err != nil {
+		return recovery.RefinalizeResult{}, fmt.Errorf("refinalize scope projections: begin: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+
+	scopeIDs, err := refinalizeEnqueueProjectorWork(ctx, tx, filter, now)
+	if err != nil {
+		return recovery.RefinalizeResult{}, err
+	}
+
+	counts, err := applyRefinalizeRebuildReset(ctx, tx, filter)
+	if err != nil {
+		return recovery.RefinalizeResult{}, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return recovery.RefinalizeResult{}, fmt.Errorf("refinalize scope projections: commit: %w", err)
+	}
+	committed = true
+
+	return recovery.RefinalizeResult{
+		Enqueued:               len(scopeIDs),
+		ScopeIDs:               scopeIDs,
+		ReducerWorkDeleted:     counts.reducerWorkDeleted,
+		SharedIntentsReopened:  counts.sharedIntentsReopened,
+		ReadinessPhasesCleared: counts.readinessPhasesCleared,
+	}, nil
+}
+
+// refinalizeEnqueueProjectorWork runs the projector re-enqueue and returns the
+// scope IDs it queued. The rows are fully consumed and closed before the caller
+// issues the reset statements, because database/sql forbids a second statement
+// on a transaction while its Rows are still open.
+func refinalizeEnqueueProjectorWork(
+	ctx context.Context,
+	tx Transaction,
+	filter recovery.RefinalizeFilter,
+	now time.Time,
+) ([]string, error) {
 	query, args := buildRefinalizeScopeProjectionsQuery(filter, now)
 
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
-		return recovery.RefinalizeResult{}, fmt.Errorf("refinalize scope projections: %w", err)
+		return nil, fmt.Errorf("refinalize scope projections: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -416,16 +475,13 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 	for rows.Next() {
 		var id string
 		if scanErr := rows.Scan(&id); scanErr != nil {
-			return recovery.RefinalizeResult{}, fmt.Errorf("refinalize scope projections: %w", scanErr)
+			return nil, fmt.Errorf("refinalize scope projections: %w", scanErr)
 		}
 		scopeIDs = append(scopeIDs, id)
 	}
 	if err := rows.Err(); err != nil {
-		return recovery.RefinalizeResult{}, fmt.Errorf("refinalize scope projections: %w", err)
+		return nil, fmt.Errorf("refinalize scope projections: %w", err)
 	}
 
-	return recovery.RefinalizeResult{
-		Enqueued: len(scopeIDs),
-		ScopeIDs: scopeIDs,
-	}, nil
+	return scopeIDs, nil
 }
