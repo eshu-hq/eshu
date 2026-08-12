@@ -6,6 +6,7 @@ package reducer
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"slices"
 	"sort"
 	"strings"
@@ -95,6 +96,20 @@ type SupplyChainImpactHandler struct {
 	// Now lets tests pin the evaluation clock used for suppression
 	// expiration checks. Defaults to time.Now() in UTC.
 	Now func() time.Time
+	// ProducerReadiness is the #5709 cross-scope correctness floor. This domain
+	// reads container_image_identity output for repository anchoring and
+	// ci_cd_run_correlation output for deployment context, both published by
+	// scopes other than its own vulnerability-intelligence scope. An impact pass
+	// that runs before those scopes activate their generations resolves neither,
+	// and would otherwise write durable findings computed without that evidence
+	// that no later event disturbs. When wired, such a pass defers instead.
+	// Optional: nil keeps the pre-#5709 behaviour.
+	ProducerReadiness CrossScopeProducerReadiness
+	// Logger records a cross-scope readiness deferral as its own structured
+	// line. Optional: nil silences it. Worth wiring -- the deferral's failure
+	// class freezes attempt_count, so the queue row alone cannot tell an
+	// operator how long this consumer has been waiting.
+	Logger *slog.Logger
 }
 
 // Handle executes one supply-chain impact reducer intent.

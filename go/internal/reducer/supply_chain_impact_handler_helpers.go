@@ -42,12 +42,21 @@ func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFacts(
 
 const maxSupplyChainImpactActiveEvidenceLoads = 8
 
+// loadActiveSupplyChainImpactFactsUntilStable takes its FIRST-round filter from
+// the caller rather than deriving it again from envelopes. The #5709 readiness
+// floor decides whether this pass can reach a producer fact by inspecting that
+// same filter before the load runs (crossScopeProducerLookupPlanned). Sharing
+// one value keeps the floor and the load from disagreeing about what this pass
+// asked for, and keeps the pre-load envelope set scanned once rather than twice
+// on a hot path. Follow-up rounds are still derived here from whatever the
+// previous round returned.
 func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFactsUntilStable(
 	ctx context.Context,
 	envelopes []facts.Envelope,
+	initialFilter SupplyChainImpactFactFilter,
 ) ([]facts.Envelope, bool, error) {
 	requested := SupplyChainImpactFactFilter{}
-	next := supplyChainImpactFilter(envelopes)
+	next := initialFilter
 	truncated := false
 	for loads := 0; !next.empty(); loads++ {
 		if loads >= maxSupplyChainImpactActiveEvidenceLoads {

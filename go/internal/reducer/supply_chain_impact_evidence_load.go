@@ -92,9 +92,24 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 	manifestDependencyFacts := len(manifestDependencies)
 	envelopes = append(envelopes, manifestDependencies...)
 
+	// The #5709 cross-scope floor sits on the loads that read the producers'
+	// output, not at admission: producer readiness is not knowable when this
+	// intent is enqueued. armCrossScopeProducerFloor samples readiness BEFORE
+	// the first load and crossScopeProducerDeferralAfterLoad decides once every
+	// producer-bearing stage has run; both halves and the reason the order
+	// matters live in supply_chain_impact_cross_scope_readiness.go.
+	//
+	// activeEvidenceFilter is computed once here and handed to both, so the
+	// floor and the load cannot disagree about what this pass asked for.
+	activeEvidenceFilter := supplyChainImpactFilter(envelopes)
+	floor, err := h.armCrossScopeProducerFloor(ctx, intent, envelopes, activeEvidenceFilter)
+	if err != nil {
+		return supplyChainImpactLoadedEvidence{}, timing, err
+	}
+
 	activeEvidenceStartCount := len(envelopes)
 	phaseStarted = time.Now()
-	envelopes, activeEvidenceTruncated, err := h.loadActiveSupplyChainImpactFactsUntilStable(ctx, envelopes)
+	envelopes, activeEvidenceTruncated, err := h.loadActiveSupplyChainImpactFactsUntilStable(ctx, envelopes, activeEvidenceFilter)
 	timing.loadActiveEvidenceDuration = time.Since(phaseStarted)
 	if err != nil {
 		return supplyChainImpactLoadedEvidence{}, timing, fmt.Errorf("load active supply chain impact facts: %w", err)
@@ -141,6 +156,13 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, peerIdentityEnvelopes...)
 	activeEvidenceTruncated = activeEvidenceTruncated || peerIdentityTruncated
 	suppressionEvidenceTruncated = suppressionEvidenceTruncated || peerIdentityTruncated
+
+	// Every stage that can return producer output has now run: the until-stable
+	// loop, the resolved-digest re-run (#5464), and the peer-identity pass
+	// (#5468).
+	if deferral := h.crossScopeProducerDeferralAfterLoad(ctx, floor, intent, envelopes); deferral != nil {
+		return supplyChainImpactLoadedEvidence{}, timing, deferral
+	}
 
 	pythonReachabilityStartCount := len(envelopes)
 	phaseStarted = time.Now()

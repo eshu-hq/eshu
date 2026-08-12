@@ -204,8 +204,9 @@ claim is exclusive.
 The floor issues one `ProducerScopeQuiescence` query per declared producer
 collector kind, stopping at the first *registered* kind with no quiescent-active
 scope. A kind with no registered scope is skipped and the remaining kinds are
-still probed. The wired consumer declares one producer, so it costs exactly one
-query.
+still probed. `ci_cd_run_correlation` declares one producer, so it costs exactly
+one query. (`supply_chain_impact`, wired later, declares two and costs up to
+two — see [`5709-supply-chain-consumer.md`](5709-supply-chain-consumer.md).)
 
 The plan-shape proof for that query is
 `docs/internal/evidence/5709-quiescence-probe.md`: the `NOT EXISTS` body carries
@@ -355,6 +356,11 @@ consumer to the catalog does **not** gate it — the handler has to call the flo
 helper — and the first version's comment claiming otherwise was false and is
 deleted. Wiring the second consumer is a handler edit, not new machinery, but it
 is not done, and this change does not close the contract for every consumer.
+
+> **Closed since.** `supply_chain_impact` is wired now. It needed more than a
+> copy of the CI/CD call sites, because its cross-scope read is the shared
+> active-evidence reader rather than a producer-only one — see
+> [`5709-supply-chain-consumer.md`](5709-supply-chain-consumer.md).
 
 **Registering `container_image_identity` as a producer is still blocked.**
 `CrossScopeDependency` carries only `ProducerDomains []Domain`, and `Validate()`

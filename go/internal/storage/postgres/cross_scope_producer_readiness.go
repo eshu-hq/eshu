@@ -82,8 +82,9 @@ var crossScopeProducerCollectorKindByDomain = map[reducer.Domain]scope.Collector
 // (the re-trigger and the floor) cannot drift apart on WHO the producers are.
 //
 // Adding a consumer to that catalog does not by itself gate it. Each consumer
-// handler opts in explicitly by calling the reducer-side floor helper;
-// supply_chain_impact is in the catalog today and is not gated.
+// handler opts in explicitly by calling the reducer-side floor helper. Both
+// catalog consumers have now opted in: ci_cd_run_correlation and
+// supply_chain_impact.
 type CrossScopeProducerReadinessStore struct {
 	DB Queryer
 }
@@ -131,8 +132,12 @@ type CrossScopeProducerReadinessStore struct {
 //
 // The probe runs once per declared producer collector kind and stops at the
 // first REGISTERED kind with no quiescent-active scope; a kind with no
-// registered scope is skipped and the rest are still probed. The wired consumer
-// (ci_cd_run_correlation, one producer kind) costs exactly one query.
+// registered scope is skipped and the rest are still probed. So the cost is one
+// query per declared producer kind, not a fixed one: ci_cd_run_correlation
+// declares one producer and costs one query, while supply_chain_impact declares
+// two (container_image_identity and ci_cd_run_correlation) and costs up to two.
+// Two kinds also means two chances to be held back, so supply_chain_impact is
+// strictly more likely to defer than the CI/CD consumer.
 //
 // scopeID and generationID are accepted for the interface and for future
 // scope-narrowed readiness, but are deliberately not filtered on: the producer
