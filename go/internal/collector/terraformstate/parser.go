@@ -141,6 +141,11 @@ type stateParser struct {
 	warningsByKind    map[string]int64
 	redactions        map[string]int64
 	compositeWarnings map[compositeAttributeWarningKey]*compositeAttributeWarningSummary
+	// uncoveredResourceTypes counts attribute classifications that fell through
+	// to SchemaUnknown because the bundle carries no schema for the resource
+	// type at all, keyed by resource type (#5870). Flushed once per parse as
+	// provider_schema_not_covered warnings.
+	uncoveredResourceTypes map[string]int64
 }
 
 func (p *stateParser) parse() error {
@@ -175,6 +180,9 @@ func (p *stateParser) parse() error {
 		return err
 	}
 	if err := expectEOF(p.decoder); err != nil {
+		return err
+	}
+	if err := p.flushUncoveredProviderWarnings(); err != nil {
 		return err
 	}
 	if err := p.flushCompositeAttributeWarnings(); err != nil {

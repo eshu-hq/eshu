@@ -38,6 +38,29 @@ type Classification struct {
 	Actionability string
 }
 
+const (
+	// WarningKindProviderSchemaNotCovered marks a Terraform resource type the
+	// loaded provider-schema bundle does not carry (#5870).
+	//
+	// Exported, along with the two reasons below, because the emitter lives in
+	// go/internal/collector/terraformstate and this package decides the
+	// severity/actionability for the pair. Two private copies of the same
+	// literals drift silently: a typo on either side falls through to
+	// ok=false and the row loses its operator meaning with nothing failing
+	// (Copilot review).
+	WarningKindProviderSchemaNotCovered = "provider_schema_not_covered"
+	// ReasonProviderNotInSchemaBundle means no resource type from this
+	// provider appears in the bundle at all: the provider is missing, and the
+	// operator action is to add it.
+	ReasonProviderNotInSchemaBundle = "provider_not_in_schema_bundle"
+	// ReasonResourceTypeNotInSchemaBundle means the provider IS in the bundle
+	// but this particular resource type is not -- a bundle older than the
+	// resource type. The operator action is to refresh the bundle, not to add a
+	// provider, which is why it is a separate reason rather than a shared one
+	// (codex review).
+	ReasonResourceTypeNotInSchemaBundle = "resource_type_not_in_schema_bundle"
+)
+
 // Classify maps stable Terraform-state warning_kind/reason pairs to the
 // operator-facing severity/actionability contract. It returns ok=false for
 // unsupported pairs so new warning rows do not silently inherit the wrong
@@ -112,6 +135,18 @@ func Classify(warningKind string, reason string) (Classification, bool) {
 			}, true
 		case "unsupported_tag_map_shape":
 			return acceptedGuardrailClassification(), true
+		}
+	case WarningKindProviderSchemaNotCovered:
+		if reason == ReasonProviderNotInSchemaBundle || reason == ReasonResourceTypeNotInSchemaBundle {
+			// Same actionability as an unsupported composite: the fix is to add
+			// the provider's schema to the bundle. Not blocking, because the
+			// identity-join-key exemption (#5870) keeps the resource's drift
+			// truth correct meanwhile -- what is degraded is the rest of its
+			// attributes, not the join.
+			return Classification{
+				Severity:      SeverityWarning,
+				Actionability: ActionabilityProviderSchemaSupport,
+			}, true
 		}
 	case "tag_value_dropped":
 		if reason == "non_scalar_tag_value" {
