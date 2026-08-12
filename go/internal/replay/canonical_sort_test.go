@@ -5,7 +5,6 @@ package replay
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 	"testing"
 )
@@ -65,23 +64,38 @@ func TestSortArrayCanonicalTieBreakOrdersDuplicateKeys(t *testing.T) {
 	}
 }
 
+func TestCanonicalUniqueFactBenchmarkInputIsDescending(t *testing.T) {
+	facts := canonicalUniqueFactBenchmarkInput(3, "payload")
+	want := []string{"fact-00002", "fact-00001", "fact-00000"}
+	for i, fact := range facts {
+		got := elementField(fact, "stable_fact_key")
+		if got != want[i] {
+			t.Fatalf("facts[%d] stable_fact_key = %q, want %q", i, got, want[i])
+		}
+	}
+}
+
+func canonicalUniqueFactBenchmarkInput(count int, payload string) []any {
+	facts := make([]any, 0, count)
+	for i := count - 1; i >= 0; i-- {
+		facts = append(facts, map[string]any{
+			"stable_fact_key": fmt.Sprintf("fact-%05d", i),
+			"payload":         payload,
+		})
+	}
+	return facts
+}
+
 func BenchmarkCanonicalizeUniqueFactKeys(b *testing.B) {
 	for _, count := range []int{1_000, 5_000, 10_000} {
 		b.Run(fmt.Sprintf("facts-%d", count), func(b *testing.B) {
-			facts := make([]any, 0, count)
 			payload := strings.Repeat("x", 3_072)
-			for i := range count {
-				facts = append(facts, map[string]any{
-					"stable_fact_key": fmt.Sprintf("fact-%05d", i),
-					"payload":         payload,
-				})
-			}
+			facts := canonicalUniqueFactBenchmarkInput(count, payload)
 			doc := map[string]any{"facts": facts}
 			opts := CanonicalOptions{SortArrays: map[string]string{"facts": "stable_fact_key"}}
 			b.ReportAllocs()
 			b.ResetTimer()
 			for range b.N {
-				slices.Reverse(facts)
 				if _, err := CanonicalizeValue(doc, opts); err != nil {
 					b.Fatal(err)
 				}

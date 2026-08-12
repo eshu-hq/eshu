@@ -98,6 +98,14 @@ GOCACHE=$PWD/.gocache-scale go test ./internal/replay \
   -benchtime=1x -count=3 -benchmem
 ```
 
+The recorded scale rows used benchmark-file blob
+`e78587576cbe318bb3d7325b2c81b7e3fda1745e`. A review follow-up moved the
+one-time reverse-order setup out of the timed loop; the reviewed blob is
+`5f32cb084d4893713c03ad1c70aee5072e580c26`. For the recorded
+`-benchtime=1x` commands both blobs canonicalize the same descending input
+exactly once, so the measurements remain comparable. The reviewed form also
+keeps that input shape fixed when a future benchmark uses multiple iterations.
+
 The profile commands were:
 
 ```bash
