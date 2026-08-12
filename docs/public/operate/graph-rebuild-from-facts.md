@@ -19,6 +19,11 @@ backup tooling you already trust, throw the graph away, and rebuild it. There is
 no graph-to-Postgres reconciliation to perform and no split-brain to resolve,
 because one side was never a source of truth.
 
+**Read [What the rebuild does not restore](#what-the-rebuild-does-not-restore)
+before you rely on this.** The rebuild is measured and it is incomplete: code
+call and inheritance edges, ownership, and several correlation families do not
+come back on their own today.
+
 **Deliberately not on the menu:** graph-backend replication and multi-region
 graph storage. Both are deferred until rebuild-from-facts is shown to miss a
 real deployment's recovery time objective. They are the most expensive items on
@@ -228,13 +233,52 @@ five times leaves the same queue as running it once.
 You do not need to wipe again before restarting. The graph is partially built,
 `MERGE` is idempotent, and the remaining work fills in the rest.
 
+## What the rebuild does not restore
+
+On a measured run over the Compose fixture corpus, a wipe and rebuild brought
+back 2,431 of 2,504 nodes and 2,905 of 3,289 relationships. Repositories, files,
+functions, classes, and directories returned at exactly their original counts.
+These did not:
+
+| Missing | Count | Owned by |
+| --- | ---: | --- |
+| `CALLS` edges | 116 | `code_call_materialization` |
+| `INHERITS` edges | 36 | `inheritance_materialization` |
+| `REFERENCES` edges | 33 | `code_import_repo_edge` |
+| `EvidenceArtifact` nodes and their edges | 14 + 14 | `semantic_entity_materialization` |
+| `CORRELATES_DEPLOYABLE_UNIT` edges | 7 | `deployable_unit_correlation` |
+| `CodeownerTeam` and `DECLARES_CODEOWNER` | 2 + 2 | `codeowners_ownership` |
+| SQL table and column edges | 11 | `sql_relationship_materialization` |
+| `EXECUTES`, `CloudAction`, `INVOKES_CLOUD_ACTION` | 3 | `shell_exec_materialization` |
+
+The cause is one mechanism. Re-driving a scope re-runs its projector work, and
+that in turn re-runs five reducer domains. Twelve others keep the `succeeded`
+work-item rows from the original indexing run, are never re-enqueued, and so
+never rebuild what they own. Every missing family belongs to one of those twelve;
+none belongs to the five that do re-run.
+
+Until that is fixed, a rebuild gives you a working graph with the code-call,
+inheritance, ownership, and correlation layers thinned out. Queries over
+repositories, files, and code structure are sound. Queries that traverse call
+graphs, ownership, or deployment correlation will under-report, and they will do
+so silently — nothing in the response says the layer is incomplete.
+
+If you need those layers back today, a full re-collection from source rebuilds
+them, at the cost of re-cloning every repository. The measurement, the per-label
+counts, and the domain-by-domain breakdown are in
+`docs/internal/evidence/4594-graph-rebuild-from-facts.md`.
+
 ## How long it takes
 
-See [Performance SLO contract](../reference/performance-slo-contract.md) for the
-measured `graph_rebuild_seconds` figure, the corpus it was measured on, and what
-that number does and does not let you conclude about your own deployment. Size
-your recovery time objective against a measurement from your own corpus, not
-from the reference one.
+26 seconds for 67 scopes and 3,866 facts on the Compose fixture corpus. That
+corpus is 1.4 MB, so the number shows the mechanism runs rather than what a real
+rebuild costs, and the machine was busy at the time, so it is an upper bound.
+
+Size your recovery time objective against a measurement from your own corpus.
+Run `scripts/verify-graph-rebuild-from-facts.sh` against it and use what it
+prints. See
+[Performance SLO contract](../reference/performance-slo-contract.md#graph-rebuild-from-facts)
+for the conditions the reference number was taken under.
 
 ## Related pages
 

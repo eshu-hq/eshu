@@ -139,14 +139,48 @@ The clock starts when `POST /api/v0/admin/recover-generations` with
 Wipe and schema reapply sit outside the measurement: both are operator-paced
 steps whose cost is dominated by volume and container lifecycle, not by Eshu.
 
-**PLACEHOLDER_MEASUREMENT**
+One measurement exists, from `scripts/verify-graph-rebuild-from-facts.sh` on
+2026-08-12:
+
+| Field | Value |
+| --- | --- |
+| `graph_rebuild_seconds` | 26 s (0m26s) |
+| Corpus | `tests/fixtures/ecosystems`, 67 active scopes, 3,866 `fact_records` |
+| Graph rebuilt | 2,431 of 2,504 nodes, 2,905 of 3,289 relationships |
+| Backend | NornicDB `eshu-nornicdb-pr290:3722b483c02c` |
+| Machine | Apple M4 Pro, 12 logical CPUs, 64 GiB, macOS |
+| Load at completion | 13.20 (1 min) |
+| Queue terminal | zero pending, retrying, failed, dead-letter |
+
+Read that number with three limits attached.
+
+It is a fixture corpus of 1.4 MB, well below the smallest scale-lab slot, so it
+shows the mechanism runs rather than what a real rebuild costs. A gate was
+running in a sibling worktree at load 13.2 on 12 CPUs, so 26 seconds is an upper
+bound. And the rebuild did not restore the whole graph: twelve reducer
+materialization domains are not re-driven by a re-projection, which leaves 73
+nodes and 384 relationships unbuilt. Full breakdown, including which domains and
+which edge families, in `docs/internal/evidence/4594-graph-rebuild-from-facts.md`.
 
 There is deliberately no absolute target. Rebuild time scales with fact volume
-and graph write throughput, and a fixture corpus predicts nothing about a
-896-repository deployment. Measure your own corpus with the same script and use
-that. What the row does commit to is the relative rule: a same-corpus rebuild
-that regresses more than 10 percent against your accepted baseline is a
-regression to investigate.
+and graph write throughput, and a fixture corpus predicts nothing about an
+896-repository deployment. Measure your own corpus with the same script and size
+your recovery objective against that. What the row does commit to is the relative
+rule: a same-corpus rebuild that regresses more than 10 percent against your
+accepted baseline is a regression to investigate.
+
+No-Regression Evidence: first measurement of this operation — 26 s for 67 scopes
+and 3,866 `fact_records` on NornicDB `eshu-nornicdb-pr290:3722b483c02c`, queue
+terminal with zero retrying and zero dead-letter rows, full conditions and
+per-label graph counts in
+`docs/internal/evidence/4594-graph-rebuild-from-facts.md`. No prior baseline
+exists to regress against; the rebuild path adds a bounded INSERT of one work
+item per active scope and no read-path query.
+
+No-Observability-Change: the rebuild reuses the existing projector queue metrics,
+`GET /api/v0/index-status`, and the `admin_replay_requests` ledger. The single
+new signal is the `bootstrap.graph.force_reapply` warning log emitted when an
+operator overrides the graph-schema marker.
 
 ## Named baselines
 
