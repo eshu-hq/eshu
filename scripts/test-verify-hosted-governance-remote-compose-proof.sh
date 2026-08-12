@@ -18,7 +18,11 @@ bash "${verifier}" --list >"${list_log}"
 
 rg --fixed-strings --quiet "scripts/test-verify-hosted-governance-proof.sh" "${list_log}"
 rg --fixed-strings --quiet "scripts/verify-hosted-governance-proof.sh" "${list_log}"
-rg --fixed-strings --quiet "go test ./internal/query -run 'Test(ResolveEntityScopedSelectorDeniesOutOfScopeCanonicalID|CodeSearchScopedSelectorDeniesOutOfScopeCanonicalID)' -count=1" "${list_log}"
+# #6055: the --list output now names the go_test_run_guard invocation (which
+# asserts a minimum matched-test count before running `go test -run`) rather
+# than a bare `go test -run` command — assert the new shape, not merely a
+# relaxed substring of the old one.
+rg --fixed-strings --quiet "go_test_run_guard 2 'Test(ResolveEntityScopedSelectorDeniesOutOfScopeCanonicalID|CodeSearchScopedSelectorDeniesOutOfScopeCanonicalID)' -- ./internal/query -count=1" "${list_log}"
 rg --fixed-strings --quiet "scripts/test-remote-e2e-hosted-compose-render.sh" "${list_log}"
 rg --fixed-strings --quiet "remote Compose render shape" "${list_log}"
 rg --fixed-strings --quiet "API/MCP parity prerequisites" "${list_log}"

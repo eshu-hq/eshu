@@ -75,6 +75,9 @@ if [[ "${deepseek}" == "true" ]]; then
 	command -v curl >/dev/null 2>&1 || die "curl is required for --deepseek"
 fi
 
+# shellcheck source=scripts/lib/go-test-run-guard.sh
+. "${repo_root}/scripts/lib/go-test-run-guard.sh"
+
 proof_pattern='TestAskLocalProof'
 scorecard_fixture="cmd/eshu/testdata/ask-eshu-local-proof-scorecard.json"
 ask_live_question='What service entrypoint does the demo repository expose?'
@@ -187,13 +190,13 @@ run_deepseek_live_proof() {
 
 if [[ "${list_only}" == "true" ]]; then
 	print_step "ask runtime path proof: disabled, missing/bad provider, status, JSON+SSE cited success, leak suppression" \
-		"go test ./cmd/api -run '${proof_pattern}' -count=1"
+		"go_test_run_guard 8 '${proof_pattern}' -- ./cmd/api -count=1"
 	print_step "scoped-token allowlist admits POST /api/v0/ask" \
-		"go test ./internal/query -run 'TestScopedHTTPRoute_Ask' -count=1"
+		"go_test_run_guard 1 'TestScopedHTTPRoute_Ask' -- ./internal/query -count=1"
 	print_step "answer-quality + publish-safety scorecard over the committed redacted fixture" \
 		"go run ./cmd/eshu answer-quality-scorecard --from ${scorecard_fixture}"
 	print_step "committed scorecard fixture CLI regression" \
-		"go test ./cmd/eshu -run 'TestAskEshuLocalProofScorecardFixturePasses' -count=1"
+		"go_test_run_guard 1 'TestAskEshuLocalProofScorecardFixturePasses' -- ./cmd/eshu -count=1"
 	if [[ "${deepseek}" == "true" ]]; then
 		print_step "operator-local real DeepSeek end-to-end rerun: GET /api/v0/status/answer-narration" \
 			"curl --fail-with-body --silent --show-error -H 'Authorization: Bearer <redacted>' \"\${ESHU_ASK_LOCAL_PROOF_BASE_URL}/api/v0/status/answer-narration\""
@@ -223,12 +226,16 @@ run_step() {
 
 (
 	cd "${repo_root}/go"
+	# Each min-match count is the number of tests the pattern currently matches
+	# (verified with `go test -list`); go_test_run_guard (#6055) fails loudly
+	# if a rename or move drops the match count below it instead of the bare
+	# `go test -run` exiting 0 on fewer tests, or on nothing.
 	run_step "ask runtime path proof (disabled/missing/bad provider, status, JSON+SSE cited success, leak suppression)" \
-		go test ./cmd/api -run "${proof_pattern}" -count=1
+		go_test_run_guard 8 "${proof_pattern}" -- ./cmd/api -count=1
 	run_step "scoped-token allowlist admits POST /api/v0/ask" \
-		go test ./internal/query -run 'TestScopedHTTPRoute_Ask' -count=1
+		go_test_run_guard 1 'TestScopedHTTPRoute_Ask' -- ./internal/query -count=1
 	run_step "committed scorecard fixture CLI regression" \
-		go test ./cmd/eshu -run 'TestAskEshuLocalProofScorecardFixturePasses' -count=1
+		go_test_run_guard 1 'TestAskEshuLocalProofScorecardFixturePasses' -- ./cmd/eshu -count=1
 	run_step "answer-quality + publish-safety scorecard over the committed redacted fixture" \
 		go run ./cmd/eshu answer-quality-scorecard --from "${scorecard_fixture}"
 )
