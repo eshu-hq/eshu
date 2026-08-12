@@ -38,7 +38,14 @@ jobs:
         if: ${{ !cancelled() }}
         env:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-        run: gh api -X POST repos/example/repo/statuses/${HEAD_SHA} -f state=failure -f context=required-gates-complete
+        run: |
+          case "${AGGREGATE_CODE}" in
+            0) state=success ;;
+            1) state=failure ;;
+            3) exit 0 ;;
+            *) state=error ;;
+          esac
+          gh api -X POST repos/example/repo/statuses/${HEAD_SHA} -f state="${state}" -f context=required-gates-complete
 `
 
 func writeRequiredWorkflowFixture(t *testing.T, body string) string {
@@ -382,8 +389,8 @@ func TestCheckRequiredStatusWorkflows_BindsEachStatusPublisherContext(t *testing
 		),
 		"terminal publisher": strings.Replace(
 			trustedRequiredWorkflow,
-			"state=failure -f context=required-gates-complete",
-			"state=failure -f context=unrelated-context",
+			`state="${state}" -f context=required-gates-complete`,
+			`state="${state}" -f context=unrelated-context`,
 			1,
 		),
 	}

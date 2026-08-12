@@ -52,6 +52,14 @@ func main() {
 	}
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "ci-gates %s: %v\n", sub, err)
+		// `await` exits with a code that tells the required-gates publisher
+		// WHICH kind of non-success this was (#6075): a failed gate, gates
+		// still running, or aggregation itself breaking. Collapsing all three
+		// to 1 is what made `required-gates-complete` publish `failure` for
+		// runs where nothing had failed. Every other subcommand keeps 1.
+		if sub == "await" {
+			os.Exit(classifyAwaitOutcome(err).exitCode())
+		}
 		os.Exit(1)
 	}
 }

@@ -344,6 +344,12 @@ jobs:
           # Helm contract tests with no code change. See eshu-hq/eshu#5566.
           version: v4.2.3
 
+      # Pre-warm modules with retries so a dropped proxy stream fails HERE,
+      # named for what it is, instead of surfacing as a race-detector red that
+      # never ran a test (#6075 follow-up).
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+
       - name: Run Go tests with race detector (shard ${{ matrix.shard }}/${{ strategy.job-total }})
         working-directory: go
         env:

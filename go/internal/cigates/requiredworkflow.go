@@ -309,6 +309,20 @@ func validateTrustedAggregator(
 					check.Context,
 				))
 			}
+			// #6075: the publisher must branch on the await exit code. Before
+			// this, any non-success outcome defaulted to `failure`, so gates
+			// merely still running published a red on the status branch
+			// protection uses to summarize every other gate -- a red that
+			// meant "look again", which is how a genuine aggregation failure
+			// gets waved through and how a lander abandons a green PR.
+			if !strings.Contains(step.Run, "AGGREGATE_CODE") {
+				errs = append(errs, fmt.Errorf(
+					"required status context %q: terminal publisher must branch on the await exit code "+
+						"(AGGREGATE_CODE) so only a genuinely failed gate publishes failure; "+
+						"still-running and aggregation-broken outcomes must not",
+					check.Context,
+				))
+			}
 		}
 		if strings.HasPrefix(step.Uses, "actions/checkout@") {
 			if ref := strings.TrimSpace(step.With["ref"]); ref != "" && !strings.Contains(ref, "default_branch") {

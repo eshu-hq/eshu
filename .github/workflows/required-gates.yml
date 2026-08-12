@@ -108,6 +108,7 @@ jobs:
           PR_NUMBER: ${{ steps.pr.outputs.number }}
         working-directory: go
         run: |
+          set +e
           go run ./cmd/ci-gates await \
             --registry ../specs/ci-gates.v1.yaml \
             --repo-root .. \
@@ -116,6 +117,13 @@ jobs:
             --head-sha "${HEAD_SHA}" \
             --poll-interval 30s \
             --timeout 55m
+          code=$?
+          set -e
+          # The code, not just success/failure, is what the publisher below
+          # needs (#6075): 0 passed, 1 a selected gate failed, 3 gates still
+          # running, 4 aggregation itself broke.
+          echo "code=${code}" >> "${GITHUB_OUTPUT}"
+          exit "${code}"
 
       - name: Publish terminal required status
         if: ${{ !cancelled() }}
@@ -125,12 +133,33 @@ jobs:
           TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           PENDING_OUTCOME: ${{ steps.pending.outcome }}
           AGGREGATE_OUTCOME: ${{ steps.aggregate.outcome }}
+          AGGREGATE_CODE: ${{ steps.aggregate.outputs.code }}
         run: |
-          state=failure
-          description='Required gate aggregation failed'
-          if [[ "${PENDING_OUTCOME}" == "success" && "${AGGREGATE_OUTCOME}" == "success" ]]; then
-            state=success
-            description='All path-selected blocking gates passed'
+          # #6075: publish what actually happened, not "failure" for every
+          # non-success. This status is branch protection's summary of every
+          # other gate, so a red that only means "not finished yet" trains
+          # people to ignore the one check that is supposed to be
+          # authoritative, and makes any lander abandon a green PR.
+          #
+          # `failure` is reserved for a gate that genuinely concluded failure.
+          # Gates still running publish nothing at all -- another Required
+          # Gates run for this same head is already queued behind the
+          # workflows that are still going, and it is authoritative. Writing
+          # `pending` here instead would be harmless but pointless: the status
+          # is already pending from the earlier step.
+          if [[ "${PENDING_OUTCOME}" != "success" ]]; then
+            state=error
+            description='Required gate aggregation could not start'
+          else
+            case "${AGGREGATE_CODE}" in
+              0) state=success; description='All path-selected blocking gates passed' ;;
+              1) state=failure; description='A required gate failed' ;;
+              3)
+                echo "::notice::selected gates still running; leaving required-gates-complete pending for the next run"
+                exit 0
+                ;;
+              *) state=error; description='Required gate aggregation broke (not a gate result)' ;;
+            esac
           fi
           gh api -X POST "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" \
             -f state="${state}" \
