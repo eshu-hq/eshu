@@ -166,6 +166,13 @@ func (p *stateParser) readInstance(resource resourceContext, instanceIndex int) 
 	if err := p.emitAppliedIncidentRoutingEvidence(resource, address, attributes); err != nil {
 		return err
 	}
+	// Recorded at the instance boundary, not inside attribute classification.
+	// A resource whose instance carries no classifiable attributes -- none at
+	// all, or only tag maps, which classifyAttributes skips -- would otherwise
+	// never reach the detector and its schema gap would stay silent. It also
+	// makes occurrence_count mean "instances of this type", which is what the
+	// field name promises (codex + Copilot review).
+	p.recordUncoveredResourceType(strings.TrimSpace(resource.Type))
 	classifiedAttributes, err := p.classifyAttributes(strings.TrimSpace(resource.Type), address, attributes)
 	if err != nil {
 		return err

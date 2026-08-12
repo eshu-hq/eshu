@@ -146,10 +146,11 @@ func TestParserKeepsUnsupportedPackagedCompositeFailClosed(t *testing.T) {
 	if got, want := recorder.last.Reason, terraformstate.CompositeCaptureSkipReasonSchemaUnknown; got != want {
 		t.Fatalf("recorded Reason = %q, want %q", got, want)
 	}
-	warning := factByKind(t, result.Facts, facts.TerraformStateWarningFactKind)
-	if got, want := warning.Payload["warning_kind"], "unsupported_composite_attribute"; got != want {
-		t.Fatalf("warning_kind = %#v, want %#v", got, want)
-	}
+	// Selected by kind rather than "the only warning": since #5870 an uncovered
+	// provider also emits provider_schema_not_covered, and cloudinit is exactly
+	// such a provider. That row is a different signal with a different operator
+	// action, asserted in parser_identity_anchor_exemption_test.go.
+	warning := warningFactOfKind(t, result.Facts, "unsupported_composite_attribute")
 	if got, want := warning.Payload["reason"], terraformstate.CompositeCaptureSkipReasonSchemaUnknown; got != want {
 		t.Fatalf("reason = %#v, want %#v", got, want)
 	}
@@ -211,14 +212,15 @@ func TestParserClassifiesCloudinitPartFixtureAsUnsupportedComposite(t *testing.T
 	if got, want := atomic.LoadInt64(&recorder.calls), int64(2); got != want {
 		t.Fatalf("composite skip calls = %d, want %d", got, want)
 	}
-	warnings := factsByKind(result.Facts, facts.TerraformStateWarningFactKind)
-	if got, want := len(warnings), 1; got != want {
-		t.Fatalf("warning fact count = %d, want %d: %#v", got, want, warnings)
+	// Exactly one composite warning, and it is summarized rather than emitted
+	// per occurrence -- that is what this test is about. Counted by kind because
+	// cloudinit is a provider the bundle does not cover, so #5870 also emits one
+	// provider_schema_not_covered row here.
+	composite := warningsOfKind(result.Facts, "unsupported_composite_attribute")
+	if got, want := len(composite), 1; got != want {
+		t.Fatalf("unsupported_composite_attribute warning count = %d, want %d: %#v", got, want, composite)
 	}
-	warning := warnings[0]
-	if got, want := warning.Payload["warning_kind"], "unsupported_composite_attribute"; got != want {
-		t.Fatalf("warning_kind = %#v, want %#v", got, want)
-	}
+	warning := composite[0]
 	if got, want := warning.Payload["reason"], terraformstate.CompositeCaptureSkipReasonSchemaUnknown; got != want {
 		t.Fatalf("reason = %#v, want %#v", got, want)
 	}
@@ -310,4 +312,31 @@ func TestParserClassifiesSensitivePackagedCompositeAsIntentionalSkip(t *testing.
 	if got, want := warning.Payload["attribute_key"], "environment"; got != want {
 		t.Fatalf("attribute_key = %#v, want %#v", got, want)
 	}
+}
+
+// warningsOfKind returns the emitted terraform_state_warning facts whose
+// warning_kind matches. Tests that care about one warning family must select by
+// kind rather than assuming a parse emits exactly one warning: the parser has
+// several independent warning producers, and a new one is a legitimate addition
+// rather than a reason for an unrelated test to fail.
+func warningsOfKind(all []facts.Envelope, warningKind string) []facts.Envelope {
+	var out []facts.Envelope
+	for _, warning := range factsByKind(all, facts.TerraformStateWarningFactKind) {
+		if warning.Payload["warning_kind"] == warningKind {
+			out = append(out, warning)
+		}
+	}
+	return out
+}
+
+// warningFactOfKind returns the single warning of one kind, failing when there
+// is not exactly one.
+func warningFactOfKind(t *testing.T, all []facts.Envelope, warningKind string) facts.Envelope {
+	t.Helper()
+
+	matches := warningsOfKind(all, warningKind)
+	if len(matches) != 1 {
+		t.Fatalf("%s warning count = %d, want 1: %#v", warningKind, len(matches), matches)
+	}
+	return matches[0]
 }

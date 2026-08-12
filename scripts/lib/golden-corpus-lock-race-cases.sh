@@ -272,6 +272,10 @@ rm -rf "${reval_home}"
 [[ "${reval_now}" == "${reval_live}" ]] \
 	|| fail "the aged-guard reap destroyed a guard a LIVE reclaimer republished during the liveness decision (guard became: ${reval_now})"
 
+. "${repo_root}/scripts/lib/golden-corpus-keep-marker-cases.sh"
+[[ "${keep_marker_cases_completed:-0}" -eq 1 ]] ||
+	fail "golden-corpus-keep-marker-cases.sh did not run to completion"
+
 drop_lock_home
 trap - EXIT
 

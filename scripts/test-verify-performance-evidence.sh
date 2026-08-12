@@ -236,6 +236,29 @@ git -C "${compose_runtime_removal_repo}" add .
 git -C "${compose_runtime_removal_repo}" commit -q -m 'remove runtime compose knob'
 expect_fail "${compose_runtime_removal_repo}"
 
+# Live-gate shell coordination changes alter contention, external Docker calls,
+# and operator diagnostics, so they require the same durable performance and
+# observability evidence as Go/runtime-config concurrency changes.
+live_gate_repo="$(init_repo live-gate-shell)"
+mkdir -p "${live_gate_repo}/scripts/lib"
+printf '#!/usr/bin/env bash\nacquire_live_gate_lock() { return 0; }\n' \
+  >"${live_gate_repo}/scripts/lib/live-gate-lock.sh"
+printf '#!/usr/bin/env bash\nkeep_marker_blocks() { return 0; }\n' \
+  >"${live_gate_repo}/scripts/lib/golden-corpus-keep-marker.sh"
+git -C "${live_gate_repo}" add .
+git -C "${live_gate_repo}" commit -q -m 'change live gate coordination without evidence'
+expect_fail "${live_gate_repo}"
+
+live_gate_evidence_repo="$(init_repo live-gate-shell-evidence)"
+mkdir -p "${live_gate_evidence_repo}/scripts/lib"
+printf '#!/usr/bin/env bash\nacquire_live_gate_lock() { return 0; }\n' \
+  >"${live_gate_evidence_repo}/scripts/lib/live-gate-lock.sh"
+printf '\nNo-Regression Evidence: no-marker path performs no Docker query.\n\nObservability Evidence: stderr reports holder and reason.\n' \
+  >>"${live_gate_evidence_repo}/docs/public/reference/local-performance-envelope.md"
+git -C "${live_gate_evidence_repo}" add .
+git -C "${live_gate_evidence_repo}" commit -q -m 'change live gate coordination with evidence'
+expect_pass "${live_gate_evidence_repo}"
+
 # Comment-only change to an EXISTING hot-path Go file (e.g. SPDX header
 # rollout): the file already exists with hot-path content, and the diff
 # only adds comment lines at the top. The gate must NOT trip.

@@ -54,3 +54,34 @@
   metrics, admin status, or content storage.
 - Adding graph, reducer, query, or storage imports to this package.
 - Treating local `.tfstate` as normal Git content or persisting its raw bytes.
+
+## Identity join keys are exempt from SchemaUnknown (#5870)
+
+- `identityJoinKeys` (`arn`, `id`, `self_link`) are preserved raw under an
+  unknown provider schema. The criterion is "a key a downstream reader JOINS
+  on", not "a key that looks like an identifier" — redacting one corrupts graph
+  truth (the row leaves the join and its resource reports
+  `orphaned_cloud_resource`) rather than protecting a value. Do NOT widen the
+  set by intuition; follow the readers first.
+- Use `classificationSchemaTrust` when classifying an attribute for emission and
+  the BARE `schemaTrust` everywhere else. `redactsAnchor` depends on the bare
+  one: the correlation-anchor guarantee is deliberately NOT part of the
+  exemption.
+- The exemption runs after `isHardSensitiveStateAttribute` and never applies to
+  composites. Operator-declared sensitive keys outrank it automatically, because
+  `redact.RuleSet.Classify` tests them before schema trust — do not re-check
+  them in the trust seam.
+- The exempt set is matched VERBATIM. Do not trim or normalize `attributeKey`
+  before the lookup: the downstream SQL joins the exact JSON keys, so a
+  near-match like `" id"` cannot repair a join and only leaks an
+  unknown-schema value.
+- Any change here must keep the `provider_schema_not_covered` detector working.
+  Without it a stale schema bundle is silent, because the exemption removes the
+  false-orphan wave that used to reveal it. Record it at the resource-INSTANCE
+  boundary — an instance with only tag maps never reaches attribute
+  classification — and keep the two reasons distinct
+  (`provider_not_in_schema_bundle` vs `resource_type_not_in_schema_bundle`),
+  since they send an operator to different fixes.
+- The warning kind and both reasons are defined in `internal/tfstatewarning`,
+  which decides their severity/actionability. Reference those constants; a
+  second copy of the literals drifts silently into `ok=false`.
