@@ -120,6 +120,7 @@ main() {
 	test_moving_the_file_turns_naming_green
 	test_grandfathered_directory
 	test_grandfathered_cap_nolint_is_refused
+	test_grandfathered_directory_swap_at_same_count_fails
 	test_naming_exempt_new_violation_below_pinned_count_is_red
 	test_naming_exempt_pinned_file_stays_green
 	test_naming_exempt_stale_row_hard_fails

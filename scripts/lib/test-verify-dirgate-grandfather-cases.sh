@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Grandfather-ledger monotonic-ratchet cases for scripts/test-verify-
-# dirgate.sh: pinned-count GREEN, growth RED, the cap-nolint refusal, and the
-# shrink-requires-repin rule. Sourced by that test; not intended to run
-# standalone. Relies on the harness (new_scratch_repo, run_dirgate,
-# assert_contains, assert_exit, record_pass/record_fail) and on
-# dirgate-core.sh's functions (e.g. dirgate_digest), both already sourced by
-# the driver.
+# dirgate.sh: pinned-count GREEN, growth RED, the cap-nolint refusal, a
+# same-count file swap, and the shrink-requires-repin rule. Sourced by that
+# test; not intended to run standalone. Relies on the harness
+# (new_scratch_repo, run_dirgate, assert_contains, assert_exit,
+# record_pass/record_fail) and on dirgate-core.sh's functions (e.g.
+# dirgate_digest), both already sourced by the driver.
 
 # ---------------------------------------------------------------------------
 # (d) Grandfathered directory is GREEN at its pinned count; adding one file
@@ -66,6 +66,46 @@ test_grandfathered_directory() {
 	run_dirgate "${repo}" --files go/internal/legacy/file0045.go
 	assert_exit "${DIRGATE_EXIT}" 1 "adding one file to a grandfathered directory (45 -> 46) is RED"
 	assert_contains "${DIRGATE_OUT}" "grew from its grandfathered count of 45 to 46" "growth RED explains what changed"
+
+	rm -rf "${repo}"
+	unset DIRGATE_GRANDFATHER_TSV_OVERRIDE
+}
+
+# ---------------------------------------------------------------------------
+# (m) A same-count file swap on a grandfathered directory (one file removed,
+#     a different one added -- so the qualifying COUNT never changes) must
+#     still go RED. Mirrors the Go side's
+#     TestEvaluateDirectoryGrandfatheredSwapAtSameCountFails: pure counting
+#     would miss this shape entirely, which is exactly why
+#     evaluateCapViolation / dirgate_evaluate_dir also check the digest at
+#     the pinned count. This bash mirror is the AUTHORITATIVE
+#     implementation (the one CI runs), and had no dedicated coverage of
+#     this case before now -- see issue #6054 review on PR #6081.
+# ---------------------------------------------------------------------------
+test_grandfathered_directory_swap_at_same_count_fails() {
+	local repo tsv digest
+	repo="$(new_scratch_repo)"
+	write_numbered_files "${repo}/go/internal/legacyswap" 42
+	local -a bases=()
+	local p
+	for p in "${repo}"/go/internal/legacyswap/*.go; do
+		bases+=("$(basename "${p}")")
+	done
+	digest="$(dirgate_digest "${bases[@]:-}")"
+
+	tsv="${repo}/grandfather.tsv"
+	printf '# scratch\ninternal/legacyswap\t42\t%s\n' "${digest}" > "${tsv}"
+	DIRGATE_GRANDFATHER_TSV_OVERRIDE="${tsv}"
+
+	# Same COUNT as pinned (42), but a different file set: swap the last
+	# pinned file for one the ledger never saw.
+	rm "${repo}/go/internal/legacyswap/file0041.go"
+	printf 'package fixture\n' > "${repo}/go/internal/legacyswap/swapped-in.go"
+
+	run_dirgate "${repo}" --files go/internal/legacyswap/swapped-in.go
+	assert_exit "${DIRGATE_EXIT}" 1 "a same-count file swap on a grandfathered directory is RED"
+	assert_contains "${DIRGATE_OUT}" "file set changed at its pinned count of 42" "swap RED explains the swap"
+	assert_contains "${DIRGATE_OUT}" "digest no longer matches" "swap RED explains the digest mismatch"
 
 	rm -rf "${repo}"
 	unset DIRGATE_GRANDFATHER_TSV_OVERRIDE
