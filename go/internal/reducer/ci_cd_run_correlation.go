@@ -96,6 +96,13 @@ type CICDRunCorrelationHandler struct {
 	// ProvenanceEdgeWriter projects exact workflow-image correlations into
 	// independently owned BUILT_FROM graph assertions when configured.
 	ProvenanceEdgeWriter ContainerImageProvenanceEdgeWriter
+	// ProducerReadiness is the #5709 cross-scope correctness floor. This domain
+	// reads container_image_identity output written in a DIFFERENT ingestion
+	// scope, so a correlation claimed before that producer commits resolves
+	// nothing and would otherwise write a durable "no answer" no later event
+	// disturbs. When wired, an empty cross-scope join with uncommitted
+	// producers defers instead. Optional: nil keeps today's behaviour.
+	ProducerReadiness CrossScopeProducerReadiness
 }
 
 // Handle executes one CI/CD run correlation reducer intent.
@@ -128,6 +135,16 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent Intent) (R
 	active, err := h.loadActiveCICDRunCorrelationFacts(ctx, ciArtifactDigests(envelopes), ciWorkflowImageRefs(envelopes))
 	if err != nil {
 		return Result{}, fmt.Errorf("load active ci/cd artifact identity facts: %w", err)
+	}
+	// The cross-scope floor sits here, on the load that reads the producer's
+	// output, and not at admission: producer readiness is not knowable when
+	// this intent is enqueued. Returned unwrapped so the queue reads the
+	// non-counting failure class off it (#5709).
+	if err := deferWhenCrossScopeProducersNotReady(
+		ctx, h.ProducerReadiness, DomainCICDRunCorrelation,
+		intent.ScopeID, intent.GenerationID, len(active),
+	); err != nil {
+		return Result{}, err
 	}
 	envelopes = append(envelopes, active...)
 
