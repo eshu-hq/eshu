@@ -63,6 +63,7 @@ NornicDB is the **default** canonical backend; Neo4j is compatibility only.
   (values in the doc): `ESHU_CANONICAL_WRITE_TIMEOUT`,
   `ESHU_NORNICDB_PHASE_GROUP_STATEMENTS`,
   `ESHU_NORNICDB_FILE_PHASE_GROUP_STATEMENTS`, `ESHU_NORNICDB_FILE_BATCH_SIZE`,
+  `ESHU_NORNICDB_STRUCTURAL_EDGE_PHASE_GROUP_STATEMENTS`,
   `ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY`, plus per-entity-label phase-group
   caps and batch sizes. Pitfalls (constraint recreation on a live store,
   concurrent MERGE at commit-time uniqueness) →
