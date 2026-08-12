@@ -3,7 +3,35 @@
 
 package reducer
 
-import "context"
+import (
+	"context"
+	"time"
+)
+
+// crossScopeProducerReadinessMaxWait bounds the deferral by ELAPSED TIME since
+// the current repair cycle began, so a consumer converges instead of waiting
+// forever on a producer that never arrives.
+//
+// The bound is not optional and it MUST NOT be a retry-count comparison.
+// CrossScopeProducerNotReadyFailureClass is enrolled in
+// nonCountingReducerRetryFailureClasses (reducer_queue_readiness_sql.go), which
+// FREEZES fact_work_items.attempt_count for exactly this class -- by design, so
+// a waiting consumer is never dead-lettered. That freeze means Intent.AttemptCount
+// stops advancing after the first defer and reads identically on every later
+// claim, so a bound compared against it can never fire. The sibling AWS gate
+// shipped that mistake first and had to be re-proven against the real queue.
+//
+// Without a bound, a producer scope that is permanently absent, permanently
+// failed, or stuck leaves its consumers deferring forever in a class that never
+// counts and never dead-letters. That is a worse failure than the durable empty
+// answer this floor exists to prevent: the empty answer is at least visible and
+// repairable, where an eternal defer is silent.
+//
+// 30 minutes matches the sibling gate rather than a separate measurement:
+// generous enough that ordinary asynchronous producer ingestion never reaches
+// it, short enough that a genuinely stuck producer converges to a terminal
+// answer inside an operator's normal triage window.
+const crossScopeProducerReadinessMaxWait = 30 * time.Minute
 
 // CrossScopeProducerReadiness answers whether every producer domain a consumer
 // declares in crossScopeDependencyCatalog has committed output that the
@@ -47,7 +75,9 @@ type CrossScopeProducerReadiness interface {
 //  2. no declared producers — the domain is not a registered cross-scope
 //     consumer, so there is nothing to wait for. A domain absent from the
 //     catalog must behave exactly as it does today.
-//  3. readiness == nil — the seam is not wired for this handler. Unwired means
+//  3. the elapsed bound is reached — converge on the best available answer
+//     rather than deferring forever (see crossScopeProducerReadinessMaxWait).
+//  4. readiness == nil — the seam is not wired for this handler. Unwired means
 //     "no floor", not "not ready": defaulting to defer would strand every
 //     consumer in a deployment that has not adopted the seam.
 //
@@ -59,22 +89,25 @@ type CrossScopeProducerReadiness interface {
 func deferWhenCrossScopeProducersNotReady(
 	ctx context.Context,
 	readiness CrossScopeProducerReadiness,
-	consumer Domain,
-	scopeID string,
-	generationID string,
+	intent Intent,
+	now time.Time,
 	resolved int,
 ) error {
 	if resolved > 0 {
 		return nil
 	}
-	dependencies := crossScopeDependenciesForRegistration(consumer)
+	dependencies := crossScopeDependenciesForRegistration(intent.Domain)
 	if len(dependencies) == 0 {
 		return nil
 	}
 	if readiness == nil {
 		return nil
 	}
-	ready, err := readiness.CrossScopeProducersReady(ctx, consumer, scopeID, generationID)
+	if anchor := crossScopeReadinessCycleAnchor(intent); !anchor.IsZero() &&
+		now.Sub(anchor) >= crossScopeProducerReadinessMaxWait {
+		return nil
+	}
+	ready, err := readiness.CrossScopeProducersReady(ctx, intent.Domain, intent.ScopeID, intent.GenerationID)
 	if err != nil {
 		return err
 	}
@@ -85,9 +118,32 @@ func deferWhenCrossScopeProducersNotReady(
 		return nil
 	}
 	return newCrossScopeProducerNotReadyError(
-		consumer,
-		scopeID,
-		generationID,
+		intent.Domain,
+		intent.ScopeID,
+		intent.GenerationID,
 		dependencies[0].ProducerDomains,
 	)
+}
+
+// crossScopeReadinessCycleAnchor returns intent.CycleStartedAt when set,
+// falling back to intent.EnqueuedAt.
+//
+// CycleStartedAt is COALESCE(reopened_at, created_at) from the claim query, so
+// it is the only one of the two that gets a fresh value when a maintenance
+// pass reopens the row. Anchoring on EnqueuedAt alone would read as "already
+// past the bound" on the first claim of any reopened row, skipping the
+// readiness lookup entirely and committing a possibly-early answer with no
+// grace window -- the regression a round-3 review caught on the sibling AWS
+// gate (see awsCloudRuntimeDriftStatePendingMaxWait).
+//
+// A zero anchor means elapsed time is unknown, not infinite. Subtracting a
+// zero time.Time from now reads as tens of thousands of hours and would fire
+// the terminal fallback on the very first defer. Returning zero here keeps the
+// caller deferring, which costs a bounded delay; the other direction commits a
+// possibly-wrong answer for a reason unrelated to elapsed time.
+func crossScopeReadinessCycleAnchor(intent Intent) time.Time {
+	if !intent.CycleStartedAt.IsZero() {
+		return intent.CycleStartedAt
+	}
+	return intent.EnqueuedAt
 }

@@ -141,8 +141,7 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent Intent) (R
 	// this intent is enqueued. Returned unwrapped so the queue reads the
 	// non-counting failure class off it (#5709).
 	if err := deferWhenCrossScopeProducersNotReady(
-		ctx, h.ProducerReadiness, DomainCICDRunCorrelation,
-		intent.ScopeID, intent.GenerationID, len(active),
+		ctx, h.ProducerReadiness, intent, time.Now(), len(active),
 	); err != nil {
 		return Result{}, err
 	}
