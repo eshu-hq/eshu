@@ -50,7 +50,7 @@ cleanup() {
 		echo "  docker compose -p $COMPOSE_PROJECT logs --tail=200 resolution-engine"
 	fi
 	if [[ "$KEEP_STACK" != "true" && ${#COMPOSE_CMD[@]} -gt 0 ]]; then
-		"${COMPOSE_CMD[@]}" down -v >/dev/null 2>&1 || true
+		"${COMPOSE_CMD[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
 	fi
 	rm -rf "$TMP_DIR"
 	exit "$exit_code"
@@ -302,7 +302,12 @@ human_duration() {
 cd "$REPO_ROOT"
 
 echo "=== Phase 1: index the corpus ==="
-"${COMPOSE_CMD[@]}" down -v >/dev/null 2>&1 || true
+# Start from nothing. `down` alone can leave a container behind when a previous
+# run was killed hard enough to skip its own cleanup, and the next `up` then
+# fails on a name conflict rather than on anything to do with the rebuild.
+"${COMPOSE_CMD[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
+docker ps -a --format '{{.Names}}' | rg "^${COMPOSE_PROJECT}-" \
+	| xargs -r docker rm -f >/dev/null 2>&1 || true
 docker volume rm "${COMPOSE_PROJECT}_nornicdb_data" >/dev/null 2>&1 || true
 "${COMPOSE_CMD[@]}" up -d --build >/dev/null
 wait_for_service_exit bootstrap-index "$BOOTSTRAP_TIMEOUT"
