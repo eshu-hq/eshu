@@ -90,6 +90,11 @@ func TestSupplyChainImpactUngatedIdentityKeysStayInLockstepWithQuery(t *testing.
 func supplyChainImpactUngatedIdentityKeysInQuery(t *testing.T, query string) []string {
 	t.Helper()
 
+	// Derive from the statement Postgres actually executes. Parsing the raw
+	// constant would also read the SQL comments, where a future `--` line
+	// quoting a `fact.payload->>'key'` predicate would register as a real one.
+	query = sqlWithoutLineComments(query)
+
 	seen := make(map[string]struct{})
 	for _, prefix := range []string{"fact.payload->>'", "fact.payload->'scope'->>'"} {
 		for offset := 0; ; {
