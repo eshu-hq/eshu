@@ -13,67 +13,6 @@ import (
 	"testing"
 )
 
-func TestAddSupplyChainRuntimeContextFactCICDEnvironmentEvidence(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		name     string
-		raw      any
-		expected string
-	}{
-		{name: "deployment event", raw: "deploy_event", expected: "deploy_event"},
-		{name: "trimmed deployment event", raw: "  deploy_event  ", expected: "deploy_event"},
-		{name: "declared", raw: "declared", expected: "declared"},
-		{name: "missing", raw: nil, expected: "declared"},
-		{name: "unknown", raw: "observed", expected: "declared"},
-		{name: "non-string", raw: 42, expected: "declared"},
-	} {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			payload := map[string]any{
-				"repository_id": "repository:r_environment_evidence",
-				"environment":   "production",
-				"outcome":       "exact",
-			}
-			if tc.raw != nil {
-				payload["environment_evidence"] = tc.raw
-			}
-			out := map[string]SupplyChainRuntimeContext{}
-			addSupplyChainRuntimeContextFact(out, cicdRunCorrelationFactKind, "scope", payload)
-
-			got := out["repository:r_environment_evidence"].EnvironmentEvidence
-			if got["production"] != tc.expected {
-				t.Fatalf("environment evidence = %#v, want production=%q", got, tc.expected)
-			}
-		})
-	}
-}
-
-func TestAddSupplyChainRuntimeContextFactCICDDeployEventWinsRegardlessOfInputOrder(t *testing.T) {
-	t.Parallel()
-
-	for _, order := range [][]string{
-		{"deploy_event", "declared"},
-		{"declared", "deploy_event"},
-	} {
-		out := map[string]SupplyChainRuntimeContext{}
-		for _, evidence := range order {
-			addSupplyChainRuntimeContextFact(out, cicdRunCorrelationFactKind, "scope", map[string]any{
-				"repository_id":        "repository:r_environment_evidence",
-				"environment":          "production",
-				"environment_evidence": evidence,
-				"outcome":              "exact",
-			})
-		}
-		got := out["repository:r_environment_evidence"].EnvironmentEvidence
-		if got["production"] != "deploy_event" {
-			t.Fatalf("order %v produced %#v, want production=deploy_event", order, got)
-		}
-	}
-}
-
 func TestAddSupplyChainRuntimeContextFactCICDRejectedEvidenceDoesNotFold(t *testing.T) {
 	t.Parallel()
 
@@ -100,18 +39,23 @@ func TestAddSupplyChainRuntimeContextFactCICDRejectedEvidenceDoesNotFold(t *test
 	}
 }
 
-func TestApplySupplyChainRuntimeContextCarriesEnvironmentEvidenceWithoutBackfill(t *testing.T) {
+func TestApplySupplyChainRuntimeContextUsesRepositoryEnvironmentOnlyAsExactDigestCandidate(t *testing.T) {
 	t.Parallel()
 
 	contextValue := SupplyChainRuntimeContext{
-		Environments:        []string{"production"},
-		EnvironmentEvidence: map[string]string{"production": "deploy_event"},
+		Environments: []string{"production"},
 	}
-	store := &runtimeContextFindingStore{byRepo: map[string]SupplyChainRuntimeContext{
-		"repository:r_217415d9": contextValue,
-	}}
+	row := osPackageFindingRowForRuntimeContext()
+	store := &runtimeContextFindingStore{
+		byRepo: map[string]SupplyChainRuntimeContext{
+			"repository:r_217415d9": contextValue,
+		},
+		byDigest: map[string]map[string]string{
+			row.SubjectDigest: {"production": "deploy_event"},
+		},
+	}
 	handler := &SupplyChainHandler{ImpactFindings: store}
-	rows := []SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()}
+	rows := []SupplyChainImpactFindingRow{row}
 
 	if err := handler.applySupplyChainRuntimeContext(context.Background(), rows, repositoryAccessFilter{allScopes: true}); err != nil {
 		t.Fatalf("applySupplyChainRuntimeContext() error = %v, want nil", err)
@@ -128,7 +72,7 @@ func TestApplySupplyChainRuntimeContextCarriesEnvironmentEvidenceWithoutBackfill
 	}
 }
 
-func TestApplySupplyChainRuntimeContextDefaultsResolvedEnvironmentEvidenceToDeclared(t *testing.T) {
+func TestApplySupplyChainRuntimeContextDoesNotDefaultUnconfirmedRepositoryEnvironment(t *testing.T) {
 	t.Parallel()
 
 	store := &runtimeContextFindingStore{byRepo: map[string]SupplyChainRuntimeContext{
@@ -142,8 +86,8 @@ func TestApplySupplyChainRuntimeContextDefaultsResolvedEnvironmentEvidenceToDecl
 	); err != nil {
 		t.Fatalf("applySupplyChainRuntimeContext() error = %v, want nil", err)
 	}
-	if got := rows[0].RuntimeContext.EnvironmentEvidence["production"]; got != "declared" {
-		t.Fatalf("runtime environment evidence = %q, want declared", got)
+	if got := rows[0].RuntimeContext.EnvironmentEvidence; len(got) != 0 {
+		t.Fatalf("runtime environment evidence = %#v, want empty without exact digest match", got)
 	}
 }
 
@@ -225,13 +169,14 @@ func TestApplySupplyChainRuntimeContextDefensivelyCopiesEnvironmentEvidence(t *t
 	t.Parallel()
 
 	sourceEvidence := map[string]string{"production": "deploy_event"}
-	store := &runtimeContextFindingStore{byRepo: map[string]SupplyChainRuntimeContext{
-		"repository:r_217415d9": {
-			Environments:        []string{"production"},
-			EnvironmentEvidence: sourceEvidence,
+	row := osPackageFindingRowForRuntimeContext()
+	store := &runtimeContextFindingStore{
+		byRepo: map[string]SupplyChainRuntimeContext{
+			row.RepositoryID: {Environments: []string{"production"}},
 		},
-	}}
-	rows := []SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()}
+		byDigest: map[string]map[string]string{row.SubjectDigest: sourceEvidence},
+	}
+	rows := []SupplyChainImpactFindingRow{row}
 	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
 		context.Background(),
 		rows,
@@ -253,16 +198,19 @@ func TestApplySupplyChainRuntimeContextDefensivelyCopiesEnvironmentEvidence(t *t
 func TestApplySupplyChainRuntimeContextOmitsOrphanEnvironmentEvidence(t *testing.T) {
 	t.Parallel()
 
-	store := &runtimeContextFindingStore{byRepo: map[string]SupplyChainRuntimeContext{
-		"repository:r_217415d9": {
-			Environments: []string{"production"},
-			EnvironmentEvidence: map[string]string{
+	row := osPackageFindingRowForRuntimeContext()
+	store := &runtimeContextFindingStore{
+		byRepo: map[string]SupplyChainRuntimeContext{
+			row.RepositoryID: {Environments: []string{"production"}},
+		},
+		byDigest: map[string]map[string]string{
+			row.SubjectDigest: {
 				"production": "deploy_event",
 				"staging":    "deploy_event",
 			},
 		},
-	}}
-	rows := []SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()}
+	}
+	rows := []SupplyChainImpactFindingRow{row}
 	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
 		context.Background(),
 		rows,
@@ -282,19 +230,23 @@ func TestSupplyChainListAndExplainReportSameRuntimeEnvironmentEvidence(t *testin
 
 	const repositoryID = "repository:r_environment_evidence_parity"
 	finding := SupplyChainImpactFindingRow{
-		FindingID:    "finding-environment-evidence-parity",
-		CVEID:        "CVE-2026-5835",
-		PackageID:    "pkg:npm/example",
-		ImpactStatus: "affected_exact",
-		RepositoryID: repositoryID,
+		FindingID:     "finding-environment-evidence-parity",
+		CVEID:         "CVE-2026-5835",
+		PackageID:     "pkg:npm/example",
+		ImpactStatus:  "affected_exact",
+		RepositoryID:  repositoryID,
+		SubjectDigest: "sha256:environment-evidence-parity",
+		Environments:  []string{"production"},
 	}
 	contextValue := SupplyChainRuntimeContext{
-		Environments:        []string{"production"},
-		EnvironmentEvidence: map[string]string{"production": "deploy_event"},
+		Environments: []string{"production"},
 	}
 	contextStore := &runtimeContextFindingStore{
 		rows:   []SupplyChainImpactFindingRow{finding},
 		byRepo: map[string]SupplyChainRuntimeContext{repositoryID: contextValue},
+		byDigest: map[string]map[string]string{
+			finding.SubjectDigest: {"production": "deploy_event"},
+		},
 	}
 	handler := &SupplyChainHandler{
 		ImpactFindings: contextStore,

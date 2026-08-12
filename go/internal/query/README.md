@@ -347,16 +347,16 @@ result therefore reports the current `runtime_context`,
 `deployment_truth_tier`, `version_resolution_tier`, and
 `version_resolution_corroboration` from the same enriched row. The transformed
 investigation packet omits those fields and skips reads that cannot affect its
-response. The runtime context also reports `environment_evidence` for each
-environment contributed by a current accepted repository correlation. A second
-set-based read can confirm an already-visible finding environment against a
-current, authorized correlation for the finding's exact subject digest. This
-mirrors the reducer's strong digest branch across builder/deployer repository
-seams; it is artifact deployment context, not repository ownership. The baked
-name is only a selector and its baked evidence value is never copied. Values
-reuse the `deploy_event`/`declared` producer vocabulary: missing or unknown
-current values normalize to `declared`, and `deploy_event` wins when more than
-one current fact names the same environment. Read-time evidence never
+response. Current repository correlations contribute environment candidate
+names only. A second set-based read admits `environment_evidence` only when a
+current, authorized correlation matches both the candidate environment and the
+finding's exact subject digest. This mirrors the reducer's strong digest branch
+across builder/deployer repository seams; it is artifact deployment context,
+not repository ownership. Repository or baked evidence values are never copied,
+and an unconfirmed candidate gets no evidence entry. Admitted values reuse the
+`deploy_event`/`declared` producer vocabulary: a missing or unknown value on a
+matching row normalizes to `declared`, and `deploy_event` wins when more than
+one matching fact names the same environment. Read-time evidence never
 overwrites the finding's reducer-baked top-level environment fields.
 
 Performance Evidence: `BenchmarkFoldSupplyChainRuntimeContext200Repositories`
@@ -364,10 +364,10 @@ folded the same 800 facts for 200 repositories before and after the response
 change. Across five normal-build samples on the same machine and input shape,
 the `origin/main` median was 69.716 microseconds per fold
 (68.920-71.099 microseconds, 48,168 bytes and 1,003 allocations); the final
-branch median was 83.665 microseconds (83.418-84.877 microseconds, 118,568
-bytes and 1,403 allocations). The normalized map costs 13.949 microseconds,
-70,400 bytes, and 400 allocations per 200-repository fold; total fold time
-remains below 0.1 milliseconds. The exact production SQL was also measured on
+branch median was 65.839 microseconds (65.285-66.574 microseconds, 48,168 bytes
+and 1,003 allocations). Repository folding therefore adds no evidence map or
+allocation; exact-digest response evidence is owned by the separate bounded
+lookup. The exact production SQL was also measured on
 PostgreSQL 18.4 with 100,000 active rows for one hot digest, 199 cold candidate
 rows, and 900,000 unrelated rows. The original flattenable join performed
 roughly 200 million candidate comparisons, spilled its sort, and took 66,458.413

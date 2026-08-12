@@ -22,16 +22,12 @@ import (
 // knowledge" that self-heals on the next read — no readiness gate, no
 // re-enqueue, no fan-out.
 type SupplyChainRuntimeContext struct {
-	WorkloadIDs   []string
-	ServiceIDs    []string
-	DeploymentIDs []string
-	Environments  []string
-	// EnvironmentEvidence records the strongest corroboration state for each
-	// environment resolved from current accepted repository correlations or
-	// current exact-digest deployment confirmation.
-	EnvironmentEvidence map[string]string
-	CatalogEntityRefs   []string
-	CatalogOwnerRefs    []string
+	WorkloadIDs       []string
+	ServiceIDs        []string
+	DeploymentIDs     []string
+	Environments      []string
+	CatalogEntityRefs []string
+	CatalogOwnerRefs  []string
 }
 
 // SupplyChainRuntimeContextResult is the response-side envelope attached to
@@ -49,11 +45,10 @@ type SupplyChainRuntimeContextResult struct {
 	ServiceIDs    []string `json:"service_ids,omitempty"`
 	DeploymentIDs []string `json:"deployment_ids,omitempty"`
 	Environments  []string `json:"environments,omitempty"`
-	// EnvironmentEvidence records the strongest corroboration state for each
-	// resolved environment. Values use the existing deploy_event/declared
-	// vocabulary; deploy_event wins when the current repository correlation or
-	// an authorized current correlation for the finding's exact digest supplies
-	// it, and an otherwise resolved environment is declared.
+	// EnvironmentEvidence records the strongest current corroboration state for
+	// each admitted exact (subject_digest, environment) lookup. Repository
+	// context contributes candidate names only; it cannot supply or default an
+	// evidence value. Values use the existing deploy_event/declared vocabulary.
 	EnvironmentEvidence map[string]string `json:"environment_evidence,omitempty"`
 	// EnvironmentEvidenceProbe reports this finding's page-weighted current
 	// confirmation budget. CandidatesTruncated means visible candidate names
@@ -206,16 +201,12 @@ func (h *SupplyChainHandler) applySupplyChainRuntimeContext(
 			mapStringKeys(digestEvidence)...,
 		))
 		rows[i].RuntimeContext = &SupplyChainRuntimeContextResult{
-			TruthBasis:    supplyChainRuntimeContextTruthBasis,
-			WorkloadIDs:   sortedUniqueNonEmptyStrings(resolved.WorkloadIDs),
-			ServiceIDs:    sortedUniqueNonEmptyStrings(resolved.ServiceIDs),
-			DeploymentIDs: sortedUniqueNonEmptyStrings(resolved.DeploymentIDs),
-			Environments:  environments,
-			EnvironmentEvidence: cloneSupplyChainRuntimeEnvironmentEvidence(
-				environments,
-				resolved.EnvironmentEvidence,
-				digestEvidence,
-			),
+			TruthBasis:               supplyChainRuntimeContextTruthBasis,
+			WorkloadIDs:              sortedUniqueNonEmptyStrings(resolved.WorkloadIDs),
+			ServiceIDs:               sortedUniqueNonEmptyStrings(resolved.ServiceIDs),
+			DeploymentIDs:            sortedUniqueNonEmptyStrings(resolved.DeploymentIDs),
+			Environments:             environments,
+			EnvironmentEvidence:      digestEvidence,
 			EnvironmentEvidenceProbe: environmentPlans[i].metadata,
 			CatalogEntityRefs:        sortedUniqueNonEmptyStrings(resolved.CatalogEntityRefs),
 			CatalogOwnerRefs:         sortedUniqueNonEmptyStrings(resolved.CatalogOwnerRefs),

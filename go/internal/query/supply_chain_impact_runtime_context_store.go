@@ -237,21 +237,16 @@ func addSupplyChainRuntimeContextFactForRepository(
 		if environment := supplyChainRuntimeContextString(payload, "environment"); environment != "" {
 			ctx := out[repositoryID]
 			ctx.Environments = append(ctx.Environments, environment)
-			ctx.EnvironmentEvidence = recordSupplyChainRuntimeEnvironmentEvidence(
-				ctx.EnvironmentEvidence,
-				environment,
-				supplyChainRuntimeContextString(payload, "environment_evidence"),
-			)
 			out[repositoryID] = ctx
 		}
 	}
 }
 
-// recordSupplyChainRuntimeEnvironmentEvidence folds one accepted CI/CD
-// correlation's environment corroboration into read-time runtime context. It
-// mirrors the reducer's #5426 contract: only deploy_event proves deployment
-// event corroboration, every missing or unknown value is declared, and
-// deploy_event wins independent of fact iteration order.
+// recordSupplyChainRuntimeEnvironmentEvidence folds one exact-digest lookup
+// row into the response-side evidence map. It mirrors the reducer's #5426
+// contract: only deploy_event proves deployment-event corroboration, every
+// missing or unknown admitted value is declared, and deploy_event wins
+// independent of fact iteration order.
 func recordSupplyChainRuntimeEnvironmentEvidence(
 	state map[string]string,
 	environment string,
@@ -273,41 +268,6 @@ func recordSupplyChainRuntimeEnvironmentEvidence(
 	}
 	state[environment] = supplyChainRuntimeEnvironmentEvidenceDeclared
 	return state
-}
-
-// cloneSupplyChainRuntimeEnvironmentEvidence returns a defensive, normalized
-// response map for the resolved environments. Every resolved environment gets
-// the closed-vocabulary declared baseline; any current repository correlation
-// or exact-digest current deployment confirmation can strengthen it to
-// deploy_event.
-func cloneSupplyChainRuntimeEnvironmentEvidence(
-	environments []string,
-	sources ...map[string]string,
-) map[string]string {
-	if len(environments) == 0 {
-		return nil
-	}
-	allowed := make(map[string]struct{}, len(environments))
-	cloned := make(map[string]string, len(environments))
-	for _, environment := range environments {
-		environment = strings.TrimSpace(environment)
-		if environment != "" {
-			allowed[environment] = struct{}{}
-			cloned = recordSupplyChainRuntimeEnvironmentEvidence(cloned, environment, "")
-		}
-	}
-	for _, source := range sources {
-		for environment, evidence := range source {
-			if _, ok := allowed[strings.TrimSpace(environment)]; !ok {
-				continue
-			}
-			cloned = recordSupplyChainRuntimeEnvironmentEvidence(cloned, environment, evidence)
-		}
-	}
-	if len(cloned) == 0 {
-		return nil
-	}
-	return cloned
 }
 
 // supplyChainRuntimeContextOutcomeAccepted mirrors the reducer's outcome gate

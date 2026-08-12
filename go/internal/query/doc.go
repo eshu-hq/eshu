@@ -130,9 +130,10 @@
 // missing-evidence reasons without adding whole-graph traversal or inventing
 // reachability truth. The list and explain routes resolve the same current
 // repository-to-runtime context before building their finding result. Current
-// accepted CI/CD correlations contribute per-environment deploy_event or
-// declared corroboration without changing reducer-baked finding fields. The
-// routes also select the strongest eligible concrete
+// accepted CI/CD repository correlations contribute environment candidate
+// names only. Per-environment deploy_event or declared corroboration requires
+// a current exact subject-digest and environment match, without changing
+// reducer-baked finding fields. The routes also select the strongest eligible concrete
 // version or digest claim from runtime-observed, CI-declared, and config
 // evidence. Weaker claims remain visible as agreeing, disagreeing, or
 // incomparable corroboration; a CI-declared digest that contradicts the
