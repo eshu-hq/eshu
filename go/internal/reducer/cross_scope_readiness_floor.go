@@ -5,12 +5,16 @@ package reducer
 
 import (
 	"context"
+	"log/slog"
+	"strings"
 	"time"
+
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // crossScopeProducerReadinessMaxWait bounds the deferral by ELAPSED TIME since
 // the current repair cycle began, so a consumer converges instead of waiting
-// forever on a producer that never arrives.
+// forever on a producer scope that never activates.
 //
 // The bound is not optional and it MUST NOT be a retry-count comparison.
 // CrossScopeProducerNotReadyFailureClass is enrolled in
@@ -33,23 +37,34 @@ import (
 // answer inside an operator's normal triage window.
 const crossScopeProducerReadinessMaxWait = 30 * time.Minute
 
-// CrossScopeProducerReadiness answers whether every producer domain a consumer
-// declares in crossScopeDependencyCatalog has committed output that the
-// consumer's scope can already see.
+// CrossScopeProducerReadiness answers whether the producer scopes a consumer
+// depends on have finished publishing: their generation is active and their
+// projector work has drained.
 //
 // This is the correctness floor for the cross-scope dependency contract
-// (#5709). The producer-completion fanout re-runs a consumer AFTER a producer
-// acknowledges, which is the right re-trigger — but it cannot help a consumer
-// that was already claimed when the producer finished. That consumer resolves
-// nothing, writes a durable "no answer" decision, and no later event disturbs
-// it. The floor is what makes such a consumer defer instead.
+// (#5709), and it closes one specific window. The consumer that was ALREADY
+// CLAIMED when the producer finished is handled elsewhere and needs no floor:
+// the completion fanout marks such a consumer with cross_scope_replay_required
+// (go/internal/storage/postgres/cross_scope_completion_fanout.go) and the
+// trigger installed by migration 093 rewrites that row's 'succeeded'
+// acknowledgement back to 'pending', so it runs again.
+//
+// What remains is the ACTIVATION window. A producer's reducer row reaches
+// 'succeeded' before its scope generation is activated -- activation happens at
+// projector acknowledgement. A consumer running inside that window reads
+// through container_image_identity_current_support_facts_for (migration 092c),
+// which returns a row only when scope.active_generation_id matches the
+// generation AND that generation's status is 'active'. So the consumer resolves
+// nothing, writes a durable "no correlation" decision, and no later event
+// disturbs it. The floor is what makes such a consumer defer instead.
 //
 // Deliberately an interface consumed here rather than a concrete store: the
 // reducer package already takes its readiness seams this way (see
 // GraphProjectionReadinessLookup), and it keeps this package free of SQL.
 type CrossScopeProducerReadiness interface {
-	// CrossScopeProducersReady reports whether the declared producers for
-	// consumer have committed output visible to scopeID/generationID.
+	// CrossScopeProducersReady reports whether the producer scopes the
+	// consumer declares are quiescent-active, so an empty cross-scope join is
+	// the true answer rather than a timing artefact.
 	//
 	// Returning (false, nil) means "not yet" and is the deferrable case.
 	// Returning an error means the readiness question itself could not be
@@ -62,66 +77,117 @@ type CrossScopeProducerReadiness interface {
 	) (bool, error)
 }
 
-// deferWhenCrossScopeProducersNotReady returns the non-counting readiness error
-// when a consumer's cross-scope load resolved nothing AND a declared producer
-// has not yet committed for this scope. It returns nil in every other case, so
-// callers can wrap an existing load site without changing its success path.
+// crossScopeProducerReadinessSignal is the floor's answer, captured BEFORE the
+// consumer's cross-scope load runs. See
+// checkCrossScopeProducerReadinessBeforeLoad for why the ordering matters.
+type crossScopeProducerReadinessSignal struct {
+	// gateDisabled is true when there is nothing to gate on: an unwired seam,
+	// a domain outside the cross-scope catalog, a pass with nothing to look
+	// up, or an elapsed bound already reached. When true the handler must
+	// never defer, whatever the load returns.
+	gateDisabled bool
+	// ready is the readiness store's answer, captured before the load.
+	// Meaningless when gateDisabled is true.
+	ready bool
+	// producerDomains is the bounded producer set the deferral error names.
+	// Empty when gateDisabled is true.
+	producerDomains []Domain
+}
+
+// checkCrossScopeProducerReadinessBeforeLoad captures the readiness signal the
+// handler must use for its defer decision. It MUST be called BEFORE the
+// consumer's cross-scope load, never after (#5875 P1 caught the same ordering
+// bug on the sibling AWS gate).
 //
-// The three conditions are all load-bearing, and the order matters:
+// Sampling readiness after the load reintroduces the very bug the floor
+// prevents, through a narrower window: a producer generation that activates
+// between the load and a post-load readiness check makes the store report
+// "ready" while the evidence already in hand predates that activation. The
+// handler then durably writes an empty correlation computed from a snapshot a
+// fresher read would have filled in. The repair path cannot save it either --
+// the fanout's reopen selects 'succeeded' rows, and a maintenance pass racing
+// this intent while it is still claimed skips it.
 //
-//  1. resolved > 0 — the consumer HAS evidence, so producer readiness is moot.
-//     Checking readiness first would defer a consumer that already has its
-//     answer, turning a working pass into a retry loop.
-//  2. no declared producers — the domain is not a registered cross-scope
-//     consumer, so there is nothing to wait for. A domain absent from the
-//     catalog must behave exactly as it does today.
-//  3. the elapsed bound is reached — converge on the best available answer
-//     rather than deferring forever (see crossScopeProducerReadinessMaxWait).
-//  4. readiness == nil — the seam is not wired for this handler. Unwired means
-//     "no floor", not "not ready": defaulting to defer would strand every
-//     consumer in a deployment that has not adopted the seam.
+// Checking first closes that window. The reverse race -- a producer activating
+// BETWEEN this check and the load -- is benign: the load simply reads fresher
+// data than this signal assumed, which can only add evidence, never remove it,
+// and the post-load resolved count is what decides whether to defer.
 //
-// An error from the readiness lookup is returned as-is rather than converted
-// into a readiness miss. A store that cannot answer is a real failure and
-// should be classified on its own merits; reporting it as
-// cross_scope_producer_not_ready would hide it in a class that never counts
-// against the retry budget, so it could retry forever without ever surfacing.
-func deferWhenCrossScopeProducersNotReady(
+// crossScopeLookupPlanned reports whether this pass will actually ask the
+// cross-scope loader anything. It is false when the consumer has no filter
+// values to look up or no loader implementing the cross-scope seam, and it
+// disables the gate: see crossScopeProducerDeferral for why an unasked question
+// must not be answered with a deferral.
+//
+// now must be the SAME clock reading the handler uses for the rest of the pass,
+// passed in rather than read again here, so a slow load cannot itself push the
+// intent past the elapsed bound.
+func checkCrossScopeProducerReadinessBeforeLoad(
 	ctx context.Context,
 	readiness CrossScopeProducerReadiness,
 	intent Intent,
 	now time.Time,
-	resolved int,
-) error {
-	if resolved > 0 {
-		return nil
+	crossScopeLookupPlanned bool,
+) (crossScopeProducerReadinessSignal, error) {
+	if readiness == nil {
+		// Unwired means "no floor", not "not ready". Defaulting to defer would
+		// strand every consumer in a deployment that has not adopted the seam.
+		return crossScopeProducerReadinessSignal{gateDisabled: true}, nil
+	}
+	if !crossScopeLookupPlanned {
+		return crossScopeProducerReadinessSignal{gateDisabled: true}, nil
 	}
 	dependencies := crossScopeDependenciesForRegistration(intent.Domain)
 	if len(dependencies) == 0 {
-		return nil
-	}
-	if readiness == nil {
-		return nil
+		// Not a registered cross-scope consumer. A domain absent from the
+		// catalog must behave exactly as it did before this floor existed.
+		return crossScopeProducerReadinessSignal{gateDisabled: true}, nil
 	}
 	if anchor := crossScopeReadinessCycleAnchor(intent); !anchor.IsZero() &&
 		now.Sub(anchor) >= crossScopeProducerReadinessMaxWait {
-		return nil
+		return crossScopeProducerReadinessSignal{gateDisabled: true}, nil
 	}
 	ready, err := readiness.CrossScopeProducersReady(ctx, intent.Domain, intent.ScopeID, intent.GenerationID)
 	if err != nil {
-		return err
+		// Returned as itself, never converted into a readiness miss. A store
+		// that cannot answer is a real failure; reporting it as
+		// cross_scope_producer_not_ready would hide it in a class that never
+		// counts against the retry budget, so it could retry forever without
+		// surfacing.
+		return crossScopeProducerReadinessSignal{}, err
 	}
-	if ready {
-		// Producers are quiescent and the join is still empty, so the empty
-		// answer is the true one. Converge on a durable unresolved decision
-		// rather than deferring forever.
+	return crossScopeProducerReadinessSignal{
+		ready:           ready,
+		producerDomains: dependencies[0].ProducerDomains,
+	}, nil
+}
+
+// crossScopeProducerDeferral combines the PRE-load readiness signal with the
+// POST-load resolved count and returns the non-counting readiness error when
+// the consumer must defer. It returns nil in every other case, so a caller can
+// wrap an existing load site without changing its success path.
+//
+// resolved is how many cross-scope envelopes the load returned. A consumer that
+// resolved something HAS its evidence, so producer readiness is moot; deferring
+// it would turn a working pass into a retry loop.
+//
+// A ready signal with an empty join means the empty answer is the true one:
+// the producer scopes have activated and still say nothing about this run, so
+// the handler converges on a durable unresolved decision rather than deferring
+// forever.
+func crossScopeProducerDeferral(
+	signal crossScopeProducerReadinessSignal,
+	intent Intent,
+	resolved int,
+) error {
+	if signal.gateDisabled || signal.ready || resolved > 0 {
 		return nil
 	}
 	return newCrossScopeProducerNotReadyError(
 		intent.Domain,
 		intent.ScopeID,
 		intent.GenerationID,
-		dependencies[0].ProducerDomains,
+		signal.producerDomains,
 	)
 }
 
@@ -146,4 +212,47 @@ func crossScopeReadinessCycleAnchor(intent Intent) time.Time {
 		return intent.CycleStartedAt
 	}
 	return intent.EnqueuedAt
+}
+
+// logCrossScopeProducerNotReadyDefer records a floor deferral as its own
+// structured log line, distinct from a normal correlation pass and from a
+// handler error.
+//
+// It logs elapsed time against the bound, never attempt_count. This defer's own
+// failure class freezes attempt_count (see crossScopeProducerReadinessMaxWait),
+// so attempt_count reads as the same constant on every occurrence and tells an
+// operator nothing about how close the intent is to its terminal fallback.
+// elapsed_since_cycle_start against max_wait is the only pair that answers
+// "how much longer will this wait".
+//
+// producer_domains comes from the bounded cross-scope catalog, so it is a small
+// closed set, not a high-cardinality label.
+func logCrossScopeProducerNotReadyDefer(
+	ctx context.Context,
+	logger *slog.Logger,
+	intent Intent,
+	now time.Time,
+	producerDomains []Domain,
+) {
+	if logger == nil {
+		return
+	}
+	producers := make([]string, 0, len(producerDomains))
+	for _, producer := range producerDomains {
+		producers = append(producers, string(producer))
+	}
+	attrs := []slog.Attr{
+		log.Domain(string(intent.Domain)),
+		log.ScopeID(intent.ScopeID),
+		log.GenerationID(intent.GenerationID),
+		slog.String("producer_domains", strings.Join(producers, ",")),
+		slog.Duration("max_wait", crossScopeProducerReadinessMaxWait),
+	}
+	if anchor := crossScopeReadinessCycleAnchor(intent); !anchor.IsZero() {
+		attrs = append(attrs, slog.Duration("elapsed_since_cycle_start", now.Sub(anchor)))
+	}
+	logger.LogAttrs(
+		ctx, slog.LevelInfo,
+		"cross-scope consumer deferred: producer scopes have not activated", attrs...,
+	)
 }

@@ -5,6 +5,8 @@ package reducer
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"testing"
 )
 
@@ -19,10 +21,12 @@ func TestCICDRunCorrelationRegistrationCarriesTheReadinessSeam(t *testing.T) {
 	t.Parallel()
 
 	readiness := &fixedCrossScopeReadiness{ready: true}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	definitions := appendCorrelationCoreAdditiveDomains(nil, DefaultHandlers{
 		FactLoader:                  &stubCICDRunCorrelationFactLoader{},
 		CICDRunCorrelationWriter:    &recordingCICDRunCorrelationWriter{},
 		CrossScopeProducerReadiness: readiness,
+		CrossScopeReadinessLogger:   logger,
 	})
 
 	var handler CICDRunCorrelationHandler
@@ -53,5 +57,12 @@ func TestCICDRunCorrelationRegistrationCarriesTheReadinessSeam(t *testing.T) {
 	}
 	if readiness.calls != 1 {
 		t.Fatalf("readiness lookup calls = %d, want 1: the registration wired a different seam", readiness.calls)
+	}
+
+	// The deferral log is the only signal that carries elapsed-versus-bound.
+	// attempt_count is frozen for this failure class, so without the logger an
+	// operator cannot tell how long a waiting consumer has left.
+	if handler.Logger != logger {
+		t.Fatal("Logger is not the one passed to DefaultHandlers: cross-scope deferrals would be invisible")
 	}
 }

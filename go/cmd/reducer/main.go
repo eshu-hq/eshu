@@ -236,6 +236,7 @@ func buildReducerService(
 		InfrastructurePlatformLookup:       reducer.GraphInfrastructurePlatformLookup{Graph: graphReader},
 		FactLoader:                         factStore,
 		CrossScopeProducerReadiness:        postgres.CrossScopeProducerReadinessStore{DB: database},
+		CrossScopeReadinessLogger:          logger,
 		AdmissionDecisionWriter:            admissionDecisionWriter,
 		CodeCallIntentWriter:               codeCallIntentWriter,
 		GraphProjectionPhasePublisher:      graphProjectionStateStore,

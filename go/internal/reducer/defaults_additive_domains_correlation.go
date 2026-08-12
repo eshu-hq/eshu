@@ -81,6 +81,7 @@ func appendCorrelationCoreAdditiveDomains(definitions []DomainDefinition, handle
 			Instruments:          handlers.Instruments,
 			ProvenanceEdgeWriter: handlers.ContainerImageProvenanceEdgeWriter,
 			ProducerReadiness:    handlers.CrossScopeProducerReadiness,
+			Logger:               handlers.CrossScopeReadinessLogger,
 		}
 		definitions = append(definitions, cicdRun)
 	}
