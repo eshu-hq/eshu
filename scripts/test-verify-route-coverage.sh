@@ -311,6 +311,46 @@ GO
   fi
 }
 
+# A NESTED package's test is a different Go package and cannot exercise this
+# handler, so it must not satisfy coverage. Scoping to handler_dir was not
+# enough while the search stayed recursive beneath it (#6055 review finding).
+test_red_nested_package_test_does_not_cover_a_real_handler() {
+  local dir
+  dir="$(setup_repo "red-nested-package")"
+  mkdir -p "${dir}/go/internal/query/child"
+
+  cat > "${dir}/go/internal/query/repo.go" << 'GO'
+package query
+
+import "net/http"
+
+type RepoHandler struct{}
+
+func (h *RepoHandler) Mount(mux *http.ServeMux) {
+  mux.HandleFunc("GET /api/v0/repos/{repo_id}/new", h.getNew)
+}
+
+func (h *RepoHandler) getNew(w http.ResponseWriter, r *http.Request) {}
+GO
+
+  # A different package one directory down. Its name fuzzily matches, but it
+  # cannot reach an unexported method of package query.
+  cat > "${dir}/go/internal/query/child/unrelated_test.go" << 'GO'
+package child
+
+import "testing"
+
+func TestRepoNew(t *testing.T) {}
+GO
+
+  export ESHU_ROUTE_COVERAGE_REPO_ROOT="$dir"
+  if "${dir}/scripts/verify-route-coverage.sh" >/tmp/eshu-route-coverage.out 2>/tmp/eshu-route-coverage.err; then
+    record_fail "red: a nested package's test wrongly satisfied a handler's coverage ($(cat /tmp/eshu-route-coverage.out))"
+  else
+    record_pass "red: a nested package's test does not satisfy a handler's coverage"
+  fi
+}
+
 test_red_testdata_fixture_test_does_not_cover_a_real_handler() {
   local dir
   dir="$(setup_repo "red-testdata-fixture")"
@@ -415,6 +455,7 @@ test_red_moved_handler_in_subdirectory_without_test
 test_green_moved_handler_with_test_in_same_subdirectory
 test_red_untested_handler_falsely_covered_by_sibling_package_test
 test_red_testdata_fixture_test_does_not_cover_a_real_handler
+test_red_nested_package_test_does_not_cover_a_real_handler
 test_green_testdata_non_test_handler_is_not_treated_as_a_route
 test_red_missing_query_dir_fails_loudly
 

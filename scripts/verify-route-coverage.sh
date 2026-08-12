@@ -167,15 +167,17 @@ while IFS= read -r gofile; do
       # "SAMLHandler", matching the "SAML" acronym in the handler struct
       # name). An exact-case search would false-positive as "uncovered" on
       # any acronym-bearing handler/route even when a matching test exists.
-      # Recursive under handler_dir (not --max-depth 1, #6055): a handler and
-      # its test commonly move together into the same subdirectory, and a
-      # depth-limited search would otherwise report a real, moved test as
-      # missing. Scoped to handler_dir rather than query_dir/api_dir as a
-      # whole (#6055 review finding): a test in an unrelated sibling package
-      # cannot satisfy this handler's coverage requirement just because its
-      # name happens to fuzzily match.
+      # EXACTLY the handler's own directory, not a recursive walk below it.
+      # A Go package is one directory, so a test that can actually exercise
+      # this handler is in the same directory -- either the same package or
+      # its external <pkg>_test. Recursing admitted a DIFFERENT package: a
+      # handler at query/repo.go was satisfied by query/child/x_test.go
+      # containing a fuzzily matching TestRepoNew (#6055 review finding).
+      # The "handler and test moved together" case this originally recursed
+      # for is already covered, because when both move, handler_dir IS the
+      # new directory.
       if rg -qi "func Test\w*${word}\w*\(" \
-           --glob '*_test.go' --glob '!**/testdata/**' \
+           --glob '*_test.go' --glob '!**/testdata/**' --max-depth 1 \
            "$handler_dir" 2>/dev/null; then
         found=1
         break
