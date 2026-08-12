@@ -2,9 +2,40 @@
 
 Issue [#4591](https://github.com/eshu-hq/eshu/issues/4591) asks `awscloud` to
 converge on the per-resource-type extractor registry `gcpcloud` already uses.
-Its acceptance is one scanner per PR with byte-identical fact output proven by
+Its acceptance was one scanner per PR with byte-identical fact output proven by
 fixture parity. That sequencing only works if the registry exists first, so this
 change lands the registry alone and migrates no scanner.
+
+## Correction: the scanner migrations this planned are not the work
+
+Recorded after the fact, so the plan above is not followed by mistake.
+
+The per-scanner migration sequence this evidence describes is wrong, and would
+have produced a run of changes that alter nothing while passing their own
+parity check. `ExtractContext.Data` is a `json.RawMessage`, a raw per-resource
+provider payload. AWS scanners never hold one: their clients return typed Go
+structs, and each scanner already fills `Attributes` and `CorrelationAnchors`
+per resource type straight into a `ResourceObservation` that reaches a fact
+envelope through `NewResourceEnvelope`. Migrating a scanner would mean
+marshalling a typed struct back to JSON so an extractor could parse it again,
+and because nothing dispatches through `resourceExtractors`, fact output could
+not change either way. Fixture parity would pass because nothing happened.
+
+The registry is kept, because AWS Config ingestion is planned and is the
+producer it fits: a Config `configurationItem` carries a `configuration` blob of
+raw per-resource-type JSON, the same shape Cloud Asset Inventory hands
+`gcpcloud`, and one parse loop over that feed needs per-resource-type dispatch.
+Extractors get registered when that lane lands.
+
+Worth stating plainly, since #4591's premise rested on it: the cross-provider
+contract already matches. `facts.Envelope`, stable IDs, the fact-kind registry
+with a JSON Schema per kind, redaction rules, and the
+`attributes` + `correlation_anchors` + typed-relationships convention are shared
+by `aws_resource` and `gcp_cloud_resource` alike, and the payload-typing work
+#4591 named as its prerequisite (#4568) is closed. Nothing downstream can tell
+whether attributes were filled by a registered extractor or a scanner function.
+What differs upstream is the input: one generic feed for `gcpcloud`, typed SDK
+calls per service for `awscloud`.
 
 No-Regression Evidence: nothing is registered, so no scanner reaches the new
 code. `extractResourceAttributes` returns `handled=false` with a nil error and a
@@ -21,10 +52,10 @@ existing file is modified.
 
 Benchmark Evidence: none is meaningful for this change and none is claimed. A
 registry with zero registrations has no measurable hot path — the only new work
-executable today is a map lookup that no production caller performs. The
-per-scanner migrations that follow are where fact-output parity and cost matter,
-and #4591 already binds each of those to fixture parity in its own PR. Measuring
-an empty registry would manufacture a number rather than establish one.
+executable today is a map lookup that no production caller performs. Measuring
+an empty registry would manufacture a number rather than establish one. Cost
+becomes measurable when the AWS Config lane dispatches through it on a real
+feed, and belongs to that change.
 
 Observability Evidence: this change registers no metric, span, or log line. Its
 row in `docs/public/observability/telemetry-coverage.md` carries the

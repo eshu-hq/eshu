@@ -9,12 +9,10 @@ import (
 	"strings"
 )
 
-// This file is the awscloud half of the typed-depth extractor registry that
-// issue #4591 asks this package to converge on, mirroring
-// go/internal/collector/gcpcloud/extractor.go. The shape is deliberately the
-// same so a contributor who has written a GCP extractor can write an AWS one
-// without relearning the pattern: one resource type per file, registered from
-// that file's init, dispatched through a map rather than a shared switch.
+// This file is the awscloud half of the typed-depth extractor registry, mirroring
+// go/internal/collector/gcpcloud/extractor.go: one resource type per file,
+// registered from that file's init, dispatched through a map rather than a
+// shared switch.
 //
 // The types are declared here rather than shared with gcpcloud on purpose.
 // gcpcloud's ExtractContext is CAI-shaped (full resource name, asset type,
@@ -24,9 +22,35 @@ import (
 // surfaces whose identity models differ, for the sake of three field names.
 // Two small declarations that can drift independently are the cheaper trade.
 //
-// Nothing is registered yet. This lands the registry alone so the first scanner
-// migration is a single-file change reviewed against fixture parity, per the
-// one-scanner-per-PR acceptance on #4591.
+// # What feeds this, and what does not
+//
+// Nothing is registered yet, and the service scanners under services/ are NOT
+// the producer this registry is waiting for. ExtractContext.Data is a
+// json.RawMessage: a raw per-resource provider payload. Scanners never hold one.
+// Their clients return typed Go structs (services/accessanalyzer/types.go, for
+// example, declares ListAnalyzers(context.Context) ([]Analyzer, error)), and
+// each scanner already fills Attributes and CorrelationAnchors per resource type
+// directly into a ResourceObservation, which reaches a fact envelope through
+// NewResourceEnvelope. That is a complete typed-depth path, and it is the one in
+// production.
+//
+// So do NOT migrate a service scanner into this registry. Nothing dispatches
+// through resourceExtractors today, so such a change cannot alter fact output —
+// a fixture-parity review would pass because nothing happened, not because the
+// migration was faithful. Feeding an extractor would also mean marshalling a
+// typed SDK struct back into JSON so the extractor could unmarshal it again.
+//
+// The producer this registry exists for is AWS Config ingestion, which is
+// planned but not built. A Config configurationItem carries a `configuration`
+// blob of raw per-resource-type JSON, the same shape Cloud Asset Inventory hands
+// gcpcloud, and one parse loop over that feed genuinely needs per-resource-type
+// dispatch. Register extractors when that lane lands. Until then this registry
+// stays empty on purpose.
+//
+// gcpcloud shows the intended wiring: its parse loop calls the registry from
+// applyTypedDepth (gcpcloud/parse.go) and copies the result onto its own
+// ResourceObservation. The extraction is a fill step for the observation
+// contract, never a replacement for it. The AWS Config lane should do the same.
 
 // AttributeExtraction is the bounded, redaction-safe typed-depth output of a
 // per-resource-type extractor. It carries:

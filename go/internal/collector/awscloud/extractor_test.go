@@ -6,6 +6,7 @@ package awscloud
 import (
 	"encoding/json"
 	"errors"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -140,4 +141,31 @@ func TestRegisterResourceExtractorPanicsOnWiringMistakes(t *testing.T) {
 		}()
 		RegisterResourceExtractor(resourceType, valid)
 	})
+}
+
+// The registry is deliberately empty until AWS Config ingestion exists to feed
+// it. That is a comment in extractor.go, and a comment does not fail a build, so
+// this asserts it.
+//
+// A registration landing here before the Config lane means someone migrated a
+// service scanner into the registry. That change cannot alter fact output —
+// nothing dispatches through resourceExtractors — so its own fixture-parity
+// review would pass while the migration did nothing. The scanners already emit
+// typed depth through ResourceObservation; see the header comment in
+// extractor.go for why they are not this registry's producer.
+//
+// When the AWS Config lane lands and registers real extractors, delete this
+// test in that PR. Changing it deliberately is the point; tripping over it is
+// the warning.
+func TestResourceExtractorRegistryIsEmptyUntilConfigLaneExists(t *testing.T) {
+	if len(resourceExtractors) != 0 {
+		registered := make([]string, 0, len(resourceExtractors))
+		for resourceType := range resourceExtractors {
+			registered = append(registered, resourceType)
+		}
+		sort.Strings(registered)
+		t.Fatalf("resourceExtractors has %d registration(s) %v, want none until the AWS Config "+
+			"lane feeds this registry; a scanner migration here changes no fact output",
+			len(registered), registered)
+	}
 }
