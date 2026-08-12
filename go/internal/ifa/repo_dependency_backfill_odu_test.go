@@ -6,6 +6,8 @@ package ifa
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"fmt"
 	"reflect"
 	"slices"
 	"strings"
@@ -156,6 +158,14 @@ func TestRepoDependencyBackfillProofOduCanonicalBytesAreDeterministic(t *testing
 	}
 	if !bytes.Equal(firstBytes, secondBytes) {
 		t.Fatal("proof Odù canonical bytes changed with input fact order")
+	}
+	const wantBytes = 277289309
+	const wantSHA256 = "09be4f2ed6380284a3a00f18d90a3ba10b53fb8e2aa168ce7ed69363d49979b7"
+	if len(firstBytes) != wantBytes {
+		t.Fatalf("canonical bytes = %d, want %d", len(firstBytes), wantBytes)
+	}
+	if got := fmt.Sprintf("%x", sha256.Sum256(firstBytes)); got != wantSHA256 {
+		t.Fatalf("canonical SHA-256 = %s, want %s", got, wantSHA256)
 	}
 }
 

@@ -35,7 +35,8 @@ Given a JSON document and a `CanonicalOptions`, `Canonicalize`:
    value) yet unique per scope. Configurable via `CanonicalOptions.DerivedKeys`.
 3. **Stably orders recorded arrays.** `scopes` by `scope_id`, `facts` by
    `stable_fact_key`, with the element's canonical bytes as a total-order
-   tiebreaker. Configurable via `CanonicalOptions.SortArrays`.
+   tiebreaker when primary keys collide. Unique primary keys do not need that
+   extra encoding pass. Configurable via `CanonicalOptions.SortArrays`.
 4. **Redacts configured secret keys** wherever they appear in the tree (matching
    is by key name at any depth, so a secret cannot leak by being nested
    differently than expected). Configure with `WithRedactedKeys`.
@@ -74,3 +75,15 @@ over a decoded JSON tree. Verified by `go test ./internal/replay/... -count=1`.
 The re-home of `collector/cassette` → `replay/cassette` is import-path-only: the
 package name, types, and behavior are unchanged, proven by the unmodified
 `cassette` test suite passing at the new path.
+
+Performance Evidence: the retained 61,007-fact Ifá benchmark performs two
+canonicalizations in 2.402 seconds normally and 24.543 seconds under `-race`,
+down from 6.499 and 76.626 seconds on the same input. Canonical output remains
+byte-identical. See
+[`docs/internal/evidence/5975-canonicalize-odu-performance.md`](../../../docs/internal/evidence/5975-canonicalize-odu-performance.md).
+
+No-Observability-Change: the sorter is a synchronous in-memory helper beneath
+fixture recorders, API/MCP replay, input tapes, graph dumps, synthetic data, and
+Ifá conformance tests. It performs no I/O and adds no runtime stage or telemetry
+contract. The shared replay tests, determinism checks, and benchmarks are its
+diagnostic surface.
