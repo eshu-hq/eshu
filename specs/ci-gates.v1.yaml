@@ -132,9 +132,15 @@ gates:
       - "go/**"
       - "scripts/dev/precommit-go.sh"
       - "scripts/verify-dirgate.sh"
-      - "scripts/lib/dirgate-core.sh"
-      - "scripts/lib/dirgate-grandfather.tsv"
-      - "scripts/lib/dirgate-naming-exempt.tsv"
+      # Glob, not the four-or-so exact paths this used to list. Every dirgate
+      # file under scripts/lib/ is part of this gate: the core implementation,
+      # both pinned ledgers, and the case files scripts/test-verify-dirgate.sh
+      # sources. Listing them individually is what let the ledgers fall out of
+      # their own gate's trigger list once already, and the same thing happened
+      # again the moment the test suite was split into per-area case files --
+      # editing one reported "SKIPPED go-dir-gate: no trigger matched changed
+      # paths" (#6054 review finding). A glob cannot drift as files are added.
+      - "scripts/lib/*dirgate*"
       - "scripts/test-verify-dirgate.sh"
       - "scripts/generate-dirgate-grandfather-go.sh"
       - "scripts/test-generate-dirgate-grandfather-go.sh"
