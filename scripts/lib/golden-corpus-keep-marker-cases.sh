@@ -92,6 +92,21 @@ rm -f "${keep_lock}"
 [[ ! -e "${keep_lock}.keep" && ! -L "${keep_lock}.keep" ]] \
 	|| fail "positive stack-gone evidence must remove the retained marker"
 
+# Marker reads are shell builtins, not external `cat` calls. Make an external
+# cat unavailable and require the production acquire path to complete both its
+# initial read and exact-value re-read before reclaiming a stopped project.
+keep_marker "eshu-gate-no-cat" "/no-cat-worktree"
+keep_nocat_out="$(
+	ESHU_LIVE_GATE_LOCK_DIR="${keep_home}" "${bash_bin}" -c '
+		cat() { return 127; }
+		. "$1"
+		acquire_live_gate_lock >/dev/null && printf "KEEP_RECLAIMED\n"
+	' _ "${lock_lib}" 2>&1 || true
+)"
+rm -f "${keep_lock}"
+[[ "${keep_nocat_out}" == *KEEP_RECLAIMED* && ! -e "${keep_lock}.keep" && ! -L "${keep_lock}.keep" ]] \
+	|| fail "marker reclaim must not depend on external cat for either read (got: ${keep_nocat_out})"
+
 # Running project: an id from Compose keeps the marker authoritative even
 # though process identity is irrelevant to its lifetime.
 printf '#!/usr/bin/env bash\nprintf "deadbeefcafe\\n"\n' >"${keep_bin}/docker"

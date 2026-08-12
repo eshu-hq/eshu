@@ -29,7 +29,7 @@ normalize_keep_epoch() {
 keep_marker_blocks() {
 	local marker="$1.keep" raw rest pid retained_at retained_decimal project where now now_decimal elapsed age running current
 	[[ -e "${marker}" || -L "${marker}" ]] || return 10
-	if ! raw="$(cat "${marker}" 2>/dev/null)"; then
+	if [[ ! -f "${marker}" ]] || ! raw="$(<"${marker}")"; then
 		printf 'could not read the --keep marker at %s, so its retained stack and age are unknown' "${marker}"
 		return 0
 	fi
@@ -127,7 +127,7 @@ keep_marker_blocks() {
 	# No compliant holder or reclaimer can replace the marker while the caller
 	# owns the applicable lock. Re-read so deletion targets the exact value whose
 	# project was queried, and fail closed if deletion does not complete.
-	if ! current="$(cat "${marker}" 2>/dev/null)" || [[ "${current}" != "${raw}" ]]; then
+	if [[ ! -f "${marker}" ]] || ! current="$(<"${marker}")" || [[ "${current}" != "${raw}" ]]; then
 		printf 'holder pid %s at %s (%s) changed the --keep marker while compose project %s was checked; refusing to remove the replacement' \
 			"${pid:-unknown}" "${where:-unknown}" "${age}" "${project}"
 		return 0
