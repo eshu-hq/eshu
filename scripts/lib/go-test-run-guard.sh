@@ -25,7 +25,8 @@
 # scripts/lib/telemetry-coverage-row-check.sh's registration note, so a change
 # here re-runs them. The other sourcing scripts
 # (verify-hosted-governance-proof.sh, verify-ask-eshu-local-proof.sh,
-# verify-hosted-governance-remote-compose-proof.sh) have no entry in
+# verify-hosted-governance-remote-compose-proof.sh, verify-query-plan-profile.sh)
+# have no entry in
 # specs/ci-gates.v1.yaml and no workflow reference: they are operator scripts
 # run by hand, not CI gates, so there is nothing to register them against. If
 # one of them ever becomes a gate, add this file to its triggers then.

@@ -74,6 +74,14 @@ func globFilesRecursive(dir, namePattern string) ([]string, error) {
 			return walkErr
 		}
 		if d.IsDir() {
+			// testdata holds deliberately broken fixtures that must never be
+			// read as production source. filepath.Glob never crossed a `/`, so
+			// this directory was unreachable before the walk went recursive;
+			// skipping it keeps that property and matches parseReducerDir in
+			// usage.go and the exclusion every other gate here applies.
+			if d.Name() == "testdata" && path != dir {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		ok, matchErr := filepath.Match(namePattern, d.Name())

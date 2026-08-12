@@ -449,3 +449,35 @@ func TestResolveOptionalDecodeFilesFindsFilesInSubdirectory(t *testing.T) {
 		t.Errorf("resolveOptionalDecodeFiles() = %v, want %q among them", files, movedFile)
 	}
 }
+
+// TestGlobFilesRecursiveSkipsTestdata guards an exposure the recursive walk
+// created: filepath.Glob never crossed a "/", so a decode-seam-shaped fixture
+// under testdata/ was unreachable before this. testdata holds deliberately
+// broken fixtures, so parsing one as production source would fail the manifest
+// gate on a file nobody ships.
+func TestGlobFilesRecursiveSkipsTestdata(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "factschema_decode.go"), []byte("package reducer\n"), 0o600); err != nil {
+		t.Fatalf("write top-level seam: %v", err)
+	}
+	td := filepath.Join(dir, "testdata")
+	if err := os.MkdirAll(td, 0o750); err != nil {
+		t.Fatalf("mkdir testdata: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(td, "factschema_decode_broken.go"), []byte("this is not valid go\n"), 0o600); err != nil {
+		t.Fatalf("write testdata fixture: %v", err)
+	}
+
+	got, err := globFilesRecursive(dir, "factschema_decode*.go")
+	if err != nil {
+		t.Fatalf("globFilesRecursive() error = %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("globFilesRecursive() = %v, want only the top-level seam; a testdata fixture must never be read as production source", got)
+	}
+	if filepath.Base(got[0]) != "factschema_decode.go" {
+		t.Fatalf("globFilesRecursive() = %v, want factschema_decode.go", got)
+	}
+}
