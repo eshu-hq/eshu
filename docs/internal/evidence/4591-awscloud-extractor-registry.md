@@ -70,6 +70,41 @@ attributes on the existing observation path rather than changing what is emitted
 or how it is committed.
 `bash scripts/verify-telemetry-coverage.sh` exits 0.
 
+## The relationship type is lossless
+
+Codex raised on #6073 that `ResourceRelationshipObservation` named endpoints by
+ARN only, so converting one into the existing `RelationshipObservation` would
+drop an ID-only endpoint — or leave a subnet or security-group ID sitting in an
+ARN field, which is a wrong value in a typed field rather than a missing one.
+
+Aiming the registry at AWS Config sharpened that. Config names relationship
+endpoints as `resourceId` plus `resourceType` and frequently supplies no ARN, so
+the first extractor written against that feed would have hit it.
+
+The review offered two fixes: document the constraint, or add the missing fields
+before any extractor depends on the type. This takes the second, because nothing
+is registered yet so widening the struct costs nothing, while a documented trap
+stays a trap. `SourceResourceID`, `TargetResourceID`, and `Attributes` close the
+gap. The three `RelationshipObservation` fields with no counterpart —
+`Boundary`, `SourceURI`, `SourceRecordID` — are envelope provenance the caller
+supplies, not extraction output.
+
+No-Regression Evidence: the losslessness test was proven to fail first. Removing
+`TargetResourceID` reports `ResourceRelationshipObservation is missing
+TargetResourceID; converting to RelationshipObservation would lose it`;
+restored, it passes. It also fails if a field is added without recording its
+`RelationshipObservation` counterpart, and if a rename on
+`RelationshipObservation` breaks a recorded mapping. Full package green:
+`cd go && go test ./internal/collector/awscloud/ -count=1`, ok.
+
+Benchmark Evidence: none is claimed, and none is measurable. This adds three
+fields to a struct with no production caller — the registry is still empty and
+still unwired, so there is no path to measure. Cost belongs to the AWS Config
+lane (#6088) that first populates these fields on a real feed.
+
+No-Observability-Change: no metric, span, or log line. The type is not on any
+emission path.
+
 ## Design decision recorded here so it is not re-opened
 
 The AWS types are declared in `awscloud` rather than shared with `gcpcloud`.
