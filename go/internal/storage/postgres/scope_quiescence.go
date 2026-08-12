@@ -10,63 +10,111 @@ import (
 	"github.com/lib/pq"
 )
 
-// producerScopeQuiescenceSQL returns the scopes of a set of collector kinds that
-// are active and have NO live projector work item still running. Its NOT EXISTS
-// body is byte-equivalent to the production reducer claim query's projector-drain
-// fence (reducer_queue_claim_query.go): it rides fact_work_items_scope_generation_idx
-// (scope_id-anchored) rather than scanning the work-items table. See
-// docs/internal/evidence/5709-quiescence-probe.md for the EXPLAIN proof
-// (index-backed, 0.55 ms on the 500-scope x 50k-work-item worst case).
-const producerScopeQuiescenceSQL = `SELECT s.scope_id
-FROM ingestion_scopes AS s
-WHERE s.collector_kind = ANY($1)
-  AND s.active_generation_id IS NOT NULL
-  AND NOT EXISTS (
-      SELECT 1
-      FROM fact_work_items AS projector_work
-      WHERE projector_work.stage = 'projector'
-        AND projector_work.scope_id = s.scope_id
-        AND projector_work.status IN ('pending', 'retrying', 'claimed', 'running')
-  )`
-
-// ProducerScopeQuiescence reports which scopes of the given collector kinds are
-// quiescent-active: their generation is active and no projector work item for the
-// scope is still pending/retrying/claimed/running. A cross-scope consumer whose
-// declared producer scope is NOT in the returned set must defer (return the
-// non-counting crossScopeProducerNotReadyError) rather than write an empty-join
-// decision that never re-runs (#5709).
+// producerScopeQuiescenceSQL returns EVERY ingestion scope registered under a
+// set of collector kinds, each flagged with whether it is quiescent-active:
+// generation active, and no live projector work item.
 //
-// The returned map is keyed by scope_id for O(1) membership. An empty
-// collectorKinds set queries nothing and returns an empty map.
+// Reporting the registered scopes and not only the quiescent ones is what lets a
+// caller tell two very different situations apart. "This deployment runs no
+// collector of this kind at all" is not the same as "a collector of this kind
+// exists and has not finished yet", and a caller that sees only an empty
+// quiescent set cannot distinguish them.
+//
+// The NOT EXISTS body is byte-equivalent to the production reducer claim query's
+// projector-drain fence (reducer_queue_claim_query.go), so it rides
+// fact_work_items_scope_generation_idx (scope_id-anchored) rather than scanning
+// the work-items table. That equivalence is why the scope filter lives in a CTE
+// aliased AS s: the fence body keeps referring to s.scope_id, character for
+// character.
+//
+// The CTE-plus-LEFT-JOIN shape is deliberate and was measured, because the
+// obvious alternative loses the index. Writing the flag as a NOT EXISTS
+// expression in the target list lets PostgreSQL 16 hash the subquery instead of
+// correlating it, which turns the probe into one sequential scan of
+// fact_work_items: 5.16 ms against 0.30 ms for the same seed. See
+// docs/internal/evidence/5709-quiescence-probe.md for both plans.
+const producerScopeQuiescenceSQL = `WITH registered AS (
+    SELECT s.scope_id, s.active_generation_id
+    FROM ingestion_scopes AS s
+    WHERE s.collector_kind = ANY($1)
+), quiescent AS (
+    SELECT s.scope_id
+    FROM registered AS s
+    WHERE s.active_generation_id IS NOT NULL
+      AND NOT EXISTS (
+          SELECT 1
+          FROM fact_work_items AS projector_work
+          WHERE projector_work.stage = 'projector'
+            AND projector_work.scope_id = s.scope_id
+            AND projector_work.status IN ('pending', 'retrying', 'claimed', 'running')
+      )
+)
+SELECT registered.scope_id, quiescent.scope_id IS NOT NULL AS quiescent
+FROM registered
+LEFT JOIN quiescent ON quiescent.scope_id = registered.scope_id`
+
+// ProducerScopeQuiescenceReport answers two questions about one set of producer
+// collector kinds, from one query.
+//
+// Both sets are keyed by scope_id for O(1) membership, and Quiescent is always a
+// subset of Registered.
+type ProducerScopeQuiescenceReport struct {
+	// Registered is every scope of the requested collector kinds, whatever its
+	// state. Empty means no such collector runs in this deployment, which a
+	// cross-scope consumer must read as "nothing to wait for" rather than as
+	// "not ready" -- otherwise a deployment that simply does not run that
+	// collector defers its consumers on every claim until they time out.
+	Registered map[string]struct{}
+	// Quiescent is the subset whose generation is active and whose projector
+	// work has drained. A consumer whose producer kind IS registered but has
+	// no quiescent scope must defer (return the non-counting
+	// crossScopeProducerNotReadyError) rather than write an empty-join
+	// decision that never re-runs (#5709).
+	Quiescent map[string]struct{}
+}
+
+// ProducerScopeQuiescence reports the registered and quiescent-active scopes of
+// the given collector kinds in one round trip.
+//
+// An empty collectorKinds set queries nothing and returns empty sets.
 func ProducerScopeQuiescence(
 	ctx context.Context,
 	db Queryer,
 	collectorKinds []string,
-) (map[string]struct{}, error) {
-	quiescent := make(map[string]struct{})
+) (ProducerScopeQuiescenceReport, error) {
+	report := ProducerScopeQuiescenceReport{
+		Registered: make(map[string]struct{}),
+		Quiescent:  make(map[string]struct{}),
+	}
 	if len(collectorKinds) == 0 {
-		return quiescent, nil
+		return report, nil
 	}
 	if db == nil {
-		return nil, fmt.Errorf("producer scope quiescence: querier is required")
+		return ProducerScopeQuiescenceReport{}, fmt.Errorf("producer scope quiescence: querier is required")
 	}
 
 	rows, err := db.QueryContext(ctx, producerScopeQuiescenceSQL, pq.StringArray(collectorKinds))
 	if err != nil {
-		return nil, fmt.Errorf("query producer scope quiescence: %w", err)
+		return ProducerScopeQuiescenceReport{}, fmt.Errorf("query producer scope quiescence: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
-		var scopeID string
-		if err := rows.Scan(&scopeID); err != nil {
-			return nil, fmt.Errorf("scan producer scope quiescence row: %w", err)
+		var (
+			scopeID   string
+			quiescent bool
+		)
+		if err := rows.Scan(&scopeID, &quiescent); err != nil {
+			return ProducerScopeQuiescenceReport{}, fmt.Errorf("scan producer scope quiescence row: %w", err)
 		}
-		quiescent[scopeID] = struct{}{}
+		report.Registered[scopeID] = struct{}{}
+		if quiescent {
+			report.Quiescent[scopeID] = struct{}{}
+		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate producer scope quiescence rows: %w", err)
+		return ProducerScopeQuiescenceReport{}, fmt.Errorf("iterate producer scope quiescence rows: %w", err)
 	}
 
-	return quiescent, nil
+	return report, nil
 }

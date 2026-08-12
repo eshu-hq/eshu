@@ -67,9 +67,24 @@ type CrossScopeProducerReadinessStore struct {
 }
 
 // CrossScopeProducersReady reports whether every producer collector kind the
-// consumer declares has at least one quiescent-active scope: a scope with an
-// active generation and no projector work item still pending, retrying,
-// claimed, or running.
+// consumer declares, AND THAT THIS DEPLOYMENT ACTUALLY REGISTERS, has at least
+// one quiescent-active scope: a scope with an active generation and no projector
+// work item still pending, retrying, claimed, or running.
+//
+// A kind with no registered scope at all is ready, not blocked. Not every
+// deployment runs every collector -- the OCI registry collector needs registry
+// credentials, so a deployment indexing repositories whose CI publishes image
+// digests may well have none. Treating that absence as "not ready" defers every
+// ci_cd_run_correlation intent to the full 30-minute bound, re-claiming roughly
+// every 30 seconds with no backoff (this failure class freezes attempt_count),
+// which is about 60 no-op claims per row per repair cycle against the write-hot
+// fact_work_items table. The sibling gate answers the same way:
+// HasPendingStateSnapshotEvidence reports false, meaning ready, when no
+// state_snapshot scope exists (aws_cloud_runtime_drift_readiness.go).
+//
+// Absence and non-quiescence come back from ONE query.
+// ProducerScopeQuiescence returns the registered scopes alongside the quiescent
+// subset, so telling them apart costs no extra round trip.
 //
 // That is the question the #5709 residual gap turns on. The already-claimed
 // consumer window is closed elsewhere -- cross_scope_completion_fanout.go marks
@@ -111,13 +126,18 @@ func (s CrossScopeProducerReadinessStore) CrossScopeProducersReady(
 	}
 
 	for _, kind := range producerKinds {
-		quiescent, err := ProducerScopeQuiescence(ctx, s.DB, []string{kind})
+		report, err := ProducerScopeQuiescence(ctx, s.DB, []string{kind})
 		if err != nil {
 			return false, fmt.Errorf(
 				"check producer scope quiescence for consumer %s producer kind %s: %w", consumer, kind, err,
 			)
 		}
-		if len(quiescent) == 0 {
+		if len(report.Registered) == 0 {
+			// This deployment runs no collector of this kind, so no scope of
+			// it will ever activate. Waiting is waiting for nothing.
+			continue
+		}
+		if len(report.Quiescent) == 0 {
 			return false, nil
 		}
 	}

@@ -23,17 +23,28 @@ type recordedQuiescenceCall struct {
 	kinds []string
 }
 
+// stubProducerScope is one row the quiescence probe returns: a scope registered
+// under the queried collector kind, and whether it is quiescent-active.
+//
+// The pair is the point. A kind with no rows at all (no such collector in this
+// deployment) and a kind whose rows are all quiescent=false (collector present,
+// still working) are different answers, and the store must not confuse them.
+type stubProducerScope struct {
+	scopeID   string
+	quiescent bool
+}
+
 // quiescenceQueryerStub answers the quiescence probe with a caller-supplied set
-// of quiescent scope ids per collector kind. It records every call so the tests
+// of registered scopes per collector kind. It records every call so the tests
 // can pin the query text and the bound arguments.
 //
 // It deliberately does NOT fall back to a default answer for an unexpected
 // query: a store that stopped calling producerScopeQuiescenceSQL must fail the
 // test loudly rather than pass on a stub's generosity.
 type quiescenceQueryerStub struct {
-	quiescentByKind map[string][]string
-	err             error
-	calls           []recordedQuiescenceCall
+	scopesByKind map[string][]stubProducerScope
+	err          error
+	calls        []recordedQuiescenceCall
 }
 
 func (q *quiescenceQueryerStub) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
@@ -47,11 +58,21 @@ func (q *quiescenceQueryerStub) QueryContext(_ context.Context, query string, ar
 	}
 	rows := make([][]any, 0)
 	for _, kind := range kinds {
-		for _, scopeID := range q.quiescentByKind[kind] {
-			rows = append(rows, []any{scopeID})
+		for _, registered := range q.scopesByKind[kind] {
+			rows = append(rows, []any{registered.scopeID, registered.quiescent})
 		}
 	}
 	return &fakeRows{rows: rows}, nil
+}
+
+// quiescentScopes is shorthand for a kind whose registered scopes have all
+// finished publishing.
+func quiescentScopes(scopeIDs ...string) []stubProducerScope {
+	scopes := make([]stubProducerScope, 0, len(scopeIDs))
+	for _, scopeID := range scopeIDs {
+		scopes = append(scopes, stubProducerScope{scopeID: scopeID, quiescent: true})
+	}
+	return scopes
 }
 
 // collectorKindArgument unwraps the pq.StringArray the probe binds to $1.
@@ -146,8 +167,8 @@ func TestCrossScopeProducersReadyUsesTheProvenQuiescenceProbe(t *testing.T) {
 	t.Parallel()
 
 	stub := &quiescenceQueryerStub{
-		quiescentByKind: map[string][]string{
-			string(scope.CollectorOCIRegistry): {"oci_registry:ghcr.io/acme"},
+		scopesByKind: map[string][]stubProducerScope{
+			string(scope.CollectorOCIRegistry): quiescentScopes("oci_registry:ghcr.io/acme"),
 		},
 	}
 	store := CrossScopeProducerReadinessStore{DB: stub}
@@ -172,14 +193,84 @@ func TestCrossScopeProducersReadyUsesTheProvenQuiescenceProbe(t *testing.T) {
 	}
 }
 
+// TestCrossScopeProducersReadyIsReadyWhenNoScopeOfTheProducerKindExists is the
+// counterpart to the deferral test below, and the two only stay distinct
+// because the probe reports registered scopes as well as quiescent ones.
+//
+// Not every deployment runs every collector. The OCI registry collector needs
+// registry credentials, so a deployment indexing repositories whose CI publishes
+// image digests may well have no oci_registry scope at all. Waiting for one is
+// waiting for something that will never arrive: the intent defers to the full
+// 30-minute bound, re-claiming about every 30 seconds because this failure class
+// freezes attempt_count and so never backs off, which is roughly 60 no-op claims
+// per row per repair cycle against the write-hot fact_work_items table.
+//
+// Two stubs, one difference. No rows for the kind means ready. One row for the
+// kind that is not quiescent means defer. A store that only counts the quiescent
+// set answers both the same way.
+func TestCrossScopeProducersReadyIsReadyWhenNoScopeOfTheProducerKindExists(t *testing.T) {
+	t.Parallel()
+
+	stub := &quiescenceQueryerStub{scopesByKind: map[string][]stubProducerScope{}}
+	store := CrossScopeProducerReadinessStore{DB: stub}
+
+	ready, err := store.CrossScopeProducersReady(
+		context.Background(), reducer.DomainCICDRunCorrelation, "ci_cd_run:acme", "gen-1",
+	)
+	if err != nil {
+		t.Fatalf("CrossScopeProducersReady() error = %v", err)
+	}
+	if !ready {
+		t.Fatal("ready = false, want true: no oci_registry scope is registered, so there is no activation to wait for")
+	}
+	if len(stub.calls) != 1 {
+		t.Fatalf("calls = %d, want exactly 1: absence must be answered by the same probe, not a second query", len(stub.calls))
+	}
+}
+
+// TestCrossScopeProducersReadySkipsOnlyTheAbsentKind proves absence is decided
+// per collector kind, not for the consumer as a whole. A two-producer consumer
+// whose first kind is absent must still wait for the second kind's scope to
+// finish, rather than reading one absence as blanket permission to commit.
+func TestCrossScopeProducersReadySkipsOnlyTheAbsentKind(t *testing.T) {
+	t.Parallel()
+
+	stub := &quiescenceQueryerStub{
+		scopesByKind: map[string][]stubProducerScope{
+			string(scope.CollectorOCIRegistry): {{scopeID: "oci_registry:ghcr.io/acme", quiescent: false}},
+		},
+	}
+	store := CrossScopeProducerReadinessStore{DB: stub}
+
+	ready, err := store.CrossScopeProducersReady(
+		context.Background(), reducer.DomainSupplyChainImpact, "vuln:acme", "gen-1",
+	)
+	if err != nil {
+		t.Fatalf("CrossScopeProducersReady() error = %v", err)
+	}
+	if ready {
+		t.Fatal("ready = true, want false: ci_cd_run is absent, but the registered oci_registry scope has not finished")
+	}
+	if len(stub.calls) != 2 {
+		t.Fatalf("calls = %d, want 2: an absent kind is skipped, and the remaining kinds are still probed", len(stub.calls))
+	}
+}
+
 // TestCrossScopeProducersReadyDefersWhenNoProducerScopeIsQuiescent is the
 // #5709 case the floor exists for: the producer's reducer row succeeded but its
 // scope generation has not activated, so the consumer's cross-scope load can
 // still see nothing. Reporting ready here writes a durable empty correlation.
+//
+// The scope is REGISTERED and not quiescent, which is what separates this from
+// the absent-kind case above.
 func TestCrossScopeProducersReadyDefersWhenNoProducerScopeIsQuiescent(t *testing.T) {
 	t.Parallel()
 
-	stub := &quiescenceQueryerStub{quiescentByKind: map[string][]string{}}
+	stub := &quiescenceQueryerStub{
+		scopesByKind: map[string][]stubProducerScope{
+			string(scope.CollectorOCIRegistry): {{scopeID: "oci_registry:ghcr.io/acme", quiescent: false}},
+		},
+	}
 	store := CrossScopeProducerReadinessStore{DB: stub}
 
 	ready, err := store.CrossScopeProducersReady(
@@ -203,9 +294,9 @@ func TestCrossScopeProducersReadyProbesEveryProducerKindAndStopsAtTheFirstMiss(t
 		t.Parallel()
 
 		stub := &quiescenceQueryerStub{
-			quiescentByKind: map[string][]string{
-				string(scope.CollectorCICDRun):     {"ci_cd_run:acme"},
-				string(scope.CollectorOCIRegistry): {"oci_registry:ghcr.io/acme"},
+			scopesByKind: map[string][]stubProducerScope{
+				string(scope.CollectorCICDRun):     quiescentScopes("ci_cd_run:acme"),
+				string(scope.CollectorOCIRegistry): quiescentScopes("oci_registry:ghcr.io/acme"),
 			},
 		}
 		store := CrossScopeProducerReadinessStore{DB: stub}
@@ -236,8 +327,9 @@ func TestCrossScopeProducersReadyProbesEveryProducerKindAndStopsAtTheFirstMiss(t
 		t.Parallel()
 
 		stub := &quiescenceQueryerStub{
-			quiescentByKind: map[string][]string{
-				string(scope.CollectorOCIRegistry): {"oci_registry:ghcr.io/acme"},
+			scopesByKind: map[string][]stubProducerScope{
+				string(scope.CollectorCICDRun):     {{scopeID: "ci_cd_run:acme", quiescent: false}},
+				string(scope.CollectorOCIRegistry): quiescentScopes("oci_registry:ghcr.io/acme"),
 			},
 		}
 		store := CrossScopeProducerReadinessStore{DB: stub}
