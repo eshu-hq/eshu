@@ -153,10 +153,19 @@ and `max_wait`. Elapsed against the bound, never `attempt_count`: this class
 freezes `attempt_count`, so it reads as a constant on every occurrence and
 cannot tell an operator how close the intent is to converging.
 
-Three comments claimed no handler ever produces
-`cross_scope_producer_not_ready`. One does now, so they are corrected: the
-telemetry-coverage row, the enrolment comment in `reducer_queue_readiness_sql.go`,
-and the class doc in `cross_scope_readiness.go`.
+Five places claimed no handler ever produces `cross_scope_producer_not_ready`.
+One does now, so all five are corrected: the telemetry-coverage row, the
+enrolment comment in `reducer_queue_readiness_sql.go`, the class doc in
+`cross_scope_readiness.go`, the verdict in
+`docs/internal/evidence/5709-attempt-count-freeze.md`, and the
+handler-call-sites row in
+`docs/internal/design/5709-cross-scope-dependency-contract.md`.
+
+The first sweep found three and this section claimed it was complete. It was
+not — the two documentation sites were missed, and the attempt-count-freeze one
+mattered most, because the class doc cites that file as the proof behind the
+non-counting enrollment. A reader following the pointer landed on a page saying
+nothing produces the class.
 
 ## Why this is safe under concurrent reducers
 
@@ -356,7 +365,7 @@ producer-scope-kind half of the contract that #5709 proposed and nobody built.
 `aws_cloud_runtime_drift_readiness.go` names the same gap and defers it the same
 way. This change does not depend on it and does not attempt it.
 
-**The widest residual window: readiness is armed per batch, not per run.** One
+**Readiness is armed per batch, not per run.** One
 `ci_cd_run_correlation` pass classifies *every* CI run in a scope generation, and
 it issues one cross-scope load filtered by the union of every run's artifact
 digests (`ciArtifactDigests`, `ci_cd_run_correlation_decode.go:198-213`). The
@@ -372,10 +381,23 @@ so the floor fires less often than the mechanism sounds like it would. How much
 less has not been measured — that sentence is a reading of the code, not a
 number.
 
-This is wider than the three windows below and it is not closed here. The fix is
-per-digest readiness, which is a different contract than #5709 specifies:
-`CrossScopeProducerReadiness` answers per consumer domain and scope, not per
-artifact. Deferring the whole batch instead would be worse — it holds back runs
+An earlier draft called this the widest residual window and said it was wider
+than "the three windows below". Both halves were wrong: there are four below,
+and none of the four is measured, so nothing here supports a ranking. The four
+are the under-inclusive collector-kind map, quiescence not proving the producer's
+reducer has run, the gap before projector items exist, and "at least one
+quiescent scope of the kind" rather than all of them.
+
+That last one is a strong candidate for the widest of the set. With two or more
+`oci_registry` scopes, `CrossScopeProducersReady` returns ready as soon as any
+one of them is quiescent, so a single idle registry disarms the floor for every
+consumer on every pass — not only for batches where a sibling digest happened to
+resolve. Deciding which window is actually widest needs numbers nobody has
+collected.
+
+This window is not closed here. The fix is per-digest readiness, which is a
+different contract than #5709 specifies: `CrossScopeProducerReadiness` answers
+per consumer domain and scope, not per artifact. Deferring the whole batch instead would be worse — it holds back runs
 that already have their evidence, on a class that freezes `attempt_count`.
 `TestCICDRunCorrelationDoesNotDeferABatchWhereAnotherRunResolved` pins the
 all-or-nothing behavior so it stays a known property rather than a discovery.

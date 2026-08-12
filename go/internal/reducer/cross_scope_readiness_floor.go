@@ -164,13 +164,20 @@ func checkCrossScopeProducerReadinessBeforeLoad(
 		// could retry forever without surfacing.
 		//
 		// It does go through the same transient classifier the consumer's own
-		// cross-scope load uses, which promotes a torn database stream
-		// ("unexpected EOF") to the non-counting fact_load_transient class.
-		// Without that, a connection reset during this probe burns an attempt
-		// where the identical fault one call later would not -- the probe runs
-		// against the same Postgres, in the same handler pass, over the same
-		// connection pool. classifyFactLoadError returns every other error
-		// unchanged, so nothing else about the classification moves.
+		// cross-scope load uses. classifyFactLoadError promotes a torn database
+		// stream ("unexpected EOF") to the retryable fact_load_transient class.
+		// Retryable is a weaker property than non-counting: fact_load_transient
+		// is deliberately absent from nonCountingReducerRetryFailureClasses, so
+		// attempt_count still increments and the row can still dead-letter. Do
+		// not enroll it there to "match" the class above; that would let every
+		// transient fact-load failure retry forever without surfacing.
+		//
+		// Without the promotion a connection reset during this probe is not
+		// retryable at all and fails the row outright, where the identical fault
+		// one call later would retry -- the probe runs against the same
+		// Postgres, in the same handler pass, over the same connection pool.
+		// classifyFactLoadError returns every other error unchanged, so nothing
+		// else about the classification moves.
 		return crossScopeProducerReadinessSignal{}, classifyFactLoadError(err)
 	}
 	return crossScopeProducerReadinessSignal{

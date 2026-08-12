@@ -239,8 +239,11 @@ func TestReadinessFloorSurfacesLookupErrorsAsThemselves(t *testing.T) {
 		&fixedCrossScopeReadiness{err: sentinel},
 		freshCrossScopeIntent(DomainCICDRunCorrelation), testCrossScopeNow, true, 0,
 	)
-	if !errors.Is(err, sentinel) {
-		t.Fatalf("err = %#v, want the lookup error unwrapped", err)
+	// Identity, not errors.Is: classifyFactLoadError returns every non-EOF error
+	// verbatim, and errors.Is would pass just as happily if the floor started
+	// wrapping the store failure in a class of its own.
+	if err != sentinel {
+		t.Fatalf("err = %#v, want the lookup error returned verbatim", err)
 	}
 	var notReady crossScopeProducerNotReadyError
 	if errors.As(err, &notReady) {
@@ -253,9 +256,11 @@ func TestReadinessFloorSurfacesLookupErrorsAsThemselves(t *testing.T) {
 //
 // Both talk to the same Postgres over the same pool inside one handler pass, and
 // the load routes its errors through classifyFactLoadError, which promotes a
-// torn database stream to the non-counting fact_load_transient class. Left raw,
-// a connection reset during the probe would burn an attempt where the identical
-// fault one call later would not.
+// torn database stream to the retryable fact_load_transient class. That class
+// still counts against the retry budget -- it is not enrolled in
+// nonCountingReducerRetryFailureClasses. Left raw, a connection reset during the
+// probe is not retryable at all and fails the row outright, where the identical
+// fault one call later would retry.
 func TestReadinessFloorClassifiesATornStreamAsTransient(t *testing.T) {
 	t.Parallel()
 
