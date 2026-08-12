@@ -91,6 +91,18 @@ func nornicDBFilePhaseGroupStatements(getenv func(string) string) (int, error) {
 	return n, nil
 }
 
+func nornicDBStructuralEdgePhaseGroupStatements(getenv func(string) string) (int, error) {
+	raw := strings.TrimSpace(getenv(nornicDBStructuralEdgePhaseGroupStatementsEnv))
+	if raw == "" {
+		return defaultNornicDBStructuralEdgePhaseStatements, nil
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n <= 0 {
+		return 0, fmt.Errorf("parse %s=%q: must be a positive integer", nornicDBStructuralEdgePhaseGroupStatementsEnv, raw)
+	}
+	return n, nil
+}
+
 func nornicDBFileBatchSize(getenv func(string) string) (int, error) {
 	raw := strings.TrimSpace(getenv(nornicDBFileBatchSizeEnv))
 	if raw == "" {

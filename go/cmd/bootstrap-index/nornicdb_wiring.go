@@ -23,6 +23,7 @@ const (
 	defaultNornicDBCanonicalWriteTimeout            = 30 * time.Second
 	defaultNornicDBPhaseGroupStatements             = 500
 	defaultNornicDBFilePhaseStatements              = 5
+	defaultNornicDBStructuralEdgePhaseStatements    = 5
 	defaultNornicDBFileBatchSize                    = 100
 	defaultNornicDBEntityPhaseStatements            = 25
 	defaultNornicDBEntityBatchSize                  = 100
@@ -38,6 +39,7 @@ const (
 	nornicDBCanonicalGroupedWritesEnv               = "ESHU_NORNICDB_CANONICAL_GROUPED_WRITES"
 	nornicDBPhaseGroupStatementsEnv                 = "ESHU_NORNICDB_PHASE_GROUP_STATEMENTS"
 	nornicDBFilePhaseGroupStatementsEnv             = "ESHU_NORNICDB_FILE_PHASE_GROUP_STATEMENTS"
+	nornicDBStructuralEdgePhaseGroupStatementsEnv   = "ESHU_NORNICDB_STRUCTURAL_EDGE_PHASE_GROUP_STATEMENTS"
 	nornicDBFileBatchSizeEnv                        = "ESHU_NORNICDB_FILE_BATCH_SIZE"
 	nornicDBEntityPhaseStatementsEnv                = "ESHU_NORNICDB_ENTITY_PHASE_GROUP_STATEMENTS"
 	nornicDBEntityBatchSizeEnv                      = "ESHU_NORNICDB_ENTITY_BATCH_SIZE"
@@ -92,6 +94,10 @@ func bootstrapCanonicalExecutorForGraphBackend(
 	if err != nil {
 		return nil, err
 	}
+	structuralEdgePhaseStatements, err := nornicDBPositiveIntEnv(getenv, nornicDBStructuralEdgePhaseGroupStatementsEnv, defaultNornicDBStructuralEdgePhaseStatements)
+	if err != nil {
+		return nil, err
+	}
 	entityPhaseStatements, err := nornicDBPositiveIntEnv(getenv, nornicDBEntityPhaseStatementsEnv, defaultNornicDBEntityPhaseStatements)
 	if err != nil {
 		return nil, err
@@ -132,22 +138,24 @@ func bootstrapCanonicalExecutorForGraphBackend(
 			"env_var", nornicDBCanonicalGroupedWritesEnv)
 	}
 	return bootstrapNornicDBPhaseGroupExecutor{
-		inner:                    bounded,
-		maxStatements:            phaseGroupStatements,
-		fileMaxStatements:        filePhaseStatements,
-		entityMaxStatements:      entityPhaseStatements,
-		entityLabelMaxStatements: entityLabelPhaseStatements,
-		entityPhaseConcurrency:   entityPhaseConcurrency,
+		inner:                       bounded,
+		maxStatements:               phaseGroupStatements,
+		fileMaxStatements:           filePhaseStatements,
+		structuralEdgeMaxStatements: structuralEdgePhaseStatements,
+		entityMaxStatements:         entityPhaseStatements,
+		entityLabelMaxStatements:    entityLabelPhaseStatements,
+		entityPhaseConcurrency:      entityPhaseConcurrency,
 	}, nil
 }
 
 type bootstrapNornicDBPhaseGroupExecutor struct {
-	inner                    sourcecypher.Executor
-	maxStatements            int
-	fileMaxStatements        int
-	entityMaxStatements      int
-	entityLabelMaxStatements map[string]int
-	entityPhaseConcurrency   int
+	inner                       sourcecypher.Executor
+	maxStatements               int
+	fileMaxStatements           int
+	structuralEdgeMaxStatements int
+	entityMaxStatements         int
+	entityLabelMaxStatements    map[string]int
+	entityPhaseConcurrency      int
 }
 
 func (e bootstrapNornicDBPhaseGroupExecutor) Execute(ctx context.Context, stmt sourcecypher.Statement) error {
@@ -301,6 +309,14 @@ func (e bootstrapNornicDBPhaseGroupExecutor) phaseGroupStatementLimit(stmts []so
 	switch bootstrapStatementPhase(stmts) {
 	case sourcecypher.CanonicalPhaseFiles:
 		return positiveOrDefault(e.fileMaxStatements, defaultNornicDBFilePhaseStatements)
+	case sourcecypher.CanonicalPhaseStructuralEdges:
+		// Bootstrap duplicates the chunker, so it needs the same structural-edge
+		// budget as the runtime executor. Without it, seeding a large repository
+		// hits the identical wall: these statements are row-batched at the
+		// canonical writer's batch size, so the broad default lets a
+		// 147-statement scope commit roughly 73,500 rows in one transaction
+		// (issue #6070).
+		return positiveOrDefault(e.structuralEdgeMaxStatements, defaultNornicDBStructuralEdgePhaseStatements)
 	case sourcecypher.CanonicalPhaseEntities, sourcecypher.CanonicalPhaseEntityContainment:
 		if label := bootstrapEntityStatementLabel(stmts[0]); label != "" && e.entityLabelMaxStatements != nil {
 			if limit := e.entityLabelMaxStatements[label]; limit > 0 {

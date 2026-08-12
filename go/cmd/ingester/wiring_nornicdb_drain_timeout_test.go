@@ -45,6 +45,7 @@ func newTestNornicDBCanonicalExecutorWithTimeout(
 		false,
 		defaultNornicDBPhaseGroupStatements,
 		defaultNornicDBFilePhaseStatements,
+		defaultNornicDBStructuralEdgePhaseStatements,
 		defaultNornicDBEntityPhaseStatements,
 		nil,
 		4,

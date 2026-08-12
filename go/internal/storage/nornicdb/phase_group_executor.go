@@ -21,12 +21,15 @@ var errInnerExecutorRequired = errors.New("nornicdb phase-group inner executor i
 // cypher.GroupExecutor, because NornicDB does not provide read-your-writes for
 // the canonical writer's whole-materialization transaction shape.
 type PhaseGroupExecutor struct {
-	Inner                    sourcecypher.Executor
-	MaxStatements            int
-	DirectoryMaxStatements   int
-	FileMaxStatements        int
-	EntityMaxStatements      int
-	EntityLabelMaxStatements map[string]int
+	Inner                  sourcecypher.Executor
+	MaxStatements          int
+	DirectoryMaxStatements int
+	FileMaxStatements      int
+	// StructuralEdgeMaxStatements caps statements per structural-edge
+	// transaction (issue #6070). Zero uses DefaultStructuralEdgePhaseStatements.
+	StructuralEdgeMaxStatements int
+	EntityMaxStatements         int
+	EntityLabelMaxStatements    map[string]int
 	// EntityPhaseConcurrency caps how many canonical entity-phase grouped
 	// chunks may run in parallel against the inner GroupExecutor. The
 	// runtime default is `cpubudget.UsableCPUs()` (cgroup-aware CPU count) clamped to

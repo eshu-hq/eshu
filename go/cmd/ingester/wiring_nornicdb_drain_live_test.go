@@ -111,6 +111,7 @@ CREATE (:File {repo_id: $repo_id, path: $repo_id + '/f' + toString(i), evidence_
 		false,
 		defaultNornicDBPhaseGroupStatements,
 		defaultNornicDBFilePhaseStatements,
+		defaultNornicDBStructuralEdgePhaseStatements,
 		defaultNornicDBEntityPhaseStatements,
 		nil,
 		4,

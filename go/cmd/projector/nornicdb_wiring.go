@@ -63,31 +63,33 @@ func (r projectorGatedDrainReader) RunWrite(
 }
 
 const (
-	projectorNornicDBCanonicalGroupedWritesEnv          = "ESHU_NORNICDB_CANONICAL_GROUPED_WRITES"
-	projectorNornicDBPhaseGroupStatementsEnv            = "ESHU_NORNICDB_PHASE_GROUP_STATEMENTS"
-	projectorNornicDBFilePhaseGroupStatementsEnv        = "ESHU_NORNICDB_FILE_PHASE_GROUP_STATEMENTS"
-	projectorNornicDBFileBatchSizeEnv                   = "ESHU_NORNICDB_FILE_BATCH_SIZE"
-	projectorNornicDBEntityPhaseGroupStatementsEnv      = "ESHU_NORNICDB_ENTITY_PHASE_GROUP_STATEMENTS"
-	projectorNornicDBEntityBatchSizeEnv                 = "ESHU_NORNICDB_ENTITY_BATCH_SIZE"
-	projectorNornicDBEntityLabelBatchSizesEnv           = "ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES"
-	projectorNornicDBEntityLabelPhaseGroupStatementsEnv = "ESHU_NORNICDB_ENTITY_LABEL_PHASE_GROUP_STATEMENTS"
-	projectorNornicDBBatchedEntityContainmentEnv        = "ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT"
-	projectorNornicDBEntityPhaseConcurrencyEnv          = "ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY"
-	projectorNornicDBCanonicalRetractBatchEnv           = "ESHU_CANONICAL_RETRACT_BATCH"
+	projectorNornicDBCanonicalGroupedWritesEnv             = "ESHU_NORNICDB_CANONICAL_GROUPED_WRITES"
+	projectorNornicDBPhaseGroupStatementsEnv               = "ESHU_NORNICDB_PHASE_GROUP_STATEMENTS"
+	projectorNornicDBFilePhaseGroupStatementsEnv           = "ESHU_NORNICDB_FILE_PHASE_GROUP_STATEMENTS"
+	projectorNornicDBStructuralEdgePhaseGroupStatementsEnv = "ESHU_NORNICDB_STRUCTURAL_EDGE_PHASE_GROUP_STATEMENTS"
+	projectorNornicDBFileBatchSizeEnv                      = "ESHU_NORNICDB_FILE_BATCH_SIZE"
+	projectorNornicDBEntityPhaseGroupStatementsEnv         = "ESHU_NORNICDB_ENTITY_PHASE_GROUP_STATEMENTS"
+	projectorNornicDBEntityBatchSizeEnv                    = "ESHU_NORNICDB_ENTITY_BATCH_SIZE"
+	projectorNornicDBEntityLabelBatchSizesEnv              = "ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES"
+	projectorNornicDBEntityLabelPhaseGroupStatementsEnv    = "ESHU_NORNICDB_ENTITY_LABEL_PHASE_GROUP_STATEMENTS"
+	projectorNornicDBBatchedEntityContainmentEnv           = "ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT"
+	projectorNornicDBEntityPhaseConcurrencyEnv             = "ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY"
+	projectorNornicDBCanonicalRetractBatchEnv              = "ESHU_CANONICAL_RETRACT_BATCH"
 )
 
 type projectorNornicDBConfig struct {
-	GroupedWritesRequested     bool
-	PhaseGroupStatements       int
-	FilePhaseGroupStatements   int
-	FileBatchSize              int
-	EntityPhaseGroupStatements int
-	EntityBatchSize            int
-	EntityLabelBatchSizes      map[string]int
-	EntityLabelPhaseStatements map[string]int
-	BatchedEntityContainment   bool
-	EntityPhaseConcurrency     int
-	CanonicalRetractBatchSize  int
+	GroupedWritesRequested             bool
+	PhaseGroupStatements               int
+	FilePhaseGroupStatements           int
+	StructuralEdgePhaseGroupStatements int
+	FileBatchSize                      int
+	EntityPhaseGroupStatements         int
+	EntityBatchSize                    int
+	EntityLabelBatchSizes              map[string]int
+	EntityLabelPhaseStatements         map[string]int
+	BatchedEntityContainment           bool
+	EntityPhaseConcurrency             int
+	CanonicalRetractBatchSize          int
 }
 
 func loadProjectorNornicDBConfig(getenv func(string) string) (projectorNornicDBConfig, error) {
@@ -103,6 +105,12 @@ func loadProjectorNornicDBConfig(getenv func(string) string) (projectorNornicDBC
 	}
 	filePhaseGroupStatements, err := projectorNornicDBPositiveInt(
 		getenv, projectorNornicDBFilePhaseGroupStatementsEnv, storagenornicdb.DefaultFilePhaseStatements,
+	)
+	if err != nil {
+		return projectorNornicDBConfig{}, err
+	}
+	structuralEdgePhaseGroupStatements, err := projectorNornicDBPositiveInt(
+		getenv, projectorNornicDBStructuralEdgePhaseGroupStatementsEnv, storagenornicdb.DefaultStructuralEdgePhaseStatements,
 	)
 	if err != nil {
 		return projectorNornicDBConfig{}, err
@@ -173,17 +181,18 @@ func loadProjectorNornicDBConfig(getenv func(string) string) (projectorNornicDBC
 	}
 
 	return projectorNornicDBConfig{
-		GroupedWritesRequested:     groupedWrites,
-		PhaseGroupStatements:       phaseGroupStatements,
-		FilePhaseGroupStatements:   filePhaseGroupStatements,
-		FileBatchSize:              fileBatchSize,
-		EntityPhaseGroupStatements: entityPhaseGroupStatements,
-		EntityBatchSize:            entityBatchSize,
-		EntityLabelBatchSizes:      entityLabelBatchSizes,
-		EntityLabelPhaseStatements: entityLabelPhaseStatements,
-		BatchedEntityContainment:   batchedEntityContainment,
-		EntityPhaseConcurrency:     entityPhaseConcurrency,
-		CanonicalRetractBatchSize:  retractBatchSize,
+		GroupedWritesRequested:             groupedWrites,
+		PhaseGroupStatements:               phaseGroupStatements,
+		FilePhaseGroupStatements:           filePhaseGroupStatements,
+		StructuralEdgePhaseGroupStatements: structuralEdgePhaseGroupStatements,
+		FileBatchSize:                      fileBatchSize,
+		EntityPhaseGroupStatements:         entityPhaseGroupStatements,
+		EntityBatchSize:                    entityBatchSize,
+		EntityLabelBatchSizes:              entityLabelBatchSizes,
+		EntityLabelPhaseStatements:         entityLabelPhaseStatements,
+		BatchedEntityContainment:           batchedEntityContainment,
+		EntityPhaseConcurrency:             entityPhaseConcurrency,
+		CanonicalRetractBatchSize:          retractBatchSize,
 	}, nil
 }
 
