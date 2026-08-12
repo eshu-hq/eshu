@@ -374,3 +374,55 @@ func TestValidate_LiteralTriggerEscapingRootFails(t *testing.T) {
 		t.Fatalf("Validate() errors = %v, want one naming the escaping trigger", errs)
 	}
 }
+
+// TestValidate_LiteralTriggerEscapingRootViaSymlinkFails pins the symlink half
+// of the containment guard. isWithinRoot compares paths lexically, but os.Stat
+// follows symlinks, so a committed symlink pointing out of the tree lets a
+// lexically-contained trigger satisfy the existence check against a host file —
+// the staleness check failing open, which is the defect class this gate removes.
+// A ".."-free trigger reaches the stat, so the lexical check alone cannot catch
+// this.
+func TestValidate_LiteralTriggerEscapingRootViaSymlinkFails(t *testing.T) {
+	t.Parallel()
+	root := buildHermeticRepo(
+		t,
+		[]string{"scripts/verify-openapi.sh"},
+		[]string{"verify-openapi.yml"},
+	)
+
+	// outside/ stands in for any directory the repo does not own. The symlink
+	// is inside the repo and its trigger path carries no "..", so only symlink
+	// resolution can tell that "escape/secret.txt" leaves the tree.
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "secret.txt"), []byte("x"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.Symlink(outside, filepath.Join(root, "escape")); err != nil {
+		t.Skipf("Symlink() error = %v; platform does not support symlinks", err)
+	}
+
+	reg := buildRegistry([]cigates.Gate{
+		{
+			ID:       "openapi-surface",
+			Name:     "Verify OpenAPI Surface",
+			Category: cigates.CategoryExactness,
+			Tier:     cigates.TierPrePR,
+			Blocking: true,
+			Triggers: []string{"escape/secret.txt"},
+			Local:    &cigates.Local{Command: "bash scripts/verify-openapi.sh"},
+			CI:       cigates.CI{Workflow: "verify-openapi.yml", Job: "Verify OpenAPI gate"},
+		},
+	})
+
+	errs := reg.Validate(root)
+	var found bool
+	for _, err := range errs {
+		if strings.Contains(err.Error(), "through a symlink") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("Validate() errors = %v, want one reporting the trigger resolving out of the tree through a symlink; without it the trigger stats an unrelated host file and the staleness check passes", errs)
+	}
+}

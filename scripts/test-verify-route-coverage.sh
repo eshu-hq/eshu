@@ -290,8 +290,9 @@ GO
 # marked covered by a coincidental TestRepoNew in query/b/other_test.go that
 # has nothing to do with it (a real, reported false-green: "1 routes checked,
 # 0 uncovered" on a genuinely untested handler). The fix restricts the search
-# to the handler's own directory tree (still recursive, so a test that moved
-# WITH its handler into a subpackage is still found — see test 5/6 above).
+# to the handler's own directory, depth-limited (--max-depth 1). A test that
+# moved WITH its handler into a subpackage is still found -- handler_dir IS
+# that directory once both have moved, see test 5/6 above.
 # A testdata fixture must not satisfy a real handler's coverage. filepath's
 # `find -maxdepth 1` never crossed into a subdirectory, so making this scan
 # recursive newly exposes fixture tests -- the same class already guarded in

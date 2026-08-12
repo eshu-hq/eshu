@@ -110,6 +110,29 @@ func checkTriggerPathsExist(repoRoot string, g Gate) []error {
 				"gate %q: trigger %q names %q, which does not exist — a stale trigger silently stops selecting this gate instead of failing loud",
 				g.ID, trigger, full,
 			))
+			continue
+		}
+		// isWithinRoot above is lexical, and os.Stat follows symlinks, so a
+		// committed symlink pointing out of the tree (dir -> /etc) would let a
+		// lexically-contained trigger like "dir/passwd" satisfy the existence
+		// check against a host file — the staleness check silently failing
+		// open, which is the defect class this gate exists to remove. Resolving
+		// happens only after the path is known to exist, because
+		// EvalSymlinks errors on a missing path and would otherwise mask the
+		// clearer stale-trigger message above.
+		resolved, err := filepath.EvalSymlinks(full)
+		if err != nil {
+			continue
+		}
+		resolvedRoot, err := filepath.EvalSymlinks(repoRoot)
+		if err != nil {
+			resolvedRoot = repoRoot
+		}
+		if !isWithinRoot(resolvedRoot, resolved) {
+			errs = append(errs, fmt.Errorf(
+				"gate %q: trigger %q resolves through a symlink to %q, outside the repository root %q — a trigger must name a path inside the repo",
+				g.ID, trigger, resolved, resolvedRoot,
+			))
 		}
 	}
 	return errs
