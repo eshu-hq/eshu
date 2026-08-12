@@ -132,7 +132,11 @@ the deterministic first 200 digest/ARN/uid candidates before those checks.
 That preserves the old graph route's global candidate cap and keeps a hot,
 mostly denied digest from turning one request into an unbounded authorization
 scan. Authorized resources after the cap intentionally remain under-enriched;
-they never leak, and #5789 tracks a fair per-digest successor.
+they never leak. #5789 has since replaced that global cap with a per-digest
+bound applied inside a `CROSS JOIN LATERAL`, with the freshness and grant checks
+moved ahead of the limit so it counts eligible rows
+([`5789-per-digest-bound.md`](5789-per-digest-bound.md)). The measurements below
+are the #5469 shape as recorded.
 
 A 100,000-row synthetic owner ledger measured the same zero-match shape before
 and after the partial `(running_image_digest, arn, uid)` expression index:

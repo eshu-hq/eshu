@@ -33,12 +33,13 @@ concluded a fact.
 | Registered **producers** | `container_image_identity`, `ci_cd_run_correlation` | same catalog |
 | Activation-driven re-enqueue (design point 2) | **EXISTS and is wired in production** | `CrossScopeCompletionEdges()` derives edges from the catalog; reducer ACK inserts `cross_scope_completion_events` (`reducer_queue_batch.go:254`); `CrossScopeCompletionRunner` + `NewCrossScopeCompletionStore` are wired at `cmd/reducer/main.go:453`; the golden-corpus gate asserts the ledger drains |
 | Readiness-defer error type + class | **Exists**, enrolled non-counting | `cross_scope_readiness.go`, `reducer_queue_readiness_sql.go:41` |
-| Any handler that RETURNS the readiness error | **NONE** — zero call sites outside its own definition and tests | unchanged from the first draft; this one holds |
+| Any handler that RETURNS the readiness error | **`ci_cd_run_correlation`**, since the readiness floor landed. It was NONE when this table was first written, which is what the rest of this doc reasons from | `cross_scope_readiness_floor.go`; `supply_chain_impact` is in the catalog and still has not opted in |
 
-So **design point 2 is built**, not missing. The remaining gap is narrower and
+So **design point 2 is built**, not missing. The remaining gap was narrower and
 more specific than the issue or my first draft implied: only the readiness-defer
-correctness floor is absent, and it is absent everywhere — no handler returns
-the error for any domain.
+correctness floor was absent, and it was absent everywhere — no handler returned
+the error for any domain. The floor now exists for `ci_cd_run_correlation`, so
+that last row is the one piece of this table the readiness-floor work moved.
 
 A second correction from review: `container_image_identity` **is** in the
 catalog, as a *producer* for both registered consumers. It is not registered as

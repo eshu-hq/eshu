@@ -1013,6 +1013,28 @@ a digest repeat the same deterministic prefix within their page-weighted quota. 
 all-scopes sentinel permits at most 400 graph candidates before the single
 authorization read.
 
+Within `runtime_context`, current repository mappings contribute environment
+candidate names only. `environment_evidence` admits a value only when a current,
+authorized correlation matches both that candidate environment and the
+finding's exact `subject_digest`. That
+strong digest branch deliberately crosses builder/deployer repository seams,
+as the reducer does; it is artifact deployment context, not repository
+ownership. Repository and baked evidence values are never copied, and an
+unconfirmed candidate receives no evidence entry.
+
+Values use the same `deploy_event`/`declared` vocabulary as the reducer-baked
+top-level field: missing or unknown values on an admitted matching row normalize
+to `declared`, and `deploy_event` wins when multiple current facts match the same
+candidate.
+`environment_evidence_probe.candidate_limit` records how many visible
+environment candidates this finding received from the fixed 200-candidate page
+budget. Allocation is deterministic and round-robin, so every eligible finding
+gets at least one slot. `candidates_truncated` is true only when that finding's
+visible candidate names exceeded its quota; it discloses nothing about hidden
+facts. This probe confirms existing candidate names and does not discover a new
+environment absent from the finding. Read-time resolution never writes results
+back into the finding's baked top-level fields.
+
 Ambiguous images, stale deployment evidence, missing workload links, or missing
 service/environment links stay in `missing_evidence[]`. Exact
 repository-scoped service-catalog correlation evidence remains attached to the
@@ -1021,8 +1043,9 @@ correlation lacks explicit `service_id` or `workload_id` anchors, the row
 reports `service/workload catalog anchor missing` instead of saying
 service-catalog correlation evidence is absent.
 
-`environment_evidence` (issue #5426) is an object keyed by each name in
-`environments[]`, valued `deploy_event` or `declared`: `deploy_event` means a
+The reducer-baked top-level `environment_evidence` (issue #5426) is an object
+keyed by each name in `environments[]`, valued `deploy_event` or `declared`:
+`deploy_event` means a
 `ci.deployment_event` observed at the deploying run's commit corroborated that
 environment; `declared` means only the CI-declared workflow job gate did, with
 no deployment-event corroboration. When two deployments report the same
@@ -1120,17 +1143,23 @@ which did not perform the required runtime-evidence resolution on the base,
 performs the corrected read in 0.434 ms. The transformed investigation packet
 omits these enrichment fields and improved from 0.051 ms to 0.020 ms by
 skipping their reads.
-The production read materializes the deterministic first 200
-`(digest, ARN, uid)` candidates before freshness and authorization checks,
-preserving the previous global evidence cap while bounding hot-digest work. A
-100,000-row denied-first proof reduced authorization probes from 100,000 to 200
-and execution from 145.785 ms to 0.512 ms. The strict partial index excludes
-blank and whitespace-only anchors; on a mostly-empty 200,000-row ledger it was
-about 80 percent smaller and improved identical 20,000-row insert/update tests
-without changing table contents. The retained real-handler integration test
-completed 15 hot-digest list requests at a 636.833 microsecond median and
-returned exactly the 200-resource cap. Full commands and lifecycle proof are in
-`docs/internal/evidence/5469-tiered-version-resolution.md`.
+The production read bounds rows per requested digest. A `CROSS JOIN LATERAL`
+gives every digest its own bounded, ordered `(digest, ARN, uid)` index scan,
+capped at the 200-row page budget divided across the digests on the page with a
+floor of 10, and freshness and authorization run inside that scan ahead of its
+limit, so the bound counts eligible rows. On a skewed corpus — one digest on
+30,000 resources, twenty others on 100 each — the earlier single global limit
+returned rows for 1 of 21 digests in 0.142 ms, while the per-digest form returns
+rows for 21 of 21 in 0.286 ms. An earlier 100,000-row denied-first proof reduced
+authorization probes from 100,000 to 200 and execution from 145.785 ms to
+0.512 ms. The strict partial index excludes blank and whitespace-only anchors;
+on a mostly-empty 200,000-row ledger it was about 80 percent smaller and
+improved identical 20,000-row insert/update tests without changing table
+contents. The retained real-handler integration test completed 15 hot-digest
+list requests at a 636.833 microsecond median and returned the full 200-resource
+budget its single-digest page is entitled to. Full commands and lifecycle proof
+are in `docs/internal/evidence/5469-tiered-version-resolution.md` and
+`docs/internal/evidence/5789-per-digest-bound.md`.
 
 Observability: `version_resolution_tier`/`version_resolution_corroboration`
 are produced by `supplyChainVersionResolution` from the enriched finding row.

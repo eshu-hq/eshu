@@ -16,13 +16,16 @@ import (
 // not failing on its own merits, so it is enrolled in
 // nonCountingReducerRetryFailureClasses
 // (go/internal/storage/postgres/reducer_queue_readiness_sql.go) to exempt
-// retrying rows from the retry budget; that enrollment lands in this PR with its
-// own attempt_count-freeze theory-proof
+// retrying rows from the retry budget; that enrollment landed with its own
+// attempt_count-freeze theory-proof
 // (docs/internal/evidence/5709-attempt-count-freeze.md).
 //
-// The class is inert until a handler returns crossScopeProducerNotReadyError:
-// the readiness-defer slice wires that. Until then nothing produces this class,
-// so the enrollment changes no runtime behavior.
+// ci_cd_run_correlation produces this class today. Its handler samples
+// CrossScopeProducerReadiness before its cross-scope identity load and returns
+// crossScopeProducerNotReadyError when the load resolved nothing and the
+// producer scopes have not activated (cross_scope_readiness_floor.go). It is
+// the only producer of the class so far: supply_chain_impact is in the
+// cross-scope catalog and has not opted in.
 const CrossScopeProducerNotReadyFailureClass = "cross_scope_producer_not_ready"
 
 // crossScopeProducerNotReadyError marks a cross-scope producer-readiness miss as

@@ -130,12 +130,16 @@ func (s *PostgresCloudResourceListStore) CurrentAuthorizedCloudResourceUIDs(
 	return uids, nil
 }
 
-// CurrentAuthorizedCloudResourcesByDigest examines at most the runtime probe
-// candidate bound in deterministic digest, ARN, and uid order. Freshness and
-// caller authorization are checked after that materialized bound in the same
-// indexed owner-ledger read, preserving the former graph route's global cap:
-// authorized rows beyond the first candidate page remain under-enriched rather
-// than widening hot-digest work.
+// CurrentAuthorizedCloudResourcesByDigest examines at most
+// supplyChainCloudRuntimeProbePerDigestLimit owner-ledger rows PER REQUESTED
+// DIGEST, in deterministic digest, ARN, and uid order.
+//
+// Freshness and caller authorization are checked BEFORE that bound, so the bound
+// counts eligible rows: a digest whose first rows are stale, tombstoned, or
+// outside the caller's grants still yields the later row that is current and
+// authorized. The bound being per digest is what stops one widely-deployed image
+// from spending the whole page budget and leaving every other finding with no
+// runtime evidence (#5789).
 func (s *PostgresCloudResourceListStore) CurrentAuthorizedCloudResourcesByDigest(
 	ctx context.Context,
 	digests []string,
@@ -194,38 +198,69 @@ func buildCloudResourceRuntimeDigestQuery(
 		authorization = "\n          AND ((scope.scope_kind = 'repository' AND scope.source_key = ANY(" + repositories + "::text[]))" +
 			" OR fact.scope_id = ANY(" + scopes + "::text[]))"
 	}
-	limit := bind(supplyChainCloudRuntimeProbeMaxResults)
+	perDigestLimit := bind(supplyChainCloudRuntimeProbePerDigestLimit(len(digests)))
 
+	// The candidate bound is PER DIGEST, applied through a LATERAL so each
+	// digest gets its own bounded, ordered index scan. A single global LIMIT
+	// over the whole ordered set does not share: measured on a skewed corpus
+	// (one digest on 30,000 resources, 20 others on 100 each), the old shape
+	// returned 200 rows for exactly ONE digest and zero for the other twenty,
+	// so twenty findings silently kept their CI-declared tier. See
+	// docs/internal/evidence/5789-per-digest-bound.md.
+	//
+	// Freshness and authorization run INSIDE the lateral, BEFORE the limit, so
+	// the bound counts ELIGIBLE rows. Bounding first and filtering after looks
+	// cheaper and is wrong: a digest whose first ten (arn, uid) rows are stale,
+	// tombstoned, or outside the caller's grants would return nothing even
+	// though a later row is current and authorized, which is a genuinely
+	// running vulnerable image reported as not running (codex review).
+	//
+	// The bound is the shared budget with a floor (see
+	// supplyChainCloudRuntimeProbePerDigestLimit), so a single-digest page keeps
+	// exactly its previous breadth while a crowded page still guarantees every
+	// digest evidence.
+	//
+	// Still bounded and still deterministic: total work is at most
+	// len(digests) x perDigestLimit rows returned, and the ORDER BY inside the
+	// lateral is the same (digest, arn, uid) the index is built on, so the row
+	// set is reproducible run to run -- a security evidence field must not vary.
 	return `
-WITH candidates AS MATERIALIZED (
-  SELECT owner.uid,
-         owner.winning_row->>'running_image_digest' AS digest,
-         owner.winning_row->>'arn' AS arn,
-         owner.winning_row->>'source_fact_id' AS source_fact_id
-  FROM graph_node_owner AS owner
-  WHERE owner.winning_row->>'resource_type' IS NOT NULL
-    AND NULLIF(BTRIM(owner.winning_row->>'running_image_digest'), '') IS NOT NULL
-    AND owner.winning_row->>'running_image_digest' = ANY(` + digestSet + `::text[])
-    AND NULLIF(BTRIM(owner.winning_row->>'arn'), '') IS NOT NULL
-  ORDER BY owner.winning_row->>'running_image_digest', owner.winning_row->>'arn', owner.uid
-  LIMIT ` + limit + `
+WITH wanted AS (
+  SELECT DISTINCT unnest(` + digestSet + `::text[]) AS digest
+), candidates AS MATERIALIZED (
+  SELECT per_digest.uid,
+         per_digest.digest,
+         per_digest.arn
+  FROM wanted
+  CROSS JOIN LATERAL (
+    SELECT owner.uid,
+           owner.winning_row->>'running_image_digest' AS digest,
+           owner.winning_row->>'arn' AS arn
+    FROM graph_node_owner AS owner
+    WHERE owner.winning_row->>'resource_type' IS NOT NULL
+      AND NULLIF(BTRIM(owner.winning_row->>'running_image_digest'), '') IS NOT NULL
+      AND owner.winning_row->>'running_image_digest' = wanted.digest
+      AND NULLIF(BTRIM(owner.winning_row->>'arn'), '') IS NOT NULL
+      AND COALESCE((
+            SELECT TRUE
+            FROM fact_records AS fact
+            JOIN ingestion_scopes AS scope ON scope.scope_id = fact.scope_id
+            JOIN scope_generations AS generation ON generation.generation_id = fact.generation_id
+            WHERE fact.fact_id = owner.winning_row->>'source_fact_id'
+              AND scope.active_generation_id = fact.generation_id
+              AND generation.scope_id = scope.scope_id
+              AND generation.status = 'active'
+              AND fact.is_tombstone = FALSE` + authorization + `
+            LIMIT 1
+          ), FALSE)
+    ORDER BY owner.winning_row->>'running_image_digest', owner.winning_row->>'arn', owner.uid
+    LIMIT ` + perDigestLimit + `
+  ) AS per_digest
 )
 SELECT candidate.uid,
        candidate.digest,
        candidate.arn
 FROM candidates AS candidate
-WHERE COALESCE((
-        SELECT TRUE
-        FROM fact_records AS fact
-        JOIN ingestion_scopes AS scope ON scope.scope_id = fact.scope_id
-        JOIN scope_generations AS generation ON generation.generation_id = fact.generation_id
-        WHERE fact.fact_id = candidate.source_fact_id
-          AND scope.active_generation_id = fact.generation_id
-          AND generation.scope_id = scope.scope_id
-          AND generation.status = 'active'
-          AND fact.is_tombstone = FALSE` + authorization + `
-        LIMIT 1
-      ), FALSE)
 ORDER BY candidate.digest, candidate.arn, candidate.uid`, args
 }
 

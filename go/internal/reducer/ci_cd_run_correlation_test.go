@@ -23,6 +23,10 @@ type stubCICDRunCorrelationFactLoader struct {
 	active     []facts.Envelope
 	kindCalls  [][]string
 	activeCall int
+	// onActiveLoad runs inside the cross-scope load, so a test can simulate a
+	// producer scope activating DURING that load — the race the #5709 P1-3
+	// pre-load readiness sample exists to lose safely.
+	onActiveLoad func()
 }
 
 func (s *stubCICDRunCorrelationFactLoader) ListFacts(
@@ -49,6 +53,9 @@ func (s *stubCICDRunCorrelationFactLoader) ListActiveCICDRunCorrelationFacts(
 	[]string,
 ) ([]facts.Envelope, error) {
 	s.activeCall++
+	if s.onActiveLoad != nil {
+		s.onActiveLoad()
+	}
 	return append([]facts.Envelope(nil), s.active...), nil
 }
 

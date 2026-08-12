@@ -35,9 +35,11 @@ var nonCountingReducerRetryFailureClasses = []string{
 	reducer.AWSRelationshipEC2InstanceNodesNotReadyFailureClass,
 	// #5709: a cross-scope consumer deferred until its declared producer scope
 	// activates. Enrolled here so a retrying row in this class keeps its
-	// attempt_count and is not dead-lettered while it waits. Inert until the
-	// readiness-defer slice wires a handler to return
-	// crossScopeProducerNotReadyError; nothing produces this class yet.
+	// attempt_count and is not dead-lettered while it waits. Produced by
+	// ci_cd_run_correlation's readiness floor
+	// (go/internal/reducer/cross_scope_readiness_floor.go); the deferral is
+	// bounded by elapsed time since the repair cycle began, so a producer scope
+	// that never activates still converges instead of retrying forever.
 	reducer.CrossScopeProducerNotReadyFailureClass,
 	// #5848: aws_cloud_runtime_drift's own readiness-defer and insert-admission
 	// classes. Both MUST be enrolled here, not just declared as constants next

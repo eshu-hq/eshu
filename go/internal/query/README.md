@@ -267,10 +267,15 @@ Semantic search reads (`POST /api/v0/search/semantic`, MCP
 `search_semantic_context`) are repository-bounded over active curated search
 documents. After repository authorization, the handler resolves the canonical
 repository id to exactly one active ingestion-scope id for index reads while
-retaining the canonical id as the repository boundary. No active mapping returns
-an empty bounded result; multiple active mappings fail closed as ambiguous.
-Smaller service/workload/environment anchors remain inside that repository
-corpus. The route serves the active generation from the persisted search index,
+retaining the canonical id as the repository boundary. A caller may address the
+repository by its canonical id or by its ingestion scope id; either way the
+repository scope is rebound to the resolved canonical id before ranking, because
+that is the identity every indexed document stores. A scope id never survives as
+that boundary: a request the resolver cannot map to a canonical repository
+returns an empty bounded result instead. Multiple active mappings fail closed as
+ambiguous. Smaller service/workload/environment anchors remain inside that
+repository corpus, and they still win anchor selection, so `anchor.id` reports
+the canonical repository only when the repository is the selected anchor. The route serves the active generation from the persisted search index,
 requires explicit `limit` and `timeout_ms`, and returns derived retrieval
 evidence rather than canonical graph truth. Scoped-token requests with no grant
 return an empty bounded response without reading the store; out-of-grant
@@ -347,27 +352,73 @@ result therefore reports the current `runtime_context`,
 `deployment_truth_tier`, `version_resolution_tier`, and
 `version_resolution_corroboration` from the same enriched row. The transformed
 investigation packet omits those fields and skips reads that cannot affect its
-response. Version resolution selects the strongest eligible concrete claim in
+response. Current repository correlations contribute environment candidate
+names only. A second set-based read admits `environment_evidence` only when a
+current, authorized correlation matches both the candidate environment and the
+finding's exact subject digest. This mirrors the reducer's strong digest branch
+across builder/deployer repository seams; it is artifact deployment context,
+not repository ownership. Repository or baked evidence values are never copied,
+and an unconfirmed candidate gets no evidence entry. Admitted values reuse the
+`deploy_event`/`declared` producer vocabulary: a missing or unknown value on a
+matching row normalizes to `declared`, and `deploy_event` wins when more than
+one matching fact names the same environment. Read-time evidence never
+overwrites the finding's reducer-baked top-level environment fields.
+
+Performance Evidence: `BenchmarkFoldSupplyChainRuntimeContext200Repositories`
+folded the same 800 facts for 200 repositories before and after the response
+change. Across five normal-build samples on the same machine and input shape,
+the `origin/main` median was 69.716 microseconds per fold
+(68.920-71.099 microseconds, 48,168 bytes and 1,003 allocations); the final
+branch median was 65.839 microseconds (65.285-66.574 microseconds, 48,168 bytes
+and 1,003 allocations). Repository folding therefore adds no evidence map or
+allocation; exact-digest response evidence is owned by the separate bounded
+lookup. The exact production SQL was also measured on
+PostgreSQL 18.4 with 100,000 active rows for one hot digest, 199 cold candidate
+rows, and 900,000 unrelated rows. The original flattenable join performed
+roughly 200 million candidate comparisons, spilled its sort, and took 66,458.413
+milliseconds. The candidate-driven LATERAL aggregate used the existing
+artifact-digest partial index once per candidate and took 128.029 milliseconds
+under `EXPLAIN (ANALYZE, BUFFERS)`; the production store call returned all 200
+confirmations in 68.545 milliseconds.
+
+Observability Evidence: `environment_evidence_probe` exposes each finding's
+allocated candidate count and whether its visible candidate names were
+truncated. The existing supply-chain list and explain request spans,
+runtime-context result counts, error envelopes, and request duration/error
+metrics diagnose the set-based read without adding a new high-cardinality
+label.
+
+Version resolution selects the strongest eligible concrete claim in
 deployment-truth
 order: runtime-observed evidence, CI-declared provenance, then config evidence.
 The unshipped declared-ref tier contributes no claim. A CI-declared digest that
 contradicts the finding's subject digest remains corroboration and cannot win.
 Same-axis claims are labeled `agrees` or `disagrees`; digest, image-reference,
 and package-version claims on different axes are `not_comparable`.
-The cloud-runtime owner-ledger read materializes the deterministic first 200
-`(digest, ARN, uid)` candidates before active-generation and caller-grant
-checks. This preserves the former graph route's global evidence cap and bounds
-authorization work for hot or mostly denied digests. Authorized rows after the
-cap intentionally remain under-enriched rather than widening the request;
-#5789 tracks fair per-digest allocation. The matching migration 086 partial
-index excludes blank and whitespace-only digest or ARN values, so empty cloud
-inventory rows do not amplify storage or writes.
-Performance Evidence: on 100,000 same-digest rows with only candidate 201
-authorized, the prior late-limit form took 145.785 ms and 100,000
-authorization probes; the materialized form took 0.512 ms and exactly 200
-probes. The retained 20,000-row live route proof returned the bounded 200
-resources at a 636.833 microsecond median across 15 runs. Exact commands and
-index build/write measurements live in
+The cloud-runtime owner-ledger read bounds rows per requested digest. A
+`CROSS JOIN LATERAL` driven by the distinct digest set gives every digest its
+own bounded, ordered `(digest, ARN, uid)` index scan, capped at the 200-row page
+budget divided across the digests on the page with a floor of 10
+(`supplyChainCloudRuntimeProbePerDigestLimit`). Active-generation and
+caller-grant checks run inside that lateral, before its limit, so the bound
+counts eligible rows: a digest whose first rows are stale or outside the
+caller's grants still yields the later row that is neither. A digest running on
+more resources than its share reports only the first slice of them, but no
+digest is left with no runtime evidence at all (#5789). The matching migration
+086 partial index excludes blank and whitespace-only digest or ARN values, so
+empty cloud inventory rows do not amplify storage or writes.
+Performance Evidence: on a skewed corpus — one digest on 30,000 resources,
+twenty others on 100 each, 21 digests requested — the earlier single global
+`LIMIT 200` took 0.142 ms and returned rows for 1 of 21 digests, while the
+per-digest lateral takes 0.286 ms and returns rows for 21 of 21. Running
+eligibility before the bound costs at most one full index-range scan of a single
+digest: 93.193 ms on 50,000 rows where only the last 50 are authorized, inside
+the 2-second `cloudResourceListInteractiveSLO`. The 20,000-row live route proof
+still returns the bounded 200 resources for a single-digest page, at a 636.833
+microsecond median across 15 runs. Exact commands and index build/write
+measurements live in
+[`docs/internal/evidence/5789-per-digest-bound.md`](../../../docs/internal/evidence/5789-per-digest-bound.md)
+and
 [`docs/internal/evidence/5469-tiered-version-resolution.md`](../../../docs/internal/evidence/5469-tiered-version-resolution.md).
 The Kubernetes runtime probe partitions its 200 serialized-reference slots
 over at most 200 finding rows. Every non-empty digest occurrence receives at

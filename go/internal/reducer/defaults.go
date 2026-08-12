@@ -4,6 +4,7 @@
 package reducer
 
 import (
+	"log/slog"
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
@@ -38,6 +39,18 @@ type DefaultHandlers struct {
 	// FactLoader loads fact envelopes for workload and infrastructure
 	// platform materialization.
 	FactLoader FactLoader
+
+	// CrossScopeProducerReadiness gates the #5709 cross-scope readiness floor.
+	//
+	// Optional: nil means "no floor", not "not ready". A deployment that has
+	// not wired it keeps the pre-#5709 behaviour of committing whatever the
+	// cross-scope load resolved, rather than stranding every consumer.
+	CrossScopeProducerReadiness CrossScopeProducerReadiness
+
+	// CrossScopeReadinessLogger records each cross-scope readiness deferral as
+	// its own structured line. Optional: nil silences it, and the deferral is
+	// still durable on the work item's failure_class.
+	CrossScopeReadinessLogger *slog.Logger
 
 	// AdmissionDecisionWriter persists shared explainability decisions for
 	// reducer domains that map local admission outcomes to the cross-domain

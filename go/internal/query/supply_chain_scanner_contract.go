@@ -103,7 +103,7 @@ func vulnerabilityScannerReadContract() map[string]any {
 		"response_fields": []map[string]string{
 			{
 				"name":  "runtime_context",
-				"notes": "read-time-resolved workloads, services, deployments, environments, and catalog refs joined from the finding's repository_id at query time (truth_basis: read_time_resolved), populated on the findings list and impact explain routes; the transformed investigation packet omits it. workload_id, service_id, and environment filters use only the same current active repository mappings; stale baked payload values cannot satisfy them. An empty runtime_context is an honest 'no runtime facts landed yet' that self-heals on the next read.",
+				"notes": "read-time-resolved workloads, services, deployments, environments, per-environment corroboration, and catalog refs (truth_basis: read_time_resolved), populated on findings list and impact explain routes; the transformed investigation packet omits it. Repository mappings remain current repository truth and contribute environment candidate names only. environment_evidence uses deploy_event or declared solely when a current authorized CI/CD correlation matches the finding's exact subject digest and candidate environment across builder/deployer repository seams; this is artifact deployment context, never repository ownership, and repository or baked evidence values are not copied. Unconfirmed names receive no evidence entry. environment_evidence_probe exposes the bounded page-weighted confirmation budget and visible-candidate truncation. workload_id, service_id, and environment filters use current active repository mappings; stale baked values cannot satisfy them.",
 			},
 		},
 		"routes":             vulnerabilityScannerRouteContracts(),
