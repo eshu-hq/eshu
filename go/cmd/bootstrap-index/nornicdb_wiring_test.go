@@ -15,7 +15,23 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	storagenornicdb "github.com/eshu-hq/eshu/go/internal/storage/nornicdb"
 )
+
+// bootstrap-index keeps its phase-group defaults as local literals rather than
+// importing the storage package into production wiring. That is deliberate, but
+// it means a change to the shared structural-edge default would silently leave
+// bootstrap seeding large repositories with a different transaction bound than
+// the ingester and projector. Pin the two together so the divergence fails here
+// instead of in a corpus run (issue #6070).
+func TestBootstrapStructuralEdgeDefaultMatchesSharedDefault(t *testing.T) {
+	t.Parallel()
+
+	if got, want := defaultNornicDBStructuralEdgePhaseStatements,
+		storagenornicdb.DefaultStructuralEdgePhaseStatements; got != want {
+		t.Fatalf("bootstrap structural edge default = %d, want the shared default %d", got, want)
+	}
+}
 
 func TestBootstrapCanonicalExecutorUsesNornicDBPhaseGroupsByDefault(t *testing.T) {
 	t.Parallel()

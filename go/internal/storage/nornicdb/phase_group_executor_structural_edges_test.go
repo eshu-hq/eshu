@@ -30,12 +30,20 @@ type recordingGroupExecutor struct {
 	statementsPerCall []int
 	rowsPerCall       []int
 	singleStatements  int
+	// events records grouped and singleton dispatches in the order they
+	// happened, so a test can assert ordering and not merely counts.
+	events []string
 }
 
 // Execute satisfies cypher.Executor. The structural-edge phase runs through the
 // grouped path, so a call here would mean the phase stopped being grouped.
-func (r *recordingGroupExecutor) Execute(_ context.Context, _ sourcecypher.Statement) error {
+func (r *recordingGroupExecutor) Execute(_ context.Context, stmt sourcecypher.Statement) error {
 	r.singleStatements++
+	if stmt.Operation == sourcecypher.OperationCanonicalRetract {
+		r.events = append(r.events, "retract")
+	} else {
+		r.events = append(r.events, "single")
+	}
 	return nil
 }
 
@@ -50,6 +58,7 @@ func (r *recordingGroupExecutor) ExecuteGroup(_ context.Context, stmts []sourcec
 	}
 	r.statementsPerCall = append(r.statementsPerCall, len(stmts))
 	r.rowsPerCall = append(r.rowsPerCall, rows)
+	r.events = append(r.events, "group")
 	return nil
 }
 
@@ -150,6 +159,89 @@ func TestStructuralEdgePhaseStatementLimit(t *testing.T) {
 	zeroed := PhaseGroupExecutor{StructuralEdgeMaxStatements: 0}
 	if got := zeroed.PhaseGroupStatementLimit(stmts); got != DefaultStructuralEdgePhaseStatements {
 		t.Fatalf("zero override limit = %d, want %d", got, DefaultStructuralEdgePhaseStatements)
+	}
+}
+
+// The structural-edge phase is not always pure MERGE. The Atlantis, Flux,
+// GitLab, Helm, and Kustomize family-edge builders emit Drain-marked retracts
+// interleaved with their upserts, and the retract for a family MUST commit
+// before that family's own upserts. The PR for issue #6070 argued that
+// narrowing the budget from 500 to 5 cannot reorder those, because
+// executeGroupedChunksWithDrain walks in emitted order and flushes pending
+// merges before each retract. Argument is not proof: this pins the invariant so
+// a later refactor of flushPending fails here rather than in a corpus run.
+func TestStructuralEdgeBudgetPreservesRetractOrdering(t *testing.T) {
+	const (
+		leading  = 7
+		trailing = 7
+		rowsEach = 10
+	)
+
+	stmts := structuralEdgeStatements(leading, rowsEach)
+	retract := sourcecypher.Statement{
+		Cypher:    "MATCH (a:AtlantisProject)-[r:MANAGES]->() DELETE r",
+		Operation: sourcecypher.OperationCanonicalRetract,
+		Drain:     true,
+		Parameters: map[string]any{
+			sourcecypher.StatementMetadataPhaseKey: sourcecypher.CanonicalPhaseStructuralEdges,
+		},
+	}
+	stmts = append(stmts, retract)
+	stmts = append(stmts, structuralEdgeStatements(trailing, rowsEach)...)
+
+	recorder := &recordingGroupExecutor{}
+	executor := PhaseGroupExecutor{Inner: recorder}
+
+	if err := executor.ExecutePhaseGroup(context.Background(), stmts); err != nil {
+		t.Fatalf("ExecutePhaseGroup() error = %v", err)
+	}
+
+	retractIndex := -1
+	for i, event := range recorder.events {
+		if event == "retract" {
+			if retractIndex != -1 {
+				t.Fatalf("recorded %d retracts, want exactly 1: %v", i, recorder.events)
+			}
+			retractIndex = i
+		}
+	}
+	if retractIndex == -1 {
+		t.Fatalf("no retract dispatched, events = %v", recorder.events)
+	}
+
+	// Every leading MERGE must have committed before the retract, and every
+	// trailing MERGE after it. With a 5-statement budget the 7 leading
+	// statements cannot fit in one transaction, so this also proves the flush
+	// respects the narrowed budget instead of deferring work past the retract.
+	groupsBefore, groupsAfter := 0, 0
+	for i, event := range recorder.events {
+		if event != "group" {
+			continue
+		}
+		if i < retractIndex {
+			groupsBefore++
+		} else {
+			groupsAfter++
+		}
+	}
+	if groupsBefore < 2 {
+		t.Errorf("%d grouped chunks before the retract, want >= 2 (7 statements at a 5 budget): %v",
+			groupsBefore, recorder.events)
+	}
+	if groupsAfter < 2 {
+		t.Errorf("%d grouped chunks after the retract, want >= 2: %v", groupsAfter, recorder.events)
+	}
+
+	total := 0
+	for _, got := range recorder.statementsPerCall {
+		if got > DefaultStructuralEdgePhaseStatements {
+			t.Errorf("transaction carried %d statements, want <= %d",
+				got, DefaultStructuralEdgePhaseStatements)
+		}
+		total += got
+	}
+	if total != leading+trailing {
+		t.Fatalf("executed %d merge statements, want %d", total, leading+trailing)
 	}
 }
 

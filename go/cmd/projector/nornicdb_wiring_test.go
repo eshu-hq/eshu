@@ -40,6 +40,52 @@ func TestLoadProjectorNornicDBConfigUsesProductionWriterDefaults(t *testing.T) {
 	}
 }
 
+// The structural-edge budget is what keeps a large scope from committing its
+// whole IMPORTS phase in one transaction (issue #6070). The standalone projector
+// must pick up the shared default and honour an operator override, and must
+// reject a non-positive value rather than fall back to the broad 500-statement
+// default that caused the defect.
+func TestLoadProjectorNornicDBConfigStructuralEdgePhaseGroupStatements(t *testing.T) {
+	t.Parallel()
+
+	config, err := loadProjectorNornicDBConfig(func(string) string { return "" })
+	if err != nil {
+		t.Fatalf("loadProjectorNornicDBConfig() error = %v, want nil", err)
+	}
+	if got, want := config.StructuralEdgePhaseGroupStatements,
+		storagenornicdb.DefaultStructuralEdgePhaseStatements; got != want {
+		t.Fatalf("structural edge phase group statements = %d, want %d", got, want)
+	}
+
+	tuned, err := loadProjectorNornicDBConfig(func(name string) string {
+		if name == projectorNornicDBStructuralEdgePhaseGroupStatementsEnv {
+			return "9"
+		}
+		return ""
+	})
+	if err != nil {
+		t.Fatalf("loadProjectorNornicDBConfig() error = %v, want nil", err)
+	}
+	if got := tuned.StructuralEdgePhaseGroupStatements; got != 9 {
+		t.Fatalf("tuned structural edge phase group statements = %d, want 9", got)
+	}
+
+	for _, raw := range []string{"invalid", "0", "-1"} {
+		_, err := loadProjectorNornicDBConfig(func(name string) string {
+			if name == projectorNornicDBStructuralEdgePhaseGroupStatementsEnv {
+				return raw
+			}
+			return ""
+		})
+		if err == nil {
+			t.Fatalf("loadProjectorNornicDBConfig(%q) error = nil, want invalid env error", raw)
+		}
+		if !strings.Contains(err.Error(), projectorNornicDBStructuralEdgePhaseGroupStatementsEnv) {
+			t.Fatalf("loadProjectorNornicDBConfig(%q) error = %q, want env name", raw, err)
+		}
+	}
+}
+
 func TestLoadProjectorNornicDBConfigRejectsInvalidEnv(t *testing.T) {
 	t.Parallel()
 
