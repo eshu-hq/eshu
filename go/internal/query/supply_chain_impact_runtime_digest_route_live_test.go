@@ -100,5 +100,7 @@ WHERE uid BETWEEN 'uid-000001' AND 'uid-001000'
 	if median > cloudResourceListInteractiveSLO {
 		t.Fatalf("hot runtime-digest route median = %s, want <= %s", median, cloudResourceListInteractiveSLO)
 	}
-	t.Logf("20,000-row hot runtime-digest list route median=%s runs=%d candidates=%d", median, len(durations), supplyChainCloudRuntimeProbeMaxResults)
+	// The bound counts eligible rows since #5789, not candidates, and a
+	// single-digest page gets the whole shared budget as its per-digest bound.
+	t.Logf("20,000-row hot runtime-digest list route median=%s runs=%d per_digest_bound=%d", median, len(durations), supplyChainCloudRuntimeProbeMaxResults)
 }

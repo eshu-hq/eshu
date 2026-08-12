@@ -27,18 +27,30 @@ import (
 // silent wrong answer).
 const supplyChainCloudRuntimeProbeMaxDigests = 200
 
-// supplyChainCloudRuntimeProbeMaxResults bounds the total owner-ledger rows the
-// probe considers, so a single vulnerable image running on an
-// unusually large fleet can never trigger unbounded freshness or authorization
-// work. The query orders by (running_image_digest, arn, uid), materializes this
-// candidate limit, and only then applies freshness and caller grants, so the set is
-// DETERMINISTIC and reproducible run-to-run — a security evidence field must not
-// vary. The remaining bound is honest: when one findings page collectively
-// matches more than this many (digest, resource) candidates, authorized rows
-// after the cap are not considered, so those findings keep their CI-declared or
-// config tier instead of runtime_confirmed. That is a deterministic, bounded,
-// scale-gated limitation; a per-digest bound that prevents one hot digest from
-// starving other findings' runtime evidence is tracked in #5789.
+// supplyChainCloudRuntimeProbeMaxResults is the owner-ledger row budget for one
+// findings page. It is no longer the bound the query applies:
+// supplyChainCloudRuntimeProbePerDigestLimit divides this budget across the
+// digests on the page, floored at
+// supplyChainCloudRuntimeProbePerDigestMinResults, and the query applies that
+// per-digest number inside a CROSS JOIN LATERAL -- one bounded, ordered index
+// scan per digest (#5789).
+//
+// Freshness and caller authorization run inside that lateral BEFORE its LIMIT,
+// so the bound counts ELIGIBLE rows rather than candidates. The ordering was
+// measured, and reversing it returns wrong answers: on a corpus where only the
+// last 50 of 50,000 rows were authorized for the caller, bounding candidates
+// first and filtering after took 0.449 ms and returned nothing, reporting a
+// genuinely running vulnerable image as not running. Eligibility inside the
+// bound took 93 ms and returned the 50 rows
+// (docs/internal/evidence/5789-per-digest-bound.md).
+//
+// Work stays bounded at len(digests) x the per-digest limit, at most 2000 rows,
+// and the ordered scan keeps that row set reproducible run to run: a security
+// evidence field must not vary. A page can still lose breadth -- a digest
+// running on more resources than its share reports only the first slice of
+// them. It no longer loses the promotion itself, because runtime_confirmed
+// needs one current, authorized resource and every requested digest now gets
+// its own share.
 const supplyChainCloudRuntimeProbeMaxResults = 200
 
 // supplyChainCloudRuntimeProbePerDigestMinResults is the floor under the
