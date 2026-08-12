@@ -5,8 +5,9 @@
 The retained repository-dependency proof Odù, an Ifá conformance input made of
 61,007 fact envelopes across eight scopes, is intentionally large enough to
 match the live PostgreSQL backfill proof. Its determinism test builds two copies,
-reverses one copy's facts, and canonicalizes both. The issue reported 83.4
-seconds under Go's race detector for those two calls.
+reverses one copy's facts, and canonicalizes both. The issue reported 83.41
+seconds under Go's race detector for those two calls
+(`ledger:5975-issue-race-baseline`).
 
 `CanonicalizeOdu` is a contract-test helper over in-memory facts. The changed
 sorter is shared more broadly by fixture recorders, API/MCP replay, input tapes,
@@ -16,10 +17,12 @@ canonical JSON document.
 
 ## Profile and theory
 
-The current-main profile disproved the issue's suspected super-linear
-constructor cost. The normal test took 8.34 seconds; its CPU profile attributed
+The measured-baseline profile disproved the issue's suspected super-linear
+constructor cost. The normal test took 8.34 seconds
+(`ledger:5975-theory-normal-base`); its CPU profile attributed
 43.98% cumulatively to JSON indentation, while constructing the retained Odù
-used 6.52%. Under `-race`, the test took 85.01 seconds. Replay transformation
+used 6.52%. Under `-race`, the test took 85.01 seconds
+(`ledger:5975-theory-race-base`). Replay transformation
 and array sorting each accounted for about 13%, final JSON encoding for about
 18%, and the constructor stayed below 1%.
 
@@ -31,9 +34,9 @@ keys.
 
 | Candidate | Cheapest proof | Before | After | Accuracy | Disposition |
 | --- | --- | ---: | ---: | --- | --- |
-| Lazy canonical tie-break | Exact two-call test, normal build | 8.34 s | 3.31 s | Same determinism test passes | Proven |
-| Lazy canonical tie-break | Exact two-call test, `-race` | 85.01 s | 32.45 s | Same determinism test passes | Proven |
-| Constructor optimization | CPU profile | 6.52% normal; <1% under `-race` | Not changed | Constructor was not the long pole | Rejected |
+| Lazy canonical tie-break | Exact two-call test, normal build | 8.34 s (`ledger:5975-theory-normal-base`) | 3.31 s (`ledger:5975-theory-normal-candidate`) | Same determinism test passes | Proven |
+| Lazy canonical tie-break | Exact two-call test, `-race` | 85.01 s (`ledger:5975-theory-race-base`) | 32.45 s (`ledger:5975-theory-race-candidate`) | Same determinism test passes | Proven |
+| Constructor optimization | CPU profile | 6.52% normal (`ledger:5975-theory-normal-base`); <1% under `-race` (`ledger:5975-theory-race-base`) | Not changed | Constructor was not the long pole | Rejected |
 
 The synthetic scaling check used the same 3,072-byte payload shape with unique
 fact keys. Three one-iteration samples at each size show linear growth, not the
@@ -41,9 +44,9 @@ suspected super-linear curve:
 
 | Facts | Before median | After median | Delta |
 | ---: | ---: | ---: | ---: |
-| 1,000 | 22.058 ms | 12.056 ms | -45.3% |
-| 5,000 | 111.763 ms | 56.383 ms | -49.6% |
-| 10,000 | 211.241 ms | 101.696 ms | -51.9% |
+| 1,000 | 22.058 ms (`ledger:5975-scale-1000-base`) | 12.056 ms (`ledger:5975-scale-1000-candidate`) | -45.3% |
+| 5,000 | 111.763 ms (`ledger:5975-scale-5000-base`) | 56.383 ms (`ledger:5975-scale-5000-candidate`) | -49.6% |
+| 10,000 | 211.241 ms (`ledger:5975-scale-10000-base`) | 101.696 ms (`ledger:5975-scale-10000-candidate`) | -51.9% |
 
 The old and new canonical documents have the same length and SHA-256:
 `277289309` bytes and
@@ -61,8 +64,8 @@ median of three one-iteration samples on the same Apple M5 Max, 18 logical CPUs,
 
 | Build | Before | After | Delta | Allocations before → after | Bytes before → after |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Normal | 6.499 s | 2.402 s | -63.0% | 27.21M → 12.32M | 12.67 GB → 5.50 GB |
-| `-race` | 76.626 s | 24.543 s | -68.0% | 28.18M → 12.51M | 18.52 GB → 7.15 GB |
+| Normal | 6.499 s (`ledger:5975-two-call-normal-base`) | 2.402 s (`ledger:5975-two-call-normal-candidate`) | -63.0% | 27.21M → 12.32M | 12.67 GB → 5.50 GB |
+| `-race` | 76.626 s (`ledger:5975-two-call-race-base`) | 24.543 s (`ledger:5975-two-call-race-candidate`) | -68.0% | 28.18M → 12.51M | 18.52 GB → 7.15 GB |
 
 The comparison uses base `9379dc9c0fd84edc087953a3c92c03a1327aef67`.
 The measured production sorter blobs are
@@ -135,7 +138,9 @@ sort by canonical bytes.
 
 Performance Evidence: the retained 61,007-fact, two-call benchmark improves
 from 6.499 seconds to 2.402 seconds normally and from 76.626 seconds to 24.543
-seconds under `-race`, with identical canonical bytes.
+seconds under `-race` (`ledger:5975-two-call-normal-base`,
+`ledger:5975-two-call-normal-candidate`, `ledger:5975-two-call-race-base`,
+`ledger:5975-two-call-race-candidate`), with identical canonical bytes.
 
 No-Observability-Change: the changed sorter is a synchronous in-memory helper
 used by replay and recording callers. It performs no I/O, starts no runtime
