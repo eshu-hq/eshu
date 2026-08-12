@@ -116,7 +116,7 @@ rows it cannot. On the existing hot-candidate fixture that changes the scoped
 result from ~75 rows to the full bound. That is more evidence, not different
 evidence, and it is the direct consequence of counting the right thing.
 
-## Live fixtures use a private schema, not TEMP tables (Copilot review)
+## Live fixtures use a private schema, not TEMP tables
 
 The two guards in
 `go/internal/query/cloud_resource_runtime_digest_starvation_live_test.go` first

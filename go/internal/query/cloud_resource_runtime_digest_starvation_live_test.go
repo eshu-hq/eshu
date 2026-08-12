@@ -145,7 +145,7 @@ func starvationDigest(i int) string {
 // and database/sql opens a replacement whose pg_temp is empty. The test then
 // dies with `relation "ingestion_scopes" does not exist`, which looks nothing
 // like the starvation regression it guards, and sends whoever hits it in CI
-// looking in the wrong place (GitHub Copilot review).
+// looking in the wrong place.
 //
 // search_path is carried as a connection runtime parameter, so pgx sets it
 // during startup on every connection this handle opens, replacements included.
@@ -260,7 +260,7 @@ func seedRuntimeDigestStarvationCorpus(t *testing.T, ctx context.Context, db *sq
 // The request carries eligibilityDecoyDigests unseeded digests alongside the
 // real one so the shared budget lands on its floor. Without them the bound is
 // 200 and no fixture this size can reach it, which would leave the test unable
-// to fail against a bound-before-filter query (Copilot review).
+// to fail against a bound-before-filter query.
 func TestCloudResourceRuntimeDigestBoundCountsEligibleRowsOnlyLive(t *testing.T) {
 	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
 	if dsn == "" {
