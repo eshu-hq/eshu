@@ -148,13 +148,24 @@ clone has its own lock.
 retained containers still hold the fixed ports, so releasing the lock would hand
 those ports to the next run, which would then tear the retained stack down with
 `docker compose down -v` on its own exit — destroying the thing `--keep` was
-for. The marker outlives the holder process, so it is cleared only explicitly.
-Until you clear it, every later gate run — and `make pre-pr` on any branch that
-touches a golden-corpus trigger path — refuses. To release it:
+for. The marker records the Compose project as the durable resource owner. The
+recorded pid and worktree are diagnostics only; the holder process normally
+exits immediately after retaining the stack.
 
-Run the teardown **from the worktree that took `--keep`** — the compose project
-name is derived from that directory, so tearing down from anywhere else leaves
-the retained containers holding the ports:
+A later run checks that project with `docker compose -p <project> ps -q` while
+it owns the applicable live-gate lock. Compose lists running containers by
+default. A successful empty result therefore means the project no longer owns
+running containers or fixed host ports, and the run removes the stale marker.
+Stopped containers are intentionally reclaimable because they do not bind the
+ports; use `docker compose ps --all` separately if you need to inspect them.
+
+The decision fails closed when Docker is unavailable, the Compose query fails,
+the marker is unreadable, empty, legacy, malformed, or lacks a project, or the
+stale marker cannot be removed. The refusal names the recorded project,
+worktree, pid, and decision reason when those fields are available.
+
+Tear down the stack **from the worktree that took `--keep`** because its
+environment and Compose files define the retained project and backend:
 
 ```bash
 docker compose -f docker-compose.yaml down -v          # ESHU_GRAPH_BACKEND=neo4j: docker-compose.neo4j.yml
@@ -166,6 +177,15 @@ Tear the stack down **before** removing the marker. Removing the marker first
 frees the lock while the containers still hold the fixed ports, which is exactly
 the collision the retention exists to prevent. The refusal message names both
 paths, so you do not have to remember them.
+
+The main lock is a deliberately dangling symlink whose link text carries the
+owner payload. A shell check using only `[ -e "$lock" ]` reports it absent.
+Inspect it with `readlink "$lock"` or `[ -L "$lock" ] || [ -e "$lock" ]`.
+
+This mutex refuses immediately; it is not a FIFO queue. A stale retained marker
+self-heals as described above, but an active holder still blocks, and repeated
+active holders can make another worktree retry later. Adding queued fairness is
+a separate scheduling change with waiter cleanup and cancellation semantics.
 
 In CI the gate runs as the **Golden Corpus Gate** workflow, required on any PR
 that touches a pipeline phase (collector, parser, projector, reducer, query,

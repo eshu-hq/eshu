@@ -93,7 +93,7 @@ start_id_for_pid() {
 # The --keep marker decision lives in its own chunk (see that file's header for
 # why the compose stack, not the holder pid, is the discriminator). Resolved
 # relative to THIS file so it is found however the caller was invoked.
-. "${BASH_SOURCE[0]%/*}/live-gate-keep-marker.sh"
+. "${BASH_SOURCE[0]%/*}/golden-corpus-keep-marker.sh"
 
 # `ln -s` is create-or-fail only when the name does not exist. If a DIRECTORY
 # sits at the lock path - e.g. left behind by an older mkdir-based lock - `ln`
@@ -142,16 +142,6 @@ acquire_live_gate_lock() {
 	# start_id_for_pid); an empty fingerprint (this pid is somehow already gone
 	# by the time we read it back) degrades gracefully at the read side, not here.
 	local payload="$$:$(start_id_for_pid "$$"):$(pwd -P)"
-	local keep_why
-	if keep_why="$(keep_marker_blocks "${candidate}")"; then
-		die "a --keep run retained the compose stack on the fixed host ports.
-  ${keep_why}.
-  Releasing the lock would hand those ports to this run, which would then tear
-  that stack down on exit. Stop the retained stack, then remove:
-    ${candidate}.keep
-    ${candidate}
-  Set ESHU_SKIP_LIVE_GATE_LOCK=1 only where runners are isolated (CI)."
-	fi
 	local max_attempts=50
 	local attempt holder holder_pid holder_startid holder_rest holder_where claim_status
 	local guard guard_payload guard_pid guard_born guard_status
@@ -166,6 +156,20 @@ acquire_live_gate_lock() {
 		if [[ "${claim_status}" -eq 0 ]]; then
 			lock_path="${candidate}"
 			lock_payload="${payload}"
+			# Decide marker-only state only after publishing our main lock. A
+			# second contender now observes this live owner instead of querying
+			# and deleting the same marker while we replace it on --keep.
+			local keep_why
+			if keep_why="$(keep_marker_blocks "${candidate}")"; then
+				release_live_gate_lock
+				die "a --keep run retained the compose stack on the fixed host ports.
+  ${keep_why}.
+  Releasing the lock would hand those ports to this run, which would then tear
+  that stack down on exit. Stop the retained stack, then remove:
+    ${candidate}.keep
+    ${candidate}
+  Set ESHU_SKIP_LIVE_GATE_LOCK=1 only where runners are isolated (CI)."
+			fi
 			return 0
 		fi
 
@@ -408,8 +412,9 @@ acquire_live_gate_lock() {
 # Releasing the mutex there would hand those ports to the next run, which would
 # then tear the retained stack down with `docker compose down -v` on its own
 # exit - destroying the very thing --keep was for. The marker has to outlive the
-# holder pid (the pid is gone; the ports are not), so it is cleared only
-# explicitly, and the refusal message says exactly how.
+# holder pid (the pid is gone; the ports are not). Later acquisition may clear
+# it only while serialized and only after Compose positively reports that the
+# recorded project has no running containers.
 retain_live_gate_lock() {
 	[[ -n "${lock_path}" ]] || return 0
 	# pid, start-id fingerprint, compose project, then the worktree - split on
