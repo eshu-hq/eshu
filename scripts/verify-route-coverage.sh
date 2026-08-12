@@ -148,14 +148,8 @@ while IFS= read -r gofile; do
   # satisfy coverage for a handler it cannot possibly exercise, as long as the
   # test function's name happened to fuzzily match the derived search word
   # (e.g. a coincidental TestRepoNew in query/b covering an untested handler
-  # in query/a). The lookup below is --max-depth 1, so it matches only test
-  # files in handler_dir itself and not in its subdirectories. That is the
-  # point: a Go test can only exercise unexported handler code from the
-  # handler's own package, and a subdirectory is a different package. A
-  # handler and its test that move together into a subpackage are still
-  # covered, because handler_dir is derived per-file from the handler's new
-  # location -- both land in the same directory and the depth-1 search finds
-  # the test there.
+  # in query/a). The lookup itself is depth-limited to handler_dir; the
+  # reasoning for that is at the rg call below, next to the flag.
   handler_dir="$(dirname "$gofile")"
   while IFS= read -r line; do
     handle=$(echo "$line" | sed -n 's/.*HandleFunc("\([^"]*\)".*[. ]\([a-zA-Z][a-zA-Z0-9]*\)).*/\1|\2/p')
