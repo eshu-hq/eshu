@@ -31,6 +31,18 @@ func newStubResolver(pairs ...[2]string) *stubProviderSchemaResolver {
 	return resolver
 }
 
+// CoveredResourceTypes makes the stub faithful to the production resolver's
+// SchemaResourceTypeLister capability, so the missing-provider versus
+// stale-bundle reason split (#5870) is exercised by tests rather than falling
+// back to the conservative default.
+func (s *stubProviderSchemaResolver) CoveredResourceTypes() []string {
+	out := make([]string, 0, len(s.known))
+	for resourceType := range s.known {
+		out = append(out, resourceType)
+	}
+	return out
+}
+
 // HasResourceType makes the stub faithful to the production resolver's
 // SchemaResourceTypeReporter capability, so the uncovered-provider detector
 // (#5870) is exercised by tests rather than silently skipped.

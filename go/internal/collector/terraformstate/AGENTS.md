@@ -71,6 +71,17 @@
   composites. Operator-declared sensitive keys outrank it automatically, because
   `redact.RuleSet.Classify` tests them before schema trust — do not re-check
   them in the trust seam.
+- The exempt set is matched VERBATIM. Do not trim or normalize `attributeKey`
+  before the lookup: the downstream SQL joins the exact JSON keys, so a
+  near-match like `" id"` cannot repair a join and only leaks an
+  unknown-schema value.
 - Any change here must keep the `provider_schema_not_covered` detector working.
   Without it a stale schema bundle is silent, because the exemption removes the
-  false-orphan wave that used to reveal it.
+  false-orphan wave that used to reveal it. Record it at the resource-INSTANCE
+  boundary — an instance with only tag maps never reaches attribute
+  classification — and keep the two reasons distinct
+  (`provider_not_in_schema_bundle` vs `resource_type_not_in_schema_bundle`),
+  since they send an operator to different fixes.
+- The warning kind and both reasons are defined in `internal/tfstatewarning`,
+  which decides their severity/actionability. Reference those constants; a
+  second copy of the literals drifts silently into `ok=false`.

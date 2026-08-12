@@ -101,6 +101,18 @@ type SchemaResourceTypeReporter interface {
 	HasResourceType(resourceType string) bool
 }
 
+// SchemaResourceTypeLister is an optional capability for
+// ProviderSchemaResolver implementations that can enumerate the resource types
+// they cover.
+//
+// It exists so the uncovered-provider detector can tell a MISSING PROVIDER from
+// a provider whose bundle simply predates one resource type: the first needs the
+// provider added, the second needs the bundle refreshed. A resolver without it
+// falls back to the provider-missing reason (#5870).
+type SchemaResourceTypeLister interface {
+	CoveredResourceTypes() []string
+}
+
 // SchemaResolverEntryCounter is an optional capability for
 // ProviderSchemaResolver implementations that can report how many Terraform
 // state types they cover. The production packagedSchemaResolver implements this;

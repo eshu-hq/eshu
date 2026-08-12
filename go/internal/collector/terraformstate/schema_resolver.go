@@ -33,6 +33,21 @@ type packagedSchemaResolver struct {
 // arguments are matched as-is; callers must pass the verbatim Terraform state
 // type (e.g. "aws_s3_bucket" or "aws_iam_policy_document") and key (e.g.
 // "acl", "statement", or "server_side_encryption_configuration").
+// CoveredResourceTypes returns every resource type the bundle carries, in
+// arbitrary order. It is the SchemaResourceTypeLister half of the resolver,
+// used to tell a missing provider from a bundle older than one resource
+// type (#5870).
+func (r *packagedSchemaResolver) CoveredResourceTypes() []string {
+	if r == nil {
+		return nil
+	}
+	out := make([]string, 0, len(r.stateAttributes))
+	for resourceType := range r.stateAttributes {
+		out = append(out, resourceType)
+	}
+	return out
+}
+
 // HasResourceType reports whether the bundle carries any schema for
 // resourceType. It is the SchemaResourceTypeReporter half of the resolver, used
 // by the uncovered-provider detector to tell "this provider is missing" apart

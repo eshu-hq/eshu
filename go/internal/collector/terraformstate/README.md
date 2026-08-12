@@ -356,11 +356,28 @@ provider name and an occurrence count, classified
 `severity=warning`/`actionability=provider_schema_support`.
 
 It fires on the resource TYPE being absent, never on a covered type missing one
-attribute — those need different operator actions (add the provider vs refresh
-the bundle), and reporting the second here would put a coverage warning on
-ordinary version skew. Detection needs the resolver's optional
-`SchemaResourceTypeReporter` capability; a resolver without it reports nothing
-rather than guessing.
+attribute — the latter is ordinary version skew and a warning there would teach
+operators to ignore the signal.
+
+Two reasons, because "type absent" is not the same as "provider absent" and the
+operator actions differ:
+
+- `provider_not_in_schema_bundle` — no type from this provider appears in the
+  bundle. Add the provider.
+- `resource_type_not_in_schema_bundle` — the provider is there but this type is
+  not, so the bundle predates it. Refresh the bundle.
+
+Telling them apart needs the resolver's optional `SchemaResourceTypeLister`;
+without it the detector reports the provider-missing reason, the conservative
+answer because it prompts the broader check. Detection itself needs
+`SchemaResourceTypeReporter`; a resolver with neither reports nothing rather
+than guessing.
+
+Recorded at the resource-INSTANCE boundary, not inside attribute
+classification. An instance carrying only tag maps, or no attributes at all,
+never reaches attribute classification, and its schema gap would otherwise stay
+silent. That also makes `occurrence_count` mean instances of the type, which is
+what the field name promises.
 
 ## Applied PagerDuty Incident Routing
 

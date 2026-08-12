@@ -6,17 +6,15 @@ package terraformstate
 import (
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/tfstatewarning"
 )
 
-// warningKindProviderSchemaNotCovered names a resource type the loaded provider
-// schema bundle does not cover at all (#5870).
-const warningKindProviderSchemaNotCovered = "provider_schema_not_covered"
-
-// reasonProviderNotInSchemaBundle is the single reason this warning carries.
-// It is its own constant because tfstatewarning.Classify keys severity and
-// actionability off the (kind, reason) pair, and a typo there silently drops
-// the row to unclassified.
-const reasonProviderNotInSchemaBundle = "provider_not_in_schema_bundle"
+// The warning kind and its two reasons are defined by tfstatewarning, which
+// decides the severity/actionability for the pair. Referencing them rather than
+// re-declaring the literals here is what stops the emitter and the classifier
+// drifting apart: a typo on either side falls through to ok=false and the row
+// silently loses its operator meaning (Copilot review).
 
 // recordUncoveredResourceType notes that the schema bundle does not cover
 // resourceType at all, so an operator can be told which provider to add.
@@ -58,11 +56,39 @@ func (p *stateParser) recordUncoveredResourceType(resourceType string) {
 	p.uncoveredResourceTypes[resourceType]++
 }
 
+// uncoveredReason separates "this provider is missing from the bundle" from
+// "this provider is present but does not carry this resource type".
+//
+// HasResourceType answering false does not distinguish them, and the two need
+// different operator actions: add the provider, versus refresh a bundle older
+// than the resource type. Reporting the first for both sends an operator
+// looking for a provider that is already there (codex review).
+//
+// Decided by asking the resolver whether it carries ANY type under the same
+// provider prefix. That needs a listing capability, so a resolver without
+// SchemaResourceTypeLister falls back to the provider-missing reason — the
+// conservative answer, because it is the one that prompts the broader check.
+func (p *stateParser) uncoveredReason(resourceType string) string {
+	lister, ok := p.options.SchemaResolver.(SchemaResourceTypeLister)
+	if !ok {
+		return tfstatewarning.ReasonProviderNotInSchemaBundle
+	}
+	provider := providerFromResourceType(resourceType)
+	for _, covered := range lister.CoveredResourceTypes() {
+		if providerFromResourceType(covered) == provider {
+			return tfstatewarning.ReasonResourceTypeNotInSchemaBundle
+		}
+	}
+	return tfstatewarning.ReasonProviderNotInSchemaBundle
+}
+
 // flushUncoveredProviderWarnings emits one warning per uncovered resource type,
 // in sorted order so a replay of the same state file produces byte-identical
 // facts.
 //
-// One row per resource type rather than per attribute or per resource: the
+// One row per resource type, with occurrence_count counting INSTANCES of that
+// type (recorded at the instance boundary in resources.go, so it matches what
+// the field name promises). One row rather than one per instance: the
 // operator action is "add this provider to the bundle", which is the same
 // however many attributes or instances were affected. The occurrence count
 // rides along so the size of the gap is still visible.
@@ -81,8 +107,8 @@ func (p *stateParser) flushUncoveredProviderWarnings() error {
 			continue
 		}
 		if err := p.emitWarning(warningPayload{
-			WarningKind: warningKindProviderSchemaNotCovered,
-			Reason:      reasonProviderNotInSchemaBundle,
+			WarningKind: tfstatewarning.WarningKindProviderSchemaNotCovered,
+			Reason:      p.uncoveredReason(resourceType),
 			Source:      "resources." + resourceType,
 			Details: map[string]any{
 				"resource_type":    resourceType,

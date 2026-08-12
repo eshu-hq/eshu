@@ -259,3 +259,128 @@ func TestCoveredProviderEmitsNoUncoveredWarning(t *testing.T) {
 		}
 	}
 }
+
+// TestNearMissJoinKeyIsNotExempt closes the codex review finding.
+//
+// The exempt set is matched verbatim. A trimmed lookup would upgrade an
+// attribute literally named " id" or "arn " and persist its raw value, while
+// the downstream SQL joins the exact JSON keys `id`, `arn`, and `self_link` --
+// so the near-match cannot repair any join and only exposes an unknown-schema
+// value that should have stayed redacted. Strictly a leak with no upside.
+func TestNearMissJoinKeyIsNotExempt(t *testing.T) {
+	t.Parallel()
+
+	options := parseFixtureOptions(t)
+	options.SchemaResolver = newStubResolver([2]string{"aws_s3_bucket", "acl"})
+	state := `{
+		"serial":17,
+		"lineage":"lineage-123",
+		"resources":[{
+			"mode":"managed","type":"acme_widget","name":"main",
+			"instances":[{"attributes":{" id":"leading-space","arn ":"trailing-space"}}]
+		}]
+	}`
+
+	result, err := terraformstate.Parse(context.Background(), strings.NewReader(state), options)
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	attributes := uncoveredResourceAttributes(t, result)
+	for _, key := range []string{" id", "arn "} {
+		if !isRedactionMarker(attributes[key]) {
+			t.Fatalf("attributes[%q] = %#v, want a redaction marker: only the verbatim join keys are exempt", key, attributes[key])
+		}
+	}
+}
+
+// TestUncoveredProviderReportedForTagsOnlyInstance closes the second codex
+// finding.
+//
+// The detector used to record from inside attribute classification, which
+// classifyAttributes never reaches for an instance carrying only tag maps (it
+// skips them) or no attributes at all. Such a resource type was silently
+// uncovered. Recording at the instance boundary fixes it, and this is the shape
+// that proves it.
+func TestUncoveredProviderReportedForTagsOnlyInstance(t *testing.T) {
+	t.Parallel()
+
+	options := parseFixtureOptions(t)
+	options.SchemaResolver = newStubResolver([2]string{"aws_s3_bucket", "acl"})
+	state := `{
+		"serial":17,
+		"lineage":"lineage-123",
+		"resources":[{
+			"mode":"managed","type":"acme_widget","name":"main",
+			"instances":[{"attributes":{"tags":{"Name":"only-a-tag-map"}}}]
+		}]
+	}`
+
+	result, err := terraformstate.Parse(context.Background(), strings.NewReader(state), options)
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	for _, warning := range factsByKind(result.Facts, facts.TerraformStateWarningFactKind) {
+		if warning.Payload["warning_kind"] == "provider_schema_not_covered" {
+			return
+		}
+	}
+	t.Fatal("no provider_schema_not_covered warning for a tags-only instance: the schema gap must not go silent (#5870)")
+}
+
+// TestUncoveredTypeOfCoveredProviderUsesItsOwnReason closes the third codex
+// finding.
+//
+// A resource type newer than the bundle is not a missing provider. Both answer
+// HasResourceType false, but the operator actions differ — refresh the bundle
+// versus add the provider — so they carry different reasons.
+func TestUncoveredTypeOfCoveredProviderUsesItsOwnReason(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range []struct {
+		name         string
+		resourceType string
+		wantReason   string
+	}{
+		{
+			name:         "provider absent from the bundle",
+			resourceType: "acme_widget",
+			wantReason:   "provider_not_in_schema_bundle",
+		},
+		{
+			// aws IS in the bundle (aws_s3_bucket), this type simply is not.
+			name:         "provider present, type newer than the bundle",
+			resourceType: "aws_brand_new_service",
+			wantReason:   "resource_type_not_in_schema_bundle",
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			options := parseFixtureOptions(t)
+			options.SchemaResolver = newStubResolver([2]string{"aws_s3_bucket", "acl"})
+			state := `{
+				"serial":17,
+				"lineage":"lineage-123",
+				"resources":[{
+					"mode":"managed","type":"` + testCase.resourceType + `","name":"main",
+					"instances":[{"attributes":{"other":"value"}}]
+				}]
+			}`
+
+			result, err := terraformstate.Parse(context.Background(), strings.NewReader(state), options)
+			if err != nil {
+				t.Fatalf("Parse() error = %v, want nil", err)
+			}
+			for _, warning := range factsByKind(result.Facts, facts.TerraformStateWarningFactKind) {
+				if warning.Payload["warning_kind"] != "provider_schema_not_covered" {
+					continue
+				}
+				if got := warning.Payload["reason"]; got != testCase.wantReason {
+					t.Fatalf("reason = %#v, want %q", got, testCase.wantReason)
+				}
+				return
+			}
+			t.Fatalf("no provider_schema_not_covered warning for %q", testCase.resourceType)
+		})
+	}
+}

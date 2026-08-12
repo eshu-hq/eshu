@@ -75,7 +75,7 @@ var identityJoinKeys = map[string]struct{}{
 //     names one of the three keys — TestIdentityJoinKeysAreNotHardSensitive
 //     pins that — so this is defense in depth for a future entry that does,
 //     rather than a live branch.
-//  4. Only then is a join key upgraded.
+//  4. Only then is a join key upgraded, on a VERBATIM key match.
 //
 // Operator-declared sensitive keys are not checked here because they do not
 // need to be: redact.RuleSet.Classify tests them BEFORE it consults schema
@@ -89,14 +89,18 @@ func (p *stateParser) classificationSchemaTrust(
 	if trust == redact.SchemaKnown {
 		return trust
 	}
-	p.recordUncoveredResourceType(resourceType)
 	if !scalar {
 		return trust
 	}
 	if isHardSensitiveStateAttribute(resourceType, attributeKey) {
 		return trust
 	}
-	if _, ok := identityJoinKeys[strings.TrimSpace(attributeKey)]; !ok {
+	// Matched VERBATIM, not trimmed. An uncovered provider emitting " id" or
+	// "arn " would be upgraded by a trimmed lookup and its raw value persisted,
+	// while the downstream SQL joins the exact JSON keys `id`, `arn`, and
+	// `self_link` -- so a near-match cannot repair any join and only exposes an
+	// unknown-schema value that should have stayed redacted (codex review).
+	if _, ok := identityJoinKeys[attributeKey]; !ok {
 		return trust
 	}
 	return redact.SchemaKnown
