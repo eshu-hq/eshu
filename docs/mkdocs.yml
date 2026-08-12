@@ -97,6 +97,9 @@ nav:
       - HTTP API:
         - Overview: reference/http-api.md
         - Status And Admin: reference/http-api/status-admin.md
+        - Dashboard Browser Sessions: reference/http-api/dashboard-sessions.md
+        - Ask Eshu: reference/http-api/ask.md
+        - Cloud Inventory And Resource Paging: reference/http-api/cloud-inventory.md
         - Semantic Evidence: reference/http-api/semantic-evidence.md
         - Semantic Search: reference/http-api/semantic-search.md
         - Evidence And Supply Chain: reference/http-api/evidence-and-supply-chain.md

@@ -155,17 +155,95 @@ verify_layout() {
   local deployment="${docs_dir}/deployment-trace-and-influence.md"
   local mkdocs="${root}/docs/mkdocs.yml"
   local route_table="${root}/docs/public/reference/http-api.md"
+  local sessions="${docs_dir}/dashboard-sessions.md"
+  local ask="${docs_dir}/ask.md"
+  local cloud="${docs_dir}/cloud-inventory.md"
   local file lines heading escaped_heading term route actual shared_line stories_line investigation_line
 
-  for file in "$hub" "$stories" "$deployment" "$mkdocs" "$route_table"; do
+  for file in "$hub" "$stories" "$deployment" "$sessions" "$ask" "$cloud" "$mkdocs" "$route_table"; do
     [ -f "$file" ] || fail "missing ${file#"${root}/"}" || return 1
   done
 
-  for file in "$hub" "$stories" "$deployment"; do
+  for file in "$hub" "$stories" "$deployment" "$sessions" "$ask" "$cloud" "$route_table"; do
     lines="$(wc -l <"$file" | tr -d ' ')"
     [ "$lines" -le 450 ] \
       || fail "${file#"${root}/"} has ${lines} lines; limit is 450" || return 1
   done
+
+  # #5953: the http-api.md hub stays a route map. Each section it used to carry
+  # inline lives on exactly one child page, reachable from the Route Families
+  # table and the mkdocs nav.
+  require_visible_heading_count 1 '^# Dashboard Browser Sessions$' "$sessions" || return 1
+  require_visible_heading_count 1 '^# Ask Eshu' "$ask" || return 1
+  require_visible_heading_count 1 '^# Cloud Inventory And Resource Paging$' "$cloud" || return 1
+
+  # The hub keeps a stub heading for every moved section so the published
+  # fragment URLs still resolve -- docs/mkdocs.yml configures no redirect
+  # plugin, so a removed anchor silently drops saved and external links at the
+  # top of the page instead of the contract they asked for. Each stub must
+  # carry a link to the page that now owns the content, otherwise it is a dead
+  # end rather than a redirect.
+  # Each stub heading must reproduce the pre-split heading TEXT exactly, because
+  # the heading text is what generates the published fragment slug. Shortening
+  # a stub heading keeps the section visible but still breaks the old URL, so
+  # these are matched anchored end-to-end rather than by prefix.
+  hub_stubs=(
+    '## Dashboard Browser Sessions|http-api/dashboard-sessions.md'
+    '## Ask Eshu — POST /api/v0/ask|http-api/ask.md'
+    '## Answer-narration status seam — hot-path evidence|http-api/ask.md'
+    '## Cloud Inventory Readback|http-api/cloud-inventory.md'
+    '## Cloud Resource Graph Paging|http-api/cloud-inventory.md'
+  )
+  for stub in "${hub_stubs[@]}"; do
+    heading="${stub%%|*}"
+    target="${stub##*|}"
+    escaped_heading="$(escape_regex "$heading")"
+    require_visible_heading_count 1 "^${escaped_heading}" "$route_table" || return 1
+    stub_line="$(heading_line "^${escaped_heading}" "$route_table")" || return 1
+    if ! awk -v first="$stub_line" -v target="$target" \
+      'NR > first && NR <= first + 6 && index($0, target) { found = 1 } END { exit found ? 0 : 1 }' \
+      "$route_table"; then
+      fail "hub stub ${heading} does not link to ${target} within 6 lines"
+      return 1
+    fi
+  done
+
+  # Body verification. A heading, a nav entry, a hub link, and a line count all
+  # still pass if the page body is deleted, which is exactly the loss this
+  # split was supposed to make impossible. Pin a contract marker per page.
+  page_contracts=(
+    "${sessions}|POST /api/v0/auth/browser-session"
+    "${sessions}|GET /api/v0/auth/providers"
+    "${sessions}|__Host-eshu_session"
+    "${ask}|POST /api/v0/ask"
+    "${ask}|ESHU_ASK_MAX_ITERATIONS"
+    "${ask}|answer_prose"
+    "${cloud}|GET /api/v0/cloud/inventory"
+    "${cloud}|GET /api/v0/cloud/resources"
+    "${cloud}|management_origin"
+  )
+  for entry in "${page_contracts[@]}"; do
+    file="${entry%%|*}"
+    term="${entry##*|}"
+    # Presence, not an exact count: these markers legitimately repeat between a
+    # route table row and the prose describing it, and pinning a count would
+    # fail on ordinary wording edits instead of on lost content.
+    if ! rg -qF -- "$term" "$file"; then
+      fail "${file#"${root}/"} no longer contains its contract marker: ${term}"
+      return 1
+    fi
+  done
+
+  require_count 1 'Dashboard Browser Sessions: reference/http-api/dashboard-sessions.md' "$mkdocs" || return 1
+  require_regex_count 1 '^        - Dashboard Browser Sessions: reference/http-api/dashboard-sessions\.md$' "$mkdocs" || return 1
+  require_count 1 'Ask Eshu: reference/http-api/ask.md' "$mkdocs" || return 1
+  require_regex_count 1 '^        - Ask Eshu: reference/http-api/ask\.md$' "$mkdocs" || return 1
+  require_count 1 'Cloud Inventory And Resource Paging: reference/http-api/cloud-inventory.md' "$mkdocs" || return 1
+  require_regex_count 1 '^        - Cloud Inventory And Resource Paging: reference/http-api/cloud-inventory\.md$' "$mkdocs" || return 1
+
+  require_visible_table_count 1 '(http-api/dashboard-sessions.md)' "$route_table" || return 1
+  require_visible_table_count 1 '(http-api/ask.md)' "$route_table" || return 1
+  require_visible_table_count 1 '(http-api/cloud-inventory.md)' "$route_table" || return 1
 
   legacy_headings=(
     '## Route Map'
@@ -315,6 +393,12 @@ seed_mutation_repo() {
     "${root}/docs/public/reference/http-api/"
   cp "${repo_root}/docs/public/reference/http-api/deployment-trace-and-influence.md" \
     "${root}/docs/public/reference/http-api/"
+  cp "${repo_root}/docs/public/reference/http-api/dashboard-sessions.md" \
+    "${root}/docs/public/reference/http-api/"
+  cp "${repo_root}/docs/public/reference/http-api/ask.md" \
+    "${root}/docs/public/reference/http-api/"
+  cp "${repo_root}/docs/public/reference/http-api/cloud-inventory.md" \
+    "${root}/docs/public/reference/http-api/"
   cp "${repo_root}/docs/public/reference/http-api.md" "${root}/docs/public/reference/"
   cp "${repo_root}/docs/mkdocs.yml" "${root}/docs/"
   printf '%s\n' "$root"
@@ -368,6 +452,41 @@ mutation_root="$(seed_mutation_repo missing-shared-link)"
 sed -i.bak 's/(context-and-stories.md#shared-response-contract)/(context-and-stories.md)/' \
   "${mutation_root}/docs/public/reference/http-api/story-routes.md"
 expect_mutation_failure "child missing the canonical shared-contract link is rejected" "$mutation_root"
+
+mutation_root="$(seed_mutation_repo oversize-hub)"
+awk 'BEGIN { for (i = 1; i <= 451; i++) print "extra line" }' \
+  >>"${mutation_root}/docs/public/reference/http-api.md"
+expect_mutation_failure "oversized http-api.md hub is rejected" "$mutation_root"
+
+mutation_root="$(seed_mutation_repo hub-section-regrown)"
+printf '%s\n' '## Cloud Inventory Readback' \
+  >>"${mutation_root}/docs/public/reference/http-api.md"
+expect_mutation_failure "section moved back into the hub is rejected" "$mutation_root"
+
+mutation_root="$(seed_mutation_repo missing-ask-nav)"
+sed -i.bak '/Ask Eshu: reference\/http-api\/ask.md/d' \
+  "${mutation_root}/docs/mkdocs.yml"
+expect_mutation_failure "missing Ask Eshu navigation entry is rejected" "$mutation_root"
+
+# A heading, nav entry, hub link, and line cap all still pass on an emptied
+# page. Keep one mutation per moved page so a body deletion cannot pass.
+for emptied in dashboard-sessions ask cloud-inventory; do
+  mutation_root="$(seed_mutation_repo "emptied-${emptied}")"
+  target="${mutation_root}/docs/public/reference/http-api/${emptied}.md"
+  head -1 "$target" >"${target}.head"
+  mv "${target}.head" "$target"
+  expect_mutation_failure "emptied ${emptied}.md body is rejected" "$mutation_root"
+done
+
+mutation_root="$(seed_mutation_repo dropped-hub-stub)"
+sed -i.bak '/^## Cloud Resource Graph Paging$/,+3d' \
+  "${mutation_root}/docs/public/reference/http-api.md"
+expect_mutation_failure "dropped hub anchor stub is rejected" "$mutation_root"
+
+mutation_root="$(seed_mutation_repo unlinked-hub-stub)"
+sed -i.bak 's|\[cloud resource graph paging\](http-api/cloud-inventory.md#cloud-resource-graph-paging)|cloud resource graph paging|' \
+  "${mutation_root}/docs/public/reference/http-api.md"
+expect_mutation_failure "hub anchor stub with no link to the owning page is rejected" "$mutation_root"
 
 mutation_root="$(seed_mutation_repo changed-title)"
 sed -i.bak 's/^# HTTP Story Routes$/# HTTP Story Route Reference/' \
