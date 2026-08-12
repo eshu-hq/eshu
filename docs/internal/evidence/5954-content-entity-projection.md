@@ -191,9 +191,30 @@ and 193s):
 | `Repository` | 31 |
 
 All six matched the snapshot's pinned ranges/notes exactly in every run, and
-the `GET /api/v0/iac/resources` query-shape assertion (`summary.total=23`,
-`summary.by_kind.resource=14`, `count=14`) passed every time. 0 required-fail
-in all three. The three gate summary lines:
+the `GET /api/v0/iac/resources` query-shape assertion passed every time.
+0 required-fail in all three.
+
+Those three runs observed `summary.total=23`, `summary.by_kind.resource=14`,
+`count=14`, and that is left as recorded rather than restated to today's
+numbers: it is what the gate actually saw at that code state, and rewriting it
+to match the current pins would turn a run record into a claim no run
+supports.
+
+The pins have since moved. Merging `origin/main` brought in #5861's
+`terraform_comprehensive/lambda_partial.tf`, one more resource block, so
+count/resource went 14 -> 15 and, composed with this issue's PagerDuty module
+block, `summary.total` went to 24. The committed assertion is now
+`count=15`, `summary.total=24`, `summary.by_kind.resource=15`,
+`summary.by_kind.module=7`, `summary.by_kind.data-source=2` -- see the
+snapshot's `required_json_values` and the guard in
+`go/cmd/golden-corpus-gate/snapshot_iac_inventory_test.go`.
+
+Those current pins have their own live confirmation, so this record does not
+rest on the three pre-rebase runs: the `make pre-pr` live lane on the merged
+head (stamped `dbcd07de8bf3`) observed `"resources" has 15 results` with all
+five values in the gate's equality set.
+
+The three gate summary lines:
 
 | run | elapsed | summary |
 | --- | --- | --- |
