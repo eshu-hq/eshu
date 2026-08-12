@@ -151,19 +151,34 @@ wait_for_service_exit() {
 	return 1
 }
 
-# wait_for_queue_terminal blocks until no projector or reducer work is pending,
-# claimed, or running, then fails if anything ended in a non-terminal state.
-# Both halves matter: an empty in-flight set with dead-letter rows is a failed
-# rebuild, not a finished one.
+# wait_for_queue_terminal blocks until the rebuild has no work left anywhere,
+# then fails if anything ended in a non-terminal state. Both halves matter: an
+# empty in-flight set with dead-letter rows is a failed rebuild, not a finished
+# one.
+#
+# "Anywhere" means two queues, not one. `fact_work_items` holds projector and
+# reducer work; `shared_projection_intents` holds the shared edge backlog that
+# the reducer domains feed, and it drains on its own worker cycle. Watching only
+# the first one snapshots the graph mid-rebuild. Measured on a rebuild of this
+# corpus: `fact_work_items` was terminal for four minutes while 21 shared
+# intents were still open, and the relationship count rose from 3,277 to 3,286
+# when they finally drained. Every one of those edges would have been reported
+# as missing.
+queue_active_count() {
+	psql_scalar "SELECT
+	    (SELECT count(*) FROM fact_work_items WHERE status IN ('pending','claimed','running'))
+	  + (SELECT count(*) FROM shared_projection_intents WHERE completed_at IS NULL);"
+}
+
 wait_for_queue_terminal() {
 	local timeout_seconds="$1"
 	local deadline=$((SECONDS + timeout_seconds))
 	local active residual
 	while ((SECONDS < deadline)); do
-		active="$(psql_scalar "SELECT count(*) FROM fact_work_items WHERE status IN ('pending','claimed','running');")"
+		active="$(queue_active_count)"
 		if [[ "$active" == "0" ]]; then
 			sleep 5
-			active="$(psql_scalar "SELECT count(*) FROM fact_work_items WHERE status IN ('pending','claimed','running');")"
+			active="$(queue_active_count)"
 			if [[ "$active" == "0" ]]; then
 				residual="$(psql_scalar "SELECT count(*) FROM fact_work_items WHERE status NOT IN ('succeeded','superseded');")"
 				if [[ "$residual" != "0" ]]; then

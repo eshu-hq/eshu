@@ -286,13 +286,95 @@ The cost lands only on refinalize. Ordinary indexing, shard drains, reopens, and
 retries are untouched, which is the whole reason the reset is scoped to the
 recovery path instead of the guards.
 
+## What still does not match, and why
+
+The verifier still exits 1. The remaining difference has three separate causes,
+and only one of them is the rebuild.
+
+### 1. The verifier was snapshotting the graph mid-rebuild
+
+`wait_for_queue_terminal` watched `fact_work_items` only. The shared edge backlog
+in `shared_projection_intents` drains on its own worker cycle, so the script
+declared the rebuild finished while that queue was still working. Sampled every
+10 s during a rebuild:
+
+```text
+13:32:40 work_active=0 shared_open=21 rels=3277
+...                    (unchanged for 4 minutes)
+13:36:32 work_active=0 shared_open=21 rels=3277
+13:36:42 work_active=0 shared_open=0  rels=3286
+```
+
+Nine relationships arrived after the point the script called it done. Fixed here:
+the terminal condition now requires both queues empty. This was a defect in the
+verifier, not in the rebuild — it was invisible before, because shared intents
+never reopened.
+
+### 2. Three edge families come back thin on one pass, and converge on a second
+
+Measured against the same pre-wipe snapshot, after the backlog settled:
+
+| Family | Pre-wipe | After 1 rebuild | After a 2nd |
+| --- | ---: | ---: | ---: |
+| `CALLS` | 116 | 115 | 116 |
+| `HANDLES_ROUTE` | 4 | 2 | 4 |
+| `RUNS_IN` | 4 | 2 | 4 |
+
+`handles_route` and `runs_in` connect code symbols to `:Endpoint` and `:Workload`
+nodes that `workload_materialization` commits under a different acceptance unit.
+The edge Cypher is `MATCH`-only, so a pass that drains them before those nodes
+exist writes nothing and still completes the intent. A second refinalize reopens
+them once the targets are there.
+
+This is a genuine within-rebuild ordering gap. The reset restores
+projector→reducer causality but not reducer→reducer ordering.
+
+### 3. Repeated refinalize is not idempotent for two families
+
+The same second-pass measurement that fixed the three families above also
+inflated two others:
+
+| Family | Pre-wipe | After 1 rebuild | After a 2nd |
+| --- | ---: | ---: | ---: |
+| `EvidenceArtifact` | 13 | 12 | 19 |
+| `EVIDENCES_REPOSITORY_RELATIONSHIP` | 13 | 12 | 19 |
+| `HAS_DEPLOYMENT_EVIDENCE` | 13 | 12 | 19 |
+| `IMPORTS` | 224 | 224 | 226 |
+
+Those grow rather than converge, so a third run would keep inflating them.
+`semantic_entity_materialization` appears to mint a new `EvidenceArtifact`
+identity per run instead of merging on a stable one. This change did not create
+that defect, but it exposed it: before, a second refinalize re-ran no reducer
+domain at all, so nothing could accumulate. It needs its own owner and its own
+fix — one sample, one corpus, cause not yet confirmed.
+
+### 4. The pre-wipe reference is itself nondeterministic
+
+Three runs of this procedure, same corpus, same indexing code path, recorded
+three different pre-wipe graphs:
+
+| Run | Nodes | Relationships |
+| --- | ---: | ---: |
+| 1 | 2,506 | 3,294 |
+| 2 | 2,504 | 3,289 |
+| 3 | 2,505 | 3,288 |
+
+Diffing run 1 against run 3: `EvidenceArtifact` 15 vs 13, `Module` 228 vs 231,
+`Environment` 2 vs 0, and their edges. Those are the same families that show up
+in a rebuild comparison, which means part of what reads as a rebuild shortfall is
+the indexer's own run-to-run variance. Exact count equality against a snapshot
+taken from one indexing run cannot pass reliably until that is understood.
+
+The assertion was left alone. It is the right assertion; the reference under it
+is not yet stable enough to satisfy it.
+
 ## Reproducing
 
 ```bash
 scripts/verify-graph-rebuild-from-facts.sh
 ```
 
-It exits non-zero on the count mismatch above. That is the current true state.
+It exits non-zero, for the reasons in the section above.
 
 Performance Evidence: `graph_rebuild_seconds=26 (0m26s)` for 67 scopes and 3,866
 `fact_records`, measured between the `recover-generations` response and queue

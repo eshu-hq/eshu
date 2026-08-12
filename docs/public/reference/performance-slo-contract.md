@@ -134,33 +134,45 @@ recovery time objective against. The procedure it measures is
 [Rebuild the graph from facts](../operate/graph-rebuild-from-facts.md).
 
 The clock starts when `POST /api/v0/admin/recover-generations` with
-`all_scopes: true` returns, and stops when `fact_work_items` holds nothing
-`pending`, `claimed`, or `running` and nothing outside `succeeded`/`superseded`.
-Wipe and schema reapply sit outside the measurement: both are operator-paced
-steps whose cost is dominated by volume and container lifecycle, not by Eshu.
+`all_scopes: true` returns, and stops when both queues are empty: nothing in
+`fact_work_items` is `pending`, `claimed`, or `running` and nothing sits outside
+`succeeded`/`superseded`, and no `shared_projection_intents` row still has
+`completed_at IS NULL`. Both halves are required. The shared edge backlog drains
+on its own worker cycle, and on a measured rebuild it kept running for four
+minutes after the work queue went quiet, adding 9 relationships. Wipe and schema
+reapply sit outside the measurement: both are operator-paced steps whose cost is
+dominated by volume and container lifecycle, not by Eshu.
 
-One measurement exists, from `scripts/verify-graph-rebuild-from-facts.sh` on
-2026-08-12:
+Measurements from `scripts/verify-graph-rebuild-from-facts.sh` on 2026-08-12:
 
-| Field | Value |
-| --- | --- |
-| `graph_rebuild_seconds` | 26 s (0m26s) |
-| Corpus | `tests/fixtures/ecosystems`, 67 active scopes, 3,866 `fact_records` |
-| Graph rebuilt | 2,431 of 2,504 nodes, 2,905 of 3,289 relationships |
-| Backend | NornicDB `eshu-nornicdb-pr290:3722b483c02c` |
-| Machine | Apple M4 Pro, 12 logical CPUs, 64 GiB, macOS |
-| Load at completion | 13.20 (1 min) |
-| Queue terminal | zero pending, retrying, failed, dead-letter |
+| Field | Before #4594 fix | After |
+| --- | --- | --- |
+| `graph_rebuild_seconds` | 15 s | 20-25 s |
+| Graph rebuilt | 2,431 of 2,504 nodes, 2,905 of 3,289 rels | 2,503 of 2,505 nodes, 3,286 of 3,288 rels |
+| Reducer work re-driven | 335 rows | ~1,034 rows |
+| Shared intents re-drained | 0 | ~600 |
+| Load at completion | 2.41 (1 min) | 5.19 (1 min) |
+| Corpus | `tests/fixtures/ecosystems`, 67 active scopes, 3,866 `fact_records` | same |
+| Backend | NornicDB `eshu-nornicdb-pr290:3722b483c02c` | same |
+| Machine | Apple M4 Pro, 12 logical CPUs, 64 GiB, macOS | same |
 
-Read that number with three limits attached.
+Read those numbers with four limits attached.
 
-It is a fixture corpus of 1.4 MB, well below the smallest scale-lab slot, so it
-shows the mechanism runs rather than what a real rebuild costs. A gate was
-running in a sibling worktree at load 13.2 on 12 CPUs, so 26 seconds is an upper
-bound. And the rebuild did not restore the whole graph: twelve reducer
-materialization domains are not re-driven by a re-projection, which leaves 73
-nodes and 384 relationships unbuilt. Full breakdown, including which domains and
-which edge families, in `docs/internal/evidence/4594-graph-rebuild-from-facts.md`.
+The corpus is 1.4 MB, well below the smallest scale-lab slot, so it shows the
+mechanism runs rather than what a real rebuild costs. The two runs sat at
+different machine loads (2.41 against 5.19 on 12 CPUs), so part of the 15-to-25
+second difference is the machine, not the change — the direction is solid, a
+precise multiplier from these two numbers is not. The `graph_rebuild_seconds`
+figure covers the work queue only; the shared backlog can add minutes after it.
+And the rebuild is not yet count-exact: `HANDLES_ROUTE`, `RUNS_IN`, and `CALLS`
+can come back thin on a single pass because they depend on nodes another domain
+materializes.
+
+A separate limit applies to any comparison against a pre-wipe snapshot: indexing
+the same corpus is not deterministic. Three runs recorded pre-wipe totals of
+2,506/3,294, 2,504/3,289, and 2,505/3,288. Treat a couple of nodes of difference
+as indexer noise before reading it as a rebuild regression. Full breakdown in
+`docs/internal/evidence/4594-graph-rebuild-from-facts.md`.
 
 There is deliberately no absolute target. Rebuild time scales with fact volume
 and graph write throughput, and a fixture corpus predicts nothing about an

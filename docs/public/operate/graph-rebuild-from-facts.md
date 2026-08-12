@@ -223,63 +223,77 @@ projection finished; it does not say the answers are right.
 
 Run step 6 again with a **new** `idempotency_key`. That is the whole recovery.
 
-Interruption is safe by construction rather than by good luck. Each queued item
-gets an id derived from its scope and generation, so re-enqueueing the same
-generation updates the row that is already there instead of adding a second one.
-Work that was in flight when the process died returns to `pending`; work that
-never started is unaffected. Running the command five times converges on the
-same graph as running it once.
+Run step 6 again with a **new** `idempotency_key`, then wait for the drain to
+finish. Each queued item gets an id derived from its scope and generation, so
+re-enqueueing the same generation updates the row that is already there instead
+of adding a second one. Work that was in flight when the process died returns to
+`pending`; work that never started is unaffected.
 
-One thing it is not is free. Each call clears the dedup state for every
-generation it covers, which includes reducer work the *current* rebuild has
-already finished. Re-issuing the command while a rebuild is still draining is
-safe and still converges, but it hands that completed work back to the queue and
-the rebuild takes longer. Watch the drain first; re-issue when it has stopped
-making progress, not because it is slow.
+Re-running does recover the layers a single interrupted pass leaves thin. On a
+measured rebuild of the Compose fixture corpus, a second `recover-generations`
+brought `CALLS` from 115 to its full 116, and `HANDLES_ROUTE` and `RUNS_IN` from
+2 back to 4 — those edges depend on nodes another domain materializes, and one
+pass can run them in the wrong order.
+
+**Do not run it repeatedly on a healthy graph.** Two families are not idempotent
+across repeated rebuilds: in the same measurement, `EvidenceArtifact` and its
+`EVIDENCES_REPOSITORY_RELATIONSHIP` / `HAS_DEPLOYMENT_EVIDENCE` edges went from
+13 before the wipe to 12 after one rebuild and 19 after two, and `IMPORTS` went
+from 224 to 226. Those counts grow rather than converge, so a third and fourth
+run would keep inflating them. Until that is fixed, treat re-running as a
+targeted repair for a rebuild you watched fall short, not as a routine
+"run it again to be sure".
+
+It is also not free. Each call clears the dedup state for every generation it
+covers, including reducer work the *current* rebuild has already finished, so
+re-issuing mid-drain hands that work back to the queue and the rebuild takes
+longer. Watch the drain first; re-issue when it has stopped making progress, not
+because it is slow.
 
 You do not need to wipe again before restarting. The graph is partially built,
 `MERGE` is idempotent, and the remaining work fills in the rest.
 
 ## What the rebuild does not restore
 
-On a measured run over the Compose fixture corpus, a wipe and rebuild brought
-back 2,431 of 2,504 nodes and 2,905 of 3,289 relationships. Repositories, files,
-functions, classes, and directories returned at exactly their original counts.
-These did not:
+A rebuild used to stop at source-local structure: it brought back 2,431 of 2,504
+nodes and 2,905 of 3,289 relationships, with the whole call-graph, inheritance,
+ownership, and correlation layers missing. That is fixed. A rebuild now restores
+2,503 of 2,505 nodes and 3,286 of 3,288 relationships on the same corpus, and
+every one of the seventeen reducer domains re-runs.
 
-| Missing | Count | Owned by |
-| --- | ---: | --- |
-| `CALLS` edges | 116 | `code_call_materialization` |
-| `INHERITS` edges | 36 | `inheritance_materialization` |
-| `REFERENCES` edges | 33 | `code_import_repo_edge` |
-| `EvidenceArtifact` nodes and their edges | 14 + 14 | `semantic_entity_materialization` |
-| `CORRELATES_DEPLOYABLE_UNIT` edges | 7 | `deployable_unit_correlation` |
-| `CodeownerTeam` and `DECLARES_CODEOWNER` | 2 + 2 | `codeowners_ownership` |
-| SQL table and column edges | 11 | `sql_relationship_materialization` |
-| `EXECUTES`, `CloudAction`, `INVOKES_CLOUD_ACTION` | 3 | `shell_exec_materialization` |
+What is left is small, and it is worth knowing what each piece is.
 
-The cause is one mechanism. Re-driving a scope re-runs its projector work, and
-that in turn re-runs five reducer domains. Twelve others keep the `succeeded`
-work-item rows from the original indexing run, are never re-enqueued, and so
-never rebuild what they own. Every missing family belongs to one of those twelve;
-none belongs to the five that do re-run.
+**Two edge families can come back thin on a single pass.** `HANDLES_ROUTE` and
+`RUNS_IN` connect code symbols to `:Endpoint` and `:Workload` nodes that a
+different domain materializes. One rebuild pass can drain them before those
+targets exist, and the edge query matches nothing rather than waiting. Measured:
+`HANDLES_ROUTE` and `RUNS_IN` came back at 2 of 4, and `CALLS` at 115 of 116.
+Re-running the rebuild recovers all three — see
+[If the rebuild is interrupted](#if-the-rebuild-is-interrupted), including the
+warning about what else repeated runs do.
 
-Until that is fixed, a rebuild gives you a working graph with the code-call,
-inheritance, ownership, and correlation layers thinned out. Queries over
-repositories, files, and code structure are sound. Queries that traverse call
-graphs, ownership, or deployment correlation will under-report, and they will do
-so silently — nothing in the response says the layer is incomplete.
+**Some of the remaining difference is not the rebuild at all.** Indexing the same
+corpus twice does not produce byte-identical graphs. Three runs of this procedure
+recorded pre-wipe totals of 2,506/3,294, 2,504/3,289, and 2,505/3,288, differing
+in `EvidenceArtifact`, `Module`, and `Environment` — the same families that show
+up in a rebuild comparison. When you compare a rebuilt graph against counts you
+recorded earlier, expect a couple of nodes of noise from the indexer before you
+suspect the rebuild.
 
-If you need those layers back today, a full re-collection from source rebuilds
-them, at the cost of re-cloning every repository. The measurement, the per-label
-counts, and the domain-by-domain breakdown are in
+The measurement, the per-label counts, and the domain-by-domain breakdown are in
 `docs/internal/evidence/4594-graph-rebuild-from-facts.md`.
 
 ## How long it takes
 
-26 seconds for 67 scopes and 3,866 facts on the Compose fixture corpus. That
-corpus is 1.4 MB, so the number shows the mechanism runs rather than what a real
-rebuild costs, and the machine was busy at the time, so it is an upper bound.
+20 to 25 seconds for 67 scopes and 3,866 facts on the Compose fixture corpus,
+plus up to about four minutes for the shared edge backlog to finish draining
+after the work queue goes quiet. That corpus is 1.4 MB, so the number shows the
+mechanism runs rather than what a real rebuild costs.
+
+The rebuild got slower when it started restoring the whole graph: 15 seconds
+before the fix against 20-25 after, because it now re-drives about 1,000 reducer
+work items and 600 shared intents instead of a few hundred rows. That is the
+cost of the layers it now brings back.
 
 Size your recovery time objective against a measurement from your own corpus.
 Run `scripts/verify-graph-rebuild-from-facts.sh` against it and use what it
