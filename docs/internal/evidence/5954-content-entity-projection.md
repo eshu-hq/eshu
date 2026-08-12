@@ -94,9 +94,12 @@ What is genuinely unchanged:
   why the constraint is not optional.
 
 The B-7 golden-corpus live lane passed on this branch (509s), so the corpus's
-projected graph truth and drain assertions are unchanged by the registration —
-the 20-repo corpus does not carry these entity types, so the B-12 snapshot does
-not move.
+projected graph truth and drain assertions are unchanged by the registration.
+This is the state before the fixture work below landed: at that point the
+20-repo corpus did not carry these entity types, so the B-12 snapshot did not
+move. The "#5954 fixture coverage" section below is the same issue's later
+change that does move the snapshot, staging real fixtures for these five
+labels instead of leaving them provably wired but uncovered.
 
 ## Measured: the five always-on retract statements
 
@@ -164,3 +167,121 @@ bash scripts/generate-code-coverage-report.sh   # exit 0, whole module
 
 All packages `ok`. The new regression test
 `TestContentEntityTypesReachTheGraph` fails on all ten cases before the change.
+
+## #5954 fixture coverage
+
+The wiring above made these five labels retractable and writable but left them
+without a real fixture in the live 20-repo corpus — a repo containing none of
+these entity types proves nothing about whether they materialize. This staged
+`cloudformation_comprehensive` into the live gate (it previously existed on
+disk only for a parser unit test) and added `terraform_comprehensive/pagerduty.tf`,
+moving the B-12 snapshot's node-count floors for all five labels off zero.
+
+Observed identically across three live `golden-corpus-gate` runs against this
+branch, across two code states in the rebase history (elapsed 148s, 157s,
+and 193s):
+
+| label | count |
+| --- | --- |
+| `TerraformBlock` | 5 |
+| `CloudFormationCondition` | 2 |
+| `CloudFormationExport` | 3 |
+| `CloudFormationImport` | 2 |
+| `PagerDutyDeclaration` | 1 |
+| `Repository` | 31 |
+
+All six matched the snapshot's pinned ranges/notes exactly in every run, and
+the `GET /api/v0/iac/resources` query-shape assertion passed every time.
+0 required-fail in all three.
+
+Those three runs observed `summary.total=23`, `summary.by_kind.resource=14`,
+`count=14`, and that is left as recorded rather than restated to today's
+numbers: it is what the gate actually saw at that code state, and rewriting it
+to match the current pins would turn a run record into a claim no run
+supports.
+
+The pins have since moved. Merging `origin/main` brought in #5861's
+`terraform_comprehensive/lambda_partial.tf`, one more resource block, so
+count/resource went 14 -> 15 and, composed with this issue's PagerDuty module
+block, `summary.total` went to 24. The committed assertion is now
+`count=15`, `summary.total=24`, `summary.by_kind.resource=15`,
+`summary.by_kind.module=7`, `summary.by_kind.data-source=2` -- see the
+snapshot's `required_json_values` and the guard in
+`go/cmd/golden-corpus-gate/snapshot_iac_inventory_test.go`.
+
+Those current pins have their own live confirmation, so this record does not
+rest on the three pre-rebase runs: the `make pre-pr` live lane on the merged
+head (stamped `dbcd07de8bf3`) observed `"resources" has 15 results` with all
+five values in the gate's equality set.
+
+The three gate summary lines:
+
+| run | elapsed | summary |
+| --- | --- | --- |
+| 1 (`cdf3730a03`) | 148s | 554 pass, 0 required-fail, 1 advisory-warn |
+| 2 (`3b4f63a888`) | 157s | 555 pass, 0 required-fail, 0 advisory-warn |
+| 3 (`3b4f63a888`, rerun) | 193s | 552 pass, 0 required-fail, 3 advisory-warn |
+
+Run 2's full terminal output was captured at `scratchpad/b7-run.log` and run
+3's at `scratchpad/b7-run-2.log` (agent-session scratch paths, not files
+committed to this repo), so the elapsed times, pass lines, and per-phase
+timing figures cited in this section are independently reproducible from
+those logs, the same way the Verification section below cites commands
+rather than only numbers. Run 1 predates that session's log capture and has
+no saved terminal output.
+
+Runs 2 and 3 are the same code (`3b4f63a888`, the code state runs 2 and 3
+executed against). Run 1 is an earlier commit
+(`cdf3730a03`) at a pre-rebase HEAD, so it is not a clean single-code series
+with the other two — the counts and query shape agreeing across all three is
+still meaningful (the fixture and node-count logic did not change between
+`cdf3730a03` and `3b4f63a888`), but the timing numbers below span two
+different bases, not three samples of identical code.
+
+The asserted truth this branch changes — the six node counts and the IaC
+query shape — is stable across three runs across two code states in the
+rebase history and under three different load conditions. That is a
+stronger claim than a single quiet run would have given: it is not evidence
+the diff got lucky once, it is evidence the diff's effect on graph and query
+truth does not move.
+
+**Advisory-warn disposition.** The only check that varied was
+`phase_graph_query`, an advisory timing check, never a required one:
+
+| run | observed | baseline | ceiling | result |
+| --- | --- | --- | --- | --- |
+| 1 | 10.0s | 3.0s | 8.0s | WARN (host load 17-18, observed directly from this run) |
+| 2 | 8.0s | 3.0s | 8.0s | PASS — landed exactly on the ceiling |
+| 3 | 13.0s | 3.0s | 8.0s | WARN — host load ~38 at the time |
+
+Run 3's contention has a known cause, not an unexplained spike: a second
+live-gate run started on the same shared lock partway through, from a
+different worktree's `make pre-pr` preflight for issue #5996 that began after
+this run had already been told the lock was clear. That is why run 3 is the
+noisiest sample and why its degradation was not confined to
+`phase_graph_query` — it also warned on `phase_collect` (32.0s vs a 25.0s
+ceiling) and `phase_maintenance_drains` (65.0s vs a 30.0s ceiling), neither of
+which warned in runs 1 or 2. A host-wide effect from a second concurrent gate
+run explains a warn spreading across multiple unrelated phases in a way a
+diff-specific effect would not.
+
+Run 3's own elevation has a confirmed external cause (the concurrent #5996
+preflight above). Runs 1 and 2 do not have an equally specific known cause,
+and neither is a clean quiet-host measurement either — both are still
+elevated relative to the 3.0s baseline (10.0s and 8.0s) despite no identified
+second gate run competing for the lock at the time. This host carried between
+eight and twelve concurrent lanes plus other agents' preflights for the full
+session, with load ranging roughly 7 to 49, and a quiet window was not
+achievable in this session, so "no identified second gate run" is not the
+same as "no contention" — something on the host was still busy. The mechanism
+argument for why none of this is attributed to the diff: this change adds one
+5-file repo to a 31-repo corpus, 13 nodes across the five newly-asserted
+labels (~47 new nodes in total once the staged repo's CloudFormation content
+entities, File nodes, and Repository node are counted), no snapshot query
+shape fans out over these five labels, and the IaC inventory
+CTE is restricted to three Terraform entity types so it gains exactly one row
+from this change. That argument makes it implausible by mechanism that this
+diff moves a 3s phase to 8-13s. It does not prove what did for runs 1 and 2 —
+that part is **implausible by mechanism, unresolved by measurement**, not
+contention confirmed. A WARN flipping to a PASS that lands precisely on the
+ceiling is not proof of anything about the diff either way.

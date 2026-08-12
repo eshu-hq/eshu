@@ -46,5 +46,26 @@ Outputs:
     Value: !Ref VPC
   PublicSubnetId:
     Value: !Ref PublicSubnet
+  # #5954: exported so lambda.yaml's LambdaFunction can pull this subnet into
+  # its VpcConfig via Fn::ImportValue. Export.Name is the literal string
+  # lambda.yaml's !ImportValue references -- real cross-stack imports match
+  # on that literal export name, and setOptionalString
+  # (go/internal/parser/cloudformation/parser_helpers.go) reads it with
+  # fmt.Sprint, so a !Sub here would decode to a map (Fn::Sub) and give the
+  # projected CloudFormationExport node the Go map debug string as its name
+  # instead of a name lambda.yaml's import actually matches.
   PrivateSubnetId:
     Value: !Ref PrivateSubnet
+    Export:
+      Name: comprehensive-vpc-PrivateSubnetId
+  # #5954: exported so lambda.yaml's LambdaFunction can pull this security
+  # group into its VpcConfig via Fn::ImportValue (the short-form !ImportValue
+  # tag -- go/internal/parser/yaml/node_decode.go resolves it to the literal
+  # Fn::ImportValue key the cloudformation parser scans for). Before this,
+  # the corpus had zero Fn::ImportValue usage anywhere, so
+  # CloudFormationImport had no real fixture coverage at all. Export.Name is
+  # a literal string for the same reason as PrivateSubnetId's export above.
+  SecurityGroupId:
+    Value: !Ref SecurityGroup
+    Export:
+      Name: comprehensive-vpc-SecurityGroupId
