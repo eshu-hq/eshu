@@ -235,8 +235,8 @@ fine. Both at once is an import cycle, and Go refuses to build it.
 | Package | Root reaches into the family | Family needs from root |
 |---|---|---|
 | query | the alias `type SupplyChainHandler = supplychain.Handler` plus router wiring | `GraphQuery`, `ContentStore` (`ports.go:15,21`), `QueryProfile` (`contract.go:21`, used at `supply_chain.go:64,122`), the envelopes, the `Write*` helpers |
-| reducer | `defaults_additive_domains_correlation.go:66-67` calls `containerImageIdentityDomainDefinition()` and builds `ContainerImageIdentityHandler{}` | `DomainDefinition`, `Domain`, `Intent`, `Handler` (`container_image_identity.go:52,73`) |
-| projector | `scope_generation_intents.go` calls `build*ReducerIntent` across 35 family files | `ReducerIntent` (`runtime.go:50`) |
+| reducer | 48 `.Handler = <Family>Handler{}` construction sites across 10 of the 11 `defaults_additive_domains*.go` wiring files — e.g. `defaults_additive_domains_correlation.go:66-67`, which calls `containerImageIdentityDomainDefinition()` and builds `ContainerImageIdentityHandler{}` | `Intent`, `Result` and the `Handler` interface (`container_image_identity.go:52,73`) |
+| projector | `scope_generation_intents.go` has 44 `build*ReducerIntent` call sites, defined across 43 family files | `ReducerIntent` (`runtime.go:50`) |
 | mcp | `types.go` has 42 `append(tools, <domain>Tools()...)` call sites | `ToolDefinition` (`types.go:7`) |
 
 Collector and coordinator are genuinely clear: their families are constructed
@@ -262,9 +262,9 @@ Two ways out, and they are not interchangeable:
 Until this lands, read `clean` in the family tables as what it measures: zero
 coupling to other families. It does not mean ready to move.
 
-This also breaks Part 4's order below, which puts projector second and mcp fifth
-— both well before query and reducer. Either the boundary lands first for every
-affected package, or those moves wait.
+This also breaks Part 4's order below, which moves projector and mcp well before
+query and reducer. Either the boundary lands first for every affected package, or
+those moves wait.
 
 ## Part 4: execution model
 
