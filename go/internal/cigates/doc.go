@@ -70,9 +70,11 @@
 // invoking it, and it skips rather than reports when no workflow runs the
 // script (CI legitimately uses a different entrypoint than the local gate) or
 // when several do (no single owner). It also validates the trusted aggregate
-// publisher's workflow_run source, event boundary, permissions, default-branch
-// checkout, secret independence, and status-publishing command. Like the rest
-// of the package it needs no network, Docker, or credentials.
+// publisher's workflow_run source, event boundary, serialized per-head
+// concurrency, first-step pending invalidation, permissions, default-branch
+// checkout, secret independence, status-publishing command, and
+// cancellation-safe terminal condition. Like the rest of the package it needs
+// no network, Docker, or credentials.
 //
 // # Glob matching
 //

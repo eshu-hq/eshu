@@ -201,8 +201,17 @@ gates its changed paths select:
   exact pull-request head. It maps changed paths to every registry row marked
   `blocking: true`, then waits for the exact workflow/check names declared by
   those rows. A selected failed, skipped, missing, or timed-out check makes the
-  aggregate fail. This closes the gap where a blocking registry row could be
-  visible locally yet absent from GitHub's two Go umbrellas.
+  aggregate fail. Per-head concurrency keeps one aggregate running and retains
+  only the latest pending run without cancelling the active status writer. An
+  aggregate that starts posts pending before checkout or setup, then reaches a
+  real terminal result; the retained run posts pending again before it
+  recomputes. A manual cancellation after that first step leaves pending
+  instead of inventing a failure. GitHub cannot execute repository code after
+  cancellation before runner allocation, and commit statuses have no atomic
+  generation fence, so this workflow does not claim protection across that
+  operator/API boundary.
+  This closes the gap where a blocking registry row could be visible locally
+  yet absent from GitHub's two Go umbrellas.
 - **Trust boundary:** the aggregate policy, selector, and status publisher come
   from the default branch and cannot be rewritten by the pull request they
   evaluate. The selected leaf checks remain ordinary pull-request CI: their
