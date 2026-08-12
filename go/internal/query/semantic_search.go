@@ -181,54 +181,6 @@ func (h *SemanticSearchHandler) profile() QueryProfile {
 	return h.Profile
 }
 
-type semanticSearchScopeResolution struct {
-	scopeID      string
-	repositoryID string
-	ambiguous    bool
-}
-
-// resolveScope selects the active search-document scope without adding a
-// direct-scope lookup to canonical all-scope requests. Scoped grants retain
-// their existing direct-versus-canonical authorization boundary.
-func (h *SemanticSearchHandler) resolveScope(
-	ctx context.Context,
-	requestedID string,
-	access repositoryAccessFilter,
-	directScopeGrant bool,
-	canonicalRepositoryGrant bool,
-) (semanticSearchScopeResolution, error) {
-	if h.ScopeResolver == nil {
-		return semanticSearchScopeResolution{scopeID: requestedID, repositoryID: requestedID}, nil
-	}
-	if access.allScopes && strings.HasPrefix(requestedID, "git-repository-scope:") {
-		resolvedRepoID, err := h.ScopeResolver.ResolveSemanticSearchRepositoryForScope(ctx, requestedID)
-		if err != nil {
-			return semanticSearchScopeResolution{}, err
-		}
-		if resolvedRepoID != "" {
-			return semanticSearchScopeResolution{scopeID: requestedID, repositoryID: resolvedRepoID}, nil
-		}
-	}
-	if directScopeGrant && !canonicalRepositoryGrant {
-		resolvedRepoID, err := h.ScopeResolver.ResolveSemanticSearchRepositoryForScope(ctx, requestedID)
-		if err != nil {
-			return semanticSearchScopeResolution{}, err
-		}
-		if resolvedRepoID == "" {
-			return semanticSearchScopeResolution{}, nil
-		}
-		return semanticSearchScopeResolution{scopeID: requestedID, repositoryID: resolvedRepoID}, nil
-	}
-
-	resolvedScopeID, err := h.ScopeResolver.ResolveSemanticSearchScope(ctx, requestedID)
-	if err != nil {
-		return semanticSearchScopeResolution{
-			ambiguous: errors.Is(err, ErrSemanticSearchScopeAmbiguous),
-		}, err
-	}
-	return semanticSearchScopeResolution{scopeID: resolvedScopeID, repositoryID: requestedID}, nil
-}
-
 func (h *SemanticSearchHandler) search(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
@@ -321,6 +273,7 @@ func (h *SemanticSearchHandler) search(w http.ResponseWriter, r *http.Request) {
 		WriteSuccess(w, r, http.StatusOK, emptySemanticSearchResponse(req), h.truthWithSearchVectorFreshness(r, req.Mode))
 		return
 	}
+	req = semanticSearchCanonicalAnchorRequest(span, req, resolution.repositoryID)
 	var indexResult semanticSearchIndexResult
 	backend, err := h.semanticSearchBackend(
 		req,

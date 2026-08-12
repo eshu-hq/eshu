@@ -10,7 +10,7 @@ Required request fields:
 
 | Field | Meaning |
 | --- | --- |
-| `repo_id` | Canonical repository id that bounds the searchable corpus. The server resolves it to the repository's active ingestion scope. |
+| `repo_id` | Canonical repository id that bounds the searchable corpus. The server resolves it to the repository's active ingestion scope. An ingestion scope id (`git-repository-scope:<repo_id>`) is also accepted; the server resolves it back to the canonical repository id, and the response echoes that canonical id in `repo_id` and `anchor.id` because it is the identity retrieval was actually bounded by. |
 | `query` | Search text. |
 | `mode` | `keyword`, `semantic`, or `hybrid`. |
 | `limit` | Explicit top-K result limit, max 100. |
