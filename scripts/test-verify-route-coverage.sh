@@ -275,6 +275,47 @@ GO
 # 0 uncovered" on a genuinely untested handler). The fix restricts the search
 # to the handler's own directory tree (still recursive, so a test that moved
 # WITH its handler into a subpackage is still found — see test 5/6 above).
+# A testdata fixture must not satisfy a real handler's coverage. filepath's
+# `find -maxdepth 1` never crossed into a subdirectory, so making this scan
+# recursive newly exposes fixture tests -- the same class already guarded in
+# parseReducerDir and globFilesRecursive.
+test_red_testdata_fixture_test_does_not_cover_a_real_handler() {
+  local dir
+  dir="$(setup_repo "red-testdata-fixture")"
+  mkdir -p "${dir}/go/internal/query/c/testdata"
+
+  cat > "${dir}/go/internal/query/c/widget.go" << 'GO'
+package c
+
+import "net/http"
+
+type WidgetHandler struct{}
+
+func (h *WidgetHandler) Mount(mux *http.ServeMux) {
+  mux.HandleFunc("GET /api/v0/widgets/{widget_id}/spin", h.getSpin)
+}
+
+func (h *WidgetHandler) getSpin(w http.ResponseWriter, r *http.Request) {}
+GO
+
+  # A fixture that would match the derived search word, but is testdata and so
+  # must never count as coverage for the real handler beside it.
+  cat > "${dir}/go/internal/query/c/testdata/fixture_test.go" << 'GO'
+package testdata
+
+import "testing"
+
+func TestWidgetSpin(t *testing.T) {}
+GO
+
+  export ESHU_ROUTE_COVERAGE_REPO_ROOT="$dir"
+  if "${dir}/scripts/verify-route-coverage.sh" >/tmp/eshu-route-coverage.out 2>/tmp/eshu-route-coverage.err; then
+    record_fail "red: a testdata fixture test wrongly satisfied a real handler's coverage"
+  else
+    record_pass "red: a testdata fixture test does not satisfy a real handler's coverage"
+  fi
+}
+
 test_red_untested_handler_falsely_covered_by_sibling_package_test() {
   local dir
   dir="$(setup_repo "red-sibling-package")"
@@ -341,6 +382,7 @@ test_red_short_method_only_has_unrelated_sibling_test
 test_red_moved_handler_in_subdirectory_without_test
 test_green_moved_handler_with_test_in_same_subdirectory
 test_red_untested_handler_falsely_covered_by_sibling_package_test
+test_red_testdata_fixture_test_does_not_cover_a_real_handler
 test_red_missing_query_dir_fails_loudly
 
 printf '\n%d/%d tests passed\n' "$PASS" "$TOTAL"

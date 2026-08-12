@@ -123,7 +123,12 @@ get_changed_files() {
     # Recursive (not -maxdepth 1, #6055): a handler that moved into a
     # subdirectory of query_dir/api_dir must still be found when no base ref
     # is available and every route is being checked.
-    rg --files --glob '*.go' --glob '!*_test.go' "$query_dir" "$api_dir" 2>/dev/null
+    # !testdata/** for the same reason parseReducerDir and globFilesRecursive
+    # exclude it in this PR: filepath/`find -maxdepth 1` never crossed into a
+    # subdirectory, so making this recursive newly exposes fixture handlers that
+    # must not be treated as real routes.
+    rg --files --glob '*.go' --glob '!*_test.go' --glob '!**/testdata/**' \
+      "$query_dir" "$api_dir" 2>/dev/null
   fi
 }
 
@@ -170,7 +175,7 @@ while IFS= read -r gofile; do
       # cannot satisfy this handler's coverage requirement just because its
       # name happens to fuzzily match.
       if rg -qi "func Test\w*${word}\w*\(" \
-           --glob '*_test.go' \
+           --glob '*_test.go' --glob '!**/testdata/**' \
            "$handler_dir" 2>/dev/null; then
         found=1
         break

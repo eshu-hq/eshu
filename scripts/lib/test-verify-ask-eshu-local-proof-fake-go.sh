@@ -11,7 +11,7 @@ printf '%s\n' "$*" >>"${FAKE_GO_LOG:?}"
 # this stub stays decoupled from any one call site's specific number.
 if [[ "$*" == *"-list"* ]]; then
 	for i in $(seq 1 50); do
-		printf 'FakeMatchedTest%d\n' "$i"
+		printf 'TestFakeMatched%d\n' "$i"
 	done
 	exit 0
 fi
