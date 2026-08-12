@@ -115,3 +115,62 @@ rows it can actually see, rather than the survivors of a budget spent mostly on
 rows it cannot. On the existing hot-candidate fixture that changes the scoped
 result from ~75 rows to the full bound. That is more evidence, not different
 evidence, and it is the direct consequence of counting the right thing.
+
+## Live fixtures use a private schema, not TEMP tables (Copilot review)
+
+The two guards in
+`go/internal/query/cloud_resource_runtime_digest_starvation_live_test.go` first
+seeded `CREATE TEMP TABLE` fixtures behind `db.SetMaxOpenConns(1)`. A TEMP table
+belongs to the session that created it, and `database/sql` owns session
+lifetime, not the test. `SetMaxOpenConns(1)` caps how many connections are open
+at once; it does not pin identity. Let the server close the connection, or an
+idle timeout or a network blip drop it, and `database/sql` opens a replacement
+whose `pg_temp` is empty.
+
+Measured both halves against Postgres 17.10, terminating our own backend with
+`SELECT pg_terminate_backend(pg_backend_pid())` and re-running the same
+unqualified query:
+
+```
+clean database
+  TEMP table    + SetMaxOpenConns(1)  ->  ERROR: relation "ingestion_scopes" does not exist (SQLSTATE 42P01)
+  private schema via search_path      ->  count=1, err=<nil>
+
+database that already holds ingestion_scopes in public
+  TEMP table    + SetMaxOpenConns(1)  ->  count=2, err=<nil>   <- silently read the WRONG table
+  private schema via search_path      ->  count=1, err=<nil>
+```
+
+The second row is the one that matters. `ingestion_scopes`, `scope_generations`,
+`fact_records`, and `graph_node_owner` are real Eshu tables (migration
+`001_ingestion_scopes.sql` onward), so on a migrated database the reconnect does
+not raise a missing-relation error at all. It resolves the unqualified name
+against the real, empty tables and the guard fails as
+`21 of 21 digests got NO runtime evidence` — reading exactly like the starvation
+regression it exists to catch, and sending whoever hits it in CI to the wrong
+place.
+
+The fixtures are now ordinary tables in a schema named per test run
+(`eshu_digest_fixture_<pid>_<nanos>`), dropped in `t.Cleanup`. `search_path` is
+carried as a pgx connection runtime parameter rather than issued once as
+`SET search_path`, so Postgres applies it during startup on every connection the
+handle opens, replacements included; a `SET` would be session-scoped and have
+the same defect. `public` is deliberately left out of the path, so a name the
+fixture forgot to create fails loudly instead of resolving against whatever the
+target database already holds.
+
+A pinned `*sql.Conn` from `db.Conn(ctx)` was the other candidate and was
+rejected: `PostgresCloudResourceListStore` takes a `*sql.DB`, so pinning would
+mean widening the production constructor to a connection-shaped interface purely
+for test plumbing. The schema fix needs no production change and holds under
+parallel runs against a shared database.
+
+Both guards still fail against their mutations after the change — the
+eligibility guard returns `matches = 0, want exactly 1` when the eligibility
+predicate is moved out of the `CROSS JOIN LATERAL` to the outer query, and the
+starvation guard reports `20 of 21 digests got NO runtime evidence (hot digest
+returned 10 rows)` when the per-digest `LIMIT` is replaced by a single global
+one. Ten consecutive runs of both against the fixed query pass.
+
+No-Observability-Change: test-fixture isolation only; no production code, query
+text, metric, span, or log changed.

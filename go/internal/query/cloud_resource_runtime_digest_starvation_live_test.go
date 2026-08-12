@@ -15,7 +15,8 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
 )
 
 // The #5789 starvation regression, at scale, against real rows.
@@ -63,18 +64,9 @@ func TestCloudResourceRuntimeDigestPerDigestBoundPreventsStarvationLive(t *testi
 	if dsn == "" {
 		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the live per-digest starvation proof")
 	}
-	db, err := sql.Open("pgx", dsn)
-	if err != nil {
-		t.Fatalf("open Postgres: %v", err)
-	}
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	db.SetConnMaxLifetime(0)
-	db.SetConnMaxIdleTime(0)
-	t.Cleanup(func() { _ = db.Close() })
-
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
+	db := openRuntimeDigestFixtureDB(t, ctx, dsn)
 	seedRuntimeDigestStarvationCorpus(t, ctx, db)
 	store := NewPostgresCloudResourceListStore(db)
 
@@ -141,27 +133,81 @@ func starvationDigest(i int) string {
 	return fmt.Sprintf("sha256:%064d", i)
 }
 
+// openRuntimeDigestFixtureDB returns a Postgres handle whose unqualified table
+// names resolve inside a schema created for this test run alone, and registers
+// the cleanup that drops it.
+//
+// The fixture tables are ordinary tables in that schema rather than TEMP
+// tables. A TEMP table belongs to the session that created it, and
+// database/sql owns session lifetime, not the test. SetMaxOpenConns(1) caps
+// how many connections are open at once; it does not pin identity. Let the
+// server close the connection, or an idle timeout or a network blip drop it,
+// and database/sql opens a replacement whose pg_temp is empty. The test then
+// dies with `relation "ingestion_scopes" does not exist`, which looks nothing
+// like the starvation regression it guards, and sends whoever hits it in CI
+// looking in the wrong place (GitHub Copilot review).
+//
+// search_path is carried as a connection runtime parameter, so pgx sets it
+// during startup on every connection this handle opens, replacements included.
+// Setting it once with `SET search_path` would have the same session-scoped
+// problem the TEMP tables had.
+func openRuntimeDigestFixtureDB(t *testing.T, ctx context.Context, dsn string) *sql.DB {
+	t.Helper()
+
+	config, err := pgx.ParseConfig(dsn)
+	if err != nil {
+		t.Fatalf("parse ESHU_POSTGRES_TEST_DSN: %v", err)
+	}
+	// Only the fixture schema, with no public fallback: an unqualified name
+	// this test forgot to create must fail loudly rather than resolve against
+	// whatever the target database already holds.
+	schema := fmt.Sprintf("eshu_digest_fixture_%d_%d", os.Getpid(), time.Now().UnixNano())
+	config.RuntimeParams["search_path"] = schema
+
+	db := sql.OpenDB(stdlib.GetConnector(*config))
+	t.Cleanup(func() { _ = db.Close() })
+
+	quoted := `"` + schema + `"`
+	if _, err := db.ExecContext(ctx, `CREATE SCHEMA `+quoted); err != nil {
+		t.Fatalf("create fixture schema %s: %v", schema, err)
+	}
+	t.Cleanup(func() {
+		// The test's own context is usually cancelled by now, so the drop gets
+		// a fresh deadline. Leaking the schema would break the next run's
+		// CREATE only if the name repeated, but it would still accumulate.
+		dropCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if _, err := db.ExecContext(dropCtx, `DROP SCHEMA `+quoted+` CASCADE`); err != nil {
+			t.Errorf("drop fixture schema %s: %v", schema, err)
+		}
+	})
+	return db
+}
+
 // seedRuntimeDigestStarvationCorpus builds the skewed shape the issue
 // describes: one digest on a large fleet, plus many ordinary digests. All rows
 // are current, authorized, and non-tombstoned, so freshness and authorization
 // cannot be what excludes anything — only the candidate bound can.
+//
+// db must come from openRuntimeDigestFixtureDB: these are ordinary tables and
+// they land in that helper's private schema.
 func seedRuntimeDigestStarvationCorpus(t *testing.T, ctx context.Context, db *sql.DB) {
 	t.Helper()
 
 	total := starvationHotDigestResources + starvationOtherDigests*20
 	statements := []string{
-		`CREATE TEMP TABLE ingestion_scopes (
+		`CREATE TABLE ingestion_scopes (
           scope_id text PRIMARY KEY, scope_kind text NOT NULL, source_key text NOT NULL,
           active_generation_id text
         )`,
-		`CREATE TEMP TABLE scope_generations (
+		`CREATE TABLE scope_generations (
           generation_id text PRIMARY KEY, scope_id text NOT NULL, status text NOT NULL
         )`,
-		`CREATE TEMP TABLE fact_records (
+		`CREATE TABLE fact_records (
           fact_id text PRIMARY KEY, scope_id text NOT NULL, generation_id text NOT NULL,
           is_tombstone boolean NOT NULL
         )`,
-		`CREATE TEMP TABLE graph_node_owner (uid text PRIMARY KEY, winning_row jsonb NOT NULL)`,
+		`CREATE TABLE graph_node_owner (uid text PRIMARY KEY, winning_row jsonb NOT NULL)`,
 		`INSERT INTO ingestion_scopes VALUES ('scope:allowed','repository','repository:allowed','generation:allowed')`,
 		`INSERT INTO scope_generations VALUES ('generation:allowed','scope:allowed','active')`,
 		fmt.Sprintf(`INSERT INTO fact_records
@@ -220,16 +266,6 @@ func TestCloudResourceRuntimeDigestBoundCountsEligibleRowsOnlyLive(t *testing.T)
 	if dsn == "" {
 		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the live eligible-rows-only proof")
 	}
-	db, err := sql.Open("pgx", dsn)
-	if err != nil {
-		t.Fatalf("open Postgres: %v", err)
-	}
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	db.SetConnMaxLifetime(0)
-	db.SetConnMaxIdleTime(0)
-	t.Cleanup(func() { _ = db.Close() })
-
 	digest := starvationDigest(1)
 	digests := make([]string, 0, eligibilityDecoyDigests+1)
 	digests = append(digests, digest)
@@ -252,6 +288,7 @@ func TestCloudResourceRuntimeDigestBoundCountsEligibleRowsOnlyLive(t *testing.T)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
+	db := openRuntimeDigestFixtureDB(t, ctx, dsn)
 	seedRuntimeDigestEligibilityCorpus(t, ctx, db, ineligible)
 	store := NewPostgresCloudResourceListStore(db)
 
@@ -280,22 +317,25 @@ func TestCloudResourceRuntimeDigestBoundCountsEligibleRowsOnlyLive(t *testing.T)
 // caller passes a count above the per-digest bound so those rows alone can
 // exhaust it. Ordering is what makes the test sharp: the ineligible rows are the
 // ones a naive bound would consume.
+//
+// db must come from openRuntimeDigestFixtureDB: these are ordinary tables and
+// they land in that helper's private schema.
 func seedRuntimeDigestEligibilityCorpus(t *testing.T, ctx context.Context, db *sql.DB, ineligible int) {
 	t.Helper()
 
 	statements := []string{
-		`CREATE TEMP TABLE ingestion_scopes (
+		`CREATE TABLE ingestion_scopes (
           scope_id text PRIMARY KEY, scope_kind text NOT NULL, source_key text NOT NULL,
           active_generation_id text
         )`,
-		`CREATE TEMP TABLE scope_generations (
+		`CREATE TABLE scope_generations (
           generation_id text PRIMARY KEY, scope_id text NOT NULL, status text NOT NULL
         )`,
-		`CREATE TEMP TABLE fact_records (
+		`CREATE TABLE fact_records (
           fact_id text PRIMARY KEY, scope_id text NOT NULL, generation_id text NOT NULL,
           is_tombstone boolean NOT NULL
         )`,
-		`CREATE TEMP TABLE graph_node_owner (uid text PRIMARY KEY, winning_row jsonb NOT NULL)`,
+		`CREATE TABLE graph_node_owner (uid text PRIMARY KEY, winning_row jsonb NOT NULL)`,
 		`INSERT INTO ingestion_scopes VALUES ('scope:allowed','repository','repository:allowed','generation:allowed')`,
 		`INSERT INTO scope_generations VALUES ('generation:allowed','scope:allowed','active')`,
 		fmt.Sprintf(`INSERT INTO fact_records
