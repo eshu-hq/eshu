@@ -7,7 +7,7 @@
 #
 # This file is the single source of truth. tools/golangci-lint-dirgate/grandfather.go
 # is GENERATED from it by scripts/generate-dirgate-grandfather-go.sh (see that
-# script and scripts/test-generate-dirgate-grandfather-go.sh); scripts/lib/dirgate.sh
+# script and scripts/test-generate-dirgate-grandfather-go.sh); scripts/lib/dirgate-core.sh
 # reads this file directly. Regenerate the .go file after editing this TSV.
 #
 # Columns (tab-separated): dir<TAB>file_count<TAB>digest

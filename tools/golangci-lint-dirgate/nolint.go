@@ -29,7 +29,7 @@ import (
 // (any //nolint:<gate>, justified or not) and cannot express "justified
 // markers only" -- the same reason the filelength gate's convention is
 // enforced by review, not by tooling. The authoritative enforcement of
-// this requirement is scripts/lib/dirgate.sh's bash mirror, which every
+// this requirement is scripts/lib/dirgate-core.sh's bash mirror, which every
 // local and CI path in specs/ci-gates.v1.yaml actually invokes; this
 // function keeps the golangci-lint plugin path as close to that behavior
 // as a single per-package Go analyzer pass can get.

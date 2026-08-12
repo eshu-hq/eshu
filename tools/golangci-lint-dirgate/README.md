@@ -76,7 +76,7 @@ followed by a second `//` comment with a non-empty justification. Unlike
 with no justification is not accepted: `nolintJustification` in
 `nolint.go` parses this explicitly rather than relying on
 golangci-lint's own nolint processor, which can only see marker
-presence, not justification content. `scripts/lib/dirgate.sh` enforces
+presence, not justification content. `scripts/lib/dirgate-core.sh` enforces
 the identical rule for every local and CI path that does not go through
 `golangci-lint run` (see `specs/ci-gates.v1.yaml`'s `go-dir-gate` entry).
 
