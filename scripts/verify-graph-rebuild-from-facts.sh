@@ -257,12 +257,29 @@ start_services() {
 	fi
 }
 
+API_KEY=""
+
+# resolve_api_key reads the shared admin key the API persisted under ESHU_HOME.
+# The Compose stack runs with ESHU_AUTO_GENERATE_API_KEY=true and no configured
+# key, so the key does not exist until the API has started once. Without it the
+# rebuild request gets a 401, because recover-generations requires an admin
+# (all-scopes) token.
+resolve_api_key() {
+	API_KEY="$("${COMPOSE_CMD[@]}" exec -T eshu \
+		sh -lc 'sed -n "s/^ESHU_API_KEY=//p" /data/.eshu/.env' | tr -d '\r\n')"
+	if [[ -z "$API_KEY" ]]; then
+		echo "Could not read the generated admin API key from the eshu container" >&2
+		return 1
+	fi
+}
+
 # request_rebuild issues the one operator command this whole procedure reduces
 # to and echoes how many scopes it queued.
 request_rebuild() {
 	local idempotency_key="$1" response_file="$TMP_DIR/rebuild-$1.json"
 	curl -fsS -X POST "${API_BASE}/api/v0/admin/recover-generations" \
 		-H 'content-type: application/json' \
+		-H "authorization: Bearer ${API_KEY}" \
 		-d "$(jq -nc --arg k "$idempotency_key" '{
 			all_scopes: true,
 			reason: "graph rebuild-from-facts verification",
@@ -290,6 +307,7 @@ docker volume rm "${COMPOSE_PROJECT}_nornicdb_data" >/dev/null 2>&1 || true
 "${COMPOSE_CMD[@]}" up -d --build >/dev/null
 wait_for_service_exit bootstrap-index "$BOOTSTRAP_TIMEOUT"
 wait_for_http "${API_BASE}/health" 120
+resolve_api_key
 wait_for_queue_terminal "$DRAIN_TIMEOUT"
 
 snapshot_counts "$TMP_DIR/before.txt"

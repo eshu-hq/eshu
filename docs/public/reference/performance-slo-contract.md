@@ -69,6 +69,7 @@ absolute p95 ceiling. See
 | `memory_high_water_mb` | runtime | Within profile budget, captured for each measured runtime | operator-gated | No committed budget yet |
 | `correlation_fanout_candidates_p95` | correlation | p95 within accepted fixture budget, no fabricated links | operator-gated | No committed budget yet |
 | `graph_query_plan_regression_count` | graph | **Zero** accepted regressions; every known-bad plan signature fails the gate | hermetic gate | `go/internal/queryplan` validator, runs in CI |
+| `graph_rebuild_seconds` | recovery | Within 10% of accepted same-corpus baseline. No absolute target — size your recovery time objective against your own corpus | operator-gated | Measured on the Compose fixture corpus; see [Graph rebuild from facts](#graph-rebuild-from-facts) below |
 
 Three of these are absolute and independent of any baseline: the two
 zero-tolerance queue counts and the zero-regression plan count. The queue pair
@@ -123,6 +124,29 @@ Note for contributors: `specs/scale-benchmark-artifact.sample.json` contains
 metric values that look measured. It is a schema fixture — its `run.id` is
 `scale-bench-sample` and its `run.commit` is all zeroes. Never cite it as
 evidence.
+
+## Graph rebuild from facts
+
+`graph_rebuild_seconds` is the wall-clock cost of Eshu's disaster-recovery
+operation: with Postgres preserved and the graph wiped, how long until the graph
+is rebuilt and the queue is terminal. It is the number an operator sizes a
+recovery time objective against. The procedure it measures is
+[Rebuild the graph from facts](../operate/graph-rebuild-from-facts.md).
+
+The clock starts when `POST /api/v0/admin/recover-generations` with
+`all_scopes: true` returns, and stops when `fact_work_items` holds nothing
+`pending`, `claimed`, or `running` and nothing outside `succeeded`/`superseded`.
+Wipe and schema reapply sit outside the measurement: both are operator-paced
+steps whose cost is dominated by volume and container lifecycle, not by Eshu.
+
+**PLACEHOLDER_MEASUREMENT**
+
+There is deliberately no absolute target. Rebuild time scales with fact volume
+and graph write throughput, and a fixture corpus predicts nothing about a
+896-repository deployment. Measure your own corpus with the same script and use
+that. What the row does commit to is the relative rule: a same-corpus rebuild
+that regresses more than 10 percent against your accepted baseline is a
+regression to investigate.
 
 ## Named baselines
 

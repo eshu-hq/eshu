@@ -175,6 +175,14 @@ The route needs an admin token — one with all scopes, not a scoped token. It
 also insists on a `reason` and an `idempotency_key`, both recorded in the
 `admin_replay_requests` ledger, so the rebuild leaves an audit trail.
 
+On a stack running with `ESHU_AUTO_GENERATE_API_KEY=true` and no configured
+key, the API generates one on first start and persists it under `ESHU_HOME`:
+
+```bash
+ESHU_API_KEY=$(docker compose exec -T eshu \
+  sh -lc 'sed -n "s/^ESHU_API_KEY=//p" /data/.eshu/.env')
+```
+
 Pick a fresh `idempotency_key` per rebuild attempt. Reusing one from a *scoped*
 recovery is refused with a 409 rather than quietly replaying that recovery's
 much smaller outcome.
@@ -183,6 +191,7 @@ much smaller outcome.
 
 ```bash
 watch -n 10 "curl -fsS \
+  -H 'authorization: Bearer $ESHU_API_KEY' \
   http://localhost:${ESHU_HTTP_PORT:-8080}/api/v0/index-status | jq .queue"
 ```
 
@@ -193,6 +202,7 @@ zero. That is the rebuild's terminal state and the number to time.
 
 ```bash
 curl -fsS "http://localhost:${ESHU_HTTP_PORT:-8080}/api/v0/index-status" \
+  -H "authorization: Bearer $ESHU_API_KEY" \
   | jq '{status, queue}'
 ```
 
