@@ -63,9 +63,15 @@ go_test_run_guard() {
 	# here-string feeding a while-read loop (Homebrew bash 5.3.15 deadlocks on
 	# that construct past a byte threshold on this repo's dev machines) — write
 	# the captured output to a temp file and read from that instead.
+	# No `trap ... RETURN` for the cleanup: bash traps are process-global, not
+	# function-scoped, so a RETURN trap set here would keep firing on the
+	# CALLER's returns after this function exits, referencing a ${list_tmp}
+	# that is out of scope by then — an unbound-variable abort under `set -u`.
+	# It would also clobber any RETURN trap the caller had already installed.
+	# scripts/verify-docs-refs.sh:70-71 documents this same pitfall. Every exit
+	# path below removes the file explicitly instead.
 	local list_tmp
 	list_tmp="$(mktemp)"
-	trap 'rm -f "${list_tmp}"' RETURN
 	printf '%s\n' "${list_output}" >"${list_tmp}"
 
 	# `go test -list` prints one matched identifier per line, followed by one
@@ -73,17 +79,21 @@ go_test_run_guard() {
 	# package matched zero tests) — the exact zero-match signal this guard
 	# exists to catch: a pattern matching nothing produces ONLY `ok` lines, and
 	# `go test -run` on that same pattern would exit 0 having run nothing.
+	# Count identifier lines POSITIVELY. Skipping known noise instead was wrong:
+	# a package with no test files at all prints "?   <pkg>  [no test files]",
+	# which is neither blank nor `ok`-prefixed, so it was counted as a match --
+	# a min_matches=1 caller passed after its only test file moved away, which is
+	# the exact false green this guard exists to prevent. Anything that is not a
+	# recognised test identifier is now not counted, so a new summary shape from
+	# a future toolchain fails closed rather than inflating the count.
 	local matched=0
 	local line
 	while IFS= read -r line; do
-		[[ -z "${line}" ]] && continue
 		case "${line}" in
-			ok[[:space:]]*) continue ;;
+			Test*|Benchmark*|Fuzz*|Example*) matched=$((matched + 1)) ;;
 		esac
-		matched=$((matched + 1))
 	done <"${list_tmp}"
 	rm -f "${list_tmp}"
-	trap - RETURN
 
 	if [[ "${matched}" -lt "${min_matches}" ]]; then
 		printf 'go_test_run_guard: -run %s matched %d test(s) in "go test %s", expected at least %d. A rename or file move likely broke this pin — re-verify the pattern names real tests and update the expected count.\n' \

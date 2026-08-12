@@ -82,6 +82,21 @@ func checkTriggerPathsExist(repoRoot string, g Gate) []error {
 			continue
 		}
 		full := filepath.Join(repoRoot, filepath.FromSlash(trigger))
+		// filepath.Join cleans the result, so a trigger carrying ".." can
+		// resolve OUTSIDE repoRoot -- Join("/repo", "../etc/passwd") is
+		// "/etc/passwd". Stat-ing that would let a malformed trigger "exist"
+		// against an unrelated host file and pass the very staleness check this
+		// function adds. (Join does NOT drop repoRoot for an absolute trigger:
+		// Join("/repo", "/etc/passwd") is "/repo/etc/passwd", so only the
+		// traversal case can escape.) Treat an escaping trigger as a failure of
+		// its own, naming it, rather than silently stat-ing outside the tree.
+		if !isWithinRoot(repoRoot, full) {
+			errs = append(errs, fmt.Errorf(
+				"gate %q: trigger %q resolves to %q, outside the repository root %q — a trigger must name a path inside the repo",
+				g.ID, trigger, full, repoRoot,
+			))
+			continue
+		}
 		if _, err := os.Stat(full); os.IsNotExist(err) {
 			errs = append(errs, fmt.Errorf(
 				"gate %q: trigger %q names %q, which does not exist — a stale trigger silently stops selecting this gate instead of failing loud",
@@ -90,6 +105,17 @@ func checkTriggerPathsExist(repoRoot string, g Gate) []error {
 		}
 	}
 	return errs
+}
+
+// isWithinRoot reports whether cleaned path full sits inside root. It is used to
+// reject registry triggers that escape the repository via "..", which would
+// otherwise be stat-checked against unrelated host files.
+func isWithinRoot(root, full string) bool {
+	rel, err := filepath.Rel(root, full)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // checkScript verifies that the leading script path in a local command exists
