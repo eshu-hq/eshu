@@ -49,6 +49,7 @@ import (
 // rule that broke rather than at an opaque uid.
 type authorizedUIDExclusionCase struct {
 	uid    string
+	digest string
 	reason string
 	// wantScoped is the expectation for a caller granted scope:allowed only.
 	wantScoped bool
@@ -58,22 +59,32 @@ type authorizedUIDExclusionCase struct {
 	wantAllScopes bool
 }
 
+// authorizedUIDExclusionDigest renders the seeded running_image_digest for one
+// row. Distinct per row so the production digest route can be driven by the very
+// same seeded corpus.
+func authorizedUIDExclusionDigest(fill string) string {
+	return "sha256:" + strings.Repeat(fill, 64)
+}
+
 func authorizedUIDExclusionCases() []authorizedUIDExclusionCase {
 	return []authorizedUIDExclusionCase{
 		{
 			uid:           "uid-current-authorized",
+			digest:        authorizedUIDExclusionDigest("a"),
 			reason:        "current generation, not tombstoned, in an allowed scope",
 			wantScoped:    true,
 			wantAllScopes: true,
 		},
 		{
 			uid:           "uid-tombstoned",
+			digest:        authorizedUIDExclusionDigest("b"),
 			reason:        "source fact is tombstoned, so the resource no longer exists",
 			wantScoped:    false,
 			wantAllScopes: false,
 		},
 		{
 			uid:           "uid-superseded",
+			digest:        authorizedUIDExclusionDigest("c"),
 			reason:        "source fact belongs to a generation the scope has since replaced",
 			wantScoped:    false,
 			wantAllScopes: false,
@@ -89,6 +100,7 @@ func authorizedUIDExclusionCases() []authorizedUIDExclusionCase {
 			// equality excludes it. Proven by deleting the clause and watching
 			// this row leak.
 			uid:           "uid-not-active-generation",
+			digest:        authorizedUIDExclusionDigest("e"),
 			reason:        "generation is active but is not the scope's current active_generation_id",
 			wantScoped:    false,
 			wantAllScopes: false,
@@ -103,12 +115,14 @@ func authorizedUIDExclusionCases() []authorizedUIDExclusionCase {
 			// what the status clause defends. Its scope is granted to the scoped
 			// caller so the row tests freshness, not authorization.
 			uid:           "uid-status-not-active",
+			digest:        authorizedUIDExclusionDigest("f"),
 			reason:        "generation is the scope's active pointer but its own status is not 'active'",
 			wantScoped:    false,
 			wantAllScopes: false,
 		},
 		{
 			uid:    "uid-cross-scope",
+			digest: authorizedUIDExclusionDigest("d"),
 			reason: "current and live, but in a scope the scoped caller holds no grant for",
 			// The one row where the two callers legitimately disagree: it is
 			// fresh, so an admin sees it; it is out of scope, so a scoped
@@ -129,6 +143,9 @@ func TestCurrentAuthorizedCloudResourceUIDsExcludesStaleAndUnauthorizedLive(t *t
 		t.Fatalf("open Postgres: %v", err)
 	}
 	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	db.SetConnMaxLifetime(0)
+	db.SetConnMaxIdleTime(0)
 	t.Cleanup(func() { _ = db.Close() })
 
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
@@ -185,6 +202,92 @@ func TestCurrentAuthorizedCloudResourceUIDsExcludesStaleAndUnauthorizedLive(t *t
 			// assertion cannot see one.
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("CurrentAuthorizedCloudResourceUIDs() = %v, want exactly %v\nper-uid rules:\n%s",
+					got, want, authorizedUIDExclusionRules(cases))
+			}
+		})
+	}
+}
+
+// TestCurrentAuthorizedCloudResourcesByDigestExcludesStaleAndUnauthorizedLive is
+// the same proof pointed at the method production actually calls.
+//
+// This is the one that matters, and #5794's text does not say so: the issue
+// names CurrentAuthorizedCloudResourceUIDs, but that method has NO production
+// caller. probeSupplyChainCloudRuntimeResources type-asserts
+// CloudResourceRuntimeDigestResolver and calls
+// CurrentAuthorizedCloudResourcesByDigest
+// (supply_chain_impact_cloud_runtime_probe.go:91), so that query is what stands
+// between a stale or cross-scope resource and a runtime_confirmed tier.
+// Guarding only the UIDs method would have left the real path unproven while
+// looking thorough (codex review).
+//
+// Same seeded rows, same per-predicate isolation, driven through the digest
+// route.
+func TestCurrentAuthorizedCloudResourcesByDigestExcludesStaleAndUnauthorizedLive(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
+	if dsn == "" {
+		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the live runtime-digest exclusion proof")
+	}
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open Postgres: %v", err)
+	}
+	db.SetMaxOpenConns(1)
+	// The seeded corpus lives in TEMP tables, which are session-scoped. Pinning
+	// idle count and disabling recycling keeps database/sql on the one physical
+	// connection, so a reconnect cannot lose the tables mid-test (Copilot).
+	db.SetMaxIdleConns(1)
+	db.SetConnMaxLifetime(0)
+	db.SetConnMaxIdleTime(0)
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	seedAuthorizedUIDExclusionCorpus(t, ctx, db)
+	store := NewPostgresCloudResourceListStore(db)
+
+	cases := authorizedUIDExclusionCases()
+	digests := make([]string, 0, len(cases))
+	for _, testCase := range cases {
+		digests = append(digests, testCase.digest)
+	}
+
+	for _, caller := range []struct {
+		name      string
+		allScopes bool
+		scopeIDs  []string
+		want      func(authorizedUIDExclusionCase) bool
+	}{
+		{
+			name:     "scoped caller",
+			scopeIDs: []string{"scope:allowed", "scope:stale-status"},
+			want:     func(c authorizedUIDExclusionCase) bool { return c.wantScoped },
+		},
+		{
+			name:      "all-scopes caller",
+			allScopes: true,
+			want:      func(c authorizedUIDExclusionCase) bool { return c.wantAllScopes },
+		},
+	} {
+		t.Run(caller.name, func(t *testing.T) {
+			matches, err := store.CurrentAuthorizedCloudResourcesByDigest(ctx, digests, caller.allScopes, nil, caller.scopeIDs)
+			if err != nil {
+				t.Fatalf("CurrentAuthorizedCloudResourcesByDigest() error = %v, want nil", err)
+			}
+			got := make([]string, 0, len(matches))
+			for _, match := range matches {
+				got = append(got, match.UID)
+			}
+			want := make([]string, 0, len(cases))
+			for _, testCase := range cases {
+				if caller.want(testCase) {
+					want = append(want, testCase.uid)
+				}
+			}
+			sort.Strings(got)
+			sort.Strings(want)
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("CurrentAuthorizedCloudResourcesByDigest() = %v, want exactly %v\nper-uid rules:\n%s",
 					got, want, authorizedUIDExclusionRules(cases))
 			}
 		})
@@ -264,12 +367,12 @@ func seedAuthorizedUIDExclusionCorpus(t *testing.T, ctx context.Context, db *sql
                    'arn', 'arn:example:compute:::resource/' || uid
                  )
           FROM (VALUES
-            ('uid-current-authorized', 'fact-current-authorized', 'sha256:` + strings.Repeat("a", 64) + `'),
-            ('uid-tombstoned',         'fact-tombstoned',         'sha256:` + strings.Repeat("b", 64) + `'),
-            ('uid-superseded',         'fact-superseded',         'sha256:` + strings.Repeat("c", 64) + `'),
-            ('uid-not-active-generation', 'fact-not-active-gen',  'sha256:` + strings.Repeat("e", 64) + `'),
-            ('uid-status-not-active',  'fact-status-not-active',  'sha256:` + strings.Repeat("f", 64) + `'),
-            ('uid-cross-scope',        'fact-cross-scope',        'sha256:` + strings.Repeat("d", 64) + `')
+            ('uid-current-authorized', 'fact-current-authorized', '` + authorizedUIDExclusionDigest("a") + `'),
+            ('uid-tombstoned',         'fact-tombstoned',         '` + authorizedUIDExclusionDigest("b") + `'),
+            ('uid-superseded',         'fact-superseded',         '` + authorizedUIDExclusionDigest("c") + `'),
+            ('uid-not-active-generation', 'fact-not-active-gen',  '` + authorizedUIDExclusionDigest("e") + `'),
+            ('uid-status-not-active',  'fact-status-not-active',  '` + authorizedUIDExclusionDigest("f") + `'),
+            ('uid-cross-scope',        'fact-cross-scope',        '` + authorizedUIDExclusionDigest("d") + `')
           ) AS seed(uid, fact_id, digest)`,
 		`ANALYZE ingestion_scopes`,
 		`ANALYZE scope_generations`,
