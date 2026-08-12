@@ -178,6 +178,20 @@ show a restart converges. It prints `graph_rebuild_seconds` for the SLO row. Set
 `ESHU_DR_SKIP_INTERRUPT=true` to run the timed pass only. Reads the procedure
 being tested: [Rebuild the graph from facts](../../operate/graph-rebuild-from-facts.md).
 
+It waits on two queues before comparing: `fact_work_items` and the shared edge
+backlog in `shared_projection_intents`. The second one drains on its own worker
+cycle and has been measured still running four minutes after the first went
+quiet, so a comparison made on the first alone reports edges as missing that were
+simply not written yet.
+
+**This gate does not pass today**, and that is a known state rather than a broken
+environment. Two edge families come back thin on a single rebuild pass, repeated
+rebuilds inflate two others instead of converging, and indexing the same corpus
+twice does not produce the same graph, so the snapshot it compares against moves
+between runs. Each cause, with counts, is in
+`docs/internal/evidence/4594-graph-rebuild-from-facts.md`. Do not treat a red
+result here as a regression without diffing it against that breakdown first.
+
 For a no-credential proof of additional lanes against public, unauthenticated
 endpoints (CISA KEV, FIRST EPSS, OSV, public npm), use the public-collector
 gate. It claim-drives the workflow-coordinator and asserts fact commit, reducer
