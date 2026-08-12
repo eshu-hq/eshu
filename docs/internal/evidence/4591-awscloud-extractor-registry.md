@@ -65,8 +65,9 @@ emission — `eshu_dp_aws_resources_emitted_total` and
 (`go/internal/collector/awscloud/awsruntime/source.go:177`), plus
 `eshu_dp_facts_emitted_total` and `eshu_dp_facts_committed_total` from the fact
 commit row (`go/internal/collector/git_source_processing.go:217`). Those stay
-correct through the migrations, because moving where attributes are built does
-not change what is emitted or how it is committed.
+correct when the AWS Config lane registers extractors, because extraction fills
+attributes on the existing observation path rather than changing what is emitted
+or how it is committed.
 `bash scripts/verify-telemetry-coverage.sh` exits 0.
 
 ## Design decision recorded here so it is not re-opened
@@ -89,7 +90,8 @@ Written failing-first against undefined symbols, then implemented:
 - round-trip: a registered extractor's `Attributes` and `CorrelationAnchors`
   survive dispatch
 - an unregistered type is `handled=false` with a nil error and a zero value —
-  the property that makes the migration incremental
+  the property that lets the Config lane add extractors one resource type at a
+  time without stranding the types it has not covered yet
 - an extractor error is wrapped so it names its resource type, asserted against
   a payload carrying a fake password to prove the resource data does not leak
   into the error string

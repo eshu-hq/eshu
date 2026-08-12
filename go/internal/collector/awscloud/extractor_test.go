@@ -11,10 +11,11 @@ import (
 	"testing"
 )
 
-// The registry is the convergence point issue #4591 asks awscloud to adopt from
-// gcpcloud: one extractor per resource type, registered from that type's own
-// file, so parallel type additions never collide in a shared parser switch.
-// These tests pin the contract before any scanner migrates onto it.
+// The registry dispatches one extractor per resource type, registered from that
+// type's own file, so parallel type additions never collide in a shared parser
+// switch. Its producer is the AWS Config lane (#6088), not the service scanners
+// — see the header comment in extractor.go for why. These tests pin the contract
+// before that lane registers anything.
 
 func TestRegisterResourceExtractorRoundTrips(t *testing.T) {
 	const resourceType = "AWS::Test::RoundTrip"
@@ -49,8 +50,8 @@ func TestRegisterResourceExtractorRoundTrips(t *testing.T) {
 
 // An unregistered type must be handled=false with no error, so the parser keeps
 // emitting its bounded base observation for types that carry no typed depth.
-// This is what makes the migration incremental: unmigrated scanners are
-// unaffected.
+// That is what lets the Config lane add extractors one resource type at a time
+// without stranding the types it has not covered yet.
 func TestExtractResourceAttributesUnregisteredIsNotAnError(t *testing.T) {
 	got, handled, err := extractResourceAttributes(ExtractContext{ResourceType: "AWS::Test::NeverRegistered"})
 	if err != nil {

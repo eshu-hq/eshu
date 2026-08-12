@@ -152,11 +152,11 @@ func HasResourceExtractor(resourceType string) bool {
 
 // extractResourceAttributes dispatches to the registered extractor for the
 // context resource type. It returns handled=false (with no error) when no
-// extractor is registered, so the scanner keeps emitting the bounded base
-// observation for resource types without typed depth — which is what lets the
-// migration proceed one scanner at a time. A registered extractor's error is
-// wrapped so the caller can attribute it to the resource type without leaking
-// resource data.
+// extractor is registered, so a caller keeps its bounded base observation for
+// resource types that carry no typed depth. That is what lets the AWS Config
+// lane (#6088) add extractors one resource type at a time without stranding the
+// types it has not covered yet. A registered extractor's error is wrapped so the
+// caller can attribute it to the resource type without leaking resource data.
 func extractResourceAttributes(ctx ExtractContext) (AttributeExtraction, bool, error) {
 	extractor, ok := lookupResourceExtractor(ctx.ResourceType)
 	if !ok {
