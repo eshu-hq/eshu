@@ -264,6 +264,105 @@ func TestRunRecognizesGrandfatheredDirectoryThroughRealKeyDerivation(t *testing.
 	}
 }
 
+// TestRunReportsCapFindingOnlyFromThePassThatLoadedTheNamedFile is the
+// regression test for the #6054 P2 gap identified in review of PR #6081:
+// run()'s "if !ok { continue }" branch (the fix for reporting a finding
+// against an arbitrary loaded file when the named one is absent from the
+// current go/analysis Pass's file set) had zero dedicated coverage.
+// TestRunRecognizesGrandfatheredDirectoryThroughRealKeyDerivation goes
+// through run() too, but it is built so evaluateDirectory returns no
+// findings, so it never reaches the byBase lookup miss at all.
+//
+// This test builds TWO analysis.Pass values over the SAME real directory
+// with DISJOINT file sets, mirroring the shape go/analysis actually
+// produces: the production package variant, the internal test variant, and
+// the external _test variant all share one directory but each loads a
+// different subset of its files. One pass loads every qualifying file
+// EXCEPT the cap finding's representative file (simulating a variant that
+// cannot see it); the other loads ONLY the representative file (simulating
+// the variant that owns it). The finding must be reported exactly once, by
+// the pass that loaded the named file, and not at all by the pass that did
+// not -- never against a substitute file, which is what the pre-fix
+// anyPos(byBase) fallback did. Confirmed against a scratch copy with the
+// pre-fix anyPos(byBase) fallback restored: that copy fails this test's
+// first assertion (the pass without the representative file reports 1
+// finding, attributed to an arbitrary loaded file, instead of 0).
+func TestRunReportsCapFindingOnlyFromThePassThatLoadedTheNamedFile(t *testing.T) {
+	const wantCount = maxDirFiles + 3
+	names := numberedFiles(wantCount)
+
+	orig := grandfatheredDirectories
+	grandfatheredDirectories = map[string]grandfatherEntry{}
+	t.Cleanup(func() { grandfatheredDirectories = orig })
+
+	root := t.TempDir()
+	pkgDir := filepath.Join(root, "go", "internal", "splitpkg")
+	if err := os.MkdirAll(pkgDir, 0o750); err != nil {
+		t.Fatalf("mkdir %s: %v", pkgDir, err)
+	}
+	writeGoFiles(t, pkgDir, names...)
+
+	// representativeFile(names) is deterministic: with no doc.go present it
+	// is the alphabetically-first name, which numberedFiles' zero-padded
+	// scheme guarantees is names[0] ("file0000.go").
+	rep := representativeFile(names)
+	if rep != names[0] {
+		t.Fatalf("test setup: representative file = %q, want %q (numberedFiles must sort first-to-last)", rep, names[0])
+	}
+
+	fset := token.NewFileSet()
+	astByName := make(map[string]*ast.File, len(names))
+	for _, n := range names {
+		p := filepath.Join(pkgDir, n)
+		af, err := parser.ParseFile(fset, p, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", p, err)
+		}
+		astByName[n] = af
+	}
+
+	// "withoutRep" mimics a package variant (e.g. an external _test
+	// package) that loaded every qualifying file EXCEPT the representative
+	// one.
+	withoutRep := make([]*ast.File, 0, len(names)-1)
+	for _, n := range names[1:] {
+		withoutRep = append(withoutRep, astByName[n])
+	}
+	// "withRep" mimics the variant that DOES load the representative file
+	// (e.g. the production package variant).
+	withRep := []*ast.File{astByName[rep]}
+
+	runPass := func(files []*ast.File) []analysis.Diagnostic {
+		var diags []analysis.Diagnostic
+		pass := &analysis.Pass{
+			Fset:  fset,
+			Files: files,
+			Report: func(d analysis.Diagnostic) {
+				diags = append(diags, d)
+			},
+		}
+		if _, err := run(pass); err != nil {
+			t.Fatalf("run: %v", err)
+		}
+		return diags
+	}
+
+	withoutDiags := runPass(withoutRep)
+	if len(withoutDiags) != 0 {
+		t.Fatalf("pass without %s reported %d finding(s), want 0: the byBase lookup miss must stay silent, "+
+			"not report against an arbitrary loaded file (got %v)", rep, len(withoutDiags), withoutDiags)
+	}
+
+	withDiags := runPass(withRep)
+	if len(withDiags) != 1 {
+		t.Fatalf("pass with %s reported %d finding(s), want exactly 1", rep, len(withDiags))
+	}
+	gotFile := filepath.Base(fset.Position(withDiags[0].Pos).Filename)
+	if gotFile != rep {
+		t.Fatalf("finding reported against %q, want %q (the file it names)", gotFile, rep)
+	}
+}
+
 func equalStrings(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
