@@ -435,36 +435,12 @@ set -e
 rg --quiet 'another live gate is already running' <<<"${cross_user_out}" \
 	|| fail "cross-user holder must be reported as running; got: ${cross_user_out}"
 
-# A --keep run leaves the compose stack up on the fixed ports, so it retains the
-# mutex too. Releasing it would hand those ports to the next run, which would
-# then tear the retained stack down with `docker compose down -v` on its exit.
-# The marker must outlive the holder pid, so pid liveness must not override it.
-rm -f "${lock_file}" "${lock_file}.keep"
-retain_out="$(
-	ESHU_LIVE_GATE_LOCK_DIR="${lock_home}" bash -c '
-		set -euo pipefail
-		. "$1"
-		acquire_live_gate_lock
-		retain_live_gate_lock
-		printf "MARKER=%s LOCK=%s\n" \
-			"$([[ -e "${lock_path}.keep" ]] && echo yes || echo no)" \
-			"$([[ -L "${lock_path}" ]] && echo yes || echo no)"
-	' _ "${lock_lib}" 2>&1
-)" || fail "retain probe failed: ${retain_out}"
-rg --quiet 'MARKER=yes LOCK=yes' <<<"${retain_out}" \
-	|| fail "retain must write the marker and leave the lock in place; got: ${retain_out}"
-
-# And the retained lock must block the next run even though the holder pid is
-# dead - that is the whole point of the marker outliving the pid.
-set +e
-keep_out="$(try_acquire)"
-keep_status=$?
-set -e
-[[ "${keep_status}" -ne 0 ]] \
-	|| fail "a --keep-retained lock must block a later run, got exit 0: ${keep_out}"
-rg --quiet 'keep run retained the compose stack' <<<"${keep_out}" \
-	|| fail "--keep refusal must explain the retained stack; got: ${keep_out}"
-rm -f "${lock_file}.keep"
+# The full production retain lifecycle is extracted to keep this file under
+# the 500-line cap. Its later acquire uses a running-Docker stub and proves the
+# marker remains authoritative after the recorded holder exits.
+. "${repo_root}/scripts/lib/golden-corpus-retain-lifecycle-cases.sh"
+[[ "${retain_lifecycle_cases_completed:-0}" -eq 1 ]] ||
+	fail "golden-corpus-retain-lifecycle-cases.sh did not run to completion"
 
 # The PRE-LOOP marker check is load-bearing in exactly the state its own refusal
 # message creates: the operator removes the lock but not the marker. This is the
