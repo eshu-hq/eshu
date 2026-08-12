@@ -3205,7 +3205,7 @@
         }
       },
       "dispatch_reaching_def": {
-        "description": "MCP tool coverage shape for dispatch_reaching_def; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for dispatch_reaching_def; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Non-vacuous since #5970: minimum_results was 0, so this shape stayed green whether or not a deployed run produced reaching-def facts at all -- which is the state #5692 left behind, where the ESHU_EMIT_DATAFLOW wiring existed but no deployed run had ever been captured with it on. orders-api's main.go carries one dataflow function fact for `main`, so the whole answer is pinned: one definition, that function, that language, and an exact parser fact label rather than a derived guess.",
         "required_response_fields": [
           "ambiguity",
           "bounds",
@@ -3213,7 +3213,22 @@
           "definitions",
           "query"
         ],
-        "minimum_results": 0,
+        "minimum_results": 1,
+        "results_field": "definitions",
+        "result_item_required_fields": [
+          "function_name",
+          "language",
+          "fact_label",
+          "relative_path",
+          "evidence_handle"
+        ],
+        "required_json_values": {
+          "bounds.count": 1,
+          "coverage.state": "exact",
+          "definitions[].function_name": "main",
+          "definitions[].language": "go",
+          "definitions[].fact_label": "exact_parser_fact"
+        },
         "arguments": {
           "repo_id": "orders-api",
           "symbol": "main"

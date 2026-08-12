@@ -139,8 +139,9 @@ Burn-down progress:
   deployed component-extension Compose stack, returning `installed=true`,
   `enabled=true`, and `trusted=true` for a real claimed component, with the
   diagnostics route sharing that handler.
-- **This directory now holds 110 committed, machine-valid deployed artifacts**
-  covering all 115 currently supported production row-occurrences. Seven were
+- **This directory now holds 111 committed, machine-valid deployed artifacts**
+  covering all 116 currently supported production row-occurrences. The most
+  recent is `prod-symbol-graph-inheritance` (#5970). The 110 before it: seven were
   validated for #5681. #5552 requalified the remaining 103 slugs: 100 through
   a fresh 550-pass golden-corpus Compose run with an independent persisted-graph
   oracle for the two aggregate rows, two through the deployed
@@ -166,6 +167,31 @@ Burn-down progress:
   `type(rel)`/`coalesce`-after-`OPTIONAL MATCH` literal-text defect #5694; and
   argument_names drops declared parameters through projection). No slug was
   bulk-downgraded: every one carries a per-row deployed determination.
+- **#5970 re-ran all five of those downgraded rows against a deployed stack.**
+  Every product defect they cited is now fixed in main, but only one row's
+  proof landed on the surface the row actually advertises:
+    - `symbol_graph.inheritance` is **restored to `production: supported`** with
+      `prod-symbol-graph-inheritance`. The #5694 NornicDB literal-text defect is
+      closed (#5916 holds it with a regression test) and the deployed
+      `/code/relationships` route returned declared INHERITS edges in both
+      directions at confidence 0.95.
+    - `code_flow.reaching_def` **stays experimental by policy, not for lack of
+      proof.** A deployed run with `ESHU_EMIT_DATAFLOW` on returned five
+      definitions at `coverage.state` exact, so #5692's wiring works and #5988
+      turned the flag on in the gate. But value-flow emission is off by default
+      and `docs/public/reference/value-flow-emission.md` requires it stay an
+      explicitly-gated preview, so `supported` would wrongly advertise GA.
+    - `symbol_graph.imports` **stays experimental on a surface mismatch.** The
+      #5691 zero-edge defect is fixed (PR #5911 added the producer) and a
+      deployed run returned 25 IMPORTS relationships from the graph — but
+      through `/code/imports/investigate`, which belongs to the sibling
+      capability `symbol_graph.import_dependencies`. This row advertises
+      `execute_language_query`, and nothing yet proves imports through it.
+    - `symbol_graph.argument_names` stays experimental with a sharper reason:
+      the deployed readback keeps declared parameters on methods and drops them
+      on module-level functions.
+    - `semantic_evidence.code_hints.list` stays experimental unchanged: the
+      #5693 producer exists but no runtime path calls it.
 - **`FROZEN_MAX` is now 0 — the baseline is empty.** The final 7
   secrets/IAM and code-to-cloud/code-search slugs closed Cluster B of #5681:
   `prod-secrets-iam-identity-trust-chains`, `-posture-gaps`,

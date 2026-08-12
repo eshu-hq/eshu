@@ -101,6 +101,7 @@
     {"slug":"prod-supply-chain-impact","artifact_path":"docs/internal/remote-validation/prod-supply-chain-impact.md","subjects":["reachability.go.govulncheck/production","supply_chain.impact_findings.list/production"],"assertion_count":2},
     {"slug":"prod-supply-chain-impact-aggregate","artifact_path":"docs/internal/remote-validation/prod-supply-chain-impact-aggregate.md","subjects":["supply_chain.impact_findings.aggregate/production"],"assertion_count":1},
     {"slug":"prod-supply-chain-impact-explain","artifact_path":"docs/internal/remote-validation/prod-supply-chain-impact-explain.md","subjects":["supply_chain.impact_explanation.read/production"],"assertion_count":1},
+    {"slug":"prod-symbol-graph-inheritance","artifact_path":"docs/internal/remote-validation/prod-symbol-graph-inheritance.md","subjects":["symbol_graph.inheritance/production"],"assertion_count":1},
     {"slug":"prod-symbol-lookup","artifact_path":"docs/internal/remote-validation/prod-symbol-lookup.md","subjects":["code_search.symbol_lookup/production"],"assertion_count":1},
     {"slug":"prod-topic-investigation","artifact_path":"docs/internal/remote-validation/prod-topic-investigation.md","subjects":["code_search.topic_investigation/production"],"assertion_count":1},
     {"slug":"prod-trace-exposure-path","artifact_path":"docs/internal/remote-validation/prod-trace-exposure-path.md","subjects":["code_to_cloud.trace_exposure_path/production"],"assertion_count":1},
