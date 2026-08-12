@@ -1013,6 +1013,28 @@ a digest repeat the same deterministic prefix within their page-weighted quota. 
 all-scopes sentinel permits at most 400 graph candidates before the single
 authorization read.
 
+Within `runtime_context`, current repository mappings contribute environment
+candidate names only. `environment_evidence` admits a value only when a current,
+authorized correlation matches both that candidate environment and the
+finding's exact `subject_digest`. That
+strong digest branch deliberately crosses builder/deployer repository seams,
+as the reducer does; it is artifact deployment context, not repository
+ownership. Repository and baked evidence values are never copied, and an
+unconfirmed candidate receives no evidence entry.
+
+Values use the same `deploy_event`/`declared` vocabulary as the reducer-baked
+top-level field: missing or unknown values on an admitted matching row normalize
+to `declared`, and `deploy_event` wins when multiple current facts match the same
+candidate.
+`environment_evidence_probe.candidate_limit` records how many visible
+environment candidates this finding received from the fixed 200-candidate page
+budget. Allocation is deterministic and round-robin, so every eligible finding
+gets at least one slot. `candidates_truncated` is true only when that finding's
+visible candidate names exceeded its quota; it discloses nothing about hidden
+facts. This probe confirms existing candidate names and does not discover a new
+environment absent from the finding. Read-time resolution never writes results
+back into the finding's baked top-level fields.
+
 Ambiguous images, stale deployment evidence, missing workload links, or missing
 service/environment links stay in `missing_evidence[]`. Exact
 repository-scoped service-catalog correlation evidence remains attached to the
@@ -1021,8 +1043,9 @@ correlation lacks explicit `service_id` or `workload_id` anchors, the row
 reports `service/workload catalog anchor missing` instead of saying
 service-catalog correlation evidence is absent.
 
-`environment_evidence` (issue #5426) is an object keyed by each name in
-`environments[]`, valued `deploy_event` or `declared`: `deploy_event` means a
+The reducer-baked top-level `environment_evidence` (issue #5426) is an object
+keyed by each name in `environments[]`, valued `deploy_event` or `declared`:
+`deploy_event` means a
 `ci.deployment_event` observed at the deploying run's commit corroborated that
 environment; `declared` means only the CI-declared workflow job gate did, with
 no deployment-event corroboration. When two deployments report the same

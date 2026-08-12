@@ -17,8 +17,10 @@ import (
 // (ci_cd_run_correlations.go, service_catalog_correlations.go); the other two
 // are defined here because no other query surface reads them yet.
 const (
-	workloadIdentityFactKindQuery        = "reducer_workload_identity"
-	platformMaterializationFactKindQuery = "reducer_platform_materialization"
+	workloadIdentityFactKindQuery                    = "reducer_workload_identity"
+	platformMaterializationFactKindQuery             = "reducer_platform_materialization"
+	supplyChainRuntimeEnvironmentEvidenceDeployEvent = "deploy_event"
+	supplyChainRuntimeEnvironmentEvidenceDeclared    = "declared"
 )
 
 // supplyChainImpactRuntimeContextFactKinds is the closed kind set the
@@ -238,6 +240,34 @@ func addSupplyChainRuntimeContextFactForRepository(
 			out[repositoryID] = ctx
 		}
 	}
+}
+
+// recordSupplyChainRuntimeEnvironmentEvidence folds one exact-digest lookup
+// row into the response-side evidence map. It mirrors the reducer's #5426
+// contract: only deploy_event proves deployment-event corroboration, every
+// missing or unknown admitted value is declared, and deploy_event wins
+// independent of fact iteration order.
+func recordSupplyChainRuntimeEnvironmentEvidence(
+	state map[string]string,
+	environment string,
+	raw string,
+) map[string]string {
+	environment = strings.TrimSpace(environment)
+	if environment == "" {
+		return state
+	}
+	if state == nil {
+		state = make(map[string]string)
+	}
+	if state[environment] == supplyChainRuntimeEnvironmentEvidenceDeployEvent {
+		return state
+	}
+	if strings.TrimSpace(raw) == supplyChainRuntimeEnvironmentEvidenceDeployEvent {
+		state[environment] = supplyChainRuntimeEnvironmentEvidenceDeployEvent
+		return state
+	}
+	state[environment] = supplyChainRuntimeEnvironmentEvidenceDeclared
+	return state
 }
 
 // supplyChainRuntimeContextOutcomeAccepted mirrors the reducer's outcome gate

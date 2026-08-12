@@ -86,6 +86,7 @@ func TestVulnerabilityScannerReadContractIdentifiesFilters(t *testing.T) {
 	for _, want := range []string{
 		"findings list and impact explain routes",
 		"transformed investigation packet omits it",
+		"environment_evidence uses deploy_event or declared",
 	} {
 		if !strings.Contains(notes, want) {
 			t.Errorf("runtime_context notes = %q, want %q", notes, want)

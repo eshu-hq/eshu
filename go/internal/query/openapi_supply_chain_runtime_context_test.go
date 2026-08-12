@@ -5,6 +5,7 @@ package query
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -30,10 +31,39 @@ func TestOpenAPISpecDocumentsSupplyChainRuntimeContextRoutes(t *testing.T) {
 	items := mustMapField(t, findings, "items")
 	itemProperties := mustMapField(t, items, "properties")
 	runtimeContext := mustMapField(t, itemProperties, "runtime_context")
+	runtimeContextProperties := mustMapField(t, runtimeContext, "properties")
+	environmentEvidence := mustMapField(t, runtimeContextProperties, "environment_evidence")
+	additionalProperties := mustMapField(t, environmentEvidence, "additionalProperties")
+	if got, want := additionalProperties["enum"], []any{"deploy_event", "declared"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("runtime_context.environment_evidence enum = %#v, want %#v", got, want)
+	}
+	probe := mustMapField(t, runtimeContextProperties, "environment_evidence_probe")
+	probeProperties := mustMapField(t, probe, "properties")
+	if got := mustMapField(t, probeProperties, "candidate_limit")["maximum"]; got != float64(200) {
+		t.Fatalf("environment_evidence_probe.candidate_limit maximum = %#v, want 200", got)
+	}
+	if got := mustMapField(t, probeProperties, "candidates_truncated")["type"]; got != "boolean" {
+		t.Fatalf("environment_evidence_probe.candidates_truncated type = %#v, want boolean", got)
+	}
 
-	const wantDescription = "Read-time-resolved runtime context joined from the finding's repository_id at query time (#5746): the workloads, services, deployments, environments, and catalog refs that repository currently maps to. Populated when this finding shape is returned by the findings list or impact explain route; the transformed investigation-packet shape omits it. truth_basis is always read_time_resolved so callers can distinguish these IDs from baked workload_ids/service_ids/environments. The workload_id/service_id/environment filters resolve only the same current active repository mappings (#5747); stale baked values cannot satisfy them. An empty runtime_context is an honest 'no runtime facts landed yet' (fresh ingest) that self-heals on the next read; it is not an error and not 'never scanned'."
+	const wantDescription = "Read-time-resolved runtime context (#5746). Workloads, services, deployments, and catalog refs are current repository mappings. Environment corroboration additionally confirms already-visible finding environment names against current accepted correlations for the finding's exact subject digest, mirroring the reducer's strong digest match across builder/deployer repository seams; it is artifact deployment context, not repository ownership. Populated on findings list and impact explain responses; the transformed investigation packet omits it. truth_basis is always read_time_resolved. The workload_id/service_id/environment filters use current active repository mappings (#5747); stale baked values cannot satisfy them."
 	if got := runtimeContext["description"]; got != wantDescription {
 		t.Fatalf("runtime_context.description = %#v, want %#v", got, wantDescription)
+	}
+
+	explainPath := mustMapField(t, paths, "/api/v0/supply-chain/impact/explain")
+	explainGet := mustMapField(t, explainPath, "get")
+	explainResponses := mustMapField(t, explainGet, "responses")
+	explainOK := mustMapField(t, explainResponses, "200")
+	explainContent := mustMapField(t, explainOK, "content")
+	explainJSON := mustMapField(t, explainContent, "application/json")
+	explainSchema := mustMapField(t, explainJSON, "schema")
+	explainProperties := mustMapField(t, explainSchema, "properties")
+	explainFinding := mustMapField(t, explainProperties, "finding")
+	explainFindingProperties := mustMapField(t, explainFinding, "properties")
+	explainRuntimeContext := mustMapField(t, explainFindingProperties, "runtime_context")
+	if !reflect.DeepEqual(explainRuntimeContext, runtimeContext) {
+		t.Fatalf("explain runtime_context = %#v, want list runtime_context %#v", explainRuntimeContext, runtimeContext)
 	}
 }
 

@@ -347,7 +347,43 @@ result therefore reports the current `runtime_context`,
 `deployment_truth_tier`, `version_resolution_tier`, and
 `version_resolution_corroboration` from the same enriched row. The transformed
 investigation packet omits those fields and skips reads that cannot affect its
-response. Version resolution selects the strongest eligible concrete claim in
+response. Current repository correlations contribute environment candidate
+names only. A second set-based read admits `environment_evidence` only when a
+current, authorized correlation matches both the candidate environment and the
+finding's exact subject digest. This mirrors the reducer's strong digest branch
+across builder/deployer repository seams; it is artifact deployment context,
+not repository ownership. Repository or baked evidence values are never copied,
+and an unconfirmed candidate gets no evidence entry. Admitted values reuse the
+`deploy_event`/`declared` producer vocabulary: a missing or unknown value on a
+matching row normalizes to `declared`, and `deploy_event` wins when more than
+one matching fact names the same environment. Read-time evidence never
+overwrites the finding's reducer-baked top-level environment fields.
+
+Performance Evidence: `BenchmarkFoldSupplyChainRuntimeContext200Repositories`
+folded the same 800 facts for 200 repositories before and after the response
+change. Across five normal-build samples on the same machine and input shape,
+the `origin/main` median was 69.716 microseconds per fold
+(68.920-71.099 microseconds, 48,168 bytes and 1,003 allocations); the final
+branch median was 65.839 microseconds (65.285-66.574 microseconds, 48,168 bytes
+and 1,003 allocations). Repository folding therefore adds no evidence map or
+allocation; exact-digest response evidence is owned by the separate bounded
+lookup. The exact production SQL was also measured on
+PostgreSQL 18.4 with 100,000 active rows for one hot digest, 199 cold candidate
+rows, and 900,000 unrelated rows. The original flattenable join performed
+roughly 200 million candidate comparisons, spilled its sort, and took 66,458.413
+milliseconds. The candidate-driven LATERAL aggregate used the existing
+artifact-digest partial index once per candidate and took 128.029 milliseconds
+under `EXPLAIN (ANALYZE, BUFFERS)`; the production store call returned all 200
+confirmations in 68.545 milliseconds.
+
+Observability Evidence: `environment_evidence_probe` exposes each finding's
+allocated candidate count and whether its visible candidate names were
+truncated. The existing supply-chain list and explain request spans,
+runtime-context result counts, error envelopes, and request duration/error
+metrics diagnose the set-based read without adding a new high-cardinality
+label.
+
+Version resolution selects the strongest eligible concrete claim in
 deployment-truth
 order: runtime-observed evidence, CI-declared provenance, then config evidence.
 The unshipped declared-ref tier contributes no claim. A CI-declared digest that

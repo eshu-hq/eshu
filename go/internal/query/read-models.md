@@ -310,6 +310,21 @@ cross-scope correlation oracle. Response-side `runtime_context` hydration
 applies that identical per-fact grant before folding workloads, services,
 deployments, environments, or catalog refs, so a scoped response never
 advertises context that its corresponding filter must reject.
+Finding-bound environment corroboration additionally batches at most 200
+visible `(subject_digest, environment)` candidate occurrences across the final
+page. Round-robin allocation gives every eligible finding at least one slot;
+identical pairs share one SQL lookup. A candidate enters `runtime_context` only
+when a current active authorized accepted `reducer_ci_cd_run_correlation`
+matches both values. This mirrors the reducer's strong digest deployment branch
+across builder/deployer repository seams and is artifact deployment context,
+not repository ownership. The baked environment name is only a selector; the
+evidence state is recomputed from current facts, with `deploy_event` winning
+over `declared`. Repository mappings contribute candidate names only; an
+unconfirmed name receives no evidence entry. Per-row
+`environment_evidence_probe` reports the checked quota and whether visible
+candidate names were truncated, so serialized evidence cannot exceed the same
+200-occurrence page budget. It does not discover environments absent from the
+finding.
 Direct identity fields are accepted only when their JSON value is a string.
 Objects, arrays, numbers, and booleans fail closed in both SQL membership and
 Go hydration; malformed direct repository and scope anchors fall through to
