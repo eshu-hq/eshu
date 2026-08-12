@@ -9,7 +9,16 @@ fi
 
 base="${ESHU_COLLECTOR_AUTHORING_BASE:-}"
 if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
-  git -C "$repo_root" fetch --no-tags --depth=1 origin "$GITHUB_BASE_REF" >/dev/null 2>&1 || true
+  # The `<src>:<dst>` destination refspec is required: `git fetch origin
+  # <branch>` with no `:<dst>` only ever updates FETCH_HEAD, never
+  # refs/remotes/origin/<branch>. Under a shallow actions/checkout the base
+  # branch is not in the clone, so origin/$GITHUB_BASE_REF never resolved, the
+  # merge-base branch below found no origin/main either, and the run silently
+  # used HEAD~1 -- the tip commit alone. This gate has no workflow of its own
+  # today; the refspec keeps the CI-shaped path honest for whoever wires one,
+  # and matches verify-performance-evidence.sh, which carries the same fix.
+  git -C "$repo_root" fetch --no-tags --depth=1 origin \
+    "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" >/dev/null 2>&1 || true
   if git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
     base="origin/$GITHUB_BASE_REF"
   fi

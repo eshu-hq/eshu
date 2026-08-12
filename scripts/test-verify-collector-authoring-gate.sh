@@ -183,4 +183,92 @@ if ! run_verifier_local_base "${merge_base_clean_repo}"; then
   exit 1
 fi
 
+# Regression: the CI base path (GITHUB_BASE_REF -> origin/$GITHUB_BASE_REF),
+# which every test above bypasses -- they either pin the base env var or leave
+# GITHUB_BASE_REF unset. `git fetch origin <branch>` with no `<src>:<dst>`
+# destination refspec only ever updates FETCH_HEAD, never
+# refs/remotes/origin/<branch>, so under a shallow actions/checkout
+# origin/$GITHUB_BASE_REF failed to resolve, the merge-base branch found no
+# origin/main either, and the gate ran against HEAD~1 -- the tip commit alone.
+#
+# The fixture is that checkout: a real shallow clone, a narrow fetch refspec
+# that never names the base branch, and no origin/main. A default `git clone`
+# configures the wildcard refspec under which even the old bareword fetch
+# creates origin/main, and the fixture would prove nothing.
+setup_ci_shaped_clone() {
+  local origin_dir="$1"
+  local clone_dir="$2"
+  git -C "${origin_dir}" branch -M main
+  git clone -q --depth=1 "file://${origin_dir}" "${clone_dir}"
+  git -C "${clone_dir}" config user.email "test@example.invalid"
+  git -C "${clone_dir}" config user.name "Eshu Test"
+  git -C "${clone_dir}" config --unset-all remote.origin.fetch
+  git -C "${clone_dir}" config --add remote.origin.fetch \
+    '+refs/heads/unrelated-pr-branch:refs/remotes/origin/unrelated-pr-branch'
+  git -C "${clone_dir}" update-ref -d refs/remotes/origin/main
+  git -C "${clone_dir}" checkout -q -b feature
+  if git -C "${clone_dir}" rev-parse --verify origin/main >/dev/null 2>&1; then
+    printf 'fixture is wrong: origin/main resolves before the gate ever runs\n' >&2
+    exit 1
+  fi
+}
+
+run_verifier_ci_base() {
+  local dir="$1"
+  env -u ESHU_COLLECTOR_AUTHORING_BASE \
+    ESHU_COLLECTOR_AUTHORING_REPO_ROOT="${dir}" \
+    GITHUB_BASE_REF=main \
+    "${verifier}" >/tmp/eshu-collector-authoring.out \
+    2>/tmp/eshu-collector-authoring.err
+}
+
+ci_base_repo="${tmp_root}/ci-base"
+setup_ci_shaped_clone "$(init_repo ci-base-origin)" "${ci_base_repo}"
+# Commit A adds an undocumented collector; commit B is the innocuous tip commit
+# that a HEAD~1 base would have scoped the gate to.
+mkdir -p "${ci_base_repo}/go/internal/collector/confluence2"
+printf 'package confluence2\n' \
+  >"${ci_base_repo}/go/internal/collector/confluence2/source.go"
+git -C "${ci_base_repo}" add .
+git -C "${ci_base_repo}" commit -q -m 'PR commit A: collector without package docs'
+printf '# readme\n' >"${ci_base_repo}/README.md"
+git -C "${ci_base_repo}" add .
+git -C "${ci_base_repo}" commit -q -m 'PR commit B: readme touch'
+
+if run_verifier_ci_base "${ci_base_repo}"; then
+  printf 'expected the CI-shaped gate to FAIL: the branch adds an undocumented\n' >&2
+  printf 'collector in commit A and ends on an innocuous commit. A pass means the\n' >&2
+  printf 'fetch never created origin/main and the base fell back to HEAD~1.\n' >&2
+  sed -n '1,140p' /tmp/eshu-collector-authoring.out >&2
+  exit 1
+fi
+# Exit status alone does not say WHICH base the gate used. These two do: only
+# the verifier's own fetch could have created origin/main in this clone, and
+# that message names the package added in commit A.
+if ! git -C "${ci_base_repo}" rev-parse --verify origin/main >/dev/null 2>&1; then
+  printf 'expected the verifier fetch to create origin/main (destination refspec)\n' >&2
+  exit 1
+fi
+if ! rg -q 'go/internal/collector/confluence2 is missing doc.go' \
+  /tmp/eshu-collector-authoring.err; then
+  printf 'the gate failed, but not for commit A -- the CI base was not used\n' >&2
+  sed -n '1,140p' /tmp/eshu-collector-authoring.err >&2
+  exit 1
+fi
+
+# The CI window must not fire on a branch with no collector change at all.
+ci_base_clean_repo="${tmp_root}/ci-base-clean"
+setup_ci_shaped_clone "$(init_repo ci-base-clean-origin)" "${ci_base_clean_repo}"
+printf '# docs only\n' >"${ci_base_clean_repo}/README.md"
+git -C "${ci_base_clean_repo}" add .
+git -C "${ci_base_clean_repo}" commit -q -m 'PR commit A: docs only'
+printf '# docs only, again\n' >"${ci_base_clean_repo}/README.md"
+git -C "${ci_base_clean_repo}" add .
+git -C "${ci_base_clean_repo}" commit -q -m 'PR commit B: docs only'
+if ! run_verifier_ci_base "${ci_base_clean_repo}"; then
+  printf 'expected a docs-only branch to PASS under the CI base window\n' >&2
+  sed -n '1,140p' /tmp/eshu-collector-authoring.err >&2
+  exit 1
+fi
+
 printf 'verify-collector-authoring-gate tests passed\n'

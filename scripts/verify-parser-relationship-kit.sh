@@ -10,7 +10,13 @@ fi
 
 base="${ESHU_PARSER_RELATIONSHIP_KIT_BASE:-}"
 if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
-  git -C "$repo_root" fetch --no-tags --depth=1 origin "$GITHUB_BASE_REF" >/dev/null 2>&1 || true
+  # The `<src>:<dst>` destination refspec is required: `git fetch origin
+  # <branch>` with no `:<dst>` only updates FETCH_HEAD, never
+  # refs/remotes/origin/<branch>. This gate's CI job checks out with
+  # fetch-depth: 2 (test.yml verify-contracts), so origin/$GITHUB_BASE_REF
+  # never resolved and every PR run silently used HEAD~1: the tip commit alone.
+  git -C "$repo_root" fetch --no-tags --depth=1 origin \
+    "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" >/dev/null 2>&1 || true
   if git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
     base="origin/$GITHUB_BASE_REF"
   fi
