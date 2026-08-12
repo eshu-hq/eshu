@@ -211,10 +211,10 @@ func scanPackageGroup(files []parsedGoFile, decodeFuncs map[string]struct{}, str
 //
 // A local declaration that does not parse as a valid decode-seam shape at all
 // (an unqualified return type, the wrong parameter count, and so on) is NOT
-// treated as a conflict: it is not a "valid" same-named decode helper, and
-// excluding it would also break the ordinary cross-package call-site pattern
-// the recursive walk exists to support — a handler in one package legitimately
-// calling the canonical seam declared in another.
+// treated as a conflict: it is not a "valid" same-named decode helper, so it
+// stays bound to the conservative baseline, and any misread that produces is
+// dropped later by BuildManifest. Treating every same-named declaration as a
+// conflict would instead unbind the real seam on a coincidence of naming.
 func effectiveDecodeFuncs(files []parsedGoFile, decodeFuncs map[string]struct{}, funcToStruct map[string]string) map[string]struct{} {
 	effective := make(map[string]struct{}, len(decodeFuncs))
 	for name := range decodeFuncs {
