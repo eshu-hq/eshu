@@ -220,6 +220,17 @@ func (e PhaseGroupExecutor) PhaseGroupStatementLimit(stmts []sourcecypher.Statem
 		}
 		return DefaultDirectoryPhaseStatements
 	}
+	if phase == sourcecypher.CanonicalPhaseStructuralEdges {
+		// Structural-edge statements are row-batched at the canonical writer's
+		// batch size, so the broad 500-statement default let a 147-statement
+		// scope commit roughly 73,500 rows in one transaction (issue #6070).
+		// This budget bounds the transaction the way the file and directory
+		// budgets bound theirs.
+		if e.StructuralEdgeMaxStatements > 0 {
+			return e.StructuralEdgeMaxStatements
+		}
+		return DefaultStructuralEdgePhaseStatements
+	}
 	if statementPhaseUsesEntityLabelStats(phase) {
 		if label := entityStatementLabel(stmts[0]); label != "" && e.EntityLabelMaxStatements != nil {
 			if limit := e.EntityLabelMaxStatements[label]; limit > 0 {

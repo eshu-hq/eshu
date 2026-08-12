@@ -176,6 +176,7 @@ For decision rules and evidence requirements, read [NornicDB Tuning](nornicdb-tu
 | `ESHU_NORNICDB_PHASE_GROUP_STATEMENTS` | `500` | graph writer | Broad grouped statement cap for phases without a narrower cap. |
 | `ESHU_NORNICDB_FILE_PHASE_GROUP_STATEMENTS` | `5` | graph writer | Grouped statement cap for `phase=files`. |
 | `ESHU_NORNICDB_FILE_BATCH_SIZE` | `100` | graph writer | Rows per file-upsert statement. |
+| `ESHU_NORNICDB_STRUCTURAL_EDGE_PHASE_GROUP_STATEMENTS` | `5` | graph writer | Grouped statement cap for `phase=structural_edges`; bounds the transaction that carried ~73,500 rows before issue #6070. |
 | `ESHU_NORNICDB_ENTITY_PHASE_GROUP_STATEMENTS` | `25` | graph writer | Grouped statement cap for canonical entity phases. |
 | `ESHU_NORNICDB_ENTITY_BATCH_SIZE` | `100` | graph writer | Default rows per canonical entity statement. |
 | `ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES` | `Function=15,K8sResource=1,Struct=50,Variable=100` | graph writer | Label-specific canonical entity row caps. |

@@ -35,7 +35,8 @@ const (
 	// File upserts are lighter than entity rows but huge repos can emit many
 	// 500-row file statements. Keep this phase narrow without lowering the
 	// global non-entity phase-group cap.
-	defaultNornicDBFilePhaseStatements = storagenornicdb.DefaultFilePhaseStatements
+	defaultNornicDBFilePhaseStatements           = storagenornicdb.DefaultFilePhaseStatements
+	defaultNornicDBStructuralEdgePhaseStatements = storagenornicdb.DefaultStructuralEdgePhaseStatements
 	// Some repos carry thousands of static/vendor files. Keep NornicDB file
 	// upsert row payloads bounded separately from the grouped-statement cap so
 	// one huge file statement cannot dominate a Bolt transaction.
@@ -88,18 +89,19 @@ const (
 	// CPU-derived default. Each worker holds one Bolt session against
 	// NornicDB while a grouped chunk runs, so the cap also bounds peak Bolt
 	// session demand from the canonical entity path.
-	nornicDBEntityPhaseConcurrencyCap          = storagenornicdb.EntityPhaseConcurrencyCap
-	canonicalWriteTimeoutEnv                   = "ESHU_CANONICAL_WRITE_TIMEOUT"
-	nornicDBCanonicalGroupedWritesEnv          = "ESHU_NORNICDB_CANONICAL_GROUPED_WRITES"
-	nornicDBPhaseGroupStatementsEnv            = "ESHU_NORNICDB_PHASE_GROUP_STATEMENTS"
-	nornicDBFilePhaseGroupStatementsEnv        = "ESHU_NORNICDB_FILE_PHASE_GROUP_STATEMENTS"
-	nornicDBFileBatchSizeEnv                   = "ESHU_NORNICDB_FILE_BATCH_SIZE"
-	nornicDBEntityPhaseStatementsEnv           = "ESHU_NORNICDB_ENTITY_PHASE_GROUP_STATEMENTS"
-	nornicDBEntityBatchSizeEnv                 = "ESHU_NORNICDB_ENTITY_BATCH_SIZE"
-	nornicDBEntityLabelBatchSizesEnv           = "ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES"
-	nornicDBEntityLabelPhaseGroupStatementsEnv = "ESHU_NORNICDB_ENTITY_LABEL_PHASE_GROUP_STATEMENTS"
-	nornicDBBatchedEntityContainmentEnv        = "ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT"
-	nornicDBEntityPhaseConcurrencyEnv          = "ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY"
+	nornicDBEntityPhaseConcurrencyCap             = storagenornicdb.EntityPhaseConcurrencyCap
+	canonicalWriteTimeoutEnv                      = "ESHU_CANONICAL_WRITE_TIMEOUT"
+	nornicDBCanonicalGroupedWritesEnv             = "ESHU_NORNICDB_CANONICAL_GROUPED_WRITES"
+	nornicDBPhaseGroupStatementsEnv               = "ESHU_NORNICDB_PHASE_GROUP_STATEMENTS"
+	nornicDBFilePhaseGroupStatementsEnv           = "ESHU_NORNICDB_FILE_PHASE_GROUP_STATEMENTS"
+	nornicDBStructuralEdgePhaseGroupStatementsEnv = "ESHU_NORNICDB_STRUCTURAL_EDGE_PHASE_GROUP_STATEMENTS"
+	nornicDBFileBatchSizeEnv                      = "ESHU_NORNICDB_FILE_BATCH_SIZE"
+	nornicDBEntityPhaseStatementsEnv              = "ESHU_NORNICDB_ENTITY_PHASE_GROUP_STATEMENTS"
+	nornicDBEntityBatchSizeEnv                    = "ESHU_NORNICDB_ENTITY_BATCH_SIZE"
+	nornicDBEntityLabelBatchSizesEnv              = "ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES"
+	nornicDBEntityLabelPhaseGroupStatementsEnv    = "ESHU_NORNICDB_ENTITY_LABEL_PHASE_GROUP_STATEMENTS"
+	nornicDBBatchedEntityContainmentEnv           = "ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT"
+	nornicDBEntityPhaseConcurrencyEnv             = "ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY"
 )
 
 func buildIngesterService(

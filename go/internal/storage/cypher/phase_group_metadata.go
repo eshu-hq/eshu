@@ -40,6 +40,14 @@ const (
 	CanonicalPhaseDirectoryEdges = "directory_edges"
 	// CanonicalPhaseFiles identifies canonical file-node writes.
 	CanonicalPhaseFiles = "files"
+	// CanonicalPhaseStructuralEdges identifies canonical structural-edge writes.
+	// buildStructuralEdgeStatements emits IMPORTS, HAS_PARAMETER, and class and
+	// nested containment edges plus the Atlantis, Flux, GitLab, and Helm family
+	// edges, and CanonicalNodeWriter.Write appends the Kustomize EXTENDS_BASE
+	// edges into the same phase. The row-carrying families are row-batched, so
+	// this phase's transaction size is governed by a narrow statement budget
+	// rather than the broad phase-group default (issue #6070).
+	CanonicalPhaseStructuralEdges = "structural_edges"
 	// PhaseGroupModeExecuteOnly tells executors to run a statement outside the
 	// default grouped-write path while preserving phase ordering.
 	PhaseGroupModeExecuteOnly = "execute_only"

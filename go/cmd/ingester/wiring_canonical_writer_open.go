@@ -90,6 +90,7 @@ func openIngesterCanonicalWriter(
 	nornicDBGroupedWrites := false
 	phaseGroupStatements := defaultNornicDBPhaseGroupStatements
 	filePhaseStatements := defaultNornicDBFilePhaseStatements
+	structuralEdgePhaseStatements := defaultNornicDBStructuralEdgePhaseStatements
 	fileBatchSize := 0
 	entityPhaseStatements := defaultNornicDBEntityPhaseStatements
 	entityBatchSize := 0
@@ -105,6 +106,10 @@ func openIngesterCanonicalWriter(
 			return failAfterDriverOpen(err)
 		}
 		filePhaseStatements, err = nornicDBFilePhaseGroupStatements(getenv)
+		if err != nil {
+			return failAfterDriverOpen(err)
+		}
+		structuralEdgePhaseStatements, err = nornicDBStructuralEdgePhaseGroupStatements(getenv)
 		if err != nil {
 			return failAfterDriverOpen(err)
 		}
@@ -149,6 +154,7 @@ func openIngesterCanonicalWriter(
 		nornicDBGroupedWrites,
 		phaseGroupStatements,
 		filePhaseStatements,
+		structuralEdgePhaseStatements,
 		entityPhaseStatements,
 		entityLabelPhaseStatements,
 		entityPhaseConcurrency,

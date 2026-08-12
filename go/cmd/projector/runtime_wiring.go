@@ -271,16 +271,17 @@ func projectorCanonicalExecutorForGraphBackend(
 			}
 		}
 		return storagenornicdb.PhaseGroupExecutor{
-			Inner:                    inner,
-			MaxStatements:            nornicDBConfig.PhaseGroupStatements,
-			DirectoryMaxStatements:   storagenornicdb.DefaultDirectoryPhaseStatements,
-			FileMaxStatements:        nornicDBConfig.FilePhaseGroupStatements,
-			EntityMaxStatements:      nornicDBConfig.EntityPhaseGroupStatements,
-			EntityLabelMaxStatements: nornicDBConfig.EntityLabelPhaseStatements,
-			EntityPhaseConcurrency:   nornicDBConfig.EntityPhaseConcurrency,
-			DrainReader:              drainReader,
-			RetractBatchSize:         nornicDBConfig.CanonicalRetractBatchSize,
-			Instruments:              instruments,
+			Inner:                       inner,
+			MaxStatements:               nornicDBConfig.PhaseGroupStatements,
+			DirectoryMaxStatements:      storagenornicdb.DefaultDirectoryPhaseStatements,
+			FileMaxStatements:           nornicDBConfig.FilePhaseGroupStatements,
+			StructuralEdgeMaxStatements: nornicDBConfig.StructuralEdgePhaseGroupStatements,
+			EntityMaxStatements:         nornicDBConfig.EntityPhaseGroupStatements,
+			EntityLabelMaxStatements:    nornicDBConfig.EntityLabelPhaseStatements,
+			EntityPhaseConcurrency:      nornicDBConfig.EntityPhaseConcurrency,
+			DrainReader:                 drainReader,
+			RetractBatchSize:            nornicDBConfig.CanonicalRetractBatchSize,
+			Instruments:                 instruments,
 		}
 	}
 	// Bound concurrent canonical writes so a slow graph backend slows intake

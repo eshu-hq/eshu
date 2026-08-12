@@ -131,6 +131,7 @@ func canonicalExecutorForGraphBackend(
 	nornicDBGroupedWrites bool,
 	nornicDBPhaseGroupStatements int,
 	nornicDBFilePhaseStatements int,
+	nornicDBStructuralEdgePhaseStatements int,
 	nornicDBEntityPhaseStatements int,
 	nornicDBEntityLabelPhaseStatements map[string]int,
 	nornicDBEntityPhaseConcurrency int,
@@ -209,15 +210,16 @@ func canonicalExecutorForGraphBackend(
 			}
 		}
 		return nornicDBPhaseGroupExecutor{
-			Inner:                    bounded,
-			MaxStatements:            nornicDBPhaseGroupStatements,
-			FileMaxStatements:        nornicDBFilePhaseStatements,
-			EntityMaxStatements:      nornicDBEntityPhaseStatements,
-			EntityLabelMaxStatements: nornicDBEntityLabelPhaseStatements,
-			EntityPhaseConcurrency:   nornicDBEntityPhaseConcurrency,
-			DrainReader:              dr,
-			RetractBatchSize:         nornicDBRetractBatchSize,
-			Instruments:              instruments,
+			Inner:                       bounded,
+			MaxStatements:               nornicDBPhaseGroupStatements,
+			FileMaxStatements:           nornicDBFilePhaseStatements,
+			StructuralEdgeMaxStatements: nornicDBStructuralEdgePhaseStatements,
+			EntityMaxStatements:         nornicDBEntityPhaseStatements,
+			EntityLabelMaxStatements:    nornicDBEntityLabelPhaseStatements,
+			EntityPhaseConcurrency:      nornicDBEntityPhaseConcurrency,
+			DrainReader:                 dr,
+			RetractBatchSize:            nornicDBRetractBatchSize,
+			Instruments:                 instruments,
 		}
 	}
 	// Neo4j has no phase-group fan-out wrapper, so the gate applies directly to

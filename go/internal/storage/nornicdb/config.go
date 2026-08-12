@@ -14,6 +14,15 @@ const (
 	DefaultDirectoryPhaseStatements = 5
 	// DefaultFilePhaseStatements is the file-phase statement cap.
 	DefaultFilePhaseStatements = 5
+	// DefaultStructuralEdgePhaseStatements is the structural-edge statement cap
+	// (issue #6070). Structural-edge statements are row-batched at the canonical
+	// writer's batch size (500), so effective transaction pressure is that batch
+	// size times this cap: 5 x 500 = 2,500 rows, the reference grouped row
+	// pressure documented in docs/public/reference/nornicdb-tuning.md. Before
+	// this cap the phase fell through to DefaultPhaseGroupStatements, so a
+	// 147-statement scope committed roughly 73,500 rows in one transaction and
+	// dead-lettered on the canonical write budget.
+	DefaultStructuralEdgePhaseStatements = 5
 	// DefaultEntityPhaseStatements is the entity-phase statement cap.
 	DefaultEntityPhaseStatements = 25
 	// DefaultFileBatchSize bounds rows in each canonical File statement.

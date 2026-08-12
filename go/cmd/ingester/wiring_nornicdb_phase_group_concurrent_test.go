@@ -251,6 +251,7 @@ func TestCanonicalExecutorForGraphBackendUsesConfiguredEntityPhaseConcurrency(t 
 		false,
 		defaultNornicDBPhaseGroupStatements,
 		defaultNornicDBFilePhaseStatements,
+		defaultNornicDBStructuralEdgePhaseStatements,
 		defaultNornicDBEntityPhaseStatements,
 		nil,
 		6,

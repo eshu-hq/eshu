@@ -57,6 +57,7 @@ ingester, and the standalone projector.
 | `ESHU_NORNICDB_PHASE_GROUP_STATEMENTS` | `500` | Broad grouped-statement cap for phases without a narrower cap. |
 | `ESHU_NORNICDB_FILE_PHASE_GROUP_STATEMENTS` | `5` | Grouped-statement cap for `phase=files`. |
 | `ESHU_NORNICDB_FILE_BATCH_SIZE` | `100` | Rows per file-upsert statement. |
+| `ESHU_NORNICDB_STRUCTURAL_EDGE_PHASE_GROUP_STATEMENTS` | `5` | Grouped-statement cap for `phase=structural_edges` (IMPORTS, HAS_PARAMETER, class/nested containment, and the Atlantis/Flux/GitLab/Helm family edges). Its statements are row-batched at the writer batch size, so the broad 500 cap let one scope commit roughly 73,500 rows in a single transaction (issue #6070). |
 | `ESHU_NORNICDB_ENTITY_PHASE_GROUP_STATEMENTS` | `25` | Grouped-statement cap for canonical entity phases before label-specific caps apply. |
 | `ESHU_NORNICDB_ENTITY_BATCH_SIZE` | `100` | Default rows per canonical entity statement before label-specific caps apply. |
 | `ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES` | `Function=15,K8sResource=1,Struct=50,Variable=100` | Label-specific row caps for canonical entity writes. |
