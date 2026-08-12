@@ -46,23 +46,43 @@ so the probe reported "ready" in exactly the case it existed to catch.
 was already committed for this, with an EXPLAIN proof
 (`docs/internal/evidence/5709-quiescence-probe.md`) and a doc comment stating
 this contract — and zero production callers. It now has one. It answers: for a
-set of collector kinds, which scopes are *quiescent-active* — generation active,
-no projector work item still pending, retrying, claimed, or running?
+set of collector kinds, which scopes exist, and which of those are
+*quiescent-active* — generation active, no projector work item still pending,
+retrying, claimed, or running?
+
+Returning the registered scopes and not only the quiescent ones matters more
+than it sounds. The first version returned only the quiescent set, so an empty
+answer meant either "this deployment runs no collector of that kind" or "one
+exists and has not finished", and the floor read both as not-ready. A deployment
+that indexes repositories whose CI publishes image digests but runs no OCI
+registry collector — ordinary, since that collector needs registry credentials —
+therefore deferred *every* `ci_cd_run_correlation` intent to the 30-minute bound.
+The retry does not back off, because this failure class freezes `attempt_count`,
+so that is roughly 60 no-op claims per row per repair cycle against the
+write-hot `fact_work_items` table. Zero registered scopes of a kind now reads as
+ready. The sibling AWS gate already answered absence the same way:
+`HasPendingStateSnapshotEvidence` returns false — meaning ready — when no
+`state_snapshot` scope exists.
+
+Both answers come from the same query, so absence costs no extra round trip. The
+plan for it was measured before it was written, including one shape that was
+rejected: writing the quiescent flag as a target-list `NOT EXISTS` lets
+PostgreSQL 16 de-correlate and hash the subquery, sequentially scanning
+`fact_work_items` at 5.16 ms against 0.30 ms. Keeping the anti-join inside a CTE
+holds the index plan at 0.34 ms. Both plans are in
+`docs/internal/evidence/5709-quiescence-probe.md`.
 
 `CrossScopeProducerReadinessStore` maps a consumer's declared producer domains
 to their producer collector kinds and reports ready only when each required kind
-has a quiescent-active scope. Both mappings are read out of the code, not
-guessed:
+that this deployment actually registers has a quiescent-active scope. Both
+mappings are read out of the code, not guessed:
 
 | producer domain | collector kind | why |
 | --- | --- | --- |
 | `container_image_identity` | `scope.CollectorOCIRegistry` (`oci_registry`) | registered by `internal/coordinator/oci_registry_scheduler.go`, projected by `internal/projector/oci_registry_canonical.go` |
 | `ci_cd_run_correlation` | `scope.CollectorCICDRun` (`ci_cd_run`) | emitted by `internal/collector/cicdrun/ghactionsruntime` and `.../gitlabciruntime` |
 
-A producer domain with no entry is skipped, not guessed. A guessed kind that a
-deployment never registers would hold every consumer of that producer at "not
-ready" until the elapsed bound, once per repair cycle, waiting for a scope that
-was never going to appear.
+A producer domain with no entry is skipped, not guessed.
 
 The old `producerDomainsHaveOutstandingWorkQuery`, its status list, and its
 EXPLAIN script are deleted.
@@ -138,18 +158,53 @@ Three comments claimed no handler ever produces
 telemetry-coverage row, the enrolment comment in `reducer_queue_readiness_sql.go`,
 and the class doc in `cross_scope_readiness.go`.
 
+## Why this is safe under concurrent reducers
+
+The floor adds a read and a decision, and touches no coordination state. Spelled
+out, because "obviously safe" is how unsafe things ship:
+
+The probe is a plain `SELECT` with no `FOR UPDATE`, no advisory lock, and no
+write. It takes no row locks, so it cannot deadlock against a claim, an
+acknowledgement, or another reducer's projection, and it cannot block a writer.
+
+It runs *outside* the claim transaction. The queue claims the work item and
+commits; the handler runs afterwards, so the probe holds nothing open across it.
+A slow probe delays one handler, not the claim path other workers depend on.
+
+Nothing about lease, status, ordering, or idempotency changes. A deferral
+returns an error the queue already knows how to classify; the row goes back to
+retrying under its existing lease rules, in a failure class that was already
+enrolled as non-counting. No new work item is enqueued, no status transition is
+added, and the conflict domain (one scope generation, one domain) is untouched.
+
+The one race worth naming is the readiness sample against a producer activating
+concurrently, and it is asymmetric on purpose. Sampling *before* the load means
+the signal can only be staler than the load, never fresher — see the section
+above. A producer that activates between the sample and the load makes the load
+read more evidence than the signal assumed, and the post-load resolved count is
+what decides. The reverse ordering is the bug, and it is what the ordering test
+guards.
+
+Two consumers of the same producer probing at once see the same committed state
+and reach the same answer independently; there is no shared mutable state
+between them. Two passes of the *same* intent cannot overlap, because the queue
+claim is exclusive.
+
 ## Readiness query cost
 
 The floor issues one `ProducerScopeQuiescence` query per declared producer
-collector kind, stopping at the first kind with no quiescent-active scope. The
-wired consumer declares one producer, so it costs exactly one query.
+collector kind, stopping at the first *registered* kind with no quiescent-active
+scope. A kind with no registered scope is skipped and the remaining kinds are
+still probed. The wired consumer declares one producer, so it costs exactly one
+query.
 
 The plan-shape proof for that query is
 `docs/internal/evidence/5709-quiescence-probe.md`: the `NOT EXISTS` body is
 byte-equivalent to the production reducer claim query's projector-drain fence,
 it rides `fact_work_items_scope_generation_idx` with an Index Scan rather than
-scanning `fact_work_items`, and it ran in 0.554 ms on a seeded 500-scope ×
-50,000-work-item shape.
+scanning `fact_work_items`, and it ran in 0.34 ms (median of five) on a seeded
+500-scope × 50,000-work-item shape — 0.30 ms before the registered-scope column
+was added.
 
 **What that proof is and is not.** It is a plan-shape confirmation on a synthetic
 seed: one connection, no concurrent writers, no contention. It shows the
@@ -170,7 +225,10 @@ query per `ci_cd_run_correlation` pass that has something to look up, replacing
 the first version's one `EXISTS` probe on `fact_work_items` that ran only on an
 empty resolve. A pass with no digests and no image refs now runs *fewer*
 queries than before, because the empty-filter gate skips both the probe and the
-deferral it used to trigger. Plan shape for the retained query is the Index Scan
+deferral it used to trigger. Reporting the registered scopes alongside the
+quiescent ones keeps that at one query and holds the plan: same Nested Loop Anti
+Join, same Index Scan, same 795 shared buffers, 0.300 ms to 0.338 ms median on
+the same seed. Plan shape for the retained query is the Index Scan
 in `docs/internal/evidence/5709-quiescence-probe.md`. Baseline versus after:
 `internal/reducer`, `cmd/reducer`, and `internal/storage/postgres` are green
 before and after; terminal queue state is unchanged, since the floor enqueues
@@ -223,6 +281,10 @@ guards nothing.
 | nothing-to-look-up gate removed | `TestReadinessFloorDoesNotApplyWhenThereWasNothingToLookUp`, `...DoesNotDeferARunWithNoImageArtifacts`, `...DoesNotDeferWithoutTheCrossScopeLoaderSeam` |
 | `elapsed_since_cycle_start` and `max_wait` dropped from the defer log | `TestCICDRunCorrelationDefersWhenIdentityProducerScopeHasNotActivated` |
 | collector-kind dedup removed | `TestCrossScopeProducerCollectorKindsDeduplicatesAndSorts` |
+| absent producer kind treated as not-ready (guard deleted) | `TestCrossScopeProducersReadyIsReadyWhenNoScopeOfTheProducerKindExists`, `...SkipsOnlyTheAbsentKind` |
+| projector-stage fence changed to `reducer` in the shipped SQL | `TestProducerScopeQuiescenceLive`, two subtests, against real Postgres |
+| `CrossScopeProducerReadiness` line deleted from `buildReducerService` | `TestBuildReducerServiceWiresCrossScopeProducerReadiness` (nil error) |
+| `CrossScopeReadinessLogger` line deleted from `buildReducerService` | the same test (missing defer log) |
 
 The ordering break is the one worth noting: it failed exactly one test and no
 others, which is what a targeted guard should do.
@@ -257,29 +319,49 @@ way. This change does not depend on it and does not attempt it.
 `containerImageIdentityCandidateFactKinds` in
 `internal/projector/container_image_identity_intents.go`. Identity output can
 therefore be published by a scope this mapping does not name, and the floor does
-not wait for those. Widening it would make any mid-ingestion cloud scope
-anywhere block every CI correlation, which is a worse trade. But it does mean a
-digest whose identity comes from an ECR scope can still be answered early. This
-is the sharpest remaining hole and it is worth disagreeing with.
+not wait for those. A digest whose identity comes from an ECR scope is still
+answered early: #5709 is narrowed on that path, not closed.
+
+An earlier version of this document defended the narrow map by saying a wider
+one would let any mid-ingestion cloud scope block every CI correlation. That
+argument was wrong, and the wrongness is worth stating because it would mislead
+whoever tries to widen it. The store asks for **at least one** quiescent scope
+per kind, not all of them, so adding `git` — one scope per repository, hundreds
+of them, one almost always quiescent — would block almost nothing.
+
+The actual reasons the map stays at two entries: only those two mappings are
+grounded in code (each cites the scheduler that registers the scope and the
+projector that publishes it), and every kind added becomes a condition every
+consumer of that producer must satisfy on every pass, plus one more probe query.
+Grow it with evidence that the missing kind really publishes what a consumer
+reads, not by pattern-matching names.
 
 **Quiescence does not prove the producer's reducer has run.** The probe checks
 that a producer scope's generation is active and its *projector* work has
-drained. The identity reducer writes its support rows in a later stage. So there
-is a residual window — projector drained, generation activated, identity reducer
-row still pending — where the floor reports ready and the join is still empty.
-Narrower than the window this change closes, and not closed by it.
+drained. That is a proxy for the read the consumer actually performs, not the
+same predicate. `container_image_identity_current_support_facts_for` (migration
+092c) requires three things: `scope.active_generation_id` matching the identity
+domain's state row, `generation.status = 'active'`, and that state row carrying
+an `active_set_id`. The probe evaluates none of them — it checks only that
+`active_generation_id` is set and projector work has drained. So a producer that
+has activated and drained but whose identity reducer has not yet written its
+support set reads as ready and joins to nothing. Narrower than the window this
+change closes, and not closed by it.
+
+**A third residual window: the gap before projector items exist.**
+`fact_work_items` carries only `projector` and `reducer` stages. Between a new
+generation being scheduled and its projector items being enqueued, the scope has
+no live projector row, so the probe reads it as quiescent — off its *previous*
+activation. A consumer landing in that gap is told the producer is finished when
+its next batch has not started. Same shape as the window above: bounded, real,
+and not addressed here.
 
 **"At least one quiescent scope of the kind", not "all of them".** With several
 OCI registry scopes, one mid-ingestion scope does not hold the consumer back if
-another is quiescent. Closing that needs the total registered-scope count, which
-would be a second query with no committed plan proof, so it was not added.
-
-**A deployment with no producer scope at all waits the full bound.** If a
-repository's CI publishes image digests but no OCI registry collector is
-configured, the probe returns nothing, the consumer defers, and it converges only
-at the 30-minute bound — once per repair cycle. The empty-filter gate removes the
-common instance of this (no digests at all), but not this one. Bounded and
-visible in the defer log, but real.
+another is quiescent. The registered-scope count is now available in the same
+query, so switching to all-of-them would no longer cost a second round trip —
+but it would be a different and much stricter contract, and nothing measured
+says it is the right one. Left as is, deliberately.
 
 **Dead-lettered producers do not hold consumers back.** A dead letter is
 finished, badly, and waiting on it would turn one failed producer into an

@@ -53,10 +53,19 @@ const crossScopeProducerReadinessMaxWait = 30 * time.Minute
 // 'succeeded' before its scope generation is activated -- activation happens at
 // projector acknowledgement. A consumer running inside that window reads
 // through container_image_identity_current_support_facts_for (migration 092c),
-// which returns a row only when scope.active_generation_id matches the
-// generation AND that generation's status is 'active'. So the consumer resolves
+// which returns a row only when scope.active_generation_id matches the state
+// row's generation, that generation's status is 'active', and the identity
+// domain's scope-state row carries an active_set_id. So the consumer resolves
 // nothing, writes a durable "no correlation" decision, and no later event
 // disturbs it. The floor is what makes such a consumer defer instead.
+//
+// The readiness signal is a proxy for those conditions, not a restatement of
+// them. The store checks that a producer scope has an active generation and no
+// live projector work; it does not evaluate the 092c join. A producer that has
+// activated and drained its projector but whose identity reducer has not yet
+// written a support set reads as ready and still joins to nothing. That
+// residual window is narrower than the one this closes, and it is not closed
+// here.
 //
 // Deliberately an interface consumed here rather than a concrete store: the
 // reducer package already takes its readiness seams this way (see

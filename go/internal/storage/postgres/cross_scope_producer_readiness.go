@@ -42,10 +42,33 @@ import (
 // enqueued in aws, azure, gcp, git, and sbom_attestation scopes (see
 // containerImageIdentityCandidateFactKinds in
 // internal/projector/container_image_identity_intents.go), so identity output
-// can be published by a scope this map does not name. The floor therefore does
-// not wait for those. That is under-inclusive by design -- widening it would
-// make any mid-ingestion cloud scope anywhere block every CI correlation -- and
-// it is recorded in docs/internal/evidence/5709-cross-scope-readiness-floor.md.
+// can be published by a scope this map does not name. The floor does not wait
+// for those.
+//
+// The map stays narrow for two reasons, and neither is "a busy cloud scope
+// would block everything". CrossScopeProducersReady asks for AT LEAST ONE
+// quiescent scope per kind, not all of them, so adding a kind with many scopes
+// -- git, with one per repository -- would block almost nothing: one quiescent
+// git scope satisfies the whole kind, and there almost always is one. The real
+// reasons are narrower.
+//
+// First, only these two mappings are grounded in code. Each entry above cites
+// the scheduler that registers the scope and the projector that publishes it. A
+// kind added on a plausible-looking name, or one a deployment never registers,
+// is a guess -- and this file used to turn such a guess into a 30-minute
+// deferral. (An unregistered kind is now answered as ready rather than blocked,
+// so the cost of a wrong guess is a silently missing wait rather than a stall.
+// Still a wrong answer.)
+//
+// Second, per-kind blast radius. Every kind added here becomes a condition
+// every consumer of that producer must satisfy on every pass, including one
+// more probe query, so the set should grow only with evidence that the missing
+// kind actually publishes the output a consumer reads.
+//
+// The consequence is stated plainly rather than defended: a digest whose
+// identity is published by an aws/ECR scope is still answered early, so #5709 is
+// narrowed on that path, not closed. See
+// docs/internal/evidence/5709-cross-scope-readiness-floor.md.
 var crossScopeProducerCollectorKindByDomain = map[reducer.Domain]scope.CollectorKind{
 	reducer.DomainContainerImageIdentity: scope.CollectorOCIRegistry,
 	reducer.DomainCICDRunCorrelation:     scope.CollectorCICDRun,
@@ -86,18 +109,26 @@ type CrossScopeProducerReadinessStore struct {
 // ProducerScopeQuiescence returns the registered scopes alongside the quiescent
 // subset, so telling them apart costs no extra round trip.
 //
-// That is the question the #5709 residual gap turns on. The already-claimed
-// consumer window is closed elsewhere -- cross_scope_completion_fanout.go marks
-// a consumer in 'claimed'/'running' with cross_scope_replay_required, and the
-// trigger from migration 093 rewrites that row's 'succeeded' acknowledgement
-// back to 'pending'. What remains is the ACTIVATION window: the producer's
-// reducer row reaches 'succeeded', but its scope generation is activated later,
-// at projector acknowledgement. Until that activation lands, the consumer's
-// cross-scope read resolves nothing, because
-// container_image_identity_current_support_facts_for requires
-// scope.active_generation_id = generation.generation_id AND
-// generation.status = 'active' (migration 092c). Scope quiescence is the
-// observable that closes exactly that window.
+// The window this targets: the already-claimed consumer is handled elsewhere --
+// cross_scope_completion_fanout.go marks a consumer in 'claimed'/'running' with
+// cross_scope_replay_required, and the trigger from migration 093 rewrites that
+// row's 'succeeded' acknowledgement back to 'pending'. What remains is the
+// ACTIVATION window: the producer's reducer row reaches 'succeeded', but its
+// scope generation is activated later, at projector acknowledgement, and until
+// then the consumer's cross-scope read resolves nothing.
+//
+// Quiescence is a PROXY for that window, not the same predicate, and the
+// difference is worth knowing before relying on it. The consumer reads through
+// container_image_identity_current_support_facts_for (migration 092c), which
+// requires three things: scope.active_generation_id = the state row's
+// generation, generation.status = 'active', and the identity domain's own
+// scope-state row carrying an active_set_id. This probe checks only that
+// active_generation_id is set and that the scope's PROJECTOR work has drained.
+// So it proves the producer scope has published a generation and finished
+// projecting it. It does not prove any of the three 092c conditions directly,
+// and a producer whose identity reducer has not yet written its support set
+// still reads as ready here. That residual window is recorded in
+// docs/internal/evidence/5709-cross-scope-readiness-floor.md.
 //
 // The probe runs once per declared producer collector kind and stops at the
 // first kind with no quiescent-active scope, so the wired consumer
