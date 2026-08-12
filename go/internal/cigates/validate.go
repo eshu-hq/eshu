@@ -105,10 +105,22 @@ func checkTriggerPathsExist(repoRoot string, g Gate) []error {
 			))
 			continue
 		}
-		if _, err := os.Stat(full); os.IsNotExist(err) {
+		// Every stat outcome is accounted for. Treating only IsNotExist as a
+		// finding and letting every other error fall through would pass a
+		// trigger this function never actually validated — a permission denial
+		// or a symlink loop's ELOOP would read as "present". That is the same
+		// fail-open shape the existence check itself was added to remove.
+		if _, err := os.Stat(full); err != nil {
+			if os.IsNotExist(err) {
+				errs = append(errs, fmt.Errorf(
+					"gate %q: trigger %q names %q, which does not exist — a stale trigger silently stops selecting this gate instead of failing loud",
+					g.ID, trigger, full,
+				))
+				continue
+			}
 			errs = append(errs, fmt.Errorf(
-				"gate %q: trigger %q names %q, which does not exist — a stale trigger silently stops selecting this gate instead of failing loud",
-				g.ID, trigger, full,
+				"gate %q: trigger %q names %q, which could not be checked: %w — an unverifiable trigger must not read as present",
+				g.ID, trigger, full, err,
 			))
 			continue
 		}
@@ -122,8 +134,17 @@ func checkTriggerPathsExist(repoRoot string, g Gate) []error {
 		// clearer stale-trigger message above.
 		resolved, err := filepath.EvalSymlinks(full)
 		if err != nil {
+			errs = append(errs, fmt.Errorf(
+				"gate %q: trigger %q names %q, whose symlinks could not be resolved: %w — containment cannot be confirmed, so the trigger must not pass silently",
+				g.ID, trigger, full, err,
+			))
 			continue
 		}
+		// A repoRoot that will not resolve is the caller's tree, not a property
+		// of this trigger, so it is not reported per-trigger. Falling back to
+		// the unresolved root still compares two paths; it only loses the
+		// ability to see through a symlinked root, which would make this check
+		// stricter, never weaker.
 		resolvedRoot, err := filepath.EvalSymlinks(repoRoot)
 		if err != nil {
 			resolvedRoot = repoRoot

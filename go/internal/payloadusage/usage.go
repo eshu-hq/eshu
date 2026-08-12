@@ -100,10 +100,12 @@ type parsedGoFile struct {
 // packages to declare a type with the identical name, and folding every
 // parsed file into one shared, unqualified-type-name-keyed map let one
 // package's wrapper silently overwrite another's. A decode function's bare
-// name, by contrast, is legitimately meant to be recognized across packages
-// (a subpackage handler calling the one canonical seam declared at the
-// root is exactly the case recursion exists to support) — so decodeFuncs
-// itself stays a single global set, but effectiveDecodeFuncs additionally
+// name is recognized within a package only: the seams are unexported, so no
+// package can call another's, and when a family moves to a subpackage its
+// factschema_decode_*.go seam moves with it — which is what the recursive walk
+// exists to find — leaving the seam and its call sites in one package. So
+// decodeFuncs itself stays a single global set, a conservative baseline rather
+// than a claim about cross-package calls, and effectiveDecodeFuncs additionally
 // drops a name, per package, when that package ALSO locally declares its own
 // validly decode-shaped function of the same name returning a DIFFERENT
 // struct: a coincidental, unrelated same-named function must not satisfy the

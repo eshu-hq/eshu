@@ -212,10 +212,18 @@ GO
 # (the exact shape a restructure produces) silently dropped out of route
 # coverage checking — "0 routes checked, 0 uncovered", exit 0, on a route
 # that in fact has no test. This is the fixture every test above already
-# exercises through the SAME no-base-ref fallback path (none of these
-# fixture repos are git repos, so ESHU_ROUTE_COVERAGE_BASE always resolves
-# to the "checking all routes" branch); this case only adds the subdirectory
-# placement.
+# exercises through the SAME no-base-ref fallback path; this case only adds
+# the subdirectory placement.
+#
+# Why the fallback, now that setup_repo does git-init each fixture: the
+# verifier takes its git-diff branch only when a base ref both is set and
+# resolves. These fixtures have one commit and no origin/main, so base
+# resolution leaves it empty and the fallback runs. Git-ness alone is NOT what
+# selects the branch -- adding a remote or a second commit here could flip a
+# fixture onto the git-diff branch and change what it proves without any
+# visible edit to the test.
+# test_green_testdata_fixture_ignored_on_the_git_diff_branch is the one case
+# that opts in deliberately, by setting ESHU_ROUTE_COVERAGE_BASE=HEAD.
 test_red_moved_handler_in_subdirectory_without_test() {
   local dir
   dir="$(setup_repo "red-moved-handler")"

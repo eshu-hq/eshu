@@ -426,3 +426,51 @@ func TestValidate_LiteralTriggerEscapingRootViaSymlinkFails(t *testing.T) {
 		t.Fatalf("Validate() errors = %v, want one reporting the trigger resolving out of the tree through a symlink; without it the trigger stats an unrelated host file and the staleness check passes", errs)
 	}
 }
+
+// TestValidate_LiteralTriggerUncheckableFails pins the remaining fail-open
+// paths. A trigger whose existence cannot be determined at all — here a
+// self-referential symlink, which makes both os.Stat and EvalSymlinks return
+// ELOOP rather than IsNotExist — must be reported. Treating only IsNotExist as
+// a finding and letting other errors fall through would let a trigger this
+// function never validated read as present, which is the fail-open shape the
+// existence check exists to remove.
+func TestValidate_LiteralTriggerUncheckableFails(t *testing.T) {
+	t.Parallel()
+	root := buildHermeticRepo(
+		t,
+		[]string{"scripts/verify-openapi.sh"},
+		[]string{"verify-openapi.yml"},
+	)
+
+	// loop -> loop. Neither stat nor symlink resolution can terminate, so this
+	// is neither "exists" nor "does not exist".
+	if err := os.Symlink("loop", filepath.Join(root, "loop")); err != nil {
+		t.Skipf("Symlink() error = %v; platform does not support symlinks", err)
+	}
+
+	reg := buildRegistry([]cigates.Gate{
+		{
+			ID:       "openapi-surface",
+			Name:     "Verify OpenAPI Surface",
+			Category: cigates.CategoryExactness,
+			Tier:     cigates.TierPrePR,
+			Blocking: true,
+			Triggers: []string{"loop"},
+			Local:    &cigates.Local{Command: "bash scripts/verify-openapi.sh"},
+			CI:       cigates.CI{Workflow: "verify-openapi.yml", Job: "Verify OpenAPI gate"},
+		},
+	})
+
+	errs := reg.Validate(root)
+	var found bool
+	for _, err := range errs {
+		msg := err.Error()
+		if strings.Contains(msg, "could not be checked") || strings.Contains(msg, "could not be resolved") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("Validate() errors = %v, want one reporting a trigger whose existence could not be determined; without it an unverifiable trigger silently reads as present", errs)
+	}
+}
