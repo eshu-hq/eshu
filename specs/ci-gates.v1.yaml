@@ -134,6 +134,7 @@ gates:
       - "scripts/verify-dirgate.sh"
       - "scripts/lib/dirgate-core.sh"
       - "scripts/lib/dirgate-grandfather.tsv"
+      - "scripts/lib/dirgate-naming-exempt.tsv"
       - "scripts/test-verify-dirgate.sh"
       - "scripts/generate-dirgate-grandfather-go.sh"
       - "scripts/test-generate-dirgate-grandfather-go.sh"
