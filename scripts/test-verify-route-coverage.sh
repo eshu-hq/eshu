@@ -279,6 +279,38 @@ GO
 # `find -maxdepth 1` never crossed into a subdirectory, so making this scan
 # recursive newly exposes fixture tests -- the same class already guarded in
 # parseReducerDir and globFilesRecursive.
+# The WALK-side testdata exclusion, which the coverage-lookup test above does not
+# reach: that fixture's testdata file is itself _test.go, so !*_test.go already
+# excludes it regardless of the testdata glob. This one uses a NON-test .go file
+# carrying HandleFunc under testdata/, which only the walk-side glob can filter.
+# Without it the walk treats a fixture as a real route and reports it uncovered.
+test_green_testdata_non_test_handler_is_not_treated_as_a_route() {
+  local dir
+  dir="$(setup_repo "green-testdata-walk")"
+  mkdir -p "${dir}/go/internal/query/d/testdata"
+
+  cat > "${dir}/go/internal/query/d/testdata/fixture_handler.go" << 'GO'
+package testdata
+
+import "net/http"
+
+type FixtureHandler struct{}
+
+func (h *FixtureHandler) Mount(mux *http.ServeMux) {
+  mux.HandleFunc("GET /api/v0/fixtures/{fixture_id}/probe", h.getProbe)
+}
+
+func (h *FixtureHandler) getProbe(w http.ResponseWriter, r *http.Request) {}
+GO
+
+  export ESHU_ROUTE_COVERAGE_REPO_ROOT="$dir"
+  if "${dir}/scripts/verify-route-coverage.sh" >/tmp/eshu-route-coverage.out 2>/tmp/eshu-route-coverage.err; then
+    record_pass "green: a non-test handler under testdata/ is not treated as a real route"
+  else
+    record_fail "green: a testdata fixture handler was wrongly scanned as a real route ($(cat /tmp/eshu-route-coverage.out))"
+  fi
+}
+
 test_red_testdata_fixture_test_does_not_cover_a_real_handler() {
   local dir
   dir="$(setup_repo "red-testdata-fixture")"
@@ -383,6 +415,7 @@ test_red_moved_handler_in_subdirectory_without_test
 test_green_moved_handler_with_test_in_same_subdirectory
 test_red_untested_handler_falsely_covered_by_sibling_package_test
 test_red_testdata_fixture_test_does_not_cover_a_real_handler
+test_green_testdata_non_test_handler_is_not_treated_as_a_route
 test_red_missing_query_dir_fails_loudly
 
 printf '\n%d/%d tests passed\n' "$PASS" "$TOTAL"

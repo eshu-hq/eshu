@@ -6,6 +6,7 @@ package cigates_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/cigates"
@@ -330,5 +331,46 @@ func TestValidate_AccumulatesErrors(t *testing.T) {
 	errs := reg.Validate(root)
 	if len(errs) < 2 {
 		t.Errorf("expected at least 2 errors (one per gate), got %d: %v", len(errs), errs)
+	}
+}
+
+// TestValidate_LiteralTriggerEscapingRootFails pins the containment guard added
+// for a review finding: filepath.Join cleans its result, so a trigger carrying
+// ".." resolves outside the repository (Join("/repo", "../etc/passwd") is
+// "/etc/passwd"). Stat-ing that would let a malformed trigger "exist" against an
+// unrelated host file and pass the staleness check checkTriggerPathsExist adds.
+func TestValidate_LiteralTriggerEscapingRootFails(t *testing.T) {
+	t.Parallel()
+	root := buildHermeticRepo(
+		t,
+		[]string{"scripts/verify-openapi.sh"},
+		[]string{"verify-openapi.yml"},
+	)
+	reg := buildRegistry([]cigates.Gate{
+		{
+			ID:       "openapi-surface",
+			Name:     "Verify OpenAPI Surface",
+			Category: cigates.CategoryExactness,
+			Tier:     cigates.TierPrePR,
+			Blocking: true,
+			Triggers: []string{"../etc/passwd"},
+			Local:    &cigates.Local{Command: "bash scripts/verify-openapi.sh"},
+			CI:       cigates.CI{Workflow: "verify-openapi.yml", Job: "Verify OpenAPI gate"},
+		},
+	})
+
+	errs := reg.Validate(root)
+	if len(errs) == 0 {
+		t.Fatal("Validate() returned no errors; a trigger resolving outside the repository root must fail, or a malformed trigger can satisfy the existence check against an unrelated host file")
+	}
+	var found bool
+	for _, err := range errs {
+		if strings.Contains(err.Error(), "outside the repository root") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("Validate() errors = %v, want one naming the escaping trigger", errs)
 	}
 }

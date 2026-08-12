@@ -427,3 +427,32 @@ func TestScanDecodeUsageDoesNotMisattributeDecodeCallAcrossPackages(t *testing.T
 		t.Errorf("decodeAWSResource usage = %+v, must not contain Unrelated: that read belongs to the othertool package's own unrelated decodeAWSResource function, wrongly bound to the real seam by bare function name", usage["decodeAWSResource"])
 	}
 }
+
+// TestScanDecodeUsageSkipsTestdata pins the guard that landed in the same commit
+// that made parseReducerDir recursive. testdata holds deliberately broken or
+// illustrative fixtures; parsing one as production source would count its field
+// reads as real usage in the manifest, masking a field that nothing in
+// production actually reads. globFilesRecursive has the mirror of this test in
+// load_test.go; this is the one for the AST walk.
+func TestScanDecodeUsageSkipsTestdata(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	td := filepath.Join(dir, "testdata")
+	if err := os.MkdirAll(td, 0o750); err != nil {
+		t.Fatalf("mkdir testdata: %v", err)
+	}
+	// A fixture that WOULD register usage if the walk read it.
+	if err := os.WriteFile(filepath.Join(td, "fixture.go"), []byte(fixtureHandlerFile), 0o600); err != nil {
+		t.Fatalf("write testdata fixture: %v", err)
+	}
+
+	seams := []DecodeSeam{{FuncName: "decodeAWSResource", FactKindConst: "FactKindAWSResource", StructPackage: "awsv1", StructName: "Resource"}}
+	usage, err := ScanDecodeUsage(dir, seams)
+	if err != nil {
+		t.Fatalf("ScanDecodeUsage() error = %v", err)
+	}
+	if len(usage["decodeAWSResource"]) != 0 {
+		t.Fatalf("usage = %+v, want none; a testdata fixture must never count as production decode usage", usage)
+	}
+}
