@@ -47,10 +47,12 @@ FROM generate_series(1, 50000) AS i;
 ANALYZE ingestion_scopes;
 ANALYZE fact_work_items;
 
--- The quiescence probe: producer scopes of a given collector kind that are
--- active AND have NO live projector work item. The NOT EXISTS body is
--- byte-equivalent to the production reducer claim query
--- (reducer_queue_claim_query.go:25-30).
+-- Round 1 (superseded, kept for the before/after comparison): producer scopes of
+-- a given collector kind that are active AND have NO live projector work item.
+-- The NOT EXISTS body carries the same predicates as the production reducer
+-- claim query's projector-drain fence (reducer_queue_claim_query.go:25-30) --
+-- same stage, same scope_id correlation, same status set -- differing only in
+-- which relation the scope_id is correlated against.
 EXPLAIN (ANALYZE, BUFFERS)
 SELECT s.scope_id
 FROM ingestion_scopes AS s
@@ -63,3 +65,43 @@ WHERE s.collector_kind = 'oci_registry'
         AND projector_work.scope_id = s.scope_id
         AND projector_work.status IN ('pending', 'retrying', 'claimed', 'running')
   );
+
+-- Round 2, REJECTED: the quiescent flag written as a target-list NOT EXISTS.
+-- PostgreSQL 16 de-correlates and hashes the subquery, dropping the scope_id
+-- condition and sequentially scanning all 50,000 fact_work_items rows once.
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT s.scope_id,
+       (s.active_generation_id IS NOT NULL
+        AND NOT EXISTS (
+            SELECT 1
+            FROM fact_work_items AS projector_work
+            WHERE projector_work.stage = 'projector'
+              AND projector_work.scope_id = s.scope_id
+              AND projector_work.status IN ('pending', 'retrying', 'claimed', 'running')
+        )) AS quiescent
+FROM ingestion_scopes AS s
+WHERE s.collector_kind = ANY(ARRAY['oci_registry']);
+
+-- Round 2, SHIPPED: every registered scope of the kind plus a quiescent flag,
+-- with the anti-join kept intact inside a CTE aliased AS s, so the scope_id
+-- correlation stays a plain column reference the planner pushes into the index.
+EXPLAIN (ANALYZE, BUFFERS)
+WITH registered AS (
+    SELECT s.scope_id, s.active_generation_id
+    FROM ingestion_scopes AS s
+    WHERE s.collector_kind = ANY(ARRAY['oci_registry'])
+), quiescent AS (
+    SELECT s.scope_id
+    FROM registered AS s
+    WHERE s.active_generation_id IS NOT NULL
+      AND NOT EXISTS (
+          SELECT 1
+          FROM fact_work_items AS projector_work
+          WHERE projector_work.stage = 'projector'
+            AND projector_work.scope_id = s.scope_id
+            AND projector_work.status IN ('pending', 'retrying', 'claimed', 'running')
+      )
+)
+SELECT registered.scope_id, quiescent.scope_id IS NOT NULL AS quiescent
+FROM registered
+LEFT JOIN quiescent ON quiescent.scope_id = registered.scope_id;

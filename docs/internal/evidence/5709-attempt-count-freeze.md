@@ -40,7 +40,15 @@ All three rows matched the expected value (`matches_expected = t`).
 Confirmed. Enrolling `cross_scope_producer_not_ready` freezes the attempt budget
 for exactly the deferred-retrying case and nothing else, so a cross-scope
 consumer waiting on its producer's activation is deferred rather than
-dead-lettered. The enrollment is inert until the readiness-defer slice wires a
-handler to return `crossScopeProducerNotReadyError`; nothing produces this class
-yet. Lockstep is guarded by `TestReducerQueueClaimDoesNotCountCrossScopeReadinessDefers`
+dead-lettered. Lockstep is guarded by `TestReducerQueueClaimDoesNotCountCrossScopeReadinessDefers`
 (SQL) and `TestCrossScopeProducerNotReadyIsNonCounting` (Go).
+
+When this proof was written the enrollment was inert — nothing returned
+`crossScopeProducerNotReadyError`. That is no longer true, and the freeze
+measured here is now load-bearing rather than hypothetical:
+`ci_cd_run_correlation` produces the class through its readiness floor
+(`go/internal/reducer/cross_scope_readiness_floor.go`), which defers when the
+cross-scope identity load resolved nothing and the declared producer scopes have
+not activated. Because the class never counts against the retry budget, that
+floor carries its own elapsed-time bound so a producer scope that never activates
+still converges instead of deferring forever.
