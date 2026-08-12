@@ -55,10 +55,10 @@ func (h CICDRunCorrelationHandler) loadActiveCICDWorkflowImageFacts(
 	return filterCICDWorkflowImageFactsForRepositories(loaded, repositoryIDs), nil
 }
 
-// crossScopeIdentityLookupPlanned reports whether this pass will actually ask
-// the cross-scope container-image-identity loader anything.
+// crossScopeIdentityLookup resolves the cross-scope container-image-identity
+// loader this pass will actually query, or nil when the pass will ask nothing.
 //
-// Both false cases matter to the #5709 readiness floor, because both produce an
+// Both nil cases matter to the #5709 readiness floor, because both produce an
 // empty result that says nothing about the producer:
 //
 //   - No loader implementing the cross-scope seam. loadActiveCICDRunCorrelationFacts
@@ -76,28 +76,38 @@ func (h CICDRunCorrelationHandler) loadActiveCICDWorkflowImageFacts(
 // re-claim every 30 seconds for 30 minutes, per repair cycle, to look up
 // nothing.
 //
-// This is the single predicate for both the load and the floor so the two
-// cannot disagree about whether a lookup happened. ciArtifactDigests and
-// ciWorkflowImageRefs already trim blanks and deduplicate, which is what
+// Returning the loader rather than a bool is what keeps the load and the floor
+// from disagreeing about whether a lookup happened: Handle resolves this once
+// and hands the same value to both, so there is no second type assertion that a
+// later condition change could leave answering differently. ciArtifactDigests
+// and ciWorkflowImageRefs already trim blanks and deduplicate, which is what
 // FactStore's own filter normalization does, so the emptiness test here matches
 // the one the storage layer applies.
-func (h CICDRunCorrelationHandler) crossScopeIdentityLookupPlanned(digests []string, imageRefs []string) bool {
-	if _, ok := h.FactLoader.(activeCICDRunCorrelationFactLoader); !ok {
-		return false
+func (h CICDRunCorrelationHandler) crossScopeIdentityLookup(
+	digests []string,
+	imageRefs []string,
+) activeCICDRunCorrelationFactLoader {
+	loader, ok := h.FactLoader.(activeCICDRunCorrelationFactLoader)
+	if !ok {
+		return nil
 	}
-	return len(digests) > 0 || len(imageRefs) > 0
+	if len(digests) == 0 && len(imageRefs) == 0 {
+		return nil
+	}
+	return loader
 }
 
-func (h CICDRunCorrelationHandler) loadActiveCICDRunCorrelationFacts(
+// loadActiveCICDRunCorrelationFacts reads the cross-scope container-image
+// identity facts through the loader crossScopeIdentityLookup resolved. A nil
+// loader means no lookup was planned, and the empty result is reported without
+// querying anything.
+func loadActiveCICDRunCorrelationFacts(
 	ctx context.Context,
+	loader activeCICDRunCorrelationFactLoader,
 	digests []string,
 	imageRefs []string,
 ) ([]facts.Envelope, error) {
-	if !h.crossScopeIdentityLookupPlanned(digests, imageRefs) {
-		return nil, nil
-	}
-	loader, ok := h.FactLoader.(activeCICDRunCorrelationFactLoader)
-	if !ok {
+	if loader == nil {
 		return nil, nil
 	}
 	envelopes, err := loader.ListActiveCICDRunCorrelationFacts(ctx, digests, imageRefs)

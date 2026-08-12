@@ -152,15 +152,19 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent Intent) (R
 	// intent past the elapsed bound by itself.
 	digests := ciArtifactDigests(envelopes)
 	imageRefs := ciWorkflowImageRefs(envelopes)
+	// Resolved once and handed to both halves, so the floor and the load cannot
+	// disagree about whether a cross-scope lookup happened. A nil loader means
+	// this pass asks nothing, which is not a producer readiness miss.
+	identityLoader := h.crossScopeIdentityLookup(digests, imageRefs)
 	readinessSampledAt := time.Now()
 	readinessSignal, err := checkCrossScopeProducerReadinessBeforeLoad(
 		ctx, h.ProducerReadiness, intent, readinessSampledAt,
-		h.crossScopeIdentityLookupPlanned(digests, imageRefs),
+		identityLoader != nil,
 	)
 	if err != nil {
 		return Result{}, err
 	}
-	active, err := h.loadActiveCICDRunCorrelationFacts(ctx, digests, imageRefs)
+	active, err := loadActiveCICDRunCorrelationFacts(ctx, identityLoader, digests, imageRefs)
 	if err != nil {
 		return Result{}, fmt.Errorf("load active ci/cd artifact identity facts: %w", err)
 	}
