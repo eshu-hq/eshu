@@ -42,6 +42,27 @@ zero-by-never-reaching-it.
 The eight `dead-letter` string matches in the run log are stage lines for a
 corpus repository named `dead-letter`, not failures.
 
+## Graph readback
+
+Zero failure signatures says the writes stopped failing. It does not by itself
+say the edges arrived, so the graph was read back directly from the run's
+retained volumes (`nornic` database on the run's NornicDB):
+
+| Query | Result |
+| --- | --- |
+| `MATCH ()-[r:IMPORTS]->() RETURN count(r)` | 205,442 |
+| `MATCH (f:File {repo_id:"repository:r_962c9686"})-[r:IMPORTS]->() RETURN count(r)` | 36,069 |
+| `MATCH (f:File {repo_id:"repository:r_962c9686"})-[r:IMPORTS]->(m:Module) RETURN count(DISTINCT m)` | 36,069 |
+
+`r_962c9686` is the worst previously-failing scope. The symptom of #6070 was
+that its `File-[:IMPORTS]->Module` edges never reached the graph at all; it now
+carries 36,069 of them across as many distinct modules.
+
+`HAS_PARAMETER` reads 0 graph-wide. That is not a dropped write: the run log
+contains zero `HAS_PARAMETER` statements and zero `Parameter` label writes, so
+this corpus never emitted that family. The readback therefore supports no claim
+either way about `HAS_PARAMETER` under the new transaction boundaries.
+
 ## What this evidence does not establish
 
 - **No wall-clock speedup is claimed.** Wall time was 1023s against the
@@ -55,6 +76,12 @@ corpus repository named `dead-letter`, not failures.
 - `main` moved between the baseline commit and this branch's base. That drift
   touches Postgres AWS runtime-drift evidence only, nothing on the canonical
   graph write path, so a single run attributes the change cleanly.
+- **Whole-corpus graph exactness is not claimed.** The readback above proves the
+  worst previously-failing scope now writes its IMPORTS edges. It does not prove
+  every structural edge for all 896 repositories was written, because the run
+  was not queue-terminal. The deterministic replay equivalence that a change to
+  transaction boundaries needs comes from the B-7 golden-corpus gate, cited
+  below, not from this run.
 
 ## Why 5
 
@@ -94,6 +121,31 @@ Verified before the change rather than assumed:
 
 `bootstrap-index` duplicates the chunker and had the identical defect, so it
 carries the same budget and the same environment override.
+
+## Replay equivalence
+
+Changing transaction boundaries needs deterministic proof that replaying the
+same inputs still produces the same graph and the same query answers. The B-7
+golden-corpus gate is that proof: it replays fixed inputs through the real
+pipeline and diffs the result against the committed snapshot.
+
+```
+bash scripts/verify-golden-corpus-gate.sh; echo $?
+summary: 554 pass, 0 required-fail, 0 advisory-warn
+=== PASS: B-7 golden corpus gate green (elapsed 129s, budget ceiling 1800s) ===
+0
+```
+
+Supporting static contract, both exit 0:
+
+```
+cd go && go test ./cmd/golden-corpus-gate/ -count=1     # ok
+bash scripts/test-verify-golden-corpus-gate.sh          # test-verify-golden-corpus-gate: pass
+```
+
+No cassette or snapshot assertion was changed for this PR. The gate passing
+against the unmodified committed contract is what makes it evidence: the new
+per-phase commit boundaries reproduce the recorded graph and query truth.
 
 Performance Evidence: remote 896-repository run
 `6070-structural-edge-budget-20260812T141256Z` at commit `c2c801b72` against
