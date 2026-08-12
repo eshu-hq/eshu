@@ -8,46 +8,15 @@ if [ -z "$repo_root" ]; then
     || (cd "$script_dir/.." && pwd))"
 fi
 
-base="${ESHU_PARSER_RELATIONSHIP_KIT_BASE:-}"
-if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
-  # The `<src>:<dst>` destination refspec is required: `git fetch origin
-  # <branch>` with no `:<dst>` only updates FETCH_HEAD, never
-  # refs/remotes/origin/<branch>. This gate's CI job checks out with
-  # fetch-depth: 2 (test.yml verify-contracts), so origin/$GITHUB_BASE_REF
-  # never resolved and every PR run silently used HEAD~1: the tip commit alone.
-  git -C "$repo_root" fetch --no-tags --depth=1 origin \
-    "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" >/dev/null 2>&1 || true
-  if git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
-    base="origin/$GITHUB_BASE_REF"
-  fi
-fi
-# Fall back to the merge base with origin/main, NOT HEAD~1 -- the same trap
-# fixed in verify-performance-evidence.sh and verify-root-cause-evidence.sh.
-# This gate's registry entry runs `bash scripts/verify-parser-relationship-kit.sh`
-# with no base pinned, so a HEAD~1 default scopes it to the last commit alone:
-# a spec/parser change in an earlier commit of a multi-commit branch is invisible
-# when the tip commit is innocuous, and on a branch based on a squash-merge
-# commit HEAD~1 diffs the MERGE's files instead of the branch's own.
-if [ -z "$base" ]; then
-  if git -C "$repo_root" rev-parse --verify origin/main >/dev/null 2>&1; then
-    merge_base="$(git -C "$repo_root" merge-base origin/main HEAD 2>/dev/null || true)"
-    # A merge base equal to HEAD means the branch adds no commits of its own,
-    # so the window would be empty -- narrower than HEAD~1. Leave base unset.
-    if [ -n "$merge_base" ] &&
-      [ "$merge_base" != "$(git -C "$repo_root" rev-parse HEAD 2>/dev/null)" ]; then
-      base="$merge_base"
-    fi
-  fi
-fi
-# Last resort only: shallow clone, no origin remote, or a fresh fixture repo.
-if [ -z "$base" ]; then
-  if git -C "$repo_root" rev-parse --verify HEAD~1 >/dev/null 2>&1; then
-    base="HEAD~1"
-  else
-    printf 'verify-parser-relationship-kit: no base commit available, skipping diff checks\n'
-    base=""
-  fi
-fi
+# Base resolution (override -> origin/$GITHUB_BASE_REF -> merge base with
+# origin/main -> HEAD~1) is shared with the other diff-scoped gates. The two
+# traps it defends against, and why HEAD~1 is a last resort rather than a
+# default, are documented in the helper.
+# shellcheck source=scripts/lib/gate-diff-base.sh
+. "$script_dir/lib/gate-diff-base.sh"
+eshu_gate_resolve_diff_base "verify-parser-relationship-kit" "$repo_root" \
+  "${ESHU_PARSER_RELATIONSHIP_KIT_BASE:-}"
+base="$eshu_gate_diff_base"
 
 changed_files=()
 tmp_file="$(mktemp)"

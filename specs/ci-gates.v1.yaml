@@ -645,6 +645,7 @@ gates:
       - "go/internal/parser/**"
       - "go/internal/relationships/**"
       - "specs/parser-backing-ledger.v1.yaml"
+      - "scripts/lib/gate-diff-base.sh"
       - "scripts/lib/parser_relationship_language_ledger.sh"
       - "scripts/test-verify-parser-relationship-kit.sh"
       - "scripts/verify-parser-relationship-kit.sh"
