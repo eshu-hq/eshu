@@ -155,7 +155,7 @@ the SSE variant, and the agent loop budget.
 ## Answer-narration status seam — hot-path evidence (issue #3263 follow-up)
 
 Moved. See
-[the answer-narration status seam](http-api/ask.md#answer-narration-status-seam--hot-path-evidence-issue-3263-follow-up).
+[the answer-narration status seam](http-api/ask.md#answer-narration-status-seam-hot-path-evidence-issue-3263-follow-up).
 
 ## Cloud Inventory Readback
 
