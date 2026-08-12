@@ -64,7 +64,12 @@ dirgate_qualifying_files() {
 	local dir="$1" f base
 	[[ -d "${dir}" ]] || return 1
 	for f in "${dir}"/*.go; do
-		[[ -e "${f}" ]] || continue
+		# `-f`, not `-e`: the glob matches directories too, and Go's
+		# qualifyingFiles (dirgate.go) only ever lists regular files -- a
+		# directory literally named "sub.go" must not be counted (or
+		# digested) as a qualifying file. See dirgate_test.go's
+		# TestQualifyingFiles for the Go-side pin of this exact shape.
+		[[ -f "${f}" ]] || continue
 		# Parameter expansion, not `basename` -- a directory with hundreds
 		# of qualifying files (internal/query has 879) would otherwise fork
 		# one `basename` process per file, which measurably slowed --all
@@ -93,7 +98,12 @@ dirgate_naming_subpackages() {
 		esac
 		has_go=0
 		for gf in "${d}"*.go; do
-			[[ -e "${gf}" ]] || continue
+			# Same `-f`-not`-e` guard as dirgate_qualifying_files: a
+			# directory literally named "sub.go" inside a candidate
+			# subpackage must not make that candidate look like it has a
+			# real .go file (which would falsely treat it as a package and
+			# report unrelated files as naming violations against it).
+			[[ -f "${gf}" ]] || continue
 			has_go=1
 			break
 		done
